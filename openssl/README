@@ -108,3 +108,94 @@ At the moment the consensus appears to be that we should be using
 OpenSSL 0.9.8b, in order to get SHA-256 support.  My research to date
 has been on OpenSSL 0.9.8a, but I doubt that any of the stuff I've
 been looking at has changed enough to matter.
+
+
+
+Possible encoding for RFC 3779 extensions in openssl.conf format.
+General plan:
+
+  SEQUENCE OF maps to a list of items; for (code) simplicity each list
+  will probably be a separate named section, although I suppose we
+  could try to handle comma-separated lists to make it easier for
+  people with really simple configurations.
+
+  SEQUENCEs map to mandatory fields on a single command line.
+
+  Optional fields (including CHOICEs with a NULL branch) map to
+  optional fields on a single config line.  Syntax is likely to be
+  somewhat arbitrary, with preference given to simplifying common
+  cases (ie, if you really need to specify a non-null SAFI, you'll
+  have to use the long form).
+
+  Where possible, a SEQUENCE containing objects which themselves
+  contain optional items will be collapsed so that the whole mess can
+  be a config file line.
+
+ASN.1 from RFC 3779 2.2.3:
+
+   IPAddressFamily     ::= SEQUENCE {    -- AFI & optional SAFI --
+      addressFamily        OCTET STRING (SIZE (2..3)),
+      ipAddressChoice      IPAddressChoice }
+
+   IPAddressChoice     ::= CHOICE {
+      inherit              NULL, -- inherit from issuer --
+      addressesOrRanges    SEQUENCE OF IPAddressOrRange }
+
+These can be encoded as a single line, of either two or three fields:
+
+  Two fields:	AFI, name-of-address-block
+
+  Three fields:	AFI, SAFI, name-of-address-block
+
+Would help if we had a magic character that can't possibly be a legal
+name for an adddress block which we can use to denote inheritance.
+Need to work out -some- way to denote inheritance.
+
+   IPAddressOrRange    ::= CHOICE {
+      addressPrefix        IPAddress,
+      addressRange         IPAddressRange }
+
+   IPAddressRange      ::= SEQUENCE {
+      min                  IPAddress,
+      max                  IPAddress }
+
+   IPAddress           ::= BIT STRING
+
+These can be handled as a single line: if there are two prefixes, it's
+an addressRange, otherwise it's an addressPrefix.
+
+ASN.1 from RFC 3779 3.2.3:
+
+   ASIdentifiers       ::= SEQUENCE {
+       asnum               [0] EXPLICIT ASIdentifierChoice OPTIONAL,
+       rdi                 [1] EXPLICIT ASIdentifierChoice OPTIONAL}
+
+   ASIdentifierChoice  ::= CHOICE {
+      inherit              NULL, -- inherit from issuer --
+      asIdsOrRanges        SEQUENCE OF ASIdOrRange }
+
+Since this is two optional fields, it'd probably be easiest to make
+these independent variables in the config file, one for asnum, one for
+rdi.  They'd have the same syntax, which would be a single line
+consisting either of the name of a section to use (asIdsOrRanges) or a
+magic character denoting inheritance.
+
+This seems a little wasteful, since it'd be nice to be able to do the
+AS numbers inline.
+
+
+   ASIdOrRange         ::= CHOICE {
+       id                  ASId,
+       range               ASRange }
+
+   ASRange             ::= SEQUENCE {
+       min                 ASId,
+       max                 ASId }
+
+   ASId                ::= INTEGER
+
+These can be handled as a single line: if there are two numbers, it's
+a range, otherwise it's an id.  Since it'd be nice to be able to do
+these without requiring a separate section, perhaps two numbers
+separated by a hyphen are a range, so we can retain comma for lists
+(and use the @section notation for indirect sections).

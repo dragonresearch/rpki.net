@@ -1,3 +1,110 @@
 $Id$
 
 OpenSSL hacked to add support for the RFC 3779 X.509 v3 extensions.
+
+
+
+Some notes on OpenSSL internals.
+
+O'Reilly "Network Security with OpenSSL" is a bit dated (four years
+old, corresponds roughly to OpenSSL 0.9.7), but still appears to be
+the closest thing there is to coherent documentation.  Some updates
+and machine readable copies of examples are available at
+http://www.opensslbook.com/.  In spite of its age, the book is useful
+as it gives a readable overview of bit and pieces of OpenSSL's
+internal programming environment which one would otherwise have to
+absorb from the code via osmosis.  Chapter 10 is particularly useful,
+as are the sections on error handling and abstract I/O (the ERR and
+BIO packages, respectively) in chapter 4.
+
+OpenSSL's own doc is very patchy, although fairly extensive in places.
+Most of it eventually comes down to "Use the Source, Luke" with
+pointers on which bit of source serves as an interesting example.
+
+For x509v3 extentions, the place to start is doc/openssl.txt,
+which, oddly, turns out to be mostly about certificate extensions.  It
+gives an overview of the mechanisms, in particular of the method
+routine interface for certificate extensions.  For something like the
+RFC 3779 extensions, it's pretty clear that we need to use a "raw"
+extension (which, as far as I can tell, just means that the RFC 3779
+stuff is complicated enough that the extension handler has to do a lot
+of work to deal with a complex ASN.1 structure that the rest of the
+code doesn't know much about).
+
+openssl.txt refers the reader to the certificate policy extension
+handler as an example of how to write a raw extension. The relevant
+file appears to be crypto/x509v3/v3_cpols.c.  This is indeed a
+complicated mess, but it's a surprisingly good tutorial, on about the
+tenth reading.
+
+Aside from the method interface and routines described in openssl.txt,
+v3_cpols.c also includes a bunch of template junk for the ASN.1
+encoder and decoder.  According to README.ASN1 (q.v.), the ASN.1 code
+is in transition.  I haven't attempted to understand the "old" ASN.1
+code; the new stuff is template driven.  README.ASN.1 mumbles about
+this a bit, but the real doc on the template stuff appears to be the
+definitions in crypto/asn1/asn1t.h.  Given that and a reading
+knowledge of ASN.1, the template definitions in v3_cpols.c are fairly
+obviously a direct hand translation from ASN.1 into C.
+
+General note on global symbols in OpenSSL: always look at the header
+file for any global symbol you're using.  In fact, it's probably best
+to do a global search (m-x tags-search if you're an emacs user) for
+all instances of a global symbol before attempting to use it, as there
+are a lot of things that one just has to know about how all the global
+stuff hangs together.  There are header files full of magic
+definitions that one just has to one need to be extended.  There are
+magic pre-sorted lists of handlers that one just needs to know about.
+Little or none of this is documented.  Use the Source, Luke.
+
+Oh, and the indentation style is demented.
+
+Header files you definitely need to read if you're going to touch this
+stuff:
+
+    crypto/x509v3/x509v3.h
+    crypto/x509v3/ext_dat.h
+    crypto/stack/safestack.h
+    crypto/asn1/asn1t.h
+    crypto/asn1/asn1.h
+    crypto/objects/objects.h
+
+Automatically generated header files you'll need to skim, then go read
+the input files listed in the header comments and perhaps the
+generating Perl code:
+
+    crypto/objects/obj_mac.h
+    crypto/objects/obj_dat.h
+
+Much of the code shows a heavy Perl influence, presumably dating back
+clear to Eric Young.  Some of the internal data structure operators
+have names that only make sense to a Perl programmer.  Where code is
+automatically generated, it's done by Perl scripts.  The configuration
+language for the whole package is a Perl script.  Assembly code is all
+wrapped up inside perl scripts in a moderately clever attempt at being
+able to write the assembly language only once and use it with various
+assemblers with nontrivially different syntax.  Much of the
+documentation markup (including manual pages) for the C code is .pod.
+
+At this point I think I understand enough that I could write the RFC
+3779 extension I/O routines, although no doubt some of it would be
+take a while since I would be learning my way through some of the
+library routines as I go.
+
+I have not yet written up a syntax description for how we would encode
+the RFC 3779 extensions in an openssl.conf file.  That should be
+fairly straightforward, if a bit tedious.
+
+I have not yet figured out where to hook in the extra goop that RFC
+3779 will need for verification.  Making extensions critical is easy
+enough, but the validation stuff in RFC 3779 2.3 and 3.3 needs to go
+somewhere, I'm not quite sure where yet.  To the extent that I
+understand how OpenSSL does such things (not very well, yet), the
+"-purpose" flags to the CLI's x509 and verify commands (q.v.) look
+like the right hooks.  I haven't (yet) investigated the code in back
+of the "-purpose" mechanism.
+
+At the moment the consensus appears to be that we should be using
+OpenSSL 0.9.8b, in order to get SHA-256 support.  My research to date
+has been on OpenSSL 0.9.8a, but I doubt that any of the stuff I've
+been looking at has changed enough to matter.

@@ -1,0 +1,3 @@
+$Id$
+
+OpenSSL hacked to add support for the RFC 3779 X.509 v3 extensions.

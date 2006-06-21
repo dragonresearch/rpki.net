@@ -76,6 +76,10 @@ generating Perl code:
     crypto/objects/obj_mac.h
     crypto/objects/obj_dat.h
 
+Nice example of "new" style ASN.1:
+
+    demos/asn1/ocsp.c
+
 Much of the code shows a heavy Perl influence, presumably dating back
 clear to Eric Young.  Some of the internal data structure operators
 have names that only make sense to a Perl programmer.  Where code is

@@ -169,7 +169,7 @@ Notes:
 
 # An address extension all specified on one line
 
-rfc3779-addr = critical, ipv4:10.1.1.1/32, ipv4:10.2.0.0/8-10.3.0.0/8
+rfc3779-addr = critical, ipv4:10.1.1.1/32, ipv4:10.2.0.0-10.3.255.255
 
 # An address extension all specified on one line, with inheritance
 
@@ -177,7 +177,7 @@ rfc3779-addr = critical, ipv4:inherit, ipv6:2002::/16
 
 # Address extension using raw AFI/SAFI syntax
 
-rfc3779-addr = critical, afisafi:000101:aabbccddee/4-001122334455/5
+rfc3779-addr = critical, afisafi:000101:001122334455-aabbccddee
 
 # Address extension using an indirect section
 
@@ -187,9 +187,9 @@ rfc3779-addr = critical, @addr-section
 
 ipv4.0 = 10.0.0.1
 ipv4.1 = 10.0.1.0/24
-ipv4.2 = 10.2.0.0/8 - 10.3.0.0/8
+ipv4.2 = 10.2.0.0 - 10.3.255.255
 ipv6.0 = 2002:1::/64
-ipv6.1 = 2002:2::/48-2002:8::/48
+ipv6.1 = 2002:2:: - 2002:8::ffff:ffff:ffff:ffff:ffff
 
 ###
 

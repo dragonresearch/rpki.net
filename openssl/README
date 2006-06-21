@@ -224,3 +224,90 @@ a range, otherwise it's an id.  Since it'd be nice to be able to do
 these without requiring a separate section, perhaps two numbers
 separated by a hyphen are a range, so we can retain comma for lists
 (and use the @section notation for indirect sections).
+
+
+
+Take two on encoding for RFC 3779 extensions in openssl.conf format.
+This time let's try to stick to syntax similar to what OpenSSL already
+uses for multi-value extension.
+
+   IPAddressFamily     ::= SEQUENCE {    -- AFI & optional SAFI --
+      addressFamily        OCTET STRING (SIZE (2..3)),
+      ipAddressChoice      IPAddressChoice }
+
+   IPAddressChoice     ::= CHOICE {
+      inherit              NULL, -- inherit from issuer --
+      addressesOrRanges    SEQUENCE OF IPAddressOrRange }
+
+   IPAddressOrRange    ::= CHOICE {
+      addressPrefix        IPAddress,
+      addressRange         IPAddressRange }
+
+   IPAddressRange      ::= SEQUENCE {
+      min                  IPAddress,
+      max                  IPAddress }
+
+   IPAddress           ::= BIT STRING
+
+
+# address extension all specified on one line
+
+rfc3779-address	= critical, ipv4:10.1.1.1/32, ipv4:10.2.0.0/8-10.3.0.0/8
+
+# address extension all specified on one line, with inheritance
+
+rfc3779-address = critical, ipv4:inherit, ipv6:2002::/16
+
+# address extension using raw afi/safi syntax
+
+rfc3779-address = critical, afisafi:000101:aabbccddee/4-001122334455/5
+
+# address extension using an indirect section
+
+rfc3779-address = critical, @address-section
+
+[address-section]
+
+ipv4.0 = 10.0.0.1
+ipv4.1 = 10.0.1.0/24
+ipv4.2 = 10.2.0.0/8 - 10.3.0.0/8
+ipv6.0 = 2002:1::/64
+ipv6.1 = 2002:2::/48-2002:8::/48
+
+
+   ASIdentifiers       ::= SEQUENCE {
+       asnum               [0] EXPLICIT ASIdentifierChoice OPTIONAL,
+       rdi                 [1] EXPLICIT ASIdentifierChoice OPTIONAL}
+
+   ASIdentifierChoice  ::= CHOICE {
+      inherit              NULL, -- inherit from issuer --
+      asIdsOrRanges        SEQUENCE OF ASIdOrRange }
+
+   ASIdOrRange         ::= CHOICE {
+       id                  ASId,
+       range               ASRange }
+
+   ASRange             ::= SEQUENCE {
+       min                 ASId,
+       max                 ASId }
+
+   ASId                ::= INTEGER
+
+
+# asid extension all specified on one line:
+
+rfc3779-asid = critical, as:44, rdi:33-45
+
+# asid extension on one line using inheritance
+
+rfc3779-asid = critical, as:55, rdi:inherit
+
+# asid extension using an indirect section
+
+rfc3779-asid = critical, @asid-section
+
+[asid-section]
+
+as.0 = 44
+as.1 = 55 - 77
+rdi.0 = 33

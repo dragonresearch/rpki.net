@@ -131,6 +131,8 @@ General plan:
   contain optional items will be collapsed so that the whole mess can
   be a config file line.
 
+==
+
 ASN.1 from RFC 3779 2.2.3:
 
    IPAddressFamily     ::= SEQUENCE {    -- AFI & optional SAFI --
@@ -149,7 +151,19 @@ These can be encoded as a single line, of either two or three fields:
 
 Would help if we had a magic character that can't possibly be a legal
 name for an adddress block which we can use to denote inheritance.
-Need to work out -some- way to denote inheritance.
+Need to work out -some- way to denote inheritance.  Perhaps "*" as the
+address block?
+
+Hmm.  Since the only ones we really expect ever to be used are the
+AFIs for IPv4 and IPv6 with no SAFIs, how about we just provide
+shorthands for the cases we expect plus a general form for everything
+else, eg:
+
+	rfc3779-ipv4	= name-of-address-block
+	rfc3779-ipv6	= name-of-address-block
+	rfc3779-afi-safi = afi, safi, name-of-address-block
+
+==
 
    IPAddressOrRange    ::= CHOICE {
       addressPrefix        IPAddress,
@@ -163,6 +177,8 @@ Need to work out -some- way to denote inheritance.
 
 These can be handled as a single line: if there are two prefixes, it's
 an addressRange, otherwise it's an addressPrefix.
+
+==
 
 ASN.1 from RFC 3779 3.2.3:
 
@@ -180,9 +196,13 @@ rdi.  They'd have the same syntax, which would be a single line
 consisting either of the name of a section to use (asIdsOrRanges) or a
 magic character denoting inheritance.
 
+	rfc3779-asnum	= name-of-asnum-block
+	rfc3779-rdi	= name-of-rdi-block
+
 This seems a little wasteful, since it'd be nice to be able to do the
 AS numbers inline.
 
+==
 
    ASIdOrRange         ::= CHOICE {
        id                  ASId,

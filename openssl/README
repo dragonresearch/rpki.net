@@ -116,120 +116,37 @@ been looking at has changed enough to matter.
 
 
 
-Possible encoding for RFC 3779 extensions in openssl.conf format.
-General plan:
+This is a first cut at what the openssl.conf syntax might look like
+for the RFC 3779 certificate extensions.  Syntax is admittedly
+wretched, because it has to work with the existing OpenSSL code.
+Within that restriction, I've attempted to make this look as much as
+practical like the existing OpenSSL support for "multi-valued"
+extensions.  RFC 3779 ASN.1 provided for easy reference.
 
-  SEQUENCE OF maps to a list of items; for (code) simplicity each list
-  will probably be a separate named section, although I suppose we
-  could try to handle comma-separated lists to make it easier for
-  people with really simple configurations.
+Notes:
 
-  SEQUENCEs map to mandatory fields on a single command line.
+* Ranges are denoted with a hyphen, prefix lengths with a slash.
+  I could tag ranges differently from the atomic types, but this
+  seemed easier for the user to understand.
 
-  Optional fields (including CHOICEs with a NULL branch) map to
-  optional fields on a single config line.  Syntax is likely to be
-  somewhat arbitrary, with preference given to simplifying common
-  cases (ie, if you really need to specify a non-null SAFI, you'll
-  have to use the long form).
+* The "@" syntax indicating indirection through a separate section
+  is lifted from the stock OpenSSL multi-valued extension support.
 
-  Where possible, a SEQUENCE containing objects which themselves
-  contain optional items will be collapsed so that the whole mess can
-  be a config file line.
+* I didn't attempt to guess which addresses are IPv4 and which are
+  IPv6 from the syntax, since the long form needed tags anyway.
 
-==
+* For the moment I'm assuming that the only addresses we really care
+  about making (relatively) easy are unicast v4 and v6 addresses; the
+  "afisafi" syntax is there for completeness, but I'm not currently
+  worrying about making it easy to do, eg, multicast addresses.
+  Adding support for other specific AFI/SAFI pairs should be
+  straightforward.
 
-ASN.1 from RFC 3779 2.2.3:
+* I'm particularly looking for feedback about things I've made
+  impossible (syntax not general enough) or common things I've made
+  harder than necessary.
 
-   IPAddressFamily     ::= SEQUENCE {    -- AFI & optional SAFI --
-      addressFamily        OCTET STRING (SIZE (2..3)),
-      ipAddressChoice      IPAddressChoice }
-
-   IPAddressChoice     ::= CHOICE {
-      inherit              NULL, -- inherit from issuer --
-      addressesOrRanges    SEQUENCE OF IPAddressOrRange }
-
-These can be encoded as a single line, of either two or three fields:
-
-  Two fields:	AFI, name-of-address-block
-
-  Three fields:	AFI, SAFI, name-of-address-block
-
-Would help if we had a magic character that can't possibly be a legal
-name for an adddress block which we can use to denote inheritance.
-Need to work out -some- way to denote inheritance.  Perhaps "*" as the
-address block?
-
-Hmm.  Since the only ones we really expect ever to be used are the
-AFIs for IPv4 and IPv6 with no SAFIs, how about we just provide
-shorthands for the cases we expect plus a general form for everything
-else, eg:
-
-	rfc3779-ipv4	= name-of-address-block
-	rfc3779-ipv6	= name-of-address-block
-	rfc3779-afi-safi = afi, safi, name-of-address-block
-
-==
-
-   IPAddressOrRange    ::= CHOICE {
-      addressPrefix        IPAddress,
-      addressRange         IPAddressRange }
-
-   IPAddressRange      ::= SEQUENCE {
-      min                  IPAddress,
-      max                  IPAddress }
-
-   IPAddress           ::= BIT STRING
-
-These can be handled as a single line: if there are two prefixes, it's
-an addressRange, otherwise it's an addressPrefix.
-
-==
-
-ASN.1 from RFC 3779 3.2.3:
-
-   ASIdentifiers       ::= SEQUENCE {
-       asnum               [0] EXPLICIT ASIdentifierChoice OPTIONAL,
-       rdi                 [1] EXPLICIT ASIdentifierChoice OPTIONAL}
-
-   ASIdentifierChoice  ::= CHOICE {
-      inherit              NULL, -- inherit from issuer --
-      asIdsOrRanges        SEQUENCE OF ASIdOrRange }
-
-Since this is two optional fields, it'd probably be easiest to make
-these independent variables in the config file, one for asnum, one for
-rdi.  They'd have the same syntax, which would be a single line
-consisting either of the name of a section to use (asIdsOrRanges) or a
-magic character denoting inheritance.
-
-	rfc3779-asnum	= name-of-asnum-block
-	rfc3779-rdi	= name-of-rdi-block
-
-This seems a little wasteful, since it'd be nice to be able to do the
-AS numbers inline.
-
-==
-
-   ASIdOrRange         ::= CHOICE {
-       id                  ASId,
-       range               ASRange }
-
-   ASRange             ::= SEQUENCE {
-       min                 ASId,
-       max                 ASId }
-
-   ASId                ::= INTEGER
-
-These can be handled as a single line: if there are two numbers, it's
-a range, otherwise it's an id.  Since it'd be nice to be able to do
-these without requiring a separate section, perhaps two numbers
-separated by a hyphen are a range, so we can retain comma for lists
-(and use the @section notation for indirect sections).
-
-
-
-Take two on encoding for RFC 3779 extensions in openssl.conf format.
-This time let's try to stick to syntax similar to what OpenSSL already
-uses for multi-value extension.
+###
 
    IPAddressFamily     ::= SEQUENCE {    -- AFI & optional SAFI --
       addressFamily        OCTET STRING (SIZE (2..3)),
@@ -250,23 +167,23 @@ uses for multi-value extension.
    IPAddress           ::= BIT STRING
 
 
-# address extension all specified on one line
+# An address extension all specified on one line
 
-rfc3779-address	= critical, ipv4:10.1.1.1/32, ipv4:10.2.0.0/8-10.3.0.0/8
+rfc3779-addr = critical, ipv4:10.1.1.1/32, ipv4:10.2.0.0/8-10.3.0.0/8
 
-# address extension all specified on one line, with inheritance
+# An address extension all specified on one line, with inheritance
 
-rfc3779-address = critical, ipv4:inherit, ipv6:2002::/16
+rfc3779-addr = critical, ipv4:inherit, ipv6:2002::/16
 
-# address extension using raw afi/safi syntax
+# Address extension using raw AFI/SAFI syntax
 
-rfc3779-address = critical, afisafi:000101:aabbccddee/4-001122334455/5
+rfc3779-addr = critical, afisafi:000101:aabbccddee/4-001122334455/5
 
-# address extension using an indirect section
+# Address extension using an indirect section
 
-rfc3779-address = critical, @address-section
+rfc3779-addr = critical, @addr-section
 
-[address-section]
+[addr-section]
 
 ipv4.0 = 10.0.0.1
 ipv4.1 = 10.0.1.0/24
@@ -274,6 +191,7 @@ ipv4.2 = 10.2.0.0/8 - 10.3.0.0/8
 ipv6.0 = 2002:1::/64
 ipv6.1 = 2002:2::/48-2002:8::/48
 
+###
 
    ASIdentifiers       ::= SEQUENCE {
        asnum               [0] EXPLICIT ASIdentifierChoice OPTIONAL,
@@ -293,16 +211,15 @@ ipv6.1 = 2002:2::/48-2002:8::/48
 
    ASId                ::= INTEGER
 
-
-# asid extension all specified on one line:
+# ASID extension all specified on one line:
 
 rfc3779-asid = critical, as:44, rdi:33-45
 
-# asid extension on one line using inheritance
+# ASID extension on one line using inheritance
 
 rfc3779-asid = critical, as:55, rdi:inherit
 
-# asid extension using an indirect section
+# ASID extension using an indirect section
 
 rfc3779-asid = critical, @asid-section
 

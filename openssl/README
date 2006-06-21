@@ -76,7 +76,8 @@ generating Perl code:
     crypto/objects/obj_mac.h
     crypto/objects/obj_dat.h
 
-Nice example of "new" style ASN.1:
+Nice example of "new" style ASN.1 (if it compiles, which the README
+suggets it won't, sigh):
 
     demos/asn1/ocsp.c
 

@@ -33,9 +33,12 @@ code doesn't know much about).
 
 openssl.txt refers the reader to the certificate policy extension
 handler as an example of how to write a raw extension. The relevant
-file appears to be crypto/x509v3/v3_cpols.c.  This is indeed a
-complicated mess, but it's a surprisingly good tutorial, on about the
-tenth reading.
+file appears to be
+
+    crypto/x509v3/v3_cpols.c
+
+This is indeed a complicated mess, but it's a surprisingly good
+tutorial, on about the tenth reading.
 
 Aside from the method interface and routines described in openssl.txt,
 v3_cpols.c also includes a bunch of template junk for the ASN.1

@@ -41,7 +41,10 @@ IMPLEMENT_ASN1_FUNCTIONS(ASIdOrRange)
 IMPLEMENT_ASN1_FUNCTIONS(ASIdentiferChoice)
 IMPLEMENT_ASN1_FUNCTIONS(ASIdentifiers)
 
-static int i2r_ASIdentifierChoice(BIO *out, ASIdentiferChoice *choice, int indent, const char *msg)
+static int i2r_ASIdentifierChoice(BIO *out,
+				  ASIdentiferChoice *choice,
+				  int indent,
+				  const char *msg)
 {
   int i;
   char *s;
@@ -87,24 +90,51 @@ static int i2r_ASIdentifierChoice(BIO *out, ASIdentiferChoice *choice, int inden
   return 1;
 }
 
-static int i2r_ASIdentifiers(X509V3_EXT_METHOD *method, ASIdentifiers *asid, BIO *out, int indent)
+static int i2r_ASIdentifiers(X509V3_EXT_METHOD *method,
+			     void *ext,
+			     BIO *out,
+			     int indent)
 {
+  ASIdentifiers *asid = ext;
   return (i2r_ASIdentifierChoice(out, asid->asnum, indent, "Autonomous System Numbers") &&
 	  i2r_ASIdentifierChoice(out, asid->rdi,   indent, "Routing Domain Identifiers"));
 }
 
-static ASIdentifiers *r2i_ASIdentifiers(X509V3_EXT_METHOD *method, X509V3_CTX *ctx, char *value);
+static void *v2i_ASIdentifiers(struct v3_ext_method *method,
+			       struct v3_ext_ctx *ctx,
+			       STACK_OF(CONF_VALUE) *values)
+{
+  ASIdentifiers *asid = NULL;
+  CONF_VALUE *val;
+  int i;
+
+  if ((asid = ASIdentifiers_new()) == NULL) {
+    X509V3err(X509V3_F_V2I_ASIdentifiers, ERR_R_MALLOC_FAILURE);
+    return NULL;
+  }
+
+#error not written yet
+
+  /*
+   * Need to:
+   * - Read stuff from config
+   * - Sort/merge/canonicalize
+   * - Generate and return C structure
+   */
+
+  return result;
+}
 
 X509V3_EXT_METHOD v3_asid = {
-	NID_ASIdentifiers,				/* nid */
-	0,						/* flags */
-	ASN1_ITEM_ref(ASIdentifiers),			/* template */
-	NULL, NULL, NULL, NULL,				/* Old ASN.1 functions, ignored */
-	NULL,						/* i2s */
-	NULL,						/* s2i */
-	NULL,						/* i2v */
-	NULL,						/* v2i */
-	(X509V3_EXT_I2R) i2r_ASIdentifiers,		/* i2r */
-	(X509V3_EXT_R2I) r2i_ASIdentifiers,		/* r2i */
-	NULL						/* extension-specific data */
+  NID_ASIdentifiers,		/* nid */
+  0,				/* flags */
+  ASN1_ITEM_ref(ASIdentifiers),	/* template */
+  0, 0, 0, 0,			/* old functions, ignored */
+  0,				/* i2s */
+  0,				/* s2i */
+  0,				/* i2v */
+  v2i_ASIdentifiers,		/* v2i */
+  i2r_ASIdentifiers,		/* i2r */
+  0,				/* r2i */
+  NULL				/* extension-specific data */
 };

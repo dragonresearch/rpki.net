@@ -237,3 +237,60 @@ rfc3779-asid = critical, @asid-section
 as.0 = 44
 as.1 = 55 - 77
 rdi.0 = 33
+
+
+
+Problem: how to do the top level ASN.1 template thingie for a SEQUENCE
+(not SEQUENCE OF)?
+
+Possible example: crypto/krb5/krb5_asn.c, KRB5_TKTBODY and KRB5_TICKET.
+
+I -think- the flag combination I should be using is ASN1_TFLG_EXPLICIT
+(context-specific explicit tags, which, according to mtr and my vague
+recollection of ASN.1 tagging, is what RFC 3779 uses).
+
+No, that's not right, kerberos tags the SEQUENCE itself, which we
+don't.  So either leave the flags field empty or use
+ASN1_TFLG_IMPLICIT.
+
+But this is all very spooky, I can't find a good example, and it seems
+wrong somehow that I'm ending up with template that points to a
+sequence instead of being a sequence.
+
+Hmm, maybe that means I need to call lower-level macros that do
+specific parts of the sequence constructor, then build a template with
+the SEQUENCE flags?
+
+Well, try what we have and see if it works, then figure out why not.
+
+Ok, one more try: crypto/x509v3/v3_{pci,pcia}.c implement RFC 3820 and
+show a SEQUENCE used as the top level template.  Try it that way.
+
+Hmm, maybe openssl.txt really meant v3_{pci,pcia}.c as an example?
+
+
+
+Oooh, crypto/stack/ includes stack sorting functions.  With the right
+structure definition and comparision function, this might solve a
+whole mess of our canonicalization problems.  General plan:
+
+1) Define an internal stack type for each of the extensions, with
+   fields organized to allow us to handle everything with a single
+   sort operation.  Eg, major key is afi/safi, expand prefixes to
+   ranges or some such, etc.
+
+2) Set an appropiate comparison function (see sk_set_cmp_func())
+
+3) Parse config data into internal stack.
+
+4) Call sk_sort().
+
+5) Loop calling sk_shift() (or sk_pop()) to pull items off the sorted
+   stack so we can insert them into our real structure in the right
+   canonical form.
+
+Hmm.  What about other ways of building up the real structure?  Would
+it be better to have a "canoicalize structure" function for each
+extension type?  What about allowing a caller to say "no thanks it's
+already in canonical form please leave it alone"?
+

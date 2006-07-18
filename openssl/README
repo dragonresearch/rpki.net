@@ -294,3 +294,5 @@ it be better to have a "canoicalize structure" function for each
 extension type?  What about allowing a caller to say "no thanks it's
 already in canonical form please leave it alone"?
 
+util/mkstack.pl finds DECLARE_STACK_OF() declarations and generates
+safestack definitions automatically.  Be afraid.  Be very very afraid.

@@ -8,6 +8,7 @@
  */
 
 #include <stdio.h>
+#include <assert.h>
 #include "cryptlib.h"
 #include <openssl/conf.h>
 #include <openssl/asn1.h>
@@ -17,23 +18,23 @@
 /* RFC 3779 AS ID */
 
 ASN1_SEQUENCE(ASRange) = {
-	ASN1_SIMPLE(ASRange, min, ASN1_INTEGER),
-	ASN1_SIMPLE(ASRange, max, ASN1_INTEGER)
+  ASN1_SIMPLE(ASRange, min, ASN1_INTEGER),
+  ASN1_SIMPLE(ASRange, max, ASN1_INTEGER)
 } ASN1_SEQUENCE_END(ASRange)
 
 ASN1_CHOICE(ASIdOrRange) = {
-	ASN1_SIMPLE(ASIdOrRange, u.id, ASN1_INTEGER),
-	ASN1_SIMPLE(ASIdOrRange, u.range, ASRange)
+  ASN1_SIMPLE(ASIdOrRange, u.id, ASN1_INTEGER),
+  ASN1_SIMPLE(ASIdOrRange, u.range, ASRange)
 } ASN1_CHOICE_END(ASIdOrRange)
 
 ASN1_CHOICE(ASIdentiferChoice) = {
-	ASN1_IMP(ASIdentiferChoice, u.inherit, ASN1_NULL),
-	ASN1_IMP_SEQUENCE_OF(ASIdentiferChoice, u.asIdsOrRanges, ASIdOrRange)
+  ASN1_IMP(ASIdentiferChoice, u.inherit, ASN1_NULL),
+  ASN1_IMP_SEQUENCE_OF(ASIdentiferChoice, u.asIdsOrRanges, ASIdOrRange)
 } ASN1_CHOICE_END(ASIdentiferChoice)
 
 ASN1_SEQUENCE(ASIdentifiers) = {
-	ASN1_EXP_OPT(ASIdentifiers, asnum, ASIdentiferChoice, 0),
-	ASN1_EXP_OPT(ASIdentifiers, rdi, ASIdentiferChoice, 1)
+  ASN1_EXP_OPT(ASIdentifiers, asnum, ASIdentiferChoice, 0),
+  ASN1_EXP_OPT(ASIdentifiers, rdi, ASIdentiferChoice, 1)
 } ASN1_SEQUENCE_END(ASIdentifiers)
 
 IMPLEMENT_ASN1_FUNCTIONS(ASRange)
@@ -41,10 +42,13 @@ IMPLEMENT_ASN1_FUNCTIONS(ASIdOrRange)
 IMPLEMENT_ASN1_FUNCTIONS(ASIdentiferChoice)
 IMPLEMENT_ASN1_FUNCTIONS(ASIdentifiers)
 
-static int i2r_ASIdentifierChoice(BIO *out,
-				  ASIdentiferChoice *choice,
-				  int indent,
-				  const char *msg)
+/*
+ * Write human-readable dump of ASIdentifiers extension.
+ * ASIdentifiers is just a wrapper for two ASIdentifierChoices, so we
+ * do almost all the work in i2r_ASIdentifierChoice().
+ */
+
+static int i2r_ASIdentifierChoice(BIO *out, ASIdentiferChoice *choice, int indent, const char *msg)
 {
   int i;
   char *s;
@@ -57,7 +61,7 @@ static int i2r_ASIdentifierChoice(BIO *out,
     break;
   case ASIdentifierChoice_asIdsOrRanges:
     for (i = 0; i < sk_ASIdOrRange_num(choice->u.asIdsOrRanges); i++) {
-      ASIdOrRange aor = sk_ASIdOrRange_num(choice->u.asIdsOrRanges, i);
+      ASIdOrRange *aor = sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i);
       if (i > 0)
 	BIO_puts(out, ", ");
       switch (aor->type) {
@@ -90,38 +94,187 @@ static int i2r_ASIdentifierChoice(BIO *out,
   return 1;
 }
 
-static int i2r_ASIdentifiers(X509V3_EXT_METHOD *method,
-			     void *ext,
-			     BIO *out,
-			     int indent)
+static int i2r_ASIdentifiers(X509V3_EXT_METHOD *method, void *ext, BIO *out, int indent)
 {
   ASIdentifiers *asid = ext;
   return (i2r_ASIdentifierChoice(out, asid->asnum, indent, "Autonomous System Numbers") &&
 	  i2r_ASIdentifierChoice(out, asid->rdi,   indent, "Routing Domain Identifiers"));
 }
 
-static void *v2i_ASIdentifiers(struct v3_ext_method *method,
-			       struct v3_ext_ctx *ctx,
-			       STACK_OF(CONF_VALUE) *values)
+/*
+ * Comparision function for stack sorting.
+ */
+
+static int ASIdOrRange_cmp(const ASIdOrRange * const *a,
+			   const ASIdOrRange * const *b)
 {
-  ASIdentifiers *asid = NULL;
-  ASIdentifierChoice *choice;
-  CONF_VALUE *val;
-  char *p;
+  assert((a->type == ASIdOrRange_id && a->u.id != NULL) ||
+	 (a->type == ASIdOrRange_range && a->u.range != NULL &&
+	  a->u.range->min != NULL && a->u.range->max != NULL));
+
+  assert((b->type == ASIdOrRange_id && b->u.id != NULL) ||
+	 (b->type == ASIdOrRange_range && b->u.range != NULL &&
+	  b->u.range->min != NULL && b->u.range->max != NULL));
+
+  if (a->type == ASIdOrRange_id && b->type == ASIdOrRange_id)
+    return ASN1_INTEGER_cmp(a->u.id, b->u.id);
+
+  if (a->type == ASIdOrRange_range && b->type == ASIdOrRange_range) {
+    int r = ASN1_INTEGER_cmp(a->u.range->min, b->u.range->min);
+    return r != 0 ? r : ASN1_INTEGER_cmp(a->u.range->max, b->u.range->max);
+  }
+
+  if (a->type == ASIdOrRange_id)
+    return ASN1_INTEGER_cmp(a->u.id, b->u.range->min);
+  else
+    return ASN1_INTEGER_cmp(a->u.range->min, b->u.id);
+}
+
+/*
+ * Some of the following helper routines might want to become globals eventually.
+ */
+
+static int asid_add_inherit(ASIdentifierChoice **choice)
+{
+  if (*choice == NULL) {
+    if ((*choice = ASIdentifierChoice_new()) == NULL)
+      return 0;
+    memset(*choice, 0, sizeof(**choice));
+    if (((*choice)->u.inherit = ASN1_NULL_new()) == NULL)
+      return 0;
+    (*choice)->type = ASIdentifierChoice_inherit;
+  }
+  return (*choice)->type == ASIdentifierChoice_inherit;
+}
+
+static int asid_add_id_or_range(ASIdentifierChoice **choice, ASN1_INTEGER *min, ASN1_INTEGER *max)
+{
+  ASIdOrRange *aor;
+  if (*choice != NULL && (*choice)->type == ASIdentifierChoice_inherit)
+    return 0;
+  if (*choice == NULL) {
+    if ((*choice = ASIdentifierChoice_new()) == NULL)
+      return 0;
+    memset(*choice, 0, sizeof(**choice));
+    if (((*choice)->u.asIdsOrRanges = sk_ASIdOrRange_new(ASIdOrRange_cmp)) == NULL)
+      return 0;
+    (*choice)->type = ASIdentifierChoice_asIdsOrRanges;
+  }
+  if ((aor = ASIdOrRange_new()) == NULL)
+    return 0;
+  memset(aor, 0, sizeof(*aor));
+  if (max == NULL) {
+    aor->type = ASIdOrRange_id;
+    aor->u.id = min;
+  } else {
+    aor->type = ASIdOrRange_range;
+    if ((aor->u.range = ASRange_new()) == NULL)
+      goto err;
+    aor->u.range->min = min;
+    aor->u.range->max = max;
+  }
+  if (!(sk_ASIdOrRange_push((*choice)->u.asIdsOrRanges, aor)))
+    goto err;
+  return 1;
+
+ err:
+  if (aor->u.range != NULL)
+    ASRange_free(aor->u.range);
+  ASIdOrRange_free(aor);
+  return 0;
+}
+
+static void asid_canonize(ASIdentifierChoice *choice)
+{
   int i;
 
+  /*
+   * Nothing to do for empty element or inheritance.
+   */
+  if (choice == NULL || choice->type == ASIdentifierChoice_inherit)
+    return 1;
+
+  /*
+   * We have a list.  Sort it.
+   */
+  assert(choice->type == ASIdentifierChoice_asIdsOrRanges);
+  sk_ASIdOrRange_sort(choice->u.asIdsOrRanges);
+
+  /*
+   * Now resolve any duplicates or overlaps.
+   */
+  for (i = 0; i < sk_ASIdOrRange_num(choice->u.asIdsOrRanges) - 1; i++) {
+    ASIdOrRange *a = sk_ASIdOrRange_num(choice->u.asIdsOrRanges, i);
+    ASIdOrRange *b = sk_ASIdOrRange_num(choice->u.asIdsOrRanges, i + 1);
+
+    if (a->type == ASIdOrRange_id && b->type == ASIdOrRange_id) {
+      if (ASN1_INTEGER_cmp(a->u.id, b->u.id) == 0) {
+	sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i);
+	ASN1_INTEGER_free(a->u.id);
+	ASIdOrRange_free(a);
+	i--;
+      }
+      continue;
+    }
+
+    if (a->type == ASIdOrRange_id) {
+      if (ASN1_INTEGER_cmp(a->u.id, b->u.range->min) >= 0 &&
+	  ASN1_INTEGER_cmp(a->u.id, b->u.range->max) <= 0) {
+	sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i);
+	ASN1_INTEGER_free(a->u.id);
+	ASIdOrRange_free(a);
+	i--;
+      }
+      continue;
+    }
+
+    if (b->type == ASIdOrRange_id) {
+      if (ASN1_INTEGER_cmp(b->u.id, a->u.range->min) >= 0 &&
+	  ASN1_INTEGER_cmp(b->u.id, a->u.range->max) <= 0) {
+	sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i + 1);
+	ASN1_INTEGER_free(b->u.id);
+	ASIdOrRange_free(b);
+	i--;
+      }
+      continue;
+    }
+
+    if (ASN1_INTEGER_cmp(a->u.range->max, b->u.range->min) >= 0) {
+      ASN1_INTEGER_free(a->u.range->max);
+      ASN1_INTEGER_free(b->u.range->min);
+      b->u.range->min = a->u.range->min;
+      sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i);
+      ASRange_free(a->u.range);
+      ASIdOrRange_free(a);
+      i--;
+    }
+  }
+}
+
+#warning Check all of the following code for memory leaks
 #error this function does not check anywhere near enough error returns
-#error this function needs to be broken up into several smaller ones
+
+static void *v2i_ASIdentifiers(struct v3_ext_method *method, struct v3_ext_ctx *ctx, STACK_OF(CONF_VALUE) *values)
+{
+  ASIdentifiers *asid = NULL;
+  ASIdentifierChoice **choice;
+  ASN1_INTEGER *min, *max;
+  CONF_VALUE *val;
+  char *s;
+  int i;
 
   if ((asid = ASIdentifiers_new()) == NULL) {
     X509V3err(X509V3_F_V2I_ASIdentifiers, ERR_R_MALLOC_FAILURE);
     return NULL;
   }
+  memset(asid, 0, sizeof(*asid));
 
   for (i = 0; i < sk_CONF_VALUE_num(values); i++) {
     val = sk_CONF_VALUE_value(values, i);
 
-    /* First figure out whether this is an AS or an RDI */
+    /*
+     * Figure out whether this is an AS or an RDI.
+     */
     if (!strcmp(val->name, "as")) {
       choice = &asid->asnum;
     } else if (!strcmp(val->name, "rdi")) {
@@ -132,59 +285,41 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
       goto err;
     }
 
-    /* Next check for inheritance */
+    /*
+     * Handle inheritance.
+     */
     if (!strcmp(val->value, "inherit")) {
-      /*
-       * Inheritance can't coexist with an explict list of numbers
-       */
-      if (*choice != NULL) {
-	if ((*choice)->type == ASIdentifierChoice_inherit)
-	  continue;		/* Duplication is harmless, I guess */
-	X509V3err(blah, blah);
-	X509V3_conf_err(val);
-	goto err;
-      }
-      *choice = ASIdentifierChoice_new();
-      (*choice)->type = ASIdentifierChoice_inherit;
-      (*choice)->u.inherit = ASN1_NULL_new();
-      continue;
+      if (asid_add_inherit(choice))
+	continue;
+      X509V3err(blah, blah);
+      X509V3_conf_err(val);
+      goto err;
     }
 
     /*
-     * Number or range.  Add it to the list, we'll sort it later.
+     * Number or range.  Add it to the list, we'll sort the list later.
      */
-    if (*choice != NULL && (*choice)->type == ASIdentifierChoice_inherit) {
-	X509V3err(blah, blah);
-	X509V3_conf_err(val);
-	goto err;
+    if (!X509V3_get_value_int(val, &min))
+      goto err;
+    if ((s = strchr(val->value, '-')) == NULL) {
+      max = NULL;
+    } else if ((max = s2i_ASN1_INTEGER(NULL, s + 1)) == NULL) {
+      X509V3_conf_err(val);
+      goto err;
     }
-    if (*choice == NULL) {
-      *choice = ASIdentifierChoice_new();
-      (*choice)->type = ASIdentifierChoice_asIdsOrRanges;
-      (*choice)->u.asIdsOrRanges = sk_ASIdOrRange_new();
-    }
-
-    if ((p = strchr(val->value, '-')) != NULL) {
-      /* It's a range */
-#error not written yet
-    } else {
-      /* It's a number */
-      X509V3_get_value_int(val, blah_blah);
-#error not written yet
-    }
-
+    if (!asid_add_id_or_range(choice, min, max))
+      goto err;
   }
 
   /*
-   * Next we sort the stacks, and canonicalize the result.
+   * Canonize the result, then we're done.
    */
-
-#error not written yet
-
-  return result;
+  asid_canonize(asid->asnum);
+  asid_canonize(asid->rdi);
+  return asid;
 
  err:
-#error not complete
+#warning this almost certainly leaks memory
   ASIdentifiers_free(asid);
   return NULL;
 }

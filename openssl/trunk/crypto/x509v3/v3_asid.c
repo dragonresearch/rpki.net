@@ -184,6 +184,50 @@ static int asid_add_id_or_range(ASIdentifierChoice **choice, ASN1_INTEGER *min, 
   return 0;
 }
 
+static void asid_cleanup(ASIdentifierChoice *choice)
+{
+  int i;
+  if (choice == NULL)
+    return;
+  switch (choice->type) {
+  case ASIdentifierChoice_inherit:
+    if (choice->u.inherit != NULL)
+      ASN1_NULL_free(choice->inherit);
+    choice->u.inherit = NULL;
+    break;
+  case ASIdOrRange_range:
+    if (choice->u.asIdsOrRanges == NULL)
+      break;
+    for (i = 0; i < sk_ASIdOrRange_num(choice->asIdsOrRanges); i++) {
+      ASIdOrRange *aor = sk_ASIdOrRange_value(choice->asIdsOrRanges, i);
+      switch (aor->type) {
+      case ASIdOrRange_id:
+	if (aor->u.id != NULL)
+	  ASN1_INTEGER_free(aor->u.id);
+	aor->u.id = NULL;
+	break;
+      case ASIdOrRange_range:
+	if (aor->u.range != NULL) {
+	  if (aor->u.range->min != NULL)
+	    ASN1_INTEGER_free(aor->u.range->min);
+	  aor->u.range->min = NULL;
+	  if (aor->u.range->max != NULL)
+	    ASN1_INTEGER_free(aor->u.range->max);
+	  aor->u.range->max = NULL;
+	  ASRange_free(aor->u.range);
+	  aor->u.range = NULL;
+	}
+      }
+      ASIdOrRange_free(aor);
+      sk_ASIdOrRange_set(choice->asIdsOrRanges, i, NULL);
+    }
+    sk_ASIdOrRange_free(choice->asIdsOrRanges);
+    choice->u.asIdsOrRanges == NULL;
+    break;
+  }
+  ASIdentifierChoice_free(choice);
+}
+
 static void asid_canonize(ASIdentifierChoice *choice)
 {
   int i;
@@ -251,9 +295,6 @@ static void asid_canonize(ASIdentifierChoice *choice)
   }
 }
 
-#warning Check all of the following code for memory leaks
-#error this function does not check anywhere near enough error returns
-
 static void *v2i_ASIdentifiers(struct v3_ext_method *method, struct v3_ext_ctx *ctx, STACK_OF(CONF_VALUE) *values)
 {
   ASIdentifiers *asid = NULL;
@@ -280,7 +321,7 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method, struct v3_ext_ctx *
     } else if (!strcmp(val->name, "rdi")) {
       choice = &asid->rdi;
     } else {
-      X509V3err(blah, blah);
+      X509V3err(X509V3_F_V2I_ASIdentifiers, X509V3_R_EXTENSION_NAME_ERROR);
       X509V3_conf_err(val);
       goto err;
     }
@@ -291,7 +332,7 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method, struct v3_ext_ctx *
     if (!strcmp(val->value, "inherit")) {
       if (asid_add_inherit(choice))
 	continue;
-      X509V3err(blah, blah);
+      X509V3err(X509V3_F_V2I_ASIdentifiers, X509V3_R_INVALID_INHERITANCE);
       X509V3_conf_err(val);
       goto err;
     }
@@ -299,16 +340,22 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method, struct v3_ext_ctx *
     /*
      * Number or range.  Add it to the list, we'll sort the list later.
      */
-    if (!X509V3_get_value_int(val, &min))
-      goto err;
-    if ((s = strchr(val->value, '-')) == NULL) {
-      max = NULL;
-    } else if ((max = s2i_ASN1_INTEGER(NULL, s + 1)) == NULL) {
+    if (!X509V3_get_value_int(val, &min)) {
+      X509V3err(X509V3_F_V2I_ASIdentifiers, X509V3_R_INVALID_ASNUMBER);
       X509V3_conf_err(val);
       goto err;
     }
-    if (!asid_add_id_or_range(choice, min, max))
+    if ((s = strchr(val->value, '-')) == NULL) {
+      max = NULL;
+    } else if ((max = s2i_ASN1_INTEGER(NULL, s + 1)) == NULL) {
+      X509V3err(X509V3_F_V2I_ASIdentifiers, X509V3_R_INVALID_ASRANGE);
+      X509V3_conf_err(val);
       goto err;
+    }
+    if (!asid_add_id_or_range(choice, min, max)) {
+      X509V3err(X509V3_F_V2I_ASIdentifiers, ERR_R_MALLOC_FAILURE);
+      goto err;
+    }
   }
 
   /*
@@ -319,7 +366,10 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method, struct v3_ext_ctx *
   return asid;
 
  err:
-#warning this almost certainly leaks memory
+  asid_cleanup(asid->asnum);
+  asid->asnum = NULL;
+  asid_cleanup(asid->rdi);
+  asid->rdi = NULL;
   ASIdentifiers_free(asid);
   return NULL;
 }

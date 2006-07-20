@@ -40,19 +40,19 @@ ASN1_CHOICE(ASIdOrRange) = {
   ASN1_SIMPLE(ASIdOrRange, u.range, ASRange)
 } ASN1_CHOICE_END(ASIdOrRange)
 
-ASN1_CHOICE(ASIdentiferChoice) = {
-  ASN1_SIMPLE(ASIdentiferChoice,      u.inherit,       ASN1_NULL),
-  ASN1_SEQUENCE_OF(ASIdentiferChoice, u.asIdsOrRanges, ASIdOrRange)
-} ASN1_CHOICE_END(ASIdentiferChoice)
+ASN1_CHOICE(ASIdentifierChoice) = {
+  ASN1_SIMPLE(ASIdentifierChoice,      u.inherit,       ASN1_NULL),
+  ASN1_SEQUENCE_OF(ASIdentifierChoice, u.asIdsOrRanges, ASIdOrRange)
+} ASN1_CHOICE_END(ASIdentifierChoice)
 
 ASN1_SEQUENCE(ASIdentifiers) = {
-  ASN1_EXP_OPT(ASIdentifiers, asnum, ASIdentiferChoice, 0),
-  ASN1_EXP_OPT(ASIdentifiers, rdi,   ASIdentiferChoice, 1)
+  ASN1_EXP_OPT(ASIdentifiers, asnum, ASIdentifierChoice, 0),
+  ASN1_EXP_OPT(ASIdentifiers, rdi,   ASIdentifierChoice, 1)
 } ASN1_SEQUENCE_END(ASIdentifiers)
 
 IMPLEMENT_ASN1_FUNCTIONS(ASRange)
 IMPLEMENT_ASN1_FUNCTIONS(ASIdOrRange)
-IMPLEMENT_ASN1_FUNCTIONS(ASIdentiferChoice)
+IMPLEMENT_ASN1_FUNCTIONS(ASIdentifierChoice)
 IMPLEMENT_ASN1_FUNCTIONS(ASIdentifiers)
 
 /*
@@ -61,7 +61,7 @@ IMPLEMENT_ASN1_FUNCTIONS(ASIdentifiers)
  * do almost all the work in i2r_ASIdentifierChoice().
  */
 
-static int i2r_ASIdentifierChoice(BIO *out, ASIdentiferChoice *choice, int indent, const char *msg)
+static int i2r_ASIdentifierChoice(BIO *out, ASIdentifierChoice *choice, int indent, const char *msg)
 {
   int i;
   char *s;

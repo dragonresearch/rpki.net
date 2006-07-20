@@ -22,49 +22,53 @@
  * under revision control.
  */
 
-#ifndef HEADER_V3_ASID_H
-#define HEADER_V3_ASID_H
+#ifndef HEADER_V3_ADDR_H
+#define HEADER_V3_ADDR_H
 
 #include <openssl/asn1t.h>
 #include <openssl/err.h>
 #include <openssl/x509v3.h>
 
-typedef struct ASRange_st {
-  ASN1_INTEGER *min, *max;
-} ASRange;
+typedef struct IPAddressRange_st {
+  ASN1_BIT_STRING	*min, *max;
+} IPAddressRange;
 
-#define	ASIdOrRange_id		0
-#define	ASIdOrRange_range	1
+#define	IPAddressOrRange_addressPrefix	0
+#define	IPAddressOrRange_addressRange	1
 
-typedef struct ASIdOrRange_st {
+typedef struct IPAddressOrRange_st {
   int type;
   union {
-    ASN1_INTEGER *id;
-    ASRange      *range;
+    ASN1_BIT_STRING	*addressPrefix;
+    IPAddressRange	*addressRange;
   } u;
-} ASIdOrRange;
+} IPAddressOrRange;
 
-typedef STACK_OF(ASIdOrRange) ASIdOrRanges;
-DECLARE_STACK_OF(ASIdOrRange)
+typedef STACK_OF(IPAddressOrRange) IPAddressOrRanges;
+DECLARE_STACK_OF(IPAddressOrRange)
 
-#define	ASIdentifierChoice_inherit		0
-#define	ASIdentifierChoice_asIdsOrRanges	1
+#define	IPAddressChoice_inherit			0
+#define	IPAddressChoice_addressesOrRanges	1
 
-typedef struct ASIdentifierChoice_st {
+typedef struct IPAddressChoice_st {
   int type;
   union {
-    ASN1_NULL    *inherit;
-    ASIdOrRanges *asIdsOrRanges;
+    ASN1_NULL		*inherit;
+    IPAddressOrRanges	*asIdsOrRanges;
   } u;
-} ASIdentifierChoice;
+} IPAddressChoice;
 
-typedef struct ASIdentifiers_st {
-  ASIdentifierChoice *asnum, *rdi;
-} ASIdentifiers;
+typedef struct IPAddressFamily_st {
+  ASN1_OCTET_STRING	*addressFamily;
+  IPAddressChoice	*ipAddressChoice;
+} IPAddressFamily;
 
-DECLARE_ASN1_FUNCTIONS(ASRange)
-DECLARE_ASN1_FUNCTIONS(ASIdOrRange)
-DECLARE_ASN1_FUNCTIONS(ASIdentifierChoice)
-DECLARE_ASN1_FUNCTIONS(ASIdentifiers)
+typedef STACK_OF(IPAddressFamily) IPAddrBlocks;
+DECLARE_STACK_OF(IPAddressFamily)
 
-#endif /* HEADER_V3_ASID_H */
+DECLARE_ASN1_FUNCTIONS(IPAddressRange)
+DECLARE_ASN1_FUNCTIONS(IPAddressOrRange)
+DECLARE_ASN1_FUNCTIONS(IPAddressChoice)
+DECLARE_ASN1_FUNCTIONS(IPAddressFamily)
+
+#endif /* HEADER_V3_ADDR_H */

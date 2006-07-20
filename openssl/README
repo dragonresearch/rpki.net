@@ -296,3 +296,20 @@ already in canonical form please leave it alone"?
 
 util/mkstack.pl finds DECLARE_STACK_OF() declarations and generates
 safestack definitions automatically.  Be afraid.  Be very very afraid.
+
+
+
+Upon closer examination of RFC 3779, it's not possible to do a
+completely general handler for unknown AFIs, because it's the AFI that
+tells one that maximum length of an address (which in turn is required
+for certain operations, eg, canonization).
+
+So I guess we end up with:
+
+a) IPv4:foo, IPv4-SAFI:foo, IPv6:foo, IPv6-SAFI:foo (or something like
+   that -- perhaps encode SAFI names too, eg IPv4-Unicast:foo), and
+
+b) A table of known AFIs telling us the length of an address for that
+   AFI.  For the moment I'm probably not going to bother filling that
+   in for anything but IPv4 and IPv6, but having the mechanism in
+   place for other AFIs seems harmless.

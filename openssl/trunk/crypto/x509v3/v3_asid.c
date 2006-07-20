@@ -30,26 +30,24 @@
 #include <openssl/asn1t.h>
 #include <openssl/x509v3.h>
 
-/* RFC 3779 AS ID */
-
 ASN1_SEQUENCE(ASRange) = {
   ASN1_SIMPLE(ASRange, min, ASN1_INTEGER),
   ASN1_SIMPLE(ASRange, max, ASN1_INTEGER)
 } ASN1_SEQUENCE_END(ASRange)
 
 ASN1_CHOICE(ASIdOrRange) = {
-  ASN1_SIMPLE(ASIdOrRange, u.id, ASN1_INTEGER),
+  ASN1_SIMPLE(ASIdOrRange, u.id,    ASN1_INTEGER),
   ASN1_SIMPLE(ASIdOrRange, u.range, ASRange)
 } ASN1_CHOICE_END(ASIdOrRange)
 
 ASN1_CHOICE(ASIdentiferChoice) = {
-  ASN1_IMP(ASIdentiferChoice, u.inherit, ASN1_NULL),
-  ASN1_IMP_SEQUENCE_OF(ASIdentiferChoice, u.asIdsOrRanges, ASIdOrRange)
+  ASN1_SIMPLE(ASIdentiferChoice,      u.inherit,       ASN1_NULL),
+  ASN1_SEQUENCE_OF(ASIdentiferChoice, u.asIdsOrRanges, ASIdOrRange)
 } ASN1_CHOICE_END(ASIdentiferChoice)
 
 ASN1_SEQUENCE(ASIdentifiers) = {
   ASN1_EXP_OPT(ASIdentifiers, asnum, ASIdentiferChoice, 0),
-  ASN1_EXP_OPT(ASIdentifiers, rdi, ASIdentiferChoice, 1)
+  ASN1_EXP_OPT(ASIdentifiers, rdi,   ASIdentiferChoice, 1)
 } ASN1_SEQUENCE_END(ASIdentifiers)
 
 IMPLEMENT_ASN1_FUNCTIONS(ASRange)

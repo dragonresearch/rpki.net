@@ -40,7 +40,7 @@ typedef struct ASIdOrRange_st {
   int type;
   union {
     ASN1_INTEGER *id;
-    ASRange *range;
+    ASRange      *range;
   } u;
 } ASIdOrRange;
 
@@ -53,7 +53,7 @@ DECLARE_STACK_OF(ASIdOrRange)
 typedef struct ASIdentifierChoice_st {
   int type;
   union {
-    ASN1_NULL *inherit;
+    ASN1_NULL    *inherit;
     ASIdOrRanges *asIdsOrRanges;
   } u;
 } ASIdentifierChoice;

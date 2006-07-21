@@ -61,68 +61,88 @@ IMPLEMENT_ASN1_FUNCTIONS(IPAddressChoice)
 IMPLEMENT_ASN1_FUNCTIONS(IPAddressFamily)
 IMPLEMENT_ASN1_FUNCTIONS(IPAddrBlocks)
 
-static const struct {
-  unsigned length;
-  int af;
-  const char *description;
-} afi_table[] = {
-  {  0			 },
-  {  4, AF_INET,  "IPv4" },
-  { 16, AF_INET6, "IPv6" }
-};
+/*
+ * How much buffer space do we need for a raw address?
+ */
+#define ADDR_RAW_BUF_LEN	16
 
-#define afi_index(x) \
-	(x > 0 && x < sizeof(afi_table)/sizeof(*afi_table) ? x : 0)
+/*
+ * How much buffer space do we need for the text form of an address?
+ * Output routines (inet_ntop() or whatever) must check for overflow.
+ */
+#define ADDR_TXT_BUF_LEN	48
 
-static const char *safi_table[] = {
-  0,
-  "Unicast",
-  "Multicast",
-  "Unicast/Multicast",
-  "MPLS"
-};
+/*
+ * Expand the bitstring form of an address into a raw byte array.
+ * At the moment this is coded for simplicity, not speed.
+ */
+static void addr_expand(unsigned char *addr,
+			const ASN1_BIT_STRING *bs,
+			const int length,
+			const unsigned char fill)
+{
+  assert(bs->length >= 0 && bs->length <= length);
+  memset(addr, fill, length);
+  if (bs->length > 0) {
+    memcpy(addr, bs->data, bs->length);
+    if ((bs->flags & 7) != 0)
+      addr[bs->length - 1] |= fill >> (8 - (bs->flags & 7));
+  }
+}
 
-#define safi_index(x) \
-	(x > 0 && x < sizeof(safi_table)/sizeof(*safi_table) ? x : 0)
+/*
+ * Compare two addresses.
+ * At the moment this is coded for simplicity, not for speed.
+ */
+static int addr_cmp(const ASN1_BIT_STRING * const *a,
+		    const ASN1_BIT_STRING * const *b,
+		    const unsigned char fill_a,
+		    const unsigned char fill_b,
+		    const int length)
+{
+  unsigned char a_[ADDR_RAW_BUF_LEN];
+  unsigned char b_[ADDR_RAW_BUF_LEN];
+  assert(length <= ADDR_RAW_BUF_LEN);
+  addr_expand(a_, a, length, fill_a);
+  addr_expand(b_, b, length, fill_b);
+  return memcmp(a, b, length);
+}
 
-static int i2r_address(BIO *out, int afi, unsigned char fill,
+static int i2r_address(BIO *out,
+		       unsigned afi,
+		       unsigned char fill,
 		       ASN1_BIT_STRING *bs)
 {
-  if (afi_index(afi)) {
-    /*
-     * Known AFI, we can fill and format this properly.
-     */
-    int length = afi_table[afi_index(afi)].length;
-    int af = afi_table[afi_index(afi)].af;
-    unsigned char addr[16];
-    char buf[48];
+  unsigned char addr[ADDR_RAW_BUF_LEN];
+  char buf[ADDR_TXT_BUF_LEN];
+  int i;
 
-    assert(sizeof(addr) >= length);
-    if (bs->length > length)
-      return 0;
-    memset(addr, fill, length);
-    if (bs->length > 0) {
-      memcpy(addr, bs->data, bs->length);
-      if ((bs->flags & 7) != 0)
-	addr[bs->length - 1] |= fill >> (8 - (bs->flags & 7));
-    }
-    if (inet_ntop(af, addr, buf, sizeof(buf)) == NULL)
+  switch (afi) {
+  case IANA_AFI_IPV4:
+    addr_expand(addr, bs, 4, fill);
+    if (inet_ntop(AF_INET, addr, buf, sizeof(buf)) == NULL)
       return 0;
     BIO_puts(out, buf);
-  } else {
-    /*
-     * Unknown AFI, dump as hex.
-     */
-    int i;
+    break;
+  case IANA_AFI_IPV6:
+    addr_expand(addr, bs, 16, fill);
+    if (inet_ntop(AF_INET6, addr, buf, sizeof(buf)) == NULL)
+      return 0;
+    BIO_puts(out, buf);
+    break;
+  default:
     for (i = 0; i < bs->length; i++)
       BIO_printf(out, "%s%02x", (i > 0 ? ":" : ""), bs->data[i]);
     BIO_printf(out, "[%d]", bs->flags & 7);
+    break;
   }
   return 1;
 }
 
-static int i2r_IPAddressOrRange(BIO *out, int indent,
-				IPAddressOrRanges *aors, int afi)
+static int i2r_IPAddressOrRange(BIO *out,
+				int indent,
+				IPAddressOrRanges *aors,
+				unsigned afi)
 {
   int i;
   for (i = 0; i < sk_IPAddressOrRange_num(aors); i++) {
@@ -155,18 +175,50 @@ static int i2r_IPAddrBlocks(X509V3_EXT_METHOD *method,
   int i;
   for (i = 0; i < sk_IPAddrBlocks_num(ext); i++) {
     IPAddressFamily *f = sk_IPAddrBlocks_value(ext, i);
-    int afi = (f->addressFamily->data[0] << 8) | f->addressFamily->data[1];
-    if (afi_index(afi))
-      BIO_printf(out, "%*s%s", indent, "",
-		 afi_table[afi_index(afi)].description);
-    else
-      BIO_printf(out, "%*sUnknown AFI %i", indent, "", afi);
+    unsigned afi = ((f->addressFamily->data[0] << 8) |
+		    f->addressFamily->data[1]);
+    switch (afi) {
+    case IANA_AFI_IPV4:
+      BIO_printf(out, "%*sIPv4", indent, "");
+      break;
+    case IANA_AFI_IPV6:
+      BIO_printf(out, "%*sIPv6", indent, "");
+      break;
+    default:
+      BIO_printf(out, "%*sUnknown AFI %u", indent, "", afi);
+      break;
+    }
     if (f->addressFamily->length > 2) {
-      int safi = f->addressFamily->data[2];
-      if (safi_index(safi))
-	BIO_printf(out, " (%s)", safi_table[safi_index(safi)]);
-      else
-	BIO_printf(out, " (Unknown SAFI %d)", safi);
+      switch (f->addressFamily->data[2]) {
+      case   1:
+	BIO_puts(out, " (Unicast)");
+	break;
+      case   2:
+	BIO_puts(out, " (Multicast)");
+	break;
+      case   3:
+	BIO_puts(out, " (Unicast/Multicast)");
+	break;
+      case   4:
+	BIO_puts(out, " (MPLS)");
+	break;
+      case  64:
+	BIO_puts(out, " (Tunnel)");
+	break;
+      case  65:
+	BIO_puts(out, " (VPLS)");
+	break;
+      case  66:
+	BIO_puts(out, " (BGP MDT)");
+	break;
+      case 128:
+	BIO_puts(out, " (MPLS-labeled VPN)");
+	break;
+      default:  
+	BIO_printf(out, " (Unknown SAFI %u)",
+		   (unsigned) f->addressFamily->data[2]);
+	break;
+      }
     }
     switch (f->ipAddressChoice->type) {
     case IPAddressChoice_inherit:
@@ -174,8 +226,10 @@ static int i2r_IPAddrBlocks(X509V3_EXT_METHOD *method,
       break;
     case IPAddressChoice_addressesOrRanges:
       BIO_puts(out, ":\n");
-      if (!i2r_IPAddressOrRanges(out, indent + 2,
-				 f->ipAddressChoice->u.asIdsOrRanges, afi))
+      if (!i2r_IPAddressOrRanges(out,
+				 indent + 2,
+				 f->ipAddressChoice->u.asIdsOrRanges,
+				 afi))
 	return 0;
       break;
     }
@@ -183,62 +237,199 @@ static int i2r_IPAddrBlocks(X509V3_EXT_METHOD *method,
   return 1;
 }
 
-typedef struct addr_canonize_st {
-  unsigned char min[16], max[16];
-  IPAddressOrRange *aor;
-  int prefixlen;
-} addr_canonize;
-
-DECLARE_STACK_OF(addr_canonize)
-
-static int canonize_addrs(IPAddressOrRanges *aors, int afi)
+/*
+ * Compare two IPAddressOrRanges elements.
+ */
+static int IPAddressOrRange_cmp(const IPAddressOrRange * const *a,
+				const IPAddressOrRange * const *b,
+				const int length)
 {
-  STACK_OF(addr_canonize) *acs = sk_addr_canonize_new(addr_cononize_cmp);
-  int i, length = afi_table[afi_index(afi)].length;
+  const ASN1_BIT_STRING *addr_a, *addr_b;
+  unsigned prefixlen_a, prefixlen_b;
+  int r;
 
-  while (sk_IPAddressOrRange_num(aors) > 0) {
-    addr_canonize *ac = OPENSSL_malloc(sizeof(addr_canonize));
-    if (ac == NULL)
-      goto err;
-    memset(ac, 0, sizeof(*ac));
-    sk_addr_canonize_push(acs, ac);
-    ac->aor = sk_IPAddressOrRange_pop(aors);
-    switch (ac->aor->type) {
-    case IPAddressOrRange_addressPrefix:
-      if (!addr_expand(ac->min, ac->aor->addressPrefix, length, 0x00))
-	goto err;
-      if (!addr_expand(ac->max, ac->aor->addressPrefix, length, 0xFF))
-	goto err;
-      ac->prefixlen = (ac->aor->addressPrefix->length * 8 -
-		       (ac->aor->addressPrefix->flags & 7));
-      break;
-    case IPAddressOrRange_addressRange:
-      if (!addr_expand(ac->min, ac->aor->addressRange->min, length, 0x00))
-	goto err;
-      if (!addr_expand(ac->min, ac->aor->addressRange->max, length, 0xFF))
-	goto err;
-      ac->prefixlen = ac->aor->addressPrefix->length * 8;
-      break;
+  switch (a->type) {
+  case IPAddressOrRange_addressPrefix:
+    addr_a = a->addressPrefix;
+    prefixlen_a = (a->addressPrefix->length * 8 -
+		   (a->addressPrefix->flags & 7));
+    break;
+  case IPAddressOrRange_addressRange:
+    addr_a = a->addressRange->min;
+    prefixlen_a = length * 8;
+    break;
+  }
+
+  switch (b->type) {
+  case IPAddressOrRange_addressPrefix:
+    addr_b = b->addressPrefix;
+    prefixlen_b = (b->addressPrefix->length * 8 -
+		   (b->addressPrefix->flags & 7));
+    break;
+  case IPAddressOrRange_addressRange:
+    addr_b = b->addressRange->min;
+    prefixlen_b = length * 8;
+    break;
+  }
+
+  if ((r = addr_cmp(addr_a, addr_b, 0x00, 0x00, length)) != 0)
+    return r;
+  else
+    return prefixlen_a - prefixlen_b;
+}
+
+/*
+ * Closures, since sk_sort() comparision routines are only allowed two
+ * arguments.
+ * 
+ */
+static int v4IPAddressOrRange_cmp(const IPAddressOrRange * const *a,
+				  const IPAddressOrRange * const *b)
+{
+  return IPAddressOrRange_cmp(a, b, 4);
+}
+
+static int v6IPAddressOrRange_cmp(const IPAddressOrRange * const *a,
+				  const IPAddressOrRange * const *b)
+{
+  return IPAddressOrRange_cmp(a, b, 16);
+}
+
+/*
+ * Whack a IPAddressOrRanges into canonical form.
+ */
+static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
+				      unsigned afi)
+{
+  int i, length;
+
+  switch (afi) {
+  case IANA_AFI_IPV4:
+    length = 4;
+    break;
+  case IANA_AFI_IPV6:
+    length = 16;
+    break;
+  }
+
+  sk_IPAddressOrRange_sort(aors);
+
+  /*
+   * Resolve any duplicates or overlaps.
+   */
+
+  for (i = 0; i < sk_IPAddressOrRange_num(aors) - 1; i++) {
+    IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, i);
+    IPAddressOrRange *b = sk_IPAddressOrRange_value(aors, i + 1);
+
+#error not right yet
+    /*
+     * The following tests look for overlap, but do not check for
+     * adjacency.  How to implement?  Use bignums?  Yum.  All we
+     * really need is the ability to add or subtract 1 from a
+     * bitvector, which isn't very hard, so that's probably the plan.
+     *
+     * Hmm, it would also be good if I checked the ->type variables,
+     * doh.
+     */
+
+    /*
+     * Comparing prefix a with prefix b.  Prefixes can't overlap, only
+     * nest, so we just have to check whether a contains b.
+     */
+    if (a->type == IPAddressOrRange_addressPrefix &&
+	b->type == IPAddressOrRange_addressPrefix) {
+      if (addr_cmp(a->addressPrefix, b->addressPrefix,
+		   0xFF, 0xFF, length) >= 0) {
+	sk_IPAddressOrRange_delete(aors, i + 1);
+	ASN1_BIT_STRING_free(b->addressPrefix);
+	IPAddressOrRange_free(b);
+	i--;
+      }
+      continue;
+    }
+
+#error but prefixes can be adjacent, in which case we should merge them into a range
+
+    /*
+     * Comparing prefix a with range b.  If they overlap, we merge
+     * them into a range.
+     */
+    if (a->type == IPAddressOrRange_addressPrefix) {
+      if (addr_cmp(a->addressPrefix, b->addressRange->min,
+		   0xFF, 0x00, length) >= 0) {
+	sk_IPAddressOrRange_delete(aors, i);
+	ASN_BIT_STRING_free(b->addressRange->min);
+	b->addressRange->min = a->addressPrefix;
+	IPAddressRange(a->addressRange);
+	IPAddressOrRange_free(a);
+	i--;
+      }
+      continue;
+    }
+
+    /*
+     * Comparing range a with prefix b.  If they overlap, we merge
+     * them into a range.
+     */
+    if (b->type == IPAddressOrRange_addressPrefix) {
+      if (addr_cmp(a->addressRange->max, b->addressPrefix,
+		   0xFF, 0x00, length) >= 0) {
+	sk_IPAddressOrRange_delete(aors, i + 1);
+	ASN_BIT_STRING_free(a->addressRange->max);
+	a->addressRange->max = b->addressPrefix;
+	IPAddressRange(b->addressRange);
+	IPAddressOrRange_free(b);
+	i--;
+      }
+      continue;
+    }
+
+    /*
+     * Comparing range a with range b, remove b if contained in a.
+     */
+    if (addr_cmp(a->addressRange->max, b->addressRange->max,
+		 0xFF, 0xFF, length) >= 0) {
+      sk_IPAddressOrRange_delete(aors, i + 1);
+      ASN_BIT_STRING_free(b->addressRange->min);
+      ASN_BIT_STRING_free(b->addressRange->max);
+      IPAddressRange(b->addressRange);
+      IPAddressOrRange_free(b);
+      i--;
+      continue;
+    }
+
+    /*
+     * Comparing range a with range b, merge if they overlap.
+     */
+    if (addr_cmp(a->addressRange->max, b->addressRange->min,
+		 0xFF, 0x00, length) >= 0) {
+      sk_IPAddressOrRange_delete(aors, i);
+      ASN_BIT_STRING_free(a->addressRange->max);
+      ASN_BIT_STRING_free(b->addressRange->min);
+      b->addressRange->min = a->addressRange->max;
+      IPAddressRange(a->addressRange);
+      IPAddressOrRange_free(a);
+      i--;
+      continue;
     }
   }
 
-  sk_sort(acs);
-
-  for (i = 0; i < sk_addr_canonize_num(acs); i++) {
-#error not finished
-    /* do the merge check here (see asid code) */
+  /*
+   * Convert ranges to prefixes where possible.
+   */
+  for (i = 0; i < sk_IPAddressOrRange_num(aors); i++) {
+    IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, i);
+    if (a->type == IPAddressOrRange_addressRange &&
+	addr_cmp(a->addressRange->min,a->addressRange->max,
+		 0x00, 0x00, length) == 0) {
+      IPAddressRange *r = a->addressRange;
+      a->type = IPAddressOrRange_addressPrefix;
+      a->u.addressPrefix = r->min;
+      ASN1_BIT_STRING_free(r->max);
+      IPAddressRange_free(r);
+    }
   }
-
-  for (i = 0; i < sk_addr_canonize_num(acs); i++) {
-#error not finished
-    /*
-     * Convert ranges to prefixes where possible
-     * and convert back to IPAddressOrRanges.
-     */
-  }
-  
-#error not finished
- err:
 }
 
 X509V3_EXT_METHOD v3_addr = {

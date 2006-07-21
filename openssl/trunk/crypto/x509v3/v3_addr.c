@@ -150,17 +150,17 @@ static int i2r_IPAddressOrRange(BIO *out,
     BIO_printf(out, "%*s", indent, "");
     switch (aor->type) {
     case IPAddressOrRange_addressPrefix:
-      if (!i2r_address(out, afi, 0x00, aor->addressPrefix))
+      if (!i2r_address(out, afi, 0x00, aor->u.addressPrefix))
 	return 0;
       BIO_printf(out, "/%d\n", 
-		 aor->addressPrefix->length * 8 -
-		 (aor->addressPrefix->flags & 7));
+		 ((aor->u.addressPrefix->length * 8) -
+		  (aor->u.addressPrefix->flags & 7)));
       continue;
     case IPAddressOrRange_addressRange:
-      if (!i2r_address(out, afi, 0x00, aor->addressRange->min))
+      if (!i2r_address(out, afi, 0x00, aor->u.addressRange->min))
 	return 0;
       BIO_puts(out, "-");
-      if (!i2r_address(out, afi, 0xFF, aor->addressRange->max))
+      if (!i2r_address(out, afi, 0xFF, aor->u.addressRange->max))
 	return 0;
       BIO_puts(out, "\n");
       continue;
@@ -176,7 +176,7 @@ static int i2r_IPAddrBlocks(X509V3_EXT_METHOD *method,
   for (i = 0; i < sk_IPAddrBlocks_num(ext); i++) {
     IPAddressFamily *f = sk_IPAddrBlocks_value(ext, i);
     unsigned afi = ((f->addressFamily->data[0] << 8) |
-		    f->addressFamily->data[1]);
+		    (f->addressFamily->data[1]));
     switch (afi) {
     case IANA_AFI_IPV4:
       BIO_printf(out, "%*sIPv4", indent, "");
@@ -250,24 +250,24 @@ static int IPAddressOrRange_cmp(const IPAddressOrRange * const *a,
 
   switch (a->type) {
   case IPAddressOrRange_addressPrefix:
-    addr_a = a->addressPrefix;
-    prefixlen_a = (a->addressPrefix->length * 8 -
-		   (a->addressPrefix->flags & 7));
+    addr_a = a->u.addressPrefix;
+    prefixlen_a = ((a->u.addressPrefix->length * 8) -
+		   (a->u.addressPrefix->flags & 7));
     break;
   case IPAddressOrRange_addressRange:
-    addr_a = a->addressRange->min;
+    addr_a = a->u.addressRange->min;
     prefixlen_a = length * 8;
     break;
   }
 
   switch (b->type) {
   case IPAddressOrRange_addressPrefix:
-    addr_b = b->addressPrefix;
-    prefixlen_b = (b->addressPrefix->length * 8 -
-		   (b->addressPrefix->flags & 7));
+    addr_b = b->u.addressPrefix;
+    prefixlen_b = ((b->u.addressPrefix->length * 8) -
+		   (b->u.addressPrefix->flags & 7));
     break;
   case IPAddressOrRange_addressRange:
-    addr_b = b->addressRange->min;
+    addr_b = b->u.addressRange->min;
     prefixlen_b = length * 8;
     break;
   }
@@ -339,10 +339,10 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
      */
     if (a->type == IPAddressOrRange_addressPrefix &&
 	b->type == IPAddressOrRange_addressPrefix) {
-      if (addr_cmp(a->addressPrefix, b->addressPrefix,
+      if (addr_cmp(a->u.addressPrefix, b->u.addressPrefix,
 		   0xFF, 0xFF, length) >= 0) {
 	sk_IPAddressOrRange_delete(aors, i + 1);
-	ASN1_BIT_STRING_free(b->addressPrefix);
+	ASN1_BIT_STRING_free(b->u.addressPrefix);
 	IPAddressOrRange_free(b);
 	i--;
       }
@@ -356,12 +356,12 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
      * them into a range.
      */
     if (a->type == IPAddressOrRange_addressPrefix) {
-      if (addr_cmp(a->addressPrefix, b->addressRange->min,
+      if (addr_cmp(a->u.addressPrefix, b->u.addressRange->min,
 		   0xFF, 0x00, length) >= 0) {
 	sk_IPAddressOrRange_delete(aors, i);
-	ASN_BIT_STRING_free(b->addressRange->min);
-	b->addressRange->min = a->addressPrefix;
-	IPAddressRange(a->addressRange);
+	ASN_BIT_STRING_free(b->u.addressRange->min);
+	b->u.addressRange->min = a->u.addressPrefix;
+	IPAddressRange_free(a->u.addressRange);
 	IPAddressOrRange_free(a);
 	i--;
       }
@@ -373,12 +373,12 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
      * them into a range.
      */
     if (b->type == IPAddressOrRange_addressPrefix) {
-      if (addr_cmp(a->addressRange->max, b->addressPrefix,
+      if (addr_cmp(a->u.addressRange->max, b->u.addressPrefix,
 		   0xFF, 0x00, length) >= 0) {
 	sk_IPAddressOrRange_delete(aors, i + 1);
-	ASN_BIT_STRING_free(a->addressRange->max);
-	a->addressRange->max = b->addressPrefix;
-	IPAddressRange(b->addressRange);
+	ASN_BIT_STRING_free(a->u.addressRange->max);
+	a->u.addressRange->max = b->u.addressPrefix;
+	IPAddressRange_free(b->u.addressRange);
 	IPAddressOrRange_free(b);
 	i--;
       }
@@ -388,12 +388,12 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
     /*
      * Comparing range a with range b, remove b if contained in a.
      */
-    if (addr_cmp(a->addressRange->max, b->addressRange->max,
+    if (addr_cmp(a->u.addressRange->max, b->u.addressRange->max,
 		 0xFF, 0xFF, length) >= 0) {
       sk_IPAddressOrRange_delete(aors, i + 1);
-      ASN_BIT_STRING_free(b->addressRange->min);
-      ASN_BIT_STRING_free(b->addressRange->max);
-      IPAddressRange(b->addressRange);
+      ASN_BIT_STRING_free(b->u.addressRange->min);
+      ASN_BIT_STRING_free(b->u.addressRange->max);
+      IPAddressRange_free(b->u.addressRange);
       IPAddressOrRange_free(b);
       i--;
       continue;
@@ -402,13 +402,13 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
     /*
      * Comparing range a with range b, merge if they overlap.
      */
-    if (addr_cmp(a->addressRange->max, b->addressRange->min,
+    if (addr_cmp(a->u.addressRange->max, b->u.addressRange->min,
 		 0xFF, 0x00, length) >= 0) {
       sk_IPAddressOrRange_delete(aors, i);
-      ASN_BIT_STRING_free(a->addressRange->max);
-      ASN_BIT_STRING_free(b->addressRange->min);
-      b->addressRange->min = a->addressRange->max;
-      IPAddressRange(a->addressRange);
+      ASN_BIT_STRING_free(a->u.addressRange->max);
+      ASN_BIT_STRING_free(b->u.addressRange->min);
+      b->u.addressRange->min = a->u.addressRange->max;
+      IPAddressRange_free(a->u.addressRange);
       IPAddressOrRange_free(a);
       i--;
       continue;
@@ -421,9 +421,9 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
   for (i = 0; i < sk_IPAddressOrRange_num(aors); i++) {
     IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, i);
     if (a->type == IPAddressOrRange_addressRange &&
-	addr_cmp(a->addressRange->min,a->addressRange->max,
+	addr_cmp(a->u.addressRange->min,a->u.addressRange->max,
 		 0x00, 0x00, length) == 0) {
-      IPAddressRange *r = a->addressRange;
+      IPAddressRange *r = a->u.addressRange;
       a->type = IPAddressOrRange_addressPrefix;
       a->u.addressPrefix = r->min;
       ASN1_BIT_STRING_free(r->max);

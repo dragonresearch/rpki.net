@@ -61,7 +61,10 @@ IMPLEMENT_ASN1_FUNCTIONS(ASIdentifiers)
  * do almost all the work in i2r_ASIdentifierChoice().
  */
 
-static int i2r_ASIdentifierChoice(BIO *out, ASIdentifierChoice *choice, int indent, const char *msg)
+static int i2r_ASIdentifierChoice(BIO *out,
+				  ASIdentifierChoice *choice,
+				  int indent,
+				  const char *msg)
 {
   int i;
   char *s;
@@ -107,11 +110,16 @@ static int i2r_ASIdentifierChoice(BIO *out, ASIdentifierChoice *choice, int inde
   return 1;
 }
 
-static int i2r_ASIdentifiers(X509V3_EXT_METHOD *method, void *ext, BIO *out, int indent)
+static int i2r_ASIdentifiers(X509V3_EXT_METHOD *method,
+			     void *ext,
+			     BIO *out,
+			     int indent)
 {
   ASIdentifiers *asid = ext;
-  return (i2r_ASIdentifierChoice(out, asid->asnum, indent, "Autonomous System Numbers") &&
-	  i2r_ASIdentifierChoice(out, asid->rdi,   indent, "Routing Domain Identifiers"));
+  return (i2r_ASIdentifierChoice(out, asid->asnum, indent,
+				 "Autonomous System Numbers") &&
+	  i2r_ASIdentifierChoice(out, asid->rdi, indent,
+				 "Routing Domain Identifiers"));
 }
 
 /*
@@ -144,7 +152,8 @@ static int ASIdOrRange_cmp(const ASIdOrRange * const *a,
 }
 
 /*
- * Some of the following helper routines might want to become globals eventually.
+ * Some of the following helper routines might want to become globals
+ * eventually.
  */
 
 static int asid_add_inherit(ASIdentifierChoice **choice)
@@ -160,7 +169,9 @@ static int asid_add_inherit(ASIdentifierChoice **choice)
   return (*choice)->type == ASIdentifierChoice_inherit;
 }
 
-static int asid_add_id_or_range(ASIdentifierChoice **choice, ASN1_INTEGER *min, ASN1_INTEGER *max)
+static int asid_add_id_or_range(ASIdentifierChoice **choice,
+				ASN1_INTEGER *min,
+				ASN1_INTEGER *max)
 {
   ASIdOrRange *aor;
   if (*choice != NULL && (*choice)->type == ASIdentifierChoice_inherit)
@@ -169,7 +180,8 @@ static int asid_add_id_or_range(ASIdentifierChoice **choice, ASN1_INTEGER *min, 
     if ((*choice = ASIdentifierChoice_new()) == NULL)
       return 0;
     memset(*choice, 0, sizeof(**choice));
-    if (((*choice)->u.asIdsOrRanges = sk_ASIdOrRange_new(ASIdOrRange_cmp)) == NULL)
+    (*choice)->u.asIdsOrRanges = sk_ASIdOrRange_new(ASIdOrRange_cmp);
+    if ((*choice)->u.asIdsOrRanges == NULL)
       return 0;
     (*choice)->type = ASIdentifierChoice_asIdsOrRanges;
   }
@@ -308,7 +320,9 @@ static void asid_canonize(ASIdentifierChoice *choice)
   }
 }
 
-static void *v2i_ASIdentifiers(struct v3_ext_method *method, struct v3_ext_ctx *ctx, STACK_OF(CONF_VALUE) *values)
+static void *v2i_ASIdentifiers(struct v3_ext_method *method,
+			       struct v3_ext_ctx *ctx,
+			       STACK_OF(CONF_VALUE) *values)
 {
   ASIdentifiers *asid = NULL;
   ASIdentifierChoice **choice;

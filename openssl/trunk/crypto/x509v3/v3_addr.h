@@ -71,4 +71,14 @@ DECLARE_ASN1_FUNCTIONS(IPAddressOrRange)
 DECLARE_ASN1_FUNCTIONS(IPAddressChoice)
 DECLARE_ASN1_FUNCTIONS(IPAddressFamily)
 
+/*
+ * AFI values, assigned by IANA.  It'd be nice to make the AFI
+ * handling code totally generic, but there are too many little things
+ * that would need to be defined for other address families for it to
+ * be worth the trouble.
+ */
+
+#define	IANA_AFI_IPV4	1
+#define	IANA_AFI_IPv6	2
+
 #endif /* HEADER_V3_ADDR_H */

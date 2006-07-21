@@ -276,6 +276,9 @@ static void asid_canonize(ASIdentifierChoice *choice)
     ASIdOrRange *a = sk_ASIdOrRange_num(choice->u.asIdsOrRanges, i);
     ASIdOrRange *b = sk_ASIdOrRange_num(choice->u.asIdsOrRanges, i + 1);
 
+    /*
+     * Comparing ID a with ID b, remove a if they're equal.
+     */
     if (a->type == ASIdOrRange_id && b->type == ASIdOrRange_id) {
       if (ASN1_INTEGER_cmp(a->u.id, b->u.id) == 0) {
 	sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i);
@@ -286,6 +289,9 @@ static void asid_canonize(ASIdentifierChoice *choice)
       continue;
     }
 
+    /*
+     * Comparing ID a with range b, remove a if contained in b.
+     */
     if (a->type == ASIdOrRange_id) {
       if (ASN1_INTEGER_cmp(a->u.id, b->u.range->min) >= 0 &&
 	  ASN1_INTEGER_cmp(a->u.id, b->u.range->max) <= 0) {
@@ -297,6 +303,9 @@ static void asid_canonize(ASIdentifierChoice *choice)
       continue;
     }
 
+    /*
+     * Comparing range a with ID b, remove b if contained in a.
+     */
     if (b->type == ASIdOrRange_id) {
       if (ASN1_INTEGER_cmp(b->u.id, a->u.range->min) >= 0 &&
 	  ASN1_INTEGER_cmp(b->u.id, a->u.range->max) <= 0) {
@@ -308,6 +317,22 @@ static void asid_canonize(ASIdentifierChoice *choice)
       continue;
     }
 
+    /*
+     * Comparing range a with range b, remove b if contained in a.
+     */
+    if (ASN1_INTEGER_cmp(a->u.range->max, b->u.range->max) >= 0) {
+      ASN1_INTEGER_free(b->u.range->min);
+      ASN1_INTEGER_free(b->u.range->max);
+      sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i + 1);
+      ASRange_free(b->u.range);
+      ASIdOrRange_free(b);
+      i--;
+      continue;
+    }
+
+    /*
+     * Comparing range a with range b, merge if they overlap.
+     */
     if (ASN1_INTEGER_cmp(a->u.range->max, b->u.range->min) >= 0) {
       ASN1_INTEGER_free(a->u.range->max);
       ASN1_INTEGER_free(b->u.range->min);
@@ -316,6 +341,7 @@ static void asid_canonize(ASIdentifierChoice *choice)
       ASRange_free(a->u.range);
       ASIdOrRange_free(a);
       i--;
+      continue;
     }
   }
 }

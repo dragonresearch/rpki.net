@@ -93,19 +93,35 @@ static void addr_expand(unsigned char *addr,
 /*
  * Compare two addresses.
  * At the moment this is coded for simplicity, not for speed.
+ *
+ * Well, ok, this was simple until we had to check for adjacency.  The
+ * idea is that, once we know that b is larger than a, we can subtract
+ * one from b and check for equality to see if they're adjacent.  If
+ * this hack offends you, feel free to recode this whole thing in
+ * terms of the BN library....
  */
 static int addr_cmp(const ASN1_BIT_STRING * const *a,
 		    const ASN1_BIT_STRING * const *b,
 		    const unsigned char fill_a,
 		    const unsigned char fill_b,
-		    const int length)
+		    const int length,
+		    const int check_adjacent)
 {
+  int r;
   unsigned char a_[ADDR_RAW_BUF_LEN];
   unsigned char b_[ADDR_RAW_BUF_LEN];
   assert(length <= ADDR_RAW_BUF_LEN);
   addr_expand(a_, a, length, fill_a);
   addr_expand(b_, b, length, fill_b);
-  return memcmp(a, b, length);
+  r = memcmp(a, b, length);
+  if (check_adjacent && r < 0) {
+    int i = length - 1;
+    while (i >= 0 && !b[i]--)
+      i--;
+    if (!memcmp(a, b, length)
+	r = 0;
+  }
+  return r;
 }
 
 static int i2r_address(BIO *out,
@@ -272,7 +288,7 @@ static int IPAddressOrRange_cmp(const IPAddressOrRange * const *a,
     break;
   }
 
-  if ((r = addr_cmp(addr_a, addr_b, 0x00, 0x00, length)) != 0)
+  if ((r = addr_cmp(addr_a, addr_b, 0x00, 0x00, length, 0)) != 0)
     return r;
   else
     return prefixlen_a - prefixlen_b;
@@ -322,74 +338,89 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
     IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, i);
     IPAddressOrRange *b = sk_IPAddressOrRange_value(aors, i + 1);
 
-#error not right yet
     /*
-     * The following tests look for overlap, but do not check for
-     * adjacency.  How to implement?  Use bignums?  Yum.  All we
-     * really need is the ability to add or subtract 1 from a
-     * bitvector, which isn't very hard, so that's probably the plan.
-     *
-     * Hmm, it would also be good if I checked the ->type variables,
-     * doh.
-     */
-
-    /*
-     * Comparing prefix a with prefix b.  Prefixes can't overlap, only
-     * nest, so we just have to check whether a contains b.
+     * Comparing prefix a with prefix b.  If they nest, a will contain
+     * b due to the sorting rules, so we can just get rid of b.
      */
     if (a->type == IPAddressOrRange_addressPrefix &&
-	b->type == IPAddressOrRange_addressPrefix) {
-      if (addr_cmp(a->u.addressPrefix, b->u.addressPrefix,
-		   0xFF, 0xFF, length) >= 0) {
-	sk_IPAddressOrRange_delete(aors, i + 1);
-	ASN1_BIT_STRING_free(b->u.addressPrefix);
-	IPAddressOrRange_free(b);
-	i--;
-      }
-      continue;
-    }
-
-#error but prefixes can be adjacent, in which case we should merge them into a range
-
-    /*
-     * Comparing prefix a with range b.  If they overlap, we merge
-     * them into a range.
-     */
-    if (a->type == IPAddressOrRange_addressPrefix) {
-      if (addr_cmp(a->u.addressPrefix, b->u.addressRange->min,
-		   0xFF, 0x00, length) >= 0) {
-	sk_IPAddressOrRange_delete(aors, i);
-	ASN_BIT_STRING_free(b->u.addressRange->min);
-	b->u.addressRange->min = a->u.addressPrefix;
-	IPAddressRange_free(a->u.addressRange);
-	IPAddressOrRange_free(a);
-	i--;
-      }
+	b->type == IPAddressOrRange_addressPrefix &&
+	addr_cmp(a->u.addressPrefix, b->u.addressPrefix,
+		 0xFF, 0xFF, length, 0) >= 0) {
+      sk_IPAddressOrRange_delete(aors, i + 1);
+      ASN1_BIT_STRING_free(b->u.addressPrefix);
+      IPAddressOrRange_free(b);
+      i--;
       continue;
     }
 
     /*
-     * Comparing range a with prefix b.  If they overlap, we merge
-     * them into a range.
+     * Comparing prefix a with prefix b.  If they're adjacent, we need
+     * to merge them into a range.
      */
-    if (b->type == IPAddressOrRange_addressPrefix) {
-      if (addr_cmp(a->u.addressRange->max, b->u.addressPrefix,
-		   0xFF, 0x00, length) >= 0) {
-	sk_IPAddressOrRange_delete(aors, i + 1);
-	ASN_BIT_STRING_free(a->u.addressRange->max);
-	a->u.addressRange->max = b->u.addressPrefix;
-	IPAddressRange_free(b->u.addressRange);
-	IPAddressOrRange_free(b);
-	i--;
-      }
+    if (a->type == IPAddressOrRange_addressPrefix &&
+	b->type == IPAddressOrRange_addressPrefix &&
+	addr_cmp(a->u.addressPrefix, b->u.addressPrefix,
+		 0xFF, 0xFF, length, 1) >= 0) {
+      IPAddressRange *r = IPAddressRange_new();
+      if (r == NULL)
+	return 0;
+      sk_IPAddressOrRange_delete(aors, i + 1);
+      r->min = a->u.addressPrefix;
+      r->max = b->u.addressPrefix;
+      a->type = IPAddressOrRange_addressRange;
+      a->u.addressRange = r;
+      IPAddressOrRange_free(b);
+      i--;
       continue;
     }
+
+    if (a->type == IPAddressOrRange_addressPrefix &&
+	b->type == IPAddressOrRange_addressPrefix)
+      continue;
+
+    /*
+     * Comparing prefix a with range b.  If they overlap or are
+     * adjacent, we merge them into a range.
+     */
+    if (a->type == IPAddressOrRange_addressPrefix &&
+	addr_cmp(a->u.addressPrefix, b->u.addressRange->min,
+		 0xFF, 0x00, length, 1) >= 0) {
+      sk_IPAddressOrRange_delete(aors, i);
+      ASN_BIT_STRING_free(b->u.addressRange->min);
+      b->u.addressRange->min = a->u.addressPrefix;
+      IPAddressRange_free(a->u.addressRange);
+      IPAddressOrRange_free(a);
+      i--;
+      continue;
+    }
+
+    if (a->type == IPAddressOrRange_addressPrefix)
+      continue;
+
+    /*
+     * Comparing range a with prefix b.  If they overlap or are
+     * adjacent, we merge them into a range.
+     */
+    if (b->type == IPAddressOrRange_addressPrefix &&
+	addr_cmp(a->u.addressRange->max, b->u.addressPrefix,
+		 0xFF, 0x00, length, 1) >= 0) {
+      sk_IPAddressOrRange_delete(aors, i + 1);
+      ASN_BIT_STRING_free(a->u.addressRange->max);
+      a->u.addressRange->max = b->u.addressPrefix;
+      IPAddressRange_free(b->u.addressRange);
+      IPAddressOrRange_free(b);
+      i--;
+      continue;
+    }
+
+    if (b->type == IPAddressOrRange_addressPrefix)
+      continue;
 
     /*
      * Comparing range a with range b, remove b if contained in a.
      */
     if (addr_cmp(a->u.addressRange->max, b->u.addressRange->max,
-		 0xFF, 0xFF, length) >= 0) {
+		 0xFF, 0xFF, length, 0) >= 0) {
       sk_IPAddressOrRange_delete(aors, i + 1);
       ASN_BIT_STRING_free(b->u.addressRange->min);
       ASN_BIT_STRING_free(b->u.addressRange->max);
@@ -400,10 +431,11 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
     }
 
     /*
-     * Comparing range a with range b, merge if they overlap.
+     * Comparing range a with range b, merge if they overlap or are
+     * adjacent.
      */
     if (addr_cmp(a->u.addressRange->max, b->u.addressRange->min,
-		 0xFF, 0x00, length) >= 0) {
+		 0xFF, 0x00, length, 1) >= 0) {
       sk_IPAddressOrRange_delete(aors, i);
       ASN_BIT_STRING_free(a->u.addressRange->max);
       ASN_BIT_STRING_free(b->u.addressRange->min);
@@ -422,7 +454,7 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
     IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, i);
     if (a->type == IPAddressOrRange_addressRange &&
 	addr_cmp(a->u.addressRange->min,a->u.addressRange->max,
-		 0x00, 0x00, length) == 0) {
+		 0x00, 0x00, length, 0) == 0) {
       IPAddressRange *r = a->u.addressRange;
       a->type = IPAddressOrRange_addressPrefix;
       a->u.addressPrefix = r->min;

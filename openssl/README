@@ -313,3 +313,18 @@ b) A table of known AFIs telling us the length of an address for that
    AFI.  For the moment I'm probably not going to bother filling that
    in for anything but IPv4 and IPv6, but having the mechanism in
    place for other AFIs seems harmless.
+
+
+
+Current plan for addr_canonize(): sort function for outer sequence
+should be straightforward.  One could in theory write a sort function
+for the inner sequence, but doing so would require expanding addresses
+both in the sort function and in the subsequent cleanup loop in
+addr_canonize().  It would probably be simpler (and faster) to use a
+temporary stack containing pointers to the IPAddressOrRange elements
+and expanded versions of the addresses.
+
+Hmm, the alternative would be to write a comparision routine which
+expands a pair of bitstrings as addresses, and write the rest of the
+code in terms of that.  Might be a useful function to have anyway.
+

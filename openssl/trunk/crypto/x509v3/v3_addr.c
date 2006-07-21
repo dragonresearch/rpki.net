@@ -152,7 +152,7 @@ static int i2r_IPAddressOrRange(BIO *out, int indent,
 static int i2r_IPAddrBlocks(X509V3_EXT_METHOD *method,
 			    void *ext, BIO *out, int indent)
 {
-  int i, j;
+  int i;
   for (i = 0; i < sk_IPAddrBlocks_num(ext); i++) {
     IPAddressFamily *f = sk_IPAddrBlocks_value(ext, i);
     int afi = (f->addressFamily->data[0] << 8) | f->addressFamily->data[1];
@@ -183,6 +183,63 @@ static int i2r_IPAddrBlocks(X509V3_EXT_METHOD *method,
   return 1;
 }
 
+typedef struct addr_canonize_st {
+  unsigned char min[16], max[16];
+  IPAddressOrRange *aor;
+  int prefixlen;
+} addr_canonize;
+
+DECLARE_STACK_OF(addr_canonize)
+
+static int canonize_addrs(IPAddressOrRanges *aors, int afi)
+{
+  STACK_OF(addr_canonize) *acs = sk_addr_canonize_new(addr_cononize_cmp);
+  int i, length = afi_table[afi_index(afi)].length;
+
+  while (sk_IPAddressOrRange_num(aors) > 0) {
+    addr_canonize *ac = OPENSSL_malloc(sizeof(addr_canonize));
+    if (ac == NULL)
+      goto err;
+    memset(ac, 0, sizeof(*ac));
+    sk_addr_canonize_push(acs, ac);
+    ac->aor = sk_IPAddressOrRange_pop(aors);
+    switch (ac->aor->type) {
+    case IPAddressOrRange_addressPrefix:
+      if (!addr_expand(ac->min, ac->aor->addressPrefix, length, 0x00))
+	goto err;
+      if (!addr_expand(ac->max, ac->aor->addressPrefix, length, 0xFF))
+	goto err;
+      ac->prefixlen = (ac->aor->addressPrefix->length * 8 -
+		       (ac->aor->addressPrefix->flags & 7));
+      break;
+    case IPAddressOrRange_addressRange:
+      if (!addr_expand(ac->min, ac->aor->addressRange->min, length, 0x00))
+	goto err;
+      if (!addr_expand(ac->min, ac->aor->addressRange->max, length, 0xFF))
+	goto err;
+      ac->prefixlen = ac->aor->addressPrefix->length * 8;
+      break;
+    }
+  }
+
+  sk_sort(acs);
+
+  for (i = 0; i < sk_addr_canonize_num(acs); i++) {
+#error not finished
+    /* do the merge check here (see asid code) */
+  }
+
+  for (i = 0; i < sk_addr_canonize_num(acs); i++) {
+#error not finished
+    /*
+     * Convert ranges to prefixes where possible
+     * and convert back to IPAddressOrRanges.
+     */
+  }
+  
+#error not finished
+ err:
+}
 
 X509V3_EXT_METHOD v3_addr = {
   NID_IPAddrBlocks,		/* nid */

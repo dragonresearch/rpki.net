@@ -584,6 +584,7 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
 	!IPAddressOrRanges_canonize(f->ipAddressChoice->u.asIdsOrRanges, afi))
       goto err;
   }
+  sk_IPAddressFamily_sort(addr);
   return addr;
 
  err:

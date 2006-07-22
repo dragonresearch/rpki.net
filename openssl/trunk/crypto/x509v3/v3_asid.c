@@ -23,6 +23,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 #include <assert.h>
 #include "cryptlib.h"
 #include <openssl/conf.h>
@@ -402,7 +403,7 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
     }
     if ((s = strchr(val->value, '-')) == NULL) {
       max = NULL;
-    } else if ((max = s2i_ASN1_INTEGER(NULL, s + 1)) == NULL) {
+    } else if ((max = s2i_ASN1_INTEGER(NULL, s + strspn(s, "- \t"))) == NULL) {
       X509V3err(X509V3_F_V2I_ASIdentifiers, X509V3_R_INVALID_ASRANGE);
       X509V3_conf_err(val);
       goto err;

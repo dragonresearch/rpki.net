@@ -23,6 +23,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <assert.h>
 #include "cryptlib.h"
 #include <openssl/conf.h>
@@ -477,7 +478,6 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
 			      STACK_OF(CONF_VALUE) *values)
 {
   IPAddrBlocks *addr = NULL;
-  char *s;
   int i;
   
   if ((addr = sk_IPAddressFamily_new(IPAddressFamily_cmp)) == NULL) {
@@ -487,12 +487,90 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
 
   for (i = 0; i < sk_CONF_VALUE_num(values); i++) {
     CONF_VALUE *val = sk_CONF_VALUE_value(values, i);
+    unsigned afi, safi, prefixlen, has_safi = 0;
+    unsigned char min[ADDR_RAW_BUF_LEN], max[ADDR_RAW_BUF_LEN];
+    char *s = val->value;
+    int af;
 
-    /*
-     * Parsing stuff itself goes here.
-     */
+    if (       !strcmp(val->name, "ipv4")) {
+      afi = IANA_AFI_IPV4;
+    } else if (!strcmp(val->name, "ipv6")) {
+      afi = IANA_AFI_IPV6;
+    } else if (!strcmp(val->name, "ipv4-safi")) {
+      afi = IANA_AFI_IPV4;
+      has_safi = 1;
+    } else if (!strcmp(val->name, "ipv6-safi")) {
+      afi = IANA_AFI_IPV6;
+      has_safi = 1;
+    } else {
+      X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_EXTENSION_NAME_ERROR);
+      X509V3_conf_err(val);
+      goto err;
+    }
 
-#error not finished
+    if (has_safi) {
+      safi = strtoul(val->value, &s, 0);
+      s += strspn(s, " \t");
+      if (safi > 0xFF || *s++ != ':') {
+	X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_EXTENSION_VALUE_ERROR);
+	X509V3_conf_err(val);
+	goto err;
+      }
+      s += strspn(s, " \t");
+    }
+
+    if (!strcmp(s, "inherit")) {
+      if (addr_add_inherit(addr, afi, has_safi, safi))
+	continue;
+      X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_INVALID_INHERITANCE);
+      X509V3_conf_err(val);
+      goto err;
+    }
+
+    switch (afi) {
+    case IANA_AFI_IPV4:
+      af = AF_INET;
+      break;
+    case IANA_AFI_IPV6:
+      af = AF_INET6;
+      break;
+    }
+
+#warning some of the following errors might be memory, not config
+
+    if (inet_pton(af, s, min) != 1) {
+      X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_EXTENSION_VALUE_ERROR);
+      X509V3_conf_err(val);
+      goto err;
+    }
+
+    if ((s = strpbrk(s, "-/")) == NULL) {
+      X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_EXTENSION_VALUE_ERROR);
+      X509V3_conf_err(val);
+      goto err;
+    }
+
+    switch (*s++) {
+    case '/':
+      prefixlen = strtoul(s, &s, 10);
+      if (*(s + strspn(s, " \t")) != '\0' ||
+	  !addr_add_prefix(addr, afi, has_safi, safi, min, prefixlen)) {
+	X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_EXTENSION_VALUE_ERROR);
+	X509V3_conf_err(val);
+	goto err;
+      }
+      break;
+    case '-':
+      s += strspn(s, " \t");
+      if (inet_pton(af, s, max) != 1 ||
+	  *(s + strspn(s, " \t")) != '\0' ||
+	  !addr_add_prefix(addr, afi, has_safi, safi, min, max)) {
+	X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_EXTENSION_VALUE_ERROR);
+	X509V3_conf_err(val);
+	goto err;
+      }
+      break;
+    }
   }
 
   /*

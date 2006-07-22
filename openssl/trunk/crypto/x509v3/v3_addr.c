@@ -92,6 +92,11 @@ static void addr_expand(unsigned char *addr,
 }
 
 /*
+ * Extract the prefix length from a bitstring.
+ */
+#define addr_prefixlen(bs) ((bs)->length * 8 - ((bs)->flags & 7))
+
+/*
  * Compare two addresses.
  * At the moment this is coded for simplicity, not for speed.
  *
@@ -169,9 +174,7 @@ static int i2r_IPAddressOrRange(BIO *out,
     case IPAddressOrRange_addressPrefix:
       if (!i2r_address(out, afi, 0x00, aor->u.addressPrefix))
 	return 0;
-      BIO_printf(out, "/%d\n", 
-		 ((aor->u.addressPrefix->length * 8) -
-		  (aor->u.addressPrefix->flags & 7)));
+      BIO_printf(out, "/%d\n", addr_prefixlen(aor->u.addressPrefix));
       continue;
     case IPAddressOrRange_addressRange:
       if (!i2r_address(out, afi, 0x00, aor->u.addressRange->min))
@@ -268,8 +271,7 @@ static int IPAddressOrRange_cmp(const IPAddressOrRange *a,
   switch (a->type) {
   case IPAddressOrRange_addressPrefix:
     addr_a = a->u.addressPrefix;
-    prefixlen_a = ((a->u.addressPrefix->length * 8) -
-		   (a->u.addressPrefix->flags & 7));
+    prefixlen_a = addr_prefixlen(a->u.addressPrefix);
     break;
   case IPAddressOrRange_addressRange:
     addr_a = a->u.addressRange->min;
@@ -280,8 +282,7 @@ static int IPAddressOrRange_cmp(const IPAddressOrRange *a,
   switch (b->type) {
   case IPAddressOrRange_addressPrefix:
     addr_b = b->u.addressPrefix;
-    prefixlen_b = ((b->u.addressPrefix->length * 8) -
-		   (b->u.addressPrefix->flags & 7));
+    prefixlen_b = addr_prefixlen(b->u.addressPrefix);
     break;
   case IPAddressOrRange_addressRange:
     addr_b = b->u.addressRange->min;
@@ -310,6 +311,48 @@ static int v6IPAddressOrRange_cmp(const IPAddressOrRange * const *a,
 {
   return IPAddressOrRange_cmp(*a, *b, 16);
 }
+
+/*
+ * Calculate whether a range should be collapsed to a prefix.
+ * prefixlen is set on return to indicate the prefix length we found
+ */
+static int range_should_be_prefix(const IPAddressRange *r,
+				  const int length,
+				  unsigned *prefixlen)
+{
+  unsigned char mask, min[ADDR_RAW_BUF_LEN], max[ADDR_RAW_BUF_LEN];
+  int p, i, j;
+  addr_expand(min, r->min, length, 0x00);
+  addr_expand(max, r->max, length, 0xFF);
+  i = 0;
+  while (i < length && min[i] == max[i])
+    i++;
+  j = length - 1;
+  while (j >= 0 && min[j] == 0x00 && max[j] == 0xFF)
+    j--;
+  if (i < j)
+    return 0;
+  if (i > j) {
+    *prefixlen = i * 8;
+    return 1;
+  }
+  mask = min[i] ^ max[i];
+  switch (mask) {
+  case 0x01: p = 7; break;
+  case 0x03: p = 6; break;
+  case 0x07: p = 5; break;
+  case 0x0F: p = 4; break;
+  case 0x1F: p = 3; break;
+  case 0x3F: p = 2; break;
+  case 0x7F: p = 1; break;
+  default:   return 0;
+  }
+  if (min[i] & mask != 0 || max[i] & mask != mask)
+    return 0;
+  *prefixlen = i * 8 + p;
+  return 1;
+}
+
 
 /*
  * Whack an IPAddressOrRanges into canonical form.
@@ -450,6 +493,12 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
   /*
    * Convert ranges to prefixes where possible.
    */
+#error broken
+  /*
+   * This needs to be rewritten to use range_should_be_prefix(), or
+   * needs to be combined with that code in a new function, or
+   * something.  As it stands, this code does not work.
+   */
   for (i = 0; i < sk_IPAddressOrRange_num(aors); i++) {
     IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, i);
     if (a->type == IPAddressOrRange_addressRange &&
@@ -457,8 +506,13 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
 		 0x00, 0x00, length, 0) == 0) {
       IPAddressRange *r = a->u.addressRange;
       a->type = IPAddressOrRange_addressPrefix;
-      a->u.addressPrefix = r->min;
-      ASN1_BIT_STRING_free(r->max);
+      if (addr_prefixlen(r->min) > addr_prefixlen(r->max)) {
+	a->u.addressPrefix = r->min;
+	ASN1_BIT_STRING_free(r->max);
+      } else {
+	a->u.addressPrefix = r->max;
+	ASN1_BIT_STRING_free(r->min);
+      }
       IPAddressRange_free(r);
     }
   }

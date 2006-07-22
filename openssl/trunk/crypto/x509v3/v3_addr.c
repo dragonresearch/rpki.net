@@ -100,8 +100,8 @@ static void addr_expand(unsigned char *addr,
  * this hack offends you, feel free to recode this whole thing in
  * terms of the BN library....
  */
-static int addr_cmp(const ASN1_BIT_STRING * const *a,
-		    const ASN1_BIT_STRING * const *b,
+static int addr_cmp(const ASN1_BIT_STRING *a,
+		    const ASN1_BIT_STRING *b,
 		    const unsigned char fill_a,
 		    const unsigned char fill_b,
 		    const int length,
@@ -118,8 +118,8 @@ static int addr_cmp(const ASN1_BIT_STRING * const *a,
     int i = length - 1;
     while (i >= 0 && !b[i]--)
       i--;
-    if (!memcmp(a, b, length)
-	r = 0;
+    if (!memcmp(a, b, length))
+      r = 0;
   }
   return r;
 }
@@ -256,8 +256,8 @@ static int i2r_IPAddrBlocks(X509V3_EXT_METHOD *method,
 /*
  * Compare two IPAddressOrRanges elements.
  */
-static int IPAddressOrRange_cmp(const IPAddressOrRange * const *a,
-				const IPAddressOrRange * const *b,
+static int IPAddressOrRange_cmp(const IPAddressOrRange *a,
+				const IPAddressOrRange *b,
 				const int length)
 {
   const ASN1_BIT_STRING *addr_a, *addr_b;
@@ -296,23 +296,22 @@ static int IPAddressOrRange_cmp(const IPAddressOrRange * const *a,
 
 /*
  * Closures, since sk_sort() comparision routines are only allowed two
- * arguments.
- * 
+ * arguments, and have a weird double pointer type signature.
  */
 static int v4IPAddressOrRange_cmp(const IPAddressOrRange * const *a,
 				  const IPAddressOrRange * const *b)
 {
-  return IPAddressOrRange_cmp(a, b, 4);
+  return IPAddressOrRange_cmp(*a, *b, 4);
 }
 
 static int v6IPAddressOrRange_cmp(const IPAddressOrRange * const *a,
 				  const IPAddressOrRange * const *b)
 {
-  return IPAddressOrRange_cmp(a, b, 16);
+  return IPAddressOrRange_cmp(*a, *b, 16);
 }
 
 /*
- * Whack a IPAddressOrRanges into canonical form.
+ * Whack an IPAddressOrRanges into canonical form.
  */
 static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
 				      unsigned afi)
@@ -462,6 +461,56 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
       IPAddressRange_free(r);
     }
   }
+}
+
+#error still need insertion methods (see asid code)
+
+
+static int IPAddressFamily_cmp(const IPAddressFamily * const *a,
+			       const IPAddressFamily * const *b)
+{
+  return ASN1_OCTET_STRING_cmp(*a, *b);
+}
+
+static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
+			      struct v3_ext_ctx *ctx,
+			      STACK_OF(CONF_VALUE) *values)
+{
+  IPAddrBlocks *addr = NULL;
+  char *s;
+  int i;
+  
+  if ((addr = sk_IPAddressFamily_new(IPAddressFamily_cmp)) == NULL) {
+    X509V3err(X509V3_F_V2I_IPAddrBlocks, ERR_R_MALLOC_FAILURE);
+    return NULL;
+  }
+
+  for (i = 0; i < sk_CONF_VALUE_num(values); i++) {
+    CONF_VALUE *val = sk_CONF_VALUE_value(values, i);
+
+    /*
+     * Parsing stuff itself goes here.
+     */
+
+#error not finished
+  }
+
+  /*
+   * Canonize the result, then we're done.
+   */
+  for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
+    IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
+    unsigned afi = ((f->addressFamily->data[0] << 8) |
+		    (f->addressFamily->data[1]));
+    if (f->ipAddressChoice->type == IPAddressChoice_addressesOrRanges &&
+	!IPAddressOrRanges_canonize(f->ipAddressChoice->u.asIdsOrRanges, afi))
+      goto err;
+  }
+  return addr;
+
+ err:
+#error not finished
+  return NULL;
 }
 
 X509V3_EXT_METHOD v3_addr = {

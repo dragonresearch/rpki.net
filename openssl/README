@@ -184,9 +184,15 @@ rfc3779-addr = critical, ipv4:10.1.1.1/32, ipv4:10.2.0.0-10.3.255.255
 
 rfc3779-addr = critical, ipv4:inherit, ipv6:2002::/16
 
-# Address extension using raw AFI/SAFI syntax
+# An address extension using raw AFI/SAFI syntax.
+#
+# This doesn't really work, we can't do prefixes without knowing how long
+# a particular kind of address is supposed to be.
+#rfc3779-addr = critical, afisafi:000101:001122334455-aabbccddee
 
-rfc3779-addr = critical, afisafi:000101:001122334455-aabbccddee
+# An address extension using SAFIs
+
+rfc3779-addr = critical, ipv4-safi:1:10.1.1.1/32, ipv6-safi:1:2002::/16
 
 # Address extension using an indirect section
 

@@ -126,9 +126,11 @@ static int i2r_ASIdentifiers(X509V3_EXT_METHOD *method,
  * Comparision function for stack sorting.
  */
 
-static int ASIdOrRange_cmp(const ASIdOrRange * const *a,
-			   const ASIdOrRange * const *b)
+static int ASIdOrRange_cmp(const ASIdOrRange * const *a_,
+			   const ASIdOrRange * const *b_)
 {
+  const ASIdOrRange *a = *a_, *b = *b_;
+
   assert((a->type == ASIdOrRange_id && a->u.id != NULL) ||
 	 (a->type == ASIdOrRange_range && a->u.range != NULL &&
 	  a->u.range->min != NULL && a->u.range->max != NULL));

@@ -341,3 +341,15 @@ Problem is, this requires data not available in a sk_sort() handler.
 So I think we're stuck with the temporary stack approach. 
 
 No, we can use a closure.
+
+
+
+addr_canonize() code is not right yet, mostly because merging prefixes
+and ranges is tricky.  Logic that checks whether they need to be
+merged is probably ok, it's the code that does the merge that's whacked.
+
+Perhaps what we need is a function that takes two prefix-or-ranges
+(which the caller asserts should be merged), and generates the prefix
+or range that starts with the first one and ends with the second.
+Would probably be easier than what the code does now.  Worry about
+optimizing this later, if it matters, get it right first.

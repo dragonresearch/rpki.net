@@ -353,3 +353,13 @@ Perhaps what we need is a function that takes two prefix-or-ranges
 or range that starts with the first one and ends with the second.
 Would probably be easier than what the code does now.  Worry about
 optimizing this later, if it matters, get it right first.
+
+Current code in addr_canonize() is much more complicated than
+necessary, needs reorganization.  All we really need to do is:
+
+1) Expand begin and end addresses of A and B.
+
+2) Check whether they overlap (or are adjacent).
+
+3) If so, replace them with a merged prefix or range.
+

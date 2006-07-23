@@ -54,7 +54,7 @@ typedef struct IPAddressChoice_st {
   int type;
   union {
     ASN1_NULL		*inherit;
-    IPAddressOrRanges	*asIdsOrRanges;
+    IPAddressOrRanges	*addressesOrRanges;
   } u;
 } IPAddressChoice;
 

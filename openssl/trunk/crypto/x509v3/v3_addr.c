@@ -642,6 +642,7 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
      * Comparing prefix a with prefix b.  If they're adjacent, we need
      * to merge them into a range.
      */
+#error This may leave an ill-formed range, need to regenerate
     if (a->type == IPAddressOrRange_addressPrefix &&
 	b->type == IPAddressOrRange_addressPrefix &&
 	addr_cmp(a->u.addressPrefix, b->u.addressPrefix,
@@ -667,6 +668,7 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
      * Comparing prefix a with range b.  If they overlap or are
      * adjacent, we merge them into a range.
      */
+#error This may leave an ill-formed range, need to regenerate
     if (a->type == IPAddressOrRange_addressPrefix &&
 	addr_cmp(a->u.addressPrefix, b->u.addressRange->min,
 		 0xFF, 0x00, length, 1) >= 0) {
@@ -686,6 +688,7 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
      * Comparing range a with prefix b.  If they overlap or are
      * adjacent, we merge them into a range.
      */
+#error This may leave an ill-formed range, need to regenerate
     if (b->type == IPAddressOrRange_addressPrefix &&
 	addr_cmp(a->u.addressRange->max, b->u.addressPrefix,
 		 0xFF, 0x00, length, 1) >= 0) {

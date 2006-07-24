@@ -318,14 +318,59 @@ static int v6IPAddressOrRange_cmp(const IPAddressOrRange * const *a,
 }
 
 /*
- * Constructors.
+ * Calculate whether a range should be collapsed to a prefix.
+ * prefixlen is set on return to indicate the prefix length we found
  */
+static int range_should_be_prefix(const unsigned char *min,
+				  const unsigned char *max,
+				  const int length,
+				  int *prefixlen)
+{
+  unsigned char mask;
+  int p, i, j;
 
+  i = 0;
+  while (i < length && min[i] == max[i])
+    i++;
+
+  j = length - 1;
+  while (j >= 0 && min[j] == 0x00 && max[j] == 0xFF)
+    j--;
+
+  if (i < j)
+    return 0;
+
+  if (i > j) {
+    *prefixlen = i * 8;
+    return 1;
+  }
+
+  mask = min[i] ^ max[i];
+  switch (mask) {
+  case 0x01: p = 7; break;
+  case 0x03: p = 6; break;
+  case 0x07: p = 5; break;
+  case 0x0F: p = 4; break;
+  case 0x1F: p = 3; break;
+  case 0x3F: p = 2; break;
+  case 0x7F: p = 1; break;
+  default:   return 0;
+  }
+
+  if (min[i] & mask != 0 || max[i] & mask != mask)
+    return 0;
+  *prefixlen = i * 8 + p;
+  return 1;
+}
+
+/*
+ * Construct a prefix.
+ */
 static int make_addressPrefix(IPAddressOrRange **result,
 			      const unsigned char *addr,
-			      const unsigned prefixlength)
+			      const int prefixlength)
 {
-  unsigned bytelen = (prefixlength + 7) / 8, bitlen = prefixlen % 8;
+  int bytelen = (prefixlength + 7) / 8, bitlen = prefixlen % 8;
   IPAddressOrRange *aor = IPAddressOrRange_new();
   ASN1_BIT_STRING *bs = ASN1_BIT_STRING_new();
   if (aor == NULL || bs == NULL ||
@@ -350,18 +395,28 @@ static int make_addressPrefix(IPAddressOrRange **result,
   return 0;
 }
 
+/*
+ * Construct a range.  If it can be expressed as a prefix,
+ * return a prefix instead.  Doing this here simplifies
+ * the rest of the code considerably.
+ */
 static int make_addressRange(IPAddressOrRange **result,
 			     const unsigned char *min_,
 			     const unsigned char *max_,
 			     const unsigned length)
 {
-  IPAddressOrRange *aor = IPAddressOrRange_new();
-  IPAddressRange *r = IPAddressRange_new();
-  ASN1_BIT_STRING *min = ASN1_BIT_STRING_new();
-  ASN1_BIT_STRING *max = ASN1_BIT_STRING_new();
-  int i;
+  IPAddressOrRange *aor = NULL;
+  IPAddressRange *r = NULL;
+  ASN1_BIT_STRING *min = NULL, *max = NULL;
+  int i, prefixlen;
 
-  if (aor == NULL || r == NULL || min == NULL || max == NULL)
+  if (range_should_be_prefix(min_, max_, length, &prefixlen))
+    return make_addressPrefix(result, min_, prefixlen);
+
+  if ((aor = IPAddressOrRange_new()) == NULL ||
+      (r = IPAddressRange_new()) == NULL ||
+      (min = ASN1_BIT_STRING_new()) == NULL ||
+      (max = ASN1_BIT_STRING_new()) == NULL)
     goto err;
 
   i = length;
@@ -417,7 +472,7 @@ static int make_addressRange(IPAddressOrRange **result,
 
 static IPAddressFamily *add_IPAddressFamily(IPAddrBlocks *addr,
 					    unsigned afi,
-					    unsigned has_safi,
+					    int has_safi,
 					    unsigned safi)
 {
   IPAddressFamily *f;
@@ -456,7 +511,7 @@ static IPAddressFamily *add_IPAddressFamily(IPAddrBlocks *addr,
 
 static int addr_add_inherit(IPAddrBlocks *addr,
 			    unsigned afi,
-			    unsigned has_safi,
+			    int has_safi,
 			    unsigned safi)
 {
   IPAddressFamily *f = add_IPAddressFamily(addr, afi, has_safi, safi);
@@ -473,10 +528,13 @@ static int addr_add_inherit(IPAddrBlocks *addr,
   return 1;
 }
 
-static IPAddressOrRanges *addr_add_prefix_or_range(IPAddrBlocks *addr,
-						   unsigned afi,
-						   unsigned has_safi,
-						   unsigned safi)
+/*
+ * Construct an IPAddressOrRanges sequence, or return an existing one.
+ */
+static IPAddressOrRanges *make_prefix_or_range(IPAddrBlocks *addr,
+					       unsigned afi,
+					       int has_safi,
+					       unsigned safi)
 {
   IPAddressFamily *f = add_IPAddressFamily(addr, afi, has_safi, safi);
   IPAddressOrRanges *aors = NULL;
@@ -506,12 +564,12 @@ static IPAddressOrRanges *addr_add_prefix_or_range(IPAddrBlocks *addr,
 
 static int addr_add_prefix(IPAddrBlocks *addr,
 			   unsigned afi,
-			   unsigned has_safi,
+			   int has_safi,
 			   unsigned safi,
 			   unsigned char *addr,
-			   unsigned prefixlen)
+			   int prefixlen)
 {
-  IPAddressOrRanges *aors = addr_add_prefix_or_range(addr, afi, has_safi, safi);
+  IPAddressOrRanges *aors = make_prefix_or_range(addr, afi, has_safi, safi);
   IPAddressOrRange *aor;
   if (aors == NULL ||
       !make_addressPrefix(&aor, addr, prefixlen))
@@ -526,12 +584,12 @@ static int addr_add_prefix(IPAddrBlocks *addr,
 
 static int addr_add_range(IPAddrBlocks *addr,
 			  unsigned afi,
-			  unsigned has_safi,
+			  int has_safi,
 			  unsigned safi,
 			  unsigned char *min,
 			  unsigned char *max)
 {
-  IPAddressOrRanges *aors = addr_add_prefix_or_range(addr, afi, has_safi, safi);
+  IPAddressOrRanges *aors = make_prefix_or_range(addr, afi, has_safi, safi);
   IPAddressOrRange *aor;
   unsigned length;
   if (aors == NULL)
@@ -557,54 +615,12 @@ static int addr_add_range(IPAddrBlocks *addr,
 }
 
 /*
- * Calculate whether a range should be collapsed to a prefix.
- * prefixlen is set on return to indicate the prefix length we found
- */
-static int range_should_be_prefix(const IPAddressRange *r,
-				  const int length,
-				  unsigned *prefixlen)
-{
-  unsigned char mask, min[ADDR_RAW_BUF_LEN], max[ADDR_RAW_BUF_LEN];
-  int p, i, j;
-  addr_expand(min, r->min, length, 0x00);
-  addr_expand(max, r->max, length, 0xFF);
-  i = 0;
-  while (i < length && min[i] == max[i])
-    i++;
-  j = length - 1;
-  while (j >= 0 && min[j] == 0x00 && max[j] == 0xFF)
-    j--;
-  if (i < j)
-    return 0;
-  if (i > j) {
-    *prefixlen = i * 8;
-    return 1;
-  }
-  mask = min[i] ^ max[i];
-  switch (mask) {
-  case 0x01: p = 7; break;
-  case 0x03: p = 6; break;
-  case 0x07: p = 5; break;
-  case 0x0F: p = 4; break;
-  case 0x1F: p = 3; break;
-  case 0x3F: p = 2; break;
-  case 0x7F: p = 1; break;
-  default:   return 0;
-  }
-  if (min[i] & mask != 0 || max[i] & mask != mask)
-    return 0;
-  *prefixlen = i * 8 + p;
-  return 1;
-}
-
-
-/*
  * Whack an IPAddressOrRanges into canonical form.
  */
 static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
 				      unsigned afi)
 {
-  int i, length;
+  int i, j, length;
 
   switch (afi) {
   case IANA_AFI_IPV4:
@@ -616,159 +632,78 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
   }
 
   /*
-   * Start by sorting the IPAddressOrRanges sequence.
+   * Sort the IPAddressOrRanges sequence.
    */
   sk_IPAddressOrRange_sort(aors);
 
   /*
    * Resolve any duplicates or overlaps.
    */
-
   for (i = 0; i < sk_IPAddressOrRange_num(aors) - 1; i++) {
     IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, i);
     IPAddressOrRange *b = sk_IPAddressOrRange_value(aors, i + 1);
+    unsigned char a_min[ADDR_RAW_BUF_LEN], a_max[ADDR_RAW_BUF_LEN];
+    unsigned char b_min[ADDR_RAW_BUF_LEN], b_max[ADDR_RAW_BUF_LEN];
 
     /*
-     * Comparing prefix a with prefix b.  If they nest, a will contain
-     * b due to the sorting rules, so we can just get rid of b.
+     * Expand all the addresses once and get it over with.
      */
-    if (a->type == IPAddressOrRange_addressPrefix &&
-	b->type == IPAddressOrRange_addressPrefix &&
-	addr_cmp(a->u.addressPrefix, b->u.addressPrefix,
-		 0xFF, 0xFF, length, 0) >= 0) {
+    switch (a->type) {
+    case IPAddressOrRange_addressPrefix:
+      addr_expand(a_min, a->u.addressPrefix, length, 0x00);
+      addr_expand(a_max, a->u.addressPrefix, length, 0xFF);
+      break;
+    case IPAddressOrRange_addressRange:
+      addr_expand(a_min, a->u.addressRange->min, length, 0x00);
+      addr_expand(a_max, a->u.addressRange->max, length, 0xFF);
+      break;
+    }
+    switch (b->type) {
+    case IPAddressOrRange_addressPrefix:
+      addr_expand(b_min, b->u.addressPrefix, length, 0x00);
+      addr_expand(b_max, b->u.addressPrefix, length, 0xFF);
+      break;
+    case IPAddressOrRange_addressRange:
+      addr_expand(b_min, b->u.addressRange->min, length, 0x00);
+      addr_expand(b_max, b->u.addressRange->min, length, 0xFF);
+      break;
+    }
+
+    /*
+     * Make sure we're sorted properly (paranoia).
+     */
+    assert(memcmp(a_min, b_min, length) <= 0);
+
+    /*
+     * If a contains b, we can just get rid of b.
+     */
+    if (memcmp(a_max, b_max, length) >= 0) {
       sk_IPAddressOrRange_delete(aors, i + 1);
-      ASN1_BIT_STRING_free(b->u.addressPrefix);
-      IPAddressOrRange_free(b);
-      i--;
+      aor_cleanup(b);
+      --i;
       continue;
     }
 
     /*
-     * Comparing prefix a with prefix b.  If they're adjacent, we need
-     * to merge them into a range.
+     * If a and b are adjacent or overlap, merge them.  We check for
+     * adjacency by subtracting one from b_min first.
      */
-#error This may leave an ill-formed range, need to regenerate
-    if (a->type == IPAddressOrRange_addressPrefix &&
-	b->type == IPAddressOrRange_addressPrefix &&
-	addr_cmp(a->u.addressPrefix, b->u.addressPrefix,
-		 0xFF, 0xFF, length, 1) >= 0) {
-      IPAddressRange *r = IPAddressRange_new();
-      if (r == NULL)
+    for (j = length - 1; j >= 0 && b_min[j]-- == 0x00; j--)
+      ;
+    if (memcmp(a_max, b_min, length) >= 0) {
+      IPAddressOrRange *merged;
+      if (!make_addressRange(&merged, a_min, b_max, length))
 	return 0;
+      sk_IPAddressOrRange_set(aors, i, merged);
       sk_IPAddressOrRange_delete(aors, i + 1);
-      r->min = a->u.addressPrefix;
-      r->max = b->u.addressPrefix;
-      a->type = IPAddressOrRange_addressRange;
-      a->u.addressRange = r;
-      IPAddressOrRange_free(b);
-      i--;
-      continue;
-    }
-
-    if (a->type == IPAddressOrRange_addressPrefix &&
-	b->type == IPAddressOrRange_addressPrefix)
-      continue;
-
-    /*
-     * Comparing prefix a with range b.  If they overlap or are
-     * adjacent, we merge them into a range.
-     */
-#error This may leave an ill-formed range, need to regenerate
-    if (a->type == IPAddressOrRange_addressPrefix &&
-	addr_cmp(a->u.addressPrefix, b->u.addressRange->min,
-		 0xFF, 0x00, length, 1) >= 0) {
-      sk_IPAddressOrRange_delete(aors, i);
-      ASN_BIT_STRING_free(b->u.addressRange->min);
-      b->u.addressRange->min = a->u.addressPrefix;
-      IPAddressRange_free(a->u.addressRange);
-      IPAddressOrRange_free(a);
-      i--;
-      continue;
-    }
-
-    if (a->type == IPAddressOrRange_addressPrefix)
-      continue;
-
-    /*
-     * Comparing range a with prefix b.  If they overlap or are
-     * adjacent, we merge them into a range.
-     */
-#error This may leave an ill-formed range, need to regenerate
-    if (b->type == IPAddressOrRange_addressPrefix &&
-	addr_cmp(a->u.addressRange->max, b->u.addressPrefix,
-		 0xFF, 0x00, length, 1) >= 0) {
-      sk_IPAddressOrRange_delete(aors, i + 1);
-      ASN_BIT_STRING_free(a->u.addressRange->max);
-      a->u.addressRange->max = b->u.addressPrefix;
-      IPAddressRange_free(b->u.addressRange);
-      IPAddressOrRange_free(b);
-      i--;
-      continue;
-    }
-
-    if (b->type == IPAddressOrRange_addressPrefix)
-      continue;
-
-    /*
-     * Comparing range a with range b, remove b if contained in a.
-     */
-    if (addr_cmp(a->u.addressRange->max, b->u.addressRange->max,
-		 0xFF, 0xFF, length, 0) >= 0) {
-      sk_IPAddressOrRange_delete(aors, i + 1);
-      ASN_BIT_STRING_free(b->u.addressRange->min);
-      ASN_BIT_STRING_free(b->u.addressRange->max);
-      IPAddressRange_free(b->u.addressRange);
-      IPAddressOrRange_free(b);
-      i--;
-      continue;
-    }
-
-    /*
-     * Comparing range a with range b, merge if they overlap or are
-     * adjacent.
-     */
-    if (addr_cmp(a->u.addressRange->max, b->u.addressRange->min,
-		 0xFF, 0x00, length, 1) >= 0) {
-      sk_IPAddressOrRange_delete(aors, i);
-      ASN_BIT_STRING_free(a->u.addressRange->max);
-      ASN_BIT_STRING_free(b->u.addressRange->min);
-      b->u.addressRange->min = a->u.addressRange->max;
-      IPAddressRange_free(a->u.addressRange);
-      IPAddressOrRange_free(a);
-      i--;
+      aor_cleanup(a);
+      aor_cleanup(b);
+      --i;
       continue;
     }
   }
 
-  /*
-   * Convert ranges to prefixes where possible.
-   */
-#error broken
-  /*
-   * This needs to be rewritten to use range_should_be_prefix(), or
-   * needs to be combined with that code in a new function, or
-   * something.  As it stands, this code does not work.  We can't just
-   * reuse the bitstrings either, length might be wrong.  Best just
-   * create a new one, since we need a method routine that does that
-   * anyway.
-   */
-  for (i = 0; i < sk_IPAddressOrRange_num(aors); i++) {
-    IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, i);
-    if (a->type == IPAddressOrRange_addressRange &&
-	addr_cmp(a->u.addressRange->min,a->u.addressRange->max,
-		 0x00, 0x00, length, 0) == 0) {
-      IPAddressRange *r = a->u.addressRange;
-      a->type = IPAddressOrRange_addressPrefix;
-      if (addr_prefixlen(r->min) > addr_prefixlen(r->max)) {
-	a->u.addressPrefix = r->min;
-	ASN1_BIT_STRING_free(r->max);
-      } else {
-	a->u.addressPrefix = r->max;
-	ASN1_BIT_STRING_free(r->min);
-      }
-      IPAddressRange_free(r);
-    }
-  }
+  return 1;
 }
 
 static int IPAddressFamily_cmp(const IPAddressFamily * const *a,
@@ -792,7 +727,8 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
 
   for (i = 0; i < sk_CONF_VALUE_num(values); i++) {
     CONF_VALUE *val = sk_CONF_VALUE_value(values, i);
-    unsigned afi, safi, prefixlen, has_safi = 0;
+    unsigned afi, safi;
+    int prefixlen, has_safi = 0;
     unsigned char min[ADDR_RAW_BUF_LEN], max[ADDR_RAW_BUF_LEN];
     char *s = val->value;
     int af;
@@ -857,7 +793,7 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
 
     switch (*s++) {
     case '/':
-      prefixlen = strtoul(s, &s, 10);
+      prefixlen = (int) strtoul(s, &s, 10);
       if (*(s + strspn(s, " \t")) != '\0' ||
 	  !addr_add_prefix(addr, afi, has_safi, safi, min, prefixlen)) {
 	X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_EXTENSION_VALUE_ERROR);

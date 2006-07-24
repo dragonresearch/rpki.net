@@ -83,12 +83,17 @@ static void addr_expand(unsigned char *addr,
 			const unsigned char fill)
 {
   assert(bs->length >= 0 && bs->length <= length);
-  memset(addr, fill, length);
   if (bs->length > 0) {
     memcpy(addr, bs->data, bs->length);
-    if ((bs->flags & 7) != 0)
-      addr[bs->length - 1] |= fill >> (8 - (bs->flags & 7));
+    if ((bs->flags & 7) != 0) {
+      unsigned char mask = 0xFF >> (8 - (bs->flags & 7));
+      if (fill == 0)
+	addr[bs->length - 1] &= ~mask;
+      else
+	addr[bs->length - 1] |= mask;
+    }
   }
+  memset(addr + bs->length, fill, length - bs->length);
 }
 
 /*
@@ -264,33 +269,33 @@ static int IPAddressOrRange_cmp(const IPAddressOrRange *a,
 				const IPAddressOrRange *b,
 				const int length)
 {
-  const ASN1_BIT_STRING *addr_a, *addr_b;
-  unsigned prefixlen_a, prefixlen_b;
+  unsigned char addr_a[ADDR_RAW_BUF_LEN], addr_b[ADDR_RAW_BUF_LEN];
+  int prefixlen_a, prefixlen_b;
   int r;
 
   switch (a->type) {
   case IPAddressOrRange_addressPrefix:
-    addr_a = a->u.addressPrefix;
+    addr_expand(addr_a, a->u.addressPrefix, length, 0x00);
     prefixlen_a = addr_prefixlen(a->u.addressPrefix);
     break;
   case IPAddressOrRange_addressRange:
-    addr_a = a->u.addressRange->min;
+    addr_expand(addr_a, a->u.addressRange->min, length, 0x00);
     prefixlen_a = length * 8;
     break;
   }
 
   switch (b->type) {
   case IPAddressOrRange_addressPrefix:
-    addr_b = b->u.addressPrefix;
+    addr_expand(addr_b, b->u.addressPrefix, length, 0x00);
     prefixlen_b = addr_prefixlen(b->u.addressPrefix);
     break;
   case IPAddressOrRange_addressRange:
-    addr_b = b->u.addressRange->min;
+    addr_expand(addr_b, b->u.addressRange->min, length, 0x00);
     prefixlen_b = length * 8;
     break;
   }
 
-  if ((r = addr_cmp(addr_a, addr_b, 0x00, 0x00, length, 0)) != 0)
+  if ((r = memcmp(addr_a, addr_b, length)) != 0)
     return r;
   else
     return prefixlen_a - prefixlen_b;

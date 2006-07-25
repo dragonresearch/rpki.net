@@ -445,3 +445,17 @@ break i2r_IPAddrBlocks
 The decoded ASN.1 structures are not what the code expects.  Hmm.  The
 AS number stuff is not dumping core, have not yet figured out whether
 it's really working or is just not noticing that it's broken.
+
+i2r_IPAddressOrRanges (out=0x2b5b6fc0, indent=18, aors=0x2b9a0ff0, afi=1) at v3_addr.c:152
+(gdb) p aors
+$1 = (const IPAddressOrRanges *) 0x2b9a0ff0
+(gdb) p *aors
+Error accessing memory address 0x2b9a0ff0: Bad address.
+(gdb) n
+(gdb) n
+
+Program received signal SIGSEGV, Segmentation fault.
+0x080fba4b in sk_value (st=0x2b9a0ff0, i=0) at stack.c:310
+
+The layer above this looks right (appears to be a valid stack, the
+addressFamily field looks plausible).

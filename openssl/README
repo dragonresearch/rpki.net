@@ -423,3 +423,25 @@ NIDs have already been assigned and everything, just have to use them.
 -Werror is set in compilation flags, so can't use #warning.
 
 Remember to clean up the new stuff ni x509v3.h!
+
+
+
+
+## [.gdbinit]
+
+# this cert generates a core dump, might be interesting to find out why
+set arg x509 -noout -text -in /u/sra/isc/route-pki/ftp.apnic.net/pub/test-certs/fc0000000003.cert
+
+# but maybe let's start with one which is just broken rather than dumping core
+set arg x509 -noout -text -in /u/sra/isc/route-pki/ftp.apnic.net/pub/test-certs/fc4884ce32f6.cert
+
+# hmm, that one dumps core too, what fun
+
+break i2r_IPAddrBlocks
+
+
+##
+
+The decoded ASN.1 structures are not what the code expects.  Hmm.  The
+AS number stuff is not dumping core, have not yet figured out whether
+it's really working or is just not noticing that it's broken.

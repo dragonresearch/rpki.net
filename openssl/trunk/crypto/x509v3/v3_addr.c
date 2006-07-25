@@ -765,7 +765,10 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
 			      struct v3_ext_ctx *ctx,
 			      STACK_OF(CONF_VALUE) *values)
 {
+  static const char v4addr_chars[] = "0123456789.";
+  static const char v6addr_chars[] = "0123456789.:abcdefABCDEF";
   IPAddrBlocks *addr = NULL;
+  char *addr_chars;
   int i;
   
   if ((addr = sk_IPAddressFamily_new(IPAddressFamily_cmp)) == NULL) {
@@ -818,9 +821,11 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
     switch (afi) {
     case IANA_AFI_IPV4:
       af = AF_INET;
+      addr_chars = v4addr_chars;
       break;
     case IANA_AFI_IPV6:
       af = AF_INET6;
+      addr_chars = v6addr_chars;
       break;
     }
 
@@ -830,25 +835,14 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
       goto err;
     }
 
-#warning need to handle bare address, neither range nor prefix
-    /*
-     * Need to rewrite this part of the code slightly if we're going
-     * to support bare address.  Need not be optimized as I don't
-     * really expect it to be used often, so just doing
-     * addr_range(min,min) should suffice and avoids having to set the
-     * length for a prefix.
-     */
-
-    if ((s = strpbrk(s, "-/")) == NULL) {
-      X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_EXTENSION_VALUE_ERROR);
-      X509V3_conf_err(val);
-      goto err;
-    }
+    s += strspn(s, addr_chars);
+    s += strspn(s, " \t");
 
     switch (*s++) {
     case '/':
       prefixlen = (int) strtoul(s, &s, 10);
-      if (*(s + strspn(s, " \t")) != '\0') {
+      s += strspn(s, " \t");
+      if (*s != '\0') {
 	X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_EXTENSION_VALUE_ERROR);
 	X509V3_conf_err(val);
 	goto err;
@@ -861,7 +855,14 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
       break;
     case '-':
       s += strspn(s, " \t");
-      if (inet_pton(af, s, max) != 1 || *(s + strspn(s, " \t")) != '\0') {
+      if (inet_pton(af, s, max) != 1) {
+	X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_EXTENSION_VALUE_ERROR);
+	X509V3_conf_err(val);
+	goto err;
+      }
+      s += strspn(s, addr_chars);
+      s += strspn(s, " \t");
+      if (*s != '\0') {
 	X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_EXTENSION_VALUE_ERROR);
 	X509V3_conf_err(val);
 	goto err;
@@ -872,6 +873,17 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
 	goto err;
       }
       break;
+    case '\0':
+      if (!addr_add_range(addr, afi, safi, min, min)) {
+	X509V3err(X509V3_F_V2I_IPAddrBlocks, ERR_R_MALLOC_FAILURE);
+	X509V3_conf_err(val);
+	goto err;
+      }
+      break;
+    default:
+      X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_EXTENSION_VALUE_ERROR);
+      X509V3_conf_err(val);
+      goto err;
     }
   }
 

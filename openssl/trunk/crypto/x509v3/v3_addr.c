@@ -245,6 +245,83 @@ static int i2r_IPAddrBlocks(X509V3_EXT_METHOD *method,
 }
 
 /*
+ * Destructors.
+ */
+
+static void destroy_IPAddressRange(IPAddressRange *x)
+{
+  if (x != NULL) {
+    if (x->min != NULL)
+      ASN1_BIT_STRING_free(x->min);
+    if (x->max != NULL)
+      ASN1_BIT_STRING_free(x->max);
+    IPAddressRange_free(x);
+  }
+}
+
+static void destroy_IPAddressOrRange(IPAddressOrRange *x)
+{
+  if (x != NULL) {
+    switch (x->type) {
+    case IPAddressOrRange_addressPrefix:
+      if (x->u.addressPrefix != NULL)
+	ASN1_BIT_STRING_free(x->u.addressPrefix);
+      break;
+    case IPAddressOrRange_addressRange:
+      destroy_IPAddressRange(x->u.addressRange);
+      break;
+    }
+    IPAddressOrRange_free(x);
+  }
+}
+
+static void destroy_IPAddressOrRanges(IPAddressOrRanges *x)
+{
+  if (x != NULL) {
+    int i;
+    for (i = 0; i < sk_IPAddressOrRange_num(x); i++)
+      destroy_IPAddressOrRange(sk_IPAddressOrRange_value(x, i));
+    sk_IPAddressOrRange_free(x);
+  }
+}
+
+static void destroy_IPAddressChoice(IPAddressChoice *x)
+{
+  if (x != NULL) {
+    switch (x->type) {
+    case IPAddressChoice_inherit:
+      if (x->u.inherit != NULL)
+	ASN1_NULL_free(x->u.inherit);
+      break;
+    case IPAddressChoice_addressesOrRanges:
+      destroy_IPAddressOrRanges(x->u.addressesOrRanges);
+      break;
+    }
+    IPAddressChoice_free(x);
+  }
+}
+
+static void destroy_IPAddressFamily(IPAddressFamily *x)
+{
+  if (x != NULL) {
+    if (x->addressFamily != NULL)
+      ANS1_OCTET_STRING_free(x->addressFamily);
+    destroy_IPAddressChoice(x->ipAddressChoice);    
+    IPAddressFamily_free(x);
+  }
+}
+
+static void destroy_IPAddrBlocks(IPAddrBlocks *x)
+{
+  if (x != NULL) {
+    int i;
+    for (i = 0; i < sk_IPAddressFamily_num(x); i++)
+      destroy_IPAddressFamily(sk_IPAddressFamily_value(x, i));
+    sk_IPAddressFamily_free(x);
+  }
+}
+
+/*
  * Sort comparison function for a sequence of IPAddressOrRange
  * elements.
  */
@@ -349,9 +426,14 @@ static int make_addressPrefix(IPAddressOrRange **result,
 {
   int bytelen = (prefixlength + 7) / 8, bitlen = prefixlen % 8;
   IPAddressOrRange *aor = IPAddressOrRange_new();
-  ASN1_BIT_STRING *bs = ASN1_BIT_STRING_new();
-  if (aor == NULL || bs == NULL ||
-      !ASN1_BIT_STRING_set(bs, addr, bytelen))
+
+  if (aor == NULL)
+    return 0;
+  aor->type = IPAddressOrRange_addressPrefix;
+  if ((aor->addressPrefix = ASN1_BIT_STRING_new()) == NULL)
+    goto err;
+  
+  if (!ASN1_BIT_STRING_set(bs, addr, bytelen))
     goto err;
   bs->flags &= ~7;
   bs->flags |= ASN1_STRING_FLAG_BITS_LEFT;
@@ -359,16 +441,12 @@ static int make_addressPrefix(IPAddressOrRange **result,
     bs->data[bytelen - 1] &= ~(0xFF >> bitlen);
     bs->flags |= 8 - bitlen;
   }
-  aor->type = IPAddressOrRange_addressPrefix;
-  aor->addressPrefix = bs;
+  
   *result = aor;
   return 1;
 
  err:
-  if (aor != NULL)
-    IPAddressOrRange_free(aor);
-  if (bs != NULL)
-    ASN1_BIT_STRING_free(bs);
+  destroy_IPAddressOrRange(aor);
   return 0;
 }
 
@@ -382,68 +460,59 @@ static int make_addressRange(IPAddressOrRange **result,
 			     const unsigned char *max_,
 			     const unsigned length)
 {
-  IPAddressOrRange *aor = NULL;
-  IPAddressRange *r = NULL;
-  ASN1_BIT_STRING *min = NULL, *max = NULL;
+  IPAddressOrRange *aor;
   int i, prefixlen;
 
   if ((prefixlen = range_should_be_prefix(min_, max_, length)) >= 0)
     return make_addressPrefix(result, min_, prefixlen);
 
-  if ((aor = IPAddressOrRange_new()) == NULL ||
-      (r = IPAddressRange_new()) == NULL ||
-      (min = ASN1_BIT_STRING_new()) == NULL ||
-      (max = ASN1_BIT_STRING_new()) == NULL)
+  if ((aor = IPAddressOrRange_new()) == NULL)
+    return 0;
+  aor->type = IPAddressOrRange_addressRange;
+  if ((aor->u.addressRange = IPAddressRange_new()) == NULL)
+    goto err;
+  aor->u.addressRange->min = ASN1_BIT_STRING_new();
+  aor->u.addressRange->max = ASN1_BIT_STRING_new();
+  if (aor->u.addressRange->min == NULL || aor->u.addressRange->max == NULL)
     goto err;
 
   i = length;
   while (i > 0 && min_[i - 1] == 0x00)
     --i;
-  if (!ASN1_BIT_STRING_set(min, min_, i))
+  if (!ASN1_BIT_STRING_set(aor->u.addressRange->min, min_, i))
     goto err;
-  min->flags &= ~7;
-  min->flags |= ASN1_STRING_FLAG_BITS_LEFT;
+  aor->u.addressRange->min->flags &= ~7;
+  aor->u.addressRange->min->flags |= ASN1_STRING_FLAG_BITS_LEFT;
   if (i > 0) {
     unsigned char b = min_[i - 1];
     int j = 1;
     while (j < 8 && (b & (0xFF >> j)) != 0) 
       ++j;
     assert(j < 8);
-    min->flags |= j;
+    aor->u.addressRange->min->flags |= j;
   }
 
   i = length;
-  while (i > 0 && max[i - 1] == 0xFF)
+  while (i > 0 && aor->u.addressRange->max[i - 1] == 0xFF)
     --i;
-  if (!ASN1_BIT_STRING_set(max, max_, i))
+  if (!ASN1_BIT_STRING_set(aor->u.addressRange->max, max_, i))
     goto err;
-  max->flags &= ~7;
-  max->flags |= ASN1_STRING_FLAG_BITS_LEFT;
+  aor->u.addressRange->max->flags &= ~7;
+  aor->u.addressRange->max->flags |= ASN1_STRING_FLAG_BITS_LEFT;
   if (i > 0) {
     unsigned char b = max_[i - 1];
     int j = 1;
     while (j < 8 && (b & (0xFF >> j)) != (0xFF >> j))
       ++j;
     assert(j < 8);
-    max->flags |= j;
+    aor->u.addressRange->max->flags |= j;
   }
 
-  r->min = min;
-  r->max = max;
-  aor->type = IPAddressOrRange_addressRange;
-  aor->addressRange = r;
   *result = aor;
   return 1;
 
  err:
-  if (aor != NULL)
-    IPAddressOrRange_free(aor);
-  if (r != NULL)
-    IPAddressRange_free(r);
-  if (min != NULL)
-    ASN1_BIT_STRING_free(min);
-  if (max != NULL)
-    ASN1_BIT_STRING_free(max);
+  destroy_IPAddressOrRange(aor);
   return 0;
 }
 
@@ -480,12 +549,7 @@ static IPAddressFamily *make_IPAddressFamily(IPAddrBlocks *addr,
   return f;
 
  err:
-  if (f->ipAddressChoice != NULL)
-    IPAddressChoice_free(f->ipAddressChoice);
-  if (f->addressFamily == NULL)
-    ASN1_OCTET_STRING_free(f->addressFamily);
-  if (f != NULL)
-    IPAddressFamily_free(f);
+  destroy_IPAddressFamily(f);
   return NULL;
 }
 
@@ -558,9 +622,7 @@ static int addr_add_prefix(IPAddrBlocks *addr,
     return 0;
   if (sk_IPAddressOrRange_push(aors, aor))
     return 1;
-  assert(aor->type == IPAddressOrRange_addressPrefix);
-  ASN1_BIT_STRING_free(aor->u.addressPrefix);
-  IPAddressOrRange_free(aor);
+  destroy_IPAddressOrRange(aor);
   return 0;
 }
 
@@ -590,11 +652,7 @@ static int addr_add_range(IPAddrBlocks *addr,
     return 0;
   if (sk_IPAddressOrRange_push(aors, aor))
     return 1;
-  assert(aor->type == IPAddressOrRange_addressRange);
-  ASN1_BIT_STRING_free(aor->u.addressRange->min);
-  ASN1_BIT_STRING_free(aor->u.addressRange->max);
-  IPAddressRange_free(aor->u.addressRange);
-  IPAddressOrRange_free(aor);
+  destroy_IPAddressOrRange(aor);
   return 0;
 }
 
@@ -766,13 +824,20 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
       break;
     }
 
-#warning some of the following errors might be memory, not config
-
     if (inet_pton(af, s, min) != 1) {
       X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_EXTENSION_VALUE_ERROR);
       X509V3_conf_err(val);
       goto err;
     }
+
+#warning need to handle bare address, neither range nor prefix
+    /*
+     * Need to rewrite this part of the code slightly if we're going
+     * to support bare address.  Need not be optimized as I don't
+     * really expect it to be used often, so just doing
+     * addr_range(min,min) should suffice and avoids having to set the
+     * length for a prefix.
+     */
 
     if ((s = strpbrk(s, "-/")) == NULL) {
       X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_EXTENSION_VALUE_ERROR);
@@ -783,19 +848,26 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
     switch (*s++) {
     case '/':
       prefixlen = (int) strtoul(s, &s, 10);
-      if (*(s + strspn(s, " \t")) != '\0' ||
-	  !addr_add_prefix(addr, afi, safi, min, prefixlen)) {
+      if (*(s + strspn(s, " \t")) != '\0') {
 	X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_EXTENSION_VALUE_ERROR);
+	X509V3_conf_err(val);
+	goto err;
+      }
+      if (!addr_add_prefix(addr, afi, safi, min, prefixlen)) {
+	X509V3err(X509V3_F_V2I_IPAddrBlocks, ERR_R_MALLOC_FAILURE);
 	X509V3_conf_err(val);
 	goto err;
       }
       break;
     case '-':
       s += strspn(s, " \t");
-      if (inet_pton(af, s, max) != 1 ||
-	  *(s + strspn(s, " \t")) != '\0' ||
-	  !addr_add_range(addr, afi, safi, min, max)) {
+      if (inet_pton(af, s, max) != 1 || *(s + strspn(s, " \t")) != '\0') {
 	X509V3err(X509V3_F_V2I_IPAddrBlocks, X509V3_R_EXTENSION_VALUE_ERROR);
+	X509V3_conf_err(val);
+	goto err;
+      }
+      if (!addr_add_range(addr, afi, safi, min, max)) {
+	X509V3err(X509V3_F_V2I_IPAddrBlocks, ERR_R_MALLOC_FAILURE);
 	X509V3_conf_err(val);
 	goto err;
       }
@@ -819,7 +891,7 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
   return addr;
 
  err:
-#error not finished
+  destroy_IPAddrBlocks(addr);
   return NULL;
 }
 

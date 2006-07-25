@@ -363,3 +363,21 @@ necessary, needs reorganization.  All we really need to do is:
 
 3) If so, replace them with a merged prefix or range.
 
+
+
+Doh.  A lot of the missing documentation is buried in ssleay.txt,
+which the other documentation says not to read because it's so old.
+But it's where Eric explains all the basic data structures and
+expected usage as of the dawn of time, so most of the stuff that's so
+old that it's undocumented is really documented there.  Sigh.
+
+Anyway, it looks like the xxx_new() functions already set pointers of
+sub structures to NULL or allocate the substructures (have to check
+which for the things we care about, I guess), and the xxx_free()
+functions already clean up complex structures.  So be sure to set
+unused pointers to NULL if one has been fiddling.
+
+foo->type fields may be initialized to -1 too, need to check that.
+
+So the destructor routines I wrote are unnecessary, and some of the
+memset()s may be actively harmful.  Need to clean that up.

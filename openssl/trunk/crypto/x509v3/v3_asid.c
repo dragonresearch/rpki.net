@@ -57,11 +57,8 @@ IMPLEMENT_ASN1_FUNCTIONS(ASIdentifierChoice)
 IMPLEMENT_ASN1_FUNCTIONS(ASIdentifiers)
 
 /*
- * Write human-readable dump of ASIdentifiers extension.
- * ASIdentifiers is just a wrapper for two ASIdentifierChoices, so we
- * do almost all the work in i2r_ASIdentifierChoice().
+ * i2r method for an ASIdentifierChoice.
  */
-
 static int i2r_ASIdentifierChoice(BIO *out,
 				  ASIdentifierChoice *choice,
 				  int indent,
@@ -111,6 +108,9 @@ static int i2r_ASIdentifierChoice(BIO *out,
   return 1;
 }
 
+/*
+ * i2r method for an ASIdentifier extension.
+ */
 static int i2r_ASIdentifiers(X509V3_EXT_METHOD *method,
 			     void *ext,
 			     BIO *out,
@@ -124,9 +124,8 @@ static int i2r_ASIdentifiers(X509V3_EXT_METHOD *method,
 }
 
 /*
- * Comparision function for stack sorting.
+ * Comparision function for "stack" sorting.
  */
-
 static int ASIdOrRange_cmp(const ASIdOrRange * const *a_,
 			   const ASIdOrRange * const *b_)
 {
@@ -159,6 +158,9 @@ static int ASIdOrRange_cmp(const ASIdOrRange * const *a_,
  * eventually.
  */
 
+/*
+ * Add an inherit element to an ASIdentifierChoice.
+ */
 static int asid_add_inherit(ASIdentifierChoice **choice)
 {
   if (*choice == NULL) {
@@ -171,6 +173,9 @@ static int asid_add_inherit(ASIdentifierChoice **choice)
   return (*choice)->type == ASIdentifierChoice_inherit;
 }
 
+/*
+ * Add an ID or range to an ASIdentifierChoice.
+ */
 static int asid_add_id_or_range(ASIdentifierChoice **choice,
 				ASN1_INTEGER *min,
 				ASN1_INTEGER *max)
@@ -207,6 +212,9 @@ static int asid_add_id_or_range(ASIdentifierChoice **choice,
   return 0;
 }
 
+/*
+ * Whack an ASIdentifierChoice into canonical form.
+ */
 static void asid_canonize(ASIdentifierChoice *choice)
 {
   int i;
@@ -293,6 +301,9 @@ static void asid_canonize(ASIdentifierChoice *choice)
   }
 }
 
+/*
+ * v2i method for an ASIdentifier extension.
+ */
 static void *v2i_ASIdentifiers(struct v3_ext_method *method,
 			       struct v3_ext_ctx *ctx,
 			       STACK_OF(CONF_VALUE) *values)
@@ -369,8 +380,12 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
   return NULL;
 }
 
+/*
+ * OpenSSL dispatch.
+ */
+
 X509V3_EXT_METHOD v3_asid = {
-  NID_ASIdentifiers,		/* nid */
+  NID_sbgp_autonomousSysNum,	/* nid */
   0,				/* flags */
   ASN1_ITEM_ref(ASIdentifiers),	/* template */
   0, 0, 0, 0,			/* old functions, ignored */

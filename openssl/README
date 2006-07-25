@@ -381,3 +381,37 @@ foo->type fields may be initialized to -1 too, need to check that.
 
 So the destructor routines I wrote are unnecessary, and some of the
 memset()s may be actively harmful.  Need to clean that up.
+
+Also need to check whether we need to call sk_xxx_pop_free() manually
+during cleanup.  Seems unlikely, the template driven code has to be
+able to handle that one would think.
+
+Make sure that memory leak detection (MDEBUG in very old ssleay,
+figure out what it is now) is turned on.
+
+
+
+"make update" in the top level runs all the magic perl code that
+grovels through the code generating error codes, safe stacks, etc.
+
+My initial test configuration:
+
+./Configure debug -DDEBUG_SAFESTACK
+
+
+
+The identifiers we need are already in crypto/objects/objects.txt:
+
+id-pe 7			: sbgp-ipAddrBlock
+id-pe 8			: sbgp-autonomousSysNum
+
+Now I just have to figure out how to use them. :)
+
+crypto/objects/objects.h appears to be hand-maintained, not entirely
+surprising given that it appears to be the master NID assignment
+table.
+
+Oh good, if USE_OBJ_MAC is defined objects.h sucks in obj_mac.h which
+is automatically generated from objects.txt, so we're already there.
+NIDs have already been assigned and everything, just have to use them.
+

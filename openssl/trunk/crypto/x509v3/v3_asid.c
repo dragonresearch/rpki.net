@@ -223,7 +223,7 @@ static void asid_canonize(ASIdentifierChoice *choice)
    * Nothing to do for empty element or inheritance.
    */
   if (choice == NULL || choice->type == ASIdentifierChoice_inherit)
-    return 1;
+    return;
 
   /*
    * We have a list.  Sort it.
@@ -235,8 +235,8 @@ static void asid_canonize(ASIdentifierChoice *choice)
    * Now resolve any duplicates or overlaps.
    */
   for (i = 0; i < sk_ASIdOrRange_num(choice->u.asIdsOrRanges) - 1; i++) {
-    ASIdOrRange *a = sk_ASIdOrRange_num(choice->u.asIdsOrRanges, i);
-    ASIdOrRange *b = sk_ASIdOrRange_num(choice->u.asIdsOrRanges, i + 1);
+    ASIdOrRange *a = sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i);
+    ASIdOrRange *b = sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i + 1);
 
     /*
      * Comparing ID a with ID b, remove a if they're equal.

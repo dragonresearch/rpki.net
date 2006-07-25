@@ -25,6 +25,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include "cryptlib.h"
 #include <openssl/conf.h>
 #include <openssl/asn1.h>
@@ -64,7 +66,6 @@ IMPLEMENT_ASN1_FUNCTIONS(IPAddressRange)
 IMPLEMENT_ASN1_FUNCTIONS(IPAddressOrRange)
 IMPLEMENT_ASN1_FUNCTIONS(IPAddressChoice)
 IMPLEMENT_ASN1_FUNCTIONS(IPAddressFamily)
-IMPLEMENT_ASN1_FUNCTIONS(IPAddrBlocks)
 
 /*
  * How much buffer space do we need for a raw address?
@@ -103,7 +104,7 @@ static void addr_expand(unsigned char *addr,
 /*
  * Extract the prefix length from a bitstring.
  */
-#define addr_prefixlen(bs) ((bs)->length * 8 - ((bs)->flags & 7))
+#define addr_prefixlen(bs) ((int) ((bs)->length * 8 - ((bs)->flags & 7)))
 
 /*
  * i2r handler for one address bitstring.
@@ -120,20 +121,20 @@ static int i2r_address(BIO *out,
   switch (afi) {
   case IANA_AFI_IPV4:
     addr_expand(addr, bs, 4, fill);
-    if (inet_ntop(AF_INET, addr, buf, sizeof(buf)) == NULL)
+    if (!inet_ntop(AF_INET, addr, buf, sizeof(buf)))
       return 0;
     BIO_puts(out, buf);
     break;
   case IANA_AFI_IPV6:
     addr_expand(addr, bs, 16, fill);
-    if (inet_ntop(AF_INET6, addr, buf, sizeof(buf)) == NULL)
+    if (!inet_ntop(AF_INET6, addr, buf, sizeof(buf)))
       return 0;
     BIO_puts(out, buf);
     break;
   default:
     for (i = 0; i < bs->length; i++)
       BIO_printf(out, "%s%02x", (i > 0 ? ":" : ""), bs->data[i]);
-    BIO_printf(out, "[%d]", bs->flags & 7);
+    BIO_printf(out, "[%d]", (int) (bs->flags & 7));
     break;
   }
   return 1;
@@ -149,7 +150,7 @@ static int i2r_IPAddressOrRanges(BIO *out,
 {
   int i;
   for (i = 0; i < sk_IPAddressOrRange_num(aors); i++) {
-    const IPAddressOrRange *aor = sk_IPAddressOrRange_num(aors, i);
+    const IPAddressOrRange *aor = sk_IPAddressOrRange_value(aors, i);
     BIO_printf(out, "%*s", indent, "");
     switch (aor->type) {
     case IPAddressOrRange_addressPrefix:
@@ -174,14 +175,14 @@ static int i2r_IPAddressOrRanges(BIO *out,
  * i2r handler for an IPAddrBlocks extension.
  */
 static int i2r_IPAddrBlocks(X509V3_EXT_METHOD *method,
-			    const void *ext,
+			    void *ext,
 			    BIO *out,
-			    const int indent)
+			    int indent)
 {
   const IPAddrBlocks *addr = ext;
   int i;
-  for (i = 0; i < sk_IPAddrBlocks_num(addr); i++) {
-    const IPAddressFamily *f = sk_IPAddrBlocks_value(addr, i);
+  for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
+    IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
     const unsigned afi = ((f->addressFamily->data[0] << 8) |
 			  (f->addressFamily->data[1]));
     switch (afi) {
@@ -344,25 +345,25 @@ static int range_should_be_prefix(const unsigned char *min,
  * Construct a prefix.
  */
 static int make_addressPrefix(IPAddressOrRange **result,
-			      const unsigned char *addr,
-			      const int prefixlength)
+			      unsigned char *addr,
+			      const int prefixlen)
 {
-  int bytelen = (prefixlength + 7) / 8, bitlen = prefixlen % 8;
+  int bytelen = (prefixlen + 7) / 8, bitlen = prefixlen % 8;
   IPAddressOrRange *aor = IPAddressOrRange_new();
 
   if (aor == NULL)
     return 0;
   aor->type = IPAddressOrRange_addressPrefix;
-  if ((aor->addressPrefix = ASN1_BIT_STRING_new()) == NULL)
+  if ((aor->u.addressPrefix = ASN1_BIT_STRING_new()) == NULL)
     goto err;
   
-  if (!ASN1_BIT_STRING_set(bs, addr, bytelen))
+  if (!ASN1_BIT_STRING_set(aor->u.addressPrefix, addr, bytelen))
     goto err;
-  bs->flags &= ~7;
-  bs->flags |= ASN1_STRING_FLAG_BITS_LEFT;
+  aor->u.addressPrefix->flags &= ~7;
+  aor->u.addressPrefix->flags |= ASN1_STRING_FLAG_BITS_LEFT;
   if (bitlen > 0) {
-    bs->data[bytelen - 1] &= ~(0xFF >> bitlen);
-    bs->flags |= 8 - bitlen;
+    aor->u.addressPrefix->data[bytelen - 1] &= ~(0xFF >> bitlen);
+    aor->u.addressPrefix->flags |= 8 - bitlen;
   }
   
   *result = aor;
@@ -379,15 +380,15 @@ static int make_addressPrefix(IPAddressOrRange **result,
  * the rest of the code considerably.
  */
 static int make_addressRange(IPAddressOrRange **result,
-			     const unsigned char *min_,
-			     const unsigned char *max_,
+			     unsigned char *min,
+			     unsigned char *max,
 			     const unsigned length)
 {
   IPAddressOrRange *aor;
   int i, prefixlen;
 
-  if ((prefixlen = range_should_be_prefix(min_, max_, length)) >= 0)
-    return make_addressPrefix(result, min_, prefixlen);
+  if ((prefixlen = range_should_be_prefix(min, max, length)) >= 0)
+    return make_addressPrefix(result, min, prefixlen);
 
   if ((aor = IPAddressOrRange_new()) == NULL)
     return 0;
@@ -399,15 +400,14 @@ static int make_addressRange(IPAddressOrRange **result,
   if (aor->u.addressRange->min == NULL || aor->u.addressRange->max == NULL)
     goto err;
 
-  i = length;
-  while (i > 0 && min_[i - 1] == 0x00)
-    --i;
-  if (!ASN1_BIT_STRING_set(aor->u.addressRange->min, min_, i))
+  for (i = length; i > 0 && min[i - 1] == 0x00; --i)
+    ;
+  if (!ASN1_BIT_STRING_set(aor->u.addressRange->min, min, i))
     goto err;
   aor->u.addressRange->min->flags &= ~7;
   aor->u.addressRange->min->flags |= ASN1_STRING_FLAG_BITS_LEFT;
   if (i > 0) {
-    unsigned char b = min_[i - 1];
+    unsigned char b = min[i - 1];
     int j = 1;
     while (j < 8 && (b & (0xFF >> j)) != 0) 
       ++j;
@@ -415,15 +415,14 @@ static int make_addressRange(IPAddressOrRange **result,
     aor->u.addressRange->min->flags |= j;
   }
 
-  i = length;
-  while (i > 0 && aor->u.addressRange->max[i - 1] == 0xFF)
-    --i;
-  if (!ASN1_BIT_STRING_set(aor->u.addressRange->max, max_, i))
+  for (i = length; i > 0 && max[i - 1] == 0xFF; --i)
+    ;
+  if (!ASN1_BIT_STRING_set(aor->u.addressRange->max, max, i))
     goto err;
   aor->u.addressRange->max->flags &= ~7;
   aor->u.addressRange->max->flags |= ASN1_STRING_FLAG_BITS_LEFT;
   if (i > 0) {
-    unsigned char b = max_[i - 1];
+    unsigned char b = max[i - 1];
     int j = 1;
     while (j < 8 && (b & (0xFF >> j)) != (0xFF >> j))
       ++j;
@@ -455,7 +454,7 @@ static IPAddressFamily *make_IPAddressFamily(IPAddrBlocks *addr,
   if (safi != NULL)
     key[2] = *safi & 0xFF;
   for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
-    *f = sk_IPAddressFamily_value(addr, i);
+    f = sk_IPAddressFamily_value(addr, i);
     if (!memcmp(f->addressFamily, key, keylen))
       return f;
   }
@@ -497,7 +496,7 @@ static int addr_add_inherit(IPAddrBlocks *addr,
 }
 
 /*
- * Construct an IPAddressOrRanges sequence, or return an existing one.
+ * Construct an IPAddressOrRange sequence, or return an existing one.
  */
 static IPAddressOrRanges *make_prefix_or_range(IPAddrBlocks *addr,
 					       const unsigned afi,
@@ -536,12 +535,12 @@ static IPAddressOrRanges *make_prefix_or_range(IPAddrBlocks *addr,
 static int addr_add_prefix(IPAddrBlocks *addr,
 			   const unsigned afi,
 			   const unsigned *safi,
-			   const unsigned char *addr,
+			   unsigned char *a,
 			   const int prefixlen)
 {
   IPAddressOrRanges *aors = make_prefix_or_range(addr, afi, safi);
   IPAddressOrRange *aor;
-  if (aors == NULL || !make_addressPrefix(&aor, addr, prefixlen))
+  if (aors == NULL || !make_addressPrefix(&aor, a, prefixlen))
     return 0;
   if (sk_IPAddressOrRange_push(aors, aor))
     return 1;
@@ -555,8 +554,8 @@ static int addr_add_prefix(IPAddrBlocks *addr,
 static int addr_add_range(IPAddrBlocks *addr,
 			  const unsigned afi,
 			  const unsigned *safi,
-			  const unsigned char *min,
-			  const unsigned char *max)
+			  unsigned char *min,
+			  unsigned char *max)
 {
   IPAddressOrRanges *aors = make_prefix_or_range(addr, afi, safi);
   IPAddressOrRange *aor;
@@ -690,8 +689,8 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
 {
   static const char v4addr_chars[] = "0123456789.";
   static const char v6addr_chars[] = "0123456789.:abcdefABCDEF";
+  const char *addr_chars;
   IPAddrBlocks *addr = NULL;
-  char *addr_chars;
   int i;
   
   if ((addr = sk_IPAddressFamily_new(IPAddressFamily_cmp)) == NULL) {
@@ -723,9 +722,9 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
     }
 
     if (safi != NULL) {
-      safi = strtoul(val->value, &s, 0);
+      *safi = strtoul(val->value, &s, 0);
       s += strspn(s, " \t");
-      if (safi > 0xFF || *s++ != ':') {
+      if (*safi > 0xFF || *s++ != ':') {
 	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_EXTENSION_VALUE_ERROR);
 	X509V3_conf_err(val);
 	goto err;

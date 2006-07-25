@@ -721,7 +721,7 @@ DECLARE_ASN1_FUNCTIONS(IPAddressFamily)
  */
 
 #define	IANA_AFI_IPV4	1
-#define	IANA_AFI_IPv6	2
+#define	IANA_AFI_IPV6	2
 
 /*
  * [sra] END KLUDGE

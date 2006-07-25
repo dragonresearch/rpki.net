@@ -625,7 +625,6 @@ int X509V3_NAME_from_section(X509_NAME *nm, STACK_OF(CONF_VALUE)*dn_sk,
 
 void X509_POLICY_NODE_print(BIO *out, X509_POLICY_NODE *node, int indent);
 
-#warning Clean up temporary hack in x509v3.h
 /*
  * [sra] BEGIN KLUDGE
  *       Just include files for the moment for testing, clean up later.

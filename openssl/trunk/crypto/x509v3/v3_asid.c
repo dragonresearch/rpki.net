@@ -164,7 +164,6 @@ static int asid_add_inherit(ASIdentifierChoice **choice)
   if (*choice == NULL) {
     if ((*choice = ASIdentifierChoice_new()) == NULL)
       return 0;
-    memset(*choice, 0, sizeof(**choice));
     if (((*choice)->u.inherit = ASN1_NULL_new()) == NULL)
       return 0;
     (*choice)->type = ASIdentifierChoice_inherit;
@@ -182,7 +181,6 @@ static int asid_add_id_or_range(ASIdentifierChoice **choice,
   if (*choice == NULL) {
     if ((*choice = ASIdentifierChoice_new()) == NULL)
       return 0;
-    memset(*choice, 0, sizeof(**choice));
     (*choice)->u.asIdsOrRanges = sk_ASIdOrRange_new(ASIdOrRange_cmp);
     if ((*choice)->u.asIdsOrRanges == NULL)
       return 0;
@@ -190,7 +188,6 @@ static int asid_add_id_or_range(ASIdentifierChoice **choice,
   }
   if ((aor = ASIdOrRange_new()) == NULL)
     return 0;
-  memset(aor, 0, sizeof(*aor));
   if (max == NULL) {
     aor->type = ASIdOrRange_id;
     aor->u.id = min;
@@ -206,54 +203,8 @@ static int asid_add_id_or_range(ASIdentifierChoice **choice,
   return 1;
 
  err:
-  if (aor->u.range != NULL)
-    ASRange_free(aor->u.range);
   ASIdOrRange_free(aor);
   return 0;
-}
-
-static void asid_cleanup(ASIdentifierChoice *choice)
-{
-  int i;
-  if (choice == NULL)
-    return;
-  switch (choice->type) {
-  case ASIdentifierChoice_inherit:
-    if (choice->u.inherit != NULL)
-      ASN1_NULL_free(choice->inherit);
-    choice->u.inherit = NULL;
-    break;
-  case ASIdOrRange_range:
-    if (choice->u.asIdsOrRanges == NULL)
-      break;
-    for (i = 0; i < sk_ASIdOrRange_num(choice->asIdsOrRanges); i++) {
-      ASIdOrRange *aor = sk_ASIdOrRange_value(choice->asIdsOrRanges, i);
-      switch (aor->type) {
-      case ASIdOrRange_id:
-	if (aor->u.id != NULL)
-	  ASN1_INTEGER_free(aor->u.id);
-	aor->u.id = NULL;
-	break;
-      case ASIdOrRange_range:
-	if (aor->u.range != NULL) {
-	  if (aor->u.range->min != NULL)
-	    ASN1_INTEGER_free(aor->u.range->min);
-	  aor->u.range->min = NULL;
-	  if (aor->u.range->max != NULL)
-	    ASN1_INTEGER_free(aor->u.range->max);
-	  aor->u.range->max = NULL;
-	  ASRange_free(aor->u.range);
-	  aor->u.range = NULL;
-	}
-      }
-      ASIdOrRange_free(aor);
-      sk_ASIdOrRange_set(choice->asIdsOrRanges, i, NULL);
-    }
-    sk_ASIdOrRange_free(choice->asIdsOrRanges);
-    choice->u.asIdsOrRanges == NULL;
-    break;
-  }
-  ASIdentifierChoice_free(choice);
 }
 
 static void asid_canonize(ASIdentifierChoice *choice)
@@ -285,7 +236,6 @@ static void asid_canonize(ASIdentifierChoice *choice)
     if (a->type == ASIdOrRange_id && b->type == ASIdOrRange_id) {
       if (ASN1_INTEGER_cmp(a->u.id, b->u.id) == 0) {
 	sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i);
-	ASN1_INTEGER_free(a->u.id);
 	ASIdOrRange_free(a);
 	i--;
       }
@@ -299,7 +249,6 @@ static void asid_canonize(ASIdentifierChoice *choice)
       if (ASN1_INTEGER_cmp(a->u.id, b->u.range->min) >= 0 &&
 	  ASN1_INTEGER_cmp(a->u.id, b->u.range->max) <= 0) {
 	sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i);
-	ASN1_INTEGER_free(a->u.id);
 	ASIdOrRange_free(a);
 	i--;
       }
@@ -313,7 +262,6 @@ static void asid_canonize(ASIdentifierChoice *choice)
       if (ASN1_INTEGER_cmp(b->u.id, a->u.range->min) >= 0 &&
 	  ASN1_INTEGER_cmp(b->u.id, a->u.range->max) <= 0) {
 	sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i + 1);
-	ASN1_INTEGER_free(b->u.id);
 	ASIdOrRange_free(b);
 	i--;
       }
@@ -324,10 +272,7 @@ static void asid_canonize(ASIdentifierChoice *choice)
      * Comparing range a with range b, remove b if contained in a.
      */
     if (ASN1_INTEGER_cmp(a->u.range->max, b->u.range->max) >= 0) {
-      ASN1_INTEGER_free(b->u.range->min);
-      ASN1_INTEGER_free(b->u.range->max);
       sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i + 1);
-      ASRange_free(b->u.range);
       ASIdOrRange_free(b);
       i--;
       continue;
@@ -337,11 +282,10 @@ static void asid_canonize(ASIdentifierChoice *choice)
      * Comparing range a with range b, merge if they overlap.
      */
     if (ASN1_INTEGER_cmp(a->u.range->max, b->u.range->min) >= 0) {
-      ASN1_INTEGER_free(a->u.range->max);
-      ASN1_INTEGER_free(b->u.range->min);
-      b->u.range->min = a->u.range->min;
+      ASN1_INTEGER *tmp = b->u.range->min;
+      b->u.range->min = a->u.range->min;      
+      a->u.range->min = tmp;
       sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i);
-      ASRange_free(a->u.range);
       ASIdOrRange_free(a);
       i--;
       continue;
@@ -364,7 +308,6 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
     X509V3err(X509V3_F_V2I_ASIdentifiers, ERR_R_MALLOC_FAILURE);
     return NULL;
   }
-  memset(asid, 0, sizeof(*asid));
 
   for (i = 0; i < sk_CONF_VALUE_num(values); i++) {
     val = sk_CONF_VALUE_value(values, i);
@@ -422,10 +365,6 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
   return asid;
 
  err:
-  asid_cleanup(asid->asnum);
-  asid->asnum = NULL;
-  asid_cleanup(asid->rdi);
-  asid->rdi = NULL;
   ASIdentifiers_free(asid);
   return NULL;
 }

@@ -415,3 +415,8 @@ Oh good, if USE_OBJ_MAC is defined objects.h sucks in obj_mac.h which
 is automatically generated from objects.txt, so we're already there.
 NIDs have already been assigned and everything, just have to use them.
 
+
+
+-Werror is set in compilation flags, so can't use #warning.
+
+Remember to clean up the new stuff ni x509v3.h!

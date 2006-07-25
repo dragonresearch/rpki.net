@@ -834,7 +834,7 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
  * OpenSSL dispatch
  */
 X509V3_EXT_METHOD v3_addr = {
-  NID_IPAddrBlocks,		/* nid */
+  NID_sbgp_ipAddrBlock,		/* nid */
   0,				/* flags */
   ASN1_ITEM_ref(IPAddrBlocks),	/* template */
   0, 0, 0, 0,			/* old functions, ignored */

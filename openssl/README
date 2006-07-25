@@ -398,6 +398,9 @@ My initial test configuration:
 
 ./Configure debug -DDEBUG_SAFESTACK
 
+This seems to be attempting to pull in devel/ElectricFence (-lefence),
+so I installed that.
+
 
 
 The identifiers we need are already in crypto/objects/objects.txt:

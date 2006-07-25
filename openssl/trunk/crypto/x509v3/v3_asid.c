@@ -305,7 +305,7 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
   int i;
 
   if ((asid = ASIdentifiers_new()) == NULL) {
-    X509V3err(X509V3_F_V2I_ASIdentifiers, ERR_R_MALLOC_FAILURE);
+    X509V3err(X509V3_F_V2I_ASIDENTIFIERS, ERR_R_MALLOC_FAILURE);
     return NULL;
   }
 
@@ -320,7 +320,7 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
     } else if (!strcmp(val->name, "rdi")) {
       choice = &asid->rdi;
     } else {
-      X509V3err(X509V3_F_V2I_ASIdentifiers, X509V3_R_EXTENSION_NAME_ERROR);
+      X509V3err(X509V3_F_V2I_ASIDENTIFIERS, X509V3_R_EXTENSION_NAME_ERROR);
       X509V3_conf_err(val);
       goto err;
     }
@@ -331,7 +331,7 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
     if (!strcmp(val->value, "inherit")) {
       if (asid_add_inherit(choice))
 	continue;
-      X509V3err(X509V3_F_V2I_ASIdentifiers, X509V3_R_INVALID_INHERITANCE);
+      X509V3err(X509V3_F_V2I_ASIDENTIFIERS, X509V3_R_INVALID_INHERITANCE);
       X509V3_conf_err(val);
       goto err;
     }
@@ -340,19 +340,19 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
      * Number or range.  Add it to the list, we'll sort the list later.
      */
     if (!X509V3_get_value_int(val, &min)) {
-      X509V3err(X509V3_F_V2I_ASIdentifiers, X509V3_R_INVALID_ASNUMBER);
+      X509V3err(X509V3_F_V2I_ASIDENTIFIERS, X509V3_R_INVALID_ASNUMBER);
       X509V3_conf_err(val);
       goto err;
     }
     if ((s = strchr(val->value, '-')) == NULL) {
       max = NULL;
     } else if ((max = s2i_ASN1_INTEGER(NULL, s + strspn(s, "- \t"))) == NULL) {
-      X509V3err(X509V3_F_V2I_ASIdentifiers, X509V3_R_INVALID_ASRANGE);
+      X509V3err(X509V3_F_V2I_ASIDENTIFIERS, X509V3_R_INVALID_ASRANGE);
       X509V3_conf_err(val);
       goto err;
     }
     if (!asid_add_id_or_range(choice, min, max)) {
-      X509V3err(X509V3_F_V2I_ASIdentifiers, ERR_R_MALLOC_FAILURE);
+      X509V3err(X509V3_F_V2I_ASIDENTIFIERS, ERR_R_MALLOC_FAILURE);
       goto err;
     }
   }

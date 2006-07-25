@@ -245,83 +245,6 @@ static int i2r_IPAddrBlocks(X509V3_EXT_METHOD *method,
 }
 
 /*
- * Destructors.
- */
-
-static void destroy_IPAddressRange(IPAddressRange *x)
-{
-  if (x != NULL) {
-    if (x->min != NULL)
-      ASN1_BIT_STRING_free(x->min);
-    if (x->max != NULL)
-      ASN1_BIT_STRING_free(x->max);
-    IPAddressRange_free(x);
-  }
-}
-
-static void destroy_IPAddressOrRange(IPAddressOrRange *x)
-{
-  if (x != NULL) {
-    switch (x->type) {
-    case IPAddressOrRange_addressPrefix:
-      if (x->u.addressPrefix != NULL)
-	ASN1_BIT_STRING_free(x->u.addressPrefix);
-      break;
-    case IPAddressOrRange_addressRange:
-      destroy_IPAddressRange(x->u.addressRange);
-      break;
-    }
-    IPAddressOrRange_free(x);
-  }
-}
-
-static void destroy_IPAddressOrRanges(IPAddressOrRanges *x)
-{
-  if (x != NULL) {
-    int i;
-    for (i = 0; i < sk_IPAddressOrRange_num(x); i++)
-      destroy_IPAddressOrRange(sk_IPAddressOrRange_value(x, i));
-    sk_IPAddressOrRange_free(x);
-  }
-}
-
-static void destroy_IPAddressChoice(IPAddressChoice *x)
-{
-  if (x != NULL) {
-    switch (x->type) {
-    case IPAddressChoice_inherit:
-      if (x->u.inherit != NULL)
-	ASN1_NULL_free(x->u.inherit);
-      break;
-    case IPAddressChoice_addressesOrRanges:
-      destroy_IPAddressOrRanges(x->u.addressesOrRanges);
-      break;
-    }
-    IPAddressChoice_free(x);
-  }
-}
-
-static void destroy_IPAddressFamily(IPAddressFamily *x)
-{
-  if (x != NULL) {
-    if (x->addressFamily != NULL)
-      ANS1_OCTET_STRING_free(x->addressFamily);
-    destroy_IPAddressChoice(x->ipAddressChoice);    
-    IPAddressFamily_free(x);
-  }
-}
-
-static void destroy_IPAddrBlocks(IPAddrBlocks *x)
-{
-  if (x != NULL) {
-    int i;
-    for (i = 0; i < sk_IPAddressFamily_num(x); i++)
-      destroy_IPAddressFamily(sk_IPAddressFamily_value(x, i));
-    sk_IPAddressFamily_free(x);
-  }
-}
-
-/*
  * Sort comparison function for a sequence of IPAddressOrRange
  * elements.
  */
@@ -446,7 +369,7 @@ static int make_addressPrefix(IPAddressOrRange **result,
   return 1;
 
  err:
-  destroy_IPAddressOrRange(aor);
+  IPAddressOrRange_free(aor);
   return 0;
 }
 
@@ -512,7 +435,7 @@ static int make_addressRange(IPAddressOrRange **result,
   return 1;
 
  err:
-  destroy_IPAddressOrRange(aor);
+  IPAddressOrRange_free(aor);
   return 0;
 }
 
@@ -538,7 +461,6 @@ static IPAddressFamily *make_IPAddressFamily(IPAddrBlocks *addr,
   }
   if ((f = IPAddressFamily_new()) == NULL)
     return NULL;
-  memset(f, 0, sizeof(*f));
   if ((f->ipAddressChoice = IPAddressChoice_new()) == NULL ||
       (f->addressFamily = ASN1_OCTET_STRING_new()) == NULL ||
       !ASN1_OCTET_STRING_set(f->addressFamily, key, keylen))
@@ -549,7 +471,7 @@ static IPAddressFamily *make_IPAddressFamily(IPAddrBlocks *addr,
   return f;
 
  err:
-  destroy_IPAddressFamily(f);
+  IPAddressFamily_free(f);
   return NULL;
 }
 
@@ -584,7 +506,8 @@ static IPAddressOrRanges *make_prefix_or_range(IPAddrBlocks *addr,
   IPAddressFamily *f = make_IPAddressFamily(addr, afi, safi);
   IPAddressOrRanges *aors = NULL;
 
-  if (f == NULL || f->ipAddressChoice == NULL ||
+  if (f == NULL ||
+      f->ipAddressChoice == NULL ||
       (f->ipAddressChoice->type == IPAddressChoice_inherit &&
        f->ipAddressChoice->u.inherit != NULL))
     return NULL;
@@ -622,7 +545,7 @@ static int addr_add_prefix(IPAddrBlocks *addr,
     return 0;
   if (sk_IPAddressOrRange_push(aors, aor))
     return 1;
-  destroy_IPAddressOrRange(aor);
+  IPAddressOrRange_free(aor);
   return 0;
 }
 
@@ -652,7 +575,7 @@ static int addr_add_range(IPAddrBlocks *addr,
     return 0;
   if (sk_IPAddressOrRange_push(aors, aor))
     return 1;
-  destroy_IPAddressOrRange(aor);
+  IPAddressOrRange_free(aor);
   return 0;
 }
 
@@ -903,7 +826,7 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
   return addr;
 
  err:
-  destroy_IPAddrBlocks(addr);
+  IPAddrBlocks_free(addr);
   return NULL;
 }
 

@@ -511,3 +511,6 @@ At the moment we are just dealing with ASN.1 integers at a fairly
 abstract level and don't care a whit about machine representation,
 which is probably the right thing since the user only cares about
 ASN.1 and text.  So strdup() is probably the right answer.
+
+addr v2i is having similar problems, inet_pton() doesn't like the
+slash of a prefix.  Same answer I guess.

@@ -326,9 +326,9 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
     /*
      * Figure out whether this is an AS or an RDI.
      */
-    if (!strcmp(val->name, "as")) {
+    if (       !name_cmp(val->name, "as")) {
       choice = &asid->asnum;
-    } else if (!strcmp(val->name, "rdi")) {
+    } else if (!name_cmp(val->name, "rdi")) {
       choice = &asid->rdi;
     } else {
       X509V3err(X509V3_F_V2I_ASIDENTIFIERS, X509V3_R_EXTENSION_NAME_ERROR);

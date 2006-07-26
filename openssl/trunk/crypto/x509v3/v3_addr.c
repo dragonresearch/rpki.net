@@ -705,14 +705,14 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
     char *s = val->value;
     int prefixlen, af;
 
-    if (       !strcmp(val->name, "ipv4")) {
+    if (       !name_cmp(val->name, "ipv4")) {
       afi = IANA_AFI_IPV4;
-    } else if (!strcmp(val->name, "ipv6")) {
+    } else if (!name_cmp(val->name, "ipv6")) {
       afi = IANA_AFI_IPV6;
-    } else if (!strcmp(val->name, "ipv4-safi")) {
+    } else if (!name_cmp(val->name, "ipv4-safi")) {
       afi = IANA_AFI_IPV4;
       safi = &safi_;
-    } else if (!strcmp(val->name, "ipv6-safi")) {
+    } else if (!name_cmp(val->name, "ipv6-safi")) {
       afi = IANA_AFI_IPV6;
       safi = &safi_;
     } else {

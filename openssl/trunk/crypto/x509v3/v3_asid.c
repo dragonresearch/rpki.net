@@ -30,6 +30,7 @@
 #include <openssl/asn1.h>
 #include <openssl/asn1t.h>
 #include <openssl/x509v3.h>
+#include <openssl/bn.h>
 
 ASN1_SEQUENCE(ASRange) = {
   ASN1_SIMPLE(ASRange, min, ASN1_INTEGER),
@@ -90,7 +91,7 @@ static int i2r_ASIdentifierChoice(BIO *out,
 	  return 0;
 	BIO_puts(out, s);
 	OPENSSL_free(s);
-	BIO_puts(out, " - ");
+	BIO_puts(out, "-");
 	if ((s = i2s_ASN1_INTEGER(NULL, aor->u.range->max)) == NULL)
 	  return 0;
 	BIO_puts(out, s);
@@ -215,15 +216,17 @@ static int asid_add_id_or_range(ASIdentifierChoice **choice,
 /*
  * Whack an ASIdentifierChoice into canonical form.
  */
-static void asid_canonize(ASIdentifierChoice *choice)
+static int asid_canonize(ASIdentifierChoice *choice)
 {
-  int i;
+  ASN1_INTEGER *a_max_plus_one = NULL;
+  BIGNUM *bn = NULL;
+  int i, ret = 0;
 
   /*
    * Nothing to do for empty element or inheritance.
    */
   if (choice == NULL || choice->type == ASIdentifierChoice_inherit)
-    return;
+    return 1;
 
   /*
    * We have a list.  Sort it.
@@ -237,68 +240,108 @@ static void asid_canonize(ASIdentifierChoice *choice)
   for (i = 0; i < sk_ASIdOrRange_num(choice->u.asIdsOrRanges) - 1; i++) {
     ASIdOrRange *a = sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i);
     ASIdOrRange *b = sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i + 1);
+    ASN1_INTEGER *a_min, *a_max, *b_min, *b_max;
 
-    /*
-     * Comparing ID a with ID b, remove a if they're equal.
-     */
-    if (a->type == ASIdOrRange_id && b->type == ASIdOrRange_id) {
-      if (ASN1_INTEGER_cmp(a->u.id, b->u.id) == 0) {
-	sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i);
-	ASIdOrRange_free(a);
-	i--;
-      }
-      continue;
+    switch (a->type) {
+    case ASIdOrRange_id:
+      a_min = a_max = a->u.id;
+      break;
+    case ASIdOrRange_range:
+      a_min = a->u.range->min;
+      a_max = a->u.range->max;
+      break;
+    }
+
+    switch (b->type) {
+    case ASIdOrRange_id:
+      b_min = b_max = b->u.id;
+      break;
+    case ASIdOrRange_range:
+      b_min = b->u.range->min;
+      b_max = b->u.range->max;
+      break;
     }
 
     /*
-     * Comparing ID a with range b, remove a if contained in b.
+     * Make sure we're properly sorted (paranoia).
      */
-    if (a->type == ASIdOrRange_id) {
-      if (ASN1_INTEGER_cmp(a->u.id, b->u.range->min) >= 0 &&
-	  ASN1_INTEGER_cmp(a->u.id, b->u.range->max) <= 0) {
-	sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i);
-	ASIdOrRange_free(a);
-	i--;
-      }
-      continue;
-    }
+    assert(ASN1_INTEGER_cmp(a_min, b_min) <= 0);
 
     /*
-     * Comparing range a with ID b, remove b if contained in a.
+     * If a contains b, remove b.
      */
-    if (b->type == ASIdOrRange_id) {
-      if (ASN1_INTEGER_cmp(b->u.id, a->u.range->min) >= 0 &&
-	  ASN1_INTEGER_cmp(b->u.id, a->u.range->max) <= 0) {
-	sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i + 1);
+    if (ASN1_INTEGER_cmp(a_max, b_max) >= 0) {
+      	sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i + 1);
 	ASIdOrRange_free(b);
-	i--;
-      }
-      continue;
+	--i;
+	continue;
     }
 
     /*
-     * Comparing range a with range b, remove b if contained in a.
+     * If b contains a, remove a.
      */
-    if (ASN1_INTEGER_cmp(a->u.range->max, b->u.range->max) >= 0) {
+    if (ASN1_INTEGER_cmp(a_min, b_min) == 0 &&
+	ASN1_INTEGER_cmp(a_max, b_max) <= 0) {
+      	sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i);
+	ASIdOrRange_free(a);
+	--i;
+	continue;
+    }
+
+    /*
+     * Calculate a_max + 1 to check for adjacency.
+     */
+    if ((bn == NULL && (bn = BN_new()) == NULL) ||
+	ASN1_INTEGER_to_BN(a_max, bn) == NULL ||
+	!BN_add_word(bn, 1) ||
+	(a_max_plus_one = BN_to_ASN1_INTEGER(bn, a_max_plus_one)) == NULL)
+      goto err;
+    
+    /*
+     * If a and b are adjacent or overlap, merge them.
+     */
+    if (ASN1_INTEGER_cmp(a_max_plus_one, b_min) >= 0) {
+      ASIdOrRange *aor = ASIdOrRange_new();
+      if (aor == NULL)
+	goto err;
+      aor->type = ASIdOrRange_range;
+      if ((aor->u.range = ASRange_new()) == NULL) {
+	ASIdOrRange_free(aor);
+	goto err;
+      }
+      aor->u.range->min = a_min;
+      aor->u.range->max = b_max;
+      sk_ASIdOrRange_set(choice->u.asIdsOrRanges, i, aor);
       sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i + 1);
+      switch (a->type) {
+      case ASIdOrRange_id:
+	a->u.id = NULL;
+	break;
+      case ASIdOrRange_range:
+	a->u.range->min = NULL;
+	break;
+      }
+      ASIdOrRange_free(a);
+      switch (b->type) {
+      case ASIdOrRange_id:
+	b->u.id = NULL;
+	break;
+      case ASIdOrRange_range:
+	b->u.range->max = NULL;
+	break;
+      }
       ASIdOrRange_free(b);
       i--;
       continue;
     }
-
-    /*
-     * Comparing range a with range b, merge if they overlap.
-     */
-    if (ASN1_INTEGER_cmp(a->u.range->max, b->u.range->min) >= 0) {
-      ASN1_INTEGER *tmp = b->u.range->min;
-      b->u.range->min = a->u.range->min;      
-      a->u.range->min = tmp;
-      sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i);
-      ASIdOrRange_free(a);
-      i--;
-      continue;
-    }
   }
+
+  ret = 1;
+
+ err:
+  ASN1_INTEGER_free(a_max_plus_one);
+  BN_free(bn);
+  return ret;
 }
 
 /*

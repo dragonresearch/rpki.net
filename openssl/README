@@ -459,3 +459,14 @@ Program received signal SIGSEGV, Segmentation fault.
 
 The layer above this looks right (appears to be a valid stack, the
 addressFamily field looks plausible).
+
+[Later...]
+
+Hmm, is SEQUENCE(CHOICE(foo,bar)) a problem?  ASID code works, ADDR
+does not, place where ADDR breaks is a SEQUENCE OF CHOICE.
+
+Yep, that did it.  Ok, display (i2r) code works.  Still need to debug
+v2i code.
+
+i2r code needs minor work, needs to break long lines of ASIDs.
+Deal with this later.

@@ -455,7 +455,8 @@ static IPAddressFamily *make_IPAddressFamily(IPAddrBlocks *addr,
     key[2] = *safi & 0xFF;
   for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
     f = sk_IPAddressFamily_value(addr, i);
-    if (!memcmp(f->addressFamily, key, keylen))
+    assert(f->addressFamily->data != NULL);
+    if (!memcmp(f->addressFamily->data, key, keylen))
       return f;
   }
   if ((f = IPAddressFamily_new()) == NULL)

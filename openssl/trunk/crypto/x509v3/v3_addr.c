@@ -53,8 +53,8 @@ ASN1_CHOICE(IPAddressChoice) = {
 } ASN1_CHOICE_END(IPAddressChoice)
 
 ASN1_SEQUENCE(IPAddressFamily) = {
-  ASN1_SIMPLE(IPAddressFamily,      addressFamily,   ASN1_OCTET_STRING),
-  ASN1_SEQUENCE_OF(IPAddressFamily, ipAddressChoice, IPAddressChoice)
+  ASN1_SIMPLE(IPAddressFamily, addressFamily,   ASN1_OCTET_STRING),
+  ASN1_SIMPLE(IPAddressFamily, ipAddressChoice, IPAddressChoice)
 } ASN1_SEQUENCE_END(IPAddressFamily)
 
 ASN1_ITEM_TEMPLATE(IPAddrBlocks) = 
@@ -643,7 +643,7 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
      */
     if (memcmp(a_max, b_max, length) >= 0) {
       sk_IPAddressOrRange_delete(aors, i + 1);
-      aor_cleanup(b);
+      IPAddressOrRange_free(b);
       --i;
       continue;
     }
@@ -660,8 +660,8 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
 	return 0;
       sk_IPAddressOrRange_set(aors, i, merged);
       sk_IPAddressOrRange_delete(aors, i + 1);
-      aor_cleanup(a);
-      aor_cleanup(b);
+      IPAddressOrRange_free(a);
+      IPAddressOrRange_free(b);
       --i;
       continue;
     }
@@ -825,7 +825,7 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
   return addr;
 
  err:
-  IPAddrBlocks_free(addr);
+  sk_IPAddressFamily_pop_free(addr, IPAddressFamily_free);
   return NULL;
 }
 

@@ -401,6 +401,13 @@ My initial test configuration:
 This seems to be attempting to pull in devel/ElectricFence (-lefence),
 so I installed that.
 
+[Later...]
+
+Ok, the default debugging options are driving me nuts.  ElectricFence
+is very slow, although no doubt I might want it anyway at some point.
+But it's the BN debugging printouts that finally pushed me into adding
+a "debug-sra" config of my own for the options I want.
+
 
 
 The identifiers we need are already in crypto/objects/objects.txt:

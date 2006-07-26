@@ -69,32 +69,29 @@ static int i2r_ASIdentifierChoice(BIO *out,
   char *s;
   if (choice == NULL)
     return 1;
-  BIO_printf(out, "%*s%s: ", indent, "", msg);
+  BIO_printf(out, "%*s%s:\n", indent, "", msg);
   switch (choice->type) {
   case ASIdentifierChoice_inherit:
-    BIO_puts(out, "inherit");
+    BIO_printf(out, "%*sinherit\n", indent + 2, "");
     break;
   case ASIdentifierChoice_asIdsOrRanges:
     for (i = 0; i < sk_ASIdOrRange_num(choice->u.asIdsOrRanges); i++) {
       ASIdOrRange *aor = sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i);
-      if (i > 0)
-	BIO_puts(out, ", ");
       switch (aor->type) {
       case ASIdOrRange_id:
 	if ((s = i2s_ASN1_INTEGER(NULL, aor->u.id)) == NULL)
 	  return 0;
-	BIO_puts(out, s);
+	BIO_printf(out, "%*s%s\n", indent + 2, "", s);
 	OPENSSL_free(s);
 	break;
       case ASIdOrRange_range:
 	if ((s = i2s_ASN1_INTEGER(NULL, aor->u.range->min)) == NULL)
 	  return 0;
-	BIO_puts(out, s);
+	BIO_printf(out, "%*s%s-", indent + 2, "", s);
 	OPENSSL_free(s);
-	BIO_puts(out, "-");
 	if ((s = i2s_ASN1_INTEGER(NULL, aor->u.range->max)) == NULL)
 	  return 0;
-	BIO_puts(out, s);
+	BIO_printf(out, "%s\n", s);
 	OPENSSL_free(s);
 	break;
       default:
@@ -105,7 +102,6 @@ static int i2r_ASIdentifierChoice(BIO *out,
   default:
     return 0;
   }
-  BIO_puts(out, "\n");
   return 1;
 }
 

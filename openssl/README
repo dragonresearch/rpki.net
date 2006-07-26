@@ -434,47 +434,6 @@ Remember to clean up the new stuff ni x509v3.h!
 
 
 
-## [.gdbinit]
-
-# this cert generates a core dump, might be interesting to find out why
-set arg x509 -noout -text -in /u/sra/isc/route-pki/ftp.apnic.net/pub/test-certs/fc0000000003.cert
-
-# but maybe let's start with one which is just broken rather than dumping core
-set arg x509 -noout -text -in /u/sra/isc/route-pki/ftp.apnic.net/pub/test-certs/fc4884ce32f6.cert
-
-# hmm, that one dumps core too, what fun
-
-break i2r_IPAddrBlocks
-
-
-##
-
-The decoded ASN.1 structures are not what the code expects.  Hmm.  The
-AS number stuff is not dumping core, have not yet figured out whether
-it's really working or is just not noticing that it's broken.
-
-i2r_IPAddressOrRanges (out=0x2b5b6fc0, indent=18, aors=0x2b9a0ff0, afi=1) at v3_addr.c:152
-(gdb) p aors
-$1 = (const IPAddressOrRanges *) 0x2b9a0ff0
-(gdb) p *aors
-Error accessing memory address 0x2b9a0ff0: Bad address.
-(gdb) n
-(gdb) n
-
-Program received signal SIGSEGV, Segmentation fault.
-0x080fba4b in sk_value (st=0x2b9a0ff0, i=0) at stack.c:310
-
-The layer above this looks right (appears to be a valid stack, the
-addressFamily field looks plausible).
-
-[Later...]
-
-Hmm, is SEQUENCE(CHOICE(foo,bar)) a problem?  ASID code works, ADDR
-does not, place where ADDR breaks is a SEQUENCE OF CHOICE.
-
-Yep, that did it.  Ok, display (i2r) code works.  Still need to debug
-v2i code.
-
 i2r code needs minor work, needs to break long lines of ASIDs.
 Deal with this later.
 
@@ -492,8 +451,6 @@ strspn() hackery to ASID code so it can tolerate looser input.
 I've seen occasional printouts of what look like empty address
 extensions, need to check that those really are empty (as opposed to
 just a printout bug that's aborting i2r...).
-
-
 
 asid v2i is losing on ranges because the ASN1_INTEGER reader code
 doesn't like our punctuation.  Simplest answer would be to use
@@ -515,24 +472,7 @@ ASN.1 and text.  So strdup() is probably the right answer.
 addr v2i is having similar problems, inet_pton() doesn't like the
 slash of a prefix.  Same answer I guess.
 
-Insertion algorithm for IPAddrBlocks doesn't appear to be working
-right, I'm getting duplicate IPAddressFamily elements, each containing
-a single address.
-
-@foo section indirection isn't working quite right yet: the conf
-library does the right thing, but the CONF_VALUE->name we get back has
-the numeric tag ("as.0", "as.1", etc) which we're not handling.  Check
-what other extensions (eg subjectAltName) do about this.
-
-Ah, we should use name_cmp() instead of strcmp(), ok.
-
 Might be able to get rid of inet_pton(): see ipv4_from_asc() and
 ipv6_from_asc() in v3_utl.c.
 
-Ok, name_cmp() nailed the indirect section problem, and the
-IPAddrBlocks insertion problem was a bad pointer, fixed.  Amazingly
-enough, the addr code to collapse ranges into prefixes is working.
-
 ASID code is not merging individual AS numbers into ranges properly.
-
-Time for breakfast.

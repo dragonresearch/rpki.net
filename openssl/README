@@ -470,3 +470,18 @@ v2i code.
 
 i2r code needs minor work, needs to break long lines of ASIDs.
 Deal with this later.
+
+Punctuation discrepancies between ASID and ADDR code, ASID does
+
+  "foo - bar"
+
+for ranges while ADDR does
+
+  "foo-bar"
+
+ASID is probably right here, more readable.  Should probably add the
+strspn() hackery to ASID code so it can tolerate looser input.
+
+I've seen occasional printouts of what look like empty address
+extensions, need to check that those really are empty (as opposed to
+just a printout bug that's aborting i2r...).

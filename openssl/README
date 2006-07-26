@@ -525,3 +525,14 @@ the numeric tag ("as.0", "as.1", etc) which we're not handling.  Check
 what other extensions (eg subjectAltName) do about this.
 
 Ah, we should use name_cmp() instead of strcmp(), ok.
+
+Might be able to get rid of inet_pton(): see ipv4_from_asc() and
+ipv6_from_asc() in v3_utl.c.
+
+Ok, name_cmp() nailed the indirect section problem, and the
+IPAddrBlocks insertion problem was a bad pointer, fixed.  Amazingly
+enough, the addr code to collapse ranges into prefixes is working.
+
+ASID code is not merging individual AS numbers into ranges properly.
+
+Time for breakfast.

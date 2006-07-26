@@ -673,12 +673,22 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
 
 /*
  * Sort comparision function for a sequence of IPAddressFamily.
+ *
+ * The last paragraph of RFC 3779 2.2.3.3 is slightly ambiguous about
+ * the ordering: I can read it as meaning that IPv6 without a SAFI
+ * comes before IPv4 with a SAFI, which seems pretty weird.  The
+ * examples in appendix B suggest that the author intended the
+ * null-SAFI rule to apply only within a single AFI, which is what I
+ * would have expected and is what the following code implements.
  */
-static int IPAddressFamily_cmp(const IPAddressFamily * const *a,
-			       const IPAddressFamily * const *b)
+static int IPAddressFamily_cmp(const IPAddressFamily * const *a_,
+			       const IPAddressFamily * const *b_)
 {
-  return ASN1_OCTET_STRING_cmp((*a)->addressFamily,
-			       (*b)->addressFamily);
+  const ASN1_OCTET_STRING *a = (*a_)->addressFamily;
+  const ASN1_OCTET_STRING *b = (*b_)->addressFamily;
+  int len = (( a->length <= b->length) ? a->length : b->length);
+  int cmp = memcmp(a->data, b->data, len);
+  return cmp ? cmp : a->length - b->length;
 }
 
 /*

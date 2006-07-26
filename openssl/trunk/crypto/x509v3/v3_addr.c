@@ -356,7 +356,7 @@ static int make_addressPrefix(IPAddressOrRange **result,
   aor->type = IPAddressOrRange_addressPrefix;
   if ((aor->u.addressPrefix = ASN1_BIT_STRING_new()) == NULL)
     goto err;
-  
+
   if (!ASN1_BIT_STRING_set(aor->u.addressPrefix, addr, bytelen))
     goto err;
   aor->u.addressPrefix->flags &= ~7;
@@ -447,30 +447,32 @@ static IPAddressFamily *make_IPAddressFamily(IPAddrBlocks *addr,
 {
   IPAddressFamily *f;
   unsigned char key[3];
-  unsigned keylen = safi == NULL ? 2 : 3;
+  unsigned keylen;
   int i;
+
   key[0] = (afi >> 8) & 0xFF;
   key[1] = afi & 0xFF;
-  if (safi != NULL)
+  if (safi != NULL) {
     key[2] = *safi & 0xFF;
+    keylen = 3;
+  } else {
+    keylen = 2;
+  }
+
   for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
     f = sk_IPAddressFamily_value(addr, i);
     assert(f->addressFamily->data != NULL);
     if (!memcmp(f->addressFamily->data, key, keylen))
       return f;
   }
-  if ((f = IPAddressFamily_new()) == NULL)
-    return NULL;
-  if ((f->ipAddressChoice = IPAddressChoice_new()) == NULL ||
-      (f->addressFamily = ASN1_OCTET_STRING_new()) == NULL ||
-      !ASN1_OCTET_STRING_set(f->addressFamily, key, keylen))
-    goto err;
-  memset(f->ipAddressChoice, 0, sizeof(*f->ipAddressChoice));
-  if (!sk_IPAddressFamily_push(addr, f))
-    goto err;
-  return f;
 
- err:
+  if ((f = IPAddressFamily_new()) != NULL &&
+      (f->ipAddressChoice = IPAddressChoice_new()) != NULL &&
+      (f->addressFamily = ASN1_OCTET_STRING_new()) != NULL &&
+      ASN1_OCTET_STRING_set(f->addressFamily, key, keylen) &&
+      sk_IPAddressFamily_push(addr, f))
+    return f;
+
   IPAddressFamily_free(f);
   return NULL;
 }
@@ -716,14 +718,14 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
     char *s = val->value;
     int prefixlen, af;
 
-    if (       !name_cmp(val->name, "ipv4")) {
+    if (       !name_cmp(val->name, "IPv4")) {
       afi = IANA_AFI_IPV4;
-    } else if (!name_cmp(val->name, "ipv6")) {
+    } else if (!name_cmp(val->name, "IPv6")) {
       afi = IANA_AFI_IPV6;
-    } else if (!name_cmp(val->name, "ipv4-safi")) {
+    } else if (!name_cmp(val->name, "IPv4-SAFI")) {
       afi = IANA_AFI_IPV4;
       safi = &safi_;
-    } else if (!name_cmp(val->name, "ipv6-safi")) {
+    } else if (!name_cmp(val->name, "IPv6-SAFI")) {
       afi = IANA_AFI_IPV6;
       safi = &safi_;
     } else {

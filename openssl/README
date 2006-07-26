@@ -523,3 +523,5 @@ a single address.
 library does the right thing, but the CONF_VALUE->name we get back has
 the numeric tag ("as.0", "as.1", etc) which we're not handling.  Check
 what other extensions (eg subjectAltName) do about this.
+
+Ah, we should use name_cmp() instead of strcmp(), ok.

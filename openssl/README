@@ -514,3 +514,12 @@ ASN.1 and text.  So strdup() is probably the right answer.
 
 addr v2i is having similar problems, inet_pton() doesn't like the
 slash of a prefix.  Same answer I guess.
+
+Insertion algorithm for IPAddrBlocks doesn't appear to be working
+right, I'm getting duplicate IPAddressFamily elements, each containing
+a single address.
+
+@foo section indirection isn't working quite right yet: the conf
+library does the right thing, but the CONF_VALUE->name we get back has
+the numeric tag ("as.0", "as.1", etc) which we're not handling.  Check
+what other extensions (eg subjectAltName) do about this.

@@ -163,6 +163,7 @@ static int asid_add_inherit(ASIdentifierChoice **choice)
   if (*choice == NULL) {
     if ((*choice = ASIdentifierChoice_new()) == NULL)
       return 0;
+    assert((*choice)->u.inherit == NULL);
     if (((*choice)->u.inherit = ASN1_NULL_new()) == NULL)
       return 0;
     (*choice)->type = ASIdentifierChoice_inherit;
@@ -183,6 +184,7 @@ static int asid_add_id_or_range(ASIdentifierChoice **choice,
   if (*choice == NULL) {
     if ((*choice = ASIdentifierChoice_new()) == NULL)
       return 0;
+    assert((*choice)->u.asIdsOrRanges == NULL);
     (*choice)->u.asIdsOrRanges = sk_ASIdOrRange_new(ASIdOrRange_cmp);
     if ((*choice)->u.asIdsOrRanges == NULL)
       return 0;
@@ -197,9 +199,9 @@ static int asid_add_id_or_range(ASIdentifierChoice **choice,
     aor->type = ASIdOrRange_range;
     if ((aor->u.range = ASRange_new()) == NULL)
       goto err;
-    assert(aor->u.range->min == NULL);
+    ASN1_INTEGER_free(aor->u.range->min);
     aor->u.range->min = min;
-    assert(aor->u.range->max == NULL);
+    ASN1_INTEGER_free(aor->u.range->max);
     aor->u.range->max = max;
   }
   if (!(sk_ASIdOrRange_push((*choice)->u.asIdsOrRanges, aor)))
@@ -303,11 +305,14 @@ static int asid_canonize(ASIdentifierChoice *choice)
       if (aor == NULL)
 	goto err;
       aor->type = ASIdOrRange_range;
+      assert(aor->u.range == NULL);
       if ((aor->u.range = ASRange_new()) == NULL) {
 	ASIdOrRange_free(aor);
 	goto err;
       }
+      ASN1_INTEGER_free(aor->u.range->min);
       aor->u.range->min = a_min;
+      ASN1_INTEGER_free(aor->u.range->max);
       aor->u.range->max = b_max;
       sk_ASIdOrRange_set(choice->u.asIdsOrRanges, i, aor);
       sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i + 1);
@@ -350,10 +355,6 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
 			       STACK_OF(CONF_VALUE) *values)
 {
   ASIdentifiers *asid = NULL;
-  ASIdentifierChoice **choice;
-  ASN1_INTEGER *min, *max;
-  CONF_VALUE *val;
-  char *s;
   int i;
 
   if ((asid = ASIdentifiers_new()) == NULL) {
@@ -362,7 +363,10 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
   }
 
   for (i = 0; i < sk_CONF_VALUE_num(values); i++) {
-    val = sk_CONF_VALUE_value(values, i);
+    CONF_VALUE *val = sk_CONF_VALUE_value(values, i);
+    ASIdentifierChoice **choice;
+    ASN1_INTEGER *min = NULL, *max = NULL;
+    int i1, i2, i3, is_range;
 
     /*
      * Figure out whether this is an AS or an RDI.
@@ -389,21 +393,57 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
     }
 
     /*
-     * Number or range.  Add it to the list, we'll sort the list later.
+     * Number, range, or mistake, pick it apart and figure out which.
      */
-    if (!X509V3_get_value_int(val, &min)) {
-      X509V3err(X509V3_F_V2I_ASIDENTIFIERS, X509V3_R_INVALID_ASNUMBER);
-      X509V3_conf_err(val);
-      goto err;
+    i1 = strspn(val->value, "0123456789");
+    if (val->value[i1] == '\0') {
+      is_range = 0;
+    } else {
+      is_range = 1;
+      i2 = i1 + strspn(val->value + i1, " \t");
+      if (val->value[i2] != '-') {
+	X509V3err(X509V3_F_V2I_ASIDENTIFIERS, X509V3_R_INVALID_ASNUMBER);
+	X509V3_conf_err(val);
+	goto err;
+      }
+      i2++;
+      i2 = i2 + strspn(val->value + i2, " \t");
+      i3 = i2 + strspn(val->value + i2, "0123456789");
+      if (val->value[i3] != '\0') {
+	X509V3err(X509V3_F_V2I_ASIDENTIFIERS, X509V3_R_INVALID_ASRANGE);
+	X509V3_conf_err(val);
+	goto err;
+      }
     }
-    if ((s = strchr(val->value, '-')) == NULL) {
-      max = NULL;
-    } else if ((max = s2i_ASN1_INTEGER(NULL, s + strspn(s, "- \t"))) == NULL) {
-      X509V3err(X509V3_F_V2I_ASIDENTIFIERS, X509V3_R_INVALID_ASRANGE);
-      X509V3_conf_err(val);
-      goto err;
+
+    /*
+     * Syntax is ok, read and add it.
+     */
+    if (!is_range) {
+      if (!X509V3_get_value_int(val, &min)) {
+	X509V3err(X509V3_F_V2I_ASIDENTIFIERS, ERR_R_MALLOC_FAILURE);
+	goto err;
+      }
+    } else {
+      char *s = BUF_strdup(val->value);
+      if (s == NULL) {
+	X509V3err(X509V3_F_V2I_ASIDENTIFIERS, ERR_R_MALLOC_FAILURE);
+	goto err;
+      }
+      s[i1] = '\0';
+      min = s2i_ASN1_INTEGER(NULL, s);
+      max = s2i_ASN1_INTEGER(NULL, s + i2);
+      OPENSSL_free(s);
+      if (min == NULL || max == NULL) {
+	ASN1_INTEGER_free(min);
+	ASN1_INTEGER_free(max);
+	X509V3err(X509V3_F_V2I_ASIDENTIFIERS, ERR_R_MALLOC_FAILURE);
+	goto err;
+      }
     }
     if (!asid_add_id_or_range(choice, min, max)) {
+      ASN1_INTEGER_free(min);
+      ASN1_INTEGER_free(max);
       X509V3err(X509V3_F_V2I_ASIDENTIFIERS, ERR_R_MALLOC_FAILURE);
       goto err;
     }

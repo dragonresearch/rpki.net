@@ -694,6 +694,53 @@ static int IPAddressFamily_cmp(const IPAddressFamily * const *a_,
 }
 
 /*
+ * Temporary debugging hack, chasing memory leaks
+ */
+
+#if 0
+
+extern BIO *bio_err;
+
+#define DUMP_POINTER(x)  BIO_printf(bio_err, "=== %p %s\n", x, #x)
+
+static void dump_pointers(IPAddrBlocks *addr)
+{
+  int i, j;
+
+  BIO_puts(bio_err, "=====\n");
+  DUMP_POINTER(addr);
+  for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
+    IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
+    DUMP_POINTER(f);
+    switch (f->ipAddressChoice->type) {
+    case IPAddressChoice_inherit:
+      DUMP_POINTER(f->ipAddressChoice->u.inherit);
+      continue;
+    case IPAddressChoice_addressesOrRanges:
+      DUMP_POINTER(f->ipAddressChoice->u.addressesOrRanges);
+      for (j = 0; j < sk_IPAddressOrRange_num(f->ipAddressChoice->u.addressesOrRanges); j++) {
+	IPAddressOrRange *aor = sk_IPAddressOrRange_value(f->ipAddressChoice->u.addressesOrRanges, j);
+	DUMP_POINTER(aor);
+	switch (aor->type) {
+	case IPAddressOrRange_addressPrefix:
+	  DUMP_POINTER(aor->u.addressPrefix);
+	  continue;
+	case IPAddressOrRange_addressRange:
+	  DUMP_POINTER(aor->u.addressRange);
+	  DUMP_POINTER(aor->u.addressRange->min);
+	  DUMP_POINTER(aor->u.addressRange->max);
+	  continue;
+	}
+      }
+      continue;
+    }
+  }
+  BIO_puts(bio_err, "=====\n");
+}
+
+#endif
+
+/*
  * v2i handler for the IPAddrBlocks extension.
  */
 static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
@@ -835,6 +882,9 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
       goto err;
   }
   sk_IPAddressFamily_sort(addr);
+#ifdef DUMP_POINTER
+  dump_pointers(addr);		/* XXX */
+#endif
   return addr;
 
  err:

@@ -445,9 +445,3 @@ slash of a prefix.  Same answer.
 
 Might be able to get rid of inet_pton(): see ipv4_from_asc() and
 ipv6_from_asc() in v3_utl.c.
-
-Possible approach to memory leak: debugging code that prints out all
-pointers used in an extension just before our v2i function returns.
-Should be straightforward enough, and would also confirm this
-whackiness of being called twice.  Heck, could use our i2r handler to
-do pretty output.

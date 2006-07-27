@@ -163,6 +163,7 @@ static int asid_add_inherit(ASIdentifierChoice **choice)
   if (*choice == NULL) {
     if ((*choice = ASIdentifierChoice_new()) == NULL)
       return 0;
+    assert((*choice)->u.inherit == NULL); /* XXX */
     if (((*choice)->u.inherit = ASN1_NULL_new()) == NULL)
       return 0;
     (*choice)->type = ASIdentifierChoice_inherit;
@@ -183,6 +184,7 @@ static int asid_add_id_or_range(ASIdentifierChoice **choice,
   if (*choice == NULL) {
     if ((*choice = ASIdentifierChoice_new()) == NULL)
       return 0;
+    assert((*choice)->u.asIdsOrRanges == NULL);	/* XXX */
     (*choice)->u.asIdsOrRanges = sk_ASIdOrRange_new(ASIdOrRange_cmp);
     if ((*choice)->u.asIdsOrRanges == NULL)
       return 0;
@@ -192,12 +194,16 @@ static int asid_add_id_or_range(ASIdentifierChoice **choice,
     return 0;
   if (max == NULL) {
     aor->type = ASIdOrRange_id;
+    assert(aor->u.id == NULL);	/* XXX */
     aor->u.id = min;
   } else {
     aor->type = ASIdOrRange_range;
+    assert(aor->u.range == NULL); /* XXX */
     if ((aor->u.range = ASRange_new()) == NULL)
       goto err;
+    assert(aor->u.range->min == NULL);
     aor->u.range->min = min;
+    assert(aor->u.range->max == NULL);
     aor->u.range->max = max;
   }
   if (!(sk_ASIdOrRange_push((*choice)->u.asIdsOrRanges, aor)))
@@ -301,6 +307,7 @@ static int asid_canonize(ASIdentifierChoice *choice)
       if (aor == NULL)
 	goto err;
       aor->type = ASIdOrRange_range;
+      assert(aor->u.range == NULL); /* XXX */
       if ((aor->u.range = ASRange_new()) == NULL) {
 	ASIdOrRange_free(aor);
 	goto err;
@@ -341,6 +348,72 @@ static int asid_canonize(ASIdentifierChoice *choice)
 }
 
 /*
+ * Temporary hack tracking down memory leak.
+ */
+
+#if 0
+
+#define DUMP_POINTER(x)  fprintf(stderr, "=== %p %s\n", x, #x)
+
+static void dump_pointers(ASIdentifiers *asid)
+{
+  int i;
+  fputs("=====\n", stderr);
+  DUMP_POINTER(asid);
+  DUMP_POINTER(asid->asnum);
+  if (asid->asnum) {
+    switch (asid->asnum->type) {
+    case ASIdentifierChoice_inherit:
+      DUMP_POINTER(asid->asnum->u.inherit);
+      break;
+    case ASIdentifierChoice_asIdsOrRanges:
+      DUMP_POINTER(asid->asnum->u.asIdsOrRanges);
+      for (i = 0; i < sk_ASIdOrRange_num(asid->asnum->u.asIdsOrRanges); i++) {
+	ASIdOrRange *aor = sk_ASIdOrRange_value(asid->asnum->u.asIdsOrRanges, i);
+	DUMP_POINTER(aor);
+	switch (aor->type) {
+	case ASIdOrRange_id:
+	  DUMP_POINTER(aor->u.id);
+	  continue;
+	case ASIdOrRange_range:
+	  DUMP_POINTER(aor->u.range);
+	  DUMP_POINTER(aor->u.range->min);
+	  DUMP_POINTER(aor->u.range->max);
+	  continue;
+	}
+      }
+    }
+  }
+  DUMP_POINTER(asid->rdi);
+  if (asid->rdi) {
+    switch (asid->rdi->type) {
+    case ASIdentifierChoice_inherit:
+      DUMP_POINTER(asid->rdi->u.inherit);
+      break;
+    case ASIdentifierChoice_asIdsOrRanges:
+      DUMP_POINTER(asid->rdi->u.asIdsOrRanges);
+      for (i = 0; i < sk_ASIdOrRange_num(asid->rdi->u.asIdsOrRanges); i++) {
+	ASIdOrRange *aor = sk_ASIdOrRange_value(asid->rdi->u.asIdsOrRanges, i);
+	DUMP_POINTER(aor);
+	switch (aor->type) {
+	case ASIdOrRange_id:
+	  DUMP_POINTER(aor->u.id);
+	  continue;
+	case ASIdOrRange_range:
+	  DUMP_POINTER(aor->u.range);
+	  DUMP_POINTER(aor->u.range->min);
+	  DUMP_POINTER(aor->u.range->max);
+	  continue;
+	}
+      }
+    }
+  }
+  fputs("=====\n", stderr);
+}
+
+#endif
+
+/*
  * v2i method for an ASIdentifier extension.
  */
 static void *v2i_ASIdentifiers(struct v3_ext_method *method,
@@ -358,6 +431,8 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
     X509V3err(X509V3_F_V2I_ASIDENTIFIERS, ERR_R_MALLOC_FAILURE);
     return NULL;
   }
+
+  assert(asid->asnum == NULL && asid->rdi == NULL); /* XXX */
 
   for (i = 0; i < sk_CONF_VALUE_num(values); i++) {
     val = sk_CONF_VALUE_value(values, i);
@@ -412,6 +487,9 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
    */
   asid_canonize(asid->asnum);
   asid_canonize(asid->rdi);
+#ifdef DUMP_POINTER
+  dump_pointers(asid);
+#endif
   return asid;
 
  err:

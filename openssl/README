@@ -2,6 +2,17 @@ $Id$
 
 OpenSSL hacked to add support for the RFC 3779 X.509 v3 extensions.
 
+Current status:
+
+- Not (yet) for distribution outside the RIRs.
+
+- Reads and writes RFC 3779 extensions but does not (yet) perform the
+  additional validation described in RFC 3779 2.3 & 3.3.
+
+- Not (yet) tested extensively.
+
+Please report any problems to me (sra) or the rescert mailing list.
+
 
 
 This is what the current openssl.conf syntax looks like for the RFC

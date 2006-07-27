@@ -30,6 +30,10 @@
 #include <openssl/x509v3.h>
 #include <openssl/bn.h>
 
+/*
+ * OpenSSL ASN.1 template translation of RFC 3779 3.2.3.
+ */
+
 ASN1_SEQUENCE(ASRange) = {
   ASN1_SIMPLE(ASRange, min, ASN1_INTEGER),
   ASN1_SIMPLE(ASRange, max, ASN1_INTEGER)

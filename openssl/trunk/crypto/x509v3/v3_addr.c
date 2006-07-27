@@ -17,9 +17,7 @@
 /* $Id$ */
 
 /*
- * Initial attempt to implement RFC 3779 section 2.  I'd be very
- * surprised if this even compiled yet, as I'm still figuring out
- * OpenSSL's ASN.1 template goop.
+ * Implementation of RFC 3779 section 2.2.
  */
 
 #include <stdio.h>

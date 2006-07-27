@@ -354,9 +354,9 @@ static int make_addressPrefix(IPAddressOrRange **result,
   if (aor == NULL)
     return 0;
   aor->type = IPAddressOrRange_addressPrefix;
-  if ((aor->u.addressPrefix = ASN1_BIT_STRING_new()) == NULL)
+  if (aor->u.addressPrefix == NULL &&
+      (aor->u.addressPrefix = ASN1_BIT_STRING_new()) == NULL)
     goto err;
-
   if (!ASN1_BIT_STRING_set(aor->u.addressPrefix, addr, bytelen))
     goto err;
   aor->u.addressPrefix->flags &= ~7;
@@ -393,11 +393,14 @@ static int make_addressRange(IPAddressOrRange **result,
   if ((aor = IPAddressOrRange_new()) == NULL)
     return 0;
   aor->type = IPAddressOrRange_addressRange;
+  assert(aor->u.addressRange == NULL);
   if ((aor->u.addressRange = IPAddressRange_new()) == NULL)
     goto err;
-  aor->u.addressRange->min = ASN1_BIT_STRING_new();
-  aor->u.addressRange->max = ASN1_BIT_STRING_new();
-  if (aor->u.addressRange->min == NULL || aor->u.addressRange->max == NULL)
+  if (aor->u.addressRange->min == NULL &&
+      (aor->u.addressRange->min = ASN1_BIT_STRING_new()) == NULL)
+    goto err;
+  if (aor->u.addressRange->max == NULL &&
+      (aor->u.addressRange->max = ASN1_BIT_STRING_new()) == NULL)
     goto err;
 
   for (i = length; i > 0 && min[i - 1] == 0x00; --i)
@@ -409,10 +412,9 @@ static int make_addressRange(IPAddressOrRange **result,
   if (i > 0) {
     unsigned char b = min[i - 1];
     int j = 1;
-    while (j < 8 && (b & (0xFF >> j)) != 0) 
+    while ((b & (0xFFU >> j)) != 0) 
       ++j;
-    assert(j < 8);
-    aor->u.addressRange->min->flags |= j;
+    aor->u.addressRange->min->flags |= 8 - j;
   }
 
   for (i = length; i > 0 && max[i - 1] == 0xFF; --i)
@@ -424,10 +426,9 @@ static int make_addressRange(IPAddressOrRange **result,
   if (i > 0) {
     unsigned char b = max[i - 1];
     int j = 1;
-    while (j < 8 && (b & (0xFF >> j)) != (0xFF >> j))
+    while ((b & (0xFFU >> j)) != (0xFFU >> j))
       ++j;
-    assert(j < 8);
-    aor->u.addressRange->max->flags |= j;
+    aor->u.addressRange->max->flags |= 8 - j;
   }
 
   *result = aor;
@@ -466,13 +467,22 @@ static IPAddressFamily *make_IPAddressFamily(IPAddrBlocks *addr,
       return f;
   }
 
-  if ((f = IPAddressFamily_new()) != NULL &&
-      (f->ipAddressChoice = IPAddressChoice_new()) != NULL &&
-      (f->addressFamily = ASN1_OCTET_STRING_new()) != NULL &&
-      ASN1_OCTET_STRING_set(f->addressFamily, key, keylen) &&
-      sk_IPAddressFamily_push(addr, f))
-    return f;
+  if ((f = IPAddressFamily_new()) == NULL)
+    goto err;
+  if (f->ipAddressChoice == NULL &&
+      (f->ipAddressChoice = IPAddressChoice_new()) == NULL)
+    goto err;
+  if (f->addressFamily == NULL && 
+      (f->addressFamily = ASN1_OCTET_STRING_new()) == NULL)
+    goto err;
+  if (!ASN1_OCTET_STRING_set(f->addressFamily, key, keylen))
+    goto err;
+  if (!sk_IPAddressFamily_push(addr, f))
+    goto err;
 
+  return f;
+
+ err:
   IPAddressFamily_free(f);
   return NULL;
 }
@@ -485,14 +495,16 @@ static int addr_add_inherit(IPAddrBlocks *addr,
 			    const unsigned *safi)
 {
   IPAddressFamily *f = make_IPAddressFamily(addr, afi, safi);
-  if (f == NULL || f->ipAddressChoice == NULL ||
+  if (f == NULL ||
+      f->ipAddressChoice == NULL ||
       (f->ipAddressChoice->type == IPAddressChoice_addressesOrRanges &&
        f->ipAddressChoice->u.addressesOrRanges != NULL))
     return 0;
   if (f->ipAddressChoice->type == IPAddressChoice_inherit &&
       f->ipAddressChoice->u.inherit != NULL)
     return 1;
-  if ((f->ipAddressChoice->u.inherit = ASN1_NULL_new()) == NULL)
+  if (f->ipAddressChoice->u.inherit == NULL &&
+      (f->ipAddressChoice->u.inherit = ASN1_NULL_new()) == NULL)
     return 0;
   f->ipAddressChoice->type = IPAddressChoice_inherit;
   return 1;

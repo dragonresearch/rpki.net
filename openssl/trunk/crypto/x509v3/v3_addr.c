@@ -463,7 +463,8 @@ static IPAddressFamily *make_IPAddressFamily(IPAddrBlocks *addr,
   for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
     f = sk_IPAddressFamily_value(addr, i);
     assert(f->addressFamily->data != NULL);
-    if (!memcmp(f->addressFamily->data, key, keylen))
+    if (f->addressFamily->length == keylen &&
+	!memcmp(f->addressFamily->data, key, keylen))
       return f;
   }
 
@@ -644,7 +645,7 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
       break;
     case IPAddressOrRange_addressRange:
       addr_expand(b_min, b->u.addressRange->min, length, 0x00);
-      addr_expand(b_max, b->u.addressRange->min, length, 0xFF);
+      addr_expand(b_max, b->u.addressRange->max, length, 0xFF);
       break;
     }
 
@@ -714,8 +715,8 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
 {
   static const char v4addr_chars[] = "0123456789.";
   static const char v6addr_chars[] = "0123456789.:abcdefABCDEF";
-  const char *addr_chars;
   IPAddrBlocks *addr = NULL;
+  char *s = NULL, *t;
   int i;
   
   if ((addr = sk_IPAddressFamily_new(IPAddressFamily_cmp)) == NULL) {
@@ -727,8 +728,8 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
     CONF_VALUE *val = sk_CONF_VALUE_value(values, i);
     unsigned char min[ADDR_RAW_BUF_LEN], max[ADDR_RAW_BUF_LEN];
     unsigned afi, *safi = NULL, safi_;
-    char *s = val->value;
-    int prefixlen, af;
+    const char *addr_chars;
+    int prefixlen, af, i1, i2, delim, host_prefixlength;
 
     if (       !name_cmp(val->name, "IPv4")) {
       afi = IANA_AFI_IPV4;
@@ -746,84 +747,103 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
       goto err;
     }
 
-    if (safi != NULL) {
-      *safi = strtoul(val->value, &s, 0);
-      s += strspn(s, " \t");
-      if (*safi > 0xFF || *s++ != ':') {
-	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_EXTENSION_VALUE_ERROR);
-	X509V3_conf_err(val);
-	goto err;
-      }
-      s += strspn(s, " \t");
-    }
-
-    if (!strcmp(s, "inherit")) {
-      if (addr_add_inherit(addr, afi, safi))
-	continue;
-      X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_INVALID_INHERITANCE);
-      X509V3_conf_err(val);
-      goto err;
-    }
-
     switch (afi) {
     case IANA_AFI_IPV4:
       af = AF_INET;
+      host_prefixlength = 32;
       addr_chars = v4addr_chars;
       break;
     case IANA_AFI_IPV6:
       af = AF_INET6;
+      host_prefixlength = 128;
       addr_chars = v6addr_chars;
       break;
     }
 
+    assert(s == NULL);		/* Check for memory leak */
+
+    /*
+     * Handle SAFI, if any, and strdup() so we can null-terminate
+     * the other input values.
+     */
+    if (safi != NULL) {
+      *safi = strtoul(val->value, &t, 0);
+      t += strspn(t, " \t");
+      if (*safi > 0xFF || *t++ != ':') {
+	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_INVALID_SAFI);
+	X509V3_conf_err(val);
+	goto err;
+      }
+      t += strspn(t, " \t");
+      s = strdup(t);
+    } else {
+      s = strdup(val->value);
+    }
+    if (s == NULL) {
+      X509V3err(X509V3_F_V2I_IPADDRBLOCKS, ERR_R_MALLOC_FAILURE);
+      goto err;
+    }
+
+    /*
+     * Check for inheritance.  Not worth additional complexity to
+     * optimize this (seldom-used) case.
+     */
+    if (!strcmp(s, "inherit")) {
+      if (!addr_add_inherit(addr, afi, safi)) {
+	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_INVALID_INHERITANCE);
+	X509V3_conf_err(val);
+	goto err;
+      }
+      OPENSSL_free(s);
+      s = NULL;
+      continue;
+    }
+
+    i1 = strspn(s, addr_chars);
+    i2 = i1 + strspn(s + i1, " \t");
+    delim = s[i2++];
+    s[i1] = '\0';
+
     if (inet_pton(af, s, min) != 1) {
-      X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_EXTENSION_VALUE_ERROR);
+      X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_INVALID_IPADDRESS);
       X509V3_conf_err(val);
       goto err;
     }
 
-    s += strspn(s, addr_chars);
-    s += strspn(s, " \t");
-
-    switch (*s++) {
+    switch (delim) {
     case '/':
-      prefixlen = (int) strtoul(s, &s, 10);
-      s += strspn(s, " \t");
-      if (*s != '\0') {
+      prefixlen = (int) strtoul(s + i2, &t, 10);
+      if (t == s + i2 || *t != '\0') {
 	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_EXTENSION_VALUE_ERROR);
 	X509V3_conf_err(val);
 	goto err;
       }
       if (!addr_add_prefix(addr, afi, safi, min, prefixlen)) {
 	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, ERR_R_MALLOC_FAILURE);
-	X509V3_conf_err(val);
 	goto err;
       }
       break;
     case '-':
-      s += strspn(s, " \t");
-      if (inet_pton(af, s, max) != 1) {
+      i1 = i2 + strspn(s + i2, " \t");
+      i2 = i1 + strspn(s + i1, addr_chars);
+      if (i1 == i2 || s[i2] != '\0') {
 	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_EXTENSION_VALUE_ERROR);
 	X509V3_conf_err(val);
 	goto err;
       }
-      s += strspn(s, addr_chars);
-      s += strspn(s, " \t");
-      if (*s != '\0') {
-	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_EXTENSION_VALUE_ERROR);
+      if (inet_pton(af, s + i1, max) != 1) {
+	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_INVALID_IPADDRESS);
 	X509V3_conf_err(val);
 	goto err;
       }
       if (!addr_add_range(addr, afi, safi, min, max)) {
 	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, ERR_R_MALLOC_FAILURE);
-	X509V3_conf_err(val);
 	goto err;
       }
       break;
     case '\0':
-      if (!addr_add_range(addr, afi, safi, min, min)) {
+      if (!addr_add_prefix(addr, afi, safi, min, host_prefixlength)) {
 	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, ERR_R_MALLOC_FAILURE);
-	X509V3_conf_err(val);
 	goto err;
       }
       break;
@@ -832,7 +852,13 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
       X509V3_conf_err(val);
       goto err;
     }
+
+    assert(s != NULL);
+    OPENSSL_free(s);
+    s = NULL;
   }
+
+  assert(s == NULL);
 
   /*
    * Canonize the result, then we're done.
@@ -850,6 +876,8 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
   return addr;
 
  err:
+  if (s != NULL)
+    OPENSSL_free(s);
   sk_IPAddressFamily_pop_free(addr, IPAddressFamily_free);
   return NULL;
 }

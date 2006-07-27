@@ -434,45 +434,20 @@ Remember to clean up the new stuff ni x509v3.h!
 
 
 
-i2r code needs minor work, needs to break long lines of ASIDs.
-Deal with this later.
-
-Punctuation discrepancies between ASID and ADDR code, ASID does
-
-  "foo - bar"
-
-for ranges while ADDR does
-
-  "foo-bar"
-
-ASID is probably right here, more readable.  Should probably add the
-strspn() hackery to ASID code so it can tolerate looser input.
-
 I've seen occasional printouts of what look like empty address
 extensions, need to check that those really are empty (as opposed to
 just a printout bug that's aborting i2r...).
 
 asid v2i is losing on ranges because the ASN1_INTEGER reader code
-doesn't like our punctuation.  Simplest answer would be to use
-strtol() to read the number then convert it with ASN1_INTEGER_set(),
-which would work fine for now but won't work with 32-bit AS numbers
-(ASN1_INTEGER_set() wants long, not unsigned long).
-
-Less efficient answer would be to strdup() the substring we want, etc.
-
-Scary efficient answer would be to clone ASN1_INTEGER_set() for
-unsigned long.
-
-While efficiency is tempting, it's probably misguided in this case.
-At the moment we are just dealing with ASN.1 integers at a fairly
-abstract level and don't care a whit about machine representation,
-which is probably the right thing since the user only cares about
-ASN.1 and text.  So strdup() is probably the right answer.
-
+doesn't like our punctuation.  strdup() is probably the right answer.
 addr v2i is having similar problems, inet_pton() doesn't like the
-slash of a prefix.  Same answer I guess.
+slash of a prefix.  Same answer.
 
 Might be able to get rid of inet_pton(): see ipv4_from_asc() and
 ipv6_from_asc() in v3_utl.c.
 
-ASID code is not merging individual AS numbers into ranges properly.
+Possible approach to memory leak: debugging code that prints out all
+pointers used in an extension just before our v2i function returns.
+Should be straightforward enough, and would also confirm this
+whackiness of being called twice.  Heck, could use our i2r handler to
+do pretty output.

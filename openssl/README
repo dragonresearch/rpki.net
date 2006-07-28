@@ -63,7 +63,7 @@ sbgp-ipAddrBlock = critical, @addr-section
 
 [addr-section]
 
-IPV4.0 = 10.0.0.1
+IPv4.0 = 10.0.0.1
 IPv4.1 = 10.0.1.0/24
 IPv4.2 = 10.2.0.0 - 10.3.255.255
 IPv6.0 = 2002:1::/64

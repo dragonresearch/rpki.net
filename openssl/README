@@ -1,4 +1,4 @@
-$Id$
+$Id$ -*- Text -*- 
 
 OpenSSL hacked to add support for the RFC 3779 X.509 v3 extensions.
 
@@ -218,3 +218,12 @@ Random reminders and notes to myself:
   necessary to use inet_ntop(), as we're mostly dealing with prefixes
   here and thus can probably get away with a simplified IPv6 printout
   routine that doesn't bother with "::" except at the end of a prefix.
+
+- Right now the library code silently merges duplicates and overlaps.
+  It might useful to emit warnings when we do this.  Merging all takes
+  place when we're whacking the extension into canonical form, so it
+  should be easy to do this; the only hard part is figuring out
+  whether the application wants it, and, if so, where the application
+  wants it sent.  This probably requires a global variable, either a
+  pointer to a BIO stream or a callback (probably the latter as it's
+  less likely to cause surprising results running multi-threaded).

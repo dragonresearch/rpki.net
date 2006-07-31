@@ -236,3 +236,4 @@ Random reminders and notes to myself:
   the function x509_verify(), and that X509_VERIFY_PARAM is an
   interesting data structure.  Hmm.  x509_verify() is a macro.
   x509_vrfy.c:check_chain_extensions() might be interesting.
+  crypto/x509/x509_vrfy.[ch] in general are interesting.

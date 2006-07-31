@@ -237,3 +237,6 @@ Random reminders and notes to myself:
   interesting data structure.  Hmm.  x509_verify() is a macro.
   x509_vrfy.c:check_chain_extensions() might be interesting.
   crypto/x509/x509_vrfy.[ch] in general are interesting.
+
+- Need to add NIDs for RFC 3779 extensions to supported_nids[] in
+  crypto/x509v3/v3_purp.c?

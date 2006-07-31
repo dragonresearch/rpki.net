@@ -231,3 +231,6 @@ Random reminders and notes to myself:
 - The reference for RDIs in RFC 3779 is incorrect.  I've been told
   that the authoritative definition of RDIs is ISO 10747, available as
   http://www.acm.org/sigs/sigcomm/standards/iso_stds/IDRP/10747.TXT.
+
+- RobL tells me that the place to start on the validation code is
+  the function x509_verify().

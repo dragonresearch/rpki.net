@@ -227,3 +227,7 @@ Random reminders and notes to myself:
   wants it sent.  This probably requires a global variable, either a
   pointer to a BIO stream or a callback (probably the latter as it's
   less likely to cause surprising results running multi-threaded).
+
+- The reference for RDIs in RFC 3779 is incorrect.  I've been told
+  that the authoritative definition of RDIs is ISO 10747, available as
+  http://www.acm.org/sigs/sigcomm/standards/iso_stds/IDRP/10747.TXT.

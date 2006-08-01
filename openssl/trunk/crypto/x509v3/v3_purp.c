@@ -286,6 +286,8 @@ int X509_supported_extension(X509_EXTENSION *ex)
 		NID_subject_alt_name,	/* 85 */
 		NID_basic_constraints,	/* 87 */
         	NID_ext_key_usage,	/* 126 */
+		NID_sbgp_ipAddrBlock,	/* 290 */
+		NID_sbgp_autonomousSysNum, /* 291 */
 		NID_proxyCertInfo	/* 661 */
 	};
 

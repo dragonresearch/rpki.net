@@ -541,7 +541,7 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
   X509 *x;
 
   /*
-   * Start with the ancestral cert.  It can't inherit.
+   * Start with the ancestral cert.  It can't inherit anything.
    */
   i = sk_X509_num(ctx->chain) - 1;
   x = sk_X509_value(ctx->chain, i);
@@ -570,9 +570,8 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
   }
 
   /*
-   * Now walk down the chain.  No cert may use the extension if
-   * its parent does not, and no cert may list resources that
-   * its parent doesn't list.
+   * Now walk down the chain.  No cert may list resources that its
+   * parent doesn't list.
    */
   while (--i >= 0) {
     x = sk_X509_value(ctx->chain, i);

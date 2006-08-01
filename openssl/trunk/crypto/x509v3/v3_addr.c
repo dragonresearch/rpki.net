@@ -77,6 +77,30 @@ IMPLEMENT_ASN1_FUNCTIONS(IPAddressFamily)
 #define ADDR_TXT_BUF_LEN	48
 
 /*
+ * What's the address length associated with this AFI?
+ */
+static int length_from_afi(const unsigned afi)
+{
+  switch (afi) {
+  case IANA_AFI_IPV4:
+    return 4;
+  case IANA_AFI_IPV6:
+    return 16;
+  default:
+    return 0;
+  }
+}
+
+/*
+ * Extract the AFI from an IPAddressFamily.
+ */
+static unsigned afi_from_addressfamily(const IPAddressFamily *f)
+{
+  return ((f->addressFamily->data[0] << 8) |
+	  (f->addressFamily->data[1]));
+}
+
+/*
  * Expand the bitstring form of an address into a raw byte array.
  * At the moment this is coded for simplicity, not speed.
  */
@@ -181,8 +205,7 @@ static int i2r_IPAddrBlocks(X509V3_EXT_METHOD *method,
   int i;
   for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
     IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
-    const unsigned afi = ((f->addressFamily->data[0] << 8) |
-			  (f->addressFamily->data[1]));
+    const unsigned afi = afi_from_addressfamily(f);
     switch (afi) {
     case IANA_AFI_IPV4:
       BIO_printf(out, "%*sIPv4", indent, "");
@@ -563,21 +586,6 @@ static int addr_add_prefix(IPAddrBlocks *addr,
 }
 
 /*
- * I'm getting tired of typing this.
- */
-static int addr_length_from_afi(const unsigned afi)
-{
-  switch (afi) {
-  case IANA_AFI_IPV4:
-    return 4;
-  case IANA_AFI_IPV6:
-    return 16;
-  default:
-    return 0;
-  }
-}
-
-/*
  * Add a range.
  */
 static int addr_add_range(IPAddrBlocks *addr,
@@ -588,7 +596,7 @@ static int addr_add_range(IPAddrBlocks *addr,
 {
   IPAddressOrRanges *aors = make_prefix_or_range(addr, afi, safi);
   IPAddressOrRange *aor;
-  int length = addr_length_from_afi(afi);
+  int length = length_from_afi(afi);
   if (aors == NULL)
     return 0;
   if (!make_addressRange(&aor, min, max, length))
@@ -605,7 +613,7 @@ static int addr_add_range(IPAddrBlocks *addr,
 static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
 				      const unsigned afi)
 {
-  int i, j, length = addr_length_from_afi(afi);
+  int i, j, length = length_from_afi(afi);
 
   /*
    * Sort the IPAddressOrRanges sequence.
@@ -861,8 +869,7 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
    */
   for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
     IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
-    unsigned afi = ((f->addressFamily->data[0] << 8) |
-		    (f->addressFamily->data[1]));
+    unsigned afi = afi_from_addressfamily(f);
     if (f->ipAddressChoice->type == IPAddressChoice_addressesOrRanges &&
 	!IPAddressOrRanges_canonize(f->ipAddressChoice->u.addressesOrRanges,
 				    afi))
@@ -1028,18 +1035,16 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
        */
       for (j = 0; j < sk_IPAddressFamily_num(child); j++) {
 	IPAddressFamily *fc = sk_IPAddressFamily_value(child, j);
-	unsigned afi = ((fc->addressFamily->data[0] << 8) |
-			(fc->addressFamily->data[1]));
-	int length = addr_length_from_afi(afi);
+
 	int k = sk_IPAddressFamily_find(parent, fc);
 	if (k < 0)
 	  validation_err(X509_V_ERR_UNNESTED_RESOURCE);
 	if (k >= 0 &&
 	    fc->ipAddressChoice->type == IPAddressChoice_addressesOrRanges) {
 	  IPAddressFamily *fp = sk_IPAddressFamily_value(parent, k);
-	  IPAddressOrRanges *aor_p = fp->ipAddressChoice->u.addressesOrRanges;
-	  IPAddressOrRanges *aor_c = fc->ipAddressChoice->u.addressesOrRanges;
-	  if (!addr_contains(aor_p, aor_c, length))
+	  if (!addr_contains(fp->ipAddressChoice->u.addressesOrRanges, 
+			     fc->ipAddressChoice->u.addressesOrRanges,
+			     length_from_afi(afi_from_addressfamily(fc))))
 	    validation_err(X509_V_ERR_UNNESTED_RESOURCE);
 	  IPAddressFamily_free(fp);
 	  sk_IPAddressFamily_set(parent, k, fc);

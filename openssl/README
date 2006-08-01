@@ -239,4 +239,11 @@ Random reminders and notes to myself:
   crypto/x509/x509_vrfy.[ch] in general are interesting.
 
 - Need to add NIDs for RFC 3779 extensions to supported_nids[] in
-  crypto/x509v3/v3_purp.c?
+  crypto/x509v3/v3_purp.c.
+
+- Initial path checking code written, but need to rewrite error
+  handling to use ctx->verify_cb(), etc.
+
+- Should we check entire chain or only up to ctx->last_untrusted?  For
+  the moment I'm checking the entire chain because that's more likely
+  to yield a correct answer, albiet perhaps inefficiently.

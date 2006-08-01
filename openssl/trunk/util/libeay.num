@@ -3428,3 +3428,5 @@ ASIdOrRange_free                        3820	EXIST::FUNCTION:
 ASIdentifierChoice_free                 3821	EXIST::FUNCTION:
 d2i_ASIdOrRange                         3822	EXIST::FUNCTION:
 i2d_ASIdentifiers                       3823	EXIST::FUNCTION:
+v3_addr_validate_path                   3824	EXIST::FUNCTION:
+v3_asid_validate_path                   3825	EXIST::FUNCTION:

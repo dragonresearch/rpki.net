@@ -724,6 +724,12 @@ DECLARE_ASN1_FUNCTIONS(IPAddressFamily)
 #define	IANA_AFI_IPV6	2
 
 /*
+ * Check whether RFC 3779 extensions nest properly.
+ */
+int v3_asid_validate_path(X509_STORE_CTX *);
+int v3_addr_validate_path(X509_STORE_CTX *);
+
+/*
  * [sra] END KLUDGE
  */
 

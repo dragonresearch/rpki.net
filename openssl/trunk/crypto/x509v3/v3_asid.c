@@ -531,14 +531,29 @@ static int asid_contains(ASIdOrRanges *parent, ASIdOrRanges *child)
 }
 
 /*
+ * Validation error handling via callback.
+ */
+#define validation_err(_err_)		\
+  do {					\
+    ctx->error = _err_;			\
+    ctx->error_depth = i;		\
+    ctx->current_cert = x;		\
+    ret = ctx->verify_cb(0, ctx);	\
+    if (!ret)				\
+      goto done;			\
+  } while (0)
+
+/*
  * RFC 3779 3.3 path validation.  Intended to be called from X509_verify_cert().
  */
 int v3_asid_validate_path(X509_STORE_CTX *ctx)
 {
-  ASIdOrRanges *parent_as = NULL, *parent_rdi = NULL, *child_as, *child_rdi;
-  ASIdentifiers *asid;
-  int i, has_ext;
+  ASIdOrRanges *parent_as = NULL, *parent_rdi = NULL;
+  ASIdentifiers *asid = NULL;
+  int i, has_ext, ret = 1;
   X509 *x;
+
+  assert(ctx->verify_cb);
 
   /*
    * Start with the ancestral cert.  It can't inherit anything.
@@ -555,7 +570,8 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
 	parent_as = asid->asnum->u.asIdsOrRanges;
 	break;
       case ASIdentifierChoice_inherit:
-	goto err;
+	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+	goto done;		/* callback insists on continuing */
       }
     }
     if (asid->rdi != NULL) {
@@ -564,10 +580,13 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
 	parent_rdi = asid->rdi->u.asIdsOrRanges;
 	break;
       case ASIdentifierChoice_inherit:
-	goto err;
+	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+	goto done;		/* callback insists on continuing */
       }
     }
   }
+  ASIdentifiers_free(asid);
+  asid = NULL;
 
   /*
    * Now walk down the chain.  No cert may list resources that its
@@ -576,50 +595,44 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
   while (--i >= 0) {
     x = sk_X509_value(ctx->chain, i);
     assert(x != NULL);
+
+    assert(asid == NULL);
     asid = X509_get_ext_d2i(x, NID_sbgp_autonomousSysNum, NULL, NULL);
     if (asid == NULL) {
       has_ext = 0;
-      child_as = child_rdi = NULL;
     } else if (!has_ext) {
-      goto err;
-    } else {
-      if (asid->asnum == NULL) {
-	child_as = NULL;
-      } else {
-	switch (asid->asnum->type) {
-	case ASIdentifierChoice_asIdsOrRanges:
-	  child_as = asid->asnum->u.asIdsOrRanges;
-	  break;
-	case ASIdentifierChoice_inherit:
-	  child_as = parent_as;
-	  break;
-	}
-      }
-      if (asid->rdi == NULL) {
-	child_rdi = NULL;
-      } else {
-	switch (asid->rdi->type) {
-	case ASIdentifierChoice_asIdsOrRanges:
-	  child_rdi = asid->rdi->u.asIdsOrRanges;
-	  break;
-	case ASIdentifierChoice_inherit:
-	  child_rdi = parent_rdi;
-	  break;
-	}
-      }
-      if (!asid_contains(parent_as, child_as) ||
-	  !asid_contains(parent_rdi, child_rdi))
-	goto err;
+      validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+      has_ext = 1;		/* callback insists on continuing */
     }
-    parent_as = child_as;
-    parent_rdi = child_rdi;
+
+    if (has_ext) {
+      if (asid->asnum != NULL &&
+	  asid->asnum->type == ASIdentifierChoice_asIdsOrRanges) {
+	if (!asid_contains(parent_as, asid->asnum->u.asIdsOrRanges))
+	  validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+	sk_ASIdOrRange_pop_free(parent_as, ASIdOrRange_free);
+	parent_as = asid->asnum->u.asIdsOrRanges;
+	asid->asnum->u.asIdsOrRanges = NULL;
+      }
+      if (asid->rdi != NULL &&
+	  asid->rdi->type == ASIdentifierChoice_asIdsOrRanges) {
+	if (!asid_contains(parent_rdi, asid->rdi->u.asIdsOrRanges))
+	  validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+	sk_ASIdOrRange_pop_free(parent_rdi, ASIdOrRange_free);
+	parent_rdi = asid->rdi->u.asIdsOrRanges;
+	asid->rdi->u.asIdsOrRanges = NULL;
+      }
+    }
+
+    ASIdentifiers_free(asid);
+    asid = NULL;
   }
 
-  return 1;
-
- err:
-  ctx->error = X509_V_ERR_UNNESTED_RESOURCE;
-  ctx->error_depth = i;
-  ctx->current_cert = x;
-  return 0;
+ done:
+  sk_ASIdOrRange_pop_free(parent_as, ASIdOrRange_free);
+  sk_ASIdOrRange_pop_free(parent_rdi, ASIdOrRange_free);
+  ASIdentifiers_free(asid);
+  return ret;
 }
+
+#undef validation_err

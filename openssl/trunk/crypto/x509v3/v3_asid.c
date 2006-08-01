@@ -531,7 +531,7 @@ static int asid_contains(ASIdOrRanges *parent, ASIdOrRanges *child)
 }
 
 /*
- * RFC 3779 3.3 path validation.  Intented to be called from X509_verify_cert().
+ * RFC 3779 3.3 path validation.  Intended to be called from X509_verify_cert().
  */
 int v3_asid_validate_path(X509_STORE_CTX *ctx)
 {

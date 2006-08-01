@@ -28,6 +28,7 @@
 #include <openssl/asn1.h>
 #include <openssl/asn1t.h>
 #include <openssl/x509v3.h>
+#include <openssl/x509.h>
 #include <openssl/bn.h>
 
 /*
@@ -466,7 +467,6 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
 /*
  * OpenSSL dispatch.
  */
-
 X509V3_EXT_METHOD v3_asid = {
   NID_sbgp_autonomousSysNum,	/* nid */
   0,				/* flags */
@@ -480,3 +480,147 @@ X509V3_EXT_METHOD v3_asid = {
   0,				/* r2i */
   NULL				/* extension-specific data */
 };
+
+/*
+ * Helper function to make asid_contains() more readable.
+ */
+static void asid_contains_helper(ASIdOrRange *a,
+				 ASN1_INTEGER **min,
+				 ASN1_INTEGER **max)
+{
+  assert(a != NULL && min != NULL && max != NULL);
+  switch (a->type) {
+  case ASIdOrRange_id:
+    *min = a->u.id;
+    *max = a->u.id;
+    return;
+  case ASIdOrRange_range:
+    *min = a->u.range->min;
+    *max = a->u.range->max;
+    return;
+  }
+}
+
+/*
+ * Figure out whether parent contains child.
+ */
+static int asid_contains(ASIdOrRanges *parent, ASIdOrRanges *child)
+{
+  ASN1_INTEGER *p_min, *p_max, *c_min, *c_max;
+  int p, c;
+
+  if (child == NULL || parent == child)
+    return 1;
+  if (parent == NULL)
+    return 0;
+
+  p = 0;
+  for (c = 0; c < sk_ASIdOrRange_num(child); c++) {
+    asid_contains_helper(sk_ASIdOrRange_value(child, c), &c_min, &c_max);
+    for (;; p++) {
+      if (p >= sk_ASIdOrRange_num(parent))
+	return 0;
+      asid_contains_helper(sk_ASIdOrRange_value(parent, p), &p_min, &p_max);
+      if (ASN1_INTEGER_cmp(p_max, c_max) < 0)
+	continue;
+      if (ASN1_INTEGER_cmp(p_min, c_min) > 0)
+	return 0;
+      break;
+    }
+  }
+}
+
+/*
+ * RFC 3779 3.3 path validation.  Intented to be called from X509_verify_cert().
+ */
+int v3_asid_validate_path(X509_STORE_CTX *ctx)
+{
+  ASIdOrRanges *parent_as = NULL, *parent_rdi = NULL, *child_as, *child_rdi;
+  ASIdentifiers *asid;
+  int i, has_ext;
+  X509 *x;
+
+  /*
+   * Start with the ancestral cert.  It can't inherit.
+   */
+  i = sk_X509_num(ctx->chain) - 1;
+  x = sk_X509_value(ctx->chain, i);
+  assert(x != NULL);
+  asid = X509_get_ext_d2i(x, NID_sbgp_autonomousSysNum, NULL, NULL);
+  has_ext = asid != NULL;
+  if (has_ext) {
+    if (asid->asnum != NULL) {
+      switch (asid->asnum->type) {
+      case ASIdentifierChoice_asIdsOrRanges:
+	parent_as = asid->asnum->u.asIdsOrRanges;
+	break;
+      case ASIdentifierChoice_inherit:
+	goto err;
+      }
+    }
+    if (asid->rdi != NULL) {
+      switch (asid->rdi->type) {
+      case ASIdentifierChoice_asIdsOrRanges:
+	parent_rdi = asid->rdi->u.asIdsOrRanges;
+	break;
+      case ASIdentifierChoice_inherit:
+	goto err;
+      }
+    }
+  }
+
+  /*
+   * Now walk down the chain.  No cert may use the extension if
+   * its parent does not, and no cert may list resources that
+   * its parent doesn't list.
+   */
+  while (--i >= 0) {
+    x = sk_X509_value(ctx->chain, i);
+    assert(x != NULL);
+    asid = X509_get_ext_d2i(x, NID_sbgp_autonomousSysNum, NULL, NULL);
+    if (asid == NULL) {
+      has_ext = 0;
+      child_as = child_rdi = NULL;
+    } else if (!has_ext) {
+      goto err;
+    } else {
+      if (asid->asnum == NULL) {
+	child_as = NULL;
+      } else {
+	switch (asid->asnum->type) {
+	case ASIdentifierChoice_asIdsOrRanges:
+	  child_as = asid->asnum->u.asIdsOrRanges;
+	  break;
+	case ASIdentifierChoice_inherit:
+	  child_as = parent_as;
+	  break;
+	}
+      }
+      if (asid->rdi == NULL) {
+	child_rdi = NULL;
+      } else {
+	switch (asid->rdi->type) {
+	case ASIdentifierChoice_asIdsOrRanges:
+	  child_rdi = asid->rdi->u.asIdsOrRanges;
+	  break;
+	case ASIdentifierChoice_inherit:
+	  child_rdi = parent_rdi;
+	  break;
+	}
+      }
+      if (!asid_contains(parent_as, child_as) ||
+	  !asid_contains(parent_rdi, child_rdi))
+	goto err;
+    }
+    parent_as = child_as;
+    parent_rdi = child_rdi;
+  }
+
+  return 1;
+
+ err:
+  ctx->error = X509_V_ERR_UNNESTED_RESOURCE;
+  ctx->error_depth = i;
+  ctx->current_cert = x;
+  return 0;
+}

@@ -380,7 +380,7 @@ static int make_addressPrefix(IPAddressOrRange **result,
 static int make_addressRange(IPAddressOrRange **result,
 			     unsigned char *min,
 			     unsigned char *max,
-			     const unsigned length)
+			     const int length)
 {
   IPAddressOrRange *aor;
   int i, prefixlen;
@@ -563,6 +563,21 @@ static int addr_add_prefix(IPAddrBlocks *addr,
 }
 
 /*
+ * I'm getting tired of typing this.
+ */
+static int addr_length_from_afi(const unsigned afi)
+{
+  switch (afi) {
+  case IANA_AFI_IPV4:
+    return 4;
+  case IANA_AFI_IPV6:
+    return 16;
+  default:
+    return 0;
+  }
+}
+
+/*
  * Add a range.
  */
 static int addr_add_range(IPAddrBlocks *addr,
@@ -573,17 +588,9 @@ static int addr_add_range(IPAddrBlocks *addr,
 {
   IPAddressOrRanges *aors = make_prefix_or_range(addr, afi, safi);
   IPAddressOrRange *aor;
-  unsigned length;
+  int length = addr_length_from_afi(afi);
   if (aors == NULL)
     return 0;
-  switch (afi) {
-  case IANA_AFI_IPV4:
-    length = 4;
-    break;
-  case IANA_AFI_IPV6:
-    length = 16;
-    break;
-  }
   if (!make_addressRange(&aor, min, max, length))
     return 0;
   if (sk_IPAddressOrRange_push(aors, aor))
@@ -598,16 +605,7 @@ static int addr_add_range(IPAddrBlocks *addr,
 static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
 				      const unsigned afi)
 {
-  int i, j, length;
-
-  switch (afi) {
-  case IANA_AFI_IPV4:
-    length = 4;
-    break;
-  case IANA_AFI_IPV6:
-    length = 16;
-    break;
-  }
+  int i, j, length = addr_length_from_afi(afi);
 
   /*
    * Sort the IPAddressOrRanges sequence.
@@ -896,3 +894,143 @@ X509V3_EXT_METHOD v3_addr = {
   0,				/* r2i */
   NULL				/* extension-specific data */
 };
+
+/*
+ * Helper function to make addr_contains() more readable.
+ */
+static void addr_contains_helper(IPAddressOrRange *a,
+				 unsigned char *min,
+				 unsigned char *max,
+				 int length)
+{
+  assert(a != NULL && min != NULL && max != NULL);
+  switch (a->type) {
+  case IPAddressOrRange_addressPrefix:
+    addr_expand(min, a->u.addressPrefix, length, 0x00);
+    addr_expand(max, a->u.addressPrefix, length, 0xFF);
+    return;
+  case IPAddressOrRange_addressRange:
+    addr_expand(min, a->u.addressRange->min, length, 0x00);
+    addr_expand(max, a->u.addressRange->min, length, 0xFF);
+    return;
+  }
+}
+
+/*
+ * Figure out whether parent contains child.
+ */
+static int addr_contains(IPAddressOrRanges *parent,
+			 IPAddressOrRanges *child,
+			 int length)
+{
+  unsigned char p_min[ADDR_RAW_BUF_LEN], p_max[ADDR_RAW_BUF_LEN];
+  unsigned char c_min[ADDR_RAW_BUF_LEN], c_max[ADDR_RAW_BUF_LEN];
+  int p, c;
+
+  if (child == NULL || parent == child)
+    return 1;
+  if (parent == NULL)
+    return 0;
+
+  p = 0;
+  for (c = 0; c < sk_IPAddressOrRange_num(child); c++) {
+    addr_contains_helper(sk_IPAddressOrRange_value(child, c),
+			 c_min, c_max, length);
+    for (;; p++) {
+      if (p >= sk_IPAddressOrRange_num(parent))
+	return 0;
+      addr_contains_helper(sk_IPAddressOrRange_value(parent, p),
+			   p_min, p_max, length);
+      if (memcmp(p_max, c_max, length) < 0)
+	continue;
+      if (memcmp(p_min, c_min, length) > 0)
+	return 0;
+      break;
+    }
+  }
+}
+
+/*
+ * RFC 3779 2.3 path validation.  Intended to be called from X509_verify_cert().
+ */
+int v3_addr_validate_path(X509_STORE_CTX *ctx)
+{
+  IPAddrBlocks *addr, *parents = NULL;
+  int i, j, has_ext;
+  X509 *x;
+
+  /*
+   * Start with the ancestral cert.  It can't inherit anything.
+   */
+  i = sk_X509_num(ctx->chain) - 1;
+  x = sk_X509_value(ctx->chain, i);
+  assert(x != NULL);
+  addr = X509_get_ext_d2i(x, NID_sbgp_ipAddrBlock, NULL, NULL);
+  has_ext = addr != NULL;
+  if (has_ext) {
+    if ((parents = sk_IPAddressFamily_dup(addr)) == NULL) {
+      ctx->error = ERR_R_MALLOC_FAILURE;
+      ctx->error_depth = i;
+      ctx->current_cert = x;
+      return 0;
+    }
+    for (j = 0; j < sk_IPAddressFamily_num(parents); j++) {
+      IPAddressFamily *fp = sk_IPAddressFamily_value(parents, j);
+      assert(fp != NULL && fp->ipAddressChoice != NULL);
+      if (fp->ipAddressChoice->type == IPAddressChoice_inherit)
+	goto err;
+    }
+    sk_IPAddressFamily_set_cmp_func(parents, IPAddressFamily_cmp);
+  }
+
+  /*
+   * Now walk down the chain.  No cert may list resources that its
+   * parent doesn't list.
+   */
+  while (--i >= 0) {
+    x = sk_X509_value(ctx->chain, i);
+    assert(x != NULL);
+    addr = X509_get_ext_d2i(x, NID_sbgp_ipAddrBlock, NULL, NULL);
+    if (addr == NULL) {
+      has_ext = 0;
+      sk_IPAddressFamily_zero(parents);
+    } else if (!has_ext) {
+      goto err;
+    } else {
+      for (j = 0; j < sk_IPAddressFamily_num(addr); j++) {
+	IPAddressFamily *fc = sk_IPAddressFamily_value(addr, j);
+	unsigned afi = ((fc->addressFamily->data[0] << 8) |
+			(fc->addressFamily->data[1]));
+	int length = addr_length_from_afi(afi);
+	int k = sk_IPAddressFamily_find(parents, fc);
+	if (k < 0)
+	  goto err;
+	if (fc->ipAddressChoice->type == IPAddressChoice_addressesOrRanges) {
+	  IPAddressFamily *fp = sk_IPAddressFamily_value(parents, k);
+	  IPAddressOrRanges *aor_p = fp->ipAddressChoice->u.addressesOrRanges;
+	  IPAddressOrRanges *aor_c = fc->ipAddressChoice->u.addressesOrRanges;
+	  if (!addr_contains(aor_p, aor_c, length))
+	    goto err;
+	  sk_IPAddressFamily_set(parents, k, fc);
+	}
+      }
+      for (j = 0; j < sk_IPAddressFamily_num(parents); j++) {
+	IPAddressFamily *fp = sk_IPAddressFamily_value(parents, j);
+	if (sk_IPAddressFamily_find(addr, fp) < 0) {
+	  sk_IPAddressFamily_delete(parents, j);
+	  --j;
+	}
+      }
+    }
+  }
+
+  sk_IPAddressFamily_free(parents);
+  return 1;
+
+ err:
+  ctx->error = X509_V_ERR_UNNESTED_RESOURCE;
+  ctx->error_depth = i;
+  ctx->current_cert = x;
+  sk_IPAddressFamily_free(parents);
+  return 0;
+}

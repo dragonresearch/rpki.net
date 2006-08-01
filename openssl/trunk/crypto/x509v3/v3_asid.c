@@ -568,6 +568,7 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
       switch (asid->asnum->type) {
       case ASIdentifierChoice_asIdsOrRanges:
 	parent_as = asid->asnum->u.asIdsOrRanges;
+	asid->asnum->u.asIdsOrRanges = NULL;
 	break;
       case ASIdentifierChoice_inherit:
 	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
@@ -578,6 +579,7 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
       switch (asid->rdi->type) {
       case ASIdentifierChoice_asIdsOrRanges:
 	parent_rdi = asid->rdi->u.asIdsOrRanges;
+	asid->rdi->u.asIdsOrRanges = NULL;
 	break;
       case ASIdentifierChoice_inherit:
 	validation_err(X509_V_ERR_UNNESTED_RESOURCE);

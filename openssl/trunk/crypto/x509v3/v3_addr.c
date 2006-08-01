@@ -1022,6 +1022,7 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
        * Clean out address families that child doesn't use.
        * (Need to do this before modifying child....)
        */
+      sk_IPAddressFamily_set_cmp_func(child, IPAddressFamily_cmp);
       for (j = 0; j < sk_IPAddressFamily_num(parent); j++) {
 	IPAddressFamily *fp = sk_IPAddressFamily_value(parent, j);
 	if (sk_IPAddressFamily_find(child, fp) < 0) {
@@ -1035,7 +1036,6 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
        */
       for (j = 0; j < sk_IPAddressFamily_num(child); j++) {
 	IPAddressFamily *fc = sk_IPAddressFamily_value(child, j);
-
 	int k = sk_IPAddressFamily_find(parent, fc);
 	if (k < 0)
 	  validation_err(X509_V_ERR_UNNESTED_RESOURCE);

@@ -232,17 +232,9 @@ Random reminders and notes to myself:
   that the authoritative definition of RDIs is ISO 10747, available as
   http://www.acm.org/sigs/sigcomm/standards/iso_stds/IDRP/10747.TXT.
 
-- RobL tells me that the place to start on the validation code is
-  the function x509_verify(), and that X509_VERIFY_PARAM is an
-  interesting data structure.  Hmm.  x509_verify() is a macro.
-  x509_vrfy.c:check_chain_extensions() might be interesting.
-  crypto/x509/x509_vrfy.[ch] in general are interesting.
-
-- Need to add NIDs for RFC 3779 extensions to supported_nids[] in
-  crypto/x509v3/v3_purp.c.
-
-- Initial path checking code written, but need to rewrite error
-  handling to use ctx->verify_cb(), etc.
+- Need to add NIDs for RFC 3779 extensions to
+  crypto/x509v3/v3_purp.c:supported_nids[] and call our path
+  validation functions from crypto/x509/x509_vfy.c:X509_verify_cert().
 
 - Should we check entire chain or only up to ctx->last_untrusted?  For
   the moment I'm checking the entire chain because that's more likely

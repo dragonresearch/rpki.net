@@ -951,13 +951,28 @@ static int addr_contains(IPAddressOrRanges *parent,
 }
 
 /*
+ * Validation error handling via callback.
+ */
+#define validation_err(_err_)		\
+  do {					\
+    ctx->error = _err_;			\
+    ctx->error_depth = i;		\
+    ctx->current_cert = x;		\
+    ret = ctx->verify_cb(0, ctx);	\
+    if (!ret)				\
+      goto done;			\
+  } while (0)
+
+/*
  * RFC 3779 2.3 path validation.  Intended to be called from X509_verify_cert().
  */
 int v3_addr_validate_path(X509_STORE_CTX *ctx)
 {
-  IPAddrBlocks *addr, *parents = NULL;
-  int i, j, has_ext;
+  IPAddrBlocks *parent = NULL, *child = NULL;
+  int i, j, has_ext, ret = 1;
   X509 *x;
+
+  assert(ctx->verify_cb);
 
   /*
    * Start with the ancestral cert.  It can't inherit anything.
@@ -965,22 +980,18 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
   i = sk_X509_num(ctx->chain) - 1;
   x = sk_X509_value(ctx->chain, i);
   assert(x != NULL);
-  addr = X509_get_ext_d2i(x, NID_sbgp_ipAddrBlock, NULL, NULL);
-  has_ext = addr != NULL;
+  parent = X509_get_ext_d2i(x, NID_sbgp_ipAddrBlock, NULL, NULL);
+  has_ext = parent != NULL;
   if (has_ext) {
-    if ((parents = sk_IPAddressFamily_dup(addr)) == NULL) {
-      ctx->error = ERR_R_MALLOC_FAILURE;
-      ctx->error_depth = i;
-      ctx->current_cert = x;
-      return 0;
-    }
-    for (j = 0; j < sk_IPAddressFamily_num(parents); j++) {
-      IPAddressFamily *fp = sk_IPAddressFamily_value(parents, j);
+    for (j = 0; j < sk_IPAddressFamily_num(parent); j++) {
+      IPAddressFamily *fp = sk_IPAddressFamily_value(parent, j);
       assert(fp != NULL && fp->ipAddressChoice != NULL);
-      if (fp->ipAddressChoice->type == IPAddressChoice_inherit)
-	goto err;
+      if (fp->ipAddressChoice->type == IPAddressChoice_inherit) {
+	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+	goto done;		/* callback insisted on continuing */
+      }
     }
-    sk_IPAddressFamily_set_cmp_func(parents, IPAddressFamily_cmp);
+    sk_IPAddressFamily_set_cmp_func(parent, IPAddressFamily_cmp);
   }
 
   /*
@@ -990,47 +1001,59 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
   while (--i >= 0) {
     x = sk_X509_value(ctx->chain, i);
     assert(x != NULL);
-    addr = X509_get_ext_d2i(x, NID_sbgp_ipAddrBlock, NULL, NULL);
-    if (addr == NULL) {
+    assert(child == NULL);
+    child = X509_get_ext_d2i(x, NID_sbgp_ipAddrBlock, NULL, NULL);
+    if (child == NULL) {
       has_ext = 0;
-      sk_IPAddressFamily_zero(parents);
     } else if (!has_ext) {
-      goto err;
-    } else {
-      for (j = 0; j < sk_IPAddressFamily_num(addr); j++) {
-	IPAddressFamily *fc = sk_IPAddressFamily_value(addr, j);
+      validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+      has_ext = 1;		/* callback insists on continuing */
+    }
+
+    if (has_ext) {
+      /*
+       * Clean out address families that child doesn't use.
+       * (Need to do this before modifying child....)
+       */
+      for (j = 0; j < sk_IPAddressFamily_num(parent); j++) {
+	IPAddressFamily *fp = sk_IPAddressFamily_value(parent, j);
+	if (sk_IPAddressFamily_find(child, fp) < 0) {
+	  IPAddressFamily_free(fp);
+	  sk_IPAddressFamily_delete(parent, j);
+	  --j;
+	}
+      }
+      /*
+       * Check all remaining address families in child.
+       */
+      for (j = 0; j < sk_IPAddressFamily_num(child); j++) {
+	IPAddressFamily *fc = sk_IPAddressFamily_value(child, j);
 	unsigned afi = ((fc->addressFamily->data[0] << 8) |
 			(fc->addressFamily->data[1]));
 	int length = addr_length_from_afi(afi);
-	int k = sk_IPAddressFamily_find(parents, fc);
+	int k = sk_IPAddressFamily_find(parent, fc);
 	if (k < 0)
-	  goto err;
-	if (fc->ipAddressChoice->type == IPAddressChoice_addressesOrRanges) {
-	  IPAddressFamily *fp = sk_IPAddressFamily_value(parents, k);
+	  validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+	if (k >= 0 &&
+	    fc->ipAddressChoice->type == IPAddressChoice_addressesOrRanges) {
+	  IPAddressFamily *fp = sk_IPAddressFamily_value(parent, k);
 	  IPAddressOrRanges *aor_p = fp->ipAddressChoice->u.addressesOrRanges;
 	  IPAddressOrRanges *aor_c = fc->ipAddressChoice->u.addressesOrRanges;
 	  if (!addr_contains(aor_p, aor_c, length))
-	    goto err;
-	  sk_IPAddressFamily_set(parents, k, fc);
-	}
-      }
-      for (j = 0; j < sk_IPAddressFamily_num(parents); j++) {
-	IPAddressFamily *fp = sk_IPAddressFamily_value(parents, j);
-	if (sk_IPAddressFamily_find(addr, fp) < 0) {
-	  sk_IPAddressFamily_delete(parents, j);
+	    validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+	  IPAddressFamily_free(fp);
+	  sk_IPAddressFamily_set(parent, k, fc);
+	  sk_IPAddressFamily_delete(child, j);
 	  --j;
 	}
       }
     }
   }
 
-  sk_IPAddressFamily_free(parents);
-  return 1;
-
- err:
-  ctx->error = X509_V_ERR_UNNESTED_RESOURCE;
-  ctx->error_depth = i;
-  ctx->current_cert = x;
-  sk_IPAddressFamily_free(parents);
-  return 0;
+ done:
+  sk_IPAddressFamily_pop_free(parent, IPAddressFamily_free);
+  sk_IPAddressFamily_pop_free(child, IPAddressFamily_free);
+  return ret;
 }
+
+#undef validation_err

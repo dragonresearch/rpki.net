@@ -243,7 +243,29 @@ Random reminders and notes to myself:
   almost certainly a callback; this would fit fairly well with the
   callback mechanism OpenSSL already uses in X509_validate_cert().
 
-- xxx_canonize() functions may need a mode where they just whine and
-  do not attempt to correct the extension.
+- Do the xxx_canonize() functions may need a mode where they just
+  whine and do not attempt to correct the extension?  Or should the
+  whining code be separate from the canonizing code even though
+  portions of the logic are the same?
 
-- Other error checking needed: duplicate extensions.
+- OpenSSL already checks for duplicate extensions: more precisely,
+  unless we explicitly tell X509_get_ext_d2i() that we allow multiple
+  extensions (by providing the idx parameter), it returns NULL if it
+  finds duplicates.  If we really want to check for presence of
+  exactly one extension of a particular type, we call this function
+  twice with the idx parameter and make sure that the second call
+  returns NULL.
+
+- Things we need to check when making sure an extension is
+  well-formed:
+
+  - Are all the SEQUENCE OF lists in the right order (check using the
+    same comparison function we use with sk_sort())?
+
+  - Are there any overlaps, duplicates, or adjacencies?
+
+  - Are there any ranges that should have been prefixes?
+
+  Should be possible to do all of this with minor reworking of
+  existing canonization code, probably moving a lot of the interesting
+  stuff out into subroutines.

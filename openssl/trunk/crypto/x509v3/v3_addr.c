@@ -918,7 +918,7 @@ static void addr_contains_helper(IPAddressOrRange *a,
     return;
   case IPAddressOrRange_addressRange:
     addr_expand(min, a->u.addressRange->min, length, 0x00);
-    addr_expand(max, a->u.addressRange->min, length, 0xFF);
+    addr_expand(max, a->u.addressRange->max, length, 0xFF);
     return;
   }
 }

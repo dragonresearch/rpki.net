@@ -269,3 +269,7 @@ Random reminders and notes to myself:
   Should be possible to do all of this with minor reworking of
   existing canonization code, probably moving a lot of the interesting
   stuff out into subroutines.
+
+  Well, but if we want to report -all- the errors in one pass, we may
+  need to make temporary copies of the lists (sk_dup()) because that's
+  the only sane way to check for overlapping/duplicate/adjacent stuff.

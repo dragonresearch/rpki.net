@@ -232,10 +232,18 @@ Random reminders and notes to myself:
   that the authoritative definition of RDIs is ISO 10747, available as
   http://www.acm.org/sigs/sigcomm/standards/iso_stds/IDRP/10747.TXT.
 
-- Need to add NIDs for RFC 3779 extensions to
-  crypto/x509v3/v3_purp.c:supported_nids[] and call our path
-  validation functions from crypto/x509/x509_vfy.c:X509_verify_cert().
-
 - Should we check entire chain or only up to ctx->last_untrusted?  For
   the moment I'm checking the entire chain because that's more likely
   to yield a correct answer, albiet perhaps inefficiently.
+
+- "openssl verify" reports an unknown critical exception error for
+  certificatePolicies (RFC 3280 4.2.1.5).
+
+- Right way to handle error reporting from xxx_canonize() functions is
+  almost certainly a callback; this would fit fairly well with the
+  callback mechanism OpenSSL already uses in X509_validate_cert().
+
+- xxx_canonize() functions may need a mode where they just whine and
+  do not attempt to correct the extension.
+
+- Other error checking needed: duplicate extensions.

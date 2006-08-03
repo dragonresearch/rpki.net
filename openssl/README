@@ -273,3 +273,8 @@ Random reminders and notes to myself:
   Well, but if we want to report -all- the errors in one pass, we may
   need to make temporary copies of the lists (sk_dup()) because that's
   the only sane way to check for overlapping/duplicate/adjacent stuff.
+
+  So for each list, we do sk_dup(), sort, compare sorted with
+  unsorted, whine if they differ, walk the sorted list, then free the
+  sorted list.  Requires the usual care to avoid memory leaks, but
+  nothing extraordinary.

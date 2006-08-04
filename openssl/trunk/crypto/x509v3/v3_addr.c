@@ -608,6 +608,27 @@ static int addr_add_range(IPAddrBlocks *addr,
 }
 
 /*
+ * Extract min and max values from an IPAddressOrRange.
+ */
+static void extract_min_max(IPAddressOrRange *aor,
+				 unsigned char *min,
+				 unsigned char *max,
+				 int length)
+{
+  assert(aor != NULL && min != NULL && max != NULL);
+  switch (aor->type) {
+  case IPAddressOrRange_addressPrefix:
+    addr_expand(min, aor->u.addressPrefix, length, 0x00);
+    addr_expand(max, aor->u.addressPrefix, length, 0xFF);
+    return;
+  case IPAddressOrRange_addressRange:
+    addr_expand(min, aor->u.addressRange->min, length, 0x00);
+    addr_expand(max, aor->u.addressRange->max, length, 0xFF);
+    return;
+  }
+}
+
+/*
  * Whack an IPAddressOrRanges into canonical form.
  */
 static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
@@ -629,34 +650,8 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
     unsigned char a_min[ADDR_RAW_BUF_LEN], a_max[ADDR_RAW_BUF_LEN];
     unsigned char b_min[ADDR_RAW_BUF_LEN], b_max[ADDR_RAW_BUF_LEN];
 
-    /*
-     * Expand all the addresses once and get it over with.
-     */
-    switch (a->type) {
-    case IPAddressOrRange_addressPrefix:
-      addr_expand(a_min, a->u.addressPrefix, length, 0x00);
-      addr_expand(a_max, a->u.addressPrefix, length, 0xFF);
-      break;
-    case IPAddressOrRange_addressRange:
-      addr_expand(a_min, a->u.addressRange->min, length, 0x00);
-      addr_expand(a_max, a->u.addressRange->max, length, 0xFF);
-      break;
-    }
-    switch (b->type) {
-    case IPAddressOrRange_addressPrefix:
-      addr_expand(b_min, b->u.addressPrefix, length, 0x00);
-      addr_expand(b_max, b->u.addressPrefix, length, 0xFF);
-      break;
-    case IPAddressOrRange_addressRange:
-      addr_expand(b_min, b->u.addressRange->min, length, 0x00);
-      addr_expand(b_max, b->u.addressRange->max, length, 0xFF);
-      break;
-    }
-
-    /*
-     * Make sure we're sorted properly (paranoia).
-     */
-    assert(memcmp(a_min, b_min, length) <= 0);
+    extract_min_max(a, a_min, a_max, length);
+    extract_min_max(b, b_min, b_max, length);
 
     /*
      * If a contains b, we can just get rid of b.
@@ -764,8 +759,6 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
       break;
     }
 
-    assert(s == NULL);		/* Check for memory leak */
-
     /*
      * Handle SAFI, if any, and strdup() so we can null-terminate
      * the other input values.
@@ -857,30 +850,25 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
       goto err;
     }
 
-    assert(s != NULL);
     OPENSSL_free(s);
     s = NULL;
   }
-
-  assert(s == NULL);
 
   /*
    * Canonize the result, then we're done.
    */
   for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
     IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
-    unsigned afi = afi_from_addressfamily(f);
     if (f->ipAddressChoice->type == IPAddressChoice_addressesOrRanges &&
 	!IPAddressOrRanges_canonize(f->ipAddressChoice->u.addressesOrRanges,
-				    afi))
+				    afi_from_addressfamily(f)))
       goto err;
   }
   sk_IPAddressFamily_sort(addr);
   return addr;
 
  err:
-  if (s != NULL)
-    OPENSSL_free(s);
+  OPENSSL_free(s);
   sk_IPAddressFamily_pop_free(addr, IPAddressFamily_free);
   return NULL;
 }
@@ -903,27 +891,6 @@ X509V3_EXT_METHOD v3_addr = {
 };
 
 /*
- * Helper function to make addr_contains() more readable.
- */
-static void addr_contains_helper(IPAddressOrRange *a,
-				 unsigned char *min,
-				 unsigned char *max,
-				 int length)
-{
-  assert(a != NULL && min != NULL && max != NULL);
-  switch (a->type) {
-  case IPAddressOrRange_addressPrefix:
-    addr_expand(min, a->u.addressPrefix, length, 0x00);
-    addr_expand(max, a->u.addressPrefix, length, 0xFF);
-    return;
-  case IPAddressOrRange_addressRange:
-    addr_expand(min, a->u.addressRange->min, length, 0x00);
-    addr_expand(max, a->u.addressRange->max, length, 0xFF);
-    return;
-  }
-}
-
-/*
  * Figure out whether parent contains child.
  */
 static int addr_contains(IPAddressOrRanges *parent,
@@ -941,13 +908,13 @@ static int addr_contains(IPAddressOrRanges *parent,
 
   p = 0;
   for (c = 0; c < sk_IPAddressOrRange_num(child); c++) {
-    addr_contains_helper(sk_IPAddressOrRange_value(child, c),
-			 c_min, c_max, length);
+    extract_min_max(sk_IPAddressOrRange_value(child, c),
+		    c_min, c_max, length);
     for (;; p++) {
       if (p >= sk_IPAddressOrRange_num(parent))
 	return 0;
-      addr_contains_helper(sk_IPAddressOrRange_value(parent, p),
-			   p_min, p_max, length);
+      extract_min_max(sk_IPAddressOrRange_value(parent, p),
+		      p_min, p_max, length);
       if (memcmp(p_max, c_max, length) < 0)
 	continue;
       if (memcmp(p_min, c_min, length) > 0)

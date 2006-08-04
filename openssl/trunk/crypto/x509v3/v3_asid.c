@@ -217,6 +217,26 @@ static int asid_add_id_or_range(ASIdentifierChoice **choice,
 }
 
 /*
+ * Extract min and max values from an ASIdOrRange.
+ */
+static void extract_min_max(ASIdOrRange *aor,
+			    ASN1_INTEGER **min,
+			    ASN1_INTEGER **max)
+{
+  assert(aor != NULL && min != NULL && max != NULL);
+  switch (aor->type) {
+  case ASIdOrRange_id:
+    *min = aor->u.id;
+    *max = aor->u.id;
+    return;
+  case ASIdOrRange_range:
+    *min = aor->u.range->min;
+    *max = aor->u.range->max;
+    return;
+  }
+}
+
+/*
  * Whack an ASIdentifierChoice into canonical form.
  */
 static int asid_canonize(ASIdentifierChoice *choice)
@@ -245,25 +265,8 @@ static int asid_canonize(ASIdentifierChoice *choice)
     ASIdOrRange *b = sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i + 1);
     ASN1_INTEGER *a_min, *a_max, *b_min, *b_max;
 
-    switch (a->type) {
-    case ASIdOrRange_id:
-      a_min = a_max = a->u.id;
-      break;
-    case ASIdOrRange_range:
-      a_min = a->u.range->min;
-      a_max = a->u.range->max;
-      break;
-    }
-
-    switch (b->type) {
-    case ASIdOrRange_id:
-      b_min = b_max = b->u.id;
-      break;
-    case ASIdOrRange_range:
-      b_min = b->u.range->min;
-      b_max = b->u.range->max;
-      break;
-    }
+    extract_min_max(a, &a_min, &a_max);
+    extract_min_max(b, &b_min, &b_max);
 
     /*
      * Make sure we're properly sorted (paranoia).
@@ -297,8 +300,10 @@ static int asid_canonize(ASIdentifierChoice *choice)
     if ((bn == NULL && (bn = BN_new()) == NULL) ||
 	ASN1_INTEGER_to_BN(a_max, bn) == NULL ||
 	!BN_add_word(bn, 1) ||
-	(a_max_plus_one = BN_to_ASN1_INTEGER(bn, a_max_plus_one)) == NULL)
-      goto err;
+	(a_max_plus_one = BN_to_ASN1_INTEGER(bn, a_max_plus_one)) == NULL) {
+      X509V3err(X509V3_F_ASID_CANONIZE, X509V3_R_EXTENSION_VALUE_ERROR);
+      goto done;
+    }
     
     /*
      * If a and b are adjacent or overlap, merge them.
@@ -306,36 +311,34 @@ static int asid_canonize(ASIdentifierChoice *choice)
     if (ASN1_INTEGER_cmp(a_max_plus_one, b_min) >= 0) {
       ASIdOrRange *aor = ASIdOrRange_new();
       if (aor == NULL)
-	goto err;
+	goto done;
       aor->type = ASIdOrRange_range;
       assert(aor->u.range == NULL);
       if ((aor->u.range = ASRange_new()) == NULL) {
 	ASIdOrRange_free(aor);
-	goto err;
+	goto done;
       }
-      ASN1_INTEGER_free(aor->u.range->min);
-      aor->u.range->min = a_min;
-      ASN1_INTEGER_free(aor->u.range->max);
-      aor->u.range->max = b_max;
       sk_ASIdOrRange_set(choice->u.asIdsOrRanges, i, aor);
       sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i + 1);
       switch (a->type) {
       case ASIdOrRange_id:
-	a->u.id = NULL;
+	a->u.id = aor->u.range->min;
 	break;
       case ASIdOrRange_range:
-	a->u.range->min = NULL;
+	a->u.range->min = aor->u.range->min;
 	break;
       }
+      aor->u.range->min = a_min;
       ASIdOrRange_free(a);
       switch (b->type) {
       case ASIdOrRange_id:
-	b->u.id = NULL;
+	b->u.id = aor->u.range->max;
 	break;
       case ASIdOrRange_range:
-	b->u.range->max = NULL;
+	b->u.range->max = aor->u.range->max;
 	break;
       }
+      aor->u.range->max = b_max;
       ASIdOrRange_free(b);
       i--;
       continue;
@@ -344,7 +347,118 @@ static int asid_canonize(ASIdentifierChoice *choice)
 
   ret = 1;
 
- err:
+ done:
+  ASN1_INTEGER_free(a_max_plus_one);
+  BN_free(bn);
+  return ret;
+}
+
+/*
+ * Check whether an ASIdentifierChoice is in canonical form.
+ */
+static int asid_is_canonical(ASIdentifierChoice *choice,
+			     int (*cb)(ASIdentifierChoice *, void *),
+			     void *cookie)
+{
+  ASN1_INTEGER *a_max_plus_one = NULL;
+  ASIdOrRanges *aors = NULL;
+  BIGNUM *bn = NULL;
+  int i, ret = 0;
+
+  assert(cb != 0);
+
+  /*
+   * Empty element or inheritance is canonical.
+   */
+  if (choice == NULL || choice->type == ASIdentifierChoice_inherit)
+    return 1;
+
+  /*
+   * If it's not a list at this point, it's broken.
+   */
+  if (choice->type != ASIdentifierChoice_asIdsOrRanges)
+    return cb(choice, cookie);
+
+  /*
+   * It's a list, we need a copy to sort.
+   */
+  if ((aors = sk_ASIdOrRange_dup(choice->u.asIdsOrRanges)) == NULL) {
+    X509V3err(X509V3_F_ASID_IS_CANONICAL, ERR_R_MALLOC_FAILURE);
+    return 0;
+  }
+  sk_ASIdOrRange_set_cmp_func(aors, ASIdOrRange_cmp);
+  sk_ASIdOrRange_sort(aors);
+
+  /*
+   * Check to see if it was misordered.
+   */
+  for (i = 0; i < sk_ASIdOrRange_num(aors); i++) {
+    if (sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i) !=
+	sk_ASIdOrRange_value(aors, i) &&
+	!cb(choice, cookie))
+      goto done;
+  }
+
+  /*
+   * Now check for duplicates and overlaps in the sorted copy.
+   */
+  for (i = 0; i < sk_ASIdOrRange_num(aors) - 1; i++) {
+    ASIdOrRange *a = sk_ASIdOrRange_value(aors, i);
+    ASIdOrRange *b = sk_ASIdOrRange_value(aors, i + 1);
+    ASN1_INTEGER *a_min, *a_max, *b_min, *b_max;
+
+    extract_min_max(a, &a_min, &a_max);
+    extract_min_max(b, &b_min, &b_max);
+
+    /*
+     * Make sure we're properly sorted (paranoia).
+     */
+    assert(ASN1_INTEGER_cmp(a_min, b_min) <= 0);
+
+    /*
+     * Does a contain b?
+     */
+    if (ASN1_INTEGER_cmp(a_max, b_max) >= 0) {
+      if (!cb(choice, cookie))
+	goto done;
+      continue;
+    }
+
+    /*
+     * Does b contain a?
+     */
+    if (ASN1_INTEGER_cmp(a_min, b_min) == 0 &&
+	ASN1_INTEGER_cmp(a_max, b_max) <= 0) {
+      if (!cb(choice, cookie))
+	goto done;
+      continue;
+    }
+
+    /*
+     * Calculate a_max + 1 to check for adjacency.
+     */
+    if ((bn == NULL && (bn = BN_new()) == NULL) ||
+	ASN1_INTEGER_to_BN(a_max, bn) == NULL ||
+	!BN_add_word(bn, 1) ||
+	(a_max_plus_one = BN_to_ASN1_INTEGER(bn, a_max_plus_one)) == NULL) {
+      X509V3err(X509V3_F_ASID_IS_CANONICAL, ERR_R_MALLOC_FAILURE);
+      goto done;
+    }
+    
+    /*
+     * Are a and b adjacent or overlapping?
+     */
+    if (ASN1_INTEGER_cmp(a_max_plus_one, b_min) >= 0) {
+      if (!cb(choice, cookie))
+	goto done;
+      continue;
+    }
+  }
+
+  ret = 1;
+
+ done:
+  sk_ASIdOrRange_free(aors);
   ASN1_INTEGER_free(a_max_plus_one);
   BN_free(bn);
   return ret;
@@ -482,26 +596,6 @@ X509V3_EXT_METHOD v3_asid = {
 };
 
 /*
- * Helper function to make asid_contains() more readable.
- */
-static void asid_contains_helper(ASIdOrRange *a,
-				 ASN1_INTEGER **min,
-				 ASN1_INTEGER **max)
-{
-  assert(a != NULL && min != NULL && max != NULL);
-  switch (a->type) {
-  case ASIdOrRange_id:
-    *min = a->u.id;
-    *max = a->u.id;
-    return;
-  case ASIdOrRange_range:
-    *min = a->u.range->min;
-    *max = a->u.range->max;
-    return;
-  }
-}
-
-/*
  * Figure out whether parent contains child.
  */
 static int asid_contains(ASIdOrRanges *parent, ASIdOrRanges *child)
@@ -516,11 +610,11 @@ static int asid_contains(ASIdOrRanges *parent, ASIdOrRanges *child)
 
   p = 0;
   for (c = 0; c < sk_ASIdOrRange_num(child); c++) {
-    asid_contains_helper(sk_ASIdOrRange_value(child, c), &c_min, &c_max);
+    extract_min_max(sk_ASIdOrRange_value(child, c), &c_min, &c_max);
     for (;; p++) {
       if (p >= sk_ASIdOrRange_num(parent))
 	return 0;
-      asid_contains_helper(sk_ASIdOrRange_value(parent, p), &p_min, &p_max);
+      extract_min_max(sk_ASIdOrRange_value(parent, p), &p_min, &p_max);
       if (ASN1_INTEGER_cmp(p_max, c_max) < 0)
 	continue;
       if (ASN1_INTEGER_cmp(p_min, c_min) > 0)

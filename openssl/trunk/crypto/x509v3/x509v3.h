@@ -742,6 +742,7 @@ void ERR_load_X509V3_strings(void);
 /* Error codes for the X509V3 functions. */
 
 /* Function codes. */
+#define X509V3_F_ASID_IS_CANONICAL			 158
 #define X509V3_F_COPY_EMAIL				 122
 #define X509V3_F_COPY_ISSUER				 123
 #define X509V3_F_DO_DIRNAME				 144

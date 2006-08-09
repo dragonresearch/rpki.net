@@ -1020,6 +1020,8 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
 	}
       }
     }
+    sk_IPAddressFamily_pop_free(child, IPAddressFamily_free);
+    child = NULL;
   }
 
  done:

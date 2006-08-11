@@ -243,7 +243,9 @@ Random reminders and notes to myself:
   might do the right thing (if I could figure out what it does...).
 
 - "openssl verify" only accepts PEM, not DER, which is annoying.
-  Needs an -inform switch.
+  An -inform switch would be nice, but the library routines
+  don't know how to read a CAfile full of DER anyway.  Pity -CApath
+  doesn't seem to work for us.  Oh well, live with PEM for now.
 
 - Right way to handle error reporting from xxx_canonize() functions is
   almost certainly a callback; this would fit fairly well with the

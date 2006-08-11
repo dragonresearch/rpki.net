@@ -303,3 +303,6 @@ Random reminders and notes to myself:
   - crypto/x509v3/v3_purp.c: add code to x509v3_cache_extensions() to
     call X509_get_ext_d2i() for our extensions and stash the result in
     the corresponding struct x509_st fields (see the akid handling).
+
+- I need to rewrite the path validation code anyway to allow null
+  inheritance, per mailing list discussion.

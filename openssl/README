@@ -239,9 +239,11 @@ Random reminders and notes to myself:
 - "openssl verify" reports an unknown critical exception error for
   certificatePolicies (RFC 3280 4.2.1.5).  Probably need to add a
   switch to "openssl verify" to accept a certificate policy OID.
+  Hmm, looks like it already has an undocumented -policy switch which
+  might do the right thing (if I could figure out what it does...).
 
 - "openssl verify" only accepts PEM, not DER, which is annoying.
-  Probably need to add an -inform switch.
+  Needs an -inform switch.
 
 - Right way to handle error reporting from xxx_canonize() functions is
   almost certainly a callback; this would fit fairly well with the

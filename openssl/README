@@ -278,3 +278,28 @@ Random reminders and notes to myself:
   unsorted, whine if they differ, walk the sorted list, then free the
   sorted list.  Requires the usual care to avoid memory leaks, but
   nothing extraordinary.
+
+- My path validation stuff is not yet as efficient as it probably
+  ought to be.  First off, it starts the check from the trust anchor
+  rather than from the target certificate, which is silly (I didn't
+  fully understand how X509_verify_cert() worked at the time -- of
+  course perhaps I'm kidding myself that I understand it now...).  The
+  other thing that it could perhaps do more efficiently would be to
+  cache the decoded RFC 3779 extensions in the top-level X509
+  structure instead of expanding them every time.  Doesn't much matter
+  for a trivial app like the "verify" CLI demo, but if we're going to
+  be doing multiple path checks involving the same certificate it'd
+  make more sense to expand them once via the same cache mechanism
+  that the library already uses for extensions like AKID.  If we did
+  this, the code needing modification would be:
+
+  - crypto/x509/x509.h: add rfc3779_addr and rfc3779_asid fields to
+    struct x509_st.
+
+  - crypto/asn1/x_x509.c: add initialization and cleanup code to
+    x509_cb() (set new fields to NULL for ASN1_OP_NEW_POST, free new
+    fields for ASN1_OP_FREE_POST).
+
+  - crypto/x509v3/v3_purp.c: add code to x509v3_cache_extensions() to
+    call X509_get_ext_d2i() for our extensions and stash the result in
+    the corresponding struct x509_st fields (see the akid handling).

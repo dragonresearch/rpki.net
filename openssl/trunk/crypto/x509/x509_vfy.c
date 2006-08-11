@@ -289,15 +289,6 @@ int X509_verify_cert(X509_STORE_CTX *ctx)
 
 	if (!ok) goto end;
 
-	/* Check RFC 3779 path validation */
-	ok = v3_asid_validate_path(ctx);
-
-	if (!ok) goto end;
-
-	ok = v3_addr_validate_path(ctx);
-
-	if (!ok) goto end;
-
 	/* The chain extensions are OK: check trust */
 
 	if (param->trust > 0) ok = check_trust(ctx);
@@ -527,6 +518,11 @@ static int check_chain_extensions(X509_STORE_CTX *ctx)
 		else
 			must_be_ca = 1;
 		}
+	/* RFC 3779 path validation */
+	ok = v3_asid_validate_path(ctx);
+	if (!ok) goto end;
+	ok = v3_addr_validate_path(ctx);
+	if (!ok) goto end;
 	ok = 1;
  end:
 	return ok;

@@ -316,11 +316,3 @@ Random reminders and notes to myself:
   inheritance, per mailing list discussion.
 
 - May need to check AKID in crypto/x509/x509_vfy.c:get_crl().
-
-- Bug in policy checking code (may not matter): if one attempts to
-  check policy on a trust anchor, crypto/x509v3/pcy_tree:tree_init()
-  returns success ("Can't do anythign with just a trust anchor") which
-  X509_policy_check() line 634 interprets as a malloc failure because
-  there's no policy tree data structure.  Presumably we should just
-  return success here instead?
-

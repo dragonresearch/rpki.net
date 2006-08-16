@@ -237,6 +237,72 @@ static void extract_min_max(ASIdOrRange *aor,
 }
 
 /*
+ * Check whether an ASIdentifierChoice is in canonical form.
+ */
+static int asid_is_canonical(ASIdentifierChoice *choice)
+{
+  ASN1_INTEGER *a_max_plus_one = NULL;
+  BIGNUM *bn = NULL;
+  int i, ret = 0;
+
+  /*
+   * Empty element or inheritance is canonical.
+   */
+  if (choice == NULL || choice->type == ASIdentifierChoice_inherit)
+    return 1;
+
+  /*
+   * If it's not a list at this point, it's broken.
+   */
+  if (choice->type != ASIdentifierChoice_asIdsOrRanges)
+    return 0;
+
+  /*
+   * It's a list, check it.
+   */
+  for (i = 0; i < sk_ASIdOrRange_num(choice->u.asIdsOrRanges) - 1; i++) {
+    ASIdOrRange *a = sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i);
+    ASIdOrRange *b = sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i + 1);
+    ASN1_INTEGER *a_min, *a_max, *b_min, *b_max;
+
+    extract_min_max(a, &a_min, &a_max);
+    extract_min_max(b, &b_min, &b_max);
+
+    /*
+     * Punt misordered list, overlapping start, or inverted range.
+     */
+    if (ASN1_INTEGER_cmp(a_min, b_min) >= 0 ||
+	ASN1_INTEGER_cmp(a_min, a_max) > 0 ||
+	ASN1_INTEGER_cmp(b_min, b_max) > 0)
+      goto done;
+
+    /*
+     * Calculate a_max + 1 to check for adjacency.
+     */
+    if ((bn == NULL && (bn = BN_new()) == NULL) ||
+	ASN1_INTEGER_to_BN(a_max, bn) == NULL ||
+	!BN_add_word(bn, 1) ||
+	(a_max_plus_one = BN_to_ASN1_INTEGER(bn, a_max_plus_one)) == NULL) {
+      X509V3err(X509V3_F_ASID_IS_CANONICAL, ERR_R_MALLOC_FAILURE);
+      goto done;
+    }
+    
+    /*
+     * Punt if adjacent or overlapping.
+     */
+    if (ASN1_INTEGER_cmp(a_max_plus_one, b_min) >= 0)
+      goto done;
+  }
+
+  ret = 1;
+
+ done:
+  ASN1_INTEGER_free(a_max_plus_one);
+  BN_free(bn);
+  return ret;
+}
+
+/*
  * Whack an ASIdentifierChoice into canonical form.
  */
 static int asid_canonize(ASIdentifierChoice *choice)
@@ -329,6 +395,8 @@ static int asid_canonize(ASIdentifierChoice *choice)
     }
   }
 
+  assert(asid_is_canonical(choice)); /* Paranoia */
+
   ret = 1;
 
  done:
@@ -336,119 +404,6 @@ static int asid_canonize(ASIdentifierChoice *choice)
   BN_free(bn);
   return ret;
 }
-
-#if 0
-/*
- * Check whether an ASIdentifierChoice is in canonical form.
- */
-static int asid_is_canonical(ASIdentifierChoice *choice,
-			     int (*cb)(ASIdentifierChoice *, void *),
-			     void *cookie)
-{
-  ASN1_INTEGER *a_max_plus_one = NULL;
-  ASIdOrRanges *aors = NULL;
-  BIGNUM *bn = NULL;
-  int i, ret = 0;
-
-  assert(cb != 0);
-
-  /*
-   * Empty element or inheritance is canonical.
-   */
-  if (choice == NULL || choice->type == ASIdentifierChoice_inherit)
-    return 1;
-
-  /*
-   * If it's not a list at this point, it's broken.
-   */
-  if (choice->type != ASIdentifierChoice_asIdsOrRanges)
-    return cb(choice, cookie);
-
-  /*
-   * It's a list, we need a copy to sort.
-   */
-  if ((aors = sk_ASIdOrRange_dup(choice->u.asIdsOrRanges)) == NULL) {
-    X509V3err(X509V3_F_ASID_IS_CANONICAL, ERR_R_MALLOC_FAILURE);
-    return 0;
-  }
-  sk_ASIdOrRange_set_cmp_func(aors, ASIdOrRange_cmp);
-  sk_ASIdOrRange_sort(aors);
-
-  /*
-   * Check to see if it was misordered.
-   */
-  for (i = 0; i < sk_ASIdOrRange_num(aors); i++) {
-    if (sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i) !=
-	sk_ASIdOrRange_value(aors, i) &&
-	!cb(choice, cookie))
-      goto done;
-  }
-
-  /*
-   * Now check for duplicates and overlaps in the sorted copy.
-   */
-  for (i = 0; i < sk_ASIdOrRange_num(aors) - 1; i++) {
-    ASIdOrRange *a = sk_ASIdOrRange_value(aors, i);
-    ASIdOrRange *b = sk_ASIdOrRange_value(aors, i + 1);
-    ASN1_INTEGER *a_min, *a_max, *b_min, *b_max;
-
-    extract_min_max(a, &a_min, &a_max);
-    extract_min_max(b, &b_min, &b_max);
-
-    /*
-     * Make sure we're properly sorted (paranoia).
-     */
-    assert(ASN1_INTEGER_cmp(a_min, b_min) <= 0);
-
-    /*
-     * Does a contain b?
-     */
-    if (ASN1_INTEGER_cmp(a_max, b_max) >= 0) {
-      if (!cb(choice, cookie))
-	goto done;
-      continue;
-    }
-
-    /*
-     * Does b contain a?
-     */
-    if (ASN1_INTEGER_cmp(a_min, b_min) == 0 &&
-	ASN1_INTEGER_cmp(a_max, b_max) <= 0) {
-      if (!cb(choice, cookie))
-	goto done;
-      continue;
-    }
-
-    /*
-     * Calculate a_max + 1 to check for adjacency.
-     */
-    if ((bn == NULL && (bn = BN_new()) == NULL) ||
-	ASN1_INTEGER_to_BN(a_max, bn) == NULL ||
-	!BN_add_word(bn, 1) ||
-	(a_max_plus_one = BN_to_ASN1_INTEGER(bn, a_max_plus_one)) == NULL) {
-      X509V3err(X509V3_F_ASID_IS_CANONICAL, ERR_R_MALLOC_FAILURE);
-      goto done;
-    }
-    
-    /*
-     * Are a and b adjacent or overlapping?
-     */
-    if (ASN1_INTEGER_cmp(a_max_plus_one, b_min) >= 0) {
-      if (!cb(choice, cookie))
-	goto done;
-      continue;
-    }
-  }
-
-  ret = 1;
-
- done:
-  sk_ASIdOrRange_free(aors);
-  ASN1_INTEGER_free(a_max_plus_one);
-  BN_free(bn);
-  return ret;
-}
-#endif /* 0 */
 
 /*
  * v2i method for an ASIdentifier extension.
@@ -640,14 +595,20 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
    * Start with the target certificate.  If it doesn't have the extension,
    * we're done.
    */
-  x = sk_X509_value(ctx->chain, 0);
+  i = 0;
+  x = sk_X509_value(ctx->chain, i);
   assert(x != NULL);
   if (x->rfc3779_asid == NULL)
     goto done;
 
   /*
-   * Has extension, have to check the whole chain.
+   * Has extension, have to check the whole chain.  Make sure the
+   * extension is in canonical form, then pull its resource lists
+   * so we can check whether its parents had them to grant.
    */
+  if (!asid_is_canonical(x->rfc3779_asid->asnum) ||
+      !asid_is_canonical(x->rfc3779_asid->rdi))
+    validation_err(X509_V_ERR_INVALID_EXTENSION);
   if (x->rfc3779_asid->asnum != NULL)  {
     switch (x->rfc3779_asid->asnum->type) {
     case ASIdentifierChoice_inherit:
@@ -670,12 +631,15 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
   }
 
   /*
-   * Now walk up the chain.  No cert may list resources that its
-   * parent doesn't list.
+   * Now walk up the chain.  Extensions must be in canonical form, and
+   * no cert may list resources that its parent doesn't list.
    */
   for (i = 1; i < sk_X509_num(ctx->chain); i++) {
     x = sk_X509_value(ctx->chain, i);
     assert(x != NULL);
+    if (!asid_is_canonical(x->rfc3779_asid->asnum) ||
+	!asid_is_canonical(x->rfc3779_asid->rdi))
+      validation_err(X509_V_ERR_INVALID_EXTENSION);
     if (x->rfc3779_asid == NULL) {
       if (child_as != NULL || child_rdi != NULL)
 	validation_err(X509_V_ERR_UNNESTED_RESOURCE);

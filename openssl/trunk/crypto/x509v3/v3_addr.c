@@ -922,6 +922,8 @@ static int addr_contains(IPAddressOrRanges *parent,
       break;
     }
   }
+
+  return 1;
 }
 
 /*

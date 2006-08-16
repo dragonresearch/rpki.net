@@ -288,6 +288,8 @@ struct x509_st
 	ASN1_OCTET_STRING *skid;
 	struct AUTHORITY_KEYID_st *akid;
 	X509_POLICY_CACHE *policy_cache;
+	STACK_OF(IPAddressFamily) *rfc3779_addr;
+	struct ASIdentifiers_st *rfc3779_asid;
 #ifndef OPENSSL_NO_SHA
 	unsigned char sha1_hash[SHA_DIGEST_LENGTH];
 #endif

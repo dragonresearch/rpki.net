@@ -949,91 +949,76 @@ static int addr_contains(IPAddressOrRanges *parent,
  */
 int v3_addr_validate_path(X509_STORE_CTX *ctx)
 {
-  IPAddrBlocks *parent = NULL, *child = NULL;
-  int i, j, has_ext, ret = 1;
+  IPAddrBlocks *child = NULL;
+  int i, j, ret = 1;
   X509 *x;
 
   assert(ctx->verify_cb);
 
   /*
-   * Start with the ancestral cert.  It can't inherit anything.
+   * Start with the target certificate.  If it doesn't have the
+   * extension, we're done.
    */
-  i = sk_X509_num(ctx->chain) - 1;
-  x = sk_X509_value(ctx->chain, i);
+  x = sk_X509_value(ctx->chain, 0);
   assert(x != NULL);
-  parent = X509_get_ext_d2i(x, NID_sbgp_ipAddrBlock, NULL, NULL);
-  has_ext = parent != NULL;
-  if (has_ext) {
-    for (j = 0; j < sk_IPAddressFamily_num(parent); j++) {
-      IPAddressFamily *fp = sk_IPAddressFamily_value(parent, j);
-      assert(fp != NULL && fp->ipAddressChoice != NULL);
-      if (fp->ipAddressChoice->type == IPAddressChoice_inherit) {
-	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
-	goto done;		/* callback insisted on continuing */
-      }
-    }
-    sk_IPAddressFamily_set_cmp_func(parent, IPAddressFamily_cmp);
+  if (x->rfc3779_addr == NULL)
+    goto done;
+
+  /*
+   * Has extension, need to check the whole chain.  This requires a
+   * scratch stack, initially populated with a copy of the target
+   * certificate's extension.
+   */
+  sk_IPAddressFamily_set_cmp_func(x->rfc3779_addr, IPAddressFamily_cmp);
+  if ((child = sk_IPAddressFamily_dup(x->rfc3779_addr)) == NULL) {
+    X509V3err(X509V3_F_V3_ADDR_VALIDATE_PATH, ERR_R_MALLOC_FAILURE);
+    goto done;
   }
 
   /*
-   * Now walk down the chain.  No cert may list resources that its
+   * Now walk up the chain.  No cert may list resources that its
    * parent doesn't list.
    */
-  while (--i >= 0) {
+  for (i = 1; i < sk_X509_num(ctx->chain); i++) {
     x = sk_X509_value(ctx->chain, i);
     assert(x != NULL);
-    assert(child == NULL);
-    child = X509_get_ext_d2i(x, NID_sbgp_ipAddrBlock, NULL, NULL);
-    if (child == NULL) {
-      has_ext = 0;
-    } else if (!has_ext) {
+    if (x->rfc3779_addr == NULL) {
       validation_err(X509_V_ERR_UNNESTED_RESOURCE);
-      has_ext = 1;		/* callback insists on continuing */
+      continue;
     }
-
-    if (has_ext) {
-      /*
-       * Clean out address families that child doesn't use.
-       * (Need to do this before modifying child....)
-       */
-      sk_IPAddressFamily_set_cmp_func(child, IPAddressFamily_cmp);
-      for (j = 0; j < sk_IPAddressFamily_num(parent); j++) {
-	IPAddressFamily *fp = sk_IPAddressFamily_value(parent, j);
-	if (sk_IPAddressFamily_find(child, fp) < 0) {
-	  IPAddressFamily_free(fp);
-	  sk_IPAddressFamily_delete(parent, j);
-	  --j;
-	}
-      }
-      /*
-       * Check all remaining address families in child.
-       */
-      for (j = 0; j < sk_IPAddressFamily_num(child); j++) {
-	IPAddressFamily *fc = sk_IPAddressFamily_value(child, j);
-	int k = sk_IPAddressFamily_find(parent, fc);
-	if (k < 0)
+    sk_IPAddressFamily_set_cmp_func(x->rfc3779_addr, IPAddressFamily_cmp);
+    for (j = 0; j < sk_IPAddressFamily_num(child); j++) {
+      IPAddressFamily *fc = sk_IPAddressFamily_value(child, j);
+      int k = sk_IPAddressFamily_find(x->rfc3779_addr, fc);
+      IPAddressFamily *fp = sk_IPAddressFamily_value(x->rfc3779_addr, k);
+      if (fp == NULL) {
+	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+      } else if (fp->ipAddressChoice->type == IPAddressChoice_addressesOrRanges) {
+	if (fc->ipAddressChoice->type == IPAddressChoice_inherit ||
+	    addr_contains(fp->ipAddressChoice->u.addressesOrRanges, 
+			  fc->ipAddressChoice->u.addressesOrRanges,
+			  length_from_afi(afi_from_addressfamily(fc))))
+	  sk_IPAddressFamily_set(child, j, fp);
+	else
 	  validation_err(X509_V_ERR_UNNESTED_RESOURCE);
-	if (k >= 0 &&
-	    fc->ipAddressChoice->type == IPAddressChoice_addressesOrRanges) {
-	  IPAddressFamily *fp = sk_IPAddressFamily_value(parent, k);
-	  if (!addr_contains(fp->ipAddressChoice->u.addressesOrRanges, 
-			     fc->ipAddressChoice->u.addressesOrRanges,
-			     length_from_afi(afi_from_addressfamily(fc))))
-	    validation_err(X509_V_ERR_UNNESTED_RESOURCE);
-	  IPAddressFamily_free(fp);
-	  sk_IPAddressFamily_set(parent, k, fc);
-	  sk_IPAddressFamily_delete(child, j);
-	  --j;
-	}
       }
     }
-    sk_IPAddressFamily_pop_free(child, IPAddressFamily_free);
-    child = NULL;
+  }
+
+  /*
+   * Trust anchor can't inherit.
+   */
+  if (x->rfc3779_addr != NULL) {
+    for (j = 0; j < sk_IPAddressFamily_num(x->rfc3779_addr); j++) {
+      IPAddressFamily *fp = sk_IPAddressFamily_value(x->rfc3779_addr, j);
+      if (fp->ipAddressChoice->type == IPAddressChoice_inherit &&
+	  sk_IPAddressFamily_find(child, fp) >= 0)
+	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+    }
   }
 
  done:
-  sk_IPAddressFamily_pop_free(parent, IPAddressFamily_free);
-  sk_IPAddressFamily_pop_free(child, IPAddressFamily_free);
+  sk_IPAddressFamily_free(child);
   return ret;
 }
 

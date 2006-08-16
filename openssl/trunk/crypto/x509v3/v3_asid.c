@@ -353,6 +353,7 @@ static int asid_canonize(ASIdentifierChoice *choice)
   return ret;
 }
 
+#if 0
 /*
  * Check whether an ASIdentifierChoice is in canonical form.
  */
@@ -463,6 +464,7 @@ static int asid_is_canonical(ASIdentifierChoice *choice,
   BN_free(bn);
   return ret;
 }
+#endif /* 0 */
 
 /*
  * v2i method for an ASIdentifier extension.
@@ -644,8 +646,8 @@ static int asid_contains(ASIdOrRanges *parent, ASIdOrRanges *child)
  */
 int v3_asid_validate_path(X509_STORE_CTX *ctx)
 {
-  ASIdOrRanges *child_as, *child_rdi, *inherit_marker = (ASIdOrRanges *) 1;
-  int i, ret = 1;
+  ASIdOrRanges *child_as = NULL, *child_rdi = NULL;
+  int i, ret = 1, inherit_as = 0, inherit_rdi = 0;
   X509 *x;
 
   assert(ctx->verify_cb);
@@ -662,24 +664,20 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
   /*
    * Has extension, have to check the whole chain.
    */
-  if (x->rfc3779_asid->asnum == NULL) {
-    child_as = NULL;
-  } else {
+  if (x->rfc3779_asid->asnum != NULL)  {
     switch (x->rfc3779_asid->asnum->type) {
     case ASIdentifierChoice_inherit:
-      child_as = inherit_marker;
+      inherit_as = 1;
       break;
     case ASIdentifierChoice_asIdsOrRanges:
       child_as = x->rfc3779_asid->asnum->u.asIdsOrRanges;
       break;
     }
   }
-  if (x->rfc3779_asid->rdi == NULL) {
-    child_rdi = NULL;
-  } else {
+  if (x->rfc3779_asid->rdi != NULL) {
     switch (x->rfc3779_asid->rdi->type) {
     case ASIdentifierChoice_inherit:
-      child_rdi = inherit_marker;
+      inherit_rdi = 1;
       break;
     case ASIdentifierChoice_asIdsOrRanges:
       child_rdi = x->rfc3779_asid->rdi->u.asIdsOrRanges;
@@ -698,29 +696,35 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
       validation_err(X509_V_ERR_UNNESTED_RESOURCE);
       continue;
     }
-    if (x->rfc3779_asid->asnum == NULL && child_as != NULL) {
+    if (x->rfc3779_asid->asnum == NULL && (child_as != NULL || inherit_as)) {
       validation_err(X509_V_ERR_UNNESTED_RESOURCE);
       child_as = NULL;
+      inherit_as = 0;
     }
     if (x->rfc3779_asid->asnum != NULL &&
 	x->rfc3779_asid->asnum->type == ASIdentifierChoice_asIdsOrRanges) {
-      if (child_as == inherit_marker ||
-	  asid_contains(x->rfc3779_asid->asnum->u.asIdsOrRanges, child_as))
+      if (inherit_as ||
+	  asid_contains(x->rfc3779_asid->asnum->u.asIdsOrRanges, child_as)) {
 	child_as = x->rfc3779_asid->asnum->u.asIdsOrRanges;
-      else
+	inherit_as = 0;
+      } else {
 	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+      }
     }
-    if (x->rfc3779_asid->rdi == NULL && child_rdi != NULL) {
+    if (x->rfc3779_asid->rdi == NULL && (child_rdi != NULL || inherit_rdi)) {
       validation_err(X509_V_ERR_UNNESTED_RESOURCE);
       child_rdi = NULL;
+      inherit_rdi = 0;
     }
     if (x->rfc3779_asid->rdi != NULL &&
 	x->rfc3779_asid->rdi->type == ASIdentifierChoice_asIdsOrRanges) {
-      if (child_rdi == inherit_marker ||
-	  asid_contains(x->rfc3779_asid->rdi->u.asIdsOrRanges, child_rdi))
+      if (inherit_rdi ||
+	  asid_contains(x->rfc3779_asid->rdi->u.asIdsOrRanges, child_rdi)) {
 	child_rdi = x->rfc3779_asid->rdi->u.asIdsOrRanges;
-      else
+	inherit_rdi = 0;
+      } else {
 	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+      }
     }
   }
 

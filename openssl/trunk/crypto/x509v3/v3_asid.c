@@ -698,8 +698,10 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
       validation_err(X509_V_ERR_UNNESTED_RESOURCE);
       continue;
     }
-    if (x->rfc3779_asid->asnum == NULL && child_as != NULL)
+    if (x->rfc3779_asid->asnum == NULL && child_as != NULL) {
       validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+      child_as = NULL;
+    }
     if (x->rfc3779_asid->asnum != NULL &&
 	x->rfc3779_asid->asnum->type == ASIdentifierChoice_asIdsOrRanges) {
       if (child_as == inherit_marker ||
@@ -708,8 +710,10 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
       else
 	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
     }
-    if (x->rfc3779_asid->rdi == NULL && child_rdi != NULL)
+    if (x->rfc3779_asid->rdi == NULL && child_rdi != NULL) {
       validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+      child_rdi = NULL;
+    }
     if (x->rfc3779_asid->rdi != NULL &&
 	x->rfc3779_asid->rdi->type == ASIdentifierChoice_asIdsOrRanges) {
       if (child_rdi == inherit_marker ||

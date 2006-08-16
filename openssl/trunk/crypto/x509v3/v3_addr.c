@@ -983,7 +983,13 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
     x = sk_X509_value(ctx->chain, i);
     assert(x != NULL);
     if (x->rfc3779_addr == NULL) {
-      validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+      for (j = 0; j < sk_IPAddressFamily_num(child); j++) {
+	IPAddressFamily *fc = sk_IPAddressFamily_value(child, j);
+	if (fc->ipAddressChoice->type != IPAddressChoice_inherit) {
+	  validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+	  break;
+	}
+      }
       continue;
     }
     sk_IPAddressFamily_set_cmp_func(x->rfc3779_addr, IPAddressFamily_cmp);
@@ -992,8 +998,13 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
       int k = sk_IPAddressFamily_find(x->rfc3779_addr, fc);
       IPAddressFamily *fp = sk_IPAddressFamily_value(x->rfc3779_addr, k);
       if (fp == NULL) {
-	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
-      } else if (fp->ipAddressChoice->type == IPAddressChoice_addressesOrRanges) {
+	if (fc->ipAddressChoice->type == IPAddressChoice_addressesOrRanges) {
+	  validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+	  break;
+	}
+	continue;
+      }
+      if (fp->ipAddressChoice->type == IPAddressChoice_addressesOrRanges) {
 	if (fc->ipAddressChoice->type == IPAddressChoice_inherit ||
 	    addr_contains(fp->ipAddressChoice->u.addressesOrRanges, 
 			  fc->ipAddressChoice->u.addressesOrRanges,

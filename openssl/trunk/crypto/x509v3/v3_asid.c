@@ -693,10 +693,11 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
     x = sk_X509_value(ctx->chain, i);
     assert(x != NULL);
     if (x->rfc3779_asid == NULL) {
-      validation_err(X509_V_ERR_UNNESTED_RESOURCE);
+      if (child_as != NULL || child_rdi != NULL)
+	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
       continue;
     }
-    if (x->rfc3779_asid->asnum == NULL && (child_as != NULL || inherit_as)) {
+    if (x->rfc3779_asid->asnum == NULL && child_as != NULL) {
       validation_err(X509_V_ERR_UNNESTED_RESOURCE);
       child_as = NULL;
       inherit_as = 0;
@@ -711,7 +712,7 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
 	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
       }
     }
-    if (x->rfc3779_asid->rdi == NULL && (child_rdi != NULL || inherit_rdi)) {
+    if (x->rfc3779_asid->rdi == NULL && child_rdi != NULL) {
       validation_err(X509_V_ERR_UNNESTED_RESOURCE);
       child_rdi = NULL;
       inherit_rdi = 0;

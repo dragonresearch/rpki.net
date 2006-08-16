@@ -258,7 +258,8 @@ static int asid_canonize(ASIdentifierChoice *choice)
   sk_ASIdOrRange_sort(choice->u.asIdsOrRanges);
 
   /*
-   * Now resolve any duplicates or overlaps.
+   * Now check for errors and suboptimal encoding, rejecting the
+   * former and fixing the latter.
    */
   for (i = 0; i < sk_ASIdOrRange_num(choice->u.asIdsOrRanges) - 1; i++) {
     ASIdOrRange *a = sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i);
@@ -274,24 +275,11 @@ static int asid_canonize(ASIdentifierChoice *choice)
     assert(ASN1_INTEGER_cmp(a_min, b_min) <= 0);
 
     /*
-     * If a contains b, remove b.
+     * Check for overlaps.
      */
-    if (ASN1_INTEGER_cmp(a_max, b_max) >= 0) {
-      	sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i + 1);
-	ASIdOrRange_free(b);
-	--i;
-	continue;
-    }
-
-    /*
-     * If b contains a, remove a.
-     */
-    if (ASN1_INTEGER_cmp(a_min, b_min) == 0 &&
-	ASN1_INTEGER_cmp(a_max, b_max) <= 0) {
-      	sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i);
-	ASIdOrRange_free(a);
-	--i;
-	continue;
+    if (ASN1_INTEGER_cmp(a_max, b_min) >= 0) {
+      X509V3err(X509V3_F_ASID_CANONIZE, X509V3_R_EXTENSION_VALUE_ERROR);
+      goto done;
     }
 
     /*
@@ -301,45 +289,41 @@ static int asid_canonize(ASIdentifierChoice *choice)
 	ASN1_INTEGER_to_BN(a_max, bn) == NULL ||
 	!BN_add_word(bn, 1) ||
 	(a_max_plus_one = BN_to_ASN1_INTEGER(bn, a_max_plus_one)) == NULL) {
-      X509V3err(X509V3_F_ASID_CANONIZE, X509V3_R_EXTENSION_VALUE_ERROR);
+      X509V3err(X509V3_F_ASID_CANONIZE, ERR_R_MALLOC_FAILURE);
       goto done;
     }
     
     /*
-     * If a and b are adjacent or overlap, merge them.
+     * If a and b are adjacent, merge them.
      */
-    if (ASN1_INTEGER_cmp(a_max_plus_one, b_min) >= 0) {
-      ASIdOrRange *aor = ASIdOrRange_new();
-      if (aor == NULL)
-	goto done;
-      aor->type = ASIdOrRange_range;
-      assert(aor->u.range == NULL);
-      if ((aor->u.range = ASRange_new()) == NULL) {
-	ASIdOrRange_free(aor);
-	goto done;
-      }
-      sk_ASIdOrRange_set(choice->u.asIdsOrRanges, i, aor);
-      sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i + 1);
+    if (ASN1_INTEGER_cmp(a_max_plus_one, b_min) == 0) {
+      ASRange *r;
       switch (a->type) {
       case ASIdOrRange_id:
-	a->u.id = aor->u.range->min;
+	if ((r = OPENSSL_malloc(sizeof(ASRange))) == NULL) {
+	  X509V3err(X509V3_F_ASID_CANONIZE, ERR_R_MALLOC_FAILURE);
+	  goto done;
+	}
+	r->min = a_min;
+	r->max = b_max;
+	a->type = ASIdOrRange_range;
+	a->u.range = r;
 	break;
       case ASIdOrRange_range:
-	a->u.range->min = aor->u.range->min;
+	ASN1_INTEGER_free(a->u.range->max);
+	a->u.range->max = b_max;
 	break;
       }
-      aor->u.range->min = a_min;
-      ASIdOrRange_free(a);
       switch (b->type) {
       case ASIdOrRange_id:
-	b->u.id = aor->u.range->max;
+	b->u.id = NULL;
 	break;
       case ASIdOrRange_range:
-	b->u.range->max = aor->u.range->max;
+	b->u.range->max = NULL;
 	break;
       }
-      aor->u.range->max = b_max;
       ASIdOrRange_free(b);
+      sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i + 1);
       i--;
       continue;
     }

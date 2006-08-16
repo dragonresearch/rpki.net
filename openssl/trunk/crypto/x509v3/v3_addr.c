@@ -23,8 +23,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+
+/* All of this just to pull in inet_ntop() and inet_pton().  Ick. */
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #include "cryptlib.h"
 #include <openssl/conf.h>
 #include <openssl/asn1.h>
@@ -356,7 +361,7 @@ static int range_should_be_prefix(const unsigned char *min,
   case 0x7F: j = 1; break;
   default:   return -1;
   }
-  if (min[i] & mask != 0 || max[i] & mask != mask)
+  if ((min[i] & mask) != 0 || (max[i] & mask) != mask)
     return -1;
   else
     return i * 8 + j;

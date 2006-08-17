@@ -355,7 +355,6 @@ static int MS_CALLBACK cb(int ok, X509_STORE_CTX *ctx)
 		if (ctx->error == X509_V_ERR_CRL_HAS_EXPIRED) ok=1;
 		if (ctx->error == X509_V_ERR_CRL_NOT_YET_VALID) ok=1;
 		if (ctx->error == X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION) ok=1;
-		if (ctx->error == X509_V_ERR_UNNESTED_RESOURCE) ok=1;
 
 		if (ctx->error == X509_V_ERR_NO_EXPLICIT_POLICY)
 			policies_print(NULL, ctx);

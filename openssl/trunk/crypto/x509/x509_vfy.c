@@ -312,6 +312,12 @@ int X509_verify_cert(X509_STORE_CTX *ctx)
 		ok=internal_verify(ctx);
 	if(!ok) goto end;
 
+	/* RFC 3779 path validation, now that CRL check has been done */
+	ok = v3_asid_validate_path(ctx);
+	if (!ok) goto end;
+	ok = v3_addr_validate_path(ctx);
+	if (!ok) goto end;
+
 	/* If we get this far evaluate policies */
 	if (!bad_chain && (ctx->param->flags & X509_V_FLAG_POLICY_CHECK))
 		ok = ctx->check_policy(ctx);
@@ -518,11 +524,6 @@ static int check_chain_extensions(X509_STORE_CTX *ctx)
 		else
 			must_be_ca = 1;
 		}
-	/* RFC 3779 path validation */
-	ok = v3_asid_validate_path(ctx);
-	if (!ok) goto end;
-	ok = v3_addr_validate_path(ctx);
-	if (!ok) goto end;
 	ok = 1;
  end:
 	return ok;

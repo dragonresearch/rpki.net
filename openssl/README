@@ -208,53 +208,20 @@ Random reminders and notes to myself:
   the other supported extensions.  This was to make it easier for me
   to debug, but will proably need to be cleaned up eventually.
 
-- I've seen occasional printouts of what look like empty address
-  extensions.  So far the ones I've investigated really have been
-  empty; they were created by the APNIC perl code, so I haven't tried
-  to figure out whether that was deliberate or a bug.
-
 - It might be possible to get rid of inet_pton(): see ipv4_from_asc()
   and ipv6_from_asc() in v3_utl.c.  Similarly, it might not really be
   necessary to use inet_ntop(), as we're mostly dealing with prefixes
   here and thus can probably get away with a simplified IPv6 printout
   routine that doesn't bother with "::" except at the end of a prefix.
 
-- Right now the library code silently merges duplicates and overlaps.
-  It might useful to emit warnings when we do this.  Merging all takes
-  place when we're whacking the extension into canonical form, so it
-  should be easy to do this; the only hard part is figuring out
-  whether the application wants it, and, if so, where the application
-  wants it sent.  This probably requires a global variable, either a
-  pointer to a BIO stream or a callback (probably the latter as it's
-  less likely to cause surprising results running multi-threaded).
-
 - The reference for RDIs in RFC 3779 is incorrect.  I've been told
   that the authoritative definition of RDIs is ISO 10747, available as
   http://www.acm.org/sigs/sigcomm/standards/iso_stds/IDRP/10747.TXT.
-
-- Should we check entire chain or only up to ctx->last_untrusted?  For
-  the moment I'm checking the entire chain because that's more likely
-  to yield a correct answer, albiet perhaps inefficiently.
-
-- "openssl verify" reports an unknown critical exception error for
-  certificatePolicies (RFC 3280 4.2.1.5).  Probably need to add a
-  switch to "openssl verify" to accept a certificate policy OID.
-  Hmm, looks like it already has an undocumented -policy switch which
-  might do the right thing (if I could figure out what it does...).
 
 - "openssl verify" only accepts PEM, not DER, which is annoying.
   An -inform switch would be nice, but the library routines
   don't know how to read a CAfile full of DER anyway.  Pity -CApath
   doesn't seem to work for us.  Oh well, live with PEM for now.
-
-- Right way to handle error reporting from xxx_canonize() functions is
-  almost certainly a callback; this would fit fairly well with the
-  callback mechanism OpenSSL already uses in X509_validate_cert().
-
-- Do the xxx_canonize() functions may need a mode where they just
-  whine and do not attempt to correct the extension?  Or should the
-  whining code be separate from the canonizing code even though
-  portions of the logic are the same?
 
 - OpenSSL already checks for duplicate extensions: more precisely,
   unless we explicitly tell X509_get_ext_d2i() that we allow multiple
@@ -263,59 +230,5 @@ Random reminders and notes to myself:
   exactly one extension of a particular type, we call this function
   twice with the idx parameter and make sure that the second call
   returns NULL.
-
-- Things we need to check when making sure an extension is
-  well-formed:
-
-  - Are all the SEQUENCE OF lists in the right order (check using the
-    same comparison function we use with sk_sort())?
-
-  - Are there any overlaps, duplicates, or adjacencies?
-
-  - Are there any ranges that should have been prefixes?
-
-  Should be possible to do all of this with minor reworking of
-  existing canonization code, probably moving a lot of the interesting
-  stuff out into subroutines.
-
-  Well, but if we want to report -all- the errors in one pass, we may
-  need to make temporary copies of the lists (sk_dup()) because that's
-  the only sane way to check for overlapping/duplicate/adjacent stuff.
-
-  So for each list, we do sk_dup(), sort, compare sorted with
-  unsorted, whine if they differ, walk the sorted list, then free the
-  sorted list.  Requires the usual care to avoid memory leaks, but
-  nothing extraordinary.
-
-- My path validation stuff is not yet as efficient as it probably
-  ought to be.  First off, it starts the check from the trust anchor
-  rather than from the target certificate, which is silly (I didn't
-  fully understand how X509_verify_cert() worked at the time -- of
-  course perhaps I'm kidding myself that I understand it now...).  The
-  other thing that it could perhaps do more efficiently would be to
-  cache the decoded RFC 3779 extensions in the top-level X509
-  structure instead of expanding them every time.  Doesn't much matter
-  for a trivial app like the "verify" CLI demo, but if we're going to
-  be doing multiple path checks involving the same certificate it'd
-  make more sense to expand them once via the same cache mechanism
-  that the library already uses for extensions like AKID.  If we did
-  this, the code needing modification would be:
-
-  - crypto/x509/x509.h: add rfc3779_addr and rfc3779_asid fields to
-    struct x509_st. [done]
-
-  - crypto/asn1/x_x509.c: add initialization and cleanup code to
-    x509_cb() (set new fields to NULL for ASN1_OP_NEW_POST, free new
-    fields for ASN1_OP_FREE_POST). [done]
-
-  - crypto/x509v3/v3_purp.c: add code to x509v3_cache_extensions() to
-    call X509_get_ext_d2i() for our extensions and stash the result in
-    the corresponding struct x509_st fields (see the akid handling).
-    [done]
-
-  - Rewrite path validation routines to use this new stuff.
-
-- I need to rewrite the path validation code anyway to allow null
-  inheritance, per mailing list discussion.
 
 - May need to check AKID in crypto/x509/x509_vfy.c:get_crl().

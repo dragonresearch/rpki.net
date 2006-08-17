@@ -637,14 +637,14 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
   for (i = 1; i < sk_X509_num(ctx->chain); i++) {
     x = sk_X509_value(ctx->chain, i);
     assert(x != NULL);
-    if (!asid_is_canonical(x->rfc3779_asid->asnum) ||
-	!asid_is_canonical(x->rfc3779_asid->rdi))
-      validation_err(X509_V_ERR_INVALID_EXTENSION);
     if (x->rfc3779_asid == NULL) {
       if (child_as != NULL || child_rdi != NULL)
 	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
       continue;
     }
+    if (!asid_is_canonical(x->rfc3779_asid->asnum) ||
+	!asid_is_canonical(x->rfc3779_asid->rdi))
+      validation_err(X509_V_ERR_INVALID_EXTENSION);
     if (x->rfc3779_asid->asnum == NULL && child_as != NULL) {
       validation_err(X509_V_ERR_UNNESTED_RESOURCE);
       child_as = NULL;

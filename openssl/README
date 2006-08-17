@@ -226,3 +226,86 @@ Random reminders and notes to myself:
   returns NULL.
 
 - May need to check AKID in crypto/x509/x509_vfy.c:get_crl().
+
+
+
+Notes from the June meeting at APNIC on desired OpenSSL primitives (as
+transcribed by Geoff), with current status:
+
+1. Read a resource certificate and print nominated certificate
+   field(s) (CLI command) or access data structure elements from the
+   certificate (API)
+
+   Status: Done
+
+2. Verify a resource certificate (use the existing openssl interface
+   which provides as inputs a) a set of 'trusted' certs and CRLs and
+   b) a set of untrusted certs and CRLs and c) the cert to be
+   verified. output is YES or NO and both a CLI and an API interface
+   is desired
+
+   Status: API done.  CLI...is a crock, but it was a crock before I
+   touched it and I have not made it worse.  CLI "verify" tool is
+   intended for diagnostic use only, real applications should use the
+   API.
+
+3. 3779_canonicalise - read in a data structure of a resource set and
+   produce as output the 3779 canonical form of the resource set - the
+   CLI interface will print this to stdout and the API interface will
+   pass a ref to a data structure (or fill in a data struct or
+   whatever makes sense!)
+
+   Status: Done
+
+4. 3779_cmp reads in 2 x 3779_canonicalised data sets and outputs a
+   comparison = EQUAL is the two are equal, or =SUBSET if data1 is a
+   strict subset of data2, or = NOT in all other cases (CLI or API)
+   (EQUAL, SUBSET, NOT)
+
+   Status: Not done.  Some supporting code exists.
+
+5. is_3379_canonical tests a single data set and returns CANONICAL if
+   the resource is formatted according to 3779 or NOT is otherwise
+
+   Status: API done.   No CLI tool for this (yet?).
+
+6. is_in_cert takes a certificate and a resource set description and
+   checks if the certificate 'covers' the resource set The outpouts
+   are EQUAL if the resource cert precisely matches the resource set,
+   SUBSET if the resource set is a subset of the certificate resource
+   list, or NOT otherwise
+
+   Status: Not done. Some supporting code exists.
+
+7. generate_resource_certificate generates a resource certificate -
+   I'm not sure I understand what the inputs are to be here - perhaps
+   a data structure of the fields and values, but this should be
+   confirmed. the output is a DER object (or pem, or either
+   selectable?)
+
+   Status: Done, for some definition of done.
+
+8. generate a certificate request (previous note on which certificate
+   request format to use is on the table)
+
+   Status: Done, for some definition of done.
+
+9. process a certificate request and say yes / no on whether the
+   request is well formed.
+
+   Status: Mostly done -- code exists but is not yet organized in a
+   way that allows it to be called except as part of path validation.
+
+10. process a certificate request and generate a certificate in
+    response.
+
+   Status: done, for some definition of done.
+
+Wishy-washy answers to some of the above are not attempting to be
+evasive, they're a reflection of the fact that much of this work was
+adding support for particular extensions to an existing package, so
+the question of whether the package supports the desired functionality
+now with the extensions depends on whether one believes that the
+package supported the desired functionality without the extensions
+before.  Eg, are the OpenSSL CLI tools "ca", "x509", "req", etc
+sufficient?  Yes for some purposes, no for others.

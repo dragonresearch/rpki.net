@@ -23,13 +23,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
-
-/* All of this just to pull in inet_ntop() and inet_pton().  Ick. */
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-
 #include "cryptlib.h"
 #include <openssl/conf.h>
 #include <openssl/asn1.h>
@@ -74,12 +67,6 @@ IMPLEMENT_ASN1_FUNCTIONS(IPAddressFamily)
  * How much buffer space do we need for a raw address?
  */
 #define ADDR_RAW_BUF_LEN	16
-
-/*
- * How much buffer space do we need for the text form of an address?
- * Output routines (inet_ntop() or whatever) must check for overflow.
- */
-#define ADDR_TXT_BUF_LEN	48
 
 /*
  * What's the address length associated with this AFI?
@@ -144,21 +131,21 @@ static int i2r_address(BIO *out,
 		       const ASN1_BIT_STRING *bs)
 {
   unsigned char addr[ADDR_RAW_BUF_LEN];
-  char buf[ADDR_TXT_BUF_LEN];
-  int i;
+  int i, n;
 
   switch (afi) {
   case IANA_AFI_IPV4:
     addr_expand(addr, bs, 4, fill);
-    if (!inet_ntop(AF_INET, addr, buf, sizeof(buf)))
-      return 0;
-    BIO_puts(out, buf);
+    BIO_printf(out, "%d.%d.%d.%d", addr[0], addr[1], addr[2], addr[3]);
     break;
   case IANA_AFI_IPV6:
     addr_expand(addr, bs, 16, fill);
-    if (!inet_ntop(AF_INET6, addr, buf, sizeof(buf)))
-      return 0;
-    BIO_puts(out, buf);
+    for (n = 16; n > 1 && addr[n-1] == 0x00 && addr[n-2] == 0x00; n -= 2)
+      ;
+    for (i = 0; i < n; i += 2)
+      BIO_printf(out, "%x%s", (addr[i] << 8) | addr[i+1], (i < 14 ? ":" : ""));
+    if (i < 16)
+      BIO_puts(out, ":");
     break;
   default:
     for (i = 0; i < bs->length; i++)
@@ -832,7 +819,7 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
     unsigned char min[ADDR_RAW_BUF_LEN], max[ADDR_RAW_BUF_LEN];
     unsigned afi, *safi = NULL, safi_;
     const char *addr_chars;
-    int prefixlen, af, i1, i2, delim, host_prefixlength;
+    int prefixlen, i1, i2, delim, length;
 
     if (       !name_cmp(val->name, "IPv4")) {
       afi = IANA_AFI_IPV4;
@@ -852,16 +839,14 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
 
     switch (afi) {
     case IANA_AFI_IPV4:
-      af = AF_INET;
-      host_prefixlength = 32;
       addr_chars = v4addr_chars;
       break;
     case IANA_AFI_IPV6:
-      af = AF_INET6;
-      host_prefixlength = 128;
       addr_chars = v6addr_chars;
       break;
     }
+
+    length = length_from_afi(afi);
 
     /*
      * Handle SAFI, if any, and strdup() so we can null-terminate
@@ -905,7 +890,7 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
     delim = s[i2++];
     s[i1] = '\0';
 
-    if (inet_pton(af, s, min) != 1) {
+    if (a2i_ipadd(min, s) != length) {
       X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_INVALID_IPADDRESS);
       X509V3_conf_err(val);
       goto err;
@@ -932,7 +917,7 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
 	X509V3_conf_err(val);
 	goto err;
       }
-      if (inet_pton(af, s + i1, max) != 1) {
+      if (a2i_ipadd(max, s + i1) != length) {
 	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_INVALID_IPADDRESS);
 	X509V3_conf_err(val);
 	goto err;
@@ -943,7 +928,7 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
       }
       break;
     case '\0':
-      if (!addr_add_prefix(addr, afi, safi, min, host_prefixlength)) {
+      if (!addr_add_prefix(addr, afi, safi, min, length * 8)) {
 	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, ERR_R_MALLOC_FAILURE);
 	goto err;
       }

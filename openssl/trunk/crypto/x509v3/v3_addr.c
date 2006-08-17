@@ -101,8 +101,10 @@ static int length_from_afi(const unsigned afi)
  */
 static unsigned afi_from_addressfamily(const IPAddressFamily *f)
 {
-  return ((f->addressFamily->data[0] << 8) |
-	  (f->addressFamily->data[1]));
+  return (f != NULL && f->addressFamily != NULL && f->addressFamily->data
+	  ? ((f->addressFamily->data[0] << 8) |
+	     (f->addressFamily->data[1]))
+	  : 0);
 }
 
 /*
@@ -616,9 +618,9 @@ static int addr_add_range(IPAddrBlocks *addr,
  * Extract min and max values from an IPAddressOrRange.
  */
 static void extract_min_max(IPAddressOrRange *aor,
-				 unsigned char *min,
-				 unsigned char *max,
-				 int length)
+			    unsigned char *min,
+			    unsigned char *max,
+			    int length)
 {
   assert(aor != NULL && min != NULL && max != NULL);
   switch (aor->type) {
@@ -632,6 +634,127 @@ static void extract_min_max(IPAddressOrRange *aor,
     return;
   }
 }
+
+/*
+ * Sort comparision function for a sequence of IPAddressFamily.
+ *
+ * The last paragraph of RFC 3779 2.2.3.3 is slightly ambiguous about
+ * the ordering: I can read it as meaning that IPv6 without a SAFI
+ * comes before IPv4 with a SAFI, which seems pretty weird.  The
+ * examples in appendix B suggest that the author intended the
+ * null-SAFI rule to apply only within a single AFI, which is what I
+ * would have expected and is what the following code implements.
+ */
+static int IPAddressFamily_cmp(const IPAddressFamily * const *a_,
+			       const IPAddressFamily * const *b_)
+{
+  const ASN1_OCTET_STRING *a = (*a_)->addressFamily;
+  const ASN1_OCTET_STRING *b = (*b_)->addressFamily;
+  int len = (( a->length <= b->length) ? a->length : b->length);
+  int cmp = memcmp(a->data, b->data, len);
+  return cmp ? cmp : a->length - b->length;
+}
+
+/*
+ * Check whether an IPAddrBLocks is in canonical form.
+ */
+static int IPAddrBlocks_is_canonical(IPAddrBlocks *addr)
+{
+  int i, j, k;
+
+  /*
+   * Empty extension is cannonical.
+   */
+  if (addr == NULL)
+    return 1;
+
+  /*
+   * Check whether the top-level list is in order.
+   */
+  for (i = 0; i < sk_IPAddressFamily_num(addr) - 1; i++) {
+    const IPAddressFamily *a = sk_IPAddressFamily_value(addr, i);
+    const IPAddressFamily *b = sk_IPAddressFamily_value(addr, i + 1);
+    if (IPAddressFamily_cmp(&a, &b) >= 0)
+      return 0;
+  }
+
+  /*
+   * Top level's ok, now check each address family.
+   */
+  for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
+    IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
+    int length = length_from_afi(afi_from_addressfamily(f));
+    IPAddressOrRanges *aors;
+
+    /*
+     * Inheritance is canonical.  Anything other than inheritance or
+     * a SEQUENCE OF IPAddressOrRange is an ASN.1 error or something.
+     */
+    if (f == NULL || f->ipAddressChoice == NULL)
+      return 0;
+    switch (f->ipAddressChoice->type) {
+    case IPAddressChoice_inherit:
+      continue;
+    case IPAddressChoice_addressesOrRanges:
+      break;
+    default:
+      return 0;
+    }
+
+    /*
+     * It's an IPAddressOrRanges sequence, check it.
+     */
+    aors = f->ipAddressChoice->u.addressesOrRanges;
+    for (j = 0; j < sk_IPAddressOrRange_num(aors) - 1; j++) {
+      IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, j);
+      IPAddressOrRange *b = sk_IPAddressOrRange_value(aors, j + 1);
+      unsigned char a_min[ADDR_RAW_BUF_LEN], a_max[ADDR_RAW_BUF_LEN];
+      unsigned char b_min[ADDR_RAW_BUF_LEN], b_max[ADDR_RAW_BUF_LEN];
+
+      extract_min_max(a, a_min, a_max, length);
+      extract_min_max(b, b_min, b_max, length);
+
+      /*
+       * Punt misordered list, overlapping start, or inverted range.
+       */
+      if (memcmp(a_min, b_min, length) >= 0 ||
+	  memcmp(a_min, a_max, length) > 0 ||
+	  memcmp(b_min, b_max, length) > 0)
+	return 0;
+
+      /*
+       * Check for range that should be expressed as a prefix.
+       */
+      if (a->type == IPAddressOrRange_addressRange &&
+	  range_should_be_prefix(a_min, a_max, length) >= 0)
+	return 0;
+
+      /*
+       * Same check for b if this our last pass for this sequence,
+       * while we've already got the addresses handy.
+       */
+      if (b->type == IPAddressOrRange_addressRange &&
+	  j == sk_IPAddressOrRange_num(aors) - 2 &&
+	  range_should_be_prefix(b_min, b_max, length) >= 0)
+	return 0;
+
+      /*
+       * Punt if adjacent or overlapping.  Check for adjacency by
+       * subtracting one from b_min first.
+       */
+      for (k = length - 1; k >= 0 && b_min[k]-- == 0x00; k--)
+	;
+      if (memcmp(a_max, b_min, length) >= 0)
+	return 0;
+    }
+  }
+
+  /*
+   * If we made it through all that, we're happy.
+   */
+  return 1;
+}
+
 
 /*
  * Whack an IPAddressOrRanges into canonical form.
@@ -659,22 +782,18 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
     extract_min_max(b, b_min, b_max, length);
 
     /*
-     * If a contains b, we can just get rid of b.
+     * Punt overlaps.
      */
-    if (memcmp(a_max, b_max, length) >= 0) {
-      sk_IPAddressOrRange_delete(aors, i + 1);
-      IPAddressOrRange_free(b);
-      --i;
-      continue;
-    }
+    if (memcmp(a_max, b_min, length) >= 0)
+      return 0;
 
     /*
-     * If a and b are adjacent or overlap, merge them.  We check for
+     * Merge if a and b are adjacent.  We check for
      * adjacency by subtracting one from b_min first.
      */
     for (j = length - 1; j >= 0 && b_min[j]-- == 0x00; j--)
       ;
-    if (memcmp(a_max, b_min, length) >= 0) {
+    if (memcmp(a_max, b_min, length) == 0) {
       IPAddressOrRange *merged;
       if (!make_addressRange(&merged, a_min, b_max, length))
 	return 0;
@@ -688,26 +807,6 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
   }
 
   return 1;
-}
-
-/*
- * Sort comparision function for a sequence of IPAddressFamily.
- *
- * The last paragraph of RFC 3779 2.2.3.3 is slightly ambiguous about
- * the ordering: I can read it as meaning that IPv6 without a SAFI
- * comes before IPv4 with a SAFI, which seems pretty weird.  The
- * examples in appendix B suggest that the author intended the
- * null-SAFI rule to apply only within a single AFI, which is what I
- * would have expected and is what the following code implements.
- */
-static int IPAddressFamily_cmp(const IPAddressFamily * const *a_,
-			       const IPAddressFamily * const *b_)
-{
-  const ASN1_OCTET_STRING *a = (*a_)->addressFamily;
-  const ASN1_OCTET_STRING *b = (*b_)->addressFamily;
-  int len = (( a->length <= b->length) ? a->length : b->length);
-  int cmp = memcmp(a->data, b->data, len);
-  return cmp ? cmp : a->length - b->length;
 }
 
 /*
@@ -870,6 +969,7 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
       goto err;
   }
   sk_IPAddressFamily_sort(addr);
+  assert(IPAddrBlocks_is_canonical(addr));
   return addr;
 
  err:
@@ -959,7 +1059,8 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
    * Start with the target certificate.  If it doesn't have the
    * extension, we're done.
    */
-  x = sk_X509_value(ctx->chain, 0);
+  i = 0;
+  x = sk_X509_value(ctx->chain, i);
   assert(x != NULL);
   if (x->rfc3779_addr == NULL)
     goto done;
@@ -967,8 +1068,11 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
   /*
    * Has extension, need to check the whole chain.  This requires a
    * scratch stack, initially populated with a copy of the target
-   * certificate's extension.
+   * certificate's extension.  Make sure the extension is in canonical
+   * form first.
    */
+  if (!IPAddrBlocks_is_canonical(x->rfc3779_addr))
+    validation_err(X509_V_ERR_INVALID_EXTENSION);
   sk_IPAddressFamily_set_cmp_func(x->rfc3779_addr, IPAddressFamily_cmp);
   if ((child = sk_IPAddressFamily_dup(x->rfc3779_addr)) == NULL) {
     X509V3err(X509V3_F_V3_ADDR_VALIDATE_PATH, ERR_R_MALLOC_FAILURE);
@@ -982,6 +1086,8 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
   for (i = 1; i < sk_X509_num(ctx->chain); i++) {
     x = sk_X509_value(ctx->chain, i);
     assert(x != NULL);
+    if (!IPAddrBlocks_is_canonical(x->rfc3779_addr))
+      validation_err(X509_V_ERR_INVALID_EXTENSION);
     if (x->rfc3779_addr == NULL) {
       for (j = 0; j < sk_IPAddressFamily_num(child); j++) {
 	IPAddressFamily *fc = sk_IPAddressFamily_value(child, j);

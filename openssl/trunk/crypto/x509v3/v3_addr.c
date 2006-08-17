@@ -647,6 +647,9 @@ static int IPAddressFamily_cmp(const IPAddressFamily * const *a_,
  */
 static int IPAddrBlocks_is_canonical(IPAddrBlocks *addr)
 {
+  unsigned char a_min[ADDR_RAW_BUF_LEN], a_max[ADDR_RAW_BUF_LEN];
+  unsigned char b_min[ADDR_RAW_BUF_LEN], b_max[ADDR_RAW_BUF_LEN];
+  IPAddressOrRanges *aors;
   int i, j, k;
 
   /*
@@ -671,7 +674,6 @@ static int IPAddrBlocks_is_canonical(IPAddrBlocks *addr)
   for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
     IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
     int length = length_from_afi(afi_from_addressfamily(f));
-    IPAddressOrRanges *aors;
 
     /*
      * Inheritance is canonical.  Anything other than inheritance or
@@ -692,11 +694,11 @@ static int IPAddrBlocks_is_canonical(IPAddrBlocks *addr)
      * It's an IPAddressOrRanges sequence, check it.
      */
     aors = f->ipAddressChoice->u.addressesOrRanges;
+    if (sk_IPAddressOrRange_num(aors) == 0)
+      return 0;
     for (j = 0; j < sk_IPAddressOrRange_num(aors) - 1; j++) {
       IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, j);
       IPAddressOrRange *b = sk_IPAddressOrRange_value(aors, j + 1);
-      unsigned char a_min[ADDR_RAW_BUF_LEN], a_max[ADDR_RAW_BUF_LEN];
-      unsigned char b_min[ADDR_RAW_BUF_LEN], b_max[ADDR_RAW_BUF_LEN];
 
       extract_min_max(a, a_min, a_max, length);
       extract_min_max(b, b_min, b_max, length);
@@ -710,22 +712,6 @@ static int IPAddrBlocks_is_canonical(IPAddrBlocks *addr)
 	return 0;
 
       /*
-       * Check for range that should be expressed as a prefix.
-       */
-      if (a->type == IPAddressOrRange_addressRange &&
-	  range_should_be_prefix(a_min, a_max, length) >= 0)
-	return 0;
-
-      /*
-       * Same check for b if this our last pass for this sequence,
-       * while we've already got the addresses handy.
-       */
-      if (b->type == IPAddressOrRange_addressRange &&
-	  j == sk_IPAddressOrRange_num(aors) - 2 &&
-	  range_should_be_prefix(b_min, b_max, length) >= 0)
-	return 0;
-
-      /*
        * Punt if adjacent or overlapping.  Check for adjacency by
        * subtracting one from b_min first.
        */
@@ -733,6 +719,26 @@ static int IPAddrBlocks_is_canonical(IPAddrBlocks *addr)
 	;
       if (memcmp(a_max, b_min, length) >= 0)
 	return 0;
+
+      /*
+       * Check for range that should be expressed as a prefix.
+       */
+      if (a->type == IPAddressOrRange_addressRange &&
+	  range_should_be_prefix(a_min, a_max, length) >= 0)
+	return 0;
+    }
+
+    /*
+     * Check final range to see if it should be a prefix.
+     */
+    j = sk_IPAddressOrRange_num(aors) - 1;
+    {
+      IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, j);
+      if (a->type == IPAddressOrRange_addressRange) {
+	extract_min_max(a, a_min, a_max, length);
+	if (range_should_be_prefix(a_min, a_max, length) >= 0)
+	  return 0;
+      }
     }
   }
 

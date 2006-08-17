@@ -208,12 +208,6 @@ Random reminders and notes to myself:
   the other supported extensions.  This was to make it easier for me
   to debug, but will proably need to be cleaned up eventually.
 
-- It might be possible to get rid of inet_pton(): see ipv4_from_asc()
-  and ipv6_from_asc() in v3_utl.c.  Similarly, it might not really be
-  necessary to use inet_ntop(), as we're mostly dealing with prefixes
-  here and thus can probably get away with a simplified IPv6 printout
-  routine that doesn't bother with "::" except at the end of a prefix.
-
 - The reference for RDIs in RFC 3779 is incorrect.  I've been told
   that the authoritative definition of RDIs is ISO 10747, available as
   http://www.acm.org/sigs/sigcomm/standards/iso_stds/IDRP/10747.TXT.

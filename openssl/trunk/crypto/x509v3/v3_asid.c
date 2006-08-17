@@ -252,9 +252,10 @@ static int asid_is_canonical(ASIdentifierChoice *choice)
     return 1;
 
   /*
-   * If it's not a list at this point, it's broken.
+   * If not a list, or if empty list, it's broken.
    */
-  if (choice->type != ASIdentifierChoice_asIdsOrRanges)
+  if (choice->type != ASIdentifierChoice_asIdsOrRanges ||
+      sk_ASIdOrRange_num(choice->u.asIdsOrRanges) == 0)
     return 0;
 
   /*

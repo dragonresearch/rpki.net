@@ -229,8 +229,9 @@ Random reminders and notes to myself:
 
 
 
-Notes from the June meeting at APNIC on desired OpenSSL primitives (as
-transcribed by Geoff), with current status:
+The June meeting at APNIC came up with a list of desired OpenSSL
+primitives (transcribed by Geoff, thanks!).  Current status, with
+notes and questions at the end.
 
 1. Read a resource certificate and print nominated certificate
    field(s) (CLI command) or access data structure elements from the
@@ -238,16 +239,27 @@ transcribed by Geoff), with current status:
 
    Status: Done
 
+   CLI: openssl x509 -text
+
+   API: i2r_ASIdentifiers(), i2r_IPAddrBlocks(), but in practice you'd
+   rarely call these directly -- they're hooked into OpenSSL's
+   X509V3_EXT_METHOD dispatch mechanism and cached by
+   x509v3_cache_extensions(), so you'd call X509_get_ext_d2i() or just
+   look for decoded data structures hanging off the X509 structure.
+
 2. Verify a resource certificate (use the existing openssl interface
    which provides as inputs a) a set of 'trusted' certs and CRLs and
    b) a set of untrusted certs and CRLs and c) the cert to be
    verified. output is YES or NO and both a CLI and an API interface
    is desired
 
-   Status: API done.  CLI...is a crock, but it was a crock before I
-   touched it and I have not made it worse.  CLI "verify" tool is
-   intended for diagnostic use only, real applications should use the
-   API.
+   Status: Done, for some definition of done (CLI program remains a
+   crock, but I don't think I've made it worse than it already was).
+
+   CLI: openssl verify
+
+   API: Pre-existing X509_verify_cert() function now checks RFC 3779
+   path validation, which in turn checks for well formed extensions.
 
 3. 3779_canonicalise - read in a data structure of a resource set and
    produce as output the 3779 canonical form of the resource set - the
@@ -255,19 +267,34 @@ transcribed by Geoff), with current status:
    pass a ref to a data structure (or fill in a data struct or
    whatever makes sense!)
 
-   Status: Done
+   Status: Done other than a bit of reorganization.
+
+   CLI: openssl x509, openssl req, ....   Called automatically as part
+   of anything that reads RFC 3779 extensions from openssl.conf.
+
+   API: Canonization routines themselves are currently static
+   functions called by the routines that read extension data during
+   request formation.  Would require minor reorganization and cleanup
+   to make the canonization routines themselves global functions.
 
 4. 3779_cmp reads in 2 x 3779_canonicalised data sets and outputs a
    comparison = EQUAL is the two are equal, or =SUBSET if data1 is a
    strict subset of data2, or = NOT in all other cases (CLI or API)
    (EQUAL, SUBSET, NOT)
 
-   Status: Not done.  Some supporting code exists.
+   Status: Not done.  Some supporting code exists.  See notes below.
 
 5. is_3379_canonical tests a single data set and returns CANONICAL if
    the resource is formatted according to 3779 or NOT is otherwise
 
-   Status: API done.   No CLI tool for this (yet?).
+   Status: Done other than a bit of reorganization.
+
+   CLI: openssl verify calls this during path validation.  No separate
+   program to perform just this function, would not be hard to write
+   one if it were needed.
+
+   API: Currently static functions called during path validation.
+   Would require minor reorganization and cleanup to make global.
 
 6. is_in_cert takes a certificate and a resource set description and
    checks if the certificate 'covers' the resource set The outpouts
@@ -275,7 +302,7 @@ transcribed by Geoff), with current status:
    SUBSET if the resource set is a subset of the certificate resource
    list, or NOT otherwise
 
-   Status: Not done. Some supporting code exists.
+   Status: Not done. Some supporting code exists.  See notes below.
 
 7. generate_resource_certificate generates a resource certificate -
    I'm not sure I understand what the inputs are to be here - perhaps
@@ -285,27 +312,68 @@ transcribed by Geoff), with current status:
 
    Status: Done, for some definition of done.
 
+   CLI: openssl x509, openssl ca.
+
+   API: Preexisting OpenSSL functions, augmented by method routines
+   allowing OpenSSL to read and write RFC 3779 extensions.
+
 8. generate a certificate request (previous note on which certificate
    request format to use is on the table)
 
-   Status: Done, for some definition of done.
+   Status: Done, for some definition of done, for OpenSSL's native
+   request format (PKCS10 DER, with or without Base64 "PEM" wrapper).
+
+   CLI: openssl x509, openssl req.
+
+   API: Preexisting OpenSSL functions, augmented by method routines
+   allowing OpenSSL to read and write RFC 3779 extensions.
 
 9. process a certificate request and say yes / no on whether the
    request is well formed.
 
-   Status: Mostly done -- code exists but is not yet organized in a
-   way that allows it to be called except as part of path validation.
+   Status: "Well formed" not defined here.  Done other than a bit of
+   reorganization if this just means the certificate request itself in
+   isolation.  Not done if this also means path validation with
+   respect to an intended parent certificate.
 
 10. process a certificate request and generate a certificate in
     response.
 
-   Status: done, for some definition of done.
+   Status: Task definition fuzzy, see (9).  Generating certificate
+   based on a certificate request is prexisting functionality; new
+   code adds ability to process RFC 3779.   Notes from Brisbane do not
+   state whether path validation with respect to signer is part of
+   desired functionality here; have not (yet) looked into how hard it
+   would be to add said checks (probably not very, once I find the
+   right place in the code...).
 
-Wishy-washy answers to some of the above are not attempting to be
-evasive, they're a reflection of the fact that much of this work was
-adding support for particular extensions to an existing package, so
-the question of whether the package supports the desired functionality
-now with the extensions depends on whether one believes that the
-package supported the desired functionality without the extensions
-before.  Eg, are the OpenSSL CLI tools "ca", "x509", "req", etc
-sufficient?  Yes for some purposes, no for others.
+Notes:
+
+- "For some definition of done": opinions vary on whether the existing
+  OpenSSL CLI tools are adaquate for the purposes for which people use
+  them.  For purposes of the above discussion, I'm assuming that they
+  are, and that my task was just to teach the same tools to deal with
+  the RFC 3779 extensions.
+
+- There's some duplication in the above tasks, which might just
+  reflect confusion on my part.  Eg, (4) and (6) are very close to the
+  same task, and probably -are- the same task by the time one gets
+  to the API functions.
+
+- (4) and (6) have a definition problem: what result should these
+  functions return in the presence of inheritance?  Mu.  In the
+  absence of a better suggstion, I'd amend these by adding another
+  return code indicating that the question is unanswerable due to
+  inheritance.
+
+- It turns out that the code I've written so far never needs to ask
+  whether two extension data sets are equal, just whether one is a
+  subset (possibly improper) of the other.   Checking for equality is
+  a somewhat different test, so rather than trying to combine the two,
+  I might just provide separate functions that test for equality.
+
+- I need feedback on the task defintions for (9) and (10).
+
+- Do we still want all of these functions?  Please let me know if some
+  of the ones I haven't written yet or which are marked as "would
+  require minor reorganization" have fallen off the list. :)

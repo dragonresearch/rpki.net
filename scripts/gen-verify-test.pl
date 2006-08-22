@@ -48,7 +48,7 @@ for my $f (@files) {
     close(F);
 }
 
-# Figure out who everybody's parents are
+# Sort out ancestry
 
 my %daddy;
 

@@ -1,32 +1,35 @@
-#!/usr/local/bin/perl
-eval 'exec /usr/local/bin/perl -S $0 ${1+"$@"}'
-    if $running_under_some_shell;
-			# this emulates #! processing on NIH machines.
-			# (remove #! line above if indigestible)
+:
+eval 'exec perl -S $0 ${1+"$@"}'
+    if 0;
 
-eval '$'.$1.'$2;' while $ARGV[0] =~ /^([A-Za-z_0-9]+=)(.*)/ && shift;
-			# process any FOO=bar switches
+use MIME::Base64;
 
-$, = ' ';		# set output field separator
-$\ = "\n";		# set output record separator
+my $openssl = "/u/sra/isc/route-pki/subvert-rpki.hactrn.net/openssl/trunk/apps/openssl";
 
-while (<>) {
-    chomp;	# strip record separator
-    if (/X509v3 Subject Key Identifier:/) {
-	$ski = $. + 1;
-    }
-    if (/X509v3 Authority Key Identifier:/) {
-	$aki = $. + 1;
-    }
-    if ($ski && $. == $ski) {
-	s/^[        ]*//;
-	$S = $_;
-    }
-    if ($aki && $. == $aki) {
-	s/^[        ]*keyid://;
-	$a = $_;
-    }
+sub g {
+    my $x = shift;
+    $x =~ s{:}{}g;
+    $x = pack("H*", $x);
+    $x = encode_base64($x, "");
+    $x =~ y{+/}{-_};
+    $x =~ s{=+$}{};
+    return $x;
 }
 
-print $S, $a, $f;
-
+while (@ARGV) {
+    my $f = shift(@ARGV);
+    open(F, "-|", $openssl, qw(x509 -noout -inform DER -text -in), $f)
+	or die("Couldn't run openssl x509 on $f: $!\n");
+    while (<F>) {
+	chomp;
+	if (/X509v3 Authority Key Identifier:/) {
+	    $aki = $. + 1;
+	}
+	if ($aki && $. == $aki) {
+	    s/^[ \t]*keyid://;
+	    $a = $_;
+	}
+    }
+    close(F);
+    print(g($a), " $f\n");
+}

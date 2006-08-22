@@ -33,6 +33,8 @@ while (<F>) {
 
 close(F);
 
+print("rm -rf $dir\n");
+
 print("test -d $_ || mkdir -p $_\n")
     foreach (sort(keys(%hashes)));
 

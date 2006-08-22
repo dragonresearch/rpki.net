@@ -60,6 +60,8 @@ for my $f (@files) {
 
 # Generate a test script based on all of the above
 
+my $verbose = 1;
+
 for my $f (@files) {
     my @parents;
     for (my $d = $daddy{$f}; $d; $d = $daddy{$d}) {
@@ -67,10 +69,14 @@ for my $f (@files) {
     }
     next unless (@parents);
     print("echo ", "=" x 40, "\n",
-	  "echo Checking chain:\n");
-    print("echo '    File: $_'\n",
-	  "$openssl x509 -noout -text -certopt no_header,no_signame,no_validity,no_pubkey,no_sigdump,no_version -in $_\n")
-	foreach (($f, @parents));
+	  "echo Checking chain:\n")
+	if ($verbose > 0);
+    for (($f, @parents)) {
+	print("echo '    File: $_'\n")
+	    if ($verbose > 0);
+	print("$openssl x509 -noout -text -certopt no_header,no_signame,no_validity,no_pubkey,no_sigdump,no_version -in $_\n")
+	    if ($verbose > 1);
+    }
     print("cat >CAfile.pem");
     print(" $_")
 	foreach (@parents);

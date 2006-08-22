@@ -7,45 +7,44 @@ use strict;
 
 my $openssl = "/u/sra/isc/route-pki/subvert-rpki.hactrn.net/openssl/trunk/apps/openssl";
 
+my $verbose = 1;
+
+my $debug = 0;
+
 exit unless (@ARGV);
+
+# Find all certificates in the repository
 
 open(F, "-|", "find", @ARGV, qw(-type f -name *.cer))
     or die("Couldn't run find: $!\n");
 chomp(my @files = <F>);
 close(F);
+@ARGV = ();
 
-# Convert to PEM ("openssl verify" is lame)
+# Snarf all the AIA and CDP values from the certs we're examining.
+# Icky screen scraping, better mechanism needed.
 
-for (@files) {
-    my $f = $_;
-    s/\.cer$/.pem/;		# This modifies @files
-    next if -f $_;
-    !system($openssl, qw(x509 -inform DER -in), $f, "-out", $_)
-	or die("Couldn't convert $f to PEM format: $!\n");
-}
-
-# Snarf all the AKI and SKI values from the certs we're examining
-
-my %aki;
-my %ski;
+my %aia;
+my %cdp;
 
 for my $f (@files) {
-    my ($a, $s);
-    open(F, "-|", $openssl, qw(x509 -noout -text -in), $f)
+    my ($a, $c) = (0, 0);
+    open(F, "-|", $openssl, qw(x509 -noout -text -inform DER -in), $f)
 	or die("Couldn't run openssl x509 on $f: $!\n");
     while (<F>) {
 	chomp;
-	s/^\s*//;
-	s/^keyid://;
+	s{^.+URI:rsync://}{};
 	$a = $. + 1
-	    if (/X509v3 Authority Key Identifier:/);
-	$s = $. + 1
-	    if (/X509v3 Subject Key Identifier:/);    
-	$aki{$f} = $_
+	    if (/Authority Information Access:/);
+	$c = $. + 1
+	    if (/X509v3 CRL Distribution Points:/);
+	$aia{$f} = $_
 	    if ($a && $. == $a);
-	$ski{$f} = $_
-	    if ($s && $. == $s);
+	$cdp{$f} = $_
+	    if ($c && $. == $c);
     }
+    print(STDERR $f, " ", ($aia{$f} || "-"), " ", ($cdp{$f} || "-"), "\n")
+	if ($debug);
     close(F);
 }
 
@@ -54,36 +53,50 @@ for my $f (@files) {
 my %daddy;
 
 for my $f (@files) {
-    next unless ($aki{$f});
-    my @daddy = grep({ $ski{$_} eq $aki{$f} } @files);
+    next unless ($aia{$f});
+    my @daddy = grep({ $_ eq $aia{$f} } @files);
+    die("Can't figure out who my daddy is! $f @{[join(' ', @daddy)]}\n")
+	if (@daddy > 1);
     $daddy{$f} = $daddy[0]
-	if (@daddy == 1 && $daddy[0] ne $f);
+	if (@daddy && $daddy[0] ne $f);
+    print(STDERR "me: $f, daddy: $daddy[0]\n")
+	if ($debug);
 }
 
 # Generate a test script based on all of the above
 
-my $verbose = 1;
-
 for my $f (@files) {
-    my @parents;
+    my @ancestors;
     for (my $d = $daddy{$f}; $d; $d = $daddy{$d}) {
-	push(@parents, $d);
+	push(@ancestors, $d);
     }
-    next unless (@parents);
+    next unless (@ancestors);
+    my @crls;
+    for my $c (map {$cdp{$_}} ($f, @ancestors)) {
+	push(@crls, $c)
+	    unless (grep {$_ eq $c} @crls);
+    }
     print("echo ", "=" x 40, "\n",
 	  "echo Checking chain:\n")
 	if ($verbose > 0);
-    for (($f, @parents)) {
+    for (($f, @ancestors)) {
 	print("echo '    File: $_'\n")
 	    if ($verbose > 0);
-	print("$openssl x509 -noout -text -certopt no_header,no_signame,no_validity,no_pubkey,no_sigdump,no_version -in $_\n")
+	print("$openssl x509 -noout -text -inform DER -certopt no_header,no_signame,no_validity,no_pubkey,no_sigdump,no_version -in $_\n")
 	    if ($verbose > 1);
     }
-    print("cat >CAfile.pem");
-    print(" $_")
-	foreach (@parents);
-    print("\n",
-	  "$openssl verify -verbose -CAfile CAfile.pem \\\n",
-	  "\t$f\n",
-	  "rm CAfile.pem\n");
+    for (@crls) {
+	print("echo '    CRL: $_'\n")
+	    if ($verbose > 0);
+	print("$openssl crl -noout -text -inform DER -in $_\n")
+	    if ($verbose > 1);
+    }
+    print("rm -f CAfile.pem cert-in-hand.pem\n");
+    print("$openssl x509 -inform DER -outform PEM >>CAfile.pem -in $_\n")
+	foreach (@ancestors);
+    print("$openssl crl  -inform DER -outform PEM >>CAfile.pem -in $_\n")
+	foreach (@crls);
+    print("$openssl x509 -inform DER -outform PEM -out cert-in-hand.pem -in $f\n",
+	  "$openssl verify -verbose -CAfile CAfile.pem -crl_check_all cert-in-hand.pem\n",
+	  "rm -f CAfile.pem cert-in-hand.pem\n");
 }

@@ -3,6 +3,8 @@
 eval 'exec perl -w -S $0 ${1+"$@"}'
     if 0;
 
+use strict;
+
 while (@ARGV) {
     my $file = shift(@ARGV);
     my ($aia, $sia, $crl, $a, $s, $c) = qw(- - -);

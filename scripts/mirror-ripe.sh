@@ -1,8 +1,6 @@
 #!/bin/sh -
 # $Id$
 
-cd `dirname $0`
-
 # The following are freshly produced in conformance with Geoff &
 # George's latest developments - I hope.
 

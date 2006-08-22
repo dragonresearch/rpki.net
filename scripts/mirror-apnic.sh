@@ -1,8 +1,6 @@
 #!/bin/sh -
 # $Id$
 
-cd `dirname $0`
-
 # An unknown entity representing itself as gmm says that this is the
 # trust anchor for the APNIC test repository.
 #

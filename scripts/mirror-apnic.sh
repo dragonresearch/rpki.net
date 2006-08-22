@@ -6,4 +6,4 @@ cd `dirname $0`
 # wget --mirror --relative --no-parent ftp://ftp.apnic.net/pub/test-certs/
 
 # new repository, theoretically maintained
-rsync -avz rsync://repository.apnic.net/ repository.apnic.net/
+rsync -avz rsync://repository.apnic.net/APNIC/ repository.apnic.net/APNIC/

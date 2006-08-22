@@ -16,9 +16,11 @@ chomp(@files);
 print("test -d $dir || mkdir $dir\n");
 
 for my $f (@files) {
-    my $prog = ($f =~ /\.cer$/) ? "x509" : "crl";
-    my $h = `$openssl $prog -inform DER -in $f -noout -hash`;
+    my $type = ($f =~ /\.cer$/) ? "x509" : "crl";
+    my $h = `$openssl $type -inform DER -in $f -noout -hash`;
     chomp($h);
+    $h .= ".";
+    $h .= "r" if ($type eq "crl");
     my $n = 0 + $count{$h}++;
-    print("$openssl $prog -inform DER -outform PEM -out $dir/$h.$n -in $f\n");
+    print("$openssl $type -inform DER -outform PEM -out $dir/$h$n -in $f\n");
 }

@@ -7,9 +7,11 @@ use strict;
 
 my $openssl = "/u/sra/isc/route-pki/subvert-rpki.hactrn.net/openssl/trunk/apps/openssl";
 
+my $verify_options = "-verbose -crl_check_all -policy_check -explicit_policy -policy_print -policy 1.3.6.1.5.5.7.14.2 -x509_strict";
+
 my $verbose = 1;
 
-my $debug = 0;
+my $debug = $ENV{DEBUG};
 
 exit unless (@ARGV);
 
@@ -97,6 +99,6 @@ for my $f (@files) {
     print("$openssl crl  -inform DER -outform PEM >>CAfile.pem -in $_\n")
 	foreach (@crls);
     print("$openssl x509 -inform DER -outform PEM -out cert-in-hand.pem -in $f\n",
-	  "$openssl verify -verbose -CAfile CAfile.pem -crl_check_all cert-in-hand.pem\n",
+	  "$openssl verify -CAfile CAfile.pem $verify_options cert-in-hand.pem\n",
 	  "rm -f CAfile.pem cert-in-hand.pem\n");
 }

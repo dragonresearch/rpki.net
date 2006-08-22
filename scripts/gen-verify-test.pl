@@ -7,7 +7,7 @@ use strict;
 
 my $openssl = "/u/sra/isc/route-pki/subvert-rpki.hactrn.net/openssl/trunk/apps/openssl";
 
-my $verify_options = "-verbose -crl_check_all -policy_check -explicit_policy -policy_print -policy 1.3.6.1.5.5.7.14.2 -x509_strict";
+my $verify_options = "-verbose -crl_check_all -policy_check -explicit_policy -policy 1.3.6.1.5.5.7.14.2 -x509_strict";
 
 my $verbose = 1;
 

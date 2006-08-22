@@ -9,33 +9,33 @@ cd `dirname $0`
 # Trust Anchors (consider this an out-of-band delivery method):
 
 # RIPE TA:
-fetch -m -o riperoot/repos/root.cer \
+fetch -m -o ca-trial.ripe.net/riperoot/repos/root.cer \
     http://ca-trial.ripe.net/~riperoot/repos/root.cer
 
 # ARIN TA: 
-fetch -m -o arinroot/repos/root.cer \
+fetch -m -o ca-trial.ripe.net/arinroot/repos/root.cer \
     http://ca-trial.ripe.net/~arinroot/repos/root.cer
 
 # The repositories are here:
-rsync -aiz --delete rsync://ca-trial.ripe.net/RIPE/ RIPE/
-rsync -aiz --delete rsync://ca-trial.ripe.net/ARIN/ ARIN/
+rsync -aiz --delete rsync://ca-trial.ripe.net/RIPE/ ca-trial.ripe.net/RIPE/
+rsync -aiz --delete rsync://ca-trial.ripe.net/ARIN/ ca-trial.ripe.net/ARIN/
 
 # Some test certificates:
 
 # RIPE->RIPE->ISP: 
-fetch -m -o ripeprod/repos/ripe-08.cer \
+fetch -m -o ca-trial.ripe.net/ripeprod/repos/ripe-08.cer \
     http://ca-trial.ripe.net/~ripeprod/repos/ripe-08.cer
 
 # ARIN->ARIN->ISP: 
-fetch -m -o arinprod/repos/arin-01.cer \
+fetch -m -o ca-trial.ripe.net/arinprod/repos/arin-01.cer \
     http://ca-trial.ripe.net/~arinprod/repos/arin-01.cer
 
 # RIPE->ARIN->ISP: 
-fetch -m -o arinprod/repos/ripe-01.cer \
+fetch -m -o ca-trial.ripe.net/arinprod/repos/ripe-01.cer \
     http://ca-trial.ripe.net/~arinprod/repos/ripe-01.cer
 
 # ARIN->RIPE->ISP: 
-fetch -m -o ripeprod/repos/arin-01.cer \
+fetch -m -o ca-trial.ripe.net/ripeprod/repos/arin-01.cer \
     http://ca-trial.ripe.net/~ripeprod/repos/arin-01.cer
 
 # I think they work with full up-down chaining, provided that I copied 

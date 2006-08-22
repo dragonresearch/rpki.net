@@ -12,7 +12,7 @@ open(F, "-|", "find", @ARGV, qw(-type f -name *.cer))
 chomp(my @files = <F>);
 close(F);
 
-# Convert files to PEM (openssl verify is lame)
+# Convert to PEM ("openssl verify" is lame)
 
 for (@files) {
     my $f = $_;
@@ -21,6 +21,8 @@ for (@files) {
     !system($openssl, qw(x509 -inform DER -in), $f, "-out", $_)
 	or die("Couldn't convert $f to PEM format: $!\n");
 }
+
+# Snarf all the AKI and SKI values from the certs we're examining
 
 my %aki;
 my %ski;
@@ -45,15 +47,35 @@ for my $f (@files) {
     close(F);
 }
 
-# This isn't a full test yet, this only tests one level (total chain
-# two certs deep).  What we really need, after this much of it is
-# working, is to build up a %daddy hash based on the following tests,
-# then build up and test full chains from that.
+# Figure out who everybody's parents are
+
+my %daddy;
 
 for my $f (@files) {
     next unless ($aki{$f});
     my @daddy = grep({ $ski{$_} eq $aki{$f} } @files);
-    next unless (@daddy == 1);
-    print("$openssl verify -verbose -issuer_checks \\\n\t-CAfile ",
-	  $daddy[0], " \\\n\t\t", $f, "\n");
+    $daddy{$f} = $daddy[0]
+	if (@daddy == 1 && $daddy[0] ne $f);
+}
+
+# Generate a test script based on all of the above
+
+for my $f (@files) {
+    my @parents;
+    for (my $d = $daddy{$f}; $d; $d = $daddy{$d}) {
+	push(@parents, $d);
+    }
+    next unless (@parents);
+    print("echo ", "=" x 40, "\n",
+	  "echo Checking chain:\n");
+    print("echo '    File: $f'\n",
+	  "$openssl x509 -noout -text -certopt no_header,no_signame,no_validity,no_pubkey,no_sigdump,no_version -in $_\n")
+	foreach (($f, @parents));
+    print("cat >CAfile.pem");
+    print(" $_")
+	foreach (@parents);
+    print("\n",
+	  "$openssl verify -verbose -CAfile CAfile.pem \\\n",
+	  "\t$f\n",
+	  "rm CAfile.pem\n");
 }

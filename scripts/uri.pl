@@ -11,7 +11,7 @@ while (@ARGV) {
 	or die("Couldn't run openssl x509 on $file: $!\n");
     while (<F>) {
 	chomp;
-	s{^.+URI:}{};
+	s{^.+URI:rsync://}{};
 	$a = $. + 1
 	    if (/Authority Information Access:/);
 	$s = $. + 1
@@ -26,5 +26,5 @@ while (@ARGV) {
 	    if ($c && $. == $c);
     }
     close(F);
-    print("$aia $crl $sia $file\n");
+    print("$aia $crl $file\n");
 }

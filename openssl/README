@@ -267,15 +267,12 @@ notes and questions at the end.
    pass a ref to a data structure (or fill in a data struct or
    whatever makes sense!)
 
-   Status: Done other than a bit of reorganization.
+   Status: Done.
 
    CLI: openssl x509, openssl req, ....   Called automatically as part
    of anything that reads RFC 3779 extensions from openssl.conf.
 
-   API: Canonization routines themselves are currently static
-   functions called by the routines that read extension data during
-   request formation.  Would require minor reorganization and cleanup
-   to make the canonization routines themselves global functions.
+   API: v3_asid_canonize(), v3_addr_canonize().
 
 4. 3779_cmp reads in 2 x 3779_canonicalised data sets and outputs a
    comparison = EQUAL is the two are equal, or =SUBSET if data1 is a
@@ -287,14 +284,13 @@ notes and questions at the end.
 5. is_3379_canonical tests a single data set and returns CANONICAL if
    the resource is formatted according to 3779 or NOT is otherwise
 
-   Status: Done other than a bit of reorganization.
+   Status: Done.
 
    CLI: openssl verify calls this during path validation.  No separate
    program to perform just this function, would not be hard to write
    one if it were needed.
 
-   API: Currently static functions called during path validation.
-   Would require minor reorganization and cleanup to make global.
+   API: v3_asid_is_canonical(), v3_addr_is_canonical().
 
 6. is_in_cert takes a certificate and a resource set description and
    checks if the certificate 'covers' the resource set The outpouts

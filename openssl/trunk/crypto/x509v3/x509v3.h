@@ -725,6 +725,14 @@ DECLARE_ASN1_FUNCTIONS(IPAddressFamily)
 #define	IANA_AFI_IPV6	2
 
 /*
+ * Canonical forms.
+ */
+int v3_asid_is_canonical(ASIdentifiers *asid);
+int v3_addr_is_canonical(IPAddrBlocks *addr);
+int v3_asid_canonize(ASIdentifiers *asid);
+int v3_addr_canonize(IPAddrBlocks *addr);
+
+/*
  * Check whether RFC 3779 extensions nest properly.
  */
 int v3_asid_validate_path(X509_STORE_CTX *);
@@ -743,6 +751,8 @@ void ERR_load_X509V3_strings(void);
 /* Error codes for the X509V3 functions. */
 
 /* Function codes. */
+#define X509V3_F_ASIDENTIFIERCHOICE_CANONIZE		 161
+#define X509V3_F_ASIDENTIFIERCHOICE_IS_CANONICAL	 162
 #define X509V3_F_ASID_CANONIZE				 159
 #define X509V3_F_ASID_IS_CANONICAL			 158
 #define X509V3_F_COPY_EMAIL				 122

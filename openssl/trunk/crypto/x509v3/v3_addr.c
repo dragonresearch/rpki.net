@@ -645,7 +645,7 @@ static int IPAddressFamily_cmp(const IPAddressFamily * const *a_,
 /*
  * Check whether an IPAddrBLocks is in canonical form.
  */
-static int IPAddrBlocks_is_canonical(IPAddrBlocks *addr)
+int v3_addr_is_canonical(IPAddrBlocks *addr)
 {
   unsigned char a_min[ADDR_RAW_BUF_LEN], a_max[ADDR_RAW_BUF_LEN];
   unsigned char b_min[ADDR_RAW_BUF_LEN], b_max[ADDR_RAW_BUF_LEN];
@@ -748,7 +748,6 @@ static int IPAddrBlocks_is_canonical(IPAddrBlocks *addr)
   return 1;
 }
 
-
 /*
  * Whack an IPAddressOrRanges into canonical form.
  */
@@ -763,7 +762,7 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
   sk_IPAddressOrRange_sort(aors);
 
   /*
-   * Resolve any duplicates or overlaps.
+   * Clean up representation issues, punt on duplicates or overlaps.
    */
   for (i = 0; i < sk_IPAddressOrRange_num(aors) - 1; i++) {
     IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, i);
@@ -799,6 +798,24 @@ static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
     }
   }
 
+  return 1;
+}
+
+/*
+ * Whack an IPAddrBlocks extension into canonical form.
+ */
+int v3_addr_canonize(IPAddrBlocks *addr)
+{
+  int i;
+  for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
+    IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
+    if (f->ipAddressChoice->type == IPAddressChoice_addressesOrRanges &&
+	!IPAddressOrRanges_canonize(f->ipAddressChoice->u.addressesOrRanges,
+				    afi_from_addressfamily(f)))
+      return 0;
+  }
+  sk_IPAddressFamily_sort(addr);
+  assert(v3_addr_is_canonical(addr));
   return 1;
 }
 
@@ -952,15 +969,8 @@ static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
   /*
    * Canonize the result, then we're done.
    */
-  for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
-    IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
-    if (f->ipAddressChoice->type == IPAddressChoice_addressesOrRanges &&
-	!IPAddressOrRanges_canonize(f->ipAddressChoice->u.addressesOrRanges,
-				    afi_from_addressfamily(f)))
-      goto err;
-  }
-  sk_IPAddressFamily_sort(addr);
-  assert(IPAddrBlocks_is_canonical(addr));
+  if (!v3_addr_canonize(addr))
+    goto err;    
   return addr;
 
  err:
@@ -1062,7 +1072,7 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
    * certificate's extension.  Make sure the extension is in canonical
    * form first.
    */
-  if (!IPAddrBlocks_is_canonical(x->rfc3779_addr))
+  if (!v3_addr_is_canonical(x->rfc3779_addr))
     validation_err(X509_V_ERR_INVALID_EXTENSION);
   sk_IPAddressFamily_set_cmp_func(x->rfc3779_addr, IPAddressFamily_cmp);
   if ((child = sk_IPAddressFamily_dup(x->rfc3779_addr)) == NULL) {
@@ -1077,7 +1087,7 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
   for (i = 1; i < sk_X509_num(ctx->chain); i++) {
     x = sk_X509_value(ctx->chain, i);
     assert(x != NULL);
-    if (!IPAddrBlocks_is_canonical(x->rfc3779_addr))
+    if (!v3_addr_is_canonical(x->rfc3779_addr))
       validation_err(X509_V_ERR_INVALID_EXTENSION);
     if (x->rfc3779_addr == NULL) {
       for (j = 0; j < sk_IPAddressFamily_num(child); j++) {

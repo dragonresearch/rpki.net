@@ -239,7 +239,7 @@ static void extract_min_max(ASIdOrRange *aor,
 /*
  * Check whether an ASIdentifierChoice is in canonical form.
  */
-static int asid_is_canonical(ASIdentifierChoice *choice)
+static int ASIdentifierChoice_is_canonical(ASIdentifierChoice *choice)
 {
   ASN1_INTEGER *a_max_plus_one = NULL;
   BIGNUM *bn = NULL;
@@ -284,7 +284,8 @@ static int asid_is_canonical(ASIdentifierChoice *choice)
 	ASN1_INTEGER_to_BN(a_max, bn) == NULL ||
 	!BN_add_word(bn, 1) ||
 	(a_max_plus_one = BN_to_ASN1_INTEGER(bn, a_max_plus_one)) == NULL) {
-      X509V3err(X509V3_F_ASID_IS_CANONICAL, ERR_R_MALLOC_FAILURE);
+      X509V3err(X509V3_F_ASIDENTIFIERCHOICE_IS_CANONICAL,
+		ERR_R_MALLOC_FAILURE);
       goto done;
     }
     
@@ -304,9 +305,19 @@ static int asid_is_canonical(ASIdentifierChoice *choice)
 }
 
 /*
+ * Check whether an ASIdentifier extension is in canonical form.
+ */
+int v3_asid_is_canonical(ASIdentifiers *asid)
+{
+  return (asid == NULL ||
+	  (ASIdentifierChoice_is_canonical(asid->asnum) ||
+	   ASIdentifierChoice_is_canonical(asid->rdi)));
+}
+
+/*
  * Whack an ASIdentifierChoice into canonical form.
  */
-static int asid_canonize(ASIdentifierChoice *choice)
+static int ASIdentifierChoice_canonize(ASIdentifierChoice *choice)
 {
   ASN1_INTEGER *a_max_plus_one = NULL;
   BIGNUM *bn = NULL;
@@ -345,7 +356,8 @@ static int asid_canonize(ASIdentifierChoice *choice)
      * Check for overlaps.
      */
     if (ASN1_INTEGER_cmp(a_max, b_min) >= 0) {
-      X509V3err(X509V3_F_ASID_CANONIZE, X509V3_R_EXTENSION_VALUE_ERROR);
+      X509V3err(X509V3_F_ASIDENTIFIERCHOICE_CANONIZE,
+		X509V3_R_EXTENSION_VALUE_ERROR);
       goto done;
     }
 
@@ -356,7 +368,7 @@ static int asid_canonize(ASIdentifierChoice *choice)
 	ASN1_INTEGER_to_BN(a_max, bn) == NULL ||
 	!BN_add_word(bn, 1) ||
 	(a_max_plus_one = BN_to_ASN1_INTEGER(bn, a_max_plus_one)) == NULL) {
-      X509V3err(X509V3_F_ASID_CANONIZE, ERR_R_MALLOC_FAILURE);
+      X509V3err(X509V3_F_ASIDENTIFIERCHOICE_CANONIZE, ERR_R_MALLOC_FAILURE);
       goto done;
     }
     
@@ -368,7 +380,8 @@ static int asid_canonize(ASIdentifierChoice *choice)
       switch (a->type) {
       case ASIdOrRange_id:
 	if ((r = OPENSSL_malloc(sizeof(ASRange))) == NULL) {
-	  X509V3err(X509V3_F_ASID_CANONIZE, ERR_R_MALLOC_FAILURE);
+	  X509V3err(X509V3_F_ASIDENTIFIERCHOICE_CANONIZE,
+		    ERR_R_MALLOC_FAILURE);
 	  goto done;
 	}
 	r->min = a_min;
@@ -396,7 +409,7 @@ static int asid_canonize(ASIdentifierChoice *choice)
     }
   }
 
-  assert(asid_is_canonical(choice)); /* Paranoia */
+  assert(ASIdentifierChoice_is_canonical(choice)); /* Paranoia */
 
   ret = 1;
 
@@ -404,6 +417,16 @@ static int asid_canonize(ASIdentifierChoice *choice)
   ASN1_INTEGER_free(a_max_plus_one);
   BN_free(bn);
   return ret;
+}
+
+/*
+ * Whack an ASIdentifier extension into canonical form.
+ */
+int v3_asid_canonize(ASIdentifiers *asid)
+{
+  return (asid == NULL ||
+	  (ASIdentifierChoice_canonize(asid->asnum) &&
+	   ASIdentifierChoice_canonize(asid->rdi)));
 }
 
 /*
@@ -511,8 +534,8 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
   /*
    * Canonize the result, then we're done.
    */
-  asid_canonize(asid->asnum);
-  asid_canonize(asid->rdi);
+  if (!v3_asid_canonize(asid))
+    goto err;
   return asid;
 
  err:
@@ -607,8 +630,7 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
    * extension is in canonical form, then pull its resource lists
    * so we can check whether its parents had them to grant.
    */
-  if (!asid_is_canonical(x->rfc3779_asid->asnum) ||
-      !asid_is_canonical(x->rfc3779_asid->rdi))
+  if (!v3_asid_is_canonical(x->rfc3779_asid))
     validation_err(X509_V_ERR_INVALID_EXTENSION);
   if (x->rfc3779_asid->asnum != NULL)  {
     switch (x->rfc3779_asid->asnum->type) {
@@ -643,8 +665,7 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
 	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
       continue;
     }
-    if (!asid_is_canonical(x->rfc3779_asid->asnum) ||
-	!asid_is_canonical(x->rfc3779_asid->rdi))
+    if (!v3_asid_is_canonical(x->rfc3779_asid))
       validation_err(X509_V_ERR_INVALID_EXTENSION);
     if (x->rfc3779_asid->asnum == NULL && child_as != NULL) {
       validation_err(X509_V_ERR_UNNESTED_RESOURCE);

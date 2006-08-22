@@ -3,6 +3,8 @@
 eval 'exec perl -w -S $0 ${1+"$@"}'
     if 0;
 
+use strict;
+
 my $openssl = "/u/sra/isc/route-pki/subvert-rpki.hactrn.net/openssl/trunk/apps/openssl";
 
 exit unless (@ARGV);

@@ -7,7 +7,7 @@ use strict;
 
 while (@ARGV) {
     my $file = shift(@ARGV);
-    my ($aia, $sia, $crl, $a, $s, $c) = qw(- - -);
+    my ($aia, $sia, $cdp, $a, $s, $c) = qw(- - -);
     next unless ($file =~ /\.cer$/);
     open(F, "-|", qw(openssl x509 -noout -inform DER -text -in), $file)
 	or die("Couldn't run openssl x509 on $file: $!\n");
@@ -24,9 +24,9 @@ while (@ARGV) {
 	    if ($a && $. == $a);
 	$sia = $_
 	    if ($s && $. == $s);
-	$crl = $_
+	$cdp = $_
 	    if ($c && $. == $c);
     }
     close(F);
-    print("$aia $crl $file\n");
+    print("$aia $cdp $file\n");
 }

@@ -3,20 +3,9 @@
 eval 'exec perl -w -S $0 ${1+"$@"}'
     if 0;
 
-use MIME::Base64;
-
-sub g {
-    my $x = shift;
-    $x =~ s{:}{}g;
-    $x = pack("H*", $x);
-    $x = encode_base64($x, "");
-    $x =~ y{+/}{-_};
-    $x =~ s{=+$}{};
-    return $x;
-}
-
 while (@ARGV) {
-    my ($file, $aki, $ski, $a, $s) = shift(@ARGV);
+    my $file = shift(@ARGV);
+    my ($aia, $sia, $crl, $a, $s, $c) = qw(- - -);
     if ($file =~ /\.cer$/) {
 	open(F, "-|", qw(openssl x509 -noout -inform DER -text -in), $file)
 	    or die("Couldn't run openssl x509 on $file: $!\n");
@@ -28,19 +17,20 @@ while (@ARGV) {
     }
     while (<F>) {
 	chomp;
-	s/^\s*//;
-	s/^keyid://;
+	s{^.+URI:}{};
 	$a = $. + 1
-	    if (/X509v3 Authority Key Identifier:/);
+	    if (/X509v3 Authority Information Access:/);
 	$s = $. + 1
-	    if (/X509v3 Subject Key Identifier:/);    
-	$aki = $_
+	    if (/X509v3 Subject Information Access:/);
+	$c = $. + 1
+	    if (/X509v3 CRL Distribution Points:/);
+	$aia = $_
 	    if ($a && $. == $a);
-	$ski = $_
+	$sia = $_
 	    if ($s && $. == $s);
+	$crl = $_
+	    if ($c && $. == $c);
     }
     close(F);
-    my $gaki = $aki ? g($aki) : "=" x 27;
-    my $gski = $ski ? g($ski) : "=" x 27;
-    print("$gaki $gski $file\n");
+    print("$aia $crl $sia $file\n");
 }

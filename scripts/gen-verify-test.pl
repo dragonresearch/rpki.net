@@ -68,7 +68,7 @@ for my $f (@files) {
     next unless (@parents);
     print("echo ", "=" x 40, "\n",
 	  "echo Checking chain:\n");
-    print("echo '    File: $f'\n",
+    print("echo '    File: $_'\n",
 	  "$openssl x509 -noout -text -certopt no_header,no_signame,no_validity,no_pubkey,no_sigdump,no_version -in $_\n")
 	foreach (($f, @parents));
     print("cat >CAfile.pem");

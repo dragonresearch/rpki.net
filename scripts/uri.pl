@@ -28,5 +28,5 @@ while (@ARGV) {
 	    if ($c && $. == $c);
     }
     close(F);
-    print("$aia $cdp $file\n");
+    print("$aia $sia $cdp $file\n");
 }

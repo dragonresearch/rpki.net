@@ -1,11 +1,9 @@
 :
 # $Id$
-eval 'exec perl -S $0 ${1+"$@"}'
+eval 'exec perl -w -S $0 ${1+"$@"}'
     if 0;
 
 use MIME::Base64;
-
-my $openssl = "/u/sra/isc/route-pki/subvert-rpki.hactrn.net/openssl/trunk/apps/openssl";
 
 sub g {
     my $x = shift;
@@ -18,19 +16,31 @@ sub g {
 }
 
 while (@ARGV) {
-    my $f = shift(@ARGV);
-    open(F, "-|", $openssl, qw(x509 -noout -inform DER -text -in), $f)
-	or die("Couldn't run openssl x509 on $f: $!\n");
+    my ($file, $aki, $ski, $a, $s) = shift(@ARGV);
+    if ($file =~ /\.cer$/) {
+	open(F, "-|", qw(openssl x509 -noout -inform DER -text -in), $file)
+	    or die("Couldn't run openssl x509 on $file: $!\n");
+    } elsif  ($file =~ /\.crl$/) {
+	open(F, "-|", qw(openssl crl  -noout -inform DER -text -in), $file)
+	    or die("Couldn't run openssl x509 on $file: $!\n");
+    } else {
+	next;
+    }
     while (<F>) {
 	chomp;
-	if (/X509v3 Authority Key Identifier:/) {
-	    $aki = $. + 1;
-	}
-	if ($aki && $. == $aki) {
-	    s/^[ \t]*keyid://;
-	    $a = $_;
-	}
+	s/^\s*//;
+	s/^keyid://;
+	$a = $. + 1
+	    if (/X509v3 Authority Key Identifier:/);
+	$s = $. + 1
+	    if (/X509v3 Subject Key Identifier:/);    
+	$aki = $_
+	    if ($a && $. == $a);
+	$ski = $_
+	    if ($s && $. == $s);
     }
     close(F);
-    print(g($a), " $f\n");
+    my $gaki = $aki ? g($aki) : "=" x 27;
+    my $gski = $ski ? g($ski) : "=" x 27;
+    print("$gaki $gski $file\n");
 }

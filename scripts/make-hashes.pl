@@ -4,9 +4,9 @@
 use strict;
 
 my $openssl = "/u/sra/isc/route-pki/subvert-rpki.hactrn.net/openssl/trunk/apps/openssl";
+my $dir     = "hashed";
 
-my $dir = "hashed";
-my %dirs = ($dir => 1);
+my %dirs;
 my @cmds;
 my %count;
 
@@ -34,7 +34,7 @@ while (<F>) {
 
 close(F);
 
-print("test -d $_ || mkdir $_\n")
+print("test -d $_ || mkdir -p $_\n")
     foreach (sort(keys(%dirs)));
 
 print($_)

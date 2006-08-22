@@ -82,13 +82,13 @@ for my $f (@files) {
 	  "echo Checking chain:\n")
 	if ($verbose > 0);
     for (($f, @ancestors)) {
-	print("echo '    File: $_'\n")
+	print("echo '    Certificate: $_'\n")
 	    if ($verbose > 0);
 	print("$openssl x509 -noout -text -inform DER -certopt no_header,no_signame,no_validity,no_pubkey,no_sigdump,no_version -in $_\n")
 	    if ($verbose > 1);
     }
     for (@crls) {
-	print("echo '    CRL: $_'\n")
+	print("echo '    CRL:         $_'\n")
 	    if ($verbose > 0);
 	print("$openssl crl -noout -text -inform DER -in $_\n")
 	    if ($verbose > 1);

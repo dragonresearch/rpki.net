@@ -12,18 +12,22 @@ open(F, "-|", "find", @ARGV, qw(-type f -name *.cer))
 chomp(my @files = <F>);
 close(F);
 
+# Convert files to PEM (openssl verify is lame)
+
+for (@files) {
+    my $f = $_;
+    s/\.cer$/.pem/;		# This modifies @files
+    next if -f $_;
+    !system($openssl, qw(x509 -inform DER -in), $f, "-out", $_)
+	or die("Couldn't convert $f to PEM format: $!\n");
+}
+
 my %aki;
 my %ski;
 
-sub pem {
-    my $f = shift;
-    $f =~ s/\.cer$/.pem/;
-    return $f;
-}
-
 for my $f (@files) {
     my ($a, $s);
-    open(F, "-|", $openssl, qw(x509 -noout -inform DER -text -in), $f)
+    open(F, "-|", $openssl, qw(x509 -noout -text -in), $f)
 	or die("Couldn't run openssl x509 on $f: $!\n");
     while (<F>) {
 	chomp;
@@ -47,13 +51,9 @@ for my $f (@files) {
 # then build up and test full chains from that.
 
 for my $f (@files) {
-    my $pem = pem($f);
-    !system($openssl, qw(x509 -inform DER -in), $f, "-out", $pem)
-	or die("Couldn't convert $f to PEM format: $!\n")
-	unless (-f $pem);
     next unless ($aki{$f});
     my @daddy = grep({ $ski{$_} eq $aki{$f} } @files);
     next unless (@daddy == 1);
     print("$openssl verify -verbose -issuer_checks \\\n\t-CAfile ",
-	  pem($daddy[0]), " \\\n\t\t$pem\n");
+	  $daddy[0], " \\\n\t\t", $f, "\n");
 }

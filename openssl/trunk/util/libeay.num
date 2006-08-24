@@ -3430,3 +3430,10 @@ d2i_ASIdOrRange                         3822	EXIST::FUNCTION:
 i2d_ASIdentifiers                       3823	EXIST::FUNCTION:
 v3_addr_validate_path                   3824	EXIST::FUNCTION:
 v3_asid_validate_path                   3825	EXIST::FUNCTION:
+a2i_ipadd                               3826	EXIST::FUNCTION:
+v3_asid_is_canonical                    3827	EXIST::FUNCTION:
+v3_addr_validate_resource_set           3828	EXIST::FUNCTION:
+v3_asid_canonize                        3829	EXIST::FUNCTION:
+v3_asid_validate_resource_set           3830	EXIST::FUNCTION:
+v3_addr_is_canonical                    3831	EXIST::FUNCTION:
+v3_addr_canonize                        3832	EXIST::FUNCTION:

@@ -1174,12 +1174,15 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
 }
 
 /*
- * RFC 3779 2.3 path validation of a "resource set"
+ * RFC 3779 2.3 path validation of a "resource set".
+ * Test whether chain covers resource_set.
  */
 int v3_addr_validate_resource_set(STACK_OF(X509) *chain,
 				  IPAddrBlocks *resource_set)
 {
-  if (chain == NULL || resource_set == NULL)
+  if (resource_set == NULL)
+    return 1;
+  if (chain == NULL)
     return 0;
   return v3_addr_validate_path_internal(NULL, chain, resource_set);
 }

@@ -1037,46 +1037,69 @@ static int addr_contains(IPAddressOrRanges *parent,
  */
 #define validation_err(_err_)		\
   do {					\
-    ctx->error = _err_;			\
-    ctx->error_depth = i;		\
-    ctx->current_cert = x;		\
-    ret = ctx->verify_cb(0, ctx);	\
+    if (ctx != NULL) {			\
+      ctx->error = _err_;		\
+      ctx->error_depth = i;		\
+      ctx->current_cert = x;		\
+      ret = ctx->verify_cb(0, ctx);	\
+    } else {				\
+      ret = 0;				\
+    }					\
     if (!ret)				\
       goto done;			\
   } while (0)
 
 /*
- * RFC 3779 2.3 path validation.  Intended to be called from X509_verify_cert().
+ * Core code for RFC 3779 2.3 path validation.
  */
-int v3_addr_validate_path(X509_STORE_CTX *ctx)
+static int v3_addr_validate_path_internal(X509_STORE_CTX *ctx,
+					  STACK_OF(X509) *chain,
+					  IPAddrBlocks *resource_set)
 {
   IPAddrBlocks *child = NULL;
   int i, j, ret = 1;
   X509 *x;
 
-  assert(ctx->verify_cb);
+  assert(chain != NULL);
+  assert(ctx != NULL || resource_set != NULL);
+  assert(ctx == NULL || ctx->verify_cb != NULL);
 
-  /*
-   * Start with the target certificate.  If it doesn't have the
-   * extension, we're done.
-   */
-  i = 0;
-  x = sk_X509_value(ctx->chain, i);
-  assert(x != NULL);
-  if (x->rfc3779_addr == NULL)
-    goto done;
+  if (resource_set != NULL) {
+    /*
+     * Separate resource set.  Check for canonical form, check for
+     * inheritance (not allowed in a resource set).
+     */
+    i = -1;
+    ret = v3_addr_is_canonical(resource_set);
+    for (j = 0; ret && j < sk_IPAddressFamily_num(resource_set); j++) {
+      IPAddressFamily *f = sk_IPAddressFamily_value(resource_set, j);
+      if (f->ipAddressChoice->type == IPAddressChoice_inherit)
+	ret = 0;
+    }
+    if (!ret)
+      goto done;
+    sk_IPAddressFamily_set_cmp_func(resource_set, IPAddressFamily_cmp);
+    child = sk_IPAddressFamily_dup(resource_set);
 
-  /*
-   * Has extension, need to check the whole chain.  This requires a
-   * scratch stack, initially populated with a copy of the target
-   * certificate's extension.  Make sure the extension is in canonical
-   * form first.
-   */
-  if (!v3_addr_is_canonical(x->rfc3779_addr))
-    validation_err(X509_V_ERR_INVALID_EXTENSION);
-  sk_IPAddressFamily_set_cmp_func(x->rfc3779_addr, IPAddressFamily_cmp);
-  if ((child = sk_IPAddressFamily_dup(x->rfc3779_addr)) == NULL) {
-    X509V3err(X509V3_F_V3_ADDR_VALIDATE_PATH, ERR_R_MALLOC_FAILURE);
+  } else {
+    /*
+     * Start with the target certificate.  If it doesn't have the
+     * extension, we're done.  Otherwise, we need to check the chain.
+     */
+    i = 0;
+    x = sk_X509_value(ctx->chain, i);
+    assert(x != NULL);
+    if (x->rfc3779_addr == NULL)
+      goto done;
+    if (!v3_addr_is_canonical(x->rfc3779_addr))
+      validation_err(X509_V_ERR_INVALID_EXTENSION);
+    sk_IPAddressFamily_set_cmp_func(x->rfc3779_addr, IPAddressFamily_cmp);
+    child = sk_IPAddressFamily_dup(x->rfc3779_addr);
+  }
+
+  if (child == NULL) {
+    X509V3err(X509V3_F_V3_ADDR_VALIDATE_PATH_INTERNAL, ERR_R_MALLOC_FAILURE);
+    ret = 0;
     goto done;
   }
 
@@ -1084,7 +1107,7 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
    * Now walk up the chain.  No cert may list resources that its
    * parent doesn't list.
    */
-  for (i = 1; i < sk_X509_num(ctx->chain); i++) {
+  for (i++; i < sk_X509_num(ctx->chain); i++) {
     x = sk_X509_value(ctx->chain, i);
     assert(x != NULL);
     if (!v3_addr_is_canonical(x->rfc3779_addr))
@@ -1141,3 +1164,22 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
 }
 
 #undef validation_err
+
+/*
+ * RFC 3779 2.3 path validation -- called from X509_verify_cert().
+ */
+int v3_addr_validate_path(X509_STORE_CTX *ctx)
+{
+  return v3_addr_validate_path_internal(ctx, ctx->chain, NULL);
+}
+
+/*
+ * RFC 3779 2.3 path validation of a "resource set"
+ */
+int v3_addr_validate_resource_set(STACK_OF(X509) *chain,
+				  IPAddrBlocks *resource_set)
+{
+  if (chain == NULL || resource_set == NULL)
+    return 0;
+  return v3_addr_validate_path_internal(NULL, chain, resource_set);
+}

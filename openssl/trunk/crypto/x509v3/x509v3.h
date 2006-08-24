@@ -737,7 +737,11 @@ int v3_addr_canonize(IPAddrBlocks *addr);
  */
 int v3_asid_validate_path(X509_STORE_CTX *);
 int v3_addr_validate_path(X509_STORE_CTX *);
-
+int v3_asid_validate_resource_set(STACK_OF(X509) *chain,
+				  ASIdentifiers *resource_set);
+int v3_addr_validate_resource_set(STACK_OF(X509) *chain,
+				  IPAddrBlocks *resource_set);
+    
 /*
  * [sra] END KLUDGE
  */
@@ -800,6 +804,7 @@ void ERR_load_X509V3_strings(void);
 #define X509V3_F_V2I_POLICY_MAPPINGS			 145
 #define X509V3_F_V2I_SUBJECT_ALT			 154
 #define X509V3_F_V3_ADDR_VALIDATE_PATH			 160
+#define X509V3_F_V3_ADDR_VALIDATE_PATH_INTERNAL		 163
 #define X509V3_F_V3_GENERIC_EXTENSION			 116
 #define X509V3_F_X509V3_ADD1_I2D			 140
 #define X509V3_F_X509V3_ADD_VALUE			 105

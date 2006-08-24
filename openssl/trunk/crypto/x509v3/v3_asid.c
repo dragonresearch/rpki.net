@@ -596,69 +596,107 @@ static int asid_contains(ASIdOrRanges *parent, ASIdOrRanges *child)
  */
 #define validation_err(_err_)		\
   do {					\
-    ctx->error = _err_;			\
-    ctx->error_depth = i;		\
-    ctx->current_cert = x;		\
-    ret = ctx->verify_cb(0, ctx);	\
+    if (ctx != NULL) {			\
+      ctx->error = _err_;		\
+      ctx->error_depth = i;		\
+      ctx->current_cert = x;		\
+      ret = ctx->verify_cb(0, ctx);	\
+    } else {				\
+      ret = 0;				\
+    }					\
     if (!ret)				\
       goto done;			\
   } while (0)
 
 /*
- * RFC 3779 3.3 path validation.  Intended to be called from X509_verify_cert().
+ * Core code for RFC 3779 3.3 path validation.
  */
-int v3_asid_validate_path(X509_STORE_CTX *ctx)
+static int v3_asid_validate_path_internal(X509_STORE_CTX *ctx,
+					  STACK_OF(X509) *chain,
+					  ASIdentifiers *resource_set)
 {
   ASIdOrRanges *child_as = NULL, *child_rdi = NULL;
   int i, ret = 1, inherit_as = 0, inherit_rdi = 0;
   X509 *x;
 
-  assert(ctx->verify_cb);
+  assert(chain != NULL);
+  assert(ctx != NULL || resource_set != NULL);
+  assert(ctx == NULL || ctx->verify_cb != NULL);
 
-  /*
-   * Start with the target certificate.  If it doesn't have the extension,
-   * we're done.
-   */
-  i = 0;
-  x = sk_X509_value(ctx->chain, i);
-  assert(x != NULL);
-  if (x->rfc3779_asid == NULL)
-    goto done;
+  if (resource_set != NULL) {
 
-  /*
-   * Has extension, have to check the whole chain.  Make sure the
-   * extension is in canonical form, then pull its resource lists
-   * so we can check whether its parents had them to grant.
-   */
-  if (!v3_asid_is_canonical(x->rfc3779_asid))
-    validation_err(X509_V_ERR_INVALID_EXTENSION);
-  if (x->rfc3779_asid->asnum != NULL)  {
-    switch (x->rfc3779_asid->asnum->type) {
-    case ASIdentifierChoice_inherit:
-      inherit_as = 1;
-      break;
-    case ASIdentifierChoice_asIdsOrRanges:
-      child_as = x->rfc3779_asid->asnum->u.asIdsOrRanges;
-      break;
+    /*
+     * Separate resource set.  Check for canonical form, check for
+     * inheritance (not allowed in a resource set).
+     */
+    i = -1;
+    ret = v3_asid_is_canonical(resource_set);
+    if (ret && resource_set->asnum != NULL) {
+      switch (resource_set->asnum->type) {
+      case ASIdentifierChoice_inherit:
+	ret = 0;
+	break;
+      case ASIdentifierChoice_asIdsOrRanges:
+	child_as = resource_set->asnum->u.asIdsOrRanges;
+	break;
+      }
+    }
+    if (ret && resource_set->rdi != NULL) {
+      switch (resource_set->rdi->type) {
+      case ASIdentifierChoice_inherit:
+	ret = 0;
+	break;
+      case ASIdentifierChoice_asIdsOrRanges:
+	child_rdi = resource_set->rdi->u.asIdsOrRanges;
+	break;
+      }
+    }
+    if (!ret)
+      goto done;
+
+  } else {
+
+    /*
+     * Starting with target certificate.  If it doesn't have the
+     * extension, we're done.  If it does, extension must be in
+     * canonical form, then we pull its resource lists so
+     * we can check whether its parents have them to grant.
+     */
+    i = 0;
+    x = sk_X509_value(chain, i);
+    assert(x != NULL);
+    if (x->rfc3779_asid == NULL)
+      goto done;
+    if (!v3_asid_is_canonical(x->rfc3779_asid))
+      validation_err(X509_V_ERR_INVALID_EXTENSION);
+    if (x->rfc3779_asid->asnum != NULL)  {
+      switch (x->rfc3779_asid->asnum->type) {
+      case ASIdentifierChoice_inherit:
+	inherit_as = 1;
+	break;
+      case ASIdentifierChoice_asIdsOrRanges:
+	child_as = x->rfc3779_asid->asnum->u.asIdsOrRanges;
+	break;
+      }
+    }
+    if (x->rfc3779_asid->rdi != NULL) {
+      switch (x->rfc3779_asid->rdi->type) {
+      case ASIdentifierChoice_inherit:
+	inherit_rdi = 1;
+	break;
+      case ASIdentifierChoice_asIdsOrRanges:
+	child_rdi = x->rfc3779_asid->rdi->u.asIdsOrRanges;
+	break;
+      }
     }
   }
-  if (x->rfc3779_asid->rdi != NULL) {
-    switch (x->rfc3779_asid->rdi->type) {
-    case ASIdentifierChoice_inherit:
-      inherit_rdi = 1;
-      break;
-    case ASIdentifierChoice_asIdsOrRanges:
-      child_rdi = x->rfc3779_asid->rdi->u.asIdsOrRanges;
-      break;
-    }
-  }
 
   /*
-   * Now walk up the chain.  Extensions must be in canonical form, and
-   * no cert may list resources that its parent doesn't list.
+   * Now walk up the chain.  Extensions must be in canonical form, no
+   * cert may list resources that its parent doesn't list.
    */
-  for (i = 1; i < sk_X509_num(ctx->chain); i++) {
-    x = sk_X509_value(ctx->chain, i);
+  for (i++; i < sk_X509_num(chain); i++) {
+    x = sk_X509_value(chain, i);
     assert(x != NULL);
     if (x->rfc3779_asid == NULL) {
       if (child_as != NULL || child_rdi != NULL)
@@ -716,3 +754,22 @@ int v3_asid_validate_path(X509_STORE_CTX *ctx)
 }
 
 #undef validation_err
+
+/*
+ * RFC 3779 3.3 path validation -- called from X509_verify_cert().
+ */
+int v3_asid_validate_path(X509_STORE_CTX *ctx)
+{
+  return v3_asid_validate_path_internal(ctx, ctx->chain, NULL);
+}
+
+/*
+ * RFC 3779 3.3 path validation of a "resource set"
+ */
+int v3_asid_validate_resource_set(STACK_OF(X509) *chain,
+				  ASIdentifiers *resource_set)
+{
+  if (chain == NULL || resource_set == NULL)
+    return 0;
+  return v3_asid_validate_path_internal(NULL, chain, resource_set);
+}

@@ -298,7 +298,17 @@ notes and questions at the end.
    SUBSET if the resource set is a subset of the certificate resource
    list, or NOT otherwise
 
-   Status: Not done. Some supporting code exists.  See notes below.
+   Status: Untested API functions written.  No CLI (yet?).
+
+   API: New (and as yet untested) functions:
+   v3_asid_validate_resource_set(), v3_addr_validate_resource_set().
+   These return true if a certificate chain covers a resource set.
+   "Resource sets" are represented as the C form of the appropriate
+   extension, with the additional constraint that the resource set
+   must not use inheritance; this constraint is enforced by the code
+   (ie, using one of these functions on a resource set that specifies
+   inheritance will always return false regardless of the contents of
+   the chain).
 
 7. generate_resource_certificate generates a resource certificate -
    I'm not sure I understand what the inputs are to be here - perhaps

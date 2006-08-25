@@ -627,10 +627,11 @@ int X509V3_NAME_from_section(X509_NAME *nm, STACK_OF(CONF_VALUE)*dn_sk,
 void X509_POLICY_NODE_print(BIO *out, X509_POLICY_NODE *node, int indent);
 
 /*
- * [sra] BEGIN KLUDGE
- *       Just include files for the moment for testing, clean up later.
+ * [sra] Begin RFC 3779 stuff
  *
- *       Heh, can't even do that, so just insert their contents here.
+ * The following definitions and declarations will need to be merged
+ * into the the rest of this file more cleanly.  Right now they're
+ * organized as a unit to make it easier to see what I've added.
  */
 
 typedef struct ASRange_st {
@@ -743,7 +744,7 @@ int v3_addr_validate_resource_set(STACK_OF(X509) *chain,
 				  IPAddrBlocks *resource_set);
     
 /*
- * [sra] END KLUDGE
+ * [sra] End RFC 3779 stuff
  */
 
 /* BEGIN ERROR CODES */

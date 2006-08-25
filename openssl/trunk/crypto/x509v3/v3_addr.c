@@ -1060,7 +1060,7 @@ static int v3_addr_validate_path_internal(X509_STORE_CTX *ctx,
   int i, j, ret = 1;
   X509 *x;
 
-  assert(chain != NULL);
+  assert(chain != NULL && sk_X509_num(chain) > 0);
   assert(ctx != NULL || resource_set != NULL);
   assert(ctx == NULL || ctx->verify_cb != NULL);
 
@@ -1087,7 +1087,7 @@ static int v3_addr_validate_path_internal(X509_STORE_CTX *ctx,
      * extension, we're done.  Otherwise, we need to check the chain.
      */
     i = 0;
-    x = sk_X509_value(ctx->chain, i);
+    x = sk_X509_value(chain, i);
     assert(x != NULL);
     if (x->rfc3779_addr == NULL)
       goto done;
@@ -1107,8 +1107,8 @@ static int v3_addr_validate_path_internal(X509_STORE_CTX *ctx,
    * Now walk up the chain.  No cert may list resources that its
    * parent doesn't list.
    */
-  for (i++; i < sk_X509_num(ctx->chain); i++) {
-    x = sk_X509_value(ctx->chain, i);
+  for (i++; i < sk_X509_num(chain); i++) {
+    x = sk_X509_value(chain, i);
     assert(x != NULL);
     if (!v3_addr_is_canonical(x->rfc3779_addr))
       validation_err(X509_V_ERR_INVALID_EXTENSION);
@@ -1182,7 +1182,7 @@ int v3_addr_validate_resource_set(STACK_OF(X509) *chain,
 {
   if (resource_set == NULL)
     return 1;
-  if (chain == NULL)
+  if (chain == NULL || sk_X509_num(chain) == 0)
     return 0;
   return v3_addr_validate_path_internal(NULL, chain, resource_set);
 }

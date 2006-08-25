@@ -619,7 +619,7 @@ static int v3_asid_validate_path_internal(X509_STORE_CTX *ctx,
   int i, ret = 1, inherit_as = 0, inherit_rdi = 0;
   X509 *x;
 
-  assert(chain != NULL);
+  assert(chain != NULL && sk_X509_num(chain) > 0);
   assert(ctx != NULL || resource_set != NULL);
   assert(ctx == NULL || ctx->verify_cb != NULL);
 
@@ -772,7 +772,7 @@ int v3_asid_validate_resource_set(STACK_OF(X509) *chain,
 {
   if (resource_set == NULL)
     return 1;
-  if (chain == NULL)
+  if (chain == NULL || sk_X509_num(chain) == 0)
     return 0;
   return v3_asid_validate_path_internal(NULL, chain, resource_set);
 }

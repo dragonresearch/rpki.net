@@ -227,14 +227,6 @@ Random reminders and notes to myself:
 
 - May need to check AKID in crypto/x509/x509_vfy.c:get_crl().
 
-- "Resource sets" -- represent internally as extensions, inheritance
-  disallowed.  Need I/O functions.  Groveling doc/openssl.txt, I see
-  X509V3_EXT_conf_nid(), X509V3_EXT_print_fp(), and X509V3_EXT_d2i()
-  as the functions most likely to be useful.  Sections 2 & 3 of that
-  file are generally informative on how to do this, difficulty is just
-  that most of it, unsurprisingly, is geared towards extensions in
-  certificates and CRLs, not bare extensions.  But should suffice.
-
 
 
 The June meeting at APNIC came up with a list of desired OpenSSL
@@ -306,10 +298,9 @@ notes and questions at the end.
    SUBSET if the resource set is a subset of the certificate resource
    list, or NOT otherwise
 
-   Status: Untested API functions written.  No CLI (yet?).
+   Status: Done.
 
-   API: New (and as yet untested) functions:
-   v3_asid_validate_resource_set(), v3_addr_validate_resource_set().
+   API: v3_asid_validate_resource_set(), v3_addr_validate_resource_set().
    These return true if a certificate chain covers a resource set.
    "Resource sets" are represented as the C form of the appropriate
    extension, with the additional constraint that the resource set
@@ -317,6 +308,8 @@ notes and questions at the end.
    (ie, using one of these functions on a resource set that specifies
    inheritance will always return false regardless of the contents of
    the chain).
+
+   CLI: resource-set-test.  Use the Source, Luke.
 
 7. generate_resource_certificate generates a resource certificate -
    I'm not sure I understand what the inputs are to be here - perhaps

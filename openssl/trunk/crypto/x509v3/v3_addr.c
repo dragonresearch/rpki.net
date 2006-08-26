@@ -997,6 +997,23 @@ X509V3_EXT_METHOD v3_addr = {
 };
 
 /*
+ * Figure out whether extension sues inheritance.
+ */
+static int addr_inherits(IPAddrBlocks *addr)
+{
+  int i;
+  if (addr == NULL)
+    return 0;
+  for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
+    IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
+    if (f->ipAddressChoice->type == IPAddressChoice_inherit)
+      return 1;
+  }
+  return 0;
+}
+
+
+/*
  * Figure out whether parent contains child.
  */
 static int addr_contains(IPAddressOrRanges *parent,
@@ -1054,50 +1071,34 @@ static int addr_contains(IPAddressOrRanges *parent,
  */
 static int v3_addr_validate_path_internal(X509_STORE_CTX *ctx,
 					  STACK_OF(X509) *chain,
-					  IPAddrBlocks *resource_set)
+					  IPAddrBlocks *ext)
 {
   IPAddrBlocks *child = NULL;
   int i, j, ret = 1;
   X509 *x;
 
   assert(chain != NULL && sk_X509_num(chain) > 0);
-  assert(ctx != NULL || resource_set != NULL);
+  assert(ctx != NULL || ext != NULL);
   assert(ctx == NULL || ctx->verify_cb != NULL);
 
-  if (resource_set != NULL) {
-    /*
-     * Separate resource set.  Check for canonical form, check for
-     * inheritance (not allowed in a resource set).
-     */
+  /*
+   * Figure out where to start.  If we don't have an extension to
+   * check, we're done.  Otherwise, check canonical form and
+   * set up for walking up the chain.
+   */
+  if (ext != NULL) {
     i = -1;
-    ret = v3_addr_is_canonical(resource_set);
-    for (j = 0; ret && j < sk_IPAddressFamily_num(resource_set); j++) {
-      IPAddressFamily *f = sk_IPAddressFamily_value(resource_set, j);
-      if (f->ipAddressChoice->type == IPAddressChoice_inherit)
-	ret = 0;
-    }
-    if (!ret)
-      goto done;
-    sk_IPAddressFamily_set_cmp_func(resource_set, IPAddressFamily_cmp);
-    child = sk_IPAddressFamily_dup(resource_set);
-
   } else {
-    /*
-     * Start with the target certificate.  If it doesn't have the
-     * extension, we're done.  Otherwise, we need to check the chain.
-     */
     i = 0;
     x = sk_X509_value(chain, i);
     assert(x != NULL);
-    if (x->rfc3779_addr == NULL)
+    if ((ext = x->rfc3779_addr) == NULL)
       goto done;
-    if (!v3_addr_is_canonical(x->rfc3779_addr))
-      validation_err(X509_V_ERR_INVALID_EXTENSION);
-    sk_IPAddressFamily_set_cmp_func(x->rfc3779_addr, IPAddressFamily_cmp);
-    child = sk_IPAddressFamily_dup(x->rfc3779_addr);
   }
-
-  if (child == NULL) {
+  if (!v3_addr_is_canonical(ext))
+    validation_err(X509_V_ERR_INVALID_EXTENSION);
+  sk_IPAddressFamily_set_cmp_func(ext, IPAddressFamily_cmp);
+  if ((child = sk_IPAddressFamily_dup(ext)) == NULL) {
     X509V3err(X509V3_F_V3_ADDR_VALIDATE_PATH_INTERNAL, ERR_R_MALLOC_FAILURE);
     ret = 0;
     goto done;
@@ -1174,15 +1175,18 @@ int v3_addr_validate_path(X509_STORE_CTX *ctx)
 }
 
 /*
- * RFC 3779 2.3 path validation of a "resource set".
- * Test whether chain covers resource_set.
+ * RFC 3779 2.3 path validation of an extension.
+ * Test whether chain covers extension.
  */
 int v3_addr_validate_resource_set(STACK_OF(X509) *chain,
-				  IPAddrBlocks *resource_set)
+				  IPAddrBlocks *ext,
+				  int allow_inheritance)
 {
-  if (resource_set == NULL)
+  if (ext == NULL)
     return 1;
   if (chain == NULL || sk_X509_num(chain) == 0)
     return 0;
-  return v3_addr_validate_path_internal(NULL, chain, resource_set);
+  if (!allow_inheritance && addr_inherits(ext))
+    return 0;
+  return v3_addr_validate_path_internal(NULL, chain, ext);
 }

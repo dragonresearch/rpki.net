@@ -18,9 +18,9 @@ clean:
 ${BIN}: ${OBJ} ${LIB} Makefile
 	${CC} -g -o $@ ${OBJ} ${LIB}
 
-test:
+test: ${BIN} test.conf
 	@echo This test needs more work
 	@echo ''
-	${OPENSSL_DIR}/apps/openssl req -new -x509 -config rfc3779-test.conf -key rfc3779-test.key -out rfc3779-test.cert
+	${OPENSSL_DIR}/apps/openssl req -new -x509 -config test.conf -keyout test.key -out test.cer -outform DER
 	@echo ''
-	./resource-set-test  -v -a AS:17 -i IPv4:10.0.0.44 -p rfc3779-test.cert
+	./${BIN} -v -a AS:17 -i IPv4:10.0.0.44 -d test.cer

@@ -739,10 +739,12 @@ int v3_addr_canonize(IPAddrBlocks *addr);
 int v3_asid_validate_path(X509_STORE_CTX *);
 int v3_addr_validate_path(X509_STORE_CTX *);
 int v3_asid_validate_resource_set(STACK_OF(X509) *chain,
-				  ASIdentifiers *resource_set);
+				  ASIdentifiers *ext,
+				  int allow_inheritance);
 int v3_addr_validate_resource_set(STACK_OF(X509) *chain,
-				  IPAddrBlocks *resource_set);
-    
+				  IPAddrBlocks *ext,
+				  int allow_inheritance);
+
 /*
  * [sra] End RFC 3779 stuff
  */

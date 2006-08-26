@@ -118,13 +118,13 @@ int main(int argc, char *argv[])
   }
 
   printf("Checking ASIdentifier coverage...");
-  if (v3_asid_validate_resource_set(chain, asid))
+  if (v3_asid_validate_resource_set(chain, asid, 0))
     printf("covered\n");
   else
     printf("NOT covered\n");
   
   printf("Checking IPAddrBlock coverage...");
-  if (v3_addr_validate_resource_set(chain, addr))
+  if (v3_addr_validate_resource_set(chain, addr, 0))
     printf("covered\n");
   else
     printf("NOT covered\n");

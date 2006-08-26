@@ -279,7 +279,13 @@ notes and questions at the end.
    strict subset of data2, or = NOT in all other cases (CLI or API)
    (EQUAL, SUBSET, NOT)
 
-   Status: Not done.  Some supporting code exists.  See notes below.
+   Status: API code written, not fully tested.  No CLI.  API functions
+   test whether an extension uses inheritance, and whether one
+   extension is a (possibly improper) subset of another.  Subset test
+   fails if either extension uses inheritance.
+
+   API: v3_asid_inherits(), v3_addr_inherits(), v3_asid_subset(),
+   v3_addr_subset().
 
 5. is_3379_canonical tests a single data set and returns CANONICAL if
    the resource is formatted according to 3779 or NOT is otherwise
@@ -353,6 +359,10 @@ notes and questions at the end.
    desired functionality here; have not (yet) looked into how hard it
    would be to add said checks (probably not very, once I find the
    right place in the code...).
+
+   API: Primitive #6 (above) extended to accept argument indicating
+   whether inheritance is allowed, so that primitive #6 can be used to
+   test extensions pulled from a request against a certificate chain.
 
 Notes:
 

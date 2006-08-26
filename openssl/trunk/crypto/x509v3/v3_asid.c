@@ -563,7 +563,7 @@ X509V3_EXT_METHOD v3_asid = {
 /*
  * Figure out whether extension uses inheritance.
  */
-static int asid_inherits(ASIdentifiers *asid)
+int v3_asid_inherits(ASIdentifiers *asid)
 {
   return (asid != NULL &&
 	  ((asid->asnum != NULL &&
@@ -601,6 +601,22 @@ static int asid_contains(ASIdOrRanges *parent, ASIdOrRanges *child)
   }
 
   return 1;
+}
+
+/*
+ * Test whether a is a subet of b.
+ */
+int v3_asid_subset(ASIdentifiers *a, ASIdentifiers *b)
+{
+  return (a == NULL ||
+	  a == b ||
+	  (b != NULL &&
+	   !v3_asid_inherits(a) &&
+	   !v3_asid_inherits(b) &&
+	   asid_contains(b->asnum->u.asIdsOrRanges,
+			 a->asnum->u.asIdsOrRanges) &&
+	   asid_contains(b->rdi->u.asIdsOrRanges,
+			 a->rdi->u.asIdsOrRanges)));
 }
 
 /*
@@ -756,7 +772,7 @@ int v3_asid_validate_resource_set(STACK_OF(X509) *chain,
     return 1;
   if (chain == NULL || sk_X509_num(chain) == 0)
     return 0;
-  if (!allow_inheritance && asid_inherits(ext))
+  if (!allow_inheritance && v3_asid_inherits(ext))
     return 0;
   return v3_asid_validate_path_internal(NULL, chain, ext);
 }

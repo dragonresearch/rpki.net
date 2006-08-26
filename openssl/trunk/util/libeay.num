@@ -3437,3 +3437,7 @@ v3_asid_canonize                        3829	EXIST::FUNCTION:
 v3_asid_validate_resource_set           3830	EXIST::FUNCTION:
 v3_addr_is_canonical                    3831	EXIST::FUNCTION:
 v3_addr_canonize                        3832	EXIST::FUNCTION:
+v3_addr_inherits                        3833	EXIST::FUNCTION:
+v3_addr_subset                          3834	EXIST::FUNCTION:
+v3_asid_subset                          3835	EXIST::FUNCTION:
+v3_asid_inherits                        3836	EXIST::FUNCTION:

@@ -734,7 +734,15 @@ int v3_asid_canonize(ASIdentifiers *asid);
 int v3_addr_canonize(IPAddrBlocks *addr);
 
 /*
- * Check whether RFC 3779 extensions nest properly.
+ * Tests for inheritance and containment.
+ */
+int v3_asid_inherits(ASIdentifiers *asid);
+int v3_addr_inherits(IPAddrBlocks *addr);
+int v3_asid_subset(ASIdentifiers *a, ASIdentifiers *b);
+int v3_addr_subset(IPAddrBlocks *a, IPAddrBlocks *b);
+
+/*
+ * Check whether RFC 3779 extensions nest properly in chains.
  */
 int v3_asid_validate_path(X509_STORE_CTX *);
 int v3_addr_validate_path(X509_STORE_CTX *);

@@ -999,7 +999,7 @@ X509V3_EXT_METHOD v3_addr = {
 /*
  * Figure out whether extension sues inheritance.
  */
-static int addr_inherits(IPAddrBlocks *addr)
+int v3_addr_inherits(IPAddrBlocks *addr)
 {
   int i;
   if (addr == NULL)
@@ -1011,7 +1011,6 @@ static int addr_inherits(IPAddrBlocks *addr)
   }
   return 0;
 }
-
 
 /*
  * Figure out whether parent contains child.
@@ -1046,6 +1045,29 @@ static int addr_contains(IPAddressOrRanges *parent,
     }
   }
 
+  return 1;
+}
+
+/*
+ * Test whether a is a subset of b.
+ */
+int v3_addr_subset(IPAddrBlocks *a, IPAddrBlocks *b)
+{
+  int i;
+  if (a == NULL || a == b)
+    return 1;
+  if (b == NULL || v3_addr_inherits(a) || v3_addr_inherits(b))
+    return 0;
+  sk_IPAddressFamily_set_cmp_func(b, IPAddressFamily_cmp);
+  for (i = 0; i < sk_IPAddressFamily_num(a); i++) {
+    IPAddressFamily *fa = sk_IPAddressFamily_value(a, i);
+    int j = sk_IPAddressFamily_find(b, fa);
+    IPAddressFamily *fb = sk_IPAddressFamily_value(b, j);
+    if (!addr_contains(fb->ipAddressChoice->u.addressesOrRanges, 
+		       fa->ipAddressChoice->u.addressesOrRanges,
+		       length_from_afi(afi_from_addressfamily(fb))))
+      return 0;
+  }
   return 1;
 }
 
@@ -1186,7 +1208,7 @@ int v3_addr_validate_resource_set(STACK_OF(X509) *chain,
     return 1;
   if (chain == NULL || sk_X509_num(chain) == 0)
     return 0;
-  if (!allow_inheritance && addr_inherits(ext))
+  if (!allow_inheritance && v3_addr_inherits(ext))
     return 0;
   return v3_addr_validate_path_internal(NULL, chain, ext);
 }

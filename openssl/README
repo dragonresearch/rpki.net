@@ -344,25 +344,27 @@ notes and questions at the end.
 9. process a certificate request and say yes / no on whether the
    request is well formed.
 
-   Status: "Well formed" not defined here.  Done other than a bit of
-   reorganization if this just means the certificate request itself in
-   isolation.  Not done if this also means path validation with
-   respect to an intended parent certificate.
+   Status: Request processing within OpenSSL looks to be a mess, with
+   entirely too much of it happening in applications rather than the
+   library.  Other API functions exist to test whether an extension is
+   in canonical form, etcetera.  Path validation can only be done in
+   context of a particular certificate chain, which is probably out of
+   scope for this primative.
 
 10. process a certificate request and generate a certificate in
     response.
 
-   Status: Task definition fuzzy, see (9).  Generating certificate
+   Status: OpenSSL code is a mess, see (9).  Generating certificate
    based on a certificate request is prexisting functionality; new
-   code adds ability to process RFC 3779.   Notes from Brisbane do not
-   state whether path validation with respect to signer is part of
-   desired functionality here; have not (yet) looked into how hard it
-   would be to add said checks (probably not very, once I find the
-   right place in the code...).
+   code adds ability to process RFC 3779.  If task here includes path
+   validation with respect to signer's certificate chain, would
+   require nontrivial changes to the OpenSSL CLI programs that sign
+   requests, as none of them currently even look for certificate
+   chains for the signer.
 
    API: Primitive #6 (above) extended to accept argument indicating
    whether inheritance is allowed, so that primitive #6 can be used to
-   test extensions pulled from a request against a certificate chain.
+   perform path validation on extensions pulled from a request.
 
 Notes:
 
@@ -372,25 +374,8 @@ Notes:
   are, and that my task was just to teach the same tools to deal with
   the RFC 3779 extensions.
 
-- There's some duplication in the above tasks, which might just
-  reflect confusion on my part.  Eg, (4) and (6) are very close to the
-  same task, and probably -are- the same task by the time one gets
-  to the API functions.
-
-- (4) and (6) have a definition problem: what result should these
-  functions return in the presence of inheritance?  Mu.  In the
-  absence of a better suggstion, I'd amend these by adding another
-  return code indicating that the question is unanswerable due to
-  inheritance.
-
 - It turns out that the code I've written so far never needs to ask
   whether two extension data sets are equal, just whether one is a
   subset (possibly improper) of the other.   Checking for equality is
   a somewhat different test, so rather than trying to combine the two,
   I might just provide separate functions that test for equality.
-
-- I need feedback on the task defintions for (9) and (10).
-
-- Do we still want all of these functions?  Please let me know if some
-  of the ones I haven't written yet or which are marked as "would
-  require minor reorganization" have fallen off the list. :)

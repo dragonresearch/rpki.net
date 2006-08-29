@@ -33,8 +33,8 @@ sub mkdir_maybe {
 }
 
 sub rsync {
-    !system("rsync", "-ai", @_)
-	or die("Couldn't rsync @_");
+    !system("rsync", "-rtiLk", @_)
+	or print("rsync @_ returned failure\n");
 }
 
 sub openssl {
@@ -69,7 +69,7 @@ sub uri_to_filename {
     return $_;
 }
 
-sub extract_cert_uris {
+sub parse_cert {
     my $uri = shift;
     my $dir = shift || $authenticated_tree;
     my $file = uri_to_filename($uri);
@@ -87,9 +87,11 @@ sub extract_cert_uris {
 	    if (/Subject Information Access:/);
 	$res{cdp} = $txt[$i+1]
 	    if (/X509v3 CRL Distribution Points:/);
+	$res{ca} = 1
+	    if (/X509v3 Basic Constraints/ && $txt[$i+1] =~ /^\s*CA:TRUE\s*$/);
     }
     if ($res{sia} && $res{sia} !~ m=/$=) {
-	warn("Badly formatted AIA URI, compensating: $res{sia}");
+	print("Badly formatted AIA URI, compensating: $res{sia}");
 	$res{sia} .= "/";
     }
     return \%res;
@@ -172,8 +174,8 @@ sub check_cert {
 
     print("Starting check of $cert\n");
 
-    my $u = extract_cert_uris($cert);
-    die("Couldn't extract URIs from certificate: $cert")
+    my $u = parse_cert($cert);
+    die("Couldn't parse certificate: $cert")
 	unless ($u);
 
     my $crl;
@@ -183,24 +185,33 @@ sub check_cert {
 	    unless (check_crl($u->{cdp}, $crl, $u->{file}, @chain));
 	copy_crl($crl);
     } else {
-	warn("CDP missing for cert: $cert");
+	print("CDP missing for cert: $cert\n");
     }
 
     if (@chain && !$u->{aia}) {
-	warn("Non-trust-anchor certificate missing AIA extension: $cert");
+	print("Non-trust-anchor certificate missing AIA extension: $cert\n");
     } elsif (@chain && $chain[0] ne $u->{aia}) {
-	warn("AIA does not match parent URI: $cert");
+	print("AIA does not match parent URI:\n\t$cert\n\t$u->{aia}\n");
     }
 
     unshift(@chain, $crl)
 	if ($crl);
     unshift(@chain, $u->{file});
 
-    # Should check whether certificate is a CA here: SIA must be set
-    # if it's a CA and must not be set if it's not a CA.
+    if ($u->{ca}) {
+	print("CA certificate without SIA extension: $cert\n")
+	    unless ($u->{sia});
+    } else {
+	print("EE certificate shouldn't have SIA extension: $cert\n")
+	    if ($u->{sia});
+    }
 
     if ($u->{sia}) {
 	my $sia = uri_to_filename($u->{sia});
+	#
+	# Suppress this rsync when we've already done an ancestor?
+	# Almost certainly.  Deal with it later.
+	#
 	mkdir_maybe("$unauthenticated_tree/$sia");
 	rsync($u->{sia}, "$unauthenticated_tree/$sia");
 	for my $file (glob("$unauthenticated_tree/${sia}*.cer")) {
@@ -209,7 +220,7 @@ sub check_cert {
 	    print("Found cert $uri\n");
 	    copy_cert($file);
 	    if (!verify_cert($file, @chain)) {
-		warn("Verification failure for $file, skipping");
+		print("Verification failure for $uri, skipping\n");
 		next;
 	    }
 	    install_cert($file);

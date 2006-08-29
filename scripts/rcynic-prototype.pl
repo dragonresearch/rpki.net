@@ -12,13 +12,15 @@ use strict;
 
 my $openssl		 = "/u/sra/isc/route-pki/subvert-rpki.hactrn.net/openssl/trunk/apps/openssl";
 
+my $trust_anchor_tree	 = "rcynic-trust-anchors";
+
 my $root		 = "rcynic-data";
-my $trust_anchor_tree	 = "$root/trust-anchors";
 my $preaggregated_tree	 = "$root/preaggregated";
 my $unauthenticated_tree = "$root/unauthenticated";
 my $authenticated_tree   = "$root/authenticated";
 my $temporary_tree	 = "$root/temporary";
 my $cafile		 = "$root/CAfile.pem";
+
 
 my @anchors;
 my @preaggregated;
@@ -165,12 +167,9 @@ sub verify_cert {
     return $ok;
 }
 
-# $1:	 -verified- cert we're examining (we start from a trust anchor)
-# &rest: ancestor certs and crls
-#
 sub check_cert {
-    my $cert = shift;
-    my @chain = @_;
+    my $cert = shift;		# -verified- cert we're examining (we start from trust anchors)
+    my @chain = @_;		# ancestors and crls
 
     print("Starting check of $cert\n");
 
@@ -218,9 +217,14 @@ sub check_cert {
 	    $file =~ s=^$unauthenticated_tree/==;
 	    my $uri = "rsync://" . $file;
 	    print("Found cert $uri\n");
+	    if (grep({$file eq $_} @chain)) {
+		print("Gah!  I'm my own ancestor?!?  Avoiding infinite loop.\n");
+		next;
+	    }
 	    copy_cert($file);
 	    if (!verify_cert($file, @chain)) {
 		print("Verification failure for $uri, skipping\n");
+		unlink("$temporary_tree/$file");
 		next;
 	    }
 	    install_cert($file);
@@ -259,9 +263,14 @@ if (1) {
     }
 }
 
+# Initial cleanup.
+
+system("rm", "-rf", $temporary_tree, "${authenticated_tree}.old");
+rename($authenticated_tree, "${authenticated_tree}.old");
+
 # Create any missing directories.
 
-for my $dir (($trust_anchor_tree, $preaggregated_tree, $unauthenticated_tree, $authenticated_tree, $temporary_tree)) {
+for my $dir (($preaggregated_tree, $unauthenticated_tree, $authenticated_tree, $temporary_tree)) {
     mkdir_maybe("$dir/");
 }
 

@@ -2,6 +2,11 @@
 
 # This is a PROTOTYPE of rcynic, just to see whether I have the
 # general algorithms and data flow right.
+#
+# Most bad things are fatal errors in the initial version of this
+# prototype.  Many of them will need better error recovery later, once
+# I'm confident that I'm detecting errors in the certificates rather
+# than errors in my silly code.
 
 use strict;
 
@@ -12,39 +17,25 @@ my $unauthenticated_tree = "$root/unauthenticated";
 my $authenticated_tree   = "$root/authenticated";
 my $temporary_tree	 = "$root/temporary";
 
-# Read config
-
 my @anchors;
 my @preaggregated;
-
-while (<>) {
-    chomp;
-    next if (/^\s*$/ || /^\s*[;\#]/);
-    my @argv = split;
-    if ($argv[0] eq "anchor") {
-	push(@anchors, $argv[1]);
-    } elsif ($argv[0] eq "preaggregated") {
-	push(@preaggregated, $argv[1]);
-    } else {
-	die("Could not parse: $_\n");
-    }
-}
+my %certs;
 
 sub mkdir_maybe {
     my $dir = shift;
     $dir =~ s=[^/]+$==;
     !system("mkdir", "-p", $dir)
-	or die("Couldn't make $dir\n")
+	or die("Couldn't make $dir")
 	unless (-d $dir);
 }
 
 sub uri_to_filename {
     local $_ = shift;
     if ($_) {
-	die("Not an rsync URI: $_\n")
+	die("Not an rsync URI: $_")
 	    unless (m=^rsync://=);
 	s=^rsync://==;
-	die("Evil character sequences in URI: $_\n")
+	die("Evil character sequences in URI: $_")
 	    if (m=^/= || m=^\.\.$= || m=^\.\./= || m=/\.\./= || m=/\.\.$= || m=//=);
     }
     return $_;
@@ -58,7 +49,7 @@ sub extract_cert_uris {
     my ($a, $s, $c);
     local $_;
     open(F, "-|", qw(openssl x509 -noout -inform DER -text -in), "$dir/$file")
-	or die("Couldn't run openssl x509 on $file: $!\n");
+	or die("Couldn't run openssl x509 on $file: $!");
     while (<F>) {
 	chomp;
 	s{^.+URI:rsync://}{};
@@ -77,7 +68,7 @@ sub extract_cert_uris {
     }
     close(F);
     if ($res{sia} && $res{sia} !~ m=/$=) {
-	warn("Badly formatted AIA URI, compensating: $res{sia}\n");
+	warn("Badly formatted AIA URI, compensating: $res{sia}");
 	$res{sia} .= "/";
     }
     return \%res;
@@ -89,7 +80,7 @@ sub copy_cert {
     my $outdir = shift || $temporary_tree;
     mkdir_maybe("$outdir/$name");
     !system("openssl", "x509", "-inform", "DER", "-in", "$indir/$name", "-outform", "PEM", "-out", "$outdir/$name")
-	or die("Couldn't copy $indir/$name to $outdir/$name\n");
+	or die("Couldn't copy $indir/$name to $outdir/$name");
 }
 
 sub copy_crl {
@@ -98,7 +89,82 @@ sub copy_crl {
     my $outdir = shift || $authenticated_tree;
     mkdir_maybe("$outdir/$name");
     !system("openssl", "crl", "-inform", "DER", "-in", "$indir/$name", "-outform", "PEM", "-out", "$outdir/$name")
-	or die("Couldn't copy $indir/$name to $outdir/$name\n");
+	or die("Couldn't copy $indir/$name to $outdir/$name");
+}
+
+sub check_crl {
+    my $uri = shift;
+    my $crl = shift;
+    my $cert = shift;
+    mkdir_maybe("$unauthenticated_tree/$crl");
+    !system("rsync", "-ai", $uri, "$unauthenticated_tree/$crl")
+	or die("Couldn't rsync $uri");
+    local $_ = `openssl crl -inform DER -in $unauthenticated_tree/$crl -CApath $authenticated_tree/$cert 2>&1`;
+    chomp;
+    return 1 if (/verify OK/);
+    return 0 if (/verify failure/);
+    die("Don't understand openssl crl verification result: $_");
+}
+
+# $1:	 cert we're examining
+# &rest: ancestor certs and crls
+#
+sub check_cert {
+    my $cert = shift;
+    my @chain = @_;
+
+    my $u = extract_cert_uris($cert);
+    die("Couldn't extract URIs from certificate: $cert")
+	unless ($u);
+
+    die("CDP missing for cert: $cert")
+	unless ($u->{cdp});
+    my $crl = uri_to_filename($u->{cdp});
+    die ("Problem with CRL signature: $u->{cdp}")
+	unless (check_crl($u->{cdp}, $crl, $u->{file}));
+    copy_crl($crl);
+
+    die("Non-trust-anchor certificate missing AIA extension: $cert")
+	if (@chain && !$u->{aia});
+    die("AIA does not match parent URI: $cert")
+	if (@chain && $chain[0] ne $u->{aia});
+    unshift(@chain, $crl, $u->{file});
+
+    # Should check whether certificate is a CA here: SIA must be set
+    # if it's a CA and must not be set if it's not a CA.
+
+    return unless ($u->{sia});
+
+    my $sia = uri_to_filename($u->{sia});
+    mkdir_maybe("$unauthenticated_tree/$sia");
+    !system("rsync", "-ai", $u->{sia}, "$unauthenticated_tree/$sia")
+	or die("Couldn't rsync $u->{sia}");
+
+    my @files = map({s=^$unauthenticated_tree/==} glob("$unauthenticated_tree/$sia/*.cer"));
+    for my $file (@files) {
+	my $uri = "rsync://" . $file;
+	copy_cert($file);
+	die("Couldn't verify certificate $uri")
+	    unless (verify_cert($file, @chain));
+	check_cert($uri, @chain);
+    }
+}
+
+###
+
+# Read config
+
+while (<>) {
+    chomp;
+    next if (/^\s*$/ || /^\s*[;\#]/);
+    my @argv = split;
+    if ($argv[0] eq "anchor") {
+	push(@anchors, $argv[1]);
+    } elsif ($argv[0] eq "preaggregated") {
+	push(@preaggregated, $argv[1]);
+    } else {
+	die("Could not parse: $_");
+    }
 }
 
 # Create any missing directories.
@@ -113,7 +179,7 @@ mkdir_maybe("$_/")
 for my $uri (@preaggregated) {
     my $dir = uri_to_filename($uri);
     !system("rsync", "-ai", $uri, "$preaggregated_tree/$dir")
-	or die("Couldn't rsync from $uri\n");
+	or die("Couldn't rsync from $uri");
 }
 
 # Update our unauthenticated tree from the pre-aggregated data.  Will
@@ -121,37 +187,18 @@ for my $uri (@preaggregated) {
 # overwrite newer stuff.
 
 !system("rsync", "-ai", "$preaggregated_tree/", "$unauthenticated_tree/")
-    or die("Couldn't rsync $preaggregated_tree/ to $unauthenticated_tree/\n");
+    or die("Couldn't rsync $preaggregated_tree/ to $unauthenticated_tree/");
 
 # Local trust anchors always win over anything else, so seed our
 # authenticated tree with them
 
-copy_cert($_, $trust_anchor_tree, $authenticated_tree)
+copy_cert(uri_to_filename($_), $trust_anchor_tree, $authenticated_tree)
     foreach (@anchors);
-
-my %certs;
-
-sub check_crl {
-    die "NIY";
-}
-
-# start with -verified- cert here (because we start with trust
-# anchors) pull uris, rsync cdp and check resulting crl, rsync sdp,
-# then walk through resulting certs, one at a time, verifying each
-# one, then calling this function recursively.
-#
-# $1:	 cert we're examining
-# &rest: ancestor certs (er, and crls?)
-
-sub check_cert {
-    die "NIY";
-}
 
 # Now start walking the tree, starting with our trust anchors.
 
-for my $anchor (@anchors) {
-    check_cert($anchor);
-}
+check_cert($_)
+    foreach (@anchors);
 
 die "NIY";
 

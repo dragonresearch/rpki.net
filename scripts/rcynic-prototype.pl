@@ -21,42 +21,56 @@ my $authenticated_tree   = "$root/authenticated";
 my $temporary_tree	 = "$root/temporary";
 my $cafile		 = "$root/CAfile.pem";
 
-
 my @anchors;
 my @preaggregated;
 my %certs;
 
-sub mkdir_maybe {
-    my $dir = shift;
-    $dir =~ s=[^/]+$==;
-    !system("mkdir", "-p", $dir)
-	or die("Couldn't make $dir")
-	unless (-d $dir);
+my $verbose		 = 1;
+
+sub run {
+    print(join(" ", "Running", @_), "\n")
+	if ($verbose);
+    system(@_);
+    print("$_[0] returned $?\n")
+	if ($? != 0);
 }
 
-sub rsync {
-    !system("rsync", "-rtiLk", @_)
-	or print("rsync @_ returned failure\n");
-}
-
-sub openssl {
-    !system($openssl, @_)
-	or die("Couldn't openssl @_");
-}
-
-sub openssl_pipe {
+sub run_pipe {
+    print(join(" ", "Running", @_), "\n")
+	if ($verbose);
     my $pid = open(F, "-|");
     if ($pid) {
 	my @result = <F>;
 	close(F);
 	chomp(@result);
+	print("$_[0] returned $?\n")
+	    if ($? != 0);
 	return @result;
     } else {
 	open(STDERR, ">&STDOUT")
 	    or die("Couldn't dup() STDOUT: $!");
-	exec($openssl, @_)
-	    or die("Couldn't exec() openssl @_: $!");
+	exec(@_)
+	    or die("Couldn't exec() ", join(" ", @_), ": $!");
     }
+}
+
+sub mkdir_maybe {
+    my $dir = shift;
+    $dir =~ s=[^/]+$==;
+    run("mkdir", "-p", $dir)
+	unless (-d $dir);
+}
+
+sub rsync {
+    run("rsync", "-rtiLk", @_);
+}
+
+sub openssl {
+    run($openssl, @_);
+}
+
+sub openssl_pipe {
+    run_pipe($openssl, @_);
 }
 
 sub uri_to_filename {
@@ -160,59 +174,70 @@ sub verify_cert {
     my @result = openssl_pipe(qw(verify -verbose -crl_check_all -policy_check -explicit_policy -policy 1.3.6.1.5.5.7.14.2 -x509_strict -CAfile), $cafile,
 			      "$temporary_tree/$cert");
     local $_;
-    my $ok;
     for (@result) {
-	$ok = 1 if (/OK$/);
+	return 1 if (/OK$/);
     }
-    return $ok;
+    print("Verification failure:\n");
+    print("  Inputs:\n");
+    print("    $_\n")
+	foreach (($cert, @_));
+    print("  Result:\n");
+    print("  $_\n")
+	foreach (@result);
+    return 0;
 }
 
 sub check_cert {
-    my $cert = shift;		# -verified- cert we're examining (we start from trust anchors)
+    my $c = shift;		# parsed verified cert we're examining
     my @chain = @_;		# ancestors and crls
 
-    print("Starting check of $cert\n");
+    die("check_cert() called without a certificate to check")
+	unless ($c);
 
-    my $u = parse_cert($cert);
-    die("Couldn't parse certificate: $cert")
-	unless ($u);
+    print("Starting check of $c->{uri}\n");
+
+    print("URI: $c->{uri}\n");
+    print("AIA: $c->{aia}\n") if ($c->{aia});
+    print("SIA: $c->{sia}\n") if ($c->{sai});
+    print("CDP: $c->{cdp}\n") if ($c->{cdp});
+    print("CA:  ", ($c->{ca} ? "Yes" : "No"), "\n");
 
     my $crl;
-    if ($u->{cdp}) {
-	$crl = uri_to_filename($u->{cdp});
-	die ("Problem with CRL signature: $u->{cdp}")
-	    unless (check_crl($u->{cdp}, $crl, $u->{file}, @chain));
+    if ($c->{cdp}) {
+	$crl = uri_to_filename($c->{cdp});
+	die ("Problem with CRL signature: $c->{cdp}")
+	    unless (check_crl($c->{cdp}, $crl, $c->{file}, @chain));
 	copy_crl($crl);
     } else {
-	print("CDP missing for cert: $cert\n");
+	print("CDP missing for cert: $c->{uri}\n");
     }
 
-    if (@chain && !$u->{aia}) {
-	print("Non-trust-anchor certificate missing AIA extension: $cert\n");
-    } elsif (@chain && $chain[0] ne $u->{aia}) {
-	print("AIA does not match parent URI:\n\t$cert\n\t$u->{aia}\n");
+    if (@chain && !$c->{aia}) {
+	print("Non-trust-anchor certificate missing AIA extension: $c->{uri}\n");
+    } elsif (@chain && $chain[0] ne uri_to_filename($c->{aia})) {
+	print("AIA does not match parent URI:\n\trsync://$chain[0]\n\t$c->{aia}\n");
     }
 
     unshift(@chain, $crl)
 	if ($crl);
-    unshift(@chain, $u->{file});
+    unshift(@chain, $c->{file});
 
-    if ($u->{ca}) {
-	print("CA certificate without SIA extension: $cert\n")
-	    unless ($u->{sia});
+    if ($c->{ca}) {
+	print("CA certificate without SIA extension: $c->{uri}\n")
+	    unless ($c->{sia});
     } else {
-	print("EE certificate shouldn't have SIA extension: $cert\n")
-	    if ($u->{sia});
+	print("EE certificate shouldn't have SIA extension: $c->{uri}\n")
+	    if ($c->{sia});
     }
 
-    if ($u->{sia}) {
-	my $sia = uri_to_filename($u->{sia});
+    if ($c->{sia}) {
+	my $sia = uri_to_filename($c->{sia});
 	#
 	# Suppress this rsync when we've already done an ancestor?
 	# Almost certainly.  Deal with it later.
 	#
 	mkdir_maybe("$unauthenticated_tree/$sia");
-	rsync($u->{sia}, "$unauthenticated_tree/$sia");
+	rsync($c->{sia}, "$unauthenticated_tree/$sia");
 	for my $file (glob("$unauthenticated_tree/${sia}*.cer")) {
 	    $file =~ s=^$unauthenticated_tree/==;
 	    my $uri = "rsync://" . $file;
@@ -222,17 +247,27 @@ sub check_cert {
 		next;
 	    }
 	    copy_cert($file);
-	    if (!verify_cert($file, @chain)) {
+	    my $x = parse_cert($uri, $temporary_tree);
+	    if (!$x) {
+		print("Parse failure for $uri, skipping\n");
+		next;
+	    }
+	    #
+	    # This is questionable -- CRL may not have been checked yet.
+	    # One would hope that verification checks CRL signatures,
+	    # but the CRL may not be in our verified repository yet.
+	    # 
+	    if (!verify_cert($file, uri_to_filename($x->{cdp}), @chain)) {
 		print("Verification failure for $uri, skipping\n");
 		unlink("$temporary_tree/$file");
 		next;
 	    }
 	    install_cert($file);
-	    check_cert($uri, @chain);
+	    check_cert($x, @chain);
 	}
     }
 
-    print("Finished check of $cert\n");
+    print("Finished check of $c->{uri}\n");
 }
 
 ###
@@ -265,7 +300,7 @@ if (1) {
 
 # Initial cleanup.
 
-system("rm", "-rf", $temporary_tree, "${authenticated_tree}.old");
+run("rm", "-rf", $temporary_tree, "${authenticated_tree}.old");
 rename($authenticated_tree, "${authenticated_tree}.old");
 
 # Create any missing directories.
@@ -300,7 +335,7 @@ for my $anchor (@anchors) {
 # Now start walking the tree, starting with our trust anchors.
 
 for my $anchor (@anchors) {
-    check_cert($anchor);
+    check_cert(parse_cert($anchor));
 }
 
 

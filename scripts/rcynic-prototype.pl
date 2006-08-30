@@ -23,7 +23,7 @@ my $cafile		 = "$root/CAfile.pem";
 
 my @anchors;
 my @preaggregated;
-my %certs;
+my %cache;
 
 my $verbose		 = 1;
 
@@ -63,6 +63,21 @@ sub mkdir_maybe {
 
 sub rsync {
     run("rsync", "-rtiLk", @_);
+}
+
+sub rsync_cache {
+    my $path = uri_to_filename($_[0]);
+    my @path = split("/", $path);
+    $path = join("/", @path);
+    while (@path) {
+	if ($cache{join("/", @path)}) {
+	    print("Cache hit ", join("/", @path), ", skipping rsync\n");
+	    return;
+	}
+	pop(@path);
+    }
+    rsync(@_);
+    $cache{$path} = 1;
 }
 
 sub openssl {
@@ -140,14 +155,17 @@ sub copy_crl {
 
 sub setup_cafile {
     local $_;
+    my %saw;			# this shouldn't be necessary, something is confused elsewhere
     open(OUT, ">$cafile")
 	or die("Couldn't open $cafile: $!");
     for my $f (@_) {
+	next if ($saw{$f});
 	open(IN, "$authenticated_tree/$f")
 	    or die("Couldn't open $authenticated_tree/$f: $!");
 	print(OUT $_)
 	    foreach (<IN>);
 	close(IN);
+	$saw{$f} = 1;
     }
     close(OUT);
 }
@@ -156,7 +174,7 @@ sub check_crl {
     my $uri = shift;
     my $crl = uri_to_filename($uri);
     mkdir_maybe("$unauthenticated_tree/$crl");
-    rsync($uri, "$unauthenticated_tree/$crl");
+    rsync_cache($uri, "$unauthenticated_tree/$crl");
     setup_cafile(@_);
     my @result = openssl_pipe("crl", "-inform", "DER", "-CAfile", $cafile, "-in", "$unauthenticated_tree/$crl");
     local $_;
@@ -199,14 +217,12 @@ sub check_cert {
     die("check_cert() called without a certificate to check")
 	unless ($c);
 
-    print("Starting check of $c->{uri}\n");
-
-    print("URI: $c->{uri}\n");
+    print("Starting check of $c->{uri}\n",
+	  "CA:  ", ($c->{ca} ? "Yes" : "No"), "\n",
+	  "TA:  ", ($c->{ta} ? "Yes" : "No"), "\n");
     print("AIA: $c->{aia}\n") if ($c->{aia});
     print("SIA: $c->{sia}\n") if ($c->{sai});
     print("CDP: $c->{cdp}\n") if ($c->{cdp});
-    print("CA:  ", ($c->{ca} ? "Yes" : "No"), "\n");
-    print("TA:  ", ($c->{ta} ? "Yes" : "No"), "\n");
 
     if (!$c->{ta} && !$c->{aia}) {
 	print("Non-trust-anchor certificate missing AIA extension: $c->{uri}\n");
@@ -233,7 +249,7 @@ sub check_cert {
 	# Almost certainly.  Deal with it later.
 	#
 	mkdir_maybe("$unauthenticated_tree/$sia");
-	rsync($c->{sia}, "$unauthenticated_tree/$sia");
+	rsync_cache($c->{sia}, "$unauthenticated_tree/$sia");
 	for my $file (glob("$unauthenticated_tree/${sia}*.cer")) {
 	    $file =~ s=^$unauthenticated_tree/==;
 	    my $uri = "rsync://" . $file;

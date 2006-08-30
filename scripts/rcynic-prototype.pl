@@ -154,7 +154,7 @@ sub setup_cafile {
 
 sub check_crl {
     my $uri = shift;
-    my $crl = shift;
+    my $crl = uri_to_filename($uri);
     mkdir_maybe("$unauthenticated_tree/$crl");
     rsync($uri, "$unauthenticated_tree/$crl");
     setup_cafile(@_);
@@ -162,10 +162,15 @@ sub check_crl {
     local $_;
     for (@result) {
 	return 1 if (/verify OK/);
-	return 0 if (/verify failure/);
-	warn("Unexpected verification result: $_");
     }
-    die("Don't understand openssl crl verification results");
+    print("Verification failure:\n");
+    print("  Inputs:\n");
+    print("    $_\n")
+	foreach (($crl, @_));
+    print("  Result:\n");
+    print("    $_\n")
+	foreach (@result);
+    return 0;
 }
 
 sub verify_cert {
@@ -201,25 +206,16 @@ sub check_cert {
     print("SIA: $c->{sia}\n") if ($c->{sai});
     print("CDP: $c->{cdp}\n") if ($c->{cdp});
     print("CA:  ", ($c->{ca} ? "Yes" : "No"), "\n");
+    print("TA:  ", ($c->{ta} ? "Yes" : "No"), "\n");
 
-    my $crl;
-    if ($c->{cdp}) {
-	$crl = uri_to_filename($c->{cdp});
-	die ("Problem with CRL signature: $c->{cdp}")
-	    unless (check_crl($c->{cdp}, $crl, $c->{file}, @chain));
-	copy_crl($crl);
-    } else {
-	print("CDP missing for cert: $c->{uri}\n");
-    }
-
-    if (@chain && !$c->{aia}) {
+    if (!$c->{ta} && !$c->{aia}) {
 	print("Non-trust-anchor certificate missing AIA extension: $c->{uri}\n");
-    } elsif (@chain && $chain[0] ne uri_to_filename($c->{aia})) {
+    } elsif (!$c->{ta} && $chain[0] ne uri_to_filename($c->{aia})) {
 	print("AIA does not match parent URI:\n\trsync://$chain[0]\n\t$c->{aia}\n");
     }
 
-    unshift(@chain, $crl)
-	if ($crl);
+    unshift(@chain, uri_to_filename($c->{cdp}))
+	if ($c->{cdp});
     unshift(@chain, $c->{file});
 
     if ($c->{ca}) {
@@ -252,12 +248,18 @@ sub check_cert {
 		print("Parse failure for $uri, skipping\n");
 		next;
 	    }
-	    #
-	    # This is questionable -- CRL may not have been checked yet.
-	    # One would hope that verification checks CRL signatures,
-	    # but the CRL may not be in our verified repository yet.
-	    # 
-	    if (!verify_cert($file, uri_to_filename($x->{cdp}), @chain)) {
+	    if (!$x->{cdp}) {
+		print("CDP missing for $uri, skipping\n");
+		next;
+	    }
+	    if (!check_crl($x->{cdp}, @chain)) {
+		print("Couldn't check CRL for $uri, skipping\n");
+		next;
+	    }
+	    my $crl = uri_to_filename($x->{cdp});
+	    print("CRL $x->{cdp} ok, copying\n");
+	    copy_crl($crl);
+	    if (!verify_cert($file, uri_to_filename($x->{cdp}), $crl, @chain)) {
 		print("Verification failure for $uri, skipping\n");
 		unlink("$temporary_tree/$file");
 		next;
@@ -335,7 +337,16 @@ for my $anchor (@anchors) {
 # Now start walking the tree, starting with our trust anchors.
 
 for my $anchor (@anchors) {
-    check_cert(parse_cert($anchor));
+    my $c = parse_cert($anchor);
+    die("Couldn't parse trust anchor! $anchor\n")
+	unless ($c);
+    $c->{ta} = 1;
+    if (!check_crl($c->{cdp}, $c->{file})) {
+	print("Problem checking trust anchor CRL $c->{cdp}, skipping trust anchor\n");
+	next;
+    }
+    copy_crl(uri_to_filename($c->{cdp}));
+    check_cert($c);
 }
 
 

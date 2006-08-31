@@ -22,7 +22,8 @@ my $cafile		 = "$root/CAfile.pem";
 
 my @anchors;			# Trust anchor URIs
 my @preaggregated;		# Pre-aggregation source URIs
-my %cache;			# URIs from which we've already rsynced
+my %rsync_cache;	        # URIs from which we've already rsynced
+my %parse_cache;		# Certs we've already parsed
 
 my $verbose_run		 = 0;	# Log all external programs
 my $verbose_cache	 = 0;	# Log various cache hits
@@ -73,13 +74,13 @@ sub rsync_cache {		# Run rsync unless we've already done so for a URI covering t
     my @path = split("/", uri_to_filename($_[0]));
     my $path = join("/", @path);
     pop(@path)
-	while (@path && !$cache{join("/", @path)});
+	while (@path && !$rsync_cache{join("/", @path)});
     if (@path) {
 	print("Cache hit ($path, ", join("/", @path), "), skipping rsync\n")
 	    if ($verbose_cache);
 	return 1;
     } elsif (rsync(@_)) {
-	$cache{$path} = 1;
+	$rsync_cache{$path} = 1;
 	return 1;
     } else {
 	return 0;
@@ -110,6 +111,11 @@ sub parse_cert {		# Parse interesting fields from a certificate
     my $uri = shift;
     my $dir = shift || $authenticated_tree;
     my $file = uri_to_filename($uri);
+    if ($parse_cache{$file}) {
+	print("Already parsed certificate $uri\n")
+	    if ($verbose_cache);
+	return $parse_cache{$file};
+    }
     my %res = (file => $file, uri => $uri);
     my ($a, $s, $c);
     my @txt = openssl_pipe(qw(x509 -noout -text -in), "$dir/$file");
@@ -132,7 +138,7 @@ sub parse_cert {		# Parse interesting fields from a certificate
 	    if ($verbose_sia_fixup);
 	$res{sia} .= "/";
     }
-    return \%res;
+    return $parse_cache{$file} = \%res;
 }
 
 sub setup_cafile {		# Set up -CAfile data for verification
@@ -157,7 +163,7 @@ sub copy_cert {			# Convert a certificate from DER to PEM
     my $indir = shift || $unauthenticated_tree;
     my $outdir = shift || $temporary_tree;
     if (-f "$outdir/$name") {
-	print("Already copied certificate $name\n")
+	print("Already copied certificate rsync://$name\n")
 	    if ($verbose_cache);
 	return;
     }

@@ -336,9 +336,6 @@ sub main {			# Main program
     # easier just to wire the parameters into the script.
 
     if (1) {
-	push(@anchors, qw(rsync://repository.apnic.net/APNIC/APNIC.cer));
-	push(@preaggregated, qw());
-    } elsif (1) {
 	push(@anchors, qw(rsync://ca-trial.ripe.net/ARIN/root/root.cer
 			  rsync://ca-trial.ripe.net/RIPE/root/root.cer
 			  rsync://ca-trial.ripe.net/arinroot/repos/root.cer

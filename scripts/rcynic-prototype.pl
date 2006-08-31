@@ -252,13 +252,8 @@ sub process_cert {		# Process a certificate -- this is the core of the program
 		print("Already checked certificate $uri, skipping\n");
 		next;
 	    }
-	    if (grep({$file eq $_} @chain)) {
-		print("Gah!  Certificate is its own ancestor?!?  Avoiding infinite loop for $uri\n");
-		for my $f (($file, @chain)) {
-		    print("  rsync://$f\n");
-		}
-		next;
-	    }
+	    die("Certificate $uri is its own ancestor?!?")
+		if (grep({$file eq $_} @chain));
 	    copy_cert($file);
 	    my $x = parse_cert($uri, $temporary_tree);
 	    if (!$x) {

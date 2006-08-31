@@ -3,10 +3,9 @@
 # This is a PROTOTYPE of rcynic, just to see whether I have the
 # general algorithms and data flow right.
 #
-# Most bad things are fatal errors in the initial version of this
-# prototype.  Many of them will need better error recovery later, once
-# I'm confident that I'm detecting errors in the certificates rather
-# than errors in my silly code.
+# Many bad things that are fatal errors in the initial version of this
+# prototype will need better error recovery later, once I'm confident
+# that I'm detecting errors in the data rather than in my silly code.
 
 use strict;
 
@@ -21,13 +20,13 @@ my $authenticated_tree   = "$root/authenticated";
 my $temporary_tree	 = "$root/temporary";
 my $cafile		 = "$root/CAfile.pem";
 
-my @anchors;
-my @preaggregated;
-my %cache;
+my @anchors;			# Trust anchor URIs
+my @preaggregated;		# Pre-aggregation source URIs
+my %cache;			# URIs from which we've already rsynced
 
 my $verbose		 = 1;
 
-sub run {
+sub run {			# Run a program
     print(join(" ", "Running", @_), "\n")
 	if ($verbose);
     system(@_);
@@ -35,7 +34,7 @@ sub run {
 	if ($? != 0);
 }
 
-sub run_pipe {
+sub run_pipe {			# Run a program and hand back its output
     print(join(" ", "Running", @_), "\n")
 	if ($verbose);
     my $pid = open(F, "-|");
@@ -54,41 +53,40 @@ sub run_pipe {
     }
 }
 
-sub mkdir_maybe {
+sub mkdir_maybe {		# Create missing directories
     my $dir = shift;
     $dir =~ s=[^/]+$==;
     run("mkdir", "-p", $dir)
 	unless (-d $dir);
 }
 
-sub rsync {
-    run("rsync", "-rtiLk", @_);
+sub rsync {			# Run rsync with our preferred options
+    run("rsync", "-rtiLku", @_);
 }
 
-sub rsync_cache {
-    my $path = uri_to_filename($_[0]);
-    my @path = split("/", $path);
-    $path = join("/", @path);
-    while (@path) {
-	if ($cache{join("/", @path)}) {
-	    print("Cache hit ", join("/", @path), ", skipping rsync\n");
-	    return;
-	}
-	pop(@path);
+sub rsync_cache {		# Run rsync unless we've already done so for a URI covering this one
+    my @path = split("/", uri_to_filename($_[0]));
+    my $path = join("/", @path);
+    pop(@path)
+	while (@path && !$cache{join("/", @path)});
+    if (@path) {
+	print("Cache hit ($path, ", join("/", @path), "), skipping rsync\n")
+	    if ($verbose);
+    } else {
+	rsync(@_);
+	$cache{$path} = 1;
     }
-    rsync(@_);
-    $cache{$path} = 1;
 }
 
-sub openssl {
+sub openssl {			# Run our version of openssl
     run($openssl, @_);
 }
 
-sub openssl_pipe {
+sub openssl_pipe {		# Run our version of opessl with output
     run_pipe($openssl, @_);
 }
 
-sub uri_to_filename {
+sub uri_to_filename {		# Check a URI and conver it to a filename
     local $_ = shift;
     if ($_) {
 	die("Not an rsync URI: $_")
@@ -100,7 +98,7 @@ sub uri_to_filename {
     return $_;
 }
 
-sub parse_cert {
+sub parse_cert {		# Parse interesting fields from a certificate
     my $uri = shift;
     my $dir = shift || $authenticated_tree;
     my $file = uri_to_filename($uri);
@@ -122,99 +120,99 @@ sub parse_cert {
 	    if (/X509v3 Basic Constraints/ && $txt[$i+1] =~ /^\s*CA:TRUE\s*$/);
     }
     if ($res{sia} && $res{sia} !~ m=/$=) {
-	print("Badly formatted AIA URI, compensating: $res{sia}");
+	print("Badly formatted AIA URI, compensating: $res{sia}\n");
 	$res{sia} .= "/";
     }
     return \%res;
 }
 
-sub copy_cert {
-    my $name = shift;
-    my $indir = shift || $unauthenticated_tree;
-    my $outdir = shift || $temporary_tree;
-    mkdir_maybe("$outdir/$name");
-    openssl("x509", "-inform", "DER", "-in", "$indir/$name", "-outform", "PEM", "-out", "$outdir/$name");
-}
-
-sub install_cert {
-    my $name = shift;
-    my $indir = shift ||  $temporary_tree;
-    my $outdir = shift || $authenticated_tree;
-    mkdir_maybe("$outdir/$name");
-    rename("$indir/$name", "$outdir/$name")
-	or die("Couldn't rename $indir/$name to $outdir/$name");
-}
-
-sub copy_crl {
-    my $name = shift;
-    my $indir = shift || $unauthenticated_tree;
-    my $outdir = shift || $authenticated_tree;
-    mkdir_maybe("$outdir/$name");
-    openssl("crl", "-inform", "DER", "-in", "$indir/$name", "-outform", "PEM", "-out", "$outdir/$name");
-}
-
-sub setup_cafile {
+sub setup_cafile {		# Set up -CAfile data for verification
     local $_;
-    my %saw;			# this shouldn't be necessary, something is confused elsewhere
+    my %saw;			# This shouldn't be necessary, something's confused
     open(OUT, ">$cafile")
 	or die("Couldn't open $cafile: $!");
     for my $f (@_) {
 	next if ($saw{$f});
+	$saw{$f} = 1;
 	open(IN, "$authenticated_tree/$f")
 	    or die("Couldn't open $authenticated_tree/$f: $!");
 	print(OUT $_)
 	    foreach (<IN>);
 	close(IN);
-	$saw{$f} = 1;
     }
     close(OUT);
 }
 
-sub check_crl {
-    my $uri = shift;
-    my $crl = uri_to_filename($uri);
-    mkdir_maybe("$unauthenticated_tree/$crl");
-    rsync_cache($uri, "$unauthenticated_tree/$crl");
-    setup_cafile(@_);
-    my @result = openssl_pipe("crl", "-inform", "DER", "-CAfile", $cafile, "-in", "$unauthenticated_tree/$crl");
-    local $_;
-    for (@result) {
-	return 1 if (/verify OK/);
+sub copy_cert {			# Convert a certificate from DER to PEM
+    my $name = shift;
+    my $indir = shift || $unauthenticated_tree;
+    my $outdir = shift || $temporary_tree;
+    if (-f "$outdir/$name") {
+	print("Already copied certificate $name, skipping\n");
+	return;
     }
-    print("Verification failure:\n");
-    print("  Inputs:\n");
-    print("    $_\n")
-	foreach (($crl, @_));
-    print("  Result:\n");
-    print("    $_\n")
-	foreach (@result);
-    return 0;
+    mkdir_maybe("$outdir/$name");
+    openssl("x509", "-inform", "DER", "-in", "$indir/$name", "-outform", "PEM", "-out", "$outdir/$name");
 }
 
-sub verify_cert {
+sub check_crl {			# Check signature chain on a CRL, install CRL if all is well
+    my $uri = shift;
+    return undef
+	unless ($uri);
+    my $file = uri_to_filename($uri);
+    if (-f "$authenticated_tree/$file") {
+	print("Already checked CRL $file, skipping\n");
+	return $file;
+    }
+    mkdir_maybe("$unauthenticated_tree/$file");
+    rsync_cache($uri, "$unauthenticated_tree/$file");
+    setup_cafile(@_);
+    my @result = openssl_pipe("crl", "-inform", "DER", "-CAfile", $cafile, "-in", "$unauthenticated_tree/$file");
+    local $_;
+    if (grep(/verify OK/, @result)) {
+	mkdir_maybe("$authenticated_tree/$file");
+	openssl("crl", "-inform", "DER", "-in", "$unauthenticated_tree/$file", "-outform", "PEM", "-out", "$authenticated_tree/$file");
+	return $file;
+    } else {
+	print("Verification failure:\n");
+	print("  Inputs:\n");
+	print("    $_\n")
+	    foreach (($file, @_));
+	print("  Result:\n");
+	print("    $_\n")
+	    foreach (@result);
+	return undef;
+    }
+}
+
+sub check_cert {		# Check signature chain etc on a certificate, install certificate if everything is ok
     my $cert = shift;
     setup_cafile(@_);
     my @result = openssl_pipe(qw(verify -verbose -crl_check_all -policy_check -explicit_policy -policy 1.3.6.1.5.5.7.14.2 -x509_strict -CAfile), $cafile,
 			      "$temporary_tree/$cert");
     local $_;
-    for (@result) {
-	return 1 if (/OK$/);
+    if (grep(/OK$/, @result)) {
+	mkdir_maybe("$authenticated_tree/$cert");
+	rename("$temporary_tree/$cert", "$authenticated_tree/$cert")
+	    or die("Couldn't rename $temporary_tree/$cert to $authenticated_tree/$cert");
+	return 1;
+    } else {
+	print("Verification failure:\n");
+	print("  Inputs:\n");
+	print("    $_\n")
+	    foreach (($cert, @_));
+	print("  Result:\n");
+	print("  $_\n")
+	    foreach (@result);
+	return 0;
     }
-    print("Verification failure:\n");
-    print("  Inputs:\n");
-    print("    $_\n")
-	foreach (($cert, @_));
-    print("  Result:\n");
-    print("  $_\n")
-	foreach (@result);
-    return 0;
 }
 
-sub check_cert {
-    my $c = shift;		# parsed verified cert we're examining
-    my @chain = @_;		# ancestors and crls
+sub process_cert {		# Process a certificate -- this is the core of the program
+    my $c = shift;		# Parsed and verified cert we're examining
+    my @chain = @_;		# Ancestors and CRLs
 
-    die("check_cert() called without a certificate to check")
+    die("No certificate to check!")
 	unless ($c);
 
     print("Starting check of $c->{uri}\n",
@@ -244,18 +242,21 @@ sub check_cert {
 
     if ($c->{sia}) {
 	my $sia = uri_to_filename($c->{sia});
-	#
-	# Suppress this rsync when we've already done an ancestor?
-	# Almost certainly.  Deal with it later.
-	#
 	mkdir_maybe("$unauthenticated_tree/$sia");
 	rsync_cache($c->{sia}, "$unauthenticated_tree/$sia");
 	for my $file (glob("$unauthenticated_tree/${sia}*.cer")) {
 	    $file =~ s=^$unauthenticated_tree/==;
 	    my $uri = "rsync://" . $file;
 	    print("Found cert $uri\n");
+	    if (-f "$authenticated_tree/$file") {
+		print("Already checked certificate $uri, skipping\n");
+		next;
+	    }
 	    if (grep({$file eq $_} @chain)) {
-		print("Gah!  I'm my own ancestor?!?  Avoiding infinite loop.\n");
+		print("Gah!  Certificate is its own ancestor?!?  Avoiding infinite loop for $uri\n");
+		for my $f (($file, @chain)) {
+		    print("  rsync://$f\n");
+		}
 		next;
 	    }
 	    copy_cert($file);
@@ -268,103 +269,117 @@ sub check_cert {
 		print("CDP missing for $uri, skipping\n");
 		next;
 	    }
-	    if (!check_crl($x->{cdp}, @chain)) {
-		print("Couldn't check CRL for $uri, skipping\n");
+	    my $crl = check_crl($x->{cdp}, @chain);
+	    if (!$crl) {
+		print("Problem with CRL for $uri, skipping\n");
 		next;
 	    }
-	    my $crl = uri_to_filename($x->{cdp});
-	    print("CRL $x->{cdp} ok, copying\n");
-	    copy_crl($crl);
-	    if (!verify_cert($file, uri_to_filename($x->{cdp}), $crl, @chain)) {
+	    if (!check_cert($file, $crl, @chain)) {
 		print("Verification failure for $uri, skipping\n");
 		unlink("$temporary_tree/$file");
 		next;
 	    }
-	    install_cert($file);
-	    check_cert($x, @chain);
+	    process_cert($x, @chain);
 	}
     }
 
     print("Finished check of $c->{uri}\n");
 }
 
-###
+sub main {			# Main program
 
-# Easier to wire parameters into this script for initial debugging
+    my $start_time = time;
+    print("Started at ", localtime($start_time), "\n");
 
-if (1) {
-    push(@anchors, qw(rsync://ca-trial.ripe.net/ARIN/root/root.cer
-		      rsync://ca-trial.ripe.net/RIPE/root/root.cer
-		      rsync://ca-trial.ripe.net/arinroot/repos/root.cer
-		      rsync://ca-trial.ripe.net/riperoot/repos/root.cer
-		      rsync://repository.apnic.net/APNIC/APNIC.cer
-		      rsync://repository.apnic.net/trust-anchor.cer));
-#   push(@preaggregated, qw());
-} else {
-    # Read config
-    while (<>) {
-	chomp;
-	next if (/^\s*$/ || /^\s*[;\#]/);
-	my @argv = split;
-	if ($argv[0] eq "anchor") {
-	    push(@anchors, $argv[1]);
-	} elsif ($argv[0] eq "preaggregated") {
-	    push(@preaggregated, $argv[1]);
-	} else {
-	    die("Could not parse: $_");
+    # We should read a configuration file, but for debugging it's
+    # easier just to wire the parameters into the script.
+
+    if (1) {
+	push(@anchors, qw(rsync://ca-trial.ripe.net/ARIN/root/root.cer
+			  rsync://ca-trial.ripe.net/RIPE/root/root.cer
+			  rsync://ca-trial.ripe.net/arinroot/repos/root.cer
+			  rsync://ca-trial.ripe.net/riperoot/repos/root.cer
+			  rsync://repository.apnic.net/APNIC/APNIC.cer
+			  rsync://repository.apnic.net/trust-anchor.cer));
+	push(@preaggregated, qw());
+    } else {
+	while (<>) {
+	    chomp;
+	    next if (/^\s*$/ || /^\s*[;\#]/);
+	    my @argv = split;
+	    if ($argv[0] eq "anchor") {
+		push(@anchors, $argv[1]);
+	    } elsif ($argv[0] eq "preaggregated") {
+		push(@preaggregated, $argv[1]);
+	    } else {
+		die("Could not parse: $_");
+	    }
 	}
     }
-}
 
-# Initial cleanup.
+    # Initial cleanup.
 
-run("rm", "-rf", $temporary_tree, "${authenticated_tree}.old");
-rename($authenticated_tree, "${authenticated_tree}.old");
+    run("rm", "-rf", $temporary_tree, "${authenticated_tree}.old");
+    rename($authenticated_tree, "${authenticated_tree}.old");
+    die("Couldn't clear $authenticated_tree from previous run")
+	if (-d $authenticated_tree);
 
-# Create any missing directories.
+    # Create any missing directories.
 
-for my $dir (($preaggregated_tree, $unauthenticated_tree, $authenticated_tree, $temporary_tree)) {
-    mkdir_maybe("$dir/");
-}
-
-# Pull over any pre-aggregated data.  We'll still have to check
-# signatures in all of this, it's just a convenience to get us
-# started.
-
-for my $uri (@preaggregated) {
-    my $dir = uri_to_filename($uri);
-    mkdir_maybe("$preaggregated_tree/$dir");
-    rsync($uri, "$preaggregated_tree/$dir");
-}
-
-# Update our unauthenticated tree from the pre-aggregated data.  Will
-# need to pay attention to rsync parameters here to make sure we don't
-# overwrite newer stuff.
-
-rsync("$preaggregated_tree/", "$unauthenticated_tree/");
-
-# Local trust anchors always win over anything else, so seed our
-# authenticated tree with them
-
-for my $anchor (@anchors) {
-    copy_cert(uri_to_filename($anchor), $trust_anchor_tree, $authenticated_tree);
-}
-
-# Now start walking the tree, starting with our trust anchors.
-
-for my $anchor (@anchors) {
-    my $c = parse_cert($anchor);
-    die("Couldn't parse trust anchor! $anchor\n")
-	unless ($c);
-    $c->{ta} = 1;
-    if (!check_crl($c->{cdp}, $c->{file})) {
-	print("Problem checking trust anchor CRL $c->{cdp}, skipping trust anchor\n");
-	next;
+    for my $dir (($preaggregated_tree, $unauthenticated_tree, $authenticated_tree, $temporary_tree)) {
+	mkdir_maybe("$dir/");
     }
-    copy_crl(uri_to_filename($c->{cdp}));
-    check_cert($c);
+
+    # Pull over any pre-aggregated data.  We'll still have to check
+    # signatures in all of this, it's just a convenience to get us
+    # started.
+
+    for my $uri (@preaggregated) {
+	my $dir = uri_to_filename($uri);
+	mkdir_maybe("$preaggregated_tree/$dir");
+	rsync($uri, "$preaggregated_tree/$dir");
+    }
+
+    # Update our unauthenticated tree from the pre-aggregated data.
+    # Will need to pay attention to rsync parameters here to make sure
+    # we don't overwrite newer stuff.
+
+    rsync("$preaggregated_tree/", "$unauthenticated_tree/");
+
+    # Local trust anchors always win over anything else, so seed our
+    # authenticated tree with them
+
+    for my $anchor (@anchors) {
+	copy_cert(uri_to_filename($anchor), $trust_anchor_tree, $authenticated_tree);
+    }
+
+    # Now start walking the tree, starting with our trust anchors.
+
+    for my $anchor (@anchors) {
+	my $t = parse_cert($anchor);
+	die("Couldn't parse trust anchor! $anchor\n")
+	    unless ($t);
+	$t->{ta} = 1;
+	if (!check_crl($t->{cdp}, $t->{file})) {
+	    print("Problem with trust anchor CRL $t->{cdp}, skipping trust anchor $anchor\n");
+	    next;
+	}
+	process_cert($t);
+    }
+
+    my $stop_time = time;
+    print("Finished at ", localtime($stop_time), "\n");
+
+    my $elapsed = $stop_time - $start_time;
+    my $seconds = $elapsed % 60;  $elapsed /= 60;
+    my $minutes = $elapsed % 60;  $elapsed /= 60;
+    my $hours   = $elapsed;
+
+    printf("Elapsed time: %d:%02d:%02d\n", $hours, $minutes, $seconds);
+
 }
 
+main()
 
 ################################################################
 #

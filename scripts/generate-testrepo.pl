@@ -19,7 +19,7 @@ sub openssl {
 	or die("openssl @_ returned $?\n");
 }
 
-# Ok, this is a bit complicted, but the idea is to let us specify the
+# Ok, this is a bit complicated, but the idea is to let us specify the
 # resources we're giving to each leaf entity and let the program do
 # the work of figuring out what resources each issuers need to have,
 # the order in which we need to generate the certificates, which

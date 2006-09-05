@@ -64,17 +64,14 @@ chdir($subdir) or die;
 # Generate configurations for each entity.
 
 while (my ($entity, $resources) = each(%resources)) {
-    if ($verbose) {
-	print($entity, ":\n");
-	for (my $i = 0; $i < @$resources; $i += 2) {
-	    printf("  %4s: %s\n", $resources->[$i], $resources->[$i+1]);
-	}
-    }
     my %r;
+    print($entity, ":\n")
+	if ($verbose);
     for (my $i = 0; $i < @$resources; $i += 2) {
+	printf("  %4s: %s\n", $resources->[$i], $resources->[$i+1])
+	    if ($verbose);
 	push(@{$r{$resources->[$i]}}, $resources->[$i+1]);
     }
-
     open(F, ">${entity}.cnf") or die;
     print(F
 	  "[ req ]\n",

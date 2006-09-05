@@ -9,7 +9,7 @@
 
 use strict;
 
-my $openssl		 = "/u/sra/isc/route-pki/subvert-rpki.hactrn.net/openssl/trunk/apps/openssl";
+my $openssl		 = "/usr/local/bin/openssl";
 
 my $trust_anchor_tree	 = "rcynic-trust-anchors";
 

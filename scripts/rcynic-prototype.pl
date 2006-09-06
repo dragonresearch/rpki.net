@@ -1,11 +1,11 @@
 # $Id$
 
-# This is a PROTOTYPE of rcynic, just to see whether I have the
-# general algorithms and data flow right.
+# This is a PROTOTYPE of rcynic, to see whether I have the general
+# algorithms and data flow right.
 #
-# Many bad things that are fatal errors in the initial version of this
-# prototype will need better error recovery later, once I'm confident
-# that I'm detecting errors in the data rather than in my silly code.
+# Some bad things that are fatal errors here will need better error
+# recovery once I'm confident that I'm detecting errors in the data
+# rather than in my silly code.
 
 use strict;
 
@@ -442,6 +442,21 @@ main()
 
 ################################################################
 #
+# Stuff that still needs work:
+#
+# 1) Trust anchors don't really have origin URIs in the sense we're
+#    using for everything else.  Perhaps just should not live in
+#    the authenticated tree at all?
+#
+# 2) Need to rework walk_cert() to allow us to walk the old
+#    authenticated tree after we're done checking everything else, to
+#    pick up old stuff that's still valid in the old tree and is now
+#    bogus or missing in the updated unauthenticated tree.
+#
+# 3) Should have a log() function so can add timestamps, etc.
+#
+################################################################
+#
 # Date: Sat, 19 Aug 2006 02:53:25 -0400
 # From: Rob Austein <sra@hactrn.net>
 # Subject: rcynic design
@@ -569,6 +584,8 @@ main()
 # oops!), so this may need to be a configurable choice.  randy suspects
 # that most mismatches will be due to time skews, for which "retry
 # later" might be a plausible recovery.
+#
+################################################################
 
 # Local Variables:
 # compile-command: "perl rcynic-prototype.pl"

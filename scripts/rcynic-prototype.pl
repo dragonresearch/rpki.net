@@ -31,6 +31,8 @@ my $verbose_walk	 = 0;	# Log more info during certificate walk
 my $verbose_aia		 = 0;	# Log more info for AIA errors
 my $verbose_sia_fixup	 = 1;	# Log when fixing up SIA URIs
 
+my $disable_network	 = 0;	# Return immediate failure for all rsync commands (testing only)
+
 sub run {			# Run a program
     print(join(" ", "Running", @_), "\n")
 	if ($verbose_run);
@@ -67,23 +69,26 @@ sub mkdir_maybe {		# Create missing directories
 }
 
 sub rsync {			# Run rsync with our preferred options
-    return run("rsync", "-rtiLku", @_);
+    return 0 if ($disable_network);
+    return run("rsync", "-tiLku", @_);
 }
 
 sub rsync_cache {		# Run rsync unless we've already done so for a URI covering this one
+    my $recursive = shift;
     my @path = split("/", uri_to_filename($_[0]));
     my $path = join("/", @path);
+    unshift(@_, "-r")
+	if ($recursive);
     pop(@path)
 	while (@path && !$rsync_cache{join("/", @path)});
     if (@path) {
 	print("Cache hit ($path, ", join("/", @path), "), skipping rsync\n")
 	    if ($verbose_cache);
 	return 1;
-    } elsif (rsync(@_)) {
-	$rsync_cache{$path} = 1;
-	return 1;
     } else {
-	return 0;
+	my $result = rsync(@_);
+	$rsync_cache{$path} = 1;
+	return $result;
     }
 }
 
@@ -182,14 +187,16 @@ sub check_crl {			# Check signature chain on a CRL, install CRL if all is well
 	return $file;
     }
     mkdir_maybe("$unauthenticated_tree/$file");
-    rsync_cache($uri, "$unauthenticated_tree/$file")
-	or return undef;
+    rsync_cache(0, $uri, "$unauthenticated_tree/$file");
+    return undef unless (-f "$unauthenticated_tree/$file");
     setup_cafile(@_);
-    my @result = openssl_pipe("crl", "-inform", "DER", "-CAfile", $cafile, "-in", "$unauthenticated_tree/$file");
+    my @result = openssl_pipe("crl", "-inform", "DER", "-CAfile", $cafile,
+			      "-in", "$unauthenticated_tree/$file");
     local $_;
     if (grep(/verify OK/, @result)) {
 	mkdir_maybe("$authenticated_tree/$file");
-	openssl("crl", "-inform", "DER", "-in", "$unauthenticated_tree/$file", "-outform", "PEM", "-out", "$authenticated_tree/$file");
+	openssl("crl", "-inform", "DER", "-in", "$unauthenticated_tree/$file",
+		"-outform", "PEM", "-out", "$authenticated_tree/$file");
 	return $file;
     } elsif (grep(/certificate revoked/, @result)) {
 	print("Revoked certificate in path for CRL $uri\n");
@@ -215,12 +222,13 @@ sub move {
 }
 
 
-sub check_cert {		# Check signature chain etc on a certificate, install certificate if everything is ok
+sub check_cert {		# Check signature chain etc on a certificate, install if all's well
     my $uri = shift;
     my $file = shift;
     setup_cafile(@_);
-    my @result = openssl_pipe(qw(verify -verbose -crl_check_all -policy_check -explicit_policy -policy 1.3.6.1.5.5.7.14.2 -x509_strict -CAfile), $cafile,
-			      "$temporary_tree/$file");
+    my @result = openssl_pipe(qw(verify -verbose -crl_check_all -policy_check -explicit_policy
+				 -policy 1.3.6.1.5.5.7.14.2 -x509_strict -CAfile),
+			      $cafile, "$temporary_tree/$file");
     local $_;
     if (grep(/OK$/, @result)) {
 	move("$temporary_tree/$file", "$authenticated_tree/$file");
@@ -259,7 +267,7 @@ sub walk_cert {			# Process a certificate -- this is the core of the program
 	my @chain = (uri_to_filename($p->{cdp}), $p->{file}, @_);
 	my $sia = uri_to_filename($p->{sia});
 	mkdir_maybe("$unauthenticated_tree/$sia");
-	rsync_cache($p->{sia}, "$unauthenticated_tree/$sia");
+	rsync_cache(1, $p->{sia}, "$unauthenticated_tree/$sia");
 
 	# In theory this should check all files in this directory, not
 	# just ones matching *.cer.  Punt on that for now as it'd be
@@ -384,14 +392,14 @@ sub main {			# Main program
     for my $uri (@preaggregated) {
 	my $dir = uri_to_filename($uri);
 	mkdir_maybe("$preaggregated_tree/$dir");
-	rsync($uri, "$preaggregated_tree/$dir");
+	rsync("-r", $uri, "$preaggregated_tree/$dir");
     }
 
     # Update our unauthenticated tree from the pre-aggregated data.
     # Will need to pay attention to rsync parameters here to make sure
     # we don't overwrite newer stuff.
 
-    rsync("$preaggregated_tree/", "$unauthenticated_tree/");
+    rsync("-r", "$preaggregated_tree/", "$unauthenticated_tree/");
 
     # Local trust anchors always win over anything else, so seed our
     # authenticated tree with them
@@ -561,3 +569,7 @@ main()
 # oops!), so this may need to be a configurable choice.  randy suspects
 # that most mismatches will be due to time skews, for which "retry
 # later" might be a plausible recovery.
+
+# Local Variables:
+# compile-command: "perl rcynic-prototype.pl"
+# End:

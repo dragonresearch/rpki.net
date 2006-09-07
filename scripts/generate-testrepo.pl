@@ -74,6 +74,37 @@ while (my ($entity, $resources) = each(%resources)) {
     }
     open(F, ">${entity}.cnf") or die;
     print(F
+	  "[ ca ]\n",
+	  "default_ca = ca_default\n",
+	  "\n",
+	  "[ ca_default ]\n",
+	  "\n",
+	  "certificate = ${entity}.cer\n",
+	  "serial = ${entity}/serial\n",
+	  "private_key = ${entity}.key\n",
+	  "database = ${entity}/index\n",
+	  "new_certs_dir = ${entity}\n",
+	  "name_opt = ca_default\n",
+	  "cert_opt = ca_default\n",
+	  "default_days = 365\n",
+	  "default_crl_days = 30\n",
+	  "default_md = sha1\n",
+	  "preserve = no\n",
+	  "copy_extensions = copy\n",
+	  "policy = ca_policy_anything\n",
+	  "unique_subject = no\n",
+	  "\n",
+	  "[ ca_policy_anything ]\n",
+	  "countryName = optional\n",
+	  "stateOrProvinceName = optional\n",
+	  "localityName = optional\n",
+	  "organizationName = optional\n",
+	  "organizationalUnitName = optional\n",
+	  "commonName = supplied\n",
+	  "emailAddress = optional\n",
+	  "givenName = optional\n",
+	  "surname = optional\n",
+	  "\n",
 	  "[ req ]\n",
 	  "default_bits = $keybits\n",
 	  "encrypt_key = no\n",
@@ -123,11 +154,31 @@ for my $entity (@ordering) {
     openssl("genrsa", "-out", "${entity}.key", $keybits)
 	unless (-f "${entity}.key");
     openssl("req", "-new", "-config", "${entity}.cnf", "-key", "${entity}.key", "-out", "${entity}.req");
-    openssl("x509", "-req", "-CAcreateserial", "-in", "${entity}.req", "-out", "${entity}.cer",
-	    "-extfile", "${entity}.cnf", "-extensions", "req_x509_ext",
+
+    mkdir($entity)
+	unless (-d $entity);
+    if (!-f "${entity}/index") {
+	open(F, ">${entity}/index") or die;
+	close(F);
+    }
+    if (!-f "${entity}/serial") {
+	open(F, ">${entity}/serial") or die;
+	print(F "01\n") or die;
+	close(F);
+    }
+
+    openssl("ca", "-batch", "-verbose", "-out", "${entity}.cer", "-in", "${entity}.req",
+	    "-extensions", "req_x509_ext", "-extfile", "${entity}.cnf",
 	    ($parent{$entity}
-	     ? ("-CA", "$parent{$entity}.cer", "-CAkey", "$parent{$entity}.key")
-	     : ("-signkey", "${entity}.key")));
+	     ? ("-config", "${parent{$entity}}.cnf")
+	     : ("-config", "${entity}.cnf", "-selfsign")));
+}
+
+# Generate CRLs
+
+for my $entity (@ordering) {
+    openssl("ca", "-batch", "-verbose", "-out", "${entity}.crl", 
+	    "-config", "${entity}.cnf", "-gencrl");
 }
 
 # Generate EE certs
@@ -160,36 +211,22 @@ for my $parent (@ordering) {
 	unless (-f "${entity}.key");
     openssl("req", "-new", "-config", "${entity}.cnf", "-key", "${entity}.key", "-out", "${entity}.req");
 
-    if (1) {
-
-	if (!-f "${entity}.idx") {
-	    open(F, ">${entity}.idx") or die;
-	    close(F);
-	}
-	if (!-f "${entity}.srl") {
-	    open(F, ">${entity}.srl") or die;
-	    print(F "01\n") or die;
-	    close(F);
-	}
-
-	# temporary hack, rewrite
-
-	$ENV{NAME} = $entity;
-	openssl(qw(ca -batch -verbose -config ../ca.cnf -extensions req_x509_ext),
-		"-extfile", "${entity}.cnf", "-out", "${entity}.cer", "-in", "${entity}.req");
-
-    } else {
-
-	openssl("x509", "-req", "-CAcreateserial", "-in", "${entity}.req", "-out", "${entity}.cer",
-		"-extfile", "${entity}.cnf", "-extensions", "req_x509_ext",
-		"-CA", "${parent}.cer", "-CAkey", "${parent}.key");
+    mkdir($entity)
+	unless (-d $entity);
+    if (!-f "${entity}/index") {
+	open(F, ">${entity}/index") or die;
+	close(F);
     }
-}
+    if (!-f "${entity}/serial") {
+	open(F, ">${entity}/serial") or die;
+	print(F "01\n") or die;
+	close(F);
+    }
 
-# We really ought to generate CRLs here too, but it'd be a pain,
-# because that'd require us to use the ca command, which requires more
-# of a database than the x509 commands above are generating.  Rewrite
-# later if we really need this for some reason.
+    openssl("ca", "-batch", "-verbose", "-config", "${parent}.cnf",
+	    "-extensions", "req_x509_ext", "-extfile", "${entity}.cnf",
+	    "-out", "${entity}.cer", "-in", "${entity}.req");
+}
 
 # Generate hashes
 

@@ -114,7 +114,7 @@ sub uri_to_filename {		# Check a URI and conver it to a filename
 
 sub parse_cert {		# Parse interesting fields from a certificate
     my $uri = shift;
-    my $dir = shift || $authenticated_tree;
+    my $dir = shift;
     my $file = uri_to_filename($uri);
     if ($parse_cache{$file}) {
 	print("Already parsed certificate $uri\n")
@@ -165,8 +165,8 @@ sub setup_cafile {		# Set up -CAfile data for verification
 
 sub copy_cert {			# Convert a certificate from DER to PEM
     my $name = shift;
-    my $indir = shift || $unauthenticated_tree;
-    my $outdir = shift || $temporary_tree;
+    my $indir = shift;
+    my $outdir = shift;
     if (-f "$outdir/$name") {
 	print("Already copied certificate rsync://$name\n")
 	    if ($verbose_cache);
@@ -284,7 +284,7 @@ sub walk_cert {			# Process a certificate -- this is the core of the program
 	    }
 	    die("Certificate $uri is its own ancestor?!?")
 		if (grep({$file eq $_} @chain));
-	    copy_cert($file);
+	    copy_cert($file, $unauthenticated_tree, $temporary_tree);
 	    my $c = parse_cert($uri, $temporary_tree);
 	    if (!$c) {
 		print("Parse failure for $uri, skipping\n");
@@ -411,7 +411,7 @@ sub main {			# Main program
     # Now start walking the tree, starting with our trust anchors.
 
     for my $anchor (@anchors) {
-	my $t = parse_cert($anchor);
+	my $t = parse_cert($anchor, $authenticated_tree);
 	die("Couldn't parse trust anchor! $anchor\n")
 	    unless($t);
 	$t->{ta} = 1;

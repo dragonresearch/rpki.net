@@ -159,9 +159,31 @@ for my $parent (@ordering) {
     openssl("genrsa", "-out", "${entity}.key", $keybits)
 	unless (-f "${entity}.key");
     openssl("req", "-new", "-config", "${entity}.cnf", "-key", "${entity}.key", "-out", "${entity}.req");
-    openssl("x509", "-req", "-CAcreateserial", "-in", "${entity}.req", "-out", "${entity}.cer",
-	    "-extfile", "${entity}.cnf", "-extensions", "req_x509_ext",
-	    "-CA", "${parent}.cer", "-CAkey", "${parent}.key");
+
+    if (1) {
+
+	if (!-f "${entity}.idx") {
+	    open(F, ">${entity}.idx") or die;
+	    close(F);
+	}
+	if (!-f "${entity}.srl") {
+	    open(F, ">${entity}.srl") or die;
+	    print(F "01\n") or die;
+	    close(F);
+	}
+
+	# temporary hack, rewrite
+
+	$ENV{NAME} = $entity;
+	openssl(qw(ca -batch -verbose -config ../ca.cnf -extensions req_x509_ext),
+		"-extfile", "${entity}.cnf", "-out", "${entity}.cer", "-in", "${entity}.req");
+
+    } else {
+
+	openssl("x509", "-req", "-CAcreateserial", "-in", "${entity}.req", "-out", "${entity}.cer",
+		"-extfile", "${entity}.cnf", "-extensions", "req_x509_ext",
+		"-CA", "${parent}.cer", "-CAkey", "${parent}.key");
+    }
 }
 
 # We really ought to generate CRLs here too, but it'd be a pain,
@@ -214,5 +236,5 @@ openssl(qw(req -new -config server.cnf -key server.key -out server.req));
 openssl(qw(x509 -req -CAcreateserial -in server.req -out server.cer -signkey server.key));
 
 # Local Variables:
-# compile-command: "perl generate.pl"
+# compile-command: "perl generate-testrepo.pl"
 # End:

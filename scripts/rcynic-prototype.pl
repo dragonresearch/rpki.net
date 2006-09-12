@@ -32,7 +32,8 @@ my $verbose_walk	 = 0;	# Log more info during certificate walk
 my $verbose_aia		 = 0;	# Log more info for AIA errors
 my $verbose_sia_fixup	 = 1;	# Log when fixing up SIA URIs
 
-my $disable_network	 = 0;	# Return immediate failure for all rsync commands (testing only)
+my $disable_network	 = 0;	# Return immediate failure for all rsync commands
+my $retain_old_certs	 = 1;	# Retain old valid certificates from previous runs
 
 sub logmsg {
     my @t = gmtime;
@@ -183,6 +184,22 @@ sub copy_cert {			# Convert a certificate from DER to PEM
     openssl("x509", "-inform", "DER", "-in", "$indir/$name", "-outform", "PEM", "-out", "$outdir/$name");
 }
 
+sub mv {			# Move an object from one tree to another
+    my $source = shift;
+    my $destination = shift;
+    mkdir_maybe($destination);
+    rename($source, $destination)
+	or die("Couldn't rename $source to $destination");
+}
+
+sub ln {			# Link an object from one tree to another
+    my $source = shift;
+    my $destination = shift;
+    mkdir_maybe($destination);
+    link($source, $destination)
+	or die("Couldn't link $source to $destination");
+}
+
 sub check_crl {			# Check signature chain on a CRL, install CRL if all is well
     my $uri = shift;
     return undef
@@ -195,53 +212,61 @@ sub check_crl {			# Check signature chain on a CRL, install CRL if all is well
     }
     mkdir_maybe("$unauthenticated_tree/$file");
     rsync_cache(0, $uri, "$unauthenticated_tree/$file");
-    return undef unless (-f "$unauthenticated_tree/$file");
+    return undef
+	unless (-f "$unauthenticated_tree/$file" ||
+		-f "$old_authenticated_tree/$file");
     setup_cafile(@_);
-    my @result = openssl_pipe("crl", "-inform", "DER", "-CAfile", $cafile,
-			      "-in", "$unauthenticated_tree/$file");
     local $_;
-    if (grep(/verify OK/, @result)) {
-	mkdir_maybe("$authenticated_tree/$file");
-	openssl("crl", "-inform", "DER", "-in", "$unauthenticated_tree/$file",
-		"-outform", "PEM", "-out", "$authenticated_tree/$file");
-	return $file;
-    } elsif (grep(/certificate revoked/, @result)) {
-	logmsg("Revoked certificate in path for CRL $uri");
-	return undef;
-    } else {
-	logmsg("Verification failure for CRL $uri:");
-	logmsg("  Inputs:");
-	logmsg("    $_")
-	    foreach (($file, @_));
-	logmsg("  Result:");
-	logmsg("    $_")
-	    foreach (@result);
-	return undef;
+    for my $source (($unauthenticated_tree, $old_authenticated_tree)) {
+	next unless (-f "$source/$file");
+	logmsg("Checking saved old CRL $uri")
+	    if ($source eq $old_authenticated_tree);
+	my @result = openssl_pipe("crl", "-CAfile", $cafile, "-in", "$source/$file", "-inform",
+				  ($source eq $old_authenticated_tree ? "PEM" : "DER"));
+	if (grep(/verify OK/, @result)) {
+	    if ($source eq $old_authenticated_tree) {
+		ln("$old_authenticated_tree/$file", "$authenticated_tree/$file");
+	    } else {
+		mkdir_maybe("$authenticated_tree/$file");
+		openssl("crl", "-inform", "DER", "-in", "$source/$file",
+			"-outform", "PEM", "-out", "$authenticated_tree/$file");
+	    }
+	    return $file;
+	} elsif (grep(/certificate revoked/, @result)) {
+	    logmsg("Revoked certificate in path for CRL $uri");
+	} else {
+	    logmsg("Verification failure for CRL $uri:");
+	    logmsg("  Inputs:");
+	    logmsg("    $_")
+		foreach (($file, @_));
+	    logmsg("  Result:");
+	    logmsg("    $_")
+		foreach (@result);
+	}
     }
-}
-
-sub move {
-    my $source = shift;
-    my $destination = shift;
-    mkdir_maybe($destination);
-    rename($source, $destination)
-	or die("Couldn't rename $source to $destination");
+    return undef;
 }
 
 sub check_cert {		# Check signature chain etc on a certificate, install if all's well
     my $uri = shift;
     my $file = shift;
+    my $source = shift;
+    die("No certificate to process!")
+	unless (-f "$source/$file");
     setup_cafile(@_);
     my @result = openssl_pipe(qw(verify -verbose -crl_check_all -policy_check -explicit_policy
 				 -policy 1.3.6.1.5.5.7.14.2 -x509_strict -CAfile),
-			      $cafile, "$temporary_tree/$file");
+			      $cafile, "$source/$file");
     local $_;
     if (grep(/OK$/, @result)) {
-	move("$temporary_tree/$file", "$authenticated_tree/$file");
+	if ($source eq $old_authenticated_tree) {
+	    ln("$source/$file", "$authenticated_tree/$file");
+	} else {
+	    mv("$source/$file", "$authenticated_tree/$file");
+	}
 	return 1;
     } elsif (grep(/certificate revoked/, @result)) {
 	logmsg("Revoked certificate in path for certificate $uri");
-	return 0;
     } else {
 	logmsg("Verification failure for certificate $uri:");
 	logmsg("  Inputs:");
@@ -250,8 +275,8 @@ sub check_cert {		# Check signature chain etc on a certificate, install if all's
 	logmsg("  Result:");
 	logmsg("  $_")
 	    foreach (@result);
-	return 0;
     }
+    return 0;
 }
 
 sub walk_cert {			# Process a certificate -- this is the core of the program
@@ -274,13 +299,21 @@ sub walk_cert {			# Process a certificate -- this is the core of the program
 	my $sia = uri_to_filename($p->{sia});
 	mkdir_maybe("$unauthenticated_tree/$sia");
 	rsync_cache(1, $p->{sia}, "$unauthenticated_tree/$sia");
-
-	# In theory this should check all files in this directory, not
-	# just ones matching *.cer.  Punt on that for now as it'd be
-	# painful in this kludgy script.
-
-	for my $file (glob("$unauthenticated_tree/${sia}*.cer")) {
-	    $file =~ s=^$unauthenticated_tree/==;
+	my @files = do {
+	    my %files;
+	    for my $f (glob("$unauthenticated_tree/${sia}*.cer")) {
+		$f =~ s=^$unauthenticated_tree/==;
+		$files{$f} = 1;
+	    }
+	    if ($retain_old_certs) {
+		for my $f (glob("$old_authenticated_tree/${sia}*.cer")) {
+		    $f =~ s=^$old_authenticated_tree/==;
+		    $files{$f} = 1;
+		}
+	    }
+	    keys(%files);
+	};
+	for my $file (@files) {
 	    my $uri = "rsync://" . $file;
 	    logmsg("Found cert $uri");
 	    if (-f "$authenticated_tree/$file") {
@@ -290,58 +323,58 @@ sub walk_cert {			# Process a certificate -- this is the core of the program
 	    }
 	    die("Certificate $uri is its own ancestor?!?")
 		if (grep({$file eq $_} @chain));
-	    copy_cert($file, $unauthenticated_tree, $temporary_tree);
-	    my $c = parse_cert($uri, $temporary_tree);
-	    if (!$c) {
-		logmsg("Parse failure for $uri, skipping");
-		next;
-	    }
-	    if (!$c->{aia}) {
-		logmsg("AIA missing for $uri, skipping");
-		next;
-	    }
-	    if (!$p->{ta} && $c->{aia} ne $p->{uri}) {
-		logmsg("AIA of $uri doesn't match parent, skipping");
-		if ($verbose_aia > 0) {
-		    logmsg("\tSubject AIA: $c->{aia}");
-		    logmsg("\t Issuer URI: $p->{uri}");
+	    copy_cert($file, $unauthenticated_tree, $temporary_tree)
+		if (-f "$unauthenticated_tree/$file");
+	    my $cert;
+	    for my $source (($temporary_tree, $old_authenticated_tree)) {
+		next
+		    unless (-f "$source/$file");
+		logmsg("Checking saved old certificate $uri")
+		    if ($source eq $old_authenticated_tree);
+		my $c = parse_cert($uri, $source);
+		if (!$c) {
+		    logmsg("Parse failure for $uri, skipping");
+		    next;
 		}
-		if ($verbose_aia > 1) {
-		    my $c_aia = "$unauthenticated_tree/" . uri_to_filename($c->{aia});
-		    my $p_uri = "$unauthenticated_tree/" . uri_to_filename($p->{uri});
-		    my $res = run("cmp", "-sz", $c_aia, $p_uri);
-		    if ($res == 0) {
-			logmsg("\tBoth certificates exist, content is identical");
-		    } elsif ($res == 1) {
-			logmsg("\tBoth certificates exist, content differs");
-		    } elsif (! -f $c_aia) {
-			logmsg("\tCertificate indicated by AIA not found");
+		if (!$c->{aia}) {
+		    logmsg("AIA missing for $uri, skipping");
+		    next;
+		}
+		if (!$p->{ta} && $c->{aia} ne $p->{uri}) {
+		    logmsg("AIA of $uri doesn't match parent, skipping");
+		    if ($verbose_aia > 0) {
+			logmsg("\tSubject AIA: $c->{aia}");
+			logmsg("\t Issuer URI: $p->{uri}");
 		    }
+		    next;
 		}
-		next;
+		if ($c->{ca} && !$c->{sia}) {
+		    logmsg("CA certificate $uri without SIA extension, skipping");
+		    next;
+		}
+		if (!$c->{ca} && $c->{sia}) {
+		    logmsg("EE certificate $uri with SIA extension, skipping");
+		    next;
+		}
+		if (!$c->{cdp}) {
+		    logmsg("CDP missing for $uri, skipping");
+		    next;
+		}
+		my $crl = check_crl($c->{cdp}, @chain);
+		if (!$crl) {
+		    logmsg("Problem with CRL for $uri, skipping");
+		    next;
+		}
+		if (!check_cert($uri, $file, $source, $crl, @chain)) {
+		    logmsg("Verification failure for $uri, skipping");
+		    next;
+		}
+		$cert = $c;	# If we get here, we found a good cert,
+		last;		# so remember it and get out of inner loop
 	    }
-	    if ($c->{ca} && !$c->{sia}) {
-		logmsg("CA certificate $uri without SIA extension, skipping");
-		next;
-	    }
-	    if (!$c->{ca} && $c->{sia}) {
-		logmsg("EE certificate $uri with SIA extension, skipping");
-		next;
-	    }
-	    if (!$c->{cdp}) {
-		logmsg("CDP missing for $uri, skipping");
-		next;
-	    }
-	    my $crl = check_crl($c->{cdp}, @chain);
-	    if (!$crl) {
-		logmsg("Problem with CRL for $uri, skipping");
-		next;
-	    }
-	    if (!check_cert($uri, $file, $crl, @chain)) {
-		logmsg("Verification failure for $uri, skipping");
-		next;
-	    }
-	    walk_cert($c, @chain);
+
+	    next unless ($cert);
+	    walk_cert($cert, @chain);
 	}
     }
 

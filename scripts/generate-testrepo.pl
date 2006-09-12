@@ -9,13 +9,17 @@ my %parent;
 my @ordering;
 my %hashes;
 
+my $openssl	= "../../openssl/trunk/apps/openssl";
 my $subdir	= "apacheca";
 my $passwd	= "fnord";
 my $keybits	= 2048;
 my $verbose	= 0;
+my $debug	= 1;
 
 sub openssl {
-    !system("openssl", @_)
+    print(STDERR join(" ", qw(+ openssl), @_), "\n")
+	if ($debug);
+    !system($openssl, @_)
 	or die("openssl @_ returned $?\n");
 }
 

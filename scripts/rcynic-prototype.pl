@@ -9,16 +9,17 @@
 
 use strict;
 
-my $openssl		 = "/usr/local/bin/openssl";
+my $openssl			= "/usr/local/bin/openssl";
 
-my $trust_anchor_tree	 = "rcynic-trust-anchors";
+my $trust_anchor_tree		= "rcynic-trust-anchors";
 
-my $root		 = "rcynic-data";
-my $preaggregated_tree	 = "$root/preaggregated";
-my $unauthenticated_tree = "$root/unauthenticated";
-my $authenticated_tree   = "$root/authenticated";
-my $temporary_tree	 = "$root/temporary";
-my $cafile		 = "$root/CAfile.pem";
+my $root			= "rcynic-data";
+my $preaggregated_tree		= "$root/preaggregated";
+my $unauthenticated_tree	= "$root/unauthenticated";
+my $authenticated_tree		= "$root/authenticated";
+my $old_authenticated_tree	= "$authenticated_tree.old";
+my $temporary_tree		= "$root/temporary";
+my $cafile			= "$root/CAfile.pem";
 
 my @anchors;			# Trust anchor URIs
 my @preaggregated;		# Pre-aggregation source URIs
@@ -33,24 +34,30 @@ my $verbose_sia_fixup	 = 1;	# Log when fixing up SIA URIs
 
 my $disable_network	 = 0;	# Return immediate failure for all rsync commands (testing only)
 
+sub logmsg {
+    my @t = gmtime;
+    my $t = sprintf("%02d:%02d:%02d ", $t[2], $t[1], $t[0]);
+    print($t, @_, "\n");
+}
+
 sub run {			# Run a program
-    print(join(" ", "Running", @_), "\n")
+    logmsg(join(" ", "Running", @_))
 	if ($verbose_run);
     system(@_);
-    print("$_[0] returned $?\n")
+    logmsg("$_[0] returned $?")
 	if ($? != 0);
     return $? == 0;
 }
 
 sub run_pipe {			# Run a program and hand back its output
-    print(join(" ", "Running", @_), "\n")
+    logmsg(join(" ", "Running", @_))
 	if ($verbose_run);
     my $pid = open(F, "-|");
     if ($pid) {
 	my @result = <F>;
 	close(F);
 	chomp(@result);
-	print("$_[0] returned $?\n")
+	logmsg("$_[0] returned $?")
 	    if ($? != 0);
 	return @result;
     } else {
@@ -82,7 +89,7 @@ sub rsync_cache {		# Run rsync unless we've already done so for a URI covering t
     pop(@path)
 	while (@path && !$rsync_cache{join("/", @path)});
     if (@path) {
-	print("Cache hit ($path, ", join("/", @path), "), skipping rsync\n")
+	logmsg("Cache hit ($path, ", join("/", @path), "), skipping rsync")
 	    if ($verbose_cache);
 	return 1;
     } else {
@@ -117,7 +124,7 @@ sub parse_cert {		# Parse interesting fields from a certificate
     my $dir = shift;
     my $file = uri_to_filename($uri);
     if ($parse_cache{$file}) {
-	print("Already parsed certificate $uri\n")
+	logmsg("Already parsed certificate $uri")
 	    if ($verbose_cache);
 	return $parse_cache{$file};
     }
@@ -139,7 +146,7 @@ sub parse_cert {		# Parse interesting fields from a certificate
 	    if (/X509v3 Basic Constraints/ && $txt[$i+1] =~ /^\s*CA:TRUE\s*$/);
     }
     if ($res{sia} && $res{sia} !~ m=/$=) {
-	print("Badly formatted AIA URI, compensating: $res{sia}\n")
+	logmsg("Badly formatted AIA URI, compensating: $res{sia}")
 	    if ($verbose_sia_fixup);
 	$res{sia} .= "/";
     }
@@ -168,7 +175,7 @@ sub copy_cert {			# Convert a certificate from DER to PEM
     my $indir = shift;
     my $outdir = shift;
     if (-f "$outdir/$name") {
-	print("Already copied certificate rsync://$name\n")
+	logmsg("Already copied certificate rsync://$name")
 	    if ($verbose_cache);
 	return;
     }
@@ -182,7 +189,7 @@ sub check_crl {			# Check signature chain on a CRL, install CRL if all is well
 	unless ($uri);
     my $file = uri_to_filename($uri);
     if (-f "$authenticated_tree/$file") {
-	print("Already checked CRL $uri\n")
+	logmsg("Already checked CRL $uri")
 	    if ($verbose_cache);
 	return $file;
     }
@@ -199,15 +206,15 @@ sub check_crl {			# Check signature chain on a CRL, install CRL if all is well
 		"-outform", "PEM", "-out", "$authenticated_tree/$file");
 	return $file;
     } elsif (grep(/certificate revoked/, @result)) {
-	print("Revoked certificate in path for CRL $uri\n");
+	logmsg("Revoked certificate in path for CRL $uri");
 	return undef;
     } else {
-	print("Verification failure for CRL $uri:\n");
-	print("  Inputs:\n");
-	print("    $_\n")
+	logmsg("Verification failure for CRL $uri:");
+	logmsg("  Inputs:");
+	logmsg("    $_")
 	    foreach (($file, @_));
-	print("  Result:\n");
-	print("    $_\n")
+	logmsg("  Result:");
+	logmsg("    $_")
 	    foreach (@result);
 	return undef;
     }
@@ -221,7 +228,6 @@ sub move {
 	or die("Couldn't rename $source to $destination");
 }
 
-
 sub check_cert {		# Check signature chain etc on a certificate, install if all's well
     my $uri = shift;
     my $file = shift;
@@ -234,15 +240,15 @@ sub check_cert {		# Check signature chain etc on a certificate, install if all's
 	move("$temporary_tree/$file", "$authenticated_tree/$file");
 	return 1;
     } elsif (grep(/certificate revoked/, @result)) {
-	print("Revoked certificate in path for certificate $uri\n");
+	logmsg("Revoked certificate in path for certificate $uri");
 	return 0;
     } else {
-	print("Verification failure for certificate $uri:\n");
-	print("  Inputs:\n");
-	print("    $_\n")
+	logmsg("Verification failure for certificate $uri:");
+	logmsg("  Inputs:");
+	logmsg("    $_")
 	    foreach (($file, @_));
-	print("  Result:\n");
-	print("  $_\n")
+	logmsg("  Result:");
+	logmsg("  $_")
 	    foreach (@result);
 	return 0;
     }
@@ -254,13 +260,13 @@ sub walk_cert {			# Process a certificate -- this is the core of the program
     die("No certificate to process!")
 	unless ($p);
 
-    print("Starting walk of $p->{uri}\n");
+    logmsg("Starting walk of $p->{uri}");
     if ($verbose_walk) {
-	print("CA:  ", ($p->{ca} ? "Yes" : "No"), "\n");
-	print("TA:  ", ($p->{ta} ? "Yes" : "No"), "\n");
-	print("AIA: $p->{aia}\n") if ($p->{aia});
-	print("SIA: $p->{sia}\n") if ($p->{sia});
-	print("CDP: $p->{cdp}\n") if ($p->{cdp});
+	logmsg("CA:  ", ($p->{ca} ? "Yes" : "No"));
+	logmsg("TA:  ", ($p->{ta} ? "Yes" : "No"));
+	logmsg("AIA: $p->{aia}") if ($p->{aia});
+	logmsg("SIA: $p->{sia}") if ($p->{sia});
+	logmsg("CDP: $p->{cdp}") if ($p->{cdp});
     }
 
     if ($p->{sia}) {
@@ -276,9 +282,9 @@ sub walk_cert {			# Process a certificate -- this is the core of the program
 	for my $file (glob("$unauthenticated_tree/${sia}*.cer")) {
 	    $file =~ s=^$unauthenticated_tree/==;
 	    my $uri = "rsync://" . $file;
-	    print("Found cert $uri\n");
+	    logmsg("Found cert $uri");
 	    if (-f "$authenticated_tree/$file") {
-		print("Already checked certificate $uri, skipping\n")
+		logmsg("Already checked certificate $uri, skipping")
 		    if ($verbose_cache);
 		next;
 	    }
@@ -287,64 +293,65 @@ sub walk_cert {			# Process a certificate -- this is the core of the program
 	    copy_cert($file, $unauthenticated_tree, $temporary_tree);
 	    my $c = parse_cert($uri, $temporary_tree);
 	    if (!$c) {
-		print("Parse failure for $uri, skipping\n");
+		logmsg("Parse failure for $uri, skipping");
 		next;
 	    }
 	    if (!$c->{aia}) {
-		print("AIA missing for $uri, skipping\n");
+		logmsg("AIA missing for $uri, skipping");
 		next;
 	    }
 	    if (!$p->{ta} && $c->{aia} ne $p->{uri}) {
-		print("AIA of $uri doesn't match parent, skipping\n");
-		print("\tSubject AIA: $c->{aia}\n",
-		      "\t Issuer URI: $p->{uri}\n")
-		    if ($verbose_aia);
+		logmsg("AIA of $uri doesn't match parent, skipping");
+		if ($verbose_aia > 0) {
+		    logmsg("\tSubject AIA: $c->{aia}");
+		    logmsg("\t Issuer URI: $p->{uri}");
+		}
 		if ($verbose_aia > 1) {
 		    my $c_aia = "$unauthenticated_tree/" . uri_to_filename($c->{aia});
 		    my $p_uri = "$unauthenticated_tree/" . uri_to_filename($p->{uri});
 		    my $res = run("cmp", "-sz", $c_aia, $p_uri);
 		    if ($res == 0) {
-			print("\tBoth certificates exist, content is identical\n");
+			logmsg("\tBoth certificates exist, content is identical");
 		    } elsif ($res == 1) {
-			print("\tBoth certificates exist, content differs\n");
+			logmsg("\tBoth certificates exist, content differs");
 		    } elsif (! -f $c_aia) {
-			print("\tCertificate indicated by AIA not found\n");
+			logmsg("\tCertificate indicated by AIA not found");
 		    }
 		}
 		next;
 	    }
 	    if ($c->{ca} && !$c->{sia}) {
-		print("CA certificate $uri without SIA extension, skipping\n");
+		logmsg("CA certificate $uri without SIA extension, skipping");
 		next;
 	    }
 	    if (!$c->{ca} && $c->{sia}) {
-		print("EE certificate $uri with SIA extension, skipping\n");
+		logmsg("EE certificate $uri with SIA extension, skipping");
 		next;
 	    }
 	    if (!$c->{cdp}) {
-		print("CDP missing for $uri, skipping\n");
+		logmsg("CDP missing for $uri, skipping");
 		next;
 	    }
 	    my $crl = check_crl($c->{cdp}, @chain);
 	    if (!$crl) {
-		print("Problem with CRL for $uri, skipping\n");
+		logmsg("Problem with CRL for $uri, skipping");
 		next;
 	    }
 	    if (!check_cert($uri, $file, $crl, @chain)) {
-		print("Verification failure for $uri, skipping\n");
+		logmsg("Verification failure for $uri, skipping");
 		next;
 	    }
 	    walk_cert($c, @chain);
 	}
     }
 
-    print("Finished walk of $p->{uri}\n");
+    logmsg("Finished walk of $p->{uri}");
 }
 
 sub main {			# Main program
 
     my $start_time = time;
-    print("Started at ", scalar(localtime($start_time)), "\n");
+    logmsg("Started at ", scalar(gmtime($start_time)), " UTC");
 
     # We should read a configuration file, but for debugging it's
     # easier just to wire the parameters into the script.
@@ -374,8 +381,8 @@ sub main {			# Main program
 
     # Initial cleanup.
 
-    run("rm", "-rf", $temporary_tree, "${authenticated_tree}.old");
-    rename($authenticated_tree, "${authenticated_tree}.old");
+    run("rm", "-rf", $temporary_tree, $old_authenticated_tree);
+    rename($authenticated_tree, $old_authenticated_tree);
     die("Couldn't clear $authenticated_tree from previous run")
 	if (-d $authenticated_tree);
 
@@ -416,25 +423,25 @@ sub main {			# Main program
 	    unless($t);
 	$t->{ta} = 1;
 	if (!$t->{cdp}) {
-	    print("Trust anchor $anchor has no CRL distribution point, skipping\n");
+	    logmsg("Trust anchor $anchor has no CRL distribution point, skipping");
 	    next;
 	}
 	if (!check_crl($t->{cdp}, $t->{file})) {
-	    print("Problem with trust anchor $anchor CRL $t->{cdp}, skipping\n");
+	    logmsg("Problem with trust anchor $anchor CRL $t->{cdp}, skipping");
 	    next;
 	}
 	walk_cert($t);
     }
 
     my $stop_time = time;
-    print("Finished at ", scalar(localtime($stop_time)), "\n");
+    logmsg("Finished at ", scalar(gmtime($stop_time)), " UTC");
 
     my $elapsed = $stop_time - $start_time;
     my $seconds = $elapsed % 60;  $elapsed /= 60;
     my $minutes = $elapsed % 60;  $elapsed /= 60;
     my $hours   = $elapsed;
 
-    printf("Elapsed time: %d:%02d:%02d\n", $hours, $minutes, $seconds);
+    logmsg("Elapsed time: ", sprintf("%d:%02d:%02d", $hours, $minutes, $seconds));
 
 }
 
@@ -452,8 +459,6 @@ main()
 #    authenticated tree after we're done checking everything else, to
 #    pick up old stuff that's still valid in the old tree and is now
 #    bogus or missing in the updated unauthenticated tree.
-#
-# 3) Should have a log() function so can add timestamps, etc.
 #
 ################################################################
 #

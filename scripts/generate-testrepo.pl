@@ -77,74 +77,102 @@ while (my ($entity, $resources) = each(%resources)) {
 	push(@{$r{$resources->[$i]}}, $resources->[$i+1]);
     }
     open(F, ">${entity}.cnf") or die;
-    print(F
-	  "[ ca ]\n",
-	  "default_ca = ca_default\n",
-	  "\n",
-	  "[ ca_default ]\n",
-	  "\n",
-	  "certificate = ${entity}.cer\n",
-	  "serial = ${entity}/serial\n",
-	  "private_key = ${entity}.key\n",
-	  "database = ${entity}/index\n",
-	  "new_certs_dir = ${entity}\n",
-	  "name_opt = ca_default\n",
-	  "cert_opt = ca_default\n",
-	  "default_days = 365\n",
-	  "default_crl_days = 30\n",
-	  "default_md = sha1\n",
-	  "preserve = no\n",
-	  "copy_extensions = copy\n",
-	  "policy = ca_policy_anything\n",
-	  "unique_subject = no\n",
-	  "\n",
-	  "[ ca_policy_anything ]\n",
-	  "countryName = optional\n",
-	  "stateOrProvinceName = optional\n",
-	  "localityName = optional\n",
-	  "organizationName = optional\n",
-	  "organizationalUnitName = optional\n",
-	  "commonName = supplied\n",
-	  "emailAddress = optional\n",
-	  "givenName = optional\n",
-	  "surname = optional\n",
-	  "\n",
-	  "[ req ]\n",
-	  "default_bits = $keybits\n",
-	  "encrypt_key = no\n",
-	  "distinguished_name = req_dn\n",
-	  "x509_extensions = req_x509_ext\n",
-	  "prompt = no\n",
-	  "\n",
-	  "[ req_dn ]\n",
-	  "\n",
-	  "CN = TEST ENTITY $entity\n",
-	  "\n",
-	  "[ req_x509_ext ]\n",
-	  "\n",
-	  "basicConstraints = critical,CA:true\n",
-	  "subjectKeyIdentifier = hash\n",
-	  "authorityKeyIdentifier = keyid\n",
-	  "keyUsage = critical,keyCertSign,cRLSign\n",
-	  "subjectInfoAccess = 1.3.6.1.5.5.7.48.5;URI:rsync://wombats-r-us.hactrn.net/\n");
-    print(F "authorityInfoAccess = caIssuers;URI:rsync://wombats-r-us.hactrn.net/$parent{$entity}.cer\n")
-	if ($parent{$entity});
-    print(F "sbgp-autonomousSysNum = critical,\@asid_ext\n")
-	if ($r{AS} || $r{RDI});
-    print(F "sbgp-ipAddrBlock = critical,\@addr_ext\n")
-	if ($r{IPv4} || $r{IPv6});
-    print(F "\n[ asid_ext ]\n\n");
+    print(F <<EOF);
+
+	[ ca ]
+	default_ca = ca_default
+
+	[ ca_default ]
+
+	certificate = ${entity}.cer
+	serial = ${entity}/serial
+	private_key = ${entity}.key
+	database = ${entity}/index
+	new_certs_dir = ${entity}
+	name_opt = ca_default
+	cert_opt = ca_default
+	default_days = 365
+	default_crl_days = 30
+	default_md = sha1
+	preserve = no
+	copy_extensions = copy
+	policy = ca_policy_anything
+	unique_subject = no
+
+	[ ca_policy_anything ]
+	countryName = optional
+	stateOrProvinceName = optional
+	localityName = optional
+	organizationName = optional
+	organizationalUnitName = optional
+	commonName = supplied
+	emailAddress = optional
+	givenName = optional
+	surname = optional
+
+	[ req ]
+	default_bits = $keybits
+	encrypt_key = no
+	distinguished_name = req_dn
+	x509_extensions = req_x509_ext
+	prompt = no
+
+	[ req_dn ]
+
+	CN = TEST ENTITY $entity
+
+	[ req_x509_ext ]
+
+	basicConstraints = critical,CA:true
+	subjectKeyIdentifier = hash
+	authorityKeyIdentifier = keyid
+	keyUsage = critical,keyCertSign,cRLSign
+	subjectInfoAccess = 1.3.6.1.5.5.7.48.5;URI:rsync://wombats-r-us.hactrn.net/
+
+EOF
+
+    print(F <<EOF) if ($parent{$entity});
+
+	authorityInfoAccess = caIssuers;URI:rsync://wombats-r-us.hactrn.net/$parent{$entity}.cer
+
+EOF
+
+    print(F <<EOF) if ($r{AS} || $r{RDI});
+
+	sbgp-autonomousSysNum = critical,\@asid_ext
+
+EOF
+
+    print(F <<EOF) if ($r{IPv4} || $r{IPv6});
+
+	sbgp-ipAddrBlock = critical,\@addr_ext
+
+EOF
+
+    print(F <<EOF);
+
+	[ asid_ext ]
+
+EOF
+
     for my $n (qw(AS RDI)) {
 	my $i = 0;
 	for my $a (@{$r{$n}}) {
-	    print(F $n, ".", $i++, " = ", $a, "\n");
+	    print(F "\t", $n, ".", $i++, " = ", $a, "\n");
 	}
     }
-    print(F "\n[ addr_ext ]\n\n");
+
+    print(F <<EOF);
+
+
+	[ addr_ext ]
+
+EOF
+
     for my $n (qw(IPv4 IPv6)) {
 	my $i = 0;
 	for my $a (@{$r{$n}}) {
-	    print(F $n, ".", $i++, " = ", $a, "\n");
+	    print(F "\t", $n, ".", $i++, " = ", $a, "\n");
 	}
     }
     close(F);
@@ -190,26 +218,29 @@ for my $entity (@ordering) {
 for my $parent (@ordering) {
     my $entity = "${parent}-EE";
     open(F, ">${entity}.cnf") or die;
-    print(F
-	  "[ req ]\n",
-	  "default_bits = $keybits\n",
-	  "encrypt_key = no\n",
-	  "distinguished_name = req_dn\n",
-	  "x509_extensions = req_x509_ext\n",
-	  "prompt = no\n",
-	  "\n",
-	  "[ req_dn ]\n",
-	  "\n",
-	  "CN = TEST ENDPOINT ENTITY ${entity}\n",
-	  "\n",
-	  "[ req_x509_ext ]\n",
-	  "\n",
-	  "basicConstraints = critical,CA:false\n",
-	  "subjectKeyIdentifier = hash\n",
-	  "authorityKeyIdentifier = keyid\n",
-	  "subjectInfoAccess = 1.3.6.1.5.5.7.48.5;URI:rsync://wombats-r-us.hactrn.net/\n",
-	  "authorityInfoAccess = caIssuers;URI:rsync://wombats-r-us.hactrn.net/$parent.cer\n",
-	  "\n");
+    print(F <<EOF);
+
+	[ req ]
+	default_bits = $keybits
+	encrypt_key = no
+	distinguished_name = req_dn
+	x509_extensions = req_x509_ext
+	prompt = no
+
+	[ req_dn ]
+
+	CN = TEST ENDPOINT ENTITY ${entity}
+
+	[ req_x509_ext ]
+
+	basicConstraints = critical,CA:false
+	subjectKeyIdentifier = hash
+	authorityKeyIdentifier = keyid
+	subjectInfoAccess = 1.3.6.1.5.5.7.48.5;URI:rsync://wombats-r-us.hactrn.net/
+	authorityInfoAccess = caIssuers;URI:rsync://wombats-r-us.hactrn.net/$parent.cer
+
+EOF
+
     close(F);
     openssl("genrsa", "-out", "${entity}.key", $keybits)
 	unless (-f "${entity}.key");
@@ -259,17 +290,20 @@ for my $ee (map({"$_-EE"} @ordering)) {
 my $hostname = `hostname`;
 chomp($hostname);
 open(F, ">server.cnf") or die;
-print(F
-      "[ req ]\n",
-      "default_bits = $keybits\n",
-      "encrypt_key = no\n",
-      "distinguished_name = req_dn\n",
-      "prompt = no\n",
-      "\n",
-      "[ req_dn ]\n",
-      "\n",
-      "CN = $hostname\n",
-      "\n");
+print(F <<EOF);
+
+	[ req ]
+	default_bits = $keybits
+	encrypt_key = no
+	distinguished_name = req_dn
+	prompt = no
+
+	[ req_dn ]
+
+	CN = $hostname
+
+EOF
+
 close(F);
 openssl(qw(genrsa -out server.key), $keybits)
     unless (-f "server.key");

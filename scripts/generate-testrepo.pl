@@ -266,12 +266,23 @@ EOF
 # Generate hashes
 
 for my $cert (map({("$_.cer", "$_-EE.cer")} @ordering)) {
-    my $hash = `openssl x509 -noout -hash -in $cert`;
+    my $hash = `$openssl x509 -noout -hash -in $cert`;
     chomp($hash);
-    $hash .= "." . (0 + $hashes{$hash}++);
+    $hash .= ".";
+    $hash .= (0 + $hashes{$hash}++);
     unlink($hash) if (-l $hash);
     symlink($cert, $hash)
 	or die("Couldn't link $hash to $cert: $!\n");
+}
+
+for my $crl (map({"$_.crl"} @ordering)) {
+    my $hash = `$openssl crl -noout -hash -in $crl`;
+    chomp($hash);
+    $hash .= ".r";
+    $hash .= (0 + $hashes{$hash}++);
+    unlink($hash) if (-l $hash);
+    symlink($crl, $hash)
+	or die("Couldn't link $hash to $crl: $!\n");
 }
 
 # Generate PKCS12 forms of EE certificates

@@ -60,7 +60,7 @@ OPENSSLDIR=/usr/local/ssl
 # PKCS1_CHECK - pkcs1 tests.
 
 CC= gcc
-CFLAG= -DDEBUG_SAFESTACK -DREF_CHECK -DCONF_DEBUG -DCRYPTO_MDEBUG -ggdb -g2 -Wall -Wshadow -Wmissing-prototypes -Wmissing-declarations -Werror
+CFLAG= -DOPENSSL_RFC3779 -DDEBUG_SAFESTACK -DREF_CHECK -DCONF_DEBUG -DCRYPTO_MDEBUG -ggdb -g2 -Wall -Wshadow -Wmissing-prototypes -Wmissing-declarations -Werror
 DEPFLAG= -DOPENSSL_NO_GMP -DOPENSSL_NO_MDC2 -DOPENSSL_NO_RC5 
 PEX_LIBS= 
 EX_LIBS= 

@@ -382,3 +382,60 @@ Notes:
   subset (possibly improper) of the other.   Checking for equality is
   a somewhat different test, so rather than trying to combine the two,
   I might just provide separate functions that test for equality.
+
+
+
+Final code cleanups before submitting patch to OpenSSL project.
+
+- Ben requested compile-time conditionals and Configure support for
+  them.
+
+  - Code changes: done.
+
+  - Configure support: do we need anything beyond -DOPENSSL_RFC3779 ?
+    Need to read existing Configure code to see if there's a preferred
+    way of doing this.
+
+- License adjustments per discusion with ARIN and OpenSSL
+  project.  Done.
+
+- Some of the static constructor functions ought to be global so that
+  users of the library can call them.  In some cases we'd want trivial
+  jacket functions calling existing code, eg, all the asid stuff that
+  takes a pointer to an ASIdentifierChoice should probably take a
+  pointer to the ASIdentifier and an integer indicating AS vs RDI.
+  This of course begs the question of whether the internal calls
+  should be rewritten to use the new external calls, ie, there's some
+  potential cleanup work here.
+
+  Candidates: constructors:
+
+  - asid_add_id_or_range()	[might need jacket or rewrite]
+
+  - asid_add_inherit()		[might need jacket or rewrite]
+
+  - addr_add_range()
+
+  - addr_add_prefix()
+
+  - addr_add_inherit()
+
+  Candidates: manipulation of obscure ASN.1 encodings (v3_addr.c)
+
+  - extract_min_max()		[might need rewrite]
+
+  - addr_expand()		[might need rewrite]
+
+  - addr_prefixlen()		[would need to be a function]
+
+  - afi_from_addressfamily()
+
+  - length_from_afi()
+
+  I'm not really happy with the number of candidates in the latter
+  category, but I haven't figured out any saner way to deal with the
+  fancy ASN.1 encoding.  Callers really should not have to understand
+  the RFC 3779 mappings between IP addresses and ASN.1 bitstrings.
+
+- Need patch against OpenSSL HEAD as well as 0.9.8 branch.  Figure out
+  how to do that, or ask Ben for help.

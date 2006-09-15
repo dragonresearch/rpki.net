@@ -30,7 +30,7 @@ my $verbose_run		 = 0;	# Log all external programs
 my $verbose_cache	 = 0;	# Log various cache hits
 my $verbose_walk	 = 0;	# Log more info during certificate walk
 my $verbose_aia		 = 0;	# Log more info for AIA errors
-my $verbose_sia_fixup	 = 1;	# Log when fixing up SIA URIs
+my $verbose_sia_fixup	 = 0;	# Log when fixing up SIA URIs
 
 my $disable_network	 = 0;	# Return immediate failure for all rsync commands
 my $retain_old_certs	 = 1;	# Retain old valid certificates from previous runs
@@ -153,11 +153,21 @@ sub parse_cert {		# Parse interesting fields from a certificate
 	    if (/X509v3 Basic Constraints/ && $txt[$i+1] =~ /^\s*CA:TRUE\s*$/);
     }
     if ($res{sia} && $res{sia} !~ m=/$=) {
-	logmsg("Badly formatted AIA URI, compensating: $res{sia}")
+	logmsg("Badly formatted SIA URI, compensating: $res{sia}")
 	    if ($verbose_sia_fixup);
 	$res{sia} .= "/";
     }
     return $parse_cache{$file} = \%res;
+}
+
+sub log_cert {
+    my $obj = shift;
+    logmsg("URI: $obj->{uri}");
+    logmsg("CA:  ", ($obj->{ca} ? "Yes" : "No"));
+    logmsg("TA:  ", ($obj->{ta} ? "Yes" : "No"));
+    logmsg("AIA: $obj->{aia}") if ($obj->{aia});
+    logmsg("SIA: $obj->{sia}") if ($obj->{sia});
+    logmsg("CDP: $obj->{cdp}") if ($obj->{cdp});
 }
 
 sub setup_cafile {		# Set up -CAfile data for verification
@@ -293,13 +303,8 @@ sub walk_cert {			# Process a certificate -- this is the core of the program
 	unless ($p);
 
     logmsg("Starting walk of $p->{uri}");
-    if ($verbose_walk) {
-	logmsg("CA:  ", ($p->{ca} ? "Yes" : "No"));
-	logmsg("TA:  ", ($p->{ta} ? "Yes" : "No"));
-	logmsg("AIA: $p->{aia}") if ($p->{aia});
-	logmsg("SIA: $p->{sia}") if ($p->{sia});
-	logmsg("CDP: $p->{cdp}") if ($p->{cdp});
-    }
+    log_cert($p)
+	if ($verbose_walk);
 
     if ($p->{sia}) {
 	my @chain = (uri_to_filename($p->{cdp}), $p->{file}, @_);
@@ -322,7 +327,7 @@ sub walk_cert {			# Process a certificate -- this is the core of the program
 	};
 	for my $file (@files) {
 	    my $uri = "rsync://" . $file;
-	    logmsg("Found cert $uri");
+	    logmsg("Found certificate $uri");
 	    if (-f "$authenticated_tree/$file") {
 		logmsg("Already checked certificate $uri, skipping")
 		    if ($verbose_cache);
@@ -343,13 +348,15 @@ sub walk_cert {			# Process a certificate -- this is the core of the program
 		    logmsg("Parse failure for $uri, skipping");
 		    next;
 		}
+		log_cert($c)
+		    if ($verbose_walk);
 		if (!$c->{aia}) {
 		    logmsg("AIA missing for $uri, skipping");
 		    next;
 		}
 		if (!$p->{ta} && $c->{aia} ne $p->{uri}) {
 		    logmsg("AIA of $uri doesn't match parent, skipping");
-		    if ($verbose_aia > 0) {
+		    if ($verbose_aia) {
 			logmsg("\tSubject AIA: $c->{aia}");
 			logmsg("\t Issuer URI: $p->{uri}");
 		    }

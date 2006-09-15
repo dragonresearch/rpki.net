@@ -387,54 +387,17 @@ Notes:
 
 Final code cleanups before submitting patch to OpenSSL project.
 
-- Ben requested compile-time conditionals and Configure support for
-  them.
+- Ben requested compile-time conditionals.  [done]
 
-  - Code changes: done.
+- Ben requested Configure support for the compile-time conditionals.
+  Do we need anything beyond -DOPENSSL_RFC3779 ?  Need to read
+  existing Configure code to see if there's a preferred way of doing
+  this.
 
-  - Configure support: do we need anything beyond -DOPENSSL_RFC3779 ?
-    Need to read existing Configure code to see if there's a preferred
-    way of doing this.
+- Copyright/license adjustments per discusion with ARIN and OpenSSL
+  project.  [done]
 
-- License adjustments per discusion with ARIN and OpenSSL
-  project.  Done.
-
-- Some of the static constructor functions ought to be global so that
-  users of the library can call them.  In some cases we'd want trivial
-  jacket functions calling existing code, eg, all the asid stuff that
-  takes a pointer to an ASIdentifierChoice should probably take a
-  pointer to the ASIdentifier and an integer indicating AS vs RDI.
-  This of course begs the question of whether the internal calls
-  should be rewritten to use the new external calls, ie, there's some
-  potential cleanup work here.
-
-  Candidates: constructors:
-
-  - asid_add_id_or_range()	[minor rewrite, done]
-
-  - asid_add_inherit()		[minor rewrite, done]
-
-  - addr_add_range()            [rename, done]
-
-  - addr_add_prefix()           [rename, done]
-
-  - addr_add_inherit()          [rename, done]
-
-  Candidates: manipulation of obscure ASN.1 encodings (v3_addr.c)
-
-  - afi_from_addressfamily()    [renamed, now public]
-
-  - extract_min_max()		[v3_addr_get_range()]
-
-  - addr_expand()		[v3_addr_get_range()]
-
-  - addr_prefixlen()		[v3_addr_get_range()]
-
-  - length_from_afi()           [v3_addr_get_range()]
-
-  v3_addr_get_range() is a new public function that encapsulates
-  several of the private functions, by hiding some details and
-  wrapping a lot of error checking around extract_min_max().
+- Finish up rough edges of the library API.  [done]
 
 - Need patch against OpenSSL HEAD as well as 0.9.8 branch.  Figure out
   how to do that, or ask Ben for help.

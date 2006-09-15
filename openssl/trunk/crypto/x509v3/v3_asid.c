@@ -195,15 +195,23 @@ static int ASIdOrRange_cmp(const ASIdOrRange * const *a_,
 }
 
 /*
- * Some of the following helper routines might want to become globals
- * eventually.
+ * Add an inherit element.
  */
-
-/*
- * Add an inherit element to an ASIdentifierChoice.
- */
-static int asid_add_inherit(ASIdentifierChoice **choice)
+int v3_asid_add_inherit(ASIdentifiers *asid, int which)
 {
+  ASIdentifierChoice **choice;
+  if (asid == NULL)
+    return 0;
+  switch (which) {
+  case V3_ASID_ASNUM:
+    choice = &asid->asnum;
+    break;
+  case V3_ASID_RDI:
+    choice = &asid->rdi;
+    break;
+  default:
+    return 0;
+  }
   if (*choice == NULL) {
     if ((*choice = ASIdentifierChoice_new()) == NULL)
       return 0;
@@ -218,11 +226,25 @@ static int asid_add_inherit(ASIdentifierChoice **choice)
 /*
  * Add an ID or range to an ASIdentifierChoice.
  */
-static int asid_add_id_or_range(ASIdentifierChoice **choice,
-				ASN1_INTEGER *min,
-				ASN1_INTEGER *max)
+int v3_asid_add_id_or_range(ASIdentifiers *asid,
+			    int which,
+			    ASN1_INTEGER *min,
+			    ASN1_INTEGER *max)
 {
+  ASIdentifierChoice **choice;
   ASIdOrRange *aor;
+  if (asid == NULL)
+    return 0;
+  switch (which) {
+  case V3_ASID_ASNUM:
+    choice = &asid->asnum;
+    break;
+  case V3_ASID_RDI:
+    choice = &asid->rdi;
+    break;
+  default:
+    return 0;
+  }
   if (*choice != NULL && (*choice)->type == ASIdentifierChoice_inherit)
     return 0;
   if (*choice == NULL) {
@@ -487,17 +509,16 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
 
   for (i = 0; i < sk_CONF_VALUE_num(values); i++) {
     CONF_VALUE *val = sk_CONF_VALUE_value(values, i);
-    ASIdentifierChoice **choice;
     ASN1_INTEGER *min = NULL, *max = NULL;
-    int i1, i2, i3, is_range;
+    int i1, i2, i3, is_range, which;
 
     /*
      * Figure out whether this is an AS or an RDI.
      */
     if (       !name_cmp(val->name, "AS")) {
-      choice = &asid->asnum;
+      which = V3_ASID_ASNUM;
     } else if (!name_cmp(val->name, "RDI")) {
-      choice = &asid->rdi;
+      which = V3_ASID_RDI;
     } else {
       X509V3err(X509V3_F_V2I_ASIDENTIFIERS, X509V3_R_EXTENSION_NAME_ERROR);
       X509V3_conf_err(val);
@@ -508,7 +529,7 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
      * Handle inheritance.
      */
     if (!strcmp(val->value, "inherit")) {
-      if (asid_add_inherit(choice))
+      if (v3_asid_add_inherit(asid, which))
 	continue;
       X509V3err(X509V3_F_V2I_ASIDENTIFIERS, X509V3_R_INVALID_INHERITANCE);
       X509V3_conf_err(val);
@@ -564,7 +585,7 @@ static void *v2i_ASIdentifiers(struct v3_ext_method *method,
 	goto err;
       }
     }
-    if (!asid_add_id_or_range(choice, min, max)) {
+    if (!v3_asid_add_id_or_range(asid, which, min, max)) {
       ASN1_INTEGER_free(min);
       ASN1_INTEGER_free(max);
       X509V3err(X509V3_F_V2I_ASIDENTIFIERS, ERR_R_MALLOC_FAILURE);

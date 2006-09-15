@@ -710,14 +710,40 @@ DECLARE_ASN1_FUNCTIONS(IPAddressChoice)
 DECLARE_ASN1_FUNCTIONS(IPAddressFamily)
 
 /*
+ * API tag for elements of the ASIdentifer SEQUENCE.
+ */
+#define	V3_ASID_ASNUM	0
+#define	V3_ASID_RDI	1
+
+/*
  * AFI values, assigned by IANA.  It'd be nice to make the AFI
  * handling code totally generic, but there are too many little things
  * that would need to be defined for other address families for it to
  * be worth the trouble.
  */
-
 #define	IANA_AFI_IPV4	1
 #define	IANA_AFI_IPV6	2
+
+/*
+ * Utilities to construct and extract values from RFC3779 extensions,
+ * since some of the encodings (particularly for IP address prefixes
+ * and ranges) are a bit tedious to work with directly.
+ */
+int v3_asid_add_inherit(ASIdentifiers *asid, int which);
+int v3_asid_add_id_or_range(ASIdentifiers *asid, int which,
+			    ASN1_INTEGER *min, ASN1_INTEGER *max);
+int v3_addr_add_inherit(IPAddrBlocks *addr,
+			const unsigned afi, const unsigned *safi);
+int v3_addr_add_prefix(IPAddrBlocks *addr,
+		       const unsigned afi, const unsigned *safi,
+		       unsigned char *a, const int prefixlen);
+int v3_addr_add_range(IPAddrBlocks *addr,
+		      const unsigned afi, const unsigned *safi,
+		      unsigned char *min, unsigned char *max);
+unsigned v3_addr_get_afi(const IPAddressFamily *f);
+int v3_addr_get_range(IPAddressOrRange *aor, const unsigned afi,
+		      unsigned char *min, unsigned char *max,
+		      const int length);
 
 /*
  * Canonical forms.

@@ -227,7 +227,8 @@ sub check_crl {			# Check signature chain on a CRL, install CRL if all is well
 	next unless (-f "$source/$file");
 	logmsg("Checking saved old CRL $uri")
 	    if ($source eq $old_authenticated_tree);
-	my @result = openssl_pipe("crl", "-CAfile", $cafile, "-in", "$source/$file", "-inform",
+	my @result = openssl_pipe("crl", "-CAfile", $cafile, "-noout",
+				  "-in", "$source/$file", "-inform",
 				  ($source eq $old_authenticated_tree ? "PEM" : "DER"));
 	if (grep(/verify OK/, @result)) {
 	    if ($source eq $old_authenticated_tree) {

@@ -1,6 +1,6 @@
 /*
  * Contributed to the OpenSSL Project by the American Registry for
- * Internet Numbers ("ARIN") and the Internet Systems Consortium ("ISC").
+ * Internet Numbers ("ARIN").
  */
 /* ====================================================================
  * Copyright (c) 2006 The OpenSSL Project.  All rights reserved.

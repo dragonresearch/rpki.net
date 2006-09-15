@@ -9,7 +9,7 @@
 
 use strict;
 
-my $openssl			= "/usr/local/bin/openssl";
+my $openssl			= "../openssl/trunk/apps/openssl";
 
 my $trust_anchor_tree		= "rcynic-trust-anchors";
 
@@ -45,7 +45,7 @@ sub run {			# Run a program
     logmsg(join(" ", "Running", @_))
 	if ($verbose_run);
     system(@_);
-    logmsg("$_[0] returned $?")
+    logmsg(join(" ", @_, "returned", $?))
 	if ($? != 0);
     return $? == 0;
 }
@@ -58,7 +58,7 @@ sub run_pipe {			# Run a program and hand back its output
 	my @result = <F>;
 	close(F);
 	chomp(@result);
-	logmsg("$_[0] returned $?")
+	logmsg(join(" ", @_, "returned", $?))
 	    if ($? != 0);
 	return @result;
     } else {
@@ -77,16 +77,22 @@ sub mkdir_maybe {		# Create missing directories
 }
 
 sub rsync {			# Run rsync with our preferred options
+    #
+    # Apparently --copy-dirlinks is too new for the APNIC repository's
+    # rsync server?  Which is weird, because I thought this used to
+    # work.  Either I'm confused or somebody changed the version
+    # they're running.  In any case: --copy-links appears (unproven,
+    # manual page unclear) to cover this case, so punt --copy-dirlinks
+    # until there's reason to believe that we need it.
+    #
     return 0 if ($disable_network);
-    return run("rsync", "-tiLku", @_);
+    unshift(@_, "--recursive") if (shift);
+    return run(qw(rsync --update --times --copy-links --itemize-changes), @_);
 }
 
 sub rsync_cache {		# Run rsync unless we've already done so for a URI covering this one
-    my $recursive = shift;
-    my @path = split("/", uri_to_filename($_[0]));
+    my @path = split("/", uri_to_filename($_[1]));
     my $path = join("/", @path);
-    unshift(@_, "-r")
-	if ($recursive);
     pop(@path)
 	while (@path && !$rsync_cache{join("/", @path)});
     if (@path) {
@@ -432,14 +438,14 @@ sub main {			# Main program
     for my $uri (@preaggregated) {
 	my $dir = uri_to_filename($uri);
 	mkdir_maybe("$preaggregated_tree/$dir");
-	rsync("-r", $uri, "$preaggregated_tree/$dir");
+	rsync(1, $uri, "$preaggregated_tree/$dir");
     }
 
     # Update our unauthenticated tree from the pre-aggregated data.
     # Will need to pay attention to rsync parameters here to make sure
     # we don't overwrite newer stuff.
 
-    rsync("-r", "$preaggregated_tree/", "$unauthenticated_tree/");
+    rsync(1, "$preaggregated_tree/", "$unauthenticated_tree/");
 
     # Local trust anchors always win over anything else, so seed our
     # authenticated tree with them

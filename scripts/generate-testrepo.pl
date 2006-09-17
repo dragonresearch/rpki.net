@@ -15,6 +15,7 @@ my $passwd	= "fnord";
 my $keybits	= 2048;
 my $verbose	= 0;
 my $debug	= 1;
+my $revoke	= 0;
 
 sub openssl {
     print(STDERR join(" ", qw(+ openssl), @_), "\n")
@@ -176,6 +177,16 @@ EOF
 	}
     }
     close(F);
+}
+
+# Revoke old certificates, maybe.
+
+if ($revoke) {
+    for my $cert (glob("*/*.pem")) {
+	my $conf = (split("/", $cert))[0] . ".cnf";
+	openssl("ca", "-verbose", "-config", $conf, "-revoke", $cert);
+	unlink($cert);
+    }
 }
 
 # Run OpenSSL to create the keys and certificates.  We generate keys

@@ -34,6 +34,7 @@ my $verbose_sia_fixup	 = 0;	# Log when fixing up SIA URIs
 
 my $disable_network	 = 0;	# Return immediate failure for all rsync commands
 my $retain_old_certs	 = 1;	# Retain old valid certificates from previous runs
+my $fix_broken_sia	 = 1;	# Fix broken SIA URIs
 
 sub logmsg {
     my @t = gmtime;
@@ -153,9 +154,15 @@ sub parse_cert {		# Parse interesting fields from a certificate
 	    if (/X509v3 Basic Constraints/ && $txt[$i+1] =~ /^\s*CA:TRUE\s*$/);
     }
     if ($res{sia} && $res{sia} !~ m=/$=) {
-	logmsg("Badly formatted SIA URI, compensating: $res{sia}")
-	    if ($verbose_sia_fixup);
-	$res{sia} .= "/";
+	if ($fix_broken_sia) {
+	    logmsg("Badly formatted SIA URI, compensating: $res{sia}")
+		if ($verbose_sia_fixup);
+	    $res{sia} .= "/";
+	} else {
+	    logmsg("Badly formatted SIA URI, deleting: $res{sia}")
+		if ($verbose_sia_fixup);
+	    delete($res{sia});
+	}
     }
     return $parse_cache{$file} = \%res;
 }

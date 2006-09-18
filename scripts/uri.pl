@@ -5,11 +5,22 @@ eval 'exec perl -w -S $0 ${1+"$@"}'
 
 use strict;
 
+my $format = "DER";
+
+while ($ARGV[0] =~ /^--/) {
+    $_ = shift;
+    if (/^--der/) { $format = "DER"; next }
+    if (/^--pem/) { $format = "PEM"; next }
+    if (/^--help/) { print("$0 [ --der | --pem ] cert [ cert ...]\n"); exit }
+    die("Unrecognized option: $_");
+}
+
 while (@ARGV) {
     my $file = shift(@ARGV);
     my ($aia, $sia, $cdp, $a, $s, $c) = qw(- - -);
     next unless ($file =~ /\.cer$/);
-    open(F, "-|", qw(openssl x509 -noout -inform DER -text -in), $file)
+    open(F, "-|", ( qw(openssl x509 -noout -inform), $format,
+		    qw(-text -in), $file))
 	or die("Couldn't run openssl x509 on $file: $!\n");
     while (<F>) {
 	chomp;

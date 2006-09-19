@@ -12,9 +12,9 @@ SHLIB_VERSION_HISTORY=
 SHLIB_MAJOR=0
 SHLIB_MINOR=9.8
 SHLIB_EXT=
-PLATFORM=dist
+PLATFORM=debug-sra
 OPTIONS= no-gmp no-krb5 no-mdc2 no-rc5 no-shared no-zlib no-zlib-dynamic
-CONFIGURE_ARGS=dist
+CONFIGURE_ARGS=debug-sra
 SHLIB_TARGET=
 
 # HERE indicates where this Makefile lives.  This can be used to indicate
@@ -59,8 +59,8 @@ OPENSSLDIR=/usr/local/ssl
 # equal 4.
 # PKCS1_CHECK - pkcs1 tests.
 
-CC= cc
-CFLAG= -O
+CC= gcc
+CFLAG= -DOPENSSL_RFC3779 -DDEBUG_SAFESTACK -DREF_CHECK -DCONF_DEBUG -DCRYPTO_MDEBUG -ggdb -g2 -Wall -Wshadow -Wmissing-prototypes -Wmissing-declarations -Werror
 DEPFLAG= -DOPENSSL_NO_GMP -DOPENSSL_NO_MDC2 -DOPENSSL_NO_RC5 
 PEX_LIBS= 
 EX_LIBS= 
@@ -71,7 +71,7 @@ RANLIB= /usr/bin/ranlib
 PERL= /usr/bin/perl
 TAR= tar
 TARFLAGS= --no-recursion
-MAKEDEPPROG=makedepend
+MAKEDEPPROG= gcc
 
 # We let the C compiler driver to take care of .s files. This is done in
 # order to be excused from maintaining a separate set of architecture

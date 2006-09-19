@@ -34,7 +34,7 @@ my $verbose_sia_fixup	 = 0;	# Log when fixing up SIA URIs
 
 my $disable_network	 = 0;	# Return immediate failure for all rsync commands
 my $retain_old_certs	 = 1;	# Retain old valid certificates from previous runs
-my $fix_broken_sia	 = 1;	# Fix broken SIA URIs
+my $fix_broken_sia	 = 0;	# Fix broken SIA URIs
 
 sub logmsg {
     my @t = gmtime;
@@ -78,21 +78,16 @@ sub mkdir_maybe {		# Create missing directories
 }
 
 sub rsync {			# Run rsync with our preferred options
-    #
-    # Apparently --copy-dirlinks is too new for the APNIC repository's
-    # rsync server?  Which is weird, because I thought this used to
-    # work.  Either I'm confused or somebody changed the version
-    # they're running.  In any case: --copy-links appears (unproven,
-    # manual page unclear) to cover this case, so punt --copy-dirlinks
-    # until there's reason to believe that we need it.
-    #
+    # --copy-dirlinks apparently not needed
     return 0 if ($disable_network);
-    unshift(@_, "--recursive") if (shift);
     return run(qw(rsync --update --times --copy-links --itemize-changes), @_);
 }
 
 sub rsync_cache {		# Run rsync unless we've already done so for a URI covering this one
-    my @path = split("/", uri_to_filename($_[1]));
+    my $uri = (grep({!/^-/} @_))[0];
+    die("Can't find source URI in rsync command: @_")
+	unless ($uri);
+    my @path = split("/", uri_to_filename($uri));
     my $path = join("/", @path);
     pop(@path)
 	while (@path && !$rsync_cache{join("/", @path)});
@@ -159,8 +154,7 @@ sub parse_cert {		# Parse interesting fields from a certificate
 		if ($verbose_sia_fixup);
 	    $res{sia} .= "/";
 	} else {
-	    logmsg("Badly formatted SIA URI, deleting: $res{sia}")
-		if ($verbose_sia_fixup);
+	    logmsg("Rejecting badly formatted SIA URI: $res{sia}");
 	    delete($res{sia});
 	}
     }
@@ -234,7 +228,7 @@ sub check_crl {			# Check signature chain on a CRL, install CRL if all is well
 	return $file;
     }
     mkdir_maybe("$unauthenticated_tree/$file");
-    rsync_cache(0, $uri, "$unauthenticated_tree/$file");
+    rsync_cache($uri, "$unauthenticated_tree/$file");
     return undef
 	unless (-f "$unauthenticated_tree/$file" ||
 		-f "$old_authenticated_tree/$file");
@@ -303,7 +297,7 @@ sub check_cert {		# Check signature chain etc on a certificate, install if all's
     return 0;
 }
 
-sub walk_cert {			# Process a certificate -- this is the core of the program
+sub walk_cert {			# Process a certificate -- core of the program
     my $p = shift;
     
     die("No certificate to process!")
@@ -317,7 +311,8 @@ sub walk_cert {			# Process a certificate -- this is the core of the program
 	my @chain = (uri_to_filename($p->{cdp}), $p->{file}, @_);
 	my $sia = uri_to_filename($p->{sia});
 	mkdir_maybe("$unauthenticated_tree/$sia");
-	rsync_cache(1, $p->{sia}, "$unauthenticated_tree/$sia");
+	rsync_cache(qw(--recursive --delete),
+		    $p->{sia}, "$unauthenticated_tree/$sia");
 	my @files = do {
 	    my %files;
 	    for my $f (glob("$unauthenticated_tree/${sia}*.cer")) {
@@ -411,11 +406,8 @@ sub main {			# Main program
     # easier just to wire the parameters into the script.
 
     if (1) {
-	push(@anchors, qw(rsync://ca-trial.ripe.net/ARIN/root/root.cer
-			  rsync://ca-trial.ripe.net/RIPE/root/root.cer
-			  rsync://ca-trial.ripe.net/arinroot/repos/root.cer
+	push(@anchors, qw(rsync://ca-trial.ripe.net/arinroot/repos/root.cer
 			  rsync://ca-trial.ripe.net/riperoot/repos/root.cer
-			  rsync://repository.apnic.net/APNIC/APNIC.cer
 			  rsync://repository.apnic.net/trust-anchor.cer));
 	push(@preaggregated, qw());
     } else {
@@ -453,14 +445,14 @@ sub main {			# Main program
     for my $uri (@preaggregated) {
 	my $dir = uri_to_filename($uri);
 	mkdir_maybe("$preaggregated_tree/$dir");
-	rsync(1, $uri, "$preaggregated_tree/$dir");
+	rsync("--recursive", $uri, "$preaggregated_tree/$dir");
     }
 
     # Update our unauthenticated tree from the pre-aggregated data.
     # Will need to pay attention to rsync parameters here to make sure
     # we don't overwrite newer stuff.
 
-    rsync(1, "$preaggregated_tree/", "$unauthenticated_tree/");
+    rsync("--recursive", "$preaggregated_tree/", "$unauthenticated_tree/");
 
     # Local trust anchors always win over anything else, so seed our
     # authenticated tree with them

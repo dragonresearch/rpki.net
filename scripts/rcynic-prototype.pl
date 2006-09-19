@@ -14,11 +14,11 @@ my $openssl			= "../openssl/trunk/apps/openssl";
 my $trust_anchor_tree		= "rcynic-trust-anchors";
 
 my $root			= "rcynic-data";
-my $preaggregated_tree		= "$root/preaggregated";
-my $unauthenticated_tree	= "$root/unauthenticated";
-my $authenticated_tree		= "$root/authenticated";
-my $old_authenticated_tree	= "$authenticated_tree.old";
-my $temporary_tree		= "$root/temporary";
+my $authenticated_pem		= "$root/authenticated_pem";
+my $old_authenticated_pem	= "$authenticated_pem.old";
+my $preaggregated_der		= "$root/preaggregated_der";
+my $unauthenticated_der		= "$root/unauthenticated_der";
+my $unauthenticated_pem		= "$root/unauthenticated_pem";
 my $cafile			= "$root/CAfile.pem";
 
 my @anchors;			# Trust anchor URIs
@@ -126,10 +126,11 @@ sub parse_cert {		# Parse interesting fields from a certificate
     my $uri = shift;
     my $dir = shift;
     my $file = uri_to_filename($uri);
-    if ($parse_cache{$file}) {
+    my $path = "$dir/$file";
+    if ($parse_cache{$path}) {
 	logmsg("Already parsed certificate $uri")
 	    if ($verbose_cache);
-	return $parse_cache{$file};
+	return $parse_cache{$path};
     }
     my %res = (file => $file, uri => $uri);
     my ($a, $s, $c);
@@ -152,7 +153,7 @@ sub parse_cert {		# Parse interesting fields from a certificate
 	logmsg("Malformed SIA URI, compensating: $res{sia}");
 	$res{sia} .= "/";
     }
-    return $parse_cache{$file} = \%res;
+    return $parse_cache{$path} = \%res;
 }
 
 sub log_cert {
@@ -173,8 +174,8 @@ sub setup_cafile {		# Set up -CAfile data for verification
     for my $f (@_) {
 	next if ($saw{$f});
 	$saw{$f} = 1;
-	open(IN, "$authenticated_tree/$f")
-	    or die("Couldn't open $authenticated_tree/$f: $!");
+	open(IN, "$authenticated_pem/$f")
+	    or die("Couldn't open $authenticated_pem/$f: $!");
 	print(OUT $_)
 	    foreach (<IN>);
 	close(IN);
@@ -216,34 +217,34 @@ sub check_crl {			# Check signature chain on a CRL, install CRL if all is well
     return undef
 	unless ($uri);
     my $file = uri_to_filename($uri);
-    if (-f "$authenticated_tree/$file") {
+    if (-f "$authenticated_pem/$file") {
 	logmsg("Already checked CRL $uri")
 	    if ($verbose_cache);
 	return $file;
     }
-    mkdir_maybe("$unauthenticated_tree/$file");
-    rsync_cache($uri, "$unauthenticated_tree/$file");
+    mkdir_maybe("$unauthenticated_der/$file");
+    rsync_cache($uri, "$unauthenticated_der/$file");
     return undef
-	unless (-f "$unauthenticated_tree/$file" ||
-		-f "$old_authenticated_tree/$file");
+	unless (-f "$unauthenticated_der/$file" ||
+		-f "$old_authenticated_pem/$file");
     setup_cafile(@_);
     local $_;
-    for my $source (($unauthenticated_tree, $old_authenticated_tree)) {
+    for my $source (($unauthenticated_der, $old_authenticated_pem)) {
 	next unless (-f "$source/$file");
 	logmsg("Checking saved old CRL $uri")
-	    if ($source eq $old_authenticated_tree);
+	    if ($source eq $old_authenticated_pem);
 	my @result = openssl_pipe("crl", "-CAfile", $cafile, "-noout",
 				  "-in", "$source/$file", "-inform",
-				  ($source eq $old_authenticated_tree ? "PEM" : "DER"));
+				  ($source eq $old_authenticated_pem ? "PEM" : "DER"));
 	if (grep(/verify OK/, @result)) {
 	    logmsg("Accepting CRL $uri")
 		if ($verbose_accept);
-	    if ($source eq $old_authenticated_tree) {
-		ln("$old_authenticated_tree/$file", "$authenticated_tree/$file");
+	    if ($source eq $old_authenticated_pem) {
+		ln("$old_authenticated_pem/$file", "$authenticated_pem/$file");
 	    } else {
-		mkdir_maybe("$authenticated_tree/$file");
+		mkdir_maybe("$authenticated_pem/$file");
 		openssl("crl", "-inform", "DER", "-in", "$source/$file",
-			"-outform", "PEM", "-out", "$authenticated_tree/$file");
+			"-outform", "PEM", "-out", "$authenticated_pem/$file");
 	    }
 	    return $file;
 	} elsif (grep(/certificate revoked/, @result)) {
@@ -275,10 +276,10 @@ sub check_cert {		# Check signature chain etc on a certificate, install if all's
     if (grep(/OK$/, @result)) {
 	logmsg("Accepting certificate $uri")
 	    if ($verbose_accept);
-	if ($source eq $old_authenticated_tree) {
-	    ln("$source/$file", "$authenticated_tree/$file");
+	if ($source eq $old_authenticated_pem) {
+	    ln("$source/$file", "$authenticated_pem/$file");
 	} else {
-	    mv("$source/$file", "$authenticated_tree/$file");
+	    mv("$source/$file", "$authenticated_pem/$file");
 	}
 	return 1;
     } elsif (grep(/certificate revoked/, @result)) {
@@ -308,18 +309,18 @@ sub walk_cert {			# Process a certificate -- core of the program
     if ($p->{sia}) {
 	my @chain = (uri_to_filename($p->{cdp}), $p->{file}, @_);
 	my $sia = uri_to_filename($p->{sia});
-	mkdir_maybe("$unauthenticated_tree/$sia");
+	mkdir_maybe("$unauthenticated_der/$sia");
 	rsync_cache(qw(--recursive --delete),
-		    $p->{sia}, "$unauthenticated_tree/$sia");
+		    $p->{sia}, "$unauthenticated_der/$sia");
 	my @files = do {
 	    my %files;
-	    for my $f (glob("$unauthenticated_tree/${sia}*.cer")) {
-		$f =~ s=^$unauthenticated_tree/==;
+	    for my $f (glob("$unauthenticated_der/${sia}*.cer")) {
+		$f =~ s=^$unauthenticated_der/==;
 		$files{$f} = 1;
 	    }
 	    if ($retain_old_certs) {
-		for my $f (glob("$old_authenticated_tree/${sia}*.cer")) {
-		    $f =~ s=^$old_authenticated_tree/==;
+		for my $f (glob("$old_authenticated_pem/${sia}*.cer")) {
+		    $f =~ s=^$old_authenticated_pem/==;
 		    $files{$f} = 1;
 		}
 	    }
@@ -328,21 +329,21 @@ sub walk_cert {			# Process a certificate -- core of the program
 	for my $file (@files) {
 	    my $uri = "rsync://" . $file;
 	    logmsg("Found certificate $uri");
-	    if (-f "$authenticated_tree/$file") {
+	    if (-f "$authenticated_pem/$file") {
 		logmsg("Already checked certificate $uri, skipping")
 		    if ($verbose_cache);
 		next;
 	    }
 	    die("Certificate $uri is its own ancestor?!?")
 		if (grep({$file eq $_} @chain));
-	    copy_cert($file, $unauthenticated_tree, $temporary_tree)
-		if (-f "$unauthenticated_tree/$file");
+	    copy_cert($file, $unauthenticated_der, $unauthenticated_pem)
+		if (-f "$unauthenticated_der/$file");
 	    my $cert;
-	    for my $source (($temporary_tree, $old_authenticated_tree)) {
+	    for my $source (($unauthenticated_pem, $old_authenticated_pem)) {
 		next
 		    unless (-f "$source/$file");
 		logmsg("Checking saved old certificate $uri")
-		    if ($source eq $old_authenticated_tree);
+		    if ($source eq $old_authenticated_pem);
 		my $c = parse_cert($uri, $source);
 		if (!$c) {
 		    logmsg("Parse failure for $uri, skipping");
@@ -429,14 +430,15 @@ sub main {			# Main program
 
     # Initial cleanup.
 
-    run("rm", "-rf", $temporary_tree, $old_authenticated_tree);
-    rename($authenticated_tree, $old_authenticated_tree);
-    die("Couldn't clear $authenticated_tree from previous run")
-	if (-d $authenticated_tree);
+    run("rm", "-rf", $unauthenticated_pem, $old_authenticated_pem);
+    rename($authenticated_pem, $old_authenticated_pem);
+    die("Couldn't clear $authenticated_pem from previous run")
+	if (-d $authenticated_pem);
 
     # Create any missing directories.
 
-    for my $dir (($preaggregated_tree, $unauthenticated_tree, $authenticated_tree, $temporary_tree)) {
+    for my $dir (($preaggregated_der, $unauthenticated_der,
+		  $authenticated_pem, $unauthenticated_pem)) {
 	mkdir_maybe("$dir/");
     }
 
@@ -446,27 +448,27 @@ sub main {			# Main program
 
     for my $uri (@preaggregated) {
 	my $dir = uri_to_filename($uri);
-	mkdir_maybe("$preaggregated_tree/$dir");
-	rsync("--recursive", $uri, "$preaggregated_tree/$dir");
+	mkdir_maybe("$preaggregated_der/$dir");
+	rsync("--recursive", $uri, "$preaggregated_der/$dir");
     }
 
     # Update our unauthenticated tree from the pre-aggregated data.
     # Will need to pay attention to rsync parameters here to make sure
     # we don't overwrite newer stuff.
 
-    rsync("--recursive", "$preaggregated_tree/", "$unauthenticated_tree/");
+    rsync("--recursive", "$preaggregated_der/", "$unauthenticated_der/");
 
     # Local trust anchors always win over anything else, so seed our
     # authenticated tree with them
 
     for my $anchor (@anchors) {
-	copy_cert(uri_to_filename($anchor), $trust_anchor_tree, $authenticated_tree);
+	copy_cert(uri_to_filename($anchor), $trust_anchor_tree, $authenticated_pem);
     }
 
     # Now start walking the tree, starting with our trust anchors.
 
     for my $anchor (@anchors) {
-	my $t = parse_cert($anchor, $authenticated_tree);
+	my $t = parse_cert($anchor, $authenticated_pem);
 	die("Couldn't parse trust anchor! $anchor\n")
 	    unless($t);
 	$t->{ta} = 1;
@@ -480,6 +482,8 @@ sub main {			# Main program
 	}
 	walk_cert($t);
     }
+
+    unlink($cafile);
 
     my $stop_time = time;
     logmsg("Finished at ", scalar(gmtime($stop_time)), " UTC");

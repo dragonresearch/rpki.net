@@ -30,7 +30,7 @@ my $verbose_run		 = 0;	# Log all external programs
 my $verbose_cache	 = 0;	# Log various cache hits
 my $verbose_walk	 = 0;	# Log more info during certificate walk
 my $verbose_aia		 = 0;	# Log more info for AIA errors
-my $verbose_sia_fixup	 = 0;	# Log when fixing up SIA URIs
+my $verbose_accept	 = 1;	# Log when accepting an object
 
 my $disable_network	 = 0;	# Return immediate failure for all rsync commands
 my $retain_old_certs	 = 1;	# Retain old valid certificates from previous runs
@@ -148,15 +148,9 @@ sub parse_cert {		# Parse interesting fields from a certificate
 	$res{ca} = 1
 	    if (/X509v3 Basic Constraints/ && $txt[$i+1] =~ /^\s*CA:TRUE\s*$/);
     }
-    if ($res{sia} && $res{sia} !~ m=/$=) {
-	if ($fix_broken_sia) {
-	    logmsg("Badly formatted SIA URI, compensating: $res{sia}")
-		if ($verbose_sia_fixup);
-	    $res{sia} .= "/";
-	} else {
-	    logmsg("Rejecting badly formatted SIA URI: $res{sia}");
-	    delete($res{sia});
-	}
+    if ($res{sia} && $res{sia} !~ m=/$= && $fix_broken_sia) {
+	logmsg("Malformed SIA URI, compensating: $res{sia}");
+	$res{sia} .= "/";
     }
     return $parse_cache{$file} = \%res;
 }
@@ -242,6 +236,8 @@ sub check_crl {			# Check signature chain on a CRL, install CRL if all is well
 				  "-in", "$source/$file", "-inform",
 				  ($source eq $old_authenticated_tree ? "PEM" : "DER"));
 	if (grep(/verify OK/, @result)) {
+	    logmsg("Accepting CRL $uri")
+		if ($verbose_accept);
 	    if ($source eq $old_authenticated_tree) {
 		ln("$old_authenticated_tree/$file", "$authenticated_tree/$file");
 	    } else {
@@ -277,6 +273,8 @@ sub check_cert {		# Check signature chain etc on a certificate, install if all's
 			      $cafile, "$source/$file");
     local $_;
     if (grep(/OK$/, @result)) {
+	logmsg("Accepting certificate $uri")
+	    if ($verbose_accept);
 	if ($source eq $old_authenticated_tree) {
 	    ln("$source/$file", "$authenticated_tree/$file");
 	} else {
@@ -352,6 +350,10 @@ sub walk_cert {			# Process a certificate -- core of the program
 		}
 		log_cert($c)
 		    if ($verbose_walk);
+		if ($c->{sia} && $c->{sia} !~ m=/$=) {
+		    logmsg("Malformed SIA for $uri, skipping");
+		    next;
+		}
 		if (!$c->{aia}) {
 		    logmsg("AIA missing for $uri, skipping");
 		    next;

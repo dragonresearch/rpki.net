@@ -14,7 +14,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/* $Id* */
+/* $Id$ */
 
 /*
  * "Cynical rsync": Recursively walk RPKI tree using rsync to pull

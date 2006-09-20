@@ -150,3 +150,25 @@ static int run(char *prog, ...)
   va_end(ap);
   return ret;
 }
+
+/*
+ * Make a directory if it doesn't already exist.
+ */
+
+static int mkdir_maybe(char *name)
+{
+  char *b, buffer[FILENAME_MAX];
+
+  if (!name || strlen(name) >= sizeof(buffer) - 2)
+    return 0;
+  strcpy(buffer, name);
+  strcat(buffer, "/.");
+  if (access(buffer, F_OK) == 0)
+    return 1;
+  if ((b = strrchr(strrchr(buffer, '/'), '/')) != 0) {
+    *b = '\0';
+    if (!mkdir_maybe(buffer))
+      return 0;
+  }
+  return mkdir(name, 0777) == 0;
+}

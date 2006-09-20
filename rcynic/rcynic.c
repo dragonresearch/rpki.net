@@ -56,7 +56,6 @@ static void vlogmsg(char *fmt, va_list ap)
   putchar('\n');
 }
 
-
 static void logmsg(char *fmt, ...)
 {
   va_list ap;
@@ -89,20 +88,43 @@ static void fatal(int retval, char *fmt, ...)
 }
 
 /*
- * Subprocess manipulation.
+ * Run rsync.
+ *
+ * This probably isn't paranoid enough.  Should use select() to do
+ * some kind of timeout when rsync is taking too long.  Breaking the
+ * log stream into lines without fgets() is a pain, maybe setting
+ * nonblocking I/O before calling fdopen() would suffice to let us
+ * use select()?  If we can time out, we need to be able to kill()
+ * the rsync process.  Might need to use waitpid() instead of wait()
+ * so we can specify the pid we want and WNOHANG.
  */
 
-static int vrun(char *prog, va_list ap)
+static char *rsync_cmd[] = {
+  "rsync", "--update", "--times", "--copy-links", "--itemize-changes"
+};
+
+static int rsync(char *args, ...)
 {
-  char *argv[100], buffer[2000];
+  char *uri = 0, *argv[100], buffer[2000];
   int argc, pipe_fds[2], n, pid_status = -1;
+  va_list ap;
   FILE *f;
 
-  argv[argc = 0] = prog;
+  for (argc = 0; argc < sizeof(rsync_cmd)/sizeof(*rsync_cmd); argc++)
+    argv[argc] = rsync_cmd[argc];
+  argv[argc] = args;
+  va_start(ap, args);
   while (argv[argc++]) {
     assert(argc < sizeof(argv)/sizeof(*argv));
     argv[argc] = va_arg(ap, char *);
+    if (!uri && argv[argc] && *argv[argc] != '-')
+      uri = argv[argc];
   }
+  va_end(ap);
+
+  /*
+   * This is where we'd check to see if we've already pulled this URI.
+   */
 
   if (pipe(pipe_fds) < 0)
     fatal(1, "pipe() failed");
@@ -116,13 +138,14 @@ static int vrun(char *prog, va_list ap)
       fatal(-2, "dup2(1) failed");
     if (dup2(pipe_fds[1], 2) < 0)
       fatal(-3, "dup2(2) failed");
-    execvp(prog, argv);
+    execvp(argv[0], argv);
     fatal(-4, "execvp() failed");
   }
 
   close(pipe_fds[1]);
+
   if ((f = fdopen(pipe_fds[0], "r")) == NULL)
-    fatal(1, "Couldn't open output of forked process");
+    fatal(1, "Couldn't open rsync's output stream");
 
   while (fgets(buffer, sizeof(buffer), f)) {
     char *s = strchr(buffer, '\n');
@@ -134,21 +157,11 @@ static int vrun(char *prog, va_list ap)
   wait(&pid_status);
 
   if (WEXITSTATUS(pid_status)) {
-    logmsg("Forked process exited with status %d", pid_status);
+    logmsg("rsync exited with status %d", pid_status);
     return 0;
   } else {
     return 1;
   }
-}
-
-static int run(char *prog, ...)
-{
-  int ret;
-  va_list ap;
-  va_start(ap, prog);
-  ret = vrun(prog, ap);
-  va_end(ap);
-  return ret;
 }
 
 /*

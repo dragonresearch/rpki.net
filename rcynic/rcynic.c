@@ -48,6 +48,7 @@
 typedef struct rpki_cert {
   int ca, ta;
   char *uri, *file, *sia, *aia, *crldp;
+  X509 *x;
 } rpki_cert_t;
 
 static char *jane;
@@ -115,10 +116,9 @@ static int mkdir_maybe(char *name)
 {
   char *b, buffer[FILENAME_MAX];
 
-  if (!name || strlen(name) >= sizeof(buffer) - 2)
+  assert(name != NULL);
+  if (snprintf(buffer, sizeof(buffer), "%s/.", name) >= sizeof(buffer))
     return 0;
-  strcpy(buffer, name);
-  strcat(buffer, "/.");
   if (access(buffer, F_OK) == 0)
     return 1;
   if ((b = strrchr(strrchr(buffer, '/'), '/')) != 0) {
@@ -256,6 +256,70 @@ static int rsync(char *args, ...)
   } else {
     return 1;
   }
+}
+
+
+
+/*
+ * Read certificate in DER format.
+ */
+
+static X509 *read_cert(const char *filename)
+{
+  X509 *x = NULL;
+  BIO *b;
+
+  if ((b = BIO_new_file(filename, "r")) != NULL)
+    x = d2i_X509_bio(b, NULL);
+
+  BIO_free(b);
+  return x;
+}
+
+static void rpki_cert_free(rpki_cert_t *c)
+{
+  if (!c)
+    return;
+  X509_free(c->x);
+  
+}
+
+#error continue here
+
+/*
+ * This should turn into rpki_cert_read(), with an accompanying
+ * rpki_cert_free(), and should return a filled-in rpki_cert_t.
+ */
+
+/*
+ * Conclusion when Randy and I discussed it was that we should just
+ * read certs from the disk every time we need them, at least until
+ * we've proven that failing to cache them in memory is a performance
+ * problem.
+ */
+
+static rpki_cert_t *rpki_cert_read(const char *filename)
+{
+  rpki_cert_t *c;
+
+  if ((c = malloc(sizeof(*c))) == NULL)
+    return NULL;
+  memset(c, 0, sizeof(*c));
+
+  if ((c->x = read-cert(filename)) == NULL)
+    goto err;
+
+  c->ca = X509_check_ca(c->x) == 1;
+
+  NID_sinfo_access;		/* sia */
+  NID_info_access;		/* aia */
+  NID_crl_distribution_points;	/* crldp */
+
+  return c;
+
+ err:
+  rpki_cert_free(c);
+  return NULL;
 }
 
 

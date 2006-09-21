@@ -24,3 +24,6 @@ test: ${BIN} test.conf
 	${OPENSSL_DIR}/apps/openssl req -new -x509 -config test.conf -keyout test.key -out test.cer -outform DER
 	@echo ''
 	./${BIN} -v -a AS:17 -i IPv4:10.0.0.44 -d test.cer
+
+immaculate: clean
+	rm -f test.key test.cer

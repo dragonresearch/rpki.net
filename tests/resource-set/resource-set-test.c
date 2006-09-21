@@ -31,6 +31,8 @@ static X509 *read_cert(const char *filename, int format, int verbose)
     printf("\n");
   }
 
+#if 0
+
   if (x->rfc3779_addr == NULL)
     x->rfc3779_addr = X509_get_ext_d2i(x, NID_sbgp_ipAddrBlock,
 				       NULL, NULL);
@@ -38,6 +40,15 @@ static X509 *read_cert(const char *filename, int format, int verbose)
   if (x->rfc3779_asid == NULL)
     x->rfc3779_asid = X509_get_ext_d2i(x, NID_sbgp_autonomousSysNum,
 				       NULL, NULL);
+
+#else
+
+  /*
+   * We run this for the side-effect of calling x509v3_cache_extensions()
+   */
+  X509_check_ca(x);
+
+#endif
 
  done:
   BIO_free(b);

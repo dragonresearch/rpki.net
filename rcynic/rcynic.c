@@ -45,17 +45,20 @@
 #include <openssl/x509v3.h>
 #include <openssl/safestack.h>
 
-DECLARE_STACK_OF(char)
+typedef struct rpki_cert {
+  int ca, ta;
+  char *uri, *file, *sia, *aia, *crldp;
+} rpki_cert_t;
 
-static STACK_OF(char) *rsync_cache;
+static char *jane;
+
+static STACK *rsync_cache;
 
 
 
 /*
  * Logging functions.
  */
-
-static char *jane;
 
 static void vlogmsg(char *fmt, va_list ap)
 {

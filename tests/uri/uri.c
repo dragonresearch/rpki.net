@@ -23,25 +23,20 @@ static X509 *read_cert(const char *filename, int format, int verbose)
   X509 *x = NULL;
   BIO *b;
 
-  if ((b = BIO_new_file(filename, "r")) == NULL)
-    goto done;
-
-  switch (format) {
-  case 'p':
-    x = PEM_read_bio_X509_AUX(b, NULL, NULL, NULL);
-    break;
-  case 'd':
-    x = d2i_X509_bio(b, NULL);
-    break;
+  if ((b = BIO_new_file(filename, "r")) != NULL) {
+    switch (format) {
+    case 'p':
+      x = PEM_read_bio_X509_AUX(b, NULL, NULL, NULL);
+      break;
+    case 'd':
+      x = d2i_X509_bio(b, NULL);
+      break;
+    }
+    if (verbose && x != NULL) {
+      X509_print_fp(stdout, x);
+      printf("\n");
+    }
   }
-
-  if (verbose && x != NULL) {
-    X509_print_fp(stdout, x);
-    printf("\n");
-  }
-
-
- done:
   BIO_free(b);
   return x;
 }
@@ -57,8 +52,6 @@ enum decode_errors {
   decode_not_URI,
 };
 
-#define	lose(_err_) do { err = _err_; goto done; } while (0)
-
 static enum decode_errors decode_crldp(X509 *x, int verbose)
 {
   enum decode_errors err = decode_ok;
@@ -67,38 +60,33 @@ static enum decode_errors decode_crldp(X509 *x, int verbose)
   GENERAL_NAME *n;
   int i;
 
-  if (!ds)
-    lose(decode_no_extension);
-
-  if (sk_DIST_POINT_num(ds) != 1)
-    lose(decode_not_exactly_one_DistributionPointName);
-
-  d = sk_DIST_POINT_value(ds, 0);
-
-  if (d->reasons)
-    lose(decode_has_reasons);
-
-  if (d->CRLissuer)
-    lose(decode_has_CRLissuer);
-
-  if (!d->distpoint)
-    lose(decode_no_distributionPoint);
-
-  if (d->distpoint->type != 0)
-    lose(decode_not_GeneralName);
-
-  for (i = 0; i < sk_GENERAL_NAME_num(d->distpoint->name.fullname); i++) {
-    n = sk_GENERAL_NAME_value(d->distpoint->name.fullname, i);
-    if (n->type != GEN_URI) 
-      lose(decode_not_GeneralName);
-    if (!strncmp(n->d.uniformResourceIdentifier->data,
-		 "rsync://", sizeof("rsync://") - 1)) {
-      printf(" CRL: %s\n", n->d.uniformResourceIdentifier->data);
-      goto done;
+  if (!ds) {
+    err = decode_no_extension;
+  } else if (sk_DIST_POINT_num(ds) != 1) {
+    err = decode_not_exactly_one_DistributionPointName;
+  } else if ((d = sk_DIST_POINT_value(ds, 0))->reasons) {
+    err = decode_has_reasons;
+  } else if (d->CRLissuer) {
+    err = decode_has_CRLissuer;
+  } else if (!d->distpoint) {
+    err = decode_no_distributionPoint;
+  } else if (d->distpoint->type != 0) {
+    err = decode_not_GeneralName;
+  } else {
+    for (i = 0; i < sk_GENERAL_NAME_num(d->distpoint->name.fullname); i++) {
+      n = sk_GENERAL_NAME_value(d->distpoint->name.fullname, i);
+      if (n->type != GEN_URI) {
+	err = decode_not_GeneralName;
+	break;
+      }
+      if (!strncmp(n->d.uniformResourceIdentifier->data,
+		   "rsync://", sizeof("rsync://") - 1)) {
+	printf(" CRL: %s\n", n->d.uniformResourceIdentifier->data);
+	break;
+      }
     }
   }
 
- done:
   sk_DIST_POINT_pop_free(ds, DIST_POINT_free);
   return err;
 }
@@ -112,23 +100,25 @@ static enum decode_errors decode_access(X509 *x, int verbose, char *tag,
   ACCESS_DESCRIPTION *a;
   int i;
 
-  if (!as)
-    lose(decode_no_extension);
-
-  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(as); i++) {
-    a = sk_ACCESS_DESCRIPTION_value(as, i);
-    if (a->location->type != GEN_URI)
-      lose(decode_not_URI);
-    if (a->method->length == oidlen &&
-	!memcmp(a->method->data, oid, oidlen) &&
-	!strncmp(a->location->d.uniformResourceIdentifier->data,
-		 "rsync://", sizeof("rsync://") - 1)) {
-      printf(" %s: %s\n", tag, a->location->d.uniformResourceIdentifier->data);
-      goto done;
+  if (!as) {
+    err = decode_no_extension;
+  } else {
+    for (i = 0; i < sk_ACCESS_DESCRIPTION_num(as); i++) {
+      a = sk_ACCESS_DESCRIPTION_value(as, i);
+      if (a->location->type != GEN_URI) {
+	err = decode_not_URI;
+	break;
+      }
+      if (a->method->length == oidlen &&
+	  !memcmp(a->method->data, oid, oidlen) &&
+	  !strncmp(a->location->d.uniformResourceIdentifier->data,
+		   "rsync://", sizeof("rsync://") - 1)) {
+	printf(" %s: %s\n", tag, a->location->d.uniformResourceIdentifier->data);
+	break;
+      }
     }
   }
 
- done:
   sk_ACCESS_DESCRIPTION_pop_free(as, ACCESS_DESCRIPTION_free);
   return err;
 }
@@ -165,26 +155,26 @@ int main(int argc, char *argv[])
     default:
       fprintf(stderr, "usage: %s [-p | -d] cert [cert...]\n", argv[0]);
       ret = 1;
-      goto done;
     }
   }
 
-  argc -= optind;
-  argv += optind;
+  if (ret == 0) {
+    argc -= optind;
+    argv += optind;
 
-  while (argc-- > 0) {
-    printf("File %s\n", *argv);
-    if ((x = read_cert(*argv++, format, verbose)) == NULL) {
-      printf("Couldn't read certificate, skipping\n");
-      continue;
+    while (argc-- > 0) {
+      printf("File %s\n", *argv);
+      if ((x = read_cert(*argv++, format, verbose)) == NULL) {
+	printf("Couldn't read certificate, skipping\n");
+	continue;
+      }
+      decode_aia(x, verbose);
+      decode_sia(x, verbose);
+      decode_crldp(x, verbose);
+      X509_free(x);
     }
-    decode_aia(x, verbose);
-    decode_sia(x, verbose);
-    decode_crldp(x, verbose);
-    X509_free(x);
   }
 
- done:
   EVP_cleanup();
   ERR_free_strings();
   return ret;

@@ -55,7 +55,6 @@ enum decode_errors {
   decode_no_distributionPoint,
   decode_not_GeneralName,
   decode_not_URI,
-  decode_wrong_method
 };
 
 #define	lose(_err_) do { err = _err_; goto done; } while (0)
@@ -94,7 +93,7 @@ static enum decode_errors decode_crldp(X509 *x, int verbose)
       lose(decode_not_GeneralName);
     if (!strncmp(n->d.uniformResourceIdentifier->data,
 		 "rsync://", sizeof("rsync://") - 1)) {
-      printf("CRL: %s\n", n->d.uniformResourceIdentifier->data);
+      printf(" CRL: %s\n", n->d.uniformResourceIdentifier->data);
       goto done;
     }
   }
@@ -124,7 +123,7 @@ static enum decode_errors decode_access(X509 *x, int verbose, char *tag,
 	!memcmp(a->method->data, oid, oidlen) &&
 	!strncmp(a->location->d.uniformResourceIdentifier->data,
 		 "rsync://", sizeof("rsync://") - 1)) {
-      printf("%s: %s\n", tag, a->location->d.uniformResourceIdentifier->data);
+      printf(" %s: %s\n", tag, a->location->d.uniformResourceIdentifier->data);
       goto done;
     }
   }

@@ -261,6 +261,59 @@ static int rsync(char *args, ...)
 
 
 /*
+ * Extract URIs from certificate extensions.
+ */
+
+static char *extract_crldp_uri(STACK_OF(DIST_POINT) *crldp)
+{
+  DIST_POINT *d;
+  int i;
+
+  if (!crldp || sk_DIST_POINT_num(crldp) != 1)
+    return NULL;
+
+  d = sk_DIST_POINT_value(crldp, 0);
+
+  if (d->reasons || d->CRLissuer || !d->distpoint || d->distpoint->type != 0)
+    return NULL;
+
+  for (i = 0; i < sk_GENERAL_NAME_num(d->distpoint->name.fullname); i++) {
+    GENERAL_NAME *n = sk_GENERAL_NAME_value(d->distpoint->name.fullname, i);
+    assert(n != NULL);
+    if (n->type != GEN_URI)
+      return NULL;
+    if (!strncmp(n->d.uniformResourceIdentifier->data,
+		 "rsync://", sizeof("rsync://") - 1))
+      return strdup(n->d.uniformResourceIdentifier->data);
+  }
+
+  return NULL;
+}
+
+static char *extract_access_uri(AUTHORITY_INFO_ACCESS *xia,
+				unsigned char *oid, int oidlen)
+{
+  int i;
+
+  if (!xia)
+    return NULL;
+
+  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(xia); i++) {
+    ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(xia, i);
+    assert(a != NULL);
+    if (a->location->type != GEN_URI)
+      return NULL;
+    if (a->method->length == oidlen &&
+	!memcmp(a->method->data, oid, oidlen) &&
+	!strncmp(a->location->d.uniformResourceIdentifier->data,
+		 "rsync://", sizeof("rsync://") - 1))
+      return strdump(a->location->d.uniformResourceIdentifier->data);
+  }
+}
+
+
+
+/*
  * Read certificate in DER format.
  */
 
@@ -284,47 +337,40 @@ static void rpki_cert_free(rpki_cert_t *c)
   
 }
 
-#error continue here
-
-/*
- * This should turn into rpki_cert_read(), with an accompanying
- * rpki_cert_free(), and should return a filled-in rpki_cert_t.
- */
-
-/*
- * Conclusion when Randy and I discussed it was that we should just
- * read certs from the disk every time we need them, at least until
- * we've proven that failing to cache them in memory is a performance
- * problem.
- */
-
 static rpki_cert_t *rpki_cert_read(const char *filename)
 {
+  static unsigned char aia_oid[] = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x2};
+  static unsigned char sia_oid[] = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x5};
+  STACK_OF(DIST_POINT) *crldp;
+  AUTHORITY_INFO_ACCESS *xia;
   rpki_cert_t *c;
 
   if ((c = malloc(sizeof(*c))) == NULL)
     return NULL;
   memset(c, 0, sizeof(*c));
 
-  if ((c->x = read-cert(filename)) == NULL)
-    goto err;
+  if ((c->x = read-cert(filename)) == NULL) {
+    rpki_cert_free(c);
+    return NULL;
+  }
 
   c->ca = X509_check_ca(c->x) == 1;
 
-  NID_sinfo_access;		/* sia */
-  NID_info_access;		/* aia */
-  NID_crl_distribution_points;	/* crldp */
+  if ((xia = X509_get_ext_d2i(c->x, NID_info_access, NULL, NULL)) != NULL) {
+    c->aia = extract_access_uri(xia, aia_oid, sizeof(aia_oid));
+    sk_ACCESS_DESCRIPTION_pop_free(xia, ACCESS_DESCRIPTION_free);
+  }
+
+  if ((xia = X509_get_ext_d2i(c->x, NID_sinfo_access, NULL, NULL)) != NULL) {
+    c->sia = extract_access_uri(xia, sia_oid, sizeof(sia_oid));
+    sk_ACCESS_DESCRIPTION_pop_free(xia, ACCESS_DESCRIPTION_free);
+  }
+
+  if ((crldp = X509_get_ext_d2i(c->x, NID_crl_distribution_points,
+				NULL, NULL)) != NULL) {
+    c->crldp = extract_crldp_uri(crldp);
+    sk_DIST_POINT_pop_free(crldp, DIST_POINT_free);
+  }
 
   return c;
-
- err:
-  rpki_cert_free(c);
-  return NULL;
 }
-
-
-
-/*
- * Dunno yet whether Perl parse_cert() has a C equivalent.
- */
-

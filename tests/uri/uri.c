@@ -94,6 +94,62 @@ static void decode_crldp(X509 *x, int verbose)
   sk_DIST_POINT_pop_free(ds, DIST_POINT_free);
 }
 
+/*
+ * (gdb) r
+ * File ../../scripts/rcynic-data/unauthenticated_der/repository.apnic.net/APNIC/q66IrWSGuBE7jqx8PAUHAlHCqRw.cer
+ * 
+ * Breakpoint 2, decode_access (x=0x810c200, verbose=0, tag=0x80d8530 "AIA", nid=177, oid=0x0) at uri.c:112
+ * 2: *a->method = {sn = 0x0, ln = 0x0, nid = 0, length = 8, data = 0x8117ab0 "+\006\001\005\005\a0\002", flags = 9}
+ * 1: /x *a->method->data @ a->method->length = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x2}
+ * (gdb) c
+ * Continuing.
+ * AIA: "rsync://repository.apnic.net/APNIC/APNIC.cer"
+ * 
+ * Breakpoint 2, decode_access (x=0x810c200, verbose=0, tag=0x80d8534 "SIA", nid=398, oid=0x0) at uri.c:112
+ * 2: *a->method = {sn = 0x0, ln = 0x0, nid = 0, length = 8, data = 0x8117ab0 "+\006\001\005\005\a0\005", flags = 9}
+ * 1: /x *a->method->data @ a->method->length = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x5}
+ * (gdb) c
+ * Continuing.
+ * SIA: "rsync://repository.apnic.net/APNIC/q66IrWSGuBE7jqx8PAUHAlHCqRw/"
+ * CRLDP name 0: "rsync://repository.apnic.net/APNIC/APNIC.crl"
+*/
+
+static void decode_access(X509 *x, int verbose, char *tag, int nid,
+			  unsigned char *oid, int oidlen)
+{
+  AUTHORITY_INFO_ACCESS *as = X509_get_ext_d2i(x, nid, NULL, NULL);
+  ACCESS_DESCRIPTION *a;
+  int i, j;
+
+  if (as) {
+    for (i = 0; i < sk_ACCESS_DESCRIPTION_num(as); i++) {
+      a = sk_ACCESS_DESCRIPTION_value(as, i);
+      if (a->method->length != oidlen)
+	lose("OID is wrong length");
+      if (memcmp(a->method->data, oid, oidlen))
+	lose("Method OID doesn't match");
+      if (a->location->type != GEN_URI)
+	lose("Location is not a URI");
+      printf("%s: \"%s\"\n", tag, a->location->d.uniformResourceIdentifier->data);
+    done:
+      ;
+    }
+  }
+  sk_ACCESS_DESCRIPTION_pop_free(as, ACCESS_DESCRIPTION_free);
+}
+
+static void decode_aia(X509 *x, int verbose)
+{
+  static unsigned char oid[] = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x2};
+  decode_access(x, verbose, "AIA", NID_info_access, oid, sizeof(oid));
+}
+
+static void decode_sia(X509 *x, int verbose)
+{
+  static unsigned char oid[] = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x5};
+  decode_access(x, verbose, "SIA", NID_sinfo_access, oid, sizeof(oid));
+}
+
 int main(int argc, char *argv[])
 {
   int c, format = 'p', ret = 0, verbose = 0;
@@ -127,10 +183,8 @@ int main(int argc, char *argv[])
       printf("Couldn't read certificate, skipping\n");
       continue;
     }
-#if 0
     decode_aia(x, verbose);
     decode_sia(x, verbose);
-#endif
     decode_crldp(x, verbose);
     X509_free(x);
   }

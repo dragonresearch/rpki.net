@@ -46,80 +46,92 @@ static X509 *read_cert(const char *filename, int format, int verbose)
   return x;
 }
 
-#define	lose(msg) do { printf("Lost: %s\n", msg); goto done; } while (0)
+enum decode_errors {
+  decode_ok,
+  decode_no_extension,
+  decode_not_exactly_one_DistributionPointName,
+  decode_has_reasons,
+  decode_has_CRLissuer,
+  decode_no_distributionPoint,
+  decode_not_GeneralName,
+  decode_not_URI,
+  decode_wrong_method
+};
 
-static void decode_crldp(X509 *x, int verbose)
+#define	lose(_err_) do { err = _err_; goto done; } while (0)
+
+static enum decode_errors decode_crldp(X509 *x, int verbose)
 {
+  enum decode_errors err = decode_ok;
   STACK_OF(DIST_POINT) *ds = X509_get_ext_d2i(x, NID_crl_distribution_points, NULL, NULL);
   DIST_POINT *d;
   GENERAL_NAME *n;
-  char *s;
   int i;
 
   if (!ds)
-    lose("No CRLDP sequence");
+    lose(decode_no_extension);
 
   if (sk_DIST_POINT_num(ds) != 1)
-    lose("CRLDP sequence does not have exactly one member");
+    lose(decode_not_exactly_one_DistributionPointName);
 
   d = sk_DIST_POINT_value(ds, 0);
 
   if (d->reasons)
-    lose("CRLDP has reasons");
+    lose(decode_has_reasons);
 
   if (d->CRLissuer)
-    lose("CRLDP has CRLissuer");
+    lose(decode_has_CRLissuer);
 
   if (!d->distpoint)
-    lose("CRLDP has no distributionPoint");
+    lose(decode_no_distributionPoint);
 
   if (d->distpoint->type != 0)
-    lose("CRLDP does not contain general names");
+    lose(decode_not_GeneralName);
 
   for (i = 0; i < sk_GENERAL_NAME_num(d->distpoint->name.fullname); i++) {
     n = sk_GENERAL_NAME_value(d->distpoint->name.fullname, i);
-    if (n->type != GEN_URI) {
-      printf("CRDLP name %d is type %d, not URI, skipping\n", i, n->type);
-      continue;
+    if (n->type != GEN_URI) 
+      lose(decode_not_GeneralName);
+    if (!strncmp(n->d.uniformResourceIdentifier->data,
+		 "rsync://", sizeof("rsync://") - 1)) {
+      printf("CRL: %s\n", n->d.uniformResourceIdentifier->data);
+      goto done;
     }
-    s = n->d.uniformResourceIdentifier->data;
-    if (strncmp(s, "rsync://", sizeof("rsync://") - 1)) {
-      printf("CRLDP name %d is not an rsync URI, skipping\n", i);
-      continue;
-    }
-    printf("CRL: %s\n", s);
   }
 
  done:
   sk_DIST_POINT_pop_free(ds, DIST_POINT_free);
+  return err;
 }
 
-static void decode_access(X509 *x, int verbose, char *tag, int nid,
-			  unsigned char *oid, int oidlen)
+static enum decode_errors decode_access(X509 *x, int verbose, char *tag,
+					int nid, unsigned char *oid,
+					int oidlen)
 {
+  enum decode_errors err = decode_ok;
   AUTHORITY_INFO_ACCESS *as = X509_get_ext_d2i(x, nid, NULL, NULL);
   ACCESS_DESCRIPTION *a;
-  char *s;
   int i;
 
-  if (as) {
-    for (i = 0; i < sk_ACCESS_DESCRIPTION_num(as); i++) {
-      a = sk_ACCESS_DESCRIPTION_value(as, i);
-      if (a->method->length != oidlen)
-	lose("OID is wrong length");
-      if (memcmp(a->method->data, oid, oidlen))
-	lose("Method OID doesn't match");
-      if (a->location->type != GEN_URI)
-	lose("Location is not a URI");
-      s = a->location->d.uniformResourceIdentifier->data;
-      if (strncmp(s, "rsync://", sizeof("rsync://") - 1))
-	lose("Location is not a rsync URI");
-      printf("%s: %s\n", tag, s);
-    done:
-      ;
+  if (!as)
+    lose(decode_no_extension);
+
+  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(as); i++) {
+    a = sk_ACCESS_DESCRIPTION_value(as, i);
+    if (a->location->type != GEN_URI)
+      lose(decode_not_URI);
+    if (a->method->length == oidlen &&
+	!memcmp(a->method->data, oid, oidlen) &&
+	!strncmp(a->location->d.uniformResourceIdentifier->data,
+		 "rsync://", sizeof("rsync://") - 1)) {
+      printf("%s: %s\n", tag, a->location->d.uniformResourceIdentifier->data);
+      goto done;
     }
   }
+
+ done:
   sk_ACCESS_DESCRIPTION_pop_free(as, ACCESS_DESCRIPTION_free);
+  return err;
 }
 
 static void decode_aia(X509 *x, int verbose)

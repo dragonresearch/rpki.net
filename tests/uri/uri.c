@@ -87,39 +87,20 @@ static void decode_crldp(X509 *x, int verbose)
       printf("CRLDP name %d is not an rsync URI, skipping\n", i);
       continue;
     }
-    printf("CRLDP name %d: \"%s\"\n", i, s);
+    printf("CRL: %s\n", s);
   }
 
  done:
   sk_DIST_POINT_pop_free(ds, DIST_POINT_free);
 }
 
-/*
- * (gdb) r
- * File ../../scripts/rcynic-data/unauthenticated_der/repository.apnic.net/APNIC/q66IrWSGuBE7jqx8PAUHAlHCqRw.cer
- * 
- * Breakpoint 2, decode_access (x=0x810c200, verbose=0, tag=0x80d8530 "AIA", nid=177, oid=0x0) at uri.c:112
- * 2: *a->method = {sn = 0x0, ln = 0x0, nid = 0, length = 8, data = 0x8117ab0 "+\006\001\005\005\a0\002", flags = 9}
- * 1: /x *a->method->data @ a->method->length = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x2}
- * (gdb) c
- * Continuing.
- * AIA: "rsync://repository.apnic.net/APNIC/APNIC.cer"
- * 
- * Breakpoint 2, decode_access (x=0x810c200, verbose=0, tag=0x80d8534 "SIA", nid=398, oid=0x0) at uri.c:112
- * 2: *a->method = {sn = 0x0, ln = 0x0, nid = 0, length = 8, data = 0x8117ab0 "+\006\001\005\005\a0\005", flags = 9}
- * 1: /x *a->method->data @ a->method->length = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x5}
- * (gdb) c
- * Continuing.
- * SIA: "rsync://repository.apnic.net/APNIC/q66IrWSGuBE7jqx8PAUHAlHCqRw/"
- * CRLDP name 0: "rsync://repository.apnic.net/APNIC/APNIC.crl"
-*/
-
 static void decode_access(X509 *x, int verbose, char *tag, int nid,
 			  unsigned char *oid, int oidlen)
 {
   AUTHORITY_INFO_ACCESS *as = X509_get_ext_d2i(x, nid, NULL, NULL);
   ACCESS_DESCRIPTION *a;
-  int i, j;
+  char *s;
+  int i;
 
   if (as) {
     for (i = 0; i < sk_ACCESS_DESCRIPTION_num(as); i++) {
@@ -130,7 +111,10 @@ static void decode_access(X509 *x, int verbose, char *tag, int nid,
 	lose("Method OID doesn't match");
       if (a->location->type != GEN_URI)
 	lose("Location is not a URI");
-      printf("%s: \"%s\"\n", tag, a->location->d.uniformResourceIdentifier->data);
+      s = a->location->d.uniformResourceIdentifier->data;
+      if (strncmp(s, "rsync://", sizeof("rsync://") - 1))
+	lose("Location is not a rsync URI");
+      printf("%s: %s\n", tag, s);
     done:
       ;
     }

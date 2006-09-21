@@ -307,7 +307,7 @@ static char *extract_access_uri(AUTHORITY_INFO_ACCESS *xia,
 	!memcmp(a->method->data, oid, oidlen) &&
 	!strncmp(a->location->d.uniformResourceIdentifier->data,
 		 "rsync://", sizeof("rsync://") - 1))
-      return strdump(a->location->d.uniformResourceIdentifier->data);
+      return strdup(a->location->d.uniformResourceIdentifier->data);
   }
 }
 
@@ -349,7 +349,7 @@ static rpki_cert_t *rpki_cert_read(const char *filename)
     return NULL;
   memset(c, 0, sizeof(*c));
 
-  if ((c->x = read-cert(filename)) == NULL) {
+  if ((c->x = read_cert(filename)) == NULL) {
     rpki_cert_free(c);
     return NULL;
   }
@@ -373,4 +373,22 @@ static rpki_cert_t *rpki_cert_read(const char *filename)
   }
 
   return c;
+}
+
+
+
+/*
+ * Read CRL in DER format.
+ */
+
+static X509_CRL *read_crl(const char *filename)
+{
+  X509_CRL *crl = NULL;
+  BIO *b;
+
+  if ((b = BIO_new_file(filename, "r")) != NULL)
+    crl = d2i_X509_CRL_bio(b, NULL);
+
+  BIO_free(b);
+  return crl;
 }

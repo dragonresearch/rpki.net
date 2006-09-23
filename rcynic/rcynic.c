@@ -141,7 +141,7 @@ static int mkdir_maybe(char *name)
   if ((b = strrchr(buffer, '/')) == NULL)
     return 1;
   *b = '\0';
-  if (access(buffer, F_OK) == 0)
+  if (!access(buffer, F_OK))
     return 1;
   if (!mkdir_maybe(buffer))
     return 0;
@@ -268,7 +268,7 @@ static int rsync_cmp(const char * const *a, const char * const *b)
 static int rsync(char *args, ...)
 {
   char *s, *argv[100], buffer[2000], *uri = 0, path[FILENAME_MAX];
-  int argc, pipe_fds[2], n, pid_status = -1;
+  int argc, pipe_fds[2], pid_status = -1;
   va_list ap;
   pid_t pid;
   FILE *f;
@@ -525,7 +525,9 @@ static X509_CRL *check_crl_1(const char *uri, char *path, int pathlen,
   X509_CRL *crl;
   int ret;
 
-  assert(uri != NULL && path != NULL && trusted_certs != NULL);
+  assert(uri && path && trusted_certs);
+
+  memset(&ctx, 0, sizeof(ctx));
 
   if (!uri_to_filename(uri, path, pathlen, prefix) || 
       (crl = read_crl(path)) == NULL)
@@ -546,10 +548,14 @@ static X509_CRL *check_crl_1(const char *uri, char *path, int pathlen,
 
   ret = X509_CRL_verify(crl, pkey);
   EVP_PKEY_free(pkey);
-  if (ret > 0)
-    return crl;
+  if (ret <= 0)
+    goto punt;
+
+  X509_STORE_CTX_cleanup(&ctx);
+  return crl;
 
  punt:
+  X509_STORE_CTX_cleanup(&ctx);
   X509_CRL_free(crl);
   return NULL;
 }
@@ -562,7 +568,7 @@ static int check_crl(char *uri,
   X509_CRL *crl;
 
   if (uri_to_filename(uri, path, sizeof(path), authenticated) && 
-      access(path, R_OK) == 0)
+      !access(path, R_OK))
     return 1;
 
   rsync(uri);
@@ -578,4 +584,113 @@ static int check_crl(char *uri,
   }
 
   return 0;
+}
+
+
+
+/*
+ * Next task is check_cert().  The innermost loop of walk_cert() from
+ * the perl program should also be here, which will make walk_cert() a
+ * lot shorter.  The check_cert() / check_cert_1() design used above
+ * with check_crl() should work well here too, since it's the same
+ * basic problem: load and check from unauth, if that fails load and
+ * check from old_auth, if that fails, give up.
+ */
+
+static X509 *check_cert_1(const char *uri,
+			  char *path, int pathlen,
+			  const char *prefix,
+			  STACK_OF(X509) *trusted_certs,
+			  STACK_OF(X509_CRL) *crls,
+			  certinfo_t *issuer,
+			  certinfo_t *subj)
+{
+  X509_STORE_CTX ctx;
+  X509 *x;
+
+  assert(uri && path && trusted_certs && crls && issuer && subj);
+
+  memset(&ctx, 0, sizeof(ctx));
+
+  if (!uri_to_filename(uri, path, pathlen, prefix)) {
+    logmsg("Can't convert URI %s to filename", uri);
+    return NULL;
+  }
+
+  if (access(path, R_OK))
+    return NULL;
+
+  if ((x = read_cert(path)) == NULL) {
+    logmsg("Can't read certificate %s", path);
+    return NULL;
+  }
+
+  parse_cert(x, subj);
+
+  if (subj->sia[0] && subj->sia[strlen(subj->sia) - 1] != '/') {
+    logmsg("Malformed SIA %s for URI %s, skipping", subj->sia, uri);
+    goto punt;
+  }
+
+  if (!subj->aia[0]) {
+    logmsg("AIA missing for URI %s, skipping", uri);
+    goto punt;
+  }
+
+  if (!issuer->ta && strcmp(issuer->uri, subj->aia)) {
+    logmsg("AIA of %s doesn't match parent, skipping", uri);
+    goto punt;
+  }
+
+  if (subj->ca && !subj->sia[0]) {
+    logmsg("CA certificate %s without SIA extension, skipping", uri);
+    goto punt;
+  }
+
+  if (!subj->ca && subj->sia[0]) {
+    logmsg("EE certificate %s with SIA extension, skipping", uri);
+    goto punt;
+  }
+
+  if (!subj->crldp[0]) {
+    logmsg("CRLDP missing for %s, skipping", uri);
+    goto punt;
+  }
+
+  /*
+   * This is where we'd check the issuer's signature over the cert if
+   * either (a) we wanted to be really paranoid (check sig before
+   * fetching CRL), or (b) we wanted to try to check each signature
+   * only once by doing the signatures here and faking out the
+   * signature checks in X509_verify_cert().  Ignore all this for now.
+   */
+
+  if (!X509_STORE_CTX_init(&ctx, NULL, x, NULL))
+    goto punt;
+  X509_STORE_CTX_trusted_stack(&ctx, trusted_certs);
+  X509_STORE_CTX_set0_crls(&ctx, crls);
+
+  X509_VERIFY_PARAM_set_flags(ctx.param,
+			      X509_V_FLAG_CRL_CHECK |
+			      X509_V_FLAG_CRL_CHECK_ALL |
+			      X509_V_FLAG_POLICY_CHECK |
+			      X509_V_FLAG_EXPLICIT_POLICY |
+			      X509_V_FLAG_X509_STRICT);
+
+  X509_VERIFY_PARAM_add0_policy(ctx.param,
+				/* {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0xe, 0x2} */
+				OBJ_txt2obj("1.3.6.1.5.5.7.14.2", 0));
+
+ if (X509_verify_cert(&ctx) <= 0) {
+    logmsg("I don't think X509_verify_cert() was happy with %s", uri);
+    goto punt;
+  }
+
+  X509_STORE_CTX_cleanup(&ctx);
+  return x;
+
+ punt:
+  X509_STORE_CTX_cleanup(&ctx);
+  X509_free(x);
+  return NULL;
 }

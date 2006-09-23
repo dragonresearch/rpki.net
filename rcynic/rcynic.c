@@ -38,6 +38,8 @@
 #include <time.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <dirent.h>
+
 #include <openssl/bio.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
@@ -244,6 +246,45 @@ static int install_object(const char *uri, const char *source)
   return 1;
 }
 
+/*
+ * Get next URI in an SIA collection.
+ * dir should be null when first called.
+ */
+
+static int next_uri(const char *base_uri, const char *prefix,
+		    char *uri, int urilen, DIR **dir)
+{
+  char path[FILENAME_MAX];
+  struct dirent *d;
+  int remaining;
+
+  assert(base_uri && prefix && uri && dir);
+
+  if (*dir == NULL &&
+      ((!uri_to_filename(base_uri, path, sizeof(path), prefix)) ||
+       ((*dir = opendir(path)) == NULL)))
+    return 0;
+
+  remaining = urilen - strlen(base_uri);
+
+  while ((d = readdir(*dir)) != NULL) {
+    if (d->d_type != DT_REG || d->d_name[0] == '.' ||
+	d->d_namlen < 4 || strcmp(d->d_name + d->d_namlen - 4, ".cer"))
+      continue;
+    if (strlen(d->d_name) >= remaining) {
+      logmsg("URI %s%s too long, skipping", base_uri, d->d_name);
+      continue;
+    }
+    strcpy(uri, base_uri);
+    strcat(uri, d->d_name);
+    return 1;
+  }
+
+  closedir(*dir);
+  *dir = NULL;
+  return 0;
+}
+  
 
 
 /*
@@ -600,7 +641,7 @@ static int check_crl(char *uri,
 static X509 *check_cert_1(const char *uri,
 			  char *path, int pathlen,
 			  const char *prefix,
-			  STACK_OF(X509) *trusted_certs,
+			  STACK_OF(X509) *certs,
 			  STACK_OF(X509_CRL) *crls,
 			  certinfo_t *issuer,
 			  certinfo_t *subj)
@@ -608,7 +649,7 @@ static X509 *check_cert_1(const char *uri,
   X509_STORE_CTX ctx;
   X509 *x;
 
-  assert(uri && path && trusted_certs && crls && issuer && subj);
+  assert(uri && path && certs && crls && issuer && subj);
 
   memset(&ctx, 0, sizeof(ctx));
 
@@ -659,7 +700,7 @@ static X509 *check_cert_1(const char *uri,
 
   if (!X509_STORE_CTX_init(&ctx, NULL, x, NULL))
     goto punt;
-  X509_STORE_CTX_trusted_stack(&ctx, trusted_certs);
+  X509_STORE_CTX_trusted_stack(&ctx, certs);
   X509_STORE_CTX_set0_crls(&ctx, crls);
 
   /*
@@ -669,6 +710,11 @@ static X509 *check_cert_1(const char *uri,
    * only once by doing the signatures here and faking out the
    * signature checks in X509_verify_cert().  Ignore all this for now.
    */
+
+  if (!check_crl(subj->crldp, certs, crls)) {
+    logmsg("Bad CRL for %s, skipping", uri);
+    goto punt;
+  }
 
   X509_VERIFY_PARAM_set_flags(ctx.param,
 			      X509_V_FLAG_CRL_CHECK |
@@ -699,34 +745,33 @@ static X509 *check_cert_1(const char *uri,
   return NULL;
 }
 
-static int check_cert(const char *uri,
-		      STACK_OF(X509) *trusted_certs,
+static int check_cert(char *uri,
+		      STACK_OF(X509) *certs,
 		      STACK_OF(X509_CRL) *crls,
 		      certinfo_t *issuer,
-		      certinfo_t *subj)
+		      certinfo_t *subj,
+		      const char *prefix)
 {
   char path[FILENAME_MAX];
   X509 *x;
 
   if (uri_to_filename(uri, path, sizeof(path), authenticated) && 
       !access(path, R_OK))
-    return 1;
+    return 0;			/* Already seen, don't walk it again */
 
   rsync(uri);
 
-  assert(trusted_certs);
+  assert(certs);
 
-  if ((x = check_cert_1(uri, path, sizeof(path), unauthenticated,
-			trusted_certs, crls, issuer, subj)) ||
-      (x = check_cert_1(uri, path, sizeof(path), old_authenticated,
-			trusted_certs, crls, issuer, subj))) {
+  if ((x = check_cert_1(uri, path, sizeof(path), prefix,
+			certs, crls, issuer, subj))) {
     install_object(uri, path);
-    if (!sk_X509_push(trusted_certs, x))
+    if (!sk_X509_push(certs, x))
       X509_free(x);
-    return 1;
+    return 1;			/* New cert, need to walk it */
   }
 
-  return 0;
+  return 0;			/* Nothing to walk */
 }
 
 
@@ -737,26 +782,26 @@ static int check_cert(const char *uri,
 
 static void walk_cert(certinfo_t *parent, STACK_OF(X509) *certs, STACK_OF(X509_CRL) *crls)
 {
-  assert(parent && trusted_certs && crls);
+  assert(parent && certs && crls);
 
   logmsg("Starting walk of %s", parent->uri);
 
   if (parent->sia[0]) {
-    certinfo_t child;
-    int n_cert = sk_X509_num(certs);
     int n_crl = sk_X509_CRL_num(crls);
+    int n_cert = sk_X509_num(certs);
+    char uri[URI_MAX];
+    certinfo_t child;
+    DIR *dir = NULL;
 
     rsync("--recursive", "--delete", parent->sia);
 
-#error continue here
-    /*
-     * Need an iterator to pull .cer names from the sia dir in the
-     * unauth and auth.old trees, run each uri through check_cert, and
-     * recurse on any winners.  Return value from check_cert() isn't
-     * looking that useful at the moment, as we need to distinguish
-     * between: (a) bad cert, (b) good cert on which we need to
-     * recurse, and (c) been here before, don't bother recursing.
-     */
+    while (next_uri(parent->sia, unauthenticated, uri, sizeof(uri), &dir))
+      if (check_cert(uri, certs, crls, parent, &child, unauthenticated))
+	walk_cert(&child, certs, crls);
+
+    while (next_uri(parent->sia, old_authenticated, uri, sizeof(uri), &dir))
+      if (check_cert(uri, certs, crls, parent, &child, old_authenticated))
+	walk_cert(&child, certs, crls);
 
     while (sk_X509_num(certs) > n_cert)
       X509_free(sk_X509_pop(certs));

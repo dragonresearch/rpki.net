@@ -657,6 +657,11 @@ static X509 *check_cert_1(const char *uri,
     goto punt;
   }
 
+  if (!X509_STORE_CTX_init(&ctx, NULL, x, NULL))
+    goto punt;
+  X509_STORE_CTX_trusted_stack(&ctx, trusted_certs);
+  X509_STORE_CTX_set0_crls(&ctx, crls);
+
   /*
    * This is where we'd check the issuer's signature over the cert if
    * either (a) we wanted to be really paranoid (check sig before
@@ -664,11 +669,6 @@ static X509 *check_cert_1(const char *uri,
    * only once by doing the signatures here and faking out the
    * signature checks in X509_verify_cert().  Ignore all this for now.
    */
-
-  if (!X509_STORE_CTX_init(&ctx, NULL, x, NULL))
-    goto punt;
-  X509_STORE_CTX_trusted_stack(&ctx, trusted_certs);
-  X509_STORE_CTX_set0_crls(&ctx, crls);
 
   X509_VERIFY_PARAM_set_flags(ctx.param,
 			      X509_V_FLAG_CRL_CHECK |
@@ -680,6 +680,10 @@ static X509 *check_cert_1(const char *uri,
   X509_VERIFY_PARAM_add0_policy(ctx.param,
 				/* {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0xe, 0x2} */
 				OBJ_txt2obj("1.3.6.1.5.5.7.14.2", 0));
+
+  /*
+   * Might want to set a verify callback handler here.
+   */
 
  if (X509_verify_cert(&ctx) <= 0) {
     logmsg("I don't think X509_verify_cert() was happy with %s", uri);
@@ -693,4 +697,72 @@ static X509 *check_cert_1(const char *uri,
   X509_STORE_CTX_cleanup(&ctx);
   X509_free(x);
   return NULL;
+}
+
+static int check_cert(const char *uri,
+		      STACK_OF(X509) *trusted_certs,
+		      STACK_OF(X509_CRL) *crls,
+		      certinfo_t *issuer,
+		      certinfo_t *subj)
+{
+  char path[FILENAME_MAX];
+  X509 *x;
+
+  if (uri_to_filename(uri, path, sizeof(path), authenticated) && 
+      !access(path, R_OK))
+    return 1;
+
+  rsync(uri);
+
+  assert(trusted_certs);
+
+  if ((x = check_cert_1(uri, path, sizeof(path), unauthenticated,
+			trusted_certs, crls, issuer, subj)) ||
+      (x = check_cert_1(uri, path, sizeof(path), old_authenticated,
+			trusted_certs, crls, issuer, subj))) {
+    install_object(uri, path);
+    if (!sk_X509_push(trusted_certs, x))
+      X509_free(x);
+    return 1;
+  }
+
+  return 0;
+}
+
+
+
+/*
+ * Recursive walk of certificate hierarchy.
+ */
+
+static void walk_cert(certinfo_t *parent, STACK_OF(X509) *certs, STACK_OF(X509_CRL) *crls)
+{
+  assert(parent && trusted_certs && crls);
+
+  logmsg("Starting walk of %s", parent->uri);
+
+  if (parent->sia[0]) {
+    certinfo_t child;
+    int n_cert = sk_X509_num(certs);
+    int n_crl = sk_X509_CRL_num(crls);
+
+    rsync("--recursive", "--delete", parent->sia);
+
+#error continue here
+    /*
+     * Need an iterator to pull .cer names from the sia dir in the
+     * unauth and auth.old trees, run each uri through check_cert, and
+     * recurse on any winners.  Return value from check_cert() isn't
+     * looking that useful at the moment, as we need to distinguish
+     * between: (a) bad cert, (b) good cert on which we need to
+     * recurse, and (c) been here before, don't bother recursing.
+     */
+
+    while (sk_X509_num(certs) > n_cert)
+      X509_free(sk_X509_pop(certs));
+    while (sk_X509_CRL_num(crls) > n_crl)
+      X509_CRL_free(sk_X509_CRL_pop(crls));
+  }
+
+  logmsg("Finished walk of %s", parent->uri);
 }

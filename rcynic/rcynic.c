@@ -131,13 +131,13 @@ static int mkdir_maybe(char *name)
   if (strlen(name) >= sizeof(buffer))
     return 0;
   strcpy(buffer, name);
-  if ((b = strrchr(buffer, '/')) == NULL)
-    return 1;
-  *b = '\0';
+  if ((b = strrchr(buffer, '/')) != NULL) {
+    *b = '\0';
+    if (!mkdir_maybe(buffer))
+      return 0;
+  }
   if (!access(buffer, F_OK))
     return 1;
-  if (!mkdir_maybe(buffer))
-    return 0;
   return mkdir(name, 0777) == 0;
 }
 
@@ -384,6 +384,8 @@ static int rsync(char *args, ...)
   va_list ap;
   pid_t pid;
   FILE *f;
+
+  memset(argv, 0, sizeof(argv));
 
   for (argc = 0; argc < sizeof(rsync_cmd)/sizeof(*rsync_cmd); argc++)
     argv[argc] = rsync_cmd[argc];
@@ -683,7 +685,7 @@ static int check_crl(char *uri,
       !access(path, R_OK))
     return 1;
 
-  rsync(uri);
+  rsync(uri, NULL);
 
   if ((crl = check_crl_1(uri, path, sizeof(path),
 			 unauthenticated, trusted_certs)) ||
@@ -944,7 +946,7 @@ int main(int argc, char *argv[])
     logmsg("Couldn't create CONF opbject");
     goto done;
   }
-
+  
   if (NCONF_load(cfg_handle, cfg_file, &eline) <= 0) {
     if (eline <= 0)
       logmsg("Couldn't load config file %s", cfg_file);
@@ -984,9 +986,15 @@ int main(int argc, char *argv[])
     goto done;
   }
 
-  if (rename(authenticated, old_authenticated) < 0) {
+  if (rename(authenticated, old_authenticated) < 0 &&
+      errno != ENOENT) {
     logmsg("Couldn't rename %s to %s, giving up",
 	   old_authenticated, authenticated);
+    goto done;
+  }
+
+  if (!access(authenticated, F_OK) || !mkdir_maybe(authenticated)) {
+    logmsg("Couldn't prepare directory %s, giving up", authenticated);
     goto done;
   }
 
@@ -1038,7 +1046,9 @@ int main(int argc, char *argv[])
   sk_X509_CRL_pop_free(crls, X509_CRL_free);
   sk_X509_pop_free(certs, X509_free);
   sk_pop_free(rsync_cache, free);
+#if 0				/* double frees memory?  */
   NCONF_free(cfg_handle);
+#endif
   EVP_cleanup();
   ERR_free_strings();
   free(authenticated);

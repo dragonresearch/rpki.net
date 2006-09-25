@@ -1,0 +1,27 @@
+-*- Text -*- 
+$Id$
+
+Notes on current debugging mess:
+
+Having some trouble checking CRLs.   As far as the code itself is
+concerned, we're dumping core calling X509_STORE_get_by_subject(),
+because we're not using a real X509_STORE, just a trusted_stack.
+
+But this is just the symptom.  The real issue goes deeper, and is
+architectural.  We're doing a minmimal signature check on the CRL,
+and accepting the CRL object if that works.  There are a bunch of
+other checks we probably ought to be doing.  x509_vfy.c does them as
+part of checking a certificate chain.
+
+Arguably, the right thing to do is for us to accept a CRL
+provisionally, check the cert that led us to load the CRL, and accept
+the CRL if the X509_validate_cert() call on the cert checks out.
+
+We still have a mess trying to figure out which CRL to use.  The
+URI-based code knows perfectly well which one to use, but the library
+is using certificate names.  If we believe that we really only care
+about checking the leaf CRL at any given time, we can turn off
+X509_V_FLAG_CRL_CHECK_ALL and just use X509_V_FLAG_CRL_CHECK.  For
+that matter, we really only need the leaf certificate in the CRL stack
+for this, so maybe we cut through all this complexity by loading the
+provisional CRL into a one-entry stack each time.

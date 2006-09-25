@@ -71,7 +71,7 @@ static const char authenticated[]	= "rcynic-data/authenticated/";
 static const char old_authenticated[]	= "rcynic-data/authenticated.old/";
 static const char unauthenticated[]	= "rcynic-data/unauthenticated/";
 
-static char *jane = "rcynic";
+static char *jane;
 
 static STACK *rsync_cache;
 
@@ -777,7 +777,7 @@ static int check_cert(char *uri,
 
 
 /*
- * Recursive walk of certificate hierarchy.
+ * Recursive walk of certificate hierarchy (core of the program).
  */
 
 static void walk_cert(certinfo_t *parent, STACK_OF(X509) *certs, STACK_OF(X509_CRL) *crls)
@@ -810,4 +810,114 @@ static void walk_cert(certinfo_t *parent, STACK_OF(X509) *certs, STACK_OF(X509_C
   }
 
   logmsg("Finished walk of %s", parent->uri);
+}
+
+
+
+/*
+ * Main program (finally!).  getopt() to parse command line, unless
+ * there's some clever OpenSSL equivalent that we should use instead.
+ * OpenSSL config file contains most parameters, including filenames
+ * of trust anchors.  getopt() should be mostly for things like
+ * enabling debugging, disabling network, or changing location of
+ * config file.
+ *
+ * Need a scheme for storing trust anchors in hierarchy we build?
+ * Maybe we just leave them where we found them, but probably best to
+ * install them so there will be copies with the tree derived from
+ * them, as even trust anchors can change, and as applications will
+ * need them anyway.  Collection under fake "host" TRUST-ANCHORS
+ * perhaps?  Not an FQDN so relatively safe, could be made safer by
+ * downcasing DNS name of rsync URIs and using uppercase for trust
+ * anchor directory, or something like that.  Probably make name of
+ * trust anchor directory configurable and default to TRUST-ANCHORS.
+ * Not to be confused with where we -find- the trust anchors.
+ */
+
+int main(int argc, char *argv[])
+{
+  char *trust_anchor_name, *cfg_filename = "rcynic.conf";
+  STACK_OF(X509_CRL) *crls = NULL;
+  STACK_OF(X509) *certs = NULL;
+  int c, i, ret = 1;
+
+  jane = argv[0];
+
+  OpenSSL_add_all_algorithms();
+  ERR_load_crypto_strings();
+
+  if ((rsync_cache = sk_new(rsync_cmp)) == NULL) {
+    logmsg("Couldn't allocate rsync_cache stack");
+    goto done;
+  }
+
+  while ((c = getopt(argc, argv, "c:v")) > 0) {
+    switch (c) {
+    case 'v':
+      verbose = 1;
+      break;
+    case 'c':
+      cfg_filename = optarg;
+      break;
+    default:
+      fprintf(stderr, "usage: %s [-c configfile] [-v]\n", jane);
+      goto done;
+    }
+  }
+
+#error not finished
+  /*
+   * Start reading config file here.
+   */
+
+
+  /*
+   * At some point we're ready to start reading trust anchors.
+   */
+
+  while ((trust_anchor_name = find_another_trust_anchor_name()) != NULL) {
+    crls;
+    certs = ;
+    certinfo_t ta_info;
+    X509 *x;
+
+    if ((certs = sk_X509_new_null()) == NULL) {
+      logmsg("Couldn't allocate certificate stack");
+      goto done;
+    }
+
+    if ((crls = sk_X509_CRL_new_null()) == NULL) {
+      logmsg("Couldn't allocate CRL stack");
+      goto done;
+    }
+
+    if ((x  = read_cert(trust_anchor_name)) == NULL) {
+      logmsg("Couldn't read trust anchor %s", trust_anchor_name);
+      goto done;
+    }
+
+    parse_cert(x, &ta_info);
+    ta_info.ta = 1;
+    sk_X509_push(certs, x);
+
+    if (ta_info.crldp && !check_crl(ta_info.crldp, certs, crls)) {
+      logmsg("Couldn't get CRL for trust anchor %s", trust_anchor_name);
+      goto done;
+    }
+
+    walk_cert(&ta_info, certs, crls);
+
+    sk_X509_pop_free(certs, X509_free);
+    sk_X509_CRL_pop_free(crls, X509_CRL_free);
+  }
+
+  ret = 0;
+
+ done:
+  sk_X509_CRL_pop_free(crls, X509_CRL_free);
+  sk_X509_pop_free(certs, X509_free);
+  sk_pop_free(rsync_cache, free);
+  EVP_cleanup();
+  ERR_free_strings();
+  return ret;
 }

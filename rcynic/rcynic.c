@@ -839,7 +839,9 @@ int main(int argc, char *argv[])
   char *trust_anchor_name, *cfg_filename = "rcynic.conf";
   STACK_OF(X509_CRL) *crls = NULL;
   STACK_OF(X509) *certs = NULL;
+  CONF *conf = NULL;
   int c, i, ret = 1;
+  long eline;
 
   jane = argv[0];
 
@@ -865,11 +867,43 @@ int main(int argc, char *argv[])
     }
   }
 
+  if ((conf = NCONF_new(NULL)) == NULL) {
+    logmsg("Couldn't create CONF opbject");
+    goto done;
+  }
+
+  if (NCONF_load(conf, cfg_filename, &eline) <= 0) {
+    if (eline <= 0)
+      logmsg("Couldn't load config file %s", cfg_filename);
+    else
+      logmsg("Error on line %ld of config file %s", eline, cfg_filename);
+    goto done;
+  }
+
+  /*
+   * perhaps this should specify "rcynic" instead of null, then read
+   * section name from initial config section?  it's the openssl way
+   * of doing things, but kind of confusing.
+   */ 
+  if (CONF_modules_load(conf, NULL, 0) <= 0) {
+    logmsg("Couldn't configure OpenSSL");
+    goto done;
+  }
+
 #error not finished
   /*
-   * Start reading config file here.
+   * Start reading config file here.  One of:
+   *
+   *   s = NCONF_get_string(conf, "rcynic", whatever);
+   *
+   * or
+   *
+   *   conf_vals = NCONF_get_section(conf, "rcynic");
+   *
+   * (the latter returns (STACK_OF(CONF_VALUE) *), like an X509V3
+   * method sees -- not sure how to free it, maybe just
+   * sk_CONF_VALUE_pop_free(foo, free)?)
    */
-
 
   /*
    * At some point we're ready to start reading trust anchors.
@@ -917,6 +951,7 @@ int main(int argc, char *argv[])
   sk_X509_CRL_pop_free(crls, X509_CRL_free);
   sk_X509_pop_free(certs, X509_free);
   sk_pop_free(rsync_cache, free);
+  NCONF_free(conf);
   EVP_cleanup();
   ERR_free_strings();
   return ret;

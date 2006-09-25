@@ -25,3 +25,18 @@ X509_V_FLAG_CRL_CHECK_ALL and just use X509_V_FLAG_CRL_CHECK.  For
 that matter, we really only need the leaf certificate in the CRL stack
 for this, so maybe we cut through all this complexity by loading the
 provisional CRL into a one-entry stack each time.
+
+
+Ok, so when we're looking at a certificate, we know that the
+certificate's issuer is also the CRL's issuer (because the SIDR
+profile says so).  We can, therefore, check signatures of both subject
+certificate and CRL just by locating the issuer, which is the one
+thing that the trusted_stack code does do for us (ie, we can just call
+ctx.get_issuer(&issuer, &ctx, x)).  Really, we don't even need to do
+that, since we have the issuer in hand when we're walking its SIA
+collection anyway.
+
+This may require a bit of reorganization, but should simplify things.
+
+Might need to replace X509_STORE_CTX->get_crl() with something that
+knows how to find our CRLs.

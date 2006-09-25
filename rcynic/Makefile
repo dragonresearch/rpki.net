@@ -2,7 +2,7 @@
 
 OPENSSL_DIR = ../openssl/trunk
 
-CFLAGS = -g -I${OPENSSL_DIR}/include
+CFLAGS = -g -I${OPENSSL_DIR}/include -Wall -Werror -Wshadow -Wmissing-prototypes -Wmissing-declarations
 
 # -H -Wl,-t
 

@@ -846,7 +846,7 @@ static int check_cert(const rcynic_ctx_t *rc,
       !access(path, R_OK))
     return 0;			/* Already seen, don't walk it again */
 
-  rsync(rc, uri);
+  rsync(rc, uri, NULL);
 
   assert(certs);
 
@@ -881,7 +881,7 @@ static void walk_cert(const rcynic_ctx_t *rc, certinfo_t *parent,
     certinfo_t child;
     DIR *dir = NULL;
 
-    rsync(rc, "--recursive", "--delete", parent->sia);
+    rsync(rc, "--recursive", "--delete", parent->sia, NULL);
 
     while (next_uri(rc, parent->sia, rc->unauthenticated,
 		    uri, sizeof(uri), &dir))

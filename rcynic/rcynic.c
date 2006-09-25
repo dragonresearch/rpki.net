@@ -46,6 +46,7 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <openssl/safestack.h>
+#include <openssl/conf.h>
 
 #ifndef FILENAME_MAX
 #define	FILENAME_MAX	1024
@@ -61,17 +62,7 @@ typedef struct certinfo {
   char uri[URI_MAX], sia[URI_MAX], aia[URI_MAX], crldp[URI_MAX];
 } certinfo_t;
 
-/*
- * Working directories, including trailing slashes.  Make these
- * configurable eventually (at which point the config code should
- * insure the trailing slashes...).
- */
-static const char trust_anchor_tree[]	= "rcynic-trust-anchors/";
-static const char authenticated[]	= "rcynic-data/authenticated/";
-static const char old_authenticated[]	= "rcynic-data/authenticated.old/";
-static const char unauthenticated[]	= "rcynic-data/unauthenticated/";
-
-static char *jane;
+static char *jane, *authenticated, *old_authenticated, *unauthenticated;
 
 static STACK *rsync_cache;
 
@@ -284,7 +275,87 @@ static int next_uri(const char *base_uri, const char *prefix,
   *dir = NULL;
   return 0;
 }
-  
+
+/*
+ * Set a directory name, making sure it has the trailing slash we
+ * require in various other routines.
+ */
+
+static void set_directory(char **dir, const char *val)
+{
+  char *s;
+  int n, need_slash;
+
+  assert(val && dir);
+  n = strlen(val);
+  need_slash = val[n - 1] != '/';
+  s = malloc(n + need_slash);
+  assert(s != NULL);
+  strcpy(s, val);
+  if (need_slash)
+    strcat(s, "/");
+  if (*dir)
+    free(*dir);
+  *dir = s;
+}
+
+/*
+ * Remove a directory tree, like rm -rf.
+ */
+
+static int rm_rf(const char *name)
+{
+  char path[FILENAME_MAX];
+  struct dirent *d;
+  size_t len;
+  DIR *dir;
+  int ret = 0;
+
+  assert(name);
+
+  len = strlen(name);
+
+  if (rmdir(name) == 0)
+    return 1;
+
+  switch (errno) {
+  case ENOENT:
+    return 1;
+  case ENOTEMPTY:
+    break;
+  default:
+    return 0;
+  }
+
+  if ((dir = opendir(name)) == NULL)
+    return 0;
+
+  while ((d = readdir(dir)) != NULL) {
+    if (len + d->d_namlen >= sizeof(path))
+      goto done;
+    strcpy(path, name);
+    strcat(path, d->d_name);
+    switch (d->d_type) {
+    case DT_DIR:
+      if (!rm_rf(path))
+	goto done;
+      continue;
+    default:
+      if (unlink(path) < 0)
+	goto done;
+      continue;
+    }
+  }
+
+  ret = rmdir(name) == 0;
+
+ done:
+  closedir(dir);
+  return !d;
+}
+
+
+
 
 
 /*
@@ -836,14 +907,19 @@ static void walk_cert(certinfo_t *parent, STACK_OF(X509) *certs, STACK_OF(X509_C
 
 int main(int argc, char *argv[])
 {
-  char *trust_anchor_name, *cfg_filename = "rcynic.conf";
+  char *cfg_file = "rcynic.conf";
+  STACK_OF(CONF_VALUE) *cfg_section = NULL;
   STACK_OF(X509_CRL) *crls = NULL;
   STACK_OF(X509) *certs = NULL;
-  CONF *conf = NULL;
+  CONF *cfg_handle = NULL;
   int c, i, ret = 1;
   long eline;
 
   jane = argv[0];
+
+  set_directory(&authenticated,		"rcynic-data/authenticated/");
+  set_directory(&old_authenticated,	"rcynic-data/authenticated.old/");
+  set_directory(&unauthenticated,	"rcynic-data/unauthenticated/");
 
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
@@ -853,68 +929,75 @@ int main(int argc, char *argv[])
     goto done;
   }
 
-  while ((c = getopt(argc, argv, "c:v")) > 0) {
+  while ((c = getopt(argc, argv, "c:")) > 0) {
     switch (c) {
-    case 'v':
-      verbose = 1;
-      break;
     case 'c':
-      cfg_filename = optarg;
+      cfg_file = optarg;
       break;
     default:
-      fprintf(stderr, "usage: %s [-c configfile] [-v]\n", jane);
+      fprintf(stderr, "usage: %s [-c configfile]\n", jane);
       goto done;
     }
   }
 
-  if ((conf = NCONF_new(NULL)) == NULL) {
+  if ((cfg_handle = NCONF_new(NULL)) == NULL) {
     logmsg("Couldn't create CONF opbject");
     goto done;
   }
 
-  if (NCONF_load(conf, cfg_filename, &eline) <= 0) {
+  if (NCONF_load(cfg_handle, cfg_file, &eline) <= 0) {
     if (eline <= 0)
-      logmsg("Couldn't load config file %s", cfg_filename);
+      logmsg("Couldn't load config file %s", cfg_file);
     else
-      logmsg("Error on line %ld of config file %s", eline, cfg_filename);
+      logmsg("Error on line %ld of config file %s", eline, cfg_file);
     goto done;
   }
 
   /*
-   * perhaps this should specify "rcynic" instead of null, then read
-   * section name from initial config section?  it's the openssl way
-   * of doing things, but kind of confusing.
+   * Perhaps this should specify "rcynic" instead of null, then read
+   * the real section name from the initial config section?  it's the
+   * openssl way of doing things, but kind of confusing.  Punt for now.
    */ 
-  if (CONF_modules_load(conf, NULL, 0) <= 0) {
+  if (CONF_modules_load(cfg_handle, NULL, 0) <= 0) {
     logmsg("Couldn't configure OpenSSL");
     goto done;
   }
 
-#error not finished
-  /*
-   * Start reading config file here.  One of:
-   *
-   *   s = NCONF_get_string(conf, "rcynic", whatever);
-   *
-   * or
-   *
-   *   conf_vals = NCONF_get_section(conf, "rcynic");
-   *
-   * (the latter returns (STACK_OF(CONF_VALUE) *), like an X509V3
-   * method sees -- not sure how to free it, maybe just
-   * sk_CONF_VALUE_pop_free(foo, free)?)
-   */
+  if ((cfg_section = NCONF_get_section(cfg_handle, "rcynic")) == NULL) {
+    logmsg("Couldn't load rcynic section from config file");
+    goto done;
+  }
 
-  /*
-   * At some point we're ready to start reading trust anchors.
-   */
+  for (i = 0; i < sk_CONF_VALUE_num(cfg_section); i++) {
+    CONF_VALUE *val = sk_CONF_VALUE_value(cfg_section, i);
 
-  while ((trust_anchor_name = find_another_trust_anchor_name()) != NULL) {
-    crls;
-    certs = ;
+    if (!name_cmp(val->name, "authenticated"))
+      set_directory(&authenticated, val->value);
+    else if (!name_cmp(val->name, "old-authenticated")) 
+      set_directory(&old_authenticated,	val->value);
+    else if (!name_cmp(val->name, "unauthenticated"))
+      set_directory(&unauthenticated, val->value);
+  }
+
+  if (!rm_rf(old_authenticated)) {
+    logmsg("Couldn't remove %s, giving up", old_authenticated);
+    goto done;
+  }
+
+  if (rename(authenticated, old_authenticated) < 0) {
+    logmsg("Couldn't rename %s to %s, giving up",
+	   old_authenticated, authenticated);
+    goto done;
+  }
+
+  for (i = 0; i < sk_CONF_VALUE_num(cfg_section); i++) {
+    CONF_VALUE *val = sk_CONF_VALUE_value(cfg_section, i);
     certinfo_t ta_info;
     X509 *x;
 
+    if (name_cmp(val->name, "trust-anchor"))
+      continue;
+    
     if ((certs = sk_X509_new_null()) == NULL) {
       logmsg("Couldn't allocate certificate stack");
       goto done;
@@ -925,8 +1008,8 @@ int main(int argc, char *argv[])
       goto done;
     }
 
-    if ((x  = read_cert(trust_anchor_name)) == NULL) {
-      logmsg("Couldn't read trust anchor %s", trust_anchor_name);
+    if ((x  = read_cert(val->value)) == NULL) {
+      logmsg("Couldn't read trust anchor %s", val->value);
       goto done;
     }
 
@@ -935,24 +1018,32 @@ int main(int argc, char *argv[])
     sk_X509_push(certs, x);
 
     if (ta_info.crldp && !check_crl(ta_info.crldp, certs, crls)) {
-      logmsg("Couldn't get CRL for trust anchor %s", trust_anchor_name);
+      logmsg("Couldn't get CRL for trust anchor %s", val->value);
       goto done;
     }
 
     walk_cert(&ta_info, certs, crls);
 
     sk_X509_pop_free(certs, X509_free);
+    certs = NULL;
+
     sk_X509_CRL_pop_free(crls, X509_CRL_free);
+    crls = NULL;
   }
 
   ret = 0;
 
  done:
+  sk_CONF_VALUE_pop_free(cfg_section, X509V3_conf_free);
   sk_X509_CRL_pop_free(crls, X509_CRL_free);
   sk_X509_pop_free(certs, X509_free);
   sk_pop_free(rsync_cache, free);
-  NCONF_free(conf);
+  NCONF_free(cfg_handle);
   EVP_cleanup();
   ERR_free_strings();
+  free(authenticated);
+  free(old_authenticated);
+  free(unauthenticated);
+
   return ret;
 }

@@ -67,6 +67,11 @@ typedef struct rcynic_ctx {
   STACK *rsync_cache;
 } rcynic_ctx_t;
 
+typedef struct rcynic_x509_store_ctx {
+  X509_STORE_CTX ctx;		/* Must be first for evil cast to work */
+  const rcynic_ctx_t *rc;
+} rcynic_x509_store_ctx_t;
+
 
 
 /*
@@ -223,7 +228,7 @@ static int install_object(const rcynic_ctx_t *rc,
     return 0;
   }
 
-  if ((out = fopen(target, "rb")) == NULL) {
+  if ((out = fopen(target, "wb")) == NULL) {
     logmsg(rc, "Couldn't open %s", target);
     fclose(in);
     return 0;
@@ -241,6 +246,7 @@ static int install_object(const rcynic_ctx_t *rc,
     return 0;
   }
 
+  logmsg(rc, "Installed %s", uri);
   return 1;
 }
 
@@ -317,11 +323,12 @@ static int rm_rf(const char *name)
   struct dirent *d;
   size_t len;
   DIR *dir;
-  int ret = 0;
+  int ret = 0, need_slash;
 
   assert(name);
-
   len = strlen(name);
+  assert(len > 0 && len < sizeof(path));
+  need_slash = name[len - 1] != '/';
 
   if (rmdir(name) == 0)
     return 1;
@@ -339,9 +346,13 @@ static int rm_rf(const char *name)
     return 0;
 
   while ((d = readdir(dir)) != NULL) {
-    if (len + d->d_namlen >= sizeof(path))
+    if (d->d_name[0] == '.' && (d->d_name[1] == '\0' || (d->d_name[1] == '.' && d->d_name[2] == '\0')))
+      continue;
+    if (len + d->d_namlen + need_slash >= sizeof(path))
       goto done;
     strcpy(path, name);
+    if (need_slash)
+      strcat(path, "/");
     strcat(path, d->d_name);
     switch (d->d_type) {
     case DT_DIR:
@@ -386,7 +397,7 @@ static int rsync(const rcynic_ctx_t *rc, ...)
   static char *rsync_cmd[] = {
     "rsync", "--update", "--times", "--copy-links", "--itemize-changes"
   };
-  char *s, *argv[100], buffer[2000], *uri = 0, path[FILENAME_MAX];
+  char *s, *argv[100], buffer[URI_MAX * 4], *uri = 0, path[FILENAME_MAX];
   int i, argc, pipe_fds[2], pid_status = -1;
   va_list ap;
   pid_t pid;
@@ -421,12 +432,18 @@ static int rsync(const rcynic_ctx_t *rc, ...)
   argv[argc++] = path;
 
   assert(rc->rsync_cache != NULL);
-  if ((s = sk_value(rc->rsync_cache,
-		    sk_find(rc->rsync_cache, path))) != NULL &&
-      !strncmp(s, path, strlen(s))) {
-    logmsg(rc, "Cache hit %s for URI %s, skipping rsync", s, uri);
-    free(path);
-    return 1;
+  assert(sizeof(buffer) >= URI_MAX && strlen(uri) > SIZEOF_RSYNC);
+  strcpy(buffer, uri);
+  if ((s = strrchr(buffer + SIZEOF_RSYNC, '/')) != NULL && s[1] == '\0')
+    *s = '\0';
+  for (;;) {
+    if (sk_find(rc->rsync_cache, buffer) >= 0) {
+      logmsg(rc, "Cache hit for URI %s, skipping rsync", uri);
+      return 1;
+    }
+    if ((s = strrchr(buffer + SIZEOF_RSYNC, '/')) == NULL)
+      break;
+    *s = '\0';
   }
 
   if (!mkdir_maybe(rc, path)) {
@@ -473,7 +490,11 @@ static int rsync(const rcynic_ctx_t *rc, ...)
     logmsg(rc, "%s", buffer);
   }
 
-  sk_push(rc->rsync_cache, path);
+  strcpy(buffer, uri);
+  if ((s = strrchr(buffer + SIZEOF_RSYNC, '/')) != NULL && s[1] == '\0')
+    *s = '\0';
+  if ((s = strdup(buffer)) == NULL || !sk_push(rc->rsync_cache, s))
+    logmsg(rc, "Couldn't cache URI %s, oh well", uri);
 
   waitpid(pid, &pid_status, 0);
 
@@ -576,7 +597,7 @@ static void extract_access_uri(AUTHORITY_INFO_ACCESS *xia,
   }
 }
 
-static void parse_cert(X509 *x, certinfo_t *c)
+static void parse_cert(X509 *x, certinfo_t *c, const char *uri)
 {
   static unsigned char aia_oid[] = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x2};
   static unsigned char sia_oid[] = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x5};
@@ -587,6 +608,9 @@ static void parse_cert(X509 *x, certinfo_t *c)
   memset(c, 0, sizeof(*c));
 
   c->ca = X509_check_ca(x) == 1;
+
+  assert(strlen(uri) < sizeof(c->uri));
+  strcpy(c->uri, uri);
 
   if ((xia = X509_get_ext_d2i(x, NID_info_access, NULL, NULL)) != NULL) {
     extract_access_uri(xia, aia_oid, sizeof(aia_oid), c->aia, sizeof(c->aia));
@@ -608,120 +632,77 @@ static void parse_cert(X509 *x, certinfo_t *c)
 
 
 /*
- * Functions I'll probably need for the rest of this:
- *
- * X509_verify()	verify cert against a key (no chain)
- * X509_CRL_verify()	verify CRL against a key
- * X509_verify_cert()	verify cert against X509_STORE_CTX
- * 			(but ctx points to X509_STORE,
- * 			which points to X509_VERIFY_PARAM, ...)
- * X509_get_pubkey()	extract pubkey from cert for *_verify()
- * X509_STORE_CTX_init()	initialize ctx
- * X509_STORE_CTX_trusted_stack()  stack of trusted certs instead of
- * 				   bothering with X509_STORE
- * X509_STORE_CTX_set0_crls()	set crls
- * X509_STORE_get_by_subject()	find object in ctx/store
- *
- * We probably can't use the lookup method stuff because we're using
- * URI naming, so just load everything ourselves and don't specify any
- * lookup methods, either it works or it doesn't.  Hmm, looks like
- * X509_STORE_CTX_trusted_stack() was written for apps like this.
- *
- * Maybe we can restore stack state by using sk_dup() to save then
- * swapping to the saved stack?  Still need to clean up objects on the
- * stack, though, sk_pop_free() will get rid of everything which is
- * not what we want unless the reference counting thing bails us out.
- * Don't think the reference counts work this way.
- */
-
-
-
-/*
  * Check whether we already have a particular CRL, attempt to get it
  * if we don't.
  */
 
 static X509_CRL *check_crl_1(const char *uri, char *path, int pathlen,
-			     const char *prefix, STACK_OF(X509) *trusted_certs)
+			     const char *prefix, X509 *issuer)
 {
-  X509_STORE_CTX ctx;
-  X509_OBJECT xobj;
   EVP_PKEY *pkey;
   X509_CRL *crl;
   int ret;
 
-  assert(uri && path && trusted_certs);
-
-  memset(&ctx, 0, sizeof(ctx));
+  assert(uri && path && issuer);
 
   if (!uri_to_filename(uri, path, pathlen, prefix) || 
       (crl = read_crl(path)) == NULL)
     return NULL;
 
-  if (!X509_STORE_CTX_init(&ctx, NULL, NULL, NULL))
+  if ((pkey = X509_get_pubkey(issuer)) == NULL)
     goto punt;
-  X509_STORE_CTX_trusted_stack(&ctx, trusted_certs);
-
-  if (X509_STORE_get_by_subject(&ctx, X509_LU_X509,
-				X509_CRL_get_issuer(crl), &xobj) <= 0)
-    goto punt;
-  
-  pkey = X509_get_pubkey(xobj.data.x509);
-  X509_OBJECT_free_contents(&xobj);
-  if (!pkey)
-    goto punt;
-
   ret = X509_CRL_verify(crl, pkey);
   EVP_PKEY_free(pkey);
-  if (ret <= 0)
-    goto punt;
 
-  X509_STORE_CTX_cleanup(&ctx);
-  return crl;
+  if (ret > 0)
+    return crl;
 
  punt:
-  X509_STORE_CTX_cleanup(&ctx);
   X509_CRL_free(crl);
   return NULL;
 }
 
-static int check_crl(const rcynic_ctx_t *rc,
-		     char *uri,
-		     STACK_OF(X509) *trusted_certs,
-		     STACK_OF(X509_CRL) *crl_cache)
+static X509_CRL *check_crl(const rcynic_ctx_t *rc,
+			   char *uri,
+			   X509 *issuer)
 {
   char path[FILENAME_MAX];
   X509_CRL *crl;
 
   if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) && 
-      !access(path, R_OK))
-    return 1;
+      (crl = read_crl(path)) != NULL)
+    return crl;
 
   rsync(rc, uri, NULL);
 
   if ((crl = check_crl_1(uri, path, sizeof(path),
-			 rc->unauthenticated, trusted_certs)) ||
+			 rc->unauthenticated, issuer)) ||
       (crl = check_crl_1(uri, path, sizeof(path),
-			 rc->old_authenticated, trusted_certs))) {
+			 rc->old_authenticated, issuer))) {
     install_object(rc, uri, path);
-    if (!crl_cache || !sk_X509_CRL_push(crl_cache, crl))
-      X509_CRL_free(crl);
-    return 1;
+    return crl;
   }
 
-  return 0;
+  return NULL;
 }
 
 
 
 /*
- * Next task is check_cert().  The innermost loop of walk_cert() from
- * the perl program should also be here, which will make walk_cert() a
- * lot shorter.  The check_cert() / check_cert_1() design used above
- * with check_crl() should work well here too, since it's the same
- * basic problem: load and check from unauth, if that fails load and
- * check from old_auth, if that fails, give up.
+ * Check a certificate, including all the path validation fun.
  */
+
+static int check_cert_cb(int ok, X509_STORE_CTX *ctx)
+{
+  rcynic_x509_store_ctx_t *rctx = (rcynic_x509_store_ctx_t *) ctx;
+  assert(rctx != NULL);
+  if (!ok)
+    logmsg(rctx->rc, "Callback depth %d error %d cert %p issuer %p crl %p: %s",
+	   ctx->error_depth, ctx->error, ctx->current_cert,
+	   ctx->current_issuer, ctx->current_crl,
+	   X509_verify_cert_error_string(ctx->error));
+  return ok;
+}
 
 static X509 *check_cert_1(const rcynic_ctx_t *rc,
 			  const char *uri,
@@ -732,12 +713,14 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
 			  certinfo_t *issuer,
 			  certinfo_t *subj)
 {
-  X509_STORE_CTX ctx;
+  rcynic_x509_store_ctx_t rctx;
+  X509_CRL *crl;
   X509 *x;
 
   assert(uri && path && certs && crls && issuer && subj);
 
-  memset(&ctx, 0, sizeof(ctx));
+  memset(&rctx, 0, sizeof(rctx));
+  rctx.rc = rc;
 
   if (!uri_to_filename(uri, path, pathlen, prefix)) {
     logmsg(rc, "Can't convert URI %s to filename", uri);
@@ -752,7 +735,7 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
     return NULL;
   }
 
-  parse_cert(x, subj);
+  parse_cert(x, subj, uri);
 
   if (subj->sia[0] && subj->sia[strlen(subj->sia) - 1] != '/') {
     logmsg(rc, "Malformed SIA %s for URI %s, skipping", subj->sia, uri);
@@ -784,49 +767,47 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
     goto punt;
   }
 
-  if (!X509_STORE_CTX_init(&ctx, NULL, x, NULL))
+  if (!X509_STORE_CTX_init(&rctx.ctx, NULL, x, NULL))
     goto punt;
-  X509_STORE_CTX_trusted_stack(&ctx, certs);
-  X509_STORE_CTX_set0_crls(&ctx, crls);
+  X509_STORE_CTX_trusted_stack(&rctx.ctx, certs);
+  X509_STORE_CTX_set0_crls(&rctx.ctx, crls);
 
-  /*
-   * This is where we'd check the issuer's signature over the cert if
-   * either (a) we wanted to be really paranoid (check sig before
-   * fetching CRL), or (b) we wanted to try to check each signature
-   * only once by doing the signatures here and faking out the
-   * signature checks in X509_verify_cert().  Ignore all this for now.
-   */
-
-  if (!check_crl(rc, subj->crldp, certs, crls)) {
+  if ((crl = check_crl(rc, subj->crldp,
+		       sk_X509_value(certs,
+				     sk_X509_num(certs) - 1))) == NULL) {
     logmsg(rc, "Bad CRL for %s, skipping", uri);
     goto punt;
   }
 
-  X509_VERIFY_PARAM_set_flags(ctx.param,
+  if (!sk_X509_CRL_push(crls, crl)) {
+    logmsg(rc, "Couldn't push CRL into X509_STORE_CTX, skipping");
+    goto punt;
+  }
+
+  X509_VERIFY_PARAM_set_flags(rctx.ctx.param,
 			      X509_V_FLAG_CRL_CHECK |
-			      X509_V_FLAG_CRL_CHECK_ALL |
 			      X509_V_FLAG_POLICY_CHECK |
 			      X509_V_FLAG_EXPLICIT_POLICY |
 			      X509_V_FLAG_X509_STRICT);
 
-  X509_VERIFY_PARAM_add0_policy(ctx.param,
+  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param,
 				/* {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0xe, 0x2} */
 				OBJ_txt2obj("1.3.6.1.5.5.7.14.2", 0));
 
-  /*
-   * Might want to set a verify callback handler here.
-   */
+  X509_STORE_CTX_set_verify_cb(&rctx.ctx, check_cert_cb);
 
- if (X509_verify_cert(&ctx) <= 0) {
+ if (X509_verify_cert(&rctx.ctx) <= 0) {
     logmsg(rc, "I don't think X509_verify_cert() was happy with %s", uri);
     goto punt;
   }
 
-  X509_STORE_CTX_cleanup(&ctx);
+  X509_STORE_CTX_cleanup(&rctx.ctx);
   return x;
 
  punt:
-  X509_STORE_CTX_cleanup(&ctx);
+  X509_STORE_CTX_cleanup(&rctx.ctx);
+  sk_X509_CRL_zero(crls);
+  X509_CRL_free(crl);
   X509_free(x);
   return NULL;
 }
@@ -872,14 +853,15 @@ static void walk_cert(const rcynic_ctx_t *rc, certinfo_t *parent,
 {
   assert(parent && certs && crls);
 
-  logmsg(rc, "Starting walk of %s", parent->uri);
-
   if (parent->sia[0]) {
     int n_crl = sk_X509_CRL_num(crls);
     int n_cert = sk_X509_num(certs);
     char uri[URI_MAX];
     certinfo_t child;
     DIR *dir = NULL;
+
+    logmsg(rc, "Starting walk of %s",
+	   (parent->ta ? "[Trust anchor]" : parent->uri));
 
     rsync(rc, "--recursive", "--delete", parent->sia, NULL);
 
@@ -899,9 +881,13 @@ static void walk_cert(const rcynic_ctx_t *rc, certinfo_t *parent,
       X509_free(sk_X509_pop(certs));
     while (sk_X509_CRL_num(crls) > n_crl)
       X509_CRL_free(sk_X509_CRL_pop(crls));
-  }
 
-  logmsg(rc, "Finished walk of %s", parent->uri);
+    logmsg(rc, "Finished walk of %s",
+	   (parent->ta ? "[Trust anchor]" : parent->uri));
+  } else {
+    logmsg(rc, "No SIA collection for %s",
+	   (parent->ta ? "[Trust anchor]" : parent->uri));
+  }
 }
 
 
@@ -939,7 +925,10 @@ int main(int argc, char *argv[])
 
   memset(&rc, 0, sizeof(rc));
 
-  rc.jane = argv[0];
+  if ((rc.jane = strrchr(argv[0], '/')) == NULL)
+    rc.jane = argv[0];
+  else
+    rc.jane++;
 
   set_directory(&rc.authenticated,	"rcynic-data/authenticated/");
   set_directory(&rc.old_authenticated,	"rcynic-data/authenticated.old/");
@@ -977,11 +966,6 @@ int main(int argc, char *argv[])
     goto done;
   }
 
-  /*
-   * Perhaps this should specify "rcynic" instead of null, then read
-   * the real section name from the initial config section?  it's the
-   * openssl way of doing things, but kind of confusing.  Punt for now.
-   */ 
   if (CONF_modules_load(cfg_handle, NULL, 0) <= 0) {
     logmsg(&rc, "Couldn't configure OpenSSL");
     goto done;
@@ -1043,14 +1027,21 @@ int main(int argc, char *argv[])
       goto done;
     }
 
-    parse_cert(x, &ta_info);
+    parse_cert(x, &ta_info, "");
     ta_info.ta = 1;
     sk_X509_push(certs, x);
 
-    if (ta_info.crldp && !check_crl(&rc, ta_info.crldp, certs, crls)) {
+#if 0
+    /*
+     * Code to check trust anchor CRL needs work. 
+     */
+    if (ta_info.crldp && !check_crl(&rc, ta_info.crldp, x)) {
       logmsg(&rc, "Couldn't get CRL for trust anchor %s", val->value);
       goto done;
     }
+#else
+    logmsg(&rc, "Skipping trust anchor CRL check, this needs to be fixed");
+#endif
 
     walk_cert(&rc, &ta_info, certs, crls);
 
@@ -1069,6 +1060,7 @@ int main(int argc, char *argv[])
   sk_X509_pop_free(certs, X509_free);
   sk_pop_free(rc.rsync_cache, free);
   NCONF_free(cfg_handle);
+  CONF_modules_free();
   EVP_cleanup();
   ERR_free_strings();
   free(rc.authenticated);

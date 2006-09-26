@@ -69,3 +69,13 @@ Might need to replace X509_STORE_CTX->get_crl() with something that
 knows how to find our CRLs.  No, the default version calls
 get_crl_sk(), which looks in X509_STORE_CTX->crls, we just need to
 make sure we put the CRL(s) we want there.
+
+
+
+Sample bare-bones rsync.conf, just lists trust anchors:
+
+[rcynic]
+
+trust-anchor.0	= trust-anchors/apnic-trust-anchor.cer
+trust-anchor.1	= trust-anchors/ripe-ripe-trust-anchor.cer
+trust-anchor.2	= trust-anchors/ripe-arin-trust-anchor.cer

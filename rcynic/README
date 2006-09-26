@@ -79,3 +79,41 @@ Sample bare-bones rsync.conf, just lists trust anchors:
 trust-anchor.0	= trust-anchors/apnic-trust-anchor.cer
 trust-anchor.1	= trust-anchors/ripe-ripe-trust-anchor.cer
 trust-anchor.2	= trust-anchors/ripe-arin-trust-anchor.cer
+
+
+
+Certificate and CRL checking still needs some work.  At this point it
+looks like the basic sequence is always:
+
+- Find the CRL
+
+- Check the issuer's sig of the CRL (if hasn't already been done)
+
+- Set up the STORE_CTX, including a single-entry stack with the CRL
+
+- Call X509_verify_cert() and save its result
+
+- Clean up
+
+- Return verify result
+
+We need this both for checking normal certs and also for checking the
+CRL on a trust anchor.  The latter case may require special handling
+in the verify_cb routine, but we have all the data we need for that.
+
+May still want to check issuer's sig of subject before fetching CRL
+for certs we find in the SIA collection, but that's a relatively minor
+operation.   Other than that, it looks like we can isolate all the
+crypto in one check_x509() [or whatever] function that we call from
+the other places.  Well, ok, we probably want to leave the existing
+check_crl() code alone, it's not broken.
+
+Some of these functions probably need renaming.
+
+Still need to clean up excessive use of STACK_OF(X509_CRL), that
+should turn into a local thing within check_x509().  Might want a
+cache of CRLs for eventually performance reasons, but that'd be
+strictly within checking one SIA collection, and the library is not
+clever enough to pick the right one out of a set on its own, so if we
+were to do this the cache would have to be indexed by CRL URI.  For
+the moment we're just letting the OS disk cache do that.

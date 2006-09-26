@@ -1,6 +1,33 @@
 -*- Text -*- 
 $Id$
 
+/*
+ * Functions I'll probably need for the rest of this:
+ *
+ * X509_verify()	verify cert against a key (no chain)
+ * X509_CRL_verify()	verify CRL against a key
+ * X509_verify_cert()	verify cert against X509_STORE_CTX
+ * 			(but ctx points to X509_STORE,
+ * 			which points to X509_VERIFY_PARAM, ...)
+ * X509_get_pubkey()	extract pubkey from cert for *_verify()
+ * X509_STORE_CTX_init()	initialize ctx
+ * X509_STORE_CTX_trusted_stack()  stack of trusted certs instead of
+ * 				   bothering with X509_STORE
+ * X509_STORE_CTX_set0_crls()	set crls
+ * X509_STORE_get_by_subject()	find object in ctx/store
+ *
+ * We probably can't use the lookup method stuff because we're using
+ * URI naming, so just load everything ourselves and don't specify any
+ * lookup methods, either it works or it doesn't.  Hmm, looks like
+ * X509_STORE_CTX_trusted_stack() was written for apps like this.
+ *
+ * Maybe we can restore stack state by using sk_dup() to save then
+ * swapping to the saved stack?  Still need to clean up objects on the
+ * stack, though, sk_pop_free() will get rid of everything which is
+ * not what we want unless the reference counting thing bails us out.
+ * Don't think the reference counts work this way.
+ */
+
 Notes on current debugging mess:
 
 Having some trouble checking CRLs.   As far as the code itself is
@@ -39,4 +66,6 @@ collection anyway.
 This may require a bit of reorganization, but should simplify things.
 
 Might need to replace X509_STORE_CTX->get_crl() with something that
-knows how to find our CRLs.
+knows how to find our CRLs.  No, the default version calls
+get_crl_sk(), which looks in X509_STORE_CTX->crls, we just need to
+make sure we put the CRL(s) we want there.

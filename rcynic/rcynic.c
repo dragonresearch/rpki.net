@@ -57,11 +57,17 @@
 
 #define	URI_MAX		(FILENAME_MAX + SIZEOF_RSYNC)
 
+/*
+ * Structure to hold data parsed out of a certificate.
+ */
 typedef struct certinfo {
   int ca, ta;
   char uri[URI_MAX], sia[URI_MAX], aia[URI_MAX], crldp[URI_MAX];
 } certinfo_t;
 
+/*
+ * Program context that would otherwise be a mess of global variables.
+ */
 typedef struct rcynic_ctx {
   char *jane, *authenticated, *old_authenticated, *unauthenticated;
   STACK *rsync_cache;
@@ -69,8 +75,16 @@ typedef struct rcynic_ctx {
   int rsync_verbose, mkdir_verbose;
 } rcynic_ctx_t;
 
+/*
+ * Extended context for verify callbacks.  This is a wrapper around
+ * OpenSSL's X509_STORE_CTX, and the embedded X509_STORE_CTX -must- be
+ * the first element of this structure in order for the evil cast to
+ * do the right thing.  This is ugly but safe, as the C language
+ * promises us that the address of the first element of a structure is
+ * the same as the address of the structure.
+ */
 typedef struct rcynic_x509_store_ctx {
-  X509_STORE_CTX ctx;		/* Must be first for evil cast to work */
+  X509_STORE_CTX ctx;		/* Must be first */
   const rcynic_ctx_t *rc;
   const certinfo_t *subj;
 } rcynic_x509_store_ctx_t;
@@ -78,11 +92,11 @@ typedef struct rcynic_x509_store_ctx {
 
 
 /*
- * Logging functions.
+ * Logging.  Maybe this will turn into syslog(), someday.
  */
-
-static void vlogmsg(const rcynic_ctx_t *rc, const char *fmt, va_list ap)
+static void logmsg(const rcynic_ctx_t *rc, const char *fmt, ...)
 {
+  va_list ap;
   char tad[30];
   time_t tad_time = time(0);
   struct tm *tad_tm = localtime(&tad_time);
@@ -93,47 +107,15 @@ static void vlogmsg(const rcynic_ctx_t *rc, const char *fmt, va_list ap)
     printf("%s: ", rc->jane);
   if (rc->indent)
     printf("%*s", rc->indent, " ");
+  va_start(ap, fmt);
   vprintf(fmt, ap);
+  va_end(ap);
   putchar('\n');
 }
-
-static void logmsg(const rcynic_ctx_t *rc, const char *fmt, ...)
-{
-  va_list ap;
-
-  va_start(ap, fmt);
-  vlogmsg(rc, fmt, ap);
-  va_end(ap);
-}
-
-static void fatal(const rcynic_ctx_t *rc, int retval, const char *fmt, ...)
-{
-  int child = retval < 0;
-  va_list ap;
-
-  if (child)
-    retval = -retval;
-
-  if (fmt) {
-    va_start(ap, fmt);
-    vlogmsg(rc, fmt, ap);
-    va_end(ap);
-    logmsg(rc, "Last system error: %s", strerror(errno));
-    logmsg(rc, "exiting with status %d", retval);
-  }
-
-  if (child)
-    _exit(retval);
-  else
-    exit(retval);
-}
-
-
 
 /*
  * Make a directory if it doesn't already exist.
  */
-
 static int mkdir_maybe(const rcynic_ctx_t *rc, const char *name)
 {
   char *b, buffer[FILENAME_MAX];
@@ -161,17 +143,15 @@ static int mkdir_maybe(const rcynic_ctx_t *rc, const char *name)
 /*
  * Is string an rsync URI?
  */
-
-static int is_rsync(const char *s)
+static int is_rsync(const char *uri)
 {
-  return s && !strncmp(s, "rsync://", SIZEOF_RSYNC);
+  return uri && !strncmp(uri, "rsync://", SIZEOF_RSYNC);
 }
 
 /*
  * Convert an rsync URI to a filename, checking for evil character
  * sequences.
  */
-
 static int uri_to_filename(const char *name,
 			   char *buffer,
 			   const size_t buflen,
@@ -260,10 +240,9 @@ static int install_object(const rcynic_ctx_t *rc,
 }
 
 /*
- * Iterator over the URIs in an SIA collection.
+ * Iterator over URIs in our copy of a SIA collection.
  * dir should be NULL when first called.
  */
-
 static int next_uri(const rcynic_ctx_t *rc, 
 		    const char *base_uri,
 		    const char *prefix,
@@ -305,7 +284,6 @@ static int next_uri(const rcynic_ctx_t *rc,
  * Set a directory name, making sure it has the trailing slash we
  * require in various other routines.
  */
-
 static void set_directory(char **out, const char *in)
 {
   char *s;
@@ -327,7 +305,6 @@ static void set_directory(char **out, const char *in)
 /*
  * Remove a directory tree, like rm -rf.
  */
-
 static int rm_rf(const char *name)
 {
   char path[FILENAME_MAX];
@@ -383,8 +360,6 @@ static int rm_rf(const char *name)
   closedir(dir);
   return !d;
 }
-
-
 
 
 
@@ -488,13 +463,19 @@ static int rsync(const rcynic_ctx_t *rc, ...)
      close(pipe_fds[1]);
      return 0;
   case 0:
+#define whine(msg) write(2, msg, sizeof(msg) - 1)
     close(pipe_fds[0]);
     if (dup2(pipe_fds[1], 1) < 0)
-      fatal(rc, -2, "dup2(1) failed");
-    if (dup2(pipe_fds[1], 2) < 0)
-      fatal(rc, -3, "dup2(2) failed");
-    execvp(argv[0], argv);
-    fatal(rc, -4, "execvp() failed");
+      whine("dup2(1) failed\n");
+    else if (dup2(pipe_fds[1], 2) < 0)
+      whine("dup2(2) failed\n");
+    else if (execvp(argv[0], argv) < 0)
+      whine("execvp() failed\n");
+    whine("last system error: ");
+    write(2, strerror(errno), strlen(strerror(errno)));
+    whine("\n");
+    _exit(1);
+#undef whine
   }
 
   close(pipe_fds[1]);
@@ -536,7 +517,6 @@ static int rsync_sia(const rcynic_ctx_t *rc, const char *uri)
 /*
  * Read certificate in DER format.
  */
-
 static X509 *read_cert(const char *filename)
 {
   X509 *x = NULL;
@@ -552,7 +532,6 @@ static X509 *read_cert(const char *filename)
 /*
  * Read CRL in DER format.
  */
-
 static X509_CRL *read_crl(const char *filename)
 {
   X509_CRL *crl = NULL;
@@ -661,8 +640,8 @@ static void parse_cert(X509 *x, certinfo_t *c, const char *uri)
 
 
 /*
- * Check whether we already have a particular CRL, attempt to get it
- * if we don't.
+ * Check whether we already have a particular CRL, attempt to fetch it
+ * and check issuer's signature if we don't.
  */
 
 static X509_CRL *check_crl_1(const char *uri,
@@ -722,7 +701,8 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 
 
 /*
- * Check a certificate, including all the path validation fun.
+ * Check a certificate, including all the crypto, path validation,
+ * and checks for conformance to the RPKI certificate profile.
  */
 
 static int check_cert_cb(int ok, X509_STORE_CTX *ctx)
@@ -929,14 +909,14 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 
 
 /*
- * Recursive walk of certificate hierarchy (core of the program).
+ * Recursive walk of certificate hierarchy (core of the program).  The
+ * daisy chain recursion is to avoid having to duplicate the stack
+ * manipulation and error handling.
  */
 
 static void walk_cert(rcynic_ctx_t *rc,
 		      const certinfo_t *parent,
 		      STACK_OF(X509) *certs);
-
-
 
 static void walk_cert_1(rcynic_ctx_t *rc,
 			char *uri,
@@ -992,25 +972,10 @@ static void walk_cert(rcynic_ctx_t *rc,
 
 
 /*
- * Main program (finally!).  getopt() to parse command line, unless
- * there's some clever OpenSSL equivalent that we should use instead.
- * OpenSSL config file contains most parameters, including filenames
- * of trust anchors.  getopt() should be mostly for things like
- * enabling debugging, disabling network, or changing location of
- * config file.
- *
- * Need a scheme for storing trust anchors in hierarchy we build?
- * Maybe we just leave them where we found them, but probably best to
- * install them so there will be copies with the tree derived from
- * them, as even trust anchors can change, and as applications will
- * need them anyway.  Collection under fake "host" TRUST-ANCHORS
- * perhaps?  Not an FQDN so relatively safe, could be made safer by
- * downcasing DNS name of rsync URIs and using uppercase for trust
- * anchor directory, or something like that.  Probably make name of
- * trust anchor directory configurable and default to TRUST-ANCHORS.
- * Not to be confused with where we -find- the trust anchors.
+ * Main program.  Parse command line, read config file, iterate over
+ * trust anchors found via config file and do a tree walk for each
+ * trust anchor.
  */
-
 int main(int argc, char *argv[])
 {
   char *cfg_file = "rcynic.conf", path[FILENAME_MAX];

@@ -19,9 +19,6 @@
 /*
  * "Cynical rsync": Recursively walk RPKI tree using rsync to pull
  * data from remote sites, validating certificates and CRLs as we go.
- *
- * I'll probably end up breaking this up into multiple smaller files,
- * but it's easiest to put everything in a single mongo file initially.
  */
 
 #include <assert.h>

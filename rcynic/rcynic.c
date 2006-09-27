@@ -1018,6 +1018,7 @@ int main(int argc, char *argv[])
   STACK_OF(X509) *certs = NULL;
   CONF *cfg_handle = NULL;
   int c, i, j, ret = 1;
+  time_t start, finish;
   unsigned long hash;
   rcynic_ctx_t rc;
   long eline;
@@ -1028,6 +1029,9 @@ int main(int argc, char *argv[])
     rc.jane = argv[0];
   else
     rc.jane++;
+
+  start = time(0);
+  logmsg(&rc, "Starting");
 
   set_directory(&rc.authenticated,	"rcynic-data/authenticated/");
   set_directory(&rc.old_authenticated,	"rcynic-data/authenticated.old/");
@@ -1148,9 +1152,11 @@ int main(int argc, char *argv[])
       goto done;
     }
 
+    logmsg(&rc, "Copying trust anchor as %lx.%d.cer", hash, j);
+
     if (!mkdir_maybe(&rc, rc.authenticated) ||
 	!cp(val->value, path)) {
-      logmsg(&rc, "Couldn't copy trust anchor to %s", path);
+      logmsg(&rc, "Couldn't copy trust anchor");
       goto done;
     }
 
@@ -1184,6 +1190,13 @@ int main(int argc, char *argv[])
   free(rc.authenticated);
   free(rc.old_authenticated);
   free(rc.unauthenticated);
+
+  finish = time(0);
+
+  logmsg(&rc, "Finished, elapsed time %d:%02d:%02d",
+	 (finish - start) / 3600,
+	 (finish - start) / 60 % 60,
+	 (finish - start) % 60);
 
   return ret;
 }

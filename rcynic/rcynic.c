@@ -1018,8 +1018,9 @@ int main(int argc, char *argv[])
   STACK_OF(X509) *certs = NULL;
   CONF *cfg_handle = NULL;
   int c, i, j, ret = 1;
+  unsigned long hash;
   rcynic_ctx_t rc;
-  long eline, hash;
+  long eline;
 
   memset(&rc, 0, sizeof(rc));
 
@@ -1133,7 +1134,7 @@ int main(int argc, char *argv[])
     hash = X509_subject_name_hash(x);
 
     for (j = 0; j < INT_MAX; j++) {
-      if (snprintf(path, sizeof(path), "%s%ld.%d.cer",
+      if (snprintf(path, sizeof(path), "%s%lx.%d.cer",
 		   rc.authenticated, hash, j) == sizeof(path)) {
 	logmsg(&rc, "Couldn't construct path name for trust anchor");
 	goto done;

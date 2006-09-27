@@ -1,119 +1,85 @@
--*- Text -*- 
-$Id$
+-*- Text -*- $Id$
 
-/*
- * Functions I'll probably need for the rest of this:
- *
- * X509_verify()	verify cert against a key (no chain)
- * X509_CRL_verify()	verify CRL against a key
- * X509_verify_cert()	verify cert against X509_STORE_CTX
- * 			(but ctx points to X509_STORE,
- * 			which points to X509_VERIFY_PARAM, ...)
- * X509_get_pubkey()	extract pubkey from cert for *_verify()
- * X509_STORE_CTX_init()	initialize ctx
- * X509_STORE_CTX_trusted_stack()  stack of trusted certs instead of
- * 				   bothering with X509_STORE
- * X509_STORE_CTX_set0_crls()	set crls
- * X509_STORE_get_by_subject()	find object in ctx/store
- *
- * We probably can't use the lookup method stuff because we're using
- * URI naming, so just load everything ourselves and don't specify any
- * lookup methods, either it works or it doesn't.  Hmm, looks like
- * X509_STORE_CTX_trusted_stack() was written for apps like this.
- *
- * Maybe we can restore stack state by using sk_dup() to save then
- * swapping to the saved stack?  Still need to clean up objects on the
- * stack, though, sk_pop_free() will get rid of everything which is
- * not what we want unless the reference counting thing bails us out.
- * Don't think the reference counts work this way.
- */
+"Cynical rsync" -- fetch and validate RPKI certificates.
 
-Notes on current debugging mess:
+This is the C implementation.  It's still rough in places, but it
+appears to work, and at least for the current test data available from
+APNIC and RIPE it produces the same results as my Perl prototype did.
 
-Having some trouble checking CRLs.   As far as the code itself is
-concerned, we're dumping core calling X509_STORE_get_by_subject(),
-because we're not using a real X509_STORE, just a trusted_stack.
+To build this you will need to link it against an OpenSSL libcrypto
+that has support for the RFC 3779 extensions.  I developed this code
+on FreeBSD 6-STABLE and have not (yet) tested it on any other
+platform; as far as I know I have not used any seriously non-portable
+features, but neither have I done a POSIX reference manual lookup for
+every function call.  Please report any portability problems.
 
-But this is just the symptom.  The real issue goes deeper, and is
-architectural.  We're doing a minmimal signature check on the CRL,
-and accepting the CRL object if that works.  There are a bunch of
-other checks we probably ought to be doing.  x509_vfy.c does them as
-part of checking a certificate chain.
+All certificates and CRLs are in DER format, with filenames derived
+from the RPKI rsync URIs at which the data are published.  At some
+point I'll probably write a companion program to convert a tree of DER
+into the hashed directory of PEM format that most OpenSSL applications
+expect.
 
-Arguably, the right thing to do is for us to accept a CRL
-provisionally, check the cert that led us to load the CRL, and accept
-the CRL if the X509_validate_cert() call on the cert checks out.
+At the moment all configuration is handled via the config file, except
+for selection of the config file itself: the default is rcynic.conf,
+you can override this with the -c option on the command line.  The
+config file uses OpenSSL's config file syntax, and you can set OpenSSL
+library configuration paramaters (eg, "engine" settings) in the config
+file as well.  rcynic's own configuration parameters are in a section
+called "[rcynic]".
 
-We still have a mess trying to figure out which CRL to use.  The
-URI-based code knows perfectly well which one to use, but the library
-is using certificate names.  If we believe that we really only care
-about checking the leaf CRL at any given time, we can turn off
-X509_V_FLAG_CRL_CHECK_ALL and just use X509_V_FLAG_CRL_CHECK.  For
-that matter, we really only need the leaf certificate in the CRL stack
-for this, so maybe we cut through all this complexity by loading the
-provisional CRL into a one-entry stack each time.
+Most configuration parameters are optional and have defaults that
+should do something reasonable.  At some point I'll document them all,
+once I stop fiddling with them.  For the moment, see main().
 
+The one thing you MUST specify in the config file in order for the
+program to do anything useful is file name of one or more trust
+anchors.  Trust anchors for this program are represented as
+DER-formated X509 objects that look just like certificates, except
+that they're trust anchors.  To date I have only tested this code with
+self-signed trust anchors; in theory, this is not required, in
+practice the code may require tweaks to support other trust anchors.
 
-Ok, so when we're looking at a certificate, we know that the
-certificate's issuer is also the CRL's issuer (because the SIDR
-profile says so).  We can, therefore, check signatures of both subject
-certificate and CRL just by locating the issuer, which is the one
-thing that the trusted_stack code does do for us (ie, we can just call
-ctx.get_issuer(&issuer, &ctx, x)).  Really, we don't even need to do
-that, since we have the issuer in hand when we're walking its SIA
-collection anyway.
+Example of a minimal config file:
 
-This may require a bit of reorganization, but should simplify things.
+    [rcynic]
 
-Might need to replace X509_STORE_CTX->get_crl() with something that
-knows how to find our CRLs.  No, the default version calls
-get_crl_sk(), which looks in X509_STORE_CTX->crls, we just need to
-make sure we put the CRL(s) we want there.
+    trust-anchor.0 = trust-anchors/apnic-trust-anchor.cer
+    trust-anchor.1 = trust-anchors/ripe-ripe-trust-anchor.cer
+    trust-anchor.2 = trust-anchors/ripe-arin-trust-anchor.cer
 
-
+By default, rcynic uses the following directories, all rooted under
+the directory in which you run rcynic:
 
-Sample bare-bones rsync.conf, just lists trust anchors:
+  rcynic-data/unauthenticated		Raw data fetched via rsync
 
-[rcynic]
+  rcynic-data/authenticated		Data that rcynic has checked
 
-trust-anchor.0	= trust-anchors/apnic-trust-anchor.cer
-trust-anchor.1	= trust-anchors/ripe-ripe-trust-anchor.cer
-trust-anchor.2	= trust-anchors/ripe-arin-trust-anchor.cer
+  rcynic-data/authenticated.old		Saved results from immediately
+					previous rcynic run, used when
+					attempting to recover from
+					certain kinds of errors.
 
-
+rcynic copies the trust anchors themselves into the output tree with
+names of the form authenticated/xxxxxxxx.n.cer, where "authenticated"
+is the top of the authenticated output directory, xxxxxxxx and n are
+the OpenSSL object name hash and index within the resulting virtual
+hash bucket (the same as the c_hash Perl script that comes with
+OpenSSL would produce), and ".cer" is the literal string ".cer".  The
+reason for this is that trust anchors, by definition, are not fetched
+automatically, and thus do not really have publication URIs in the
+sense that every other object in these trees do.  So we use a naming
+scheme which insures (a) that each trust anchor has a unique name
+within the output tree and (b) that trust anchors cannot be confusd
+with certificates: trust anchors always go in the top level of the
+output tree, data fetched via rsync always go in subdirectories.
 
-Certificate and CRL checking still needs some work.  At this point it
-looks like the basic sequence is always:
-
-- Find the CRL
-
-- Check the issuer's sig of the CRL (if hasn't already been done)
-
-- Set up the STORE_CTX, including a single-entry stack with the CRL
-
-- Call X509_verify_cert() and save its result
-
-- Clean up
-
-- Return verify result
-
-We need this both for checking normal certs and also for checking the
-CRL on a trust anchor.  The latter case may require special handling
-in the verify_cb routine, but we have all the data we need for that.
-
-May still want to check issuer's sig of subject before fetching CRL
-for certs we find in the SIA collection, but that's a relatively minor
-operation.   Other than that, it looks like we can isolate all the
-crypto in one check_x509() [or whatever] function that we call from
-the other places.  Well, ok, we probably want to leave the existing
-check_crl() code alone, it's not broken.
-
-Some of these functions probably need renaming.
-
-Still need to clean up excessive use of STACK_OF(X509_CRL), that
-should turn into a local thing within check_x509().  Might want a
-cache of CRLs for eventually performance reasons, but that'd be
-strictly within checking one SIA collection, and the library is not
-clever enough to pick the right one out of a set on its own, so if we
-were to do this the cache would have to be indexed by CRL URI.  For
-the moment we're just letting the OS disk cache do that.
+As currently implemented, rcynic does not attempt to maintain an
+in-memory cache of objects it might need again later.  It does keep an
+internal cache of the URIs from which it has already fetched data in
+this pass, and it keeps a stack containing the current certificate
+chain as it does its validation walk.  All other data (eg, CRLs) are
+freed immediately after use and read from disk again as needed.  From
+a database design standpoint, this is not very efficient, but as the
+rcynic's main bottlenecks are expected to be crypto and network
+operations, it seemed best to keep the design as simple as possible,
+at least until execution profiling demonstrates a real issue.

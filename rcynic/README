@@ -83,3 +83,13 @@ a database design standpoint, this is not very efficient, but as the
 rcynic's main bottlenecks are expected to be crypto and network
 operations, it seemed best to keep the design as simple as possible,
 at least until execution profiling demonstrates a real issue.
+
+To Do:
+
+- Support for running rsync chrooted.
+
+- Override name of rsync program.
+
+- Integrate rsync via rsync library?  (probably not...)
+
+- Timeout hung rsync connections (see comments in code).

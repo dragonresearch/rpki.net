@@ -66,7 +66,7 @@ typedef struct certinfo {
  * Program context that would otherwise be a mess of global variables.
  */
 typedef struct rcynic_ctx {
-  char *jane, *authenticated, *old_authenticated, *unauthenticated;
+  char *jane, *rsync, *authenticated, *old_authenticated, *unauthenticated;
   STACK *rsync_cache;
   int indent;
   int rsync_verbose, mkdir_verbose;
@@ -400,6 +400,9 @@ static int rsync(const rcynic_ctx_t *rc, ...)
       uri = s;
   }
   va_end(ap);
+
+  if (rc->rsync)
+    argv[0] = rc->rsync;
 
   if (!uri) {
     logmsg(rc, "Couldn't extract URI from rsync command");
@@ -1063,6 +1066,9 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "mkdir-verbose"))
       rc.mkdir_verbose = atoi(val->value);
+
+    else if (!name_cmp(val->name, "rsync-program"))
+      rc.rsync = strdup(val->value);
   }
 
   if (!rm_rf(rc.old_authenticated)) {
@@ -1152,6 +1158,8 @@ int main(int argc, char *argv[])
   free(rc.authenticated);
   free(rc.old_authenticated);
   free(rc.unauthenticated);
+  if (rc.rsync)
+    free(rc.rsync);
 
   finish = time(0);
 

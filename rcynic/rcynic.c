@@ -69,7 +69,7 @@ typedef struct rcynic_ctx {
   char *jane, *rsync, *authenticated, *old_authenticated, *unauthenticated;
   STACK *rsync_cache;
   int indent;
-  int rsync_verbose, mkdir_verbose;
+  int rsync_verbose, mkdir_verbose, err_verbose;
 } rcynic_ctx_t;
 
 /*
@@ -108,6 +108,28 @@ static void logmsg(const rcynic_ctx_t *rc, const char *fmt, ...)
   vprintf(fmt, ap);
   va_end(ap);
   putchar('\n');
+}
+
+/*
+ * Print OpenSSL library errors.
+ */
+static void log_openssl_errors(const rcynic_ctx_t *rc)
+{
+  const char *data, *file;
+  unsigned long code;
+  char error[256];
+  int flags, line;
+
+  if (!rc->err_verbose)
+    return;
+
+  while ((code = ERR_get_error_line_data(&file, &line, &data, &flags))) {
+    ERR_error_string_n(code, error, sizeof(error));
+    if (data && (flags & ERR_TXT_STRING))
+      logmsg(rc, "OpenSSL error %s:%d: %s", file, line, error, data);
+    else
+      logmsg(rc, "OpenSSL error %s:%d", file, line, error);
+    }
 }
 
 /*
@@ -1067,6 +1089,9 @@ int main(int argc, char *argv[])
     else if (!name_cmp(val->name, "mkdir-verbose"))
       rc.mkdir_verbose = atoi(val->value);
 
+    else if (!name_cmp(val->name, "err-verbose"))
+      rc.err_verbose = atoi(val->value);
+
     else if (!name_cmp(val->name, "rsync-program"))
       rc.rsync = strdup(val->value);
   }
@@ -1146,6 +1171,8 @@ int main(int argc, char *argv[])
   ret = 0;
 
  done:
+  log_openssl_errors(&rc);
+
   /*
    * Do NOT free cfg_section, NCONF_free() takes care of that
    */

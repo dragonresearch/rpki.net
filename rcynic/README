@@ -93,3 +93,5 @@ To Do:
 - Integrate rsync via rsync library?  (probably not...)
 
 - Timeout hung rsync connections (see comments in code).
+
+- Enable printout of general (not validation) OpenSSL errors?

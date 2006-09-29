@@ -66,9 +66,10 @@ typedef struct certinfo {
  * Program context that would otherwise be a mess of global variables.
  */
 typedef struct rcynic_ctx {
-  char *jane, *rsync, *authenticated, *old_authenticated, *unauthenticated;
+  char *authenticated, *old_authenticated, *unauthenticated;
+  char *jane, *rsync_program;
   STACK *rsync_cache;
-  int indent;
+  int indent, rsync_timeout;
   int rsync_verbose, mkdir_verbose, err_verbose;
 } rcynic_ctx_t;
 
@@ -390,6 +391,17 @@ static int rm_rf(const char *name)
  * log stream into lines without fgets() is a pain, maybe setting
  * nonblocking I/O before calling fdopen() would suffice to let us use
  * select()?  If we time out, we need to kill() the rsync process.
+ *
+ * Ok, this is a PITA.  I don't see any portable way to use fgets()
+ * with non-blocking I/O, so we have to revert to raw read()/write()
+ * calls (after setting fcntl(fd, O_NONBLOCK)), look for the newline
+ * ourselves, and perhaps even copy remainig text from the buffer down
+ * to the bottom (or do some kind of ringbuffer thing, hmmm...no that
+ * doesn't work well with null terminated strings, oh well).
+ *
+ * Type signature of execvp() is weird, hence the cast.  Well, ok
+ * ANSI/ISO const is weird to begin with, but even once one gets past
+ * the bizzare syntax, execvp()'s type signature is still weird.
  */
 
 static int rsync_cmp(const char * const *a, const char * const *b)
@@ -397,44 +409,49 @@ static int rsync_cmp(const char * const *a, const char * const *b)
   return strcmp(*a, *b);
 }
 
-static int rsync(const rcynic_ctx_t *rc, ...)
+static int rsync(const rcynic_ctx_t *rc,
+		 const char * const *args,
+		 const char *uri)
 {
   static char *rsync_cmd[] = {
     "rsync", "--update", "--times", "--copy-links", "--itemize-changes"
   };
-  char *s, *argv[100], buffer[URI_MAX * 4], *uri = 0, path[FILENAME_MAX];
-  int i, argc, pipe_fds[2], pid_status = -1;
-  va_list ap;
+  const char *argv[100];
+  char *s, buffer[URI_MAX * 4], path[FILENAME_MAX];
+  int i, ret, pipe_fds[2], argc = 0, pid_status = -1;
+#if 0
+  struct timeval tv;
+  fd_set rfds;
+  int n;
+#endif
   pid_t pid;
   FILE *f;
 
+  assert(rc && uri);
+
   memset(argv, 0, sizeof(argv));
 
-  va_start(ap, rc);
-  for (argc = 0; argc < sizeof(rsync_cmd)/sizeof(*rsync_cmd); argc++) {
+  for (i = 0; i < sizeof(rsync_cmd)/sizeof(*rsync_cmd); i++) {
     assert(argc < sizeof(argv)/sizeof(*argv));
-    argv[argc] = rsync_cmd[argc];
+    argv[argc++] = rsync_cmd[i];
   }
-  while ((s = va_arg(ap, char *)) != NULL) {
-    assert(argc < sizeof(argv)/sizeof(*argv));
-    argv[argc++] = s;
-    if (!uri && *s != '-')
-      uri = s;
+  if (args) {
+    for (i = 0; args[i]; i++) {
+      assert(argc < sizeof(argv)/sizeof(*argv));
+      argv[argc++] = args[i];
+    }
   }
-  va_end(ap);
 
-  if (rc->rsync)
-    argv[0] = rc->rsync;
-
-  if (!uri) {
-    logmsg(rc, "Couldn't extract URI from rsync command");
-    return 0;
-  }
+  if (rc->rsync_program)
+    argv[0] = rc->rsync_program;
 
   if (!uri_to_filename(uri, path, sizeof(path), rc->unauthenticated)) {
     logmsg(rc, "Couldn't extract filename from URI: %s", uri);
     return 0;
   }
+
+  assert(argc < sizeof(argv)/sizeof(*argv));
+  argv[argc++] = uri;
 
   assert(argc < sizeof(argv)/sizeof(*argv));
   argv[argc++] = path;
@@ -491,7 +508,7 @@ static int rsync(const rcynic_ctx_t *rc, ...)
       whine("dup2(1) failed\n");
     else if (dup2(pipe_fds[1], 2) < 0)
       whine("dup2(2) failed\n");
-    else if (execvp(argv[0], argv) < 0)
+    else if (execvp(argv[0], (char * const *) argv) < 0)
       whine("execvp() failed\n");
     whine("last system error: ");
     write(2, strerror(errno), strlen(strerror(errno)));
@@ -508,30 +525,33 @@ static int rsync(const rcynic_ctx_t *rc, ...)
     logmsg(rc, "%s", buffer);
   }
 
+  waitpid(pid, &pid_status, 0);
+
+  if (WEXITSTATUS(pid_status)) {
+    logmsg(rc, "rsync exited with status %d", pid_status);
+    ret = 0;
+  } else {
+    ret = 1;
+  }
+
   strcpy(buffer, uri);
   if ((s = strrchr(buffer + SIZEOF_RSYNC, '/')) != NULL && s[1] == '\0')
     *s = '\0';
   if ((s = strdup(buffer)) == NULL || !sk_push(rc->rsync_cache, s))
     logmsg(rc, "Couldn't cache URI %s, oh well", uri);
 
-  waitpid(pid, &pid_status, 0);
-
-  if (WEXITSTATUS(pid_status)) {
-    logmsg(rc, "rsync exited with status %d", pid_status);
-    return 0;
-  } else {
-    return 1;
-  }
+  return ret;
 }
 
 static int rsync_crl(const rcynic_ctx_t *rc, const char *uri)
 {
-  return rsync(rc, uri, NULL);
+  return rsync(rc, NULL, uri);
 }
 
 static int rsync_sia(const rcynic_ctx_t *rc, const char *uri)
 {
-  return rsync(rc, "--recursive", "--delete", uri, NULL);
+  static const char * const rsync_args[] = { "--recursive", "--delete", NULL };
+  return rsync(rc, rsync_args, uri);
 }
 
 
@@ -1092,8 +1112,11 @@ int main(int argc, char *argv[])
     else if (!name_cmp(val->name, "err-verbose"))
       rc.err_verbose = atoi(val->value);
 
+    else if (!name_cmp(val->name, "rsync-timeout"))
+      rc.rsync_timeout = atoi(val->value);
+
     else if (!name_cmp(val->name, "rsync-program"))
-      rc.rsync = strdup(val->value);
+      rc.rsync_program = strdup(val->value);
   }
 
   if (!rm_rf(rc.old_authenticated)) {
@@ -1185,8 +1208,8 @@ int main(int argc, char *argv[])
   free(rc.authenticated);
   free(rc.old_authenticated);
   free(rc.unauthenticated);
-  if (rc.rsync)
-    free(rc.rsync);
+  if (rc.rsync_program)
+    free(rc.rsync_program);
 
   finish = time(0);
 

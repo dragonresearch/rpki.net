@@ -105,6 +105,6 @@ To Do:
 
   [*] ftp://ftp.porcupine.org/pub/security/chrootuid1.3.tar.gz
 
-- Timeout hung rsync connections (see comments in code).
-
 - autoconf?
+
+- syslog()?

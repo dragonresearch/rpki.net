@@ -88,4 +88,23 @@ To Do:
 
 - Support for running rsync chrooted.
 
+  After some discussion with Randy, I've concluded that it'd be much
+  simpler to run both rcynic and rsync in the chrooted jail than it
+  would be to run just rsync in the chrooted jail.  As far as we can
+  tell, putting rcynic in the jail with rsync doesn't create any
+  serious new threats, and it simplifies many things.
+
+  To further simplify this, we'll handle the chroot itself via an
+  external program.  Wietse Venema's chrootuid[*] would probably
+  suffice out of the box: one could do slightly better by tweaking it
+  for this specific application, but the main thing that's missing is
+  some shell script code and instructions for compiling static
+  binaries and setting up the jail.  No research topics here, this is
+  all ancient technology, the tricky bit is just getting all the
+  finicky details right.
+
+  [*] ftp://ftp.porcupine.org/pub/security/chrootuid1.3.tar.gz
+
 - Timeout hung rsync connections (see comments in code).
+
+- autoconf?

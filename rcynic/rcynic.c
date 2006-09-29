@@ -37,6 +37,8 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <limits.h>
+#include <fcntl.h>
+#include <signal.h>
 
 #include <openssl/bio.h>
 #include <openssl/pem.h>
@@ -53,6 +55,8 @@
 #define	SIZEOF_RSYNC	(sizeof("rsync://") - 1)
 
 #define	URI_MAX		(FILENAME_MAX + SIZEOF_RSYNC)
+
+#define	KILL_MAX	10
 
 /*
  * Structure to hold data parsed out of a certificate.
@@ -384,24 +388,23 @@ static int rm_rf(const char *name)
 
 
 /*
- * Run rsync.
+ * Run rsync.  This is fairly nasty, because we need to:
  *
- * This probably isn't paranoid enough.  Should use select() to do
- * some kind of timeout when rsync is taking too long.  Breaking the
- * log stream into lines without fgets() is a pain, maybe setting
- * nonblocking I/O before calling fdopen() would suffice to let us use
- * select()?  If we time out, we need to kill() the rsync process.
+ * (a) Construct the argument list for rsync;
  *
- * Ok, this is a PITA.  I don't see any portable way to use fgets()
- * with non-blocking I/O, so we have to revert to raw read()/write()
- * calls (after setting fcntl(fd, O_NONBLOCK)), look for the newline
- * ourselves, and perhaps even copy remainig text from the buffer down
- * to the bottom (or do some kind of ringbuffer thing, hmmm...no that
- * doesn't work well with null terminated strings, oh well).
+ * (b) Run rsync in a child process;
  *
- * Type signature of execvp() is weird, hence the cast.  Well, ok
- * ANSI/ISO const is weird to begin with, but even once one gets past
- * the bizzare syntax, execvp()'s type signature is still weird.
+ * (c) Sit listening to rsync's output, logging whatever we get;
+ *
+ * (d) Impose an optional time limit on rsync's execution time
+ *
+ * (e) Clean up from (b), (c), and (d); and
+ *
+ * (f) Keep track of which URIs we've already fetched, so we don't
+ *     have to do it again.
+ *
+ * Taken all together, this is pretty icky.  Breaking it into separate
+ * functions wouldn't help much.  Don't read this on a full stomach.
  */
 
 static int rsync_cmp(const char * const *a, const char * const *b)
@@ -409,29 +412,29 @@ static int rsync_cmp(const char * const *a, const char * const *b)
   return strcmp(*a, *b);
 }
 
+#define whine(msg) write(2, msg, sizeof(msg) - 1)
+
 static int rsync(const rcynic_ctx_t *rc,
 		 const char * const *args,
 		 const char *uri)
 {
   static char *rsync_cmd[] = {
-    "rsync", "--update", "--times", "--copy-links", "--itemize-changes"
+    "rsync", "--update", "--times", "--copy-links", "--itemize-changes", NULL
   };
+
   const char *argv[100];
   char *s, buffer[URI_MAX * 4], path[FILENAME_MAX];
-  int i, ret, pipe_fds[2], argc = 0, pid_status = -1;
-#if 0
+  int i, n, ret, pipe_fds[2], argc = 0, pid_status = -1;
+  time_t now, deadline;
   struct timeval tv;
+  pid_t pid, wpid;
   fd_set rfds;
-  int n;
-#endif
-  pid_t pid;
-  FILE *f;
 
   assert(rc && uri);
 
   memset(argv, 0, sizeof(argv));
 
-  for (i = 0; i < sizeof(rsync_cmd)/sizeof(*rsync_cmd); i++) {
+  for (i = 0; rsync_cmd[i]; i++) {
     assert(argc < sizeof(argv)/sizeof(*argv));
     argv[argc++] = rsync_cmd[i];
   }
@@ -488,8 +491,9 @@ static int rsync(const rcynic_ctx_t *rc,
     return 0;
   }
 
-  if ((f = fdopen(pipe_fds[0], "r")) == NULL) {
-    logmsg(rc, "Couldn't fdopen() rsync's output stream");
+  if ((i = fcntl(pipe_fds[0], F_GETFL, 0)) == -1 ||
+      fcntl(pipe_fds[0], F_SETFL, i | O_NONBLOCK) == -1) {
+    logmsg(rc, "Couldn't set rsync's output stream non-blocking");
     close(pipe_fds[0]);
     close(pipe_fds[1]);
     return 0;
@@ -498,11 +502,10 @@ static int rsync(const rcynic_ctx_t *rc,
   switch ((pid = vfork())) {
   case -1:
      logmsg(rc, "vfork() failed");
-     fclose(f);
+     close(pipe_fds[0]);
      close(pipe_fds[1]);
      return 0;
   case 0:
-#define whine(msg) write(2, msg, sizeof(msg) - 1)
     close(pipe_fds[0]);
     if (dup2(pipe_fds[1], 1) < 0)
       whine("dup2(1) failed\n");
@@ -514,18 +517,68 @@ static int rsync(const rcynic_ctx_t *rc,
     write(2, strerror(errno), strlen(strerror(errno)));
     whine("\n");
     _exit(1);
-#undef whine
   }
 
   close(pipe_fds[1]);
 
-  while (fgets(buffer, sizeof(buffer), f)) {
-    if ((s = strchr(buffer, '\n')) != NULL)
-      *s = '\0';
+  deadline = time(0) + rc->rsync_timeout;
+
+  i = 0;
+  while ((wpid = waitpid(pid, &pid_status, WNOHANG)) == 0 &&
+	 (!rc->rsync_timeout || (now = time(0)) < deadline)) {
+    FD_ZERO(&rfds);
+    FD_SET(pipe_fds[0], &rfds);
+    if (rc->rsync_timeout) {
+      tv.tv_sec = deadline - now;
+      tv.tv_usec = 0;
+      n = select(pipe_fds[0] + 1, &rfds, NULL, NULL, &tv);
+    } else {
+      n = select(pipe_fds[0] + 1, &rfds, NULL, NULL, NULL);
+    }
+    if (n == 0 || (n < 0 && errno == EINTR))
+      continue;
+    if (n < 0)
+      break;
+    while ((n = read(pipe_fds[0], buffer + i, sizeof(buffer) - i - 1)) > 0) {
+      i += n;
+      assert(i < sizeof(buffer));
+      buffer[i] = '\0';
+      while ((s = strchr(buffer, '\n'))) {
+	*s++ = '\0';
+	logmsg(rc, "%s", buffer);
+	i -= s - buffer;
+	assert(i >= 0);
+	if (i == 0)
+	  break;
+	memmove(buffer, s, i);
+      }
+      if (n < 0 && errno == EAGAIN)
+	continue;
+      if (n <= 0)
+	break;
+    }
+  }
+  
+  close(pipe_fds[0]);
+
+  assert(i >= 0 && i < sizeof(buffer));
+  if (i) {
+    buffer[i] = '\0';
     logmsg(rc, "%s", buffer);
   }
 
-  waitpid(pid, &pid_status, 0);
+  if (n < 0 && errno != EAGAIN)
+    logmsg(rc, "Problem reading rsync's output: %s",
+	   strerror(errno));
+
+  if (rc->rsync_timeout && now >= deadline)
+    logmsg(rc, "Fetch took longer than %d seconds, terminating fetch",
+	   rc->rsync_timeout);
+
+  assert(pid > 0);
+  for (i = 0; i < KILL_MAX && wpid == 0; i++)
+    if ((wpid = waitpid(pid, &pid_status, 0)) == 0)
+      kill(pid, SIGTERM);
 
   if (WEXITSTATUS(pid_status)) {
     logmsg(rc, "rsync exited with status %d", pid_status);
@@ -542,6 +595,8 @@ static int rsync(const rcynic_ctx_t *rc,
 
   return ret;
 }
+
+#undef whine
 
 static int rsync_crl(const rcynic_ctx_t *rc, const char *uri)
 {

@@ -150,7 +150,8 @@ static int mkdir_maybe(const rcynic_ctx_t *rc, const char *name)
     return 0;
   }
   strcpy(buffer, name);
-  if ((b = strrchr(buffer, '/')) == NULL)
+  b = buffer[0] == '/' ? buffer + 1 : buffer;
+  if ((b = strrchr(b, '/')) == NULL)
     return 1;
   *b = '\0';
   if (!mkdir_maybe(rc, buffer)) {

@@ -105,6 +105,8 @@ To Do:
 
   [*] ftp://ftp.porcupine.org/pub/security/chrootuid1.3.tar.gz
 
-- autoconf?
+- autoconf?  probably not, unless we run into portability issues
+  serious enough to require it.
 
-- syslog()?
+- syslog()?  probably, particularly if we expect people to run this
+  under cron.

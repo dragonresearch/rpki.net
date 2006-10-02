@@ -39,6 +39,7 @@
 #include <limits.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <syslog.h>
 
 #include <openssl/bio.h>
 #include <openssl/pem.h>
@@ -59,6 +60,32 @@
 #define	KILL_MAX	10
 
 /*
+ * Logging levels.  Same general idea as syslog(), but our own
+ * catagories based on what makes sense for this program.
+ */
+
+#define LOG_LEVELS						\
+  QQ(log_sys_err)		/* Error from OS or library  */	\
+  QQ(log_usage_err)		/* Bad usage (local error)   */	\
+  QQ(log_data_err)		/* Bad data, no biscuit      */	\
+  QQ(log_telemetry)		/* Normal progress chatter   */	\
+  QQ(log_verbose)		/* Extra chatter             */ \
+  QQ(log_debug)			/* Only useful when debugging */
+
+#define QQ(x)	x ,
+typedef enum log_level { LOG_LEVELS } log_level_t;
+#undef	QQ
+
+#define	QQ(x)	{ #x , x },
+static const struct {
+  const char *name;
+  log_level_t value;
+} log_levels[] = {
+  LOG_LEVELS
+};
+#undef	QQ
+
+/*
  * Structure to hold data parsed out of a certificate.
  */
 typedef struct certinfo {
@@ -73,8 +100,8 @@ typedef struct rcynic_ctx {
   char *authenticated, *old_authenticated, *unauthenticated;
   char *jane, *rsync_program;
   STACK *rsync_cache;
-  int indent, rsync_timeout;
-  int rsync_verbose, mkdir_verbose, err_verbose;
+  int indent, rsync_timeout, use_syslog, use_stdouterr;
+  log_level_t log_level;
 } rcynic_ctx_t;
 
 /*
@@ -96,23 +123,58 @@ typedef struct rcynic_x509_store_ctx {
 /*
  * Logging.  Maybe this will turn into syslog(), someday.
  */
-static void logmsg(const rcynic_ctx_t *rc, const char *fmt, ...)
+static void logmsg(const rcynic_ctx_t *rc, 
+		   const log_level_t level, 
+		   const char *fmt, ...)
 {
-  va_list ap;
-  char tad[30];
-  time_t tad_time = time(0);
-  struct tm *tad_tm = localtime(&tad_time);
+  va_list ap, aq;
 
-  strftime(tad, sizeof(tad), "%H:%M:%S", tad_tm);
-  printf("%s: ", tad);
-  if (rc->jane)
-    printf("%s: ", rc->jane);
-  if (rc->indent)
-    printf("%*s", rc->indent, " ");
-  va_start(ap, fmt);
-  vprintf(fmt, ap);
-  va_end(ap);
-  putchar('\n');
+  assert(rc && fmt);
+
+  if (rc->log_level < level)
+    return;
+
+  if (rc->use_syslog && rc->use_stdouterr) {
+    va_start(ap, fmt);
+    va_copy(aq, ap);
+  } else if (rc->use_syslog) {
+    va_start(aq, fmt);
+  } else {
+    va_start(ap, fmt);
+  }
+
+  if (rc->use_stdouterr || !rc->use_syslog) {
+    FILE *f = level == log_telemetry || level == log_verbose ? stdout : stderr;
+    char tad[30];
+    time_t tad_time = time(0);
+    struct tm *tad_tm = localtime(&tad_time);
+
+    strftime(tad, sizeof(tad), "%H:%M:%S", tad_tm);
+    fprintf(f, "%s: ", tad);
+    if (rc->jane)
+      fprintf(f, "%s: ", rc->jane);
+    if (rc->indent)
+      fprintf(f, "%*s", rc->indent, " ");
+    vfprintf(f, fmt, ap);
+    va_end(ap);
+    putchar('\n');
+  }
+
+  if (rc->use_syslog) {
+    int priority;
+
+    switch (level) {
+    case log_sys_err:	priority = LOG_ERR;	break;
+    case log_usage_err:	priority = LOG_ERR;	break;
+    case log_data_err:	priority = LOG_WARNING;	break;
+    case log_telemetry:	priority = LOG_NOTICE;	break;
+    case log_verbose:	priority = LOG_INFO;	break;
+    case log_debug:	priority = LOG_DEBUG;	break;
+    }
+
+    vsyslog(priority, fmt, aq);
+    va_end(aq);
+  }
 }
 
 /*
@@ -125,17 +187,39 @@ static void log_openssl_errors(const rcynic_ctx_t *rc)
   char error[256];
   int flags, line;
 
-  if (!rc->err_verbose)
+  if (!rc->log_level < log_verbose)
     return;
 
   while ((code = ERR_get_error_line_data(&file, &line, &data, &flags))) {
     ERR_error_string_n(code, error, sizeof(error));
     if (data && (flags & ERR_TXT_STRING))
-      logmsg(rc, "OpenSSL error %s:%d: %s", file, line, error, data);
+      logmsg(rc, log_sys_err, "OpenSSL error %s:%d: %s", file, line, error, data);
     else
-      logmsg(rc, "OpenSSL error %s:%d", file, line, error);
+      logmsg(rc, log_sys_err, "OpenSSL error %s:%d", file, line, error);
     }
 }
+
+/*
+ * Configure logging.
+ */
+static int configure_logging(rcynic_ctx_t *rc, const char *name)
+{
+  int i;
+
+  assert(rc && name);
+
+  for (i = 0; i < sizeof(log_levels)/sizeof(*log_levels); i++) {
+    if (!strcmp(name, log_levels[i].name)) {
+      rc->log_level = log_levels[i].value;
+      return 1;
+    }
+  }
+
+  logmsg(rc, log_usage_err, "Bad log level %s", name);
+  return 0;
+}
+
+
 
 /*
  * Make a directory if it doesn't already exist.
@@ -146,7 +230,7 @@ static int mkdir_maybe(const rcynic_ctx_t *rc, const char *name)
 
   assert(name != NULL);
   if (strlen(name) >= sizeof(buffer)) {
-    logmsg(rc, "Pathname %s too long", name);
+    logmsg(rc, log_data_err, "Pathname %s too long", name);
     return 0;
   }
   strcpy(buffer, name);
@@ -155,13 +239,12 @@ static int mkdir_maybe(const rcynic_ctx_t *rc, const char *name)
     return 1;
   *b = '\0';
   if (!mkdir_maybe(rc, buffer)) {
-    logmsg(rc, "Failed to make directory %s", buffer);
+    logmsg(rc, log_sys_err, "Failed to make directory %s", buffer);
     return 0;
   }
   if (!access(buffer, F_OK))
     return 1;
-  if (rc->mkdir_verbose)
-    logmsg(rc, "Creating directory %s", buffer);
+  logmsg(rc, log_verbose, "Creating directory %s", buffer);
   return mkdir(buffer, 0777) == 0;
 }
 
@@ -246,21 +329,21 @@ static int install_object(const rcynic_ctx_t *rc,
   char target[FILENAME_MAX];
 
   if (!uri_to_filename(uri, target, sizeof(target), rc->authenticated)) {
-    logmsg(rc, "Couldn't generate installation name for %s", uri);
+    logmsg(rc, log_data_err, "Couldn't generate installation name for %s", uri);
     return 0;
   }
 
   if (!mkdir_maybe(rc, target)) {
-    logmsg(rc, "Couldn't create directory for %s", target);
+    logmsg(rc, log_sys_err, "Couldn't create directory for %s", target);
     return 0;
   }
 
   if (!cp(source, target)) {
-    logmsg(rc, "Couldn't copy %s to %s", source, target);
+    logmsg(rc, log_sys_err, "Couldn't copy %s to %s", source, target);
     return 0;
   }
 
-  logmsg(rc, "Accepted%*s%s", space, " ", uri);
+  logmsg(rc, log_telemetry, "Accepted%*s%s", space, " ", uri);
   return 1;
 }
 
@@ -292,7 +375,7 @@ static int next_uri(const rcynic_ctx_t *rc,
 	d->d_namlen < 4 || strcmp(d->d_name + d->d_namlen - 4, ".cer"))
       continue;
     if (strlen(d->d_name) >= remaining) {
-      logmsg(rc, "URI %s%s too long, skipping", base_uri, d->d_name);
+      logmsg(rc, log_data_err, "URI %s%s too long, skipping", base_uri, d->d_name);
       continue;
     }
     strcpy(uri, base_uri);
@@ -450,7 +533,7 @@ static int rsync(const rcynic_ctx_t *rc,
     argv[0] = rc->rsync_program;
 
   if (!uri_to_filename(uri, path, sizeof(path), rc->unauthenticated)) {
-    logmsg(rc, "Couldn't extract filename from URI: %s", uri);
+    logmsg(rc, log_data_err, "Couldn't extract filename from URI: %s", uri);
     return 0;
   }
 
@@ -467,8 +550,7 @@ static int rsync(const rcynic_ctx_t *rc,
     *s = '\0';
   for (;;) {
     if (sk_find(rc->rsync_cache, buffer) >= 0) {
-      if (rc->rsync_verbose)
-	logmsg(rc, "rsync cache hit for %s", uri);
+      logmsg(rc, log_verbose, "rsync cache hit for %s", uri);
       return 1;
     }
     if ((s = strrchr(buffer + SIZEOF_RSYNC, '/')) == NULL)
@@ -477,24 +559,23 @@ static int rsync(const rcynic_ctx_t *rc,
   }
 
   if (!mkdir_maybe(rc, path)) {
-    logmsg(rc, "Couldn't make target directory: %s", path);
+    logmsg(rc, log_sys_err, "Couldn't make target directory: %s", path);
     return 0;
   }
 
-  logmsg(rc, "Fetching %s", uri);
+  logmsg(rc, log_telemetry, "Fetching %s", uri);
 
-  if (rc->rsync_verbose > 1)
-    for (i = 0; i < argc; i++)
-      logmsg(rc, "rsync argv[%d]: %s", i, argv[i]);
+  for (i = 0; i < argc; i++)
+    logmsg(rc, log_verbose, "rsync argv[%d]: %s", i, argv[i]);
 
   if (pipe(pipe_fds) < 0) {
-    logmsg(rc, "pipe() failed");
+    logmsg(rc, log_sys_err, "pipe() failed");
     return 0;
   }
 
   if ((i = fcntl(pipe_fds[0], F_GETFL, 0)) == -1 ||
       fcntl(pipe_fds[0], F_SETFL, i | O_NONBLOCK) == -1) {
-    logmsg(rc, "Couldn't set rsync's output stream non-blocking");
+    logmsg(rc, log_sys_err, "Couldn't set rsync's output stream non-blocking");
     close(pipe_fds[0]);
     close(pipe_fds[1]);
     return 0;
@@ -502,7 +583,7 @@ static int rsync(const rcynic_ctx_t *rc,
 
   switch ((pid = vfork())) {
   case -1:
-     logmsg(rc, "vfork() failed");
+     logmsg(rc, log_sys_err, "vfork() failed");
      close(pipe_fds[0]);
      close(pipe_fds[1]);
      return 0;
@@ -546,7 +627,7 @@ static int rsync(const rcynic_ctx_t *rc,
       buffer[i] = '\0';
       while ((s = strchr(buffer, '\n'))) {
 	*s++ = '\0';
-	logmsg(rc, "%s", buffer);
+	logmsg(rc, log_telemetry, "%s", buffer);
 	i -= s - buffer;
 	assert(i >= 0);
 	if (i == 0)
@@ -565,16 +646,16 @@ static int rsync(const rcynic_ctx_t *rc,
   assert(i >= 0 && i < sizeof(buffer));
   if (i) {
     buffer[i] = '\0';
-    logmsg(rc, "%s", buffer);
+    logmsg(rc, log_telemetry, "%s", buffer);
   }
 
   if (n < 0 && errno != EAGAIN)
-    logmsg(rc, "Problem reading rsync's output: %s",
+    logmsg(rc, log_sys_err, "Problem reading rsync's output: %s",
 	   strerror(errno));
 
   if (rc->rsync_timeout && now >= deadline)
-    logmsg(rc, "Fetch took longer than %d seconds, terminating fetch",
-	   rc->rsync_timeout);
+    logmsg(rc, log_data_err, "Fetch of %s took longer than %d seconds, terminating fetch",
+	   uri, rc->rsync_timeout);
 
   assert(pid > 0);
   for (i = 0; i < KILL_MAX && wpid == 0; i++)
@@ -582,7 +663,7 @@ static int rsync(const rcynic_ctx_t *rc,
       kill(pid, SIGTERM);
 
   if (WEXITSTATUS(pid_status)) {
-    logmsg(rc, "rsync exited with status %d", pid_status);
+    logmsg(rc, log_data_err, "rsync exited with status %d", pid_status);
     ret = 0;
   } else {
     ret = 1;
@@ -592,7 +673,7 @@ static int rsync(const rcynic_ctx_t *rc,
   if ((s = strrchr(buffer + SIZEOF_RSYNC, '/')) != NULL && s[1] == '\0')
     *s = '\0';
   if ((s = strdup(buffer)) == NULL || !sk_push(rc->rsync_cache, s))
-    logmsg(rc, "Couldn't cache URI %s, oh well", uri);
+    logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri);
 
   return ret;
 }
@@ -781,7 +862,7 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
       (crl = read_crl(path)) != NULL)
     return crl;
 
-  logmsg(rc, "Checking CRL %s", uri);
+  logmsg(rc, log_telemetry, "Checking CRL %s", uri);
 
   rsync_crl(rc, uri);
 
@@ -824,7 +905,7 @@ static int check_cert_cb(int ok, X509_STORE_CTX *ctx)
     break;
   default:
   if (!ok)
-    logmsg(rctx->rc,
+    logmsg(rctx->rc, log_data_err,
 	   "Callback depth %d error %d cert %p issuer %p crl %p: %s",
 	   ctx->error_depth, ctx->error, ctx->current_cert,
 	   ctx->current_issuer, ctx->current_crl,
@@ -859,18 +940,18 @@ static int check_x509(const rcynic_ctx_t *rc,
   if (!subj->ta &&
       ((pkey = X509_get_pubkey(issuer)) == NULL ||
        X509_verify(x, pkey) <= 0)) {
-    logmsg(rc, "Failed signature check prior to CRL fetch");
+    logmsg(rc, log_data_err, "Failed signature check prior to CRL fetch");
     goto done;
   }
 
   if ((crl = check_crl(rc, subj->crldp, issuer)) == NULL) {
-    logmsg(rc, "Bad CRL");
+    logmsg(rc, log_data_err, "Bad CRL");
     goto done;
   }
 
   if ((crls = sk_X509_CRL_new_null()) == NULL ||
       !sk_X509_CRL_push(crls, crl)) {
-    logmsg(rc, "Internal error setting up CRL for validation");
+    logmsg(rc, log_sys_err, "Internal error setting up CRL for validation");
     goto done;
   }
   crl = NULL;
@@ -890,7 +971,7 @@ static int check_x509(const rcynic_ctx_t *rc,
 				OBJ_txt2obj("1.3.6.1.5.5.7.14.2", 0));
 
  if (X509_verify_cert(&rctx.ctx) <= 0) {
-    logmsg(rc, "Validation failure");
+    logmsg(rc, log_data_err, "Validation failure");
     goto done;
   }
 
@@ -919,7 +1000,7 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
   assert(uri && path && certs && issuer && subj);
 
   if (!uri_to_filename(uri, path, pathlen, prefix)) {
-    logmsg(rc, "Can't convert URI %s to filename", uri);
+    logmsg(rc, log_data_err, "Can't convert URI %s to filename", uri);
     return NULL;
   }
 
@@ -927,44 +1008,44 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
     return NULL;
 
   if ((x = read_cert(path)) == NULL) {
-    logmsg(rc, "Can't read certificate %s", path);
+    logmsg(rc, log_sys_err, "Can't read certificate %s", path);
     return NULL;
   }
 
   parse_cert(x, subj, uri);
 
   if (subj->sia[0] && subj->sia[strlen(subj->sia) - 1] != '/') {
-    logmsg(rc, "Malformed SIA %s", subj->sia);
+    logmsg(rc, log_data_err, "Malformed SIA %s", subj->sia);
     goto punt;
   }
 
   if (!subj->aia[0]) {
-    logmsg(rc, "AIA missing");
+    logmsg(rc, log_data_err, "AIA missing");
     goto punt;
   }
 
   if (!issuer->ta && strcmp(issuer->uri, subj->aia)) {
-    logmsg(rc, "AIA doesn't match parent");
+    logmsg(rc, log_data_err, "AIA doesn't match parent");
     goto punt;
   }
 
   if (subj->ca && !subj->sia[0]) {
-    logmsg(rc, "CA certificate without SIA extension");
+    logmsg(rc, log_data_err, "CA certificate without SIA extension");
     goto punt;
   }
 
   if (!subj->ca && subj->sia[0]) {
-    logmsg(rc, "EE certificate with SIA extension");
+    logmsg(rc, log_data_err, "EE certificate with SIA extension");
     goto punt;
   }
 
   if (!subj->crldp[0]) {
-    logmsg(rc, "Missing CRLDP extension");
+    logmsg(rc, log_data_err, "Missing CRLDP extension");
     goto punt;
   }
 
   if (!check_x509(rc, certs, x, subj)) {
-    logmsg(rc, "Certificate failed validation");
+    logmsg(rc, log_data_err, "Certificate failed validation");
     goto punt;
   }
 
@@ -991,7 +1072,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
       !access(path, R_OK))
     return NULL;	       /* Already seen, don't walk it again */
 
-  logmsg(rc, "Checking cert %s", uri);
+  logmsg(rc, log_telemetry, "Checking cert %s", uri);
 
   rc->indent++;
 
@@ -1029,7 +1110,7 @@ static void walk_cert_1(rcynic_ctx_t *rc,
     return;
 
   if (!sk_X509_push(certs, x)) {
-    logmsg(rc, "Internal failure recursing over certificate");
+    logmsg(rc, log_sys_err, "Internal failure recursing over certificate");
     return;
   }
 
@@ -1076,11 +1157,12 @@ static void walk_cert(rcynic_ctx_t *rc,
  */
 int main(int argc, char *argv[])
 {
+  int opt_syslog = 0, opt_stdouterr = 0, opt_level = 0, use_syslog = 0;
   char *cfg_file = "rcynic.conf", path[FILENAME_MAX];
   STACK_OF(CONF_VALUE) *cfg_section = NULL;
+  int c, i, j, ret = 1, facility = 0;
   STACK_OF(X509) *certs = NULL;
   CONF *cfg_handle = NULL;
-  int c, i, j, ret = 1;
   time_t start, finish;
   unsigned long hash;
   rcynic_ctx_t rc;
@@ -1093,57 +1175,56 @@ int main(int argc, char *argv[])
   else
     rc.jane++;
 
-  start = time(0);
-  logmsg(&rc, "Starting");
-
   set_directory(&rc.authenticated,	"rcynic-data/authenticated/");
   set_directory(&rc.old_authenticated,	"rcynic-data/authenticated.old/");
   set_directory(&rc.unauthenticated,	"rcynic-data/unauthenticated/");
+  rc.log_level = log_telemetry;
 
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
 
-  if ((rc.rsync_cache = sk_new(rsync_cmp)) == NULL) {
-    logmsg(&rc, "Couldn't allocate rsync_cache stack");
-    goto done;
-  }
-
-  if ((certs = sk_X509_new_null()) == NULL) {
-    logmsg(&rc, "Couldn't allocate certificate stack");
-    goto done;
-  }
-
-  while ((c = getopt(argc, argv, "c:")) > 0) {
+  while ((c = getopt(argc, argv, "c:l:st")) > 0) {
     switch (c) {
     case 'c':
       cfg_file = optarg;
       break;
+    case 'l':
+      opt_level = 1;
+      if (!configure_logging(&rc, optarg))
+	goto done;
+      break;
+    case 's':
+      use_syslog = opt_syslog = 1;
+      break;
+    case 't':
+      rc.use_stdouterr = opt_stdouterr = 1;
+      break;
     default:
-      fprintf(stderr, "usage: %s [-c configfile]\n", rc.jane);
+      logmsg(&rc, log_usage_err, "usage: %s [-c configfile]", rc.jane);
       goto done;
     }
   }
 
   if ((cfg_handle = NCONF_new(NULL)) == NULL) {
-    logmsg(&rc, "Couldn't create CONF opbject");
+    logmsg(&rc, log_sys_err, "Couldn't create CONF opbject");
     goto done;
   }
   
   if (NCONF_load(cfg_handle, cfg_file, &eline) <= 0) {
     if (eline <= 0)
-      logmsg(&rc, "Couldn't load config file %s", cfg_file);
+      logmsg(&rc, log_usage_err, "Couldn't load config file %s", cfg_file);
     else
-      logmsg(&rc, "Error on line %ld of config file %s", eline, cfg_file);
+      logmsg(&rc, log_usage_err, "Error on line %ld of config file %s", eline, cfg_file);
     goto done;
   }
 
   if (CONF_modules_load(cfg_handle, NULL, 0) <= 0) {
-    logmsg(&rc, "Couldn't configure OpenSSL");
+    logmsg(&rc, log_sys_err, "Couldn't configure OpenSSL");
     goto done;
   }
 
   if ((cfg_section = NCONF_get_section(cfg_handle, "rcynic")) == NULL) {
-    logmsg(&rc, "Couldn't load rcynic section from config file");
+    logmsg(&rc, log_usage_err, "Couldn't load rcynic section from config file");
     goto done;
   }
 
@@ -1159,36 +1240,60 @@ int main(int argc, char *argv[])
     else if (!name_cmp(val->name, "unauthenticated"))	
       set_directory(&rc.unauthenticated, val->value);
 
-    else if (!name_cmp(val->name, "rsync-verbose"))
-      rc.rsync_verbose = atoi(val->value);
-
-    else if (!name_cmp(val->name, "mkdir-verbose"))
-      rc.mkdir_verbose = atoi(val->value);
-
-    else if (!name_cmp(val->name, "err-verbose"))
-      rc.err_verbose = atoi(val->value);
-
     else if (!name_cmp(val->name, "rsync-timeout"))
       rc.rsync_timeout = atoi(val->value);
 
     else if (!name_cmp(val->name, "rsync-program"))
       rc.rsync_program = strdup(val->value);
+
+    else if (!opt_level &&
+	     !name_cmp(val->name, "log-level") &&
+	     !configure_logging(&rc, val->value))
+      goto done;
+
+    else if (!opt_syslog &&
+	     !name_cmp(val->name, "use-syslog"))
+      use_syslog = atoi(val->value);
+
+    else if (!opt_stdouterr &&
+	     !name_cmp(val->name, "use-stdouterr"))
+      rc.use_stdouterr = atoi(val->value);
+
+    else if (!name_cmp(val->name, "syslog-facility"))
+      facility = atoi(val->value);
   }
 
+  if ((rc.rsync_cache = sk_new(rsync_cmp)) == NULL) {
+    logmsg(&rc, log_sys_err, "Couldn't allocate rsync_cache stack");
+    goto done;
+  }
+
+  if ((certs = sk_X509_new_null()) == NULL) {
+    logmsg(&rc, log_sys_err, "Couldn't allocate certificate stack");
+    goto done;
+  }
+
+  rc.use_syslog = use_syslog;
+  if (use_syslog)
+    openlog(rc.jane, LOG_PID, facility ? facility : LOG_LOCAL0);
+
+  start = time(0);
+  logmsg(&rc, log_telemetry, "Starting");
+
   if (!rm_rf(rc.old_authenticated)) {
-    logmsg(&rc, "Couldn't remove %s, giving up", rc.old_authenticated);
+    logmsg(&rc, log_sys_err, "Couldn't remove %s, giving up", rc.old_authenticated);
     goto done;
   }
 
   if (rename(rc.authenticated, rc.old_authenticated) < 0 &&
       errno != ENOENT) {
-    logmsg(&rc, "Couldn't rename %s to %s, giving up",
+    logmsg(&rc, log_sys_err, "Couldn't rename %s to %s, giving up",
 	   rc.old_authenticated, rc.authenticated);
     goto done;
   }
 
   if (!access(rc.authenticated, F_OK) || !mkdir_maybe(&rc, rc.authenticated)) {
-    logmsg(&rc, "Couldn't prepare directory %s, giving up", rc.authenticated);
+    logmsg(&rc, log_sys_err, "Couldn't prepare directory %s, giving up", rc.authenticated);
     goto done;
   }
 
@@ -1200,10 +1305,10 @@ int main(int argc, char *argv[])
     if (name_cmp(val->name, "trust-anchor"))
       continue;
     
-    logmsg(&rc, "Processing trust anchor %s", val->value);
+    logmsg(&rc, log_telemetry, "Processing trust anchor %s", val->value);
 
     if ((x = read_cert(val->value)) == NULL) {
-      logmsg(&rc, "Couldn't read trust anchor %s", val->value);
+      logmsg(&rc, log_usage_err, "Couldn't read trust anchor %s", val->value);
       goto done;
     }
 
@@ -1212,7 +1317,7 @@ int main(int argc, char *argv[])
     for (j = 0; j < INT_MAX; j++) {
       if (snprintf(path, sizeof(path), "%s%lx.%d.cer",
 		   rc.authenticated, hash, j) == sizeof(path)) {
-	logmsg(&rc, "Couldn't construct path name for trust anchor");
+	logmsg(&rc, log_sys_err, "Couldn't construct path name for trust anchor");
 	goto done;
       }
       if (access(path, F_OK))
@@ -1220,15 +1325,15 @@ int main(int argc, char *argv[])
     }
 
     if (j == INT_MAX) {
-      logmsg(&rc, "Couldn't find a free name for trust anchor");
+      logmsg(&rc, log_sys_err, "Couldn't find a free name for trust anchor");
       goto done;
     }
 
-    logmsg(&rc, "Copying trust anchor as %lx.%d.cer", hash, j);
+    logmsg(&rc, log_telemetry, "Copying trust anchor as %lx.%d.cer", hash, j);
 
     if (!mkdir_maybe(&rc, rc.authenticated) ||
 	!cp(val->value, path)) {
-      logmsg(&rc, "Couldn't copy trust anchor");
+      logmsg(&rc, log_sys_err, "Couldn't copy trust anchor");
       goto done;
     }
 
@@ -1237,7 +1342,7 @@ int main(int argc, char *argv[])
     sk_X509_push(certs, x);
 
     if (ta_info.crldp[0] && !check_x509(&rc, certs, x, &ta_info)) {
-      logmsg(&rc, "Couldn't get CRL for trust anchor %s", val->value);
+      logmsg(&rc, log_data_err, "Couldn't get CRL for trust anchor %s", val->value);
       goto done;
     }
 
@@ -1269,7 +1374,7 @@ int main(int argc, char *argv[])
 
   finish = time(0);
 
-  logmsg(&rc, "Finished, elapsed time %d:%02d:%02d",
+  logmsg(&rc, log_telemetry, "Finished, elapsed time %d:%02d:%02d",
 	 (finish - start) / 3600,
 	 (finish - start) / 60 % 60,
 	 (finish - start) % 60);

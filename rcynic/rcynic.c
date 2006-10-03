@@ -233,6 +233,28 @@ static int configure_syslog(const rcynic_ctx_t *rc,
   }
 }
 
+/*
+ * Configure boolean variable.
+ */
+static int configure_boolean(const rcynic_ctx_t *rc,
+			     int *result,
+			     const char *val)
+{
+  assert(rc && result && val);
+
+  switch (*val) {
+  case 'y': case 'Y': case 't': case 'T': case '1':
+    *result = 1;
+    return 1;
+  case 'n': case 'N': case 'f': case 'F': case '0':
+    * result = 0;
+    return 1;
+  default:
+    logmsg(rc, log_usage_err, "Bad boolean value %s", val);
+    return 0;
+  }
+}
+
 
 
 /*
@@ -1264,6 +1286,8 @@ int main(int argc, char *argv[])
   for (i = 0; i < sk_CONF_VALUE_num(cfg_section); i++) {
     CONF_VALUE *val = sk_CONF_VALUE_value(cfg_section, i);
 
+    assert(val && val->name && val->value);
+
     if (!name_cmp(val->name, "authenticated"))
     	set_directory(&rc.authenticated, val->value);
 
@@ -1285,15 +1309,19 @@ int main(int argc, char *argv[])
       goto done;
 
     else if (!opt_syslog &&
-	     !name_cmp(val->name, "use-syslog"))
-      use_syslog = atoi(val->value);
+	     !name_cmp(val->name, "use-syslog") &&
+	     !configure_boolean(&rc, &use_syslog, val->value))
+      goto done;
 
     else if (!opt_stdouterr &&
-	     !name_cmp(val->name, "use-stdouterr"))
-      rc.use_stdouterr = atoi(val->value);
+	     !name_cmp(val->name, "use-stdouterr") &&
+	     !configure_boolean(&rc, &rc.use_stdouterr, val->value))
+      goto done;
 
-    else if (!name_cmp(val->name, "syslog-perror"))
-      syslog_perror |= atoi(val->value);
+    else if (!syslog_perror &&
+	     !name_cmp(val->name, "syslog-perror") &&
+	     !configure_boolean(&rc, &syslog_perror, val->value))
+      goto done;
 
     else if (!name_cmp(val->name, "syslog-facility") &&
 	     !configure_syslog(&rc, &syslog_facility,
@@ -1365,6 +1393,8 @@ int main(int argc, char *argv[])
     CONF_VALUE *val = sk_CONF_VALUE_value(cfg_section, i);
     certinfo_t ta_info;
     X509 *x;
+
+    assert(val && val->name && val->value);
 
     if (name_cmp(val->name, "trust-anchor"))
       continue;

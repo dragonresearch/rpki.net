@@ -189,6 +189,112 @@ syslog-priority-xyz	(where xyz is an rcynic logging level, above)
 
 
 
+Running rcynic chrooted
+
+[This is only a sketch, needs details and finicky proofreading]
+
+rcynic does not include any direct support for running chrooted, but
+is designed to be (relatively) easy to run in a chroot jail.  Here's
+how.
+
+You'll either need staticly linked copies of rcynic and rsync, or
+you'll need to figure out which shared libraries these programs need
+(try using the "ldd" command).  Here we assume staticly linked
+binaries, because that's simpler.
+
+You'll need a chroot wrapper program.  The following assumes that
+you're using Wietse Venema's "chrootuid", but other alternatives
+should work, eg, the "chroot" program that comes with FreeBSD.  The
+chroot program included in at least some Linux distributions is not
+adaquate to this task, you need a wrapper that knows how to drop
+privileges after performing the chroot() operation itself.  If in
+doubt, use chrootuid, which you can download from 
+
+  ftp://ftp.porcupine.org/pub/security/chrootuid1.3.tar.gz
+
+Step 1: build the static binaries.  You might want to test them at
+this stage too, although you can defer that until after you've got the
+jail built.
+
+Step 2: create a userid under which to run rcynic.  Here we'll assume
+that you've created a user "rcynic", whose default group is also named
+"rcynic".  Do not add any other userids to the rcynic group unless you
+really know what you are doing.
+
+Step 3: build the jail.  You'll need, at minimum, a directory in which
+to put the binaries, a subdirectory tree that's writable by the userid
+which will be running rcynic and rsync, your trust anchors, and
+whatever device inodes the various libraries need on your system.
+Most likely the devices that matter will be /dev/null, /dev/random,a
+nd /dev/urandom; if you're running a FreeBSD system with devfs, you
+can just mount another devfs in the jail and have done with it.
+
+Important: other than the directoriest that you want rcynic and rsync
+to be able to modify, -nothing- in the initial jail setup should be
+writable by the rcynic userid.  In particular, rcynic and rsync should
+-not- be allowed to modify: their own binary images, the rcynic
+configuration file, or your trust anchors.  It's simplest just to have
+root own all the files and directories that rcynic and rsync are not
+allowed to modify.
+
+Sample jail tree, assuming that we're putting all of this under
+/var/rcynic:
+
+ # mkdir /var/rcynic
+ # mkdir /var/rcynic/bin
+ # mkdir /var/rcynic/data
+ # mkdir /var/rcynic/dev
+ # mkdir /var/rcynic/etc
+ # mkdir /var/rcynic/etc/trust-anchors
+
+Copy your trust anchors into /var/rcynic/etc/trust-anchors.
+
+Copy the staticly linked rcynic and rsync into /var/rcynic/bin.
+
+Write an rcynic configuration file as /var/rcynic/etc/rcynic.conf
+(path names in this file must match the jail setup, more below).
+
+ # chmod -R go-w /var/rcynic
+ # chown -R root:wheel /var/rcynic
+ # chown -R rcynic:rcynic /var/rcynic/data
+
+If you're using devfs, arrange for it to be mounted at
+/var/rcynic/dev; otherwise, create whatever device inodes you need in
+/var/rcynic/dev and make sure that they have sane permissions (copying
+whatever permissions are used in your system /dev directory should
+suffice).
+
+rcynic.conf to match this configuration:
+
+  [rcynic]
+
+  trust-anchor.1	= /etc/trust-anchors/ta-1.cer
+  trust-anchor.2	= /etc/trust-anchors/ta-2.cer
+  trust-anchor.3	= /etc/trust-anchors/ta-3.cer
+
+  rsync-program		= /bin/rsync
+  authenticated		= /data/authenticated
+  old-authenticated	= /data/authenticated.old
+  unauthenticated	= /data/unauthenticated
+
+Once you've got all this set up, you're ready to try running rcynic in
+the jail.  Try it from the command line first, then if that works, you
+should be able to run it under cron.
+
+Note: chrootuid is intended to be run by root.  It is -not- intended
+to run setuid root.
+
+Sample command line:
+
+  # /usr/local/bin/chrootuid /var/rcynic rcynic /bin/rcynic -s -c /etc/rcynic.conf
+
+Note that we use absolute pathnames everywhere.  This is not an
+accident.  Programs running in jails under cron should not make
+assumptions about the current working directory or environment
+variable settings.
+
+
+
 To Do:
 
 - Support for running rsync chrooted.

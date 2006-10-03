@@ -166,8 +166,8 @@ static void logmsg(const rcynic_ctx_t *rc,
     switch (level) {
     case log_sys_err:	priority = LOG_ERR;	break;
     case log_usage_err:	priority = LOG_ERR;	break;
-    case log_data_err:	priority = LOG_WARNING;	break;
-    case log_telemetry:	priority = LOG_NOTICE;	break;
+    case log_data_err:	priority = LOG_NOTICE;	break;
+    case log_telemetry:	priority = LOG_INFO;	break;
     case log_verbose:	priority = LOG_INFO;	break;
     case log_debug:	priority = LOG_DEBUG;	break;
     }

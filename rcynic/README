@@ -84,6 +84,111 @@ rcynic's main bottlenecks are expected to be crypto and network
 operations, it seemed best to keep the design as simple as possible,
 at least until execution profiling demonstrates a real issue.
 
+
+
+Usage and configuration:
+
+Logging levels:
+
+rcynic has its own system of logging levels, similar to what syslog()
+uses but customized to the specific task rcynic performs.  Levels:
+
+ log_sys_err		Error from operating system or library
+ log_usage_err		Bad usage (local configuration error)
+ log_data_err		Bad data (broken certificates or CRLs)
+ log_telemetry		Normal chatter about rcynic's progress
+ log_verbose		Extra verbose chatter
+ log_debug		Only useful when debugging
+
+Command line options:
+
+ -c configfile	Path to configuration file (default: rcynic.conf)
+ -l loglevel	Logging level (default: log_telemetry)
+ -s		Log via syslog
+ -t		Log via stdout/stderr when also using syslog
+ -p		Ask syslog() to send to stderr too
+
+Configuration file:
+
+rcynic uses the OpenSSL libcrypto configuration file mechanism.  All
+libcrypto configuration options (eg, for engine support) are
+available.  All rcynic-specific options are in the "[rcynic]"
+section.  You -must- have a configuration file in order for rcynic to
+do anything useful, as the configuration file is the only way to list
+your trust anchors.
+
+Configuration variables:
+
+authenticated		Path to output directory (where rcynic should
+			place objects it has been able to validate).
+			Default: rcynic-data/authenticated
+
+old-authenticated	Path to which rcynic should rename the output
+			directory (if any) from the previous rcynic
+			run.  rcynic preserves the previous run's
+			output directory both as a backup data source
+			for the current run and also so that you don't
+			lose all your state if rcynic chokes and
+			dies.  Default: rcynic-data/authenticated.old
+
+
+unauthenticated		Path to directory where rcynic should store
+			unauthenticatd data retrieved via rsync.
+			Unless something goes horribly wrong, you want
+			rcynic to preserve and reuse this directory
+			across runs to minimize the network traffic
+			necessary to bring your repository mirror up
+			to date.  Default: rcynic-data/unauthenticated
+
+rsync-timeout		How long (in seconds) to let rsync run before
+			terminating the rsync process, or zero for no
+			timeout.  You want this timeout to be fairly
+			long, to avoid terminating rsync connections
+			prematurely.  It's present to let you defend
+			against evil rsync server operators who try to
+			tarpit your connection as a form of denial of
+			service attack on rcynic.  Default: no timeout
+			(but this may change, best set it explictly).
+
+
+rsync-program		Path to the rsync program.  Default: rsync,
+			but you should probably set this variable
+			rather than just trusting the PATH environment
+			variable to be set correctly.
+
+log-level		Same as -l option on command line.  Command
+			line setting overrides config file setting.
+			Default: log_telemetry
+
+use-syslog		Same as -s option on command line.  Command
+			line setting overrides config file setting.
+			Default: false
+
+use-stdouterr		Same as -t option on command line.  Command
+			line setting overrides config file setting.
+			Default: false
+
+syslog-perror		Same as -p option on command line.  Command
+			line setting overrides config file setting.
+			Default: false
+
+syslog-facility		Syslog facility to use.  Default: local0
+
+
+syslog-priority-xyz	(where xyz is an rcynic logging level, above)
+			Override the syslog priority value to use when
+			logging messages at this rcynic level.
+			Defaults:
+
+			syslog-priority-log_sys_err:	err
+			syslog-priority-log_usage_err:	err
+			syslog-priority-log_data_err:	notice
+			syslog-priority-log_telemetry:	info
+			syslog-priority-log_verbose:	info
+			syslog-priority-log_debug:	debug
+
+
+
 To Do:
 
 - Support for running rsync chrooted.
@@ -107,6 +212,3 @@ To Do:
 
 - autoconf?  probably not, unless we run into portability issues
   serious enough to require it.
-
-- syslog()?  probably, particularly if we expect people to run this
-  under cron.

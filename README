@@ -4,5 +4,20 @@ Files associated with routing PKI project.
 
 Required reading:
 
-	RFC 3779
-	Portions of RFC 3280
+- RFC 3779
+- Portions of RFC 3280
+- draft-ietf-sidr-res-certs
+
+Programs:
+
+- openssl: development copy of OpenSSL with RFC 3779 support added.
+  Patches for this have been submitted to the OpenSSL project but have
+  not yet been incorporated into the OpenSSL distribution.
+
+- rcynic: "cynical rsync" validator for rsync-based RPKI repositories.
+
+- tests and scripts: various little test programs and utilities, not
+  really intended for use by anyone but the author.  If they're
+  useful, cool, enjoy, but if they blow up in your face, set your
+  computer on fire, and turn your cat blue, that's your problem.
+

@@ -295,6 +295,19 @@ variable settings.
 
 
 
+Building static binaries:
+
+On FreeBSD, building a staticly linked rsync is easy: just set the
+environment variable LDFLAGS='-static' before building the rsync port
+and the right thing will happen.  Since this is really just GNU
+configure picking up the environment variable, the same trick should
+work on other platforms.
+
+For simplicity, I've taken the same approach with rcynic, so just
+setting LDFLAGS='-static' and running make should work.
+
+
+
 To Do:
 
 - Support for running rsync chrooted.
@@ -321,7 +334,7 @@ To Do:
 
 
 
-# Sample script to create a jail for rcynic under FreeBSD.
+# Sample script to create a jail for rcynic on FreeBSD.
 
 #!/bin/sh -
 # $Id$
@@ -387,9 +400,14 @@ fi
 /sbin/devfs -m "${jaildir}/dev" rule apply path null unhide
 /sbin/devfs -m "${jaildir}/dev" rule apply path random unhide
 
-if /bin/test -r /etc/localtime && ! /usr/bin/cmp -s /etc/localtime "${jaildir}/etc/localtime"; then
-    /bin/cp -p /etc/localtime "${jaildir}/etc/localtime"
-fi
+for i in /etc/localtime /etc/resolv.conf; do
+    j="${jaildir}${i}"
+    if /bin/test -r "$i" && ! /usr/bin/cmp -s "$i" "$j"; then
+	/bin/cp -p "$i" "$j"
+	/usr/sbin/chown root:wheel "$j"
+	/bin/chmod 444 "$j"
+    fi
+done
 
 if /bin/test -d trust-anchors; then
     for i in trust-anchors/*.cer; do
@@ -415,10 +433,26 @@ else
 	EOF
     j=1
     for i in $jaildir/etc/trust-anchors/*.cer; do
-	echo >>"${jaildir}/etc/rcynic.conf" "trust-anchor.$j		= /data/${i##*/}"
+	echo >>"${jaildir}/etc/rcynic.conf" "trust-anchor.$j		= /etc/trust-anchors/${i##*/}"
 	j=$((j+1))
     done
 fi
 
 /usr/sbin/chown root:wheel "${jaildir}/etc/rcynic.conf"
 /bin/chmod 444 "${jaildir}/etc/rcynic.conf"
+
+
+
+# Sample script to run rcynic in a chroot jail on FreeBSD.
+
+#!/bin/sh -
+# $Id$
+#
+# Run rcynic in a chroot jail (which must already be set up)
+
+jaildir="/var/rcynic"
+jailuser="rcynic"
+jailgroup="rcynic"
+
+/usr/sbin/chroot -u "$jailuser" -g "$jailgroup" "$jaildir" \
+    /bin/rcynic -c /etc/rcynic.conf

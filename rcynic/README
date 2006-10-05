@@ -367,6 +367,10 @@ fi
 	    trust-anchors
 	    ..
 	..
+	var
+	    run
+	    ..
+	..
 	data	uname=$jailuser gname=$jailgroup mode=0755
 	..
     ..

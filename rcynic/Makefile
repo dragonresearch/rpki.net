@@ -3,6 +3,7 @@
 OPENSSL_DIR = ../openssl/trunk
 
 CFLAGS = -g -I${OPENSSL_DIR}/include -Wall -Werror -Wshadow -Wmissing-prototypes -Wmissing-declarations
+LDFLAGS =
 
 # -H -Wl,-t
 
@@ -16,7 +17,7 @@ clean:
 	rm -f ${BIN} ${OBJ}
 
 ${BIN}: ${OBJ} ${LIB} Makefile
-	${CC} -g -o $@ ${OBJ} ${LIB}
+	${CC} -g -o $@ ${OBJ} ${LIB} ${LDFLAGS}
 
 test: ${BIN}
 	./${BIN}

@@ -390,3 +390,35 @@ fi
 if /bin/test -r /etc/localtime && ! /usr/bin/cmp -s /etc/localtime "${jaildir}/etc/localtime"; then
     /bin/cp -p /etc/localtime "${jaildir}/etc/localtime"
 fi
+
+if /bin/test -d trust-anchors; then
+    for i in trust-anchors/*.cer; do
+	j="$jaildir/etc/trust-anchors/${i##*/}"
+	/bin/test -r "$j" && continue
+	echo "Copying $i to $j"
+	/bin/cp -p "$i" "$j"
+	/usr/sbin/chown root:wheel "$j"
+	/bin/chmod 444 "$j"
+    done
+fi
+
+if /bin/test -r "$jaildir/etc/rcynic.conf"; then
+    echo "You already have config file \"${jaildir}/etc/rcynic.conf\", so I will use it."
+else
+    echo "Creating minmal ${jaildir}/etc/rcynic.conf"
+    /bin/cat >"${jaildir}/etc/rcynic.conf" <<-EOF
+	[rcynic]
+	rsync-program		= /bin/rsync
+	authenticated		= /data/authenticated
+	old-authenticated	= /data/authenticated.old
+	unauthenticated		= /data/unauthenticated
+	EOF
+    j=1
+    for i in $jaildir/etc/trust-anchors/*.cer; do
+	echo >>"${jaildir}/etc/rcynic.conf" "trust-anchor.$j		= /data/${i##*/}"
+	j=$((j+1))
+    done
+fi
+
+/usr/sbin/chown root:wheel "${jaildir}/etc/rcynic.conf"
+/bin/chmod 444 "${jaildir}/etc/rcynic.conf"

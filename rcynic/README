@@ -107,7 +107,7 @@ Command line options:
  -s		Log via syslog
  -t		Log via stdout/stderr when also using syslog
  -p		Ask syslog() to send to stderr too
- -j		Start-up jitter interval (see below; default: 0)
+ -j		Start-up jitter interval (see below; default: 600)
 
 Configuration file:
 
@@ -198,6 +198,7 @@ jitter			Startup jitter interval, same as -j option on
 			running under cron with synchronized clocks,
 			in particular to avoid hammering the RPKI
 			rsync servers into the ground at midnight UTC.
+			Default: 600
 
 
 

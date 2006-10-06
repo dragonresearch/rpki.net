@@ -1229,14 +1229,15 @@ int main(int argc, char *argv[])
 {
   int opt_jitter = 0, use_syslog = 0, syslog_facility = 0, syslog_perror = 0;
   int opt_syslog = 0, opt_stdouterr = 0, opt_level = 0, opt_perror = 0;
-  char *cfg_file = "rcynic.conf", path[FILENAME_MAX];
+  char *cfg_file = "rcynic.conf", path[FILENAME_MAX], *lockfile = NULL;
+  int c, i, j, ret = 1, jitter = 600, lockfd = -1;
   STACK_OF(CONF_VALUE) *cfg_section = NULL;
   STACK_OF(X509) *certs = NULL;
   CONF *cfg_handle = NULL;
-  int c, i, j, ret = 1, jitter = 600;
-  time_t start, finish;
+  time_t start = 0, finish;
   unsigned long hash;
   rcynic_ctx_t rc;
+  unsigned delay;
   long eline;
 
   memset(&rc, 0, sizeof(rc));
@@ -1334,6 +1335,9 @@ int main(int argc, char *argv[])
     else if (!name_cmp(val->name, "rsync-program"))
       rc.rsync_program = strdup(val->value);
 
+    else if (!name_cmp(val->name, "lockfile"))
+      lockfile = strdup(val->value);
+
     else if (!opt_jitter &&
 	     !name_cmp(val->name, "jitter") &&
 	     !configure_integer(&rc, &jitter, val->value))
@@ -1404,19 +1408,24 @@ int main(int argc, char *argv[])
 	    (syslog_facility ? syslog_facility : LOG_LOCAL0));
 
   if (jitter > 0) {
-    unsigned delay;
-
     if (RAND_bytes((unsigned char *) &delay, sizeof(delay)) <= 0) {
       logmsg(&rc, log_sys_err, "Couldn't read random bytes");
       goto done;
     }
-
     delay %= jitter;
-
     logmsg(&rc, log_telemetry, "Delaying %u seconds before startup", delay);
-
     while (delay > 0)
       delay = sleep(delay);      
+  }
+
+  if (lockfile &&
+      ((lockfd = open(lockfile, O_RDWR|O_CREAT|O_NONBLOCK, 0666)) < 0 ||
+       lockf(lockfd, F_TLOCK, 0) < 0)) {
+    if (lockfd >= 0 && errno == EAGAIN)
+      logmsg(&rc, log_telemetry, "Lock %s held by another process", lockfile);
+    else
+      logmsg(&rc, log_sys_err, "Problem locking %s: %s", lockfile, strerror(errno));
+    goto done;
   }
 
   start = time(0);
@@ -1520,13 +1529,16 @@ int main(int argc, char *argv[])
   free(rc.unauthenticated);
   if (rc.rsync_program)
     free(rc.rsync_program);
+  if (lockfile)
+    free(lockfile);
 
-  finish = time(0);
-
-  logmsg(&rc, log_telemetry, "Finished, elapsed time %d:%02d:%02d",
-	 (finish - start) / 3600,
-	 (finish - start) / 60 % 60,
-	 (finish - start) % 60);
+  if (start) {
+    finish = time(0);
+    logmsg(&rc, log_telemetry, "Finished, elapsed time %d:%02d:%02d",
+	   (finish - start) / 3600,
+	   (finish - start) / 60 % 60,
+	   (finish - start) % 60);
+  }
 
   return ret;
 }

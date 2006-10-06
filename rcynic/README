@@ -207,6 +207,12 @@ jitter			Startup jitter interval, same as -j option on
 			rsync servers into the ground at midnight UTC.
 			Default: 600
 
+lockfile		Name of lockfile, or empty for no lock.  If
+			you run rcynic under cron, you should use this
+			parameter to set a lockfile so that successive
+			instances of rcynic don't stomp on each other.
+			Default: no lock
+
 
 
 Running rcynic chrooted
@@ -453,6 +459,7 @@ else
 	authenticated		= /data/authenticated
 	old-authenticated	= /data/authenticated.old
 	unauthenticated		= /data/unauthenticated
+	lockfile		= /data/lock
 	EOF
     j=1
     for i in $jaildir/etc/trust-anchors/*.cer; do

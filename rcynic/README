@@ -19,17 +19,21 @@ point I'll probably write a companion program to convert a tree of DER
 into the hashed directory of PEM format that most OpenSSL applications
 expect.
 
-At the moment all configuration is handled via the config file, except
-for selection of the config file itself: the default is rcynic.conf,
-you can override this with the -c option on the command line.  The
-config file uses OpenSSL's config file syntax, and you can set OpenSSL
+All configuration is via an OpenSSL-style configuration file, except
+for selection of the name of the configuration file itself.  A few of
+the parameters can also be set from the command line, to simplify
+testing.  The default name for the configuration is rcynic.conf; you
+can override this with the -c option on the command line.  The config
+file uses OpenSSL's config file syntax, and you can set OpenSSL
 library configuration paramaters (eg, "engine" settings) in the config
 file as well.  rcynic's own configuration parameters are in a section
 called "[rcynic]".
 
 Most configuration parameters are optional and have defaults that
-should do something reasonable.  At some point I'll document them all,
-once I stop fiddling with them.  For the moment, see main().
+should do something reasonable if you are running rcynic in a test
+directory.  If you're running it as a system progran, perhaps under
+cron, you'll want to set additional parameters to tell rcynic where to
+find its data and where to write its output.
 
 The one thing you MUST specify in the config file in order for the
 program to do anything useful is file name of one or more trust
@@ -47,31 +51,36 @@ Example of a minimal config file:
     trust-anchor.1 = trust-anchors/ripe-ripe-trust-anchor.cer
     trust-anchor.2 = trust-anchors/ripe-arin-trust-anchor.cer
 
-By default, rcynic uses the following directories, all rooted under
-the directory in which you run rcynic:
+By default, rcynic uses three writable directory trees:
 
-  rcynic-data/unauthenticated		Raw data fetched via rsync
+- unauthenticated	Raw data fetched via rsync.  In order to take
+			full advantage of rsync's optimized transfers,
+			you should preserve and reuse this directory
+			across rcynic runs, so that rcynic need not
+			re-fetch data that have not changed.
 
-  rcynic-data/authenticated		Data that rcynic has checked
+- authenticated		Data that rcynic has checked.  This is the
+			real output of the process.
 
-  rcynic-data/authenticated.old		Saved results from immediately
-					previous rcynic run, used when
-					attempting to recover from
-					certain kinds of errors.
+- old_authenticated	Saved results from immediately previous rcynic
+			run, used when attempting to recover from
+			certain kinds of errors.
 
-rcynic copies the trust anchors themselves into the output tree with
-names of the form authenticated/xxxxxxxx.n.cer, where "authenticated"
-is the top of the authenticated output directory, xxxxxxxx and n are
-the OpenSSL object name hash and index within the resulting virtual
-hash bucket (the same as the c_hash Perl script that comes with
-OpenSSL would produce), and ".cer" is the literal string ".cer".  The
-reason for this is that trust anchors, by definition, are not fetched
-automatically, and thus do not really have publication URIs in the
-sense that every other object in these trees do.  So we use a naming
-scheme which insures (a) that each trust anchor has a unique name
-within the output tree and (b) that trust anchors cannot be confusd
-with certificates: trust anchors always go in the top level of the
-output tree, data fetched via rsync always go in subdirectories.
+rcynic renames the authenticated tree to become the old_authenticated
+tree when it starts up, then builds a new authenticated tree.
+
+rcynic copies the trust anchors themselves into the top level
+directory of the authenticated tree xxxxxxxx.n.cer, where xxxxxxxx and
+n are the OpenSSL object name hash and index within the resulting
+virtual hash bucket (the same as the c_hash Perl script that comes
+with OpenSSL would produce), and ".cer" is the literal string ".cer".
+The reason for this is that trust anchors, by definition, are not
+fetched automatically, and thus do not really have publication URIs in
+the sense that every other object in these trees do.  So rcynic uses a
+naming scheme which insures (a) that each trust anchor has a unique
+name within the output tree and (b) that trust anchors cannot be
+confusd with certificates: trust anchors always go in the top level of
+the tree, data fetched via rsync always go in subdirectories.
 
 As currently implemented, rcynic does not attempt to maintain an
 in-memory cache of objects it might need again later.  It does keep an
@@ -83,8 +92,6 @@ a database design standpoint, this is not very efficient, but as the
 rcynic's main bottlenecks are expected to be crypto and network
 operations, it seemed best to keep the design as simple as possible,
 at least until execution profiling demonstrates a real issue.
-
-
 
 Usage and configuration:
 
@@ -215,40 +222,49 @@ you'll need to figure out which shared libraries these programs need
 (try using the "ldd" command).  Here we assume staticly linked
 binaries, because that's simpler.
 
-You'll need a chroot wrapper program.  The following assumes that
-you're using Wietse Venema's "chrootuid", but other alternatives
-should work, eg, the "chroot" program that comes with FreeBSD.  The
-chroot program included in at least some Linux distributions is not
-adaquate to this task, you need a wrapper that knows how to drop
-privileges after performing the chroot() operation itself.  If in
-doubt, use chrootuid, which you can download from 
+You'll need a chroot wrapper program.  Your platform may already have
+one (FreeBSD does -- /usr/sbin/chroot), but if you don't, you can
+download Wietse Venema's "chrootuid" program from:
 
   ftp://ftp.porcupine.org/pub/security/chrootuid1.3.tar.gz
 
-Step 1: build the static binaries.  You might want to test them at
+Warning: The chroot program included in at least some Linux
+distributions is not adaquate to this task, you need a wrapper that
+knows how to drop privileges after performing the chroot() operation
+itself.  If in doubt, use chrootuid.
+
+Unfortunately, the precise details of setting up a proper chroot jail
+vary wildly from one system to another, so the following instructions
+will likely not be a precise match for the preferred way of doing this
+on any particular platform.  We have sample scripts that do the right
+thing for FreeBSD, feel free to contribute such scripts for other
+platforms.
+
+Step 1: Build the static binaries.  You might want to test them at
 this stage too, although you can defer that until after you've got the
 jail built.
 
-Step 2: create a userid under which to run rcynic.  Here we'll assume
+Step 2: Create a userid under which to run rcynic.  Here we'll assume
 that you've created a user "rcynic", whose default group is also named
 "rcynic".  Do not add any other userids to the rcynic group unless you
 really know what you are doing.
 
-Step 3: build the jail.  You'll need, at minimum, a directory in which
+Step 3: Build the jail.  You'll need, at minimum, a directory in which
 to put the binaries, a subdirectory tree that's writable by the userid
 which will be running rcynic and rsync, your trust anchors, and
 whatever device inodes the various libraries need on your system.
 Most likely the devices that matter will be /dev/null, /dev/random,a
 nd /dev/urandom; if you're running a FreeBSD system with devfs, you
-can just mount another devfs in the jail and have done with it.
+do this by mounting and configuring a devfs instance in the jail, on
+other platforms you probably use the mknod program or something.
 
-Important: other than the directoriest that you want rcynic and rsync
+Important: other than the directories that you want rcynic and rsync
 to be able to modify, -nothing- in the initial jail setup should be
 writable by the rcynic userid.  In particular, rcynic and rsync should
--not- be allowed to modify: their own binary images, the rcynic
-configuration file, or your trust anchors.  It's simplest just to have
-root own all the files and directories that rcynic and rsync are not
-allowed to modify.
+-not- be allowed to modify: their own binary images, any of the
+configuration files, or your trust anchors.  It's simplest just to
+have root own all the files and directories that rcynic and rsync are
+not allowed to modify.
 
 Sample jail tree, assuming that we're putting all of this under
 /var/rcynic:
@@ -263,6 +279,9 @@ Sample jail tree, assuming that we're putting all of this under
 Copy your trust anchors into /var/rcynic/etc/trust-anchors.
 
 Copy the staticly linked rcynic and rsync into /var/rcynic/bin.
+
+Copy /etc/resolv.conf and /etc/localtime (if it exists) into
+/var/rcynic/etc.
 
 Write an rcynic configuration file as /var/rcynic/etc/rcynic.conf
 (path names in this file must match the jail setup, more below).
@@ -294,8 +313,9 @@ Once you've got all this set up, you're ready to try running rcynic in
 the jail.  Try it from the command line first, then if that works, you
 should be able to run it under cron.
 
-Note: chrootuid is intended to be run by root.  It is -not- intended
-to run setuid root.
+Note: chroot, chrootuid, and other programs of this type are usually
+intended to be run by root, and should -not- be setuid programs unless
+you -really- know what you are doing.
 
 Sample command line:
 
@@ -304,7 +324,8 @@ Sample command line:
 Note that we use absolute pathnames everywhere.  This is not an
 accident.  Programs running in jails under cron should not make
 assumptions about the current working directory or environment
-variable settings.
+variable settings, and programs running in chroot jails would need
+different PATH settings anyway.  Best just to specify everything.
 
 Building static binaries:
 
@@ -314,8 +335,11 @@ and the right thing will happen.  Since this is really just GNU
 configure picking up the environment variable, the same trick should
 work on other platforms.
 
-For simplicity, I've taken the same approach with rcynic, so just
-setting LDFLAGS='-static' and running make should work.
+For simplicity, I've taken the same approach with rcynic, so 
+
+  $ make LDFLAGS='-static'
+
+should work.
 
 syslog:
 

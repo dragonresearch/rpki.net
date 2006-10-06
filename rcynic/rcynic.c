@@ -1204,12 +1204,12 @@ static void walk_cert(rcynic_ctx_t *rc,
 int main(int argc, char *argv[])
 {
   int opt_jitter = 0, use_syslog = 0, syslog_facility = 0, syslog_perror = 0;
-  int opt_syslog = 0, opt_stdouterr = 0, opt_level = 0, opt_perror = 0, jitter;
+  int opt_syslog = 0, opt_stdouterr = 0, opt_level = 0, opt_perror = 0;
   char *cfg_file = "rcynic.conf", path[FILENAME_MAX];
   STACK_OF(CONF_VALUE) *cfg_section = NULL;
   STACK_OF(X509) *certs = NULL;
   CONF *cfg_handle = NULL;
-  int c, i, j, ret = 1;
+  int c, i, j, ret = 1, jitter = 600;
   time_t start, finish;
   unsigned long hash;
   rcynic_ctx_t rc;

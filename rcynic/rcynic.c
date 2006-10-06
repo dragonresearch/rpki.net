@@ -1379,11 +1379,6 @@ int main(int argc, char *argv[])
   if (jitter > 0) {
     unsigned delay;
 
-    if (!RAND_load_file("/dev/random", 1024)) {
-      logmsg(&rc, log_sys_err, "Couldn't seed random number generator");
-      goto done;
-    }
-
     if (RAND_bytes((unsigned char *) &delay, sizeof(delay)) <= 0) {
       logmsg(&rc, log_sys_err, "Couldn't read random bytes");
       goto done;

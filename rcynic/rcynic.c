@@ -250,13 +250,37 @@ static int configure_boolean(const rcynic_ctx_t *rc,
     *result = 1;
     return 1;
   case 'n': case 'N': case 'f': case 'F': case '0':
-    * result = 0;
+    *result = 0;
     return 1;
   default:
     logmsg(rc, log_usage_err, "Bad boolean value %s", val);
     return 0;
   }
 }
+
+/*
+ * Configure integer variable.
+ */
+static int configure_integer(const rcynic_ctx_t *rc,
+			     int *result,
+			     const char *val)
+{
+  long res;
+  char *p;
+
+  assert(rc && result && val);
+
+  res = strtol(val, &p, 10);
+  
+  if (*val != '\0' && *p == '\0') {
+    *result = (int) res;
+    return 1;
+  } else {
+    logmsg(rc, log_usage_err, "Bad integer value %s", val);
+    return 0;
+  }
+}
+
 
 
 
@@ -1254,8 +1278,9 @@ int main(int argc, char *argv[])
       syslog_perror = opt_perror = 1;
       break;
     case 'j':
+      if (!configure_integer(&rc, &jitter, optarg))
+	goto done;
       opt_jitter = 1;
-      jitter = atoi(optarg);
       break;
     default:
       logmsg(&rc, log_usage_err,
@@ -1302,15 +1327,17 @@ int main(int argc, char *argv[])
     else if (!name_cmp(val->name, "unauthenticated"))	
       set_directory(&rc.unauthenticated, val->value);
 
-    else if (!name_cmp(val->name, "rsync-timeout"))
-      rc.rsync_timeout = atoi(val->value);
+    else if (!name_cmp(val->name, "rsync-timeout") &&
+	     !configure_integer(&rc, &rc.rsync_timeout, val->value))
+	goto done;
 
     else if (!name_cmp(val->name, "rsync-program"))
       rc.rsync_program = strdup(val->value);
 
     else if (!opt_jitter &&
-	     !name_cmp(val->name, "jitter"))
-      jitter = atoi(val->value);
+	     !name_cmp(val->name, "jitter") &&
+	     !configure_integer(&rc, &jitter, val->value))
+      goto done;
 
     else if (!opt_level &&
 	     !name_cmp(val->name, "log-level") &&

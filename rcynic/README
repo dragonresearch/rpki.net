@@ -107,6 +107,7 @@ Command line options:
  -s		Log via syslog
  -t		Log via stdout/stderr when also using syslog
  -p		Ask syslog() to send to stderr too
+ -j		Start-up jitter interval (see below; default: 0)
 
 Configuration file:
 
@@ -162,15 +163,15 @@ log-level		Same as -l option on command line.  Command
 
 use-syslog		Same as -s option on command line.  Command
 			line setting overrides config file setting.
-			Default: false
+			Values: true or false.  Default: false
 
 use-stdouterr		Same as -t option on command line.  Command
 			line setting overrides config file setting.
-			Default: false
+			Values: true or false.  Default: false
 
 syslog-perror		Same as -p option on command line.  Command
 			line setting overrides config file setting.
-			Default: false
+			Values: true or false.  Default: false
 
 syslog-facility		Syslog facility to use.  Default: local0
 
@@ -186,6 +187,17 @@ syslog-priority-xyz	(where xyz is an rcynic logging level, above)
 			syslog-priority-log_telemetry:	info
 			syslog-priority-log_verbose:	info
 			syslog-priority-log_debug:	debug
+
+jitter			Startup jitter interval, same as -j option on
+			command line.  Jitter interval, specified in
+			number of seconds.  rcynic will pick a random
+			number within the interval from zero to this
+			value, and will delay for that many seconds on
+			startup.  The purpose of this is to spread the
+			load from large numbers of rcynic clients all
+			running under cron with synchronized clocks,
+			in particular to avoid hammering the RPKI
+			rsync servers into the ground at midnight UTC.
 
 
 

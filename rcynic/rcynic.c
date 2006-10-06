@@ -50,6 +50,7 @@
 #include <openssl/x509v3.h>
 #include <openssl/safestack.h>
 #include <openssl/conf.h>
+#include <openssl/rand.h>
 
 #ifndef FILENAME_MAX
 #define	FILENAME_MAX	1024
@@ -63,22 +64,24 @@
 
 /*
  * Logging levels.  Same general idea as syslog(), but our own
- * catagories based on what makes sense for this program.
+ * catagories based on what makes sense for this program.  Default
+ * mappings to syslog() priorities are here because it's the easiest
+ * way to make sure that we assign a syslog level to each of ours.
  */
 
-#define LOG_LEVELS						\
-  QQ(log_sys_err)		/* Error from OS or library  */	\
-  QQ(log_usage_err)		/* Bad usage (local error)   */	\
-  QQ(log_data_err)		/* Bad data, no biscuit      */	\
-  QQ(log_telemetry)		/* Normal progress chatter   */	\
-  QQ(log_verbose)		/* Extra chatter             */ \
-  QQ(log_debug)			/* Only useful when debugging */
+#define LOG_LEVELS							\
+  QQ(log_sys_err,	LOG_ERR)	/* Error from OS or library  */	\
+  QQ(log_usage_err,	LOG_ERR)	/* Bad usage (local error)   */	\
+  QQ(log_data_err,	LOG_NOTICE)	/* Bad data, no biscuit      */	\
+  QQ(log_telemetry,	LOG_INFO)	/* Normal progress chatter   */	\
+  QQ(log_verbose,	LOG_INFO)	/* Extra chatter             */ \
+  QQ(log_debug,		LOG_DEBUG)	/* Only useful when debugging */
 
-#define QQ(x)	x ,
+#define QQ(x,y)	x ,
 typedef enum log_level { LOG_LEVELS n_log_levels } log_level_t;
 #undef	QQ
 
-#define	QQ(x)	{ #x , x },
+#define	QQ(x,y)	{ #x , x },
 static const struct {
   const char *name;
   log_level_t value;
@@ -1200,12 +1203,13 @@ static void walk_cert(rcynic_ctx_t *rc,
  */
 int main(int argc, char *argv[])
 {
-  int opt_syslog = 0, opt_stdouterr = 0, opt_level = 0, use_syslog = 0;
+  int opt_jitter = 0, use_syslog = 0, syslog_facility = 0, syslog_perror = 0;
+  int opt_syslog = 0, opt_stdouterr = 0, opt_level = 0, opt_perror = 0, jitter;
   char *cfg_file = "rcynic.conf", path[FILENAME_MAX];
   STACK_OF(CONF_VALUE) *cfg_section = NULL;
-  int c, i, j, ret = 1, syslog_facility = 0, syslog_perror = 0;
   STACK_OF(X509) *certs = NULL;
   CONF *cfg_handle = NULL;
+  int c, i, j, ret = 1;
   time_t start, finish;
   unsigned long hash;
   rcynic_ctx_t rc;
@@ -1223,17 +1227,14 @@ int main(int argc, char *argv[])
   set_directory(&rc.unauthenticated,	"rcynic-data/unauthenticated/");
   rc.log_level = log_telemetry;
 
-  rc.priority[log_sys_err]	= LOG_ERR;
-  rc.priority[log_usage_err]	= LOG_ERR;
-  rc.priority[log_data_err]	= LOG_NOTICE;
-  rc.priority[log_telemetry]	= LOG_INFO;
-  rc.priority[log_verbose]	= LOG_INFO;
-  rc.priority[log_debug]	= LOG_DEBUG;
+#define QQ(x,y)   rc.priority[x] = y;
+  LOG_LEVELS;
+#undef QQ
 
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
 
-  while ((c = getopt(argc, argv, "c:l:stp")) > 0) {
+  while ((c = getopt(argc, argv, "c:l:stpj:")) > 0) {
     switch (c) {
     case 'c':
       cfg_file = optarg;
@@ -1250,7 +1251,11 @@ int main(int argc, char *argv[])
       rc.use_stdouterr = opt_stdouterr = 1;
       break;
     case 'p':
-      syslog_perror = 1;
+      syslog_perror = opt_perror = 1;
+      break;
+    case 'j':
+      opt_jitter = 1;
+      jitter = atoi(optarg);
       break;
     default:
       logmsg(&rc, log_usage_err,
@@ -1303,6 +1308,10 @@ int main(int argc, char *argv[])
     else if (!name_cmp(val->name, "rsync-program"))
       rc.rsync_program = strdup(val->value);
 
+    else if (!opt_jitter &&
+	     !name_cmp(val->name, "jitter"))
+      jitter = atoi(val->value);
+
     else if (!opt_level &&
 	     !name_cmp(val->name, "log-level") &&
 	     !configure_logmsg(&rc, val->value))
@@ -1318,7 +1327,7 @@ int main(int argc, char *argv[])
 	     !configure_boolean(&rc, &rc.use_stdouterr, val->value))
       goto done;
 
-    else if (!syslog_perror &&
+    else if (!opt_perror &&
 	     !name_cmp(val->name, "syslog-perror") &&
 	     !configure_boolean(&rc, &syslog_perror, val->value))
       goto done;
@@ -1332,7 +1341,7 @@ int main(int argc, char *argv[])
      * Ugly, but the easiest way to handle all these strings.
      */
 
-#define	QQ(x)							\
+#define	QQ(x,y)							\
     else if (!name_cmp(val->name, "syslog-priority-" #x) &&	\
 	     !configure_syslog(&rc, &rc.priority[x],		\
 			       prioritynames, val->value))	\
@@ -1366,6 +1375,27 @@ int main(int argc, char *argv[])
     openlog(rc.jane,
 	    LOG_PID | (syslog_perror ? LOG_PERROR : 0),
 	    (syslog_facility ? syslog_facility : LOG_LOCAL0));
+
+  if (jitter > 0) {
+    unsigned delay;
+
+    if (!RAND_load_file("/dev/random", 1024)) {
+      logmsg(&rc, log_sys_err, "Couldn't seed random number generator");
+      goto done;
+    }
+
+    if (RAND_bytes((unsigned char *) &delay, sizeof(delay)) <= 0) {
+      logmsg(&rc, log_sys_err, "Couldn't read random bytes");
+      goto done;
+    }
+
+    delay %= jitter;
+
+    logmsg(&rc, log_telemetry, "Delaying %u seconds before startup", delay);
+
+    while (delay > 0)
+      delay = sleep(delay);      
+  }
 
   start = time(0);
   logmsg(&rc, log_telemetry, "Starting");

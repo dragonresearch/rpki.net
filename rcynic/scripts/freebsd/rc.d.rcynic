@@ -1,0 +1,76 @@
+#!/bin/sh -
+#
+# $Id$
+#
+# PROVIDE: rcynic
+# REQUIRE: DAEMON
+# KEYWORD: nojail
+
+. /etc/rc.subr
+
+name="rcynic"
+start_cmd="rcynic_start"
+stop_cmd="rcynic_stop"
+
+: ${rcynic_jaildir="/var/rcynic"}
+: ${rcynic_user="rcynic"}
+: ${rcynic_group="rcynic"}
+
+rcynic_start()
+{
+	/bin/test -d "${rcynic_jaildir}" || /bin/mkdir "${rcynic_jaildir}"
+	/sbin/umount "${rcynic_jaildir}/dev" 2>/dev/null
+
+	/bin/chmod -R a-w "${rcynic_jaildir}"
+	/usr/sbin/chown -R root:wheel "${rcynic_jaildir}"
+
+	/usr/sbin/mtree -deU -p "${jaildir}" <<EOF
+
+		/set type=dir uname=root gname=wheel mode=0555
+		.
+			bin
+			..
+			dev
+			..
+			etc
+				trust-anchors
+				..
+			..
+			var
+				run
+				..
+			..
+			data	uname=${rcynic_user} gname=${rcynic_group} mode=0755
+			..
+		..
+EOF
+
+	if ! /sbin/mount -t devfs dev "${rcynic_jaildir}/dev"; then
+		echo "Mounting devfs on ${rcynic_jaildir}/dev failed..."
+		exit 1
+	fi
+
+	/sbin/devfs -m "${rcynic_jaildir}/dev" rule apply hide
+	/sbin/devfs -m "${rcynic_jaildir}/dev" rule apply path null unhide
+	/sbin/devfs -m "${rcynic_jaildir}/dev" rule apply path random unhide
+
+	for i in /etc/localtime /etc/resolv.conf; do
+		j="${rcynic_jaildir}${i}"
+		if /bin/test -r "$i" && ! /usr/bin/cmp -s "$i" "$j"; then
+			/bin/cp -p "$i" "$j"
+			/usr/sbin/chown root:wheel "$j"
+			/bin/chmod 444 "$j"
+		fi
+	done
+
+	/bin/chmod -R u+w "${rcynic_jaildir}/data"
+	/usr/sbin/chown -R "${rcynic_user}:${rcynic_group}" "${rcynic_jaildir}/data"
+}
+
+rcynic_stop()
+{
+	/sbin/umount "${rcynic_jaildir}/dev" 2>/dev/null
+}
+
+load_rc_config $name
+run_rc_command "$1"

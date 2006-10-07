@@ -64,33 +64,17 @@ fi
 
 if /bin/test -r "$jaildir/etc/rcynic.conf"; then
     echo "You already have config file \"${jaildir}/etc/rcynic.conf\", so I will use it."
-else
-    echo "Creating minmal ${jaildir}/etc/rcynic.conf"
-    /bin/cat >"${jaildir}/etc/rcynic.conf" <<-EOF
-	[rcynic]
-	rsync-program		= /bin/rsync
-	authenticated		= /data/authenticated
-	old-authenticated	= /data/authenticated.old
-	unauthenticated		= /data/unauthenticated
-	lockfile		= /data/lock
-	jitter			= 600
-	EOF
+elif /usr/bin/install -m 444 -u root -g wheel -p rcynic.conf "${jaildir}/etc/rcynic.conf"
+    echo "Installed minimal ${jaildir}/etc/rcynic.conf"
     j=1
     for i in $jaildir/etc/trust-anchors/*.cer; do
 	echo >>"${jaildir}/etc/rcynic.conf" "trust-anchor.$j		= /etc/trust-anchors/${i##*/}"
 	j=$((j+1))
     done
-    if /bin/test "$j" = "1"; then
-	/bin/cat >>"${jaildir}/etc/rcynic.conf" <<-EOF
-	# You need to specify some trust anchors here, eg:
-	#
-	#trust-anchor.1		= /etc/trust-anchors/ta-1.cer
-	#trust-anchor.2		= /etc/trust-anchors/ta-2.cer
-	EOF
+else
+    echo "Installing minimal ${jaildir}/etc/rcynic.conf failed"
+    exit 1
 fi
-
-/usr/sbin/chown root:wheel "${jaildir}/etc/rcynic.conf"
-/bin/chmod 444 "${jaildir}/etc/rcynic.conf"
 
 echo "Setting up root's crontab to run jailed rcynic"
 

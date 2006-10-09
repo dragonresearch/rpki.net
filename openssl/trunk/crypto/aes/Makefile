@@ -23,8 +23,10 @@ TEST=
 APPS=
 
 LIB=$(TOP)/libcrypto.a
-LIBSRC=aes_core.c aes_misc.c aes_ecb.c aes_cbc.c aes_cfb.c aes_ofb.c aes_ctr.c
-LIBOBJ=aes_misc.o aes_ecb.o aes_cfb.o aes_ofb.o aes_ctr.o $(AES_ASM_OBJ)
+LIBSRC=aes_core.c aes_misc.c aes_ecb.c aes_cbc.c aes_cfb.c aes_ofb.c \
+       aes_ctr.c aes_ige.c
+LIBOBJ=aes_misc.o aes_ecb.o aes_cfb.o aes_ofb.o aes_ctr.o aes_ige.o \
+       $(AES_ASM_OBJ)
 
 SRC= $(LIBSRC)
 
@@ -103,6 +105,13 @@ aes_ctr.o: ../../include/openssl/aes.h ../../include/openssl/e_os2.h
 aes_ctr.o: ../../include/openssl/opensslconf.h aes_ctr.c aes_locl.h
 aes_ecb.o: ../../include/openssl/aes.h ../../include/openssl/e_os2.h
 aes_ecb.o: ../../include/openssl/opensslconf.h aes_ecb.c aes_locl.h
+aes_ige.o: ../../e_os.h ../../include/openssl/aes.h ../../include/openssl/bio.h
+aes_ige.o: ../../include/openssl/buffer.h ../../include/openssl/crypto.h
+aes_ige.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h
+aes_ige.o: ../../include/openssl/lhash.h ../../include/openssl/opensslconf.h
+aes_ige.o: ../../include/openssl/opensslv.h ../../include/openssl/ossl_typ.h
+aes_ige.o: ../../include/openssl/safestack.h ../../include/openssl/stack.h
+aes_ige.o: ../../include/openssl/symhacks.h ../cryptlib.h aes_ige.c aes_locl.h
 aes_misc.o: ../../include/openssl/aes.h ../../include/openssl/e_os2.h
 aes_misc.o: ../../include/openssl/opensslconf.h
 aes_misc.o: ../../include/openssl/opensslv.h aes_locl.h aes_misc.c

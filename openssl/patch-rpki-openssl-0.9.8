@@ -1,0 +1,2656 @@
+$URL$
+$Id$
+
+This is a patch against the OpenSSL 0.9.8 branch.  It was originally
+developed for 0.9.8b, but applies unchanged against 0.9.8c and 0.9.8d.
+If you run FreeBSD, you can just drop this patch into
+/usr/ports/security/openssl/files-beta/ and build build the port to
+add RPKI functionality to OpenSSL.
+
+Index: crypto/stack/safestack.h
+===================================================================
+--- crypto/stack/safestack.h	(.../vendor/0.9.8b)	(revision 251)
++++ crypto/stack/safestack.h	(.../trunk)	(revision 251)
+@@ -234,6 +234,28 @@
+ #define sk_ACCESS_DESCRIPTION_sort(st) SKM_sk_sort(ACCESS_DESCRIPTION, (st))
+ #define sk_ACCESS_DESCRIPTION_is_sorted(st) SKM_sk_is_sorted(ACCESS_DESCRIPTION, (st))
+ 
++#define sk_ASIdOrRange_new(st) SKM_sk_new(ASIdOrRange, (st))
++#define sk_ASIdOrRange_new_null() SKM_sk_new_null(ASIdOrRange)
++#define sk_ASIdOrRange_free(st) SKM_sk_free(ASIdOrRange, (st))
++#define sk_ASIdOrRange_num(st) SKM_sk_num(ASIdOrRange, (st))
++#define sk_ASIdOrRange_value(st, i) SKM_sk_value(ASIdOrRange, (st), (i))
++#define sk_ASIdOrRange_set(st, i, val) SKM_sk_set(ASIdOrRange, (st), (i), (val))
++#define sk_ASIdOrRange_zero(st) SKM_sk_zero(ASIdOrRange, (st))
++#define sk_ASIdOrRange_push(st, val) SKM_sk_push(ASIdOrRange, (st), (val))
++#define sk_ASIdOrRange_unshift(st, val) SKM_sk_unshift(ASIdOrRange, (st), (val))
++#define sk_ASIdOrRange_find(st, val) SKM_sk_find(ASIdOrRange, (st), (val))
++#define sk_ASIdOrRange_find_ex(st, val) SKM_sk_find_ex(ASIdOrRange, (st), (val))
++#define sk_ASIdOrRange_delete(st, i) SKM_sk_delete(ASIdOrRange, (st), (i))
++#define sk_ASIdOrRange_delete_ptr(st, ptr) SKM_sk_delete_ptr(ASIdOrRange, (st), (ptr))
++#define sk_ASIdOrRange_insert(st, val, i) SKM_sk_insert(ASIdOrRange, (st), (val), (i))
++#define sk_ASIdOrRange_set_cmp_func(st, cmp) SKM_sk_set_cmp_func(ASIdOrRange, (st), (cmp))
++#define sk_ASIdOrRange_dup(st) SKM_sk_dup(ASIdOrRange, st)
++#define sk_ASIdOrRange_pop_free(st, free_func) SKM_sk_pop_free(ASIdOrRange, (st), (free_func))
++#define sk_ASIdOrRange_shift(st) SKM_sk_shift(ASIdOrRange, (st))
++#define sk_ASIdOrRange_pop(st) SKM_sk_pop(ASIdOrRange, (st))
++#define sk_ASIdOrRange_sort(st) SKM_sk_sort(ASIdOrRange, (st))
++#define sk_ASIdOrRange_is_sorted(st) SKM_sk_is_sorted(ASIdOrRange, (st))
++
+ #define sk_ASN1_GENERALSTRING_new(st) SKM_sk_new(ASN1_GENERALSTRING, (st))
+ #define sk_ASN1_GENERALSTRING_new_null() SKM_sk_new_null(ASN1_GENERALSTRING)
+ #define sk_ASN1_GENERALSTRING_free(st) SKM_sk_free(ASN1_GENERALSTRING, (st))
+@@ -608,6 +630,50 @@
+ #define sk_GENERAL_SUBTREE_sort(st) SKM_sk_sort(GENERAL_SUBTREE, (st))
+ #define sk_GENERAL_SUBTREE_is_sorted(st) SKM_sk_is_sorted(GENERAL_SUBTREE, (st))
+ 
++#define sk_IPAddressFamily_new(st) SKM_sk_new(IPAddressFamily, (st))
++#define sk_IPAddressFamily_new_null() SKM_sk_new_null(IPAddressFamily)
++#define sk_IPAddressFamily_free(st) SKM_sk_free(IPAddressFamily, (st))
++#define sk_IPAddressFamily_num(st) SKM_sk_num(IPAddressFamily, (st))
++#define sk_IPAddressFamily_value(st, i) SKM_sk_value(IPAddressFamily, (st), (i))
++#define sk_IPAddressFamily_set(st, i, val) SKM_sk_set(IPAddressFamily, (st), (i), (val))
++#define sk_IPAddressFamily_zero(st) SKM_sk_zero(IPAddressFamily, (st))
++#define sk_IPAddressFamily_push(st, val) SKM_sk_push(IPAddressFamily, (st), (val))
++#define sk_IPAddressFamily_unshift(st, val) SKM_sk_unshift(IPAddressFamily, (st), (val))
++#define sk_IPAddressFamily_find(st, val) SKM_sk_find(IPAddressFamily, (st), (val))
++#define sk_IPAddressFamily_find_ex(st, val) SKM_sk_find_ex(IPAddressFamily, (st), (val))
++#define sk_IPAddressFamily_delete(st, i) SKM_sk_delete(IPAddressFamily, (st), (i))
++#define sk_IPAddressFamily_delete_ptr(st, ptr) SKM_sk_delete_ptr(IPAddressFamily, (st), (ptr))
++#define sk_IPAddressFamily_insert(st, val, i) SKM_sk_insert(IPAddressFamily, (st), (val), (i))
++#define sk_IPAddressFamily_set_cmp_func(st, cmp) SKM_sk_set_cmp_func(IPAddressFamily, (st), (cmp))
++#define sk_IPAddressFamily_dup(st) SKM_sk_dup(IPAddressFamily, st)
++#define sk_IPAddressFamily_pop_free(st, free_func) SKM_sk_pop_free(IPAddressFamily, (st), (free_func))
++#define sk_IPAddressFamily_shift(st) SKM_sk_shift(IPAddressFamily, (st))
++#define sk_IPAddressFamily_pop(st) SKM_sk_pop(IPAddressFamily, (st))
++#define sk_IPAddressFamily_sort(st) SKM_sk_sort(IPAddressFamily, (st))
++#define sk_IPAddressFamily_is_sorted(st) SKM_sk_is_sorted(IPAddressFamily, (st))
++
++#define sk_IPAddressOrRange_new(st) SKM_sk_new(IPAddressOrRange, (st))
++#define sk_IPAddressOrRange_new_null() SKM_sk_new_null(IPAddressOrRange)
++#define sk_IPAddressOrRange_free(st) SKM_sk_free(IPAddressOrRange, (st))
++#define sk_IPAddressOrRange_num(st) SKM_sk_num(IPAddressOrRange, (st))
++#define sk_IPAddressOrRange_value(st, i) SKM_sk_value(IPAddressOrRange, (st), (i))
++#define sk_IPAddressOrRange_set(st, i, val) SKM_sk_set(IPAddressOrRange, (st), (i), (val))
++#define sk_IPAddressOrRange_zero(st) SKM_sk_zero(IPAddressOrRange, (st))
++#define sk_IPAddressOrRange_push(st, val) SKM_sk_push(IPAddressOrRange, (st), (val))
++#define sk_IPAddressOrRange_unshift(st, val) SKM_sk_unshift(IPAddressOrRange, (st), (val))
++#define sk_IPAddressOrRange_find(st, val) SKM_sk_find(IPAddressOrRange, (st), (val))
++#define sk_IPAddressOrRange_find_ex(st, val) SKM_sk_find_ex(IPAddressOrRange, (st), (val))
++#define sk_IPAddressOrRange_delete(st, i) SKM_sk_delete(IPAddressOrRange, (st), (i))
++#define sk_IPAddressOrRange_delete_ptr(st, ptr) SKM_sk_delete_ptr(IPAddressOrRange, (st), (ptr))
++#define sk_IPAddressOrRange_insert(st, val, i) SKM_sk_insert(IPAddressOrRange, (st), (val), (i))
++#define sk_IPAddressOrRange_set_cmp_func(st, cmp) SKM_sk_set_cmp_func(IPAddressOrRange, (st), (cmp))
++#define sk_IPAddressOrRange_dup(st) SKM_sk_dup(IPAddressOrRange, st)
++#define sk_IPAddressOrRange_pop_free(st, free_func) SKM_sk_pop_free(IPAddressOrRange, (st), (free_func))
++#define sk_IPAddressOrRange_shift(st) SKM_sk_shift(IPAddressOrRange, (st))
++#define sk_IPAddressOrRange_pop(st) SKM_sk_pop(IPAddressOrRange, (st))
++#define sk_IPAddressOrRange_sort(st) SKM_sk_sort(IPAddressOrRange, (st))
++#define sk_IPAddressOrRange_is_sorted(st) SKM_sk_is_sorted(IPAddressOrRange, (st))
++
+ #define sk_KRB5_APREQBODY_new(st) SKM_sk_new(KRB5_APREQBODY, (st))
+ #define sk_KRB5_APREQBODY_new_null() SKM_sk_new_null(KRB5_APREQBODY)
+ #define sk_KRB5_APREQBODY_free(st) SKM_sk_free(KRB5_APREQBODY, (st))
+
+Index: crypto/x509v3/v3_purp.c
+===================================================================
+--- crypto/x509v3/v3_purp.c	(.../vendor/0.9.8b)	(revision 251)
++++ crypto/x509v3/v3_purp.c	(.../trunk)	(revision 251)
+@@ -285,7 +285,10 @@
+         	NID_key_usage,		/* 83 */
+ 		NID_subject_alt_name,	/* 85 */
+ 		NID_basic_constraints,	/* 87 */
++		NID_certificate_policies, /* 89 */
+         	NID_ext_key_usage,	/* 126 */
++		NID_sbgp_ipAddrBlock,	/* 290 */
++		NID_sbgp_autonomousSysNum, /* 291 */
+ 		NID_proxyCertInfo	/* 661 */
+ 	};
+ 
+@@ -410,6 +413,9 @@
+ 	}
+ 	x->skid =X509_get_ext_d2i(x, NID_subject_key_identifier, NULL, NULL);
+ 	x->akid =X509_get_ext_d2i(x, NID_authority_key_identifier, NULL, NULL);
++	x->rfc3779_addr =X509_get_ext_d2i(x, NID_sbgp_ipAddrBlock, NULL, NULL);
++	x->rfc3779_asid =X509_get_ext_d2i(x, NID_sbgp_autonomousSysNum,
++					  NULL, NULL);
+ 	for (i = 0; i < X509_get_ext_count(x); i++)
+ 		{
+ 		ex = X509_get_ext(x, i);
+Index: crypto/x509v3/v3_utl.c
+===================================================================
+--- crypto/x509v3/v3_utl.c	(.../vendor/0.9.8b)	(revision 251)
++++ crypto/x509v3/v3_utl.c	(.../trunk)	(revision 251)
+@@ -71,7 +71,6 @@
+ static void str_free(void *str);
+ static int append_ia5(STACK **sk, ASN1_IA5STRING *email);
+ 
+-static int a2i_ipadd(unsigned char *ipout, const char *ipasc);
+ static int ipv4_from_asc(unsigned char *v4, const char *in);
+ static int ipv6_from_asc(unsigned char *v6, const char *in);
+ static int ipv6_cb(const char *elem, int len, void *usr);
+@@ -615,7 +614,7 @@
+ 	}
+ 	
+ 
+-static int a2i_ipadd(unsigned char *ipout, const char *ipasc)
++int a2i_ipadd(unsigned char *ipout, const char *ipasc)
+ 	{
+ 	/* If string contains a ':' assume IPv6 */
+ 
+Index: crypto/x509v3/x509v3.h
+===================================================================
+--- crypto/x509v3/x509v3.h	(.../vendor/0.9.8b)	(revision 251)
++++ crypto/x509v3/x509v3.h	(.../trunk)	(revision 251)
+@@ -620,11 +620,143 @@
+ 
+ ASN1_OCTET_STRING *a2i_IPADDRESS(const char *ipasc);
+ ASN1_OCTET_STRING *a2i_IPADDRESS_NC(const char *ipasc);
++int a2i_ipadd(unsigned char *ipout, const char *ipasc);
+ int X509V3_NAME_from_section(X509_NAME *nm, STACK_OF(CONF_VALUE)*dn_sk,
+ 						unsigned long chtype);
+ 
+ void X509_POLICY_NODE_print(BIO *out, X509_POLICY_NODE *node, int indent);
+ 
++/*
++ * [sra] Begin RFC 3779 stuff
++ *
++ * The following definitions and declarations will need to be merged
++ * into the the rest of this file more cleanly.  Right now they're
++ * organized as a unit to make it easier to see what I've added.
++ */
++
++typedef struct ASRange_st {
++  ASN1_INTEGER *min, *max;
++} ASRange;
++
++#define	ASIdOrRange_id		0
++#define	ASIdOrRange_range	1
++
++typedef struct ASIdOrRange_st {
++  int type;
++  union {
++    ASN1_INTEGER *id;
++    ASRange      *range;
++  } u;
++} ASIdOrRange;
++
++typedef STACK_OF(ASIdOrRange) ASIdOrRanges;
++DECLARE_STACK_OF(ASIdOrRange)
++
++#define	ASIdentifierChoice_inherit		0
++#define	ASIdentifierChoice_asIdsOrRanges	1
++
++typedef struct ASIdentifierChoice_st {
++  int type;
++  union {
++    ASN1_NULL    *inherit;
++    ASIdOrRanges *asIdsOrRanges;
++  } u;
++} ASIdentifierChoice;
++
++typedef struct ASIdentifiers_st {
++  ASIdentifierChoice *asnum, *rdi;
++} ASIdentifiers;
++
++DECLARE_ASN1_FUNCTIONS(ASRange)
++DECLARE_ASN1_FUNCTIONS(ASIdOrRange)
++DECLARE_ASN1_FUNCTIONS(ASIdentifierChoice)
++DECLARE_ASN1_FUNCTIONS(ASIdentifiers)
++
++
++typedef struct IPAddressRange_st {
++  ASN1_BIT_STRING	*min, *max;
++} IPAddressRange;
++
++#define	IPAddressOrRange_addressPrefix	0
++#define	IPAddressOrRange_addressRange	1
++
++typedef struct IPAddressOrRange_st {
++  int type;
++  union {
++    ASN1_BIT_STRING	*addressPrefix;
++    IPAddressRange	*addressRange;
++  } u;
++} IPAddressOrRange;
++
++typedef STACK_OF(IPAddressOrRange) IPAddressOrRanges;
++DECLARE_STACK_OF(IPAddressOrRange)
++
++#define	IPAddressChoice_inherit			0
++#define	IPAddressChoice_addressesOrRanges	1
++
++typedef struct IPAddressChoice_st {
++  int type;
++  union {
++    ASN1_NULL		*inherit;
++    IPAddressOrRanges	*addressesOrRanges;
++  } u;
++} IPAddressChoice;
++
++typedef struct IPAddressFamily_st {
++  ASN1_OCTET_STRING	*addressFamily;
++  IPAddressChoice	*ipAddressChoice;
++} IPAddressFamily;
++
++typedef STACK_OF(IPAddressFamily) IPAddrBlocks;
++DECLARE_STACK_OF(IPAddressFamily)
++
++DECLARE_ASN1_FUNCTIONS(IPAddressRange)
++DECLARE_ASN1_FUNCTIONS(IPAddressOrRange)
++DECLARE_ASN1_FUNCTIONS(IPAddressChoice)
++DECLARE_ASN1_FUNCTIONS(IPAddressFamily)
++
++/*
++ * AFI values, assigned by IANA.  It'd be nice to make the AFI
++ * handling code totally generic, but there are too many little things
++ * that would need to be defined for other address families for it to
++ * be worth the trouble.
++ */
++
++#define	IANA_AFI_IPV4	1
++#define	IANA_AFI_IPV6	2
++
++/*
++ * Canonical forms.
++ */
++int v3_asid_is_canonical(ASIdentifiers *asid);
++int v3_addr_is_canonical(IPAddrBlocks *addr);
++int v3_asid_canonize(ASIdentifiers *asid);
++int v3_addr_canonize(IPAddrBlocks *addr);
++
++/*
++ * Tests for inheritance and containment.
++ */
++int v3_asid_inherits(ASIdentifiers *asid);
++int v3_addr_inherits(IPAddrBlocks *addr);
++int v3_asid_subset(ASIdentifiers *a, ASIdentifiers *b);
++int v3_addr_subset(IPAddrBlocks *a, IPAddrBlocks *b);
++
++/*
++ * Check whether RFC 3779 extensions nest properly in chains.
++ */
++int v3_asid_validate_path(X509_STORE_CTX *);
++int v3_addr_validate_path(X509_STORE_CTX *);
++int v3_asid_validate_resource_set(STACK_OF(X509) *chain,
++				  ASIdentifiers *ext,
++				  int allow_inheritance);
++int v3_addr_validate_resource_set(STACK_OF(X509) *chain,
++				  IPAddrBlocks *ext,
++				  int allow_inheritance);
++
++/*
++ * [sra] End RFC 3779 stuff
++ */
++
+ /* BEGIN ERROR CODES */
+ /* The following lines are auto generated by the script mkerr.pl. Any changes
+  * made after this point may be overwritten when the script is next run.
+@@ -634,6 +766,8 @@
+ /* Error codes for the X509V3 functions. */
+ 
+ /* Function codes. */
++#define X509V3_F_ASIDENTIFIERCHOICE_CANONIZE		 156
++#define X509V3_F_ASIDENTIFIERCHOICE_IS_CANONICAL	 157
+ #define X509V3_F_COPY_EMAIL				 122
+ #define X509V3_F_COPY_ISSUER				 123
+ #define X509V3_F_DO_DIRNAME				 144
+@@ -663,6 +797,7 @@
+ #define X509V3_F_SXNET_ADD_ID_ULONG			 127
+ #define X509V3_F_SXNET_GET_ID_ASC			 128
+ #define X509V3_F_SXNET_GET_ID_ULONG			 129
++#define X509V3_F_V2I_ASIDENTIFIERS			 158
+ #define X509V3_F_V2I_ASN1_BIT_STRING			 101
+ #define X509V3_F_V2I_AUTHORITY_INFO_ACCESS		 139
+ #define X509V3_F_V2I_AUTHORITY_KEYID			 119
+@@ -671,11 +806,13 @@
+ #define X509V3_F_V2I_EXTENDED_KEY_USAGE			 103
+ #define X509V3_F_V2I_GENERAL_NAMES			 118
+ #define X509V3_F_V2I_GENERAL_NAME_EX			 117
++#define X509V3_F_V2I_IPADDRBLOCKS			 159
+ #define X509V3_F_V2I_ISSUER_ALT				 153
+ #define X509V3_F_V2I_NAME_CONSTRAINTS			 147
+ #define X509V3_F_V2I_POLICY_CONSTRAINTS			 146
+ #define X509V3_F_V2I_POLICY_MAPPINGS			 145
+ #define X509V3_F_V2I_SUBJECT_ALT			 154
++#define X509V3_F_V3_ADDR_VALIDATE_PATH_INTERNAL		 160
+ #define X509V3_F_V3_GENERIC_EXTENSION			 116
+ #define X509V3_F_X509V3_ADD1_I2D			 140
+ #define X509V3_F_X509V3_ADD_VALUE			 105
+@@ -710,8 +847,12 @@
+ #define X509V3_R_ILLEGAL_EMPTY_EXTENSION		 151
+ #define X509V3_R_ILLEGAL_HEX_DIGIT			 113
+ #define X509V3_R_INCORRECT_POLICY_SYNTAX_TAG		 152
++#define X509V3_R_INVALID_ASNUMBER			 160
++#define X509V3_R_INVALID_ASRANGE			 161
+ #define X509V3_R_INVALID_BOOLEAN_STRING			 104
+ #define X509V3_R_INVALID_EXTENSION_STRING		 105
++#define X509V3_R_INVALID_INHERITANCE			 162
++#define X509V3_R_INVALID_IPADDRESS			 163
+ #define X509V3_R_INVALID_NAME				 106
+ #define X509V3_R_INVALID_NULL_ARGUMENT			 107
+ #define X509V3_R_INVALID_NULL_NAME			 108
+@@ -723,6 +864,7 @@
+ #define X509V3_R_INVALID_POLICY_IDENTIFIER		 134
+ #define X509V3_R_INVALID_PROXY_POLICY_SETTING		 153
+ #define X509V3_R_INVALID_PURPOSE			 146
++#define X509V3_R_INVALID_SAFI				 164
+ #define X509V3_R_INVALID_SECTION			 135
+ #define X509V3_R_INVALID_SYNTAX				 143
+ #define X509V3_R_ISSUER_DECODE_ERROR			 126
+Index: crypto/x509v3/v3_asid.c
+===================================================================
+--- crypto/x509v3/v3_asid.c	(.../vendor/0.9.8b)	(revision 0)
++++ crypto/x509v3/v3_asid.c	(.../trunk)	(revision 251)
+@@ -0,0 +1,778 @@
++/*
++ * Copyright (C) 2006  American Registry for Internet Numbers ("ARIN")
++ *
++ * Permission to use, copy, modify, and distribute this software for any
++ * purpose with or without fee is hereby granted, provided that the above
++ * copyright notice and this permission notice appear in all copies.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
++ * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
++ * AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
++ * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
++ * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
++ * OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
++ * PERFORMANCE OF THIS SOFTWARE.
++ */
++
++/* $Id$ */
++
++/*
++ * Implementation of RFC 3779 section 3.2.
++ */
++
++#include <stdio.h>
++#include <string.h>
++#include <assert.h>
++#include "cryptlib.h"
++#include <openssl/conf.h>
++#include <openssl/asn1.h>
++#include <openssl/asn1t.h>
++#include <openssl/x509v3.h>
++#include <openssl/x509.h>
++#include <openssl/bn.h>
++
++/*
++ * OpenSSL ASN.1 template translation of RFC 3779 3.2.3.
++ */
++
++ASN1_SEQUENCE(ASRange) = {
++  ASN1_SIMPLE(ASRange, min, ASN1_INTEGER),
++  ASN1_SIMPLE(ASRange, max, ASN1_INTEGER)
++} ASN1_SEQUENCE_END(ASRange)
++
++ASN1_CHOICE(ASIdOrRange) = {
++  ASN1_SIMPLE(ASIdOrRange, u.id,    ASN1_INTEGER),
++  ASN1_SIMPLE(ASIdOrRange, u.range, ASRange)
++} ASN1_CHOICE_END(ASIdOrRange)
++
++ASN1_CHOICE(ASIdentifierChoice) = {
++  ASN1_SIMPLE(ASIdentifierChoice,      u.inherit,       ASN1_NULL),
++  ASN1_SEQUENCE_OF(ASIdentifierChoice, u.asIdsOrRanges, ASIdOrRange)
++} ASN1_CHOICE_END(ASIdentifierChoice)
++
++ASN1_SEQUENCE(ASIdentifiers) = {
++  ASN1_EXP_OPT(ASIdentifiers, asnum, ASIdentifierChoice, 0),
++  ASN1_EXP_OPT(ASIdentifiers, rdi,   ASIdentifierChoice, 1)
++} ASN1_SEQUENCE_END(ASIdentifiers)
++
++IMPLEMENT_ASN1_FUNCTIONS(ASRange)
++IMPLEMENT_ASN1_FUNCTIONS(ASIdOrRange)
++IMPLEMENT_ASN1_FUNCTIONS(ASIdentifierChoice)
++IMPLEMENT_ASN1_FUNCTIONS(ASIdentifiers)
++
++/*
++ * i2r method for an ASIdentifierChoice.
++ */
++static int i2r_ASIdentifierChoice(BIO *out,
++				  ASIdentifierChoice *choice,
++				  int indent,
++				  const char *msg)
++{
++  int i;
++  char *s;
++  if (choice == NULL)
++    return 1;
++  BIO_printf(out, "%*s%s:\n", indent, "", msg);
++  switch (choice->type) {
++  case ASIdentifierChoice_inherit:
++    BIO_printf(out, "%*sinherit\n", indent + 2, "");
++    break;
++  case ASIdentifierChoice_asIdsOrRanges:
++    for (i = 0; i < sk_ASIdOrRange_num(choice->u.asIdsOrRanges); i++) {
++      ASIdOrRange *aor = sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i);
++      switch (aor->type) {
++      case ASIdOrRange_id:
++	if ((s = i2s_ASN1_INTEGER(NULL, aor->u.id)) == NULL)
++	  return 0;
++	BIO_printf(out, "%*s%s\n", indent + 2, "", s);
++	OPENSSL_free(s);
++	break;
++      case ASIdOrRange_range:
++	if ((s = i2s_ASN1_INTEGER(NULL, aor->u.range->min)) == NULL)
++	  return 0;
++	BIO_printf(out, "%*s%s-", indent + 2, "", s);
++	OPENSSL_free(s);
++	if ((s = i2s_ASN1_INTEGER(NULL, aor->u.range->max)) == NULL)
++	  return 0;
++	BIO_printf(out, "%s\n", s);
++	OPENSSL_free(s);
++	break;
++      default:
++	return 0;
++      }
++    }
++    break;
++  default:
++    return 0;
++  }
++  return 1;
++}
++
++/*
++ * i2r method for an ASIdentifier extension.
++ */
++static int i2r_ASIdentifiers(X509V3_EXT_METHOD *method,
++			     void *ext,
++			     BIO *out,
++			     int indent)
++{
++  ASIdentifiers *asid = ext;
++  return (i2r_ASIdentifierChoice(out, asid->asnum, indent,
++				 "Autonomous System Numbers") &&
++	  i2r_ASIdentifierChoice(out, asid->rdi, indent,
++				 "Routing Domain Identifiers"));
++}
++
++/*
++ * Comparision function for "stack" sorting.
++ */
++static int ASIdOrRange_cmp(const ASIdOrRange * const *a_,
++			   const ASIdOrRange * const *b_)
++{
++  const ASIdOrRange *a = *a_, *b = *b_;
++
++  assert((a->type == ASIdOrRange_id && a->u.id != NULL) ||
++	 (a->type == ASIdOrRange_range && a->u.range != NULL &&
++	  a->u.range->min != NULL && a->u.range->max != NULL));
++
++  assert((b->type == ASIdOrRange_id && b->u.id != NULL) ||
++	 (b->type == ASIdOrRange_range && b->u.range != NULL &&
++	  b->u.range->min != NULL && b->u.range->max != NULL));
++
++  if (a->type == ASIdOrRange_id && b->type == ASIdOrRange_id)
++    return ASN1_INTEGER_cmp(a->u.id, b->u.id);
++
++  if (a->type == ASIdOrRange_range && b->type == ASIdOrRange_range) {
++    int r = ASN1_INTEGER_cmp(a->u.range->min, b->u.range->min);
++    return r != 0 ? r : ASN1_INTEGER_cmp(a->u.range->max, b->u.range->max);
++  }
++
++  if (a->type == ASIdOrRange_id)
++    return ASN1_INTEGER_cmp(a->u.id, b->u.range->min);
++  else
++    return ASN1_INTEGER_cmp(a->u.range->min, b->u.id);
++}
++
++/*
++ * Some of the following helper routines might want to become globals
++ * eventually.
++ */
++
++/*
++ * Add an inherit element to an ASIdentifierChoice.
++ */
++static int asid_add_inherit(ASIdentifierChoice **choice)
++{
++  if (*choice == NULL) {
++    if ((*choice = ASIdentifierChoice_new()) == NULL)
++      return 0;
++    assert((*choice)->u.inherit == NULL);
++    if (((*choice)->u.inherit = ASN1_NULL_new()) == NULL)
++      return 0;
++    (*choice)->type = ASIdentifierChoice_inherit;
++  }
++  return (*choice)->type == ASIdentifierChoice_inherit;
++}
++
++/*
++ * Add an ID or range to an ASIdentifierChoice.
++ */
++static int asid_add_id_or_range(ASIdentifierChoice **choice,
++				ASN1_INTEGER *min,
++				ASN1_INTEGER *max)
++{
++  ASIdOrRange *aor;
++  if (*choice != NULL && (*choice)->type == ASIdentifierChoice_inherit)
++    return 0;
++  if (*choice == NULL) {
++    if ((*choice = ASIdentifierChoice_new()) == NULL)
++      return 0;
++    assert((*choice)->u.asIdsOrRanges == NULL);
++    (*choice)->u.asIdsOrRanges = sk_ASIdOrRange_new(ASIdOrRange_cmp);
++    if ((*choice)->u.asIdsOrRanges == NULL)
++      return 0;
++    (*choice)->type = ASIdentifierChoice_asIdsOrRanges;
++  }
++  if ((aor = ASIdOrRange_new()) == NULL)
++    return 0;
++  if (max == NULL) {
++    aor->type = ASIdOrRange_id;
++    aor->u.id = min;
++  } else {
++    aor->type = ASIdOrRange_range;
++    if ((aor->u.range = ASRange_new()) == NULL)
++      goto err;
++    ASN1_INTEGER_free(aor->u.range->min);
++    aor->u.range->min = min;
++    ASN1_INTEGER_free(aor->u.range->max);
++    aor->u.range->max = max;
++  }
++  if (!(sk_ASIdOrRange_push((*choice)->u.asIdsOrRanges, aor)))
++    goto err;
++  return 1;
++
++ err:
++  ASIdOrRange_free(aor);
++  return 0;
++}
++
++/*
++ * Extract min and max values from an ASIdOrRange.
++ */
++static void extract_min_max(ASIdOrRange *aor,
++			    ASN1_INTEGER **min,
++			    ASN1_INTEGER **max)
++{
++  assert(aor != NULL && min != NULL && max != NULL);
++  switch (aor->type) {
++  case ASIdOrRange_id:
++    *min = aor->u.id;
++    *max = aor->u.id;
++    return;
++  case ASIdOrRange_range:
++    *min = aor->u.range->min;
++    *max = aor->u.range->max;
++    return;
++  }
++}
++
++/*
++ * Check whether an ASIdentifierChoice is in canonical form.
++ */
++static int ASIdentifierChoice_is_canonical(ASIdentifierChoice *choice)
++{
++  ASN1_INTEGER *a_max_plus_one = NULL;
++  BIGNUM *bn = NULL;
++  int i, ret = 0;
++
++  /*
++   * Empty element or inheritance is canonical.
++   */
++  if (choice == NULL || choice->type == ASIdentifierChoice_inherit)
++    return 1;
++
++  /*
++   * If not a list, or if empty list, it's broken.
++   */
++  if (choice->type != ASIdentifierChoice_asIdsOrRanges ||
++      sk_ASIdOrRange_num(choice->u.asIdsOrRanges) == 0)
++    return 0;
++
++  /*
++   * It's a list, check it.
++   */
++  for (i = 0; i < sk_ASIdOrRange_num(choice->u.asIdsOrRanges) - 1; i++) {
++    ASIdOrRange *a = sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i);
++    ASIdOrRange *b = sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i + 1);
++    ASN1_INTEGER *a_min, *a_max, *b_min, *b_max;
++
++    extract_min_max(a, &a_min, &a_max);
++    extract_min_max(b, &b_min, &b_max);
++
++    /*
++     * Punt misordered list, overlapping start, or inverted range.
++     */
++    if (ASN1_INTEGER_cmp(a_min, b_min) >= 0 ||
++	ASN1_INTEGER_cmp(a_min, a_max) > 0 ||
++	ASN1_INTEGER_cmp(b_min, b_max) > 0)
++      goto done;
++
++    /*
++     * Calculate a_max + 1 to check for adjacency.
++     */
++    if ((bn == NULL && (bn = BN_new()) == NULL) ||
++	ASN1_INTEGER_to_BN(a_max, bn) == NULL ||
++	!BN_add_word(bn, 1) ||
++	(a_max_plus_one = BN_to_ASN1_INTEGER(bn, a_max_plus_one)) == NULL) {
++      X509V3err(X509V3_F_ASIDENTIFIERCHOICE_IS_CANONICAL,
++		ERR_R_MALLOC_FAILURE);
++      goto done;
++    }
++    
++    /*
++     * Punt if adjacent or overlapping.
++     */
++    if (ASN1_INTEGER_cmp(a_max_plus_one, b_min) >= 0)
++      goto done;
++  }
++
++  ret = 1;
++
++ done:
++  ASN1_INTEGER_free(a_max_plus_one);
++  BN_free(bn);
++  return ret;
++}
++
++/*
++ * Check whether an ASIdentifier extension is in canonical form.
++ */
++int v3_asid_is_canonical(ASIdentifiers *asid)
++{
++  return (asid == NULL ||
++	  (ASIdentifierChoice_is_canonical(asid->asnum) ||
++	   ASIdentifierChoice_is_canonical(asid->rdi)));
++}
++
++/*
++ * Whack an ASIdentifierChoice into canonical form.
++ */
++static int ASIdentifierChoice_canonize(ASIdentifierChoice *choice)
++{
++  ASN1_INTEGER *a_max_plus_one = NULL;
++  BIGNUM *bn = NULL;
++  int i, ret = 0;
++
++  /*
++   * Nothing to do for empty element or inheritance.
++   */
++  if (choice == NULL || choice->type == ASIdentifierChoice_inherit)
++    return 1;
++
++  /*
++   * We have a list.  Sort it.
++   */
++  assert(choice->type == ASIdentifierChoice_asIdsOrRanges);
++  sk_ASIdOrRange_sort(choice->u.asIdsOrRanges);
++
++  /*
++   * Now check for errors and suboptimal encoding, rejecting the
++   * former and fixing the latter.
++   */
++  for (i = 0; i < sk_ASIdOrRange_num(choice->u.asIdsOrRanges) - 1; i++) {
++    ASIdOrRange *a = sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i);
++    ASIdOrRange *b = sk_ASIdOrRange_value(choice->u.asIdsOrRanges, i + 1);
++    ASN1_INTEGER *a_min, *a_max, *b_min, *b_max;
++
++    extract_min_max(a, &a_min, &a_max);
++    extract_min_max(b, &b_min, &b_max);
++
++    /*
++     * Make sure we're properly sorted (paranoia).
++     */
++    assert(ASN1_INTEGER_cmp(a_min, b_min) <= 0);
++
++    /*
++     * Check for overlaps.
++     */
++    if (ASN1_INTEGER_cmp(a_max, b_min) >= 0) {
++      X509V3err(X509V3_F_ASIDENTIFIERCHOICE_CANONIZE,
++		X509V3_R_EXTENSION_VALUE_ERROR);
++      goto done;
++    }
++
++    /*
++     * Calculate a_max + 1 to check for adjacency.
++     */
++    if ((bn == NULL && (bn = BN_new()) == NULL) ||
++	ASN1_INTEGER_to_BN(a_max, bn) == NULL ||
++	!BN_add_word(bn, 1) ||
++	(a_max_plus_one = BN_to_ASN1_INTEGER(bn, a_max_plus_one)) == NULL) {
++      X509V3err(X509V3_F_ASIDENTIFIERCHOICE_CANONIZE, ERR_R_MALLOC_FAILURE);
++      goto done;
++    }
++    
++    /*
++     * If a and b are adjacent, merge them.
++     */
++    if (ASN1_INTEGER_cmp(a_max_plus_one, b_min) == 0) {
++      ASRange *r;
++      switch (a->type) {
++      case ASIdOrRange_id:
++	if ((r = OPENSSL_malloc(sizeof(ASRange))) == NULL) {
++	  X509V3err(X509V3_F_ASIDENTIFIERCHOICE_CANONIZE,
++		    ERR_R_MALLOC_FAILURE);
++	  goto done;
++	}
++	r->min = a_min;
++	r->max = b_max;
++	a->type = ASIdOrRange_range;
++	a->u.range = r;
++	break;
++      case ASIdOrRange_range:
++	ASN1_INTEGER_free(a->u.range->max);
++	a->u.range->max = b_max;
++	break;
++      }
++      switch (b->type) {
++      case ASIdOrRange_id:
++	b->u.id = NULL;
++	break;
++      case ASIdOrRange_range:
++	b->u.range->max = NULL;
++	break;
++      }
++      ASIdOrRange_free(b);
++      sk_ASIdOrRange_delete(choice->u.asIdsOrRanges, i + 1);
++      i--;
++      continue;
++    }
++  }
++
++  assert(ASIdentifierChoice_is_canonical(choice)); /* Paranoia */
++
++  ret = 1;
++
++ done:
++  ASN1_INTEGER_free(a_max_plus_one);
++  BN_free(bn);
++  return ret;
++}
++
++/*
++ * Whack an ASIdentifier extension into canonical form.
++ */
++int v3_asid_canonize(ASIdentifiers *asid)
++{
++  return (asid == NULL ||
++	  (ASIdentifierChoice_canonize(asid->asnum) &&
++	   ASIdentifierChoice_canonize(asid->rdi)));
++}
++
++/*
++ * v2i method for an ASIdentifier extension.
++ */
++static void *v2i_ASIdentifiers(struct v3_ext_method *method,
++			       struct v3_ext_ctx *ctx,
++			       STACK_OF(CONF_VALUE) *values)
++{
++  ASIdentifiers *asid = NULL;
++  int i;
++
++  if ((asid = ASIdentifiers_new()) == NULL) {
++    X509V3err(X509V3_F_V2I_ASIDENTIFIERS, ERR_R_MALLOC_FAILURE);
++    return NULL;
++  }
++
++  for (i = 0; i < sk_CONF_VALUE_num(values); i++) {
++    CONF_VALUE *val = sk_CONF_VALUE_value(values, i);
++    ASIdentifierChoice **choice;
++    ASN1_INTEGER *min = NULL, *max = NULL;
++    int i1, i2, i3, is_range;
++
++    /*
++     * Figure out whether this is an AS or an RDI.
++     */
++    if (       !name_cmp(val->name, "AS")) {
++      choice = &asid->asnum;
++    } else if (!name_cmp(val->name, "RDI")) {
++      choice = &asid->rdi;
++    } else {
++      X509V3err(X509V3_F_V2I_ASIDENTIFIERS, X509V3_R_EXTENSION_NAME_ERROR);
++      X509V3_conf_err(val);
++      goto err;
++    }
++
++    /*
++     * Handle inheritance.
++     */
++    if (!strcmp(val->value, "inherit")) {
++      if (asid_add_inherit(choice))
++	continue;
++      X509V3err(X509V3_F_V2I_ASIDENTIFIERS, X509V3_R_INVALID_INHERITANCE);
++      X509V3_conf_err(val);
++      goto err;
++    }
++
++    /*
++     * Number, range, or mistake, pick it apart and figure out which.
++     */
++    i1 = strspn(val->value, "0123456789");
++    if (val->value[i1] == '\0') {
++      is_range = 0;
++    } else {
++      is_range = 1;
++      i2 = i1 + strspn(val->value + i1, " \t");
++      if (val->value[i2] != '-') {
++	X509V3err(X509V3_F_V2I_ASIDENTIFIERS, X509V3_R_INVALID_ASNUMBER);
++	X509V3_conf_err(val);
++	goto err;
++      }
++      i2++;
++      i2 = i2 + strspn(val->value + i2, " \t");
++      i3 = i2 + strspn(val->value + i2, "0123456789");
++      if (val->value[i3] != '\0') {
++	X509V3err(X509V3_F_V2I_ASIDENTIFIERS, X509V3_R_INVALID_ASRANGE);
++	X509V3_conf_err(val);
++	goto err;
++      }
++    }
++
++    /*
++     * Syntax is ok, read and add it.
++     */
++    if (!is_range) {
++      if (!X509V3_get_value_int(val, &min)) {
++	X509V3err(X509V3_F_V2I_ASIDENTIFIERS, ERR_R_MALLOC_FAILURE);
++	goto err;
++      }
++    } else {
++      char *s = BUF_strdup(val->value);
++      if (s == NULL) {
++	X509V3err(X509V3_F_V2I_ASIDENTIFIERS, ERR_R_MALLOC_FAILURE);
++	goto err;
++      }
++      s[i1] = '\0';
++      min = s2i_ASN1_INTEGER(NULL, s);
++      max = s2i_ASN1_INTEGER(NULL, s + i2);
++      OPENSSL_free(s);
++      if (min == NULL || max == NULL) {
++	ASN1_INTEGER_free(min);
++	ASN1_INTEGER_free(max);
++	X509V3err(X509V3_F_V2I_ASIDENTIFIERS, ERR_R_MALLOC_FAILURE);
++	goto err;
++      }
++    }
++    if (!asid_add_id_or_range(choice, min, max)) {
++      ASN1_INTEGER_free(min);
++      ASN1_INTEGER_free(max);
++      X509V3err(X509V3_F_V2I_ASIDENTIFIERS, ERR_R_MALLOC_FAILURE);
++      goto err;
++    }
++  }
++
++  /*
++   * Canonize the result, then we're done.
++   */
++  if (!v3_asid_canonize(asid))
++    goto err;
++  return asid;
++
++ err:
++  ASIdentifiers_free(asid);
++  return NULL;
++}
++
++/*
++ * OpenSSL dispatch.
++ */
++X509V3_EXT_METHOD v3_asid = {
++  NID_sbgp_autonomousSysNum,	/* nid */
++  0,				/* flags */
++  ASN1_ITEM_ref(ASIdentifiers),	/* template */
++  0, 0, 0, 0,			/* old functions, ignored */
++  0,				/* i2s */
++  0,				/* s2i */
++  0,				/* i2v */
++  v2i_ASIdentifiers,		/* v2i */
++  i2r_ASIdentifiers,		/* i2r */
++  0,				/* r2i */
++  NULL				/* extension-specific data */
++};
++
++/*
++ * Figure out whether extension uses inheritance.
++ */
++int v3_asid_inherits(ASIdentifiers *asid)
++{
++  return (asid != NULL &&
++	  ((asid->asnum != NULL &&
++	    asid->asnum->type == ASIdentifierChoice_inherit) ||
++	   (asid->rdi != NULL &&
++	    asid->rdi->type == ASIdentifierChoice_inherit)));
++}
++
++/*
++ * Figure out whether parent contains child.
++ */
++static int asid_contains(ASIdOrRanges *parent, ASIdOrRanges *child)
++{
++  ASN1_INTEGER *p_min, *p_max, *c_min, *c_max;
++  int p, c;
++
++  if (child == NULL || parent == child)
++    return 1;
++  if (parent == NULL)
++    return 0;
++
++  p = 0;
++  for (c = 0; c < sk_ASIdOrRange_num(child); c++) {
++    extract_min_max(sk_ASIdOrRange_value(child, c), &c_min, &c_max);
++    for (;; p++) {
++      if (p >= sk_ASIdOrRange_num(parent))
++	return 0;
++      extract_min_max(sk_ASIdOrRange_value(parent, p), &p_min, &p_max);
++      if (ASN1_INTEGER_cmp(p_max, c_max) < 0)
++	continue;
++      if (ASN1_INTEGER_cmp(p_min, c_min) > 0)
++	return 0;
++      break;
++    }
++  }
++
++  return 1;
++}
++
++/*
++ * Test whether a is a subet of b.
++ */
++int v3_asid_subset(ASIdentifiers *a, ASIdentifiers *b)
++{
++  return (a == NULL ||
++	  a == b ||
++	  (b != NULL &&
++	   !v3_asid_inherits(a) &&
++	   !v3_asid_inherits(b) &&
++	   asid_contains(b->asnum->u.asIdsOrRanges,
++			 a->asnum->u.asIdsOrRanges) &&
++	   asid_contains(b->rdi->u.asIdsOrRanges,
++			 a->rdi->u.asIdsOrRanges)));
++}
++
++/*
++ * Validation error handling via callback.
++ */
++#define validation_err(_err_)		\
++  do {					\
++    if (ctx != NULL) {			\
++      ctx->error = _err_;		\
++      ctx->error_depth = i;		\
++      ctx->current_cert = x;		\
++      ret = ctx->verify_cb(0, ctx);	\
++    } else {				\
++      ret = 0;				\
++    }					\
++    if (!ret)				\
++      goto done;			\
++  } while (0)
++
++/*
++ * Core code for RFC 3779 3.3 path validation.
++ */
++static int v3_asid_validate_path_internal(X509_STORE_CTX *ctx,
++					  STACK_OF(X509) *chain,
++					  ASIdentifiers *ext)
++{
++  ASIdOrRanges *child_as = NULL, *child_rdi = NULL;
++  int i, ret = 1, inherit_as = 0, inherit_rdi = 0;
++  X509 *x;
++
++  assert(chain != NULL && sk_X509_num(chain) > 0);
++  assert(ctx != NULL || ext != NULL);
++  assert(ctx == NULL || ctx->verify_cb != NULL);
++
++  /*
++   * Figure out where to start.  If we don't have an extension to
++   * check, we're done.  Otherwise, check canonical form and
++   * set up for walking up the chain.
++   */
++  if (ext != NULL) {
++    i = -1;
++  } else {
++    i = 0;
++    x = sk_X509_value(chain, i);
++    assert(x != NULL);
++    if ((ext = x->rfc3779_asid) == NULL)
++      goto done;
++  }
++  if (!v3_asid_is_canonical(ext))
++    validation_err(X509_V_ERR_INVALID_EXTENSION);
++  if (ext->asnum != NULL)  {
++    switch (ext->asnum->type) {
++    case ASIdentifierChoice_inherit:
++      inherit_as = 1;
++      break;
++    case ASIdentifierChoice_asIdsOrRanges:
++      child_as = ext->asnum->u.asIdsOrRanges;
++      break;
++    }
++  }
++  if (ext->rdi != NULL) {
++    switch (ext->rdi->type) {
++    case ASIdentifierChoice_inherit:
++      inherit_rdi = 1;
++      break;
++    case ASIdentifierChoice_asIdsOrRanges:
++      child_rdi = ext->rdi->u.asIdsOrRanges;
++      break;
++    }
++  }
++
++  /*
++   * Now walk up the chain.  Extensions must be in canonical form, no
++   * cert may list resources that its parent doesn't list.
++   */
++  for (i++; i < sk_X509_num(chain); i++) {
++    x = sk_X509_value(chain, i);
++    assert(x != NULL);
++    if (x->rfc3779_asid == NULL) {
++      if (child_as != NULL || child_rdi != NULL)
++	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
++      continue;
++    }
++    if (!v3_asid_is_canonical(x->rfc3779_asid))
++      validation_err(X509_V_ERR_INVALID_EXTENSION);
++    if (x->rfc3779_asid->asnum == NULL && child_as != NULL) {
++      validation_err(X509_V_ERR_UNNESTED_RESOURCE);
++      child_as = NULL;
++      inherit_as = 0;
++    }
++    if (x->rfc3779_asid->asnum != NULL &&
++	x->rfc3779_asid->asnum->type == ASIdentifierChoice_asIdsOrRanges) {
++      if (inherit_as ||
++	  asid_contains(x->rfc3779_asid->asnum->u.asIdsOrRanges, child_as)) {
++	child_as = x->rfc3779_asid->asnum->u.asIdsOrRanges;
++	inherit_as = 0;
++      } else {
++	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
++      }
++    }
++    if (x->rfc3779_asid->rdi == NULL && child_rdi != NULL) {
++      validation_err(X509_V_ERR_UNNESTED_RESOURCE);
++      child_rdi = NULL;
++      inherit_rdi = 0;
++    }
++    if (x->rfc3779_asid->rdi != NULL &&
++	x->rfc3779_asid->rdi->type == ASIdentifierChoice_asIdsOrRanges) {
++      if (inherit_rdi ||
++	  asid_contains(x->rfc3779_asid->rdi->u.asIdsOrRanges, child_rdi)) {
++	child_rdi = x->rfc3779_asid->rdi->u.asIdsOrRanges;
++	inherit_rdi = 0;
++      } else {
++	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
++      }
++    }
++  }
++
++  /*
++   * Trust anchor can't inherit.
++   */
++  if (x->rfc3779_asid != NULL) {
++    if (x->rfc3779_asid->asnum != NULL &&
++	x->rfc3779_asid->asnum->type == ASIdentifierChoice_inherit)
++      validation_err(X509_V_ERR_UNNESTED_RESOURCE);
++    if (x->rfc3779_asid->rdi != NULL &&
++	x->rfc3779_asid->rdi->type == ASIdentifierChoice_inherit)
++      validation_err(X509_V_ERR_UNNESTED_RESOURCE);
++  }
++
++ done:
++  return ret;
++}
++
++#undef validation_err
++
++/*
++ * RFC 3779 3.3 path validation -- called from X509_verify_cert().
++ */
++int v3_asid_validate_path(X509_STORE_CTX *ctx)
++{
++  return v3_asid_validate_path_internal(ctx, ctx->chain, NULL);
++}
++
++/*
++ * RFC 3779 3.3 path validation of an extension.
++ * Test whether chain covers extension.
++ */
++int v3_asid_validate_resource_set(STACK_OF(X509) *chain,
++				  ASIdentifiers *ext,
++				  int allow_inheritance)
++{
++  if (ext == NULL)
++    return 1;
++  if (chain == NULL || sk_X509_num(chain) == 0)
++    return 0;
++  if (!allow_inheritance && v3_asid_inherits(ext))
++    return 0;
++  return v3_asid_validate_path_internal(NULL, chain, ext);
++}
+
+Index: crypto/x509v3/Makefile
+===================================================================
+--- crypto/x509v3/Makefile	(.../vendor/0.9.8b)	(revision 251)
++++ crypto/x509v3/Makefile	(.../trunk)	(revision 251)
+@@ -21,12 +21,14 @@
+ v3_prn.c v3_utl.c v3err.c v3_genn.c v3_alt.c v3_skey.c v3_akey.c v3_pku.c \
+ v3_int.c v3_enum.c v3_sxnet.c v3_cpols.c v3_crld.c v3_purp.c v3_info.c \
+ v3_ocsp.c v3_akeya.c v3_pmaps.c v3_pcons.c v3_ncons.c v3_pcia.c v3_pci.c \
+-pcy_cache.c pcy_node.c pcy_data.c pcy_map.c pcy_tree.c pcy_lib.c
++pcy_cache.c pcy_node.c pcy_data.c pcy_map.c pcy_tree.c pcy_lib.c \
++v3_asid.c v3_addr.c
+ LIBOBJ= v3_bcons.o v3_bitst.o v3_conf.o v3_extku.o v3_ia5.o v3_lib.o \
+ v3_prn.o v3_utl.o v3err.o v3_genn.o v3_alt.o v3_skey.o v3_akey.o v3_pku.o \
+ v3_int.o v3_enum.o v3_sxnet.o v3_cpols.o v3_crld.o v3_purp.o v3_info.o \
+ v3_ocsp.o v3_akeya.o v3_pmaps.o v3_pcons.o v3_ncons.o v3_pcia.o v3_pci.o \
+-pcy_cache.o pcy_node.o pcy_data.o pcy_map.o pcy_tree.o pcy_lib.o
++pcy_cache.o pcy_node.o pcy_data.o pcy_map.o pcy_tree.o pcy_lib.o \
++v3_asid.o v3_addr.o
+ 
+ SRC= $(LIBSRC)
+ 
+@@ -166,6 +168,20 @@
+ pcy_tree.o: ../../include/openssl/symhacks.h ../../include/openssl/x509.h
+ pcy_tree.o: ../../include/openssl/x509_vfy.h ../../include/openssl/x509v3.h
+ pcy_tree.o: ../cryptlib.h pcy_int.h pcy_tree.c
++v3_addr.o: ../../e_os.h ../../include/openssl/asn1.h
++v3_addr.o: ../../include/openssl/asn1t.h ../../include/openssl/bio.h
++v3_addr.o: ../../include/openssl/buffer.h ../../include/openssl/conf.h
++v3_addr.o: ../../include/openssl/crypto.h ../../include/openssl/e_os2.h
++v3_addr.o: ../../include/openssl/ec.h ../../include/openssl/ecdh.h
++v3_addr.o: ../../include/openssl/ecdsa.h ../../include/openssl/err.h
++v3_addr.o: ../../include/openssl/evp.h ../../include/openssl/lhash.h
++v3_addr.o: ../../include/openssl/obj_mac.h ../../include/openssl/objects.h
++v3_addr.o: ../../include/openssl/opensslconf.h ../../include/openssl/opensslv.h
++v3_addr.o: ../../include/openssl/ossl_typ.h ../../include/openssl/pkcs7.h
++v3_addr.o: ../../include/openssl/safestack.h ../../include/openssl/sha.h
++v3_addr.o: ../../include/openssl/stack.h ../../include/openssl/symhacks.h
++v3_addr.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
++v3_addr.o: ../../include/openssl/x509v3.h ../cryptlib.h v3_addr.c
+ v3_akey.o: ../../e_os.h ../../include/openssl/asn1.h
+ v3_akey.o: ../../include/openssl/asn1t.h ../../include/openssl/bio.h
+ v3_akey.o: ../../include/openssl/buffer.h ../../include/openssl/conf.h
+@@ -208,6 +224,21 @@
+ v3_alt.o: ../../include/openssl/stack.h ../../include/openssl/symhacks.h
+ v3_alt.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
+ v3_alt.o: ../../include/openssl/x509v3.h ../cryptlib.h v3_alt.c
++v3_asid.o: ../../e_os.h ../../include/openssl/asn1.h
++v3_asid.o: ../../include/openssl/asn1t.h ../../include/openssl/bio.h
++v3_asid.o: ../../include/openssl/bn.h ../../include/openssl/buffer.h
++v3_asid.o: ../../include/openssl/conf.h ../../include/openssl/crypto.h
++v3_asid.o: ../../include/openssl/e_os2.h ../../include/openssl/ec.h
++v3_asid.o: ../../include/openssl/ecdh.h ../../include/openssl/ecdsa.h
++v3_asid.o: ../../include/openssl/err.h ../../include/openssl/evp.h
++v3_asid.o: ../../include/openssl/lhash.h ../../include/openssl/obj_mac.h
++v3_asid.o: ../../include/openssl/objects.h ../../include/openssl/opensslconf.h
++v3_asid.o: ../../include/openssl/opensslv.h ../../include/openssl/ossl_typ.h
++v3_asid.o: ../../include/openssl/pkcs7.h ../../include/openssl/safestack.h
++v3_asid.o: ../../include/openssl/sha.h ../../include/openssl/stack.h
++v3_asid.o: ../../include/openssl/symhacks.h ../../include/openssl/x509.h
++v3_asid.o: ../../include/openssl/x509_vfy.h ../../include/openssl/x509v3.h
++v3_asid.o: ../cryptlib.h v3_asid.c
+ v3_bcons.o: ../../e_os.h ../../include/openssl/asn1.h
+ v3_bcons.o: ../../include/openssl/asn1t.h ../../include/openssl/bio.h
+ v3_bcons.o: ../../include/openssl/buffer.h ../../include/openssl/conf.h
+Index: crypto/x509v3/v3err.c
+===================================================================
+--- crypto/x509v3/v3err.c	(.../vendor/0.9.8b)	(revision 251)
++++ crypto/x509v3/v3err.c	(.../trunk)	(revision 251)
+@@ -70,6 +70,8 @@
+ 
+ static ERR_STRING_DATA X509V3_str_functs[]=
+ 	{
++{ERR_FUNC(X509V3_F_ASIDENTIFIERCHOICE_CANONIZE),	"ASIDENTIFIERCHOICE_CANONIZE"},
++{ERR_FUNC(X509V3_F_ASIDENTIFIERCHOICE_IS_CANONICAL),	"ASIDENTIFIERCHOICE_IS_CANONICAL"},
+ {ERR_FUNC(X509V3_F_COPY_EMAIL),	"COPY_EMAIL"},
+ {ERR_FUNC(X509V3_F_COPY_ISSUER),	"COPY_ISSUER"},
+ {ERR_FUNC(X509V3_F_DO_DIRNAME),	"DO_DIRNAME"},
+@@ -99,6 +101,7 @@
+ {ERR_FUNC(X509V3_F_SXNET_ADD_ID_ULONG),	"SXNET_add_id_ulong"},
+ {ERR_FUNC(X509V3_F_SXNET_GET_ID_ASC),	"SXNET_get_id_asc"},
+ {ERR_FUNC(X509V3_F_SXNET_GET_ID_ULONG),	"SXNET_get_id_ulong"},
++{ERR_FUNC(X509V3_F_V2I_ASIDENTIFIERS),	"V2I_ASIDENTIFIERS"},
+ {ERR_FUNC(X509V3_F_V2I_ASN1_BIT_STRING),	"V2I_ASN1_BIT_STRING"},
+ {ERR_FUNC(X509V3_F_V2I_AUTHORITY_INFO_ACCESS),	"V2I_AUTHORITY_INFO_ACCESS"},
+ {ERR_FUNC(X509V3_F_V2I_AUTHORITY_KEYID),	"V2I_AUTHORITY_KEYID"},
+@@ -107,11 +110,13 @@
+ {ERR_FUNC(X509V3_F_V2I_EXTENDED_KEY_USAGE),	"V2I_EXTENDED_KEY_USAGE"},
+ {ERR_FUNC(X509V3_F_V2I_GENERAL_NAMES),	"v2i_GENERAL_NAMES"},
+ {ERR_FUNC(X509V3_F_V2I_GENERAL_NAME_EX),	"v2i_GENERAL_NAME_ex"},
++{ERR_FUNC(X509V3_F_V2I_IPADDRBLOCKS),	"V2I_IPADDRBLOCKS"},
+ {ERR_FUNC(X509V3_F_V2I_ISSUER_ALT),	"V2I_ISSUER_ALT"},
+ {ERR_FUNC(X509V3_F_V2I_NAME_CONSTRAINTS),	"V2I_NAME_CONSTRAINTS"},
+ {ERR_FUNC(X509V3_F_V2I_POLICY_CONSTRAINTS),	"V2I_POLICY_CONSTRAINTS"},
+ {ERR_FUNC(X509V3_F_V2I_POLICY_MAPPINGS),	"V2I_POLICY_MAPPINGS"},
+ {ERR_FUNC(X509V3_F_V2I_SUBJECT_ALT),	"V2I_SUBJECT_ALT"},
++{ERR_FUNC(X509V3_F_V3_ADDR_VALIDATE_PATH_INTERNAL),	"V3_ADDR_VALIDATE_PATH_INTERNAL"},
+ {ERR_FUNC(X509V3_F_V3_GENERIC_EXTENSION),	"V3_GENERIC_EXTENSION"},
+ {ERR_FUNC(X509V3_F_X509V3_ADD1_I2D),	"X509V3_add1_i2d"},
+ {ERR_FUNC(X509V3_F_X509V3_ADD_VALUE),	"X509V3_add_value"},
+@@ -149,8 +154,12 @@
+ {ERR_REASON(X509V3_R_ILLEGAL_EMPTY_EXTENSION),"illegal empty extension"},
+ {ERR_REASON(X509V3_R_ILLEGAL_HEX_DIGIT)  ,"illegal hex digit"},
+ {ERR_REASON(X509V3_R_INCORRECT_POLICY_SYNTAX_TAG),"incorrect policy syntax tag"},
++{ERR_REASON(X509V3_R_INVALID_ASNUMBER)   ,"invalid asnumber"},
++{ERR_REASON(X509V3_R_INVALID_ASRANGE)    ,"invalid asrange"},
+ {ERR_REASON(X509V3_R_INVALID_BOOLEAN_STRING),"invalid boolean string"},
+ {ERR_REASON(X509V3_R_INVALID_EXTENSION_STRING),"invalid extension string"},
++{ERR_REASON(X509V3_R_INVALID_INHERITANCE),"invalid inheritance"},
++{ERR_REASON(X509V3_R_INVALID_IPADDRESS)  ,"invalid ipaddress"},
+ {ERR_REASON(X509V3_R_INVALID_NAME)       ,"invalid name"},
+ {ERR_REASON(X509V3_R_INVALID_NULL_ARGUMENT),"invalid null argument"},
+ {ERR_REASON(X509V3_R_INVALID_NULL_NAME)  ,"invalid null name"},
+@@ -162,6 +171,7 @@
+ {ERR_REASON(X509V3_R_INVALID_POLICY_IDENTIFIER),"invalid policy identifier"},
+ {ERR_REASON(X509V3_R_INVALID_PROXY_POLICY_SETTING),"invalid proxy policy setting"},
+ {ERR_REASON(X509V3_R_INVALID_PURPOSE)    ,"invalid purpose"},
++{ERR_REASON(X509V3_R_INVALID_SAFI)       ,"invalid safi"},
+ {ERR_REASON(X509V3_R_INVALID_SECTION)    ,"invalid section"},
+ {ERR_REASON(X509V3_R_INVALID_SYNTAX)     ,"invalid syntax"},
+ {ERR_REASON(X509V3_R_ISSUER_DECODE_ERROR),"issuer decode error"},
+Index: crypto/x509v3/pcy_tree.c
+===================================================================
+--- crypto/x509v3/pcy_tree.c	(.../vendor/0.9.8b)	(revision 251)
++++ crypto/x509v3/pcy_tree.c	(.../trunk)	(revision 251)
+@@ -628,6 +628,16 @@
+ 		/* Tree OK: continue */
+ 
+ 		case 1:
++		if (!tree)
++			/*
++			 * tree_init() returns success and a null tree
++			 * if it's just looking at a trust anchor.
++			 * I'm not sure that returning success here is
++			 * correct, but I'm sure that reporting this
++			 * as an internal error which our caller
++			 * interprets as a malloc failure is wrong.
++			 */
++			return 1;
+ 		break;
+ 		}
+ 
+Index: crypto/x509v3/v3_addr.c
+===================================================================
+--- crypto/x509v3/v3_addr.c	(.../vendor/0.9.8b)	(revision 0)
++++ crypto/x509v3/v3_addr.c	(.../trunk)	(revision 251)
+@@ -0,0 +1,1214 @@
++/*
++ * Copyright (C) 2006  American Registry for Internet Numbers ("ARIN")
++ *
++ * Permission to use, copy, modify, and distribute this software for any
++ * purpose with or without fee is hereby granted, provided that the above
++ * copyright notice and this permission notice appear in all copies.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
++ * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
++ * AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
++ * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
++ * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
++ * OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
++ * PERFORMANCE OF THIS SOFTWARE.
++ */
++
++/* $Id$ */
++
++/*
++ * Implementation of RFC 3779 section 2.2.
++ */
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <assert.h>
++#include "cryptlib.h"
++#include <openssl/conf.h>
++#include <openssl/asn1.h>
++#include <openssl/asn1t.h>
++#include <openssl/x509v3.h>
++
++/*
++ * OpenSSL ASN.1 template translation of RFC 3779 2.2.3.
++ */
++
++ASN1_SEQUENCE(IPAddressRange) = {
++  ASN1_SIMPLE(IPAddressRange, min, ASN1_BIT_STRING),
++  ASN1_SIMPLE(IPAddressRange, max, ASN1_BIT_STRING)
++} ASN1_SEQUENCE_END(IPAddressRange)
++
++ASN1_CHOICE(IPAddressOrRange) = {
++  ASN1_SIMPLE(IPAddressOrRange, u.addressPrefix, ASN1_BIT_STRING),
++  ASN1_SIMPLE(IPAddressOrRange, u.addressRange,  IPAddressRange)
++} ASN1_CHOICE_END(IPAddressOrRange)
++
++ASN1_CHOICE(IPAddressChoice) = {
++  ASN1_SIMPLE(IPAddressChoice,      u.inherit,           ASN1_NULL),
++  ASN1_SEQUENCE_OF(IPAddressChoice, u.addressesOrRanges, IPAddressOrRange)
++} ASN1_CHOICE_END(IPAddressChoice)
++
++ASN1_SEQUENCE(IPAddressFamily) = {
++  ASN1_SIMPLE(IPAddressFamily, addressFamily,   ASN1_OCTET_STRING),
++  ASN1_SIMPLE(IPAddressFamily, ipAddressChoice, IPAddressChoice)
++} ASN1_SEQUENCE_END(IPAddressFamily)
++
++ASN1_ITEM_TEMPLATE(IPAddrBlocks) = 
++  ASN1_EX_TEMPLATE_TYPE(ASN1_TFLG_SEQUENCE_OF, 0,
++			IPAddrBlocks, IPAddressFamily)
++ASN1_ITEM_TEMPLATE_END(IPAddrBlocks)
++
++IMPLEMENT_ASN1_FUNCTIONS(IPAddressRange)
++IMPLEMENT_ASN1_FUNCTIONS(IPAddressOrRange)
++IMPLEMENT_ASN1_FUNCTIONS(IPAddressChoice)
++IMPLEMENT_ASN1_FUNCTIONS(IPAddressFamily)
++
++/*
++ * How much buffer space do we need for a raw address?
++ */
++#define ADDR_RAW_BUF_LEN	16
++
++/*
++ * What's the address length associated with this AFI?
++ */
++static int length_from_afi(const unsigned afi)
++{
++  switch (afi) {
++  case IANA_AFI_IPV4:
++    return 4;
++  case IANA_AFI_IPV6:
++    return 16;
++  default:
++    return 0;
++  }
++}
++
++/*
++ * Extract the AFI from an IPAddressFamily.
++ */
++static unsigned afi_from_addressfamily(const IPAddressFamily *f)
++{
++  return (f != NULL && f->addressFamily != NULL && f->addressFamily->data
++	  ? ((f->addressFamily->data[0] << 8) |
++	     (f->addressFamily->data[1]))
++	  : 0);
++}
++
++/*
++ * Expand the bitstring form of an address into a raw byte array.
++ * At the moment this is coded for simplicity, not speed.
++ */
++static void addr_expand(unsigned char *addr,
++			const ASN1_BIT_STRING *bs,
++			const int length,
++			const unsigned char fill)
++{
++  assert(bs->length >= 0 && bs->length <= length);
++  if (bs->length > 0) {
++    memcpy(addr, bs->data, bs->length);
++    if ((bs->flags & 7) != 0) {
++      unsigned char mask = 0xFF >> (8 - (bs->flags & 7));
++      if (fill == 0)
++	addr[bs->length - 1] &= ~mask;
++      else
++	addr[bs->length - 1] |= mask;
++    }
++  }
++  memset(addr + bs->length, fill, length - bs->length);
++}
++
++/*
++ * Extract the prefix length from a bitstring.
++ */
++#define addr_prefixlen(bs) ((int) ((bs)->length * 8 - ((bs)->flags & 7)))
++
++/*
++ * i2r handler for one address bitstring.
++ */
++static int i2r_address(BIO *out,
++		       const unsigned afi,
++		       const unsigned char fill,
++		       const ASN1_BIT_STRING *bs)
++{
++  unsigned char addr[ADDR_RAW_BUF_LEN];
++  int i, n;
++
++  switch (afi) {
++  case IANA_AFI_IPV4:
++    addr_expand(addr, bs, 4, fill);
++    BIO_printf(out, "%d.%d.%d.%d", addr[0], addr[1], addr[2], addr[3]);
++    break;
++  case IANA_AFI_IPV6:
++    addr_expand(addr, bs, 16, fill);
++    for (n = 16; n > 1 && addr[n-1] == 0x00 && addr[n-2] == 0x00; n -= 2)
++      ;
++    for (i = 0; i < n; i += 2)
++      BIO_printf(out, "%x%s", (addr[i] << 8) | addr[i+1], (i < 14 ? ":" : ""));
++    if (i < 16)
++      BIO_puts(out, ":");
++    break;
++  default:
++    for (i = 0; i < bs->length; i++)
++      BIO_printf(out, "%s%02x", (i > 0 ? ":" : ""), bs->data[i]);
++    BIO_printf(out, "[%d]", (int) (bs->flags & 7));
++    break;
++  }
++  return 1;
++}
++
++/*
++ * i2r handler for a sequence of addresses and ranges.
++ */
++static int i2r_IPAddressOrRanges(BIO *out,
++				 const int indent,
++				 const IPAddressOrRanges *aors,
++				 const unsigned afi)
++{
++  int i;
++  for (i = 0; i < sk_IPAddressOrRange_num(aors); i++) {
++    const IPAddressOrRange *aor = sk_IPAddressOrRange_value(aors, i);
++    BIO_printf(out, "%*s", indent, "");
++    switch (aor->type) {
++    case IPAddressOrRange_addressPrefix:
++      if (!i2r_address(out, afi, 0x00, aor->u.addressPrefix))
++	return 0;
++      BIO_printf(out, "/%d\n", addr_prefixlen(aor->u.addressPrefix));
++      continue;
++    case IPAddressOrRange_addressRange:
++      if (!i2r_address(out, afi, 0x00, aor->u.addressRange->min))
++	return 0;
++      BIO_puts(out, "-");
++      if (!i2r_address(out, afi, 0xFF, aor->u.addressRange->max))
++	return 0;
++      BIO_puts(out, "\n");
++      continue;
++    }
++  }
++  return 1;
++}
++
++/*
++ * i2r handler for an IPAddrBlocks extension.
++ */
++static int i2r_IPAddrBlocks(X509V3_EXT_METHOD *method,
++			    void *ext,
++			    BIO *out,
++			    int indent)
++{
++  const IPAddrBlocks *addr = ext;
++  int i;
++  for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
++    IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
++    const unsigned afi = afi_from_addressfamily(f);
++    switch (afi) {
++    case IANA_AFI_IPV4:
++      BIO_printf(out, "%*sIPv4", indent, "");
++      break;
++    case IANA_AFI_IPV6:
++      BIO_printf(out, "%*sIPv6", indent, "");
++      break;
++    default:
++      BIO_printf(out, "%*sUnknown AFI %u", indent, "", afi);
++      break;
++    }
++    if (f->addressFamily->length > 2) {
++      switch (f->addressFamily->data[2]) {
++      case   1:
++	BIO_puts(out, " (Unicast)");
++	break;
++      case   2:
++	BIO_puts(out, " (Multicast)");
++	break;
++      case   3:
++	BIO_puts(out, " (Unicast/Multicast)");
++	break;
++      case   4:
++	BIO_puts(out, " (MPLS)");
++	break;
++      case  64:
++	BIO_puts(out, " (Tunnel)");
++	break;
++      case  65:
++	BIO_puts(out, " (VPLS)");
++	break;
++      case  66:
++	BIO_puts(out, " (BGP MDT)");
++	break;
++      case 128:
++	BIO_puts(out, " (MPLS-labeled VPN)");
++	break;
++      default:  
++	BIO_printf(out, " (Unknown SAFI %u)",
++		   (unsigned) f->addressFamily->data[2]);
++	break;
++      }
++    }
++    switch (f->ipAddressChoice->type) {
++    case IPAddressChoice_inherit:
++      BIO_puts(out, ": inherit\n");
++      break;
++    case IPAddressChoice_addressesOrRanges:
++      BIO_puts(out, ":\n");
++      if (!i2r_IPAddressOrRanges(out,
++				 indent + 2,
++				 f->ipAddressChoice->u.addressesOrRanges,
++				 afi))
++	return 0;
++      break;
++    }
++  }
++  return 1;
++}
++
++/*
++ * Sort comparison function for a sequence of IPAddressOrRange
++ * elements.
++ */
++static int IPAddressOrRange_cmp(const IPAddressOrRange *a,
++				const IPAddressOrRange *b,
++				const int length)
++{
++  unsigned char addr_a[ADDR_RAW_BUF_LEN], addr_b[ADDR_RAW_BUF_LEN];
++  int prefixlen_a, prefixlen_b;
++  int r;
++
++  switch (a->type) {
++  case IPAddressOrRange_addressPrefix:
++    addr_expand(addr_a, a->u.addressPrefix, length, 0x00);
++    prefixlen_a = addr_prefixlen(a->u.addressPrefix);
++    break;
++  case IPAddressOrRange_addressRange:
++    addr_expand(addr_a, a->u.addressRange->min, length, 0x00);
++    prefixlen_a = length * 8;
++    break;
++  }
++
++  switch (b->type) {
++  case IPAddressOrRange_addressPrefix:
++    addr_expand(addr_b, b->u.addressPrefix, length, 0x00);
++    prefixlen_b = addr_prefixlen(b->u.addressPrefix);
++    break;
++  case IPAddressOrRange_addressRange:
++    addr_expand(addr_b, b->u.addressRange->min, length, 0x00);
++    prefixlen_b = length * 8;
++    break;
++  }
++
++  if ((r = memcmp(addr_a, addr_b, length)) != 0)
++    return r;
++  else
++    return prefixlen_a - prefixlen_b;
++}
++
++/*
++ * IPv4-specific closure over IPAddressOrRange_cmp, since sk_sort()
++ * comparision routines are only allowed two arguments.
++ */
++static int v4IPAddressOrRange_cmp(const IPAddressOrRange * const *a,
++				  const IPAddressOrRange * const *b)
++{
++  return IPAddressOrRange_cmp(*a, *b, 4);
++}
++
++/*
++ * IPv6-specific closure over IPAddressOrRange_cmp, since sk_sort()
++ * comparision routines are only allowed two arguments.
++ */
++static int v6IPAddressOrRange_cmp(const IPAddressOrRange * const *a,
++				  const IPAddressOrRange * const *b)
++{
++  return IPAddressOrRange_cmp(*a, *b, 16);
++}
++
++/*
++ * Calculate whether a range collapses to a prefix.
++ * See last paragraph of RFC 3779 2.2.3.7.
++ */
++static int range_should_be_prefix(const unsigned char *min,
++				  const unsigned char *max,
++				  const int length)
++{
++  unsigned char mask;
++  int i, j;
++
++  for (i = 0; i < length && min[i] == max[i]; i++)
++    ;
++  for (j = length - 1; j >= 0 && min[j] == 0x00 && max[j] == 0xFF; j--)
++    ;
++  if (i < j)
++    return -1;
++  if (i > j)
++    return i * 8;
++  mask = min[i] ^ max[i];
++  switch (mask) {
++  case 0x01: j = 7; break;
++  case 0x03: j = 6; break;
++  case 0x07: j = 5; break;
++  case 0x0F: j = 4; break;
++  case 0x1F: j = 3; break;
++  case 0x3F: j = 2; break;
++  case 0x7F: j = 1; break;
++  default:   return -1;
++  }
++  if ((min[i] & mask) != 0 || (max[i] & mask) != mask)
++    return -1;
++  else
++    return i * 8 + j;
++}
++
++/*
++ * Construct a prefix.
++ */
++static int make_addressPrefix(IPAddressOrRange **result,
++			      unsigned char *addr,
++			      const int prefixlen)
++{
++  int bytelen = (prefixlen + 7) / 8, bitlen = prefixlen % 8;
++  IPAddressOrRange *aor = IPAddressOrRange_new();
++
++  if (aor == NULL)
++    return 0;
++  aor->type = IPAddressOrRange_addressPrefix;
++  if (aor->u.addressPrefix == NULL &&
++      (aor->u.addressPrefix = ASN1_BIT_STRING_new()) == NULL)
++    goto err;
++  if (!ASN1_BIT_STRING_set(aor->u.addressPrefix, addr, bytelen))
++    goto err;
++  aor->u.addressPrefix->flags &= ~7;
++  aor->u.addressPrefix->flags |= ASN1_STRING_FLAG_BITS_LEFT;
++  if (bitlen > 0) {
++    aor->u.addressPrefix->data[bytelen - 1] &= ~(0xFF >> bitlen);
++    aor->u.addressPrefix->flags |= 8 - bitlen;
++  }
++  
++  *result = aor;
++  return 1;
++
++ err:
++  IPAddressOrRange_free(aor);
++  return 0;
++}
++
++/*
++ * Construct a range.  If it can be expressed as a prefix,
++ * return a prefix instead.  Doing this here simplifies
++ * the rest of the code considerably.
++ */
++static int make_addressRange(IPAddressOrRange **result,
++			     unsigned char *min,
++			     unsigned char *max,
++			     const int length)
++{
++  IPAddressOrRange *aor;
++  int i, prefixlen;
++
++  if ((prefixlen = range_should_be_prefix(min, max, length)) >= 0)
++    return make_addressPrefix(result, min, prefixlen);
++
++  if ((aor = IPAddressOrRange_new()) == NULL)
++    return 0;
++  aor->type = IPAddressOrRange_addressRange;
++  assert(aor->u.addressRange == NULL);
++  if ((aor->u.addressRange = IPAddressRange_new()) == NULL)
++    goto err;
++  if (aor->u.addressRange->min == NULL &&
++      (aor->u.addressRange->min = ASN1_BIT_STRING_new()) == NULL)
++    goto err;
++  if (aor->u.addressRange->max == NULL &&
++      (aor->u.addressRange->max = ASN1_BIT_STRING_new()) == NULL)
++    goto err;
++
++  for (i = length; i > 0 && min[i - 1] == 0x00; --i)
++    ;
++  if (!ASN1_BIT_STRING_set(aor->u.addressRange->min, min, i))
++    goto err;
++  aor->u.addressRange->min->flags &= ~7;
++  aor->u.addressRange->min->flags |= ASN1_STRING_FLAG_BITS_LEFT;
++  if (i > 0) {
++    unsigned char b = min[i - 1];
++    int j = 1;
++    while ((b & (0xFFU >> j)) != 0) 
++      ++j;
++    aor->u.addressRange->min->flags |= 8 - j;
++  }
++
++  for (i = length; i > 0 && max[i - 1] == 0xFF; --i)
++    ;
++  if (!ASN1_BIT_STRING_set(aor->u.addressRange->max, max, i))
++    goto err;
++  aor->u.addressRange->max->flags &= ~7;
++  aor->u.addressRange->max->flags |= ASN1_STRING_FLAG_BITS_LEFT;
++  if (i > 0) {
++    unsigned char b = max[i - 1];
++    int j = 1;
++    while ((b & (0xFFU >> j)) != (0xFFU >> j))
++      ++j;
++    aor->u.addressRange->max->flags |= 8 - j;
++  }
++
++  *result = aor;
++  return 1;
++
++ err:
++  IPAddressOrRange_free(aor);
++  return 0;
++}
++
++/*
++ * Construct a new address family or find an existing one.
++ */
++static IPAddressFamily *make_IPAddressFamily(IPAddrBlocks *addr,
++					     const unsigned afi,
++					     const unsigned *safi)
++{
++  IPAddressFamily *f;
++  unsigned char key[3];
++  unsigned keylen;
++  int i;
++
++  key[0] = (afi >> 8) & 0xFF;
++  key[1] = afi & 0xFF;
++  if (safi != NULL) {
++    key[2] = *safi & 0xFF;
++    keylen = 3;
++  } else {
++    keylen = 2;
++  }
++
++  for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
++    f = sk_IPAddressFamily_value(addr, i);
++    assert(f->addressFamily->data != NULL);
++    if (f->addressFamily->length == keylen &&
++	!memcmp(f->addressFamily->data, key, keylen))
++      return f;
++  }
++
++  if ((f = IPAddressFamily_new()) == NULL)
++    goto err;
++  if (f->ipAddressChoice == NULL &&
++      (f->ipAddressChoice = IPAddressChoice_new()) == NULL)
++    goto err;
++  if (f->addressFamily == NULL && 
++      (f->addressFamily = ASN1_OCTET_STRING_new()) == NULL)
++    goto err;
++  if (!ASN1_OCTET_STRING_set(f->addressFamily, key, keylen))
++    goto err;
++  if (!sk_IPAddressFamily_push(addr, f))
++    goto err;
++
++  return f;
++
++ err:
++  IPAddressFamily_free(f);
++  return NULL;
++}
++
++/*
++ * Add an inheritance element.
++ */
++static int addr_add_inherit(IPAddrBlocks *addr,
++			    const unsigned afi,
++			    const unsigned *safi)
++{
++  IPAddressFamily *f = make_IPAddressFamily(addr, afi, safi);
++  if (f == NULL ||
++      f->ipAddressChoice == NULL ||
++      (f->ipAddressChoice->type == IPAddressChoice_addressesOrRanges &&
++       f->ipAddressChoice->u.addressesOrRanges != NULL))
++    return 0;
++  if (f->ipAddressChoice->type == IPAddressChoice_inherit &&
++      f->ipAddressChoice->u.inherit != NULL)
++    return 1;
++  if (f->ipAddressChoice->u.inherit == NULL &&
++      (f->ipAddressChoice->u.inherit = ASN1_NULL_new()) == NULL)
++    return 0;
++  f->ipAddressChoice->type = IPAddressChoice_inherit;
++  return 1;
++}
++
++/*
++ * Construct an IPAddressOrRange sequence, or return an existing one.
++ */
++static IPAddressOrRanges *make_prefix_or_range(IPAddrBlocks *addr,
++					       const unsigned afi,
++					       const unsigned *safi)
++{
++  IPAddressFamily *f = make_IPAddressFamily(addr, afi, safi);
++  IPAddressOrRanges *aors = NULL;
++
++  if (f == NULL ||
++      f->ipAddressChoice == NULL ||
++      (f->ipAddressChoice->type == IPAddressChoice_inherit &&
++       f->ipAddressChoice->u.inherit != NULL))
++    return NULL;
++  if (f->ipAddressChoice->type == IPAddressChoice_addressesOrRanges)
++    aors = f->ipAddressChoice->u.addressesOrRanges;
++  if (aors != NULL)
++    return aors;
++  if ((aors = sk_IPAddressOrRange_new_null()) == NULL)
++    return NULL;
++  switch (afi) {
++  case IANA_AFI_IPV4:
++    sk_IPAddressOrRange_set_cmp_func(aors, v4IPAddressOrRange_cmp);
++    break;
++  case IANA_AFI_IPV6:
++    sk_IPAddressOrRange_set_cmp_func(aors, v6IPAddressOrRange_cmp);
++    break;
++  }
++  f->ipAddressChoice->type = IPAddressChoice_addressesOrRanges;
++  f->ipAddressChoice->u.addressesOrRanges = aors;
++  return aors;
++}
++
++/*
++ * Add a prefix.
++ */
++static int addr_add_prefix(IPAddrBlocks *addr,
++			   const unsigned afi,
++			   const unsigned *safi,
++			   unsigned char *a,
++			   const int prefixlen)
++{
++  IPAddressOrRanges *aors = make_prefix_or_range(addr, afi, safi);
++  IPAddressOrRange *aor;
++  if (aors == NULL || !make_addressPrefix(&aor, a, prefixlen))
++    return 0;
++  if (sk_IPAddressOrRange_push(aors, aor))
++    return 1;
++  IPAddressOrRange_free(aor);
++  return 0;
++}
++
++/*
++ * Add a range.
++ */
++static int addr_add_range(IPAddrBlocks *addr,
++			  const unsigned afi,
++			  const unsigned *safi,
++			  unsigned char *min,
++			  unsigned char *max)
++{
++  IPAddressOrRanges *aors = make_prefix_or_range(addr, afi, safi);
++  IPAddressOrRange *aor;
++  int length = length_from_afi(afi);
++  if (aors == NULL)
++    return 0;
++  if (!make_addressRange(&aor, min, max, length))
++    return 0;
++  if (sk_IPAddressOrRange_push(aors, aor))
++    return 1;
++  IPAddressOrRange_free(aor);
++  return 0;
++}
++
++/*
++ * Extract min and max values from an IPAddressOrRange.
++ */
++static void extract_min_max(IPAddressOrRange *aor,
++			    unsigned char *min,
++			    unsigned char *max,
++			    int length)
++{
++  assert(aor != NULL && min != NULL && max != NULL);
++  switch (aor->type) {
++  case IPAddressOrRange_addressPrefix:
++    addr_expand(min, aor->u.addressPrefix, length, 0x00);
++    addr_expand(max, aor->u.addressPrefix, length, 0xFF);
++    return;
++  case IPAddressOrRange_addressRange:
++    addr_expand(min, aor->u.addressRange->min, length, 0x00);
++    addr_expand(max, aor->u.addressRange->max, length, 0xFF);
++    return;
++  }
++}
++
++/*
++ * Sort comparision function for a sequence of IPAddressFamily.
++ *
++ * The last paragraph of RFC 3779 2.2.3.3 is slightly ambiguous about
++ * the ordering: I can read it as meaning that IPv6 without a SAFI
++ * comes before IPv4 with a SAFI, which seems pretty weird.  The
++ * examples in appendix B suggest that the author intended the
++ * null-SAFI rule to apply only within a single AFI, which is what I
++ * would have expected and is what the following code implements.
++ */
++static int IPAddressFamily_cmp(const IPAddressFamily * const *a_,
++			       const IPAddressFamily * const *b_)
++{
++  const ASN1_OCTET_STRING *a = (*a_)->addressFamily;
++  const ASN1_OCTET_STRING *b = (*b_)->addressFamily;
++  int len = (( a->length <= b->length) ? a->length : b->length);
++  int cmp = memcmp(a->data, b->data, len);
++  return cmp ? cmp : a->length - b->length;
++}
++
++/*
++ * Check whether an IPAddrBLocks is in canonical form.
++ */
++int v3_addr_is_canonical(IPAddrBlocks *addr)
++{
++  unsigned char a_min[ADDR_RAW_BUF_LEN], a_max[ADDR_RAW_BUF_LEN];
++  unsigned char b_min[ADDR_RAW_BUF_LEN], b_max[ADDR_RAW_BUF_LEN];
++  IPAddressOrRanges *aors;
++  int i, j, k;
++
++  /*
++   * Empty extension is cannonical.
++   */
++  if (addr == NULL)
++    return 1;
++
++  /*
++   * Check whether the top-level list is in order.
++   */
++  for (i = 0; i < sk_IPAddressFamily_num(addr) - 1; i++) {
++    const IPAddressFamily *a = sk_IPAddressFamily_value(addr, i);
++    const IPAddressFamily *b = sk_IPAddressFamily_value(addr, i + 1);
++    if (IPAddressFamily_cmp(&a, &b) >= 0)
++      return 0;
++  }
++
++  /*
++   * Top level's ok, now check each address family.
++   */
++  for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
++    IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
++    int length = length_from_afi(afi_from_addressfamily(f));
++
++    /*
++     * Inheritance is canonical.  Anything other than inheritance or
++     * a SEQUENCE OF IPAddressOrRange is an ASN.1 error or something.
++     */
++    if (f == NULL || f->ipAddressChoice == NULL)
++      return 0;
++    switch (f->ipAddressChoice->type) {
++    case IPAddressChoice_inherit:
++      continue;
++    case IPAddressChoice_addressesOrRanges:
++      break;
++    default:
++      return 0;
++    }
++
++    /*
++     * It's an IPAddressOrRanges sequence, check it.
++     */
++    aors = f->ipAddressChoice->u.addressesOrRanges;
++    if (sk_IPAddressOrRange_num(aors) == 0)
++      return 0;
++    for (j = 0; j < sk_IPAddressOrRange_num(aors) - 1; j++) {
++      IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, j);
++      IPAddressOrRange *b = sk_IPAddressOrRange_value(aors, j + 1);
++
++      extract_min_max(a, a_min, a_max, length);
++      extract_min_max(b, b_min, b_max, length);
++
++      /*
++       * Punt misordered list, overlapping start, or inverted range.
++       */
++      if (memcmp(a_min, b_min, length) >= 0 ||
++	  memcmp(a_min, a_max, length) > 0 ||
++	  memcmp(b_min, b_max, length) > 0)
++	return 0;
++
++      /*
++       * Punt if adjacent or overlapping.  Check for adjacency by
++       * subtracting one from b_min first.
++       */
++      for (k = length - 1; k >= 0 && b_min[k]-- == 0x00; k--)
++	;
++      if (memcmp(a_max, b_min, length) >= 0)
++	return 0;
++
++      /*
++       * Check for range that should be expressed as a prefix.
++       */
++      if (a->type == IPAddressOrRange_addressRange &&
++	  range_should_be_prefix(a_min, a_max, length) >= 0)
++	return 0;
++    }
++
++    /*
++     * Check final range to see if it should be a prefix.
++     */
++    j = sk_IPAddressOrRange_num(aors) - 1;
++    {
++      IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, j);
++      if (a->type == IPAddressOrRange_addressRange) {
++	extract_min_max(a, a_min, a_max, length);
++	if (range_should_be_prefix(a_min, a_max, length) >= 0)
++	  return 0;
++      }
++    }
++  }
++
++  /*
++   * If we made it through all that, we're happy.
++   */
++  return 1;
++}
++
++/*
++ * Whack an IPAddressOrRanges into canonical form.
++ */
++static int IPAddressOrRanges_canonize(IPAddressOrRanges *aors,
++				      const unsigned afi)
++{
++  int i, j, length = length_from_afi(afi);
++
++  /*
++   * Sort the IPAddressOrRanges sequence.
++   */
++  sk_IPAddressOrRange_sort(aors);
++
++  /*
++   * Clean up representation issues, punt on duplicates or overlaps.
++   */
++  for (i = 0; i < sk_IPAddressOrRange_num(aors) - 1; i++) {
++    IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, i);
++    IPAddressOrRange *b = sk_IPAddressOrRange_value(aors, i + 1);
++    unsigned char a_min[ADDR_RAW_BUF_LEN], a_max[ADDR_RAW_BUF_LEN];
++    unsigned char b_min[ADDR_RAW_BUF_LEN], b_max[ADDR_RAW_BUF_LEN];
++
++    extract_min_max(a, a_min, a_max, length);
++    extract_min_max(b, b_min, b_max, length);
++
++    /*
++     * Punt overlaps.
++     */
++    if (memcmp(a_max, b_min, length) >= 0)
++      return 0;
++
++    /*
++     * Merge if a and b are adjacent.  We check for
++     * adjacency by subtracting one from b_min first.
++     */
++    for (j = length - 1; j >= 0 && b_min[j]-- == 0x00; j--)
++      ;
++    if (memcmp(a_max, b_min, length) == 0) {
++      IPAddressOrRange *merged;
++      if (!make_addressRange(&merged, a_min, b_max, length))
++	return 0;
++      sk_IPAddressOrRange_set(aors, i, merged);
++      sk_IPAddressOrRange_delete(aors, i + 1);
++      IPAddressOrRange_free(a);
++      IPAddressOrRange_free(b);
++      --i;
++      continue;
++    }
++  }
++
++  return 1;
++}
++
++/*
++ * Whack an IPAddrBlocks extension into canonical form.
++ */
++int v3_addr_canonize(IPAddrBlocks *addr)
++{
++  int i;
++  for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
++    IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
++    if (f->ipAddressChoice->type == IPAddressChoice_addressesOrRanges &&
++	!IPAddressOrRanges_canonize(f->ipAddressChoice->u.addressesOrRanges,
++				    afi_from_addressfamily(f)))
++      return 0;
++  }
++  sk_IPAddressFamily_sort(addr);
++  assert(v3_addr_is_canonical(addr));
++  return 1;
++}
++
++/*
++ * v2i handler for the IPAddrBlocks extension.
++ */
++static void *v2i_IPAddrBlocks(struct v3_ext_method *method,
++			      struct v3_ext_ctx *ctx,
++			      STACK_OF(CONF_VALUE) *values)
++{
++  static const char v4addr_chars[] = "0123456789.";
++  static const char v6addr_chars[] = "0123456789.:abcdefABCDEF";
++  IPAddrBlocks *addr = NULL;
++  char *s = NULL, *t;
++  int i;
++  
++  if ((addr = sk_IPAddressFamily_new(IPAddressFamily_cmp)) == NULL) {
++    X509V3err(X509V3_F_V2I_IPADDRBLOCKS, ERR_R_MALLOC_FAILURE);
++    return NULL;
++  }
++
++  for (i = 0; i < sk_CONF_VALUE_num(values); i++) {
++    CONF_VALUE *val = sk_CONF_VALUE_value(values, i);
++    unsigned char min[ADDR_RAW_BUF_LEN], max[ADDR_RAW_BUF_LEN];
++    unsigned afi, *safi = NULL, safi_;
++    const char *addr_chars;
++    int prefixlen, i1, i2, delim, length;
++
++    if (       !name_cmp(val->name, "IPv4")) {
++      afi = IANA_AFI_IPV4;
++    } else if (!name_cmp(val->name, "IPv6")) {
++      afi = IANA_AFI_IPV6;
++    } else if (!name_cmp(val->name, "IPv4-SAFI")) {
++      afi = IANA_AFI_IPV4;
++      safi = &safi_;
++    } else if (!name_cmp(val->name, "IPv6-SAFI")) {
++      afi = IANA_AFI_IPV6;
++      safi = &safi_;
++    } else {
++      X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_EXTENSION_NAME_ERROR);
++      X509V3_conf_err(val);
++      goto err;
++    }
++
++    switch (afi) {
++    case IANA_AFI_IPV4:
++      addr_chars = v4addr_chars;
++      break;
++    case IANA_AFI_IPV6:
++      addr_chars = v6addr_chars;
++      break;
++    }
++
++    length = length_from_afi(afi);
++
++    /*
++     * Handle SAFI, if any, and strdup() so we can null-terminate
++     * the other input values.
++     */
++    if (safi != NULL) {
++      *safi = strtoul(val->value, &t, 0);
++      t += strspn(t, " \t");
++      if (*safi > 0xFF || *t++ != ':') {
++	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_INVALID_SAFI);
++	X509V3_conf_err(val);
++	goto err;
++      }
++      t += strspn(t, " \t");
++      s = strdup(t);
++    } else {
++      s = strdup(val->value);
++    }
++    if (s == NULL) {
++      X509V3err(X509V3_F_V2I_IPADDRBLOCKS, ERR_R_MALLOC_FAILURE);
++      goto err;
++    }
++
++    /*
++     * Check for inheritance.  Not worth additional complexity to
++     * optimize this (seldom-used) case.
++     */
++    if (!strcmp(s, "inherit")) {
++      if (!addr_add_inherit(addr, afi, safi)) {
++	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_INVALID_INHERITANCE);
++	X509V3_conf_err(val);
++	goto err;
++      }
++      OPENSSL_free(s);
++      s = NULL;
++      continue;
++    }
++
++    i1 = strspn(s, addr_chars);
++    i2 = i1 + strspn(s + i1, " \t");
++    delim = s[i2++];
++    s[i1] = '\0';
++
++    if (a2i_ipadd(min, s) != length) {
++      X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_INVALID_IPADDRESS);
++      X509V3_conf_err(val);
++      goto err;
++    }
++
++    switch (delim) {
++    case '/':
++      prefixlen = (int) strtoul(s + i2, &t, 10);
++      if (t == s + i2 || *t != '\0') {
++	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_EXTENSION_VALUE_ERROR);
++	X509V3_conf_err(val);
++	goto err;
++      }
++      if (!addr_add_prefix(addr, afi, safi, min, prefixlen)) {
++	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, ERR_R_MALLOC_FAILURE);
++	goto err;
++      }
++      break;
++    case '-':
++      i1 = i2 + strspn(s + i2, " \t");
++      i2 = i1 + strspn(s + i1, addr_chars);
++      if (i1 == i2 || s[i2] != '\0') {
++	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_EXTENSION_VALUE_ERROR);
++	X509V3_conf_err(val);
++	goto err;
++      }
++      if (a2i_ipadd(max, s + i1) != length) {
++	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_INVALID_IPADDRESS);
++	X509V3_conf_err(val);
++	goto err;
++      }
++      if (!addr_add_range(addr, afi, safi, min, max)) {
++	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, ERR_R_MALLOC_FAILURE);
++	goto err;
++      }
++      break;
++    case '\0':
++      if (!addr_add_prefix(addr, afi, safi, min, length * 8)) {
++	X509V3err(X509V3_F_V2I_IPADDRBLOCKS, ERR_R_MALLOC_FAILURE);
++	goto err;
++      }
++      break;
++    default:
++      X509V3err(X509V3_F_V2I_IPADDRBLOCKS, X509V3_R_EXTENSION_VALUE_ERROR);
++      X509V3_conf_err(val);
++      goto err;
++    }
++
++    OPENSSL_free(s);
++    s = NULL;
++  }
++
++  /*
++   * Canonize the result, then we're done.
++   */
++  if (!v3_addr_canonize(addr))
++    goto err;    
++  return addr;
++
++ err:
++  OPENSSL_free(s);
++  sk_IPAddressFamily_pop_free(addr, IPAddressFamily_free);
++  return NULL;
++}
++
++/*
++ * OpenSSL dispatch
++ */
++X509V3_EXT_METHOD v3_addr = {
++  NID_sbgp_ipAddrBlock,		/* nid */
++  0,				/* flags */
++  ASN1_ITEM_ref(IPAddrBlocks),	/* template */
++  0, 0, 0, 0,			/* old functions, ignored */
++  0,				/* i2s */
++  0,				/* s2i */
++  0,				/* i2v */
++  v2i_IPAddrBlocks,		/* v2i */
++  i2r_IPAddrBlocks,		/* i2r */
++  0,				/* r2i */
++  NULL				/* extension-specific data */
++};
++
++/*
++ * Figure out whether extension sues inheritance.
++ */
++int v3_addr_inherits(IPAddrBlocks *addr)
++{
++  int i;
++  if (addr == NULL)
++    return 0;
++  for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
++    IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
++    if (f->ipAddressChoice->type == IPAddressChoice_inherit)
++      return 1;
++  }
++  return 0;
++}
++
++/*
++ * Figure out whether parent contains child.
++ */
++static int addr_contains(IPAddressOrRanges *parent,
++			 IPAddressOrRanges *child,
++			 int length)
++{
++  unsigned char p_min[ADDR_RAW_BUF_LEN], p_max[ADDR_RAW_BUF_LEN];
++  unsigned char c_min[ADDR_RAW_BUF_LEN], c_max[ADDR_RAW_BUF_LEN];
++  int p, c;
++
++  if (child == NULL || parent == child)
++    return 1;
++  if (parent == NULL)
++    return 0;
++
++  p = 0;
++  for (c = 0; c < sk_IPAddressOrRange_num(child); c++) {
++    extract_min_max(sk_IPAddressOrRange_value(child, c),
++		    c_min, c_max, length);
++    for (;; p++) {
++      if (p >= sk_IPAddressOrRange_num(parent))
++	return 0;
++      extract_min_max(sk_IPAddressOrRange_value(parent, p),
++		      p_min, p_max, length);
++      if (memcmp(p_max, c_max, length) < 0)
++	continue;
++      if (memcmp(p_min, c_min, length) > 0)
++	return 0;
++      break;
++    }
++  }
++
++  return 1;
++}
++
++/*
++ * Test whether a is a subset of b.
++ */
++int v3_addr_subset(IPAddrBlocks *a, IPAddrBlocks *b)
++{
++  int i;
++  if (a == NULL || a == b)
++    return 1;
++  if (b == NULL || v3_addr_inherits(a) || v3_addr_inherits(b))
++    return 0;
++  sk_IPAddressFamily_set_cmp_func(b, IPAddressFamily_cmp);
++  for (i = 0; i < sk_IPAddressFamily_num(a); i++) {
++    IPAddressFamily *fa = sk_IPAddressFamily_value(a, i);
++    int j = sk_IPAddressFamily_find(b, fa);
++    IPAddressFamily *fb = sk_IPAddressFamily_value(b, j);
++    if (!addr_contains(fb->ipAddressChoice->u.addressesOrRanges, 
++		       fa->ipAddressChoice->u.addressesOrRanges,
++		       length_from_afi(afi_from_addressfamily(fb))))
++      return 0;
++  }
++  return 1;
++}
++
++/*
++ * Validation error handling via callback.
++ */
++#define validation_err(_err_)		\
++  do {					\
++    if (ctx != NULL) {			\
++      ctx->error = _err_;		\
++      ctx->error_depth = i;		\
++      ctx->current_cert = x;		\
++      ret = ctx->verify_cb(0, ctx);	\
++    } else {				\
++      ret = 0;				\
++    }					\
++    if (!ret)				\
++      goto done;			\
++  } while (0)
++
++/*
++ * Core code for RFC 3779 2.3 path validation.
++ */
++static int v3_addr_validate_path_internal(X509_STORE_CTX *ctx,
++					  STACK_OF(X509) *chain,
++					  IPAddrBlocks *ext)
++{
++  IPAddrBlocks *child = NULL;
++  int i, j, ret = 1;
++  X509 *x;
++
++  assert(chain != NULL && sk_X509_num(chain) > 0);
++  assert(ctx != NULL || ext != NULL);
++  assert(ctx == NULL || ctx->verify_cb != NULL);
++
++  /*
++   * Figure out where to start.  If we don't have an extension to
++   * check, we're done.  Otherwise, check canonical form and
++   * set up for walking up the chain.
++   */
++  if (ext != NULL) {
++    i = -1;
++  } else {
++    i = 0;
++    x = sk_X509_value(chain, i);
++    assert(x != NULL);
++    if ((ext = x->rfc3779_addr) == NULL)
++      goto done;
++  }
++  if (!v3_addr_is_canonical(ext))
++    validation_err(X509_V_ERR_INVALID_EXTENSION);
++  sk_IPAddressFamily_set_cmp_func(ext, IPAddressFamily_cmp);
++  if ((child = sk_IPAddressFamily_dup(ext)) == NULL) {
++    X509V3err(X509V3_F_V3_ADDR_VALIDATE_PATH_INTERNAL, ERR_R_MALLOC_FAILURE);
++    ret = 0;
++    goto done;
++  }
++
++  /*
++   * Now walk up the chain.  No cert may list resources that its
++   * parent doesn't list.
++   */
++  for (i++; i < sk_X509_num(chain); i++) {
++    x = sk_X509_value(chain, i);
++    assert(x != NULL);
++    if (!v3_addr_is_canonical(x->rfc3779_addr))
++      validation_err(X509_V_ERR_INVALID_EXTENSION);
++    if (x->rfc3779_addr == NULL) {
++      for (j = 0; j < sk_IPAddressFamily_num(child); j++) {
++	IPAddressFamily *fc = sk_IPAddressFamily_value(child, j);
++	if (fc->ipAddressChoice->type != IPAddressChoice_inherit) {
++	  validation_err(X509_V_ERR_UNNESTED_RESOURCE);
++	  break;
++	}
++      }
++      continue;
++    }
++    sk_IPAddressFamily_set_cmp_func(x->rfc3779_addr, IPAddressFamily_cmp);
++    for (j = 0; j < sk_IPAddressFamily_num(child); j++) {
++      IPAddressFamily *fc = sk_IPAddressFamily_value(child, j);
++      int k = sk_IPAddressFamily_find(x->rfc3779_addr, fc);
++      IPAddressFamily *fp = sk_IPAddressFamily_value(x->rfc3779_addr, k);
++      if (fp == NULL) {
++	if (fc->ipAddressChoice->type == IPAddressChoice_addressesOrRanges) {
++	  validation_err(X509_V_ERR_UNNESTED_RESOURCE);
++	  break;
++	}
++	continue;
++      }
++      if (fp->ipAddressChoice->type == IPAddressChoice_addressesOrRanges) {
++	if (fc->ipAddressChoice->type == IPAddressChoice_inherit ||
++	    addr_contains(fp->ipAddressChoice->u.addressesOrRanges, 
++			  fc->ipAddressChoice->u.addressesOrRanges,
++			  length_from_afi(afi_from_addressfamily(fc))))
++	  sk_IPAddressFamily_set(child, j, fp);
++	else
++	  validation_err(X509_V_ERR_UNNESTED_RESOURCE);
++      }
++    }
++  }
++
++  /*
++   * Trust anchor can't inherit.
++   */
++  if (x->rfc3779_addr != NULL) {
++    for (j = 0; j < sk_IPAddressFamily_num(x->rfc3779_addr); j++) {
++      IPAddressFamily *fp = sk_IPAddressFamily_value(x->rfc3779_addr, j);
++      if (fp->ipAddressChoice->type == IPAddressChoice_inherit &&
++	  sk_IPAddressFamily_find(child, fp) >= 0)
++	validation_err(X509_V_ERR_UNNESTED_RESOURCE);
++    }
++  }
++
++ done:
++  sk_IPAddressFamily_free(child);
++  return ret;
++}
++
++#undef validation_err
++
++/*
++ * RFC 3779 2.3 path validation -- called from X509_verify_cert().
++ */
++int v3_addr_validate_path(X509_STORE_CTX *ctx)
++{
++  return v3_addr_validate_path_internal(ctx, ctx->chain, NULL);
++}
++
++/*
++ * RFC 3779 2.3 path validation of an extension.
++ * Test whether chain covers extension.
++ */
++int v3_addr_validate_resource_set(STACK_OF(X509) *chain,
++				  IPAddrBlocks *ext,
++				  int allow_inheritance)
++{
++  if (ext == NULL)
++    return 1;
++  if (chain == NULL || sk_X509_num(chain) == 0)
++    return 0;
++  if (!allow_inheritance && v3_addr_inherits(ext))
++    return 0;
++  return v3_addr_validate_path_internal(NULL, chain, ext);
++}
+
+Index: crypto/x509v3/ext_dat.h
+===================================================================
+--- crypto/x509v3/ext_dat.h	(.../vendor/0.9.8b)	(revision 251)
++++ crypto/x509v3/ext_dat.h	(.../trunk)	(revision 251)
+@@ -67,6 +67,7 @@
+ extern X509V3_EXT_METHOD v3_crl_hold, v3_pci;
+ extern X509V3_EXT_METHOD v3_policy_mappings, v3_policy_constraints;
+ extern X509V3_EXT_METHOD v3_name_constraints, v3_inhibit_anyp;
++extern X509V3_EXT_METHOD v3_addr, v3_asid;
+ 
+ /* This table will be searched using OBJ_bsearch so it *must* kept in
+  * order of the ext_nid values.
+@@ -99,6 +100,8 @@
+ #endif
+ &v3_sxnet,
+ &v3_info,
++&v3_addr,
++&v3_asid,
+ #ifndef OPENSSL_NO_OCSP
+ &v3_ocsp_nonce,
+ &v3_ocsp_crlid,
+
+Index: crypto/asn1/x_x509.c
+===================================================================
+--- crypto/asn1/x_x509.c	(.../vendor/0.9.8b)	(revision 251)
++++ crypto/asn1/x_x509.c	(.../trunk)	(revision 251)
+@@ -94,6 +94,8 @@
+ 		ret->ex_pathlen = -1;
+ 		ret->skid = NULL;
+ 		ret->akid = NULL;
++		ret->rfc3779_addr = NULL;
++		ret->rfc3779_asid = NULL;
+ 		ret->aux = NULL;
+ 		CRYPTO_new_ex_data(CRYPTO_EX_INDEX_X509, ret, &ret->ex_data);
+ 		break;
+@@ -109,6 +111,8 @@
+ 		ASN1_OCTET_STRING_free(ret->skid);
+ 		AUTHORITY_KEYID_free(ret->akid);
+ 		policy_cache_free(ret->policy_cache);
++		sk_IPAddressFamily_pop_free(ret->rfc3779_addr, IPAddressFamily_free);
++		ASIdentifiers_free(ret->rfc3779_asid);
+ 
+ 		if (ret->name != NULL) OPENSSL_free(ret->name);
+ 		break;
+
+Index: crypto/x509/x509_vfy.h
+===================================================================
+--- crypto/x509/x509_vfy.h	(.../vendor/0.9.8b)	(revision 251)
++++ crypto/x509/x509_vfy.h	(.../trunk)	(revision 251)
+@@ -331,6 +331,7 @@
+ #define		X509_V_ERR_INVALID_POLICY_EXTENSION		42
+ #define		X509_V_ERR_NO_EXPLICIT_POLICY			43
+ 
++#define		X509_V_ERR_UNNESTED_RESOURCE			44
+ 
+ /* The application is not happy */
+ #define		X509_V_ERR_APPLICATION_VERIFICATION		50
+Index: crypto/x509/x509_txt.c
+===================================================================
+--- crypto/x509/x509_txt.c	(.../vendor/0.9.8b)	(revision 251)
++++ crypto/x509/x509_txt.c	(.../trunk)	(revision 251)
+@@ -162,6 +162,8 @@
+ 		return("invalid or inconsistent certificate policy extension");
+ 	case X509_V_ERR_NO_EXPLICIT_POLICY:
+ 		return("no explicit policy");
++	case X509_V_ERR_UNNESTED_RESOURCE:
++		return("RFC 3779 resource not subset of parent's resources");
+ 	default:
+ 		BIO_snprintf(buf,sizeof buf,"error number %ld",n);
+ 		return(buf);
+Index: crypto/x509/x509.h
+===================================================================
+--- crypto/x509/x509.h	(.../vendor/0.9.8b)	(revision 251)
++++ crypto/x509/x509.h	(.../trunk)	(revision 251)
+@@ -288,6 +288,8 @@
+ 	ASN1_OCTET_STRING *skid;
+ 	struct AUTHORITY_KEYID_st *akid;
+ 	X509_POLICY_CACHE *policy_cache;
++	STACK_OF(IPAddressFamily) *rfc3779_addr;
++	struct ASIdentifiers_st *rfc3779_asid;
+ #ifndef OPENSSL_NO_SHA
+ 	unsigned char sha1_hash[SHA_DIGEST_LENGTH];
+ #endif
+Index: crypto/x509/x509_vfy.c
+===================================================================
+--- crypto/x509/x509_vfy.c	(.../vendor/0.9.8b)	(revision 251)
++++ crypto/x509/x509_vfy.c	(.../trunk)	(revision 251)
+@@ -312,6 +312,12 @@
+ 		ok=internal_verify(ctx);
+ 	if(!ok) goto end;
+ 
++	/* RFC 3779 path validation, now that CRL check has been done */
++	ok = v3_asid_validate_path(ctx);
++	if (!ok) goto end;
++	ok = v3_addr_validate_path(ctx);
++	if (!ok) goto end;
++
+ 	/* If we get this far evaluate policies */
+ 	if (!bad_chain && (ctx->param->flags & X509_V_FLAG_POLICY_CHECK))
+ 		ok = ctx->check_policy(ctx);
+
+Index: util/libeay.num
+===================================================================
+--- util/libeay.num	(.../vendor/0.9.8b)	(revision 251)
++++ util/libeay.num	(.../trunk)	(revision 251)
+@@ -3380,3 +3380,64 @@
+ X509_VERIFY_PARAM_get_flags             3781	EXIST::FUNCTION:
+ EVP_CIPHER_CTX_new                      3782	EXIST::FUNCTION:
+ EVP_CIPHER_CTX_free                     3783	EXIST::FUNCTION:
++ASIdentifiers_free                      3784	EXIST::FUNCTION:
++i2d_ASIdOrRange                         3785	EXIST::FUNCTION:
++IPAddressChoice_free                    3786	EXIST::FUNCTION:
++IPAddressOrRange_it                     3787	EXIST:!EXPORT_VAR_AS_FUNCTION:VARIABLE:
++IPAddressOrRange_it                     3787	EXIST:EXPORT_VAR_AS_FUNCTION:FUNCTION:
++ASIdentifiers_it                        3788	EXIST:!EXPORT_VAR_AS_FUNCTION:VARIABLE:
++ASIdentifiers_it                        3788	EXIST:EXPORT_VAR_AS_FUNCTION:FUNCTION:
++IPAddressChoice_it                      3789	EXIST:!EXPORT_VAR_AS_FUNCTION:VARIABLE:
++IPAddressChoice_it                      3789	EXIST:EXPORT_VAR_AS_FUNCTION:FUNCTION:
++d2i_ASRange                             3790	EXIST::FUNCTION:
++IPAddressRange_free                     3791	EXIST::FUNCTION:
++IPAddressRange_new                      3792	EXIST::FUNCTION:
++ASIdOrRange_new                         3793	EXIST::FUNCTION:
++i2d_ASRange                             3794	EXIST::FUNCTION:
++IPAddressRange_it                       3795	EXIST:!EXPORT_VAR_AS_FUNCTION:VARIABLE:
++IPAddressRange_it                       3795	EXIST:EXPORT_VAR_AS_FUNCTION:FUNCTION:
++IPAddressChoice_new                     3796	EXIST::FUNCTION:
++ASIdentifierChoice_new                  3797	EXIST::FUNCTION:
++ASRange_free                            3798	EXIST::FUNCTION:
++IPAddressFamily_free                    3799	EXIST::FUNCTION:
++i2d_IPAddressFamily                     3800	EXIST::FUNCTION:
++IPAddressOrRange_new                    3801	EXIST::FUNCTION:
++d2i_IPAddressRange                      3802	EXIST::FUNCTION:
++IPAddressOrRange_free                   3803	EXIST::FUNCTION:
++d2i_IPAddressFamily                     3804	EXIST::FUNCTION:
++i2d_ASIdentifierChoice                  3805	EXIST::FUNCTION:
++ASRange_it                              3806	EXIST:!EXPORT_VAR_AS_FUNCTION:VARIABLE:
++ASRange_it                              3806	EXIST:EXPORT_VAR_AS_FUNCTION:FUNCTION:
++d2i_ASIdentifiers                       3807	EXIST::FUNCTION:
++ASRange_new                             3808	EXIST::FUNCTION:
++d2i_IPAddressChoice                     3809	EXIST::FUNCTION:
++i2d_IPAddressOrRange                    3810	EXIST::FUNCTION:
++ASIdOrRange_it                          3811	EXIST:!EXPORT_VAR_AS_FUNCTION:VARIABLE:
++ASIdOrRange_it                          3811	EXIST:EXPORT_VAR_AS_FUNCTION:FUNCTION:
++i2d_IPAddressChoice                     3812	EXIST::FUNCTION:
++ASIdentifiers_new                       3813	EXIST::FUNCTION:
++IPAddressFamily_new                     3814	EXIST::FUNCTION:
++i2d_IPAddressRange                      3815	EXIST::FUNCTION:
++IPAddressFamily_it                      3816	EXIST:!EXPORT_VAR_AS_FUNCTION:VARIABLE:
++IPAddressFamily_it                      3816	EXIST:EXPORT_VAR_AS_FUNCTION:FUNCTION:
++d2i_IPAddressOrRange                    3817	EXIST::FUNCTION:
++ASIdentifierChoice_it                   3818	EXIST:!EXPORT_VAR_AS_FUNCTION:VARIABLE:
++ASIdentifierChoice_it                   3818	EXIST:EXPORT_VAR_AS_FUNCTION:FUNCTION:
++d2i_ASIdentifierChoice                  3819	EXIST::FUNCTION:
++ASIdOrRange_free                        3820	EXIST::FUNCTION:
++ASIdentifierChoice_free                 3821	EXIST::FUNCTION:
++d2i_ASIdOrRange                         3822	EXIST::FUNCTION:
++i2d_ASIdentifiers                       3823	EXIST::FUNCTION:
++v3_addr_validate_path                   3824	EXIST::FUNCTION:
++v3_asid_validate_path                   3825	EXIST::FUNCTION:
++a2i_ipadd                               3826	EXIST::FUNCTION:
++v3_asid_is_canonical                    3827	EXIST::FUNCTION:
++v3_addr_validate_resource_set           3828	EXIST::FUNCTION:
++v3_asid_canonize                        3829	EXIST::FUNCTION:
++v3_asid_validate_resource_set           3830	EXIST::FUNCTION:
++v3_addr_is_canonical                    3831	EXIST::FUNCTION:
++v3_addr_canonize                        3832	EXIST::FUNCTION:
++v3_addr_inherits                        3833	EXIST::FUNCTION:
++v3_addr_subset                          3834	EXIST::FUNCTION:
++v3_asid_subset                          3835	EXIST::FUNCTION:
++v3_asid_inherits                        3836	EXIST::FUNCTION:
+

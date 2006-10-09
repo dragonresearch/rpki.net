@@ -1,0 +1,8 @@
+$Id$
+
+These are SAMPLE trust anchors for testing rcynic.  Any resemblance
+between these files and real trust anchors living, dead, or wandering
+the night in ghostly torment is purely coincidental.
+
+Remember: it's only a trust anchor if a replying party says it is.
+You're the relying party, so it's your call.

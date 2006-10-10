@@ -2,16 +2,21 @@ $Id$ -*- Text -*-
 
 OpenSSL hacked to add support for the RFC 3779 X.509 v3 extensions.
 
-Current status:
+There are two ways to build this:
 
-- Not (yet) for distribution outside the RIRs.
+- Apply patch-rpki-openssl-0.9.8 against a stock OpenSSL 0.9.8
+  distribution, eg, drop this patch into
+  /usr/ports/security/openssl/files-beta/ on a FreeBSD machine.
 
-- Reads and writes RFC 3779 extensions but does not (yet) perform the
-  additional validation described in RFC 3779 2.3 & 3.3.
+- Build the code in trunk/.  You will need to enable the RFC 3779
+  extensions in order for this to do anything interesting.  If you
+  just want to run it, do:
 
-- Not (yet) tested extensively.
+    ./config enable-rfc3779
 
-Please report any problems to me (sra) or the rescert mailing list.
+  If you think you might need debugging, you'd be better off with:
+
+    ./Configure debug-sra enable-rfc3779
 
 
 
@@ -25,11 +30,9 @@ like the existing OpenSSL support for "multi-valued" extensions.  RFC
 Notes:
 
 * Ranges are denoted with a hyphen, prefix lengths with a slash.
-  I could tag ranges differently from the atomic types, but this
-  seemed easier for the user to understand.
 
 * The "@" syntax indicating indirection through a separate section
-  is lifted from the stock OpenSSL multi-valued extension support.
+  is part of the stock OpenSSL multi-valued extension support.
 
 * I didn't attempt to guess which addresses are IPv4 and which are
   IPv6 from the syntax, since the opensssl.conf multi-value syntax
@@ -40,8 +43,7 @@ Notes:
   keywords for specific SAFIs if there were a reason to do so.
 
 * The "sbgp-" names were already present in OpenSSL's table of known
-  extension OIDs.  We can talk to the folks at the OpenSSL project
-  about changing the names if there's a reason to do so.
+  extension OIDs, so we just used them.
 
 ### 
 
@@ -211,11 +213,6 @@ Random reminders and notes to myself:
 - The reference for RDIs in RFC 3779 is incorrect.  I've been told
   that the authoritative definition of RDIs is ISO 10747, available as
   http://www.acm.org/sigs/sigcomm/standards/iso_stds/IDRP/10747.TXT.
-
-- "openssl verify" only accepts PEM, not DER, which is annoying.
-  An -inform switch would be nice, but the library routines
-  don't know how to read a CAfile full of DER anyway.  Pity -CApath
-  doesn't seem to work for us.  Oh well, live with PEM for now.
 
 - OpenSSL already checks for duplicate extensions: more precisely,
   unless we explicitly tell X509_get_ext_d2i() that we allow multiple
@@ -387,12 +384,12 @@ Notes:
 
 Final code cleanups before submitting patch to OpenSSL project.
 
-- Ben requested compile-time conditionals.  [done]
+- Ben requested compile-time conditionals.  [done, waiting to hear if
+  done "right" according to OpenSSL project standards]
 
 - Ben requested Configure support for the compile-time conditionals.
-  Do we need anything beyond -DOPENSSL_RFC3779 ?  Need to read
-  existing Configure code to see if there's a preferred way of doing
-  this.
+  [done, waiting to hear if done "right" according to OpenSSL project
+  standards]
 
 - Copyright/license adjustments per discusion with ARIN and OpenSSL
   project.  [done]

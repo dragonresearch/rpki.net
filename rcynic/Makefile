@@ -20,4 +20,4 @@ ${BIN}: ${OBJ} ${LIB} Makefile
 	${CC} -g -o $@ ${OBJ} ${LIB} ${LDFLAGS}
 
 test: ${BIN}
-	./${BIN}
+	./${BIN} -j 0

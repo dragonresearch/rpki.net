@@ -108,6 +108,7 @@ typedef struct rcynic_ctx {
   int indent, rsync_timeout, use_syslog, use_stdouterr;
   int priority[n_log_levels];
   log_level_t log_level;
+  X509_STORE *x509_store;
 } rcynic_ctx_t;
 
 /*
@@ -280,7 +281,6 @@ static int configure_integer(const rcynic_ctx_t *rc,
     return 0;
   }
 }
-
 
 
 
@@ -1001,7 +1001,7 @@ static int check_x509(const rcynic_ctx_t *rc,
   issuer = sk_X509_value(certs, sk_X509_num(certs) - 1);
   assert(issuer != NULL);
 
-  if (!X509_STORE_CTX_init(&rctx.ctx, NULL, x, NULL))
+  if (!X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, x, NULL))
     return 0;
   rctx.rc = rc;
   rctx.subj = subj;
@@ -1397,6 +1397,11 @@ int main(int argc, char *argv[])
     goto done;
   }
 
+  if ((rc.x509_store = X509_STORE_new()) == NULL) {
+    logmsg(&rc, log_sys_err, "Couldn't allocate X509_STORE");
+    goto done;
+  }
+
   if (rc.use_stdouterr && use_syslog && syslog_perror) {
     if (opt_stdouterr)
       syslog_perror = 0;
@@ -1504,10 +1509,9 @@ int main(int argc, char *argv[])
 
     if (ta_info.crldp[0] && !check_x509(&rc, certs, x, &ta_info)) {
       logmsg(&rc, log_data_err, "Couldn't get CRL for trust anchor %s", val->value);
-      goto done;
+    } else {
+      walk_cert(&rc, &ta_info, certs);
     }
-
-    walk_cert(&rc, &ta_info, certs);
 
     X509_free(sk_X509_pop(certs));
     assert(sk_X509_num(certs) == 0);
@@ -1523,6 +1527,7 @@ int main(int argc, char *argv[])
    */
   sk_X509_pop_free(certs, X509_free);
   sk_pop_free(rc.rsync_cache, free);
+  X509_STORE_free(rc.x509_store);
   NCONF_free(cfg_handle);
   CONF_modules_free();
   EVP_cleanup();

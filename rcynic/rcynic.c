@@ -1241,7 +1241,7 @@ int main(int argc, char *argv[])
   unsigned long hash;
   rcynic_ctx_t rc;
   unsigned delay;
-  long eline;
+  long eline = 0;
 
   memset(&rc, 0, sizeof(rc));
 

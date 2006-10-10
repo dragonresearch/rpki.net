@@ -38,7 +38,7 @@ fi
 
 if /bin/test -e /usr/local/etc/rc.d/rcynic; then
     echo "You already have a \"/usr/local/etc/rc.d/rcynic\" script, I will leave it alone"
-elif /usr/bin/install -m 555 -u root -g wheel -p rc.d.rcynic /usr/local/etc/rc.d/rcynic; then
+elif /usr/bin/install -m 555 -o root -g wheel -p rc.d.rcynic /usr/local/etc/rc.d/rcynic; then
     echo "Installed rc.d.rcynic as /usr/local/etc/rc.d/rcynic"
 else
     echo "Installing /usr/local/etc/rc.d/rcynic failed"
@@ -59,12 +59,12 @@ fi
 #    /bin/test -r "$i" || continue
 #    /bin/test -r "$j" && continue
 #    echo "Installing $i as $j"
-#    /usr/bin/install -m 444 -u root -g wheel -p "$i" "$j"
+#    /usr/bin/install -m 444 -o root -g wheel -p "$i" "$j"
 #done
 
 if /bin/test -r "$jaildir/etc/rcynic.conf"; then
     echo "You already have config file \"${jaildir}/etc/rcynic.conf\", so I will use it."
-elif /usr/bin/install -m 444 -u root -g wheel -p rcynic.conf "${jaildir}/etc/rcynic.conf"
+elif /usr/bin/install -m 444 -o root -g wheel -p rcynic.conf "${jaildir}/etc/rcynic.conf"
     echo "Installed minimal ${jaildir}/etc/rcynic.conf"
     j=1
     for i in $jaildir/etc/trust-anchors/*.cer; do

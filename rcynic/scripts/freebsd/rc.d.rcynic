@@ -24,6 +24,9 @@ rcynic_start()
 	/bin/chmod -R a-w "${rcynic_jaildir}"
 	/usr/sbin/chown -R root:wheel "${rcynic_jaildir}"
 
+	/bin/chmod -R u+w "${rcynic_jaildir}/data"
+	/usr/sbin/chown -R "${rcynic_user}:${rcynic_group}" "${rcynic_jaildir}/data"
+
 	/usr/sbin/mtree -deU -p "${rcynic_jaildir}" <<EOF
 
 		/set type=dir uname=root gname=wheel mode=0555
@@ -57,14 +60,9 @@ EOF
 	for i in /etc/localtime /etc/resolv.conf; do
 		j="${rcynic_jaildir}${i}"
 		if /bin/test -r "$i" && ! /usr/bin/cmp -s "$i" "$j"; then
-			/bin/cp -p "$i" "$j"
-			/usr/sbin/chown root:wheel "$j"
-			/bin/chmod 444 "$j"
+			/usr/bin/install -m 444 -o root -g wheel -p "$i" "$j"
 		fi
 	done
-
-	/bin/chmod -R u+w "${rcynic_jaildir}/data"
-	/usr/sbin/chown -R "${rcynic_user}:${rcynic_group}" "${rcynic_jaildir}/data"
 }
 
 rcynic_stop()

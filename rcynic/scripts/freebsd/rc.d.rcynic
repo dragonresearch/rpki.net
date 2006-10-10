@@ -24,7 +24,7 @@ rcynic_start()
 	/bin/chmod -R a-w "${rcynic_jaildir}"
 	/usr/sbin/chown -R root:wheel "${rcynic_jaildir}"
 
-	/usr/sbin/mtree -deU -p "${jaildir}" <<EOF
+	/usr/sbin/mtree -deU -p "${rcynic_jaildir}" <<EOF
 
 		/set type=dir uname=root gname=wheel mode=0555
 		.

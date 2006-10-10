@@ -423,6 +423,7 @@ static int next_uri(const rcynic_ctx_t *rc,
   char path[FILENAME_MAX];
   struct dirent *d;
   int remaining;
+  size_t len;
 
   assert(base_uri && prefix && uri && dir);
 
@@ -434,10 +435,12 @@ static int next_uri(const rcynic_ctx_t *rc,
   remaining = urilen - strlen(base_uri);
 
   while ((d = readdir(*dir)) != NULL) {
-    if (d->d_type != DT_REG || d->d_name[0] == '.' ||
-	d->d_namlen < 4 || strcmp(d->d_name + d->d_namlen - 4, ".cer"))
+    if (d->d_type != DT_REG || d->d_name[0] == '.')
       continue;
-    if (strlen(d->d_name) >= remaining) {
+    len = strlen(d->d_name);
+    if (len < 4 || strcmp(d->d_name + len - 4, ".cer"))
+      continue;
+    if (len >= remaining) {
       logmsg(rc, log_data_err, "URI %s%s too long, skipping", base_uri, d->d_name);
       continue;
     }
@@ -507,7 +510,7 @@ static int rm_rf(const char *name)
   while ((d = readdir(dir)) != NULL) {
     if (d->d_name[0] == '.' && (d->d_name[1] == '\0' || (d->d_name[1] == '.' && d->d_name[2] == '\0')))
       continue;
-    if (len + d->d_namlen + need_slash >= sizeof(path))
+    if (len + strlen(d->d_name) + need_slash >= sizeof(path))
       goto done;
     strcpy(path, name);
     if (need_slash)

@@ -27,6 +27,10 @@ rcynic_start()
 	/bin/chmod -R u+w "${rcynic_jaildir}/data"
 	/usr/sbin/chown -R "${rcynic_user}:${rcynic_group}" "${rcynic_jaildir}/data"
 
+	if /bin/test -S "${rcynic_jaildir}/var/run/log"; then
+		/bin/chmod 666 "${rcynic_jaildir}/var/run/log"
+	fi
+
 	/usr/sbin/mtree -deU -p "${rcynic_jaildir}" <<EOF
 
 		/set type=dir uname=root gname=wheel mode=0555

@@ -466,7 +466,7 @@ static void set_directory(char **out, const char *in)
   assert(in && out);
   n = strlen(in);
   need_slash = in[n - 1] != '/';
-  s = malloc(n + need_slash);
+  s = malloc(n + need_slash + 1);
   assert(s != NULL);
   strcpy(s, in);
   if (need_slash)

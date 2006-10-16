@@ -23,4 +23,4 @@ test: ${BIN}
 	./${BIN} -j 0
 
 install: ${BIN} scripts/install.sh
-	/bin/sh scripts/install.sh ${BIN}
+	cd scripts; . ./install.sh

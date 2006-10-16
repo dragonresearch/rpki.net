@@ -1,15 +1,14 @@
 # $Id$
 
-all: .configured
+all: trunk/Makefile
 	cd trunk; make $@
 
 clean:
-	cd trunk; make $@
-	rm -f .configured
+	-cd trunk; make $@
+	rm -f trunk/Makefile
 
-.configured: trunk/Configure trunk/config
+trunk/Makefile: trunk/Makefile.org trunk/Configure trunk/config
 	cd trunk; PERL=/usr/bin/perl ./config enable-rfc3779 no-dso
-	touch $@
 
 install:
 	@echo Not attempting to install modified OpenSSL, if you want that, do it yourself

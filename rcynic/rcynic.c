@@ -91,6 +91,39 @@ static const struct {
 #undef	QQ
 
 /*
+ * MIB counters
+ */
+
+#define MIB_COUNTERS						\
+  QQ(rsync_failed,		"rsync failed")			\
+  QQ(rsync_timed_out,		"rsync timed out")		\
+  QQ(accepted_current_cert,	"accepted current cert")	\
+  QQ(accepted_current_crl,	"accepted current crl")		\
+  QQ(accepted_backup_cert,	"accepted backup cert")		\
+  QQ(accepted_backup_crl,	"accepted backup crl")		\
+  QQ(rejected_current_cert,	"rejected current cert")	\
+  QQ(rejected_current_crl,	"rejected current crl")		\
+  QQ(rejected_backup_cert,	"rejected backup cert")		\
+  QQ(rejected_backup_crl,	"rejected backup crl")
+
+#define QQ(x,y) x ,
+typedef enum mib_counter { MIB_COUNTERS MIB_COUNTER_T_MAX } mib_counter_t;
+#undef	QQ
+
+#define QQ(x,y) y ,
+static const char * const mib_counter_name[] = { MIB_COUNTERS };
+#undef	QQ
+
+/*
+ * Per-host MIB counter object.
+ * hostname[] must be first element.
+ */
+typedef struct host_counter {
+  char hostname[URI_MAX];
+  long counters[MIB_COUNTER_T_MAX];
+} host_mib_counter_t;
+
+/*
  * Structure to hold data parsed out of a certificate.
  */
 typedef struct certinfo {
@@ -104,7 +137,7 @@ typedef struct certinfo {
 typedef struct rcynic_ctx {
   char *authenticated, *old_authenticated, *unauthenticated;
   char *jane, *rsync_program;
-  STACK *rsync_cache;
+  STACK *rsync_cache, *host_counters;
   int indent, rsync_timeout, use_syslog, use_stdouterr;
   int priority[n_log_levels];
   log_level_t log_level;
@@ -354,6 +387,59 @@ static int uri_to_filename(const char *name,
   }
 
   return 1;
+}
+
+/*
+ * Host MIB counter comparision.  This relies on hostname[] being the
+ * first element of a host_mib_counter_t, hence the (unreadable, but
+ * correct ANSI/ISO C) assertion.  Given all the icky casts involved
+ * in using the raw stack functions, anything else we do here would be
+ * more complicated without being significantly safer.
+ */
+static int host_counter_cmp(const char * const *a, const char * const *b)
+{
+  assert(!&((host_mib_counter_t*)0)->hostname);
+  return strcasecmp(*a, *b);
+}
+
+/*
+ * MIB counter manipulation.
+ */
+static void mib_increment(const rcynic_ctx_t *rc,
+			  const char *uri,
+			  const mib_counter_t counter,
+			  const long increment)
+{
+  host_mib_counter_t *h = NULL;
+  char hostname[URI_MAX];
+  char *s;
+
+  assert(rc && uri && rc->host_counters);
+
+  if (!uri_to_filename(uri, hostname, sizeof(hostname), NULL)) {
+    logmsg(rc, log_debug, "Failure converting URI %s to hostname", uri);
+    return;
+  }
+
+  if ((s = strchr(hostname, '/')) != NULL)
+    *s = '\0';
+
+  if ((h = (void *) sk_value(rc->host_counters,
+			     sk_find(rc->host_counters, hostname))) == NULL) {
+    if ((h = malloc(sizeof(*h))) == NULL) {
+      logmsg(rc, log_debug, "Couldn't allocate MIB counters for %s", uri);
+      return;
+    }
+    memset(h, 0, sizeof(*h));
+    strcpy(h->hostname, hostname);
+    if (!sk_push(rc->host_counters, (void *) h)) {
+      logmsg(rc, log_debug, "Couldn't store MIB counters for %s", uri);
+      free(h);
+      return;
+    }
+  }
+
+  h->counters[counter] += increment;
 }
 
 /*
@@ -734,6 +820,11 @@ static int rsync(const rcynic_ctx_t *rc,
   if (WEXITSTATUS(pid_status)) {
     logmsg(rc, log_data_err, "rsync exited with status %d", pid_status);
     ret = 0;
+    mib_increment(rc, uri,
+		  (rc->rsync_timeout && now >= deadline ?
+		   rsync_timed_out
+		   : rsync_failed),
+		  1);
   } else {
     ret = 1;
   }
@@ -1392,6 +1483,11 @@ int main(int argc, char *argv[])
     goto done;
   }
 
+  if ((rc.host_counters = sk_new(host_counter_cmp)) == NULL) {
+    logmsg(&rc, log_sys_err, "Couldn't allocate host_counters stack");
+    goto done;
+  }
+
   if ((certs = sk_X509_new_null()) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate certificate stack");
     goto done;
@@ -1522,11 +1618,23 @@ int main(int argc, char *argv[])
  done:
   log_openssl_errors(&rc);
 
+  if (rc.host_counters) {
+    for (i = 0; i < sk_num(rc.host_counters); i++) {
+      host_mib_counter_t *h = (void *) sk_value(rc.host_counters, i);
+      assert(h);
+      for (j = 0; j < MIB_COUNTER_T_MAX; ++j)
+	if (h->counters[j])
+	  logmsg(&rc, log_telemetry, "counter[%s][%s] = %ld",
+		 h->hostname, mib_counter_name[j], h->counters[j]);
+    }
+  }
+
   /*
    * Do NOT free cfg_section, NCONF_free() takes care of that
    */
   sk_X509_pop_free(certs, X509_free);
   sk_pop_free(rc.rsync_cache, free);
+  sk_pop_free(rc.host_counters, free);
   X509_STORE_free(rc.x509_store);
   NCONF_free(cfg_handle);
   CONF_modules_free();

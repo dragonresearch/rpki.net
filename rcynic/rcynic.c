@@ -95,16 +95,15 @@ static const struct {
  */
 
 #define MIB_COUNTERS						\
-  QQ(rsync_failed,		"rsync failed")			\
-  QQ(rsync_timed_out,		"rsync timed out")		\
-  QQ(accepted_current_cert,	"accepted current cert")	\
-  QQ(accepted_current_crl,	"accepted current crl")		\
-  QQ(accepted_backup_cert,	"accepted backup cert")		\
-  QQ(accepted_backup_crl,	"accepted backup crl")		\
-  QQ(rejected_current_cert,	"rejected current cert")	\
-  QQ(rejected_current_crl,	"rejected current crl")		\
-  QQ(rejected_backup_cert,	"rejected backup cert")		\
-  QQ(rejected_backup_crl,	"rejected backup crl")
+  QQ(rsync_succeeded,		"rsync transfers succeeded")	\
+  QQ(rsync_failed,		"rsync transfers failed")	\
+  QQ(rsync_timed_out,		"rsync transfers timed out")	\
+  QQ(crl_rejected,		"CRLs rejected")		\
+  QQ(backup_crl_accepted,	"backup CRLs accepted")		\
+  QQ(current_crl_accepted,	"current CRLs accepted")	\
+  QQ(cert_rejected,		"certificates rejected")	\
+  QQ(backup_cert_accepted,	"backup certificates accepted")	\
+  QQ(current_cert_accepted,	"current certificates accepted")
 
 #define QQ(x,y) x ,
 typedef enum mib_counter { MIB_COUNTERS MIB_COUNTER_T_MAX } mib_counter_t;
@@ -416,7 +415,7 @@ static void mib_increment(const rcynic_ctx_t *rc,
   assert(rc && uri && rc->host_counters);
 
   if (!uri_to_filename(uri, hostname, sizeof(hostname), NULL)) {
-    logmsg(rc, log_debug, "Failure converting URI %s to hostname", uri);
+    logmsg(rc, log_data_err, "Couldn't convert URI %s to hostname", uri);
     return;
   }
 
@@ -426,13 +425,13 @@ static void mib_increment(const rcynic_ctx_t *rc,
   if ((h = (void *) sk_value(rc->host_counters,
 			     sk_find(rc->host_counters, hostname))) == NULL) {
     if ((h = malloc(sizeof(*h))) == NULL) {
-      logmsg(rc, log_debug, "Couldn't allocate MIB counters for %s", uri);
+      logmsg(rc, log_sys_err, "Couldn't allocate MIB counters for %s", uri);
       return;
     }
     memset(h, 0, sizeof(*h));
     strcpy(h->hostname, hostname);
     if (!sk_push(rc->host_counters, (void *) h)) {
-      logmsg(rc, log_debug, "Couldn't store MIB counters for %s", uri);
+      logmsg(rc, log_sys_err, "Couldn't store MIB counters for %s", uri);
       free(h);
       return;
     }
@@ -440,19 +439,6 @@ static void mib_increment(const rcynic_ctx_t *rc,
 
   h->counters[counter]++;
 }
-
-#if 0
-/*
- * Combination of mib_increment() and logmsg().
- */
-static void logmib(const rcynic_ctx_t *rc,
-		   const char *uri,
-		   const mib_counter_t counter, 
-		   const log_level_t level, 
-		   const char *fmt, ...)
-{
-}
-#endif
 
 /*
  * Install an object.  It'd be nice if we could just use link(), but
@@ -664,8 +650,6 @@ static int rsync_cmp(const char * const *a, const char * const *b)
   return strcmp(*a, *b);
 }
 
-#define whine(msg) write(2, msg, sizeof(msg) - 1)
-
 static int rsync(const rcynic_ctx_t *rc,
 		 const char * const *args,
 		 const char *uri)
@@ -758,6 +742,7 @@ static int rsync(const rcynic_ctx_t *rc,
      close(pipe_fds[1]);
      return 0;
   case 0:
+#define whine(msg) write(2, msg, sizeof(msg) - 1)
     close(pipe_fds[0]);
     if (dup2(pipe_fds[1], 1) < 0)
       whine("dup2(1) failed\n");
@@ -769,6 +754,7 @@ static int rsync(const rcynic_ctx_t *rc,
     write(2, strerror(errno), strlen(strerror(errno)));
     whine("\n");
     _exit(1);
+#undef whine
   }
 
   close(pipe_fds[1]);
@@ -829,18 +815,22 @@ static int rsync(const rcynic_ctx_t *rc,
 	   uri, rc->rsync_timeout);
 
   assert(pid > 0);
-  for (i = 0; i < KILL_MAX && wpid == 0; i++)
-    if ((wpid = waitpid(pid, &pid_status, 0)) == 0)
-      kill(pid, SIGTERM);
+  for (i = 0; i < KILL_MAX && wpid == 0; i++) {
+    if ((wpid = waitpid(pid, &pid_status, 0)) != 0 && WIFEXITED(pid_status))
+      break;
+    kill(pid, SIGTERM);
+  }
 
   if (WEXITSTATUS(pid_status)) {
-    logmsg(rc, log_data_err, "rsync exited with status %d", pid_status);
+    logmsg(rc, log_data_err, "rsync exited with status %d",
+	   WEXITSTATUS(pid_status));
     ret = 0;
     mib_increment(rc, uri, (rc->rsync_timeout && now >= deadline
 			    ? rsync_timed_out
 			    : rsync_failed));
   } else {
     ret = 1;
+    mib_increment(rc, uri, rsync_succeeded);
   }
 
   strcpy(buffer, uri);
@@ -851,8 +841,6 @@ static int rsync(const rcynic_ctx_t *rc,
 
   return ret;
 }
-
-#undef whine
 
 static int rsync_crl(const rcynic_ctx_t *rc, const char *uri)
 {
@@ -1041,13 +1029,20 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
   rsync_crl(rc, uri);
 
   if ((crl = check_crl_1(uri, path, sizeof(path),
-			 rc->unauthenticated, issuer)) ||
-      (crl = check_crl_1(uri, path, sizeof(path),
-			 rc->old_authenticated, issuer))) {
+			 rc->unauthenticated, issuer))) {
     install_object(rc, uri, path, 5);
+    mib_increment(rc, uri, current_crl_accepted);
     return crl;
   }
 
+  if ((crl = check_crl_1(uri, path, sizeof(path),
+			 rc->old_authenticated, issuer))) {
+    install_object(rc, uri, path, 5);
+    mib_increment(rc, uri, backup_crl_accepted);
+    return crl;
+  }
+
+  mib_increment(rc, uri, crl_rejected);
   return NULL;
 }
 
@@ -1238,7 +1233,8 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 			STACK_OF(X509) *certs,
 			const certinfo_t *issuer,
 			certinfo_t *subj,
-			const char *prefix)
+			const char *prefix,
+			const int backup)
 {
   char path[FILENAME_MAX];
   X509 *x;
@@ -1254,8 +1250,11 @@ static X509 *check_cert(rcynic_ctx_t *rc,
   rc->indent++;
 
   if ((x = check_cert_1(rc, uri, path, sizeof(path), prefix,
-			certs, issuer, subj)) != NULL)
+			certs, issuer, subj)) != NULL) {
     install_object(rc, uri, path, 5);
+    mib_increment(rc, uri,
+		  (backup ? backup_cert_accepted : current_cert_accepted));
+  }
 
   rc->indent--;
 
@@ -1279,11 +1278,12 @@ static void walk_cert_1(rcynic_ctx_t *rc,
 			STACK_OF(X509) *certs,
 			const certinfo_t *issuer,
 			certinfo_t *subj,
-			const char *prefix)
+			const char *prefix,
+			const int backup)
 {
   X509 *x;
 
-  if ((x = check_cert(rc, uri, certs, issuer, subj, prefix)) == NULL)
+  if ((x = check_cert(rc, uri, certs, issuer, subj, prefix, backup)) == NULL)
     return;
 
   if (!sk_X509_push(certs, x)) {
@@ -1302,7 +1302,7 @@ static void walk_cert(rcynic_ctx_t *rc,
 {
   assert(parent && certs);
 
-  if (parent->sia[0]) {
+  if (parent->sia[0] && parent->ca) {
     int n_cert = sk_X509_num(certs);
     char uri[URI_MAX];
     certinfo_t child;
@@ -1314,11 +1314,11 @@ static void walk_cert(rcynic_ctx_t *rc,
 
     while (next_uri(rc, parent->sia, rc->unauthenticated,
 		    uri, sizeof(uri), &dir))
-      walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated);
+      walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0);
 
     while (next_uri(rc, parent->sia, rc->old_authenticated,
 		    uri, sizeof(uri), &dir))
-      walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated);
+      walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1);
 
     assert(sk_X509_num(certs) == n_cert);
 
@@ -1635,11 +1635,19 @@ int main(int argc, char *argv[])
   if (rc.host_counters) {
     for (i = 0; i < sk_num(rc.host_counters); i++) {
       host_mib_counter_t *h = (void *) sk_value(rc.host_counters, i);
+      int started = 0;
+
       assert(h);
-      for (j = 0; j < MIB_COUNTER_T_MAX; ++j)
-	if (h->counters[j])
-	  logmsg(&rc, log_telemetry, "counter[%s][%s] = %lu",
-		 h->hostname, mib_counter_name[j], h->counters[j]);
+      for (j = 0; j < MIB_COUNTER_T_MAX; ++j) {
+	if (!h->counters[j])
+	  continue;
+	if (!started) {
+	  logmsg(&rc, log_telemetry, "Summary for %s:", h->hostname);
+	  started = 1;
+	}
+	logmsg(&rc, log_telemetry, "  %10lu %s",
+	       h->counters[j], mib_counter_name[j]);
+      }
     }
   }
 

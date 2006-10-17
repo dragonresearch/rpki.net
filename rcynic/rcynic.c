@@ -95,16 +95,18 @@ static const struct {
  * MIB counters
  */
 
-#define MIB_COUNTERS						\
-  QQ(rsync_succeeded,		"rsync transfers succeeded")	\
-  QQ(rsync_failed,		"rsync transfers failed")	\
-  QQ(rsync_timed_out,		"rsync transfers timed out")	\
-  QQ(crl_rejected,		"CRLs rejected")		\
-  QQ(backup_crl_accepted,	"backup CRLs accepted")		\
-  QQ(current_crl_accepted,	"current CRLs accepted")	\
-  QQ(cert_rejected,		"certificates rejected")	\
-  QQ(backup_cert_accepted,	"backup certificates accepted")	\
-  QQ(current_cert_accepted,	"current certificates accepted")
+#define MIB_COUNTERS							\
+  QQ(backup_cert_accepted,	"backup certificates accepted")		\
+  QQ(backup_cert_rejected,	"backup certificates rejected")		\
+  QQ(backup_crl_accepted,	"backup CRLs accepted")			\
+  QQ(backup_crl_rejected,	"backup CRLs rejected")			\
+  QQ(current_cert_accepted,	"current certificates accepted")	\
+  QQ(current_cert_rejected,	"current certificates rejected")	\
+  QQ(current_crl_accepted,	"current CRLs accepted")		\
+  QQ(current_crl_rejected,	"current CRLs rejected")		\
+  QQ(rsync_failed,		"rsync transfers failed")		\
+  QQ(rsync_succeeded,		"rsync transfers succeeded")		\
+  QQ(rsync_timed_out,		"rsync transfers timed out")
 
 #define QQ(x,y) x ,
 typedef enum mib_counter { MIB_COUNTERS MIB_COUNTER_T_MAX } mib_counter_t;
@@ -362,6 +364,8 @@ static int uri_to_filename(const char *name,
 			   const char *prefix)
 {
   size_t n;
+
+  buffer[0] = '\0';
 
   if (!is_rsync(name))
     return 0;
@@ -1037,6 +1041,8 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
     install_object(rc, uri, path, 5);
     mib_increment(rc, uri, current_crl_accepted);
     return crl;
+  } else if (!access(path, F_OK)) {
+    mib_increment(rc, uri, current_crl_rejected);
   }
 
   if ((crl = check_crl_1(uri, path, sizeof(path),
@@ -1044,9 +1050,10 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
     install_object(rc, uri, path, 5);
     mib_increment(rc, uri, backup_crl_accepted);
     return crl;
+  } else if (!access(path, F_OK)) {
+    mib_increment(rc, uri, backup_crl_rejected);
   }
 
-  mib_increment(rc, uri, crl_rejected);
   return NULL;
 }
 
@@ -1258,6 +1265,9 @@ static X509 *check_cert(rcynic_ctx_t *rc,
     install_object(rc, uri, path, 5);
     mib_increment(rc, uri,
 		  (backup ? backup_cert_accepted : current_cert_accepted));
+  } else if (!access(path, F_OK)) {
+    mib_increment(rc, uri,
+		  (backup ? backup_cert_rejected : current_cert_rejected));
   }
 
   rc->indent--;
@@ -1641,14 +1651,14 @@ int main(int argc, char *argv[])
   log_openssl_errors(&rc);
 
   if (rc.host_counters) {
-    logmsg(&rc, log_telemetry, "Summary by repository host:");
+    logmsg(&rc, log_summary, "Summary by repository host:");
     for (i = 0; i < sk_num(rc.host_counters); i++) {
       host_mib_counter_t *h = (void *) sk_value(rc.host_counters, i);
       assert(h);
-      logmsg(&rc, log_telemetry, " %s:", h->hostname);
+      logmsg(&rc, log_summary, " %s:", h->hostname);
       for (j = 0; j < MIB_COUNTER_T_MAX; ++j)
 	if (h->counters[j])
-	  logmsg(&rc, log_telemetry, "  %5lu %s",
+	  logmsg(&rc, log_summary, "  %5lu %s",
 		 h->counters[j], mib_counter_name[j]);
     }
   }

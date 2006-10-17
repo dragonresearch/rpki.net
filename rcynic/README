@@ -104,6 +104,7 @@ uses but customized to the specific task rcynic performs.  Levels:
 
  log_sys_err		Error from operating system or library
  log_usage_err		Bad usage (local configuration error)
+ log_summary		Summary data at end of rcynic program run
  log_data_err		Bad data (broken certificates or CRLs)
  log_telemetry		Normal chatter about rcynic's progress
  log_verbose		Extra verbose chatter
@@ -192,6 +193,7 @@ syslog-priority-xyz	(where xyz is an rcynic logging level, above)
 
 			syslog-priority-log_sys_err:	err
 			syslog-priority-log_usage_err:	err
+			syslog-priority-log_summary:	info
 			syslog-priority-log_data_err:	notice
 			syslog-priority-log_telemetry:	info
 			syslog-priority-log_verbose:	info
@@ -214,6 +216,12 @@ lockfile		Name of lockfile, or empty for no lock.  If
 			parameter to set a lockfile so that successive
 			instances of rcynic don't stomp on each other.
 			Default: no lock
+
+summary			Enable logging of a per-host summary at the
+			end of an rcynic run.  Some users prefer this
+			to the log_telemetry style of logging.
+			Summary data is logged at log_summary level.
+			Values: true or false.  Default: false
 
 
 
@@ -358,167 +366,3 @@ is to add the following lines to /etc/rc.conf:
     altlog_proglist="named rcynic"
     rcynic_chrootdir="/var/rcynic"
     rcynic_enable="YES"
-
-
-
-# Sample script to create a jail for rcynic on FreeBSD.
-
-#!/bin/sh -
-# $Id$
-#
-# Create a chroot jail for rcynic.  You need to build staticly linked
-# rcynic and rsync binaries and install them in the jail yourself.
-#
-# Cobbled together from bits and pieces of existing system scripts,
-# mostly /usr/ports/mail/postfix/pkg-install and /etc/rc.d/named.
-
-jaildir="/var/rcynic"
-jailuser="rcynic"
-jailgroup="rcynic"
-
-if /usr/sbin/pw groupshow "${jailgroup}" 2>/dev/null; then
-    echo "You already have a group \"${jailgroup}\", so I will use it."
-elif /usr/sbin/pw groupadd ${jailgroup}; then
-    echo "Added group \"${jailgroup}\"."
-else
-    echo "Adding group \"${jailgroup}\" failed..."
-    echo "Please create it, and try again."
-    exit 1
-fi
-
-if /usr/sbin/pw usershow "${jailuser}" 2>/dev/null; then
-    echo "You already have a user \"${jailuser}\", so I will use it."
-elif /usr/sbin/pw useradd ${jailuser} -g ${jailgroup} -h - -d /nonexistant -s /usr/sbin/nologin -c "RPKI validation system"; then
-    echo "Added user \"${jailuser}\"."
-else
-    echo "Adding user \"${jailuser}\" failed..."
-    echo "Please create it, and try again."
-    exit 1
-fi
-
-if ! /bin/test -d "${jaildir}"; then
-    /bin/mkdir "${jaildir}"
-fi
-
-/usr/sbin/mtree -deU -p "${jaildir}" <<EOF
-
-    /set type=dir uname=root gname=wheel mode=0555
-    .
-	bin
-	..
-	dev
-	..
-	etc
-	    trust-anchors
-	    ..
-	..
-	var
-	    run
-	    ..
-	..
-	data	uname=$jailuser gname=$jailgroup mode=0755
-	..
-    ..
-
-EOF
-
-/sbin/umount "${jaildir}/dev" 2>/dev/null
-if ! /sbin/mount -t devfs dev "${jaildir}/dev"; then
-    echo "Mounting devfs on ${jaildir}/dev failed..."
-    exit 1
-fi
-/sbin/devfs -m "${jaildir}/dev" rule apply hide
-/sbin/devfs -m "${jaildir}/dev" rule apply path null unhide
-/sbin/devfs -m "${jaildir}/dev" rule apply path random unhide
-
-for i in /etc/localtime /etc/resolv.conf; do
-    j="${jaildir}${i}"
-    if /bin/test -r "$i" && ! /usr/bin/cmp -s "$i" "$j"; then
-	/bin/cp -p "$i" "$j"
-	/usr/sbin/chown root:wheel "$j"
-	/bin/chmod 444 "$j"
-    fi
-done
-
-if /bin/test -d trust-anchors; then
-    for i in trust-anchors/*.cer; do
-	j="$jaildir/etc/trust-anchors/${i##*/}"
-	/bin/test -r "$j" && continue
-	echo "Copying $i to $j"
-	/bin/cp -p "$i" "$j"
-	/usr/sbin/chown root:wheel "$j"
-	/bin/chmod 444 "$j"
-    done
-fi
-
-if /bin/test -r "$jaildir/etc/rcynic.conf"; then
-    echo "You already have config file \"${jaildir}/etc/rcynic.conf\", so I will use it."
-else
-    echo "Creating minmal ${jaildir}/etc/rcynic.conf"
-    /bin/cat >"${jaildir}/etc/rcynic.conf" <<-EOF
-	[rcynic]
-	rsync-program		= /bin/rsync
-	authenticated		= /data/authenticated
-	old-authenticated	= /data/authenticated.old
-	unauthenticated		= /data/unauthenticated
-	lockfile		= /data/lock
-	EOF
-    j=1
-    for i in $jaildir/etc/trust-anchors/*.cer; do
-	echo >>"${jaildir}/etc/rcynic.conf" "trust-anchor.$j		= /etc/trust-anchors/${i##*/}"
-	j=$((j+1))
-    done
-fi
-
-/usr/sbin/chown root:wheel "${jaildir}/etc/rcynic.conf"
-/bin/chmod 444 "${jaildir}/etc/rcynic.conf"
-
-
-
-# Sample script to run rcynic in a chroot jail on FreeBSD.
-
-#!/bin/sh -
-# $Id$
-#
-# Run rcynic in a chroot jail (which must already be set up)
-
-jaildir="/var/rcynic"
-jailuser="rcynic"
-jailgroup="rcynic"
-
-/usr/sbin/chroot -u "$jailuser" -g "$jailgroup" "$jaildir" \
-    /bin/rcynic -c /etc/rcynic.conf
-
-
-
-To do:
-
-- Type cleanups:
-
-OpenSSL uses int in many places where modern coding style would use
-size_t.  I used int to be compatable with OpenSSL, but this generates
-compiler warnings when mixed with functions using size_t.  Least bad
-solution is probably to use size_t everywhere and cast to int when
-calling into OpenSSL.
-
-- Statistics and logging.
-
-Added a MIB counter mechanism, still needs work:
-
--- Better summary at end of run, with a config file variable to
-   disable it, more useful formatting/organization, and an appropriate
-   log level (can be fairly high, since we assume separate config file
-   variable to enable the summary system).
-
--- Could consolidate a lot of the junk with a new routine that was a
-   combination of mib_increment() and logmsg().  For things that
-   should be logged in verbose mode and summarized in summary mode,
-   the easiest thing would be a single routine that took all the
-   arguments necessary to do either or both, and did the right thing
-   for the current settings.
-
-   Yes, this involves creation of even more MIB counters, good thing
-   this is a general mechanism.
-
--- Better names for the MIB counters we have, and clean up the ones
-   that we don't end up using.

@@ -78,7 +78,7 @@
   QQ(log_debug,		LOG_DEBUG)	/* Only useful when debugging */
 
 #define QQ(x,y)	x ,
-typedef enum log_level { LOG_LEVELS n_log_levels } log_level_t;
+typedef enum log_level { LOG_LEVELS LOG_LEVEL_T_MAX } log_level_t;
 #undef	QQ
 
 #define	QQ(x,y)	{ #x , x },
@@ -111,7 +111,7 @@ typedef enum mib_counter { MIB_COUNTERS MIB_COUNTER_T_MAX } mib_counter_t;
 #undef	QQ
 
 #define QQ(x,y) y ,
-static const char * const mib_counter_name[] = { MIB_COUNTERS };
+static const char * const mib_counter_name[] = { MIB_COUNTERS NULL };
 #undef	QQ
 
 /*
@@ -120,7 +120,7 @@ static const char * const mib_counter_name[] = { MIB_COUNTERS };
  */
 typedef struct host_counter {
   char hostname[URI_MAX];
-  long counters[MIB_COUNTER_T_MAX];
+  unsigned long counters[MIB_COUNTER_T_MAX];
 } host_mib_counter_t;
 
 /*
@@ -139,7 +139,7 @@ typedef struct rcynic_ctx {
   char *jane, *rsync_program;
   STACK *rsync_cache, *host_counters;
   int indent, rsync_timeout, use_syslog, use_stdouterr;
-  int priority[n_log_levels];
+  int priority[LOG_LEVEL_T_MAX];
   log_level_t log_level;
   X509_STORE *x509_store;
 } rcynic_ctx_t;
@@ -161,7 +161,7 @@ typedef struct rcynic_x509_store_ctx {
 
 
 /*
- * Logging.  Maybe this will turn into syslog(), someday.
+ * Logging.
  */
 static void logmsg(const rcynic_ctx_t *rc, 
 		   const log_level_t level, 
@@ -361,7 +361,7 @@ static int uri_to_filename(const char *name,
 			   const size_t buflen,
 			   const char *prefix)
 {
-  int n;
+  size_t n;
 
   if (!is_rsync(name))
     return 0;
@@ -407,8 +407,7 @@ static int host_counter_cmp(const char * const *a, const char * const *b)
  */
 static void mib_increment(const rcynic_ctx_t *rc,
 			  const char *uri,
-			  const mib_counter_t counter,
-			  const long increment)
+			  const mib_counter_t counter)
 {
   host_mib_counter_t *h = NULL;
   char hostname[URI_MAX];
@@ -439,8 +438,21 @@ static void mib_increment(const rcynic_ctx_t *rc,
     }
   }
 
-  h->counters[counter] += increment;
+  h->counters[counter]++;
 }
+
+#if 0
+/*
+ * Combination of mib_increment() and logmsg().
+ */
+static void logmib(const rcynic_ctx_t *rc,
+		   const char *uri,
+		   const mib_counter_t counter, 
+		   const log_level_t level, 
+		   const char *fmt, ...)
+{
+}
+#endif
 
 /*
  * Install an object.  It'd be nice if we could just use link(), but
@@ -503,13 +515,12 @@ static int install_object(const rcynic_ctx_t *rc,
 static int next_uri(const rcynic_ctx_t *rc, 
 		    const char *base_uri,
 		    const char *prefix,
-		    char *uri, const int urilen,
+		    char *uri, const size_t urilen,
 		    DIR **dir)
 {
   char path[FILENAME_MAX];
   struct dirent *d;
-  int remaining;
-  size_t len;
+  size_t remaining, len;
 
   assert(base_uri && prefix && uri && dir);
 
@@ -518,7 +529,10 @@ static int next_uri(const rcynic_ctx_t *rc,
        ((*dir = opendir(path)) == NULL)))
     return 0;
 
-  remaining = urilen - strlen(base_uri);
+  len = strlen(base_uri);
+  if (len > urilen)
+    return 0;
+  remaining = urilen - len;
 
   while ((d = readdir(*dir)) != NULL) {
     if (d->d_type != DT_REG || d->d_name[0] == '.')
@@ -546,11 +560,13 @@ static int next_uri(const rcynic_ctx_t *rc,
  */
 static void set_directory(char **out, const char *in)
 {
+  int need_slash;
+  size_t n;
   char *s;
-  int n, need_slash;
 
   assert(in && out);
   n = strlen(in);
+  assert(n > 0);
   need_slash = in[n - 1] != '/';
   s = malloc(n + need_slash + 1);
   assert(s != NULL);
@@ -820,11 +836,9 @@ static int rsync(const rcynic_ctx_t *rc,
   if (WEXITSTATUS(pid_status)) {
     logmsg(rc, log_data_err, "rsync exited with status %d", pid_status);
     ret = 0;
-    mib_increment(rc, uri,
-		  (rc->rsync_timeout && now >= deadline ?
-		   rsync_timed_out
-		   : rsync_failed),
-		  1);
+    mib_increment(rc, uri, (rc->rsync_timeout && now >= deadline
+			    ? rsync_timed_out
+			    : rsync_failed));
   } else {
     ret = 1;
   }
@@ -908,9 +922,9 @@ static void extract_crldp_uri(const STACK_OF(DIST_POINT) *crldp,
     assert(n != NULL);
     if (n->type != GEN_URI)
       return;
-    if (is_rsync(n->d.uniformResourceIdentifier->data) &&
+    if (is_rsync((char *) n->d.uniformResourceIdentifier->data) &&
 	urilen > n->d.uniformResourceIdentifier->length) {
-      strcpy(uri, n->d.uniformResourceIdentifier->data);
+      strcpy(uri, (char *) n->d.uniformResourceIdentifier->data);
       return;
     }
   }
@@ -933,9 +947,9 @@ static void extract_access_uri(const AUTHORITY_INFO_ACCESS *xia,
       return;
     if (a->method->length == oidlen &&
 	!memcmp(a->method->data, oid, oidlen) &&
-	is_rsync(a->location->d.uniformResourceIdentifier->data) &&
+	is_rsync((char *) a->location->d.uniformResourceIdentifier->data) &&
 	urilen > a->location->d.uniformResourceIdentifier->length) {
-      strcpy(uri, a->location->d.uniformResourceIdentifier->data);
+      strcpy(uri, (char *) a->location->d.uniformResourceIdentifier->data);
       return;
     }
   }
@@ -1624,7 +1638,7 @@ int main(int argc, char *argv[])
       assert(h);
       for (j = 0; j < MIB_COUNTER_T_MAX; ++j)
 	if (h->counters[j])
-	  logmsg(&rc, log_telemetry, "counter[%s][%s] = %ld",
+	  logmsg(&rc, log_telemetry, "counter[%s][%s] = %lu",
 		 h->hostname, mib_counter_name[j], h->counters[j]);
     }
   }

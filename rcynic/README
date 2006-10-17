@@ -488,3 +488,49 @@ jailgroup="rcynic"
 
 /usr/sbin/chroot -u "$jailuser" -g "$jailgroup" "$jaildir" \
     /bin/rcynic -c /etc/rcynic.conf
+
+
+
+To do:
+
+- Type cleanups:
+
+OpenSSL uses int in many places where modern coding style would use
+size_t.  I used int to be compatable with OpenSSL, but this generates
+compiler warnings when mixed with functions using size_t.  Least bad
+solution is probably to use size_t everywhere and cast to int when
+calling into OpenSSL.
+
+- Statistics logging.
+
+Add a counter-fiddling function called inline, then digest and log
+results at end.
+
+Fiddling function would look something like:
+
+  typedef enum {
+    rsync_failed,
+    accepted_current_cert,
+    accepted_current_crl,
+    accepted_backup_cert,
+    accepted_backup_crl,
+    rejected_current_cert,
+    rejected_current_crl,
+    rejected_backup_cert,
+    rejected_backup_crl,
+    COUNTER_T_MAX
+  } counter_t;
+
+  void record_stat(const rcynic_ctx_t *rc,
+                   const char *uri,
+		   counter_t counter,
+		   long increment);
+
+  typedef struct {
+    char hostname[URI_MAX];
+    long counters[COUNTER_T_MAX];
+  } host_counter_t;
+
+Most (all?) things would be hostname-based rather than URI-based, but
+this way we can localize the URI -> hostname transformation in one
+place and not worry about it.

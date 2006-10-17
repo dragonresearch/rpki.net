@@ -72,6 +72,7 @@
 #define LOG_LEVELS							\
   QQ(log_sys_err,	LOG_ERR)	/* Error from OS or library  */	\
   QQ(log_usage_err,	LOG_ERR)	/* Bad usage (local error)   */	\
+  QQ(log_summary,	LOG_INFO)	/* Summary at end of run     */ \
   QQ(log_data_err,	LOG_NOTICE)	/* Bad data, no biscuit      */	\
   QQ(log_telemetry,	LOG_INFO)	/* Normal progress chatter   */	\
   QQ(log_verbose,	LOG_INFO)	/* Extra chatter             */ \
@@ -412,7 +413,10 @@ static void mib_increment(const rcynic_ctx_t *rc,
   char hostname[URI_MAX];
   char *s;
 
-  assert(rc && uri && rc->host_counters);
+  assert(rc && uri);
+
+  if (!rc->host_counters)
+    return;
 
   if (!uri_to_filename(uri, hostname, sizeof(hostname), NULL)) {
     logmsg(rc, log_data_err, "Couldn't convert URI %s to hostname", uri);
@@ -1338,7 +1342,7 @@ int main(int argc, char *argv[])
   int opt_jitter = 0, use_syslog = 0, syslog_facility = 0, syslog_perror = 0;
   int opt_syslog = 0, opt_stdouterr = 0, opt_level = 0, opt_perror = 0;
   char *cfg_file = "rcynic.conf", path[FILENAME_MAX], *lockfile = NULL;
-  int c, i, j, ret = 1, jitter = 600, lockfd = -1;
+  int c, i, j, ret = 1, jitter = 600, lockfd = -1, summary = 0;
   STACK_OF(CONF_VALUE) *cfg_section = NULL;
   STACK_OF(X509) *certs = NULL;
   CONF *cfg_handle = NULL;
@@ -1476,6 +1480,10 @@ int main(int argc, char *argv[])
 			       facilitynames, val->value))
       goto done;
 
+    else if (!name_cmp(val->name, "summary") &&
+	     !configure_boolean(&rc, &summary, val->value))
+      goto done;
+
     /*
      * Ugly, but the easiest way to handle all these strings.
      */
@@ -1497,7 +1505,7 @@ int main(int argc, char *argv[])
     goto done;
   }
 
-  if ((rc.host_counters = sk_new(host_counter_cmp)) == NULL) {
+  if (summary && (rc.host_counters = sk_new(host_counter_cmp)) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate host_counters stack");
     goto done;
   }
@@ -1633,21 +1641,15 @@ int main(int argc, char *argv[])
   log_openssl_errors(&rc);
 
   if (rc.host_counters) {
+    logmsg(&rc, log_telemetry, "Summary by repository host:");
     for (i = 0; i < sk_num(rc.host_counters); i++) {
       host_mib_counter_t *h = (void *) sk_value(rc.host_counters, i);
-      int started = 0;
-
       assert(h);
-      for (j = 0; j < MIB_COUNTER_T_MAX; ++j) {
-	if (!h->counters[j])
-	  continue;
-	if (!started) {
-	  logmsg(&rc, log_telemetry, "Summary for %s:", h->hostname);
-	  started = 1;
-	}
-	logmsg(&rc, log_telemetry, "  %10lu %s",
-	       h->counters[j], mib_counter_name[j]);
-      }
+      logmsg(&rc, log_telemetry, " %s:", h->hostname);
+      for (j = 0; j < MIB_COUNTER_T_MAX; ++j)
+	if (h->counters[j])
+	  logmsg(&rc, log_telemetry, "  %5lu %s",
+		 h->counters[j], mib_counter_name[j]);
     }
   }
 

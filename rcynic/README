@@ -501,36 +501,24 @@ compiler warnings when mixed with functions using size_t.  Least bad
 solution is probably to use size_t everywhere and cast to int when
 calling into OpenSSL.
 
-- Statistics logging.
+- Statistics and logging.
 
-Add a counter-fiddling function called inline, then digest and log
-results at end.
+Added a MIB counter mechanism, still needs work:
 
-Fiddling function would look something like:
+-- Better summary at end of run, with a config file variable to
+   disable it, more useful formatting/organization, and an appropriate
+   log level (can be fairly high, since we assume separate config file
+   variable to enable the summary system).
 
-  typedef enum {
-    rsync_failed,
-    accepted_current_cert,
-    accepted_current_crl,
-    accepted_backup_cert,
-    accepted_backup_crl,
-    rejected_current_cert,
-    rejected_current_crl,
-    rejected_backup_cert,
-    rejected_backup_crl,
-    COUNTER_T_MAX
-  } counter_t;
+-- Could consolidate a lot of the junk with a new routine that was a
+   combination of mib_increment() and logmsg().  For things that
+   should be logged in verbose mode and summarized in summary mode,
+   the easiest thing would be a single routine that took all the
+   arguments necessary to do either or both, and did the right thing
+   for the current settings.
 
-  void record_stat(const rcynic_ctx_t *rc,
-                   const char *uri,
-		   counter_t counter,
-		   long increment);
+   Yes, this involves creation of even more MIB counters, good thing
+   this is a general mechanism.
 
-  typedef struct {
-    char hostname[URI_MAX];
-    long counters[COUNTER_T_MAX];
-  } host_counter_t;
-
-Most (all?) things would be hostname-based rather than URI-based, but
-this way we can localize the URI -> hostname transformation in one
-place and not worry about it.
+-- Better names for the MIB counters we have, and clean up the ones
+   that we don't end up using.

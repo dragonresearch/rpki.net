@@ -21,16 +21,6 @@ rcynic_start()
 	/bin/test -d "${rcynic_jaildir}" || /bin/mkdir "${rcynic_jaildir}"
 	/sbin/umount "${rcynic_jaildir}/dev" 2>/dev/null
 
-	/bin/chmod -R a-w "${rcynic_jaildir}"
-	/usr/sbin/chown -R root:wheel "${rcynic_jaildir}"
-
-	/bin/chmod -R u+w "${rcynic_jaildir}/data"
-	/usr/sbin/chown -R "${rcynic_user}:${rcynic_group}" "${rcynic_jaildir}/data"
-
-	if /bin/test -S "${rcynic_jaildir}/var/run/log"; then
-		/bin/chmod 666 "${rcynic_jaildir}/var/run/log"
-	fi
-
 	/usr/sbin/mtree -deU -p "${rcynic_jaildir}" <<EOF
 
 		/set type=dir uname=root gname=wheel mode=0555
@@ -51,6 +41,9 @@ rcynic_start()
 			..
 		..
 EOF
+
+	/bin/chmod -R a-w "${rcynic_jaildir}/bin" "${rcynic_jaildir}/etc"
+	/usr/sbin/chown -R root:wheel "${rcynic_jaildir}/bin" "${rcynic_jaildir}/etc"
 
 	if ! /sbin/mount -t devfs dev "${rcynic_jaildir}/dev"; then
 		echo "Mounting devfs on ${rcynic_jaildir}/dev failed..."

@@ -1153,7 +1153,8 @@ static int check_x509(const rcynic_ctx_t *rc,
 				OBJ_txt2obj("1.3.6.1.5.5.7.14.2", 0));
 
  if (X509_verify_cert(&rctx.ctx) <= 0) {
-    logmsg(rc, log_data_err, "Validation failure for %s", subj->uri);
+    logmsg(rc, log_data_err, "Validation failure for %s",
+	   subj->uri[0] ? subj->uri : subj->ta ? "[Trust anchor]" : "[???]");
     goto done;
   }
 

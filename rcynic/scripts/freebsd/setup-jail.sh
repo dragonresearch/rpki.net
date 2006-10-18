@@ -36,9 +36,7 @@ if ! /bin/test -d "${jaildir}"; then
     /bin/mkdir "${jaildir}"
 fi
 
-if /bin/test -e /usr/local/etc/rc.d/rcynic; then
-    echo "You already have a \"/usr/local/etc/rc.d/rcynic\" script, I will leave it alone"
-elif /usr/bin/install -m 555 -o root -g wheel -p rc.d.rcynic /usr/local/etc/rc.d/rcynic; then
+if /usr/bin/install -m 555 -o root -g wheel -p rc.d.rcynic /usr/local/etc/rc.d/rcynic; then
     echo "Installed rc.d.rcynic as /usr/local/etc/rc.d/rcynic"
 else
     echo "Installing /usr/local/etc/rc.d/rcynic failed"

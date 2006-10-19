@@ -106,7 +106,8 @@ static const struct {
   QQ(current_crl_rejected,	"current CRLs rejected")		\
   QQ(rsync_failed,		"rsync transfers failed")		\
   QQ(rsync_succeeded,		"rsync transfers succeeded")		\
-  QQ(rsync_timed_out,		"rsync transfers timed out")
+  QQ(rsync_timed_out,		"rsync transfers timed out")		\
+  QQ(stale_crl,			"stale CRLs")
 
 #define QQ(x,y) x ,
 typedef enum mib_counter { MIB_COUNTERS MIB_COUNTER_T_MAX } mib_counter_t;
@@ -140,7 +141,7 @@ typedef struct rcynic_ctx {
   char *authenticated, *old_authenticated, *unauthenticated;
   char *jane, *rsync_program;
   STACK *rsync_cache, *host_counters;
-  int indent, rsync_timeout, use_syslog, use_stdouterr;
+  int indent, rsync_timeout, use_syslog, use_stdouterr, allow_stale_crl;
   int priority[LOG_LEVEL_T_MAX];
   log_level_t log_level;
   X509_STORE *x509_store;
@@ -1083,6 +1084,20 @@ static int check_cert_cb(int ok, X509_STORE_CTX *ctx)
      * a failure for the calling function.  Just leave these alone.
      */
     break;
+  case X509_V_ERR_CRL_HAS_EXPIRED:
+    /*
+     * This may not be an error at all.  CRLs don't really "expire",
+     * although the signatures over them do.  What OpenSSL really
+     * means by this error is just "it's now later than this source
+     * said it intended to publish a new CRL.  Unclear whether this
+     * should be an error; current theory is that it should not be.
+     */
+    logmsg(rctx->rc, log_telemetry, "Stale CRL %s while checking %s",
+	   rctx->subj->crldp, rctx->subj->uri);
+    mib_increment(rctx->rc, rctx->subj->uri, stale_crl);
+    if (rctx->rc->allow_stale_crl)
+      ok = 1;
+    break;
   default:
   if (!ok)
     logmsg(rctx->rc, log_data_err,
@@ -1493,6 +1508,10 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "summary") &&
 	     !configure_boolean(&rc, &summary, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "allow-stale-crl") &&
+	     !configure_boolean(&rc, &rc.allow_stale_crl, val->value))
       goto done;
 
     /*

@@ -223,6 +223,12 @@ summary			Enable logging of a per-host summary at the
 			Summary data is logged at log_summary level.
 			Values: true or false.  Default: false
 
+allow-stale-crl		Allow use of CRLs which are past their
+			nextUpdate timestamp.  This is probably
+			harmless, but since it may be an early warning
+			of problems, it's configurable.
+			Values: true or false.  Default: false
+
 
 
 Running rcynic chrooted

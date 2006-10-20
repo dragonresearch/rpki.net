@@ -1703,7 +1703,8 @@ int main(int argc, char *argv[])
 
   if (start) {
     finish = time(0);
-    logmsg(&rc, log_telemetry, "Finished, elapsed time %d:%02d:%02d",
+    logmsg(&rc, (rc.host_counters ? log_summary : log_telemetry),
+	   "Finished, elapsed time %d:%02d:%02d",
 	   (finish - start) / 3600,
 	   (finish - start) / 60 % 60,
 	   (finish - start) % 60);

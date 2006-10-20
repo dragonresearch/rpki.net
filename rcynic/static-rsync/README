@@ -1,0 +1,3 @@
+$Id$
+
+Hack to build a static rsync binary suitable for use in a chroot jail.

@@ -141,7 +141,7 @@ typedef struct rcynic_ctx {
   char *authenticated, *old_authenticated, *unauthenticated;
   char *jane, *rsync_program;
   STACK *rsync_cache, *host_counters;
-  int indent, rsync_timeout, use_syslog, use_stdouterr, allow_stale_crl;
+  int indent, rsync_timeout, use_syslog, use_stdout, allow_stale_crl;
   int priority[LOG_LEVEL_T_MAX];
   log_level_t log_level;
   X509_STORE *x509_store;
@@ -177,7 +177,7 @@ static void logmsg(const rcynic_ctx_t *rc,
   if (rc->log_level < level)
     return;
 
-  if (rc->use_syslog && rc->use_stdouterr) {
+  if (rc->use_syslog && rc->use_stdout) {
     va_start(ap, fmt);
     va_copy(aq, ap);
   } else if (rc->use_syslog) {
@@ -186,21 +186,20 @@ static void logmsg(const rcynic_ctx_t *rc,
     va_start(ap, fmt);
   }
 
-  if (rc->use_stdouterr || !rc->use_syslog) {
-    FILE *f = level == log_telemetry || level == log_verbose ? stdout : stderr;
+  if (rc->use_stdout || !rc->use_syslog) {
     char tad[30];
     time_t tad_time = time(0);
     struct tm *tad_tm = localtime(&tad_time);
 
     strftime(tad, sizeof(tad), "%H:%M:%S", tad_tm);
-    fprintf(f, "%s: ", tad);
+    printf("%s: ", tad);
     if (rc->jane)
-      fprintf(f, "%s: ", rc->jane);
+      printf("%s: ", rc->jane);
     if (rc->indent)
-      fprintf(f, "%*s", rc->indent, " ");
-    vfprintf(f, fmt, ap);
+      printf("%*s", rc->indent, " ");
+    vprintf(fmt, ap);
     va_end(ap);
-    putc('\n', f);
+    putchar('\n');
   }
 
   if (rc->use_syslog) {
@@ -1366,7 +1365,7 @@ static void walk_cert(rcynic_ctx_t *rc,
 int main(int argc, char *argv[])
 {
   int opt_jitter = 0, use_syslog = 0, syslog_facility = 0, syslog_perror = 0;
-  int opt_syslog = 0, opt_stdouterr = 0, opt_level = 0, opt_perror = 0;
+  int opt_syslog = 0, opt_stdout = 0, opt_level = 0, opt_perror = 0;
   char *cfg_file = "rcynic.conf", path[FILENAME_MAX], *lockfile = NULL;
   int c, i, j, ret = 1, jitter = 600, lockfd = -1, summary = 0;
   STACK_OF(CONF_VALUE) *cfg_section = NULL;
@@ -1411,7 +1410,7 @@ int main(int argc, char *argv[])
       use_syslog = opt_syslog = 1;
       break;
     case 't':
-      rc.use_stdouterr = opt_stdouterr = 1;
+      rc.use_stdout = opt_stdout = 1;
       break;
     case 'p':
       syslog_perror = opt_perror = 1;
@@ -1491,9 +1490,9 @@ int main(int argc, char *argv[])
 	     !configure_boolean(&rc, &use_syslog, val->value))
       goto done;
 
-    else if (!opt_stdouterr &&
-	     !name_cmp(val->name, "use-stdouterr") &&
-	     !configure_boolean(&rc, &rc.use_stdouterr, val->value))
+    else if (!opt_stdout &&
+	     !name_cmp(val->name, "use-stdout") &&
+	     !configure_boolean(&rc, &rc.use_stdout, val->value))
       goto done;
 
     else if (!opt_perror &&
@@ -1550,11 +1549,11 @@ int main(int argc, char *argv[])
     goto done;
   }
 
-  if (rc.use_stdouterr && use_syslog && syslog_perror) {
-    if (opt_stdouterr)
+  if (rc.use_stdout && use_syslog && syslog_perror) {
+    if (opt_stdout)
       syslog_perror = 0;
     else
-      rc.use_stdouterr = 0;
+      rc.use_stdout = 0;
   }
 
   rc.use_syslog = use_syslog;

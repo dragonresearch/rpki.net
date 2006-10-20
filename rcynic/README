@@ -115,7 +115,7 @@ Command line options:
  -c configfile	Path to configuration file (default: rcynic.conf)
  -l loglevel	Logging level (default: log_telemetry)
  -s		Log via syslog
- -t		Log via stdout/stderr when also using syslog
+ -t		Log via stdout when also using syslog
  -p		Ask syslog() to send to stderr too
  -j		Start-up jitter interval (see below; default: 600)
 
@@ -175,7 +175,7 @@ use-syslog		Same as -s option on command line.  Command
 			line setting overrides config file setting.
 			Values: true or false.  Default: false
 
-use-stdouterr		Same as -t option on command line.  Command
+use-stdout		Same as -t option on command line.  Command
 			line setting overrides config file setting.
 			Values: true or false.  Default: false
 

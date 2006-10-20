@@ -9,10 +9,7 @@ case "$uname" in
 
 FreeBSD)
 	cd freebsd
-	/bin/sh setup-jail.sh
-	cd ..
-	echo "Installing rcynic..."
-	/usr/bin/install -m 555 -o root -g wheel -p ../rcynic /var/rcynic/bin/rcynic
+	. install.sh
 	;;
 
 *)

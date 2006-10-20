@@ -1,16 +1,16 @@
 #!/bin/sh -
 # $Id$
 #
-# Create a chroot jail for rcynic.  You need to build staticly linked
-# rcynic and rsync binaries and install them in the jail yourself, and
-# you need to configure trust anchors.
+# Create a chroot jail for rcynic.
 #
-# This is approximately what a pkg-install script would do if this were
+# This is approximately what a pkg-install script might do if this were
 # a FreeBSD port.  Perhaps some day it will be.
 
 : ${jaildir="/var/rcynic"}
 : ${jailuser="rcynic"}
 : ${jailgroup="rcynic"}
+
+echo "Setting up \"${jaildir}\" as a chroot jail for rcynic."
 
 if /usr/sbin/pw groupshow "${jailgroup}" 2>/dev/null; then
     echo "You already have a group \"${jailgroup}\", so I will use it."
@@ -50,20 +50,17 @@ if ! rcynic_jaildir="$jaildir" rcynic_user="$jailuser" rcynic_group="$jailgroup"
     exit 1
 fi
 
-# Should we install default trust anchors?   Probably.
-#
-#for i in trust-anchors/*.cer; do
-#    j="$jaildir/etc/trust-anchors/${i##*/}"
-#    /bin/test -r "$i" || continue
-#    /bin/test -r "$j" && continue
-#    echo "Installing $i as $j"
-#    /usr/bin/install -m 444 -o root -g wheel -p "$i" "$j"
-#done
-
 if /bin/test -r "$jaildir/etc/rcynic.conf"; then
     echo "You already have config file \"${jaildir}/etc/rcynic.conf\", so I will use it."
 elif /usr/bin/install -m 444 -o root -g wheel -p rcynic.conf "${jaildir}/etc/rcynic.conf"; then
-    echo "Installed minimal ${jaildir}/etc/rcynic.conf"
+    echo "Installed minimal ${jaildir}/etc/rcynic.conf, adding SAMPLE trust anchors"
+    for i in ../../sample-trust-anchors/*.cer; do
+	j="$jaildir/etc/trust-anchors/${i##*/}"
+	/bin/test -r "$i" || continue
+	/bin/test -r "$j" && continue
+	echo "Installing $i as $j"
+	/usr/bin/install -m 444 -o root -g wheel -p "$i" "$j"
+    done
     j=1
     for i in $jaildir/etc/trust-anchors/*.cer; do
 	echo >>"${jaildir}/etc/rcynic.conf" "trust-anchor.$j		= /etc/trust-anchors/${i##*/}"
@@ -74,9 +71,27 @@ else
     exit 1
 fi
 
+echo "Installing rcynic as ${jaildir}/bin/rcynic"
+
+/usr/bin/install -m 555 -o root -g wheel -p ../../rcynic "${jaildir}/bin/rcynic"
+
+if /bin/test ! -x "$jaildir/bin/rsync" -a ! -x ../../static-rsync/rsync; then
+    echo "Building static rsync for jail, this may take a little while"
+    (cd ../../static-rsync && exec make)
+fi
+
+if /bin/test -x "$jaildir/bin/rsync"; then
+    echo "You already have an executable \"$jaildir/bin/rsync\", so I will use it"
+elif /usr/bin/install -m 555 -o root -g wheel -p ../../static-rsync/rsync "${jaildir}/bin/rsync"; then
+    echo "Installed static rsync as \"${jaildir}/bin/rsync\""
+else
+    echo "Installing static rsync failed"
+    exit 1
+fi
+
 echo "Setting up root's crontab to run jailed rcynic"
 
-/usr/bin/crontab -l -u root |
+/usr/bin/crontab -l -u root 2>/dev/null |
 /usr/bin/awk '
     BEGIN {
 	cmd = "exec /usr/sbin/chroot -u rcynic -g rcynic /var/rcynic";
@@ -93,16 +108,16 @@ echo "Setting up root's crontab to run jailed rcynic"
 
 /bin/cat <<EOF
 
-	Jail is set up.  Crontab should be set up to run rcynic hourly, at a
-	randomly selected minute (to spread load on the rsync servers).  Please
-	do NOT adjust this to run on the hour, in particular please do NOT
-	adjust this to run at midnight UTC.
+	Jail is set up, and crontab is set up to run rcynic hourly, at
+	a randomly selected minute (to spread load on the rsync
+	servers).  Please do NOT adjust this to run on the hour.  In
+	particular please do NOT adjust this to run at midnight UTC.
 
-	You still need to build staticly-linked copies of rcynic and rsync
-	(see the rcynic README) and install them in $jaildir/bin.
-
-	You may also need to customize $jaildir/etc/rcynic.conf, particularly
-	if you have not already specified trust anchors for rcynic to use
-	(rcynic will not do anything useful without trust anchors).
+	You may need to customize $jaildir/etc/rcynic.conf.  If you
+	did not install your own trust anchors, a default set of
+	SAMPLE trust anchors may have been installed for you, but you,
+	the relying party, are the only one who can decide whether you
+	trust those anchors.  rcynic will not do anything useful
+	without good trust anchors.
 
 EOF

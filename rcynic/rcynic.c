@@ -830,8 +830,8 @@ static int rsync(const rcynic_ctx_t *rc,
   }
 
   if (WEXITSTATUS(pid_status)) {
-    logmsg(rc, log_data_err, "rsync exited with status %d",
-	   WEXITSTATUS(pid_status));
+    logmsg(rc, log_data_err, "rsync exited with status %d fetching %s",
+	   WEXITSTATUS(pid_status), uri);
     ret = 0;
     mib_increment(rc, uri, (rc->rsync_timeout && now >= deadline
 			    ? rsync_timed_out

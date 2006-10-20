@@ -200,7 +200,7 @@ static void logmsg(const rcynic_ctx_t *rc,
       fprintf(f, "%*s", rc->indent, " ");
     vfprintf(f, fmt, ap);
     va_end(ap);
-    putchar('\n');
+    putc('\n', f);
   }
 
   if (rc->use_syslog) {

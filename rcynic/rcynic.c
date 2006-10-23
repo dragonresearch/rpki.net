@@ -107,7 +107,12 @@ static const struct {
   QQ(rsync_failed,		"rsync transfers failed",	 " -rsy") \
   QQ(rsync_succeeded,		"rsync transfers succeeded",	 " +rsy") \
   QQ(rsync_timed_out,		"rsync transfers timed out",	 " ?rsy") \
-  QQ(stale_crl,			"stale CRLs",			 "stale")
+  QQ(stale_crl,			"stale CRLs",			 "stale") \
+  QQ(malformed_sia,		"malcormed SIA extensionss",	 "badsi") \
+  QQ(sia_missing,		"SIA extensions missing",	 "nosia") \
+  QQ(aia_missing,		"AIA extensions missing",	 "noaia") \
+  QQ(crldp_missing,		"CRLDP extensions missing",	 "nocrl") \
+  QQ(aia_mismatch,		"mismatched AIA extensions",	 "badai")
 
 #define QQ(x,y,z) x ,
 typedef enum mib_counter { MIB_COUNTERS MIB_COUNTER_T_MAX } mib_counter_t;
@@ -1213,32 +1218,42 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
 
   if (subj->sia[0] && subj->sia[strlen(subj->sia) - 1] != '/') {
     logmsg(rc, log_data_err, "Malformed SIA %s for %s", subj->sia, uri);
+    mib_increment(rc, uri, malformed_sia);
     goto punt;
   }
 
   if (!subj->aia[0]) {
     logmsg(rc, log_data_err, "AIA missing for %s", uri);
+    mib_increment(rc, uri, aia_missing);
     goto punt;
   }
 
   if (!issuer->ta && strcmp(issuer->uri, subj->aia)) {
     logmsg(rc, log_data_err, "AIA %s of %s doesn't match parent",
 	   subj->aia, uri);
+    mib_increment(rc, uri, aia_mismatch);
     goto punt;
   }
 
   if (subj->ca && !subj->sia[0]) {
     logmsg(rc, log_data_err, "CA certificate %s without SIA extension", uri);
+    mib_increment(rc, uri, sia_missing);
     goto punt;
   }
 
+#if 0
+  /*
+   * Ongoing discussion about removing this restriction from the profile.
+   */
   if (!subj->ca && subj->sia[0]) {
     logmsg(rc, log_data_err, "EE certificate %s with SIA extension", uri);
     goto punt;
   }
+#endif
 
   if (!subj->crldp[0]) {
     logmsg(rc, log_data_err, "Missing CRLDP extension for %s", uri);
+    mib_increment(rc, uri, crldp_missing);
     goto punt;
   }
 

@@ -95,25 +95,25 @@ static const struct {
  * MIB counters
  */
 
-#define MIB_COUNTERS							\
-  QQ(backup_cert_accepted,	"backup certificates accepted")		\
-  QQ(backup_cert_rejected,	"backup certificates rejected")		\
-  QQ(backup_crl_accepted,	"backup CRLs accepted")			\
-  QQ(backup_crl_rejected,	"backup CRLs rejected")			\
-  QQ(current_cert_accepted,	"current certificates accepted")	\
-  QQ(current_cert_rejected,	"current certificates rejected")	\
-  QQ(current_crl_accepted,	"current CRLs accepted")		\
-  QQ(current_crl_rejected,	"current CRLs rejected")		\
-  QQ(rsync_failed,		"rsync transfers failed")		\
-  QQ(rsync_succeeded,		"rsync transfers succeeded")		\
-  QQ(rsync_timed_out,		"rsync transfers timed out")		\
-  QQ(stale_crl,			"stale CRLs")
+#define MIB_COUNTERS							  \
+  QQ(backup_cert_accepted,	"backup certificates accepted",	 "+bcer") \
+  QQ(backup_cert_rejected,	"backup certificates rejected",	 "-bcer") \
+  QQ(backup_crl_accepted,	"backup CRLs accepted",		 "+bcrl") \
+  QQ(backup_crl_rejected,	"backup CRLs rejected",		 "-bcrl") \
+  QQ(current_cert_accepted,	"current certificates accepted", " +cer") \
+  QQ(current_cert_rejected,	"current certificates rejected", " -cer") \
+  QQ(current_crl_accepted,	"current CRLs accepted",	 " +crl") \
+  QQ(current_crl_rejected,	"current CRLs rejected",	 " -crl") \
+  QQ(rsync_failed,		"rsync transfers failed",	 " -rsy") \
+  QQ(rsync_succeeded,		"rsync transfers succeeded",	 " +rsy") \
+  QQ(rsync_timed_out,		"rsync transfers timed out",	 " ?rsy") \
+  QQ(stale_crl,			"stale CRLs",			 "stale")
 
-#define QQ(x,y) x ,
+#define QQ(x,y,z) x ,
 typedef enum mib_counter { MIB_COUNTERS MIB_COUNTER_T_MAX } mib_counter_t;
 #undef	QQ
 
-#define QQ(x,y) y ,
+#define QQ(x,y,z) y ,
 static const char * const mib_counter_name[] = { MIB_COUNTERS NULL };
 #undef	QQ
 
@@ -1367,7 +1367,7 @@ int main(int argc, char *argv[])
   int opt_jitter = 0, use_syslog = 0, syslog_facility = 0, syslog_perror = 0;
   int opt_syslog = 0, opt_stdout = 0, opt_level = 0, opt_perror = 0;
   char *cfg_file = "rcynic.conf", path[FILENAME_MAX], *lockfile = NULL;
-  int c, i, j, ret = 1, jitter = 600, lockfd = -1, summary = 0;
+  int c, i, j, ret = 1, jitter = 600, lockfd = -1, summary = 0, terse = 0;
   STACK_OF(CONF_VALUE) *cfg_section = NULL;
   STACK_OF(X509) *certs = NULL;
   CONF *cfg_handle = NULL;
@@ -1509,6 +1509,10 @@ int main(int argc, char *argv[])
 	     !configure_boolean(&rc, &summary, val->value))
       goto done;
 
+    else if (!name_cmp(val->name, "terse-summary") &&
+	     !configure_boolean(&rc, &terse, val->value))
+      goto done;
+
     else if (!name_cmp(val->name, "allow-stale-crl") &&
 	     !configure_boolean(&rc, &rc.allow_stale_crl, val->value))
       goto done;
@@ -1528,6 +1532,8 @@ int main(int argc, char *argv[])
 #undef QQ
 
   }
+
+  summary |= terse;
 
   if ((rc.rsync_cache = sk_new(rsync_cmp)) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate rsync_cache stack");
@@ -1669,7 +1675,37 @@ int main(int argc, char *argv[])
  done:
   log_openssl_errors(&rc);
 
-  if (rc.host_counters) {
+  if (rc.host_counters && terse) {
+    /*
+     * Macrology here is demented, don't read right after eating.
+     */
+    host_mib_counter_t *h;
+    size_t hlen = sizeof("host") - 1;
+
+    for (i = 0; i < sk_num(rc.host_counters); i++) {
+      h = (void *) sk_value(rc.host_counters, i);
+      assert(h);
+      if (hlen < strlen(h->hostname))
+	hlen = strlen(h->hostname);
+    }
+
+#define QQ(x,y,z) " " z
+    logmsg(&rc, log_summary, "%*s" MIB_COUNTERS, hlen, "host");
+#undef	QQ
+
+    for (i = 0; i < sk_num(rc.host_counters); i++) {
+      h = (void *) sk_value(rc.host_counters, i);
+
+      logmsg(&rc, log_summary,
+#define QQ(x,y,z) " %*lu"
+	     "%*s" MIB_COUNTERS,
+#undef	QQ
+#define	QQ(x,y,z) , sizeof(z) - 1 , h->counters[x]
+	     hlen, h->hostname MIB_COUNTERS
+#undef	QQ
+	     );
+    }
+  } else if (rc.host_counters) {
     logmsg(&rc, log_summary, "Summary by repository host:");
     for (i = 0; i < sk_num(rc.host_counters); i++) {
       host_mib_counter_t *h = (void *) sk_value(rc.host_counters, i);

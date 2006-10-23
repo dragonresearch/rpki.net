@@ -122,6 +122,10 @@ typedef enum mib_counter { MIB_COUNTERS MIB_COUNTER_T_MAX } mib_counter_t;
 static const char * const mib_counter_name[] = { MIB_COUNTERS NULL };
 #undef	QQ
 
+#define QQ(x,y,z) #x ,
+static const char * const mib_counter_label[] = { MIB_COUNTERS NULL };
+#undef	QQ
+
 /*
  * Per-host MIB counter object.
  * hostname[] must be first element.
@@ -1381,7 +1385,8 @@ int main(int argc, char *argv[])
 {
   int opt_jitter = 0, use_syslog = 0, syslog_facility = 0, syslog_perror = 0;
   int opt_syslog = 0, opt_stdout = 0, opt_level = 0, opt_perror = 0;
-  char *cfg_file = "rcynic.conf", path[FILENAME_MAX], *lockfile = NULL;
+  char *cfg_file = "rcynic.conf", path[FILENAME_MAX];
+  char *lockfile = NULL, *xmlfile = NULL;
   int c, i, j, ret = 1, jitter = 600, lockfd = -1, summary = 0, terse = 0;
   STACK_OF(CONF_VALUE) *cfg_section = NULL;
   STACK_OF(X509) *certs = NULL;
@@ -1528,6 +1533,9 @@ int main(int argc, char *argv[])
 	     !configure_boolean(&rc, &terse, val->value))
       goto done;
 
+    else if (!name_cmp(val->name, "xml-summary"))
+      xmlfile = strdup(val->value);
+
     else if (!name_cmp(val->name, "allow-stale-crl") &&
 	     !configure_boolean(&rc, &rc.allow_stale_crl, val->value))
       goto done;
@@ -1548,14 +1556,13 @@ int main(int argc, char *argv[])
 
   }
 
-  summary |= terse;
-
   if ((rc.rsync_cache = sk_new(rsync_cmp)) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate rsync_cache stack");
     goto done;
   }
 
-  if (summary && (rc.host_counters = sk_new(host_counter_cmp)) == NULL) {
+  if ((summary || terse || xmlfile) &&
+      (rc.host_counters = sk_new(host_counter_cmp)) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate host_counters stack");
     goto done;
   }
@@ -1690,47 +1697,100 @@ int main(int argc, char *argv[])
  done:
   log_openssl_errors(&rc);
 
-  if (rc.host_counters && terse) {
-    /*
-     * Macrology here is demented, don't read right after eating.
-     */
-    host_mib_counter_t *h;
-    size_t hlen = sizeof("host") - 1;
+  if (rc.host_counters) {
 
-    for (i = 0; i < sk_num(rc.host_counters); i++) {
-      h = (void *) sk_value(rc.host_counters, i);
-      assert(h);
-      if (hlen < strlen(h->hostname))
-	hlen = strlen(h->hostname);
-    }
+    if (terse) {
+      /*
+       * Macrology here is demented, don't read right after eating.
+       */
+      host_mib_counter_t *h;
+      size_t hlen = sizeof("host") - 1;
+
+      for (i = 0; i < sk_num(rc.host_counters); i++) {
+	h = (void *) sk_value(rc.host_counters, i);
+	assert(h);
+	if (hlen < strlen(h->hostname))
+	  hlen = strlen(h->hostname);
+      }
 
 #define QQ(x,y,z) " " z
-    logmsg(&rc, log_summary, "%*s" MIB_COUNTERS, hlen, "host");
+      logmsg(&rc, log_summary, "%*s" MIB_COUNTERS, hlen, "host");
 #undef	QQ
 
-    for (i = 0; i < sk_num(rc.host_counters); i++) {
-      h = (void *) sk_value(rc.host_counters, i);
+      for (i = 0; i < sk_num(rc.host_counters); i++) {
+	h = (void *) sk_value(rc.host_counters, i);
 
-      logmsg(&rc, log_summary,
+	logmsg(&rc, log_summary,
 #define QQ(x,y,z) " %*lu"
-	     "%*s" MIB_COUNTERS,
+	       "%*s" MIB_COUNTERS,
 #undef	QQ
 #define	QQ(x,y,z) , sizeof(z) - 1 , h->counters[x]
-	     hlen, h->hostname MIB_COUNTERS
+	       hlen, h->hostname MIB_COUNTERS
 #undef	QQ
-	     );
+	       );
+      }
     }
-  } else if (rc.host_counters) {
-    logmsg(&rc, log_summary, "Summary by repository host:");
-    for (i = 0; i < sk_num(rc.host_counters); i++) {
-      host_mib_counter_t *h = (void *) sk_value(rc.host_counters, i);
-      assert(h);
-      logmsg(&rc, log_summary, " %s:", h->hostname);
-      for (j = 0; j < MIB_COUNTER_T_MAX; ++j)
-	if (h->counters[j])
-	  logmsg(&rc, log_summary, "  %5lu %s",
-		 h->counters[j], mib_counter_name[j]);
+
+    if (summary) {
+      logmsg(&rc, log_summary, "Summary by repository host:");
+      for (i = 0; i < sk_num(rc.host_counters); i++) {
+	host_mib_counter_t *h = (void *) sk_value(rc.host_counters, i);
+	assert(h);
+	logmsg(&rc, log_summary, " %s:", h->hostname);
+	for (j = 0; j < MIB_COUNTER_T_MAX; ++j)
+	  if (h->counters[j])
+	    logmsg(&rc, log_summary, "  %5lu %s",
+		   h->counters[j], mib_counter_name[j]);
+      }
     }
+
+    if (xmlfile) {
+      FILE *f = fopen(xmlfile, "w");
+      int ok = f != NULL;
+
+      if (ok)
+	logmsg(&rc, log_telemetry, "Writing XML summary to %s", xmlfile);
+
+      if (ok)
+	ok &= fprintf(f, "<?xml version=\"1.0\" ?>\n"
+		      "<rcynic-summary>\n"
+		      "  <labels>\n"
+		      "    <hostname>Hostname</hostname>\n") != EOF;
+
+      for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
+	ok &= fprintf(f, "    <%s>%s</%s>\n", mib_counter_label[j],
+		      mib_counter_name[j], mib_counter_label[j]) != EOF;
+
+      if (ok)
+	ok &= fprintf(f, "  </labels>\n") != EOF;
+
+      for (i = 0; ok && i < sk_num(rc.host_counters); i++) {
+	host_mib_counter_t *h = (void *) sk_value(rc.host_counters, i);
+	assert(h);
+
+	if (ok)
+	  ok &= fprintf(f, "  <host>\n    <hostname>%s</hostname>\n",
+			h->hostname) != EOF;
+
+	for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
+	  ok &= fprintf(f, "    <%s>%lu</%s>\n", mib_counter_label[j],
+			h->counters[j], mib_counter_label[j]) != EOF;
+
+	if (ok)
+	  ok &= fprintf(f, "  </host>\n") != EOF;
+      }
+
+      if (ok)
+	ok &= fprintf(f, "</rcynic-summary>\n") != EOF;
+
+      if (f)
+	ok &= fclose(f) != EOF;
+
+      if (!ok)
+	logmsg(&rc, log_sys_err, "Couldn't write XML summary to %s: %s",
+	       xmlfile, strerror(errno));
+    }
+
   }
 
   /*

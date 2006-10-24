@@ -89,6 +89,13 @@ else
     exit 1
 fi
 
+if /usr/bin/install -m 444 -o root -g wheel -p ../../rcynic.xsl "${jaildir}/etc/rcynic.xsl"; then
+    echo "Installed rcynic.xsl as \"${jaildir}/etc/rcynic.xsl\""
+else
+    echo "Installing rcynic.xsl failed"
+    exit 1
+fi
+
 echo "Setting up root's crontab to run jailed rcynic"
 
 /usr/bin/crontab -l -u root 2>/dev/null |

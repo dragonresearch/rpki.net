@@ -45,8 +45,7 @@
 	  <thead>
 	    <tr>
 	      <xsl:for-each select="rcynic-summary/labels/*">
-	        <xsl:variable name="name" select="local-name()"/>
-		<xsl:if test="$suppress-zero-columns = 0 or count(/rcynic-summary/host/*[local-name() = $name and . != 0]) &gt; 0">
+		<xsl:if test="$suppress-zero-columns = 0 or count(/rcynic-summary/host/*[name() = name(current()) and . != 0]) &gt; 0">
 		  <td>
 		    <b>
 		      <xsl:apply-templates/>
@@ -60,8 +59,7 @@
 	    <xsl:for-each select="rcynic-summary/host">
 	      <tr>
 	        <xsl:for-each select="*">
-		  <xsl:variable name="name" select="local-name()"/>
-		  <xsl:if test="$suppress-zero-columns = 0 or count(/rcynic-summary/host/*[local-name() = $name and . != 0]) &gt; 0">
+		  <xsl:if test="$suppress-zero-columns = 0 or count(/rcynic-summary/host/*[name() = name(current()) and . != 0]) &gt; 0">
 		    <td>
 		      <xsl:apply-templates/>
 		    </td>

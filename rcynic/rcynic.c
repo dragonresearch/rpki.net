@@ -108,7 +108,7 @@ static const struct {
   QQ(rsync_succeeded,		"rsync transfers succeeded",	 " +rsy") \
   QQ(rsync_timed_out,		"rsync transfers timed out",	 " ?rsy") \
   QQ(stale_crl,			"stale CRLs",			 "stale") \
-  QQ(malformed_sia,		"malformed SIA extensionss",	 "badsi") \
+  QQ(malformed_sia,		"malformed SIA extensions",	 "badsi") \
   QQ(sia_missing,		"SIA extensions missing",	 "nosia") \
   QQ(aia_missing,		"AIA extensions missing",	 "noaia") \
   QQ(crldp_missing,		"CRLDP extensions missing",	 "nocrl") \
@@ -1697,7 +1697,7 @@ int main(int argc, char *argv[])
  done:
   log_openssl_errors(&rc);
 
-  if (rc.host_counters) {
+  if (sk_num(rc.host_counters) > 0) {
 
     if (terse) {
       /*

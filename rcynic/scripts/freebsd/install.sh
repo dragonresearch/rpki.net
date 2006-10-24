@@ -9,6 +9,7 @@
 : ${jaildir="/var/rcynic"}
 : ${jailuser="rcynic"}
 : ${jailgroup="rcynic"}
+: ${setupcron="NO"}
 
 echo "Setting up \"${jaildir}\" as a chroot jail for rcynic."
 
@@ -98,33 +99,53 @@ fi
 
 echo "Setting up root's crontab to run jailed rcynic"
 
-/usr/bin/crontab -l -u root 2>/dev/null |
-/usr/bin/awk '
-    BEGIN {
-	cmd = "exec /usr/sbin/chroot -u rcynic -g rcynic /var/rcynic";
-	cmd = cmd " /bin/rcynic -c /etc/rcynic.conf";
-    }
-    $0 !~ cmd {
-	print;
-    }
-    END {
-	"/usr/bin/hexdump -n 2 -e \"\\\"%u\\\\\\n\\\"\" /dev/random" | getline;
-	printf "%u * * * *\t%s\n", $1 % 60, cmd;
-    }' |
-/usr/bin/crontab -u root -
+case "$setupcron" in
+YES|yes)
+    /usr/bin/crontab -l -u root 2>/dev/null |
+    /usr/bin/awk -v "jailuser=$jailuser" -v "jailgroup=$jailgroup" -v "jaildir=$jaildir" '
+	BEGIN {
+	    cmd = "exec /usr/sbin/chroot -u " jailuser " -g " jailgroup " " jaildir;
+	    cmd = cmd " /bin/rcynic -c /etc/rcynic.conf";
+	}
+	$0 !~ cmd {
+	    print;
+	}
+	END {
+	    "/usr/bin/hexdump -n 2 -e \"\\\"%u\\\\\\n\\\"\" /dev/random" | getline;
+	    printf "%u * * * *\t%s\n", $1 % 60, cmd;
+	}' |
+    /usr/bin/crontab -u root -
+    /bin/cat <<EOF
+
+	crontab is set up to run rcynic hourly, at a randomly selected
+	minute (to spread load on the rsync servers).  Please do NOT
+	adjust this to run on the hour.  In particular please do NOT
+	adjust this to run at midnight UTC.
+EOF
+    ;;
+
+*)
+    /bin/cat <<EOF
+
+	You'll need to add a crontab entry running the following command as root:
+
+	    /usr/sbin/chroot -u $jailuser -g $jailgroup $jaildir /bin/rcynic -c /etc/rcynic.conf
+
+	Please try to pick a random time for this, don't just run it on the hour,
+	or at local midnight, or, worst of all, at midnight UTC.
+
+EOF
+    ;;
+
+esac
 
 /bin/cat <<EOF
 
-	Jail is set up, and crontab is set up to run rcynic hourly, at
-	a randomly selected minute (to spread load on the rsync
-	servers).  Please do NOT adjust this to run on the hour.  In
-	particular please do NOT adjust this to run at midnight UTC.
-
-	You may need to customize $jaildir/etc/rcynic.conf.  If you
-	did not install your own trust anchors, a default set of
-	SAMPLE trust anchors may have been installed for you, but you,
-	the relying party, are the only one who can decide whether you
-	trust those anchors.  rcynic will not do anything useful
-	without good trust anchors.
+	Jail set up. You may need to customize $jaildir/etc/rcynic.conf.
+	If you did not install your own trust anchors, a default set
+	of SAMPLE trust anchors may have been installed for you, but
+	you, the relying party, are the only one who can decide
+	whether you trust those anchors.  rcynic will not do anything
+	useful without good trust anchors.
 
 EOF

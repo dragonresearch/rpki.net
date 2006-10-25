@@ -67,6 +67,8 @@
 	  </thead>
 	  <tbody>
 	    <xsl:for-each select="rcynic-summary/host">
+	      <xsl:sort order="descending" data-type="number" select="sum(*[not(self::hostname)])"/>
+	      <xsl:sort order="ascending" data-type="text" select="hostname"/>
 	      <tr>
 	        <xsl:for-each select="*">
 		  <xsl:variable name="p" select="position()"/>

@@ -170,6 +170,8 @@ typedef struct rcynic_x509_store_ctx {
   const certinfo_t *subj;
 } rcynic_x509_store_ctx_t;
 
+static const char svn_id[] = "$Id$";
+
 
 
 /*
@@ -1745,17 +1747,23 @@ int main(int argc, char *argv[])
     }
 
     if (xmlfile) {
+      char tad[sizeof("2006-10-13T11:22:33Z") + 1];
+      time_t tad_time = time(0);
+      struct tm *tad_tm = gmtime(&tad_time);
       FILE *f = fopen(xmlfile, "w");
       int ok = f != NULL;
+
+      strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", tad_tm);
 
       if (ok)
 	logmsg(&rc, log_telemetry, "Writing XML summary to %s", xmlfile);
 
       if (ok)
 	ok &= fprintf(f, "<?xml version=\"1.0\" ?>\n"
-		      "<rcynic-summary>\n"
+		      "<rcynic-summary date=\"%s\" rcynic-version=\"%s\">\n"
 		      "  <labels>\n"
-		      "    <hostname>Hostname</hostname>\n") != EOF;
+		      "    <hostname>Hostname</hostname>\n",
+		      tad, svn_id) != EOF;
 
       for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
 	ok &= fprintf(f, "    <%s>%s</%s>\n", mib_counter_label[j],
@@ -1811,6 +1819,8 @@ int main(int argc, char *argv[])
     free(rc.rsync_program);
   if (lockfile)
     free(lockfile);
+  if (xmlfile)
+    free(xmlfile);
 
   if (start) {
     finish = time(0);

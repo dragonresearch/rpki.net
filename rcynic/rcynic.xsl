@@ -38,6 +38,8 @@
 
   <xsl:param name="suppress-zero-columns" select="1"/>
 
+  <xsl:param name="refresh" select="1800"/>
+
   <xsl:variable name="counts">
     <xsl:for-each select="rcynic-summary/labels/*">
       <x count="{count(/rcynic-summary/host/*[name() = name(current()) and . != 0])}"/>
@@ -57,6 +59,7 @@
         <title>
 	  <xsl:value-of select="$title"/>
 	</title>
+	<meta http-equiv="Refresh" content="{$refresh}"/>
       </head>
       <body>
         <h1>

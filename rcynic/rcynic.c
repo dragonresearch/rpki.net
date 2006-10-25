@@ -150,7 +150,7 @@ typedef struct rcynic_ctx {
   char *authenticated, *old_authenticated, *unauthenticated;
   char *jane, *rsync_program;
   STACK *rsync_cache, *host_counters;
-  int indent, rsync_timeout, use_syslog, use_stdout, allow_stale_crl;
+  int indent, rsync_timeout, use_syslog, use_stderr, allow_stale_crl;
   int priority[LOG_LEVEL_T_MAX];
   log_level_t log_level;
   X509_STORE *x509_store;
@@ -188,7 +188,7 @@ static void logmsg(const rcynic_ctx_t *rc,
   if (rc->log_level < level)
     return;
 
-  if (rc->use_syslog && rc->use_stdout) {
+  if (rc->use_syslog && rc->use_stderr) {
     va_start(ap, fmt);
     va_copy(aq, ap);
   } else if (rc->use_syslog) {
@@ -197,20 +197,20 @@ static void logmsg(const rcynic_ctx_t *rc,
     va_start(ap, fmt);
   }
 
-  if (rc->use_stdout || !rc->use_syslog) {
+  if (rc->use_stderr || !rc->use_syslog) {
     char tad[30];
     time_t tad_time = time(0);
     struct tm *tad_tm = localtime(&tad_time);
 
     strftime(tad, sizeof(tad), "%H:%M:%S", tad_tm);
-    printf("%s: ", tad);
+    fprintf(stderr, "%s: ", tad);
     if (rc->jane)
-      printf("%s: ", rc->jane);
+      fprintf(stderr, "%s: ", rc->jane);
     if (rc->indent)
-      printf("%*s", rc->indent, " ");
-    vprintf(fmt, ap);
+      fprintf(stderr, "%*s", rc->indent, " ");
+    vfprintf(stderr, fmt, ap);
     va_end(ap);
-    putchar('\n');
+    putc('\n', stderr);
   }
 
   if (rc->use_syslog) {
@@ -1386,7 +1386,7 @@ static void walk_cert(rcynic_ctx_t *rc,
 int main(int argc, char *argv[])
 {
   int opt_jitter = 0, use_syslog = 0, syslog_facility = 0, syslog_perror = 0;
-  int opt_syslog = 0, opt_stdout = 0, opt_level = 0, opt_perror = 0;
+  int opt_syslog = 0, opt_stderr = 0, opt_level = 0, opt_perror = 0;
   char *cfg_file = "rcynic.conf", path[FILENAME_MAX];
   char *lockfile = NULL, *xmlfile = NULL;
   int c, i, j, ret = 1, jitter = 600, lockfd = -1, summary = 0, terse = 0;
@@ -1432,7 +1432,7 @@ int main(int argc, char *argv[])
       use_syslog = opt_syslog = 1;
       break;
     case 't':
-      rc.use_stdout = opt_stdout = 1;
+      rc.use_stderr = opt_stderr = 1;
       break;
     case 'p':
       syslog_perror = opt_perror = 1;
@@ -1512,9 +1512,9 @@ int main(int argc, char *argv[])
 	     !configure_boolean(&rc, &use_syslog, val->value))
       goto done;
 
-    else if (!opt_stdout &&
-	     !name_cmp(val->name, "use-stdout") &&
-	     !configure_boolean(&rc, &rc.use_stdout, val->value))
+    else if (!opt_stderr &&
+	     !name_cmp(val->name, "use-stderr") &&
+	     !configure_boolean(&rc, &rc.use_stderr, val->value))
       goto done;
 
     else if (!opt_perror &&
@@ -1579,11 +1579,11 @@ int main(int argc, char *argv[])
     goto done;
   }
 
-  if (rc.use_stdout && use_syslog && syslog_perror) {
-    if (opt_stdout)
+  if (rc.use_stderr && use_syslog && syslog_perror) {
+    if (opt_stderr)
       syslog_perror = 0;
     else
-      rc.use_stdout = 0;
+      rc.use_stderr = 0;
   }
 
   rc.use_syslog = use_syslog;
@@ -1750,10 +1750,15 @@ int main(int argc, char *argv[])
       char tad[sizeof("2006-10-13T11:22:33Z") + 1];
       time_t tad_time = time(0);
       struct tm *tad_tm = gmtime(&tad_time);
-      FILE *f = fopen(xmlfile, "w");
-      int ok = f != NULL;
+      int ok = 1;
+      FILE *f;
 
       strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", tad_tm);
+
+      if (!strcmp(xmlfile, "-"))
+	f = stdout;
+      else
+	ok &= (f = fopen(xmlfile, "w")) != NULL;
 
       if (ok)
 	logmsg(&rc, log_telemetry, "Writing XML summary to %s", xmlfile);
@@ -1791,7 +1796,7 @@ int main(int argc, char *argv[])
       if (ok)
 	ok &= fprintf(f, "</rcynic-summary>\n") != EOF;
 
-      if (f)
+      if (f && strcmp(xmlfile, "-"))
 	ok &= fclose(f) != EOF;
 
       if (!ok)

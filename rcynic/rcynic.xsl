@@ -27,11 +27,20 @@
   - to be an issue here.   Feel free to show me how to do better.
  -->
 
-<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+		version="1.0"
+                xmlns:exslt="http://exslt.org/common"
+		exclude-result-prefixes="exslt">
 
   <xsl:output omit-xml-declaration="yes" indent="yes" method="xml" encoding="US-ASCII"/>
 
   <xsl:param name="suppress-zero-columns" select="1"/>
+
+  <xsl:variable name="counts">
+    <xsl:for-each select="rcynic-summary/labels/*">
+      <x count="{count(/rcynic-summary/host/*[name() = name(current()) and . != 0])}"/>
+    </xsl:for-each>
+  </xsl:variable>
 
   <xsl:template match="/">
     <html>
@@ -45,7 +54,8 @@
 	  <thead>
 	    <tr>
 	      <xsl:for-each select="rcynic-summary/labels/*">
-		<xsl:if test="$suppress-zero-columns = 0 or count(/rcynic-summary/host/*[name() = name(current()) and . != 0]) &gt; 0">
+	        <xsl:variable name="p" select="position()"/>
+		<xsl:if test="$suppress-zero-columns = 0 or exslt:node-set($counts)/x[$p]/@count &gt; 0">
 		  <td>
 		    <b>
 		      <xsl:apply-templates/>
@@ -59,7 +69,8 @@
 	    <xsl:for-each select="rcynic-summary/host">
 	      <tr>
 	        <xsl:for-each select="*">
-		  <xsl:if test="$suppress-zero-columns = 0 or count(/rcynic-summary/host/*[name() = name(current()) and . != 0]) &gt; 0">
+		  <xsl:variable name="p" select="position()"/>
+		  <xsl:if test="$suppress-zero-columns = 0 or exslt:node-set($counts)/x[$p]/@count &gt; 0">
 		    <td>
 		      <xsl:apply-templates/>
 		    </td>

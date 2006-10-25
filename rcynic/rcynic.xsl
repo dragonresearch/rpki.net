@@ -32,7 +32,9 @@
                 xmlns:exslt="http://exslt.org/common"
 		exclude-result-prefixes="exslt">
 
-  <xsl:output omit-xml-declaration="yes" indent="yes" method="xml" encoding="US-ASCII"/>
+  <xsl:output omit-xml-declaration="yes" indent="yes" method="xml" encoding="US-ASCII"
+              doctype-public="-//W3C//DTD XHTML 1.0 Strict//EN"
+	      doctype-system="http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"/>
 
   <xsl:param name="suppress-zero-columns" select="1"/>
 
@@ -43,6 +45,9 @@
   </xsl:variable>
 
   <xsl:template match="/">
+    <xsl:comment>Generators</xsl:comment>
+    <xsl:comment><xsl:value-of select="rcynic-summary/@rcynic-version"/></xsl:comment>
+    <xsl:comment>$Id$</xsl:comment>
     <html>
       <xsl:variable name="title">
         <xsl:text>rcynic summary </xsl:text>
@@ -57,7 +62,6 @@
         <h1>
 	  <xsl:value-of select="$title"/>
 	</h1>
-	<br/>
 	<table rules="all">
 	  <thead>
 	    <tr>

@@ -72,7 +72,6 @@
 #define LOG_LEVELS							\
   QQ(log_sys_err,	LOG_ERR)	/* Error from OS or library  */	\
   QQ(log_usage_err,	LOG_ERR)	/* Bad usage (local error)   */	\
-  QQ(log_summary,	LOG_INFO)	/* Summary at end of run     */ \
   QQ(log_data_err,	LOG_NOTICE)	/* Bad data, no biscuit      */	\
   QQ(log_telemetry,	LOG_INFO)	/* Normal progress chatter   */	\
   QQ(log_verbose,	LOG_INFO)	/* Extra chatter             */ \
@@ -95,34 +94,34 @@ static const struct {
  * MIB counters
  */
 
-#define MIB_COUNTERS							  \
-  QQ(backup_cert_accepted,	"backup certificates accepted",	 "+bcer") \
-  QQ(backup_cert_rejected,	"backup certificates rejected",	 "-bcer") \
-  QQ(backup_crl_accepted,	"backup CRLs accepted",		 "+bcrl") \
-  QQ(backup_crl_rejected,	"backup CRLs rejected",		 "-bcrl") \
-  QQ(current_cert_accepted,	"current certificates accepted", " +cer") \
-  QQ(current_cert_rejected,	"current certificates rejected", " -cer") \
-  QQ(current_crl_accepted,	"current CRLs accepted",	 " +crl") \
-  QQ(current_crl_rejected,	"current CRLs rejected",	 " -crl") \
-  QQ(rsync_failed,		"rsync transfers failed",	 " -rsy") \
-  QQ(rsync_succeeded,		"rsync transfers succeeded",	 " +rsy") \
-  QQ(rsync_timed_out,		"rsync transfers timed out",	 " ?rsy") \
-  QQ(stale_crl,			"stale CRLs",			 "stale") \
-  QQ(malformed_sia,		"malformed SIA extensions",	 "badsi") \
-  QQ(sia_missing,		"SIA extensions missing",	 "nosia") \
-  QQ(aia_missing,		"AIA extensions missing",	 "noaia") \
-  QQ(crldp_missing,		"CRLDP extensions missing",	 "nocrl") \
-  QQ(aia_mismatch,		"mismatched AIA extensions",	 "badai")
+#define MIB_COUNTERS						 \
+  QQ(backup_cert_accepted,	"Backup certificates accepted")  \
+  QQ(backup_cert_rejected,	"Backup certificates rejected")  \
+  QQ(backup_crl_accepted,	"Backup CRLs accepted")		 \
+  QQ(backup_crl_rejected,	"Backup CRLs rejected")		 \
+  QQ(current_cert_accepted,	"Current certificates accepted") \
+  QQ(current_cert_rejected,	"Current certificates rejected") \
+  QQ(current_crl_accepted,	"Current CRLs accepted")	 \
+  QQ(current_crl_rejected,	"Current CRLs rejected")	 \
+  QQ(rsync_failed,		"rsync transfers failed")	 \
+  QQ(rsync_succeeded,		"rsync transfers succeeded")	 \
+  QQ(rsync_timed_out,		"rsync transfers timed out")	 \
+  QQ(stale_crl,			"Stale CRLs")			 \
+  QQ(malformed_sia,		"Malformed SIA extensions")	 \
+  QQ(sia_missing,		"SIA extensions missing")	 \
+  QQ(aia_missing,		"AIA extensions missing")	 \
+  QQ(crldp_missing,		"CRLDP extensions missing")	 \
+  QQ(aia_mismatch,		"Mismatched AIA extensions")
 
-#define QQ(x,y,z) x ,
+#define QQ(x,y) x ,
 typedef enum mib_counter { MIB_COUNTERS MIB_COUNTER_T_MAX } mib_counter_t;
 #undef	QQ
 
-#define QQ(x,y,z) y ,
-static const char * const mib_counter_name[] = { MIB_COUNTERS NULL };
+#define QQ(x,y) y ,
+static const char * const mib_counter_desc[] = { MIB_COUNTERS NULL };
 #undef	QQ
 
-#define QQ(x,y,z) #x ,
+#define QQ(x,y) #x ,
 static const char * const mib_counter_label[] = { MIB_COUNTERS NULL };
 #undef	QQ
 
@@ -150,7 +149,7 @@ typedef struct rcynic_ctx {
   char *authenticated, *old_authenticated, *unauthenticated;
   char *jane, *rsync_program;
   STACK *rsync_cache, *host_counters;
-  int indent, rsync_timeout, use_syslog, use_stderr, allow_stale_crl;
+  int indent, rsync_timeout, use_syslog, allow_stale_crl;
   int priority[LOG_LEVEL_T_MAX];
   log_level_t log_level;
   X509_STORE *x509_store;
@@ -181,42 +180,32 @@ static void logmsg(const rcynic_ctx_t *rc,
 		   const log_level_t level, 
 		   const char *fmt, ...)
 {
-  va_list ap, aq;
+  char tad[sizeof("00:00:00")+1];
+  time_t tad_time;
+  va_list ap;
 
   assert(rc && fmt);
 
   if (rc->log_level < level)
     return;
 
-  if (rc->use_syslog && rc->use_stderr) {
-    va_start(ap, fmt);
-    va_copy(aq, ap);
-  } else if (rc->use_syslog) {
-    va_start(aq, fmt);
+  va_start(ap, fmt);
+
+  if (rc->use_syslog) {
+    vsyslog(rc->priority[level], fmt, ap);
   } else {
-    va_start(ap, fmt);
-  }
-
-  if (rc->use_stderr || !rc->use_syslog) {
-    char tad[30];
-    time_t tad_time = time(0);
-    struct tm *tad_tm = localtime(&tad_time);
-
-    strftime(tad, sizeof(tad), "%H:%M:%S", tad_tm);
+    time(&tad_time);
+    strftime(tad, sizeof(tad), "%H:%M:%S", localtime(&tad_time));
     fprintf(stderr, "%s: ", tad);
     if (rc->jane)
       fprintf(stderr, "%s: ", rc->jane);
     if (rc->indent)
       fprintf(stderr, "%*s", rc->indent, " ");
     vfprintf(stderr, fmt, ap);
-    va_end(ap);
     putc('\n', stderr);
   }
 
-  if (rc->use_syslog) {
-    vsyslog(rc->priority[level], fmt, aq);
-    va_end(aq);
-  }
+  va_end(ap);
 }
 
 /*
@@ -1385,11 +1374,11 @@ static void walk_cert(rcynic_ctx_t *rc,
  */
 int main(int argc, char *argv[])
 {
-  int opt_jitter = 0, use_syslog = 0, syslog_facility = 0, syslog_perror = 0;
-  int opt_syslog = 0, opt_stderr = 0, opt_level = 0, opt_perror = 0;
+  int opt_jitter = 0, use_syslog = 0, use_stderr = 0, syslog_facility = 0;
+  int opt_syslog = 0, opt_stderr = 0, opt_level = 0;
   char *cfg_file = "rcynic.conf", path[FILENAME_MAX];
   char *lockfile = NULL, *xmlfile = NULL;
-  int c, i, j, ret = 1, jitter = 600, lockfd = -1, summary = 0, terse = 0;
+  int c, i, j, ret = 1, jitter = 600, lockfd = -1;
   STACK_OF(CONF_VALUE) *cfg_section = NULL;
   STACK_OF(X509) *certs = NULL;
   CONF *cfg_handle = NULL;
@@ -1431,11 +1420,8 @@ int main(int argc, char *argv[])
     case 's':
       use_syslog = opt_syslog = 1;
       break;
-    case 't':
-      rc.use_stderr = opt_stderr = 1;
-      break;
-    case 'p':
-      syslog_perror = opt_perror = 1;
+    case 'e':
+      use_stderr = opt_stderr = 1;
       break;
     case 'j':
       if (!configure_integer(&rc, &jitter, optarg))
@@ -1444,7 +1430,7 @@ int main(int argc, char *argv[])
       break;
     default:
       logmsg(&rc, log_usage_err,
-	     "usage: %s [-c configfile] [-s] [-t] [-p] [-l loglevel]",
+	     "usage: %s [-c configfile] [-s] [-e] [-l loglevel] [-j jitter]",
 	     rc.jane);
       goto done;
     }
@@ -1514,25 +1500,12 @@ int main(int argc, char *argv[])
 
     else if (!opt_stderr &&
 	     !name_cmp(val->name, "use-stderr") &&
-	     !configure_boolean(&rc, &rc.use_stderr, val->value))
-      goto done;
-
-    else if (!opt_perror &&
-	     !name_cmp(val->name, "syslog-perror") &&
-	     !configure_boolean(&rc, &syslog_perror, val->value))
+	     !configure_boolean(&rc, &use_stderr, val->value))
       goto done;
 
     else if (!name_cmp(val->name, "syslog-facility") &&
 	     !configure_syslog(&rc, &syslog_facility,
 			       facilitynames, val->value))
-      goto done;
-
-    else if (!name_cmp(val->name, "summary") &&
-	     !configure_boolean(&rc, &summary, val->value))
-      goto done;
-
-    else if (!name_cmp(val->name, "terse-summary") &&
-	     !configure_boolean(&rc, &terse, val->value))
       goto done;
 
     else if (!name_cmp(val->name, "xml-summary"))
@@ -1563,7 +1536,7 @@ int main(int argc, char *argv[])
     goto done;
   }
 
-  if ((summary || terse || xmlfile) &&
+  if ((xmlfile) &&
       (rc.host_counters = sk_new(host_counter_cmp)) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate host_counters stack");
     goto done;
@@ -1579,17 +1552,11 @@ int main(int argc, char *argv[])
     goto done;
   }
 
-  if (rc.use_stderr && use_syslog && syslog_perror) {
-    if (opt_stderr)
-      syslog_perror = 0;
-    else
-      rc.use_stderr = 0;
-  }
-
   rc.use_syslog = use_syslog;
+
   if (use_syslog)
     openlog(rc.jane,
-	    LOG_PID | (syslog_perror ? LOG_PERROR : 0),
+	    LOG_PID | (use_stderr ? LOG_PERROR : 0),
 	    (syslog_facility ? syslog_facility : LOG_LOCAL0));
 
   if (jitter > 0) {
@@ -1701,108 +1668,62 @@ int main(int argc, char *argv[])
 
   if (sk_num(rc.host_counters) > 0) {
 
-    if (terse) {
-      /*
-       * Macrology here is demented, don't read right after eating.
-       */
-      host_mib_counter_t *h;
-      size_t hlen = sizeof("host") - 1;
+    char tad[sizeof("2006-10-13T11:22:33Z") + 1];
+    time_t tad_time = time(0);
+    struct tm *tad_tm = gmtime(&tad_time);
+    int ok = 1, use_stdout = !strcmp(xmlfile, "-");
+    FILE *f;
 
-      for (i = 0; i < sk_num(rc.host_counters); i++) {
-	h = (void *) sk_value(rc.host_counters, i);
-	assert(h);
-	if (hlen < strlen(h->hostname))
-	  hlen = strlen(h->hostname);
-      }
+    strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", tad_tm);
 
-#define QQ(x,y,z) " " z
-      logmsg(&rc, log_summary, "%*s" MIB_COUNTERS, hlen, "host");
-#undef	QQ
+    if (use_stdout)
+      f = stdout;
+    else
+      ok &= (f = fopen(xmlfile, "w")) != NULL;
 
-      for (i = 0; i < sk_num(rc.host_counters); i++) {
-	h = (void *) sk_value(rc.host_counters, i);
+    if (ok)
+      logmsg(&rc, log_telemetry, "Writing XML summary to %s",
+	     (use_stdout ? "standard output" : xmlfile));
 
-	logmsg(&rc, log_summary,
-#define QQ(x,y,z) " %*lu"
-	       "%*s" MIB_COUNTERS,
-#undef	QQ
-#define	QQ(x,y,z) , sizeof(z) - 1 , h->counters[x]
-	       hlen, h->hostname MIB_COUNTERS
-#undef	QQ
-	       );
-      }
-    }
+    if (ok)
+      ok &= fprintf(f, "<?xml version=\"1.0\" ?>\n"
+		    "<rcynic-summary date=\"%s\" rcynic-version=\"%s\">\n"
+		    "  <labels>\n"
+		    "    <hostname>Hostname</hostname>\n",
+		    tad, svn_id) != EOF;
 
-    if (summary) {
-      logmsg(&rc, log_summary, "Summary by repository host:");
-      for (i = 0; i < sk_num(rc.host_counters); i++) {
-	host_mib_counter_t *h = (void *) sk_value(rc.host_counters, i);
-	assert(h);
-	logmsg(&rc, log_summary, " %s:", h->hostname);
-	for (j = 0; j < MIB_COUNTER_T_MAX; ++j)
-	  if (h->counters[j])
-	    logmsg(&rc, log_summary, "  %5lu %s",
-		   h->counters[j], mib_counter_name[j]);
-      }
-    }
+    for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
+      ok &= fprintf(f, "    <%s>%s</%s>\n", mib_counter_label[j],
+		    mib_counter_desc[j], mib_counter_label[j]) != EOF;
 
-    if (xmlfile) {
-      char tad[sizeof("2006-10-13T11:22:33Z") + 1];
-      time_t tad_time = time(0);
-      struct tm *tad_tm = gmtime(&tad_time);
-      int ok = 1;
-      FILE *f;
+    if (ok)
+      ok &= fprintf(f, "  </labels>\n") != EOF;
 
-      strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", tad_tm);
-
-      if (!strcmp(xmlfile, "-"))
-	f = stdout;
-      else
-	ok &= (f = fopen(xmlfile, "w")) != NULL;
+    for (i = 0; ok && i < sk_num(rc.host_counters); i++) {
+      host_mib_counter_t *h = (void *) sk_value(rc.host_counters, i);
+      assert(h);
 
       if (ok)
-	logmsg(&rc, log_telemetry, "Writing XML summary to %s", xmlfile);
-
-      if (ok)
-	ok &= fprintf(f, "<?xml version=\"1.0\" ?>\n"
-		      "<rcynic-summary date=\"%s\" rcynic-version=\"%s\">\n"
-		      "  <labels>\n"
-		      "    <hostname>Hostname</hostname>\n",
-		      tad, svn_id) != EOF;
+	ok &= fprintf(f, "  <host>\n    <hostname>%s</hostname>\n",
+		      h->hostname) != EOF;
 
       for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
-	ok &= fprintf(f, "    <%s>%s</%s>\n", mib_counter_label[j],
-		      mib_counter_name[j], mib_counter_label[j]) != EOF;
+	ok &= fprintf(f, "    <%s>%lu</%s>\n", mib_counter_label[j],
+		      h->counters[j], mib_counter_label[j]) != EOF;
 
       if (ok)
-	ok &= fprintf(f, "  </labels>\n") != EOF;
-
-      for (i = 0; ok && i < sk_num(rc.host_counters); i++) {
-	host_mib_counter_t *h = (void *) sk_value(rc.host_counters, i);
-	assert(h);
-
-	if (ok)
-	  ok &= fprintf(f, "  <host>\n    <hostname>%s</hostname>\n",
-			h->hostname) != EOF;
-
-	for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
-	  ok &= fprintf(f, "    <%s>%lu</%s>\n", mib_counter_label[j],
-			h->counters[j], mib_counter_label[j]) != EOF;
-
-	if (ok)
-	  ok &= fprintf(f, "  </host>\n") != EOF;
-      }
-
-      if (ok)
-	ok &= fprintf(f, "</rcynic-summary>\n") != EOF;
-
-      if (f && strcmp(xmlfile, "-"))
-	ok &= fclose(f) != EOF;
-
-      if (!ok)
-	logmsg(&rc, log_sys_err, "Couldn't write XML summary to %s: %s",
-	       xmlfile, strerror(errno));
+	ok &= fprintf(f, "  </host>\n") != EOF;
     }
+
+    if (ok)
+      ok &= fprintf(f, "</rcynic-summary>\n") != EOF;
+
+    if (f && !use_stdout)
+      ok &= fclose(f) != EOF;
+
+    if (!ok)
+      logmsg(&rc, log_sys_err, "Couldn't write XML summary to %s: %s",
+	     xmlfile, strerror(errno));
 
   }
 
@@ -1829,7 +1750,7 @@ int main(int argc, char *argv[])
 
   if (start) {
     finish = time(0);
-    logmsg(&rc, (rc.host_counters ? log_summary : log_telemetry),
+    logmsg(&rc, log_telemetry,
 	   "Finished, elapsed time %d:%02d:%02d",
 	   (finish - start) / 3600,
 	   (finish - start) / 60 % 60,

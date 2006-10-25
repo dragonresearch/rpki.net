@@ -104,7 +104,6 @@ uses but customized to the specific task rcynic performs.  Levels:
 
  log_sys_err		Error from operating system or library
  log_usage_err		Bad usage (local configuration error)
- log_summary		Summary data at end of rcynic program run
  log_data_err		Bad data (broken certificates or CRLs)
  log_telemetry		Normal chatter about rcynic's progress
  log_verbose		Extra verbose chatter
@@ -115,8 +114,7 @@ Command line options:
  -c configfile	Path to configuration file (default: rcynic.conf)
  -l loglevel	Logging level (default: log_telemetry)
  -s		Log via syslog
- -t		Log via stderr when also using syslog
- -p		Ask syslog() to send to stderr too
+ -e		Log via stderr when also using syslog
  -j		Start-up jitter interval (see below; default: 600)
 
 Configuration file:
@@ -175,13 +173,11 @@ use-syslog		Same as -s option on command line.  Command
 			line setting overrides config file setting.
 			Values: true or false.  Default: false
 
-use-stderr		Same as -t option on command line.  Command
+use-stderr		Same as -e option on command line.  Command
 			line setting overrides config file setting.
-			Values: true or false.  Default: false
-
-syslog-perror		Same as -p option on command line.  Command
-			line setting overrides config file setting.
-			Values: true or false.  Default: false
+			Values: true or false.  Default: false, but
+			if neither use-syslog nor use-stderr is set,
+			log output will go to stderr.
 
 syslog-facility		Syslog facility to use.  Default: local0
 
@@ -217,17 +213,22 @@ lockfile		Name of lockfile, or empty for no lock.  If
 			instances of rcynic don't stomp on each other.
 			Default: no lock
 
-summary			Enable logging of a per-host summary at the
-			end of an rcynic run.  Some users prefer this
-			to the log_telemetry style of logging.
-			Summary data is logged at log_summary level.
-			Values: true or false.  Default: false
+xml-summary		Enable output of a per-host summary at the
+			end of an rcynic run in XML format.  Some
+			users prefer this to the log_telemetry style
+			of logging, or just want it in addition to
+			logging.  Value: filename to which XML summary
+			should be written; "-" will send XML summary
+			to stdout.  Default: no XML summary
 
 allow-stale-crl		Allow use of CRLs which are past their
 			nextUpdate timestamp.  This is probably
 			harmless, but since it may be an early warning
 			of problems, it's configurable.
 			Values: true or false.  Default: false
+
+There's a companion XSLT template in rcynic.xsl, which translates what
+the xml-summary option writes into HTML.
 
 
 
@@ -361,7 +362,8 @@ For simplicity, I've taken the same approach with rcynic, so
 
   $ make LDFLAGS='-static'
 
-should work.
+should work.  Except that you don't even have to do that: static
+linking is the default, because I run it jailed.
 
 syslog:
 

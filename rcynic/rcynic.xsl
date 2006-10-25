@@ -44,11 +44,19 @@
 
   <xsl:template match="/">
     <html>
+      <xsl:variable name="title">
+        <xsl:text>rcynic summary </xsl:text>
+	<xsl:value-of select="rcynic-summary/@date"/>
+      </xsl:variable>
       <head>
-        <title>rcynic summary</title>
+        <title>
+	  <xsl:value-of select="$title"/>
+	</title>
       </head>
       <body>
-        <h1>rcynic summary</h1>
+        <h1>
+	  <xsl:value-of select="$title"/>
+	</h1>
 	<br/>
 	<table rules="all">
 	  <thead>

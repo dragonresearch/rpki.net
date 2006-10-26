@@ -673,7 +673,7 @@ static int rsync(const rcynic_ctx_t *rc,
   };
 
   const char *argv[100];
-  char *s, buffer[URI_MAX * 4], path[FILENAME_MAX];
+  char *s, *b, buffer[URI_MAX * 4], path[FILENAME_MAX];
   int i, n, ret, pipe_fds[2], argc = 0, pid_status = -1;
   time_t now, deadline;
   struct timeval tv;
@@ -792,23 +792,24 @@ static int rsync(const rcynic_ctx_t *rc,
     if (n < 0)
       break;
     while ((n = read(pipe_fds[0], buffer + i, sizeof(buffer) - i - 1)) > 0) {
-      i += n;
-      assert(i < sizeof(buffer));
-      buffer[i] = '\0';
-      while ((s = strchr(buffer, '\n'))) {
+      n += i;
+      assert(n < sizeof(buffer));
+      buffer[n] = '\0';
+      for (b = buffer; (s = strchr(b, '\n')) != NULL; b = s) {
 	*s++ = '\0';
-	logmsg(rc, log_telemetry, "%s", buffer);
-	i -= s - buffer;
-	assert(i >= 0);
-	if (i == 0)
-	  break;
-	memmove(buffer, s, i);
+	logmsg(rc, log_telemetry, "%s", b);
       }
-      if (n < 0 && errno == EAGAIN)
-	continue;
-      if (n <= 0)
-	break;
+      i = strlen(b);
+      if (i > 0 && b == buffer) {
+	logmsg(rc, log_telemetry, "%s\\", b);
+	i = 0;
+      }
+      if (i > 0) {
+	memmove(buffer, b, i);
+      }
     }
+    if (n == 0 || (n < 0 && errno != EAGAIN))
+      break;
   }
   
   close(pipe_fds[0]);

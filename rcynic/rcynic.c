@@ -62,6 +62,12 @@
 
 #define	KILL_MAX	10
 
+#ifndef	HOST_NAME_MAX
+#define	HOST_NAME_MAX	256
+#endif
+
+#define	XML_SUMMARY_VERSION	1
+
 /*
  * Logging levels.  Same general idea as syslog(), but our own
  * catagories based on what makes sense for this program.  Default
@@ -1669,6 +1675,7 @@ int main(int argc, char *argv[])
   if (sk_num(rc.host_counters) > 0) {
 
     char tad[sizeof("2006-10-13T11:22:33Z") + 1];
+    char hostname[HOST_NAME_MAX];
     time_t tad_time = time(0);
     struct tm *tad_tm = gmtime(&tad_time);
     int ok = 1, use_stdout = !strcmp(xmlfile, "-");
@@ -1676,9 +1683,11 @@ int main(int argc, char *argv[])
 
     strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", tad_tm);
 
+    ok &= gethostname(hostname, sizeof(hostname)) == 0;
+
     if (use_stdout)
       f = stdout;
-    else
+    else if (ok)
       ok &= (f = fopen(xmlfile, "w")) != NULL;
 
     if (ok)
@@ -1687,10 +1696,11 @@ int main(int argc, char *argv[])
 
     if (ok)
       ok &= fprintf(f, "<?xml version=\"1.0\" ?>\n"
-		    "<rcynic-summary date=\"%s\" rcynic-version=\"%s\">\n"
+		    "<rcynic-summary date=\"%s\" rcynic-version=\"%s\""
+		    " summary-version=\"%d\" reporting-hostname=\"%s\">\n"
 		    "  <labels>\n"
 		    "    <hostname>Hostname</hostname>\n",
-		    tad, svn_id) != EOF;
+		    tad, svn_id, XML_SUMMARY_VERSION, hostname) != EOF;
 
     for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
       ok &= fprintf(f, "    <%s>%s</%s>\n", mib_counter_label[j],

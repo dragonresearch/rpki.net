@@ -40,9 +40,11 @@
 
   <xsl:param name="refresh" select="1800"/>
 
-  <xsl:variable name="counts">
+  <xsl:param name="show-total" select="1"/>
+
+  <xsl:variable name="sums">
     <xsl:for-each select="rcynic-summary/labels/*">
-      <x count="{count(/rcynic-summary/host/*[name() = name(current()) and . != 0])}"/>
+      <x sum="{sum(/rcynic-summary/host/*[name() = name(current()) and . != 0])}"/>
     </xsl:for-each>
   </xsl:variable>
 
@@ -72,7 +74,7 @@
 	    <tr>
 	      <xsl:for-each select="rcynic-summary/labels/*">
 	        <xsl:variable name="p" select="position()"/>
-		<xsl:if test="$suppress-zero-columns = 0 or exslt:node-set($counts)/x[$p]/@count &gt; 0">
+		<xsl:if test="$suppress-zero-columns = 0 or position() = 1 or exslt:node-set($sums)/x[$p]/@sum &gt; 0">
 		  <td>
 		    <b>
 		      <xsl:apply-templates/>
@@ -89,7 +91,7 @@
 	      <tr>
 	        <xsl:for-each select="*">
 		  <xsl:variable name="p" select="position()"/>
-		  <xsl:if test="$suppress-zero-columns = 0 or exslt:node-set($counts)/x[$p]/@count &gt; 0">
+		  <xsl:if test="$suppress-zero-columns = 0 or position() = 1 or exslt:node-set($sums)/x[$p]/@sum &gt; 0">
 		    <td>
 		      <xsl:apply-templates/>
 		    </td>
@@ -97,6 +99,22 @@
 		</xsl:for-each>
 	      </tr>
 	    </xsl:for-each>
+	    <xsl:if test="$show-total != 0">
+	      <tr>
+		<td>
+		  <b>Total</b>
+		</td>
+		<xsl:for-each select="exslt:node-set($sums)/x[position() &gt; 1]">
+		  <xsl:if test="$suppress-zero-columns = 0 or @sum &gt; 0">
+		    <td>
+		      <b>
+			<xsl:value-of select="@sum"/>
+		      </b>
+		    </td>
+		  </xsl:if>
+		</xsl:for-each>
+	      </tr>
+	    </xsl:if>
 	  </tbody>
 	</table>
       </body>

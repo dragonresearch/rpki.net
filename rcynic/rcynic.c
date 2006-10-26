@@ -800,7 +800,8 @@ static int rsync(const rcynic_ctx_t *rc,
 	logmsg(rc, log_telemetry, "%s", b);
       }
       i = strlen(b);
-      if (i > 0 && b == buffer) {
+      assert(i < sizeof(buffer) && b + i < buffer + sizeof(buffer));
+      if (b == buffer && i == sizeof(buffer) - 1) {
 	logmsg(rc, log_telemetry, "%s\\", b);
 	i = 0;
       }

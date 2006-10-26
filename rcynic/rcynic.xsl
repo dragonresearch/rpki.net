@@ -59,7 +59,9 @@
         <title>
 	  <xsl:value-of select="$title"/>
 	</title>
-	<meta http-equiv="Refresh" content="{$refresh}"/>
+	<xsl:if test="$refresh != 0">
+	  <meta http-equiv="Refresh" content="{$refresh}"/>
+	</xsl:if>
       </head>
       <body>
         <h1>

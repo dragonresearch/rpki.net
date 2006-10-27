@@ -9,4 +9,4 @@ You're the relying party, so it's your call.
 
 Some of these sample trust anchors are also available at
 
-  rsync://repository.apnic.net/TRUSTANCHORS/
+  rsync://repository.apnic.net/mock/TRUSTANCHORS/

@@ -155,7 +155,7 @@ typedef struct rcynic_ctx {
   char *authenticated, *old_authenticated, *unauthenticated;
   char *jane, *rsync_program;
   STACK *rsync_cache, *host_counters;
-  int indent, rsync_timeout, use_syslog, allow_stale_crl;
+  int indent, rsync_timeout, use_syslog, allow_stale_crl, use_links;
   int priority[LOG_LEVEL_T_MAX];
   log_level_t log_level;
   X509_STORE *x509_store;
@@ -459,6 +459,9 @@ static void mib_increment(const rcynic_ctx_t *rc,
  * that would require us to trust rsync never to do anything bad.  For
  * now we just copy in the simplest way possible.  Come back to this
  * if profiling shows a hotspot here.
+ *
+ * Well, ok, profiling didn't show an issue, but inode exhaustion did.
+ * So we now make copy vs link a configuration choice.
  */
 
 static int cp(const char *source, const char *target)
@@ -482,6 +485,11 @@ static int cp(const char *source, const char *target)
   return ret;
 }
 
+static int ln(const char *source, const char *target)
+{
+  return link(source, target) == 0;
+}
+
 static int install_object(const rcynic_ctx_t *rc,
 			  const char *uri,
 			  const char *source,
@@ -499,8 +507,9 @@ static int install_object(const rcynic_ctx_t *rc,
     return 0;
   }
 
-  if (!cp(source, target)) {
-    logmsg(rc, log_sys_err, "Couldn't copy %s to %s", source, target);
+  if (rc->use_links ? !ln(source, target) : !cp(source, target)) {
+    logmsg(rc, log_sys_err, "Couldn't %s %s to %s",
+	   (rc->use_links ? "link" : "copy"), source, target);
     return 0;
   }
 
@@ -1521,6 +1530,10 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "allow-stale-crl") &&
 	     !configure_boolean(&rc, &rc.allow_stale_crl, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "use-links") &&
+	     !configure_boolean(&rc, &rc.use_links, val->value))
       goto done;
 
     /*

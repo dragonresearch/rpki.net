@@ -1663,8 +1663,9 @@ int main(int argc, char *argv[])
 	   val->value, hash, j);
 
     if (!mkdir_maybe(&rc, rc.authenticated) ||
-	!cp(val->value, path)) {
-      logmsg(&rc, log_sys_err, "Couldn't copy trust anchor %s", val->value);
+	!(rc.use_links ? ln(val->value, path) : cp(val->value, path))) {
+      logmsg(&rc, log_sys_err, "Couldn't %s trust anchor %s",
+	     (rc.use_links ? "link" : "copy"), val->value);
       goto done;
     }
 

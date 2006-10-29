@@ -673,6 +673,25 @@ static int rsync_cmp(const char * const *a, const char * const *b)
   return strcmp(*a, *b);
 }
 
+static int rsync_cached(const rcynic_ctx_t *rc,
+			const char *uri)
+{
+  char *s, buffer[URI_MAX];
+
+  assert(rc && rc->rsync_cache);
+  strcpy(buffer, uri);
+  if ((s = strrchr(buffer, '/')) != NULL && s[1] == '\0')
+    *s = '\0';
+  for (;;) {
+    if (sk_find(rc->rsync_cache, buffer) >= 0)
+      return 1;
+    if ((s = strrchr(buffer, '/')) == NULL)
+      break;
+    *s = '\0';
+  }
+  return 0;
+}
+
 static int rsync(const rcynic_ctx_t *rc,
 		 const char * const *args,
 		 const char *uri)
@@ -718,19 +737,10 @@ static int rsync(const rcynic_ctx_t *rc,
   assert(argc < sizeof(argv)/sizeof(*argv));
   argv[argc++] = path;
 
-  assert(rc->rsync_cache != NULL);
-  assert(sizeof(buffer) >= URI_MAX && strlen(uri) > SIZEOF_RSYNC);
-  strcpy(buffer, uri);
-  if ((s = strrchr(buffer + SIZEOF_RSYNC, '/')) != NULL && s[1] == '\0')
-    *s = '\0';
-  for (;;) {
-    if (sk_find(rc->rsync_cache, buffer) >= 0) {
-      logmsg(rc, log_verbose, "rsync cache hit for %s", uri);
-      return 1;
-    }
-    if ((s = strrchr(buffer + SIZEOF_RSYNC, '/')) == NULL)
-      break;
-    *s = '\0';
+  assert(strlen(uri) > SIZEOF_RSYNC);
+  if (rsync_cached(rc, uri + SIZEOF_RSYNC)) {
+    logmsg(rc, log_verbose, "rsync cache hit for %s", uri);
+    return 1;
   }
 
   if (!mkdir_maybe(rc, path)) {
@@ -858,11 +868,15 @@ static int rsync(const rcynic_ctx_t *rc,
     mib_increment(rc, uri, rsync_succeeded);
   }
 
-  strcpy(buffer, uri);
-  if ((s = strrchr(buffer + SIZEOF_RSYNC, '/')) != NULL && s[1] == '\0')
+  assert(strlen(uri) > SIZEOF_RSYNC);
+  strcpy(buffer, uri + SIZEOF_RSYNC);
+  if ((s = strrchr(buffer, '/')) != NULL && s[1] == '\0')
     *s = '\0';
-  if ((s = strdup(buffer)) == NULL || !sk_push(rc->rsync_cache, s))
+  if ((s = strdup(buffer)) == NULL || !sk_push(rc->rsync_cache, s)) {
+    if (s)
+      free(s);
     logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri);
+  }
 
   return ret;
 }

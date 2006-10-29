@@ -97,8 +97,52 @@ static const struct {
 #undef	QQ
 
 /*
- * MIB counters
+ * MIB counters.  We import a long list of validation failure codes
+ * from OpenSSL (crypto/x509/x509_vfy.h), but we also have codes
+ * specific to rcynic.
  */
+
+#define	MIB_COUNTERS_FROM_OPENSSL			\
+  QV(X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT)		\
+  QV(X509_V_ERR_UNABLE_TO_GET_CRL)			\
+  QV(X509_V_ERR_UNABLE_TO_DECRYPT_CERT_SIGNATURE)	\
+  QV(X509_V_ERR_UNABLE_TO_DECRYPT_CRL_SIGNATURE)	\
+  QV(X509_V_ERR_UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY)	\
+  QV(X509_V_ERR_CERT_SIGNATURE_FAILURE)			\
+  QV(X509_V_ERR_CRL_SIGNATURE_FAILURE)			\
+  QV(X509_V_ERR_CERT_NOT_YET_VALID)			\
+  QV(X509_V_ERR_CERT_HAS_EXPIRED)			\
+  QV(X509_V_ERR_CRL_NOT_YET_VALID)			\
+  QV(X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD)		\
+  QV(X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD)		\
+  QV(X509_V_ERR_ERROR_IN_CRL_LAST_UPDATE_FIELD)		\
+  QV(X509_V_ERR_ERROR_IN_CRL_NEXT_UPDATE_FIELD)		\
+  QV(X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)		\
+  QV(X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN)		\
+  QV(X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY)	\
+  QV(X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE)	\
+  QV(X509_V_ERR_CERT_CHAIN_TOO_LONG)			\
+  QV(X509_V_ERR_CERT_REVOKED)				\
+  QV(X509_V_ERR_INVALID_CA)				\
+  QV(X509_V_ERR_PATH_LENGTH_EXCEEDED)			\
+  QV(X509_V_ERR_INVALID_PURPOSE)			\
+  QV(X509_V_ERR_CERT_UNTRUSTED)				\
+  QV(X509_V_ERR_CERT_REJECTED)				\
+  QV(X509_V_ERR_AKID_SKID_MISMATCH)			\
+  QV(X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH)		\
+  QV(X509_V_ERR_KEYUSAGE_NO_CERTSIGN)			\
+  QV(X509_V_ERR_UNABLE_TO_GET_CRL_ISSUER)		\
+  QV(X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION)		\
+  QV(X509_V_ERR_KEYUSAGE_NO_CRL_SIGN)			\
+  QV(X509_V_ERR_UNHANDLED_CRITICAL_CRL_EXTENSION)	\
+  QV(X509_V_ERR_INVALID_NON_CA)				\
+  QV(X509_V_ERR_PROXY_PATH_LENGTH_EXCEEDED)		\
+  QV(X509_V_ERR_KEYUSAGE_NO_DIGITAL_SIGNATURE)		\
+  QV(X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED)		\
+  QV(X509_V_ERR_INVALID_EXTENSION)			\
+  QV(X509_V_ERR_INVALID_POLICY_EXTENSION)		\
+  QV(X509_V_ERR_NO_EXPLICIT_POLICY)			\
+  QV(X509_V_ERR_UNNESTED_RESOURCE)
 
 #define MIB_COUNTERS						 \
   QQ(backup_cert_accepted,	"Backup certificates accepted")  \
@@ -117,7 +161,11 @@ static const struct {
   QQ(sia_missing,		"SIA extensions missing")	 \
   QQ(aia_missing,		"AIA extensions missing")	 \
   QQ(crldp_missing,		"CRLDP extensions missing")	 \
-  QQ(aia_mismatch,		"Mismatched AIA extensions")
+  QQ(aia_mismatch,		"Mismatched AIA extensions")	 \
+  QQ(unknown_verify_error,	"Unknown OpenSSL verify error")	 \
+  MIB_COUNTERS_FROM_OPENSSL
+
+#define QV(x) QQ(mib_openssl_##x, 0)
 
 #define QQ(x,y) x ,
 typedef enum mib_counter { MIB_COUNTERS MIB_COUNTER_T_MAX } mib_counter_t;
@@ -129,6 +177,14 @@ static const char * const mib_counter_desc[] = { MIB_COUNTERS NULL };
 
 #define QQ(x,y) #x ,
 static const char * const mib_counter_label[] = { MIB_COUNTERS NULL };
+#undef	QQ
+
+#undef	QV
+
+#define	QQ(x,y)	0 ,
+#define	QV(x)   x ,
+static const long mib_counter_openssl[] = { MIB_COUNTERS 0 };
+#undef	QV
 #undef	QQ
 
 /*
@@ -1184,18 +1240,17 @@ static int check_cert_cb(int ok, X509_STORE_CTX *ctx)
   assert(rctx != NULL);
 
   switch (ctx->error) {
+  case X509_V_OK:
+    return ok;
+
   case X509_V_ERR_SUBJECT_ISSUER_MISMATCH:
-#if 0
-  case X509_V_ERR_AKID_SKID_MISMATCH:
-  case X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH:
-  case X509_V_ERR_KEYUSAGE_NO_CERTSIGN:
-#endif
     /*
      * Informational events, not really errors.  ctx->check_issued()
      * is called in many places where failure to find an issuer is not
      * a failure for the calling function.  Just leave these alone.
      */
-    break;
+    return ok;
+
   case X509_V_ERR_CRL_HAS_EXPIRED:
     /*
      * This may not be an error at all.  CRLs don't really "expire",
@@ -1209,16 +1264,31 @@ static int check_cert_cb(int ok, X509_STORE_CTX *ctx)
     mib_increment(rctx->rc, rctx->subj->uri, stale_crl);
     if (rctx->rc->allow_stale_crl)
       ok = 1;
+    return ok;
+
+#define QV(x)							\
+  case x:							\
+    mib_increment(rctx->rc, rctx->subj->uri, mib_openssl_##x);	\
     break;
+
+    /*
+     * Increment counters for all known OpenSSL verify errors except
+     * the ones we handle explicitly above.
+     */
+    MIB_COUNTERS_FROM_OPENSSL;
+#undef	QV
+
   default:
+    mib_increment(rctx->rc, rctx->subj->uri, unknown_verify_error);
+    break;
+  }
+
   if (!ok)
     logmsg(rctx->rc, log_data_err,
 	   "Callback depth %d error %d cert %p issuer %p crl %p: %s",
 	   ctx->error_depth, ctx->error, ctx->current_cert,
 	   ctx->current_issuer, ctx->current_crl,
 	   X509_verify_cert_error_string(ctx->error));
-  }
-
   return ok;
 }
 
@@ -1826,7 +1896,10 @@ int main(int argc, char *argv[])
 
     for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
       ok &= fprintf(f, "    <%s>%s</%s>\n", mib_counter_label[j],
-		    mib_counter_desc[j], mib_counter_label[j]) != EOF;
+		    (mib_counter_desc[j]
+		     ? mib_counter_desc[j]
+		     : X509_verify_cert_error_string(mib_counter_openssl[j])),
+		    mib_counter_label[j]) != EOF;
 
     if (ok)
       ok &= fprintf(f, "  </labels>\n") != EOF;

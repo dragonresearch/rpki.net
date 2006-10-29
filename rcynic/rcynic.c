@@ -643,7 +643,7 @@ static int rm_rf(const char *name)
 
  done:
   closedir(dir);
-  return !d;
+  return ret;
 }
 
 
@@ -888,6 +888,90 @@ static int rsync_sia(const rcynic_ctx_t *rc, const char *uri)
 {
   static const char * const rsync_args[] = { "--recursive", "--delete", NULL };
   return rsync(rc, rsync_args, uri);
+}
+
+
+
+/*
+ * Clean up old stuff from previous rsync runs.  --delete doesn't help
+ * if the URI changes and we never visit the old URI again.
+ */
+
+static int prune_unauthenticated(const rcynic_ctx_t *rc,
+				 const char *name,
+				 const size_t baselen)
+{
+  char path[FILENAME_MAX];
+  struct dirent *d;
+  size_t len;
+  DIR *dir;
+  int need_slash;
+
+  assert(rc && name && baselen > 0);
+  len = strlen(name);
+  assert(len >= baselen && len < sizeof(path));
+  need_slash = name[len - 1] != '/';
+
+  if (rsync_cached(rc, name + baselen)) {
+    logmsg(rc, log_debug, "prune: cache hit for %s, not cleaning", name);
+    return 1;
+  }
+
+  if (rmdir(name) == 0) {
+    logmsg(rc, log_debug, "prune: removed %s", name);
+    return 1;
+  }
+
+  switch (errno) {
+  case ENOENT:
+    logmsg(rc, log_debug, "prune: nonexistant %s", name);
+    return 1;
+  case ENOTEMPTY:
+    break;
+  default:
+    logmsg(rc, log_debug, "prune: other error %s: %s", name, strerror(errno));
+    return 0;
+  }
+
+  if ((dir = opendir(name)) == NULL)
+    return 0;
+
+  while ((d = readdir(dir)) != NULL) {
+    if (d->d_name[0] == '.' && (d->d_name[1] == '\0' || (d->d_name[1] == '.' && d->d_name[2] == '\0')))
+      continue;
+    if (len + strlen(d->d_name) + need_slash >= sizeof(path)) {
+      logmsg(rc, log_debug, "prune: %s%s%s too long", name, (need_slash ? "/" : ""), d->d_name);
+      goto done;
+    }
+    strcpy(path, name);
+    if (need_slash)
+      strcat(path, "/");
+    strcat(path, d->d_name);
+    switch (d->d_type) {
+    case DT_DIR:
+      if (!prune_unauthenticated(rc, path, baselen))
+	goto done;
+      continue;
+    default:
+      if (rsync_cached(rc, path + baselen)) {
+	logmsg(rc, log_debug, "prune: cache hit %s", path);
+	continue;
+      }
+      if (unlink(path) < 0) {
+	logmsg(rc, log_debug, "prune: removing %s failed: %s", path, strerror(errno));
+	goto done;
+      }
+      logmsg(rc, log_debug, "prune: removed %s", path);
+      continue;
+    }
+  }
+
+  if (rmdir(name) < 0 && errno != ENOTEMPTY)
+    logmsg(rc, log_debug, "prune: couldn't remove %s: %s", name, strerror(errno));
+
+ done:
+  closedir(dir);
+  return !d;
 }
 
 
@@ -1404,7 +1488,7 @@ static void walk_cert(rcynic_ctx_t *rc,
 int main(int argc, char *argv[])
 {
   int opt_jitter = 0, use_syslog = 0, use_stderr = 0, syslog_facility = 0;
-  int opt_syslog = 0, opt_stderr = 0, opt_level = 0;
+  int opt_syslog = 0, opt_stderr = 0, opt_level = 0, prune = 1;
   char *cfg_file = "rcynic.conf", path[FILENAME_MAX];
   char *lockfile = NULL, *xmlfile = NULL;
   int c, i, j, ret = 1, jitter = 600, lockfd = -1;
@@ -1546,6 +1630,10 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "use-links") &&
 	     !configure_boolean(&rc, &rc.use_links, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "prune") &&
+	     !configure_boolean(&rc, &prune, val->value))
       goto done;
 
     /*
@@ -1693,6 +1781,12 @@ int main(int argc, char *argv[])
 
     X509_free(sk_X509_pop(certs));
     assert(sk_X509_num(certs) == 0);
+  }
+
+  if (prune && !prune_unauthenticated(&rc, rc.unauthenticated,
+				      strlen(rc.unauthenticated))) {
+    logmsg(&rc, log_sys_err, "Trouble pruning old unauthenticated data");
+    goto done;
   }
 
   ret = 0;

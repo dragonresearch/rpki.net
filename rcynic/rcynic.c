@@ -682,14 +682,12 @@ static int rsync_cached(const rcynic_ctx_t *rc,
   strcpy(buffer, uri);
   if ((s = strrchr(buffer, '/')) != NULL && s[1] == '\0')
     *s = '\0';
-  for (;;) {
-    if (sk_find(rc->rsync_cache, buffer) >= 0)
-      return 1;
+  while (sk_find(rc->rsync_cache, buffer) < 0) {
     if ((s = strrchr(buffer, '/')) == NULL)
-      break;
+      return 0;
     *s = '\0';
   }
-  return 0;
+  return 1;
 }
 
 static int rsync(const rcynic_ctx_t *rc,

@@ -227,6 +227,16 @@ allow-stale-crl		Allow use of CRLs which are past their
 			of problems, it's configurable.
 			Values: true or false.  Default: false
 
+prune			Clean up old files corresponding to URIs that
+			rcynic did not see at all during this run.
+			rcynic invokes rsync with the --delete option
+			to clean up old objects from collections that
+			rcynic revisits, but if a URI changes so that
+			rcynic never visits the old collection again,
+			old files will remain in the local mirror
+			indefinitely unless you enable this option.
+			Values: true or false.  Default: true
+
 There's a companion XSLT template in rcynic.xsl, which translates what
 the xml-summary option writes into HTML.
 

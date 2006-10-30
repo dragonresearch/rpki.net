@@ -1,5 +1,9 @@
 #!/usr/bin/awk -f
 # $Id$
+#
+# Reformat uri.c's output in a way that's more useful
+# for some kinds of scripting.  Perhaps this functionality should be
+# part of uri.c itself, but for now this script will do.
 
 BEGIN {
   cmd = "find /var/rcynic/data/unauthenticated -type f -name '*.cer' -print0 | xargs -0 ./uri -d";

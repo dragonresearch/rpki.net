@@ -69,7 +69,7 @@
         <h1>
 	  <xsl:value-of select="$title"/>
 	</h1>
-	<table rules="all">
+	<table rules="all" style="text-align: center">
 	  <thead>
 	    <tr>
 	      <xsl:for-each select="rcynic-summary/labels/*">

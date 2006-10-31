@@ -93,7 +93,9 @@
 		  <xsl:variable name="p" select="position()"/>
 		  <xsl:if test="$suppress-zero-columns = 0 or position() = 1 or exslt:node-set($sums)/x[$p]/@sum &gt; 0">
 		    <td>
-		      <xsl:apply-templates/>
+		      <xsl:if test=". != 0">
+		        <xsl:apply-templates/>
+		      </xsl:if>
 		    </td>
 		  </xsl:if>
 		</xsl:for-each>

@@ -312,7 +312,7 @@ static int IPAddressOrRange_cmp(const IPAddressOrRange *a,
 				const int length)
 {
   unsigned char addr_a[ADDR_RAW_BUF_LEN], addr_b[ADDR_RAW_BUF_LEN];
-  int prefixlen_a, prefixlen_b;
+  int prefixlen_a = 0, prefixlen_b = 0;
   int r;
 
   switch (a->type) {
@@ -1172,6 +1172,7 @@ static int v3_addr_validate_path_internal(X509_STORE_CTX *ctx,
    */
   if (ext != NULL) {
     i = -1;
+    x = NULL;
   } else {
     i = 0;
     x = sk_X509_value(chain, i);
@@ -1234,6 +1235,7 @@ static int v3_addr_validate_path_internal(X509_STORE_CTX *ctx,
   /*
    * Trust anchor can't inherit.
    */
+  assert(x != NULL);
   if (x->rfc3779_addr != NULL) {
     for (j = 0; j < sk_IPAddressFamily_num(x->rfc3779_addr); j++) {
       IPAddressFamily *fp = sk_IPAddressFamily_value(x->rfc3779_addr, j);

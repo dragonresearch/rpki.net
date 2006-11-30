@@ -382,25 +382,6 @@ Notes:
 
 
 
-Final code cleanups before submitting patch to OpenSSL project.
-
-- Ben requested compile-time conditionals.  [done, waiting to hear if
-  done "right" according to OpenSSL project standards]
-
-- Ben requested Configure support for the compile-time conditionals.
-  [done, waiting to hear if done "right" according to OpenSSL project
-  standards]
-
-- Copyright/license adjustments per discusion with ARIN and OpenSSL
-  project.  [done]
-
-- Finish up rough edges of the library API.  [done]
-
-- Need patch against OpenSSL HEAD as well as 0.9.8 branch.  Figure out
-  how to do that, or ask Ben for help.
-
-
-
 I've pulled the stuff in trunk/ up to OpenSSL 0.9.8d so that people
 building against this will not be missing the security updates from
 the recent OpenSSL vulnerability firedrills.  In theory nothing in the
@@ -408,3 +389,13 @@ RPKI code was touched by this; the existing RPKI patch against 0.9.8b
 applies without changes against 0.9.8c and 0.9.8d.
 
 Please report any problems.
+
+
+
+The RFC 3997 patches were committed to the OpenSSL Project's CVS
+repository on 27 November 2006, on both HEAD and the
+OpenSSL_0_9_8-stable branch (thanks, Ben!).  At the moment this code
+is only available from the OpenSSL project via CVS, but as it is now
+part of the OpenSSL source tree it should be present in future
+releases.  At least for now, it's disabled by default, so you have to
+do "./config enable-rfc3779" to enable it.

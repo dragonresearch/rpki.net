@@ -225,7 +225,7 @@ allow-stale-crl		Allow use of CRLs which are past their
 			nextUpdate timestamp.  This is probably
 			harmless, but since it may be an early warning
 			of problems, it's configurable.
-			Values: true or false.  Default: false
+			Values: true or false.  Default: true
 
 prune			Clean up old files corresponding to URIs that
 			rcynic did not see at all during this run.

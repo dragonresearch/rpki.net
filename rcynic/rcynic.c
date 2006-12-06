@@ -1259,7 +1259,7 @@ static int check_cert_cb(int ok, X509_STORE_CTX *ctx)
      * said it intended to publish a new CRL.  Unclear whether this
      * should be an error; current theory is that it should not be.
      */
-    logmsg(rctx->rc, log_telemetry, "Stale CRL %s while checking %s",
+    logmsg(rctx->rc, log_data_err, "Stale CRL %s while checking %s",
 	   rctx->subj->crldp, rctx->subj->uri);
     mib_increment(rctx->rc, rctx->subj->uri, stale_crl);
     if (rctx->rc->allow_stale_crl)
@@ -1582,6 +1582,7 @@ int main(int argc, char *argv[])
   set_directory(&rc.old_authenticated,	"rcynic-data/authenticated.old/");
   set_directory(&rc.unauthenticated,	"rcynic-data/unauthenticated/");
   rc.log_level = log_telemetry;
+  rc.allow_stale_crl = 1;
 
 #define QQ(x,y)   rc.priority[x] = y;
   LOG_LEVELS;

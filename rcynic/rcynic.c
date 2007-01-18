@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006  American Registry for Internet Numbers ("ARIN")
+ * Copyright (C) 2006--2007  American Registry for Internet Numbers ("ARIN")
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -1591,7 +1591,7 @@ int main(int argc, char *argv[])
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
 
-  while ((c = getopt(argc, argv, "c:l:stpj:")) > 0) {
+  while ((c = getopt(argc, argv, "c:l:stpj:V")) > 0) {
     switch (c) {
     case 'c':
       cfg_file = optarg;
@@ -1612,9 +1612,13 @@ int main(int argc, char *argv[])
 	goto done;
       opt_jitter = 1;
       break;
+    case 'V':
+      puts(svn_id);
+      ret = 0;
+      goto done;
     default:
       logmsg(&rc, log_usage_err,
-	     "usage: %s [-c configfile] [-s] [-e] [-l loglevel] [-j jitter]",
+	     "usage: %s [-c configfile] [-s] [-e] [-l loglevel] [-j jitter] [-V]",
 	     rc.jane);
       goto done;
     }

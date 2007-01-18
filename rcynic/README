@@ -116,6 +116,7 @@ Command line options:
  -s		Log via syslog
  -e		Log via stderr when also using syslog
  -j		Start-up jitter interval (see below; default: 600)
+ -V		Print rcynic's version to standard output and exit
 
 Configuration file:
 

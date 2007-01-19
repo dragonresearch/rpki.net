@@ -118,7 +118,7 @@ xsltproc --output $unsigned - $input <<'EOF'
 		<Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
 	      </Transforms>
 	      <DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
-	      <DigestValue>HjY8ilZAIEM2tBbPn5mYO1ieIX4=</DigestValue>
+	      <DigestValue></DigestValue>
 	    </Reference>
 	  </SignedInfo>
 	  <SignatureValue/>

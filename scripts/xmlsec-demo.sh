@@ -60,7 +60,7 @@ test -r $input || cat >$input <<'EOF'
   </reference>
 EOF
 
-# Set of a simple chain of certs.
+# Set up a simple chain of certs.
 
 for i in $alice $bob $carol $dave
 do

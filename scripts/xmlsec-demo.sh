@@ -9,6 +9,10 @@
 # Basic idea of the demo is to create a four level deep cert chain,
 # use that to sign an XML document, then demonstrate that it verifies.
 
+# Subsequent discussion on the mailing list concluded that xmlsec (the
+# protocol, not just this particular implementation) is hopelessly
+# broken and that we should just use CMS (aka PKCS#7 ng).  Done.
+
 set -xe
 
 : ${input=input.xml} ${unsigned=unsigned.xml} ${signed=signed.xml}

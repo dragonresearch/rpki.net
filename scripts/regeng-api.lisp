@@ -54,3 +54,61 @@
 
 
 ;;; Protocol operations between IR back-end and registration engine.
+;;;
+;;; At the moment this is not even 1/4 baked, it's just a list of
+;;; functions to be filled in with arguments and results, and some of
+;;; these may not really need to cross the IR back-end / registration
+;;; engine boundary at all.  To be refined....
+
+(create-cust-id)
+(destroy-cust-id)
+(list-cust-ids)
+
+(get-preferences)
+(set-preferences)
+
+(add-resource)
+(del-resource)
+(list-resources)
+
+(get-biz-private-key)
+(set-biz-private-key)
+(add-friend-biz-cert)
+(del-friend-biz-cert)
+(list-friend-biz-certs)
+
+(create-ca-context)
+(destroy-ca-context)
+
+;; Ask signing engine to generate a cert request with specified
+;; attributes and indicated (subject) keyset.
+
+(generate-cert-request)
+
+(generate-crl)
+
+;; Ask signing engine to sign a cert using specified cert request and
+;; attributes and indicated (issuer) keyset.
+
+(sign-cert)
+
+(add-right-to-route)
+(del-right-to-route)
+(list-rights-to-route)
+
+(generate-roa)
+
+(publish-cert)
+(publish-crl)
+(publish-roa)
+
+;; Trigger poll of this cust id's external parent, no-op if parent is
+;; not external.  What does reg engine do with responses, save them as
+;; part of its internal state then go back to sleep?
+
+(poll-external-parent)
+
+;; Trigger this cust id to do its "nightly" cycle.  Most likely needs
+;; to be broken down further.
+
+(run-nightly-batch)

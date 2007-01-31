@@ -107,6 +107,8 @@
 (list-friend-biz-certs :cust-id 42)
 => (cert ...)
 
+;;; Stuff below this line is not even close to baked yet
+
 ;; These two may take a bit more thought.  What's a ca-handle?
 
 (create-ca-context :cust-id 42
@@ -118,16 +120,25 @@
 => ()
 
 ;; Ask signing engine to generate a cert request with specified
-;; attributes and indicated (subject) keyset.
+;; attributes and indicated (subject) keyset.  Key handle is in case
+;; we have to ask signing engine to create a keypair for this.
 
-(generate-cert-request)
+(generate-cert-request :cust-id 42
+		       :subject-name subject-name
+		       :attributes '(blah blah blah)
+		       :public-key public-key
+		       :public-key-handle handle)
 
-(generate-crl)
+;; Ask signing engine to sign a CRL.  Need to indicate the CA that's
+;; generating the CRL
 
-;; Ask signing engine to sign a cert using specified cert request and
-;; attributes and indicated (issuer) keyset.
+(generate-crl :cust-id 42
+	      :ca-handle ca-handle)
 
-(sign-cert)
+;; Ask signing engine to sign a cert request using specified cert
+;; request and attributes and indicated (issuer) keyset.
+
+(sign-cert-request)
 
 (add-right-to-route)
 (del-right-to-route)

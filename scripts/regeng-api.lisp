@@ -19,18 +19,17 @@
 (create-keypair :cust-id 42
 		:length 2048
 		:handle customer-42s-new-keypair)
-
 => (public-key handle)
 
 ;; Destroy a keypair.
 
 (destroy-keypair :cust-id 42
 		 :public-key public-key)
+=> ()
 
 ;; List existing keypairs
 
 (list-keypairs :cust-id 42)
-
 => (public-key public-key ...)
 
 ;; Sign something.  Will probably need to break this down into
@@ -40,10 +39,9 @@
 
 (sign-thing :cust-id		42
 	    :what-to-sign	blob
-	    :how-to-sign	'rsa/sha256
+	    :how-to-sign	:rsa/sha256
 	    :key-to-use		public-key
 	    :key-handle		handle-for-public-key)
-
 => (signed-thing)
 
 ;; Do we need a verify operation here that can take a handle so we can
@@ -61,24 +59,63 @@
 ;;; engine boundary at all.  To be refined....
 
 (create-cust-id)
-(destroy-cust-id)
+=> (customer-id)
+
+(destroy-cust-id :cust-id 42)
+=> ()
+
 (list-cust-ids)
+=> (customer-id ...)
 
-(get-preferences)
-(set-preferences)
+(get-preference :cust-id 42
+		:preference-name :favorite-color)
+=> ("obsidian")
 
-(add-resource)
-(del-resource)
-(list-resources)
+(set-preference :cust-id 42
+		:name  :favorite-color
+		:value "obsidian")
+=> ()
 
-(get-biz-private-key)
-(set-biz-private-key)
-(add-friend-biz-cert)
-(del-friend-biz-cert)
-(list-friend-biz-certs)
+(add-resource :cust-id 42
+	      :name  :ipv4-address
+	      :value "10.0.0.44/32")
+=> ()
 
-(create-ca-context)
-(destroy-ca-context)
+(del-resource :cust-id 42
+	      :name  :ipv4-address
+	      :value "10.0.0.44/32")
+=> ()
+
+(list-resources :cust-id 42)
+=> ((:ipv4-address . "10.0.0.44/32") ...)
+
+(get-biz-private-key :cust-id 42)
+=> (private-key)
+
+(set-biz-private-key :cust-id 42
+		     :new-key new-private-key)
+=> ()
+
+(add-friend-biz-cert :cust-id 42
+		     :cert cert)
+=> ()
+
+(del-friend-biz-cert :cust-id 42
+		     :cert cert)
+=> ()
+
+(list-friend-biz-certs :cust-id 42)
+=> (cert ...)
+
+;; These two may take a bit more thought.  What's a ca-handle?
+
+(create-ca-context :cust-id 42
+		   :distinguished-name dn)
+=> (ca-handle)
+
+(destroy-ca-context :cust-id 42
+		    :ca-handle handle)
+=> ()
 
 ;; Ask signing engine to generate a cert request with specified
 ;; attributes and indicated (subject) keyset.

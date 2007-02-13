@@ -4,6 +4,13 @@
 #
 #   http://mirin.apnic.net/resourcecerts/wiki/index.php/IR-ISP_Definition
 
+# CMS wrapper for this (not yet written) would look something like:
+#
+# openssl smime -sign -nodetach -outform DER -in foo.xml -out foo.cms \
+#		-signer foo.cer -inkey foo.key
+#
+# openssl smime -verify -CApath . -inform DER -in foo.cms -out foo.xml
+
 eval 'exec perl -w -S $0 ${1+"$@"}'
     if 0;
 

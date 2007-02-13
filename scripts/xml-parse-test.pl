@@ -1,5 +1,9 @@
-:
 # $Id$
+#
+# Test of XML::Simple as a tool for encoding and decoding
+#
+#   http://mirin.apnic.net/resourcecerts/wiki/index.php/IR-ISP_Definition
+
 eval 'exec perl -w -S $0 ${1+"$@"}'
     if 0;
 
@@ -19,6 +23,12 @@ my @xml = ('
         <header  sender="sender name"
                  recipient = "recipient name"
                  msg_ref="reference" />
+        <list_class ca="ca_name"
+                     cert_url="url"
+                     cert_ski="g(ski)"
+                     cert_serial="serial"
+                     cert_aki="g(aki)"
+                     status="keyword" />
         <list_class ca="ca_name"
                      cert_url="url"
                      cert_ski="g(ski)"

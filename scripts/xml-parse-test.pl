@@ -49,8 +49,7 @@ my @xml = ('
         <header  sender="sender name"
                  recipient = "recipient name"
                  msg_ref="reference" />
-        <issue_request_class ca="ca_name"
-                              subca="subca_ident">
+        <issue_request_class ca="ca_name">
             [Certificate request]
         </issue_request_class>
     </message>
@@ -60,7 +59,6 @@ my @xml = ('
                  recipient = "recipient name"
                  msg_ref="reference" />
         <certificate ca="ca_name"
-                     subca="subca_ident"
                      cert_url="url"
                      cert_ski="g(ski)"
                      cert_serial="serial"
@@ -95,7 +93,10 @@ my @xml = ('
     </message>
 ');    
 
-my $xs = XML::Simple->new(KeepRoot => 1, Forcearray => [qw(list_class)]);
+my $xs = XML::Simple->new(KeepRoot => 1,
+			  ForceArray => [qw(list_class)],
+			  KeyAttr => [qw(header)],
+ 			  NormalizeSpace => 2);
 
 for my $xml (@xml) {
     my $x = $xs->XMLin($xml);

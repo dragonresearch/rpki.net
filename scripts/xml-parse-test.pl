@@ -161,9 +161,13 @@ sub run2 {
 my $p7b = "-----BEGIN PKCS7-----\n";
 my $p7e = "-----END PKCS7-----\n";
 
+my $dir = "apacheca";
+my $cer = "$dir/ISP4-EE.cer";
+my $key = "$dir/ISP4-EE.key";
+
 sub encode {
     my $arg = shift;
-    my @res = run2($arg, qw(openssl smime -sign -nodetach -outform PEM -signer foo.cer -inkey foo.key));
+    my @res = run2($arg, qw(openssl smime -sign -nodetach -outform PEM -signer), $cer, q(-inkey), $key);
     die("Missing PKCS7 markers")
 	unless $res[0] eq $p7b && $res[@res-1] eq $p7e;
     return join('', @res[1..@res-2]);
@@ -171,7 +175,7 @@ sub encode {
 
 sub decode {
     my $arg = shift;
-    my @res = run2($p7b . $arg . $p7e, qw(openssl smime -verify -CApath . -inform PEM));
+    my @res = run2($p7b . $arg . $p7e, qw(openssl smime -verify -inform PEM -CApath), $dir);
     return join('', @res);
 }
 

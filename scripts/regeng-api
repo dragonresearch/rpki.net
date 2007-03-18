@@ -14,24 +14,24 @@
 ;;; to sign; this still needs to be checked by competent paranoids.
 
 ;; Create a keypair.  :length is the number of bits for the key
-;; (default 2048?).  :handle is optional, and is here to allow forward
-;; references within a sneakernet queue.
+;; (default 2048?).
 
 (create-keypair :cust-id 42
-		:length 2048
-		:handle customer-42s-new-keypair)
-=> (public-key handle)
+		:length 2048)
+=> (public-key key-id)
 
 ;; Destroy a keypair.
 
 (destroy-keypair :cust-id 42
-		 :public-key public-key)
+		 :key-id key-id)
 => ()
 
 ;; List existing keypairs
 
 (list-keypairs :cust-id 42)
-=> (public-key public-key ...)
+=> ((key-id . public-key)
+    (key-id . public-key)
+    ...)
 
 ;; Sign something.  Will probably need to break this down into
 ;; separate signing calls for each kind of thing to be signed, but
@@ -41,8 +41,7 @@
 (sign-thing :cust-id		42
 	    :what-to-sign	blob
 	    :how-to-sign	:rsa/sha256
-	    :key-to-use		public-key
-	    :key-handle		handle-for-public-key)
+	    :key-id		key-id)
 => (signed-thing)
 
 ;; Do we need a verify operation here that can take a handle so we can
@@ -87,6 +86,7 @@
 	      :value "10.0.0.44/32")
 => ()
 
+;;; backwards because resources now live in the irdb not the re
 (list-resources :cust-id 42)
 => ((:ipv4-address . "10.0.0.44/32") ...)
 
@@ -107,6 +107,10 @@
 
 (list-friend-biz-certs :cust-id 42)
 => (cert ...)
+
+;;; Need to add biz signing cert chain get/set/list
+
+
 
 ;;; Stuff below this line is not even close to baked yet
 

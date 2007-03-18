@@ -184,4 +184,26 @@
 ;;; key.
 ;;;
 ;;; Um, collection creation may need us to demonstrate that we own the
-;;; issuer cert, so we may need to sign something with it.
+;;; issuer cert, so we may need to sign something with it, and we
+;;; don't really need to do explicit collection creation, we can
+;;; automatically create collections as a side effect of attempting to
+;;; store something in them.
+
+(publish-thing :thing-type :crl
+	       :signed-thing signed-thing)
+=> ()
+
+;;; Where signed-thing looks like:
+;;;
+;;;      (repo-biz-key-signature
+;;;        ca-cert
+;;;	   (ca-key-signature
+;;;	     object-to-publish))
+;;;
+;;; NB: the ca-key-signature is a simple signature with no
+;;; certificates embedded, as we can't assume that the repository
+;;; knows the trust anchor.  More precisely, if the crypto guys tell
+;;; us that we must do cert chain verification here, the business
+;;; setup for all this has to make sure that the repository operator
+;;; -does- know the RPKI trust anchor and we'd kind of rather not go
+;;; there.

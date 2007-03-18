@@ -103,6 +103,40 @@
 (list-friend-biz-certs :cust-id 42)
 => (cert ...)
 
+;; Need something for specifying the private key and signing cert
+;; chain used for lodging.  Need contact URI (or whatever) for
+;; lodging.  At this point we think we can make this per cust-id
+;; rather than per personality within cust-id; this can be fixed later
+;; with a simple RE software upgrade if there's ever a need.  Well,
+;; almost.  Need to upgrade the left-right protocol but that's a
+;; single entity upgrade.
+
+
+(get-repo-biz-private-key :cust-id 42)
+=> (private-key)
+
+(set-repo-biz-private-key :cust-id 42
+		     :new-key new-private-key)
+=> ()
+
+(get-repo-biz-signing-certs :cust-id 42)
+=> (cert ...)
+
+(set-repo-biz-signing-certs :cust-id 42
+		       (cert ...))
+=> ()
+
+(add-repo-biz-cert :cust-id 42
+		   :cert cert)
+=> ()
+
+(del-repo-biz-cert :cust-id 42
+		   :cert cert)
+=> ()
+
+(list-repo-biz-certs :cust-id 42)
+=> (cert ...)
+
 
 
 ;;; Protocol operations between IRBE and RE.
@@ -122,3 +156,32 @@
 => ((as-number :ipv4 prefix-or-range :ipv6 prefix-or-range ...)
     (as-number "ipv6 prefix-or-range :ipv6 prefix-or-range :ipv4 prefix-or-range ...)
     ...)
+
+
+
+;;; Repository update protocol.  Same basic CMS-signed XML mess we use
+;;; elsewhere.  This one is RE as client, lodging repository as
+;;; server.  Authorization is a combination of business key and
+;;; resource key/cert: biz key demonstrates that we're authorized to
+;;; play with this repository at all, resource key/cert demonstrates
+;;; that we're the issuer of the objects we're trying to lodge, or
+;;; that we are should be allowed to create a collection with a name
+;;; corresponding to the g(xki) of our issuer public key and tells
+;;; repository which collection the stuff we're sending up should
+;;; lodge in.   Collection creation looks like:
+;;;
+;;;   (biz-sig issuer-cert)
+;;;
+;;; It helps that this is issuer cert, not just issuer public key,
+;;; because repository may want to splice this collection into the
+;;; tree underneath its parent.
+;;;
+;;; Object insertion looks like:
+;;;
+;;;   (biz-sig object)
+;;;
+;;; where we assume that the object is already signed by our issuer
+;;; key.
+;;;
+;;; Um, collection creation may need us to demonstrate that we own the
+;;; issuer cert, so we may need to sign something with it.

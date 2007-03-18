@@ -85,6 +85,13 @@
 		     :new-key new-private-key)
 => ()
 
+(get-biz-signing-certs :cust-id 42)
+=> (cert ...)
+
+(set-biz-signing-certs :cust-id 42
+		       (cert ...))
+=> ()
+
 (add-friend-biz-cert :cust-id 42
 		     :cert cert)
 => ()
@@ -95,8 +102,6 @@
 
 (list-friend-biz-certs :cust-id 42)
 => (cert ...)
-
-;;; Need to add biz signing cert chain get/set/list
 
 
 

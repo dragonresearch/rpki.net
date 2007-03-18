@@ -1,17 +1,23 @@
 ;;; -*- Lisp -*-
 ;;; $Id$
 ;;;
-;;; Scratch pad for working out API design for registration engine.
+;;; Scratch pad for working out API design for RPKI engine.
 ;;;
 ;;; This file is psuedocode, I just wanted to take advantage of
 ;;; emacs's built-in support for languages with reasonable syntax.
+;;;
+;;; Terminology:
+;;;
+;;; - IRBE: Internet Registry Back End
+;;;
+;;; - RE: RPKI Engine
 
 
 
-;;; Protocol operations between registration engine and signing engine.
-;;; This assumes the model in which the signing engine stores nothing
-;;; but keypairs and takes orders from the registration engine on what
-;;; to sign; this still needs to be checked by competent paranoids.
+;;; Protocol operations between RE and signing engine.  This assumes
+;;; the model in which the signing engine stores nothing but keypairs
+;;; and takes orders from the RE on what to sign; this still needs to
+;;; be checked by competent paranoids.
 
 ;; Create a keypair.  :length is the number of bits for the key
 ;; (default 2048?).
@@ -29,34 +35,30 @@
 ;; List existing keypairs
 
 (list-keypairs :cust-id 42)
-=> ((key-id . public-key)
-    (key-id . public-key)
+=> ((key-id public-key)
+    (key-id public-key)
     ...)
 
-;; Sign something.  Will probably need to break this down into
-;; separate signing calls for each kind of thing to be signed, but
-;; most likely they will all look pretty much alike.  One of
-;; :key-to-use or :key-handle must be specified.
+;; Sign something.  how-to-sign tells us both what signature method to
+;; use (ie, what kind of object we're signing) and also the signature
+;; algorithm to use (where there are multiple choices, which perhaps
+;; there should not be?).
 
 (sign-thing :cust-id		42
-	    :what-to-sign	blob
-	    :how-to-sign	:rsa/sha256
+	    :what-to-sign	cert-without-signature
+	    :how-to-sign	:cert-rsa/sha256
 	    :key-id		key-id)
 => (signed-thing)
 
-;; Do we need a verify operation here that can take a handle so we can
-;; verify things that were signed by keys that don't exist yet at the
-;; time we're queuing up the sneakernet channel?  Hope not, sounds
-;; complicated.  Punt for now.
-
 
 
-;;; Protocol operations between IR back-end and registration engine.
+;;; Protocol operations between IRBE and RE.
 ;;;
-;;; At the moment this is not even 1/4 baked, it's just a list of
-;;; functions to be filled in with arguments and results, and some of
-;;; these may not really need to cross the IR back-end / registration
-;;; engine boundary at all.  To be refined....
+;;; This is really two separate protocols over channels that might or
+;;; not be the same.  Both are client/server protocols, but for some
+;;; the rpki engine and for others the irbe is the client.
+;;;
+;;; This set of operations are initiated by the IRBE.
 
 (create-cust-id)
 => (customer-id)
@@ -75,20 +77,6 @@
 		:name  :favorite-color
 		:value "obsidian")
 => ()
-
-(add-resource :cust-id 42
-	      :name  :ipv4-address
-	      :value "10.0.0.44/32")
-=> ()
-
-(del-resource :cust-id 42
-	      :name  :ipv4-address
-	      :value "10.0.0.44/32")
-=> ()
-
-;;; backwards because resources now live in the irdb not the re
-(list-resources :cust-id 42)
-=> ((:ipv4-address . "10.0.0.44/32") ...)
 
 (get-biz-private-key :cust-id 42)
 => (private-key)
@@ -109,6 +97,21 @@
 => (cert ...)
 
 ;;; Need to add biz signing cert chain get/set/list
+
+
+
+;;; Protocol operations between IRBE and RE.
+;;;
+;;; This is really two separate protocols over channels that might or
+;;; not be the same.  Both are client/server protocols, but for some
+;;; the rpki engine and for others the irbe is the client.
+;;;
+;;; This set of operations are initiated by the IRBE.
+
+(list-resources :cust-id 42)
+=> ((:ipv4-address "10.0.0.44/32" "10.3.0.44/32")
+    (:ipv6-address "fe80:dead:beef::/24")
+    ...)
 
 
 

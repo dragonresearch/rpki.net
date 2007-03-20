@@ -69,6 +69,10 @@
 (list-cust-ids)
 => (customer-id ...)
 
+;; RobK wonders whether there needs to be an operation that blows away
+;; most of the context but preserves things like audit logs.  No
+;; current consensus on need for this.
+
 (get-preference :cust-id 42
 		:preference-name :favorite-color)
 => ("obsidian")

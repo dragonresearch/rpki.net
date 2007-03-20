@@ -93,13 +93,15 @@
 => (keypair-id pkcs10-cert-request)
 
 (destroy-biz-keypair :cust-id 42
-		 :keypair-id splat)
+		     :keypair-id splat)
 => ()
 
-(get-biz-signing-certs :cust-id 42)
+(get-biz-signing-certs :cust-id 42
+		       :keypair-id splat)
 => (cert ...)
 
 (set-biz-signing-certs :cust-id 42
+		       :keypair-id splat
 		       (cert ...))
 => ()
 

@@ -89,11 +89,11 @@
 ;; (generate-keypair) setup followed by a dance between the IRBE and
 ;; the business PKI system.
 
-(get-biz-private-key :cust-id 42)
-=> (private-key)
+(create-biz-keypair :cust-id 42)
+=> (keypair-id pkcs10-cert-request)
 
-(set-biz-private-key :cust-id 42
-		     :new-key new-private-key)
+(destroy-biz-keypair :cust-id 42
+		 :keypair-id splat)
 => ()
 
 (get-biz-signing-certs :cust-id 42)

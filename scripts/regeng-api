@@ -145,7 +145,7 @@
 ;;; not be the same.  Both are client/server protocols, but for some
 ;;; the rpki engine and for others the irbe is the client.
 ;;;
-;;; This set of operations are initiated by the IRBE.
+;;; This set of operations are initiated by the RE.
 
 (list-resources :cust-id 42)
 => ((:ipv4-address "10.0.0.44/32" "10.3.0.44/32")

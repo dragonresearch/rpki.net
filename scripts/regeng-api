@@ -118,6 +118,28 @@
 		       (cert ...))
 => ()
 
+(set-ca-parent-ta :cust-id 42
+		  :ta ta)
+=> ()
+
+(get-ca-parent-ta :cust-id 42)
+=> (ta)
+
+(set-ca-parent-uri :cust-id 42
+		:uri uri)
+=> ()
+
+(get-ca-parent-uri :cust-id 42)
+=> (uri)
+
+(set-ca-parent-biz-signing-context :cust-id 42
+				   :biz-signing-context foo)
+=> ()
+
+(get-ca-parent-biz-signing-context :cust-id 42)
+=> (biz-signing-context)
+
+
 ;; (set-parent-ta)
 ;; (set-parent-uri)
 ;; (set-parent-biz-signing-context)

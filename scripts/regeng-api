@@ -139,16 +139,30 @@
 (get-ca-parent-biz-signing-context :cust-id 42)
 => (biz-signing-context)
 
+(create-child :cust-id 42)
+=> (child)
 
-;; (set-parent-ta)
-;; (set-parent-uri)
-;; (set-parent-biz-signing-context)
-;;
-;; (create-child)
-;; (destroy-child)
-;; (set-child-ta)
-;; (set-child-biz-signing-context)
-;;
+(destroy-child :cust-id 42
+	       :child foo)
+=> ()
+
+(set-child-ta :cust-id 42
+	      :child foo
+	      :ta bar)
+=> ()
+
+(get-child-ta :cust-id 42
+	      :child foo)
+=> (ta)
+
+(set-child-biz-signing-context :cust-id 42
+			       :child foo
+			       :biz-signing-context bar)
+
+(get-child-biz-signing-context :cust-id 42
+			       :child foo)
+=> (signing-context)
+
 ;; (add-child-to-ca)
 ;; (del-child-from-ca)
 ;; (list-ca-children)

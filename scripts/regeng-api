@@ -254,3 +254,6 @@
 ;;; there.  The repo-biz-key-signature is cms with the full signer
 ;;; cert chain in the bag plus the resource cert as an extra cert in
 ;;; the bag.
+;;;
+;;; SIA in the signing resource cert's tells us where to publish the
+;;; object.

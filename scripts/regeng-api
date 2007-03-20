@@ -85,35 +85,43 @@
 ;; Extensions might also show up as preferences that nobody but this
 ;; IRBE operator has ever heard of
 
+(create-biz-ca-context :cust-id 42)
+=> (biz-ca-id)
+
+(destroy-biz-ca-context :cust-id 42
+			:ca-id foo)
+=> ()
+
 ;; The following two bother RobK and RobL who would prefer a
 ;; (generate-keypair) setup followed by a dance between the IRBE and
 ;; the business PKI system.
 
-(create-biz-keypair :cust-id 42)
-=> (keypair-id pkcs10-cert-request)
+(create-biz-keypair :cust-id 42
+		    :ca-id splat)
+=> (pkcs10-cert-request)
 
 (destroy-biz-keypair :cust-id 42
-		     :keypair-id splat)
+		     :ca-id splat)
 => ()
 
 (get-biz-signing-certs :cust-id 42
-		       :keypair-id splat)
+		       :ca-id splat)
 => (cert ...)
 
 (set-biz-signing-certs :cust-id 42
-		       :keypair-id splat
+		       :ca-id splat
 		       (cert ...))
 => ()
 
-(add-friend-biz-cert :cust-id 42
-		     :cert cert)
+(add-friend-biz-ta :cust-id 42
+		   :cert cert)
 => ()
 
-(del-friend-biz-cert :cust-id 42
-		     :cert cert)
+(del-friend-biz-ta :cust-id 42
+		   :cert cert)
 => ()
 
-(list-friend-biz-certs :cust-id 42)
+(list-friend-biz-tas :cust-id 42)
 => (cert ...)
 
 ;; Need something for specifying the private key and signing cert

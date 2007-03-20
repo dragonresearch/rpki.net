@@ -221,6 +221,11 @@
     (as-number "ipv6 prefix-or-range :ipv6 prefix-or-range :ipv4 prefix-or-range ...)
     ...)
 
+(report-error :cust-id 42
+	      :error-token :your-hair-is-on-fire
+	      :bag-of-data whatever)
+=> ()
+
 
 
 ;;; Repository update protocol.  Same basic CMS-signed XML mess we use

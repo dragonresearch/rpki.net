@@ -98,33 +98,40 @@
 ;; (generate-keypair) setup followed by a dance between the IRBE and
 ;; the business PKI system.
 
-(create-biz-keypair :cust-id 42
-		    :ca-id splat)
-=> (pkcs10-cert-request)
+;; This creates both a context and a keypair
+(create-biz-context :cust-id 42)
+=> (biz-context-id pkcs10-cert-request)
 
-(destroy-biz-keypair :cust-id 42
-		     :ca-id splat)
+(destroy-biz-context :cust-id 42
+		     :biz-context-id biz-context-id)
 => ()
 
 (get-biz-signing-certs :cust-id 42
-		       :ca-id splat)
+		       :biz-context-id splat)
 => (cert ...)
 
 (set-biz-signing-certs :cust-id 42
-		       :ca-id splat
+		       :biz-context-id splat
 		       (cert ...))
 => ()
 
 (add-friend-biz-ta :cust-id 42
-		   :cert cert)
+		   :biz-context-id splat
+		   :ta ta)
 => ()
 
 (del-friend-biz-ta :cust-id 42
-		   :cert cert)
+		   :biz-context-id splat
+		   :ta ta)
 => ()
 
-(list-friend-biz-tas :cust-id 42)
+(list-friend-biz-tas :cust-id 42
+		     :biz-context-id splat)
 => (cert ...)
+
+(bind-biz-context-to-ca :cust-id 42
+			:ca-id foo
+			:biz-context-id bar)
 
 ;; Need something for specifying the private key and signing cert
 ;; chain used for lodging.  Need contact URI (or whatever) for

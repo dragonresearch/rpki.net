@@ -141,12 +141,18 @@
 				   :ca foo)
 => (biz-signing-context)
 
-(create-child :cust-id 42)
+(create-ca-child :cust-id 42
+		 :ca foo)
 => (child)
 
-(destroy-child :cust-id 42
-	       :child foo)
+(destroy-ca-child :cust-id 42
+		  :ca foo
+		  :child bar)
 => ()
+
+(list-ca-children  :cust-id id
+		   :ca foo)
+=> (child ...)
 
 (set-child-ta :cust-id 42
 	      :child foo
@@ -164,20 +170,6 @@
 (get-child-biz-signing-context :cust-id 42
 			       :child foo)
 => (signing-context)
-
-(add-child-to-ca :cust-id id
-		 :ca foo
-		 :child bar)
-=> ()
-
-(del-child-from-ca :cust-id id
-		   :ca foo
-		   :child bar)
-=> ()
-
-(list-ca-children  :cust-id id
-		   :ca foo)
-=> (child ...)
 
 ;; Need something for specifying the private key and signing cert
 ;; chain used for lodging.  Need contact URI (or whatever) for

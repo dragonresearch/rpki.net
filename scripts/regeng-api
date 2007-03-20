@@ -99,22 +99,22 @@
 ;; the business PKI system.
 
 ;; This creates both a context and a keypair
-(create-biz-context :cust-id 42)
-=> (biz-context-id pkcs10-cert-request)
+(create-biz-signing-context :cust-id 42)
+=> (biz-signing-context-id pkcs10-cert-request)
 
-(destroy-biz-context :cust-id 42
-		     :biz-context-id biz-context-id)
+(destroy-biz-signing-context :cust-id 42
+			     :biz-signing-context-id biz-context-id)
 => ()
 
-(list-biz-contexts :cust-id 42)
-=> (biz-context-id ...)
+(list-biz-signing-contexts :cust-id 42)
+=> (biz-signing-context-id ...)
 
 (get-biz-signing-certs :cust-id 42
-		       :biz-context-id splat)
+		       :biz-signing-context-id splat)
 => (cert ...)
 
 (set-biz-signing-certs :cust-id 42
-		       :biz-context-id splat
+		       :biz-signing-context-id splat
 		       (cert ...))
 => ()
 

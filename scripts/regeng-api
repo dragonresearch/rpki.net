@@ -163,27 +163,19 @@
 			       :child foo)
 => (signing-context)
 
-;; (add-child-to-ca)
-;; (del-child-from-ca)
-;; (list-ca-children)
-
-(add-friend-biz-ta :cust-id 42
-		   :biz-context-id splat
-		   :ta ta)
+(add-child-to-ca :cust-id id
+		 :ca foo
+		 :child bar)
 => ()
 
-(del-friend-biz-ta :cust-id 42
-		   :biz-context-id splat
-		   :ta ta)
+(del-child-from-ca :cust-id id
+		   :ca foo
+		   :child bar)
 => ()
 
-(list-friend-biz-tas :cust-id 42
-		     :biz-context-id splat)
-=> (cert ...)
-
-(bind-biz-context-to-ca :cust-id 42
-			:ca-id foo
-			:biz-context-id bar)
+(list-ca-children  :cust-id id
+		   :ca foo)
+=> (child ...)
 
 ;; Need something for specifying the private key and signing cert
 ;; chain used for lodging.  Need contact URI (or whatever) for
@@ -193,6 +185,7 @@
 ;; almost.  Need to upgrade the left-right protocol but that's a
 ;; single entity upgrade.
 
+;; rob objects to the next two for the same reasons as above
 
 (get-repo-biz-private-key :cust-id 42)
 => (private-key)

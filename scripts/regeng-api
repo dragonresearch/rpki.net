@@ -115,24 +115,30 @@
 => ()
 
 (set-ca-parent-ta :cust-id 42
+		  :ca foo
 		  :ta ta)
 => ()
 
-(get-ca-parent-ta :cust-id 42)
+(get-ca-parent-ta :cust-id 42
+		  :ca foo)
 => (ta)
 
 (set-ca-parent-uri :cust-id 42
-		:uri uri)
+		   :ca foo
+		   :uri uri)
 => ()
 
-(get-ca-parent-uri :cust-id 42)
+(get-ca-parent-uri :cust-id 42
+		   :ca foo)
 => (uri)
 
 (set-ca-parent-biz-signing-context :cust-id 42
+				   :ca foo
 				   :biz-signing-context foo)
 => ()
 
-(get-ca-parent-biz-signing-context :cust-id 42)
+(get-ca-parent-biz-signing-context :cust-id 42
+				   :ca foo)
 => (biz-signing-context)
 
 (create-child :cust-id 42)

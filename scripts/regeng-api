@@ -166,6 +166,7 @@
 (set-child-biz-signing-context :cust-id 42
 			       :child foo
 			       :biz-signing-context bar)
+=> ()
 
 (get-child-biz-signing-context :cust-id 42
 			       :child foo)

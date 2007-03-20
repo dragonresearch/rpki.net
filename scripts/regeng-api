@@ -172,8 +172,6 @@
 			       :child foo)
 => (signing-context)
 
-
-
 (set-ca-repo-ta :cust-id 42
 		:ca foo
 		:ta ta)

@@ -82,6 +82,13 @@
 		:value "obsidian")
 => ()
 
+;; Extensions might also show up as preferences that nobody but this
+;; IRBE operator has ever heard of
+
+;; The following two bother RobK and RobL who would prefer a
+;; (generate-keypair) setup followed by a dance between the IRBE and
+;; the business PKI system.
+
 (get-biz-private-key :cust-id 42)
 => (private-key)
 

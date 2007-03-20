@@ -222,34 +222,11 @@
 
 
 ;;; Repository update protocol.  Same basic CMS-signed XML mess we use
-;;; elsewhere.  This one is RE as client, lodging repository as
+;;; elsewhere, this time with RE as client, lodging repository as
 ;;; server.  Authorization is a combination of business key and
 ;;; resource key/cert: biz key demonstrates that we're authorized to
-;;; play with this repository at all, resource key/cert demonstrates
-;;; that we're the issuer of the objects we're trying to lodge, or
-;;; that we are should be allowed to create a collection with a name
-;;; corresponding to the g(xki) of our issuer public key and tells
-;;; repository which collection the stuff we're sending up should
-;;; lodge in.   Collection creation looks like:
-;;;
-;;;   (biz-sig issuer-cert)
-;;;
-;;; It helps that this is issuer cert, not just issuer public key,
-;;; because repository may want to splice this collection into the
-;;; tree underneath its parent.
-;;;
-;;; Object insertion looks like:
-;;;
-;;;   (biz-sig object)
-;;;
-;;; where we assume that the object is already signed by our issuer
-;;; key.
-;;;
-;;; Um, collection creation may need us to demonstrate that we own the
-;;; issuer cert, so we may need to sign something with it, and we
-;;; don't really need to do explicit collection creation, we can
-;;; automatically create collections as a side effect of attempting to
-;;; store something in them.
+;;; play with this repository at all, resource cert demonstrates
+;;; relationship to the datum to be published.
 
 (publish-thing :thing-type :crl
 	       :signed-thing signed-thing)
@@ -258,7 +235,6 @@
 ;;; Where signed-thing looks like:
 ;;;
 ;;;      (repo-biz-key-signature
-;;;        ca-cert
 ;;;	   (ca-key-signature
 ;;;	     object-to-publish))
 ;;;
@@ -268,4 +244,6 @@
 ;;; us that we must do cert chain verification here, the business
 ;;; setup for all this has to make sure that the repository operator
 ;;; -does- know the RPKI trust anchor and we'd kind of rather not go
-;;; there.
+;;; there.  The repo-biz-key-signature is cms with the full signer
+;;; cert chain in the bag plus the resource cert as an extra cert in
+;;; the bag.

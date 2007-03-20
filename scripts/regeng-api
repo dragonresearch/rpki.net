@@ -118,9 +118,18 @@
 		       (cert ...))
 => ()
 
-;; (define-friend) is missing.   relationship of a friend to a ca context is:
-;; a ca-context has zero or one parents (usually one, but rirs are weird)
-;; a ca-context has zero or more children
+;; (set-parent-ta)
+;; (set-parent-uri)
+;; (set-parent-biz-signing-context)
+;;
+;; (create-child)
+;; (destroy-child)
+;; (set-child-ta)
+;; (set-child-biz-signing-context)
+;;
+;; (add-child-to-ca)
+;; (del-child-from-ca)
+;; (list-ca-children)
 
 (add-friend-biz-ta :cust-id 42
 		   :biz-context-id splat

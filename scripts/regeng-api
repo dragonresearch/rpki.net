@@ -85,11 +85,13 @@
 ;; Extensions might also show up as preferences that nobody but this
 ;; IRBE operator has ever heard of
 
-(create-biz-ca-context :cust-id 42)
-=> (biz-ca-id)
+;; The following create RPKI CA contexts
 
-(destroy-biz-ca-context :cust-id 42
-			:ca-id foo)
+(create-ca-context :cust-id 42)
+=> (ca-id)
+
+(destroy-ca-context :cust-id 42
+		    :ca-id foo)
 => ()
 
 ;; The following two bother RobK and RobL who would prefer a

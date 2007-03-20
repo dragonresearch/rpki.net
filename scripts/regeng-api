@@ -211,12 +211,14 @@
 ;;;
 ;;; This set of operations are initiated by the RE.
 
-(list-resources :cust-id 42)
+(list-resources :cust-id 42
+		&optional
+		:ca ca)			; If left off, we're asking about self rather than child
 => ((:ipv4-address "10.0.0.44/32" "10.3.0.44/32")
     (:ipv6-address "fe80:dead:beef::/24")
     ...)
 
-(list-rights-to-route :cust-id 42)
+(list-rights-to-route :cust-id 42)	; Self
 => ((as-number :ipv4 prefix-or-range :ipv6 prefix-or-range ...)
     (as-number "ipv6 prefix-or-range :ipv6 prefix-or-range :ipv4 prefix-or-range ...)
     ...)

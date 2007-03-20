@@ -94,10 +94,6 @@
 		    :ca-id foo)
 => ()
 
-;; The following two bother RobK and RobL who would prefer a
-;; (generate-keypair) setup followed by a dance between the IRBE and
-;; the business PKI system.
-
 ;; This creates both a context and a keypair
 (create-biz-signing-context :cust-id 42)
 => (biz-signing-context-id pkcs10-cert-request)
@@ -185,7 +181,9 @@
 ;; almost.  Need to upgrade the left-right protocol but that's a
 ;; single entity upgrade.
 
-;; rob objects to the next two for the same reasons as above
+;; The following two bother RobK and RobL who would prefer a
+;; (generate-keypair) setup followed by a dance between the IRBE and
+;; the business PKI system.
 
 (get-repo-biz-private-key :cust-id 42)
 => (private-key)

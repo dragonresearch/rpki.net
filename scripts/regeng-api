@@ -135,15 +135,6 @@
 ;; Extensions might also show up as preferences that nobody but this
 ;; IRBE operator has ever heard of
 
-;; The following create RPKI CA contexts
-
-(create-ca-context :cust-id 42)
-=> (ca-id)
-
-(destroy-ca-context :cust-id 42
-		    :ca-id foo)
-=> ()
-
 ;; This creates both a context and a keypair
 (create-biz-signing-context :cust-id 42)
 => (biz-signing-context-id pkcs10-cert-request)
@@ -164,44 +155,51 @@
 		       (cert ...))
 => ()
 
-(set-ca-parent-ta :cust-id 42
-		  :ca foo
-		  :ta ta)
+(create-parent-context :cust-id 42)
+=> (parent)
+
+(destroy-parent-context :cust-id 42
+			:parent foo)
 => ()
 
-(get-ca-parent-ta :cust-id 42
-		  :ca foo)
+(list-parents :cust-id 42)
+=> (parent ...)
+
+(set-parent-ta :cust-id 42
+	       :parent foo
+	       :ta ta)
+=> ()
+
+(get-parent-ta :cust-id 42
+	       :parent foo)
 => (ta)
 
-(set-ca-parent-uri :cust-id 42
-		   :ca foo
-		   :uri uri)
+(set-parent-uri :cust-id 42
+		:parent foo
+		:uri uri)
 => ()
 
-(get-ca-parent-uri :cust-id 42
-		   :ca foo)
+(get-parent-uri :cust-id 42
+		:parent foo)
 => (uri)
 
-(set-ca-parent-biz-signing-context :cust-id 42
-				   :ca foo
-				   :biz-signing-context foo)
+(set-parent-biz-signing-context :cust-id 42
+				:parent foo
+				:biz-signing-context foo)
 => ()
 
-(get-ca-parent-biz-signing-context :cust-id 42
-				   :ca foo)
+(get-parent-biz-signing-context :cust-id 42
+				:parent foo)
 => (biz-signing-context)
 
-(create-ca-child :cust-id 42
-		 :ca foo)
+(create-child :cust-id 42)
 => (child)
 
-(destroy-ca-child :cust-id 42
-		  :ca foo
-		  :child bar)
+(destroy-child :cust-id 42
+	       :child bar)
 => ()
 
-(list-ca-children  :cust-id id
-		   :ca foo)
+(list-children  :cust-id id)
 => (child ...)
 
 (set-child-ta :cust-id 42
@@ -221,6 +219,8 @@
 (get-child-biz-signing-context :cust-id 42
 			       :child foo)
 => (signing-context)
+
+;;; The following repo stuff is now wrong, need to come back to it
 
 (set-ca-repo-ta :cust-id 42
 		:ca foo

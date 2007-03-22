@@ -55,6 +55,12 @@
 ;;; internal name for the CA, whatever.  This hack may require finding
 ;;; out the parent's publication URI (which we might get from the
 ;;; parent's cert or not to be decided later), sort this out later.
+;;;
+;;; If there is any preliminary negotation with publisher before
+;;; publication, it is all hypothetical and assumes that proof will be
+;;; given with actual publication request.  Thing that needs to be
+;;; proven is that publication client A is not stepping on publication
+;;; client B even when B is A's parent.
 
 
 

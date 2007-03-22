@@ -38,6 +38,23 @@
 ;;; tail for dynamically created CAs, could take name tail from chat
 ;;; with parent (risky?  evil parent gives us dangerous name?), could
 ;;; take name tail from local config but it's hard to see how.
+;;;
+;;; We now think that there's a negotiation involved here with both
+;;; the parent and the publisher.  The publication URI directory
+;;; breaks into three pieces: head/middle/tail/.  head comes from the
+;;; publisher, middle comes from the parent, and tail comes from this
+;;; RE.  head is just the prefix for where we're allowed to put stuff
+;;; within the publication repository; this could be configured by the
+;;; IRBE or we could ask the publication repository, we currently
+;;; think the latter is better.  Middle comes from this RE's parent,
+;;; and should be a new attribute in the up-down XML protocol: it's
+;;; the parent's advice on where to put this particular CA's outputs
+;;; in order to get the nice hierarchical properties we want.  Tail is
+;;; something this RE comes up with, it's per-CA, and all that really
+;;; matters is that it's stable; it could be gensymed, or could be our
+;;; internal name for the CA, whatever.  This hack may require finding
+;;; out the parent's publication URI (which we might get from the
+;;; parent's cert or not to be decided later), sort this out later.
 
 
 

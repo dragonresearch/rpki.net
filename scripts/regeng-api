@@ -269,6 +269,9 @@
 (please-run-this-cust-id-now :cust-id 42)
 => ()
 
+(please-publish-world-right-now :cust-id 42)
+=> ()
+
 
 
 ;;; Protocol operations between IRBE and RE.

@@ -307,6 +307,7 @@
 ;;; relationship to the datum to be published.
 
 (publish-thing :thing-type :crl
+	       :publication-uri uri-of-thing-we-are-publishing
 	       :signed-thing signed-thing)
 => ()
 
@@ -328,3 +329,8 @@
 ;;;
 ;;; SIA in the signing resource cert's tells us where to publish the
 ;;; object.
+
+;;; The above description is a bit whacky because it confounds the
+;;; data objects with the CMS wrapping.  We'll sort out the final
+;;; wrapper and syntax once we know what the content really needs to
+;;; be.

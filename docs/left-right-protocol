@@ -1,0 +1,339 @@
+;;; -*- Lisp -*-
+;;; $Id$
+;;;
+;;; Scratch pad for working out API design for RPKI engine.
+;;;
+;;; This file is psuedocode, I just wanted to take advantage of
+;;; emacs's built-in support for languages with reasonable syntax.
+;;;
+;;; Terminology:
+;;;
+;;; - IRBE: Internet Registry Back End
+;;;
+;;; - RE: RPKI Engine
+
+;;; Current problems:
+
+;;; Model below is still wrong, although converging on the right
+;;; thing.  Children should not be bound within CAs, and CA's can't be
+;;; created until we poll parent to find out what to create; CAs need
+;;; to be created on the fly.  Children should be business
+;;; relationships, not per-CA things.  parent operations should be per
+;;; customer not per ca.
+
+;;; Need revoke and rekey operations.
+
+;;; And, er, how do things like publication URIs (which also go into
+;;; some of the X.509 extensions in the resource certs) get into the
+;;; RE anyway?  This is close to being the same question as how do we
+;;; configure the publication point, as the data are largely the same.
+;;; Part of the problem is that, if we create CAs on the fly in
+;;; response to what we learn from our parent, how do we map that to
+;;; any kind of preconfigured data on where we should publish?  This
+;;; is a mess.
+;;;
+;;; Might it help to have per-parent config for this, since we have to
+;;; config parents anyway?  That'd give us the head of the publication
+;;; URI, leaving us to figure out just the tail.  Could gensym name
+;;; tail for dynamically created CAs, could take name tail from chat
+;;; with parent (risky?  evil parent gives us dangerous name?), could
+;;; take name tail from local config but it's hard to see how.
+;;;
+;;; We now think that there's a negotiation involved here with both
+;;; the parent and the publisher.  The publication URI directory
+;;; breaks into three pieces: head/middle/tail/.  head comes from the
+;;; publisher, middle comes from the parent, and tail comes from this
+;;; RE.  head is just the prefix for where we're allowed to put stuff
+;;; within the publication repository; this could be configured by the
+;;; IRBE or we could ask the publication repository, we currently
+;;; think the latter is better.  Middle comes from this RE's parent,
+;;; and should be a new attribute in the up-down XML protocol: it's
+;;; the parent's advice on where to put this particular CA's outputs
+;;; in order to get the nice hierarchical properties we want.  Tail is
+;;; something this RE comes up with, it's per-CA, and all that really
+;;; matters is that it's stable; it could be gensymed, or could be our
+;;; internal name for the CA, whatever.  This hack may require finding
+;;; out the parent's publication URI (which we might get from the
+;;; parent's cert or not to be decided later), sort this out later.
+;;;
+;;; If there is any preliminary negotation with publisher before
+;;; publication, it is all hypothetical and assumes that proof will be
+;;; given with actual publication request.  Thing that needs to be
+;;; proven is that publication client A is not stepping on publication
+;;; client B even when B is A's parent.
+
+;;; Perhaps "cust-id" is really a bad choice, as we have two different
+;;; models in which it means different thigs.  In this model the
+;;; cust-id is the entity which is executing, which is -issuing-
+;;; stuff.  In the other model, cust-id refers to the entity to which
+;;; we are issuing, which is a subject-id; in the terms used below,
+;;; this is a child-id.  We probably need better names, because people
+;;; keep getting confused by this conflict.
+
+
+
+;;; Protocol operations between RE and signing engine.  This assumes
+;;; the model in which the signing engine stores nothing but keypairs
+;;; and takes orders from the RE on what to sign; this still needs to
+;;; be checked by competent paranoids.
+
+;; Create a keypair.  :length is the number of bits for the key
+;; (default 2048?).
+
+(create-keypair :cust-id 42
+		:length 2048)
+=> (public-key key-id)
+
+;; Destroy a keypair.
+
+(destroy-keypair :cust-id 42
+		 :key-id key-id)
+=> ()
+
+;; List existing keypairs
+
+(list-keypairs :cust-id 42)
+=> ((key-id public-key)
+    (key-id public-key)
+    ...)
+
+;; Sign something.  how-to-sign tells us both what signature method to
+;; use (ie, what kind of object we're signing) and also the signature
+;; algorithm to use (where there are multiple choices, which perhaps
+;; there should not be?).
+
+(sign-thing :cust-id		42
+	    :what-to-sign	cert-without-signature
+	    :how-to-sign	:cert-rsa/sha256
+	    :key-id		key-id)
+=> (signed-thing)
+
+
+
+;;; Protocol operations between IRBE and RE.
+;;;
+;;; This is really two separate protocols over channels that might or
+;;; not be the same.  Both are client/server protocols, but for some
+;;; the rpki engine and for others the irbe is the client.
+;;;
+;;; This set of operations are initiated by the IRBE.
+
+(create-cust-id)
+=> (customer-id)
+
+(destroy-cust-id :cust-id 42)
+=> ()
+
+(list-cust-ids)
+=> (customer-id ...)
+
+;; RobK wonders whether there needs to be an operation that blows away
+;; most of the context but preserves things like audit logs.  No
+;; current consensus on need for this.
+
+(get-preference :cust-id 42
+		:preference-name :favorite-color)
+=> ("obsidian")
+
+(set-preference :cust-id 42
+		:name  :favorite-color
+		:value "obsidian")
+=> ()
+
+;; Extensions might also show up as preferences that nobody but this
+;; IRBE operator has ever heard of
+
+;; This creates both a context and a keypair
+(create-biz-signing-context :cust-id 42)
+=> (biz-signing-context-id pkcs10-cert-request)
+
+(destroy-biz-signing-context :cust-id 42
+			     :biz-signing-context-id biz-context-id)
+=> ()
+
+(list-biz-signing-contexts :cust-id 42)
+=> (biz-signing-context-id ...)
+
+(get-biz-signing-certs :cust-id 42
+		       :biz-signing-context-id splat)
+=> (cert ...)
+
+(set-biz-signing-certs :cust-id 42
+		       :biz-signing-context-id splat
+		       (cert ...))
+=> ()
+
+(create-parent-context :cust-id 42)
+=> (parent)
+
+(destroy-parent-context :cust-id 42
+			:parent foo)
+=> ()
+
+(list-parents :cust-id 42)
+=> (parent ...)
+
+(set-parent-ta :cust-id 42
+	       :parent foo
+	       :ta ta)
+=> ()
+
+(get-parent-ta :cust-id 42
+	       :parent foo)
+=> (ta)
+
+(set-parent-uri :cust-id 42
+		:parent foo
+		:uri uri)
+=> ()
+
+(get-parent-uri :cust-id 42
+		:parent foo)
+=> (uri)
+
+(set-parent-biz-signing-context :cust-id 42
+				:parent foo
+				:biz-signing-context foo)
+=> ()
+
+(get-parent-biz-signing-context :cust-id 42
+				:parent foo)
+=> (biz-signing-context)
+
+(create-child :cust-id 42)
+=> (child)
+
+(destroy-child :cust-id 42
+	       :child bar)
+=> ()
+
+(list-children  :cust-id id)
+=> (child ...)
+
+(get-child-id :cust-id 42
+	      :child foo)
+=> (child-id)
+
+(set-child-id :cust-id 42
+	      :child foo
+	      :id bar)
+=> ()
+
+(set-child-ta :cust-id 42
+	      :child foo
+	      :ta bar)
+=> ()
+
+(get-child-ta :cust-id 42
+	      :child foo)
+=> (ta)
+
+(set-child-biz-signing-context :cust-id 42
+			       :child foo
+			       :biz-signing-context bar)
+=> ()
+
+(get-child-biz-signing-context :cust-id 42
+			       :child foo)
+=> (signing-context)
+
+;;; The following repo stuff is now wrong, need to come back to it
+
+(set-ca-repo-ta :cust-id 42
+		:ca foo
+		:ta ta)
+=> ()
+
+(get-ca-repo-ta :cust-id 42
+		:ca foo)
+=> (ta)
+
+(set-ca-repo-uri :cust-id 42
+		 :ca foo
+		 :uri uri)
+=> ()
+
+(get-ca-repo-uri :cust-id 42
+		 :ca foo)
+=> (uri)
+
+(set-ca-repo-biz-signing-context :cust-id 42
+				 :ca foo
+				 :biz-signing-context foo)
+=> ()
+
+(get-ca-repo-biz-signing-context :cust-id 42
+				 :ca foo)
+=> (biz-signing-context)
+
+(please-run-this-cust-id-now :cust-id 42)
+=> ()
+
+(please-publish-world-right-now :cust-id 42)
+=> ()
+
+
+
+;;; Protocol operations between IRBE and RE.
+;;;
+;;; This is really two separate protocols over channels that might or
+;;; not be the same.  Both are client/server protocols, but for some
+;;; the rpki engine and for others the irbe is the client.
+;;;
+;;; This set of operations are initiated by the RE.
+
+(list-resources :cust-id 42		; issuer id
+		&optional		; If left off, we're asking about self rather than child
+		:child id)		; subject id
+=> ((:ipv4-address "10.0.0.44/32" "10.3.0.44/32")
+    (:ipv6-address "fe80:dead:beef::/24")
+    (:as-number "666")
+    ...)
+
+(list-rights-to-route :cust-id 42)	; Self
+=> ((as-number :ipv4 prefix-or-range :ipv6 prefix-or-range ...)
+    (as-number "ipv6 prefix-or-range :ipv6 prefix-or-range :ipv4 prefix-or-range ...)
+    ...)
+
+(report-error :cust-id 42
+	      :error-token :your-hair-is-on-fire
+	      :bag-of-data whatever)
+=> ()
+
+
+
+;;; Repository update protocol.  Same basic CMS-signed XML mess we use
+;;; elsewhere, this time with RE as client, lodging repository as
+;;; server.  Authorization is a combination of business key and
+;;; resource key/cert: biz key demonstrates that we're authorized to
+;;; play with this repository at all, resource cert demonstrates
+;;; relationship to the datum to be published.
+
+(publish-thing :thing-type :crl
+	       :publication-uri uri-of-thing-we-are-publishing
+	       :signed-thing signed-thing)
+=> ()
+
+;;; Where signed-thing looks like:
+;;;
+;;;      (repo-biz-key-signature
+;;;	   (ca-key-signature
+;;;	     object-to-publish))
+;;;
+;;; NB: the ca-key-signature is a simple signature with no
+;;; certificates embedded, as we can't assume that the repository
+;;; knows the trust anchor.  More precisely, if the crypto guys tell
+;;; us that we must do cert chain verification here, the business
+;;; setup for all this has to make sure that the repository operator
+;;; -does- know the RPKI trust anchor and we'd kind of rather not go
+;;; there.  The repo-biz-key-signature is cms with the full signer
+;;; cert chain in the bag plus the resource cert as an extra cert in
+;;; the bag.
+;;;
+;;; SIA in the signing resource cert's tells us where to publish the
+;;; object.
+
+;;; The above description is a bit whacky because it confounds the
+;;; data objects with the CMS wrapping.  We'll sort out the final
+;;; wrapper and syntax once we know what the content really needs to
+;;; be.

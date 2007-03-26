@@ -72,44 +72,6 @@
 
 
 
-;;; Protocol operations between RE and signing engine.  This assumes
-;;; the model in which the signing engine stores nothing but keypairs
-;;; and takes orders from the RE on what to sign; this still needs to
-;;; be checked by competent paranoids.
-
-;; Create a keypair.  :length is the number of bits for the key
-;; (default 2048?).
-
-(create-keypair :cust-id 42
-		:length 2048)
-=> (public-key key-id)
-
-;; Destroy a keypair.
-
-(destroy-keypair :cust-id 42
-		 :key-id key-id)
-=> ()
-
-;; List existing keypairs
-
-(list-keypairs :cust-id 42)
-=> ((key-id public-key)
-    (key-id public-key)
-    ...)
-
-;; Sign something.  how-to-sign tells us both what signature method to
-;; use (ie, what kind of object we're signing) and also the signature
-;; algorithm to use (where there are multiple choices, which perhaps
-;; there should not be?).
-
-(sign-thing :cust-id		42
-	    :what-to-sign	cert-without-signature
-	    :how-to-sign	:cert-rsa/sha256
-	    :key-id		key-id)
-=> (signed-thing)
-
-
-
 ;;; Protocol operations between IRBE and RE.
 ;;;
 ;;; This is really two separate protocols over channels that might or
@@ -299,41 +261,3 @@
 	      :error-token :your-hair-is-on-fire
 	      :bag-of-data whatever)
 => ()
-
-
-
-;;; Repository update protocol.  Same basic CMS-signed XML mess we use
-;;; elsewhere, this time with RE as client, lodging repository as
-;;; server.  Authorization is a combination of business key and
-;;; resource key/cert: biz key demonstrates that we're authorized to
-;;; play with this repository at all, resource cert demonstrates
-;;; relationship to the datum to be published.
-
-(publish-thing :thing-type :crl
-	       :publication-uri uri-of-thing-we-are-publishing
-	       :signed-thing signed-thing)
-=> ()
-
-;;; Where signed-thing looks like:
-;;;
-;;;      (repo-biz-key-signature
-;;;	   (ca-key-signature
-;;;	     object-to-publish))
-;;;
-;;; NB: the ca-key-signature is a simple signature with no
-;;; certificates embedded, as we can't assume that the repository
-;;; knows the trust anchor.  More precisely, if the crypto guys tell
-;;; us that we must do cert chain verification here, the business
-;;; setup for all this has to make sure that the repository operator
-;;; -does- know the RPKI trust anchor and we'd kind of rather not go
-;;; there.  The repo-biz-key-signature is cms with the full signer
-;;; cert chain in the bag plus the resource cert as an extra cert in
-;;; the bag.
-;;;
-;;; SIA in the signing resource cert's tells us where to publish the
-;;; object.
-
-;;; The above description is a bit whacky because it confounds the
-;;; data objects with the CMS wrapping.  We'll sort out the final
-;;; wrapper and syntax once we know what the content really needs to
-;;; be.

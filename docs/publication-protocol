@@ -1,0 +1,49 @@
+;;; -*- Lisp -*-
+;;; $Id$
+;;;
+;;; Scratch pad for working out API design for RPKI engine.
+;;;
+;;; This file is psuedocode, I just wanted to take advantage of
+;;; emacs's built-in support for languages with reasonable syntax.
+;;;
+;;; Terminology:
+;;;
+;;; - IRBE: Internet Registry Back End
+;;;
+;;; - RE: RPKI Engine
+
+;;; Repository update protocol.  Same basic CMS-signed XML mess we use
+;;; elsewhere, this time with RE as client, lodging repository as
+;;; server.  Authorization is a combination of business key and
+;;; resource key/cert: biz key demonstrates that we're authorized to
+;;; play with this repository at all, resource cert demonstrates
+;;; relationship to the datum to be published.
+
+(publish-thing :thing-type :crl
+	       :publication-uri uri-of-thing-we-are-publishing
+	       :signed-thing signed-thing)
+=> ()
+
+;;; Where signed-thing looks like:
+;;;
+;;;      (repo-biz-key-signature
+;;;	   (ca-key-signature
+;;;	     object-to-publish))
+;;;
+;;; NB: the ca-key-signature is a simple signature with no
+;;; certificates embedded, as we can't assume that the repository
+;;; knows the trust anchor.  More precisely, if the crypto guys tell
+;;; us that we must do cert chain verification here, the business
+;;; setup for all this has to make sure that the repository operator
+;;; -does- know the RPKI trust anchor and we'd kind of rather not go
+;;; there.  The repo-biz-key-signature is cms with the full signer
+;;; cert chain in the bag plus the resource cert as an extra cert in
+;;; the bag.
+;;;
+;;; SIA in the signing resource cert's tells us where to publish the
+;;; object.
+
+;;; The above description is a bit whacky because it confounds the
+;;; data objects with the CMS wrapping.  We'll sort out the final
+;;; wrapper and syntax once we know what the content really needs to
+;;; be.

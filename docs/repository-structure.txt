@@ -1,0 +1,78 @@
+$Id$
+
+This note is an attempt to write up the conclusions that several of us
+came to at the RPKI meeting in Prague, March 2007.
+
+We currently have two examples of possible repository structure,
+neither of which is quite what at least some of us think we want yet.
+
+APNIC's hierarchy of directories named by the g(SKI) function applied
+to the public keys has some nice properties: in particular, the
+hierarchical structure (subjects being stored underneath their issuers
+when sharing a repository) has very nice scaling properties with
+rsync.  With this structure, a top-down walk such as rcynic uses will
+pick up an entire tree as a side effect of fetching the top-most
+issuer's SIA collection.  Combined with a trivial memory cache to let
+rcynic keep track of which URIs it has already fetched, this speeds up
+rcynic's runtime by nearly two orders of magnitude in testing late
+last year.  The reason for this turns out to be simple: rsync is a
+reasonably fast protocol, so one rsync connection to fetch an SIA
+collection that hasn't changed takes approximately 500ms on not
+terribly exciting hardware -- but in a system with more than 40,000
+objects, the cumulative total of all those half-second rsync
+connections becomes significant.
+
+There is, however, one problem with the current APNIC structure: the
+g(SKI) naming scheme means that the URIs associated with every
+decendent of a particular node in the tree will change when that
+node's key changes.   This means that a key rollover event near the
+root of the tree (eg, when APNIC's own key changes) will require a
+painfully large number of certificates to be reissued.  NB: only one
+key is rolling in this scenario, the rest of the certificates are
+being reissued with the same key, and the only reason why they need to
+be reissued at all is that the path has changed.
+
+At the same time, the g(SKI) naming scheme has good properties for
+naming certificates and CRLs, as it means that we can perform "make
+before break" rollovers, leaving the old certificate path in place
+until the new one is fully operational.
+
+So the goal here is to preserve the nice hierarchical structure of
+APNIC's model, and preserve the nice properties of the g(SKI) naming
+for certificates and CRLs, while avoiding the need to reissue every
+desendent after a key rollover.  We think that we can do this by using
+static names for the directories and g(SKI)-based names for the files.
+
+This immediately begs the question of what the static names should be.
+Some of us were tempted to make them organization names, but others of
+us felt strongly that they should be completely meaningless, as they
+only need to be unique within a particular parent directory and as we
+really want to avoid all the "identity" issues that we have thus far
+carefully avoided.  We did not achieve consensus on this point, but I
+(sra) am firmly in the meaningless name camp on this one.
+
+The upshot of all this is that I expect to be using URIs like:
+
+    rsync://hostname/g0001/g0002/g0003/
+    rsync://hostname/g0001/g0002/g0003/g(ski).cer
+    rsync://hostname/g0001/g0002/g0003/g(ski).crl
+
+We haven't yet discussed how to name ROAs, but since we expect ROAs to
+be tied to particular single-use EE certs, my guess is that a g(SKI)
+name based on the key of the EE cert would be appropriate, so either
+of the following forms would probably work:
+
+    rsync://hostname/g0001/g0002/g0003/g0004/g(ski).roa
+    rsync://hostname/g0001/g0002/g0003/g(ski)/g(ski).roa
+
+The latter violates the rule of only using g(SKI) names for files,
+never for directories, but in this case it'd probably be ok.
+
+This assumes that we're generating a new key for each ROA; if we're
+reusing keys (dunno), we'd need a naming scheme like:
+
+    rsync://hostname/g0001/g0002/g0003/g(ski)/g0004.roa
+
+For those unfamiliar with the notation (borrowed from Lisp): g0001 etc
+are just "gensym" symbols, ie, the output of some function whose sole
+purpose is to generate meaningless symbols.

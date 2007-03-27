@@ -14,13 +14,6 @@
 
 ;;; Current problems:
 
-;;; Model below is still wrong, although converging on the right
-;;; thing.  Children should not be bound within CAs, and CA's can't be
-;;; created until we poll parent to find out what to create; CAs need
-;;; to be created on the fly.  Children should be business
-;;; relationships, not per-CA things.  parent operations should be per
-;;; customer not per ca.
-
 ;;; Need revoke and rekey operations.
 
 ;;; And, er, how do things like publication URIs (which also go into
@@ -76,7 +69,7 @@
 ;;;
 ;;; This is really two separate protocols over channels that might or
 ;;; not be the same.  Both are client/server protocols, but for some
-;;; the rpki engine and for others the irbe is the client.
+;;; the RE is the client and for others the IRBE is the client.
 ;;;
 ;;; This set of operations are initiated by the IRBE.
 

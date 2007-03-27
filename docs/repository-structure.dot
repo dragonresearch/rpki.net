@@ -1,0 +1,41 @@
+// $Id$
+//
+// Pictures to go with repository-structure.txt.  First picture is rekeying b with
+// a g(ski)/g(ski)/g(ski).cer model, second is with stable meaningless identifiers.
+//
+// Render thusly:
+//
+//    dot -Tps2 repository-structure.dot | ps2pdf - repository-structure.pdf
+
+graph rekeying_ski {
+   rotate=90;	size="11,8.5";	splines=true;	ratio=fill;
+   node		[ shape=box ];
+   a		[ color=black,	label="rsync://host/foo/g(ski(a)).cer" ]
+   b		[ color=red,	label="rsync://host/foo/g(ski(a))/g(ski(b)).cer" ]
+   c		[ color=red,	label="rsync://host/foo/g(ski(a))/g(ski(b))/g(ski(c)).cer" ]
+   d		[ color=red,	label="rsync://host/foo/g(ski(a))/g(ski(b))/g(ski(c))/g(ski(d)).cer" ]
+   a  -- b	[ color=red ];
+   b  -- c	[ color=red ];
+   c  -- d	[ color=red ];
+   b_		[ color=green,	label="rsync://host/foo/g(ski(a))/g(ski(b')).cer" ]
+   c_		[ color=green,	label="rsync://host/foo/g(ski(a))/g(ski(b'))/g(ski(c)).cer" ]
+   d_		[ color=green,	label="rsync://host/foo/g(ski(a))/g(ski(b'))/g(ski(c))/g(ski(d)).cer" ]
+   a  -- b_	[ color=green ];
+   b_ -- c_	[ color=green ];
+   c_ -- d_	[ color=green ];
+}
+
+graph rekeying_gensym {
+   rotate=90;	size="11,8.5";	splines=true;	ratio=fill;
+   node		[ shape=box ];
+   a		[ color=black,	label="rsync://host/foo/g(ski(a)).cer" ]
+   b		[ color=red,	label="rsync://host/foo/G001/g(ski(b)).cer" ]
+   c		[ color=black,	label="rsync://host/foo/G001/G002/g(ski(c)).cer" ]
+   d		[ color=black,	label="rsync://host/foo/G001/G002/G003/g(ski(d)).cer" ]
+   a  -- b	[ color=red ];
+   b  -- c	[ color=red ];
+   c  -- d	[ color=black ];
+   b_		[ color=green,	label="rsync://host/foo/G001/g(ski(b')).cer" ]
+   a  -- b_	[ color=green ];
+   b_ -- c	[ color=green ];
+}

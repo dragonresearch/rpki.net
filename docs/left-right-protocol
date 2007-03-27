@@ -105,8 +105,13 @@
 ;; Extensions might also show up as preferences that nobody but this
 ;; IRBE operator has ever heard of
 
-;; This creates both a context and a keypair
-(create-biz-signing-context :cust-id 42)
+
+;; This creates both a context and a keypair.  Do we need to specify
+;; what kind of key in addition to length?
+
+(create-biz-signing-context :cust-id 42
+			    &optional	; If left off, default to, um, 2048 bits?
+			    :key-length  2048)
 => (biz-signing-context-id pkcs10-cert-request)
 
 (destroy-biz-signing-context :cust-id 42

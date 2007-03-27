@@ -1,0 +1,71 @@
+// $Id$
+
+// This is an attempt to capture
+// http://subvert-rpki.hactrn.net/docs/prague-whiteboard-2007-03-22-23:15:01.jpg
+
+// {arrowhead,arrowtail} shapes to use for database object relationships:
+//   1-  none
+//   m-  crow
+
+digraph gsstsig_systems {
+	rotate=90;	size="11,8.5";	splines=true;	ratio=fill;
+
+	// black denotes stuff visible in left-to-right protocol
+	node [ color=black ];
+
+	issuer;		// red insert "rpp" (rpki publication point?  huh?)
+	parent;		// red insert ""url" and an icon that i think means "key"
+	repo;		// red insert "url" and an icon that i think means "key"
+	ca;		// red insert crl #, cert #
+	child;
+	biz_sign;
+
+	// green denotes stuff created on the fly by the rpki engine
+	node [ color=green ];
+
+	child_cert;	// red footnote unique caid, cert serial -- not part of picture?
+	ca_key_pair;
+	ee_certs;
+	roa;
+	latest_ca_cert;
+	latest_crl;
+
+	// one->many mappings
+	edge [ color=black, arrowtail=none, arrowhead=crow ];
+
+	child -> biz_sign;
+	issuer -> ca;
+	issuer -> child;
+	issuer -> parent;
+	parent -> ca;
+	repo -> biz_sign;
+	repo -> parent;
+
+	// many->many mappings
+	edge [ color=black, arrowtail=crow, arrowhead=crow ];
+
+	ca -> child;
+
+	// one->many mappings
+	edge [ color=green, arrowtail=none, arrowhead=crow ];
+
+	ca -> ca_key_pair;
+	child -> child_cert;
+
+	// one->one mappings
+	edge [ color=green, arrowtail=none, arrowhead=none ];
+
+	ca_key_pair -> latest_ca_cert;
+	ca_key_pair -> latest_crl;
+	ee_certs -> roa;
+
+	// wiggly green one->many, look up edge config on man page
+	edge [ color=green, arrowtail=none, arrowhead=crow, style=dashed ];
+
+	ca_key_pair -> child_cert;
+	ca_key_pair -> ee_certs;
+}
+
+// Local Variables:
+// compile-command: "dot -Tps2 whiteboard-object-model.dot | ps2pdf - whiteboard-object-model.pdf"
+// End:

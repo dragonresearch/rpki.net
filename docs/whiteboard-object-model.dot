@@ -67,5 +67,5 @@ digraph gsstsig_systems {
 }
 
 // Local Variables:
-// compile-command: "dot -Tps2 whiteboard-object-model.dot | ps2pdf - whiteboard-object-model.pdf"
+// compile-command: "neato -Tps2 whiteboard-object-model.dot | ps2pdf - whiteboard-object-model.pdf"
 // End:

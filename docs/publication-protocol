@@ -19,6 +19,62 @@
 ;;; play with this repository at all, resource cert demonstrates
 ;;; relationship to the datum to be published.
 
+;;; Protocol here not completely designed yet.  It'd be pretty
+;;; straightforward, except for two constraints:
+;;;
+;;; a) In the case where parent and child are sharing a repository,
+;;;    we'd like to nest child under parent to speed up rcynic.
+;;;
+;;; b) The repository operator might want to do some checks to assure
+;;;    itself that what it's about to allow the RE to publish is not
+;;;    dangerous toxic waste.
+;;;
+;;; Protocol goals as of last discussion in Prague:
+;;;
+;;; 1) "Negotiate" publication point URI.  This is a bit complex, in
+;;;     that part of the URI may come from the publication
+;;;     repository, parts from the RE's parent, and parts from the RE
+;;;     itself.  Some discussion over whether we need online protocol
+;;;     to negotiate the publication repository's part, no firm
+;;;     consensus, plurality of the room was leaning towards "no",
+;;;     ie, the repository's portion of the URI is negotiated via the
+;;;     business channel and configured into the RE by the IRBE.
+;;;
+;;; 2) In case where parent and child are in fact sharing repository,
+;;;    repository operator is responsible for keeping these two users'
+;;;    naming schemes from coliding with each other.  More precisely,
+;;;    the repository operator is responsible for checking to see that
+;;;    the parent agreed to let the child publish in a particular
+;;;    subtree.  Fortunately, this is an easy check: the parent has to
+;;;    issue a cert to the child anyway, and that cert will contain a
+;;;    signature by the parent over the child's SIA URI, so the
+;;;    repository just has to check that.  For purposes of this check,
+;;;    the parent's issuing cert (which the repository has, by
+;;;    definition, since this is the nested hosting case) can serve as
+;;;    a trust anchor for checking the child's SIA.
+;;;
+;;; 3) To the extent that the repository operator wants to guard
+;;;    against toxic waste, it might want to check further up the
+;;;    resource cert chain, regardless of where the ancestors lodge.
+;;;    For this to work properly, the repository operator needs to
+;;;    agree (as part of a business negotiation, probably) with the RE
+;;;    on which trust anchors the repository should use to perform
+;;;    these checks; ultimately, this decision (as with any TA choice)
+;;;    is up to the relying party (in this case the repository
+;;;    operator), but if there's going to be a problem due to
+;;;    mismatched TA choices, we would really like to throw the
+;;;    exception during the business negotiation rather than via a
+;;;    runtime refusal to publish.
+;;;
+;;; Note that, in this publication model, any agreement that the
+;;; repository makes to publish the RE's output is conditional upon
+;;; the object to be published passing all of its checks.
+
+;;; The following protocol description needs work and is also a bit
+;;; out of date.  It's whacky because it confounds the data objects
+;;; with the CMS wrapping.  We'll sort out the final wrapper and
+;;; syntax once we know what the content really needs to be.
+
 (publish-thing :thing-type :crl
 	       :publication-uri uri-of-thing-we-are-publishing
 	       :signed-thing signed-thing)
@@ -42,8 +98,3 @@
 ;;;
 ;;; SIA in the signing resource cert's tells us where to publish the
 ;;; object.
-
-;;; The above description is a bit whacky because it confounds the
-;;; data objects with the CMS wrapping.  We'll sort out the final
-;;; wrapper and syntax once we know what the content really needs to
-;;; be.

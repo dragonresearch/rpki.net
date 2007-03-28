@@ -63,8 +63,8 @@
 ;;; this is a child-id.  We probably need better names, because people
 ;;; keep getting confused by this conflict.
 
-
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
 ;;; Protocol operations between IRBE and RE.
 ;;;
 ;;; This is really two separate protocols over channels that might or
@@ -72,6 +72,8 @@
 ;;; the RE is the client and for others the IRBE is the client.
 ;;;
 ;;; This set of operations are initiated by the IRBE.
+;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (create-cust-id)
 => (customer-id)
@@ -232,8 +234,8 @@
 (please-publish-world-right-now :cust-id 42)
 => ()
 
-
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
 ;;; Protocol operations between IRBE and RE.
 ;;;
 ;;; This is really two separate protocols over channels that might or
@@ -241,6 +243,8 @@
 ;;; the rpki engine and for others the irbe is the client.
 ;;;
 ;;; This set of operations are initiated by the RE.
+;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (list-resources :cust-id 42		; issuer id
 		&optional		; If left off, we're asking about self rather than child

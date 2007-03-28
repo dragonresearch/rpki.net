@@ -22,19 +22,19 @@
 
 (create-keypair :cust-id 42
 		:length 2048)
-=> (public-key key-id)
+=> (public-key keypair-id)
 
 ;; Destroy a keypair.
 
 (destroy-keypair :cust-id 42
-		 :key-id key-id)
+		 :keypair-id keypair-id)
 => ()
 
 ;; List existing keypairs
 
 (list-keypairs :cust-id 42)
-=> ((key-id public-key)
-    (key-id public-key)
+=> ((keypair-id public-key)
+    (keypair-id public-key)
     ...)
 
 ;; Sign something.  how-to-sign tells us both what signature method to
@@ -45,5 +45,5 @@
 (sign-thing :cust-id		42
 	    :what-to-sign	cert-without-signature
 	    :how-to-sign	:cert-rsa/sha256
-	    :key-id		key-id)
+	    :keypair-id		keypair-id)
 => (signed-thing)

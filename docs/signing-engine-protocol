@@ -21,6 +21,7 @@
 ;; (default 2048?).
 
 (create-keypair :cust-id 42
+		:type :rsa
 		:length 2048)
 => (public-key keypair-id)
 
@@ -33,8 +34,8 @@
 ;; List existing keypairs
 
 (list-keypairs :cust-id 42)
-=> ((keypair-id public-key)
-    (keypair-id public-key)
+=> ((keypair-id public-key :rsa)
+    (keypair-id public-key :rsa)
     ...)
 
 ;; Sign something.  how-to-sign tells us both what signature method to

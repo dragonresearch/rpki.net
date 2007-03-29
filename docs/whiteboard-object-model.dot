@@ -10,29 +10,28 @@
 digraph gsstsig_systems {
 	rotate=90;	size="11,8.5";	splines=true;	ratio=fill;
 
-	// Black denotes stuff visible in left-to-right protocol
-	node [ color=black ];
+	node [ shape=record ];
 
-	issuer;		// Red insert "RPP" (RPKI publication point?  Huh?)
-	parent;		// Red insert "URL" and an icon that I think means "key"
-	repo;		// Red insert "URL" and an icon that I think means "key"
-	ca;		// Red insert "CRL #", "cert #"
+	// Objects visible in left-to-right protocol
+	node	[ color=black ];
+	issuer	[ label="issuer cust_id|{RPP}" ];
+	parent	[ label="parent|{URL|key}" ];
+	repo	[ label="repository|{URL|key}" ];
+	ca	[ label="CA|{CRL #|cert #}" ];
 	child;
 	biz_sign;
 
-	// Green denotes stuff created on the fly by the RPKI engine
-	node [ color=green ];
-
-	child_cert;	// Red footnote "unique caid, cert serial" -- not part of picture?
+	// Objects created on the fly by the RPKI engine
+	node	[ color=green ];
+	child_cert;
 	ca_key_pair;
 	ee_certs;
 	roa;
 	latest_ca_cert;
 	latest_crl;
 
-	// One->many mappings
+	// One-many mappings
 	edge [ color=black, arrowtail=none, arrowhead=crow ];
-
 	child -> biz_sign;
 	issuer -> ca;
 	issuer -> child;
@@ -41,27 +40,23 @@ digraph gsstsig_systems {
 	repo -> biz_sign;
 	repo -> parent;
 
-	// Many->many mappings
+	// Many-many mappings
 	edge [ color=black, arrowtail=crow, arrowhead=crow ];
-
 	ca -> child;
 
-	// One->many mappings
+	// One-many mappings
 	edge [ color=green, arrowtail=none, arrowhead=crow ];
-
 	ca -> ca_key_pair;
 	child -> child_cert;
 
-	// One->one mappings
+	// One-one mappings
 	edge [ color=green, arrowtail=none, arrowhead=none ];
-
 	ca_key_pair -> latest_ca_cert;
 	ca_key_pair -> latest_crl;
 	ee_certs -> roa;
 
-	// One->many mappings that have something weird about them
+	// Weird one-many
 	edge [ color=green, arrowtail=none, arrowhead=crow, style=dashed ];
-
 	ca_key_pair -> child_cert;
 	ca_key_pair -> ee_certs;
 }

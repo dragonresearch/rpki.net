@@ -105,7 +105,8 @@
 ;; what kind of key in addition to length?
 
 (create-biz-signing-context :cust-id 42
-			    &optional	; If left off, default to, um, 2048 bits?
+			    &optional
+			    :key-type :rsa
 			    :key-length  2048)
 => (biz-signing-context-id pkcs10-cert-request)
 

@@ -6,59 +6,53 @@
 // {arrowhead,arrowtail} shapes to use for database object relationships:
 //   1-  none
 //   m-  crow
+// Color code:
+//   Blue:  visible in left-right protocol
+//   Green: created on the fly
 
 digraph gsstsig_systems {
 	rotate=90;	size="11,8.5";	splines=true;	ratio=fill;
-
-	node [ shape=record ];
+	node		[ shape=record ];
 
 	// Objects visible in left-to-right protocol
-	node	[ color=black ];
-	issuer	[ label="issuer cust_id|{RPP}" ];
-	parent	[ label="parent|{URL|key}" ];
-	repo	[ label="repository|{URL|key}" ];
-	ca	[ label="CA|{CRL #|cert #}" ];
-	child;
-	biz_sign;
+	node		[ color=blue ];
+	issuer		[ label="Issuer cust_id|{RPP}" ];
+	parent		[ label="Parent|{URL|key}" ];
+	repo		[ label="Repository|{URL|key}" ];
+	child		[ label="Child" ];
+	biz_sign	[ label="Business signing context" ];
 
 	// Objects created on the fly by the RPKI engine
-	node	[ color=green ];
-	child_cert;
-	ca_key_pair;
-	ee_certs;
-	roa;
-	latest_ca_cert;
-	latest_crl;
+	node		[ color=green ];
+	ca		[ label="CA|{CRL #|Serial #}" ];
+	child_cert	[ label="Child Certificate" ];
+	ee_cert		[ label="EE certificate|{ROA}" ];
+	ca_key_pair	[ label="CA key pair|{Latest CA certificate|Latest CRL}" ];
 
 	// One-many mappings
-	edge [ color=black, arrowtail=none, arrowhead=crow ];
+	edge [ color=blue, arrowtail=none, arrowhead=crow ];
 	child -> biz_sign;
-	issuer -> ca;
 	issuer -> child;
 	issuer -> parent;
-	parent -> ca;
+	parent -> biz_sign;
 	repo -> biz_sign;
 	repo -> parent;
 
 	// Many-many mappings
-	edge [ color=black, arrowtail=crow, arrowhead=crow ];
+	edge [ color=green, arrowtail=crow, arrowhead=crow ];
 	ca -> child;
 
 	// One-many mappings
 	edge [ color=green, arrowtail=none, arrowhead=crow ];
 	ca -> ca_key_pair;
 	child -> child_cert;
-
-	// One-one mappings
-	edge [ color=green, arrowtail=none, arrowhead=none ];
-	ca_key_pair -> latest_ca_cert;
-	ca_key_pair -> latest_crl;
-	ee_certs -> roa;
+	issuer -> ca;
+	parent -> ca;
 
 	// Weird one-many
 	edge [ color=green, arrowtail=none, arrowhead=crow, style=dashed ];
 	ca_key_pair -> child_cert;
-	ca_key_pair -> ee_certs;
+	ca_key_pair -> ee_cert;
 }
 
 // Local Variables:

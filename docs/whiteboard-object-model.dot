@@ -16,7 +16,7 @@ digraph gsstsig_systems {
 
 	// Objects visible in left-to-right protocol
 	node		[ color=blue ];
-	issuer		[ label="Issuer cust_id|{RPP}" ];
+	issuer		[ label="Issuer cust_id" ];
 	parent		[ label="Parent|{URL|key}" ];
 	repo		[ label="Repository|{URL|key}" ];
 	child		[ label="Child" ];
@@ -24,7 +24,7 @@ digraph gsstsig_systems {
 
 	// Objects created on the fly by the RPKI engine
 	node		[ color=green ];
-	ca		[ label="CA|{CRL #|Serial #}" ];
+	ca		[ label="CA|{CRL #|Last issued serial #}" ];
 	child_cert	[ label="Child Certificate" ];
 	ee_cert		[ label="EE certificate|{ROA}" ];
 	ca_key_pair	[ label="CA key pair|{Latest CA certificate|Latest CRL}" ];

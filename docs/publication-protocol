@@ -19,8 +19,7 @@
 ;;; play with this repository at all, resource cert demonstrates
 ;;; relationship to the datum to be published.
 
-;;; Protocol here not completely designed yet.  It'd be pretty
-;;; straightforward, except for two constraints:
+;;; This would be a trivial protocol, except for two constraints:
 ;;;
 ;;; a) In the case where parent and child are sharing a repository,
 ;;;    we'd like to nest child under parent to speed up rcynic.
@@ -70,31 +69,46 @@
 ;;; repository makes to publish the RE's output is conditional upon
 ;;; the object to be published passing all of its checks.
 
-;;; The following protocol description needs work and is also a bit
-;;; out of date.  It's whacky because it confounds the data objects
-;;; with the CMS wrapping.  We'll sort out the final wrapper and
-;;; syntax once we know what the content really needs to be.
+;;; While there has been some discussion of using the CMS "bag of
+;;; certs" mechanism to include resource certs and avoid inventing yet
+;;; another encapsulation protocol, the text below assumes that we are
+;;; using CMS-wrapped XML in the same way here as in the other
+;;; protocols in this set: the CMS wrapper includes a signature based
+;;; on a business key and the certs necessary to verify that business
+;;; key, but all other data is within an XML wrapper contained in the
+;;; eContent OCTET STRING of the CMS message.
 
-(publish-thing :thing-type :crl
-	       :publication-uri uri-of-thing-we-are-publishing
-	       :signed-thing signed-thing)
+(publish-thing :publication-uri uri-of-thing-we-are-publishing
+	       :signed-thing signed-thing
+	       :credential-certs (cert ....)
+	       :thing-type :crl)
 => ()
 
-;;; Where signed-thing looks like:
+;;; signed-thing is an object (certificate, CRL, ROA) signed by the
+;;; private key associated with a resource certificate held by the
+;;; entity sending the (publish-thing) request.
 ;;;
-;;;      (repo-biz-key-signature
-;;;	   (ca-key-signature
-;;;	     object-to-publish))
+;;; credential-certs is a set of whatever resource certificates are
+;;; needed to demonstrate to the repository engine that the entity
+;;; requesting publication is making a legitimate publication request.
+;;; Goal (2), above, requires the requestor to supply the resource
+;;; certificate chain up to the parent to demonstrate that the parent
+;;; has approved (signed) the requested SIA.  Goal (3), above, would
+;;; require supplying the cert chain back to some resource trust
+;;; anchor established as part of the business relationship between
+;;; requestor and repository operator.
 ;;;
-;;; NB: the ca-key-signature is a simple signature with no
-;;; certificates embedded, as we can't assume that the repository
-;;; knows the trust anchor.  More precisely, if the crypto guys tell
-;;; us that we must do cert chain verification here, the business
-;;; setup for all this has to make sure that the repository operator
-;;; -does- know the RPKI trust anchor and we'd kind of rather not go
-;;; there.  The repo-biz-key-signature is cms with the full signer
-;;; cert chain in the bag plus the resource cert as an extra cert in
-;;; the bag.
-;;;
-;;; SIA in the signing resource cert's tells us where to publish the
-;;; object.
+;;; Thing type...was present in a previous version of this protocol.
+;;; I'm not sure we need it, am not sure we don't.
+
+;;; A previous version of this document suggested that if we always
+;;; pass up the certificate that signed the object we're trying to
+;;; publish, the SIA pointer in that cert would tell the repository
+;;; engine the URI at which we wanted this object to be published.
+;;; This could work (and might allow us to get away from the XML
+;;; wrapper entirely), but is a bit contorted.  The signer's SIA would
+;;; tell us the directory in which to place this object, but does not
+;;; tell us the filename for the object itself.  We could derived the
+;;; filename from the g(ski) algorithm, but that assumes we're willing
+;;; to accept that as the one true naming scheme for purposes of this
+;;; publication protocol.

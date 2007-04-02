@@ -57,6 +57,11 @@ The upshot of all this is that I expect to be using URIs like:
     rsync://hostname/g0001/g0002/g0003/g(ski).cer
     rsync://hostname/g0001/g0002/g0003/g(ski).crl
 
+where "gNNNN" indicates a generated symbol with no significance other
+than that it is unique enough to avoid collisions.  In this particular
+case, the scope in which the symbol must be unique is just the
+directory in which it appears.
+
 We haven't yet discussed how to name ROAs, but since we expect ROAs to
 be tied to particular single-use EE certs, my guess is that a g(SKI)
 name based on the key of the EE cert would be appropriate, so either

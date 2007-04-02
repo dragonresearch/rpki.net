@@ -146,23 +146,32 @@
 	       :parent foo)
 => (ta)
 
+(get-parent-uri :cust-id 42
+		:parent foo)
+=> (uri)
+
 (set-parent-uri :cust-id 42
 		:parent foo
 		:uri uri)
 => ()
 
-(get-parent-uri :cust-id 42
-		:parent foo)
-=> (uri)
-
-(set-parent-biz-signing-context :cust-id 42
-				:parent foo
-				:biz-signing-context foo)
-=> ()
-
 (get-parent-biz-signing-context :cust-id 42
 				:parent foo)
 => (biz-signing-context)
+
+(set-parent-biz-signing-context :cust-id 42
+				:parent foo
+				:biz-signing-context bar)
+=> ()
+
+(get-parent-repository :cust-id 42
+		       :parent foo)
+=> (repository)
+
+(set-parent-repository :cust-id 42
+		       :parent foo
+		       :repository bar)
+=> ()
 
 (create-child :cust-id 42)
 => (child)
@@ -203,32 +212,30 @@
 
 ;;; The following repo stuff is now wrong, need to come back to it
 
-(set-ca-repo-ta :cust-id 42
-		:ca foo
-		:ta ta)
+(create-repository :cust-id 42)
+=> (repo)
+
+(destroy-repository :cust-id 42
+		    :repository repo)
 => ()
 
-(get-ca-repo-ta :cust-id 42
-		:ca foo)
-=> (ta)
+(get-repository-biz-signing-context :cust-id 42
+				    :repository foo)
+=> (signing-context)
 
-(set-ca-repo-uri :cust-id 42
-		 :ca foo
-		 :uri uri)
+(set-repository-biz-signing-context :cust-id 42
+				    :repository foo
+				    :biz-signing-context bar)
 => ()
 
-(get-ca-repo-uri :cust-id 42
-		 :ca foo)
+(get-repository-uri :cust-id 42
+		    :repository foo)
 => (uri)
 
-(set-ca-repo-biz-signing-context :cust-id 42
-				 :ca foo
-				 :biz-signing-context foo)
+(set-repository-uri :cust-id 42
+		    :repository foo
+		    :uri uri)
 => ()
-
-(get-ca-repo-biz-signing-context :cust-id 42
-				 :ca foo)
-=> (biz-signing-context)
 
 (please-run-this-cust-id-now :cust-id 42)
 => ()

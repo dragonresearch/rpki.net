@@ -1,4 +1,5 @@
-$Id$
+$URL$
+$Revision$
 
 This note is an attempt to write up the conclusions that several of us
 came to at the RPKI meeting in Prague, March 2007.

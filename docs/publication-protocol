@@ -70,15 +70,6 @@
 ;;; repository makes to publish the RE's output is conditional upon
 ;;; the object to be published passing all of its checks.
 
-;;; While there has been some discussion of using the CMS "bag of
-;;; certs" mechanism to include resource certs and avoid inventing yet
-;;; another encapsulation protocol, the text below assumes that we are
-;;; using CMS-wrapped XML in the same way here as in the other
-;;; protocols in this set: the CMS wrapper includes a signature based
-;;; on a business key and the certs necessary to verify that business
-;;; key, but all other data is within an XML wrapper contained in the
-;;; eContent OCTET STRING of the CMS message.
-
 (publish-thing :publication-uri uri-of-thing-we-are-publishing
 	       :signed-thing signed-thing
 	       :credential-certs (cert ....)
@@ -101,15 +92,3 @@
 ;;;
 ;;; Thing type...was present in a previous version of this protocol.
 ;;; I'm not sure we need it, am not sure we don't.
-
-;;; A previous version of this document suggested that if we always
-;;; pass up the certificate that signed the object we're trying to
-;;; publish, the SIA pointer in that cert would tell the repository
-;;; engine the URI at which we wanted this object to be published.
-;;; This could work (and might allow us to get away from the XML
-;;; wrapper entirely), but is a bit contorted.  The signer's SIA would
-;;; tell us the directory in which to place this object, but does not
-;;; tell us the filename for the object itself.  We could derived the
-;;; filename from the g(ski) algorithm, but that assumes we're willing
-;;; to accept that as the one true naming scheme for purposes of this
-;;; publication protocol.

@@ -17,24 +17,24 @@ digraph rpki_engine_objects {
 
 	// Objects visible in left-to-right protocol
 	node		[ color=blue ];
-	issuer		[ label="Issuer cust_id" ];
-	parent		[ label="Parent|{URL|TA}" ];
-	repo		[ label="Repository|{URL|TA}" ];
-	child		[ label="Child" ];
-	biz_sign	[ label="Business\nsigning context|{Keypair|CertChain}" ];
+	self		[ label="Self|{Preferences}" ];
+	parent		[ label="Parent|{URI|TA}" ];
+	repo		[ label="Repository|{URI|TA}" ];
+	child		[ label="Child|{TA}" ];
+	biz_sign	[ label="Business\nSigning Context|{Keypair|CertChain}" ];
 
 	// Objects created on the fly by the RPKI engine
 	node		[ color=green ];
-	ca		[ label="CA|{CRL #|Last issued serial #}" ];
+	ca		[ label="CA|{CRL #|Last Issued Serial #}" ];
 	child_cert	[ label="Child Certificate" ];
-	ee_cert		[ label="EE certificate|{ROA}" ];
-	ca_key_pair	[ label="CA key pair|{Latest CA certificate|Latest CRL}" ];
+	ee_cert		[ label="EE Certificate|{ROA}" ];
+	ca_key_pair	[ label="CA Key Pair|{Latest CA Certificate|Latest CRL}" ];
 
 	// One-many mappings
 	edge [ color=blue, arrowtail=none, arrowhead=crow ];
 	child -> biz_sign;
-	issuer -> child;
-	issuer -> parent;
+	self -> child;
+	self -> parent;
 	parent -> biz_sign;
 	repo -> biz_sign;
 	repo -> parent;
@@ -47,7 +47,7 @@ digraph rpki_engine_objects {
 	edge [ color=green, arrowtail=none, arrowhead=crow ];
 	ca -> ca_key_pair;
 	child -> child_cert;
-	issuer -> ca;
+	self -> ca;
 	parent -> ca;
 
 	// Weird one-many

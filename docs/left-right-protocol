@@ -56,14 +56,6 @@
 ;;; proven is that publication client A is not stepping on publication
 ;;; client B even when B is A's parent.
 
-;;; Perhaps "cust-id" is really a bad choice, as we have two different
-;;; models in which it means different thigs.  In this model the
-;;; cust-id is the entity which is executing, which is -issuing-
-;;; stuff.  In the other model, cust-id refers to the entity to which
-;;; we are issuing, which is a subject-id; in the terms used below,
-;;; this is a child-id.  We probably need better names, because people
-;;; keep getting confused by this conflict.
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Protocol operations between IRBE and RE.
@@ -76,24 +68,24 @@
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(create-cust-id)
-=> (customer-id)
+(create-self-id)
+=> (self-id)
 
-(destroy-cust-id :cust-id 42)
+(destroy-self-id :self-id 42)
 => ()
 
-(list-cust-ids)
-=> (customer-id ...)
+(list-self-ids)
+=> (self-id ...)
 
 ;; RobK wonders whether there needs to be an operation that blows away
 ;; most of the context but preserves things like audit logs.  No
 ;; current consensus on need for this.
 
-(get-preference :cust-id 42
+(get-preference :self-id 42
 		:preference-name :favorite-color)
 => ("obsidian")
 
-(set-preference :cust-id 42
+(set-preference :self-id 42
 		:name  :favorite-color
 		:value "obsidian")
 => ()
@@ -105,142 +97,142 @@
 ;; This creates both a context and a keypair.  Do we need to specify
 ;; what kind of key in addition to length?
 
-(create-biz-signing-context :cust-id 42
+(create-biz-signing-context :self-id 42
 			    &optional
 			    :key-type :rsa
 			    :key-length  2048)
 => (biz-signing-context-id pkcs10-cert-request)
 
-(destroy-biz-signing-context :cust-id 42
+(destroy-biz-signing-context :self-id 42
 			     :biz-signing-context-id biz-context-id)
 => ()
 
-(list-biz-signing-contexts :cust-id 42)
+(list-biz-signing-contexts :self-id 42)
 => (biz-signing-context-id ...)
 
-(get-biz-signing-certs :cust-id 42
+(get-biz-signing-certs :self-id 42
 		       :biz-signing-context-id splat)
 => (cert ...)
 
-(set-biz-signing-certs :cust-id 42
+(set-biz-signing-certs :self-id 42
 		       :biz-signing-context-id splat
-		       (cert ...))
+		       :certs (cert ...))
 => ()
 
-(create-parent-context :cust-id 42)
+(create-parent-context :self-id 42)
 => (parent)
 
-(destroy-parent-context :cust-id 42
+(destroy-parent-context :self-id 42
 			:parent foo)
 => ()
 
-(list-parents :cust-id 42)
+(list-parents :self-id 42)
 => (parent ...)
 
-(set-parent-ta :cust-id 42
+(set-parent-ta :self-id 42
 	       :parent foo
 	       :ta ta)
 => ()
 
-(get-parent-ta :cust-id 42
+(get-parent-ta :self-id 42
 	       :parent foo)
 => (ta)
 
-(get-parent-uri :cust-id 42
+(get-parent-uri :self-id 42
 		:parent foo)
 => (uri)
 
-(set-parent-uri :cust-id 42
+(set-parent-uri :self-id 42
 		:parent foo
 		:uri uri)
 => ()
 
-(get-parent-biz-signing-context :cust-id 42
+(get-parent-biz-signing-context :self-id 42
 				:parent foo)
 => (biz-signing-context)
 
-(set-parent-biz-signing-context :cust-id 42
+(set-parent-biz-signing-context :self-id 42
 				:parent foo
 				:biz-signing-context bar)
 => ()
 
-(get-parent-repository :cust-id 42
+(get-parent-repository :self-id 42
 		       :parent foo)
 => (repository)
 
-(set-parent-repository :cust-id 42
+(set-parent-repository :self-id 42
 		       :parent foo
 		       :repository bar)
 => ()
 
-(create-child :cust-id 42)
+(create-child :self-id 42)
 => (child)
 
-(destroy-child :cust-id 42
+(destroy-child :self-id 42
 	       :child bar)
 => ()
 
-(list-children  :cust-id id)
+(list-children  :self-id id)
 => (child ...)
 
-(get-child-id :cust-id 42
+(get-child-id :self-id 42
 	      :child foo)
 => (child-id)
 
-(set-child-id :cust-id 42
+(set-child-id :self-id 42
 	      :child foo
 	      :id bar)
 => ()
 
-(set-child-ta :cust-id 42
+(set-child-ta :self-id 42
 	      :child foo
 	      :ta bar)
 => ()
 
-(get-child-ta :cust-id 42
+(get-child-ta :self-id 42
 	      :child foo)
 => (ta)
 
-(set-child-biz-signing-context :cust-id 42
+(set-child-biz-signing-context :self-id 42
 			       :child foo
 			       :biz-signing-context bar)
 => ()
 
-(get-child-biz-signing-context :cust-id 42
+(get-child-biz-signing-context :self-id 42
 			       :child foo)
 => (signing-context)
 
 ;;; The following repo stuff is now wrong, need to come back to it
 
-(create-repository :cust-id 42)
+(create-repository :self-id 42)
 => (repo)
 
-(destroy-repository :cust-id 42
+(destroy-repository :self-id 42
 		    :repository repo)
 => ()
 
-(get-repository-biz-signing-context :cust-id 42
+(get-repository-biz-signing-context :self-id 42
 				    :repository foo)
 => (signing-context)
 
-(set-repository-biz-signing-context :cust-id 42
+(set-repository-biz-signing-context :self-id 42
 				    :repository foo
 				    :biz-signing-context bar)
 => ()
 
-(get-repository-uri :cust-id 42
+(get-repository-uri :self-id 42
 		    :repository foo)
 => (uri)
 
-(set-repository-uri :cust-id 42
+(set-repository-uri :self-id 42
 		    :repository foo
 		    :uri uri)
 => ()
 
-(please-run-this-cust-id-now :cust-id 42)
+(please-run-this-self-id-now :self-id 42)
 => ()
 
-(please-publish-world-right-now :cust-id 42)
+(please-publish-world-right-now :self-id 42)
 => ()
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -255,7 +247,7 @@
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(list-resources :cust-id 42		; issuer id
+(list-resources :self-id 42		; issuer id
 		&optional		; If left off, we're asking about self rather than child
 		:child id)		; subject id
 => ((:ipv4-address "10.0.0.44/32" "10.3.0.44/32")
@@ -263,12 +255,12 @@
     (:as-number "666")
     ...)
 
-(list-rights-to-route :cust-id 42)	; Self
+(list-rights-to-route :self-id 42)	; Self
 => ((as-number :ipv4 prefix-or-range :ipv6 prefix-or-range ...)
     (as-number "ipv6 prefix-or-range :ipv6 prefix-or-range :ipv4 prefix-or-range ...)
     ...)
 
-(report-error :cust-id 42
+(report-error :self-id 42
 	      :error-token :your-hair-is-on-fire
 	      :bag-of-data whatever)
 => ()

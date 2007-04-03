@@ -11,7 +11,7 @@
 //   Blue:  visible in left-right protocol
 //   Green: created on the fly
 
-digraph gsstsig_systems {
+digraph rpki_engine_objects {
 	rotate=90;	size="11,8.5";	splines=true;	ratio=fill;
 	node		[ shape=record ];
 

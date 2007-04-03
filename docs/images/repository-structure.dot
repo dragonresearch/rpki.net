@@ -3,10 +3,6 @@
 //
 // Pictures to go with repository-structure.txt.  First picture is rekeying b with
 // a g(ski)/g(ski)/g(ski).cer model, second is with stable meaningless identifiers.
-//
-// Render thusly:
-//
-//    dot -Tps2 repository-structure.dot | ps2pdf - repository-structure.pdf
 
 graph rekeying_ski {
    rotate=90;	size="11,8.5";	splines=true;	ratio=fill;
@@ -40,3 +36,7 @@ graph rekeying_gensym {
    a  -- b_	[ color=green ];
    b_ -- c	[ color=green ];
 }
+
+// Local Variables:
+// compile-command: "dot -Tps2 repository-structure.dot | ps2pdf - repository-structure.pdf"
+// End:

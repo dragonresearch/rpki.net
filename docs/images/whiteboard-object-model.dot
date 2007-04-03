@@ -18,10 +18,10 @@ digraph gsstsig_systems {
 	// Objects visible in left-to-right protocol
 	node		[ color=blue ];
 	issuer		[ label="Issuer cust_id" ];
-	parent		[ label="Parent|{URL|key}" ];
-	repo		[ label="Repository|{URL|key}" ];
+	parent		[ label="Parent|{URL|TA}" ];
+	repo		[ label="Repository|{URL|TA}" ];
 	child		[ label="Child" ];
-	biz_sign	[ label="Business signing context" ];
+	biz_sign	[ label="Business\nsigning context|{Keypair|CertChain}" ];
 
 	// Objects created on the fly by the RPKI engine
 	node		[ color=green ];

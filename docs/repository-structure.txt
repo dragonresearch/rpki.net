@@ -83,5 +83,15 @@ For those unfamiliar with the notation (borrowed from Lisp): g0001 etc
 are just "gensym" symbols, ie, the output of some function whose sole
 purpose is to generate meaningless symbols.
 
-See repository-structure.pdf (source in repository-structure.dot) for
-an illustration of the problem and solution.
+See images/repository-structure.pdf for an illustration of the problem
+and solution.
+
+There may be compromise-driven rollover cases in which we will need to
+reissue all of the children of a node whose key has been compromised.
+Whether or not this is necessary depends on whether the master copy of
+the authoritative data is safe somewhere else; if it is, and the
+resource certificates are just a signed representation of an
+authoritative database that has not been compromised, reissuing all of
+the descendants may not be necessary, but if the resource certificates
+-are- the database, and one level in it has been compromised, it's
+probably advisable to reissue all the descendants.

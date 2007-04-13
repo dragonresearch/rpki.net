@@ -121,7 +121,8 @@ Resource Class List Response
 		issuer_cert_ski="g(ski)"
 		resource_set_as="as resource set"
 		resource_set_ipv4="ipv4 resource set"
-		resource_set_ipv6="ipv6 resource set">
+		resource_set_ipv6="ipv6 resource set"
+		suggested_sia_head="rsync://foo/bar/baz/">
 
 	<cert	cert_url="url"
 		cert_ski="g(ski)"
@@ -244,6 +245,14 @@ Resource Class List Response
 	    nibbles using hexadecimal integers and "::" compression, with
 	    no other punctuation or whitespace.)
 
+	suggested_sia_head
+	    If this field is present then it indicates a publication
+	    namespace which the IR has made available to the ISP to
+	    use for its own SIA collection.  Presence of this field
+	    does not mean that the ISP has permission from the
+	    repository operator to lodge under this URI, only that the
+	    ISP has permission from the IR to lodge under this URI.
+	    See the publication protocol for details on how this works.
 
 Certificate Issuance Request
 

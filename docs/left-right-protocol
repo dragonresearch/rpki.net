@@ -15,16 +15,19 @@
 
 ;;; Current problems:
 
-;;; Need revoke and rekey operations.
+;;; Need revoke and rekey operations.  The IRBE tells the RE to delete
+;;; and likely replace a biz key (so this acts on business signing
+;;; context objects); it doesn't revoke in the CRL sense.  The RE may
+;;; learn from the IRBE that the key of a parent or child has changed;
+;;; these are set operations on the TA field of a parent, child, or
+;;; repository object.  So this is almost covered, except that we
+;;; bundled keypair creation into business signing context creation
+;;; (knew that was a mistake...).
 
-;;; And, er, how do things like publication URIs (which also go into
-;;; some of the X.509 extensions in the resource certs) get into the
-;;; RE anyway?  This is close to being the same question as how do we
-;;; configure the publication point, as the data are largely the same.
-;;; Part of the problem is that, if we create CAs on the fly in
-;;; response to what we learn from our parent, how do we map that to
-;;; any kind of preconfigured data on where we should publish?  This
-;;; is a mess.
+;;; How do we construct publication URIs (which also go into some of
+;;; the X.509 extensions in the resource certs)?  We create CAs on the
+;;; fly in response to what we learn from our parent, so it's hard to
+;;; preconfigure this.
 ;;;
 ;;; Might it help to have per-parent config for this, since we have to
 ;;; config parents anyway?  That'd give us the head of the publication

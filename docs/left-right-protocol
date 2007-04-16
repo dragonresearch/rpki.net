@@ -24,6 +24,10 @@
 ;;; bundled keypair creation into business signing context creation
 ;;; (knew that was a mistake...).
 
+;;; Need revoke and rekey operations, RPKI keys this time.  First
+;;; problem is how does the IRBE name the key that is to roll if
+;;; keypairs are created on the fly?  Hmm.
+
 ;;; How do we construct publication URIs (which also go into some of
 ;;; the X.509 extensions in the resource certs)?  We create CAs on the
 ;;; fly in response to what we learn from our parent, so it's hard to
@@ -58,6 +62,12 @@
 ;;; given with actual publication request.  Thing that needs to be
 ;;; proven is that publication client A is not stepping on publication
 ;;; client B even when B is A's parent.
+
+;;; Operations on keys need to specify signature algorithm (currently
+;;; only RSA, but need agility) and key length.  Signing operations
+;;; need to specify hash algorithms as well (currently default
+;;; SHA-256, option for higher SHA functions, we expect crypto world
+;;; to hand us new hash functions within a few years).
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;

@@ -63,6 +63,14 @@
 ;;; given with actual publication request.  Thing that needs to be
 ;;; proven is that publication client A is not stepping on publication
 ;;; client B even when B is A's parent.
+;;;
+;;; Not yet sure into which object we need to be stuffing various bits
+;;; of this URI.  The head portion is per, um, er, can we assume it's
+;;; per repository object?  Maybe.  The middle comes down on the fly
+;;; from the parent and is probably per class; dunno whether we store
+;;; it as is or just use it on the fly to construct the complete SIA
+;;; URI and store that.  And where do we store the resulting computed
+;;; SIA URIs, in the CA objects?
 
 ;;; Operations on keys need to specify signature algorithm (currently
 ;;; only RSA, but need agility) and key length.  Signing operations

@@ -32,11 +32,11 @@ digraph rpki_engine_objects {
 
 	// One-many mappings
 	edge [ color=blue, arrowtail=none, arrowhead=crow ];
-	child -> biz_sign;
+	biz_sign -> child;
+	biz_sign -> parent;
+	biz_sign -> repo;
 	self -> child;
 	self -> parent;
-	parent -> biz_sign;
-	repo -> biz_sign;
 	repo -> parent;
 
 	// Many-many mappings

@@ -15,68 +15,50 @@
 
 ;;; Current problems:
 
-;;; Need revoke and rekey operations.  The IRBE tells the RE to delete
-;;; and likely replace a biz key (so this acts on business signing
-;;; context objects); it doesn't revoke in the CRL sense.  The RE may
-;;; learn from the IRBE that the key of a parent or child has changed;
-;;; these are set operations on the TA field of a parent, child, or
-;;; repository object.  So this is almost covered, except that we
-;;; bundled keypair creation into business signing context creation
-;;; (knew that was a mistake...).
-
-;;; Need revoke and rekey operations, RPKI keys this time.  First
-;;; problem is how does the IRBE name the key that is to roll if
-;;; keypairs are created on the fly?  Hmm.  We can say "roll all the
-;;; keys associated with this child" easily enough, will that suffice?
+;;; Need revoke and rekey operations for RPKI keys.  First problem is
+;;; how does the IRBE name the key that is to roll if keypairs are
+;;; created on the fly?  Hmm.  We can say "roll all the keys
+;;; associated with this child" easily enough, will that suffice?
 
 ;;; How do we construct publication URIs (which also go into some of
 ;;; the X.509 extensions in the resource certs)?  We create CAs on the
 ;;; fly in response to what we learn from our parent, so it's hard to
-;;; preconfigure this.
+;;; preconfigure this.  At least for purposes of discussion, break the
+;;; publication directory URI into three pieces: head/middle/tail/.
+;;; This mechanism is still under discussion, the following is my
+;;; version of it.
 ;;;
-;;; Might it help to have per-parent config for this, since we have to
-;;; config parents anyway?  That'd give us the head of the publication
-;;; URI, leaving us to figure out just the tail.  Could gensym name
-;;; tail for dynamically created CAs, could take name tail from chat
-;;; with parent (risky?  evil parent gives us dangerous name?), could
-;;; take name tail from local config but it's hard to see how.
+;;; head is a URI within the repository with which this RE publishes;
+;;; this is either per-parent or per-class-per-parent, but the latter
+;;; is hard to preconfigure because we only find out about classes on
+;;; the fly.  So, for the moment, assume it's per-parent.  We're only
+;;; allowed to publish stuff here because we have a business
+;;; relationship with the repository, so at some level this has to be
+;;; preconfigured anyway, along with the repository TA and contact
+;;; URI.  In theory we could negotiate a location within the
+;;; repository on the fly, but let's try to keep this simple.
 ;;;
-;;; We now think that there's a negotiation involved here with both
-;;; the parent and the publisher.  The publication URI directory
-;;; breaks into three pieces: head/middle/tail/.  head comes from the
-;;; publisher, middle comes from the parent, and tail comes from this
-;;; RE.  head is just the prefix for where we're allowed to put stuff
-;;; within the publication repository; this could be configured by the
-;;; IRBE or we could ask the publication repository, we currently
-;;; think the latter is better.  Middle comes from this RE's parent,
-;;; and should be a new attribute in the up-down XML protocol: it's
-;;; the parent's advice on where to put this particular CA's outputs
-;;; in order to get the nice hierarchical properties we want.  Tail is
-;;; something this RE comes up with, it's per-CA, and all that really
-;;; matters is that it's stable; it could be gensymed, or could be our
-;;; internal name for the CA, whatever.  This hack may require finding
-;;; out the parent's publication URI (which we might get from the
-;;; parent's cert or not to be decided later), sort this out later.
+;;; Middle may come from this RE's parent.  If the parent happens to
+;;; be using the same repository as this RE is, the parent can tell us
+;;; (currently via an attribute I added to the up-down protocol for
+;;; this purpose) a URI under which it gives us permission to lodge.
+;;; If the head URI (configured above) is not a prefix of the URI we
+;;; get from the parent, we don't have permission to publish under the
+;;; parent and middle is null.  In essence, middle is the parent's
+;;; advice on where to put this particular CA's outputs in order to
+;;; get the nice hierarchical properties we want.
 ;;;
-;;; If there is any preliminary negotation with publisher before
-;;; publication, it is all hypothetical and assumes that proof will be
-;;; given with actual publication request.  Thing that needs to be
-;;; proven is that publication client A is not stepping on publication
-;;; client B even when B is A's parent.
+;;; Tail is something this RE makes up.  It's per-CA, and all that
+;;; really matters is that it's stable.  It could be gensymed, or
+;;; could be our internal name for the CA, whatever.
 ;;;
-;;; Not yet sure into which object we need to be stuffing various bits
-;;; of this URI.  The head portion is per, um, er, can we assume it's
-;;; per repository object?  Maybe.  The middle comes down on the fly
-;;; from the parent and is probably per class; dunno whether we store
-;;; it as is or just use it on the fly to construct the complete SIA
-;;; URI and store that.  And where do we store the resulting computed
-;;; SIA URIs, in the CA objects?
-
-;;; Operations on keys need to specify signature algorithm (currently
-;;; only RSA, but need agility) and key length.  Signing operations
-;;; need to specify hash algorithms as well (currently default
-;;; SHA-256, option for higher SHA functions, we expect crypto world
-;;; to hand us new hash functions within a few years).
+;;; Publication itself always requires a business signature
+;;; (demonstrating that we have the right to publish in this
+;;; repository at all) and may also require enough of the RPKI cert
+;;; chain to demonstrate that this RE's parent has given this RE
+;;; permission to publish under a particular URI.  Thing that needs to
+;;; be proven is that publication client A is not stepping on
+;;; publication client B even when B is A's parent.
 
 ;;; Explanation for many-many mapping beween CA and child objects
 ;;; (courtesy of RobL): Each child is an entity; each CA can have
@@ -94,6 +76,9 @@
 ;;; This set of operations are initiated by the IRBE.
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; "Self" ID context -- one RE instance.  In degenerate case there
+;; will be only one, but in hosting environments there might be many.
 
 (create-self-id)
 => (self-id)
@@ -118,19 +103,18 @@
 => ()
 
 ;; Extensions might also show up as preferences that nobody but this
-;; IRBE operator has ever heard of
+;; IRBE operator has ever heard of.
 
+;; Business signing key context -- Bundles all the stuff we need to
+;; sign outgoing CMS messages with a business key.
+;;
+;; At one point creating a business signing context also created the
+;; key, but that makes key rollover painful when we have many objects
+;; all pointing at the same signing context.  Easier just to leave all
+;; the object links in place and roll the key explictly.
 
-;; This creates both a context and a keypair, which may be a mistake,
-;; as it means that we can only roll a key by generating a new signing
-;; context.
-
-(create-biz-signing-context :self-id 42
-			    &optional
-			    :key-type :rsa
-			    :key-length 2048
-			    :hash-alg :sha1)
-=> (biz-signing-context-id pkcs10-cert-request)
+(create-biz-signing-context :self-id 42)
+=> (biz-signing-context-id)
 
 (destroy-biz-signing-context :self-id 42
 			     :biz-signing-context-id biz-context-id)
@@ -138,6 +122,14 @@
 
 (list-biz-signing-contexts :self-id 42)
 => (biz-signing-context-id ...)
+
+(generate-biz-signing-keypair :self-id 42
+			      :biz-signing-context-id foo
+			      &optional
+			      :key-type :rsa
+			      :key-length 2048
+			      :hash-alg :sha1)
+=> (pkcs10-cert-request)
 
 (get-biz-signing-certs :self-id 42
 		       :biz-signing-context-id splat)
@@ -147,6 +139,8 @@
 		       :biz-signing-context-id splat
 		       :certs (cert ...))
 => ()
+
+;; Parent context -- represents one parent of this RE
 
 (create-parent-context :self-id 42)
 => (parent)
@@ -194,6 +188,8 @@
 		       :repository bar)
 => ()
 
+;; Child context -- represents one child of this RE
+
 (create-child :self-id 42)
 => (child)
 
@@ -230,6 +226,9 @@
 			       :child foo
 			       :biz-signing-context bar)
 => ()
+
+;; Repository context -- represents one repository in which this RE
+;; publishes objects it signs.
 
 (create-repository :self-id 42)
 => (repository)
@@ -268,8 +267,12 @@
 		    :ta ta)
 => ()
 
+;; Force normal processing for a particular self-id right now.
+
 (please-run-this-self-id-now :self-id 42)
 => ()
+
+;; Publish everything we've got right now.
 
 (please-publish-world-right-now :self-id 42)
 => ()

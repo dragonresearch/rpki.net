@@ -170,6 +170,15 @@
 		:uri uri)
 => ()
 
+(get-parent-sia-head :self-id 42
+		     :parent foo)
+=> (sia-head)
+
+(set-parent-sia-head :self-id 42
+		     :parent foo
+		     :sia-head bar)
+=> ()
+
 (get-parent-biz-signing-context :self-id 42
 				:parent foo)
 => (biz-signing-context)

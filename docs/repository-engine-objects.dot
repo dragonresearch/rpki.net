@@ -22,7 +22,7 @@ digraph rpki_engine_objects {
 	// Objects visible in left-to-right protocol
 	node		[ color=blue ];
 	self		[ label="Self|{Preferences}" ];
-	parent		[ label="Parent|{URI|TA}" ];
+	parent		[ label="Parent|{URI|TA|SIA Head}" ];
 	repo		[ label="Repository|{URI|TA}" ];
 	child		[ label="Child|{TA}" ];
 	biz_sign	[ label="Business\nSigning Context|{Keypair|CertChain}" ];
@@ -61,5 +61,5 @@ digraph rpki_engine_objects {
 }
 
 // Local Variables:
-// compile-command: "neato -Tps2 whiteboard-object-model.dot | ps2pdf - whiteboard-object-model.pdf"
+// compile-command: "neato -Tps2 repository-engine-objects.dot | ps2pdf - repository-engine-objects.pdf"
 // End:

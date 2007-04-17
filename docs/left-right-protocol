@@ -127,7 +127,8 @@
 (create-biz-signing-context :self-id 42
 			    &optional
 			    :key-type :rsa
-			    :key-length  2048)
+			    :key-length 2048
+			    :hash-alg :sha1)
 => (biz-signing-context-id pkcs10-cert-request)
 
 (destroy-biz-signing-context :self-id 42
@@ -156,14 +157,14 @@
 (list-parents :self-id 42)
 => (parent ...)
 
+(get-parent-ta :self-id 42
+	       :parent foo)
+=> (ta)
+
 (set-parent-ta :self-id 42
 	       :parent foo
 	       :ta ta)
 => ()
-
-(get-parent-ta :self-id 42
-	       :parent foo)
-=> (ta)
 
 (get-parent-uri :self-id 42
 		:parent foo)
@@ -211,32 +212,33 @@
 	      :id bar)
 => ()
 
-(set-child-ta :self-id 42
-	      :child foo
-	      :ta bar)
-=> ()
-
 (get-child-ta :self-id 42
 	      :child foo)
 => (ta)
 
-(set-child-biz-signing-context :self-id 42
-			       :child foo
-			       :biz-signing-context bar)
+(set-child-ta :self-id 42
+	      :child foo
+	      :ta bar)
 => ()
 
 (get-child-biz-signing-context :self-id 42
 			       :child foo)
 => (signing-context)
 
-;;; The following repo stuff is now wrong, need to come back to it
+(set-child-biz-signing-context :self-id 42
+			       :child foo
+			       :biz-signing-context bar)
+=> ()
 
 (create-repository :self-id 42)
-=> (repo)
+=> (repository)
 
 (destroy-repository :self-id 42
-		    :repository repo)
+		    :repository foo)
 => ()
+
+(list-repositories :self-id 42)
+=> (repository ...)
 
 (get-repository-biz-signing-context :self-id 42
 				    :repository foo)
@@ -254,6 +256,15 @@
 (set-repository-uri :self-id 42
 		    :repository foo
 		    :uri uri)
+=> ()
+
+(get-repository-ta :self-id 42
+		    :repository foo)
+=> (ta)
+
+(set-repository-ta :self-id 42
+		    :repository foo
+		    :ta ta)
 => ()
 
 (please-run-this-self-id-now :self-id 42)

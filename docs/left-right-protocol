@@ -121,8 +121,9 @@
 ;; IRBE operator has ever heard of
 
 
-;; This creates both a context and a keypair.  Do we need to specify
-;; what kind of key in addition to length?
+;; This creates both a context and a keypair, which may be a mistake,
+;; as it means that we can only roll a key by generating a new signing
+;; context.
 
 (create-biz-signing-context :self-id 42
 			    &optional

@@ -11,6 +11,10 @@
 //   Blue:  visible in left-right protocol
 //   Green: created on the fly
 
+// Explanation for many-many mapping beween CA and child objects
+// (courtesy of RobL): Each child is an entity; each CA can have
+// multiple children, and each child can hold certs from multiple CAs.
+
 digraph rpki_engine_objects {
 	rotate=90;	size="11,8.5";	splines=true;	ratio=fill;
 	node		[ shape=record ];

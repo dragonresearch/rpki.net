@@ -78,6 +78,11 @@
 ;;; SHA-256, option for higher SHA functions, we expect crypto world
 ;;; to hand us new hash functions within a few years).
 
+;;; Explanation for many-many mapping beween CA and child objects
+;;; (courtesy of RobL): Each child is an entity; each CA can have
+;;; multiple children, and each child can hold certs from multiple
+;;; CAs.
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Protocol operations between IRBE and RE.

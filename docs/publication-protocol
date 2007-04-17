@@ -70,6 +70,50 @@
 ;;; repository makes to publish the RE's output is conditional upon
 ;;; the object to be published passing all of its checks.
 
+;;; How do we construct publication URIs (which also go into some of
+;;; the X.509 extensions in the resource certs)?  We create CAs on the
+;;; fly in response to what we learn from our parent, so it's hard to
+;;; preconfigure this.  This mechanism is still under discussion, the
+;;; following is my version of it.
+;;;
+;;; At least for purposes of discussion, break the publication
+;;; directory URI into three pieces: head/middle/tail/.
+;;;
+;;; head is a URI within the repository with which this RE publishes;
+;;; this is either per-parent or per-class-per-parent, but the latter
+;;; is hard to preconfigure because we only find out about classes on
+;;; the fly.  So, for the moment, assume it's per-parent.  We're only
+;;; allowed to publish stuff here because we have a business
+;;; relationship with the repository, so at some level this has to be
+;;; preconfigured anyway, along with the repository TA and contact
+;;; URI.  In theory we could negotiate a location within the
+;;; repository on the fly, but let's try to keep this simple.
+;;;
+;;; Middle may come from this RE's parent.  If the parent happens to
+;;; be using the same repository as this RE is, the parent can tell us
+;;; (currently via an attribute I added to the up-down protocol for
+;;; this purpose) a URI under which it gives us permission to lodge.
+;;; If the head URI (configured above) is not a prefix of the URI we
+;;; get from the parent, we don't have permission to publish under the
+;;; parent and middle is null.  In essence, middle is the parent's
+;;; advice on where to put this particular CA's outputs in order to
+;;; get the nice hierarchical properties we want.
+;;;
+;;; Tail is something this RE makes up.  It's per-CA, and all that
+;;; really matters is that it's stable.  It could be gensymed, or
+;;; could be our internal name for the CA, whatever.
+;;;
+;;; Publication itself always requires a business signature
+;;; (demonstrating that we have the right to publish in this
+;;; repository at all) and may also require enough of the RPKI cert
+;;; chain to demonstrate that this RE's parent has given this RE
+;;; permission to publish under a particular URI.  Thing that needs to
+;;; be proven is that publication client A is not stepping on
+;;; publication client B even when B is A's parent.
+
+
+
+
 (publish-thing :publication-uri uri-of-thing-we-are-publishing
 	       :signed-thing signed-thing
 	       :credential-certs (cert ....)

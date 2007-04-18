@@ -259,6 +259,7 @@
 => ((:ipv4-address "10.0.0.44/32" "10.3.0.44/32")
     (:ipv6-address "fe80:dead:beef::/24")
     (:as-number "666")
+    (:valid-until "2008-04-01T00:00:00Z")
     ...)
 
 (list-rights-to-route :self-id 42)	; Self

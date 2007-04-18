@@ -51,7 +51,6 @@ digraph rpki_engine_objects {
 	edge [ color=green, arrowtail=none, arrowhead=crow ];
 	ca -> ca_key_pair;
 	child -> child_cert;
-	self -> ca;
 	parent -> ca;
 
 	// Weird one-many

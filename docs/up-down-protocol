@@ -2,8 +2,10 @@ $URL$
 $Id$
 
 [This document is derived from a collaborative work originally
- maintained by Geoff Huston (thanks, Geoff!).  Changes from Geoff's
- version to date have largely been editorial.]
+ maintained by Geoff Huston (thanks, Geoff!).  Most of the changes
+ from Geoff's version to date have been editorial, but the XML
+ described here differs from Geoff's on a few points where the design
+ group has not yet achived a consensus on the best way to proceed.]
 
 Terminology
 
@@ -30,14 +32,11 @@ Terminology
         time.
 
     Resource Class 
-        A Resource Class is a set of IR-managed resources that are allocated to
-        an ISP that have a common validation path and a common validity
-        expiration time. In the IR context multiple classes for an ISP may
-        refer to a single IR CA (differing validity times), while in the ISP
-        context each resource class is represented a distinct ISP CA. All
-        resources listed in single certificate share a common validation path
-        and share common validity dates. (Other documents may refer to a
-        "Resource Class" as a "Resource Genre".)
+        A Resource Class is a set of IR-managed resources that are
+	allocated to an ISP that have a common validation path.  All
+	resources listed in single certificate share a common
+	validation path.  (Other documents may refer to a "Resource
+	Class" as a "Resource Genre".)
 
     Resource Certificate 
         A Resource Certificate is an X.509 v3 certificate with a critical

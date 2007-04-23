@@ -49,9 +49,9 @@
 ;;;    issue a cert to the child anyway, and that cert will contain a
 ;;;    signature by the parent over the child's SIA URI, so the
 ;;;    repository just has to check that.  For purposes of this check,
-;;;    the parent's issuing cert (which the repository has, by
-;;;    definition, since this is the nested hosting case) can serve as
-;;;    a trust anchor for checking the child's SIA.
+;;;    the parent's cert (which the repository has, by definition,
+;;;    since this is the nested hosting case) can serve as a trust
+;;;    anchor for checking the child's SIA.
 ;;;
 ;;; 3) To the extent that the repository operator wants to guard
 ;;;    against toxic waste, it might want to check further up the

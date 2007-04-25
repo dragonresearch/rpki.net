@@ -1,0 +1,286 @@
+;;; -*- Lisp -*-
+;;; $URL$
+;;; $Id$
+;;;
+;;; Scratch pad for working out API design for RPKI engine.
+;;;
+;;; This file is psuedocode, I just wanted to take advantage of
+;;; emacs's built-in support for languages with reasonable syntax.
+;;;
+;;; Terminology:
+;;;
+;;; - IRBE: Internet Registry Back End
+;;;
+;;; - RE: RPKI Engine
+
+;;; Current problems:
+
+;;; Need revoke and rekey operations for RPKI keys.  First problem is
+;;; how does the IRBE name the key that is to roll if keypairs are
+;;; created on the fly?  For that matter, how do we specify signature
+;;; and hash algorithm, keylength, etc for RPKI keys?  Preferences?
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Protocol operations between IRBE and RE.
+;;;
+;;; This is really two separate protocols over channels that might or
+;;; not be the same.  Both are client/server protocols, but for some
+;;; the RE is the client and for others the IRBE is the client.
+;;;
+;;; This set of operations are initiated by the IRBE.
+;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; "Self" ID context -- one RE instance.  In degenerate case there
+;; will be only one, but in hosting environments there might be many.
+;;
+;; We haven't yet defined any standard preferences, so none are shown.
+;;
+;; Extensions might also show up as preferences, using the
+;; extension-preference syntax.
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(self :action :create
+      (:extension-preference "name" "Launcelot")
+      (:extension-preference "quest" "Grail"))
+=> (self :self-id 42)
+
+(self :action :set
+      :self-id 42
+      (:extension-preference "color" "Blue")
+      (:run-now)
+      (:publish-world-now))
+=> (self :self-id 42)
+
+(self :action :get
+      :self-id 42)
+=> (self
+    :self-id 42
+    (:extension-preference "name" "Launcelot")
+    (:extension-preference "color" "Blue"))
+
+(self :action :list)
+=> ((self
+     :self-id 42
+     (:extension-preference "name" "Launcelot")
+     (:extension-preference "color" "Blue")))
+
+(self :action :destroy
+      :self-id 42)
+=> (self :self-id 42)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Business signing key context -- bundles all the stuff we need to
+;; sign outgoing CMS messages with a business key.
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(biz-signing-context :action :create
+		     :biz-signing-context-id 17
+		     (:signing-cert cert1))
+=> (biz-signing-context :biz-signing-context-id 17)
+
+(biz-signing-context :action :set
+		     :self-id 42
+		     :biz-signing-context-id 17
+		     (:signing-cert cert2)
+		     (:generate-keypair :key-type :rsa :hash-alg :sha1 :key-length 2048))
+=> (biz-signing-context :biz-signing-context-id 17
+			(:pkcs10-cert-request req))
+
+(biz-signing-context :action :get
+		     :self-id 42
+		     :biz-signing-context-id 17)
+=> (biz-signing-context :biz-signing-context-id 17
+			(:signing-cert cert1)
+			(:signing-cert cert2)
+			(:public-key key))
+
+(biz-signing-context :action :list
+		     :self-id 42)
+=> ((biz-signing-context :biz-signing-context-id 17
+			 (:signing-cert cert1)
+			 (:signing-cert cert2)
+			 (:public-key key)))
+
+(biz-signing-context :action :destroy
+		     :self-id 42
+		     :biz-signing-context-id 17)
+=> (biz-signing-context :biz-signing-context-id 17)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Parent context -- represents one parent of this RE
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(parent :action :create
+	:self-id 42
+	(:ta ta)
+	(:uri uri)
+	(:sia-head sia-head)
+	(:biz-signing-context biz-signing-context)
+	(:repository repository))
+=> (parent :parent-id 666)
+
+(parent :action :set
+	:self-id 42
+	:parent-id 666
+	(:ta ta)
+	(:uri uri)
+	(:sia-head sia-head)
+	(:biz-signing-context biz-signing-context)
+	(:repository repository))
+=> (parent :parent-id 666)
+
+(parent :action :get
+	:self-id 42
+	:parent-id 666)
+=> (parent :parent-id 666
+	   (:ta ta)
+	   (:uri uri)
+	   (:sia-head sia-head)
+	   (:biz-signing-context biz-signing-context)
+	   (:repository repository))
+
+(parent :action :list
+	:self-id 42
+	:parent-id 666)
+=> ((parent :parent-id 666
+	    (:ta ta)
+	    (:uri uri)
+	    (:sia-head sia-head)
+	    (:biz-signing-context biz-signing-context)
+	    (:repository repository)))
+
+(parent :action :destroy
+	:self-id 42
+	:parent-id 666)
+=> (parent :parent-id 666)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Child context -- represents one child of this RE
+;;
+;; "child-db-id" may be unnecessary -- old API had both "child" and
+;; "child-id", the second of which was a settable attribute of child,
+;; I'm not quite sure what it was, so here I'm calling it child-db-id
+;; in case we need it for something.
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(child :action :create
+       :self-id 42
+       (:ta ta)
+       (:biz-signing-context biz-signing-context)
+       (:child-db-id child-db-id))
+=> (child :child-id 3)
+
+(child :action :set
+       :self-id 42
+       :child-id 3
+       (:ta ta)
+       (:biz-signing-context biz-signing-context)
+       (:child-db-id child-db-id))
+=> (child :child-id 3)
+
+(child :action :get
+       :self-id 42
+       :child-id 3)
+=> (child :child-id 3
+	  (:ta ta)
+	  (:biz-signing-context biz-signing-context)
+	  (:child-db-id child-db-id))
+
+(child :action :list
+       :self-id 42
+       :child-id 3)
+=> ((child :child-id 3
+	   (:ta ta)
+	   (:biz-signing-context biz-signing-context)
+	   (:child-db-id child-db-id)))
+
+(child :action :destroy
+       :self-id 42
+       :child-id 3)
+=> (child :child-id 3)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Repository context -- represents one repository in which this RE
+;; publishes objects it signs.
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(repository :action :create
+	    :repository-id 120
+	    (:uri uri)
+	    (:ta ta)
+	    (:biz-signing-context biz-signing-context))
+=> (:repository-id 120)
+
+(repository :action :set
+	    :self-id 42
+	    :repository-id 120
+	    (:uri uri)
+	    (:ta ta)
+	    (:biz-signing-context biz-signing-context))
+=> (:repository-id 120)
+
+(repository :action :get
+	    :self-id 42
+	    :repository-id 120)
+=> (repository :repository-id 120
+	       (:uri uri)
+	       (:ta ta)
+	       (:biz-signing-context biz-signing-context))
+
+(repository :action :list
+	    :self-id 42
+	    :repository-id 120)
+=> ((repository :repository-id 120
+		(:uri uri)
+		(:ta ta)
+		(:biz-signing-context biz-signing-context)))
+
+(repository :action :destroy
+	    :self-id 42
+	    :repository-id 120)
+=> (:repository-id 120)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Protocol operations between IRBE and RE.
+;;;
+;;; This is really two separate protocols over channels that might or
+;;; not be the same.  Both are client/server protocols, but for some
+;;; the rpki engine and for others the irbe is the client.
+;;;
+;;; This set of operations are initiated by the RE.
+;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(list-resources :self-id 42		; issuer id
+		&optional		; If left off, we're asking about self rather than child
+		:child id)		; subject id
+=> ((:ipv4-address "10.0.0.44/32" "10.3.0.44/32")
+    (:ipv6-address "fe80:dead:beef::/24")
+    (:as-number "666")
+    (:valid-until "2008-04-01T00:00:00Z")
+    ...)
+
+(list-rights-to-route :self-id 42)	; Self
+=> ((as-number :ipv4 prefix-or-range :ipv6 prefix-or-range ...)
+    (as-number "ipv6 prefix-or-range :ipv6 prefix-or-range :ipv4 prefix-or-range ...)
+    ...)
+
+(report-error :self-id 42
+	      :error-token :your-hair-is-on-fire
+	      :bag-of-data whatever)
+=> ()

@@ -52,8 +52,11 @@
 (self :action :set
       :self-id 42
       (:extension-preference "color" "Blue")
-      (:run-now)
-      (:publish-world-now))
+      (:rekey)				; Change all RPKI keys in this context now
+      (:reissue)			; Reissue any cert with changed keys
+      (:revoke)				; Revoke any old keys
+      (:run-now)			; Run this self context now
+      (:publish-world-now))		; Publish everything in this context now
 => (self :self-id 42)
 
 (self :action :get
@@ -136,7 +139,10 @@
 	(:uri uri)
 	(:sia-head sia-head)
 	(:biz-signing-context biz-signing-context)
-	(:repository repository))
+	(:repository repository)
+	(:rekey)			; Change all keys now
+	(:reissue)			; Reissue all certs with changed keys now
+	(:revoke))			; Revoke any old keys now
 => (parent :parent-id 666)
 
 (parent :action :get
@@ -187,7 +193,8 @@
        :child-id 3
        (:ta ta)
        (:biz-signing-context biz-signing-context)
-       (:child-db-id child-db-id))
+       (:child-db-id child-db-id)
+       (:reissue))			; Reissue any certs to this child now
 => (child :child-id 3)
 
 (child :action :get

@@ -31,7 +31,28 @@
 ;;; This set of operations are initiated by the IRBE.
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
+;;;
+;;; This part of the protcol uses a kind of message-passing.  Each
+;;; object that the RE knows about takes five messages: :create, :set,
+;;; :get, :list, and :destroy.  Actions which are not just data
+;;; operations on objects are handled via an SNMP-like mechanism, as
+;;; if they were fields to be set.  For example, to generate a keypair
+;;; one "sets" the :generate-keypair field of a biz-signing-context
+;;; object, even though there is no such field in the object itself.
+;;; This is a bit of a kludge, but the reason for doing it as if these
+;;; were variables being set is to allow composite operations such as
+;;; creating a biz-signing-context, populating all of its data fields,
+;;; and generating a keypair, all as a single operation.  With this
+;;; model, that's trivial, otherwise it's at least two round trips.
+;;;
+;;; Fields can be set in either :create or :set operations, the
+;;; difference just being whether the object already exists.  A :get
+;;; operation returns all visible fields of the object.  A :list
+;;; operation returns a list containing what :get would have returned
+;;; on each of those objects.
+;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; "Self" ID context -- one RE instance.  In degenerate case there
@@ -46,12 +67,15 @@
 
 (self :action :create
       (:extension-preference "name" "Launcelot")
-      (:extension-preference "quest" "Grail"))
+      (:extension-preference "quest" "Holy Grail"))
 => (self :self-id 42)
 
 (self :action :set
       :self-id 42
       (:extension-preference "color" "Blue")
+      ;;
+      ;; <self> objects have a lot of actions:
+      ;;
       (:rekey)				; Change all RPKI keys in this context now
       (:reissue)			; Reissue any cert with changed keys
       (:revoke)				; Revoke any old keys
@@ -64,13 +88,21 @@
 => (self
     :self-id 42
     (:extension-preference "name" "Launcelot")
+    (:extension-preference "quest" "Holy Grail")
     (:extension-preference "color" "Blue"))
 
 (self :action :list)
 => ((self
      :self-id 42
      (:extension-preference "name" "Launcelot")
-     (:extension-preference "color" "Blue")))
+     (:extension-preference "quest" "Holy Grail")
+     (:extension-preference "color" "Blue"))
+    (self
+     :self-id 99
+     (:extension-preference "name" "Arthur, King of the Britons")
+     (:extension-preference "quest" "Holy Grail")
+     (:extension-preference "airspeed-velocity-of-an-unladen-swallow"
+			    "African or European swallow?")))
 
 (self :action :destroy
       :self-id 42)
@@ -92,7 +124,12 @@
 		     :self-id 42
 		     :biz-signing-context-id 17
 		     (:signing-cert cert2)
-		     (:generate-keypair :key-type :rsa :hash-alg :sha1 :key-length 2048))
+		     ;;
+		     ;; Actions:
+		     ;;
+		     (:generate-keypair :key-type :rsa
+					:hash-alg :sha1
+					:key-length 2048))
 => (biz-signing-context :biz-signing-context-id 17
 			(:pkcs10-cert-request req))
 
@@ -140,6 +177,9 @@
 	(:sia-head sia-head)
 	(:biz-signing-context biz-signing-context)
 	(:repository repository)
+	;;
+	;; Actions:
+	;;
 	(:rekey)			; Change all keys now
 	(:reissue)			; Reissue all certs with changed keys now
 	(:revoke))			; Revoke any old keys now
@@ -177,7 +217,8 @@
 ;; "child-db-id" may be unnecessary -- old API had both "child" and
 ;; "child-id", the second of which was a settable attribute of child,
 ;; I'm not quite sure what it was, so here I'm calling it child-db-id
-;; in case we need it for something.
+;; in case we need it for something.  Perhaps this corresponds to the
+;; optional child ID in the list-resources callback to the IRBE?
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -276,14 +317,15 @@
 (list-resources :self-id 42		; issuer id
 		&optional		; If left off, we're asking about self rather than child
 		:child id)		; subject id
-=> ((:ipv4-address "10.0.0.44/32" "10.3.0.44/32")
+=> (resources :valid-until "2008-04-01T00:00:00Z"
+    (:ipv4-address "10.0.0.44/32" "10.3.0.44/32")
     (:ipv6-address "fe80:dead:beef::/24")
     (:as-number "666")
-    (:valid-until "2008-04-01T00:00:00Z")
     ...)
 
 (list-rights-to-route :self-id 42)	; Self
-=> ((as-number :ipv4 prefix-or-range :ipv6 prefix-or-range ...)
+=> (rights-to-route
+    (as-number :ipv4 prefix-or-range :ipv6 prefix-or-range ...)
     (as-number "ipv6 prefix-or-range :ipv6 prefix-or-range :ipv4 prefix-or-range ...)
     ...)
 

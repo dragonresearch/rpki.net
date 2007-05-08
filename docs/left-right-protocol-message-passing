@@ -164,7 +164,7 @@
 	:self-id 42
 	(:ta ta)
 	(:uri uri)
-	(:sia-head sia-head)
+	(:sia-base sia-base)
 	(:biz-signing-context biz-signing-context)
 	(:repository repository))
 => (parent :parent-id 666)
@@ -174,7 +174,7 @@
 	:parent-id 666
 	(:ta ta)
 	(:uri uri)
-	(:sia-head sia-head)
+	(:sia-base sia-base)
 	(:biz-signing-context biz-signing-context)
 	(:repository repository)
 	;;
@@ -191,7 +191,7 @@
 => (parent :parent-id 666
 	   (:ta ta)
 	   (:uri uri)
-	   (:sia-head sia-head)
+	   (:sia-base sia-base)
 	   (:biz-signing-context biz-signing-context)
 	   (:repository repository))
 
@@ -201,7 +201,7 @@
 => ((parent :parent-id 666
 	    (:ta ta)
 	    (:uri uri)
-	    (:sia-head sia-head)
+	    (:sia-base sia-base)
 	    (:biz-signing-context biz-signing-context)
 	    (:repository repository)))
 

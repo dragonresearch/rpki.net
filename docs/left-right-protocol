@@ -2,6 +2,11 @@
 ;;; $URL$
 ;;; $Id$
 ;;;
+;;; NB: This file is obsolete and kept only for reference during
+;;; transition.  It has been replaced by
+;;; http://subvert-rpki.hactrn.net/docs/left-right-protocol-message-passing
+;;; and at some point that file will be renamed to overwrite this one.
+;;;
 ;;; Scratch pad for working out API design for RPKI engine.
 ;;;
 ;;; This file is psuedocode, I just wanted to take advantage of
@@ -125,13 +130,13 @@
 		:uri uri)
 => ()
 
-(get-parent-sia-head :self-id 42
+(get-parent-sia-base :self-id 42
 		     :parent foo)
-=> (sia-head)
+=> (sia-base)
 
-(set-parent-sia-head :self-id 42
+(set-parent-sia-base :self-id 42
 		     :parent foo
-		     :sia-head bar)
+		     :sia-base bar)
 => ()
 
 (get-parent-biz-signing-context :self-id 42

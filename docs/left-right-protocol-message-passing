@@ -314,6 +314,9 @@
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; The following probably needs expansion to cover issuing subsets
+;; (transfer support).
+
 (list-resources :self-id 42		; issuer id
 		&optional		; If left off, we're asking about self rather than child
 		:child id)		; subject id
@@ -323,11 +326,20 @@
     (:as-number "666")
     ...)
 
+;; There has been some discussion of turning ROA generation into an
+;; imperative interface, in which case the following query would need
+;; to turn into object control protocol in the previous section.  The
+;; following is the older version of this in which the RE queries into
+;; the IRBE to find out rights to route.
+
 (list-rights-to-route :self-id 42)	; Self
 => (rights-to-route
     (as-number :ipv4 prefix-or-range :ipv6 prefix-or-range ...)
     (as-number "ipv6 prefix-or-range :ipv6 prefix-or-range :ipv4 prefix-or-range ...)
     ...)
+
+;; "Blind object signing" would probably be another imperative message
+;; to be added above, similar to whatever we end up with for ROAs.
 
 (report-error :self-id 42
 	      :error-token :your-hair-is-on-fire

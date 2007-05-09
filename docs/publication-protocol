@@ -111,18 +111,29 @@
 ;;; be proven is that publication client A is not stepping on
 ;;; publication client B even when B is A's parent.
 
-
-
+;;; Signed manifests must be supplied by the RE, as they must be
+;;; signed by an EE cert issued by the CA that issues (or signs, in
+;;; the case of non-cert objects) everything else in the SIA
+;;; collection.  This EE cert should probably just use the RFC 3779
+;;; inherit bits as an easy way of inheriting all the resources of the
+;;; CA cert.  So the publication operation supplies exactly one new
+;;; manifest and zero or more other objects; everything in the
+;;; publication PDU is published as an atomic operation, ie, if any of
+;;; it can't be published, none of it is published.
 
 (publish-thing :publication-uri uri-of-thing-we-are-publishing
-	       :signed-thing signed-thing
 	       :credential-certs (cert ....)
-	       :thing-type :crl)
+	       :manifest manifest
+	       (:thing crl1 :thing-type :crl)
+	       (:thing cert1 :thing-type :cert)
+	       (:thing cert2 :thing-type :cert)
+	       ...	       ...)
 => ()
 
-;;; signed-thing is an object (certificate, CRL, ROA) signed by the
-;;; private key associated with a resource certificate held by the
-;;; entity sending the (publish-thing) request.
+;;; thing is an object (certificate, CRL, ROA) signed by the private
+;;; key associated with a resource certificate held by the entity
+;;; sending the (publish-thing) request.  :thing-type may not be
+;;; strictly necessary.
 ;;;
 ;;; credential-certs is a set of whatever resource certificates are
 ;;; needed to demonstrate to the repository engine that the entity
@@ -133,6 +144,3 @@
 ;;; require supplying the cert chain back to some resource trust
 ;;; anchor established as part of the business relationship between
 ;;; requestor and repository operator.
-;;;
-;;; Thing type...was present in a previous version of this protocol.
-;;; I'm not sure we need it, am not sure we don't.

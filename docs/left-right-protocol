@@ -316,6 +316,14 @@
 
 ;; The following probably needs expansion to cover issuing subsets
 ;; (transfer support).
+;;
+;; This is probably also the place where we need to put the hook that
+;; lets the IRBE specify the cert subject name (when we're allowing
+;; that).
+;;
+;; Separating this into two separate messages instead of a single
+;; overloaded message (self vs child) might be clearer.  Work uses
+;; cases first to determine how we really use this call?
 
 (list-resources :self-id 42		; issuer id
 		&optional		; If left off, we're asking about self rather than child

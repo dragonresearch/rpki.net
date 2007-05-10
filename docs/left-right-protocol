@@ -117,19 +117,19 @@
 
 (biz-signing-context :action :create
 		     :self-id 42
-		     (:signing-cert cert1))
-=> (biz-signing-context :biz-signing-context-id 17)
-
-(biz-signing-context :action :set
-		     :self-id 42
-		     :biz-signing-context-id 17
-		     (:signing-cert cert2)
+		     (:signing-cert cert1)
 		     ;;
 		     ;; Actions:
 		     ;;
 		     (:generate-keypair :key-type :rsa
 					:hash-alg :sha1
 					:key-length 2048))
+=> (biz-signing-context :biz-signing-context-id 17)
+
+(biz-signing-context :action :set
+		     :self-id 42
+		     :biz-signing-context-id 17
+		     (:signing-cert cert2))
 => (biz-signing-context :biz-signing-context-id 17
 			(:pkcs10-cert-request req))
 

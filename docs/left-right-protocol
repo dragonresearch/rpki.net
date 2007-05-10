@@ -116,7 +116,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (biz-signing-context :action :create
-		     :biz-signing-context-id 17
+		     :self-id 42
 		     (:signing-cert cert1))
 => (biz-signing-context :biz-signing-context-id 17)
 
@@ -267,7 +267,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (repository :action :create
-	    :repository-id 120
+	    :self-id 42
 	    (:uri uri)
 	    (:ta ta)
 	    (:biz-signing-context biz-signing-context))

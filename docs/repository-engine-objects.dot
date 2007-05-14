@@ -30,6 +30,7 @@ digraph rpki_engine_objects {
 
 	// One-many mappings
 	edge [ color=blue, arrowtail=none, arrowhead=crow ];
+	self -> biz_sign;
 	biz_sign -> child;
 	biz_sign -> parent;
 	biz_sign -> repo;
@@ -57,5 +58,5 @@ digraph rpki_engine_objects {
 }
 
 // Local Variables:
-// compile-command: "neato -Tps2 repository-engine-objects.dot | ps2pdf - repository-engine-objects.pdf"
+// compile-command: "dot -Tps2 repository-engine-objects.dot | ps2pdf - repository-engine-objects.pdf"
 // End:

@@ -1,0 +1,36 @@
+;;; -*- Lisp -*-
+;;; $URL$
+;;; $Id$
+;;;
+;;; This file is psuedocode, I just wanted to take advantage of
+;;; emacs's built-in support for languages with reasonable syntax.
+;;; Final version will likely be either flat text or ASN.1.
+;;;
+;;; Signed manifests for RPKI repositories.  We're using object (as
+;;; opposed to channel) security for everything in the repository,
+;;; which is the right thing to do for various reasons but leaves us
+;;; open to attacks which intercept the rsync connection and drop
+;;; valid objects out of an SIA collection.  At present this is not
+;;; detectable, so we need a mechanism.
+;;;
+;;; Manifest is modeled heavily on CRLs, because the issues involved
+;;; in detecting stale manifests, manifest replays, etc are similar to
+;;; those for CRLs.  So, to a first approximation, we want all the
+;;; fields that a CRL has.  Syntax will probably differ, though, since
+;;; RPKI repositories can contain objects not covered by CRLs (eg,
+;;; ROAs), and we may well decide just to sign the manifest with CMS.
+;;;
+;;; See RFC 3280 5.1 for the CRL layout.
+;;;
+;;; We're only trying to cover objects in the same SIA collection
+;;; (directory) as the manifest.  We will probably want to name the
+;;; manifest itself with a name derived from the g(ski) of the cert of
+;;; which this is the SIA collection.  We'll need an EE cert to sign
+;;; the manifest; the EE cert should probably just use RFC 3779
+;;; inheritance to cover all the resources that its issuer holds.
+;;;
+;;; One possible way of representing the objects in a collection would
+;;; be with pairs of:
+;;;
+;;;   filename of the object (within the collection, eg, "fnord.cer")
+;;;   hash of the object (eg sha256(fnord.cer))

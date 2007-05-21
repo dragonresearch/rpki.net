@@ -1,0 +1,8 @@
+$Id$
+
+The master copy of the up-down protocol currently lives in a wiki at
+APNIC.  A flat text mirror of this document can be found at:
+
+http://subvert-rpki.hactrn.net/wiki-mirror/text/mirin.apnic.net/resourcecerts/wiki/index.php/IR-ISP_Definition_v_0.9.0
+
+(ie, ../wiki-mirror/text/mirin.apnic.net/resourcecerts/wiki/index.php/IR-ISP_Definition_v_0.9.0 within this repository).

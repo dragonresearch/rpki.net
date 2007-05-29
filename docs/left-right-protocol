@@ -323,10 +323,10 @@
 	      :route-origin-id 88
 	      :as-number 12345
 	      :publish :yes
-	      (:ipv4-prefix 10.0.0.44/32)
-	      (:ipv4-range  10.2.0.6-10.2.0.77)
-	      (:ipv6-prefix 2002:a00::/48)
-	      (:ipv6-prefix 2002:a02:6::-2002:a02:4d::))
+	      (:ipv4-prefix 10.0.0.44 32)
+	      (:ipv4-range  10.2.0.6 10.2.0.77)
+	      (:ipv6-prefix 2002:a00:: 48)
+	      (:ipv6-range  2002:a02:6:: 2002:a02:4d::))
 => (route-origin :route-origin-id 88)
 
 (route-origin :action :get
@@ -334,19 +334,19 @@
 	      :route-origin-id 88)
 => (route-origin :route-origin-id 88
 		 (:as-number 12345)
-		 (:ipv4-prefix 10.0.0.44/32)
-		 (:ipv4-range  10.2.0.6-10.2.0.77)
-		 (:ipv6-prefix 2002:a00::/48)
-		 (:ipv6-prefix 2002:a02:6::-2002:a02:4d::))
+		 (:ipv4-prefix 10.0.0.44 32)
+		 (:ipv4-range  10.2.0.6 10.2.0.77)
+		 (:ipv6-prefix 2002:a00:: 48)
+		 (:ipv6-range  2002:a02:6:: 2002:a02:4d::))
 
 (route-origin :action :list
 	      :self-id 42)
 => ((route-origin :route-origin-id 88
 		  (:as-number 12345)
-		  (:ipv4-prefix 10.0.0.44/32)
-		  (:ipv4-range  10.2.0.6-10.2.0.77)
-		  (:ipv6-prefix 2002:a00::/48)
-		  (:ipv6-prefix 2002:a02:6::-2002:a02:4d::)))
+		  (:ipv4-prefix 10.0.0.44 32)
+		  (:ipv4-range  10.2.0.6 10.2.0.77)
+		  (:ipv6-prefix 2002:a00:: 48)
+		  (:ipv6-range  2002:a02:6:: 2002:a02:4d::)))
 
 (route-origin :action :destroy
 	      :self-id 42

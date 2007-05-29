@@ -387,10 +387,11 @@
 (list-resources :self-id 42		; issuer id
 		&optional		; If left off, we're asking about self rather than child
 		:child id)		; subject id
-=> (resources :valid-until "2008-04-01T00:00:00Z"
-    (:ipv4-address "10.0.0.44/32" "10.3.0.44/32")
-    (:ipv6-address "fe80:dead:beef::/24")
-    (:as-number "666")
+=> (resources :valid-until 2008-04-01T00:00:00Z
+    (:ipv4-prefix 10.0.0.44 32)
+    (:ipv4-prefix 10.3.0.44 32)
+    (:ipv6-prefix fe80:dead:beef:: 48)
+    (:as-number 666)
     ...)
 
 (report-error :self-id 42

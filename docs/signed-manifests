@@ -13,12 +13,12 @@
 ;;; valid objects out of an SIA collection.  At present this is not
 ;;; detectable, so we need a mechanism.
 ;;;
-;;; Manifest is modeled heavily on CRLs, because the issues involved
-;;; in detecting stale manifests, manifest replays, etc are similar to
-;;; those for CRLs.  So, to a first approximation, we want all the
-;;; fields that a CRL has.  Syntax will probably differ, though, since
-;;; RPKI repositories can contain objects not covered by CRLs (eg,
-;;; ROAs), and we may well decide just to sign the manifest with CMS.
+;;; Manifests as described here are modeled on CRLs, because the
+;;; issues involved in detecting stale manifests, manifest replays,
+;;; etc are similar to those for CRLs.  So we want many of the fields
+;;; that a CRL has.  Syntax will probably differ, though, since RPKI
+;;; repositories can contain objects not covered by CRLs (eg, ROAs),
+;;; and we may well decide just to sign the manifest with CMS.
 ;;;
 ;;; See RFC 3280 section 5 for CRL layout and extensions.
 ;;;
@@ -31,16 +31,8 @@
 ;;; use CMS, we might just want to include the EE cert in the CMS
 ;;; bag of certs.
 ;;;
-;;; One possible way of representing the objects in a collection would
-;;; be with pairs of:
-;;;
-;;;   filename of the object (within the collection, eg, "fnord.cer")
-;;;   hash of the object (eg sha256(fnord.cer))
-;;;
 ;;; For the moment I assume we're signing with CMS, so the signature
-;;; parameters and signature itself are not included below.  I'm including
-;;; some fields we may decide to drop later, because it's easier to see
-;;; extraneous fields than it is to see missing ones.
+;;; parameters and signature itself are not included below.
 
 (manifest :version 1
 	  :collection-uri "rsync://foo.example/wombat/"
@@ -48,8 +40,8 @@
 	  :next-update    timestamp
 	  :manifest-serial 17
 	  :hash-algorithm :sha256
-	  (:name foo.cer :hash b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c)
-	  (:name bar.cer :hash b00b9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c)
-	  (:name foo.roa :hash a00b9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c)
-	  (:name baz.crl :hash c00b9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c)
+	  (:name foo.cer :hash aabbccdd...)
+	  (:name bar.cer :hash bbccddee...)
+	  (:name foo.roa :hash ccddeeff...)
+	  (:name baz.crl :hash ddeeff00...)
 	  ...)

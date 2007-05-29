@@ -271,7 +271,7 @@
 	    (:uri uri)
 	    (:ta ta)
 	    (:biz-signing-context biz-signing-context))
-=> (:repository-id 120)
+=> (repository :repository-id 120)
 
 (repository :action :set
 	    :self-id 42
@@ -279,7 +279,7 @@
 	    (:uri uri)
 	    (:ta ta)
 	    (:biz-signing-context biz-signing-context))
-=> (:repository-id 120)
+=> (repository :repository-id 120)
 
 (repository :action :get
 	    :self-id 42
@@ -300,7 +300,66 @@
 (repository :action :destroy
 	    :self-id 42
 	    :repository-id 120)
-=> (:repository-id 120)
+=> (repository :repository-id 120)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Route Origin objects (prototype and control for ROAs)
+;;
+;; Previous versions of this protocol handled this via queries from
+;; the RE back into the IRBE, but the design group now believes that
+;; an imperative interface makes more sense.  We stick to the same
+;; general object model used above because ROAs are published objects,
+;; thus the IRBE presumably wants some kind of handle on the ROA.
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(route-origin :action :create
+	      :self-id 42)
+=> (route-origin :route-origin-id 88)
+
+(route-origin :action :set
+	      :self-id 42
+	      :route-origin-id 88
+	      :as-number 12345
+	      :publish :yes
+	      (:ipv4-prefix 10.0.0.44/32)
+	      (:ipv4-range  10.2.0.6-10.2.0.77)
+	      (:ipv6-prefix 2002:a00::/48)
+	      (:ipv6-prefix 2002:a02:6::-2002:a02:4d::))
+=> (route-origin :route-origin-id 88)
+
+(route-origin :action :get
+	      :self-id 42
+	      :route-origin-id 88)
+=> (route-origin :route-origin-id 88
+		 (:as-number 12345)
+		 (:ipv4-prefix 10.0.0.44/32)
+		 (:ipv4-range  10.2.0.6-10.2.0.77)
+		 (:ipv6-prefix 2002:a00::/48)
+		 (:ipv6-prefix 2002:a02:6::-2002:a02:4d::))
+
+(route-origin :action :list
+	      :self-id 42)
+=> ((route-origin :route-origin-id 88
+		  (:as-number 12345)
+		  (:ipv4-prefix 10.0.0.44/32)
+		  (:ipv4-range  10.2.0.6-10.2.0.77)
+		  (:ipv6-prefix 2002:a00::/48)
+		  (:ipv6-prefix 2002:a02:6::-2002:a02:4d::)))
+
+(route-origin :action :destroy
+	      :self-id 42
+	      :route-origin-id 88)
+=> (route-origin :route-origin-id 88)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; "Blind object signing" would probably be another imperative message
+;; to be added above, similar to (route-origin).
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -333,21 +392,6 @@
     (:ipv6-address "fe80:dead:beef::/24")
     (:as-number "666")
     ...)
-
-;; There has been some discussion of turning ROA generation into an
-;; imperative interface, in which case the following query would need
-;; to turn into object control protocol in the previous section.  The
-;; following is the older version of this in which the RE queries into
-;; the IRBE to find out rights to route.
-
-(list-rights-to-route :self-id 42)	; Self
-=> (rights-to-route
-    (as-number :ipv4 prefix-or-range :ipv6 prefix-or-range ...)
-    (as-number "ipv6 prefix-or-range :ipv6 prefix-or-range :ipv4 prefix-or-range ...)
-    ...)
-
-;; "Blind object signing" would probably be another imperative message
-;; to be added above, similar to whatever we end up with for ROAs.
 
 (report-error :self-id 42
 	      :error-token :your-hair-is-on-fire

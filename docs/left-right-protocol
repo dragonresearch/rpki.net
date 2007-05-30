@@ -13,13 +13,6 @@
 ;;;
 ;;; - RE: RPKI Engine
 
-;;; Current problems:
-
-;;; Need revoke and rekey operations for RPKI keys.  First problem is
-;;; how does the IRBE name the key that is to roll if keypairs are
-;;; created on the fly?  For that matter, how do we specify signature
-;;; and hash algorithm, keylength, etc for RPKI keys?  Preferences?
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Protocol operations between IRBE and RE.

@@ -11,8 +11,8 @@ Required reading:
 Programs:
 
 - openssl: development copy of OpenSSL with RFC 3779 support added.
-  Patches for this have been submitted to the OpenSSL project but have
-  not yet been incorporated into the OpenSSL distribution.
+  Patches for this have been submitted to the OpenSSL project and were
+  incorporated into release OpenSSL 0.9.8e.
 
 - rcynic: "cynical rsync" validator for rsync-based RPKI repositories.
 
@@ -21,3 +21,9 @@ Programs:
   useful, cool, enjoy, but if they blow up in your face, set your
   computer on fire, and turn your cat blue, that's your problem.
 
+Other:
+
+- docs: Design documents for various protocols used by the entities
+  that generate and publish RPKI data.
+
+- wiki-mirror: Mirror of selected documents from a Wiki at APNIC.

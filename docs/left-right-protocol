@@ -235,6 +235,7 @@
        (:ta ta)
        (:biz-signing-context biz-signing-context)
        (:child-db-id child-db-id)
+       (:subject-name "wombat"		; Consenting adults only!  Do not use!
        (:reissue))			; Reissue any certs to this child now
 => (child :child-id 3)
 

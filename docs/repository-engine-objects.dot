@@ -20,12 +20,14 @@ digraph rpki_engine_objects {
 	repo		[ label="Repository|{URI|TA}" ];
 	child		[ label="Child|{TA}" ];
 	biz_sign	[ label="Business\nSigning Context|{Keypair|CertChain}" ];
+	route_origin	[ label="Route\nOrigin|{AS Number|Address/Prefix List}" ];
 
 	// Objects created on the fly by the RPKI engine
 	node		[ color=green ];
 	ca		[ label="CA|{CRL #|Last Issued Serial #}" ];
 	child_cert	[ label="Child Certificate" ];
-	ee_cert		[ label="EE Certificate|{ROA}" ];
+	roa_ee_cert	[ label="EE Certificate|{ROA}" ];
+	man_ee_cert	[ label="EE Certificate|{Manifest}" ];
 	ca_key_pair	[ label="CA Key Pair|{Latest CA Certificate|Latest CRL}" ];
 
 	// One-many mappings
@@ -37,13 +39,13 @@ digraph rpki_engine_objects {
 	self -> child;
 	self -> parent;
 	repo -> parent;
+	self -> route_origin;
 
 	// This is many-many because each child is an entity, each CA
 	// can have multiple children, and each child can hold certs
 	// from multiple CAs (thanks, RobL).
 	//
 	ca -> child	[ color=green, arrowtail=crow, arrowhead=crow ];
-
 
 	// One-many mappings
 	edge [ color=green, arrowtail=none, arrowhead=crow ];
@@ -54,7 +56,13 @@ digraph rpki_engine_objects {
 	// Weird one-many
 	edge [ color=green, arrowtail=none, arrowhead=crow, style=dashed ];
 	ca_key_pair -> child_cert;
-	ca_key_pair -> ee_cert;
+	ca_key_pair -> roa_ee_cert;
+	ca_key_pair -> man_ee_cert;
+
+	// One-one mapping -- separate object to highlight dynamic nature
+	edge [ color=green, arrowtail=none, arrowhead=none, style=solid ];
+	route_origin -> roa_ee_cert;
+
 }
 
 // Local Variables:

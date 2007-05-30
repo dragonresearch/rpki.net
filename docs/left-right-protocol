@@ -373,10 +373,6 @@
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Separating this into two separate messages instead of a single
-;; overloaded message (self vs child) might be clearer.  Work uses
-;; cases first to determine how we really use this call?
-
 (list-resources :self-id 42		; issuer id
 		&optional		; If left off, we're asking about self rather than child
 		:child id)		; subject id

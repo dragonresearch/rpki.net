@@ -399,3 +399,16 @@ is only available from the OpenSSL project via CVS, but as it is now
 part of the OpenSSL source tree it should be present in future
 releases.  At least for now, it's disabled by default, so you have to
 do "./config enable-rfc3779" to enable it.
+
+
+
+The RFC 3779 patches shipped with OpenSSL 0.9.8e.  Still disabled by
+default, but turning them on is easy:
+
+  ./config enable-rfc3779
+
+At some point I will remove ("svn rm") all the old OpenSSL stuff from
+this repository, since it's not really needed anymore.  If it's gone
+when you read this and you need it for some reason, it was still
+present as of revision 645 of the subvert-rpki.hactrn.net repository,
+which should be enough information to let you pull it from subversion.

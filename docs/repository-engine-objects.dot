@@ -21,6 +21,11 @@ digraph rpki_engine_objects {
 	child		[ label="Child|{TA}" ];
 	biz_sign	[ label="Business\nSigning Context|{Keypair|CertChain}" ];
 	route_origin	[ label="Route\nOrigin|{AS Number}" ];
+
+	// Objects which left-right protocol sees as part of other
+	// objects but which SQL needs to be separate for
+	// normalization.
+
 	addr_set	[ label="Address\nPrefix", color=purple ];
 
 	// Objects created on the fly by the RPKI engine
@@ -56,9 +61,6 @@ digraph rpki_engine_objects {
 	ca -> ca_detail;
 	child -> child_cert;
 	parent -> ca;
-
-	// Weird one-many
-	edge [ color=green, arrowtail=none, arrowhead=crow, style=dashed ];
 	ca_detail -> child_cert;
 	ca_detail -> ee_cert;
 

@@ -31,11 +31,19 @@ digraph rpki_engine_objects {
 	// Objects created on the fly by the RPKI engine
 	node		[ color=green ];
 	ca		[ label="CA|{CRL #|Last Issued Serial #}" ];
-	child_cert	[ label="Child Certificate" ];
 	ee_cert		[ label="EE Certificate" ];
 	roa		[ label="ROA" ];
 	manifest	[ label="Manifest" ];
 	ca_detail	[ label="CA Detail|{Private Key|Public Key|Latest CA Certificate|Latest CRL}" ];
+
+	// This one is a table of everything we have ever issued to
+	// this child, not to be confused with what's -currently-
+	// issued to this child.  Some question whether this hangs off
+	// ca or ca_detail, but we -think- hanging off of ca_detail is
+	// correct because certificates are issued by a particular
+	// keypair.
+
+	child_cert	[ label="Child Certificate" ];
 
 	// One-many mappings
 	edge [ color=blue, arrowtail=none, arrowhead=crow ];

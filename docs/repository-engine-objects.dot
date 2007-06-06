@@ -31,17 +31,14 @@ digraph rpki_engine_objects {
 	// Objects created on the fly by the RPKI engine
 	node		[ color=green ];
 	ca		[ label="CA|{CRL #|Last Issued Serial #|Last Manifest #}" ];
-	ca_detail	[ label="CA Detail|{Private Key|Public Key|Latest CA Certificate|Latest CRL}" ];
-
-	// Do we need to store ee_cert objects in database at all?
-	ee_cert		[ label="EE Certificate" ];
+	ca_detail	[ label="CA Detail|{Private Key Handle|Public Key|Latest CA Certificate|Latest CRL}" ];
 
 	// Some question whether these objects need to be in database
 	// per se or are just properties hanging on some other object
 	// like ca or ca_detail.  For manifests, we need last serial,
 	// same as for CRL.
-	roa		[ label="ROA" ];
-	manifest	[ label="Manifest" ];
+	roa		[ label="ROA|{EE Certificate}" ];
+	manifest	[ label="Manifest|{EE Certificate}" ];
 
 	// This one is a table of everything we have ever issued to
 	// this child, not to be confused with what's -currently-
@@ -50,7 +47,7 @@ digraph rpki_engine_objects {
 	// correct because certificates are issued by a particular
 	// keypair.
 
-	child_cert	[ label="Child Certificate" ];
+	child_cert	[ label="Child CA Certificate" ];
 
 	// One-many mappings
 	edge [ color=blue, arrowtail=none, arrowhead=crow ];
@@ -77,12 +74,11 @@ digraph rpki_engine_objects {
 	child -> child_cert;
 	parent -> ca;
 	ca_detail -> child_cert;
-	ca_detail -> ee_cert;
+	ca_detail -> manifest;
+	ca_detail -> roa;
 
 	// One-one mapping -- separate object to highlight dynamic nature
 	edge [ color=green, arrowtail=none, arrowhead=none, style=solid ];
-	ee_cert -> roa;
-	ee_cert -> manifest;
 	route_origin -> roa;
 
 }

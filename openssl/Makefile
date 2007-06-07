@@ -1,14 +1,19 @@
 # $Id$
 
-all: trunk/Makefile
-	cd trunk; make $@
+VERSION = 0.9.8e
+
+all: openssl-${VERSION}/Makefile
+	cd openssl-${VERSION}; make $@
 
 clean:
-	-cd trunk; make $@
-	rm -f trunk/Makefile
+	rm -rf openssl-${VERSION}
 
-trunk/Makefile: trunk/Makefile.org trunk/Configure trunk/config
-	cd trunk; PERL=/usr/bin/perl ./config enable-rfc3779 no-dso
+openssl-${VERSION}/Makefile: openssl-${VERSION}/config
+	cd openssl-${VERSION}; PERL=/usr/bin/perl ./config enable-rfc3779 no-dso
+
+openssl-${VERSION}/config: openssl-${VERSION}.tar.gz
+	gzcat openssl-${VERSION}.tar.gz | tar -xf -
+	touch $@
 
 install:
 	@echo Not attempting to install modified OpenSSL, if you want that, do it yourself

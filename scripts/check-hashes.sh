@@ -1,7 +1,7 @@
 #!/bin/sh -
 # $Id$
 
-: ${openssl=/u/sra/isc/route-pki/subvert-rpki.hactrn.net/openssl/trunk/apps/openssl}
+: ${openssl=/u/sra/isc/route-pki/subvert-rpki.hactrn.net/openssl/openssl-0.9.8e/apps/openssl}
 : ${switches='-verbose -crl_check_all -policy_check -explicit_policy -policy 1.3.6.1.5.5.7.14.2 -x509_strict'}
 : ${hashtree=hashed}
 

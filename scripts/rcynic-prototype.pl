@@ -9,7 +9,7 @@
 
 use strict;
 
-my $openssl			= "../openssl/trunk/apps/openssl";
+my $openssl			= "../openssl/openssl-0.9.8e/apps/openssl";
 
 my $trust_anchor_tree		= "rcynic-trust-anchors";
 

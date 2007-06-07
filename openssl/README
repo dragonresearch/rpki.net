@@ -1,22 +1,17 @@
 $Id$ -*- Text -*- 
 
-OpenSSL hacked to add support for the RFC 3779 X.509 v3 extensions.
-
-There are two ways to build this:
-
-- Apply patch-rpki-openssl-0.9.8 against a stock OpenSSL 0.9.8
-  distribution, eg, drop this patch into
-  /usr/ports/security/openssl/files-beta/ on a FreeBSD machine.
-
-- Build the code in trunk/.  You will need to enable the RFC 3779
-  extensions in order for this to do anything interesting.  If you
-  just want to run it, do:
+This directory once held a hacked version of OpenSSL with support for
+the RFC 3779 X.509 v3 extensions.  The resulting patch was accepted by
+the OpenSSL project and is now part of the standard OpenSSL release.
+You do, however, need to enable the RFC 3779 support when compiling
+OpenSSL, as it's off by default (normal for new additions).  To build,
+do:
 
     ./config enable-rfc3779
 
-  If you think you might need debugging, you'd be better off with:
-
-    ./Configure debug-sra enable-rfc3779
+The next section of this file describes the openssl.conf syntax
+associated with the RFC 3779 extensions; the rest is primarily of
+historical interest at this point.
 
 
 

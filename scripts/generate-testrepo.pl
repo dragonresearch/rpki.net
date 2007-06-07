@@ -9,7 +9,7 @@ my %parent;
 my @ordering;
 my %hashes;
 
-my $openssl	= "../../openssl/trunk/apps/openssl";
+my $openssl	= "../../openssl/openssl-0.9.8e/apps/openssl";
 my $subdir	= "apacheca";
 my $passwd	= "fnord";
 my $keybits	= 2048;

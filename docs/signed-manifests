@@ -1,55 +1,50 @@
-;;; -*- Lisp -*-
-;;; $URL$
-;;; $Id$
-;;;
-;;; This file is psuedocode, I just wanted to take advantage of
-;;; emacs's built-in support for languages with reasonable syntax.
-;;; Final version will likely be either flat text or ASN.1.
-;;;
-;;; Signed manifests for RPKI repositories.  We're using object (as
-;;; opposed to channel) security for everything in the repository,
-;;; which is the right thing to do for various reasons but leaves us
-;;; open to attacks which intercept the rsync connection and drop
-;;; valid objects out of an SIA collection.  At present this is not
-;;; detectable, so we need a mechanism.
-;;;
-;;; Manifests as described here are modeled on CRLs, because the
-;;; issues involved in detecting stale manifests, manifest replays,
-;;; etc are similar to those for CRLs.  So we want many of the fields
-;;; that a CRL has.  Syntax will probably differ, though, since RPKI
-;;; repositories can contain objects not covered by CRLs (eg, ROAs),
-;;; and we may well decide just to sign the manifest with CMS.
-;;;
-;;; See RFC 3280 section 5 for CRL layout and extensions.
-;;;
-;;; We're only trying to cover objects in the same SIA collection
-;;; (directory) as the manifest.  We will probably want to name the
-;;; manifest itself with a name derived from the g(ski) of the cert of
-;;; which this is the SIA collection.  We'll need an EE cert to sign
-;;; the manifest; the EE cert should probably just use RFC 3779
-;;; inheritance to cover all the resources that its issuer holds.  If we
-;;; use CMS, we might just want to include the EE cert in the CMS
-;;; bag of certs.
-;;;
-;;; For the moment I assume we're signing with CMS, so the signature
-;;; parameters and signature itself are not included below.
-
-(manifest :version 1
-	  :collection-uri "rsync://foo.example/wombat/"
-	  :this-update    timestamp
-	  :next-update    timestamp
-	  :manifest-serial 17
-	  :hash-algorithm :sha256
-	  (:name foo.cer :hash aabbccdd...)
-	  (:name bar.cer :hash bbccddee...)
-	  (:name foo.roa :hash ccddeeff...)
-	  (:name baz.crl :hash ddeeff00...)
-	  ...)
-
-;;; ASN.1 implementation of this, courtesy of Steve Kent.  At this
-;;; point I think that Steve and I have converged, so absent new
-;;; issues I expect to implement this ASN.1 with OpenSSL's ASN.1
-;;; engine.
+-- $URL$
+-- $Id$
+--
+-- Signed manifests for RPKI repositories.  Relying parties use object
+-- (as opposed to channel) security for everything in this design
+-- repository, which is the right thing to do for various reasons but
+-- leaves us open to attacks which intercept the rsync connection and
+-- drop valid objects out of an SIA collection.  At present this is
+-- not detectable, so we need a mechanism.
+--
+-- Manifests as described here are modeled on CRLs, because the issues
+-- involved in detecting stale manifests, manifest replays, etc are
+-- similar to those for CRLs.  So we want many of the fields that a
+-- CRL has.  Syntax differs, though, since RPKI repositories can
+-- contain objects not covered by CRLs (eg, ROAs), and reuse CMS as
+-- the manifest signature format rather than inventing another one.
+--
+-- See RFC 3280 section 5 for CRL layout and extensions.
+--
+-- We're only trying to cover objects in the same SIA collection
+-- (directory) as the manifest.  We will probably want to name the
+-- manifest itself with a name derived from the g(ski) of the cert of
+-- which this is the SIA collection.  We'll need an EE cert to sign
+-- the manifest; the EE cert should probably just use RFC 3779
+-- inheritance to cover all the resources that its issuer holds.  If we
+-- use CMS, we might just want to include the EE cert in the CMS
+-- bag of certs.
+--
+-- Lisp pseudo-code version of my original proposal for what goes
+-- inside the CMS wrapper:
+--
+--	(manifest :version 1
+--		  :collection-uri "rsync://foo.example/wombat/"
+--		  :this-update    timestamp
+--		  :next-update    timestamp
+--		  :manifest-serial 17
+--		  :hash-algorithm :sha256
+--		  (:name foo.cer :hash aabbccdd...)
+--		  (:name bar.cer :hash bbccddee...)
+--		  (:name foo.roa :hash ccddeeff...)
+--		  (:name baz.crl :hash ddeeff00...)
+--		  ...)
+--
+-- Steve Kent came up with something very similar in ASN.1.  At this
+-- point I think that Steve and I have converged, so here is Steve's
+-- ASN.1, which, absent new issues, I expect to implement with
+-- OpenSSL's ASN.1 engine.
 
 Manifest ::= SEQUENCE {
 	version		INTEGER DEFAULT 0,	-- first version is 0

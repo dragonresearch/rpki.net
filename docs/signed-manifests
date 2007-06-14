@@ -45,3 +45,22 @@
 	  (:name foo.roa :hash ccddeeff...)
 	  (:name baz.crl :hash ddeeff00...)
 	  ...)
+
+;;; ASN.1 implementation of this, courtesy of Steve Kent.  At this
+;;; point I think that Steve and I have converged, so absent new
+;;; issues I expect to implement this ASN.1 with OpenSSL's ASN.1
+;;; engine.
+
+Manifest ::= SEQUENCE {
+	version		INTEGER DEFAULT 0,	-- first version is 0
+	manifestNumber	INTEGER,		-- to identify unscheduled manifest issuance
+	thisUpdate	GeneralizedTime,	-- this manifest issuance time
+	nextUpdate      GeneralizedTime,	-- next scheduled manifest issuance time
+	fileHashAlg	OBJECT IDENTIFIER,	-- algorithm used to generate file content hash values
+	fileList        SEQUENCE OF FileAndHash -- list of file name and content hash pairs
+}
+
+FileAndHash ::=	SEQUENCE {
+	file		IA5String		-- file name
+	hash		BIT STRING		-- hash of file content
+}

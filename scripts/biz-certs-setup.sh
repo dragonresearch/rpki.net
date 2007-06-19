@@ -9,6 +9,9 @@
 # deeper in practice but this should be enough for simple tests: a
 # self-signed root cert to use as a trust anchor, a working CA, and an
 # EE cert used for CMS or TLS.
+#
+# Among other things missing here, we're not doing any restrictions
+# beyond basicConstraints and we're not doing CRLs.
 
 for i in Alice Bob Carol Dave
 do

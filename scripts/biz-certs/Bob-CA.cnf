@@ -1,0 +1,15 @@
+
+[ req ]
+distinguished_name	= req_dn
+x509_extensions		= req_x509_ext
+prompt			= no
+default_md		= sha1
+
+[ req_dn ]
+CN			= Test Certificate Bob CA
+
+[ req_x509_ext ]
+basicConstraints	= CA:true
+subjectKeyIdentifier	= hash
+authorityKeyIdentifier	= keyid:always
+

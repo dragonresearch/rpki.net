@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
+         version="1"
+	 sender="sender name"
+	 recipient="recipient name"
+	 msg_ref="1"
+	 type="issue_response">
+    <class class_name="class name"
+           cert_url="url"
+	   cert_ski="g(ski)"
+	   resource_set_as="as resource set"
+	   resource_set_ipv4="ipv4 resource set"
+	   resource_set_ipv6="ipv6 resource set">
+        <certificate cert_url="url"
+	             cert_ski="g(ski)"
+		     cert_aki="g(aki)"
+		     cert_serial="1"
+		     resource_set_as="as resource set"
+		     resource_set_ipv4="ipv4 resource set"
+		     resource_set_ipv6="ipv6 resource set"
+		     req_resource_set_as="as resource set"
+		     req_resource_set_ipv4="ipv4 resource set"
+		     req_resource_set_ipv6="ipv6 resource set"
+		     status="match">
+            deadbeef
+        </certificate>
+        <issuer>deadbeef</issuer>
+    </class>
+</message>

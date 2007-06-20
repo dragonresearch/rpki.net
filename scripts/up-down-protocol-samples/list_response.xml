@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
+         version="1"
+	 sender="sender name"
+	 recipient="recipient name"
+	 msg_ref="42"
+	 type="list_response">
+    <class class_name="class name"
+           cert_url="url"
+	   cert_ski="g(ski)"
+	   resource_set_as="as resource set"
+	   resource_set_ipv4="ipv4 resource set"
+	   resource_set_ipv6="ipv6 resource set"
+	   suggested_sia_head="rsync://wombat.example/fnord/">
+        <certificate cert_url="url"
+	             cert_ski="g(ski)"
+		     cert_aki="g(aki)"
+		     cert_serial="1"
+		     resource_set_as="as resource set"
+		     resource_set_ipv4="ipv4 resource set"
+		     resource_set_ipv6="ipv6 resource set"
+		     req_resource_set_as="as resource set"
+		     req_resource_set_ipv4="ipv4 resource set"
+		     req_resource_set_ipv6="ipv6 resource set"
+		     status="match">
+            deadbeef
+        </certificate>
+        <!-- Repeated for each current certificate where the client is the certificate's subject -->
+        <issuer>deadbeef</issuer>
+    </class>
+</message>

@@ -9,6 +9,25 @@ use strict;
 use XML::Simple;
 use Data::Dumper;
 use IPC::Open2;
+use Getopt::Long;
+
+my %opt;
+
+if (0) {
+    my $usage = "Use The Source, Luke";
+    die($usage)
+	unless GetOptions(\%opt, qw(encode! decode! schema=s key=s cert=s dir=s))
+	and $opt{encode} + $opt{decode} == 1;
+    die($usage)
+	if $opt{encode} and !$opt{cert} || !$opt{key};
+    die($usage)
+	if $opt{decode} and !$opt{schema} || !$opt{dir};
+} else {
+    $opt{dir}	 = "biz-certs";
+    $opt{cert}	 = "biz-certs/Alice-EE.cer";
+    $opt{key}	 = "biz-certs/Alice-EE.key";
+    $opt{schema} = "up-down-schema.rng";
+}
 
 sub run2 {
     my $arg = shift;
@@ -43,6 +62,13 @@ sub decode {
     my $arg = shift;
     my $dir = shift;
     my @res = run2($p7b . $arg . $p7e, qw(openssl smime -verify -inform PEM -CApath), $dir);
+    return join('', @res);
+}
+
+sub relaxng {
+    my $xml = shift;
+    my $schema = shift;
+    my @res = run2($xml, qw(xmllint --relaxng), $schema, q(-));
     return join('', @res);
 }
 
@@ -131,11 +157,12 @@ my @xml = ('
 for my $xml (@xml) {
     print("1: ", $xml, "\n");
     print("2: ", Dumper($xs->XMLin($xml)), "\n");
-    my $cms = encode($xml, "biz-certs/Alice-EE.cer", "biz-certs/Alice-EE.key");
+    my $cms = encode($xml, $opt{cert}, $opt{key});
     print("3: ", $cms, "\n");
-    $xml = decode($cms, "biz-certs");
+    $xml = decode($cms, $opt{dir});
     print("4: ", $xml, "\n");
     print("5: ", Dumper($xs->XMLin($xml)), "\n");
+    print("6: ", relaxng($xml, $opt{schema}), "\n");
 
 #   my $x = $xs->XMLin($xml);
 #   my $t = $xs->XMLout($x);

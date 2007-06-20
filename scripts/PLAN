@@ -18,6 +18,12 @@ Rough plan for initial prototype RE.
  Log everything as we go and use Data::Dumper to log content of Perl
  data structures.
 
+ APNIC is specifying schema in RNC (RelaxNG Compact) syntax, xmllint
+ wants RNG (RelaxNG XML) syntax, so use /usr/ports/textproc/trang to
+ convert:
+
+    $ trang foo.rnc foo.rng
+
 3) Whack (2) into something that does this over minimal HTTP.
 
 4) [to be continued...]

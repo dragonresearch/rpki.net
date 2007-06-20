@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grammar ns="http://www.apnic.net/specs/rescerts/up-down/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <start>
+    <element name="message">
+      <attribute name="version">
+        <data type="positiveInteger">
+          <param name="maxInclusive">1</param>
+        </data>
+      </attribute>
+      <attribute name="sender">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <attribute name="recipient">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <attribute name="msg_ref">
+        <data type="positiveInteger">
+          <param name="maxInclusive">999999999999999</param>
+        </data>
+      </attribute>
+      <ref name="payload"/>
+    </element>
+  </start>
+  <define name="payload" combine="choice">
+    <attribute name="type">
+      <value>list</value>
+    </attribute>
+    <ref name="list_request"/>
+  </define>
+  <define name="payload" combine="choice">
+    <attribute name="type">
+      <value>list_response</value>
+    </attribute>
+    <ref name="list_response"/>
+  </define>
+  <define name="payload" combine="choice">
+    <attribute name="type">
+      <value>issue</value>
+    </attribute>
+    <ref name="issue_request"/>
+  </define>
+  <define name="payload" combine="choice">
+    <attribute name="type">
+      <value>issue_response</value>
+    </attribute>
+    <ref name="issue_response"/>
+  </define>
+  <define name="payload" combine="choice">
+    <attribute name="type">
+      <value>revoke</value>
+    </attribute>
+    <ref name="revoke_request"/>
+  </define>
+  <define name="payload" combine="choice">
+    <attribute name="type">
+      <value>revoke_response</value>
+    </attribute>
+    <ref name="revoke_response"/>
+  </define>
+  <define name="payload" combine="choice">
+    <attribute name="type">
+      <value>error_response</value>
+    </attribute>
+    <ref name="error_response"/>
+  </define>
+  <define name="list_request">
+    <empty/>
+  </define>
+  <define name="list_response">
+    <zeroOrMore>
+      <ref name="class"/>
+    </zeroOrMore>
+  </define>
+  <define name="class">
+    <element name="class">
+      <attribute name="class_name">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <attribute name="cert_url">
+        <data type="anyURI">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <attribute name="cert_ski">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <attribute name="resource_set_as">
+        <data type="string">
+          <param name="maxLength">512000</param>
+        </data>
+      </attribute>
+      <attribute name="resource_set_ipv4">
+        <data type="string">
+          <param name="maxLength">512000</param>
+        </data>
+      </attribute>
+      <attribute name="resource_set_ipv6">
+        <data type="string">
+          <param name="maxLength">512000</param>
+        </data>
+      </attribute>
+      <optional>
+        <attribute name="suggested_sia_head">
+          <data type="string">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <zeroOrMore>
+        <element name="certificate">
+          <attribute name="cert_url">
+            <data type="anyURI">
+              <param name="maxLength">1024</param>
+            </data>
+          </attribute>
+          <attribute name="cert_ski">
+            <data type="token">
+              <param name="maxLength">1024</param>
+            </data>
+          </attribute>
+          <attribute name="cert_aki">
+            <data type="token">
+              <param name="maxLength">1024</param>
+            </data>
+          </attribute>
+          <attribute name="cert_serial">
+            <data type="positiveInteger"/>
+          </attribute>
+          <attribute name="resource_set_as">
+            <data type="string">
+              <param name="maxLength">512000</param>
+            </data>
+          </attribute>
+          <attribute name="resource_set_ipv4">
+            <data type="string">
+              <param name="maxLength">512000</param>
+            </data>
+          </attribute>
+          <attribute name="resource_set_ipv6">
+            <data type="string">
+              <param name="maxLength">512000</param>
+            </data>
+          </attribute>
+          <optional>
+            <attribute name="req_resource_set_as">
+              <data type="string">
+                <param name="maxLength">512000</param>
+              </data>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="req_resource_set_ipv4">
+              <data type="string">
+                <param name="maxLength">512000</param>
+              </data>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="req_resource_set_ipv6">
+              <data type="string">
+                <param name="maxLength">512000</param>
+              </data>
+            </attribute>
+          </optional>
+          <attribute name="status">
+            <choice>
+              <value>undersize</value>
+              <value>match</value>
+              <value>oversize</value>
+            </choice>
+          </attribute>
+          <data type="base64Binary">
+            <param name="maxLength">512000</param>
+          </data>
+        </element>
+      </zeroOrMore>
+      <element name="issuer">
+        <data type="base64Binary">
+          <param name="maxLength">512000</param>
+        </data>
+      </element>
+    </element>
+  </define>
+  <define name="issue_request">
+    <element name="request">
+      <attribute name="class_name">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <optional>
+        <attribute name="req_resource_set_as">
+          <data type="string">
+            <param name="maxLength">512000</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="req_resource_set_ipv4">
+          <data type="string">
+            <param name="maxLength">512000</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="req_resource_set_ipv6">
+          <data type="string">
+            <param name="maxLength">512000</param>
+          </data>
+        </attribute>
+      </optional>
+      <data type="base64Binary">
+        <param name="maxLength">512000</param>
+      </data>
+    </element>
+  </define>
+  <define name="issue_response">
+    <ref name="class"/>
+  </define>
+  <define name="revoke_request">
+    <ref name="revocation"/>
+  </define>
+  <define name="revoke_response">
+    <ref name="revocation"/>
+  </define>
+  <define name="revocation">
+    <element name="key">
+      <attribute name="class_name">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <attribute name="ski">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+    </element>
+  </define>
+  <define name="error_response">
+    <element name="status">
+      <data type="positiveInteger">
+        <param name="maxInclusive">999999999999999</param>
+      </data>
+    </element>
+    <optional>
+      <element name="last_msg_processed">
+        <data type="positiveInteger">
+          <param name="maxInclusive">999999999999999</param>
+        </data>
+      </element>
+    </optional>
+    <optional>
+      <element name="description">
+        <attribute name="xml:lang">
+          <data type="language"/>
+        </attribute>
+        <data type="string">
+          <param name="maxLength">1024</param>
+        </data>
+      </element>
+    </optional>
+  </define>
+</grammar>

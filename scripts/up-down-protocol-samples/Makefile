@@ -1,6 +1,6 @@
 XMLLINT		= xmllint --noout --relaxng
 JING		= java -jar /usr/local/share/java/classes/jing.jar
-SCHEMA		= ../up-down-schema.rng
+SCHEMA		= ../up-down-tighter-schema.rng
 
 all: jing xmllint
 

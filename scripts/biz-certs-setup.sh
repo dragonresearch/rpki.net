@@ -51,3 +51,10 @@ do
   test -r $i-EE.cer   || openssl x509 -req -in $i-EE.req   -out $i-EE.cer   -extfile $i-EE.cnf   -extensions req_x509_ext -CA $i-CA.cer   -CAkey $i-CA.key   -CAcreateserial
 
 done
+
+for i in *.cer
+do
+  h=`openssl x509 -noout -hash -in $i`.0
+  test -r $h ||
+  ln -s $i $h
+done

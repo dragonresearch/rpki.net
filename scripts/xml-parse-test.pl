@@ -39,30 +39,24 @@ sub run2 {
 	or die("Couldn't write to @_");
     close($i)
 	or die("Couldn't close @_");
-    my @res = <$o>;
+    local $/;
+    my $res = <$o>;
     waitpid($pid, 0)
 	or die("Couldn't reap @_");
-    return @res;
+    return $res;
 }
-
-my $p7b = "-----BEGIN PKCS7-----\n";
-my $p7e = "-----END PKCS7-----\n";
 
 sub encode {
     my $arg = shift;
     my $cer = shift;
     my $key = shift;
-    my @res = run2($arg, qw(openssl smime -sign -nodetach -outform PEM -signer), $cer, q(-inkey), $key);
-    die("Missing PKCS7 markers")
-	unless $res[0] eq $p7b && $res[@res-1] eq $p7e;
-    return join('', @res[1..@res-2]);
+    return run2($arg, qw(openssl smime -sign -nodetach -outform PEM -signer), $cer, q(-inkey), $key);
 }
 
 sub decode {
     my $arg = shift;
     my $dir = shift;
-    my @res = run2($p7b . $arg . $p7e, qw(openssl smime -verify -inform PEM -CApath), $dir);
-    return join('', @res);
+    return run2($arg, qw(openssl smime -verify -inform PEM -CApath), $dir);
 }
 
 sub relaxng {
@@ -156,14 +150,16 @@ my @xml = ('
 ');
 
 for my $xml (@xml) {
-    print("1: ", $xml, "\n");
-    print("2: ", Dumper($xs->XMLin($xml)), "\n");
+    print("1:\n", $xml, "\n");
+    print("2:\n", Dumper($xs->XMLin($xml)), "\n");
+    print("3:\n");
     my $cms = encode($xml, $opt{cert}, $opt{key});
-    print("3: ", $cms, "\n");
+    print($cms, "\n");
+    print("4:\n");
     $xml = decode($cms, $opt{dir});
-    print("4: ", $xml, "\n");
-    print("5: ", Dumper($xs->XMLin($xml)), "\n");
-    print("6: ");
+    print($xml, "\n");
+    print("5:\n", Dumper($xs->XMLin($xml)), "\n");
+    print("6:\n");
     relaxng($xml, $opt{schema});
     print("\n");
 

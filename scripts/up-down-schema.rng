@@ -1,4 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  $Id$
+  
+  RelaxNG (Compact Syntax) Scheme for up-down protocol, extracted
+  from APNIC Wiki.
+  
+  libxml2 (including xmllint) only groks the XML syntax of RelaxNG,
+  so run this through a converter like /usr/ports/textproc/trang to get
+  XML syntax:
+  
+    $ trang up-down-schema.rnc up-down-schema.rng
+-->
 <grammar ns="http://www.apnic.net/specs/rescerts/up-down/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
   <start>
     <element name="message">

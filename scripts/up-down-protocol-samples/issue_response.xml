@@ -8,19 +8,19 @@
     <class class_name="class name"
            cert_url="url"
 	   cert_ski="g(ski)"
-	   resource_set_as="as resource set"
-	   resource_set_ipv4="ipv4 resource set"
-	   resource_set_ipv6="ipv6 resource set">
+	   resource_set_as="22,42,44444-5555555"
+	   resource_set_ipv4="10.0.0.44-10.3.0.44,10.6.0.2/32"
+	   resource_set_ipv6="dead:beef::/128">
         <certificate cert_url="url"
 	             cert_ski="g(ski)"
 		     cert_aki="g(aki)"
 		     cert_serial="1"
-		     resource_set_as="as resource set"
-		     resource_set_ipv4="ipv4 resource set"
-		     resource_set_ipv6="ipv6 resource set"
-		     req_resource_set_as="as resource set"
-		     req_resource_set_ipv4="ipv4 resource set"
-		     req_resource_set_ipv6="ipv6 resource set"
+		     resource_set_as="14-17"
+		     resource_set_ipv4="128.224.1.136/22"
+		     resource_set_ipv6="0:0::/22"
+		     req_resource_set_as=""
+		     req_resource_set_ipv4="10.0.0.77/16,127.0.0.1/8"
+		     req_resource_set_ipv6="dead:beef::/16"
 		     status="match">
             deadbeef
         </certificate>

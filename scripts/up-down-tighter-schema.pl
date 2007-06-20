@@ -12,19 +12,22 @@
 
 # Note that the regexps here are RelaxNG, not Perl, slightly different.
 
-my $as_set	= '[0-9]+(,[0-9]+)?';
+my $as		= '([0-9]+|[0-9]+-[0-9]+)';
+my $as_set	= "(${as}(,${as})*)?";
 
-my $octet	= '[0-9]|1[0-9]|2[0-4]|25[0-5]';
-my $ipv4	= "(${octet}\.){3}${octet}";
-my $ipv4p	= "${ipv4}/([0-9]|[12][0-9]|3[0-2])";
+my $octet	= '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])';
+my $ipv4	= "(${octet}\\.){3}${octet}";
+my $ipv4p	= "(${ipv4}/([0-9]|[12][0-9]|3[0-2]))";
 my $ipv4r	= "${ipv4}-${ipv4}";
-my $ipv4_set	= "${ipv4p}|${ipv4r}";
+my $ipv4pr	= "(${ipv4p}|${ipv4r})";
+my $ipv4_set	= "(${ipv4pr}(,${ipv4pr})*)?";
 
-my $nibble	= '0|[1-9a-fA-F][0-9a-fA-F]{0,3}';
-my $ipv6	= "::|(${nibble}:){0,7}(:|${nibble})";
-my $ipv6p	= "${ipv6}/([0-9]|[1-9][0-9]|1[0-1][0-9]|12[0-8])";
+my $nibble	= '(0|[1-9a-fA-F][0-9a-fA-F]{0,3})';
+my $ipv6	= "(::|(${nibble}:){0,7}(:|${nibble}))";
+my $ipv6p	= "(${ipv6}/([0-9]|[1-9][0-9]|1[0-1][0-9]|12[0-8]))";
 my $ipv6r	= "${ipv6}-${ipv6}";
-my $ipv6_set	= "${ipv6r}|${ipv6p}";
+my $ipv6pr	= "(${ipv6r}|${ipv6p})";
+my $ipv6_set	= "(${ipv6pr}(,${ipv6pr})*)?";
 
 my $rnc = qq{# \$Id\$
 # Automatically generated from $0
@@ -58,7 +61,7 @@ my $rnc = qq{# \$Id\$
          attribute resource_set_as { xsd:string { maxLength="512000" pattern="${as_set}" } },
          attribute resource_set_ipv4 { xsd:string { maxLength="512000" pattern="${ipv4_set}" } },
          attribute resource_set_ipv6 { xsd:string { maxLength="512000" pattern="${ipv6_set}" } },
-         attribute suggested_sia_head { xsd:string { maxLength="1024" } }?,
+         attribute suggested_sia_head { xsd:anyURI { maxLength="1024" } }?,
          element certificate {
            attribute cert_url { xsd:anyURI { maxLength="1024" } },
            attribute cert_ski { xsd:token { maxLength="1024" } },
@@ -94,7 +97,19 @@ my $rnc = qq{# \$Id\$
        }
 
        error_response =
-         element status { xsd:positiveInteger { maxInclusive="999999999999999" } },
+         element status { 
+	    "1101" |	# Message too old
+	    "1102" |	# msg_ref value is invalid
+	    "1103" |	# out of order msg_ref value
+	    "1104" |	# version number error
+	    "1105" |	# unrecognised request type
+	    "1201" |	# request - no such resource class
+	    "1202" |	# request - no resources allocated in resource class
+	    "1203" |	# request - badly formed certificate request
+	    "1301" |	# revoke - no such resource class
+	    "1302" |	# revoke - no such key
+	    "2001" 	# Internal Server Error - Request not performed
+         },
          element last_msg_processed { xsd:positiveInteger { maxInclusive="999999999999999" } }?,
          element description { attribute xml:lang { xsd:language }, xsd:string { maxLength="1024" } }?
      }
@@ -107,3 +122,7 @@ open(F, ">", "$_.rnc") or die;
 print(F $rnc) or die;
 close(F) or die;
 exec("trang", "$_.rnc", "$_.rng") or die;
+
+# Local Variables:
+# compile-command: "perl up-down-tighter-schema.pl"
+# End:

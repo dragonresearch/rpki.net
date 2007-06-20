@@ -5,7 +5,7 @@
 	 recipient="recipient name"
 	 msg_ref="42"
 	 type="error_response">
-    <status>666</status>
+    <status>2001</status>
     <last_msg_processed>17</last_msg_processed>
     <description xml:lang="en-US">[Readable text]</description>
 </message>

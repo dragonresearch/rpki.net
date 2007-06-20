@@ -5,9 +5,9 @@
 	 recipient="recipient name"
 	 msg_ref="42" type="issue">
     <request class_name="class name"
-             req_resource_set_as="as resource set"
-	     req_resource_set_ipv4="ipv4 resource set"
-	     req_resource_set_ipv6="ipv6 resource set">
+             req_resource_set_as=""
+	     req_resource_set_ipv4="10.0.0.44/32"
+	     req_resource_set_ipv6="dead:beef::/32">
         deadbeef
     </request>
 </message>

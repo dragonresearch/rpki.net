@@ -1,0 +1,23 @@
+$Id$
+
+Rough plan for initial prototype RE.
+
+1) Hack quick cert generator [done]
+
+2) Hack xml-parse-test into something that can:
+
+ - Generate (XML::Simple?) XML
+ - Encode XML in CMS using specified signing key and certs
+ - Write that to a destination file
+
+ - Pick up signed CMS from from a file
+ - Check CMS signatures and extract XML
+ - Validate (xmllint --relaxng) the XML
+ - Decode (XML::Simple) the XML and dump the result
+
+ Log everything as we go and use Data::Dumper to log content of Perl
+ data structures.
+
+3) Whack (2) into something that does this over minimal HTTP.
+
+4) [to be continued...]

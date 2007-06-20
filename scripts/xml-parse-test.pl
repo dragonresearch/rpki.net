@@ -9,11 +9,11 @@ use strict;
 use XML::Simple;
 use Data::Dumper;
 use IPC::Open2;
-use Getopt::Long;
 
 my %opt;
 
 if (0) {
+    use Getopt::Long;
     my $usage = "Use The Source, Luke";
     die($usage)
 	unless GetOptions(\%opt, qw(encode! decode! schema=s key=s cert=s dir=s))
@@ -68,8 +68,9 @@ sub decode {
 sub relaxng {
     my $xml = shift;
     my $schema = shift;
-    my @res = run2($xml, qw(xmllint --relaxng), $schema, q(-));
-    return join('', @res);
+    open(F, "| xmllint --relaxng $schema - 2>&1") or die;
+    print(F $xml) or die;
+    return close(F);
 }
 
 my $xs = XML::Simple->new(KeepRoot => 1,
@@ -162,7 +163,9 @@ for my $xml (@xml) {
     $xml = decode($cms, $opt{dir});
     print("4: ", $xml, "\n");
     print("5: ", Dumper($xs->XMLin($xml)), "\n");
-    print("6: ", relaxng($xml, $opt{schema}), "\n");
+    print("6: ");
+    relaxng($xml, $opt{schema});
+    print("\n");
 
 #   my $x = $xs->XMLin($xml);
 #   my $t = $xs->XMLout($x);

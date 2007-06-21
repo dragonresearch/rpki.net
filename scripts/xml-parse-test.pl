@@ -26,7 +26,7 @@ if (0) {
     $opt{dir}	 = "biz-certs";
     $opt{cert}	 = "biz-certs/Alice-EE.cer";
     $opt{key}	 = "biz-certs/Alice-EE.key";
-    $opt{schema} = "up-down-schema.rng";
+    $opt{schema} = "up-down-medium-schema.rng";
 }
 
 sub run2 {
@@ -74,79 +74,117 @@ my $xs = XML::Simple->new(KeepRoot => 1,
 
 
 
-my @xml = ('
-    <message version="1">
-        <header  sender="sender name"
-                 recipient = "recipient name"
-                 msg_ref="reference" />
-        <resource_class_list_query ca="ca_name" />
-    </message>
-','
-    <message version="1">
-        <header  sender="sender name"
-                 recipient = "recipient name"
-                 msg_ref="reference" />
-        <list_class ca="ca_name"
-                     cert_url="url"
-                     cert_ski="g(ski)"
-                     cert_serial="serial"
-                     cert_aki="g(aki)"
-                     status="keyword" />
-        <list_class ca="ca_name"
-                     cert_url="url"
-                     cert_ski="g(ski)"
-                     cert_serial="serial"
-                     cert_aki="g(aki)"
-                     status="keyword" />
-        <!-- [repeated for each active class where the ISP has resources]  -->
-    </message>
-','
-    <message version="1">
-        <header  sender="sender name"
-                 recipient = "recipient name"
-                 msg_ref="reference" />
-        <issue_request_class ca="ca_name">
-            [Certificate request]
-        </issue_request_class>
-    </message>
-','
-    <message version="1">
-        <header  sender="sender name"
-                 recipient = "recipient name"
-                 msg_ref="reference" />
-        <certificate ca="ca_name"
-                     cert_url="url"
-                     cert_ski="g(ski)"
-                     cert_serial="serial"
-                     cert_aki="g(aki)">
-            [certificate]
+my @xml = ('<?xml version="1.0" encoding="UTF-8"?>
+<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
+         version="1"
+	 sender="sender name"
+	 recipient="recipient name"
+	 msg_ref="42"
+	 type="error_response">
+    <status>2001</status>
+    <last_msg_processed>17</last_msg_processed>
+    <description xml:lang="en-US">[Readable text]</description>
+</message>
+','<?xml version="1.0" encoding="UTF-8"?>
+<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
+         version="1"
+	 sender="sender name"
+	 recipient="recipient name"
+	 msg_ref="42" type="issue">
+    <request class_name="class name"
+             req_resource_set_as=""
+	     req_resource_set_ipv4="10.0.0.44/32"
+	     req_resource_set_ipv6="dead:beef::/32">
+        deadbeef
+    </request>
+</message>
+','<?xml version="1.0" encoding="UTF-8"?>
+<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
+         version="1"
+	 sender="sender name"
+	 recipient="recipient name"
+	 msg_ref="1"
+	 type="issue_response">
+    <class class_name="class name"
+           cert_url="url"
+	   cert_ski="g(ski)"
+	   resource_set_as="22,42,44444-5555555"
+	   resource_set_ipv4="10.0.0.44-10.3.0.44,10.6.0.2/32"
+	   resource_set_ipv6="dead:beef::/128">
+        <certificate cert_url="url"
+	             cert_ski="g(ski)"
+		     cert_aki="g(aki)"
+		     cert_serial="1"
+		     resource_set_as="14-17"
+		     resource_set_ipv4="128.224.1.136/22"
+		     resource_set_ipv6="0:0::/22"
+		     req_resource_set_as=""
+		     req_resource_set_ipv4="10.0.0.77/16,127.0.0.1/8"
+		     req_resource_set_ipv6="dead:beef::/16"
+		     status="match">
+            deadbeef
         </certificate>
-    </message>
-','
-    <message version="1">
-        <header  sender="sender name"
-                 recipient = "recipient name"
-                 msg_ref="reference" />
-        <revoke_request_class ca="ca_name"
-                               cert_ski="g(ski)" />
-    </message>
-','
-    <message version="1">
-        <header  sender="sender name"
-                 recipient = "recipient name"
-                 msg_ref="reference" />
-        <revoke_response_class ca="ca_name"
-                               cert_ski="g(ski)" />
-    </message>
-','
-    <message version="1">
-        <header  sender="sender name"
-                 recipient = "recipient name"
-                 msg_ref="reference" />
-        <status code="reason code">
-            [Readable text]
-        </status>
-    </message>
+        <issuer>deadbeef</issuer>
+    </class>
+</message>
+','<?xml version="1.0" encoding="UTF-8"?>
+<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
+         version="1"
+	 sender="sender name"
+	 recipient="recipient name"
+	 msg_ref="42"
+	 type="list"/>
+','<?xml version="1.0" encoding="UTF-8"?>
+<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
+         version="1"
+	 sender="sender name"
+	 recipient="recipient name"
+	 msg_ref="42"
+	 type="list_response">
+    <class class_name="class name"
+           cert_url="url"
+	   cert_ski="g(ski)"
+	   resource_set_as="1,2,4,6,16-32"
+	   resource_set_ipv4="128.224.1.1-128.22.4.32"
+	   resource_set_ipv6=""
+	   suggested_sia_head="rsync://wombat.example/fnord/">
+        <certificate cert_url="url"
+	             cert_ski="g(ski)"
+		     cert_aki="g(aki)"
+		     cert_serial="1"
+		     resource_set_as=""
+		     resource_set_ipv4=""
+		     resource_set_ipv6=""
+		     req_resource_set_as=""
+		     req_resource_set_ipv4=""
+		     req_resource_set_ipv6=""
+		     status="match">
+            deadbeef
+        </certificate>
+        <!-- Repeated for each current certificate naming the client as subject -->
+        <issuer>deadbeef</issuer>
+    </class>
+</message>
+','<?xml version="1.0" encoding="UTF-8"?>
+<message xmlns="http://www.apnic.net/specs/rescerts/up-down/" 
+         version="1"
+	 sender="sender name"
+	 recipient="recipient name"
+	 msg_ref="42"
+	 type="revoke">
+    <key class_name="class name"
+         ski="g(ski)"/>
+</message>
+','<?xml version="1.0" encoding="UTF-8"?>
+<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
+         version="1"
+	 sender="sender name"
+	 recipient="recipient name"
+	 msg_ref="42"
+	 type="revoke_response">
+    <key class_name="class name"
+         ski="g(ski)"/>
+</message>
 ');
 
 for my $xml (@xml) {

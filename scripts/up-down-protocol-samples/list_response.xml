@@ -25,7 +25,7 @@
 		     status="match">
             deadbeef
         </certificate>
-        <!-- Repeated for each current certificate where the client is the certificate's subject -->
+        <!-- Repeated for each current certificate naming the client as subject -->
         <issuer>deadbeef</issuer>
     </class>
 </message>

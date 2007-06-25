@@ -27,17 +27,3 @@ Rough plan for initial prototype RE.
 3) Whack (2) into something that does this over minimal HTTP.
 
 4) [to be continued...]
-
-
-
-More fun with RelaxNG:
-
-The current schema is not very tight.  See RelaxNG reference for how
-to tighten it up if we think that'd be useful.  RelaxNG supports
-regexps, among other things:
-
-   xsd:decimal {pattern = "1|1\.5"}
-
-RelaxNG (and XML Schema) regular expressions ("patterns") are
-implicitly anchored, you need to prefix (and suffix?) with ".*" if you
-want to match only part of the field.

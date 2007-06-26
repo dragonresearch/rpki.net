@@ -13,8 +13,8 @@ def relaxng(xml, rng):
   i.close()
   v = o.read()
   o.close()
-  return v
-
+  if v != "- validates\n":
+    raise RuntimeError, "RelaxNG validation failure:\n" + v
 
 class rpki_updown_resource_set(object):
 
@@ -69,48 +69,43 @@ class rpki_updown_resource_set_ipv6(rpki_updown_resource_set_ip):
 
 class rpki_updown_msg(object):
 
-  def toXML(self):
+  def msgToXML(self):
     return ('\
 <?xml version="1.0" encoding="UTF-8"?>\n\
 <message xmlns="http://www.apnic.net/specs/rescerts/up-down/"\n\
          version="1"\n\
          sender="%s"\n\
          recipient="%s"\n\
-         msg_ref="%d"\n\
+         msg_ref="%s"\n\
          type="%s">\n' \
             % (self.sender, self.recipient, self.msg_ref, self.type)
-            ) + self.innerToXML() + "</message>\n"
+            ) + self.toXML() + "</message>\n"
 
-  def innerToXML(self):
+  def toXML(self):
     return ""
 
-  def startElement(self, name, attrs): pass
+  def startElement(self, name, attrs):
+    pass
 
-  def endElement(self, name, text): pass
+  def endElement(self, name, text):
+    pass
 
 class rpki_updown_cert(object):
 
   def __init__(self, attrs):
-    self.cert_url = attrs.getValue("cert_url")
-    self.cert_ski = attrs.getValue("cert_ski")
-    self.cert_aki = attrs.getValue("cert_aki")
-    self.cert_serial = attrs.getValue("cert_serial")
-    self.resource_set_as = rpki_updown_resource_set_as(attrs.getValue("resource_set_as"))
-    self.resource_set_ipv4 = rpki_updown_resource_set_ipv4(attrs.getValue("resource_set_ipv4"))
-    self.resource_set_ipv6 = rpki_updown_resource_set_ipv6(attrs.getValue("resource_set_ipv6"))
-    try:
-      self.req_resource_set_as = rpki_updown_resource_set_as(attrs.getValue("req_resource_set_as"))
-    except KeyError:
-      self.req_resource_set_as = None
-    try:
-      self.req_resource_set_ipv4 = rpki_updown_resource_set_ipv4(attrs.getValue("req_resource_set_ipv4"))
-    except KeyError:
-      self.req_resource_set_ipv4 = None
-    try:
-      self.req_resource_set_ipv6 = rpki_updown_resource_set_ipv6(attrs.getValue("req_resource_set_ipv6"))
-    except KeyError:
-      self.req_resource_set_ipv6 = None
-    self.status = attrs.getValue("status")
+    for k in ("cert_url", "cert_ski", "cert_aki", "cert_serial", "status"):
+      setattr(self, k, attrs.getValue(k))
+    for k,f in (("resource_set_as", rpki_updown_resource_set_as),
+                ("resource_set_ipv4", rpki_updown_resource_set_ipv4),
+                ("resource_set_ipv6", rpki_updown_resource_set_ipv6)):
+      setattr(self, k, f(attrs.getValue(k)))
+    for k,f in (("req_resource_set_as", rpki_updown_resource_set_as),
+                ("req_resource_set_ipv4", rpki_updown_resource_set_ipv4),
+                ("req_resource_set_ipv6", rpki_updown_resource_set_ipv6)):
+      try:
+        setattr(self, k, f(attrs.getValue(k)))
+      except KeyError:
+        setattr(self, k, None)
 
   def toXML(self):
     xml = ('\
@@ -136,12 +131,12 @@ class rpki_updown_cert(object):
 class rpki_updown_class(object):
 
   def __init__(self, attrs):
-    self.class_name = attrs.getValue("class_name")
-    self.cert_url = attrs.getValue("cert_url")
-    self.cert_ski = attrs.getValue("cert_ski")
-    self.resource_set_as = rpki_updown_resource_set_as(attrs.getValue("resource_set_as"))
-    self.resource_set_ipv4 = rpki_updown_resource_set_ipv4(attrs.getValue("resource_set_ipv4"))
-    self.resource_set_ipv6 = rpki_updown_resource_set_ipv6(attrs.getValue("resource_set_ipv6"))
+    for k in ("class_name", "cert_url", "cert_ski"):
+      setattr(self, k, attrs.getValue(k))
+    for k,f in (("resource_set_as", rpki_updown_resource_set_as),
+                ("resource_set_ipv4", rpki_updown_resource_set_ipv4),
+                ("resource_set_ipv6", rpki_updown_resource_set_ipv6)):
+      setattr(self, k, f(attrs.getValue(k)))
     try:
       self.suggested_sia_head = attrs.getValue("suggested_sia_head")
     except KeyError:
@@ -167,9 +162,7 @@ class rpki_updown_class(object):
     return xml
 
 class rpki_updown_list(rpki_updown_msg):
-
-  def __str__(self):
-    return "RPKI list request"
+  pass
 
 class rpki_updown_list_response(rpki_updown_msg):
 
@@ -188,7 +181,7 @@ class rpki_updown_list_response(rpki_updown_msg):
     elif name == "issuer":
       self.resource_classes[-1].issuer = base64.b64decode(text)
 
-  def innerToXML(self):
+  def toXML(self):
     xml = ""
     for c in self.resource_classes:
       xml += c.toXML()
@@ -199,24 +192,19 @@ class rpki_updown_issue(rpki_updown_msg):
   def startElement(self, name, attrs):
     assert name == "request"
     self.class_name = attrs.getValue("class_name")
-    try:
-      self.req_resource_set_as = rpki_updown_resource_set_as(attrs.getValue("req_resource_set_as"))
-    except KeyError:
-      self.req_resource_set_as = None
-    try:
-      self.req_resource_set_ipv4 = rpki_updown_resource_set_ipv4(attrs.getValue("req_resource_set_ipv4"))
-    except KeyError:
-      self.req_resource_set_ipv4 = None
-    try:
-      self.req_resource_set_ipv6 = rpki_updown_resource_set_ipv6(attrs.getValue("req_resource_set_ipv6"))
-    except KeyError:
-      self.req_resource_set_ipv6 = None
+    for k,f in (("req_resource_set_as", rpki_updown_resource_set_as),
+                ("req_resource_set_ipv4", rpki_updown_resource_set_ipv4),
+                ("req_resource_set_ipv6", rpki_updown_resource_set_ipv6)):
+      try:
+        setattr(self, k, f(attrs.getValue(k)))
+      except KeyError:
+        setattr(self, k, None)
 
   def endElement(self, name, text):
     assert name == "request"
     self.pkcs10 = base64.b64decode(text)
 
-  def innerToXML(self):
+  def toXML(self):
     xml = ('  <request class_name="%s"' % self.class_name)
     if self.req_resource_set_as:
       xml += ('\n           req_resource_set_as="%s"' % self.req_resource_set_as)
@@ -228,30 +216,25 @@ class rpki_updown_issue(rpki_updown_msg):
 
 class rpki_updown_issue_response(rpki_updown_list_response):
 
-  def innerToXML(self):
+  def toXML(self):
     assert len(self.resource_classes) == 1
-    return rpki_updown_list_response.innerToXML(self)
+    return rpki_updown_list_response.toXML(self)
 
 class rpki_updown_revoke(rpki_updown_msg):
-
-  def __str__(self):
-    return 'RPKI %s class_name %s ski %s' % (self.type, self.class_name, self.ski)
 
   def startElement(self, name, attrs):
     self.class_name = attrs.getValue("class_name")
     self.ski = attrs.getValue("ski")
 
-  def innerToXML(self):
+  def toXML(self):
     return ('  <key class_name="%s" ski="%s" />\n' % (self.class_name, self.ski))
 
-class rpki_updown_revoke_response(rpki_updown_revoke): pass
+class rpki_updown_revoke_response(rpki_updown_revoke):
+  pass
 
 class rpki_updown_error_response(rpki_updown_msg):
 
-  def __str__(self):
-    return "RPKI error %d" % (self.status)
-
-  def innerToXML(self):
+  def toXML(self):
     return '  <status>%d</status>\n' % self.status
 
   def endElement(self, name, text):
@@ -277,7 +260,6 @@ class rpki_updown_sax_handler(xml.sax.handler.ContentHandler):
   def startElement(self, name, attrs):
     if name == "message":
       assert int(attrs.getValue("version")) == 1
-      type = attrs.getValue("type")
       if self.obj == None:
         self.obj = {
           "list"                  : rpki_updown_list(),
@@ -287,12 +269,10 @@ class rpki_updown_sax_handler(xml.sax.handler.ContentHandler):
           "revoke"                : rpki_updown_revoke(),
           "revoke_response"       : rpki_updown_revoke_response(),
           "error_response"        : rpki_updown_error_response()
-        }[type]
+        }[attrs.getValue("type")]
       assert self.obj != None
-      self.obj.type = type
-      self.obj.sender = attrs.getValue("sender")
-      self.obj.recipient = attrs.getValue("recipient")
-      self.obj.msg_ref = int(attrs.getValue("msg_ref"))
+      for k in ("type", "sender", "recipient", "msg_ref"):
+        setattr(self.obj, k, attrs.getValue(k))
     else:
       assert self.obj != None
       self.obj.startElement(name, attrs)
@@ -323,10 +303,10 @@ for f in files:
     xml.sax.parseString(x, handler)
 
     obj = handler.obj
-    print "-- " + str(obj) + "\n"
-    x = obj.toXML()
+    print "<!-- " + str(obj) + " -->\n"
+    x = obj.msgToXML()
     print x
-    print relaxng(x, "up-down-medium-schema.rng")
+    relaxng(x, "up-down-medium-schema.rng")
 
 # except Exception, err:
 #   print "? " + str(err) + "\n"

@@ -21,12 +21,33 @@ class rpki_updown_msg(object):
   def innerToXML(self):
     return ""
 
+  def startElement(self, name, attrs): pass
+
+  def endElement(self, name, text): pass
+
 class rpki_updown_cert(object):
 
-  def __init__(self):
-    self.req_resource_set_as = None
-    self.req_resource_set_ipv4 = None
-    self.req_resource_set_ipv6 = None
+  def __init__(self, attrs):
+    self.cert_url = attrs.getValue('cert_url')
+    self.cert_ski = attrs.getValue('cert_ski')
+    self.cert_aki = attrs.getValue('cert_aki')
+    self.cert_serial = attrs.getValue('cert_serial')
+    self.resource_set_as = attrs.getValue('resource_set_as')
+    self.resource_set_ipv4 = attrs.getValue('resource_set_ipv4')
+    self.resource_set_ipv6 = attrs.getValue('resource_set_ipv6')
+    try:
+      self.req_resource_set_as = attrs.getValue('req_resource_set_as')
+    except KeyError:
+      self.req_resource_set_as = None
+    try:
+      self.req_resource_set_ipv4 = attrs.getValue('req_resource_set_ipv4')
+    except KeyError:
+      self.req_resource_set_ipv4 = None
+    try:
+      self.req_resource_set_ipv6 = attrs.getValue('req_resource_set_ipv6')
+    except KeyError:
+      self.req_resource_set_ipv6 = None
+    self.status = attrs.getValue('status')
 
   def toXML(self):
     xml = ('\
@@ -50,7 +71,13 @@ class rpki_updown_cert(object):
 
 class rpki_updown_class(object):
 
-  def __init__(self):
+  def __init__(self, attrs):
+    self.class_name = attrs.getValue('class_name')
+    self.cert_url = attrs.getValue('cert_url')
+    self.cert_ski = attrs.getValue('cert_ski')
+    self.resource_set_as = attrs.getValue('resource_set_as')
+    self.resource_set_ipv4 = attrs.getValue('resource_set_ipv4')
+    self.resource_set_ipv6 = attrs.getValue('resource_set_ipv6')
     self.certs = []
 
   def toXML(self):
@@ -70,7 +97,9 @@ class rpki_updown_class(object):
     return xml + '<issuer>' + base64.b64encode(self.issuer) + '</issuer>\n</class>\n'
 
 class rpki_updown_list(rpki_updown_msg):
-  pass
+
+  def __str__(self):
+    return 'RPKI list request'
 
 class rpki_updown_list_response(rpki_updown_msg):
 
@@ -101,10 +130,29 @@ class rpki_updown_issue(rpki_updown_msg):
 
 class rpki_updown_issue_response(rpki_updown_msg):
 
+  def startElement(self, name, attrs):
+    if name == 'class':
+      self.resource_class = rpki_updown_class(attrs)
+    elif name == 'certificate':
+      self.resource_class.certs.append(rpki_updown_cert(attrs))
+
+  def endElement(self, name, text):
+    if name == 'certificate':
+      self.resource_class.certs[-1].cert = base64.b64decode(text)
+    elif name == 'issuer':
+      self.resource_class.issuer = base64.b64decode(text)
+
   def innerToXML(self):
     self.resource_class.toXML()
 
 class rpki_updown_revoke(rpki_updown_msg):
+
+  def __str__(self):
+    return 'RPKI %s class_name %s ski %s' % (self.type, self.class_name, self.ski)
+
+  def startElement(self, name, attrs):
+    self.class_name = attrs.getValue('class_name')
+    self.ski = attrs.getValue('ski')
 
   def innerToXML(self):
     return ('  <key class_name="%s" ski="%s" />\n' % (self.class_name, self.ski))
@@ -113,16 +161,15 @@ class rpki_updown_revoke_response(rpki_updown_revoke): pass
 
 class rpki_updown_error_response(rpki_updown_msg):
 
+  def __str__(self):
+    return 'RPKI error %d' % (self.status)
+
   def innerToXML(self):
     return '<status>%d</status>\n' % self.status
 
-  def startElement(self, name, attrs):
-    print "startElement(" + name + ")"
-
   def endElement(self, name, text):
-    print "endElement(" + name + ")"
     if name == 'status':
-      self.status = text
+      self.status = int(text)
     elif name == 'last_message_processed':
       self.last_message_processed = text
     elif name == 'description':
@@ -135,20 +182,19 @@ class rpki_updown_sax_handler(xml.sax.handler.ContentHandler):
     self.obj = None
 
   def startElementNS(self, name, qname, attrs):
-    print "startElementNS()"
+#   print "startElementNS()"
     return self.startElement(name[1], attrs)
 
   def endElementNS(self, name, qname):
-    print "endElementNS()"
+#   print "endElementNS()"
     return self.endElement(name[1])
 
   def startElement(self, name, attrs):
-    print "startElement(" + name + ")"
+#   print "startElement(" + name + ")"
     if name == 'message':
       assert int(attrs.getValue('version')) == 1
-      print self.obj
+      type = attrs.getValue('type')
       if self.obj == None:
-        assert name == 'message'
         self.obj = {
           'list'                  : rpki_updown_list(),
           'list_response'         : rpki_updown_list_response(),
@@ -157,11 +203,12 @@ class rpki_updown_sax_handler(xml.sax.handler.ContentHandler):
           'revoke'                : rpki_updown_revoke(),
           'revoke_response'       : rpki_updown_revoke_response(),
           'error_response'        : rpki_updown_error_response()
-        }[attrs.getValue('type')]
+        }[type]
       assert self.obj != None
+      self.obj.type = type
       self.obj.sender = attrs.getValue('sender')
       self.obj.recipient = attrs.getValue('recipient')
-      self.obj.msg_ref = attrs.getValue('msg_ref')
+      self.obj.msg_ref = int(attrs.getValue('msg_ref'))
     else:
       assert self.obj != None
       self.obj.startElement(name, attrs)
@@ -174,13 +221,16 @@ class rpki_updown_sax_handler(xml.sax.handler.ContentHandler):
     if name != 'message':
       self.obj.endElement(name, self.text)
 
-def main():
-  for f in glob.glob("up-down-protocol-samples/*.xml"):
+files = glob.glob("up-down-protocol-samples/*.xml")
+files.sort()
+for f in files:
+  try:
     parser = xml.sax.make_parser()
     handler = rpki_updown_sax_handler()
     parser.setContentHandler(handler)
     parser.parse(f)
-    print handler.obj
-    print "=====\n"
-
-main()
+    obj = handler.obj
+    print "-- " + str(obj) + "\n"
+    print obj.toXML()
+  except Exception, err:
+    print "? " + str(err) + "\n"

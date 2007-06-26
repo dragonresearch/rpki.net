@@ -15,31 +15,8 @@ def relaxng(xml, rng):
   o.close()
   return v
 
-class rpki_updown_as_set(object):
 
-  def __init__(self, s):
-    self.as_set = []
-    if s != "":
-      vec = s.split(",")
-      for elt in vec:
-        r = re.match("^([0-9]+)-([0-9]+)$", elt)
-        if r:
-          b, e = r.groups()
-          self.as_set.append((long(b), long(e)))
-        else:
-          self.as_set.append((long(elt), ))
-      self.as_set.sort()
-
-  def __str__(self):
-    vec = []
-    for elt in self.as_set:
-      if len(elt) == 1:
-        vec.append(str(elt[0]))
-      else:
-        vec.append(str(elt[0]) + "-" + str(elt[1]))
-    return ",".join(vec)
-
-class rpki_updown_ip_set(object):
+class rpki_updown_resource_set(object):
 
   def __init__(self, s):
     self.vec = []
@@ -49,34 +26,44 @@ class rpki_updown_ip_set(object):
         r = re.match("^(%s)-(%s)$" % (self.re, self.re), elt)
         if r:
           b, e = r.groups()
-          self.vec.append((socket.inet_pton(self.af, b),
-                           socket.inet_pton(self.af, e)))
+          self.vec.append((self.pton(b), self.pton(e)))
           continue
-        r = re.match("^(%s)/([0-9]+)$" % (self.re), elt)
+        if self.prefixes:
+          r = re.match("^(%s)/([0-9]+)$" % (self.re), elt)
         if r:
           i, p = r.groups()
-          self.vec.append((socket.inet_pton(self.af, i), int(p)))
+          self.vec.append((self.pton(i), int(p)))
           continue
-        self.vec.append((socket.inet_pton(self.af, elt), ))
+        self.vec.append((self.pton(elt), ))
       self.vec.sort()
 
   def __str__(self):
     vec = []
     for elt in self.vec:
       if len(elt) == 1:
-        vec.append(socket.inet_ntop(self.af, elt[0]))
-      elif isinstance(elt[1], int):
-        vec.append(socket.inet_ntop(self.af, elt[0]) + "/" + str(elt[1]))
+        vec.append(self.ntop(elt[0]))
+      elif self.prefixes and isinstance(elt[1], int):
+        vec.append(self.ntop(elt[0]) + "/" + str(elt[1]))
       else:
-        vec.append(socket.inet_ntop(self.af, elt[0]) + "-" +
-                   socket.inet_ntop(self.af, elt[1]))
+        vec.append(self.ntop(elt[0]) + "-" + self.ntop(elt[1]))
     return ",".join(vec)
 
-class rpki_updown_ipv4_set(rpki_updown_ip_set):
+class rpki_updown_resource_set_as(rpki_updown_resource_set):
+  prefixes = False
+  re = "[0-9]+"
+  def pton(self, x): return long(x)
+  def ntop(self, x): return str(x)
+
+class rpki_updown_resource_set_ip(rpki_updown_resource_set):
+  prefixes = True
+  def pton(self, x): return socket.inet_pton(self.af, x)
+  def ntop(self, x): return socket.inet_ntop(self.af, x)
+
+class rpki_updown_resource_set_ipv4(rpki_updown_resource_set_ip):
   re = "[0-9.]+"
   af = socket.AF_INET
 
-class rpki_updown_ipv6_set(rpki_updown_ip_set):
+class rpki_updown_resource_set_ipv6(rpki_updown_resource_set_ip):
   re = "[0-9:a-fA-F]+"
   af = socket.AF_INET6
 
@@ -108,19 +95,19 @@ class rpki_updown_cert(object):
     self.cert_ski = attrs.getValue("cert_ski")
     self.cert_aki = attrs.getValue("cert_aki")
     self.cert_serial = attrs.getValue("cert_serial")
-    self.resource_set_as = rpki_updown_as_set(attrs.getValue("resource_set_as"))
-    self.resource_set_ipv4 = rpki_updown_ipv4_set(attrs.getValue("resource_set_ipv4"))
-    self.resource_set_ipv6 = rpki_updown_ipv6_set(attrs.getValue("resource_set_ipv6"))
+    self.resource_set_as = rpki_updown_resource_set_as(attrs.getValue("resource_set_as"))
+    self.resource_set_ipv4 = rpki_updown_resource_set_ipv4(attrs.getValue("resource_set_ipv4"))
+    self.resource_set_ipv6 = rpki_updown_resource_set_ipv6(attrs.getValue("resource_set_ipv6"))
     try:
-      self.req_resource_set_as = rpki_updown_as_set(attrs.getValue("req_resource_set_as"))
+      self.req_resource_set_as = rpki_updown_resource_set_as(attrs.getValue("req_resource_set_as"))
     except KeyError:
       self.req_resource_set_as = None
     try:
-      self.req_resource_set_ipv4 = rpki_updown_ipv4_set(attrs.getValue("req_resource_set_ipv4"))
+      self.req_resource_set_ipv4 = rpki_updown_resource_set_ipv4(attrs.getValue("req_resource_set_ipv4"))
     except KeyError:
       self.req_resource_set_ipv4 = None
     try:
-      self.req_resource_set_ipv6 = rpki_updown_ipv6_set(attrs.getValue("req_resource_set_ipv6"))
+      self.req_resource_set_ipv6 = rpki_updown_resource_set_ipv6(attrs.getValue("req_resource_set_ipv6"))
     except KeyError:
       self.req_resource_set_ipv6 = None
     self.status = attrs.getValue("status")
@@ -152,9 +139,9 @@ class rpki_updown_class(object):
     self.class_name = attrs.getValue("class_name")
     self.cert_url = attrs.getValue("cert_url")
     self.cert_ski = attrs.getValue("cert_ski")
-    self.resource_set_as = rpki_updown_as_set(attrs.getValue("resource_set_as"))
-    self.resource_set_ipv4 = rpki_updown_ipv4_set(attrs.getValue("resource_set_ipv4"))
-    self.resource_set_ipv6 = rpki_updown_ipv6_set(attrs.getValue("resource_set_ipv6"))
+    self.resource_set_as = rpki_updown_resource_set_as(attrs.getValue("resource_set_as"))
+    self.resource_set_ipv4 = rpki_updown_resource_set_ipv4(attrs.getValue("resource_set_ipv4"))
+    self.resource_set_ipv6 = rpki_updown_resource_set_ipv6(attrs.getValue("resource_set_ipv6"))
     try:
       self.suggested_sia_head = attrs.getValue("suggested_sia_head")
     except KeyError:
@@ -213,15 +200,15 @@ class rpki_updown_issue(rpki_updown_msg):
     assert name == "request"
     self.class_name = attrs.getValue("class_name")
     try:
-      self.req_resource_set_as = rpki_updown_as_set(attrs.getValue("req_resource_set_as"))
+      self.req_resource_set_as = rpki_updown_resource_set_as(attrs.getValue("req_resource_set_as"))
     except KeyError:
       self.req_resource_set_as = None
     try:
-      self.req_resource_set_ipv4 = rpki_updown_ipv4_set(attrs.getValue("req_resource_set_ipv4"))
+      self.req_resource_set_ipv4 = rpki_updown_resource_set_ipv4(attrs.getValue("req_resource_set_ipv4"))
     except KeyError:
       self.req_resource_set_ipv4 = None
     try:
-      self.req_resource_set_ipv6 = rpki_updown_ipv6_set(attrs.getValue("req_resource_set_ipv6"))
+      self.req_resource_set_ipv6 = rpki_updown_resource_set_ipv6(attrs.getValue("req_resource_set_ipv6"))
     except KeyError:
       self.req_resource_set_ipv6 = None
 

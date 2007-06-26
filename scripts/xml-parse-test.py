@@ -39,67 +39,46 @@ class rpki_updown_as_set(object):
         vec.append(str(elt[0]) + "-" + str(elt[1]))
     return ",".join(vec)
 
-class rpki_updown_ipv4_set(object):
+class rpki_updown_ip_set(object):
 
   def __init__(self, s):
-    self.ipv4_set = []
+    self.vec = []
     if s != "":
       vec = s.split(",")
       for elt in vec:
-        r = re.match("^([0-9.]+)-([0-9.]+)$", elt)
+        r = re.match("^(%s)-(%s)$" % (self.re, self.re), elt)
         if r:
           b, e = r.groups()
-          self.ipv4_set.append((socket.inet_pton(socket.AF_INET, b), socket.inet_pton(socket.AF_INET, e)))
+          self.vec.append((socket.inet_pton(self.af, b),
+                           socket.inet_pton(self.af, e)))
           continue
-        r = re.match("^([0-9.]+)/([0-9]+)$", elt)
+        r = re.match("^(%s)/([0-9]+)$" % (self.re), elt)
         if r:
           i, p = r.groups()
-          self.ipv4_set.append((socket.inet_pton(socket.AF_INET, i), int(p)))
+          self.vec.append((socket.inet_pton(self.af, i), int(p)))
           continue
-        self.ipv4_set.append((socket.inet_pton(socket.AF_INET, elt), ))
-      self.ipv4_set.sort()
+        self.vec.append((socket.inet_pton(self.af, elt), ))
+      self.vec.sort()
 
   def __str__(self):
     vec = []
-    for elt in self.ipv4_set:
+    for elt in self.vec:
       if len(elt) == 1:
-        vec.append(socket.inet_ntop(socket.AF_INET, elt[0]))
+        vec.append(socket.inet_ntop(self.af, elt[0]))
       elif isinstance(elt[1], int):
-        vec.append(socket.inet_ntop(socket.AF_INET, elt[0]) + "/" + str(elt[1]))
+        vec.append(socket.inet_ntop(self.af, elt[0]) + "/" + str(elt[1]))
       else:
-        vec.append(socket.inet_ntop(socket.AF_INET, elt[0]) + "-" + socket.inet_ntop(socket.AF_INET, elt[1]))
+        vec.append(socket.inet_ntop(self.af, elt[0]) + "-" +
+                   socket.inet_ntop(self.af, elt[1]))
     return ",".join(vec)
 
-class rpki_updown_ipv6_set(object):
+class rpki_updown_ipv4_set(rpki_updown_ip_set):
+  re = "[0-9.]+"
+  af = socket.AF_INET
 
-  def __init__(self, s):
-    self.ipv6_set = []
-    if s != "":
-      vec = s.split(",")
-      for elt in vec:
-        r = re.match("^([0-9:a-fA-F]+)-([0-9:a-fA-F]+)$", elt)
-        if r:
-          b, e = r.groups()
-          self.ipv6_set.append((socket.inet_pton(socket.AF_INET6, b), socket.inet_pton(socket.AF_INET6, e)))
-          continue
-        r = re.match("^([0-9:a-fA-F]+)/([0-9]+)$", elt)
-        if r:
-          i, p = r.groups()
-          self.ipv6_set.append((socket.inet_pton(socket.AF_INET6, i), int(p)))
-          continue
-        self.ipv6_set.append((socket.inet_pton(socket.AF_INET6, elt), ))
-      self.ipv6_set.sort()
-
-  def __str__(self):
-    vec = []
-    for elt in self.ipv6_set:
-      if len(elt) == 1:
-        vec.append(socket.inet_ntop(socket.AF_INET6, elt[0]))
-      elif isinstance(elt[1], int):
-        vec.append(socket.inet_ntop(socket.AF_INET6, elt[0]) + "/" + str(elt[1]))
-      else:
-        vec.append(socket.inet_ntop(socket.AF_INET6, elt[0]) + "-" + socket.inet_ntop(socket.AF_INET6, elt[1]))
-    return ",".join(vec)
+class rpki_updown_ipv6_set(rpki_updown_ip_set):
+  re = "[0-9:a-fA-F]+"
+  af = socket.AF_INET6
 
 class rpki_updown_msg(object):
 

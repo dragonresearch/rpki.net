@@ -1,188 +1,186 @@
 # $Id$
 
-import os
-
-def run(func, arg, *cmd):
-  i, o = func(cmd)
-  i.write(arg)
-  i.close()
-  value = o.read()
-  o.close()
-  return value
-
-def relaxng(xml, rng):
-  return run(os.popen4, xml, "xmllint", "--noout", "--relaxng", rng, "-")
+import base64
+import xml.sax
+import glob
 
 class rpki_updown_msg(object):
-  def toXml(self):
-    return ('''<?xml version="1.0" encoding="UTF-8"?>
-              <message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
-                       version="1"
-                       sender="%s"
-                       recipient="%s"
-                       msg_ref="%d"
-                       type="%s">\n''' % (self.sender, self.recipient, self.msg_ref, self.type)
-           ) + self.innerToXml() + '</message>\n'
 
-class rpki_updown_err(rpki_updown_msg):
-  def innerToXml(self):
-    return '<status>%d</status>\n' % self.status
+  def toXML(self):
+    return ('\
+<?xml version="1.0" encoding="UTF-8"?>\n\
+<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"\n\
+         version="1"\n\
+         sender="%s"\n\
+         recipient="%s"\n\
+         msg_ref="%d"\n\
+         type="%s">\n' \
+            % (self.sender, self.recipient, self.msg_ref, self.type)
+            ) + self.innerToXML() + '</message>\n'
 
-class rpki_updown_list(rpki_updown_msg):
-  def innerToXml(self):
+  def innerToXML(self):
     return ""
 
+class rpki_updown_cert(object):
+
+  def __init__(self):
+    self.req_resource_set_as = None
+    self.req_resource_set_ipv4 = None
+    self.req_resource_set_ipv6 = None
+
+  def toXML(self):
+    xml = ('\
+    <certificate cert_url="%s"\n\
+                 cert_ski="%s"\n\
+                 cert_aki="%s"\n\
+                 cert_serial="%d"\n\
+                 resource_set_as="%s"\n\
+                 resource_set_ipv4="%s"\n\
+                 resource_set_ipv6="%s"\n' \
+           % (self.cert_url, self.cert_ski, self.cert_aki, self.cert_serial,
+              self.resource_set_as, self.resource_set_ipv4, self.resource_set_ipv6))
+    if self.req_resource_set_as != None:
+      xml += ('                 req_resource_set_as="%s"\n' % self.req_resource_set_as)
+    if self.req_resource_set_ipv4 != None:
+      xml += ('                 req_resource_set_ipv4="%s"\n' % self.req_resource_set_ipv4)
+    if self.req_resource_set_ipv6 != None:
+      xml += ('                 req_resource_set_ipv6="%s"\n' % self.req_resource_set_ipv6)
+    xml += ('                 status="%s">\n' % self.status)
+    return xml + base64.b64encode(self.cert) + '</certificate>\n'
+
+class rpki_updown_class(object):
+
+  def __init__(self):
+    self.certs = []
+
+  def toXML(self):
+    xml = ('\
+  <class class_name="%s"\n\
+         cert_url="%s"\n\
+         cert_ski="%s"\n\
+         resource_set_as="%s"\n\
+         resource_set_ipv4="%s"\n\
+         resource_set_ipv6="%s"\n\
+         suggested_sia_head="%s">\n' \
+           % (self.class_name, self.cert_url, self.cert_ski,
+              self.resource_set_as, self.resource_set_ipv4, self.resource_set_ipv6,
+              self.suggested_sia_head))
+    for cert in self.certs:
+      xml += cert.toXML()
+    return xml + '<issuer>' + base64.b64encode(self.issuer) + '</issuer>\n</class>\n'
+
+class rpki_updown_list(rpki_updown_msg):
+  pass
+
 class rpki_updown_list_response(rpki_updown_msg):
-  def innerToXml(self):
-    pass
+
+  def __init__(self):
+    self.resource_classes = []
+
+  def innerToXML(self):
+    for c in self.resource_classes:
+      xml += c.toXML()
+    return xml
 
 class rpki_updown_issue(rpki_updown_msg):
+
   def __init__(self):
     self.req_as = None
     self_req_ipv4 = None
     self.req_ipv6 = None
-  def innerToXml(self):
-    xml = '  <request class_name="%s"' % self.class_name
+
+  def innerToXML(self):
+    xml = ('  <request class_name="%s"' % self.class_name)
     if self.req_as != None:
-      xml += '\n           req_resource_set_as="%s"' % self.req_as.toXml()
+      xml += ('\n           req_resource_set_as="%s"' % self.req_as.toXML())
     if self.req_ipv4 != None:
-      xml += '\n           req_resource_set_ipv4="%s"' % self.req_ipv4.toXml()
+      xml += ('\n           req_resource_set_ipv4="%s"' % self.req_ipv4.toXML())
     if self.req_ipv6 != None:
-      xml += '\n           req_resource_set_ipv6="%s"' % self.req_ipv6.toXml()
-    return xml + self.pkcs10.toXml() + '  </request>\n'
+      xml += ('\n           req_resource_set_ipv6="%s"' % self.req_ipv6.toXML())
+    return xml + self.pkcs10.toXML() + '  </request>\n'
 
-class rpki_issue_response(rpki_updown_msg):
-  pass
+class rpki_updown_issue_response(rpki_updown_msg):
 
+  def innerToXML(self):
+    self.resource_class.toXML()
 
+class rpki_updown_revoke(rpki_updown_msg):
+
+  def innerToXML(self):
+    return ('  <key class_name="%s" ski="%s" />\n' % (self.class_name, self.ski))
+
+class rpki_updown_revoke_response(rpki_updown_revoke): pass
+
+class rpki_updown_error_response(rpki_updown_msg):
+
+  def innerToXML(self):
+    return '<status>%d</status>\n' % self.status
+
+  def startElement(self, name, attrs):
+    print "startElement(" + name + ")"
+
+  def endElement(self, name, text):
+    print "endElement(" + name + ")"
+    if name == 'status':
+      self.status = text
+    elif name == 'last_message_processed':
+      self.last_message_processed = text
+    elif name == 'description':
+      self.description = text
+
+class rpki_updown_sax_handler(xml.sax.handler.ContentHandler):
+
+  def __init__(self):
+    self.text = ''
+    self.obj = None
+
+  def startElementNS(self, name, qname, attrs):
+    print "startElementNS()"
+    return self.startElement(name[1], attrs)
+
+  def endElementNS(self, name, qname):
+    print "endElementNS()"
+    return self.endElement(name[1])
+
+  def startElement(self, name, attrs):
+    print "startElement(" + name + ")"
+    if name == 'message':
+      assert int(attrs.getValue('version')) == 1
+      print self.obj
+      if self.obj == None:
+        assert name == 'message'
+        self.obj = {
+          'list'                  : rpki_updown_list(),
+          'list_response'         : rpki_updown_list_response(),
+          'issue'                 : rpki_updown_issue(),
+          'issue_response'        : rpki_updown_issue_response(),
+          'revoke'                : rpki_updown_revoke(),
+          'revoke_response'       : rpki_updown_revoke_response(),
+          'error_response'        : rpki_updown_error_response()
+        }[attrs.getValue('type')]
+      assert self.obj != None
+      self.obj.sender = attrs.getValue('sender')
+      self.obj.recipient = attrs.getValue('recipient')
+      self.obj.msg_ref = attrs.getValue('msg_ref')
+    else:
+      assert self.obj != None
+      self.obj.startElement(name, attrs)
+
+  def characters(self, content):
+    self.text += content
+
+  def endElement(self, name):
+    assert self.obj != None
+    if name != 'message':
+      self.obj.endElement(name, self.text)
 
 def main():
-  for x in xml:
-    print x
-    print relaxng(x, "up-down-medium-schema.rng")
+  for f in glob.glob("up-down-protocol-samples/*.xml"):
+    parser = xml.sax.make_parser()
+    handler = rpki_updown_sax_handler()
+    parser.setContentHandler(handler)
+    parser.parse(f)
+    print handler.obj
     print "=====\n"
-
-# Ugly inline stuff here for initial testing
-
-xml = [
-'''<?xml version="1.0" encoding="UTF-8"?>
-<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
-         version="1"
-	 sender="sender name"
-	 recipient="recipient name"
-	 msg_ref="42"
-	 type="error_response">
-    <status>2001</status>
-    <last_msg_processed>17</last_msg_processed>
-    <description xml:lang="en-US">[Readable text]</description>
-</message>
-''',
-'''<?xml version="1.0" encoding="UTF-8"?>
-<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
-         version="1"
-	 sender="sender name"
-	 recipient="recipient name"
-	 msg_ref="42" type="issue">
-    <request class_name="class name"
-             req_resource_set_as=""
-	     req_resource_set_ipv4="10.0.0.44/32"
-	     req_resource_set_ipv6="dead:beef::/32">
-        deadbeef
-    </request>
-</message>
-''',
-'''<?xml version="1.0" encoding="UTF-8"?>
-<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
-         version="1"
-	 sender="sender name"
-	 recipient="recipient name"
-	 msg_ref="1"
-	 type="issue_response">
-    <class class_name="class name"
-           cert_url="url"
-	   cert_ski="g(ski)"
-	   resource_set_as="22,42,44444-5555555"
-	   resource_set_ipv4="10.0.0.44-10.3.0.44,10.6.0.2/32"
-	   resource_set_ipv6="dead:beef::/128">
-        <certificate cert_url="url"
-	             cert_ski="g(ski)"
-		     cert_aki="g(aki)"
-		     cert_serial="1"
-		     resource_set_as="14-17"
-		     resource_set_ipv4="128.224.1.136/22"
-		     resource_set_ipv6="0:0::/22"
-		     req_resource_set_as=""
-		     req_resource_set_ipv4="10.0.0.77/16,127.0.0.1/8"
-		     req_resource_set_ipv6="dead:beef::/16"
-		     status="match">
-            deadbeef
-        </certificate>
-        <issuer>deadbeef</issuer>
-    </class>
-</message>
-''',
-'''<?xml version="1.0" encoding="UTF-8"?>
-<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
-         version="1"
-	 sender="sender name"
-	 recipient="recipient name"
-	 msg_ref="42"
-	 type="list"/>
-''',
-'''<?xml version="1.0" encoding="UTF-8"?>
-<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
-         version="1"
-	 sender="sender name"
-	 recipient="recipient name"
-	 msg_ref="42"
-	 type="list_response">
-    <class class_name="class name"
-           cert_url="url"
-	   cert_ski="g(ski)"
-	   resource_set_as="1,2,4,6,16-32"
-	   resource_set_ipv4="128.224.1.1-128.22.4.32"
-	   resource_set_ipv6=""
-	   suggested_sia_head="rsync://wombat.example/fnord/">
-        <certificate cert_url="url"
-	             cert_ski="g(ski)"
-		     cert_aki="g(aki)"
-		     cert_serial="1"
-		     resource_set_as=""
-		     resource_set_ipv4=""
-		     resource_set_ipv6=""
-		     req_resource_set_as=""
-		     req_resource_set_ipv4=""
-		     req_resource_set_ipv6=""
-		     status="match">
-            deadbeef
-        </certificate>
-        <!-- Repeated for each current certificate naming the client as subject -->
-        <issuer>deadbeef</issuer>
-    </class>
-</message>
-''',
-'''<?xml version="1.0" encoding="UTF-8"?>
-<message xmlns="http://www.apnic.net/specs/rescerts/up-down/" 
-         version="1"
-	 sender="sender name"
-	 recipient="recipient name"
-	 msg_ref="42"
-	 type="revoke">
-    <key class_name="class name"
-         ski="g(ski)"/>
-</message>
-''',
-'''<?xml version="1.0" encoding="UTF-8"?>
-<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
-         version="1"
-	 sender="sender name"
-	 recipient="recipient name"
-	 msg_ref="42"
-	 type="revoke_response">
-    <key class_name="class name"
-         ski="g(ski)"/>
-</message>
-'''
-]
 
 main()

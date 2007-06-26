@@ -6,21 +6,20 @@ Rough plan for initial prototype RE.
 
 2) Hack xml-parse-test into something that can:
 
- - Generate (XML::Simple?) XML
+ - Generate XML (just compose directly, probably)
  - Encode XML in CMS using specified signing key and certs
  - Write that to a destination file
 
  - Pick up signed CMS from from a file
  - Check CMS signatures and extract XML
  - Validate (xmllint --relaxng) the XML
- - Decode (XML::Simple) the XML and dump the result
+ - Decode (xml.sax) the XML and dump the result
 
- Log everything as we go and use Data::Dumper to log content of Perl
+ Log everything as we go.
  data structures.
 
- APNIC is specifying schema in RNC (RelaxNG Compact) syntax, xmllint
- wants RNG (RelaxNG XML) syntax, so use /usr/ports/textproc/trang to
- convert:
+Schema is RNC (RelaxNG Compact) syntax, xmllint wants RNG (RelaxNG
+XML) syntax, so use /usr/ports/textproc/trang to convert:
 
     $ trang foo.rnc foo.rng
 

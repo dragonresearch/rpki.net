@@ -54,7 +54,7 @@ class rpki_updown_cert(object):
     <certificate cert_url="%s"\n\
                  cert_ski="%s"\n\
                  cert_aki="%s"\n\
-                 cert_serial="%d"\n\
+                 cert_serial="%s"\n\
                  resource_set_as="%s"\n\
                  resource_set_ipv4="%s"\n\
                  resource_set_ipv6="%s"\n' \
@@ -78,6 +78,10 @@ class rpki_updown_class(object):
     self.resource_set_as = attrs.getValue('resource_set_as')
     self.resource_set_ipv4 = attrs.getValue('resource_set_ipv4')
     self.resource_set_ipv6 = attrs.getValue('resource_set_ipv6')
+    try:
+      self.suggested_sia_head = attrs.getValue('suggested_sia_head')
+    except KeyError:
+      self.suggested_sia_head = None
     self.certs = []
 
   def toXML(self):
@@ -87,11 +91,12 @@ class rpki_updown_class(object):
          cert_ski="%s"\n\
          resource_set_as="%s"\n\
          resource_set_ipv4="%s"\n\
-         resource_set_ipv6="%s"\n\
-         suggested_sia_head="%s">\n' \
+         resource_set_ipv6="%s"' \
            % (self.class_name, self.cert_url, self.cert_ski,
-              self.resource_set_as, self.resource_set_ipv4, self.resource_set_ipv6,
-              self.suggested_sia_head))
+              self.resource_set_as, self.resource_set_ipv4, self.resource_set_ipv6))
+    if self.suggested_sia_head != None:
+      xml += ('\n         suggested_sia_head="%s"' % (self.suggested_sia_head))
+    xml += '>\n'
     for cert in self.certs:
       xml += cert.toXML()
     return xml + '<issuer>' + base64.b64encode(self.issuer) + '</issuer>\n</class>\n'
@@ -106,44 +111,61 @@ class rpki_updown_list_response(rpki_updown_msg):
   def __init__(self):
     self.resource_classes = []
 
+  def startElement(self, name, attrs):
+    if name == 'class':
+      self.resource_classes.append(rpki_updown_class(attrs))
+    elif name == 'certificate':
+      self.resource_classes[-1].certs.append(rpki_updown_cert(attrs))
+
+  def endElement(self, name, text):
+    if name == 'certificate':
+      self.resource_classes[-1].certs[-1].cert = base64.b64decode(text)
+    elif name == 'issuer':
+      self.resource_classes[-1].issuer = base64.b64decode(text)
+
   def innerToXML(self):
+    xml = ''
     for c in self.resource_classes:
       xml += c.toXML()
     return xml
 
 class rpki_updown_issue(rpki_updown_msg):
 
-  def __init__(self):
-    self.req_as = None
-    self_req_ipv4 = None
-    self.req_ipv6 = None
+  def startElement(self, name, attrs):
+    assert name == 'request'
+    self.class_name = attrs.getValue('class_name')
+    try:
+      self.req_resource_set_as = attrs.getValue('req_resource_set_as')
+    except KeyError:
+      self.req_resource_set_as = None
+    try:
+      self.req_resource_set_ipv4 = attrs.getValue('req_resource_set_ipv4')
+    except KeyError:
+      self.req_resource_set_ipv4 = None
+    try:
+      self.req_resource_set_ipv6 = attrs.getValue('req_resource_set_ipv6')
+    except KeyError:
+      self.req_resource_set_ipv6 = None
+
+  def endElement(self, name, text):
+    assert name == 'request'
+    self.pkcs10 = base64.b64decode(text)
 
   def innerToXML(self):
     xml = ('  <request class_name="%s"' % self.class_name)
-    if self.req_as != None:
-      xml += ('\n           req_resource_set_as="%s"' % self.req_as.toXML())
-    if self.req_ipv4 != None:
-      xml += ('\n           req_resource_set_ipv4="%s"' % self.req_ipv4.toXML())
-    if self.req_ipv6 != None:
-      xml += ('\n           req_resource_set_ipv6="%s"' % self.req_ipv6.toXML())
-    return xml + self.pkcs10.toXML() + '  </request>\n'
+    if self.req_resource_set_as != None:
+      xml += ('\n           req_resource_set_as="%s"' % self.req_resource_set_as.toXML())
+    if self.req_resource_set_ipv4 != None:
+      xml += ('\n           req_resource_set_ipv4="%s"' % self.req_resource_set_ipv4.toXML())
+    if self.req_resource_set_ipv6 != None:
+      xml += ('\n           req_resource_set_ipv6="%s"' % self.req_resource_set_ipv6.toXML())
+    return xml + base64.b64encode(self.pkcs10) + '  </request>\n'
 
-class rpki_updown_issue_response(rpki_updown_msg):
-
-  def startElement(self, name, attrs):
-    if name == 'class':
-      self.resource_class = rpki_updown_class(attrs)
-    elif name == 'certificate':
-      self.resource_class.certs.append(rpki_updown_cert(attrs))
-
-  def endElement(self, name, text):
-    if name == 'certificate':
-      self.resource_class.certs[-1].cert = base64.b64decode(text)
-    elif name == 'issuer':
-      self.resource_class.issuer = base64.b64decode(text)
+class rpki_updown_issue_response(rpki_updown_list_response):
 
   def innerToXML(self):
-    self.resource_class.toXML()
+    assert len(self.resource_classes) < 2
+    rpki_updown_list_response.innerToXML(self)
 
 class rpki_updown_revoke(rpki_updown_msg):
 
@@ -220,6 +242,7 @@ class rpki_updown_sax_handler(xml.sax.handler.ContentHandler):
     assert self.obj != None
     if name != 'message':
       self.obj.endElement(name, self.text)
+    self.text = ''
 
 files = glob.glob("up-down-protocol-samples/*.xml")
 files.sort()

@@ -1,14 +1,19 @@
 # $Id$
 
-# TODO:
-#
-# resource set stuff (resource_set_{as,ipv4,ipv6} needs its own classes
-# to handle parsing and XML mustering.
-
 import base64
-import xml.sax
 import glob
+import os
 import re
+import socket
+import xml.sax
+
+def relaxng(xml, rng):
+  i, o = os.popen4(("xmllint", "--noout", "--relaxng", rng, "-"))
+  i.write(xml)
+  i.close()
+  v = o.read()
+  o.close()
+  return v
 
 class rpki_updown_as_set(object):
 
@@ -17,16 +22,12 @@ class rpki_updown_as_set(object):
     if s != "":
       vec = s.split(",")
       for elt in vec:
-        r = re.match("^[0-9]+$", elt)
-        if r:
-          self.as_set.append((int(elt), ))
-          continue
         r = re.match("^([0-9]+)-([0-9]+)$", elt)
         if r:
           b, e = r.groups()
-          self.as_set.append((int(b), int(e)))
-          continue
-        raise RuntimeError
+          self.as_set.append((long(b), long(e)))
+        else:
+          self.as_set.append((long(elt), ))
       self.as_set.sort()
 
   def __str__(self):
@@ -36,6 +37,68 @@ class rpki_updown_as_set(object):
         vec.append(str(elt[0]))
       else:
         vec.append(str(elt[0]) + "-" + str(elt[1]))
+    return ",".join(vec)
+
+class rpki_updown_ipv4_set(object):
+
+  def __init__(self, s):
+    self.ipv4_set = []
+    if s != "":
+      vec = s.split(",")
+      for elt in vec:
+        r = re.match("^([0-9.]+)-([0-9.]+)$", elt)
+        if r:
+          b, e = r.groups()
+          self.ipv4_set.append((socket.inet_pton(socket.AF_INET, b), socket.inet_pton(socket.AF_INET, e)))
+          continue
+        r = re.match("^([0-9.]+)/([0-9]+)$", elt)
+        if r:
+          i, p = r.groups()
+          self.ipv4_set.append((socket.inet_pton(socket.AF_INET, i), int(p)))
+          continue
+        self.ipv4_set.append((socket.inet_pton(socket.AF_INET, elt), ))
+      self.ipv4_set.sort()
+
+  def __str__(self):
+    vec = []
+    for elt in self.ipv4_set:
+      if len(elt) == 1:
+        vec.append(socket.inet_ntop(socket.AF_INET, elt[0]))
+      elif isinstance(elt[1], int):
+        vec.append(socket.inet_ntop(socket.AF_INET, elt[0]) + "/" + str(elt[1]))
+      else:
+        vec.append(socket.inet_ntop(socket.AF_INET, elt[0]) + "-" + socket.inet_ntop(socket.AF_INET, elt[1]))
+    return ",".join(vec)
+
+class rpki_updown_ipv6_set(object):
+
+  def __init__(self, s):
+    self.ipv6_set = []
+    if s != "":
+      vec = s.split(",")
+      for elt in vec:
+        r = re.match("^([0-9:a-fA-F]+)-([0-9:a-fA-F]+)$", elt)
+        if r:
+          b, e = r.groups()
+          self.ipv6_set.append((socket.inet_pton(socket.AF_INET6, b), socket.inet_pton(socket.AF_INET6, e)))
+          continue
+        r = re.match("^([0-9:a-fA-F]+)/([0-9]+)$", elt)
+        if r:
+          i, p = r.groups()
+          self.ipv6_set.append((socket.inet_pton(socket.AF_INET6, i), int(p)))
+          continue
+        self.ipv6_set.append((socket.inet_pton(socket.AF_INET6, elt), ))
+      self.ipv6_set.sort()
+
+  def __str__(self):
+    vec = []
+    for elt in self.ipv6_set:
+      if len(elt) == 1:
+        vec.append(socket.inet_ntop(socket.AF_INET6, elt[0]))
+      elif isinstance(elt[1], int):
+        vec.append(socket.inet_ntop(socket.AF_INET6, elt[0]) + "/" + str(elt[1]))
+      else:
+        vec.append(socket.inet_ntop(socket.AF_INET6, elt[0]) + "-" + socket.inet_ntop(socket.AF_INET6, elt[1]))
     return ",".join(vec)
 
 class rpki_updown_msg(object):
@@ -67,18 +130,18 @@ class rpki_updown_cert(object):
     self.cert_aki = attrs.getValue("cert_aki")
     self.cert_serial = attrs.getValue("cert_serial")
     self.resource_set_as = rpki_updown_as_set(attrs.getValue("resource_set_as"))
-    self.resource_set_ipv4 = attrs.getValue("resource_set_ipv4")
-    self.resource_set_ipv6 = attrs.getValue("resource_set_ipv6")
+    self.resource_set_ipv4 = rpki_updown_ipv4_set(attrs.getValue("resource_set_ipv4"))
+    self.resource_set_ipv6 = rpki_updown_ipv6_set(attrs.getValue("resource_set_ipv6"))
     try:
       self.req_resource_set_as = rpki_updown_as_set(attrs.getValue("req_resource_set_as"))
     except KeyError:
       self.req_resource_set_as = None
     try:
-      self.req_resource_set_ipv4 = attrs.getValue("req_resource_set_ipv4")
+      self.req_resource_set_ipv4 = rpki_updown_ipv4_set(attrs.getValue("req_resource_set_ipv4"))
     except KeyError:
       self.req_resource_set_ipv4 = None
     try:
-      self.req_resource_set_ipv6 = attrs.getValue("req_resource_set_ipv6")
+      self.req_resource_set_ipv6 = rpki_updown_ipv6_set(attrs.getValue("req_resource_set_ipv6"))
     except KeyError:
       self.req_resource_set_ipv6 = None
     self.status = attrs.getValue("status")
@@ -111,8 +174,8 @@ class rpki_updown_class(object):
     self.cert_url = attrs.getValue("cert_url")
     self.cert_ski = attrs.getValue("cert_ski")
     self.resource_set_as = rpki_updown_as_set(attrs.getValue("resource_set_as"))
-    self.resource_set_ipv4 = attrs.getValue("resource_set_ipv4")
-    self.resource_set_ipv6 = attrs.getValue("resource_set_ipv6")
+    self.resource_set_ipv4 = rpki_updown_ipv4_set(attrs.getValue("resource_set_ipv4"))
+    self.resource_set_ipv6 = rpki_updown_ipv6_set(attrs.getValue("resource_set_ipv6"))
     try:
       self.suggested_sia_head = attrs.getValue("suggested_sia_head")
     except KeyError:
@@ -175,11 +238,11 @@ class rpki_updown_issue(rpki_updown_msg):
     except KeyError:
       self.req_resource_set_as = None
     try:
-      self.req_resource_set_ipv4 = attrs.getValue("req_resource_set_ipv4")
+      self.req_resource_set_ipv4 = rpki_updown_ipv4_set(attrs.getValue("req_resource_set_ipv4"))
     except KeyError:
       self.req_resource_set_ipv4 = None
     try:
-      self.req_resource_set_ipv6 = attrs.getValue("req_resource_set_ipv6")
+      self.req_resource_set_ipv6 = rpki_updown_ipv6_set(attrs.getValue("req_resource_set_ipv6"))
     except KeyError:
       self.req_resource_set_ipv6 = None
 
@@ -280,13 +343,24 @@ class rpki_updown_sax_handler(xml.sax.handler.ContentHandler):
 files = glob.glob("up-down-protocol-samples/*.xml")
 files.sort()
 for f in files:
-#  try:
-    parser = xml.sax.make_parser()
+# try:
+
     handler = rpki_updown_sax_handler()
-    parser.setContentHandler(handler)
-    parser.parse(f)
+
+#   parser = xml.sax.make_parser()
+#   parser.setContentHandler(handler)
+#   parser.parse(f)
+
+    fh = open(f, "r")
+    x = fh.read()
+    fh.close()
+    xml.sax.parseString(x, handler)
+
     obj = handler.obj
     print "-- " + str(obj) + "\n"
-    print obj.toXML()
-#  except Exception, err:
-#    print "? " + str(err) + "\n"
+    x = obj.toXML()
+    print x
+    print relaxng(x, "up-down-medium-schema.rng")
+
+# except Exception, err:
+#   print "? " + str(err) + "\n"

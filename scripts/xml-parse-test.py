@@ -94,16 +94,16 @@ class rpki_updown_cert(object):
 
   def __init__(self, attrs):
     for k in ("cert_url", "cert_ski", "cert_aki", "cert_serial", "status"):
-      setattr(self, k, attrs.getValue(k))
+      setattr(self, k, attrs.getValue(k).encode("ascii"))
     for k,f in (("resource_set_as", rpki_updown_resource_set_as),
                 ("resource_set_ipv4", rpki_updown_resource_set_ipv4),
                 ("resource_set_ipv6", rpki_updown_resource_set_ipv6)):
-      setattr(self, k, f(attrs.getValue(k)))
+      setattr(self, k, f(attrs.getValue(k).encode("ascii")))
     for k,f in (("req_resource_set_as", rpki_updown_resource_set_as),
                 ("req_resource_set_ipv4", rpki_updown_resource_set_ipv4),
                 ("req_resource_set_ipv6", rpki_updown_resource_set_ipv6)):
       try:
-        setattr(self, k, f(attrs.getValue(k)))
+        setattr(self, k, f(attrs.getValue(k).encode("ascii")))
       except KeyError:
         setattr(self, k, None)
 
@@ -132,11 +132,11 @@ class rpki_updown_class(object):
 
   def __init__(self, attrs):
     for k in ("class_name", "cert_url", "cert_ski"):
-      setattr(self, k, attrs.getValue(k))
+      setattr(self, k, attrs.getValue(k).encode("ascii"))
     for k,f in (("resource_set_as", rpki_updown_resource_set_as),
                 ("resource_set_ipv4", rpki_updown_resource_set_ipv4),
                 ("resource_set_ipv6", rpki_updown_resource_set_ipv6)):
-      setattr(self, k, f(attrs.getValue(k)))
+      setattr(self, k, f(attrs.getValue(k).encode("ascii")))
     try:
       self.suggested_sia_head = attrs.getValue("suggested_sia_head")
     except KeyError:
@@ -196,7 +196,7 @@ class rpki_updown_issue(rpki_updown_msg):
                 ("req_resource_set_ipv4", rpki_updown_resource_set_ipv4),
                 ("req_resource_set_ipv6", rpki_updown_resource_set_ipv6)):
       try:
-        setattr(self, k, f(attrs.getValue(k)))
+        setattr(self, k, f(attrs.getValue(k).encode("ascii")))
       except KeyError:
         setattr(self, k, None)
 
@@ -272,7 +272,7 @@ class rpki_updown_sax_handler(xml.sax.handler.ContentHandler):
         }[attrs.getValue("type")]
       assert self.obj != None
       for k in ("type", "sender", "recipient", "msg_ref"):
-        setattr(self.obj, k, attrs.getValue(k))
+        setattr(self.obj, k, attrs.getValue(k).encode("ascii"))
     else:
       assert self.obj != None
       self.obj.startElement(name, attrs)

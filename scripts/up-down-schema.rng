@@ -29,11 +29,6 @@
           <param name="maxLength">1024</param>
         </data>
       </attribute>
-      <attribute name="msg_ref">
-        <data type="positiveInteger">
-          <param name="maxInclusive">999999999999999</param>
-        </data>
-      </attribute>
       <ref name="payload"/>
     </element>
   </start>
@@ -99,11 +94,6 @@
           <param name="maxLength">1024</param>
         </data>
       </attribute>
-      <attribute name="cert_ski">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
-      </attribute>
       <attribute name="resource_set_as">
         <data type="string">
           <param name="maxLength">512000</param>
@@ -133,34 +123,6 @@
               <param name="maxLength">1024</param>
             </data>
           </attribute>
-          <attribute name="cert_ski">
-            <data type="token">
-              <param name="maxLength">1024</param>
-            </data>
-          </attribute>
-          <attribute name="cert_aki">
-            <data type="token">
-              <param name="maxLength">1024</param>
-            </data>
-          </attribute>
-          <attribute name="cert_serial">
-            <data type="positiveInteger"/>
-          </attribute>
-          <attribute name="resource_set_as">
-            <data type="string">
-              <param name="maxLength">512000</param>
-            </data>
-          </attribute>
-          <attribute name="resource_set_ipv4">
-            <data type="string">
-              <param name="maxLength">512000</param>
-            </data>
-          </attribute>
-          <attribute name="resource_set_ipv6">
-            <data type="string">
-              <param name="maxLength">512000</param>
-            </data>
-          </attribute>
           <optional>
             <attribute name="req_resource_set_as">
               <data type="string">
@@ -182,13 +144,6 @@
               </data>
             </attribute>
           </optional>
-          <attribute name="status">
-            <choice>
-              <value>undersize</value>
-              <value>match</value>
-              <value>oversize</value>
-            </choice>
-          </attribute>
           <data type="base64Binary">
             <param name="maxLength">512000</param>
           </data>
@@ -263,13 +218,6 @@
         <param name="maxInclusive">999999999999999</param>
       </data>
     </element>
-    <optional>
-      <element name="last_msg_processed">
-        <data type="positiveInteger">
-          <param name="maxInclusive">999999999999999</param>
-        </data>
-      </element>
-    </optional>
     <optional>
       <element name="description">
         <attribute name="xml:lang">

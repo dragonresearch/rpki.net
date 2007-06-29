@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: up-down-tighter-schema.pl 681 2007-06-20 23:50:56Z sra $
+  $Id: up-down-medium-schema.rnc 682 2007-06-21 02:42:47Z sra $
   
   RelaxNG (Compact Syntax) Schema
   for RPKI up-down protocol.  This is based on the schema in the APNIC
@@ -26,11 +26,6 @@
       <attribute name="recipient">
         <data type="token">
           <param name="maxLength">1024</param>
-        </data>
-      </attribute>
-      <attribute name="msg_ref">
-        <data type="positiveInteger">
-          <param name="maxInclusive">999999999999999</param>
         </data>
       </attribute>
       <ref name="payload"/>
@@ -98,11 +93,6 @@
           <param name="maxLength">1024</param>
         </data>
       </attribute>
-      <attribute name="cert_ski">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
-      </attribute>
       <attribute name="resource_set_as">
         <data type="string">
           <param name="maxLength">512000</param>
@@ -135,37 +125,6 @@
               <param name="maxLength">1024</param>
             </data>
           </attribute>
-          <attribute name="cert_ski">
-            <data type="token">
-              <param name="maxLength">1024</param>
-            </data>
-          </attribute>
-          <attribute name="cert_aki">
-            <data type="token">
-              <param name="maxLength">1024</param>
-            </data>
-          </attribute>
-          <attribute name="cert_serial">
-            <data type="positiveInteger"/>
-          </attribute>
-          <attribute name="resource_set_as">
-            <data type="string">
-              <param name="maxLength">512000</param>
-              <param name="pattern">[\-,0-9]*</param>
-            </data>
-          </attribute>
-          <attribute name="resource_set_ipv4">
-            <data type="string">
-              <param name="maxLength">512000</param>
-              <param name="pattern">[\-,/.0-9]*</param>
-            </data>
-          </attribute>
-          <attribute name="resource_set_ipv6">
-            <data type="string">
-              <param name="maxLength">512000</param>
-              <param name="pattern">[\-,/:0-9a-fA-F]*</param>
-            </data>
-          </attribute>
           <optional>
             <attribute name="req_resource_set_as">
               <data type="string">
@@ -190,13 +149,6 @@
               </data>
             </attribute>
           </optional>
-          <attribute name="status">
-            <choice>
-              <value>undersize</value>
-              <value>match</value>
-              <value>oversize</value>
-            </choice>
-          </attribute>
           <data type="base64Binary">
             <param name="maxLength">512000</param>
           </data>
@@ -272,14 +224,10 @@
     <element name="status">
       <choice>
         <value>1101</value>
-        <!-- Message too old -->
+        <!-- Already processing request -->
         <value>1102</value>
-        <!-- msg_ref value is invalid -->
-        <value>1103</value>
-        <!-- out of order msg_ref value -->
-        <value>1104</value>
         <!-- version number error -->
-        <value>1105</value>
+        <value>1103</value>
         <!-- unrecognised request type -->
         <value>1201</value>
         <!-- request - no such resource class -->
@@ -295,13 +243,6 @@
       </choice>
       <!-- Internal Server Error - Request not performed -->
     </element>
-    <optional>
-      <element name="last_msg_processed">
-        <data type="positiveInteger">
-          <param name="maxInclusive">999999999999999</param>
-        </data>
-      </element>
-    </optional>
     <optional>
       <element name="description">
         <attribute name="xml:lang">

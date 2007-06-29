@@ -15,7 +15,6 @@
          attribute version   { xsd:positiveInteger { maxInclusive="1" } },
          attribute sender    { xsd:token { maxLength="1024" } },
          attribute recipient { xsd:token { maxLength="1024" } },
-         attribute msg_ref   { xsd:positiveInteger { maxInclusive="999999999999999" } },
          payload
        }
 
@@ -33,23 +32,15 @@
        class = element class {
          attribute class_name { xsd:token { maxLength="1024" } },
          attribute cert_url { xsd:anyURI { maxLength="1024" } },
-         attribute cert_ski { xsd:token { maxLength="1024" } },
          attribute resource_set_as { xsd:string { maxLength="512000" pattern="[\-,0-9]*" } },
          attribute resource_set_ipv4 { xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" } },
          attribute resource_set_ipv6 { xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" } },
          attribute suggested_sia_head { xsd:anyURI { maxLength="1024" } }?,
          element certificate {
            attribute cert_url { xsd:anyURI { maxLength="1024" } },
-           attribute cert_ski { xsd:token { maxLength="1024" } },
-           attribute cert_aki { xsd:token { maxLength="1024" } },
-           attribute cert_serial { xsd:positiveInteger },
-           attribute resource_set_as { xsd:string { maxLength="512000" pattern="[\-,0-9]*" } },
-           attribute resource_set_ipv4 { xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" } },
-           attribute resource_set_ipv6 { xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" } },
            attribute req_resource_set_as { xsd:string { maxLength="512000" pattern="[\-,0-9]*" } }?,
            attribute req_resource_set_ipv4 { xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" } }?,
            attribute req_resource_set_ipv6 { xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" } }?,
-           attribute status { "undersize" | "match" | "oversize" },
            xsd:base64Binary { maxLength="512000" }
          }*,
          element issuer { xsd:base64Binary { maxLength="512000" } }
@@ -74,11 +65,9 @@
 
        error_response =
          element status { 
-	    "1101" |	# Message too old
-	    "1102" |	# msg_ref value is invalid
-	    "1103" |	# out of order msg_ref value
-	    "1104" |	# version number error
-	    "1105" |	# unrecognised request type
+	    "1101" |	# Already processing request
+	    "1102" |	# version number error
+	    "1103" |	# unrecognised request type
 	    "1201" |	# request - no such resource class
 	    "1202" |	# request - no resources allocated in resource class
 	    "1203" |	# request - badly formed certificate request
@@ -86,6 +75,5 @@
 	    "1302" |	# revoke - no such key
 	    "2001" 	# Internal Server Error - Request not performed
          },
-         element last_msg_processed { xsd:positiveInteger { maxInclusive="999999999999999" } }?,
          element description { attribute xml:lang { xsd:language }, xsd:string { maxLength="1024" } }?
      }

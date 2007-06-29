@@ -3,5 +3,4 @@
          version="1"
 	 sender="sender name"
 	 recipient="recipient name"
-	 msg_ref="42"
-	 type="list"/>
+	 type="list" />

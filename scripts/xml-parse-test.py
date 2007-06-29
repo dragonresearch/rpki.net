@@ -76,9 +76,8 @@ class rpki_updown_msg(object):
          version="1"\n\
          sender="%s"\n\
          recipient="%s"\n\
-         msg_ref="%s"\n\
          type="%s">\n' \
-            % (self.sender, self.recipient, self.msg_ref, self.type)
+            % (self.sender, self.recipient, self.type)
             ) + self.toXML() + "</message>\n"
 
   def toXML(self):
@@ -93,12 +92,8 @@ class rpki_updown_msg(object):
 class rpki_updown_cert(object):
 
   def __init__(self, attrs):
-    for k in ("cert_url", "cert_ski", "cert_aki", "cert_serial", "status"):
+    for k in ("cert_url", ):
       setattr(self, k, attrs.getValue(k).encode("ascii"))
-    for k,f in (("resource_set_as", rpki_updown_resource_set_as),
-                ("resource_set_ipv4", rpki_updown_resource_set_ipv4),
-                ("resource_set_ipv6", rpki_updown_resource_set_ipv6)):
-      setattr(self, k, f(attrs.getValue(k).encode("ascii")))
     for k,f in (("req_resource_set_as", rpki_updown_resource_set_as),
                 ("req_resource_set_ipv4", rpki_updown_resource_set_ipv4),
                 ("req_resource_set_ipv6", rpki_updown_resource_set_ipv6)):
@@ -108,30 +103,20 @@ class rpki_updown_cert(object):
         setattr(self, k, None)
 
   def toXML(self):
-    xml = ('\
-    <certificate cert_url="%s"\n\
-                 cert_ski="%s"\n\
-                 cert_aki="%s"\n\
-                 cert_serial="%s"\n\
-                 resource_set_as="%s"\n\
-                 resource_set_ipv4="%s"\n\
-                 resource_set_ipv6="%s"\n' \
-           % (self.cert_url, self.cert_ski, self.cert_aki, self.cert_serial,
-              self.resource_set_as, self.resource_set_ipv4, self.resource_set_ipv6))
+    xml = ('    <certificate cert_url="%s"' % (self.cert_url))
     if self.req_resource_set_as:
-      xml += ('                 req_resource_set_as="%s"\n' % self.req_resource_set_as)
+      xml += ('\n                 req_resource_set_as="%s"' % self.req_resource_set_as)
     if self.req_resource_set_ipv4:
-      xml += ('                 req_resource_set_ipv4="%s"\n' % self.req_resource_set_ipv4)
+      xml += ('\n                 req_resource_set_ipv4="%s"' % self.req_resource_set_ipv4)
     if self.req_resource_set_ipv6:
-      xml += ('                 req_resource_set_ipv6="%s"\n' % self.req_resource_set_ipv6)
-    xml += ('                 status="%s">' % self.status)
-    xml += base64.b64encode(self.cert) + "</certificate>\n"
+      xml += ('\n                 req_resource_set_ipv6="%s"' % self.req_resource_set_ipv6)
+    xml += ">" + base64.b64encode(self.cert) + "</certificate>\n"
     return xml
 
 class rpki_updown_class(object):
 
   def __init__(self, attrs):
-    for k in ("class_name", "cert_url", "cert_ski"):
+    for k in ("class_name", "cert_url"):
       setattr(self, k, attrs.getValue(k).encode("ascii"))
     for k,f in (("resource_set_as", rpki_updown_resource_set_as),
                 ("resource_set_ipv4", rpki_updown_resource_set_ipv4),
@@ -147,11 +132,10 @@ class rpki_updown_class(object):
     xml = ('\
   <class class_name="%s"\n\
          cert_url="%s"\n\
-         cert_ski="%s"\n\
          resource_set_as="%s"\n\
          resource_set_ipv4="%s"\n\
          resource_set_ipv6="%s"' \
-           % (self.class_name, self.cert_url, self.cert_ski,
+           % (self.class_name, self.cert_url,
               self.resource_set_as, self.resource_set_ipv4, self.resource_set_ipv6))
     if self.suggested_sia_head:
       xml += ('\n         suggested_sia_head="%s"' % (self.suggested_sia_head))
@@ -271,7 +255,7 @@ class rpki_updown_sax_handler(xml.sax.handler.ContentHandler):
           "error_response"        : rpki_updown_error_response()
         }[attrs.getValue("type")]
       assert self.obj != None
-      for k in ("type", "sender", "recipient", "msg_ref"):
+      for k in ("type", "sender", "recipient"):
         setattr(self.obj, k, attrs.getValue(k).encode("ascii"))
     else:
       assert self.obj != None

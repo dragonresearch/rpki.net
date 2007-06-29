@@ -3,26 +3,17 @@
          version="1"
 	 sender="sender name"
 	 recipient="recipient name"
-	 msg_ref="42"
 	 type="list_response">
     <class class_name="class name"
            cert_url="url"
-	   cert_ski="g(ski)"
 	   resource_set_as="1,2,4,6,16-32"
 	   resource_set_ipv4="128.224.1.1-128.22.4.32"
 	   resource_set_ipv6=""
 	   suggested_sia_head="rsync://wombat.example/fnord/">
         <certificate cert_url="url"
-	             cert_ski="g(ski)"
-		     cert_aki="g(aki)"
-		     cert_serial="1"
-		     resource_set_as=""
-		     resource_set_ipv4=""
-		     resource_set_ipv6=""
 		     req_resource_set_as=""
 		     req_resource_set_ipv4=""
-		     req_resource_set_ipv6=""
-		     status="match">
+		     req_resource_set_ipv6="">
             deadbeef
         </certificate>
         <!-- Repeated for each current certificate naming the client as subject -->

@@ -3,7 +3,7 @@
          version="1"
 	 sender="sender name"
 	 recipient="recipient name"
-	 msg_ref="42" type="issue">
+	 type="issue">
     <request class_name="class name"
              req_resource_set_as=""
 	     req_resource_set_ipv4="10.0.0.44/32"

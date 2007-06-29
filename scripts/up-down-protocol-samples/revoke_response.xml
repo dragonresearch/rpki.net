@@ -3,7 +3,6 @@
          version="1"
 	 sender="sender name"
 	 recipient="recipient name"
-	 msg_ref="42"
 	 type="revoke_response">
     <key class_name="class name"
          ski="g(ski)"/>

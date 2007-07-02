@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: up-down-medium-schema.rnc 682 2007-06-21 02:42:47Z sra $
+  $Id: up-down-medium-schema.rnc 698 2007-06-29 20:01:08Z sra $
   
   RelaxNG (Compact Syntax) Schema
   for RPKI up-down protocol.  This is based on the schema in the APNIC

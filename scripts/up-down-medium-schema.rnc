@@ -12,8 +12,8 @@
 
      grammar {
        start = element message {
-         attribute version   { xsd:positiveInteger { maxInclusive="1" } },
-         attribute sender    { xsd:token { maxLength="1024" } },
+         attribute version { xsd:positiveInteger { maxInclusive="1" } },
+         attribute sender { xsd:token { maxLength="1024" } },
          attribute recipient { xsd:token { maxLength="1024" } },
          payload
        }
@@ -64,7 +64,7 @@
        }
 
        error_response =
-         element status { 
+         element status {
 	    "1101" |	# Already processing request
 	    "1102" |	# version number error
 	    "1103" |	# unrecognised request type

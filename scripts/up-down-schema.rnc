@@ -33,15 +33,15 @@
        class = element class {
          attribute class_name { xsd:token { maxLength="1024" } },
          attribute cert_url { xsd:anyURI { maxLength="1024" } },
-         attribute resource_set_as { xsd:string { maxLength="512000" } },
-         attribute resource_set_ipv4 { xsd:string { maxLength="512000" } },
-         attribute resource_set_ipv6 { xsd:string { maxLength="512000" } },
+         attribute resource_set_as { xsd:string { maxLength="512000" pattern="[\-,0-9]*" } },
+         attribute resource_set_ipv4 { xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" }  },
+         attribute resource_set_ipv6 { xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" } },
          attribute suggested_sia_head { xsd:string { maxLength="1024" } }?,
          element certificate {
            attribute cert_url { xsd:anyURI { maxLength="1024" } },
-           attribute req_resource_set_as { xsd:string { maxLength="512000" } }?,
-           attribute req_resource_set_ipv4 { xsd:string { maxLength="512000" } }?,
-           attribute req_resource_set_ipv6 { xsd:string { maxLength="512000" } }?,
+           attribute req_resource_set_as { xsd:string { maxLength="512000" pattern="[\-,0-9]*" } }?,
+           attribute req_resource_set_ipv4 { xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" } }?,
+           attribute req_resource_set_ipv6 { xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" } }?,
            xsd:base64Binary { maxLength="512000" }
          }*,
          element issuer { xsd:base64Binary { maxLength="512000" } }
@@ -49,9 +49,9 @@
 
        issue_request = element request {
          attribute class_name { xsd:token { maxLength="1024" } },
-         attribute req_resource_set_as { xsd:string { maxLength="512000" } }?,
-         attribute req_resource_set_ipv4 { xsd:string { maxLength="512000" } }?,
-         attribute req_resource_set_ipv6 { xsd:string { maxLength="512000" } }?,
+         attribute req_resource_set_as { xsd:string { maxLength="512000" pattern="[\-,0-9]*" } }?,
+         attribute req_resource_set_ipv4 { xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" } }?,
+         attribute req_resource_set_ipv6 { xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" } }?,
          xsd:base64Binary { maxLength="512000" }
        }
        issue_response = class

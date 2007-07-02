@@ -11,8 +11,8 @@
 	   resource_set_ipv6="dead:beef::/128">
         <certificate cert_url="url"
 		     req_resource_set_as=""
-		     req_resource_set_ipv4="10.0.0.77/16,127.0.0.1/8"
-		     req_resource_set_ipv6="dead:beef::/16">
+		     req_resource_set_ipv4="10.0.0.0/16,127.0.0.0/8"
+		     req_resource_set_ipv6="dead:beef::/48">
             deadbeef
         </certificate>
         <issuer>deadbeef</issuer>

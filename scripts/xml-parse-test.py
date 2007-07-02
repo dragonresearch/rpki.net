@@ -1,6 +1,6 @@
 # $Id$
 
-import base64, glob, math, os, re, socket, struct, xml.sax
+import base64, glob, os, re, socket, struct, xml.sax
 
 def relaxng(xml, rng):
   i, o = os.popen4(("xmllint", "--noout", "--relaxng", rng, "-"))
@@ -63,23 +63,25 @@ class rpki_updown_resource_set_ip(rpki_updown_resource_set):
     if r:
       min = self.pton(r.group(1))
       prefixlen = int(r.group(2))
-      mask = (1 << (self.bitlen - prefixlen)) - 1
+      mask = (1 << (self.bits - prefixlen)) - 1
       assert (min & mask) == 0, "Resource not in canonical form: %s" % (elt)
       max = min | mask
       return self.range(min, max)
     raise RuntimeError, 'Bad IP resource "%s"' % (elt)
 
   def tostr(self, elt):
-    if elt.min == elt.max:
-      return self.ntop(elt.min) + "/" + str(self.bitlen)
     mask = elt.min ^ elt.max
-    if mask & -mask == 1 and ((mask + 1) & -(mask + 1)) == (mask + 1):
-      return self.ntop(elt.min) + "/" + str(self.bitlen - int(math.log(mask + 1, 2)))
-    else:
+    prefixlen = self.bits
+    while mask & 1:
+      prefixlen -= 1
+      mask >>= 1
+    if mask:
       return self.ntop(elt.min) + "-" + self.ntop(elt.max)
+    else:
+      return self.ntop(elt.min) + "/" + str(prefixlen)
 
 class rpki_updown_resource_set_ipv4(rpki_updown_resource_set_ip):
-  bitlen = 32
+  bits = 32
 
   def pton(self, x):
     r = struct.unpack("!I", socket.inet_pton(socket.AF_INET, x))
@@ -89,7 +91,7 @@ class rpki_updown_resource_set_ipv4(rpki_updown_resource_set_ip):
     return socket.inet_ntop(socket.AF_INET, struct.pack("!I", x))
 
 class rpki_updown_resource_set_ipv6(rpki_updown_resource_set_ip):
-  bitlen = 128
+  bits = 128
 
   def pton(self, x):
     r = struct.unpack("!QQ", socket.inet_pton(socket.AF_INET6, x))

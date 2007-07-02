@@ -1,11 +1,6 @@
 # $Id$
 
-import base64
-import glob
-import os
-import re
-import socket
-import xml.sax
+import base64, glob, os, re, socket, struct, xml.sax
 
 def relaxng(xml, rng):
   i, o = os.popen4(("xmllint", "--noout", "--relaxng", rng, "-"))
@@ -51,21 +46,29 @@ class rpki_updown_resource_set(object):
 class rpki_updown_resource_set_as(rpki_updown_resource_set):
   prefixes = False
   re = "[0-9]+"
-  def pton(self, x): return long(x)
-  def ntop(self, x): return str(x)
+  def pton(self, x):
+    return long(x)
+  def ntop(self, x):
+    return str(x)
 
 class rpki_updown_resource_set_ip(rpki_updown_resource_set):
   prefixes = True
-  def pton(self, x): return socket.inet_pton(self.af, x)
-  def ntop(self, x): return socket.inet_ntop(self.af, x)
 
 class rpki_updown_resource_set_ipv4(rpki_updown_resource_set_ip):
   re = "[0-9.]+"
-  af = socket.AF_INET
+  def pton(self, x):
+    r = struct.unpack("!I", socket.inet_pton(socket.AF_INET, x))
+    return r[0]
+  def ntop(self, x):
+    return socket.inet_ntop(socket.AF_INET, struct.pack("!I", x))
 
 class rpki_updown_resource_set_ipv6(rpki_updown_resource_set_ip):
   re = "[0-9:a-fA-F]+"
-  af = socket.AF_INET6
+  def pton(self, x):
+    r = struct.unpack("!QQ", socket.inet_pton(socket.AF_INET6, x))
+    return (r[0] << 64) | r[1]
+  def ntop(self, x):
+    return socket.inet_ntop(socket.AF_INET6, struct.pack("!QQ", x >> 64, x & 0xFFFFFFFFFFFFFFFF))
 
 class rpki_updown_msg(object):
 

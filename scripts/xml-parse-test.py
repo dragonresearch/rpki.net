@@ -31,6 +31,9 @@ class rpki_updown_resource_set(object):
     else:
       self.vec = map(self.parse, s.split(","))
       self.vec.sort()
+      if __debug__:
+        for i in range(0, len(self.vec) - 1):
+          assert self.vec[i].max < self.vec[i+1].min, 'Resource overlap "%s"' % (s)
 
   def __str__(self):
     vec = map(self.tostr, self.vec)
@@ -41,8 +44,7 @@ class rpki_updown_resource_set_as(rpki_updown_resource_set):
   def parse(self, elt):
     r = re.match("^([0-9]+)-([0-9]+)$", elt)
     if r:
-      b, e = r.groups()
-      return self.range(long(b), long(e))
+      return self.range(long(r.group(1)), long(r.group(2)))
     else:
       return self.range(long(elt), long(elt))
 
@@ -57,8 +59,7 @@ class rpki_updown_resource_set_ip(rpki_updown_resource_set):
   def parse(self, elt):
     r = re.match("^([0-9:.a-fA-F]+)-([0-9:.a-fA-F]+)$", elt)
     if r:
-      b, e = r.groups()
-      return self.range(self.pton(b), self.pton(e))
+      return self.range(self.pton(r.group(1)), self.pton(r.group(2)))
     r = re.match("^([0-9:.a-fA-F]+)/([0-9]+)$", elt)
     if r:
       min = self.pton(r.group(1))

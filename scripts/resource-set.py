@@ -18,11 +18,9 @@ class ip_address(object):
     return self.addr.__hash__()
 
 class ipv4_address(ip_address):
-  re = "[0-9.]+"
   af = socket.AF_INET
 
 class ipv6_address(ip_address):
-  re = "[0-9:a-fA-F]+"
   af = socket.AF_INET6
 
 class resource(object):
@@ -34,7 +32,7 @@ class asn(resource, long):
 class ip_prefix(resource):
 
   def __init__(self, addr, prefixlen):
-    self.addr = addr
+    self.addr = self.ac(addr)
     self.prefixlen = prefixlen
 
   def __str__(self):
@@ -45,6 +43,12 @@ class ip_prefix(resource):
 
   def __hash__(self):
     return self.addr.__hash__() + self.prefixlen.__hash__()
+
+class ipv4_prefix(ip_prefix):
+  ac = ipv4_address
+
+class ipv6_prefix(ip_prefix):
+  ac = ipv6_address
 
 class resource_range(resource):
 
@@ -70,13 +74,10 @@ class resource_set(set):
     set.__init__(self, elts)
 
   def __str__(self):
-    return "{" + ", ".join(map(str, self)) + "}"
+    s = [i for i in self]
+    s.sort()
+    return "{" + ", ".join(map(str, s)) + "}"
 
-s = resource_set(ip_prefix(ipv6_address("fe80::"), 16), ip_prefix(ipv4_address("10.0.0.44"), 32))
+s = resource_set(ipv6_prefix("fe80::", 16), ipv4_prefix("10.0.0.44", 32), ipv4_prefix("10.3.0.44", 32))
 
 print s
-
-print len(s)
-
-for i in s:
-  print i

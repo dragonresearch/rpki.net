@@ -1,6 +1,6 @@
 # $Id$
 
-import base64, glob, os, re, socket, struct, xml.sax
+import base64, glob, math, os, re, socket, struct, xml.sax
 
 def relaxng(xml, rng):
   i, o = os.popen4(("xmllint", "--noout", "--relaxng", rng, "-"))
@@ -13,60 +13,88 @@ def relaxng(xml, rng):
 
 class rpki_updown_resource_set(object):
 
+  class range(object):
+
+    def __init__(self, min, max):
+      self.min = min
+      self.max = max
+
+    def __cmp__(self, other):
+      c = self.min - other.min
+      if c == 0:
+        c = self.max - other.max
+      return c
+
   def __init__(self, s):
-    self.vec = []
-    if s != "":
-      vec = s.split(",")
-      for elt in vec:
-        r = re.match("^(%s)-(%s)$" % (self.re, self.re), elt)
-        if r:
-          b, e = r.groups()
-          self.vec.append((self.pton(b), self.pton(e)))
-          continue
-        if self.prefixes:
-          r = re.match("^(%s)/([0-9]+)$" % (self.re), elt)
-        if r:
-          i, p = r.groups()
-          self.vec.append((self.pton(i), int(p)))
-          continue
-        self.vec.append((self.pton(elt), ))
+    if s == "":
+      self.vec = []
+    else:
+      self.vec = map(self.parse, s.split(","))
       self.vec.sort()
 
   def __str__(self):
-    vec = []
-    for elt in self.vec:
-      if len(elt) == 1:
-        vec.append(self.ntop(elt[0]))
-      elif self.prefixes and isinstance(elt[1], int):
-        vec.append(self.ntop(elt[0]) + "/" + str(elt[1]))
-      else:
-        vec.append(self.ntop(elt[0]) + "-" + self.ntop(elt[1]))
+    vec = map(self.tostr, self.vec)
     return ",".join(vec)
 
 class rpki_updown_resource_set_as(rpki_updown_resource_set):
-  prefixes = False
-  re = "[0-9]+"
-  def pton(self, x):
-    return long(x)
-  def ntop(self, x):
-    return str(x)
+
+  def parse(self, elt):
+    r = re.match("^([0-9]+)-([0-9]+)$", elt)
+    if r:
+      b, e = r.groups()
+      return self.range(long(b), long(e))
+    else:
+      return self.range(long(elt), long(elt))
+
+  def tostr(self, elt):
+    if elt.min == elt.max:
+      return str(elt.min)
+    else:
+      return str(elt.min) + "-" + str(elt.max)
 
 class rpki_updown_resource_set_ip(rpki_updown_resource_set):
-  prefixes = True
+
+  def parse(self, elt):
+    r = re.match("^([0-9:.a-fA-F]+)-([0-9:.a-fA-F]+)$", elt)
+    if r:
+      b, e = r.groups()
+      return self.range(self.pton(b), self.pton(e))
+    r = re.match("^([0-9:.a-fA-F]+)/([0-9]+)$", elt)
+    if r:
+      min = self.pton(r.group(1))
+      prefixlen = int(r.group(2))
+      mask = (1 << (self.bitlen - prefixlen)) - 1
+      assert (min & mask) == 0, "Resource not in canonical form: %s" % (elt)
+      max = min | mask
+      return self.range(min, max)
+    raise RuntimeError, 'Bad IP resource "%s"' % (elt)
+
+  def tostr(self, elt):
+    if elt.min == elt.max:
+      return self.ntop(elt.min) + "/" + str(self.bitlen)
+    mask = elt.min ^ elt.max
+    if mask & -mask == 1 and ((mask + 1) & -(mask + 1)) == (mask + 1):
+      return self.ntop(elt.min) + "/" + str(self.bitlen - int(math.log(mask + 1, 2)))
+    else:
+      return self.ntop(elt.min) + "-" + self.ntop(elt.max)
 
 class rpki_updown_resource_set_ipv4(rpki_updown_resource_set_ip):
-  re = "[0-9.]+"
+  bitlen = 32
+
   def pton(self, x):
     r = struct.unpack("!I", socket.inet_pton(socket.AF_INET, x))
     return r[0]
+
   def ntop(self, x):
     return socket.inet_ntop(socket.AF_INET, struct.pack("!I", x))
 
 class rpki_updown_resource_set_ipv6(rpki_updown_resource_set_ip):
-  re = "[0-9:a-fA-F]+"
+  bitlen = 128
+
   def pton(self, x):
     r = struct.unpack("!QQ", socket.inet_pton(socket.AF_INET6, x))
     return (r[0] << 64) | r[1]
+
   def ntop(self, x):
     return socket.inet_ntop(socket.AF_INET6, struct.pack("!QQ", x >> 64, x & 0xFFFFFFFFFFFFFFFF))
 

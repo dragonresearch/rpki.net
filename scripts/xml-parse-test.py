@@ -15,8 +15,8 @@ class v4addr(long):
   bits = 32
 
   def __new__(cls, x):
-    r = struct.unpack("!I", socket.inet_pton(socket.AF_INET, x))
-    return long.__new__(cls, r[0])
+    y = struct.unpack("!I", socket.inet_pton(socket.AF_INET, x))
+    return long.__new__(cls, y[0])
 
   def __str__(self):
     return socket.inet_ntop(socket.AF_INET, struct.pack("!I", long(self)))
@@ -25,13 +25,11 @@ class v6addr(long):
   bits = 128
 
   def __new__(cls, x):
-    r = struct.unpack("!QQ", socket.inet_pton(socket.AF_INET6, x))
-    return long.__new__(cls, (r[0] << 64) | r[1])
+    y = struct.unpack("!QQ", socket.inet_pton(socket.AF_INET6, x))
+    return long.__new__(cls, (y[0] << 64) | y[1])
 
   def __str__(self):
-    return socket.inet_ntop(socket.AF_INET6,
-                            struct.pack("!QQ", long(self) >> 64,
-                                        long(self) & 0xFFFFFFFFFFFFFFFF))
+    return socket.inet_ntop(socket.AF_INET6, struct.pack("!QQ", long(self) >> 64, long(self) & 0xFFFFFFFFFFFFFFFF))
 
 class resource_range(object):
 
@@ -67,32 +65,24 @@ class resource_range_ip(resource_range):
     else:
       return str(self.min) + "/" + str(prefixlen)
 
-class resource_range_ipv4(resource_range_ip): pass
+class resource_range_ipv4(resource_range_ip):
+  pass
 
-class resource_range_ipv6(resource_range_ip): pass
+class resource_range_ipv6(resource_range_ip):
+  pass
 
-class resource_set(object):
+class resource_set(list):
 
   def __init__(self, s):
-    if s == "":
-      self.vec = []
-    else:
-      self.vec = map(self.parse, s.split(","))
-      self.vec.sort()
+    if s:
+      self.extend(map(self.parse, s.split(",")))
+      self.sort()
       if __debug__:
-        for i in range(0, len(self.vec) - 1):
-          assert self.vec[i].max < self.vec[i + 1].min, 'Resource overlap "%s"' % (s)
+        for i in range(0, len(self) - 1):
+          assert self[i].max < self[i + 1].min, 'Resource overlap "%s"' % (s)
 
   def __str__(self):
-    vec = map(str, self.vec)
-    return ",".join(vec)
-
-  def __iter__(self):
-    for i in self.vec:
-      yield i
-
-  def __len__(self):
-    return len(self.vec)
+    return ",".join(map(str, self))
 
 class resource_set_as(resource_set):
 

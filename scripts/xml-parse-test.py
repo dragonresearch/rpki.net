@@ -54,7 +54,7 @@ class resource_range_as(resource_range):
     else:
       return str(self.min) + "-" + str(self.max)
 
-class resource_range_addr(resource_range):
+class resource_range_ip(resource_range):
 
   def __str__(self):
     mask = self.min ^ self.max
@@ -67,6 +67,10 @@ class resource_range_addr(resource_range):
     else:
       return str(self.min) + "/" + str(prefixlen)
 
+class resource_range_ipv4(resource_range_ip): pass
+
+class resource_range_ipv6(resource_range_ip): pass
+
 class resource_set(object):
 
   def __init__(self, s):
@@ -77,11 +81,18 @@ class resource_set(object):
       self.vec.sort()
       if __debug__:
         for i in range(0, len(self.vec) - 1):
-          assert self.vec[i].max < self.vec[i+1].min, 'Resource overlap "%s"' % (s)
+          assert self.vec[i].max < self.vec[i + 1].min, 'Resource overlap "%s"' % (s)
 
   def __str__(self):
     vec = map(str, self.vec)
     return ",".join(vec)
+
+  def __iter__(self):
+    for i in self.vec:
+      yield i
+
+  def __len__(self):
+    return len(self.vec)
 
 class resource_set_as(resource_set):
 
@@ -97,7 +108,7 @@ class resource_set_ip(resource_set):
   def parse(self, x):
     r = re.match("^([0-9:.a-fA-F]+)-([0-9:.a-fA-F]+)$", x)
     if r:
-      return resource_range_addr(self.addr_type(r.group(1)), self.addr_type(r.group(2)))
+      return self.range_type(self.addr_type(r.group(1)), self.addr_type(r.group(2)))
     r = re.match("^([0-9:.a-fA-F]+)/([0-9]+)$", x)
     if r:
       min = self.addr_type(r.group(1))
@@ -105,14 +116,16 @@ class resource_set_ip(resource_set):
       mask = (1 << (self.addr_type.bits - prefixlen)) - 1
       assert (min & mask) == 0, "Resource not in canonical form: %s" % (x)
       max = min | mask
-      return resource_range_addr(min, max)
+      return self.range_type(min, max)
     raise RuntimeError, 'Bad IP resource "%s"' % (x)
 
 class resource_set_ipv4(resource_set_ip):
   addr_type = v4addr
+  range_type = resource_range_ipv4
 
 class resource_set_ipv6(resource_set_ip):
   addr_type = v6addr
+  range_type = resource_range_ipv6
 
 class msg(object):
 
@@ -320,24 +333,13 @@ class sax_handler(xml.sax.handler.ContentHandler):
 files = glob.glob("up-down-protocol-samples/*.xml")
 files.sort()
 for f in files:
-# try:
-
-    handler = sax_handler()
-
-#   parser = xml.sax.make_parser()
-#   parser.setContentHandler(handler)
-#   parser.parse(f)
-
-    fh = open(f, "r")
-    x = fh.read()
-    fh.close()
-    xml.sax.parseString(x, handler)
-
-    obj = handler.obj
-    print "<!-- " + str(obj) + " -->\n"
-    x = obj.msgToXML()
-    print x
-    relaxng(x, "up-down-medium-schema.rng")
-
-# except Exception, err:
-#   print "? " + str(err) + "\n"
+  handler = sax_handler()
+  fh = open(f, "r")
+  x = fh.read()
+  fh.close()
+  xml.sax.parseString(x, handler)
+  obj = handler.obj
+  print "<!-- " + str(obj) + " -->\n"
+  x = obj.msgToXML()
+  print x
+  relaxng(x, "up-down-medium-schema.rng")

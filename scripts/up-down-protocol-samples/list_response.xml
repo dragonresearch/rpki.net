@@ -7,7 +7,7 @@
     <class class_name="class name"
            cert_url="url"
 	   resource_set_as="1,2,4,6,16-32"
-	   resource_set_ipv4="128.224.1.1-128.22.4.32"
+	   resource_set_ipv4="128.224.1.1-128.224.4.32"
 	   resource_set_ipv6=""
 	   suggested_sia_head="rsync://wombat.example/fnord/">
         <certificate cert_url="url"

@@ -3,6 +3,12 @@
 import base64, xml.sax, resource_set
 
 def snarf(obj, attrs, key, func=None):
+  """
+  Utility function to consolidate the steps needed to extract a field
+  from the SAX XML parse and insert it as an object attribute of the
+  same name.
+  """
+
   try:
     val = attrs.getValue(key).encode("ascii")
     if func:
@@ -12,6 +18,9 @@ def snarf(obj, attrs, key, func=None):
   setattr(obj, key, val)
 
 class msg(object):
+  """
+  Base type for Up-Down protocol PDU.
+  """
 
   def __str__(self):
     return ('\
@@ -34,6 +43,9 @@ class msg(object):
     pass
 
 class cert(object):
+  """
+  Up-Down protocol representation of an issued certificate.
+  """
 
   def __init__(self, attrs):
     snarf(self, attrs, "cert_url")
@@ -53,6 +65,9 @@ class cert(object):
     return xml
 
 class klass(object):
+  """
+  Up-Down protocol representation of a resource class.
+  """
 
   def __init__(self, attrs):
     snarf(self, attrs, "class_name")
@@ -81,9 +96,15 @@ class klass(object):
     return xml
 
 class list(msg):
+  """
+  Up-Down protocol "list" PDU.
+  """
   pass
 
 class list_response(msg):
+  """
+  Up-Down protocol "list_response" PDU.
+  """
 
   def __init__(self):
     self.klasses = []
@@ -104,6 +125,9 @@ class list_response(msg):
     return "".join(map(str, self.klasses))
 
 class issue(msg):
+  """
+  Up-Down protocol "issue" PDU.
+  """
 
   def startElement(self, name, attrs):
     assert name == "request"
@@ -127,12 +151,18 @@ class issue(msg):
     return xml + ">" + base64.b64encode(self.pkcs10) + "</request>\n"
 
 class issue_response(list_response):
+  """
+  Up-Down protocol "issue_response" PDU.
+  """
 
   def toXML(self):
     assert len(self.klasses) == 1
     return list_response.toXML(self)
 
 class revoke(msg):
+  """
+  Up-Down protocol "revoke" PDU.
+  """
 
   def startElement(self, name, attrs):
     snarf(self, attrs, "class_name")
@@ -142,9 +172,15 @@ class revoke(msg):
     return ('  <key class_name="%s" ski="%s" />\n' % (self.class_name, self.ski))
 
 class revoke_response(revoke):
+  """
+  Up-Down protocol "revoke_response" PDU.
+  """
   pass
 
 class error_response(msg):
+  """
+  Up-Down protocol "error_response" PDU.
+  """
 
   def toXML(self):
     return '  <status>%d</status>\n' % self.status
@@ -158,6 +194,10 @@ class error_response(msg):
       self.description = text
 
 class sax_handler(xml.sax.handler.ContentHandler):
+  """
+  SAX handler for Up-Down protocol.  Builds message PDU then
+  dispatches to that class's handler for nested data.
+  """
 
   def __init__(self):
     self.text = ""

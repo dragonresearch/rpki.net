@@ -3,6 +3,10 @@
 import socket, struct
 
 class v4addr(long):
+  """
+  IPv4 address.  Derived from long, but supports IPv4 print syntax.
+  """
+
   bits = 32
 
   def __new__(cls, x):
@@ -15,6 +19,10 @@ class v4addr(long):
     return socket.inet_ntop(socket.AF_INET, struct.pack("!I", long(self)))
 
 class v6addr(long):
+  """
+  IPv6 address.  Derived from long, but supports IPv6 print syntax.
+  """
+
   bits = 128
 
   def __new__(cls, x):

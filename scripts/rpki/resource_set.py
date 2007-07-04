@@ -3,6 +3,10 @@
 import re, ipaddrs
 
 class resource_range(object):
+  """
+  Generic resource range type.  Assumes underlying type is some kind of integer.
+  You probably don't want to use this type directly.
+  """
 
   def __init__(self, min, max):
     assert min <= max, "Mis-ordered range: %s before %s" % (str(min), str(max))
@@ -16,6 +20,10 @@ class resource_range(object):
     return c
 
 class resource_range_as(resource_range):
+  """
+  Range of Autonomous System Numbers.
+  Denote a single ASN by a range whose min and max values are identical.
+  """
 
   def __str__(self):
     if self.min == self.max:
@@ -24,6 +32,11 @@ class resource_range_as(resource_range):
       return str(self.min) + "-" + str(self.max)
 
 class resource_range_ip(resource_range):
+  """
+  Range of (generic) IP addresses.  Prefixes are converted to ranges
+  on input, and ranges that can be represented as prefixes are written
+  as prefixes on output.
+  """
 
   def __str__(self):
     mask = self.min ^ self.max
@@ -37,12 +50,22 @@ class resource_range_ip(resource_range):
       return str(self.min) + "/" + str(prefixlen)
 
 class resource_range_ipv4(resource_range_ip):
+  """
+  Range of IPv4 addresses.
+  """
   pass
 
 class resource_range_ipv6(resource_range_ip):
+  """
+  Range of IPv6 addresses.
+  """
   pass
 
 class resource_set(list):
+  """
+  Generic resource set.  List type containing resource ranges.
+  You probably don't want to use this type directly.
+  """
 
   def __init__(self, s):
     if s:
@@ -56,6 +79,9 @@ class resource_set(list):
     return ",".join(map(str, self))
 
 class resource_set_as(resource_set):
+  """
+  ASN resource set.
+  """
 
   def parse(self, x):
     r = re.match("^([0-9]+)-([0-9]+)$", x)
@@ -65,6 +91,10 @@ class resource_set_as(resource_set):
       return resource_range_as(long(x), long(x))
 
 class resource_set_ip(resource_set):
+  """
+  (Generic) IP address resource set.
+  You probably don't want to use this type directly.
+  """
 
   def parse(self, x):
     r = re.match("^([0-9:.a-fA-F]+)-([0-9:.a-fA-F]+)$", x)
@@ -81,9 +111,17 @@ class resource_set_ip(resource_set):
     raise RuntimeError, 'Bad IP resource "%s"' % (x)
 
 class resource_set_ipv4(resource_set_ip):
+  """
+  IPv4 address resource set.
+  """
+
   addr_type = ipaddrs.v4addr
   range_type = resource_range_ipv4
 
 class resource_set_ipv6(resource_set_ip):
+  """
+  IPv6 address resource set.
+  """
+
   addr_type = ipaddrs.v6addr
   range_type = resource_range_ipv6

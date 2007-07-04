@@ -52,7 +52,7 @@ class cert(object):
     xml += ">" + base64.b64encode(self.cert) + "</certificate>\n"
     return xml
 
-class resource_class(object):
+class klass(object):
 
   def __init__(self, attrs):
     snarf(self, attrs, "class_name")
@@ -86,22 +86,22 @@ class list(msg):
 class list_response(msg):
 
   def __init__(self):
-    self.resource_classes = []
+    self.klasses = []
 
   def startElement(self, name, attrs):
     if name == "class":
-      self.resource_classes.append(resource_class(attrs))
+      self.klasses.append(klass(attrs))
     elif name == "certificate":
-      self.resource_classes[-1].certs.append(cert(attrs))
+      self.klasses[-1].certs.append(cert(attrs))
 
   def endElement(self, name, text):
     if name == "certificate":
-      self.resource_classes[-1].certs[-1].cert = base64.b64decode(text)
+      self.klasses[-1].certs[-1].cert = base64.b64decode(text)
     elif name == "issuer":
-      self.resource_classes[-1].issuer = base64.b64decode(text)
+      self.klasses[-1].issuer = base64.b64decode(text)
 
   def toXML(self):
-    return "".join(map(str, self.resource_classes))
+    return "".join(map(str, self.klasses))
 
 class issue(msg):
 
@@ -129,7 +129,7 @@ class issue(msg):
 class issue_response(list_response):
 
   def toXML(self):
-    assert len(self.resource_classes) == 1
+    assert len(self.klasses) == 1
     return list_response.toXML(self)
 
 class revoke(msg):

@@ -1,4 +1,3 @@
-#!/usr/local/bin/python
 # $Id$
 
 import glob, rpki.up_down, rpki.relaxng, xml.sax
@@ -11,8 +10,6 @@ for f in files:
   x = fh.read()
   fh.close()
   xml.sax.parseString(x, handler)
-  obj = handler.obj
-  print "<!-- " + str(obj) + " -->\n"
-  x = obj.msgToXML()
+  x = str(handler.obj)
   print x
   rpki.relaxng.relaxng(x, "up-down-medium-schema.rng")

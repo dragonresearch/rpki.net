@@ -2,9 +2,18 @@
 
 import base64, xml.sax, resource_set
 
+def snarf(obj, attrs, key, func=None):
+  try:
+    val = attrs.getValue(key).encode("ascii")
+    if func:
+      val = func(val)
+  except KeyError:
+    val = None
+  setattr(obj, key, val)
+
 class msg(object):
 
-  def msgToXML(self):
+  def __str__(self):
     return ('\
 <?xml version="1.0" encoding="UTF-8"?>\n\
 <message xmlns="http://www.apnic.net/specs/rescerts/up-down/"\n\
@@ -24,23 +33,15 @@ class msg(object):
   def endElement(self, name, text):
     pass
 
-  def __str__(self):
-    return self.msgToXML()
-
 class cert(object):
 
   def __init__(self, attrs):
-    for k in ("cert_url", ):
-      setattr(self, k, attrs.getValue(k).encode("ascii"))
-    for k,f in (("req_resource_set_as", resource_set.resource_set_as),
-                ("req_resource_set_ipv4", resource_set.resource_set_ipv4),
-                ("req_resource_set_ipv6", resource_set.resource_set_ipv6)):
-      try:
-        setattr(self, k, f(attrs.getValue(k).encode("ascii")))
-      except KeyError:
-        setattr(self, k, None)
+    snarf(self, attrs, "cert_url")
+    snarf(self, attrs, "req_resource_set_as",   resource_set.resource_set_as)
+    snarf(self, attrs, "req_resource_set_ipv4", resource_set.resource_set_ipv4)
+    snarf(self, attrs, "req_resource_set_ipv6", resource_set.resource_set_ipv6)
 
-  def toXML(self):
+  def __str__(self):
     xml = ('    <certificate cert_url="%s"' % (self.cert_url))
     if self.req_resource_set_as:
       xml += ('\n                 req_resource_set_as="%s"' % self.req_resource_set_as)
@@ -54,19 +55,15 @@ class cert(object):
 class resource_class(object):
 
   def __init__(self, attrs):
-    for k in ("class_name", "cert_url"):
-      setattr(self, k, attrs.getValue(k).encode("ascii"))
-    for k,f in (("resource_set_as", resource_set.resource_set_as),
-                ("resource_set_ipv4", resource_set.resource_set_ipv4),
-                ("resource_set_ipv6", resource_set.resource_set_ipv6)):
-      setattr(self, k, f(attrs.getValue(k).encode("ascii")))
-    try:
-      self.suggested_sia_head = attrs.getValue("suggested_sia_head")
-    except KeyError:
-      self.suggested_sia_head = None
+    snarf(self, attrs, "class_name")
+    snarf(self, attrs, "cert_url")
+    snarf(self, attrs, "resource_set_as",   resource_set.resource_set_as)
+    snarf(self, attrs, "resource_set_ipv4", resource_set.resource_set_ipv4)
+    snarf(self, attrs, "resource_set_ipv6", resource_set.resource_set_ipv6)
+    snarf(self, attrs, "suggested_sia_head")
     self.certs = []
 
-  def toXML(self):
+  def __str__(self):
     xml = ('\
   <class class_name="%s"\n\
          cert_url="%s"\n\
@@ -79,7 +76,7 @@ class resource_class(object):
       xml += ('\n         suggested_sia_head="%s"' % (self.suggested_sia_head))
     xml += ">\n"
     for cert in self.certs:
-      xml += cert.toXML()
+      xml += str(cert)
     xml += "    <issuer>" + base64.b64encode(self.issuer) + "</issuer>\n  </class>\n"
     return xml
 
@@ -104,23 +101,16 @@ class list_response(msg):
       self.resource_classes[-1].issuer = base64.b64decode(text)
 
   def toXML(self):
-    xml = ""
-    for c in self.resource_classes:
-      xml += c.toXML()
-    return xml
+    return "".join(map(str, self.resource_classes))
 
 class issue(msg):
 
   def startElement(self, name, attrs):
     assert name == "request"
-    self.class_name = attrs.getValue("class_name")
-    for k,f in (("req_resource_set_as", resource_set.resource_set_as),
-                ("req_resource_set_ipv4", resource_set.resource_set_ipv4),
-                ("req_resource_set_ipv6", resource_set.resource_set_ipv6)):
-      try:
-        setattr(self, k, f(attrs.getValue(k).encode("ascii")))
-      except KeyError:
-        setattr(self, k, None)
+    snarf(self, attrs, "class_name")
+    snarf(self, attrs, "req_resource_set_as",   resource_set.resource_set_as)
+    snarf(self, attrs, "req_resource_set_ipv4", resource_set.resource_set_ipv4)
+    snarf(self, attrs, "req_resource_set_ipv6", resource_set.resource_set_ipv6)
 
   def endElement(self, name, text):
     assert name == "request"
@@ -145,8 +135,8 @@ class issue_response(list_response):
 class revoke(msg):
 
   def startElement(self, name, attrs):
-    self.class_name = attrs.getValue("class_name")
-    self.ski = attrs.getValue("ski")
+    snarf(self, attrs, "class_name")
+    snarf(self, attrs, "ski")
 
   def toXML(self):
     return ('  <key class_name="%s" ski="%s" />\n' % (self.class_name, self.ski))
@@ -191,19 +181,21 @@ class sax_handler(xml.sax.handler.ContentHandler):
           "revoke"                : revoke(),
           "revoke_response"       : revoke_response(),
           "error_response"        : error_response()
-        }[attrs.getValue("type")]
-      assert self.obj != None
-      for k in ("type", "sender", "recipient"):
-        setattr(self.obj, k, attrs.getValue(k).encode("ascii"))
+        }[attrs.getValue("type").encode("ascii")]
+      assert self.obj
+      snarf(self.obj, attrs, "sender")
+      snarf(self.obj, attrs, "recipient")
+      snarf(self.obj, attrs, "type")
+
     else:
-      assert self.obj != None
+      assert self.obj
       self.obj.startElement(name, attrs)
 
   def characters(self, content):
     self.text += content
 
   def endElement(self, name):
-    assert self.obj != None
+    assert self.obj
     if name != "message":
       self.obj.endElement(name, self.text)
     self.text = ""

@@ -13,6 +13,7 @@ openssl-${VERSION}/Makefile: openssl-${VERSION}/config
 
 openssl-${VERSION}/config: openssl-${VERSION}.tar.gz
 	gzcat openssl-${VERSION}.tar.gz | tar -xf -
+	ln -s . openssl-${VERSION}/lib
 	touch $@
 
 install:

@@ -1,0 +1,116 @@
+Python OpenSSL Wrappers - http://www.sourceforge.net/projects/pow
+=================================================================
+
+Instalation.
+------------
+To install POW you will need to have OpenSSL libraries installed on you 
+computer.  I have been working on Suse8.0/Gentoo1.2 and with OpenSSL 0.9.6.
+
+run the following command to compile and install the module:
+
+   root@alecto:/tmp/pow > python setup.py install
+
+Testing
+-------
+To test POW, run test.py in the testing directory.
+
+Notes
+=====
+
+notBefore, notAfter, thisUpdate, nextUpdate, revocationDate
+-----------------------------------------------------------
+The objects are now all set using a UTCTime string instead of an integer.  
+The reasons for this are as follows:
+	the time functions are unreliable and building them into the 
+	encodeer/decoder cuased some testing problems.
+
+	it allows the use of Python's strptime function which incerases 
+	portablity
+
+	easier to work around problems with a specific version of 
+	strptime/strftime.
+
+PEM Encoded Public RSA Key Backward Incompatibity
+-------------------------------------------------
+Previous versions of POW have been incompatible with the openssl
+application in regards to reading pem encoded public RSA keys.  To fix this
+I changed the function for reading and writing public keys in pem format to
+be compitable wiht openssl.  This virsion of POW will not be able to read
+keys encoded in the old format.  It would be possible to get round this by
+saving them in DER format using POW-0.6 and resaving them in PEM format
+using POW-0.7
+
+Patent Encumbered Ciphers
+-------------------------
+If I run the above command on my machine I get these warnings which indicate 
+the linker could not find a symbol in the source code or any of the 
+libraries the source is linked against.  
+
+././pow.c: In function `evp_cipher_factory':
+././pow.c:292: warning: implicit declaration of function `EVP_rc5_32_12_16_cbc'
+././pow.c:292: warning: return makes pointer from integer without a cast
+././pow.c:293: warning: implicit declaration of function `EVP_rc5_32_12_16_cfb'
+././pow.c:293: warning: return makes pointer from integer without a cast
+././pow.c:294: warning: implicit declaration of function `EVP_rc5_32_12_16_ecb'
+././pow.c:294: warning: return makes pointer from integer without a cast
+././pow.c:295: warning: implicit declaration of function `EVP_rc5_32_12_16_ofb'
+././pow.c:295: warning: return makes pointer from integer without a cast
+
+The OpenSSL package which comes with Suse 7.2 does not have support for the
+RC5 cipher.  The configure script which comes with OpenSSL can create a
+Makefile which builds libraries without any of the ciphers so it may be
+necessary to build POW without support for some ciphers.  This can be done
+by issuing an extra command to setup.py.  
+
+The first command build_ext, builds C and C++ extensions and can be used to
+add directories to search for include files and libraries. For a list of
+these options run the command:
+
+   root@alecto:/tmp/pow > python setup.py --help build_ext
+
+To fix this problem we need to add an extra #define for the C preprocessor:
+
+   root@alecto:/tmp/pow > python setup.py build_ext -D NO_RC5_32_12_16 install
+
+Possible defines are:
+
+   NO_DES
+   NO_RC4
+   NO_IDEA
+   NO_RC2
+   NO_BF
+   NO_CAST5
+   NO_RC5_32_12_16   
+
+Extras
+------
+There are a couple of extra file included for completeness which I used to 
+build the documentation.
+
+POW.pdf  -- The module documentation produced direct from the doc strings.
+doc.sh   -- This script sets up the enviroment and runs xdoc.py, jade and
+            pdfjadetex.
+doc.py   -- This script processes the doc strings to produce DocBook SGML.
+doc.xsl  -- This is the style sheet used to turn the doc strings into one
+            document.
+POW.dsl  -- This is the DSSSL driver file used to drive OpenJade.
+
+Version 1.72 of the DSSSL DocBook style sheets were used, along with Xalan
+to perform the XSL transformation.  
+
+Changes
+-------
+Hmac added 0.6.1
+DER encoding and decoding routinse added 0.7
+Many PKIX objects added 0.7
+Routrines for manipulating extensions for:
+   X509
+   X509CRL
+   X509Revoked
+added 0.7
+PEM encoding routine for public RSA keys changed 0.7
+
+Acknowledgements
+----------------
+Thanks to Pete Gutmann who wrote the invaluable dumpasn1.
+Thanks to Goetz Isenmann for patch for Windows.

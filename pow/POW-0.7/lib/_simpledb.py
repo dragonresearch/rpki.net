@@ -36,7 +36,7 @@
 
 import _oids, _objects, types
 
-class OidData:
+class OidData(object):
    def __init__(self):
       self.oids = _oids.data
       self.objs = _objects.data

@@ -1666,9 +1666,9 @@ class Extension(Sequence):
          extnObj = self.classMap[oid]()
       else:
          if critical:
-            raise DerError, 'failed to read critical extension %s' % oid
+            raise DerError, 'failed to read critical extension %s' % str(oid)
          else:
-            return (name, critical, ())
+            return (oid, critical, ())
 
       try:
          extnObj = self.classMap[oid]()

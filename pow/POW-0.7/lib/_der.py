@@ -137,7 +137,7 @@ class DerError(Exception):
 
    __str__ = __repr__
 
-class _Tag:
+class _Tag(object):
    def __init__(self):
       self.tagclass = 0
       self.tagform = 0
@@ -179,7 +179,7 @@ class _Tag:
                total = (total << 7) | byte
          self.tagnumber = total
  
-class _Length:
+class _Length(object):
    def __init__(self):
       self.length = 0
 
@@ -443,7 +443,7 @@ _addFragment('''
 </class>
 ''')
 
-class _GeneralObject:
+class _GeneralObject(object):
 
    _addFragment('''
    <constructor>
@@ -1982,7 +1982,7 @@ _addFragment('''
    </body>
 </class>
 ''')
-class Choice:
+class Choice(object):
 
    _addFragment('''
    <constructor>

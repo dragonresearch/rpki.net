@@ -1159,7 +1159,7 @@ class GeneralNames(SequenceOf):
       SequenceOf.__init__(self, GeneralName, optional, default)
 
 #---------- GeneralNames object support ----------#
-#---------- extensions ----------#
+#---------- X509v3 extensions ----------#
 
 _addFragment('''
 <class>
@@ -1522,7 +1522,81 @@ _addFragment('''
 class CrlReason(Enum):
    pass
 
-#---------- X509 extensions ----------#
+# [sra] RPKI stuff, needs doc eventually
+
+# RFC 3779 2.2.3 (extension OID (1, 3, 6, 1, 5, 5, 7, 1, 7))
+
+# class IPAddress(BitString): pass
+
+class IPAddressRange(Sequence):
+   def __init__(self, optional=0, default=''):
+      self.min = BitString()
+      self.max = BitString()
+      contents = [ self.min, self.max ]
+      Sequence.__init__(self, contents, optional, default)
+
+class IPAddressOrRange(Choice):
+   def __init__(self, optional=0, default=''):
+      choices = { 'addressPrefix' : BitString(),
+                  'addressRange'  : IPAddressRange() }
+      Choice.__init__(self, choices, optional, default)
+
+class IPAddressesOrRanges(SequenceOf):
+   def __init__(self, optional=0, default=''):
+      SequenceOf.__init__(self, IPAddressOrRange, optional, default)
+
+class IPAddressChoice(Choice):
+   def __init__(self, optional=0, default=''):
+      choices = { 'inherit'             : Null(),
+                  'addressesOrRanges'   : IPAddressesOrRanges() }
+      Choice.__init__(self, choices, optional, default)
+
+class IPAddressFamily(Sequence):
+   def __init__(self, optional=0, default=''):
+      self.addressFamily = OctetString()
+      self.ipAddressChoice = IPAddressChoice()
+      contents = [ self.addressFamily, self.ipAddressChoice ]
+      Sequence.__init__(self, contents, optional, default)
+
+class IPAddrBlocks(SequenceOf):
+   def __init__(self, optional=0, default=''):
+      SequenceOf.__init__(self, IPAddressFamily, optional, default)
+
+# RFC 3779 3.2.3 (extension OID (1, 3, 6, 1, 5, 5, 7, 1, 8))
+
+class ASRange(Sequence):
+   def __init__(self, optional=0, default=''):
+      self.min = Integer()
+      self.max = Integer()
+      contents = [ self.min, self.max ]
+      Sequence.__init__(self, contents, optional, default)
+
+class ASIdOrRange(Choice):
+   def __init__(self, optional=0, default=''):
+      choices = { 'id'    : Integer(),
+                  'range' : ASRange() }
+      Choice.__init__(self, choices, optional, default)
+
+class ASIdsOrRanges(SequenceOf):
+   def __init__(self, optional=0, default=''):
+      SequenceOf.__init__(self, ASIdOrRange, optional, default)
+
+class ASIdentifierChoice(Choice):
+   def __init__(self, optional=0, default=''):
+      choices = { 'inherit'       : Null(),
+                  'asIdsOrRanges' : ASIdsOrRanges() }
+      Choice.__init__(self, choices, optional, default)
+
+class ASIdentifiers(Sequence):
+   def __init__(self, optional=0, default=''):
+      self.asnum = ASIdentifierChoice()
+      self.rdi   = ASIdentifierChoice()
+      self.explicitAsnum = Explicit(CLASS_CONTEXT, FORM_CONSTRUCTED, 0, self.asnum, 1)
+      self.explictRdi    = Explicit(CLASS_CONTEXT, FORM_CONSTRUCTED, 1, self.rdi,   1)
+      contents = [ self.explicitAsnum, self.explictRdi ]
+      Sequence.__init__(self, contents, optional, default)
+
+#---------- X509v3 extensions ----------#
 
 _addFragment('''
 <class>
@@ -1581,6 +1655,8 @@ class Extension(Sequence):
                       (2, 5, 29, 27)  :  DeltaCrlIndicator,
                       (2, 5, 29, 24)  :  InvalidityDate,
                       (2, 5, 29, 21)  :  CrlReason,
+                      (1, 3, 6, 1, 5, 5, 7, 1, 7) : IPAddrBlocks,
+                      (1, 3, 6, 1, 5, 5, 7, 1, 8) : ASIdentifiers,
                   }
 #   Missing -- fix later
 #                                         extendedKeyUsage  
@@ -1670,15 +1746,20 @@ class Extension(Sequence):
          else:
             return (oid, critical, ())
 
-      try:
+      if False:                         # [sra] debugging hack
+          try:
+             extnObj = self.classMap[oid]()
+             extnObj.fromString(self.extnValue.get())
+             value = extnObj.get()
+          except:
+             if critical:
+                raise DerError, 'failed to read critical extension %s' % str(oid)
+             else:
+                return (oid, critical, ())
+      else:
          extnObj = self.classMap[oid]()
          extnObj.fromString(self.extnValue.get())
          value = extnObj.get()
-      except:
-         if critical:
-            raise DerError, 'failed to read critical extension %s' % name
-         else:
-            return (oid, critical, ())
 
       return (oid, critical, value)
 

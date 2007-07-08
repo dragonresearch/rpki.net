@@ -1746,20 +1746,15 @@ class Extension(Sequence):
          else:
             return (oid, critical, ())
 
-      if False:                         # [sra] debugging hack
-          try:
-             extnObj = self.classMap[oid]()
-             extnObj.fromString(self.extnValue.get())
-             value = extnObj.get()
-          except:
-             if critical:
-                raise DerError, 'failed to read critical extension %s' % str(oid)
-             else:
-                return (oid, critical, ())
-      else:
+      try:
          extnObj = self.classMap[oid]()
          extnObj.fromString(self.extnValue.get())
          value = extnObj.get()
+      except:
+         if critical:
+            raise DerError, 'failed to read critical extension %s' % str(oid)
+         else:
+            return (oid, critical, ())
 
       return (oid, critical, value)
 

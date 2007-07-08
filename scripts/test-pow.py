@@ -67,15 +67,55 @@ uMsR5Xzvy12ti/m+7MSTLR1kMxJOFA==
 alice = base64.b64decode(Alice_EE)
 apnic = base64.b64decode(APNIC_Root)
 
-for b64 in (alice, apnic):
-  cert = POW.derRead(POW.X509_CERTIFICATE, b64)
+verbose = False
+
+for der in (alice, apnic):
+  cert = POW.derRead(POW.X509_CERTIFICATE, der)
   print cert.pprint()
-  s = cert.getSubject()
-  n = cert.countExtensions()
-  print n, s
-  for i in range(n):
-    print cert.getExtension(i)
+  if verbose:
+    s = cert.getSubject()
+    n = cert.countExtensions()
+    print n, s
+    for i in range(n):
+      print cert.getExtension(i)
   cert = POW.pkix.Certificate()
-  cert.fromString(b64)
-  for ext in cert.getExtensions():
-    print "  ", ext
+  cert.fromString(der)
+  if verbose:
+    for ext in cert.getExtensions():
+      print "  ", ext
+    print
+  val = [x[2] for x in cert.getExtensions() if x[0] == POW.pkix.obj2oid("sbgp-ipAddrBlock")]
+  if val:
+    for fam in val[0]:
+      if verbose:
+        print type(fam), len(fam)
+        print fam
+      afi = (ord(fam[0][0]) << 8) + ord(fam[0][1])
+      addrlen = { 1 : 32, 2 : 128 }[afi]
+      if len(fam[0]) > 2:
+        safi = ord(fam[0][2])
+      else:
+        safi = None
+      if fam[1][0] == 'inherit':
+        vals = None
+      else:
+        vals = []
+        for aor in fam[1][1]:
+          if verbose:
+            print aor[1]
+          def b2l(x, y): return (x << 1) | y
+          if aor[0] == 'addressRange':
+            min = reduce(b2l, aor[1][0], long(0))
+            max = reduce(b2l, aor[1][1], long(0))
+            min <<= addrlen - len(aor[1][0])
+            max <<= addrlen - len(aor[1][1])
+            max |= (1 << (addrlen - len(aor[1][1]))) - 1
+            txt = "%x-%x" % (min, max)
+            vals.append((txt, min, max))
+          else:
+            prefix = reduce(b2l, aor[1], long(0))
+            prefix <<= addrlen - len(aor[1])
+            prefixlen = len(aor[1])
+            txt = "%x/%d" % (prefix, prefixlen)
+            vals.append((txt, prefix, prefixlen))
+      print afi, safi, vals

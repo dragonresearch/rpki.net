@@ -1,6 +1,6 @@
 # $Id$
 
-import POW, POW.pkix, base64
+import POW, POW.pkix, base64, rpki.ipaddrs
 
 Alice_EE = """
 MIIDGDCCAgCgAwIBAgIJANkdU8+R7K3dMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
@@ -92,6 +92,7 @@ for der in (alice, apnic):
         print fam
       afi = (ord(fam[0][0]) << 8) + ord(fam[0][1])
       addrlen = { 1 : 32, 2 : 128 }[afi]
+      addrtype = { 1 :  rpki.ipaddrs.v4addr, 2 : rpki.ipaddrs.v6addr }[afi]
       if len(fam[0]) > 2:
         safi = ord(fam[0][2])
       else:
@@ -105,17 +106,20 @@ for der in (alice, apnic):
             print aor[1]
           def b2l(x, y): return (x << 1) | y
           if aor[0] == 'addressRange':
-            min = reduce(b2l, aor[1][0], long(0))
-            max = reduce(b2l, aor[1][1], long(0))
+            min = reduce(b2l, aor[1][0], 0L)
+            max = reduce(b2l, aor[1][1], 0L)
             min <<= addrlen - len(aor[1][0])
             max <<= addrlen - len(aor[1][1])
             max |= (1 << (addrlen - len(aor[1][1]))) - 1
-            txt = "%x-%x" % (min, max)
+            min = addrtype(min)
+            max = addrtype(max)
+            txt = "%s-%s" % (min, max)
             vals.append((txt, min, max))
           else:
-            prefix = reduce(b2l, aor[1], long(0))
+            prefix = reduce(b2l, aor[1], 0L)
             prefix <<= addrlen - len(aor[1])
             prefixlen = len(aor[1])
-            txt = "%x/%d" % (prefix, prefixlen)
+            prefix = addrtype(prefix)
+            txt = "%s/%d" % (prefix, prefixlen)
             vals.append((txt, prefix, prefixlen))
       print afi, safi, vals

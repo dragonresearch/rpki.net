@@ -1524,9 +1524,7 @@ class CrlReason(Enum):
 
 # [sra] RPKI stuff, needs doc eventually
 
-# RFC 3779 2.2.3 (extension OID (1, 3, 6, 1, 5, 5, 7, 1, 7))
-
-# class IPAddress(BitString): pass
+# RFC 3779 2.2.3
 
 class IPAddressRange(Sequence):
    def __init__(self, optional=0, default=''):
@@ -1562,7 +1560,7 @@ class IPAddrBlocks(SequenceOf):
    def __init__(self, optional=0, default=''):
       SequenceOf.__init__(self, IPAddressFamily, optional, default)
 
-# RFC 3779 3.2.3 (extension OID (1, 3, 6, 1, 5, 5, 7, 1, 8))
+# RFC 3779 3.2.3
 
 class ASRange(Sequence):
    def __init__(self, optional=0, default=''):
@@ -1595,6 +1593,23 @@ class ASIdentifiers(Sequence):
       self.explictRdi    = Explicit(CLASS_CONTEXT, FORM_CONSTRUCTED, 1, self.rdi,   1)
       contents = [ self.explicitAsnum, self.explictRdi ]
       Sequence.__init__(self, contents, optional, default)
+
+# RFC 3280 4.2.2.1 and 4.2.2.2
+
+class AccessDescription(Sequence):
+   def __init__(self, optional=0, default=''):
+      self.accessMethod = Oid()
+      self.accessLocation = GeneralName()
+      contents = [ self.accessMethod, self.accessLocation ]
+      Sequence.__init__(self, contents, optional, default)
+
+class AuthorityInfoAccess(SequenceOf):
+   def __init__(self, optional=0, default=''):
+      SequenceOf.__init__(self, AccessDescription, optional, default)
+
+class SubjectInfoAccess(SequenceOf):
+   def __init__(self, optional=0, default=''):
+      SequenceOf.__init__(self, AccessDescription, optional, default)
 
 #---------- X509v3 extensions ----------#
 
@@ -1655,8 +1670,10 @@ class Extension(Sequence):
                       (2, 5, 29, 27)  :  DeltaCrlIndicator,
                       (2, 5, 29, 24)  :  InvalidityDate,
                       (2, 5, 29, 21)  :  CrlReason,
-                      (1, 3, 6, 1, 5, 5, 7, 1, 7) : IPAddrBlocks,
-                      (1, 3, 6, 1, 5, 5, 7, 1, 8) : ASIdentifiers,
+                      (1, 3, 6, 1, 5, 5, 7, 1, 1)  : AuthorityInfoAccess,
+                      (1, 3, 6, 1, 5, 5, 7, 1, 7)  : IPAddrBlocks,
+                      (1, 3, 6, 1, 5, 5, 7, 1, 8)  : ASIdentifiers,
+                      (1, 3, 6, 1, 5, 5, 7, 1, 11) : SubjectInfoAccess,
                   }
 #   Missing -- fix later
 #                                         extendedKeyUsage  
@@ -1665,7 +1682,6 @@ class Extension(Sequence):
 #                                         nameConstraints 
 #                                         policyConstraints 
 #                                         subjectDirectoryAttributes 
-#                                         authorityInfoAccess 
 #                                         instructionCode
 #                                         issuingDistrobutionPoint
 

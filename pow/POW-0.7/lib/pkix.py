@@ -1522,10 +1522,14 @@ _addFragment('''
 class CrlReason(Enum):
    pass
 
-# [sra] RPKI stuff, needs doc eventually
-
-# RFC 3779 2.2.3
-
+_addFragment('''
+<class>
+   <header>
+      <name>IPAddressRange</name>
+      <super>Sequence</super>
+   </header>
+</class>
+''')
 class IPAddressRange(Sequence):
    def __init__(self, optional=0, default=''):
       self.min = BitString()
@@ -1533,22 +1537,54 @@ class IPAddressRange(Sequence):
       contents = [ self.min, self.max ]
       Sequence.__init__(self, contents, optional, default)
 
+_addFragment('''
+<class>
+   <header>
+      <name>IPAddressOrRange</name>
+      <super>Choice</super>
+   </header>
+</class>
+''')
 class IPAddressOrRange(Choice):
    def __init__(self, optional=0, default=''):
       choices = { 'addressPrefix' : BitString(),
                   'addressRange'  : IPAddressRange() }
       Choice.__init__(self, choices, optional, default)
 
+_addFragment('''
+<class>
+   <header>
+      <name>IPAddressesOrRanges</name>
+      <super>SequenceOf</super>
+   </header>
+</class>
+''')
 class IPAddressesOrRanges(SequenceOf):
    def __init__(self, optional=0, default=''):
       SequenceOf.__init__(self, IPAddressOrRange, optional, default)
 
+_addFragment('''
+<class>
+   <header>
+      <name>IPAddressChoice</name>
+      <super>Choice</super>
+   </header>
+</class>
+''')
 class IPAddressChoice(Choice):
    def __init__(self, optional=0, default=''):
       choices = { 'inherit'             : Null(),
                   'addressesOrRanges'   : IPAddressesOrRanges() }
       Choice.__init__(self, choices, optional, default)
 
+_addFragment('''
+<class>
+   <header>
+      <name>IPAddressFamily</name>
+      <super>Sequence</super>
+   </header>
+</class>
+''')
 class IPAddressFamily(Sequence):
    def __init__(self, optional=0, default=''):
       self.addressFamily = OctetString()
@@ -1556,12 +1592,31 @@ class IPAddressFamily(Sequence):
       contents = [ self.addressFamily, self.ipAddressChoice ]
       Sequence.__init__(self, contents, optional, default)
 
+_addFragment('''
+<class>
+   <header>
+      <name>IPAddrBlocks</name>
+      <super>SequenceOf</super>
+   </header>
+   <body>
+      <para>
+         Implementation of RFC 3779 section 2.2.3.
+      </para>
+   </body>
+</class>
+''')
 class IPAddrBlocks(SequenceOf):
    def __init__(self, optional=0, default=''):
       SequenceOf.__init__(self, IPAddressFamily, optional, default)
 
-# RFC 3779 3.2.3
-
+_addFragment('''
+<class>
+   <header>
+      <name>ASRange</name>
+      <super>Sequence</super>
+   </header>
+</class>
+''')
 class ASRange(Sequence):
    def __init__(self, optional=0, default=''):
       self.min = Integer()
@@ -1569,22 +1624,59 @@ class ASRange(Sequence):
       contents = [ self.min, self.max ]
       Sequence.__init__(self, contents, optional, default)
 
+_addFragment('''
+<class>
+   <header>
+      <name>ASIdOrRange</name>
+      <super>Choice</super>
+   </header>
+</class>
+''')
 class ASIdOrRange(Choice):
    def __init__(self, optional=0, default=''):
       choices = { 'id'    : Integer(),
                   'range' : ASRange() }
       Choice.__init__(self, choices, optional, default)
 
+_addFragment('''
+<class>
+   <header>
+      <name>ASIdsOrRanges</name>
+      <super>SequenceOf</super>
+   </header>
+</class>
+''')
 class ASIdsOrRanges(SequenceOf):
    def __init__(self, optional=0, default=''):
       SequenceOf.__init__(self, ASIdOrRange, optional, default)
 
+_addFragment('''
+<class>
+   <header>
+      <name>ASIdentifierChoice</name>
+      <super>Choice</super>
+   </header>
+</class>
+''')
 class ASIdentifierChoice(Choice):
    def __init__(self, optional=0, default=''):
       choices = { 'inherit'       : Null(),
                   'asIdsOrRanges' : ASIdsOrRanges() }
       Choice.__init__(self, choices, optional, default)
 
+_addFragment('''
+<class>
+   <header>
+      <name>ASIdentifiers</name>
+      <super>Sequence</super>
+   </header>
+   <body>
+      <para>
+         Implementation of RFC 3779 section 3.2.3.
+      </para>
+   </body>
+</class>
+''')
 class ASIdentifiers(Sequence):
    def __init__(self, optional=0, default=''):
       self.asnum = ASIdentifierChoice()
@@ -1594,8 +1686,14 @@ class ASIdentifiers(Sequence):
       contents = [ self.explicitAsnum, self.explictRdi ]
       Sequence.__init__(self, contents, optional, default)
 
-# RFC 3280 4.2.2.1 and 4.2.2.2
-
+_addFragment('''
+<class>
+   <header>
+      <name>AccessDescription</name>
+      <super>Sequence</super>
+   </header>
+</class>
+''')
 class AccessDescription(Sequence):
    def __init__(self, optional=0, default=''):
       self.accessMethod = Oid()
@@ -1603,10 +1701,36 @@ class AccessDescription(Sequence):
       contents = [ self.accessMethod, self.accessLocation ]
       Sequence.__init__(self, contents, optional, default)
 
+_addFragment('''
+<class>
+   <header>
+      <name>AuthorityInfoAccess</name>
+      <super>SequenceOf</super>
+   </header>
+   <body>
+      <para>
+         Implementation of RFC 3280 section 4.2.2.1.
+      </para>
+   </body>
+</class>
+''')
 class AuthorityInfoAccess(SequenceOf):
    def __init__(self, optional=0, default=''):
       SequenceOf.__init__(self, AccessDescription, optional, default)
 
+_addFragment('''
+<class>
+   <header>
+      <name>SubjectInfoAccess</name>
+      <super>SequenceOf</super>
+   </header>
+   <body>
+      <para>
+         Implementation of RFC 3280 section 4.2.2.2.
+      </para>
+   </body>
+</class>
+''')
 class SubjectInfoAccess(SequenceOf):
    def __init__(self, optional=0, default=''):
       SequenceOf.__init__(self, AccessDescription, optional, default)

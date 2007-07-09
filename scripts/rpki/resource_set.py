@@ -167,13 +167,21 @@ def parse_extensions(exts):
   POW.pkix.cert.getExtensions().
   """
 
-  res = resource_set()
+  as = None
+  v4 = None
+  v6 = None
+
   for x in exts:
     if x[0] == (1, 3, 6, 1, 5, 5, 7, 1, 8): # sbgp-autonomousSysNum
       assert x[2][1] is None, "RDI not implemented: %s" % (str(x))
-      res.extend(resource_set_as(x[2][0]))
-    elif x[0] == (1, 3, 6, 1, 5, 5, 7, 1, 7): # sbgp-ipAddrBlock
+      assert as is None
+      as = resource_set_as(x[2][0])
+    if x[0] == (1, 3, 6, 1, 5, 5, 7, 1, 7): # sbgp-ipAddrBlock
       for fam in x[2]:
-        res.extend(({ "\x00\x01" : resource_set_ipv4,
-                      "\x00\x02" : resource_set_ipv6 }[fam[0]])(fam[1]))
-  return res
+        if fam[0] == "\x00\x01":
+          assert v4 is None
+          v4 = resource_set_ipv4(fam[1])
+        if fam[0] == "\x00\x02":
+          assert v6 is None
+          v6 = resource_set_ipv6(fam[1])
+  return as, v4, v6

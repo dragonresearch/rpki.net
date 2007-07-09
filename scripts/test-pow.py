@@ -78,41 +78,7 @@ for der in (alice, apnic):
       print "  OID: ", oid, POW.pkix.oid2obj(oid)
       print "  Val:", val
       print
-  if False:
-    val = [x[2] for x in cert.getExtensions() if x[0] == POW.pkix.obj2oid("sbgp-ipAddrBlock")]
-    if val:
-      for fam in val[0]:
-        afi = (ord(fam[0][0]) << 8) + ord(fam[0][1])
-        addrlen = { 1 : 32, 2 : 128 }[afi]
-        addrtype = { 1 :  rpki.ipaddrs.v4addr, 2 : rpki.ipaddrs.v6addr }[afi]
-        if len(fam[0]) > 2:
-          safi = ord(fam[0][2])
-        else:
-          safi = None
-        if fam[1][0] == 'inherit':
-          vals = None
-        else:
-          vals = []
-          for aor in fam[1][1]:
-            def b2l(x, y): return (x << 1) | y
-            if aor[0] == 'addressRange':
-              min = reduce(b2l, aor[1][0], 0L)
-              max = reduce(b2l, aor[1][1], 0L)
-              min <<= addrlen - len(aor[1][0])
-              max <<= addrlen - len(aor[1][1])
-              max |= (1 << (addrlen - len(aor[1][1]))) - 1
-              min = addrtype(min)
-              max = addrtype(max)
-              txt = "%s-%s" % (min, max)
-              vals.append((txt, min, max))
-            else:
-              prefix = reduce(b2l, aor[1], 0L)
-              prefix <<= addrlen - len(aor[1])
-              prefixlen = len(aor[1])
-              prefix = addrtype(prefix)
-              txt = "%s/%d" % (prefix, prefixlen)
-              vals.append((txt, prefix, prefixlen))
-        print afi, safi, vals
-  else:
-    rs = rpki.resource_set.parse_extensions(cert.getExtensions())
-    print rs
+  as, v4, v6 = rpki.resource_set.parse_extensions(cert.getExtensions())
+  if as: print ",".join(map(lambda x: "AS:" + str(x), as))
+  if v4: print ",".join(map(lambda x: "IPv4:" + str(x), v4))
+  if v6: print ",".join(map(lambda x: "IPv6:" + str(x), v6))

@@ -273,7 +273,7 @@ def _decodeInteger(val):
    'der encoded value not including tag or length'
    if not isinstance(val, types.StringType):
       raise DerError, 'argument should be a string'
-   total = 0
+   total = 0L
    if ord(val[0]) & 0x80:
       val = map( lambda x : ord(x) ^ 0xFF, val )
       for byte in val:
@@ -286,7 +286,7 @@ def _decodeInteger(val):
 
 def _encodeInteger(val):
    'python integer'
-   if not isinstance(val, types.IntType):
+   if not isinstance(val, types.IntType) and not isinstance(val, types.LongType):
       raise DerError, 'argument should be an integer'
    if val == 0:
       return chr(0x00)

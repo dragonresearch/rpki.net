@@ -67,29 +67,20 @@ uMsR5Xzvy12ti/m+7MSTLR1kMxJOFA==
 alice = base64.b64decode(Alice_EE)
 apnic = base64.b64decode(APNIC_Root)
 
-verbose = False
+verbose = True
 
 for der in (alice, apnic):
-  cert = POW.derRead(POW.X509_CERTIFICATE, der)
-  print cert.pprint()
-  if verbose:
-    s = cert.getSubject()
-    n = cert.countExtensions()
-    print n, s
-    for i in range(n):
-      print cert.getExtension(i)
+  print POW.derRead(POW.X509_CERTIFICATE, der).pprint()
   cert = POW.pkix.Certificate()
   cert.fromString(der)
   if verbose:
-    for ext in cert.getExtensions():
-      print "  ", ext
-    print
+    for oid, crit, val in cert.getExtensions():
+      print "  OID: ", oid, POW.pkix.oid2obj(oid)
+      print "  Val:", val
+      print
   val = [x[2] for x in cert.getExtensions() if x[0] == POW.pkix.obj2oid("sbgp-ipAddrBlock")]
   if val:
     for fam in val[0]:
-      if verbose:
-        print type(fam), len(fam)
-        print fam
       afi = (ord(fam[0][0]) << 8) + ord(fam[0][1])
       addrlen = { 1 : 32, 2 : 128 }[afi]
       addrtype = { 1 :  rpki.ipaddrs.v4addr, 2 : rpki.ipaddrs.v6addr }[afi]
@@ -102,8 +93,6 @@ for der in (alice, apnic):
       else:
         vals = []
         for aor in fam[1][1]:
-          if verbose:
-            print aor[1]
           def b2l(x, y): return (x << 1) | y
           if aor[0] == 'addressRange':
             min = reduce(b2l, aor[1][0], 0L)

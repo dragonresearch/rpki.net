@@ -10,8 +10,8 @@ class FileAndHash(Sequence):
     Sequence.__init__(self, contents, optional, default)
 
 class FilesAndHashes(SequenceOf):
-   def __init__(self, optional=0, default=''):
-      SequenceOf.__init__(self, FileAndHash, optional, default)
+  def __init__(self, optional=0, default=''):
+    SequenceOf.__init__(self, FileAndHash, optional, default)
 
 class Manifest(Sequence):
   def __init__(self, optional=0, default=''):

@@ -2462,17 +2462,14 @@ x509_crl_object_set_revoked(x509_crl_object *self, PyObject *args)
 {
    PyObject *revoked_sequence = NULL;
    x509_revoked_object *revoked = NULL;
-   STACK_OF(X509_REVOKED) *revoked_stack = NULL;
    X509_REVOKED *tmp_revoked = NULL;
    int i=0,size=0;
 
-	if (!PyArg_ParseTuple(args, "O", &revoked_sequence))
-		goto error;
+   if (!PyArg_ParseTuple(args, "O", &revoked_sequence))
+      goto error;
 
    if ( !( PyTuple_Check( revoked_sequence ) || PyList_Check(revoked_sequence) ) )
       { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
-
-   revoked_stack = self->crl->crl->revoked;
 
    size = PySequence_Size( revoked_sequence );
    for (i=0; i < size; i++)
@@ -2486,7 +2483,7 @@ x509_crl_object_set_revoked(x509_crl_object *self, PyObject *args)
       if ( !(tmp_revoked = X509_REVOKED_dup( revoked->revoked ) ) )
          { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
 
-      if (!sk_X509_REVOKED_push( revoked_stack, tmp_revoked ) )
+      if (!X509_CRL_add0_revoked( self->crl, tmp_revoked ) )
          { PyErr_SetString( SSLErrorObject, "could not add revokation to stack" ); goto error; }
 
       Py_DECREF(revoked);
@@ -5697,7 +5694,8 @@ digest_object_copy(digest_object *self, PyObject *args)
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
 
    new->digest_type = self->digest_type;
-   memcpy( &new->digest_ctx, &self->digest_ctx, sizeof(EVP_MD_CTX) );
+   if (!EVP_MD_CTX_copy( &new->digest_ctx, &self->digest_ctx ))
+      { PyErr_SetString( SSLErrorObject, "could not copy digest" ); goto error; }
 
    return (PyObject*)new;
 
@@ -5731,15 +5729,19 @@ digest_object_digest(digest_object *self, PyObject *args)
    void *md_copy=NULL;
    int digest_len=0;
 
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    if ( !(md_copy = malloc( sizeof(EVP_MD_CTX) ) ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
-   memcpy( md_copy, &self->digest_ctx, sizeof(EVP_MD_CTX) );
+
+   if (!EVP_MD_CTX_copy( md_copy, &self->digest_ctx ))
+      { PyErr_SetString( SSLErrorObject, "could not copy digest" ); goto error; }
+
    EVP_DigestFinal( md_copy, digest_text, &digest_len );
 
    free(md_copy);
+
    return Py_BuildValue("s#", digest_text, digest_len);
 
 error:
@@ -5767,6 +5769,7 @@ digest_object_getattr(digest_object *self, char *name)
 static void
 digest_object_dealloc(digest_object *self, char *name)
 {
+   EVP_MD_CTX_cleanup( &self->digest_ctx );
    PyObject_Del(self);
 }
 

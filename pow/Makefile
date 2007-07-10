@@ -23,3 +23,7 @@ clean:
 
 install:
 	@echo Not attempting to install modified POW, if you want that, do it yourself
+
+test: all
+	cp -p POW-${VERSION}/test/test.py POW-${VERSION}/build/lib.*/.
+	cd POW-${VERSION}/build/lib.*/. && python test.py

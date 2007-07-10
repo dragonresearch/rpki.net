@@ -14,9 +14,8 @@ print 'writing oid module'
 oidinfo.dumpoids('lib/_oids.py')
 
 library_dirs = [ "../../openssl/openssl-0.9.8e" ]
-include_dirs = [ library_dirs[0] + "include" ]
+include_dirs = [ library_dirs[0] + "/include" ]
 libraries    = [ "ssl", "crypto" ]
-define_macros= [ ("NO_RC5_32_12_16", 1) ]
 
 setup(name='POW',
       version='0.7',
@@ -32,8 +31,7 @@ setup(name='POW',
                         ['POW.c'], 
                         libraries=libraries,
                         library_dirs=library_dirs,
-                        include_dirs=include_dirs,
-                        define_macros=define_macros)
+                        include_dirs=include_dirs)
                   ])
 
 os.remove('lib/_objects.py')

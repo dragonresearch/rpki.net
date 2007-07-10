@@ -36,6 +36,7 @@
 
 #include <Python.h>
 
+#include <openssl/opensslconf.h>
 #include <openssl/crypto.h>
 #include <openssl/rand.h>
 #include <openssl/asn1.h>
@@ -49,10 +50,11 @@
 #include <openssl/md2.h>
 #include <openssl/sha.h>
 #include <openssl/hmac.h>
+#include <openssl/ripemd.h>
 
 #include <time.h>
 
-// semetric ciphers
+// Symmetric ciphers
 #define DES_ECB               1
 #define DES_EDE               2
 #define DES_EDE3              3
@@ -116,29 +118,31 @@
 #define X509_CERTIFICATE      7
 #define X_X509_CRL            8     //X509_CRL already used by OpenSSL library
 
-// asymmetric ciphers
+// Asymmetric ciphers
 #define RSA_CIPHER            1
 #define DSA_CIPHER            2
 #define DH_CIPHER             3
-#define NO_DSA
-#define NO_DH
+//#define NO_DSA
+//#define NO_DH
 
-// digests
+// Digests
 #define MD2_DIGEST            1
 #define MD5_DIGEST            2
 #define SHA_DIGEST            3
 #define SHA1_DIGEST           4
 #define RIPEMD160_DIGEST      5
+#define SHA256_DIGEST         6
+#define SHA512_DIGEST         7
 
-//object format
+// Object format
 #define SHORTNAME_FORMAT      1
 #define LONGNAME_FORMAT       2
 
-//output format
+// Output format
 #define PEM_FORMAT            1
 #define DER_FORMAT            2
 
-//object check functions
+// Object check functions
 #define X_X509_Check(op) ((op)->ob_type == &x509type)
 #define X_X509_store_Check(op) ((op)->ob_type == &x509_storetype)
 #define X_X509_crl_Check(op) ((op)->ob_type == &x509_crltype)
@@ -258,9 +262,9 @@ typedef struct {
    SSL *ssl;
    SSL_CTX *ctx;
 } ssl_object;
-/*========== C stucts ==========*/
+/*========== C structs ==========*/
 
-/*========== helper funcitons ==========*/
+/*========== helper functions ==========*/
 
 /* 
    Simple function to install a constant in the module name space.
@@ -298,12 +302,12 @@ error:
    Generate an encrypion envelope.  Saves a lot of space having thie case
    statement in one place.
 */
-static EVP_CIPHER *
+static const EVP_CIPHER *
 evp_cipher_factory(int cipher_type)
 {
    switch(cipher_type)
    {
-#ifndef NO_DES
+#ifndef OPENSSL_NO_DES
       case DES_ECB:           return EVP_des_ecb();
       case DES_EDE:           return EVP_des_ede();
       case DES_EDE3:          return EVP_des_ede3();
@@ -318,36 +322,36 @@ evp_cipher_factory(int cipher_type)
       case DES_EDE3_CBC:      return EVP_des_ede3_cbc();
       case DESX_CBC:          return EVP_desx_cbc();
 #endif
-#ifndef NO_RC4
+#ifndef OPENSSL_NO_RC4
       case RC4:               return EVP_rc4();
       case RC4_40:            return EVP_rc4_40();
 #endif
-#ifndef NO_IDEA
+#ifndef OPENSSL_NO_IDEA
       case IDEA_ECB:          return EVP_idea_ecb();
       case IDEA_CFB:          return EVP_idea_cfb();
       case IDEA_OFB:          return EVP_idea_ofb();
       case IDEA_CBC:          return EVP_idea_cbc();
 #endif
-#ifndef NO_RC2
+#ifndef OPENSSL_NO_RC2
       case RC2_ECB:           return EVP_rc2_ecb();
       case RC2_CBC:           return EVP_rc2_cbc();
       case RC2_40_CBC:        return EVP_rc2_40_cbc();
       case RC2_CFB:           return EVP_rc2_cfb();
       case RC2_OFB:           return EVP_rc2_ofb();
 #endif
-#ifndef NO_BF
+#ifndef OPENSSL_NO_BF
       case BF_ECB:            return EVP_bf_ecb();
       case BF_CBC:            return EVP_bf_cbc();
       case BF_CFB:            return EVP_bf_cfb();
       case BF_OFB:            return EVP_bf_ofb();
 #endif
-#ifndef NO_CAST5
+#ifndef OPENSSL_NO_CAST5
       case CAST5_ECB:         return EVP_cast5_ecb();
       case CAST5_CBC:         return EVP_cast5_cbc();
       case CAST5_CFB:         return EVP_cast5_cfb();
       case CAST5_OFB:         return EVP_cast5_ofb();
 #endif
-#ifndef NO_RC5_32_12_16
+#ifndef OPENSSL_NO_RC5
       case RC5_32_12_16_CBC:  return EVP_rc5_32_12_16_cbc();
       case RC5_32_12_16_CFB:  return EVP_rc5_32_12_16_cfb();
       case RC5_32_12_16_ECB:  return EVP_rc5_32_12_16_ecb();
@@ -587,7 +591,7 @@ X509_object_der_read(char *src, int len)
 
    self->x509 = X509_new();
 
-   if( !(d2i_X509( &self->x509, &ptr, len ) ) )
+   if( !(d2i_X509( &self->x509, (const unsigned char **) &ptr, len ) ) )
       { PyErr_SetString( SSLErrorObject, "could not load PEM encoded certificate" ); goto error; }
 
    return self;
@@ -772,6 +776,8 @@ static char X509_object_sign__doc__[] =
 "         <member><constant>SHA_DIGEST</constant></member>\n"
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
 "         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
+"         <member><constant>SHA256_DIGEST</constant></member>\n"
+"         <member><constant>SHA512_DIGEST</constant></member>\n"
 "     </simplelist>\n"
 "   </body>\n"
 "</method>\n"
@@ -826,6 +832,18 @@ X509_object_sign(x509_object *self, PyObject *args)
       case RIPEMD160_DIGEST:
       { 
          if (!X509_sign(self->x509, pkey, EVP_ripemd160() ) ) 
+            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+         break;
+      }
+      case SHA256_DIGEST:
+      { 
+         if (!X509_sign(self->x509, pkey, EVP_sha256() ) ) 
+            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+         break;
+      }
+      case SHA512_DIGEST:
+      { 
+         if (!X509_sign(self->x509, pkey, EVP_sha512() ) ) 
             { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
          break;
       }
@@ -2057,7 +2075,7 @@ x509_crl_object_der_read(char *src, int len)
 
    self->crl = X509_CRL_new();
 
-   if( !(d2i_X509_CRL( &self->crl, &ptr, len ) ) )
+   if( !(d2i_X509_CRL( &self->crl, (const unsigned char **) &ptr, len ) ) )
       { PyErr_SetString( SSLErrorObject, "could not load PEM encoded CRL" ); goto error; }
 
    return self;
@@ -2434,8 +2452,9 @@ static char x509_crl_object_set_revoked__doc__[] =
 static X509_REVOKED *
 X509_REVOKED_dup(X509_REVOKED *rev)
 {
-   return((X509_REVOKED *)ASN1_dup((int (*)())i2d_X509_REVOKED,
-      (char *(*)())d2i_X509_REVOKED,(char *)rev));
+   return((X509_REVOKED *)ASN1_dup((i2d_of_void *) i2d_X509_REVOKED,
+				   (d2i_of_void *) d2i_X509_REVOKED,
+				   (char *) rev));
 }
 
 static PyObject *
@@ -2820,6 +2839,8 @@ static char x509_crl_object_sign__doc__[] =
 "         <member><constant>SHA_DIGEST</constant></member>\n"
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
 "         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
+"         <member><constant>SHA256_DIGEST</constant></member>\n"
+"         <member><constant>SHA512_DIGEST</constant></member>\n"
 "     </simplelist>\n"
 "   </body>\n"
 "</method>\n"
@@ -2873,6 +2894,18 @@ x509_crl_object_sign(x509_crl_object *self, PyObject *args)
       case RIPEMD160_DIGEST:
       { 
          if (!X509_CRL_sign(self->crl, pkey, EVP_ripemd160() ) ) 
+            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+         break;
+      }
+      case SHA256_DIGEST:
+      { 
+         if (!X509_CRL_sign(self->crl, pkey, EVP_sha256() ) ) 
+            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+         break;
+      }
+      case SHA512_DIGEST:
+      { 
+         if (!X509_CRL_sign(self->crl, pkey, EVP_sha512() ) ) 
             { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
          break;
       }
@@ -4586,7 +4619,7 @@ asymmetric_object_der_read(int key_type, char *src, int len)
    {
       case RSA_PUBLIC_KEY:
       {
-         if( !(self->cipher = d2i_RSAPublicKey( NULL, &ptr, len ) ) )
+         if( !(self->cipher = d2i_RSAPublicKey( NULL, (const unsigned char **) &ptr, len ) ) )
             {  PyErr_SetString( SSLErrorObject, "could not load public key" ); goto error; }
 
          self->key_type = RSA_PUBLIC_KEY;
@@ -4595,7 +4628,7 @@ asymmetric_object_der_read(int key_type, char *src, int len)
       }
       case RSA_PRIVATE_KEY:
       {
-         if( !(self->cipher = d2i_RSAPrivateKey( NULL, &ptr, len ) ) )
+         if( !(self->cipher = d2i_RSAPrivateKey( NULL, (const unsigned char **) &ptr, len ) ) )
             {  PyErr_SetString( SSLErrorObject, "could not load private key" ); goto error; }
 
          self->key_type = RSA_PRIVATE_KEY;
@@ -5036,6 +5069,8 @@ static char asymmetric_object_sign__doc__[] =
 "         <member><constant>SHA_DIGEST</constant></member>\n"
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
 "         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
+"         <member><constant>SHA256_DIGEST</constant></member>\n"
+"         <member><constant>SHA512_DIGEST</constant></member>\n"
 "      </simplelist>\n"
 "      <para>\n"
 "         If the procedure was successful, a string containing the signed\n"
@@ -5073,6 +5108,10 @@ asymmetric_object_sign(asymmetric_object *self, PyObject *args)
          { digest_nid = NID_sha1; digest_len = SHA_DIGEST_LENGTH; break; }
       case RIPEMD160_DIGEST:
          { digest_nid = NID_ripemd160; digest_len = RIPEMD160_DIGEST_LENGTH; break; }
+      case SHA256_DIGEST:
+         { digest_nid = NID_sha256; digest_len = SHA256_DIGEST_LENGTH; break; }
+      case SHA512_DIGEST:
+         { digest_nid = NID_sha512; digest_len = SHA512_DIGEST_LENGTH; break; }
       default:
          { PyErr_SetString( SSLErrorObject, "unsupported digest" ); goto error; }
    }
@@ -5146,6 +5185,8 @@ static char asymmetric_object_verify__doc__[] =
 "         <member><constant>SHA_DIGEST</constant></member>\n"
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
 "         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
+"         <member><constant>SHA256_DIGEST</constant></member>\n"
+"         <member><constant>SHA512_DIGEST</constant></member>\n"
 "      </simplelist>\n"
 "      <para>\n"
 "         If the procedure was successful, 1 is returned, otherwise 0 is\n"
@@ -5175,6 +5216,10 @@ asymmetric_object_verify(asymmetric_object *self, PyObject *args)
          { digest_len = SHA_DIGEST_LENGTH; digest_nid = NID_sha1; break; }
       case RIPEMD160_DIGEST:
          { digest_len = RIPEMD160_DIGEST_LENGTH; digest_nid = NID_ripemd160; break; }
+      case SHA256_DIGEST:
+         { digest_len = SHA_DIGEST_LENGTH; digest_nid = NID_sha256; break; }
+      case SHA512_DIGEST:
+         { digest_len = SHA_DIGEST_LENGTH; digest_nid = NID_sha512; break; }
       default:
          { PyErr_SetString( SSLErrorObject, "unsupported digest" ); goto error; }
    }
@@ -5309,7 +5354,7 @@ static PyObject *
 symmetric_object_encrypt_init(symmetric_object *self, PyObject *args)
 {
    char *key=NULL, *iv=NULL, nulliv [] = "";
-   EVP_CIPHER *cipher=NULL;
+   const EVP_CIPHER *cipher=NULL;
 
 	if (!PyArg_ParseTuple(args, "s|s", &key, &iv))
 		goto error;
@@ -5353,7 +5398,7 @@ static PyObject *
 symmetric_object_decrypt_init(symmetric_object *self, PyObject *args)
 {
    char *key=NULL, *iv=NULL, nulliv [] = "";
-   EVP_CIPHER *cipher=NULL;
+   const EVP_CIPHER *cipher=NULL;
 
 	if (!PyArg_ParseTuple(args, "s|s", &key, &iv))
 		goto error;
@@ -5577,6 +5622,10 @@ digest_object_new(int digest_type)
          { self->digest_type = SHA1_DIGEST; EVP_DigestInit( &self->digest_ctx, EVP_sha1() ); break; }
       case RIPEMD160_DIGEST: 
          { self->digest_type = RIPEMD160_DIGEST; EVP_DigestInit( &self->digest_ctx, EVP_ripemd160() ); break; }
+      case SHA256_DIGEST: 
+         { self->digest_type = SHA256_DIGEST; EVP_DigestInit( &self->digest_ctx, EVP_sha256() ); break; }
+      case SHA512_DIGEST: 
+         { self->digest_type = SHA512_DIGEST; EVP_DigestInit( &self->digest_ctx, EVP_sha512() ); break; }
       default:
          { PyErr_SetString( SSLErrorObject, "unsupported digest" ); goto error; }
    }
@@ -5777,7 +5826,7 @@ static hmac_object *
 hmac_object_new(int digest_type, char *key, int key_len)
 {
    hmac_object *self=NULL;
-   EVP_MD *md=NULL;
+   const EVP_MD *md=NULL;
 
    self = PyObject_New( hmac_object, &hmactype );
    if (self == NULL)
@@ -5795,6 +5844,10 @@ hmac_object_new(int digest_type, char *key, int key_len)
          { md = EVP_sha1(); break; }
       case RIPEMD160_DIGEST: 
          { md = EVP_ripemd160(); break; }
+      case SHA256_DIGEST: 
+         { md = EVP_sha256(); break; }
+      case SHA512_DIGEST: 
+         { md = EVP_sha512(); break; }
       default:
          { PyErr_SetString( SSLErrorObject, "unsupported digest" ); goto error; }
    }
@@ -6142,6 +6195,8 @@ static char pow_module_new_digest__doc__[] =
 "         <member><constant>SHA_DIGEST</constant></member>\n"
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
 "         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
+"         <member><constant>SHA256_DIGEST</constant></member>\n"
+"         <member><constant>SHA512_DIGEST</constant></member>\n"
 "      </simplelist>\n"
 "   </body>\n"
 "</constructor>\n"
@@ -6181,6 +6236,8 @@ static char pow_module_new_hmac__doc__[] =
 "         <member><constant>SHA_DIGEST</constant></member>\n"
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
 "         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
+"         <member><constant>SHA256_DIGEST</constant></member>\n"
+"         <member><constant>SHA512_DIGEST</constant></member>\n"
 "      </simplelist>\n"
 "   </body>\n"
 "</constructor>\n"
@@ -7001,15 +7058,15 @@ init_POW(void)
    install_int_const( d, "SHORTNAME_FORMAT",          SHORTNAME_FORMAT );
 
    // PEM encoded types
-#ifndef NO_RSA
+#ifndef OPENSSL_NO_RSA
    install_int_const( d, "RSA_PUBLIC_KEY",            RSA_PUBLIC_KEY );
    install_int_const( d, "RSA_PRIVATE_KEY",           RSA_PRIVATE_KEY );
 #endif
-#ifndef NO_DSA
+#ifndef OPENSSL_NO_DSA
    install_int_const( d, "DSA_PUBLIC_KEY",            DSA_PUBLIC_KEY );
    install_int_const( d, "DSA_PRIVATE_KEY",           DSA_PRIVATE_KEY );
 #endif
-#ifndef NO_DH
+#ifndef OPENSSL_NO_DH
    install_int_const( d, "DH_PUBLIC_KEY",             DH_PUBLIC_KEY );
    install_int_const( d, "DH_PRIVATE_KEY",            DH_PRIVATE_KEY );
 #endif
@@ -7017,18 +7074,18 @@ init_POW(void)
    install_int_const( d, "X509_CRL",                  X_X509_CRL );
 
    // asymmetric ciphers
-#ifndef NO_RSA
+#ifndef OPENSSL_NO_RSA
    install_int_const( d, "RSA_CIPHER",                RSA_CIPHER );
 #endif
-#ifndef NO_DSA
+#ifndef OPENSSL_NO_DSA
    install_int_const( d, "DSA_CIPHER",                DSA_CIPHER );
 #endif
-#ifndef NO_DH
+#ifndef OPENSSL_NO_DH
    install_int_const( d, "DH_CIPHER",                 DH_CIPHER );
 #endif
 
    // symmetric ciphers
-#ifndef NO_DES
+#ifndef OPENSSL_NO_DES
    install_int_const( d, "DES_ECB",                   DES_ECB );
    install_int_const( d, "DES_EDE",                   DES_EDE );
    install_int_const( d, "DES_EDE3",                  DES_EDE3 );
@@ -7043,24 +7100,24 @@ init_POW(void)
    install_int_const( d, "DES_EDE3_CBC",              DES_EDE3_CBC );
    install_int_const( d, "DESX_CBC",                  DESX_CBC );
 #endif
-#ifndef NO_RC4
+#ifndef OPENSSL_NO_RC4
    install_int_const( d, "RC4",                       RC4 );
    install_int_const( d, "RC4_40",                    RC4_40 );
 #endif
-#ifndef NO_IDEA
+#ifndef OPENSSL_NO_IDEA
    install_int_const( d, "IDEA_ECB",                  IDEA_ECB );
    install_int_const( d, "IDEA_CFB",                  IDEA_CFB );
    install_int_const( d, "IDEA_OFB",                  IDEA_OFB );
    install_int_const( d, "IDEA_CBC",                  IDEA_CBC );
 #endif
-#ifndef NO_RC2
+#ifndef OPENSSL_NO_RC2
    install_int_const( d, "RC2_ECB",                   RC2_ECB );
    install_int_const( d, "RC2_CBC",                   RC2_CBC );
    install_int_const( d, "RC2_40_CBC",                RC2_40_CBC );
    install_int_const( d, "RC2_CFB",                   RC2_CFB );
    install_int_const( d, "RC2_OFB",                   RC2_OFB );
 #endif
-#ifndef NO_BF
+#ifndef OPENSSL_NO_BF
    install_int_const( d, "BF_ECB",                    BF_ECB );
    install_int_const( d, "BF_CBC",                    BF_CBC );
    install_int_const( d, "BF_CFB",                    BF_CFB );
@@ -7070,7 +7127,7 @@ init_POW(void)
    install_int_const( d, "CAST5_CBC",                 CAST5_CBC );
    install_int_const( d, "CAST5_CFB",                 CAST5_CFB );
    install_int_const( d, "CAST5_OFB",                 CAST5_OFB );
-#ifndef NO_RC5_32_12_16
+#ifndef OPENSSL_NO_RC5
    install_int_const( d, "RC5_32_12_16_CBC",          RC5_32_12_16_CBC );
    install_int_const( d, "RC5_32_12_16_CFB",          RC5_32_12_16_CFB );
    install_int_const( d, "RC5_32_12_16_ECB",          RC5_32_12_16_ECB );
@@ -7083,6 +7140,8 @@ init_POW(void)
    install_int_const( d, "SHA_DIGEST",                SHA_DIGEST );
    install_int_const( d, "SHA1_DIGEST",               SHA1_DIGEST );
    install_int_const( d, "RIPEMD160_DIGEST",          RIPEMD160_DIGEST );
+   install_int_const( d, "SHA256_DIGEST",             SHA256_DIGEST );
+   install_int_const( d, "SHA512_DIGEST",             SHA512_DIGEST );
 
    // general name
    install_int_const( d, "GEN_OTHERNAME",             GEN_OTHERNAME );

@@ -1,0 +1,414 @@
+<!-- -*- SGML -*-
+  -  $URL$
+  -  $Id$
+  -
+  -  See left-right-protocol for detailed comments, right now
+  -  I'm just working on translating Lisp pseudocode into XML.
+  -
+  -  Perhaps nested elements that carry IDs for other objects in
+  -  this system should use attributes rather than element content?
+  -  Could make an argument either way on consistancy.
+  -->
+
+<completely-gratuitous-wrapper-element-to-let-me-run-this-through-xmllint>
+
+<msg type="control-request">
+    <self action="create">
+        <extension-preference name="name">Launcelot</extension-preference>
+	<extension-preference name="quest">Holy Grail</extension-preference>
+    </self>
+</msg>
+
+<msg type="control-response">
+    <self self-id="42"/>
+</msg>
+
+<msg type="control-request">
+<self action="set" self-id="42">
+      <extension-preference name="color">Blue</extension-preference>
+      <rekey/>
+      <reissue/>
+      <revoke/>
+      <run-now/>
+      <publish-world-now/>
+</self>
+</msg>
+
+<msg type="control-response">
+<self self-id="42"/>
+</msg>
+
+<msg type="control-request">
+<self action="get" self-id="42"/>
+</msg>
+
+<msg type="control-response">
+<self self-id="42">
+    <extension-preference name="name">Launcelot</extension-preference>
+    <extension-preference name="quest">Holy Grail</extension-preference>
+    <extension-preference name="color">Blue</extension-preference>
+</self>
+</msg>
+
+<msg type="control-request">
+<self action="list"/>
+</msg>
+
+<msg type="control-response">
+<self self-id="42">
+     <extension-preference name="name">Launcelot</extension-preference>
+     <extension-preference name="quest">Holy Grail</extension-preference>
+     <extension-preference name="color">Blue</extension-preference>
+</self>
+<self self-id="99">
+     <extension-preference name="name">Arthur, King of the Britons</extension-preference>
+     <extension-preference name="quest">Holy Grail</extension-preference>
+     <extension-preference name="airspeed-velocity-of-an-unladen-swallow">African or European swallow?</extension-preference>
+</self>
+</msg>
+
+<msg type="control-request">
+    <self action="destroy" self-id="42"/>
+</msg>
+
+<msg type="control-response">
+    <self self-id="42"/>
+</msg>
+
+<!-- ==== -->
+
+<msg type="control-request">
+    <biz-signing-context action="create" self-id="42">
+	<signing-cert>cert1</signing-cert>
+	<generate-keypair key-type="rsa" hash-alg="sha1" key-length="2048"/>
+    </biz-signing-context>
+</msg>
+	
+<msg type="control-response">
+    <biz-signing-context biz-signing-context-id="17">
+        <pkcs10-cert-request>req</pkcs10-cert-request>
+    </biz-signing-context>
+</msg>
+
+<msg type="control-request">
+    <biz-signing-context action="set" self-id="42" biz-signing-context-id="17">
+        <signing-cert>cert2</signing-cert>
+    </biz-signing-context>
+</msg>
+
+<msg type="control-response">
+    <biz-signing-context biz-signing-context-id="17"/>
+</msg>
+
+<msg type="control-request">
+    <biz-signing-context action="get" self-id="42" biz-signing-context-id="17"/>
+</msg>
+
+<msg type="control-response">
+    <biz-signing-context biz-signing-context-id="17">
+        <signing-cert>cert1</signing-cert>
+        <signing-cert>cert2</signing-cert>
+        <public-key>key</public-key>
+    </biz-signing-context>
+</msg>
+
+
+<msg type="control-request">
+    <biz-signing-context action="list" self-id="42"/>
+</msg>
+
+<msg type="control-response">
+    <biz-signing-context biz-signing-context-id="17">
+        <signing-cert>cert1</signing-cert>
+        <signing-cert>cert2</signing-cert>
+        <public-key>key</public-key>
+    </biz-signing-context>
+</msg>
+
+<msg type="control-request">
+    <biz-signing-context action="destroy" self-id="42" biz-signing-context-id="17"/>
+</msg>
+
+<msg type="control-response">
+    <biz-signing-context biz-signing-context-id="17"/>
+</msg>
+
+<!-- ==== -->
+
+<msg type="control-request">
+    <parent action="create" self-id="42">
+	<ta>ta</ta>
+	<uri>uri</uri>
+	<sia-base>sia-base</sia-base>
+	<biz-signing-context>biz-signing-context</biz-signing-context>
+	<repository>repository</repository>
+    </parent>
+</msg>
+
+<msg type="control-response">
+    <parent parent-id="666"/>
+</msg>
+
+<msg type="control-request">
+    <parent action="set" self-id="42" parent-id="666">
+	<ta>ta</ta>
+	<uri>uri</uri>
+	<sia-base>sia-base</sia-base>
+	<biz-signing-context>biz-signing-context</biz-signing-context>
+	<repository>repository</repository>
+	<rekey/>
+	<reissue/>
+	<revoke/>
+    </parent>
+</msg>
+
+<msg type="control-response">
+    <parent parent-id="666"/>
+</msg>
+
+<msg type="control-request">
+    <parent action="get" self-id="42" parent-id="666"/>
+</msg>
+
+<msg type="control-response">
+    <parent parent-id="666">
+        <ta>ta</ta>
+	<uri>uri</uri>
+	<sia-base>sia-base</sia-base>
+	<biz-signing-context>biz-signing-context</biz-signing-context>
+	<repository>repository</repository>
+    </parent>
+</msg>
+
+<msg type="control-request">
+    <parent action="list" self-id="42"/>
+</msg>
+
+<msg type="control-response">
+    <parent parent-id="666">
+        <ta>ta</ta>
+	<uri>uri</uri>
+	<sia-base>sia-base</sia-base>
+	<biz-signing-context>biz-signing-context</biz-signing-context>
+	<repository>repository</repository>
+    </parent>
+</msg>
+
+<msg type="control-request">
+    <parent action="destroy" self-id="42" parent-id="666"/>
+</msg>
+
+<msg type="control-response">
+    <parent parent-id="666"/>
+</msg>
+
+<!-- ==== -->
+
+<msg type="control-request">
+    <child action="create" self-id="42">
+       <ta>ta</ta>
+       <biz-signing-context>biz-signing-context</biz-signing-context>
+       <child-db-id>child-db-id</child-db-id>
+    </child>
+</msg>
+
+<msg type="control-response">
+    <child child-id="3"/>
+</msg>
+
+<msg type="control-request">
+    <child action="set" self-id="42" child-id="3">
+        <ta>ta</ta>
+	<biz-signing-context>biz-signing-context</biz-signing-context>
+	<child-db-id>child-db-id</child-db-id>
+	<reissue/>
+    </child>
+</msg>
+
+<msg type="control-response">
+    <child child-id="3"/>
+</msg>
+
+<msg type="control-request">
+    <child action="get" self-id="42" child-id="3"/>
+</msg>
+
+<msg type="control-response">
+    <child child-id="3">
+        <ta>ta</ta>
+	<biz-signing-context>biz-signing-context</biz-signing-context>
+	<child-db-id>child-db-id</child-db-id>
+    </child>
+</msg>
+
+<msg type="control-request">
+    <child action="list" self-id="42"/>
+</msg>
+
+<msg type="control-response">
+    <child child-id="3">
+        <ta>ta</ta>
+	<biz-signing-context>biz-signing-context</biz-signing-context>
+	<child-db-id>child-db-id</child-db-id>
+    </child>
+</msg>
+
+<msg type="control-request">
+    <child action="destroy" self-id="42" child-id="3"/>
+</msg>
+
+<msg type="control-response">
+    <child child-id="3"/>
+</msg>
+
+<!-- ==== -->
+
+<msg type="control-request">
+    <repository action="create" self-id="42">
+	<uri>uri</uri>
+	<ta>ta</ta>
+	<biz-signing-context>biz-signing-context</biz-signing-context>
+    </repository>
+</msg>
+
+<msg type="control-response">
+    <repository repository-id="120"/>
+</msg>
+
+<msg type="control-request">
+    <repository action="set" self-id="42" repository-id="120">
+	<uri>uri</uri>
+	<ta>ta</ta>
+	<biz-signing-context>biz-signing-context</biz-signing-context>
+    </repository>
+</msg>
+
+<msg type="control-response">
+    <repository repository-id="120"/>
+</msg>
+
+<msg type="control-request">
+    <repository action="get" self-id="42" repository-id="120"/>
+</msg>
+
+<msg type="control-response">
+    <repository repository-id="120">
+	<uri>uri</uri>
+	<ta>ta</ta>
+	<biz-signing-context>biz-signing-context</biz-signing-context>
+    </repository>
+</msg>
+
+<msg type="control-request">
+    <repository action="list" self-id="42"/>
+</msg>
+
+<msg type="control-response">
+    <repository repository-id="120">
+	<uri>uri</uri>
+	<ta>ta</ta>
+	<biz-signing-context>biz-signing-context</biz-signing-context>
+    </repository>
+</msg>
+
+<msg type="control-request">
+    <repository action="destroy" self-id="42" repository-id="120"/>
+</msg>
+
+<msg type="control-response">
+    <repository repository-id="120"/>
+</msg>
+
+<!-- ==== -->
+
+<msg type="control-request">
+    <route-origin action="create" self-id="42"/>
+</msg>
+
+<msg type="control-response">
+    <route-origin route-origin-id="88"/>
+</msg>
+
+<msg type="control-request">
+    <route-origin action="set" self-id="42" route-origin-id="88">
+        <suppress-publication/>
+        <as-number   asn="12345"/>
+	<ipv4-prefix min="10.0.0.44"    len="32"/>
+	<ipv4-range  min="10.2.0.6"     max="10.2.0.77"/>
+	<ipv6-prefix min="2002:a00::"   len="48"/>
+	<ipv6-range  min="2002:a02:6::" max="2002:a02:4d::"/>
+    </route-origin>
+</msg>
+
+<msg type="control-response">
+    <route-origin route-origin-id="88"/>
+</msg>
+
+<msg type="control-request">
+    <route-origin action="get" self-id="42" route-origin-id="88"/>
+</msg>
+
+<msg type="control-response">
+    <route-origin route-origin-id="88">
+        <as-number   asn="12345"/>
+	<ipv4-prefix min="10.0.0.44"    len="32"/>
+	<ipv4-range  min="10.2.0.6"     max="10.2.0.77"/>
+	<ipv6-prefix min="2002:a00::"   len="48"/>
+	<ipv6-range  min="2002:a02:6::" max="2002:a02:4d::"/>
+    </route-origin>
+</msg>
+
+<msg type="control-request">
+    <route-origin action="list" self-id="42"/>
+</msg>
+
+<msg type="control-response">
+    <route-origin route-origin-id="88">
+        <as-number   asn="12345"/>
+	<ipv4-prefix min="10.0.0.44"    len="32"/>
+	<ipv4-range  min="10.2.0.6"     max="10.2.0.77"/>
+	<ipv6-prefix min="2002:a00::"   len="48"/>
+	<ipv6-range  min="2002:a02:6::" max="2002:a02:4d::"/>
+    </route-origin>
+</msg>
+
+<msg type="control-request">
+    <route-origin action="destroy" self-id="42" route-origin-id="88"/>
+</msg>
+
+<msg type="control-response">
+    <route-origin route-origin-id="88"/>
+</msg>
+
+<!-- ==== -->
+<!-- ==== -->
+
+<msg type="data-request">
+    <list-resources self-id="42" child="id"/>
+</msg>
+
+<msg type="data-response">
+    <list-resources self-id="42" child="id" valid-until="2008-04-01T00:00:00Z">
+        <resource-class>
+	    <ipv4-prefix min="10.0.0.44" len="32"/>
+	    <ipv4-prefix min="10.3.0.44" len="32"/>
+	    <ipv6-prefix min="fe80:dead:beef::" len="48"/>
+	    <as-number   asn="666"/>
+        </resource-class>
+	<resource-class subject-name="wombats are us">
+	    <subset-ipv4-prefix min="10.0.0.0"         len="8"/>
+	    <ipv4-prefix        min="10.2..0.6"        len="32"/>
+	    <ipv6-prefix        min="fe80:dead:beef::" len="48"/>
+	    <ipv6-range         min="fe80:dead:beef::" max="fe80:dead:beef::49"/>
+	    <as-number          asn="666"/>
+        </resource-class>
+    </list-resources>
+</msg>
+
+<!-- === -->
+
+<msg type="error">
+    <report-error self-id="42" error-code="your-hair-is-on-fire">bag-of-data</report-error>
+</msg>
+
+</completely-gratuitous-wrapper-element-to-let-me-run-this-through-xmllint>

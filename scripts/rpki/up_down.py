@@ -2,9 +2,9 @@
 
 import base64, sax_utils, resource_set
 
-class msg(object):
+class msg_pdu(object):
   """
-  Base type for Up-Down protocol PDU.
+  Base type for all Up-Down PDUs.
   """
 
   def __str__(self):
@@ -27,7 +27,7 @@ class msg(object):
   def endElement(self, name, text):
     pass
 
-class cert(object):
+class cert_elt(object):
   """
   Up-Down protocol representation of an issued certificate.
   """
@@ -49,7 +49,7 @@ class cert(object):
     xml += ">" + base64.b64encode(self.cert) + "</certificate>\n"
     return xml
 
-class klass(object):
+class class_elt(object):
   """
   Up-Down protocol representation of a resource class.
   """
@@ -80,36 +80,36 @@ class klass(object):
     xml += "    <issuer>" + base64.b64encode(self.issuer) + "</issuer>\n  </class>\n"
     return xml
 
-class list(msg):
+class list_pdu(msg_pdu):
   """
   Up-Down protocol "list" PDU.
   """
   pass
 
-class list_response(msg):
+class list_response_pdu(msg_pdu):
   """
   Up-Down protocol "list_response" PDU.
   """
 
   def __init__(self):
-    self.klasses = []
+    self.classes = []
 
   def startElement(self, name, attrs):
     if name == "class":
-      self.klasses.append(klass(attrs))
+      self.classes.append(class_elt(attrs))
     elif name == "certificate":
-      self.klasses[-1].certs.append(cert(attrs))
+      self.classes[-1].certs.append(cert_elt(attrs))
 
   def endElement(self, name, text):
     if name == "certificate":
-      self.klasses[-1].certs[-1].cert = base64.b64decode(text)
+      self.classes[-1].certs[-1].cert = base64.b64decode(text)
     elif name == "issuer":
-      self.klasses[-1].issuer = base64.b64decode(text)
+      self.classes[-1].issuer = base64.b64decode(text)
 
   def toXML(self):
-    return "".join(map(str, self.klasses))
+    return "".join(map(str, self.classes))
 
-class issue(msg):
+class issue_pdu(msg_pdu):
   """
   Up-Down protocol "issue" PDU.
   """
@@ -135,16 +135,16 @@ class issue(msg):
       xml += ('\n           req_resource_set_ipv6="%s"' % self.req_resource_set_ipv6)
     return xml + ">" + base64.b64encode(self.pkcs10) + "</request>\n"
 
-class issue_response(list_response):
+class issue_response_pdu(list_response_pdu):
   """
   Up-Down protocol "issue_response" PDU.
   """
 
   def toXML(self):
-    assert len(self.klasses) == 1
-    return list_response.toXML(self)
+    assert len(self.classes) == 1
+    return list_response_pdu.toXML(self)
 
-class revoke(msg):
+class revoke_pdu(msg_pdu):
   """
   Up-Down protocol "revoke" PDU.
   """
@@ -156,13 +156,13 @@ class revoke(msg):
   def toXML(self):
     return ('  <key class_name="%s" ski="%s" />\n' % (self.class_name, self.ski))
 
-class revoke_response(revoke):
+class revoke_response_pdu(revoke_pdu):
   """
   Up-Down protocol "revoke_response" PDU.
   """
   pass
 
-class error_response(msg):
+class error_response_pdu(msg_pdu):
   """
   Up-Down protocol "error_response" PDU.
   """
@@ -187,27 +187,20 @@ class sax_handler(sax_utils.handler):
   def startElement(self, name, attrs):
     if name == "message":
       assert int(attrs.getValue("version")) == 1
-      if self.obj == None:
-        self.obj = {
-          "list"                  : list(),
-          "list_response"         : list_response(),
-          "issue"                 : issue(),
-          "issue_response"        : issue_response(),
-          "revoke"                : revoke(),
-          "revoke_response"       : revoke_response(),
-          "error_response"        : error_response()
-        }[attrs.getValue("type").encode("ascii")]
-      assert self.obj
+      self.set_obj({ "list"            : list_pdu(),
+                     "list_response"   : list_response_pdu(),
+                     "issue"           : issue_pdu(),
+                     "issue_response"  : issue_response_pdu(),
+                     "revoke"          : revoke_pdu(),
+                     "revoke_response" : revoke_response_pdu(),
+                     "error_response"  : error_response_pdu()
+                   }[attrs.getValue("type").encode("ascii")])
       sax_utils.snarf(self.obj, attrs, "sender")
       sax_utils.snarf(self.obj, attrs, "recipient")
       sax_utils.snarf(self.obj, attrs, "type")
-
     else:
-      assert self.obj
       self.obj.startElement(name, attrs)
 
   def endElement(self, name):
-    assert self.obj
     if name != "message":
-      self.obj.endElement(name, self.text)
-    self.text = ""
+      self.obj.endElement(name, self.get_text())

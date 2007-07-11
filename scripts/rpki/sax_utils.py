@@ -36,3 +36,12 @@ class handler(xml.sax.handler.ContentHandler):
 
   def characters(self, content):
     self.text += content
+
+  def get_text(self):
+    val = self.text
+    self.text = ""
+    return val
+
+  def set_obj(self, obj):
+    assert self.obj is None
+    self.obj = obj

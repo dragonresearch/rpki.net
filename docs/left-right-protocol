@@ -4,7 +4,7 @@
 ;;;
 ;;; Scratch pad for working out API design for RPKI engine.
 ;;;
-;;; This file is psuedocode, I just wanted to take advantage of
+;;; This file is pseudocode, I just wanted to take advantage of
 ;;; emacs's built-in support for languages with reasonable syntax.
 ;;;
 ;;; Terminology:

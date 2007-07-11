@@ -1,6 +1,21 @@
 # $Id$
 
-import base64, sax_utils, resource_set
+import base64, xml.sax, resource_set
+
+def snarf(obj, attrs, key, func=None):
+  """
+  Utility function to consolidate the steps needed to extract a field
+  from the SAX XML parse and insert it as an object attribute of the
+  same name.
+  """
+
+  try:
+    val = attrs.getValue(key).encode("ascii")
+    if func:
+      val = func(val)
+  except KeyError:
+    val = None
+  setattr(obj, key, val)
 
 class msg(object):
   """
@@ -33,10 +48,10 @@ class cert(object):
   """
 
   def __init__(self, attrs):
-    sax_utils.snarf(self, attrs, "cert_url")
-    sax_utils.snarf(self, attrs, "req_resource_set_as",   resource_set.resource_set_as)
-    sax_utils.snarf(self, attrs, "req_resource_set_ipv4", resource_set.resource_set_ipv4)
-    sax_utils.snarf(self, attrs, "req_resource_set_ipv6", resource_set.resource_set_ipv6)
+    snarf(self, attrs, "cert_url")
+    snarf(self, attrs, "req_resource_set_as",   resource_set.resource_set_as)
+    snarf(self, attrs, "req_resource_set_ipv4", resource_set.resource_set_ipv4)
+    snarf(self, attrs, "req_resource_set_ipv6", resource_set.resource_set_ipv6)
 
   def __str__(self):
     xml = ('    <certificate cert_url="%s"' % (self.cert_url))
@@ -55,12 +70,12 @@ class klass(object):
   """
 
   def __init__(self, attrs):
-    sax_utils.snarf(self, attrs, "class_name")
-    sax_utils.snarf(self, attrs, "cert_url")
-    sax_utils.snarf(self, attrs, "resource_set_as",   resource_set.resource_set_as)
-    sax_utils.snarf(self, attrs, "resource_set_ipv4", resource_set.resource_set_ipv4)
-    sax_utils.snarf(self, attrs, "resource_set_ipv6", resource_set.resource_set_ipv6)
-    sax_utils.snarf(self, attrs, "suggested_sia_head")
+    snarf(self, attrs, "class_name")
+    snarf(self, attrs, "cert_url")
+    snarf(self, attrs, "resource_set_as",   resource_set.resource_set_as)
+    snarf(self, attrs, "resource_set_ipv4", resource_set.resource_set_ipv4)
+    snarf(self, attrs, "resource_set_ipv6", resource_set.resource_set_ipv6)
+    snarf(self, attrs, "suggested_sia_head")
     self.certs = []
 
   def __str__(self):
@@ -116,10 +131,10 @@ class issue(msg):
 
   def startElement(self, name, attrs):
     assert name == "request"
-    sax_utils.snarf(self, attrs, "class_name")
-    sax_utils.snarf(self, attrs, "req_resource_set_as",   resource_set.resource_set_as)
-    sax_utils.snarf(self, attrs, "req_resource_set_ipv4", resource_set.resource_set_ipv4)
-    sax_utils.snarf(self, attrs, "req_resource_set_ipv6", resource_set.resource_set_ipv6)
+    snarf(self, attrs, "class_name")
+    snarf(self, attrs, "req_resource_set_as",   resource_set.resource_set_as)
+    snarf(self, attrs, "req_resource_set_ipv4", resource_set.resource_set_ipv4)
+    snarf(self, attrs, "req_resource_set_ipv6", resource_set.resource_set_ipv6)
 
   def endElement(self, name, text):
     assert name == "request"
@@ -150,8 +165,8 @@ class revoke(msg):
   """
 
   def startElement(self, name, attrs):
-    sax_utils.snarf(self, attrs, "class_name")
-    sax_utils.snarf(self, attrs, "ski")
+    snarf(self, attrs, "class_name")
+    snarf(self, attrs, "ski")
 
   def toXML(self):
     return ('  <key class_name="%s" ski="%s" />\n' % (self.class_name, self.ski))
@@ -178,11 +193,21 @@ class error_response(msg):
     elif name == "description":
       self.description = text
 
-class sax_handler(sax_utils.handler):
+class sax_handler(xml.sax.handler.ContentHandler):
   """
   SAX handler for Up-Down protocol.  Builds message PDU then
   dispatches to that class's handler for nested data.
   """
+
+  def __init__(self):
+    self.text = ""
+    self.obj = None
+
+  def startElementNS(self, name, qname, attrs):
+    return self.startElement(name[1], attrs)
+
+  def endElementNS(self, name, qname):
+    return self.endElement(name[1])
 
   def startElement(self, name, attrs):
     if name == "message":
@@ -198,13 +223,16 @@ class sax_handler(sax_utils.handler):
           "error_response"        : error_response()
         }[attrs.getValue("type").encode("ascii")]
       assert self.obj
-      sax_utils.snarf(self.obj, attrs, "sender")
-      sax_utils.snarf(self.obj, attrs, "recipient")
-      sax_utils.snarf(self.obj, attrs, "type")
+      snarf(self.obj, attrs, "sender")
+      snarf(self.obj, attrs, "recipient")
+      snarf(self.obj, attrs, "type")
 
     else:
       assert self.obj
       self.obj.startElement(name, attrs)
+
+  def characters(self, content):
+    self.text += content
 
   def endElement(self, name):
     assert self.obj

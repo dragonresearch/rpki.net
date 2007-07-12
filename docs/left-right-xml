@@ -8,6 +8,8 @@
   -  Perhaps nested elements that carry IDs for other objects in
   -  this system should use attributes rather than element content?
   -  Could make an argument either way on consistancy.
+  -
+  -  "bsc" == "business signing context"
   -->
 
 <completely_gratuitous_wrapper_element_to_let_me_run_this_through_xmllint>
@@ -78,70 +80,70 @@
     <!-- ==== -->
     
     <msg type="control_request">
-        <biz_signing_context action="create" self_id="42">
+        <bsc action="create" self_id="42">
             <signing_cert>cert1</signing_cert>
             <generate_keypair key_type="rsa" hash_alg="sha1" key_length="2048"/>
-        </biz_signing_context>
+        </bsc>
     </msg>
     
     <msg type="control_response">
-        <biz_signing_context biz_signing_context_id="17">
+        <bsc bsc_id="17">
             <pkcs10_cert_request>req</pkcs10_cert_request>
-        </biz_signing_context>
+        </bsc>
     </msg>
     
     <msg type="control_request">
-        <biz_signing_context action="set" self_id="42" biz_signing_context_id="17">
+        <bsc action="set" self_id="42" bsc_id="17">
             <signing_cert>cert2</signing_cert>
-        </biz_signing_context>
+        </bsc>
     </msg>
     
     <msg type="control_response">
-        <biz_signing_context biz_signing_context_id="17"/>
+        <bsc bsc_id="17"/>
     </msg>
     
     <msg type="control_request">
-        <biz_signing_context action="get" self_id="42" biz_signing_context_id="17"/>
+        <bsc action="get" self_id="42" bsc_id="17"/>
     </msg>
     
     <msg type="control_response">
-        <biz_signing_context biz_signing_context_id="17">
+        <bsc bsc_id="17">
             <signing_cert>cert1</signing_cert>
             <signing_cert>cert2</signing_cert>
             <public_key>key</public_key>
-        </biz_signing_context>
+        </bsc>
     </msg>
     
     
     <msg type="control_request">
-        <biz_signing_context action="list" self_id="42"/>
+        <bsc action="list" self_id="42"/>
     </msg>
     
     <msg type="control_response">
-        <biz_signing_context biz_signing_context_id="17">
+        <bsc bsc_id="17">
             <signing_cert>cert1</signing_cert>
             <signing_cert>cert2</signing_cert>
             <public_key>key</public_key>
-        </biz_signing_context>
+        </bsc>
     </msg>
     
     <msg type="control_request">
-        <biz_signing_context action="destroy" self_id="42" biz_signing_context_id="17"/>
+        <bsc action="destroy" self_id="42" bsc_id="17"/>
     </msg>
     
     <msg type="control_response">
-        <biz_signing_context biz_signing_context_id="17"/>
+        <bsc bsc_id="17"/>
     </msg>
     
     <!-- ==== -->
     
     <msg type="control_request">
         <parent action="create" self_id="42">
-            <ta>ta</ta>
-            <uri>uri</uri>
-            <sia_base>sia_base</sia_base>
-            <biz_signing_context>biz_signing_context</biz_signing_context>
-            <repository>repository</repository>
+            <peer_ta>key</peer_ta>
+            <peer_contact uri="uri"/>
+            <sia_base uri="sia_base"/>
+            <bsc_link id="bsc"/>
+            <repository_link id="repository"/>
         </parent>
     </msg>
     
@@ -151,11 +153,11 @@
     
     <msg type="control_request">
         <parent action="set" self_id="42" parent_id="666">
-            <ta>ta</ta>
-            <uri>uri</uri>
-            <sia_base>sia_base</sia_base>
-            <biz_signing_context>biz_signing_context</biz_signing_context>
-            <repository>repository</repository>
+            <peer_ta>key</peer_ta>
+            <peer_contact uri="uri"/>
+            <sia_base uri="sia_base"/>
+            <bsc_link id="bsc"/>
+            <repository_link id="repository"/>
             <rekey/>
             <reissue/>
             <revoke/>
@@ -172,11 +174,11 @@
     
     <msg type="control_response">
         <parent parent_id="666">
-            <ta>ta</ta>
-            <uri>uri</uri>
-            <sia_base>sia_base</sia_base>
-            <biz_signing_context>biz_signing_context</biz_signing_context>
-            <repository>repository</repository>
+            <peer_ta>key</peer_ta>
+            <peer_contact uri="uri"/>
+            <sia_base uri="sia_base"/>
+            <bsc_link id="bsc"/>
+            <repository_link id="repository"/>
         </parent>
     </msg>
     
@@ -186,11 +188,11 @@
     
     <msg type="control_response">
         <parent parent_id="666">
-            <ta>ta</ta>
-            <uri>uri</uri>
-            <sia_base>sia_base</sia_base>
-            <biz_signing_context>biz_signing_context</biz_signing_context>
-            <repository>repository</repository>
+            <peer_ta>key</peer_ta>
+            <peer_contact uri="uri"/>
+            <sia_base uri="sia_base"/>
+            <bsc_link id="bsc"/>
+            <repository_link id="repository"/>
         </parent>
     </msg>
     
@@ -206,9 +208,9 @@
     
     <msg type="control_request">
         <child action="create" self_id="42">
-            <ta>ta</ta>
-            <biz_signing_context>biz_signing_context</biz_signing_context>
-            <child_db_id>child_db_id</child_db_id>
+            <peer_ta>key</peer_ta>
+            <bsc_link id="bsc"/>
+            <child_db_id id="child_db_id"/>
         </child>
     </msg>
     
@@ -218,9 +220,9 @@
     
     <msg type="control_request">
         <child action="set" self_id="42" child_id="3">
-            <ta>ta</ta>
-            <biz_signing_context>biz_signing_context</biz_signing_context>
-            <child_db_id>child_db_id</child_db_id>
+            <peer_ta>key</peer_ta>
+            <bsc_link id="bsc"/>
+            <child_db_id id="child_db_id"/>
             <reissue/>
         </child>
     </msg>
@@ -235,9 +237,9 @@
     
     <msg type="control_response">
         <child child_id="3">
-            <ta>ta</ta>
-            <biz_signing_context>biz_signing_context</biz_signing_context>
-            <child_db_id>child_db_id</child_db_id>
+            <peer_ta>key</peer_ta>
+            <bsc_link id="bsc"/>
+            <child_db_id id="child_db_id"/>
         </child>
     </msg>
     
@@ -247,9 +249,9 @@
     
     <msg type="control_response">
         <child child_id="3">
-            <ta>ta</ta>
-            <biz_signing_context>biz_signing_context</biz_signing_context>
-            <child_db_id>child_db_id</child_db_id>
+            <peer_ta>key</peer_ta>
+            <bsc_link id="bsc"/>
+            <child_db_id id="child_db_id"/>
         </child>
     </msg>
     
@@ -265,9 +267,9 @@
     
     <msg type="control_request">
         <repository action="create" self_id="42">
-            <uri>uri</uri>
-            <ta>ta</ta>
-            <biz_signing_context>biz_signing_context</biz_signing_context>
+            <peer_contact uri="uri"/>
+            <peer_ta>key</peer_ta>
+            <bsc_link id="bsc"/>
         </repository>
     </msg>
     
@@ -277,9 +279,9 @@
     
     <msg type="control_request">
         <repository action="set" self_id="42" repository_id="120">
-            <uri>uri</uri>
-            <ta>ta</ta>
-            <biz_signing_context>biz_signing_context</biz_signing_context>
+            <peer_contact uri="uri"/>
+            <peer_ta>key</peer_ta>
+            <bsc_link id="bsc"/>
         </repository>
     </msg>
     
@@ -293,9 +295,9 @@
     
     <msg type="control_response">
         <repository repository_id="120">
-            <uri>uri</uri>
-            <ta>ta</ta>
-            <biz_signing_context>biz_signing_context</biz_signing_context>
+            <peer_contact uri="uri"/>
+            <peer_ta>key</peer_ta>
+            <bsc_link id="bsc"/>
         </repository>
     </msg>
     
@@ -305,9 +307,9 @@
     
     <msg type="control_response">
         <repository repository_id="120">
-            <uri>uri</uri>
-            <ta>ta</ta>
-            <biz_signing_context>biz_signing_context</biz_signing_context>
+            <peer_contact uri="uri"/>
+            <peer_ta>key</peer_ta>
+            <bsc_link id="bsc"/>
         </repository>
     </msg>
     

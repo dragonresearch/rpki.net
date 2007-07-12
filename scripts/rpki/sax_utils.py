@@ -2,20 +2,24 @@
 
 import xml.sax
 
-def snarf(obj, attrs, key, func=None):
+def snarf_attribute(obj, attrs, key, func=None):
   """
   Utility function to consolidate the steps needed to extract a field
   from the SAX XML parse and insert it as an object attribute of the
   same name.
   """
 
-  try:
-    val = attrs.getValue(key).encode("ascii")
-    if func:
-      val = func(val)
-  except KeyError:
-    val = None
-  setattr(obj, key, val)
+  if isinstance(key, list) or isinstance(key, tuple):
+    for k in key:
+      snarf_attribute(obj, attrs, k, func)
+  else:
+    try:
+      val = attrs.getValue(key).encode("ascii")
+      if func:
+        val = func(val)
+    except KeyError:
+      val = None
+    setattr(obj, key, val)
 
 class handler(xml.sax.handler.ContentHandler):
   """
@@ -38,7 +42,7 @@ class handler(xml.sax.handler.ContentHandler):
     self.text += content
 
   def get_text(self):
-    val = self.text
+    val = self.text.encode("ascii")
     self.text = ""
     return val
 

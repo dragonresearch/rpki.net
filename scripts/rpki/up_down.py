@@ -33,10 +33,10 @@ class cert_elt(object):
   """
 
   def __init__(self, attrs):
-    sax_utils.snarf(self, attrs, "cert_url")
-    sax_utils.snarf(self, attrs, "req_resource_set_as",   resource_set.resource_set_as)
-    sax_utils.snarf(self, attrs, "req_resource_set_ipv4", resource_set.resource_set_ipv4)
-    sax_utils.snarf(self, attrs, "req_resource_set_ipv6", resource_set.resource_set_ipv6)
+    sax_utils.snarf_attribute(self, attrs, "cert_url")
+    sax_utils.snarf_attribute(self, attrs, "req_resource_set_as",   resource_set.resource_set_as)
+    sax_utils.snarf_attribute(self, attrs, "req_resource_set_ipv4", resource_set.resource_set_ipv4)
+    sax_utils.snarf_attribute(self, attrs, "req_resource_set_ipv6", resource_set.resource_set_ipv6)
 
   def __str__(self):
     xml = ('    <certificate cert_url="%s"' % (self.cert_url))
@@ -55,12 +55,10 @@ class class_elt(object):
   """
 
   def __init__(self, attrs):
-    sax_utils.snarf(self, attrs, "class_name")
-    sax_utils.snarf(self, attrs, "cert_url")
-    sax_utils.snarf(self, attrs, "resource_set_as",   resource_set.resource_set_as)
-    sax_utils.snarf(self, attrs, "resource_set_ipv4", resource_set.resource_set_ipv4)
-    sax_utils.snarf(self, attrs, "resource_set_ipv6", resource_set.resource_set_ipv6)
-    sax_utils.snarf(self, attrs, "suggested_sia_head")
+    sax_utils.snarf_attribute(self, attrs, ("class_name", "cert_url", "suggested_sia_head"))
+    sax_utils.snarf_attribute(self, attrs, "resource_set_as",   resource_set.resource_set_as)
+    sax_utils.snarf_attribute(self, attrs, "resource_set_ipv4", resource_set.resource_set_ipv4)
+    sax_utils.snarf_attribute(self, attrs, "resource_set_ipv6", resource_set.resource_set_ipv6)
     self.certs = []
 
   def __str__(self):
@@ -116,10 +114,10 @@ class issue_pdu(msg_pdu):
 
   def startElement(self, name, attrs):
     assert name == "request"
-    sax_utils.snarf(self, attrs, "class_name")
-    sax_utils.snarf(self, attrs, "req_resource_set_as",   resource_set.resource_set_as)
-    sax_utils.snarf(self, attrs, "req_resource_set_ipv4", resource_set.resource_set_ipv4)
-    sax_utils.snarf(self, attrs, "req_resource_set_ipv6", resource_set.resource_set_ipv6)
+    sax_utils.snarf_attribute(self, attrs, "class_name")
+    sax_utils.snarf_attribute(self, attrs, "req_resource_set_as",   resource_set.resource_set_as)
+    sax_utils.snarf_attribute(self, attrs, "req_resource_set_ipv4", resource_set.resource_set_ipv4)
+    sax_utils.snarf_attribute(self, attrs, "req_resource_set_ipv6", resource_set.resource_set_ipv6)
 
   def endElement(self, name, text):
     assert name == "request"
@@ -150,8 +148,7 @@ class revoke_pdu(msg_pdu):
   """
 
   def startElement(self, name, attrs):
-    sax_utils.snarf(self, attrs, "class_name")
-    sax_utils.snarf(self, attrs, "ski")
+    sax_utils.snarf_attribute(self, attrs, ("class_name", "ski"))
 
   def toXML(self):
     return ('  <key class_name="%s" ski="%s" />\n' % (self.class_name, self.ski))
@@ -195,9 +192,7 @@ class sax_handler(sax_utils.handler):
                      "revoke_response" : revoke_response_pdu(),
                      "error_response"  : error_response_pdu()
                    }[attrs.getValue("type").encode("ascii")])
-      sax_utils.snarf(self.obj, attrs, "sender")
-      sax_utils.snarf(self.obj, attrs, "recipient")
-      sax_utils.snarf(self.obj, attrs, "type")
+      sax_utils.snarf_attribute(self.obj, attrs, ("sender", "recipient", "type"))
     else:
       self.obj.startElement(name, attrs)
 

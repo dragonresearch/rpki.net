@@ -2,125 +2,80 @@
 
 import base64, sax_utils, resource_set
 
+Broken = True
+
+assert ! Broken
+
+# This still isn't right, although it's not as broken as it was.  I
+# don't see any sane way to avoid keeping a stack of objects under
+# construction, probably in our sax_handler object.  Passing SAX
+# events along to the current object is ok, but passing every SAX
+# event down through the chain of objects under construction is just
+# nuts.  So probably want push and pop methods in the sax_handler so
+# that the current object can create a child and push it onto the
+# stack, and so that a current object can pop itself off the stack.
+
 class base_elt(object):
   """
   Base type for left-right message elements.
   """
-
-  content_attr = False
-  base64_content = False
-  multivalue = ()
 
   def __init__(self, up=None):
     self.up = up
     for key in self.multivalue:
       setattr(self, key, [])
     
+  multivalue = ("peer_contact", "signing_cert", "extension_preference", "resource_class",
+                "as_number",   "as_range",   "subset_as_number",   "subset_as_range",
+                "ipv4_prefix", "ipv4_range", "subset_ipv4_prefix", "subset_ipv4_range",
+                "ipv6_prefix", "ipv6_range", "subset_ipv6_prefix", "subset_ipv6_range")
+
   def store(self, key, val):
     if key in self.multivalue:
       getattr(self, key).append(val)
     else:
       setattr(self, key, val)
 
-  def startElement(self, name, attrs):
-    if name == self.name:
-      sax_utils.snarf_attribute(self, attrs, self.attributes)
+  b64content = ("peer_ta", "pkcs10_cert_request", "public_key", "signing_cert")
 
   def endElement(self, name, text):
-    if name == self.name and self.content_attr:
-      if self.base64_content:
-        self.store(self.content_attr, base64.b64decode(text))
-      else:
-        self.store(self.content_attr, text)
+    if name in self.b64content:
+      self.store(name, base64.b64decode(text))
 
-class as_number_elt(base_elt): pass
-class bsc_link_elt(base_elt): pass
-class child_db_id_elt(base_elt): pass
-class extension_preference_elt(base_elt): pass
-class generate_keypair_elt(base_elt): pass
-class ipv4_prefix_elt(base_elt): pass
-class ipv4_range_elt(base_elt): pass
-class ipv6_prefix_elt(base_elt): pass
-class ipv6_range_elt(base_elt): pass
-class pkcs10_cert_request_elt(base_elt): pass
-class public_key_elt(base_elt): pass
-class publish_world_now_elt(base_elt): pass
-class reissue_elt(base_elt): pass
-class rekey_elt(base_elt): pass
-class repository_link_elt(base_elt): pass
-class revoke_elt(base_elt): pass
-class run_now_elt(base_elt): pass
-class sia_base_elt(base_elt): pass
-class signing_cert_elt(base_elt): pass
-class suppress_publication_elt(base_elt): pass
-class ta_elt(base_elt): pass
-class uri_elt(base_elt): pass
+  pdu_objects = ("self", "child", "parent", "bsc", "repository", "route_origin",
+                 "list_resources", "report_error")
+
+  def startElement(self, name, attrs):
+    if name in pdu_objects:
+      sax_utils.snarf_attribute(self, attrs, self.attributes)
+    else:
+      getattr(self, "handle_" + name)(name, attrs)
+
+  # handle_xxx methods not yet written
 
 class self_elt(base_elt):
-  name = "self"
   attributes = ("action", "self_id")
-  elements = { "extension_preference" : extension_preference_elt,
-               "rekey"                : rekey_elt,
-               "revoke"               : revoke_elt,
-               "run_now"              : run_now_elt,
-               "publish_world_now"    : publish_world_now_elt }
-  multivalue = ("extension_preference",)
 
 class bsc_elt(base_elt):
-  name = "biz_signing_context"
   attributes = ("action", "self_id", "biz_signing_context_id")
-  elements = { "signing_cert"         : signing_cert_elt,
-               "generate_keypair"     : generate_keypair_elt,
-               "pkcs10_cert_request"  : pkcs10_cert_request_elt,
-               "public_key"           : public_key_elt }
-  multivalue = ("signing_cert",)
-               
+
 class parent_elt(base_elt):
-  name = "parent"
   attributes = ("action", "self_id", "parent_id")
-  elements = { "ta"                   : ta_elt,
-               "uri"                  : uri_elt,
-               "sia_base"             : sia_base_elt,
-               "biz_signing_context"  : bsc_link_elt,
-               "repository"           : repository_link_elt,
-               "rekey"                : rekey_elt,
-               "reissue"              : reissue_elt,
-               "revoke"               : revoke_elt }
 
 class child_elt(base_elt):
-  name = "child"
   attributes = ("action", "self_id", "child_id")
-  elements = { "ta"                   : ta_elt,
-               "biz_signing_context"  : bsc_link_elt,
-               "child_db_id"          : child_db_id_elt,
-               "reissue"              : reissue_elt }
 
 class repository_elt(base_elt):
-  name = "repository"
   attributes = ("action", "self_id", "repository_id")
-  elements = { "ta"                   : ta_elt,
-               "uri"                  : uri_elt,
-               "biz_signing_context"  : bsc_link_elt }
 
 class route_origin_elt(base_elt):
-  name = "route_origin"
   attributes = ("action", "self_id", "route_origin_id")
-  elements = { "suppress_publication" : suppress_publication_elt,
-               "as_number"            : as_number_elt,
-               "ipv4_prefix"          : ipv4_prefix_elt,
-               "ipv4_range"           : ipv4_range_elt,
-               "ipv6_prefix"          : ipv6_prefix_elt,
-               "ipv6_range"           : ipv6_range_elt }
-  multivalue = ("ipv4_prefix", "ipv4_range", "ipv6_prefix", "ipv6_range")
-
 
 class list_resources_elt(base_elt):
-  def startElement(self, name, attrs):
-    sax_utils.snarf_attribute(self, attrs, ("self_id", "child_id"))
+  attributes = ("self_id", "child_id")
 
 class report_error_elt(base_elt):
-  def startElement(self, name, attrs):
-    sax_utils.snarf_attribute(self, attrs, ("self_id", "error_code"))
+  attributes = ("self_id", "error_code")
 
 class msg(list):
   """
@@ -131,14 +86,14 @@ class msg(list):
   version = 1
 
   dispatch = {
-    "self"                : self_elt,
-    "child"               : child_elt,
-    "parent"              : parent_elt,
-    "repository"          : repository_elt,
-    "route_origin"        : route_origin_elt,
-    "biz_signing_context" : bsc_elt,
-    "list_resources"      : list_resources_elt,
-    "report_error"        : report_error_elt }
+    "self"           : self_elt,
+    "child"          : child_elt,
+    "parent"         : parent_elt,
+    "repository"     : repository_elt,
+    "route_origin"   : route_origin_elt,
+    "bsc"            : bsc_elt,
+    "list_resources" : list_resources_elt,
+    "report_error"   : report_error_elt }
 
   def startElement(self, name, attrs):
     if name == "msg":
@@ -171,3 +126,49 @@ class sax_handler(sax_utils.handler):
 
   def endElement(self, name):
     self.obj.endElement(name, self.get_text())
+
+
+# bsc_link                              ; attribute-only element
+# child_db_id                           ; attribute-only element
+# repository_link                       ; attribute-only element
+# sia_base                              ; attribute-only element
+# 
+# as_number                             ; attribute-only element, single/multi depending on context (sigh)
+# as_range                              ; attribute-only element, multi
+# ipv4_prefix                           ; attribute-only element, multi
+# ipv4_range                            ; attribute-only element, multi
+# ipv6_prefix                           ; attribute-only element, multi
+# ipv6_range                            ; attribute-only element, multi
+# peer_contact                          ; attribute-only element, multi
+# subset_as_number                      ; attribute-only element, multi
+# subset_as_range                       ; attribute-only element, multi
+# subset_ipv4_prefix                    ; attribute-only element, multi
+# subset_ipv4_range                     ; attribute-only element, multi
+# subset_ipv6_prefix		        ; attribute-only element, multi
+# subset_ipv6_range		        ; attribute-only element, multi
+# 
+# peer_ta				; base64 element
+# pkcs10_cert_request			; base64 element
+# public_key				; base64 element
+# signing_cert				; base64 element, multi
+# 
+# extension_preference			; container element, multi
+# resource_class			; container element, multi
+# 
+# generate_keypair                      ; attribute-only control element
+# publish_world_now			; empty control element
+# reissue				; empty control element
+# rekey					; empty control element
+# revoke				; empty control element
+# run_now				; empty control element
+# suppress_publication			; empty control element
+# 
+# msg					; pdu
+# bsc					; pdu element
+# child					; pdu element
+# list_resources			; pdu element
+# parent				; pdu element
+# report_error				; pdu element
+# repository				; pdu element
+# route_origin				; pdu element
+# self					; pdu element

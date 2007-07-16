@@ -13,16 +13,22 @@ class generic_pdu(object):
   def endElement(self, stack, name, text):
     stack.pop()
 
-class cert_elt(object):
+class certificate_elt(generic_pdu):
   """
   Up-Down protocol representation of an issued certificate.
   """
 
-  def __init__(self, attrs):
+  def startElement(self, stack, name, attrs):
+    assert name == "certificate", "Unexpected name %s, stack %s" % (name, stack)
     self.cert_url = attrs["cert_url"]
     self.req_resource_set_as   = resource_set.resource_set_as(attrs["req_resource_set_as"])
     self.req_resource_set_ipv4 = resource_set.resource_set_ipv4(attrs["req_resource_set_ipv4"])
     self.req_resource_set_ipv6 = resource_set.resource_set_ipv6(attrs["req_resource_set_ipv6"])
+
+  def endElement(self, stack, name, text):
+    assert name == "certificate"
+    self.cert = base64.b64decode(text)
+    stack.pop()
 
   def __str__(self):
     xml = ('    <certificate cert_url="%s"' % (self.cert_url))
@@ -35,19 +41,35 @@ class cert_elt(object):
     xml += ">" + base64.b64encode(self.cert) + "</certificate>\n"
     return xml
 
-class class_elt(object):
+class class_elt(generic_pdu):
   """
   Up-Down protocol representation of a resource class.
   """
 
-  def __init__(self, attrs):
-    self.class_name = attrs["class_name"]
-    self.cert_url = attrs["cert_url"]
-    self.suggested_sia_head = attrs.get("suggested_sia_head")
-    self.resource_set_as   = resource_set.resource_set_as(attrs["resource_set_as"])
-    self.resource_set_ipv4 = resource_set.resource_set_ipv4(attrs["resource_set_ipv4"])
-    self.resource_set_ipv6 = resource_set.resource_set_ipv6(attrs["resource_set_ipv6"])
+  def __init__(self):
     self.certs = []
+
+  def startElement(self, stack, name, attrs):
+    if name == "certificate":
+      cert = certificate_elt()
+      self.certs.append(cert)
+      stack.append(cert)
+      cert.startElement(stack, name, attrs)
+    elif name != "issuer":
+      assert name == "class", "Unexpected name %s, stack %s" % (name, stack)
+      self.class_name = attrs["class_name"]
+      self.cert_url = attrs["cert_url"]
+      self.suggested_sia_head = attrs.get("suggested_sia_head")
+      self.resource_set_as   = resource_set.resource_set_as(attrs["resource_set_as"])
+      self.resource_set_ipv4 = resource_set.resource_set_ipv4(attrs["resource_set_ipv4"])
+      self.resource_set_ipv6 = resource_set.resource_set_ipv6(attrs["resource_set_ipv6"])
+
+  def endElement(self, stack, name, text):
+    if name == "issuer":
+      self.issuer = base64.b64decode(text)
+    else:
+      assert name == "class", "Unexpected name %s, stack %s" % (name, stack)
+      stack.pop()
 
   def __str__(self):
     xml = ('\
@@ -83,23 +105,12 @@ class list_response_pdu(generic_pdu):
     self.classes = []
 
   def startElement(self, stack, name, attrs):
-    if name == "class":
-      self.classes.append(class_elt(attrs))
-    elif name == "certificate":
-      self.classes[-1].certs.append(cert_elt(attrs))
-    elif name != "issuer":
-      assert name == "list_response", "Unexpected name %s, stack %s" % (name, stack)
-
-  def endElement(self, stack, name, text):
-    if name == "certificate":
-      self.classes[-1].certs[-1].cert = base64.b64decode(text)
-    elif name == "issuer":
-      self.classes[-1].issuer = base64.b64decode(text)
-    elif name != "class":
-      assert name == "message", "Unexpected name %s, stack %s" % (name, stack)
-      stack.pop()
-      stack[-1].endElement(stack, name, text)
-
+    assert name == "class", "Unexpected name %s, stack %s" % (name, stack)
+    klass = class_elt()
+    self.classes.append(klass)
+    stack.append(klass)
+    klass.startElement(stack, name, attrs)
+      
   def __str__(self):
     return "".join(map(str, self.classes))
 

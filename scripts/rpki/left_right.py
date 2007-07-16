@@ -25,7 +25,7 @@ class base_elt(object):
 
   def store(self, key, val):
     if key not in self.multivalue:
-      assert not getattr(self, key)
+      assert not hasattr(self, key)
       setattr(self, key, val)
     elif hasattr(self, key):
       getattr(self, key).append(val)
@@ -144,24 +144,14 @@ class msg(list):
   spec_uri = "http://www.hactrn.net/uris/rpki/left-right-spec/"
   version = 1
 
-  dispatch = {
-    "self"           : self_elt,
-    "child"          : child_elt,
-    "parent"         : parent_elt,
-    "repository"     : repository_elt,
-    "route_origin"   : route_origin_elt,
-    "bsc"            : bsc_elt,
-    "list_resources" : list_resources_elt,
-    "report_error"   : report_error_elt }
-
   def startElement(self, stack, name, attrs):
     if name == "msg":
       sax_utils.snarf_attribute(self, attrs, "version", int)
       sax_utils.snarf_attribute(self, attrs, "type")
       assert self.version == 1
     else:
-      assert name in self.dispatch
-      elt = self.dispatch[name](self)
+      assert name in type_map
+      elt = type_map[name](self)
       self.append(elt)
       stack.append(elt)
       elt.startElement(stack, name, attrs)
@@ -205,48 +195,3 @@ type_map = {
   "extension_preference" : extension_preference_elt,
   "resource_class"       : resource_class_elt
 }
-
-# bsc_link                              ; attribute-only element
-# child_db_id                           ; attribute-only element
-# repository_link                       ; attribute-only element
-# sia_base                              ; attribute-only element
-# 
-# as_number                             ; attribute-only element, single/multi depending on context (sigh)
-# as_range                              ; attribute-only element, multi
-# ipv4_prefix                           ; attribute-only element, multi
-# ipv4_range                            ; attribute-only element, multi
-# ipv6_prefix                           ; attribute-only element, multi
-# ipv6_range                            ; attribute-only element, multi
-# peer_contact                          ; attribute-only element, multi
-# subset_as_number                      ; attribute-only element, multi
-# subset_as_range                       ; attribute-only element, multi
-# subset_ipv4_prefix                    ; attribute-only element, multi
-# subset_ipv4_range                     ; attribute-only element, multi
-# subset_ipv6_prefix		        ; attribute-only element, multi
-# subset_ipv6_range		        ; attribute-only element, multi
-# 
-# peer_ta				; base64 element
-# pkcs10_cert_request			; base64 element
-# public_key				; base64 element
-# signing_cert				; base64 element, multi
-# 
-# extension_preference			; container element, multi
-# resource_class			; container element, multi
-# 
-# generate_keypair                      ; attribute-only control element
-# publish_world_now			; empty control element
-# reissue				; empty control element
-# rekey					; empty control element
-# revoke				; empty control element
-# run_now				; empty control element
-# suppress_publication			; empty control element
-# 
-# msg					; pdu
-# bsc					; pdu element
-# child					; pdu element
-# list_resources			; pdu element
-# parent				; pdu element
-# report_error				; pdu element
-# repository				; pdu element
-# route_origin				; pdu element
-# self					; pdu element

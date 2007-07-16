@@ -10,6 +10,6 @@ for f in files:
   x = fh.read()
   fh.close()
   xml.sax.parseString(x, handler)
-  x = str(handler.obj)
+  x = str(handler.result)
   print x
   rpki.relaxng.relaxng(x, "up-down-medium-schema.rng")

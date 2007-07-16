@@ -334,11 +334,7 @@
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_request">
         <route_origin action="set" self_id="42" route_origin_id="88">
             <suppress_publication/>
-            <as_number   asn="12345"/>
-            <ipv4_prefix min="10.0.0.44"    len="32"/>
-            <ipv4_range  min="10.2.0.6"     max="10.2.0.77"/>
-            <ipv6_prefix min="2002:a00::"   len="48"/>
-            <ipv6_range  min="2002:a02:6::" max="2002:a02:4d::"/>
+	    <resources asn="12345" ipv4="10.0.0.44/32,10.2.0.6-10.2.0.77" ipv6="2002:a00::/48,2002:a02:6::-2002:a02:4d::"/>
         </route_origin>
     </msg>
     
@@ -352,11 +348,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_response">
         <route_origin route_origin_id="88">
-            <as_number   asn="12345"/>
-            <ipv4_prefix min="10.0.0.44"    len="32"/>
-            <ipv4_range  min="10.2.0.6"     max="10.2.0.77"/>
-            <ipv6_prefix min="2002:a00::"   len="48"/>
-            <ipv6_range  min="2002:a02:6::" max="2002:a02:4d::"/>
+	    <resources asn="12345" ipv4="10.0.0.44/32,10.2.0.6-10.2.0.77" ipv6="2002:a00::/48,2002:a02:6::-2002:a02:4d::"/>
         </route_origin>
     </msg>
     
@@ -366,11 +358,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_response">
         <route_origin route_origin_id="88">
-            <as_number   asn="12345"/>
-            <ipv4_prefix min="10.0.0.44"    len="32"/>
-            <ipv4_range  min="10.2.0.6"     max="10.2.0.77"/>
-            <ipv6_prefix min="2002:a00::"   len="48"/>
-            <ipv6_range  min="2002:a02:6::" max="2002:a02:4d::"/>
+	    <resources asn="12345" ipv4="10.0.0.44/32,10.2.0.6-10.2.0.77" ipv6="2002:a00::/48,2002:a02:6::-2002:a02:4d::"/>
         </route_origin>
     </msg>
     
@@ -390,19 +378,14 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="data_response">
         <list_resources self_id="42" child_id="id" valid_until="2008_04_01T00:00:00Z">
-            <resource_class>
-                <ipv4_prefix min="10.0.0.44" len="32"/>
-                <ipv4_prefix min="10.3.0.44" len="32"/>
-                <ipv6_prefix min="fe80:dead:beef::" len="48"/>
-                <as_number   asn="666"/>
-            </resource_class>
-            <resource_class subject_name="wombats are us">
-                <subset_ipv4_prefix min="10.0.0.0"         len="8"/>
-                <ipv4_prefix        min="10.2..0.6"        len="32"/>
-                <ipv6_prefix        min="fe80:dead:beef::" len="48"/>
-                <ipv6_range         min="fe80:dead:beef::" max="fe80:dead:beef::49"/>
-                <as_number          asn="666"/>
-            </resource_class>
+            <resource_class ipv4="10.0.0.44/32,10.3.0.44/32"
+	                    ipv6="fe80:dead:beef::/48"
+			    as="666"/>
+            <resource_class subject_name="wombats are us"
+	                    req_ipv4="10.0.0.0/8" 
+	                    ipv4="10.2..0.6/32" ipv6=
+			    "fe80:dead:beef::/48,fe80:dead:beef::-fe80:dead:beef::49"
+			    as="666"/>
         </list_resources>
     </msg>
     

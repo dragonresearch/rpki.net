@@ -72,16 +72,15 @@ class class_elt(generic_pdu):
       stack.pop()
 
   def __str__(self):
-    xml = ('\
-  <class class_name="%s"\n\
-         cert_url="%s"\n\
-         resource_set_as="%s"\n\
-         resource_set_ipv4="%s"\n\
-         resource_set_ipv6="%s"' \
-           % (self.class_name, self.cert_url,
-              self.resource_set_as, self.resource_set_ipv4, self.resource_set_ipv6))
+    xml = ('  <class class_name="%s"\n'
+           '         cert_url="%s"\n'
+           '         resource_set_as="%s"\n'
+           '         resource_set_ipv4="%s"\n'
+           '         resource_set_ipv6="%s"' 
+           % (self.class_name, self.cert_url, self.resource_set_as,
+              self.resource_set_ipv4, self.resource_set_ipv6))
     if self.suggested_sia_head:
-      xml += ('\n         suggested_sia_head="%s"' % (self.suggested_sia_head))
+      xml += '\n         suggested_sia_head="%s"' % (self.suggested_sia_head)
     xml += ">\n"
     for cert in self.certs:
       xml += str(cert)
@@ -194,15 +193,14 @@ class message_pdu(generic_pdu):
   """
 
   def __str__(self):
-    return ('\
-<?xml version="1.0" encoding="UTF-8"?>\n\
-<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"\n\
-         version="1"\n\
-         sender="%s"\n\
-         recipient="%s"\n\
-         type="%s">\n' \
-            % (self.sender, self.recipient, self.type)
-            ) + str(self.payload) + "</message>\n"
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"\n'
+            '         version="1"\n'
+            '         sender="%s"\n'
+            '         recipient="%s"\n'
+            '         type="%s">\n'
+            '%s</message>\n'
+            % (self.sender, self.recipient, self.type, self.payload))
 
   def startElement(self, stack, name, attrs):
     assert name == "message", "Unexpected name %s, stack %s" % (name, stack)

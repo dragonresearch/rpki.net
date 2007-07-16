@@ -2,35 +2,14 @@
 
 import xml.sax
 
-def snarf_attribute(obj, attrs, key, func=None):
-  """
-  Utility function to consolidate the steps needed to extract a field
-  from the SAX XML parse and insert it as an object attribute of the
-  same name.
-  """
-
-  if isinstance(key, list) or isinstance(key, tuple):
-    for k in key:
-      snarf_attribute(obj, attrs, k, func)
-  else:
-    try:
-      val = attrs.getValue(key).encode("ascii")
-      if func:
-        val = func(val)
-    except KeyError:
-      val = None
-    setattr(obj, key, val)
-
 class handler(xml.sax.handler.ContentHandler):
   """
-  SAX handler for RPKI protocols.  Handles a few tasks
-  common to all of these protocols, needs to be subtyped
-  to handle protocol-specific details.
+  SAX handler for RPKI protocols.
   """
 
   def __init__(self):
     self.text = ""
-    self.obj = None
+    self.stack = []
 
   def startElementNS(self, name, qname, attrs):
     return self.startElement(name[1], attrs)
@@ -41,11 +20,17 @@ class handler(xml.sax.handler.ContentHandler):
   def characters(self, content):
     self.text += content
 
-  def get_text(self):
-    val = self.text.encode("ascii")
-    self.text = ""
-    return val
+  def startElement(self, name, attrs):
+    a = dict()
+    for k,v in attrs.items():
+      a[k.encode("ascii")] = v.encode("ascii")
+    if len(self.stack) == 0:
+      assert not hasattr(self, "result")
+      self.result = self.create_top_level(name, a)
+      self.stack.append(self.result)
+    self.stack[-1].startElement(self.stack, name, a)
 
-  def set_obj(self, obj):
-    assert self.obj is None
-    self.obj = obj
+  def endElement(self, name):
+    text = self.text.encode("ascii")
+    self.text = ""
+    self.stack[-1].endElement(self.stack, name, text)

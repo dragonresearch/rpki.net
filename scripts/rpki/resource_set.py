@@ -76,7 +76,7 @@ class resource_set(list):
     self.sort()
     if __debug__:
       for i in range(0, len(self) - 1):
-        assert self[i].max < self[i + 1].min, 'Resource overlap "%s"' % (s)
+        assert self[i].max < self[i+1].min, "Resource overlap: %s %s" % (self[i], self[i+1])
 
   def __str__(self):
     return ",".join(map(str, self))
@@ -120,7 +120,7 @@ class resource_set_ip(resource_set):
       prefixlen = int(r.group(2))
       mask = (1 << (self.addr_type.bits - prefixlen)) - 1
       assert (min & mask) == 0, "Resource not in canonical form: %s" % (x)
-      max = min | mask
+      max = self.addr_type(min | mask)
       return self.range_type(min, max)
     raise RuntimeError, 'Bad IP resource "%s"' % (x)
 

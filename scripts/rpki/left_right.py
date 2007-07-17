@@ -123,7 +123,7 @@ class parent_elt(base_elt):
 class child_elt(base_elt):
 
   ids = ("bsc_link", "child_db_id")
-  booleans = ("reissue")
+  booleans = ("reissue", )
 
   rekey = False
   reissue = False

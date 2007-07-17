@@ -22,7 +22,7 @@ class extension_preference_elt(base_elt):
   """
 
   def startElement(self, stack, name, attrs):
-    assert name == "extension_preference"
+    assert name == "extension_preference", "Unexpected name %s, stack %s" % (name, stack)
     self.name = attrs["name"]
 
   def endElement(self, stack, name, text):
@@ -46,18 +46,18 @@ class self_elt(base_elt):
     if name == "extension_preference":
       pref = extension_preference_elt()
       self.prefs.append(pref)
-      stack.append(prefs)
+      stack.append(pref)
       pref.startElement(stack, name, attrs)
     elif name in self.booleans:
       setattr(self, name, True)
     else:
-      assert name == "self"
+      assert name == "self", "Unexpected name %s, stack %s" % (name, stack)
       self.action = attrs["action"]
       self.self_id = attrs.get("self_id")
 
   def endElement(self, stack, name, text):
     if name not in self.booleans:
-      assert name == "self"
+      assert name == "self", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
 
 class bsc_elt(base_elt):
@@ -74,7 +74,7 @@ class bsc_elt(base_elt):
       self.hash_alg = attrs["hash_alg"]
       self.key_length = attrs["key_length"]
     elif not name in ("signing_cert", "public_key", "pkcs10_cert_request"):
-      assert name == "bsc"
+      assert name == "bsc", "Unexpected name %s, stack %s" % (name, stack)
       self.action = attrs["action"]
       self.self_id = attrs["self_id"]
       self.bsc_id = attrs.get("bsc_id")
@@ -86,8 +86,8 @@ class bsc_elt(base_elt):
       self.public_key = base64.b64decode(text)
     elif name == "pkcs10_cert_request":
       self.pkcs10_cert_request = base64.b64decode(text)
-    else:
-      assert name == "bsc"
+    elif name != "generate_keypair":
+      assert name == "bsc", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
 
 class parent_elt(base_elt):
@@ -108,7 +108,7 @@ class parent_elt(base_elt):
     elif name in self.booleans:
       setattr(self, name, True)
     elif name != "peer_ta":
-      assert name == "parent"
+      assert name == "parent", "Unexpected name %s, stack %s" % (name, stack)
       self.action = attrs["action"]
       self.self_id = attrs["self_id"]
       self.parent_id = attrs.get("parent_id")
@@ -117,7 +117,7 @@ class parent_elt(base_elt):
     if name == "peer_ta":
       self.peer_ta = base64.b64decode(text)
     elif name not in self.booleans + self.ids + self.uris:
-      assert name == "parent"
+      assert name == "parent", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
 
 class child_elt(base_elt):
@@ -135,7 +135,7 @@ class child_elt(base_elt):
     elif name in self.booleans:
       setattr(self, name, True)
     elif name != "peer_ta":
-      assert name == "child"
+      assert name == "child", "Unexpected name %s, stack %s" % (name, stack)
       self.action = attrs["action"]
       self.self_id = attrs["self_id"]
       self.child_id = attrs.get("child_id")
@@ -144,7 +144,7 @@ class child_elt(base_elt):
     if name == "peer_ta":
       self.peer_ta = base64.b64decode(text)
     elif name not in self.booleans + self.ids:
-      assert name == "child"
+      assert name == "child", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
 
 class repository_elt(base_elt):
@@ -155,7 +155,7 @@ class repository_elt(base_elt):
     elif name == "peer_contact":
       self.peer_contact = attrs["uri"]
     elif name != "peer_ta":
-      assert name == "repository"
+      assert name == "repository", "Unexpected name %s, stack %s" % (name, stack)
       self.action = attrs["action"]
       self.self_id = attrs["self_id"]
       self.repository_id = attrs.get("repository_id")
@@ -164,7 +164,7 @@ class repository_elt(base_elt):
     if name == "peer_ta":
       self.peer_ta = base64.b64decode(text)
     elif name not in ("bsc_link", "peer_contact"):
-      assert name == "repository"
+      assert name == "repository", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
 
 class route_origin_elt(base_elt):
@@ -183,20 +183,20 @@ class route_origin_elt(base_elt):
       if "ipv6" in attrs:
         self.ipv6 = resource_set.resource_set_ipv6(attrs["ipv6"])
     else:
-      assert name == "route_origin"
+      assert name == "route_origin", "Unexpected name %s, stack %s" % (name, stack)
       self.action = attrs["action"]
       self.self_id = attrs["self_id"]
       self.route_origin_id = attrs.get("route_origin_id")
 
   def endElement(self, stack, name, text):
     if name not in ("suppress_publication", "resources"):
-      assert name == "route_origin"
+      assert name == "route_origin", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
 
 class resource_class_elt(base_elt):
 
   def startElement(self, stack, name, attrs):
-    assert name == "resource_class"
+    assert name == "resource_class", "Unexpected name %s, stack %s" % (name, stack)
     if "as" in attrs:
       self.as = resource_set.resource_set_as(attrs["as"])
     if "req_as" in attrs:
@@ -222,14 +222,14 @@ class list_resources_elt(base_elt):
       stack.append(rc)
       rc.startElement(stack, name, attrs)
     else:
-      assert name == "list_resources"
+      assert name == "list_resources", "Unexpected name %s, stack %s" % (name, stack)
       self.self_id = attrs["self_id"]
       self.child_id = attrs.get("child_id")
 
 class report_error_elt(base_elt):
 
   def startElement(self, stack, name, attrs):
-    assert name == "report_error"
+    assert name == "report_error", "Unexpected name %s, stack %s" % (name, stack)
     self.self_id = attrs["self_id"]
     self.error_code = attrs["error_code"]
 
@@ -262,7 +262,7 @@ class msg(list):
       elt.startElement(stack, name, attrs)
 
   def endElement(self, stack, name, text):
-    assert name == "msg"
+    assert name == "msg", "Unexpected name %s, stack %s" % (name, stack)
     assert len(stack) == 1
     stack.pop()
 
@@ -280,4 +280,4 @@ class sax_handler(sax_utils.handler):
 
   def create_top_level(self, name, attrs):
     assert name == "msg" and attrs["version"] == "1"
-    return msg_elt()
+    return msg()

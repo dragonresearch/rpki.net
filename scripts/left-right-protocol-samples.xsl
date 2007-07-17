@@ -27,3 +27,11 @@
     </xsl:for-each>
   </xsl:template>
 </xsl:transform>
+
+
+<!-- 
+  -  Local variables:
+  -  mode: sgml
+  -  compile-command: "xsltproc left-right-protocol-samples.xsl ../docs/left-right-xml"
+  -  End:
+ -->

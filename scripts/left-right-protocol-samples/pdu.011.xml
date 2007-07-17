@@ -2,7 +2,7 @@
 <!--Automatically generated, do not edit.-->
 <msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1" type="control_request">
   <bsc action="create" self_id="42">
-    <signing_cert>cert1</signing_cert>
+    <signing_cert>Y2VydDEK</signing_cert>
     <generate_keypair key_type="rsa" hash_alg="sha1" key_length="2048"/>
   </bsc>
 </msg>

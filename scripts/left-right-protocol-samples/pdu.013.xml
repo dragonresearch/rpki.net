@@ -2,6 +2,6 @@
 <!--Automatically generated, do not edit.-->
 <msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1" type="control_request">
   <bsc action="set" self_id="42" bsc_id="17">
-    <signing_cert>cert2</signing_cert>
+    <signing_cert>Y2VydDIK</signing_cert>
   </bsc>
 </msg>

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="US-ASCII"?>
 <!--Automatically generated, do not edit.-->
 <msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1" type="control_response">
-  <bsc bsc_id="17">
-    <signing_cert>cert1</signing_cert>
-    <signing_cert>cert2</signing_cert>
-    <public_key>key</public_key>
+  <bsc action="get" bsc_id="17">
+    <signing_cert>Y2VydDEK</signing_cert>
+    <signing_cert>Y2VydDIK</signing_cert>
+    <public_key>cHVibGljX2tleQo=</public_key>
   </bsc>
 </msg>

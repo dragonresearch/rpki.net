@@ -2,8 +2,8 @@
 <!--Automatically generated, do not edit.-->
 <msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1" type="control_request">
   <child action="set" self_id="42" child_id="3">
-    <peer_ta>key</peer_ta>
-    <bsc_link id="bsc"/>
+    <peer_ta>cGVlcl90YQo=</peer_ta>
+    <bsc_link id="17"/>
     <child_db_id id="child_db_id"/>
     <reissue/>
   </child>

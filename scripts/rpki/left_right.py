@@ -33,7 +33,7 @@ class extension_preference_elt(base_elt):
     self.name = attrs["name"]
 
   def endElement(self, stack, name, text):
-    self.value = text.strip()
+    self.value = text
     stack.pop()
 
   def __str__(self):

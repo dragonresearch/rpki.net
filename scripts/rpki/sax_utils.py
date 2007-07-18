@@ -31,6 +31,6 @@ class handler(xml.sax.handler.ContentHandler):
     self.stack[-1].startElement(self.stack, name, a)
 
   def endElement(self, name):
-    text = self.text.encode("ascii")
+    text = self.text.encode("ascii").strip()
     self.text = ""
     self.stack[-1].endElement(self.stack, name, text)

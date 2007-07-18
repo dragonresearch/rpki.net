@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="US-ASCII"?>
 <!--Automatically generated, do not edit.-->
 <msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1" type="control_request">
-  <repository action="create" self_id="42">
-    <peer_contact uri="https://re.bar.example/bandicoot/"/>
+  <repository action="create" self_id="42" peer_contact="https://re.bar.example/bandicoot/" bsc_link="17">
     <peer_ta>cGVlcl90YQo=</peer_ta>
-    <bsc_link id="17"/>
   </repository>
 </msg>

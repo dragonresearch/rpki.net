@@ -20,13 +20,13 @@
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_request">
-        <self action="set" self_id="42">
+        <self action="set" self_id="42"
+	        rekey="yes"
+		reissue="yes"
+		revoke="yes"
+		run_now="yes"
+		publish_world_now="yes">
             <extension_preference name="color">Blue</extension_preference>
-            <rekey/>
-            <reissue/>
-            <revoke/>
-            <run_now/>
-            <publish_world_now/>
         </self>
     </msg>
     
@@ -74,9 +74,12 @@
     <!-- ==== -->
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_request">
-        <bsc action="create" self_id="42">
+        <bsc action="create" self_id="42"
+	        generate_keypair="yes"
+		key_type="rsa"
+		hash_alg="sha1"
+		key_length="2048">
             <signing_cert>Y2VydDEK</signing_cert>
-            <generate_keypair key_type="rsa" hash_alg="sha1" key_length="2048"/>
         </bsc>
     </msg>
     
@@ -131,12 +134,12 @@
     <!-- ==== -->
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_request">
-        <parent action="create" self_id="42">
+        <parent action="create" self_id="42"
+                peer_contact="https://re.bar.example/bandicoot/"
+		sia_base="rsync://repo.foo.example/wombat/"
+		bsc_link="17"
+		repository_link="120">
             <peer_ta>cGVlcl90YQo=</peer_ta>
-            <peer_contact uri="https://re.bar.example/bandicoot/"/>
-            <sia_base uri="rsync://repo.foo.example/wombat/"/>
-            <bsc_link id="17"/>
-            <repository_link id="120"/>
         </parent>
     </msg>
     
@@ -145,15 +148,15 @@
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_request">
-        <parent action="set" self_id="42" parent_id="666">
+        <parent action="set" self_id="42" parent_id="666"
+                peer_contact="https://re.bar.example/bandicoot/"
+		sia_base="rsync://repo.foo.example/wombat/"
+		bsc_link="17"
+		repository_link="120"
+		rekey="yes"
+		reissue="yes"
+		revoke="yes">
             <peer_ta>cGVlcl90YQo=</peer_ta>
-            <peer_contact uri="https://re.bar.example/bandicoot/"/>
-            <sia_base uri="rsync://repo.foo.example/wombat/"/>
-            <bsc_link id="17"/>
-            <repository_link id="120"/>
-            <rekey/>
-            <reissue/>
-            <revoke/>
         </parent>
     </msg>
     
@@ -166,12 +169,12 @@
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_response">
-        <parent action="get" self_id="42" parent_id="666">
+        <parent action="get" self_id="42" parent_id="666"
+                peer_contact="https://re.bar.example/bandicoot/"
+		sia_base="rsync://repo.foo.example/wombat/"
+		bsc_link="17"
+		repository_link="120">
             <peer_ta>cGVlcl90YQo=</peer_ta>
-            <peer_contact uri="https://re.bar.example/bandicoot/"/>
-            <sia_base uri="rsync://repo.foo.example/wombat/"/>
-            <bsc_link id="17"/>
-            <repository_link id="120"/>
         </parent>
     </msg>
     
@@ -180,12 +183,12 @@
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_response">
-        <parent action="list" self_id="42" parent_id="666">
+        <parent action="list" self_id="42" parent_id="666"
+                peer_contact="https://re.bar.example/bandicoot/"
+		sia_base="rsync://repo.foo.example/wombat/"
+		bsc_link="17"
+		repository_link="120">
             <peer_ta>cGVlcl90YQo=</peer_ta>
-            <peer_contact uri="https://re.bar.example/bandicoot/"/>
-            <sia_base uri="rsync://repo.foo.example/wombat/"/>
-            <bsc_link id="17"/>
-            <repository_link id="120"/>
         </parent>
     </msg>
     
@@ -200,10 +203,10 @@
     <!-- ==== -->
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_request">
-        <child action="create" self_id="42">
+        <child action="create" self_id="42"
+                bsc_link="17"
+		child_db_id="child_db_id">
             <peer_ta>cGVlcl90YQo=</peer_ta>
-            <bsc_link id="17"/>
-            <child_db_id id="child_db_id"/>
         </child>
     </msg>
     
@@ -212,11 +215,11 @@
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_request">
-        <child action="set" self_id="42" child_id="3">
-            <peer_ta>cGVlcl90YQo=</peer_ta>
-            <bsc_link id="17"/>
-            <child_db_id id="child_db_id"/>
-            <reissue/>
+        <child action="set" self_id="42" child_id="3"
+                bsc_link="17"
+		child_db_id="child_db_id"
+		reissue="yes">
+	    <peer_ta>cGVlcl90YQo=</peer_ta>
         </child>
     </msg>
     
@@ -229,10 +232,10 @@
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_response">
-        <child action="get" self_id="42" child_id="3">
+        <child action="get" self_id="42" child_id="3"
+                bsc_link="17"
+		child_db_id="child_db_id">
             <peer_ta>cGVlcl90YQo=</peer_ta>
-            <bsc_link id="17"/>
-            <child_db_id id="child_db_id"/>
         </child>
     </msg>
     
@@ -242,9 +245,9 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_response">
         <child action="list" self_id="42" child_id="3">
+                bsc_link="17"
+		child_db_id="child_db_id">
             <peer_ta>cGVlcl90YQo=</peer_ta>
-            <bsc_link id="17"/>
-            <child_db_id id="child_db_id"/>
         </child>
     </msg>
     
@@ -259,10 +262,10 @@
     <!-- ==== -->
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_request">
-        <repository action="create" self_id="42">
-            <peer_contact uri="https://re.bar.example/bandicoot/"/>
+        <repository action="create" self_id="42"
+                peer_contact="https://re.bar.example/bandicoot/"
+		bsc_link="17">
             <peer_ta>cGVlcl90YQo=</peer_ta>
-            <bsc_link id="17"/>
         </repository>
     </msg>
     
@@ -271,10 +274,10 @@
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_request">
-        <repository action="set" self_id="42" repository_id="120">
-            <peer_contact uri="https://re.bar.example/bandicoot/"/>
+        <repository action="set" self_id="42" repository_id="120"
+                peer_contact="https://re.bar.example/bandicoot/"
+		bsc_link="17">
             <peer_ta>cGVlcl90YQo=</peer_ta>
-            <bsc_link id="17"/>
         </repository>
     </msg>
     
@@ -287,10 +290,10 @@
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_response">
-        <repository action="get" self_id="42" repository_id="120">
-            <peer_contact uri="https://re.bar.example/bandicoot/"/>
+        <repository action="get" self_id="42" repository_id="120"
+                peer_contact="https://re.bar.example/bandicoot/"
+		bsc_link="17">
             <peer_ta>cGVlcl90YQo=</peer_ta>
-            <bsc_link id="17"/>
         </repository>
     </msg>
     
@@ -299,10 +302,10 @@
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_response">
-        <repository action="list" self_id="42" repository_id="120">
-            <peer_contact uri="https://re.bar.example/bandicoot/"/>
+        <repository action="list" self_id="42" repository_id="120"
+                peer_contact="https://re.bar.example/bandicoot/"
+		bsc_link="17">
             <peer_ta>cGVlcl90YQo=</peer_ta>
-            <bsc_link id="17"/>
         </repository>
     </msg>
     
@@ -325,10 +328,9 @@
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_request">
-        <route_origin action="set" self_id="42" route_origin_id="88">
-            <suppress_publication/>
-	    <resources asn="12345" ipv4="10.0.0.44/32,10.2.0.6-10.2.0.77" ipv6="2002:a00::/48,2002:a02:6::-2002:a02:4d::"/>
-        </route_origin>
+        <route_origin action="set" self_id="42" route_origin_id="88"
+	    suppress_publication="yes"
+	    asn="12345" ipv4="10.0.0.44/32,10.2.0.6-10.2.0.77" ipv6="2002:a00::/48,2002:a02:6::-2002:a02:4d::"/>
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_response">
@@ -340,9 +342,8 @@
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_response">
-        <route_origin action="get" self_id="42" route_origin_id="88">
-	    <resources asn="12345" ipv4="10.0.0.44/32,10.2.0.6-10.2.0.77" ipv6="2002:a00::/48,2002:a02:6::-2002:a02:4d::"/>
-        </route_origin>
+        <route_origin action="get" self_id="42" route_origin_id="88"
+	    asn="12345" ipv4="10.0.0.44/32,10.2.0.6-10.2.0.77" ipv6="2002:a00::/48,2002:a02:6::-2002:a02:4d::"/>
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_request">
@@ -350,9 +351,8 @@
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_response">
-        <route_origin action="list" self_id="42" route_origin_id="88">
-	    <resources asn="12345" ipv4="10.0.0.44/32,10.2.0.6-10.2.0.77" ipv6="2002:a00::/48,2002:a02:6::-2002:a02:4d::"/>
-        </route_origin>
+        <route_origin action="list" self_id="42" route_origin_id="88"
+	    asn="12345" ipv4="10.0.0.44/32,10.2.0.6-10.2.0.77" ipv6="2002:a00::/48,2002:a02:6::-2002:a02:4d::"/>
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_request">

@@ -2,7 +2,7 @@
 
 import glob, rpki.up_down, rpki.left_right, rpki.relaxng, xml.sax
 
-if False:
+if True:
   files = glob.glob("up-down-protocol-samples/*.xml")
   files.sort()
   for f in files:

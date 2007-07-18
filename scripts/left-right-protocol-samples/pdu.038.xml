@@ -2,8 +2,7 @@
 <!--Automatically generated, do not edit.-->
 <msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1" type="control_response">
   <child action="list" self_id="42" child_id="3">
-    <peer_ta>cGVlcl90YQo=</peer_ta>
-    <bsc_link id="17"/>
-    <child_db_id id="child_db_id"/>
-  </child>
+                bsc_link="17"
+		child_db_id="child_db_id"&gt;
+            <peer_ta>cGVlcl90YQo=</peer_ta></child>
 </msg>

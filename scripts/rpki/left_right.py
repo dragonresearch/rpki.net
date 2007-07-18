@@ -58,12 +58,6 @@ class self_elt(base_elt):
   attributes = ("action", "self_id")
   booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now")
 
-  rekey = False
-  reissue = False
-  revoke = False
-  run_now = False
-  publish_world_now = False
-
   def __init__(self):
     self.prefs = []
 
@@ -92,7 +86,6 @@ class bsc_elt(base_elt):
   attributes = ("action", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
   booleans = ("generate_keypair",)
 
-  generate_keypair = False
   pkcs10_cert_request = None
   public_key = None
 
@@ -130,9 +123,6 @@ class parent_elt(base_elt):
   attributes = ("self_id", "parent_id", "bsc_link", "repository_link", "peer_contact", "sia_base")
   booleans = ("rekey", "reissue", "revoke")
 
-  rekey = False
-  reissue = False
-  revoke = False
   peer_ta = None
 
   def startElement(self, stack, name, attrs):
@@ -158,7 +148,6 @@ class child_elt(base_elt):
   attributes = ("action", "self_id", "child_id", "bsc_link", "child_db_id")
   booleans = ("reissue", )
 
-  reissue = False
   peer_ta = None
 
   def startElement(self, stack, name, attrs):
@@ -208,11 +197,6 @@ class route_origin_elt(base_elt):
 
   attributes = ("action", "self_id", "route_origin_id", "asn", "ipv4", "ipv6")
   booleans = ("suppress_publication",)
-
-  suppress_publication = False
-
-  ipv4 = None
-  ipv6 = None
 
   def startElement(self, stack, name, attrs):
     assert name == "route_origin", "Unexpected name %s, stack %s" % (name, stack)

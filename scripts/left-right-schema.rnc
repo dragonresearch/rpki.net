@@ -55,7 +55,7 @@
          attribute self_id { xsd:token { maxLength="1024" } },
          attribute parent_id { xsd:token { maxLength="1024" } }?,
 	 attribute peer_contact { xsd:anyURI { maxLength="1024" } }?,
-	 attribute sia_head { xsd:anyURI { maxLength="1024" } }?,
+	 attribute sia_base { xsd:anyURI { maxLength="1024" } }?,
 	 attribute bsc_link { xsd:token { maxLength="1024" } }?,
 	 attribute repository_link { xsd:token { maxLength="1024" } }?,
 	 attribute rekey { "yes" }?,
@@ -104,7 +104,7 @@
          attribute child_id { xsd:token { maxLength="1024" } }?,
 	 attribute valid_until { xsd:token { maxLength="1024" } }?,
          element resource_class {
-	   attribute subject { xsd:token { maxLength="1024" } }?,
+	   attribute subject_name { xsd:token { maxLength="1024" } }?,
 	   attribute as { xsd:token { maxLength="1024" } }?,
 	   attribute ipv4 { xsd:token { maxLength="1024" } }?,
 	   attribute ipv6 { xsd:token { maxLength="1024" } }?,

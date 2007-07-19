@@ -190,7 +190,7 @@
         </attribute>
       </optional>
       <optional>
-        <attribute name="sia_head">
+        <attribute name="sia_base">
           <data type="anyURI">
             <param name="maxLength">1024</param>
           </data>
@@ -394,7 +394,7 @@
       <zeroOrMore>
         <element name="resource_class">
           <optional>
-            <attribute name="subject">
+            <attribute name="subject_name">
               <data type="token">
                 <param name="maxLength">1024</param>
               </data>

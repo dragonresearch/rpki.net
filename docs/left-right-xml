@@ -244,7 +244,7 @@
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" type="control_response">
-        <child action="list" self_id="42" child_id="3">
+        <child action="list" self_id="42" child_id="3"
                 bsc_link="17"
 		child_db_id="child_db_id">
             <peer_ta>cGVlcl90YQo=</peer_ta>

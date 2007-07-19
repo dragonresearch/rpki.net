@@ -120,7 +120,7 @@ class bsc_elt(base_elt):
 
 class parent_elt(base_elt):
 
-  attributes = ("self_id", "parent_id", "bsc_link", "repository_link", "peer_contact", "sia_base")
+  attributes = ("action", "self_id", "parent_id", "bsc_link", "repository_link", "peer_contact", "sia_base")
   booleans = ("rekey", "reissue", "revoke")
 
   peer_ta = None

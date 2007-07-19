@@ -5,8 +5,7 @@
   RelaxNG (Compact Syntax) Schema for RPKI left-right protocol.
   
   libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
-  run the output of this script through a converter like trang to get
-  XML syntax.
+  run the compact syntax through trang to get XML syntax.
 -->
 <grammar ns="http://www.hactrn.net/uris/rpki/left-right-spec/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
   <start>
@@ -464,8 +463,3 @@
     </element>
   </define>
 </grammar>
-<!--
-  Local Variables:
-  compile-command: "trang left-right-schema.rnc left-right-schema.rng"
-  End:
--->

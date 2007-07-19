@@ -1,0 +1,471 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  $Id$
+  
+  RelaxNG (Compact Syntax) Schema for RPKI left-right protocol.
+  
+  libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
+  run the output of this script through a converter like trang to get
+  XML syntax.
+-->
+<grammar ns="http://www.hactrn.net/uris/rpki/left-right-spec/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <start>
+    <element name="msg">
+      <attribute name="version">
+        <data type="positiveInteger">
+          <param name="maxInclusive">1</param>
+        </data>
+      </attribute>
+      <attribute name="type">
+        <choice>
+          <value>control_request</value>
+          <value>control_response</value>
+          <value>data_request</value>
+          <value>data_response</value>
+          <value>error</value>
+        </choice>
+      </attribute>
+      <ref name="payload"/>
+    </element>
+  </start>
+  <define name="payload">
+    <zeroOrMore>
+      <choice>
+        <ref name="self"/>
+        <ref name="bsc"/>
+        <ref name="parent"/>
+        <ref name="child"/>
+        <ref name="repository"/>
+        <ref name="route_origin"/>
+        <ref name="list_resources"/>
+        <ref name="report_error"/>
+      </choice>
+    </zeroOrMore>
+  </define>
+  <define name="self">
+    <element name="self">
+      <attribute name="action">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <optional>
+        <attribute name="self_id">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="rekey">
+          <value>yes</value>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="reissue">
+          <value>yes</value>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="revoke">
+          <value>yes</value>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="run_now">
+          <value>yes</value>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="publish_world_now">
+          <value>yes</value>
+        </attribute>
+      </optional>
+      <zeroOrMore>
+        <element name="extension_preference">
+          <attribute name="name">
+            <data type="token">
+              <param name="maxLength">1024</param>
+            </data>
+          </attribute>
+          <data type="string">
+            <param name="maxLength">512000</param>
+          </data>
+        </element>
+      </zeroOrMore>
+    </element>
+  </define>
+  <define name="bsc">
+    <element name="bsc">
+      <attribute name="action">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <attribute name="self_id">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <optional>
+        <attribute name="bsc_id">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="generate_keypair">
+          <value>yes</value>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="key_type">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="hash_alg">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="key_length">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <zeroOrMore>
+        <element name="signing_cert">
+          <data type="base64Binary">
+            <param name="maxLength">512000</param>
+          </data>
+        </element>
+      </zeroOrMore>
+      <optional>
+        <element name="pkcs10_cert_request">
+          <data type="base64Binary">
+            <param name="maxLength">512000</param>
+          </data>
+        </element>
+      </optional>
+      <optional>
+        <element name="public_key">
+          <data type="base64Binary">
+            <param name="maxLength">512000</param>
+          </data>
+        </element>
+      </optional>
+    </element>
+  </define>
+  <define name="parent">
+    <element name="parent">
+      <attribute name="action">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <attribute name="self_id">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <optional>
+        <attribute name="parent_id">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="peer_contact">
+          <data type="anyURI">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="sia_head">
+          <data type="anyURI">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="bsc_link">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="repository_link">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="rekey">
+          <value>yes</value>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="reissue">
+          <value>yes</value>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="revoke">
+          <value>yes</value>
+        </attribute>
+      </optional>
+      <optional>
+        <element name="peer_ta">
+          <data type="base64Binary">
+            <param name="maxLength">512000</param>
+          </data>
+        </element>
+      </optional>
+    </element>
+  </define>
+  <define name="child">
+    <element name="child">
+      <attribute name="action">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <attribute name="self_id">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <optional>
+        <attribute name="child_id">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="bsc_link">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="child_db_id">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="reissue">
+          <value>yes</value>
+        </attribute>
+      </optional>
+      <optional>
+        <element name="peer_ta">
+          <data type="base64Binary">
+            <param name="maxLength">512000</param>
+          </data>
+        </element>
+      </optional>
+    </element>
+  </define>
+  <define name="repository">
+    <element name="repository">
+      <attribute name="action">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <attribute name="self_id">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <optional>
+        <attribute name="repository_id">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="peer_contact">
+          <data type="anyURI">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="bsc_link">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <element name="peer_ta">
+          <data type="base64Binary">
+            <param name="maxLength">512000</param>
+          </data>
+        </element>
+      </optional>
+    </element>
+  </define>
+  <define name="route_origin">
+    <element name="route_origin">
+      <attribute name="action">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <attribute name="self_id">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <optional>
+        <attribute name="route_origin_id">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="suppress_publication">
+          <value>yes</value>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="asn">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="ipv4">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="ipv6">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+    </element>
+  </define>
+  <define name="list_resources">
+    <element name="list_resources">
+      <attribute name="self_id">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <optional>
+        <attribute name="child_id">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="valid_until">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <zeroOrMore>
+        <element name="resource_class">
+          <optional>
+            <attribute name="subject">
+              <data type="token">
+                <param name="maxLength">1024</param>
+              </data>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="as">
+              <data type="token">
+                <param name="maxLength">1024</param>
+              </data>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="ipv4">
+              <data type="token">
+                <param name="maxLength">1024</param>
+              </data>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="ipv6">
+              <data type="token">
+                <param name="maxLength">1024</param>
+              </data>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="req_as">
+              <data type="token">
+                <param name="maxLength">1024</param>
+              </data>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="req_ipv4">
+              <data type="token">
+                <param name="maxLength">1024</param>
+              </data>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="req_ipv6">
+              <data type="token">
+                <param name="maxLength">1024</param>
+              </data>
+            </attribute>
+          </optional>
+        </element>
+      </zeroOrMore>
+    </element>
+  </define>
+  <define name="report_error">
+    <element name="report_error">
+      <attribute name="self_id">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <attribute name="error_code">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <data type="string">
+        <param name="maxLength">512000</param>
+      </data>
+    </element>
+  </define>
+</grammar>
+<!--
+  Local Variables:
+  compile-command: "trang left-right-schema.rnc left-right-schema.rng"
+  End:
+-->

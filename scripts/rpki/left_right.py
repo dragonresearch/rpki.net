@@ -2,9 +2,6 @@
 
 import base64, sax_utils, resource_set
 
-# This is still pretty nasty, feels much too complex for a relatively
-# simple task.
-
 class base_elt(object):
   """
   Base type for left-right message elements.
@@ -55,7 +52,7 @@ class extension_preference_elt(base_elt):
 
 class self_elt(base_elt):
 
-  attributes = ("action", "self_id")
+  attributes = ("action", "type", "self_id")
   booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now")
 
   def __init__(self):
@@ -83,7 +80,7 @@ class self_elt(base_elt):
 
 class bsc_elt(base_elt):
 
-  attributes = ("action", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
+  attributes = ("action", "type", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
   booleans = ("generate_keypair",)
 
   pkcs10_cert_request = None
@@ -120,7 +117,7 @@ class bsc_elt(base_elt):
 
 class parent_elt(base_elt):
 
-  attributes = ("action", "self_id", "parent_id", "bsc_link", "repository_link", "peer_contact", "sia_base")
+  attributes = ("action", "type", "self_id", "parent_id", "bsc_link", "repository_link", "peer_contact", "sia_base")
   booleans = ("rekey", "reissue", "revoke")
 
   peer_ta = None
@@ -145,7 +142,7 @@ class parent_elt(base_elt):
 
 class child_elt(base_elt):
 
-  attributes = ("action", "self_id", "child_id", "bsc_link", "child_db_id")
+  attributes = ("action", "type", "self_id", "child_id", "bsc_link", "child_db_id")
   booleans = ("reissue", )
 
   peer_ta = None
@@ -171,7 +168,7 @@ class child_elt(base_elt):
 
 class repository_elt(base_elt):
 
-  attributes = ("action", "self_id", "repository_id", "bsc_link", "peer_contact")
+  attributes = ("action", "type", "self_id", "repository_id", "bsc_link", "peer_contact")
 
   peer_ta = None
 
@@ -195,7 +192,7 @@ class repository_elt(base_elt):
 
 class route_origin_elt(base_elt):
 
-  attributes = ("action", "self_id", "route_origin_id", "asn", "ipv4", "ipv6")
+  attributes = ("action", "type", "self_id", "route_origin_id", "asn", "ipv4", "ipv6")
   booleans = ("suppress_publication",)
 
   def startElement(self, stack, name, attrs):
@@ -244,7 +241,7 @@ class resource_class_elt(base_elt):
 
 class list_resources_elt(base_elt):
 
-  attributes = ("self_id", "child_id", "valid_until")
+  attributes = ("type", "self_id", "child_id", "valid_until")
 
   def __init__(self):
     self.resources = []
@@ -287,7 +284,6 @@ class msg(list):
   def startElement(self, stack, name, attrs):
     if name == "msg":
       self.version = int(attrs["version"])
-      self.type = attrs["type"]
       assert self.version == 1
     else:
       elt = {
@@ -311,10 +307,9 @@ class msg(list):
 
   def __str__(self):
     return ('<?xml version="1.0" encoding="US-ASCII" ?>\n'
-            '<msg xmlns="%s" version="%d" type="%s">\n'
+            '<msg xmlns="%s" version="%d">\n'
             '%s</msg>\n'
-            % (self.spec_uri, self.version, self.type,
-               "".join(map(str, self))))
+            % (self.spec_uri, self.version, "".join(map(str, self))))
 
 class sax_handler(sax_utils.handler):
   """

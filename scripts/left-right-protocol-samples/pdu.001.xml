@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="US-ASCII"?>
 <!--Automatically generated, do not edit.-->
-<msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1" type="control_request">
-  <self action="create">
+<msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1">
+  <self action="create" type="query">
     <extension_preference name="name">Launcelot</extension_preference>
     <extension_preference name="quest">Holy Grail</extension_preference>
   </self>

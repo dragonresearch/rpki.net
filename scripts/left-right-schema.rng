@@ -15,39 +15,53 @@
           <param name="maxInclusive">1</param>
         </data>
       </attribute>
-      <attribute name="type">
+      <zeroOrMore>
         <choice>
-          <value>control_request</value>
-          <value>control_response</value>
-          <value>data_request</value>
-          <value>data_response</value>
-          <value>error</value>
+          <ref name="self"/>
+          <ref name="bsc"/>
+          <ref name="parent"/>
+          <ref name="child"/>
+          <ref name="repository"/>
+          <ref name="route_origin"/>
+          <ref name="list_resources"/>
+          <ref name="report_error"/>
         </choice>
-      </attribute>
-      <ref name="payload"/>
+      </zeroOrMore>
     </element>
   </start>
-  <define name="payload">
-    <zeroOrMore>
+  <define name="action">
+    <attribute name="action">
       <choice>
-        <ref name="self"/>
-        <ref name="bsc"/>
-        <ref name="parent"/>
-        <ref name="child"/>
-        <ref name="repository"/>
-        <ref name="route_origin"/>
-        <ref name="list_resources"/>
-        <ref name="report_error"/>
+        <value>create</value>
+        <value>set</value>
+        <value>get</value>
+        <value>list</value>
+        <value>destroy</value>
       </choice>
-    </zeroOrMore>
+    </attribute>
+  </define>
+  <define name="type">
+    <attribute name="type">
+      <choice>
+        <value>query</value>
+        <value>reply</value>
+      </choice>
+    </attribute>
+  </define>
+  <define name="base64">
+    <data type="base64Binary">
+      <param name="maxLength">512000</param>
+    </data>
+  </define>
+  <define name="peer_ta">
+    <element name="peer_ta">
+      <ref name="base64"/>
+    </element>
   </define>
   <define name="self">
     <element name="self">
-      <attribute name="action">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
-      </attribute>
+      <ref name="action"/>
+      <ref name="type"/>
       <optional>
         <attribute name="self_id">
           <data type="token">
@@ -96,11 +110,8 @@
   </define>
   <define name="bsc">
     <element name="bsc">
-      <attribute name="action">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
-      </attribute>
+      <ref name="action"/>
+      <ref name="type"/>
       <attribute name="self_id">
         <data type="token">
           <param name="maxLength">1024</param>
@@ -141,34 +152,25 @@
       </optional>
       <zeroOrMore>
         <element name="signing_cert">
-          <data type="base64Binary">
-            <param name="maxLength">512000</param>
-          </data>
+          <ref name="base64"/>
         </element>
       </zeroOrMore>
       <optional>
         <element name="pkcs10_cert_request">
-          <data type="base64Binary">
-            <param name="maxLength">512000</param>
-          </data>
+          <ref name="base64"/>
         </element>
       </optional>
       <optional>
         <element name="public_key">
-          <data type="base64Binary">
-            <param name="maxLength">512000</param>
-          </data>
+          <ref name="base64"/>
         </element>
       </optional>
     </element>
   </define>
   <define name="parent">
     <element name="parent">
-      <attribute name="action">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
-      </attribute>
+      <ref name="action"/>
+      <ref name="type"/>
       <attribute name="self_id">
         <data type="token">
           <param name="maxLength">1024</param>
@@ -225,21 +227,14 @@
         </attribute>
       </optional>
       <optional>
-        <element name="peer_ta">
-          <data type="base64Binary">
-            <param name="maxLength">512000</param>
-          </data>
-        </element>
+        <ref name="peer_ta"/>
       </optional>
     </element>
   </define>
   <define name="child">
     <element name="child">
-      <attribute name="action">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
-      </attribute>
+      <ref name="action"/>
+      <ref name="type"/>
       <attribute name="self_id">
         <data type="token">
           <param name="maxLength">1024</param>
@@ -272,21 +267,14 @@
         </attribute>
       </optional>
       <optional>
-        <element name="peer_ta">
-          <data type="base64Binary">
-            <param name="maxLength">512000</param>
-          </data>
-        </element>
+        <ref name="peer_ta"/>
       </optional>
     </element>
   </define>
   <define name="repository">
     <element name="repository">
-      <attribute name="action">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
-      </attribute>
+      <ref name="action"/>
+      <ref name="type"/>
       <attribute name="self_id">
         <data type="token">
           <param name="maxLength">1024</param>
@@ -314,21 +302,14 @@
         </attribute>
       </optional>
       <optional>
-        <element name="peer_ta">
-          <data type="base64Binary">
-            <param name="maxLength">512000</param>
-          </data>
-        </element>
+        <ref name="peer_ta"/>
       </optional>
     </element>
   </define>
   <define name="route_origin">
     <element name="route_origin">
-      <attribute name="action">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
-      </attribute>
+      <ref name="action"/>
+      <ref name="type"/>
       <attribute name="self_id">
         <data type="token">
           <param name="maxLength">1024</param>
@@ -371,6 +352,7 @@
   </define>
   <define name="list_resources">
     <element name="list_resources">
+      <ref name="type"/>
       <attribute name="self_id">
         <data type="token">
           <param name="maxLength">1024</param>

@@ -10,14 +10,19 @@
      grammar {
        start = element msg {
          attribute version { xsd:positiveInteger { maxInclusive="1" } },
-	 attribute type    { "control_request" | "control_response" | "data_request" | "data_response" | "error" },
-	 \payload
+	 ( self | bsc | \parent | child | repository | route_origin | list_resources | report_error )*
        }
 
-       \payload = ( \self | \bsc | \parent | \child | \repository | \route_origin | \list_resources | \report_error )*
+       action = attribute action { "create" | "set" | "get" | "list" | "destroy" }
 
-       \self = element self {
-         attribute action { xsd:token { maxLength="1024" } },
+       type = attribute type { "query" | "reply" }
+
+       base64 = xsd:base64Binary { maxLength="512000" }
+
+       peer_ta = element peer_ta { base64 }
+
+       self = element self {
+         action, type,
          attribute self_id { xsd:token { maxLength="1024" } }?,
 	 attribute rekey { "yes" }?,
 	 attribute reissue { "yes" }?,
@@ -30,27 +35,21 @@
          }*
        }
 
-       \bsc = element bsc {
-         attribute action { xsd:token { maxLength="1024" } },
+       bsc = element bsc {
+         action, type,
          attribute self_id { xsd:token { maxLength="1024" } },
          attribute bsc_id { xsd:token { maxLength="1024" } }?,
 	 attribute generate_keypair { "yes" }?,
 	 attribute key_type { xsd:token { maxLength="1024" } }?,
 	 attribute hash_alg { xsd:token { maxLength="1024" } }?,
 	 attribute key_length { xsd:token { maxLength="1024" } }?,
-         element signing_cert {
-           xsd:base64Binary { maxLength="512000" }
-         }*,
-	 element pkcs10_cert_request {
-           xsd:base64Binary { maxLength="512000" }
-	 }?,
-	 element public_key {
-           xsd:base64Binary { maxLength="512000" }
-	 }?
+         element signing_cert { base64 }*,
+	 element pkcs10_cert_request { base64 }?,
+	 element public_key { base64 }?
        }
 
        \parent = element parent {
-         attribute action { xsd:token { maxLength="1024" } },
+         action, type,
          attribute self_id { xsd:token { maxLength="1024" } },
          attribute parent_id { xsd:token { maxLength="1024" } }?,
 	 attribute peer_contact { xsd:anyURI { maxLength="1024" } }?,
@@ -60,36 +59,30 @@
 	 attribute rekey { "yes" }?,
 	 attribute reissue { "yes" }?,
 	 attribute revoke { "yes" }?,
-         element peer_ta {
-           xsd:base64Binary { maxLength="512000" }
-         }?
+         peer_ta?
        }
 
-       \child = element child {
-         attribute action { xsd:token { maxLength="1024" } },
+       child = element child {
+         action, type,
          attribute self_id { xsd:token { maxLength="1024" } },
          attribute child_id { xsd:token { maxLength="1024" } }?,
 	 attribute bsc_link { xsd:token { maxLength="1024" } }?,
 	 attribute child_db_id { xsd:token { maxLength="1024" } }?,
 	 attribute reissue { "yes" }?,
-         element peer_ta {
-           xsd:base64Binary { maxLength="512000" }
-         }?
+         peer_ta?
        }
 
-       \repository = element repository {
-         attribute action { xsd:token { maxLength="1024" } },
+       repository = element repository {
+         action, type,
          attribute self_id { xsd:token { maxLength="1024" } },
          attribute repository_id { xsd:token { maxLength="1024" } }?,
 	 attribute peer_contact { xsd:anyURI { maxLength="1024" } }?,
 	 attribute bsc_link { xsd:token { maxLength="1024" } }?,
-         element peer_ta {
-           xsd:base64Binary { maxLength="512000" }
-         }?
+         peer_ta?
        }
 
-       \route_origin = element route_origin {
-         attribute action { xsd:token { maxLength="1024" } },
+       route_origin = element route_origin {
+         action, type,
          attribute self_id { xsd:token { maxLength="1024" } },
          attribute route_origin_id { xsd:token { maxLength="1024" } }?,
 	 attribute suppress_publication { "yes" }?,
@@ -98,7 +91,8 @@
 	 attribute ipv6 { xsd:token { maxLength="1024" } }?
        }
 
-       \list_resources = element list_resources {
+       list_resources = element list_resources {
+	 type,
          attribute self_id { xsd:token { maxLength="1024" } },
          attribute child_id { xsd:token { maxLength="1024" } }?,
 	 attribute valid_until { xsd:token { maxLength="1024" } }?,
@@ -113,7 +107,7 @@
          }*
        }
 
-       \report_error = element report_error {
+       report_error = element report_error {
          attribute self_id { xsd:token { maxLength="1024" } },
          attribute error_code { xsd:token { maxLength="1024" } },
          xsd:string { maxLength="512000" }

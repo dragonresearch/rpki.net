@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="US-ASCII"?>
 <!--Automatically generated, do not edit.-->
-<msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1" type="control_response">
-  <parent action="list" self_id="42" parent_id="666" peer_contact="https://re.bar.example/bandicoot/" sia_base="rsync://repo.foo.example/wombat/" bsc_link="17" repository_link="120">
+<msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1">
+  <parent action="list" type="reply" self_id="42" parent_id="666" peer_contact="https://re.bar.example/bandicoot/" sia_base="rsync://repo.foo.example/wombat/" bsc_link="17" repository_link="120">
     <peer_ta>cGVlcl90YQo=</peer_ta>
   </parent>
 </msg>

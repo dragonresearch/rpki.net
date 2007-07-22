@@ -5,112 +5,109 @@
 # libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
 # run the compact syntax through trang to get XML syntax.
 
-     default namespace = "http://www.hactrn.net/uris/rpki/left-right-spec/"
+default namespace = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
-     grammar {
-       start = element msg {
-         attribute version { xsd:positiveInteger { maxInclusive="1" } },
-	 ( self | bsc | \parent | child | repository | route_origin | list_resources | report_error )*
-       }
+start = element msg {
+  attribute version { xsd:positiveInteger { maxInclusive="1" } },
+  ( self | bsc | \parent | child | repository | route_origin | list_resources | report_error )*
+}
 
-       action = attribute action { "create" | "set" | "get" | "list" | "destroy" }
+action = attribute action { "create" | "set" | "get" | "list" | "destroy" }
 
-       type = attribute type { "query" | "reply" }
+type = attribute type { "query" | "reply" }
 
-       base64 = xsd:base64Binary { maxLength="512000" }
+base64 = xsd:base64Binary { maxLength="512000" }
 
-       peer_ta = element peer_ta { base64 }
+peer_ta = element peer_ta { base64 }
 
-       self = element self {
-         action, type,
-         attribute self_id { xsd:token { maxLength="1024" } }?,
-	 attribute rekey { "yes" }?,
-	 attribute reissue { "yes" }?,
-	 attribute revoke { "yes" }?,
-	 attribute run_now { "yes" }?,
-	 attribute publish_world_now { "yes" }?,
-         element extension_preference {
-           attribute name { xsd:token { maxLength="1024" } },
-           xsd:string { maxLength="512000" }
-         }*
-       }
+self = element self {
+  action, type,
+  attribute self_id { xsd:token { maxLength="1024" } }?,
+  attribute rekey { "yes" }?,
+  attribute reissue { "yes" }?,
+  attribute revoke { "yes" }?,
+  attribute run_now { "yes" }?,
+  attribute publish_world_now { "yes" }?,
+  element extension_preference {
+    attribute name { xsd:token { maxLength="1024" } },
+    xsd:string { maxLength="512000" }
+  }*
+}
 
-       bsc = element bsc {
-         action, type,
-         attribute self_id { xsd:token { maxLength="1024" } },
-         attribute bsc_id { xsd:token { maxLength="1024" } }?,
-	 attribute generate_keypair { "yes" }?,
-	 attribute key_type { xsd:token { maxLength="1024" } }?,
-	 attribute hash_alg { xsd:token { maxLength="1024" } }?,
-	 attribute key_length { xsd:token { maxLength="1024" } }?,
-         element signing_cert { base64 }*,
-	 element pkcs10_cert_request { base64 }?,
-	 element public_key { base64 }?
-       }
+bsc = element bsc {
+  action, type,
+  attribute self_id { xsd:token { maxLength="1024" } },
+  attribute bsc_id { xsd:token { maxLength="1024" } }?,
+  attribute generate_keypair { "yes" }?,
+  attribute key_type { xsd:token { maxLength="1024" } }?,
+  attribute hash_alg { xsd:token { maxLength="1024" } }?,
+  attribute key_length { xsd:token { maxLength="1024" } }?,
+  element signing_cert { base64 }*,
+  element pkcs10_cert_request { base64 }?,
+  element public_key { base64 }?
+}
 
-       \parent = element parent {
-         action, type,
-         attribute self_id { xsd:token { maxLength="1024" } },
-         attribute parent_id { xsd:token { maxLength="1024" } }?,
-	 attribute peer_contact { xsd:anyURI { maxLength="1024" } }?,
-	 attribute sia_base { xsd:anyURI { maxLength="1024" } }?,
-	 attribute bsc_link { xsd:token { maxLength="1024" } }?,
-	 attribute repository_link { xsd:token { maxLength="1024" } }?,
-	 attribute rekey { "yes" }?,
-	 attribute reissue { "yes" }?,
-	 attribute revoke { "yes" }?,
-         peer_ta?
-       }
+\parent = element parent {
+  action, type,
+  attribute self_id { xsd:token { maxLength="1024" } },
+  attribute parent_id { xsd:token { maxLength="1024" } }?,
+  attribute peer_contact { xsd:anyURI { maxLength="1024" } }?,
+  attribute sia_base { xsd:anyURI { maxLength="1024" } }?,
+  attribute bsc_link { xsd:token { maxLength="1024" } }?,
+  attribute repository_link { xsd:token { maxLength="1024" } }?,
+  attribute rekey { "yes" }?,
+  attribute reissue { "yes" }?,
+  attribute revoke { "yes" }?,
+  peer_ta?
+}
 
-       child = element child {
-         action, type,
-         attribute self_id { xsd:token { maxLength="1024" } },
-         attribute child_id { xsd:token { maxLength="1024" } }?,
-	 attribute bsc_link { xsd:token { maxLength="1024" } }?,
-	 attribute child_db_id { xsd:token { maxLength="1024" } }?,
-	 attribute reissue { "yes" }?,
-         peer_ta?
-       }
+child = element child {
+  action, type,
+  attribute self_id { xsd:token { maxLength="1024" } },
+  attribute child_id { xsd:token { maxLength="1024" } }?,
+  attribute bsc_link { xsd:token { maxLength="1024" } }?,
+  attribute child_db_id { xsd:token { maxLength="1024" } }?,
+  attribute reissue { "yes" }?,
+  peer_ta?
+}
 
-       repository = element repository {
-         action, type,
-         attribute self_id { xsd:token { maxLength="1024" } },
-         attribute repository_id { xsd:token { maxLength="1024" } }?,
-	 attribute peer_contact { xsd:anyURI { maxLength="1024" } }?,
-	 attribute bsc_link { xsd:token { maxLength="1024" } }?,
-         peer_ta?
-       }
+repository = element repository {
+  action, type,
+  attribute self_id { xsd:token { maxLength="1024" } },
+  attribute repository_id { xsd:token { maxLength="1024" } }?,
+  attribute peer_contact { xsd:anyURI { maxLength="1024" } }?,
+  attribute bsc_link { xsd:token { maxLength="1024" } }?,
+  peer_ta?
+}
 
-       route_origin = element route_origin {
-         action, type,
-         attribute self_id { xsd:token { maxLength="1024" } },
-         attribute route_origin_id { xsd:token { maxLength="1024" } }?,
-	 attribute suppress_publication { "yes" }?,
-	 attribute asn { xsd:token { maxLength="1024" } }?,
-	 attribute ipv4 { xsd:token { maxLength="1024" } }?,
-	 attribute ipv6 { xsd:token { maxLength="1024" } }?
-       }
+route_origin = element route_origin {
+  action, type,
+  attribute self_id { xsd:token { maxLength="1024" } },
+  attribute route_origin_id { xsd:token { maxLength="1024" } }?,
+  attribute suppress_publication { "yes" }?,
+  attribute asn { xsd:token { maxLength="1024" } }?,
+  attribute ipv4 { xsd:token { maxLength="1024" } }?,
+  attribute ipv6 { xsd:token { maxLength="1024" } }?
+}
 
-       list_resources = element list_resources {
-	 type,
-         attribute self_id { xsd:token { maxLength="1024" } },
-         attribute child_id { xsd:token { maxLength="1024" } }?,
-	 attribute valid_until { xsd:token { maxLength="1024" } }?,
-         element resource_class {
-	   attribute subject_name { xsd:token { maxLength="1024" } }?,
-	   attribute as { xsd:token { maxLength="1024" } }?,
-	   attribute ipv4 { xsd:token { maxLength="1024" } }?,
-	   attribute ipv6 { xsd:token { maxLength="1024" } }?,
-	   attribute req_as { xsd:token { maxLength="1024" } }?,
-	   attribute req_ipv4 { xsd:token { maxLength="1024" } }?,
-	   attribute req_ipv6 { xsd:token { maxLength="1024" } }?
-         }*
-       }
+list_resources = element list_resources {
+  type,
+  attribute self_id { xsd:token { maxLength="1024" } },
+  attribute child_id { xsd:token { maxLength="1024" } }?,
+  attribute valid_until { xsd:token { maxLength="1024" } }?,
+  element resource_class {
+    attribute subject_name { xsd:token { maxLength="1024" } }?,
+    attribute as { xsd:token { maxLength="1024" } }?,
+    attribute ipv4 { xsd:token { maxLength="1024" } }?,
+    attribute ipv6 { xsd:token { maxLength="1024" } }?,
+    attribute req_as { xsd:token { maxLength="1024" } }?,
+    attribute req_ipv4 { xsd:token { maxLength="1024" } }?,
+    attribute req_ipv6 { xsd:token { maxLength="1024" } }?
+  }*
+}
 
-       report_error = element report_error {
-         attribute self_id { xsd:token { maxLength="1024" } },
-         attribute error_code { xsd:token { maxLength="1024" } },
-         xsd:string { maxLength="512000" }
-       }
-
-     }
+report_error = element report_error {
+  attribute self_id { xsd:token { maxLength="1024" } },
+  attribute error_code { xsd:token { maxLength="1024" } },
+  xsd:string { maxLength="512000" }
+}

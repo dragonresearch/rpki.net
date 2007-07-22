@@ -47,18 +47,16 @@ self_payload = element extension_preference {
 
 self_id = attribute self_id { sql_id }
 
-self_elt = element self { action, type, self_id?, self_bool, self_payload }
-
-#self_elt |= element self { ctl_cq, self_bool, self_payload }
-#self_elt |= element self { ctl_cr, self_id }
-#self_elt |= element self { ctl_sq, self_id, self_bool, self_payload }
-#self_elt |= element self { ctl_sr, self_id }
-#self_elt |= element self { ctl_gq, self_id }
-#self_elt |= element self { ctl_gr, self_id, self_payload }
-#self_elt |= element self { ctl_lq }
-#self_elt |= element self { ctl_lr, self_id, self_payload }
-#self_elt |= element self { ctl_dq, self_id }
-#self_elt |= element self { ctl_dr, self_id }
+self_elt |= element self { ctl_cq, self_bool, self_payload }
+self_elt |= element self { ctl_cr, self_id }
+self_elt |= element self { ctl_sq, self_id, self_bool, self_payload }
+self_elt |= element self { ctl_sr, self_id }
+self_elt |= element self { ctl_gq, self_id }
+self_elt |= element self { ctl_gr, self_id, self_payload }
+self_elt |= element self { ctl_lq }
+self_elt |= element self { ctl_lr, self_id, self_payload }
+self_elt |= element self { ctl_dq, self_id }
+self_elt |= element self { ctl_dr, self_id }
 
 bsc_bool = (attribute generate_keypair { "yes" },
             attribute key_type { xsd:token { maxLength="1024" } }?,

@@ -9,7 +9,7 @@ default namespace = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
 start = element msg {
   attribute version { xsd:positiveInteger { maxInclusive="1" } },
-  ( self | bsc | \parent | child | repository | route_origin | list_resources | report_error )*
+  ( self_elt | bsc_elt | parent_elt | child_elt | repository_elt | route_origin_elt | list_resources_elt | report_error_elt )*
 }
 
 action = attribute action { "create" | "set" | "get" | "list" | "destroy" }
@@ -20,94 +20,107 @@ base64 = xsd:base64Binary { maxLength="512000" }
 
 peer_ta = element peer_ta { base64 }
 
-self = element self {
-  action, type,
-  attribute self_id { xsd:token { maxLength="1024" } }?,
-  attribute rekey { "yes" }?,
-  attribute reissue { "yes" }?,
-  attribute revoke { "yes" }?,
-  attribute run_now { "yes" }?,
-  attribute publish_world_now { "yes" }?,
-  element extension_preference {
-    attribute name { xsd:token { maxLength="1024" } },
-    xsd:string { maxLength="512000" }
-  }*
-}
+sql_id = xsd:token { maxLength="1024" }
 
-bsc = element bsc {
-  action, type,
-  attribute self_id { xsd:token { maxLength="1024" } },
-  attribute bsc_id { xsd:token { maxLength="1024" } }?,
-  attribute generate_keypair { "yes" }?,
-  attribute key_type { xsd:token { maxLength="1024" } }?,
-  attribute hash_alg { xsd:token { maxLength="1024" } }?,
-  attribute key_length { xsd:token { maxLength="1024" } }?,
-  element signing_cert { base64 }*,
-  element pkcs10_cert_request { base64 }?,
-  element public_key { base64 }?
-}
+self_ctls = (attribute rekey { "yes" }?,
+             attribute reissue { "yes" }?,
+             attribute revoke { "yes" }?,
+             attribute run_now { "yes" }?,
+             attribute publish_world_now { "yes" }?)
 
-\parent = element parent {
-  action, type,
-  attribute self_id { xsd:token { maxLength="1024" } },
-  attribute parent_id { xsd:token { maxLength="1024" } }?,
-  attribute peer_contact { xsd:anyURI { maxLength="1024" } }?,
-  attribute sia_base { xsd:anyURI { maxLength="1024" } }?,
-  attribute bsc_link { xsd:token { maxLength="1024" } }?,
-  attribute repository_link { xsd:token { maxLength="1024" } }?,
-  attribute rekey { "yes" }?,
-  attribute reissue { "yes" }?,
-  attribute revoke { "yes" }?,
-  peer_ta?
-}
-
-child = element child {
-  action, type,
-  attribute self_id { xsd:token { maxLength="1024" } },
-  attribute child_id { xsd:token { maxLength="1024" } }?,
-  attribute bsc_link { xsd:token { maxLength="1024" } }?,
-  attribute child_db_id { xsd:token { maxLength="1024" } }?,
-  attribute reissue { "yes" }?,
-  peer_ta?
-}
-
-repository = element repository {
-  action, type,
-  attribute self_id { xsd:token { maxLength="1024" } },
-  attribute repository_id { xsd:token { maxLength="1024" } }?,
-  attribute peer_contact { xsd:anyURI { maxLength="1024" } }?,
-  attribute bsc_link { xsd:token { maxLength="1024" } }?,
-  peer_ta?
-}
-
-route_origin = element route_origin {
-  action, type,
-  attribute self_id { xsd:token { maxLength="1024" } },
-  attribute route_origin_id { xsd:token { maxLength="1024" } }?,
-  attribute suppress_publication { "yes" }?,
-  attribute asn { xsd:token { maxLength="1024" } }?,
-  attribute ipv4 { xsd:token { maxLength="1024" } }?,
-  attribute ipv6 { xsd:token { maxLength="1024" } }?
-}
-
-list_resources = element list_resources {
-  type,
-  attribute self_id { xsd:token { maxLength="1024" } },
-  attribute child_id { xsd:token { maxLength="1024" } }?,
-  attribute valid_until { xsd:token { maxLength="1024" } }?,
-  element resource_class {
-    attribute subject_name { xsd:token { maxLength="1024" } }?,
-    attribute as { xsd:token { maxLength="1024" } }?,
-    attribute ipv4 { xsd:token { maxLength="1024" } }?,
-    attribute ipv6 { xsd:token { maxLength="1024" } }?,
-    attribute req_as { xsd:token { maxLength="1024" } }?,
-    attribute req_ipv4 { xsd:token { maxLength="1024" } }?,
-    attribute req_ipv6 { xsd:token { maxLength="1024" } }?
-  }*
-}
-
-report_error = element report_error {
-  attribute self_id { xsd:token { maxLength="1024" } },
-  attribute error_code { xsd:token { maxLength="1024" } },
+self_payload = element extension_preference {
+  attribute name { xsd:token { maxLength="1024" } },
   xsd:string { maxLength="512000" }
+}*
+
+self_id = attribute self_id { sql_id }
+
+self_elt = element self {
+  action, type, self_id?, self_ctls, self_payload
+}
+
+bsc_ctls = (attribute generate_keypair { "yes" },
+            attribute key_type { xsd:token { maxLength="1024" } }?,
+            attribute hash_alg { xsd:token { maxLength="1024" } }?,
+            attribute key_length { xsd:token { maxLength="1024" } }?)
+
+bsc_id = attribute bsc_id { sql_id }
+
+bsc_payload = (element signing_cert { base64 }*,
+               element pkcs10_cert_request { base64 }?,
+               element public_key { base64 }?)
+
+bsc_elt = element bsc {
+  action, type, self_id, bsc_id?, bsc_ctls?, bsc_payload
+}
+
+parent_id = attribute parent_id { sql_id }
+
+parent_ctls = (attribute rekey { "yes" }?,
+               attribute reissue { "yes" }?,
+               attribute revoke { "yes" }?)
+
+parent_payload = (attribute peer_contact { xsd:anyURI { maxLength="1024" } }?,
+                  attribute sia_base { xsd:anyURI { maxLength="1024" } }?,
+                  attribute bsc_link { xsd:token { maxLength="1024" } }?,
+                  attribute repository_link { xsd:token { maxLength="1024" } }?,
+                  peer_ta?)
+
+parent_elt = element parent {
+  action, type, self_id, parent_id?,  parent_ctls, parent_payload
+}
+
+child_id = attribute child_id { sql_id }
+
+child_ctls = attribute reissue { "yes" }?
+
+child_payload = (attribute bsc_link { xsd:token { maxLength="1024" } }?,
+                 attribute child_db_id { xsd:token { maxLength="1024" } }?,
+                 peer_ta?)
+
+child_elt = element child {
+  action, type, self_id, child_id?, child_ctls, child_payload
+}
+
+repository_id = attribute repository_id { sql_id }
+
+repository_payload = (attribute peer_contact { xsd:anyURI { maxLength="1024" } }?,
+                      attribute bsc_link { xsd:token { maxLength="1024" } }?,
+                      peer_ta?)
+
+repository_elt = element repository {
+  action, type, self_id, repository_id?, repository_payload
+}
+
+route_origin_id = attribute route_origin_id { sql_id }
+
+route_origin_ctls = attribute suppress_publication { "yes" }?
+
+route_origin_payload = (attribute asn { xsd:token { maxLength="1024" } }?,
+                        attribute ipv4 { xsd:token { maxLength="1024" } }?,
+                        attribute ipv6 { xsd:token { maxLength="1024" } }?)
+
+route_origin_elt = element route_origin {
+  action, type, self_id, route_origin_id?, route_origin_ctls, route_origin_payload
+}
+
+list_resources_payload = (attribute valid_until { xsd:token { maxLength="1024" } }?,
+                          element resource_class {
+                            attribute subject_name { xsd:token { maxLength="1024" } }?,
+                            attribute as { xsd:token { maxLength="1024" } }?,
+                            attribute ipv4 { xsd:token { maxLength="1024" } }?,
+                            attribute ipv6 { xsd:token { maxLength="1024" } }?,
+                            attribute req_as { xsd:token { maxLength="1024" } }?,
+                            attribute req_ipv4 { xsd:token { maxLength="1024" } }?,
+                            attribute req_ipv6 { xsd:token { maxLength="1024" } }?
+                          }*)
+
+list_resources_elt = element list_resources {
+  type, self_id, child_id?, list_resources_payload
+}
+
+report_error_elt = element report_error {
+  self_id,
+  attribute error_code { xsd:token { maxLength="1024" } },
+  xsd:string { maxLength="512000" }?
 }

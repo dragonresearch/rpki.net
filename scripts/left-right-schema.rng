@@ -63,7 +63,87 @@
       <param name="maxLength">1024</param>
     </data>
   </define>
-  <define name="self_ctls">
+  <define name="ctl_cq">
+    <attribute name="action">
+      <value>create</value>
+    </attribute>
+    <attribute name="type">
+      <value>query</value>
+    </attribute>
+  </define>
+  <define name="ctl_sq">
+    <attribute name="action">
+      <value>set</value>
+    </attribute>
+    <attribute name="type">
+      <value>query</value>
+    </attribute>
+  </define>
+  <define name="ctl_gq">
+    <attribute name="action">
+      <value>get</value>
+    </attribute>
+    <attribute name="type">
+      <value>query</value>
+    </attribute>
+  </define>
+  <define name="ctl_lq">
+    <attribute name="action">
+      <value>list</value>
+    </attribute>
+    <attribute name="type">
+      <value>query</value>
+    </attribute>
+  </define>
+  <define name="ctl_dq">
+    <attribute name="action">
+      <value>destroy</value>
+    </attribute>
+    <attribute name="type">
+      <value>query</value>
+    </attribute>
+  </define>
+  <define name="ctl_cr">
+    <attribute name="action">
+      <value>create</value>
+    </attribute>
+    <attribute name="type">
+      <value>reply</value>
+    </attribute>
+  </define>
+  <define name="ctl_sr">
+    <attribute name="action">
+      <value>set</value>
+    </attribute>
+    <attribute name="type">
+      <value>reply</value>
+    </attribute>
+  </define>
+  <define name="ctl_gr">
+    <attribute name="action">
+      <value>get</value>
+    </attribute>
+    <attribute name="type">
+      <value>reply</value>
+    </attribute>
+  </define>
+  <define name="ctl_lr">
+    <attribute name="action">
+      <value>list</value>
+    </attribute>
+    <attribute name="type">
+      <value>reply</value>
+    </attribute>
+  </define>
+  <define name="ctl_dr">
+    <attribute name="action">
+      <value>destroy</value>
+    </attribute>
+    <attribute name="type">
+      <value>reply</value>
+    </attribute>
+  </define>
+  <define name="self_bool">
     <optional>
       <attribute name="rekey">
         <value>yes</value>
@@ -109,18 +189,71 @@
       <ref name="sql_id"/>
     </attribute>
   </define>
-  <define name="self_elt">
+  <define name="self_elt" combine="choice">
     <element name="self">
-      <ref name="action"/>
-      <ref name="type"/>
-      <optional>
-        <ref name="self_id"/>
-      </optional>
-      <ref name="self_ctls"/>
+      <ref name="ctl_cq"/>
+      <ref name="self_bool"/>
       <ref name="self_payload"/>
     </element>
   </define>
-  <define name="bsc_ctls">
+  <define name="self_elt" combine="choice">
+    <element name="self">
+      <ref name="ctl_cr"/>
+      <ref name="self_id"/>
+    </element>
+  </define>
+  <define name="self_elt" combine="choice">
+    <element name="self">
+      <ref name="ctl_sq"/>
+      <ref name="self_id"/>
+      <ref name="self_bool"/>
+      <ref name="self_payload"/>
+    </element>
+  </define>
+  <define name="self_elt" combine="choice">
+    <element name="self">
+      <ref name="ctl_sr"/>
+      <ref name="self_id"/>
+    </element>
+  </define>
+  <define name="self_elt" combine="choice">
+    <element name="self">
+      <ref name="ctl_gq"/>
+      <ref name="self_id"/>
+    </element>
+  </define>
+  <define name="self_elt" combine="choice">
+    <element name="self">
+      <ref name="ctl_gr"/>
+      <ref name="self_id"/>
+      <ref name="self_payload"/>
+    </element>
+  </define>
+  <define name="self_elt" combine="choice">
+    <element name="self">
+      <ref name="ctl_lq"/>
+    </element>
+  </define>
+  <define name="self_elt" combine="choice">
+    <element name="self">
+      <ref name="ctl_lr"/>
+      <ref name="self_id"/>
+      <ref name="self_payload"/>
+    </element>
+  </define>
+  <define name="self_elt" combine="choice">
+    <element name="self">
+      <ref name="ctl_dq"/>
+      <ref name="self_id"/>
+    </element>
+  </define>
+  <define name="self_elt" combine="choice">
+    <element name="self">
+      <ref name="ctl_dr"/>
+      <ref name="self_id"/>
+    </element>
+  </define>
+  <define name="bsc_bool">
     <attribute name="generate_keypair">
       <value>yes</value>
     </attribute>
@@ -177,7 +310,7 @@
         <ref name="bsc_id"/>
       </optional>
       <optional>
-        <ref name="bsc_ctls"/>
+        <ref name="bsc_bool"/>
       </optional>
       <ref name="bsc_payload"/>
     </element>
@@ -187,7 +320,7 @@
       <ref name="sql_id"/>
     </attribute>
   </define>
-  <define name="parent_ctls">
+  <define name="parent_bool">
     <optional>
       <attribute name="rekey">
         <value>yes</value>
@@ -245,7 +378,7 @@
       <optional>
         <ref name="parent_id"/>
       </optional>
-      <ref name="parent_ctls"/>
+      <ref name="parent_bool"/>
       <ref name="parent_payload"/>
     </element>
   </define>
@@ -254,7 +387,7 @@
       <ref name="sql_id"/>
     </attribute>
   </define>
-  <define name="child_ctls">
+  <define name="child_bool">
     <optional>
       <attribute name="reissue">
         <value>yes</value>
@@ -288,7 +421,7 @@
       <optional>
         <ref name="child_id"/>
       </optional>
-      <ref name="child_ctls"/>
+      <ref name="child_bool"/>
       <ref name="child_payload"/>
     </element>
   </define>
@@ -332,7 +465,7 @@
       <ref name="sql_id"/>
     </attribute>
   </define>
-  <define name="route_origin_ctls">
+  <define name="route_origin_bool">
     <optional>
       <attribute name="suppress_publication">
         <value>yes</value>
@@ -370,7 +503,7 @@
       <optional>
         <ref name="route_origin_id"/>
       </optional>
-      <ref name="route_origin_ctls"/>
+      <ref name="route_origin_bool"/>
       <ref name="route_origin_payload"/>
     </element>
   </define>

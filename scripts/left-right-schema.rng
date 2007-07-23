@@ -254,29 +254,31 @@
     </element>
   </define>
   <define name="bsc_bool">
-    <attribute name="generate_keypair">
-      <value>yes</value>
-    </attribute>
     <optional>
-      <attribute name="key_type">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
+      <attribute name="generate_keypair">
+        <value>yes</value>
       </attribute>
-    </optional>
-    <optional>
-      <attribute name="hash_alg">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
-      </attribute>
-    </optional>
-    <optional>
-      <attribute name="key_length">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
-      </attribute>
+      <optional>
+        <attribute name="key_type">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="hash_alg">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="key_length">
+          <data type="token">
+            <param name="maxLength">1024</param>
+          </data>
+        </attribute>
+      </optional>
     </optional>
   </define>
   <define name="bsc_id">
@@ -291,28 +293,92 @@
       </element>
     </zeroOrMore>
     <optional>
-      <element name="pkcs10_cert_request">
-        <ref name="base64"/>
-      </element>
-    </optional>
-    <optional>
       <element name="public_key">
         <ref name="base64"/>
       </element>
     </optional>
   </define>
-  <define name="bsc_elt">
+  <define name="bsc_pkcs10">
+    <optional>
+      <element name="pkcs10_cert_request">
+        <ref name="base64"/>
+      </element>
+    </optional>
+  </define>
+  <define name="bsc_elt" combine="choice">
     <element name="bsc">
-      <ref name="action"/>
-      <ref name="type"/>
+      <ref name="ctl_cq"/>
       <ref name="self_id"/>
-      <optional>
-        <ref name="bsc_id"/>
-      </optional>
-      <optional>
-        <ref name="bsc_bool"/>
-      </optional>
+      <ref name="bsc_bool"/>
       <ref name="bsc_payload"/>
+    </element>
+  </define>
+  <define name="bsc_elt" combine="choice">
+    <element name="bsc">
+      <ref name="ctl_cr"/>
+      <ref name="self_id"/>
+      <ref name="bsc_id"/>
+      <ref name="bsc_pkcs10"/>
+    </element>
+  </define>
+  <define name="bsc_elt" combine="choice">
+    <element name="bsc">
+      <ref name="ctl_sq"/>
+      <ref name="self_id"/>
+      <ref name="bsc_id"/>
+      <ref name="bsc_bool"/>
+      <ref name="bsc_payload"/>
+    </element>
+  </define>
+  <define name="bsc_elt" combine="choice">
+    <element name="bsc">
+      <ref name="ctl_sr"/>
+      <ref name="self_id"/>
+      <ref name="bsc_id"/>
+      <ref name="bsc_pkcs10"/>
+    </element>
+  </define>
+  <define name="bsc_elt" combine="choice">
+    <element name="bsc">
+      <ref name="ctl_gq"/>
+      <ref name="self_id"/>
+      <ref name="bsc_id"/>
+    </element>
+  </define>
+  <define name="bsc_elt" combine="choice">
+    <element name="bsc">
+      <ref name="ctl_gr"/>
+      <ref name="self_id"/>
+      <ref name="bsc_id"/>
+      <ref name="bsc_payload"/>
+    </element>
+  </define>
+  <define name="bsc_elt" combine="choice">
+    <element name="bsc">
+      <ref name="ctl_lq"/>
+      <ref name="self_id"/>
+    </element>
+  </define>
+  <define name="bsc_elt" combine="choice">
+    <element name="bsc">
+      <ref name="ctl_lr"/>
+      <ref name="self_id"/>
+      <ref name="bsc_id"/>
+      <ref name="bsc_payload"/>
+    </element>
+  </define>
+  <define name="bsc_elt" combine="choice">
+    <element name="bsc">
+      <ref name="ctl_dq"/>
+      <ref name="self_id"/>
+      <ref name="bsc_id"/>
+    </element>
+  </define>
+  <define name="bsc_elt" combine="choice">
+    <element name="bsc">
+      <ref name="ctl_dr"/>
+      <ref name="self_id"/>
+      <ref name="bsc_id"/>
     </element>
   </define>
   <define name="parent_id">
@@ -370,16 +436,78 @@
       <ref name="peer_ta"/>
     </optional>
   </define>
-  <define name="parent_elt">
+  <define name="parent_elt" combine="choice">
     <element name="parent">
-      <ref name="action"/>
-      <ref name="type"/>
+      <ref name="ctl_cq"/>
       <ref name="self_id"/>
-      <optional>
-        <ref name="parent_id"/>
-      </optional>
       <ref name="parent_bool"/>
       <ref name="parent_payload"/>
+    </element>
+  </define>
+  <define name="parent_elt" combine="choice">
+    <element name="parent">
+      <ref name="ctl_cr"/>
+      <ref name="self_id"/>
+      <ref name="parent_id"/>
+    </element>
+  </define>
+  <define name="parent_elt" combine="choice">
+    <element name="parent">
+      <ref name="ctl_sq"/>
+      <ref name="self_id"/>
+      <ref name="parent_id"/>
+      <ref name="parent_bool"/>
+      <ref name="parent_payload"/>
+    </element>
+  </define>
+  <define name="parent_elt" combine="choice">
+    <element name="parent">
+      <ref name="ctl_sr"/>
+      <ref name="self_id"/>
+      <ref name="parent_id"/>
+    </element>
+  </define>
+  <define name="parent_elt" combine="choice">
+    <element name="parent">
+      <ref name="ctl_gq"/>
+      <ref name="self_id"/>
+      <ref name="parent_id"/>
+    </element>
+  </define>
+  <define name="parent_elt" combine="choice">
+    <element name="parent">
+      <ref name="ctl_gr"/>
+      <ref name="self_id"/>
+      <ref name="parent_id"/>
+      <ref name="parent_payload"/>
+    </element>
+  </define>
+  <define name="parent_elt" combine="choice">
+    <element name="parent">
+      <ref name="ctl_lq"/>
+      <ref name="self_id"/>
+    </element>
+  </define>
+  <define name="parent_elt" combine="choice">
+    <element name="parent">
+      <ref name="ctl_lr"/>
+      <ref name="self_id"/>
+      <ref name="parent_id"/>
+      <ref name="parent_payload"/>
+    </element>
+  </define>
+  <define name="parent_elt" combine="choice">
+    <element name="parent">
+      <ref name="ctl_dq"/>
+      <ref name="self_id"/>
+      <ref name="parent_id"/>
+    </element>
+  </define>
+  <define name="parent_elt" combine="choice">
+    <element name="parent">
+      <ref name="ctl_dr"/>
+      <ref name="self_id"/>
+      <ref name="parent_id"/>
     </element>
   </define>
   <define name="child_id">
@@ -413,16 +541,78 @@
       <ref name="peer_ta"/>
     </optional>
   </define>
-  <define name="child_elt">
+  <define name="child_elt" combine="choice">
     <element name="child">
-      <ref name="action"/>
-      <ref name="type"/>
+      <ref name="ctl_cq"/>
       <ref name="self_id"/>
-      <optional>
-        <ref name="child_id"/>
-      </optional>
       <ref name="child_bool"/>
       <ref name="child_payload"/>
+    </element>
+  </define>
+  <define name="child_elt" combine="choice">
+    <element name="child">
+      <ref name="ctl_cr"/>
+      <ref name="self_id"/>
+      <ref name="child_id"/>
+    </element>
+  </define>
+  <define name="child_elt" combine="choice">
+    <element name="child">
+      <ref name="ctl_sq"/>
+      <ref name="self_id"/>
+      <ref name="child_id"/>
+      <ref name="child_bool"/>
+      <ref name="child_payload"/>
+    </element>
+  </define>
+  <define name="child_elt" combine="choice">
+    <element name="child">
+      <ref name="ctl_sr"/>
+      <ref name="self_id"/>
+      <ref name="child_id"/>
+    </element>
+  </define>
+  <define name="child_elt" combine="choice">
+    <element name="child">
+      <ref name="ctl_gq"/>
+      <ref name="self_id"/>
+      <ref name="child_id"/>
+    </element>
+  </define>
+  <define name="child_elt" combine="choice">
+    <element name="child">
+      <ref name="ctl_gr"/>
+      <ref name="self_id"/>
+      <ref name="child_id"/>
+      <ref name="child_payload"/>
+    </element>
+  </define>
+  <define name="child_elt" combine="choice">
+    <element name="child">
+      <ref name="ctl_lq"/>
+      <ref name="self_id"/>
+    </element>
+  </define>
+  <define name="child_elt" combine="choice">
+    <element name="child">
+      <ref name="ctl_lr"/>
+      <ref name="self_id"/>
+      <ref name="child_id"/>
+      <ref name="child_payload"/>
+    </element>
+  </define>
+  <define name="child_elt" combine="choice">
+    <element name="child">
+      <ref name="ctl_dq"/>
+      <ref name="self_id"/>
+      <ref name="child_id"/>
+    </element>
+  </define>
+  <define name="child_elt" combine="choice">
+    <element name="child">
+      <ref name="ctl_dr"/>
+      <ref name="self_id"/>
+      <ref name="child_id"/>
     </element>
   </define>
   <define name="repository_id">
@@ -449,15 +639,76 @@
       <ref name="peer_ta"/>
     </optional>
   </define>
-  <define name="repository_elt">
+  <define name="repository_elt" combine="choice">
     <element name="repository">
-      <ref name="action"/>
-      <ref name="type"/>
+      <ref name="ctl_cq"/>
       <ref name="self_id"/>
-      <optional>
-        <ref name="repository_id"/>
-      </optional>
       <ref name="repository_payload"/>
+    </element>
+  </define>
+  <define name="repository_elt" combine="choice">
+    <element name="repository">
+      <ref name="ctl_cr"/>
+      <ref name="self_id"/>
+      <ref name="repository_id"/>
+    </element>
+  </define>
+  <define name="repository_elt" combine="choice">
+    <element name="repository">
+      <ref name="ctl_sq"/>
+      <ref name="self_id"/>
+      <ref name="repository_id"/>
+      <ref name="repository_payload"/>
+    </element>
+  </define>
+  <define name="repository_elt" combine="choice">
+    <element name="repository">
+      <ref name="ctl_sr"/>
+      <ref name="self_id"/>
+      <ref name="repository_id"/>
+    </element>
+  </define>
+  <define name="repository_elt" combine="choice">
+    <element name="repository">
+      <ref name="ctl_gq"/>
+      <ref name="self_id"/>
+      <ref name="repository_id"/>
+    </element>
+  </define>
+  <define name="repository_elt" combine="choice">
+    <element name="repository">
+      <ref name="ctl_gr"/>
+      <ref name="self_id"/>
+      <ref name="repository_id"/>
+      <ref name="repository_payload"/>
+    </element>
+  </define>
+  <define name="repository_elt" combine="choice">
+    <element name="repository">
+      <ref name="ctl_lq"/>
+      <ref name="self_id"/>
+    </element>
+  </define>
+  <define name="repository_elt" combine="choice">
+    <element name="repository">
+      <ref name="ctl_lr"/>
+      <ref name="self_id"/>
+      <ref name="repository_id"/>
+      <ref name="repository_payload"/>
+    </element>
+  </define>
+  <define name="repository_elt" combine="choice">
+    <element name="repository">
+      <ref name="ctl_dq"/>
+      <ref name="self_id"/>
+      <ref name="repository_id"/>
+    </element>
+  </define>
+  <define name="repository_elt" combine="choice">
+    <element name="repository">
+      <ref name="ctl_dr"/>
+      <ref name="self_id"/>
+      <ref name="repository_id"/>
     </element>
   </define>
   <define name="route_origin_id">
@@ -495,16 +746,79 @@
       </attribute>
     </optional>
   </define>
-  <define name="route_origin_elt">
+  <!-- route_origin_elt = element route_origin { action, type, self_id, route_origin_id?, route_origin_bool, route_origin_payload } -->
+  <define name="route_origin_elt" combine="choice">
     <element name="route_origin">
-      <ref name="action"/>
-      <ref name="type"/>
+      <ref name="ctl_cq"/>
       <ref name="self_id"/>
-      <optional>
-        <ref name="route_origin_id"/>
-      </optional>
       <ref name="route_origin_bool"/>
       <ref name="route_origin_payload"/>
+    </element>
+  </define>
+  <define name="route_origin_elt" combine="choice">
+    <element name="route_origin">
+      <ref name="ctl_cr"/>
+      <ref name="self_id"/>
+      <ref name="route_origin_id"/>
+    </element>
+  </define>
+  <define name="route_origin_elt" combine="choice">
+    <element name="route_origin">
+      <ref name="ctl_sq"/>
+      <ref name="self_id"/>
+      <ref name="route_origin_id"/>
+      <ref name="route_origin_bool"/>
+      <ref name="route_origin_payload"/>
+    </element>
+  </define>
+  <define name="route_origin_elt" combine="choice">
+    <element name="route_origin">
+      <ref name="ctl_sr"/>
+      <ref name="self_id"/>
+      <ref name="route_origin_id"/>
+    </element>
+  </define>
+  <define name="route_origin_elt" combine="choice">
+    <element name="route_origin">
+      <ref name="ctl_gq"/>
+      <ref name="self_id"/>
+      <ref name="route_origin_id"/>
+    </element>
+  </define>
+  <define name="route_origin_elt" combine="choice">
+    <element name="route_origin">
+      <ref name="ctl_gr"/>
+      <ref name="self_id"/>
+      <ref name="route_origin_id"/>
+      <ref name="route_origin_payload"/>
+    </element>
+  </define>
+  <define name="route_origin_elt" combine="choice">
+    <element name="route_origin">
+      <ref name="ctl_lq"/>
+      <ref name="self_id"/>
+    </element>
+  </define>
+  <define name="route_origin_elt" combine="choice">
+    <element name="route_origin">
+      <ref name="ctl_lr"/>
+      <ref name="self_id"/>
+      <ref name="route_origin_id"/>
+      <ref name="route_origin_payload"/>
+    </element>
+  </define>
+  <define name="route_origin_elt" combine="choice">
+    <element name="route_origin">
+      <ref name="ctl_dq"/>
+      <ref name="self_id"/>
+      <ref name="route_origin_id"/>
+    </element>
+  </define>
+  <define name="route_origin_elt" combine="choice">
+    <element name="route_origin">
+      <ref name="ctl_dr"/>
+      <ref name="self_id"/>
+      <ref name="route_origin_id"/>
     </element>
   </define>
   <define name="list_resources_payload">

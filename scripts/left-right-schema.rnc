@@ -7,21 +7,16 @@
 
 default namespace = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
+# Top level PDU
+
 start = element msg {
   attribute version { xsd:positiveInteger { maxInclusive="1" } },
-  ( self_elt | bsc_elt | parent_elt | child_elt | repository_elt | route_origin_elt |
+  ( self_elt | bsc_elt | parent_elt | child_elt | repository_elt | ro_elt |
     list_resources_elt | report_error_elt )*
 }
 
-action = attribute action { "create" | "set" | "get" | "list" | "destroy" }
-
-type = attribute type { "query" | "reply" }
-
-base64 = xsd:base64Binary { maxLength="512000" }
-
-peer_ta = element peer_ta { base64 }
-
-sql_id = xsd:token { maxLength="1024" }
+# Combinations of action and type attributes used in later definitions.
+# The same patterns repeat in most of the elements in this protocol.
 
 ctl_cq = attribute action { "create"  }, attribute type { "query" }
 ctl_sq = attribute action { "set"     }, attribute type { "query" }
@@ -33,6 +28,17 @@ ctl_sr = attribute action { "set"     }, attribute type { "reply" }
 ctl_gr = attribute action { "get"     }, attribute type { "reply" }
 ctl_lr = attribute action { "list"    }, attribute type { "reply" }
 ctl_dr = attribute action { "destroy" }, attribute type { "reply" }
+
+# Base64 encoded DER stuff
+base64 = xsd:base64Binary { maxLength="512000" }
+
+# How we wrap peer_ta fields (separate element or inline?)
+peer_ta = element peer_ta { base64 }
+
+# Base definition for all fields that are really just SQL primary indices
+sql_id = xsd:token { maxLength="1024" }
+
+# <self/> element
 
 self_bool = (attribute rekey { "yes" }?,
              attribute reissue { "yes" }?,
@@ -58,6 +64,8 @@ self_elt |= element self { ctl_lr, self_id, self_payload }
 self_elt |= element self { ctl_dq, self_id }
 self_elt |= element self { ctl_dr, self_id }
 
+# <bsc/> element
+
 bsc_bool = (attribute generate_keypair { "yes" },
             attribute key_type { xsd:token { maxLength="1024" } }?,
             attribute hash_alg { xsd:token { maxLength="1024" } }?,
@@ -80,6 +88,8 @@ bsc_elt |= element bsc { ctl_lq, self_id }
 bsc_elt |= element bsc { ctl_lr, self_id, bsc_id, bsc_payload }
 bsc_elt |= element bsc { ctl_dq, self_id, bsc_id }
 bsc_elt |= element bsc { ctl_dr, self_id, bsc_id }
+
+# <parent/> element
 
 parent_id = attribute parent_id { sql_id }
 
@@ -104,6 +114,8 @@ parent_elt |= element parent { ctl_lr, self_id, parent_id, parent_payload }
 parent_elt |= element parent { ctl_dq, self_id, parent_id }
 parent_elt |= element parent { ctl_dr, self_id, parent_id }
 
+# <child/> element
+
 child_id = attribute child_id { sql_id }
 
 child_bool = attribute reissue { "yes" }?
@@ -123,6 +135,8 @@ child_elt |= element child { ctl_lr, self_id, child_id, child_payload }
 child_elt |= element child { ctl_dq, self_id, child_id }
 child_elt |= element child { ctl_dr, self_id, child_id }
 
+# <repository/> element
+
 repository_id = attribute repository_id { sql_id }
 
 repository_payload = (attribute peer_contact { xsd:anyURI { maxLength="1024" } }?,
@@ -140,39 +154,46 @@ repository_elt |= element repository { ctl_lr, self_id, repository_id, repositor
 repository_elt |= element repository { ctl_dq, self_id, repository_id }
 repository_elt |= element repository { ctl_dr, self_id, repository_id }
 
-route_origin_id = attribute route_origin_id { sql_id }
+# <route_origin/> element
 
-route_origin_bool = attribute suppress_publication { "yes" }?
+ro_id = attribute route_origin_id { sql_id }
 
-route_origin_payload = (attribute asn { xsd:token { maxLength="1024" } }?,
-                        attribute ipv4 { xsd:token { maxLength="1024" } }?,
-                        attribute ipv6 { xsd:token { maxLength="1024" } }?)
+ro_bool = attribute suppress_publication { "yes" }?
 
-route_origin_elt |= element route_origin { ctl_cq, self_id, route_origin_bool, route_origin_payload }
-route_origin_elt |= element route_origin { ctl_cr, self_id, route_origin_id }
-route_origin_elt |= element route_origin { ctl_sq, self_id, route_origin_id, route_origin_bool, route_origin_payload }
-route_origin_elt |= element route_origin { ctl_sr, self_id, route_origin_id }
-route_origin_elt |= element route_origin { ctl_gq, self_id, route_origin_id }
-route_origin_elt |= element route_origin { ctl_gr, self_id, route_origin_id, route_origin_payload }
-route_origin_elt |= element route_origin { ctl_lq, self_id }
-route_origin_elt |= element route_origin { ctl_lr, self_id, route_origin_id, route_origin_payload }
-route_origin_elt |= element route_origin { ctl_dq, self_id, route_origin_id }
-route_origin_elt |= element route_origin { ctl_dr, self_id, route_origin_id }
+ro_payload = (attribute asn { xsd:token { maxLength="1024" } }?,
+              attribute ipv4 { xsd:token { maxLength="1024" } }?,
+              attribute ipv6 { xsd:token { maxLength="1024" } }?)
 
-list_resources_payload = (attribute valid_until { xsd:token { maxLength="1024" } }?,
-                          element resource_class {
-                            attribute subject_name { xsd:token { maxLength="1024" } }?,
-                            attribute as { xsd:token { maxLength="1024" } }?,
-                            attribute ipv4 { xsd:token { maxLength="1024" } }?,
-                            attribute ipv6 { xsd:token { maxLength="1024" } }?,
-                            attribute req_as { xsd:token { maxLength="1024" } }?,
-                            attribute req_ipv4 { xsd:token { maxLength="1024" } }?,
-                            attribute req_ipv6 { xsd:token { maxLength="1024" } }?
-                          }*)
+ro_elt |= element route_origin { ctl_cq, self_id, ro_bool, ro_payload }
+ro_elt |= element route_origin { ctl_cr, self_id, ro_id }
+ro_elt |= element route_origin { ctl_sq, self_id, ro_id, ro_bool, ro_payload }
+ro_elt |= element route_origin { ctl_sr, self_id, ro_id }
+ro_elt |= element route_origin { ctl_gq, self_id, ro_id }
+ro_elt |= element route_origin { ctl_gr, self_id, ro_id, ro_payload }
+ro_elt |= element route_origin { ctl_lq, self_id }
+ro_elt |= element route_origin { ctl_lr, self_id, ro_id, ro_payload }
+ro_elt |= element route_origin { ctl_dq, self_id, ro_id }
+ro_elt |= element route_origin { ctl_dr, self_id, ro_id }
+
+# <list_resources/> element
 
 list_resources_elt = element list_resources {
-  type, self_id, child_id?, list_resources_payload
+  ( attribute type { "query" }, self_id, child_id? ) |
+  ( attribute type { "reply" }, self_id, child_id?,
+    attribute valid_until { xsd:token { maxLength="1024" } }?,
+    element resource_class {
+      attribute subject_name { xsd:token { maxLength="1024" } }?,
+      attribute as { xsd:token { maxLength="1024" } }?,
+      attribute ipv4 { xsd:token { maxLength="1024" } }?,
+      attribute ipv6 { xsd:token { maxLength="1024" } }?,
+      attribute req_as { xsd:token { maxLength="1024" } }?,
+      attribute req_ipv4 { xsd:token { maxLength="1024" } }?,
+      attribute req_ipv6 { xsd:token { maxLength="1024" } }?
+    }*
+  )
 }
+
+# <report_error/> element
 
 report_error_elt = element report_error {
   self_id,

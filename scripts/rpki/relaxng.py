@@ -1,57 +1,44 @@
 # $Id$
 
-import os, libxml2, sys
+import libxml2
 
 def relaxng(xml, rng):
   """
-  Validate a chunk of xml against a RelaxNG schema.
+  Validate a chunk of XML against a RelaxNG schema.
   """
 
-  # We could use either xmllint or jing here, but xmllint is easier.
-  # How to invoke jing, just in case:
+  # Most of this is lifted from a libxml2 example.  Using py-lxml
+  # might be a better approach, but this works for now.
   #
-  # java -jar /usr/local/share/java/classes/jing.jar schema.rng foo.xml
+  # This is probably very inefficient, as we make no attempt to
+  # retain validation contexts between calls.  It's still much
+  # faster than calling xmllint or jing as an external program.
   #
-  # If error messages from xmllint are incomprehensible, try jing too.
+  # Beware of cleaning up the following code.  libxml2 is not well
+  # documented but there are hints that much of the following voodoo
+  # is required manual memory management (see py-lxml, above)
 
-  if False:
+  fh = open(rng, "r")
+  schema = fh.read()
+  fh.close()
+  rngp = libxml2.relaxNGNewMemParserCtxt(schema, len(schema))
+  rngs = rngp.relaxNGParse()
+  ctxt = rngs.relaxNGNewValidCtxt()
 
-    i, o = os.popen4(("xmllint", "--noout", "--relaxng", rng, "-"))
-    i.write(xml)
-    i.close()
-    v = o.read()
-    o.close()
-    if v != "- validates\n":
-      raise RuntimeError, "RelaxNG validation failure:\n" + v
+  doc = libxml2.parseDoc(xml)
+  ret = doc.relaxNGValidateDoc(ctxt)
+  if ret != 0:
+    raise RuntimeError, "RelaxNG validation error"
 
-  else:
+  doc.freeDoc()
+  del rngp
+  del rngs
+  del ctxt
+  libxml2.relaxNGCleanupTypes()
 
-    # First cut at internal RelaxNG validation.  Not entirely
-    # satisfactory, see /usr/ports/devel/py-lxml/pkg-descr for a
-    # possible alternate approach.  Error reporting in libxml2 module
-    # apparently uses a callback which I'm not yet setting.
-
-    fh = open(rng, "r")
-    schema = fh.read()
-    fh.close()
-    rngp = libxml2.relaxNGNewMemParserCtxt(schema, len(schema))
-    rngs = rngp.relaxNGParse()
-    ctxt = rngs.relaxNGNewValidCtxt()
-
-    doc = libxml2.parseDoc(xml)
-    ret = doc.relaxNGValidateDoc(ctxt)
-    if ret != 0:
-      raise RuntimeError, "RelaxNG validation error %d" % ret
-
-    doc.freeDoc()
-    del rngp
-    del rngs
-    del ctxt
-    libxml2.relaxNGCleanupTypes()
-
-    # Memory debug specific
-    libxml2.cleanupParser()
-    if libxml2.debugMemory(1) != 0:
-      print "Memory leak %d bytes" % (libxml2.debugMemory(1))
-      libxml2.dumpMemory()
-      raise RuntimeError, "RelaxNG memory leak"
+  # Memory debug specific
+  libxml2.cleanupParser()
+  if libxml2.debugMemory(1) != 0:
+    print "Memory leak %d bytes" % (libxml2.debugMemory(1))
+    libxml2.dumpMemory()
+    raise RuntimeError, "RelaxNG memory leak"

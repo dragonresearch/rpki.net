@@ -16,7 +16,6 @@
 		     req_resource_set_ipv6="">
             deadbeef
         </certificate>
-        <!-- Repeated for each current certificate naming the client as subject -->
         <issuer>deadbeef</issuer>
     </class>
 </message>

@@ -23,6 +23,12 @@ class handler(xml.sax.handler.ContentHandler):
   def startElement(self, name, attrs):
     a = dict()
     for k,v in attrs.items():
+      if isinstance(k, tuple):
+        if k == ('http://www.w3.org/XML/1998/namespace', 'lang'):
+          k = "xml:lang"
+        else:
+          assert k[0] is None
+          k = k[1]
       a[k.encode("ascii")] = v.encode("ascii")
     if len(self.stack) == 0:
       assert not hasattr(self, "result")

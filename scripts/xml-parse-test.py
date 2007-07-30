@@ -1,31 +1,21 @@
 # $Id$
 
-import glob, rpki.up_down, rpki.left_right, rpki.relaxng, xml.sax
+import glob, rpki.up_down, rpki.left_right, xml.sax, lxml.etree, lxml.sax
 
-if True:
-  files = glob.glob("up-down-protocol-samples/*.xml")
+def test(fileglob, schema, proto):
+  rng = lxml.etree.RelaxNG(lxml.etree.parse(schema))
+  files = glob.glob(fileglob)
   files.sort()
   for f in files:
-    print "<!--", f, "-->"
-    handler = rpki.up_down.sax_handler()
-    fh = open(f, "r")
-    x = fh.read()
-    fh.close()
-    xml.sax.parseString(x, handler)
-    x = str(handler.result)
-    print x
-    rpki.relaxng.relaxng(x, "up-down-medium-schema.rng")
+    print "\n<!--", f, "-->"
+    handler = proto.sax_handler()
+    et = lxml.etree.parse(f)
+    rng.assertValid(et)
+    lxml.sax.saxify(et, handler)
+    et = lxml.etree.fromstring(str(handler.result))
+    print lxml.etree.tostring(et)
+    rng.assertValid(et)
 
-if True:
-  files = glob.glob("left-right-protocol-samples/*.xml")
-  files.sort()
-  for f in files:
-    print "<!--", f, "-->"
-    handler = rpki.left_right.sax_handler()
-    fh = open(f, "r")
-    x = fh.read()
-    fh.close()
-    xml.sax.parseString(x, handler)
-    x = str(handler.result)
-    print x
-    rpki.relaxng.relaxng(x, "left-right-schema.rng")
+test("up-down-protocol-samples/*.xml", "up-down-medium-schema.rng", rpki.up_down)
+
+test("left-right-protocol-samples/*.xml", "left-right-schema.rng", rpki.left_right)

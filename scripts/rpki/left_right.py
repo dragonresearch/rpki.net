@@ -90,8 +90,7 @@ class self_elt(base_elt):
 
   def toXML(self):
     elt = self.make_elt("self")
-    for i in self.prefs:
-      elt.append(i.toXML())
+    elt.extend([i.toXML() for i in self.prefs])
     return elt
 
 class bsc_elt(base_elt):
@@ -268,8 +267,7 @@ class list_resources_elt(base_elt):
 
   def toXML(self):
     elt = self.make_elt("list_resources")
-    for i in self.resources:
-      elt.append(i.toXML())
+    elt.extend([i.toXML() for i in self.resources])
     return elt
 
 class report_error_elt(base_elt):
@@ -319,8 +317,7 @@ class msg(list):
 
   def toXML(self):
     elt = lxml.etree.Element("{%s}msg" % (xmlns), nsmap=nsmap, version=str(self.version))
-    for i in self:
-      elt.append(i.toXML())
+    elt.extend([i.toXML() for i in self])
     return elt
 
 class sax_handler(sax_utils.handler):

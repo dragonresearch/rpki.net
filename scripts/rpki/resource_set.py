@@ -105,8 +105,8 @@ class resource_set(list):
     operations on resource sets.
     """
     assert type(self) is type(other)
-    set1 = [i for i in self]
-    set2 = [i for i in other]
+    set1 = self[:]
+    set2 = other[:]
     only1, only2, both = [], [], []
     while set1 or set2:
       if set1 and (not set2 or set1[0].max < set2[0].min):
@@ -132,8 +132,8 @@ class resource_set(list):
     Set union for resource sets.
     """
     assert type(self) is type(other)
-    set1 = [i for i in self]
-    set2 = [i for i in other]
+    set1 = self[:]
+    set2 = other[:]
     result = []
     while set1 or set2:
       if set1 and (not set2 or set1[0].max < set2[0].min):
@@ -144,14 +144,10 @@ class resource_set(list):
         this = set1.pop(0)
         that = set2.pop(0)
         assert type(this) is type(that)
-        if this.min < that.min:
-          min = this.min
-        else:
-          min = that.min
-        if this.max > that.max:
-          max = this.max
-        else:
-          max = that.max
+        if this.min < that.min: min = this.min
+        else:                   min = that.min
+        if this.max > that.max: max = this.max
+        else:                   max = that.max
         result.append(type(this)(min, max))
     return type(self)(result)
 

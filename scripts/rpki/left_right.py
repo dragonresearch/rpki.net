@@ -1,6 +1,10 @@
 # $Id$
 
-import base64, sax_utils, resource_set
+import base64, sax_utils, resource_set, lxml.etree
+
+xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
+
+nsmap = { None : xmlns }
 
 class base_elt(object):
   """
@@ -22,33 +26,45 @@ class base_elt(object):
     for key in self.booleans:
       setattr(self, key, attrs.get(key, False))
 
-  def print_attrs(self):
-    xml =""
+  def make_elt(self, name):
+    elt = lxml.etree.Element("{%s}%s" % (xmlns, name), nsmap=nsmap)
     for key in self.attributes:
       val = getattr(self, key, None)
       if val is not None:
-        xml += ' %s="%s"' % (key, val)
+        elt.set(key, str(val))
     for key in self.booleans:
       if getattr(self, key, False):
-        xml += ' %s="yes"' % key
-    return xml
+        elt.set(key, "yes")
+    return elt
+
+  def make_b64elt(self, elt, name, value=None):
+    if value is None:
+      value = getattr(self, name, None)
+    if value is not None:
+      lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap=nsmap).text = base64.b64encode(value)
+
+  def __str__(self):
+    lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="us-ascii")
 
 class extension_preference_elt(base_elt):
   """
   Container for extension preferences.
   """
 
+  attributes = ("name",)
+
   def startElement(self, stack, name, attrs):
     assert name == "extension_preference", "Unexpected name %s, stack %s" % (name, stack)
-    self.name = attrs["name"]
+    self.read_attrs(attrs)
 
   def endElement(self, stack, name, text):
     self.value = text
     stack.pop()
 
-  def __str__(self):
-    return ('    <extension_preference name="%s">%s</extension_preference>\n'
-            % (self.name, self.value))
+  def toXML(self):
+    elt = self.make_elt("extension_preference")
+    elt.text = self.value
+    return elt
 
 class self_elt(base_elt):
 
@@ -72,11 +88,11 @@ class self_elt(base_elt):
     assert name == "self", "Unexpected name %s, stack %s" % (name, stack)
     stack.pop()
 
-  def __str__(self):
-    xml = '  <self%s>\n' % self.print_attrs()
+  def toXML(self):
+    elt = self.make_elt("self")
     for i in self.prefs:
-      xml += str(i)
-    return xml + '  </self>\n'
+      elt.append(i.toXML())
+    return elt
 
 class bsc_elt(base_elt):
 
@@ -105,15 +121,13 @@ class bsc_elt(base_elt):
       assert name == "bsc", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
 
-  def __str__(self):
-    xml = '  <bsc%s>\n' % self.print_attrs()
+  def toXML(self):
+    elt = self.make_elt("bsc")
     for i in self.signing_cert:
-      xml += '    <signing_cert>' + base64.b64encode(i) + '</signing_cert>\n'
-    if self.pkcs10_cert_request:
-      xml += '    <pkcs10_cert_request>' + base64.b64encode(self.pkcs10_cert_request) + '</pkcs10_cert_request>\n'
-    if self.public_key:
-      xml += '    <public_key>' + base64.b64encode(self.public_key) + '</public_key>\n'
-    return xml + '  </bsc>\n'
+      self.make_b64elt(elt, "signing_cert", i)
+    self.make_b64elt(elt, "pkcs10_cert_request")
+    self.make_b64elt(elt, "public_key")
+    return elt
 
 class parent_elt(base_elt):
 
@@ -134,11 +148,10 @@ class parent_elt(base_elt):
       assert name == "parent", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
 
-  def __str__(self):
-    xml = '  <parent%s>\n' % self.print_attrs()
-    if self.peer_ta:
-      xml += '    <peer_ta>' + base64.b64encode(self.peer_ta) + '</peer_ta>\n'
-    return xml + '  </parent>\n'
+  def toXML(self):
+    elt = self.make_elt("parent")
+    self.make_b64elt(elt, "peer_ta")
+    return elt
 
 class child_elt(base_elt):
 
@@ -159,12 +172,10 @@ class child_elt(base_elt):
       assert name == "child", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
 
-  def __str__(self):
-    xml = '  <child%s>\n' % self.print_attrs()
-    i = getattr(self, "peer_ta", None)
-    if self.peer_ta:
-      xml += '    <peer_ta>' + base64.b64encode(self.peer_ta) + '</peer_ta>\n'
-    return xml + '  </child>\n'
+  def toXML(self):
+    elt = self.make_elt("child")
+    self.make_b64elt(elt, "peer_ta")
+    return elt
 
 class repository_elt(base_elt):
 
@@ -184,11 +195,10 @@ class repository_elt(base_elt):
       assert name == "repository", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
 
-  def __str__(self):
-    xml = '  <repository%s>\n' % self.print_attrs()
-    if self.peer_ta:
-      xml += '    <peer_ta>' + base64.b64encode(self.peer_ta) + '</peer_ta>\n'
-    return xml + '  </repository>\n'
+  def toXML(self):
+    elt = self.make_elt("repository")
+    self.make_b64elt(elt, "peer_ta")
+    return elt
 
 class route_origin_elt(base_elt):
 
@@ -209,8 +219,8 @@ class route_origin_elt(base_elt):
     assert name == "route_origin", "Unexpected name %s, stack %s" % (name, stack)
     stack.pop()
 
-  def __str__(self):
-    return '  <route_origin%s/>\n' % self.print_attrs()
+  def toXML(self):
+    return self.make_elt("route_origin")
 
 class resource_class_elt(base_elt):
 
@@ -236,8 +246,8 @@ class resource_class_elt(base_elt):
     assert name == "resource_class", "Unexpected name %s, stack %s" % (name, stack)
     stack.pop()
 
-  def __str__(self):
-    return '    <resource_class%s/>\n' % self.print_attrs()
+  def toXML(self):
+    return self.make_elt("resource_class")
 
 class list_resources_elt(base_elt):
 
@@ -256,11 +266,11 @@ class list_resources_elt(base_elt):
       assert name == "list_resources", "Unexpected name %s, stack %s" % (name, stack)
       self.read_attrs(attrs)
 
-  def __str__(self):
-    xml = '  <list_resources%s>\n' % self.print_attrs()
+  def toXML(self):
+    elt = self.make_elt("list_resources")
     for i in self.resources:
-      xml += str(i)
-    return xml + '  </list_resources>\n'
+      elt.append(i.toXML())
+    return elt
 
 class report_error_elt(base_elt):
 
@@ -270,21 +280,20 @@ class report_error_elt(base_elt):
     assert name == "report_error", "Unexpected name %s, stack %s" % (name, stack)
     self.read_attrs(attrs)
 
-  def __str__(self):
-    return '  <report_error%s/>\n' % self.print_attrs()
+  def toXML(self):
+    return self.make_elt("report_error")
 
 class msg(list):
   """
   Left-right PDU.
   """
 
-  spec_uri = "http://www.hactrn.net/uris/rpki/left-right-spec/"
   version = 1
 
   def startElement(self, stack, name, attrs):
     if name == "msg":
-      self.version = int(attrs["version"])
-      assert self.version == 1
+      assert self.version == int(attrs["version"])
+      #assert xmlns == attrs["xmlns"]
     else:
       elt = {
         "self"           : self_elt,
@@ -306,10 +315,13 @@ class msg(list):
     stack.pop()
 
   def __str__(self):
-    return ('<?xml version="1.0" encoding="US-ASCII" ?>\n'
-            '<msg xmlns="%s" version="%d">\n'
-            '%s</msg>\n'
-            % (self.spec_uri, self.version, "".join(map(str, self))))
+    lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="us-ascii")
+
+  def toXML(self):
+    elt = lxml.etree.Element("{%s}msg" % (xmlns), nsmap=nsmap, version=str(self.version))
+    for i in self:
+      elt.append(i.toXML())
+    return elt
 
 class sax_handler(sax_utils.handler):
   """

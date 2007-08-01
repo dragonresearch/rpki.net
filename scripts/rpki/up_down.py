@@ -36,9 +36,9 @@ class certificate_elt(base_elt):
   def startElement(self, stack, name, attrs):
     assert name == "certificate", "Unexpected name %s, stack %s" % (name, stack)
     self.cert_url = attrs["cert_url"]
-    self.req_resource_set_as   = resource_set.resource_set_as(attrs["req_resource_set_as"])
-    self.req_resource_set_ipv4 = resource_set.resource_set_ipv4(attrs["req_resource_set_ipv4"])
-    self.req_resource_set_ipv6 = resource_set.resource_set_ipv6(attrs["req_resource_set_ipv6"])
+    self.req_resource_set_as   = resource_set.resource_set_as(attrs.get("req_resource_set_as"))
+    self.req_resource_set_ipv4 = resource_set.resource_set_ipv4(attrs.get("req_resource_set_ipv4"))
+    self.req_resource_set_ipv6 = resource_set.resource_set_ipv6(attrs.get("req_resource_set_ipv6"))
 
   def endElement(self, stack, name, text):
     assert name == "certificate"

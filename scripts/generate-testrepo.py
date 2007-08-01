@@ -11,19 +11,20 @@ def main():
   Main program, up front to make it easier to find.
   """
 
-  allocation("ISP1", ipv4="192.0.2.1-192.0.2.33", asn="64533")
-  allocation("ISP2", ipv4="192.0.2.44-192.0.2.100")
-  allocation("ISP3", ipv6="2001:db8::44-2001:db8::100")
-  allocation("ISP4", ipv6="2001:db8::10:0:44/128", asn="64544")
-  allocation("LIR1", children=["ISP1", "ISP2"])
-  allocation("LIR2", children=["ISP3", "ISP4"])
-  allocation("RIR",  children=["LIR1", "LIR2"])
+  db = allocation_db()
+  db.add("ISP1", ipv4="192.0.2.1-192.0.2.33", asn="64533")
+  db.add("ISP2", ipv4="192.0.2.44-192.0.2.100")
+  db.add("ISP3", ipv6="2001:db8::44-2001:db8::100")
+  db.add("ISP4", ipv6="2001:db8::10:0:44/128", asn="64544")
+  db.add("LIR1", children=["ISP1", "ISP2"])
+  db.add("LIR2", children=["ISP3", "ISP4"])
+  db.add("RIR",  children=["LIR1", "LIR2"])
 
-  for i in allocations:
+  for i in db:
     write_maybe("%s/%s.cnf" % (subdir, i.name), i.cfg_string())
   write_maybe("%s/Makefile" % subdir,
               "# Automatically generated, do not edit.\n" +
-              "".join([i.makefile_rules() for i in allocations]))
+              "".join([i.makefile_rules() for i in db]))
 
 def write_maybe(name, new_content):
   old_content = None
@@ -39,14 +40,19 @@ def write_maybe(name, new_content):
     f.write(new_content)
     f.close()
 
-allocation_dict = {}
-allocations = []
+class allocation_db(list):
+  
+  def __init__(self):
+    self.allocation_dict = {}
+
+  def add(self, name, **kw):
+    self.insert(0, allocation(name=name, allocation_dict=self.allocation_dict, **kw))
 
 class allocation(object):
 
   parent = None
 
-  def __init__(self, name, asn=None, ipv4=None, ipv6=None, children=[]):
+  def __init__(self, name, asn=None, ipv4=None, ipv6=None, children=[], allocation_dict=None):
     self.name = name
     self.children = [allocation_dict[i] for i in children]
     for child in self.children:
@@ -56,7 +62,6 @@ class allocation(object):
     self.ipv4 = self.summarize("ipv4", rpki.resource_set.resource_set_ipv4(ipv4))
     self.ipv6 = self.summarize("ipv6", rpki.resource_set.resource_set_ipv6(ipv6))
     allocation_dict[name] = self
-    allocations.insert(0, self)
 
   def summarize(self, attrname, seed=None):
     if seed is None:

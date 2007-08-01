@@ -88,7 +88,7 @@ class resource_set(list):
     elif isinstance(ini, list):
       self.extend(ini)
     else:
-      assert ini is None
+      assert ini is None or ini == ""
     self.sort()
     if __debug__:
       for i in range(0, len(self) - 1):

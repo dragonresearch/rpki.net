@@ -8,7 +8,8 @@ keybits = 2048
 
 def main():
   """
-  Main program, up front to make it easier to find.
+  Main program, up front to make it easier to find with all the
+  OpenSSL config and Makefile template text.
   """
 
   db = allocation_db()
@@ -114,10 +115,10 @@ all:: %(self)s.cer
 	%(openssl)s req -new -config %(self)s.cnf -key %(self)s.key -out $@
 
 %(self)s.cer: %(self)s.req %(self)s.cnf %(signdeps)s Makefile
-	test -d %(self)s || mkdir %(self)s
-	test -f %(self)s/index || touch %(self)s/index
-	test -f %(self)s/serial || echo 01 >%(self)s/serial
-	%(openssl)s ca -batch -verbose -notext -out $@ -in %(self)s.req -extensions req_x509_ext -extfile %(self)s.cnf -config %(signconf)s
+	@test -d %(self)s || mkdir %(self)s
+	@test -f %(self)s/index || touch %(self)s/index
+	@test -f %(self)s/serial || echo 01 >%(self)s/serial
+	%(openssl)s ca -batch -out $@ -in %(self)s.req -extensions req_x509_ext -extfile %(self)s.cnf -config %(signconf)s
 
 '''
 

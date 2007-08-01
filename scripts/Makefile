@@ -1,6 +1,6 @@
 # $Id$
 
-all: left-right-protocol-samples/.stamp left-right-schema.rng up-down-medium-schema.rng up-down-schema.rng resource-cert-samples/.stamp
+all: left-right-protocol-samples/.stamp left-right-schema.rng up-down-medium-schema.rng up-down-schema.rng resource-cert-samples-regen
 
 left-right-protocol-samples/.stamp: left-right-protocol-samples.xsl ../docs/left-right-xml
 	xsltproc left-right-protocol-samples.xsl ../docs/left-right-xml
@@ -25,7 +25,9 @@ relaxng: left-right-protocol-samples/.stamp
 	xmllint --noout --relaxng left-right-schema.rng left-right-protocol-samples/*.xml
 	xmllint --noout --relaxng    up-down-schema.rng    up-down-protocol-samples/*.xml
 
+resource-cert-samples-regen: resource-cert-samples/.stamp
+	cd resource-cert-samples && make
+
 resource-cert-samples/.stamp: generate-testrepo.py Makefile
 	python generate-testrepo.py
-	cd resource-cert-samples && make
 	touch $@

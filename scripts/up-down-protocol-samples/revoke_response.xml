@@ -4,6 +4,6 @@
 	 sender="sender name"
 	 recipient="recipient name"
 	 type="revoke_response">
-    <key class_name="class name"
-         ski="g(ski)"/>
+    <key class_name="ISP5"
+         ski="CfAUC3n7C_-o71S57D65i9DLnOw"/>
 </message>

@@ -31,12 +31,10 @@ def main():
 
 def write_maybe(name, new_content):
   old_content = None
-  try:
+  if os.path.isfile(name):
     f = open(name, "r")
     old_content = f.read()
     f.close()
-  except IOError:
-    pass
   if old_content != new_content:
     print "Writing", name
     f = open(name, "w")

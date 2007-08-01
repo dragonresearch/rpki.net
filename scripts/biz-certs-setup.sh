@@ -12,6 +12,13 @@
 #
 # Among other things missing here, we're not doing any restrictions
 # beyond basicConstraints and we're not doing CRLs.
+#
+# One can extract the public key from a .key file by doing:
+#
+#   $ openssl rsa -in foo.key -pubout
+#
+# I ended up needing this to build simulated packets for the
+# left-right protocol.
 
 for i in Alice Bob Carol Dave
 do

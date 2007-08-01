@@ -1,8 +1,8 @@
 # $Id$
 
-import rpki.resource_set
+import rpki.resource_set, os
 
-subdir  = "testrepo"
+subdir  = "resource-cert-samples"
 openssl = "../../openssl/openssl-0.9.8e/apps/openssl"
 keybits = 2048
 
@@ -19,6 +19,9 @@ def main():
   db.add("LIR1", children=["ISP1", "ISP2"])
   db.add("LIR2", children=["ISP3", "ISP4"])
   db.add("RIR",  children=["LIR1", "LIR2"])
+
+  if not os.path.isdir(subdir):
+    os.mkdir(subdir)
 
   for i in db:
     write_maybe("%s/%s.cnf" % (subdir, i.name), i.cfg_string())

@@ -1,0 +1,98 @@
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: 15 (0xf)
+        Signature Algorithm: sha1WithRSAEncryption
+        Issuer: CN=TEST ENTITY RIR
+        Validity
+            Not Before: Aug  1 14:48:18 2007 GMT
+            Not After : Jul 31 14:48:18 2008 GMT
+        Subject: CN=TEST ENTITY LIR2
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+            RSA Public Key: (2048 bit)
+                Modulus (2048 bit):
+                    00:f1:18:b6:79:0b:35:c5:83:64:48:83:31:03:9e:
+                    e7:72:28:65:b1:ac:61:e1:77:2e:c0:4d:f0:b1:1c:
+                    61:d8:cc:5a:2d:c7:0b:9b:78:7a:3e:fd:37:ad:fa:
+                    b0:73:0b:9c:fc:bb:6f:60:ea:38:ef:ae:d1:27:b8:
+                    81:59:0f:b3:e7:d0:67:b2:a2:f5:4f:e2:04:c6:cc:
+                    13:9f:33:28:35:96:7a:db:ce:ac:9d:d3:64:3d:b8:
+                    44:bc:cb:43:22:92:d6:3c:2e:bf:97:6e:39:6a:6e:
+                    68:93:5d:1c:a8:58:b7:a3:7a:26:44:fe:fe:30:ad:
+                    e2:05:89:4c:c9:ef:2c:e0:4e:31:69:3f:dd:91:1c:
+                    f0:b0:25:4c:3e:84:8a:ea:5e:03:b3:a8:cd:90:1a:
+                    1e:c8:e0:af:fe:11:ed:21:06:bd:3c:5e:08:a1:93:
+                    e2:41:43:43:38:d3:21:b3:4c:fa:85:8b:43:57:60:
+                    5d:bb:a0:78:e5:33:47:a8:33:76:be:df:6e:63:61:
+                    e3:31:8b:5d:8e:0c:c7:f5:c8:91:0c:be:57:c7:f2:
+                    bc:be:0b:ba:7a:1f:f6:19:f1:eb:00:74:c1:12:c2:
+                    dc:2b:2e:8d:f0:0a:ff:7f:e8:60:08:90:ba:51:fc:
+                    d0:90:11:37:f3:9e:44:b6:64:43:69:5d:61:d3:e1:
+                    8d:77
+                Exponent: 65537 (0x10001)
+        X509v3 extensions:
+            X509v3 Basic Constraints: critical
+                CA:TRUE
+            X509v3 Subject Key Identifier: 
+                03:7A:DF:0C:DF:DC:93:3D:F7:A5:CC:27:7B:DC:22:F6:E9:55:97:F0
+            X509v3 Authority Key Identifier: 
+                keyid:FB:B8:A7:A3:36:48:0A:A0:9F:F0:2E:DC:8B:68:BC:B3:5C:45:25:D7
+
+            X509v3 Key Usage: critical
+                Certificate Sign, CRL Sign
+            Subject Information Access: 
+                1.3.6.1.5.5.7.48.5 - URI:rsync://wombats-r-us.hactrn.net/LIR2/
+
+            Authority Information Access: 
+                CA Issuers - URI:rsync://wombats-r-us.hactrn.net/RIR.cer
+
+            sbgp-autonomousSysNum: critical
+                Autonomous System Numbers:
+                  64544
+
+            sbgp-ipAddrBlock: critical
+                IPv6:
+                  2001:db8:0:0:0:0:0:44-2001:db8:0:0:0:0:0:100
+                  2001:db8:0:0:0:10:0:44/128
+
+    Signature Algorithm: sha1WithRSAEncryption
+        1b:9a:85:77:61:fe:eb:5a:f8:ef:ad:5d:4d:79:4b:09:b3:c9:
+        3e:46:f2:cf:4f:0c:26:28:7c:ec:72:da:17:6e:a0:2a:f2:4b:
+        0f:af:e6:2e:b5:d7:2d:03:ae:8c:13:65:ec:cb:c2:4a:02:8f:
+        81:60:44:60:eb:d2:d2:22:12:63:04:8c:6d:56:5a:c2:b8:f6:
+        c8:f5:17:99:69:25:bd:3e:1d:2a:ef:ce:51:48:4a:67:d0:b4:
+        ee:64:99:35:42:10:26:88:ac:e0:26:c8:27:cc:89:30:40:18:
+        72:9c:82:03:ea:62:9d:83:c9:ab:c8:32:0a:59:98:50:0c:50:
+        23:5a:93:ff:43:ba:08:b3:7d:61:d5:ed:a4:42:f2:cf:ab:2e:
+        62:6b:67:bd:06:74:2c:bc:b7:b1:7e:1b:f4:c9:e4:40:94:ec:
+        14:55:04:54:ce:44:26:d0:93:e3:ff:e2:e2:a2:a4:3f:44:87:
+        7a:c2:29:a3:48:5f:12:1d:e4:eb:18:b3:1f:30:f4:e6:d3:a7:
+        5a:7c:73:da:0a:8f:1e:29:63:cb:b6:16:2e:fe:76:84:93:88:
+        a1:72:83:4d:3d:8d:16:ef:16:df:c7:c6:d7:67:00:68:ec:4d:
+        b8:ed:b8:ff:3e:bf:c9:d5:3a:34:cf:4c:c0:7b:6e:11:60:46:
+        25:91:d8:ad
+-----BEGIN CERTIFICATE-----
+MIIEETCCAvmgAwIBAgIBDzANBgkqhkiG9w0BAQUFADAaMRgwFgYDVQQDEw9URVNU
+IEVOVElUWSBSSVIwHhcNMDcwODAxMTQ0ODE4WhcNMDgwNzMxMTQ0ODE4WjAbMRkw
+FwYDVQQDExBURVNUIEVOVElUWSBMSVIyMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A
+MIIBCgKCAQEA8Ri2eQs1xYNkSIMxA57ncihlsaxh4XcuwE3wsRxh2MxaLccLm3h6
+Pv03rfqwcwuc/LtvYOo4767RJ7iBWQ+z59BnsqL1T+IExswTnzMoNZZ6286sndNk
+PbhEvMtDIpLWPC6/l245am5ok10cqFi3o3omRP7+MK3iBYlMye8s4E4xaT/dkRzw
+sCVMPoSK6l4Ds6jNkBoeyOCv/hHtIQa9PF4IoZPiQUNDONMhs0z6hYtDV2Bdu6B4
+5TNHqDN2vt9uY2HjMYtdjgzH9ciRDL5Xx/K8vgu6eh/2GfHrAHTBEsLcKy6N8Ar/
+f+hgCJC6UfzQkBE3855EtmRDaV1h0+GNdwIDAQABo4IBXzCCAVswDwYDVR0TAQH/
+BAUwAwEB/zAdBgNVHQ4EFgQUA3rfDN/ckz33pcwne9wi9ulVl/AwHwYDVR0jBBgw
+FoAU+7inozZICqCf8C7ci2i8s1xFJdcwDgYDVR0PAQH/BAQDAgEGMEEGCCsGAQUF
+BwELBDUwMzAxBggrBgEFBQcwBYYlcnN5bmM6Ly93b21iYXRzLXItdXMuaGFjdHJu
+Lm5ldC9MSVIyLzBDBggrBgEFBQcBAQQ3MDUwMwYIKwYBBQUHMAKGJ3JzeW5jOi8v
+d29tYmF0cy1yLXVzLmhhY3Rybi5uZXQvUklSLmNlcjAaBggrBgEFBQcBCAEB/wQL
+MAmgBzAFAgMA/CAwVAYIKwYBBQUHAQcBAf8ERTBDMEEEAgACMDswJgMRAiABDbgA
+AAAAAAAAAAAAAEQDEQAgAQ24AAAAAAAAAAAAAAEAAxEAIAENuAAAAAAAAAAQAAAA
+RDANBgkqhkiG9w0BAQUFAAOCAQEAG5qFd2H+61r4761dTXlLCbPJPkbyz08MJih8
+7HLaF26gKvJLD6/mLrXXLQOujBNl7MvCSgKPgWBEYOvS0iISYwSMbVZawrj2yPUX
+mWklvT4dKu/OUUhKZ9C07mSZNUIQJois4CbIJ8yJMEAYcpyCA+pinYPJq8gyClmY
+UAxQI1qT/0O6CLN9YdXtpELyz6suYmtnvQZ0LLy3sX4b9MnkQJTsFFUEVM5EJtCT
+4//i4qKkP0SHesIpo0hfEh3k6xizHzD05tOnWnxz2gqPHiljy7YWLv52hJOIoXKD
+TT2NFu8W38fG12cAaOxNuO24/z6/ydU6NM9MwHtuEWBGJZHYrQ==
+-----END CERTIFICATE-----

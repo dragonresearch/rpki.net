@@ -25,8 +25,11 @@ class base_elt(object):
         elt.set(key, str(val))
     return elt
 
-  def make_b64elt(self, elt, name):
-    lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap=nsmap).text = base64.b64encode(getattr(self, name))
+  def make_b64elt(self, elt, name, value=None):
+    if value is None:
+      value = getattr(self, name, None)
+    if value is not None:
+      lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap=nsmap).text = base64.b64encode(value)
 
 class certificate_elt(base_elt):
   """
@@ -76,7 +79,8 @@ class class_elt(base_elt):
 
   def endElement(self, stack, name, text):
     if name == "issuer":
-      self.issuer = base64.b64decode(text)
+      self.issuer = POW.pkix.Certificate()
+      self.issuer.fromString(base64.b64decode(text))
     else:
       assert name == "class", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -84,7 +88,7 @@ class class_elt(base_elt):
   def toXML(self):
     elt = self.make_elt("class", "class_name", "cert_url", "resource_set_as", "resource_set_ipv4", "resource_set_ipv6", "suggested_sia_head")
     elt.extend([i.toXML() for i in self.certs])
-    self.make_b64elt(elt, "issuer")
+    self.make_b64elt(elt, "issuer", self.issuer.toString())
     return elt
 
 class list_pdu(base_elt):

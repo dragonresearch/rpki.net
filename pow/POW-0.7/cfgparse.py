@@ -36,6 +36,21 @@
 
 import string, re, types, pprint
 
+def decodeOid(val):
+   val = [int(val,16) for val in val.split(" ")][2:]
+   arc12 = val[0]
+   arc1, arc2 = divmod(arc12, 40)
+   oids = [arc1,arc2]
+   total = 0
+   for byte in val[1:]:
+      if byte & 0x80:
+         total = (total << 7) | (byte ^ 0x80)
+      else:
+         total = (total << 7) | byte
+         oids.append(total)
+         total = 0
+   return tuple(oids)
+
 # for people out there who, like me, hate regexs(too easy to make mistakes
 # with) I apologise profusely!
 
@@ -58,6 +73,7 @@ class Parser:
       m = self.oidMatch.match( line )
       if m:
          dict['hexoid'] = m.group(1)
+         dict['oid'] = decodeOid(m.group(1))
          return 0
       else:
          m = self.commentMatch.match( line )
@@ -69,8 +85,10 @@ class Parser:
             if m:
                dict['description'] = m.group(1)
                n = self.oidNameMatch.match( m.group(1) )
-               dict['name'] = string.strip( n.group(1) )
-               dict['oid'] = tuple( map(int, string.split( n.group(2), ' ') ) )
+               if n:
+                  dict['name'] = string.strip( n.group(1) )
+               else:
+                  dict['name'] = m.group(1)
                return 0
             else:
                m = self.warningMatch.match( line )

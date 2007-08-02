@@ -1,6 +1,6 @@
 # $Id$
 
-import base64, sax_utils, resource_set, lxml.etree
+import base64, sax_utils, resource_set, lxml.etree, POW, POW.pkix
 
 xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
@@ -45,6 +45,11 @@ class base_elt(object):
 
   def __str__(self):
     lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="us-ascii")
+
+class biz_cert(POW.pkix.Certificate):
+  def __init__(self, text):
+    POW.pkix.Certificate.__init__(self)
+    self.fromString(base64.b64decode(text))
 
 class extension_preference_elt(base_elt):
   """
@@ -111,7 +116,7 @@ class bsc_elt(base_elt):
 
   def endElement(self, stack, name, text):
     if name == "signing_cert":
-      self.signing_cert.append(base64.b64decode(text))
+      self.signing_cert.append(biz_cert(text))
     elif name == "public_key":
       self.public_key = base64.b64decode(text)
     elif name == "pkcs10_cert_request":
@@ -122,8 +127,8 @@ class bsc_elt(base_elt):
 
   def toXML(self):
     elt = self.make_elt("bsc")
-    for i in self.signing_cert:
-      self.make_b64elt(elt, "signing_cert", i)
+    for cert in self.signing_cert:
+      self.make_b64elt(elt, "signing_cert", cert.toString())
     self.make_b64elt(elt, "pkcs10_cert_request")
     self.make_b64elt(elt, "public_key")
     return elt
@@ -142,14 +147,15 @@ class parent_elt(base_elt):
 
   def endElement(self, stack, name, text):
     if name == "peer_ta":
-      self.peer_ta = base64.b64decode(text)
+      self.peer_ta = biz_cert(text)
     else:
       assert name == "parent", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
 
   def toXML(self):
     elt = self.make_elt("parent")
-    self.make_b64elt(elt, "peer_ta")
+    if self.peer_ta:
+      self.make_b64elt(elt, "peer_ta", self.peer_ta.toString())
     return elt
 
 class child_elt(base_elt):
@@ -166,14 +172,15 @@ class child_elt(base_elt):
 
   def endElement(self, stack, name, text):
     if name == "peer_ta":
-      self.peer_ta = base64.b64decode(text)
+      self.peer_ta = biz_cert(text)
     else:
       assert name == "child", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
 
   def toXML(self):
     elt = self.make_elt("child")
-    self.make_b64elt(elt, "peer_ta")
+    if self.peer_ta:
+      self.make_b64elt(elt, "peer_ta", self.peer_ta.toString())
     return elt
 
 class repository_elt(base_elt):
@@ -189,14 +196,15 @@ class repository_elt(base_elt):
 
   def endElement(self, stack, name, text):
     if name == "peer_ta":
-      self.peer_ta = base64.b64decode(text)
+      self.peer_ta = biz_cert(text)
     else:
       assert name == "repository", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
 
   def toXML(self):
     elt = self.make_elt("repository")
-    self.make_b64elt(elt, "peer_ta")
+    if self.peer_ta:
+      self.make_b64elt(elt, "peer_ta", self.peer_ta.toString())
     return elt
 
 class route_origin_elt(base_elt):

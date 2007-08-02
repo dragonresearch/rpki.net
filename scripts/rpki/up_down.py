@@ -1,6 +1,6 @@
 # $Id$
 
-import base64, sax_utils, resource_set, lxml.etree
+import base64, sax_utils, resource_set, lxml.etree, POW, POW.pkix
 
 xmlns="http://www.apnic.net/specs/rescerts/up-down/"
 
@@ -42,12 +42,13 @@ class certificate_elt(base_elt):
 
   def endElement(self, stack, name, text):
     assert name == "certificate"
-    self.cert = base64.b64decode(text)
+    self.cert = POW.pkix.Certificate()
+    self.cert.fromString(base64.b64decode(text))
     stack.pop()
 
   def toXML(self):
     elt = self.make_elt("certificate", "cert_url", "req_resource_set_as", "req_resource_set_ipv4", "req_resource_set_ipv6")
-    elt.text = base64.b64encode(self.cert)
+    elt.text = base64.b64encode(self.cert.toString())
     return elt
 
 class class_elt(base_elt):

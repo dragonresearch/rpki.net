@@ -2,26 +2,27 @@
 
 import glob, rpki.up_down, rpki.left_right, xml.sax, lxml.etree, lxml.sax, pprint, POW, POW.pkix
 
+verbose = False
+
+def validate(rng, doc):
+  try:
+    rng.assertValid(doc)
+  except lxml.etree.DocumentInvalid:
+    print rng.error_log.last_error
+    raise
+
 def test(fileglob, schema, sax_handler, encoding, tester=None):
-
   rng = lxml.etree.RelaxNG(lxml.etree.parse(schema))
-  def validate(x):
-    try:
-      rng.assertValid(x)
-    except lxml.etree.DocumentInvalid:
-      print rng.error_log.last_error
-      raise
-
   files = glob.glob(fileglob)
   files.sort()
   for f in files:
     print "\n<!--", f, "-->"
     handler = sax_handler()
     elt_in = lxml.etree.parse(f).getroot()
-    validate(elt_in)
+    validate(rng, elt_in)
     lxml.sax.saxify(elt_in, handler)
     elt_out = handler.result.toXML()
-    validate(elt_out)
+    validate(rng, elt_out)
     if (tester):
       tester(elt_in, elt_out, handler.result)
     print lxml.etree.tostring(elt_out, pretty_print=True, encoding=encoding, xml_declaration=True)
@@ -31,20 +32,21 @@ def pprint_cert(cert):
 
 def ud_tester(elt_in, elt_out, msg):
   assert isinstance(msg, rpki.up_down.message_pdu)
-  if isinstance(msg.payload, rpki.up_down.list_response_pdu):
-    for c in msg.payload.classes:
-      for i in range(len(c.certs)):
-        print "[Certificate #%d]" % i
-        pprint_cert(c.certs[i].cert)
-      print "[Issuer]"
-      pprint_cert(c.issuer)
-
-  nsmap = { "x" : "http://www.apnic.net/specs/rescerts/up-down/" }
-  for c in elt_in.xpath("//x:issuer | //x:certificate", nsmap):
-    print c.tag, c.text
+  if verbose:
+    if isinstance(msg.payload, rpki.up_down.list_response_pdu):
+      for c in msg.payload.classes:
+        for i in range(len(c.certs)):
+          print "[Certificate #%d]" % i
+          pprint_cert(c.certs[i].cert)
+        print "[Issuer]"
+        pprint_cert(c.issuer)
 
 def lr_tester(elt_in, elt_out, msg):
   assert isinstance(msg, rpki.left_right.msg)
+  if verbose:
+    for bsc in [x for x in msg if isinstance(x, rpki.left_right.bsc_elt)]:
+      for cert in bsc.signing_cert:
+        pprint_cert(cert)
 
 test(fileglob="up-down-protocol-samples/*.xml",
      schema="up-down-medium-schema.rng",

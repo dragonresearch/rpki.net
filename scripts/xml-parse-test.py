@@ -3,29 +3,33 @@
 import glob, rpki.up_down, rpki.left_right, xml.sax, lxml.etree, lxml.sax, pprint, POW, POW.pkix
 
 def test(fileglob, schema, sax_handler, encoding, tester=None):
+
   rng = lxml.etree.RelaxNG(lxml.etree.parse(schema))
+  def validate(x):
+    try:
+      rng.assertValid(x)
+    except lxml.etree.DocumentInvalid:
+      print rng.error_log.last_error
+      raise
+
   files = glob.glob(fileglob)
   files.sort()
   for f in files:
     print "\n<!--", f, "-->"
     handler = sax_handler()
-    et = lxml.etree.parse(f)
-    rng.assertValid(et)
-    lxml.sax.saxify(et, handler)
+    elt_in = lxml.etree.parse(f).getroot()
+    validate(elt_in)
+    lxml.sax.saxify(elt_in, handler)
+    elt_out = handler.result.toXML()
+    validate(elt_out)
     if (tester):
-      tester(et, handler.result)
-    et = handler.result.toXML()
-    print lxml.etree.tostring(et, pretty_print=True, encoding=encoding, xml_declaration=True)
-    try:
-      rng.assertValid(et)
-    except lxml.etree.DocumentInvalid:
-      print rng.error_log.last_error
-      raise
+      tester(elt_in, elt_out, handler.result)
+    print lxml.etree.tostring(elt_out, pretty_print=True, encoding=encoding, xml_declaration=True)
 
 def pprint_cert(cert):
   print POW.derRead(POW.X509_CERTIFICATE, cert.toString()).pprint()
 
-def ud_tester(et, msg):
+def ud_tester(elt_in, elt_out, msg):
   assert isinstance(msg, rpki.up_down.message_pdu)
   if isinstance(msg.payload, rpki.up_down.list_response_pdu):
     for c in msg.payload.classes:
@@ -34,9 +38,12 @@ def ud_tester(et, msg):
         pprint_cert(c.certs[i].cert)
       print "[Issuer]"
       pprint_cert(c.issuer)
-  print "Type:", et.getroot().get("type")
 
-def lr_tester(et, msg):
+  nsmap = { "x" : "http://www.apnic.net/specs/rescerts/up-down/" }
+  for c in elt_in.xpath("//x:issuer | //x:certificate", nsmap):
+    print c.tag, c.text
+
+def lr_tester(elt_in, elt_out, msg):
   assert isinstance(msg, rpki.left_right.msg)
 
 test(fileglob="up-down-protocol-samples/*.xml",

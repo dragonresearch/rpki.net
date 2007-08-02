@@ -58,72 +58,49 @@ class Parser:
    def __init__(self, filename):
       self.file = filename
       self.handle = open(self.file)
-      self.whiteMatch = re.compile(r'^\s*')
-      self.hashMatch = re.compile(r'^#.*')
+      self.whiteMatch = re.compile(r'^\s*$')
+      self.hashMatch = re.compile(r'^#')
       self.warningMatch = re.compile(r'^Warning')
-      self.oidNameMatch = re.compile(r'(^[\w\-\.\? ]*)(?:\([\w\-# ]*\)\s?)?(?:\()([\d ]*)(?:\))')
-      self.oidMatch = re.compile(r'(?:^OID = )(.*)')
-      self.commentMatch = re.compile(r'(?:^Comment = )(.*)')
-      self.descriptionMatch = re.compile(r'(?:^Description = )(.*)')
+      self.oidMatch = re.compile(r'(?:^OID\s*=\s* )(.*)')
+      self.commentMatch = re.compile(r'(?:^Comment\s*=\s*)(.*)')
+      self.descriptionMatch = re.compile(r'(?:^Description\s*=\s*)(.*)')
       self.oids = {}
       self.objs = {}
       self.__parse()
 
-   def __update(self, dict, line):
-      m = self.oidMatch.match( line )
-      if m:
-         dict['hexoid'] = m.group(1)
-         dict['oid'] = decodeOid(m.group(1))
-         return 0
-      else:
-         m = self.commentMatch.match( line )
-         if m:
-            dict['comment'] = m.group(1)
-            return 0
-         else:
-            m = self.descriptionMatch.match( line )
-            if m:
-               dict['description'] = m.group(1)
-               n = self.oidNameMatch.match( m.group(1) )
-               if n:
-                  dict['name'] = string.strip( n.group(1) )
-               else:
-                  dict['name'] = m.group(1)
-               return 0
-            else:
-               m = self.warningMatch.match( line )
-               if m:
-                  return 1
-               else:
-                  m = self.whiteMatch.match( line )
-                  if m:
-                     return 0
-                  else:
-                     m = self.hashMatch.match( line )
-                     if m:
-                        return 0
-                     else:
-                        raise Exception, 'unhandled pattern'
+   def __store(self, dict):
+      self.objs[dict['name']] = dict
+      self.oids[dict['oid' ]] = dict
 
    def __parse(self):
-      line = self.handle.readline()
-      dict = {}
-      complete = None
-      while line:
-         warning = self.__update( dict, line )
-
-         if warning:
-            complete = None
-         elif complete:
-            self.objs[ complete['name'] ] = complete
-            self.oids[ complete['oid'] ] = complete
-            complete = None
-
-         if len(dict) == 5:
-            complete = dict
-            dict = {}
-
-         line = self.handle.readline()
+      dict = None
+      broken = False
+      for line in self.handle:
+         m = self.oidMatch.match(line)
+         if m:
+            if dict and not broken:
+               self.__store(dict)
+            dict = { 'hexoid' : m.group(1),
+                     'oid'    : decodeOid(m.group(1)) }
+            broken = False
+            continue
+         if self.warningMatch.match(line):
+            broken = True
+            continue
+         if self.whiteMatch.match(line) or self.hashMatch.match(line):
+            continue
+         m = self.commentMatch.match(line)
+         if m:
+            dict['comment'] = m.group(1)
+            continue
+         m = self.descriptionMatch.match(line)
+         if m:
+            dict['description'] = m.group(1)
+            dict['name'] = m.group(1).strip().split(' ')[0]
+            continue
+         raise Exception, 'unhandled pattern'
+      if dict and not broken:
+         self.__store(dict)
 
    def dumpobjs(self, path):
       file = open(path, 'w')

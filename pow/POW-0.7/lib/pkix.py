@@ -687,7 +687,9 @@ class Certificate(Sequence):
                         POW.MD5_DIGEST       :  (1, 2, 840, 113549, 1, 1, 4),    # md5WithRSAEncryption
                         POW.SHA_DIGEST       :  (1, 3, 14, 3, 2, 15),            # shaWithRSAEncryption
                         POW.SHA1_DIGEST      :  (1, 2, 840, 113549, 1, 1, 5),    # sha1withRSAEncryption
-                        POW.RIPEMD160_DIGEST :  (1, 2, 840, 113549, 1, 1, 6)  }  # ripemd160WithRSAEncryption
+                        POW.RIPEMD160_DIGEST :  (1, 2, 840, 113549, 1, 1, 6),    # ripemd160WithRSAEncryption
+                        POW.SHA256_DIGEST    :  (1, 2, 840, 113549, 1, 1, 11),   # sha256WithRSAEncryption
+                        POW.SHA512_DIGEST    :  (1, 2, 840, 113549, 1, 1, 13) }  # sha512WithRSAEncryption
 
       self.tbs.subjectPublicKeyInfo.set( (((1, 2, 840, 113549, 1, 1, 1), None), rsa.derWrite(POW.RSA_PUBLIC_KEY) ) )
       self.tbs.signature.set( [signatureMap[digestType], None] )
@@ -719,8 +721,10 @@ class Certificate(Sequence):
                        (1, 2, 840, 113549, 1, 1, 4)  :  POW.MD5_DIGEST,          # md5WithRSAEncryption
                        (1, 3, 14, 3, 2, 15)          :  POW.SHA_DIGEST,          # shaWithRSAEncryption
                        (1, 2, 840, 113549, 1, 1, 5)  :  POW.SHA1_DIGEST,         # sha1withRSAEncryption
-                       (1, 2, 840, 113549, 1, 1, 6)  :  POW.RIPEMD160_DIGEST  }  # ripemd160WithRSAEncryption
-      
+                       (1, 2, 840, 113549, 1, 1, 6)  :  POW.RIPEMD160_DIGEST,    # ripemd160WithRSAEncryption
+                       (1, 2, 840, 113549, 1, 1, 11) :  POW.SHA256_DIGEST,       # sha256WithRSAEncryption
+                       (1, 2, 840, 113549, 1, 1, 13) :  POW.SHA512_DIGEST }      # sha512WithRSAEncryption
+
       digestOid = self.signatureAlgorithm.get()[0]
       digestType = signatureMap[digestOid]
 
@@ -1063,7 +1067,10 @@ class CertificateList(Sequence):
                         POW.MD5_DIGEST       :  (1, 2, 840, 113549, 1, 1, 4),    # md5WithRSAEncryption
                         POW.SHA_DIGEST       :  (1, 3, 14, 3, 2, 15),            # shaWithRSAEncryption
                         POW.SHA1_DIGEST      :  (1, 2, 840, 113549, 1, 1, 5),    # sha1withRSAEncryption
-                        POW.RIPEMD160_DIGEST :  (1, 2, 840, 113549, 1, 1, 6)  }  # ripemd160WithRSAEncryption
+                        POW.RIPEMD160_DIGEST :  (1, 2, 840, 113549, 1, 1, 6),    # ripemd160WithRSAEncryption
+                        POW.SHA256_DIGEST    :  (1, 2, 840, 113549, 1, 1, 11),   # sha256WithRSAEncryption
+                        POW.SHA512_DIGEST    :  (1, 2, 840, 113549, 1, 1, 13) }  # sha512WithRSAEncryption
+
 
       self.tbs.signature.set( [signatureMap[digestType], None] )
       digest = POW.Digest(digestType)
@@ -1093,7 +1100,9 @@ class CertificateList(Sequence):
                        (1, 2, 840, 113549, 1, 1, 4)  :  POW.MD5_DIGEST,          # md5WithRSAEncryption
                        (1, 3, 14, 3, 2, 15)          :  POW.SHA_DIGEST,          # shaWithRSAEncryption
                        (1, 2, 840, 113549, 1, 1, 5)  :  POW.SHA1_DIGEST,         # sha1withRSAEncryption
-                       (1, 2, 840, 113549, 1, 1, 6)  :  POW.RIPEMD160_DIGEST  }  # ripemd160WithRSAEncryption
+                       (1, 2, 840, 113549, 1, 1, 6)  :  POW.RIPEMD160_DIGEST,    # ripemd160WithRSAEncryption
+                       (1, 2, 840, 113549, 1, 1, 11) :  POW.SHA256_DIGEST,       # sha256WithRSAEncryption
+                       (1, 2, 840, 113549, 1, 1, 13) :  POW.SHA512_DIGEST }      # sha512WithRSAEncryption
       
       digestOid = self.signatureAlgorithm.get()[0]
       digestType = signatureMap[digestOid]

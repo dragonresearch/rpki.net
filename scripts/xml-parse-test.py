@@ -1,28 +1,21 @@
 # $Id$
 
-import glob, rpki.up_down, rpki.left_right, xml.sax, lxml.etree, lxml.sax, pprint, POW, POW.pkix
+import glob, rpki.up_down, rpki.left_right, rpki.relaxng, xml.sax, lxml.etree, lxml.sax, POW, POW.pkix
 
 verbose = False
 
-def validate(rng, doc):
-  try:
-    rng.assertValid(doc)
-  except lxml.etree.DocumentInvalid:
-    print rng.error_log.last_error
-    raise
-
 def test(fileglob, schema, sax_handler, encoding, tester=None):
-  rng = lxml.etree.RelaxNG(lxml.etree.parse(schema))
+  rng = rpki.relaxng.RelaxNG(schema)
   files = glob.glob(fileglob)
   files.sort()
   for f in files:
     print "\n<!--", f, "-->"
     handler = sax_handler()
     elt_in = lxml.etree.parse(f).getroot()
-    validate(rng, elt_in)
+    rng.assertValid(elt_in)
     lxml.sax.saxify(elt_in, handler)
     elt_out = handler.result.toXML()
-    validate(rng, elt_out)
+    rng.assertValid(elt_out)
     if (tester):
       tester(elt_in, elt_out, handler.result)
     print lxml.etree.tostring(elt_out, pretty_print=True, encoding=encoding, xml_declaration=True)

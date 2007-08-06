@@ -86,7 +86,7 @@ class route_origin(command, rpki.left_right.route_origin_elt):
   def handle_ipv6(self, arg):
     self.ipv6 = resource_set.resource_set_ipv6(arg)
 
-dispatch = dict((x.__name__, x) for x in (self, bsc, parent, child, repository, route_origin))
+dispatch = dict((x.element_name, x) for x in (self, bsc, parent, child, repository, route_origin))
 
 def usage():
   print "Usage:", sys.argv[0]

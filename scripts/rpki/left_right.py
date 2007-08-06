@@ -26,8 +26,8 @@ class base_elt(object):
     for key in self.booleans:
       setattr(self, key, attrs.get(key, False))
 
-  def make_elt(self, name):
-    elt = lxml.etree.Element("{%s}%s" % (xmlns, name), nsmap=nsmap)
+  def make_elt(self):
+    elt = lxml.etree.Element("{%s}%s" % (xmlns, self.element_name), nsmap=nsmap)
     for key in self.attributes:
       val = getattr(self, key, None)
       if val is not None:
@@ -56,6 +56,7 @@ class extension_preference_elt(base_elt):
   Container for extension preferences.
   """
 
+  element_name = "extension_preference"
   attributes = ("name",)
 
   def startElement(self, stack, name, attrs):
@@ -67,12 +68,13 @@ class extension_preference_elt(base_elt):
     stack.pop()
 
   def toXML(self):
-    elt = self.make_elt("extension_preference")
+    elt = self.make_elt()
     elt.text = self.value
     return elt
 
 class self_elt(base_elt):
 
+  element_name = "self"
   attributes = ("action", "type", "self_id")
   booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now")
 
@@ -94,12 +96,13 @@ class self_elt(base_elt):
     stack.pop()
 
   def toXML(self):
-    elt = self.make_elt("self")
+    elt = self.make_elt()
     elt.extend([i.toXML() for i in self.prefs])
     return elt
 
 class bsc_elt(base_elt):
 
+  element_name = "bsc"
   attributes = ("action", "type", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
   booleans = ("generate_keypair",)
 
@@ -126,7 +129,7 @@ class bsc_elt(base_elt):
       stack.pop()
 
   def toXML(self):
-    elt = self.make_elt("bsc")
+    elt = self.make_elt()
     for cert in self.signing_cert:
       self.make_b64elt(elt, "signing_cert", cert.toString())
     self.make_b64elt(elt, "pkcs10_cert_request")
@@ -135,6 +138,7 @@ class bsc_elt(base_elt):
 
 class parent_elt(base_elt):
 
+  element_name = "parent"
   attributes = ("action", "type", "self_id", "parent_id", "bsc_link", "repository_link", "peer_contact", "sia_base")
   booleans = ("rekey", "reissue", "revoke")
 
@@ -153,13 +157,14 @@ class parent_elt(base_elt):
       stack.pop()
 
   def toXML(self):
-    elt = self.make_elt("parent")
+    elt = self.make_elt()
     if self.peer_ta:
       self.make_b64elt(elt, "peer_ta", self.peer_ta.toString())
     return elt
 
 class child_elt(base_elt):
 
+  element_name = "child"
   attributes = ("action", "type", "self_id", "child_id", "bsc_link", "child_db_id")
   booleans = ("reissue", )
 
@@ -178,13 +183,14 @@ class child_elt(base_elt):
       stack.pop()
 
   def toXML(self):
-    elt = self.make_elt("child")
+    elt = self.make_elt()
     if self.peer_ta:
       self.make_b64elt(elt, "peer_ta", self.peer_ta.toString())
     return elt
 
 class repository_elt(base_elt):
 
+  element_name = "repository"
   attributes = ("action", "type", "self_id", "repository_id", "bsc_link", "peer_contact")
 
   peer_ta = None
@@ -202,13 +208,14 @@ class repository_elt(base_elt):
       stack.pop()
 
   def toXML(self):
-    elt = self.make_elt("repository")
+    elt = self.make_elt()
     if self.peer_ta:
       self.make_b64elt(elt, "peer_ta", self.peer_ta.toString())
     return elt
 
 class route_origin_elt(base_elt):
 
+  element_name = "route_origin"
   attributes = ("action", "type", "self_id", "route_origin_id", "asn", "ipv4", "ipv6")
   booleans = ("suppress_publication",)
 
@@ -227,10 +234,11 @@ class route_origin_elt(base_elt):
     stack.pop()
 
   def toXML(self):
-    return self.make_elt("route_origin")
+    return self.make_elt()
 
 class resource_class_elt(base_elt):
 
+  element_name = "resource_class"
   attributes = ("as", "req_as", "ipv4", "req_ipv4", "ipv6", "req_ipv6")
 
   def startElement(self, stack, name, attrs):
@@ -254,10 +262,11 @@ class resource_class_elt(base_elt):
     stack.pop()
 
   def toXML(self):
-    return self.make_elt("resource_class")
+    return self.make_elt()
 
 class list_resources_elt(base_elt):
 
+  element_name = "list_resources"
   attributes = ("type", "self_id", "child_id", "valid_until")
 
   def __init__(self):
@@ -274,20 +283,25 @@ class list_resources_elt(base_elt):
       self.read_attrs(attrs)
 
   def toXML(self):
-    elt = self.make_elt("list_resources")
+    elt = self.make_elt()
     elt.extend([i.toXML() for i in self.resources])
     return elt
 
 class report_error_elt(base_elt):
 
+  element_name = "report_error"
   attributes = ("self_id", "error_code")
 
   def startElement(self, stack, name, attrs):
-    assert name == "report_error", "Unexpected name %s, stack %s" % (name, stack)
+    assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
     self.read_attrs(attrs)
 
   def toXML(self):
-    return self.make_elt("report_error")
+    return self.make_elt()
+
+pdus = dict([(x.element_name, x)
+             for x in (self_elt, child_elt, parent_elt, bsc_elt, repository_elt,
+                       route_origin_elt, list_resources_elt, report_error_elt)])
 
 class msg(list):
   """
@@ -299,18 +313,8 @@ class msg(list):
   def startElement(self, stack, name, attrs):
     if name == "msg":
       assert self.version == int(attrs["version"])
-      #assert xmlns == attrs["xmlns"]
     else:
-      elt = {
-        "self"           : self_elt,
-        "child"          : child_elt,
-        "parent"         : parent_elt,
-        "repository"     : repository_elt,
-        "route_origin"   : route_origin_elt,
-        "bsc"            : bsc_elt,
-        "list_resources" : list_resources_elt,
-        "report_error"   : report_error_elt
-        }[name]()
+      elt = pdus[name]()
       self.append(elt)
       stack.append(elt)
       elt.startElement(stack, name, attrs)

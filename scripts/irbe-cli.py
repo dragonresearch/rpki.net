@@ -8,8 +8,10 @@ import glob, rpki.left_right, rpki.relaxng, getopt, sys, lxml.etree
 
 class command(object):
 
+  elements = ()
+
   def getopt(self, argv):
-    opts, args = getopt.getopt(argv, "", [x + "=" for x in self.attributes] + [x for x in self.booleans])
+    opts, args = getopt.getopt(argv, "", [x + "=" for x in self.attributes + self.elements] + [x for x in self.booleans])
     for o, a in opts:
       o = o[2:]
       handler = getattr(self, "handle_" + o, None)
@@ -36,23 +38,29 @@ class command(object):
 
 class self(command, rpki.left_right.self_elt):
 
-  def handle_extension(self, arg):
-    kv = arg.split(":", 1)
-    self.extensions[k] = v
+  elements = ("extension_preference",)
+
+  def handle_extension_preference(self, arg):
+    k,v = arg.split("=", 1)
+    pref = rpki.left_right.extension_preference_elt()
+    pref.name = k
+    pref.value = v
+    self.prefs.append(pref)
 
 class bsc(command, rpki.left_right.bsc_elt):
+  elements = ('signing_cert',)
 
   def handle_signing_cert(self, arg):
     self.signing_cert.append(read_cert(arg))
 
 class parent(command, rpki.left_right.parent_elt):
-  pass
+  elements = ("peer_ta",)
 
 class child(command, rpki.left_right.child_elt):
-  pass
+  elements = ("peer_ta",)
 
 class repository(command, rpki.left_right.repository_elt):
-  pass
+  elements = ("peer_ta",)
 
 class route_origin(command, rpki.left_right.route_origin_elt):
 
@@ -70,7 +78,7 @@ dispatch = dict((x.__name__, x) for x in (self, bsc, parent, child, repository, 
 def usage():
   print "Usage:", sys.argv[0]
   for k,v in dispatch.iteritems():
-    print " ", k, " ".join(["--" + x + "=" for x in v.attributes]), " ".join(["--" + x for x in v.booleans])
+    print " ", k, " ".join(["--" + x + "=" for x in v.attributes + v.elements]), " ".join(["--" + x for x in v.booleans])
   sys.exit(1)
 
 rng = rpki.relaxng.RelaxNG("left-right-schema.rng")

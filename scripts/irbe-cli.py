@@ -11,37 +11,48 @@ rng = lxml.etree.RelaxNG(lxml.etree.parse("left-right-schema.rng"))
 class command(object):
   options = ()
 
-  def __init__(self, argv):
-    opts, args = getopt.getopt(argv[2:], "", [x[2:] for x in self.options])
-    for o, a in opts:
-      getattr(self, o[2:])(a)
+  def getopt(self, argv):
+    if options:
+      opts, args = getopt.getopt(argv, "", [x[2:] for x in self.options])
+      for o, a in opts:
+        getattr(self, o[2:])(a)
+      return args
+    else:
+      return argv
+
+  def self_id(self, arg):
+    self.self_id = arg
+
+
 
 class help(command):
-  options = ('--tweedledee', '--tweedledum')
+  def run(self, msg):
+    print "Usage:", sys.argv[0]
+    for k,v in dispatch.iteritems():
+      print " ".join((k,) + v.options)
 
-  def tweedledee(self, arg): print "tweedledee"
+class self(command):
+  options = ("--action", "--self_id", "--extension")
 
-  def tweedledum(self, arg): print "tweedledum"
+  def __init__(self):
+    self.extensions = {}
 
-  def __call__(self):
-    print "Boy this sure is an interesting help command, huh?"
+  def extension(self, arg):
+    kv = arg.split(":", 1)
+    self.extensions[k] = v
 
-class wombat(command):
-  def __call__(self):
-    print "I am the wombat!"
+  def run(self, msg):
+    pdu = rpki.left_right.self_elt()
+    
 
-top_dispatch = dict((x.__name__, x) for x in (help, wombat))
 
-cmd = top_dispatch[sys.argv[1]](sys.argv)
-cmd()
+dispatch = dict((x.__name__, x) for x in (help, self))
 
-if False:
+msg = rpki.left_right.msg()
 
-  dispatch = { "--help"   : help, "--usage"  : usage, "--wombat" : wombat }
-  try:
-    opts, args = getopt.getopt(sys.argv[1:], "", [x[2:] for x in dispatch.keys()])
-  except getopt.GetoptError:
-    print "You're confused, aren't you?"
-    sys.exit(1)
-  for o, a in opts:
-    dispatch[o]()
+argv = sys.argv[1:]
+while argv:
+  cmd = dispatch[argv[0]]
+  argv = getopt(argv[1:])
+  cmd.run(msg)
+

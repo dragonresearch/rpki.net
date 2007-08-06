@@ -4,7 +4,10 @@
 Command line program to simulate behavior of the IR back-end.
 """
 
-import glob, rpki.left_right, rpki.relaxng, getopt, sys, lxml.etree
+import glob, rpki.left_right, rpki.relaxng, getopt, sys, lxml.etree, POW, POW.pkix
+
+# Kludge around current test setup all being PEM rather than DER format
+convert_from_pem = True
 
 class command(object):
 
@@ -35,6 +38,16 @@ class command(object):
 
   def handle_peer_ta(self, arg):
     self.peer_ta = read_cert(arg)
+
+def read_cert(filename):
+  f = open(filename, "r")
+  der = f.read()
+  f.close()
+  if convert_from_pem:
+    der = POW.pemRead(POW.X509_CERTIFICATE, der).derWrite()
+  cert = POW.pkix.Certificate()
+  cert.fromString(der)
+  return cert
 
 class self(command, rpki.left_right.self_elt):
 

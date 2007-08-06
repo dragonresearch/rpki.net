@@ -46,10 +46,10 @@ class base_elt(object):
   def __str__(self):
     lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="us-ascii")
 
-class biz_cert(POW.pkix.Certificate):
-  def __init__(self, text):
-    POW.pkix.Certificate.__init__(self)
-    self.fromString(base64.b64decode(text))
+def biz_cert(text):
+  cert = POW.pkix.Certificate()
+  cert.fromString(base64.b64decode(text))
+  return cert
 
 class extension_preference_elt(base_elt):
   """

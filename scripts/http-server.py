@@ -22,6 +22,21 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
     self.wfile.write(echo)
 
+certChain = []
+for file in ("biz-certs/Carol-EE.cer", "biz-certs/Carol-CA.cer"):
+  f = open(file, "r")
+  x509 = tlslite.api.X509()
+  x509.parse(f.read())
+  f.close()
+  certChain.append(x509)
+certChain = tlslite.api.X509CertChain(certChain)
+
+f = open("biz-certs/Carol-EE.key", "r")
+privateKey = tlslite.api.parsePEMKey(f.read(), private=True)
+f.close()
+
+sessionCache = tlslite.api.SessionCache()
+
 class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
 
   def handshake(self, tlsConnection):
@@ -34,19 +49,6 @@ class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
     except tlslite.api.TLSError, error:
       print "TLS handshake failure:", str(error)
       return False
-    
-f = open("biz-certs/Carol-EE.cer", "r")
-x509 = tlslite.api.X509()
-x509.parse(f.read())
-f.close()
 
-certChain = tlslite.api.X509CertChain([x509])
-
-f = open("biz-certs/Carol-EE.key", "r")
-privateKey = tlslite.api.parsePEMKey(f.read(), private=True)
-f.close()
-
-sessionCache = tlslite.api.SessionCache()
-
-httpd = httpServer(("", 8080), requestHandler)
+httpd = httpServer(("", 4433), requestHandler)
 httpd.serve_forever()

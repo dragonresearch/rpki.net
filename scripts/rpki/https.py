@@ -10,6 +10,8 @@ subversion repository; generalizing it would not be hard, but the more
 general version should use SQL anyway.
 """
 
+rpki_content_type = "application/x-rpki"
+
 class CertInfo(object):
 
   self.cert-dir = "biz-certs/"
@@ -46,7 +48,7 @@ class CertInfo(object):
 def client(msg, certInfo, host="localhost", port=4433, url="/"):
   httpc = tlslite.api.HTTPTLSConnection(host, port, privateKey=certInfo.privatekey, certChain=certInfo.certChain, x509TrustList=certInfo.x509TrustList)
   httpc.connect()
-  httpc.request("POST", url, msg, {"Content-Type":"application/x-rpki"})
+  httpc.request("POST", url, msg, {"Content-Type" : rpki_content_type})
   response = httpc.getresponse()
   assert response.status == httplib.OK
   return response.read()
@@ -56,11 +58,11 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   rpki_handler = None                   # Subclass must bind
 
   def do_POST(self):
-    assert self.headers["Content-Type"] == "application/x-rpki"
+    assert self.headers["Content-Type"] == rpki_content_type
     self.query_string = self.rfile.read(int(self.headers["Content-Length"]))
     rcode, rtext = self.rpki_handler(self.query_string)
     self.send_response(rcode)
-    self.send_header("Content-Type", "application/x-rpki")
+    self.send_header("Content-Type", rpki_content_type)
     self.end_headers()
     self.wfile.write(rtext)
 

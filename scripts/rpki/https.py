@@ -14,39 +14,40 @@ rpki_content_type = "application/x-rpki"
 
 class CertInfo(object):
 
-  self.cert-dir = "biz-certs/"
+  cert_dir = "biz-certs/"
 
-  def __init__(self, myname):
+  def __init__(self, myname=None):
 
-    f = open(self.cert-dir + myname + "-EE.key", "r")
-    self.privateKey = tlslite.api.parsePEMKey(f.read(), private=True)
-    f.close()
+    if myname is not None:
 
-    chain = []
-    for file in glob.glob(self.cert-dir + myname + "-*.cer"):
-      f = open(file, "r")
-      x509 = tlslite.api.X509()
-      x509.parse(f.read())
+      f = open(self.cert_dir + myname + "-EE.key", "r")
+      self.privateKey = tlslite.api.parsePEMKey(f.read(), private=True)
       f.close()
-      chain.append(x509)
-    self.certChain = tlslite.api.X509CertChain(chain)
 
-    self.x509TrustList = []
-    for file in glob.glob(self.cert-dir + "*-Root.cer"):
-      if file != self.cert-dir + myname + "-Root.cer":
+      chain = []
+      for file in glob.glob(self.cert_dir + myname + "-*.cer"):
         f = open(file, "r")
         x509 = tlslite.api.X509()
         x509.parse(f.read())
         f.close()
-        x509TrustList.append(x509)
+        chain.append(x509)
+      self.certChain = tlslite.api.X509CertChain(chain)
 
-    return {"privateKey"    : privateKey,
-            "certChain"     : certChain,
-            "x509TrustList" : x509TrustList}
-
+      self.x509TrustList = []
+      for file in glob.glob(self.cert_dir + "*-Root.cer"):
+        if file != self.cert_dir + myname + "-Root.cer":
+          f = open(file, "r")
+          x509 = tlslite.api.X509()
+          x509.parse(f.read())
+          f.close()
+          self.x509TrustList.append(x509)
 
 def client(msg, certInfo, host="localhost", port=4433, url="/"):
-  httpc = tlslite.api.HTTPTLSConnection(host, port, privateKey=certInfo.privatekey, certChain=certInfo.certChain, x509TrustList=certInfo.x509TrustList)
+  httpc = tlslite.api.HTTPTLSConnection(host=host,
+                                        port=port,
+                                        certChain=certInfo.certChain,
+                                        privateKey=certInfo.privateKey,
+                                        x509TrustList=certInfo.x509TrustList)
   httpc.connect()
   httpc.request("POST", url, msg, {"Content-Type" : rpki_content_type})
   response = httpc.getresponse()
@@ -68,13 +69,15 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
 class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
 
-  rpki_certChain = None                 # Must be set
-  rpki_privateKey = None                # Must be set
-  rpki_sessionCache = None              # Must be set
-
+  rpki_certChain = None
+  rpki_privateKey = None
+  rpki_sessionCache = None
+  
   def handshake(self, tlsConnection):
+    assert self.rpki_certChain is not None
+    assert self.rpki_privateKey is not None
+    assert self.rpki_sessionCache is not None
     try:
-      assert sessionCache
       tlsConnection.handshakeServer(certChain=self.rpki_certChain,
                                     privateKey=self.rpki_privateKey,
                                     sessionCache=self.rpki_sessionCache)
@@ -84,7 +87,7 @@ class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
       print "TLS handshake failure:", str(error)
       return False
 
-def server(handler=None, port=4433, privateKey=None, certChain=None, **kwargs):
+def server(handler, certInfo, port=4433, host=""):
 
   # BaseHTTPServer.HTTPServer takes a class, not an instance, so
   # binding our handler requires creating a new subclass.  Weird.
@@ -92,9 +95,9 @@ def server(handler=None, port=4433, privateKey=None, certChain=None, **kwargs):
   class boundRequestHandler(requestHandler):
     rpki_handler = handler
 
-  httpd = httpServer(("", 4433), boundRequestHandler)
-  httpd.rpki_privateKey = privateKey
-  httpd.rpki_certChain = certChain
+  httpd = httpServer((host, port), boundRequestHandler)
+  httpd.rpki_privateKey = certInfo.privateKey
+  httpd.rpki_certChain = certInfo.certChain
   httpd.rpki_sessionCache = tlslite.api.SessionCache()
 
   httpd.serve_forever()

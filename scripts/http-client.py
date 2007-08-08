@@ -31,9 +31,9 @@ f.close()
 
 http = tlslite.api.HTTPTLSConnection(host="localhost", port=8080, certChain=certChain, privateKey=privateKey)
 
-http.connect()
-http.request("POST", "/", "This is a test.  This is only a test.  Had this been real you would now be really confused.\n", {"Content-Type":"application/wombat"})
-response = http.getresponse()
+https.connect()
+https.request("POST", "/", "This is a test.  This is only a test.  Had this been real you would now be really confused.\n", {"Content-Type":"application/wombat"})
+response = https.getresponse()
 
 for h in response.getheaders():
   print "%s: %s" % h

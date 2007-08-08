@@ -5,41 +5,24 @@ CMS routines.  For the moment these just call the OpenSSL CLI tool,
 which is slow and requires disk I/O and likes PEM format.  Fix later.
 """
 
-import os, POW
+import os, rpki.x509
 
 # openssl smime -sign -nodetach -outform DER -signer biz-certs/Alice-EE.cer -certfile biz-certs/Alice-CA.cer -inkey biz-certs/Alice-EE.key -in PLAN -out PLAN.der
 
 def encode(xml, key, cert_files):
 
-  # This is a little tricky, the OpenSSL CLI really wants us to tell
-  # it which cert is the signer and which ones are not.  We don't know
-  # a priori, so we have to figure it out.  Simple algorithm: assuming
-  # this is a well-formed chain, we're looking for the one cert in
-  # this collection that's not the issuer of any other cert in this
-  # collection.
-
-  def readPEM(filename):
-    f = open(filename, "r")
-    pem = f.read()
-    f.close()
-    return POW.pemRead(POW.X509_CERTIFICATE, pem)
-
-  certs = [readPEM(x) for x in cert_files]
-  issuers = [x.getIssuer() for x in certs]
-  issuers = [x for x in certs if x.getSubject() in issuers]
-  signers = [x for x in certs if x not in issuers]
-  assert len(signers) == 1
+  certs = rpki.x509.sort_chain([rpki.x509.X509(PEM_file=PEM_file) for PEM_file in cert_files])
 
   signer_filename = "cms.tmp.signer.pem"
   certfile_filename = "cms.tmp.certfile.pem"
-
+  
   f = open(signer_filename, "w")
-  f.write(signers[0].pemWrite())
+  f.write(certs[0].get_PEM())
   f.close()
 
   f = open(certfile_filename, "w")
-  for cert in issuers:
-    f.write(cert.pemWrite())
+  for cert in certs[1:]:
+    f.write(cert.get_PEM())
   f.close()
 
   i,o = os.popen2(["openssl", "smime", "-sign", "-nodetach", "-outform", "DER", "-signer", signer_filename, "-certfile", certfile_filename, "-inkey", key])

@@ -96,7 +96,7 @@ class X509(object):
   def get_tlslite(self):
     assert not self.empty()
     if not self.tlslite:
-      cert = tlslite.X509.X509()
+      cert = tlslite.api.X509()
       cert.parseBinary(self.get_DER())
       self.tlslite = cert
     return self.tlslite

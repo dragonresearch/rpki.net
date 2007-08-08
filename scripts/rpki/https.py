@@ -1,6 +1,6 @@
 # $Id$
 
-import httplib, BaseHTTPServer, tlslite.api, glob
+import httplib, BaseHTTPServer, tlslite.api, glob, rpki.x509
 
 """
 HTTPS utilities, both client and server.
@@ -23,24 +23,11 @@ class CertInfo(object):
       f = open(self.cert_dir + myname + "-EE.key", "r")
       self.privateKey = tlslite.api.parsePEMKey(f.read(), private=True)
       f.close()
+      
+      chain = [rpki.x509.X509(PEM_file=PEM_file) for PEM_file in glob.glob(self.cert_dir + myname + "-*.cer")]
+      self.certChain = tlslite.api.X509CertChain([x.get_tlslite() for x in rpki.x509.sort_chain(chain)])
 
-      chain = []
-      for file in glob.glob(self.cert_dir + myname + "-*.cer"):
-        f = open(file, "r")
-        x509 = tlslite.api.X509()
-        x509.parse(f.read())
-        f.close()
-        chain.append(x509)
-      self.certChain = tlslite.api.X509CertChain(chain)
-
-      self.x509TrustList = []
-      for file in glob.glob(self.cert_dir + "*-Root.cer"):
-        if file != self.cert_dir + myname + "-Root.cer":
-          f = open(file, "r")
-          x509 = tlslite.api.X509()
-          x509.parse(f.read())
-          f.close()
-          self.x509TrustList.append(x509)
+      self.x509TrustList = [rpki.x509.X509(PEM_file=PEM_file).get_tlslite() for PEM_file in glob.glob(self.cert_dir + "*-Root.cer")]
 
 def client(msg, certInfo, host="localhost", port=4433, url="/"):
   httpc = tlslite.api.HTTPTLSConnection(host=host,

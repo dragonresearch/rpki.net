@@ -29,7 +29,7 @@ f.close()
 # For the moment, just punt on the issue, as this is test code.  In
 # production this would be a problem.
 
-http = tlslite.api.HTTPTLSConnection(host="localhost", port=8080, certChain=certChain, privateKey=privateKey)
+https = tlslite.api.HTTPTLSConnection(host="localhost", port=8080, certChain=certChain, privateKey=privateKey)
 
 https.connect()
 https.request("POST", "/", "This is a test.  This is only a test.  Had this been real you would now be really confused.\n", {"Content-Type":"application/wombat"})

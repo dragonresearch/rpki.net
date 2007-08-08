@@ -4,7 +4,7 @@
 Command line program to simulate behavior of the IR back-end.
 """
 
-import glob, rpki.left_right, rpki.relaxng, getopt, sys, lxml.etree, POW, POW.pkix
+import glob, rpki.left_right, rpki.relaxng, getopt, sys, lxml.etree, POW, POW.pkix, rpki.cms
 
 # Kludge around current test setup all being PEM rather than DER format
 convert_from_pem = True
@@ -109,13 +109,18 @@ else:
       usage()
     argv = cmd.process(msg, argv[1:])
 
-if msg:
-  elt = msg.toXML()
-  xml = lxml.etree.tostring(elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
-  try:
-    rng.assertValid(elt)
-  except lxml.etree.DocumentInvalid:
-    print "Generated request document doesn't pass schema check:"
-    print xml
-    sys.exit(1)
+assert msg
+
+elt = msg.toXML()
+xml = lxml.etree.tostring(elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
+try:
+  rng.assertValid(elt)
+except lxml.etree.DocumentInvalid:
+  print "Generated request document doesn't pass schema check:"
   print xml
+  sys.exit(1)
+
+print xml
+cms = rpki.cms.encode(xml, "biz-certs/Alice-EE.key", ("biz-certs/Alice-EE.cer", "biz-certs/Alice-CA.cer"))
+
+# now send an https request...

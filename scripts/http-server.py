@@ -11,9 +11,10 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     self.query_string = self.rfile.read(int(self.headers["Content-Length"]))
     echo += self.query_string
 
-    f = open("http-server.log", "a")
-    f.write(echo)
-    f.close()
+    if False:
+      f = open("http-server.log", "a")
+      f.write(echo)
+      f.close()
 
     self.send_response(200)
     self.send_header("Content-Type", "application/x-wombat")

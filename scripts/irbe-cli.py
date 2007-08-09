@@ -4,7 +4,7 @@
 Command line program to simulate behavior of the IR back-end.
 """
 
-import glob, rpki.left_right, rpki.relaxng, getopt, sys, lxml.etree, POW, POW.pkix, rpki.cms
+import glob, rpki.left_right, rpki.relaxng, getopt, sys, lxml.etree, POW, POW.pkix, rpki.cms, rpki.https, xml.sax, lxml.sax
 
 # Kludge around current test setup all being PEM rather than DER format
 convert_from_pem = True
@@ -94,33 +94,57 @@ def usage():
     print " ", k, " ".join(["--" + x + "=" for x in v.attributes + v.elements]), " ".join(["--" + x for x in v.booleans])
   sys.exit(1)
 
-rng = rpki.relaxng.RelaxNG("left-right-schema.rng")
-msg = rpki.left_right.msg()
+def main():
 
-argv = sys.argv[1:]
+  rng = rpki.relaxng.RelaxNG("left-right-schema.rng")
+  httpsCerts = rpki.https.CertInfo("Bob")
 
-if not argv:
-  usage()
-else:
-  while argv:
-    try:
-      cmd = dispatch[argv[0]]()
-    except KeyError:
-      usage()
-    argv = cmd.process(msg, argv[1:])
+  q_msg = rpki.left_right.msg()
 
-assert msg
+  argv = sys.argv[1:]
 
-elt = msg.toXML()
-xml = lxml.etree.tostring(elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
-try:
-  rng.assertValid(elt)
-except lxml.etree.DocumentInvalid:
-  print "Generated request document doesn't pass schema check:"
-  print xml
-  sys.exit(1)
+  if not argv:
+    usage()
+  else:
+    while argv:
+      try:
+        cmd = dispatch[argv[0]]()
+      except KeyError:
+        usage()
+      argv = cmd.process(q_msg, argv[1:])
 
-print xml
-cms = rpki.cms.encode(xml, "biz-certs/Alice-EE.key", ("biz-certs/Alice-EE.cer", "biz-certs/Alice-CA.cer"))
+  assert q_msg
 
-# now send an https request...
+  q_elt = q_msg.toXML()
+  q_xml = lxml.etree.tostring(q_elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
+  try:
+    rng.assertValid(q_elt)
+  except lxml.etree.DocumentInvalid:
+    print "Generated request document doesn't pass schema check:"
+    print q_xml
+    sys.exit(1)
+
+  print q_xml
+
+  q_cms = rpki.cms.encode(q_xml, "biz-certs/Alice-EE.key", ("biz-certs/Alice-EE.cer", "biz-certs/Alice-CA.cer"))
+  r_cms = rpki.https.client(certInfo=httpsCerts, msg=q_cms, uri="/left-right")
+  r_xml = rpki.cms.decode(r_cms, "biz-certs/Bob-Root.cer")
+
+  print r_xml
+
+  r_elt = lxml.etree.fromstring(r_xml)
+  try:
+    rng.assertValid(r_elt)
+  except lxml.etree.DocumentInvalid:
+    print "Received reply document doesn't pass schema check:"
+    print r_xml
+    sys.exit(1)
+
+  handler = rpki.left_right.sax_handler()
+  lxml.sax.saxify(r_elt, handler)
+  r_msg = handler.result
+
+  # Do something useful with reply here
+  print r_msg
+
+if __name__ == "__main__": main()

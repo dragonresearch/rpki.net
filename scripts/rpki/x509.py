@@ -19,14 +19,12 @@ class X509(object):
   using and convert between them.
   """
 
-  DER = None
-  PEM = None
-  POW = None
-  POWpkix = None
-  tlslite = None
-
   def empty(self):
-    return self.DER is None and self.PEM is None and self.POW is None and self.POWpkix is None and self.tlslite is None
+    return (self.DER is None and
+            self.PEM is None and
+            self.POW is None and
+            self.POWpkix is None and
+            self.tlslite is None)
 
   def clear(self):
     self.DER = None
@@ -34,8 +32,10 @@ class X509(object):
     self.POW = None
     self.POWpkix = None
     self.tlslite = None
+    self.POW_extensions = None
 
   def __init__(self, **kw):
+    self.clear()
     if len(kw):
       self.set(**kw)
 
@@ -56,8 +56,8 @@ class X509(object):
         else:
           self.DER = text
         return
-    raise RuntimeError                  # Should create our own exception classes
-
+    raise TypeError
+  
   def get_DER(self):
     assert not self.empty()
     if self.DER:
@@ -118,34 +118,32 @@ class X509(object):
     return self.POW_extensions
     
   def getAKI(self):
-    return self.get_POW_extensions()["authorityKeyIdentifier"]
+    return self.get_POW_extensions().get("authorityKeyIdentifier")
 
   def getSKI(self):
-    return self.get_POW_extensions()["subjectKeyIdentifier"]
+    return self.get_POW_extensions().get("subjectKeyIdentifier")
 
 def sort_chain(bag):
   """
-  Sort a bag of certs into a chain, leaf first.  Various other routines
-  want their certs presented in this order.
+  Sort a bag of certs into a chain, leaf first.  Various other
+  routines want their certs presented in this order.
   """
 
   issuer_names = [x.getIssuer() for x in bag]
   subject_map = dict([(x.getSubject(), x) for x in bag])
-  chain = list(bag)
-  issuers = []
+  chain = []
 
   for subject in subject_map:
-    if subject in issuer_names:
+    if subject not in issuer_names:
       cert = subject_map[subject]
-      issuers.append(cert)
-      chain.remove(cert)
+      chain.append(cert)
+      bag.remove(cert)
 
   assert len(chain) == 1
 
-  while issuers:
-    issuer = subject_map[chain[-1].getIssuer()]
-    assert issuer
-    chain.append(issuer)
-    issuers.remove(issuer)
+  while bag:
+    cert = subject_map[chain[-1].getIssuer()]
+    chain.append(cert)
+    bag.remove(cert)
 
   return chain

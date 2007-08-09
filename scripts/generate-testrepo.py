@@ -81,13 +81,16 @@ class allocation(object):
     return "%s\n  ASN: %s\n IPv4: %s\n IPv6: %s" % (self.name, self.asn, self.ipv4, self.ipv6)
 
   def cfg_string(self):
-    keys = { "self"    : self.name,
-             "keybits" : keybits,
-             "no_aia"  : "#", "parent"  : "???",
-             "no_asid" : "#", "asid"    : "???",
-             "no_addr" : "#", "addr"    : "???" }
+    keys = { "self"       : self.name,
+             "keybits"    : keybits,
+             "no_parent"  : "#",
+             "no_asid"    : "#",
+             "no_addr"    : "#",
+             "parent"     : "???",
+             "asid"       : "???",
+             "addr"       : "???" }
     if self.parent:
-      keys["no_aia"] = ""
+      keys["no_parent"] = ""
       keys["parent"] = self.parent.name
     if self.asn:
       keys["no_asid"] = ""
@@ -117,7 +120,7 @@ all:: %(self)s.cer
 	%(openssl)s genrsa -out $@ %(keybits)d
 
 %(self)s.req: %(self)s.key %(self)s.cnf Makefile
-	%(openssl)s req -new -config %(self)s.cnf -key %(self)s.key -out $@
+	%(openssl)s req -new -reqexts req_x509_ext -config %(self)s.cnf -key %(self)s.key -out $@
 
 %(self)s.cer: %(self)s.req %(self)s.cnf %(signdeps)s Makefile
 	@test -d %(self)s || mkdir %(self)s
@@ -172,10 +175,10 @@ CN = TEST ENTITY %(self)s
 [ req_x509_ext ]
 basicConstraints = critical,CA:true
 subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid
+%(no_parent)sauthorityKeyIdentifier = keyid
 keyUsage = critical,keyCertSign,cRLSign
 subjectInfoAccess = 1.3.6.1.5.5.7.48.5;URI:rsync://wombats-r-us.hactrn.net/%(self)s/
-%(no_aia)sauthorityInfoAccess = caIssuers;URI:rsync://wombats-r-us.hactrn.net/%(parent)s.cer
+%(no_parent)sauthorityInfoAccess = caIssuers;URI:rsync://wombats-r-us.hactrn.net/%(parent)s.cer
 %(no_asid)ssbgp-autonomousSysNum = critical,%(asid)s
 %(no_addr)ssbgp-ipAddrBlock = critical,%(addr)s
 '''

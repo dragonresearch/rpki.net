@@ -11,7 +11,7 @@ bring together the functionality I need in a way that hides at least
 some of the nasty details.  This involves a lot of format conversion.
 """
 
-import POW, tlslite.api, POW.pkix
+import POW, tlslite.api, POW.pkix, base64
 
 class X509(object):
   """
@@ -147,3 +147,32 @@ def sort_chain(bag):
     bag.remove(cert)
 
   return chain
+
+def _pem_delimiters(type):
+  return ("-----BEGIN %s-----" % type,
+          "-----END %s-----" % type)
+
+def pem2der(pem, type):
+  """
+  Generic PEM -> DER converter.  Second argument is type of PEM text
+  to be converted ("CERTIFICATE", "RSA PRIVATE KEY", etc).
+  """
+
+  bdelim, edelim = _pem_delimiters(type)
+  lines = pem.splitlines(0)
+  assert lines[0] == bdelim and lines[-1] == edelim
+  return base64.b64decode("".join(lines[1:-2]))
+
+def der2pem(der, type):
+  """
+  Generic DER -> PEM converter.  Second argument is type of PEM text
+  to be converted ("CERTIFICATE", "RSA PRIVATE KEY", etc).
+  """
+
+  bdelim, edelim = _pem_delimiters(type)
+  b64 =  base64.b64enode(der)
+  pem = bdelim
+  while len(b64) > 64:
+    pem += b64[0:63] + "\n"
+    b64 = b64[64:]
+  return pem + b64 + "\n" + edelim + "\n"

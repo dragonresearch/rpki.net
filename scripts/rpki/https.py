@@ -43,12 +43,21 @@ def client(msg, certInfo, host="localhost", port=4433, url="/"):
 
 class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
-  rpki_handler = None                   # Subclass must bind
+  rpki_handlers = None                  # Subclass must bind
 
   def do_POST(self):
     assert self.headers["Content-Type"] == rpki_content_type
-    self.query_string = self.rfile.read(int(self.headers["Content-Length"]))
-    rcode, rtext = self.rpki_handler(self.query_string)
+    query_string = self.rfile.read(int(self.headers["Content-Length"]))
+    rcode = None
+    try:
+      handler = self.rpki_handlers[self.path]
+    except KeyError:
+      rcode, rtext = 404, ""
+    if rcode is None:
+      try:
+        rcode, rtext = handler(query=query_string, path=self.path)
+      except:
+        rcode, rtext = 500, ""
     self.send_response(rcode)
     self.send_header("Content-Type", rpki_content_type)
     self.end_headers()
@@ -74,13 +83,13 @@ class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
       print "TLS handshake failure:", str(error)
       return False
 
-def server(handler, certInfo, port=4433, host=""):
+def server(handlers, certInfo, port=4433, host=""):
 
   # BaseHTTPServer.HTTPServer takes a class, not an instance, so
   # binding our handler requires creating a new subclass.  Weird.
 
   class boundRequestHandler(requestHandler):
-    rpki_handler = handler
+    rpki_handlers = handlers
 
   httpd = httpServer((host, port), boundRequestHandler)
   httpd.rpki_privateKey = certInfo.privateKey

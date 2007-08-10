@@ -1112,6 +1112,47 @@ class CertificateList(Sequence):
       return rsa.verify( self.signature.get(), digest.digest(), digestType )
  
 #---------- CRL ----------#
+#---------- PKCS10 ----------#
+
+# My ASN.1 foo isn't quite up to X.501 or PKCS #10, so this is partly
+# based on a dump of what OpenSSL generates.  Seems to work, but I
+# could be wrong.  I'm fairly certain that I don't really understand
+# the X.501 Attribute definition.
+
+class PKCS10AttributeSet(SetOf):
+   def __init__(self, optional=0, default=''):
+      SetOf.__init__(self, Extensions, optional, default)
+
+class PKCS10Attribute(Sequence):
+   def __init__(self, optional=0, default=''):
+      self.oid = Oid()
+      self.value = PKCS10AttributeSet()
+      contents = [ self.oid, self.value ]
+      Sequence.__init__(self, contents, optional, default)
+
+class PKCS10Attributes(SetOf):
+   def __init__(self, optional=0, default=''):
+      SetOf.__init__(self, PKCS10Attribute, optional, default)
+
+class CertificationRequestInfo(Sequence):
+   def __init__(self, optional=0, default=''):
+      self.version = Integer()
+      self.subject = Name()
+      self.subjectPublicKeyInfo = SubjectPublicKeyInfo()
+      self.attributes = PKCS10Attributes()
+      self.attributes.implied( CLASS_CONTEXT, FORM_CONSTRUCTED, 0 )
+      contents = [ self.version, self.subject, self.subjectPublicKeyInfo, self.attributes ]
+      Sequence.__init__(self, contents, optional, default)
+
+class CertificationRequest(Sequence):
+   def __init__(self, optional=0, default=''):
+      self.certificationRequestInfo = CertificationRequestInfo()
+      self.signatureAlgorithm = AlgorithmIdentifier()
+      self.signatureValue = AltBitString()
+      contents = [ self.certificationRequestInfo, self.signatureAlgorithm, self.signatureValue ] 
+      Sequence.__init__(self, contents, optional, default)
+
+#---------- PKCS10 ----------#
 #---------- GeneralNames object support ----------#
 class OtherName(Sequence):
    def __init__(self, optional=0, default=''):

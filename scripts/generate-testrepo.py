@@ -36,6 +36,9 @@ def main():
               "".join([i.makefile_rules() for i in db]))
 
 def write_maybe(name, new_content):
+  """
+  Write a file if and only if its contents have changed.
+  """
   old_content = None
   if os.path.isfile(name):
     f = open(name, "r")
@@ -120,14 +123,20 @@ all:: %(self)s.cer
 	%(openssl)s genrsa -out $@ %(keybits)d
 
 %(self)s.req: %(self)s.key %(self)s.cnf Makefile
-	%(openssl)s req -new -reqexts req_x509_ext -config %(self)s.cnf -key %(self)s.key -out $@
+	%(openssl)s req -new -config %(self)s.cnf -key %(self)s.key -out $@
 
 %(self)s.cer: %(self)s.req %(self)s.cnf %(signdeps)s Makefile
 	@test -d %(self)s || mkdir %(self)s
 	@test -f %(self)s/index || touch %(self)s/index
 	@test -f %(self)s/serial || echo 01 >%(self)s/serial
-	%(openssl)s ca -batch -out $@ -in %(self)s.req -extensions req_x509_ext -extfile %(self)s.cnf -config %(signconf)s
+	%(openssl)s ca -batch -out $@ -in %(self)s.req -extfile %(self)s.cnf -config %(signconf)s
 
+
+show_req::
+	%(openssl)s req -noout -text -in %(self)s.req -config /dev/null
+
+show_cer::
+	%(openssl)s x509 -noout -text -in %(self)s.cer
 '''
 
 openssl_cfg_fmt = '''# Automatically generated, do not edit.
@@ -145,11 +154,13 @@ name_opt = ca_default
 cert_opt = ca_default
 default_days = 365
 default_crl_days = 30
-default_md = sha1
+default_md = sha256
 preserve = no
 copy_extensions = copy
 policy = ca_policy_anything
 unique_subject = no
+x509_extensions = ca_x509_ext
+crl_extensions = crl_x509_ext
 
 [ ca_policy_anything ]
 countryName = optional
@@ -166,7 +177,7 @@ surname = optional
 default_bits = %(keybits)d
 encrypt_key = no
 distinguished_name = req_dn
-x509_extensions = req_x509_ext
+req_extensions = req_x509_ext
 prompt = no
 
 [ req_dn ]
@@ -175,12 +186,23 @@ CN = TEST ENTITY %(self)s
 [ req_x509_ext ]
 basicConstraints = critical,CA:true
 subjectKeyIdentifier = hash
-%(no_parent)sauthorityKeyIdentifier = keyid
 keyUsage = critical,keyCertSign,cRLSign
 subjectInfoAccess = 1.3.6.1.5.5.7.48.5;URI:rsync://wombats-r-us.hactrn.net/%(self)s/
 %(no_parent)sauthorityInfoAccess = caIssuers;URI:rsync://wombats-r-us.hactrn.net/%(parent)s.cer
 %(no_asid)ssbgp-autonomousSysNum = critical,%(asid)s
 %(no_addr)ssbgp-ipAddrBlock = critical,%(addr)s
+
+[ ca_x509_ext ]
+basicConstraints = critical,CA:true
+%(no_parent)sauthorityKeyIdentifier = keyid:always
+keyUsage = critical,keyCertSign,cRLSign
+subjectInfoAccess = 1.3.6.1.5.5.7.48.5;URI:rsync://wombats-r-us.hactrn.net/%(self)s/
+%(no_parent)sauthorityInfoAccess = caIssuers;URI:rsync://wombats-r-us.hactrn.net/%(parent)s.cer
+%(no_asid)ssbgp-autonomousSysNum = critical,%(asid)s
+%(no_addr)ssbgp-ipAddrBlock = critical,%(addr)s
+
+[ crl_x509_ext ]
+authorityKeyIdentifier = keyid:always
 '''
 
 main()

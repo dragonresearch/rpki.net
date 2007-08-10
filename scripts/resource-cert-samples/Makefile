@@ -12,8 +12,14 @@ RIR.cer: RIR.req RIR.cnf RIR.key Makefile
 	@test -d RIR || mkdir RIR
 	@test -f RIR/index || touch RIR/index
 	@test -f RIR/serial || echo 01 >RIR/serial
-	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in RIR.req -extensions req_x509_ext -extfile RIR.cnf -config RIR.cnf -selfsign
+	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in RIR.req -extfile RIR.cnf -config RIR.cnf -selfsign
 
+
+show_req::
+	../../openssl/openssl-0.9.8e/apps/openssl req -noout -text -in RIR.req -config /dev/null
+
+show_cer::
+	../../openssl/openssl-0.9.8e/apps/openssl x509 -noout -text -in RIR.cer
 
 all:: LIR3.cer
 
@@ -27,8 +33,14 @@ LIR3.cer: LIR3.req LIR3.cnf RIR.key Makefile
 	@test -d LIR3 || mkdir LIR3
 	@test -f LIR3/index || touch LIR3/index
 	@test -f LIR3/serial || echo 01 >LIR3/serial
-	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in LIR3.req -extensions req_x509_ext -extfile LIR3.cnf -config RIR.cnf
+	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in LIR3.req -extfile LIR3.cnf -config RIR.cnf
 
+
+show_req::
+	../../openssl/openssl-0.9.8e/apps/openssl req -noout -text -in LIR3.req -config /dev/null
+
+show_cer::
+	../../openssl/openssl-0.9.8e/apps/openssl x509 -noout -text -in LIR3.cer
 
 all:: LIR2.cer
 
@@ -42,8 +54,14 @@ LIR2.cer: LIR2.req LIR2.cnf RIR.key Makefile
 	@test -d LIR2 || mkdir LIR2
 	@test -f LIR2/index || touch LIR2/index
 	@test -f LIR2/serial || echo 01 >LIR2/serial
-	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in LIR2.req -extensions req_x509_ext -extfile LIR2.cnf -config RIR.cnf
+	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in LIR2.req -extfile LIR2.cnf -config RIR.cnf
 
+
+show_req::
+	../../openssl/openssl-0.9.8e/apps/openssl req -noout -text -in LIR2.req -config /dev/null
+
+show_cer::
+	../../openssl/openssl-0.9.8e/apps/openssl x509 -noout -text -in LIR2.cer
 
 all:: LIR1.cer
 
@@ -57,8 +75,14 @@ LIR1.cer: LIR1.req LIR1.cnf RIR.key Makefile
 	@test -d LIR1 || mkdir LIR1
 	@test -f LIR1/index || touch LIR1/index
 	@test -f LIR1/serial || echo 01 >LIR1/serial
-	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in LIR1.req -extensions req_x509_ext -extfile LIR1.cnf -config RIR.cnf
+	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in LIR1.req -extfile LIR1.cnf -config RIR.cnf
 
+
+show_req::
+	../../openssl/openssl-0.9.8e/apps/openssl req -noout -text -in LIR1.req -config /dev/null
+
+show_cer::
+	../../openssl/openssl-0.9.8e/apps/openssl x509 -noout -text -in LIR1.cer
 
 all:: ISP5c.cer
 
@@ -72,8 +96,14 @@ ISP5c.cer: ISP5c.req ISP5c.cnf LIR3.key Makefile
 	@test -d ISP5c || mkdir ISP5c
 	@test -f ISP5c/index || touch ISP5c/index
 	@test -f ISP5c/serial || echo 01 >ISP5c/serial
-	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in ISP5c.req -extensions req_x509_ext -extfile ISP5c.cnf -config LIR3.cnf
+	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in ISP5c.req -extfile ISP5c.cnf -config LIR3.cnf
 
+
+show_req::
+	../../openssl/openssl-0.9.8e/apps/openssl req -noout -text -in ISP5c.req -config /dev/null
+
+show_cer::
+	../../openssl/openssl-0.9.8e/apps/openssl x509 -noout -text -in ISP5c.cer
 
 all:: ISP5b.cer
 
@@ -87,8 +117,14 @@ ISP5b.cer: ISP5b.req ISP5b.cnf LIR3.key Makefile
 	@test -d ISP5b || mkdir ISP5b
 	@test -f ISP5b/index || touch ISP5b/index
 	@test -f ISP5b/serial || echo 01 >ISP5b/serial
-	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in ISP5b.req -extensions req_x509_ext -extfile ISP5b.cnf -config LIR3.cnf
+	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in ISP5b.req -extfile ISP5b.cnf -config LIR3.cnf
 
+
+show_req::
+	../../openssl/openssl-0.9.8e/apps/openssl req -noout -text -in ISP5b.req -config /dev/null
+
+show_cer::
+	../../openssl/openssl-0.9.8e/apps/openssl x509 -noout -text -in ISP5b.cer
 
 all:: ISP5a.cer
 
@@ -102,8 +138,14 @@ ISP5a.cer: ISP5a.req ISP5a.cnf LIR3.key Makefile
 	@test -d ISP5a || mkdir ISP5a
 	@test -f ISP5a/index || touch ISP5a/index
 	@test -f ISP5a/serial || echo 01 >ISP5a/serial
-	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in ISP5a.req -extensions req_x509_ext -extfile ISP5a.cnf -config LIR3.cnf
+	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in ISP5a.req -extfile ISP5a.cnf -config LIR3.cnf
 
+
+show_req::
+	../../openssl/openssl-0.9.8e/apps/openssl req -noout -text -in ISP5a.req -config /dev/null
+
+show_cer::
+	../../openssl/openssl-0.9.8e/apps/openssl x509 -noout -text -in ISP5a.cer
 
 all:: ISP4.cer
 
@@ -117,8 +159,14 @@ ISP4.cer: ISP4.req ISP4.cnf LIR2.key Makefile
 	@test -d ISP4 || mkdir ISP4
 	@test -f ISP4/index || touch ISP4/index
 	@test -f ISP4/serial || echo 01 >ISP4/serial
-	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in ISP4.req -extensions req_x509_ext -extfile ISP4.cnf -config LIR2.cnf
+	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in ISP4.req -extfile ISP4.cnf -config LIR2.cnf
 
+
+show_req::
+	../../openssl/openssl-0.9.8e/apps/openssl req -noout -text -in ISP4.req -config /dev/null
+
+show_cer::
+	../../openssl/openssl-0.9.8e/apps/openssl x509 -noout -text -in ISP4.cer
 
 all:: ISP3.cer
 
@@ -132,8 +180,14 @@ ISP3.cer: ISP3.req ISP3.cnf LIR2.key Makefile
 	@test -d ISP3 || mkdir ISP3
 	@test -f ISP3/index || touch ISP3/index
 	@test -f ISP3/serial || echo 01 >ISP3/serial
-	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in ISP3.req -extensions req_x509_ext -extfile ISP3.cnf -config LIR2.cnf
+	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in ISP3.req -extfile ISP3.cnf -config LIR2.cnf
 
+
+show_req::
+	../../openssl/openssl-0.9.8e/apps/openssl req -noout -text -in ISP3.req -config /dev/null
+
+show_cer::
+	../../openssl/openssl-0.9.8e/apps/openssl x509 -noout -text -in ISP3.cer
 
 all:: ISP2.cer
 
@@ -147,8 +201,14 @@ ISP2.cer: ISP2.req ISP2.cnf LIR1.key Makefile
 	@test -d ISP2 || mkdir ISP2
 	@test -f ISP2/index || touch ISP2/index
 	@test -f ISP2/serial || echo 01 >ISP2/serial
-	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in ISP2.req -extensions req_x509_ext -extfile ISP2.cnf -config LIR1.cnf
+	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in ISP2.req -extfile ISP2.cnf -config LIR1.cnf
 
+
+show_req::
+	../../openssl/openssl-0.9.8e/apps/openssl req -noout -text -in ISP2.req -config /dev/null
+
+show_cer::
+	../../openssl/openssl-0.9.8e/apps/openssl x509 -noout -text -in ISP2.cer
 
 all:: ISP1.cer
 
@@ -162,5 +222,11 @@ ISP1.cer: ISP1.req ISP1.cnf LIR1.key Makefile
 	@test -d ISP1 || mkdir ISP1
 	@test -f ISP1/index || touch ISP1/index
 	@test -f ISP1/serial || echo 01 >ISP1/serial
-	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in ISP1.req -extensions req_x509_ext -extfile ISP1.cnf -config LIR1.cnf
+	../../openssl/openssl-0.9.8e/apps/openssl ca -batch -out $@ -in ISP1.req -extfile ISP1.cnf -config LIR1.cnf
 
+
+show_req::
+	../../openssl/openssl-0.9.8e/apps/openssl req -noout -text -in ISP1.req -config /dev/null
+
+show_cer::
+	../../openssl/openssl-0.9.8e/apps/openssl x509 -noout -text -in ISP1.cer

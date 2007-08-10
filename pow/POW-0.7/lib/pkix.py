@@ -1114,25 +1114,27 @@ class CertificateList(Sequence):
 #---------- CRL ----------#
 #---------- PKCS10 ----------#
 
-# My ASN.1 foo isn't quite up to X.501 or PKCS #10, so this is partly
-# based on a dump of what OpenSSL generates.  Seems to work, but I
-# could be wrong.  I'm fairly certain that I don't really understand
-# the X.501 Attribute definition.
+# My ASN.1-foo (and perhaps this ASN.1 implementation) isn't quite up
+# to X.501 or PKCS #10, so this is partly based on a dump of what
+# OpenSSL generates, and doesn't handle attributes other than X.509v3
+# extensions.
 
 class PKCS10AttributeSet(SetOf):
    def __init__(self, optional=0, default=''):
       SetOf.__init__(self, Extensions, optional, default)
 
-class PKCS10Attribute(Sequence):
+class PKCS10AttributeChoice(Choice):
+   def __init__(self, optional=0, default=''):
+      choices = { 'single' : Extensions(),
+                  'set'    : PKCS10AttributeSet() }
+      Choice.__init__(self, choices, optional, default)
+
+class PKCS10Attributes(Sequence):
    def __init__(self, optional=0, default=''):
       self.oid = Oid()
-      self.value = PKCS10AttributeSet()
-      contents = [ self.oid, self.value ]
+      self.val = PKCS10AttributeChoice()
+      contents = [ self.oid, self.val ]
       Sequence.__init__(self, contents, optional, default)
-
-class PKCS10Attributes(SetOf):
-   def __init__(self, optional=0, default=''):
-      SetOf.__init__(self, PKCS10Attribute, optional, default)
 
 class CertificationRequestInfo(Sequence):
    def __init__(self, optional=0, default=''):
@@ -1140,8 +1142,8 @@ class CertificationRequestInfo(Sequence):
       self.subject = Name()
       self.subjectPublicKeyInfo = SubjectPublicKeyInfo()
       self.attributes = PKCS10Attributes()
-      self.attributes.implied( CLASS_CONTEXT, FORM_CONSTRUCTED, 0 )
-      contents = [ self.version, self.subject, self.subjectPublicKeyInfo, self.attributes ]
+      self.explicitAttributes = Explicit(CLASS_CONTEXT, FORM_CONSTRUCTED, 0, self.attributes)
+      contents = [ self.version, self.subject, self.subjectPublicKeyInfo, self.explicitAttributes ]
       Sequence.__init__(self, contents, optional, default)
 
 class CertificationRequest(Sequence):

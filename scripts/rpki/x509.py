@@ -13,26 +13,46 @@ some of the nasty details.  This involves a lot of format conversion.
 
 import POW, tlslite.api, POW.pkix, base64
 
-class X509(object):
+class PEM_converter(object):
   """
-  Class to hold all the different representations of X.509 certs we're
-  using and convert between them.
+  Convert between DER and PEM encodings for various kinds of ASN.1 data.
   """
+
+  def __init__(self, kind):    # "CERTIFICATE", "RSA PRIVATE KEY", ...
+    self.b = "-----BEGIN %s-----" % kind
+    self.e = "-----END %s-----"   % kind
+
+  def toDER(self, pem):
+    lines = pem.splitlines(0)
+    while lines and lines.pop(0) != self.b:
+      pass
+    while lines and lines.pop(-1) != self.e:
+      pass
+    assert lines
+    return base64.b64decode("".join(lines))
+
+  def toPEM(self, der):
+    b64 =  base64.b64encode(der)
+    pem = self.b + "\n"
+    while len(b64) > 64:
+      pem += b64[0:64] + "\n"
+      b64 = b64[64:]
+    return pem + b64 + "\n" + self.e + "\n"
+
+class DER_object(object):
+  """
+  Virtual class to hold a generic DER object.
+  """
+
+  formats = ("DER",)
+  pem_converter = None
 
   def empty(self):
-    return (self.DER is None and
-            self.PEM is None and
-            self.POW is None and
-            self.POWpkix is None and
-            self.tlslite is None)
+    return reduce(lambda x,y: x and getattr(self, y, None) is None, self.formats, True)
 
   def clear(self):
-    self.DER = None
-    self.PEM = None
-    self.POW = None
-    self.POWpkix = None
-    self.tlslite = None
-    self.POW_extensions = None
+    for fmt in self.formats:
+      setattr(self, fmt, None)
 
   def __init__(self, **kw):
     self.clear()
@@ -42,7 +62,7 @@ class X509(object):
   def set(self, **kw):
     name = kw.keys()[0]
     if len(kw) == 1:
-      if name in ("DER", "PEM", "POW", "POWpkix", "tlslite"):
+      if name in self.formats:
         self.clear()
         setattr(self, name, kw[name])
         return
@@ -50,13 +70,30 @@ class X509(object):
         f = open(kw[name], "r")
         text = f.read()
         f.close()
-        self.clear()
         if name == "PEM_file":
-          self.PEM = text
-        else:
-          self.DER = text
+          text = self.pem_converter.toDER(text)
+        self.clear()
+        self.DER = text
         return
     raise TypeError
+  
+  def get_DER(self):
+    assert not self.empty()
+    if self.DER:
+      return self.DER
+    raise RuntimeError, "No conversion path to DER available"
+
+  def get_PEM(self):
+    return self.pem_converter.toPEM(self.get_DER())
+
+class X509(DER_object):
+  """
+  Class to hold all the different representations of X.509 certs we're
+  using and convert between them.
+  """
+
+  formats = ("DER", "POW", "POWpkix", "tlslite")
+  pem_converter = PEM_converter("CERTIFICATE")
   
   def get_DER(self):
     assert not self.empty()
@@ -68,9 +105,6 @@ class X509(object):
     if self.POWpkix:
       self.DER = self.POWpkix.toString()
       return self.get_DER()
-    if self.PEM:
-      self.POW = POW.pemRead(POW.X509_CERTIFICATE, self.PEM)
-      return self.get_DER()
     raise RuntimeError
 
   def get_POW(self):
@@ -78,12 +112,6 @@ class X509(object):
     if not self.POW:
       self.POW = POW.derRead(POW.X509_CERTIFICATE, self.get_DER())
     return self.POW
-
-  def get_PEM(self):
-    assert not self.empty()
-    if not self.PEM:
-      self.PEM = self.get_POW().pemWrite()
-    return self.PEM
 
   def get_POWpkix(self):
     assert not self.empty()
@@ -123,56 +151,45 @@ class X509(object):
   def getSKI(self):
     return self.get_POW_extensions().get("subjectKeyIdentifier")
 
-def sort_chain(bag):
+class X509_chain(list):
   """
-  Sort a bag of certs into a chain, leaf first.  Various other
-  routines want their certs presented in this order.
+  Collection of certs with sorting and conversion functions
+  for various packages.
   """
 
-  issuer_names = [x.getIssuer() for x in bag]
-  subject_map = dict([(x.getSubject(), x) for x in bag])
-  chain = []
+  def chainsort(self):
+    """
+    Sort a bag of certs into a chain, leaf first.  Various other
+    routines want their certs presented in this order.
+    """
 
-  for subject in subject_map:
-    if subject not in issuer_names:
-      cert = subject_map[subject]
+    bag = self[:]
+    issuer_names = [x.getIssuer() for x in bag]
+    subject_map = dict([(x.getSubject(), x) for x in bag])
+    chain = []
+    for subject in subject_map:
+      if subject not in issuer_names:
+        cert = subject_map[subject]
+        chain.append(cert)
+        bag.remove(cert)
+    assert len(chain) == 1
+    while bag:
+      cert = subject_map[chain[-1].getIssuer()]
       chain.append(cert)
       bag.remove(cert)
+    self[:] = chain
 
-  assert len(chain) == 1
+  def tlslite_certChain(self):
+    return tlslite.api.X509CertChain([x.get_tlslite() for x in self])
 
-  while bag:
-    cert = subject_map[chain[-1].getIssuer()]
-    chain.append(cert)
-    bag.remove(cert)
+  def tlslite_trustList(self):
+    return [x.get_tlslite() for x in self]
 
-  return chain
+  def clear(self):
+    self[:] = []
 
-def _pem_delimiters(type):
-  return ("-----BEGIN %s-----" % type,
-          "-----END %s-----" % type)
+  def load_from_PEM(self, files):
+    self.extend([X509(PEM_file=f) for f in files])
 
-def pem2der(pem, type):
-  """
-  Generic PEM -> DER converter.  Second argument is type of PEM text
-  to be converted ("CERTIFICATE", "RSA PRIVATE KEY", etc).
-  """
-
-  bdelim, edelim = _pem_delimiters(type)
-  lines = pem.splitlines(0)
-  assert lines[0] == bdelim and lines[-1] == edelim
-  return base64.b64decode("".join(lines[1:-2]))
-
-def der2pem(der, type):
-  """
-  Generic DER -> PEM converter.  Second argument is type of PEM text
-  to be converted ("CERTIFICATE", "RSA PRIVATE KEY", etc).
-  """
-
-  bdelim, edelim = _pem_delimiters(type)
-  b64 =  base64.b64enode(der)
-  pem = bdelim
-  while len(b64) > 64:
-    pem += b64[0:63] + "\n"
-    b64 = b64[64:]
-  return pem + b64 + "\n" + edelim + "\n"
+  def load_from_DER(self, files):
+    self.extend([X509(DER_file=f) for f in files])

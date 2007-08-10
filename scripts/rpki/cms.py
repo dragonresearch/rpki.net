@@ -11,7 +11,9 @@ import os, rpki.x509
 
 def encode(xml, key, cert_files):
 
-  certs = rpki.x509.sort_chain([rpki.x509.X509(PEM_file=PEM_file) for PEM_file in cert_files])
+  certs = rpki.x509.X509_chain()
+  certs.load_from_PEM(cert_files)
+  certs.chainsort()
 
   signer_filename = "cms.tmp.signer.pem"
   certfile_filename = "cms.tmp.certfile.pem"

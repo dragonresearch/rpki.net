@@ -24,10 +24,14 @@ class CertInfo(object):
       self.privateKey = tlslite.api.parsePEMKey(f.read(), private=True)
       f.close()
       
-      chain = [rpki.x509.X509(PEM_file=PEM_file) for PEM_file in glob.glob(self.cert_dir + myname + "-*.cer")]
-      self.certChain = tlslite.api.X509CertChain([x.get_tlslite() for x in rpki.x509.sort_chain(chain)])
+      chain = rpki.x509.X509_chain()
+      chain.load_from_PEM(glob.glob(self.cert_dir + myname + "-*.cer"))
+      chain.chainsort()
+      self.certChain = chain.tlslite_certChain()
 
-      self.x509TrustList = [rpki.x509.X509(PEM_file=PEM_file).get_tlslite() for PEM_file in glob.glob(self.cert_dir + "*-Root.cer")]
+      trustlist = rpki.x509.X509_chain()
+      trustlist.load_from_PEM(glob.glob(self.cert_dir + "*-Root.cer"))
+      self.x509TrustList = trustlist.tlslite_trustList()
 
 def client(msg, certInfo, host="localhost", port=4433, url="/"):
   httpc = tlslite.api.HTTPTLSConnection(host=host,

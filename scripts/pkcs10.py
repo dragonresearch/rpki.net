@@ -5,9 +5,11 @@ import POW.pkix, rpki.x509, glob, rpki.resource_set
 parse_extensions = True
 list_extensions = True
 
+convert = rpki.x509.PEM_converter("CERTIFICATE REQUEST")
+
 for name in glob.glob("resource-cert-samples/*.req"):
   f = open(name, "r")
-  der = rpki.x509.pem2der(f.read(), "CERTIFICATE REQUEST")
+  der = convert.toDER(f.read())
   f.close()
 
   pkcs10 = POW.pkix.CertificationRequest()

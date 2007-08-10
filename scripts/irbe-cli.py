@@ -127,7 +127,7 @@ def main():
   print q_xml
 
   q_cms = rpki.cms.encode(q_xml, "biz-certs/Alice-EE.key", ("biz-certs/Alice-EE.cer", "biz-certs/Alice-CA.cer"))
-  r_cms = rpki.https.client(certInfo=httpsCerts, msg=q_cms, uri="/left-right")
+  r_cms = rpki.https.client(certInfo=httpsCerts, msg=q_cms, url="/left-right")
   r_xml = rpki.cms.decode(r_cms, "biz-certs/Bob-Root.cer")
 
   print r_xml

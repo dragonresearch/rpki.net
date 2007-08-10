@@ -46,13 +46,17 @@ class DER_object(object):
 
   formats = ("DER",)
   pem_converter = None
+  other_clear = ()
 
   def empty(self):
-    return reduce(lambda x,y: x and getattr(self, y, None) is None, self.formats, True)
+    for a in self.formats:
+      if getattr(self, a, None) is not None:
+        return False
+    return True
 
   def clear(self):
-    for fmt in self.formats:
-      setattr(self, fmt, None)
+    for a in self.formats + self.other_clear:
+      setattr(self, a, None)
 
   def __init__(self, **kw):
     self.clear()
@@ -94,6 +98,7 @@ class X509(DER_object):
 
   formats = ("DER", "POW", "POWpkix", "tlslite")
   pem_converter = PEM_converter("CERTIFICATE")
+  other_clear = ("POW_extensions",)
   
   def get_DER(self):
     assert not self.empty()
@@ -193,3 +198,28 @@ class X509_chain(list):
 
   def load_from_DER(self, files):
     self.extend([X509(DER_file=f) for f in files])
+
+class PKCS10_Request(DER_object):
+  """
+  Class to hold a PKCS #10 request.
+  """
+
+  formats = ("DER", "POWpkix")
+  pem_converter = PEM_converter("CERTIFICATE REQUEST")
+  
+  def get_DER(self):
+    assert not self.empty()
+    if self.DER:
+      return self.DER
+    if self.POWpkix:
+      self.DER = self.POWpkix.toString()
+      return self.get_DER()
+    raise RuntimeError
+
+  def get_POWpkix(self):
+    assert not self.empty()
+    if not self.POWpkix:
+      req = POW.pkix.CertificationRequest()
+      req.fromString(self.get_DER())
+      self.POWpkix = req
+    return self.POWpkix

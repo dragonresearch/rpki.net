@@ -1810,6 +1810,19 @@ class SequenceOf(Sequence):
          _GeneralObject.set( self, self.sequenceOf )
          _GeneralObject.write( self, file )
 
+   def __len__(self):
+      return len(self.sequenceOf)
+
+   def __getitem__(self, key):
+      return self.sequenceOf[key]
+
+   def __iter__(self):
+      for i in self.sequenceOf:
+         yield(i)
+
+   def __contains__(self, item):
+      return item in self.sequenceOf
+
 _addFragment('''
 <class>
    <header>

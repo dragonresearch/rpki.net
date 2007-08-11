@@ -122,12 +122,12 @@ class CryptoDriver(object):
          
    def digest(self, oid):
       """Instantiate and initialize a driver digest object."""
-      assert isinstance(self.DigestDriver, CryptoDriverDigest)
+      assert issubclass(self.DigestDriver, CryptoDriverDigest)
       return self.DigestDriver(self.OID2driver[oid])
 
    def rsa(self, key, oid):
       """Instantiate and initialize a driver RSA object."""
-      assert isinstance(self.RSADriver, CryptoDriverRSA)
+      assert issubclass(self.RSADriver, CryptoDriverRSA)
       return self.RSADriver(key, self.OID2driver[oid])
 
 class POWCryptoDriverDigest(CryptoDriverDigest):
@@ -177,10 +177,10 @@ _cryptoDriver = None                    # Don't touch this directly
 def setCryptoDriver(driver):
    """Set crypto driver.
 
-   The driver should be a subtype of CryptoDriver.
+   The driver should be an instance of CryptoDriver.
    """
    assert isinstance(driver, CryptoDriver)
-   _cryptoDriver = driver()
+   _cryptoDriver = driver
 
 def getCryptoDriver():
    """Return the currently selected CryptoDriver instance.
@@ -188,7 +188,7 @@ def getCryptoDriver():
    If no driver has been selected, instantiate the default POW driver.
    """
    if _cryptoDriver is None:
-      setCryptoDriver(POWCryptoDriver)
+      setCryptoDriver(POWCryptoDriver())
    return _cryptoDriver
 
 #---------- crypto driver ----------#

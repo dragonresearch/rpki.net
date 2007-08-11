@@ -49,6 +49,47 @@ _fragments = []
 def _docset():
    return _der._docset() + _fragments
 
+class CryptoDriverDigest(object):
+   """Driver representation of a digest.
+
+   This  implementation is specific to the POW driver.
+   """
+
+   def __init__(self, type):
+      """Initialize a digest object."""
+      self.digest = POW.Digest(type)
+
+   def update(self, input):
+      """Feed data into a digest object."""
+      self.digest.update(input)
+
+   def finalize(self):
+      """Get result of a digest operation."""
+      return self.digest.digest()
+
+class CryptoDriverRSA(object):
+   """Driver representation of an RSA key.
+
+   This  implementation is specific to the POW driver.
+   """
+
+   def __init__(self, rsa, digestType):
+      """Initialize an RSA object."""
+      self.rsa = rsa
+      self.type = digestType
+
+   def getDER(self):
+      """Get DER representation of an RSA key."""
+      return self.rsa.derWrite(POW.RSA_PUBLIC_KEY)
+
+   def sign(self, digest):
+      """Sign a digest with an RSA key."""
+      return self.rsa.sign(digest, self.type)
+
+   def verify(self, signature, digest):
+      """Verify the signature of a digest with an RSA key."""
+      return self.rsa.verify(signature, digest, self.type)
+
 class CryptoDriver(object):
    """Dispatcher for crypto calls.
 
@@ -89,6 +130,8 @@ class CryptoDriver(object):
       OID and just return it.  If the identifier is in the driver
       identifier mapping table, we use that to return an OID.
       Otherwise, we try mapping it via the name-to-OID database.
+
+      This implementation might be reusable by other drivers.
       """
       if isinstance(digestType, tuple):
          return digestType
@@ -96,42 +139,20 @@ class CryptoDriver(object):
          return self.driver2OID[digestType]
       return obj2oid(digestType)
          
-   class Digest(object):
-      """Driver representation of a digest.
-
-      This  implementation is specific to the POW driver.
-      """
-      def __init__(self, type):
-         self.digest = POW.Digest(type)
-      def update(self, input):
-         self.digest.update(input)
-      def finalize(self):
-         return self.digest.digest()
-
    def digest(self, oid):
       """Instantiate and initialize a driver digest object.
-      """
-      return self.Digest(self.OID2driver[oid])
 
-   class RSA(object):
-      """Driver representation of an RSA key.
-
-      This  implementation is specific to the POW driver.
+      This implementation might be reusable by other drivers.
       """
-      def __init__(self, rsa, type):
-         self.rsa = rsa
-         self.type = type
-      def getDER(self):
-         return self.rsa.derWrite(POW.RSA_PUBLIC_KEY)
-      def sign(self, digest):
-         return self.rsa.sign(digest, self.type)
-      def verify(self, signature, digest):
-         return self.rsa.verify(signature, digest, self.type)
+
+      return CryptoDriverDigest(self.OID2driver[oid])
 
    def rsa(self, key, oid):
       """Instantiate and initialize a driver RSA object.
+
+      This implementation might be reusable by other drivers.
       """
-      return self.RSA(key, self.OID2driver[oid])
+      return CryptoDriverRSA(key, self.OID2driver[oid])
 
 _cryptoDriver = None                    # Don't touch this directly
 

@@ -49,46 +49,47 @@ _fragments = []
 def _docset():
    return _der._docset() + _fragments
 
+#---------- crypto driver ----------#
+
 class CryptoDriverDigest(object):
    """Driver representation of a digest.
 
-   This  implementation is specific to the POW driver.
+   This is a virtual class.  You will have to subtype it.
    """
 
    def __init__(self, type):
       """Initialize a digest object."""
-      self.digest = POW.Digest(type)
+      raise NotImplementedError
 
    def update(self, input):
       """Feed data into a digest object."""
-      self.digest.update(input)
+      raise NotImplementedError
 
    def finalize(self):
       """Get result of a digest operation."""
-      return self.digest.digest()
+      raise NotImplementedError
 
 class CryptoDriverRSA(object):
    """Driver representation of an RSA key.
 
-   This  implementation is specific to the POW driver.
+   This is a virtual class.  You will have to subtype it.
    """
 
    def __init__(self, rsa, digestType):
       """Initialize an RSA object."""
-      self.rsa = rsa
-      self.type = digestType
+      raise NotImplementedError
 
    def getDER(self):
       """Get DER representation of an RSA key."""
-      return self.rsa.derWrite(POW.RSA_PUBLIC_KEY)
+      raise NotImplementedError
 
    def sign(self, digest):
       """Sign a digest with an RSA key."""
-      return self.rsa.sign(digest, self.type)
+      raise NotImplementedError
 
    def verify(self, signature, digest):
       """Verify the signature of a digest with an RSA key."""
-      return self.rsa.verify(signature, digest, self.type)
+      raise NotImplementedError
 
 class CryptoDriver(object):
    """Dispatcher for crypto calls.
@@ -96,20 +97,68 @@ class CryptoDriver(object):
    This module has very minimal dependencies on crypto code, as it's
    almost entirely about ASN.1 encoding and decoding.  Rather than
    wiring in the handful of crypto calls, we dispatch them through
-   this driver.  The default driver uses POW, but so long as you
-   implement the same interface, you can replace it with any crypto
-   package you like.
+   this driver.  The default driver uses POW, but you can replace it
+   with any crypto package you like.
+
+   This is a virtual class.  You will have to subtype it.
    """
 
-   def __init__(self):
-      """Initialize the driver.
+   DigestDriver = None
+   RSADriver = None
 
-      Among other tasks, driver initialization is where we import the
-      crypto package we're using (not much point otherwise, as we'd
-      always import the default crypto package immediately).
+   def getOID(self, digestType):
+      """Convert a digest identifier into an OID.
 
-      This implementation is specific to the POW driver.
+      If the identifier we get is a tuple, we assume it's already an
+      OID and just return it.  If the identifier is in the driver
+      identifier mapping table, we use that to return an OID.
+      Otherwise, we try mapping it via the name-to-OID database.
       """
+      if isinstance(digestType, tuple):
+         return digestType
+      if digestType in self.driver2OID:
+         return self.driver2OID[digestType]
+      return obj2oid(digestType)
+         
+   def digest(self, oid):
+      """Instantiate and initialize a driver digest object."""
+      assert isinstance(self.DigestDriver, CryptoDriverDigest)
+      return self.DigestDriver(self.OID2driver[oid])
+
+   def rsa(self, key, oid):
+      """Instantiate and initialize a driver RSA object."""
+      assert isinstance(self.RSADriver, CryptoDriverRSA)
+      return self.RSADriver(key, self.OID2driver[oid])
+
+class POWCryptoDriverDigest(CryptoDriverDigest):
+   """Driver representation of a digest for POW."""
+   def __init__(self, type):
+      self.digest = POW.Digest(type)
+   def update(self, input):
+      self.digest.update(input)
+   def finalize(self):
+      return self.digest.digest()
+
+class POWCryptoDriverRSA(CryptoDriverRSA):
+   """Driver representation of an RSA key for POW."""
+   def __init__(self, rsa, digestType):
+      self.rsa = rsa
+      self.type = digestType
+   def getDER(self):
+      return self.rsa.derWrite(POW.RSA_PUBLIC_KEY)
+   def sign(self, digest):
+      return self.rsa.sign(digest, self.type)
+   def verify(self, signature, digest):
+      return self.rsa.verify(signature, digest, self.type)
+
+class POWCryptoDriver(object):
+   """Dispatcher for crypto calls using POW package."""
+
+   DigestDriver = POWCryptoDriverDigest
+   RSADriver = POWCryptoDriverRSA
+
+   def __init__(self):
+      """Initialize the POW driver."""
       import POW
       self.driver2OID = {
          POW.MD2_DIGEST       :  (1, 2, 840, 113549, 1, 1, 2),    # md2WithRSAEncryption
@@ -123,46 +172,15 @@ class CryptoDriver(object):
       for k,v in self.POWtoOID.iteritems():
          self.OID2driver[v] = k
 
-   def getOID(self, digestType):
-      """Convert a digest identifier into an OID.
-
-      If the identifier we get is a tuple, we assume it's already an
-      OID and just return it.  If the identifier is in the driver
-      identifier mapping table, we use that to return an OID.
-      Otherwise, we try mapping it via the name-to-OID database.
-
-      This implementation might be reusable by other drivers.
-      """
-      if isinstance(digestType, tuple):
-         return digestType
-      if digestType in self.driver2OID:
-         return self.driver2OID[digestType]
-      return obj2oid(digestType)
-         
-   def digest(self, oid):
-      """Instantiate and initialize a driver digest object.
-
-      This implementation might be reusable by other drivers.
-      """
-
-      return CryptoDriverDigest(self.OID2driver[oid])
-
-   def rsa(self, key, oid):
-      """Instantiate and initialize a driver RSA object.
-
-      This implementation might be reusable by other drivers.
-      """
-      return CryptoDriverRSA(key, self.OID2driver[oid])
-
 _cryptoDriver = None                    # Don't touch this directly
 
 def setCryptoDriver(driver):
    """Set crypto driver.
 
-   The driver should be an instance or subtype of CryptoDriver.
+   The driver should be a subtype of CryptoDriver.
    """
    assert isinstance(driver, CryptoDriver)
-   _cryptoDriver = driver
+   _cryptoDriver = driver()
 
 def getCryptoDriver():
    """Return the currently selected CryptoDriver instance.
@@ -170,8 +188,10 @@ def getCryptoDriver():
    If no driver has been selected, instantiate the default POW driver.
    """
    if _cryptoDriver is None:
-      _cryptoDriver = CryptoDriver()
+      setCryptoDriver(POWCryptoDriver)
    return _cryptoDriver
+
+#---------- crypto driver ----------#
 
 def _addFragment(frag):
    global _fragments

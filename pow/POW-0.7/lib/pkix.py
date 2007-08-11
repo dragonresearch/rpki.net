@@ -34,7 +34,7 @@
 #*                                                                           *#
 #*****************************************************************************#
 
-import types, time, pprint, cStringIO, POW, _der
+import types, time, pprint, cStringIO, _der
 from _simpledb import OidData as _OidData 
 from _der import *
 
@@ -48,6 +48,109 @@ _fragments = []
 
 def _docset():
    return _der._docset() + _fragments
+
+class CryptoDriver(object):
+   """Dispatcher for crypto calls.
+
+   This module has very minimal dependencies on crypto code, as it's
+   almost entirely about ASN.1 encoding and decoding.  Rather than
+   wiring in the handful of crypto calls, we dispatch them through
+   this driver.  The default driver uses POW, but so long as you
+   implement the same interface, you can replace it with any crypto
+   package you like.
+   """
+
+   def __init__(self):
+      """Initialize the driver.
+
+      Among other tasks, driver initialization is where we import the
+      crypto package we're using (not much point otherwise, as we'd
+      always import the default crypto package immediately).
+
+      This implementation is specific to the POW driver.
+      """
+      import POW
+      self.driver2OID = {
+         POW.MD2_DIGEST       :  (1, 2, 840, 113549, 1, 1, 2),    # md2WithRSAEncryption
+         POW.MD5_DIGEST       :  (1, 2, 840, 113549, 1, 1, 4),    # md5WithRSAEncryption
+         POW.SHA_DIGEST       :  (1, 3, 14, 3, 2, 15),            # shaWithRSAEncryption
+         POW.SHA1_DIGEST      :  (1, 2, 840, 113549, 1, 1, 5),    # sha1withRSAEncryption
+         POW.RIPEMD160_DIGEST :  (1, 2, 840, 113549, 1, 1, 6),    # ripemd160WithRSAEncryption
+         POW.SHA256_DIGEST    :  (1, 2, 840, 113549, 1, 1, 11),   # sha256WithRSAEncryption
+         POW.SHA512_DIGEST    :  (1, 2, 840, 113549, 1, 1, 13) }  # sha512WithRSAEncryption
+      self.OID2driver = {}
+      for k,v in self.POWtoOID.iteritems():
+         self.OID2driver[v] = k
+
+   def getOID(self, digestType):
+      """Convert a digest identifier into an OID.
+
+      If the identifier we get is a tuple, we assume it's already an
+      OID and just return it.  If the identifier is in the driver
+      identifier mapping table, we use that to return an OID.
+      Otherwise, we try mapping it via the name-to-OID database.
+      """
+      if isinstance(digestType, tuple):
+         return digestType
+      if digestType in self.driver2OID:
+         return self.driver2OID[digestType]
+      return obj2oid(digestType)
+         
+   class Digest(object):
+      """Driver representation of a digest.
+
+      This  implementation is specific to the POW driver.
+      """
+      def __init__(self, type):
+         self.digest = POW.Digest(type)
+      def update(self, input):
+         self.digest.update(input)
+      def finalize(self):
+         return self.digest.digest()
+
+   def digest(self, oid):
+      """Instantiate and initialize a driver digest object.
+      """
+      return self.Digest(self.OID2driver[oid])
+
+   class RSA(object):
+      """Driver representation of an RSA key.
+
+      This  implementation is specific to the POW driver.
+      """
+      def __init__(self, rsa, type):
+         self.rsa = rsa
+         self.type = type
+      def getDER(self):
+         return self.rsa.derWrite(POW.RSA_PUBLIC_KEY)
+      def sign(self, digest):
+         return self.rsa.sign(digest, self.type)
+      def verify(self, signature, digest):
+         return self.rsa.verify(signature, digest, self.type)
+
+   def rsa(self, key, oid):
+      """Instantiate and initialize a driver RSA object.
+      """
+      return self.RSA(key, self.OID2driver[oid])
+
+_cryptoDriver = None                    # Don't touch this directly
+
+def setCryptoDriver(driver):
+   """Set crypto driver.
+
+   The driver should be an instance or subtype of CryptoDriver.
+   """
+   assert isinstance(driver, CryptoDriver)
+   _cryptoDriver = driver
+
+def getCryptoDriver():
+   """Return the currently selected CryptoDriver instance.
+
+   If no driver has been selected, instantiate the default POW driver.
+   """
+   if _cryptoDriver is None:
+      _cryptoDriver = CryptoDriver()
+   return _cryptoDriver
 
 def _addFragment(frag):
    global _fragments
@@ -683,20 +786,15 @@ class Certificate(Sequence):
    </method>
    ''')
    def sign(self, rsa, digestType):
-      signatureMap = {  POW.MD2_DIGEST       :  (1, 2, 840, 113549, 1, 1, 2),    # md2WithRSAEncryption
-                        POW.MD5_DIGEST       :  (1, 2, 840, 113549, 1, 1, 4),    # md5WithRSAEncryption
-                        POW.SHA_DIGEST       :  (1, 3, 14, 3, 2, 15),            # shaWithRSAEncryption
-                        POW.SHA1_DIGEST      :  (1, 2, 840, 113549, 1, 1, 5),    # sha1withRSAEncryption
-                        POW.RIPEMD160_DIGEST :  (1, 2, 840, 113549, 1, 1, 6),    # ripemd160WithRSAEncryption
-                        POW.SHA256_DIGEST    :  (1, 2, 840, 113549, 1, 1, 11),   # sha256WithRSAEncryption
-                        POW.SHA512_DIGEST    :  (1, 2, 840, 113549, 1, 1, 13) }  # sha512WithRSAEncryption
-
-      self.tbs.subjectPublicKeyInfo.set( (((1, 2, 840, 113549, 1, 1, 1), None), rsa.derWrite(POW.RSA_PUBLIC_KEY) ) )
-      self.tbs.signature.set( [signatureMap[digestType], None] )
-      digest = POW.Digest(digestType)
-      digest.update( self.tbs.toString() )
-      signedText = rsa.sign( digest.digest(), digestType )
-      self.signatureAlgorithm.set( [signatureMap[digestType], None] )
+      driver = getCryptoDriver()
+      oid = driver.getOID(digestType)
+      key = driver.rsa(rsa, oid)
+      self.tbs.subjectPublicKeyInfo.set((((1, 2, 840, 113549, 1, 1, 1), None), key.getDER()))
+      self.tbs.signature.set([oid, None])
+      digest = driver.digest(oid)
+      digest.update(self.tbs.toString())
+      signedText = key.sign(digest.finalize())
+      self.signatureAlgorithm.set([oid, None])
       self.signatureValue.set(signedText)
 
    _addFragment('''
@@ -717,20 +815,12 @@ class Certificate(Sequence):
    </method>
    ''')
    def verify(self, rsa):
-      signatureMap = { (1, 2, 840, 113549, 1, 1, 2)  :  POW.MD2_DIGEST,          # md2WithRSAEncryption
-                       (1, 2, 840, 113549, 1, 1, 4)  :  POW.MD5_DIGEST,          # md5WithRSAEncryption
-                       (1, 3, 14, 3, 2, 15)          :  POW.SHA_DIGEST,          # shaWithRSAEncryption
-                       (1, 2, 840, 113549, 1, 1, 5)  :  POW.SHA1_DIGEST,         # sha1withRSAEncryption
-                       (1, 2, 840, 113549, 1, 1, 6)  :  POW.RIPEMD160_DIGEST,    # ripemd160WithRSAEncryption
-                       (1, 2, 840, 113549, 1, 1, 11) :  POW.SHA256_DIGEST,       # sha256WithRSAEncryption
-                       (1, 2, 840, 113549, 1, 1, 13) :  POW.SHA512_DIGEST }      # sha512WithRSAEncryption
-
-      digestOid = self.signatureAlgorithm.get()[0]
-      digestType = signatureMap[digestOid]
-
-      digest = POW.Digest(digestType)
-      digest.update( self.tbs.toString() )
-      return rsa.verify( self.signatureValue.get(), digest.digest(), digestType )
+      driver = getCryptoDriver()
+      oid = self.signatureAlgorithm.get()[0]
+      key = driver.rsa(rsa, oid)
+      digest = driver.digest(oid)
+      digest.update(self.tbs.toString())
+      return key.verify(self.signatureValue.get(), digest.finalize())
  
 #---------- certificate support ----------#
 #---------- CRL ----------#
@@ -1063,20 +1153,14 @@ class CertificateList(Sequence):
    </method>
    ''')
    def sign(self, rsa, digestType):
-      signatureMap = {  POW.MD2_DIGEST       :  (1, 2, 840, 113549, 1, 1, 2),    # md2WithRSAEncryption
-                        POW.MD5_DIGEST       :  (1, 2, 840, 113549, 1, 1, 4),    # md5WithRSAEncryption
-                        POW.SHA_DIGEST       :  (1, 3, 14, 3, 2, 15),            # shaWithRSAEncryption
-                        POW.SHA1_DIGEST      :  (1, 2, 840, 113549, 1, 1, 5),    # sha1withRSAEncryption
-                        POW.RIPEMD160_DIGEST :  (1, 2, 840, 113549, 1, 1, 6),    # ripemd160WithRSAEncryption
-                        POW.SHA256_DIGEST    :  (1, 2, 840, 113549, 1, 1, 11),   # sha256WithRSAEncryption
-                        POW.SHA512_DIGEST    :  (1, 2, 840, 113549, 1, 1, 13) }  # sha512WithRSAEncryption
-
-
-      self.tbs.signature.set( [signatureMap[digestType], None] )
-      digest = POW.Digest(digestType)
-      digest.update( self.tbs.toString() )
-      signedText = rsa.sign( digest.digest(), digestType )
-      self.signatureAlgorithm.set( [signatureMap[digestType], None] )
+      driver = getCryptoDriver()
+      oid = driver.getOID(digestType)
+      key = driver.rsa(rsa, oid)
+      self.tbs.signature.set([oid, None])
+      digest = driver.digest(oid)
+      digest.update(self.tbs.toString())
+      signedText = key.sign(digest.finalize())
+      self.signatureAlgorithm.set([oid, None])
       self.signature.set(signedText)
 
    _addFragment('''
@@ -1096,20 +1180,12 @@ class CertificateList(Sequence):
    </method>
    ''')
    def verify(self, rsa):
-      signatureMap = { (1, 2, 840, 113549, 1, 1, 2)  :  POW.MD2_DIGEST,          # md2WithRSAEncryption
-                       (1, 2, 840, 113549, 1, 1, 4)  :  POW.MD5_DIGEST,          # md5WithRSAEncryption
-                       (1, 3, 14, 3, 2, 15)          :  POW.SHA_DIGEST,          # shaWithRSAEncryption
-                       (1, 2, 840, 113549, 1, 1, 5)  :  POW.SHA1_DIGEST,         # sha1withRSAEncryption
-                       (1, 2, 840, 113549, 1, 1, 6)  :  POW.RIPEMD160_DIGEST,    # ripemd160WithRSAEncryption
-                       (1, 2, 840, 113549, 1, 1, 11) :  POW.SHA256_DIGEST,       # sha256WithRSAEncryption
-                       (1, 2, 840, 113549, 1, 1, 13) :  POW.SHA512_DIGEST }      # sha512WithRSAEncryption
-      
-      digestOid = self.signatureAlgorithm.get()[0]
-      digestType = signatureMap[digestOid]
-
-      digest = POW.Digest(digestType)
-      digest.update( self.tbs.toString() )
-      return rsa.verify( self.signature.get(), digest.digest(), digestType )
+      driver = getCryptoDriver()
+      oid = self.signatureAlgorithm.get()[0]
+      key = driver.rsa(rsa, oid)
+      digest = driver.digest(oid)
+      digest.update(self.tbs.toString())
+      return key.verify(self.signature.get(), digest.finalize())
  
 #---------- CRL ----------#
 #---------- PKCS10 ----------#

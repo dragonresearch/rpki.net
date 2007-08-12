@@ -2,7 +2,7 @@
 
 """RPKI "up-down" protocol."""
 
-import base64, sax_utils, resource_set, lxml.etree, POW, POW.pkix
+import base64, sax_utils, resource_set, lxml.etree, x509
 
 xmlns="http://www.apnic.net/specs/rescerts/up-down/"
 
@@ -59,14 +59,13 @@ class certificate_elt(base_elt):
   def endElement(self, stack, name, text):
     """Handle text content of a <certificate/> element."""
     assert name == "certificate"
-    self.cert = POW.pkix.Certificate()
-    self.cert.fromString(base64.b64decode(text))
+    self.cert = x509.X509(DER=base64.b64decode(text))
     stack.pop()
 
   def toXML(self):
     """Generate a <certificate/> element."""
     elt = self.make_elt("certificate", "cert_url", "req_resource_set_as", "req_resource_set_ipv4", "req_resource_set_ipv6")
-    elt.text = base64.b64encode(self.cert.toString())
+    elt.text = base64.b64encode(self.cert.get_DER())
     return elt
 
 class class_elt(base_elt):
@@ -94,8 +93,7 @@ class class_elt(base_elt):
   def endElement(self, stack, name, text):
     """Handle <class/> elements and their children."""
     if name == "issuer":
-      self.issuer = POW.pkix.Certificate()
-      self.issuer.fromString(base64.b64decode(text))
+      self.issuer = x509.X509(DER=base64.b64decode(text))
     else:
       assert name == "class", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -104,7 +102,7 @@ class class_elt(base_elt):
     """Generate a <class/> element."""
     elt = self.make_elt("class", "class_name", "cert_url", "resource_set_as", "resource_set_ipv4", "resource_set_ipv6", "suggested_sia_head")
     elt.extend([i.toXML() for i in self.certs])
-    self.make_b64elt(elt, "issuer", self.issuer.toString())
+    self.make_b64elt(elt, "issuer", self.issuer.get_DER())
     return elt
 
 class list_pdu(base_elt):

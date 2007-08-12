@@ -42,3 +42,6 @@ resource-cert-samples/.stamp: generate-testrepo.py Makefile
 
 wraptest: all
 	(echo '<wrapper>'; python xml-parse-test.py; echo '</wrapper>') | fgrep -v '<?xml' | xmlindent
+
+doxygen:
+	cd rpki && doxygen

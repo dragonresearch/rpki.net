@@ -1,9 +1,14 @@
 # $Id$
 
-from POW._der import *
+""" ROA (Route Origin Authorization).
 
-# This corresponds to draft-ietf-sidr-roa-format-01, which is a work
-# in progress, so this may need updating later.
+At the moment this is just the ASN.1 encoder.
+
+This corresponds to draft-ietf-sidr-roa-format-01, which is a work in
+progress, so this may need updating later.
+"""
+
+from POW._der import *
 
 class IPAddresses(SequenceOf):
   def __init__(self, optional=0, default=''):

@@ -1,5 +1,10 @@
 # $Id$
 
+"""Signed manifests.
+
+At the moment this is just the ASN.1 encoder.
+"""
+
 from POW._der import *
 
 class FileAndHash(Sequence):

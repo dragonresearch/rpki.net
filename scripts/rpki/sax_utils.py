@@ -1,5 +1,7 @@
 # $Id$
 
+"""SAX utilities."""
+
 import xml.sax
 
 class handler(xml.sax.handler.ContentHandler):

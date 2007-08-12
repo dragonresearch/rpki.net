@@ -1,5 +1,7 @@
 # $Id$
 
+"""RPKI "up-down" protocol."""
+
 import base64, sax_utils, resource_set, lxml.etree, POW, POW.pkix
 
 xmlns="http://www.apnic.net/specs/rescerts/up-down/"

@@ -1,13 +1,13 @@
 # $Id$
 
-import httplib, BaseHTTPServer, tlslite.api, glob, rpki.x509
-
 """HTTPS utilities, both client and server.
 
 At the moment this only knows how to use the PEM certs in my
 subversion repository; generalizing it would not be hard, but the more
 general version should use SQL anyway.
 """
+
+import httplib, BaseHTTPServer, tlslite.api, glob, rpki.x509
 
 rpki_content_type = "application/x-rpki"
 

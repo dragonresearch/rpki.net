@@ -1,5 +1,7 @@
 # $Id$
 
+"""RPKI "left-right" protocol."""
+
 import base64, sax_utils, resource_set, lxml.etree, POW, POW.pkix
 
 xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"

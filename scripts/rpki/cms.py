@@ -1,8 +1,9 @@
 # $Id$
 
-"""
-CMS routines.  For the moment these just call the OpenSSL CLI tool,
-which is slow and requires disk I/O and likes PEM format.  Fix later.
+"""CMS routines.
+
+For the moment these just call the OpenSSL CLI tool, which is slow,
+requires disk I/O, and likes PEM format.  Fix this later.
 """
 
 import os, rpki.x509
@@ -10,6 +11,11 @@ import os, rpki.x509
 # openssl smime -sign -nodetach -outform DER -signer biz-certs/Alice-EE.cer -certfile biz-certs/Alice-CA.cer -inkey biz-certs/Alice-EE.key -in PLAN -out PLAN.der
 
 def encode(xml, key, cert_files):
+  """Encode a chunk of XML as CMS signed with a specified key and bag of certificates.
+
+  We have to sort the certificates into the correct order before the
+  OpenSSL CLI tool will accept them.  rpki.x509 handles that for us.
+  """
 
   certs = rpki.x509.X509_chain()
   certs.load_from_PEM(cert_files)
@@ -41,6 +47,13 @@ def encode(xml, key, cert_files):
 # openssl smime -verify -inform DER -in PLAN.der -CAfile biz-certs/Alice-Root.cer 
 
 def decode(cms, ta):
+  """Decode and check the signature of a chunk of CMS.
+
+  Returns the signed text (XML, until proven otherwise) on success.
+  if OpenSSL CLI tool reports anything other than successful
+  verification, we raise an exception.
+  """  
+
   i,o,e = os.popen3(["openssl", "smime", "-verify", "-inform", "DER", "-CAfile", ta])
   i.write(cms)
   i.close()
@@ -48,5 +61,7 @@ def decode(cms, ta):
   o.close()
   status = e.read()
   e.close()
-  assert status == "Verification successful\n", "CMS verification failed: %s" % status
-  return xml
+  if status == "Verification successful\n":
+    return xml
+  else:
+    raise RuntimeError, "CMS verification failed: %s" % status

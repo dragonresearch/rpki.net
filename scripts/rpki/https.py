@@ -2,8 +2,7 @@
 
 import httplib, BaseHTTPServer, tlslite.api, glob, rpki.x509
 
-"""
-HTTPS utilities, both client and server.
+"""HTTPS utilities, both client and server.
 
 At the moment this only knows how to use the PEM certs in my
 subversion repository; generalizing it would not be hard, but the more
@@ -13,11 +12,17 @@ general version should use SQL anyway.
 rpki_content_type = "application/x-rpki"
 
 class CertInfo(object):
+  """Certificate context.
+
+  This hides a bunch of grotty details about how we store and name
+  certificates in this test setup.  This code will definitely need to
+  change, soon, but this class keeps most of this rubbish in one
+  place.
+  """
 
   cert_dir = "biz-certs/"
 
   def __init__(self, myname=None):
-
     if myname is not None:
 
       f = open(self.cert_dir + myname + "-EE.key", "r")
@@ -34,6 +39,14 @@ class CertInfo(object):
       self.x509TrustList = trustlist.tlslite_trustList()
 
 def client(msg, certInfo, host="localhost", port=4433, url="/"):
+  """Open client HTTPS connection, send a message, wait for response.
+
+  This function wraps most of what one needs to do to send a message
+  over HTTPS and get a response.  The certificate checking isn't quite
+  up to snuff; it's better than with the other packages I've found,
+  but doesn't appear to handle subjectAltName extensions (sigh).
+  """
+  
   httpc = tlslite.api.HTTPTLSConnection(host=host,
                                         port=port,
                                         certChain=certInfo.certChain,
@@ -46,10 +59,12 @@ def client(msg, certInfo, host="localhost", port=4433, url="/"):
   return response.read()
 
 class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+  """Derived type to supply POST handler."""
 
   rpki_handlers = None                  # Subclass must bind
 
   def do_POST(self):
+    """POST handler."""
     assert self.headers["Content-Type"] == rpki_content_type
     query_string = self.rfile.read(int(self.headers["Content-Length"]))
     rcode = None
@@ -68,12 +83,14 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     self.wfile.write(rtext)
 
 class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
+  """Derived type to handle TLS aspects of HTTPS."""
 
   rpki_certChain = None
   rpki_privateKey = None
   rpki_sessionCache = None
   
   def handshake(self, tlsConnection):
+    """TLS handshake handler."""
     assert self.rpki_certChain is not None
     assert self.rpki_privateKey is not None
     assert self.rpki_sessionCache is not None
@@ -88,9 +105,7 @@ class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
       return False
 
 def server(handlers, certInfo, port=4433, host=""):
-
-  # BaseHTTPServer.HTTPServer takes a class, not an instance, so
-  # binding our handler requires creating a new subclass.  Weird.
+  """Run an HTTPS server and wait (forever) for connections."""
 
   class boundRequestHandler(requestHandler):
     rpki_handlers = handlers

@@ -1,14 +1,28 @@
 # $Id$
 
+"""Classes to represent IP addresses.
+
+Given some of the other operations we need to perform on them, it's
+most convenient to represent IP addresses as Python "long" values.
+The classes in this module just wrap suitable read/write syntax around
+the underlying "long" type.
+
+These classes also supply a "bits" attribute for use by other code
+built on these classes; for the most part, IPv6 addresses really are
+just IPv4 addresses with more bits, so we supply the number of bits
+once, here, thus avoiding a lot of duplicate code elsewhere.
+"""
+
 import socket, struct
 
 class v4addr(long):
-  """
-  IPv4 address.  Derived from long, but supports IPv4 print syntax.
+  """IPv4 address.
+
+  Derived from long, but supports IPv4 print syntax.
   """
 
   bits = 32
-
+  
   def __new__(cls, x):
     if isinstance(x, str):
       y = struct.unpack("!I", socket.inet_pton(socket.AF_INET, x))
@@ -19,8 +33,9 @@ class v4addr(long):
     return socket.inet_ntop(socket.AF_INET, struct.pack("!I", long(self)))
 
 class v6addr(long):
-  """
-  IPv6 address.  Derived from long, but supports IPv6 print syntax.
+  """IPv6 address.
+
+  Derived from long, but supports IPv6 print syntax.
   """
 
   bits = 128

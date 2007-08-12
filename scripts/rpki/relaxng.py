@@ -1,11 +1,11 @@
 # $Id$
 
+"""Trivial wrapper around lxml.etree.RelaxNG."""
+
 import lxml.etree
 
 class RelaxNG(lxml.etree.RelaxNG):
-  """
-  Minor customizations of lxml.etreeRelaxNG.
-  """
+  """Minor customizations of lxml.etreeRelaxNG."""
 
   def __init__(self, filename):
     """

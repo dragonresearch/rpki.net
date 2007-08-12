@@ -1,5 +1,16 @@
 # $Id$
 
+"""Generate an RPKI test repository.
+
+This script generates a toy RPKI repository for test purposes.  It's
+designed to be relatively easy to reconfigure, making it simple to
+test whatever is of interest on a given day, without a lot of setup
+overhead.
+
+Outputs are a bunch of config files for the OpenSSL CLI tool and a
+makefile to drive everything.
+"""
+
 import rpki.resource_set, os
 
 subdir  = "resource-cert-samples"
@@ -7,10 +18,7 @@ openssl = "../../openssl/openssl-0.9.8e/apps/openssl"
 keybits = 2048
 
 def main():
-  """
-  Main program, up front to make it easier to find with all the
-  OpenSSL config and Makefile template text.
-  """
+  """Main program, including the toy database itself."""
 
   db = allocation_db()
   db.add("ISP1", ipv4="192.0.2.1-192.0.2.33", asn="64533")
@@ -36,8 +44,8 @@ def main():
               "".join([i.makefile_rules() for i in db]))
 
 def write_maybe(name, new_content):
-  """
-  Write a file if and only if its contents have changed.
+  """Write a file if and only if its contents have changed.
+  This simplifies interactions with "make".
   """
   old_content = None
   if os.path.isfile(name):
@@ -51,18 +59,33 @@ def write_maybe(name, new_content):
     f.close()
 
 class allocation_db(list):
-  
+  """Class to represent an allocation database."""
+
   def __init__(self):
     self.allocation_dict = {}
 
   def add(self, name, **kw):
+    """Add a new entry to this allocation database.
+    All arguments passed through to the allocation constructor.
+    """
     self.insert(0, allocation(name=name, allocation_dict=self.allocation_dict, **kw))
 
 class allocation(object):
+  """Class representing one entity holding allocated resources.
+
+  In order to simplify configuration, this class automatically
+  computes the set of resources that this entity must hold in order to
+  serve both itself and its children.
+  """
 
   parent = None
 
   def __init__(self, name, asn=None, ipv4=None, ipv6=None, children=[], allocation_dict=None):
+    """Create a new allocation entry.
+
+    This binds the parent attributes of any children, and computes the
+    transitive closure of the set of resources this entity needs.
+    """
     self.name = name
     self.children = [allocation_dict[i] for i in children]
     for child in self.children:
@@ -74,6 +97,7 @@ class allocation(object):
     allocation_dict[name] = self
 
   def summarize(self, attrname, seed=None):
+    """Compute the transitive resource closure for one resource attribute."""
     if seed is None:
       seed = getattr(self, attrname)
     for child in self.children:
@@ -84,6 +108,7 @@ class allocation(object):
     return "%s\n  ASN: %s\n IPv4: %s\n IPv6: %s" % (self.name, self.asn, self.ipv4, self.ipv6)
 
   def cfg_string(self):
+    """Generate the OpenSSL configuration file needed for this entity."""
     keys = { "self"       : self.name,
              "keybits"    : keybits,
              "no_parent"  : "#",
@@ -104,6 +129,7 @@ class allocation(object):
     return openssl_cfg_fmt % keys
 
   def makefile_rules(self):
+    """Generate the makefile rules needed for this entity."""
     keys = { "self"     : self.name,
              "keybits"  : keybits,
              "openssl"  : openssl }

@@ -1,7 +1,9 @@
 # $Id$
 
-"""
-Command line program to simulate behavior of the IR back-end.
+"""Command line program to simulate behavior of the IR back-end.
+
+This only handles the control channel.  The query back-channel will be
+a separate program.
 """
 
 import glob, rpki.left_right, rpki.relaxng, getopt, sys, lxml.etree, POW, POW.pkix, rpki.cms, rpki.https, xml.sax, lxml.sax
@@ -10,10 +12,16 @@ import glob, rpki.left_right, rpki.relaxng, getopt, sys, lxml.etree, POW, POW.pk
 convert_from_pem = True
 
 class command(object):
+  """Command processor mixin class for left-right protocol objects.
+
+  This class and its derived classes probably should be merged into
+  the left-right protocol classes, once this stuff is stable.
+  """
 
   elements = ()
 
   def getopt(self, argv):
+    """Parse options for this class."""
     opts, args = getopt.getopt(argv, "", [x + "=" for x in self.attributes + self.elements] + [x for x in self.booleans])
     for o, a in opts:
       o = o[2:]
@@ -28,18 +36,26 @@ class command(object):
     return args
 
   def process(self, msg, argv):
+    """Parse options and add the current object into the msg we're building.
+
+    This is a separate method because at one point I needed to
+    override it.
+    """
     argv = self.getopt(argv)
     msg.append(self)
     return argv
 
   def handle_action(self, arg):
+    """Special handler for --action option."""
     self.action = arg
     self.type = "query"
 
   def handle_peer_ta(self, arg):
+    """Special handler for --peer_ta option."""
     self.peer_ta = read_cert(arg)
 
 def read_cert(filename):
+  """Read a certificate file from disk."""
   f = open(filename, "r")
   der = f.read()
   f.close()
@@ -50,10 +66,12 @@ def read_cert(filename):
   return cert
 
 class self(command, rpki.left_right.self_elt):
+  '''"self" command.'''
 
   elements = ("extension_preference",)
 
   def handle_extension_preference(self, arg):
+    """--extension_preferences option."""
     k,v = arg.split("=", 1)
     pref = rpki.left_right.extension_preference_elt()
     pref.name = k
@@ -61,29 +79,39 @@ class self(command, rpki.left_right.self_elt):
     self.prefs.append(pref)
 
 class bsc(command, rpki.left_right.bsc_elt):
+  '''"bsc" command.'''
+
   elements = ('signing_cert',)
 
   def handle_signing_cert(self, arg):
+    """--signing_cert option."""
     self.signing_cert.append(read_cert(arg))
 
 class parent(command, rpki.left_right.parent_elt):
+  '''"parent" command.'''
   elements = ("peer_ta",)
 
 class child(command, rpki.left_right.child_elt):
+  '''"child" command.'''
   elements = ("peer_ta",)
 
 class repository(command, rpki.left_right.repository_elt):
+  '''"repository" command.'''
   elements = ("peer_ta",)
 
 class route_origin(command, rpki.left_right.route_origin_elt):
+  '''"route_origin" command.'''
 
   def handle_asn(self, arg):
+    """Handle autonomous sequence numbers."""
     self.asn = long(arg)
 
   def handle_ipv4(self, arg):
+    """Handle IPv4 addresses."""
     self.ipv4 = resource_set.resource_set_ipv4(arg)
 
   def handle_ipv6(self, arg):
+    """Handle IPv6 addresses."""
     self.ipv6 = resource_set.resource_set_ipv6(arg)
 
 dispatch = dict((x.element_name, x) for x in (self, bsc, parent, child, repository, route_origin))
@@ -95,6 +123,12 @@ def usage():
   sys.exit(1)
 
 def main():
+  """Main program.
+
+  This is still a work in progress.  At the moment it gets as
+  transmitting the generated request, but doesn't yet do anything with
+  responses.
+  """
 
   rng = rpki.relaxng.RelaxNG("left-right-schema.rng")
   httpsCerts = rpki.https.CertInfo("Bob")

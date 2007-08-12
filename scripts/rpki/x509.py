@@ -1,8 +1,9 @@
 # $Id$
 
-"""
-One X.509 implementation to rule them all and in the darkness hide the
-twisty maze of partially overlapping X.509 support packages in Python.
+"""One X.509 implementation to rule them all...
+
+...and in the darkness hide the twisty maze of partially overlapping
+X.509 support packages in Python.
 
 There are several existing packages, none of which do quite what I
 need, due to age, lack of documentation, specialization, or lack of
@@ -14,15 +15,14 @@ some of the nasty details.  This involves a lot of format conversion.
 import POW, tlslite.api, POW.pkix, base64
 
 class PEM_converter(object):
-  """
-  Convert between DER and PEM encodings for various kinds of ASN.1 data.
-  """
+  """Convert between DER and PEM encodings for various kinds of ASN.1 data."""
 
   def __init__(self, kind):    # "CERTIFICATE", "RSA PRIVATE KEY", ...
     self.b = "-----BEGIN %s-----" % kind
     self.e = "-----END %s-----"   % kind
 
   def toDER(self, pem):
+    """Convert from PEM to DER."""
     lines = pem.splitlines(0)
     while lines and lines.pop(0) != self.b:
       pass
@@ -32,6 +32,7 @@ class PEM_converter(object):
     return base64.b64decode("".join(lines))
 
   def toPEM(self, der):
+    """Convert from DER to PEM."""
     b64 =  base64.b64encode(der)
     pem = self.b + "\n"
     while len(b64) > 64:
@@ -40,21 +41,21 @@ class PEM_converter(object):
     return pem + b64 + "\n" + self.e + "\n"
 
 class DER_object(object):
-  """
-  Virtual class to hold a generic DER object.
-  """
+  """Virtual class to hold a generic DER object."""
 
   formats = ("DER",)
   pem_converter = None
   other_clear = ()
 
   def empty(self):
+    """Test whether this object is empty."""
     for a in self.formats:
       if getattr(self, a, None) is not None:
         return False
     return True
 
   def clear(self):
+    """Make this object empty."""
     for a in self.formats + self.other_clear:
       setattr(self, a, None)
 
@@ -64,6 +65,13 @@ class DER_object(object):
       self.set(**kw)
 
   def set(self, **kw):
+    """Set this object by setting one of its known formats.
+
+    This method only allows one to set one format at a time.
+    Subsequent calls will clear the object first.  The point of all
+    this is to let the object's internal converters handle mustering
+    the object into whatever format you need at the moment.
+    """
     name = kw.keys()[0]
     if len(kw) == 1:
       if name in self.formats:
@@ -82,18 +90,27 @@ class DER_object(object):
     raise TypeError
   
   def get_DER(self):
+    """Get the DER value of this object.
+
+    Subclasses will almost certainly override this method.
+    """
     assert not self.empty()
     if self.DER:
       return self.DER
     raise RuntimeError, "No conversion path to DER available"
 
   def get_PEM(self):
+    """Get the PEM representation of this object."""
     return self.pem_converter.toPEM(self.get_DER())
 
 class X509(DER_object):
-  """
-  Class to hold all the different representations of X.509 certs we're
-  using and convert between them.
+  """X.509 certificates.
+
+  This class is designed to hold all the different representations of
+  X.509 certs we're using and convert between them.  X.509 support in
+  Python a nasty maze of half-cooked stuff (except perhaps for
+  cryptlib, which is just different).  Users of this module should not
+  have to care about this implementation nightmare.
   """
 
   formats = ("DER", "POW", "POWpkix", "tlslite")
@@ -101,6 +118,7 @@ class X509(DER_object):
   other_clear = ("POW_extensions",)
   
   def get_DER(self):
+    """Get the DER value of this certificate."""
     assert not self.empty()
     if self.DER:
       return self.DER
@@ -113,12 +131,14 @@ class X509(DER_object):
     raise RuntimeError
 
   def get_POW(self):
+    """Get the POW value of this certificate."""
     assert not self.empty()
     if not self.POW:
       self.POW = POW.derRead(POW.X509_CERTIFICATE, self.get_DER())
     return self.POW
 
   def get_POWpkix(self):
+    """Get the POW.pkix value of this certificate."""
     assert not self.empty()
     if not self.POWpkix:
       cert = POW.pkix.Certificate()
@@ -127,6 +147,7 @@ class X509(DER_object):
     return self.POWpkix
 
   def get_tlslite(self):
+    """Get the tlslite value of this certificate."""
     assert not self.empty()
     if not self.tlslite:
       cert = tlslite.api.X509()
@@ -135,12 +156,18 @@ class X509(DER_object):
     return self.tlslite
 
   def getIssuer(self):
+    """Get the issuer of this certificate."""
     return self.get_POW().getIssuer()
 
   def getSubject(self):
+    """Get the subject of this certificate."""
     return self.get_POW().getSubject()
 
-  def get_POW_extensions(self):
+  def _get_POW_extensions(self):
+    """Parse extensions from the POW value of this certificate.
+
+    Build a dictionary to ease lookup, and cache the result.
+    """
     if not self.POW_extensions:
       cert = self.get_POW()
       exts = {}
@@ -151,23 +178,25 @@ class X509(DER_object):
     return self.POW_extensions
     
   def getAKI(self):
-    return self.get_POW_extensions().get("authorityKeyIdentifier")
+    """Get the AKI extension from this certificate."""
+    return self._get_POW_extensions().get("authorityKeyIdentifier")
 
   def getSKI(self):
-    return self.get_POW_extensions().get("subjectKeyIdentifier")
+    """Get the SKI extension from this certificate."""
+    return self._get_POW_extensions().get("subjectKeyIdentifier")
 
 class X509_chain(list):
-  """
-  Collection of certs with sorting and conversion functions
-  for various packages.
+  """Collections of certs.
+
+  This class provides sorting and conversion functions for various
+  packages.
   """
 
   def chainsort(self):
-    """
-    Sort a bag of certs into a chain, leaf first.  Various other
-    routines want their certs presented in this order.
-    """
+    """Sort a bag of certs into a chain, leaf first.
 
+    Various other routines want their certs presented in this order.
+    """
     bag = self[:]
     issuer_names = [x.getIssuer() for x in bag]
     subject_map = dict([(x.getSubject(), x) for x in bag])
@@ -177,7 +206,8 @@ class X509_chain(list):
         cert = subject_map[subject]
         chain.append(cert)
         bag.remove(cert)
-    assert len(chain) == 1
+    if len(chain) != 1:
+      raise RuntimeError, "Certificates in bag don't form a proper chain"
     while bag:
       cert = subject_map[chain[-1].getIssuer()]
       chain.append(cert)
@@ -185,29 +215,33 @@ class X509_chain(list):
     self[:] = chain
 
   def tlslite_certChain(self):
+    """Return a certChain in the format tlslite likes."""
     return tlslite.api.X509CertChain([x.get_tlslite() for x in self])
 
   def tlslite_trustList(self):
+    """Return a trustList in the format tlslite likes."""
     return [x.get_tlslite() for x in self]
 
   def clear(self):
+    """Drop all certs from this bag onto the floor."""
     self[:] = []
 
   def load_from_PEM(self, files):
+    """Load a set of certs from a list of PEM files."""
     self.extend([X509(PEM_file=f) for f in files])
 
   def load_from_DER(self, files):
+    """Load a set of certs from a list of DER files."""
     self.extend([X509(DER_file=f) for f in files])
 
 class PKCS10_Request(DER_object):
-  """
-  Class to hold a PKCS #10 request.
-  """
+  """Class to hold a PKCS #10 request."""
 
   formats = ("DER", "POWpkix")
   pem_converter = PEM_converter("CERTIFICATE REQUEST")
   
   def get_DER(self):
+    """Get the DER value of this certification request."""
     assert not self.empty()
     if self.DER:
       return self.DER
@@ -217,6 +251,7 @@ class PKCS10_Request(DER_object):
     raise RuntimeError
 
   def get_POWpkix(self):
+    """Get the POW.pkix value of this certification request."""
     assert not self.empty()
     if not self.POWpkix:
       req = POW.pkix.CertificationRequest()

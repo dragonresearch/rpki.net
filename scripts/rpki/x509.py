@@ -43,9 +43,17 @@ class PEM_converter(object):
 class DER_object(object):
   """Virtual class to hold a generic DER object."""
 
+  ## Formats supported in this object
   formats = ("DER",)
+
+  ## PEM converter for this object
   pem_converter = None
+
+  ## Other attributes that self.clear() should whack
   other_clear = ()
+
+  ## @var DER
+  ## DER value of this object
 
   def empty(self):
     """Test whether this object is empty."""

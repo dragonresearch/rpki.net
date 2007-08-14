@@ -63,7 +63,7 @@ class CryptoDriverDigest(object):
 
    def update(self, input):
       """Feed data into a digest object."""
-      raise NotImplementedError
+      self.digest.update(input)
 
    def finalize(self):
       """Get result of a digest operation."""
@@ -77,7 +77,8 @@ class CryptoDriverRSA(object):
 
    def __init__(self, rsa, digestType):
       """Initialize an RSA object."""
-      raise NotImplementedError
+      self.rsa = rsa
+      self.type = digestType
 
    def getDER(self):
       """Get DER representation of an RSA key."""
@@ -132,22 +133,26 @@ class CryptoDriver(object):
 
 class POWCryptoDriverDigest(CryptoDriverDigest):
    """Driver representation of a digest for POW."""
+
    def __init__(self, type):
       self.digest = POW.Digest(type)
-   def update(self, input):
-      self.digest.update(input)
+
    def finalize(self):
       return self.digest.digest()
 
 class POWCryptoDriverRSA(CryptoDriverRSA):
    """Driver representation of an RSA key for POW."""
+
    def __init__(self, rsa, digestType):
       self.rsa = rsa
       self.type = digestType
+
    def getDER(self):
       return self.rsa.derWrite(POW.RSA_PUBLIC_KEY)
+
    def sign(self, digest):
       return self.rsa.sign(digest, self.type)
+
    def verify(self, signature, digest):
       return self.rsa.verify(signature, digest, self.type)
 
@@ -159,6 +164,7 @@ class POWCryptoDriver(object):
 
    def __init__(self):
       """Initialize the POW driver."""
+
       import POW
       self.driver2OID = {
          POW.MD2_DIGEST       :  (1, 2, 840, 113549, 1, 1, 2),    # md2WithRSAEncryption
@@ -167,10 +173,9 @@ class POWCryptoDriver(object):
          POW.SHA1_DIGEST      :  (1, 2, 840, 113549, 1, 1, 5),    # sha1withRSAEncryption
          POW.RIPEMD160_DIGEST :  (1, 2, 840, 113549, 1, 1, 6),    # ripemd160WithRSAEncryption
          POW.SHA256_DIGEST    :  (1, 2, 840, 113549, 1, 1, 11),   # sha256WithRSAEncryption
-         POW.SHA512_DIGEST    :  (1, 2, 840, 113549, 1, 1, 13) }  # sha512WithRSAEncryption
-      self.OID2driver = {}
-      for k,v in self.POWtoOID.iteritems():
-         self.OID2driver[v] = k
+         POW.SHA512_DIGEST    :  (1, 2, 840, 113549, 1, 1, 13),   # sha512WithRSAEncryption
+         }
+      self.OID2driver = dict((v,k) for k,v in self.driver2OID.iteritems())
 
 _cryptoDriver = None                    # Don't touch this directly
 

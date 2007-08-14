@@ -19,7 +19,7 @@ locked)
     cd rpki || exit
     /usr/local/bin/svn update --quiet
     /bin/rm -rf html
-    /usr/local/bin/doxygen
+    /usr/local/bin/doxygen </dev/null
     /usr/local/bin/rsync --archive --itemize-changes --delete-after html/ $target/
     ;;
 

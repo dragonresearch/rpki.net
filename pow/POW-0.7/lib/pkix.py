@@ -51,47 +51,6 @@ def _docset():
 
 #---------- crypto driver ----------#
 
-class CryptoDriverDigest(object):
-   """Driver representation of a digest.
-
-   This is a virtual class.  You will have to subtype it.
-   """
-
-   def __init__(self, type):
-      """Initialize a digest object."""
-      raise NotImplementedError
-
-   def update(self, input):
-      """Feed data into a digest object."""
-      self.digest.update(input)
-
-   def finalize(self):
-      """Get result of a digest operation."""
-      raise NotImplementedError
-
-class CryptoDriverRSA(object):
-   """Driver representation of an RSA key.
-
-   This is a virtual class.  You will have to subtype it.
-   """
-
-   def __init__(self, rsa, digestType):
-      """Initialize an RSA object."""
-      self.rsa = rsa
-      self.type = digestType
-
-   def getDER(self):
-      """Get DER representation of an RSA key."""
-      raise NotImplementedError
-
-   def sign(self, digest):
-      """Sign a digest with an RSA key."""
-      raise NotImplementedError
-
-   def verify(self, signature, digest):
-      """Verify the signature of a digest with an RSA key."""
-      raise NotImplementedError
-
 class CryptoDriver(object):
    """Dispatcher for crypto calls.
 
@@ -103,9 +62,6 @@ class CryptoDriver(object):
 
    This is a virtual class.  You will have to subtype it.
    """
-
-   DigestDriver = None
-   RSADriver = None
 
    def getOID(self, digestType):
       """Convert a digest identifier into an OID.
@@ -121,50 +77,22 @@ class CryptoDriver(object):
          return self.driver2OID[digestType]
       return obj2oid(digestType)
          
-   def digest(self, oid):
-      """Instantiate and initialize a driver digest object."""
-      assert issubclass(self.DigestDriver, CryptoDriverDigest)
-      return self.DigestDriver(self.OID2driver[oid])
+   def sign(self, key, oid, plaintext):
+      """Sign something with an RSA key and a given digest algorithm."""
+      raise NotImplementedError
 
-   def rsa(self, key, oid):
-      """Instantiate and initialize a driver RSA object."""
-      assert issubclass(self.RSADriver, CryptoDriverRSA)
-      return self.RSADriver(key, self.OID2driver[oid])
+   def verify(self, key, oid, plaintext, signature):
+      """Verify a signature."""
+      raise NotImplementedError
 
-class POWCryptoDriverDigest(CryptoDriverDigest):
-   """Driver representation of a digest for POW."""
+   def keyDER(self, key):
+      """Get the DER representation of an RSA key."""
+      raise NotImplementedError
 
-   def __init__(self, type):
-      self.digest = POW.Digest(type)
-
-   def finalize(self):
-      return self.digest.digest()
-
-class POWCryptoDriverRSA(CryptoDriverRSA):
-   """Driver representation of an RSA key for POW."""
-
-   def __init__(self, rsa, digestType):
-      self.rsa = rsa
-      self.type = digestType
-
-   def getDER(self):
-      return self.rsa.derWrite(POW.RSA_PUBLIC_KEY)
-
-   def sign(self, digest):
-      return self.rsa.sign(digest, self.type)
-
-   def verify(self, signature, digest):
-      return self.rsa.verify(signature, digest, self.type)
-
-class POWCryptoDriver(object):
+class POWCryptoDriver(CryptoDriver):
    """Dispatcher for crypto calls using POW package."""
 
-   DigestDriver = POWCryptoDriverDigest
-   RSADriver = POWCryptoDriverRSA
-
    def __init__(self):
-      """Initialize the POW driver."""
-
       import POW
       self.driver2OID = {
          POW.MD2_DIGEST       :  (1, 2, 840, 113549, 1, 1, 2),    # md2WithRSAEncryption
@@ -176,6 +104,20 @@ class POWCryptoDriver(object):
          POW.SHA512_DIGEST    :  (1, 2, 840, 113549, 1, 1, 13),   # sha512WithRSAEncryption
          }
       self.OID2driver = dict((v,k) for k,v in self.driver2OID.iteritems())
+         
+   def _digest(self, oid, plaintext):
+      digest = POW.Digest(self.OID2driver[oid])
+      digest.update(plaintext)
+      return digest.digest()
+
+   def sign(self, key, oid, plaintext):
+      return key.sign(self._digest(oid, plaintext))
+
+   def verify(self, RSAkey, digestOID, plaintext, signature):
+      return key.verify(signature, digest.digest(), self.OID2driver[oid])
+
+   def keyDER(self, key):
+      return key.derWrite(POW.RSA_PUBLIC_KEY)
 
 _cryptoDriver = None                    # Don't touch this directly
 
@@ -834,12 +776,9 @@ class Certificate(Sequence):
    def sign(self, rsa, digestType):
       driver = getCryptoDriver()
       oid = driver.getOID(digestType)
-      key = driver.rsa(rsa, oid)
-      self.tbs.subjectPublicKeyInfo.set((((1, 2, 840, 113549, 1, 1, 1), None), key.getDER()))
+      self.tbs.subjectPublicKeyInfo.set((((1, 2, 840, 113549, 1, 1, 1), None), driver.keyDER(key)))
       self.tbs.signature.set([oid, None])
-      digest = driver.digest(oid)
-      digest.update(self.tbs.toString())
-      signedText = key.sign(digest.finalize())
+      signedText = driver.sign(rsa, oid, self.tbs.toString())
       self.signatureAlgorithm.set([oid, None])
       self.signatureValue.set(signedText)
 
@@ -863,11 +802,8 @@ class Certificate(Sequence):
    def verify(self, rsa):
       driver = getCryptoDriver()
       oid = self.signatureAlgorithm.get()[0]
-      key = driver.rsa(rsa, oid)
-      digest = driver.digest(oid)
-      digest.update(self.tbs.toString())
-      return key.verify(self.signatureValue.get(), digest.finalize())
- 
+      return driver.verify(rsa, oid, self.tbs.toString(), self.signatureValue.get())
+
 #---------- certificate support ----------#
 #---------- CRL ----------#
 
@@ -1201,11 +1137,8 @@ class CertificateList(Sequence):
    def sign(self, rsa, digestType):
       driver = getCryptoDriver()
       oid = driver.getOID(digestType)
-      key = driver.rsa(rsa, oid)
       self.tbs.signature.set([oid, None])
-      digest = driver.digest(oid)
-      digest.update(self.tbs.toString())
-      signedText = key.sign(digest.finalize())
+      signedText = driver.sign(rsa, oid, self.tbs.toString())
       self.signatureAlgorithm.set([oid, None])
       self.signature.set(signedText)
 
@@ -1228,11 +1161,8 @@ class CertificateList(Sequence):
    def verify(self, rsa):
       driver = getCryptoDriver()
       oid = self.signatureAlgorithm.get()[0]
-      key = driver.rsa(rsa, oid)
-      digest = driver.digest(oid)
-      digest.update(self.tbs.toString())
-      return key.verify(self.signature.get(), digest.finalize())
- 
+      return driver.verify(rsa, oid, self.tbs.toString(), self.signature.get())
+
 #---------- CRL ----------#
 #---------- PKCS10 ----------#
 

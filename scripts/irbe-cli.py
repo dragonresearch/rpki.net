@@ -6,10 +6,18 @@ This only handles the control channel.  The query back-channel will be
 a separate program.
 """
 
-import glob, rpki.left_right, rpki.relaxng, getopt, sys, lxml.etree, POW, POW.pkix, rpki.cms, rpki.https, xml.sax, lxml.sax
+import glob, rpki.left_right, rpki.relaxng, getopt, sys, lxml.etree, POW.pkix, rpki.cms, rpki.https, xml.sax, lxml.sax, rpki.x509
 
 # Kludge around current test setup all being PEM rather than DER format
 convert_from_pem = True
+
+def read_cert(filename):
+  """Read a certificate file from disk."""
+  if convert_from_pem:
+    cert = rpki.x509.X509(PEM_file=filename)
+  else:
+    cert = rpki.x509.X509(DER_file=filename)
+  return cert.get_POWpkix()
 
 class command(object):
   """Command processor mixin class for left-right protocol objects.
@@ -53,17 +61,6 @@ class command(object):
   def handle_peer_ta(self, arg):
     """Special handler for --peer_ta option."""
     self.peer_ta = read_cert(arg)
-
-def read_cert(filename):
-  """Read a certificate file from disk."""
-  f = open(filename, "r")
-  der = f.read()
-  f.close()
-  if convert_from_pem:
-    der = POW.pemRead(POW.X509_CERTIFICATE, der).derWrite()
-  cert = POW.pkix.Certificate()
-  cert.fromString(der)
-  return cert
 
 class self(command, rpki.left_right.self_elt):
   '''"self" command.'''

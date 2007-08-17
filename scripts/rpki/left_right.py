@@ -131,7 +131,7 @@ class bsc_elt(base_elt):
     elif name == "public_key":
       self.public_key = base64.b64decode(text)
     elif name == "pkcs10_cert_request":
-      self.pkcs10_cert_request = base64.b64decode(text)
+      self.pkcs10_cert_request = x509.PKCS10_Request(DER=base64.b64decode(text))
     else:
       assert name == "bsc", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -141,7 +141,8 @@ class bsc_elt(base_elt):
     elt = self.make_elt()
     for cert in self.signing_cert:
       self.make_b64elt(elt, "signing_cert", cert.get_DER())
-    self.make_b64elt(elt, "pkcs10_cert_request")
+    if self.pkcs10_cert_request is not None:
+      self.make_b64elt(elt, "pkcs10_cert_request", self.pkcs10_cert_request.get_DER())
     self.make_b64elt(elt, "public_key")
     return elt
 

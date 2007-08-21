@@ -704,15 +704,15 @@
     <!-- ==== -->
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-        <list_resources type="query" self_id="42" child_id="id"/>
+        <list_resources type="query" self_id="42" child_id="289"/>
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-        <list_resources type="reply" self_id="42" child_id="id" valid_until="2008_04_01T00:00:00Z">
+        <list_resources type="reply" self_id="42" child_id="289" valid_until="2008-04-01T00:00:00Z">
             <resource_class ipv4="10.0.0.44/32,10.3.0.44/32"
                             ipv6="fe80:dead:beef::/48"
                             as="666"/>
-            <resource_class subject_name="wombats are us"
+            <resource_class subject_name="Wombats are us"
                             req_ipv4="10.0.0.0/8" 
                             ipv4="10.2.0.6/32"
                             ipv6="fe80:deed:f00d::/48,fe80:dead:beef:2::-fe80:dead:beef:2::49"

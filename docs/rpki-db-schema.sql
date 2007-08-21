@@ -16,8 +16,8 @@ ALTER TABLE bsc
 
 CREATE TABLE bsc_cert (
        bsc_cert_id          INT unsigned auto_increment NOT NULL,
-       request              LONGTEXT,
-       cert                 LONGTEXT,
+       request              LONGBLOB,
+       cert                 LONGBLOB,
        bsc_id               INT unsigned NOT NULL,
        bsc_key_id           INT unsigned NOT NULL
 );
@@ -39,8 +39,8 @@ CREATE TABLE bsc_key (
        key_type             VARCHAR(100),
        hash_alg             TEXT,
        key_length           INT unsigned,
-       pub_key              TEXT,
-       priv_key_id          TEXT,
+       pub_key              LONGBLOB,
+       priv_key_id          LONGBLOB,
        bsc_id               INT unsigned NOT NULL
 );
 
@@ -57,9 +57,9 @@ ALTER TABLE bsc_key
 
 CREATE TABLE ca (
        ca_id                INT unsigned NOT NULL,
-       crl                  TEXT,
+       crl                  LONGBLOB,
        last_sn              INT unsigned,
-       last_manifest_sn     INT
+       last_manifest_sn     INT unsigned
 );
 
 CREATE UNIQUE INDEX XPKca ON ca
@@ -74,10 +74,10 @@ ALTER TABLE ca
 
 CREATE TABLE ca_detail (
        ca_detail_id         INT unsigned NOT NULL,
-       pub_key              TEXT,
-       priv_key_id          TEXT,
-       latest_crl           TEXT,
-       latest_ca_cert_over_pubkey LONGTEXT,
+       pub_key              LONGBLOB,
+       priv_key_id          LONGBLOB,
+       latest_crl           LONGBLOB,
+       latest_ca_cert_over_pubkey LONGBLOB,
        ca_id                INT unsigned NOT NULL
 );
 
@@ -109,7 +109,7 @@ ALTER TABLE ca_use
 
 CREATE TABLE child (
        child_id             INT unsigned auto_increment NOT NULL,
-       ta                   TEXT,
+       ta                   LONGBLOB,
        self_id              INT unsigned NOT NULL,
        bsc_id               INT unsigned NOT NULL
 );
@@ -142,7 +142,7 @@ ALTER TABLE child_ca_detail_link
 
 CREATE TABLE ee_cert (
        ca_detail_id         INT unsigned NOT NULL,
-       cert                 LONGTEXT
+       cert                 LONGBLOB
 );
 
 CREATE UNIQUE INDEX XPKee_cert ON ee_cert
@@ -162,7 +162,7 @@ CREATE TABLE manifest (
        next_update          DATETIME,
        self_id              INT unsigned NOT NULL,
        collection_uri       TEXT,
-       version              INT
+       version              INT unsigned
 );
 
 CREATE UNIQUE INDEX XPKmanifest ON manifest
@@ -194,7 +194,7 @@ ALTER TABLE manifest_content
 
 CREATE TABLE parent (
        parent_id            INT unsigned auto_increment NOT NULL,
-       ta                   TEXT,
+       ta                   LONGBLOB,
        url                  TEXT,
        sia_base             TEXT,
        self_id              INT unsigned NOT NULL,
@@ -215,7 +215,7 @@ ALTER TABLE parent
 CREATE TABLE repos (
        repos_id             INT unsigned auto_increment NOT NULL,
        uri                  TEXT,
-       ta                   TEXT,
+       ta                   LONGBLOB,
        self_id              INT unsigned NOT NULL,
        bsc_id               INT unsigned NOT NULL
 );
@@ -238,7 +238,7 @@ CREATE TABLE roa (
 
 CREATE TABLE route_origin (
        route_origin_id      INT unsigned auto_increment NOT NULL,
-       as_number            INT unsigned,
+       as_number            DECIMAL,
        self_id              INT unsigned NOT NULL
 );
 

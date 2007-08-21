@@ -109,10 +109,11 @@ CREATE TABLE manifest (
 
 
 CREATE TABLE manifest_content (
-       filename             varchar(65000),
+       filename             TEXT,
+       manifest_content_id  INT unsigned auto_increment NOT NULL,
        hash                 TEXT,
        manifest_serial_id   INT unsigned NOT NULL,
-       PRIMARY KEY (manifest_serial_id, filename)
+       PRIMARY KEY (manifest_content_id)
 );
 
 

@@ -10,3 +10,6 @@ drastic than this to get your compiler working, please tell me.
 
 If your platform doesn't support static binaries at all, you're on
 your own (and should whine at your OS vendor, as this is nuts).
+
+We try to stick with rsync release code, but apply security patches
+when necessary.

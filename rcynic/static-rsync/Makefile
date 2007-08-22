@@ -26,7 +26,11 @@ extracted.stamp: ${TARBALL}
 	gzcat ${TARBALL} | tar -xf -
 	touch $@
 
-configured.stamp: extracted.stamp
+patched.stamp: extracted.stamp
+	for i in patches/patch-*; do if test -f "$$i"; then patch -d ${DIRNAME} <"$$i"; else :; fi; done
+	touch $@
+
+configured.stamp: patched.stamp
 	cd ${DIRNAME} && ${CFG_ENV} ./configure ${CFG_ARG} ${CFG_LOG}
 	touch $@
 

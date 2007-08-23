@@ -1,0 +1,35 @@
+$Id$
+
+Ok, there's getting to be enough stuff in this directory to be
+confusing.
+
+README				This file
+
+entity-decompose.pdf		An overview presentation
+
+images				Some old pictures
+
+left-right-protocol		Pseudo-code for left-right protocol
+
+left-right-xml			XML samples of left-right protocol
+
+presentations			More presentations
+
+publication-protocol		Pseudo-code for publication protocol
+
+repository-engine-objects.dot	Objects in the RPKI engine (PDF)
+repository-engine-objects.pdf	Graphviz source for "
+
+repository-structure.txt	Old notes on repository structure
+
+rpki-db-schema.hacked.sql	Fork of rpki-db-schema, to be deleted RSN
+
+rpki-db-schema.pdf		Current working draft of SQL objects
+rpki-db-schema.sql		in the RPKI engine
+
+sample-irbe.pdf			A toy database representing the IR back end
+sample-irbe.sql			database
+
+signed-manifests		ASN.1 for signed manifests
+
+up-down-protocol		Pointer to up-down protocol specification

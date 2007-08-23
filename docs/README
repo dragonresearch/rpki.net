@@ -22,8 +22,6 @@ repository-engine-objects.pdf	Graphviz source for "
 
 repository-structure.txt	Old notes on repository structure
 
-rpki-db-schema.hacked.sql	Fork of rpki-db-schema, to be deleted RSN
-
 rpki-db-schema.pdf		Current working draft of SQL objects
 rpki-db-schema.sql		in the RPKI engine
 

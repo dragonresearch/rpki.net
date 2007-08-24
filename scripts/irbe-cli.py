@@ -6,7 +6,8 @@ This only handles the control channel.  The query back-channel will be
 a separate program.
 """
 
-import glob, rpki.left_right, rpki.relaxng, getopt, sys, lxml.etree, POW.pkix, rpki.cms, rpki.https, xml.sax, lxml.sax, rpki.x509
+import glob, getopt, sys, lxml.etree, POW.pkix, xml.sax, lxml.sax
+import rpki.left_right, rpki.relaxng, rpki.cms, rpki.https, rpki.x509
 
 # Kludge around current test setup all being PEM rather than DER format
 convert_from_pem = True
@@ -30,7 +31,7 @@ class command(object):
 
   def getopt(self, argv):
     """Parse options for this class."""
-    opts, args = getopt.getopt(argv, "", [x + "=" for x in self.attributes + self.elements] + [x for x in self.booleans])
+    opts, args = getopt.getopt(argv, "", [x + "=" for x in self.attributes + self.elements] + self.booleans)
     for o, a in opts:
       o = o[2:]
       handler = getattr(self, "handle_" + o, None)
@@ -116,7 +117,9 @@ dispatch = dict((x.element_name, x) for x in (self, bsc, parent, child, reposito
 def usage():
   print "Usage:", sys.argv[0]
   for k,v in dispatch.iteritems():
-    print " ", k, " ".join(["--" + x + "=" for x in v.attributes + v.elements]), " ".join(["--" + x for x in v.booleans])
+    print " ", k, \
+          " ".join(["--" + x + "=" for x in v.attributes + v.elements]), \
+          " ".join(["--" + x for x in v.booleans])
   sys.exit(1)
 
 def main():
@@ -157,7 +160,8 @@ def main():
 
   print q_xml
 
-  q_cms = rpki.cms.encode(q_xml, "biz-certs/Alice-EE.key", ("biz-certs/Alice-EE.cer", "biz-certs/Alice-CA.cer"))
+  q_cms = rpki.cms.encode(q_xml, "biz-certs/Alice-EE.key",
+                          ("biz-certs/Alice-EE.cer", "biz-certs/Alice-CA.cer"))
   r_cms = rpki.https.client(certInfo=httpsCerts, msg=q_cms, url="/left-right")
   r_xml = rpki.cms.decode(r_cms, "biz-certs/Bob-Root.cer")
 

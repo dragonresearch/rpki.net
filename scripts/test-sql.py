@@ -6,7 +6,7 @@ def test(filename, section):
 
   print "[Checking " + filename + "]\n"
 
-  cfg = ConfigParser.ConfigParser()
+  cfg = ConfigParser.RawConfigParser()
   cfg.read(filename)
 
   db = MySQLdb.connect(user   = cfg.get(section, "username"),

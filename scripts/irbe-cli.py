@@ -6,7 +6,7 @@ This only handles the control channel.  The query back-channel will be
 a separate program.
 """
 
-import glob, getopt, sys, lxml.etree, POW.pkix, xml.sax, lxml.sax
+import glob, getopt, sys, lxml.etree, POW.pkix, xml.sax, lxml.sax, ConfigParser
 import rpki.left_right, rpki.relaxng, rpki.cms, rpki.https, rpki.x509
 
 # Kludge around current test setup all being PEM rather than DER format
@@ -31,7 +31,8 @@ class command(object):
 
   def getopt(self, argv):
     """Parse options for this class."""
-    opts, args = getopt.getopt(argv, "", [x + "=" for x in self.attributes + self.elements] + self.booleans)
+    opts, args = getopt.getopt(argv, "",
+                               [x + "=" for x in self.attributes + self.elements] + list(self.booleans))
     for o, a in opts:
       o = o[2:]
       handler = getattr(self, "handle_" + o, None)
@@ -130,8 +131,17 @@ def main():
   responses.
   """
 
-  rng = rpki.relaxng.RelaxNG("left-right-schema.rng")
-  httpsCerts = rpki.https.CertInfo("Bob")
+  cfg = ConfigParser.RawConfigParser()
+  cfg.read("irbe.conf")
+  section = "irbe-cli"
+
+  rng = rpki.relaxng.RelaxNG(cfg.get(section, "rng-schema"))
+
+  print "rpki.https.CertInfo() needs rewriting!"
+  #
+  # ... but use it for now
+  #
+  httpsCerts = rpki.https.CertInfo(cfg.get(section, "certinfo-name"))
 
   q_msg = rpki.left_right.msg()
 
@@ -147,8 +157,6 @@ def main():
         usage()
       argv = cmd.process(q_msg, argv[1:])
 
-  assert q_msg
-
   q_elt = q_msg.toXML()
   q_xml = lxml.etree.tostring(q_elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
   try:
@@ -160,10 +168,18 @@ def main():
 
   print q_xml
 
-  q_cms = rpki.cms.encode(q_xml, "biz-certs/Alice-EE.key",
-                          ("biz-certs/Alice-EE.cer", "biz-certs/Alice-CA.cer"))
+  # this needs some kind of config file iterator, kludge for now
+  certs = []
+  for i in range(100):
+    name = "cms-cert.%d" % i
+    if cfg.has_option(section, name):
+      certs.append(cfg.get(section, name))
+
+  q_cms = rpki.cms.encode(q_xml, cfg.get(section, "cms-key"), certs)
+
   r_cms = rpki.https.client(certInfo=httpsCerts, msg=q_cms, url="/left-right")
-  r_xml = rpki.cms.decode(r_cms, "biz-certs/Bob-Root.cer")
+
+  r_xml = rpki.cms.decode(r_cms, cfg.get(section, "cms-peer"))
 
   print r_xml
 

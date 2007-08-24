@@ -2,32 +2,36 @@
 
 import MySQLdb, ConfigParser
 
-cfg = ConfigParser.ConfigParser()
-cfg.read("re.conf")
+def test(filename, section):
 
-db = MySQLdb.connect(user = "rpki", db = "rpki", passwd = cfg.get("rpki", "password"))
-cur = db.cursor()
+  print "[Checking " + filename + "]\n"
 
-def duh(cmd, header):
-  cur.execute(cmd)
-  print header
-  print "-" * len(header)
-  print cur.description
-  for i in cur.fetchall():
-    print i[0]
-  print
+  cfg = ConfigParser.ConfigParser()
+  cfg.read(filename)
 
-duh("SHOW DATABASES", "Databases")
+  db = MySQLdb.connect(user   = cfg.get(section, "username"),
+                       db     = cfg.get(section, "database"),
+                       passwd = cfg.get(section, "password"))
 
-duh("SELECT DATABASE()", "Current database")
+  cur = db.cursor()
 
-duh("USE rpki", "Select database")
+  def duh(db, cmd, header):
+    cur.execute(cmd)
+    print header
+    print "-" * len(header)
+    print cur.description
+    for i in cur.fetchall():
+      print i[0]
+    print
 
-duh("SELECT DATABASE()", "Current database")
+  duh(db, "SHOW DATABASES", "Databases")
+  duh(db, "SELECT DATABASE()", "Current database")
+  duh(db, "SHOW TABLES", "Current tables")
 
-duh("SHOW TABLES", "Current tables")
+  db.close()
 
-print MySQLdb.Timestamp(2007,6,9,9,45,51), MySQLdb.DateFromTicks(1000), MySQLdb.Binary("Hi, Mom!"), MySQLdb.STRING, MySQLdb.BINARY, MySQLdb.NUMBER, MySQLdb.NULL
+print MySQLdb.Timestamp(2007,6,9,9,45,51), MySQLdb.DateFromTicks(1000), \
+      MySQLdb.Binary("Hi, Mom!"), MySQLdb.STRING, MySQLdb.BINARY, MySQLdb.NUMBER, MySQLdb.NULL, "\n"
 
-cur.close()
-db.close()
+test("re.conf", "rpki")
+test("irbe.conf", "irdb")

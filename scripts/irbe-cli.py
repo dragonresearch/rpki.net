@@ -168,14 +168,12 @@ def main():
 
   print q_xml
 
-  # this needs some kind of config file iterator, kludge for now
-  certs = []
-  for i in range(100):
-    name = "cms-cert.%d" % i
-    if cfg.has_option(section, name):
-      certs.append(cfg.get(section, name))
+  # This wants some kind of config file iterator, handle inline for now
 
-  q_cms = rpki.cms.encode(q_xml, cfg.get(section, "cms-key"), certs)
+  q_cms = rpki.cms.encode(q_xml, cfg.get(section, "cms-key"),
+                          [cfg.get(section, "cms-cert.%d" % i)
+                           for i in range(100)
+                           if cfg.has_option(section, "cms-cert.%d" % i)])
 
   r_cms = rpki.https.client(certInfo=httpsCerts, msg=q_cms, url="/left-right")
 

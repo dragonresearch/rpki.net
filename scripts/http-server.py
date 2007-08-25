@@ -2,9 +2,15 @@
 
 import rpki.https, tlslite.api, rpki.config
 
-certInfo = rpki.https.CertInfo(rpki.config.parser("http-demo.conf"), "server")
+cfg = rpki.config.parser("http-demo.conf")
+section = "server"
+
+privateKey = rpki.x509.RSA_Keypair(PEM_file = cfg.get(section, "https-key"))
+
+certChain = rpki.x509.X509_chain()
+certChain.load_from_PEM(cfg.multiget(section, "https-cert"))
 
 def handler(query, path):
   return 200, "Path:    %s\nQuery:   %s" % (path, query)
 
-rpki.https.server(certInfo=certInfo, handlers={"/" : handler})
+rpki.https.server(privateKey=privateKey, certChain=certChain, handlers={"/" : handler})

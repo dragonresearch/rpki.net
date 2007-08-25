@@ -136,11 +136,13 @@ def main():
 
   rng = rpki.relaxng.RelaxNG(cfg.get(section, "rng-schema"))
 
-  print "rpki.https.CertInfo() needs rewriting!"
-  #
-  # ... but use it for now
-  #
-  httpsCerts = rpki.https.CertInfo(cfg, section)
+  privateKey = rpki.x509.RSA_Keypair(PEM_file = cfg.get(section, "https-key"))
+
+  certChain = rpki.x509.X509_chain()
+  certChain.load_from_PEM(cfg.multiget(section, "https-cert"))
+
+  x509TrustList = rpki.x509.X509_chain()
+  x509TrustList.load_from_PEM(cfg.multiget(section, "https-ta"))
 
   q_msg = rpki.left_right.msg()
 
@@ -169,7 +171,8 @@ def main():
 
   q_cms = rpki.cms.encode(q_xml, cfg.get(section, "cms-key"), cfg.multiget(section, "cms-cert"))
 
-  r_cms = rpki.https.client(certInfo=httpsCerts, msg=q_cms, url="/left-right")
+  r_cms = rpki.https.client(privateKey=privateKey, certChain=certChain, x509TrustList=x509TrustList,
+                            msg=q_cms, url="/left-right")
 
   r_xml = rpki.cms.decode(r_cms, cfg.get(section, "cms-peer"))
 

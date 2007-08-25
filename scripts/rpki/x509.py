@@ -224,6 +224,7 @@ class X509_chain(list):
 
   def tlslite_certChain(self):
     """Return a certChain in the format tlslite likes."""
+    self.chainsort()
     return tlslite.api.X509CertChain([x.get_tlslite() for x in self])
 
   def tlslite_trustList(self):

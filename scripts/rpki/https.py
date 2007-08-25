@@ -7,34 +7,11 @@ subversion repository; generalizing it would not be hard, but the more
 general version should use SQL anyway.
 """
 
-import httplib, BaseHTTPServer, tlslite.api, glob, rpki.x509, rpki.config
+import httplib, BaseHTTPServer, tlslite.api, glob, rpki.x509
 
 rpki_content_type = "application/x-rpki"
 
-class CertInfo(object):
-  """Certificate context.
-
-  This hides a bunch of grotty details about how we store and name
-  certificates in this test setup.  This code will definitely need to
-  change, soon, but this class keeps most of this rubbish in one
-  place.
-  """
-
-  def __init__(self, cfg, section):
-
-    keypair = rpki.x509.RSA_Keypair(PEM_file = cfg.get(section, "https-key"))
-    self.privateKey = keypair.get_tlslite()
-
-    chain = rpki.x509.X509_chain()
-    chain.load_from_PEM(cfg.multiget(section, "https-cert"))
-    chain.chainsort()
-    self.certChain = chain.tlslite_certChain()
-
-    trustlist = rpki.x509.X509_chain()
-    trustlist.load_from_PEM(cfg.multiget(section, "https-ta"))
-    self.x509TrustList = trustlist.tlslite_trustList()
-
-def client(msg, certInfo, host="localhost", port=4433, url="/"):
+def client(msg, privateKey, certChain, x509TrustList, host="localhost", port=4433, url="/"):
   """Open client HTTPS connection, send a message, wait for response.
 
   This function wraps most of what one needs to do to send a message
@@ -45,9 +22,9 @@ def client(msg, certInfo, host="localhost", port=4433, url="/"):
   
   httpc = tlslite.api.HTTPTLSConnection(host=host,
                                         port=port,
-                                        certChain=certInfo.certChain,
-                                        privateKey=certInfo.privateKey,
-                                        x509TrustList=certInfo.x509TrustList)
+                                        privateKey=privateKey.get_tlslite(),
+                                        certChain=certChain.tlslite_certChain(),
+                                        x509TrustList=x509TrustList.tlslite_trustList())
   httpc.connect()
   httpc.request("POST", url, msg, {"Content-Type" : rpki_content_type})
   response = httpc.getresponse()
@@ -100,15 +77,16 @@ class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
       print "TLS handshake failure:", str(error)
       return False
 
-def server(handlers, certInfo, port=4433, host=""):
+def server(handlers, privateKey, certChain, port=4433, host=""):
   """Run an HTTPS server and wait (forever) for connections."""
 
   class boundRequestHandler(requestHandler):
     rpki_handlers = handlers
 
   httpd = httpServer((host, port), boundRequestHandler)
-  httpd.rpki_privateKey = certInfo.privateKey
-  httpd.rpki_certChain = certInfo.certChain
+
+  httpd.rpki_privateKey = privateKey.get_tlslite()
+  httpd.rpki_certChain = certChain.tlslite_certChain()
   httpd.rpki_sessionCache = tlslite.api.SessionCache()
 
   httpd.serve_forever()

@@ -10,7 +10,7 @@ import ConfigParser
 class parser(ConfigParser.RawConfigParser):
 
   def __init__(self, file=None):
-    super(parser, self).__init__()
+    ConfigParser.RawConfigParser.__init__(self)
     if file:
       self.read(file)
 
@@ -20,16 +20,18 @@ class parser(ConfigParser.RawConfigParser):
     Returns a list of values matching the specified option name.
     """
     matches = []
-    for key, value in self.items():
-      name, index = key.rsplit(".", 1)
-      if name == option and index.isdigit():
-        matches.append(tuple(int(index), value))
+    if self.has_option(section, option):
+      matches.append((0, self.get(section, option)))
+    for key, value in self.items(section):
+      s = key.rsplit(".", 1)
+      if len(s) == 2 and s[0] == option and s[1].isdigit():
+        matches.append((int(s[1]), value))
     matches.sort()
     return [match[1] for match in matches]
 
   def get(self, section, option, default=None):
     """Get an option, perhaps with a default value."""
     if default is None or self.has_option(section, option):
-      return super(parser, self).get(section, option)
+      return ConfigParser.RawConfigParser.get(self, section, option)
     else:
       return default

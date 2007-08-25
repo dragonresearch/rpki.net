@@ -6,8 +6,8 @@ This only handles the control channel.  The query back-channel will be
 a separate program.
 """
 
-import glob, getopt, sys, lxml.etree, POW.pkix, xml.sax, lxml.sax, ConfigParser
-import rpki.left_right, rpki.relaxng, rpki.cms, rpki.https, rpki.x509
+import glob, getopt, sys, lxml.etree, POW.pkix, xml.sax, lxml.sax
+import rpki.left_right, rpki.relaxng, rpki.cms, rpki.https, rpki.x509, rpki.config
 
 # Kludge around current test setup all being PEM rather than DER format
 convert_from_pem = True
@@ -131,8 +131,7 @@ def main():
   responses.
   """
 
-  cfg = ConfigParser.RawConfigParser()
-  cfg.read("irbe.conf")
+  cfg = rpki.config.parser("irbe.conf")
   section = "irbe-cli"
 
   rng = rpki.relaxng.RelaxNG(cfg.get(section, "rng-schema"))
@@ -168,12 +167,7 @@ def main():
 
   print q_xml
 
-  # This wants some kind of config file iterator, handle inline for now
-
-  q_cms = rpki.cms.encode(q_xml, cfg.get(section, "cms-key"),
-                          [cfg.get(section, "cms-cert.%d" % i)
-                           for i in range(100)
-                           if cfg.has_option(section, "cms-cert.%d" % i)])
+  q_cms = rpki.cms.encode(q_xml, cfg.get(section, "cms-key"), cfg.multiget(section, "cms-cert"))
 
   r_cms = rpki.https.client(certInfo=httpsCerts, msg=q_cms, url="/left-right")
 

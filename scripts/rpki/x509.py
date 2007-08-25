@@ -266,3 +266,33 @@ class PKCS10_Request(DER_object):
       req.fromString(self.get_DER())
       self.POWpkix = req
     return self.POWpkix
+
+class RSA_Keypair(DER_object):
+  """Class to hold an RSA key pair.
+
+  This may need to be split into public and private key classes.
+  """
+
+  formats = ("DER", "POW", "tlslite")
+  pem_converter = PEM_converter("RSA PRIVATE KEY")
+  
+  def get_DER(self):
+    assert not self.empty()
+    if self.DER:
+      return self.DER
+    if self.POW:
+      self.DER = self.POW.derWrite()
+      return self.get_DER()
+    raise RuntimeError
+
+  def get_POW(self):
+    assert not self.empty()
+    if not self.POW:
+      self.POW = POW.derRead(POW.RSA_PRIVATE_KEY, self.get_DER())
+    return self.POW
+
+  def get_tlslite(self):
+    assert not self.empty()
+    if not self.tlslite:
+      self.tlslite = tlslite.api.parsePEMKey(self.get_PEM(), private=True)
+    return self.tlslite

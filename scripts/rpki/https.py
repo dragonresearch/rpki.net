@@ -25,9 +25,8 @@ class CertInfo(object):
   def __init__(self, myname=None):
     if myname is not None:
 
-      f = open(self.cert_dir + myname + "-EE.key", "r")
-      self.privateKey = tlslite.api.parsePEMKey(f.read(), private=True)
-      f.close()
+      keypair = rpki.x509.RSA_Keypair(PEM_file = self.cert_dir+myname+"-EE.key")
+      self.privateKey = keypair.get_tlslite()
       
       chain = rpki.x509.X509_chain()
       chain.load_from_PEM(glob.glob(self.cert_dir + myname + "-*.cer"))

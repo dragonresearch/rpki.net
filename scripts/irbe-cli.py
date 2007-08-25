@@ -140,7 +140,7 @@ def main():
   #
   # ... but use it for now
   #
-  httpsCerts = rpki.https.CertInfo(cfg.get(section, "certinfo-name"))
+  httpsCerts = rpki.https.CertInfo(cfg, section)
 
   q_msg = rpki.left_right.msg()
 

@@ -7,7 +7,7 @@ subversion repository; generalizing it would not be hard, but the more
 general version should use SQL anyway.
 """
 
-import httplib, BaseHTTPServer, tlslite.api, glob, rpki.x509
+import httplib, BaseHTTPServer, tlslite.api, glob, rpki.x509, rpki.config
 
 rpki_content_type = "application/x-rpki"
 
@@ -20,22 +20,19 @@ class CertInfo(object):
   place.
   """
 
-  cert_dir = "biz-certs/"
+  def __init__(self, cfg, section):
 
-  def __init__(self, myname=None):
-    if myname is not None:
+    keypair = rpki.x509.RSA_Keypair(PEM_file = cfg.get(section, "https-key"))
+    self.privateKey = keypair.get_tlslite()
 
-      keypair = rpki.x509.RSA_Keypair(PEM_file = self.cert_dir+myname+"-EE.key")
-      self.privateKey = keypair.get_tlslite()
-      
-      chain = rpki.x509.X509_chain()
-      chain.load_from_PEM(glob.glob(self.cert_dir + myname + "-*.cer"))
-      chain.chainsort()
-      self.certChain = chain.tlslite_certChain()
+    chain = rpki.x509.X509_chain()
+    chain.load_from_PEM(cfg.multiget(section, "https-cert"))
+    chain.chainsort()
+    self.certChain = chain.tlslite_certChain()
 
-      trustlist = rpki.x509.X509_chain()
-      trustlist.load_from_PEM(glob.glob(self.cert_dir + "*-Root.cer"))
-      self.x509TrustList = trustlist.tlslite_trustList()
+    trustlist = rpki.x509.X509_chain()
+    trustlist.load_from_PEM(cfg.multiget(section, "https-ta"))
+    self.x509TrustList = trustlist.tlslite_trustList()
 
 def client(msg, certInfo, host="localhost", port=4433, url="/"):
   """Open client HTTPS connection, send a message, wait for response.

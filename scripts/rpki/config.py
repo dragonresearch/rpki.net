@@ -21,7 +21,7 @@ class parser(ConfigParser.RawConfigParser):
     """
     matches = []
     if self.has_option(section, option):
-      matches.append((0, self.get(section, option)))
+      matches.append((-1, self.get(section, option)))
     for key, value in self.items(section):
       s = key.rsplit(".", 1)
       if len(s) == 2 and s[0] == option and s[1].isdigit():

@@ -1,13 +1,12 @@
 # $Id$
 
-import MySQLdb, ConfigParser
+import MySQLdb, rpki.config
 
 def test(filename, section):
 
   print "[Checking " + filename + "]\n"
 
-  cfg = ConfigParser.RawConfigParser()
-  cfg.read(filename)
+  cfg = rpki.config.parser(filename)
 
   db = MySQLdb.connect(user   = cfg.get(section, "username"),
                        db     = cfg.get(section, "database"),
@@ -33,5 +32,5 @@ def test(filename, section):
 print MySQLdb.Timestamp(2007,6,9,9,45,51), MySQLdb.DateFromTicks(1000), \
       MySQLdb.Binary("Hi, Mom!"), MySQLdb.STRING, MySQLdb.BINARY, MySQLdb.NUMBER, MySQLdb.NULL, "\n"
 
-test("re.conf", "rpki")
+test("re.conf",   "rpki")
 test("irbe.conf", "irdb")

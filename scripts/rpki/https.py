@@ -28,8 +28,10 @@ def client(msg, privateKey, certChain, x509TrustList, host="localhost", port=443
   httpc.connect()
   httpc.request("POST", url, msg, {"Content-Type" : rpki_content_type})
   response = httpc.getresponse()
-  assert response.status == httplib.OK
-  return response.read()
+  if response.status == httplib.OK:
+    return response.read()
+  else:
+    raise RuntimeError, response.read()
 
 class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   """Derived type to supply POST handler."""

@@ -174,7 +174,7 @@ def main():
   r_cms = rpki.https.client(privateKey=privateKey, certChain=certChain, x509TrustList=x509TrustList,
                             msg=q_cms, url="/left-right")
 
-  r_xml = rpki.cms.decode(r_cms, cfg.get(section, "cms-peer"))
+  r_xml = rpki.cms.decode(r_cms, cfg.get(section, "cms-ta"))
 
   print r_xml
 

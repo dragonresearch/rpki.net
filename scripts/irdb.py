@@ -1,6 +1,6 @@
 # $Id$
 
-import rpki.https, tlslite.api, rpki.config, rpki.resource_set, MySQLdb
+import rpki.https, tlslite.api, rpki.config, rpki.resource_set, MySQLdb, rpki.cms
 
 def handler(query, path):
   try:
@@ -47,28 +47,33 @@ def handler(query, path):
                        WHERE resource_class_id = '%s'
                     """ % resource_class_id)
         resource_class.as = rpki.resource_set.resource_set_as()
-        for b,e = cur.fetchall():
+        for b,e in cur.fetchall():
           resource_class.as.append(rpki.resource_set.resource_range_as(b, e))
 
         cur.execute("""SELECT start_ip, end_ip FROM net
                        WHERE resource_class_id = '%s' AND version = 4
                     """ % resource_class_id)
         resource_class.ipv4 = rpki.resource_set.resource_set_ipv4()
-        for b,e = cur.fetchall():
+        for b,e in cur.fetchall():
           resource_class.ipv4.append(rpki.resource_set.resource_range_ipv4(b, e))
 
         cur.execute("""SELECT start_ip, end_ip FROM net
                        WHERE resource_class_id = '%s' AND version = 6
                     """ % resource_class_id)
         resource_class.ipv6 = rpki.resource_set.resource_set_ipv6()
-        for b,e = cur.fetchall():
+        for b,e in cur.fetchall():
           resource_class.ipv6.append(rpki.resource_set.resource_range_ipv6(b, e))
 
         r_pdu.resources.append(resource_class)
 
-    assert False, "Not finished"
+      r_msg.append(r_pdu)
 
-    return 200, "Something more useful than this string, please"
+    r_elt = r_msg.toXML()
+    rng.assertValid(r_elt)
+    r_xml = lxml.etree.tostring(r_elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
+    r_cms = rpki.cms.encode(r_xml, cfg.get(section, "cms-key"), cfg.multiget(section, "cms-cert"))
+
+    return 200, r_cms
 
   except Exception, data:
     # This should generate a <report_error/> PDU, but this will do for initial debugging
@@ -83,7 +88,7 @@ db = MySQLdb.connect(user   = cfg.get(section, "username"),
 
 cur = db.cursor()
 
-cms_ta = cfg.get("cms-peer")
+cms_ta = cfg.get(section, "cms-ta")
 
 privateKey = rpki.x509.RSA_Keypair(PEM_file = cfg.get(section, "https-key"))
 

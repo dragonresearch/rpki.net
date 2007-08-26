@@ -1,6 +1,6 @@
 # $Id$
 
-import rpki.https, tlslite.api, rpki.config, MySQLdb
+import rpki.https, tlslite.api, rpki.config, rpki.resource_set, MySQLdb
 
 def handler(query, path):
   try:
@@ -39,17 +39,32 @@ def handler(query, path):
       # XML so maybe just punt it for now.
 
       for resource_class_id, subject_name in resource_classes:
-        cur.execute("""SELECT start_as, end_as
-                       FROM asn
+        resource_class = rpki.left_right.resource_class_elt()
+        if subject_name:
+          resource_class.subject_name = subject_name
+
+        cur.execute("""SELECT start_as, end_as FROM asn
                        WHERE resource_class_id = '%s'
                     """ % resource_class_id)
-        as_ranges = cur.fetchall()
-        cur.execute("""SELECT start_ip, end_ip, version
-                       FROM net
-                       WHERE resource_class_id = '%s'
+        resource_class.as = rpki.resource_set.resource_set_as()
+        for b,e = cur.fetchall():
+          resource_class.as.append(rpki.resource_set.resource_range_as(b, e))
+
+        cur.execute("""SELECT start_ip, end_ip FROM net
+                       WHERE resource_class_id = '%s' AND version = 4
                     """ % resource_class_id)
-        ip_ranges = cur.fetchall()
-        
+        resource_class.ipv4 = rpki.resource_set.resource_set_ipv4()
+        for b,e = cur.fetchall():
+          resource_class.ipv4.append(rpki.resource_set.resource_range_ipv4(b, e))
+
+        cur.execute("""SELECT start_ip, end_ip FROM net
+                       WHERE resource_class_id = '%s' AND version = 6
+                    """ % resource_class_id)
+        resource_class.ipv6 = rpki.resource_set.resource_set_ipv6()
+        for b,e = cur.fetchall():
+          resource_class.ipv6.append(rpki.resource_set.resource_range_ipv6(b, e))
+
+        r_pdu.resources.append(resource_class)
 
     assert False, "Not finished"
 

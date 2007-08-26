@@ -266,7 +266,7 @@ class resource_class_elt(base_elt):
   """<resource_class/> element."""
 
   element_name = "resource_class"
-  attributes = ("as", "req_as", "ipv4", "req_ipv4", "ipv6", "req_ipv6")
+  attributes = ("as", "req_as", "ipv4", "req_ipv4", "ipv6", "req_ipv6", "subject_name")
 
   def startElement(self, stack, name, attrs):
     """Handle <resource_class/> element."""

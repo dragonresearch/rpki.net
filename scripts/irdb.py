@@ -82,9 +82,9 @@ def handler(query, path):
 cfg = rpki.config.parser("irbe.conf")
 section = "irdb"
 
-db = MySQLdb.connect(user   = cfg.get(section, "username"),
-                     db     = cfg.get(section, "database"),
-                     passwd = cfg.get(section, "password"))
+db = MySQLdb.connect(user   = cfg.get(section, "sql-username"),
+                     db     = cfg.get(section, "sql-database"),
+                     passwd = cfg.get(section, "sql-password"))
 
 cur = db.cursor()
 

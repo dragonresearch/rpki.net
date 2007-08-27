@@ -36,33 +36,30 @@ def handler(query, path):
       # Hmm, I screwed up when I described this table to Tim,
       # valid_until should be on the top-level "registrant" table, not
       # the "resource_class" table.  It's an optional attribute in the
-      # XML so maybe just punt it for now.
+      # XML so just punt it for now.
 
       for resource_class_id, subject_name in resource_classes:
         resource_class = rpki.left_right.resource_class_elt()
         if subject_name:
           resource_class.subject_name = subject_name
 
-        cur.execute("""SELECT start_as, end_as FROM asn
-                       WHERE resource_class_id = '%s'
-                    """ % resource_class_id)
         resource_class.as = rpki.resource_set.resource_set_as()
-        for b,e in cur.fetchall():
-          resource_class.as.append(rpki.resource_set.resource_range_as(b, e))
+        resource_class.as.from_sql(cur,
+                                   """SELECT start_as, end_as FROM asn
+                                      WHERE resource_class_id = '%s'
+                                   """ % resource_class_id)
 
-        cur.execute("""SELECT start_ip, end_ip FROM net
-                       WHERE resource_class_id = '%s' AND version = 4
-                    """ % resource_class_id)
         resource_class.ipv4 = rpki.resource_set.resource_set_ipv4()
-        for b,e in cur.fetchall():
-          resource_class.ipv4.append(rpki.resource_set.resource_range_ipv4(b, e))
+        resource_class.ipv4.from_sql(cur,
+                                     """SELECT start_ip, end_ip FROM net
+                                        WHERE resource_class_id = '%s' AND version = 4
+                                     """ % resource_class_id)
 
-        cur.execute("""SELECT start_ip, end_ip FROM net
-                       WHERE resource_class_id = '%s' AND version = 6
-                    """ % resource_class_id)
         resource_class.ipv6 = rpki.resource_set.resource_set_ipv6()
-        for b,e in cur.fetchall():
-          resource_class.ipv6.append(rpki.resource_set.resource_range_ipv6(b, e))
+        resource_class.ipv6.from_sql(cur,
+                                     """SELECT start_ip, end_ip FROM net
+                                        WHERE resource_class_id = '%s' AND version = 6
+                                     """ % resource_class_id)
 
         r_pdu.resources.append(resource_class)
 

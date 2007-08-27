@@ -183,8 +183,20 @@ class resource_set(list):
         assert isinstance(item, (type(i), type(i.min)))
     return False
 
+  def from_sql(self, cursor, query):
+    """Populate resource set from an SQL query.
+
+    cursor is a DB API 2.0 cursor object.
+
+    query is an SQL query that returns a sequence of (min, max) pairs.
+    """
+    cursor.execute(query)
+    self[:] = [self.range_type(b, e) for (b,e) in cursor.fetchall()]
+
 class resource_set_as(resource_set):
   """ASN resource set."""
+
+  range_type = resource_range_as
 
   def parse_str(self, x):
     """Parse AS resource sets from text (eg, XML attributes)."""

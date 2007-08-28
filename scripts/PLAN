@@ -26,3 +26,46 @@ XML) syntax, so use /usr/ports/textproc/trang to convert:
 3) Whack (2) into something that does this over minimal HTTP.
 
 4) [to be continued...]
+
+
+
+Fun with SQL.  Tim has given me a nice SQL schema for the objects we
+worked out in Prague (superset of left-right protocol).  Still
+debugging that design, but broad outlines are clear.
+
+Some question how to deal with in-memory data and SQL without going
+mad.  Am assuming RE is event driven.  Current theory: pull in an
+entire context (one row of the "self" table and everything that links
+to that self_id), run this event with it, save out any changes before
+this event terminates.  Perhaps keep an LRU cache of the last few such
+contexts in which we've run, to save loading every time (eg, receipt
+of an answer to an up-down or left-right protocol query is a discrete
+event, would be annoying to have to read everything back from SQL
+again).
+
+If we can work out a tree that spans one such memory context (almost
+there), we can just walk that tree to handle pretty much all SQL.
+
+Basic data structures we need for every object we're going to store in
+SQL:
+
+- Object type to hold the object (duh).
+
+- List of children in the data structure tree.
+
+- SQL SELECT expression (including variable bindings!) to pull all
+  rows matching blah blah out of SQL.  Tricky bit here is variable
+  bindings, as otherwise the obvious handling would be a simple
+  method.  Various possible ways to hack this in Python, perhaps just
+
+     lambda(x,y,z): """SQL blah blah""" % dict
+
+  Or perhaps this meta-tree is itself built from a Python class
+  (probably should be) and these lambdas turn into methods of the
+  meta-tree.  Or something.
+
+- SQL to INSERT ...
+
+- SQL to UPDATE ...
+
+- SQL to DROP ...

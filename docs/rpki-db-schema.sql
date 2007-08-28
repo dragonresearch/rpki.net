@@ -86,6 +86,7 @@ CREATE TABLE child (
 CREATE TABLE child_ca_detail_link (
        child_id             BIGINT unsigned NOT NULL,
        ca_detail_id         BIGINT unsigned NOT NULL,
+       cert                 LONGBLOB NOT NULL,
        PRIMARY KEY (child_id, ca_detail_id)
 );
 

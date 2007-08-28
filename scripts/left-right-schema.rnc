@@ -185,10 +185,7 @@ list_resources_elt = element list_resources {
       attribute subject_name { xsd:token { maxLength="1024" } }?,
       attribute as { xsd:token { maxLength="1024" } }?,
       attribute ipv4 { xsd:token { maxLength="1024" } }?,
-      attribute ipv6 { xsd:token { maxLength="1024" } }?,
-      attribute req_as { xsd:token { maxLength="1024" } }?,
-      attribute req_ipv4 { xsd:token { maxLength="1024" } }?,
-      attribute req_ipv6 { xsd:token { maxLength="1024" } }?
+      attribute ipv6 { xsd:token { maxLength="1024" } }?
     }*
   )
 }

@@ -873,27 +873,6 @@
                   </data>
                 </attribute>
               </optional>
-              <optional>
-                <attribute name="req_as">
-                  <data type="token">
-                    <param name="maxLength">1024</param>
-                  </data>
-                </attribute>
-              </optional>
-              <optional>
-                <attribute name="req_ipv4">
-                  <data type="token">
-                    <param name="maxLength">1024</param>
-                  </data>
-                </attribute>
-              </optional>
-              <optional>
-                <attribute name="req_ipv6">
-                  <data type="token">
-                    <param name="maxLength">1024</param>
-                  </data>
-                </attribute>
-              </optional>
             </element>
           </zeroOrMore>
         </group>

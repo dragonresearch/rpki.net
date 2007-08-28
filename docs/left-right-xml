@@ -713,7 +713,6 @@
                             ipv6="fe80:dead:beef::/48"
                             as="666"/>
             <resource_class subject_name="Wombats are us"
-                            req_ipv4="10.0.0.0/8" 
                             ipv4="10.2.0.6/32"
                             ipv6="fe80:deed:f00d::/48,fe80:dead:beef:2::-fe80:dead:beef:2::49"
                             as="666"/>

@@ -32,13 +32,13 @@
 
        class = element class {
          attribute class_name { xsd:token { maxLength="1024" } },
-         attribute cert_url { xsd:anyURI { maxLength="1024" } },
+         attribute cert_url { xsd:string { maxLength="4096" } },
          attribute resource_set_as { xsd:string { maxLength="512000" pattern="[\-,0-9]*" } },
          attribute resource_set_ipv4 { xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" }  },
          attribute resource_set_ipv6 { xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" } },
-         attribute suggested_sia_head { xsd:string { maxLength="1024" } }?,
+         attribute suggested_sia_head { xsd:anyURI { maxLength="1024" pattern="rsync://.+"} }?,
          element certificate {
-           attribute cert_url { xsd:anyURI { maxLength="1024" } },
+           attribute cert_url { xsd:string { maxLength="4096" } },
            attribute req_resource_set_as { xsd:string { maxLength="512000" pattern="[\-,0-9]*" } }?,
            attribute req_resource_set_ipv4 { xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" } }?,
            attribute req_resource_set_ipv6 { xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" } }?,

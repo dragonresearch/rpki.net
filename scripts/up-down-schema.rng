@@ -90,8 +90,8 @@
         </data>
       </attribute>
       <attribute name="cert_url">
-        <data type="anyURI">
-          <param name="maxLength">1024</param>
+        <data type="string">
+          <param name="maxLength">4096</param>
         </data>
       </attribute>
       <attribute name="resource_set_as">
@@ -114,16 +114,17 @@
       </attribute>
       <optional>
         <attribute name="suggested_sia_head">
-          <data type="string">
+          <data type="anyURI">
             <param name="maxLength">1024</param>
+            <param name="pattern">rsync://.+</param>
           </data>
         </attribute>
       </optional>
       <zeroOrMore>
         <element name="certificate">
           <attribute name="cert_url">
-            <data type="anyURI">
-              <param name="maxLength">1024</param>
+            <data type="string">
+              <param name="maxLength">4096</param>
             </data>
           </attribute>
           <optional>

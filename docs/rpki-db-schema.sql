@@ -4,8 +4,10 @@ drop table if exists bsc_key;
 drop table if exists ca;
 drop table if exists ca_detail;
 drop table if exists ca_use;
+drop table if exists child_ca_link;
 drop table if exists child;
 drop table if exists child_ca_detail_link;
+drop table if exists child_ca_certificate;
 drop table if exists ee_cert;
 drop table if exists manifest;
 drop table if exists manifest_content;
@@ -51,6 +53,8 @@ CREATE TABLE ca (
        crl                  LONGBLOB,
        last_sn              BIGINT unsigned,
        last_manifest_sn     BIGINT unsigned,
+       next_manifest_update CHAR(18),
+       parent_id            BIGINT unsigned,
        PRIMARY KEY (ca_id)
 );
 
@@ -66,14 +70,6 @@ CREATE TABLE ca_detail (
 );
 
 
-CREATE TABLE ca_use (
-       ca_id                BIGINT unsigned NOT NULL,
-       entity_id            BIGINT unsigned NOT NULL,
-       entity_name          VARCHAR(6) NOT NULL,
-       PRIMARY KEY (ca_id, entity_id, entity_name)
-);
-
-
 CREATE TABLE child (
        child_id             SERIAL NOT NULL,
        ta                   LONGBLOB,
@@ -83,11 +79,18 @@ CREATE TABLE child (
 );
 
 
-CREATE TABLE child_ca_detail_link (
+CREATE TABLE child_ca_certificate (
        child_id             BIGINT unsigned NOT NULL,
        ca_detail_id         BIGINT unsigned NOT NULL,
        cert                 LONGBLOB NOT NULL,
        PRIMARY KEY (child_id, ca_detail_id)
+);
+
+
+CREATE TABLE child_ca_link (
+       ca_id                BIGINT unsigned NOT NULL,
+       child_id             BIGINT unsigned NOT NULL,
+       PRIMARY KEY (ca_id, child_id)
 );
 
 
@@ -106,7 +109,6 @@ CREATE TABLE manifest (
        next_update          DATETIME,
        self_id              BIGINT unsigned NOT NULL,
        collection_uri       TEXT,
-       version              INT unsigned,
        PRIMARY KEY (manifest_serial_id)
 );
 
@@ -145,6 +147,7 @@ CREATE TABLE repos (
 CREATE TABLE roa (
        route_origin_id      BIGINT unsigned NOT NULL,
        ee_cert_id           BIGINT unsigned NOT NULL,
+       roa                  LONGBLOB NOT NULL,
        PRIMARY KEY (route_origin_id, ee_cert_id)
 );
 
@@ -168,6 +171,7 @@ CREATE TABLE route_origin_prefix (
 
 CREATE TABLE self (
        self_id              SERIAL NOT NULL,
+       use_hsm              BOOLEAN,
        PRIMARY KEY (self_id)
 );
 
@@ -200,11 +204,6 @@ ALTER TABLE ca_detail
                              REFERENCES ca;
 
 
-ALTER TABLE ca_use
-       ADD FOREIGN KEY (ca_id)
-                             REFERENCES ca;
-
-
 ALTER TABLE child
        ADD FOREIGN KEY (bsc_id)
                              REFERENCES bsc;
@@ -215,14 +214,24 @@ ALTER TABLE child
                              REFERENCES self;
 
 
-ALTER TABLE child_ca_detail_link
+ALTER TABLE child_ca_certificate
        ADD FOREIGN KEY (ca_detail_id)
                              REFERENCES ca_detail;
 
 
-ALTER TABLE child_ca_detail_link
+ALTER TABLE child_ca_certificate
        ADD FOREIGN KEY (child_id)
                              REFERENCES child;
+
+
+ALTER TABLE child_ca_link
+       ADD FOREIGN KEY (child_id)
+                             REFERENCES child;
+
+
+ALTER TABLE child_ca_link
+       ADD FOREIGN KEY (ca_id)
+                             REFERENCES ca;
 
 
 ALTER TABLE ee_cert

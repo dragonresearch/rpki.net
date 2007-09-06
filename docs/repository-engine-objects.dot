@@ -30,7 +30,7 @@ digraph rpki_engine_objects {
 
 	// Objects created on the fly by the RPKI engine
 	node		[ color=green ];
-	ca		[ label="CA|{Last CRL #|Next CRL Date|Last Issued Serial #|Last Manifest #|Next Manifest Date}" ];
+	ca		[ label="CA|{Last CRL #|Next CRL Date|Last Issued Serial #|Last Manifest #|Next Manifest Date|SIA URI}" ];
 	ca_detail	[ label="CA Detail|{CA Private Key Handle|CA Public Key|Latest CA Certificate|Manifest EE Private Key Handle|Manifest EE Public Key|Latest Manifest EE Certificate|Latest Manifest|Latest CRL}" ];
 
 	// Some question whether these objects need to be in database

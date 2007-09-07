@@ -32,6 +32,10 @@ class sql_persistant(object):
   # to SQL.
   sql_dirty = False
 
+  ## @var sql_attributes
+  # Tuple of attributes to translate between this Python object and its SQL representation.
+  sql_attributes = None                 # Must be overriden by derived type
+
   @classmethod
   def sql_fetch(cls, db, **kwargs):
     """Fetch rows from SQL based on a canned query and a set of
@@ -89,3 +93,9 @@ class sql_persistant(object):
     for kids in self.sql_children.values():
       for kid in getattr(self, kids):
         kid.sql_store(db, cur)
+
+  def sql_makedict(self):
+    """Copy attributes from this object into a dict for use with
+    canned SQL queries.
+    """
+    return dict((a, getattr(self, a)) for a in self.sql_attributes)

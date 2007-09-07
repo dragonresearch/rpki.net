@@ -77,3 +77,15 @@ class sql_persistant(object):
     for kids in self.sql_children.values():
       for kid in getattr(self, kids):
         kid.sql_store(db, cur)
+
+  def sql_delete(self, db, cur=None):
+    """Delete an object and its descendants from SQL.
+    """
+    if cur is None:
+      cur = db.cursor()
+    if self.sql_in_db:
+      cur.execute(self.sql_delete_cmd % self.sql_makedict())
+      self.sql_in_db = False
+    for kids in self.sql_children.values():
+      for kid in getattr(self, kids):
+        kid.sql_store(db, cur)

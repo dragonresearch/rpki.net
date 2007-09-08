@@ -37,7 +37,7 @@ class sql_persistant(object):
   sql_attributes = None                 # Must be overriden by derived type
 
   @classmethod
-  def sql_fetch(cls, db, **kwargs):
+  def sql_fetch(cls, db, cur=None, arg_dict=None, **kwargs):
     """Fetch rows from SQL based on a canned query and a set of
     keyword arguments, and instantiate them as objects, returning a
     list of the instantiated objects.
@@ -47,10 +47,14 @@ class sql_persistant(object):
     performed it.
     """
 
-    cur = db.cursor()
-    cur.execute(self.sql_select_cmd % kwargs)
+    if cur is None:
+      cur = db.cursor()
+    if arg_dict is None:
+      arg_dict = kwargs
+    else:
+      assert len(kwargs) == 0
+    cur.execute(self.sql_select_cmd % arg_dict)
     rows = cur.fetchall()
-    cur.close()
     objs = []
     for row in rows:
       obj = cls()
@@ -58,8 +62,9 @@ class sql_persistant(object):
       obj.sql_objectify(*row)
       objs.append(obj)
       if isinstance(obj, sql_persistant):
+        obj_dict = obj.sql_makedict()
         for kid in obj.sql_children:
-          setattr(obj, obj.sql_children[kid], kid.sql_fetch(db))
+          setattr(obj, obj.sql_children[kid], kid.sql_fetch(db, cur, obj_dict))
     return objs
       
   def sql_objectify(self):

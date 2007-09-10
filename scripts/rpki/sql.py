@@ -82,8 +82,7 @@ class sql_persistant(object):
     if not self.sql_in_db:
       cur.execute(self.sql_insert_cmd % self.sql_makedict())
       if self.sql_id_name is not None:
-        cur.execute("SELECT LAST_INSERT_ID())")
-        setattr(self, self.sql_id_name, cur.fetchone()[0])
+        setattr(self, self.sql_id_name, cur.lastrowid)
     elif self.sql_dirty:
       cur.execute(self.sql_update_cmd % self.sql_makedict())
     self.sql_dirty = False

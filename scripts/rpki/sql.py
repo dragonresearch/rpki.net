@@ -36,6 +36,10 @@ class sql_persistant(object):
   # Tuple of attributes to translate between this Python object and its SQL representation.
   sql_attributes = None                 # Must be overriden by derived type
 
+  ## @var sql_id_name
+  # Name of the (auto-increment) ID column for this table, or None if it doesn't have one.
+  sql_id_name = None
+
   @classmethod
   def sql_fetch(cls, db, cur=None, arg_dict=None, **kwargs):
     """Fetch rows from SQL based on a canned query and a set of
@@ -47,7 +51,7 @@ class sql_persistant(object):
     performed it.
     """
 
-    objs = []
+    result = []
     if cur is None:
       cur = db.cursor()
     if arg_dict is None:
@@ -56,14 +60,14 @@ class sql_persistant(object):
       assert len(kwargs) == 0
     cur.execute(self.sql_select_cmd % arg_dict)
     for row in cur.fetchall()
-      obj = cls()
-      obj.in_sql = True
-      obj.sql_objectify(*row)
-      objs.append(obj)
-      obj_dict = obj.sql_makedict()
-      for kid_name,kid_type in obj.sql_children.items():
-        setattr(obj, kid_name, kid_type.sql_fetch(db, cur, obj_dict))
-    return objs
+      self = cls()
+      self.in_sql = True
+      self.sql_objectify(*row)
+      result.append(self)
+      attr_dict = self.sql_makedict()
+      for kid_name,kid_type in self.sql_children.items():
+        setattr(self, kid_name, kid_type.sql_fetch(db, cur, attr_dict))
+    return result
       
   def sql_objectify(self):
     """Initialize self with values returned by self.sql_fetch().
@@ -77,6 +81,9 @@ class sql_persistant(object):
       cur = db.cursor()
     if not self.sql_in_db:
       cur.execute(self.sql_insert_cmd % self.sql_makedict())
+      if self.sql_id_name is not None:
+        cur.execute("SELECT LAST_INSERT_ID())")
+        setattr(self, self.sql_id_name, cur.fetchone()[0])
     elif self.sql_dirty:
       cur.execute(self.sql_update_cmd % self.sql_makedict())
     self.sql_dirty = False

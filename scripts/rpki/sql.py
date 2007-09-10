@@ -81,7 +81,7 @@ class sql_persistant(object):
       cur.execute(self.sql_update_cmd % self.sql_makedict())
     self.sql_dirty = False
     self.sql_in_db = True
-    for kids in self.sql_children.values():
+    for kids in self.sql_children:
       for kid in getattr(self, kids):
         kid.sql_store(db, cur)
 
@@ -93,7 +93,7 @@ class sql_persistant(object):
     if self.sql_in_db:
       cur.execute(self.sql_delete_cmd % self.sql_makedict())
       self.sql_in_db = False
-    for kids in self.sql_children.values():
+    for kids in self.sql_children:
       for kid in getattr(self, kids):
         kid.sql_delete(db, cur)
 

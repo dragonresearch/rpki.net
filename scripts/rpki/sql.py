@@ -17,9 +17,9 @@ class sql_persistant(object):
 
   ## @var sql_children
   # Dictionary listing this class's children in the tree of SQL
-  # tables.  Key is the class object of a child, value is the name of
-  # the attribute in this class at which a list of the resulting child
-  # objects are stored.
+  # tables.  Key the name of the attribute in this class at which a
+  # list of the resulting child objects are stored; value is is the
+  # class object of a child.
   sql_children = {}
 
   ## @var sql_in_db
@@ -47,6 +47,7 @@ class sql_persistant(object):
     performed it.
     """
 
+    objs = []
     if cur is None:
       cur = db.cursor()
     if arg_dict is None:
@@ -54,17 +55,14 @@ class sql_persistant(object):
     else:
       assert len(kwargs) == 0
     cur.execute(self.sql_select_cmd % arg_dict)
-    rows = cur.fetchall()
-    objs = []
-    for row in rows:
+    for row in cur.fetchall()
       obj = cls()
       obj.in_sql = True
       obj.sql_objectify(*row)
       objs.append(obj)
-      if isinstance(obj, sql_persistant):
-        obj_dict = obj.sql_makedict()
-        for kid in obj.sql_children:
-          setattr(obj, obj.sql_children[kid], kid.sql_fetch(db, cur, obj_dict))
+      obj_dict = obj.sql_makedict()
+      for kid_name,kid_type in obj.sql_children.items():
+        setattr(obj, kid_name, kid_type.sql_fetch(db, cur, obj_dict))
     return objs
       
   def sql_objectify(self):
@@ -97,7 +95,7 @@ class sql_persistant(object):
       self.sql_in_db = False
     for kids in self.sql_children.values():
       for kid in getattr(self, kids):
-        kid.sql_store(db, cur)
+        kid.sql_delete(db, cur)
 
   def sql_makedict(self):
     """Copy attributes from this object into a dict for use with

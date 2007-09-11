@@ -57,7 +57,20 @@ class extension_preference_elt(base_elt, rpki.sql.sql_persistant):
   element_name = "extension_preference"
   attributes = ("name",)
 
-  sql_attributes = ("name", "value")
+  sql_select_cmd = """SELECT pref_name, pref_value FROM self_pref WHERE self_id = %(self_id)s"""
+  sql_insert_cmd = """INSERT self_pref (self_id, pref_name, pref_value) VALUES (%(self_id)s, %(name)s, %(value)"""
+  sql_update_cmd = """UPDATE self_pref SET pref_value = %(value)s WHERE self_id = %(self_id) AND pref_name = %(name)s"""
+  sql_delete_cmd = """DELETE FROM self_pref WHERE self_id = %(self_id) AND pref_name = %(name)s"""
+
+  def sql_decode(self, sql_parent, self_id, name, value):
+    self.self_obj = sql_parent
+    self.name = name
+    self.value = value
+
+  def sql_encode(self):
+    return { "self_id" : self.self_obj.self_id,
+             "name"    : self.name,
+             "value"   : self.value }
 
   def startElement(self, stack, name, attrs):
     """Handle <extension_preference/> elements."""

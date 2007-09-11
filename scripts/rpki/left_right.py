@@ -2,7 +2,7 @@
 
 """RPKI "left-right" protocol."""
 
-import base64, sax_utils, resource_set, lxml.etree, x509
+import base64, rpki.sax_utils, rpki.resource_set, lxml.etree, rpki.x509, rpki.sql
 
 xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
@@ -51,11 +51,13 @@ class base_elt(object):
   def __str__(self):
     lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="us-ascii")
 
-class extension_preference_elt(base_elt):
+class extension_preference_elt(base_elt, rpki.sql.sql_persistant):
   """Container for extension preferences."""
 
   element_name = "extension_preference"
   attributes = ("name",)
+
+  sql_attributes = ("name", "value")
 
   def startElement(self, stack, name, attrs):
     """Handle <extension_preference/> elements."""
@@ -73,7 +75,7 @@ class extension_preference_elt(base_elt):
     elt.text = self.value
     return elt
 
-class self_elt(base_elt):
+class self_elt(base_elt, rpki.sql.sql_persistant):
   """<self/> element."""
 
   element_name = "self"
@@ -105,7 +107,7 @@ class self_elt(base_elt):
     elt.extend([i.toXML() for i in self.prefs])
     return elt
 
-class bsc_elt(base_elt):
+class bsc_elt(base_elt, rpki.sql.sql_persistant):
   """<bsc/> (Business Signing Context) element."""
   
   element_name = "bsc"
@@ -127,11 +129,11 @@ class bsc_elt(base_elt):
   def endElement(self, stack, name, text):
     """Handle <bsc/> element."""
     if name == "signing_cert":
-      self.signing_cert.append(x509.X509(DER=base64.b64decode(text)))
+      self.signing_cert.append(rpki.x509.X509(DER=base64.b64decode(text)))
     elif name == "public_key":
       self.public_key = base64.b64decode(text)
     elif name == "pkcs10_cert_request":
-      self.pkcs10_cert_request = x509.PKCS10_Request(DER=base64.b64decode(text))
+      self.pkcs10_cert_request = rpki.x509.PKCS10_Request(DER=base64.b64decode(text))
     else:
       assert name == "bsc", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -146,7 +148,7 @@ class bsc_elt(base_elt):
     self.make_b64elt(elt, "public_key")
     return elt
 
-class parent_elt(base_elt):
+class parent_elt(base_elt, rpki.sql.sql_persistant):
   """<parent/> element."""
 
   element_name = "parent"
@@ -164,7 +166,7 @@ class parent_elt(base_elt):
   def endElement(self, stack, name, text):
     """Handle <bsc/> element."""
     if name == "peer_ta":
-      self.peer_ta = x509.X509(DER=base64.b64decode(text))
+      self.peer_ta = rpki.x509.X509(DER=base64.b64decode(text))
     else:
       assert name == "parent", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -176,7 +178,7 @@ class parent_elt(base_elt):
       self.make_b64elt(elt, "peer_ta", self.peer_ta.get_DER())
     return elt
 
-class child_elt(base_elt):
+class child_elt(base_elt, rpki.sql.sql_persistant):
   """<child/> element."""
 
   element_name = "child"
@@ -194,7 +196,7 @@ class child_elt(base_elt):
   def endElement(self, stack, name, text):
     """Handle <child/> element."""
     if name == "peer_ta":
-      self.peer_ta = x509.X509(DER=base64.b64decode(text))
+      self.peer_ta = rpki.x509.X509(DER=base64.b64decode(text))
     else:
       assert name == "child", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -206,7 +208,7 @@ class child_elt(base_elt):
       self.make_b64elt(elt, "peer_ta", self.peer_ta.get_DER())
     return elt
 
-class repository_elt(base_elt):
+class repository_elt(base_elt, rpki.sql.sql_persistant):
   """<repository/> element."""
 
   element_name = "repository"
@@ -223,7 +225,7 @@ class repository_elt(base_elt):
   def endElement(self, stack, name, text):
     """Handle <repository/> element."""
     if name == "peer_ta":
-      self.peer_ta = x509.X509(DER=base64.b64decode(text))
+      self.peer_ta = rpki.x509.X509(DER=base64.b64decode(text))
     else:
       assert name == "repository", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -235,7 +237,7 @@ class repository_elt(base_elt):
       self.make_b64elt(elt, "peer_ta", self.peer_ta.get_DER())
     return elt
 
-class route_origin_elt(base_elt):
+class route_origin_elt(base_elt, rpki.sql.sql_persistant):
   """<route_origin/> element."""
 
   element_name = "route_origin"
@@ -249,9 +251,9 @@ class route_origin_elt(base_elt):
     if self.asn is not None:
       self.asn = long(self.asn)
     if self.ipv4 is not None:
-      self.ipv4 = resource_set.resource_set_ipv4(self.ipv4)
+      self.ipv4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
     if self.ipv6 is not None:
-      self.ipv6 = resource_set.resource_set_ipv6(self.ipv4)
+      self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv4)
 
   def endElement(self, stack, name, text):
     """Handle <route_origin/> element."""
@@ -273,17 +275,17 @@ class resource_class_elt(base_elt):
     assert name == "resource_class", "Unexpected name %s, stack %s" % (name, stack)
     self.read_attrs(attrs)
     if self.as is not None:
-      self.as = resource_set.resource_set_as(self.as)
+      self.as = rpki.resource_set.resource_set_as(self.as)
     if self.req_as is not None:
-      self.req_as = resource_set.resource_set_as(self.req_as)
+      self.req_as = rpki.resource_set.resource_set_as(self.req_as)
     if self.ipv4 is not None:
-      self.ipv4 = resource_set.resource_set_ipv4(self.ipv4)
+      self.ipv4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
     if self.req_ipv4 is not None:
-      self.req_ipv4 = resource_set.resource_set_ipv4(self.req_ipv4)
+      self.req_ipv4 = rpki.resource_set.resource_set_ipv4(self.req_ipv4)
     if self.ipv6 is not None:
-      self.ipv6 = resource_set.resource_set_ipv6(self.ipv6)
+      self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
     if self.req_ipv6 is not None:
-      self.req_ipv6 = resource_set.resource_set_ipv6(self.req_ipv6)
+      self.req_ipv6 = rpki.resource_set.resource_set_ipv6(self.req_ipv6)
 
   def endElement(self, stack, name, text):
     """Handle <resource_class/> element."""
@@ -370,7 +372,7 @@ class msg(list):
     elt.extend([i.toXML() for i in self])
     return elt
 
-class sax_handler(sax_utils.handler):
+class sax_handler(rpki.sax_utils.handler):
   """SAX handler for Left-Right protocol."""
 
   def create_top_level(self, name, attrs):

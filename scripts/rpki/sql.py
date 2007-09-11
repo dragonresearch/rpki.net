@@ -16,15 +16,21 @@ class sql_persistant(object):
   """
 
   ## @var sql_children
-  # Dictionary listing this class's children in the tree of SQL
-  # tables.  Key the name of the attribute in this class at which a
-  # list of the resulting child objects are stored; value is is the
-  # class object of a child.
-  sql_children = {}
+  # Tuple of tuples associating this class's children in the tree of
+  # SQL tables with the attribute names by which this class refers to
+  # them.  Conceptually, this is an ordered dictionary; not being able
+  # to use a real Python dictionary here is a minor inconvenience.
+  # Making this an ordered data structure allows us to defer the
+  # objects with complex cross-linking until after the simpler objects
+  # to which they link have already been loaded.
+  #
+  # "Key" is the name of the attribute in this class at which a list
+  # of the resulting child objects are stored; "value" is is the class
+  # object of a child.
+  sql_children = ()
 
   ## @var sql_in_db
-  # Whether this object is already in SQL or not.  Perhaps this should
-  # instead be a None value in the object's ID field?
+  # Whether this object is already in SQL or not.
   sql_in_db = False
 
   ## @var sql_dirty
@@ -75,8 +81,8 @@ class sql_persistant(object):
       self.sql_decode(sql_parent, *row)
       result.append(self)
       self_dict = self.sql_encode()
-      for kid_name,kid_type in self.sql_children.items():
-        setattr(self, kid_name, kid_type.sql_fetch(db, cur, self_dict, self))
+      for k,v in self.sql_children:
+        setattr(self, k, v.sql_fetch(db, cur, self_dict, self))
     return result
 
   def sql_store(self, db, cur=None):
@@ -92,8 +98,8 @@ class sql_persistant(object):
       cur.execute(self.sql_update_cmd, self.sql_encode())
     self.sql_dirty = False
     self.sql_in_db = True
-    for kids in self.sql_children:
-      for kid in getattr(self, kids):
+    for k,v in self.sql_children:
+      for kid in getattr(self, k):
         kid.sql_store(db, cur)
 
   def sql_delete(self, db, cur=None):
@@ -104,8 +110,8 @@ class sql_persistant(object):
     if self.sql_in_db:
       cur.execute(self.sql_delete_cmd, self.sql_encode())
       self.sql_in_db = False
-    for kids in self.sql_children:
-      for kid in getattr(self, kids):
+    for k,v in self.sql_children:
+      for kid in getattr(self, k):
         kid.sql_delete(db, cur)
 
   def sql_encode(self):

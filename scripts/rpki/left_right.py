@@ -58,9 +58,9 @@ class extension_preference_elt(base_elt, rpki.sql.sql_persistant):
   attributes = ("name",)
 
   sql_select_cmd = """SELECT pref_name, pref_value FROM self_pref WHERE self_id = %(self_id)s"""
-  sql_insert_cmd = """INSERT self_pref (self_id, pref_name, pref_value) VALUES (%(self_id)s, %(name)s, %(value)"""
-  sql_update_cmd = """UPDATE self_pref SET pref_value = %(value)s WHERE self_id = %(self_id) AND pref_name = %(name)s"""
-  sql_delete_cmd = """DELETE FROM self_pref WHERE self_id = %(self_id) AND pref_name = %(name)s"""
+  sql_insert_cmd = """INSERT self_pref (self_id, pref_name, pref_value) VALUES (%(self_id)s, %(name)s, %(value)s"""
+  sql_update_cmd = """UPDATE self_pref SET pref_value = %(value)s WHERE self_id = %(self_id)s AND pref_name = %(name)s"""
+  sql_delete_cmd = """DELETE FROM self_pref WHERE self_id = %(self_id)s AND pref_name = %(name)s"""
 
   def sql_decode(self, sql_parent, self_id, name, value):
     self.self_obj = sql_parent
@@ -86,38 +86,6 @@ class extension_preference_elt(base_elt, rpki.sql.sql_persistant):
     """Generate <extension_preference/> elements."""
     elt = self.make_elt()
     elt.text = self.value
-    return elt
-
-class self_elt(base_elt, rpki.sql.sql_persistant):
-  """<self/> element."""
-
-  element_name = "self"
-  attributes = ("action", "type", "self_id")
-  booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now")
-
-  def __init__(self):
-    self.prefs = []
-
-  def startElement(self, stack, name, attrs):
-    """Handle <self/> element."""
-    if name == "extension_preference":
-      pref = extension_preference_elt()
-      self.prefs.append(pref)
-      stack.append(pref)
-      pref.startElement(stack, name, attrs)
-    else:
-      assert name == "self", "Unexpected name %s, stack %s" % (name, stack)
-      self.read_attrs(attrs)
-
-  def endElement(self, stack, name, text):
-    """Handle <self/> element."""
-    assert name == "self", "Unexpected name %s, stack %s" % (name, stack)
-    stack.pop()
-
-  def toXML(self):
-    """Generate <self/> element."""
-    elt = self.make_elt()
-    elt.extend([i.toXML() for i in self.prefs])
     return elt
 
 class bsc_elt(base_elt, rpki.sql.sql_persistant):
@@ -276,6 +244,62 @@ class route_origin_elt(base_elt, rpki.sql.sql_persistant):
   def toXML(self):
     """Generate <route_origin/> element."""
     return self.make_elt()
+
+class self_elt(base_elt, rpki.sql.sql_persistant):
+  """<self/> element."""
+
+  element_name = "self"
+  attributes = ("action", "type", "self_id")
+  booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now")
+
+  sql_id_name = "self_id"
+  sql_select_cmd = """SELECT self_id, use_hsm FROM self WHERE self_id = %(self_id)s"""
+  sql_insert_cmd = """INSERT self (use_hsm) VALUES (%(use_hsm)s"""
+  sql_update_cmd = """UPDATE self SET use_hsm = %(use_hsm)s WHERE self_id = %(self_id)s"""
+  sql_delete_cmd = """DELETE FROM self WHERE self_id = %(self_id)s"""
+  sql_children = (("prefs",         extension_preference_elt),
+                  ("bscs",          bsc_elt),
+                  ("repos",         repository_elt),
+                  ("parents",       parent_elt),
+                  ("children",      child_elt),
+                  ("route_origins", route_origin_elt))
+
+  self_id = None
+
+  def __init__(self):
+    for k,v in self.sql_children:
+      setattr(self, k, [])
+
+  def sql_decode(self, sql_parent, self_id, use_hsm):
+    assert sql_parent is None
+    self.self_id = self_id
+    self.use_hsm = use_hsm
+
+  def sql_encode(self):
+    return { "self_id" : self.self_id,
+             "use_hsm" : self.use_hsm }
+
+  def startElement(self, stack, name, attrs):
+    """Handle <self/> element."""
+    if name == "extension_preference":
+      pref = extension_preference_elt()
+      self.prefs.append(pref)
+      stack.append(pref)
+      pref.startElement(stack, name, attrs)
+    else:
+      assert name == "self", "Unexpected name %s, stack %s" % (name, stack)
+      self.read_attrs(attrs)
+
+  def endElement(self, stack, name, text):
+    """Handle <self/> element."""
+    assert name == "self", "Unexpected name %s, stack %s" % (name, stack)
+    stack.pop()
+
+  def toXML(self):
+    """Generate <self/> element."""
+    elt = self.make_elt()
+    elt.extend([i.toXML() for i in self.prefs])
+    return elt
 
 class resource_class_elt(base_elt):
   """<resource_class/> element."""

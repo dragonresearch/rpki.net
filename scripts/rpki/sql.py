@@ -59,7 +59,7 @@ class sql_persistant(object):
     else:
       assert len(kwargs) == 0
     cur.execute(self.sql_select_cmd % arg_dict)
-    for row in cur.fetchall()
+    for row in cur.fetchall():
       self = cls()
       self.in_sql = True
       self.sql_objectify(*row)

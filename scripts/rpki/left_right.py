@@ -298,6 +298,26 @@ class route_origin_elt(base_elt, rpki.sql.sql_persistant):
   attributes = ("action", "type", "self_id", "route_origin_id", "asn", "ipv4", "ipv6")
   booleans = ("suppress_publication",)
 
+  sql_id_name = "route_origin_id"
+  sql_select_cmd = """SELECT route_origin_id, as_number, self_id FROM route_origin WHERE self_id = %(self_id)s"""
+  sql_insert_cmd = """INSERT route_origin (as_number, self_id) VALUES (%(as_number)s, %(self_id)s)"""
+  sql_update_cmd = """UPDATE route_origin SET as_number = %(as_number)s, self_id = %(self_id)s WHERE repos_id = %(route_origin_id)s"""
+  sql_delete_cmd = """DELETE FROM route_origin WHERE repos_id = %(route_origin_id)s"""
+
+  def sql_decode(self, sql_parent, route_origin_id, as_number, self_id):
+    raise NotImplementedError           # Need to do something about route_origin_prefix table
+    assert isinstance(sql_parent, self_elt)
+    self.self_obj = sql_parent
+    self.self_id = self_id
+    self.asn = as_number
+    self.route_origin = route_origin_id
+
+  def sql_encode(self):
+    raise NotImplementedError           # Need to do something about route_origin_prefix table
+    return { "self_id"         : self.self_obj.self_id,
+             "route_origin_id" : self.route_origin_id,
+             "as_number"       : self.asn }
+
   def startElement(self, stack, name, attrs):
     """Handle <route_origin/> element."""
     assert name == "route_origin", "Unexpected name %s, stack %s" % (name, stack)

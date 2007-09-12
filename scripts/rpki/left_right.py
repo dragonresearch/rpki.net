@@ -196,6 +196,26 @@ class child_elt(base_elt, rpki.sql.sql_persistant):
   attributes = ("action", "type", "self_id", "child_id", "bsc_link", "child_db_id")
   booleans = ("reissue", )
 
+  sql_id_name = "child_id"
+  sql_select_cmd = """SELECT child_id, ta, self_id, bsc_id FROM child WHERE self_id = %(self_id)s"""
+  sql_insert_cmd = """INSERT child (ta, self_id, bsc_id) VALUES (%(ta)s, %(self_id)s, %(bsc_id)s)"""
+  sql_update_cmd = """UPDATE repos SET ta = %(ta)s, self_id = %(self_id)s, bsc_id = %(bsc_id)s WHERE child_id = %(child_id)s"""
+  sql_delete_cmd = """DELETE FROM child WHERE child_id = %(child_id)s"""
+
+  def sql_decode(self, sql_parent, child_id, ta, self_id, bsc_id):
+    assert isinstance(sql_parent, self_elt)
+    self.self_obj = sql_parent
+    self.bsc_obj = self.self_obj.bscs[bsc_id]
+    self.self_id = self_id
+    self.bsc_link = bsc_id
+    self.peer_ta = rpki.x509.X509(DER=ta)
+
+  def sql_encode(self):
+    return { "self_id"  : self.self_obj.self_id,
+             "bsc_id"   : self.bsc_obj.bsc_id,
+             "child_id" : self.child_id,
+             "ta"       : self.peer_ta.get_DER() }
+
   peer_ta = None
 
   def startElement(self, stack, name, attrs):

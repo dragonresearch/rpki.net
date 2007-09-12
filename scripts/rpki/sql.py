@@ -64,7 +64,9 @@ class sql_persistant(object):
   def sql_fetch(cls, db, cur=None, select_dict=None, sql_parent=None):
     """Fetch rows from SQL based on a canned query and a set of
     keyword arguments, and instantiate them as objects, returning a
-    list of the instantiated objects.
+    list of the instantiated objects.  If the object definition
+    indicates an index field (sql_id_name), this method instead
+    returns as dictionary using the index field as the key.
 
     This is a class method because in general we don't even know how
     many matches the SQL lookup will return until after we've
@@ -83,6 +85,8 @@ class sql_persistant(object):
       self_dict = self.sql_encode()
       for k,v in self.sql_children:
         setattr(self, k, v.sql_fetch(db, cur, self_dict, self))
+    if cls.sql_id_name is not None:
+      result = dict((getattr(i, cls.sql_id_name), i) for i in result)
     return result
 
   def sql_store(self, db, cur=None):

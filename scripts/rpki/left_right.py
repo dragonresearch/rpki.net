@@ -195,6 +195,28 @@ class repository_elt(base_elt, rpki.sql.sql_persistant):
   element_name = "repository"
   attributes = ("action", "type", "self_id", "repository_id", "bsc_link", "peer_contact")
 
+  sql_id_name = "repos_id"
+  sql_select_cmd = """SELECT self_id, bsc_id, repos_id, uri, ta FROM repos WHERE self_id = %(self_id)s AND bsc_id = %(bsc_id)s"""
+  sql_insert_cmd = """INSERT repos (uri, ta, bsc_id, self_id) VALUES (%(uri)s, %(ta)s, %(bsc_id)s, %(self_id)s)"""
+  sql_update_cmd = """UPDATE repos SET uri = %(uri)s, ta = %(ta)s, bsc_id = %(bsc_id)s, self_id = %(self_id)s WHERE repos_id = %(repos_id)s"""
+  sql_delete_cmd = """DELETE FROM repos WHERE repos_id = %(repos_id)s"""
+
+  def sql_decode(self, sql_parent, self_id, bsc_id, repos_id, uri, ta):
+    self.self_obj = sql_parent
+    self.bsc_obj = self.self_obj.bscs[bsc_id]
+    self.self_id = self_id
+    self.bsc_link = bsc_id
+    self.repository_id = repos_id
+    self.peer_contact = uri
+    self.peer_ta = rpki.x509.X509(DER=ta)
+
+  def sql_encode(self):
+    return { "self_id"  : self.self_obj.self_id,
+             "bsc_id"   : self.bsc_link.bsc_id,
+             "repos_id" : self.repository_id,
+             "uri"      : self.peer_contact,
+             "ta"       : self.peer_ta.get_DER() }
+
   peer_ta = None
 
   def startElement(self, stack, name, attrs):

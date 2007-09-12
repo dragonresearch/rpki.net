@@ -96,11 +96,44 @@ class bsc_elt(base_elt, rpki.sql.sql_persistant):
   attributes = ("action", "type", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
   booleans = ("generate_keypair",)
 
+  sql_select_cmd = """SELECT bsc_id, self_id, pub_key, priv_key_id FROM bsc WHERE self_id = %(self_id)s"""
+  sql_insert_cmd = """INSERT bsc (self_id, pub_key, priv_key_id) VALUES (%(self_id)s, %(pub_key)s, %(priv_key_id)s"""
+  sql_update_cmd = """UPDATE bsc SET self_id = %(self_id)s, pub_key = %(pub_key)s, priv_key_id = %(priv_key_id)s WHERE bsc_id = %(bsc_id)s"""
+  sql_delete_cmd = """DELETE FROM bsc WHERE bsc_id = %(bsc_id)s"""
+
   pkcs10_cert_request = None
   public_key = None
 
   def __init__(self):
     self.signing_cert = []
+
+  def sql_decode(self, sql_parent, bsc_id, self_id, pub_key, priv_key_id):
+    assert isinstance(sql_parent, self_elt)
+    self.self_obj = sql_parent
+    self.bsc_id = bsc_id
+    self.self_id = self_id
+    self.pub_key = pub_key
+    self.priv_key_id = priv_key_id
+
+  def sql_encode(self):
+    return { "self_id"     : self.self_obj.self_id,
+             "bsc_id"      : self.bsc_id,
+             "pub_key"     : self.pub_key,
+             "priv_key_id" : self.priv_key_id }
+
+  def sql_fetch_hook(self, db, cur):
+    cur.execute("""SELECT cert FROM bsc_cert WHERE bsc_id = %s""", self.bsc_id)
+    self.signing_cert = [rpki.x509.X509(DER=x) for (x,) in cur.fetchall()]
+
+  def sql_insert_hook(self, db, cur):
+    cur.executemany("""INSERT bsc_cert (cert, bsc_id) VALUES (%s, %s)""", [(x.get_DER(), self.bsc_id) for x in self.signing_cert])
+  
+  def sql_update_hook(self, db, cur):
+    self.delete_hook(db, cur)
+    self.insert_hook(db, cur)
+
+  def sql_delete_hook(self, db, cur):
+    cur.execute("""DELETE FROM bsc_cert WHERE bsc_id = %s""", self.bsc_id)
 
   def startElement(self, stack, name, attrs):
     """Handle <bsc/> element."""

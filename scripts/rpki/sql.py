@@ -81,8 +81,9 @@ class sql_persistant(object):
       self = cls()
       self.in_sql = True
       self.sql_decode(sql_parent, *row)
-      result.append(self)
       self_dict = self.sql_encode()
+      self.sql_fetch_hook(db, cur)
+      result.append(self)
       for k,v in self.sql_children:
         setattr(self, k, v.sql_fetch(db, cur, self_dict, self))
     if cls.sql_id_name is not None:
@@ -98,8 +99,10 @@ class sql_persistant(object):
       cur.execute(self.sql_insert_cmd, self.sql_encode())
       if self.sql_id_name is not None:
         setattr(self, self.sql_id_name, cur.lastrowid)
+      self.sql_insert_hook(db, cur)
     elif self.sql_dirty:
       cur.execute(self.sql_update_cmd, self.sql_encode())
+      self.sql_update_hook(db, cur)
     self.sql_dirty = False
     self.sql_in_db = True
     for k,v in self.sql_children:
@@ -113,6 +116,7 @@ class sql_persistant(object):
       cur = db.cursor()
     if self.sql_in_db:
       cur.execute(self.sql_delete_cmd, self.sql_encode())
+      self.sql_delete_hook(db, cur)
       self.sql_in_db = False
     for k,v in self.sql_children:
       for kid in getattr(self, k):
@@ -129,3 +133,19 @@ class sql_persistant(object):
     """Initialize an object with values returned by self.sql_fetch().
     """
     raise NotImplementedError
+
+  def sql_fetch_hook(self, db, cur):
+    """Customization hook."""
+    pass
+
+  def sql_insert_hook(self, db, cur):
+    """Customization hook."""
+    pass
+  
+  def sql_update_hook(self, db, cur):
+    """Customization hook."""
+    pass
+
+  def sql_delete_hook(self, db, cur):
+    """Customization hook."""
+    pass

@@ -62,7 +62,7 @@ class extension_preference_elt(base_elt, rpki.sql.sql_persistant):
   sql_update_cmd = """UPDATE self_pref SET pref_value = %(value)s WHERE self_id = %(self_id)s AND pref_name = %(name)s"""
   sql_delete_cmd = """DELETE FROM self_pref WHERE self_id = %(self_id)s AND pref_name = %(name)s"""
 
-  def sql_decode(self, sql_parent, self_id, name, value):
+  def sql_decode(self, sql_parent, name, value):
     assert isinstance(sql_parent, self_elt)
     self.self_obj = sql_parent
     self.name = name
@@ -96,7 +96,8 @@ class bsc_elt(base_elt, rpki.sql.sql_persistant):
   attributes = ("action", "type", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
   booleans = ("generate_keypair",)
 
-  sql_select_cmd = """SELECT bsc_id, self_id, pub_key, priv_key_id FROM bsc WHERE self_id = %(self_id)s"""
+  sql_id_name = "bsc_id"
+  sql_select_cmd = """SELECT bsc_id, pub_key, priv_key_id FROM bsc WHERE self_id = %(self_id)s"""
   sql_insert_cmd = """INSERT bsc (self_id, pub_key, priv_key_id) VALUES (%(self_id)s, %(pub_key)s, %(priv_key_id)s"""
   sql_update_cmd = """UPDATE bsc SET self_id = %(self_id)s, pub_key = %(pub_key)s, priv_key_id = %(priv_key_id)s WHERE bsc_id = %(bsc_id)s"""
   sql_delete_cmd = """DELETE FROM bsc WHERE bsc_id = %(bsc_id)s"""
@@ -107,7 +108,7 @@ class bsc_elt(base_elt, rpki.sql.sql_persistant):
   def __init__(self):
     self.signing_cert = []
 
-  def sql_decode(self, sql_parent, bsc_id, self_id, pub_key, priv_key_id):
+  def sql_decode(self, sql_parent, bsc_id, pub_key, priv_key_id):
     assert isinstance(sql_parent, self_elt)
     self.self_obj = sql_parent
     self.bsc_id = bsc_id
@@ -167,22 +168,19 @@ class parent_elt(base_elt, rpki.sql.sql_persistant):
   booleans = ("rekey", "reissue", "revoke")
 
   sql_id_name = "parent_id"
-  sql_select_cmd = """SELECT parent_id, ta, uri, sia_base, self_id, bsc_id, repos_id FROM parent
-                      WHERE self_id = %(self_id)s"""
+  sql_select_cmd = """SELECT parent_id, ta, uri, sia_base, bsc_id, repos_id FROM parent WHERE self_id = %(self_id)s"""
   sql_insert_cmd = """INSERT parent (ta, url, sia_base, self_id, bsc_id, repos_id)
                       VALUES (%(ta)s, %(url)s, %(sia_base)s, %(self_id)s, %(bsc_id)s, %(repos_id)s)"""
   sql_update_cmd = """UPDATE repos SET ta = %(ta)s, uri = %(uri)s, sia_base = %(sia_base)s, self_id = %(self_id)s, bsc_id = %(bsc_id)s, repos_id = %(repos_id)s
                       WHERE parent_id = %(parent_id)s"""
   sql_delete_cmd = """DELETE FROM parent WHERE parent_id = %(parent_id)s"""
 
-  def sql_decode(self, sql_parent, parent_id, ta, uri, sia_base, self_id, bsc_id, repos_id):
+  def sql_decode(self, sql_parent, parent_id, ta, uri, sia_base, bsc_id, repos_id):
     assert isinstance(sql_parent, self_elt)
     self.self_obj = sql_parent
     self.bsc_obj = self.self_obj.bscs[bsc_id]
     self.repository_obj = self.self_obj.repos[repos_id]
-    self.self_id = self_id
-    self.bsc_link = bsc_id
-    self.repository_link = repos_id
+    self.parent_id = parent_id
     self.peer_contact = uri
     self.peer_ta = rpki.x509.X509(DER=ta)
 
@@ -226,16 +224,15 @@ class child_elt(base_elt, rpki.sql.sql_persistant):
   booleans = ("reissue", )
 
   sql_id_name = "child_id"
-  sql_select_cmd = """SELECT child_id, ta, self_id, bsc_id FROM child WHERE self_id = %(self_id)s"""
+  sql_select_cmd = """SELECT child_id, ta, bsc_id FROM child WHERE self_id = %(self_id)s"""
   sql_insert_cmd = """INSERT child (ta, self_id, bsc_id) VALUES (%(ta)s, %(self_id)s, %(bsc_id)s)"""
   sql_update_cmd = """UPDATE repos SET ta = %(ta)s, self_id = %(self_id)s, bsc_id = %(bsc_id)s WHERE child_id = %(child_id)s"""
   sql_delete_cmd = """DELETE FROM child WHERE child_id = %(child_id)s"""
 
-  def sql_decode(self, sql_parent, child_id, ta, self_id, bsc_id):
+  def sql_decode(self, sql_parent, child_id, ta, bsc_id):
     assert isinstance(sql_parent, self_elt)
     self.self_obj = sql_parent
     self.bsc_obj = self.self_obj.bscs[bsc_id]
-    self.self_id = self_id
     self.bsc_link = bsc_id
     self.peer_ta = rpki.x509.X509(DER=ta)
 
@@ -275,17 +272,15 @@ class repository_elt(base_elt, rpki.sql.sql_persistant):
   attributes = ("action", "type", "self_id", "repository_id", "bsc_link", "peer_contact")
 
   sql_id_name = "repos_id"
-  sql_select_cmd = """SELECT self_id, bsc_id, repos_id, uri, ta FROM repos WHERE self_id = %(self_id)s"""
+  sql_select_cmd = """SELECT bsc_id, repos_id, uri, ta FROM repos WHERE self_id = %(self_id)s"""
   sql_insert_cmd = """INSERT repos (uri, ta, bsc_id, self_id) VALUES (%(uri)s, %(ta)s, %(bsc_id)s, %(self_id)s)"""
   sql_update_cmd = """UPDATE repos SET uri = %(uri)s, ta = %(ta)s, bsc_id = %(bsc_id)s, self_id = %(self_id)s WHERE repos_id = %(repos_id)s"""
   sql_delete_cmd = """DELETE FROM repos WHERE repos_id = %(repos_id)s"""
 
-  def sql_decode(self, sql_parent, self_id, bsc_id, repos_id, uri, ta):
+  def sql_decode(self, sql_parent, bsc_id, repos_id, uri, ta):
     assert isinstance(sql_parent, self_elt)
     self.self_obj = sql_parent
     self.bsc_obj = self.self_obj.bscs[bsc_id]
-    self.self_id = self_id
-    self.bsc_link = bsc_id
     self.repository_id = repos_id
     self.peer_contact = uri
     self.peer_ta = rpki.x509.X509(DER=ta)
@@ -328,21 +323,18 @@ class route_origin_elt(base_elt, rpki.sql.sql_persistant):
   booleans = ("suppress_publication",)
 
   sql_id_name = "route_origin_id"
-  sql_select_cmd = """SELECT route_origin_id, as_number, self_id FROM route_origin WHERE self_id = %(self_id)s"""
+  sql_select_cmd = """SELECT route_origin_id, as_number FROM route_origin WHERE self_id = %(self_id)s"""
   sql_insert_cmd = """INSERT route_origin (as_number, self_id) VALUES (%(as_number)s, %(self_id)s)"""
   sql_update_cmd = """UPDATE route_origin SET as_number = %(as_number)s, self_id = %(self_id)s WHERE repos_id = %(route_origin_id)s"""
   sql_delete_cmd = """DELETE FROM route_origin WHERE repos_id = %(route_origin_id)s"""
 
-  def sql_decode(self, sql_parent, route_origin_id, as_number, self_id):
-    raise NotImplementedError           # Need to do something about route_origin_prefix table
+  def sql_decode(self, sql_parent, route_origin_id, as_number):
     assert isinstance(sql_parent, self_elt)
     self.self_obj = sql_parent
-    self.self_id = self_id
     self.asn = as_number
     self.route_origin = route_origin_id
 
   def sql_encode(self):
-    raise NotImplementedError           # Need to do something about route_origin_prefix table
     return { "self_id"         : self.self_obj.self_id,
              "route_origin_id" : self.route_origin_id,
              "as_number"       : self.asn }

@@ -175,11 +175,13 @@ class parent_elt(base_elt, rpki.sql.sql_persistant):
                       WHERE parent_id = %(parent_id)s"""
   sql_delete_cmd = """DELETE FROM parent WHERE parent_id = %(parent_id)s"""
 
+  sql_children = (("cas", rpki.sql.ca_obj),)
+
   def sql_decode(self, sql_parent, parent_id, ta, uri, sia_base, bsc_id, repos_id):
     assert isinstance(sql_parent, self_elt)
     self.self_obj = sql_parent
-    self.bsc_obj = self.self_obj.bscs[bsc_id]
-    self.repository_obj = self.self_obj.repos[repos_id]
+    self.bsc_obj = bsc_elt.sql_cache_find(bsc_id)
+    self.repository_obj = repository_elt.sql_cache_find(repos_id)
     self.parent_id = parent_id
     self.peer_contact = uri
     self.peer_ta = rpki.x509.X509(DER=ta)
@@ -232,8 +234,8 @@ class child_elt(base_elt, rpki.sql.sql_persistant):
   def sql_decode(self, sql_parent, child_id, ta, bsc_id):
     assert isinstance(sql_parent, self_elt)
     self.self_obj = sql_parent
-    self.bsc_obj = self.self_obj.bscs[bsc_id]
-    self.bsc_link = bsc_id
+    self.bsc_obj = bsc_elt.sql_cache_find(bsc_id)
+    self.child_id = child_id
     self.peer_ta = rpki.x509.X509(DER=ta)
 
   def sql_encode(self):
@@ -280,7 +282,7 @@ class repository_elt(base_elt, rpki.sql.sql_persistant):
   def sql_decode(self, sql_parent, bsc_id, repos_id, uri, ta):
     assert isinstance(sql_parent, self_elt)
     self.self_obj = sql_parent
-    self.bsc_obj = self.self_obj.bscs[bsc_id]
+    self.bsc_obj = bsc_elt.sql_cache_find(bsc_id)
     self.repository_id = repos_id
     self.peer_contact = uri
     self.peer_ta = rpki.x509.X509(DER=ta)

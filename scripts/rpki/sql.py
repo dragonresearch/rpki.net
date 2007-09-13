@@ -149,3 +149,92 @@ class sql_persistant(object):
   def sql_delete_hook(self, db, cur):
     """Customization hook."""
     pass
+
+# Some persistant objects are defined in rpki.left_right, since
+# they're also left-right PDUs.  The rest are defined below, for now.
+
+class ca_detail_obj(sql_persistant):
+  """Internal CA detail object."""
+
+  sql_select_cmd = """SELECT ca_detail_id, priv_key_handle, pub_key, latest_ca_cert_over_pubkey, manifest_ee_priv_key_handle, manifest_ee_pub_key,
+                             latest_manifest_ee_cert, latest_manifest, latest_crl, ca_id
+                      FROM ca_detail
+                      WHERE ca_id = %(ca_id)s"""
+
+  sql_insert_cmd = """INSERT ca_detail (priv_key_handle, pub_key, latest_ca_cert_over_pubkey, manifest_ee_priv_key_handle, manifest_ee_pub_key,
+                                        latest_manifest_ee_cert, latest_manifest, latest_crl, ca_id)
+                      VALUES (%(priv_key_handle)s, %(pub_key)s, %(latest_ca_cert_over_pubkey)s, %(manifest_ee_priv_key_handle)s,
+                              %(manifest_ee_pub_key)s, %(latest_manifest_ee_cert)s, %(latest_manifest)s, %(latest_crl)s, %(ca_id)s)"""
+
+  sql_update_cmd = """UPDATE ca
+                      SET priv_key_handle = %(priv_key_handle)s, pub_key = %(pub_key)s, latest_ca_cert_over_pubkey = %(latest_ca_cert_over_pubkey)s,
+                          manifest_ee_priv_key_handle = %(manifest_ee_priv_key_handle)s, manifest_ee_pub_key = %(manifest_ee_pub_key)s,
+                          latest_manifest_ee_cert = %(latest_manifest_ee_cert)s, latest_manifest = %(latest_manifest)s, latest_crl = %(latest_crl)s, ca_id = %(ca_id)s
+                      WHERE ca_detail_id = %(ca_detail_id)s"""
+
+  sql_delete_cmd = """DELETE FROM ca_detail WHERE ca_detail_id = %(ca_detail_id)s"""
+
+  def sql_decode(self, sql_parent, ca_detail_id, priv_key_handle, pub_key, latest_ca_cert_over_pubkey,
+                 manifest_ee_priv_key_handle, manifest_ee_pub_key, latest_manifest_ee_cert, latest_manifest, latest_crl, ca_id):
+    assert isinstance(sql_parent, ca_obj)
+    self.ca_obj = sql_parent
+    self.ca_detail_id = ca_detail_id
+    self.priv_key_handle = priv_key_handle
+    self.pub_key = pub_key
+    self.latest_ca_cert_over_pubkey = latest_ca_cert_over_pubkey
+    self.manifest_ee_priv_key_handle = manifest_ee_priv_key_handle
+    self.manifest_ee_pub_key = manifest_ee_pub_key
+    self.latest_manifest_ee_cert = latest_manifest_ee_cert
+    self.latest_manifest = latest_manifest
+    self.latest_crl = latest_crl
+    self.ca_id = ca_id
+
+  def sql_encode(self):
+    return { "ca_detail_id"                     : self.ca_detail_id,
+             "priv_key_handle"                  : self.priv_key_handle,
+             "pub_key"                          : self.pub_key,
+             "latest_ca_cert_over_pubkey"       : self.latest_ca_cert_over_pubkey,
+             "manifest_ee_priv_key_handle"      : self.manifest_ee_priv_key_handle,
+             "manifest_ee_pub_key"              : self.manifest_ee_pub_key,
+             "latest_manifest_ee_cert"          : self.latest_manifest_ee_cert,
+             "latest_manifest"                  : self.latest_manifest,
+             "latest_crl"                       : self.latest_crl,
+             "ca_id"                            : self.ca_id }
+
+class ca_obj(sql_persistant):
+  """Internal CA object."""
+
+  sql_select_cmd = """SELECT ca_id, last_crl_sn, next_crl_update, last_issued_sn, last_manifest_sn, next_manifest_update, sia_uri, parent_id
+                      FROM ca
+                      WHERE parent_id = %(parent_id)s"""
+  sql_insert_cmd = """INSERT ca (last_crl_sn, next_crl_update, last_issued_sn, last_manifest_sn, next_manifest_update, sia_uri, parent_id)
+                      VALUES (%(last_crl_sn)s, %(next_crl_update)s, %(last_issued_sn)s, %(last_manifest_sn)s, %(next_manifest_update)s, %(sia_uri)s, %(parent_id)s)"""
+  sql_update_cmd = """UPDATE ca
+                      SET last_crl_sn = %(last_crl_sn)s, next_crl_update = %(next_crl_update)s, last_issued_sn = %(last_issued_sn)s,
+                          last_manifest_sn = %(last_manifest_sn)s, next_manifest_update = %(next_manifest_update)s, sia_uri = %(sia_uri)s, parent_id = %(parent_id)s
+                      WHERE ca_id = %(ca_id)s"""
+  sql_delete_cmd = """DELETE FROM ca WHERE ca_id = %(ca_id)s"""
+
+  sql_children = (("ca_details", ca_detail_obj))
+
+  def sql_decode(self, sql_parent, ca_id, last_crl_sn, next_crl_update, last_issued_sn, last_manifest_sn, next_manifest_update, sia_uri, parent_id):
+    assert isinstance(sql_parent, rpki.left_right.parent_elt)
+    self.parent_obj = sql_parent
+    self.ca_id = ca_id
+    self.last_crl_sn = last_crl_sn
+    self.next_crl_update = next_crl_update
+    self.last_issued_sn = last_issued_sn
+    self.last_manifest_sn = last_manifest_sn
+    self.next_manifest_update = next_manifest_update
+    self.sia_uri = sia_uri
+    self.parent_id = parent_id
+
+  def sql_encode(self):
+    return { "ca_id"                    : self.ca_id,
+             "last_crl_sn"              : self.last_crl_sn,
+             "next_crl_update"          : self.next_crl_update,
+             "last_issued_sn"           : self.last_issued_sn,
+             "last_manifest_sn"         : self.last_manifest_sn,
+             "next_manifest_update"     : self.next_manifest_update,
+             "sia_uri"                  : self.sia_uri,
+             "parent_id"                : self.parent_id }

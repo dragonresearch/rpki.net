@@ -144,7 +144,8 @@ class sql_persistant(object):
   
   def sql_update_hook(self, db, cur):
     """Customization hook."""
-    pass
+    self.delete_hook(db, cur)
+    self.insert_hook(db, cur)
 
   def sql_delete_hook(self, db, cur):
     """Customization hook."""

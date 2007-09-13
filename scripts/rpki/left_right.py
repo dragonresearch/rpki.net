@@ -128,10 +128,6 @@ class bsc_elt(base_elt, rpki.sql.sql_persistant):
   def sql_insert_hook(self, db, cur):
     cur.executemany("""INSERT bsc_cert (cert, bsc_id) VALUES (%s, %s)""", [(x.get_DER(), self.bsc_id) for x in self.signing_cert])
   
-  def sql_update_hook(self, db, cur):
-    self.delete_hook(db, cur)
-    self.insert_hook(db, cur)
-
   def sql_delete_hook(self, db, cur):
     cur.execute("""DELETE FROM bsc_cert WHERE bsc_id = %s""", self.bsc_id)
 
@@ -356,16 +352,18 @@ class route_origin_elt(base_elt, rpki.sql.sql_persistant):
     self.ipv4.from_sql(cur, """SELECT start_ip, end_ip FROM route_origin_prefix WHERE route_origin_id = %s AND start_ip NOT LIKE '%:%'""", self.route_origin_id)
     self.ipv6 = rpki.resource_set.resource_set_ipv6()
     self.ipv4.from_sql(cur, """SELECT start_ip, end_ip FROM route_origin_prefix WHERE route_origin_id = %s AND start_ip LIKE '%:%'""", self.route_origin_id)
-
+    cur.execute("""SELECT roa, ca_detail_id FROM roa WHERE route_origin_id = %s""", self.route_origin_id)
+    self.roas = cur.fetchall()
+    
   def sql_insert_hook(self, db, cur):
-    cur.executemany("""INSERT route_origin_prefix (route_origin_id, start_ip, end_ip) VALUES (%s, %s, %s)""", [(x.min, x.max) for x in self.ipv4 + self.ipv6])
+    cur.executemany("""INSERT route_origin_prefix (route_origin_id, start_ip, end_ip) VALUES (%s, %s, %s)""",
+                    [(self.route_origin_id, x.min, x.max) for x in self.ipv4 + self.ipv6])
+    cur.executemany("""INSERT roa (route_origin_id, roa, ca_detail_id) VALUES (%s, %s, %s)""",
+                    [(self.route_origin_id, x[0], x[1]) for x in self.roas])
   
-  def sql_update_hook(self, db, cur):
-    self.delete_hook(db, cur)
-    self.insert_hook(db, cur)
-
   def sql_delete_hook(self, db, cur):
     cur.execute("""DELETE FROM route_origin_prefix WHERE route_origin_id = %s""", self.route_origin_id)
+    cur.execute("""DELETE FROM roa WHERE route_origin_id = %s""", self.route_origin_id)
 
   def startElement(self, stack, name, attrs):
     """Handle <route_origin/> element."""

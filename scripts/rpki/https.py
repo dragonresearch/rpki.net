@@ -31,7 +31,9 @@ def client(msg, privateKey, certChain, x509TrustList, host="localhost", port=443
   if response.status == httplib.OK:
     return response.read()
   else:
-    raise RuntimeError, response.read()
+    r = response.read()
+    print "ERROR: Got:", response.status, r
+    raise RuntimeError, (response.status, r)
 
 class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   """Derived type to supply POST handler."""
@@ -42,16 +44,18 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     """POST handler."""
     assert self.headers["Content-Type"] == rpki_content_type
     query_string = self.rfile.read(int(self.headers["Content-Length"]))
-    rcode = None
-    try:
-      handler = self.rpki_handlers[self.path]
-    except KeyError:
-      rcode, rtext = 404, ""
-    if rcode is None:
+    handler = None
+    for s,h in self.rpki_handlers:
+      if self.path.startswith(s):
+        handler = h
+        break
+    if handler is None:
+      rcode, rtext = 404, "No handler found for URL " + self.path
+    else:
       try:
         rcode, rtext = handler(query=query_string, path=self.path)
-      except:
-        rcode, rtext = 500, ""
+      except Exception, edata:
+        rcode, rtext = 500, "Unhandled exception %s" % edata
     self.send_response(rcode)
     self.send_header("Content-Type", rpki_content_type)
     self.end_headers()
@@ -81,6 +85,9 @@ class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
 
 def server(handlers, privateKey, certChain, port=4433, host=""):
   """Run an HTTPS server and wait (forever) for connections."""
+
+  if not isinstance(handlers, (tuple, list)):
+    handlers = (("/", handlers),)
 
   class boundRequestHandler(requestHandler):
     rpki_handlers = handlers

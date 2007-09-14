@@ -13,4 +13,4 @@ certChain.load_from_PEM(cfg.multiget(section, "https-cert"))
 def handler(query, path):
   return 200, "Path:    %s\nQuery:   %s" % (path, query)
 
-rpki.https.server(privateKey=privateKey, certChain=certChain, handlers={"/" : handler})
+rpki.https.server(privateKey=privateKey, certChain=certChain, handlers=handler)

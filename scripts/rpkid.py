@@ -9,14 +9,11 @@ import rpki.https, tlslite.api, rpki.config, rpki.resource_set, MySQLdb, rpki.cm
 
 def left_right_handler(query, path):
   try:
-    q_xml = rpki.cms.decode(query, cms_ta)
-    print q_xml
-    q_elt = lxml.etree.fromstring(q_xml)
+    q_elt = lxml.etree.fromstring(rpki.cms.decode(query, cms_ta))
     rng.assertValid(q_elt)
     saxer = rpki.left_right.sax_handler()
     lxml.sax.saxify(q_elt, saxer)
     q_msg = saxer.result
-    assert instanceof(q_msg, rpki.left_right.msg)
     r_msg = rpki.left_right.msg()
     for q_pdu in q_msg:
 
@@ -28,8 +25,8 @@ def left_right_handler(query, path):
 
     r_elt = r_msg.toXML()
     rng.assertValid(r_elt)
-    r_xml = lxml.etree.tostring(r_elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
-    r_cms = rpki.cms.encode(r_xml, cfg.get(section, "cms-key"), cfg.multiget(section, "cms-cert"))
+    r_cms = rpki.cms.encode(lxml.etree.tostring(r_elt, pretty_print=True, encoding="us-ascii", xml_declaration=True),
+                            cms_key, cms_certs)
 
     return 200, r_cms
 
@@ -37,9 +34,11 @@ def left_right_handler(query, path):
     return 500, "Unhandled exception %s" % data
 
 def up_down_handler(query, path):
+  print "up-down handler called"
   raise NotImplementedError
 
 def cronjob_handler(query, path):
+  print "cronjob handler called"
   raise NotImplementedError
 
 cfg = rpki.config.parser("re.conf")
@@ -51,15 +50,17 @@ db = MySQLdb.connect(user   = cfg.get(section, "sql-username"),
 
 cur = db.cursor()
 
-cms_ta = cfg.get(section, "cms-ta")
+cms_ta_irdb = cfg.get(section, "cms-ta-irdb")
+cms_ta_irbe = cfg.get(section, "cms-ta-irbe")
+cms_key     = cfg.get(section, "cms-key")
+cms_certs   = cfg.multiget(section, "cms-cert")
 
-privateKey = rpki.x509.RSA_Keypair(PEM_file = cfg.get(section, "https-key"))
+https_key   = rpki.x509.RSA_Keypair(PEM_file = cfg.get(section, "https-key"))
+https_certs = certChain = rpki.x509.X509_chain()
 
-certChain = rpki.x509.X509_chain()
-certChain.load_from_PEM(cfg.multiget(section, "https-cert"))
+https_certs.load_from_PEM(cfg.multiget(section, "https-cert"))
 
-rpki.https.server(privateKey=privateKey,
-                  certChain=certChain,
-                  handlers={"/left-right" : left_right_handler,
-                            "/up-down"    : up_down_handler,
-                            "/cronjob"    : cronjob_handler })
+rpki.https.server(privateKey=https_key, certChain=https_certs,
+                  handlers=(("/left-right", left_right_handler),
+                            ("/up-down",    up_down_handler),
+                            ("/cronjob",    cronjob_handler)))

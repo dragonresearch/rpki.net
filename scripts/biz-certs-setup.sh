@@ -20,7 +20,7 @@
 # I ended up needing this to build simulated packets for the
 # left-right protocol.
 
-for i in Alice Bob Carol Dave
+for i in Alice Bob Carol Dave Elena Frank Ginny Harry
 do
   for j in Root CA EE
   do

@@ -7,38 +7,40 @@ framework onto which I'm bolting various parts for testing.
 
 import rpki.https, tlslite.api, rpki.config, rpki.resource_set, MySQLdb, rpki.cms
 
+def decode(msg, cms_ta):
+  return lxml.etree.fromstring(rpki.cms.decode(msg, cms_ta))
+
+def encode(msg, cms_key, cms_certs):
+  return rpki.cms.encode(lxml.etree.tostring(msg, pretty_print=True, encoding="us-ascii", xml_declaration=True), cms_key, cms_certs)
+
 def left_right_handler(query, path):
   try:
-    q_elt = lxml.etree.fromstring(rpki.cms.decode(query, cms_ta))
+    q_elt = decode(query, cms_ta_irbe)
     rng.assertValid(q_elt)
     saxer = rpki.left_right.sax_handler()
     lxml.sax.saxify(q_elt, saxer)
     q_msg = saxer.result
     r_msg = rpki.left_right.msg()
     for q_pdu in q_msg:
+      assert isinstance(q_pdu, rpki.left_right.data_elt)
+      if hasattr(q_pdu, "self_id"):
+        rpki.left_right.self_elt.sql_fetch(db, cur, { "self_id" : q_pdu.self_id })
 
       # Do something useful here
-
       raise NotImplementedError
 
       r_msg.append(r_pdu)
-
     r_elt = r_msg.toXML()
     rng.assertValid(r_elt)
-    r_cms = rpki.cms.encode(lxml.etree.tostring(r_elt, pretty_print=True, encoding="us-ascii", xml_declaration=True),
-                            cms_key, cms_certs)
-
-    return 200, r_cms
+    return 200, encode(r_elt, cms_key, cms_certs)
 
   except Exception, data:
     return 500, "Unhandled exception %s" % data
 
 def up_down_handler(query, path):
-  print "up-down handler called"
   raise NotImplementedError
 
 def cronjob_handler(query, path):
-  print "cronjob handler called"
   raise NotImplementedError
 
 cfg = rpki.config.parser("re.conf")

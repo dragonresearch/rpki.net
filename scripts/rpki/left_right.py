@@ -51,6 +51,13 @@ class base_elt(object):
   def __str__(self):
     lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="us-ascii")
 
+class data_elt(base_elt):
+  """Virtual type for a left-right protocol message elements representing
+  top-level persistant data elements.
+  """
+
+  pass
+
 class extension_preference_elt(base_elt, rpki.sql.sql_persistant):
   """Container for extension preferences."""
 
@@ -89,7 +96,7 @@ class extension_preference_elt(base_elt, rpki.sql.sql_persistant):
     elt.text = self.value
     return elt
 
-class bsc_elt(base_elt, rpki.sql.sql_persistant):
+class bsc_elt(data_elt, rpki.sql.sql_persistant):
   """<bsc/> (Business Signing Context) element."""
   
   element_name = "bsc"
@@ -160,7 +167,7 @@ class bsc_elt(base_elt, rpki.sql.sql_persistant):
     self.make_b64elt(elt, "public_key")
     return elt
 
-class parent_elt(base_elt, rpki.sql.sql_persistant):
+class parent_elt(data_elt, rpki.sql.sql_persistant):
   """<parent/> element."""
 
   element_name = "parent"
@@ -218,7 +225,7 @@ class parent_elt(base_elt, rpki.sql.sql_persistant):
       self.make_b64elt(elt, "peer_ta", self.peer_ta.get_DER())
     return elt
 
-class child_elt(base_elt, rpki.sql.sql_persistant):
+class child_elt(data_elt, rpki.sql.sql_persistant):
   """<child/> element."""
 
   element_name = "child"
@@ -290,7 +297,7 @@ class child_elt(base_elt, rpki.sql.sql_persistant):
       self.make_b64elt(elt, "peer_ta", self.peer_ta.get_DER())
     return elt
 
-class repository_elt(base_elt, rpki.sql.sql_persistant):
+class repository_elt(data_elt, rpki.sql.sql_persistant):
   """<repository/> element."""
 
   element_name = "repository"
@@ -340,7 +347,7 @@ class repository_elt(base_elt, rpki.sql.sql_persistant):
       self.make_b64elt(elt, "peer_ta", self.peer_ta.get_DER())
     return elt
 
-class route_origin_elt(base_elt, rpki.sql.sql_persistant):
+class route_origin_elt(data_elt, rpki.sql.sql_persistant):
   """<route_origin/> element."""
 
   element_name = "route_origin"
@@ -402,7 +409,7 @@ class route_origin_elt(base_elt, rpki.sql.sql_persistant):
     """Generate <route_origin/> element."""
     return self.make_elt()
 
-class self_elt(base_elt, rpki.sql.sql_persistant):
+class self_elt(data_elt, rpki.sql.sql_persistant):
   """<self/> element."""
 
   element_name = "self"

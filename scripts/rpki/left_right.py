@@ -244,6 +244,29 @@ class child_elt(base_elt, rpki.sql.sql_persistant):
              "child_id" : self.child_id,
              "ta"       : self.peer_ta.get_DER() }
 
+  def sql_fetch_hook(self, db, cur):
+    cur.execute("""SELECT ca_id FROM child_ca_link WHERE child_id = %s""", self.child_id)
+    self.cas = [rpki.sql.ca.sql_cache_find(ca_id) for (ca_id,) in cur.fetchall()]
+    for ca in self.cas:
+      ca.children.append(self)
+    cur.execute("""SELECT ca_detail_id, cert FROM child_ca_certificate WHERE child_id = %s""", self.child_id)
+    self.certs = []
+    for (ca_detail_id, cert) in cur.fetchall():
+      ca_detail = rpki.sql.ca_detail.sql_cache_find(ca_detail_id)
+      c = rpki.x509.X509(DER=cert)
+      c.child_id = self.child_id
+      c.ca_detail_id = ca_detail_id
+      self.certs.append(c)
+      ca_detail.certs.append(c)
+
+  def sql_insert_hook(self, db, cur):
+    cur.executemany("""INSERT child_ca_link (ca_id, child_id) VALUES (%s, %s)""", [(x.ca_id, self.child_id) for x in self.cas])
+    cur.executemany("""INSERT child_ca_certificate (child_id, ca_detail_id, cert) VALUES (%s, %s, %s)""", [(self.child_id, c.ca_detail_id, c) for c in self.certs])
+  
+  def sql_delete_hook(self, db, cur):
+    cur.execute("""DELETE FROM child_ca_link where child_id = %s""", self.child_id)
+    cur.execute("""DELETE FROM child_ca_certificate where child_id = %s""", self.child_id)
+    
   peer_ta = None
 
   def startElement(self, stack, name, attrs):

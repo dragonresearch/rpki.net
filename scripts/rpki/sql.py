@@ -205,6 +205,10 @@ class ca_detail_obj(sql_persistant):
 
   sql_delete_cmd = """DELETE FROM ca_detail WHERE ca_detail_id = %(ca_detail_id)s"""
 
+
+  def __init__(self):
+    self.certs = []
+
   def sql_decode(self, sql_parent, ca_detail_id, priv_key_handle, pub_key, latest_ca_cert_over_pubkey,
                  manifest_ee_priv_key_handle, manifest_ee_pub_key, latest_manifest_ee_cert, latest_manifest, latest_crl, ca_id):
     assert isinstance(sql_parent, ca_obj)
@@ -247,6 +251,9 @@ class ca_obj(sql_persistant):
   sql_delete_cmd = """DELETE FROM ca WHERE ca_id = %(ca_id)s"""
 
   sql_children = (("ca_details", ca_detail_obj),)
+
+  def __init__(self):
+    self.children = []
 
   def sql_decode(self, sql_parent, ca_id, last_crl_sn, next_crl_update, last_issued_sn, last_manifest_sn, next_manifest_update, sia_uri, parent_id):
     assert isinstance(sql_parent, rpki.left_right.parent_elt)

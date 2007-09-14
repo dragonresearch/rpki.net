@@ -22,29 +22,18 @@ drop table if exists route_origin_prefix;
 
 CREATE TABLE bsc (
        bsc_id               SERIAL NOT NULL,
+       priv_key_id          LONGBLOB,
        self_id              BIGINT unsigned NOT NULL,
+       pub_key              LONGBLOB,
        PRIMARY KEY (bsc_id)
 );
 
 
 CREATE TABLE bsc_cert (
        bsc_cert_id          SERIAL NOT NULL,
-       request              LONGBLOB,
        cert                 LONGBLOB,
-       bsc_key_id           BIGINT unsigned NOT NULL,
-       PRIMARY KEY (bsc_cert_id)
-);
-
-
-CREATE TABLE bsc_key (
-       bsc_key_id           SERIAL NOT NULL,
-       key_type             VARCHAR(100),
-       hash_alg             TEXT,
-       key_length           INT unsigned,
-       pub_key              LONGBLOB,
-       priv_key_id          LONGBLOB,
        bsc_id               BIGINT unsigned NOT NULL,
-       PRIMARY KEY (bsc_key_id)
+       PRIMARY KEY (bsc_cert_id)
 );
 
 
@@ -157,7 +146,7 @@ CREATE TABLE self (
 CREATE TABLE self_pref (
        pref_name            VARCHAR(100),
        pref_value           TEXT,
-       self_id              SERIAL NOT NULL,
+       self_id              BIGINT unsigned NOT NULL,
        PRIMARY KEY (self_id, pref_name)
 );
 
@@ -168,11 +157,6 @@ ALTER TABLE bsc
 
 
 ALTER TABLE bsc_cert
-       ADD FOREIGN KEY (bsc_key_id)
-                             REFERENCES bsc_key;
-
-
-ALTER TABLE bsc_key
        ADD FOREIGN KEY (bsc_id)
                              REFERENCES bsc;
 
@@ -260,6 +244,7 @@ ALTER TABLE route_origin_prefix
 ALTER TABLE self_pref
        ADD FOREIGN KEY (self_id)
                              REFERENCES self;
+
 
 
 

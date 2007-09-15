@@ -22,12 +22,25 @@ def left_right_handler(query, path):
     q_msg = saxer.result
     r_msg = rpki.left_right.msg()
     for q_pdu in q_msg:
-      assert isinstance(q_pdu, rpki.left_right.data_elt)
-      if hasattr(q_pdu, "self_id"):
+      assert isinstance(q_pdu, rpki.left_right.data_elt) and q_pdu.type == "query"
+
+      r_pdu = q_pdu.__class__()
+      r_pdu.action = q_pdu.action
+      r_pdu.type = "reply"
+
+      if q_pdu.action == "destroy":
+        r_pdu.self_id = q_pdu.self_id
+        setattr(r_pdu, q_pdu.sql_id_name, getattr(q_pdu, q_pdu.sql_id_name))
+        q_pdu.sql_delete()
+      elif q_pdu.action == "create":
+        q_pdu.sql_store(db, cur)
+        r_pdu.self_id = q_pdu.self_id
+        setattr(r_pdu, q_pdu.sql_id_name, getattr(q_pdu, q_pdu.sql_id_name))
+      else:
         rpki.left_right.self_elt.sql_fetch(db, cur, { "self_id" : q_pdu.self_id })
 
-      # Do something useful here
-      raise NotImplementedError
+        # Do something useful here
+        raise NotImplementedError
 
       r_msg.append(r_pdu)
     r_elt = r_msg.toXML()

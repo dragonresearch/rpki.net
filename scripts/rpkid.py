@@ -18,24 +18,26 @@ def encode(msg, cms_key, cms_certs):
 
 def left_right_handler(query, path):
 
-  def fetch_maybe():
+  def fetch_maybe(q_pdu):
     if rpki.left_right.self_elt.sql_cache_find(q_pdu.self_id) is None:
       rpki.left_right.self_elt.sql_fetch(db, cur, { "self_id" : q_pdu.self_id })
 
-  def make_reply(r_pdu = q_pdu.__class__()):
+  def make_reply(q_pdu, r_pdu=None):
+    if r_pdu is None:
+      r_pdu = q_pdu.__class__()
     r_pdu.action = q_pdu.action
     r_pdu.type = "reply"
     return r_pdu
 
   def destroy_handler(q_pdu):
-    r_pdu = make_reply()
+    r_pdu = make_reply(q_pdu)
     r_pdu.self_id = q_pdu.self_id
     setattr(r_pdu, q_pdu.sql_id_name, getattr(q_pdu, q_pdu.sql_id_name))
     q_pdu.sql_delete()    
     r_msg.append(r_pdu)
 
   def create_handler(q_pdu):
-    r_pdu = make_reply()
+    r_pdu = make_reply(q_pdu)
     q_pdu.sql_store(db, cur)
     r_pdu.self_id = q_pdu.self_id
     setattr(r_pdu, q_pdu.sql_id_name, getattr(q_pdu, q_pdu.sql_id_name))
@@ -71,6 +73,7 @@ def left_right_handler(query, path):
   except Exception, data:
     if show_traceback:
       traceback.print_exc()
+    raise
     return 500, "Unhandled exception %s" % data
 
 def up_down_handler(query, path):

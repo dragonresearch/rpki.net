@@ -55,6 +55,7 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
       try:
         rcode, rtext = handler(query=query_string, path=self.path)
       except Exception, edata:
+        raise
         rcode, rtext = 500, "Unhandled exception %s" % edata
     self.send_response(rcode)
     self.send_header("Content-Type", rpki_content_type)

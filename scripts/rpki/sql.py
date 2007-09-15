@@ -111,7 +111,7 @@ class sql_persistant(object):
       self.in_sql = True
       self.sql_decode(sql_parent, *row)
       if self.sql_id_name is not None:
-        self.cache_add()
+        self.sql_cache_add()
       self_dict = self.sql_encode()
       self.sql_fetch_hook(db, cur)
       result.append(self)
@@ -128,7 +128,7 @@ class sql_persistant(object):
       cur.execute(self.sql_insert_cmd, self.sql_encode())
       if self.sql_id_name is not None:
         setattr(self, self.sql_id_name, cur.lastrowid)
-        self.cache_add()
+        self.sql_cache_add()
       self.sql_insert_hook(db, cur)
     elif self.sql_dirty:
       cur.execute(self.sql_update_cmd, self.sql_encode())

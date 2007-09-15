@@ -126,9 +126,8 @@ def usage():
 def main():
   """Main program.
 
-  This is still a work in progress.  At the moment it gets as
-  transmitting the generated request, but doesn't yet do anything with
-  responses.
+  Work in progress.  At the moment it gets as far as transmitting the
+  generated request, but doesn't yet do anything with responses.
   """
 
   cfg = rpki.config.parser("irbe.conf")
@@ -167,6 +166,7 @@ def main():
     print q_xml
     sys.exit(1)
 
+  print "Sending:"
   print q_xml
 
   q_cms = rpki.cms.encode(q_xml, cfg.get(section, "cms-key"), cfg.multiget(section, "cms-cert"))
@@ -176,8 +176,6 @@ def main():
 
   r_xml = rpki.cms.decode(r_cms, cfg.get(section, "cms-ta"))
 
-  print r_xml
-
   r_elt = lxml.etree.fromstring(r_xml)
   try:
     rng.assertValid(r_elt)
@@ -186,11 +184,13 @@ def main():
     print r_xml
     sys.exit(1)
 
-  handler = rpki.left_right.sax_handler()
-  lxml.sax.saxify(r_elt, handler)
-  r_msg = handler.result
+  print "Received:"
+  print r_xml
 
-  # Do something useful with reply here
-  print r_msg
+  if False:
+    handler = rpki.left_right.sax_handler()
+    lxml.sax.saxify(r_elt, handler)
+    r_msg = handler.result
+    # Do something useful with reply here
 
 if __name__ == "__main__": main()

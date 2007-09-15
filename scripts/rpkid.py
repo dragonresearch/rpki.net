@@ -5,7 +5,10 @@ Start at the RPKI daemon.  This isn't real yet.  So far it's just a
 framework onto which I'm bolting various parts for testing.
 """
 
-import rpki.https, tlslite.api, rpki.config, rpki.resource_set, MySQLdb, rpki.cms
+import tlslite.api, MySQLdb, xml.sax, lxml.etree, lxml.sax, POW, POW.pkix, traceback
+import rpki.https, rpki.config, rpki.resource_set, rpki.up_down, rpki.left_right, rpki.relaxng, rpki.cms
+
+show_traceback = True
 
 def decode(msg, cms_ta):
   return lxml.etree.fromstring(rpki.cms.decode(msg, cms_ta))
@@ -14,40 +17,59 @@ def encode(msg, cms_key, cms_certs):
   return rpki.cms.encode(lxml.etree.tostring(msg, pretty_print=True, encoding="us-ascii", xml_declaration=True), cms_key, cms_certs)
 
 def left_right_handler(query, path):
+
+  def fetch_maybe():
+    if rpki.left_right.self_elt.sql_cache_find(q_pdu.self_id) is None:
+      rpki.left_right.self_elt.sql_fetch(db, cur, { "self_id" : q_pdu.self_id })
+
+  def make_reply():
+    r_pdu = q_pdu.__class__()
+    r_pdu.action = q_pdu.action
+    r_pdu.type = "reply"
+
+  def destroy_handler():
+    make_reply()
+    r_pdu.self_id = q_pdu.self_id
+    setattr(r_pdu, q_pdu.sql_id_name, getattr(q_pdu, q_pdu.sql_id_name))
+    q_pdu.sql_delete()    
+
+  def create_handler():
+    make_reply()
+    q_pdu.sql_store(db, cur)
+    r_pdu.self_id = q_pdu.self_id
+    setattr(r_pdu, q_pdu.sql_id_name, getattr(q_pdu, q_pdu.sql_id_name))
+
+  def get_handler():
+    raise NotImplementedError
+
+  def set_handler():
+    raise NotImplementedError
+
+  def list_handler():
+    raise NotImplementedError
+
   try:
     q_elt = decode(query, cms_ta_irbe)
-    rng.assertValid(q_elt)
+    lr_rng.assertValid(q_elt)
     saxer = rpki.left_right.sax_handler()
     lxml.sax.saxify(q_elt, saxer)
     q_msg = saxer.result
     r_msg = rpki.left_right.msg()
     for q_pdu in q_msg:
       assert isinstance(q_pdu, rpki.left_right.data_elt) and q_pdu.type == "query"
-
-      r_pdu = q_pdu.__class__()
-      r_pdu.action = q_pdu.action
-      r_pdu.type = "reply"
-
-      if q_pdu.action == "destroy":
-        r_pdu.self_id = q_pdu.self_id
-        setattr(r_pdu, q_pdu.sql_id_name, getattr(q_pdu, q_pdu.sql_id_name))
-        q_pdu.sql_delete()
-      elif q_pdu.action == "create":
-        q_pdu.sql_store(db, cur)
-        r_pdu.self_id = q_pdu.self_id
-        setattr(r_pdu, q_pdu.sql_id_name, getattr(q_pdu, q_pdu.sql_id_name))
-      else:
-        rpki.left_right.self_elt.sql_fetch(db, cur, { "self_id" : q_pdu.self_id })
-
-        # Do something useful here
-        raise NotImplementedError
-
+      { "create"  : create_handler,
+        "set"     : set_handler,
+        "get"     : get_handler,
+        "list"    : list_handler,
+        "destroy" : destroy_handler }[q_pdu.action]()
       r_msg.append(r_pdu)
     r_elt = r_msg.toXML()
-    rng.assertValid(r_elt)
+    lr_rng.assertValid(r_elt)
     return 200, encode(r_elt, cms_key, cms_certs)
 
   except Exception, data:
+    if show_traceback:
+      traceback.print_exc()
     return 500, "Unhandled exception %s" % data
 
 def up_down_handler(query, path):
@@ -64,6 +86,9 @@ db = MySQLdb.connect(user   = cfg.get(section, "sql-username"),
                      passwd = cfg.get(section, "sql-password"))
 
 cur = db.cursor()
+
+lr_rng = rpki.relaxng.RelaxNG("left-right-schema.rng")
+ud_rng = rpki.relaxng.RelaxNG("up-down-medium-schema.rng")
 
 cms_ta_irdb = cfg.get(section, "cms-ta-irdb")
 cms_ta_irbe = cfg.get(section, "cms-ta-irbe")

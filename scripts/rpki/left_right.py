@@ -65,7 +65,7 @@ class extension_preference_elt(base_elt, rpki.sql.sql_persistant):
   attributes = ("name",)
 
   sql_select_cmd = """SELECT pref_name, pref_value FROM self_pref WHERE self_id = %(self_id)s"""
-  sql_insert_cmd = """INSERT self_pref (self_id, pref_name, pref_value) VALUES (%(self_id)s, %(name)s, %(value)s"""
+  sql_insert_cmd = """INSERT self_pref (self_id, pref_name, pref_value) VALUES (%(self_id)s, %(name)s, %(value)s)"""
   sql_update_cmd = """UPDATE self_pref SET pref_value = %(value)s WHERE self_id = %(self_id)s AND pref_name = %(name)s"""
   sql_delete_cmd = """DELETE FROM self_pref WHERE self_id = %(self_id)s AND pref_name = %(name)s"""
 
@@ -105,7 +105,7 @@ class bsc_elt(data_elt, rpki.sql.sql_persistant):
 
   sql_id_name = "bsc_id"
   sql_select_cmd = """SELECT bsc_id, pub_key, priv_key_id FROM bsc WHERE self_id = %(self_id)s"""
-  sql_insert_cmd = """INSERT bsc (self_id, pub_key, priv_key_id) VALUES (%(self_id)s, %(pub_key)s, %(priv_key_id)s"""
+  sql_insert_cmd = """INSERT bsc (self_id, pub_key, priv_key_id) VALUES (%(self_id)s, %(pub_key)s, %(priv_key_id)s)"""
   sql_update_cmd = """UPDATE bsc SET self_id = %(self_id)s, pub_key = %(pub_key)s, priv_key_id = %(priv_key_id)s WHERE bsc_id = %(bsc_id)s"""
   sql_delete_cmd = """DELETE FROM bsc WHERE bsc_id = %(bsc_id)s"""
 
@@ -418,7 +418,7 @@ class self_elt(data_elt, rpki.sql.sql_persistant):
 
   sql_id_name = "self_id"
   sql_select_cmd = """SELECT self_id, use_hsm FROM self WHERE self_id = %(self_id)s"""
-  sql_insert_cmd = """INSERT self (use_hsm) VALUES (%(use_hsm)s"""
+  sql_insert_cmd = """INSERT self (use_hsm) VALUES (%(use_hsm)s)"""
   sql_update_cmd = """UPDATE self SET use_hsm = %(use_hsm)s WHERE self_id = %(self_id)s"""
   sql_delete_cmd = """DELETE FROM self WHERE self_id = %(self_id)s"""
   sql_children = (("prefs",         extension_preference_elt),
@@ -429,6 +429,7 @@ class self_elt(data_elt, rpki.sql.sql_persistant):
                   ("route_origins", route_origin_elt))
 
   self_id = None
+  use_hsm = False
 
   def __init__(self):
     for k,v in self.sql_children:

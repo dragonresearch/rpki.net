@@ -22,22 +22,24 @@ def left_right_handler(query, path):
     if rpki.left_right.self_elt.sql_cache_find(q_pdu.self_id) is None:
       rpki.left_right.self_elt.sql_fetch(db, cur, { "self_id" : q_pdu.self_id })
 
-  def make_reply():
-    r_pdu = q_pdu.__class__()
+  def make_reply(r_pdu = q_pdu.__class__()):
     r_pdu.action = q_pdu.action
     r_pdu.type = "reply"
+    return r_pdu
 
-  def destroy_handler():
-    make_reply()
+  def destroy_handler(q_pdu):
+    r_pdu = make_reply()
     r_pdu.self_id = q_pdu.self_id
     setattr(r_pdu, q_pdu.sql_id_name, getattr(q_pdu, q_pdu.sql_id_name))
     q_pdu.sql_delete()    
+    r_msg.append(r_pdu)
 
-  def create_handler():
-    make_reply()
+  def create_handler(q_pdu):
+    r_pdu = make_reply()
     q_pdu.sql_store(db, cur)
     r_pdu.self_id = q_pdu.self_id
     setattr(r_pdu, q_pdu.sql_id_name, getattr(q_pdu, q_pdu.sql_id_name))
+    r_msg.append(r_pdu)
 
   def get_handler():
     raise NotImplementedError
@@ -61,8 +63,7 @@ def left_right_handler(query, path):
         "set"     : set_handler,
         "get"     : get_handler,
         "list"    : list_handler,
-        "destroy" : destroy_handler }[q_pdu.action]()
-      r_msg.append(r_pdu)
+        "destroy" : destroy_handler }[q_pdu.action](q_pdu)
     r_elt = r_msg.toXML()
     lr_rng.assertValid(r_elt)
     return 200, encode(r_elt, cms_key, cms_certs)

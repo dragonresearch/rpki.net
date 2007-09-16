@@ -51,18 +51,20 @@ class base_elt(object):
   def __str__(self):
     lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="us-ascii")
 
-class data_elt(base_elt):
+class data_elt(base_elt, rpki.sql.sql_persistant):
   """Virtual type for a left-right protocol message elements representing
   top-level persistant data elements.
   """
 
   pass
 
-class extension_preference_elt(base_elt, rpki.sql.sql_persistant):
+class extension_preference_elt(base_elt):
   """Container for extension preferences."""
 
   element_name = "extension_preference"
   attributes = ("name",)
+
+  raise NotImplementedError, "This needs to be rewritten to use the self_elt.*_hook() methods"
 
   sql_select_cmd = """SELECT pref_name, pref_value FROM self_pref WHERE self_id = %(self_id)s"""
   sql_insert_cmd = """INSERT self_pref (self_id, pref_name, pref_value) VALUES (%(self_id)s, %(name)s, %(value)s)"""
@@ -96,38 +98,20 @@ class extension_preference_elt(base_elt, rpki.sql.sql_persistant):
     elt.text = self.value
     return elt
 
-class bsc_elt(data_elt, rpki.sql.sql_persistant):
+class bsc_elt(data_elt):
   """<bsc/> (Business Signing Context) element."""
   
   element_name = "bsc"
   attributes = ("action", "type", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
   booleans = ("generate_keypair",)
 
-  sql_id_name = "bsc_id"
-  sql_select_cmd = """SELECT bsc_id, pub_key, priv_key_id FROM bsc WHERE self_id = %(self_id)s"""
-  sql_insert_cmd = """INSERT bsc (self_id, pub_key, priv_key_id) VALUES (%(self_id)s, %(pub_key)s, %(priv_key_id)s)"""
-  sql_update_cmd = """UPDATE bsc SET self_id = %(self_id)s, pub_key = %(pub_key)s, priv_key_id = %(priv_key_id)s WHERE bsc_id = %(bsc_id)s"""
-  sql_delete_cmd = """DELETE FROM bsc WHERE bsc_id = %(bsc_id)s"""
+  sql_template = rpki.sql.template("bsc", "bsc_id", "self_id", "pub_key", "priv_key_id")
 
   pkcs10_cert_request = None
   public_key = None
 
   def __init__(self):
     self.signing_cert = []
-
-  def sql_decode(self, sql_parent, bsc_id, pub_key, priv_key_id):
-    assert isinstance(sql_parent, self_elt)
-    self.self_obj = sql_parent
-    self.bsc_id = bsc_id
-    self.self_id = self_id
-    self.pub_key = pub_key
-    self.priv_key_id = priv_key_id
-
-  def sql_encode(self):
-    return { "self_id"     : self.self_obj.self_id,
-             "bsc_id"      : self.bsc_id,
-             "pub_key"     : self.pub_key,
-             "priv_key_id" : self.priv_key_id }
 
   def sql_fetch_hook(self, db, cur):
     cur.execute("""SELECT cert FROM bsc_cert WHERE bsc_id = %s""", self.bsc_id)
@@ -167,36 +151,27 @@ class bsc_elt(data_elt, rpki.sql.sql_persistant):
     self.make_b64elt(elt, "public_key")
     return elt
 
-class parent_elt(data_elt, rpki.sql.sql_persistant):
+class parent_elt(data_elt):
   """<parent/> element."""
 
   element_name = "parent"
   attributes = ("action", "type", "self_id", "parent_id", "bsc_link", "repository_link", "peer_contact", "sia_base")
   booleans = ("rekey", "reissue", "revoke")
 
-  sql_id_name = "parent_id"
-  sql_select_cmd = """SELECT parent_id, ta, uri, sia_base, bsc_id, repos_id FROM parent WHERE self_id = %(self_id)s"""
-  sql_insert_cmd = """INSERT parent (ta, url, sia_base, self_id, bsc_id, repos_id)
-                      VALUES (%(ta)s, %(url)s, %(sia_base)s, %(self_id)s, %(bsc_id)s, %(repos_id)s)"""
-  sql_update_cmd = """UPDATE repos SET ta = %(ta)s, uri = %(uri)s, sia_base = %(sia_base)s, self_id = %(self_id)s, bsc_id = %(bsc_id)s, repos_id = %(repos_id)s
-                      WHERE parent_id = %(parent_id)s"""
-  sql_delete_cmd = """DELETE FROM parent WHERE parent_id = %(parent_id)s"""
+  sql_template = rpki.sql.template("parent", "parent_id", "self_id", "bsc_id", "repos_id", "ta", "uri", "sia_base")
 
-  sql_children = (("cas", rpki.sql.ca_obj),)
-
-  def sql_decode(self, sql_parent, parent_id, ta, uri, sia_base, bsc_id, repos_id):
-    assert isinstance(sql_parent, self_elt)
-    self.self_obj = sql_parent
-    self.bsc_obj = bsc_elt.sql_cache_find(bsc_id)
-    self.repository_obj = repository_elt.sql_cache_find(repos_id)
-    self.parent_id = parent_id
-    self.peer_contact = uri
-    self.peer_ta = rpki.x509.X509(DER=ta)
+  def sql_decode(self, vals):
+    self.self_id         = vals["self_id"]
+    self.bsc_link        = vals["bsc_id"]
+    self.repository_link = vals["repos_id"]
+    self.parent_id       = vals["parent_id"]
+    self.peer_contact    = vals["uri"]
+    self.peer_ta         = rpki.x509.X509(DER=vals["ta"])
 
   def sql_encode(self):
-    return { "self_id"   : self.self_obj.self_id,
-             "bsc_id"    : self.bsc_obj.bsc_id,
-             "repos_id"  : self.repository_obj.repository_id,
+    return { "self_id"   : self.self_id,
+             "bsc_id"    : self.bsc_link,
+             "repos_id"  : self.repository_link,
              "parent_id" : self.parent_id,
              "uri"       : self.peer_contact,
              "ta"        : self.peer_ta.get_DER(),
@@ -225,29 +200,24 @@ class parent_elt(data_elt, rpki.sql.sql_persistant):
       self.make_b64elt(elt, "peer_ta", self.peer_ta.get_DER())
     return elt
 
-class child_elt(data_elt, rpki.sql.sql_persistant):
+class child_elt(data_elt):
   """<child/> element."""
 
   element_name = "child"
   attributes = ("action", "type", "self_id", "child_id", "bsc_link", "child_db_id")
   booleans = ("reissue", )
 
-  sql_id_name = "child_id"
-  sql_select_cmd = """SELECT child_id, ta, bsc_id FROM child WHERE self_id = %(self_id)s"""
-  sql_insert_cmd = """INSERT child (ta, self_id, bsc_id) VALUES (%(ta)s, %(self_id)s, %(bsc_id)s)"""
-  sql_update_cmd = """UPDATE repos SET ta = %(ta)s, self_id = %(self_id)s, bsc_id = %(bsc_id)s WHERE child_id = %(child_id)s"""
-  sql_delete_cmd = """DELETE FROM child WHERE child_id = %(child_id)s"""
+  sql_template = rpki.sql.template("child", "child_id", "self_id", "bsc_id", "ta")
 
-  def sql_decode(self, sql_parent, child_id, ta, bsc_id):
-    assert isinstance(sql_parent, self_elt)
-    self.self_obj = sql_parent
-    self.bsc_obj = bsc_elt.sql_cache_find(bsc_id)
-    self.child_id = child_id
-    self.peer_ta = rpki.x509.X509(DER=ta)
+  def sql_decode(self, vals):
+    self.self_id = vals["self_id"]
+    self.bsc_link = vals["bsc_id"]
+    self.child_id = vals["child_id"]
+    self.peer_ta = rpki.x509.X509(DER=vals["ta"])
 
   def sql_encode(self):
-    return { "self_id"  : self.self_obj.self_id,
-             "bsc_id"   : self.bsc_obj.bsc_id,
+    return { "self_id"  : self.self_id,
+             "bsc_id"   : self.bsc_id,
              "child_id" : self.child_id,
              "ta"       : self.peer_ta.get_DER() }
 
@@ -297,29 +267,24 @@ class child_elt(data_elt, rpki.sql.sql_persistant):
       self.make_b64elt(elt, "peer_ta", self.peer_ta.get_DER())
     return elt
 
-class repository_elt(data_elt, rpki.sql.sql_persistant):
+class repository_elt(data_elt):
   """<repository/> element."""
 
   element_name = "repository"
   attributes = ("action", "type", "self_id", "repository_id", "bsc_link", "peer_contact")
 
-  sql_id_name = "repos_id"
-  sql_select_cmd = """SELECT bsc_id, repos_id, uri, ta FROM repos WHERE self_id = %(self_id)s"""
-  sql_insert_cmd = """INSERT repos (uri, ta, bsc_id, self_id) VALUES (%(uri)s, %(ta)s, %(bsc_id)s, %(self_id)s)"""
-  sql_update_cmd = """UPDATE repos SET uri = %(uri)s, ta = %(ta)s, bsc_id = %(bsc_id)s, self_id = %(self_id)s WHERE repos_id = %(repos_id)s"""
-  sql_delete_cmd = """DELETE FROM repos WHERE repos_id = %(repos_id)s"""
+  sql_template = rpki.sql.template("repository", "repos_id", "self_id", "bsc_id", "ta", "uri")
 
-  def sql_decode(self, sql_parent, bsc_id, repos_id, uri, ta):
-    assert isinstance(sql_parent, self_elt)
-    self.self_obj = sql_parent
-    self.bsc_obj = bsc_elt.sql_cache_find(bsc_id)
-    self.repository_id = repos_id
-    self.peer_contact = uri
-    self.peer_ta = rpki.x509.X509(DER=ta)
+  def sql_decode(self, vals):
+    self.self_id = vals["self_id"]
+    self.bsc_link = vals["bsc_id"]
+    self.repository_id = vals["repos_id"]
+    self.peer_contact = vals["uri"]
+    self.peer_ta = rpki.x509.X509(DER=vals["ta"])
 
   def sql_encode(self):
-    return { "self_id"  : self.self_obj.self_id,
-             "bsc_id"   : self.bsc_obj.bsc_id,
+    return { "self_id"  : self.self_id,
+             "bsc_id"   : self.bsc_id,
              "repos_id" : self.repository_id,
              "uri"      : self.peer_contact,
              "ta"       : self.peer_ta.get_DER() }
@@ -347,27 +312,22 @@ class repository_elt(data_elt, rpki.sql.sql_persistant):
       self.make_b64elt(elt, "peer_ta", self.peer_ta.get_DER())
     return elt
 
-class route_origin_elt(data_elt, rpki.sql.sql_persistant):
+class route_origin_elt(data_elt):
   """<route_origin/> element."""
 
   element_name = "route_origin"
   attributes = ("action", "type", "self_id", "route_origin_id", "asn", "ipv4", "ipv6")
   booleans = ("suppress_publication",)
 
-  sql_id_name = "route_origin_id"
-  sql_select_cmd = """SELECT route_origin_id, as_number FROM route_origin WHERE self_id = %(self_id)s"""
-  sql_insert_cmd = """INSERT route_origin (as_number, self_id) VALUES (%(as_number)s, %(self_id)s)"""
-  sql_update_cmd = """UPDATE route_origin SET as_number = %(as_number)s, self_id = %(self_id)s WHERE repos_id = %(route_origin_id)s"""
-  sql_delete_cmd = """DELETE FROM route_origin WHERE repos_id = %(route_origin_id)s"""
+  sql_template = rpki.sql.template("route_origin", "route_origin_id", "self_id", "as_number")
 
-  def sql_decode(self, sql_parent, route_origin_id, as_number):
-    assert isinstance(sql_parent, self_elt)
-    self.self_obj = sql_parent
-    self.asn = as_number
-    self.route_origin = route_origin_id
+  def sql_decode(self, vals):
+    self.self_id = vals["self_id"]
+    self.asn = vals["as_number"]
+    self.route_origin = vals["route_origin_id"]
 
   def sql_encode(self):
-    return { "self_id"         : self.self_obj.self_id,
+    return { "self_id"         : self.self_id,
              "route_origin_id" : self.route_origin_id,
              "as_number"       : self.asn }
 
@@ -409,40 +369,20 @@ class route_origin_elt(data_elt, rpki.sql.sql_persistant):
     """Generate <route_origin/> element."""
     return self.make_elt()
 
-class self_elt(data_elt, rpki.sql.sql_persistant):
+class self_elt(data_elt):
   """<self/> element."""
 
   element_name = "self"
   attributes = ("action", "type", "self_id")
   booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now")
 
-  sql_id_name = "self_id"
-  sql_select_cmd = """SELECT self_id, use_hsm FROM self WHERE self_id = %(self_id)s"""
-  sql_insert_cmd = """INSERT self (use_hsm) VALUES (%(use_hsm)s)"""
-  sql_update_cmd = """UPDATE self SET use_hsm = %(use_hsm)s WHERE self_id = %(self_id)s"""
-  sql_delete_cmd = """DELETE FROM self WHERE self_id = %(self_id)s"""
-  sql_children = (("prefs",         extension_preference_elt),
-                  ("bscs",          bsc_elt),
-                  ("repos",         repository_elt),
-                  ("parents",       parent_elt),
-                  ("children",      child_elt),
-                  ("route_origins", route_origin_elt))
+  sql_template = rpki.sql.template("self", "self_id", "use_hsm")
 
   self_id = None
   use_hsm = False
 
   def __init__(self):
-    for k,v in self.sql_children:
-      setattr(self, k, [])
-
-  def sql_decode(self, sql_parent, self_id, use_hsm):
-    assert sql_parent is None
-    self.self_id = self_id
-    self.use_hsm = use_hsm
-
-  def sql_encode(self):
-    return { "self_id" : self.self_id,
-             "use_hsm" : self.use_hsm }
+    self.prefs = []
 
   def startElement(self, stack, name, attrs):
     """Handle <self/> element."""

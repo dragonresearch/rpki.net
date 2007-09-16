@@ -32,7 +32,7 @@ def left_right_handler(query, path):
   def destroy_handler(q_pdu):
     r_pdu = make_reply(q_pdu)
     r_pdu.self_id = q_pdu.self_id
-    setattr(r_pdu, q_pdu.sql_id_name, getattr(q_pdu, q_pdu.sql_id_name))
+    setattr(r_pdu, q_pdu.sql_template.index, getattr(q_pdu, q_pdu.sql_template.index))
     q_pdu.sql_delete()    
     r_msg.append(r_pdu)
 
@@ -40,7 +40,7 @@ def left_right_handler(query, path):
     r_pdu = make_reply(q_pdu)
     q_pdu.sql_store(db, cur)
     r_pdu.self_id = q_pdu.self_id
-    setattr(r_pdu, q_pdu.sql_id_name, getattr(q_pdu, q_pdu.sql_id_name))
+    setattr(r_pdu, q_pdu.sql_template.index, getattr(q_pdu, q_pdu.sql_template.index))
     r_msg.append(r_pdu)
 
   def get_handler():

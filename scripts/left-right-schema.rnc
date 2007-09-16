@@ -99,8 +99,8 @@ parent_bool = (attribute rekey { "yes" }?,
 
 parent_payload = (attribute peer_contact { xsd:anyURI { maxLength="1024" } }?,
                   attribute sia_base { xsd:anyURI { maxLength="1024" } }?,
-                  attribute bsc_link { xsd:token { maxLength="1024" } }?,
-                  attribute repository_link { xsd:token { maxLength="1024" } }?,
+                  attribute bsc_id { xsd:token { maxLength="1024" } }?,
+                  attribute repository_id { xsd:token { maxLength="1024" } }?,
                   peer_ta?)
 
 parent_elt |= element parent { ctl_cq, self_id, parent_bool, parent_payload }
@@ -120,7 +120,7 @@ child_id = attribute child_id { sql_id }
 
 child_bool = attribute reissue { "yes" }?
 
-child_payload = (attribute bsc_link { xsd:token { maxLength="1024" } }?,
+child_payload = (attribute bsc_id { xsd:token { maxLength="1024" } }?,
                  attribute child_db_id { xsd:token { maxLength="1024" } }?,
                  peer_ta?)
 
@@ -140,7 +140,7 @@ child_elt |= element child { ctl_dr, self_id, child_id }
 repository_id = attribute repository_id { sql_id }
 
 repository_payload = (attribute peer_contact { xsd:anyURI { maxLength="1024" } }?,
-                      attribute bsc_link { xsd:token { maxLength="1024" } }?,
+                      attribute bsc_id { xsd:token { maxLength="1024" } }?,
                       peer_ta?)
 
 repository_elt |= element repository { ctl_cq, self_id, repository_payload }

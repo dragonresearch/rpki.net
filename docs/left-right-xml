@@ -259,8 +259,8 @@
         <parent action="create" type="query" self_id="42"
                 peer_contact="https://re.bar.example/bandicoot/"
                 sia_base="rsync://repo.foo.example/wombat/"
-                bsc_link="17"
-                repository_link="120">
+                bsc_id="17"
+                repository_id="120">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
@@ -291,8 +291,8 @@
         <parent action="set" type="query" self_id="42" parent_id="666"
                 peer_contact="https://re.bar.example/bandicoot/"
                 sia_base="rsync://repo.foo.example/wombat/"
-                bsc_link="17"
-                repository_link="120"
+                bsc_id="17"
+                repository_id="120"
                 rekey="yes"
                 reissue="yes"
                 revoke="yes">
@@ -330,8 +330,8 @@
         <parent action="get" type="reply" self_id="42" parent_id="666"
                 peer_contact="https://re.bar.example/bandicoot/"
                 sia_base="rsync://repo.foo.example/wombat/"
-                bsc_link="17"
-                repository_link="120">
+                bsc_id="17"
+                repository_id="120">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
@@ -362,8 +362,8 @@
         <parent action="list" type="reply" self_id="42" parent_id="666"
                 peer_contact="https://re.bar.example/bandicoot/"
                 sia_base="rsync://repo.foo.example/wombat/"
-                bsc_link="17"
-                repository_link="120">
+                bsc_id="17"
+                repository_id="120">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
@@ -398,7 +398,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <child action="create" type="query" self_id="42"
-                bsc_link="17"
+                bsc_id="17"
                 child_db_id="child_db_id">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
@@ -428,7 +428,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <child action="set" type="query" self_id="42" child_id="3"
-                bsc_link="17"
+                bsc_id="17"
                 child_db_id="child_db_id"
                 reissue="yes">
             <peer_ta>
@@ -463,7 +463,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <child action="get" type="reply" self_id="42" child_id="3"
-                bsc_link="17"
+                bsc_id="17"
                 child_db_id="child_db_id">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
@@ -493,7 +493,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <child action="list" type="reply" self_id="42" child_id="3"
-                bsc_link="17"
+                bsc_id="17"
                 child_db_id="child_db_id">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
@@ -530,7 +530,7 @@
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <repository action="create" type="query" self_id="42"
                 peer_contact="https://re.bar.example/bandicoot/"
-                bsc_link="17">
+                bsc_id="17">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
@@ -560,7 +560,7 @@
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <repository action="set" type="query" self_id="42" repository_id="120"
                 peer_contact="https://re.bar.example/bandicoot/"
-                bsc_link="17">
+                bsc_id="17">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
@@ -594,7 +594,7 @@
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <repository action="get" type="reply" self_id="42" repository_id="120"
                 peer_contact="https://re.bar.example/bandicoot/"
-                bsc_link="17">
+                bsc_id="17">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
@@ -624,7 +624,7 @@
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <repository action="list" type="reply" self_id="42" repository_id="120"
                 peer_contact="https://re.bar.example/bandicoot/"
-                bsc_link="17">
+                bsc_id="17">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN

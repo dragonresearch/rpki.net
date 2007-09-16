@@ -149,23 +149,23 @@ class parent_elt(data_elt):
   """<parent/> element."""
 
   element_name = "parent"
-  attributes = ("action", "type", "self_id", "parent_id", "bsc_link", "repository_link", "peer_contact", "sia_base")
+  attributes = ("action", "type", "self_id", "parent_id", "bsc_id", "repository_id", "peer_contact", "sia_base")
   booleans = ("rekey", "reissue", "revoke")
 
   sql_template = rpki.sql.template("parent", "parent_id", "self_id", "bsc_id", "repos_id", "ta", "uri", "sia_base")
 
   def sql_decode(self, vals):
-    self.self_id         = vals["self_id"]
-    self.bsc_link        = vals["bsc_id"]
-    self.repository_link = vals["repos_id"]
-    self.parent_id       = vals["parent_id"]
-    self.peer_contact    = vals["uri"]
-    self.peer_ta         = rpki.x509.X509(DER=vals["ta"])
+    self.self_id       = vals["self_id"]
+    self.bsc_id        = vals["bsc_id"]
+    self.repository_id = vals["repos_id"]
+    self.parent_id     = vals["parent_id"]
+    self.peer_contact  = vals["uri"]
+    self.peer_ta       = rpki.x509.X509(DER=vals["ta"])
 
   def sql_encode(self):
     return { "self_id"   : self.self_id,
-             "bsc_id"    : self.bsc_link,
-             "repos_id"  : self.repository_link,
+             "bsc_id"    : self.bsc_id,
+             "repos_id"  : self.repository_id,
              "parent_id" : self.parent_id,
              "uri"       : self.peer_contact,
              "ta"        : self.peer_ta.get_DER(),
@@ -198,14 +198,14 @@ class child_elt(data_elt):
   """<child/> element."""
 
   element_name = "child"
-  attributes = ("action", "type", "self_id", "child_id", "bsc_link", "child_db_id")
+  attributes = ("action", "type", "self_id", "child_id", "bsc_id", "child_db_id")
   booleans = ("reissue", )
 
   sql_template = rpki.sql.template("child", "child_id", "self_id", "bsc_id", "ta")
 
   def sql_decode(self, vals):
     self.self_id = vals["self_id"]
-    self.bsc_link = vals["bsc_id"]
+    self.bsc_id = vals["bsc_id"]
     self.child_id = vals["child_id"]
     self.peer_ta = rpki.x509.X509(DER=vals["ta"])
 
@@ -270,13 +270,13 @@ class repository_elt(data_elt):
   """<repository/> element."""
 
   element_name = "repository"
-  attributes = ("action", "type", "self_id", "repository_id", "bsc_link", "peer_contact")
+  attributes = ("action", "type", "self_id", "repository_id", "bsc_id", "peer_contact")
 
   sql_template = rpki.sql.template("repository", "repos_id", "self_id", "bsc_id", "ta", "uri")
 
   def sql_decode(self, vals):
     self.self_id = vals["self_id"]
-    self.bsc_link = vals["bsc_id"]
+    self.bsc_id = vals["bsc_id"]
     self.repository_id = vals["repos_id"]
     self.peer_contact = vals["uri"]
     self.peer_ta = rpki.x509.X509(DER=vals["ta"])

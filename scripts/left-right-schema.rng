@@ -411,14 +411,14 @@
       </attribute>
     </optional>
     <optional>
-      <attribute name="bsc_link">
+      <attribute name="bsc_id">
         <data type="token">
           <param name="maxLength">1024</param>
         </data>
       </attribute>
     </optional>
     <optional>
-      <attribute name="repository_link">
+      <attribute name="repository_id">
         <data type="token">
           <param name="maxLength">1024</param>
         </data>
@@ -517,7 +517,7 @@
   </define>
   <define name="child_payload">
     <optional>
-      <attribute name="bsc_link">
+      <attribute name="bsc_id">
         <data type="token">
           <param name="maxLength">1024</param>
         </data>
@@ -623,7 +623,7 @@
       </attribute>
     </optional>
     <optional>
-      <attribute name="bsc_link">
+      <attribute name="bsc_id">
         <data type="token">
           <param name="maxLength">1024</param>
         </data>

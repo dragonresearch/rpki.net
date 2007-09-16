@@ -87,9 +87,10 @@ class sql_persistant(object):
 
   def sql_delete(self, db, cur):
     if self.sql_in_db:
-      cur.execute(self.sql_template.delete, self.sql_encode())
+      id = getattr(self, self.sql_template.index)
+      cur.execute(self.sql_template.delete, id)
       self.sql_delete_hook(db, cur)
-      key = (self.__class__, getattr(self, self.sql_template.index))
+      key = (self.__class__, id)
       if sql_cache.get(key) == self:
         del sql_cache[key]
       self.sql_in_db = False

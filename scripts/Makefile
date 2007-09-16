@@ -45,3 +45,6 @@ wraptest: all
 
 doxygen:
 	cd rpki && doxygen
+
+tags:
+	find . -type f -name '*.py' | etags -

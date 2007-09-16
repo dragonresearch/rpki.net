@@ -58,6 +58,13 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
 
   pass
 
+def get_ta_DER(thing):
+  """None-tolerant wrapper around rpki.x509.X509.get_DER()."""
+  if thing is None:
+    return None
+  else:
+    return thing.get_DER()
+
 class extension_preference_elt(base_elt):
   """Container for extension preferences."""
 
@@ -168,7 +175,7 @@ class parent_elt(data_elt):
              "repos_id"  : self.repository_id,
              "parent_id" : self.parent_id,
              "uri"       : self.peer_contact,
-             "ta"        : self.peer_ta.get_DER(),
+             "ta"        : get_ta_DER(self.peer_ta),
              "sia_head"  : self.sia_head }
 
   peer_ta = None
@@ -213,23 +220,12 @@ class child_elt(data_elt):
     return { "self_id"  : self.self_id,
              "bsc_id"   : self.bsc_id,
              "child_id" : self.child_id,
-             "ta"       : self.peer_ta.get_DER() }
+             "ta"       : get_ta_DER(self.peer_ta) }
 
   def sql_fetch_hook(self, db, cur):
     self.cas = rpki.sql.get_column(db, cur, "SELECT ca_id FROM child_ca_link WHERE child_id = %s", self.child_id)
-    #
-    # This next bit is nasty, but I don't know how to do better with the current SQL structure.
-    # This is a normalization problem, I think.
-    #
     cur.execute("""SELECT ca_detail_id, cert FROM child_ca_certificate WHERE child_id = %s""", self.child_id)
-    self.certs = []
-    for (ca_detail_id, cert) in cur.fetchall():
-      ca_detail = rpki.sql.ca_detail.sql_cache_find(ca_detail_id)
-      c = rpki.x509.X509(DER=cert)
-      c.child_id = self.child_id
-      c.ca_detail_id = ca_detail_id
-      self.certs.append(c)
-      ca_detail.certs.append(c)
+    self.certs = dict((ca_detail_id, rpki.x509.X509(DER=cert)) for (ca_detail_id, cert) in cur.fetchall())
 
   def sql_insert_hook(self, db, cur):
     if self.cas:
@@ -237,7 +233,7 @@ class child_elt(data_elt):
                       ((x.ca_id, self.child_id) for x in self.cas))
     if self.certs:
       cur.executemany("INSERT child_ca_certificate (child_id, ca_detail_id, cert) VALUES (%s, %s, %s)",
-                      ((self.child_id, c.ca_detail_id, c) for c in self.certs))
+                      ((self.child_id, ca_detail_id, cert.get_DER()) for (ca_detail_id, cert) in self.certs))
   
   def sql_delete_hook(self, db, cur):
     cur.execute("DELETE FROM child_ca_link where child_id = %s", self.child_id)
@@ -272,7 +268,7 @@ class repository_elt(data_elt):
   element_name = "repository"
   attributes = ("action", "type", "self_id", "repository_id", "bsc_id", "peer_contact")
 
-  sql_template = rpki.sql.template("repository", "repos_id", "self_id", "bsc_id", "ta", "uri")
+  sql_template = rpki.sql.template("repos", "repos_id", "self_id", "bsc_id", "ta", "uri")
 
   def sql_decode(self, vals):
     self.self_id = vals["self_id"]
@@ -286,7 +282,7 @@ class repository_elt(data_elt):
              "bsc_id"   : self.bsc_id,
              "repos_id" : self.repository_id,
              "uri"      : self.peer_contact,
-             "ta"       : self.peer_ta.get_DER() }
+             "ta"       : get_ta_DER(self.peer_ta) }
 
   peer_ta = None
 
@@ -320,6 +316,9 @@ class route_origin_elt(data_elt):
 
   sql_template = rpki.sql.template("route_origin", "route_origin_id", "self_id", "as_number")
 
+  ca_detail_id = None
+  roa = None
+
   def sql_decode(self, vals):
     self.self_id = vals["self_id"]
     self.asn = vals["as_number"]
@@ -335,20 +334,21 @@ class route_origin_elt(data_elt):
     self.ipv4.from_sql(cur, "SELECT start_ip, end_ip FROM route_origin_prefix WHERE route_origin_id = %s AND start_ip NOT LIKE '%:%'", self.route_origin_id)
     self.ipv6 = rpki.resource_set.resource_set_ipv6()
     self.ipv4.from_sql(cur, "SELECT start_ip, end_ip FROM route_origin_prefix WHERE route_origin_id = %s AND start_ip LIKE '%:%'", self.route_origin_id)
-
-    raise NotImplementedError, "ROA modeling still broken"
     cur.execute("SELECT roa, ca_detail_id FROM roa WHERE route_origin_id = %s", self.route_origin_id)
-    self.roas = cur.fetchall()
+    roas = cur.fetchall()
+    if len(roas) == 1:
+      roa = roas[0][0]
+      ca_detail_id = roas[0][1]
+    elif len(roas) > 0:
+      raise RunTimeError, "Multiple ROAs found, mapping should be one-to-one"
     
   def sql_insert_hook(self, db, cur):
     if self.ipv4 + self.ipv6:
       cur.executemany("INSERT route_origin_prefix (route_origin_id, start_ip, end_ip) VALUES (%s, %s, %s)",
                       ((self.route_origin_id, x.min, x.max) for x in self.ipv4 + self.ipv6))
-
-    raise NotImplementedError, "ROA modeling still broken"
-    if self.roas:
-      cur.executemany("INSERT roa (route_origin_id, roa, ca_detail_id) VALUES (%s, %s, %s)",
-                      ((self.route_origin_id, x[0], x[1]) for x in self.roas))
+    if self.roa:
+      cur.execute("INSERT roa (route_origin_id, roa, ca_detail_id) VALUES (%s, %s, %s)",
+                  self.route_origin_id, self.roa, self.ca_detail_id)
   
   def sql_delete_hook(self, db, cur):
     cur.execute("DELETE FROM route_origin_prefix WHERE route_origin_id = %s", self.route_origin_id)

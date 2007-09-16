@@ -93,6 +93,7 @@ class sql_persistant(object):
       if sql_cache.get(key) == self:
         del sql_cache[key]
       self.sql_in_db = False
+      self.sql_dirty = False
 
   def sql_encode(self):
     """Convert object attributes into a dict for use with canned SQL

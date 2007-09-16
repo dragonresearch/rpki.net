@@ -34,10 +34,10 @@ def cache_clear():
   sql_cache = {}
 
 
-def get_column(db, cur, query):
+def get_column(db, cur, *query):
   """Pull a single column from SQL, return it as a list."""
 
-  cur.execute(query)
+  cur.execute(*query)
   return [x[0] for x in cur.fetchall()]
 
 
@@ -146,5 +146,13 @@ class ca_obj(sql_persistant):
 
   sql_template = template("ca", "ca_id", "last_crl_sn", "next_crl_update", "last_issued_sn", "last_manifest_sn", "next_manifest_update", "sia_uri", "parent_id")
 
-  def __init__(self):
-    self.children = []
+  def sql_fetch_hook(self, db, cur):
+    self.children = get_column(db, cur, "SELECT child_id FROM child_ca_link WHERE ca_id = %s", self.ca_id)
+
+  def sql_insert_hook(self, db, cur):
+    if self.children:
+      cur.executemany("INSERT child_ca_link (ca_id, child_id) VALUES (%s, %s)",
+                      ((self.ca_id, x.child_id) for x in self.children))
+
+  def sql_delete_hook(self, db, cur):
+    cur.execute("DELETE FROM child_ca_link where ca_id = %s", self.ca_id)

@@ -64,24 +64,6 @@ class extension_preference_elt(base_elt):
   element_name = "extension_preference"
   attributes = ("name",)
 
-  raise NotImplementedError, "This needs to be rewritten to use the self_elt.*_hook() methods"
-
-  sql_select_cmd = """SELECT pref_name, pref_value FROM self_pref WHERE self_id = %(self_id)s"""
-  sql_insert_cmd = """INSERT self_pref (self_id, pref_name, pref_value) VALUES (%(self_id)s, %(name)s, %(value)s)"""
-  sql_update_cmd = """UPDATE self_pref SET pref_value = %(value)s WHERE self_id = %(self_id)s AND pref_name = %(name)s"""
-  sql_delete_cmd = """DELETE FROM self_pref WHERE self_id = %(self_id)s AND pref_name = %(name)s"""
-
-  def sql_decode(self, sql_parent, name, value):
-    assert isinstance(sql_parent, self_elt)
-    self.self_obj = sql_parent
-    self.name = name
-    self.value = value
-
-  def sql_encode(self):
-    return { "self_id" : self.self_obj.self_id,
-             "name"    : self.name,
-             "value"   : self.value }
-
   def startElement(self, stack, name, attrs):
     """Handle <extension_preference/> elements."""
     assert name == "extension_preference", "Unexpected name %s, stack %s" % (name, stack)
@@ -109,19 +91,31 @@ class bsc_elt(data_elt):
 
   pkcs10_cert_request = None
   public_key = None
+  private_key_id = None
 
   def __init__(self):
     self.signing_cert = []
 
+  def sql_decode(self, vals):
+    self.self_id = vals["self_id"]
+    self.public_key = vals["pub_key"]
+    self.private_key_id = vals["priv_key_id"]
+
+  def sql_encode(self):
+    return { "self_id"     : self.self_id,
+             "pub_key"     : self.public_key,
+             "priv_key_id" : self.private_key_id }
+
   def sql_fetch_hook(self, db, cur):
-    cur.execute("""SELECT cert FROM bsc_cert WHERE bsc_id = %s""", self.bsc_id)
+    cur.execute("SELECT cert FROM bsc_cert WHERE bsc_id = %s", self.bsc_id)
     self.signing_cert = [rpki.x509.X509(DER=x) for (x,) in cur.fetchall()]
 
   def sql_insert_hook(self, db, cur):
-    cur.executemany("""INSERT bsc_cert (cert, bsc_id) VALUES (%s, %s)""", [(x.get_DER(), self.bsc_id) for x in self.signing_cert])
-  
+    if self.signing_cert:
+      cur.executemany("INSERT bsc_cert (cert, bsc_id) VALUES (%s, %s)", ((x.get_DER(), self.bsc_id) for x in self.signing_cert))
+
   def sql_delete_hook(self, db, cur):
-    cur.execute("""DELETE FROM bsc_cert WHERE bsc_id = %s""", self.bsc_id)
+    cur.execute("DELETE FROM bsc_cert WHERE bsc_id = %s", self.bsc_id)
 
   def startElement(self, stack, name, attrs):
     """Handle <bsc/> element."""
@@ -132,11 +126,11 @@ class bsc_elt(data_elt):
   def endElement(self, stack, name, text):
     """Handle <bsc/> element."""
     if name == "signing_cert":
-      self.signing_cert.append(rpki.x509.X509(DER=base64.b64decode(text)))
+      self.signing_cert.append(rpki.x509.X509(Base64=text))
     elif name == "public_key":
       self.public_key = base64.b64decode(text)
     elif name == "pkcs10_cert_request":
-      self.pkcs10_cert_request = rpki.x509.PKCS10_Request(DER=base64.b64decode(text))
+      self.pkcs10_cert_request = rpki.x509.PKCS10_Request(Base64=text)
     else:
       assert name == "bsc", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -188,7 +182,7 @@ class parent_elt(data_elt):
   def endElement(self, stack, name, text):
     """Handle <bsc/> element."""
     if name == "peer_ta":
-      self.peer_ta = rpki.x509.X509(DER=base64.b64decode(text))
+      self.peer_ta = rpki.x509.X509(Base64=text)
     else:
       assert name == "parent", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -222,10 +216,11 @@ class child_elt(data_elt):
              "ta"       : self.peer_ta.get_DER() }
 
   def sql_fetch_hook(self, db, cur):
-    cur.execute("""SELECT ca_id FROM child_ca_link WHERE child_id = %s""", self.child_id)
-    self.cas = [rpki.sql.ca.sql_cache_find(ca_id) for (ca_id,) in cur.fetchall()]
-    for ca in self.cas:
-      ca.children.append(self)
+    self.cas = rpki.sql.get_column(db, cur, "SELECT ca_id FROM child_ca_link WHERE child_id = %s", self.child_id)
+    #
+    # This next bit is nasty, but I don't know how to do better with the current SQL structure.
+    # This is a normalization problem, I think.
+    #
     cur.execute("""SELECT ca_detail_id, cert FROM child_ca_certificate WHERE child_id = %s""", self.child_id)
     self.certs = []
     for (ca_detail_id, cert) in cur.fetchall():
@@ -237,12 +232,16 @@ class child_elt(data_elt):
       ca_detail.certs.append(c)
 
   def sql_insert_hook(self, db, cur):
-    cur.executemany("""INSERT child_ca_link (ca_id, child_id) VALUES (%s, %s)""", [(x.ca_id, self.child_id) for x in self.cas])
-    cur.executemany("""INSERT child_ca_certificate (child_id, ca_detail_id, cert) VALUES (%s, %s, %s)""", [(self.child_id, c.ca_detail_id, c) for c in self.certs])
+    if self.cas:
+      cur.executemany("INSERT child_ca_link (ca_id, child_id) VALUES (%s, %s)",
+                      ((x.ca_id, self.child_id) for x in self.cas))
+    if self.certs:
+      cur.executemany("INSERT child_ca_certificate (child_id, ca_detail_id, cert) VALUES (%s, %s, %s)",
+                      ((self.child_id, c.ca_detail_id, c) for c in self.certs))
   
   def sql_delete_hook(self, db, cur):
-    cur.execute("""DELETE FROM child_ca_link where child_id = %s""", self.child_id)
-    cur.execute("""DELETE FROM child_ca_certificate where child_id = %s""", self.child_id)
+    cur.execute("DELETE FROM child_ca_link where child_id = %s", self.child_id)
+    cur.execute("DELETE FROM child_ca_certificate where child_id = %s", self.child_id)
     
   peer_ta = None
 
@@ -255,7 +254,7 @@ class child_elt(data_elt):
   def endElement(self, stack, name, text):
     """Handle <child/> element."""
     if name == "peer_ta":
-      self.peer_ta = rpki.x509.X509(DER=base64.b64decode(text))
+      self.peer_ta = rpki.x509.X509(Base64=text)
     else:
       assert name == "child", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -300,7 +299,7 @@ class repository_elt(data_elt):
   def endElement(self, stack, name, text):
     """Handle <repository/> element."""
     if name == "peer_ta":
-      self.peer_ta = rpki.x509.X509(DER=base64.b64decode(text))
+      self.peer_ta = rpki.x509.X509(Base64=text)
     else:
       assert name == "repository", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -333,21 +332,27 @@ class route_origin_elt(data_elt):
 
   def sql_fetch_hook(self, db, cur):
     self.ipv4 = rpki.resource_set.resource_set_ipv4()
-    self.ipv4.from_sql(cur, """SELECT start_ip, end_ip FROM route_origin_prefix WHERE route_origin_id = %s AND start_ip NOT LIKE '%:%'""", self.route_origin_id)
+    self.ipv4.from_sql(cur, "SELECT start_ip, end_ip FROM route_origin_prefix WHERE route_origin_id = %s AND start_ip NOT LIKE '%:%'", self.route_origin_id)
     self.ipv6 = rpki.resource_set.resource_set_ipv6()
-    self.ipv4.from_sql(cur, """SELECT start_ip, end_ip FROM route_origin_prefix WHERE route_origin_id = %s AND start_ip LIKE '%:%'""", self.route_origin_id)
-    cur.execute("""SELECT roa, ca_detail_id FROM roa WHERE route_origin_id = %s""", self.route_origin_id)
+    self.ipv4.from_sql(cur, "SELECT start_ip, end_ip FROM route_origin_prefix WHERE route_origin_id = %s AND start_ip LIKE '%:%'", self.route_origin_id)
+
+    raise NotImplementedError, "ROA modeling still broken"
+    cur.execute("SELECT roa, ca_detail_id FROM roa WHERE route_origin_id = %s", self.route_origin_id)
     self.roas = cur.fetchall()
     
   def sql_insert_hook(self, db, cur):
-    cur.executemany("""INSERT route_origin_prefix (route_origin_id, start_ip, end_ip) VALUES (%s, %s, %s)""",
-                    [(self.route_origin_id, x.min, x.max) for x in self.ipv4 + self.ipv6])
-    cur.executemany("""INSERT roa (route_origin_id, roa, ca_detail_id) VALUES (%s, %s, %s)""",
-                    [(self.route_origin_id, x[0], x[1]) for x in self.roas])
+    if self.ipv4 + self.ipv6:
+      cur.executemany("INSERT route_origin_prefix (route_origin_id, start_ip, end_ip) VALUES (%s, %s, %s)",
+                      ((self.route_origin_id, x.min, x.max) for x in self.ipv4 + self.ipv6))
+
+    raise NotImplementedError, "ROA modeling still broken"
+    if self.roas:
+      cur.executemany("INSERT roa (route_origin_id, roa, ca_detail_id) VALUES (%s, %s, %s)",
+                      ((self.route_origin_id, x[0], x[1]) for x in self.roas))
   
   def sql_delete_hook(self, db, cur):
-    cur.execute("""DELETE FROM route_origin_prefix WHERE route_origin_id = %s""", self.route_origin_id)
-    cur.execute("""DELETE FROM roa WHERE route_origin_id = %s""", self.route_origin_id)
+    cur.execute("DELETE FROM route_origin_prefix WHERE route_origin_id = %s", self.route_origin_id)
+    cur.execute("DELETE FROM roa WHERE route_origin_id = %s", self.route_origin_id)
 
   def startElement(self, stack, name, attrs):
     """Handle <route_origin/> element."""
@@ -383,6 +388,22 @@ class self_elt(data_elt):
 
   def __init__(self):
     self.prefs = []
+
+  def sql_fetch_hook(self, db, cur):
+    cur.execute("SELECT pref_name, pref_value FROM self_pref WHERE self_id = %s", self.self_id)
+    for name, value in cur.fetchall():
+      e = extension_preference_elt()
+      e.name = name
+      e.value = value
+      self.prefs.append(e)
+
+  def sql_insert_hook(self, db, cur):
+    if self.prefs:
+      cur.executemany("INSERT self_pref (self_id, pref_name, pref_value) VALUES (%s, %s, %s)",
+                      ((e.name, e.value, self.self_id) for e in self.prefs))
+  
+  def sql_delete_hook(self, db, cur):
+    cur.execute("DELETE FROM self_pref WHERE self_id = %s", self.self_id)
 
   def startElement(self, stack, name, attrs):
     """Handle <self/> element."""
@@ -480,9 +501,9 @@ class report_error_elt(base_elt):
     return self.make_elt()
 
 ## Dispatch table of PDUs for this protocol.
-pdus = dict([(x.element_name, x)
-             for x in (self_elt, child_elt, parent_elt, bsc_elt, repository_elt,
-                       route_origin_elt, list_resources_elt, report_error_elt)])
+pdus = dict((x.element_name, x)
+            for x in (self_elt, child_elt, parent_elt, bsc_elt, repository_elt,
+                       route_origin_elt, list_resources_elt, report_error_elt))
 
 class msg(list):
   """Left-right PDU."""

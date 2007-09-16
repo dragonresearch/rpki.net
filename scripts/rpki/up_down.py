@@ -59,13 +59,13 @@ class certificate_elt(base_elt):
   def endElement(self, stack, name, text):
     """Handle text content of a <certificate/> element."""
     assert name == "certificate"
-    self.cert = x509.X509(DER=base64.b64decode(text))
+    self.cert = x509.X509(Base64=text)
     stack.pop()
 
   def toXML(self):
     """Generate a <certificate/> element."""
     elt = self.make_elt("certificate", "cert_url", "req_resource_set_as", "req_resource_set_ipv4", "req_resource_set_ipv6")
-    elt.text = base64.b64encode(self.cert.get_DER())
+    elt.text = self.cert.get_Base64()
     return elt
 
 class class_elt(base_elt):
@@ -93,7 +93,7 @@ class class_elt(base_elt):
   def endElement(self, stack, name, text):
     """Handle <class/> elements and their children."""
     if name == "issuer":
-      self.issuer = x509.X509(DER=base64.b64decode(text))
+      self.issuer = x509.X509(Base64=text)
     else:
       assert name == "class", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -144,13 +144,13 @@ class issue_pdu(base_elt):
   def endElement(self, stack, name, text):
     """Handle "issue" PDU."""
     assert name == "request", "Unexpected name %s, stack %s" % (name, stack)
-    self.pkcs10 = x509.PKCS10_Request(DER=base64.b64decode(text))
+    self.pkcs10 = x509.PKCS10_Request(Base64=text)
     stack.pop()
 
   def toXML(self):
     """Generate payload of "issue" PDU."""
     elt = self.make_elt("request", "class_name", "req_resource_set_as", "req_resource_set_ipv4", "req_resource_set_ipv6")
-    elt.text = base64.b64encode(self.pkcs10.get_DER())
+    elt.text = self.pkcs10.get_Base64()
     return [elt]
 
 class issue_response_pdu(list_response_pdu):

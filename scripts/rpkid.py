@@ -18,10 +18,6 @@ def encode(msg, cms_key, cms_certs):
 
 def left_right_handler(query, path):
 
-  def fetch_maybe(q_pdu):
-    if rpki.left_right.self_elt.sql_cache_find(q_pdu.self_id) is None:
-      rpki.left_right.self_elt.sql_fetch(db, cur, { "self_id" : q_pdu.self_id })
-
   def make_reply(q_pdu, r_pdu=None):
     if r_pdu is None:
       r_pdu = q_pdu.__class__()

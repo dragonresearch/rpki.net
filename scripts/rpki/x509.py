@@ -86,6 +86,16 @@ class DER_object(object):
         self.clear()
         setattr(self, name, kw[name])
         return
+      if name == "PEM":
+        text = self.pem_convert.toDER(kw[name])
+        self.clear()
+        self.DER = text
+        return
+      if name == "Base64":
+        text = base64.b64decode(kw[name])
+        self.clear()
+        self.DER = text
+        return
       if name in ("PEM_file", "DER_file"):
         f = open(kw[name], "r")
         text = f.read()
@@ -106,6 +116,10 @@ class DER_object(object):
     if self.DER:
       return self.DER
     raise RuntimeError, "No conversion path to DER available"
+
+  def get_Base64(self):
+    """Get the Base64 encoding of the DER value of this object."""
+    return base64.b64encode(self.get_DER())
 
   def get_PEM(self):
     """Get the PEM representation of this object."""

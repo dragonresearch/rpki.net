@@ -397,7 +397,7 @@
   </define>
   <define name="parent_payload">
     <optional>
-      <attribute name="peer_contact">
+      <attribute name="peer_contact_uri">
         <data type="anyURI">
           <param name="maxLength">1024</param>
         </data>
@@ -616,7 +616,7 @@
   </define>
   <define name="repository_payload">
     <optional>
-      <attribute name="peer_contact">
+      <attribute name="peer_contact_uri">
         <data type="anyURI">
           <param name="maxLength">1024</param>
         </data>

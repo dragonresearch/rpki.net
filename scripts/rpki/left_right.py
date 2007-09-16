@@ -94,7 +94,7 @@ class bsc_elt(data_elt):
   attributes = ("action", "type", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
   booleans = ("generate_keypair",)
 
-  sql_template = rpki.sql.template("bsc", "bsc_id", "self_id", "pub_key", "priv_key_id")
+  sql_template = rpki.sql.template("bsc", "bsc_id", "self_id", "public_key", "private_key_id")
 
   pkcs10_cert_request = None
   public_key = None
@@ -102,16 +102,6 @@ class bsc_elt(data_elt):
 
   def __init__(self):
     self.signing_cert = []
-
-  def sql_decode(self, vals):
-    self.self_id = vals["self_id"]
-    self.public_key = vals["pub_key"]
-    self.private_key_id = vals["priv_key_id"]
-
-  def sql_encode(self):
-    return { "self_id"     : self.self_id,
-             "pub_key"     : self.public_key,
-             "priv_key_id" : self.private_key_id }
 
   def sql_fetch_hook(self, db, cur):
     cur.execute("SELECT cert FROM bsc_cert WHERE bsc_id = %s", self.bsc_id)
@@ -156,27 +146,27 @@ class parent_elt(data_elt):
   """<parent/> element."""
 
   element_name = "parent"
-  attributes = ("action", "type", "self_id", "parent_id", "bsc_id", "repository_id", "peer_contact", "sia_base")
+  attributes = ("action", "type", "self_id", "parent_id", "bsc_id", "repository_id", "peer_contact_uri", "sia_base")
   booleans = ("rekey", "reissue", "revoke")
 
-  sql_template = rpki.sql.template("parent", "parent_id", "self_id", "bsc_id", "repos_id", "ta", "uri", "sia_base")
+  sql_template = rpki.sql.template("parent", "parent_id", "self_id", "bsc_id", "repository_id", "peer_ta", "peer_contact_uri", "sia_base")
 
   def sql_decode(self, vals):
     self.self_id       = vals["self_id"]
     self.bsc_id        = vals["bsc_id"]
-    self.repository_id = vals["repos_id"]
+    self.repository_id = vals["repository_id"]
     self.parent_id     = vals["parent_id"]
-    self.peer_contact  = vals["uri"]
-    self.peer_ta       = rpki.x509.X509(DER=vals["ta"])
+    self.peer_contact_uri  = vals["peer_contact_uri"]
+    self.peer_ta       = rpki.x509.X509(DER=vals["peer_ta"])
 
   def sql_encode(self):
-    return { "self_id"   : self.self_id,
-             "bsc_id"    : self.bsc_id,
-             "repos_id"  : self.repository_id,
-             "parent_id" : self.parent_id,
-             "uri"       : self.peer_contact,
-             "ta"        : get_ta_DER(self.peer_ta),
-             "sia_head"  : self.sia_head }
+    return { "self_id"       : self.self_id,
+             "bsc_id"        : self.bsc_id,
+             "repository_id" : self.repository_id,
+             "parent_id"     : self.parent_id,
+             "peer_contact_uri"  : self.peer_contact_uri,
+             "peer_ta"       : get_ta_DER(self.peer_ta),
+             "sia_base"      : self.sia_base }
 
   peer_ta = None
 
@@ -208,19 +198,19 @@ class child_elt(data_elt):
   attributes = ("action", "type", "self_id", "child_id", "bsc_id", "child_db_id")
   booleans = ("reissue", )
 
-  sql_template = rpki.sql.template("child", "child_id", "self_id", "bsc_id", "ta")
+  sql_template = rpki.sql.template("child", "child_id", "self_id", "bsc_id", "peer_ta")
 
   def sql_decode(self, vals):
     self.self_id = vals["self_id"]
     self.bsc_id = vals["bsc_id"]
     self.child_id = vals["child_id"]
-    self.peer_ta = rpki.x509.X509(DER=vals["ta"])
+    self.peer_ta = rpki.x509.X509(DER=vals["peer_ta"])
 
   def sql_encode(self):
     return { "self_id"  : self.self_id,
              "bsc_id"   : self.bsc_id,
              "child_id" : self.child_id,
-             "ta"       : get_ta_DER(self.peer_ta) }
+             "peer_ta"       : get_ta_DER(self.peer_ta) }
 
   def sql_fetch_hook(self, db, cur):
     self.cas = rpki.sql.get_column(db, cur, "SELECT ca_id FROM child_ca_link WHERE child_id = %s", self.child_id)
@@ -266,23 +256,23 @@ class repository_elt(data_elt):
   """<repository/> element."""
 
   element_name = "repository"
-  attributes = ("action", "type", "self_id", "repository_id", "bsc_id", "peer_contact")
+  attributes = ("action", "type", "self_id", "repository_id", "bsc_id", "peer_contact_uri")
 
-  sql_template = rpki.sql.template("repos", "repos_id", "self_id", "bsc_id", "ta", "uri")
+  sql_template = rpki.sql.template("repository", "repository_id", "self_id", "bsc_id", "peer_ta", "peer_contact_uri")
 
   def sql_decode(self, vals):
     self.self_id = vals["self_id"]
     self.bsc_id = vals["bsc_id"]
-    self.repository_id = vals["repos_id"]
-    self.peer_contact = vals["uri"]
-    self.peer_ta = rpki.x509.X509(DER=vals["ta"])
+    self.repository_id = vals["repository_id"]
+    self.peer_contact_uri = vals["peer_contact_uri"]
+    self.peer_ta = rpki.x509.X509(DER=vals["peer_ta"])
 
   def sql_encode(self):
-    return { "self_id"  : self.self_id,
-             "bsc_id"   : self.bsc_id,
-             "repos_id" : self.repository_id,
-             "uri"      : self.peer_contact,
-             "ta"       : get_ta_DER(self.peer_ta) }
+    return { "self_id"       : self.self_id,
+             "bsc_id"        : self.bsc_id,
+             "repository_id" : self.repository_id,
+             "peer_contact_uri"  : self.peer_contact_uri,
+             "peer_ta"            : get_ta_DER(self.peer_ta) }
 
   peer_ta = None
 
@@ -331,9 +321,9 @@ class route_origin_elt(data_elt):
 
   def sql_fetch_hook(self, db, cur):
     self.ipv4 = rpki.resource_set.resource_set_ipv4()
-    self.ipv4.from_sql(cur, "SELECT start_ip, end_ip FROM route_origin_prefix WHERE route_origin_id = %s AND start_ip NOT LIKE '%:%'", self.route_origin_id)
+    self.ipv4.from_sql(cur, "SELECT start_ip, end_ip FROM route_origin_range WHERE route_origin_id = %s AND start_ip NOT LIKE '%:%'", self.route_origin_id)
     self.ipv6 = rpki.resource_set.resource_set_ipv6()
-    self.ipv4.from_sql(cur, "SELECT start_ip, end_ip FROM route_origin_prefix WHERE route_origin_id = %s AND start_ip LIKE '%:%'", self.route_origin_id)
+    self.ipv4.from_sql(cur, "SELECT start_ip, end_ip FROM route_origin_range WHERE route_origin_id = %s AND start_ip LIKE '%:%'", self.route_origin_id)
     cur.execute("SELECT roa, ca_detail_id FROM roa WHERE route_origin_id = %s", self.route_origin_id)
     roas = cur.fetchall()
     if len(roas) == 1:
@@ -344,14 +334,14 @@ class route_origin_elt(data_elt):
     
   def sql_insert_hook(self, db, cur):
     if self.ipv4 + self.ipv6:
-      cur.executemany("INSERT route_origin_prefix (route_origin_id, start_ip, end_ip) VALUES (%s, %s, %s)",
+      cur.executemany("INSERT route_origin_range (route_origin_id, start_ip, end_ip) VALUES (%s, %s, %s)",
                       ((self.route_origin_id, x.min, x.max) for x in self.ipv4 + self.ipv6))
     if self.roa:
       cur.execute("INSERT roa (route_origin_id, roa, ca_detail_id) VALUES (%s, %s, %s)",
                   self.route_origin_id, self.roa, self.ca_detail_id)
   
   def sql_delete_hook(self, db, cur):
-    cur.execute("DELETE FROM route_origin_prefix WHERE route_origin_id = %s", self.route_origin_id)
+    cur.execute("DELETE FROM route_origin_range WHERE route_origin_id = %s", self.route_origin_id)
     cur.execute("DELETE FROM roa WHERE route_origin_id = %s", self.route_origin_id)
 
   def startElement(self, stack, name, attrs):

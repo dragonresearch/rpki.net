@@ -137,8 +137,8 @@ class sql_persistant(object):
 class ca_detail_obj(sql_persistant):
   """Internal CA detail object."""
 
-  sql_template = template("ca", "ca_detail_id", "priv_key_handle", "pub_key", "latest_ca_cert_over_pubkey", "manifest_ee_priv_key_handle", "manifest_ee_pub_key",
-                          "latest_manifest_ee_cert", "latest_manifest", "latest_crl", "ca_id")
+  sql_template = template("ca", "ca_detail_id", "private_key_handle", "public_key", "latest_ca_cert_over_public_key", "manifest_ee_private_key_handle",
+                          "manifest_ee_public_key", "latest_manifest_ee_cert", "latest_manifest", "latest_crl", "ca_id")
 
   def __init__(self):
     self.certs = []

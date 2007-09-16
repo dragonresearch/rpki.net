@@ -257,7 +257,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <parent action="create" type="query" self_id="42"
-                peer_contact="https://re.bar.example/bandicoot/"
+                peer_contact_uri="https://re.bar.example/bandicoot/"
                 sia_base="rsync://repo.foo.example/wombat/"
                 bsc_id="17"
                 repository_id="120">
@@ -289,7 +289,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <parent action="set" type="query" self_id="42" parent_id="666"
-                peer_contact="https://re.bar.example/bandicoot/"
+                peer_contact_uri="https://re.bar.example/bandicoot/"
                 sia_base="rsync://repo.foo.example/wombat/"
                 bsc_id="17"
                 repository_id="120"
@@ -328,7 +328,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <parent action="get" type="reply" self_id="42" parent_id="666"
-                peer_contact="https://re.bar.example/bandicoot/"
+                peer_contact_uri="https://re.bar.example/bandicoot/"
                 sia_base="rsync://repo.foo.example/wombat/"
                 bsc_id="17"
                 repository_id="120">
@@ -360,7 +360,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <parent action="list" type="reply" self_id="42" parent_id="666"
-                peer_contact="https://re.bar.example/bandicoot/"
+                peer_contact_uri="https://re.bar.example/bandicoot/"
                 sia_base="rsync://repo.foo.example/wombat/"
                 bsc_id="17"
                 repository_id="120">
@@ -529,7 +529,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <repository action="create" type="query" self_id="42"
-                peer_contact="https://re.bar.example/bandicoot/"
+                peer_contact_uri="https://re.bar.example/bandicoot/"
                 bsc_id="17">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
@@ -559,7 +559,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <repository action="set" type="query" self_id="42" repository_id="120"
-                peer_contact="https://re.bar.example/bandicoot/"
+                peer_contact_uri="https://re.bar.example/bandicoot/"
                 bsc_id="17">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
@@ -593,7 +593,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <repository action="get" type="reply" self_id="42" repository_id="120"
-                peer_contact="https://re.bar.example/bandicoot/"
+                peer_contact_uri="https://re.bar.example/bandicoot/"
                 bsc_id="17">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
@@ -623,7 +623,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <repository action="list" type="reply" self_id="42" repository_id="120"
-                peer_contact="https://re.bar.example/bandicoot/"
+                peer_contact_uri="https://re.bar.example/bandicoot/"
                 bsc_id="17">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV

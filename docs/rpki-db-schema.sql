@@ -1,30 +1,26 @@
 drop table if exists bsc;
 drop table if exists bsc_cert;
-drop table if exists bsc_key;
 drop table if exists ca;
 drop table if exists ca_detail;
-drop table if exists ca_use;
 drop table if exists child_ca_link;
 drop table if exists child;
-drop table if exists child_ca_detail_link;
 drop table if exists child_ca_certificate;
 drop table if exists ee_cert;
 drop table if exists manifest;
-drop table if exists manifest_content;
 drop table if exists parent;
-drop table if exists repos;
+drop table if exists repository;
 drop table if exists roa;
 drop table if exists route_origin;
 drop table if exists self;
 drop table if exists self_pref;
-drop table if exists route_origin_prefix;
+drop table if exists route_origin_range;
 
 
 CREATE TABLE bsc (
        bsc_id               SERIAL NOT NULL,
-       priv_key_id          LONGBLOB,
+       private_key_id       LONGBLOB,
        self_id              BIGINT unsigned NOT NULL,
-       pub_key              LONGBLOB,
+       public_key           LONGBLOB,
        PRIMARY KEY (bsc_id)
 );
 
@@ -52,12 +48,12 @@ CREATE TABLE ca (
 
 CREATE TABLE ca_detail (
        ca_detail_id         SERIAL NOT NULL,
-       pub_key              LONGBLOB,
-       priv_key_handle      LONGBLOB,
+       public_key           LONGBLOB,
+       private_key_handle   LONGBLOB,
        latest_crl           LONGBLOB,
-       latest_ca_cert_over_pubkey LONGBLOB,
-       manifest_ee_priv_key_handle LONGBLOB,
-       manifest_ee_pub_key  LONGBLOB,
+       latest_ca_cert_over_public_key LONGBLOB,
+       manifest_ee_private_key_handle LONGBLOB,
+       manifest_ee_public_key  LONGBLOB,
        latest_manifest_ee_cert LONGBLOB,
        latest_manifest      LONGBLOB,
        ca_id                BIGINT unsigned NOT NULL,
@@ -67,7 +63,7 @@ CREATE TABLE ca_detail (
 
 CREATE TABLE child (
        child_id             SERIAL NOT NULL,
-       ta                   LONGBLOB,
+       peer_ta              LONGBLOB,
        self_id              BIGINT unsigned NOT NULL,
        bsc_id               BIGINT unsigned NOT NULL,
        PRIMARY KEY (child_id)
@@ -91,23 +87,23 @@ CREATE TABLE child_ca_link (
 
 CREATE TABLE parent (
        parent_id            SERIAL NOT NULL,
-       ta                   LONGBLOB,
-       url                  TEXT,
+       peer_ta              LONGBLOB,
+       peer_contact_uri     TEXT,
        sia_base             TEXT,
        self_id              BIGINT unsigned NOT NULL,
        bsc_id               BIGINT unsigned NOT NULL,
-       repos_id             BIGINT unsigned NOT NULL,
+       repository_id        BIGINT unsigned NOT NULL,
        PRIMARY KEY (parent_id)
 );
 
 
-CREATE TABLE repos (
-       repos_id             SERIAL NOT NULL,
-       uri                  TEXT,
-       ta                   LONGBLOB,
+CREATE TABLE repository (
+       repository_id        SERIAL NOT NULL,
+       peer_contact_uri     TEXT,
+       peer_ta              LONGBLOB,
        bsc_id               BIGINT unsigned NOT NULL,
        self_id              BIGINT unsigned NOT NULL,
-       PRIMARY KEY (repos_id)
+       PRIMARY KEY (repository_id)
 );
 
 
@@ -128,7 +124,7 @@ CREATE TABLE route_origin (
 );
 
 
-CREATE TABLE route_origin_prefix (
+CREATE TABLE route_origin_range (
        start_ip             VARCHAR(40),
        end_ip               VARCHAR(40),
        route_origin_id      BIGINT unsigned NOT NULL,
@@ -197,8 +193,8 @@ ALTER TABLE child_ca_link
 
 
 ALTER TABLE parent
-       ADD FOREIGN KEY (repos_id)
-                             REFERENCES repos;
+       ADD FOREIGN KEY (repository_id)
+                             REFERENCES repository;
 
 
 ALTER TABLE parent
@@ -211,12 +207,12 @@ ALTER TABLE parent
                              REFERENCES self;
 
 
-ALTER TABLE repos
+ALTER TABLE repository
        ADD FOREIGN KEY (self_id)
                              REFERENCES self;
 
 
-ALTER TABLE repos
+ALTER TABLE repository
        ADD FOREIGN KEY (bsc_id)
                              REFERENCES bsc;
 
@@ -236,7 +232,7 @@ ALTER TABLE route_origin
                              REFERENCES self;
 
 
-ALTER TABLE route_origin_prefix
+ALTER TABLE route_origin_range
        ADD FOREIGN KEY (route_origin_id)
                              REFERENCES route_origin;
 

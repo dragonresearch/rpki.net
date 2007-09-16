@@ -97,7 +97,7 @@ parent_bool = (attribute rekey { "yes" }?,
                attribute reissue { "yes" }?,
                attribute revoke { "yes" }?)
 
-parent_payload = (attribute peer_contact { xsd:anyURI { maxLength="1024" } }?,
+parent_payload = (attribute peer_contact_uri { xsd:anyURI { maxLength="1024" } }?,
                   attribute sia_base { xsd:anyURI { maxLength="1024" } }?,
                   attribute bsc_id { xsd:token { maxLength="1024" } }?,
                   attribute repository_id { xsd:token { maxLength="1024" } }?,
@@ -139,7 +139,7 @@ child_elt |= element child { ctl_dr, self_id, child_id }
 
 repository_id = attribute repository_id { sql_id }
 
-repository_payload = (attribute peer_contact { xsd:anyURI { maxLength="1024" } }?,
+repository_payload = (attribute peer_contact_uri { xsd:anyURI { maxLength="1024" } }?,
                       attribute bsc_id { xsd:token { maxLength="1024" } }?,
                       peer_ta?)
 

@@ -42,7 +42,7 @@ def lr_tester(elt_in, elt_out, msg):
         pprint_cert(cert)
 
 test(fileglob="up-down-protocol-samples/*.xml",
-     schema="up-down-medium-schema.rng",
+     schema="up-down-schema.rng",
      sax_handler=rpki.up_down.sax_handler,
      encoding="utf-8",
      tester=ud_tester)

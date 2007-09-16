@@ -11,11 +11,6 @@ all:: left-right-schema.rng
 left-right-schema.rng: left-right-schema.rnc
 	trang left-right-schema.rnc left-right-schema.rng
 
-all:: up-down-medium-schema.rng
-
-up-down-medium-schema.rng: up-down-medium-schema.rnc
-	trang up-down-medium-schema.rnc up-down-medium-schema.rng
-
 all:: up-down-schema.rng
 
 up-down-schema.rng: up-down-schema.rnc

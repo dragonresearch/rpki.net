@@ -23,7 +23,7 @@ def main():
     dir = "biz-certs"
     cer = "biz-certs/Alice-EE.cer"
     key = "biz-certs/Alice-EE.key"
-    rng = "up-down-medium-schema.rng"
+    rng = "up-down-schema.rng"
 
     for x in xml:
         print x

@@ -88,7 +88,7 @@ db = MySQLdb.connect(user   = cfg.get(section, "sql-username"),
 cur = db.cursor()
 
 lr_rng = rpki.relaxng.RelaxNG("left-right-schema.rng")
-ud_rng = rpki.relaxng.RelaxNG("up-down-medium-schema.rng")
+ud_rng = rpki.relaxng.RelaxNG("up-down-schema.rng")
 
 cms_ta_irdb = cfg.get(section, "cms-ta-irdb")
 cms_ta_irbe = cfg.get(section, "cms-ta-irbe")

@@ -5,12 +5,12 @@
 	 recipient="recipient name"
 	 type="issue_response">
     <class class_name="ISP5"
-           cert_url="url"
+           cert_url="rsync://wombat.example/ISP5"
 	   resource_set_as="64534-64540"
 	   resource_set_ipv4="10.0.0.0/24,10.3.0.0/24"
 	   resource_set_ipv6="2001:db8:0:0:0:0:a00::/120,2001:db8:0:0:0:0:a03::/120"
 	   suggested_sia_head="rsync://wombat.example/fnord/">
-        <certificate cert_url="ISP5a"
+        <certificate cert_url="rsync://wombat.example/ISP5a"
 		     req_resource_set_as=""
 		     req_resource_set_ipv4="10.0.0.0/24"
 		     req_resource_set_ipv6="2001:db8:0:0:0:0:a00::/120">
@@ -36,7 +36,7 @@
 	    AIYRKF4k4ZDYZ9gA/LYnH56xvpEXwRE1bpxgUC5n8wQrdIn5/pJz3R5EgWe4CGOo
 	    n/SMvEfe8d+LEc0C7LmtCwYoDOKENoOF809GVkbV9fjL8w==
         </certificate>
-        <certificate cert_url="ISP5b"
+        <certificate cert_url="rsync://wombat.example/ISP5b"
 		     req_resource_set_as=""
 		     req_resource_set_ipv4="10.3.0.0/24"
 		     req_resource_set_ipv6="2001:db8:0:0:0:0:a03::/120">
@@ -62,7 +62,7 @@
 	    2emkoegzzS2cN+5I5I+O8IRnZInqmiPgEgElgEFw+rg6xw23yax5Nyqx12J56tt0
 	    tPWGhrYe1dCwKZajWKn3P9+NMcGQ0d8bw/QU+B3RyVeVfw==
         </certificate>
-        <certificate cert_url="ISP5c"
+        <certificate cert_url="rsync://wombat.example/ISP5c"
 		     req_resource_set_as="64534-64540"
 		     req_resource_set_ipv4=""
 		     req_resource_set_ipv6="">

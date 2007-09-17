@@ -14,15 +14,16 @@ def connect(cfg, section="sql"):
 class template(object):
   """SQL template generator."""
   def __init__(self, table_name, *columns):
-    index_column = columns[0]
-    data_columns = columns[1:]
-    self.table   = table_name
-    self.index   = index_column
-    self.columns = columns
-    self.select  = "SELECT %s FROM %s WHERE %s = %%s" % (", ".join(columns), table_name, index_column)
-    self.insert  = "INSERT %s (%s) VALUES (%s)" % (table_name, ", ".join(data_columns), ", ".join("%(" + s + ")s" for s in data_columns))
-    self.update  = "UPDATE %s SET %s WHERE %s = %%(%s)s" % (table_name, ", ".join(s + " = %(" + s + ")s" for s in data_columns), index_column, index_column)
-    self.delete  = "DELETE FROM %s WHERE %s = %%s" % (table_name, index_column)
+    index_column    = columns[0]
+    data_columns    = columns[1:]
+    self.table      = table_name
+    self.index      = index_column
+    self.columns    = columns
+    self.insert     = "INSERT %s (%s) VALUES (%s)" % (table_name, ", ".join(data_columns), ", ".join("%(" + s + ")s" for s in data_columns))
+    self.update     = "UPDATE %s SET %s WHERE %s = %%(%s)s" % (table_name, ", ".join(s + " = %(" + s + ")s" for s in data_columns), index_column, index_column)
+    self.delete     = "DELETE FROM %s WHERE %s = %%s" % (table_name, index_column)
+    self.select_all = "SELECT %s FROM %s" % (", ".join(columns), table_name)
+    self.select_one = self.select_all + " WHERE " + index_column + " = %s"
 
 ## @var sql_cache
 # Cache of objects pulled from SQL.
@@ -60,13 +61,29 @@ class sql_persistant(object):
     key = (cls, id)
     if key in sql_cache:
       return sql_cache[key]
-    cur.execute(cls.sql_template.select, id)
-    result = cur.fetchone()
-    if result is None:
+    cur.execute(cls.sql_template.select_one, id)
+    row = cur.fetchone()
+    if row is None:
       return None
-    data = dict(zip(cls.sql_template.columns, result))
+    else:
+      return cls.sql_init(db, cur, row, key)
+
+  @classmethod
+  def sql_fetch_all(cls, db, cur):
+    cur.execute(cls.sql_template.select_all)
+    all = []
+    for row in cur.fetchall():
+      key = (cls, row[0])
+      if key in sql_cache:
+        all.append(sql_cache[key])
+      else:
+        all.append(cls.sql_init(db, cur, row, key))
+    return all
+
+  @classmethod
+  def sql_init(cls, db, cur, row, key):
     self = cls()
-    self.sql_decode(data)
+    self.sql_decode(dict(zip(cls.sql_template.columns, row)))
     sql_cache[key] = self
     self.sql_dirty = False
     self.sql_in_db = True

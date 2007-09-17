@@ -51,9 +51,7 @@ def left_right_handler(query, path):
     raise NotImplementedError
 
   def list_handler(q_pdu):
-    for id in rpki.sql.get_column(db, cur, "SELECT %s FROM %s" % (q_pdu.sql_template.index, q_pdu.sql_template.table)):
-      r_pdu = q_pdu.sql_fetch(db, cur, id)
-      assert r_pdu is not None
+    for r_pdu in q_pdu.sql_fetch_all(db, cur):
       make_reply(q_pdu, r_pdu)
       r_msg.append(r_pdu)
 

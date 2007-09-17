@@ -179,7 +179,7 @@ class parent_elt(data_elt):
   def toXML(self):
     """Generate <bsc/> element."""
     elt = self.make_elt()
-    if self.peer_ta:
+    if self.peer_ta and not self.peer_ta.empty():
       self.make_b64elt(elt, "peer_ta", self.peer_ta.get_DER())
     return elt
 

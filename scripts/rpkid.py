@@ -39,14 +39,23 @@ def left_right_handler(query, path):
     setattr(r_pdu, q_pdu.sql_template.index, getattr(q_pdu, q_pdu.sql_template.index))
     r_msg.append(r_pdu)
 
-  def get_handler():
+  def get_handler(q_pdu):
+    r_pdu = q_pdu.sql_fetch(db, cur, getattr(q_pdu, q_pdu.sql_template.index))
+    if r_pdu is not None:
+      make_reply(q_pdu, r_pdu)
+      r_msg.append(r_pdu)
+    else:
+      r_msg.append(make_error_report(q_pdu))
+
+  def set_handler(q_pdu):
     raise NotImplementedError
 
-  def set_handler():
-    raise NotImplementedError
-
-  def list_handler():
-    raise NotImplementedError
+  def list_handler(q_pdu):
+    for id in rpki.sql.get_column(db, cur, "SELECT %s FROM %s" % (q_pdu.sql_template.index, q_pdu.sql_template.table)):
+      r_pdu = q_pdu.sql_fetch(db, cur, id)
+      assert r_pdu is not None
+      make_reply(q_pdu, r_pdu)
+      r_msg.append(r_pdu)
 
   try:
     q_elt = decode(query, cms_ta_irbe)

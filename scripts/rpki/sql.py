@@ -16,6 +16,7 @@ class template(object):
   def __init__(self, table_name, *columns):
     index_column = columns[0]
     data_columns = columns[1:]
+    self.table   = table_name
     self.index   = index_column
     self.columns = columns
     self.select  = "SELECT %s FROM %s WHERE %s = %%s" % (", ".join(columns), table_name, index_column)

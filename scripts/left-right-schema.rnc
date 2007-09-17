@@ -121,7 +121,6 @@ child_id = attribute child_id { sql_id }
 child_bool = attribute reissue { "yes" }?
 
 child_payload = (attribute bsc_id { xsd:token { maxLength="1024" } }?,
-                 attribute child_db_id { xsd:token { maxLength="1024" } }?,
                  peer_ta?)
 
 child_elt |= element child { ctl_cq, self_id, child_bool, child_payload }

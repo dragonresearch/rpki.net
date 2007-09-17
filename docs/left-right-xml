@@ -398,8 +398,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <child action="create" type="query" self_id="42"
-                bsc_id="17"
-                child_db_id="child_db_id">
+                bsc_id="17">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
@@ -429,7 +428,6 @@
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <child action="set" type="query" self_id="42" child_id="3"
                 bsc_id="17"
-                child_db_id="child_db_id"
                 reissue="yes">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
@@ -463,8 +461,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <child action="get" type="reply" self_id="42" child_id="3"
-                bsc_id="17"
-                child_db_id="child_db_id">
+                bsc_id="17">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
@@ -493,8 +490,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <child action="list" type="reply" self_id="42" child_id="3"
-                bsc_id="17"
-                child_db_id="child_db_id">
+                bsc_id="17">
             <peer_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN

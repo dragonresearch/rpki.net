@@ -187,7 +187,7 @@ class child_elt(data_elt):
   """<child/> element."""
 
   element_name = "child"
-  attributes = ("action", "type", "self_id", "child_id", "bsc_id", "child_db_id")
+  attributes = ("action", "type", "self_id", "child_id", "bsc_id")
   booleans = ("reissue", )
 
   sql_template = rpki.sql.template("child", "child_id", "self_id", "bsc_id", "peer_ta")

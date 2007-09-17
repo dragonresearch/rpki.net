@@ -524,13 +524,6 @@
       </attribute>
     </optional>
     <optional>
-      <attribute name="child_db_id">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
-      </attribute>
-    </optional>
-    <optional>
       <ref name="peer_ta"/>
     </optional>
   </define>

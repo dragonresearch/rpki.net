@@ -21,7 +21,10 @@ class PEM_converter(object):
     self.b = "-----BEGIN %s-----" % kind
     self.e = "-----END %s-----"   % kind
 
-  def toDER(self, pem):
+  def looks_like_PEM(self, text):
+    return text.startswith(self.b)
+
+  def to_DER(self, pem):
     """Convert from PEM to DER."""
     lines = pem.splitlines(0)
     while lines and lines.pop(0) != self.b:
@@ -31,7 +34,7 @@ class PEM_converter(object):
     assert lines
     return base64.b64decode("".join(lines))
 
-  def toPEM(self, der):
+  def to_PEM(self, der):
     """Convert from DER to PEM."""
     b64 =  base64.b64encode(der)
     pem = self.b + "\n"
@@ -87,7 +90,7 @@ class DER_object(object):
         setattr(self, name, kw[name])
         return
       if name == "PEM":
-        text = self.pem_convert.toDER(kw[name])
+        text = self.pem_convert.to_DER(kw[name])
         self.clear()
         self.DER = text
         return
@@ -96,12 +99,12 @@ class DER_object(object):
         self.clear()
         self.DER = text
         return
-      if name in ("PEM_file", "DER_file"):
+      if name in ("PEM_file", "DER_file", "Auto_file"):
         f = open(kw[name], "r")
         text = f.read()
         f.close()
-        if name == "PEM_file":
-          text = self.pem_converter.toDER(text)
+        if name == "PEM_file" or (name == "Auto_file" and self.pem_converter.looks_like_PEM(text)):
+          text = self.pem_converter.to_DER(text)
         self.clear()
         self.DER = text
         return
@@ -123,7 +126,7 @@ class DER_object(object):
 
   def get_PEM(self):
     """Get the PEM representation of this object."""
-    return self.pem_converter.toPEM(self.get_DER())
+    return self.pem_converter.to_PEM(self.get_DER())
 
 class X509(DER_object):
   """X.509 certificates.

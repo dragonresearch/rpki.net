@@ -99,7 +99,8 @@ class sql_persistant(object):
     elif self.sql_dirty:
       cur.execute(self.sql_template.update, self.sql_encode())
       self.sql_update_hook(db, cur)
-    assert sql_cache[(self.__class__, getattr(self, self.sql_template.index))] == self
+    key = (self.__class__, getattr(self, self.sql_template.index))
+    assert key in sql_cache and sql_cache[key] == self
     self.sql_dirty = False
     self.sql_in_db = True
 
@@ -142,8 +143,8 @@ class sql_persistant(object):
   
   def sql_update_hook(self, db, cur):
     """Customization hook."""
-    self.delete_hook(db, cur)
-    self.insert_hook(db, cur)
+    self.sql_delete_hook(db, cur)
+    self.sql_insert_hook(db, cur)
 
   def sql_delete_hook(self, db, cur):
     """Customization hook."""

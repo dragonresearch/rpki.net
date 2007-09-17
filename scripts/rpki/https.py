@@ -32,7 +32,6 @@ def client(msg, privateKey, certChain, x509TrustList, host="localhost", port=443
     return response.read()
   else:
     r = response.read()
-    print "ERROR: Got:", response.status, r
     raise RuntimeError, (response.status, r)
 
 class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
@@ -55,7 +54,6 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
       try:
         rcode, rtext = handler(query=query_string, path=self.path)
       except Exception, edata:
-        raise
         rcode, rtext = 500, "Unhandled exception %s" % edata
     self.send_response(rcode)
     self.send_header("Content-Type", rpki_content_type)

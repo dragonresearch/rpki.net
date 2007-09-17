@@ -90,6 +90,8 @@ class resource_set(list):
   """
 
   def __init__(self, ini=None):
+    if isinstance(ini, long):
+      ini = str(ini)
     if isinstance(ini, str) and len(ini):
       self.extend(map(self.parse_str, ini.split(",")))
     elif isinstance(ini, tuple):

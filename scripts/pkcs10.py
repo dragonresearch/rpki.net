@@ -9,7 +9,7 @@ convert = rpki.x509.PEM_converter("CERTIFICATE REQUEST")
 
 for name in glob.glob("resource-cert-samples/*.req"):
   f = open(name, "r")
-  der = convert.toDER(f.read())
+  der = convert.to_DER(f.read())
   f.close()
 
   pkcs10 = POW.pkix.CertificationRequest()

@@ -28,9 +28,12 @@ def left_right_handler(query, path):
     return r_pdu
 
   def destroy_handler(q_pdu):
-    r_pdu = make_reply(q_pdu)
-    q_pdu.sql_delete()    
-    r_msg.append(r_pdu)
+    data = q_pdu.sql_fetch(db, cur, getattr(q_pdu, q_pdu.sql_template.index))
+    if data is not None:
+      data.sql_delete(db, cur)
+      r_msg.append(make_reply(q_pdu))
+    else:
+      r_msg.append(make_error_report(q_pdu))
 
   def create_handler(q_pdu):
     r_pdu = make_reply(q_pdu)
@@ -53,7 +56,8 @@ def left_right_handler(query, path):
         v = getattr(q_pdu, a)
         if v is not None:
           setattr(data, a, v)
-      q_pdu.sql_store(db, cur)
+      data.sql_dirty = True
+      data.sql_store(db, cur)
       r_pdu = make_reply(q_pdu)
       r_msg.append(r_pdu)
     else:

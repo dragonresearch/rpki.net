@@ -9,17 +9,6 @@ a separate program.
 import glob, getopt, sys, lxml.etree, POW.pkix, xml.sax, lxml.sax
 import rpki.left_right, rpki.relaxng, rpki.cms, rpki.https, rpki.x509, rpki.config
 
-# Kludge around current test setup all being PEM rather than DER format
-convert_from_pem = True
-
-def read_cert(filename):
-  """Read a certificate file from disk."""
-  if convert_from_pem:
-    cert = rpki.x509.X509(PEM_file=filename)
-  else:
-    cert = rpki.x509.X509(DER_file=filename)
-  return cert.get_POWpkix()
-
 class command(object):
   """Command processor mixin class for left-right protocol objects.
 
@@ -62,7 +51,7 @@ class command(object):
 
   def handle_peer_ta(self, arg):
     """Special handler for --peer_ta option."""
-    self.peer_ta = read_cert(arg)
+    self.peer_ta = rpki.x509.X509(Auto_file=arg)
 
 class self(command, rpki.left_right.self_elt):
   '''"self" command.'''
@@ -84,7 +73,7 @@ class bsc(command, rpki.left_right.bsc_elt):
 
   def handle_signing_cert(self, arg):
     """--signing_cert option."""
-    self.signing_cert.append(read_cert(arg))
+    self.signing_cert.append(rpki.x509.X509(Auto_file=arg))
 
 class parent(command, rpki.left_right.parent_elt):
   '''"parent" command.'''

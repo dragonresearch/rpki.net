@@ -25,7 +25,10 @@ class base_elt(object):
   def read_attrs(self, attrs):
     """Template-driven attribute reader."""
     for key in self.attributes:
-      setattr(self, key, attrs.get(key, None))
+      val = attrs.get(key, None)
+      if isinstance(val, str) and val.isdigit():
+        val = long(val)
+      setattr(self, key, val)
     for key in self.booleans:
       setattr(self, key, attrs.get(key, False))
 

@@ -21,21 +21,20 @@ def left_right_handler(query, path):
   def make_reply(q_pdu, r_pdu=None):
     if r_pdu is None:
       r_pdu = q_pdu.__class__()
+      r_pdu.self_id = q_pdu.self_id
+      setattr(r_pdu, q_pdu.sql_template.index, getattr(q_pdu, q_pdu.sql_template.index))
     r_pdu.action = q_pdu.action
     r_pdu.type = "reply"
     return r_pdu
 
   def destroy_handler(q_pdu):
     r_pdu = make_reply(q_pdu)
-    r_pdu.self_id = q_pdu.self_id
-    setattr(r_pdu, q_pdu.sql_template.index, getattr(q_pdu, q_pdu.sql_template.index))
     q_pdu.sql_delete()    
     r_msg.append(r_pdu)
 
   def create_handler(q_pdu):
     r_pdu = make_reply(q_pdu)
     q_pdu.sql_store(db, cur)
-    r_pdu.self_id = q_pdu.self_id
     setattr(r_pdu, q_pdu.sql_template.index, getattr(q_pdu, q_pdu.sql_template.index))
     r_msg.append(r_pdu)
 
@@ -48,7 +47,17 @@ def left_right_handler(query, path):
       r_msg.append(make_error_report(q_pdu))
 
   def set_handler(q_pdu):
-    raise NotImplementedError
+    data = q_pdu.sql_fetch(db, cur, getattr(q_pdu, q_pdu.sql_template.index))
+    if data is not None:
+      for a in data.sql_template.columns[1:]:
+        v = getattr(q_pdu, a)
+        if v is not None:
+          setattr(data, a, v)
+      q_pdu.sql_store(db, cur)
+      r_pdu = make_reply(q_pdu)
+      r_msg.append(r_pdu)
+    else:
+      r_msg.append(make_error_report(q_pdu))
 
   def list_handler(q_pdu):
     for r_pdu in q_pdu.sql_fetch_all(db, cur):
@@ -70,7 +79,11 @@ def left_right_handler(query, path):
         "list"    : list_handler,
         "destroy" : destroy_handler }[q_pdu.action](q_pdu)
     r_elt = r_msg.toXML()
-    lr_rng.assertValid(r_elt)
+    try:
+      lr_rng.assertValid(r_elt)
+    except lxml.etree.DocumentInvalid:
+      print lxml.etree.tostring(r_elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
+      raise
     return 200, encode(r_elt, cms_key, cms_certs)
 
   except Exception, data:

@@ -101,9 +101,9 @@ class repository(command, rpki.left_right.repository_elt):
 class route_origin(command, rpki.left_right.route_origin_elt):
   '''"route_origin" command.'''
 
-  def handle_asn(self, arg):
+  def handle_as_number(self, arg):
     """Handle autonomous sequence numbers."""
-    self.asn = long(arg)
+    self.as_number = long(arg)
 
   def handle_ipv4(self, arg):
     """Handle IPv4 addresses."""

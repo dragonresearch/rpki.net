@@ -720,7 +720,7 @@
   </define>
   <define name="ro_payload">
     <optional>
-      <attribute name="asn">
+      <attribute name="as_number">
         <data type="token">
           <param name="maxLength">1024</param>
         </data>

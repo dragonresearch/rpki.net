@@ -7,7 +7,7 @@ subversion repository; generalizing it would not be hard, but the more
 general version should use SQL anyway.
 """
 
-import httplib, BaseHTTPServer, tlslite.api, glob, rpki.x509
+import httplib, BaseHTTPServer, tlslite.api, glob, rpki.x509, traceback, rpki.exceptions
 
 rpki_content_type = "application/x-rpki"
 
@@ -32,29 +32,32 @@ def client(msg, privateKey, certChain, x509TrustList, host="localhost", port=443
     return response.read()
   else:
     r = response.read()
-    raise RuntimeError, (response.status, r)
+    raise rpki.exceptions.HTTPRequestFailed, "HTTP request failed with status %s, response %s" % (response.status, r)
 
 class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   """Derived type to supply POST handler."""
 
   rpki_handlers = None                  # Subclass must bind
 
-  def do_POST(self):
-    """POST handler."""
-    assert self.headers["Content-Type"] == rpki_content_type
-    query_string = self.rfile.read(int(self.headers["Content-Length"]))
-    handler = None
+  def rpki_find_handler(self):
     for s,h in self.rpki_handlers:
       if self.path.startswith(s):
-        handler = h
-        break
-    if handler is None:
-      rcode, rtext = 404, "No handler found for URL " + self.path
-    else:
-      try:
-        rcode, rtext = handler(query=query_string, path=self.path)
-      except Exception, edata:
-        rcode, rtext = 500, "Unhandled exception %s" % edata
+        return h
+    return None
+
+  def do_POST(self):
+    """POST handler."""
+    try:
+      handler = self.rpki_find_handler()
+      if self.headers["Content-Type"] != rpki_content_type:
+        rcode, rtext = 415, "Received Content-Type %s, expected %s" % (self.headers["Content-Type"], rpki_content_type)
+      elif handler is None:
+        rcode, rtext = 404, "No handler found for URL " + self.path
+      else:
+        rcode, rtext = handler(query=self.rfile.read(int(self.headers["Content-Length"])), path=self.path)
+    except Exception, edata:
+      traceback.print_exc()
+      rcode, rtext = 500, "Unhandled exception %s" % edata
     self.send_response(rcode)
     self.send_header("Content-Type", rpki_content_type)
     self.end_headers()

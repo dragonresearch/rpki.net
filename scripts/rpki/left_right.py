@@ -2,7 +2,7 @@
 
 """RPKI "left-right" protocol."""
 
-import base64, rpki.sax_utils, rpki.resource_set, lxml.etree, rpki.x509, rpki.sql
+import base64, rpki.sax_utils, rpki.resource_set, lxml.etree, rpki.x509, rpki.sql, rpki.exceptions
 
 xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
@@ -123,12 +123,14 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
       r_msg.append(make_error_report(self))
 
   def serve_dispatch(self, db, cur, r_msg):
-    assert self.type == "query"
-    { "create"  : self.serve_create,
-      "set"     : self.serve_set,
-      "get"     : self.serve_get,
-      "list"    : self.serve_list,
-      "destroy" : self.serve_destroy }[self.action](db, cur, r_msg)
+    dispatch = { "create"  : self.serve_create,
+                 "set"     : self.serve_set,
+                 "get"     : self.serve_get,
+                 "list"    : self.serve_list,
+                 "destroy" : self.serve_destroy }
+    if self.type != "query" or self.action not in dispatch:
+      raise rpki.exceptions.BadQuery, "Unexpected query: type %s, action %s" % (self.type, self.action)
+    dispatch[self.action](db, cur, r_msg)
   
 class extension_preference_elt(base_elt):
   """Container for extension preferences."""
@@ -349,7 +351,7 @@ class route_origin_elt(data_elt):
       roa = roas[0][0]
       ca_detail_id = roas[0][1]
     elif len(roas) > 0:
-      raise RunTimeError, "Multiple ROAs found, mapping should be one-to-one"
+      raise rpki.exceptions.MultipleROAsFound, "Multiple ROAs found for route_origin %s, mapping should be one-to-one" % self.route_origin_id
     
   def sql_insert_hook(self, db, cur):
     if self.ipv4 + self.ipv6:

@@ -6,9 +6,7 @@ framework onto which I'm bolting various parts for testing.
 """
 
 import tlslite.api, MySQLdb, xml.sax, lxml.etree, lxml.sax, POW, POW.pkix, traceback
-import rpki.https, rpki.config, rpki.resource_set, rpki.up_down, rpki.left_right, rpki.relaxng, rpki.cms
-
-show_traceback = True
+import rpki.https, rpki.config, rpki.resource_set, rpki.up_down, rpki.left_right, rpki.relaxng, rpki.cms, rpki.exceptions
 
 def decode(msg, cms_ta):
   return lxml.etree.fromstring(rpki.cms.decode(msg, cms_ta))
@@ -34,9 +32,7 @@ def left_right_handler(query, path):
       raise
     return 200, encode(r_elt, cms_key, cms_certs)
   except Exception, data:
-    if show_traceback:
-      traceback.print_exc()
-    raise
+    traceback.print_exc()
     return 500, "Unhandled exception %s" % data
 
 def up_down_handler(query, path):

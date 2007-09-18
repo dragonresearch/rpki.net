@@ -12,7 +12,7 @@ bring together the functionality I need in a way that hides at least
 some of the nasty details.  This involves a lot of format conversion.
 """
 
-import POW, tlslite.api, POW.pkix, base64
+import POW, tlslite.api, POW.pkix, base64, rpki.exceptions
 
 class PEM_converter(object):
   """Convert between DER and PEM encodings for various kinds of ASN.1 data."""
@@ -108,7 +108,7 @@ class DER_object(object):
         self.clear()
         self.DER = text
         return
-    raise TypeError
+    raise rpki.exceptions.DERObjectConversionError, "Can't honor conversion request %s" % repr(kw)
   
   def get_DER(self):
     """Get the DER value of this object.
@@ -118,7 +118,7 @@ class DER_object(object):
     assert not self.empty()
     if self.DER:
       return self.DER
-    raise RuntimeError, "No conversion path to DER available"
+    raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
   def get_Base64(self):
     """Get the Base64 encoding of the DER value of this object."""
@@ -153,7 +153,7 @@ class X509(DER_object):
     if self.POWpkix:
       self.DER = self.POWpkix.toString()
       return self.get_DER()
-    raise RuntimeError
+    raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
   def get_POW(self):
     """Get the POW value of this certificate."""
@@ -232,7 +232,7 @@ class X509_chain(list):
         chain.append(cert)
         bag.remove(cert)
     if len(chain) != 1:
-      raise RuntimeError, "Certificates in bag don't form a proper chain"
+      raise rpki.exceptions.NotACertificateChain, "Certificates in bag don't form a proper chain"
     while bag:
       cert = subject_map[chain[-1].getIssuer()]
       chain.append(cert)
@@ -274,7 +274,7 @@ class PKCS10_Request(DER_object):
     if self.POWpkix:
       self.DER = self.POWpkix.toString()
       return self.get_DER()
-    raise RuntimeError
+    raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
   def get_POWpkix(self):
     """Get the POW.pkix value of this certification request."""
@@ -301,7 +301,7 @@ class RSA_Keypair(DER_object):
     if self.POW:
       self.DER = self.POW.derWrite()
       return self.get_DER()
-    raise RuntimeError
+    raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
   def get_POW(self):
     assert not self.empty()

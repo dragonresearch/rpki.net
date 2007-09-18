@@ -6,7 +6,7 @@ For the moment these just call the OpenSSL CLI tool, which is slow,
 requires disk I/O, and likes PEM format.  Fix this later.
 """
 
-import os, rpki.x509
+import os, rpki.x509, rpki.exceptions
 
 # openssl smime -sign -nodetach -outform DER -signer biz-certs/Alice-EE.cer -certfile biz-certs/Alice-CA.cer -inkey biz-certs/Alice-EE.key -in PLAN -out PLAN.der
 
@@ -64,4 +64,4 @@ def decode(cms, ta):
   if status == "Verification successful\n":
     return xml
   else:
-    raise RuntimeError, "CMS verification failed: %s" % status
+    raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed with status %s" % status

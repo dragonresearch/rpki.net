@@ -22,7 +22,7 @@ test: all
 dont-run-trang:
 	touch *.rng
 
-relaxng: left-right-protocol-samples/.stamp
+relaxng: left-right-protocol-samples/.stamp left-right-schema.rng up-down-schema.rng
 	xmllint --noout --relaxng left-right-schema.rng left-right-protocol-samples/*.xml
 	xmllint --noout --relaxng    up-down-schema.rng    up-down-protocol-samples/*.xml
 

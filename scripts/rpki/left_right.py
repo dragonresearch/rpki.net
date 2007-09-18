@@ -157,7 +157,7 @@ class bsc_elt(data_elt):
   
   element_name = "bsc"
   attributes = ("action", "type", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
-  booleans = ("generate_keypair",)
+  booleans = ("generate_keypair", "clear_signing_certs")
 
   sql_template = rpki.sql.template("bsc", "bsc_id", "self_id", "public_key", "private_key_id")
 
@@ -181,12 +181,7 @@ class bsc_elt(data_elt):
 
   def serve_copy_hook(self, db_pdu):
     if self.signing_cert is not None:
-      #
-      # If we had a flag telling us to reset the signing_cert list, we'd
-      # check for it here.  For the moment, assume we always concatenate
-      # and never overwrite.
-      #
-      if False:
+      if self.clear_signing_certs:
         db_pdu.signing_cert = self.signing_cert
       else:
         db_pdu.signing_cert = db_pdu.signing_cert + self.signing_cert
@@ -393,7 +388,7 @@ class self_elt(data_elt):
 
   element_name = "self"
   attributes = ("action", "type", "self_id")
-  booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now")
+  booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now", "clear_extension_preferences")
 
   sql_template = rpki.sql.template("self", "self_id", "use_hsm")
 
@@ -418,6 +413,13 @@ class self_elt(data_elt):
   
   def sql_delete_hook(self, db, cur):
     cur.execute("DELETE FROM self_pref WHERE self_id = %s", self.self_id)
+
+  def serve_copy_hook(self, db_pdu):
+    if self.prefs:
+      if self.clear_extension_preferences:
+        db_pdu.prefs = self.prefs
+      else:
+        db_pdu.prefs = db_pdu.prefs + self.prefs
 
   def startElement(self, stack, name, attrs):
     """Handle <self/> element."""

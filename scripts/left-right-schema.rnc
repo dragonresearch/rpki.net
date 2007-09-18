@@ -44,7 +44,8 @@ self_bool = (attribute rekey { "yes" }?,
              attribute reissue { "yes" }?,
              attribute revoke { "yes" }?,
              attribute run_now { "yes" }?,
-             attribute publish_world_now { "yes" }?)
+             attribute publish_world_now { "yes" }?,
+             attribute clear_extension_preferences { "yes" }?)
 
 self_payload = element extension_preference {
   attribute name { xsd:token { maxLength="1024" } },
@@ -66,10 +67,11 @@ self_elt |= element self { ctl_dr, self_id }
 
 # <bsc/> element
 
-bsc_bool = (attribute generate_keypair { "yes" },
-            attribute key_type { xsd:token { maxLength="1024" } }?,
-            attribute hash_alg { xsd:token { maxLength="1024" } }?,
-            attribute key_length { xsd:token { maxLength="1024" } }?)?
+bsc_bool = ((attribute generate_keypair { "yes" },
+             attribute key_type { xsd:token { maxLength="1024" } }?,
+             attribute hash_alg { xsd:token { maxLength="1024" } }?,
+             attribute key_length { xsd:token { maxLength="1024" } }?)?,
+            attribute clear_signing_certs { "yes" }?)
 
 bsc_id = attribute bsc_id { sql_id }
 

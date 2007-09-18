@@ -23,7 +23,8 @@
                 reissue="yes"
                 revoke="yes"
                 run_now="yes"
-                publish_world_now="yes">
+                publish_world_now="yes"
+                clear_extension_preferences="yes">
             <extension_preference name="color">Blue</extension_preference>
         </self>
     </msg>
@@ -106,7 +107,7 @@
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-        <bsc action="set" type="query" self_id="42" bsc_id="17">
+        <bsc action="set" type="query" self_id="42" bsc_id="17" clear_signing_certs="yes">
             <signing_cert>
                 MIIDHTCCAgWgAwIBAgIJAKUUCoKn9ovVMA0GCSqGSIb3DQEBBQUAMCYxJDAiBgNV
                 BAMTG1Rlc3QgQ2VydGlmaWNhdGUgQWxpY2UgUm9vdDAeFw0wNzA4MDExOTUzMDda

@@ -17,57 +17,6 @@ def encode(msg, cms_key, cms_certs):
   return rpki.cms.encode(lxml.etree.tostring(msg, pretty_print=True, encoding="us-ascii", xml_declaration=True), cms_key, cms_certs)
 
 def left_right_handler(query, path):
-
-  def make_reply(q_pdu, r_pdu=None):
-    if r_pdu is None:
-      r_pdu = q_pdu.__class__()
-      r_pdu.self_id = q_pdu.self_id
-      setattr(r_pdu, q_pdu.sql_template.index, getattr(q_pdu, q_pdu.sql_template.index))
-    r_pdu.action = q_pdu.action
-    r_pdu.type = "reply"
-    return r_pdu
-
-  def destroy_handler(q_pdu):
-    data = q_pdu.sql_fetch(db, cur, getattr(q_pdu, q_pdu.sql_template.index))
-    if data is not None:
-      data.sql_delete(db, cur)
-      r_msg.append(make_reply(q_pdu))
-    else:
-      r_msg.append(make_error_report(q_pdu))
-
-  def create_handler(q_pdu):
-    r_pdu = make_reply(q_pdu)
-    q_pdu.sql_store(db, cur)
-    setattr(r_pdu, q_pdu.sql_template.index, getattr(q_pdu, q_pdu.sql_template.index))
-    r_msg.append(r_pdu)
-
-  def get_handler(q_pdu):
-    r_pdu = q_pdu.sql_fetch(db, cur, getattr(q_pdu, q_pdu.sql_template.index))
-    if r_pdu is not None:
-      make_reply(q_pdu, r_pdu)
-      r_msg.append(r_pdu)
-    else:
-      r_msg.append(make_error_report(q_pdu))
-
-  def set_handler(q_pdu):
-    data = q_pdu.sql_fetch(db, cur, getattr(q_pdu, q_pdu.sql_template.index))
-    if data is not None:
-      for a in data.sql_template.columns[1:]:
-        v = getattr(q_pdu, a)
-        if v is not None:
-          setattr(data, a, v)
-      data.sql_dirty = True
-      data.sql_store(db, cur)
-      r_pdu = make_reply(q_pdu)
-      r_msg.append(r_pdu)
-    else:
-      r_msg.append(make_error_report(q_pdu))
-
-  def list_handler(q_pdu):
-    for r_pdu in q_pdu.sql_fetch_all(db, cur):
-      make_reply(q_pdu, r_pdu)
-      r_msg.append(r_pdu)
-
   try:
     q_elt = decode(query, cms_ta_irbe)
     lr_rng.assertValid(q_elt)
@@ -76,12 +25,7 @@ def left_right_handler(query, path):
     q_msg = saxer.result
     r_msg = rpki.left_right.msg()
     for q_pdu in q_msg:
-      assert isinstance(q_pdu, rpki.left_right.data_elt) and q_pdu.type == "query"
-      { "create"  : create_handler,
-        "set"     : set_handler,
-        "get"     : get_handler,
-        "list"    : list_handler,
-        "destroy" : destroy_handler }[q_pdu.action](q_pdu)
+      q_pdu.serve_dispatch(db, cur, r_msg)
     r_elt = r_msg.toXML()
     try:
       lr_rng.assertValid(r_elt)
@@ -89,7 +33,6 @@ def left_right_handler(query, path):
       print lxml.etree.tostring(r_elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
       raise
     return 200, encode(r_elt, cms_key, cms_certs)
-
   except Exception, data:
     if show_traceback:
       traceback.print_exc()

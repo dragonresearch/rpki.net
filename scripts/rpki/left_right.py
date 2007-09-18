@@ -55,9 +55,7 @@ class base_elt(object):
     lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="us-ascii")
 
 class data_elt(base_elt, rpki.sql.sql_persistant):
-  """Virtual type for a left-right protocol message elements representing
-  top-level persistant data elements.
-  """
+  """Virtual class for top-level  left-right protocol data elements."""
 
   def sql_decode(self, vals):
     rpki.sql.sql_persistant.sql_decode(self, vals)
@@ -70,13 +68,68 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
       d["peer_ta"] = self.peer_ta.get_DER()
     return d
 
-def get_ta_DER(thing):
-  """None-tolerant wrapper around rpki.x509.X509.get_DER()."""
-  if thing is None:
-    return None
-  else:
-    return thing.get_DER()
+  def make_reply(self, r_pdu=None):
+    if r_pdu is None:
+      r_pdu = self.__class__()
+      r_pdu.self_id = self.self_id
+      setattr(r_pdu, self.sql_template.index, getattr(self, self.sql_template.index))
+    r_pdu.action = self.action
+    r_pdu.type = "reply"
+    return r_pdu
 
+  def serve_create(self, db, cur, r_msg):
+    r_pdu = self.make_reply()
+    self.sql_store(db, cur)
+    setattr(r_pdu, self.sql_template.index, getattr(self, self.sql_template.index))
+    r_msg.append(r_pdu)
+
+  def serve_copy_hook(self, db_pdu):
+    pass
+
+  def serve_set(self, db, cur, r_msg):
+    db_pdu = self.sql_fetch(db, cur, getattr(self, self.sql_template.index))
+    if db_pdu is not None:
+      for a in db_pdu.sql_template.columns[1:]:
+        v = getattr(self, a)
+        if v is not None:
+          setattr(db_pdu, a, v)
+      db_pdu.sql_dirty = True
+      self.serve_copy_hook(db_pdu)
+      db_pdu.sql_store(db, cur)
+      r_pdu = self.make_reply()
+      r_msg.append(r_pdu)
+    else:
+      r_msg.append(make_error_report(self))
+
+  def serve_get(self, db, cur, r_msg):
+    r_pdu = self.sql_fetch(db, cur, getattr(self, self.sql_template.index))
+    if r_pdu is not None:
+      self.make_reply(r_pdu)
+      r_msg.append(r_pdu)
+    else:
+      r_msg.append(make_error_report(self))
+
+  def serve_list(self, db, cur, r_msg):
+    for r_pdu in self.sql_fetch_all(db, cur):
+      self.make_reply(r_pdu)
+      r_msg.append(r_pdu)
+
+  def serve_destroy(self, db, cur, r_msg):
+    db_pdu = self.sql_fetch(db, cur, getattr(self, self.sql_template.index))
+    if db_pdu is not None:
+      db_pdu.sql_delete(db, cur)
+      r_msg.append(self.make_reply())
+    else:
+      r_msg.append(make_error_report(self))
+
+  def serve_dispatch(self, db, cur, r_msg):
+    assert self.type == "query"
+    { "create"  : self.serve_create,
+      "set"     : self.serve_set,
+      "get"     : self.serve_get,
+      "list"    : self.serve_list,
+      "destroy" : self.serve_destroy }[self.action](db, cur, r_msg)
+  
 class extension_preference_elt(base_elt):
   """Container for extension preferences."""
 
@@ -125,6 +178,18 @@ class bsc_elt(data_elt):
 
   def sql_delete_hook(self, db, cur):
     cur.execute("DELETE FROM bsc_cert WHERE bsc_id = %s", self.bsc_id)
+
+  def serve_copy_hook(self, db_pdu):
+    if self.signing_cert is not None:
+      #
+      # If we had a flag telling us to reset the signing_cert list, we'd
+      # check for it here.  For the moment, assume we always concatenate
+      # and never overwrite.
+      #
+      if False:
+        db_pdu.signing_cert = self.signing_cert
+      else:
+        db_pdu.signing_cert = db_pdu.signing_cert + self.signing_cert
 
   def startElement(self, stack, name, attrs):
     """Handle <bsc/> element."""

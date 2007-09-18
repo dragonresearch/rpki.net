@@ -101,3 +101,35 @@ objects and database objects, objects shown in green are only database
 objects, and left-right PDU objects not shown in that picture are just
 left-right PDUs.  Or something close to this, details need checking.
 So this does look like some kind of mixin would be appropriate.
+
+
+
+Code to pull in an entire self_id context at once turned out to be
+much too complicated.  Replacement is more of a demand-paged design.
+Need to be careful about making sure we save out all changes between
+events, objects have a .sql_dirty attribute but I should also add a
+Python set object into which we can insert any object that needs to be
+saved when the current event exits.
+
+Haven't done anything about db.commit() and db.rollback() yet, for
+that matter haven't yet whacked MySQL to enable those features.
+
+Hack du jour is rpki.left_right.data_obj.serve_copy_hook().  I've
+implemented this for bsc objects, seems to work, haven't yet done (eg)
+route_origin objects.
+
+left-right protocol needs boolean flags to reset array values like
+bsc.signing_cert[].  Trivial hack, just haven't done it yet.
+
+Access to object data attributes really ought to be through accessor
+methods so that the .set() method can set the sql_dirty flag
+automagically.  Not done yet.
+
+Hmm, do we really need .sql_dirty at all?  Maybe just inserting the
+object into the dirty set (above) would suffice?  One less thing to
+screw up.
+
+RelaxNG schemas probably ought to be internal rather than files with
+magic names or config variables pointing at files.  Makefile hack to
+put a Python wrapper around a .rng file, and automatically convert
+.rng to lxml internal form while we're at it?

@@ -133,3 +133,24 @@ RelaxNG schemas probably ought to be internal rather than files with
 magic names or config variables pointing at files.  Makefile hack to
 put a Python wrapper around a .rng file, and automatically convert
 .rng to lxml internal form while we're at it?
+
+
+
+More TODO:
+
+- create rpki-specific exception hierarchy (might be flat), convert
+  inappropriate uses of assert and standard exceptions to use
+  rpki-specific exceptions, then write exception handlers that
+  translate all of this into appropriate protocol error messages.
+
+- generalize serve_copy_hook() into serve_action_hook() and use it to
+  handle actions signaled by the various left-right boolean controls.
+  one fun test case for this should be bsc keypair generation.
+
+  some of the defined actions may be things we can't implement yet due
+  to lack of a real timer system.  eg, the various "do this right now"
+  actions are probably best handled as triggers, a la interrupt
+  handlers.  well, maybe.  irbe folks might prefer a version that
+  blocked response to the request until the whole cycle is done, once
+  we have an event system that can treat the query and response phases
+  of an rpc operation as two distinct events.

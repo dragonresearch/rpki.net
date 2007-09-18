@@ -53,7 +53,7 @@ CREATE TABLE ca_detail (
        latest_crl           LONGBLOB,
        latest_ca_cert_over_public_key LONGBLOB,
        manifest_ee_private_key_handle LONGBLOB,
-       manifest_ee_public_key  LONGBLOB,
+       manifest_ee_public_key LONGBLOB,
        latest_manifest_ee_cert LONGBLOB,
        latest_manifest      LONGBLOB,
        ca_id                BIGINT unsigned NOT NULL,

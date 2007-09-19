@@ -60,14 +60,12 @@ exceptions to use rpki-specific exceptions.  Top level of protocol
 handlers needs to include exception catches that translate these
 exceptions into appropriate protocol error messages.
 
-Generalize serve_copy_hook() into serve_action_hook() and use it to
-handle actions signaled by the various left-right boolean controls.
-One fun test case for this should be bsc keypair generation.
-
-Some of the defined actions may be things we can't implement yet due
-to lack of a real timer system.  Eg, the various "do this right now"
-actions are probably best handled as triggers, a la interrupt
-handlers.  Well, maybe.  IRBE folks might prefer a version that
-blocked response to the request until the whole cycle is done, once we
-have an event system that can treat the query and response phases of
-an rpc operation as two distinct events.
+Use generalized serve_*_hook() methods to handle actions signaled by
+the various left-right boolean controls.  One fun test case for this
+should be bsc keypair generation.  Some of the defined actions will be
+things we can't implement yet due to lack of a real timer system.  Eg,
+the various "do this right now" actions are probably best handled as
+triggers, a la interrupt handlers.  Well, maybe.  IRBE folks might
+prefer a version that blocked response to the request until the whole
+cycle is done, once we have an event system that can treat the query
+and response phases of an rpc operation as two distinct events.

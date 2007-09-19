@@ -77,14 +77,19 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
     r_pdu.type = "reply"
     return r_pdu
 
+  def serve_pre_save_hook(self, pdu):
+    pass
+
+  def serve_post_save_hook(self, pdu):
+    pass
+
   def serve_create(self, db, cur, r_msg):
     r_pdu = self.make_reply()
+    self.serve_pre_save_hook(self)
     self.sql_store(db, cur)
     setattr(r_pdu, self.sql_template.index, getattr(self, self.sql_template.index))
+    self.serve_post_save_hook(self)
     r_msg.append(r_pdu)
-
-  def serve_copy_hook(self, db_pdu):
-    pass
 
   def serve_set(self, db, cur, r_msg):
     db_pdu = self.sql_fetch(db, cur, getattr(self, self.sql_template.index))
@@ -94,8 +99,9 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
         if v is not None:
           setattr(db_pdu, a, v)
       db_pdu.sql_dirty = True
-      self.serve_copy_hook(db_pdu)
+      db_pdu.serve_pre_save_hook(self)
       db_pdu.sql_store(db, cur)
+      db_pdu.serve_post_save_hook(self)
       r_pdu = self.make_reply()
       r_msg.append(r_pdu)
     else:
@@ -181,12 +187,11 @@ class bsc_elt(data_elt):
   def sql_delete_hook(self, db, cur):
     cur.execute("DELETE FROM bsc_cert WHERE bsc_id = %s", self.bsc_id)
 
-  def serve_copy_hook(self, db_pdu):
-    if self.signing_cert is not None:
-      if self.clear_signing_certs:
-        db_pdu.signing_cert = self.signing_cert
-      else:
-        db_pdu.signing_cert = db_pdu.signing_cert + self.signing_cert
+  def serve_pre_save_hook(self, pdu):
+    if self is not pdu:
+      if pdu.clear_signing_certs:
+        self.signing_cert = []
+      self.signing_cert.extend(pdu.signing_cert)
 
   def startElement(self, stack, name, attrs):
     """Handle <bsc/> element."""
@@ -416,12 +421,11 @@ class self_elt(data_elt):
   def sql_delete_hook(self, db, cur):
     cur.execute("DELETE FROM self_pref WHERE self_id = %s", self.self_id)
 
-  def serve_copy_hook(self, db_pdu):
-    if self.prefs:
-      if self.clear_extension_preferences:
-        db_pdu.prefs = self.prefs
-      else:
-        db_pdu.prefs = db_pdu.prefs + self.prefs
+  def serve_pre_save_hook(self, pdu):
+    if self is not pdu:
+      if pdu.clear_extension_preferences:
+        self.prefs = []
+      self.prefs.extend(pdu.prefs)
 
   def startElement(self, stack, name, attrs):
     """Handle <self/> element."""

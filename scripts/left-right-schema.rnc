@@ -65,12 +65,12 @@ self_elt |= element self { ctl_lr, self_id, self_payload }
 self_elt |= element self { ctl_dq, self_id }
 self_elt |= element self { ctl_dr, self_id }
 
-# <bsc/> element
+# <bsc/> element.  Key parameters hardwired for now.
 
 bsc_bool = ((attribute generate_keypair { "yes" },
-             attribute key_type { xsd:token { maxLength="1024" } }?,
-             attribute hash_alg { xsd:token { maxLength="1024" } }?,
-             attribute key_length { xsd:token { maxLength="1024" } }?)?,
+             attribute key_type { "rsa" }?,
+             attribute hash_alg { "sha256" }?,
+             attribute key_length { "2048" }?)?,
             attribute clear_signing_certs { "yes" }?)
 
 bsc_id = attribute bsc_id { sql_id }

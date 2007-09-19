@@ -76,7 +76,7 @@
         <bsc action="create" type="query" self_id="42"
                 generate_keypair="yes"
                 key_type="rsa"
-                hash_alg="sha1"
+                hash_alg="sha256"
                 key_length="2048">
             <signing_cert>
                 MIIDHTCCAgWgAwIBAgIJAKUUCoKn9ovVMA0GCSqGSIb3DQEBBQUAMCYxJDAiBgNV

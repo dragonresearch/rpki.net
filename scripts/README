@@ -69,3 +69,11 @@ triggers, a la interrupt handlers.  Well, maybe.  IRBE folks might
 prefer a version that blocked response to the request until the whole
 cycle is done, once we have an event system that can treat the query
 and response phases of an rpc operation as two distinct events.
+
+
+
+Hmm, I seem to have goofed on the bsc table, need a column for the
+hash algorithm after all, as it's not intrinsic to the key.  Probably
+ought to let it be set independently of the key too.  But for the
+moment I'm only supporting 2048-bit RSA with SHA-256 digests, so
+fixing this is not urgent.

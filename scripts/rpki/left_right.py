@@ -77,32 +77,32 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
     r_pdu.type = "reply"
     return r_pdu
 
-  def serve_pre_save_hook(self, pdu):
+  def serve_pre_save_hook(self, q_pdu, r_pdu):
     pass
 
-  def serve_post_save_hook(self, pdu):
+  def serve_post_save_hook(self, q_pdu, r_pdu):
     pass
 
   def serve_create(self, db, cur, r_msg):
     r_pdu = self.make_reply()
-    self.serve_pre_save_hook(self)
+    self.serve_pre_save_hook(self, r_pdu)
     self.sql_store(db, cur)
     setattr(r_pdu, self.sql_template.index, getattr(self, self.sql_template.index))
-    self.serve_post_save_hook(self)
+    self.serve_post_save_hook(self, r_pdu)
     r_msg.append(r_pdu)
 
   def serve_set(self, db, cur, r_msg):
     db_pdu = self.sql_fetch(db, cur, getattr(self, self.sql_template.index))
     if db_pdu is not None:
+      r_pdu = self.make_reply()
       for a in db_pdu.sql_template.columns[1:]:
         v = getattr(self, a)
         if v is not None:
           setattr(db_pdu, a, v)
       db_pdu.sql_dirty = True
-      db_pdu.serve_pre_save_hook(self)
+      db_pdu.serve_pre_save_hook(self, r_pdu)
       db_pdu.sql_store(db, cur)
-      db_pdu.serve_post_save_hook(self)
-      r_pdu = self.make_reply()
+      db_pdu.serve_post_save_hook(self, r_pdu)
       r_msg.append(r_pdu)
     else:
       r_msg.append(make_error_report(self))
@@ -187,11 +187,21 @@ class bsc_elt(data_elt):
   def sql_delete_hook(self, db, cur):
     cur.execute("DELETE FROM bsc_cert WHERE bsc_id = %s", self.bsc_id)
 
-  def serve_pre_save_hook(self, pdu):
-    if self is not pdu:
-      if pdu.clear_signing_certs:
+  def serve_pre_save_hook(self, q_pdu, r_pdu):
+    if self is not q_pdu:
+      if q_pdu.clear_signing_certs:
         self.signing_cert = []
-      self.signing_cert.extend(pdu.signing_cert)
+      self.signing_cert.extend(q_pdu.signing_cert)
+    if self.generate_keypair:
+      #
+      # Hard wire 2048-bit RSA with SHA-256 in schema for now.
+      # Assume no HSM for now.
+      #
+      keypair = rpki.x509.RSA_Keypair()
+      keypair.generate(2048)
+      self.private_key_id = keypair.get_DER()
+      self.public_key = keypair.get_public_DER()
+      r_pdu.pkcs10_cert_request = rpki.pkcs10.make_request(keypair)
 
   def startElement(self, stack, name, attrs):
     """Handle <bsc/> element."""
@@ -231,6 +241,10 @@ class parent_elt(data_elt):
   sql_template = rpki.sql.template("parent", "parent_id", "self_id", "bsc_id", "repository_id", "peer_ta", "peer_contact_uri", "sia_base")
 
   peer_ta = None
+
+  def serve_post_save_hook(self, q_pdu, r_pdu):
+    if self.rekey or self.reissue or self.revoke:
+      raise NotImplementedError
 
   def startElement(self, stack, name, attrs):
     """Handle <bsc/> element."""
@@ -280,6 +294,10 @@ class child_elt(data_elt):
     cur.execute("DELETE FROM child_ca_certificate where child_id = %s", self.child_id)
     
   peer_ta = None
+
+  def serve_post_save_hook(self, q_pdu, r_pdu):
+    if self.reissue:
+      raise NotImplementedError
 
   def startElement(self, stack, name, attrs):
     """Handle <child/> element."""
@@ -370,6 +388,10 @@ class route_origin_elt(data_elt):
     cur.execute("DELETE FROM route_origin_range WHERE route_origin_id = %s", self.route_origin_id)
     cur.execute("DELETE FROM roa WHERE route_origin_id = %s", self.route_origin_id)
 
+  def serve_post_save_hook(self, q_pdu, r_pdu):
+    if self.suppress_publication:
+      raise NotImplementedError
+
   def startElement(self, stack, name, attrs):
     """Handle <route_origin/> element."""
     assert name == "route_origin", "Unexpected name %s, stack %s" % (name, stack)
@@ -421,11 +443,15 @@ class self_elt(data_elt):
   def sql_delete_hook(self, db, cur):
     cur.execute("DELETE FROM self_pref WHERE self_id = %s", self.self_id)
 
-  def serve_pre_save_hook(self, pdu):
+  def serve_pre_save_hook(self, q_pdu, r_pdu):
     if self is not pdu:
       if pdu.clear_extension_preferences:
         self.prefs = []
       self.prefs.extend(pdu.prefs)
+
+  def serve_post_save_hook(self, q_pdu, r_pdu):
+    if self.rekey or self.reissue or self.revoke or self.run_now or self.publish_world_now:
+      raise NotImplementedError
 
   def startElement(self, stack, name, attrs):
     """Handle <self/> element."""

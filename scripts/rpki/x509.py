@@ -286,10 +286,7 @@ class PKCS10_Request(DER_object):
     return self.POWpkix
 
 class RSA_Keypair(DER_object):
-  """Class to hold an RSA key pair.
-
-  This may need to be split into public and private key classes.
-  """
+  """Class to hold an RSA key pair."""
 
   formats = ("DER", "POW", "tlslite")
   pem_converter = PEM_converter("RSA PRIVATE KEY")
@@ -299,7 +296,7 @@ class RSA_Keypair(DER_object):
     if self.DER:
       return self.DER
     if self.POW:
-      self.DER = self.POW.derWrite()
+      self.DER = self.POW.derWrite(POW.RSA_PRIVATE_KEY)
       return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
@@ -314,3 +311,10 @@ class RSA_Keypair(DER_object):
     if not self.tlslite:
       self.tlslite = tlslite.api.parsePEMKey(self.get_PEM(), private=True)
     return self.tlslite
+
+  def generate(self, keylength):
+    self.clear()
+    self.set(POW=POW.Assymetric(POW.RSA_CIPHER, keylength))
+
+  def get_public_DER(self):
+    return self.get_POW().derWrite(POW.RSA_PUBLIC_KEY)

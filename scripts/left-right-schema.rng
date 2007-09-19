@@ -248,7 +248,7 @@
       <ref name="self_id"/>
     </element>
   </define>
-  <!-- <bsc/> element -->
+  <!-- <bsc/> element.  Key parameters hardwired for now. -->
   <define name="bsc_bool">
     <optional>
       <attribute name="generate_keypair">
@@ -256,23 +256,17 @@
       </attribute>
       <optional>
         <attribute name="key_type">
-          <data type="token">
-            <param name="maxLength">1024</param>
-          </data>
+          <value>rsa</value>
         </attribute>
       </optional>
       <optional>
         <attribute name="hash_alg">
-          <data type="token">
-            <param name="maxLength">1024</param>
-          </data>
+          <value>sha256</value>
         </attribute>
       </optional>
       <optional>
         <attribute name="key_length">
-          <data type="token">
-            <param name="maxLength">1024</param>
-          </data>
+          <value>2048</value>
         </attribute>
       </optional>
     </optional>

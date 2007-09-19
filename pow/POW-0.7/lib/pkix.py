@@ -103,7 +103,7 @@ class POWCryptoDriver(CryptoDriver):
          POW.SHA256_DIGEST    :  (1, 2, 840, 113549, 1, 1, 11),   # sha256WithRSAEncryption
          POW.SHA512_DIGEST    :  (1, 2, 840, 113549, 1, 1, 13),   # sha512WithRSAEncryption
          }
-      self.OID2driver = dict((v,k) for k,v in self.driver2OID.iteritems())
+      self.OID2driver = dict((v,k) for k,v in self.driver2OID.items())
          
    def _digest(self, oid, plaintext):
       digest = POW.Digest(self.OID2driver[oid])

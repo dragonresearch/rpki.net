@@ -2,7 +2,7 @@
 
 """RPKI "left-right" protocol."""
 
-import base64, rpki.sax_utils, rpki.resource_set, lxml.etree, rpki.x509, rpki.sql, rpki.exceptions
+import base64, rpki.sax_utils, rpki.resource_set, lxml.etree, rpki.x509, rpki.sql, rpki.exceptions, rpki.pkcs10
 
 xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
@@ -192,7 +192,7 @@ class bsc_elt(data_elt):
       if q_pdu.clear_signing_certs:
         self.signing_cert = []
       self.signing_cert.extend(q_pdu.signing_cert)
-    if self.generate_keypair:
+    if q_pdu.generate_keypair:
       #
       # Hard wire 2048-bit RSA with SHA-256 in schema for now.
       # Assume no HSM for now.

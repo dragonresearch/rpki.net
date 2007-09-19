@@ -314,7 +314,7 @@ class RSA_Keypair(DER_object):
 
   def generate(self, keylength):
     self.clear()
-    self.set(POW=POW.Assymetric(POW.RSA_CIPHER, keylength))
+    self.set(POW=POW.Asymmetric(POW.RSA_CIPHER, keylength))
 
   def get_public_DER(self):
     return self.get_POW().derWrite(POW.RSA_PUBLIC_KEY)

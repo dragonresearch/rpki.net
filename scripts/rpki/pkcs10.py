@@ -15,7 +15,7 @@ def make_request(keypair):
 
   digest = POW.Digest(POW.SHA1_DIGEST)
   digest.update(keypair.get_POW().derWrite(POW.RSA_PUBLIC_KEY))
-  commonName = "0x" + binascii.hexify(digest.digest())
+  commonName = "0x" + binascii.hexlify(digest.digest())
 
   try:
     config_filename = "req.tmp.conf"
@@ -26,7 +26,7 @@ def make_request(keypair):
     i,o = os.popen2(["openssl", "req", "-config", config_filename,  "-new", "-key", "/dev/stdin", "-outform", "DER"])
     i.write(keypair.get_PEM())
     i.close()
-    pkcs10 = o.read()
+    pkcs10 = rpki.x509.PKCS10_Request(DER = o.read())
     o.close()
 
   finally:

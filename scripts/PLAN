@@ -1,84 +1,11 @@
 $Id$
 
-Rough plan for initial prototype RE.
-
-1) Hack quick cert generator [done]
-
-2) Hack xml-parse-test into something that can:
-
- - Generate XML (just compose directly, probably)
- - Encode XML in CMS using specified signing key and certs
- - Write that to a destination file
-
- - Pick up signed CMS from from a file
- - Check CMS signatures and extract XML
- - Validate (xmllint --relaxng) the XML
- - Decode (xml.sax) the XML and dump the result
-
- Log everything as we go.
- data structures.
-
-Schema is RNC (RelaxNG Compact) syntax, xmllint wants RNG (RelaxNG
-XML) syntax, so use /usr/ports/textproc/trang to convert:
-
-    $ trang foo.rnc foo.rng
-
-3) Whack (2) into something that does this over minimal HTTP.
-
-4) [to be continued...]
-
-
-
-Fun with SQL.  Tim has given me a nice SQL schema for the objects we
-worked out in Prague (superset of left-right protocol).  Still
-debugging that design, but broad outlines are clear.
-
-Some question how to deal with in-memory data and SQL without going
-mad.  Am assuming RE is event driven.  Current theory: pull in an
-entire context (one row of the "self" table and everything that links
-to that self_id), run this event with it, save out any changes before
-this event terminates.  Perhaps keep an LRU cache of the last few such
-contexts in which we've run, to save loading every time (eg, receipt
-of an answer to an up-down or left-right protocol query is a discrete
-event, would be annoying to have to read everything back from SQL
-again).
-
-If we can work out a tree that spans one such memory context (almost
-there), we can just walk that tree to handle pretty much all SQL.
-
-Basic data structures we need for every object we're going to store in
-SQL:
-
-- Object type to hold the object (duh).
-
-- List of children in the data structure tree.
-
-- SQL SELECT expression (including variable bindings!) to pull all
-  rows matching blah blah out of SQL.  Tricky bit here is variable
-  bindings, as otherwise the obvious handling would be a simple
-  method.  Various possible ways to hack this in Python, perhaps just
-
-     lambda(x,y,z): """SQL blah blah""" % dict
-
-  Or perhaps this meta-tree is itself built from a Python class
-  (probably should be) and these lambdas turn into methods of the
-  meta-tree.  Or something.
-
-- SQL to INSERT ...
-
-- SQL to UPDATE ...
-
-- SQL to DROP ...
-
 
 
 At this point it's starting to look like the pdu objects in
 rpki.left_right are a subclass of a more general class of objects that
-live in SQL (duh, again).  This makes sense as left-right protocol was
+live in SQL (duh).  This makes sense as left-right protocol was
 designed to let us frob a subset of the rpki database on the wire.
-
-Need to check whether current rpki.left_right objects map cleanly to
-data structures we're saving in SQL.  They should, but check anyway.
 
 Hmm, it's more complicated than that.  Most of left_right maps well,
 but portions (eg, <list_resources/>) are just commands and do not.
@@ -114,13 +41,6 @@ saved when the current event exits.
 Haven't done anything about db.commit() and db.rollback() yet, for
 that matter haven't yet whacked MySQL to enable those features.
 
-Hack du jour is rpki.left_right.data_obj.serve_copy_hook().  I've
-implemented this for bsc objects, seems to work, haven't yet done (eg)
-route_origin objects.
-
-left-right protocol needs boolean flags to reset array values like
-bsc.signing_cert[].  Trivial hack, just haven't done it yet.
-
 Access to object data attributes really ought to be through accessor
 methods so that the .set() method can set the sql_dirty flag
 automagically.  Not done yet.
@@ -134,23 +54,20 @@ magic names or config variables pointing at files.  Makefile hack to
 put a Python wrapper around a .rng file, and automatically convert
 .rng to lxml internal form while we're at it?
 
-
+Have started on RPKI-specific exception hierarchy (well, it might be
+flat) and conversion of inappropriate uses of assert and standard
+exceptions to use rpki-specific exceptions.  Top level of protocol
+handlers needs to include exception catches that translate these
+exceptions into appropriate protocol error messages.
 
-More TODO:
+Generalize serve_copy_hook() into serve_action_hook() and use it to
+handle actions signaled by the various left-right boolean controls.
+One fun test case for this should be bsc keypair generation.
 
-- create rpki-specific exception hierarchy (might be flat), convert
-  inappropriate uses of assert and standard exceptions to use
-  rpki-specific exceptions, then write exception handlers that
-  translate all of this into appropriate protocol error messages.
-
-- generalize serve_copy_hook() into serve_action_hook() and use it to
-  handle actions signaled by the various left-right boolean controls.
-  one fun test case for this should be bsc keypair generation.
-
-  some of the defined actions may be things we can't implement yet due
-  to lack of a real timer system.  eg, the various "do this right now"
-  actions are probably best handled as triggers, a la interrupt
-  handlers.  well, maybe.  irbe folks might prefer a version that
-  blocked response to the request until the whole cycle is done, once
-  we have an event system that can treat the query and response phases
-  of an rpc operation as two distinct events.
+Some of the defined actions may be things we can't implement yet due
+to lack of a real timer system.  Eg, the various "do this right now"
+actions are probably best handled as triggers, a la interrupt
+handlers.  Well, maybe.  IRBE folks might prefer a version that
+blocked response to the request until the whole cycle is done, once we
+have an event system that can treat the query and response phases of
+an rpc operation as two distinct events.

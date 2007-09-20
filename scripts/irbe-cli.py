@@ -20,8 +20,7 @@ class command(object):
 
   def getopt(self, argv):
     """Parse options for this class."""
-    opts, args = getopt.getopt(argv, "",
-                               [x + "=" for x in self.attributes + self.elements] + list(self.booleans))
+    opts, args = getopt.getopt(argv, "", [x + "=" for x in self.attributes + self.elements] + list(self.booleans))
     for o, a in opts:
       o = o[2:]
       handler = getattr(self, "client_query_" + o, None)
@@ -34,16 +33,6 @@ class command(object):
         setattr(self, o, a)
     return args
 
-  def process(self, msg, argv):
-    """Parse options and add the current object into the msg we're building.
-
-    This is a separate method because at one point I needed to
-    override it.
-    """
-    argv = self.getopt(argv)
-    msg.append(self)
-    return argv
-
   def client_query_action(self, arg):
     """Special handler for --action option."""
     self.action = arg
@@ -52,6 +41,15 @@ class command(object):
   def client_query_peer_ta(self, arg):
     """Special handler for --peer_ta option."""
     self.peer_ta = rpki.x509.X509(Auto_file=arg)
+
+  def client_reply_decode(self):
+    pass
+
+  def client_reply_show(self):
+    self.client_reply_decode()
+    print self.element_name
+    for i in self.attributes + self.elements:
+      print "  " + i + ": " + getattr(self, i)
 
 class self(command, rpki.left_right.self_elt):
   '''"self" command.'''
@@ -138,13 +136,14 @@ def main():
 
   if not argv:
     usage()
-  else:
-    while argv:
-      try:
-        cmd = dispatch[argv[0]]()
-      except KeyError:
-        usage()
-      argv = cmd.process(q_msg, argv[1:])
+
+  while argv:
+    try:
+      q_pdu = dispatch[argv[0]]()
+    except KeyError:
+      usage()
+    argv = q_pdu.getopt(argv[1:])
+    q_msg.append(q_pdu)
 
   q_elt = q_msg.toXML()
   q_xml = lxml.etree.tostring(q_elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
@@ -176,10 +175,13 @@ def main():
   print "Received:"
   print r_xml
 
+  handler = rpki.left_right.sax_handler()
+  lxml.sax.saxify(r_elt, handler)
+  r_msg = handler.result
+
+  # Can't enable this until our reply handler methods are merged into rpki.left_right.
   if False:
-    handler = rpki.left_right.sax_handler()
-    lxml.sax.saxify(r_elt, handler)
-    r_msg = handler.result
-    # Do something useful with reply here
+    for r_pdu in r_msg:
+      r_pdu.client_reply_show()
 
 if __name__ == "__main__": main()

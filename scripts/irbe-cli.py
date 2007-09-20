@@ -6,7 +6,7 @@ This only handles the control channel.  The query back-channel will be
 a separate program.
 """
 
-import glob, getopt, sys, lxml.etree, POW.pkix, xml.sax, lxml.sax
+import glob, getopt, sys, lxml.etree, lxml.sax
 import rpki.left_right, rpki.relaxng, rpki.cms, rpki.https, rpki.x509, rpki.config
 
 class command(object):
@@ -24,7 +24,7 @@ class command(object):
                                [x + "=" for x in self.attributes + self.elements] + list(self.booleans))
     for o, a in opts:
       o = o[2:]
-      handler = getattr(self, "handle_" + o, None)
+      handler = getattr(self, "client_query_" + o, None)
       if handler is not None:
         handler(a)
       elif o in self.booleans:
@@ -44,12 +44,12 @@ class command(object):
     msg.append(self)
     return argv
 
-  def handle_action(self, arg):
+  def client_query_action(self, arg):
     """Special handler for --action option."""
     self.action = arg
     self.type = "query"
 
-  def handle_peer_ta(self, arg):
+  def client_query_peer_ta(self, arg):
     """Special handler for --peer_ta option."""
     self.peer_ta = rpki.x509.X509(Auto_file=arg)
 
@@ -58,7 +58,7 @@ class self(command, rpki.left_right.self_elt):
 
   elements = ("extension_preference",)
 
-  def handle_extension_preference(self, arg):
+  def client_query_extension_preference(self, arg):
     """--extension_preferences option."""
     k,v = arg.split("=", 1)
     pref = rpki.left_right.extension_preference_elt()
@@ -71,7 +71,7 @@ class bsc(command, rpki.left_right.bsc_elt):
 
   elements = ('signing_cert',)
 
-  def handle_signing_cert(self, arg):
+  def client_query_signing_cert(self, arg):
     """--signing_cert option."""
     self.signing_cert.append(rpki.x509.X509(Auto_file=arg))
 
@@ -90,15 +90,15 @@ class repository(command, rpki.left_right.repository_elt):
 class route_origin(command, rpki.left_right.route_origin_elt):
   '''"route_origin" command.'''
 
-  def handle_as_number(self, arg):
+  def client_query_as_number(self, arg):
     """Handle autonomous sequence numbers."""
     self.as_number = long(arg)
 
-  def handle_ipv4(self, arg):
+  def client_query_ipv4(self, arg):
     """Handle IPv4 addresses."""
     self.ipv4 = resource_set.resource_set_ipv4(arg)
 
-  def handle_ipv6(self, arg):
+  def client_query_ipv6(self, arg):
     """Handle IPv6 addresses."""
     self.ipv6 = resource_set.resource_set_ipv6(arg)
 

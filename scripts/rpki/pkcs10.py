@@ -5,6 +5,7 @@ import POW, rpki.x509, os, rpki.exceptions, binascii
 req_fmt = '''
 [ req ]
 distinguished_name = req_dn
+default_md = sha256
 prompt = no
 
 [ req_dn ]

@@ -35,8 +35,6 @@ def main():
   cfg = rpki.config.parser("irbe.conf")
   section = "irbe-cli"
 
-  rng = rpki.relaxng.RelaxNG(cfg.get(section, "rng-schema"))
-
   privateKey = rpki.x509.RSA_Keypair(PEM_file = cfg.get(section, "https-key"))
 
   certChain = rpki.x509.X509_chain()
@@ -63,7 +61,7 @@ def main():
   q_elt = q_msg.toXML()
   q_xml = lxml.etree.tostring(q_elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
   try:
-    rng.assertValid(q_elt)
+    rpki.relaxng.left_right.assertValid(q_elt)
   except lxml.etree.DocumentInvalid:
     print "Generated request document doesn't pass schema check:"
     print q_xml
@@ -81,7 +79,7 @@ def main():
 
   r_elt = lxml.etree.fromstring(r_xml)
   try:
-    rng.assertValid(r_elt)
+    rpki.relaxng.left_right.assertValid(r_elt)
   except lxml.etree.DocumentInvalid:
     print "Received reply document doesn't pass schema check:"
     print r_xml

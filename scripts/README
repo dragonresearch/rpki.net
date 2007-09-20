@@ -49,17 +49,6 @@ Hmm, do we really need .sql_dirty at all?  Maybe just inserting the
 object into the dirty set (above) would suffice?  One less thing to
 screw up.
 
-RelaxNG schemas probably ought to be internal rather than files with
-magic names or config variables pointing at files.  Makefile hack to
-put a Python wrapper around a .rng file, and automatically convert
-.rng to lxml internal form while we're at it?
-
-Have started on RPKI-specific exception hierarchy (well, it might be
-flat) and conversion of inappropriate uses of assert and standard
-exceptions to use rpki-specific exceptions.  Top level of protocol
-handlers needs to include exception catches that translate these
-exceptions into appropriate protocol error messages.
-
 Use generalized serve_*_hook() methods to handle actions signaled by
 the various left-right boolean controls.  One fun test case for this
 should be bsc keypair generation.  Some of the defined actions will be

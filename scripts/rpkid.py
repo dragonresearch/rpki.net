@@ -17,7 +17,7 @@ def encode(msg, cms_key, cms_certs):
 def left_right_handler(query, path):
   try:
     q_elt = decode(query, cms_ta_irbe)
-    lr_rng.assertValid(q_elt)
+    rpki.relaxng.left_right.assertValid(q_elt)
     saxer = rpki.left_right.sax_handler()
     lxml.sax.saxify(q_elt, saxer)
     q_msg = saxer.result
@@ -26,7 +26,7 @@ def left_right_handler(query, path):
       q_pdu.serve_dispatch(db, cur, r_msg)
     r_elt = r_msg.toXML()
     try:
-      lr_rng.assertValid(r_elt)
+      rpki.relaxng.left_right.assertValid(r_elt)
     except lxml.etree.DocumentInvalid:
       print lxml.etree.tostring(r_elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
       raise
@@ -49,9 +49,6 @@ db = MySQLdb.connect(user   = cfg.get(section, "sql-username"),
                      passwd = cfg.get(section, "sql-password"))
 
 cur = db.cursor()
-
-lr_rng = rpki.relaxng.RelaxNG("left-right-schema.rng")
-ud_rng = rpki.relaxng.RelaxNG("up-down-schema.rng")
 
 cms_ta_irdb = cfg.get(section, "cms-ta-irdb")
 cms_ta_irbe = cfg.get(section, "cms-ta-irbe")

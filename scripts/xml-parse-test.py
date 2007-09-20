@@ -4,8 +4,7 @@ import glob, rpki.up_down, rpki.left_right, rpki.relaxng, xml.sax, lxml.etree, l
 
 verbose = False
 
-def test(fileglob, schema, sax_handler, encoding, tester=None):
-  rng = rpki.relaxng.RelaxNG(schema)
+def test(fileglob, rng, sax_handler, encoding, tester=None):
   files = glob.glob(fileglob)
   files.sort()
   for f in files:
@@ -42,13 +41,13 @@ def lr_tester(elt_in, elt_out, msg):
         pprint_cert(cert)
 
 test(fileglob="up-down-protocol-samples/*.xml",
-     schema="up-down-schema.rng",
+     rng=rpki.relaxng.up_down,
      sax_handler=rpki.up_down.sax_handler,
      encoding="utf-8",
      tester=ud_tester)
 
 test(fileglob="left-right-protocol-samples/*.xml",
-     schema="left-right-schema.rng",
+     rng=rpki.relaxng.left_right,
      sax_handler=rpki.left_right.sax_handler,
      encoding="us-ascii",
      tester=lr_tester)

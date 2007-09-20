@@ -43,3 +43,9 @@ doxygen:
 
 tags:
 	find . -type f -name '*.py' | etags -
+
+all:: rpki/relaxng.py
+
+rpki/relaxng.py: left-right-schema.rng up-down-schema.rng make-relaxng.py
+	python make-relaxng.py >$@.tmp
+	mv $@.tmp $@

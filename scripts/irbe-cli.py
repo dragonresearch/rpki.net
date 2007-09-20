@@ -1,106 +1,21 @@
 # $Id$
 
-"""Command line program to simulate behavior of the IR back-end.
+"""
+Command line IR back-end control program.
 
-This only handles the control channel.  The query back-channel will be
-a separate program.
+The query back-channel is handled by a separate program.
 """
 
-import glob, getopt, sys, lxml.etree, lxml.sax
+import sys, lxml.etree, lxml.sax
 import rpki.left_right, rpki.relaxng, rpki.cms, rpki.https, rpki.x509, rpki.config
 
-class command(object):
-  """Command processor mixin class for left-right protocol objects.
-
-  This class and its derived classes probably should be merged into
-  the left-right protocol classes, once this stuff is stable.
-  """
-
-  elements = ()
-
-  def getopt(self, argv):
-    """Parse options for this class."""
-    opts, args = getopt.getopt(argv, "", [x + "=" for x in self.attributes + self.elements] + list(self.booleans))
-    for o, a in opts:
-      o = o[2:]
-      handler = getattr(self, "client_query_" + o, None)
-      if handler is not None:
-        handler(a)
-      elif o in self.booleans:
-        setattr(self, o, True)
-      else:
-        assert o in self.attributes
-        setattr(self, o, a)
-    return args
-
-  def client_query_action(self, arg):
-    """Special handler for --action option."""
-    self.action = arg
-    self.type = "query"
-
-  def client_query_peer_ta(self, arg):
-    """Special handler for --peer_ta option."""
-    self.peer_ta = rpki.x509.X509(Auto_file=arg)
-
-  def client_reply_decode(self):
-    pass
-
-  def client_reply_show(self):
-    self.client_reply_decode()
-    print self.element_name
-    for i in self.attributes + self.elements:
-      print "  " + i + ": " + getattr(self, i)
-
-class self(command, rpki.left_right.self_elt):
-  '''"self" command.'''
-
-  elements = ("extension_preference",)
-
-  def client_query_extension_preference(self, arg):
-    """--extension_preferences option."""
-    k,v = arg.split("=", 1)
-    pref = rpki.left_right.extension_preference_elt()
-    pref.name = k
-    pref.value = v
-    self.prefs.append(pref)
-
-class bsc(command, rpki.left_right.bsc_elt):
-  '''"bsc" command.'''
-
-  elements = ('signing_cert',)
-
-  def client_query_signing_cert(self, arg):
-    """--signing_cert option."""
-    self.signing_cert.append(rpki.x509.X509(Auto_file=arg))
-
-class parent(command, rpki.left_right.parent_elt):
-  '''"parent" command.'''
-  elements = ("peer_ta",)
-
-class child(command, rpki.left_right.child_elt):
-  '''"child" command.'''
-  elements = ("peer_ta",)
-
-class repository(command, rpki.left_right.repository_elt):
-  '''"repository" command.'''
-  elements = ("peer_ta",)
-
-class route_origin(command, rpki.left_right.route_origin_elt):
-  '''"route_origin" command.'''
-
-  def client_query_as_number(self, arg):
-    """Handle autonomous sequence numbers."""
-    self.as_number = long(arg)
-
-  def client_query_ipv4(self, arg):
-    """Handle IPv4 addresses."""
-    self.ipv4 = resource_set.resource_set_ipv4(arg)
-
-  def client_query_ipv6(self, arg):
-    """Handle IPv6 addresses."""
-    self.ipv6 = resource_set.resource_set_ipv6(arg)
-
-dispatch = dict((x.element_name, x) for x in (self, bsc, parent, child, repository, route_origin))
+dispatch = dict((x.element_name, x)
+                for x in (rpki.left_right.self_elt,
+                          rpki.left_right.bsc_elt,
+                          rpki.left_right.parent_elt,
+                          rpki.left_right.child_elt,
+                          rpki.left_right.repository_elt,
+                          rpki.left_right.route_origin_elt))
 
 def usage():
   print "Usage:", sys.argv[0]
@@ -142,7 +57,7 @@ def main():
       q_pdu = dispatch[argv[0]]()
     except KeyError:
       usage()
-    argv = q_pdu.getopt(argv[1:])
+    argv = q_pdu.client_getopt(argv[1:])
     q_msg.append(q_pdu)
 
   q_elt = q_msg.toXML()
@@ -180,7 +95,7 @@ def main():
   r_msg = handler.result
 
   # Can't enable this until our reply handler methods are merged into rpki.left_right.
-  if False:
+  if True:
     for r_pdu in r_msg:
       r_pdu.client_reply_show()
 

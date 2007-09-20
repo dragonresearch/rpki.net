@@ -2,7 +2,8 @@
 
 """RPKI "left-right" protocol."""
 
-import base64, rpki.sax_utils, rpki.resource_set, lxml.etree, rpki.x509, rpki.sql, rpki.exceptions, rpki.pkcs10
+import getopt, base64, lxml.etree
+import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.pkcs10
 
 xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
@@ -12,6 +13,7 @@ class base_elt(object):
   """Virtual base type for left-right message elements."""
 
   attributes = ()
+  elements = ()
   booleans = ()
 
   def startElement(self, stack, name, attrs):
@@ -55,7 +57,7 @@ class base_elt(object):
     lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="us-ascii")
 
 class data_elt(base_elt, rpki.sql.sql_persistant):
-  """Virtual class for top-level  left-right protocol data elements."""
+  """Virtual class for top-level left-right protocol data elements."""
 
   def sql_decode(self, vals):
     rpki.sql.sql_persistant.sql_decode(self, vals)
@@ -138,6 +140,40 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
       raise rpki.exceptions.BadQuery, "Unexpected query: type %s, action %s" % (self.type, self.action)
     dispatch[self.action](db, cur, r_msg)
   
+  def client_getopt(self, argv):
+    """Parse options for this class."""
+    opts, args = getopt.getopt(argv, "", [x + "=" for x in self.attributes + self.elements] + list(self.booleans))
+    for o, a in opts:
+      o = o[2:]
+      handler = getattr(self, "client_query_" + o, None)
+      if handler is not None:
+        handler(a)
+      elif o in self.booleans:
+        setattr(self, o, True)
+      else:
+        assert o in self.attributes
+        setattr(self, o, a)
+    return args
+
+  def client_query_action(self, arg):
+    """Special handler for --action option."""
+    self.action = arg
+    self.type = "query"
+
+  def client_query_peer_ta(self, arg):
+    """Special handler for --peer_ta option."""
+    self.peer_ta = rpki.x509.X509(Auto_file=arg)
+
+  def client_reply_decode(self):
+    pass
+
+  def client_reply_show(self):
+    self.client_reply_decode()
+    print self.element_name
+    for i in self.attributes + self.elements:
+      if getattr(self, i) is not None:
+        print "  %s: %s" % (i, getattr(self, i))
+
 class extension_preference_elt(base_elt):
   """Container for extension preferences."""
 
@@ -165,6 +201,7 @@ class bsc_elt(data_elt):
   
   element_name = "bsc"
   attributes = ("action", "type", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
+  elements = ('signing_cert',)
   booleans = ("generate_keypair", "clear_signing_certs")
 
   sql_template = rpki.sql.template("bsc", "bsc_id", "self_id", "public_key", "private_key_id")
@@ -231,11 +268,16 @@ class bsc_elt(data_elt):
     self.make_b64elt(elt, "public_key")
     return elt
 
+  def client_query_signing_cert(self, arg):
+    """--signing_cert option."""
+    self.signing_cert.append(rpki.x509.X509(Auto_file=arg))
+
 class parent_elt(data_elt):
   """<parent/> element."""
 
   element_name = "parent"
   attributes = ("action", "type", "self_id", "parent_id", "bsc_id", "repository_id", "peer_contact_uri", "sia_base")
+  elements = ("peer_ta",)
   booleans = ("rekey", "reissue", "revoke")
 
   sql_template = rpki.sql.template("parent", "parent_id", "self_id", "bsc_id", "repository_id", "peer_ta", "peer_contact_uri", "sia_base")
@@ -272,6 +314,7 @@ class child_elt(data_elt):
 
   element_name = "child"
   attributes = ("action", "type", "self_id", "child_id", "bsc_id")
+  elements = ("peer_ta",)
   booleans = ("reissue", )
 
   sql_template = rpki.sql.template("child", "child_id", "self_id", "bsc_id", "peer_ta")
@@ -325,6 +368,7 @@ class repository_elt(data_elt):
 
   element_name = "repository"
   attributes = ("action", "type", "self_id", "repository_id", "bsc_id", "peer_contact_uri")
+  elements = ("peer_ta",)
 
   sql_template = rpki.sql.template("repository", "repository_id", "self_id", "bsc_id", "peer_ta", "peer_contact_uri")
 
@@ -412,11 +456,24 @@ class route_origin_elt(data_elt):
     """Generate <route_origin/> element."""
     return self.make_elt()
 
+  def client_query_as_number(self, arg):
+    """Handle autonomous sequence numbers."""
+    self.as_number = long(arg)
+
+  def client_query_ipv4(self, arg):
+    """Handle IPv4 addresses."""
+    self.ipv4 = resource_set.resource_set_ipv4(arg)
+
+  def client_query_ipv6(self, arg):
+    """Handle IPv6 addresses."""
+    self.ipv6 = resource_set.resource_set_ipv6(arg)
+
 class self_elt(data_elt):
   """<self/> element."""
 
   element_name = "self"
   attributes = ("action", "type", "self_id")
+  elements = ("extension_preference",)
   booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now", "clear_extension_preferences")
 
   sql_template = rpki.sql.template("self", "self_id", "use_hsm")
@@ -474,6 +531,14 @@ class self_elt(data_elt):
     elt = self.make_elt()
     elt.extend([i.toXML() for i in self.prefs])
     return elt
+
+  def client_query_extension_preference(self, arg):
+    """--extension_preferences option."""
+    k,v = arg.split("=", 1)
+    pref = rpki.left_right.extension_preference_elt()
+    pref.name = k
+    pref.value = v
+    self.prefs.append(pref)
 
 class resource_class_elt(base_elt):
   """<resource_class/> element."""

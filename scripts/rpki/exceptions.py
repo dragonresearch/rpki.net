@@ -28,3 +28,6 @@ class DERObjectConversionError(Exception):
 
 class NotACertificateChain(Exception):
   """Certificates don't form a proper chain."""
+
+class BadContactURL(Exception):
+  """Error trying to parse up-down protocol contact URL."""

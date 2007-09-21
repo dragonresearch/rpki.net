@@ -19,22 +19,34 @@ def left_right_handler(query, path):
     q_elt = decode(query, cms_ta_irbe)
     rpki.relaxng.left_right.assertValid(q_elt)
     q_msg = rpki.left_right.sax_handler.saxify(q_elt)
-    r_msg = rpki.left_right.msg()
-    for q_pdu in q_msg:
-      q_pdu.serve_dispatch(db, cur, r_msg)
+    r_msg = q_msg.serve_top_level(db, cur)
     r_elt = r_msg.toXML()
-    try:
-      rpki.relaxng.left_right.assertValid(r_elt)
-    except lxml.etree.DocumentInvalid:
-      print lxml.etree.tostring(r_elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
-      raise
+    rpki.relaxng.left_right.assertValid(r_elt)
     return 200, encode(r_elt, cms_key, cms_certs)
   except Exception, data:
     traceback.print_exc()
     return 500, "Unhandled exception %s" % data
 
 def up_down_handler(query, path):
-  raise NotImplementedError
+  try:
+    child_id = path.partition("/up-down/")[2]
+    if not child_id.isdigit():
+      raise rpki.exceptions.BadContactURL, "Bad path: %s" % path
+    child = rpki.left_right.child_elt.sql_fetch(db, cur, long(child_id))
+    if child is None:
+      raise rpki.exceptions.NotFound, "Could not find CMS TA to verify request"
+    bsc = rpki.left_right.bsc_elt.sql_fetch(db, cur, child.bsc_id)
+
+    q_elt = decode(query, child.peer_ta)
+    rpki.relaxng.up_down.assertValid(q_elt)
+    q_msg = rpki.up_down.sax_handler.saxify(q_elt)
+    r_msg = q_msg.serve_top_level(db, cur)
+    r_elt = r_msg.toXML()
+    rpki.relaxng.up_down.assertValid(r_elt)
+    return 200, encode(r_elt, bsc.private_key_id, bsc.signing_cert)
+  except Exception, data:
+    traceback.print_exc()
+    return 500, "Unhandled exception %s" % data
 
 def cronjob_handler(query, path):
   raise NotImplementedError
@@ -60,5 +72,5 @@ https_certs.load_from_PEM(cfg.multiget(section, "https-cert"))
 
 rpki.https.server(privateKey=https_key, certChain=https_certs,
                   handlers=(("/left-right", left_right_handler),
-                            ("/up-down",    up_down_handler),
+                            ("/up-down/",   up_down_handler),
                             ("/cronjob",    cronjob_handler)))

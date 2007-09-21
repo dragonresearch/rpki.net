@@ -593,6 +593,12 @@ class msg(list):
     elt.extend([i.toXML() for i in self])
     return elt
 
+  def serve_top_level(self, db, cur):
+    r_msg = self.__class__()
+    for q_pdu in self:
+      q_pdu.serve_dispatch(db, cur, r_msg)
+    return r_msg
+
 class sax_handler(rpki.sax_utils.handler):
   """SAX handler for Left-Right protocol."""
 

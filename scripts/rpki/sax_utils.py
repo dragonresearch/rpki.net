@@ -2,7 +2,7 @@
 
 """SAX utilities."""
 
-import xml.sax
+import xml.sax, lxml.sax
 
 class handler(xml.sax.handler.ContentHandler):
   """SAX handler for RPKI protocols.
@@ -68,3 +68,11 @@ class handler(xml.sax.handler.ContentHandler):
     text = self.text.encode("ascii").strip()
     self.text = ""
     self.stack[-1].endElement(self.stack, name, text)
+
+  @classmethod
+  def saxify(cls, elt):
+    """Create a one-off SAX parser, parse an ETree, return the result.
+    """
+    self = cls()
+    lxml.sax.saxify(elt, self)
+    return self.result

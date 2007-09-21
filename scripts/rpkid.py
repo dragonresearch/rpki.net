@@ -18,9 +18,7 @@ def left_right_handler(query, path):
   try:
     q_elt = decode(query, cms_ta_irbe)
     rpki.relaxng.left_right.assertValid(q_elt)
-    saxer = rpki.left_right.sax_handler()
-    lxml.sax.saxify(q_elt, saxer)
-    q_msg = saxer.result
+    q_msg = rpki.left_right.sax_handler.saxify(q_elt)
     r_msg = rpki.left_right.msg()
     for q_pdu in q_msg:
       q_pdu.serve_dispatch(db, cur, r_msg)

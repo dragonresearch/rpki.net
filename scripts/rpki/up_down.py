@@ -45,6 +45,9 @@ class base_elt(object):
     if value is not None:
       lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap=nsmap).text = base64.b64encode(value)
 
+  def serve_dispatch(db, cur, self, r_msg, child):
+    raise NotImplementedError
+
 class multi_uri(list):
   """Container for a set of URIs."""
 
@@ -275,6 +278,11 @@ class message_pdu(base_elt):
 
   def __str__(self):
     lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="UTF-8")
+
+  def serve_top_level(self, db, cur, child):
+    r_msg = self.__class__()
+    self.payload.serve_dispatch(db, cur, self, r_msg, child)
+    return r_msg
 
 class sax_handler(rpki.sax_utils.handler):
   """SAX handler for Up-Down protocol."""

@@ -613,22 +613,25 @@ class report_error_elt(base_elt):
     """Generate <report_error/> element."""
     return self.make_elt()
 
-## Dispatch table of PDUs for this protocol.
-pdus = dict((x.element_name, x)
-            for x in (self_elt, child_elt, parent_elt, bsc_elt, repository_elt,
-                       route_origin_elt, list_resources_elt, report_error_elt))
-
 class msg(list):
   """Left-right PDU."""
 
+  ## @var version
+  # Protocol version
   version = 1
+
+  ## @var pdus
+  # Dispatch table of PDUs for this protocol.
+  pdus = dict((x.element_name, x)
+              for x in (self_elt, child_elt, parent_elt, bsc_elt, repository_elt,
+                        route_origin_elt, list_resources_elt, report_error_elt))
 
   def startElement(self, stack, name, attrs):
     """Handle left-right PDU."""
     if name == "msg":
       assert self.version == int(attrs["version"])
     else:
-      elt = pdus[name]()
+      elt = self.pdus[name]()
       self.append(elt)
       stack.append(elt)
       elt.startElement(stack, name, attrs)
@@ -651,7 +654,11 @@ class msg(list):
 class sax_handler(rpki.sax_utils.handler):
   """SAX handler for Left-Right protocol."""
 
+  ## @var pdu
+  # Top-level PDU class
+  pdu = msg
+
   def create_top_level(self, name, attrs):
     """Top-level PDU for this protocol is <msg/>."""
     assert name == "msg" and attrs["version"] == "1"
-    return msg()
+    return self.pdu()

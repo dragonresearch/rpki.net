@@ -375,7 +375,6 @@
      (:ipv6-prefix fe80:dead:beef:: 48)
      (:as-number 666))
     ((:subject-name "wombats are us")	; Allowed in protocol, but RE may reject with error
-     (:subset-ipv4-prefix 10.0.0.0 8)
      (:ipv4-prefix 10.2..0.6 32)
      (:ipv6-prefix fe80:dead:beef:: 48)
      (:ipv6-range fe80:dead:beef:: fe80:dead:beef::49)

@@ -66,8 +66,14 @@ gctx.cms_certs   = gctx.cfg.multiget(gctx.cfg_section, "cms-cert")
 
 gctx.https_key   = rpki.x509.RSA_Keypair(PEM_file = gctx.cfg.get(gctx.cfg_section, "https-key"))
 gctx.https_certs = certChain = rpki.x509.X509_chain()
+gctx.https_tas   = rpki.x509.X509_chain() 
 
 gctx.https_certs.load_from_PEM(gctx.cfg.multiget(gctx.cfg_section, "https-cert"))
+gctx.https_tas.load_from_PEM(gctx.cfg.multiget(gctx.cfg_section, "https-ta"))
+
+gctx.irdb_host   = gctx.cfg.get(gctx.cfg_section, "irdb-host")
+gctx.irdb_port   = gctx.cfg.get(gctx.cfg_section, "irdb-port")
+gctx.irdb_url    = gctx.cfg.get(gctx.cfg_section, "irdb-url")
 
 rpki.https.server(privateKey=gctx.https_key, certChain=gctx.https_certs,
                   handlers=(("/left-right", left_right_handler),

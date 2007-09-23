@@ -92,4 +92,8 @@ privateKey = rpki.x509.RSA_Keypair(PEM_file = cfg.get(section, "https-key"))
 certChain = rpki.x509.X509_chain()
 certChain.load_from_PEM(cfg.multiget(section, "https-cert"))
 
-rpki.https.server(privateKey=privateKey, certChain=certChain, handlers=handler)
+rpki.https.server(privateKey    = privateKey,
+                  certChain     = certChain,
+                  host          = cfg.get(section, "https-host"),
+                  port          = int(cfg.get(section, "https-port")),
+                  handlers      = { cfg.get(section, "https-url") : handler })

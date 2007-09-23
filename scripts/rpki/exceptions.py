@@ -14,8 +14,8 @@ class BadStatusCode(Exception):
 class BadQuery(Exception):
   """Unexpected protocol query."""
 
-class MultipleROAsFound(Exception):
-  """Found multiple ROAs in a relationship that should be one-to-one."""
+class DBConsistancyError(Exception):
+  """Found multiple matches for a database query that shouldn't ever return that."""
 
 class CMSVerificationFailed(Exception):
   """Verification of a CMS message failed."""

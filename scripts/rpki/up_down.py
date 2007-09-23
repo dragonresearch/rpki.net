@@ -144,18 +144,19 @@ class list_pdu(base_elt):
     raise NotImplementedError
 
     # Tasks:
-    #
+
     # 1) extract child's resource set from irdb
     #
+    irdb_as, irdb_ipv4, irdb_ipv6 = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
+
     # 2) for every ca, compute intersection of child's resource set
     #    with ca's resource set; if result is non-null, this ca is one
     #    of the resource classes for this child
     #
     # 3) establish ca_child_link bindings based on (2)?
     #
-    # 4) generate result pdu
+    # 4) generate result pdu, unless we do that as part of (2)
 
-    child_data = irdb_query(child)
     r_msg.payload = list_response_pdu()
     for ca in rpki.sql.fetch_column(gctx.cur, "SELECT ca_id FROM child_ca_link WHERE child_id = %s" % child.child_id):
       klass = class_elt()

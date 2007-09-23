@@ -3,7 +3,7 @@
 """RPKI "left-right" protocol."""
 
 import base64, lxml.etree
-import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.pkcs10
+import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.pkcs10, rpki.https
 
 xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
@@ -444,7 +444,7 @@ class route_origin_elt(data_elt):
       roa = roas[0][0]
       ca_detail_id = roas[0][1]
     elif len(roas) > 0:
-      raise rpki.exceptions.MultipleROAsFound, "Multiple ROAs found for route_origin %s, mapping should be one-to-one" % self.route_origin_id
+      raise rpki.exceptions.DBConsistancyError, "Multiple ROAs found for route_origin %s, mapping should be one-to-one" % self.route_origin_id
     
   def sql_insert_hook(self, db, cur):
     if self.ipv4 + self.ipv6:
@@ -486,7 +486,7 @@ class resource_class_elt(base_elt):
   """<resource_class/> element."""
 
   element_name = "resource_class"
-  attributes = ("as", "req_as", "ipv4", "req_ipv4", "ipv6", "req_ipv6", "subject_name")
+  attributes = ("as", "ipv4", "ipv6", "subject_name")
 
   def startElement(self, stack, name, attrs):
     """Handle <resource_class/> element."""
@@ -494,16 +494,10 @@ class resource_class_elt(base_elt):
     self.read_attrs(attrs)
     if self.as is not None:
       self.as = rpki.resource_set.resource_set_as(self.as)
-    if self.req_as is not None:
-      self.req_as = rpki.resource_set.resource_set_as(self.req_as)
     if self.ipv4 is not None:
       self.ipv4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
-    if self.req_ipv4 is not None:
-      self.req_ipv4 = rpki.resource_set.resource_set_ipv4(self.req_ipv4)
     if self.ipv6 is not None:
       self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
-    if self.req_ipv6 is not None:
-      self.req_ipv6 = rpki.resource_set.resource_set_ipv6(self.req_ipv6)
 
   def endElement(self, stack, name, text):
     """Handle <resource_class/> element."""
@@ -610,3 +604,44 @@ class sax_handler(rpki.sax_utils.handler):
     """Top-level PDU for this protocol is <msg/>."""
     assert name == "msg" and attrs["version"] == "1"
     return self.pdu()
+
+def irdb_query(gctx, self_id, child_id=None):
+  """Perform an IRDB callback query.
+
+  In the long run this should not be a blocking routine, it should
+  instead issue a query and set up a handler to receive the response.
+  For the moment, though, we're doing simple lock step and damn the
+  torpedos.
+  """
+
+  q_msg = msg_elt()
+  q_msg.append(list_resources_elt())
+  q_msg[0].type = "query"
+  q_msg[0].self_id = self_id
+  q_msg[0].child_id = child_id
+  q_elt = q_msg.toXML()
+  rpki.relaxng.left_right.assertValid(q_elt)
+  q_cms = rpki.cms.xml_encode(q_elt, gctx.cms_key, gctx.cms_certs)
+  r_cms = rpki.https.client(privateKey    = gctx.https_key,
+                            certChain     = gctx.https_certs,
+                            x509TrustList = gctx.https_tas,
+                            host          = gctx.irdb_host,
+                            port          = gctx.irdb_port,
+                            url           = gctx.irdb_url,
+                            msg           = q_cms)
+  r_elt = rpki.cms.xml_decode(r_cms, gctx.cms_ta_irbe)
+  rpki.relaxng.left_right.assertValid(r_elt)
+  r_msg = rpki.left_right.sax_handler.saxify(r_elt)
+  if len(r_msg) != 0 or not isinstance(r_msg[0], list_resources_elt) or r_msg[0].type != "reply":
+    raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % r_msg.toXML()
+  as   = rpki.resource_set.resource_set_as()
+  ipv4 = rpki.resource_set.resource_set_ipv4()
+  ipv6 = rpki.resource_set.resource_set_ipv6()
+  for r in r_msg[0].resources:
+    if r.as is not None:
+      as.union(r.as)
+    if r.ipv4 is not None:
+      ipv4.union(r.ipv4)
+    if r.ipv6 is not None:
+      ipv6.union(r.ipv6)
+  return as, ipv4, ipv6

@@ -12,7 +12,7 @@ bring together the functionality I need in a way that hides at least
 some of the nasty details.  This involves a lot of format conversion.
 """
 
-import POW, tlslite.api, POW.pkix, base64, rpki.exceptions
+import POW, tlslite.api, POW.pkix, base64, rpki.exceptions, rpki.resource_set
 
 class PEM_converter(object):
   """Convert between DER and PEM encodings for various kinds of ASN.1 data."""
@@ -202,13 +202,17 @@ class X509(DER_object):
       self.POW_extensions = exts
     return self.POW_extensions
     
-  def getAKI(self):
+  def get_AKI(self):
     """Get the AKI extension from this certificate."""
     return self._get_POW_extensions().get("authorityKeyIdentifier")
 
-  def getSKI(self):
+  def get_SKI(self):
     """Get the SKI extension from this certificate."""
     return self._get_POW_extensions().get("subjectKeyIdentifier")
+
+  def get_3779resources(self):
+    """Get RFC 3779 resources as rpki.resource_set objects."""
+    return rpki.resource_set.parse_extensions(self.get_POWpkix().getExtensions())
 
 class X509_chain(list):
   """Collections of certs.

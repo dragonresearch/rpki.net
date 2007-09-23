@@ -141,28 +141,41 @@ class list_pdu(base_elt):
     return []
 
   def serve_pdu(self, gctx, r_msg, child):
-    raise NotImplementedError
-
-    # Tasks:
-
-    # 1) extract child's resource set from irdb
-    #
-    irdb_as, irdb_ipv4, irdb_ipv6 = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
-
-    # 2) for every ca, compute intersection of child's resource set
-    #    with ca's resource set; if result is non-null, this ca is one
-    #    of the resource classes for this child
-    #
-    # 3) establish ca_child_link bindings based on (2)?
-    #
-    # 4) generate result pdu, unless we do that as part of (2)
-
     r_msg.payload = list_response_pdu()
-    for ca in rpki.sql.fetch_column(gctx.cur, "SELECT ca_id FROM child_ca_link WHERE child_id = %s" % child.child_id):
-      klass = class_elt()
-      r_msg.payload.classes.append(klass)
-      klass.class_name = ca.ca_id
-      raise NotImplementedError
+    irdb_as, irdb_v4, irdb_v6 = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
+    for ca_id in rpki.sql.fetch_column(gctx.cur, "SELECT ca_id FROM ca WHERE ca.parent_id = parent.parent_id AND parent.self_id = %s" % child.self_id):
+      ca_details = rpki.sql.ca_detail_elt.sql_fetch_where(gctx.db, gctx.cur, "ca_id = %s" % ca_id)
+      if not ca_details:
+        continue
+      rc_as, rc_v4, rc_v6 = ca_detail[0].latest_ca_cert_over_public_key.get_3779resources()
+      for ca_detail in ca_details[1:]:
+        as, v4, v6 = ca_detail.latest_ca_cert_over_public_key.get_3779resources()
+        rc_as.union(as)
+        rc_v4.union(v4)
+        rc_v6.union(v6)
+      rc_as.intersection(irdb_as)
+      rc_v4.intersection(irdb_v4)
+      rc_v6.intersection(irdb_v6)
+      if not rc_as and not rc_v4 and not rc_v6:
+        continue
+      rc = class_elt()
+      rc.class_name = str(ca_id)
+      rc.cert_url = "rsync://niy.invalid"
+      rc.resource_set_as = rc_as
+      rc.resource_set_ipv4 = rc_v4
+      rc.resource_set_ipv6 = rc_v6
+      for ca_detail in ca_details:
+        as, v4, v6 = ca_detail.latest_ca_cert_over_public_key.get_3779resources()
+        as.intersection(irdb_as)
+        v4.intersection(irdb_v4)
+        v6.intersection(irdb_v6)
+        if not as and not v4 and not v6:
+          continue
+        c = certificate_elt()
+        c.cert_url = "rsync://niy.invalid"
+        c.cert = ca_detail.latest_ca_cert_over_public_key
+        rc.certs.append(c)
+      r_msg.payload.classes.append(rc)
 
 class list_response_pdu(base_elt):
   """Up-Down protocol "list_response" PDU."""

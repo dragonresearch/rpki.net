@@ -1,6 +1,6 @@
 # $Id$
 
-import MySQLdb
+import MySQLdb, rpki.x509
 
 def connect(cfg, section="sql"):
   """Connect to a MySQL database using connection parameters from an
@@ -57,7 +57,7 @@ class sql_persistant(object):
 
   @classmethod
   def sql_fetch(cls, db, cur, id):
-    results = cls.sql_fetch_where(db, cur, "WHERE %s = %s" % (cls.sql_template.index, id))
+    results = cls.sql_fetch_where(db, cur, "%s = %s" % (cls.sql_template.index, id))
     assert len(results) <= 1
     if len(results) == 0:
       return None
@@ -75,7 +75,7 @@ class sql_persistant(object):
     if where is None:
       cur.execute(cls.sql_template.select)
     else:
-      cur.execute(cls.sql_template.select + where)
+      cur.execute(cls.sql_template.select + " WHERE " + where)
     results = []
     for row in cur.fetchall():
       key = (cls, row[0])
@@ -166,6 +166,31 @@ class ca_detail_obj(sql_persistant):
 
   def __init__(self):
     self.certs = []
+
+  def sql_decode(self, vals):
+    sql_persistant.sql_decode(self, vals)
+
+    self.private_key_handle = rpki.x509.RSA_Keypair(DER = self.private_key_handle)
+    if self.public_key is not None:
+      assert self.private_key_handle.get_public_DER() == self.public_key
+
+    self.latest_ca_cert_over_public_key = rpki.x509.X509(DER = self.latest_ca_cert_over_public_key)
+
+    self.manifest_ee_private_key_handle = rpki.x509.RSA_Keypair(DER = self.manifest_ee_private_key_handle)
+    if self.manifest_ee_public_key is not None:
+      assert self.manifest_ee_private_key_handle.get_public_DER() == self.manifest_ee_public_key
+
+    self.manifest_ee_cert = rpki.x509.X509(DER = self.manifest_ee_cert)
+
+    # todo: manifest, crl
+
+  def sql_encode(self):
+    d = sql_persistant.sql_encode(self)
+    d["private_key_handle"] = self.private_key_handle.get_DER()
+    d["latest_ca_cert_over_public_key"] = self.latest_ca_cert_over_public_key.get_DER()
+    d["manifest_ee_private_key_handle"] = self.manifest_ee_private_key_handle.get_DER()
+    d["manifest_ee_cert"] = self.manifest_ee_cert.get_DER()
+    return d
 
 class ca_obj(sql_persistant):
   """Internal CA object."""

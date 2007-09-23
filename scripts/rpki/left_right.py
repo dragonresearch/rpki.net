@@ -85,16 +85,16 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
   def serve_post_save_hook(self, q_pdu, r_pdu):
     pass
 
-  def serve_create(self, db, cur, r_msg):
+  def serve_create(self, gctx, r_msg):
     r_pdu = self.make_reply()
     self.serve_pre_save_hook(self, r_pdu)
-    self.sql_store(db, cur)
+    self.sql_store(gctx.db, gctx.cur)
     setattr(r_pdu, self.sql_template.index, getattr(self, self.sql_template.index))
     self.serve_post_save_hook(self, r_pdu)
     r_msg.append(r_pdu)
 
-  def serve_set(self, db, cur, r_msg):
-    db_pdu = self.sql_fetch(db, cur, getattr(self, self.sql_template.index))
+  def serve_set(self, gctx, r_msg):
+    db_pdu = self.sql_fetch(gctx.db, gctx.cur, getattr(self, self.sql_template.index))
     if db_pdu is not None:
       r_pdu = self.make_reply()
       for a in db_pdu.sql_template.columns[1:]:
@@ -103,34 +103,34 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
           setattr(db_pdu, a, v)
       db_pdu.sql_dirty = True
       db_pdu.serve_pre_save_hook(self, r_pdu)
-      db_pdu.sql_store(db, cur)
+      db_pdu.sql_store(gctx.db, gctx.cur)
       db_pdu.serve_post_save_hook(self, r_pdu)
       r_msg.append(r_pdu)
     else:
       r_msg.append(make_error_report(self))
 
-  def serve_get(self, db, cur, r_msg):
-    r_pdu = self.sql_fetch(db, cur, getattr(self, self.sql_template.index))
+  def serve_get(self, gctx, r_msg):
+    r_pdu = self.sql_fetch(gctx.db, gctx.cur, getattr(self, self.sql_template.index))
     if r_pdu is not None:
       self.make_reply(r_pdu)
       r_msg.append(r_pdu)
     else:
       r_msg.append(make_error_report(self))
 
-  def serve_list(self, db, cur, r_msg):
-    for r_pdu in self.sql_fetch_all(db, cur):
+  def serve_list(self, gctx, r_msg):
+    for r_pdu in self.sql_fetch_all(gctx.db, gctx.cur):
       self.make_reply(r_pdu)
       r_msg.append(r_pdu)
 
-  def serve_destroy(self, db, cur, r_msg):
-    db_pdu = self.sql_fetch(db, cur, getattr(self, self.sql_template.index))
+  def serve_destroy(self, gctx, r_msg):
+    db_pdu = self.sql_fetch(gctx.db, gctx.cur, getattr(self, self.sql_template.index))
     if db_pdu is not None:
-      db_pdu.sql_delete(db, cur)
+      db_pdu.sql_delete(gctx.db, gctx.cur)
       r_msg.append(self.make_reply())
     else:
       r_msg.append(make_error_report(self))
 
-  def serve_dispatch(self, db, cur, r_msg):
+  def serve_dispatch(self, gctx, r_msg):
     dispatch = { "create"  : self.serve_create,
                  "set"     : self.serve_set,
                  "get"     : self.serve_get,
@@ -138,7 +138,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
                  "destroy" : self.serve_destroy }
     if self.type != "query" or self.action not in dispatch:
       raise rpki.exceptions.BadQuery, "Unexpected query: type %s, action %s" % (self.type, self.action)
-    dispatch[self.action](db, cur, r_msg)
+    dispatch[self.action](gctx, r_msg)
   
 class extension_preference_elt(base_elt):
   """Container for extension preferences."""
@@ -346,7 +346,7 @@ class child_elt(data_elt):
   sql_template = rpki.sql.template("child", "child_id", "self_id", "bsc_id", "peer_ta")
 
   def sql_fetch_hook(self, db, cur):
-    self.cas = rpki.sql.get_column(db, cur, "SELECT ca_id FROM child_ca_link WHERE child_id = %s", self.child_id)
+    self.cas = rpki.sql.fetch_column(cur, "SELECT ca_id FROM child_ca_link WHERE child_id = %s", self.child_id)
     cur.execute("SELECT ca_detail_id, cert FROM child_ca_certificate WHERE child_id = %s", self.child_id)
     self.certs = dict((ca_detail_id, rpki.x509.X509(DER=cert)) for (ca_detail_id, cert) in cur.fetchall())
 
@@ -593,10 +593,10 @@ class msg(list):
     elt.extend([i.toXML() for i in self])
     return elt
 
-  def serve_top_level(self, db, cur):
+  def serve_top_level(self, gctx):
     r_msg = self.__class__()
     for q_pdu in self:
-      q_pdu.serve_dispatch(db, cur, r_msg)
+      q_pdu.serve_dispatch(gctx, r_msg)
     return r_msg
 
 class sax_handler(rpki.sax_utils.handler):

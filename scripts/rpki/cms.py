@@ -6,7 +6,7 @@ For the moment these just call the OpenSSL CLI tool, which is slow,
 requires disk I/O, and likes PEM format.  Fix this later.
 """
 
-import os, rpki.x509, rpki.exceptions
+import os, rpki.x509, rpki.exceptions, lxml.etree
 
 # openssl smime -sign -nodetach -outform DER -signer biz-certs/Alice-EE.cer -certfile biz-certs/Alice-CA.cer -inkey biz-certs/Alice-EE.key -in PLAN -out PLAN.der
 
@@ -65,3 +65,11 @@ def decode(cms, ta):
     return xml
   else:
     raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed with status %s" % status
+
+def xml_decode(elt, ta):
+  """Composite routine to decode CMS-wrapped XML."""
+  return lxml.etree.fromstring(decode(elt, ta))
+
+def xml_encode(elt, key, certs):
+  """Composite routine to encode CMS-wrapped XML."""
+  return encode(lxml.etree.tostring(elt, pretty_print=True, encoding="us-ascii", xml_declaration=True), key, certs)

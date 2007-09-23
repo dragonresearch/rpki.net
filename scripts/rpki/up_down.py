@@ -45,7 +45,7 @@ class base_elt(object):
     if value is not None:
       lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap=nsmap).text = base64.b64encode(value)
 
-  def serve_pdu(db, cur, self, r_msg, child):
+  def serve_pdu(self, gctx, r_msg, child):
     raise NotImplementedError
 
 class multi_uri(list):
@@ -139,6 +139,29 @@ class list_pdu(base_elt):
   def toXML(self):
     """Generate (empty) payload of "list" PDU."""
     return []
+
+  def serve_pdu(self, gctx, r_msg, child):
+    raise NotImplementedError
+
+    # Tasks:
+    #
+    # 1) extract child's resource set from irdb
+    #
+    # 2) for every ca, compute intersection of child's resource set
+    #    with ca's resource set; if result is non-null, this ca is one
+    #    of the resource classes for this child
+    #
+    # 3) establish ca_child_link bindings based on (2)?
+    #
+    # 4) generate result pdu
+
+    child_data = irdb_query(child)
+    r_msg.payload = list_response_pdu()
+    for ca in rpki.sql.fetch_column(gctx.cur, "SELECT ca_id FROM child_ca_link WHERE child_id = %s" % child.child_id):
+      klass = class_elt()
+      r_msg.payload.classes.append(klass)
+      klass.class_name = ca.ca_id
+      raise NotImplementedError
 
 class list_response_pdu(base_elt):
   """Up-Down protocol "list_response" PDU."""
@@ -279,9 +302,9 @@ class message_pdu(base_elt):
   def __str__(self):
     lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="UTF-8")
 
-  def serve_top_level(self, db, cur, child):
+  def serve_top_level(self, gctx, child):
     r_msg = self.__class__()
-    self.payload.serve_pdu(db, cur, self, r_msg, child)
+    self.payload.serve_pdu(self, gctx, r_msg, child)
     return r_msg
 
 class sax_handler(rpki.sax_utils.handler):

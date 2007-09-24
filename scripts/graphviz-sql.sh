@@ -2,15 +2,16 @@
 # $Id$
 #
 # This uses the SQL::Translator package (aka "SQL Fairy") to parse
-# an SQL schema and graph the result via GraphViz.
+# a MYSQL schema and diagram the result using GraphViz.
 #
 # SQL::Translator appears to be pretty good at analyzing SQL, but is
 # badly confused about how to format record labels in the "dot"
-# language.  Simplest solution for now is just to whack sqlt-graph's
-# broken output into shape, in the long run I should send the author a
-# patch.
+# language.  I should send the author a patch, but simplest solution
+# for now is just to whack sqlt-graph's broken output into shape.
+#
+# On FreeBSD, SQL Fairy is /usr/ports/databases/p5-SQL-Translator.
 
-for i in *.sql
+for i in "$@"
 do
   sqlt-graph --db MySQL --output-type canon --show-datatypes --show-constraints $i |
   perl -0777 -pe '
@@ -26,5 +27,5 @@ do
   ' |
   tee ${i%.sql}.dot |
   dot -Tps2 |
-  ps2pdf - ${i%.dot}.pdf
+  ps2pdf - ${i%.sql}.pdf
 done

@@ -188,6 +188,14 @@ class X509(DER_object):
     """Get the subject of this certificate."""
     return self.get_POW().getSubject()
 
+  def getNotBefore(self):
+    """Get the inception time of this certificate."""
+    return POW.pkix.utc2time(self.get_POW().getNotBefore())
+
+  def getNotAfter(self):
+    """Get the expiration time of this certificate."""
+    return POW.pkix.utc2time(self.get_POW().getNotAfter())
+
   def _get_POW_extensions(self):
     """Parse extensions from the POW value of this certificate.
 

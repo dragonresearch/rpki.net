@@ -12,13 +12,16 @@
 
 for i in *.sql
 do
-  sqlt-graph --db MySQL --output-type canon --show-datatypes $i |
+  sqlt-graph --db MySQL --output-type canon --show-datatypes --show-constraints $i |
   perl -0777 -pe '
     s/\\\n/ /g;
-    s/\\{//g;
-    s/\\\|-\\ /|{/g;
-    s/\\ *\\ *l *-\\ /|/g;
-    s/\\ *\\l\\}/}/g;
+    s/  +/ /g;
+    s/\\\|/|/g;
+    s/\\{([a-z0-9_]+)\|/${1}|{/gi;
+    s/-\\ +//g;
+    s/\\ \\l/|/g;
+    s/\|\\l \\}/}/g;
+    s/\|\\}/}/g;
     s/{\n/{\n\tedge [arrowtail=none, arrowhead=crow];\n/;
   ' |
   tee ${i%.sql}.dot |

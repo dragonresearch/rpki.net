@@ -157,6 +157,11 @@ ALTER TABLE bsc_cert
                              REFERENCES bsc;
 
 
+ALTER TABLE ca
+       ADD FOREIGN KEY (parent_id)
+                             REFERENCES parent;
+
+
 ALTER TABLE ca_detail
        ADD FOREIGN KEY (ca_id)
                              REFERENCES ca;

@@ -45,8 +45,8 @@ class base_elt(object):
     if value is not None:
       lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap=nsmap).text = base64.b64encode(value)
 
-  def serve_pdu(self, gctx, r_msg, child):
-    raise NotImplementedError
+  def serve_pdu(self, gctx, q_msg, r_msg, child):
+    raise rpki.exceptions.BadQuery, "Unexpected query type %s" % q_msg.type
 
 class multi_uri(list):
   """Container for a set of URIs."""
@@ -140,7 +140,7 @@ class list_pdu(base_elt):
     """Generate (empty) payload of "list" PDU."""
     return []
 
-  def serve_pdu(self, gctx, r_msg, child):
+  def serve_pdu(self, gctx, q_msg, r_msg, child):
     r_msg.payload = list_response_pdu()
     irdb_as, irdb_v4, irdb_v6 = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
     for ca_id in rpki.sql.fetch_column(gctx.cur, "SELECT ca_id FROM ca WHERE ca.parent_id = parent.parent_id AND parent.self_id = %s" % child.self_id):
@@ -186,14 +186,14 @@ class list_response_pdu(base_elt):
   def startElement(self, stack, name, attrs):
     """Handle "list_response" PDU."""
     assert name == "class", "Unexpected name %s, stack %s" % (name, stack)
-    klass = class_elt()
-    self.classes.append(klass)
-    stack.append(klass)
-    klass.startElement(stack, name, attrs)
+    c = class_elt()
+    self.classes.append(c)
+    stack.append(c)
+    c.startElement(stack, name, attrs)
       
   def toXML(self):
     """Generate payload of "list_response" PDU."""
-    return [i.toXML() for i in self.classes]
+    return [c.toXML() for c in self.classes]
 
 class issue_pdu(base_elt):
   """Up-Down protocol "issue" PDU."""
@@ -218,6 +218,9 @@ class issue_pdu(base_elt):
     elt.text = self.pkcs10.get_Base64()
     return [elt]
 
+  def serve_pdu(self, gctx, q_msg, r_msg, child):
+    raise NotImplementedError
+
 class issue_response_pdu(list_response_pdu):
   """Up-Down protocol "issue_response" PDU."""
 
@@ -226,8 +229,8 @@ class issue_response_pdu(list_response_pdu):
     assert len(self.classes) == 1
     return list_response_pdu.toXML(self)
 
-class revoke_pdu(base_elt):
-  """Up-Down protocol "revoke" PDU."""
+class revoke_elt(base_elt):
+  """Syntax for Up-Down protocol "revoke" and "revoke_response" PDUs."""
 
   def startElement(self, stack, name, attrs):
     """Handle "revoke" PDU."""
@@ -238,8 +241,15 @@ class revoke_pdu(base_elt):
     """Generate payload of "revoke" PDU."""
     return [self.make_elt("key", "class_name", "ski")]
 
-class revoke_response_pdu(revoke_pdu):
+class revoke_pdu(revoke_elt):
+  """Up-Down protocol "revoke" PDU."""
+
+  def serve_pdu(self, gctx, q_msg, r_msg, child):
+    raise NotImplementedError
+
+class revoke_response_pdu(revoke_elt):
   """Up-Down protocol "revoke_response" PDU."""
+
   pass
 
 class error_response_pdu(base_elt):
@@ -318,7 +328,7 @@ class message_pdu(base_elt):
 
   def serve_top_level(self, gctx, child):
     r_msg = self.__class__()
-    self.payload.serve_pdu(self, gctx, r_msg, child)
+    self.payload.serve_pdu(gctx, self, r_msg, child)
     return r_msg
 
 class sax_handler(rpki.sax_utils.handler):

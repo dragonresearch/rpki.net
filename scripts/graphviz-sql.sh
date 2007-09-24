@@ -1,15 +1,14 @@
 #!/bin/sh -
 # $Id$
-
+#
 # This uses the SQL::Translator package (aka "SQL Fairy") to parse
 # an SQL schema and graph the result via GraphViz.
 #
-# SQL::Translator appears to be pretty good at analyzing SQL.  It's not
-# so hot at generating the "dot" language, or maybe it's just that
-# the Perl GraphViz module is buggy, but the simplest solution is just
-# to whack sqlt-graph's broken output into shape.
-
-# Bugs: this assumes that SQL::Translate always draws edges one->many.
+# SQL::Translator appears to be pretty good at analyzing SQL, but is
+# badly confused about how to format record labels in the "dot"
+# language.  Simplest solution for now is just to whack sqlt-graph's
+# broken output into shape, in the long run I should send the author a
+# patch.
 
 for i in *.sql
 do

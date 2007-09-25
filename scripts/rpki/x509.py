@@ -218,9 +218,16 @@ class X509(DER_object):
     """Get the SKI extension from this certificate."""
     return self._get_POW_extensions().get("subjectKeyIdentifier")
 
-  def get_3779resources(self):
+  def get_3779resources(self, as_intersector = None, v4_intersector = None, v6_intersector = None):
     """Get RFC 3779 resources as rpki.resource_set objects."""
-    return rpki.resource_set.parse_extensions(self.get_POWpkix().getExtensions())
+    as, v4, v6 = rpki.resource_set.parse_extensions(self.get_POWpkix().getExtensions())
+    if as_intersector:
+      as = as.intersection(as_intersector)
+    if v4_intersector:
+      v4 = v4.intersection(v4_intersector)
+    if v6_intersector:
+      v6 = v6.intersection(v6_intersector)
+    return as, v4, v6
 
 class X509_chain(list):
   """Collections of certs.

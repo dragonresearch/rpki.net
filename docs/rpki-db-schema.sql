@@ -1,7 +1,5 @@
 -- $Id$
 
-DROP TABLE IF EXISTS bsc;
-
 DROP TABLE IF EXISTS self;
 
 CREATE TABLE self (
@@ -19,6 +17,8 @@ CREATE TABLE self_pref (
        PRIMARY KEY          (self_id, pref_name),
        FOREIGN KEY          (self_id) REFERENCES self
 );
+
+DROP TABLE IF EXISTS bsc;
 
 CREATE TABLE bsc (
        bsc_id               SERIAL NOT NULL,

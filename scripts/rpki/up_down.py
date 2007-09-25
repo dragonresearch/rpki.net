@@ -134,17 +134,17 @@ class class_elt(base_elt):
     self.make_b64elt(elt, "issuer", self.issuer.get_DER())
     return elt
 
-def cons_resource_class(now, child, ca_id, irdb_as, irdb_v4, irdb_v6):
-  latest_ca_detail = None
-  for ca_detail in rpki.sql.ca_detail_elt.sql_fetch_where(gctx.db, gctx.cur, "ca_id = %s" % ca_id):
-    if ca_detail.latest_ca_cert_over_public_key is not None and \
-       ca_detail.latest_ca_cert_over_public_key.getNotBefore() <= now and \
-       ca_detail.latest_ca_cert_over_public_key.getNotAfter()  >= now and \
-       (latest_ca_detail is None or ca_detail.latest_ca_cert_over_public_key.getNotBefore() > latest_ca_detail.latest_ca_cert_over_public_key.getNotBefore()):
-      latest_ca_detail = ca_detail
-  if not latest_ca_detail:
+def cons_resource_class(gctx, now, child, ca_id, irdb_as, irdb_v4, irdb_v6):
+  ca_detail = None
+  for c in rpki.sql.ca_detail_elt.sql_fetch_where(gctx.db, gctx.cur, "ca_id = %s" % ca_id):
+    if c.latest_ca_cert_over_public_key is not None and \
+       c.latest_ca_cert_over_public_key.getNotBefore() <= now and \
+       c.latest_ca_cert_over_public_key.getNotAfter()  >= now and \
+       (ca_detail is None or c.latest_ca_cert_over_public_key.getNotBefore() > ca_detail.latest_ca_cert_over_public_key.getNotBefore()):
+      ca_detail = c
+  if not ca_detail:
     return None
-  rc_as, rc_v4, rc_v6 = latest_ca_detail.latest_ca_cert_over_public_key.get_3779resources()
+  rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert_over_public_key.get_3779resources()
   rc_as.intersection(irdb_as)
   rc_v4.intersection(irdb_v4)
   rc_v6.intersection(irdb_v6)
@@ -156,10 +156,10 @@ def cons_resource_class(now, child, ca_id, irdb_as, irdb_v4, irdb_v6):
   rc.resource_set_as = rc_as
   rc.resource_set_ipv4 = rc_v4
   rc.resource_set_ipv6 = rc_v6
-  if child.certs[latest_ca_detail.ca_detail_id]:
+  for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx.db, gctx.cur, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
     c = certificate_elt()
     c.cert_url = "rsync://niy.invalid"
-    c.cert = child.certs[latest_ca_detail.ca_detail_id]
+    c.cert = child_cert.cert
     rc.certs.append(c)
   return rc
 
@@ -175,7 +175,7 @@ class list_pdu(base_elt):
     irdb_as, irdb_v4, irdb_v6 = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
     now = int(time.time())
     for ca_id in rpki.sql.fetch_column(gctx.cur, "SELECT ca_id FROM ca WHERE ca.parent_id = parent.parent_id AND parent.self_id = %s" % child.self_id):
-      rc = cons_resource_class(now = now, child = child, ca_id = ca_id, irdb_as = irdb_as, irdb_v4 = irdb_v4, irdb_v6 = irdb_v6)
+      rc = cons_resource_class(gctx = gctx, now = now, child = child, ca_id = ca_id, irdb_as = irdb_as, irdb_v4 = irdb_v4, irdb_v6 = irdb_v6)
       if rc is not None:
         r_msg.payload.classes.append(rc)
 

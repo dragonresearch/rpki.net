@@ -347,21 +347,6 @@ class child_elt(data_elt):
 
   peer_ta = None
 
-  def __init__(self):
-    self.certs = {}
-
-  def sql_fetch_hook(self, db, cur):
-    cur.execute("SELECT ca_detail_id, cert FROM child_cert WHERE child_id = %s", self.child_id)
-    self.certs = dict((ca_detail_id, rpki.x509.X509(DER=cert)) for (ca_detail_id, cert) in cur.fetchall())
-
-  def sql_insert_hook(self, db, cur):
-    if self.certs:
-      cur.executemany("INSERT child_cert (child_id, ca_detail_id, cert) VALUES (%s, %s, %s)",
-                      ((self.child_id, ca_detail_id, cert.get_DER()) for (ca_detail_id, cert) in self.certs.items()))
-  
-  def sql_delete_hook(self, db, cur):
-    cur.execute("DELETE FROM child_cert where child_id = %s", self.child_id)
-    
   def serve_post_save_hook(self, q_pdu, r_pdu):
     if self.reissue:
       raise NotImplementedError

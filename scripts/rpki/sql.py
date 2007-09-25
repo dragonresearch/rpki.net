@@ -158,6 +158,11 @@ class sql_persistant(object):
 # Some persistant objects are defined in rpki.left_right, since
 # they're also left-right PDUs.  The rest are defined below, for now.
 
+class ca_obj(sql_persistant):
+  """Internal CA object."""
+
+  sql_template = template("ca", "ca_id", "last_crl_sn", "next_crl_update", "last_issued_sn", "last_manifest_sn", "next_manifest_update", "sia_uri", "parent_id")
+
 class ca_detail_obj(sql_persistant):
   """Internal CA detail object."""
 
@@ -192,7 +197,16 @@ class ca_detail_obj(sql_persistant):
     d["manifest_ee_cert"] = self.manifest_ee_cert.get_DER()
     return d
 
-class ca_obj(sql_persistant):
-  """Internal CA object."""
+class child_cert_obj(sql_persistant):
+  """Certificate that has been issued to a child."""
 
-  sql_template = template("ca", "ca_id", "last_crl_sn", "next_crl_update", "last_issued_sn", "last_manifest_sn", "next_manifest_update", "sia_uri", "parent_id")
+  sql_template = template("child_cert", "child_cert_id", "cert", "child_id", "ca_detail_id")
+
+  def sql_decode(self, vals):
+    sql_persistant.sql_decode(self, vals)
+    self.cert = rpki.x509.X509(DER = self.cert)
+
+  def sql_encode(self):
+    d = sql_persistant.sql_encode(self)
+    d["cert"] = self.cert.get_DER()
+    return d

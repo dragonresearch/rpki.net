@@ -1,37 +1,74 @@
-drop table if exists bsc;
-drop table if exists bsc_cert;
-drop table if exists ca;
-drop table if exists ca_detail;
-drop table if exists child_ca_link;
-drop table if exists child;
-drop table if exists child_ca_certificate;
-drop table if exists ee_cert;
-drop table if exists manifest;
-drop table if exists parent;
-drop table if exists repository;
-drop table if exists roa;
-drop table if exists route_origin;
-drop table if exists self;
-drop table if exists self_pref;
-drop table if exists route_origin_range;
+-- $Id$
 
+DROP TABLE IF EXISTS bsc;
+
+DROP TABLE IF EXISTS self;
+
+CREATE TABLE self (
+       self_id              SERIAL NOT NULL,
+       use_hsm              BOOLEAN,
+       PRIMARY KEY          (self_id)
+);
+
+DROP TABLE IF EXISTS self_pref;
+
+CREATE TABLE self_pref (
+       pref_name            VARCHAR(100),
+       pref_value           TEXT,
+       self_id              BIGINT unsigned NOT NULL,
+       PRIMARY KEY          (self_id, pref_name),
+       FOREIGN KEY          (self_id) REFERENCES self
+);
 
 CREATE TABLE bsc (
        bsc_id               SERIAL NOT NULL,
        private_key_id       LONGBLOB,
        self_id              BIGINT unsigned NOT NULL,
        public_key           LONGBLOB,
-       PRIMARY KEY (bsc_id)
+       PRIMARY KEY          (bsc_id),
+       FOREIGN KEY          (self_id) REFERENCES self
 );
 
+DROP TABLE IF EXISTS bsc_cert;
 
 CREATE TABLE bsc_cert (
        bsc_cert_id          SERIAL NOT NULL,
        cert                 LONGBLOB,
        bsc_id               BIGINT unsigned NOT NULL,
-       PRIMARY KEY (bsc_cert_id)
+       PRIMARY KEY          (bsc_cert_id),
+       FOREIGN KEY          (bsc_id) REFERENCES bsc
 );
 
+DROP TABLE IF EXISTS repository;
+
+CREATE TABLE repository (
+       repository_id        SERIAL NOT NULL,
+       peer_contact_uri     TEXT,
+       peer_ta              LONGBLOB,
+       bsc_id               BIGINT unsigned NOT NULL,
+       self_id              BIGINT unsigned NOT NULL,
+       PRIMARY KEY          (repository_id),
+       FOREIGN KEY          (self_id) REFERENCES self,
+       FOREIGN KEY          (bsc_id) REFERENCES bsc
+);
+
+DROP TABLE IF EXISTS parent;
+
+CREATE TABLE parent (
+       parent_id            SERIAL NOT NULL,
+       peer_ta              LONGBLOB,
+       peer_contact_uri     TEXT,
+       sia_base             TEXT,
+       self_id              BIGINT unsigned NOT NULL,
+       bsc_id               BIGINT unsigned NOT NULL,
+       repository_id        BIGINT unsigned NOT NULL,
+       PRIMARY KEY          (parent_id),
+       FOREIGN KEY          (repository_id) REFERENCES repository,
+       FOREIGN KEY          (bsc_id) REFERENCES bsc,
+       FOREIGN KEY          (self_id) REFERENCES self
+);
+
+DROP TABLE IF EXISTS ca;
 
 CREATE TABLE ca (
        ca_id                SERIAL NOT NULL,
@@ -42,9 +79,11 @@ CREATE TABLE ca (
        last_issued_sn       BIGINT unsigned,
        sia_uri              TEXT,
        parent_id            BIGINT unsigned,
-       PRIMARY KEY (ca_id)
+       PRIMARY KEY          (ca_id),
+       FOREIGN KEY          (parent_id) REFERENCES parent
 );
 
+DROP TABLE IF EXISTS ca_detail;
 
 CREATE TABLE ca_detail (
        ca_detail_id         SERIAL NOT NULL,
@@ -57,195 +96,71 @@ CREATE TABLE ca_detail (
        latest_manifest_ee_cert LONGBLOB,
        latest_manifest      LONGBLOB,
        ca_id                BIGINT unsigned NOT NULL,
-       PRIMARY KEY (ca_detail_id)
+       PRIMARY KEY          (ca_detail_id),
+       FOREIGN KEY          (ca_id) REFERENCES ca
 );
 
+DROP TABLE IF EXISTS child;
 
 CREATE TABLE child (
        child_id             SERIAL NOT NULL,
        peer_ta              LONGBLOB,
        self_id              BIGINT unsigned NOT NULL,
        bsc_id               BIGINT unsigned NOT NULL,
-       PRIMARY KEY (child_id)
+       PRIMARY KEY          (child_id),
+       FOREIGN KEY          (bsc_id) REFERENCES bsc,
+       FOREIGN KEY          (self_id) REFERENCES self
 );
 
+DROP TABLE IF EXISTS child_ca_certificate;
 
 CREATE TABLE child_ca_certificate (
        child_id             BIGINT unsigned NOT NULL,
        ca_detail_id         BIGINT unsigned NOT NULL,
        cert                 LONGBLOB NOT NULL,
-       PRIMARY KEY (child_id, ca_detail_id)
+       PRIMARY KEY          (child_id, ca_detail_id),
+       FOREIGN KEY          (ca_detail_id) REFERENCES ca_detail,
+       FOREIGN KEY          (child_id) REFERENCES child
 );
 
+DROP TABLE IF EXISTS child_ca_link;
 
 CREATE TABLE child_ca_link (
        ca_id                BIGINT unsigned NOT NULL,
        child_id             BIGINT unsigned NOT NULL,
-       PRIMARY KEY (ca_id, child_id)
+       PRIMARY KEY          (ca_id, child_id),
+       FOREIGN KEY          (child_id) REFERENCES child,
+       FOREIGN KEY          (ca_id) REFERENCES ca
 );
 
+DROP TABLE IF EXISTS route_origin;
 
-CREATE TABLE parent (
-       parent_id            SERIAL NOT NULL,
-       peer_ta              LONGBLOB,
-       peer_contact_uri     TEXT,
-       sia_base             TEXT,
+CREATE TABLE route_origin (
+       route_origin_id      SERIAL NOT NULL,
+       as_number            DECIMAL(24,0),
        self_id              BIGINT unsigned NOT NULL,
-       bsc_id               BIGINT unsigned NOT NULL,
-       repository_id        BIGINT unsigned NOT NULL,
-       PRIMARY KEY (parent_id)
+       PRIMARY KEY          (route_origin_id),
+       FOREIGN KEY          (self_id) REFERENCES self
 );
 
+DROP TABLE IF EXISTS route_origin_range;
 
-CREATE TABLE repository (
-       repository_id        SERIAL NOT NULL,
-       peer_contact_uri     TEXT,
-       peer_ta              LONGBLOB,
-       bsc_id               BIGINT unsigned NOT NULL,
-       self_id              BIGINT unsigned NOT NULL,
-       PRIMARY KEY (repository_id)
+CREATE TABLE route_origin_range (
+       start_ip             VARCHAR(40),
+       end_ip               VARCHAR(40),
+       route_origin_id      BIGINT unsigned NOT NULL,
+       PRIMARY KEY          (route_origin_id, start_ip, end_ip),
+       FOREIGN KEY          (route_origin_id) REFERENCES route_origin
 );
 
+DROP TABLE IF EXISTS roa;
 
 CREATE TABLE roa (
        route_origin_id      BIGINT unsigned NOT NULL,
        ee_cert              LONGBLOB,
        roa                  LONGBLOB NOT NULL,
        ca_detail_id         BIGINT unsigned NOT NULL,
-       PRIMARY KEY (route_origin_id, ca_detail_id)
+       PRIMARY KEY          (route_origin_id, ca_detail_id),
+       FOREIGN KEY          (ca_detail_id) REFERENCES ca_detail,
+       FOREIGN KEY          (route_origin_id) REFERENCES route_origin
 );
-
-
-CREATE TABLE route_origin (
-       route_origin_id      SERIAL NOT NULL,
-       as_number            DECIMAL(24,0),
-       self_id              BIGINT unsigned NOT NULL,
-       PRIMARY KEY (route_origin_id)
-);
-
-
-CREATE TABLE route_origin_range (
-       start_ip             VARCHAR(40),
-       end_ip               VARCHAR(40),
-       route_origin_id      BIGINT unsigned NOT NULL,
-       PRIMARY KEY (route_origin_id, start_ip, end_ip)
-);
-
-
-CREATE TABLE self (
-       self_id              SERIAL NOT NULL,
-       use_hsm              BOOLEAN,
-       PRIMARY KEY (self_id)
-);
-
-
-CREATE TABLE self_pref (
-       pref_name            VARCHAR(100),
-       pref_value           TEXT,
-       self_id              BIGINT unsigned NOT NULL,
-       PRIMARY KEY (self_id, pref_name)
-);
-
-
-ALTER TABLE bsc
-       ADD FOREIGN KEY (self_id)
-                             REFERENCES self;
-
-
-ALTER TABLE bsc_cert
-       ADD FOREIGN KEY (bsc_id)
-                             REFERENCES bsc;
-
-
-ALTER TABLE ca
-       ADD FOREIGN KEY (parent_id)
-                             REFERENCES parent;
-
-
-ALTER TABLE ca_detail
-       ADD FOREIGN KEY (ca_id)
-                             REFERENCES ca;
-
-
-ALTER TABLE child
-       ADD FOREIGN KEY (bsc_id)
-                             REFERENCES bsc;
-
-
-ALTER TABLE child
-       ADD FOREIGN KEY (self_id)
-                             REFERENCES self;
-
-
-ALTER TABLE child_ca_certificate
-       ADD FOREIGN KEY (ca_detail_id)
-                             REFERENCES ca_detail;
-
-
-ALTER TABLE child_ca_certificate
-       ADD FOREIGN KEY (child_id)
-                             REFERENCES child;
-
-
-ALTER TABLE child_ca_link
-       ADD FOREIGN KEY (child_id)
-                             REFERENCES child;
-
-
-ALTER TABLE child_ca_link
-       ADD FOREIGN KEY (ca_id)
-                             REFERENCES ca;
-
-
-ALTER TABLE parent
-       ADD FOREIGN KEY (repository_id)
-                             REFERENCES repository;
-
-
-ALTER TABLE parent
-       ADD FOREIGN KEY (bsc_id)
-                             REFERENCES bsc;
-
-
-ALTER TABLE parent
-       ADD FOREIGN KEY (self_id)
-                             REFERENCES self;
-
-
-ALTER TABLE repository
-       ADD FOREIGN KEY (self_id)
-                             REFERENCES self;
-
-
-ALTER TABLE repository
-       ADD FOREIGN KEY (bsc_id)
-                             REFERENCES bsc;
-
-
-ALTER TABLE roa
-       ADD FOREIGN KEY (ca_detail_id)
-                             REFERENCES ca_detail;
-
-
-ALTER TABLE roa
-       ADD FOREIGN KEY (route_origin_id)
-                             REFERENCES route_origin;
-
-
-ALTER TABLE route_origin
-       ADD FOREIGN KEY (self_id)
-                             REFERENCES self;
-
-
-ALTER TABLE route_origin_range
-       ADD FOREIGN KEY (route_origin_id)
-                             REFERENCES route_origin;
-
-
-ALTER TABLE self_pref
-       ADD FOREIGN KEY (self_id)
-                             REFERENCES self;
-
-
-
-

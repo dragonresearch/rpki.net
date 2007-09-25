@@ -161,6 +161,7 @@ def cons_resource_class(gctx, now, child, ca_id, irdb_as, irdb_v4, irdb_v6):
     c.cert_url = "rsync://niy.invalid"
     c.cert = child_cert.cert
     rc.certs.append(c)
+  rc.issuer = ca_detail.latest_ca_cert_over_public_key
   return rc
 
 class list_pdu(base_elt):

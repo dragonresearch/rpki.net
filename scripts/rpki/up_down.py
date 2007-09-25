@@ -227,6 +227,34 @@ class issue_pdu(base_elt):
     return [elt]
 
   def serve_pdu(self, gctx, q_msg, r_msg, child):
+
+    # Tasks:
+    #
+    # 1) self.class_naem is ca_id, so pull the corresponding ca
+    #    object, throw an exception if we can't find it.
+    #
+    # 2) Check that PKCS#10 is legal according to the profile (has all
+    #    required fields, doesn't have any forbidden fields, fields
+    #    that it has don't conflict with anything we already know).
+    #
+    # 3) Find any certs already issued to this child for these
+    #    resources (approximately the same algorithm used for
+    #    list_response).  Check:
+    #
+    # 3a) that resources match exactly
+    #
+    # 3b) that public key matches exactly
+    #
+    # 3c) that any relevant extensions in the pkcs10 match exactly
+    #
+    # 3d) that the expiration time of the cert is far enough into the
+    #     future?
+    #
+    #    If existing cert passes all these checks, just return it.
+    #
+    # 4) If we get this far we need to generate the new cert, then
+    #    return it.
+
     raise NotImplementedError
 
 class issue_response_pdu(class_response_syntax):

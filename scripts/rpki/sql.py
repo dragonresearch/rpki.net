@@ -6,7 +6,6 @@ def connect(cfg, section="sql"):
   """Connect to a MySQL database using connection parameters from an
      rpki.config.parser object.
   """
-
   return MySQLdb.connect(user   = cfg.get(section, "sql-username"),
                          db     = cfg.get(section, "sql-database"),
                          passwd = cfg.get(section, "sql-password"))
@@ -29,11 +28,14 @@ class template(object):
 
 sql_cache = {}
 
-def cache_clear():
+def sql_cache_clear():
   """Clear the object cache."""
-
   sql_cache = {}
 
+def sql_cache_assert_pristine():
+  """Assert that there are no dirty objects in the cache."""
+  dirty = [obj for obj in sql_cache.values() if obj.sql_dirty]
+  assert not dirty, "Dirty objects in SQL cache: %s" % dirty
 
 def fetch_column(cur, *query):
   """Pull a single column from SQL, return it as a list."""

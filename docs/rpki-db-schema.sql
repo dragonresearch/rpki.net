@@ -86,19 +86,19 @@ CREATE TABLE ca (
 DROP TABLE IF EXISTS ca_detail;
 
 CREATE TABLE ca_detail (
-       ca_detail_id                     SERIAL NOT NULL,
-       public_key                       LONGBLOB,
-       private_key_handle               LONGBLOB,
-       latest_crl                       LONGBLOB,
-       latest_ca_cert_over_public_key   LONGBLOB,
-       manifest_ee_private_key_handle   LONGBLOB,
-       manifest_ee_public_key           LONGBLOB,
-       latest_manifest_ee_cert          LONGBLOB,
-       latest_manifest                  LONGBLOB,
-       state				ENUM ('active', 'deprecated', 'pending') NOT NULL,
-       ca_id                            BIGINT unsigned NOT NULL,
-       PRIMARY KEY                      (ca_detail_id),
-       FOREIGN KEY                      (ca_id) REFERENCES ca
+       ca_detail_id             SERIAL NOT NULL,
+       public_key               LONGBLOB,
+       private_key_id           LONGBLOB,
+       latest_crl               LONGBLOB,
+       latest_ca_cert           LONGBLOB,
+       manifest_private_key_id  LONGBLOB,
+       manifest_public_key      LONGBLOB,
+       latest_manifest_cert     LONGBLOB,
+       latest_manifest          LONGBLOB,
+       state                    ENUM ('active', 'deprecated', 'pending') NOT NULL,
+       ca_id                    BIGINT unsigned NOT NULL,
+       PRIMARY KEY              (ca_detail_id),
+       FOREIGN KEY              (ca_id) REFERENCES ca
 );
 
 DROP TABLE IF EXISTS child;

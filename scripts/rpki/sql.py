@@ -166,8 +166,8 @@ class ca_obj(sql_persistant):
 class ca_detail_obj(sql_persistant):
   """Internal CA detail object."""
 
-  sql_template = template("ca", "ca_detail_id", "private_key_handle", "public_key", "latest_ca_cert_over_public_key", "manifest_ee_private_key_handle",
-                          "manifest_ee_public_key", "latest_manifest_ee_cert", "latest_manifest", "latest_crl", "ca_id")
+  sql_template = template("ca", "ca_detail_id", "private_key_id", "public_key", "latest_ca_cert", "manifest_private_key_id",
+                          "manifest_public_key", "latest_manifest_cert", "latest_manifest", "latest_crl", "ca_id")
 
   def __init__(self):
     self.certs = []
@@ -175,26 +175,26 @@ class ca_detail_obj(sql_persistant):
   def sql_decode(self, vals):
     sql_persistant.sql_decode(self, vals)
 
-    self.private_key_handle = rpki.x509.RSA_Keypair(DER = self.private_key_handle)
+    self.private_key_id = rpki.x509.RSA_Keypair(DER = self.private_key_id)
     if self.public_key is not None:
-      assert self.private_key_handle.get_public_DER() == self.public_key
+      assert self.private_key_id.get_public_DER() == self.public_key
 
-    self.latest_ca_cert_over_public_key = rpki.x509.X509(DER = self.latest_ca_cert_over_public_key)
+    self.latest_ca_cert = rpki.x509.X509(DER = self.latest_ca_cert)
 
-    self.manifest_ee_private_key_handle = rpki.x509.RSA_Keypair(DER = self.manifest_ee_private_key_handle)
-    if self.manifest_ee_public_key is not None:
-      assert self.manifest_ee_private_key_handle.get_public_DER() == self.manifest_ee_public_key
+    self.manifest_private_key_id = rpki.x509.RSA_Keypair(DER = self.manifest_private_key_id)
+    if self.manifest_public_key is not None:
+      assert self.manifest_private_key_id.get_public_DER() == self.manifest_public_key
 
-    self.manifest_ee_cert = rpki.x509.X509(DER = self.manifest_ee_cert)
+    self.manifest_cert = rpki.x509.X509(DER = self.manifest_cert)
 
     # todo: manifest, crl
 
   def sql_encode(self):
     d = sql_persistant.sql_encode(self)
-    d["private_key_handle"] = self.private_key_handle.get_DER()
-    d["latest_ca_cert_over_public_key"] = self.latest_ca_cert_over_public_key.get_DER()
-    d["manifest_ee_private_key_handle"] = self.manifest_ee_private_key_handle.get_DER()
-    d["manifest_ee_cert"] = self.manifest_ee_cert.get_DER()
+    d["private_key_id"] = self.private_key_id.get_DER()
+    d["latest_ca_cert"] = self.latest_ca_cert.get_DER()
+    d["manifest_private_key_id"] = self.manifest_private_key_id.get_DER()
+    d["manifest_cert"] = self.manifest_cert.get_DER()
     return d
 
 class child_cert_obj(sql_persistant):

@@ -345,6 +345,11 @@ class child_elt(data_elt):
 
   sql_template = rpki.sql.template("child", "child_id", "self_id", "bsc_id", "peer_ta")
 
+  peer_ta = None
+
+  def __init__(self):
+    self.certs = {}
+
   def sql_fetch_hook(self, db, cur):
     self.cas = rpki.sql.fetch_column(cur, "SELECT ca_id FROM child_ca_link WHERE child_id = %s", self.child_id)
     cur.execute("SELECT ca_detail_id, cert FROM child_ca_certificate WHERE child_id = %s", self.child_id)
@@ -356,14 +361,12 @@ class child_elt(data_elt):
                       ((x.ca_id, self.child_id) for x in self.cas))
     if self.certs:
       cur.executemany("INSERT child_ca_certificate (child_id, ca_detail_id, cert) VALUES (%s, %s, %s)",
-                      ((self.child_id, ca_detail_id, cert.get_DER()) for (ca_detail_id, cert) in self.certs))
+                      ((self.child_id, ca_detail_id, cert.get_DER()) for (ca_detail_id, cert) in self.certs.items()))
   
   def sql_delete_hook(self, db, cur):
     cur.execute("DELETE FROM child_ca_link where child_id = %s", self.child_id)
     cur.execute("DELETE FROM child_ca_certificate where child_id = %s", self.child_id)
     
-  peer_ta = None
-
   def serve_post_save_hook(self, q_pdu, r_pdu):
     if self.reissue:
       raise NotImplementedError

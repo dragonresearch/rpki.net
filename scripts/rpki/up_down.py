@@ -2,7 +2,8 @@
 
 """RPKI "up-down" protocol."""
 
-import base64, rpki.sax_utils, rpki.resource_set, lxml.etree, x509, rpki.exceptions
+import base64, lxml.etree, time
+import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.exceptions
 
 xmlns="http://www.apnic.net/specs/rescerts/up-down/"
 
@@ -87,7 +88,7 @@ class certificate_elt(base_elt):
   def endElement(self, stack, name, text):
     """Handle text content of a <certificate/> element."""
     assert name == "certificate", "Unexpected name %s, stack %s" % (name, stack)
-    self.cert = x509.X509(Base64=text)
+    self.cert = rpki.x509.X509(Base64=text)
     stack.pop()
 
   def toXML(self):
@@ -121,7 +122,7 @@ class class_elt(base_elt):
   def endElement(self, stack, name, text):
     """Handle <class/> elements and their children."""
     if name == "issuer":
-      self.issuer = x509.X509(Base64=text)
+      self.issuer = rpki.x509.X509(Base64=text)
     else:
       assert name == "class", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -133,6 +134,35 @@ class class_elt(base_elt):
     self.make_b64elt(elt, "issuer", self.issuer.get_DER())
     return elt
 
+def cons_resource_class(now, child, ca_id, irdb_as, irdb_v4, irdb_v6):
+  latest_ca_detail = None
+  for ca_detail in rpki.sql.ca_detail_elt.sql_fetch_where(gctx.db, gctx.cur, "ca_id = %s" % ca_id):
+    if ca_detail.latest_ca_cert_over_public_key is not None and \
+       ca_detail.latest_ca_cert_over_public_key.getNotBefore() <= now and \
+       ca_detail.latest_ca_cert_over_public_key.getNotAfter()  >= now and \
+       (latest_ca_detail is None or ca_detail.latest_ca_cert_over_public_key.getNotBefore() > latest_ca_detail.latest_ca_cert_over_public_key.getNotBefore()):
+      latest_ca_detail = ca_detail
+  if not latest_ca_detail:
+    return None
+  rc_as, rc_v4, rc_v6 = latest_ca_detail.latest_ca_cert_over_public_key.get_3779resources()
+  rc_as.intersection(irdb_as)
+  rc_v4.intersection(irdb_v4)
+  rc_v6.intersection(irdb_v6)
+  if not rc_as and not rc_v4 and not rc_v6:
+    return None
+  rc = class_elt()
+  rc.class_name = str(ca_id)
+  rc.cert_url = "rsync://niy.invalid"
+  rc.resource_set_as = rc_as
+  rc.resource_set_ipv4 = rc_v4
+  rc.resource_set_ipv6 = rc_v6
+  if child.certs[latest_ca_detail.ca_detail_id]:
+    c = certificate_elt()
+    c.cert_url = "rsync://niy.invalid"
+    c.cert = child.certs[latest_ca_detail.ca_detail_id]
+    rc.certs.append(c)
+  return rc
+
 class list_pdu(base_elt):
   """Up-Down protocol "list" PDU."""
 
@@ -143,48 +173,20 @@ class list_pdu(base_elt):
   def serve_pdu(self, gctx, q_msg, r_msg, child):
     r_msg.payload = list_response_pdu()
     irdb_as, irdb_v4, irdb_v6 = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
+    now = int(time.time())
     for ca_id in rpki.sql.fetch_column(gctx.cur, "SELECT ca_id FROM ca WHERE ca.parent_id = parent.parent_id AND parent.self_id = %s" % child.self_id):
-      ca_details = rpki.sql.ca_detail_elt.sql_fetch_where(gctx.db, gctx.cur, "ca_id = %s" % ca_id)
-      if not ca_details:
-        continue
-      rc_as, rc_v4, rc_v6 = ca_detail[0].latest_ca_cert_over_public_key.get_3779resources()
-      for ca_detail in ca_details[1:]:
-        as, v4, v6 = ca_detail.latest_ca_cert_over_public_key.get_3779resources()
-        rc_as.union(as)
-        rc_v4.union(v4)
-        rc_v6.union(v6)
-      rc_as.intersection(irdb_as)
-      rc_v4.intersection(irdb_v4)
-      rc_v6.intersection(irdb_v6)
-      if not rc_as and not rc_v4 and not rc_v6:
-        continue
-      rc = class_elt()
-      rc.class_name = str(ca_id)
-      rc.cert_url = "rsync://niy.invalid"
-      rc.resource_set_as = rc_as
-      rc.resource_set_ipv4 = rc_v4
-      rc.resource_set_ipv6 = rc_v6
-      for ca_detail in ca_details:
-        as, v4, v6 = ca_detail.latest_ca_cert_over_public_key.get_3779resources()
-        as.intersection(irdb_as)
-        v4.intersection(irdb_v4)
-        v6.intersection(irdb_v6)
-        if not as and not v4 and not v6:
-          continue
-        c = certificate_elt()
-        c.cert_url = "rsync://niy.invalid"
-        c.cert = ca_detail.latest_ca_cert_over_public_key
-        rc.certs.append(c)
-      r_msg.payload.classes.append(rc)
+      rc = cons_resource_class(now = now, child = child, ca_id = ca_id, irdb_as = irdb_as, irdb_v4 = irdb_v4, irdb_v6 = irdb_v6)
+      if rc is not None:
+        r_msg.payload.classes.append(rc)
 
-class list_response_pdu(base_elt):
-  """Up-Down protocol "list_response" PDU."""
+class class_response_syntax(base_elt):
+  """Syntax for Up-Down protocol "list_response" and "issue_response" PDUs."""
 
   def __init__(self):
     self.classes = []
 
   def startElement(self, stack, name, attrs):
-    """Handle "list_response" PDU."""
+    """Handle "list_response" and "issue_response" PDUs."""
     assert name == "class", "Unexpected name %s, stack %s" % (name, stack)
     c = class_elt()
     self.classes.append(c)
@@ -192,8 +194,13 @@ class list_response_pdu(base_elt):
     c.startElement(stack, name, attrs)
       
   def toXML(self):
-    """Generate payload of "list_response" PDU."""
+    """Generate payload of "list_response" and "issue_response" PDUs."""
     return [c.toXML() for c in self.classes]
+
+class list_response_pdu(class_response_syntax):
+    """Up-Down protocol "list_response" PDU."""
+
+    pass
 
 class issue_pdu(base_elt):
   """Up-Down protocol "issue" PDU."""
@@ -209,7 +216,7 @@ class issue_pdu(base_elt):
   def endElement(self, stack, name, text):
     """Handle "issue" PDU."""
     assert name == "request", "Unexpected name %s, stack %s" % (name, stack)
-    self.pkcs10 = x509.PKCS10_Request(Base64=text)
+    self.pkcs10 = rpki.x509.PKCS10_Request(Base64=text)
     stack.pop()
 
   def toXML(self):
@@ -221,15 +228,12 @@ class issue_pdu(base_elt):
   def serve_pdu(self, gctx, q_msg, r_msg, child):
     raise NotImplementedError
 
-class issue_response_pdu(list_response_pdu):
+class issue_response_pdu(class_response_syntax):
   """Up-Down protocol "issue_response" PDU."""
 
-  def toXML(self):
-    """Generate payload of "issue_response" PDU."""
-    assert len(self.classes) == 1
-    return list_response_pdu.toXML(self)
+  pass
 
-class revoke_elt(base_elt):
+class revoke_syntax(base_elt):
   """Syntax for Up-Down protocol "revoke" and "revoke_response" PDUs."""
 
   def startElement(self, stack, name, attrs):
@@ -241,13 +245,13 @@ class revoke_elt(base_elt):
     """Generate payload of "revoke" PDU."""
     return [self.make_elt("key", "class_name", "ski")]
 
-class revoke_pdu(revoke_elt):
+class revoke_pdu(revoke_syntax):
   """Up-Down protocol "revoke" PDU."""
 
   def serve_pdu(self, gctx, q_msg, r_msg, child):
     raise NotImplementedError
 
-class revoke_response_pdu(revoke_elt):
+class revoke_response_pdu(revoke_syntax):
   """Up-Down protocol "revoke_response" PDU."""
 
   pass

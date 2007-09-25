@@ -25,7 +25,6 @@ do
     s/\|\\}/}/g;
     s/{\n/{\n\tedge [arrowtail=none, arrowhead=crow];\n/;
   ' |
-  tee ${i%.sql}.dot |
   dot -Tps2 |
   ps2pdf - ${i%.sql}.pdf
 done

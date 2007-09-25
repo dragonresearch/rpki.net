@@ -1,3 +1,4 @@
+-- $Id$
 
 DROP TABLE IF EXISTS asn;
 

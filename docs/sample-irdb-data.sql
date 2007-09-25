@@ -1,3 +1,4 @@
+-- $Id$
 
 INSERT INTO registrant (IRBE_mapped_id) VALUES ('ARIN');
 INSERT INTO registrant (IRBE_mapped_id) VALUES ('TIER1_ISP1');

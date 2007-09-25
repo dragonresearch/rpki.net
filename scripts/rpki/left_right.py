@@ -351,21 +351,16 @@ class child_elt(data_elt):
     self.certs = {}
 
   def sql_fetch_hook(self, db, cur):
-    self.cas = rpki.sql.fetch_column(cur, "SELECT ca_id FROM child_ca_link WHERE child_id = %s", self.child_id)
-    cur.execute("SELECT ca_detail_id, cert FROM child_ca_certificate WHERE child_id = %s", self.child_id)
+    cur.execute("SELECT ca_detail_id, cert FROM child_cert WHERE child_id = %s", self.child_id)
     self.certs = dict((ca_detail_id, rpki.x509.X509(DER=cert)) for (ca_detail_id, cert) in cur.fetchall())
 
   def sql_insert_hook(self, db, cur):
-    if self.cas:
-      cur.executemany("INSERT child_ca_link (ca_id, child_id) VALUES (%s, %s)",
-                      ((x.ca_id, self.child_id) for x in self.cas))
     if self.certs:
-      cur.executemany("INSERT child_ca_certificate (child_id, ca_detail_id, cert) VALUES (%s, %s, %s)",
+      cur.executemany("INSERT child_cert (child_id, ca_detail_id, cert) VALUES (%s, %s, %s)",
                       ((self.child_id, ca_detail_id, cert.get_DER()) for (ca_detail_id, cert) in self.certs.items()))
   
   def sql_delete_hook(self, db, cur):
-    cur.execute("DELETE FROM child_ca_link where child_id = %s", self.child_id)
-    cur.execute("DELETE FROM child_ca_certificate where child_id = %s", self.child_id)
+    cur.execute("DELETE FROM child_cert where child_id = %s", self.child_id)
     
   def serve_post_save_hook(self, q_pdu, r_pdu):
     if self.reissue:

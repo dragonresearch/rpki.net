@@ -1,8 +1,5 @@
 # $Id$
 
-all::
-	xmllint --noout left-right-xml
-
 all:: rpki-db-schema.pdf
 
 rpki-db-schema.pdf: rpki-db-schema.sql

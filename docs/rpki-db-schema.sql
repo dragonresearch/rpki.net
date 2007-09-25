@@ -86,18 +86,19 @@ CREATE TABLE ca (
 DROP TABLE IF EXISTS ca_detail;
 
 CREATE TABLE ca_detail (
-       ca_detail_id         SERIAL NOT NULL,
-       public_key           LONGBLOB,
-       private_key_handle   LONGBLOB,
-       latest_crl           LONGBLOB,
-       latest_ca_cert_over_public_key LONGBLOB,
-       manifest_ee_private_key_handle LONGBLOB,
-       manifest_ee_public_key LONGBLOB,
-       latest_manifest_ee_cert LONGBLOB,
-       latest_manifest      LONGBLOB,
-       ca_id                BIGINT unsigned NOT NULL,
-       PRIMARY KEY          (ca_detail_id),
-       FOREIGN KEY          (ca_id) REFERENCES ca
+       ca_detail_id                     SERIAL NOT NULL,
+       public_key                       LONGBLOB,
+       private_key_handle               LONGBLOB,
+       latest_crl                       LONGBLOB,
+       latest_ca_cert_over_public_key   LONGBLOB,
+       manifest_ee_private_key_handle   LONGBLOB,
+       manifest_ee_public_key           LONGBLOB,
+       latest_manifest_ee_cert          LONGBLOB,
+       latest_manifest                  LONGBLOB,
+       state				ENUM ('active', 'deprecated', 'pending') NOT NULL,
+       ca_id                            BIGINT unsigned NOT NULL,
+       PRIMARY KEY                      (ca_detail_id),
+       FOREIGN KEY                      (ca_id) REFERENCES ca
 );
 
 DROP TABLE IF EXISTS child;
@@ -112,25 +113,16 @@ CREATE TABLE child (
        FOREIGN KEY          (self_id) REFERENCES self
 );
 
-DROP TABLE IF EXISTS child_ca_certificate;
+DROP TABLE IF EXISTS child_cert;
 
-CREATE TABLE child_ca_certificate (
+CREATE TABLE child_cert (
+       child_cert_id        SERIAL NOT NULL,
+       cert                 LONGBLOB NOT NULL,
        child_id             BIGINT unsigned NOT NULL,
        ca_detail_id         BIGINT unsigned NOT NULL,
-       cert                 LONGBLOB NOT NULL,
-       PRIMARY KEY          (child_id, ca_detail_id),
+       PRIMARY KEY          (child_cert_id),
        FOREIGN KEY          (ca_detail_id) REFERENCES ca_detail,
        FOREIGN KEY          (child_id) REFERENCES child
-);
-
-DROP TABLE IF EXISTS child_ca_link;
-
-CREATE TABLE child_ca_link (
-       ca_id                BIGINT unsigned NOT NULL,
-       child_id             BIGINT unsigned NOT NULL,
-       PRIMARY KEY          (ca_id, child_id),
-       FOREIGN KEY          (child_id) REFERENCES child,
-       FOREIGN KEY          (ca_id) REFERENCES ca
 );
 
 DROP TABLE IF EXISTS route_origin;

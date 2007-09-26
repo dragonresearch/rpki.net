@@ -217,11 +217,17 @@ class issue_pdu(base_elt):
 
   def serve_pdu(self, gctx, q_msg, r_msg, child):
 
-    # Tasks:
-    #
     # 1) self.class_naem is ca_id, so pull the corresponding ca
     #    object, throw an exception if we can't find it.
-    #
+
+    if not self.class_name.isdigit():
+      raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
+    ca_id = long(self.class_name)
+    ca = rpki.sql.ca_obj.sql_fetch(gctx.db, gctx.cur, ca_id)
+    ca_detail = rpki.sql.ca_detail_elt.sql_fetch_active(gctx.db, gctx.cur, ca_id)
+    if ca is None or ca_detail is None:
+      raise rpki.exceptions.NotInDatabase
+    
     # 2) Check that PKCS#10 is legal according to the profile (has all
     #    required fields, doesn't have any forbidden fields, fields
     #    that it has don't conflict with anything we already know).

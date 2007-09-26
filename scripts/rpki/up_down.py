@@ -135,8 +135,7 @@ class class_elt(base_elt):
     return elt
 
 def cons_resource_class(gctx, now, child, ca_id, irdb_as, irdb_v4, irdb_v6):
-  ca_detail = rpki.sql.ca_detail_elt.sql_fetch_where(gctx.db, gctx.cur, "ca_id = %s AND status = 'active'" % ca_id)
-  assert len(ca_detail) < 2, "Found more than one 'active' ca_detail record, this should not happen!"
+  ca_detail = rpki.sql.ca_detail_elt.sql_fetch_active(gctx.db, gctx.cur, ca_id)
   if not ca_detail:
     return None
   rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(irdb_as, irdb_v4, irdb_v6)

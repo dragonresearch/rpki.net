@@ -169,23 +169,18 @@ class ca_detail_obj(sql_persistant):
   """Internal CA detail object."""
 
   sql_template = template("ca", "ca_detail_id", "private_key_id", "public_key", "latest_ca_cert", "manifest_private_key_id",
-                          "manifest_public_key", "latest_manifest_cert", "latest_manifest", "latest_crl", "ca_id")
-
-  def __init__(self):
-    self.certs = []
+                          "manifest_public_key", "latest_manifest_cert", "latest_manifest", "latest_crl", "status", "ca_id")
 
   def sql_decode(self, vals):
     sql_persistant.sql_decode(self, vals)
 
     self.private_key_id = rpki.x509.RSA_Keypair(DER = self.private_key_id)
-    if self.public_key is not None:
-      assert self.private_key_id.get_public_DER() == self.public_key
+    assert self.public_key is None or self.private_key_id.get_public_DER() == self.public_key
 
     self.latest_ca_cert = rpki.x509.X509(DER = self.latest_ca_cert)
 
     self.manifest_private_key_id = rpki.x509.RSA_Keypair(DER = self.manifest_private_key_id)
-    if self.manifest_public_key is not None:
-      assert self.manifest_private_key_id.get_public_DER() == self.manifest_public_key
+    assert self.manifest_public_key is None or self.manifest_private_key_id.get_public_DER() == self.manifest_public_key
 
     self.manifest_cert = rpki.x509.X509(DER = self.manifest_cert)
 
@@ -198,6 +193,15 @@ class ca_detail_obj(sql_persistant):
     d["manifest_private_key_id"] = self.manifest_private_key_id.get_DER()
     d["manifest_cert"] = self.manifest_cert.get_DER()
     return d
+
+  @classmethod
+  def sql_fetch_active(cls, db, cur, ca_id):
+    hits = cls.sql_fetch_where(db, cur, "ca_id = %s AND status = 'active'" % ca_id)
+    assert len(hits) < 2, "Found more than one 'active' ca_detail record, this should not happen!"
+    if hits:
+      return hits[0]
+    else:
+      return None
 
 class child_cert_obj(sql_persistant):
   """Certificate that has been issued to a child."""

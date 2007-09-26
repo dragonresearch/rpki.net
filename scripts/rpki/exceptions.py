@@ -31,3 +31,6 @@ class NotACertificateChain(Exception):
 
 class BadContactURL(Exception):
   """Error trying to parse up-down protocol contact URL."""
+
+class BadClassNameSyntax(Exception):
+  """Illegal syntax for a class_name."""

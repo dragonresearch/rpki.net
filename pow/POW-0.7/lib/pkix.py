@@ -119,8 +119,8 @@ class POWCryptoDriver(CryptoDriver):
    def sign(self, key, oid, plaintext):
       return key.sign(self._digest(oid, plaintext))
 
-   def verify(self, RSAkey, digestOID, plaintext, signature):
-      return key.verify(signature, digest.digest(), self.OID2driver[oid])
+   def verify(self, key, oid, plaintext, signature):
+      return key.verify(signature, self._digest(oid, plaintext), self.OID2driver[oid])
 
    def toPublicDER(self, key):
       return key.derWrite(POW.RSA_PUBLIC_KEY)
@@ -1220,6 +1220,7 @@ class CertificationRequest(Sequence):
    def verify(self):
       driver = getCryptoDriver()
       oid = self.signatureAlgorithm.get()[0]
+      # Should check self.certificationRequestInfo.subjectPublicKeyInfo.algorithmId 
       rsa = driver.fromPublicDER(self.certificationRequestInfo.subjectPublicKeyInfo.toString())
       return driver.verify(rsa, oid, self.certificationRequestInfo.toString(), self.signatureValue.get())
 

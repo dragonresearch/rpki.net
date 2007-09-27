@@ -4616,7 +4616,7 @@ asymmetric_object_der_read(int key_type, char *src, int len)
    {
       case RSA_PUBLIC_KEY:
       {
-         if( !(self->cipher = d2i_RSAPublicKey( NULL, (const unsigned char **) &ptr, len ) ) )
+         if( !(self->cipher = d2i_RSA_PUBKEY( NULL, (const unsigned char **) &ptr, len ) ) )
             {  PyErr_SetString( SSLErrorObject, "could not load public key" ); goto error; }
 
          self->key_type = RSA_PUBLIC_KEY;
@@ -4794,11 +4794,11 @@ asymmetric_object_der_write(asymmetric_object *self, PyObject *args)
       }
       case RSA_PUBLIC_KEY:
       {
-         len = i2d_RSAPublicKey(self->cipher, NULL);
+         len = i2d_RSA_PUBKEY(self->cipher, NULL);
          if ( !(buf = malloc(len) ) )
             { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
          p = buf;
-         if (!i2d_RSAPublicKey(self->cipher, &buf) )
+         if (!i2d_RSA_PUBKEY(self->cipher, &buf) )
             { PyErr_SetString( SSLErrorObject, "unable to write key" ); goto error; }
          break;
       }

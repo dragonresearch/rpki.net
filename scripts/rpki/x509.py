@@ -90,7 +90,7 @@ class DER_object(object):
         setattr(self, name, kw[name])
         return
       if name == "PEM":
-        text = self.pem_convert.to_DER(kw[name])
+        text = self.pem_converter.to_DER(kw[name])
         self.clear()
         self.DER = text
         return

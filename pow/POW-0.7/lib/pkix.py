@@ -85,14 +85,20 @@ class CryptoDriver(object):
       """Verify a signature."""
       raise NotImplementedError
 
-   def keyDER(self, key):
+   def toPublicDER(self, key):
       """Get the DER representation of an RSA key."""
+      raise NotImplementedError
+
+   def fromPublicDER(self, der):
+      """Set the driver representation of an RSA key from DER."""
       raise NotImplementedError
 
 class POWCryptoDriver(CryptoDriver):
    """Dispatcher for crypto calls using POW package."""
 
    def __init__(self):
+      print "Importing POW"
+      global POW
       import POW
       self.driver2OID = {
          POW.MD2_DIGEST       :  (1, 2, 840, 113549, 1, 1, 2),    # md2WithRSAEncryption
@@ -116,8 +122,11 @@ class POWCryptoDriver(CryptoDriver):
    def verify(self, RSAkey, digestOID, plaintext, signature):
       return key.verify(signature, digest.digest(), self.OID2driver[oid])
 
-   def keyDER(self, key):
+   def toPublicDER(self, key):
       return key.derWrite(POW.RSA_PUBLIC_KEY)
+
+   def fromPublicDER(self, der):
+      return POW.derRead(POW.RSA_PUBLIC_KEY, der)
 
 _cryptoDriver = None                    # Don't touch this directly
 
@@ -127,6 +136,7 @@ def setCryptoDriver(driver):
    The driver should be an instance of CryptoDriver.
    """
    assert isinstance(driver, CryptoDriver)
+   global _cryptoDriver
    _cryptoDriver = driver
 
 def getCryptoDriver():
@@ -134,6 +144,7 @@ def getCryptoDriver():
 
    If no driver has been selected, instantiate the default POW driver.
    """
+   global _cryptoDriver
    if _cryptoDriver is None:
       setCryptoDriver(POWCryptoDriver())
    return _cryptoDriver
@@ -776,7 +787,7 @@ class Certificate(Sequence):
    def sign(self, rsa, digestType):
       driver = getCryptoDriver()
       oid = driver.getOID(digestType)
-      self.tbs.subjectPublicKeyInfo.set((((1, 2, 840, 113549, 1, 1, 1), None), driver.keyDER(key)))
+      self.tbs.subjectPublicKeyInfo.set((((1, 2, 840, 113549, 1, 1, 1), None), driver.toPublicDER(key)))
       self.tbs.signature.set([oid, None])
       signedText = driver.sign(rsa, oid, self.tbs.toString())
       self.signatureAlgorithm.set([oid, None])
@@ -1205,6 +1216,12 @@ class CertificationRequest(Sequence):
       self.signatureValue = AltBitString()
       contents = [ self.certificationRequestInfo, self.signatureAlgorithm, self.signatureValue ] 
       Sequence.__init__(self, contents, optional, default)
+
+   def verify(self):
+      driver = getCryptoDriver()
+      oid = self.signatureAlgorithm.get()[0]
+      rsa = driver.fromPublicDER(self.certificationRequestInfo.subjectPublicKeyInfo.toString())
+      return driver.verify(rsa, oid, self.certificationRequestInfo.toString(), self.signatureValue.get())
 
 #---------- PKCS10 ----------#
 #---------- GeneralNames object support ----------#

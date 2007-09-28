@@ -2,12 +2,22 @@
 
 """RPKI "up-down" protocol."""
 
-import base64, lxml.etree, time, POW.pkix
+import base64, lxml.etree, time
 import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.exceptions
 
 xmlns="http://www.apnic.net/specs/rescerts/up-down/"
 
 nsmap = { None : xmlns }
+
+oids = {
+  (1, 2, 840, 113549, 1, 1, 11) : "sha256WithRSAEncryption",
+  (1, 2, 840, 113549, 1, 1, 12) : "sha384WithRSAEncryption",
+  (1, 2, 840, 113549, 1, 1, 13) : "sha512WithRSAEncryption",
+  (2, 5, 29, 19)                : "basicConstraints",
+  (2, 5, 29, 15)                : "keyUsage",
+  (1, 3, 6, 1, 5, 5, 7, 1, 11)  : "subjectInfoAccess",
+  (1, 3, 6, 1, 5, 5, 7, 48, 5)  : "caRepository",
+}
 
 class base_elt(object):
   """Generic PDU object.
@@ -216,10 +226,6 @@ class issue_pdu(base_elt):
     return [elt]
 
   def serve_pdu(self, gctx, q_msg, r_msg, child):
-
-    # 1) self.class_naem is ca_id, so pull the corresponding ca
-    #    object, throw an exception if we can't find it.
-
     if not self.class_name.isdigit():
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
     ca_id = long(self.class_name)
@@ -227,26 +233,49 @@ class issue_pdu(base_elt):
     ca_detail = rpki.sql.ca_detail_elt.sql_fetch_active(gctx.db, gctx.cur, ca_id)
     if ca is None or ca_detail is None:
       raise rpki.exceptions.NotInDatabase
-    
-    # 2) Check that PKCS#10 is legal according to the profile
-    #    (signature validates, has all required fields, doesn't have
-    #    any forbidden fields, fields that it has don't conflict with
-    #    anything we already know).
 
     if not self.pkcs10.get_POWpkix().verify():
       raise rpki.exceptions.BadSignature
     if self.pkcs10.get_POWpkix().certificationRequestInfo.version != 0:
       raise rpki.exceptions.BadVersion
-    if POW.pkix.oid2obj(self.pkcs10.get_POWpkix().signatureAlgorithm) not in ("sha256WithRSAEncryption", "sha384WithRSAEncryption", "sha512WithRSAEncryption"):
+    if oids.get(self.pkcs10.get_POWpkix().signatureAlgorithm) not in ("sha256WithRSAEncryption", "sha384WithRSAEncryption", "sha512WithRSAEncryption"):
       raise rpki.exceptions.BadAlgorithm
-    for x in self.pkcs10.certificationRequestInfo.attributes.val.choices[self.pkcs10.certificationRequestInfo.attributes.val.choice][0]:
+    exts = self.pkcs10.getExtensions()
+    if exts is None:
+      exts = {}
+    else:
+      exts = exts.get()
+      for oid, critical, value in exts:
+        if oid not in oids:
+          raise rpki.exceptions.BadExtension, "Certificate request may not contain extension %s" % oid
+      exts = dict((oids[oid], value) for (oid, critical, value) in exts)
+    for name, value in exts.items():
+      if name == "basicConstraints":
+        if value[1] is not None:
+          raise rpki.exceptions.BadExtension, "basicConstraints extension must not specify Path Length"
+        continue
+      if name == "keyUsage":
+        #
+        # Why does the specification even allow EE certs here?
+        #
+        if (exts["basicConstraints"] and exts["basicConstraints"][0]) != value[5] or value[5] != value[6]:
+          raise rpki.exceptions.BadExtension, "Certificate request keyUsage doesn't match basicConstraints"
+        continue
+      if name == "subjectInfoAccess":
+        #
+        # Seems weird to be this strict about one flavor of SIA and
+        # allow all others.  Have raised question on rescert list.
+        #
+        for method, location in value:
+          if oids.get(method) == "caRepository" and \
+               (location[0] != "uri" or \
+                (location[1].startswith("rsync://") and not location[1].endswith("/"))):
+            raise rpki.exceptions.BadExtension, "Certificate request includes bad SIA component: %s" % location
+        continue
+      raise rpki.exceptions.BadExtension, "Certificate request may not contain extension %s" % name
+    assert "subjectInfoAccess" in exts, "Can't (yet) handle PKCS #10 without an SIA extension"
 
-      raise NotImplementedError
-
-      oid = x.extnID.get()
-      val = x.extnValue.get()
-      name = POW.pkix.oid2obj(oid)
-      crit = x.critical.get()
+    raise NotImplementedError
 
     #
     # 3) Find any certs already issued to this child for these

@@ -132,7 +132,8 @@
 #define SHA1_DIGEST           4
 #define RIPEMD160_DIGEST      5
 #define SHA256_DIGEST         6
-#define SHA512_DIGEST         7
+#define SHA384_DIGEST         7
+#define SHA512_DIGEST         8
 
 // Object format
 #define SHORTNAME_FORMAT      1
@@ -777,6 +778,7 @@ static char X509_object_sign__doc__[] =
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
 "         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
 "         <member><constant>SHA256_DIGEST</constant></member>\n"
+"         <member><constant>SHA384_DIGEST</constant></member>\n"
 "         <member><constant>SHA512_DIGEST</constant></member>\n"
 "     </simplelist>\n"
 "   </body>\n"
@@ -838,6 +840,12 @@ X509_object_sign(x509_object *self, PyObject *args)
       case SHA256_DIGEST:
       { 
          if (!X509_sign(self->x509, pkey, EVP_sha256() ) ) 
+            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+         break;
+      }
+      case SHA384_DIGEST:
+      { 
+         if (!X509_sign(self->x509, pkey, EVP_sha384() ) ) 
             { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
          break;
       }
@@ -2837,6 +2845,7 @@ static char x509_crl_object_sign__doc__[] =
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
 "         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
 "         <member><constant>SHA256_DIGEST</constant></member>\n"
+"         <member><constant>SHA384_DIGEST</constant></member>\n"
 "         <member><constant>SHA512_DIGEST</constant></member>\n"
 "     </simplelist>\n"
 "   </body>\n"
@@ -2897,6 +2906,12 @@ x509_crl_object_sign(x509_crl_object *self, PyObject *args)
       case SHA256_DIGEST:
       { 
          if (!X509_CRL_sign(self->crl, pkey, EVP_sha256() ) ) 
+            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+         break;
+      }
+      case SHA384_DIGEST:
+      { 
+         if (!X509_CRL_sign(self->crl, pkey, EVP_sha384() ) ) 
             { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
          break;
       }
@@ -5067,6 +5082,7 @@ static char asymmetric_object_sign__doc__[] =
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
 "         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
 "         <member><constant>SHA256_DIGEST</constant></member>\n"
+"         <member><constant>SHA384_DIGEST</constant></member>\n"
 "         <member><constant>SHA512_DIGEST</constant></member>\n"
 "      </simplelist>\n"
 "      <para>\n"
@@ -5107,6 +5123,8 @@ asymmetric_object_sign(asymmetric_object *self, PyObject *args)
          { digest_nid = NID_ripemd160; digest_len = RIPEMD160_DIGEST_LENGTH; break; }
       case SHA256_DIGEST:
          { digest_nid = NID_sha256; digest_len = SHA256_DIGEST_LENGTH; break; }
+      case SHA384_DIGEST:
+         { digest_nid = NID_sha384; digest_len = SHA384_DIGEST_LENGTH; break; }
       case SHA512_DIGEST:
          { digest_nid = NID_sha512; digest_len = SHA512_DIGEST_LENGTH; break; }
       default:
@@ -5183,6 +5201,7 @@ static char asymmetric_object_verify__doc__[] =
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
 "         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
 "         <member><constant>SHA256_DIGEST</constant></member>\n"
+"         <member><constant>SHA384_DIGEST</constant></member>\n"
 "         <member><constant>SHA512_DIGEST</constant></member>\n"
 "      </simplelist>\n"
 "      <para>\n"
@@ -5214,9 +5233,11 @@ asymmetric_object_verify(asymmetric_object *self, PyObject *args)
       case RIPEMD160_DIGEST:
          { digest_len = RIPEMD160_DIGEST_LENGTH; digest_nid = NID_ripemd160; break; }
       case SHA256_DIGEST:
-         { digest_len = SHA_DIGEST_LENGTH; digest_nid = NID_sha256; break; }
+         { digest_len = SHA256_DIGEST_LENGTH; digest_nid = NID_sha256; break; }
+      case SHA384_DIGEST:
+         { digest_len = SHA384_DIGEST_LENGTH; digest_nid = NID_sha384; break; }
       case SHA512_DIGEST:
-         { digest_len = SHA_DIGEST_LENGTH; digest_nid = NID_sha512; break; }
+         { digest_len = SHA512_DIGEST_LENGTH; digest_nid = NID_sha512; break; }
       default:
          { PyErr_SetString( SSLErrorObject, "unsupported digest" ); goto error; }
    }
@@ -5621,6 +5642,8 @@ digest_object_new(int digest_type)
          { self->digest_type = RIPEMD160_DIGEST; EVP_DigestInit( &self->digest_ctx, EVP_ripemd160() ); break; }
       case SHA256_DIGEST: 
          { self->digest_type = SHA256_DIGEST; EVP_DigestInit( &self->digest_ctx, EVP_sha256() ); break; }
+      case SHA384_DIGEST: 
+         { self->digest_type = SHA384_DIGEST; EVP_DigestInit( &self->digest_ctx, EVP_sha384() ); break; }
       case SHA512_DIGEST: 
          { self->digest_type = SHA512_DIGEST; EVP_DigestInit( &self->digest_ctx, EVP_sha512() ); break; }
       default:
@@ -5849,6 +5872,8 @@ hmac_object_new(int digest_type, char *key, int key_len)
          { md = EVP_ripemd160(); break; }
       case SHA256_DIGEST: 
          { md = EVP_sha256(); break; }
+      case SHA384_DIGEST: 
+         { md = EVP_sha384(); break; }
       case SHA512_DIGEST: 
          { md = EVP_sha512(); break; }
       default:
@@ -6199,6 +6224,7 @@ static char pow_module_new_digest__doc__[] =
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
 "         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
 "         <member><constant>SHA256_DIGEST</constant></member>\n"
+"         <member><constant>SHA384_DIGEST</constant></member>\n"
 "         <member><constant>SHA512_DIGEST</constant></member>\n"
 "      </simplelist>\n"
 "   </body>\n"
@@ -6240,6 +6266,7 @@ static char pow_module_new_hmac__doc__[] =
 "         <member><constant>SHA1_DIGEST</constant></member>\n"
 "         <member><constant>RIPEMD160_DIGEST</constant></member>\n"
 "         <member><constant>SHA256_DIGEST</constant></member>\n"
+"         <member><constant>SHA384_DIGEST</constant></member>\n"
 "         <member><constant>SHA512_DIGEST</constant></member>\n"
 "      </simplelist>\n"
 "   </body>\n"
@@ -7144,6 +7171,7 @@ init_POW(void)
    install_int_const( d, "SHA1_DIGEST",               SHA1_DIGEST );
    install_int_const( d, "RIPEMD160_DIGEST",          RIPEMD160_DIGEST );
    install_int_const( d, "SHA256_DIGEST",             SHA256_DIGEST );
+   install_int_const( d, "SHA384_DIGEST",             SHA384_DIGEST );
    install_int_const( d, "SHA512_DIGEST",             SHA512_DIGEST );
 
    // general name

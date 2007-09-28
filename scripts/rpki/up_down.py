@@ -2,7 +2,7 @@
 
 """RPKI "up-down" protocol."""
 
-import base64, lxml.etree, time
+import base64, lxml.etree, time, POW.pkix
 import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.exceptions
 
 xmlns="http://www.apnic.net/specs/rescerts/up-down/"
@@ -228,9 +228,26 @@ class issue_pdu(base_elt):
     if ca is None or ca_detail is None:
       raise rpki.exceptions.NotInDatabase
     
-    # 2) Check that PKCS#10 is legal according to the profile (has all
-    #    required fields, doesn't have any forbidden fields, fields
-    #    that it has don't conflict with anything we already know).
+    # 2) Check that PKCS#10 is legal according to the profile
+    #    (signature validates, has all required fields, doesn't have
+    #    any forbidden fields, fields that it has don't conflict with
+    #    anything we already know).
+
+    if not self.pkcs10.get_POWpkix().verify():
+      raise rpki.exceptions.BadSignature
+    if self.pkcs10.get_POWpkix().certificationRequestInfo.version != 0:
+      raise rpki.exceptions.BadVersion
+    if POW.pkix.oid2obj(self.pkcs10.get_POWpkix().signatureAlgorithm) not in ("sha256WithRSAEncryption", "sha384WithRSAEncryption", "sha512WithRSAEncryption"):
+      raise rpki.exceptions.BadAlgorithm
+    for x in self.pkcs10.certificationRequestInfo.attributes.val.choices[self.pkcs10.certificationRequestInfo.attributes.val.choice][0]:
+
+      raise NotImplementedError
+
+      oid = x.extnID.get()
+      val = x.extnValue.get()
+      name = POW.pkix.oid2obj(oid)
+      crit = x.critical.get()
+
     #
     # 3) Find any certs already issued to this child for these
     #    resources (approximately the same algorithm used for

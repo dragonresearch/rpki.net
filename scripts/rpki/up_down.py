@@ -254,10 +254,9 @@ class issue_pdu(base_elt):
       raise rpki.exceptions.BadPKCS10, "basicConstraints extension must not specify Path Length"
     if "keyUsage" in exts and (not exts["keyUsage"][5] or not exts["keyUsage"][6]):
       raise rpki.exceptions.BadPKCS10, "keyUsage doesn't match basicConstraints"
-    if "subjectInfoAccess" in exts:
-      for method, location in exts["subjectInfoAccess"]:
-        if oids.get(method) == "caRepository" and (location[0] != "uri" or (location[1].startswith("rsync://") and not location[1].endswith("/"))):
-          raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %s" % location
+    for method, location in exts.get("subjectInfoAccess", ()):
+      if oids.get(method) == "caRepository" and (location[0] != "uri" or (location[1].startswith("rsync://") and not location[1].endswith("/"))):
+        raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %s" % location
     assert "subjectInfoAccess" in exts, "Can't (yet) handle PKCS #10 without an SIA extension"
 
     raise NotImplementedError

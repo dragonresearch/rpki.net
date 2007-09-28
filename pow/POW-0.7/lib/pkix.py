@@ -97,7 +97,6 @@ class POWCryptoDriver(CryptoDriver):
    """Dispatcher for crypto calls using POW package."""
 
    def __init__(self):
-      print "Importing POW"
       global POW
       import POW
       self.driver2OID = {

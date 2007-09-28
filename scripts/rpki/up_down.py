@@ -233,46 +233,31 @@ class issue_pdu(base_elt):
     ca_detail = rpki.sql.ca_detail_elt.sql_fetch_active(gctx.db, gctx.cur, ca_id)
     if ca is None or ca_detail is None:
       raise rpki.exceptions.NotInDatabase
-
     if not self.pkcs10.get_POWpkix().verify():
-      raise rpki.exceptions.BadSignature
+      raise rpki.exceptions.BadPKCS10, "Signature check failed"
     if self.pkcs10.get_POWpkix().certificationRequestInfo.version != 0:
-      raise rpki.exceptions.BadVersion
+      raise rpki.exceptions.BadPKCS10, "Bad version number %s" % self.pkcs10.get_POWpkix().certificationRequestInfo.version
     if oids.get(self.pkcs10.get_POWpkix().signatureAlgorithm) not in ("sha256WithRSAEncryption", "sha384WithRSAEncryption", "sha512WithRSAEncryption"):
-      raise rpki.exceptions.BadAlgorithm
+      raise rpki.exceptions.BadPKCS10, "Bad signature algorithm %s" % self.pkcs10.get_POWpkix().signatureAlgorithm
     exts = self.pkcs10.getExtensions()
     if exts is None:
       exts = {}
     else:
       exts = exts.get()
       for oid, critical, value in exts:
-        if oid not in oids:
-          raise rpki.exceptions.BadExtension, "Certificate request may not contain extension %s" % oid
+        if oids.get(oid) not in ("basicConstraints", "keyUsage", "subjectInfoAccess"):
+          raise rpki.exceptions.BadExtension, "Forbidden extension %s" % oid
       exts = dict((oids[oid], value) for (oid, critical, value) in exts)
-    for name, value in exts.items():
-      if name == "basicConstraints":
-        if value[1] is not None:
-          raise rpki.exceptions.BadExtension, "basicConstraints extension must not specify Path Length"
-        continue
-      if name == "keyUsage":
-        #
-        # Why does the specification even allow EE certs here?
-        #
-        if (exts["basicConstraints"] and exts["basicConstraints"][0]) != value[5] or value[5] != value[6]:
-          raise rpki.exceptions.BadExtension, "Certificate request keyUsage doesn't match basicConstraints"
-        continue
-      if name == "subjectInfoAccess":
-        #
-        # Seems weird to be this strict about one flavor of SIA and
-        # allow all others.  Have raised question on rescert list.
-        #
-        for method, location in value:
-          if oids.get(method) == "caRepository" and \
-               (location[0] != "uri" or \
-                (location[1].startswith("rsync://") and not location[1].endswith("/"))):
-            raise rpki.exceptions.BadExtension, "Certificate request includes bad SIA component: %s" % location
-        continue
-      raise rpki.exceptions.BadExtension, "Certificate request may not contain extension %s" % name
+    if "basicConstraints" not in exts or not exts["basicConstraints"][0]:
+      raise rpki.exceptions.BadPKCS10, "request for EE cert not allowed here"
+    if exts["basicConstraints"][1] is not None:
+      raise rpki.exceptions.BadPKCS10, "basicConstraints extension must not specify Path Length"
+    if "keyUsage" in exts and (not exts["keyUsage"][5] or not exts["keyUsage"][6]):
+      raise rpki.exceptions.BadPKCS10, "keyUsage doesn't match basicConstraints"
+    if "subjectInfoAccess" in exts:
+      for method, location in exts["subjectInfoAccess"]:
+        if oids.get(method) == "caRepository" and (location[0] != "uri" or (location[1].startswith("rsync://") and not location[1].endswith("/"))):
+          raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %s" % location
     assert "subjectInfoAccess" in exts, "Can't (yet) handle PKCS #10 without an SIA extension"
 
     raise NotImplementedError

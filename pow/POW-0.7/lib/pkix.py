@@ -787,7 +787,7 @@ class Certificate(Sequence):
    def sign(self, rsa, digestType):
       driver = getCryptoDriver()
       oid = driver.getOID(digestType)
-      self.tbs.subjectPublicKeyInfo.set((((1, 2, 840, 113549, 1, 1, 1), None), driver.toPublicDER(key)))
+      self.tbs.subjectPublicKeyInfo.set(driver.toPublicDER(key))
       self.tbs.signature.set([oid, None])
       signedText = driver.sign(rsa, oid, self.tbs.toString())
       self.signatureAlgorithm.set([oid, None])
@@ -1193,7 +1193,7 @@ class PKCS10AttributeChoice(Choice):
       Choice.__init__(self, choices, optional, default)
 
 class PKCS10Attributes(Sequence):
-   def __init__(self, optional=0, default=''):
+   def __init__(self, optional=1, default=''):
       self.oid = Oid()
       self.val = PKCS10AttributeChoice()
       contents = [ self.oid, self.val ]
@@ -1220,9 +1220,18 @@ class CertificationRequest(Sequence):
    def verify(self):
       driver = getCryptoDriver()
       oid = self.signatureAlgorithm.get()[0]
-      # Should check self.certificationRequestInfo.subjectPublicKeyInfo.algorithmId 
       rsa = driver.fromPublicDER(self.certificationRequestInfo.subjectPublicKeyInfo.toString())
       return driver.verify(rsa, oid, self.certificationRequestInfo.toString(), self.signatureValue.get())
+
+   def getExtensions(self):
+      oid = self.certificationRequestInfo.attributes.oid.get()
+      if oid is None:
+         return None
+      if oid != (1, 2, 840, 113549, 1, 9, 14) or \
+         self.certificationRequestInfo.attributes.val.choice != "set" or \
+         len(self.certificationRequestInfo.attributes.val.choices["set"]) > 1:
+         raise DerError, "failed to understand X.501 Attribute encoding, sorry: %s" % self.get()
+      return self.certificationRequestInfo.attributes.val.choices["set"][0]
 
 #---------- PKCS10 ----------#
 #---------- GeneralNames object support ----------#
@@ -1968,7 +1977,7 @@ class Extension(Sequence):
          if not (isinstance(oid, types.TupleType) or isinstance(oid, types.ListType)):
             raise DerError, 'the oid should be specified as a sequence of integers'
          else:
-            raise DerError, 'unkown object extension %s' % oid
+            raise DerError, 'unknown object extension %s' % oid
 
       try:
          extnObj.set( val )

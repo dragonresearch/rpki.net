@@ -4,23 +4,43 @@ import POW.pkix, rpki.x509, glob, rpki.resource_set
 
 parse_extensions = True
 list_extensions = True
-
-convert = rpki.x509.PEM_converter("CERTIFICATE REQUEST")
+show_attributes = True
 
 for name in glob.glob("resource-cert-samples/*.req"):
-  f = open(name, "r")
-  der = convert.to_DER(f.read())
-  f.close()
+  pkcs10 = rpki.x509.PKCS10_Request(Auto_file = name).get_POWpkix()
 
-  pkcs10 = POW.pkix.CertificationRequest()
-  pkcs10.fromString(der)
-  
   print "[", name, "]"
+
+  if show_attributes:
+    print pkcs10.certificationRequestInfo.attributes.val
+    print
+    print pkcs10.certificationRequestInfo.attributes.val.get()
+    print
+    print pkcs10.certificationRequestInfo.attributes.val.choice
+    print
+    print pkcs10.certificationRequestInfo.attributes.val.choices
+    print
+    print pkcs10.certificationRequestInfo.attributes.val.choices[pkcs10.certificationRequestInfo.attributes.val.choice]
+    print
+    print len(pkcs10.certificationRequestInfo.attributes.val.choices[pkcs10.certificationRequestInfo.attributes.val.choice])
+    print
+    print pkcs10.certificationRequestInfo.attributes.val.choices[pkcs10.certificationRequestInfo.attributes.val.choice][0]
+    print
 
   extc = pkcs10.certificationRequestInfo.attributes.val
   exts = extc.choices[extc.choice][0]
 
   #print len(exts), exts[0].extnValue
+
+  if list_extensions:
+    for x in exts:
+      oid = x.extnID.get()
+      name = POW.pkix.oid2obj(oid)
+      crit = x.critical.get()
+      value = x.extnValue.get()
+      assert isinstance(value, str)
+      value = ":".join(["%02X" % ord(i) for i in value])
+      print [ name, oid, crit, value ]
 
   if parse_extensions:
 
@@ -38,15 +58,4 @@ for name in glob.glob("resource-cert-samples/*.req"):
         val = ":".join(["%02X" % ord(i) for i in val])
       print POW.pkix.oid2obj(oid), oid, "=", val
 
-  if list_extensions:
-    for x in exts:
-      oid = x.extnID.get()
-      name = POW.pkix.oid2obj(oid)
-      crit = x.critical.get()
-      value = x.extnValue.get()
-      assert isinstance(value, str)
-      value = ":".join(["%02X" % ord(i) for i in value])
-      print [ name, oid, crit, value ]
-
   print
-

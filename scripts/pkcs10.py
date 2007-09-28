@@ -3,8 +3,8 @@
 import POW.pkix, rpki.x509, glob, rpki.resource_set
 
 parse_extensions        = True
-list_extensions         = True
-show_attributes         = True
+list_extensions         = False
+show_attributes         = False
 show_algorithm          = False
 do_verify               = True
 
@@ -60,11 +60,9 @@ for name in glob.glob("resource-cert-samples/*.req") + glob.glob("biz-certs/*.re
     if v4: print "IPv4 =", v4
     if v6: print "IPv6 =", v6
 
-    for t in exts.get():
-      oid = t[0]
+    for oid, crit, val in exts.get():
       if oid in ((1, 3, 6, 1, 5, 5, 7, 1, 7), (1, 3, 6, 1, 5, 5, 7, 1, 8)):
         continue
-      val = t[2]
       if isinstance(val, str):
         val = ":".join(["%02X" % ord(i) for i in val])
       print POW.pkix.oid2obj(oid), oid, "=", val

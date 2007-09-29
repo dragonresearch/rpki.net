@@ -3,11 +3,11 @@
 import POW.pkix, rpki.x509, glob, rpki.resource_set
 
 parse_extensions        = True
-list_extensions         = False
 show_attributes         = False
 show_algorithm          = False
 do_verify               = True
-show_signature          = True
+show_signature          = False
+show_publickey          = False
 
 def hexify(thing):
   return ":".join(["%02X" % ord(i) for i in thing])
@@ -27,6 +27,12 @@ for name in glob.glob("resource-cert-samples/*.req") + glob.glob("biz-certs/*.re
     print pkcs10.signatureValue, hexify(pkcs10.signatureValue.get())
     print
 
+  if show_publickey:
+    print pkcs10.certificationRequestInfo.subjectPublicKeyInfo
+    print pkcs10.certificationRequestInfo.subjectPublicKeyInfo.get()
+    print hexify(pkcs10.certificationRequestInfo.subjectPublicKeyInfo.toString())
+    print
+
   if show_attributes:
     print pkcs10.certificationRequestInfo.attributes.oid, pkcs10.certificationRequestInfo.attributes.oid.get()
     print
@@ -42,32 +48,16 @@ for name in glob.glob("resource-cert-samples/*.req") + glob.glob("biz-certs/*.re
       print pkcs10.certificationRequestInfo.attributes.val.choices[pkcs10.certificationRequestInfo.attributes.val.choice][0]
       print
 
-  if False:
-    extc = pkcs10.certificationRequestInfo.attributes.val
-    exts = extc.choices[extc.choice][0]
-    assert exts is pkcs10.getExtensions()
-  else:
+  if parse_extensions:
+
     exts = pkcs10.getExtensions()
 
-  #print len(exts), exts[0].extnValue
-
-  if list_extensions and exts is not None:
-    for x in exts:
-      oid = x.extnID.get()
-      name = POW.pkix.oid2obj(oid)
-      crit = x.critical.get()
-      value = x.extnValue.get()
-      assert isinstance(value, str)
-      print [ name, oid, crit, hexify(value) ]
-
-  if parse_extensions and exts is not None:
-
-    as, v4, v6 = rpki.resource_set.parse_extensions(exts.get())
+    as, v4, v6 = rpki.resource_set.parse_extensions(exts)
     if as: print "ASN  =", as
     if v4: print "IPv4 =", v4
     if v6: print "IPv6 =", v6
 
-    for oid, crit, val in exts.get():
+    for oid, crit, val in exts:
       if oid in ((1, 3, 6, 1, 5, 5, 7, 1, 7), (1, 3, 6, 1, 5, 5, 7, 1, 8)):
         continue
       if isinstance(val, str):

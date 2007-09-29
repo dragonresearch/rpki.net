@@ -234,18 +234,14 @@ class issue_pdu(base_elt):
     if oids.get(self.pkcs10.get_POWpkix().signatureAlgorithm) not in ("sha256WithRSAEncryption", "sha384WithRSAEncryption", "sha512WithRSAEncryption"):
       raise rpki.exceptions.BadPKCS10, "Bad signature algorithm %s" % self.pkcs10.get_POWpkix().signatureAlgorithm
     exts = self.pkcs10.getExtensions()
-    if exts is None:
-      exts = {}
-    else:
-      exts = exts.get()
-      for oid, critical, value in exts:
-        if oids.get(oid) not in ("basicConstraints", "keyUsage", "subjectInfoAccess"):
-          raise rpki.exceptions.BadExtension, "Forbidden extension %s" % oid
-      exts = dict((oids[oid], value) for (oid, critical, value) in exts)
+    for oid, critical, value in exts:
+      if oids.get(oid) not in ("basicConstraints", "keyUsage", "subjectInfoAccess"):
+        raise rpki.exceptions.BadExtension, "Forbidden extension %s" % oid
+    exts = dict((oids[oid], value) for (oid, critical, value) in exts)
     if "basicConstraints" not in exts or not exts["basicConstraints"][0]:
       raise rpki.exceptions.BadPKCS10, "request for EE cert not allowed here"
     if exts["basicConstraints"][1] is not None:
-      raise rpki.exceptions.BadPKCS10, "basicConstraints extension must not specify Path Length"
+      raise rpki.exceptions.BadPKCS10, "basicConstraints must not specify Path Length"
     if "keyUsage" in exts and (not exts["keyUsage"][5] or not exts["keyUsage"][6]):
       raise rpki.exceptions.BadPKCS10, "keyUsage doesn't match basicConstraints"
     for method, location in exts.get("subjectInfoAccess", ()):
@@ -257,9 +253,9 @@ class issue_pdu(base_elt):
     #    resources (approximately the same algorithm used for
     #    list_response).  Check:
     #
-    # 3a) that resources match exactly
+    # 3a) that public key matches exactly
     #
-    # 3b) that public key matches exactly
+    # 3b) that resources match exactly
     #
     # 3c) that any relevant extensions in the pkcs10 match exactly
     #
@@ -275,12 +271,8 @@ class issue_pdu(base_elt):
     else:
       child_cert = None
     if child_cert is not None:
-      pass
+      pass                              # Fill in remaining tests here
 
-    #
-    # In theory the spec requires that that public keys here be
-    # different, so at most one key should match.  Sez here.
-    # Anyway, need to perform remaining tests on the match if we got one.
 
     raise NotImplementedError
 

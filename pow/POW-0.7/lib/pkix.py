@@ -1226,12 +1226,12 @@ class CertificationRequest(Sequence):
    def getExtensions(self):
       oid = self.certificationRequestInfo.attributes.oid.get()
       if oid is None:
-         return None
+         return ()
       if oid != (1, 2, 840, 113549, 1, 9, 14) or \
          self.certificationRequestInfo.attributes.val.choice != "set" or \
          len(self.certificationRequestInfo.attributes.val.choices["set"]) > 1:
          raise DerError, "failed to understand X.501 Attribute encoding, sorry: %s" % self.get()
-      return self.certificationRequestInfo.attributes.val.choices["set"][0]
+      return self.certificationRequestInfo.attributes.val.choices["set"][0].get()
 
 #---------- PKCS10 ----------#
 #---------- GeneralNames object support ----------#

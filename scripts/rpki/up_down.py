@@ -9,7 +9,7 @@ xmlns="http://www.apnic.net/specs/rescerts/up-down/"
 
 nsmap = { None : xmlns }
 
-oids = {
+oid2name = {
   (1, 2, 840, 113549, 1, 1, 11) : "sha256WithRSAEncryption",
   (1, 2, 840, 113549, 1, 1, 12) : "sha384WithRSAEncryption",
   (1, 2, 840, 113549, 1, 1, 13) : "sha512WithRSAEncryption",
@@ -18,6 +18,8 @@ oids = {
   (1, 3, 6, 1, 5, 5, 7, 1, 11)  : "subjectInfoAccess",
   (1, 3, 6, 1, 5, 5, 7, 48, 5)  : "caRepository",
 }
+
+name2oid = dict((v,k) for (k,v) in oid2name)
 
 class base_elt(object):
   """Generic PDU object.
@@ -231,23 +233,25 @@ class issue_pdu(base_elt):
       raise rpki.exceptions.BadPKCS10, "Signature check failed"
     if self.pkcs10.get_POWpkix().certificationRequestInfo.version != 0:
       raise rpki.exceptions.BadPKCS10, "Bad version number %s" % self.pkcs10.get_POWpkix().certificationRequestInfo.version
-    if oids.get(self.pkcs10.get_POWpkix().signatureAlgorithm) not in ("sha256WithRSAEncryption", "sha384WithRSAEncryption", "sha512WithRSAEncryption"):
+    if oid2name.get(self.pkcs10.get_POWpkix().signatureAlgorithm) not in ("sha256WithRSAEncryption", "sha384WithRSAEncryption", "sha512WithRSAEncryption"):
       raise rpki.exceptions.BadPKCS10, "Bad signature algorithm %s" % self.pkcs10.get_POWpkix().signatureAlgorithm
     exts = self.pkcs10.getExtensions()
     for oid, critical, value in exts:
-      if oids.get(oid) not in ("basicConstraints", "keyUsage", "subjectInfoAccess"):
+      if oid2name.get(oid) not in ("basicConstraints", "keyUsage", "subjectInfoAccess"):
         raise rpki.exceptions.BadExtension, "Forbidden extension %s" % oid
-    exts = dict((oids[oid], value) for (oid, critical, value) in exts)
-    if "basicConstraints" not in exts or not exts["basicConstraints"][0]:
+    req_exts = dict((oid2name[oid], value) for (oid, critical, value) in exts)
+    if "basicConstraints" not in req_exts or not req_exts["basicConstraints"][0]:
       raise rpki.exceptions.BadPKCS10, "request for EE cert not allowed here"
-    if exts["basicConstraints"][1] is not None:
+    if req_exts["basicConstraints"][1] is not None:
       raise rpki.exceptions.BadPKCS10, "basicConstraints must not specify Path Length"
-    if "keyUsage" in exts and (not exts["keyUsage"][5] or not exts["keyUsage"][6]):
+    if "keyUsage" in req_exts and (not req_exts["keyUsage"][5] or not req_exts["keyUsage"][6]):
       raise rpki.exceptions.BadPKCS10, "keyUsage doesn't match basicConstraints"
-    for method, location in exts.get("subjectInfoAccess", ()):
-      if oids.get(method) == "caRepository" and (location[0] != "uri" or (location[1].startswith("rsync://") and not location[1].endswith("/"))):
+    for method, location in req_exts.get("subjectInfoAccess", ()):
+      if oid2name.get(method) == "caRepository" and (location[0] != "uri" or (location[1].startswith("rsync://") and not location[1].endswith("/"))):
         raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %s" % location
-    assert "subjectInfoAccess" in exts, "Can't (yet) handle PKCS #10 without an SIA extension"
+    assert "subjectInfoAccess" in req_exts, "Can't (yet) handle PKCS #10 without an SIA extension"
+
+    rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(rpki.left_right.irdb_query(gctx, child.self_id, child.child_id))
 
     # 3) Find any certs already issued to this child for these
     #    resources (approximately the same algorithm used for
@@ -270,9 +274,11 @@ class issue_pdu(base_elt):
         break
     else:
       child_cert = None
-    if child_cert is not None:
-      pass                              # Fill in remaining tests here
-
+    if child_cert is not None and ((rc_as, rc_v4, rc_v6) != child_cert.latest_ca_cert.get_3779resources()):
+      child_cert = None
+    if child_cert is not None and \
+         dict((oid2name[oid], value) for (oid, critical, value) in child_cert.get_POWpkix().getExtensions()).get("subjectInfoAccess") != req_exts.get("subjectInfoAccess"):
+      child_cert = None
 
     raise NotImplementedError
 

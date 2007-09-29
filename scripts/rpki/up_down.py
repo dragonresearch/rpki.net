@@ -144,25 +144,6 @@ class class_elt(base_elt):
     self.make_b64elt(elt, "issuer", self.issuer.get_DER())
     return elt
 
-def cons_resource_class(gctx, now, child, ca_id, irdb_as, irdb_v4, irdb_v6):
-  ca_detail = rpki.sql.ca_detail_elt.sql_fetch_active(gctx.db, gctx.cur, ca_id)
-  if not ca_detail:
-    return None
-  rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(irdb_as, irdb_v4, irdb_v6)
-  if not rc_as and not rc_v4 and not rc_v6:
-    return None
-  rc = class_elt()
-  rc.class_name = str(ca_id)
-  rc.cert_url = "rsync://niy.invalid"
-  rc.resource_set_as, rc.resource_set_ipv4, rc.resource_set_ipv6 = rc_as, rc_v4, rc_v6
-  for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx.db, gctx.cur, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
-    c = certificate_elt()
-    c.cert_url = "rsync://niy.invalid"
-    c.cert = child_cert.cert
-    rc.certs.append(c)
-  rc.issuer = ca_detail.latest_ca_cert
-  return rc
-
 class list_pdu(base_elt):
   """Up-Down protocol "list" PDU."""
 
@@ -173,11 +154,24 @@ class list_pdu(base_elt):
   def serve_pdu(self, gctx, q_msg, r_msg, child):
     r_msg.payload = list_response_pdu()
     irdb_as, irdb_v4, irdb_v6 = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
-    now = int(time.time())
     for ca_id in rpki.sql.fetch_column(gctx.cur, "SELECT ca_id FROM ca WHERE ca.parent_id = parent.parent_id AND parent.self_id = %s" % child.self_id):
-      rc = cons_resource_class(gctx = gctx, now = now, child = child, ca_id = ca_id, irdb_as = irdb_as, irdb_v4 = irdb_v4, irdb_v6 = irdb_v6)
-      if rc is not None:
-        r_msg.payload.classes.append(rc)
+      ca_detail = rpki.sql.ca_detail_elt.sql_fetch_active(gctx.db, gctx.cur, ca_id)
+      if not ca_detail:
+        continue
+      rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(irdb_as, irdb_v4, irdb_v6)
+      if not rc_as and not rc_v4 and not rc_v6:
+        continue
+      rc = class_elt()
+      rc.class_name = str(ca_id)
+      rc.cert_url = "rsync://niy.invalid"
+      rc.resource_set_as, rc.resource_set_ipv4, rc.resource_set_ipv6 = rc_as, rc_v4, rc_v6
+      for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx.db, gctx.cur, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
+        c = certificate_elt()
+        c.cert_url = "rsync://niy.invalid"
+        c.cert = child_cert.cert
+        rc.certs.append(c)
+      rc.issuer = ca_detail.latest_ca_cert
+      r_msg.payload.classes.append(rc)
 
 class class_response_syntax(base_elt):
   """Syntax for Up-Down protocol "list_response" and "issue_response" PDUs."""
@@ -280,6 +274,9 @@ class issue_pdu(base_elt):
         break
     else:
       child_cert = None
+    if child_cert is not None:
+      pass
+
     #
     # In theory the spec requires that that public keys here be
     # different, so at most one key should match.  Sez here.

@@ -259,9 +259,6 @@ class issue_pdu(base_elt):
         raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %s" % location
     assert "subjectInfoAccess" in exts, "Can't (yet) handle PKCS #10 without an SIA extension"
 
-    raise NotImplementedError
-
-    #
     # 3) Find any certs already issued to this child for these
     #    resources (approximately the same algorithm used for
     #    list_response).  Check:
@@ -276,7 +273,20 @@ class issue_pdu(base_elt):
     #     future?
     #
     #    If existing cert passes all these checks, just return it.
+
+    pubkey = self.certificationRequestInfo.subjectPublicKeyInfo.get()
+    for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx.db, gctx.cur, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
+      if child_cert.get_POWpkix().tbs.subjectPublicKeyInfo.get() == pubkey:
+        break
+    else:
+      child_cert = None
     #
+    # In theory the spec requires that that public keys here be
+    # different, so at most one key should match.  Sez here.
+    # Anyway, need to perform remaining tests on the match if we got one.
+
+    raise NotImplementedError
+
     # 4) If we get this far we need to generate the new cert, then
     #    return it.
 

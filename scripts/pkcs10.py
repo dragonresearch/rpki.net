@@ -7,6 +7,10 @@ list_extensions         = False
 show_attributes         = False
 show_algorithm          = False
 do_verify               = True
+show_signature          = True
+
+def hexify(thing):
+  return ":".join(["%02X" % ord(i) for i in thing])
 
 for name in glob.glob("resource-cert-samples/*.req") + glob.glob("biz-certs/*.req"):
   pkcs10 = rpki.x509.PKCS10_Request(Auto_file = name).get_POWpkix()
@@ -17,6 +21,10 @@ for name in glob.glob("resource-cert-samples/*.req") + glob.glob("biz-certs/*.re
     print pkcs10.signatureAlgorithm
     print
     print pkcs10.signatureAlgorithm.get()
+    print
+
+  if show_signature:
+    print pkcs10.signatureValue, hexify(pkcs10.signatureValue.get())
     print
 
   if show_attributes:
@@ -50,8 +58,7 @@ for name in glob.glob("resource-cert-samples/*.req") + glob.glob("biz-certs/*.re
       crit = x.critical.get()
       value = x.extnValue.get()
       assert isinstance(value, str)
-      value = ":".join(["%02X" % ord(i) for i in value])
-      print [ name, oid, crit, value ]
+      print [ name, oid, crit, hexify(value) ]
 
   if parse_extensions and exts is not None:
 
@@ -64,7 +71,7 @@ for name in glob.glob("resource-cert-samples/*.req") + glob.glob("biz-certs/*.re
       if oid in ((1, 3, 6, 1, 5, 5, 7, 1, 7), (1, 3, 6, 1, 5, 5, 7, 1, 8)):
         continue
       if isinstance(val, str):
-        val = ":".join(["%02X" % ord(i) for i in val])
+        val = hexify(val)
       print POW.pkix.oid2obj(oid), oid, "=", val
 
   if do_verify:

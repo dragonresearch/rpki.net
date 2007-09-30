@@ -162,30 +162,30 @@ static char pow_module__doc__ [] =
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
-"	 This third major release of POW addresses the most critical missing\n"
-"	 parts of functionality, X509v3 support.  Initially I thought adding\n"
-"	 support via the OpenSSL code would be the easiest option but this\n"
-"	 proved to be incorrect mainly due to the way I have chosen to handle\n"
-"	 the complex data such as <classname>directoryNames</classname> and\n"
-"	 <classname>generalNames</classname>.  It is easier in python to\n"
-"	 construct complex sets of data using lists and dictionaries than\n"
-"	 coordinate large numbers of objects and method calls.  This is no\n"
-"	 criticism, it is just extremely easy.  Coding complex data such as the\n"
-"	 <classname>certificatePolicies</classname> coding coding routines in C\n"
-"	 to handle the data proved laborous and ultimately error prone.\n"
+"         This third major release of POW addresses the most critical missing\n"
+"         parts of functionality, X509v3 support.  Initially I thought adding\n"
+"         support via the OpenSSL code would be the easiest option but this\n"
+"         proved to be incorrect mainly due to the way I have chosen to handle\n"
+"         the complex data such as <classname>directoryNames</classname> and\n"
+"         <classname>generalNames</classname>.  It is easier in python to\n"
+"         construct complex sets of data using lists and dictionaries than\n"
+"         coordinate large numbers of objects and method calls.  This is no\n"
+"         criticism, it is just extremely easy.  Coding complex data such as the\n"
+"         <classname>certificatePolicies</classname> coding coding routines in C\n"
+"         to handle the data proved laborous and ultimately error prone.\n"
 "      </para>\n"
 "      <para>\n"
-"	 PKIX structures are supported by a few operations on the relevant POW\n"
-"	 objects and through a Python library which is modelled on the DER\n"
-"	 encoding rules.  Modeling DER does expose some of the complexities of\n"
-"	 the ASN1 specifications but avoids coding many assumptions into the\n"
-"	 data structures and the interface for the objects.  For an example of\n"
-"	 overly complex definitions take a look at the\n"
-"	 <classname>Name</classname> object in RFC3280.  It is equally\n"
-"	 important that modeling DER in the way leads to a library which is\n"
-"	 trivial to extend to support new objects - simple objects are one\n"
-"	 liners and complex objects only require the definition of a new\n"
-"	 constructor.\n"
+"         PKIX structures are supported by a few operations on the relevant POW\n"
+"         objects and through a Python library which is modelled on the DER\n"
+"         encoding rules.  Modeling DER does expose some of the complexities of\n"
+"         the ASN1 specifications but avoids coding many assumptions into the\n"
+"         data structures and the interface for the objects.  For an example of\n"
+"         overly complex definitions take a look at the\n"
+"         <classname>Name</classname> object in RFC3280.  It is equally\n"
+"         important that modeling DER in the way leads to a library which is\n"
+"         trivial to extend to support new objects - simple objects are one\n"
+"         liners and complex objects only require the definition of a new\n"
+"         constructor.\n"
 "      </para>\n"
 "      <para>\n"
 "         functionality have been plugged.  The <classname>Ssl</classname> class has received\n"
@@ -214,51 +214,51 @@ static PyTypeObject ssltype;
 
 /*========== C stucts ==========*/
 typedef struct {
-	PyObject_HEAD
+   PyObject_HEAD
    X509 *x509;
 } x509_object;
 
 typedef struct {
-	PyObject_HEAD
+   PyObject_HEAD
    X509_STORE *store;
 } x509_store_object;
 
 typedef struct {
-	PyObject_HEAD
+   PyObject_HEAD
    X509_CRL *crl;
 } x509_crl_object;
 
 typedef struct {
-	PyObject_HEAD
+   PyObject_HEAD
    X509_REVOKED *revoked;
 } x509_revoked_object;
 
 typedef struct {
-	PyObject_HEAD
+   PyObject_HEAD
    void *cipher;
    int key_type;
    int cipher_type;
 } asymmetric_object;
 
 typedef struct {
-	PyObject_HEAD
+   PyObject_HEAD
    EVP_CIPHER_CTX cipher_ctx;
    int cipher_type;
 } symmetric_object;
 
 typedef struct {
-	PyObject_HEAD
+   PyObject_HEAD
    EVP_MD_CTX digest_ctx;
    int digest_type;
 } digest_object;
 
 typedef struct {
-	PyObject_HEAD
+   PyObject_HEAD
    HMAC_CTX hmac_ctx;
 } hmac_object;
 
 typedef struct {
-	PyObject_HEAD
+   PyObject_HEAD
    int ctxset;
    SSL *ssl;
    SSL_CTX *ctx;
@@ -616,8 +616,8 @@ X509_object_write_helper(x509_object *self, PyObject *args, int format)
    BIO *out_bio=NULL;
    PyObject *cert=NULL;
    
-	if (!PyArg_ParseTuple(args, ""))
-		return NULL;
+   if (!PyArg_ParseTuple(args, ""))
+      return NULL;
 
    out_bio = BIO_new(BIO_s_mem());
 
@@ -727,11 +727,11 @@ static char X509_object_set_public_key__doc__[] =
 static PyObject *
 X509_object_set_public_key(x509_object *self, PyObject *args)
 {
-	EVP_PKEY *pkey=NULL;
+   EVP_PKEY *pkey=NULL;
    asymmetric_object *asym;
 
-	if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
-		goto error;
+   if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
+      goto error;
 
    if ( !(pkey = EVP_PKEY_new() ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -739,7 +739,7 @@ X509_object_set_public_key(x509_object *self, PyObject *args)
    if ( !(EVP_PKEY_assign_RSA(pkey, asym->cipher) ) )
       { PyErr_SetString( SSLErrorObject, "EVP_PKEY assignment error" ); goto error; }
 
-	if ( !(X509_set_pubkey(self->x509,pkey) ) )
+   if ( !(X509_set_pubkey(self->x509,pkey) ) )
       { PyErr_SetString( SSLErrorObject, "could not set certificate's public key" ); goto error; }
 
    return Py_BuildValue("");
@@ -789,12 +789,12 @@ static char X509_object_sign__doc__[] =
 static PyObject *
 X509_object_sign(x509_object *self, PyObject *args)
 {
-	EVP_PKEY *pkey=NULL;
+   EVP_PKEY *pkey=NULL;
    asymmetric_object *asym;
    int digest=MD5_DIGEST;
 
-	if (!PyArg_ParseTuple(args, "O!|i", &asymmetrictype, &asym, &digest))
-		goto error;
+   if (!PyArg_ParseTuple(args, "O!|i", &asymmetrictype, &asym, &digest))
+      goto error;
 
    if ( !(pkey = EVP_PKEY_new() ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -889,8 +889,8 @@ X509_object_get_version(x509_object *self, PyObject *args)
 {
    long version=0;
 
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    if ( !(version = X509_get_version( self->x509 ) ) )
       { PyErr_SetString( SSLErrorObject, "could not get certificate version" ); goto error; }
@@ -924,8 +924,8 @@ X509_object_set_version(x509_object *self, PyObject *args)
 {
    long version=0;
 
-	if (!PyArg_ParseTuple(args, "l", &version))
-		goto error;
+   if (!PyArg_ParseTuple(args, "l", &version))
+      goto error;
 
    if ( !X509_set_version( self->x509, version ) )
       { PyErr_SetString( SSLErrorObject, "could not set certificate version" ); goto error; }
@@ -958,8 +958,8 @@ X509_object_get_serial(x509_object *self, PyObject *args)
    long serial=0;
    ASN1_INTEGER *asn1i=NULL;
 
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    if ( !(asn1i = X509_get_serialNumber( self->x509 ) ) )
       { PyErr_SetString( SSLErrorObject, "could not get serial number" ); goto error; }
@@ -997,8 +997,8 @@ X509_object_set_serial(x509_object *self, PyObject *args)
    long serial=0;
    ASN1_INTEGER *asn1i=NULL;
 
-	if (!PyArg_ParseTuple(args, "l", &serial))
-		goto error;
+   if (!PyArg_ParseTuple(args, "l", &serial))
+      goto error;
 
    if ( !(asn1i = ASN1_INTEGER_new() ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -1061,8 +1061,8 @@ X509_object_get_issuer(x509_object *self, PyObject *args)
    X509_NAME *name = NULL;
    int format=SHORTNAME_FORMAT;
 
-	if (!PyArg_ParseTuple(args, "|i", &format))
-		goto error;
+   if (!PyArg_ParseTuple(args, "|i", &format))
+      goto error;
 
    if ( !(name = X509_get_issuer_name( self->x509 ) ) )
       { PyErr_SetString( SSLErrorObject, "could not get issuers name" ); goto error; }
@@ -1101,8 +1101,8 @@ X509_object_get_subject(x509_object *self, PyObject *args)
    X509_NAME *name = NULL;
    int format=SHORTNAME_FORMAT;
 
-	if (!PyArg_ParseTuple(args, "|i", &format))
-		goto error;
+   if (!PyArg_ParseTuple(args, "|i", &format))
+      goto error;
 
    if ( !(name = X509_get_subject_name( self->x509 ) ) )
       { PyErr_SetString( SSLErrorObject, "could not get issuers name" ); goto error; }
@@ -1140,8 +1140,8 @@ X509_object_set_subject(x509_object *self, PyObject *args)
    PyObject *name_sequence = NULL;
    X509_NAME *name = NULL;
 
-	if (!PyArg_ParseTuple(args, "O", &name_sequence))
-		goto error;
+   if (!PyArg_ParseTuple(args, "O", &name_sequence))
+      goto error;
 
    if ( !( PyTuple_Check( name_sequence ) || PyList_Check(name_sequence) ) )
       { PyErr_SetString( PyExc_TypeError, "Inapropriate type" ); goto error; }
@@ -1152,7 +1152,7 @@ X509_object_set_subject(x509_object *self, PyObject *args)
    if ( !X509_object_helper_set_name(name, name_sequence) )
       { PyErr_SetString( SSLErrorObject, "unable to set new name" ); goto error; }
 
-	if ( !X509_set_subject_name(self->x509,name) )
+   if ( !X509_set_subject_name(self->x509,name) )
       { PyErr_SetString( SSLErrorObject, "unable to set name" ); goto error; }
    
    X509_NAME_free(name);
@@ -1187,8 +1187,8 @@ X509_object_set_issuer(x509_object *self, PyObject *args)
    PyObject *name_sequence = NULL;
    X509_NAME *name = NULL;
 
-	if (!PyArg_ParseTuple(args, "O", &name_sequence))
-		goto error;
+   if (!PyArg_ParseTuple(args, "O", &name_sequence))
+      goto error;
 
    if ( !( PyTuple_Check( name_sequence ) || PyList_Check(name_sequence) ) )
       { PyErr_SetString( PyExc_TypeError, "Inapropriate type" ); goto error; }
@@ -1199,7 +1199,7 @@ X509_object_set_issuer(x509_object *self, PyObject *args)
    if ( !X509_object_helper_set_name(name, name_sequence) )
       { PyErr_SetString( SSLErrorObject, "unable to set new name" ); goto error; }
 
-	if ( !X509_set_issuer_name(self->x509,name) )
+   if ( !X509_set_issuer_name(self->x509,name) )
       { PyErr_SetString( SSLErrorObject, "unable to set name" ); goto error; }
 
    X509_NAME_free(name);
@@ -1238,8 +1238,8 @@ X509_object_get_not_before (x509_object *self, PyObject *args)
 {
    ASN1_UTCTIME *time;
 
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    return Py_BuildValue("s", self->x509->cert_info->validity->notBefore->data);
 
@@ -1271,8 +1271,8 @@ X509_object_get_not_after (x509_object *self, PyObject *args)
 {
    ASN1_UTCTIME *time=NULL;
 
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    return Py_BuildValue("s", self->x509->cert_info->validity->notAfter->data);
 
@@ -1306,10 +1306,10 @@ X509_object_set_not_after (x509_object *self, PyObject *args)
    //int new_time = 0;
    char *new_time=NULL;
 
-	if (!PyArg_ParseTuple(args, "s", &new_time))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s", &new_time))
+      goto error;
 
-	if ( !ASN1_UTCTIME_set_string(self->x509->cert_info->validity->notAfter, new_time) )
+   if ( !ASN1_UTCTIME_set_string(self->x509->cert_info->validity->notAfter, new_time) )
       { PyErr_SetString( SSLErrorObject, "could not set time" ); goto error; }
 
    return Py_BuildValue("");
@@ -1344,10 +1344,10 @@ X509_object_set_not_before (x509_object *self, PyObject *args)
    //int new_time = 0;
    char *new_time=NULL;
 
-	if (!PyArg_ParseTuple(args, "s", &new_time))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s", &new_time))
+      goto error;
 
-	if ( !ASN1_UTCTIME_set_string(self->x509->cert_info->validity->notBefore, new_time) )
+   if ( !ASN1_UTCTIME_set_string(self->x509->cert_info->validity->notBefore, new_time) )
       { PyErr_SetString( SSLErrorObject, "could not set time" ); goto error; }
 
    return Py_BuildValue("");
@@ -1399,8 +1399,8 @@ X509_object_add_extension(x509_object *self, PyObject *args)
    ASN1_OCTET_STRING *octetString=NULL;
    X509_EXTENSION *extn=NULL;
 
-	if (!PyArg_ParseTuple(args, "sis", &name, &critical, &buf))
-		goto error;
+   if (!PyArg_ParseTuple(args, "sis", &name, &critical, &buf))
+      goto error;
 
    if ( !(octetString = M_ASN1_OCTET_STRING_new() ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -1449,8 +1449,8 @@ static char X509_object_clear_extensions__doc__[] =
 static PyObject *
 X509_object_clear_extensions(x509_object *self, PyObject *args)
 {
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    if (self->x509->cert_info->extensions)
    {
@@ -1484,8 +1484,8 @@ static PyObject *
 X509_object_count_extensions(x509_object *self, PyObject *args)
 {
    int num=0;
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    if (self->x509->cert_info->extensions)
    {
@@ -1523,8 +1523,8 @@ X509_object_get_extension(x509_object *self, PyObject *args)
    char const *ext_ln=NULL;
    char unknown_ext [] = "unkown";
    X509_EXTENSION *ext;
-	if (!PyArg_ParseTuple(args, "i", &index))
-		goto error;
+   if (!PyArg_ParseTuple(args, "i", &index))
+      goto error;
 
    if (self->x509->cert_info->extensions)
    {
@@ -1575,8 +1575,8 @@ x509_object_pprint(x509_object *self, PyObject *args)
    BIO *out_bio=NULL;
    PyObject *cert=NULL;
    
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    out_bio = BIO_new(BIO_s_mem());
 
@@ -1633,13 +1633,13 @@ static struct PyMethodDef X509_object_methods[] = {
    {"getExtension", (PyCFunction)X509_object_get_extension,    METH_VARARGS,  NULL}, 
    {"pprint",        (PyCFunction)x509_object_pprint,          METH_VARARGS,  NULL}, 
  
-	{NULL,		NULL}		/* sentinel */
+   {NULL,      NULL}    /* sentinel */
 };
 
 static PyObject *
 X509_object_getattr(x509_object *self, char *name)
 {
-	return Py_FindMethod(X509_object_methods, (PyObject *)self, name);
+   return Py_FindMethod(X509_object_methods, (PyObject *)self, name);
 }
 
 static void
@@ -1698,28 +1698,28 @@ static char x509type__doc__[] =
 ;
 
 static PyTypeObject x509type = {
-	PyObject_HEAD_INIT(0)
-	0,				                        /*ob_size*/
-	"X509",			                     /*tp_name*/
-	sizeof(x509_object),		            /*tp_basicsize*/
-	0,				                        /*tp_itemsize*/
-	(destructor)X509_object_dealloc,	   /*tp_dealloc*/
-	(printfunc)0,		                  /*tp_print*/
-	(getattrfunc)X509_object_getattr,   /*tp_getattr*/
-	(setattrfunc)0,	                  /*tp_setattr*/
-	(cmpfunc)0,		                     /*tp_compare*/
-	(reprfunc)0,      		            /*tp_repr*/
-	0,			                           /*tp_as_number*/
-	0,		                              /*tp_as_sequence*/
-	0,		                              /*tp_as_mapping*/
-	(hashfunc)0,		                  /*tp_hash*/
-	(ternaryfunc)0,		               /*tp_call*/
-	(reprfunc)0,		                  /*tp_str*/
-	0,
+   PyObject_HEAD_INIT(0)
+   0,                                  /*ob_size*/
+   "X509",                             /*tp_name*/
+   sizeof(x509_object),                /*tp_basicsize*/
+   0,                                  /*tp_itemsize*/
+   (destructor)X509_object_dealloc,    /*tp_dealloc*/
+   (printfunc)0,                       /*tp_print*/
+   (getattrfunc)X509_object_getattr,   /*tp_getattr*/
+   (setattrfunc)0,                     /*tp_setattr*/
+   (cmpfunc)0,                         /*tp_compare*/
+   (reprfunc)0,                        /*tp_repr*/
+   0,                                  /*tp_as_number*/
+   0,                                  /*tp_as_sequence*/
+   0,                                  /*tp_as_mapping*/
+   (hashfunc)0,                        /*tp_hash*/
+   (ternaryfunc)0,                     /*tp_call*/
+   (reprfunc)0,                        /*tp_str*/
    0,
    0,
    0,
-	x509type__doc__                     /* Documentation string */
+   0,
+   x509type__doc__                     /* Documentation string */
 };
 /*========== X509 Code ==========*/
 
@@ -1773,8 +1773,8 @@ x509_store_object_verify(x509_store_object *self, PyObject *args)
    x509_object *x509=NULL;
    int result=0;
 
-	if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
-		goto error;
+   if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
+      goto error;
 
    X509_STORE_CTX_init( &csc, self->store, x509->x509, NULL );
    result = X509_verify_cert( &csc );
@@ -1828,8 +1828,8 @@ x509_store_object_verify_chain(x509_store_object *self, PyObject *args)
    STACK_OF(X509) *x509_stack=NULL;
    int result=0, size=0, i=0;
 
-	if (!PyArg_ParseTuple(args, "O!O", &x509type, &x509, &x509_sequence))
-		goto error;
+   if (!PyArg_ParseTuple(args, "O!O", &x509type, &x509, &x509_sequence))
+      goto error;
 
    if ( !( PyTuple_Check( x509_sequence ) || PyList_Check(x509_sequence) ) )
       { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
@@ -1895,8 +1895,8 @@ x509_store_object_add_trust(x509_store_object *self, PyObject *args)
 {
    x509_object *x509=NULL;
 
-	if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
-		goto error;
+   if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
+      goto error;
 
    X509_STORE_add_cert( self->store, x509->x509 );
 
@@ -1934,8 +1934,8 @@ x509_store_object_add_crl(x509_store_object *self, PyObject *args)
 {
    x509_crl_object *crl=NULL;
 
-	if (!PyArg_ParseTuple(args, "O!", &x509_crltype, &crl))
-		goto error;
+   if (!PyArg_ParseTuple(args, "O!", &x509_crltype, &crl))
+      goto error;
 
    X509_STORE_add_crl( self->store, crl->crl );
 
@@ -1952,13 +1952,13 @@ static struct PyMethodDef x509_store_object_methods[] = {
    {"addTrust",         (PyCFunction)x509_store_object_add_trust,    METH_VARARGS,  NULL}, 
    {"addCrl",           (PyCFunction)x509_store_object_add_crl,      METH_VARARGS,  NULL}, 
  
-	{NULL,		NULL}		/* sentinel */
+   {NULL,      NULL}    /* sentinel */
 };
 
 static PyObject *
 x509_store_object_getattr(x509_store_object *self, char *name)
 {
-	return Py_FindMethod(x509_store_object_methods, (PyObject *)self, name);
+   return Py_FindMethod(x509_store_object_methods, (PyObject *)self, name);
 }
 
 static void
@@ -2007,28 +2007,28 @@ static char x509_storetype__doc__[] =
 ;
 
 static PyTypeObject x509_storetype = {
-	PyObject_HEAD_INIT(0)
-	0,				                              /*ob_size*/
-	"X509Store",		                        /*tp_name*/
-	sizeof(x509_store_object),	               /*tp_basicsize*/
-	0,				                              /*tp_itemsize*/
-	(destructor)x509_store_object_dealloc,	   /*tp_dealloc*/
-	(printfunc)0,		                        /*tp_print*/
-	(getattrfunc)x509_store_object_getattr,	/*tp_getattr*/
-	(setattrfunc)0,	                        /*tp_setattr*/
-	(cmpfunc)0,		                           /*tp_compare*/
-	(reprfunc)0,      		                  /*tp_repr*/
-	0,			                                 /*tp_as_number*/
-	0,		                                    /*tp_as_sequence*/
-	0,		                                    /*tp_as_mapping*/
-	(hashfunc)0,		                        /*tp_hash*/
-	(ternaryfunc)0,		                     /*tp_call*/
-	(reprfunc)0,		                        /*tp_str*/
-	0,
+   PyObject_HEAD_INIT(0)
+   0,                                        /*ob_size*/
+   "X509Store",                              /*tp_name*/
+   sizeof(x509_store_object),                /*tp_basicsize*/
+   0,                                        /*tp_itemsize*/
+   (destructor)x509_store_object_dealloc,    /*tp_dealloc*/
+   (printfunc)0,                             /*tp_print*/
+   (getattrfunc)x509_store_object_getattr,   /*tp_getattr*/
+   (setattrfunc)0,                           /*tp_setattr*/
+   (cmpfunc)0,                               /*tp_compare*/
+   (reprfunc)0,                              /*tp_repr*/
+   0,                                        /*tp_as_number*/
+   0,                                        /*tp_as_sequence*/
+   0,                                        /*tp_as_mapping*/
+   (hashfunc)0,                              /*tp_hash*/
+   (ternaryfunc)0,                           /*tp_call*/
+   (reprfunc)0,                              /*tp_str*/
    0,
    0,
    0,
-	x509_storetype__doc__                    /* Documentation string */
+   0,
+   x509_storetype__doc__                    /* Documentation string */
 };
 /*========== x509 store Code ==========*/
 
@@ -2114,8 +2114,8 @@ x509_crl_object_get_version(x509_crl_object *self, PyObject *args)
 {
    long version=0;
 
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    if ( (version = ASN1_INTEGER_get( self->crl->crl->version ) ) == -1 )
       { PyErr_SetString( SSLErrorObject, "could not get crl version" ); goto error; }
@@ -2150,8 +2150,8 @@ x509_crl_object_set_version(x509_crl_object *self, PyObject *args)
    long version=0;
    ASN1_INTEGER *asn1_version=NULL;
 
-	if (!PyArg_ParseTuple(args, "i", &version))
-		goto error;
+   if (!PyArg_ParseTuple(args, "i", &version))
+      goto error;
 
    if ( !(asn1_version = ASN1_INTEGER_new() ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -2194,8 +2194,8 @@ x509_crl_object_get_issuer(x509_crl_object *self, PyObject *args)
    PyObject *result_list = NULL;
    int format=SHORTNAME_FORMAT;
 
-	if (!PyArg_ParseTuple(args, "|i", &format))
-		goto error;
+   if (!PyArg_ParseTuple(args, "|i", &format))
+      goto error;
 
    if ( !(result_list = X509_object_helper_get_name(self->crl->crl->issuer, format) ) )
       { PyErr_SetString( SSLErrorObject, "failed to produce name list" ); goto error; }
@@ -2231,8 +2231,8 @@ x509_crl_object_set_issuer(x509_crl_object *self, PyObject *args)
    PyObject *name_sequence = NULL;
    X509_NAME *name = NULL;
 
-	if (!PyArg_ParseTuple(args, "O", &name_sequence))
-		goto error;
+   if (!PyArg_ParseTuple(args, "O", &name_sequence))
+      goto error;
 
    if ( !( PyTuple_Check( name_sequence ) || PyList_Check(name_sequence) ) )
       { PyErr_SetString( PyExc_TypeError, "Inapropriate type" ); goto error; }
@@ -2243,7 +2243,7 @@ x509_crl_object_set_issuer(x509_crl_object *self, PyObject *args)
    if ( !X509_object_helper_set_name(name, name_sequence) )
       { PyErr_SetString( SSLErrorObject, "unable to set new name" ); goto error; }
 
-	if ( !X509_NAME_set(&self->crl->crl->issuer,name ) )
+   if ( !X509_NAME_set(&self->crl->crl->issuer,name ) )
       { PyErr_SetString( SSLErrorObject, "unable to set name" ); goto error; }
 
    X509_NAME_free(name);
@@ -2283,10 +2283,10 @@ x509_crl_object_set_this_update (x509_crl_object *self, PyObject *args)
    //int new_time = 0;
    char *new_time=NULL;
 
-	if (!PyArg_ParseTuple(args, "s", &new_time))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s", &new_time))
+      goto error;
 
-	if ( !ASN1_UTCTIME_set_string(self->crl->crl->lastUpdate,new_time) )
+   if ( !ASN1_UTCTIME_set_string(self->crl->crl->lastUpdate,new_time) )
       { PyErr_SetString( SSLErrorObject, "could not set time" ); goto error; }
 
    return Py_BuildValue("");
@@ -2317,8 +2317,8 @@ static char x509_crl_object_get_this_update__doc__[] =
 static PyObject *
 x509_crl_object_get_this_update (x509_crl_object *self, PyObject *args)
 {
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    return Py_BuildValue("s", self->crl->crl->lastUpdate->data);
 
@@ -2353,16 +2353,16 @@ x509_crl_object_set_next_update (x509_crl_object *self, PyObject *args)
    char *new_time=NULL;
    ASN1_UTCTIME *time=NULL;
 
-	if (!PyArg_ParseTuple(args, "s", &new_time))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s", &new_time))
+      goto error;
 
    if (self->crl->crl->nextUpdate == NULL)
       if ( !(time = ASN1_UTCTIME_new() ) )
          { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
 
-	self->crl->crl->nextUpdate = time;
+   self->crl->crl->nextUpdate = time;
 
-	if (!ASN1_UTCTIME_set_string(time, new_time) )
+   if (!ASN1_UTCTIME_set_string(time, new_time) )
       { PyErr_SetString( SSLErrorObject, "could not set next update" ); goto error; }
 
 
@@ -2394,8 +2394,8 @@ static char x509_crl_object_get_next_update__doc__[] =
 static PyObject *
 x509_crl_object_get_next_update (x509_crl_object *self, PyObject *args)
 {
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    return Py_BuildValue("s", self->crl->crl->nextUpdate->data);
 
@@ -2461,8 +2461,8 @@ static X509_REVOKED *
 X509_REVOKED_dup(X509_REVOKED *rev)
 {
    return((X509_REVOKED *)ASN1_dup((i2d_of_void *) i2d_X509_REVOKED,
-				   (d2i_of_void *) d2i_X509_REVOKED,
-				   (char *) rev));
+               (d2i_of_void *) d2i_X509_REVOKED,
+               (char *) rev));
 }
 
 static PyObject *
@@ -2536,7 +2536,7 @@ x509_crl_object_helper_get_revoked(STACK_OF(X509_REVOKED) *revoked)
       revoke_obj = NULL; revoke_tmp = NULL;
    }
 
-	result_tuple = PyList_AsTuple( result_list );
+   result_tuple = PyList_AsTuple( result_list );
    Py_DECREF(result_list);
  
    return Py_BuildValue("O", result_tuple);
@@ -2603,8 +2603,8 @@ x509_crl_object_get_revoked(x509_crl_object *self, PyObject *args)
 {
    PyObject *revoked = NULL;
 
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    revoked = x509_crl_object_helper_get_revoked( X509_CRL_get_REVOKED(self->crl) );
 
@@ -2669,8 +2669,8 @@ X509_crl_object_add_extension(x509_crl_object *self, PyObject *args)
    ASN1_OCTET_STRING *octetString=NULL;
    X509_EXTENSION *extn=NULL;
 
-	if (!PyArg_ParseTuple(args, "sis", &name, &critical, &buf))
-		goto error;
+   if (!PyArg_ParseTuple(args, "sis", &name, &critical, &buf))
+      goto error;
 
    if ( !(octetString = M_ASN1_OCTET_STRING_new() ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -2719,8 +2719,8 @@ static char X509_crl_object_clear_extensions__doc__[] =
 static PyObject *
 X509_crl_object_clear_extensions(x509_crl_object *self, PyObject *args)
 {
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    if (self->crl->crl->extensions)
    {
@@ -2754,8 +2754,8 @@ static PyObject *
 X509_crl_object_count_extensions(x509_crl_object *self, PyObject *args)
 {
    int num=0;
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    if (self->crl->crl->extensions)
    {
@@ -2793,8 +2793,8 @@ X509_crl_object_get_extension(x509_crl_object *self, PyObject *args)
    char const *ext_ln=NULL;
    char unknown_ext [] = "unkown";
    X509_EXTENSION *ext;
-	if (!PyArg_ParseTuple(args, "i", &index))
-		goto error;
+   if (!PyArg_ParseTuple(args, "i", &index))
+      goto error;
 
    if (self->crl->crl->extensions)
    {
@@ -2855,12 +2855,12 @@ static char x509_crl_object_sign__doc__[] =
 static PyObject *
 x509_crl_object_sign(x509_crl_object *self, PyObject *args)
 {
-	EVP_PKEY *pkey=NULL;
+   EVP_PKEY *pkey=NULL;
    asymmetric_object *asym;
    int digest=MD5_DIGEST;
 
-	if (!PyArg_ParseTuple(args, "O!|i", &asymmetrictype, &asym, &digest))
-		goto error;
+   if (!PyArg_ParseTuple(args, "O!|i", &asymmetrictype, &asym, &digest))
+      goto error;
 
    if ( !(pkey = EVP_PKEY_new() ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -2960,11 +2960,11 @@ static PyObject *
 x509_crl_object_verify(x509_crl_object *self, PyObject *args)
 {
    int result=0;
-	EVP_PKEY *pkey=NULL;
+   EVP_PKEY *pkey=NULL;
    asymmetric_object *asym;
 
-	if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
-		goto error;
+   if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
+      goto error;
 
    if ( !(pkey = EVP_PKEY_new() ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -2972,7 +2972,7 @@ x509_crl_object_verify(x509_crl_object *self, PyObject *args)
    if ( !(EVP_PKEY_assign_RSA(pkey, asym->cipher) ) )
       { PyErr_SetString( SSLErrorObject, "EVP_PKEY assignment error" ); goto error; }
 
-	result = X509_CRL_verify(self->crl,pkey);
+   result = X509_CRL_verify(self->crl,pkey);
 
    return Py_BuildValue("i", result);
 
@@ -2993,8 +2993,8 @@ x509_crl_object_write_helper(x509_crl_object *self, PyObject *args, int format)
    BIO *out_bio=NULL;
    PyObject *cert=NULL;
    
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    out_bio = BIO_new(BIO_s_mem());
 
@@ -3101,8 +3101,8 @@ x509_crl_object_pprint(x509_crl_object *self, PyObject *args)
    BIO *out_bio=NULL;
    PyObject *crl=NULL;
    
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    out_bio = BIO_new(BIO_s_mem());
 
@@ -3157,13 +3157,13 @@ static struct PyMethodDef x509_crl_object_methods[] = {
    {"derWrite",      (PyCFunction)x509_crl_object_der_write,         METH_VARARGS,  NULL}, 
    {"pprint",        (PyCFunction)x509_crl_object_pprint,            METH_VARARGS,  NULL}, 
  
-	{NULL,		NULL}		/* sentinel */
+   {NULL,      NULL}    /* sentinel */
 };
 
 static PyObject *
 x509_crl_object_getattr(x509_crl_object *self, char *name)
 {
-	return Py_FindMethod(x509_crl_object_methods, (PyObject *)self, name);
+   return Py_FindMethod(x509_crl_object_methods, (PyObject *)self, name);
 }
 
 static void
@@ -3188,28 +3188,28 @@ static char x509_crltype__doc__[] =
 ;
 
 static PyTypeObject x509_crltype = {
-	PyObject_HEAD_INIT(0)
-	0,				                           /*ob_size*/
-	"X509Crl",		                        /*tp_name*/
-	sizeof(x509_crl_object),	            /*tp_basicsize*/
-	0,				                           /*tp_itemsize*/
-	(destructor)x509_crl_object_dealloc,	/*tp_dealloc*/
-	(printfunc)0,		                     /*tp_print*/
-	(getattrfunc)x509_crl_object_getattr,	/*tp_getattr*/
-	(setattrfunc)0,	                     /*tp_setattr*/
-	(cmpfunc)0,		                        /*tp_compare*/
-	(reprfunc)0,      		               /*tp_repr*/
-	0,			                              /*tp_as_number*/
-	0,		                                 /*tp_as_sequence*/
-	0,		                                 /*tp_as_mapping*/
-	(hashfunc)0,		                     /*tp_hash*/
-	(ternaryfunc)0,		                  /*tp_call*/
-	(reprfunc)0,		                     /*tp_str*/
-	0,
+   PyObject_HEAD_INIT(0)
+   0,                                     /*ob_size*/
+   "X509Crl",                             /*tp_name*/
+   sizeof(x509_crl_object),               /*tp_basicsize*/
+   0,                                     /*tp_itemsize*/
+   (destructor)x509_crl_object_dealloc,   /*tp_dealloc*/
+   (printfunc)0,                          /*tp_print*/
+   (getattrfunc)x509_crl_object_getattr,  /*tp_getattr*/
+   (setattrfunc)0,                        /*tp_setattr*/
+   (cmpfunc)0,                            /*tp_compare*/
+   (reprfunc)0,                           /*tp_repr*/
+   0,                                     /*tp_as_number*/
+   0,                                     /*tp_as_sequence*/
+   0,                                     /*tp_as_mapping*/
+   (hashfunc)0,                           /*tp_hash*/
+   (ternaryfunc)0,                        /*tp_call*/
+   (reprfunc)0,                           /*tp_str*/
    0,
    0,
    0,
-	x509_crltype__doc__                   /* Documentation string */
+   0,
+   x509_crltype__doc__                   /* Documentation string */
 };
 /*========== x509 crl Code ==========*/
 
@@ -3253,8 +3253,8 @@ x509_revoked_object_set_serial(x509_revoked_object *self, PyObject *args)
 {
    int serial=0;
 
-	if (!PyArg_ParseTuple(args, "i", &serial))
-		goto error;
+   if (!PyArg_ParseTuple(args, "i", &serial))
+      goto error;
 
    if (!ASN1_INTEGER_set( self->revoked->serialNumber, serial ) )
       { PyErr_SetString( SSLErrorObject, "unable to set serial number" ); goto error; }
@@ -3286,8 +3286,8 @@ x509_revoked_object_get_serial(x509_revoked_object *self, PyObject *args)
 {
    int serial=0;
 
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    if ( (serial = ASN1_INTEGER_get( self->revoked->serialNumber ) ) == -1 )
       { PyErr_SetString( SSLErrorObject, "unable to get serial number" ); goto error; }
@@ -3320,8 +3320,8 @@ static char x509_revoked_object_get_date__doc__[] =
 static PyObject *
 x509_revoked_object_get_date(x509_revoked_object *self, PyObject *args)
 {
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    return Py_BuildValue("s", self->revoked->revocationDate->data);
 
@@ -3354,8 +3354,8 @@ x509_revoked_object_set_date(x509_revoked_object *self, PyObject *args)
 {
    char *time=NULL;
 
-	if (!PyArg_ParseTuple(args, "s", &time))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s", &time))
+      goto error;
 
    if (!ASN1_UTCTIME_set_string( self->revoked->revocationDate, time ))
       { PyErr_SetString( PyExc_TypeError, "could not set revocationDate" ); goto error; }
@@ -3409,8 +3409,8 @@ X509_revoked_object_add_extension(x509_revoked_object *self, PyObject *args)
    ASN1_OCTET_STRING *octetString=NULL;
    X509_EXTENSION *extn=NULL;
 
-	if (!PyArg_ParseTuple(args, "sis", &name, &critical, &buf))
-		goto error;
+   if (!PyArg_ParseTuple(args, "sis", &name, &critical, &buf))
+      goto error;
 
    if ( !(octetString = M_ASN1_OCTET_STRING_new() ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -3459,8 +3459,8 @@ static char X509_revoked_object_clear_extensions__doc__[] =
 static PyObject *
 X509_revoked_object_clear_extensions(x509_revoked_object *self, PyObject *args)
 {
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    if (self->revoked->extensions)
    {
@@ -3494,8 +3494,8 @@ static PyObject *
 X509_revoked_object_count_extensions(x509_revoked_object *self, PyObject *args)
 {
    int num=0;
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    if (self->revoked->extensions)
    {
@@ -3533,8 +3533,8 @@ X509_revoked_object_get_extension(x509_revoked_object *self, PyObject *args)
    char const *ext_ln=NULL;
    char unknown_ext [] = "unkown";
    X509_EXTENSION *ext;
-	if (!PyArg_ParseTuple(args, "i", &index))
-		goto error;
+   if (!PyArg_ParseTuple(args, "i", &index))
+      goto error;
 
    if (self->revoked->extensions)
    {
@@ -3572,13 +3572,13 @@ static struct PyMethodDef x509_revoked_object_methods[] = {
    {"countExtensions",(PyCFunction)X509_revoked_object_count_extensions, METH_VARARGS,  NULL}, 
    {"getExtension",  (PyCFunction)X509_revoked_object_get_extension,     METH_VARARGS,  NULL}, 
 
-	{NULL,		NULL}		/* sentinel */
+   {NULL,      NULL}    /* sentinel */
 };
 
 static PyObject *
 x509_revoked_object_getattr(x509_revoked_object *self, char *name)
 {
-	return Py_FindMethod(x509_revoked_object_methods, (PyObject *)self, name);
+   return Py_FindMethod(x509_revoked_object_methods, (PyObject *)self, name);
 }
 
 static void
@@ -3609,28 +3609,28 @@ static char x509_revokedtype__doc__[] =
 ;
 
 static PyTypeObject x509_revokedtype = {
-	PyObject_HEAD_INIT(0)
-	0,				                              /*ob_size*/
-	"X509Revoked",		                        /*tp_name*/
-	sizeof(x509_revoked_object),	            /*tp_basicsize*/
-	0,				                              /*tp_itemsize*/
-	(destructor)x509_revoked_object_dealloc,	/*tp_dealloc*/
-	(printfunc)0,		                        /*tp_print*/
-	(getattrfunc)x509_revoked_object_getattr,	/*tp_getattr*/
-	(setattrfunc)0,	                        /*tp_setattr*/
-	(cmpfunc)0,		                           /*tp_compare*/
-	(reprfunc)0,      		                  /*tp_repr*/
-	0,			                                 /*tp_as_number*/
-	0,		                                    /*tp_as_sequence*/
-	0,		                                    /*tp_as_mapping*/
-	(hashfunc)0,		                        /*tp_hash*/
-	(ternaryfunc)0,		                     /*tp_call*/
-	(reprfunc)0,		                        /*tp_str*/
-	0,
+   PyObject_HEAD_INIT(0)
+   0,                                        /*ob_size*/
+   "X509Revoked",                            /*tp_name*/
+   sizeof(x509_revoked_object),              /*tp_basicsize*/
+   0,                                        /*tp_itemsize*/
+   (destructor)x509_revoked_object_dealloc,  /*tp_dealloc*/
+   (printfunc)0,                             /*tp_print*/
+   (getattrfunc)x509_revoked_object_getattr, /*tp_getattr*/
+   (setattrfunc)0,                           /*tp_setattr*/
+   (cmpfunc)0,                               /*tp_compare*/
+   (reprfunc)0,                              /*tp_repr*/
+   0,                                        /*tp_as_number*/
+   0,                                        /*tp_as_sequence*/
+   0,                                        /*tp_as_mapping*/
+   (hashfunc)0,                              /*tp_hash*/
+   (ternaryfunc)0,                           /*tp_call*/
+   (reprfunc)0,                              /*tp_str*/
    0,
    0,
    0,
-	x509_revokedtype__doc__                  /* Documentation string */
+   0,
+   x509_revokedtype__doc__                  /* Documentation string */
 };
 /*========== x509 revoked Code ==========*/
 
@@ -3657,8 +3657,8 @@ ssl_object_use_certificate(ssl_object *self, PyObject *args)
 {
    x509_object *x509=NULL;
 
-	if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
-		goto error;
+   if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
+      goto error;
 
    if (self->ctxset)
       { PyErr_SetString( SSLErrorObject, "cannont be called after setFd()" ); goto error; }
@@ -3695,10 +3695,10 @@ static PyObject *
 ssl_object_use_key(ssl_object *self, PyObject *args)
 {
    asymmetric_object *asym=NULL;
-	EVP_PKEY *pkey=NULL;
+   EVP_PKEY *pkey=NULL;
 
-	if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
-		goto error;
+   if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
+      goto error;
 
    if (self->ctxset)
       { PyErr_SetString( SSLErrorObject, "cannont be called after setFd()" ); goto error; }
@@ -3712,7 +3712,7 @@ ssl_object_use_key(ssl_object *self, PyObject *args)
    if ( !EVP_PKEY_assign_RSA(pkey, asym->cipher) )
       { PyErr_SetString( SSLErrorObject, "EVP_PKEY assignment error" ); goto error; }
 
-	if ( !SSL_CTX_use_PrivateKey(self->ctx, pkey) )
+   if ( !SSL_CTX_use_PrivateKey(self->ctx, pkey) )
       { PyErr_SetString( SSLErrorObject, "ctx key assignment error" ); goto error; }
 
    return Py_BuildValue("");
@@ -3775,8 +3775,8 @@ ssl_object_set_fd(ssl_object *self, PyObject *args)
 {
    int fd=0, self_index=0;
    
-	if (!PyArg_ParseTuple(args, "i", &fd))
-		goto error;
+   if (!PyArg_ParseTuple(args, "i", &fd))
+      goto error;
 
    if ( !(self->ssl = SSL_new( self->ctx ) ) )
       { PyErr_SetString( SSLErrorObject, "unable to create ssl sturcture" ); goto error; }
@@ -3855,8 +3855,8 @@ ssl_object_accept(ssl_object *self, PyObject *args)
 {
    int ret=0, err=0;
    
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    Py_BEGIN_ALLOW_THREADS 
    ret = SSL_accept( self->ssl );
@@ -3913,8 +3913,8 @@ ssl_object_connect(ssl_object *self, PyObject *args)
 {
    int ret, err=0;
    
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    Py_BEGIN_ALLOW_THREADS 
    ret = SSL_connect( self->ssl );
@@ -3957,8 +3957,8 @@ ssl_object_write(ssl_object *self, PyObject *args)
    char *msg;
    int length=0, ret=0, err=0;
    
-	if (!PyArg_ParseTuple(args, "s#", &msg, &length))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s#", &msg, &length))
+      goto error;
    
    Py_BEGIN_ALLOW_THREADS 
    ret = SSL_write( self->ssl, msg, length );
@@ -4002,8 +4002,8 @@ ssl_object_read(ssl_object *self, PyObject *args)
    char *msg=NULL;
    int len = 1024, ret=0, err=0;
    
-	if (!PyArg_ParseTuple(args, "|i", &len))
-		goto error;
+   if (!PyArg_ParseTuple(args, "|i", &len))
+      goto error;
 
    if ( !(msg = malloc(len) ) )
       { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
@@ -4055,8 +4055,8 @@ ssl_object_peer_certificate(ssl_object *self, PyObject *args)
    X509 *x509=NULL;
    x509_object *x509_obj=NULL;
 
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    if ( !(x509_obj = X509_object_new() ) )
       { PyErr_SetString( SSLErrorObject, "could not create x509 object" ); goto error; }
@@ -4104,8 +4104,8 @@ static char ssl_object_clear__doc__[] =
 static PyObject *
 ssl_object_clear(ssl_object *self, PyObject *args)
 {
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
    
    if (!SSL_clear( self->ssl ) )
       { PyErr_SetString( SSLErrorObject, "failed to clear ssl connection" ); goto error; }
@@ -4150,8 +4150,8 @@ ssl_object_shutdown(ssl_object *self, PyObject *args)
 {
    int ret=0, err=0;
 
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
    
    ret = SSL_shutdown(self->ssl);
 
@@ -4198,8 +4198,8 @@ ssl_object_get_shutdown(ssl_object *self, PyObject *args)
 {
    int state=0;
 
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
    
    state = SSL_get_shutdown(self->ssl);
 
@@ -4233,8 +4233,8 @@ ssl_object_get_ciphers(ssl_object *self, PyObject *args)
    const char *cipher=NULL;
    PyObject *list=NULL, *name=NULL;
 
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    if (!self->ctxset)
       { PyErr_SetString( SSLErrorObject, "cannont be called before setFd()" ); goto error; }
@@ -4297,8 +4297,8 @@ ssl_object_set_ciphers(ssl_object *self, PyObject *args)
    int size=0, cipherstrlen=0, nextstrlen=0, i=0;
    char *cipherstr=NULL;
 
-	if (!PyArg_ParseTuple(args, "O", &ciphers))
-		goto error;
+   if (!PyArg_ParseTuple(args, "O", &ciphers))
+      goto error;
 
    if ( !(PyList_Check(ciphers) || PyTuple_Check(ciphers)) )
       { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
@@ -4362,8 +4362,8 @@ static char ssl_object_get_cipher__doc__[] =
 static PyObject *
 ssl_object_get_cipher(ssl_object *self, PyObject *args)
 {
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    if (!self->ctxset)
       { PyErr_SetString( SSLErrorObject, "cannont be called before setFd()" ); goto error; }
@@ -4411,8 +4411,8 @@ ssl_object_set_verify_mode(ssl_object *self, PyObject *args)
 {
    int mode=0;
 
-	if (!PyArg_ParseTuple(args, "i", &mode))
-		goto error;
+   if (!PyArg_ParseTuple(args, "i", &mode))
+      goto error;
 
    if (self->ctxset)
       { PyErr_SetString( SSLErrorObject, "cannont be called after setfd()" ); goto error; }
@@ -4427,35 +4427,35 @@ error:
 }
 
 static struct PyMethodDef ssl_object_methods[] = {
-	{"useCertificate",   (PyCFunction)ssl_object_use_certificate,  METH_VARARGS,	NULL},
-	{"useKey",           (PyCFunction)ssl_object_use_key,	         METH_VARARGS,	NULL},
-	{"checkKey",         (PyCFunction)ssl_object_check_key,	      METH_VARARGS,	NULL},
-	{"setFd",	         (PyCFunction)ssl_object_set_fd,	         METH_VARARGS,	NULL},
-	{"connect",	         (PyCFunction)ssl_object_connect,	         METH_VARARGS,	NULL},
-	{"accept",	         (PyCFunction)ssl_object_accept,	         METH_VARARGS,	NULL},
-	{"write",	         (PyCFunction)ssl_object_write,	         METH_VARARGS,	NULL},
-	{"read",	            (PyCFunction)ssl_object_read,	            METH_VARARGS,	NULL},
-	{"peerCertificate",  (PyCFunction)ssl_object_peer_certificate, METH_VARARGS,	NULL},
-	{"clear",	         (PyCFunction)ssl_object_clear,	         METH_VARARGS,	NULL},
-	{"shutdown",	      (PyCFunction)ssl_object_shutdown,	      METH_VARARGS,	NULL},
-	{"getShutdown",	   (PyCFunction)ssl_object_get_shutdown,	   METH_VARARGS,	NULL},
-	{"getCiphers",	      (PyCFunction)ssl_object_get_ciphers,	   METH_VARARGS,	NULL},
-	{"setCiphers",	      (PyCFunction)ssl_object_set_ciphers,	   METH_VARARGS,	NULL},
-	{"getCipher",	      (PyCFunction)ssl_object_get_cipher,	      METH_VARARGS,	NULL},
-	{"setVerifyMode",	   (PyCFunction)ssl_object_set_verify_mode,  METH_VARARGS,	NULL},
+   {"useCertificate",   (PyCFunction)ssl_object_use_certificate,  METH_VARARGS,  NULL},
+   {"useKey",           (PyCFunction)ssl_object_use_key,          METH_VARARGS,  NULL},
+   {"checkKey",         (PyCFunction)ssl_object_check_key,        METH_VARARGS,  NULL},
+   {"setFd",            (PyCFunction)ssl_object_set_fd,           METH_VARARGS,  NULL},
+   {"connect",          (PyCFunction)ssl_object_connect,          METH_VARARGS,  NULL},
+   {"accept",           (PyCFunction)ssl_object_accept,           METH_VARARGS,  NULL},
+   {"write",            (PyCFunction)ssl_object_write,            METH_VARARGS,  NULL},
+   {"read",             (PyCFunction)ssl_object_read,             METH_VARARGS,  NULL},
+   {"peerCertificate",  (PyCFunction)ssl_object_peer_certificate, METH_VARARGS,  NULL},
+   {"clear",            (PyCFunction)ssl_object_clear,            METH_VARARGS,  NULL},
+   {"shutdown",         (PyCFunction)ssl_object_shutdown,         METH_VARARGS,  NULL},
+   {"getShutdown",      (PyCFunction)ssl_object_get_shutdown,     METH_VARARGS,  NULL},
+   {"getCiphers",       (PyCFunction)ssl_object_get_ciphers,      METH_VARARGS,  NULL},
+   {"setCiphers",       (PyCFunction)ssl_object_set_ciphers,      METH_VARARGS,  NULL},
+   {"getCipher",        (PyCFunction)ssl_object_get_cipher,       METH_VARARGS,  NULL},
+   {"setVerifyMode",    (PyCFunction)ssl_object_set_verify_mode,  METH_VARARGS,  NULL},
  
-	{NULL,		NULL}		/* sentinel */
+   {NULL,      NULL}    /* sentinel */
 };
 
 static ssl_object *
 newssl_object(int type)
 {
-	ssl_object *self;
+   ssl_object *self;
    SSL_METHOD *method;
 
-	
-	if ( !(self = PyObject_NEW(ssl_object, &ssltype) ) )
-		goto error;
+   
+   if ( !(self = PyObject_NEW(ssl_object, &ssltype) ) )
+      goto error;
 
    self->ctxset = 0;
    self->ssl = NULL;
@@ -4483,7 +4483,7 @@ newssl_object(int type)
    if ( !(self->ctx = SSL_CTX_new( method ) ) )
       { PyErr_SetString( SSLErrorObject, "unable to create new ctx" ); goto error; }
 
-	return self;
+   return self;
 
 error:
 
@@ -4494,7 +4494,7 @@ error:
 static PyObject *
 ssl_object_getattr(ssl_object *self, char *name)
 {
-	return Py_FindMethod(ssl_object_methods, (PyObject *)self, name);
+   return Py_FindMethod(ssl_object_methods, (PyObject *)self, name);
 }
 
 static void
@@ -4526,28 +4526,28 @@ static char ssltype__doc__[] =
 ;
 
 static PyTypeObject ssltype = {
-	PyObject_HEAD_INIT(0)
-	0,				                     /*ob_size*/
-	"Ssl",			                  /*tp_name*/
-	sizeof(ssl_object),               /*tp_basicsize*/
-	0,				                     /*tp_itemsize*/
-	(destructor)ssl_object_dealloc,	/*tp_dealloc*/
-	(printfunc)0,		               /*tp_print*/
-	(getattrfunc)ssl_object_getattr,	/*tp_getattr*/
-	(setattrfunc)0,	               /*tp_setattr*/
-	(cmpfunc)0,		                  /*tp_compare*/
-	(reprfunc)0,	      	         /*tp_repr*/
-	0,			                        /*tp_as_number*/
-	0,		                           /*tp_as_sequence*/
-	0,		                           /*tp_as_mapping*/
-	(hashfunc)0,		               /*tp_hash*/
-	(ternaryfunc)0,		            /*tp_call*/
-	(reprfunc)0,		               /*tp_str*/
-	0,
+   PyObject_HEAD_INIT(0)
+   0,                               /*ob_size*/
+   "Ssl",                           /*tp_name*/
+   sizeof(ssl_object),               /*tp_basicsize*/
+   0,                               /*tp_itemsize*/
+   (destructor)ssl_object_dealloc,  /*tp_dealloc*/
+   (printfunc)0,                    /*tp_print*/
+   (getattrfunc)ssl_object_getattr, /*tp_getattr*/
+   (setattrfunc)0,                  /*tp_setattr*/
+   (cmpfunc)0,                      /*tp_compare*/
+   (reprfunc)0,                     /*tp_repr*/
+   0,                               /*tp_as_number*/
+   0,                               /*tp_as_sequence*/
+   0,                               /*tp_as_mapping*/
+   (hashfunc)0,                     /*tp_hash*/
+   (ternaryfunc)0,                  /*tp_call*/
+   (reprfunc)0,                     /*tp_str*/
    0,
    0,
    0,
-	ssltype__doc__                   /* Documentation string */
+   0,
+   ssltype__doc__                   /* Documentation string */
 };
 /*========== ssl Object ==========*/
 
@@ -4694,8 +4694,8 @@ asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
    BIO *out_bio=NULL;
    PyObject *asymmetric=NULL;
 
-	if (!PyArg_ParseTuple(args, "|iis", &key_type, &cipher, &kstr))
-		goto error;
+   if (!PyArg_ParseTuple(args, "|iis", &key_type, &cipher, &kstr))
+      goto error;
 
    if (key_type == 0)
       key_type = self->key_type;
@@ -4789,8 +4789,8 @@ asymmetric_object_der_write(asymmetric_object *self, PyObject *args)
    unsigned char *buf=NULL, *p=NULL;
    PyObject *asymmetric=NULL;
 
-	if (!PyArg_ParseTuple(args, "|i", &key_type))
-		goto error;
+   if (!PyArg_ParseTuple(args, "|i", &key_type))
+      goto error;
 
    if (key_type == 0)
       key_type = self->key_type;
@@ -5100,8 +5100,8 @@ asymmetric_object_sign(asymmetric_object *self, PyObject *args)
    int digest_len=0, digest_type=0, digest_nid=0, signed_len=0;
    PyObject *obj=NULL;
 
-	if (!PyArg_ParseTuple(args, "s#i", &digest_text, &digest_len, &digest_type))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s#i", &digest_text, &digest_len, &digest_type))
+      goto error;
 
    if (self->key_type != RSA_PRIVATE_KEY)
       { PyErr_SetString( SSLErrorObject, "unsupported key type" ); goto error; }
@@ -5217,8 +5217,8 @@ asymmetric_object_verify(asymmetric_object *self, PyObject *args)
    char *digest_text=NULL, *signed_text=NULL; 
    int digest_len=0, digest_type=0, digest_nid=0, signed_len=0, result=0;
 
-	if (!PyArg_ParseTuple(args, "s#s#i", &signed_text, &signed_len, &digest_text, &digest_len, &digest_type))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s#s#i", &signed_text, &signed_len, &digest_text, &digest_len, &digest_type))
+      goto error;
 
    switch(digest_type)
    {
@@ -5260,13 +5260,13 @@ static struct PyMethodDef asymmetric_object_methods[] = {
    {"sign",          (PyCFunction)asymmetric_object_sign,            METH_VARARGS,  NULL}, 
    {"verify",        (PyCFunction)asymmetric_object_verify,          METH_VARARGS,  NULL}, 
  
-	{NULL,		NULL}		/* sentinel */
+   {NULL,      NULL}    /* sentinel */
 };
 
 static PyObject *
 asymmetric_object_getattr(asymmetric_object *self, char *name)
 {
-	return Py_FindMethod(asymmetric_object_methods, (PyObject *)self, name);
+   return Py_FindMethod(asymmetric_object_methods, (PyObject *)self, name);
 }
 
 static void
@@ -5299,28 +5299,28 @@ static char asymmetrictype__doc__[] =
 ;
 
 static PyTypeObject asymmetrictype = {
-	PyObject_HEAD_INIT(0)
-	0,				                           /*ob_size*/
-	"Asymmetric",			                  /*tp_name*/
-	sizeof(asymmetric_object),		         /*tp_basicsize*/
-	0,				                           /*tp_itemsize*/
-	(destructor)asymmetric_object_dealloc,	/*tp_dealloc*/
-	(printfunc)0,		                     /*tp_print*/
-	(getattrfunc)asymmetric_object_getattr,	/*tp_getattr*/
-	(setattrfunc)0,	                     /*tp_setattr*/
-	(cmpfunc)0,		                        /*tp_compare*/
-	(reprfunc)0,      		               /*tp_repr*/
-	0,			                              /*tp_as_number*/
-	0,		                                 /*tp_as_sequence*/
-	0,		                                 /*tp_as_mapping*/
-	(hashfunc)0,		                     /*tp_hash*/
-	(ternaryfunc)0,		                  /*tp_call*/
-	(reprfunc)0,		                     /*tp_str*/
-	0,
+   PyObject_HEAD_INIT(0)
+   0,                                     /*ob_size*/
+   "Asymmetric",                          /*tp_name*/
+   sizeof(asymmetric_object),             /*tp_basicsize*/
+   0,                                     /*tp_itemsize*/
+   (destructor)asymmetric_object_dealloc, /*tp_dealloc*/
+   (printfunc)0,                          /*tp_print*/
+   (getattrfunc)asymmetric_object_getattr,   /*tp_getattr*/
+   (setattrfunc)0,                        /*tp_setattr*/
+   (cmpfunc)0,                            /*tp_compare*/
+   (reprfunc)0,                           /*tp_repr*/
+   0,                                     /*tp_as_number*/
+   0,                                     /*tp_as_sequence*/
+   0,                                     /*tp_as_mapping*/
+   (hashfunc)0,                           /*tp_hash*/
+   (ternaryfunc)0,                        /*tp_call*/
+   (reprfunc)0,                           /*tp_str*/
    0,
    0,
    0,
-	asymmetrictype__doc__                   /* Documentation string */
+   0,
+   asymmetrictype__doc__                   /* Documentation string */
 };
 /*========== asymmetric Code ==========*/
 
@@ -5374,8 +5374,8 @@ symmetric_object_encrypt_init(symmetric_object *self, PyObject *args)
    char *key=NULL, *iv=NULL, nulliv [] = "";
    const EVP_CIPHER *cipher=NULL;
 
-	if (!PyArg_ParseTuple(args, "s|s", &key, &iv))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s|s", &key, &iv))
+      goto error;
 
    if (!iv)
       iv = nulliv;
@@ -5418,8 +5418,8 @@ symmetric_object_decrypt_init(symmetric_object *self, PyObject *args)
    char *key=NULL, *iv=NULL, nulliv [] = "";
    const EVP_CIPHER *cipher=NULL;
 
-	if (!PyArg_ParseTuple(args, "s|s", &key, &iv))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s|s", &key, &iv))
+      goto error;
 
    if (!iv)
       iv = nulliv;
@@ -5461,8 +5461,8 @@ symmetric_object_update(symmetric_object *self, PyObject *args)
    char *in=NULL, *out=NULL;
    PyObject *py_out=NULL;
 
-	if (!PyArg_ParseTuple(args, "s#", &in, &inl))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s#", &in, &inl))
+      goto error;
 
    if ( !(out = malloc( inl + EVP_CIPHER_CTX_block_size( &self->cipher_ctx) ) ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -5509,8 +5509,8 @@ symmetric_object_final(symmetric_object *self, PyObject *args)
    char *out=NULL;
    PyObject *py_out=NULL;
 
-	if (!PyArg_ParseTuple(args, "|i", &size))
-		goto error;
+   if (!PyArg_ParseTuple(args, "|i", &size))
+      goto error;
 
    if ( !(out = malloc( size + EVP_CIPHER_CTX_block_size( &self->cipher_ctx) ) ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -5538,13 +5538,13 @@ static struct PyMethodDef symmetric_object_methods[] = {
    {"update",        (PyCFunction)symmetric_object_update,        METH_VARARGS,  NULL}, 
    {"final",         (PyCFunction)symmetric_object_final,         METH_VARARGS,  NULL}, 
  
-	{NULL,		NULL}		/* sentinel */
+   {NULL,      NULL}    /* sentinel */
 };
 
 static PyObject *
 symmetric_object_getattr(symmetric_object *self, char *name)
 {
-	return Py_FindMethod(symmetric_object_methods, (PyObject *)self, name);
+   return Py_FindMethod(symmetric_object_methods, (PyObject *)self, name);
 }
 
 static void
@@ -5593,28 +5593,28 @@ static char symmetrictype__doc__[] =
 ;
 
 static PyTypeObject symmetrictype = {
-	PyObject_HEAD_INIT(0)
-	0,				                           /*ob_size*/
-	"Symmetric",			                     /*tp_name*/
-	sizeof(symmetric_object),		         /*tp_basicsize*/
-	0,				                           /*tp_itemsize*/
-	(destructor)symmetric_object_dealloc,	/*tp_dealloc*/
-	(printfunc)0,		                     /*tp_print*/
-	(getattrfunc)symmetric_object_getattr,	/*tp_getattr*/
-	(setattrfunc)0,	                     /*tp_setattr*/
-	(cmpfunc)0,		                        /*tp_compare*/
-	(reprfunc)0,      		               /*tp_repr*/
-	0,			                              /*tp_as_number*/
-	0,		                                 /*tp_as_sequence*/
-	0,		                                 /*tp_as_mapping*/
-	(hashfunc)0,		                     /*tp_hash*/
-	(ternaryfunc)0,		                  /*tp_call*/
-	(reprfunc)0,		                     /*tp_str*/
-	0,
+   PyObject_HEAD_INIT(0)
+   0,                                     /*ob_size*/
+   "Symmetric",                              /*tp_name*/
+   sizeof(symmetric_object),              /*tp_basicsize*/
+   0,                                     /*tp_itemsize*/
+   (destructor)symmetric_object_dealloc,  /*tp_dealloc*/
+   (printfunc)0,                          /*tp_print*/
+   (getattrfunc)symmetric_object_getattr, /*tp_getattr*/
+   (setattrfunc)0,                        /*tp_setattr*/
+   (cmpfunc)0,                            /*tp_compare*/
+   (reprfunc)0,                           /*tp_repr*/
+   0,                                     /*tp_as_number*/
+   0,                                     /*tp_as_sequence*/
+   0,                                     /*tp_as_mapping*/
+   (hashfunc)0,                           /*tp_hash*/
+   (ternaryfunc)0,                        /*tp_call*/
+   (reprfunc)0,                           /*tp_str*/
    0,
    0,
    0,
-	symmetrictype__doc__                    /* Documentation string */
+   0,
+   symmetrictype__doc__                    /* Documentation string */
 };
 /*========== symmetric Code ==========*/
 
@@ -5681,8 +5681,8 @@ digest_object_update(digest_object *self, PyObject *args)
    char *data=NULL;
    int len=0;
 
-	if (!PyArg_ParseTuple(args, "s#", &data, &len))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s#", &data, &len))
+      goto error;
 
    EVP_DigestUpdate( &self->digest_ctx, data, len );
 
@@ -5780,13 +5780,13 @@ static struct PyMethodDef digest_object_methods[] = {
    {"digest",           (PyCFunction)digest_object_digest,  METH_VARARGS, NULL}, 
    {"copy",             (PyCFunction)digest_object_copy,    METH_VARARGS, NULL}, 
  
-	{NULL,		NULL}		/* sentinel */
+   {NULL,      NULL}    /* sentinel */
 };
 
 static PyObject *
 digest_object_getattr(digest_object *self, char *name)
 {
-	return Py_FindMethod(digest_object_methods, (PyObject *)self, name);
+   return Py_FindMethod(digest_object_methods, (PyObject *)self, name);
 }
 
 static void
@@ -5822,28 +5822,28 @@ static char digesttype__doc__[] =
 ;
 
 static PyTypeObject digesttype = {
-	PyObject_HEAD_INIT(0)
-	0,				                        /*ob_size*/
-	"Digest",		                     /*tp_name*/
-	sizeof(digest_object),		         /*tp_basicsize*/
-	0,				                        /*tp_itemsize*/
-	(destructor)digest_object_dealloc,	/*tp_dealloc*/
-	(printfunc)0,		                  /*tp_print*/
-	(getattrfunc)digest_object_getattr,	/*tp_getattr*/
-	(setattrfunc)0,	                  /*tp_setattr*/
-	(cmpfunc)0,		                     /*tp_compare*/
-	(reprfunc)0,      		            /*tp_repr*/
-	0,			                           /*tp_as_number*/
-	0,		                              /*tp_as_sequence*/
-	0,		                              /*tp_as_mapping*/
-	(hashfunc)0,		                  /*tp_hash*/
-	(ternaryfunc)0,		               /*tp_call*/
-	(reprfunc)0,		                  /*tp_str*/
-	0,
+   PyObject_HEAD_INIT(0)
+   0,                                  /*ob_size*/
+   "Digest",                           /*tp_name*/
+   sizeof(digest_object),              /*tp_basicsize*/
+   0,                                  /*tp_itemsize*/
+   (destructor)digest_object_dealloc,  /*tp_dealloc*/
+   (printfunc)0,                       /*tp_print*/
+   (getattrfunc)digest_object_getattr, /*tp_getattr*/
+   (setattrfunc)0,                     /*tp_setattr*/
+   (cmpfunc)0,                         /*tp_compare*/
+   (reprfunc)0,                        /*tp_repr*/
+   0,                                  /*tp_as_number*/
+   0,                                  /*tp_as_sequence*/
+   0,                                  /*tp_as_mapping*/
+   (hashfunc)0,                        /*tp_hash*/
+   (ternaryfunc)0,                     /*tp_call*/
+   (reprfunc)0,                        /*tp_str*/
    0,
    0,
    0,
-	digesttype__doc__                   /* Documentation string */
+   0,
+   digesttype__doc__                   /* Documentation string */
 };
 /*========== digest Code ==========*/
 
@@ -5913,8 +5913,8 @@ hmac_object_update(hmac_object *self, PyObject *args)
    char *data=NULL;
    int len=0;
 
-	if (!PyArg_ParseTuple(args, "s#", &data, &len))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s#", &data, &len))
+      goto error;
 
    HMAC_Update( &self->hmac_ctx, data, len );
 
@@ -5982,8 +5982,8 @@ hmac_object_mac(hmac_object *self, PyObject *args)
    void *hmac_copy=NULL;
    int hmac_len=0;
 
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    if ( !(hmac_copy = malloc( sizeof(HMAC_CTX) ) ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -6008,13 +6008,13 @@ static struct PyMethodDef hmac_object_methods[] = {
    {"mac",              (PyCFunction)hmac_object_mac,    METH_VARARGS,  NULL}, 
    {"copy",             (PyCFunction)hmac_object_copy,   METH_VARARGS,  NULL}, 
  
-	{NULL,		NULL}		/* sentinel */
+   {NULL,      NULL}    /* sentinel */
 };
 
 static PyObject *
 hmac_object_getattr(hmac_object *self, char *name)
 {
-	return Py_FindMethod(hmac_object_methods, (PyObject *)self, name);
+   return Py_FindMethod(hmac_object_methods, (PyObject *)self, name);
 }
 
 static void
@@ -6040,28 +6040,28 @@ static char hmactype__doc__[] =
 ;
 
 static PyTypeObject hmactype = {
-	PyObject_HEAD_INIT(0)
-	0,				                        /*ob_size*/
-	"Hmac",		                        /*tp_name*/
-	sizeof(hmac_object),		            /*tp_basicsize*/
-	0,				                        /*tp_itemsize*/
-	(destructor)hmac_object_dealloc,	   /*tp_dealloc*/
-	(printfunc)0,		                  /*tp_print*/
-	(getattrfunc)hmac_object_getattr,	/*tp_getattr*/
-	(setattrfunc)0,	                  /*tp_setattr*/
-	(cmpfunc)0,		                     /*tp_compare*/
-	(reprfunc)0,      		            /*tp_repr*/
-	0,			                           /*tp_as_number*/
-	0,		                              /*tp_as_sequence*/
-	0,		                              /*tp_as_mapping*/
-	(hashfunc)0,		                  /*tp_hash*/
-	(ternaryfunc)0,		               /*tp_call*/
-	(reprfunc)0,		                  /*tp_str*/
-	0,
+   PyObject_HEAD_INIT(0)
+   0,                                  /*ob_size*/
+   "Hmac",                             /*tp_name*/
+   sizeof(hmac_object),                /*tp_basicsize*/
+   0,                                  /*tp_itemsize*/
+   (destructor)hmac_object_dealloc,    /*tp_dealloc*/
+   (printfunc)0,                       /*tp_print*/
+   (getattrfunc)hmac_object_getattr,   /*tp_getattr*/
+   (setattrfunc)0,                     /*tp_setattr*/
+   (cmpfunc)0,                         /*tp_compare*/
+   (reprfunc)0,                        /*tp_repr*/
+   0,                                  /*tp_as_number*/
+   0,                                  /*tp_as_sequence*/
+   0,                                  /*tp_as_mapping*/
+   (hashfunc)0,                        /*tp_hash*/
+   (ternaryfunc)0,                     /*tp_call*/
+   (reprfunc)0,                        /*tp_str*/
    0,
    0,
    0,
-	hmactype__doc__                     /* Documentation string */
+   0,
+   hmactype__doc__                     /* Documentation string */
 };
 /*========== hmac Code ==========*/
 /*========== module functions ==========*/
@@ -6103,8 +6103,8 @@ pow_module_new_ssl (PyObject *self, PyObject *args)
    ssl_object *ssl=NULL;
    int ctxtype=SSLV23_METHOD;
 
-	if (!PyArg_ParseTuple(args, "|i", &ctxtype))
-   	goto error;
+   if (!PyArg_ParseTuple(args, "|i", &ctxtype))
+      goto error;
 
    if ( !(ssl = newssl_object(ctxtype) ) )
       goto error;
@@ -6136,8 +6136,8 @@ pow_module_new_x509 (PyObject *self, PyObject *args)
 {
    x509_object *x509=NULL;
 
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
    
    if ( !(x509 = X509_object_new() ) ) 
       { PyErr_SetString( SSLErrorObject, "could not create new x509 object" ); goto error; }
@@ -6195,8 +6195,8 @@ pow_module_new_asymmetric (PyObject *self, PyObject *args)
 {
    int cipher_type=RSA_CIPHER, key_size=1024;
 
-	if (!PyArg_ParseTuple(args, "|ii", &cipher_type, &key_size))
-		goto error;
+   if (!PyArg_ParseTuple(args, "|ii", &cipher_type, &key_size))
+      goto error;
 
    return (PyObject*)asymmetric_object_new( cipher_type, key_size );
 
@@ -6236,8 +6236,8 @@ pow_module_new_digest (PyObject *self, PyObject *args)
 {
    int digest_type=0;
 
-	if (!PyArg_ParseTuple(args, "i", &digest_type))
-		goto error;
+   if (!PyArg_ParseTuple(args, "i", &digest_type))
+      goto error;
 
    return (PyObject*)digest_object_new( digest_type );
 
@@ -6279,8 +6279,8 @@ pow_module_new_hmac (PyObject *self, PyObject *args)
    int digest_type=0, key_len=0;
    char *key=NULL;
 
-	if (!PyArg_ParseTuple(args, "is#", &digest_type, &key, &key_len))
-		goto error;
+   if (!PyArg_ParseTuple(args, "is#", &digest_type, &key, &key_len))
+      goto error;
 
    return (PyObject*)hmac_object_new( digest_type, key, key_len );
 
@@ -6330,8 +6330,8 @@ pow_module_pem_read (PyObject *self, PyObject *args)
    int object_type=0, len=0;
    char *pass=NULL, *src=NULL;
 
-	if (!PyArg_ParseTuple(args, "is#|s", &object_type, &src, &len, &pass))
-		goto error;
+   if (!PyArg_ParseTuple(args, "is#|s", &object_type, &src, &len, &pass))
+      goto error;
 
    if ( !(in = BIO_new_mem_buf(src, -1) ) )
       { PyErr_SetString( SSLErrorObject, "unable to create new BIO" ); goto error; }
@@ -6402,8 +6402,8 @@ pow_module_der_read (PyObject *self, PyObject *args)
    int object_type=0, len=0;
    char *src=NULL;
 
-	if (!PyArg_ParseTuple(args, "is#", &object_type, &src, &len))
-		goto error;
+   if (!PyArg_ParseTuple(args, "is#", &object_type, &src, &len))
+      goto error;
 
    switch(object_type)
    {
@@ -6447,8 +6447,8 @@ static char pow_module_new_x509_store__doc__[] =
 static PyObject *
 pow_module_new_x509_store (PyObject *self, PyObject *args)
 {
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
 
    return (PyObject*)x509_store_object_new();
 
@@ -6522,8 +6522,8 @@ pow_module_new_symmetric (PyObject *self, PyObject *args)
 {
    int cipher_type=0; 
 
-	if (!PyArg_ParseTuple(args, "i", &cipher_type))
-		goto error; 
+   if (!PyArg_ParseTuple(args, "i", &cipher_type))
+      goto error; 
 
    return (PyObject*)symmetric_object_new(cipher_type);
 
@@ -6548,8 +6548,8 @@ static char pow_module_new_x509_crl__doc__[] =
 static PyObject *
 pow_module_new_x509_crl (PyObject *self, PyObject *args)
 {
-	if (!PyArg_ParseTuple(args, ""))
-		goto error; 
+   if (!PyArg_ParseTuple(args, ""))
+      goto error; 
 
    return (PyObject*)x509_crl_object_new();
 
@@ -6582,8 +6582,8 @@ pow_module_new_x509_revoked (PyObject *self, PyObject *args)
    char *date=NULL;
    x509_revoked_object *revoke=NULL;
 
-	if (!PyArg_ParseTuple(args, "|is", &serial, &date))
-		goto error; 
+   if (!PyArg_ParseTuple(args, "|is", &serial, &date))
+      goto error; 
 
    revoke = x509_revoked_object_new();
    if (serial != -1)
@@ -6626,8 +6626,8 @@ pow_module_add_object(PyObject *self, PyObject *args)
 {
    char *oid=NULL, *sn=NULL, *ln=NULL;
    
-	if (!PyArg_ParseTuple(args, "sss", &oid, &sn, &ln))
-		goto error;
+   if (!PyArg_ParseTuple(args, "sss", &oid, &sn, &ln))
+      goto error;
    
    if (!OBJ_create(oid, sn, ln) )
       {PyErr_SetString(SSLErrorObject, "unable to add object"); goto error;}
@@ -6658,8 +6658,8 @@ pow_module_get_error(PyObject *self, PyObject *args)
    unsigned long error;
    char buf[256];
    
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
    
    error = ERR_get_error();
    ERR_error_string( error, buf );
@@ -6687,8 +6687,8 @@ static char pow_module_clear_error__doc__[] =
 static PyObject *
 pow_module_clear_error(PyObject *self, PyObject *args)
 {
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
    
    ERR_clear_error();
 
@@ -6729,8 +6729,8 @@ pow_module_seed(PyObject *self, PyObject *args)
    char *in=NULL;
    int inl=0;
 
-	if (!PyArg_ParseTuple(args, "s#", &in, &inl))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s#", &in, &inl))
+      goto error;
    
    RAND_seed( in, inl );
 
@@ -6766,8 +6766,8 @@ pow_module_add(PyObject *self, PyObject *args)
    int inl=0;
    double entropy=0;
 
-	if (!PyArg_ParseTuple(args, "s#d", &in, &inl, &entropy))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s#d", &in, &inl, &entropy))
+      goto error;
    
    RAND_add( in, inl, entropy );
 
@@ -6799,8 +6799,8 @@ pow_module_write_random_file(PyObject *self, PyObject *args)
 {
    char *file=NULL;
 
-	if (!PyArg_ParseTuple(args, "s", &file))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s", &file))
+      goto error;
    
    if ( RAND_write_file( file ) == -1 )
       {PyErr_SetString(SSLErrorObject, "could not write random file"); goto error;}
@@ -6836,8 +6836,8 @@ pow_module_read_random_file(PyObject *self, PyObject *args)
    char *file=NULL;
    int len=-1;
 
-	if (!PyArg_ParseTuple(args, "s|i", &file, &len))
-		goto error;
+   if (!PyArg_ParseTuple(args, "s|i", &file, &len))
+      goto error;
    
    if (!RAND_load_file( file, len ) )
       {PyErr_SetString(SSLErrorObject, "could not load random file"); goto error;}
@@ -6854,8 +6854,8 @@ pow_module_docset(PyObject *self, PyObject *args)
 {
    PyObject *docset;
 
-	if (!PyArg_ParseTuple(args, ""))
-		goto error;
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
    
    docset = PyList_New(0);
    // module documentation
@@ -7002,7 +7002,7 @@ error:
 }
 
 static struct PyMethodDef pow_module_methods[] = {
-   {"Ssl",	         (PyCFunction)pow_module_new_ssl,	         METH_VARARGS,	NULL},
+   {"Ssl",           (PyCFunction)pow_module_new_ssl,          METH_VARARGS,  NULL},
    {"X509",          (PyCFunction)pow_module_new_x509,         METH_VARARGS,  NULL}, 
    {"pemRead",       (PyCFunction)pow_module_pem_read,         METH_VARARGS,  NULL}, 
    {"derRead",       (PyCFunction)pow_module_der_read,         METH_VARARGS,  NULL}, 
@@ -7013,17 +7013,17 @@ static struct PyMethodDef pow_module_methods[] = {
    {"X509Store",     (PyCFunction)pow_module_new_x509_store,   METH_VARARGS,  NULL}, 
    {"X509Crl",       (PyCFunction)pow_module_new_x509_crl,     METH_VARARGS,  NULL}, 
    {"X509Revoked",   (PyCFunction)pow_module_new_x509_revoked, METH_VARARGS,  NULL}, 
-   {"getError",      (PyCFunction)pow_module_get_error,	      METH_VARARGS,	NULL},
-   {"clearError",    (PyCFunction)pow_module_clear_error,	   METH_VARARGS,	NULL},
-   {"seed",          (PyCFunction)pow_module_seed,	            METH_VARARGS,	NULL},
-   {"add",           (PyCFunction)pow_module_add,	            METH_VARARGS,	NULL},
-   {"readRandomFile",(PyCFunction)pow_module_read_random_file,	METH_VARARGS,	NULL},
-   {"writeRandomFile", (PyCFunction)pow_module_write_random_file,	METH_VARARGS,	NULL},
-   {"addObject",     (PyCFunction)pow_module_add_object,	      METH_VARARGS,	NULL},
+   {"getError",      (PyCFunction)pow_module_get_error,        METH_VARARGS,  NULL},
+   {"clearError",    (PyCFunction)pow_module_clear_error,      METH_VARARGS,  NULL},
+   {"seed",          (PyCFunction)pow_module_seed,             METH_VARARGS,  NULL},
+   {"add",           (PyCFunction)pow_module_add,              METH_VARARGS,  NULL},
+   {"readRandomFile",(PyCFunction)pow_module_read_random_file, METH_VARARGS,  NULL},
+   {"writeRandomFile", (PyCFunction)pow_module_write_random_file, METH_VARARGS,  NULL},
+   {"addObject",     (PyCFunction)pow_module_add_object,       METH_VARARGS,  NULL},
 
-   {"_docset",       (PyCFunction)pow_module_docset,	   METH_VARARGS,	NULL},
+   {"_docset",       (PyCFunction)pow_module_docset,     METH_VARARGS,  NULL},
  
-	{NULL,	 (PyCFunction)NULL, 0, NULL}		/* sentinel */
+   {NULL,    (PyCFunction)NULL, 0, NULL}     /* sentinel */
 };
 /*========== module functions ==========*/
 
@@ -7032,25 +7032,25 @@ static struct PyMethodDef pow_module_methods[] = {
 void
 init_POW(void)
 {
-	PyObject *m, *d;
+   PyObject *m, *d;
 
    x509type.ob_type = &PyType_Type;
- 	x509_storetype.ob_type = &PyType_Type;
- 	x509_crltype.ob_type = &PyType_Type;
- 	x509_revokedtype.ob_type = &PyType_Type;
- 	ssltype.ob_type = &PyType_Type;
- 	asymmetrictype.ob_type = &PyType_Type;
- 	symmetrictype.ob_type = &PyType_Type;
- 	digesttype.ob_type = &PyType_Type;
- 	hmactype.ob_type = &PyType_Type;
+   x509_storetype.ob_type = &PyType_Type;
+   x509_crltype.ob_type = &PyType_Type;
+   x509_revokedtype.ob_type = &PyType_Type;
+   ssltype.ob_type = &PyType_Type;
+   asymmetrictype.ob_type = &PyType_Type;
+   symmetrictype.ob_type = &PyType_Type;
+   digesttype.ob_type = &PyType_Type;
+   hmactype.ob_type = &PyType_Type;
 
-	m = Py_InitModule4("_POW", pow_module_methods,
-		pow_module__doc__,
-		(PyObject*)NULL,PYTHON_API_VERSION);
+   m = Py_InitModule4("_POW", pow_module_methods,
+      pow_module__doc__,
+      (PyObject*)NULL,PYTHON_API_VERSION);
 
-	d = PyModule_GetDict(m);
-	SSLErrorObject = PyString_FromString("POW.SSLError");
-	PyDict_SetItemString(d, "SSLError", SSLErrorObject);
+   d = PyModule_GetDict(m);
+   SSLErrorObject = PyString_FromString("POW.SSLError");
+   PyDict_SetItemString(d, "SSLError", SSLErrorObject);
 
    // constants for SSL_get_error()
    install_int_const( d, "SSL_ERROR_NONE",            SSL_ERROR_NONE );
@@ -7194,7 +7194,13 @@ init_POW(void)
    // load error strings
    SSL_load_error_strings();
 
-	if (PyErr_Occurred())
-		Py_FatalError("can't initialize module pow");
+   if (PyErr_Occurred())
+      Py_FatalError("can't initialize module pow");
 }
 /*==========================================================================*/
+
+/*
+ * Local Variables:
+ * indent-tab-mode: nil
+ * End:
+ */

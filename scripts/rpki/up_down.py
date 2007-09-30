@@ -222,6 +222,8 @@ class issue_pdu(base_elt):
     return [elt]
 
   def serve_pdu(self, gctx, q_msg, r_msg, child):
+    #
+    # Step 1: Check the request PDU
     if not self.class_name.isdigit():
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
     ca_id = long(self.class_name)
@@ -229,6 +231,8 @@ class issue_pdu(base_elt):
     ca_detail = rpki.sql.ca_detail_elt.sql_fetch_active(gctx.db, gctx.cur, ca_id)
     if ca is None or ca_detail is None:
       raise rpki.exceptions.NotInDatabase
+    #
+    # Step 2: Check the PKCS #10 request
     if not self.pkcs10.get_POWpkix().verify():
       raise rpki.exceptions.BadPKCS10, "Signature check failed"
     if self.pkcs10.get_POWpkix().certificationRequestInfo.version != 0:
@@ -250,24 +254,9 @@ class issue_pdu(base_elt):
       if oid2name.get(method) == "caRepository" and (location[0] != "uri" or (location[1].startswith("rsync://") and not location[1].endswith("/"))):
         raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %s" % location
     assert "subjectInfoAccess" in req_exts, "Can't (yet) handle PKCS #10 without an SIA extension"
-
+    #
+    # Step 3: See whether we can just return the current child cert
     rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(rpki.left_right.irdb_query(gctx, child.self_id, child.child_id))
-
-    # 3) Find any certs already issued to this child for these
-    #    resources (approximately the same algorithm used for
-    #    list_response).  Check:
-    #
-    # 3a) that public key matches exactly
-    #
-    # 3b) that resources match exactly
-    #
-    # 3c) that any relevant extensions in the pkcs10 match exactly
-    #
-    # 3d) that the expiration time of the cert is far enough into the
-    #     future?
-    #
-    #    If existing cert passes all these checks, just return it.
-
     pubkey = self.certificationRequestInfo.subjectPublicKeyInfo.get()
     for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx.db, gctx.cur, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
       if child_cert.get_POWpkix().tbs.subjectPublicKeyInfo.get() == pubkey:
@@ -279,13 +268,15 @@ class issue_pdu(base_elt):
     if child_cert is not None and \
          dict((oid2name[oid], value) for (oid, critical, value) in child_cert.get_POWpkix().getExtensions()).get("subjectInfoAccess") != req_exts.get("subjectInfoAccess"):
       child_cert = None
-
-    raise NotImplementedError
-
-    # 4) If we get this far we need to generate the new cert, then
-    #    return it.
-
-    raise NotImplementedError
+    # Do we need to check certificate expiration here too?  Maybe we
+    # can just trust the cron job that handles renewals for that?
+    #
+    # Step 4: If we found a reusable cert, return it, otherwise
+    # generate a new one.
+    if child_cert:
+      raise NotImplementedError
+    else:
+      raise NotImplementedError
 
 class issue_response_pdu(class_response_syntax):
   """Up-Down protocol "issue_response" PDU."""

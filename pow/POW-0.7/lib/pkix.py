@@ -765,6 +765,12 @@ class Certificate(Sequence):
    def getExtensions(self):
       return self.tbs.extensions.get()
 
+   def getExtension(self, oid):
+      for x in self.getExtensions():
+         if x[0] == oid:
+            return x
+      return None
+
    _addFragment('''
    <method>
       <header>
@@ -1091,6 +1097,12 @@ class CertificateList(Sequence):
    def getExtensions(self):
       return self.tbs.crlExtensions.get()
 
+   def getExtension(self, oid):
+      for x in self.getExtensions():
+         if x[0] == oid:
+            return x
+      return None
+
    _addFragment('''
    <method>
       <header>
@@ -1232,6 +1244,12 @@ class CertificationRequest(Sequence):
          len(self.certificationRequestInfo.attributes.val.choices["set"]) > 1:
          raise DerError, "failed to understand X.501 Attribute encoding, sorry: %s" % self.get()
       return self.certificationRequestInfo.attributes.val.choices["set"][0].get()
+
+   def getExtension(self, oid):
+      for x in self.getExtensions():
+         if x[0] == oid:
+            return x
+      return None
 
 #---------- PKCS10 ----------#
 #---------- GeneralNames object support ----------#

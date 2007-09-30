@@ -304,6 +304,48 @@ class PKCS10_Request(DER_object):
       self.POWpkix = req
     return self.POWpkix
 
+  def check_valid_rpki(self):
+    """Check this certification request to see whether it's a valid
+    request for an RPKI certificate.  This is broken out of the
+    up-down protocol code because it's somewhat involved and the
+    up-down code doesn't need to know the details.
+
+    Throws an exception if the request isn't valid, so if this method
+    returns at all, the request is ok.
+    """
+
+    if not self.get_POWpkix().verify():
+      raise rpki.exceptions.BadPKCS10, "Signature check failed"
+
+    if self.get_POWpkix().certificationRequestInfo.version != 0:
+      raise rpki.exceptions.BadPKCS10, "Bad version number %s" % self.get_POWpkix().certificationRequestInfo.version
+
+    if oid2name.get(self.get_POWpkix().signatureAlgorithm) not in ("sha256WithRSAEncryption", "sha384WithRSAEncryption", "sha512WithRSAEncryption"):
+      raise rpki.exceptions.BadPKCS10, "Bad signature algorithm %s" % self.get_POWpkix().signatureAlgorithm
+
+    exts = self.getExtensions()
+    for oid, critical, value in exts:
+      if oid2name.get(oid) not in ("basicConstraints", "keyUsage", "subjectInfoAccess"):
+        raise rpki.exceptions.BadExtension, "Forbidden extension %s" % oid
+    req_exts = dict((oid2name[oid], value) for (oid, critical, value) in exts)
+
+    if "basicConstraints" not in req_exts or not req_exts["basicConstraints"][0]:
+      raise rpki.exceptions.BadPKCS10, "request for EE cert not allowed here"
+
+    if req_exts["basicConstraints"][1] is not None:
+      raise rpki.exceptions.BadPKCS10, "basicConstraints must not specify Path Length"
+
+    if "keyUsage" in req_exts and (not req_exts["keyUsage"][5] or not req_exts["keyUsage"][6]):
+      raise rpki.exceptions.BadPKCS10, "keyUsage doesn't match basicConstraints"
+
+    for method, location in req_exts.get("subjectInfoAccess", ()):
+      if oid2name.get(method) == "caRepository" and (location[0] != "uri" or (location[1].startswith("rsync://") and not location[1].endswith("/"))):
+        raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %s" % location
+
+    # This one is an implementation restriction.  I don't yet
+    # understand what the spec is telling me to do in this case.
+    assert "subjectInfoAccess" in req_exts, "Can't (yet) handle PKCS #10 without an SIA extension"
+
 class RSA_Keypair(DER_object):
   """Class to hold an RSA key pair."""
 

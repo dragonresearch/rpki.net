@@ -195,8 +195,8 @@ class self_elt(data_elt):
     cur.execute("DELETE FROM self_pref WHERE self_id = %s", self.self_id)
 
   def serve_pre_save_hook(self, q_pdu, r_pdu):
-    if self is not pdu:
-      if pdu.clear_extension_preferences:
+    if self is not q_pdu:
+      if q_pdu.clear_extension_preferences:
         self.prefs = []
       self.prefs.extend(pdu.prefs)
 

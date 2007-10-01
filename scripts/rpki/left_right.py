@@ -465,15 +465,15 @@ class route_origin_elt(data_elt):
     """Generate <route_origin/> element."""
     return self.make_elt()
 
-class resource_class_elt(base_elt):
-  """<resource_class/> element."""
+class list_resources_elt(base_elt):
+  """<list_resources/> element."""
 
-  element_name = "resource_class"
-  attributes = ("as", "ipv4", "ipv6", "subject_name")
+  element_name = "list_resources"
+  attributes = ("type", "self_id", "child_id", "valid_until", "as", "ipv4", "ipv6", "subject_name")
 
   def startElement(self, stack, name, attrs):
-    """Handle <resource_class/> element."""
-    assert name == "resource_class", "Unexpected name %s, stack %s" % (name, stack)
+    """Handle <list_resources/> element."""
+    assert name == "list_resources", "Unexpected name %s, stack %s" % (name, stack)
     self.read_attrs(attrs)
     if self.as is not None:
       self.as = rpki.resource_set.resource_set_as(self.as)
@@ -482,40 +482,9 @@ class resource_class_elt(base_elt):
     if self.ipv6 is not None:
       self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
 
-  def endElement(self, stack, name, text):
-    """Handle <resource_class/> element."""
-    assert name == "resource_class", "Unexpected name %s, stack %s" % (name, stack)
-    stack.pop()
-
-  def toXML(self):
-    """Generate <resource_class/> element."""
-    return self.make_elt()
-
-class list_resources_elt(base_elt):
-  """<list_resources/> element."""
-
-  element_name = "list_resources"
-  attributes = ("type", "self_id", "child_id", "valid_until")
-
-  def __init__(self):
-    self.resources = []
-
-  def startElement(self, stack, name, attrs):
-    """Handle <list_resources/> element."""
-    if name == "resource_class":
-      rc = resource_class_elt()
-      self.resources.append(rc)
-      stack.append(rc)
-      rc.startElement(stack, name, attrs)
-    else:
-      assert name == "list_resources", "Unexpected name %s, stack %s" % (name, stack)
-      self.read_attrs(attrs)
-
   def toXML(self):
     """Generate <list_resources/> element."""
-    elt = self.make_elt()
-    elt.extend([i.toXML() for i in self.resources])
-    return elt
+    return self.make_elt()
 
 class report_error_elt(base_elt):
   """<report_error/> element."""
@@ -595,6 +564,11 @@ def irdb_query(gctx, self_id, child_id=None):
   instead issue a query and set up a handler to receive the response.
   For the moment, though, we're doing simple lock step and damn the
   torpedos.
+
+  Not yet doing anything useful with validity interval or subject
+  name.  Most likely this function should really be wrapped up in a
+  class that carries both the query result and also the intermediate state
+  needed for the event-driven code that this function will need to become.
   """
 
   q_msg = msg_elt()
@@ -617,14 +591,4 @@ def irdb_query(gctx, self_id, child_id=None):
   r_msg = rpki.left_right.sax_handler.saxify(r_elt)
   if len(r_msg) != 0 or not isinstance(r_msg[0], list_resources_elt) or r_msg[0].type != "reply":
     raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % r_msg.toXML()
-  as   = rpki.resource_set.resource_set_as()
-  ipv4 = rpki.resource_set.resource_set_ipv4()
-  ipv6 = rpki.resource_set.resource_set_ipv6()
-  for r in r_msg[0].resources:
-    if r.as is not None:
-      as.union(r.as)
-    if r.ipv4 is not None:
-      ipv4.union(r.ipv4)
-    if r.ipv6 is not None:
-      ipv6.union(r.ipv6)
-  return as, ipv4, ipv6
+  return r_msg[0].as, r_msg[0].ipv4, r_msg[0].ipv6

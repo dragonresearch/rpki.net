@@ -840,38 +840,34 @@
               </data>
             </attribute>
           </optional>
-          <zeroOrMore>
-            <element name="resource_class">
-              <optional>
-                <attribute name="subject_name">
-                  <data type="token">
-                    <param name="maxLength">1024</param>
-                  </data>
-                </attribute>
-              </optional>
-              <optional>
-                <attribute name="as">
-                  <data type="token">
-                    <param name="maxLength">1024</param>
-                  </data>
-                </attribute>
-              </optional>
-              <optional>
-                <attribute name="ipv4">
-                  <data type="token">
-                    <param name="maxLength">1024</param>
-                  </data>
-                </attribute>
-              </optional>
-              <optional>
-                <attribute name="ipv6">
-                  <data type="token">
-                    <param name="maxLength">1024</param>
-                  </data>
-                </attribute>
-              </optional>
-            </element>
-          </zeroOrMore>
+          <optional>
+            <attribute name="subject_name">
+              <data type="token">
+                <param name="maxLength">1024</param>
+              </data>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="as">
+              <data type="token">
+                <param name="maxLength">1024</param>
+              </data>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="ipv4">
+              <data type="token">
+                <param name="maxLength">1024</param>
+              </data>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="ipv6">
+              <data type="token">
+                <param name="maxLength">1024</param>
+              </data>
+            </attribute>
+          </optional>
         </group>
       </choice>
     </element>

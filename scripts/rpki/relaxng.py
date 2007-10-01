@@ -4,7 +4,7 @@ import lxml.etree
 
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rng 995 2007-09-19 20:42:31Z sra $
+  $Id: left-right-schema.rnc 995 2007-09-19 20:42:31Z sra $
   
   RelaxNG (Compact Syntax) Schema for RPKI left-right protocol.
   
@@ -844,38 +844,34 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
               </data>
             </attribute>
           </optional>
-          <zeroOrMore>
-            <element name="resource_class">
-              <optional>
-                <attribute name="subject_name">
-                  <data type="token">
-                    <param name="maxLength">1024</param>
-                  </data>
-                </attribute>
-              </optional>
-              <optional>
-                <attribute name="as">
-                  <data type="token">
-                    <param name="maxLength">1024</param>
-                  </data>
-                </attribute>
-              </optional>
-              <optional>
-                <attribute name="ipv4">
-                  <data type="token">
-                    <param name="maxLength">1024</param>
-                  </data>
-                </attribute>
-              </optional>
-              <optional>
-                <attribute name="ipv6">
-                  <data type="token">
-                    <param name="maxLength">1024</param>
-                  </data>
-                </attribute>
-              </optional>
-            </element>
-          </zeroOrMore>
+          <optional>
+            <attribute name="subject_name">
+              <data type="token">
+                <param name="maxLength">1024</param>
+              </data>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="as">
+              <data type="token">
+                <param name="maxLength">1024</param>
+              </data>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="ipv4">
+              <data type="token">
+                <param name="maxLength">1024</param>
+              </data>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="ipv6">
+              <data type="token">
+                <param name="maxLength">1024</param>
+              </data>
+            </attribute>
+          </optional>
         </group>
       </choice>
     </element>

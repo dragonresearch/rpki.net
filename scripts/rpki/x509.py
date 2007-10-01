@@ -12,7 +12,8 @@ bring together the functionality I need in a way that hides at least
 some of the nasty details.  This involves a lot of format conversion.
 """
 
-import POW, tlslite.api, POW.pkix, base64, rpki.exceptions, rpki.resource_set
+import POW, tlslite.api, POW.pkix, base64, time
+import rpki.exceptions, rpki.resource_set
 
 class PEM_converter(object):
   """Convert between DER and PEM encodings for various kinds of ASN.1 data."""

@@ -56,28 +56,31 @@ class resource_range_ip(resource_range):
   represented as prefixes are written as prefixes on output.
   """
 
-  def __str__(self):
+  def _prefixlen(self):
     mask = self.min ^ self.max
-    prefixlen = self.min.bits
+    prefixlen = self.addr_type.bits
     while mask & 1:
       prefixlen -= 1
       mask >>= 1
     if mask:
+      return -1
+    else:
+      return prefixlen
+
+  def __str__(self):
+    prefixlen = self._prefixlen()
+    if prefixlen < 0:
       return str(self.min) + "-" + str(self.max)
     else:
       return str(self.min) + "/" + str(prefixlen)
 
   def to_tuple(self):
-    mask = self.min ^ self.max
-    if (mask & (~mask + 1)) <= 1:
-      n = self.bits
-      while mask:
-        n -= 1
-        mask >>= 1
-      return ("addressPrefix", _long2bs(self.min, self.bits, prefixlen = n))
+    prefixlen = self._prefixlen()
+    if prefixlen < 0:
+      return ("addressRange", (_long2bs(self.min, self.addr_type.bits, strip = 0),
+                               _long2bs(self.max, self.addr_type.bits, strip = 1)))
     else:
-      return ("addressRange", (_long2bs(self.min, self.bits, strip = 0),
-                               _long2bs(self.max, self.bits, strip = 1)))
+      return ("addressPrefix", _long2bs(self.min, self.addr_type.bits, prefixlen = prefixlen))
 
 class resource_range_ipv4(resource_range_ip):
   """Range of IPv4 addresses."""
@@ -313,7 +316,7 @@ def _long2bs(number, addrlen, prefixlen = None, strip = None):
   assert prefixlen is None or strip is None
   bs = []
   while number:
-    bs.append(number & 1)
+    bs.append(int(number & 1))
     number >>= 1
   if addrlen > len(bs):
     bs.extend((0 for i in xrange(addrlen - len(bs))))

@@ -254,6 +254,10 @@ class issue_pdu(base_elt):
       #
       # This will need to become a separate function eventually, but
       # inline it for now until it's a bit better fleshed out.
+      # Might make sense as a .certify() method for the issuer.
+      #
+      # Hmm, the following is a bit confused between the POW and
+      # POW.pkix APIs.
 
       raise NotImplementedError
       cn_hash = POW.Digest(POW.SHA1_DIGEST)

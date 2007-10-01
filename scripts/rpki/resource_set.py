@@ -272,6 +272,25 @@ def _bs2long(bs):
   """Convert a bitstring (tuple representation) into a long."""
   return reduce(lambda x, y: (x << 1) | y, bs, 0L)
 
+def _long2bs(number, addrlen, prefixlen = None, strip = None):
+  """Convert a long into a tuple bitstring.  This is a bit complicated
+  because it supports the fiendishly compact encoding used in RFC 3779.
+  """
+  assert prefixlen is None or strip is None
+  bs = []
+  while number:
+    bs.append(number & 1)
+    number >>= 1
+  if addrlen > len(bs):
+    bs.extend((0 for i in xrange(addrlen - len(bs))))
+  bs.reverse()
+  if prefixlen is not None:
+    return tuple(bs[0:prefixlen])
+  if strip is not None:
+    while bs and bs[-1] == strip:
+      bs.pop()
+  return tuple(bs)
+
 def parse_extensions(exts):
   """Parse RFC 3779 extensions from intermediate form returned by ASN.1 decoder."""
   as = None

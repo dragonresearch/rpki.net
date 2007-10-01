@@ -15,7 +15,7 @@ for i in "$@"
 do
   sqlt-graph --db MySQL --output-type canon --show-datatypes --show-constraints $i |
   perl -0777 -pe '
-    s/\\\n/ /g;
+    s/\\\n//g;
     s/  +/ /g;
     s/\\\|/|/g;
     s/\\{([a-z0-9_]+)\|/${1}|{/gi;

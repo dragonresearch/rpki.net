@@ -1,6 +1,7 @@
 # $Id$
 
-import rpki.https, tlslite.api, rpki.config, rpki.resource_set, MySQLdb, rpki.cms
+import tlslite.api, MySQLdb
+import rpki.https, rpki.config, rpki.resource_set, rpki.cms
 
 def handler(query, path):
   try:
@@ -14,55 +15,27 @@ def handler(query, path):
     assert instanceof(q_msg, rpki.left_right.msg)
     r_msg = rpki.left_right.msg()
     for q_pdu in q_msg:
-      assert isinstance(q_pdu, rpki.left_right.list_resources_elt) and \
-             q_pdu.type == "query" and \
-             len(q_pdu.resources) == 0
-
-      org_id = q_pdu.child_id
-      if org_id is None:
-        org_id = q_pdu.self_id
-      cur.execute("""SELECT resource_class_id, subject_name
-                     FROM registrant, resource_class
-                     WHERE registrant.IRBE_mapped_id = '%s'
-                     AND   registrant.registrant_id = resource_class.registrant_id
-                  """ % org_id)
-      resource_classes = cur.fetchall()
+      assert isinstance(q_pdu, rpki.left_right.list_resources_elt) and q_pdu.type == "query"
 
       r_pdu = rpki.left_right.list_resources_elt()
       r_pdu.type = "reply"
       r_pdu.self_id = q_pdu.self_id
       r_pdu.child_id = q_pdu.child_id
 
-      # Hmm, I screwed up when I described this table to Tim,
-      # valid_until should be on the top-level "registrant" table, not
-      # the "resource_class" table.  It's an optional attribute in the
-      # XML so just punt it for now.
+      if q_pdu.child_id is not None:
+        field = "child_id"
+      else:
+        field = "self_id"
 
-      for resource_class_id, subject_name in resource_classes:
-        resource_class = rpki.left_right.resource_class_elt()
-        if subject_name:
-          resource_class.subject_name = subject_name
+      cur.execute("SELECT registrant_id, subject_name, valid_until FROM registrant WHERE registrant.%s = %s" % (field, getattr(q_pdu, field)))
+      assert cur.rowcount == 1, "This query should have produced a single exact match, something's messed up (self_id = %s, child_id = %s)" % (self_id, child_id)
 
-        resource_class.as = rpki.resource_set.resource_set_as()
-        resource_class.as.from_sql(cur,
-                                   """SELECT start_as, end_as FROM asn
-                                      WHERE resource_class_id = '%s'
-                                   """ % resource_class_id)
-
-        resource_class.ipv4 = rpki.resource_set.resource_set_ipv4()
-        resource_class.ipv4.from_sql(cur,
-                                     """SELECT start_ip, end_ip FROM net
-                                        WHERE resource_class_id = '%s' AND version = 4
-                                     """ % resource_class_id)
-
-        resource_class.ipv6 = rpki.resource_set.resource_set_ipv6()
-        resource_class.ipv6.from_sql(cur,
-                                     """SELECT start_ip, end_ip FROM net
-                                        WHERE resource_class_id = '%s' AND version = 6
-                                     """ % resource_class_id)
-
-        r_pdu.resources.append(resource_class)
-
+      registrant_id, subject_name, valid_until = cur.fetchone()
+      r_pdu.subject_name = subject_name
+      r_pdu.valid_until = valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
+      r_pdu.as   = rpki.resource_set.resource_set_as.from_sql(cur,   "SELECT start_as, end_as FROM asn WHERE registrant_id = %s" % registrant_id)
+      r_pdu.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(cur, "SELECT start_ip, end_ip FROM net WHERE registrant_id = %s AND version = 4" % registrant_id)
+      r_pdu.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(cur, "SELECT start_ip, end_ip FROM net WHERE registrant_id = %s AND version = 6" % registrant_id)
       r_msg.append(r_pdu)
 
     r_elt = r_msg.toXML()

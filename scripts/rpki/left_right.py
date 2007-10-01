@@ -417,10 +417,12 @@ class route_origin_elt(data_elt):
   roa = None
 
   def sql_fetch_hook(self, db, cur):
-    self.ipv4 = rpki.resource_set.resource_set_ipv4()
-    self.ipv4.from_sql(cur, "SELECT start_ip, end_ip FROM route_origin_range WHERE route_origin_id = %s AND start_ip NOT LIKE '%:%'", self.route_origin_id)
-    self.ipv6 = rpki.resource_set.resource_set_ipv6()
-    self.ipv4.from_sql(cur, "SELECT start_ip, end_ip FROM route_origin_range WHERE route_origin_id = %s AND start_ip LIKE '%:%'", self.route_origin_id)
+    self.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(cur,
+                                                             "SELECT start_ip, end_ip FROM route_origin_range WHERE route_origin_id = %s AND start_ip NOT LIKE '%:%'",
+                                                             self.route_origin_id)
+    self.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(cur,
+                                                             "SELECT start_ip, end_ip FROM route_origin_range WHERE route_origin_id = %s AND start_ip LIKE '%:%'",
+                                                             self.route_origin_id)
     cur.execute("SELECT roa, ca_detail_id FROM roa WHERE route_origin_id = %s", self.route_origin_id)
     roas = cur.fetchall()
     if len(roas) == 1:

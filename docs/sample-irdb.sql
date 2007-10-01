@@ -6,6 +6,8 @@ CREATE TABLE registrant (
        registrant_id        SERIAL NOT NULL,
        IRBE_mapped_id       TEXT,
        subject_name         TEXT,
+       rpki_self_id	    BIGINT unsigned,
+       rpki_child_id	    BIGINT unsigned,
        valid_until          DATETIME NOT NULL,
        PRIMARY KEY	    (registrant_id)
 );

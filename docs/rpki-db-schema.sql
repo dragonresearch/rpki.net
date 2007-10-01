@@ -130,9 +130,12 @@ DROP TABLE IF EXISTS route_origin;
 CREATE TABLE route_origin (
        route_origin_id      SERIAL NOT NULL,
        as_number            DECIMAL(24,0),
+       roa                  LONGBLOB,
        self_id              BIGINT unsigned NOT NULL,
+       ca_detail_id         BIGINT unsigned,
        PRIMARY KEY          (route_origin_id),
-       FOREIGN KEY          (self_id) REFERENCES self
+       FOREIGN KEY          (self_id) REFERENCES self,
+       FOREIGN KEY          (ca_detail_id) REFERENCES ca_detail
 );
 
 DROP TABLE IF EXISTS route_origin_range;
@@ -142,17 +145,5 @@ CREATE TABLE route_origin_range (
        end_ip               VARCHAR(40),
        route_origin_id      BIGINT unsigned NOT NULL,
        PRIMARY KEY          (route_origin_id, start_ip, end_ip),
-       FOREIGN KEY          (route_origin_id) REFERENCES route_origin
-);
-
-DROP TABLE IF EXISTS roa;
-
-CREATE TABLE roa (
-       route_origin_id      BIGINT unsigned NOT NULL,
-       ee_cert              LONGBLOB,
-       roa                  LONGBLOB NOT NULL,
-       ca_detail_id         BIGINT unsigned NOT NULL,
-       PRIMARY KEY          (route_origin_id, ca_detail_id),
-       FOREIGN KEY          (ca_detail_id) REFERENCES ca_detail,
        FOREIGN KEY          (route_origin_id) REFERENCES route_origin
 );

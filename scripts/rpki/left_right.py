@@ -411,7 +411,7 @@ class route_origin_elt(data_elt):
   attributes = ("action", "type", "self_id", "route_origin_id", "as_number", "ipv4", "ipv6")
   booleans = ("suppress_publication",)
 
-  sql_template = rpki.sql.template("route_origin", "route_origin_id", "self_id", "as_number")
+  sql_template = rpki.sql.template("route_origin", "route_origin_id", "self_id", "as_number", "ca_detail_id", "roa")
 
   ca_detail_id = None
   roa = None
@@ -423,25 +423,14 @@ class route_origin_elt(data_elt):
     self.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(cur,
                                                              "SELECT start_ip, end_ip FROM route_origin_range WHERE route_origin_id = %s AND start_ip LIKE '%:%'",
                                                              self.route_origin_id)
-    cur.execute("SELECT roa, ca_detail_id FROM roa WHERE route_origin_id = %s", self.route_origin_id)
-    roas = cur.fetchall()
-    if len(roas) == 1:
-      roa = roas[0][0]
-      ca_detail_id = roas[0][1]
-    elif len(roas) > 0:
-      raise rpki.exceptions.DBConsistancyError, "Multiple ROAs found for route_origin %s, mapping should be one-to-one" % self.route_origin_id
-    
+
   def sql_insert_hook(self, db, cur):
     if self.ipv4 + self.ipv6:
       cur.executemany("INSERT route_origin_range (route_origin_id, start_ip, end_ip) VALUES (%s, %s, %s)",
                       ((self.route_origin_id, x.min, x.max) for x in self.ipv4 + self.ipv6))
-    if self.roa:
-      cur.execute("INSERT roa (route_origin_id, roa, ca_detail_id) VALUES (%s, %s, %s)",
-                  self.route_origin_id, self.roa, self.ca_detail_id)
   
   def sql_delete_hook(self, db, cur):
     cur.execute("DELETE FROM route_origin_range WHERE route_origin_id = %s", self.route_origin_id)
-    cur.execute("DELETE FROM roa WHERE route_origin_id = %s", self.route_origin_id)
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
     if self.suppress_publication:

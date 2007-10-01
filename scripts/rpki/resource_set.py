@@ -43,6 +43,12 @@ class resource_range_as(resource_range):
     else:
       return str(self.min) + "-" + str(self.max)
 
+  def to_tuple(self):
+    if self.min == self.max:
+      return ("id", self.min)
+    else:
+      return ("range", (self.min, self.max))
+
 class resource_range_ip(resource_range):
   """Range of (generic) IP addresses.
 
@@ -61,13 +67,27 @@ class resource_range_ip(resource_range):
     else:
       return str(self.min) + "/" + str(prefixlen)
 
+  def to_tuple(self):
+    mask = self.min ^ self.max
+    if (mask & (~mask + 1)) <= 1:
+      n = self.bits
+      while mask:
+        n -= 1
+        mask >>= 1
+      return ("addressPrefix", _long2bs(self.min, self.bits, prefixlen = n))
+    else:
+      return ("addressRange", (_long2bs(self.min, self.bits, strip = 0),
+                               _long2bs(self.max, self.bits, strip = 1)))
+
 class resource_range_ipv4(resource_range_ip):
   """Range of IPv4 addresses."""
-  pass
+
+  addr_type = ipaddrs.v4addr
 
 class resource_range_ipv6(resource_range_ip):
   """Range of IPv6 addresses."""
-  pass
+
+  addr_type = ipaddrs.v6addr
 
 def _rsplit(rset, that):
   """Split a resource range into two resource ranges."""
@@ -220,6 +240,13 @@ class resource_set_as(resource_set):
         max = min
       self.append(resource_range_as(min, max))
 
+  def to_tuple(self):
+    """Encode AS resource set into intermediate form used by ASN.1 encoder."""
+    if self:
+      return ("asIdsOrRanges", tuple(a.to_tuple() for a in self))
+    else:
+      return None
+
 class resource_set_ip(resource_set):
   """(Generic) IP address resource set.
 
@@ -230,14 +257,14 @@ class resource_set_ip(resource_set):
     """Parse IP address resource sets from text (eg, XML attributes)."""
     r = re.match("^([0-9:.a-fA-F]+)-([0-9:.a-fA-F]+)$", x)
     if r:
-      return self.range_type(self.addr_type(r.group(1)), self.addr_type(r.group(2)))
+      return self.range_type(self.range_type.addr_type(r.group(1)), self.range_type.addr_type(r.group(2)))
     r = re.match("^([0-9:.a-fA-F]+)/([0-9]+)$", x)
     if r:
-      min = self.addr_type(r.group(1))
+      min = self.range_type.addr_type(r.group(1))
       prefixlen = int(r.group(2))
-      mask = (1 << (self.addr_type.bits - prefixlen)) - 1
+      mask = (1 << (self.range_type.addr_type.bits - prefixlen)) - 1
       assert (min & mask) == 0, "Resource not in canonical form: %s" % (x)
-      max = self.addr_type(min | mask)
+      max = self.range_type.addr_type(min | mask)
       return self.range_type(min, max)
     raise RuntimeError, 'Bad IP resource "%s"' % (x)
 
@@ -246,27 +273,34 @@ class resource_set_ip(resource_set):
     assert x[0] == "addressesOrRanges"  # Not handling "inherit" yet
     for aor in x[1]:
       if aor[0] == "addressRange":
-        min = _bs2long(aor[1][0]) << (self.addr_type.bits - len(aor[1][0]))
-        max = _bs2long(aor[1][1]) << (self.addr_type.bits - len(aor[1][1]))
-        mask = (1L << (self.addr_type.bits - len(aor[1][1]))) - 1
+        min = _bs2long(aor[1][0]) << (self.range_type.addr_type.bits - len(aor[1][0]))
+        max = _bs2long(aor[1][1]) << (self.range_type.addr_type.bits - len(aor[1][1]))
+        mask = (1L << (self.range_type.addr_type.bits - len(aor[1][1]))) - 1
       else:
-        min = _bs2long(aor[1]) << (self.addr_type.bits - len(aor[1]))
-        mask = (1L << (self.addr_type.bits - len(aor[1]))) - 1
+        min = _bs2long(aor[1]) << (self.range_type.addr_type.bits - len(aor[1]))
+        mask = (1L << (self.range_type.addr_type.bits - len(aor[1]))) - 1
         assert (min & mask) == 0, "Resource not in canonical form: %s" % (str(x))
       max = min | mask
-      self.append(self.range_type(self.addr_type(min), self.addr_type(max)))
+      self.append(self.range_type(self.range_type.addr_type(min), self.range_type.addr_type(max)))
+
+  def to_tuple(self):
+    """Encode IP resource set into intermediate form used by ASN.1 encoder."""
+    if self:
+      return (self.afi, ("addressesOrRanges", tuple(a.to_tuple() for a in self)))
+    else:
+      return None
 
 class resource_set_ipv4(resource_set_ip):
   """IPv4 address resource set."""
 
-  addr_type = ipaddrs.v4addr
   range_type = resource_range_ipv4
+  afi = "\x00\x01"
 
 class resource_set_ipv6(resource_set_ip):
   """IPv6 address resource set."""
 
-  addr_type = ipaddrs.v6addr
   range_type = resource_range_ipv6
+  afi = "\x00\x02"
 
 def _bs2long(bs):
   """Convert a bitstring (tuple representation) into a long."""

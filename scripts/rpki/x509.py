@@ -83,30 +83,28 @@ class DER_object(object):
     this is to let the object's internal converters handle mustering
     the object into whatever format you need at the moment.
     """
-    name = kw.keys()[0]
     if len(kw) == 1:
+      name = kw.keys()[0]
       if name in self.formats:
         self.clear()
         setattr(self, name, kw[name])
         return
       if name == "PEM":
-        text = self.pem_converter.to_DER(kw[name])
         self.clear()
-        self.DER = text
+        self.DER = self.pem_converter.to_DER(kw[name])
         return
       if name == "Base64":
-        text = base64.b64decode(kw[name])
         self.clear()
-        self.DER = text
+        self.DER = base64.b64decode(kw[name])
         return
       if name in ("PEM_file", "DER_file", "Auto_file"):
         f = open(kw[name], "r")
-        text = f.read()
+        value = f.read()
         f.close()
-        if name == "PEM_file" or (name == "Auto_file" and self.pem_converter.looks_like_PEM(text)):
-          text = self.pem_converter.to_DER(text)
+        if name == "PEM_file" or (name == "Auto_file" and self.pem_converter.looks_like_PEM(value)):
+          value = self.pem_converter.to_DER(value)
         self.clear()
-        self.DER = text
+        self.DER = value
         return
     raise rpki.exceptions.DERObjectConversionError, "Can't honor conversion request %s" % repr(kw)
   
@@ -221,11 +219,11 @@ class X509(DER_object):
   def get_3779resources(self, as_intersector = None, v4_intersector = None, v6_intersector = None):
     """Get RFC 3779 resources as rpki.resource_set objects."""
     as, v4, v6 = rpki.resource_set.parse_extensions(self.get_POWpkix().getExtensions())
-    if as_intersector:
+    if as_intersector is not None:
       as = as.intersection(as_intersector)
-    if v4_intersector:
+    if v4_intersector is not None:
       v4 = v4.intersection(v4_intersector)
-    if v6_intersector:
+    if v6_intersector is not None:
       v6 = v6.intersection(v6_intersector)
     return as, v4, v6
 

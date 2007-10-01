@@ -251,7 +251,27 @@ class issue_pdu(base_elt):
     #
     # Step 3: If we didn't find a reusable cert, generate a new one.
     if child_cert is None:
+      #
+      # This will need to become a separate function eventually, but
+      # inline it for now until it's a bit better fleshed out.
+
       raise NotImplementedError
+      cn_hash = POW.Digest(POW.SHA1_DIGEST)
+      cn_hash.update(pubkey)
+      cn = "".join(["%02X" % ord(i) for i in cn_hash.digest()])
+
+      newcert = POW.pkix.Certificate()
+      newcert.setVersion(2)
+      newcert.setNotBefore(('UTCTime', POW.pkix.time2utc(time.time())))
+      newcert.setNotAfter(('UTCTime', blah))
+      newcert.setIssuer(ca_detail.latest_ca_cert.get_POWpkix().getSubject())
+      newcert.setSubject((((name2oid("commonName"), ("printableString", cn)),),))
+      newcert.setExtensions((blah,
+                             blah,
+                             blah,
+                             blah))
+      newcert.sign(rsakey, name2oid["sha256WithRSAEncryption"])
+      child_cert = rpki.x509.X509(POWpkix = newcert)
 
     # And finally, return what we got
     raise NotImplementedError

@@ -228,6 +228,57 @@ class X509(DER_object):
       v6 = v6.intersection(v6_intersector)
     return as, v4, v6
 
+  def issue(self, keypair, subject_key, serial, sia, aia, crldp, cn = None, notAfter = None, as = None, v4 = None, v6 = None, is_ca = True):
+
+    now = time.time()
+
+    aki = self.get_SKI()
+
+    ski = POW.Digest(POW.SHA1_DIGEST)
+    ski.update(subject_key)
+    ski = ski.digest()
+
+    if cn is None:
+      cn = "".join(("%02X" % ord(i) for i in ski))
+
+    if notAfter is None:
+      notAfter = now + 30 * 24 * 60 * 60
+
+    cert = POW.pkix.Certificate()
+    cert.setVersion(2)
+    cert.setSerial(serial)
+    cert.setIssuer(self.get_POWpkix().getSubject())
+    cert.setSubject(((((2, 5, 4, 3), ("printableString", cn)),),))
+    cert.setNotBefore(("UTCTime", POW.pkix.time2utc(now)))
+    cert.setNotAfter(("UTCTime", POW.pkix.time2utc(notAfter)))
+    cert.tbs.subjectPublicKeyInfo.set(subject_key)
+
+    exts = [ ("subjectKeyIdentifier",   False, ski),
+             ("authorityKeyIdentifier", False, (aki, (), None)),
+             ("cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)),
+             ("authorityInfoAccess",    False, aia),    # (((1, 3, 6, 1, 5, 5, 7, 48, 2), ('uri', 'rsync://repository.apnic.net/TRUSTANCHORS/apnic.cer')),)
+             ("subjectInfoAccess",      False, sia),    # (((1, 3, 6, 1, 5, 5, 7, 48, 5), ('uri', 'rsync://repository.apnic.net/APNIC/q66IrWSGuBE7jqx8PAUHAlHCqRw/')),)
+             ("certificatePolicies",    True,  (((1, 3, 6, 1, 5, 5, 7, 14, 2), ()),)) ]
+
+    if is_ca:
+      exts.append(("basicConstraints",  True,  (1, None)))
+      exts.append(("keyUsage",          True,  (0, 0, 0, 0, 0, 1, 1)))
+    else:
+      exts.append(("keyUsage",          True,  (1,)))
+
+    if as:
+      exts.append(("sbgp-autonomousSysNum", True, (as.to_tuple(), None)))
+    if v4 or v6:
+      exts.append(("sbgp-ipAddrBlock", True, [x for x in (v4.to_tuple(), v6.to_tuple()) if x is not None]))
+
+    for x in exts:
+      x[0] = POW.pkix.obj2oid(x[0])
+    cert.setExtensions(exts)
+
+    cert.sign(keypair.get_POW(), POW.SHA256_DIGEST)
+
+    return X509(POWpkix = cert)
+
 class X509_chain(list):
   """Collections of certs.
 

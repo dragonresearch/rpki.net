@@ -244,7 +244,7 @@ class issue_pdu(base_elt):
     if child_cert is not None and ((rc_as, rc_v4, rc_v6) != child_cert.latest_ca_cert.get_3779resources()):
       child_cert = None
     if child_cert is not None and \
-         child_cert.get_POWpkix().getExtension(name2oid["subjectInfoAccess"]) != self.get_POWpkix().getExtension(name2oid["subjectInfoAccess"]):
+         child_cert.get_POWpkix().getExtension(name2oid["subjectInfoAccess"]) != self.pkcs10.get_POWpkix().getExtension(name2oid["subjectInfoAccess"]):
       child_cert = None
     # Do we need to check certificate expiration here too?  Maybe we
     # can just trust the cron job that handles renewals for that?
@@ -252,32 +252,24 @@ class issue_pdu(base_elt):
     # Step 3: If we didn't find a reusable cert, generate a new one.
     if child_cert is None:
       #
-      # This will need to become a separate function eventually, but
-      # inline it for now until it's a bit better fleshed out.
-      # Might make sense as a .certify() method for the issuer.
-      #
-      # Hmm, the following is a bit confused between the POW and
-      # POW.pkix APIs.
+      # This is probably not the quite right model yet.
+      # issuer.issue() makes sense from the cert point of view but
+      # leaves the ca state a bit of a mess.  Refine later.
 
+      child_cert = ca_detail.latest_ca_cert.issue(keypair = ca_detail.private_key_id,
+                                                  subject_key = pubkey,
+                                                  serial = serial,      # XXX
+                                                  aia = aia,            # XXX
+                                                  crldp = crldp,        # XXX
+                                                  sia = self.pkcs10.get_POWpkix().getExtension(name2oid["subjectInfoAccess"]),
+                                                  as = rc_as,
+                                                  v4 = rc_v4,
+                                                  v6 = rc_v6)
+
+      # Insert the cert we just generated into the database!
       raise NotImplementedError
-      cn_hash = POW.Digest(POW.SHA1_DIGEST)
-      cn_hash.update(pubkey)
-      cn = "".join(["%02X" % ord(i) for i in cn_hash.digest()])
 
-      newcert = POW.pkix.Certificate()
-      newcert.setVersion(2)
-      newcert.setNotBefore(('UTCTime', POW.pkix.time2utc(time.time())))
-      newcert.setNotAfter(('UTCTime', blah))
-      newcert.setIssuer(ca_detail.latest_ca_cert.get_POWpkix().getSubject())
-      newcert.setSubject((((name2oid("commonName"), ("printableString", cn)),),))
-      newcert.setExtensions((blah,
-                             blah,
-                             blah,
-                             blah))
-      newcert.sign(rsakey, name2oid["sha256WithRSAEncryption"])
-      child_cert = rpki.x509.X509(POWpkix = newcert)
-
-    # And finally, return what we got
+    # And finally, return a PDU containing what we got
     raise NotImplementedError
 
 class issue_response_pdu(class_response_syntax):

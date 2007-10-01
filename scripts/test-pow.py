@@ -70,13 +70,15 @@ apnic = base64.b64decode(APNIC_Root)
 verbose = True
 
 for der in (alice, apnic):
-  print POW.derRead(POW.X509_CERTIFICATE, der).pprint()
+  cert = POW.derRead(POW.X509_CERTIFICATE, der)
+  print cert.pprint()
   cert = POW.pkix.Certificate()
   cert.fromString(der)
   if verbose:
     for oid, crit, val in cert.getExtensions():
-      print "  OID: ", oid, POW.pkix.oid2obj(oid)
-      print "  Val:", val
+      print "  OID:  ", oid, POW.pkix.oid2obj(oid)
+      print "  Crit: ", crit
+      print "  Value:", val
       print
   as, v4, v6 = rpki.resource_set.parse_extensions(cert.getExtensions())
   if as: print ",".join(map(lambda x: "AS:" + str(x), as))

@@ -793,7 +793,6 @@ class Certificate(Sequence):
    def sign(self, rsa, digestType):
       driver = getCryptoDriver()
       oid = driver.getOID(digestType)
-      self.tbs.subjectPublicKeyInfo.set(driver.toPublicDER(key))
       self.tbs.signature.set([oid, None])
       signedText = driver.sign(rsa, oid, self.tbs.toString())
       self.signatureAlgorithm.set([oid, None])

@@ -7,7 +7,8 @@ CREATE TABLE asn (
        start_as             BIGINT unsigned NOT NULL,
        end_as               BIGINT unsigned NOT NULL,
        resource_class_id    BIGINT unsigned NOT NULL,
-       PRIMARY KEY (asn_id)
+       PRIMARY KEY	    (asn_id),
+       FOREIGN KEY	    (resource_class_id) REFERENCES resource_class ON DELETE SET NULL ON UPDATE SET NULL
 );
 
 CREATE UNIQUE INDEX XPKasn ON asn
@@ -23,7 +24,8 @@ CREATE TABLE net (
        end_ip               VARCHAR(40) NOT NULL,
        version              TINYINT unsigned NOT NULL,
        resource_class_id    BIGINT unsigned NOT NULL,
-       PRIMARY KEY (net_id)
+       PRIMARY KEY          (net_id),
+       FOREIGN KEY          (resource_class_id) REFERENCES resource_class ON DELETE SET NULL ON UPDATE SET NULL
 );
 
 CREATE UNIQUE INDEX XPKnet ON net
@@ -36,7 +38,7 @@ DROP TABLE IF EXISTS registrant;
 CREATE TABLE registrant (
        registrant_id        SERIAL NOT NULL,
        IRBE_mapped_id       TEXT,
-       PRIMARY KEY (registrant_id)
+       PRIMARY KEY	    (registrant_id)
 );
 
 CREATE UNIQUE INDEX XPKregistrant ON registrant
@@ -51,28 +53,11 @@ CREATE TABLE resource_class (
        subject_name         TEXT,
        valid_until          DATETIME NOT NULL,
        registrant_id        BIGINT unsigned NOT NULL,
-       PRIMARY KEY (resource_class_id)
+       PRIMARY KEY          (resource_class_id),
+       FOREIGN KEY          (registrant_id) REFERENCES registrant ON DELETE SET NULL ON UPDATE SET NULL
 );
 
 CREATE UNIQUE INDEX XPKresource_class ON resource_class
 (
        resource_class_id
 );
-
-ALTER TABLE asn
-       ADD FOREIGN KEY (resource_class_id)
-                             REFERENCES resource_class
-                             ON DELETE SET NULL
-                             ON UPDATE SET NULL;
-
-ALTER TABLE net
-       ADD FOREIGN KEY (resource_class_id)
-                             REFERENCES resource_class
-                             ON DELETE SET NULL
-                             ON UPDATE SET NULL;
-
-ALTER TABLE resource_class
-       ADD FOREIGN KEY (registrant_id)
-                             REFERENCES registrant
-                             ON DELETE SET NULL
-                             ON UPDATE SET NULL;

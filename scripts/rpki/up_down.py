@@ -236,41 +236,57 @@ class issue_pdu(base_elt):
     # Step 2: See whether we can just return the current child cert
     rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(rpki.left_right.irdb_query(gctx, child.self_id, child.child_id))
     pubkey = self.certificationRequestInfo.subjectPublicKeyInfo.get()
+    req_sia = self.pkcs10.get_POWpkix().getExtension(name2oid["subjectInfoAccess"])
+    #
+    # This next search loop might be an argument for a child_cert.ski column
     for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx.db, gctx.cur, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
-      if child_cert.get_POWpkix().tbs.subjectPublicKeyInfo.get() == pubkey:
+      if child_cert.cert.get_POWpkix().tbs.subjectPublicKeyInfo.get() == pubkey:
         break
     else:
       child_cert = None
-    if child_cert is not None and ((rc_as, rc_v4, rc_v6) != child_cert.latest_ca_cert.get_3779resources()):
+    if child_cert is not None and ((rc_as, rc_v4, rc_v6) != child_cert.cert.get_3779resources()):
       child_cert = None
-    if child_cert is not None and \
-         child_cert.get_POWpkix().getExtension(name2oid["subjectInfoAccess"]) != self.pkcs10.get_POWpkix().getExtension(name2oid["subjectInfoAccess"]):
+    if child_cert is not None and child_cert.cert.get_POWpkix().getExtension(name2oid["subjectInfoAccess"]) != req_sia:
       child_cert = None
     # Do we need to check certificate expiration here too?  Maybe we
     # can just trust the cron job that handles renewals for that?
     #
     # Step 3: If we didn't find a reusable cert, generate a new one.
     if child_cert is None:
-      #
-      # This is probably not the quite right model yet.
-      # issuer.issue() makes sense from the cert point of view but
-      # leaves the ca state a bit of a mess.  Refine later.
+      # Some of this code probably should become a method of rpki.sql.ca_obj
+      base_uri = ca.sia_uri + ca_detail.latest_ca_cert.gSKI()
+      ca.last_issued_sn += 1
+      ca.sql_mark_dirty()
+      child_cert = rpki.sql.child_cert_obj()
+      child_cert.child_id = child.child_id
+      child_cert.ca_detail_id = ca_detail.ca_detail_id
+      child_cert.cert = ca_detail.latest_ca_cert.issue(keypair = ca_detail.private_key_id,
+                                                       subject_key = pubkey,
+                                                       serial = ca.last_issued_sn,
+                                                       aia = base_uri + ".cer",
+                                                       crldp = base_uri + ".crl",
+                                                       sia = req_sia,
+                                                       as = rc_as,
+                                                       v4 = rc_v4,
+                                                       v6 = rc_v6)
+      child_cert.sql_mark_dirty()
 
-      child_cert = ca_detail.latest_ca_cert.issue(keypair = ca_detail.private_key_id,
-                                                  subject_key = pubkey,
-                                                  serial = serial,      # XXX
-                                                  aia = aia,            # XXX
-                                                  crldp = crldp,        # XXX
-                                                  sia = self.pkcs10.get_POWpkix().getExtension(name2oid["subjectInfoAccess"]),
-                                                  as = rc_as,
-                                                  v4 = rc_v4,
-                                                  v6 = rc_v6)
-
-      # Insert the cert we just generated into the database!
+      # Generate new manifest
+      # Publish new cert and manifest
       raise NotImplementedError
 
-    # And finally, return a PDU containing what we got
-    raise NotImplementedError
+    # Save anything we modified and generate response
+    rpki.sql.sql_sweep(gctx.db, gctx.cur)
+    assert child_cert and child_cert.sql_in_db
+    c = certificate_elt()
+    c.cert_url = "rsync://niy.invalid"
+    c.cert = child_cert.cert
+    rc = class_elt()
+    rc.cert_url = "rsync://niy.invalid"
+    rc.resource_set_as, rc.resource_set_ipv4, rc.resource_set_ipv6 = rc_as, rc_v4, rc_v6
+    rc.certs.append(c)
+    r_msg.payload = issue_response_pdu()
+    r_msg.payload.classes.append(rc)
 
 class issue_response_pdu(class_response_syntax):
   """Up-Down protocol "issue_response" PDU."""

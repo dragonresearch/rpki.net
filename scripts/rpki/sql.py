@@ -179,7 +179,7 @@ class ca_detail_obj(sql_persistant):
   """Internal CA detail object."""
 
   sql_template = template("ca", "ca_detail_id", "private_key_id", "public_key", "latest_ca_cert", "manifest_private_key_id",
-                          "manifest_public_key", "latest_manifest_cert", "latest_manifest", "latest_crl", "status", "ca_id")
+                          "manifest_public_key", "latest_manifest_cert", "latest_manifest", "latest_crl", "state", "ca_cert_uri", "ca_id")
 
   def sql_decode(self, vals):
     sql_persistant.sql_decode(self, vals)
@@ -206,7 +206,7 @@ class ca_detail_obj(sql_persistant):
 
   @classmethod
   def sql_fetch_active(cls, db, cur, ca_id):
-    hits = cls.sql_fetch_where(db, cur, "ca_id = %s AND status = 'active'" % ca_id)
+    hits = cls.sql_fetch_where(db, cur, "ca_id = %s AND state = 'active'" % ca_id)
     assert len(hits) < 2, "Found more than one 'active' ca_detail record, this should not happen!"
     if hits:
       return hits[0]

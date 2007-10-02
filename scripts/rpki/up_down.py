@@ -165,11 +165,11 @@ class list_pdu(base_elt):
         continue
       rc = class_elt()
       rc.class_name = str(ca_id)
-      rc.cert_url = "rsync://niy.invalid"
+      rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
       rc.resource_set_as, rc.resource_set_ipv4, rc.resource_set_ipv6 = rc_as, rc_v4, rc_v6
       for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx.db, gctx.cur, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
         c = certificate_elt()
-        c.cert_url = "rsync://niy.invalid"
+        c.cert_url = multi_uri(ca.sia_uri + child_cert.cert.gSKI() + ".cer")
         c.cert = child_cert.cert
         rc.certs.append(c)
       rc.issuer = ca_detail.latest_ca_cert
@@ -254,7 +254,6 @@ class issue_pdu(base_elt):
     # Step 3: If we didn't find a reusable cert, generate a new one.
     if child_cert is None:
       # Some of this code probably should become a method of rpki.sql.ca_obj
-      base_uri = ca.sia_uri + ca_detail.latest_ca_cert.gSKI()
       ca.last_issued_sn += 1
       ca.sql_mark_dirty()
       child_cert = rpki.sql.child_cert_obj()
@@ -263,28 +262,29 @@ class issue_pdu(base_elt):
       child_cert.cert = ca_detail.latest_ca_cert.issue(keypair = ca_detail.private_key_id,
                                                        subject_key = pubkey,
                                                        serial = ca.last_issued_sn,
-                                                       aia = base_uri + ".cer",
-                                                       crldp = base_uri + ".crl",
+                                                       aia = ca_detail.ca_cert_uri,
+                                                       crldp = ca.sia_uri + ca_detail.latest_ca_cert.gSKI() + ".crl",
                                                        sia = req_sia,
                                                        as = rc_as,
                                                        v4 = rc_v4,
                                                        v6 = rc_v6)
       child_cert.sql_mark_dirty()
 
-      # Generate new manifest
-      # Publish new cert and manifest
+      print "Should generate a new manifest now"
+      print "Should publish newly-created certificate now"
       raise NotImplementedError
 
     # Save anything we modified and generate response
     rpki.sql.sql_sweep(gctx.db, gctx.cur)
     assert child_cert and child_cert.sql_in_db
     c = certificate_elt()
-    c.cert_url = "rsync://niy.invalid"
+    c.cert_url = multi_uri(ca.sia_uri + child_cert.cert.gSKI() + ".cer")
     c.cert = child_cert.cert
     rc = class_elt()
-    rc.cert_url = "rsync://niy.invalid"
+    rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
     rc.resource_set_as, rc.resource_set_ipv4, rc.resource_set_ipv6 = rc_as, rc_v4, rc_v6
     rc.certs.append(c)
+    rc.issuer = ca_detail.latest_ca_cert
     r_msg.payload = issue_response_pdu()
     r_msg.payload.classes.append(rc)
 

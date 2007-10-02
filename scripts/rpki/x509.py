@@ -23,7 +23,7 @@ class PEM_converter(object):
     self.e = "-----END %s-----"   % kind
 
   def looks_like_PEM(self, text):
-    return text.startswith(self.b)
+    return text.find(self.b) >= 0 and text.find(self.e) > 0
 
   def to_DER(self, pem):
     """Convert from PEM to DER."""
@@ -211,11 +211,11 @@ class X509(DER_object):
     
   def get_AKI(self):
     """Get the AKI extension from this certificate."""
-    return self._get_POW_extensions().get("authorityKeyIdentifier")
+    return (self.get_POWpkix().getExtension((2, 5, 29, 35)) or ((), 0, None))[2]
 
   def get_SKI(self):
     """Get the SKI extension from this certificate."""
-    return self._get_POW_extensions().get("subjectKeyIdentifier")
+    return (self.get_POWpkix().getExtension((2, 5, 29, 14)) or ((), 0, None))[2]
 
   def get_3779resources(self, as_intersector = None, v4_intersector = None, v6_intersector = None):
     """Get RFC 3779 resources as rpki.resource_set objects."""

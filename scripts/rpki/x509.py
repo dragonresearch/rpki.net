@@ -23,7 +23,8 @@ class PEM_converter(object):
     self.e = "-----END %s-----"   % kind
 
   def looks_like_PEM(self, text):
-    return text.find(self.b) >= 0 and text.find(self.e) > 0
+    b = text.find(self.b)
+    return b >= 0 and text.find(self.e) > b + len(self.b)
 
   def to_DER(self, pem):
     """Convert from PEM to DER."""

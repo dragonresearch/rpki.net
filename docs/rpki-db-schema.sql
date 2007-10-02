@@ -96,6 +96,7 @@ CREATE TABLE ca_detail (
        latest_manifest_cert     LONGBLOB,
        latest_manifest          LONGBLOB,
        state                    ENUM ('active', 'deprecated', 'pending') NOT NULL,
+       ca_cert_uri              TEXT,
        ca_id                    BIGINT unsigned NOT NULL,
        PRIMARY KEY              (ca_detail_id),
        FOREIGN KEY              (ca_id) REFERENCES ca

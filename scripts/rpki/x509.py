@@ -217,6 +217,10 @@ class X509(DER_object):
     """Get the SKI extension from this certificate."""
     return (self.get_POWpkix().getExtension((2, 5, 29, 14)) or ((), 0, None))[2]
 
+  def gSKI(self):
+    """Calculate g(SKI) for this certificate."""
+    return base64.b64encode(self.get_SKI()).replace("+", "-").replace("/", "_")
+
   def get_3779resources(self, as_intersector = None, v4_intersector = None, v6_intersector = None):
     """Get RFC 3779 resources as rpki.resource_set objects."""
     as, v4, v6 = rpki.resource_set.parse_extensions(self.get_POWpkix().getExtensions())

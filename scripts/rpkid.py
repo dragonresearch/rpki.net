@@ -5,7 +5,7 @@ Start at the RPKI daemon.  This isn't real yet.  So far it's just a
 framework onto which I'm bolting various parts for testing.
 """
 
-import tlslite.api, MySQLdb, xml.sax, lxml.etree, lxml.sax, POW, POW.pkix, traceback
+import tlslite.api, MySQLdb, xml.sax, lxml.etree, lxml.sax, POW, POW.pkix, traceback, os, time
 import rpki.https, rpki.config, rpki.resource_set, rpki.up_down, rpki.left_right, rpki.relaxng, rpki.cms, rpki.exceptions
 
 def left_right_handler(query, path):
@@ -47,6 +47,9 @@ def cronjob_handler(query, path):
 class global_context(object):
   """A place to stash various global parameters."""
   pass
+
+os.environ["TZ"] = "UTC"
+time.tzset()
 
 gctx = global_context()
 

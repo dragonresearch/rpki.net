@@ -28,21 +28,28 @@ class template(object):
 
 sql_cache = {}
 
+## @var sql_dirty
+# Set of objects that need to be written back to SQL.
+
+sql_dirty = set()
+
 def sql_cache_clear():
   """Clear the object cache."""
-  sql_cache = {}
+  sql_cache.clear()
 
-def sql_cache_assert_pristine():
+def sql_assert_pristine():
   """Assert that there are no dirty objects in the cache."""
-  dirty = [obj for obj in sql_cache.values() if obj.sql_dirty]
-  assert not dirty, "Dirty objects in SQL cache: %s" % dirty
+  assert not sql_dirty, "Dirty objects in SQL cache: %s" % sql_dirty
+
+def sql_sweep(db, cur):
+  """Write any dirty objects out to SQL."""
+  for s in sql_dirty:
+    s.sql_store(db, cur)
 
 def fetch_column(cur, *query):
   """Pull a single column from SQL, return it as a list."""
-
   cur.execute(*query)
   return [x[0] for x in cur.fetchall()]
-
 
 class sql_persistant(object):
   """Mixin for persistant class that needs to be stored in SQL.
@@ -51,11 +58,6 @@ class sql_persistant(object):
   ## @var sql_in_db
   # Whether this object is already in SQL or not.
   sql_in_db = False
-
-  ## @var sql_dirty
-  # Whether this object has been modified and needs to be written back
-  # to SQL.
-  sql_dirty = False
 
   @classmethod
   def sql_fetch(cls, db, cur, id):
@@ -92,10 +94,18 @@ class sql_persistant(object):
     self = cls()
     self.sql_decode(dict(zip(cls.sql_template.columns, row)))
     sql_cache[key] = self
-    self.sql_dirty = False
     self.sql_in_db = True
     self.sql_fetch_hook(db, cur)
     return self
+
+  def sql_mark_dirty(self):
+    sql_dirty.add(self)
+
+  def sql_mark_clean(self):
+    sql_dirty.discard(self)
+
+  def sql_is_dirty(self):
+    return self in sql_dirty
 
   def sql_store(self, db, cur):
     if not self.sql_in_db:
@@ -103,12 +113,12 @@ class sql_persistant(object):
       setattr(self, self.sql_template.index, cur.lastrowid)
       sql_cache[(self.__class__, cur.lastrowid)] = self
       self.sql_insert_hook(db, cur)
-    elif self.sql_dirty:
+    elif self in sql_dirty:
       cur.execute(self.sql_template.update, self.sql_encode())
       self.sql_update_hook(db, cur)
     key = (self.__class__, getattr(self, self.sql_template.index))
     assert key in sql_cache and sql_cache[key] == self
-    self.sql_dirty = False
+    self.sql_mark_clean()
     self.sql_in_db = True
 
   def sql_delete(self, db, cur):
@@ -120,7 +130,7 @@ class sql_persistant(object):
       if sql_cache.get(key) == self:
         del sql_cache[key]
       self.sql_in_db = False
-      self.sql_dirty = False
+      self.sql_mark_clean()
 
   def sql_encode(self):
     """Convert object attributes into a dict for use with canned SQL

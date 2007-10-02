@@ -101,7 +101,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
         v = getattr(self, a)
         if v is not None:
           setattr(db_pdu, a, v)
-      db_pdu.sql_dirty = True
+      db_pdu.sql_mark_dirty()
       db_pdu.serve_pre_save_hook(self, r_pdu)
       db_pdu.sql_store(gctx.db, gctx.cur)
       db_pdu.serve_post_save_hook(self, r_pdu)

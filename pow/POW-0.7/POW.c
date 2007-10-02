@@ -1394,18 +1394,18 @@ static char X509_object_add_extension__doc__[] =
 static PyObject *
 X509_object_add_extension(x509_object *self, PyObject *args)
 {
-   int critical=0, nid=0;
+   int critical=0, nid=0, len=0;
    char *name=NULL, *buf=NULL;
    ASN1_OCTET_STRING *octetString=NULL;
    X509_EXTENSION *extn=NULL;
 
-   if (!PyArg_ParseTuple(args, "sis", &name, &critical, &buf))
+   if (!PyArg_ParseTuple(args, "sis#", &name, &critical, &buf, &len))
       goto error;
 
    if ( !(octetString = M_ASN1_OCTET_STRING_new() ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
 
-   if ( !ASN1_OCTET_STRING_set(octetString, buf, strlen(buf)) )
+   if ( !ASN1_OCTET_STRING_set(octetString, buf, len) )
       { PyErr_SetString( SSLErrorObject, "could not set ASN1 Octect string" ); goto error; }
 
    if ( NID_undef == (nid = OBJ_txt2nid(name) ) )
@@ -1545,7 +1545,7 @@ X509_object_get_extension(x509_object *self, PyObject *args)
    if ( NULL == (ext_ln = OBJ_nid2sn(ext_nid) ) )
       ext_ln = unknown_ext;
 
-   return Py_BuildValue("sis", ext_ln, ext->critical, ext->value->data );
+   return Py_BuildValue("sis#", ext_ln, ext->critical, ext->value->data, ext->value->length );
 
 error:
 
@@ -2664,18 +2664,18 @@ static char X509_crl_object_add_extension__doc__[] =
 static PyObject *
 X509_crl_object_add_extension(x509_crl_object *self, PyObject *args)
 {
-   int critical=0, nid=0;
+   int critical=0, nid=0, len=0;
    char *name=NULL, *buf=NULL;
    ASN1_OCTET_STRING *octetString=NULL;
    X509_EXTENSION *extn=NULL;
 
-   if (!PyArg_ParseTuple(args, "sis", &name, &critical, &buf))
+   if (!PyArg_ParseTuple(args, "sis#", &name, &critical, &buf, &len))
       goto error;
 
    if ( !(octetString = M_ASN1_OCTET_STRING_new() ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
 
-   if ( !ASN1_OCTET_STRING_set(octetString, buf, strlen(buf)) )
+   if ( !ASN1_OCTET_STRING_set(octetString, buf, len) )
       { PyErr_SetString( SSLErrorObject, "could not set ASN1 Octect string" ); goto error; }
 
    if ( NID_undef == (nid = OBJ_txt2nid(name) ) )
@@ -2815,7 +2815,7 @@ X509_crl_object_get_extension(x509_crl_object *self, PyObject *args)
    if ( NULL == (ext_ln = OBJ_nid2sn(ext_nid) ) )
       ext_ln = unknown_ext;
 
-   return Py_BuildValue("sis", ext_ln, ext->critical, ext->value->data );
+   return Py_BuildValue("sis#", ext_ln, ext->critical, ext->value->data, ext->value->length );
 
 error:
 
@@ -3404,12 +3404,12 @@ static char X509_revoked_object_add_extension__doc__[] =
 static PyObject *
 X509_revoked_object_add_extension(x509_revoked_object *self, PyObject *args)
 {
-   int critical=0, nid=0;
+   int critical=0, nid=0, len=0;
    char *name=NULL, *buf=NULL;
    ASN1_OCTET_STRING *octetString=NULL;
    X509_EXTENSION *extn=NULL;
 
-   if (!PyArg_ParseTuple(args, "sis", &name, &critical, &buf))
+   if (!PyArg_ParseTuple(args, "sis#", &name, &critical, &buf, &len))
       goto error;
 
    if ( !(octetString = M_ASN1_OCTET_STRING_new() ) )
@@ -3555,7 +3555,7 @@ X509_revoked_object_get_extension(x509_revoked_object *self, PyObject *args)
    if ( NULL == (ext_ln = OBJ_nid2sn(ext_nid) ) )
       ext_ln = unknown_ext;
 
-   return Py_BuildValue("sis", ext_ln, ext->critical, ext->value->data );
+   return Py_BuildValue("sis#", ext_ln, ext->critical, ext->value->data, ext->value->length );
 
 error:
 

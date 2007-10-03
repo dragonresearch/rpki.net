@@ -405,7 +405,7 @@ class message_pdu(base_elt):
     lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="UTF-8")
 
   def serve_top_level(self, gctx, child):
-    r_msg = self.__class__()
+    r_msg = message_pdu()
     self.payload.serve_pdu(gctx, self, r_msg, child)
     return r_msg
 

@@ -33,6 +33,8 @@ def up_down_handler(query, path):
     q_elt = rpki.cms.xml_decode(query, child.peer_ta)
     rpki.relaxng.up_down.assertValid(q_elt)
     q_msg = rpki.up_down.sax_handler.saxify(q_elt)
+    if q_msg.sender != child_id:
+      raise rpki.exceptions.NotFound, "Unexpected XML sender %s" % q_msg.sender
     r_msg = q_msg.serve_top_level(gctx)
     r_elt = r_msg.toXML()
     rpki.relaxng.up_down.assertValid(r_elt)

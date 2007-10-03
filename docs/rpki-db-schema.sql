@@ -71,16 +71,17 @@ CREATE TABLE parent (
 DROP TABLE IF EXISTS ca;
 
 CREATE TABLE ca (
-       ca_id                SERIAL NOT NULL,
-       last_crl_sn          BIGINT unsigned,
-       last_manifest_sn     BIGINT unsigned,
-       next_manifest_update DATETIME,
-       next_crl_update      DATETIME,
-       last_issued_sn       BIGINT unsigned,
-       sia_uri              TEXT,
-       parent_id            BIGINT unsigned,
-       PRIMARY KEY          (ca_id),
-       FOREIGN KEY          (parent_id) REFERENCES parent
+       ca_id			SERIAL NOT NULL,
+       last_crl_sn		BIGINT unsigned,
+       last_manifest_sn		BIGINT unsigned,
+       next_manifest_update	DATETIME,
+       next_crl_update		DATETIME,
+       last_issued_sn		BIGINT unsigned,
+       sia_uri			TEXT,
+       parent_resource_class	TEXT,
+       parent_id		BIGINT unsigned,
+       PRIMARY KEY		(ca_id),
+       FOREIGN KEY		(parent_id) REFERENCES parent
 );
 
 DROP TABLE IF EXISTS ca_detail;

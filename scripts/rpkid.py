@@ -6,7 +6,7 @@ framework onto which I'm bolting various parts for testing.
 """
 
 import tlslite.api, MySQLdb, xml.sax, lxml.etree, lxml.sax, POW, POW.pkix, traceback, os, time
-import rpki.https, rpki.config, rpki.resource_set, rpki.up_down, rpki.left_right, rpki.relaxng, rpki.cms, rpki.exceptions
+import rpki.https, rpki.config, rpki.resource_set, rpki.up_down, rpki.left_right, rpki.relaxng, rpki.cms, rpki.exceptions, rpki.x509
 
 def left_right_handler(query, path):
   try:
@@ -62,17 +62,14 @@ gctx.db = MySQLdb.connect(user   = gctx.cfg.get(gctx.cfg_section, "sql-username"
 
 gctx.cur = gctx.db.cursor()
 
-gctx.cms_ta_irdb = gctx.cfg.get(gctx.cfg_section, "cms-ta-irdb")
-gctx.cms_ta_irbe = gctx.cfg.get(gctx.cfg_section, "cms-ta-irbe")
-gctx.cms_key     = gctx.cfg.get(gctx.cfg_section, "cms-key")
-gctx.cms_certs   = gctx.cfg.multiget(gctx.cfg_section, "cms-cert")
+gctx.cms_ta_irdb = rpki.x509.X509(Auto_file = gctx.cfg.get(gctx.cfg_section, "cms-ta-irdb"))
+gctx.cms_ta_irbe = rpki.x509.X509(Auto_file = gctx.cfg.get(gctx.cfg_section, "cms-ta-irbe"))
+gctx.cms_key     = rpki.x509.RSA_Keypair(Auto_file = gctx.cfg.get(gctx.cfg_section, "cms-key"))
+gctx.cms_certs   = rpki.x509.X509_chain(Auto_files = gctx.cfg.multiget(gctx.cfg_section, "cms-cert"))
 
-gctx.https_key   = rpki.x509.RSA_Keypair(PEM_file = gctx.cfg.get(gctx.cfg_section, "https-key"))
-gctx.https_certs = certChain = rpki.x509.X509_chain()
-gctx.https_tas   = rpki.x509.X509_chain() 
-
-gctx.https_certs.load_from_PEM(gctx.cfg.multiget(gctx.cfg_section, "https-cert"))
-gctx.https_tas.load_from_PEM(gctx.cfg.multiget(gctx.cfg_section, "https-ta"))
+gctx.https_key   = rpki.x509.RSA_Keypair(Auto_file = gctx.cfg.get(gctx.cfg_section, "https-key"))
+gctx.https_certs = rpki.x509.X509_chain(Auto_files = gctx.cfg.multiget(gctx.cfg_section, "https-cert"))
+gctx.https_tas   = rpki.x509.X509_chain(Auto_files = gctx.cfg.multiget(gctx.cfg_section, "https-ta"))
 
 gctx.irdb_host   = gctx.cfg.get(gctx.cfg_section, "irdb-host")
 gctx.irdb_port   = gctx.cfg.get(gctx.cfg_section, "irdb-port")

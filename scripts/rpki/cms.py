@@ -10,19 +10,18 @@ import os, rpki.x509, rpki.exceptions, lxml.etree
 
 # openssl smime -sign -nodetach -outform DER -signer biz-certs/Alice-EE.cer -certfile biz-certs/Alice-CA.cer -inkey biz-certs/Alice-EE.key -in PLAN -out PLAN.der
 
-def encode(xml, key, cert_files):
+def encode(xml, keypair, certs):
   """Encode a chunk of XML as CMS signed with a specified key and bag of certificates.
 
   We have to sort the certificates into the correct order before the
   OpenSSL CLI tool will accept them.  rpki.x509 handles that for us.
   """
 
-  certs = rpki.x509.X509_chain()
-  certs.load_from_PEM(cert_files)
   certs.chainsort()
 
   signer_filename = "cms.tmp.signer.pem"
   certfile_filename = "cms.tmp.certfile.pem"
+  plaintext_filename = "cms.tmp.plaintext"
   
   f = open(signer_filename, "w")
   f.write(certs[0].get_PEM())
@@ -33,14 +32,20 @@ def encode(xml, key, cert_files):
     f.write(cert.get_PEM())
   f.close()
 
-  i,o = os.popen2(["openssl", "smime", "-sign", "-nodetach", "-outform", "DER", "-signer", signer_filename, "-certfile", certfile_filename, "-inkey", key])
-  i.write(xml)
+  f = open(plaintext_filename, "w")
+  f.write(xml)
+  f.close()
+
+  i,o = os.popen2(("openssl", "smime", "-sign", "-nodetach", "-outform", "DER", "-signer", signer_filename,
+                   "-certfile", certfile_filename, "-inkey", "/dev/stdin", "-in", plaintext_filename))
+  i.write(keypair.get_PEM())
   i.close()
   cms = o.read()
   o.close()
 
   os.unlink(signer_filename)
   os.unlink(certfile_filename)
+  os.unlink(plaintext_filename)
 
   return cms
 
@@ -54,17 +59,27 @@ def decode(cms, ta):
   verification, we raise an exception.
   """  
 
-  i,o,e = os.popen3(["openssl", "smime", "-verify", "-inform", "DER", "-CAfile", ta])
+  ta_filename = "cms.tmp.ta.pem"
+
+  f = open(ta_filename, "w")
+  f.write(ta.get_PEM())
+  f.close()
+
+  i,o,e = os.popen3(("openssl", "smime", "-verify", "-inform", "DER", "-CAfile", ta_filename))
   i.write(cms)
   i.close()
   xml = o.read()
   o.close()
   status = e.read()
   e.close()
+
+  os.unlink(ta_filename)
+
   if status == "Verification successful\n":
     return xml
   else:
     raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed with status %s" % status
+
 
 def xml_decode(elt, ta):
   """Composite routine to decode CMS-wrapped XML."""

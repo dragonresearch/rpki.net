@@ -13,7 +13,7 @@ some of the nasty details.  This involves a lot of format conversion.
 """
 
 import POW, tlslite.api, POW.pkix, base64, time
-import rpki.exceptions, rpki.resource_set
+import rpki.exceptions, rpki.resource_set, rpki.manifest
 
 class PEM_converter(object):
   """Convert between DER and PEM encodings for various kinds of ASN.1 data."""
@@ -291,6 +291,18 @@ class X509_chain(list):
   packages.
   """
 
+  def __init__(self, *args, **kw):
+    if args:
+      self[:] = args
+    elif "PEM_files" in kw:
+      self.load_from_PEM(kw["PEM_files"])
+    elif "DER_files" in kw:
+      self.load_from_DER(kw["DER_files"])
+    elif "Auto_files" in kw:
+      self.load_from_Auto(kw["Auto_files"])
+    elif kw:
+      raise TypeError
+
   def chainsort(self):
     """Sort a bag of certs into a chain, leaf first.
 
@@ -333,6 +345,10 @@ class X509_chain(list):
   def load_from_DER(self, files):
     """Load a set of certs from a list of DER files."""
     self.extend([X509(DER_file=f) for f in files])
+
+  def load_from_Auto(self, files):
+    """Load a set of certs from a list of DER or PEM files (guessing)."""
+    self.extend([X509(Auto_file=f) for f in files])
 
 class PKCS10_Request(DER_object):
   """Class to hold a PKCS #10 request."""
@@ -434,3 +450,28 @@ class RSA_Keypair(DER_object):
 
   def get_public_DER(self):
     return self.get_POW().derWrite(POW.RSA_PUBLIC_KEY)
+
+class Manifest(DER_object):
+  """Class to hold a signed manifest."""
+
+  formats = ("DER", "POWpkix")
+  pem_converter = PEM_converter("RPKI MANIFEST")
+  
+  def get_DER(self):
+    """Get the DER value of this manifest."""
+    assert not self.empty()
+    if self.DER:
+      return self.DER
+    if self.POWpkix:
+      self.DER = self.POWpkix.toString()
+      return self.get_DER()
+    raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
+
+  def get_POWpkix(self):
+    """Get the POW.pkix value of this manifest."""
+    assert not self.empty()
+    if not self.POWpkix:
+      mani = rpki.manifest.Manifest()
+      mani.fromString(self.get_DER())
+      self.POWpkix = mani
+    return self.POWpkix

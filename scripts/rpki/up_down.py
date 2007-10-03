@@ -309,7 +309,21 @@ class revoke_pdu(revoke_syntax):
   """Up-Down protocol "revoke" PDU."""
 
   def serve_pdu(self, gctx, q_msg, r_msg, child):
-    raise NotImplementedError
+    if not self.class_name.isdigit():
+      raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
+    ca_id = long(self.class_name)
+    ca = rpki.sql.ca_obj.sql_fetch(gctx.db, gctx.cur, ca_id)
+    ca_detail = rpki.sql.ca_detail_elt.sql_fetch_active(gctx.db, gctx.cur, ca_id)
+    if ca is None or ca_detail is None:
+      raise rpki.exceptions.NotInDatabase
+    ski = base64.b64decode(self.ski.replace("_", "/").replace("-", "+"))
+    # This next search loop might be an argument for a child_cert.ski column
+    for c in rpki.sql.child_cert_obj.sql_fetch_where(gctx.db, gctx.cur, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
+      if c.cert.get_SKI() == ski:
+        c.sql_delete()
+    r_msg.payload = revoke_response_pdu()
+    r_msg.payload.class_name = self.class_name
+    r_msg.payload.ski = self.ski
 
 class revoke_response_pdu(revoke_syntax):
   """Up-Down protocol "revoke_response" PDU."""

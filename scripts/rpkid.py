@@ -28,17 +28,8 @@ def up_down_handler(query, path):
       raise rpki.exceptions.BadContactURL, "Bad path: %s" % path
     child = rpki.left_right.child_elt.sql_fetch(gctx.db, gctx.cur, long(child_id))
     if child is None:
-      raise rpki.exceptions.NotFound, "Could not find CMS TA to verify request"
-    bsc = rpki.left_right.bsc_elt.sql_fetch(gctx.db, gctx.cur, child.bsc_id)
-    q_elt = rpki.cms.xml_decode(query, child.peer_ta)
-    rpki.relaxng.up_down.assertValid(q_elt)
-    q_msg = rpki.up_down.sax_handler.saxify(q_elt)
-    if q_msg.sender != child_id:
-      raise rpki.exceptions.NotFound, "Unexpected XML sender %s" % q_msg.sender
-    r_msg = q_msg.serve_top_level(gctx)
-    r_elt = r_msg.toXML()
-    rpki.relaxng.up_down.assertValid(r_elt)
-    return 200, rpki.cms.xml_encode(r_elt, bsc.private_key_id, bsc.signing_cert)
+      raise rpki.exceptions.NotFound, "Could not find child %s" % child_id
+    return 200, child.serve_up_down(gctx, query)
   except Exception, data:
     traceback.print_exc()
     return 500, "Unhandled exception %s" % data

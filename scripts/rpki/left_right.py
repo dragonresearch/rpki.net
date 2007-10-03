@@ -3,7 +3,7 @@
 """RPKI "left-right" protocol."""
 
 import base64, lxml.etree, time
-import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.pkcs10, rpki.https
+import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.pkcs10, rpki.https, rpki.up_down, rpki.relaxng
 
 xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
@@ -371,6 +371,21 @@ class child_elt(data_elt):
     if self.peer_ta:
       self.make_b64elt(elt, "peer_ta", self.peer_ta.get_DER())
     return elt
+
+  def serve_up_down(self, gctx, query):
+    """Outer layer of server handling for one up-down PDU from this child."""
+    bsc = bsc_elt.sql_fetch(gctx.db, gctx.cur, self.bsc_id)
+    if bsc is None:
+      raise rpki.exceptions.NotFound, "Could not find BSC %s" % self.bsc_id
+    q_elt = rpki.cms.xml_decode(query, self.peer_ta)
+    rpki.relaxng.up_down.assertValid(q_elt)
+    q_msg = rpki.up_down.sax_handler.saxify(q_elt)
+    if q_msg.sender != str(self.child_id):
+      raise rpki.exceptions.NotFound, "Unexpected XML sender %s" % q_msg.sender
+    r_msg = q_msg.serve_top_level(gctx, self)
+    r_elt = r_msg.toXML()
+    rpki.relaxng.up_down.assertValid(r_elt)
+    return rpki.cms.xml_encode(r_elt, bsc.private_key_id, bsc.signing_cert)
 
 class repository_elt(data_elt):
   """<repository/> element."""

@@ -372,6 +372,17 @@ class message_pdu(base_elt):
 
   version = 1
 
+  name2type = {
+    "list"            : list_pdu,
+    "list_response"   : list_response_pdu,
+    "issue"           : issue_pdu,
+    "issue_response"  : issue_response_pdu,
+    "revoke"          : revoke_pdu,
+    "revoke_response" : revoke_response_pdu,
+    "error_response"  : error_response_pdu }
+
+  type2name = dict((v,k) for k,v in name2type.items())
+
   def toXML(self):
     """Generate payload of message PDU."""
     elt = self.make_elt("message", "version", "sender", "recipient", "type")
@@ -390,15 +401,7 @@ class message_pdu(base_elt):
     self.sender = attrs["sender"]
     self.recipient = attrs["recipient"]
     self.type = attrs["type"]
-    self.payload = {
-      "list"            : list_pdu,
-      "list_response"   : list_response_pdu,
-      "issue"           : issue_pdu,
-      "issue_response"  : issue_response_pdu,
-      "revoke"          : revoke_pdu,
-      "revoke_response" : revoke_response_pdu,
-      "error_response"  : error_response_pdu
-      }[attrs["type"]]()
+    self.payload = self.name2type[attrs["type"]]()
     stack.append(self.payload)
 
   def __str__(self):
@@ -408,6 +411,16 @@ class message_pdu(base_elt):
     r_msg = message_pdu()
     self.payload.serve_pdu(gctx, self, r_msg, child)
     return r_msg
+
+  @classmethod
+  def make_query(cls, sender, recipient, payload):
+    assert not self.type2name[type(payload)].endswith("_response")
+    self = cls()
+    self.sender = sender
+    self.recipient = recipient
+    self.payload = payload
+    self.type = self.type2name[type(payload)]
+    return self
 
 class sax_handler(rpki.sax_utils.handler):
   """SAX handler for Up-Down protocol."""

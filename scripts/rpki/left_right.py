@@ -335,6 +335,41 @@ class parent_elt(data_elt):
       self.make_b64elt(elt, "peer_ta", self.peer_ta.get_DER())
     return elt
 
+  def query_up_down(self, gctx, q_pdu):
+    """Client code for sending one up-down query PDU to this parent."""
+    bsc = bsc_elt.sql_fetch(gctx.db, gctx.cur, self.bsc_id)
+    if bsc is None:
+      raise rpki.exceptions.NotFound, "Could not find BSC %s" % self.bsc_id
+
+    # I have no flipping idea what I should be putting into the sender
+    # and recipient fields yet.  As far as I can tell they're worse
+    # than useless, in that they provide no information I can't get
+    # more easily in other ways and I have to check them and store
+    # data for them.  Use bogus values for now, sort out later, may
+    # require hacking SQL just to have someplace to store the values
+    # we need to put here.  Ick.
+
+    q_msg = rpki.up_down.message_pdu.make_query(sender    = 'I have no idea what to put in the "sender" attribute',
+                                                recipient = 'I have no idea what to put in the "recipient" attribute',
+                                                payload   = q_pdu)
+    q_elt = q_msg.toXML()
+    rpki.relaxng.up_down.assertValid(q_elt)
+    q_cms = rpki.cms.xml_encode(q_elt, bsc.private_key_id, bsc.signing_cert)
+
+    # Er, what do we use for HTTPS trust anchors here?!?
+
+    raise NotImplementedError
+
+    # Code from which to steal when completing this: child_elt.serve_up_down(), irbe-cli.py
+    #
+    # Need to check response CMS, decode, then dispatch to some (as yet unnamed) method
+    # in the response payload pdu.  I think.
+    #
+    # When we handle asynchronous events properly, this method will be
+    # broken into two separate functions at the point where we're
+    # waiting for the https response to come back.  Second half is probably another
+    # method of parent_elt so that it can check the response CMS, etc.
+
 class child_elt(data_elt):
   """<child/> element."""
 

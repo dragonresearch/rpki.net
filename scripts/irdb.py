@@ -50,23 +50,20 @@ def handler(query, path):
     return 500, "Unhandled exception %s" % data
 
 cfg = rpki.config.parser("irbe.conf")
-section = "irdb"
+cfg_section = "irdb"
 
-db = MySQLdb.connect(user   = cfg.get(section, "sql-username"),
-                     db     = cfg.get(section, "sql-database"),
-                     passwd = cfg.get(section, "sql-password"))
+db = MySQLdb.connect(user   = cfg.get(cfg_section, "sql-username"),
+                     db     = cfg.get(cfg_section, "sql-database"),
+                     passwd = cfg.get(cfg_section, "sql-password"))
 
 cur = db.cursor()
 
-cms_ta = cfg.get(section, "cms-ta")
+cms_ta          = rpki.x509.X509(Auto_file = cfg.get(cfg_section, "cms-ta"))
+cms_key         = rpki.x509.RSA_Keypair(Auto_file = cfg.get(cfg_section, "cms-key"))
+cms_certs       = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "cms-cert"))
 
-privateKey = rpki.x509.RSA_Keypair(PEM_file = cfg.get(section, "https-key"))
-
-certChain = rpki.x509.X509_chain()
-certChain.load_from_PEM(cfg.multiget(section, "https-cert"))
-
-rpki.https.server(privateKey    = privateKey,
-                  certChain     = certChain,
-                  host          = cfg.get(section, "https-host"),
-                  port          = int(cfg.get(section, "https-port")),
-                  handlers      = { cfg.get(section, "https-url") : handler })
+rpki.https.server(privateKey = rpki.x509.RSA_Keypair(Auto_file = cfg.get(cfg_section, "https-key")),
+                  certChain  = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "https-cert")),
+                  host       = cfg.get(cfg_section, "https-host"),
+                  port       = int(cfg.get(cfg_section, "https-port")),
+                  handlers   = { cfg.get(cfg_section, "https-url") : handler })

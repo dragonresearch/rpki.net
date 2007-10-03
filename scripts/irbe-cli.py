@@ -113,15 +113,7 @@ def usage(code=1):
 # Main program
 
 cfg = rpki.config.parser("irbe.conf")
-section = "irbe-cli"
-
-privateKey = rpki.x509.RSA_Keypair(PEM_file = cfg.get(section, "https-key"))
-
-certChain = rpki.x509.X509_chain()
-certChain.load_from_PEM(cfg.multiget(section, "https-cert"))
-
-x509TrustList = rpki.x509.X509_chain()
-x509TrustList.load_from_PEM(cfg.multiget(section, "https-ta"))
+cfg_section = "irbe-cli"
 
 q_msg = rpki.left_right.msg()
 
@@ -148,6 +140,10 @@ while argv:
   argv = q_pdu.client_getopt(argv[1:])
   q_msg.append(q_pdu)
 
+# We don't use rpki.cms.xml_encode() and rpki.cms.xml_decode() because
+# we want to display the raw XML.  If and when that changes, we clean
+# up the following slightly.
+
 q_elt = q_msg.toXML()
 q_xml = lxml.etree.tostring(q_elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
 try:
@@ -160,12 +156,17 @@ except lxml.etree.DocumentInvalid:
 print "Sending:"
 print q_xml
 
-q_cms = rpki.cms.encode(q_xml, cfg.get(section, "cms-key"), cfg.multiget(section, "cms-cert"))
+q_cms = rpki.cms.encode(q_xml,
+                        rpki.x509.RSA_Keypair(Auto_file = cfg.get(cfg_section, "cms-key")),
+                        rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "cms-cert")))
 
-r_cms = rpki.https.client(privateKey=privateKey, certChain=certChain, x509TrustList=x509TrustList,
-                          msg=q_cms, url="/left-right")
+r_cms = rpki.https.client(privateKey    = rpki.x509.RSA_Keypair(Auto_file = cfg.get(cfg_section, "https-key")),
+                          certChain     = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "https-cert")),
+                          x509TrustList = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "https-ta")),
+                          msg           = q_cms,
+                          url           = "/left-right")
 
-r_xml = rpki.cms.decode(r_cms, cfg.get(section, "cms-ta"))
+r_xml = rpki.cms.decode(r_cms, rpki.x509.X509(Auto_file = cfg.get(cfg_section, "cms-ta")))
 
 r_elt = lxml.etree.fromstring(r_xml)
 try:

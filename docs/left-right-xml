@@ -262,7 +262,7 @@
                 sia_base="rsync://repo.foo.example/wombat/"
                 bsc_id="17"
                 repository_id="120">
-            <peer_ta>
+            <cms_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -280,7 +280,26 @@
 		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
-	    </peer_ta>
+	    </cms_ta>
+            <https_ta>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </https_ta>
         </parent>
     </msg>
     
@@ -297,7 +316,7 @@
                 rekey="yes"
                 reissue="yes"
                 revoke="yes">
-            <peer_ta>
+            <cms_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -315,7 +334,26 @@
 		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
-	    </peer_ta>
+	    </cms_ta>
+            <https_ta>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </https_ta>
         </parent>
     </msg>
     
@@ -333,7 +371,7 @@
                 sia_base="rsync://repo.foo.example/wombat/"
                 bsc_id="17"
                 repository_id="120">
-            <peer_ta>
+            <cms_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -351,7 +389,26 @@
 		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
-	    </peer_ta>
+	    </cms_ta>
+            <https_ta>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </https_ta>
         </parent>
     </msg>
     
@@ -365,7 +422,7 @@
                 sia_base="rsync://repo.foo.example/wombat/"
                 bsc_id="17"
                 repository_id="120">
-            <peer_ta>
+            <cms_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -383,13 +440,32 @@
 		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
-	    </peer_ta>
+	    </cms_ta>
+            <https_ta>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </https_ta>
         </parent>
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-        <parent action="destroy" type="query" self_id="42" parent_id="666"/>
-    </msg>
+        <parent action="destroy" type="query" self_id="42"
+    parent_id="666"/> </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <parent action="destroy" type="reply" self_id="42" parent_id="666"/>
@@ -400,7 +476,7 @@
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <child action="create" type="query" self_id="42"
                 bsc_id="17">
-            <peer_ta>
+            <cms_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -418,7 +494,7 @@
 		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
-	    </peer_ta>
+	    </cms_ta>
         </child>
     </msg>
     
@@ -430,7 +506,7 @@
         <child action="set" type="query" self_id="42" child_id="3"
                 bsc_id="17"
                 reissue="yes">
-            <peer_ta>
+            <cms_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -448,7 +524,7 @@
 		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
-	    </peer_ta>
+	    </cms_ta>
         </child>
     </msg>
     
@@ -463,7 +539,7 @@
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <child action="get" type="reply" self_id="42" child_id="3"
                 bsc_id="17">
-            <peer_ta>
+            <cms_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -481,7 +557,7 @@
 		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
-	    </peer_ta>
+	    </cms_ta>
         </child>
     </msg>
     
@@ -492,7 +568,7 @@
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <child action="list" type="reply" self_id="42" child_id="3"
                 bsc_id="17">
-            <peer_ta>
+            <cms_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -510,7 +586,7 @@
 		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
-	    </peer_ta>
+	    </cms_ta>
         </child>
     </msg>
     
@@ -528,7 +604,7 @@
         <repository action="create" type="query" self_id="42"
                 peer_contact_uri="https://re.bar.example/bandicoot/"
                 bsc_id="17">
-            <peer_ta>
+            <cms_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -546,7 +622,26 @@
 		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
-	    </peer_ta>
+	    </cms_ta>
+            <https_ta>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </https_ta>
         </repository>
     </msg>
     
@@ -558,7 +653,7 @@
         <repository action="set" type="query" self_id="42" repository_id="120"
                 peer_contact_uri="https://re.bar.example/bandicoot/"
                 bsc_id="17">
-            <peer_ta>
+            <cms_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -576,7 +671,26 @@
 		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
-	    </peer_ta>
+	    </cms_ta>
+            <https_ta>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </https_ta>
         </repository>
     </msg>
     
@@ -592,7 +706,7 @@
         <repository action="get" type="reply" self_id="42" repository_id="120"
                 peer_contact_uri="https://re.bar.example/bandicoot/"
                 bsc_id="17">
-            <peer_ta>
+            <cms_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -610,7 +724,26 @@
 		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
-	    </peer_ta>
+	    </cms_ta>
+            <https_ta>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </https_ta>
         </repository>
     </msg>
     
@@ -622,7 +755,7 @@
         <repository action="list" type="reply" self_id="42" repository_id="120"
                 peer_contact_uri="https://re.bar.example/bandicoot/"
                 bsc_id="17">
-            <peer_ta>
+            <cms_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -640,7 +773,26 @@
 		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
-	    </peer_ta>
+	    </cms_ta>
+            <https_ta>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </https_ta>
         </repository>
     </msg>
     

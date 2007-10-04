@@ -120,9 +120,14 @@
       <param name="maxLength">512000</param>
     </data>
   </define>
-  <!-- How we wrap peer_ta fields (separate element or inline?) -->
-  <define name="peer_ta">
-    <element name="peer_ta">
+  <!-- How we wrap trust anchor elements -->
+  <define name="cms_ta">
+    <element name="cms_ta">
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="https_ta">
+    <element name="https_ta">
       <ref name="base64"/>
     </element>
   </define>
@@ -429,7 +434,10 @@
       </attribute>
     </optional>
     <optional>
-      <ref name="peer_ta"/>
+      <ref name="cms_ta"/>
+    </optional>
+    <optional>
+      <ref name="https_ta"/>
     </optional>
   </define>
   <define name="parent_elt" combine="choice">
@@ -528,7 +536,7 @@
       </attribute>
     </optional>
     <optional>
-      <ref name="peer_ta"/>
+      <ref name="cms_ta"/>
     </optional>
   </define>
   <define name="child_elt" combine="choice">
@@ -627,7 +635,10 @@
       </attribute>
     </optional>
     <optional>
-      <ref name="peer_ta"/>
+      <ref name="cms_ta"/>
+    </optional>
+    <optional>
+      <ref name="https_ta"/>
     </optional>
   </define>
   <define name="repository_elt" combine="choice">

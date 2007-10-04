@@ -44,7 +44,8 @@ DROP TABLE IF EXISTS repository;
 CREATE TABLE repository (
        repository_id        SERIAL NOT NULL,
        peer_contact_uri     TEXT,
-       peer_ta              LONGBLOB,
+       cms_ta               LONGBLOB,
+       https_ta		    LONGBLOB,
        bsc_id               BIGINT unsigned NOT NULL,
        self_id              BIGINT unsigned NOT NULL,
        PRIMARY KEY          (repository_id),
@@ -56,7 +57,8 @@ DROP TABLE IF EXISTS parent;
 
 CREATE TABLE parent (
        parent_id            SERIAL NOT NULL,
-       peer_ta              LONGBLOB,
+       cms_ta               LONGBLOB,
+       https_ta             LONGBLOB,
        peer_contact_uri     TEXT,
        sia_base             TEXT,
        self_id              BIGINT unsigned NOT NULL,
@@ -107,7 +109,7 @@ DROP TABLE IF EXISTS child;
 
 CREATE TABLE child (
        child_id             SERIAL NOT NULL,
-       peer_ta              LONGBLOB,
+       cms_ta               LONGBLOB,
        self_id              BIGINT unsigned NOT NULL,
        bsc_id               BIGINT unsigned NOT NULL,
        PRIMARY KEY          (child_id),

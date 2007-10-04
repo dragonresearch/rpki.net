@@ -61,13 +61,17 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
 
   def sql_decode(self, vals):
     rpki.sql.sql_persistant.sql_decode(self, vals)
-    if "peer_ta" in vals:
-      self.peer_ta = rpki.x509.X509(DER=vals["peer_ta"])
+    if "cms_ta" in vals:
+      self.cms_ta = rpki.x509.X509(DER=vals["cms_ta"])
+    if "https_ta" in vals:
+      self.https_ta = rpki.x509.X509(DER=vals["https_ta"])
 
   def sql_encode(self):
     d = rpki.sql.sql_persistant.sql_encode(self)
-    if "peer_id" in d:
-      d["peer_ta"] = self.peer_ta.get_DER()
+    if "cms_ta" in d:
+      d["cms_ta"] = self.cms_ta.get_DER()
+    if "https_ta" in d:
+      d["https_ta"] = self.https_ta.get_DER()
     return d
 
   def make_reply(self, r_pdu=None):
@@ -303,36 +307,41 @@ class parent_elt(data_elt):
 
   element_name = "parent"
   attributes = ("action", "type", "self_id", "parent_id", "bsc_id", "repository_id", "peer_contact_uri", "sia_base")
-  elements = ("peer_ta",)
+  elements = ("cms_ta", "https_ta")
   booleans = ("rekey", "reissue", "revoke")
 
-  sql_template = rpki.sql.template("parent", "parent_id", "self_id", "bsc_id", "repository_id", "peer_ta", "peer_contact_uri", "sia_base")
+  sql_template = rpki.sql.template("parent", "parent_id", "self_id", "bsc_id", "repository_id", "cms_ta", "https_ta", "peer_contact_uri", "sia_base")
 
-  peer_ta = None
+  cms_ta = None
+  https_ta = None
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
     if self.rekey or self.reissue or self.revoke:
       raise NotImplementedError
 
   def startElement(self, stack, name, attrs):
-    """Handle <bsc/> element."""
-    if name != "peer_ta":
+    """Handle <parent/> element."""
+    if name not in ("cms_ta", "https_ta"):
       assert name == "parent", "Unexpected name %s, stack %s" % (name, stack)
       self.read_attrs(attrs)
 
   def endElement(self, stack, name, text):
-    """Handle <bsc/> element."""
-    if name == "peer_ta":
-      self.peer_ta = rpki.x509.X509(Base64=text)
+    """Handle <parent/> element."""
+    if name == "cms_ta":
+      self.cms_ta = rpki.x509.X509(Base64=text)
+    elif name == "https_ta":
+      self.https_ta = rpki.x509.X509(Base64=text)
     else:
       assert name == "parent", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
 
   def toXML(self):
-    """Generate <bsc/> element."""
+    """Generate <parent/> element."""
     elt = self.make_elt()
-    if self.peer_ta and not self.peer_ta.empty():
-      self.make_b64elt(elt, "peer_ta", self.peer_ta.get_DER())
+    if self.cms_ta and not self.cms_ta.empty():
+      self.make_b64elt(elt, "cms_ta", self.cms_ta.get_DER())
+    if self.https_ta and not self.https_ta.empty():
+      self.make_b64elt(elt, "https_ta", self.https_ta.get_DER())
     return elt
 
   def query_up_down(self, gctx, q_pdu):
@@ -375,12 +384,12 @@ class child_elt(data_elt):
 
   element_name = "child"
   attributes = ("action", "type", "self_id", "child_id", "bsc_id")
-  elements = ("peer_ta",)
+  elements = ("cms_ta",)
   booleans = ("reissue", )
 
-  sql_template = rpki.sql.template("child", "child_id", "self_id", "bsc_id", "peer_ta")
+  sql_template = rpki.sql.template("child", "child_id", "self_id", "bsc_id", "cms_ta")
 
-  peer_ta = None
+  cms_ta = None
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
     if self.reissue:
@@ -388,14 +397,14 @@ class child_elt(data_elt):
 
   def startElement(self, stack, name, attrs):
     """Handle <child/> element."""
-    if name != "peer_ta":
+    if name != "cms_ta":
       assert name == "child", "Unexpected name %s, stack %s" % (name, stack)
       self.read_attrs(attrs)
 
   def endElement(self, stack, name, text):
     """Handle <child/> element."""
-    if name == "peer_ta":
-      self.peer_ta = rpki.x509.X509(Base64=text)
+    if name == "cms_ta":
+      self.cms_ta = rpki.x509.X509(Base64=text)
     else:
       assert name == "child", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -403,8 +412,8 @@ class child_elt(data_elt):
   def toXML(self):
     """Generate <child/> element."""
     elt = self.make_elt()
-    if self.peer_ta:
-      self.make_b64elt(elt, "peer_ta", self.peer_ta.get_DER())
+    if self.cms_ta:
+      self.make_b64elt(elt, "cms_ta", self.cms_ta.get_DER())
     return elt
 
   def serve_up_down(self, gctx, query):
@@ -412,7 +421,7 @@ class child_elt(data_elt):
     bsc = bsc_elt.sql_fetch(gctx.db, gctx.cur, self.bsc_id)
     if bsc is None:
       raise rpki.exceptions.NotFound, "Could not find BSC %s" % self.bsc_id
-    q_elt = rpki.cms.xml_decode(query, self.peer_ta)
+    q_elt = rpki.cms.xml_decode(query, self.cms_ta)
     rpki.relaxng.up_down.assertValid(q_elt)
     q_msg = rpki.up_down.sax_handler.saxify(q_elt)
     if q_msg.sender != str(self.child_id):
@@ -427,22 +436,25 @@ class repository_elt(data_elt):
 
   element_name = "repository"
   attributes = ("action", "type", "self_id", "repository_id", "bsc_id", "peer_contact_uri")
-  elements = ("peer_ta",)
+  elements = ("cms_ta", "https_ta")
 
-  sql_template = rpki.sql.template("repository", "repository_id", "self_id", "bsc_id", "peer_ta", "peer_contact_uri")
+  sql_template = rpki.sql.template("repository", "repository_id", "self_id", "bsc_id", "cms_ta", "peer_contact_uri")
 
-  peer_ta = None
+  cms_ta = None
+  https_ta = None
 
   def startElement(self, stack, name, attrs):
     """Handle <repository/> element."""
-    if name != "peer_ta":
+    if name not in ("cms_ta", "https_ta"):
       assert name == "repository", "Unexpected name %s, stack %s" % (name, stack)
       self.read_attrs(attrs)
 
   def endElement(self, stack, name, text):
     """Handle <repository/> element."""
-    if name == "peer_ta":
-      self.peer_ta = rpki.x509.X509(Base64=text)
+    if name == "cms_ta":
+      self.cms_ta = rpki.x509.X509(Base64=text)
+    elif name == "https_ta":
+      self.https_ta = rpki.x509.X509(Base64=text)
     else:
       assert name == "repository", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -450,8 +462,10 @@ class repository_elt(data_elt):
   def toXML(self):
     """Generate <repository/> element."""
     elt = self.make_elt()
-    if self.peer_ta:
-      self.make_b64elt(elt, "peer_ta", self.peer_ta.get_DER())
+    if self.cms_ta:
+      self.make_b64elt(elt, "cms_ta", self.cms_ta.get_DER())
+    if self.https_ta:
+      self.make_b64elt(elt, "https_ta", self.https_ta.get_DER())
     return elt
 
 class route_origin_elt(data_elt):

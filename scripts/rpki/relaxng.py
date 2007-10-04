@@ -4,7 +4,7 @@ import lxml.etree
 
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rng 1067 2007-10-01 20:22:57Z sra $
+  $Id: left-right-schema.rnc 1067 2007-10-01 20:22:57Z sra $
   
   RelaxNG (Compact Syntax) Schema for RPKI left-right protocol.
   
@@ -124,9 +124,14 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <param name="maxLength">512000</param>
     </data>
   </define>
-  <!-- How we wrap peer_ta fields (separate element or inline?) -->
-  <define name="peer_ta">
-    <element name="peer_ta">
+  <!-- How we wrap trust anchor elements -->
+  <define name="cms_ta">
+    <element name="cms_ta">
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="https_ta">
+    <element name="https_ta">
       <ref name="base64"/>
     </element>
   </define>
@@ -433,7 +438,10 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </attribute>
     </optional>
     <optional>
-      <ref name="peer_ta"/>
+      <ref name="cms_ta"/>
+    </optional>
+    <optional>
+      <ref name="https_ta"/>
     </optional>
   </define>
   <define name="parent_elt" combine="choice">
@@ -532,7 +540,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </attribute>
     </optional>
     <optional>
-      <ref name="peer_ta"/>
+      <ref name="cms_ta"/>
     </optional>
   </define>
   <define name="child_elt" combine="choice">
@@ -631,7 +639,10 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </attribute>
     </optional>
     <optional>
-      <ref name="peer_ta"/>
+      <ref name="cms_ta"/>
+    </optional>
+    <optional>
+      <ref name="https_ta"/>
     </optional>
   </define>
   <define name="repository_elt" combine="choice">

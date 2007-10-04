@@ -32,8 +32,9 @@ ctl_dr = attribute action { "destroy" }, attribute type { "reply" }
 # Base64 encoded DER stuff
 base64 = xsd:base64Binary { maxLength="512000" }
 
-# How we wrap peer_ta fields (separate element or inline?)
-peer_ta = element peer_ta { base64 }
+# How we wrap trust anchor elements
+cms_ta = element cms_ta { base64 }
+https_ta = element https_ta { base64 }
 
 # Base definition for all fields that are really just SQL primary indices
 sql_id = xsd:token { maxLength="1024" }
@@ -103,7 +104,8 @@ parent_payload = (attribute peer_contact_uri { xsd:anyURI { maxLength="1024" } }
                   attribute sia_base { xsd:anyURI { maxLength="1024" } }?,
                   attribute bsc_id { xsd:token { maxLength="1024" } }?,
                   attribute repository_id { xsd:token { maxLength="1024" } }?,
-                  peer_ta?)
+                  cms_ta?,
+                  https_ta?)
 
 parent_elt |= element parent { ctl_cq, self_id, parent_bool, parent_payload }
 parent_elt |= element parent { ctl_cr, self_id, parent_id }
@@ -123,7 +125,7 @@ child_id = attribute child_id { sql_id }
 child_bool = attribute reissue { "yes" }?
 
 child_payload = (attribute bsc_id { xsd:token { maxLength="1024" } }?,
-                 peer_ta?)
+                 cms_ta?)
 
 child_elt |= element child { ctl_cq, self_id, child_bool, child_payload }
 child_elt |= element child { ctl_cr, self_id, child_id }
@@ -142,7 +144,8 @@ repository_id = attribute repository_id { sql_id }
 
 repository_payload = (attribute peer_contact_uri { xsd:anyURI { maxLength="1024" } }?,
                       attribute bsc_id { xsd:token { maxLength="1024" } }?,
-                      peer_ta?)
+                      cms_ta?,
+                      https_ta?)
 
 repository_elt |= element repository { ctl_cq, self_id, repository_payload }
 repository_elt |= element repository { ctl_cr, self_id, repository_id }

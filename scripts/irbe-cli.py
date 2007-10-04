@@ -167,8 +167,8 @@ q_cms = rpki.cms.encode(q_xml,
 r_cms = rpki.https.client(privateKey    = rpki.x509.RSA_Keypair(Auto_file = cfg.get(cfg_section, "https-key")),
                           certChain     = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "https-cert")),
                           x509TrustList = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "https-ta")),
-                          msg           = q_cms,
-                          url           = "/left-right")
+                          url           = cfg.get(cfg_section, "https-url"),
+                          msg           = q_cms)
 
 r_xml = rpki.cms.decode(r_cms, rpki.x509.X509(Auto_file = cfg.get(cfg_section, "cms-ta")))
 

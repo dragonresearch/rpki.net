@@ -344,40 +344,32 @@ class parent_elt(data_elt):
       self.make_b64elt(elt, "https_ta", self.https_ta.get_DER())
     return elt
 
-  def query_up_down(self, gctx, q_pdu):
+  def client_up_down_query(self, gctx, q_pdu):
     """Client code for sending one up-down query PDU to this parent."""
     bsc = bsc_elt.sql_fetch(gctx.db, gctx.cur, self.bsc_id)
     if bsc is None:
       raise rpki.exceptions.NotFound, "Could not find BSC %s" % self.bsc_id
-
-    # I have no flipping idea what I should be putting into the sender
-    # and recipient fields yet.  As far as I can tell they're worse
-    # than useless, in that they provide no information I can't get
-    # more easily in other ways and I have to check them and store
-    # data for them.  Use bogus values for now, sort out later, may
-    # require hacking SQL just to have someplace to store the values
-    # we need to put here.  Ick.
-
-    q_msg = rpki.up_down.message_pdu.make_query(sender    = 'I have no idea what to put in the "sender" attribute',
-                                                recipient = 'I have no idea what to put in the "recipient" attribute',
-                                                payload   = q_pdu)
+    q_msg = rpki.up_down.message_pdu.make_query(sender = "tweedledee", recipient = "tweedledum", payload = q_pdu)
     q_elt = q_msg.toXML()
     rpki.relaxng.up_down.assertValid(q_elt)
     q_cms = rpki.cms.xml_encode(q_elt, bsc.private_key_id, bsc.signing_cert)
+    return self.client_up_down_reply(gctx, q_pdu, rpki.https.client(x509TrustList = rpki.x509.X509_chain(self.https_ta), msg = q_cms, url = self.peer_contact_uri))
 
-    # Er, what do we use for HTTPS trust anchors here?!?
+  def client_up_down_reply(self, gctx, q_pdu, r_cms):
+    """Handle up-down reply PDU from this parent.
+
+    This is a separate method because some day this will all be event
+    driven using the twisted package or something like it.
+    """
+    
+    # Need to check response CMS, decode, then dispatch to some (as
+    # yet unnamed) method in the response payload pdu.  I think.
+
+    r_elt = rpki.cms.xml_decode(r_cms, self.cms_ta)
+    rpki.relaxng.up_down.assertValid(r_elt)
+    r_msg = rpki.up_down.sax_handler.saxify(r_elt)
 
     raise NotImplementedError
-
-    # Code from which to steal when completing this: child_elt.serve_up_down(), irbe-cli.py
-    #
-    # Need to check response CMS, decode, then dispatch to some (as yet unnamed) method
-    # in the response payload pdu.  I think.
-    #
-    # When we handle asynchronous events properly, this method will be
-    # broken into two separate functions at the point where we're
-    # waiting for the https response to come back.  Second half is probably another
-    # method of parent_elt so that it can check the response CMS, etc.
 
 class child_elt(data_elt):
   """<child/> element."""
@@ -642,8 +634,6 @@ def irdb_query(gctx, self_id, child_id=None):
   r_cms = rpki.https.client(privateKey    = gctx.https_key,
                             certChain     = gctx.https_certs,
                             x509TrustList = gctx.https_tas,
-                            host          = gctx.irdb_host,
-                            port          = gctx.irdb_port,
                             url           = gctx.irdb_url,
                             msg           = q_cms)
   r_elt = rpki.cms.xml_decode(r_cms, gctx.cms_ta_irbe)

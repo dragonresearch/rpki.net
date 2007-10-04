@@ -360,7 +360,7 @@ class parent_elt(data_elt):
     bsc = bsc_elt.sql_fetch(gctx.db, gctx.cur, self.bsc_id)
     if bsc is None:
       raise rpki.exceptions.NotFound, "Could not find BSC %s" % self.bsc_id
-    q_msg = rpki.up_down.message_pdu.make_query(sender = "tweedledee", recipient = "tweedledum", payload = q_pdu)
+    q_msg = rpki.up_down.message_pdu.make_query(q_pdu)
     q_elt = q_msg.toXML()
     rpki.relaxng.up_down.assertValid(q_elt)
     q_cms = rpki.cms.xml_encode(q_elt, bsc.private_key_id, bsc.signing_cert)

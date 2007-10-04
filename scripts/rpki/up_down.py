@@ -154,6 +154,7 @@ class list_pdu(base_elt):
     return []
 
   def serve_pdu(self, gctx, q_msg, r_msg, child):
+    """Serve one "list" PDU."""
     r_msg.payload = list_response_pdu()
     irdb_as, irdb_v4, irdb_v6 = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
     for ca_id in rpki.sql.fetch_column(gctx.cur, "SELECT ca_id FROM ca WHERE ca.parent_id = parent.parent_id AND parent.self_id = %s" % child.self_id):
@@ -174,6 +175,12 @@ class list_pdu(base_elt):
         rc.certs.append(c)
       rc.issuer = ca_detail.latest_ca_cert
       r_msg.payload.classes.append(rc)
+
+  @classmethod
+  def query(cls, gctx, parent):
+    """Compose a "list" query to parent."""
+    self = cls()
+    return parent.query_up_down(gctx, self)
 
 class class_response_syntax(base_elt):
   """Syntax for Up-Down protocol "list_response" and "issue_response" PDUs."""
@@ -409,11 +416,13 @@ class message_pdu(base_elt):
 
   def serve_top_level(self, gctx, child):
     r_msg = message_pdu()
+    r_msg.sender = self.receiver
+    r_msg.receiver = self.sender
     self.payload.serve_pdu(gctx, self, r_msg, child)
     return r_msg
 
   @classmethod
-  def make_query(cls, sender, recipient, payload):
+  def make_query(cls, payload, sender = "tweedledee", recipient = "tweedledum"):
     assert not self.type2name[type(payload)].endswith("_response")
     self = cls()
     self.sender = sender

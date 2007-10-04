@@ -344,8 +344,19 @@ class parent_elt(data_elt):
       self.make_b64elt(elt, "https_ta", self.https_ta.get_DER())
     return elt
 
-  def client_up_down_query(self, gctx, q_pdu):
-    """Client code for sending one up-down query PDU to this parent."""
+  def query_up_down(self, gctx, q_pdu):
+    """Client code for sending one up-down query PDU to this parent.
+
+    I haven't figured out yet whether this method should do something
+    clever like dispatching via a method in the response PDU payload,
+    or just hand back the whole response to the caller.  In the long
+    run this will have to become event driven with a context object
+    that has methods of its own, but as this method is common code for
+    several different queries and I don't yet know what the response
+    processing looks like, it's too soon to tell what will make sense.
+
+    For now, keep this dead simple lock step, rewrite it later.
+    """
     bsc = bsc_elt.sql_fetch(gctx.db, gctx.cur, self.bsc_id)
     if bsc is None:
       raise rpki.exceptions.NotFound, "Could not find BSC %s" % self.bsc_id
@@ -353,23 +364,10 @@ class parent_elt(data_elt):
     q_elt = q_msg.toXML()
     rpki.relaxng.up_down.assertValid(q_elt)
     q_cms = rpki.cms.xml_encode(q_elt, bsc.private_key_id, bsc.signing_cert)
-    return self.client_up_down_reply(gctx, q_pdu, rpki.https.client(x509TrustList = rpki.x509.X509_chain(self.https_ta), msg = q_cms, url = self.peer_contact_uri))
-
-  def client_up_down_reply(self, gctx, q_pdu, r_cms):
-    """Handle up-down reply PDU from this parent.
-
-    This is a separate method because some day this will all be event
-    driven using the twisted package or something like it.
-    """
-    
-    # Need to check response CMS, decode, then dispatch to some (as
-    # yet unnamed) method in the response payload pdu.  I think.
-
+    r_cms = self.client_up_down_reply(gctx, q_pdu, rpki.https.client(x509TrustList = rpki.x509.X509_chain(self.https_ta), msg = q_cms, url = self.peer_contact_uri))
     r_elt = rpki.cms.xml_decode(r_cms, self.cms_ta)
     rpki.relaxng.up_down.assertValid(r_elt)
-    r_msg = rpki.up_down.sax_handler.saxify(r_elt)
-
-    raise NotImplementedError
+    return rpki.up_down.sax_handler.saxify(r_elt)
 
 class child_elt(data_elt):
   """<child/> element."""

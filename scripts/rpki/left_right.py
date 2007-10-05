@@ -98,7 +98,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
     r_msg.append(r_pdu)
 
   def serve_set(self, gctx, r_msg):
-    db_pdu = self.sql_fetch(gctx.db, gctx.cur, getattr(self, self.sql_template.index))
+    db_pdu = self.sql_fetch(gctx, getattr(self, self.sql_template.index))
     if db_pdu is not None:
       r_pdu = self.make_reply()
       for a in db_pdu.sql_template.columns[1:]:
@@ -114,7 +114,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
       r_msg.append(make_error_report(self))
 
   def serve_get(self, gctx, r_msg):
-    r_pdu = self.sql_fetch(gctx.db, gctx.cur, getattr(self, self.sql_template.index))
+    r_pdu = self.sql_fetch(gctx, getattr(self, self.sql_template.index))
     if r_pdu is not None:
       self.make_reply(r_pdu)
       r_msg.append(r_pdu)
@@ -127,7 +127,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
       r_msg.append(r_pdu)
 
   def serve_destroy(self, gctx, r_msg):
-    db_pdu = self.sql_fetch(gctx.db, gctx.cur, getattr(self, self.sql_template.index))
+    db_pdu = self.sql_fetch(gctx, getattr(self, self.sql_template.index))
     if db_pdu is not None:
       db_pdu.sql_delete(gctx.db, gctx.cur)
       r_msg.append(self.make_reply())
@@ -182,21 +182,21 @@ class self_elt(data_elt):
   def __init__(self):
     self.prefs = []
 
-  def sql_fetch_hook(self, db, cur):
-    cur.execute("SELECT pref_name, pref_value FROM self_pref WHERE self_id = %s", self.self_id)
-    for name, value in cur.fetchall():
+  def sql_fetch_hook(self, gctx):
+    gctx.cur.execute("SELECT pref_name, pref_value FROM self_pref WHERE self_id = %s", self.self_id)
+    for name, value in gctx.cur.fetchall():
       e = extension_preference_elt()
       e.name = name
       e.value = value
       self.prefs.append(e)
 
-  def sql_insert_hook(self, db, cur):
+  def sql_insert_hook(self, gctx):
     if self.prefs:
-      cur.executemany("INSERT self_pref (self_id, pref_name, pref_value) VALUES (%s, %s, %s)",
-                      ((e.name, e.value, self.self_id) for e in self.prefs))
+      gctx.cur.executemany("INSERT self_pref (self_id, pref_name, pref_value) VALUES (%s, %s, %s)",
+                           ((e.name, e.value, self.self_id) for e in self.prefs))
   
-  def sql_delete_hook(self, db, cur):
-    cur.execute("DELETE FROM self_pref WHERE self_id = %s", self.self_id)
+  def sql_delete_hook(self, gctx):
+    gctx.cur.execute("DELETE FROM self_pref WHERE self_id = %s", self.self_id)
 
   def serve_pre_save_hook(self, q_pdu, r_pdu):
     if self is not q_pdu:
@@ -247,16 +247,16 @@ class bsc_elt(data_elt):
   def __init__(self):
     self.signing_cert = []
 
-  def sql_fetch_hook(self, db, cur):
-    cur.execute("SELECT cert FROM bsc_cert WHERE bsc_id = %s", self.bsc_id)
-    self.signing_cert = [rpki.x509.X509(DER=x) for (x,) in cur.fetchall()]
+  def sql_fetch_hook(self, gctx):
+    gctx.cur.execute("SELECT cert FROM bsc_cert WHERE bsc_id = %s", self.bsc_id)
+    self.signing_cert = [rpki.x509.X509(DER=x) for (x,) in gctx.cur.fetchall()]
 
-  def sql_insert_hook(self, db, cur):
+  def sql_insert_hook(self, gctx):
     if self.signing_cert:
-      cur.executemany("INSERT bsc_cert (cert, bsc_id) VALUES (%s, %s)", ((x.get_DER(), self.bsc_id) for x in self.signing_cert))
+      gctx.cur.executemany("INSERT bsc_cert (cert, bsc_id) VALUES (%s, %s)", ((x.get_DER(), self.bsc_id) for x in self.signing_cert))
 
-  def sql_delete_hook(self, db, cur):
-    cur.execute("DELETE FROM bsc_cert WHERE bsc_id = %s", self.bsc_id)
+  def sql_delete_hook(self, gctx):
+    gctx.cur.execute("DELETE FROM bsc_cert WHERE bsc_id = %s", self.bsc_id)
 
   def serve_pre_save_hook(self, q_pdu, r_pdu):
     if self is not q_pdu:
@@ -357,7 +357,7 @@ class parent_elt(data_elt):
 
     For now, keep this dead simple lock step, rewrite it later.
     """
-    bsc = bsc_elt.sql_fetch(gctx.db, gctx.cur, self.bsc_id)
+    bsc = bsc_elt.sql_fetch(gctx, self.bsc_id)
     if bsc is None:
       raise rpki.exceptions.NotFound, "Could not find BSC %s" % self.bsc_id
     q_msg = rpki.up_down.message_pdu.make_query(q_pdu)
@@ -408,7 +408,7 @@ class child_elt(data_elt):
 
   def serve_up_down(self, gctx, query):
     """Outer layer of server handling for one up-down PDU from this child."""
-    bsc = bsc_elt.sql_fetch(gctx.db, gctx.cur, self.bsc_id)
+    bsc = bsc_elt.sql_fetch(gctx, self.bsc_id)
     if bsc is None:
       raise rpki.exceptions.NotFound, "Could not find BSC %s" % self.bsc_id
     q_elt = rpki.cms.xml_decode(query, self.cms_ta)
@@ -470,21 +470,21 @@ class route_origin_elt(data_elt):
   ca_detail_id = None
   roa = None
 
-  def sql_fetch_hook(self, db, cur):
-    self.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(cur,
+  def sql_fetch_hook(self, gctx):
+    self.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(gctx.cur,
                                                              "SELECT start_ip, end_ip FROM route_origin_range WHERE route_origin_id = %s AND start_ip NOT LIKE '%:%'",
                                                              self.route_origin_id)
-    self.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(cur,
+    self.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(gctx.cur,
                                                              "SELECT start_ip, end_ip FROM route_origin_range WHERE route_origin_id = %s AND start_ip LIKE '%:%'",
                                                              self.route_origin_id)
 
-  def sql_insert_hook(self, db, cur):
+  def sql_insert_hook(self, gctx):
     if self.ipv4 + self.ipv6:
-      cur.executemany("INSERT route_origin_range (route_origin_id, start_ip, end_ip) VALUES (%s, %s, %s)",
-                      ((self.route_origin_id, x.min, x.max) for x in self.ipv4 + self.ipv6))
+      gctx.cur.executemany("INSERT route_origin_range (route_origin_id, start_ip, end_ip) VALUES (%s, %s, %s)",
+                           ((self.route_origin_id, x.min, x.max) for x in self.ipv4 + self.ipv6))
   
-  def sql_delete_hook(self, db, cur):
-    cur.execute("DELETE FROM route_origin_range WHERE route_origin_id = %s", self.route_origin_id)
+  def sql_delete_hook(self, gctx):
+    gctx.cur.execute("DELETE FROM route_origin_range WHERE route_origin_id = %s", self.route_origin_id)
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
     if self.suppress_publication:

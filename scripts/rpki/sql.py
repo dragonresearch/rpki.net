@@ -46,10 +46,10 @@ def sql_sweep(db, cur):
   for s in sql_dirty:
     s.sql_store(db, cur)
 
-def fetch_column(cur, *query):
+def fetch_column(gctx, *query):
   """Pull a single column from SQL, return it as a list."""
-  cur.execute(*query)
-  return [x[0] for x in cur.fetchall()]
+  gctx.cur.execute(*query)
+  return [x[0] for x in gctx.cur.fetchall()]
 
 class sql_persistant(object):
   """Mixin for persistant class that needs to be stored in SQL.
@@ -60,8 +60,8 @@ class sql_persistant(object):
   sql_in_db = False
 
   @classmethod
-  def sql_fetch(cls, db, cur, id):
-    results = cls.sql_fetch_where(db, cur, "%s = %s" % (cls.sql_template.index, id))
+  def sql_fetch(cls, gctx, id):
+    results = cls.sql_fetch_where(gctx, "%s = %s" % (cls.sql_template.index, id))
     assert len(results) <= 1
     if len(results) == 0:
       return None
@@ -71,31 +71,31 @@ class sql_persistant(object):
       raise rpki.exceptions.DBConsistancyError, "Database contained multiple matches for %s.%s" % (cls.__name__, id)
 
   @classmethod
-  def sql_fetch_all(cls, db, cur):
-    return cls.sql_fetch_where(db, cur, None)
+  def sql_fetch_all(gctx, cur):
+    return cls.sql_fetch_where(gctx, None)
 
   @classmethod
-  def sql_fetch_where(cls, db, cur, where):
+  def sql_fetch_where(cls, gctx, where):
     if where is None:
-      cur.execute(cls.sql_template.select)
+      gctx.cur.execute(cls.sql_template.select)
     else:
-      cur.execute(cls.sql_template.select + " WHERE " + where)
+      gctx.cur.execute(cls.sql_template.select + " WHERE " + where)
     results = []
-    for row in cur.fetchall():
+    for row in gctx.cur.fetchall():
       key = (cls, row[0])
       if key in sql_cache:
         results.append(sql_cache[key])
       else:
-        results.append(cls.sql_init(db, cur, row, key))
+        results.append(cls.sql_init(gctx, row, key))
     return results
 
   @classmethod
-  def sql_init(cls, db, cur, row, key):
+  def sql_init(cls, gctx, row, key):
     self = cls()
     self.sql_decode(dict(zip(cls.sql_template.columns, row)))
     sql_cache[key] = self
     self.sql_in_db = True
-    self.sql_fetch_hook(db, cur)
+    self.sql_fetch_hook(gctx)
     return self
 
   def sql_mark_dirty(self):
@@ -107,25 +107,25 @@ class sql_persistant(object):
   def sql_is_dirty(self):
     return self in sql_dirty
 
-  def sql_store(self, db, cur):
+  def sql_store(self, gctx):
     if not self.sql_in_db:
-      cur.execute(self.sql_template.insert, self.sql_encode())
-      setattr(self, self.sql_template.index, cur.lastrowid)
-      sql_cache[(self.__class__, cur.lastrowid)] = self
-      self.sql_insert_hook(db, cur)
+      gctx.cur.execute(self.sql_template.insert, self.sql_encode())
+      setattr(self, self.sql_template.index, gctx.cur.lastrowid)
+      sql_cache[(self.__class__, gctx.cur.lastrowid)] = self
+      self.sql_insert_hook(gctx)
     elif self in sql_dirty:
-      cur.execute(self.sql_template.update, self.sql_encode())
-      self.sql_update_hook(db, cur)
+      gctx.cur.execute(self.sql_template.update, self.sql_encode())
+      self.sql_update_hook(gctx)
     key = (self.__class__, getattr(self, self.sql_template.index))
     assert key in sql_cache and sql_cache[key] == self
     self.sql_mark_clean()
     self.sql_in_db = True
 
-  def sql_delete(self, db, cur):
+  def sql_delete(self, gctx):
     if self.sql_in_db:
       id = getattr(self, self.sql_template.index)
-      cur.execute(self.sql_template.delete, id)
-      self.sql_delete_hook(db, cur)
+      gctx.cur.execute(self.sql_template.delete, id)
+      self.sql_delete_hook(gctx)
       key = (self.__class__, id)
       if sql_cache.get(key) == self:
         del sql_cache[key]
@@ -150,20 +150,20 @@ class sql_persistant(object):
     for a in self.sql_template.columns:
       setattr(self, a, vals[a])
 
-  def sql_fetch_hook(self, db, cur):
+  def sql_fetch_hook(self, gctx):
     """Customization hook."""
     pass
 
-  def sql_insert_hook(self, db, cur):
+  def sql_insert_hook(self, gctx):
     """Customization hook."""
     pass
   
-  def sql_update_hook(self, db, cur):
+  def sql_update_hook(self, gctx):
     """Customization hook."""
-    self.sql_delete_hook(db, cur)
-    self.sql_insert_hook(db, cur)
+    self.sql_delete_hook(gctx)
+    self.sql_insert_hook(gctx)
 
-  def sql_delete_hook(self, db, cur):
+  def sql_delete_hook(self, gctx):
     """Customization hook."""
     pass
 
@@ -205,8 +205,8 @@ class ca_detail_obj(sql_persistant):
     return d
 
   @classmethod
-  def sql_fetch_active(cls, db, cur, ca_id):
-    hits = cls.sql_fetch_where(db, cur, "ca_id = %s AND state = 'active'" % ca_id)
+  def sql_fetch_active(cls, gctx, ca_id):
+    hits = cls.sql_fetch_where(gctx, "ca_id = %s AND state = 'active'" % ca_id)
     assert len(hits) < 2, "Found more than one 'active' ca_detail record, this should not happen!"
     if hits:
       return hits[0]

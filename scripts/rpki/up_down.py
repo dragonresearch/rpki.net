@@ -157,8 +157,8 @@ class list_pdu(base_elt):
     """Serve one "list" PDU."""
     r_msg.payload = list_response_pdu()
     irdb_as, irdb_v4, irdb_v6 = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
-    for ca_id in rpki.sql.fetch_column(gctx.cur, "SELECT ca_id FROM ca WHERE ca.parent_id = parent.parent_id AND parent.self_id = %s" % child.self_id):
-      ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx.db, gctx.cur, ca_id)
+    for ca_id in rpki.sql.fetch_column(gctx, "SELECT ca_id FROM ca WHERE ca.parent_id = parent.parent_id AND parent.self_id = %s" % child.self_id):
+      ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx, ca_id)
       if not ca_detail:
         continue
       rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(irdb_as, irdb_v4, irdb_v6)
@@ -168,7 +168,7 @@ class list_pdu(base_elt):
       rc.class_name = str(ca_id)
       rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
       rc.resource_set_as, rc.resource_set_ipv4, rc.resource_set_ipv6 = rc_as, rc_v4, rc_v6
-      for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx.db, gctx.cur, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
+      for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
         c = certificate_elt()
         c.cert_url = multi_uri(ca.sia_uri + child_cert.cert.gSKI() + ".cer")
         c.cert = child_cert.cert
@@ -234,8 +234,8 @@ class issue_pdu(base_elt):
     if not self.class_name.isdigit():
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
     ca_id = long(self.class_name)
-    ca = rpki.sql.ca_obj.sql_fetch(gctx.db, gctx.cur, ca_id)
-    ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx.db, gctx.cur, ca_id)
+    ca = rpki.sql.ca_obj.sql_fetch(gctx, ca_id)
+    ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx, ca_id)
     if ca is None or ca_detail is None:
       raise rpki.exceptions.NotInDatabase
     self.pkcs10.check_valid_rpki()
@@ -246,7 +246,7 @@ class issue_pdu(base_elt):
     req_sia = self.pkcs10.get_POWpkix().getExtension(name2oid["subjectInfoAccess"])
     #
     # This next search loop might be an argument for a child_cert.ski column
-    for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx.db, gctx.cur, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
+    for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
       if child_cert.cert.get_POWpkix().tbs.subjectPublicKeyInfo.get() == pubkey:
         break
     else:
@@ -296,11 +296,11 @@ class issue_pdu(base_elt):
   @classmethod
   def query(cls, gctx, ca, sia):
     """Send an "issue" request to parent associated with ca."""
-    parent = rpki.left_right.parent_elt.sql_fetch(gctx.db, gctx.cur, ca.parent_id)
+    parent = rpki.left_right.parent_elt.sql_fetch(gctx, ca.parent_id)
     #
     # Do we always want the active ca_detail here?  Assume yes for
     # now, may need to revisit
-    ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx.db, gctx.cur, ca.ca_id)
+    ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx, ca.ca_id)
     if ca_detail is None:
       ca_detail = rpki.sql.ca_detail_obj.create(gctx, ca)
     self = cls()
@@ -332,13 +332,13 @@ class revoke_pdu(revoke_syntax):
     if not self.class_name.isdigit():
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
     ca_id = long(self.class_name)
-    ca = rpki.sql.ca_obj.sql_fetch(gctx.db, gctx.cur, ca_id)
-    ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx.db, gctx.cur, ca_id)
+    ca = rpki.sql.ca_obj.sql_fetch(gctx, ca_id)
+    ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx, ca_id)
     if ca is None or ca_detail is None:
       raise rpki.exceptions.NotInDatabase
     ski = base64.b64decode(self.ski.replace("_", "/").replace("-", "+"))
     # This next search loop might be an argument for a child_cert.ski column
-    for c in rpki.sql.child_cert_obj.sql_fetch_where(gctx.db, gctx.cur, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
+    for c in rpki.sql.child_cert_obj.sql_fetch_where(gctx, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
       if c.cert.get_SKI() == ski:
         c.sql_delete()
     r_msg.payload = revoke_response_pdu()
@@ -348,8 +348,8 @@ class revoke_pdu(revoke_syntax):
   @classmethod
   def query(cls, gctx, ca_detail):
     """Send a "revoke" request to parent associated with ca_detail."""
-    ca = rpki.sql.ca_obj.sql_fetch(gctx.db, gctx.cur, ca_detail.ca_id)
-    parent = rpki.left_right.parent_elt.sql_fetch(gctx.db, gctx.cur, ca.parent_id)
+    ca = rpki.sql.ca_obj.sql_fetch(gctx, ca_detail.ca_id)
+    parent = rpki.left_right.parent_elt.sql_fetch(gctx, ca.parent_id)
     self = cls()
     self.class_name = ca.parent_resource_class
     self.ski = ca_detail.latest_ca_cert.gSKI()

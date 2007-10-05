@@ -350,7 +350,7 @@ class X509_chain(list):
     """Load a set of certs from a list of DER or PEM files (guessing)."""
     self.extend([X509(Auto_file=f) for f in files])
 
-class PKCS10_Request(DER_object):
+class PKCS10(DER_object):
   """Class to hold a PKCS #10 request."""
 
   formats = ("DER", "POWpkix")

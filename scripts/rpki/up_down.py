@@ -219,7 +219,7 @@ class issue_pdu(base_elt):
   def endElement(self, stack, name, text):
     """Handle "issue" PDU."""
     assert name == "request", "Unexpected name %s, stack %s" % (name, stack)
-    self.pkcs10 = rpki.x509.PKCS10_Request(Base64=text)
+    self.pkcs10 = rpki.x509.PKCS10(Base64=text)
     stack.pop()
 
   def toXML(self):
@@ -294,16 +294,15 @@ class issue_pdu(base_elt):
     r_msg.payload.classes.append(rc)
 
   @classmethod
-  def query(cls, gctx, ca):
+  def query(cls, gctx, ca, sia):
     """Send an "issue" request to associated with ca."""
     parent = rpki.left_right.parent_elt.sql_fetch(gctx.db, gctx.cur, ca.parent_id)
     ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx.db, gctx.cur, ca.ca_id)
     if ca_detail is None:
       ca_detail = rpki.sql.ca_detail_obj.create(gctx, ca)
-
-    raise NotImplementedError, "Not finished"
-
     self = cls()
+    self.class_name = ca.parent_resource_class
+    self.pkcs10 = rpki.x509.PKCS10(ca_detail.private_key_id, sia)
     return parent.query_up_down(gctx, self)
 
 class issue_response_pdu(class_response_syntax):

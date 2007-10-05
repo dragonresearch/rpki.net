@@ -27,7 +27,7 @@ def make_request(keypair):
     i,o = os.popen2(["openssl", "req", "-config", config_filename,  "-new", "-key", "/dev/stdin", "-outform", "DER"])
     i.write(keypair.get_PEM())
     i.close()
-    pkcs10 = rpki.x509.PKCS10_Request(DER = o.read())
+    pkcs10 = rpki.x509.PKCS10(DER = o.read())
     o.close()
 
   finally:

@@ -13,7 +13,7 @@ def hexify(thing):
   return ":".join(["%02X" % ord(i) for i in thing])
 
 for name in glob.glob("resource-cert-samples/*.req") + glob.glob("biz-certs/*.req"):
-  pkcs10 = rpki.x509.PKCS10_Request(Auto_file = name).get_POWpkix()
+  pkcs10 = rpki.x509.PKCS10(Auto_file = name).get_POWpkix()
 
   print "[", name, "]"
 

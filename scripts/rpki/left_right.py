@@ -287,7 +287,7 @@ class bsc_elt(data_elt):
     elif name == "public_key":
       self.public_key = base64.b64decode(text)
     elif name == "pkcs10_cert_request":
-      self.pkcs10_cert_request = rpki.x509.PKCS10_Request(Base64=text)
+      self.pkcs10_cert_request = rpki.x509.PKCS10(Base64=text)
     else:
       assert name == "bsc", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()

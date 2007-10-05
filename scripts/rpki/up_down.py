@@ -158,7 +158,7 @@ class list_pdu(base_elt):
     r_msg.payload = list_response_pdu()
     irdb_as, irdb_v4, irdb_v6 = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
     for ca_id in rpki.sql.fetch_column(gctx.cur, "SELECT ca_id FROM ca WHERE ca.parent_id = parent.parent_id AND parent.self_id = %s" % child.self_id):
-      ca_detail = rpki.sql.ca_detail_elt.sql_fetch_active(gctx.db, gctx.cur, ca_id)
+      ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx.db, gctx.cur, ca_id)
       if not ca_detail:
         continue
       rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(irdb_as, irdb_v4, irdb_v6)
@@ -178,7 +178,7 @@ class list_pdu(base_elt):
 
   @classmethod
   def query(cls, gctx, parent):
-    """Compose a "list" query to parent."""
+    """Send a "list" query to parent."""
     self = cls()
     return parent.query_up_down(gctx, self)
 
@@ -235,7 +235,7 @@ class issue_pdu(base_elt):
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
     ca_id = long(self.class_name)
     ca = rpki.sql.ca_obj.sql_fetch(gctx.db, gctx.cur, ca_id)
-    ca_detail = rpki.sql.ca_detail_elt.sql_fetch_active(gctx.db, gctx.cur, ca_id)
+    ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx.db, gctx.cur, ca_id)
     if ca is None or ca_detail is None:
       raise rpki.exceptions.NotInDatabase
     self.pkcs10.check_valid_rpki()
@@ -277,9 +277,7 @@ class issue_pdu(base_elt):
                                                        v6 = rc_v6)
       child_cert.sql_mark_dirty()
 
-      print "Should generate a new manifest now"
-      print "Should publish newly-created certificate now"
-      raise NotImplementedError
+      raise NotImplementedError, "Should generate a new manifest, should publish newly-created certificate"
 
     # Save anything we modified and generate response
     rpki.sql.sql_sweep(gctx.db, gctx.cur)
@@ -294,6 +292,19 @@ class issue_pdu(base_elt):
     rc.issuer = ca_detail.latest_ca_cert
     r_msg.payload = issue_response_pdu()
     r_msg.payload.classes.append(rc)
+
+  @classmethod
+  def query(cls, gctx, ca):
+    """Send an "issue" request to associated with ca."""
+    parent = rpki.left_right.parent_elt.sql_fetch(gctx.db, gctx.cur, ca.parent_id)
+    ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx.db, gctx.cur, ca.ca_id)
+    if ca_detail is None:
+      ca_detail = rpki.sql.ca_detail_obj.create(gctx, ca)
+
+    raise NotImplementedError, "Not finished"
+
+    self = cls()
+    return parent.query_up_down(gctx, self)
 
 class issue_response_pdu(class_response_syntax):
   """Up-Down protocol "issue_response" PDU."""
@@ -320,7 +331,7 @@ class revoke_pdu(revoke_syntax):
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
     ca_id = long(self.class_name)
     ca = rpki.sql.ca_obj.sql_fetch(gctx.db, gctx.cur, ca_id)
-    ca_detail = rpki.sql.ca_detail_elt.sql_fetch_active(gctx.db, gctx.cur, ca_id)
+    ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx.db, gctx.cur, ca_id)
     if ca is None or ca_detail is None:
       raise rpki.exceptions.NotInDatabase
     ski = base64.b64decode(self.ski.replace("_", "/").replace("-", "+"))

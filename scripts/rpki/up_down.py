@@ -295,8 +295,11 @@ class issue_pdu(base_elt):
 
   @classmethod
   def query(cls, gctx, ca, sia):
-    """Send an "issue" request to associated with ca."""
+    """Send an "issue" request to parent associated with ca."""
     parent = rpki.left_right.parent_elt.sql_fetch(gctx.db, gctx.cur, ca.parent_id)
+    #
+    # Do we always want the active ca_detail here?  Assume yes for
+    # now, may need to revisit
     ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx.db, gctx.cur, ca.ca_id)
     if ca_detail is None:
       ca_detail = rpki.sql.ca_detail_obj.create(gctx, ca)
@@ -341,6 +344,16 @@ class revoke_pdu(revoke_syntax):
     r_msg.payload = revoke_response_pdu()
     r_msg.payload.class_name = self.class_name
     r_msg.payload.ski = self.ski
+
+  @classmethod
+  def query(cls, gctx, ca_detail):
+    """Send a "revoke" request to parent associated with ca_detail."""
+    ca = rpki.sql.ca_obj.sql_fetch(gctx.db, gctx.cur, ca_detail.ca_id)
+    parent = rpki.left_right.parent_elt.sql_fetch(gctx.db, gctx.cur, ca.parent_id)
+    self = cls()
+    self.class_name = ca.parent_resource_class
+    self.ski = ca_detail.latest_ca_cert.gSKI()
+    return parent.query_up_down(gctx, self)
 
 class revoke_response_pdu(revoke_syntax):
   """Up-Down protocol "revoke_response" PDU."""

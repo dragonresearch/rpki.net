@@ -71,7 +71,7 @@ class sql_persistant(object):
       raise rpki.exceptions.DBConsistancyError, "Database contained multiple matches for %s.%s" % (cls.__name__, id)
 
   @classmethod
-  def sql_fetch_all(gctx, cur):
+  def sql_fetch_all(cls, gctx):
     return cls.sql_fetch_where(gctx, None)
 
   @classmethod

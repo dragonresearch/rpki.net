@@ -280,7 +280,7 @@ class issue_pdu(base_elt):
       raise NotImplementedError, "Should generate a new manifest, should publish newly-created certificate"
 
     # Save anything we modified and generate response
-    rpki.sql.sql_sweep(gctx.db, gctx.cur)
+    rpki.sql.sql_sweep(gctx)
     assert child_cert and child_cert.sql_in_db
     c = certificate_elt()
     c.cert_url = multi_uri(ca.sia_uri + child_cert.cert.gSKI() + ".cer")

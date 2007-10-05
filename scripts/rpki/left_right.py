@@ -230,6 +230,22 @@ class self_elt(data_elt):
     elt.extend([i.toXML() for i in self.prefs])
     return elt
 
+  def client_poll(self, gctx):
+    """Run the regular client poll cycle with each of this self's parents in turn."""
+    for parent in parent_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id):
+      r_pdu = rpki.up_down.list_pdu(gctx, parent)
+      ca_dict = dict((ca.parent_resource_class, ca) for ca in rpki.sql.ca_obj.sql_fetch_where(gctx, "parent_id = %s", parent.parent_id))
+      for rc in r_pdu.payload:
+        if rc.class_name in ca_dict:
+          ca = ca_dict[rc.class_name]
+          del  ca_dict[rc.class_name]
+          ca.check_for_updates(gctx, parent, rc)
+        else:
+          rpki.sql.ca_obj.create(gctx, parent, rc)
+      for ca in ca_dict.values():
+        ca.delete(gctx)                 # CA not listed by parent
+      rpki.sql.sql_sweep(gctx)
+
 class bsc_elt(data_elt):
   """<bsc/> (Business Signing Context) element."""
   

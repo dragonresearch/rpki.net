@@ -41,10 +41,10 @@ def sql_assert_pristine():
   """Assert that there are no dirty objects in the cache."""
   assert not sql_dirty, "Dirty objects in SQL cache: %s" % sql_dirty
 
-def sql_sweep(db, cur):
+def sql_sweep(gctx):
   """Write any dirty objects out to SQL."""
   for s in sql_dirty:
-    s.sql_store(db, cur)
+    s.sql_store(gctx)
 
 def fetch_column(gctx, *query):
   """Pull a single column from SQL, return it as a list."""

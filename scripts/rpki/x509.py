@@ -417,6 +417,20 @@ class PKCS10(DER_object):
     # understand what the spec is telling me to do in this case.
     assert "subjectInfoAccess" in req_exts, "Can't (yet) handle PKCS #10 without an SIA extension"
 
+  @classmethod
+  def create(cls, keypair, sia):
+    """Create a new request for a given keypair, including given SIA value."""
+    req = POW.pkix.CertificationRequest()
+    req.version.set(0)
+    exts = [ ("basicConstraints",  True,  (1, None)),
+             ("keyUsage",          True,  (0, 0, 0, 0, 0, 1, 1)),
+             ("subjectInfoAccess", False, sia) ]
+    for x in exts:
+      x[0] = POW.pkix.obj2oid(x[0])
+    req.setExtension(exts)
+    req.sign(keypair)
+    return cls(POWpkix = req)
+
 class RSA_Keypair(DER_object):
   """Class to hold an RSA key pair."""
 

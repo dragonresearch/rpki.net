@@ -302,7 +302,7 @@ class issue_pdu(base_elt):
       ca_detail = rpki.sql.ca_detail_obj.create(gctx, ca)
     self = cls()
     self.class_name = ca.parent_resource_class
-    self.pkcs10 = rpki.x509.PKCS10(ca_detail.private_key_id, sia)
+    self.pkcs10 = rpki.x509.PKCS10.create(ca_detail.private_key_id, sia)
     return parent.query_up_down(gctx, self)
 
 class issue_response_pdu(class_response_syntax):

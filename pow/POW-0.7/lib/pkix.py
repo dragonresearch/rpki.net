@@ -1228,6 +1228,14 @@ class CertificationRequest(Sequence):
       contents = [ self.certificationRequestInfo, self.signatureAlgorithm, self.signatureValue ] 
       Sequence.__init__(self, contents, optional, default)
 
+   def sign(self, rsa, digestType):
+      driver = getCryptoDriver()
+      oid = driver.getOID(digestType)
+      self.certificationRequestInfo.subjectPublicKeyInfo.fromString(driver.toPublicDER(rsa))
+      signedText = driver.sign(rsa, oid, self.certificationRequestInfo.toString())
+      self.signatureAlgorithm.set([oid, None])
+      self.signatureValue.set(signedText)
+
    def verify(self):
       driver = getCryptoDriver()
       oid = self.signatureAlgorithm.get()[0]
@@ -1249,6 +1257,9 @@ class CertificationRequest(Sequence):
          if x[0] == oid:
             return x
       return None
+
+   def setExtensions(self, exts):
+      self.certificationRequestInfo.attributes.val.choices["set"][0].set(exts)
 
 #---------- PKCS10 ----------#
 #---------- GeneralNames object support ----------#
@@ -2045,5 +2056,3 @@ class Extension(Sequence):
             return (oid, critical, ())
 
       return (oid, critical, value)
-
-

@@ -62,13 +62,13 @@ class allocation_db(list):
   """Class to represent an allocation database."""
 
   def __init__(self):
-    self.allocation_dict = {}
+    self.allocation_map = {}
 
   def add(self, name, **kw):
     """Add a new entry to this allocation database.
     All arguments passed through to the allocation constructor.
     """
-    self.insert(0, allocation(name=name, allocation_dict=self.allocation_dict, **kw))
+    self.insert(0, allocation(name = name, allocation_map = self.allocation_map, **kw))
 
 class allocation(object):
   """Class representing one entity holding allocated resources.
@@ -80,23 +80,23 @@ class allocation(object):
 
   parent = None
 
-  def __init__(self, name, asn=None, ipv4=None, ipv6=None, children=[], allocation_dict=None):
+  def __init__(self, name, asn = None, ipv4 = None, ipv6 = None, children = [], allocation_map = None):
     """Create a new allocation entry.
 
     This binds the parent attributes of any children, and computes the
     transitive closure of the set of resources this entity needs.
     """
     self.name = name
-    self.children = [allocation_dict[i] for i in children]
+    self.children = [allocation_map[i] for i in children]
     for child in self.children:
       assert child.parent is None
       child.parent = self
     self.asn  = self.summarize("asn",  rpki.resource_set.resource_set_as(asn))
     self.ipv4 = self.summarize("ipv4", rpki.resource_set.resource_set_ipv4(ipv4))
     self.ipv6 = self.summarize("ipv6", rpki.resource_set.resource_set_ipv6(ipv6))
-    allocation_dict[name] = self
+    allocation_map[name] = self
 
-  def summarize(self, attrname, seed=None):
+  def summarize(self, attrname, seed = None):
     """Compute the transitive resource closure for one resource attribute."""
     if seed is None:
       seed = getattr(self, attrname)

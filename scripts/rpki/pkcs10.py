@@ -8,6 +8,8 @@ just keeping it around in case I discover some horrible bug in the new
 code that would make me want to fall back to this.
 """
 
+raise NotImplementedError, "You shouldn't be using this module anymore, see rpki.x509.PKCS10"
+
 import POW, rpki.x509, os, rpki.exceptions, binascii
 
 req_fmt = '''

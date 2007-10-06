@@ -208,6 +208,17 @@ class resource_set(list):
         assert isinstance(item, (type(i), type(i.min)))
     return False
 
+  def issubset(self, other):
+    """Test whether self is a subset of other."""
+    for i in self:
+      if not other.contains(i):
+        return False
+    return True
+
+  def issuperset(self, other):
+    """Test whether self is a superset of other."""
+    return other.issubset(self)
+
   @classmethod
   def from_sql(cls, cursor, query):
     """Create resource set from an SQL query.

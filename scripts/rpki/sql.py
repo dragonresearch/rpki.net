@@ -175,6 +175,53 @@ class ca_obj(sql_persistant):
 
   sql_template = template("ca", "ca_id", "last_crl_sn", "next_crl_update", "last_issued_sn", "last_manifest_sn", "next_manifest_update", "sia_uri", "parent_id")
 
+  def check_for_updates(self, gctx, parent, rc):
+    """Parent has signaled continued existance of a resource class we
+    already knew about, so we need to check for an updated
+    certificate, changes in resource coverage, etc.
+
+    If all certs in the resource class match existing active ca_detail
+    certs, we have nothing to do.  Other cases:
+
+    - Nothing changed but serial and dates (reissue due to
+      expiration), no change to children needed.
+
+    - Issuer-supplied values other than resources changed, probably no
+      change needed to children either.
+
+    - Resources changed (grow, shrink), will have to frob children.
+
+    - Set of keys within this resource class for which child has certs
+      does not match parent.  Can this happen?  Handle or raise exception?
+
+    - Multiple certs (rollover in progress, probably) with resources
+      that don't match.  This seems like an error, raise exception.
+
+    - Other cases I've forgotten?
+    """
+
+    # This looks like yet another place where a ca_detail.ski column
+    # could be useful.
+
+    ca_details = ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s", ca.ca_id)
+
+    raise NotImplementedError
+
+  @classmethod
+  def create(cls, gctx, parent, rc):
+    """Parent has signaled existance of a new resource class, so we
+    need to create and set up a corresponding CA object.
+    """
+    self = cls()
+    raise NotImplementedError
+
+  def delete(self, gctx):
+    """Parent's list of current resource classes doesn't include the
+    class corresponding to this CA, so we need to delete it (and its
+    little dog too...).
+    """
+    raise NotImplementedError
+
 class ca_detail_obj(sql_persistant):
   """Internal CA detail object."""
 
@@ -183,18 +230,13 @@ class ca_detail_obj(sql_persistant):
 
   def sql_decode(self, vals):
     sql_persistant.sql_decode(self, vals)
-
     self.private_key_id = rpki.x509.RSA_Keypair(DER = self.private_key_id)
     assert self.public_key is None or self.private_key_id.get_public_DER() == self.public_key
-
     self.latest_ca_cert = rpki.x509.X509(DER = self.latest_ca_cert)
-
     self.manifest_private_key_id = rpki.x509.RSA_Keypair(DER = self.manifest_private_key_id)
     assert self.manifest_public_key is None or self.manifest_private_key_id.get_public_DER() == self.manifest_public_key
-
     self.manifest_cert = rpki.x509.X509(DER = self.manifest_cert)
-
-    # todo: manifest, crl
+    raise NotImplementedError, "Still have to handle manifest and CRL"
 
   def sql_encode(self):
     d = sql_persistant.sql_encode(self)
@@ -202,14 +244,15 @@ class ca_detail_obj(sql_persistant):
     d["latest_ca_cert"] = self.latest_ca_cert.get_DER()
     d["manifest_private_key_id"] = self.manifest_private_key_id.get_DER()
     d["manifest_cert"] = self.manifest_cert.get_DER()
+    raise NotImplementedError, "Still have to handle manifest and CRL"
     return d
 
   @classmethod
   def sql_fetch_active(cls, gctx, ca_id):
-    hits = cls.sql_fetch_where(gctx, "ca_id = %s AND state = 'active'" % ca_id)
-    assert len(hits) < 2, "Found more than one 'active' ca_detail record, this should not happen!"
-    if hits:
-      return hits[0]
+    actives = cls.sql_fetch_where(gctx, "ca_id = %s AND state = 'active'" % ca_id)
+    assert len(actives) < 2, "Found more than one 'active' ca_detail record, this should not happen!"
+    if actives:
+      return actives[0]
     else:
       return None
 

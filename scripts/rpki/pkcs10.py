@@ -1,5 +1,13 @@
 # $Id$
 
+"""Old code to generate PKCS #10 certification requests.
+
+This has been replaced by direct support for PKCS #10 in my hacked
+version of the POW package.  This module will go away eventually, I'm
+just keeping it around in case I discover some horrible bug in the new
+code that would make me want to fall back to this.
+"""
+
 import POW, rpki.x509, os, rpki.exceptions, binascii
 
 req_fmt = '''

@@ -418,20 +418,28 @@ class PKCS10(DER_object):
     assert "subjectInfoAccess" in req_exts, "Can't (yet) handle PKCS #10 without an SIA extension"
 
   @classmethod
-  def create(cls, keypair, sia):
+  def create_ca(cls, keypair, sia = None):
     """Create a new request for a given keypair, including given SIA value."""
-    req = POW.pkix.CertificationRequest()
-    req.version.set(0)
     exts = [ ("basicConstraints",  True,  (1, None)),
-             ("keyUsage",          True,  (0, 0, 0, 0, 0, 1, 1)),
-             ("subjectInfoAccess", False, sia) ]
+             ("keyUsage",          True,  (0, 0, 0, 0, 0, 1, 1)) ]
+    if sia is not None:
+      exts.append(("subjectInfoAccess", False, sia))
     for x in exts:
       x[0] = POW.pkix.obj2oid(x[0])
-    req.setExtension(exts)
-    req.sign(keypair)
+    return cls.create(keypair, exts)
+
+  @classmethod
+  def create(cls, keypair, exts = None):
+    """Create a new request for a given keypair, including given SIA value."""
+    req = POW.pkix.CertificationRequest()
+    req.certificationRequestInfo.version.set(0)
+    req.certificationRequestInfo.subject.set((((POW.pkix.obj2oid("commonName"), ("printableString", "".join(("%02X" % ord(i) for i in keypair.get_SKI())))),),))
+    if exts is not None:
+      req.setExtension(exts)
+    req.sign(keypair.get_POW(), POW.SHA256_DIGEST)
     return cls(POWpkix = req)
 
-class RSA_Keypair(DER_object):
+class RSA(DER_object):
   """Class to hold an RSA key pair."""
 
   formats = ("DER", "POW", "tlslite")
@@ -458,12 +466,17 @@ class RSA_Keypair(DER_object):
       self.tlslite = tlslite.api.parsePEMKey(self.get_PEM(), private=True)
     return self.tlslite
 
-  def generate(self, keylength):
+  def generate(self, keylength = 2048):
     self.clear()
     self.set(POW=POW.Asymmetric(POW.RSA_CIPHER, keylength))
 
   def get_public_DER(self):
     return self.get_POW().derWrite(POW.RSA_PUBLIC_KEY)
+
+  def get_SKI(self):
+    d = POW.Digest(POW.SHA1_DIGEST)
+    d.update(self.get_public_DER())
+    return d.digest()
 
 class Manifest(DER_object):
   """Class to hold a signed manifest."""

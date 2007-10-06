@@ -57,10 +57,10 @@ gctx.cur = gctx.db.cursor()
 
 gctx.cms_ta_irdb = rpki.x509.X509(Auto_file = gctx.cfg.get(gctx.cfg_section, "cms-ta-irdb"))
 gctx.cms_ta_irbe = rpki.x509.X509(Auto_file = gctx.cfg.get(gctx.cfg_section, "cms-ta-irbe"))
-gctx.cms_key     = rpki.x509.RSA_Keypair(Auto_file = gctx.cfg.get(gctx.cfg_section, "cms-key"))
+gctx.cms_key     = rpki.x509.RSA(Auto_file = gctx.cfg.get(gctx.cfg_section, "cms-key"))
 gctx.cms_certs   = rpki.x509.X509_chain(Auto_files = gctx.cfg.multiget(gctx.cfg_section, "cms-cert"))
 
-gctx.https_key   = rpki.x509.RSA_Keypair(Auto_file = gctx.cfg.get(gctx.cfg_section, "https-key"))
+gctx.https_key   = rpki.x509.RSA(Auto_file = gctx.cfg.get(gctx.cfg_section, "https-key"))
 gctx.https_certs = rpki.x509.X509_chain(Auto_files = gctx.cfg.multiget(gctx.cfg_section, "https-cert"))
 gctx.https_tas   = rpki.x509.X509_chain(Auto_files = gctx.cfg.multiget(gctx.cfg_section, "https-ta"))
 

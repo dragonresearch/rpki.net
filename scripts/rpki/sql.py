@@ -230,10 +230,10 @@ class ca_detail_obj(sql_persistant):
 
   def sql_decode(self, vals):
     sql_persistant.sql_decode(self, vals)
-    self.private_key_id = rpki.x509.RSA_Keypair(DER = self.private_key_id)
+    self.private_key_id = rpki.x509.RSA(DER = self.private_key_id)
     assert self.public_key is None or self.private_key_id.get_public_DER() == self.public_key
     self.latest_ca_cert = rpki.x509.X509(DER = self.latest_ca_cert)
-    self.manifest_private_key_id = rpki.x509.RSA_Keypair(DER = self.manifest_private_key_id)
+    self.manifest_private_key_id = rpki.x509.RSA(DER = self.manifest_private_key_id)
     assert self.manifest_public_key is None or self.manifest_private_key_id.get_public_DER() == self.manifest_public_key
     self.manifest_cert = rpki.x509.X509(DER = self.manifest_cert)
     raise NotImplementedError, "Still have to handle manifest and CRL"

@@ -161,10 +161,10 @@ print "Sending:"
 print q_xml
 
 q_cms = rpki.cms.encode(q_xml,
-                        rpki.x509.RSA_Keypair(Auto_file = cfg.get(cfg_section, "cms-key")),
+                        rpki.x509.RSA(Auto_file = cfg.get(cfg_section, "cms-key")),
                         rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "cms-cert")))
 
-r_cms = rpki.https.client(privateKey    = rpki.x509.RSA_Keypair(Auto_file = cfg.get(cfg_section, "https-key")),
+r_cms = rpki.https.client(privateKey    = rpki.x509.RSA(Auto_file = cfg.get(cfg_section, "https-key")),
                           certChain     = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "https-cert")),
                           x509TrustList = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "https-ta")),
                           url           = cfg.get(cfg_section, "https-url"),

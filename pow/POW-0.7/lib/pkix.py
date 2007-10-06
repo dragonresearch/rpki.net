@@ -117,7 +117,7 @@ class POWCryptoDriver(CryptoDriver):
       return digest.digest()
 
    def sign(self, key, oid, plaintext):
-      return key.sign(self._digest(oid, plaintext))
+      return key.sign(self._digest(oid, plaintext), self.OID2driver[oid])
 
    def verify(self, key, oid, plaintext, signature):
       return key.verify(signature, self._digest(oid, plaintext), self.OID2driver[oid])

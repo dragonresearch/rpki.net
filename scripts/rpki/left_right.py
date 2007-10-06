@@ -3,7 +3,7 @@
 """RPKI "left-right" protocol."""
 
 import base64, lxml.etree, time
-import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.pkcs10, rpki.https, rpki.up_down, rpki.relaxng
+import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.https, rpki.up_down, rpki.relaxng
 
 xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
@@ -284,11 +284,11 @@ class bsc_elt(data_elt):
       # Hard wire 2048-bit RSA with SHA-256 in schema for now.
       # Assume no HSM for now.
       #
-      keypair = rpki.x509.RSA_Keypair()
+      keypair = rpki.x509.RSA()
       keypair.generate(2048)
       self.private_key_id = keypair.get_DER()
       self.public_key = keypair.get_public_DER()
-      r_pdu.pkcs10_cert_request = rpki.pkcs10.make_request(keypair)
+      r_pdu.pkcs10_cert_request = rpki.x509.PKCS10.create(keypair)
 
   def startElement(self, stack, name, attrs):
     """Handle <bsc/> element."""

@@ -59,10 +59,10 @@ db = MySQLdb.connect(user   = cfg.get(cfg_section, "sql-username"),
 cur = db.cursor()
 
 cms_ta          = rpki.x509.X509(Auto_file = cfg.get(cfg_section, "cms-ta"))
-cms_key         = rpki.x509.RSA_Keypair(Auto_file = cfg.get(cfg_section, "cms-key"))
+cms_key         = rpki.x509.RSA(Auto_file = cfg.get(cfg_section, "cms-key"))
 cms_certs       = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "cms-cert"))
 
-rpki.https.server(privateKey = rpki.x509.RSA_Keypair(Auto_file = cfg.get(cfg_section, "https-key")),
+rpki.https.server(privateKey = rpki.x509.RSA(Auto_file = cfg.get(cfg_section, "https-key")),
                   certChain  = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "https-cert")),
                   host       = cfg.get(cfg_section, "https-host"),
                   port       = int(cfg.get(cfg_section, "https-port")),

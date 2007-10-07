@@ -188,15 +188,16 @@ class ca_obj(sql_persistant):
     ca_details = ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL", ca.ca_id)
     as, v4, v6 = ca_detail_obj.sql_fetch_active(gctx, ca_id).latest_ca_cert.get_3779resources()
     undersized = not rc.resource_set_as.issubset(as) or not rc.resource_set_ipv4.issubset(v4) or not rc.resource_set_ipv6.issubset(v6)
+    oversized  = not as.issubset(rc.resource_set_as) or not v4.issubset(rc.resource_set_ipv4) or not v6.issubset(rc.resource_set_ipv6)
+    for ca_detail in ca_details:
+      assert ca_detail.state != "pending" or (as, v4, v6) == ca_detail.get_3779resources(), "Resource mismatch for pending cert"
     for ca_detail in ca_details:
       ski = ca_detail.latest_ca_cert.get_SKI()
       assert ski in cert_map, "Certificate in our database missing from list_response, SKI %s" % ca_detail.latest_ca_cert.hSKI()
-      assert ca_detail.state != "pending" or (as, v4, v6) == ca_detail.get_3779resources(), "Resource mismatch for pending cert"
-      if undersized or ca_detail.latest_ca_cert != cert_map[ski]:
-        ca_detail.update(gctx, parent, self, rc, cert_map[ski], undersized)
+      if ca_detail.state != "deprecated" and (undersized or oversized or ca_detail.latest_ca_cert != cert_map[ski]):
+        ca_detail.update(gctx, parent, self, rc, cert_map[ski], undersized, oversized, as, v4, v6)
       del cert_map[ski]
     assert not cert_map, "Certificates in list_response missing from our database, SKIs %s" % ", ".join(c.hSKI() for c in cert_map.values())
-
 
   @classmethod
   def create(cls, gctx, parent, rc):
@@ -247,7 +248,7 @@ class ca_detail_obj(sql_persistant):
     else:
       return None
 
-  def update(self, gctx, parent, ca, rc, newcert, undersized):
+  def update(self, gctx, parent, ca, rc, newcert, undersized, oversized, as, v4, v6):
     """CA has received a cert for this ca_detail that doesn't match
     the current one, figure out what to do about it.  Cases:
 
@@ -260,6 +261,18 @@ class ca_detail_obj(sql_persistant):
     - Resources changed, will need to frob any children affected by
       shrinkage.
     """
+
+    if undersized:
+      # If we do end up processing undersized before oversized, we
+      # should re-compute our resource sets before oversize processing
+      raise NotImplementedError, "Need to issue new PKCS #10 to parent here then recompute resource sets"
+
+    if oversized:
+      for child_cert in child_cert_obj.sql_fetch_where(gctx, "ca_detail_id = %s" % self.ca_detail_id):
+        child_as, child_v4, child_v6 = child_cert.cert.get_3779resources()
+        if not child_as.issubset(as) or not child_v4.issubset(v4) or not child_v6.issubset(v6):
+          child_cert.reissue(gctx, self, as, v4, v6)
+
     raise NotImplementedError, "NIY"
 
 class child_cert_obj(sql_persistant):

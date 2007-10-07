@@ -128,6 +128,10 @@ class DER_object(object):
     """Get the PEM representation of this object."""
     return self.pem_converter.to_PEM(self.get_DER())
 
+  def __cmp__(self, other):
+    """Compare two DER-encoded objects."""
+    return cmp(self.get_DER(), other.get_DER())
+
 class X509(DER_object):
   """X.509 certificates.
 

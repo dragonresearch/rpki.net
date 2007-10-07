@@ -200,15 +200,14 @@ class ca_obj(sql_persistant):
     - Other cases I've forgotten?
     """
 
-    # For the moment this engine never requests subset certs (req_*
-    # attributes in issue request) so it's safe to assume that there
-    # are no subset certs to deal with.  That should simplify our task.
-
-    # This looks like yet another place where a ca_detail.ski column
-    # could be useful.
-    ca_details = ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s", ca.ca_id)
-
-    raise NotImplementedError
+    cert_map = dict((c.get_SKI(), c) for c in rc.certs)
+    for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL", ca.ca_id):
+      ski = ca_detail.latest_ca_cert.get_SKI()
+      assert ski in cert_map, "Certificate in our database missing from list_response, SKI %s" % ":".join(("%02X" % ord(i) for i in ski))
+      if ca_detail.latest_ca_cert != cert_map[ski]:
+        ca_detail.update_latest_ca_cert(cert_map[ski])
+      del cert_map[ski]
+    assert not cert_map, "Certificates in list_response missing from our database, SKIs %s" % " ".join(":".join("%02X" % ord(i) for i in j) for j in cert_map.keys())
 
   @classmethod
   def create(cls, gctx, parent, rc):

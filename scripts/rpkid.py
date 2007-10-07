@@ -35,7 +35,7 @@ def up_down_handler(query, path):
     return 500, "Unhandled exception %s" % data
 
 def cronjob_handler(query, path):
-  raise NotImplementedError
+  raise NotImplementedError, "NIY"
 
 class global_context(object):
   """A place to stash various global parameters."""

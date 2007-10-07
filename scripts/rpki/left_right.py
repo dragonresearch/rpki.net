@@ -206,7 +206,7 @@ class self_elt(data_elt):
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
     if self.rekey or self.reissue or self.revoke or self.run_now or self.publish_world_now:
-      raise NotImplementedError
+      raise NotImplementedError, "Unimplemented control %s" % ", ".join(b for b in ("rekey", "reissue", "revoke", "run_now", "publish_world_now") if getattr(self, b))
 
   def startElement(self, stack, name, attrs):
     """Handle <self/> element."""
@@ -333,7 +333,7 @@ class parent_elt(data_elt):
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
     if self.rekey or self.reissue or self.revoke:
-      raise NotImplementedError
+      raise NotImplementedError, "Unimplemented control %s" % ", ".join(b for b in ("rekey", "reissue", "revoke") if getattr(self, b))
 
   def startElement(self, stack, name, attrs):
     """Handle <parent/> element."""
@@ -399,7 +399,7 @@ class child_elt(data_elt):
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
     if self.reissue:
-      raise NotImplementedError
+      raise NotImplementedError, "Unimplemented control %s" % ", ".join(b for b in ("reissue",) if getattr(self, b))
 
   def startElement(self, stack, name, attrs):
     """Handle <child/> element."""
@@ -504,7 +504,7 @@ class route_origin_elt(data_elt):
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
     if self.suppress_publication:
-      raise NotImplementedError
+      raise NotImplementedError, "Unimplemented control %s" % ", ".join(b for b in ("suppress_publication",) if getattr(self, b))
 
   def startElement(self, stack, name, attrs):
     """Handle <route_origin/> element."""

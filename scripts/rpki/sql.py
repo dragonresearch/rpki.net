@@ -199,14 +199,14 @@ class ca_obj(sql_persistant):
     need to create and set up a corresponding CA object.
     """
     self = cls()
-    raise NotImplementedError
+    raise NotImplementedError, "NIY"
 
   def delete(self, gctx):
     """Parent's list of current resource classes doesn't include the
     class corresponding to this CA, so we need to delete it (and its
     little dog too...).
     """
-    raise NotImplementedError
+    raise NotImplementedError, "NIY"
 
 class ca_detail_obj(sql_persistant):
   """Internal CA detail object."""
@@ -255,7 +255,7 @@ class ca_detail_obj(sql_persistant):
     - Resources changed, will need to frob any children affected by
       shrinkage.
     """
-    raise NotImplementedError
+    raise NotImplementedError, "NIY"
 
 class child_cert_obj(sql_persistant):
   """Certificate that has been issued to a child."""

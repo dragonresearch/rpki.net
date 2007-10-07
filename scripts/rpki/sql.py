@@ -200,9 +200,12 @@ class ca_obj(sql_persistant):
     - Other cases I've forgotten?
     """
 
+    # For the moment this engine never requests subset certs (req_*
+    # attributes in issue request) so it's safe to assume that there
+    # are no subset certs to deal with.  That should simplify our task.
+
     # This looks like yet another place where a ca_detail.ski column
     # could be useful.
-
     ca_details = ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s", ca.ca_id)
 
     raise NotImplementedError

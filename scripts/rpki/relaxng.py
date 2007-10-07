@@ -1,9 +1,9 @@
 # Automatically generated, do not edit.
 
 import lxml.etree
+
 ## @var left_right
 ## Parsed RelaxNG left_right schema
-
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: left-right-schema.rng 1088 2007-10-04 03:06:25Z sra $
@@ -907,9 +907,9 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   </define>
 </grammar>
 '''))
+
 ## @var up_down
 ## Parsed RelaxNG up_down schema
-
 up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
   $Id: up-down-schema.rnc 974 2007-09-16 19:37:23Z sra $

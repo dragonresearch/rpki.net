@@ -180,32 +180,16 @@ class ca_obj(sql_persistant):
     already knew about, so we need to check for an updated
     certificate, changes in resource coverage, etc.
 
-    If all certs in the resource class match existing active ca_detail
-    certs, we have nothing to do.  Other cases:
-
-    - Nothing changed but serial and dates (reissue due to
-      expiration), no change to children needed.
-
-    - Issuer-supplied values other than resources changed, probably no
-      change needed to children either.
-
-    - Resources changed (grow, shrink), will have to frob children.
-
-    - Set of keys within this resource class for which child has certs
-      does not match parent.  Can this happen?  Handle or raise exception?
-
-    - Multiple certs (rollover in progress, probably) with resources
-      that don't match.  This seems like an error, raise exception.
-
-    - Other cases I've forgotten?
+    If all certs in the resource class match existing active or
+    pending ca_detail certs, we have nothing to do.  Otherwise, hand
+    off to the affected ca_detail for processing.
     """
-
     cert_map = dict((c.get_SKI(), c) for c in rc.certs)
     for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL", ca.ca_id):
       ski = ca_detail.latest_ca_cert.get_SKI()
       assert ski in cert_map, "Certificate in our database missing from list_response, SKI %s" % ca_detail.latest_ca_cert.hSKI()
       if ca_detail.latest_ca_cert != cert_map[ski]:
-        ca_detail.update_latest_ca_cert(cert_map[ski])
+        ca_detail.update(gctx, parent, self, rc, cert_map[ski])
       del cert_map[ski]
     assert not cert_map, "Certificates in list_response missing from our database, SKIs %s" % ", ".join(c.hSKI() for c in cert_map.values())
 
@@ -257,6 +241,21 @@ class ca_detail_obj(sql_persistant):
       return actives[0]
     else:
       return None
+
+  def update(self, gctx, parent, ca, rc, newcert):
+    """CA has received a cert for this ca_detail that doesn't match
+    the current one, figure out what to do about it.  Cases:
+
+    - Nothing changed but serial and dates (reissue due to
+      expiration), no change to children needed.
+
+    - Issuer-supplied values other than resources changed, probably no
+      change needed to children either (but need to confirm this).
+
+    - Resources changed, will need to frob any children affected by
+      shrinkage.
+    """
+    raise NotImplementedError
 
 class child_cert_obj(sql_persistant):
   """Certificate that has been issued to a child."""

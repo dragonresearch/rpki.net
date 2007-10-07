@@ -185,13 +185,18 @@ class ca_obj(sql_persistant):
     off to the affected ca_detail for processing.
     """
     cert_map = dict((c.get_SKI(), c) for c in rc.certs)
-    for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL", ca.ca_id):
+    ca_details = ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL", ca.ca_id)
+    as, v4, v6 = ca_detail_obj.sql_fetch_active(gctx, ca_id).latest_ca_cert.get_3779resources()
+    undersized = not rc.resource_set_as.issubset(as) or not rc.resource_set_ipv4.issubset(v4) or not rc.resource_set_ipv6.issubset(v6)
+    for ca_detail in ca_details:
       ski = ca_detail.latest_ca_cert.get_SKI()
       assert ski in cert_map, "Certificate in our database missing from list_response, SKI %s" % ca_detail.latest_ca_cert.hSKI()
-      if ca_detail.latest_ca_cert != cert_map[ski]:
-        ca_detail.update(gctx, parent, self, rc, cert_map[ski])
+      assert ca_detail.state != "pending" or (as, v4, v6) == ca_detail.get_3779resources(), "Resource mismatch for pending cert"
+      if undersized or ca_detail.latest_ca_cert != cert_map[ski]:
+        ca_detail.update(gctx, parent, self, rc, cert_map[ski], undersized)
       del cert_map[ski]
     assert not cert_map, "Certificates in list_response missing from our database, SKIs %s" % ", ".join(c.hSKI() for c in cert_map.values())
+
 
   @classmethod
   def create(cls, gctx, parent, rc):
@@ -242,7 +247,7 @@ class ca_detail_obj(sql_persistant):
     else:
       return None
 
-  def update(self, gctx, parent, ca, rc, newcert):
+  def update(self, gctx, parent, ca, rc, newcert, undersized):
     """CA has received a cert for this ca_detail that doesn't match
     the current one, figure out what to do about it.  Cases:
 

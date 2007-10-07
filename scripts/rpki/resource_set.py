@@ -209,14 +209,14 @@ class resource_set(list):
     return False
 
   def issubset(self, other):
-    """Test whether self is a subset of other."""
+    """Test whether self is a subset (possibly improper) of other."""
     for i in self:
       if not other.contains(i):
         return False
     return True
 
   def issuperset(self, other):
-    """Test whether self is a superset of other."""
+    """Test whether self is a superset (possibly improper) of other."""
     return other.issubset(self)
 
   @classmethod

@@ -203,11 +203,11 @@ class ca_obj(sql_persistant):
     cert_map = dict((c.get_SKI(), c) for c in rc.certs)
     for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL", ca.ca_id):
       ski = ca_detail.latest_ca_cert.get_SKI()
-      assert ski in cert_map, "Certificate in our database missing from list_response, SKI %s" % ":".join(("%02X" % ord(i) for i in ski))
+      assert ski in cert_map, "Certificate in our database missing from list_response, SKI %s" % ca_detail.latest_ca_cert.hSKI()
       if ca_detail.latest_ca_cert != cert_map[ski]:
         ca_detail.update_latest_ca_cert(cert_map[ski])
       del cert_map[ski]
-    assert not cert_map, "Certificates in list_response missing from our database, SKIs %s" % " ".join(":".join("%02X" % ord(i) for i in j) for j in cert_map.keys())
+    assert not cert_map, "Certificates in list_response missing from our database, SKIs %s" % ", ".join(c.hSKI() for c in cert_map.values())
 
   @classmethod
   def create(cls, gctx, parent, rc):

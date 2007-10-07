@@ -132,6 +132,18 @@ class DER_object(object):
     """Compare two DER-encoded objects."""
     return cmp(self.get_DER(), other.get_DER())
 
+  def hSKI(self):
+    """Return hexadecimal string representation of SKI for this
+    object.  Only work for subclasses that implement get_SKI().
+    """
+    return ":".join(("%02X" % ord(i) for i in self.get_SKI()))
+
+  def gSKI(self):
+    """Calculate g(SKI) for this object.  Only work for subclasses
+    that implement get_SKI().
+    """
+    return base64.b64encode(self.get_SKI()).replace("+", "-").replace("/", "_")
+
 class X509(DER_object):
   """X.509 certificates.
 
@@ -221,10 +233,6 @@ class X509(DER_object):
   def get_SKI(self):
     """Get the SKI extension from this certificate."""
     return (self.get_POWpkix().getExtension((2, 5, 29, 14)) or ((), 0, None))[2]
-
-  def gSKI(self):
-    """Calculate g(SKI) for this certificate."""
-    return base64.b64encode(self.get_SKI()).replace("+", "-").replace("/", "_")
 
   def get_3779resources(self, as_intersector = None, v4_intersector = None, v6_intersector = None):
     """Get RFC 3779 resources as rpki.resource_set objects."""
@@ -480,6 +488,35 @@ class RSA(DER_object):
   def get_SKI(self):
     d = POW.Digest(POW.SHA1_DIGEST)
     d.update(self.get_public_DER())
+    return d.digest()
+
+  def get_RSApublic(self):
+    return RSApublic(DER = self.get_public_DER())
+
+class RSApublic(DER_object):
+  """Class to hold an RSA public key."""
+
+  formats = ("DER", "POW")
+  pem_converter = PEM_converter("RSA PUBLIC KEY")
+  
+  def get_DER(self):
+    assert not self.empty()
+    if self.DER:
+      return self.DER
+    if self.POW:
+      self.DER = self.POW.derWrite(POW.RSA_PUBLIC_KEY)
+      return self.get_DER()
+    raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
+
+  def get_POW(self):
+    assert not self.empty()
+    if not self.POW:
+      self.POW = POW.derRead(POW.RSA_PUBLIC_KEY, self.get_DER())
+    return self.POW
+
+  def get_SKI(self):
+    d = POW.Digest(POW.SHA1_DIGEST)
+    d.update(self.get_DER())
     return d.digest()
 
 class Manifest(DER_object):

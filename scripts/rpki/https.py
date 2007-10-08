@@ -64,7 +64,7 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
       elif handler is None:
         rcode, rtext = 404, "No handler found for URL " + self.path
       else:
-        rcode, rtext = handler(query=self.rfile.read(int(self.headers["Content-Length"])), path=self.path)
+        rcode, rtext = handler(query = self.rfile.read(int(self.headers["Content-Length"])), path = self.path)
     except Exception, edata:
       traceback.print_exc()
       rcode, rtext = 500, "Unhandled exception %s" % edata
@@ -86,16 +86,16 @@ class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
     assert self.rpki_privateKey is not None
     assert self.rpki_sessionCache is not None
     try:
-      tlsConnection.handshakeServer(certChain=self.rpki_certChain,
-                                    privateKey=self.rpki_privateKey,
-                                    sessionCache=self.rpki_sessionCache)
+      tlsConnection.handshakeServer(certChain    = self.rpki_certChain,
+                                    privateKey   = self.rpki_privateKey,
+                                    sessionCache = self.rpki_sessionCache)
       tlsConnection.ignoreAbruptClose = True
       return True
     except tlslite.api.TLSError, error:
       print "TLS handshake failure:", str(error)
       return False
 
-def server(handlers, privateKey, certChain, port=4433, host=""):
+def server(handlers, privateKey, certChain, port = 4433, host = ""):
   """Run an HTTPS server and wait (forever) for connections."""
 
   if not isinstance(handlers, (tuple, list)):

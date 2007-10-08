@@ -175,6 +175,17 @@ class ca_obj(sql_persistant):
 
   sql_template = template("ca", "ca_id", "last_crl_sn", "next_crl_update", "last_issued_sn", "last_manifest_sn", "next_manifest_update", "sia_uri", "parent_id")
 
+  def select_sia_uri(self, gctx, parent, rc):
+    """Construct the sia_uri value for this CA given configured
+    information and the parent's up-down protocol list_response PDU.
+    """
+    repository = rpki.left_right.repository_elt.sql_fetch(gctx, parent.repository_id)
+    sia_dir = rc.suggested_sia_head and rc.suggested_sia_head.rsync()
+    if not sia_dir or not sia_dir.startswith(repository.sia_base) or not sia_dir.endswith("/"):
+      sia_dir = repository.sia_base
+    self.sia_uri = sia_dir + str(self.ca_id) + "/"
+    self.sql_mark_dirty()
+
   def check_for_updates(self, gctx, parent, rc):
     """Parent has signaled continued existance of a resource class we
     already knew about, so we need to check for an updated

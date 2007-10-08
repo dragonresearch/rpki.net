@@ -266,8 +266,8 @@ class X509(DER_object):
     exts = [ ("subjectKeyIdentifier",   False, ski),
              ("authorityKeyIdentifier", False, (aki, (), None)),
              ("cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)),
-             ("authorityInfoAccess",    False, aia),    # (((1, 3, 6, 1, 5, 5, 7, 48, 2), ('uri', 'rsync://repository.apnic.net/TRUSTANCHORS/apnic.cer')),)
-             ("subjectInfoAccess",      False, sia),    # (((1, 3, 6, 1, 5, 5, 7, 48, 5), ('uri', 'rsync://repository.apnic.net/APNIC/q66IrWSGuBE7jqx8PAUHAlHCqRw/')),)
+             ("authorityInfoAccess",    False, aia),
+             ("subjectInfoAccess",      False, sia),
              ("certificatePolicies",    True,  (((1, 3, 6, 1, 5, 5, 7, 14, 2), ()),)) ]
 
     if is_ca:

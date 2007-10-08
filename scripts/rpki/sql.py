@@ -222,6 +222,12 @@ class ca_obj(sql_persistant):
     need to create and set up a corresponding CA object.
     """
     self = cls()
+    self.parent_id = parent.parent_id
+    self.sql_store(gctx)
+    self.sia_uri = self.construct_sia_uri(gctx, parent, rc)
+
+    issue_response = rpki.up_down.issue_pdu.query(gctx, parent, self)
+
     raise NotImplementedError, "NIY"
 
   def delete(self, gctx):

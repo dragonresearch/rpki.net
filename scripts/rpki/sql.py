@@ -175,16 +175,17 @@ class ca_obj(sql_persistant):
 
   sql_template = template("ca", "ca_id", "last_crl_sn", "next_crl_update", "last_issued_sn", "last_manifest_sn", "next_manifest_update", "sia_uri", "parent_id")
 
-  def select_sia_uri(self, gctx, parent, rc):
+  def construct_sia_uri(self, gctx, parent, rc):
     """Construct the sia_uri value for this CA given configured
     information and the parent's up-down protocol list_response PDU.
     """
     repository = rpki.left_right.repository_elt.sql_fetch(gctx, parent.repository_id)
-    sia_dir = rc.suggested_sia_head and rc.suggested_sia_head.rsync()
-    if not sia_dir or not sia_dir.startswith(repository.sia_base) or not sia_dir.endswith("/"):
-      sia_dir = repository.sia_base
-    self.sia_uri = sia_dir + str(self.ca_id) + "/"
-    self.sql_mark_dirty()
+    sia_uri = rc.suggested_sia_head and rc.suggested_sia_head.rsync()
+    if not sia_uri or not sia_uri.startswith(repository.sia_base):
+      sia_uri = repository.sia_base
+    elif not sia_uri.endswith("/"):
+      raise rpki.exceptions.BadURISyntax, "SIA URI must end with a slash: %s" % sia_uri
+    return sia_uri + str(self.ca_id) + "/"
 
   def check_for_updates(self, gctx, parent, rc):
     """Parent has signaled continued existance of a resource class we
@@ -200,13 +201,18 @@ class ca_obj(sql_persistant):
     as, v4, v6 = ca_detail_obj.sql_fetch_active(gctx, ca_id).latest_ca_cert.get_3779resources()
     undersized = not rc.resource_set_as.issubset(as) or not rc.resource_set_ipv4.issubset(v4) or not rc.resource_set_ipv6.issubset(v6)
     oversized  = not as.issubset(rc.resource_set_as) or not v4.issubset(rc.resource_set_ipv4) or not v6.issubset(rc.resource_set_ipv6)
+    sia_uri = self.construct_sia_uri()
+    sia_uri_changed = self.sia_uri != sia_uri
+    if sia_uri_changed:
+      self.sia_uri = sia_uri
+      self.sql_mark_dirty()
     for ca_detail in ca_details:
       assert ca_detail.state != "pending" or (as, v4, v6) == ca_detail.get_3779resources(), "Resource mismatch for pending cert"
     for ca_detail in ca_details:
       ski = ca_detail.latest_ca_cert.get_SKI()
       assert ski in cert_map, "Certificate in our database missing from list_response, SKI %s" % ca_detail.latest_ca_cert.hSKI()
-      if ca_detail.state != "deprecated" and (undersized or oversized or ca_detail.latest_ca_cert != cert_map[ski]):
-        ca_detail.update(gctx, parent, self, rc, cert_map[ski], undersized, oversized, as, v4, v6)
+      if ca_detail.state != "deprecated" and (undersized or oversized or sia_uri_changed or ca_detail.latest_ca_cert != cert_map[ski]):
+        ca_detail.update(gctx, parent, self, rc, cert_map[ski], undersized, oversized, sia_uri_changed, as, v4, v6)
       del cert_map[ski]
     assert not cert_map, "Certificates in list_response missing from our database, SKIs %s" % ", ".join(c.hSKI() for c in cert_map.values())
 
@@ -259,7 +265,7 @@ class ca_detail_obj(sql_persistant):
     else:
       return None
 
-  def update(self, gctx, parent, ca, rc, newcert, undersized, oversized, as, v4, v6):
+  def update(self, gctx, parent, ca, rc, newcert, undersized, oversized, sia_uri_changed, as, v4, v6):
     """CA has received a cert for this ca_detail that doesn't match
     the current one, figure out what to do about it.  Cases:
 
@@ -271,6 +277,8 @@ class ca_detail_obj(sql_persistant):
 
     - Resources changed, will need to frob any children affected by
       shrinkage.
+
+    - ca.sia_uri changed, probably need to frob all children.
     """
 
     if undersized:

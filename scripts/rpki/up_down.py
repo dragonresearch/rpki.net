@@ -294,15 +294,14 @@ class issue_pdu(base_elt):
     r_msg.payload.classes.append(rc)
 
   @classmethod
-  def query(cls, gctx, ca, sia):
+  def query(cls, gctx, ca, sia, ca_detail = None):
     """Send an "issue" request to parent associated with ca."""
     parent = rpki.left_right.parent_elt.sql_fetch(gctx, ca.parent_id)
-    #
-    # Do we always want the active ca_detail here?  Assume yes for
-    # now, may need to revisit
-    ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx, ca.ca_id)
+    if ca_detail is None:
+      ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx, ca.ca_id)
     if ca_detail is None:
       ca_detail = rpki.sql.ca_detail_obj.create(gctx, ca)
+    assert ca_detail is not None and ca_detail.state != "deprecated"
     self = cls()
     self.class_name = ca.parent_resource_class
     self.pkcs10 = rpki.x509.PKCS10.create_ca(ca_detail.private_key_id, sia)

@@ -113,7 +113,7 @@ class sql_persistant(object):
       setattr(self, self.sql_template.index, gctx.cur.lastrowid)
       sql_cache[(self.__class__, gctx.cur.lastrowid)] = self
       self.sql_insert_hook(gctx)
-    elif self in sql_dirty:
+    else:
       gctx.cur.execute(self.sql_template.update, self.sql_encode())
       self.sql_update_hook(gctx)
     key = (self.__class__, getattr(self, self.sql_template.index))
@@ -226,6 +226,11 @@ class ca_obj(sql_persistant):
     self.sql_store(gctx)
     self.sia_uri = self.construct_sia_uri(gctx, parent, rc)
 
+    # Well, ok, I can issue the request easily enough, but the twisty
+    # maze of code that has to decipher the response looks an awful
+    # lot like the twisty maze of code that got us here in the first
+    # place, suggesting that some refactoring might be in order....
+
     issue_response = rpki.up_down.issue_pdu.query(gctx, parent, self)
 
     raise NotImplementedError, "NIY"
@@ -290,8 +295,18 @@ class ca_detail_obj(sql_persistant):
     raise NotImplementedError, "NIY"
 
     if undersized:
-      # If we do end up processing undersized before oversized, we
-      # should re-compute our resource sets before oversize processing
+
+      issue_response = rpki.up_down.issue_pdu.query(gctx, parent, ca, self)
+
+      # Now we just have to figure out what to do with the response,
+      # which looks an awful lot like the PDU that got us here in the
+      # first place.   Round and round and round we go....
+
+      # After requesting a new cert we need to recompute our resource
+      # sets before oversize processing, since our resources may have
+      # changed again during the window between list_response and
+      # issue_response.
+
       raise NotImplementedError, "Need to issue new PKCS #10 to parent here then recompute resource sets"
 
     if oversized or sia_uri_changed:
@@ -310,6 +325,7 @@ class ca_detail_obj(sql_persistant):
     self.private_key_id = keypair
     self.public_key = keypair.get_RSApublic()
     self.state = "pending"
+    self.sql_store(gctx)
     return self
 
 class child_cert_obj(sql_persistant):

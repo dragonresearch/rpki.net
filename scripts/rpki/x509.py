@@ -263,23 +263,23 @@ class X509(DER_object):
     cert.setNotAfter(("UTCTime", POW.pkix.time2utc(notAfter)))
     cert.tbs.subjectPublicKeyInfo.set(subject_key)
 
-    exts = [ ("subjectKeyIdentifier",   False, ski),
-             ("authorityKeyIdentifier", False, (aki, (), None)),
-             ("cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)),
-             ("authorityInfoAccess",    False, aia),
-             ("subjectInfoAccess",      False, sia),
-             ("certificatePolicies",    True,  (((1, 3, 6, 1, 5, 5, 7, 14, 2), ()),)) ]
+    exts = [ ["subjectKeyIdentifier",   False, ski],
+             ["authorityKeyIdentifier", False, (aki, (), None)],
+             ["cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)],
+             ["authorityInfoAccess",    False, aia],
+             ["subjectInfoAccess",      False, sia],
+             ["certificatePolicies",    True,  (((1, 3, 6, 1, 5, 5, 7, 14, 2), ()),)] ]
 
     if is_ca:
-      exts.append(("basicConstraints",  True,  (1, None)))
-      exts.append(("keyUsage",          True,  (0, 0, 0, 0, 0, 1, 1)))
+      exts.append(["basicConstraints",  True,  (1, None)])
+      exts.append(["keyUsage",          True,  (0, 0, 0, 0, 0, 1, 1)])
     else:
-      exts.append(("keyUsage",          True,  (1,)))
+      exts.append(["keyUsage",          True,  (1,)])
 
     if as:
-      exts.append(("sbgp-autonomousSysNum", True, (as.to_tuple(), None)))
+      exts.append(["sbgp-autonomousSysNum", True, (as.to_tuple(), None)])
     if v4 or v6:
-      exts.append(("sbgp-ipAddrBlock", True, [x for x in (v4.to_tuple(), v6.to_tuple()) if x is not None]))
+      exts.append(["sbgp-ipAddrBlock", True, [x for x in (v4.to_tuple(), v6.to_tuple()) if x is not None]])
 
     for x in exts:
       x[0] = POW.pkix.obj2oid(x[0])

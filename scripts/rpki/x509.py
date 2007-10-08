@@ -156,7 +156,6 @@ class X509(DER_object):
 
   formats = ("DER", "POW", "POWpkix", "tlslite")
   pem_converter = PEM_converter("CERTIFICATE")
-  other_clear = ("POW_extensions",)
   
   def get_DER(self):
     """Get the DER value of this certificate."""
@@ -212,20 +211,6 @@ class X509(DER_object):
     """Get the expiration time of this certificate."""
     return POW.pkix.utc2time(self.get_POW().getNotAfter())
 
-  def _get_POW_extensions(self):
-    """Parse extensions from the POW value of this certificate.
-
-    Build a dictionary to ease lookup, and cache the result.
-    """
-    if not self.POW_extensions:
-      cert = self.get_POW()
-      exts = {}
-      for i in range(cert.countExtensions()):
-        x = cert.getExtension(i)
-        exts[x[0]] = x[2]
-      self.POW_extensions = exts
-    return self.POW_extensions
-    
   def get_AKI(self):
     """Get the AKI extension from this certificate."""
     return (self.get_POWpkix().getExtension((2, 5, 29, 35)) or ((), 0, None))[2]
@@ -233,6 +218,14 @@ class X509(DER_object):
   def get_SKI(self):
     """Get the SKI extension from this certificate."""
     return (self.get_POWpkix().getExtension((2, 5, 29, 14)) or ((), 0, None))[2]
+
+  def get_SIA(self):
+    """Get the SIA extension from this certificate."""
+    return (self.get_POWpkix().getExtension((1, 3, 6, 1, 5, 5, 7, 1, 11)) or ((), 0, None))[2]
+
+  def get_AIA(self):
+    """Get the SIA extension from this certificate."""
+    return (self.get_POWpkix().getExtension((1, 3, 6, 1, 5, 5, 7, 1, 1)) or ((), 0, None))[2]
 
   def get_3779resources(self, as_intersector = None, v4_intersector = None, v6_intersector = None):
     """Get RFC 3779 resources as rpki.resource_set objects."""

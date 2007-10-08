@@ -65,13 +65,16 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
       self.cms_ta = rpki.x509.X509(DER=vals["cms_ta"])
     if "https_ta" in vals:
       self.https_ta = rpki.x509.X509(DER=vals["https_ta"])
+    if "private_key_id" in vals:
+      self.private_key_id = rpki.x509.RSA(DER=vals["private_key_id"])
+    if "public_key" in vals:
+      self.public_key = rpki.x509.RSA(DER=vals["public_key"])
 
   def sql_encode(self):
     d = rpki.sql.sql_persistant.sql_encode(self)
-    if "cms_ta" in d:
-      d["cms_ta"] = self.cms_ta.get_DER()
-    if "https_ta" in d:
-      d["https_ta"] = self.https_ta.get_DER()
+    for i in ("cms_ta", "https_ta", "private_key_id", "public_key"):
+      if i in d:
+        d[i] = getattr(self, i).get_DER()
     return d
 
   def make_reply(self, r_pdu=None):
@@ -285,9 +288,9 @@ class bsc_elt(data_elt):
       # Assume no HSM for now.
       #
       keypair = rpki.x509.RSA()
-      keypair.generate(2048)
-      self.private_key_id = keypair.get_DER()
-      self.public_key = keypair.get_public_DER()
+      keypair.generate()
+      self.private_key_id = keypair
+      self.public_key = keypair.get_RSApublic()
       r_pdu.pkcs10_cert_request = rpki.x509.PKCS10.create(keypair)
 
   def startElement(self, stack, name, attrs):
@@ -301,7 +304,7 @@ class bsc_elt(data_elt):
     if name == "signing_cert":
       self.signing_cert.append(rpki.x509.X509(Base64=text))
     elif name == "public_key":
-      self.public_key = base64.b64decode(text)
+      self.public_key = rpki.x509.RSApublic(Base64=text)
     elif name == "pkcs10_cert_request":
       self.pkcs10_cert_request = rpki.x509.PKCS10(Base64=text)
     else:
@@ -315,7 +318,8 @@ class bsc_elt(data_elt):
       self.make_b64elt(elt, "signing_cert", cert.get_DER())
     if self.pkcs10_cert_request is not None:
       self.make_b64elt(elt, "pkcs10_cert_request", self.pkcs10_cert_request.get_DER())
-    self.make_b64elt(elt, "public_key")
+    if self.public_key is not None:
+      self.make_b64elt(elt, "public_key", self.public_key.get_DER())
     return elt
 
 class parent_elt(data_elt):

@@ -240,19 +240,19 @@ class ca_detail_obj(sql_persistant):
   def sql_decode(self, vals):
     sql_persistant.sql_decode(self, vals)
     self.private_key_id = rpki.x509.RSA(DER = self.private_key_id)
-    assert self.public_key is None or self.private_key_id.get_public_DER() == self.public_key
+    self.public_key = rpki.x509.RSApublic(DER = self.public_key)
+    assert self.public_key.get_DER() == self.private_key_id.get_public_DER()
     self.latest_ca_cert = rpki.x509.X509(DER = self.latest_ca_cert)
     self.manifest_private_key_id = rpki.x509.RSA(DER = self.manifest_private_key_id)
-    assert self.manifest_public_key is None or self.manifest_private_key_id.get_public_DER() == self.manifest_public_key
+    self.manifest_public_key = rpki.x509.RSApublic(DER = self.manifest_public_key)
+    assert self.manifest_public_key.get_DER() == self.manifest_private_key_id.get_public_DER()
     self.manifest_cert = rpki.x509.X509(DER = self.manifest_cert)
     raise NotImplementedError, "Still have to handle manifest and CRL"
 
   def sql_encode(self):
     d = sql_persistant.sql_encode(self)
-    d["private_key_id"] = self.private_key_id.get_DER()
-    d["latest_ca_cert"] = self.latest_ca_cert.get_DER()
-    d["manifest_private_key_id"] = self.manifest_private_key_id.get_DER()
-    d["manifest_cert"] = self.manifest_cert.get_DER()
+    for i in ("private_key_id", "public_key", "latest_ca_cert", "manifest_private_key_id", "manifest_public_key", "manifest_cert"):
+      d[i] = getattr(self, i).get_DER()
     raise NotImplementedError, "Still have to handle manifest and CRL"
     return d
 
@@ -281,18 +281,30 @@ class ca_detail_obj(sql_persistant):
     - ca.sia_uri changed, probably need to frob all children.
     """
 
+    raise NotImplementedError, "NIY"
+
     if undersized:
       # If we do end up processing undersized before oversized, we
       # should re-compute our resource sets before oversize processing
       raise NotImplementedError, "Need to issue new PKCS #10 to parent here then recompute resource sets"
 
-    if oversized:
+    if oversized or sia_uri_changed:
       for child_cert in child_cert_obj.sql_fetch_where(gctx, "ca_detail_id = %s" % self.ca_detail_id):
         child_as, child_v4, child_v6 = child_cert.cert.get_3779resources()
-        if not child_as.issubset(as) or not child_v4.issubset(v4) or not child_v6.issubset(v6):
+        if sia_uri_changed or not child_as.issubset(as) or not child_v4.issubset(v4) or not child_v6.issubset(v6):
           child_cert.reissue(gctx, self, as, v4, v6)
 
-    raise NotImplementedError, "NIY"
+  @classmethod
+  def create(cls, gctx, ca_id):
+    """Create a new ca_detail object for a specified CA."""
+    keypair = rpki.x509.RSA()
+    keypair.generate()
+    self = cls()
+    self.ca_id = ca_id
+    self.private_key_id = keypair
+    self.public_key = keypair.get_RSApublic()
+    self.state = "pending"
+    return self
 
 class child_cert_obj(sql_persistant):
   """Certificate that has been issued to a child."""

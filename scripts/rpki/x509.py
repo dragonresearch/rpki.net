@@ -544,9 +544,7 @@ class SignedManifest(DER_object):
     self.clear()
     self.content = content
 
-  def sign(self, keypair, certs, content = None):
-    if content is not None:
-      self.set_content(content)
+  def sign(self, keypair, certs):
     self.DER = rpki.cms.sign(self.content.toString(), keypair, certs)
 
   def verify(self, ta):

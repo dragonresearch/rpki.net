@@ -2,6 +2,9 @@
 
 """Signed manifests.  This is just the ASN.1 encoder, the rest is in
 rpki.x509 with the rest of the DER_object code.
+
+Note that rpki.x509.SignedManifest inmplements the signed manifest;
+the structures here are just the payload of the CMS eContent field.
 """
 
 from POW._der import *

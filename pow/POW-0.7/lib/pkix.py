@@ -1970,7 +1970,7 @@ class Extension(Sequence):
 
    def __init__(self, optional=0, default=''):
       self.extnID = Oid()
-      self.critical = Boolean(0, 'AQEA\n')
+      self.critical = Boolean(0, 'AQEA')
       self.extnValue = OctetString()
       contents = [self.extnID, self.critical, self.extnValue]
       Sequence.__init__(self, contents, optional, default)

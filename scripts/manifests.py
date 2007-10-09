@@ -28,6 +28,8 @@ mani2 = m.get_content()
 
 assert mani1.toString() == mani2.toString()
 
-f = os.popen("dumpasn1 -a - 2>/dev/null", "w")
-f.write(mani2.toString())
-f.close()
+i,o = os.popen4(("dumpasn1", "-a", "-"))
+i.write(mani2.toString())
+i.close()
+print "\n".join(x for x in o.read().splitlines() if x.startswith(" "))
+o.close()

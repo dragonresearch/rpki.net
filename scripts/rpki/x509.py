@@ -552,6 +552,20 @@ class SignedManifest(DER_object):
   def verify(self, ta):
     self.content = rpki.cms.verify(self.get_DER(), ta)
 
+  def build(self, serial, nextUpdate, names_and_objs):
+    filelist = []
+    for name, obj in names_and_objs:
+      d = POW.Digest(POW.SHA256_DIGEST)
+      d.update(obj.get_DER())
+      filelist.append((name.rpartition("/")[2], d.digest()))
+    m = rpki.manifest.Manifest()
+    m.manifestNumber.set(serial)
+    m.thisUpdate.set(POW.pkix.time2gen(time.time()))
+    m.nextUpdate.set(POW.pkix.time2gen(nextUpdate))
+    m.fileHashAlg.set((2, 16, 840, 1, 101, 3, 4, 2, 1)) # id-sha256
+    m.fileList.set(filelist)
+    self.set_content(m)
+
 class CRL(DER_object):
   """Class to hold a Certificate Revocation List."""
 

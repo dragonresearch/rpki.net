@@ -10,8 +10,8 @@ import os, rpki.x509, rpki.exceptions, lxml.etree
 
 # openssl smime -sign -nodetach -outform DER -signer biz-certs/Alice-EE.cer -certfile biz-certs/Alice-CA.cer -inkey biz-certs/Alice-EE.key -in PLAN -out PLAN.der
 
-def encode(xml, keypair, certs):
-  """Encode a chunk of XML as CMS signed with a specified key and bag of certificates.
+def encode(plaintext, keypair, certs):
+  """Encode plaintext as CMS signed with a specified key and bag of certificates.
 
   We have to sort the certificates into the correct order before the
   OpenSSL CLI tool will accept them.  rpki.x509 handles that for us.
@@ -33,7 +33,7 @@ def encode(xml, keypair, certs):
   f.close()
 
   f = open(plaintext_filename, "w")
-  f.write(xml)
+  f.write(plaintext)
   f.close()
 
   i,o = os.popen2(("openssl", "smime", "-sign", "-nodetach", "-outform", "DER", "-signer", signer_filename,
@@ -54,9 +54,8 @@ def encode(xml, keypair, certs):
 def decode(cms, ta):
   """Decode and check the signature of a chunk of CMS.
 
-  Returns the signed text (XML, until proven otherwise) on success.
-  if OpenSSL CLI tool reports anything other than successful
-  verification, we raise an exception.
+  Returns the plaintext on success.  If OpenSSL CLI tool reports
+  anything other than successful verification, we raise an exception.
   """  
 
   ta_filename = "cms.tmp.ta.pem"
@@ -68,7 +67,7 @@ def decode(cms, ta):
   i,o,e = os.popen3(("openssl", "smime", "-verify", "-inform", "DER", "-CAfile", ta_filename))
   i.write(cms)
   i.close()
-  xml = o.read()
+  plaintext = o.read()
   o.close()
   status = e.read()
   e.close()
@@ -76,7 +75,7 @@ def decode(cms, ta):
   os.unlink(ta_filename)
 
   if status == "Verification successful\n":
-    return xml
+    return plaintext
   else:
     raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed with status %s" % status
 

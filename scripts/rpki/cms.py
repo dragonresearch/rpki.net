@@ -10,8 +10,8 @@ import os, rpki.x509, rpki.exceptions, lxml.etree
 
 # openssl smime -sign -nodetach -outform DER -signer biz-certs/Alice-EE.cer -certfile biz-certs/Alice-CA.cer -inkey biz-certs/Alice-EE.key -in PLAN -out PLAN.der
 
-def encode(plaintext, keypair, certs):
-  """Encode plaintext as CMS signed with a specified key and bag of certificates.
+def sign(plaintext, keypair, certs):
+  """Sign plaintext as CMS with specified key and bag of certificates.
 
   We have to sort the certificates into the correct order before the
   OpenSSL CLI tool will accept them.  rpki.x509 handles that for us.
@@ -51,8 +51,8 @@ def encode(plaintext, keypair, certs):
 
 # openssl smime -verify -inform DER -in PLAN.der -CAfile biz-certs/Alice-Root.cer 
 
-def decode(cms, ta):
-  """Decode and check the signature of a chunk of CMS.
+def verify(cms, ta):
+  """Verify the signature of a chunk of CMS.
 
   Returns the plaintext on success.  If OpenSSL CLI tool reports
   anything other than successful verification, we raise an exception.
@@ -80,10 +80,10 @@ def decode(cms, ta):
     raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed with status %s" % status
 
 
-def xml_decode(elt, ta):
-  """Composite routine to decode CMS-wrapped XML."""
-  return lxml.etree.fromstring(decode(elt, ta))
+def xml_verify(elt, ta):
+  """Composite routine to verify CMS-wrapped XML."""
+  return lxml.etree.fromstring(verify(elt, ta))
 
-def xml_encode(elt, key, certs):
-  """Composite routine to encode CMS-wrapped XML."""
-  return encode(lxml.etree.tostring(elt, pretty_print=True, encoding="us-ascii", xml_declaration=True), key, certs)
+def xml_sign(elt, key, certs):
+  """Composite routine to sign CMS-wrapped XML."""
+  return sign(lxml.etree.tostring(elt, pretty_print=True, encoding="us-ascii", xml_declaration=True), key, certs)

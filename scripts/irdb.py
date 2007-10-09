@@ -5,7 +5,7 @@ import rpki.https, rpki.config, rpki.resource_set, rpki.cms
 
 def handler(query, path):
   try:
-    q_xml = rpki.cms.decode(query, cms_ta)
+    q_xml = rpki.cms.verify(query, cms_ta)
     print q_xml
     q_elt = lxml.etree.fromstring(q_xml)
     rng.assertValid(q_elt)
@@ -41,7 +41,7 @@ def handler(query, path):
     r_elt = r_msg.toXML()
     rng.assertValid(r_elt)
     r_xml = lxml.etree.tostring(r_elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
-    r_cms = rpki.cms.encode(r_xml, cfg.get(section, "cms-key"), cfg.multiget(section, "cms-cert"))
+    r_cms = rpki.cms.sign(r_xml, cfg.get(section, "cms-key"), cfg.multiget(section, "cms-cert"))
 
     return 200, r_cms
 

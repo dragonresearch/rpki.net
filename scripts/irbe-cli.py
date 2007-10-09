@@ -144,7 +144,7 @@ while argv:
   argv = q_pdu.client_getopt(argv[1:])
   q_msg.append(q_pdu)
 
-# We don't use rpki.cms.xml_encode() and rpki.cms.xml_decode() because
+# We don't use rpki.cms.xml_sign() and rpki.cms.xml_verify() because
 # we want to display the raw XML.  If and when that changes, we clean
 # up the following slightly.
 
@@ -160,7 +160,7 @@ except lxml.etree.DocumentInvalid:
 print "Sending:"
 print q_xml
 
-q_cms = rpki.cms.encode(q_xml,
+q_cms = rpki.cms.sign(q_xml,
                         rpki.x509.RSA(Auto_file = cfg.get(cfg_section, "cms-key")),
                         rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "cms-cert")))
 
@@ -170,7 +170,7 @@ r_cms = rpki.https.client(privateKey    = rpki.x509.RSA(Auto_file = cfg.get(cfg_
                           url           = cfg.get(cfg_section, "https-url"),
                           msg           = q_cms)
 
-r_xml = rpki.cms.decode(r_cms, rpki.x509.X509(Auto_file = cfg.get(cfg_section, "cms-ta")))
+r_xml = rpki.cms.verify(r_cms, rpki.x509.X509(Auto_file = cfg.get(cfg_section, "cms-ta")))
 
 r_elt = lxml.etree.fromstring(r_xml)
 try:

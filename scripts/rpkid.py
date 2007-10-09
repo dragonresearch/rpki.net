@@ -10,13 +10,13 @@ import rpki.https, rpki.config, rpki.resource_set, rpki.up_down, rpki.left_right
 
 def left_right_handler(query, path):
   try:
-    q_elt = rpki.cms.xml_decode(query, gctx.cms_ta_irbe)
+    q_elt = rpki.cms.xml_verify(query, gctx.cms_ta_irbe)
     rpki.relaxng.left_right.assertValid(q_elt)
     q_msg = rpki.left_right.sax_handler.saxify(q_elt)
     r_msg = q_msg.serve_top_level(gctx)
     r_elt = r_msg.toXML()
     rpki.relaxng.left_right.assertValid(r_elt)
-    return 200, rpki.cms.xml_encode(r_elt, gctx.cms_key, gctx.cms_certs)
+    return 200, rpki.cms.xml_sign(r_elt, gctx.cms_key, gctx.cms_certs)
   except Exception, data:
     traceback.print_exc()
     return 500, "Unhandled exception %s" % data

@@ -383,9 +383,9 @@ class parent_elt(data_elt):
     q_msg = rpki.up_down.message_pdu.make_query(q_pdu)
     q_elt = q_msg.toXML()
     rpki.relaxng.up_down.assertValid(q_elt)
-    q_cms = rpki.cms.xml_encode(q_elt, bsc.private_key_id, bsc.signing_cert)
+    q_cms = rpki.cms.xml_sign(q_elt, bsc.private_key_id, bsc.signing_cert)
     r_cms = self.client_up_down_reply(gctx, q_pdu, rpki.https.client(x509TrustList = rpki.x509.X509_chain(self.https_ta), msg = q_cms, url = self.peer_contact_uri))
-    r_elt = rpki.cms.xml_decode(r_cms, self.cms_ta)
+    r_elt = rpki.cms.xml_verify(r_cms, self.cms_ta)
     rpki.relaxng.up_down.assertValid(r_elt)
     return rpki.up_down.sax_handler.saxify(r_elt)
 
@@ -431,7 +431,7 @@ class child_elt(data_elt):
     bsc = bsc_elt.sql_fetch(gctx, self.bsc_id)
     if bsc is None:
       raise rpki.exceptions.NotFound, "Could not find BSC %s" % self.bsc_id
-    q_elt = rpki.cms.xml_decode(query, self.cms_ta)
+    q_elt = rpki.cms.xml_verify(query, self.cms_ta)
     rpki.relaxng.up_down.assertValid(q_elt)
     q_msg = rpki.up_down.sax_handler.saxify(q_elt)
     if q_msg.sender != str(self.child_id):
@@ -439,7 +439,7 @@ class child_elt(data_elt):
     r_msg = q_msg.serve_top_level(gctx, self)
     r_elt = r_msg.toXML()
     rpki.relaxng.up_down.assertValid(r_elt)
-    return rpki.cms.xml_encode(r_elt, bsc.private_key_id, bsc.signing_cert)
+    return rpki.cms.xml_sign(r_elt, bsc.private_key_id, bsc.signing_cert)
 
 class repository_elt(data_elt):
   """<repository/> element."""
@@ -648,13 +648,13 @@ def irdb_query(gctx, self_id, child_id=None):
   q_msg[0].child_id = child_id
   q_elt = q_msg.toXML()
   rpki.relaxng.left_right.assertValid(q_elt)
-  q_cms = rpki.cms.xml_encode(q_elt, gctx.cms_key, gctx.cms_certs)
+  q_cms = rpki.cms.xml_sign(q_elt, gctx.cms_key, gctx.cms_certs)
   r_cms = rpki.https.client(privateKey    = gctx.https_key,
                             certChain     = gctx.https_certs,
                             x509TrustList = gctx.https_tas,
                             url           = gctx.irdb_url,
                             msg           = q_cms)
-  r_elt = rpki.cms.xml_decode(r_cms, gctx.cms_ta_irbe)
+  r_elt = rpki.cms.xml_verify(r_cms, gctx.cms_ta_irbe)
   rpki.relaxng.left_right.assertValid(r_elt)
   r_msg = rpki.left_right.sax_handler.saxify(r_elt)
   if len(r_msg) != 0 or not isinstance(r_msg[0], list_resources_elt) or r_msg[0].type != "reply":

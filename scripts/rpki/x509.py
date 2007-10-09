@@ -536,3 +536,42 @@ class Manifest(DER_object):
       mani.fromString(self.get_DER())
       self.POWpkix = mani
     return self.POWpkix
+
+  # Need .sign() and .verify() methods, but this kind of breaks the
+  # DER_object model, as the POWpkix object is not the entire DER
+  # object, just the part inside the CMS wrapper.
+
+class CRL(DER_object):
+  """Class to hold a Certificate Revocation List."""
+
+  formats = ("DER", "POW", "POWpkix")
+  pem_converter = PEM_converter("X509 CRL")
+  
+  def get_DER(self):
+    """Get the DER value of this CRL."""
+    assert not self.empty()
+    if self.DER:
+      return self.DER
+    if self.POW:
+      self.DER = self.POW.derWrite()
+      return self.get_DER()
+    if self.POWpkix:
+      self.DER = self.POWpkix.toString()
+      return self.get_DER()
+    raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
+
+  def get_POW(self):
+    """Get the POW value of this CRL."""
+    assert not self.empty()
+    if not self.POW:
+      self.POW = POW.derRead(POW.X509_CRL, self.get_DER())
+    return self.POW
+
+  def get_POWpkix(self):
+    """Get the POW.pkix value of this CRL."""
+    assert not self.empty()
+    if not self.POWpkix:
+      crl = POW.pkix.CertificateList()
+      crl.fromString(self.get_DER())
+      self.POWpkix = crl
+    return self.POWpkix

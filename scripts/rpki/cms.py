@@ -36,7 +36,7 @@ def sign(plaintext, keypair, certs):
   f.write(plaintext)
   f.close()
 
-  i,o = os.popen2(("openssl", "smime", "-sign", "-nodetach", "-outform", "DER", "-signer", signer_filename,
+  i,o = os.popen2(("openssl", "smime", "-sign", "-nodetach", "-outform", "DER", "-binary", "-signer", signer_filename,
                    "-certfile", certfile_filename, "-inkey", "/dev/stdin", "-in", plaintext_filename))
   i.write(keypair.get_PEM())
   i.close()
@@ -64,7 +64,7 @@ def verify(cms, ta):
   f.write(ta.get_PEM())
   f.close()
 
-  i,o,e = os.popen3(("openssl", "smime", "-verify", "-inform", "DER", "-CAfile", ta_filename))
+  i,o,e = os.popen3(("openssl", "smime", "-verify", "-inform", "DER", "-binary", "-CAfile", ta_filename))
   i.write(cms)
   i.close()
   plaintext = o.read()

@@ -548,7 +548,10 @@ class SignedManifest(DER_object):
     self.DER = rpki.cms.sign(self.content.toString(), keypair, certs)
 
   def verify(self, ta):
-    self.content = rpki.cms.verify(self.get_DER(), ta)
+    m = rpki.manifest.Manifest()
+    s = rpki.cms.verify(self.get_DER(), ta)
+    m.fromString(s)
+    self.content = m
 
   def build(self, serial, nextUpdate, names_and_objs):
     filelist = []
@@ -557,6 +560,7 @@ class SignedManifest(DER_object):
       d.update(obj.get_DER())
       filelist.append((name.rpartition("/")[2], d.digest()))
     m = rpki.manifest.Manifest()
+    m.version.set(0)
     m.manifestNumber.set(serial)
     m.thisUpdate.set(POW.pkix.time2gen(time.time()))
     m.nextUpdate.set(POW.pkix.time2gen(nextUpdate))

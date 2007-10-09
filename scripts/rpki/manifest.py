@@ -23,6 +23,7 @@ class FilesAndHashes(SequenceOf):
 class Manifest(Sequence):
   def __init__(self, optional=0, default=''):
     self.version        = Integer(0, "AgEA")
+    #self.version        = Integer()
     self.manifestNumber = Integer()
     self.thisUpdate     = GeneralizedTime()
     self.nextUpdate     = GeneralizedTime()

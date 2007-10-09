@@ -12,7 +12,7 @@ from POW._der import *
 class FileAndHash(Sequence):
   def __init__(self, optional=0, default=''):
     self.file = IA5String()
-    self.hash = BitString()
+    self.hash = AltBitString()
     contents = [ self.file, self.hash ]
     Sequence.__init__(self, contents, optional, default)
 

@@ -512,10 +512,20 @@ class RSApublic(DER_object):
     d.update(self.get_DER())
     return d.digest()
 
-class Manifest(DER_object):
-  """Class to hold a signed manifest."""
+class SignedManifest(DER_object):
+  """Class to hold a signed manifest.
 
-  formats = ("DER", "POWpkix")
+  Signed manifests are a little different from the other DER_object
+  types because the signed object is CMS wrapping inner content that's
+  also ASN.1, and due to our current minimal support for CMS we can't
+  just handle this as a pretty composite object.  So, for now anyway,
+  this SignedManifest object refers to the outer CMS wrapped manifest
+  so that the usual DER and PEM operations do the obvious things, and
+  the inner content is handle via separate methods using rpki.manifest.
+  """
+
+  formats = ("DER",)
+  other_clear = ("content",)
   pem_converter = PEM_converter("RPKI MANIFEST")
   
   def get_DER(self):
@@ -523,23 +533,24 @@ class Manifest(DER_object):
     assert not self.empty()
     if self.DER:
       return self.DER
-    if self.POWpkix:
-      self.DER = self.POWpkix.toString()
-      return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
-  def get_POWpkix(self):
-    """Get the POW.pkix value of this manifest."""
-    assert not self.empty()
-    if not self.POWpkix:
-      mani = rpki.manifest.Manifest()
-      mani.fromString(self.get_DER())
-      self.POWpkix = mani
-    return self.POWpkix
+  def get_content(self):
+    """Get the inner content of this manifest."""
+    assert self.content is not None
+    return self.content
 
-  # Need .sign() and .verify() methods, but this kind of breaks the
-  # DER_object model, as the POWpkix object is not the entire DER
-  # object, just the part inside the CMS wrapper.
+  def set_content(self, content):
+    self.clear()
+    self.content = content
+
+  def sign(self, keypair, certs, content = None):
+    if content is not None:
+      self.set_content(content)
+    self.DER = rpki.cms.sign(self.content.toString(), keypair, certs)
+
+  def verify(self, ta):
+    self.content = rpki.cms.verify(self.get_DER(), ta)
 
 class CRL(DER_object):
   """Class to hold a Certificate Revocation List."""

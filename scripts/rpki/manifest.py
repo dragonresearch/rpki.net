@@ -1,8 +1,7 @@
 # $Id$
 
-"""Signed manifests.
-
-At the moment this is just the ASN.1 encoder.
+"""Signed manifests.  This is just the ASN.1 encoder, the rest is in
+rpki.x509 with the rest of the DER_object code.
 """
 
 from POW._der import *

@@ -34,3 +34,6 @@ class BadContactURL(Exception):
 
 class BadClassNameSyntax(Exception):
   """Illegal syntax for a class_name."""
+
+class BadIssueResponse(Exception):
+  """issue_response PDU with wrong number of classes or certificates."""

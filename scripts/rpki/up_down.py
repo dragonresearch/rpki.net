@@ -297,12 +297,8 @@ class issue_pdu(base_elt):
     r_msg.payload.classes.append(rc)
 
   @classmethod
-  def query(cls, gctx, parent, ca, ca_detail = None):
+  def query(cls, gctx, parent, ca, ca_detail):
     """Send an "issue" request to parent associated with ca."""
-    if ca_detail is None:
-      ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx, ca.ca_id)
-    if ca_detail is None:
-      ca_detail = rpki.sql.ca_detail_obj.create(gctx, ca)
     assert ca_detail is not None and ca_detail.state != "deprecated"
     sia = (((1, 3, 6, 1, 5, 5, 7, 48, 5),  ("uri", ca.sia_uri)),
            ((1, 3, 6, 1, 5, 5, 7, 48, 10), ("uri", ca.sia_uri + ca_detail.public_key.gSKI() + ".mnf")))
@@ -314,7 +310,12 @@ class issue_pdu(base_elt):
 class issue_response_pdu(class_response_syntax):
   """Up-Down protocol "issue_response" PDU."""
 
-  pass
+  def check(self):
+    """Check whether this looks like a reasonable issue_response PDU.
+    XML schema should be tighter for this response.
+    """
+    if len(self.classes) != 1 or len(self.classes[0].certs) != 1:
+      raise rpki.exceptions.BadIssueResponse
 
 class revoke_syntax(base_elt):
   """Syntax for Up-Down protocol "revoke" and "revoke_response" PDUs."""

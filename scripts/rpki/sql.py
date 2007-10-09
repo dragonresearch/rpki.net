@@ -225,15 +225,12 @@ class ca_obj(sql_persistant):
     self.parent_id = parent.parent_id
     self.sql_store(gctx)
     self.sia_uri = self.construct_sia_uri(gctx, parent, rc)
-
-    # Well, ok, I can issue the request easily enough, but the twisty
-    # maze of code that has to decipher the response looks an awful
-    # lot like the twisty maze of code that got us here in the first
-    # place, suggesting that some refactoring might be in order....
-
-    issue_response = rpki.up_down.issue_pdu.query(gctx, parent, self)
-
-    raise NotImplementedError, "NIY"
+    ca_detail = ca_detail_obj.create(gctx, self)
+    issue_response = rpki.up_down.issue_pdu.query(gctx, parent, self, ca_detail)
+    issue_response.check()
+    ca_detail.latest_ca_cert = issue_response.classes[0].certs[0]
+    ca_detail.state = "active"
+    ca_detail.sql_mark_dirty()
 
   def delete(self, gctx):
     """Parent's list of current resource classes doesn't include the
@@ -291,24 +288,11 @@ class ca_detail_obj(sql_persistant):
 
     - ca.sia_uri changed, probably need to frob all children.
     """
-
-    raise NotImplementedError, "NIY"
-
     if undersized:
-
       issue_response = rpki.up_down.issue_pdu.query(gctx, parent, ca, self)
-
-      # Now we just have to figure out what to do with the response,
-      # which looks an awful lot like the PDU that got us here in the
-      # first place.   Round and round and round we go....
-
-      # After requesting a new cert we need to recompute our resource
-      # sets before oversize processing, since our resources may have
-      # changed again during the window between list_response and
-      # issue_response.
-
-      raise NotImplementedError, "Need to issue new PKCS #10 to parent here then recompute resource sets"
-
+      issue_response.check()
+      self.latest_ca_cert = issue_response.classes[0].certs[0]
+      as, v4, v6 = self.latest_ca_cert.get_3779resources()
     if oversized or sia_uri_changed:
       for child_cert in child_cert_obj.sql_fetch_where(gctx, "ca_detail_id = %s" % self.ca_detail_id):
         child_as, child_v4, child_v6 = child_cert.cert.get_3779resources()
@@ -341,3 +325,6 @@ class child_cert_obj(sql_persistant):
     d = sql_persistant.sql_encode(self)
     d["cert"] = self.cert.get_DER()
     return d
+
+  def reissue(self, gctx, ca_detail, as, v4, v6):
+    raise NotImplementedError, "NIY"

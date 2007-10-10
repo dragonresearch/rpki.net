@@ -254,14 +254,14 @@ class ca_detail_obj(sql_persistant):
     self.manifest_private_key_id = rpki.x509.RSA(DER = self.manifest_private_key_id)
     self.manifest_public_key = rpki.x509.RSApublic(DER = self.manifest_public_key)
     assert self.manifest_public_key.get_DER() == self.manifest_private_key_id.get_public_DER()
-    self.manifest_cert = rpki.x509.X509(DER = self.manifest_cert)
-    raise NotImplementedError, "Still have to handle manifest and CRL"
+    self.latest_manifest_cert = rpki.x509.X509(DER = self.latest_manifest_cert)
+    self.latest_manifest = rpki.x509.SignedManifest(DER = self.latest_manifest)
+    self.latest_crl = rpki.x509.CRL(DER = self.latest_crl)
 
   def sql_encode(self):
     d = sql_persistant.sql_encode(self)
-    for i in ("private_key_id", "public_key", "latest_ca_cert", "manifest_private_key_id", "manifest_public_key", "manifest_cert"):
+    for i in ("private_key_id", "public_key", "latest_ca_cert", "manifest_private_key_id", "manifest_public_key", "latest_manifest_cert", "latest_manifest", "latest_crl"):
       d[i] = getattr(self, i).get_DER()
-    raise NotImplementedError, "Still have to handle manifest and CRL"
     return d
 
   @classmethod

@@ -7,8 +7,8 @@ show_signed_manifest_PEM        = False
 show_signed_manifest_asn1dump   = True
 show_content_2                  = False
 show_content_3                  = False
-dump_signed_manifest_DER        = True
-dump_manifest_content_DER       = True
+dump_signed_manifest_DER        = False
+dump_manifest_content_DER       = False
 
 def dumpasn1(thing):
   # Save to file rather than using popen4() because dumpasn1 uses
@@ -62,5 +62,6 @@ if show_content_2:
 assert m.get_content().toString() == n.get_content().toString()
 assert m.get_content().get()      == n.get_content().get()
 
-print
-print n.get_content().get()
+if show_content_3:
+  print
+  print n.get_content().get()

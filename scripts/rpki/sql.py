@@ -239,6 +239,24 @@ class ca_obj(sql_persistant):
     """
     raise NotImplementedError, "NIY"
 
+  def next_serial(self):
+    """Allocate a certificate serial number."""
+    self.last_issued_sn += 1
+    self.sql_mark_dirty()
+    return self.last_issued_sn
+
+  def next_manifest(self):
+    """Allocate a manifest serial number."""
+    self.last_manifest_sn += 1
+    self.sql_mark_dirty()
+    return self.last_manifest_sn
+
+  def next_crl(self):
+    """Allocate a CRL serial number."""
+    self.last_crl_sn += 1
+    self.sql_mark_dirty()
+    return self.last_crl_sn
+
 class ca_detail_obj(sql_persistant):
   """Internal CA detail object."""
 

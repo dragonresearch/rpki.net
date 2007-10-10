@@ -144,6 +144,33 @@ class DER_object(object):
     """
     return base64.b64encode(self.get_SKI()).replace("+", "-").replace("/", "_")
 
+  def get_AKI(self):
+    """Get the AKI extension from this object.  Only works for subclasses that support getExtension()."""
+    return (self.get_POWpkix().getExtension((2, 5, 29, 35)) or ((), 0, None))[2]
+
+  def get_SKI(self):
+    """Get the SKI extension from this object.  Only works for subclasses that support getExtension()."""
+    return (self.get_POWpkix().getExtension((2, 5, 29, 14)) or ((), 0, None))[2]
+
+  def get_SIA(self):
+    """Get the SIA extension from this object.  Only works for subclasses that support getExtension()."""
+    return (self.get_POWpkix().getExtension((1, 3, 6, 1, 5, 5, 7, 1, 11)) or ((), 0, None))[2]
+
+  def get_AIA(self):
+    """Get the SIA extension from this object.  Only works for subclasses that support getExtension()."""
+    return (self.get_POWpkix().getExtension((1, 3, 6, 1, 5, 5, 7, 1, 1)) or ((), 0, None))[2]
+
+  def get_3779resources(self, as_intersector = None, v4_intersector = None, v6_intersector = None):
+    """Get RFC 3779 resources as rpki.resource_set objects.  Only works for subclasses that support getExtensions()."""
+    as, v4, v6 = rpki.resource_set.parse_extensions(self.get_POWpkix().getExtensions())
+    if as_intersector is not None:
+      as = as.intersection(as_intersector)
+    if v4_intersector is not None:
+      v4 = v4.intersection(v4_intersector)
+    if v6_intersector is not None:
+      v6 = v6.intersection(v6_intersector)
+    return as, v4, v6
+
 class X509(DER_object):
   """X.509 certificates.
 
@@ -211,32 +238,9 @@ class X509(DER_object):
     """Get the expiration time of this certificate."""
     return POW.pkix.utc2time(self.get_POW().getNotAfter())
 
-  def get_AKI(self):
-    """Get the AKI extension from this certificate."""
-    return (self.get_POWpkix().getExtension((2, 5, 29, 35)) or ((), 0, None))[2]
-
-  def get_SKI(self):
-    """Get the SKI extension from this certificate."""
-    return (self.get_POWpkix().getExtension((2, 5, 29, 14)) or ((), 0, None))[2]
-
-  def get_SIA(self):
-    """Get the SIA extension from this certificate."""
-    return (self.get_POWpkix().getExtension((1, 3, 6, 1, 5, 5, 7, 1, 11)) or ((), 0, None))[2]
-
-  def get_AIA(self):
-    """Get the SIA extension from this certificate."""
-    return (self.get_POWpkix().getExtension((1, 3, 6, 1, 5, 5, 7, 1, 1)) or ((), 0, None))[2]
-
-  def get_3779resources(self, as_intersector = None, v4_intersector = None, v6_intersector = None):
-    """Get RFC 3779 resources as rpki.resource_set objects."""
-    as, v4, v6 = rpki.resource_set.parse_extensions(self.get_POWpkix().getExtensions())
-    if as_intersector is not None:
-      as = as.intersection(as_intersector)
-    if v4_intersector is not None:
-      v4 = v4.intersection(v4_intersector)
-    if v6_intersector is not None:
-      v6 = v6.intersection(v6_intersector)
-    return as, v4, v6
+  def getPublicKey(self):
+    """Extract the public key from this certificate."""
+    return RSApublic(DER = self.get_POWpkix().tbs.subjectPublicKeyInfo.toString())
 
   def issue(self, keypair, subject_key, serial, sia, aia, crldp, cn = None, notAfter = None, as = None, v4 = None, v6 = None, is_ca = True):
 
@@ -261,7 +265,7 @@ class X509(DER_object):
     cert.setSubject(((((2, 5, 4, 3), ("printableString", cn)),),))
     cert.setNotBefore(("UTCTime", POW.pkix.time2utc(now)))
     cert.setNotAfter(("UTCTime", POW.pkix.time2utc(notAfter)))
-    cert.tbs.subjectPublicKeyInfo.set(subject_key)
+    cert.tbs.subjectPublicKeyInfo.fromString(subject_key.get_DER())
 
     exts = [ ["subjectKeyIdentifier",   False, ski],
              ["authorityKeyIdentifier", False, (aki, (), None)],
@@ -379,6 +383,10 @@ class PKCS10(DER_object):
       req.fromString(self.get_DER())
       self.POWpkix = req
     return self.POWpkix
+
+  def getPublicKey(self):
+    """Extract the public key from this certification request."""
+    return RSApublic(DER = self.get_POWpkix().certificationRequestInfo.subjectPublicKeyInfo.toString())
 
   def check_valid_rpki(self):
     """Check this certification request to see whether it's a valid

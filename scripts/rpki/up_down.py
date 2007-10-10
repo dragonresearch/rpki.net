@@ -245,18 +245,18 @@ class issue_pdu(base_elt):
     #
     # Step 2: See whether we can just return the current child cert
     rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(rpki.left_right.irdb_query(gctx, child.self_id, child.child_id))
-    pubkey = self.certificationRequestInfo.subjectPublicKeyInfo.get()
-    req_sia = self.pkcs10.get_POWpkix().getExtension(name2oid["subjectInfoAccess"])
+    pubkey = self.pkcs10.getPublicKey()
+    req_sia = self.pkcs10.get_SIA()
     #
     # This next search loop might be an argument for a child_cert.ski column
     for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
-      if child_cert.cert.get_POWpkix().tbs.subjectPublicKeyInfo.get() == pubkey:
+      if child_cert.cert.getPublicKey() == pubkey:
         break
     else:
       child_cert = None
     if child_cert is not None and ((rc_as, rc_v4, rc_v6) != child_cert.cert.get_3779resources()):
       child_cert = None
-    if child_cert is not None and child_cert.cert.get_POWpkix().getExtension(name2oid["subjectInfoAccess"]) != req_sia:
+    if child_cert is not None and child_cert.cert.get_SIA() != req_sia:
       child_cert = None
     # Do we need to check certificate expiration here too?  Maybe we
     # can just trust the cron job that handles renewals for that?
@@ -264,14 +264,12 @@ class issue_pdu(base_elt):
     # Step 3: If we didn't find a reusable cert, generate a new one.
     if child_cert is None:
       # Some of this code probably should become a method of rpki.sql.ca_obj
-      ca.last_issued_sn += 1
-      ca.sql_mark_dirty()
       child_cert = rpki.sql.child_cert_obj()
       child_cert.child_id = child.child_id
       child_cert.ca_detail_id = ca_detail.ca_detail_id
       child_cert.cert = ca_detail.latest_ca_cert.issue(keypair = ca_detail.private_key_id,
                                                        subject_key = pubkey,
-                                                       serial = ca.last_issued_sn,
+                                                       serial = ca.next_serial(),
                                                        aia = ca_detail.ca_cert_uri,
                                                        crldp = ca.sia_uri + ca_detail.latest_ca_cert.gSKI() + ".crl",
                                                        sia = req_sia,

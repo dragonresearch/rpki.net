@@ -7,6 +7,8 @@ show_signed_manifest_PEM        = False
 show_signed_manifest_asn1dump   = True
 show_content_2                  = False
 show_content_3                  = False
+dump_signed_manifest_DER        = True
+dump_manifest_content_DER       = True
 
 def dumpasn1(thing):
   # Save to file rather than using popen4() because dumpasn1 uses
@@ -36,6 +38,16 @@ m.sign(keypair = rpki.x509.RSA(Auto_file = "biz-certs/Alice-EE.key"),
 
 if show_signed_manifest_PEM:
   print m.get_PEM()
+
+if dump_manifest_content_DER:
+  f = open("manifest-content.der", "w")
+  f.write(m.get_content().toString())
+  f.close()
+
+if dump_signed_manifest_DER:
+  f = open("signed-manifest.der", "w")
+  f.write(m.get_DER())
+  f.close()
 
 if show_signed_manifest_asn1dump:
   dumpasn1(m.get_DER())

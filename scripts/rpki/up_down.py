@@ -245,39 +245,56 @@ class issue_pdu(base_elt):
     #
     # Step 2: See whether we can just return the current child cert
     rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(rpki.left_right.irdb_query(gctx, child.self_id, child.child_id))
-    pubkey = self.pkcs10.getPublicKey()
+    req_key = self.pkcs10.getPublicKey()
     req_sia = self.pkcs10.get_SIA()
     #
     # This next search loop might be an argument for a child_cert.ski column
     for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
-      if child_cert.cert.getPublicKey() == pubkey:
+      if child_cert.cert.getPublicKey() == req_key:
         break
     else:
       child_cert = None
+
+    # Hmm, these next checks no longer seem reasonable in context.  If
+    # we found the matching public key/SKI, we've found the right
+    # child_cert object, the question now is whether it's out of date.
+    # Generating a new one while leaving the old isn't right.
+    #
+    # Right path here is probably to check for matching child_cert
+    # (above), generate a new one if we don't find it, otherwise
+    # update the one we found if necessary, finally return the result
+    # in any case.
+    #
+    # Haven't yet sorted out whether this should be
+    # ca_detail.reissue() or child_cert.reissue(), probably the former
+    # as issuance itself is done by the ca and done to the cert.  Most
+    # likely we end up with some common code which takes an optional
+    # pkcs10 object, takes values from pkcs10 if supplied, else from
+    # the prior cert if one exists, else raises an exception.
+
+    raise NotImplementedError, "This section needs rethinking"
+
     if child_cert is not None and ((rc_as, rc_v4, rc_v6) != child_cert.cert.get_3779resources()):
       child_cert = None
     if child_cert is not None and child_cert.cert.get_SIA() != req_sia:
       child_cert = None
     # Do we need to check certificate expiration here too?  Maybe we
     # can just trust the cron job that handles renewals for that?
-    #
+
     # Step 3: If we didn't find a reusable cert, generate a new one.
     if child_cert is None:
-      # Some of this code probably should become a method of rpki.sql.ca_obj
-      child_cert = rpki.sql.child_cert_obj()
-      child_cert.child_id = child.child_id
-      child_cert.ca_detail_id = ca_detail.ca_detail_id
-      child_cert.cert = ca_detail.latest_ca_cert.issue(keypair = ca_detail.private_key_id,
-                                                       subject_key = pubkey,
-                                                       serial = ca.next_serial(),
-                                                       aia = ca_detail.ca_cert_uri,
-                                                       crldp = ca.sia_uri + ca_detail.latest_ca_cert.gSKI() + ".crl",
-                                                       sia = req_sia,
-                                                       as = rc_as,
-                                                       v4 = rc_v4,
-                                                       v6 = rc_v6)
-      child_cert.sql_mark_dirty()
-
+      # This should become a method of rpki.sql.ca_detail_obj
+      child_cert = rpki.sql.child_cert_obj(child_id = child.child_id,
+                                           ca_detail_id = ca_detail.ca_detail_id,
+                                           cert = ca_detail.latest_ca_cert.issue(keypair = ca_detail.private_key_id,
+                                                                                 subject_key = req_key,
+                                                                                 serial = ca.next_serial(),
+                                                                                 aia = ca_detail.ca_cert_uri,
+                                                                                 crldp = ca.sia_uri + ca_detail.latest_ca_cert.gSKI() + ".crl",
+                                                                                 sia = req_sia,
+                                                                                 as = rc_as,
+                                                                                 v4 = rc_v4,
+                                                                                 v6 = rc_v6))
       raise NotImplementedError, "Should generate a new manifest, should publish newly-created certificate"
 
     # Save anything we modified and generate response

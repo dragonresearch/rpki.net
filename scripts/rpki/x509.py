@@ -559,6 +559,7 @@ class SignedManifest(DER_object):
       d = POW.Digest(POW.SHA256_DIGEST)
       d.update(obj.get_DER())
       filelist.append((name.rpartition("/")[2], d.digest()))
+    filelist.sort(key = lambda x: x[0])
     m = rpki.manifest.Manifest()
     m.version.set(0)
     m.manifestNumber.set(serial)

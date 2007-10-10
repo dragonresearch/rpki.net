@@ -335,6 +335,13 @@ class child_cert_obj(sql_persistant):
 
   sql_template = template("child_cert", "child_cert_id", "cert", "child_id", "ca_detail_id")
 
+  def __init__(self, child_id = None, ca_detail_id = None, cert = None):
+    self.child_id = child_id
+    self.ca_detail_id = ca_detail_id
+    self.cert = cert
+    if child_id or ca_detail_id or cert:
+      self.sql_mark_dirty()
+
   def sql_decode(self, vals):
     sql_persistant.sql_decode(self, vals)
     self.cert = rpki.x509.X509(DER = self.cert)

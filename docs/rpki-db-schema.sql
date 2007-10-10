@@ -5,6 +5,7 @@ DROP TABLE IF EXISTS self;
 CREATE TABLE self (
        self_id              SERIAL NOT NULL,
        use_hsm              BOOLEAN,
+       crl_interval         BIGINT unsigned,
        PRIMARY KEY          (self_id)
 );
 

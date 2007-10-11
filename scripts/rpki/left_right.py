@@ -54,12 +54,14 @@ class base_elt(object):
       lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap=nsmap).text = base64.b64encode(value)
 
   def __str__(self):
+    """Convert a base_elt object to string format."""
     lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="us-ascii")
 
 class data_elt(base_elt, rpki.sql.sql_persistant):
   """Virtual class for top-level left-right protocol data elements."""
 
   def sql_decode(self, vals):
+    """Decode SQL form of a data_elt object."""
     rpki.sql.sql_persistant.sql_decode(self, vals)
     if "cms_ta" in vals:
       self.cms_ta = rpki.x509.X509(DER=vals["cms_ta"])
@@ -71,6 +73,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
       self.public_key = rpki.x509.RSA(DER=vals["public_key"])
 
   def sql_encode(self):
+    """Encode SQL form of a data_elt object."""
     d = rpki.sql.sql_persistant.sql_encode(self)
     for i in ("cms_ta", "https_ta", "private_key_id", "public_key"):
       if i in d:
@@ -78,6 +81,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
     return d
 
   def make_reply(self, r_pdu=None):
+    """Construct a reply PDU."""
     if r_pdu is None:
       r_pdu = self.__class__()
       r_pdu.self_id = self.self_id
@@ -87,12 +91,15 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
     return r_pdu
 
   def serve_pre_save_hook(self, q_pdu, r_pdu):
+    """Overridable hook."""
     pass
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
+    """Overridable hook."""
     pass
 
   def serve_create(self, gctx, r_msg):
+    """Handle a create action."""
     r_pdu = self.make_reply()
     self.serve_pre_save_hook(self, r_pdu)
     self.sql_store(gctx.db, gctx.cur)
@@ -101,6 +108,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
     r_msg.append(r_pdu)
 
   def serve_set(self, gctx, r_msg):
+    """Handle a set action."""
     db_pdu = self.sql_fetch(gctx, getattr(self, self.sql_template.index))
     if db_pdu is not None:
       r_pdu = self.make_reply()
@@ -117,6 +125,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
       r_msg.append(make_error_report(self))
 
   def serve_get(self, gctx, r_msg):
+    """Handle a get action."""
     r_pdu = self.sql_fetch(gctx, getattr(self, self.sql_template.index))
     if r_pdu is not None:
       self.make_reply(r_pdu)
@@ -125,11 +134,13 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
       r_msg.append(make_error_report(self))
 
   def serve_list(self, gctx, r_msg):
+    """Handle a list action."""
     for r_pdu in self.sql_fetch_all(gctx.db, gctx.cur):
       self.make_reply(r_pdu)
       r_msg.append(r_pdu)
 
   def serve_destroy(self, gctx, r_msg):
+    """Handle a destroy action."""
     db_pdu = self.sql_fetch(gctx, getattr(self, self.sql_template.index))
     if db_pdu is not None:
       db_pdu.sql_delete(gctx.db, gctx.cur)
@@ -138,6 +149,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
       r_msg.append(make_error_report(self))
 
   def serve_dispatch(self, gctx, r_msg):
+    """Action dispatch handler."""
     dispatch = { "create"  : self.serve_create,
                  "set"     : self.serve_set,
                  "get"     : self.serve_get,
@@ -183,9 +195,11 @@ class self_elt(data_elt):
   use_hsm = False
 
   def __init__(self):
+    """Initialize a self_elt."""
     self.prefs = []
 
   def sql_fetch_hook(self, gctx):
+    """Extra SQL fetch actions for self_elt -- handle extension preferences."""
     gctx.cur.execute("SELECT pref_name, pref_value FROM self_pref WHERE self_id = %s", self.self_id)
     for name, value in gctx.cur.fetchall():
       e = extension_preference_elt()
@@ -194,20 +208,24 @@ class self_elt(data_elt):
       self.prefs.append(e)
 
   def sql_insert_hook(self, gctx):
+    """Extra SQL insert actions for self_elt -- handle extension preferences."""
     if self.prefs:
       gctx.cur.executemany("INSERT self_pref (self_id, pref_name, pref_value) VALUES (%s, %s, %s)",
                            ((e.name, e.value, self.self_id) for e in self.prefs))
   
   def sql_delete_hook(self, gctx):
+    """Extra SQL delete actions for self_elt -- handle extension preferences."""
     gctx.cur.execute("DELETE FROM self_pref WHERE self_id = %s", self.self_id)
 
   def serve_pre_save_hook(self, q_pdu, r_pdu):
+    """Extra server actions for self_elt -- handle extension preferences."""
     if self is not q_pdu:
       if q_pdu.clear_extension_preferences:
         self.prefs = []
       self.prefs.extend(pdu.prefs)
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
+    """Extra server actions for self_elt."""
     if self.rekey or self.reissue or self.revoke or self.run_now or self.publish_world_now:
       raise NotImplementedError, "Unimplemented control %s" % ", ".join(b for b in ("rekey", "reissue", "revoke", "run_now", "publish_world_now") if getattr(self, b))
 
@@ -264,20 +282,25 @@ class bsc_elt(data_elt):
   private_key_id = None
 
   def __init__(self):
+    """Initialize bsc_elt.""" 
     self.signing_cert = []
 
   def sql_fetch_hook(self, gctx):
+    """Extra SQL fetch actions for bsc_elt -- handle signing certs."""
     gctx.cur.execute("SELECT cert FROM bsc_cert WHERE bsc_id = %s", self.bsc_id)
     self.signing_cert = [rpki.x509.X509(DER=x) for (x,) in gctx.cur.fetchall()]
 
   def sql_insert_hook(self, gctx):
+    """Extra SQL insert actions for bsc_elt -- handle signing certs."""
     if self.signing_cert:
       gctx.cur.executemany("INSERT bsc_cert (cert, bsc_id) VALUES (%s, %s)", ((x.get_DER(), self.bsc_id) for x in self.signing_cert))
 
   def sql_delete_hook(self, gctx):
+    """Extra SQL delete actions for bsc_elt -- handle signing certs."""
     gctx.cur.execute("DELETE FROM bsc_cert WHERE bsc_id = %s", self.bsc_id)
 
   def serve_pre_save_hook(self, q_pdu, r_pdu):
+    """Extra server actions for bsc_elt -- handle signing certs and key generation."""
     if self is not q_pdu:
       if q_pdu.clear_signing_certs:
         self.signing_cert = []
@@ -336,6 +359,7 @@ class parent_elt(data_elt):
   https_ta = None
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
+    """"Extra server actions for parent_elt."""
     if self.rekey or self.reissue or self.revoke:
       raise NotImplementedError, "Unimplemented control %s" % ", ".join(b for b in ("rekey", "reissue", "revoke") if getattr(self, b))
 
@@ -402,6 +426,7 @@ class child_elt(data_elt):
   cms_ta = None
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
+    """Extra server actions for child_elt."""
     if self.reissue:
       raise NotImplementedError, "Unimplemented control %s" % ", ".join(b for b in ("reissue",) if getattr(self, b))
 
@@ -491,6 +516,7 @@ class route_origin_elt(data_elt):
   roa = None
 
   def sql_fetch_hook(self, gctx):
+    """Extra SQL fetch actions for route_origin_elt -- handle address ranges."""
     self.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(gctx.cur,
                                                              "SELECT start_ip, end_ip FROM route_origin_range WHERE route_origin_id = %s AND start_ip NOT LIKE '%:%'",
                                                              self.route_origin_id)
@@ -499,14 +525,17 @@ class route_origin_elt(data_elt):
                                                              self.route_origin_id)
 
   def sql_insert_hook(self, gctx):
+    """Extra SQL insert actions for route_origin_elt -- handle address ranges."""
     if self.ipv4 + self.ipv6:
       gctx.cur.executemany("INSERT route_origin_range (route_origin_id, start_ip, end_ip) VALUES (%s, %s, %s)",
                            ((self.route_origin_id, x.min, x.max) for x in self.ipv4 + self.ipv6))
   
   def sql_delete_hook(self, gctx):
+    """Extra SQL delete actions for route_origin_elt -- handle address ranges."""
     gctx.cur.execute("DELETE FROM route_origin_range WHERE route_origin_id = %s", self.route_origin_id)
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
+    """Extra server actions for route_origin_elt."""
     if self.suppress_publication:
       raise NotImplementedError, "Unimplemented control %s" % ", ".join(b for b in ("suppress_publication",) if getattr(self, b))
 
@@ -601,6 +630,7 @@ class msg(list):
     stack.pop()
 
   def __str__(self):
+    """Convert msg object to string."""
     lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="us-ascii")
 
   def toXML(self):
@@ -610,6 +640,7 @@ class msg(list):
     return elt
 
   def serve_top_level(self, gctx):
+    """Serve one msg PDU."""
     r_msg = self.__class__()
     for q_pdu in self:
       q_pdu.serve_dispatch(gctx, r_msg)

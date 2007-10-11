@@ -124,6 +124,7 @@ CREATE TABLE child_cert (
        child_cert_id        SERIAL NOT NULL,
        cert                 LONGBLOB NOT NULL,
        child_id             BIGINT unsigned NOT NULL,
+       ski                  TINYBLOB NOT NULL,
        ca_detail_id         BIGINT unsigned NOT NULL,
        PRIMARY KEY          (child_cert_id),
        FOREIGN KEY          (ca_detail_id) REFERENCES ca_detail,

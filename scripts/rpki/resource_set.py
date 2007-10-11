@@ -20,11 +20,13 @@ class resource_range(object):
   """
 
   def __init__(self, min, max):
+    """Initialize and sanity check a resource_range."""
     assert min <= max, "Mis-ordered range: %s before %s" % (str(min), str(max))
     self.min = min
     self.max = max
 
   def __cmp__(self, other):
+    """Compare two resource_range objects."""
     c = self.min - other.min
     if c == 0: c = self.max - other.max
     if c < 0:  c = -1
@@ -38,12 +40,14 @@ class resource_range_as(resource_range):
   """
 
   def __str__(self):
+    """Convert a resource_range_as to string format."""
     if self.min == self.max:
       return str(self.min)
     else:
       return str(self.min) + "-" + str(self.max)
 
   def to_tuple(self):
+    """Convert a resource_range_as to tuple format for ASN.1 encoding."""
     if self.min == self.max:
       return ("id", self.min)
     else:
@@ -57,6 +61,7 @@ class resource_range_ip(resource_range):
   """
 
   def _prefixlen(self):
+    """Determine whether a resource_range_ip can be expressed as a prefix."""
     mask = self.min ^ self.max
     prefixlen = self.addr_type.bits
     while mask & 1:
@@ -68,6 +73,7 @@ class resource_range_ip(resource_range):
       return prefixlen
 
   def __str__(self):
+    """Convert a resource_range_ip to string format."""
     prefixlen = self._prefixlen()
     if prefixlen < 0:
       return str(self.min) + "-" + str(self.max)
@@ -75,6 +81,7 @@ class resource_range_ip(resource_range):
       return str(self.min) + "/" + str(prefixlen)
 
   def to_tuple(self):
+    """Convert a resource_range_ip to tuple format for ASN.1 encoding."""
     prefixlen = self._prefixlen()
     if prefixlen < 0:
       return ("addressRange", (_long2bs(self.min, self.addr_type.bits, strip = 0),
@@ -113,6 +120,7 @@ class resource_set(list):
   """
 
   def __init__(self, ini=None):
+    """Initialize a resource_set."""
     if isinstance(ini, long):
       ini = str(ini)
     if isinstance(ini, str) and len(ini):
@@ -129,6 +137,7 @@ class resource_set(list):
         assert self[i].max < self[i+1].min, "Resource overlap: %s %s" % (self[i], self[i+1])
 
   def __str__(self):
+    """Convert a resource_set to string format."""
     return ",".join(map(str, self))
 
   def _comm(self, other):

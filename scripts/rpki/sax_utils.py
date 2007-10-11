@@ -19,6 +19,7 @@ class handler(xml.sax.handler.ContentHandler):
   """
 
   def __init__(self):
+    """Initialize SAX handler."""
     self.text = ""
     self.stack = []
 

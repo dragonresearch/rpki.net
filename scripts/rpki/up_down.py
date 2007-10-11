@@ -62,6 +62,7 @@ class base_elt(object):
       lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap=nsmap).text = base64.b64encode(value)
 
   def serve_pdu(self, gctx, q_msg, r_msg, child):
+    """Default PDU handler to catch unexpected types."""
     raise rpki.exceptions.BadQuery, "Unexpected query type %s" % q_msg.type
 
 class multi_uri(list):
@@ -80,6 +81,7 @@ class multi_uri(list):
       raise TypeError
 
   def __str__(self):
+    """Convert a multi_uri back to a string representation."""
     return ",".join(self)
 
   def rsync(self):
@@ -116,6 +118,7 @@ class class_elt(base_elt):
   """Up-Down protocol representation of a resource class."""
 
   def __init__(self):
+    """Initialize class_elt."""
     self.certs = []
 
   def startElement(self, stack, name, attrs):
@@ -189,6 +192,7 @@ class class_response_syntax(base_elt):
   """Syntax for Up-Down protocol "list_response" and "issue_response" PDUs."""
 
   def __init__(self):
+    """Initialize class_response_syntax."""
     self.classes = []
 
   def startElement(self, stack, name, attrs):
@@ -232,6 +236,7 @@ class issue_pdu(base_elt):
     return [elt]
 
   def serve_pdu(self, gctx, q_msg, r_msg, child):
+    """Serve one issue request PDU."""
     #
     # Step 1: Check the request
     if not self.class_name.isdigit():
@@ -247,13 +252,10 @@ class issue_pdu(base_elt):
     rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(rpki.left_right.irdb_query(gctx, child.self_id, child.child_id))
     req_key = self.pkcs10.getPublicKey()
     req_sia = self.pkcs10.get_SIA()
-    #
-    # This next search loop might be an argument for a child_cert.ski column
-    for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
-      if child_cert.cert.getPublicKey() == req_key:
-        break
-    else:
-      child_cert = None
+    req_ski = self.pkcs10.get_SKI()
+    child_cert = rpki.sql.child_cert_obj.sql_fetch_where(gctx, "child_id = %s AND ca_detail_id = %s AND ski = %s" % (child.child_id, ca_detail.ca_detail_id, req_ski))
+    assert len(child_cert) < 2
+    child_cert = child_cert[0] if child_cert else None
 
     # Hmm, these next checks no longer seem reasonable in context.  If
     # we found the matching public key/SKI, we've found the right
@@ -346,8 +348,13 @@ class revoke_syntax(base_elt):
 
 class revoke_pdu(revoke_syntax):
   """Up-Down protocol "revoke" PDU."""
+    
+  def get_SKI(self):
+    """Convert g(SKI) encoding from PDU back to raw SKI."""
+    return base64.b64decode(self.ski.replace("_", "/").replace("-", "+"))
 
   def serve_pdu(self, gctx, q_msg, r_msg, child):
+    """Serve one revoke request PDU."""
     if not self.class_name.isdigit():
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
     ca_id = long(self.class_name)
@@ -355,11 +362,8 @@ class revoke_pdu(revoke_syntax):
     ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx, ca_id)
     if ca is None or ca_detail is None:
       raise rpki.exceptions.NotInDatabase
-    ski = base64.b64decode(self.ski.replace("_", "/").replace("-", "+"))
-    # This next search loop might be an argument for a child_cert.ski column
-    for c in rpki.sql.child_cert_obj.sql_fetch_where(gctx, "child_id = %s AND ca_detail_id = %s" % (child.child_id, ca_detail.ca_detail_id)):
-      if c.cert.get_SKI() == ski:
-        c.sql_delete()
+    for c in rpki.sql.child_cert_obj.sql_fetch_where(gctx, "child_id = %s AND ca_detail_id = %s AND ski = %s" % (child.child_id, ca_detail.ca_detail_id, self.get_SKI())):
+      c.sql_delete()
     r_msg.payload = revoke_response_pdu()
     r_msg.payload.class_name = self.class_name
     r_msg.payload.ski = self.ski
@@ -454,9 +458,11 @@ class message_pdu(base_elt):
     stack.append(self.payload)
 
   def __str__(self):
+    """Convert a message PDU to a string."""
     lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="UTF-8")
 
   def serve_top_level(self, gctx, child):
+    """Serve one message request PDU."""
     r_msg = message_pdu()
     r_msg.sender = self.receiver
     r_msg.receiver = self.sender
@@ -465,6 +471,7 @@ class message_pdu(base_elt):
 
   @classmethod
   def make_query(cls, payload, sender = "tweedledee", recipient = "tweedledum"):
+    """Construct one message PDU."""
     assert not self.type2name[type(payload)].endswith("_response")
     self = cls()
     self.sender = sender

@@ -10,6 +10,7 @@ import ConfigParser
 class parser(ConfigParser.RawConfigParser):
 
   def __init__(self, file=None):
+    """Initialize this parser."""
     ConfigParser.RawConfigParser.__init__(self)
     if file:
       self.read(file)

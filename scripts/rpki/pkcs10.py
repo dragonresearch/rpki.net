@@ -23,6 +23,7 @@ CN = %s
 '''
 
 def make_request(keypair):
+  """Generate a PKCS #10 request."""
 
   digest = POW.Digest(POW.SHA1_DIGEST)
   digest.update(keypair.get_POW().derWrite(POW.RSA_PUBLIC_KEY))

@@ -50,6 +50,7 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   rpki_handlers = None                  # Subclass must bind
 
   def rpki_find_handler(self):
+    """Helper method to search self.rpki_handlers."""
     for s,h in self.rpki_handlers:
       if self.path.startswith(s):
         return h

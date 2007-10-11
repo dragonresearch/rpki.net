@@ -19,10 +19,12 @@ class PEM_converter(object):
   """Convert between DER and PEM encodings for various kinds of ASN.1 data."""
 
   def __init__(self, kind):    # "CERTIFICATE", "RSA PRIVATE KEY", ...
+    """Initialize PEM_converter."""
     self.b = "-----BEGIN %s-----" % kind
     self.e = "-----END %s-----"   % kind
 
   def looks_like_PEM(self, text):
+    """Guess whether text looks like a PEM encoding."""
     b = text.find(self.b)
     return b >= 0 and text.find(self.e) > b + len(self.b)
 
@@ -73,6 +75,7 @@ class DER_object(object):
       setattr(self, a, None)
 
   def __init__(self, **kw):
+    """Initialize a DER_object."""
     self.clear()
     if len(kw):
       self.set(**kw)
@@ -243,6 +246,7 @@ class X509(DER_object):
     return RSApublic(DER = self.get_POWpkix().tbs.subjectPublicKeyInfo.toString())
 
   def issue(self, keypair, subject_key, serial, sia, aia, crldp, cn = None, notAfter = None, as = None, v4 = None, v6 = None, is_ca = True):
+    """Issue a certificate."""
 
     now = time.time()
 
@@ -301,6 +305,7 @@ class X509_chain(list):
   """
 
   def __init__(self, *args, **kw):
+    """Initialize an X509_chain."""
     if args:
       self[:] = args
     elif "PEM_files" in kw:
@@ -459,6 +464,7 @@ class RSA(DER_object):
   pem_converter = PEM_converter("RSA PRIVATE KEY")
   
   def get_DER(self):
+    """Get the DER value of this keypair."""
     assert not self.empty()
     if self.DER:
       return self.DER
@@ -468,30 +474,36 @@ class RSA(DER_object):
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
   def get_POW(self):
+    """Get the POW value of this keypair."""
     assert not self.empty()
     if not self.POW:
       self.POW = POW.derRead(POW.RSA_PRIVATE_KEY, self.get_DER())
     return self.POW
 
   def get_tlslite(self):
+    """Get the tlslite value of this keypair."""
     assert not self.empty()
     if not self.tlslite:
       self.tlslite = tlslite.api.parsePEMKey(self.get_PEM(), private=True)
     return self.tlslite
 
   def generate(self, keylength = 2048):
+    """Generate a new keypair."""
     self.clear()
     self.set(POW=POW.Asymmetric(POW.RSA_CIPHER, keylength))
 
   def get_public_DER(self):
+    """Get the DER encoding of the public key from this keypair."""
     return self.get_POW().derWrite(POW.RSA_PUBLIC_KEY)
 
   def get_SKI(self):
+    """Calculate the SKI of this keypair."""
     d = POW.Digest(POW.SHA1_DIGEST)
     d.update(self.get_public_DER())
     return d.digest()
 
   def get_RSApublic(self):
+    """Convert the public key of this keypair into a RSApublic object."""
     return RSApublic(DER = self.get_public_DER())
 
 class RSApublic(DER_object):
@@ -501,6 +513,7 @@ class RSApublic(DER_object):
   pem_converter = PEM_converter("RSA PUBLIC KEY")
   
   def get_DER(self):
+    """Get the DER value of this public key."""
     assert not self.empty()
     if self.DER:
       return self.DER
@@ -510,12 +523,14 @@ class RSApublic(DER_object):
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
   def get_POW(self):
+    """Get the POW value of this public key."""
     assert not self.empty()
     if not self.POW:
       self.POW = POW.derRead(POW.RSA_PUBLIC_KEY, self.get_DER())
     return self.POW
 
   def get_SKI(self):
+    """Calculate the SKI of this public key."""
     d = POW.Digest(POW.SHA1_DIGEST)
     d.update(self.get_DER())
     return d.digest()
@@ -549,19 +564,23 @@ class SignedManifest(DER_object):
     return self.content
 
   def set_content(self, content):
+    """Set the (inner) content of this manifest, clearing the wrapper."""
     self.clear()
     self.content = content
 
   def sign(self, keypair, certs):
+    """Sign this manifest."""
     self.DER = rpki.cms.sign(self.content.toString(), keypair, certs)
 
   def verify(self, ta):
+    """Verify this manifest."""
     m = rpki.manifest.Manifest()
     s = rpki.cms.verify(self.get_DER(), ta)
     m.fromString(s)
     self.content = m
 
   def build(self, serial, nextUpdate, names_and_objs):
+    """Build the inner content of this manifest."""
     filelist = []
     for name, obj in names_and_objs:
       d = POW.Digest(POW.SHA256_DIGEST)

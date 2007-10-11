@@ -13,6 +13,7 @@ def connect(cfg, section="sql"):
 class template(object):
   """SQL template generator."""
   def __init__(self, table_name, *columns):
+    """Build a SQL template."""
     index_column = columns[0]
     data_columns = columns[1:]
     self.table   = table_name
@@ -61,6 +62,7 @@ class sql_persistant(object):
 
   @classmethod
   def sql_fetch(cls, gctx, id):
+    """Fetch one object from SQL, based on its primary key."""
     results = cls.sql_fetch_where(gctx, "%s = %s" % (cls.sql_template.index, id))
     assert len(results) <= 1
     if len(results) == 0:
@@ -72,10 +74,12 @@ class sql_persistant(object):
 
   @classmethod
   def sql_fetch_all(cls, gctx):
+    """Fetch all objects of this type from SQL."""
     return cls.sql_fetch_where(gctx, None)
 
   @classmethod
   def sql_fetch_where(cls, gctx, where):
+    """Fetch objects of this type matching an arbitrary SQL WHERE expression."""
     if where is None:
       gctx.cur.execute(cls.sql_template.select)
     else:
@@ -91,6 +95,7 @@ class sql_persistant(object):
 
   @classmethod
   def sql_init(cls, gctx, row, key):
+    """Initialize one Python object from the result of a SQL query."""
     self = cls()
     self.sql_decode(dict(zip(cls.sql_template.columns, row)))
     sql_cache[key] = self
@@ -99,15 +104,19 @@ class sql_persistant(object):
     return self
 
   def sql_mark_dirty(self):
+    """Mark this object as needing to be written back to SQL."""
     sql_dirty.add(self)
 
   def sql_mark_clean(self):
+    """Mark this object as not needing to be written back to SQL."""
     sql_dirty.discard(self)
 
   def sql_is_dirty(self):
+    """Query whether this object needs to be written back to SQL."""
     return self in sql_dirty
 
   def sql_store(self, gctx):
+    """Store this object to SQL."""
     if not self.sql_in_db:
       gctx.cur.execute(self.sql_template.insert, self.sql_encode())
       setattr(self, self.sql_template.index, gctx.cur.lastrowid)
@@ -122,6 +131,7 @@ class sql_persistant(object):
     self.sql_in_db = True
 
   def sql_delete(self, gctx):
+    """Delete this object from SQL."""
     if self.sql_in_db:
       id = getattr(self, self.sql_template.index)
       gctx.cur.execute(self.sql_template.delete, id)
@@ -264,6 +274,7 @@ class ca_detail_obj(sql_persistant):
                           "manifest_public_key", "latest_manifest_cert", "latest_manifest", "latest_crl", "state", "ca_cert_uri", "ca_id")
 
   def sql_decode(self, vals):
+    """Decode SQL representation of a ca_detail_obj."""
     sql_persistant.sql_decode(self, vals)
     self.private_key_id = rpki.x509.RSA(DER = self.private_key_id)
     self.public_key = rpki.x509.RSApublic(DER = self.public_key)
@@ -277,6 +288,7 @@ class ca_detail_obj(sql_persistant):
     self.latest_crl = rpki.x509.CRL(DER = self.latest_crl)
 
   def sql_encode(self):
+    """Encode SQL representation of a ca_detail_obj."""
     d = sql_persistant.sql_encode(self)
     for i in ("private_key_id", "public_key", "latest_ca_cert", "manifest_private_key_id", "manifest_public_key", "latest_manifest_cert", "latest_manifest", "latest_crl"):
       d[i] = getattr(self, i).get_DER()
@@ -284,6 +296,7 @@ class ca_detail_obj(sql_persistant):
 
   @classmethod
   def sql_fetch_active(cls, gctx, ca_id):
+    """Fetch the current active ca_detail_obj associated with a given ca_id."""
     actives = cls.sql_fetch_where(gctx, "ca_id = %s AND state = 'active'" % ca_id)
     assert len(actives) < 2, "Found more than one 'active' ca_detail record, this should not happen!"
     if actives:
@@ -336,6 +349,7 @@ class child_cert_obj(sql_persistant):
   sql_template = template("child_cert", "child_cert_id", "cert", "child_id", "ca_detail_id")
 
   def __init__(self, child_id = None, ca_detail_id = None, cert = None):
+    """Initialize a child_cert_obj."""
     self.child_id = child_id
     self.ca_detail_id = ca_detail_id
     self.cert = cert
@@ -343,13 +357,16 @@ class child_cert_obj(sql_persistant):
       self.sql_mark_dirty()
 
   def sql_decode(self, vals):
+    """Decode SQL representation of a child_cert_obj."""
     sql_persistant.sql_decode(self, vals)
     self.cert = rpki.x509.X509(DER = self.cert)
 
   def sql_encode(self):
+    """Encode SQL representation of a child_cert_obj."""
     d = sql_persistant.sql_encode(self)
     d["cert"] = self.cert.get_DER()
     return d
 
   def reissue(self, gctx, ca_detail, as, v4, v6):
+    """Reissue an existing child_cert_obj."""
     raise NotImplementedError, "NIY"

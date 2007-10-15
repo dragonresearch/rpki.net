@@ -343,6 +343,38 @@ class ca_detail_obj(sql_persistant):
     self.sql_store(gctx)
     return self
 
+  def issue(self, gctx, ca, child, subject_key, sia, as, v4, v6, child_cert = None):
+    """Issue a new certificate to a child.
+
+    Need to figure out how to share code between issuance of a new
+    child_cert and reissuance of an existing child cert.  If I
+    understand this correctly, the difference is that in the former
+    case we're pulling stuff from a PKCS #10, in the latter we're
+    pulling it from the previous cert.  If this theory is correct,
+    then this method needs to take an extra optional argument which is
+    a child_cert object to update, and we create a new one if none is
+    given.  child_cert.reissue() becomes the routine that fishes all
+    the right information out of the existing cert then calls this
+    method to finish the job.
+    """
+    cert = self.latest_ca_cert.issue(keypair = self.private_key_id,
+                                     subject_key = subject_key,
+                                     serial = ca.next_serial(),
+                                     aia = self.ca_cert_uri,
+                                     crldp = ca.sia_uri + self.latest_ca_cert.gSKI() + ".crl",
+                                     sia = sia,
+                                     as = rc_as,
+                                     v4 = rc_v4,
+                                     v6 = rc_v6)
+    if child_cert is None:
+      return rpki.sql.child_cert_obj(child_id = child.child_id,
+                                     ca_detail_id = self.ca_detail_id,
+                                     cert = cert)
+    else:
+      assert child_cert.child_id == child.child_id and child_cert.ca_detail_id == self.ca_detail_id
+      child_cert.cert = cert
+      return child_cert
+
 class child_cert_obj(sql_persistant):
   """Certificate that has been issued to a child."""
 
@@ -368,5 +400,8 @@ class child_cert_obj(sql_persistant):
     return d
 
   def reissue(self, gctx, ca_detail, as, v4, v6):
-    """Reissue an existing child_cert_obj."""
+    """Reissue an existing child_cert_obj.
+
+    See doc for ca_detail_obj.issue().
+    """
     raise NotImplementedError, "NIY"

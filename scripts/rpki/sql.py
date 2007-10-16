@@ -366,6 +366,9 @@ class ca_detail_obj(sql_persistant):
                                      as = rc_as,
                                      v4 = rc_v4,
                                      v6 = rc_v6)
+
+    raise NotImplementedError, "Should generate a new manifest, should publish newly-created certificate"
+
     if child_cert is None:
       return rpki.sql.child_cert_obj(child_id = child.child_id,
                                      ca_detail_id = self.ca_detail_id,
@@ -405,3 +408,6 @@ class child_cert_obj(sql_persistant):
     See doc for ca_detail_obj.issue().
     """
     raise NotImplementedError, "NIY"
+
+    x = self.cert.get_POWpkix()
+    

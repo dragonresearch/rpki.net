@@ -285,19 +285,13 @@ class issue_pdu(base_elt):
 
     # Step 3: If we didn't find a reusable cert, generate a new one.
     if child_cert is None:
-      # This should become a method of rpki.sql.ca_detail_obj
-      child_cert = rpki.sql.child_cert_obj(child_id = child.child_id,
-                                           ca_detail_id = ca_detail.ca_detail_id,
-                                           cert = ca_detail.latest_ca_cert.issue(keypair = ca_detail.private_key_id,
-                                                                                 subject_key = req_key,
-                                                                                 serial = ca.next_serial(),
-                                                                                 aia = ca_detail.ca_cert_uri,
-                                                                                 crldp = ca.sia_uri + ca_detail.latest_ca_cert.gSKI() + ".crl",
-                                                                                 sia = req_sia,
-                                                                                 as = rc_as,
-                                                                                 v4 = rc_v4,
-                                                                                 v6 = rc_v6))
-      raise NotImplementedError, "Should generate a new manifest, should publish newly-created certificate"
+      child_cert = rpki.sql.ca_detail_obj.issue(ca = ca,
+                                                child = child,
+                                                subject_key = req_key,
+                                                sia = req_sia,
+                                                as = rc_as,
+                                                v4 = rc_v4,
+                                                v6 = rc_v6)
 
     # Save anything we modified and generate response
     rpki.sql.sql_sweep(gctx)

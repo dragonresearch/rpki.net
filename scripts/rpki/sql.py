@@ -403,11 +403,12 @@ class child_cert_obj(sql_persistant):
     return d
 
   def reissue(self, gctx, ca_detail, as, v4, v6):
-    """Reissue an existing child_cert_obj.
-
-    See doc for ca_detail_obj.issue().
-    """
-    raise NotImplementedError, "NIY"
-
-    x = self.cert.get_POWpkix()
-    
+    """Reissue an existing child_cert_obj."""
+    return ca_detail.issue(gctx = gctx,
+                           child = rpki.left_right.child_elt.sql_fetch(gctx, self.child_id),
+                           subject_key = self.cert.getPublicKey(),
+                           sia = self.cert.get_SIA(),
+                           as = as,
+                           v4 = v4,
+                           v6 = v6,
+                           child_cert = self)

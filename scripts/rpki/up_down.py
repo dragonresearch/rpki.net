@@ -237,8 +237,8 @@ class issue_pdu(base_elt):
 
   def serve_pdu(self, gctx, q_msg, r_msg, child):
     """Serve one issue request PDU."""
-    #
-    # Step 1: Check the request
+
+    # Check the request
     if not self.class_name.isdigit():
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
     ca_id = long(self.class_name)
@@ -247,8 +247,8 @@ class issue_pdu(base_elt):
     if ca is None or ca_detail is None:
       raise rpki.exceptions.NotInDatabase
     self.pkcs10.check_valid_rpki()
-    #
-    # Step 2: See whether we can just return the current child cert
+
+    # Check current cert, if any
     rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(rpki.left_right.irdb_query(gctx, child.self_id, child.child_id))
     req_key = self.pkcs10.getPublicKey()
     req_sia = self.pkcs10.get_SIA()
@@ -257,33 +257,8 @@ class issue_pdu(base_elt):
     assert len(child_cert) < 2
     child_cert = child_cert[0] if child_cert else None
 
-    # Hmm, these next checks no longer seem reasonable in context.  If
-    # we found the matching public key/SKI, we've found the right
-    # child_cert object, the question now is whether it's out of date.
-    # Generating a new one while leaving the old isn't right.
-    #
-    # Right path here is probably to check for matching child_cert
-    # (above), generate a new one if we don't find it, otherwise
-    # update the one we found if necessary, finally return the result
-    # in any case.
-    #
-    # Haven't yet sorted out whether this should be
-    # ca_detail.reissue() or child_cert.reissue(), probably the former
-    # as issuance itself is done by the ca and done to the cert.  Most
-    # likely we end up with some common code which takes an optional
-    # pkcs10 object, takes values from pkcs10 if supplied, else from
-    # the prior cert if one exists, else raises an exception.
+    # Generate new cert or regenerate old one if necessary
 
-    raise NotImplementedError, "This section needs rethinking"
-
-    if child_cert is not None and ((rc_as, rc_v4, rc_v6) != child_cert.cert.get_3779resources()):
-      child_cert = None
-    if child_cert is not None and child_cert.cert.get_SIA() != req_sia:
-      child_cert = None
-    # Do we need to check certificate expiration here too?  Maybe we
-    # can just trust the cron job that handles renewals for that?
-
-    # Step 3: If we didn't find a reusable cert, generate a new one.
     if child_cert is None:
       child_cert = rpki.sql.ca_detail_obj.issue(ca = ca,
                                                 child = child,
@@ -292,6 +267,14 @@ class issue_pdu(base_elt):
                                                 as = rc_as,
                                                 v4 = rc_v4,
                                                 v6 = rc_v6)
+    elif (child_cert is not None and ((rc_as, rc_v4, rc_v6) != child_cert.cert.get_3779resources())) or \
+         (child_cert is not None and child_cert.cert.get_SIA() != req_sia):
+      child_cert.reissue(gctx = gctx,
+                         ca_detail = ca_detail,
+                         as = as,
+                         v4 = v4,
+                         v6 = v6,
+                         sia = req_sia)
 
     # Save anything we modified and generate response
     rpki.sql.sql_sweep(gctx)

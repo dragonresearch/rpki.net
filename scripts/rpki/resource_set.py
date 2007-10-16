@@ -103,7 +103,8 @@ def _rsplit(rset, that):
   """Split a resource range into two resource ranges."""
   this = rset.pop(0)
   cell_type = type(this.min)
-  assert type(this) is type(that) and type(this.max) is cell_type and type(that.min) is cell_type and type(that.max) is cell_type
+  assert type(this) is type(that) and type(this.max) is cell_type and \
+         type(that.min) is cell_type and type(that.max) is cell_type
   if this.min < that.min:
     rset.insert(0, type(this)(this.min, cell_type(that.min - 1)))
     rset.insert(1, type(this)(that.min, this.max))

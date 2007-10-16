@@ -164,7 +164,9 @@ class DER_object(object):
     return (self.get_POWpkix().getExtension((1, 3, 6, 1, 5, 5, 7, 1, 1)) or ((), 0, None))[2]
 
   def get_3779resources(self, as_intersector = None, v4_intersector = None, v6_intersector = None):
-    """Get RFC 3779 resources as rpki.resource_set objects.  Only works for subclasses that support getExtensions()."""
+    """Get RFC 3779 resources as rpki.resource_set objects.
+    Only works for subclasses that support getExtensions().
+    """
     as, v4, v6 = rpki.resource_set.parse_extensions(self.get_POWpkix().getExtensions())
     if as_intersector is not None:
       as = as.intersection(as_intersector)
@@ -245,7 +247,8 @@ class X509(DER_object):
     """Extract the public key from this certificate."""
     return RSApublic(DER = self.get_POWpkix().tbs.subjectPublicKeyInfo.toString())
 
-  def issue(self, keypair, subject_key, serial, sia, aia, crldp, cn = None, notAfter = None, as = None, v4 = None, v6 = None, is_ca = True):
+  def issue(self, keypair, subject_key, serial, sia, aia, crldp,
+            cn = None, notAfter = None, as = None, v4 = None, v6 = None, is_ca = True):
     """Issue a certificate."""
 
     now = time.time()
@@ -407,9 +410,12 @@ class PKCS10(DER_object):
       raise rpki.exceptions.BadPKCS10, "Signature check failed"
 
     if self.get_POWpkix().certificationRequestInfo.version != 0:
-      raise rpki.exceptions.BadPKCS10, "Bad version number %s" % self.get_POWpkix().certificationRequestInfo.version
+      raise rpki.exceptions.BadPKCS10, \
+            "Bad version number %s" % self.get_POWpkix().certificationRequestInfo.version
 
-    if oid2name.get(self.get_POWpkix().signatureAlgorithm) not in ("sha256WithRSAEncryption", "sha384WithRSAEncryption", "sha512WithRSAEncryption"):
+    if oid2name.get(self.get_POWpkix().signatureAlgorithm) not in ("sha256WithRSAEncryption",
+                                                                   "sha384WithRSAEncryption",
+                                                                   "sha512WithRSAEncryption"):
       raise rpki.exceptions.BadPKCS10, "Bad signature algorithm %s" % self.get_POWpkix().signatureAlgorithm
 
     exts = self.getExtensions()
@@ -428,7 +434,8 @@ class PKCS10(DER_object):
       raise rpki.exceptions.BadPKCS10, "keyUsage doesn't match basicConstraints"
 
     for method, location in req_exts.get("subjectInfoAccess", ()):
-      if oid2name.get(method) == "caRepository" and (location[0] != "uri" or (location[1].startswith("rsync://") and not location[1].endswith("/"))):
+      if oid2name.get(method) == "caRepository" and \
+           (location[0] != "uri" or (location[1].startswith("rsync://") and not location[1].endswith("/"))):
         raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %s" % location
 
     # This one is an implementation restriction.  I don't yet
@@ -449,9 +456,11 @@ class PKCS10(DER_object):
   @classmethod
   def create(cls, keypair, exts = None):
     """Create a new request for a given keypair, including given SIA value."""
+    cn = "".join(("%02X" % ord(i) for i in keypair.get_SKI()))
     req = POW.pkix.CertificationRequest()
     req.certificationRequestInfo.version.set(0)
-    req.certificationRequestInfo.subject.set((((POW.pkix.obj2oid("commonName"), ("printableString", "".join(("%02X" % ord(i) for i in keypair.get_SKI())))),),))
+    req.certificationRequestInfo.subject.set((((POW.pkix.obj2oid("commonName"),
+                                                ("printableString", cn)),),))
     if exts is not None:
       req.setExtension(exts)
     req.sign(keypair.get_POW(), POW.SHA256_DIGEST)

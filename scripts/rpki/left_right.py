@@ -3,7 +3,8 @@
 """RPKI "left-right" protocol."""
 
 import base64, lxml.etree, time
-import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.https, rpki.up_down, rpki.relaxng
+import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions
+import rpki.https, rpki.up_down, rpki.relaxng
 
 xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
@@ -227,7 +228,10 @@ class self_elt(data_elt):
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for self_elt."""
     if self.rekey or self.reissue or self.revoke or self.run_now or self.publish_world_now:
-      raise NotImplementedError, "Unimplemented control %s" % ", ".join(b for b in ("rekey", "reissue", "revoke", "run_now", "publish_world_now") if getattr(self, b))
+      raise NotImplementedError, \
+            "Unimplemented control %s" % ", ".join(b for b in ("rekey", "reissue", "revoke",
+                                                               "run_now", "publish_world_now")
+                                                   if getattr(self, b))
 
   def startElement(self, stack, name, attrs):
     """Handle <self/> element."""
@@ -255,7 +259,8 @@ class self_elt(data_elt):
     """Run the regular client poll cycle with each of this self's parents in turn."""
     for parent in parent_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id):
       r_pdu = rpki.up_down.list_pdu(gctx, parent)
-      ca_map = dict((ca.parent_resource_class, ca) for ca in rpki.sql.ca_obj.sql_fetch_where(gctx, "parent_id = %s", parent.parent_id))
+      ca_map = dict((ca.parent_resource_class, ca)
+                    for ca in rpki.sql.ca_obj.sql_fetch_where(gctx, "parent_id = %s", parent.parent_id))
       for rc in r_pdu.payload:
         if rc.class_name in ca_map:
           ca = ca_map[rc.class_name]
@@ -293,7 +298,8 @@ class bsc_elt(data_elt):
   def sql_insert_hook(self, gctx):
     """Extra SQL insert actions for bsc_elt -- handle signing certs."""
     if self.signing_cert:
-      gctx.cur.executemany("INSERT bsc_cert (cert, bsc_id) VALUES (%s, %s)", ((x.get_DER(), self.bsc_id) for x in self.signing_cert))
+      gctx.cur.executemany("INSERT bsc_cert (cert, bsc_id) VALUES (%s, %s)",
+                           ((x.get_DER(), self.bsc_id) for x in self.signing_cert))
 
   def sql_delete_hook(self, gctx):
     """Extra SQL delete actions for bsc_elt -- handle signing certs."""
@@ -349,11 +355,13 @@ class parent_elt(data_elt):
   """<parent/> element."""
 
   element_name = "parent"
-  attributes = ("action", "type", "self_id", "parent_id", "bsc_id", "repository_id", "peer_contact_uri", "sia_base")
+  attributes = ("action", "type", "self_id", "parent_id", "bsc_id", "repository_id",
+                "peer_contact_uri", "sia_base")
   elements = ("cms_ta", "https_ta")
   booleans = ("rekey", "reissue", "revoke")
 
-  sql_template = rpki.sql.template("parent", "parent_id", "self_id", "bsc_id", "repository_id", "cms_ta", "https_ta", "peer_contact_uri", "sia_base")
+  sql_template = rpki.sql.template("parent", "parent_id", "self_id", "bsc_id", "repository_id",
+                                   "cms_ta", "https_ta", "peer_contact_uri", "sia_base")
 
   cms_ta = None
   https_ta = None
@@ -361,7 +369,9 @@ class parent_elt(data_elt):
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """"Extra server actions for parent_elt."""
     if self.rekey or self.reissue or self.revoke:
-      raise NotImplementedError, "Unimplemented control %s" % ", ".join(b for b in ("rekey", "reissue", "revoke") if getattr(self, b))
+      raise NotImplementedError, \
+            "Unimplemented control %s" % ", ".join(b for b in ("rekey","reissue","revoke")
+                                                   if getattr(self, b))
 
   def startElement(self, stack, name, attrs):
     """Handle <parent/> element."""
@@ -408,7 +418,9 @@ class parent_elt(data_elt):
     q_elt = q_msg.toXML()
     rpki.relaxng.up_down.assertValid(q_elt)
     q_cms = rpki.cms.xml_sign(q_elt, bsc.private_key_id, bsc.signing_cert)
-    r_cms = self.client_up_down_reply(gctx, q_pdu, rpki.https.client(x509TrustList = rpki.x509.X509_chain(self.https_ta), msg = q_cms, url = self.peer_contact_uri))
+    r_cms = self.client_up_down_reply(gctx, q_pdu,
+                                      rpki.https.client(x509TrustList = rpki.x509.X509_chain(self.https_ta),
+                                                        msg = q_cms, url = self.peer_contact_uri))
     r_elt = rpki.cms.xml_verify(r_cms, self.cms_ta)
     rpki.relaxng.up_down.assertValid(r_elt)
     return rpki.up_down.sax_handler.saxify(r_elt)
@@ -428,7 +440,8 @@ class child_elt(data_elt):
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for child_elt."""
     if self.reissue:
-      raise NotImplementedError, "Unimplemented control %s" % ", ".join(b for b in ("reissue",) if getattr(self, b))
+      raise NotImplementedError, \
+            "Unimplemented control %s" % ", ".join(b for b in ("reissue",) if getattr(self, b))
 
   def startElement(self, stack, name, attrs):
     """Handle <child/> element."""
@@ -473,7 +486,8 @@ class repository_elt(data_elt):
   attributes = ("action", "type", "self_id", "repository_id", "bsc_id", "peer_contact_uri")
   elements = ("cms_ta", "https_ta")
 
-  sql_template = rpki.sql.template("repository", "repository_id", "self_id", "bsc_id", "cms_ta", "peer_contact_uri")
+  sql_template = rpki.sql.template("repository", "repository_id", "self_id", "bsc_id", "cms_ta",
+                                   "peer_contact_uri")
 
   cms_ta = None
   https_ta = None
@@ -510,24 +524,29 @@ class route_origin_elt(data_elt):
   attributes = ("action", "type", "self_id", "route_origin_id", "as_number", "ipv4", "ipv6")
   booleans = ("suppress_publication",)
 
-  sql_template = rpki.sql.template("route_origin", "route_origin_id", "self_id", "as_number", "ca_detail_id", "roa")
+  sql_template = rpki.sql.template("route_origin", "route_origin_id", "self_id", "as_number",
+                                   "ca_detail_id", "roa")
 
   ca_detail_id = None
   roa = None
 
   def sql_fetch_hook(self, gctx):
     """Extra SQL fetch actions for route_origin_elt -- handle address ranges."""
-    self.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(gctx.cur,
-                                                             "SELECT start_ip, end_ip FROM route_origin_range WHERE route_origin_id = %s AND start_ip NOT LIKE '%:%'",
-                                                             self.route_origin_id)
-    self.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(gctx.cur,
-                                                             "SELECT start_ip, end_ip FROM route_origin_range WHERE route_origin_id = %s AND start_ip LIKE '%:%'",
-                                                             self.route_origin_id)
+    self.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(gctx.cur, """
+                SELECT start_ip, end_ip FROM route_origin_range
+                WHERE route_origin_id = %s AND start_ip NOT LIKE '%:%'
+                """, self.route_origin_id)
+    self.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(gctx.cur, """
+                SELECT start_ip, end_ip FROM route_origin_range
+                WHERE route_origin_id = %s AND start_ip LIKE '%:%'
+                """, self.route_origin_id)
 
   def sql_insert_hook(self, gctx):
     """Extra SQL insert actions for route_origin_elt -- handle address ranges."""
     if self.ipv4 + self.ipv6:
-      gctx.cur.executemany("INSERT route_origin_range (route_origin_id, start_ip, end_ip) VALUES (%s, %s, %s)",
+      gctx.cur.executemany("""
+                INSERT route_origin_range (route_origin_id, start_ip, end_ip)
+                VALUES (%s, %s, %s)""",
                            ((self.route_origin_id, x.min, x.max) for x in self.ipv4 + self.ipv6))
   
   def sql_delete_hook(self, gctx):
@@ -537,7 +556,8 @@ class route_origin_elt(data_elt):
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for route_origin_elt."""
     if self.suppress_publication:
-      raise NotImplementedError, "Unimplemented control %s" % ", ".join(b for b in ("suppress_publication",) if getattr(self, b))
+      raise NotImplementedError, \
+            "Unimplemented control %s" % ", ".join(b for b in ("suppress_publication",) if getattr(self, b))
 
   def startElement(self, stack, name, attrs):
     """Handle <route_origin/> element."""

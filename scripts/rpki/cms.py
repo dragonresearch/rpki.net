@@ -8,7 +8,8 @@ requires disk I/O, and likes PEM format.  Fix this later.
 
 import os, rpki.x509, rpki.exceptions, lxml.etree
 
-# openssl smime -sign -nodetach -outform DER -signer biz-certs/Alice-EE.cer -certfile biz-certs/Alice-CA.cer -inkey biz-certs/Alice-EE.key -in PLAN -out PLAN.der
+# openssl smime -sign -nodetach -outform DER -signer biz-certs/Alice-EE.cer
+# -certfile biz-certs/Alice-CA.cer -inkey biz-certs/Alice-EE.key -in PLAN -out PLAN.der
 
 def sign(plaintext, keypair, certs):
   """Sign plaintext as CMS with specified key and bag of certificates.
@@ -36,7 +37,8 @@ def sign(plaintext, keypair, certs):
   f.write(plaintext)
   f.close()
 
-  i,o = os.popen2(("openssl", "smime", "-sign", "-nodetach", "-outform", "DER", "-binary", "-signer", signer_filename,
+  i,o = os.popen2(("openssl", "smime", "-sign", "-nodetach", "-outform", "DER", "-binary",
+                   "-signer", signer_filename,
                    "-certfile", certfile_filename, "-inkey", "/dev/stdin", "-in", plaintext_filename))
   i.write(keypair.get_PEM())
   i.close()
@@ -86,4 +88,5 @@ def xml_verify(elt, ta):
 
 def xml_sign(elt, key, certs):
   """Composite routine to sign CMS-wrapped XML."""
-  return sign(lxml.etree.tostring(elt, pretty_print=True, encoding="us-ascii", xml_declaration=True), key, certs)
+  return sign(lxml.etree.tostring(elt, pretty_print=True, encoding="us-ascii", xml_declaration=True),
+              key, certs)

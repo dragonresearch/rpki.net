@@ -42,7 +42,8 @@ def client(msg, privateKey, certChain, x509TrustList, url):
     return response.read()
   else:
     r = response.read()
-    raise rpki.exceptions.HTTPRequestFailed, "HTTP request failed with status %s, response %s" % (response.status, r)
+    raise rpki.exceptions.HTTPRequestFailed, \
+          "HTTP request failed with status %s, response %s" % (response.status, r)
 
 class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   """Derived type to supply POST handler."""
@@ -61,11 +62,13 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     try:
       handler = self.rpki_find_handler()
       if self.headers["Content-Type"] != rpki_content_type:
-        rcode, rtext = 415, "Received Content-Type %s, expected %s" % (self.headers["Content-Type"], rpki_content_type)
+        rcode, rtext = 415, "Received Content-Type %s, expected %s" \
+                       % (self.headers["Content-Type"], rpki_content_type)
       elif handler is None:
         rcode, rtext = 404, "No handler found for URL " + self.path
       else:
-        rcode, rtext = handler(query = self.rfile.read(int(self.headers["Content-Length"])), path = self.path)
+        rcode, rtext = handler(query = self.rfile.read(int(self.headers["Content-Length"])),
+                               path  = self.path)
     except Exception, edata:
       traceback.print_exc()
       rcode, rtext = 500, "Unhandled exception %s" % edata

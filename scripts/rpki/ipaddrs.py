@@ -51,4 +51,5 @@ class v6addr(long):
 
   def __str__(self):
     """Convert a v6addr object to string format."""
-    return socket.inet_ntop(socket.AF_INET6, struct.pack("!QQ", long(self) >> 64, long(self) & 0xFFFFFFFFFFFFFFFF))
+    return socket.inet_ntop(socket.AF_INET6,
+                            struct.pack("!QQ", long(self) >> 64, long(self) & 0xFFFFFFFFFFFFFFFF))

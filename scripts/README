@@ -25,13 +25,16 @@ To do list:
 
   - need to keep data on unexpired revoked certs to generate crl
 
-  - ever need to delay revocation of old certs to give their replacements time to propegate?
+  - ever need to delay revocation of old certs to give their
+  replacements time to propegate?
 
-  these two may imply that we need more fields in child_cert table to indicate whether a cert is dead,
-  eg, a date field which is NULL if the cert is still live, otherwise is the date after which it should be
-  in the crl
+  these two may imply that we need more fields in child_cert table to
+  indicate whether a cert is dead, eg, a date field which is NULL if
+  the cert is still live, otherwise is the date after which it should
+  be in the crl
 
-- publication hooks everywhere - need not wait for protocol, can just log what would happen for now
+- publication hooks everywhere - need not wait for protocol, can just
+  log what would happen for now
 
   - cert publication
 
@@ -41,11 +44,15 @@ To do list:
 
   - withdrawal of all of the above
 
-- child batch processing loop, eg, regeneration or removal of expired certs, crl and manifest update, etc
+- child batch processing loop, eg, regeneration or removal of expired
+  certs, crl and manifest update, etc
 
   hmm, should this be an iteration over child_cert objects or over ca
   objects?  probably the latter as the ca is the actor in pretty much
   everything that might need to be done
+
+  figuring out whether to regenerate or remove expired certs requires
+  some of the same data as crl generatoin
 
 - tiny up-down root server -- no sql or left-right needed, just config
   file, http server, static root cert and key.  in theory this should

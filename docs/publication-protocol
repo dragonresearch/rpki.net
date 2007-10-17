@@ -144,3 +144,11 @@
 ;;; require supplying the cert chain back to some resource trust
 ;;; anchor established as part of the business relationship between
 ;;; requestor and repository operator.
+
+;;; Hmm, the above completely ignores deletion.  Geoff's docs say that
+;;; when a resource class disappears we're supposed to withdraw all
+;;; certs, CRLs, and manifests associated with that resource class
+;;; from the publication point.  Strictly speaking, this isn't
+;;; necessary, since the parent has presumably CRLed the subtree in
+;;; question, but it'd be polite to relying parties, to avoid wasting
+;;; their time.

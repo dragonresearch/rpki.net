@@ -256,25 +256,37 @@ class ca_obj(sql_persistant):
     ca_detail.sql_mark_dirty()
 
   def delete(self, gctx):
-    """Parent's list of current resource classes doesn't include the
-    class corresponding to this CA, so we need to delete it (and its
-    little dog too...).
-    """
-    raise NotImplementedError, "NIY"
+    """The list of current resource classes received from parent does
+    not include the class corresponding to this CA, so we need to
+    delete it (and its little dog too...).
 
-  def next_serial(self):
+    All certs published by this CA are now invalid, so need to
+    withdraw them and the CRL from the repository, delete all
+    child_cert and ca_detail records associated with this CA, then
+    finally delete this CA itself.
+    """
+
+    raise NotImplementedError, "Need to withdraw self and children from publication"
+
+    for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s" % self.ca_id):
+      for child_cert in child_cert_obj.sql_fetch_where(gctx, "ca_detail_id = %s" % ca_detail.ca_detail_id):
+        child_cert.sql_delete(gctx)
+      ca_detail.sql_delete(gctx)
+    self.sql_delete(gctx)
+
+  def next_serial_number(self):
     """Allocate a certificate serial number."""
     self.last_issued_sn += 1
     self.sql_mark_dirty()
     return self.last_issued_sn
 
-  def next_manifest(self):
+  def next_manifest_number(self):
     """Allocate a manifest serial number."""
     self.last_manifest_sn += 1
     self.sql_mark_dirty()
     return self.last_manifest_sn
 
-  def next_crl(self):
+  def next_crl_number(self):
     """Allocate a CRL serial number."""
     self.last_crl_sn += 1
     self.sql_mark_dirty()
@@ -375,7 +387,7 @@ class ca_detail_obj(sql_persistant):
     """
     cert = self.latest_ca_cert.issue(keypair = self.private_key_id,
                                      subject_key = subject_key,
-                                     serial = ca.next_serial(),
+                                     serial = ca.next_serial_number(),
                                      aia = self.ca_cert_uri,
                                      crldp = ca.sia_uri + self.latest_ca_cert.gSKI() + ".crl",
                                      sia = sia,

@@ -21,7 +21,17 @@ To do list:
 
 - manifest generation
 
-- publication hooks into everything - need not wait for protocol, can just log what would happen for now
+- revocation and crl generation
+
+  - need to keep data on unexpired revoked certs to generate crl
+
+  - ever need to delay revocation of old certs to give their replacements time to propegate?
+
+  these two may imply that we need more fields in child_cert table to indicate whether a cert is dead,
+  eg, a date field which is NULL if the cert is still live, otherwise is the date after which it should be
+  in the crl
+
+- publication hooks everywhere - need not wait for protocol, can just log what would happen for now
 
   - cert publication
 

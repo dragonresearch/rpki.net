@@ -280,7 +280,7 @@ class bsc_elt(data_elt):
   elements = ('signing_cert',)
   booleans = ("generate_keypair", "clear_signing_certs")
 
-  sql_template = rpki.sql.template("bsc", "bsc_id", "self_id", "public_key", "private_key_id")
+  sql_template = rpki.sql.template("bsc", "bsc_id", "self_id", "public_key", "private_key_id", "hash_alg")
 
   pkcs10_cert_request = None
   public_key = None

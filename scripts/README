@@ -52,7 +52,7 @@ To do list:
   everything that might need to be done
 
   figuring out whether to regenerate or remove expired certs requires
-  some of the same data as crl generatoin
+  some of the same data as crl generation
 
 - tiny up-down root server -- no sql or left-right needed, just config
   file, http server, static root cert and key.  in theory this should

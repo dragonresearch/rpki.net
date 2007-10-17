@@ -409,7 +409,7 @@ class ca_detail_obj(sql_persistant):
 class child_cert_obj(sql_persistant):
   """Certificate that has been issued to a child."""
 
-  sql_template = template("child_cert", "child_cert_id", "cert", "child_id", "ca_detail_id")
+  sql_template = template("child_cert", "child_cert_id", "cert", "child_id", "ca_detail_id", "revoked")
 
   def __init__(self, child_id = None, ca_detail_id = None, cert = None):
     """Initialize a child_cert_obj."""

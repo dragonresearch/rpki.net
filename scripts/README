@@ -1,43 +1,5 @@
 $Id$
 
-
-
-At this point it's starting to look like the pdu objects in
-rpki.left_right are a subclass of a more general class of objects that
-live in SQL (duh).  This makes sense as left-right protocol was
-designed to let us frob a subset of the rpki database on the wire.
-
-Hmm, it's more complicated than that.  Most of left_right maps well,
-but portions (eg, <list_resources/>) are just commands and do not.
-Mixin?  We have a varient of this same problem with the mixins I'm
-already using in irbe-cli.py.
-
-Also need to think about up-down protocol, currently separate but some
-of these objects might map there too.  This is why I originally
-intended to code all of these as separate object hierarchies even
-though in some cases they look awfully similar.  Hmm, implement as
-separate hierarchies with sideways conversion methods?  Still feels
-wrong, but so does turning this into one big interconnected mess.
-
-Ok, up-down XML is all structured as commands, data is all attributes
-and (occasionally) element content, so not very close match to db.
-
-So this appears to break out fairly cleanly: objects shown in blue in
-the repository-engine-objects.pdf picture are both left-right PDU
-objects and database objects, objects shown in green are only database
-objects, and left-right PDU objects not shown in that picture are just
-left-right PDUs.  Or something close to this, details need checking.
-So this does look like some kind of mixin would be appropriate.
-
-
-
-Code to pull in an entire self_id context at once turned out to be
-much too complicated.  Replacement is more of a demand-paged design.
-Need to be careful about making sure we save out all changes between
-events, objects have a .sql_dirty attribute but I should also add a
-Python set object into which we can insert any object that needs to be
-saved when the current event exits.
-
 Haven't done anything about db.commit() and db.rollback() yet, for
 that matter haven't yet whacked MySQL to enable those features.
 
@@ -45,24 +7,37 @@ Access to object data attributes really ought to be through accessor
 methods so that the .set() method can set the sql_dirty flag
 automagically.  Not done yet.
 
-Hmm, do we really need .sql_dirty at all?  Maybe just inserting the
-object into the dirty set (above) would suffice?  One less thing to
-screw up.
-
-Use generalized serve_*_hook() methods to handle actions signaled by
-the various left-right boolean controls.  One fun test case for this
-should be bsc keypair generation.  Some of the defined actions will be
-things we can't implement yet due to lack of a real timer system.  Eg,
-the various "do this right now" actions are probably best handled as
-triggers, a la interrupt handlers.  Well, maybe.  IRBE folks might
-prefer a version that blocked response to the request until the whole
-cycle is done, once we have an event system that can treat the query
-and response phases of an rpc operation as two distinct events.
-
-
-
 Hmm, I seem to have goofed on the bsc table, need a column for the
 hash algorithm after all, as it's not intrinsic to the key.  Probably
 ought to let it be set independently of the key too.  But for the
 moment I'm only supporting 2048-bit RSA with SHA-256 digests, so
 fixing this is not urgent.
+
+
+
+To do list:
+
+- publication protocol and implementation
+
+- manifest generation
+
+- publication hooks into everything - need not wait for protocol, can just log what would happen for now
+
+  - cert publication
+
+  - crl publication
+
+  - manifest publication
+
+  - withdrawal of all of the above
+
+- child batch processing loop, eg, regeneration or removal of expired certs, crl and manifest update, etc
+
+  hmm, should this be an iteration over child_cert objects or over ca
+  objects?  probably the latter as the ca is the actor in pretty much
+  everything that might need to be done
+
+- tiny up-down root server -- no sql or left-right needed, just config
+  file, http server, static root cert and key.  in theory this should
+  just be a matter of subtyping the main up-down code while overriding
+  the serve_pdu() methods.

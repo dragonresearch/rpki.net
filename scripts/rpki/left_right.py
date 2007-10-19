@@ -260,7 +260,7 @@ class self_elt(data_elt):
     for parent in parent_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id):
       r_pdu = rpki.up_down.list_pdu(gctx, parent)
       ca_map = dict((ca.parent_resource_class, ca)
-                    for ca in rpki.sql.ca_obj.sql_fetch_where(gctx, "parent_id = %s", parent.parent_id))
+                    for ca in rpki.sql.ca_obj.sql_fetch_where(gctx, "parent_id = %s" % parent.parent_id))
       for rc in r_pdu.payload:
         if rc.class_name in ca_map:
           ca = ca_map[rc.class_name]
@@ -516,6 +516,16 @@ class repository_elt(data_elt):
     if self.https_ta:
       self.make_b64elt(elt, "https_ta", self.https_ta.get_DER())
     return elt
+
+  def publish(self, *things):
+    """Placeholder for publication operation (not yet written)."""
+    for thing in things:
+      print "Should publish %s to repository %s" % (thing, self)
+
+  def withdraw(self, *things):
+    """Placeholder for publication withdrawal operation (not yet written)."""
+    for thing in things:
+      print "Should withdraw %s from repository %s" % (thing, self)
 
 class route_origin_elt(data_elt):
   """<route_origin/> element."""

@@ -262,11 +262,9 @@ class issue_pdu(base_elt):
     req_key = self.pkcs10.getPublicKey()
     req_sia = self.pkcs10.get_SIA()
     req_ski = self.pkcs10.get_SKI()
-    child_cert = rpki.sql.child_cert_obj.sql_fetch_where(gctx, """
+    child_cert = rpki.sql.child_cert_obj.sql_fetch_where1(gctx, """
                 child_id = %s AND ca_detail_id = %s AND ski = %s
                 """ % (child.child_id, ca_detail.ca_detail_id, req_ski))
-    assert len(child_cert) < 2
-    child_cert = child_cert[0] if child_cert else None
 
     # Generate new cert or regenerate old one if necessary
 

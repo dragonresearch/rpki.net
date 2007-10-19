@@ -66,8 +66,12 @@ class sql_persistant(object):
   @classmethod
   def sql_fetch(cls, gctx, id):
     """Fetch one object from SQL, based on its primary key."""
-    results = cls.sql_fetch_where(gctx, "%s = %s" % (cls.sql_template.index, id))
-    assert len(results) <= 1
+    return cls.sql_fetch_where1(gctx, "%s = %s" % (cls.sql_template.index, id))
+
+  @classmethod
+  def sql_fetch_where1(cls, gctx, where):
+    """Fetch one object from SQL, based on an arbitrary SQL WHERE expression."""
+    results = cls.sql_fetch_where(gctx, where)
     if len(results) == 0:
       return None
     elif len(results) == 1:
@@ -212,7 +216,7 @@ class ca_obj(sql_persistant):
     off to the affected ca_detail for processing.
     """
     cert_map = dict((c.get_SKI(), c) for c in rc.certs)
-    ca_details = ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL", ca.ca_id)
+    ca_details = ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL" % ca.ca_id)
     as, v4, v6 = ca_detail_obj.sql_fetch_active(gctx, ca_id).latest_ca_cert.get_3779resources()
     undersized = not rc.resource_set_as.issubset(as) or \
                  not rc.resource_set_ipv4.issubset(v4) or not rc.resource_set_ipv6.issubset(v6)
@@ -261,16 +265,18 @@ class ca_obj(sql_persistant):
     delete it (and its little dog too...).
 
     All certs published by this CA are now invalid, so need to
-    withdraw them and the CRL from the repository, delete all
-    child_cert and ca_detail records associated with this CA, then
-    finally delete this CA itself.
+    withdraw them, the CRL, and the manifest from the repository,
+    delete all child_cert and ca_detail records associated with this
+    CA, then finally delete this CA itself.
     """
 
-    raise NotImplementedError, "Need to withdraw self and children from publication"
+    repository = rpki.left_right.repository_elt.sql_fetch_where1(gctx, "repository.repository_id = parent.repository_id AND parent.parent_id = %s" % self.parent_id)
 
     for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s" % self.ca_id):
       for child_cert in child_cert_obj.sql_fetch_where(gctx, "ca_detail_id = %s" % ca_detail.ca_detail_id):
+        repository.withdraw(child_cert.cert)
         child_cert.sql_delete(gctx)
+      repository.withdraw(ca_detail.latest_crl, ca_detail.latest_manifest, ca_detail.latest_manifest_cert)
       ca_detail.sql_delete(gctx)
     self.sql_delete(gctx)
 
@@ -395,7 +401,15 @@ class ca_detail_obj(sql_persistant):
                                      v4 = rc_v4,
                                      v6 = rc_v6)
 
-    raise NotImplementedError, "Should generate a new manifest, should publish newly-created certificate"
+    manifest = self.generate_manifest()
+    
+    repository = rpki.left_right.repository_elt.sql_fetch_where1(gctx, """
+                repository.repository_id = parent.repository_id AND
+                parent.parent_id = ca.parent_id AND
+                ca.ca_id = %s
+                """ % self.ca_id)
+
+    repository.publish(cert, manifest)
 
     if child_cert is None:
       return rpki.sql.child_cert_obj(child_id = child.child_id,
@@ -414,6 +428,22 @@ class ca_detail_obj(sql_persistant):
 
     raise NotImplementedError, "NIY"
 
+  def generate_manifest(self, gctx):
+    """Generate a new manifest for this ca_detail."""
+
+    ca = ca_obj.sql_fetch(gctx, self.ca_id)
+    self_obj = rpki.left_right.self_elt.sql_fetch_where1(gctx, "self.self_id = parent.self_id AND parent.parent_id = %s" % ca.parent_id)
+    certs = child_cert_obj.sql_fetch_where(gctx, "child_cert.ca_detail_id = %s AND NOT child_cert.revoked" % self.ca_detail_id)
+
+    m = rpki.x509.SignedManifest()
+    m.build(serial = ca.next_manifest(),
+            nextUpdate = time.time() + self_obj.crl_interval,
+            names_and_objs = [(c.gSKI() + ".cer", c) for c in certs])
+    m.sign(keypair = self.manifest_private_key_id,
+           certs = rpki.x509.X509_chain(self.latest_manifest_cert))
+
+    self.latest_manifest = m
+    return m
 
 class child_cert_obj(sql_persistant):
   """Certificate that has been issued to a child."""
@@ -425,6 +455,7 @@ class child_cert_obj(sql_persistant):
     self.child_id = child_id
     self.ca_detail_id = ca_detail_id
     self.cert = cert
+    self.revoked = False
     if child_id or ca_detail_id or cert:
       self.sql_mark_dirty()
 

@@ -588,7 +588,7 @@ class SignedManifest(DER_object):
     m.fromString(s)
     self.content = m
 
-  def build(self, serial, nextUpdate, names_and_objs):
+  def build(self, serial, nextUpdate, names_and_objs, version = 0):
     """Build the inner content of this manifest."""
     filelist = []
     for name, obj in names_and_objs:
@@ -597,7 +597,7 @@ class SignedManifest(DER_object):
       filelist.append((name.rpartition("/")[2], d.digest()))
     filelist.sort(key = lambda x: x[0])
     m = rpki.manifest.Manifest()
-    m.version.set(0)
+    m.version.set(version)
     m.manifestNumber.set(serial)
     m.thisUpdate.set(POW.pkix.time2gen(time.time()))
     m.nextUpdate.set(POW.pkix.time2gen(nextUpdate))

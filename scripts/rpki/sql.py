@@ -406,6 +406,15 @@ class ca_detail_obj(sql_persistant):
       child_cert.cert = cert
       return child_cert
 
+  def generate_crl(self):
+    """Generate a new CRL for this ca_detail.  At the moment this is
+    unconditional, that is, it is up to the caller to decide whether a
+    new CRL is needed.
+    """
+
+    raise NotImplementedError, "NIY"
+
+
 class child_cert_obj(sql_persistant):
   """Certificate that has been issued to a child."""
 

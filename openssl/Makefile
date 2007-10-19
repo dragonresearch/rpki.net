@@ -1,6 +1,6 @@
 # $Id$
 
-VERSION = 0.9.8e
+VERSION = 0.9.8f
 
 all: openssl-${VERSION}/Makefile
 	cd openssl-${VERSION}; make $@

@@ -3,7 +3,7 @@
 
 use strict;
 
-my $openssl = "/u/sra/isc/route-pki/subvert-rpki.hactrn.net/openssl/openssl-0.9.8e/apps/openssl";
+my $openssl = "/u/sra/isc/route-pki/subvert-rpki.hactrn.net/openssl/openssl-0.9.8f/apps/openssl";
 my $dir     = "hashed";
 
 my @cmds;

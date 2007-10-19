@@ -1,6 +1,6 @@
 # $Id$
 
-OPENSSL_DIR = ../../openssl/openssl-0.9.8e
+OPENSSL_DIR = ../../openssl/openssl-0.9.8f
 
 CFLAGS = -g -I${OPENSSL_DIR}/include
 

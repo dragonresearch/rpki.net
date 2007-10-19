@@ -13,7 +13,7 @@ oidinfo.dumpobjs('lib/_objects.py')
 print 'writing oid module'
 oidinfo.dumpoids('lib/_oids.py')
 
-library_dirs = [ "../../openssl/openssl-0.9.8e" ]
+library_dirs = [ "../../openssl/openssl-0.9.8f" ]
 include_dirs = [ library_dirs[0] + "/include" ]
 libraries    = [ "ssl", "crypto" ]
 

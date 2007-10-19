@@ -40,7 +40,7 @@ class Manifest(Sequence):
     #
     # Clean all this up once the mailing list settles it.
 
-    which_option = 1
+    which_option = 3
 
     if which_option == 1:
       self.version      = Integer(0, "AgEA")

@@ -47,7 +47,7 @@
 -- OpenSSL's ASN.1 engine.
 
 Manifest ::= SEQUENCE {
-	version		INTEGER DEFAULT 0,	-- first version is 0
+	version	    [0]	INTEGER DEFAULT 0,	-- first version is 0
 	manifestNumber	INTEGER,		-- to identify unscheduled manifest issuance
 	thisUpdate	GeneralizedTime,	-- this manifest issuance time
 	nextUpdate      GeneralizedTime,	-- next scheduled manifest issuance time

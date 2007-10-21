@@ -190,7 +190,6 @@ syslog-priority-xyz	(where xyz is an rcynic logging level, above)
 
 			syslog-priority-log_sys_err:	err
 			syslog-priority-log_usage_err:	err
-			syslog-priority-log_summary:	info
 			syslog-priority-log_data_err:	notice
 			syslog-priority-log_telemetry:	info
 			syslog-priority-log_verbose:	info

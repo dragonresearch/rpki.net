@@ -1,8 +1,11 @@
 # $Id$
 
 """
-Start at the RPKI daemon.  This isn't real yet.  So far it's just a
-framework onto which I'm bolting various parts for testing.
+RPKI engine daemon.  This is still very much a work in progress.
+
+Usage: python rpkid.py [ { -c | --config } configfile ] [ { -h | --help } ]
+
+Default configuration file is re.conf, override with --config option.
 """
 
 import traceback, os, time, getopt, sys

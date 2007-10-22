@@ -426,7 +426,7 @@ class ca_detail_obj(sql_persistant):
     new CRL is needed.
     """
 
-    raise NotImplementedError, "NIY"
+    raise rpki.exceptions.NotImplementedYet
 
   def generate_manifest(self, gctx):
     """Generate a new manifest for this ca_detail."""

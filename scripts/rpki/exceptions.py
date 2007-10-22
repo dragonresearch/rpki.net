@@ -37,3 +37,6 @@ class BadClassNameSyntax(Exception):
 
 class BadIssueResponse(Exception):
   """issue_response PDU with wrong number of classes or certificates."""
+
+class NotImplementedYet(Exception):
+  """Internal error -- not implemented yet."""

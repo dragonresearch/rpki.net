@@ -832,18 +832,14 @@
             <value>query</value>
           </attribute>
           <ref name="self_id"/>
-          <optional>
-            <ref name="child_id"/>
-          </optional>
+          <ref name="child_id"/>
         </group>
         <group>
           <attribute name="type">
             <value>reply</value>
           </attribute>
           <ref name="self_id"/>
-          <optional>
-            <ref name="child_id"/>
-          </optional>
+          <ref name="child_id"/>
           <optional>
             <attribute name="valid_until">
               <data type="token">

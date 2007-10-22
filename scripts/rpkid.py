@@ -5,7 +5,8 @@ Start at the RPKI daemon.  This isn't real yet.  So far it's just a
 framework onto which I'm bolting various parts for testing.
 """
 
-import tlslite.api, MySQLdb, xml.sax, lxml.etree, lxml.sax, POW, POW.pkix, traceback, os, time
+import traceback, os, time, getopt, sys
+import tlslite.api, MySQLdb, xml.sax, lxml.etree, lxml.sax, POW, POW.pkix
 import rpki.https, rpki.config, rpki.resource_set, rpki.up_down, rpki.left_right, rpki.relaxng
 import rpki.cms, rpki.exceptions, rpki.x509
 
@@ -45,9 +46,21 @@ class global_context(object):
 os.environ["TZ"] = "UTC"
 time.tzset()
 
+cfg_file = "re.conf"
+
+opts,argv = getopt.getopt(sys.argv[1:], "c=h?", ["config=", "help"])
+for o,a in opts:
+  if o in ("-h", "--help", "-?"):
+    print __doc__
+    sys.exit(0)
+  if o in ("-c", "--config"):
+    cfg_file = a
+if argv:
+  raise RuntimeError, "Unexpected arguments %s" % argv
+
 gctx = global_context()
 
-gctx.cfg = rpki.config.parser("re.conf")
+gctx.cfg = rpki.config.parser(cfg_file)
 gctx.cfg_section = "rpki"
 
 gctx.db = MySQLdb.connect(user   = gctx.cfg.get(gctx.cfg_section, "sql-username"),
@@ -65,8 +78,6 @@ gctx.https_key   = rpki.x509.RSA(Auto_file = gctx.cfg.get(gctx.cfg_section, "htt
 gctx.https_certs = rpki.x509.X509_chain(Auto_files = gctx.cfg.multiget(gctx.cfg_section, "https-cert"))
 gctx.https_tas   = rpki.x509.X509_chain(Auto_files = gctx.cfg.multiget(gctx.cfg_section, "https-ta"))
 
-gctx.irdb_host   = gctx.cfg.get(gctx.cfg_section, "irdb-host")
-gctx.irdb_port   = gctx.cfg.get(gctx.cfg_section, "irdb-port")
 gctx.irdb_url    = gctx.cfg.get(gctx.cfg_section, "irdb-url")
 
 rpki.https.server(privateKey=gctx.https_key, certChain=gctx.https_certs,

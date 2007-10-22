@@ -48,7 +48,7 @@ time.tzset()
 
 cfg_file = "re.conf"
 
-opts,argv = getopt.getopt(sys.argv[1:], "c=h?", ["config=", "help"])
+opts,argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
 for o,a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
@@ -80,7 +80,9 @@ gctx.https_tas   = rpki.x509.X509_chain(Auto_files = gctx.cfg.multiget(gctx.cfg_
 
 gctx.irdb_url    = gctx.cfg.get(gctx.cfg_section, "irdb-url")
 
-rpki.https.server(privateKey=gctx.https_key, certChain=gctx.https_certs,
+rpki.https.server(privateKey = gctx.https_key,
+                  certChain = gctx.https_certs,
+                  port = int(gctx.cfg.get(gctx.cfg_section, "server-port", "4433")),
                   handlers=(("/left-right", left_right_handler),
                             ("/up-down/",   up_down_handler),
                             ("/cronjob",    cronjob_handler)))

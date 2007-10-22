@@ -1,6 +1,6 @@
 # $Id$
 
-"""Script to generate rpki.relaxng.py."""
+"""Script to generate rpki/relaxng.py."""
 
 print "# Automatically generated, do not edit."
 print

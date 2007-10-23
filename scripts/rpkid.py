@@ -37,10 +37,12 @@ def up_down_handler(query, path):
     return 200, child.serve_up_down(gctx, query)
   except Exception, data:
     traceback.print_exc()
-    return 500, "Unhandled exception %s" % data
+    return 400, "Could not process PDU: %s" % data
 
 def cronjob_handler(query, path):
-  raise rpki.exceptions.NotImplementedYet
+  for s in rpki.left_right.self_elt.sql_fetch_all(gctx):
+    s.client_poll(gctx)
+  #raise rpki.exceptions.NotImplementedYet
 
 class global_context(object):
   """A place to stash various global parameters."""

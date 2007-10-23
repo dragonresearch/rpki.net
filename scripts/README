@@ -58,3 +58,15 @@ To do list:
   file, http server, static root cert and key.  in theory this should
   just be a matter of subtyping the main up-down code while overriding
   the serve_pdu() methods.
+
+  things we'd need in a config file for this:
+
+  - the one and only issuer cert (self-signed in this special case)
+  - the one and only issuer private key id
+  - filename in which to store the one and only subject cert
+  - bsc info for one and only child
+  - https server key and cert
+  - validity interval to use when issuing
+  - publication urls for issuer cert, subject cert, crl, and manifest
+  - https and cms data for publication server
+  - resources to issue?  or just copy/inherit from self-signed?

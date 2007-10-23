@@ -385,6 +385,17 @@ class error_response_pdu(base_elt):
     1302 : "Revoke - no such key",
     2001 : "Internal Server Error - Request not performed" }
 
+  exceptions = {}
+
+  def __init__(self, exception = None):
+    """Initialize an error_response PDU from an exception object."""
+    if exception is not None:
+      if exception in self.exceptions:
+        self.status = exceptions[exception]
+      else:
+        self.status = 2001
+      self.description = str(exception)
+
   def endElement(self, stack, name, text):
     """Handle "error_response" PDU."""
     if name == "status":
@@ -392,8 +403,6 @@ class error_response_pdu(base_elt):
       if code not in self.codes:
         raise rpki.exceptions.BadStatusCode, "%s is not a known status code"
       self.status = code
-    elif name == "last_message_processed":
-      self.last_message_processed = text
     elif name == "description":
       self.description = text
     else:
@@ -455,6 +464,14 @@ class message_pdu(base_elt):
     r_msg.sender = self.receiver
     r_msg.receiver = self.sender
     self.payload.serve_pdu(gctx, self, r_msg, child)
+    return r_msg
+
+  def serve_error(self, exception):
+    """Generate an error_response message PDU."""
+    r_msg = message_pdu()
+    r_msg.sender = self.receiver
+    r_msg.receiver = self.sender
+    r_msg.payload = error_response_pdu(exception)
     return r_msg
 
   @classmethod

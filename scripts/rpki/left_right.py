@@ -474,7 +474,16 @@ class child_elt(data_elt):
     q_msg = rpki.up_down.sax_handler.saxify(q_elt)
     if q_msg.sender != str(self.child_id):
       raise rpki.exceptions.NotFound, "Unexpected XML sender %s" % q_msg.sender
-    r_msg = q_msg.serve_top_level(gctx, self)
+    try:
+      r_msg = q_msg.serve_top_level(gctx, self)
+    except Exception, data:
+      traceback.print_exc()
+      r_msg = q_msg.serve_error(data)
+    #
+    # Exceptions from this point on are problematic, as we have no
+    # sane way of reporting errors in the error reporting mechanism.
+    # May require refactoring, ignore the issue for now.
+    #
     r_elt = r_msg.toXML()
     rpki.relaxng.up_down.assertValid(r_elt)
     return rpki.cms.xml_sign(r_elt, bsc.private_key_id, bsc.signing_cert)

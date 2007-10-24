@@ -420,11 +420,38 @@ class ca_detail_obj(sql_persistant):
       child_cert.cert = cert
       return child_cert
 
-  def generate_crl(self):
+  def generate_crl(self, gctx):
     """Generate a new CRL for this ca_detail.  At the moment this is
     unconditional, that is, it is up to the caller to decide whether a
     new CRL is needed.
     """
+
+    ca = ca_obj.sql_fetch(gctx, self.ca_id)
+    self_obj = rpki.left_right.self_elt.sql_fetch_where1(gctx, """
+                self.self_id = parent.self_id AND
+                parent.parent_id = %s
+      """ % ca.parent_id)
+    now = time.time()
+    then = now + self_obj.crl_interval
+    certs = []
+    for cert in child_cert_obj.sql_fetch_where(gctx, """
+                        child_cert.ca_detail_id = %s AND
+                        child_cert.revoked IS NOT NULL
+                    """ % self.ca_detail_id):
+      raise rpki.exceptions.NotImplementedYet
+      # Extract expiration time, figure out whether we still need to list this cert.
+      # If not, delete it from child_cert table.  Otherwise, we need to include this
+      # cert, so: extract serial and revocation time, convert date to format
+      # POW.pkix wants, and add to serial and revocation time to certs[] list.
+      # Tuple of the form (serial, ("generalTime", timestamp), ())
+
+    # Sort certs[] into serial order?  Not sure it's necessary, but should be simple and harmless.
+
+    # Stuff result into crl structure
+
+    crl = rpki.x509.CRL()
+
+    # Sign crl
 
     raise rpki.exceptions.NotImplementedYet
 
@@ -432,8 +459,14 @@ class ca_detail_obj(sql_persistant):
     """Generate a new manifest for this ca_detail."""
 
     ca = ca_obj.sql_fetch(gctx, self.ca_id)
-    self_obj = rpki.left_right.self_elt.sql_fetch_where1(gctx, "self.self_id = parent.self_id AND parent.parent_id = %s" % ca.parent_id)
-    certs = child_cert_obj.sql_fetch_where(gctx, "child_cert.ca_detail_id = %s AND NOT child_cert.revoked" % self.ca_detail_id)
+    self_obj = rpki.left_right.self_elt.sql_fetch_where1(gctx, """
+                self.self_id = parent.self_id AND
+                parent.parent_id = %s
+      """ % ca.parent_id)
+    certs = child_cert_obj.sql_fetch_where(gctx, """
+                child_cert.ca_detail_id = %s AND
+                child_cert.revoked IS NULL
+      """ % self.ca_detail_id)
 
     m = rpki.x509.SignedManifest()
     m.build(serial = ca.next_manifest(),
@@ -455,7 +488,7 @@ class child_cert_obj(sql_persistant):
     self.child_id = child_id
     self.ca_detail_id = ca_detail_id
     self.cert = cert
-    self.revoked = False
+    self.revoked = None
     if child_id or ca_detail_id or cert:
       self.sql_mark_dirty()
 

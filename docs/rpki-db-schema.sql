@@ -125,7 +125,7 @@ CREATE TABLE child_cert (
        child_cert_id        SERIAL NOT NULL,
        cert                 LONGBLOB NOT NULL,
        ski                  TINYBLOB NOT NULL,
-       revoked              BOOLEAN,
+       revoked              DATETIME,
        child_id             BIGINT unsigned NOT NULL,
        ca_detail_id         BIGINT unsigned NOT NULL,
        PRIMARY KEY          (child_cert_id),

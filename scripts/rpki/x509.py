@@ -243,6 +243,10 @@ class X509(DER_object):
     """Get the expiration time of this certificate."""
     return POW.pkix.utc2time(self.get_POW().getNotAfter())
 
+  def getSerial(self):
+    """Get the serial number of this certificate."""
+    return self.get_POW().getSerial()
+
   def getPublicKey(self):
     """Extract the public key from this certificate."""
     return RSApublic(DER = self.get_POWpkix().tbs.subjectPublicKeyInfo.toString())
@@ -639,3 +643,8 @@ class CRL(DER_object):
       crl.fromString(self.get_DER())
       self.POWpkix = crl
     return self.POWpkix
+
+  def build(self, serial, nextUpdate, names_and_objs, version = 0):
+    crl = POW.pkix.CertificateList()
+    raise rpki.exceptions.NotImplementedYet
+    self.set(POWpkix = crl)

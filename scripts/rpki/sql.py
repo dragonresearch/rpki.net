@@ -505,10 +505,12 @@ class child_cert_obj(sql_persistant):
 
   def reissue(self, gctx, ca_detail, as, v4, v6, sia = None):
     """Reissue an existing child_cert_obj."""
+    if sia is None:
+      sia = self.cert.get_SIA()
     return ca_detail.issue(gctx = gctx,
                            child = rpki.left_right.child_elt.sql_fetch(gctx, self.child_id),
                            subject_key = self.cert.getPublicKey(),
-                           sia = self.cert.get_SIA() if sia is None else sia,
+                           sia = sia,
                            as = as,
                            v4 = v4,
                            v6 = v6,

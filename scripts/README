@@ -57,6 +57,8 @@ To do list:
 
 - manifest generation
 
+- subsetting (req_* attributes in up-down protocol)
+
 - revocation and crl generation
 
   - need to keep data on unexpired revoked certs to generate crl

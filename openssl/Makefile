@@ -4,9 +4,10 @@ VERSION = 0.9.8g
 
 all: openssl-${VERSION}/Makefile
 	cd openssl-${VERSION}; make $@
+	ln -sf openssl-${VERSION} openssl
 
 clean:
-	rm -rf openssl-${VERSION}
+	rm -rf openssl-${VERSION} openssl
 
 openssl-${VERSION}/Makefile: openssl-${VERSION}/config
 	cd openssl-${VERSION}; PERL=/usr/bin/perl ./config enable-rfc3779 no-dso

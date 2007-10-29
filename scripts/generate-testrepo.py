@@ -14,7 +14,7 @@ makefile to drive everything.
 import rpki.resource_set, os
 
 subdir  = "resource-cert-samples"
-openssl = "../../openssl/openssl-0.9.8g/apps/openssl"
+openssl = "../../openssl/openssl/apps/openssl"
 keybits = 2048
 
 def main():

@@ -29,7 +29,7 @@ External Python packages required:
 
   # cd /usr/ports/security/cryptlib
   # make
-  # cd work
+  # cd work/bindings
   # python setup.py install
 
 - Eventually I expect that this will require an event-handling package

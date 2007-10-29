@@ -367,7 +367,7 @@ class parent_elt(data_elt):
   https_ta = None
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
-    """"Extra server actions for parent_elt."""
+    """Extra server actions for parent_elt."""
     if self.rekey or self.reissue or self.revoke:
       raise NotImplementedError, \
             "Unimplemented control %s" % ", ".join(b for b in ("rekey","reissue","revoke")

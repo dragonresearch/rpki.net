@@ -5,7 +5,7 @@ eval 'exec perl -w -S $0 ${1+"$@"}'
 
 use strict;
 
-my $openssl = "/u/sra/isc/route-pki/subvert-rpki.hactrn.net/openssl/openssl-0.9.8f/apps/openssl";
+my $openssl = "/u/sra/isc/route-pki/subvert-rpki.hactrn.net/openssl/openssl-0.9.8g/apps/openssl";
 
 my $verify_options = "-verbose -crl_check_all -policy_check -explicit_policy -policy 1.3.6.1.5.5.7.14.2 -x509_strict";
 

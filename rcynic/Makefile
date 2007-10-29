@@ -1,6 +1,6 @@
 # $Id$
 
-OPENSSL_DIR = ../openssl/openssl-0.9.8f
+OPENSSL_DIR = ../openssl/openssl-0.9.8g
 
 CFLAGS = -g -I${OPENSSL_DIR}/include -Wall -Werror -Wshadow -Wmissing-prototypes -Wmissing-declarations
 LDFLAGS = -static

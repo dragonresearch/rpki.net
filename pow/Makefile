@@ -16,10 +16,11 @@ all: ${STAMP}
 
 ${STAMP}: ${SOURCES}
 	cd POW-${VERSION}; python setup.py build
+	ln -sf POW-${VERSION}/build/lib.* buildlib
 	touch $@
 
 clean:
-	rm -rf POW-${VERSION}/build
+	rm -rf POW-${VERSION}/build buildlib
 
 install:
 	@echo Not attempting to install modified POW, if you want that, do it yourself

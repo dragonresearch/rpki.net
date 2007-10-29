@@ -47,18 +47,11 @@ pure Python and only 2% about any kind of crypto.
 
 
 To do list:
-- Haven't done anything about db.commit() and db.rollback() yet, for
-  that matter haven't yet whacked MySQL to enable those features.
 
-- Access to object data attributes really ought to be through accessor
-  methods so that the .set() method can set the sql_dirty flag
-  automagically.  Not done yet.
-
-- Hmm, I seem to have goofed on the bsc table, need a column for the
-  hash algorithm after all, as it's not intrinsic to the key.  Probably
-  ought to let it be set independently of the key too.  But for the
-  moment I'm only supporting 2048-bit RSA with SHA-256 digests, so
-  fixing this is not urgent.
+- timestamps are a mess.  we have four different kinds already:
+  seconds from epoch, the the two flavors of timestamps used
+  in asn.1, and the timestamps used in mysql.  need a
+  unifying class to hide all this nastiness.
 
 - publication protocol and implementation
 
@@ -113,3 +106,16 @@ To do list:
   - publication urls for issuer cert, subject cert, crl, and manifest
   - https and cms data for publication server
   - resources to issue?  or just copy/inherit from self-signed?
+
+- Haven't done anything about db.commit() and db.rollback() yet, for
+  that matter haven't yet whacked MySQL to enable those features.
+
+- Access to object data attributes really ought to be through accessor
+  methods so that the .set() method can set the sql_dirty flag
+  automagically.  Not done yet.
+
+- Hmm, I seem to have goofed on the bsc table, need a column for the
+  hash algorithm after all, as it's not intrinsic to the key.  Probably
+  ought to let it be set independently of the key too.  But for the
+  moment I'm only supporting 2048-bit RSA with SHA-256 digests, so
+  fixing this is not urgent.

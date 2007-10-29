@@ -28,9 +28,11 @@ External Python packages required:
   sigh, so at the moment you have to do that by hand:
 
   # cd /usr/ports/security/cryptlib
-  # make
+  # make install
   # cd work/bindings
   # python setup.py install
+  # cd ../..
+  # make clean
 
 - Eventually I expect that this will require an event-handling package
   like Twisted, but I'm not there yet.

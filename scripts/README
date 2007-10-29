@@ -1,21 +1,62 @@
 $Id$
 
-Haven't done anything about db.commit() and db.rollback() yet, for
-that matter haven't yet whacked MySQL to enable those features.
+Python RPKI production tools.
 
-Access to object data attributes really ought to be through accessor
-methods so that the .set() method can set the sql_dirty flag
-automagically.  Not done yet.
+Requires Python 2.5.
 
-Hmm, I seem to have goofed on the bsc table, need a column for the
-hash algorithm after all, as it's not intrinsic to the key.  Probably
-ought to let it be set independently of the key too.  But for the
-moment I'm only supporting 2048-bit RSA with SHA-256 digests, so
-fixing this is not urgent.
+External Python packages required:
+
+- lxml, which in turn requires the libxml2 C libraries.
+
+  FreeBSD: /usr/ports/devel/py-lxml
+
+- MySQLdb, which in turn requires MySQL client and server.  I'm
+  testing with MySQL 5.1.
+
+  FreeBSD: /usr/ports/databases/py-MySQLdb
+
+- TLSLite, which pulls in other crypto packages.
+
+  FreeBSD: /usr/ports/security/py-tlslite
+
+- Cryptlib, at the moment just to support TLSlite but may end up using
+  it for other things later.
+
+  FreeBSD: /usr/ports/security/cryptlib
+
+  ...but the FreeBSD port doesn't (yet?) install the Python bindings,
+  sigh, so at the moment you have to do that by hand:
+
+  # cd /usr/ports/security/cryptlib
+  # make
+  # cd work
+  # python setup.py install
+
+- Eventually I expect that this will require an event-handling package
+  like Twisted, but I'm not there yet.
+
+We also use a hacked copy of the Python OpenSSL Wrappers (POW)
+package, but our copy has enough modifications that it's expanded in
+the Subversion tree.  Depending on how this all works out, I may end
+up splitting the POW.pkix module out of the POW package and using it
+with Cryptlib, as the POW.pkix package is 98% about doing ASN.1 in
+pure Python and only 2% about any kind of crypto.
 
 
 
 To do list:
+- Haven't done anything about db.commit() and db.rollback() yet, for
+  that matter haven't yet whacked MySQL to enable those features.
+
+- Access to object data attributes really ought to be through accessor
+  methods so that the .set() method can set the sql_dirty flag
+  automagically.  Not done yet.
+
+- Hmm, I seem to have goofed on the bsc table, need a column for the
+  hash algorithm after all, as it's not intrinsic to the key.  Probably
+  ought to let it be set independently of the key too.  But for the
+  moment I'm only supporting 2048-bit RSA with SHA-256 digests, so
+  fixing this is not urgent.
 
 - publication protocol and implementation
 

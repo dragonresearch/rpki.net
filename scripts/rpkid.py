@@ -70,7 +70,7 @@ class global_context(object):
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-cfg_file = "re.conf"
+cfg_file = "rpkid.conf"
 
 opts,argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
 for o,a in opts:
@@ -82,7 +82,7 @@ for o,a in opts:
 if argv:
   raise RuntimeError, "Unexpected arguments %s" % argv
 
-gctx = global_context(cfg = rpki.config.parser(cfg_file), section = "rpki")
+gctx = global_context(cfg = rpki.config.parser(cfg_file), section = "rpkid")
 
 rpki.https.server(privateKey = gctx.https_key,
                   certChain = gctx.https_certs,

@@ -103,7 +103,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
     """Handle a create action."""
     r_pdu = self.make_reply()
     self.serve_pre_save_hook(self, r_pdu)
-    self.sql_store(gctx.db, gctx.cur)
+    self.sql_store(gctx)
     setattr(r_pdu, self.sql_template.index, getattr(self, self.sql_template.index))
     self.serve_post_save_hook(self, r_pdu)
     r_msg.append(r_pdu)
@@ -119,7 +119,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
           setattr(db_pdu, a, v)
       db_pdu.sql_mark_dirty()
       db_pdu.serve_pre_save_hook(self, r_pdu)
-      db_pdu.sql_store(gctx.db, gctx.cur)
+      db_pdu.sql_store(gctx)
       db_pdu.serve_post_save_hook(self, r_pdu)
       r_msg.append(r_pdu)
     else:

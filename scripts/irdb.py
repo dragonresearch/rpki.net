@@ -75,4 +75,4 @@ rpki.https.server(privateKey = rpki.x509.RSA(Auto_file = cfg.get(cfg_section, "h
                   certChain  = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "https-cert")),
                   host       = u.hostname or "localhost",
                   port       = u.port or 443,
-                  handlers   = { u.path : handler })
+                  handlers   = ((u.path, handler),))

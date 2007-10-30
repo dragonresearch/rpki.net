@@ -1,6 +1,6 @@
 # $Id$
 
-import tlslite.api, MySQLdb
+import tlslite.api, MySQLdb, urlparse
 import rpki.https, rpki.config, rpki.resource_set, rpki.cms
 
 def handler(query, path):
@@ -62,8 +62,17 @@ cms_ta          = rpki.x509.X509(Auto_file = cfg.get(cfg_section, "cms-ta"))
 cms_key         = rpki.x509.RSA(Auto_file = cfg.get(cfg_section, "cms-key"))
 cms_certs       = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "cms-cert"))
 
+u = urlparse.urlparse(cfg.get(cfg_section, "https-url"))
+
+assert u.scheme in ("", "https") and \
+       u.username is None and \
+       u.password is None and \
+       u.params   == "" and \
+       u.query    == "" and \
+       u.fragment == ""
+
 rpki.https.server(privateKey = rpki.x509.RSA(Auto_file = cfg.get(cfg_section, "https-key")),
                   certChain  = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "https-cert")),
-                  host       = cfg.get(cfg_section, "https-host"),
-                  port       = int(cfg.get(cfg_section, "https-port")),
-                  handlers   = { cfg.get(cfg_section, "https-url") : handler })
+                  host       = u.hostname or "localhost",
+                  port       = u.port or 443,
+                  handlers   = { u.path : handler })

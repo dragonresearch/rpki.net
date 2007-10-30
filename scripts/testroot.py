@@ -25,24 +25,33 @@ def set_subject_cert(cert):
   f.write(cert.get_DER())
   f.close()
 
-class list_pdu(rpki.up_down.list_pdu):
-  def serve_pdu(self, xxx1, q_msg, r_msg, xxx2):
-    r_msg.payload = rpki.up_down.list_response_pdu()
+def compose_response(r_msg):
+    rc = rpki.up_down.class_elt()
+    rc.class_name = "wombat"
+    rc.cert_url = rpki.up_down.multi_uri("rsync://wombat.invalid/testroot.cer")
+    rc.resource_set_as, rc.resource_set_ipv4, rc.resource_set_ipv6 = rpki_issuer.get_3779resources()
+    r_msg.payload.classes.append(rc)
     rpki_subject = get_subject_cert()
     if rpki_subject is not None:
-      rc = rpki.up_down.class_elt()
-      rc.class_name = "wombat"
-      rc.cert_url = rpki.up_down.multi_uri("rsync://wombat.invalid/testroot.cer")
-      rc.resource_set_as, rc.resource_set_ipv4, rc.resource_set_ipv6 = rpki_issuer.get_3779resources()
       rc.certs.append(rpki.up_down.certificate_elt())
       rc.certs[0].cert_url = rpki.up_down.multi_uri("rsync://wombat.invalid/" + rpki_subject.gSKI() + ".cer")
       rc.certs[0].cert = rpki_subject
       rc.issuer = rpki.issuer
-      r_msg.payload.classes.append(rc)
+
+class list_pdu(rpki.up_down.list_pdu):
+  def serve_pdu(self, xxx1, q_msg, r_msg, xxx2):
+    r_msg.payload = rpki.up_down.list_response_pdu()
+    compose_response(r_msg)
 
 class issue_pdu(rpki.up_down.issue_pdu):
   def serve_pdu(self, xxx1, q_msg, r_msg, xxx2):
-    raise rpki.exceptions.NotImplementedYet
+    rpki_subject = get_subject_cert()
+    if rpki_subject is not None:
+
+      # Generate a cert here, as we don't have one yet
+      raise rpki.exceptions.NotImplementedYet, "Have to generate cert, fun fun fun"
+
+    compose_response(r_msg)
 
 class revoke_pdu(rpki.up_down.revoke_pdu):
   def serve_pdu(self, xxx1, q_msg, r_msg, xxx2):

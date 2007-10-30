@@ -40,12 +40,12 @@ if show_signed_manifest_PEM:
   print m.get_PEM()
 
 if dump_manifest_content_DER:
-  f = open("manifest-content.der", "w")
+  f = open("manifest-content.der", "wb")
   f.write(m.get_content().toString())
   f.close()
 
 if dump_signed_manifest_DER:
-  f = open("signed-manifest.der", "w")
+  f = open("signed-manifest.der", "wb")
   f.write(m.get_DER())
   f.close()
 

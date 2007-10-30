@@ -30,7 +30,7 @@ class PEM_converter(object):
 
   def to_DER(self, pem):
     """Convert from PEM to DER."""
-    lines = pem.splitlines(0)
+    lines = [line.strip() for line in pem.splitlines(0)]
     while lines and lines.pop(0) != self.b:
       pass
     while lines and lines.pop(-1) != self.e:
@@ -103,7 +103,7 @@ class DER_object(object):
         self.DER = base64.b64decode(kw[name])
         return
       if name in ("PEM_file", "DER_file", "Auto_file"):
-        f = open(kw[name], "r")
+        f = open(kw[name], "rb")
         value = f.read()
         f.close()
         if name == "PEM_file" or (name == "Auto_file" and self.pem_converter.looks_like_PEM(value)):

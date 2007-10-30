@@ -8,10 +8,9 @@ Usage: python rpkid.py [ { -c | --config } configfile ] [ { -h | --help } ]
 Default configuration file is re.conf, override with --config option.
 """
 
-import traceback, os, time, getopt, sys
-import tlslite.api, MySQLdb, xml.sax, lxml.etree, lxml.sax, POW, POW.pkix
-import rpki.https, rpki.config, rpki.resource_set, rpki.up_down, rpki.left_right, rpki.relaxng
-import rpki.cms, rpki.exceptions, rpki.x509
+import traceback, os, time, getopt, sys, MySQLdb
+import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
+import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng
 
 def left_right_handler(query, path):
   try:

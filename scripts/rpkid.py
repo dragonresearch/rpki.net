@@ -5,7 +5,7 @@ RPKI engine daemon.  This is still very much a work in progress.
 
 Usage: python rpkid.py [ { -c | --config } configfile ] [ { -h | --help } ]
 
-Default configuration file is re.conf, override with --config option.
+Default configuration file is rpkid.conf, override with --config option.
 """
 
 import traceback, os, time, getopt, sys, MySQLdb

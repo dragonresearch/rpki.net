@@ -31,7 +31,7 @@ def up_down_handler(query, path):
     child_id = path.partition("/up-down/")[2]
     if not child_id.isdigit():
       raise rpki.exceptions.BadContactURL, "Bad path: %s" % path
-    child = rpki.left_right.child_elt.sql_fetch(gctx.db, gctx.cur, long(child_id))
+    child = rpki.left_right.child_elt.sql_fetch(gctx, long(child_id))
     if child is None:
       raise rpki.exceptions.NotFound, "Could not find child %s" % child_id
     return 200, child.serve_up_down(gctx, query)
@@ -45,8 +45,28 @@ def cronjob_handler(query, path):
   #raise rpki.exceptions.NotImplementedYet
 
 class global_context(object):
-  """A place to stash various global parameters."""
-  pass
+  """A container for various global parameters."""
+
+  def __init__(self, cfg, section):
+
+    self.db = MySQLdb.connect(user   = cfg.get(section, "sql-username"),
+                              db     = cfg.get(section, "sql-database"),
+                              passwd = cfg.get(section, "sql-password"))
+    self.cur = self.db.cursor()
+
+    self.cms_ta_irdb = rpki.x509.X509(Auto_file = cfg.get(section, "cms-ta-irdb"))
+    self.cms_ta_irbe = rpki.x509.X509(Auto_file = cfg.get(section, "cms-ta-irbe"))
+    self.cms_key     = rpki.x509.RSA(Auto_file = cfg.get(section, "cms-key"))
+    self.cms_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget(section, "cms-cert"))
+
+    self.https_key   = rpki.x509.RSA(Auto_file = cfg.get(section, "https-key"))
+    self.https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget(section, "https-cert"))
+    self.https_tas   = rpki.x509.X509_chain(Auto_files = cfg.multiget(section, "https-ta"))
+
+    self.irdb_url    = cfg.get(section, "irdb-url")
+
+    self.https_server_host = cfg.get(section, "server-host", "")
+    self.https_server_port = int(cfg.get(section, "server-port", "4433"))
 
 os.environ["TZ"] = "UTC"
 time.tzset()
@@ -63,31 +83,12 @@ for o,a in opts:
 if argv:
   raise RuntimeError, "Unexpected arguments %s" % argv
 
-gctx = global_context()
-
-gctx.cfg = rpki.config.parser(cfg_file)
-gctx.cfg_section = "rpki"
-
-gctx.db = MySQLdb.connect(user   = gctx.cfg.get(gctx.cfg_section, "sql-username"),
-                          db     = gctx.cfg.get(gctx.cfg_section, "sql-database"),
-                          passwd = gctx.cfg.get(gctx.cfg_section, "sql-password"))
-
-gctx.cur = gctx.db.cursor()
-
-gctx.cms_ta_irdb = rpki.x509.X509(Auto_file = gctx.cfg.get(gctx.cfg_section, "cms-ta-irdb"))
-gctx.cms_ta_irbe = rpki.x509.X509(Auto_file = gctx.cfg.get(gctx.cfg_section, "cms-ta-irbe"))
-gctx.cms_key     = rpki.x509.RSA(Auto_file = gctx.cfg.get(gctx.cfg_section, "cms-key"))
-gctx.cms_certs   = rpki.x509.X509_chain(Auto_files = gctx.cfg.multiget(gctx.cfg_section, "cms-cert"))
-
-gctx.https_key   = rpki.x509.RSA(Auto_file = gctx.cfg.get(gctx.cfg_section, "https-key"))
-gctx.https_certs = rpki.x509.X509_chain(Auto_files = gctx.cfg.multiget(gctx.cfg_section, "https-cert"))
-gctx.https_tas   = rpki.x509.X509_chain(Auto_files = gctx.cfg.multiget(gctx.cfg_section, "https-ta"))
-
-gctx.irdb_url    = gctx.cfg.get(gctx.cfg_section, "irdb-url")
+gctx = global_context(cfg = rpki.config.parser(cfg_file), section = "rpki")
 
 rpki.https.server(privateKey = gctx.https_key,
                   certChain = gctx.https_certs,
-                  port = int(gctx.cfg.get(gctx.cfg_section, "server-port", "4433")),
+                  host = gctx.https_server_host,
+                  port = gctx.https_server_port,
                   handlers=(("/left-right", left_right_handler),
                             ("/up-down/",   up_down_handler),
                             ("/cronjob",    cronjob_handler)))

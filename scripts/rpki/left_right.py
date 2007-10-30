@@ -136,7 +136,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
 
   def serve_list(self, gctx, r_msg):
     """Handle a list action."""
-    for r_pdu in self.sql_fetch_all(gctx.db, gctx.cur):
+    for r_pdu in self.sql_fetch_all(gctx):
       self.make_reply(r_pdu)
       r_msg.append(r_pdu)
 
@@ -144,7 +144,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
     """Handle a destroy action."""
     db_pdu = self.sql_fetch(gctx, getattr(self, self.sql_template.index))
     if db_pdu is not None:
-      db_pdu.sql_delete(gctx.db, gctx.cur)
+      db_pdu.sql_delete(gctx)
       r_msg.append(self.make_reply())
     else:
       r_msg.append(make_error_report(self))

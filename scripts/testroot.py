@@ -10,9 +10,13 @@ Usage: python testroot.py [ { -c | --config } configfile ] [ { -h | --help } ]
 Default configuration file is testroot.conf, override with --config option.
 """
 
-import traceback, os, time, getopt, sys, MySQLdb
+import traceback, os, time, getopt, sys
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
 import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng
+
+root_name = "wombat"
+root_base = "rsync://" + root_name + ".invalid/"
+root_cert = root_base + "testroot.cer"
 
 def get_subject_cert():
   try:
@@ -27,14 +31,14 @@ def set_subject_cert(cert):
 
 def compose_response(r_msg):
     rc = rpki.up_down.class_elt()
-    rc.class_name = "wombat"
-    rc.cert_url = rpki.up_down.multi_uri("rsync://wombat.invalid/testroot.cer")
+    rc.class_name = root_name
+    rc.cert_url = rpki.up_down.multi_uri(root_cert)
     rc.resource_set_as, rc.resource_set_ipv4, rc.resource_set_ipv6 = rpki_issuer.get_3779resources()
     r_msg.payload.classes.append(rc)
     rpki_subject = get_subject_cert()
     if rpki_subject is not None:
       rc.certs.append(rpki.up_down.certificate_elt())
-      rc.certs[0].cert_url = rpki.up_down.multi_uri("rsync://wombat.invalid/" + rpki_subject.gSKI() + ".cer")
+      rc.certs[0].cert_url = rpki.up_down.multi_uri(root_base + rpki_subject.gSKI() + ".cer")
       rc.certs[0].cert = rpki_subject
       rc.issuer = rpki.issuer
 
@@ -45,12 +49,15 @@ class list_pdu(rpki.up_down.list_pdu):
 
 class issue_pdu(rpki.up_down.issue_pdu):
   def serve_pdu(self, xxx1, q_msg, r_msg, xxx2):
+    self.pkcs10.check_valid_rpki()
     rpki_subject = get_subject_cert()
     if rpki_subject is not None:
-
-      # Generate a cert here, as we don't have one yet
-      raise rpki.exceptions.NotImplementedYet, "Have to generate cert, fun fun fun"
-
+      as, v4, v6 = rpki_issuer.get_3779resources()
+      req_key = self.pkcs10.getPublicKey()
+      req_sia = self.pkcs10.get_SIA()
+      req_ski = self.pkcs10.get_SKI()
+      crldp = root_base + rpki_issuer.gSKI() + ".crl"
+      set_subject_cert(rpki_issuer.issue(keypair = rpki_key, subject_key = req_key, serial = int(time.time()), aia = test_cert, crldp = crldp, as = as, v4 = v4, v6 = v6))
     compose_response(r_msg)
 
 class revoke_pdu(rpki.up_down.revoke_pdu):
@@ -105,7 +112,7 @@ if argv:
   raise RuntimeError, "Unexpected arguments %s" % argv
 
 cfg = rpki.config.parser(cfg_file)
-section = "rpkid"
+section = "testroot"
 
 cms_ta      = rpki.x509.X509(Auto_file = cfg.get(section, "cms-ta"))
 cms_key     = rpki.x509.RSA(Auto_file = cfg.get(section, "cms-key"))

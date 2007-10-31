@@ -258,7 +258,7 @@ class self_elt(data_elt):
   def client_poll(self, gctx):
     """Run the regular client poll cycle with each of this self's parents in turn."""
     for parent in parent_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id):
-      r_pdu = rpki.up_down.list_pdu(gctx, parent)
+      r_pdu = rpki.up_down.list_pdu.query(gctx, parent)
       ca_map = dict((ca.parent_resource_class, ca)
                     for ca in rpki.sql.ca_obj.sql_fetch_where(gctx, "parent_id = %s" % parent.parent_id))
       for rc in r_pdu.payload:
@@ -288,12 +288,12 @@ class bsc_elt(data_elt):
 
   def __init__(self):
     """Initialize bsc_elt.""" 
-    self.signing_cert = []
+    self.signing_cert = rpki.x509.X509_chain()
 
   def sql_fetch_hook(self, gctx):
     """Extra SQL fetch actions for bsc_elt -- handle signing certs."""
     gctx.cur.execute("SELECT cert FROM bsc_cert WHERE bsc_id = %s", self.bsc_id)
-    self.signing_cert = [rpki.x509.X509(DER=x) for (x,) in gctx.cur.fetchall()]
+    self.signing_cert[:] = [rpki.x509.X509(DER=x) for (x,) in gctx.cur.fetchall()]
 
   def sql_insert_hook(self, gctx):
     """Extra SQL insert actions for bsc_elt -- handle signing certs."""
@@ -309,7 +309,7 @@ class bsc_elt(data_elt):
     """Extra server actions for bsc_elt -- handle signing certs and key generation."""
     if self is not q_pdu:
       if q_pdu.clear_signing_certs:
-        self.signing_cert = []
+        self.signing_cert[:] = []
       self.signing_cert.extend(q_pdu.signing_cert)
     if q_pdu.generate_keypair:
       #

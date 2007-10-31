@@ -192,8 +192,7 @@ class list_pdu(base_elt):
   @classmethod
   def query(cls, gctx, parent):
     """Send a "list" query to parent."""
-    self = cls()
-    return parent.query_up_down(gctx, self)
+    return parent.query_up_down(gctx, cls())
 
 class class_response_syntax(base_elt):
   """Syntax for Up-Down protocol "list_response" and "issue_response" PDUs."""
@@ -477,7 +476,7 @@ class message_pdu(base_elt):
   @classmethod
   def make_query(cls, payload, sender = "tweedledee", recipient = "tweedledum"):
     """Construct one message PDU."""
-    assert not self.type2name[type(payload)].endswith("_response")
+    assert not cls.type2name[type(payload)].endswith("_response")
     self = cls()
     self.sender = sender
     self.recipient = recipient

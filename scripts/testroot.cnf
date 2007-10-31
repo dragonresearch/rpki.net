@@ -2,38 +2,6 @@
 #
 # Generate test root resource certificate for use with testroot.py server.
 
-[ ca ]
-default_ca		= ca_default
-
-[ ca_default ]
-certificate		= testroot.cer
-serial			= testroot.serial
-private_key		= testroot.key
-database		= testroot.index
-new_certs_dir		= .
-name_opt		= ca_default
-cert_opt		= ca_default
-default_days		= 365
-default_crl_days	= 30
-default_md		= sha256
-preserve		= no
-copy_extensions		= copy
-policy			= ca_policy_anything
-unique_subject		= no
-x509_extensions		= ca_x509_ext
-crl_extensions		= crl_x509_ext
-
-[ ca_policy_anything ]
-countryName		= optional
-stateOrProvinceName	= optional
-localityName		= optional
-organizationName	= optional
-organizationalUnitName	= optional
-commonName		= supplied
-emailAddress		= optional
-givenName		= optional
-surname			= optional
-
 [ req ]
 default_bits		= 2048
 encrypt_key		= no
@@ -49,26 +17,16 @@ basicConstraints	= critical,CA:true
 subjectKeyIdentifier	= hash
 keyUsage		= critical,keyCertSign,cRLSign
 subjectInfoAccess	= 1.3.6.1.5.5.7.48.5;URI:rsync://wombat.invalid/
-sbgp-autonomousSysNum	= critical,@asid_ext
-sbgp-ipAddrBlock	= critical,@addr_ext
+sbgp-autonomousSysNum	= critical,@req_asid_ext
+sbgp-ipAddrBlock	= critical,@req_addr_ext
 
-[ ca_x509_ext ]
-basicConstraints	= critical,CA:true
-keyUsage		= critical,keyCertSign,cRLSign
-subjectInfoAccess	= 1.3.6.1.5.5.7.48.5;URI:rsync://wombat.invalid/
-sbgp-autonomousSysNum	= critical,@asid_ext
-sbgp-ipAddrBlock	= critical,@addr_ext
-
-[ crl_x509_ext ]
-authorityKeyIdentifier	= keyid:always
-
-[ asid_ext ] 
+[ req_asid_ext ] 
 
 AS.0			= 64533
 AS.1			= 64534-64540
 AS.2			= 64544
 
-[ addr_ext ]
+[ req_addr_ext ]
 
 IPv4.0			= 10.0.0.0/24
 IPv4.1			= 10.3.0.0/24

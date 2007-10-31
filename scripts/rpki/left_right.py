@@ -77,8 +77,8 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
     """Encode SQL form of a data_elt object."""
     d = rpki.sql.sql_persistant.sql_encode(self)
     for i in ("cms_ta", "https_ta", "private_key_id", "public_key"):
-      if i in d:
-        d[i] = getattr(self, i).get_DER()
+      if i in d and d[i] is not None:
+        d[i] = d[i].get_DER()
     return d
 
   def make_reply(self, r_pdu=None):

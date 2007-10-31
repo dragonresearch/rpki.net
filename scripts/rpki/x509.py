@@ -281,7 +281,7 @@ class X509(DER_object):
     exts = [ ["subjectKeyIdentifier",   False, ski],
              ["authorityKeyIdentifier", False, (aki, (), None)],
              ["cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)],
-             ["authorityInfoAccess",    False, aia],
+             ["authorityInfoAccess",    False, ((1, 3, 6, 1, 5, 5, 7, 48, 2), ("uri", aia))],
              ["subjectInfoAccess",      False, sia],
              ["certificatePolicies",    True,  (((1, 3, 6, 1, 5, 5, 7, 14, 2), ()),)] ]
 

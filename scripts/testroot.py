@@ -123,7 +123,7 @@ https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget(section, "https-cer
 https_tas   = rpki.x509.X509_chain(Auto_files = cfg.multiget(section, "https-ta"))
 
 https_server_host = cfg.get(section, "server-host", "")
-https_server_port = int(cfg.get(section, "server-port", "4433"))
+https_server_port = int(cfg.get(section, "server-port"))
 
 rpki_key    = rpki.x509.RSA(Auto_file = cfg.get(section, "rpki-key"))
 rpki_issuer = rpki.x509.X509(Auto_file = cfg.get(section, "rpki-issuer"))

@@ -418,9 +418,11 @@ class parent_elt(data_elt):
     q_elt = q_msg.toXML()
     rpki.relaxng.up_down.assertValid(q_elt)
     q_cms = rpki.cms.xml_sign(q_elt, bsc.private_key_id, bsc.signing_cert)
-    r_cms = self.client_up_down_reply(gctx, q_pdu,
-                                      rpki.https.client(x509TrustList = rpki.x509.X509_chain(self.https_ta),
-                                                        msg = q_cms, url = self.peer_contact_uri))
+    r_cms = rpki.https.client(x509TrustList = rpki.x509.X509_chain(self.https_ta),
+                              privateKey = gctx.https_key,
+                              certChain = gctx.https_certs,
+                              msg = q_cms,
+                              url = self.peer_contact_uri)
     r_elt = rpki.cms.xml_verify(r_cms, self.cms_ta)
     rpki.relaxng.up_down.assertValid(r_elt)
     return rpki.up_down.sax_handler.saxify(r_elt)

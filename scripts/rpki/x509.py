@@ -449,10 +449,10 @@ class PKCS10(DER_object):
   @classmethod
   def create_ca(cls, keypair, sia = None):
     """Create a new request for a given keypair, including given SIA value."""
-    exts = [ ("basicConstraints",  True,  (1, None)),
-             ("keyUsage",          True,  (0, 0, 0, 0, 0, 1, 1)) ]
+    exts = [["basicConstraints", True, (1, None)],
+            ["keyUsage",         True, (0, 0, 0, 0, 0, 1, 1)]]
     if sia is not None:
-      exts.append(("subjectInfoAccess", False, sia))
+      exts.append(["subjectInfoAccess", False, sia])
     for x in exts:
       x[0] = POW.pkix.obj2oid(x[0])
     return cls.create(keypair, exts)

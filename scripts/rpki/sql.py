@@ -217,8 +217,8 @@ class ca_obj(sql_persistant):
     off to the affected ca_detail for processing.
     """
     cert_map = dict((c.get_SKI(), c) for c in rc.certs)
-    ca_details = ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL" % ca.ca_id)
-    as, v4, v6 = ca_detail_obj.sql_fetch_active(gctx, ca_id).latest_ca_cert.get_3779resources()
+    ca_details = ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL" % self.ca_id)
+    as, v4, v6 = ca_detail_obj.sql_fetch_active(gctx, self.ca_id).latest_ca_cert.get_3779resources()
     undersized = not rc.resource_set_as.issubset(as) or \
                  not rc.resource_set_ipv4.issubset(v4) or not rc.resource_set_ipv6.issubset(v6)
     oversized  = not as.issubset(rc.resource_set_as) or \
@@ -251,6 +251,7 @@ class ca_obj(sql_persistant):
     """
     self = cls()
     self.parent_id = parent.parent_id
+    self.parent_resource_class = rc.class_name
     self.sql_store(gctx)
     self.sia_uri = self.construct_sia_uri(gctx, parent, rc)
     ca_detail = ca_detail_obj.create(gctx, self)
@@ -302,7 +303,7 @@ class ca_obj(sql_persistant):
 class ca_detail_obj(sql_persistant):
   """Internal CA detail object."""
 
-  sql_template = template("ca", "ca_detail_id", "private_key_id", "public_key", "latest_ca_cert",
+  sql_template = template("ca_detail", "ca_detail_id", "private_key_id", "public_key", "latest_ca_cert",
                           "manifest_private_key_id", "manifest_public_key", "latest_manifest_cert",
                           "latest_manifest", "latest_crl", "state", "ca_cert_uri", "ca_id")
 
@@ -325,7 +326,8 @@ class ca_detail_obj(sql_persistant):
     d = sql_persistant.sql_encode(self)
     for i in ("private_key_id", "public_key", "latest_ca_cert", "manifest_private_key_id",
               "manifest_public_key", "latest_manifest_cert", "latest_manifest", "latest_crl"):
-      d[i] = getattr(self, i).get_DER()
+      if d[i] is not None:
+        d[i] = d[i].get_DER()
     return d
 
   @classmethod

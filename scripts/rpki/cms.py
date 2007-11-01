@@ -86,7 +86,7 @@ def xml_verify(elt, ta):
   """Composite routine to verify CMS-wrapped XML."""
   return lxml.etree.fromstring(verify(elt, ta))
 
-def xml_sign(elt, key, certs):
+def xml_sign(elt, key, certs, encoding = "us-ascii"):
   """Composite routine to sign CMS-wrapped XML."""
-  return sign(lxml.etree.tostring(elt, pretty_print=True, encoding="us-ascii", xml_declaration=True),
+  return sign(lxml.etree.tostring(elt, pretty_print = True, encoding = encoding, xml_declaration = True),
               key, certs)

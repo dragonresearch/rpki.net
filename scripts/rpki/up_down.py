@@ -458,7 +458,7 @@ class message_pdu(base_elt):
 
   def __str__(self):
     """Convert a message PDU to a string."""
-    lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="UTF-8")
+    lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "UTF-8")
 
   def serve_top_level(self, gctx, child):
     """Serve one message request PDU."""
@@ -466,6 +466,7 @@ class message_pdu(base_elt):
     r_msg.sender = self.recipient
     r_msg.recipient = self.sender
     self.payload.serve_pdu(gctx, self, r_msg, child)
+    r_msg.type = self.type2name[type(r_msg.payload)]
     return r_msg
 
   def serve_error(self, exception):
@@ -474,6 +475,7 @@ class message_pdu(base_elt):
     r_msg.sender = self.recipient
     r_msg.recipient = self.sender
     r_msg.payload = error_response_pdu(exception)
+    r_msg.type = self.type2name[type(r_msg.payload)]
     return r_msg
 
   @classmethod

@@ -10,7 +10,7 @@ Usage: python testroot.py [ { -c | --config } configfile ] [ { -h | --help } ]
 Default configuration file is testroot.conf, override with --config option.
 """
 
-import traceback, os, time, getopt, sys
+import traceback, os, time, getopt, sys, lxml
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
 import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng
 
@@ -34,14 +34,13 @@ def compose_response(r_msg):
     rc.class_name = root_name
     rc.cert_url = rpki.up_down.multi_uri(root_cert)
     rc.resource_set_as, rc.resource_set_ipv4, rc.resource_set_ipv6 = rpki_issuer.get_3779resources()
+    rc.issuer = rpki_issuer
     r_msg.payload.classes.append(rc)
     rpki_subject = get_subject_cert()
     if rpki_subject is not None:
       rc.certs.append(rpki.up_down.certificate_elt())
       rc.certs[0].cert_url = rpki.up_down.multi_uri(root_base + rpki_subject.gSKI() + ".cer")
       rc.certs[0].cert = rpki_subject
-      rc.issuer = rpki_issuer
-      print rc, rc.certs, rc.certs[0], rc.issuer
 
 class list_pdu(rpki.up_down.list_pdu):
   def serve_pdu(self, xxx1, q_msg, r_msg, xxx2):
@@ -66,7 +65,14 @@ class revoke_pdu(rpki.up_down.revoke_pdu):
     raise rpki.exceptions.NotImplementedYet
 
 class message_pdu(rpki.up_down.message_pdu):
-  name2type = { "list" : list_pdu, "issue" : issue_pdu, "revoke" : revoke_pdu }
+  name2type = {
+    "list"            : list_pdu,
+    "list_response"   : rpki.up_down.list_response_pdu,
+    "issue"           : issue_pdu,
+    "issue_response"  : rpki.up_down.issue_response_pdu,
+    "revoke"          : revoke_pdu,
+    "revoke_response" : rpki.up_down.revoke_response_pdu,
+    "error_response"  : rpki.up_down.error_response_pdu }
   type2name = dict((v,k) for k,v in name2type.items())
 
 class sax_handler(rpki.sax_utils.handler):
@@ -84,15 +90,21 @@ def up_down_handler(query, path):
   try:
     r_msg = q_msg.serve_top_level(None, None)
     r_elt = r_msg.toXML()
-    rpki.relaxng.up_down.assertValid(r_elt)
-    return 200, rpki.cms.xml_sign(r_elt, cms_key, cms_certs)
+    try:
+      rpki.relaxng.up_down.assertValid(r_elt)
+    except lxml.etree.DocumentInvalid:
+      print
+      print lxml.etree.tostring(r_elt, pretty_print = True, encoding ="utf-8", xml_declaration = True)
+      print
+      raise
+    return 200, rpki.cms.xml_sign(r_elt, cms_key, cms_certs, encoding = "utf-8")
   except Exception, data:
     traceback.print_exc()
     try:
       r_msg = q_msg.serve_error(data)
       r_elt = r_msg.toXML()
       rpki.relaxng.up_down.assertValid(r_elt)
-      return 200, rpki.cms.xml_sign(r_elt, cms_key, cms_certs)
+      return 200, rpki.cms.xml_sign(r_elt, cms_key, cms_certs, encoding = "utf-8")
     except Exception, data:
       traceback.print_exc()
       return 500, "Could not process PDU: %s" % data

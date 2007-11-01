@@ -466,7 +466,7 @@ class PKCS10(DER_object):
     req.certificationRequestInfo.subject.set((((POW.pkix.obj2oid("commonName"),
                                                 ("printableString", cn)),),))
     if exts is not None:
-      req.setExtension(exts)
+      req.setExtensions(exts)
     req.sign(keypair.get_POW(), POW.SHA256_DIGEST)
     return cls(POWpkix = req)
 

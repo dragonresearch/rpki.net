@@ -20,11 +20,15 @@ root_cert = root_base + "testroot.cer"
 
 def get_subject_cert():
   try:
-    return rpki.x509.X509(Auto_file = rpki_subject_filename)
+    x = rpki.x509.X509(Auto_file = rpki_subject_filename)
+    print "Read subject cert"
+    return x
   except IOError:
+    print "No subject cert"
     return None
 
 def set_subject_cert(cert):
+  print "Writing subject cert"
   f = open(rpki_subject_filename, "wb")
   f.write(cert.get_DER())
   f.close()

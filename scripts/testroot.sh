@@ -47,7 +47,8 @@ python irbe-cli.py repository --self_id 1 --action create --bsc_id 1
 python irbe-cli.py parent --self_id 1 --action create --bsc_id 1 --repository_id 1 \
     --peer_contact_uri https://localhost:44333/ \
     --cms_ta biz-certs/Elena-Root.cer \
-    --https_ta biz-certs/Elena-Root.cer 
+    --https_ta biz-certs/Elena-Root.cer \
+    --sia_base rsync://wombat.invalid/
 
 # Shut down rpkid (there should be a left-right command for this!)
 

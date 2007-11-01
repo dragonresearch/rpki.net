@@ -157,7 +157,7 @@ class sql_persistant(object):
     with no datatype conversion.  If you need something fancier,
     override this.
     """
-    return dict((a, getattr(self, a)) for a in self.sql_template.columns)
+    return dict((a, getattr(self, a, None)) for a in self.sql_template.columns)
 
   def sql_decode(self, vals):
     """Initialize an object with values returned by self.sql_fetch().
@@ -192,7 +192,8 @@ class ca_obj(sql_persistant):
   """Internal CA object."""
 
   sql_template = template("ca", "ca_id", "last_crl_sn", "next_crl_update", "last_issued_sn",
-                          "last_manifest_sn", "next_manifest_update", "sia_uri", "parent_id")
+                          "last_manifest_sn", "next_manifest_update", "sia_uri", "parent_id",
+                          "parent_resource_class")
 
   def construct_sia_uri(self, gctx, parent, rc):
     """Construct the sia_uri value for this CA given configured
@@ -200,8 +201,8 @@ class ca_obj(sql_persistant):
     """
     repository = rpki.left_right.repository_elt.sql_fetch(gctx, parent.repository_id)
     sia_uri = rc.suggested_sia_head and rc.suggested_sia_head.rsync()
-    if not sia_uri or not sia_uri.startswith(repository.sia_base):
-      sia_uri = repository.sia_base
+    if not sia_uri or not sia_uri.startswith(parent.sia_base):
+      sia_uri = parent.sia_base
     elif not sia_uri.endswith("/"):
       raise rpki.exceptions.BadURISyntax, "SIA URI must end with a slash: %s" % sia_uri
     return sia_uri + str(self.ca_id) + "/"

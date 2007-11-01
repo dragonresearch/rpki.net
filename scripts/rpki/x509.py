@@ -15,6 +15,22 @@ some of the nasty details.  This involves a lot of format conversion.
 import POW, tlslite.api, POW.pkix, base64, time
 import rpki.exceptions, rpki.resource_set, rpki.manifest, rpki.cms
 
+# There should be -one- OID mapping table for this package, but I'm
+# chasing a bug as I type this and don't want to sidetrack....
+
+oid2name = {
+  (1, 2, 840, 113549, 1, 1, 11) : "sha256WithRSAEncryption",
+  (1, 2, 840, 113549, 1, 1, 12) : "sha384WithRSAEncryption",
+  (1, 2, 840, 113549, 1, 1, 13) : "sha512WithRSAEncryption",
+  (2, 5, 29, 19)                : "basicConstraints",
+  (2, 5, 29, 15)                : "keyUsage",
+  (1, 3, 6, 1, 5, 5, 7, 1, 11)  : "subjectInfoAccess",
+  (1, 3, 6, 1, 5, 5, 7, 48, 2)  : "caIssuers",
+  (1, 3, 6, 1, 5, 5, 7, 48, 5)  : "caRepository",
+  (1, 3, 6, 1, 5, 5, 7, 48, 9)  : "signedObjectRepository",
+  (1, 3, 6, 1, 5, 5, 7, 48, 10) : "rpkiManifest",
+}
+
 class PEM_converter(object):
   """Convert between DER and PEM encodings for various kinds of ASN.1 data."""
 
@@ -413,16 +429,15 @@ class PKCS10(DER_object):
     if not self.get_POWpkix().verify():
       raise rpki.exceptions.BadPKCS10, "Signature check failed"
 
-    if self.get_POWpkix().certificationRequestInfo.version != 0:
+    if self.get_POWpkix().certificationRequestInfo.version.get() != 0:
       raise rpki.exceptions.BadPKCS10, \
             "Bad version number %s" % self.get_POWpkix().certificationRequestInfo.version
 
-    if oid2name.get(self.get_POWpkix().signatureAlgorithm) not in ("sha256WithRSAEncryption",
-                                                                   "sha384WithRSAEncryption",
-                                                                   "sha512WithRSAEncryption"):
+    if oid2name.get(self.get_POWpkix().signatureAlgorithm.algorithm.get()) \
+         not in ("sha256WithRSAEncryption", "sha384WithRSAEncryption", "sha512WithRSAEncryption"):
       raise rpki.exceptions.BadPKCS10, "Bad signature algorithm %s" % self.get_POWpkix().signatureAlgorithm
 
-    exts = self.getExtensions()
+    exts = self.get_POWpkix().getExtensions()
     for oid, critical, value in exts:
       if oid2name.get(oid) not in ("basicConstraints", "keyUsage", "subjectInfoAccess"):
         raise rpki.exceptions.BadExtension, "Forbidden extension %s" % oid

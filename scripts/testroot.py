@@ -53,6 +53,11 @@ class list_pdu(rpki.up_down.list_pdu):
 
 class issue_pdu(rpki.up_down.issue_pdu):
   def serve_pdu(self, xxx1, q_msg, r_msg, xxx2):
+
+    f = open("testroot.pkcs10", "w")
+    f.write(self.pkcs10.get_DER())
+    f.close()
+
     self.pkcs10.check_valid_rpki()
     rpki_subject = get_subject_cert()
     if rpki_subject is not None:

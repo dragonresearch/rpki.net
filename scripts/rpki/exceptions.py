@@ -40,3 +40,6 @@ class BadIssueResponse(Exception):
 
 class NotImplementedYet(Exception):
   """Internal error -- not implemented yet."""
+
+class BadPKCS10(Exception):
+  """Bad PKCS #10 object."""

@@ -118,6 +118,8 @@ class certificate_elt(base_elt):
 class class_elt(base_elt):
   """Up-Down protocol representation of a resource class."""
 
+  issuer = None
+
   def __init__(self):
     """Initialize class_elt."""
     self.certs = []
@@ -151,7 +153,8 @@ class class_elt(base_elt):
     elt = self.make_elt("class", "class_name", "cert_url",
                         "resource_set_as", "resource_set_ipv4", "resource_set_ipv6", "suggested_sia_head")
     elt.extend([i.toXML() for i in self.certs])
-    self.make_b64elt(elt, "issuer", self.issuer.get_DER())
+    if self.issuer is not None:
+      self.make_b64elt(elt, "issuer", self.issuer.get_DER())
     return elt
 
 class list_pdu(base_elt):
@@ -460,16 +463,16 @@ class message_pdu(base_elt):
   def serve_top_level(self, gctx, child):
     """Serve one message request PDU."""
     r_msg = message_pdu()
-    r_msg.sender = self.receiver
-    r_msg.receiver = self.sender
+    r_msg.sender = self.recipient
+    r_msg.recipient = self.sender
     self.payload.serve_pdu(gctx, self, r_msg, child)
     return r_msg
 
   def serve_error(self, exception):
     """Generate an error_response message PDU."""
     r_msg = message_pdu()
-    r_msg.sender = self.receiver
-    r_msg.receiver = self.sender
+    r_msg.sender = self.recipient
+    r_msg.recipient = self.sender
     r_msg.payload = error_response_pdu(exception)
     return r_msg
 

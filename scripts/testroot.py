@@ -40,7 +40,8 @@ def compose_response(r_msg):
       rc.certs.append(rpki.up_down.certificate_elt())
       rc.certs[0].cert_url = rpki.up_down.multi_uri(root_base + rpki_subject.gSKI() + ".cer")
       rc.certs[0].cert = rpki_subject
-      rc.issuer = rpki.issuer
+      rc.issuer = rpki_issuer
+      print rc, rc.certs, rc.certs[0], rc.issuer
 
 class list_pdu(rpki.up_down.list_pdu):
   def serve_pdu(self, xxx1, q_msg, r_msg, xxx2):

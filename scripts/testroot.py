@@ -64,7 +64,7 @@ class revoke_pdu(rpki.up_down.revoke_pdu):
   def serve_pdu(self, xxx1, q_msg, r_msg, xxx2):
     raise rpki.exceptions.NotImplementedYet
 
-class message_pdu(rpki.up_down.base_elt):
+class message_pdu(rpki.up_down.message_pdu):
   name2type = { "list" : list_pdu, "issue" : issue_pdu, "revoke" : revoke_pdu }
   type2name = dict((v,k) for k,v in name2type.items())
 

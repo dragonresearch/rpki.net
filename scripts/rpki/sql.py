@@ -256,7 +256,7 @@ class ca_obj(sql_persistant):
     self.sia_uri = self.construct_sia_uri(gctx, parent, rc)
     ca_detail = ca_detail_obj.create(gctx, self)
     issue_response = rpki.up_down.issue_pdu.query(gctx, parent, self, ca_detail)
-    issue_response.check()
+    issue_response.payload.check_syntax()
     ca_detail.latest_ca_cert = issue_response.classes[0].certs[0]
     ca_detail.state = "active"
     ca_detail.sql_mark_dirty()

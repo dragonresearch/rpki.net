@@ -43,3 +43,6 @@ class NotImplementedYet(Exception):
 
 class BadPKCS10(Exception):
   """Bad PKCS #10 object."""
+
+class UpstreamError(Exception):
+  """Received an error from upstream."""

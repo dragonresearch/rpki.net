@@ -1259,7 +1259,8 @@ class CertificationRequest(Sequence):
       return None
 
    def setExtensions(self, exts):
-      self.certificationRequestInfo.attributes.val.choices["set"][0].set(exts)
+      self.certificationRequestInfo.attributes.oid.set((1, 2, 840, 113549, 1, 9, 14))
+      self.certificationRequestInfo.attributes.val.set(("set", [exts]))
 
 #---------- PKCS10 ----------#
 #---------- GeneralNames object support ----------#

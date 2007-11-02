@@ -474,7 +474,7 @@ class PKCS10(DER_object):
 
   @classmethod
   def create(cls, keypair, exts = None):
-    """Create a new request for a given keypair, including given SIA value."""
+    """Create a new request for a given keypair, including given extensions."""
     cn = "".join(("%02X" % ord(i) for i in keypair.get_SKI()))
     req = POW.pkix.CertificationRequest()
     req.certificationRequestInfo.version.set(0)

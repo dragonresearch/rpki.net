@@ -315,7 +315,7 @@ class issue_pdu(base_elt):
 class issue_response_pdu(class_response_syntax):
   """Up-Down protocol "issue_response" PDU."""
 
-  def check(self):
+  def check_syntax(self):
     """Check whether this looks like a reasonable issue_response PDU.
     XML schema should be tighter for this response.
     """
@@ -418,6 +418,12 @@ class error_response_pdu(base_elt):
     elt = self.make_elt("status")
     elt.text = str(self.status)
     return [elt]
+
+  def check(self):
+    """Handle an error response.  For the moment, just raise an
+    exception, eventually figure out something more clever to do.
+    """
+    raise rpki.exceptions.UpstreamError, self.codes[self.status]
 
 class message_pdu(base_elt):
   """Up-Down protocol message wrapper PDU."""

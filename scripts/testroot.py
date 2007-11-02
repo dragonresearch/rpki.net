@@ -33,6 +33,12 @@ def set_subject_cert(cert):
   f.write(cert.get_DER())
   f.close()
 
+def stash_subject_pkcs10(pkcs10):
+  if rpki_pkcs10_filename:
+    f = open(rpki_pkcs10_filename, "w")
+    f.write(pkcs10.get_PEM())
+    f.close()
+
 def compose_response(r_msg):
     rc = rpki.up_down.class_elt()
     rc.class_name = root_name
@@ -53,20 +59,25 @@ class list_pdu(rpki.up_down.list_pdu):
 
 class issue_pdu(rpki.up_down.issue_pdu):
   def serve_pdu(self, xxx1, q_msg, r_msg, xxx2):
-
-    f = open("testroot.pkcs10", "w")
-    f.write(self.pkcs10.get_DER())
-    f.close()
-
+    stash_subject_pkcs10(self.pkcs10)
     self.pkcs10.check_valid_rpki()
+    r_msg.payload = rpki.up_down.issue_response_pdu()
     rpki_subject = get_subject_cert()
-    if rpki_subject is not None:
+    if rpki_subject is None:
       as, v4, v6 = rpki_issuer.get_3779resources()
       req_key = self.pkcs10.getPublicKey()
       req_sia = self.pkcs10.get_SIA()
       req_ski = self.pkcs10.get_SKI()
       crldp = root_base + rpki_issuer.gSKI() + ".crl"
-      set_subject_cert(rpki_issuer.issue(keypair = rpki_key, subject_key = req_key, serial = int(time.time()), aia = test_cert, crldp = crldp, as = as, v4 = v4, v6 = v6))
+      set_subject_cert(rpki_issuer.issue(keypair = rpki_key,
+                                         subject_key = req_key,
+                                         serial = int(time.time()),
+                                         sia = req_sia,
+                                         aia = root_cert,
+                                         crldp = crldp,
+                                         as = as,
+                                         v4 = v4,
+                                         v6 = v6))
     compose_response(r_msg)
 
 class revoke_pdu(rpki.up_down.revoke_pdu):
@@ -151,6 +162,8 @@ rpki_key    = rpki.x509.RSA(Auto_file = cfg.get(section, "rpki-key"))
 rpki_issuer = rpki.x509.X509(Auto_file = cfg.get(section, "rpki-issuer"))
 
 rpki_subject_filename = cfg.get(section, "rpki-subject-filename")
+
+rpki_pkcs10_filename  = cfg.get(section, "rpki-pkcs10-filename", "")
 
 rpki.https.server(privateKey    = https_key,
                   certChain     = https_certs,

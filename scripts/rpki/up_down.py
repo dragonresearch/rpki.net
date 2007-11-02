@@ -419,7 +419,7 @@ class error_response_pdu(base_elt):
     elt.text = str(self.status)
     return [elt]
 
-  def check(self):
+  def check_syntax(self):
     """Handle an error response.  For the moment, just raise an
     exception, eventually figure out something more clever to do.
     """

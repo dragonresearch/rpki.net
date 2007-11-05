@@ -35,8 +35,8 @@ def set_subject_cert(cert):
 
 def stash_subject_pkcs10(pkcs10):
   if rpki_pkcs10_filename:
-    f = open(rpki_pkcs10_filename, "w")
-    f.write(pkcs10.get_PEM())
+    f = open(rpki_pkcs10_filename, "wb")
+    f.write(pkcs10.get_DER())
     f.close()
 
 def compose_response(r_msg):

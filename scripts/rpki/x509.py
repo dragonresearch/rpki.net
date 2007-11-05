@@ -272,12 +272,8 @@ class X509(DER_object):
     """Issue a certificate."""
 
     now = time.time()
-
     aki = self.get_SKI()
-
-    ski = POW.Digest(POW.SHA1_DIGEST)
-    ski.update(subject_key)
-    ski = ski.digest()
+    ski = subject_key.get_SKI()
 
     if cn is None:
       cn = "".join(("%02X" % ord(i) for i in ski))
@@ -290,14 +286,14 @@ class X509(DER_object):
     cert.setSerial(serial)
     cert.setIssuer(self.get_POWpkix().getSubject())
     cert.setSubject(((((2, 5, 4, 3), ("printableString", cn)),),))
-    cert.setNotBefore(("UTCTime", POW.pkix.time2utc(now)))
-    cert.setNotAfter(("UTCTime", POW.pkix.time2utc(notAfter)))
+    cert.setNotBefore(("utcTime", POW.pkix.time2utc(now)))
+    cert.setNotAfter(("utcTime", POW.pkix.time2utc(notAfter)))
     cert.tbs.subjectPublicKeyInfo.fromString(subject_key.get_DER())
 
     exts = [ ["subjectKeyIdentifier",   False, ski],
              ["authorityKeyIdentifier", False, (aki, (), None)],
              ["cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)],
-             ["authorityInfoAccess",    False, ((1, 3, 6, 1, 5, 5, 7, 48, 2), ("uri", aia))],
+             ["authorityInfoAccess",    False, (((1, 3, 6, 1, 5, 5, 7, 48, 2), ("uri", aia)),)],
              ["subjectInfoAccess",      False, sia],
              ["certificatePolicies",    True,  (((1, 3, 6, 1, 5, 5, 7, 14, 2), ()),)] ]
 

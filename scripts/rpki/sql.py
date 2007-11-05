@@ -47,7 +47,7 @@ def sql_assert_pristine():
 
 def sql_sweep(gctx):
   """Write any dirty objects out to SQL."""
-  for s in sql_dirty:
+  for s in sql_dirty.copy():
     s.sql_store(gctx)
 
 def fetch_column(gctx, *query):
@@ -257,7 +257,7 @@ class ca_obj(sql_persistant):
     ca_detail = ca_detail_obj.create(gctx, self)
     issue_response = rpki.up_down.issue_pdu.query(gctx, parent, self, ca_detail)
     issue_response.payload.check_syntax()
-    ca_detail.latest_ca_cert = issue_response.classes[0].certs[0]
+    ca_detail.latest_ca_cert = issue_response.payload.classes[0].certs[0].cert
     ca_detail.state = "active"
     ca_detail.sql_mark_dirty()
 
@@ -368,12 +368,12 @@ class ca_detail_obj(sql_persistant):
           child_cert.reissue(gctx, self, as, v4, v6)
 
   @classmethod
-  def create(cls, gctx, ca_id):
+  def create(cls, gctx, ca):
     """Create a new ca_detail object for a specified CA."""
     keypair = rpki.x509.RSA()
     keypair.generate()
     self = cls()
-    self.ca_id = ca_id
+    self.ca_id = ca.ca_id
     self.private_key_id = keypair
     self.public_key = keypair.get_RSApublic()
     self.state = "pending"

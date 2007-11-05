@@ -41,7 +41,7 @@ def up_down_handler(query, path):
 def cronjob_handler(query, path):
   for s in rpki.left_right.self_elt.sql_fetch_all(gctx):
     s.client_poll(gctx)
-  #raise rpki.exceptions.NotImplementedYet
+  return 200, "OK"
 
 class global_context(object):
   """A container for various global parameters."""

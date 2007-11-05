@@ -216,14 +216,14 @@ class ca_obj(sql_persistant):
     pending ca_detail certs, we have nothing to do.  Otherwise, hand
     off to the affected ca_detail for processing.
     """
-    cert_map = dict((c.get_SKI(), c) for c in rc.certs)
+    cert_map = dict((c.cert.get_SKI(), c) for c in rc.certs)
     ca_details = ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL" % self.ca_id)
     as, v4, v6 = ca_detail_obj.sql_fetch_active(gctx, self.ca_id).latest_ca_cert.get_3779resources()
     undersized = not rc.resource_set_as.issubset(as) or \
                  not rc.resource_set_ipv4.issubset(v4) or not rc.resource_set_ipv6.issubset(v6)
     oversized  = not as.issubset(rc.resource_set_as) or \
                  not v4.issubset(rc.resource_set_ipv4) or not v6.issubset(rc.resource_set_ipv6)
-    sia_uri = self.construct_sia_uri()
+    sia_uri = self.construct_sia_uri(gctx, parent, rc)
     sia_uri_changed = self.sia_uri != sia_uri
     if sia_uri_changed:
       self.sia_uri = sia_uri
@@ -237,12 +237,12 @@ class ca_obj(sql_persistant):
              "Certificate in our database missing from list_response, SKI %s" % \
              ca_detail.latest_ca_cert.hSKI()
       if ca_detail.state != "deprecated" and \
-           (undersized or oversized or sia_uri_changed or ca_detail.latest_ca_cert != cert_map[ski]):
-        ca_detail.update(gctx, parent, self, rc, cert_map[ski], undersized, oversized, sia_uri_changed,
+           (undersized or oversized or sia_uri_changed or ca_detail.latest_ca_cert != cert_map[ski].cert):
+        ca_detail.update(gctx, parent, self, rc, cert_map[ski].cert, undersized, oversized, sia_uri_changed,
                          as, v4, v6)
       del cert_map[ski]
     assert not cert_map, "Certificates in list_response missing from our database, SKIs %s" % \
-           ", ".join(c.hSKI() for c in cert_map.values())
+           ", ".join(c.cert.hSKI() for c in cert_map.values())
 
   @classmethod
   def create(cls, gctx, parent, rc):

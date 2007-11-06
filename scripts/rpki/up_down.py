@@ -415,9 +415,12 @@ class error_response_pdu(base_elt):
   def toXML(self):
     """Generate payload of "error_response" PDU."""
     assert self.status in self.codes
-    elt = self.make_elt("status")
-    elt.text = str(self.status)
-    return [elt]
+    status_elt = self.make_elt("status")
+    status_elt.text = str(self.status)
+    description_elt = self.make_elt("description")
+    description_elt.text = str(self.description)
+    description_elt.set("xml:lang", "en")
+    return [status_elt, description_elt]
 
   def check_syntax(self):
     """Handle an error response.  For the moment, just raise an

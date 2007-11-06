@@ -21,13 +21,23 @@ def get_PEM(name, cls):
     return cls(PEM_file = yaml_data[name + "-file"])
   return None
 
+def get_PEM_chain(name, cert = None):
+  chain = rpki.x509.X509_chain()
+  if cert is not None:
+    chain.append(cert)
+  if name in yaml_data:
+    chain.extend([rpki.x509.X509(PEM = x) for x in yaml_data[name]])
+  elif name + "-file" in yaml_data:
+    chain.extend([rpki.x509.X509(PEM_file = x) for x in yaml_data[name + "-file"]])
+  return chain
+
 def query_up_down(q_pdu):
-  q_msg = rpki.up_down.message_pdu.make_query(q_pdu)
+  q_msg = rpki.up_down.message_pdu.make_query(q_pdu, sender = yaml_data["sender-id"], recipient = yaml_data["recipient-id"])
   q_elt = q_msg.toXML()
   rpki.relaxng.up_down.assertValid(q_elt)
   q_cms = rpki.cms.xml_sign(q_elt, cms_key, cms_certs, encoding = "UTF-8")
   r_cms = rpki.https.client(x509TrustList = https_tas, privateKey = https_key, certChain = https_certs, msg = q_cms, url = yaml_data["posturl"])
-  r_xml = rpki.cms.verify(r_cms, cms_tas)
+  r_xml = rpki.cms.verify(r_cms, cms_ta)
   r_elt = lxml.etree.fromstring(r_xml)
   rpki.relaxng.up_down.assertValid(r_elt)
   return r_xml
@@ -71,20 +81,15 @@ if yaml_req is None and len(yaml_data["requests"]) == 1:
 cms_ta      = get_PEM("cms-ca-cert", rpki.x509.X509)
 cms_cert    = get_PEM("cms-cert", rpki.x509.X509)
 cms_key     = get_PEM("cms-key", rpki.x509.RSA)
-cms_certs   = rpki.x509.X509_chain()
-if cms_cert is not None:
-  cms_certs.append(cms_cert)
+cms_certs   = get_PEM_chain("cms-cert-chain", cms_cert)
 
+https_ta    = get_PEM("ssl-ta", rpki.x509.X509)
 https_key   = get_PEM("ssl-key", rpki.x509.RSA)
 https_cert  = get_PEM("ssl-cert", rpki.x509.X509)
-https_ta    = get_PEM("ssl-ca-cert", rpki.x509.X509)
+https_certs = get_PEM_chain("ssl-cert-chain", https_cert)
 
 https_tas   = rpki.x509.X509_chain()
 if https_ta is not None:
   https_tas.append(https_ta)
-
-https_certs = rpki.x509.X509_chain()
-if https_cert is not None:
-  https_certs.append(https_cert)
 
 dispatch[yaml_data["requests"][yaml_req]["type"]]()

@@ -53,7 +53,7 @@ python irbe-cli.py parent --self_id 1 --action create --bsc_id 1 --repository_id
 # Create a child context -- note that we're using the -CA as trust anchor rather than -Root,
 # because the APNIC poke tool doesn't offer any way to construct CMS chains
 
-python irbe-cli.py child --self_id 1 --action create --bsc_id 1 --cms_ta biz-certs/Frank-CA.cer
+python irbe-cli.py child --self_id 1 --action create --bsc_id 1 --cms_ta biz-certs/Frank-Root.cer
 
 # Shut down rpkid
 

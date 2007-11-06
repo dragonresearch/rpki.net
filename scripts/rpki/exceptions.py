@@ -49,3 +49,9 @@ class UpstreamError(Exception):
 
 class ChildNotFound(Exception):
   """Could not find specified child in database."""
+
+class BSCNotFound(Exception):
+  """Could not find specified BSC in database."""
+
+class BadSender(Exception):
+  """Unexpected XML sender value."""

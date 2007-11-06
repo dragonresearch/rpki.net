@@ -2,7 +2,7 @@
 
 """RPKI "left-right" protocol."""
 
-import base64, lxml.etree, time
+import base64, lxml.etree, time, traceback
 import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions
 import rpki.https, rpki.up_down, rpki.relaxng
 
@@ -435,7 +435,7 @@ class parent_elt(data_elt):
     """
     bsc = bsc_elt.sql_fetch(gctx, self.bsc_id)
     if bsc is None:
-      raise rpki.exceptions.NotFound, "Could not find BSC %s" % self.bsc_id
+      raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
     q_msg = rpki.up_down.message_pdu.make_query(q_pdu)
     q_elt = q_msg.toXML()
     rpki.relaxng.up_down.assertValid(q_elt)
@@ -492,12 +492,12 @@ class child_elt(data_elt):
     """Outer layer of server handling for one up-down PDU from this child."""
     bsc = bsc_elt.sql_fetch(gctx, self.bsc_id)
     if bsc is None:
-      raise rpki.exceptions.NotFound, "Could not find BSC %s" % self.bsc_id
+      raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
     q_elt = rpki.cms.xml_verify(query, self.cms_ta)
     rpki.relaxng.up_down.assertValid(q_elt)
     q_msg = rpki.up_down.sax_handler.saxify(q_elt)
     if q_msg.sender != str(self.child_id):
-      raise rpki.exceptions.NotFound, "Unexpected XML sender %s" % q_msg.sender
+      raise rpki.exceptions.BadSender, "Unexpected XML sender %s" % q_msg.sender
     try:
       r_msg = q_msg.serve_top_level(gctx, self)
     except Exception, data:
@@ -627,6 +627,7 @@ class list_resources_elt(base_elt):
 
   element_name = "list_resources"
   attributes = ("type", "self_id", "child_id", "valid_until", "as", "ipv4", "ipv6", "subject_name")
+  valid_until = None
 
   def startElement(self, stack, name, attrs):
     """Handle <list_resources/> element."""
@@ -735,7 +736,7 @@ def irdb_query(gctx, self_id, child_id = None):
   needed for the event-driven code that this function will need to become.
   """
 
-  q_msg = msg_elt()
+  q_msg = msg()
   q_msg.append(list_resources_elt())
   q_msg[0].type = "query"
   q_msg[0].self_id = self_id

@@ -108,9 +108,16 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
     self.serve_post_save_hook(self, r_pdu)
     r_msg.append(r_pdu)
 
+  def serve_fetch_one(self, gctx):
+    """Find the object on which a get, set, or destroy method should
+    operate.  This is a separate method because the self object needs
+    to override it.
+    """
+    return self.sql_fetch_where1(gctx, "%s = %s AND self_id = %s" % (self.sql_template.index, getattr(self, self.sql_template.index), self.self_id))
+
   def serve_set(self, gctx, r_msg):
     """Handle a set action."""
-    db_pdu = self.sql_fetch(gctx, getattr(self, self.sql_template.index))
+    db_pdu = self.serve_fetch_one(gctx)
     if db_pdu is not None:
       r_pdu = self.make_reply()
       for a in db_pdu.sql_template.columns[1:]:
@@ -127,7 +134,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
 
   def serve_get(self, gctx, r_msg):
     """Handle a get action."""
-    r_pdu = self.sql_fetch(gctx, getattr(self, self.sql_template.index))
+    r_pdu = self.serve_fetch_one(gctx)
     if r_pdu is not None:
       self.make_reply(r_pdu)
       r_msg.append(r_pdu)
@@ -135,14 +142,14 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
       r_msg.append(make_error_report(self))
 
   def serve_list(self, gctx, r_msg):
-    """Handle a list action."""
-    for r_pdu in self.sql_fetch_all(gctx):
+    """Handle a list action for non-self objects."""
+    for r_pdu in self.sql_fetch_where(gctx, "self_id = %s" % self.self_id):
       self.make_reply(r_pdu)
       r_msg.append(r_pdu)
 
   def serve_destroy(self, gctx, r_msg):
     """Handle a destroy action."""
-    db_pdu = self.sql_fetch(gctx, getattr(self, self.sql_template.index))
+    db_pdu = self.serve_fetch_one(gctx)
     if db_pdu is not None:
       db_pdu.sql_delete(gctx)
       r_msg.append(self.make_reply())
@@ -232,6 +239,21 @@ class self_elt(data_elt):
             "Unimplemented control %s" % ", ".join(b for b in ("rekey", "reissue", "revoke",
                                                                "run_now", "publish_world_now")
                                                    if getattr(self, b))
+
+  def serve_fetch_one(self, gctx):
+    """Find the self object on which a get, set, or destroy method
+    should operate.
+    """
+    return self.sql_fetch(gctx, self.self_id)
+
+  def serve_list(self, gctx, r_msg):
+    """Handle a list action for self objects.  This is different from
+    the list action for all other objects, where list only works
+    within a given self_id context.
+    """
+    for r_pdu in self.sql_fetch_all(gctx):
+      self.make_reply(r_pdu)
+      r_msg.append(r_pdu)
 
   def startElement(self, stack, name, attrs):
     """Handle <self/> element."""

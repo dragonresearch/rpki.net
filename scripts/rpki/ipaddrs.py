@@ -26,6 +26,7 @@ class v4addr(long):
   def __new__(cls, x):
     """Construct a v4addr object."""
     if isinstance(x, str):
+      x = ".".join(str(int(i)) for i in x.split("."))
       y = struct.unpack("!I", socket.inet_pton(socket.AF_INET, x))
       x = y[0]
     return long.__new__(cls, x)

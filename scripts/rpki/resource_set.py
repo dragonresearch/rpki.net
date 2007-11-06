@@ -39,6 +39,8 @@ class resource_range_as(resource_range):
   Denotes a single ASN by a range whose min and max values are identical.
   """
 
+  datum_type = long
+
   def __str__(self):
     """Convert a resource_range_as to string format."""
     if self.min == self.max:
@@ -63,7 +65,7 @@ class resource_range_ip(resource_range):
   def _prefixlen(self):
     """Determine whether a resource_range_ip can be expressed as a prefix."""
     mask = self.min ^ self.max
-    prefixlen = self.addr_type.bits
+    prefixlen = self.datum_type.bits
     while mask & 1:
       prefixlen -= 1
       mask >>= 1
@@ -84,20 +86,20 @@ class resource_range_ip(resource_range):
     """Convert a resource_range_ip to tuple format for ASN.1 encoding."""
     prefixlen = self._prefixlen()
     if prefixlen < 0:
-      return ("addressRange", (_long2bs(self.min, self.addr_type.bits, strip = 0),
-                               _long2bs(self.max, self.addr_type.bits, strip = 1)))
+      return ("addressRange", (_long2bs(self.min, self.datum_type.bits, strip = 0),
+                               _long2bs(self.max, self.datum_type.bits, strip = 1)))
     else:
-      return ("addressPrefix", _long2bs(self.min, self.addr_type.bits, prefixlen = prefixlen))
+      return ("addressPrefix", _long2bs(self.min, self.datum_type.bits, prefixlen = prefixlen))
 
 class resource_range_ipv4(resource_range_ip):
   """Range of IPv4 addresses."""
 
-  addr_type = ipaddrs.v4addr
+  datum_type = ipaddrs.v4addr
 
 class resource_range_ipv6(resource_range_ip):
   """Range of IPv6 addresses."""
 
-  addr_type = ipaddrs.v6addr
+  datum_type = ipaddrs.v6addr
 
 def _rsplit(rset, that):
   """Split a resource range into two resource ranges."""
@@ -239,7 +241,9 @@ class resource_set(list):
     """
 
     cursor.execute(query)
-    return cls(ini = [cls.range_type(b, e) for (b,e) in cursor.fetchall()])
+    return cls(ini = [cls.range_type(cls.range_type.datum_type(b),
+                                     cls.range_type.datum_type(e))
+                      for (b,e) in cursor.fetchall()])
 
 class resource_set_as(resource_set):
   """ASN resource set."""
@@ -283,14 +287,14 @@ class resource_set_ip(resource_set):
     """Parse IP address resource sets from text (eg, XML attributes)."""
     r = re.match("^([0-9:.a-fA-F]+)-([0-9:.a-fA-F]+)$", x)
     if r:
-      return self.range_type(self.range_type.addr_type(r.group(1)), self.range_type.addr_type(r.group(2)))
+      return self.range_type(self.range_type.datum_type(r.group(1)), self.range_type.datum_type(r.group(2)))
     r = re.match("^([0-9:.a-fA-F]+)/([0-9]+)$", x)
     if r:
-      min = self.range_type.addr_type(r.group(1))
+      min = self.range_type.datum_type(r.group(1))
       prefixlen = int(r.group(2))
-      mask = (1 << (self.range_type.addr_type.bits - prefixlen)) - 1
+      mask = (1 << (self.range_type.datum_type.bits - prefixlen)) - 1
       assert (min & mask) == 0, "Resource not in canonical form: %s" % (x)
-      max = self.range_type.addr_type(min | mask)
+      max = self.range_type.datum_type(min | mask)
       return self.range_type(min, max)
     raise RuntimeError, 'Bad IP resource "%s"' % (x)
 
@@ -299,15 +303,15 @@ class resource_set_ip(resource_set):
     assert x[0] == "addressesOrRanges"  # Not handling "inherit" yet
     for aor in x[1]:
       if aor[0] == "addressRange":
-        min = _bs2long(aor[1][0]) << (self.range_type.addr_type.bits - len(aor[1][0]))
-        max = _bs2long(aor[1][1]) << (self.range_type.addr_type.bits - len(aor[1][1]))
-        mask = (1L << (self.range_type.addr_type.bits - len(aor[1][1]))) - 1
+        min = _bs2long(aor[1][0]) << (self.range_type.datum_type.bits - len(aor[1][0]))
+        max = _bs2long(aor[1][1]) << (self.range_type.datum_type.bits - len(aor[1][1]))
+        mask = (1L << (self.range_type.datum_type.bits - len(aor[1][1]))) - 1
       else:
-        min = _bs2long(aor[1]) << (self.range_type.addr_type.bits - len(aor[1]))
-        mask = (1L << (self.range_type.addr_type.bits - len(aor[1]))) - 1
+        min = _bs2long(aor[1]) << (self.range_type.datum_type.bits - len(aor[1]))
+        mask = (1L << (self.range_type.datum_type.bits - len(aor[1]))) - 1
         assert (min & mask) == 0, "Resource not in canonical form: %s" % (str(x))
       max = min | mask
-      self.append(self.range_type(self.range_type.addr_type(min), self.range_type.addr_type(max)))
+      self.append(self.range_type(self.range_type.datum_type(min), self.range_type.datum_type(max)))
 
   def to_tuple(self):
     """Encode IP resource set into intermediate form used by ASN.1 encoder."""

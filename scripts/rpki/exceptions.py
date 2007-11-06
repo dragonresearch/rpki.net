@@ -46,3 +46,6 @@ class BadPKCS10(Exception):
 
 class UpstreamError(Exception):
   """Received an error from upstream."""
+
+class ChildNotFound(Exception):
+  """Could not find specified child in database."""

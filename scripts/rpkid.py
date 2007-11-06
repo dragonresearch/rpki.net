@@ -32,7 +32,7 @@ def up_down_handler(query, path):
       raise rpki.exceptions.BadContactURL, "Bad path: %s" % path
     child = rpki.left_right.child_elt.sql_fetch(gctx, long(child_id))
     if child is None:
-      raise rpki.exceptions.NotFound, "Could not find child %s" % child_id
+      raise rpki.exceptions.ChildNotFound, "Could not find child %s" % child_id
     return 200, child.serve_up_down(gctx, query)
   except Exception, data:
     traceback.print_exc()

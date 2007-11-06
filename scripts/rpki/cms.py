@@ -8,8 +8,11 @@ requires disk I/O, and likes PEM format.  Fix this later.
 
 import os, rpki.x509, rpki.exceptions, lxml.etree
 
+debug = False
+
 # openssl smime -sign -nodetach -outform DER -signer biz-certs/Alice-EE.cer
-# -certfile biz-certs/Alice-CA.cer -inkey biz-certs/Alice-EE.key -in PLAN -out PLAN.der
+#                -certfile biz-certs/Alice-CA.cer -inkey biz-certs/Alice-EE.key 
+#                -in THING -out THING.der
 
 def sign(plaintext, keypair, certs):
   """Sign plaintext as CMS with specified key and bag of certificates.
@@ -51,7 +54,7 @@ def sign(plaintext, keypair, certs):
 
   return cms
 
-# openssl smime -verify -inform DER -in PLAN.der -CAfile biz-certs/Alice-Root.cer 
+# openssl smime -verify -inform DER -in THING.der -CAfile biz-certs/Alice-Root.cer
 
 def verify(cms, ta):
   """Verify the signature of a chunk of CMS.
@@ -59,6 +62,9 @@ def verify(cms, ta):
   Returns the plaintext on success.  If OpenSSL CLI tool reports
   anything other than successful verification, we raise an exception.
   """  
+
+  if debug:
+    dumpasn1(cms)
 
   ta_filename = "cms.tmp.ta.pem"
 
@@ -90,3 +96,19 @@ def xml_sign(elt, key, certs, encoding = "us-ascii"):
   """Composite routine to sign CMS-wrapped XML."""
   return sign(lxml.etree.tostring(elt, pretty_print = True, encoding = encoding, xml_declaration = True),
               key, certs)
+
+def dumpasn1(thing):
+  """Prettyprint an ASN.1 DER object using cryptlib dumpasn1 tool.
+  Use a temporary file rather than popen4() because dumpasn1 uses
+  seek() when decoding ASN.1 content nested in OCTET STRING values.
+  """
+  fn = "dumpasn1.tmp"
+  try:
+    f = open(fn, "w")
+    f.write(thing)
+    f.close()
+    f = os.popen("dumpasn1 2>&1 -a " + fn)
+    print "\n".join(x for x in f.read().splitlines() if x.startswith(" "))
+    f.close()
+  finally:
+    os.unlink(fn)

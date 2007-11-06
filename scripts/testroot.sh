@@ -55,6 +55,10 @@ python irbe-cli.py parent --self_id 1 --action create --bsc_id 1 --repository_id
 
 python irbe-cli.py child --self_id 1 --action create --bsc_id 1 --cms_ta biz-certs/Frank-Root.cer
 
+# Need to link irdb to created child.  For now, just do this manually in MySQL CLI:
+#
+#   UPDATE registrant SET rpki_self_id = 1, rpki_child_id = 1 WHERE subject_name = "Epilogue Technology Corporation"
+
 # Shut down rpkid
 
 kill $rpkid

@@ -63,9 +63,6 @@ def verify(cms, ta):
   anything other than successful verification, we raise an exception.
   """  
 
-  if debug:
-    dumpasn1(cms)
-
   ta_filename = "cms.tmp.ta.pem"
 
   f = open(ta_filename, "w")
@@ -85,6 +82,14 @@ def verify(cms, ta):
   if status == "Verification successful\n":
     return plaintext
   else:
+    if debug:
+      print "CMS verification failed, dumping inputs:"
+      print
+      print "TA:"
+      dumpasn1(ta.get_DER())
+      print
+      print "CMS:"
+      dumpasn1(cms)
     raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed with status %s" % status
 
 

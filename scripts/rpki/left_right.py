@@ -37,7 +37,7 @@ class base_elt(object):
 
   def make_elt(self):
     """XML element constructor."""
-    elt = lxml.etree.Element("{%s}%s" % (xmlns, self.element_name), nsmap=nsmap)
+    elt = lxml.etree.Element("{%s}%s" % (xmlns, self.element_name), nsmap = nsmap)
     for key in self.attributes:
       val = getattr(self, key, None)
       if val is not None:
@@ -47,16 +47,16 @@ class base_elt(object):
         elt.set(key, "yes")
     return elt
 
-  def make_b64elt(self, elt, name, value=None):
+  def make_b64elt(self, elt, name, value = None):
     """Constructor for Base64-encoded subelement."""
     if value is None:
       value = getattr(self, name, None)
     if value is not None:
-      lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap=nsmap).text = base64.b64encode(value)
+      lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap = nsmap).text = base64.b64encode(value)
 
   def __str__(self):
     """Convert a base_elt object to string format."""
-    lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="us-ascii")
+    lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
 
 class data_elt(base_elt, rpki.sql.sql_persistant):
   """Virtual class for top-level left-right protocol data elements."""
@@ -65,13 +65,13 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
     """Decode SQL form of a data_elt object."""
     rpki.sql.sql_persistant.sql_decode(self, vals)
     if "cms_ta" in vals:
-      self.cms_ta = rpki.x509.X509(DER=vals["cms_ta"])
+      self.cms_ta = rpki.x509.X509(DER = vals["cms_ta"])
     if "https_ta" in vals:
-      self.https_ta = rpki.x509.X509(DER=vals["https_ta"])
+      self.https_ta = rpki.x509.X509(DER = vals["https_ta"])
     if "private_key_id" in vals:
-      self.private_key_id = rpki.x509.RSA(DER=vals["private_key_id"])
+      self.private_key_id = rpki.x509.RSA(DER = vals["private_key_id"])
     if "public_key" in vals:
-      self.public_key = rpki.x509.RSA(DER=vals["public_key"])
+      self.public_key = rpki.x509.RSA(DER = vals["public_key"])
 
   def sql_encode(self):
     """Encode SQL form of a data_elt object."""
@@ -81,7 +81,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
         d[i] = d[i].get_DER()
     return d
 
-  def make_reply(self, r_pdu=None):
+  def make_reply(self, r_pdu = None):
     """Construct a reply PDU."""
     if r_pdu is None:
       r_pdu = self.__class__()
@@ -293,7 +293,7 @@ class bsc_elt(data_elt):
   def sql_fetch_hook(self, gctx):
     """Extra SQL fetch actions for bsc_elt -- handle signing certs."""
     gctx.cur.execute("SELECT cert FROM bsc_cert WHERE bsc_id = %s", self.bsc_id)
-    self.signing_cert[:] = [rpki.x509.X509(DER=x) for (x,) in gctx.cur.fetchall()]
+    self.signing_cert[:] = [rpki.x509.X509(DER = x) for (x,) in gctx.cur.fetchall()]
 
   def sql_insert_hook(self, gctx):
     """Extra SQL insert actions for bsc_elt -- handle signing certs."""
@@ -331,11 +331,11 @@ class bsc_elt(data_elt):
   def endElement(self, stack, name, text):
     """Handle <bsc/> element."""
     if name == "signing_cert":
-      self.signing_cert.append(rpki.x509.X509(Base64=text))
+      self.signing_cert.append(rpki.x509.X509(Base64 = text))
     elif name == "public_key":
-      self.public_key = rpki.x509.RSApublic(Base64=text)
+      self.public_key = rpki.x509.RSApublic(Base64 = text)
     elif name == "pkcs10_cert_request":
-      self.pkcs10_cert_request = rpki.x509.PKCS10(Base64=text)
+      self.pkcs10_cert_request = rpki.x509.PKCS10(Base64 = text)
     else:
       assert name == "bsc", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -382,9 +382,9 @@ class parent_elt(data_elt):
   def endElement(self, stack, name, text):
     """Handle <parent/> element."""
     if name == "cms_ta":
-      self.cms_ta = rpki.x509.X509(Base64=text)
+      self.cms_ta = rpki.x509.X509(Base64 = text)
     elif name == "https_ta":
-      self.https_ta = rpki.x509.X509(Base64=text)
+      self.https_ta = rpki.x509.X509(Base64 = text)
     else:
       assert name == "parent", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -454,7 +454,7 @@ class child_elt(data_elt):
   def endElement(self, stack, name, text):
     """Handle <child/> element."""
     if name == "cms_ta":
-      self.cms_ta = rpki.x509.X509(Base64=text)
+      self.cms_ta = rpki.x509.X509(Base64 = text)
     else:
       assert name == "child", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -512,9 +512,9 @@ class repository_elt(data_elt):
   def endElement(self, stack, name, text):
     """Handle <repository/> element."""
     if name == "cms_ta":
-      self.cms_ta = rpki.x509.X509(Base64=text)
+      self.cms_ta = rpki.x509.X509(Base64 = text)
     elif name == "https_ta":
-      self.https_ta = rpki.x509.X509(Base64=text)
+      self.https_ta = rpki.x509.X509(Base64 = text)
     else:
       assert name == "repository", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -672,11 +672,11 @@ class msg(list):
 
   def __str__(self):
     """Convert msg object to string."""
-    lxml.etree.tostring(self.toXML(), pretty_print=True, encoding="us-ascii")
+    lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
 
   def toXML(self):
     """Generate left-right PDU."""
-    elt = lxml.etree.Element("{%s}msg" % (xmlns), nsmap=nsmap, version=str(self.version))
+    elt = lxml.etree.Element("{%s}msg" % (xmlns), nsmap = nsmap, version = str(self.version))
     elt.extend([i.toXML() for i in self])
     return elt
 
@@ -699,7 +699,7 @@ class sax_handler(rpki.sax_utils.handler):
     assert name == "msg" and attrs["version"] == "1"
     return self.pdu()
 
-def irdb_query(gctx, self_id, child_id=None):
+def irdb_query(gctx, self_id, child_id = None):
   """Perform an IRDB callback query.
 
   In the long run this should not be a blocking routine, it should

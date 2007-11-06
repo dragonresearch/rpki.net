@@ -153,12 +153,10 @@ q_xml = lxml.etree.tostring(q_elt, pretty_print=True, encoding="us-ascii", xml_d
 try:
   rpki.relaxng.left_right.assertValid(q_elt)
 except lxml.etree.DocumentInvalid:
-  print "Generated request document doesn't pass schema check:"
+  print "Generated query document does not pass schema check:"
+  print
   print q_xml
-  sys.exit(1)
-
-print "Sending:"
-print q_xml
+  raise
 
 q_cms = rpki.cms.sign(q_xml,
                         rpki.x509.RSA(Auto_file = cfg.get(cfg_section, "cms-key")),
@@ -176,11 +174,10 @@ r_elt = lxml.etree.fromstring(r_xml)
 try:
   rpki.relaxng.left_right.assertValid(r_elt)
 except lxml.etree.DocumentInvalid:
-  print "Received reply document doesn't pass schema check:"
+  print "Received reply document does not pass schema check:"
   print r_xml
-  sys.exit(1)
+  raise
 
-print "Received:"
 print r_xml
 
 handler = sax_handler()

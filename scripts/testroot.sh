@@ -31,7 +31,7 @@ python rpkid.py & rpkid=$!
 
 python irbe-cli.py self --action create
 
-# Create a business signing context, issue the necessary business cert, and set up the cert chain
+# Create a business signing context for parent, issue the necessary business cert, and set up the cert chain
 
 python irbe-cli.py --pem_out bsc.req bsc --action create --self_id 1 --generate_keypair --signing_cert biz-certs/Bob-CA.cer
 $openssl x509 -req -in bsc.req -out bsc.cer -CA biz-certs/Bob-CA.cer -CAkey biz-certs/Bob-CA.key -CAserial biz-certs/Bob-CA.srl
@@ -50,6 +50,17 @@ python irbe-cli.py parent --self_id 1 --action create --bsc_id 1 --repository_id
     --https_ta biz-certs/Elena-Root.cer \
     --sia_base rsync://wombat.invalid/
 
-# Shut down rpkid (there should be a left-right command for this!)
+# Create a business signing context for child, issue the necessary business cert, and set up the cert chain
+
+python irbe-cli.py --pem_out bsc.req bsc --action create --self_id 1 --generate_keypair --signing_cert biz-certs/Frank-CA.cer
+$openssl x509 -req -in bsc.req -out bsc.cer -CA biz-certs/Frank-CA.cer -CAkey biz-certs/Frank-CA.key -CAserial biz-certs/Frank-CA.srl
+python irbe-cli.py bsc --action set --self_id 1 --bsc_id 2 --signing_cert bsc.cer
+rm -f bsc.req bsc.cer
+
+# Create a child context
+
+python irbe-cli.py child --self_id 1 --action create --bsc_id 2 --cms_ta biz-certs/Ginny-Root.cer
+
+# Shut down rpkid
 
 kill $rpkid

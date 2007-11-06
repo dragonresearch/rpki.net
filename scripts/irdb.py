@@ -1,19 +1,18 @@
 # $Id$
 
-import tlslite.api, MySQLdb, urlparse
-import rpki.https, rpki.config, rpki.resource_set, rpki.cms
+import tlslite.api, MySQLdb, urlparse, traceback, lxml.etree
+import rpki.https, rpki.config, rpki.resource_set, rpki.cms, rpki.relaxng, rpki.exceptions, rpki.left_right
 
 def handler(query, path):
   try:
-    q_xml = rpki.cms.verify(query, cms_ta)
-    print q_xml
-    q_elt = lxml.etree.fromstring(q_xml)
-    rng.assertValid(q_elt)
-    saxer = rpki.left_right.sax_handler()
-    lxml.sax.saxify(q_elt, saxer)
-    q_msg = saxer.result
-    assert instanceof(q_msg, rpki.left_right.msg)
+    q_elt = rpki.cms.xml_verify(query, cms_ta)
+    rpki.relaxng.left_right.assertValid(q_elt)
+    q_msg = rpki.left_right.sax_handler.saxify(q_elt)
+    if not isinstance(q_msg, rpki.left_right.msg):
+      raise rpki.exceptions.BadQuery, "Unexpected %s PDU" % repr(q_msg)
+
     r_msg = rpki.left_right.msg()
+
     for q_pdu in q_msg:
       assert isinstance(q_pdu, rpki.left_right.list_resources_elt) and q_pdu.type == "query"
 
@@ -22,12 +21,9 @@ def handler(query, path):
       r_pdu.self_id = q_pdu.self_id
       r_pdu.child_id = q_pdu.child_id
 
-      if q_pdu.child_id is not None:
-        field = "child_id"
-      else:
-        field = "self_id"
-
-      cur.execute("SELECT registrant_id, subject_name, valid_until FROM registrant WHERE registrant.%s = %s" % (field, getattr(q_pdu, field)))
+      cur.execute("""SELECT registrant_id, subject_name, valid_until FROM registrant
+                     WHERE registrant.rpki_self_id = %s AND registrant.rpki_child_id = %s
+                     """ % (q_pdu.self_id, q_pdu.child_id))
       assert cur.rowcount == 1, "This query should have produced a single exact match, something's messed up (self_id = %s, child_id = %s)" % (self_id, child_id)
 
       registrant_id, subject_name, valid_until = cur.fetchone()
@@ -39,14 +35,12 @@ def handler(query, path):
       r_msg.append(r_pdu)
 
     r_elt = r_msg.toXML()
-    rng.assertValid(r_elt)
-    r_xml = lxml.etree.tostring(r_elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
-    r_cms = rpki.cms.sign(r_xml, cfg.get(section, "cms-key"), cfg.multiget(section, "cms-cert"))
-
-    return 200, r_cms
+    rpki.relaxng.left_right.assertValid(r_elt)
+    return 200, rpki.cms.xml_sign(r_elt, cms_key, cms_certs)
 
   except Exception, data:
     # This should generate a <report_error/> PDU, but this will do for initial debugging
+    traceback.print_exc()
     return 500, "Unhandled exception %s" % data
 
 cfg = rpki.config.parser("irbe.conf")

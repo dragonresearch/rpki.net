@@ -749,9 +749,9 @@ def irdb_query(gctx, self_id, child_id = None):
                             x509TrustList = gctx.https_tas,
                             url           = gctx.irdb_url,
                             msg           = q_cms)
-  r_elt = rpki.cms.xml_verify(r_cms, gctx.cms_ta_irbe)
+  r_elt = rpki.cms.xml_verify(r_cms, gctx.cms_ta_irdb)
   rpki.relaxng.left_right.assertValid(r_elt)
   r_msg = rpki.left_right.sax_handler.saxify(r_elt)
-  if len(r_msg) != 0 or not isinstance(r_msg[0], list_resources_elt) or r_msg[0].type != "reply":
+  if len(r_msg) == 0 or not isinstance(r_msg[0], list_resources_elt) or r_msg[0].type != "reply":
     raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % r_msg.toXML()
   return r_msg[0].as, r_msg[0].ipv4, r_msg[0].ipv6

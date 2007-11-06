@@ -6,12 +6,12 @@ posturl: https://localhost:4433/up-down/1
 recipient-id: wombat
 sender-id: bandicoot
 
-cms-cert-file: biz-certs/Elena-EE.cer
-cms-key-file: biz-certs/Elena-EE.key
+cms-cert-file: biz-certs/Frank-EE.cer
+cms-key-file: biz-certs/Frank-EE.key
 cms-ca-cert-file: biz-certs/Bob-Root.cer
 
-#ssl-cert-file: biz-certs/Elena-EE.cer
-#ssl-key-file: biz-certs/Elena-EE.key
+#ssl-cert-file: biz-certs/Frank-EE.cer
+#ssl-key-file: biz-certs/Frank-EE.key
 ssl-ca-cert-file: biz-certs/Bob-Root.cer
 
 requests:

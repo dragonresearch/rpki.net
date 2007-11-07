@@ -168,9 +168,6 @@ class list_pdu(base_elt):
     """Serve one "list" PDU."""
     r_msg.payload = list_response_pdu()
     irdb_as, irdb_v4, irdb_v6 = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
-    if True:
-      print "Child", repr(child), child.self_id, child.child_id
-      print " AS", str(irdb_as), "IPv4", str(irdb_v4), "IPv6", str(irdb_v6)
     for ca_id in rpki.sql.fetch_column(gctx, """
                 SELECT ca.ca_id FROM ca, parent
                 WHERE ca.parent_id = parent.parent_id AND parent.self_id = %s

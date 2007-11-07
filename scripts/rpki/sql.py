@@ -311,16 +311,20 @@ class ca_detail_obj(sql_persistant):
   def sql_decode(self, vals):
     """Decode SQL representation of a ca_detail_obj."""
     sql_persistant.sql_decode(self, vals)
-    self.private_key_id = rpki.x509.RSA(DER = self.private_key_id)
-    self.public_key = rpki.x509.RSApublic(DER = self.public_key)
-    assert self.public_key.get_DER() == self.private_key_id.get_public_DER()
-    self.latest_ca_cert = rpki.x509.X509(DER = self.latest_ca_cert)
-    self.manifest_private_key_id = rpki.x509.RSA(DER = self.manifest_private_key_id)
-    self.manifest_public_key = rpki.x509.RSApublic(DER = self.manifest_public_key)
-    assert self.manifest_public_key.get_DER() == self.manifest_private_key_id.get_public_DER()
-    self.latest_manifest_cert = rpki.x509.X509(DER = self.latest_manifest_cert)
-    self.latest_manifest = rpki.x509.SignedManifest(DER = self.latest_manifest)
-    self.latest_crl = rpki.x509.CRL(DER = self.latest_crl)
+    for i,t in (("private_key_id",          rpki.x509.RSA),
+                ("public_key",              rpki.x509.RSApublic),
+                ("latest_ca_cert",          rpki.x509.X509),
+                ("manifest_private_key_id", rpki.x509.RSA),
+                ("manifest_public_key",     rpki.x509.RSApublic),
+                ("latest_manifest_cert",    rpki.x509.X509),
+                ("latest_manifest",         rpki.x509.SignedManifest),
+                ("latest_crl",              rpki.x509.CRL)):
+      if getattr(self, i, None) is not None:
+        setattr(self, i, t(DER = getattr(self, i)))
+    assert (self.public_key is None and self.private_key_id is None) or \
+           self.public_key.get_DER() == self.private_key_id.get_public_DER()
+    assert (self.manifest_public_key is None and self.manifest_private_key_id is None) or \
+           self.manifest_public_key.get_DER() == self.manifest_private_key_id.get_public_DER()
 
   def sql_encode(self):
     """Encode SQL representation of a ca_detail_obj."""

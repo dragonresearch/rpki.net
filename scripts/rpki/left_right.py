@@ -510,7 +510,12 @@ class child_elt(data_elt):
     # May require refactoring, ignore the issue for now.
     #
     r_elt = r_msg.toXML()
-    rpki.relaxng.up_down.assertValid(r_elt)
+    try:
+      rpki.relaxng.up_down.assertValid(r_elt)
+    except:
+      print lxml.etree.tostring(r_elt, pretty_print = True, encoding = "UTF-8")
+      traceback.print_exc()
+      raise
     return rpki.cms.xml_sign(r_elt, bsc.private_key_id, bsc.signing_cert, encoding = "UTF-8")
 
 class repository_elt(data_elt):
@@ -554,12 +559,12 @@ class repository_elt(data_elt):
   def publish(self, *things):
     """Placeholder for publication operation (not yet written)."""
     for thing in things:
-      print "Should publish %s to repository %s" % (thing, self)
+      print "Should publish %s to repository %s" % (repr(thing), repr(self))
 
   def withdraw(self, *things):
     """Placeholder for publication withdrawal operation (not yet written)."""
     for thing in things:
-      print "Should withdraw %s from repository %s" % (thing, self)
+      print "Should withdraw %s from repository %s" % (repr(thing), repr(self))
 
 class route_origin_elt(data_elt):
   """<route_origin/> element."""

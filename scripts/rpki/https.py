@@ -7,10 +7,16 @@ subversion repository; generalizing it would not be hard, but the more
 general version should use SQL anyway.
 """
 
-import httplib, BaseHTTPServer, tlslite.api, glob, traceback, urlparse
+import httplib, BaseHTTPServer, tlslite.api, glob, traceback, urlparse, socket
 import rpki.x509, rpki.exceptions
 
 rpki_content_type = "application/x-rpki"
+
+# Setting this here is a crock, but the default is much too short and
+# this is the easiest way to make sure that all of our scripts use a
+# more reasonable value.
+
+socket.setdefaulttimeout(90)            # Seconds
 
 def client(msg, privateKey, certChain, x509TrustList, url):
   """Open client HTTPS connection, send a message, wait for response.

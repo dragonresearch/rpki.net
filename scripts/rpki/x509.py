@@ -294,7 +294,6 @@ class X509(DER_object):
              ["authorityKeyIdentifier", False, (aki, (), None)],
              ["cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)],
              ["authorityInfoAccess",    False, (((1, 3, 6, 1, 5, 5, 7, 48, 2), ("uri", aia)),)],
-             ["subjectInfoAccess",      False, sia],
              ["certificatePolicies",    True,  (((1, 3, 6, 1, 5, 5, 7, 14, 2), ()),)] ]
 
     if is_ca:
@@ -302,6 +301,11 @@ class X509(DER_object):
       exts.append(["keyUsage",          True,  (0, 0, 0, 0, 0, 1, 1)])
     else:
       exts.append(["keyUsage",          True,  (1,)])
+
+    if sia is not None:
+      exts.append(["subjectInfoAccess", False, sia])
+    else:
+      assert not is_ca
 
     if as:
       exts.append(["sbgp-autonomousSysNum", True, (as.to_tuple(), None)])

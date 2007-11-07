@@ -1,7 +1,7 @@
 # $Id$
 
 import MySQLdb, time
-import rpki.x509
+import rpki.x509, rpki.resource_set
 
 def connect(cfg, section="sql"):
   """Connect to a MySQL database using connection parameters from an
@@ -264,6 +264,7 @@ class ca_obj(sql_persistant):
     issue_response.payload.check_syntax()
     ca_detail.latest_ca_cert = issue_response.payload.classes[0].certs[0].cert
     ca_detail.ca_cert_uri = issue_response.payload.classes[0].certs[0].cert_url.rsync()
+    ca_detail.generate_manifest_cert(self)
     ca_detail.state = "active"
     ca_detail.sql_mark_dirty()
 
@@ -395,6 +396,20 @@ class ca_detail_obj(sql_persistant):
     self.sql_store(gctx)
     return self
 
+  def generate_manifest_cert(self, ca):
+    """Generate a new manifest certificate for this ca_detail."""
+
+    self.latest_manifest_cert = self.latest_ca_cert.issue(keypair = self.private_key_id,
+                                                          subject_key = self.manifest_public_key,
+                                                          serial = ca.next_serial_number(),
+                                                          sia = None,
+                                                          aia = self.ca_cert_uri,
+                                                          crldp = ca.sia_uri + self.latest_ca_cert.gSKI() + ".crl",
+                                                          as = rpki.resource_set.resource_set_as("<inherit>"),
+                                                          v4 = rpki.resource_set.resource_set_ipv4("<inherit>"),
+                                                          v6 = rpki.resource_set.resource_set_ipv6("<inherit>"),
+                                                          is_ca = False)
+
   def issue(self, gctx, ca, child, subject_key, sia, as, v4, v6, child_cert = None):
     """Issue a new certificate to a child.
 
@@ -409,6 +424,9 @@ class ca_detail_obj(sql_persistant):
     the right information out of the existing cert then calls this
     method to finish the job.
     """
+    assert child_cert is None or (child_cert.child_id == child.child_id and
+                                  child_cert.ca_detail_id == self.ca_detail_id)
+
     cert = self.latest_ca_cert.issue(keypair = self.private_key_id,
                                      subject_key = subject_key,
                                      serial = ca.next_serial_number(),
@@ -419,24 +437,26 @@ class ca_detail_obj(sql_persistant):
                                      v4 = v4,
                                      v6 = v6)
 
+
+    if child_cert is None:
+      child_cert = rpki.sql.child_cert_obj(child_id = child.child_id,
+                                           ca_detail_id = self.ca_detail_id,
+                                           cert = cert)
+    else:
+      child_cert.cert = cert
+
+    child_cert.ski = cert.get_SKI()
+
+    child_cert.sql_store(gctx)
+
     manifest = self.generate_manifest(gctx)
     
-    repository = rpki.left_right.repository_elt.sql_fetch_where1(gctx, """
-                repository.repository_id = parent.repository_id AND
-                parent.parent_id = ca.parent_id AND
-                ca.ca_id = %s
-                """ % self.ca_id)
+    parent = rpki.left_right.parent_elt.sql_fetch(gctx, ca.parent_id)
+    repository = rpki.left_right.repository_elt.sql_fetch(gctx, parent.repository_id)
 
     repository.publish(cert, manifest)
 
-    if child_cert is None:
-      return rpki.sql.child_cert_obj(child_id = child.child_id,
-                                     ca_detail_id = self.ca_detail_id,
-                                     cert = cert)
-    else:
-      assert child_cert.child_id == child.child_id and child_cert.ca_detail_id == self.ca_detail_id
-      child_cert.cert = cert
-      return child_cert
+    return child_cert
 
   def generate_crl(self, gctx):
     """Generate a new CRL for this ca_detail.  At the moment this is
@@ -487,7 +507,7 @@ class ca_detail_obj(sql_persistant):
     m = rpki.x509.SignedManifest()
     m.build(serial = ca.next_manifest_number(),
             nextUpdate = time.time() + self_obj.crl_interval,
-            names_and_objs = [(c.gSKI() + ".cer", c) for c in certs])
+            names_and_objs = [(c.cert.gSKI() + ".cer", c.cert) for c in certs])
     m.sign(keypair = self.manifest_private_key_id,
            certs = rpki.x509.X509_chain(self.latest_manifest_cert))
 
@@ -497,7 +517,7 @@ class ca_detail_obj(sql_persistant):
 class child_cert_obj(sql_persistant):
   """Certificate that has been issued to a child."""
 
-  sql_template = template("child_cert", "child_cert_id", "cert", "child_id", "ca_detail_id", "revoked")
+  sql_template = template("child_cert", "child_cert_id", "cert", "child_id", "ca_detail_id", "ski", "revoked")
 
   def __init__(self, child_id = None, ca_detail_id = None, cert = None):
     """Initialize a child_cert_obj."""
@@ -524,6 +544,7 @@ class child_cert_obj(sql_persistant):
     if sia is None:
       sia = self.cert.get_SIA()
     return ca_detail.issue(gctx = gctx,
+                           ca = ca_obj.sql_fetch(gctx, ca_detail.ca_id),
                            child = rpki.left_right.child_elt.sql_fetch(gctx, self.child_id),
                            subject_key = self.cert.getPublicKey(),
                            sia = sia,

@@ -270,6 +270,7 @@ class issue_pdu(base_elt):
     # Generate new cert or regenerate old one if necessary
 
     if child_cert is None:
+      print "Issuing because no child cert (yet)"
       child_cert = ca_detail.issue(gctx = gctx,
                                    ca = ca,
                                    child = child,
@@ -280,11 +281,16 @@ class issue_pdu(base_elt):
                                    v6 = rc_v6)
     elif (child_cert is not None and ((rc_as, rc_v4, rc_v6) != child_cert.cert.get_3779resources())) or \
          (child_cert is not None and child_cert.cert.get_SIA() != req_sia):
+      print "Reissuing:"
+      print " Requested resources:", repr((rc_as, rc_v4, rc_v6))
+      print " Previous resources: ", repr(child_cert.cert.get_3779resources())
+      print " Requested SIA:", repr(req_sia)
+      print " Previous SIA: ", repr(child_cert.cert.get_SIA())
       child_cert.reissue(gctx = gctx,
                          ca_detail = ca_detail,
-                         as = as,
-                         v4 = v4,
-                         v6 = v6,
+                         as = rc_as,
+                         v4 = rc_v4,
+                         v6 = rc_v6,
                          sia = req_sia)
 
     # Save anything we modified and generate response
@@ -294,6 +300,7 @@ class issue_pdu(base_elt):
     c.cert_url = multi_uri(ca.sia_uri + child_cert.cert.gSKI() + ".cer")
     c.cert = child_cert.cert
     rc = class_elt()
+    rc.class_name = str(ca_id)
     rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
     rc.resource_set_as, rc.resource_set_ipv4, rc.resource_set_ipv6 = rc_as, rc_v4, rc_v6
     rc.certs.append(c)

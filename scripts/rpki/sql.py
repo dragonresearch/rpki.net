@@ -258,6 +258,7 @@ class ca_obj(sql_persistant):
     issue_response = rpki.up_down.issue_pdu.query(gctx, parent, self, ca_detail)
     issue_response.payload.check_syntax()
     ca_detail.latest_ca_cert = issue_response.payload.classes[0].certs[0].cert
+    ca_detail.ca_cert_uri = issue_response.payload.classes[0].certs[0].cert_url.rsync()
     ca_detail.state = "active"
     ca_detail.sql_mark_dirty()
 

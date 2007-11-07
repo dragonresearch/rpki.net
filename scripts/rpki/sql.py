@@ -1,6 +1,7 @@
 # $Id$
 
-import MySQLdb, rpki.x509
+import MySQLdb, time
+import rpki.x509
 
 def connect(cfg, section="sql"):
   """Connect to a MySQL database using connection parameters from an
@@ -195,6 +196,10 @@ class ca_obj(sql_persistant):
                           "last_manifest_sn", "next_manifest_update", "sia_uri", "parent_id",
                           "parent_resource_class")
 
+  last_crl_sn = 0
+  last_issued_sn = 0
+  last_manifest_sn = 0
+
   def construct_sia_uri(self, gctx, parent, rc):
     """Construct the sia_uri value for this CA given configured
     information and the parent's up-down protocol list_response PDU.
@@ -375,13 +380,18 @@ class ca_detail_obj(sql_persistant):
   @classmethod
   def create(cls, gctx, ca):
     """Create a new ca_detail object for a specified CA."""
-    keypair = rpki.x509.RSA()
-    keypair.generate()
     self = cls()
     self.ca_id = ca.ca_id
-    self.private_key_id = keypair
-    self.public_key = keypair.get_RSApublic()
     self.state = "pending"
+
+    self.private_key_id = rpki.x509.RSA()
+    self.private_key_id.generate()
+    self.public_key = self.private_key_id.get_RSApublic()
+
+    self.manifest_private_key_id = rpki.x509.RSA()
+    self.manifest_private_key_id.generate()
+    self.manifest_public_key = self.manifest_private_key_id.get_RSApublic()
+
     self.sql_store(gctx)
     return self
 
@@ -405,11 +415,11 @@ class ca_detail_obj(sql_persistant):
                                      aia = self.ca_cert_uri,
                                      crldp = ca.sia_uri + self.latest_ca_cert.gSKI() + ".crl",
                                      sia = sia,
-                                     as = rc_as,
-                                     v4 = rc_v4,
-                                     v6 = rc_v6)
+                                     as = as,
+                                     v4 = v4,
+                                     v6 = v6)
 
-    manifest = self.generate_manifest()
+    manifest = self.generate_manifest(gctx)
     
     repository = rpki.left_right.repository_elt.sql_fetch_where1(gctx, """
                 repository.repository_id = parent.repository_id AND
@@ -467,17 +477,15 @@ class ca_detail_obj(sql_persistant):
     """Generate a new manifest for this ca_detail."""
 
     ca = ca_obj.sql_fetch(gctx, self.ca_id)
-    self_obj = rpki.left_right.self_elt.sql_fetch_where1(gctx, """
-                self.self_id = parent.self_id AND
-                parent.parent_id = %s
-      """ % ca.parent_id)
+    parent = rpki.left_right.parent_elt.sql_fetch(gctx, ca.parent_id)
+    self_obj = rpki.left_right.self_elt.sql_fetch(gctx, parent.self_id)
     certs = child_cert_obj.sql_fetch_where(gctx, """
                 child_cert.ca_detail_id = %s AND
                 child_cert.revoked IS NULL
       """ % self.ca_detail_id)
 
     m = rpki.x509.SignedManifest()
-    m.build(serial = ca.next_manifest(),
+    m.build(serial = ca.next_manifest_number(),
             nextUpdate = time.time() + self_obj.crl_interval,
             names_and_objs = [(c.gSKI() + ".cer", c) for c in certs])
     m.sign(keypair = self.manifest_private_key_id,

@@ -64,7 +64,6 @@ class issue_pdu(rpki.up_down.issue_pdu):
       as, v4, v6 = rpki_issuer.get_3779resources()
       req_key = self.pkcs10.getPublicKey()
       req_sia = self.pkcs10.get_SIA()
-      req_ski = self.pkcs10.get_SKI()
       crldp = root_base + rpki_issuer.gSKI() + ".crl"
       set_subject_cert(rpki_issuer.issue(keypair = rpki_key,
                                          subject_key = req_key,

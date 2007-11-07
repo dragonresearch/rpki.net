@@ -263,21 +263,21 @@ class issue_pdu(base_elt):
     rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(*irdb_resources)
     req_key = self.pkcs10.getPublicKey()
     req_sia = self.pkcs10.get_SIA()
-    req_ski = self.pkcs10.get_SKI()
     child_cert = rpki.sql.child_cert_obj.sql_fetch_where1(gctx, """
-                child_id = %s AND ca_detail_id = %s AND ski = %s
-                """ % (child.child_id, ca_detail.ca_detail_id, req_ski))
+                child_id = %s AND ca_detail_id = %s AND ski = "%s"
+                """ % (child.child_id, ca_detail.ca_detail_id, req_key.get_SKI()))
 
     # Generate new cert or regenerate old one if necessary
 
     if child_cert is None:
-      child_cert = rpki.sql.ca_detail_obj.issue(ca = ca,
-                                                child = child,
-                                                subject_key = req_key,
-                                                sia = req_sia,
-                                                as = rc_as,
-                                                v4 = rc_v4,
-                                                v6 = rc_v6)
+      child_cert = ca_detail.issue(gctx = gctx,
+                                   ca = ca,
+                                   child = child,
+                                   subject_key = req_key,
+                                   sia = req_sia,
+                                   as = rc_as,
+                                   v4 = rc_v4,
+                                   v6 = rc_v6)
     elif (child_cert is not None and ((rc_as, rc_v4, rc_v6) != child_cert.cert.get_3779resources())) or \
          (child_cert is not None and child_cert.cert.get_SIA() != req_sia):
       child_cert.reissue(gctx = gctx,
@@ -351,7 +351,7 @@ class revoke_pdu(revoke_syntax):
     if ca is None or ca_detail is None:
       raise rpki.exceptions.NotInDatabase
     for c in rpki.sql.child_cert_obj.sql_fetch_where(gctx, """
-                child_id = %s AND ca_detail_id = %s AND ski = %s
+                child_id = %s AND ca_detail_id = %s AND ski = "%s"
                 """ % (child.child_id, ca_detail.ca_detail_id, self.get_SKI())):
       c.sql_delete()
     r_msg.payload = revoke_response_pdu()

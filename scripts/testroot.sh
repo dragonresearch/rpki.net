@@ -10,6 +10,10 @@
 
 openssl=../openssl/openssl/apps/openssl
 
+# Halt on first error
+
+set -e
+
 # Generate new key and cert for testroot.py if needed
 
 if test ! -r testroot.cer -o ! -r testroot.key
@@ -23,13 +27,15 @@ fi
 
 mysql -u rpki -p`awk '$1 == "sql-password" {print $3}' rpkid.conf` rpki <../docs/rpki-db-schema.sql
 
-# Start rpkid so we can configure it
+# Start rpkid so we can configure it, make sure we shut it down on exit
 
-python rpkid.py & rpkid=$!
+python rpkid.py &
+rpkid=$!
+trap "kill $rpkid" 0
 
 # Create a self instance
 
-python irbe-cli.py self --action create
+python irbe-cli.py self --action create --crl_interval 84600
 
 # Create a business signing context, issue the necessary business cert, and set up the cert chain
 
@@ -58,7 +64,3 @@ python irbe-cli.py child --self_id 1 --action create --bsc_id 1 --cms_ta biz-cer
 # Need to link irdb to created child.  For now, just do this manually in MySQL CLI:
 #
 #   UPDATE registrant SET rpki_self_id = 1, rpki_child_id = 1 WHERE subject_name = "Epilogue Technology Corporation"
-
-# Shut down rpkid
-
-kill $rpkid

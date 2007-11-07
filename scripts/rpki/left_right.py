@@ -193,14 +193,15 @@ class self_elt(data_elt):
   """<self/> element."""
 
   element_name = "self"
-  attributes = ("action", "type", "self_id")
+  attributes = ("action", "type", "self_id", "crl_interval")
   elements = ("extension_preference",)
   booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now", "clear_extension_preferences")
 
-  sql_template = rpki.sql.template("self", "self_id", "use_hsm")
+  sql_template = rpki.sql.template("self", "self_id", "use_hsm", "crl_interval")
 
   self_id = None
   use_hsm = False
+  crl_interval = None
 
   def __init__(self):
     """Initialize a self_elt."""

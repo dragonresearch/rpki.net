@@ -171,6 +171,21 @@
     </optional>
   </define>
   <define name="self_payload">
+    <optional>
+      <attribute name="use_hsm">
+        <choice>
+          <value>yes</value>
+          <value>no</value>
+        </choice>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="crl_interval">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+    </optional>
     <zeroOrMore>
       <element name="extension_preference">
         <attribute name="name">

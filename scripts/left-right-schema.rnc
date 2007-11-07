@@ -48,10 +48,12 @@ self_bool = (attribute rekey { "yes" }?,
              attribute publish_world_now { "yes" }?,
              attribute clear_extension_preferences { "yes" }?)
 
-self_payload = element extension_preference {
-  attribute name { xsd:token { maxLength="1024" } },
-  xsd:string { maxLength="512000" }
-}*
+self_payload = (attribute use_hsm { "yes" | "no" }?,
+		attribute crl_interval { xsd:token { maxLength="1024" } }?,
+		element extension_preference {
+  		  attribute name { xsd:token { maxLength="1024" } },
+		  xsd:string { maxLength="512000" }
+		}*)
 
 self_id = attribute self_id { sql_id }
 

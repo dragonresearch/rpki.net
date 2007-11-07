@@ -76,11 +76,11 @@ DROP TABLE IF EXISTS ca;
 
 CREATE TABLE ca (
        ca_id			SERIAL NOT NULL,
-       last_crl_sn		BIGINT unsigned,
-       last_manifest_sn		BIGINT unsigned,
+       last_crl_sn		BIGINT unsigned NOT NULL,
+       last_manifest_sn		BIGINT unsigned NOT NULL,
        next_manifest_update	DATETIME,
        next_crl_update		DATETIME,
-       last_issued_sn		BIGINT unsigned,
+       last_issued_sn		BIGINT unsigned NOT NULL,
        sia_uri			TEXT,
        parent_resource_class	TEXT,
        parent_id		BIGINT unsigned,

@@ -24,7 +24,9 @@
                 revoke="yes"
                 run_now="yes"
                 publish_world_now="yes"
-                clear_extension_preferences="yes">
+                clear_extension_preferences="yes"
+		crl_interval="3600"
+		use_hsm="no">
             <extension_preference name="color">Blue</extension_preference>
         </self>
     </msg>

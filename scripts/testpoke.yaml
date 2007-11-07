@@ -18,11 +18,11 @@ ssl-ca-cert-file: biz-certs/Bob-Root.cer
 requests:
   list:
     type: list
-# issue:
-#   type: issue
-#   class: 1
-#   sia: [ "rsync://bandicoot.invalid/some/where" ]
-# revoke:
-#   type: revoke
-#   class: 1
-#   ski: FillThisIn
+  issue:
+    type: issue
+    class: 1
+    sia: [ "rsync://bandicoot.invalid/some/where/" ]
+  revoke:
+    type: revoke
+    class: 1
+    ski: FillThisIn

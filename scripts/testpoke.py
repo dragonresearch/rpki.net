@@ -14,11 +14,44 @@ import traceback, os, time, getopt, sys, lxml, yaml
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
 import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng
 
-def get_PEM(name, cls):
-  if name in yaml_data:
-    return cls(PEM = yaml_data[name])
-  if name + "-file" in yaml_data:
-    return cls(PEM_file = yaml_data[name + "-file"])
+os.environ["TZ"] = "UTC"
+time.tzset()
+
+def usage(code):
+  print __doc__
+  sys.exit(code)
+
+yaml_file = "testpoke.yaml"
+yaml_cmd = None
+
+opts,argv = getopt.getopt(sys.argv[1:], "c:r:h?", ["config=", "request=", "help"])
+for o,a in opts:
+  if o in ("-h", "--help", "-?"):
+    usage(0)
+  elif o in ("-c", "--config"):
+    yaml_file = a
+  elif o in ("-r", "--request"):
+    yaml_cmd = a
+if argv:
+  usage(1)
+
+f = open(yaml_file)
+yaml_data = yaml.load(f)
+f.close()
+
+if yaml_cmd is None and len(yaml_data["requests"]) == 1:
+  yaml_cmd = yaml_data["requests"].keys()[0]
+
+if yaml_cmd is None:
+  usage(1)
+
+yaml_req = yaml_data["requests"][yaml_cmd]
+
+def get_PEM(name, cls, y = yaml_data):
+  if name in y:
+    return cls(PEM = y[name])
+  if name + "-file" in y:
+    return cls(PEM_file = y[name + "-file"])
   return None
 
 def get_PEM_chain(name, cert = None):
@@ -46,37 +79,18 @@ def do_list():
   print query_up_down(rpki.up_down.list_pdu())
 
 def do_issue():
-  raise NotImplementedError
+  q_pdu = rpki.up_down.issue_pdu()
+  req_key = get_PEM("cert-request-key", rpki.x509.RSA, yaml_req) or cms_key
+  sia = (((1, 3, 6, 1, 5, 5, 7, 48, 5),  ("uri", yaml_req["sia"][0])),
+         ((1, 3, 6, 1, 5, 5, 7, 48, 10), ("uri", yaml_req["sia"][0] + req_key.gSKI() + ".mnf")))
+  q_pdu.class_name = yaml_req["class"]
+  q_pdu.pkcs10 = rpki.x509.PKCS10.create_ca(req_key, sia)
+  print query_up_down(q_pdu)
 
 def do_revoke():
   raise NotImplementedError
 
 dispatch = { "list" : do_list, "issue" : do_issue, "revoke" : do_revoke }
-
-os.environ["TZ"] = "UTC"
-time.tzset()
-
-yaml_file = "testpoke.yaml"
-yaml_req = None
-
-opts,argv = getopt.getopt(sys.argv[1:], "c:r:h?", ["config=", "request=", "help"])
-for o,a in opts:
-  if o in ("-h", "--help", "-?"):
-    print __doc__
-    sys.exit(0)
-  elif o in ("-c", "--config"):
-    yaml_file = a
-  elif o in ("r", "--request"):
-    yaml_req = a
-if argv:
-  raise RuntimeError, "Unexpected arguments %s" % argv
-
-f = open(yaml_file)
-yaml_data = yaml.load(f)
-f.close()
-
-if yaml_req is None and len(yaml_data["requests"]) == 1:
-  yaml_req = yaml_data["requests"].keys()[0]
 
 cms_ta      = get_PEM("cms-ca-cert", rpki.x509.X509)
 cms_cert    = get_PEM("cms-cert", rpki.x509.X509)
@@ -92,4 +106,4 @@ https_tas   = rpki.x509.X509_chain()
 if https_ta is not None:
   https_tas.append(https_ta)
 
-dispatch[yaml_data["requests"][yaml_req]["type"]]()
+dispatch[yaml_req["type"]]()

@@ -260,7 +260,7 @@ class issue_pdu(base_elt):
 
     # Check current cert, if any
     irdb_resources = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
-    rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(irdb_resources)
+    rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(*irdb_resources)
     req_key = self.pkcs10.getPublicKey()
     req_sia = self.pkcs10.get_SIA()
     req_ski = self.pkcs10.get_SKI()
@@ -415,12 +415,15 @@ class error_response_pdu(base_elt):
   def toXML(self):
     """Generate payload of "error_response" PDU."""
     assert self.status in self.codes
-    status_elt = self.make_elt("status")
-    status_elt.text = str(self.status)
-    description_elt = self.make_elt("description")
-    description_elt.text = str(self.description)
-    description_elt.set("xml:lang", "en")
-    return [status_elt, description_elt]
+    elt = self.make_elt("status")
+    elt.text = str(self.status)
+    payload = [elt]
+    if self.description:
+      elt = self.make_elt("description")
+      elt.text = str(self.description)
+      elt.set("xml:lang", "en-US")
+      payload.append(elt)
+    return payload
 
   def check_syntax(self):
     """Handle an error response.  For the moment, just raise an

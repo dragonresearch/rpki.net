@@ -151,7 +151,7 @@ class resource_set(list):
     efficiently) as the basis for most set operations on resource
     sets.
     """
-    assert type(self) is type(other)
+    assert type(self) is type(other), "Type mismatch %s %s" % (repr(type(self)), repr(type(other)))
     set1 = self[:]
     set2 = other[:]
     only1, only2, both = [], [], []

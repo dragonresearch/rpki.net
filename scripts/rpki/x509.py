@@ -451,7 +451,7 @@ class PKCS10(DER_object):
     for method, location in req_exts.get("subjectInfoAccess", ()):
       if oid2name.get(method) == "caRepository" and \
            (location[0] != "uri" or (location[1].startswith("rsync://") and not location[1].endswith("/"))):
-        raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %s" % location
+        raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %s" % repr(location)
 
     # This one is an implementation restriction.  I don't yet
     # understand what the spec is telling me to do in this case.

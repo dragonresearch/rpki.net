@@ -122,7 +122,7 @@ class resource_set(list):
   use this type directly.
   """
 
-  def __init__(self, ini=None):
+  def __init__(self, ini = None):
     """Initialize a resource_set."""
     if isinstance(ini, long):
       ini = str(ini)

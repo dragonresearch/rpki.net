@@ -168,29 +168,27 @@ class list_pdu(base_elt):
     """Serve one "list" PDU."""
     r_msg.payload = list_response_pdu()
     irdb_as, irdb_v4, irdb_v6 = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
-    for ca_id in rpki.sql.fetch_column(gctx, """
-                SELECT ca.ca_id FROM ca, parent
-                WHERE ca.parent_id = parent.parent_id AND parent.self_id = %s
-                """ % child.self_id):
-      ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx, ca_id)
-      if not ca_detail:
-        continue
-      rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(irdb_as, irdb_v4, irdb_v6)
-      if not rc_as and not rc_v4 and not rc_v6:
-        continue
-      rc = class_elt()
-      rc.class_name = str(ca_id)
-      rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
-      rc.resource_set_as, rc.resource_set_ipv4, rc.resource_set_ipv6 = rc_as, rc_v4, rc_v6
-      for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx, """
-                child_id = %s AND ca_detail_id = %s
-                """ % (child.child_id, ca_detail.ca_detail_id)):
-        c = certificate_elt()
-        c.cert_url = multi_uri(ca.sia_uri + child_cert.cert.gSKI() + ".cer")
-        c.cert = child_cert.cert
-        rc.certs.append(c)
-      rc.issuer = ca_detail.latest_ca_cert
-      r_msg.payload.classes.append(rc)
+    for parent in rpki.left_right.parent_elt.sql_fetch_where(gctx, "parent.self_id = %s" % child.self_id):
+      for ca in rpki.sql.ca_obj.sql_fetch_where(gctx, "ca.parent_id = %s" % parent.parent_id):
+        ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx, ca.ca_id)
+        if not ca_detail:
+          continue
+        rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(irdb_as, irdb_v4, irdb_v6)
+        if not rc_as and not rc_v4 and not rc_v6:
+          continue
+        rc = class_elt()
+        rc.class_name = str(ca.ca_id)
+        rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
+        rc.resource_set_as, rc.resource_set_ipv4, rc.resource_set_ipv6 = rc_as, rc_v4, rc_v6
+        for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx, """
+                  child_id = %s AND ca_detail_id = %s
+                  """ % (child.child_id, ca_detail.ca_detail_id)):
+          c = certificate_elt()
+          c.cert_url = multi_uri(ca.sia_uri + child_cert.cert.gSKI() + ".cer")
+          c.cert = child_cert.cert
+          rc.certs.append(c)
+        rc.issuer = ca_detail.latest_ca_cert
+        r_msg.payload.classes.append(rc)
 
   @classmethod
   def query(cls, gctx, parent):

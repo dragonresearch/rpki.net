@@ -268,7 +268,6 @@ class issue_pdu(base_elt):
     # Generate new cert or regenerate old one if necessary
 
     if child_cert is None:
-      print "Issuing because no child cert (yet)"
       child_cert = ca_detail.issue(gctx = gctx,
                                    ca = ca,
                                    child = child,
@@ -277,13 +276,7 @@ class issue_pdu(base_elt):
                                    as = rc_as,
                                    v4 = rc_v4,
                                    v6 = rc_v6)
-    elif (child_cert is not None and ((rc_as, rc_v4, rc_v6) != child_cert.cert.get_3779resources())) or \
-         (child_cert is not None and child_cert.cert.get_SIA() != req_sia):
-      print "Reissuing:"
-      print " Requested resources:", repr((rc_as, rc_v4, rc_v6))
-      print " Previous resources: ", repr(child_cert.cert.get_3779resources())
-      print " Requested SIA:", repr(req_sia)
-      print " Previous SIA: ", repr(child_cert.cert.get_SIA())
+    elif ((rc_as, rc_v4, rc_v6) != child_cert.cert.get_3779resources()) or child_cert.cert.get_SIA() != req_sia:
       child_cert.reissue(gctx = gctx,
                          ca_detail = ca_detail,
                          as = rc_as,

@@ -396,7 +396,9 @@ def parse_extensions(exts):
         if fam[0] == resource_set_ipv6.afi:
           assert v6 is None
           v6 = resource_set_ipv6(fam[1])
-  return as, v4, v6
+  return as or resource_set_as(), \
+         v4 or resource_set_ipv4(), \
+         v6 or resource_set_ipv6()
 
 # Test suite for set operations.  This will probably go away eventually
 

@@ -15,21 +15,35 @@ some of the nasty details.  This involves a lot of format conversion.
 import POW, tlslite.api, POW.pkix, base64, time
 import rpki.exceptions, rpki.resource_set, rpki.manifest, rpki.cms
 
-# There should be -one- OID mapping table for this package, but I'm
-# chasing a bug as I type this and don't want to sidetrack....
+## @var oid2name
+# Mapping table of OIDs to conventional string names.
 
 oid2name = {
   (1, 2, 840, 113549, 1, 1, 11) : "sha256WithRSAEncryption",
   (1, 2, 840, 113549, 1, 1, 12) : "sha384WithRSAEncryption",
   (1, 2, 840, 113549, 1, 1, 13) : "sha512WithRSAEncryption",
-  (2, 5, 29, 19)                : "basicConstraints",
-  (2, 5, 29, 15)                : "keyUsage",
+  (1, 3, 6, 1, 5, 5, 7, 1, 1)   : "authorityInfoAccess",
   (1, 3, 6, 1, 5, 5, 7, 1, 11)  : "subjectInfoAccess",
+  (1, 3, 6, 1, 5, 5, 7, 1, 7)   : "sbgp-ipAddrBlock",
+  (1, 3, 6, 1, 5, 5, 7, 1, 8)   : "sbgp-autonomousSysNum",
+  (1, 3, 6, 1, 5, 5, 7, 14, 2)  : "id-cp-ipAddr-asNumber",
+  (1, 3, 6, 1, 5, 5, 7, 48, 10) : "rpkiManifest",
   (1, 3, 6, 1, 5, 5, 7, 48, 2)  : "caIssuers",
   (1, 3, 6, 1, 5, 5, 7, 48, 5)  : "caRepository",
   (1, 3, 6, 1, 5, 5, 7, 48, 9)  : "signedObjectRepository",
-  (1, 3, 6, 1, 5, 5, 7, 48, 10) : "rpkiManifest",
+  (2, 5, 29, 14)                : "subjectKeyIdentifier",
+  (2, 5, 29, 15)                : "keyUsage",
+  (2, 5, 29, 19)                : "basicConstraints",
+  (2, 5, 29, 31)                : "cRLDistributionPoints",
+  (2, 5, 29, 32)                : "certificatePolicies",
+  (2, 5, 29, 35)                : "authorityKeyIdentifier",
+  (2, 5, 4, 3)                  : "commonName",
 }
+
+## @var name2oid
+# Mapping table of string names to OIDs
+
+name2oid = dict((v,k) for k,v in oid2name.items())
 
 class PEM_converter(object):
   """Convert between DER and PEM encodings for various kinds of ASN.1 data."""
@@ -165,19 +179,19 @@ class DER_object(object):
 
   def get_AKI(self):
     """Get the AKI extension from this object.  Only works for subclasses that support getExtension()."""
-    return (self.get_POWpkix().getExtension((2, 5, 29, 35)) or ((), 0, None))[2]
+    return (self.get_POWpkix().getExtension(name2oid["authorityKeyIdentifier"]) or ((), 0, None))[2]
 
   def get_SKI(self):
     """Get the SKI extension from this object.  Only works for subclasses that support getExtension()."""
-    return (self.get_POWpkix().getExtension((2, 5, 29, 14)) or ((), 0, None))[2]
+    return (self.get_POWpkix().getExtension(name2oid["subjectKeyIdentifier"]) or ((), 0, None))[2]
 
   def get_SIA(self):
     """Get the SIA extension from this object.  Only works for subclasses that support getExtension()."""
-    return (self.get_POWpkix().getExtension((1, 3, 6, 1, 5, 5, 7, 1, 11)) or ((), 0, None))[2]
+    return (self.get_POWpkix().getExtension(name2oid["subjectInfoAccess"]) or ((), 0, None))[2]
 
   def get_AIA(self):
     """Get the SIA extension from this object.  Only works for subclasses that support getExtension()."""
-    return (self.get_POWpkix().getExtension((1, 3, 6, 1, 5, 5, 7, 1, 1)) or ((), 0, None))[2]
+    return (self.get_POWpkix().getExtension(name2oid["subjectInfoAccess"]) or ((), 0, None))[2]
 
   def get_3779resources(self, as_intersector = None, v4_intersector = None, v6_intersector = None):
     """Get RFC 3779 resources as rpki.resource_set objects.
@@ -285,7 +299,7 @@ class X509(DER_object):
     cert.setVersion(2)
     cert.setSerial(serial)
     cert.setIssuer(self.get_POWpkix().getSubject())
-    cert.setSubject(((((2, 5, 4, 3), ("printableString", cn)),),))
+    cert.setSubject((((name2oid["commonName"], ("printableString", cn)),),))
     cert.setNotBefore(("utcTime", POW.pkix.time2utc(now)))
     cert.setNotAfter(("utcTime", POW.pkix.time2utc(notAfter)))
     cert.tbs.subjectPublicKeyInfo.fromString(subject_key.get_DER())
@@ -293,8 +307,8 @@ class X509(DER_object):
     exts = [ ["subjectKeyIdentifier",   False, ski],
              ["authorityKeyIdentifier", False, (aki, (), None)],
              ["cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)],
-             ["authorityInfoAccess",    False, (((1, 3, 6, 1, 5, 5, 7, 48, 2), ("uri", aia)),)],
-             ["certificatePolicies",    True,  (((1, 3, 6, 1, 5, 5, 7, 14, 2), ()),)] ]
+             ["authorityInfoAccess",    False, ((name2oid["caIssuers"], ("uri", aia)),)],
+             ["certificatePolicies",    True,  ((name2oid["id-cp-ipAddr-asNumber"], ()),)] ]
 
     if is_ca:
       exts.append(["basicConstraints",  True,  (1, None)])
@@ -313,7 +327,7 @@ class X509(DER_object):
       exts.append(["sbgp-ipAddrBlock", True, [x for x in (v4.to_tuple(), v6.to_tuple()) if x is not None]])
 
     for x in exts:
-      x[0] = POW.pkix.obj2oid(x[0])
+      x[0] = name2oid[x[0]]
     cert.setExtensions(exts)
 
     cert.sign(keypair.get_POW(), POW.SHA256_DIGEST)
@@ -469,7 +483,7 @@ class PKCS10(DER_object):
     if sia is not None:
       exts.append(["subjectInfoAccess", False, sia])
     for x in exts:
-      x[0] = POW.pkix.obj2oid(x[0])
+      x[0] = name2oid[x[0]]
     return cls.create(keypair, exts)
 
   @classmethod
@@ -478,7 +492,7 @@ class PKCS10(DER_object):
     cn = "".join(("%02X" % ord(i) for i in keypair.get_SKI()))
     req = POW.pkix.CertificationRequest()
     req.certificationRequestInfo.version.set(0)
-    req.certificationRequestInfo.subject.set((((POW.pkix.obj2oid("commonName"),
+    req.certificationRequestInfo.subject.set((((name2oid["commonName"],
                                                 ("printableString", cn)),),))
     if exts is not None:
       req.setExtensions(exts)

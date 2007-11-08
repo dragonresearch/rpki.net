@@ -9,21 +9,6 @@ xmlns="http://www.apnic.net/specs/rescerts/up-down/"
 
 nsmap = { None : xmlns }
 
-oid2name = {
-  (1, 2, 840, 113549, 1, 1, 11) : "sha256WithRSAEncryption",
-  (1, 2, 840, 113549, 1, 1, 12) : "sha384WithRSAEncryption",
-  (1, 2, 840, 113549, 1, 1, 13) : "sha512WithRSAEncryption",
-  (2, 5, 29, 19)                : "basicConstraints",
-  (2, 5, 29, 15)                : "keyUsage",
-  (1, 3, 6, 1, 5, 5, 7, 1, 11)  : "subjectInfoAccess",
-  (1, 3, 6, 1, 5, 5, 7, 48, 2)  : "caIssuers",
-  (1, 3, 6, 1, 5, 5, 7, 48, 5)  : "caRepository",
-  (1, 3, 6, 1, 5, 5, 7, 48, 9)  : "signedObjectRepository",
-  (1, 3, 6, 1, 5, 5, 7, 48, 10) : "rpkiManifest",
-}
-
-name2oid = dict((v,k) for k,v in oid2name.items())
-
 class base_elt(object):
   """Generic PDU object.
 
@@ -303,8 +288,8 @@ class issue_pdu(base_elt):
   def query(cls, gctx, parent, ca, ca_detail):
     """Send an "issue" request to parent associated with ca."""
     assert ca_detail is not None and ca_detail.state != "deprecated"
-    sia = (((1, 3, 6, 1, 5, 5, 7, 48, 5),  ("uri", ca.sia_uri)),
-           ((1, 3, 6, 1, 5, 5, 7, 48, 10), ("uri", ca.sia_uri + ca_detail.public_key.gSKI() + ".mnf")))
+    sia = ((rpki.x509.name2oid["caRepository"], ("uri", ca.sia_uri)),
+           (rpki.x509.name2oid["rpkiManifest"], ("uri", ca.sia_uri + ca_detail.public_key.gSKI() + ".mnf")))
     self = cls()
     self.class_name = ca.parent_resource_class
     self.pkcs10 = rpki.x509.PKCS10.create_ca(ca_detail.private_key_id, sia)

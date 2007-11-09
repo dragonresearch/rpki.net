@@ -37,6 +37,11 @@ External Python packages required:
 - Eventually I expect that this will require an event-handling package
   like Twisted, but I'm not there yet.
 
+- The testpoke tool (up-down protocol command line test client) also
+  uses PyYAML, mostly for compatability with APNIC's equivalent tool.
+
+  FreeBSD: /usr/ports/devel/py-yaml
+
 We also use a hacked copy of the Python OpenSSL Wrappers (POW)
 package, but our copy has enough modifications that it's expanded in
 the Subversion tree.  Depending on how this all works out, I may end
@@ -121,3 +126,46 @@ To do list:
   ought to let it be set independently of the key too.  But for the
   moment I'm only supporting 2048-bit RSA with SHA-256 digests, so
   fixing this is not urgent.
+
+
+
+Further to do items from email dated 8 November 2007 (need to fold
+this into the above list and clean it up for others to read):
+
+- Hack some kind of stub publication (not real protocol yet, just dump
+  to local filesystem so can see outputs and maybe rcynic against
+  them); this is a stop-gap to let me concentrate on the main engine
+  and defer work on the publication protocol and engine.
+
+- Whack expiration dates of certs to match irdb valid_until value when
+  issuing -- valid_until is optional, what do we do if it's not set?
+  Default period in self object seems obvious answer, neither Randy
+  nor I has thought of anything better yet.
+
+- Code to clean up expired certs
+
+- Code to revoke certs -- need to sort out when we do this
+  automatically vs waiting for explicit revoke PDU from child
+
+- Code to generate CRLs
+
+- Test with larger data set -- Tim gave me plenty of data and I have
+  the low-level tools, just haven't written the glue logic to create
+  child objects for all the entities in the IRDB, poll on behalf of
+  each of them, and check the result for sanity
+
+Once this lot is done we'll be close to something that shows at least
+the basics of normal operation, albiet in a form that's not yet usable
+in production.
+
+Follow-up after that will be getting rid of remaining synchronous code
+(make daemon fully event-driven, except perhaps for SQL queries),
+address rollback, commit, and other data integrity issues, and see how
+well the resulting code handles hosting (multiple self objects in same
+daemon).
+
+Somewhere along the way I'll need to update to the new model of trust
+anchors we ended up with in Amsterdam, first step for which will
+involve writing it down (well, RobK was supposed to do that, but I was
+supposed to convert some pencil sketches into graphviz for him so
+we're both lame on this so far).

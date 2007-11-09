@@ -51,103 +51,84 @@ pure Python and only 2% about any kind of crypto.
 
 
 
-To do list:
+Current TO DO list:
 
-- timestamps are a mess.  we have four different kinds already:
-  seconds from epoch, the the two flavors of timestamps used
-  in asn.1, and the timestamps used in mysql.  need a
-  unifying class to hide all this nastiness.
+- Representation of timestamps is a mess.  We have four different
+  kinds already: seconds from epoch, the the two flavors of timestamps
+  used in ASN.1, and the timestamps used in MySQL.  Need a unifying
+  class to hide all this nastiness.
 
-- publication protocol and implementation
+- Subsetting (req_* attributes in up-down protocol)
 
-- manifest generation
+- Revocation and CRL generation
 
-- subsetting (req_* attributes in up-down protocol)
+  - Need to keep data on unexpired revoked certs to generate CRL
+    (added a timestamp for this, sufficient?)
 
-- revocation and crl generation
+  - Do we ever need to delay revocation of old certs to give their
+    replacements time to propegate?
 
-  - need to keep data on unexpired revoked certs to generate crl
-
-  - ever need to delay revocation of old certs to give their
-  replacements time to propegate?
-
-  these two may imply that we need more fields in child_cert table to
+  These two imply that we need fields in child_cert table to
   indicate whether a cert is dead, eg, a date field which is NULL if
   the cert is still live, otherwise is the date after which it should
-  be in the crl
+  be added to the CRL.
 
-- publication hooks everywhere - need not wait for protocol, can just
-  log what would happen for now
+- Publication protocol and implementation thereof.   Defer until core
+  functionality in the main engine is done.
 
-  - cert publication
+  As an interim measure, hack some kind of stub publication (not real
+  protocol yet, just dump to local filesystem so can see outputs and
+  maybe rcynic against them); this is a stop-gap to let me concentrate
+  on the main engine and defer work on the publication protocol and
+  engine.
 
-  - crl publication
+- Publication hooks everywhere - need not wait for protocol, can just
+  log what would happen for now, or write to local file store (perhaps
+  even in a form that we can use with rcynic as a relying party).
+  Hooks for this go into:
 
-  - manifest publication
+  - Cert publication
 
-  - withdrawal of all of the above
+  - CRL publication
 
-- child batch processing loop, eg, regeneration or removal of expired
-  certs, crl and manifest update, etc
+  - Manifest publication
 
-  hmm, should this be an iteration over child_cert objects or over ca
-  objects?  probably the latter as the ca is the actor in pretty much
-  everything that might need to be done
+  - Withdrawal of any of the above
 
-  figuring out whether to regenerate or remove expired certs requires
-  some of the same data as crl generation
+- Child batch processing loop, eg, regeneration or removal of expired
+  certs, CRL update, manifest update, etc.  This should probably be an
+  iteration over CA objects, as the CA is the actor in pretty much
+  everything that might need to be done.
 
-- tiny up-down root server -- no sql or left-right needed, just config
-  file, http server, static root cert and key.  in theory this should
-  just be a matter of subtyping the main up-down code while overriding
-  the serve_pdu() methods.
+  Figuring out whether to regenerate or remove expired certs requires
+  some of the same data as CRL generation.
 
-  things we'd need in a config file for this:
+  - Code to clean up expired certs
 
-  - the one and only issuer cert (self-signed in this special case)
-  - the one and only issuer private key id
-  - filename in which to store the one and only subject cert
-  - bsc info for one and only child
-  - https server key and cert
-  - validity interval to use when issuing
-  - publication urls for issuer cert, subject cert, crl, and manifest
-  - https and cms data for publication server
-  - resources to issue?  or just copy/inherit from self-signed?
+  - Code to revoke certs -- need to sort out when we do this
+    automatically vs waiting for explicit revoke PDU from child
+
+  - Code to generate CRLs
 
 - Haven't done anything about db.commit() and db.rollback() yet, for
   that matter haven't yet whacked MySQL to enable those features.
 
-- Access to object data attributes really ought to be through accessor
-  methods so that the .set() method can set the sql_dirty flag
-  automagically.  Not done yet.
+- In theory, all access to object data attributes ought to be through
+  accessor methods so that the .set() method can mark teh object as
+  SQL-dirty automagically.  Not done yet.  One way of hiding the
+  grotty bits here might be to make attributes look like elements of a
+  dict(), ie, implement __getitem__() and __setitem__() methods,
+  probably along with the other "container type" special methods for
+  completeness.  An even easier way to do this would be to subclass
+  dict() and just customize __setitem__().
 
-- Hmm, I seem to have goofed on the bsc table, need a column for the
-  hash algorithm after all, as it's not intrinsic to the key.  Probably
-  ought to let it be set independently of the key too.  But for the
-  moment I'm only supporting 2048-bit RSA with SHA-256 digests, so
-  fixing this is not urgent.
-
-
-
-Further to do items from email dated 8 November 2007 (need to fold
-this into the above list and clean it up for others to read):
-
-- Hack some kind of stub publication (not real protocol yet, just dump
-  to local filesystem so can see outputs and maybe rcynic against
-  them); this is a stop-gap to let me concentrate on the main engine
-  and defer work on the publication protocol and engine.
+  But all of this assumes that we really want automagic SQL-dirty, and
+  I'm less convinced of that now than when I made the above note.
 
 - Whack expiration dates of certs to match irdb valid_until value when
   issuing -- valid_until is optional, what do we do if it's not set?
   Default period in self object seems obvious answer, neither Randy
   nor I has thought of anything better yet.
-
-- Code to clean up expired certs
-
-- Code to revoke certs -- need to sort out when we do this
-  automatically vs waiting for explicit revoke PDU from child
-
-- Code to generate CRLs
 
 - Test with larger data set -- Tim gave me plenty of data and I have
   the low-level tools, just haven't written the glue logic to create

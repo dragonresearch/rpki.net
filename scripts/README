@@ -135,6 +135,27 @@ Current TO DO list:
   child objects for all the entities in the IRDB, poll on behalf of
   each of them, and check the result for sanity
 
+- Need to figure out how we're going to handle "root" case (IANA/RIR
+  self-signed resource cert issuing to its children).  Right now this
+  is a separate little program, which is nice for testing but feels
+  wrong.  As Randy puts it, this is kind of a special case of a
+  parent, although we might want to represent it differently.  If this
+  were really only IANA and the RIRs, handling it as a special case
+  separate program might make sense, but anybody who wants to certify
+  private address space is going to have this problem, and the
+  separate daemon approach just feels wrong for that.
+
+  If it's not a separate daemon, will need left-right protocol support
+  to configure whatever it is we're going to configure, with all the
+  usual private key hygiene issues.  This probably implies a level of
+  indirection, eg, the self-signed cert is generated in the IRBE, the
+  RPKI engine generates PKCS#10 for a working cert to be issued by the
+  self-signed cert (perhaps with RFC 3779 inheritance for everything,
+  to keep it small), so that the RPKI engine never needs to hold the
+  private key for the root.
+
+  Deferred for the moment, not sure for how long.
+
 Once this lot is done we'll be close to something that shows at least
 the basics of normal operation, albiet in a form that's not yet usable
 in production.
@@ -149,4 +170,28 @@ Somewhere along the way I'll need to update to the new model of trust
 anchors we ended up with in Amsterdam, first step for which will
 involve writing it down (well, RobK was supposed to do that, but I was
 supposed to convert some pencil sketches into graphviz for him so
-we're both lame on this so far).
+we're both lame on this so far).  I don't think this results in major
+changes, probably a few extra cert fields in the self object which we
+then need to toss into the rpki.x509.X509_chain objects before
+verifying CMS or TLS, and perhaps the existing TA fields in various
+objects become pairs of certs instead of a single TA, but this is
+mostly just generalization and reuse of existing code, no bold new
+adventures.
+
+At some point we need to do performance testing.  All of our crypto is
+done internally except for CMS, for which we still call the OpenSSL
+CLI tool.  The simplest solution would probably be to extend POW to
+support CMS; cryptlib might be more entertaining solution, but am not
+sure it's worth the time sink.
+
+Although it may not be worth the effort, it'd be nice to get back to
+only one crypto library.  As far as I know the only things we're using
+M2Crypto or cryptlib for are TLS.  POW supports TLS, but tlslite
+doesn't support POW.  I suspect that tlslite has some kind of driver
+interface, since it already supports two crypto packages, so there may
+be a simple answer here.  Not worth getting anywhere near this until
+after making the jump to Twisted, as that might also affect this mess.
+If the Python implementation ends up becoming the production version
+of the engine rather than just a prototype, it might make sense to
+revisit this, as the current mess of crypto libraries smells like an
+accident waiting to happen.

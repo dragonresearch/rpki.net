@@ -58,6 +58,17 @@ Current TO DO list:
   used in ASN.1, and the timestamps used in MySQL.  Need a unifying
   class to hide all this nastiness.
 
+  POW.pkix provides conversion functions for ASN.1.   MySQL timestamps
+  appear to map to Python datetime objects.  One can convert between
+  datetime and time (seconds since epoch) objects using:
+
+    time_object = time.mktime(datetime_object.timetuple())
+    datetime_object = datetime.datetime.fromtimestamp(int(time_object))
+
+  if one is willing to discard fractional seconds (which we probably
+  are in this case, as they're not useful with ASN.1).  No doubt there
+  would be a way to preserserve fractional seconds if we cared.
+
 - Subsetting (req_* attributes in up-down protocol)
 
 - Revocation and CRL generation

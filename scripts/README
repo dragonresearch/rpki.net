@@ -1,4 +1,4 @@
-$Id$
+$Id$ -*- Text -*-
 
 Python RPKI production tools.
 
@@ -83,6 +83,21 @@ Current TO DO list:
   indicate whether a cert is dead, eg, a date field which is NULL if
   the cert is still live, otherwise is the date after which it should
   be added to the CRL.
+
+  Yes, but... every example of delayed revocation in the Common
+  Management Tasks page in the APNIC Wiki is triggered by the child,
+  not the parent.  This suggests that revocation by the parent is
+  always immediate, whether it's due to overclaim or a child's class
+  going away or a child requesting revocation (as in key rollover).
+
+  So apparently it's the child (probably ca_detail object) that needs
+  timestamps.  Other text in Common Management Tasks suggests that
+  ca_detail also needs deferred transitions from pending to active.
+
+  How to model this?   An enumerated state value (already have that,
+  may need to rename states) and a timestamp (which may be NULL) for
+  next scheduled transition?   Is the next state always predictable
+  from the current state or do we also need a next-state field?
 
 - Publication protocol and implementation thereof.   Defer until core
   functionality in the main engine is done.

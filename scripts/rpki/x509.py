@@ -27,10 +27,11 @@ oid2name = {
   (1, 3, 6, 1, 5, 5, 7, 1, 7)   : "sbgp-ipAddrBlock",
   (1, 3, 6, 1, 5, 5, 7, 1, 8)   : "sbgp-autonomousSysNum",
   (1, 3, 6, 1, 5, 5, 7, 14, 2)  : "id-cp-ipAddr-asNumber",
-  (1, 3, 6, 1, 5, 5, 7, 48, 10) : "rpkiManifest",
-  (1, 3, 6, 1, 5, 5, 7, 48, 2)  : "caIssuers",
-  (1, 3, 6, 1, 5, 5, 7, 48, 5)  : "caRepository",
-  (1, 3, 6, 1, 5, 5, 7, 48, 9)  : "signedObjectRepository",
+  (1, 3, 6, 1, 5, 5, 7, 48, 2)  : "id-ad-caIssuers",
+  (1, 3, 6, 1, 5, 5, 7, 48, 5)  : "id-ad-caRepository",
+  (1, 3, 6, 1, 5, 5, 7, 48, 9)  : "id-ad-signedObjectRepository",
+  (1, 3, 6, 1, 5, 5, 7, 48, 10) : "id-ad-rpkiManifest",
+  (1, 3, 6, 1, 5, 5, 7, 48, 11) : "id-ad-signedObject",
   (2, 5, 29, 14)                : "subjectKeyIdentifier",
   (2, 5, 29, 15)                : "keyUsage",
   (2, 5, 29, 19)                : "basicConstraints",
@@ -307,7 +308,7 @@ class X509(DER_object):
     exts = [ ["subjectKeyIdentifier",   False, ski],
              ["authorityKeyIdentifier", False, (aki, (), None)],
              ["cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)],
-             ["authorityInfoAccess",    False, ((name2oid["caIssuers"], ("uri", aia)),)],
+             ["authorityInfoAccess",    False, ((name2oid["id-ad-caIssuers"], ("uri", aia)),)],
              ["certificatePolicies",    True,  ((name2oid["id-cp-ipAddr-asNumber"], ()),)] ]
 
     if is_ca:
@@ -467,7 +468,7 @@ class PKCS10(DER_object):
       raise rpki.exceptions.BadPKCS10, "keyUsage doesn't match basicConstraints"
 
     for method, location in req_exts.get("subjectInfoAccess", ()):
-      if oid2name.get(method) == "caRepository" and \
+      if oid2name.get(method) == "id-ad-caRepository" and \
            (location[0] != "uri" or (location[1].startswith("rsync://") and not location[1].endswith("/"))):
         raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %s" % repr(location)
 

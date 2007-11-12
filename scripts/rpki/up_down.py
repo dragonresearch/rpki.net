@@ -288,8 +288,8 @@ class issue_pdu(base_elt):
   def query(cls, gctx, parent, ca, ca_detail):
     """Send an "issue" request to parent associated with ca."""
     assert ca_detail is not None and ca_detail.state != "deprecated"
-    sia = ((rpki.x509.name2oid["caRepository"], ("uri", ca.sia_uri)),
-           (rpki.x509.name2oid["rpkiManifest"], ("uri", ca.sia_uri + ca_detail.public_key.gSKI() + ".mnf")))
+    sia = ((rpki.x509.name2oid["id-ad-caRepository"], ("uri", ca.sia_uri)),
+           (rpki.x509.name2oid["id-ad-rpkiManifest"], ("uri", ca.sia_uri + ca_detail.public_key.gSKI() + ".mnf")))
     self = cls()
     self.class_name = ca.parent_resource_class
     self.pkcs10 = rpki.x509.PKCS10.create_ca(ca_detail.private_key_id, sia)

@@ -12,13 +12,7 @@ import rpki.x509, rpki.exceptions
 
 rpki_content_type = "application/x-rpki"
 
-# Setting this here is a crock, but the default is much too short and
-# this is the easiest way to make sure that all of our scripts use a
-# more reasonable value.
-
-socket.setdefaulttimeout(90)            # Seconds
-
-def client(msg, privateKey, certChain, x509TrustList, url):
+def client(msg, privateKey, certChain, x509TrustList, url, timeout = 300):
   """Open client HTTPS connection, send a message, wait for response.
 
   This function wraps most of what one needs to do to send a message
@@ -36,12 +30,17 @@ def client(msg, privateKey, certChain, x509TrustList, url):
          u.query    == "" and \
          u.fragment == ""
 
+  # We could add a "settings = foo" argument to the following call to
+  # pass in a tlslite.HandshakeSettings object that would let us
+  # insist on, eg, particular SSL/TLS versions.
+
   httpc = tlslite.api.HTTPTLSConnection(host          = u.hostname or "localhost",
                                         port          = u.port or 443,
                                         privateKey    = privateKey.get_tlslite(),
                                         certChain     = certChain.tlslite_certChain(),
                                         x509TrustList = x509TrustList.tlslite_trustList())
   httpc.connect()
+  httpc.sock.settimeout(timeout)
   httpc.request("POST", u.path, msg, {"Content-Type" : rpki_content_type})
   response = httpc.getresponse()
   if response.status == httplib.OK:
@@ -96,6 +95,9 @@ class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
     assert self.rpki_privateKey is not None
     assert self.rpki_sessionCache is not None
     try:
+      # We could add a "settings = foo" argument to the following call
+      # to pass in a tlslite.HandshakeSettings object that would let
+      # us insist on, eg, particular SSL/TLS versions.
       tlsConnection.handshakeServer(certChain    = self.rpki_certChain,
                                     privateKey   = self.rpki_privateKey,
                                     sessionCache = self.rpki_sessionCache)

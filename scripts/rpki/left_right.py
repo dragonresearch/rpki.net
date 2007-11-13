@@ -729,17 +729,14 @@ class sax_handler(rpki.sax_utils.handler):
     return self.pdu()
 
 def irdb_query(gctx, self_id, child_id = None):
-  """Perform an IRDB callback query.
-
-  In the long run this should not be a blocking routine, it should
-  instead issue a query and set up a handler to receive the response.
-  For the moment, though, we're doing simple lock step and damn the
-  torpedos.
-
-  Not yet doing anything useful with validity interval or subject
-  name.  Most likely this function should really be wrapped up in a
-  class that carries both the query result and also the intermediate state
-  needed for the event-driven code that this function will need to become.
+  """Perform an IRDB callback query.  In the long run this should not
+  be a blocking routine, it should instead issue a query and set up a
+  handler to receive the response.  For the moment, though, we are
+  doing simple lock step and damn the torpedos.  Not yet doing
+  anything useful with validity interval or subject name.  Most likely
+  this function should really be wrapped up in a class that carries
+  both the query result and also the intermediate state needed for the
+  event-driven code that this function will need to become.
   """
 
   q_msg = msg()
@@ -760,4 +757,6 @@ def irdb_query(gctx, self_id, child_id = None):
   r_msg = rpki.left_right.sax_handler.saxify(r_elt)
   if len(r_msg) == 0 or not isinstance(r_msg[0], list_resources_elt) or r_msg[0].type != "reply":
     raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % r_msg.toXML()
-  return r_msg[0].as, r_msg[0].ipv4, r_msg[0].ipv6
+  return rpki.resource_set.resource_bag(r_msg[0].as,
+                                        r_msg[0].ipv4,
+                                        r_msg[0].ipv6)

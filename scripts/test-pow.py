@@ -80,10 +80,10 @@ for der in (alice, apnic):
       print "  Crit: ", crit
       print "  Value:", val
       print
-  as, v4, v6 = rpki.resource_set.parse_extensions(cert.getExtensions())
-  if as: print ",".join(map(lambda x: "AS:" + str(x), as))
-  if v4: print ",".join(map(lambda x: "IPv4:" + str(x), v4))
-  if v6: print ",".join(map(lambda x: "IPv6:" + str(x), v6))
-  if as is not None: print as.to_tuple()
-  if v4 is not None: print v4.to_tuple()
-  if v6 is not None: print v6.to_tuple()
+  bag = rpki.resource_set.parse_extensions(cert.getExtensions())
+  if bag.as: print ",".join(map(lambda x: "AS:"   + str(x), bag.as))
+  if bag.v4: print ",".join(map(lambda x: "IPv4:" + str(x), bag.v4))
+  if bag.v6: print ",".join(map(lambda x: "IPv6:" + str(x), bag.v6))
+  if bag.as is not None: print bag.as.to_tuple()
+  if bag.v4 is not None: print bag.v4.to_tuple()
+  if bag.v6 is not None: print bag.v6.to_tuple()

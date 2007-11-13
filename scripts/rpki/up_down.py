@@ -142,6 +142,18 @@ class class_elt(base_elt):
       self.make_b64elt(elt, "issuer", self.issuer.get_DER())
     return elt
 
+  def to_resource_bag(self):
+    """Build a resource_bag from from this <class/> element."""
+    return rpki.resource_set.resource_bag(self.resource_set_as,
+                                          self.resource_set_ipv4,
+                                          self.resource_set_ipv6)
+
+  def from_resource_bag(self, bag):
+    """Set resources of this class element from a resource_bag."""
+    self.resource_set_as   = bag.as
+    self.resource_set_ipv4 = bag.v4
+    self.resource_set_ipv6 = bag.v6
+
 class list_pdu(base_elt):
   """Up-Down protocol "list" PDU."""
 
@@ -152,19 +164,19 @@ class list_pdu(base_elt):
   def serve_pdu(self, gctx, q_msg, r_msg, child):
     """Serve one "list" PDU."""
     r_msg.payload = list_response_pdu()
-    irdb_as, irdb_v4, irdb_v6 = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
+    irdb_resources = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
     for parent in rpki.left_right.parent_elt.sql_fetch_where(gctx, "parent.self_id = %s" % child.self_id):
       for ca in rpki.sql.ca_obj.sql_fetch_where(gctx, "ca.parent_id = %s" % parent.parent_id):
         ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx, ca.ca_id)
         if not ca_detail:
           continue
-        rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(irdb_as, irdb_v4, irdb_v6)
-        if not rc_as and not rc_v4 and not rc_v6:
+        resources = ca_detail.latest_ca_cert.get_3779resources().intersection(irdb_resources)
+        if resources.empty():
           continue
         rc = class_elt()
         rc.class_name = str(ca.ca_id)
         rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
-        rc.resource_set_as, rc.resource_set_ipv4, rc.resource_set_ipv6 = rc_as, rc_v4, rc_v6
+        rc.from_resource_bag(resources)
         for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx, """
                   child_id = %s AND ca_detail_id = %s
                   """ % (child.child_id, ca_detail.ca_detail_id)):
@@ -243,7 +255,7 @@ class issue_pdu(base_elt):
 
     # Check current cert, if any
     irdb_resources = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
-    rc_as, rc_v4, rc_v6 = ca_detail.latest_ca_cert.get_3779resources(*irdb_resources)
+    resources = ca_detail.latest_ca_cert.get_3779resources().intersection(irdb_resources)
     req_key = self.pkcs10.getPublicKey()
     req_sia = self.pkcs10.get_SIA()
     child_cert = rpki.sql.child_cert_obj.sql_fetch_where1(gctx, """
@@ -258,16 +270,12 @@ class issue_pdu(base_elt):
                                    child = child,
                                    subject_key = req_key,
                                    sia = req_sia,
-                                   as = rc_as,
-                                   v4 = rc_v4,
-                                   v6 = rc_v6)
-    elif ((rc_as, rc_v4, rc_v6) != child_cert.cert.get_3779resources()) or child_cert.cert.get_SIA() != req_sia:
+                                   resources = resources)
+    elif resources != child_cert.cert.get_3779resources() or child_cert.cert.get_SIA() != req_sia:
       child_cert.reissue(gctx = gctx,
                          ca_detail = ca_detail,
-                         as = rc_as,
-                         v4 = rc_v4,
-                         v6 = rc_v6,
-                         sia = req_sia)
+                         sia = req_sia,
+                         resources = resources)
 
     # Save anything we modified and generate response
     rpki.sql.sql_sweep(gctx)
@@ -278,7 +286,7 @@ class issue_pdu(base_elt):
     rc = class_elt()
     rc.class_name = str(ca_id)
     rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
-    rc.resource_set_as, rc.resource_set_ipv4, rc.resource_set_ipv6 = rc_as, rc_v4, rc_v6
+    rc.from_resource_bag(resources)
     rc.certs.append(c)
     rc.issuer = ca_detail.latest_ca_cert
     r_msg.payload = issue_response_pdu()

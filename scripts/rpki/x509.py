@@ -194,18 +194,11 @@ class DER_object(object):
     """Get the SIA extension from this object.  Only works for subclasses that support getExtension()."""
     return (self.get_POWpkix().getExtension(name2oid["subjectInfoAccess"]) or ((), 0, None))[2]
 
-  def get_3779resources(self, as_intersector = None, v4_intersector = None, v6_intersector = None):
+  def get_3779resources(self):
     """Get RFC 3779 resources as rpki.resource_set objects.
     Only works for subclasses that support getExtensions().
     """
-    as, v4, v6 = rpki.resource_set.parse_extensions(self.get_POWpkix().getExtensions())
-    if as_intersector is not None:
-      as = as.intersection(as_intersector)
-    if v4_intersector is not None:
-      v4 = v4.intersection(v4_intersector)
-    if v6_intersector is not None:
-      v6 = v6.intersection(v6_intersector)
-    return as, v4, v6
+    return rpki.resource_set.resource_bag.from_asn1_tuples(self.get_POWpkix().getExtensions())
 
 class X509(DER_object):
   """X.509 certificates.
@@ -283,7 +276,7 @@ class X509(DER_object):
     return RSApublic(DER = self.get_POWpkix().tbs.subjectPublicKeyInfo.toString())
 
   def issue(self, keypair, subject_key, serial, sia, aia, crldp,
-            cn = None, notAfter = None, as = None, v4 = None, v6 = None, is_ca = True):
+            cn = None, notAfter = None, resources = None, is_ca = True):
     """Issue a certificate."""
 
     now = time.time()
@@ -322,10 +315,11 @@ class X509(DER_object):
     else:
       assert not is_ca
 
-    if as:
-      exts.append(["sbgp-autonomousSysNum", True, (as.to_tuple(), None)])
-    if v4 or v6:
-      exts.append(["sbgp-ipAddrBlock", True, [x for x in (v4.to_tuple(), v6.to_tuple()) if x is not None]])
+    if resources is not None and resources.as:
+      exts.append(["sbgp-autonomousSysNum", True, (resources.as.to_tuple(), None)])
+
+    if resources is not None and (resources.v4 or resources.v6):
+      exts.append(["sbgp-ipAddrBlock", True, [x for x in (resources.v4.to_tuple(), resources.v6.to_tuple()) if x is not None]])
 
     for x in exts:
       x[0] = name2oid[x[0]]

@@ -58,10 +58,10 @@ if parse_test:
 
       exts = pkcs10.getExtensions()
 
-      as, v4, v6 = rpki.resource_set.parse_extensions(exts)
-      if as: print "ASN  =", as
-      if v4: print "IPv4 =", v4
-      if v6: print "IPv6 =", v6
+      bag = rpki.resource_set.parse_extensions(exts)
+      if bag.as: print "ASN  =", bag.as
+      if bag.v4: print "IPv4 =", bag.v4
+      if bag.v6: print "IPv6 =", bag.v6
 
       for oid, crit, val in exts:
         if oid in ((1, 3, 6, 1, 5, 5, 7, 1, 7), (1, 3, 6, 1, 5, 5, 7, 1, 8)):

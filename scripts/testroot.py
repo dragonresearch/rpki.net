@@ -40,7 +40,7 @@ def compose_response(r_msg):
     rc = rpki.up_down.class_elt()
     rc.class_name = root_name
     rc.cert_url = rpki.up_down.multi_uri(root_cert)
-    rc.resource_set_as, rc.resource_set_ipv4, rc.resource_set_ipv6 = rpki_issuer.get_3779resources()
+    rc.from_resource_bag(rpki_issuer.get_3779resources())
     rc.issuer = rpki_issuer
     r_msg.payload.classes.append(rc)
     rpki_subject = get_subject_cert()
@@ -61,7 +61,7 @@ class issue_pdu(rpki.up_down.issue_pdu):
     r_msg.payload = rpki.up_down.issue_response_pdu()
     rpki_subject = get_subject_cert()
     if rpki_subject is None:
-      as, v4, v6 = rpki_issuer.get_3779resources()
+      resources = rpki_issuer.get_3779resources()
       req_key = self.pkcs10.getPublicKey()
       req_sia = self.pkcs10.get_SIA()
       crldp = root_base + rpki_issuer.gSKI() + ".crl"
@@ -71,9 +71,7 @@ class issue_pdu(rpki.up_down.issue_pdu):
                                          sia = req_sia,
                                          aia = root_cert,
                                          crldp = crldp,
-                                         as = as,
-                                         v4 = v4,
-                                         v6 = v6))
+                                         resources = resources))
     compose_response(r_msg)
 
 class revoke_pdu(rpki.up_down.revoke_pdu):

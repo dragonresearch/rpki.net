@@ -223,24 +223,23 @@ class ca_obj(sql_persistant):
     off to the affected ca_detail for processing.
     """
 
-    cert_map = dict((c.cert.get_SKI(), c) for c in rc.certs)
-    ca_details = ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL" % self.ca_id)
-    as, v4, v6 = ca_detail_obj.sql_fetch_active(gctx, self.ca_id).latest_ca_cert.get_3779resources()
-    undersized = not rc.resource_set_as.issubset(as) or \
-                 not rc.resource_set_ipv4.issubset(v4) or \
-                 not rc.resource_set_ipv6.issubset(v6)
-    oversized  = not as.issubset(rc.resource_set_as) or \
-                 not v4.issubset(rc.resource_set_ipv4) or \
-                 not v6.issubset(rc.resource_set_ipv6)
     sia_uri = self.construct_sia_uri(gctx, parent, rc)
     sia_uri_changed = self.sia_uri != sia_uri
     if sia_uri_changed:
       self.sia_uri = sia_uri
       self.sql_mark_dirty()
-    for ca_detail in ca_details:
+
+    rc_resources = rc.to_resource_bag()
+    cert_map = dict((c.cert.get_SKI(), c) for c in rc.certs)
+
+    for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL AND state != 'revoked'" % self.ca_id):
       ski = ca_detail.latest_ca_cert.get_SKI()
-      if ca_detail.state not in ("deprecated", "revoked") and (undersized or oversized or sia_uri_changed or ca_detail.latest_ca_cert != cert_map[ski].cert):
-        ca_detail.update(gctx, parent, self, rc, cert_map[ski].cert, undersized, oversized, sia_uri_changed, as, v4, v6)
+      if ca_detail.state != "deprecated":
+        current_resources = ca_detail_obj.sql_fetch_active(gctx, self.ca_id).latest_ca_cert.get_3779resources()
+        undersized = current_resources.undersized(rc_resources)
+        oversized = current_resources.oversized(rc_resources)
+        if undersized or oversized or sia_uri_changed or ca_detail.latest_ca_cert != cert_map[ski].cert:
+          ca_detail.update(gctx, parent, self, rc, cert_map[ski].cert, undersized, oversized, sia_uri_changed, current_resources, rc_resources)
       del cert_map[ski]
     assert not cert_map, "Certificates in list_response missing from our database, SKIs %s" % ", ".join(c.cert.hSKI() for c in cert_map.values())
 
@@ -341,7 +340,7 @@ class ca_detail_obj(sql_persistant):
     """Fetch the current active ca_detail_obj associated with a given ca_id."""
     return cls.sql_fetch_where1(gctx, "ca_id = %s AND state = 'active'" % ca_id)
 
-  def update(self, gctx, parent, ca, rc, newcert, undersized, oversized, sia_uri_changed, as, v4, v6):
+  def update(self, gctx, parent, ca, rc, newcert, undersized, oversized, sia_uri_changed, current_resources, rc_resources):
     """CA has received a cert for this ca_detail that doesn't match
     the current one, figure out what to do about it.  Cases:
 
@@ -358,17 +357,14 @@ class ca_detail_obj(sql_persistant):
     """
     if undersized:
       issue_response = rpki.up_down.issue_pdu.query(gctx, parent, ca, self)
-      issue_response.check()
-      self.latest_ca_cert = issue_response.classes[0].certs[0]
-      as, v4, v6 = self.latest_ca_cert.get_3779resources()
+      issue_response.check_syntax()
+      self.latest_ca_cert = issue_response.classes[0].certs[0].cert
+      current_resources = self.latest_ca_cert.get_3779resources()
     if oversized or sia_uri_changed:
       for child_cert in child_cert_obj.sql_fetch_where(gctx, "ca_detail_id = %s" % self.ca_detail_id):
-        child_as, child_v4, child_v6 = child_cert.cert.get_3779resources()
-        if sia_uri_changed or \
-             not child_as.issubset(as) or \
-             not child_v4.issubset(v4) or \
-             not child_v6.issubset(v6):
-          child_cert.reissue(gctx, self, as, v4, v6, ca.sia_uri)
+        child_resources = child_cert.cert.get_3779resources()
+        if sia_uri_changed or child_resources.oversized(current_resources):
+          child_cert.reissue(gctx, self, child_resources.intersection(current_resources), ca.sia_uri)
 
   @classmethod
   def create(cls, gctx, ca):
@@ -391,18 +387,20 @@ class ca_detail_obj(sql_persistant):
   def generate_manifest_cert(self, ca):
     """Generate a new manifest certificate for this ca_detail."""
 
+    resources = rpki.resource_set.resource_bag(as = rpki.resource_set.resource_set_as("<inherit>"),
+                                               v4 = rpki.resource_set.resource_set_ipv4("<inherit>"),
+                                               v6 = rpki.resource_set.resource_set_ipv6("<inherit>"))
+
     self.latest_manifest_cert = self.latest_ca_cert.issue(keypair = self.private_key_id,
                                                           subject_key = self.manifest_public_key,
                                                           serial = ca.next_serial_number(),
                                                           sia = None,
                                                           aia = self.ca_cert_uri,
                                                           crldp = ca.sia_uri + self.latest_ca_cert.gSKI() + ".crl",
-                                                          as = rpki.resource_set.resource_set_as("<inherit>"),
-                                                          v4 = rpki.resource_set.resource_set_ipv4("<inherit>"),
-                                                          v6 = rpki.resource_set.resource_set_ipv6("<inherit>"),
+                                                          resources = resources,
                                                           is_ca = False)
 
-  def issue(self, gctx, ca, child, subject_key, sia, as, v4, v6, child_cert = None):
+  def issue(self, gctx, ca, child, subject_key, sia, resources, child_cert = None):
     """Issue a new certificate to a child.
 
     Need to figure out how to share code between issuance of a new
@@ -425,10 +423,7 @@ class ca_detail_obj(sql_persistant):
                                      aia = self.ca_cert_uri,
                                      crldp = ca.sia_uri + self.latest_ca_cert.gSKI() + ".crl",
                                      sia = sia,
-                                     as = as,
-                                     v4 = v4,
-                                     v6 = v6)
-
+                                     resources = resources)
 
     if child_cert is None:
       child_cert = rpki.sql.child_cert_obj(child_id = child.child_id,
@@ -525,7 +520,7 @@ class child_cert_obj(sql_persistant):
     d["cert"] = self.cert.get_DER()
     return d
 
-  def reissue(self, gctx, ca_detail, as, v4, v6, sia):
+  def reissue(self, gctx, ca_detail, resources, sia):
     """Reissue an existing child_cert_obj, reusing the public key."""
     if sia is None:
       sia = self.cert.get_SIA()
@@ -534,9 +529,7 @@ class child_cert_obj(sql_persistant):
                            child = rpki.left_right.child_elt.sql_fetch(gctx, self.child_id),
                            subject_key = self.cert.getPublicKey(),
                            sia = sia,
-                           as = as,
-                           v4 = v4,
-                           v6 = v6,
+                           resources = resources,
                            child_cert = self)
 
   def revoke(self):

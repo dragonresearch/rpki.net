@@ -378,27 +378,64 @@ def _long2bs(number, addrlen, prefixlen = None, strip = None):
       bs.pop()
   return tuple(bs)
 
-def parse_extensions(exts):
-  """Parse RFC 3779 extensions from intermediate form returned by ASN.1 decoder."""
-  as = None
-  v4 = None
-  v6 = None
-  for x in exts:
-    if x[0] == (1, 3, 6, 1, 5, 5, 7, 1, 8): # sbgp-autonomousSysNum
-      assert x[2][1] is None, "RDI not implemented: %s" % (str(x))
-      assert as is None
-      as = resource_set_as(x[2][0])
-    if x[0] == (1, 3, 6, 1, 5, 5, 7, 1, 7): # sbgp-ipAddrBlock
-      for fam in x[2]:
-        if fam[0] == resource_set_ipv4.afi:
-          assert v4 is None
-          v4 = resource_set_ipv4(fam[1])
-        if fam[0] == resource_set_ipv6.afi:
-          assert v6 is None
-          v6 = resource_set_ipv6(fam[1])
-  return as or resource_set_as(), \
-         v4 or resource_set_ipv4(), \
-         v6 or resource_set_ipv6()
+class resource_bag(object):
+  """Container to simplify passing around the usual triple of AS,
+  IPv4, and IPv6 resource sets.
+  """
+
+  def __init__(self, as = None, v4 = None, v6 = None):
+    self.as = as or resource_set_as()
+    self.v4 = v4 or resource_set_ipv4()
+    self.v6 = v6 or resource_set_ipv6()
+
+  def oversized(self, other):
+    """True iff self is oversized with respect to other."""
+    return not self.as.issubset(other.as) or \
+           not self.v4.issubset(other.v4) or \
+           not self.v6.issubset(other.v6)
+
+  def undersized(self, other):
+    """True iff self is undersized with respect to other."""
+    return not other.as.issubset(self.as) or \
+           not other.v4.issubset(self.v4) or \
+           not other.v6.issubset(self.v6)
+
+  @classmethod
+  def from_asn1_tuples(cls, exts):
+    """Build a resource_bag from intermediate form returned by ASN.1 decoder."""
+    as = None
+    v4 = None
+    v6 = None
+    for x in exts:
+      if x[0] == (1, 3, 6, 1, 5, 5, 7, 1, 8): # sbgp-autonomousSysNum
+        assert x[2][1] is None, "RDI not implemented: %s" % (str(x))
+        assert as is None
+        as = resource_set_as(x[2][0])
+      if x[0] == (1, 3, 6, 1, 5, 5, 7, 1, 7): # sbgp-ipAddrBlock
+        for fam in x[2]:
+          if fam[0] == resource_set_ipv4.afi:
+            assert v4 is None
+            v4 = resource_set_ipv4(fam[1])
+          if fam[0] == resource_set_ipv6.afi:
+            assert v6 is None
+            v6 = resource_set_ipv6(fam[1])
+    return cls(as, v4, v6)
+
+  def empty(self):
+    """Return True iff all resource sets in this bag are empty."""
+    return not self.as and not self.v4 and not self.v6
+
+  def __eq__(self, other):
+    return self.as == other.as and self.v4 == other.v4 and self.v6 == other.v6
+
+  def __ne__(self, other):
+    return not (self == other)
+
+  def intersection(self, other):
+    """Compute intersection with another resource_bag."""
+    return self.__class__(self.as.intersection(other.as),
+                          self.v4.intersection(other.v4),
+                          self.v6.intersection(other.v6))
 
 # Test suite for set operations.  This will probably go away eventually
 

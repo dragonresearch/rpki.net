@@ -69,6 +69,22 @@ Current TO DO list:
   are in this case, as they're not useful with ASN.1).  No doubt there
   would be a way to preserserve fractional seconds if we cared.
 
+  Except that the above still requires the time module's idiocy of
+  setting the TZ environment variable to avoid having everything
+  whacked to local time.  The time.time() call itself is fine, but
+  most of the rest of the time module is for the birds.   If we're
+  going to consolidate by subtyping datetime.datetime, we can avoid
+  the conversion idiocy in the time module entirely by doing:
+
+    time_object = int(datetime_object.strftime("%s"))
+
+  which is probably even faster, albiet sillier.
+
+- Whack expiration dates of certs to match irdb valid_until value when
+  issuing -- valid_until is optional, what do we do if it's not set?
+  Default period in self object seems obvious answer, neither Randy
+  nor I has thought of anything better yet.
+
 - Subsetting (req_* attributes in up-down protocol)
 
 - Revocation and CRL generation
@@ -153,11 +169,6 @@ Current TO DO list:
 
   But all of this assumes that we really want automagic SQL-dirty, and
   I'm less convinced of that now than when I made the above note.
-
-- Whack expiration dates of certs to match irdb valid_until value when
-  issuing -- valid_until is optional, what do we do if it's not set?
-  Default period in self object seems obvious answer, neither Randy
-  nor I has thought of anything better yet.
 
 - Test with larger data set -- Tim gave me plenty of data and I have
   the low-level tools, just haven't written the glue logic to create

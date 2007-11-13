@@ -401,18 +401,10 @@ class ca_detail_obj(sql_persistant):
                                                           is_ca = False)
 
   def issue(self, gctx, ca, child, subject_key, sia, resources, child_cert = None):
-    """Issue a new certificate to a child.
-
-    Need to figure out how to share code between issuance of a new
-    child_cert and reissuance of an existing child cert.  If I
-    understand this correctly, the difference is that in the former
-    case we're pulling stuff from a PKCS #10, in the latter we're
-    pulling it from the previous cert.  If this theory is correct,
-    then this method needs to take an extra optional argument which is
-    a child_cert object to update, and we create a new one if none is
-    given.  child_cert.reissue() becomes the routine that fishes all
-    the right information out of the existing cert then calls this
-    method to finish the job.
+    """Issue a new certificate to a child.  Optional child_cert
+    argument specifies an existing child_cert object to update in
+    place; if not specified, we create a new one.  Returns the
+    child_cert object containing the newly issued cert.
     """
     assert child_cert is None or (child_cert.child_id == child.child_id and
                                   child_cert.ca_detail_id == self.ca_detail_id)
@@ -522,8 +514,9 @@ class child_cert_obj(sql_persistant):
 
   def reissue(self, gctx, ca_detail, resources, sia):
     """Reissue an existing child_cert_obj, reusing the public key."""
-    if sia is None:
-      sia = self.cert.get_SIA()
+
+    # if sia is None: sia = self.cert.get_SIA()
+
     return ca_detail.issue(gctx = gctx,
                            ca = ca_obj.sql_fetch(gctx, ca_detail.ca_id),
                            child = rpki.left_right.child_elt.sql_fetch(gctx, self.child_id),

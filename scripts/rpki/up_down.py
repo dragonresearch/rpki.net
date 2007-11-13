@@ -272,10 +272,10 @@ class issue_pdu(base_elt):
                                    sia = req_sia,
                                    resources = resources)
     elif resources != child_cert.cert.get_3779resources() or child_cert.cert.get_SIA() != req_sia:
-      child_cert.reissue(gctx = gctx,
-                         ca_detail = ca_detail,
-                         sia = req_sia,
-                         resources = resources)
+      child_cert = child_cert.reissue(gctx = gctx,
+                                      ca_detail = ca_detail,
+                                      sia = req_sia,
+                                      resources = resources)
 
     # Save anything we modified and generate response
     rpki.sql.sql_sweep(gctx)

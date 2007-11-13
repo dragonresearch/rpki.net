@@ -10,7 +10,8 @@ underlying details vary.
 We also provide some basic set operations (union, intersection, etc).
 """
 
-import re, ipaddrs
+import re
+import rpki.ipaddrs, rpki.oids
 
 inherit_token = "<inherit>"
 
@@ -96,12 +97,12 @@ class resource_range_ip(resource_range):
 class resource_range_ipv4(resource_range_ip):
   """Range of IPv4 addresses."""
 
-  datum_type = ipaddrs.v4addr
+  datum_type = rpki.ipaddrs.v4addr
 
 class resource_range_ipv6(resource_range_ip):
   """Range of IPv6 addresses."""
 
-  datum_type = ipaddrs.v6addr
+  datum_type = rpki.ipaddrs.v6addr
 
 def _rsplit(rset, that):
   """Split a resource range into two resource ranges."""
@@ -407,11 +408,11 @@ class resource_bag(object):
     v4 = None
     v6 = None
     for x in exts:
-      if x[0] == (1, 3, 6, 1, 5, 5, 7, 1, 8): # sbgp-autonomousSysNum
+      if x[0] == rpki.oids.name2oid["sbgp-autonomousSysNum"]: # 
         assert x[2][1] is None, "RDI not implemented: %s" % (str(x))
         assert as is None
         as = resource_set_as(x[2][0])
-      if x[0] == (1, 3, 6, 1, 5, 5, 7, 1, 7): # sbgp-ipAddrBlock
+      if x[0] == rpki.oids.name2oid["sbgp-ipAddrBlock"]:
         for fam in x[2]:
           if fam[0] == resource_set_ipv4.afi:
             assert v4 is None

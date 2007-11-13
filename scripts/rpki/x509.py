@@ -13,38 +13,7 @@ some of the nasty details.  This involves a lot of format conversion.
 """
 
 import POW, tlslite.api, POW.pkix, base64, time
-import rpki.exceptions, rpki.resource_set, rpki.manifest, rpki.cms
-
-## @var oid2name
-# Mapping table of OIDs to conventional string names.
-
-oid2name = {
-  (1, 2, 840, 113549, 1, 1, 11) : "sha256WithRSAEncryption",
-  (1, 2, 840, 113549, 1, 1, 12) : "sha384WithRSAEncryption",
-  (1, 2, 840, 113549, 1, 1, 13) : "sha512WithRSAEncryption",
-  (1, 3, 6, 1, 5, 5, 7, 1, 1)   : "authorityInfoAccess",
-  (1, 3, 6, 1, 5, 5, 7, 1, 11)  : "subjectInfoAccess",
-  (1, 3, 6, 1, 5, 5, 7, 1, 7)   : "sbgp-ipAddrBlock",
-  (1, 3, 6, 1, 5, 5, 7, 1, 8)   : "sbgp-autonomousSysNum",
-  (1, 3, 6, 1, 5, 5, 7, 14, 2)  : "id-cp-ipAddr-asNumber",
-  (1, 3, 6, 1, 5, 5, 7, 48, 2)  : "id-ad-caIssuers",
-  (1, 3, 6, 1, 5, 5, 7, 48, 5)  : "id-ad-caRepository",
-  (1, 3, 6, 1, 5, 5, 7, 48, 9)  : "id-ad-signedObjectRepository",
-  (1, 3, 6, 1, 5, 5, 7, 48, 10) : "id-ad-rpkiManifest",
-  (1, 3, 6, 1, 5, 5, 7, 48, 11) : "id-ad-signedObject",
-  (2, 5, 29, 14)                : "subjectKeyIdentifier",
-  (2, 5, 29, 15)                : "keyUsage",
-  (2, 5, 29, 19)                : "basicConstraints",
-  (2, 5, 29, 31)                : "cRLDistributionPoints",
-  (2, 5, 29, 32)                : "certificatePolicies",
-  (2, 5, 29, 35)                : "authorityKeyIdentifier",
-  (2, 5, 4, 3)                  : "commonName",
-}
-
-## @var name2oid
-# Mapping table of string names to OIDs
-
-name2oid = dict((v,k) for k,v in oid2name.items())
+import rpki.exceptions, rpki.resource_set, rpki.manifest, rpki.cms, rpki.oids
 
 class PEM_converter(object):
   """Convert between DER and PEM encodings for various kinds of ASN.1 data."""
@@ -180,19 +149,19 @@ class DER_object(object):
 
   def get_AKI(self):
     """Get the AKI extension from this object.  Only works for subclasses that support getExtension()."""
-    return (self.get_POWpkix().getExtension(name2oid["authorityKeyIdentifier"]) or ((), 0, None))[2]
+    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["authorityKeyIdentifier"]) or ((), 0, None))[2]
 
   def get_SKI(self):
     """Get the SKI extension from this object.  Only works for subclasses that support getExtension()."""
-    return (self.get_POWpkix().getExtension(name2oid["subjectKeyIdentifier"]) or ((), 0, None))[2]
+    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["subjectKeyIdentifier"]) or ((), 0, None))[2]
 
   def get_SIA(self):
     """Get the SIA extension from this object.  Only works for subclasses that support getExtension()."""
-    return (self.get_POWpkix().getExtension(name2oid["subjectInfoAccess"]) or ((), 0, None))[2]
+    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["subjectInfoAccess"]) or ((), 0, None))[2]
 
   def get_AIA(self):
     """Get the SIA extension from this object.  Only works for subclasses that support getExtension()."""
-    return (self.get_POWpkix().getExtension(name2oid["subjectInfoAccess"]) or ((), 0, None))[2]
+    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["subjectInfoAccess"]) or ((), 0, None))[2]
 
   def get_3779resources(self):
     """Get RFC 3779 resources as rpki.resource_set objects.
@@ -293,7 +262,7 @@ class X509(DER_object):
     cert.setVersion(2)
     cert.setSerial(serial)
     cert.setIssuer(self.get_POWpkix().getSubject())
-    cert.setSubject((((name2oid["commonName"], ("printableString", cn)),),))
+    cert.setSubject((((rpki.oids.name2oid["commonName"], ("printableString", cn)),),))
     cert.setNotBefore(("utcTime", POW.pkix.time2utc(now)))
     cert.setNotAfter(("utcTime", POW.pkix.time2utc(notAfter)))
     cert.tbs.subjectPublicKeyInfo.fromString(subject_key.get_DER())
@@ -301,8 +270,8 @@ class X509(DER_object):
     exts = [ ["subjectKeyIdentifier",   False, ski],
              ["authorityKeyIdentifier", False, (aki, (), None)],
              ["cRLDistributionPoints",  False, ((("fullName", (("uri", crldp),)), None, ()),)],
-             ["authorityInfoAccess",    False, ((name2oid["id-ad-caIssuers"], ("uri", aia)),)],
-             ["certificatePolicies",    True,  ((name2oid["id-cp-ipAddr-asNumber"], ()),)] ]
+             ["authorityInfoAccess",    False, ((rpki.oids.name2oid["id-ad-caIssuers"], ("uri", aia)),)],
+             ["certificatePolicies",    True,  ((rpki.oids.name2oid["id-cp-ipAddr-asNumber"], ()),)] ]
 
     if is_ca:
       exts.append(["basicConstraints",  True,  (1, None)])
@@ -322,7 +291,7 @@ class X509(DER_object):
       exts.append(["sbgp-ipAddrBlock", True, [x for x in (resources.v4.to_tuple(), resources.v6.to_tuple()) if x is not None]])
 
     for x in exts:
-      x[0] = name2oid[x[0]]
+      x[0] = rpki.oids.name2oid[x[0]]
     cert.setExtensions(exts)
 
     cert.sign(keypair.get_POW(), POW.SHA256_DIGEST)
@@ -442,15 +411,15 @@ class PKCS10(DER_object):
       raise rpki.exceptions.BadPKCS10, \
             "Bad version number %s" % self.get_POWpkix().certificationRequestInfo.version
 
-    if oid2name.get(self.get_POWpkix().signatureAlgorithm.algorithm.get()) \
+    if rpki.oids.oid2name.get(self.get_POWpkix().signatureAlgorithm.algorithm.get()) \
          not in ("sha256WithRSAEncryption", "sha384WithRSAEncryption", "sha512WithRSAEncryption"):
       raise rpki.exceptions.BadPKCS10, "Bad signature algorithm %s" % self.get_POWpkix().signatureAlgorithm
 
     exts = self.get_POWpkix().getExtensions()
     for oid, critical, value in exts:
-      if oid2name.get(oid) not in ("basicConstraints", "keyUsage", "subjectInfoAccess"):
+      if rpki.oids.oid2name.get(oid) not in ("basicConstraints", "keyUsage", "subjectInfoAccess"):
         raise rpki.exceptions.BadExtension, "Forbidden extension %s" % oid
-    req_exts = dict((oid2name[oid], value) for (oid, critical, value) in exts)
+    req_exts = dict((rpki.oids.oid2name[oid], value) for (oid, critical, value) in exts)
 
     if "basicConstraints" not in req_exts or not req_exts["basicConstraints"][0]:
       raise rpki.exceptions.BadPKCS10, "request for EE cert not allowed here"
@@ -462,7 +431,7 @@ class PKCS10(DER_object):
       raise rpki.exceptions.BadPKCS10, "keyUsage doesn't match basicConstraints"
 
     for method, location in req_exts.get("subjectInfoAccess", ()):
-      if oid2name.get(method) == "id-ad-caRepository" and \
+      if rpki.oids.oid2name.get(method) == "id-ad-caRepository" and \
            (location[0] != "uri" or (location[1].startswith("rsync://") and not location[1].endswith("/"))):
         raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %s" % repr(location)
 
@@ -478,7 +447,7 @@ class PKCS10(DER_object):
     if sia is not None:
       exts.append(["subjectInfoAccess", False, sia])
     for x in exts:
-      x[0] = name2oid[x[0]]
+      x[0] = rpki.oids.name2oid[x[0]]
     return cls.create(keypair, exts)
 
   @classmethod
@@ -487,7 +456,7 @@ class PKCS10(DER_object):
     cn = "".join(("%02X" % ord(i) for i in keypair.get_SKI()))
     req = POW.pkix.CertificationRequest()
     req.certificationRequestInfo.version.set(0)
-    req.certificationRequestInfo.subject.set((((name2oid["commonName"],
+    req.certificationRequestInfo.subject.set((((rpki.oids.name2oid["commonName"],
                                                 ("printableString", cn)),),))
     if exts is not None:
       req.setExtensions(exts)

@@ -292,7 +292,7 @@ class self_elt(data_elt):
         else:
           rpki.sql.ca_obj.create(gctx, parent, rc)
       for ca in ca_map.values():
-        ca.delete(gctx)                 # CA not listed by parent
+        ca.delete(gctx, parent)         # CA not listed by parent
       rpki.sql.sql_sweep(gctx)
 
 class bsc_elt(data_elt):

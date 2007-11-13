@@ -79,7 +79,7 @@ class sql_persistant(object):
       return results[0]
     else:
       raise rpki.exceptions.DBConsistancyError, \
-            "Database contained multiple matches for %s.%s" % (cls.__name__, id)
+            "Database contained multiple matches for %s where %s" % (cls.__name__, where)
 
   @classmethod
   def sql_fetch_all(cls, gctx):
@@ -204,6 +204,7 @@ class ca_obj(sql_persistant):
     """Construct the sia_uri value for this CA given configured
     information and the parent's up-down protocol list_response PDU.
     """
+
     repository = rpki.left_right.repository_elt.sql_fetch(gctx, parent.repository_id)
     sia_uri = rc.suggested_sia_head and rc.suggested_sia_head.rsync()
     if not sia_uri or not sia_uri.startswith(parent.sia_base):
@@ -221,39 +222,34 @@ class ca_obj(sql_persistant):
     pending ca_detail certs, we have nothing to do.  Otherwise, hand
     off to the affected ca_detail for processing.
     """
+
     cert_map = dict((c.cert.get_SKI(), c) for c in rc.certs)
     ca_details = ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL" % self.ca_id)
     as, v4, v6 = ca_detail_obj.sql_fetch_active(gctx, self.ca_id).latest_ca_cert.get_3779resources()
     undersized = not rc.resource_set_as.issubset(as) or \
-                 not rc.resource_set_ipv4.issubset(v4) or not rc.resource_set_ipv6.issubset(v6)
+                 not rc.resource_set_ipv4.issubset(v4) or \
+                 not rc.resource_set_ipv6.issubset(v6)
     oversized  = not as.issubset(rc.resource_set_as) or \
-                 not v4.issubset(rc.resource_set_ipv4) or not v6.issubset(rc.resource_set_ipv6)
+                 not v4.issubset(rc.resource_set_ipv4) or \
+                 not v6.issubset(rc.resource_set_ipv6)
     sia_uri = self.construct_sia_uri(gctx, parent, rc)
     sia_uri_changed = self.sia_uri != sia_uri
     if sia_uri_changed:
       self.sia_uri = sia_uri
       self.sql_mark_dirty()
     for ca_detail in ca_details:
-      assert ca_detail.state != "pending" or (as, v4, v6) == ca_detail.get_3779resources(), \
-             "Resource mismatch for pending cert"
-    for ca_detail in ca_details:
       ski = ca_detail.latest_ca_cert.get_SKI()
-      assert ski in cert_map, \
-             "Certificate in our database missing from list_response, SKI %s" % \
-             ca_detail.latest_ca_cert.hSKI()
-      if ca_detail.state != "deprecated" and \
-           (undersized or oversized or sia_uri_changed or ca_detail.latest_ca_cert != cert_map[ski].cert):
-        ca_detail.update(gctx, parent, self, rc, cert_map[ski].cert, undersized, oversized, sia_uri_changed,
-                         as, v4, v6)
+      if ca_detail.state not in ("deprecated", "revoked") and (undersized or oversized or sia_uri_changed or ca_detail.latest_ca_cert != cert_map[ski].cert):
+        ca_detail.update(gctx, parent, self, rc, cert_map[ski].cert, undersized, oversized, sia_uri_changed, as, v4, v6)
       del cert_map[ski]
-    assert not cert_map, "Certificates in list_response missing from our database, SKIs %s" % \
-           ", ".join(c.cert.hSKI() for c in cert_map.values())
+    assert not cert_map, "Certificates in list_response missing from our database, SKIs %s" % ", ".join(c.cert.hSKI() for c in cert_map.values())
 
   @classmethod
   def create(cls, gctx, parent, rc):
     """Parent has signaled existance of a new resource class, so we
     need to create and set up a corresponding CA object.
     """
+
     self = cls()
     self.parent_id = parent.parent_id
     self.parent_resource_class = rc.class_name
@@ -268,7 +264,7 @@ class ca_obj(sql_persistant):
     ca_detail.state = "active"
     ca_detail.sql_mark_dirty()
 
-  def delete(self, gctx):
+  def delete(self, gctx, parent):
     """The list of current resource classes received from parent does
     not include the class corresponding to this CA, so we need to
     delete it (and its little dog too...).
@@ -279,8 +275,7 @@ class ca_obj(sql_persistant):
     CA, then finally delete this CA itself.
     """
 
-    repository = rpki.left_right.repository_elt.sql_fetch_where1(gctx, "repository.repository_id = parent.repository_id AND parent.parent_id = %s" % self.parent_id)
-
+    repository = rpki.left_right.repository_elt.sql_fetch(gctx, parent.repository_id)
     for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s" % self.ca_id):
       for child_cert in child_cert_obj.sql_fetch_where(gctx, "ca_detail_id = %s" % ca_detail.ca_detail_id):
         repository.withdraw(child_cert.cert)
@@ -312,7 +307,7 @@ class ca_detail_obj(sql_persistant):
 
   sql_template = template("ca_detail", "ca_detail_id", "private_key_id", "public_key", "latest_ca_cert",
                           "manifest_private_key_id", "manifest_public_key", "latest_manifest_cert",
-                          "latest_manifest", "latest_crl", "state", "ca_cert_uri", "ca_id")
+                          "latest_manifest", "latest_crl", "state", "state_timer", "ca_cert_uri", "ca_id")
 
   def sql_decode(self, vals):
     """Decode SQL representation of a ca_detail_obj."""
@@ -344,12 +339,7 @@ class ca_detail_obj(sql_persistant):
   @classmethod
   def sql_fetch_active(cls, gctx, ca_id):
     """Fetch the current active ca_detail_obj associated with a given ca_id."""
-    actives = cls.sql_fetch_where(gctx, "ca_id = %s AND state = 'active'" % ca_id)
-    assert len(actives) < 2, "Found more than one 'active' ca_detail record, this should not happen!"
-    if actives:
-      return actives[0]
-    else:
-      return None
+    return cls.sql_fetch_where1(gctx, "ca_id = %s AND state = 'active'" % ca_id)
 
   def update(self, gctx, parent, ca, rc, newcert, undersized, oversized, sia_uri_changed, as, v4, v6):
     """CA has received a cert for this ca_detail that doesn't match
@@ -374,9 +364,11 @@ class ca_detail_obj(sql_persistant):
     if oversized or sia_uri_changed:
       for child_cert in child_cert_obj.sql_fetch_where(gctx, "ca_detail_id = %s" % self.ca_detail_id):
         child_as, child_v4, child_v6 = child_cert.cert.get_3779resources()
-        if sia_uri_changed or not child_as.issubset(as) or \
-             not child_v4.issubset(v4) or not child_v6.issubset(v6):
-          child_cert.reissue(gctx, self, as, v4, v6)
+        if sia_uri_changed or \
+             not child_as.issubset(as) or \
+             not child_v4.issubset(v4) or \
+             not child_v6.issubset(v6):
+          child_cert.reissue(gctx, self, as, v4, v6, ca.sia_uri)
 
   @classmethod
   def create(cls, gctx, ca):
@@ -472,10 +464,7 @@ class ca_detail_obj(sql_persistant):
     now = time.time()
     then = now + self_obj.crl_interval
     certs = []
-    for cert in child_cert_obj.sql_fetch_where(gctx, """
-                        child_cert.ca_detail_id = %s AND
-                        child_cert.revoked IS NOT NULL
-                    """ % self.ca_detail_id):
+    for cert in child_cert_obj.sql_fetch_where(gctx, "child_cert.ca_detail_id = %s AND child_cert.revoked" % self.ca_detail_id):
       raise rpki.exceptions.NotImplementedYet
       # Extract expiration time, figure out whether we still need to list this cert.
       # If not, delete it from child_cert table.  Otherwise, we need to include this
@@ -499,10 +488,7 @@ class ca_detail_obj(sql_persistant):
     ca = ca_obj.sql_fetch(gctx, self.ca_id)
     parent = rpki.left_right.parent_elt.sql_fetch(gctx, ca.parent_id)
     self_obj = rpki.left_right.self_elt.sql_fetch(gctx, parent.self_id)
-    certs = child_cert_obj.sql_fetch_where(gctx, """
-                child_cert.ca_detail_id = %s AND
-                child_cert.revoked IS NULL
-      """ % self.ca_detail_id)
+    certs = child_cert_obj.sql_fetch_where(gctx, "child_cert.ca_detail_id = %s AND NOT child_cert.revoked" % self.ca_detail_id)
 
     m = rpki.x509.SignedManifest()
     m.build(serial = ca.next_manifest_number(),
@@ -524,7 +510,7 @@ class child_cert_obj(sql_persistant):
     self.child_id = child_id
     self.ca_detail_id = ca_detail_id
     self.cert = cert
-    self.revoked = None
+    self.revoked = False
     if child_id or ca_detail_id or cert:
       self.sql_mark_dirty()
 
@@ -539,8 +525,8 @@ class child_cert_obj(sql_persistant):
     d["cert"] = self.cert.get_DER()
     return d
 
-  def reissue(self, gctx, ca_detail, as, v4, v6, sia = None):
-    """Reissue an existing child_cert_obj."""
+  def reissue(self, gctx, ca_detail, as, v4, v6, sia):
+    """Reissue an existing child_cert_obj, reusing the public key."""
     if sia is None:
       sia = self.cert.get_SIA()
     return ca_detail.issue(gctx = gctx,
@@ -552,3 +538,7 @@ class child_cert_obj(sql_persistant):
                            v4 = v4,
                            v6 = v6,
                            child_cert = self)
+
+  def revoke(self):
+    """Mark a child cert as revoked."""
+    self.revoked = True

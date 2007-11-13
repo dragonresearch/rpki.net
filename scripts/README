@@ -99,6 +99,9 @@ Current TO DO list:
   next scheduled transition?   Is the next state always predictable
   from the current state or do we also need a next-state field?
 
+    state     := pending | active | deprecated | revoked
+    timestamp := null | <time of next transition>
+
 - Publication protocol and implementation thereof.   Defer until core
   functionality in the main engine is done.
 

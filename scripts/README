@@ -84,8 +84,6 @@ Current TO DO list:
     state     := pending | active | deprecated | revoked
     timestamp := null | <time of next transition>
 
-- Subsetting (req_* attributes in up-down protocol)
-
 - Publication protocol and implementation thereof.   Defer until core
   functionality in the main engine is done.
 
@@ -108,6 +106,8 @@ Current TO DO list:
 
   - Withdrawal of any of the above
 
+- Logging subsystem, including syslog support.
+
 - Child batch processing loop, eg, regeneration or removal of expired
   certs, CRL update, manifest update, etc.  This should probably be an
   iteration over CA objects, as the CA is the actor in pretty much
@@ -122,6 +122,8 @@ Current TO DO list:
     automatically vs waiting for explicit revoke PDU from child
 
   - Code to generate CRLs
+
+- Subsetting (req_* attributes in up-down protocol)
 
 - Haven't done anything about db.commit() and db.rollback() yet, for
   that matter haven't yet whacked MySQL to enable those features.
@@ -163,8 +165,6 @@ Current TO DO list:
   private key for the root.
 
   Deferred for the moment, not sure for how long.
-
-- Logging subsystem, including syslog support.
 
 Once this lot is done we'll be close to something that shows at least
 the basics of normal operation, albiet in a form that's not yet usable

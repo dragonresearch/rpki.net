@@ -68,7 +68,7 @@ class datetime(pydatetime.datetime):
     return self.strftime("%Y-%m-%dT%H:%M:%SZ")
 
   @classmethod
-  def _cast(cls, x):
+  def fromdatetime(cls, x):
     """Convert a datetime.datetime object into this subclass.
     This is whacky due to the weird constructors for datetime.
     """
@@ -76,11 +76,11 @@ class datetime(pydatetime.datetime):
 
   def __add__(self, other):
     """Force correct class for timedelta results."""
-    return self._cast(pydatetime.datetime.__add__(self, other))
+    return self.fromdatetime(pydatetime.datetime.__add__(self, other))
   
   def __sub__(self, other):
     """Force correct class for timedelta results."""
-    return self._cast(pydatetime.datetime.__sub__(self, other))
+    return self.fromdatetime(pydatetime.datetime.__sub__(self, other))
   
 # Alias to simplify imports for callers
 

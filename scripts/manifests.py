@@ -26,7 +26,7 @@ def dumpasn1(thing):
 
 m = rpki.x509.SignedManifest()
 m.build(serial = 17,
-        nextUpdate = time.time() + 24 * 60 * 60,
+        nextUpdate = rpki.datetime.datetime.utcnow() + rpki.datetime.timedelta(days = 1),
         names_and_objs = [(fn, rpki.x509.X509(Auto_file = fn))
                           for fn in glob.glob("resource-cert-samples/*.cer")])
 

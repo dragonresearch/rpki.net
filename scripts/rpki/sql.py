@@ -1,7 +1,7 @@
 # $Id$
 
 import MySQLdb, time
-import rpki.x509, rpki.resource_set
+import rpki.x509, rpki.resource_set, rpki.sundial
 
 def connect(cfg, section="sql"):
   """Connect to a MySQL database using connection parameters from an
@@ -448,8 +448,8 @@ class ca_detail_obj(sql_persistant):
                 self.self_id = parent.self_id AND
                 parent.parent_id = %s
       """ % ca.parent_id)
-    now = time.time()
-    then = now + self_obj.crl_interval
+    now = rpki.sundial.datetime.utcnow()
+    then = now + rpki.sundial.timedelta(seconds = self_obj.crl_interval)
     certs = []
     for cert in child_cert_obj.sql_fetch_where(gctx, "child_cert.ca_detail_id = %s AND child_cert.revoked" % self.ca_detail_id):
       raise rpki.exceptions.NotImplementedYet
@@ -479,7 +479,7 @@ class ca_detail_obj(sql_persistant):
 
     m = rpki.x509.SignedManifest()
     m.build(serial = ca.next_manifest_number(),
-            nextUpdate = time.time() + self_obj.crl_interval,
+            nextUpdate = rpki.sundial.datetime.utcnow() + rpki.sundial.timedelta(seconds = self_obj.crl_interval),
             names_and_objs = [(c.cert.gSKI() + ".cer", c.cert) for c in certs])
     m.sign(keypair = self.manifest_private_key_id,
            certs = rpki.x509.X509_chain(self.latest_manifest_cert))

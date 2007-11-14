@@ -4,7 +4,7 @@
 
 import base64, lxml.etree, time, traceback
 import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions
-import rpki.https, rpki.up_down, rpki.relaxng
+import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial
 
 xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
@@ -640,7 +640,7 @@ class list_resources_elt(base_elt):
     assert name == "list_resources", "Unexpected name %s, stack %s" % (name, stack)
     self.read_attrs(attrs)
     if isinstance(self.valid_until, str):
-      self.valid_until = int(time.mktime(time.strptime(self.valid_until, "%Y-%m-%dT%H:%M:%SZ")))
+      self.valid_until = rpki.sundial.datetime.fromXMLtime(self.valid_until)
     if self.as is not None:
       self.as = rpki.resource_set.resource_set_as(self.as)
     if self.ipv4 is not None:
@@ -652,7 +652,7 @@ class list_resources_elt(base_elt):
     """Generate <list_resources/> element."""
     elt = self.make_elt()
     if isinstance(self.valid_until, int):
-      elt.set("valid_until", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.localtime(self.valid_until)))
+      elt.set("valid_until", self.valid_until.toXMLtime())
     return elt
 
 class report_error_elt(base_elt):

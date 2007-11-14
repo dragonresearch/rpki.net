@@ -13,7 +13,7 @@ some of the nasty details.  This involves a lot of format conversion.
 """
 
 import POW, tlslite.api, POW.pkix, base64, time
-import rpki.exceptions, rpki.resource_set, rpki.manifest, rpki.cms, rpki.oids
+import rpki.exceptions, rpki.resource_set, rpki.manifest, rpki.cms, rpki.oids, rpki.sundial
 
 class PEM_converter(object):
   """Convert between DER and PEM encodings for various kinds of ASN.1 data."""
@@ -248,7 +248,7 @@ class X509(DER_object):
             cn = None, notAfter = None, resources = None, is_ca = True):
     """Issue a certificate."""
 
-    now = time.time()
+    now = rpki.sundial.datetime.utcnow()
     aki = self.get_SKI()
     ski = subject_key.get_SKI()
 
@@ -256,15 +256,15 @@ class X509(DER_object):
       cn = "".join(("%02X" % ord(i) for i in ski))
 
     if notAfter is None:
-      notAfter = now + 30 * 24 * 60 * 60
+      notAfter = now + rpki.sundial.timedelta(days = 30)
 
     cert = POW.pkix.Certificate()
     cert.setVersion(2)
     cert.setSerial(serial)
     cert.setIssuer(self.get_POWpkix().getSubject())
     cert.setSubject((((rpki.oids.name2oid["commonName"], ("printableString", cn)),),))
-    cert.setNotBefore(("utcTime", POW.pkix.time2utc(now)))
-    cert.setNotAfter(("utcTime", POW.pkix.time2utc(notAfter)))
+    cert.setNotBefore(now.toASN1tuple())
+    cert.setNotAfter(notAfter.toASN1tuple())
     cert.tbs.subjectPublicKeyInfo.fromString(subject_key.get_DER())
 
     exts = [ ["subjectKeyIdentifier",   False, ski],
@@ -596,8 +596,8 @@ class SignedManifest(DER_object):
     m = rpki.manifest.Manifest()
     m.version.set(version)
     m.manifestNumber.set(serial)
-    m.thisUpdate.set(POW.pkix.time2gen(time.time()))
-    m.nextUpdate.set(POW.pkix.time2gen(nextUpdate))
+    m.thisUpdate.set(rpki.sundial.datetime.utcnow().toGeneralizedTime())
+    m.nextUpdate.set(nextUpdate.toGeneralizedTime())
     m.fileHashAlg.set((2, 16, 840, 1, 101, 3, 4, 2, 1)) # id-sha256
     m.fileList.set(filelist)
     self.set_content(m)

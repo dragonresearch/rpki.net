@@ -53,39 +53,14 @@ pure Python and only 2% about any kind of crypto.
 
 Current TO DO list:
 
-- Representation of timestamps is a mess.  We have four different
-  kinds already: seconds from epoch, the the two flavors of timestamps
-  used in ASN.1, and the timestamps used in MySQL.  Need a unifying
-  class to hide all this nastiness.
-
-  POW.pkix provides conversion functions for ASN.1.   MySQL timestamps
-  appear to map to Python datetime objects.  One can convert between
-  datetime and time (seconds since epoch) objects using:
-
-    time_object = time.mktime(datetime_object.timetuple())
-    datetime_object = datetime.datetime.fromtimestamp(int(time_object))
-
-  if one is willing to discard fractional seconds (which we probably
-  are in this case, as they're not useful with ASN.1).  No doubt there
-  would be a way to preserserve fractional seconds if we cared.
-
-  Except that the above still requires the time module's idiocy of
-  setting the TZ environment variable to avoid having everything
-  whacked to local time.  The time.time() call itself is fine, but
-  most of the rest of the time module is for the birds.   If we're
-  going to consolidate by subtyping datetime.datetime, we can avoid
-  the conversion idiocy in the time module entirely by doing:
-
-    time_object = int(datetime_object.strftime("%s"))
-
-  which is probably even faster, albiet sillier.
-
 - Whack expiration dates of certs to match irdb valid_until value when
   issuing -- valid_until is optional, what do we do if it's not set?
   Default period in self object seems obvious answer, neither Randy
   nor I has thought of anything better yet.
 
-- Subsetting (req_* attributes in up-down protocol)
+  Now that we have the resource_bag, perhaps we can add an optional
+  (default None) validity_interval value to that?  Sure would make it
+  easier to pass results back from irdb_query().
 
 - Revocation and CRL generation
 
@@ -117,6 +92,8 @@ Current TO DO list:
 
     state     := pending | active | deprecated | revoked
     timestamp := null | <time of next transition>
+
+- Subsetting (req_* attributes in up-down protocol)
 
 - Publication protocol and implementation thereof.   Defer until core
   functionality in the main engine is done.

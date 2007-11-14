@@ -200,6 +200,13 @@ class ca_obj(sql_persistant):
   last_issued_sn = 0
   last_manifest_sn = 0
 
+  def sql_decode(self, vals):
+    """Decode SQL representation of a ca_obj."""
+    sql_persistant.sql_decode(self, vals)
+    for i in ("next_crl_update", "next_manifest_update"):
+      if vals.get(i) is not None:
+        setattr(self, i, rpki.sundial.datetime.fromdatetime(vals[i]))
+
   def construct_sia_uri(self, gctx, parent, rc):
     """Construct the sia_uri value for this CA given configured
     information and the parent's up-down protocol list_response PDU.
@@ -320,6 +327,8 @@ class ca_detail_obj(sql_persistant):
                 ("latest_crl",              rpki.x509.CRL)):
       if getattr(self, i, None) is not None:
         setattr(self, i, t(DER = getattr(self, i)))
+    if vals.get("state_timer") is not None:
+      self.state_timer = rpki.sundial.datetime.fromdatetime(vals["state_timer"])
     assert (self.public_key is None and self.private_key_id is None) or \
            self.public_key.get_DER() == self.private_key_id.get_public_DER()
     assert (self.manifest_public_key is None and self.manifest_private_key_id is None) or \

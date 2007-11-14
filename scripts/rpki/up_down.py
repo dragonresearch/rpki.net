@@ -50,6 +50,10 @@ class base_elt(object):
     """Default PDU handler to catch unexpected types."""
     raise rpki.exceptions.BadQuery, "Unexpected query type %s" % q_msg.type
 
+  def check_response(self):
+    """Placeholder for response checking."""
+    pass
+
 class multi_uri(list):
   """Container for a set of URIs."""
 
@@ -270,12 +274,14 @@ class issue_pdu(base_elt):
                                    child = child,
                                    subject_key = req_key,
                                    sia = req_sia,
-                                   resources = resources)
+                                   resources = resources,
+                                   valid_until = irdb_resources.valid_until)
     elif resources != child_cert.cert.get_3779resources() or child_cert.cert.get_SIA() != req_sia:
       child_cert = child_cert.reissue(gctx = gctx,
                                       ca_detail = ca_detail,
                                       sia = req_sia,
-                                      resources = resources)
+                                      resources = resources,
+                                      valid_until = irdb_resources.valid_until)
 
     # Save anything we modified and generate response
     rpki.sql.sql_sweep(gctx)
@@ -306,7 +312,7 @@ class issue_pdu(base_elt):
 class issue_response_pdu(class_response_syntax):
   """Up-Down protocol "issue_response" PDU."""
 
-  def check_syntax(self):
+  def check_response(self):
     """Check whether this looks like a reasonable issue_response PDU.
     XML schema should be tighter for this response.
     """
@@ -416,9 +422,9 @@ class error_response_pdu(base_elt):
       payload.append(elt)
     return payload
 
-  def check_syntax(self):
-    """Handle an error response.  For the moment, just raise an
-    exception, eventually figure out something more clever to do.
+  def check_response(self):
+    """Handle an error response.  For now, just raise an exception,
+    perhaps figure out something more clever to do later.
     """
     raise rpki.exceptions.UpstreamError, self.codes[self.status]
 

@@ -186,7 +186,7 @@ ro_elt |= element route_origin { ctl_dr, self_id, ro_id }
 list_resources_elt = element list_resources {
   ( attribute type { "query" }, self_id, child_id ) |
   ( attribute type { "reply" }, self_id, child_id,
-    attribute valid_until { xsd:token { maxLength="1024" } }?,
+    attribute valid_until { xsd:token { maxLength="1024" } },
     attribute subject_name { xsd:token { maxLength="1024" } }?,
     attribute as { xsd:token { maxLength="1024" } }?,
     attribute ipv4 { xsd:token { maxLength="1024" } }?,

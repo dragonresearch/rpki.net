@@ -167,7 +167,12 @@ class DER_object(object):
     """Get RFC 3779 resources as rpki.resource_set objects.
     Only works for subclasses that support getExtensions().
     """
-    return rpki.resource_set.resource_bag.from_asn1_tuples(self.get_POWpkix().getExtensions())
+    resources = rpki.resource_set.resource_bag.from_asn1_tuples(self.get_POWpkix().getExtensions())
+    try:
+      resources.valid_until = self.getNotAfter()
+    except AttributeError:
+      pass
+    return resources
 
 class X509(DER_object):
   """X.509 certificates.
@@ -230,11 +235,11 @@ class X509(DER_object):
 
   def getNotBefore(self):
     """Get the inception time of this certificate."""
-    return POW.pkix.utc2time(self.get_POW().getNotBefore())
+    return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().tbs.validity.notBefore.get())
 
   def getNotAfter(self):
     """Get the expiration time of this certificate."""
-    return POW.pkix.utc2time(self.get_POW().getNotAfter())
+    return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().tbs.validity.notAfter.get())
 
   def getSerial(self):
     """Get the serial number of this certificate."""
@@ -244,8 +249,8 @@ class X509(DER_object):
     """Extract the public key from this certificate."""
     return RSApublic(DER = self.get_POWpkix().tbs.subjectPublicKeyInfo.toString())
 
-  def issue(self, keypair, subject_key, serial, sia, aia, crldp,
-            cn = None, notAfter = None, resources = None, is_ca = True):
+  def issue(self, keypair, subject_key, serial, sia, aia, crldp, notAfter,
+            cn = None, resources = None, is_ca = True):
     """Issue a certificate."""
 
     now = rpki.sundial.datetime.utcnow()
@@ -255,8 +260,7 @@ class X509(DER_object):
     if cn is None:
       cn = "".join(("%02X" % ord(i) for i in ski))
 
-    if notAfter is None:
-      notAfter = now + rpki.sundial.timedelta(days = 30)
+    # if notAfter is None: notAfter = now + rpki.sundial.timedelta(days = 30)
 
     cert = POW.pkix.Certificate()
     cert.setVersion(2)

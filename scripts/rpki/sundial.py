@@ -42,9 +42,9 @@ class datetime(pydatetime.datetime):
     """Convert from ASN.1 tuple representation."""
     assert isinstance(x, tuple) and len(x) == 2 and x[0] in ("utcTime", "generalTime")
     if x[0] == "utcTime":
-      return cls.fromUTCTime(x)
+      return cls.fromUTCTime(x[1])
     else:
-      return cls.fromGeneralizedTime(x)
+      return cls.fromGeneralizedTime(x[1])
 
   ## @var PKIX_threshhold
   # Threshold specified in RFC 3280 for switchover from UTCTime to GeneralizedTime.

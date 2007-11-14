@@ -384,10 +384,11 @@ class resource_bag(object):
   IPv4, and IPv6 resource sets.
   """
 
-  def __init__(self, as = None, v4 = None, v6 = None):
+  def __init__(self, as = None, v4 = None, v6 = None, valid_until = None):
     self.as = as or resource_set_as()
     self.v4 = v4 or resource_set_ipv4()
     self.v6 = v6 or resource_set_ipv6()
+    self.valid_until = valid_until
 
   def oversized(self, other):
     """True iff self is oversized with respect to other."""

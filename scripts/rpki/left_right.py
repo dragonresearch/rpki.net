@@ -448,7 +448,10 @@ class parent_elt(data_elt):
                               url = self.peer_contact_uri)
     r_elt = rpki.cms.xml_verify(r_cms, self.cms_ta)
     rpki.relaxng.up_down.assertValid(r_elt)
-    return rpki.up_down.sax_handler.saxify(r_elt)
+    r_msg = rpki.up_down.sax_handler.saxify(r_elt)
+    r_msg.payload.check_response()
+    return r_msg
+
 
 class child_elt(data_elt):
   """<child/> element."""
@@ -759,4 +762,5 @@ def irdb_query(gctx, self_id, child_id = None):
     raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % r_msg.toXML()
   return rpki.resource_set.resource_bag(r_msg[0].as,
                                         r_msg[0].ipv4,
-                                        r_msg[0].ipv6)
+                                        r_msg[0].ipv6,
+                                        r_msg[0].valid_until)

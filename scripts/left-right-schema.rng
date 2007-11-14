@@ -855,13 +855,11 @@
           </attribute>
           <ref name="self_id"/>
           <ref name="child_id"/>
-          <optional>
-            <attribute name="valid_until">
-              <data type="token">
-                <param name="maxLength">1024</param>
-              </data>
-            </attribute>
-          </optional>
+          <attribute name="valid_until">
+            <data type="token">
+              <param name="maxLength">1024</param>
+            </data>
+          </attribute>
           <optional>
             <attribute name="subject_name">
               <data type="token">

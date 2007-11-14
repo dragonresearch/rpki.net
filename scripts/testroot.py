@@ -13,10 +13,14 @@ Default configuration file is testroot.conf, override with --config option.
 import traceback, os, time, getopt, sys, lxml
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
 import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng
+import rpki.sundial
 
 root_name = "wombat"
 root_base = "rsync://" + root_name + ".invalid/"
 root_cert = root_base + "testroot.cer"
+
+rpki_subject_lifetime = rpki.sundial.timedelta(days = 30)
+
 
 def get_subject_cert():
   try:
@@ -71,7 +75,8 @@ class issue_pdu(rpki.up_down.issue_pdu):
                                          sia = req_sia,
                                          aia = root_cert,
                                          crldp = crldp,
-                                         resources = resources))
+                                         resources = resources,
+                                         notAfter = rpki.sundial.datetime.utcnow() + rpki_subject_lifetime))
     compose_response(r_msg)
 
 class revoke_pdu(rpki.up_down.revoke_pdu):

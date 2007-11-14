@@ -434,17 +434,19 @@ class resource_bag(object):
     return not (self == other)
 
   def intersection(self, other):
-    """Compute intersection with another resource_bag."""
+    """Compute intersection with another resource_bag.
+    valid_until attribute (if any) inherits from self.
+    """
     return self.__class__(self.as.intersection(other.as),
                           self.v4.intersection(other.v4),
-                          self.v6.intersection(other.v6))
+                          self.v6.intersection(other.v6),
+                          self.valid_until)
 
 # Test suite for set operations.  This will probably go away eventually
 
 if __name__ == "__main__":
 
   def test(t, s1, s2):
-    """Lame unit test."""
     print
     r1 = t(s1)
     r2 = t(s2)

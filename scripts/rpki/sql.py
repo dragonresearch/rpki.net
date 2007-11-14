@@ -367,8 +367,7 @@ class ca_detail_obj(sql_persistant):
           child_cert.reissue(gctx = gctx,
                              ca_detail = self,
                              resources = child_resources.intersection(current_resources),
-                             sia = ca.sia_uri,
-                             valid_until = child_resources.valid_until)
+                             sia = ca.sia_uri)
 
   @classmethod
   def create(cls, gctx, ca):
@@ -395,17 +394,17 @@ class ca_detail_obj(sql_persistant):
                                                v4 = rpki.resource_set.resource_set_ipv4("<inherit>"),
                                                v6 = rpki.resource_set.resource_set_ipv6("<inherit>"))
 
-    self.latest_manifest_cert = self.latest_ca_cert.issue(keypair = self.private_key_id,
+    self.latest_manifest_cert = self.latest_ca_cert.issue(keypair     = self.private_key_id,
                                                           subject_key = self.manifest_public_key,
-                                                          serial = ca.next_serial_number(),
-                                                          sia = None,
-                                                          aia = self.ca_cert_uri,
-                                                          crldp = ca.sia_uri + self.latest_ca_cert.gSKI() + ".crl",
-                                                          resources = resources,
-                                                          notAfter = self.latest_ca_cert.getNotAfter(),
-                                                          is_ca = False)
+                                                          serial      = ca.next_serial_number(),
+                                                          sia         = None,
+                                                          aia         = self.ca_cert_uri,
+                                                          crldp       = ca.sia_uri + self.latest_ca_cert.gSKI() + ".crl",
+                                                          resources   = resources,
+                                                          notAfter    = self.latest_ca_cert.getNotAfter(),
+                                                          is_ca       = False)
 
-  def issue(self, gctx, ca, child, subject_key, sia, resources, valid_until, child_cert = None):
+  def issue(self, gctx, ca, child, subject_key, sia, resources, child_cert = None):
     """Issue a new certificate to a child.  Optional child_cert
     argument specifies an existing child_cert object to update in
     place; if not specified, we create a new one.  Returns the
@@ -414,19 +413,19 @@ class ca_detail_obj(sql_persistant):
     assert child_cert is None or (child_cert.child_id == child.child_id and
                                   child_cert.ca_detail_id == self.ca_detail_id)
 
-    cert = self.latest_ca_cert.issue(keypair = self.private_key_id,
+    cert = self.latest_ca_cert.issue(keypair     = self.private_key_id,
                                      subject_key = subject_key,
-                                     serial = ca.next_serial_number(),
-                                     aia = self.ca_cert_uri,
-                                     crldp = ca.sia_uri + self.latest_ca_cert.gSKI() + ".crl",
-                                     sia = sia,
-                                     resources = resources,
-                                     notAfter = valid_until)
+                                     serial      = ca.next_serial_number(),
+                                     aia         = self.ca_cert_uri,
+                                     crldp       = ca.sia_uri + self.latest_ca_cert.gSKI() + ".crl",
+                                     sia         = sia,
+                                     resources   = resources,
+                                     notAfter    = resources.valid_until)
 
     if child_cert is None:
-      child_cert = rpki.sql.child_cert_obj(child_id = child.child_id,
+      child_cert = rpki.sql.child_cert_obj(child_id     = child.child_id,
                                            ca_detail_id = self.ca_detail_id,
-                                           cert = cert)
+                                           cert         = cert)
     else:
       child_cert.cert = cert
 
@@ -507,20 +506,48 @@ class child_cert_obj(sql_persistant):
     if child_id or ca_detail_id or cert:
       self.sql_mark_dirty()
 
-  def reissue(self, gctx, ca_detail, resources, sia, valid_until):
-    """Reissue an existing child_cert_obj, reusing the public key."""
-
-    # if sia is None: sia = self.cert.get_SIA()
-
-    return ca_detail.issue(gctx = gctx,
-                           ca = ca_obj.sql_fetch(gctx, ca_detail.ca_id),
-                           child = rpki.left_right.child_elt.sql_fetch(gctx, self.child_id),
-                           subject_key = self.cert.getPublicKey(),
-                           sia = sia,
-                           resources = resources,
-                           notAfter = valid_until,
-                           child_cert = self)
-
   def revoke(self):
     """Mark a child cert as revoked."""
     self.revoked = True
+
+  def reissue(self, gctx, ca_detail, resources, sia):
+    """Reissue an existing cert, reusing the public key.  If the cert
+    we would generate is identical to the one we already have, we just
+    return the one we already have.  If we have to revoke the old
+    certificate when generating the new one, we have to generate a new
+    child_cert_obj, so calling code that needs the updated
+    child_cert_obj must use the return value from this method.
+    """
+
+    ca = ca_obj.sql_fetch(gctx, ca_detail.ca_id)
+    child = rpki.left_right.child_elt.sql_fetch(gctx, self.child_id)
+
+    old_resources = self.cert.get_3779resources()
+    old_sia       = self.cert.get_SIA()
+
+    assert resources.valid_until is not None and old_resources.valid_until is not None
+
+    if resources == old_resources and sia == old_sia:
+      return self
+
+    must_revoke = old_resources.oversized(resources) or old_resources.valid_until > resources.valid_until
+
+    if must_revoke:
+      child_cert = None
+    else:
+      child_cert = self
+
+    child_cert = ca_detail.issue(gctx        = gctx,
+                                 ca          = ca,
+                                 child       = child,
+                                 subject_key = self.cert.getPublicKey(),
+                                 sia         = sia,
+                                 resources   = resources,
+                                 notAfter    = resources.valid_until,
+                                 child_cert  = child_cert)
+
+    if must_revoke:
+      assert child_cert is not self
+      self.revoke()
+
+    return child_cert

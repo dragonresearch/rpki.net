@@ -69,14 +69,14 @@ class issue_pdu(rpki.up_down.issue_pdu):
       req_key = self.pkcs10.getPublicKey()
       req_sia = self.pkcs10.get_SIA()
       crldp = root_base + rpki_issuer.gSKI() + ".crl"
-      set_subject_cert(rpki_issuer.issue(keypair = rpki_key,
+      set_subject_cert(rpki_issuer.issue(keypair     = rpki_key,
                                          subject_key = req_key,
-                                         serial = int(time.time()),
-                                         sia = req_sia,
-                                         aia = root_cert,
-                                         crldp = crldp,
-                                         resources = resources,
-                                         notAfter = rpki.sundial.datetime.utcnow() + rpki_subject_lifetime))
+                                         serial      = int(time.time()),
+                                         sia         = req_sia,
+                                         aia         = root_cert,
+                                         crldp       = crldp,
+                                         resources   = resources,
+                                         notAfter    = rpki.sundial.datetime.utcnow() + rpki_subject_lifetime))
     compose_response(r_msg)
 
 class revoke_pdu(rpki.up_down.revoke_pdu):

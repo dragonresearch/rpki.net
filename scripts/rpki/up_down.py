@@ -259,7 +259,7 @@ class issue_pdu(base_elt):
 
     # Check current cert, if any
     irdb_resources = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
-    resources = ca_detail.latest_ca_cert.get_3779resources().intersection(irdb_resources)
+    resources = irdb_resources.intersection(ca_detail.latest_ca_cert.get_3779resources())
     req_key = self.pkcs10.getPublicKey()
     req_sia = self.pkcs10.get_SIA()
     child_cert = rpki.sql.child_cert_obj.sql_fetch_where1(gctx, """
@@ -269,19 +269,17 @@ class issue_pdu(base_elt):
     # Generate new cert or regenerate old one if necessary
 
     if child_cert is None:
-      child_cert = ca_detail.issue(gctx = gctx,
-                                   ca = ca,
-                                   child = child,
+      child_cert = ca_detail.issue(gctx        = gctx,
+                                   ca          = ca,
+                                   child       = child,
                                    subject_key = req_key,
-                                   sia = req_sia,
-                                   resources = resources,
-                                   valid_until = irdb_resources.valid_until)
-    elif resources != child_cert.cert.get_3779resources() or child_cert.cert.get_SIA() != req_sia:
-      child_cert = child_cert.reissue(gctx = gctx,
+                                   sia         = req_sia,
+                                   resources   = resources)
+    else:
+      child_cert = child_cert.reissue(gctx      = gctx,
                                       ca_detail = ca_detail,
-                                      sia = req_sia,
-                                      resources = resources,
-                                      valid_until = irdb_resources.valid_until)
+                                      sia       = req_sia,
+                                      resources = resources)
 
     # Save anything we modified and generate response
     rpki.sql.sql_sweep(gctx)

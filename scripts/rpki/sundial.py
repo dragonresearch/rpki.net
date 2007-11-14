@@ -82,6 +82,15 @@ class datetime(pydatetime.datetime):
     """Force correct class for timedelta results."""
     return self.fromdatetime(pydatetime.datetime.__sub__(self, other))
   
+  @classmethod
+  def from_sql(cls, x):
+    """Convert from SQL storage format."""
+    return cls.fromdatetime(x)
+
+  def to_sql(self):
+    """Convert to SQL storage format."""
+    return self
+
 # Alias to simplify imports for callers
 
 timedelta = pydatetime.timedelta

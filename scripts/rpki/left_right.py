@@ -61,26 +61,6 @@ class base_elt(object):
 class data_elt(base_elt, rpki.sql.sql_persistant):
   """Virtual class for top-level left-right protocol data elements."""
 
-  def sql_decode(self, vals):
-    """Decode SQL form of a data_elt object."""
-    rpki.sql.sql_persistant.sql_decode(self, vals)
-    if "cms_ta" in vals:
-      self.cms_ta = rpki.x509.X509(DER = vals["cms_ta"])
-    if "https_ta" in vals:
-      self.https_ta = rpki.x509.X509(DER = vals["https_ta"])
-    if "private_key_id" in vals:
-      self.private_key_id = rpki.x509.RSA(DER = vals["private_key_id"])
-    if "public_key" in vals:
-      self.public_key = rpki.x509.RSA(DER = vals["public_key"])
-
-  def sql_encode(self):
-    """Encode SQL form of a data_elt object."""
-    d = rpki.sql.sql_persistant.sql_encode(self)
-    for i in ("cms_ta", "https_ta", "private_key_id", "public_key"):
-      if i in d and d[i] is not None:
-        d[i] = d[i].get_DER()
-    return d
-
   def make_reply(self, r_pdu = None):
     """Construct a reply PDU."""
     if r_pdu is None:
@@ -303,7 +283,9 @@ class bsc_elt(data_elt):
   elements = ('signing_cert',)
   booleans = ("generate_keypair", "clear_signing_certs")
 
-  sql_template = rpki.sql.template("bsc", "bsc_id", "self_id", "public_key", "private_key_id", "hash_alg")
+  sql_template = rpki.sql.template("bsc", "bsc_id", "self_id",
+                                   ("public_key", rpki.x509.RSApublic),
+                                   ("private_key_id", rpki.x509.RSA), "hash_alg")
 
   pkcs10_cert_request = None
   public_key = None
@@ -384,7 +366,8 @@ class parent_elt(data_elt):
   booleans = ("rekey", "reissue", "revoke")
 
   sql_template = rpki.sql.template("parent", "parent_id", "self_id", "bsc_id", "repository_id",
-                                   "cms_ta", "https_ta", "peer_contact_uri", "sia_base")
+                                   ("cms_ta", rpki.x509.X509), ("https_ta", rpki.x509.X509),
+                                   "peer_contact_uri", "sia_base")
 
   cms_ta = None
   https_ta = None
@@ -461,7 +444,7 @@ class child_elt(data_elt):
   elements = ("cms_ta",)
   booleans = ("reissue", )
 
-  sql_template = rpki.sql.template("child", "child_id", "self_id", "bsc_id", "cms_ta")
+  sql_template = rpki.sql.template("child", "child_id", "self_id", "bsc_id", ("cms_ta", rpki.x509.X509))
 
   cms_ta = None
 
@@ -528,8 +511,8 @@ class repository_elt(data_elt):
   attributes = ("action", "type", "self_id", "repository_id", "bsc_id", "peer_contact_uri")
   elements = ("cms_ta", "https_ta")
 
-  sql_template = rpki.sql.template("repository", "repository_id", "self_id", "bsc_id", "cms_ta",
-                                   "peer_contact_uri")
+  sql_template = rpki.sql.template("repository", "repository_id", "self_id", "bsc_id",
+                                   ("cms_ta", rpki.x509.X509), "peer_contact_uri")
 
   cms_ta = None
   https_ta = None

@@ -13,13 +13,15 @@ def connect(cfg, section="sql"):
 
 class template(object):
   """SQL template generator."""
-  def __init__(self, table_name, *columns):
+  def __init__(self, table_name, index_column, *data_columns):
     """Build a SQL template."""
-    index_column = columns[0]
-    data_columns = columns[1:]
+    type_map     = dict((x[0],x[1]) for x in data_columns if isinstance(x, tuple))
+    data_columns = tuple(isinstance(x, tuple) and x[0] or x for x in data_columns)
+    columns      = (index_column,) + data_columns
     self.table   = table_name
     self.index   = index_column
     self.columns = columns
+    self.map     = type_map
     self.select  = "SELECT %s FROM %s" % (", ".join(columns), table_name)
     self.insert  = "INSERT %s (%s) VALUES (%s)" % (table_name, ", ".join(data_columns),
                                                    ", ".join("%(" + s + ")s" for s in data_columns))
@@ -154,20 +156,26 @@ class sql_persistant(object):
   def sql_encode(self):
     """Convert object attributes into a dict for use with canned SQL
     queries.  This is a default version that assumes a one-to-one
-    mapping between column names in SQL and attribute names in Python,
-    with no datatype conversion.  If you need something fancier,
-    override this.
+    mapping between column names in SQL and attribute names in Python.
+    If you need something fancier, override this.
     """
-    return dict((a, getattr(self, a, None)) for a in self.sql_template.columns)
+    d = dict((a, getattr(self, a, None)) for a in self.sql_template.columns)
+    for i in self.sql_template.map:
+      if d.get(i) is not None:
+        d[i] = self.sql_template.map[i].to_sql(d[i])
+    return d
 
   def sql_decode(self, vals):
     """Initialize an object with values returned by self.sql_fetch().
     This is a default version that assumes a one-to-one mapping
-    between column names in SQL and attribute names in Python, with no
-    datatype conversion.  If you need something fancier, override this.
+    between column names in SQL and attribute names in Python.  If you
+    need something fancier, override this.
     """
     for a in self.sql_template.columns:
-      setattr(self, a, vals[a])
+      if vals.get(a) is not None and a in self.sql_template.map:
+        setattr(self, a, self.sql_template.map[a].from_sql(vals[a]))
+      else:
+        setattr(self, a, vals[a])
 
   def sql_fetch_hook(self, gctx):
     """Customization hook."""
@@ -192,20 +200,15 @@ class sql_persistant(object):
 class ca_obj(sql_persistant):
   """Internal CA object."""
 
-  sql_template = template("ca", "ca_id", "last_crl_sn", "next_crl_update", "last_issued_sn",
-                          "last_manifest_sn", "next_manifest_update", "sia_uri", "parent_id",
-                          "parent_resource_class")
+  sql_template = template("ca", "ca_id", "last_crl_sn",
+                          ("next_crl_update", rpki.sundial.datetime),
+                          "last_issued_sn", "last_manifest_sn",
+                          ("next_manifest_update", rpki.sundial.datetime),
+                          "sia_uri", "parent_id", "parent_resource_class")
 
   last_crl_sn = 0
   last_issued_sn = 0
   last_manifest_sn = 0
-
-  def sql_decode(self, vals):
-    """Decode SQL representation of a ca_obj."""
-    sql_persistant.sql_decode(self, vals)
-    for i in ("next_crl_update", "next_manifest_update"):
-      if vals.get(i) is not None:
-        setattr(self, i, rpki.sundial.datetime.fromdatetime(vals[i]))
 
   def construct_sia_uri(self, gctx, parent, rc):
     """Construct the sia_uri value for this CA given configured
@@ -310,38 +313,28 @@ class ca_obj(sql_persistant):
 class ca_detail_obj(sql_persistant):
   """Internal CA detail object."""
 
-  sql_template = template("ca_detail", "ca_detail_id", "private_key_id", "public_key", "latest_ca_cert",
-                          "manifest_private_key_id", "manifest_public_key", "latest_manifest_cert",
-                          "latest_manifest", "latest_crl", "state", "state_timer", "ca_cert_uri", "ca_id")
-
+  sql_template = template("ca_detail",
+                          "ca_detail_id",
+                          ("private_key_id",          rpki.x509.RSA),
+                          ("public_key",              rpki.x509.RSApublic),
+                          ("latest_ca_cert",          rpki.x509.X509),
+                          ("manifest_private_key_id", rpki.x509.RSA),
+                          ("manifest_public_key",     rpki.x509.RSApublic),
+                          ("latest_manifest_cert",    rpki.x509.X509),
+                          ("latest_manifest",         rpki.x509.SignedManifest),
+                          ("latest_crl",              rpki.x509.CRL),
+                          "state",
+                          ("state_timer",             rpki.sundial.datetime),
+                          "ca_cert_uri",
+                          "ca_id")
+  
   def sql_decode(self, vals):
-    """Decode SQL representation of a ca_detail_obj."""
+    """Extra assertions for SQL decode of a ca_detail_obj."""
     sql_persistant.sql_decode(self, vals)
-    for i,t in (("private_key_id",          rpki.x509.RSA),
-                ("public_key",              rpki.x509.RSApublic),
-                ("latest_ca_cert",          rpki.x509.X509),
-                ("manifest_private_key_id", rpki.x509.RSA),
-                ("manifest_public_key",     rpki.x509.RSApublic),
-                ("latest_manifest_cert",    rpki.x509.X509),
-                ("latest_manifest",         rpki.x509.SignedManifest),
-                ("latest_crl",              rpki.x509.CRL)):
-      if getattr(self, i, None) is not None:
-        setattr(self, i, t(DER = getattr(self, i)))
-    if vals.get("state_timer") is not None:
-      self.state_timer = rpki.sundial.datetime.fromdatetime(vals["state_timer"])
     assert (self.public_key is None and self.private_key_id is None) or \
            self.public_key.get_DER() == self.private_key_id.get_public_DER()
     assert (self.manifest_public_key is None and self.manifest_private_key_id is None) or \
            self.manifest_public_key.get_DER() == self.manifest_private_key_id.get_public_DER()
-
-  def sql_encode(self):
-    """Encode SQL representation of a ca_detail_obj."""
-    d = sql_persistant.sql_encode(self)
-    for i in ("private_key_id", "public_key", "latest_ca_cert", "manifest_private_key_id",
-              "manifest_public_key", "latest_manifest_cert", "latest_manifest", "latest_crl"):
-      if d[i] is not None:
-        d[i] = d[i].get_DER()
-    return d
 
   @classmethod
   def sql_fetch_active(cls, gctx, ca_id):
@@ -503,7 +496,7 @@ class ca_detail_obj(sql_persistant):
 class child_cert_obj(sql_persistant):
   """Certificate that has been issued to a child."""
 
-  sql_template = template("child_cert", "child_cert_id", "cert", "child_id", "ca_detail_id", "ski", "revoked")
+  sql_template = template("child_cert", "child_cert_id", ("cert", rpki.x509.X509), "child_id", "ca_detail_id", "ski", "revoked")
 
   def __init__(self, child_id = None, ca_detail_id = None, cert = None):
     """Initialize a child_cert_obj."""
@@ -513,17 +506,6 @@ class child_cert_obj(sql_persistant):
     self.revoked = False
     if child_id or ca_detail_id or cert:
       self.sql_mark_dirty()
-
-  def sql_decode(self, vals):
-    """Decode SQL representation of a child_cert_obj."""
-    sql_persistant.sql_decode(self, vals)
-    self.cert = rpki.x509.X509(DER = self.cert)
-
-  def sql_encode(self):
-    """Encode SQL representation of a child_cert_obj."""
-    d = sql_persistant.sql_encode(self)
-    d["cert"] = self.cert.get_DER()
-    return d
 
   def reissue(self, gctx, ca_detail, resources, sia, valid_until):
     """Reissue an existing child_cert_obj, reusing the public key."""

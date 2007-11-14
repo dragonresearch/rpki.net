@@ -174,6 +174,15 @@ class DER_object(object):
       pass
     return resources
 
+  @classmethod
+  def from_sql(cls, x):
+    """Convert from SQL storage format."""
+    return cls(DER = x)
+
+  def to_sql(self):
+    """Convert to SQL storage format."""
+    return self.get_DER()
+
 class X509(DER_object):
   """X.509 certificates.
 

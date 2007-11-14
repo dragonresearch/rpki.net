@@ -53,15 +53,6 @@ pure Python and only 2% about any kind of crypto.
 
 Current TO DO list:
 
-- Whack expiration dates of certs to match irdb valid_until value when
-  issuing -- valid_until is optional, what do we do if it's not set?
-  Default period in self object seems obvious answer, neither Randy
-  nor I has thought of anything better yet.
-
-  Now that we have the resource_bag, perhaps we can add an optional
-  (default None) validity_interval value to that?  Sure would make it
-  easier to pass results back from irdb_query().
-
 - Revocation and CRL generation
 
   - Need to keep data on unexpired revoked certs to generate CRL

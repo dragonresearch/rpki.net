@@ -47,7 +47,7 @@ CREATE TABLE repository (
        repository_id        SERIAL NOT NULL,
        peer_contact_uri     TEXT,
        cms_ta               LONGBLOB,
-       https_ta		    LONGBLOB,
+       https_ta             LONGBLOB,
        bsc_id               BIGINT unsigned NOT NULL,
        self_id              BIGINT unsigned NOT NULL,
        PRIMARY KEY          (repository_id),
@@ -75,17 +75,17 @@ CREATE TABLE parent (
 DROP TABLE IF EXISTS ca;
 
 CREATE TABLE ca (
-       ca_id			SERIAL NOT NULL,
-       last_crl_sn		BIGINT unsigned NOT NULL,
-       last_manifest_sn		BIGINT unsigned NOT NULL,
-       next_manifest_update	DATETIME,
-       next_crl_update		DATETIME,
-       last_issued_sn		BIGINT unsigned NOT NULL,
-       sia_uri			TEXT,
-       parent_resource_class	TEXT,
-       parent_id		BIGINT unsigned,
-       PRIMARY KEY		(ca_id),
-       FOREIGN KEY		(parent_id) REFERENCES parent
+       ca_id                    SERIAL NOT NULL,
+       last_crl_sn              BIGINT unsigned NOT NULL,
+       last_manifest_sn         BIGINT unsigned NOT NULL,
+       next_manifest_update     DATETIME,
+       next_crl_update          DATETIME,
+       last_issued_sn           BIGINT unsigned NOT NULL,
+       sia_uri                  TEXT,
+       parent_resource_class    TEXT,
+       parent_id                BIGINT unsigned,
+       PRIMARY KEY              (ca_id),
+       FOREIGN KEY              (parent_id) REFERENCES parent
 );
 
 DROP TABLE IF EXISTS ca_detail;
@@ -100,8 +100,8 @@ CREATE TABLE ca_detail (
        manifest_public_key      LONGBLOB,
        latest_manifest_cert     LONGBLOB,
        latest_manifest          LONGBLOB,
-       state                    ENUM ('active', 'deprecated', 'pending', 'revoked') NOT NULL,
-       state_timer		DATETIME,
+       state                    ENUM ('pending', 'active', 'deprecated', 'revoked') NOT NULL,
+       state_timer              DATETIME,
        ca_cert_uri              TEXT,
        ca_id                    BIGINT unsigned NOT NULL,
        PRIMARY KEY              (ca_detail_id),
@@ -156,3 +156,7 @@ CREATE TABLE route_origin_range (
        PRIMARY KEY          (route_origin_id, start_ip, end_ip),
        FOREIGN KEY          (route_origin_id) REFERENCES route_origin
 );
+
+-- Local Variables:
+-- indent-tab-mode: nil
+-- End:

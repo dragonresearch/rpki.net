@@ -341,14 +341,14 @@ class revoke_pdu(revoke_syntax):
     if not self.class_name.isdigit():
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
     ca_id = long(self.class_name)
-    ca = rpki.sql.ca_obj.sql_fetch(gctx, ca_id)
-    ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx, ca_id)
-    if ca is None or ca_detail is None:
-      raise rpki.exceptions.NotInDatabase
-    for c in rpki.sql.child_cert_obj.sql_fetch_where(gctx, """
-                child_id = %s AND ca_detail_id = %s AND ski = "%s"
-                """ % (child.child_id, ca_detail.ca_detail_id, self.get_SKI())):
-      c.sql_delete()
+    ski = self.get_SKI()
+    for ca_detail in rpki.sql.ca_detail_obj.sql_fetch_where(gctx, """
+                ca_id = %s AND state != 'revoked'""" % ca_id):
+      for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx, """
+                child_id = %s AND ca_detail_id = %s AND ski = '%s'
+                """ % (child.child_id, ca_detail.ca_detail_id, ski)):
+        child_cert.revoke()
+    rpki.sql.sql_sweep(gctx)
     r_msg.payload = revoke_response_pdu()
     r_msg.payload.class_name = self.class_name
     r_msg.payload.ski = self.ski

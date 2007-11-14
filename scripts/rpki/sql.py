@@ -508,7 +508,9 @@ class child_cert_obj(sql_persistant):
 
   def revoke(self):
     """Mark a child cert as revoked."""
-    self.revoked = True
+    if not self.revoked:
+      self.revoked = True
+      self.sql_mark_dirty()
 
   def reissue(self, gctx, ca_detail, resources, sia):
     """Reissue an existing cert, reusing the public key.  If the cert

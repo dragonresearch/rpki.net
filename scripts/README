@@ -53,36 +53,28 @@ pure Python and only 2% about any kind of crypto.
 
 Current TO DO list:
 
-- Revocation and CRL generation
+- Parent side of revocation (child_cert objects) and CRL generation
+  implemented but not yet tested.
 
-  - Need to keep data on unexpired revoked certs to generate CRL
-    (added a timestamp for this, sufficient?)
-
-  - Do we ever need to delay revocation of old certs to give their
-    replacements time to propegate?
-
-  These two imply that we need fields in child_cert table to
-  indicate whether a cert is dead, eg, a date field which is NULL if
-  the cert is still live, otherwise is the date after which it should
-  be added to the CRL.
-
-  Yes, but... every example of delayed revocation in the Common
-  Management Tasks page in the APNIC Wiki is triggered by the child,
-  not the parent.  This suggests that revocation by the parent is
-  always immediate, whether it's due to overclaim or a child's class
-  going away or a child requesting revocation (as in key rollover).
-
-  So apparently it's the child (probably ca_detail object) that needs
-  timestamps.  Other text in Common Management Tasks suggests that
+- Child side of revocation...Common Management Tasks page in the APNIC
+  Wiki shows some states where revocation is triggered by the child
+  after a delay.  Other text in Common Management Tasks suggests that
   ca_detail also needs deferred transitions from pending to active.
+  So added a deferred state transition timestamp to ca_detail object:
 
-  How to model this?   An enumerated state value (already have that,
+  How to model this?  An enumerated state value (already have that,
   may need to rename states) and a timestamp (which may be NULL) for
-  next scheduled transition?   Is the next state always predictable
+  next scheduled transition?  Is the next state always predictable
   from the current state or do we also need a next-state field?
 
     state     := pending | active | deprecated | revoked
     timestamp := null | <time of next transition>
+
+  Do we really need the revoked state?  That is, once we've reached
+  that state, do we have any further use for the ca_detail in our
+  database, or do we just delete it (and its little dog too...)?  If
+  we do need the revoked state, I guess the timer becomes the delay
+  until we can get rid of it entirely, or something like that.
 
 - Publication protocol and implementation thereof.   Defer until core
   functionality in the main engine is done.

@@ -76,6 +76,19 @@ Current TO DO list:
   we do need the revoked state, I guess the timer becomes the delay
   until we can get rid of it entirely, or something like that.
 
+  For that matter, how do we, as child, even find out that a cert has
+  been revoked?
+
+  a) We asked to have it revoked, duh.
+
+  b) Parent reissued with same resource class and key, revoking the
+     old cert (oversize, or something).  We have to detect this when
+     processing <list_response/> and probably also <issue_response/>,
+     and perform immediate reissue to any affected children, because
+     the old cert is no good anymore.
+
+  In either case we're done with the old cert once it's been revoked.
+
 - Publication protocol and implementation thereof.   Defer until core
   functionality in the main engine is done.
 

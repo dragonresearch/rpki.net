@@ -650,7 +650,17 @@ class CRL(DER_object):
       self.POWpkix = crl
     return self.POWpkix
 
-  def build(self, serial, nextUpdate, names_and_objs, version = 0):
+  @classmethod
+  def generate(cls, keypair, issuer, serial, thisUpdate, nextUpdate, revokedCertificates, version = 1, digestType = "sha256WithRSAEncryption"):
     crl = POW.pkix.CertificateList()
-    raise rpki.exceptions.NotImplementedYet
-    self.set(POWpkix = crl)
+    crl.setVersion(version)
+    crl.setIssuer(issuer.get_POWpkix().getIssuer())
+    crl.setThisUpdate(thisUpdate.toASN1tuple())
+    crl.setNextUpdate(nextUpdate.toASN1tuple())
+    if revokedCertificates:
+      crl.setRevokedCertificates(revokedCertificates)
+    crl.setExtensions(
+      (rpki.oids.name2oid["authorityKeyIdentifier"], False, (issuer.get_SKI(), (), None)),
+      (rpki.oids.name2oid["cRLNumber"], False, serial))
+    crl.sign(keypair.get_POW(), digestType)
+    return cls(POWpkix = crl)

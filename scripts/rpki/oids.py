@@ -22,6 +22,7 @@ oid2name = {
   (2, 5, 29, 14)                : "subjectKeyIdentifier",
   (2, 5, 29, 15)                : "keyUsage",
   (2, 5, 29, 19)                : "basicConstraints",
+  (2, 5, 29, 20)                : "cRLNumber",
   (2, 5, 29, 31)                : "cRLDistributionPoints",
   (2, 5, 29, 32)                : "certificatePolicies",
   (2, 5, 29, 35)                : "authorityKeyIdentifier",

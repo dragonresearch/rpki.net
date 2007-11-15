@@ -200,11 +200,12 @@ class sql_persistant(object):
 class ca_obj(sql_persistant):
   """Internal CA object."""
 
-  sql_template = template("ca", "ca_id", "last_crl_sn",
-                          ("next_crl_update", rpki.sundial.datetime),
-                          "last_issued_sn", "last_manifest_sn",
-                          ("next_manifest_update", rpki.sundial.datetime),
-                          "sia_uri", "parent_id", "parent_resource_class")
+  sql_template = template(
+    "ca", "ca_id", "last_crl_sn",
+    ("next_crl_update", rpki.sundial.datetime),
+    "last_issued_sn", "last_manifest_sn",
+    ("next_manifest_update", rpki.sundial.datetime),
+    "sia_uri", "parent_id", "parent_resource_class")
 
   last_crl_sn = 0
   last_issued_sn = 0
@@ -313,20 +314,21 @@ class ca_obj(sql_persistant):
 class ca_detail_obj(sql_persistant):
   """Internal CA detail object."""
 
-  sql_template = template("ca_detail",
-                          "ca_detail_id",
-                          ("private_key_id",          rpki.x509.RSA),
-                          ("public_key",              rpki.x509.RSApublic),
-                          ("latest_ca_cert",          rpki.x509.X509),
-                          ("manifest_private_key_id", rpki.x509.RSA),
-                          ("manifest_public_key",     rpki.x509.RSApublic),
-                          ("latest_manifest_cert",    rpki.x509.X509),
-                          ("latest_manifest",         rpki.x509.SignedManifest),
-                          ("latest_crl",              rpki.x509.CRL),
-                          "state",
-                          ("state_timer",             rpki.sundial.datetime),
-                          "ca_cert_uri",
-                          "ca_id")
+  sql_template = template(
+    "ca_detail",
+    "ca_detail_id",
+    ("private_key_id",          rpki.x509.RSA),
+    ("public_key",              rpki.x509.RSApublic),
+    ("latest_ca_cert",          rpki.x509.X509),
+    ("manifest_private_key_id", rpki.x509.RSA),
+    ("manifest_public_key",     rpki.x509.RSApublic),
+    ("latest_manifest_cert",    rpki.x509.X509),
+    ("latest_manifest",         rpki.x509.SignedManifest),
+    ("latest_crl",              rpki.x509.CRL),
+    "state",
+    ("state_timer",             rpki.sundial.datetime),
+    "ca_cert_uri",
+    "ca_id")
   
   def sql_decode(self, vals):
     """Extra assertions for SQL decode of a ca_detail_obj."""
@@ -390,19 +392,21 @@ class ca_detail_obj(sql_persistant):
   def generate_manifest_cert(self, ca):
     """Generate a new manifest certificate for this ca_detail."""
 
-    resources = rpki.resource_set.resource_bag(as = rpki.resource_set.resource_set_as("<inherit>"),
-                                               v4 = rpki.resource_set.resource_set_ipv4("<inherit>"),
-                                               v6 = rpki.resource_set.resource_set_ipv6("<inherit>"))
+    resources = rpki.resource_set.resource_bag(
+      as = rpki.resource_set.resource_set_as("<inherit>"),
+      v4 = rpki.resource_set.resource_set_ipv4("<inherit>"),
+      v6 = rpki.resource_set.resource_set_ipv6("<inherit>"))
 
-    self.latest_manifest_cert = self.latest_ca_cert.issue(keypair     = self.private_key_id,
-                                                          subject_key = self.manifest_public_key,
-                                                          serial      = ca.next_serial_number(),
-                                                          sia         = None,
-                                                          aia         = self.ca_cert_uri,
-                                                          crldp       = ca.sia_uri + self.latest_ca_cert.gSKI() + ".crl",
-                                                          resources   = resources,
-                                                          notAfter    = self.latest_ca_cert.getNotAfter(),
-                                                          is_ca       = False)
+    self.latest_manifest_cert = self.latest_ca_cert.issue(
+      keypair     = self.private_key_id,
+      subject_key = self.manifest_public_key,
+      serial      = ca.next_serial_number(),
+      sia         = None,
+      aia         = self.ca_cert_uri,
+      crldp       = ca.sia_uri + self.latest_ca_cert.gSKI() + ".crl",
+      resources   = resources,
+      notAfter    = self.latest_ca_cert.getNotAfter(),
+      is_ca       = False)
 
   def issue(self, gctx, ca, child, subject_key, sia, resources, child_cert = None):
     """Issue a new certificate to a child.  Optional child_cert
@@ -413,19 +417,21 @@ class ca_detail_obj(sql_persistant):
     assert child_cert is None or (child_cert.child_id == child.child_id and
                                   child_cert.ca_detail_id == self.ca_detail_id)
 
-    cert = self.latest_ca_cert.issue(keypair     = self.private_key_id,
-                                     subject_key = subject_key,
-                                     serial      = ca.next_serial_number(),
-                                     aia         = self.ca_cert_uri,
-                                     crldp       = ca.sia_uri + self.latest_ca_cert.gSKI() + ".crl",
-                                     sia         = sia,
-                                     resources   = resources,
-                                     notAfter    = resources.valid_until)
+    cert = self.latest_ca_cert.issue(
+      keypair     = self.private_key_id,
+      subject_key = subject_key,
+      serial      = ca.next_serial_number(),
+      aia         = self.ca_cert_uri,
+      crldp       = ca.sia_uri + self.latest_ca_cert.gSKI() + ".crl",
+      sia         = sia,
+      resources   = resources,
+      notAfter    = resources.valid_until)
 
     if child_cert is None:
-      child_cert = rpki.sql.child_cert_obj(child_id     = child.child_id,
-                                           ca_detail_id = self.ca_detail_id,
-                                           cert         = cert)
+      child_cert = rpki.sql.child_cert_obj(
+        child_id     = child.child_id,
+        ca_detail_id = self.ca_detail_id,
+        cert         = cert)
     else:
       child_cert.cert = cert
 
@@ -449,30 +455,26 @@ class ca_detail_obj(sql_persistant):
     """
 
     ca = ca_obj.sql_fetch(gctx, self.ca_id)
-    self_obj = rpki.left_right.self_elt.sql_fetch_where1(gctx, """
-                self.self_id = parent.self_id AND
-                parent.parent_id = %s
-      """ % ca.parent_id)
+    parent = rpki.left_right.parent_elt.sql_fetch(gctx, ca.parent_id)
+    self_obj = rpki.left_right.self_elt.sql_fetch(gctx, parent.self_id)
+    crl_interval = rpki.sundial.timedelta(seconds = self_obj.crl_interval)
     now = rpki.sundial.datetime.utcnow()
-    then = now + rpki.sundial.timedelta(seconds = self_obj.crl_interval)
-    certs = []
-    for cert in child_cert_obj.sql_fetch_where(gctx, "child_cert.ca_detail_id = %s AND child_cert.revoked" % self.ca_detail_id):
-      raise rpki.exceptions.NotImplementedYet
-      # Extract expiration time, figure out whether we still need to list this cert.
-      # If not, delete it from child_cert table.  Otherwise, we need to include this
-      # cert, so: extract serial and revocation time, convert date to format
-      # POW.pkix wants, and add to serial and revocation time to certs[] list.
-      # Tuple of the form (serial, ("generalTime", timestamp), ())
 
-    # Sort certs[] into serial order?  Not sure it's necessary, but should be simple and harmless.
+    certlist = []
+    for child_cert in child_cert_obj.sql_fetch_where(gctx, "child_cert.ca_detail_id = %s AND child_cert.revoked IS NOT NULL" % self.ca_detail_id):
+      if now > child_cert.cert.getNotAfter() + crl_interval:
+        child_cert.sql_delete()
+      else:
+        certlist.append((child_cert.cert.getSerial(), child_cert.revoked, ()))
+    certlist.sort()
 
-    # Stuff result into crl structure
-
-    crl = rpki.x509.CRL()
-
-    # Sign crl
-
-    raise rpki.exceptions.NotImplementedYet
+    return rpki.x509.CRL.generate(
+      keypair             = self.private_key_id,
+      issuer              = self.latest_ca_cert,
+      serial              = ca.next_crl_number(),
+      thisUpdate          = now,
+      nextUpdate          = now + crl_interval,
+      revokedCertificates = certlist)
 
   def generate_manifest(self, gctx):
     """Generate a new manifest for this ca_detail."""
@@ -480,7 +482,7 @@ class ca_detail_obj(sql_persistant):
     ca = ca_obj.sql_fetch(gctx, self.ca_id)
     parent = rpki.left_right.parent_elt.sql_fetch(gctx, ca.parent_id)
     self_obj = rpki.left_right.self_elt.sql_fetch(gctx, parent.self_id)
-    certs = child_cert_obj.sql_fetch_where(gctx, "child_cert.ca_detail_id = %s AND NOT child_cert.revoked" % self.ca_detail_id)
+    certs = child_cert_obj.sql_fetch_where(gctx, "child_cert.ca_detail_id = %s AND child_cert.revoked IS NULL" % self.ca_detail_id)
 
     m = rpki.x509.SignedManifest()
     m.build(serial = ca.next_manifest_number(),
@@ -495,21 +497,21 @@ class ca_detail_obj(sql_persistant):
 class child_cert_obj(sql_persistant):
   """Certificate that has been issued to a child."""
 
-  sql_template = template("child_cert", "child_cert_id", ("cert", rpki.x509.X509), "child_id", "ca_detail_id", "ski", "revoked")
+  sql_template = template("child_cert", "child_cert_id", ("cert", rpki.x509.X509), "child_id", "ca_detail_id", "ski", ("revoked", rpki.sundial.datetime))
 
   def __init__(self, child_id = None, ca_detail_id = None, cert = None):
     """Initialize a child_cert_obj."""
     self.child_id = child_id
     self.ca_detail_id = ca_detail_id
     self.cert = cert
-    self.revoked = False
+    self.revoked = None
     if child_id or ca_detail_id or cert:
       self.sql_mark_dirty()
 
   def revoke(self):
     """Mark a child cert as revoked."""
-    if not self.revoked:
-      self.revoked = True
+    if self.revoked is None:
+      self.revoked = rpki.sundial.datetime.utcnow()
       self.sql_mark_dirty()
 
   def reissue(self, gctx, ca_detail, resources, sia):
@@ -539,14 +541,15 @@ class child_cert_obj(sql_persistant):
     else:
       child_cert = self
 
-    child_cert = ca_detail.issue(gctx        = gctx,
-                                 ca          = ca,
-                                 child       = child,
-                                 subject_key = self.cert.getPublicKey(),
-                                 sia         = sia,
-                                 resources   = resources,
-                                 notAfter    = resources.valid_until,
-                                 child_cert  = child_cert)
+    child_cert = ca_detail.issue(
+      gctx        = gctx,
+      ca          = ca,
+      child       = child,
+      subject_key = self.cert.getPublicKey(),
+      sia         = sia,
+      resources   = resources,
+      notAfter    = resources.valid_until,
+      child_cert  = child_cert)
 
     if must_revoke:
       assert child_cert is not self

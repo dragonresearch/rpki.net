@@ -269,17 +269,19 @@ class issue_pdu(base_elt):
     # Generate new cert or regenerate old one if necessary
 
     if child_cert is None:
-      child_cert = ca_detail.issue(gctx        = gctx,
-                                   ca          = ca,
-                                   child       = child,
-                                   subject_key = req_key,
-                                   sia         = req_sia,
-                                   resources   = resources)
+      child_cert = ca_detail.issue(
+        gctx        = gctx,
+        ca          = ca,
+        child       = child,
+        subject_key = req_key,
+        sia         = req_sia,
+        resources   = resources)
     else:
-      child_cert = child_cert.reissue(gctx      = gctx,
-                                      ca_detail = ca_detail,
-                                      sia       = req_sia,
-                                      resources = resources)
+      child_cert = child_cert.reissue(
+        gctx      = gctx,
+        ca_detail = ca_detail,
+        sia       = req_sia,
+        resources = resources)
 
     # Save anything we modified and generate response
     rpki.sql.sql_sweep(gctx)
@@ -342,8 +344,7 @@ class revoke_pdu(revoke_syntax):
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
     ca_id = long(self.class_name)
     ski = self.get_SKI()
-    for ca_detail in rpki.sql.ca_detail_obj.sql_fetch_where(gctx, """
-                ca_id = %s AND state != 'revoked'""" % ca_id):
+    for ca_detail in rpki.sql.ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND state != 'revoked'" % ca_id):
       for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx, """
                 child_id = %s AND ca_detail_id = %s AND ski = '%s'
                 """ % (child.child_id, ca_detail.ca_detail_id, ski)):

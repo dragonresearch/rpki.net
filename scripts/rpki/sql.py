@@ -227,11 +227,11 @@ class ca_obj(sql_persistant):
   def check_for_updates(self, gctx, parent, rc):
     """Parent has signaled continued existance of a resource class we
     already knew about, so we need to check for an updated
-    certificate, changes in resource coverage, etc.
+    certificate, changes in resource coverage, revocation and reissue
+    with the same key, etc.
 
-    If all certs in the resource class match existing active or
-    pending ca_detail certs, we have nothing to do.  Otherwise, hand
-    off to the affected ca_detail for processing.
+    How and where do we decide when to request a new cert because the
+    old one is going to expire soon?
     """
 
     sia_uri = self.construct_sia_uri(gctx, parent, rc)
@@ -246,11 +246,18 @@ class ca_obj(sql_persistant):
     for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL AND state != 'revoked'" % self.ca_id):
       ski = ca_detail.latest_ca_cert.get_SKI()
       if ca_detail.state != "deprecated":
-        current_resources = ca_detail_obj.sql_fetch_active(gctx, self.ca_id).latest_ca_cert.get_3779resources()
-        undersized = current_resources.undersized(rc_resources)
-        oversized = current_resources.oversized(rc_resources)
-        if undersized or oversized or sia_uri_changed or ca_detail.latest_ca_cert != cert_map[ski].cert:
-          ca_detail.update(gctx, parent, self, rc, cert_map[ski].cert, undersized, oversized, sia_uri_changed, current_resources, rc_resources)
+        current_resources = ca_detail.latest_ca_cert.get_3779resources()
+        if sia_uri_changed or \
+             ca_detail.latest_ca_cert != cert_map[ski].cert or \
+             current_resources.undersized(rc_resources) or \
+             current_resources.oversized(rc_resources):
+          ca_detail.update(
+            gctx             = gctx,
+            parent           = parent,
+            ca               = self,
+            rc               = rc,
+            sia_uri_changed  = sia_uri_changed,
+            old_resources    = current_resources)
       del cert_map[ski]
     assert not cert_map, "Certificates in list_response missing from our database, SKIs %s" % ", ".join(c.cert.hSKI() for c in cert_map.values())
 
@@ -343,33 +350,24 @@ class ca_detail_obj(sql_persistant):
     """Fetch the current active ca_detail_obj associated with a given ca_id."""
     return cls.sql_fetch_where1(gctx, "ca_id = %s AND state = 'active'" % ca_id)
 
-  def update(self, gctx, parent, ca, rc, newcert, undersized, oversized, sia_uri_changed, current_resources, rc_resources):
-    """CA has received a cert for this ca_detail that doesn't match
-    the current one, figure out what to do about it.  Cases:
-
-    - Nothing changed but serial and dates (reissue due to
-      expiration), no change to children needed.
-
-    - Issuer-supplied values other than resources changed, probably no
-      change needed to children either (but need to confirm this).
-
-    - Resources changed, will need to frob any children affected by
-      shrinkage.
-
-    - ca.sia_uri changed, probably need to frob all children.
+  def update(self, gctx, parent, ca, rc, sia_uri_changed, old_resources):
+    """Need to get a new certificate for this ca_detail and perhaps
+    frob children of this ca_detail.
     """
-    if undersized:
-      issue_response = rpki.up_down.issue_pdu.query(gctx, parent, ca, self)
-      self.latest_ca_cert = issue_response.classes[0].certs[0].cert
-      current_resources = self.latest_ca_cert.get_3779resources()
-    if oversized or sia_uri_changed:
+
+    issue_response = rpki.up_down.issue_pdu.query(gctx, parent, ca, self)
+    self.latest_ca_cert = issue_response.classes[0].certs[0].cert
+    new_resources = self.latest_ca_cert.get_3779resources()
+
+    if sia_uri_changed or old_resources.oversized(new_resources):
       for child_cert in child_cert_obj.sql_fetch_where(gctx, "ca_detail_id = %s" % self.ca_detail_id):
         child_resources = child_cert.cert.get_3779resources()
-        if sia_uri_changed or child_resources.oversized(current_resources):
-          child_cert.reissue(gctx = gctx,
-                             ca_detail = self,
-                             resources = child_resources.intersection(current_resources),
-                             sia = ca.sia_uri)
+        if sia_uri_changed or child_resources.oversized(new_resources):
+          child_cert.reissue(
+            gctx      = gctx,
+            ca_detail = self,
+            resources = child_resources.intersection(new_resources),
+            sia       = ca.sia_uri)
 
   @classmethod
   def create(cls, gctx, ca):

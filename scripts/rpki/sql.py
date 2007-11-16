@@ -274,11 +274,10 @@ class ca_obj(sql_persistant):
     # This will need a callback when we go event-driven
     issue_response = rpki.up_down.issue_pdu.query(gctx, parent, self, ca_detail)
 
-    ca_detail.latest_ca_cert = issue_response.payload.classes[0].certs[0].cert
-    ca_detail.ca_cert_uri = issue_response.payload.classes[0].certs[0].cert_url.rsync()
-    ca_detail.generate_manifest_cert(self)
-    ca_detail.state = "active"
-    ca_detail.sql_mark_dirty()
+    ca_detail.activate(
+      ca   = self,
+      cert = issue_response.payload.classes[0].certs[0].cert,
+      uri  = issue_response.payload.classes[0].certs[0].cert_url)
 
   def delete(self, gctx, parent):
     """The list of current resource classes received from parent does
@@ -294,9 +293,10 @@ class ca_obj(sql_persistant):
     repository = rpki.left_right.repository_elt.sql_fetch(gctx, parent.repository_id)
     for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s" % self.ca_id):
       for child_cert in child_cert_obj.sql_fetch_where(gctx, "ca_detail_id = %s" % ca_detail.ca_detail_id):
-        repository.withdraw(child_cert.cert)
+        repository.withdraw((child_cert.cert, child_cert.uri(self)))
         child_cert.sql_delete(gctx)
-      repository.withdraw(ca_detail.latest_crl, ca_detail.latest_manifest, ca_detail.latest_manifest_cert)
+      repository.withdraw((ca_detail.latest_crl, ca_detail.crl_uri()),
+                          (ca_detail.latest_manifest, ca_detail.manifest_uri(self)))
       ca_detail.sql_delete(gctx)
     self.sql_delete(gctx)
 
@@ -357,6 +357,19 @@ class ca_detail_obj(sql_persistant):
   def manifest_uri(self, ca):
     """Return publication URI for this ca_detail's manifest."""
     return ca.sia_uri + self.public_key.gSKI() + ".mnf"
+
+  def activate(self, ca, cert, uri, predecessor = None):
+    """Activate this ca_detail."""
+
+    self.latest_ca_cert = cert
+    self.ca_cert_uri = uri.rsync()
+    self.generate_manifest_cert(ca)
+    self.state = "active"
+    self.sql_mark_dirty()
+
+    if predecessor is not None:
+      predecessor.state = "deprecated"
+      predecessor.sql_mark_dirty()
 
   def update(self, gctx, parent, ca, rc, sia_uri_changed, old_resources):
     """Need to get a new certificate for this ca_detail and perhaps
@@ -447,12 +460,13 @@ class ca_detail_obj(sql_persistant):
 
     child_cert.sql_store(gctx)
 
-    manifest = self.generate_manifest(gctx)
+    self.generate_manifest(gctx)
     
     parent = rpki.left_right.parent_elt.sql_fetch(gctx, ca.parent_id)
     repository = rpki.left_right.repository_elt.sql_fetch(gctx, parent.repository_id)
 
-    repository.publish(cert, manifest)
+    repository.publish((child_cert.cert, child_cert.uri(ca)),
+                       (self.latest_manifest, self.manifest_uri(ca)))
 
     return child_cert
 
@@ -500,7 +514,6 @@ class ca_detail_obj(sql_persistant):
            certs = rpki.x509.X509_chain(self.latest_manifest_cert))
 
     self.latest_manifest = m
-    return m
 
 class child_cert_obj(sql_persistant):
   """Certificate that has been issued to a child."""

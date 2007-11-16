@@ -350,6 +350,14 @@ class ca_detail_obj(sql_persistant):
     """Fetch the current active ca_detail_obj associated with a given ca_id."""
     return cls.sql_fetch_where1(gctx, "ca_id = %s AND state = 'active'" % ca_id)
 
+  def crl_uri(self, ca):
+    """Return publication URI for this ca_detail's CRL."""
+    return ca.sia_uri + self.public_key.gSKI() + ".crl"
+
+  def manifest_uri(self, ca):
+    """Return publication URI for this ca_detail's manifest."""
+    return ca.sia_uri + self.public_key.gSKI() + ".mnf"
+
   def update(self, gctx, parent, ca, rc, sia_uri_changed, old_resources):
     """Need to get a new certificate for this ca_detail and perhaps
     frob children of this ca_detail.
@@ -401,7 +409,7 @@ class ca_detail_obj(sql_persistant):
       serial      = ca.next_serial_number(),
       sia         = None,
       aia         = self.ca_cert_uri,
-      crldp       = ca.sia_uri + self.latest_ca_cert.gSKI() + ".crl",
+      crldp       = self.crl_uri(ca),
       resources   = resources,
       notAfter    = self.latest_ca_cert.getNotAfter(),
       is_ca       = False)
@@ -420,7 +428,7 @@ class ca_detail_obj(sql_persistant):
       subject_key = subject_key,
       serial      = ca.next_serial_number(),
       aia         = self.ca_cert_uri,
-      crldp       = ca.sia_uri + self.latest_ca_cert.gSKI() + ".crl",
+      crldp       = self.crl_uri(ca),
       sia         = sia,
       resources   = resources,
       notAfter    = resources.valid_until)
@@ -485,7 +493,7 @@ class ca_detail_obj(sql_persistant):
     m = rpki.x509.SignedManifest()
     m.build(serial = ca.next_manifest_number(),
             nextUpdate = rpki.sundial.datetime.utcnow() + rpki.sundial.timedelta(seconds = self_obj.crl_interval),
-            names_and_objs = [(c.cert.gSKI() + ".cer", c.cert) for c in certs])
+            names_and_objs = [(c.uri_tail(), c.cert) for c in certs])
     m.sign(keypair = self.manifest_private_key_id,
            certs = rpki.x509.X509_chain(self.latest_manifest_cert))
 
@@ -505,6 +513,14 @@ class child_cert_obj(sql_persistant):
     self.revoked = None
     if child_id or ca_detail_id or cert:
       self.sql_mark_dirty()
+
+  def uri_tail(self):
+    """Return the tail (filename) portion of the URI for this child_cert."""
+    return self.cert.gSKI() + ".cer"
+
+  def uri(self, ca):
+    """Return the publication URI for this child_cert."""
+    return ca.sia_uri + self.uri_tail()
 
   def revoke(self):
     """Mark a child cert as revoked."""

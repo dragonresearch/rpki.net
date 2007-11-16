@@ -116,6 +116,10 @@ Current TO DO list:
 
   - Withdrawal of any of the above
 
+  Consolidate generation of filenames and URIs into methods, duh.
+
+  (tags-search "\\.\\(publish\\|withdraw\\)(\\|\\+ \"\\.")
+
 - Logging subsystem, including syslog support.
 
 - Child batch processing loop, eg, regeneration or removal of expired

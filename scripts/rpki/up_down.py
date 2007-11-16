@@ -185,7 +185,7 @@ class list_pdu(base_elt):
                   child_id = %s AND ca_detail_id = %s
                   """ % (child.child_id, ca_detail.ca_detail_id)):
           c = certificate_elt()
-          c.cert_url = multi_uri(ca.sia_uri + child_cert.cert.gSKI() + ".cer")
+          c.cert_url = multi_uri(child_cert.uri(ca))
           c.cert = child_cert.cert
           rc.certs.append(c)
         rc.issuer = ca_detail.latest_ca_cert
@@ -287,7 +287,7 @@ class issue_pdu(base_elt):
     rpki.sql.sql_sweep(gctx)
     assert child_cert and child_cert.sql_in_db
     c = certificate_elt()
-    c.cert_url = multi_uri(ca.sia_uri + child_cert.cert.gSKI() + ".cer")
+    c.cert_url = multi_uri(child_cert.uri(ca))
     c.cert = child_cert.cert
     rc = class_elt()
     rc.class_name = str(ca_id)
@@ -303,7 +303,7 @@ class issue_pdu(base_elt):
     """Send an "issue" request to parent associated with ca."""
     assert ca_detail is not None and ca_detail.state not in ("deprecated", "revoked")
     sia = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", ca.sia_uri)),
-           (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", ca.sia_uri + ca_detail.public_key.gSKI() + ".mnf")))
+           (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", ca_detail.manifest_uri(ca))))
     self = cls()
     self.class_name = ca.parent_resource_class
     self.pkcs10 = rpki.x509.PKCS10.create_ca(ca_detail.private_key_id, sia)

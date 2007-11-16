@@ -53,6 +53,11 @@ pure Python and only 2% about any kind of crypto.
 
 Current TO DO list:
 
+- Client side of expiration: how do we decide when to ask for a new
+  cert from our parent?  Tunable (preference, if so)?   Waiting for
+  the old one to die is not good.  Reissue automatically when IRDB
+  valid_until changes?
+
 - Parent side of revocation (child_cert objects) and CRL generation
   implemented but not yet tested.
 

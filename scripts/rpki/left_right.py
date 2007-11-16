@@ -261,7 +261,10 @@ class self_elt(data_elt):
   def client_poll(self, gctx):
     """Run the regular client poll cycle with each of this self's parents in turn."""
     for parent in parent_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id):
+
+      # This will need a callback when we go event-driven
       r_pdu = rpki.up_down.list_pdu.query(gctx, parent)
+
       ca_map = dict((ca.parent_resource_class, ca)
                     for ca in rpki.sql.ca_obj.sql_fetch_where(gctx, "parent_id = %s" % parent.parent_id))
       for rc in r_pdu.payload.classes:
@@ -512,7 +515,8 @@ class repository_elt(data_elt):
   elements = ("cms_ta", "https_ta")
 
   sql_template = rpki.sql.template("repository", "repository_id", "self_id", "bsc_id",
-                                   ("cms_ta", rpki.x509.X509), "peer_contact_uri")
+                                   ("cms_ta", rpki.x509.X509), "peer_contact_uri",
+                                   ("https_ta", rpki.x509.X509))
 
   cms_ta = None
   https_ta = None

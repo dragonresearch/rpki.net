@@ -229,9 +229,6 @@ class ca_obj(sql_persistant):
     already knew about, so we need to check for an updated
     certificate, changes in resource coverage, revocation and reissue
     with the same key, etc.
-
-    How and where do we decide when to request a new cert because the
-    old one is going to expire soon?
     """
 
     sia_uri = self.construct_sia_uri(gctx, parent, rc)
@@ -273,7 +270,10 @@ class ca_obj(sql_persistant):
     self.sql_store(gctx)
     self.sia_uri = self.construct_sia_uri(gctx, parent, rc)
     ca_detail = ca_detail_obj.create(gctx, self)
+
+    # This will need a callback when we go event-driven
     issue_response = rpki.up_down.issue_pdu.query(gctx, parent, self, ca_detail)
+
     ca_detail.latest_ca_cert = issue_response.payload.classes[0].certs[0].cert
     ca_detail.ca_cert_uri = issue_response.payload.classes[0].certs[0].cert_url.rsync()
     ca_detail.generate_manifest_cert(self)
@@ -363,7 +363,9 @@ class ca_detail_obj(sql_persistant):
     frob children of this ca_detail.
     """
 
+    # This will need a callback when we go event-driven
     issue_response = rpki.up_down.issue_pdu.query(gctx, parent, ca, self)
+
     self.latest_ca_cert = issue_response.classes[0].certs[0].cert
     new_resources = self.latest_ca_cert.get_3779resources()
 

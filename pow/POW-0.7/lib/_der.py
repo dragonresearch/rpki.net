@@ -417,7 +417,7 @@ def _encodeSequence(val):
       raise DerError, 'argument should be a list or tuple'
    buf = cStringIO.StringIO()
    for obj in val:
-      if obj:
+      if obj or isinstance(obj, _GeneralObject):
          obj.write(buf)
       elif not obj.optional:
          raise DerError, 'object not set which should be: %s' % obj

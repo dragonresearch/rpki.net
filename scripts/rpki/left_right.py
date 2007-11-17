@@ -284,7 +284,36 @@ class self_elt(data_elt):
     issue new certs as necessary.  Must handle changes both in
     resources and in expiration date.
     """
-    print "Code to check IRDB for updates to children not yet written"
+
+    now = rpki.sundial.datetime.utcnow()
+
+    for child in child_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id):
+      child_certs = rpki.sql.child_cert_obj.sql_fetch_where(gctx, "child_id = %s AND revoked IS NULL" % child.child_id)
+      if not child_certs:
+        continue
+
+      # This will require a callback when we go event-driven
+      irdb_resources = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
+
+      for child_cert in child_certs:
+        ca_detail = rpki.sql.ca_detail_obj.sql_fetch(gctx, child_cert.ca_detail_id)
+        if ca_detail.state != "active":
+          continue
+        old_resources = child_cert.cert.get_3779resources()
+        new_resources = irdb_resources.intersection(old_resources)
+        if old_resources != new_resources or old_resources.valid_until != new_resources.valid_until:
+          child_cert.reissue(
+            gctx      = gctx,
+            ca_detail = ca_detail,
+            resources = new_resources,
+            sia       = rpki.sql.ca_obj.sql_fetch(gctx, ca_detail.ca_id).sia_uri())
+        elif old_resources.valid_until < now:
+          parent = parent_elt.sql_fetch(gctx, ca.parent_id)
+          repository = repository_elt.sql_fetch(gctx, parent.repository_id)
+          child_cert.sql_delete(gctx)
+          ca_detail.generate_manifest(gctx)
+          repository.publish(gctx,  (ca_detail.latest_manifest, ca_detail.manifest_uri(ca)))
+          repository.withdraw(gctx, (child_cert.cert, child_cert.uri(ca)))
 
   def regenerate_crls_and_manifests(self, gctx):
     """Generate new CRLs and manifests as necessary for all of this
@@ -781,10 +810,10 @@ def irdb_query(gctx, self_id, child_id = None):
   be a blocking routine, it should instead issue a query and set up a
   handler to receive the response.  For the moment, though, we are
   doing simple lock step and damn the torpedos.  Not yet doing
-  anything useful with validity interval or subject name.  Most likely
-  this function should really be wrapped up in a class that carries
-  both the query result and also the intermediate state needed for the
-  event-driven code that this function will need to become.
+  anything useful with subject name.  Most likely this function should
+  really be wrapped up in a class that carries both the query result
+  and also the intermediate state needed for the event-driven code
+  that this function will need to become.
   """
 
   q_msg = msg()

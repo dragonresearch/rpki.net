@@ -168,7 +168,10 @@ class list_pdu(base_elt):
   def serve_pdu(self, gctx, q_msg, r_msg, child):
     """Serve one "list" PDU."""
     r_msg.payload = list_response_pdu()
+
+    # This will require a callback when we go event-driven
     irdb_resources = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
+
     for parent in rpki.left_right.parent_elt.sql_fetch_where(gctx, "parent.self_id = %s" % child.self_id):
       for ca in rpki.sql.ca_obj.sql_fetch_where(gctx, "ca.parent_id = %s" % parent.parent_id):
         ca_detail = ca.fetch_active(gctx)
@@ -258,7 +261,10 @@ class issue_pdu(base_elt):
     self.pkcs10.check_valid_rpki()
 
     # Check current cert, if any
+
+    # This will require a callback when we go event-driven
     irdb_resources = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
+
     resources = irdb_resources.intersection(ca_detail.latest_ca_cert.get_3779resources())
     req_key = self.pkcs10.getPublicKey()
     req_sia = self.pkcs10.get_SIA()

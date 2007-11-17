@@ -260,6 +260,7 @@ class self_elt(data_elt):
 
   def client_poll(self, gctx):
     """Run the regular client poll cycle with each of this self's parents in turn."""
+
     for parent in parent_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id):
 
       # This will need a callback when we go event-driven
@@ -277,6 +278,35 @@ class self_elt(data_elt):
       for ca in ca_map.values():
         ca.delete(gctx, parent)         # CA not listed by parent
       rpki.sql.sql_sweep(gctx)
+
+  def update_children(self, gctx):
+    """Check for updated IRDB data for all of this self's children and
+    issue new certs as necessary.  Must handle changes both in
+    resources and in expiration date.
+    """
+    print "Code to check IRDB for updates to children not yet written"
+
+  def regenerate_crls_and_manifests(self, gctx):
+    """Generate new CRLs and manifests as necessary for all of this
+    self's CAs.  Extracting nextUpdate from a manifest is hard at the
+    moment due to implementation silliness, so for now we generate a
+    new manifest whenever we generate a new CRL
+    """
+
+    now = rpki.sundial.datetime.utcnow()
+    for parent in parent_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id):
+      repository = repository_elt.sql_fetch(gctx, parent.repository_id)
+      for ca in rpki.sql.ca_obj.sql_fetch_where(gctx, "parent_id = %s" % parent.parent_id):
+        ca_detail = ca.fetch_active(gctx)
+        #
+        # Temporary kludge until I sort out initial publication.
+        #
+        if True or now > ca_detail.latest_crl.getNextUpdate():
+          ca_detail.generate_crl(gctx)
+          ca_detail.generate_manifest(gctx)
+          repository.publish(gctx,
+                             (ca_detail.latest_crl,      ca_detail.crl_uri(ca)),
+                             (ca_detail.latest_manifest, ca_detail.manifest_uri(ca)))
 
 class bsc_elt(data_elt):
   """<bsc/> (Business Signing Context) element."""

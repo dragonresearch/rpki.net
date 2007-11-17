@@ -13,6 +13,7 @@ import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
 import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng
 
 def left_right_handler(query, path):
+  """Process one left-right PDU."""
   try:
     q_elt = rpki.cms.xml_verify(query, gctx.cms_ta_irbe)
     rpki.relaxng.left_right.assertValid(q_elt)
@@ -26,6 +27,7 @@ def left_right_handler(query, path):
     return 500, "Unhandled exception %s" % data
 
 def up_down_handler(query, path):
+  """Process one up-down PDU."""
   try:
     child_id = path.partition("/up-down/")[2]
     if not child_id.isdigit():
@@ -39,8 +41,13 @@ def up_down_handler(query, path):
     return 400, "Could not process PDU: %s" % data
 
 def cronjob_handler(query, path):
+  """Periodic tasks.  As simple as possible for now, may need to break
+  this up into separate handlers later.
+  """
   for s in rpki.left_right.self_elt.sql_fetch_all(gctx):
     s.client_poll(gctx)
+    s.update_children(gctx)
+    s.regenerate_crls_and_manifests(gctx)
   return 200, "OK"
 
 class global_context(object):

@@ -275,6 +275,7 @@ class ca_obj(sql_persistant):
     issue_response = rpki.up_down.issue_pdu.query(gctx, parent, self, ca_detail)
 
     ca_detail.activate(
+      gctx = gctx,
       ca   = self,
       cert = issue_response.payload.classes[0].certs[0].cert,
       uri  = issue_response.payload.classes[0].certs[0].cert_url)
@@ -317,6 +318,10 @@ class ca_obj(sql_persistant):
     self.sql_mark_dirty()
     return self.last_crl_sn
 
+  def fetch_active(self, gctx):
+    """Fetch the current active ca_detail for this ca."""
+    return ca_detail_obj.sql_fetch_where1(gctx, "ca_id = %s AND state = 'active'" % self.ca_id)
+
 class ca_detail_obj(sql_persistant):
   """Internal CA detail object."""
 
@@ -344,11 +349,6 @@ class ca_detail_obj(sql_persistant):
     assert (self.manifest_public_key is None and self.manifest_private_key_id is None) or \
            self.manifest_public_key.get_DER() == self.manifest_private_key_id.get_public_DER()
 
-  @classmethod
-  def sql_fetch_active(cls, gctx, ca_id):
-    """Fetch the current active ca_detail_obj associated with a given ca_id."""
-    return cls.sql_fetch_where1(gctx, "ca_id = %s AND state = 'active'" % ca_id)
-
   def crl_uri(self, ca):
     """Return publication URI for this ca_detail's CRL."""
     return ca.sia_uri + self.public_key.gSKI() + ".crl"
@@ -357,12 +357,14 @@ class ca_detail_obj(sql_persistant):
     """Return publication URI for this ca_detail's manifest."""
     return ca.sia_uri + self.public_key.gSKI() + ".mnf"
 
-  def activate(self, ca, cert, uri, predecessor = None):
+  def activate(self, gctx, ca, cert, uri, predecessor = None):
     """Activate this ca_detail."""
 
     self.latest_ca_cert = cert
     self.ca_cert_uri = uri.rsync()
     self.generate_manifest_cert(ca)
+    self.generate_crl(gctx)
+    self.generate_manifest(gctx)
     self.state = "active"
     self.sql_mark_dirty()
 
@@ -488,7 +490,7 @@ class ca_detail_obj(sql_persistant):
         certlist.append((child_cert.cert.getSerial(), child_cert.revoked, ()))
     certlist.sort()
 
-    return rpki.x509.CRL.generate(
+    self.latest_crl = rpki.x509.CRL.generate(
       keypair             = self.private_key_id,
       issuer              = self.latest_ca_cert,
       serial              = ca.next_crl_number(),
@@ -505,12 +507,12 @@ class ca_detail_obj(sql_persistant):
     certs = child_cert_obj.sql_fetch_where(gctx, "child_cert.ca_detail_id = %s AND child_cert.revoked IS NULL" % self.ca_detail_id)
 
     m = rpki.x509.SignedManifest()
-    m.build(serial = ca.next_manifest_number(),
-            nextUpdate = rpki.sundial.datetime.utcnow() + rpki.sundial.timedelta(seconds = self_obj.crl_interval),
-            names_and_objs = [(c.uri_tail(), c.cert) for c in certs])
-    m.sign(keypair = self.manifest_private_key_id,
-           certs = rpki.x509.X509_chain(self.latest_manifest_cert))
-
+    m.build(
+      serial         = ca.next_manifest_number(),
+      nextUpdate     = rpki.sundial.datetime.utcnow() + rpki.sundial.timedelta(seconds = self_obj.crl_interval),
+      names_and_objs = [(c.uri_tail(), c.cert) for c in certs],
+      keypair        = self.manifest_private_key_id,
+      certs          = rpki.x509.X509_chain(self.latest_manifest_cert))
     self.latest_manifest = m
 
 class child_cert_obj(sql_persistant):

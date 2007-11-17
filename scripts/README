@@ -97,16 +97,9 @@ Current TO DO list:
 - Publication protocol and implementation thereof.   Defer until core
   functionality in the main engine is done.
 
-  As an interim measure, hack some kind of stub publication (not real
-  protocol yet, just dump to local filesystem so can see outputs and
-  maybe rcynic against them); this is a stop-gap to let me concentrate
-  on the main engine and defer work on the publication protocol and
-  engine.
+  As an interim measure, I hacked up a local filesystem publication kludge.
 
-- Publication hooks everywhere - need not wait for protocol, can just
-  log what would happen for now, or write to local file store (perhaps
-  even in a form that we can use with rcynic as a relying party).
-  Hooks for this go into:
+  Need publication hooks for:
 
   - Cert publication
 
@@ -116,10 +109,6 @@ Current TO DO list:
 
   - Withdrawal of any of the above
 
-  Consolidate generation of filenames and URIs into methods, duh.
-
-  (tags-search "\\.\\(publish\\|withdraw\\)(\\|\\+ \"\\.")
-
 - Logging subsystem, including syslog support.
 
 - Child batch processing loop, eg, regeneration or removal of expired
@@ -128,14 +117,7 @@ Current TO DO list:
   everything that might need to be done.
 
   Figuring out whether to regenerate or remove expired certs requires
-  some of the same data as CRL generation.
-
-  - Code to clean up expired certs
-
-  - Code to revoke certs -- need to sort out when we do this
-    automatically vs waiting for explicit revoke PDU from child
-
-  - Code to generate CRLs
+  looking in the IRDB.
 
 - Subsetting (req_* attributes in up-down protocol)
 

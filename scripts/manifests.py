@@ -1,6 +1,7 @@
 # $Id$
 
-import rpki.x509, rpki.manifest, time, glob, os
+import time, glob, os
+import rpki.x509, rpki.manifest, rpki.sundial
 
 show_content_1                  = False
 show_signed_manifest_PEM        = False
@@ -9,6 +10,7 @@ show_content_2                  = False
 show_content_3                  = False
 dump_signed_manifest_DER        = False
 dump_manifest_content_DER       = False
+test_empty_manifest             = False
 
 def dumpasn1(thing):
   # Save to file rather than using popen4() because dumpasn1 uses
@@ -24,17 +26,21 @@ def dumpasn1(thing):
   finally:
     os.unlink(fn)
 
+if test_empty_manifest:
+  names_and_objs = []
+else:
+  names_and_objs = [(fn, rpki.x509.X509(Auto_file = fn)) for fn in glob.glob("resource-cert-samples/*.cer")]
+
 m = rpki.x509.SignedManifest()
-m.build(serial = 17,
-        nextUpdate = rpki.datetime.datetime.utcnow() + rpki.datetime.timedelta(days = 1),
-        names_and_objs = [(fn, rpki.x509.X509(Auto_file = fn))
-                          for fn in glob.glob("resource-cert-samples/*.cer")])
+m.build(
+  serial         = 17,
+  nextUpdate     = rpki.sundial.datetime.utcnow() + rpki.sundial.timedelta(days = 1),
+  names_and_objs = names_and_objs,
+  keypair        = rpki.x509.RSA(Auto_file = "biz-certs/Alice-EE.key"),
+  certs          = rpki.x509.X509_chain(Auto_files = ("biz-certs/Alice-EE.cer", "biz-certs/Alice-CA.cer")))
 
 if show_content_1:
   dumpasn1(m.get_content().toString())
-
-m.sign(keypair = rpki.x509.RSA(Auto_file = "biz-certs/Alice-EE.key"),
-       certs   = rpki.x509.X509_chain(Auto_files = ("biz-certs/Alice-EE.cer", "biz-certs/Alice-CA.cer")))
 
 if show_signed_manifest_PEM:
   print m.get_PEM()

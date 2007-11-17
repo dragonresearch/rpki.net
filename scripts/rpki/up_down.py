@@ -171,7 +171,7 @@ class list_pdu(base_elt):
     irdb_resources = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
     for parent in rpki.left_right.parent_elt.sql_fetch_where(gctx, "parent.self_id = %s" % child.self_id):
       for ca in rpki.sql.ca_obj.sql_fetch_where(gctx, "ca.parent_id = %s" % parent.parent_id):
-        ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx, ca.ca_id)
+        ca_detail = ca.fetch_active(gctx)
         if not ca_detail:
           continue
         resources = ca_detail.latest_ca_cert.get_3779resources().intersection(irdb_resources)
@@ -252,7 +252,7 @@ class issue_pdu(base_elt):
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
     ca_id = long(self.class_name)
     ca = rpki.sql.ca_obj.sql_fetch(gctx, ca_id)
-    ca_detail = rpki.sql.ca_detail_obj.sql_fetch_active(gctx, ca_id)
+    ca_detail = ca.fetch_active(gctx)
     if ca is None or ca_detail is None:
       raise rpki.exceptions.NotInDatabase
     self.pkcs10.check_valid_rpki()

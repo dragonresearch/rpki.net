@@ -587,9 +587,13 @@ class SignedManifest(DER_object):
     self.clear()
     self.content = content
 
-  def sign(self, keypair, certs):
-    """Sign this manifest."""
-    self.DER = rpki.cms.sign(self.content.toString(), keypair, certs)
+  def getThisUpdate(self):
+    """Get thisUpdate value from this manifest."""
+    return rpki.sundial.datetime.fromGeneralizedTime(self.get_content())
+
+  def getNextUpdate(self):
+    """Get nextUpdate value from this manifest."""
+    return rpki.sundial.datetime.fromGeneralizedTime(self.get_content())
 
   def verify(self, ta):
     """Verify this manifest."""
@@ -598,8 +602,8 @@ class SignedManifest(DER_object):
     m.fromString(s)
     self.content = m
 
-  def build(self, serial, nextUpdate, names_and_objs, version = 0):
-    """Build the inner content of this manifest."""
+  def build(self, serial, nextUpdate, names_and_objs, keypair, certs, version = 0):
+    """Build the inner content of this manifest and sign it with CMS."""
     filelist = []
     for name, obj in names_and_objs:
       d = POW.Digest(POW.SHA256_DIGEST)
@@ -614,6 +618,7 @@ class SignedManifest(DER_object):
     m.fileHashAlg.set((2, 16, 840, 1, 101, 3, 4, 2, 1)) # id-sha256
     m.fileList.set(filelist)
     self.set_content(m)
+    self.DER = rpki.cms.sign(m.toString(), keypair, certs)
 
 class CRL(DER_object):
   """Class to hold a Certificate Revocation List."""
@@ -650,6 +655,14 @@ class CRL(DER_object):
       self.POWpkix = crl
     return self.POWpkix
 
+  def getThisUpdate(self):
+    """Get thisUpdate value from this CRL."""
+    return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().getThisUpdate())
+
+  def getNextUpdate(self):
+    """Get nextUpdate value from this CRL."""
+    return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().getNextUpdate())
+
   @classmethod
   def generate(cls, keypair, issuer, serial, thisUpdate, nextUpdate, revokedCertificates, version = 1, digestType = "sha256WithRSAEncryption"):
     crl = POW.pkix.CertificateList()
@@ -660,7 +673,7 @@ class CRL(DER_object):
     if revokedCertificates:
       crl.setRevokedCertificates(revokedCertificates)
     crl.setExtensions(
-      (rpki.oids.name2oid["authorityKeyIdentifier"], False, (issuer.get_SKI(), (), None)),
-      (rpki.oids.name2oid["cRLNumber"], False, serial))
+      ((rpki.oids.name2oid["authorityKeyIdentifier"], False, (issuer.get_SKI(), (), None)),
+       (rpki.oids.name2oid["cRLNumber"], False, serial)))
     crl.sign(keypair.get_POW(), digestType)
     return cls(POWpkix = crl)

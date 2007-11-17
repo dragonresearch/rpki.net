@@ -67,6 +67,8 @@ python irbe-cli.py child --self_id 1 --action create --bsc_id 1 --cms_ta biz-cer
 if test "$1" = "run"
 then
 
+  rm -rf publication
+
   python testroot.py & testroot=$!
   python irdb.py     & irdb=$!
   trap "kill $rpkid $irdb $testroot" 0

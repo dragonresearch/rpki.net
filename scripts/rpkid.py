@@ -67,7 +67,7 @@ class global_context(object):
     self.https_server_host = cfg.get(section, "server-host", "")
     self.https_server_port = int(cfg.get(section, "server-port", "4433"))
 
-    self.publication_kludge_base = cfg.get(section, "publication-kludge-base", "rpki-publication/")
+    self.publication_kludge_base = cfg.get(section, "publication-kludge-base", "publication/")
 
 os.environ["TZ"] = "UTC"
 time.tzset()

@@ -2,7 +2,7 @@
 
 """RPKI "left-right" protocol."""
 
-import base64, lxml.etree, time, traceback
+import base64, lxml.etree, time, traceback, os
 import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions
 import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial
 
@@ -546,15 +546,43 @@ class repository_elt(data_elt):
       self.make_b64elt(elt, "https_ta", self.https_ta.get_DER())
     return elt
 
-  def publish(self, *things):
-    """Placeholder for publication operation (not yet written)."""
-    for thing in things:
-      print "Should publish %s to repository %s" % (repr(thing), repr(self))
+  @staticmethod
+  def uri_to_filename(base, uri):
+    """Convert a URI to a filename. [TEMPORARY]"""
+    if not uri.startswith("rsync://"):
+      raise rpki.exceptions.BadURISyntax
+    filename = base + uri[len("rsync://"):]
+    if filename.find("//") >= 0 or filename.find("/../") >= 0 or filename.endswith("/.."):
+      raise rpki.exceptions.BadURISyntax
+    return filename
 
-  def withdraw(self, *things):
-    """Placeholder for publication withdrawal operation (not yet written)."""
-    for thing in things:
-      print "Should withdraw %s from repository %s" % (repr(thing), repr(self))
+  @classmethod
+  def object_write(cls, base, uri, obj):
+    """Write an object to disk. [TEMPORARY]"""
+    filename = cls.uri_to_filename(base, uri)
+    dirname = os.path.dirname(filename)
+    if not os.path.isdir(dirname):
+      os.makedirs(dirname)
+    f = open(filename, "wb")
+    f.write(obj.get_DER())
+    f.close()
+
+  @classmethod
+  def object_delete(cls, base, uri):
+    """Delete an object from disk. [TEMPORARY]"""
+    os.remove(cls.uri_to_filename(base, uri))
+
+  def publish(self, gctx, *things):
+    """Placeholder for publication operation. [TEMPORARY]"""
+    for obj, uri in things:
+      print "Pretending to publish %s to repository %s at %s" % (repr(obj), repr(self), repr(uri))
+      self.object_write(gctx.publication_kludge_base, uri, obj)
+
+  def withdraw(self, gctx, *things):
+    """Placeholder for publication withdrawal operation. [TEMPORARY]"""
+    for obj, uri in things:
+      print "Pretending to withdraw %s from repository %s at %s" % (repr(obj), repr(self), repr(uri))
+      self.object_delete(gctx.publication_kludge_base, uri)
 
 class route_origin_elt(data_elt):
   """<route_origin/> element."""

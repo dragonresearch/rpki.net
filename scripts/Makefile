@@ -16,8 +16,7 @@ all:: up-down-schema.rng
 up-down-schema.rng: up-down-schema.rnc
 	trang up-down-schema.rnc up-down-schema.rng
 
-test:: all
-	python xml-parse-test.py
+#test:: all ; python xml-parse-test.py
 
 dont-run-trang:
 	touch *.rng
@@ -50,5 +49,4 @@ rpki/relaxng.py: left-right-schema.rng up-down-schema.rng make-relaxng.py
 	python make-relaxng.py >$@.tmp
 	mv $@.tmp $@
 
-test::
-	sh -x testroot.sh run
+test:: all ; sh -x testroot.sh run

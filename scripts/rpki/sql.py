@@ -293,10 +293,9 @@ class ca_obj(sql_persistant):
     repository = rpki.left_right.repository_elt.sql_fetch(gctx, parent.repository_id)
     for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s" % self.ca_id):
       for child_cert in child_cert_obj.sql_fetch_where(gctx, "ca_detail_id = %s" % ca_detail.ca_detail_id):
-        repository.withdraw((child_cert.cert, child_cert.uri(self)))
+        repository.withdraw(gctx, (child_cert.cert, child_cert.uri(self)))
         child_cert.sql_delete(gctx)
-      repository.withdraw((ca_detail.latest_crl, ca_detail.crl_uri()),
-                          (ca_detail.latest_manifest, ca_detail.manifest_uri(self)))
+      repository.withdraw(gctx, (ca_detail.latest_crl, ca_detail.crl_uri()), (ca_detail.latest_manifest, ca_detail.manifest_uri(self)))
       ca_detail.sql_delete(gctx)
     self.sql_delete(gctx)
 
@@ -465,8 +464,7 @@ class ca_detail_obj(sql_persistant):
     parent = rpki.left_right.parent_elt.sql_fetch(gctx, ca.parent_id)
     repository = rpki.left_right.repository_elt.sql_fetch(gctx, parent.repository_id)
 
-    repository.publish((child_cert.cert, child_cert.uri(ca)),
-                       (self.latest_manifest, self.manifest_uri(ca)))
+    repository.publish(gctx, (child_cert.cert, child_cert.uri(ca)), (self.latest_manifest, self.manifest_uri(ca)))
 
     return child_cert
 

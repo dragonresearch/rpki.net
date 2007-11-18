@@ -53,37 +53,44 @@ pure Python and only 2% about any kind of crypto.
 
 Current TO DO list:
 
-- Client side of expiration now assumes that parent will reissue when
-  its IRDB changes.  Not yet tested.
+- Things implemented but not yet tested:
 
-- Parent side of revocation (child_cert objects) and CRL generation
-  implemented.  Not yet tested.
+  - Client side of expiration now assumes that parent will reissue
+    when its IRDB changes.
 
-- Parent side of expiration implemented.  Not yet tested.
+  - Parent side of revocation (child_cert objects) and CRL generation
+    implemented.
+
+  - Parent side of expiration implemented.
+
+  - Child batch processing loop: regeneration or removal of expired
+    certs based on what's in the IRDB.
+
+  - Batch regeneration of CRLs and manifests for all CAs.
 
 - Child side of revocation...Common Management Tasks page in the APNIC
   Wiki shows some states where revocation is triggered by the child
   after a delay.  Other text in Common Management Tasks suggests that
-  ca_detail also needs deferred transitions from pending to active.
-  So added a deferred state transition timestamp to ca_detail object:
+  ca_detail also needs deferred transitions from pending to active,
+  although Randy and I don't entirely believe that this is necessary
+  or even advisable.   Revocation delay is enough to require a
+  deferred state transition timestamp to ca_detail object.
 
-  How to model this?  An enumerated state value (already have that,
-  may need to rename states) and a timestamp (which may be NULL) for
-  next scheduled transition?  Is the next state always predictable
-  from the current state or do we also need a next-state field?
+  Model for this is an enumerated state value (which we already had)
+  and a timestamp (which may be NULL) for next scheduled transition.
+  At the moment we think that the state progression is linear, ie,
+  there's no need for a next_state field.
 
     state     := pending | active | deprecated | revoked
-    timestamp := null | <time of next transition>
+    timestamp := NULL | <time of next transition>
 
-  Do we really need the revoked state?  That is, once we've reached
-  that state, do we have any further use for the ca_detail in our
-  database, or do we just delete it (and its little dog too...)?  If
-  we do need the revoked state, I guess the timer becomes the delay
-  until we can get rid of it entirely, or something like that.
+  At this point I doubt we really need the revoked state.  If we do
+  need the revoked state, the timer becomes the delay until we can get
+  rid of the ca_detail object entirely, or something like that.
 
-  For that matter, how do we, as child, even find out that a cert has
-  been revoked?  In the up-down protocol we just see a new cert, we
-  don't know what happened to the old one.  Either:
+  How do we, as child, even find out that a cert has been revoked?  In
+  the up-down protocol we just see a new cert, there's no indication
+  what happened to the old one.  Either:
 
   a) We asked to have it revoked, duh.
 
@@ -97,9 +104,9 @@ Current TO DO list:
   Since we don't find out about that directly, we're done with it when
   the parent issues a new cert.
 
-  This suggest that we don't need the client "revoked" state at all,
-  and the client "deprecated" state should only occur when there's
-  also a timer set to make it go away.
+  This suggest that we don't need the client "revoked" state, and the
+  client "deprecated" state only occurs when there's also a timer set
+  to make it go away.
 
   Common Management Tasks has a delay between receipt of a new cert by
   the child and that cert going active.  Neither Randy nor I sees a
@@ -108,14 +115,15 @@ Current TO DO list:
   so active -> deprecated transition for old cert happens as side
   effect of activation of the new cert.
 
-  Need logic to decide whether to revoke when timer goes off to remove
-  from deprecated state.  Is the test just whether the cert that's
-  going away has the same key as the active cert?
+  Need logic to decide whether to ask parent to revoke when timer goes
+  off to remove from deprecated state.  Is the test just whether the
+  cert that's going away has the same key as the active cert?
 
 - Publication protocol and implementation thereof.   Defer until core
   functionality in the main engine is done.
 
-  As an interim measure, I hacked up a local filesystem publication kludge.
+  As an interim measure, I've hacked up a local filesystem publication
+  kludge.
 
   Need publication hooks for:
 
@@ -149,32 +157,13 @@ Current TO DO list:
   one-to-many relationship should have convenience methods for
   retrieving their parents.   Too many explicit calls to sql_fetch().
 
-- Logging subsystem, including syslog support.
-
-- Child batch processing loop, eg, regeneration or removal of expired
-  certs, CRL update, manifest update, etc.  This should probably be an
-  iteration over CA objects, as the CA is the actor in pretty much
-  everything that might need to be done.
-
-  Figuring out whether to regenerate or remove expired certs requires
-  looking in the IRDB.
+- Need a logging subsystem, including syslog support.  Absent a better
+  plan, see the Python syslog module.
 
 - Subsetting (req_* attributes in up-down protocol)
 
 - Haven't done anything about db.commit() and db.rollback() yet, for
   that matter haven't yet whacked MySQL to enable those features.
-
-- In theory, all access to object data attributes ought to be through
-  accessor methods so that the .set() method can mark teh object as
-  SQL-dirty automagically.  Not done yet.  One way of hiding the
-  grotty bits here might be to make attributes look like elements of a
-  dict(), ie, implement __getitem__() and __setitem__() methods,
-  probably along with the other "container type" special methods for
-  completeness.  An even easier way to do this would be to subclass
-  dict() and just customize __setitem__().
-
-  But all of this assumes that we really want automagic SQL-dirty, and
-  I'm less convinced of that now than when I made the above note.
 
 - Test with larger data set -- Tim gave me plenty of data and I have
   the low-level tools, just haven't written the glue logic to create
@@ -210,7 +199,11 @@ Follow-up after that will be getting rid of remaining synchronous code
 (make daemon fully event-driven, except perhaps for SQL queries),
 address rollback, commit, and other data integrity issues, and see how
 well the resulting code handles hosting (multiple self objects in same
-daemon).
+daemon).  Will need some way of implementing loops in the event
+system.  Absent some fancier method, probably just store a list of
+object ids, then have the event handlers step through that fetching
+the next object (and coping with the case where an object that was in
+the list when the initial query was made isn't there anymore...).
 
 Somewhere along the way I'll need to update to the new model of trust
 anchors we ended up with in Amsterdam, first step for which will

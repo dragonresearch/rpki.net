@@ -313,7 +313,7 @@ class self_elt(data_elt):
     now = rpki.sundial.datetime.utcnow()
 
     for child in self.children(gctx):
-      child_certs = rpki.sql.child_cert_obj.sql_fetch_where(gctx, "child_id = %s AND revoked IS NULL" % child.child_id)
+      child_certs = child.child_certs(gctx)
       if not child_certs:
         continue
 
@@ -554,9 +554,9 @@ class child_elt(data_elt):
 
   cms_ta = None
 
-  def child_certs(self, gctx):
+  def child_certs(self, gctx, ca_detail = None, ski = None, revoked = False, unique = False):
     """Fetch all child_cert objects that link to this child object."""
-    return rpki.sql.child_cert_obj.sql_fetch_where(gctx, "child_id = %s" % self.child_id)
+    return rpki.sql.child_cert_obj.fetch(gctx, self, ca_detail, ski, revoked, unique)
 
   def parents(self, gctx):
     """Fetch all parent objects that link to self object to which this child object links."""

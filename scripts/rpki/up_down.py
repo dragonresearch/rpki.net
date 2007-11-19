@@ -184,9 +184,7 @@ class list_pdu(base_elt):
         rc.class_name = str(ca.ca_id)
         rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
         rc.from_resource_bag(resources)
-        for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx, """
-                  child_id = %s AND ca_detail_id = %s
-                  """ % (child.child_id, ca_detail.ca_detail_id)):
+        for child_cert in child.child_certs(gctx, ca_detail = ca_detail):
           c = certificate_elt()
           c.cert_url = multi_uri(child_cert.uri(ca))
           c.cert = child_cert.cert
@@ -267,9 +265,7 @@ class issue_pdu(base_elt):
     resources = irdb_resources.intersection(ca_detail.latest_ca_cert.get_3779resources())
     req_key = self.pkcs10.getPublicKey()
     req_sia = self.pkcs10.get_SIA()
-    child_cert = rpki.sql.child_cert_obj.sql_fetch_where1(gctx, """
-                child_id = %s AND ca_detail_id = %s AND ski = "%s"
-                """ % (child.child_id, ca_detail.ca_detail_id, req_key.get_SKI()))
+    child_cert = child.child_certs(gctx, ca_detail = ca_detail, ski = req_key.get_SKI(), unique = True)
 
     # Generate new cert or regenerate old one if necessary
 
@@ -347,12 +343,8 @@ class revoke_pdu(revoke_syntax):
     """Serve one revoke request PDU."""
     if not self.class_name.isdigit():
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
-    ca_id = long(self.class_name)
-    ski = self.get_SKI()
-    for ca_detail in rpki.sql.ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND state != 'revoked'" % ca_id):
-      for child_cert in rpki.sql.child_cert_obj.sql_fetch_where(gctx, """
-                child_id = %s AND ca_detail_id = %s AND ski = '%s'
-                """ % (child.child_id, ca_detail.ca_detail_id, ski)):
+    for ca_detail in rpki.sql.ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND state != 'revoked'" % long(self.class_name)):
+      for child_cert in child.child_certs(gctx, ca_detail = ca_detail, ski = self.get_SKI()):
         child_cert.revoke()
     rpki.sql.sql_sweep(gctx)
     r_msg.payload = revoke_response_pdu()

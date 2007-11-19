@@ -308,6 +308,8 @@ class ca_obj(sql_persistant):
       for child_cert in ca_detail.child_certs(gctx):
         repository.withdraw(gctx, (child_cert.cert, child_cert.uri(self)))
         child_cert.sql_delete(gctx)
+      for child_cert in ca_detail.child_certs(gctx, revoked = True):
+        child_cert.sql_delete(gctx)
       repository.withdraw(gctx, (ca_detail.latest_crl, ca_detail.crl_uri()), (ca_detail.latest_manifest, ca_detail.manifest_uri(self)))
       ca_detail.sql_delete(gctx)
     self.sql_delete(gctx)
@@ -361,9 +363,9 @@ class ca_detail_obj(sql_persistant):
     """Fetch CA object to which this ca_detail links."""
     return ca_obj.sql_fetch(gctx, self.ca_id)
 
-  def child_certs(self, gctx):
+  def child_certs(self, gctx, child = None, ski = None, revoked = False, unique = False):
     """Fetch all child_cert objects that link to this ca_detail."""
-    return child_cert_obj.sql_fetch_where(gctx, "ca_detail_id = %s" % self.ca_detail_id)
+    return rpki.sql.child_cert_obj.fetch(gctx, child, self, ski, revoked, unique)
 
   def route_origins(self, gctx):
     """Fetch all route_origin objects that link to this ca_detail."""
@@ -497,13 +499,11 @@ class ca_detail_obj(sql_persistant):
     """
 
     ca = self.ca(gctx)
-    parent = ca.parent(gctx)
-    self_obj = parent.self(gctx)
-    crl_interval = rpki.sundial.timedelta(seconds = self_obj.crl_interval)
+    crl_interval = rpki.sundial.timedelta(seconds = ca.parent(gctx).self(gctx).crl_interval)
     now = rpki.sundial.datetime.utcnow()
 
     certlist = []
-    for child_cert in child_cert_obj.sql_fetch_where(gctx, "child_cert.ca_detail_id = %s AND child_cert.revoked IS NOT NULL" % self.ca_detail_id):
+    for child_cert in self.child_certs(gctx, revoked = True):
       if now > child_cert.cert.getNotAfter() + crl_interval:
         child_cert.sql_delete()
       else:
@@ -522,14 +522,12 @@ class ca_detail_obj(sql_persistant):
     """Generate a new manifest for this ca_detail."""
 
     ca = self.ca(gctx)
-    parent = ca.parent(gctx)
-    self_obj = parent.self(gctx)
-    certs = child_cert_obj.sql_fetch_where(gctx, "child_cert.ca_detail_id = %s AND child_cert.revoked IS NULL" % self.ca_detail_id)
+    certs = self.child_certs(gctx)
 
     m = rpki.x509.SignedManifest()
     m.build(
       serial         = ca.next_manifest_number(),
-      nextUpdate     = rpki.sundial.datetime.utcnow() + rpki.sundial.timedelta(seconds = self_obj.crl_interval),
+      nextUpdate     = rpki.sundial.datetime.utcnow() + rpki.sundial.timedelta(seconds = ca.parent(gctx).self(gctx).crl_interval),
       names_and_objs = [(c.uri_tail(), c.cert) for c in certs],
       keypair        = self.manifest_private_key_id,
       certs          = rpki.x509.X509_chain(self.latest_manifest_cert))
@@ -613,3 +611,26 @@ class child_cert_obj(sql_persistant):
       self.revoke()
 
     return child_cert
+
+  @classmethod
+  def fetch(cls, gctx, child = None, ca_detail = None, ski = None, revoked = False, unique = False):
+    """Fetch all child_cert objects matching a particular set of
+    parameters.  This is a wrapper to consolidate various queries that
+    would otherwise be inline SQL WHERE expressions.  In most cases
+    code calls this indirectly, through methods in other classes.
+    """
+
+    if revoked:
+      where = "revoked IS NOT NULL"
+    else:
+      where = "revoked IS NULL"
+    if child:
+      where += " AND child_id = %s" % child.child_id
+    if ca_detail:
+      where += " AND ca_detail_id = %s" % ca_detail.ca_detail_id
+    if ski:
+      where += " AND ski = '%s'" % ski
+    if unique:
+      return cls.sql_fetch_where1(gctx, where)
+    else:
+      return cls.sql_fetch_where(gctx, where)

@@ -34,6 +34,9 @@ def set_subject_cert(cert):
   f.write(cert.get_DER())
   f.close()
 
+def del_subject_cert():
+  os.remove(rpki_subject_filename)
+
 def stash_subject_pkcs10(pkcs10):
   if rpki_pkcs10_filename:
     f = open(rpki_pkcs10_filename, "wb")
@@ -81,7 +84,13 @@ class issue_pdu(rpki.up_down.issue_pdu):
 
 class revoke_pdu(rpki.up_down.revoke_pdu):
   def serve_pdu(self, xxx1, q_msg, r_msg, xxx2):
-    raise rpki.exceptions.NotImplementedYet
+    rpki_subject = get_subject_cert()
+    if rpki_subject is None or rpki_subject.gSKI() != self.ski:
+      raise rpki.exceptions.NotInDatabase
+    del_subject_cert()
+    r_msg.payload = rpki.up_down.revoke_response_pdu()
+    r_msg.payload.class_name = self.class_name
+    r_msg.payload.ski = self.ski
 
 class message_pdu(rpki.up_down.message_pdu):
   name2type = {

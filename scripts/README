@@ -198,12 +198,15 @@ Current TO DO list:
 
   If it's not a separate daemon, will need left-right protocol support
   to configure whatever it is we're going to configure, with all the
-  usual private key hygiene issues.  This probably implies a level of
+  usual private key hygiene issues.  This might imply a level of
   indirection, eg, the self-signed cert is generated in the IRBE, the
   RPKI engine generates PKCS#10 for a working cert to be issued by the
   self-signed cert (perhaps with RFC 3779 inheritance for everything,
   to keep it small), so that the RPKI engine never needs to hold the
-  private key for the root.
+  private key for the root.  Or maybe the root key is no more special
+  than any of the other keys we have to protect.  Or maybe it's so
+  special that we take the separate daemon approach so we can
+  sneakernet the root key.  Or some combination of the above.
 
   Deferred for the moment, not sure for how long.
 

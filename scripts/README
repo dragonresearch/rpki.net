@@ -173,6 +173,11 @@ Current TO DO list:
 
 - Subsetting (req_* attributes in up-down protocol)
 
+- Error handling: make sure that exceptions map correctly to up-down
+  error codes, flesh out left-right error codes.  Note that the same
+  exception may produce different error codes depending on which
+  up-down PDU we're processing (sigh).
+
 - Haven't done anything about db.commit() and db.rollback() yet, for
   that matter haven't yet whacked MySQL to enable those features.
 

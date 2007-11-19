@@ -100,7 +100,7 @@ CREATE TABLE ca_detail (
        manifest_public_key      LONGBLOB,
        latest_manifest_cert     LONGBLOB,
        latest_manifest          LONGBLOB,
-       state                    ENUM ('pending', 'active', 'deprecated', 'revoked') NOT NULL,
+       state                    ENUM ('pending', 'active', 'deprecated') NOT NULL,
        state_timer              DATETIME,
        ca_cert_uri              TEXT,
        ca_id                    BIGINT unsigned NOT NULL,

@@ -216,10 +216,8 @@ class self_elt(data_elt):
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for self_elt."""
     if self.rekey or self.reissue or self.revoke or self.run_now or self.publish_world_now:
-      raise NotImplementedError, \
-            "Unimplemented control %s" % ", ".join(b for b in ("rekey", "reissue", "revoke",
-                                                               "run_now", "publish_world_now")
-                                                   if getattr(self, b))
+      raise NotImplementedError, "Unimplemented control %s" % ", ".join(
+        b for b in ("rekey", "reissue", "revoke", "run_now", "publish_world_now") if getattr(self, b))
 
   def serve_fetch_one(self, gctx):
     """Find the self object on which a get, set, or destroy method
@@ -437,9 +435,8 @@ class parent_elt(data_elt):
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for parent_elt."""
     if self.rekey or self.reissue or self.revoke:
-      raise NotImplementedError, \
-            "Unimplemented control %s" % ", ".join(b for b in ("rekey","reissue","revoke")
-                                                   if getattr(self, b))
+      raise NotImplementedError, "Unimplemented control %s" % ", ".join(
+        b for b in ("rekey","reissue","revoke") if getattr(self, b))
 
   def startElement(self, stack, name, attrs):
     """Handle <parent/> element."""

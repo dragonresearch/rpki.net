@@ -1,7 +1,7 @@
 # $Id$
 
 import POW.pkix, glob, os
-import rpki.x509, rpki.resource_set
+import rpki.x509, rpki.resource_set, rpki.oids
 
 parse_test              = False
 generate_test           = True
@@ -64,7 +64,8 @@ if parse_test:
       if bag.v6: print "IPv6 =", bag.v6
 
       for oid, crit, val in exts:
-        if oid in ((1, 3, 6, 1, 5, 5, 7, 1, 7), (1, 3, 6, 1, 5, 5, 7, 1, 8)):
+        if oid in (rpki.oids.name2oid["sbgp-ipAddrBlock"],
+                   rpki.oids.name2oid["sbgp-autonomousSysNum"]):
           continue
         if isinstance(val, str):
           val = hexify(val)

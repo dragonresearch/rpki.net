@@ -12,7 +12,8 @@ Default configuration file is testpoke.yaml, override with --config option.
 
 import traceback, os, time, getopt, sys, lxml, yaml
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
-import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng
+import rpki.https, rpki.config, rpki.cms, rpki.exceptions
+import rpki.relaxng, rpki.oids
 
 os.environ["TZ"] = "UTC"
 time.tzset()
@@ -81,8 +82,8 @@ def do_list():
 def do_issue():
   q_pdu = rpki.up_down.issue_pdu()
   req_key = get_PEM("cert-request-key", rpki.x509.RSA, yaml_req) or cms_key
-  sia = (((1, 3, 6, 1, 5, 5, 7, 48, 5),  ("uri", yaml_req["sia"][0])),
-         ((1, 3, 6, 1, 5, 5, 7, 48, 10), ("uri", yaml_req["sia"][0] + req_key.gSKI() + ".mnf")))
+  sia = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", yaml_req["sia"][0])),
+         (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", yaml_req["sia"][0] + req_key.gSKI() + ".mnf")))
   q_pdu.class_name = yaml_req["class"]
   q_pdu.pkcs10 = rpki.x509.PKCS10.create_ca(req_key, sia)
   print query_up_down(q_pdu)

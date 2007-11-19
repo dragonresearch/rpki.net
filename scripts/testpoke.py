@@ -89,7 +89,10 @@ def do_issue():
   print query_up_down(q_pdu)
 
 def do_revoke():
-  raise NotImplementedError
+  q_pdu = rpki.up_down.revoke_pdu()
+  q_pdu.class_name = yaml_req["class"]
+  q_pdu.ski = yaml_req["ski"]
+  print query_up_down(q_pdu)
 
 dispatch = { "list" : do_list, "issue" : do_issue, "revoke" : do_revoke }
 

@@ -25,4 +25,4 @@ requests:
   revoke:
     type: revoke
     class: 1
-    ski: FillThisIn
+    ski: "CB5K6APY-4KcGAW9jaK_cVPXKX0="

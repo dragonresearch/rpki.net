@@ -249,12 +249,8 @@ class issue_pdu(base_elt):
     """Serve one issue request PDU."""
 
     # Check the request
-    if not self.class_name.isdigit():
-      raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
-    ca = rpki.sql.ca_obj.sql_fetch(gctx, long(self.class_name))
+    ca = child.ca_from_class_name(gctx, self.class_name)
     ca_detail = ca.fetch_active(gctx)
-    if ca is None or ca_detail is None:
-      raise rpki.exceptions.NotInDatabase
     self.pkcs10.check_valid_rpki()
 
     # Check current cert, if any
@@ -302,7 +298,7 @@ class issue_pdu(base_elt):
   @classmethod
   def query(cls, gctx, parent, ca, ca_detail):
     """Send an "issue" request to parent associated with ca."""
-    assert ca_detail is not None and ca_detail.state not in ("deprecated", "revoked")
+    assert ca_detail is not None and ca_detail.state != "deprecated"
     sia = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", ca.sia_uri)),
            (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", ca_detail.manifest_uri(ca))))
     self = cls()
@@ -341,9 +337,7 @@ class revoke_pdu(revoke_syntax):
 
   def serve_pdu(self, gctx, q_msg, r_msg, child):
     """Serve one revoke request PDU."""
-    if not self.class_name.isdigit():
-      raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
-    for ca_detail in rpki.sql.ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND state != 'revoked'" % long(self.class_name)):
+    for ca_detail in child.ca_from_class_name(gctx, self.class_name).ca_details(gctx):
       for child_cert in child.child_certs(gctx, ca_detail = ca_detail, ski = self.get_SKI()):
         child_cert.revoke()
     rpki.sql.sql_sweep(gctx)

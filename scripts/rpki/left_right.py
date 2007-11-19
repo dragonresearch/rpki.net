@@ -562,6 +562,16 @@ class child_elt(data_elt):
     """Fetch all parent objects that link to self object to which this child object links."""
     return parent_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id)
 
+  def ca_from_class_name(self, gctx, class_name):
+    """Fetch the CA corresponding to an up-down class_name."""
+    if not class_name.isdigit():
+      raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % class_name
+    ca = rpki.sql.ca_obj.sql_fetch(gctx, long(class_name))
+    parent = ca.parent(gctx)
+    if self.self_id != parent.self_id:
+      raise rpki.exceptions.ClassNameMismatch, "child.self_id = %d, parent.self_id = %d" % (self.self_id, parent.self_id)
+    return ca
+
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for child_elt."""
     if self.reissue:

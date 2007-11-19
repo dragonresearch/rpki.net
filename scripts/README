@@ -68,7 +68,12 @@ Current TO DO list:
 
   - Batch regeneration of CRLs and manifests for all CAs.
 
-- Implement remaining left-right control booleans.
+  - Protection against up-down operations specifying a class_name that
+    belongs to some other self context.
+
+- Implement remaining left-right control booleans -- among other
+  reasons, these are the IRBE triggers for things like key rollover,
+  which we need to test some of the stuff that's already done.
 
 - Child side of revocation...Common Management Tasks page in the APNIC
   Wiki shows some states where revocation is triggered by the child
@@ -83,7 +88,7 @@ Current TO DO list:
   At the moment we think that the state progression is linear, ie,
   there's no need for a next_state field.
 
-    state     := pending | active | deprecated | revoked
+    state     := pending | active | deprecated
     timestamp := NULL | <time of next transition>
 
   We can check for things with expired timers directly by doing
@@ -92,13 +97,12 @@ Current TO DO list:
     SELECT blah FROM ca_detail
     WHERE timestamp IS NOT NULL and timestamp < UTC_TIMESTAMP()
 
-  At this point I doubt we really need the revoked state.  If we do
-  need the revoked state, the timer becomes the delay until we can get
-  rid of the ca_detail object entirely, or something like that.
+  Well, maybe.  I don't really understand MySQL well enough to be sure
+  that it'll do the right thing comparing TIMESTAMP to DATETIME.
 
-  How do we, as child, even find out that a cert has been revoked?  In
-  the up-down protocol we just see a new cert, there's no indication
-  what happened to the old one.  Either:
+  How do we, as child, find out that a cert has been revoked?  In the
+  up-down protocol we just see a new cert, there's no indication what
+  happened to the old one.  Either:
 
   a) We asked to have it revoked, duh.
 
@@ -112,9 +116,8 @@ Current TO DO list:
   Since we don't find out about that directly, we're done with it when
   the parent issues a new cert.
 
-  This suggest that we don't need the client "revoked" state, and the
-  client "deprecated" state only occurs when there's also a timer set
-  to make it go away.
+  This suggest that the client "deprecated" state only occurs when
+  there's also a timer set to make it go away.
 
   Common Management Tasks has a delay between receipt of a new cert by
   the child and that cert going active.  Neither Randy nor I sees a

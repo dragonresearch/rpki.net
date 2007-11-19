@@ -220,7 +220,7 @@ class ca_obj(sql_persistant):
     return ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s" % self.ca_id)
 
   def fetch_active(self, gctx):
-    """Return the active ca_detail for this CA, if any."""
+    """Fetch the active ca_detail for this CA, if any."""
     return ca_detail_obj.sql_fetch_where1(gctx, "ca_id = %s AND state = 'active'" % self.ca_id)
 
   def construct_sia_uri(self, gctx, parent, rc):
@@ -252,7 +252,7 @@ class ca_obj(sql_persistant):
     rc_resources = rc.to_resource_bag()
     cert_map = dict((c.cert.get_SKI(), c) for c in rc.certs)
 
-    for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL AND state != 'revoked'" % self.ca_id):
+    for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL" % self.ca_id):
       ski = ca_detail.latest_ca_cert.get_SKI()
       if ca_detail.state != "deprecated":
         current_resources = ca_detail.latest_ca_cert.get_3779resources()

@@ -55,3 +55,6 @@ class BSCNotFound(Exception):
 
 class BadSender(Exception):
   """Unexpected XML sender value."""
+
+class ClassNameMismatch(Exception):
+  """class_name does not match child context."""

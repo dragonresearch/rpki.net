@@ -68,6 +68,8 @@ Current TO DO list:
 
   - Batch regeneration of CRLs and manifests for all CAs.
 
+- Implement remaining left-right control booleans.
+
 - Child side of revocation...Common Management Tasks page in the APNIC
   Wiki shows some states where revocation is triggered by the child
   after a delay.  Other text in Common Management Tasks suggests that

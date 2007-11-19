@@ -211,12 +211,24 @@ class ca_obj(sql_persistant):
   last_issued_sn = 0
   last_manifest_sn = 0
 
+  def parent(self, gctx):
+    """Fetch parent object to which this CA object links."""
+    return rpki.left_right.parent_elt.sql_fetch(gctx, self.parent_id)
+
+  def ca_details(self, gctx):
+    """Fetch all ca_detail objects that link to this CA object."""
+    return ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s" % self.ca_id)
+
+  def fetch_active(self, gctx):
+    """Return the active ca_detail for this CA, if any."""
+    return ca_detail_obj.sql_fetch_where1(gctx, "ca_id = %s AND state = 'active'" % self.ca_id)
+
   def construct_sia_uri(self, gctx, parent, rc):
     """Construct the sia_uri value for this CA given configured
     information and the parent's up-down protocol list_response PDU.
     """
 
-    repository = rpki.left_right.repository_elt.sql_fetch(gctx, parent.repository_id)
+    repository = parent.repository(gctx)
     sia_uri = rc.suggested_sia_head and rc.suggested_sia_head.rsync()
     if not sia_uri or not sia_uri.startswith(parent.sia_base):
       sia_uri = parent.sia_base
@@ -291,9 +303,9 @@ class ca_obj(sql_persistant):
     CA, then finally delete this CA itself.
     """
 
-    repository = rpki.left_right.repository_elt.sql_fetch(gctx, parent.repository_id)
-    for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s" % self.ca_id):
-      for child_cert in child_cert_obj.sql_fetch_where(gctx, "ca_detail_id = %s" % ca_detail.ca_detail_id):
+    repository = parent.repository(gctx)
+    for ca_detail in self.ca_details(gctx):
+      for child_cert in ca_detail.child_certs(gctx):
         repository.withdraw(gctx, (child_cert.cert, child_cert.uri(self)))
         child_cert.sql_delete(gctx)
       repository.withdraw(gctx, (ca_detail.latest_crl, ca_detail.crl_uri()), (ca_detail.latest_manifest, ca_detail.manifest_uri(self)))
@@ -317,10 +329,6 @@ class ca_obj(sql_persistant):
     self.last_crl_sn += 1
     self.sql_mark_dirty()
     return self.last_crl_sn
-
-  def fetch_active(self, gctx):
-    """Fetch the current active ca_detail for this ca."""
-    return ca_detail_obj.sql_fetch_where1(gctx, "ca_id = %s AND state = 'active'" % self.ca_id)
 
 class ca_detail_obj(sql_persistant):
   """Internal CA detail object."""
@@ -348,6 +356,18 @@ class ca_detail_obj(sql_persistant):
            self.public_key.get_DER() == self.private_key_id.get_public_DER()
     assert (self.manifest_public_key is None and self.manifest_private_key_id is None) or \
            self.manifest_public_key.get_DER() == self.manifest_private_key_id.get_public_DER()
+
+  def ca(self, gctx):
+    """Fetch CA object to which this ca_detail links."""
+    return ca_obj.sql_fetch(gctx, self.ca_id)
+
+  def child_certs(self, gctx):
+    """Fetch all child_cert objects that link to this ca_detail."""
+    return child_cert_obj.sql_fetch_where(gctx, "ca_detail_id = %s" % self.ca_detail_id)
+
+  def route_origins(self, gctx):
+    """Fetch all route_origin objects that link to this ca_detail."""
+    return rpki.left_right.route_origin_elt.sql_fetch_where(gctx, "ca_detail_id = %s" % self.ca_detail_id)
 
   def crl_uri(self, ca):
     """Return publication URI for this ca_detail's CRL."""
@@ -384,7 +404,7 @@ class ca_detail_obj(sql_persistant):
     new_resources = self.latest_ca_cert.get_3779resources()
 
     if sia_uri_changed or old_resources.oversized(new_resources):
-      for child_cert in child_cert_obj.sql_fetch_where(gctx, "ca_detail_id = %s" % self.ca_detail_id):
+      for child_cert in self.child_certs(gctx):
         child_resources = child_cert.cert.get_3779resources()
         if sia_uri_changed or child_resources.oversized(new_resources):
           child_cert.reissue(
@@ -463,8 +483,8 @@ class ca_detail_obj(sql_persistant):
 
     self.generate_manifest(gctx)
     
-    parent = rpki.left_right.parent_elt.sql_fetch(gctx, ca.parent_id)
-    repository = rpki.left_right.repository_elt.sql_fetch(gctx, parent.repository_id)
+    parent = ca.parent(gctx)
+    repository = parent.repository(gctx)
 
     repository.publish(gctx, (child_cert.cert, child_cert.uri(ca)), (self.latest_manifest, self.manifest_uri(ca)))
 
@@ -476,9 +496,9 @@ class ca_detail_obj(sql_persistant):
     new CRL is needed.
     """
 
-    ca = ca_obj.sql_fetch(gctx, self.ca_id)
-    parent = rpki.left_right.parent_elt.sql_fetch(gctx, ca.parent_id)
-    self_obj = rpki.left_right.self_elt.sql_fetch(gctx, parent.self_id)
+    ca = self.ca(gctx)
+    parent = ca.parent(gctx)
+    self_obj = parent.self(gctx)
     crl_interval = rpki.sundial.timedelta(seconds = self_obj.crl_interval)
     now = rpki.sundial.datetime.utcnow()
 
@@ -501,9 +521,9 @@ class ca_detail_obj(sql_persistant):
   def generate_manifest(self, gctx):
     """Generate a new manifest for this ca_detail."""
 
-    ca = ca_obj.sql_fetch(gctx, self.ca_id)
-    parent = rpki.left_right.parent_elt.sql_fetch(gctx, ca.parent_id)
-    self_obj = rpki.left_right.self_elt.sql_fetch(gctx, parent.self_id)
+    ca = self.ca(gctx)
+    parent = ca.parent(gctx)
+    self_obj = parent.self(gctx)
     certs = child_cert_obj.sql_fetch_where(gctx, "child_cert.ca_detail_id = %s AND child_cert.revoked IS NULL" % self.ca_detail_id)
 
     m = rpki.x509.SignedManifest()
@@ -529,6 +549,14 @@ class child_cert_obj(sql_persistant):
     if child_id or ca_detail_id or cert:
       self.sql_mark_dirty()
 
+  def child(self, gctx):
+    """Fetch child object to which this child_cert object links."""
+    return rpki.left_right.child_elt.sql_fetch(gctx, self.child_id)
+
+  def ca_detail(self, gctx):
+    """Fetch ca_detail object to which this child_cert object links."""
+    return ca_detail_obj.sql_fetch(gctx, self.ca_detail_id)
+
   def uri_tail(self):
     """Return the tail (filename) portion of the URI for this child_cert."""
     return self.cert.gSKI() + ".cer"
@@ -552,8 +580,8 @@ class child_cert_obj(sql_persistant):
     child_cert_obj must use the return value from this method.
     """
 
-    ca = ca_obj.sql_fetch(gctx, ca_detail.ca_id)
-    child = rpki.left_right.child_elt.sql_fetch(gctx, self.child_id)
+    ca = ca_detail.ca(gctx)
+    child = self.child(gctx)
 
     old_resources = self.cert.get_3779resources()
     old_sia       = self.cert.get_SIA()

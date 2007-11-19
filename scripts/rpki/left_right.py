@@ -61,6 +61,14 @@ class base_elt(object):
 class data_elt(base_elt, rpki.sql.sql_persistant):
   """Virtual class for top-level left-right protocol data elements."""
 
+  def self(this, gctx):
+    """Fetch self object to which this object links."""
+    return self_elt.sql_fetch(gctx, this.self_id)
+
+  def bsc(self, gctx):
+    """Return BSC object to which this object links."""
+    return bsc_elt.sql_fetch(gctx, self.bsc_id)
+
   def make_reply(self, r_pdu = None):
     """Construct a reply PDU."""
     if r_pdu is None:
@@ -206,6 +214,26 @@ class self_elt(data_elt):
     """Extra SQL delete actions for self_elt -- handle extension preferences."""
     gctx.cur.execute("DELETE FROM self_pref WHERE self_id = %s", self.self_id)
 
+  def bscs(self, gctx):
+    """Fetch all BSC objects that link to this self object."""
+    return bsc_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id)
+
+  def repositories(self, gctx):
+    """Fetch all repository objects that link to this self object."""
+    return repository_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id)
+
+  def parents(self, gctx):
+    """Fetch all parent objects that link to this self object."""
+    return parent_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id)
+
+  def children(self, gctx):
+    """Fetch all child objects that link to this self object."""
+    return child_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id)
+
+  def route_origins(self, gctx):
+    """Fetch all route_origin objects that link to this self object."""
+    return route_origin_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id)
+  
   def serve_pre_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for self_elt -- handle extension preferences."""
     if self is not q_pdu:
@@ -259,13 +287,12 @@ class self_elt(data_elt):
   def client_poll(self, gctx):
     """Run the regular client poll cycle with each of this self's parents in turn."""
 
-    for parent in parent_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id):
+    for parent in self.parents(gctx):
 
       # This will need a callback when we go event-driven
       r_pdu = rpki.up_down.list_pdu.query(gctx, parent)
 
-      ca_map = dict((ca.parent_resource_class, ca)
-                    for ca in rpki.sql.ca_obj.sql_fetch_where(gctx, "parent_id = %s" % parent.parent_id))
+      ca_map = dict((ca.parent_resource_class, ca) for ca in parent.cas(gctx))
       for rc in r_pdu.payload.classes:
         if rc.class_name in ca_map:
           ca = ca_map[rc.class_name]
@@ -285,7 +312,7 @@ class self_elt(data_elt):
 
     now = rpki.sundial.datetime.utcnow()
 
-    for child in child_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id):
+    for child in self.children(gctx):
       child_certs = rpki.sql.child_cert_obj.sql_fetch_where(gctx, "child_id = %s AND revoked IS NULL" % child.child_id)
       if not child_certs:
         continue
@@ -294,7 +321,7 @@ class self_elt(data_elt):
       irdb_resources = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
 
       for child_cert in child_certs:
-        ca_detail = rpki.sql.ca_detail_obj.sql_fetch(gctx, child_cert.ca_detail_id)
+        ca_detail = child_cert.ca_detail(gctx)
         if ca_detail.state != "active":
           continue
         old_resources = child_cert.cert.get_3779resources()
@@ -304,10 +331,10 @@ class self_elt(data_elt):
             gctx      = gctx,
             ca_detail = ca_detail,
             resources = new_resources,
-            sia       = rpki.sql.ca_obj.sql_fetch(gctx, ca_detail.ca_id).sia_uri())
+            sia       = ca_detail.ca(gctx).sia_uri())
         elif old_resources.valid_until < now:
-          parent = parent_elt.sql_fetch(gctx, ca.parent_id)
-          repository = repository_elt.sql_fetch(gctx, parent.repository_id)
+          parent = ca.parent(gctx)
+          repository = parent.repository(gctx)
           child_cert.sql_delete(gctx)
           ca_detail.generate_manifest(gctx)
           repository.publish(gctx,  (ca_detail.latest_manifest, ca_detail.manifest_uri(ca)))
@@ -321,9 +348,9 @@ class self_elt(data_elt):
     """
 
     now = rpki.sundial.datetime.utcnow()
-    for parent in parent_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id):
-      repository = repository_elt.sql_fetch(gctx, parent.repository_id)
-      for ca in rpki.sql.ca_obj.sql_fetch_where(gctx, "parent_id = %s" % parent.parent_id):
+    for parent in self.parents(gctx):
+      repository = parent.repository(gctx)
+      for ca in parent.cas(gctx):
         ca_detail = ca.fetch_active(gctx)
         #
         # Temporary kludge until I sort out initial publication.
@@ -369,6 +396,18 @@ class bsc_elt(data_elt):
   def sql_delete_hook(self, gctx):
     """Extra SQL delete actions for bsc_elt -- handle signing certs."""
     gctx.cur.execute("DELETE FROM bsc_cert WHERE bsc_id = %s", self.bsc_id)
+
+  def repositories(self, gctx):
+    """Fetch all repository objects that link to this BSC object."""
+    return repository_elt.sql_fetch_where(gctx, "bsc_id = %s" % self.bsc_id)
+
+  def parents(self, gctx):
+    """Fetch all parent objects that link to this BSC object."""
+    return parent_elt.sql_fetch_where(gctx, "bsc_id = %s" % self.bsc_id)
+
+  def children(self, gctx):
+    """Fetch all child objects that link to this BSC object."""
+    return child_elt.sql_fetch_where(gctx, "bsc_id = %s" % self.bsc_id)
 
   def serve_pre_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for bsc_elt -- handle signing certs and key generation."""
@@ -432,6 +471,14 @@ class parent_elt(data_elt):
   cms_ta = None
   https_ta = None
 
+  def repository(self, gctx):
+    """Fetch repository object to which this parent object links."""
+    return repository_elt.sql_fetch(gctx, self.repository_id)
+
+  def cas(self, gctx):
+    """Fetch all CA objects that link to this parent object."""
+    return rpki.sql.ca_obj.sql_fetch_where(gctx, "parent_id = %s" % self.parent_id)
+
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for parent_elt."""
     if self.rekey or self.reissue or self.revoke:
@@ -476,7 +523,7 @@ class parent_elt(data_elt):
 
     For now, keep this dead simple lock step, rewrite it later.
     """
-    bsc = bsc_elt.sql_fetch(gctx, self.bsc_id)
+    bsc = self.bsc(gctx)
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
     q_msg = rpki.up_down.message_pdu.make_query(q_pdu)
@@ -507,6 +554,14 @@ class child_elt(data_elt):
 
   cms_ta = None
 
+  def child_certs(self, gctx):
+    """Fetch all child_cert objects that link to this child object."""
+    return rpki.sql.child_cert_obj.sql_fetch_where(gctx, "child_id = %s" % self.child_id)
+
+  def parents(self, gctx):
+    """Fetch all parent objects that link to self object to which this child object links."""
+    return parent_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id)
+
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for child_elt."""
     if self.reissue:
@@ -536,7 +591,7 @@ class child_elt(data_elt):
 
   def serve_up_down(self, gctx, query):
     """Outer layer of server handling for one up-down PDU from this child."""
-    bsc = bsc_elt.sql_fetch(gctx, self.bsc_id)
+    bsc = self.bsc(gctx)
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
     q_elt = rpki.cms.xml_verify(query, self.cms_ta)
@@ -576,6 +631,10 @@ class repository_elt(data_elt):
 
   cms_ta = None
   https_ta = None
+
+  def parents(self, gctx):
+    """Fetch all parent objects that link to this repository object."""
+    return parent_elt.sql_fetch_where(gctx, "repository_id = %s" % self.repository_id)
 
   def startElement(self, stack, name, attrs):
     """Handle <repository/> element."""
@@ -675,6 +734,10 @@ class route_origin_elt(data_elt):
   def sql_delete_hook(self, gctx):
     """Extra SQL delete actions for route_origin_elt -- handle address ranges."""
     gctx.cur.execute("DELETE FROM route_origin_range WHERE route_origin_id = %s", self.route_origin_id)
+
+  def ca_detail(self, gctx):
+    """Fetch all ca_detail objects that link to this route_origin object."""
+    return rpki.sql.ca_detail_obj.sql_fetch(gctx, self.ca_detail_id)
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for route_origin_elt."""

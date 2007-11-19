@@ -172,8 +172,8 @@ class list_pdu(base_elt):
     # This will require a callback when we go event-driven
     irdb_resources = rpki.left_right.irdb_query(gctx, child.self_id, child.child_id)
 
-    for parent in rpki.left_right.parent_elt.sql_fetch_where(gctx, "parent.self_id = %s" % child.self_id):
-      for ca in rpki.sql.ca_obj.sql_fetch_where(gctx, "ca.parent_id = %s" % parent.parent_id):
+    for parent in child.parents(gctx):
+      for ca in parent.cas(gctx):
         ca_detail = ca.fetch_active(gctx)
         if not ca_detail:
           continue
@@ -253,8 +253,7 @@ class issue_pdu(base_elt):
     # Check the request
     if not self.class_name.isdigit():
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % self.class_name
-    ca_id = long(self.class_name)
-    ca = rpki.sql.ca_obj.sql_fetch(gctx, ca_id)
+    ca = rpki.sql.ca_obj.sql_fetch(gctx, long(self.class_name))
     ca_detail = ca.fetch_active(gctx)
     if ca is None or ca_detail is None:
       raise rpki.exceptions.NotInDatabase
@@ -296,7 +295,7 @@ class issue_pdu(base_elt):
     c.cert_url = multi_uri(child_cert.uri(ca))
     c.cert = child_cert.cert
     rc = class_elt()
-    rc.class_name = str(ca_id)
+    rc.class_name = self.class_name
     rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
     rc.from_resource_bag(resources)
     rc.certs.append(c)
@@ -363,8 +362,8 @@ class revoke_pdu(revoke_syntax):
   @classmethod
   def query(cls, gctx, ca_detail):
     """Send a "revoke" request to parent associated with ca_detail."""
-    ca = rpki.sql.ca_obj.sql_fetch(gctx, ca_detail.ca_id)
-    parent = rpki.left_right.parent_elt.sql_fetch(gctx, ca.parent_id)
+    ca = ca_detail.ca(gctx)
+    parent = ca.parent(gctx)
     self = cls()
     self.class_name = ca.parent_resource_class
     self.ski = ca_detail.latest_ca_cert.gSKI()

@@ -161,9 +161,9 @@ Current TO DO list:
   Considerations (1) and (3) have to dominate, which may mean we take
   a hit on (2).
 
-- More dumb little methods missing: objects on the many side of a
-  one-to-many relationship should have convenience methods for
-  retrieving their parents.   Too many explicit calls to sql_fetch().
+- Most of the explicit calls to sql_fetch*() are now encapsulated in
+  one-line methods.  The remaining ones are probably hints at minor
+  bits of abstraction still to be done.
 
 - Need a logging subsystem, including syslog support.  Absent a better
   plan, see the Python syslog module.

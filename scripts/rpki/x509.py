@@ -15,6 +15,16 @@ some of the nasty details.  This involves a lot of format conversion.
 import POW, tlslite.api, POW.pkix, base64, time
 import rpki.exceptions, rpki.resource_set, rpki.manifest, rpki.cms, rpki.oids, rpki.sundial
 
+def calculate_SKI(public_key_der):
+  """Calculate the SKI value given the DER representation of a public
+  key, which requires first peeling the ASN.1 wrapper off the key.
+  """
+  k = POW.pkix.SubjectPublicKeyInfo()
+  k.fromString(public_key_der)
+  d = POW.Digest(POW.SHA1_DIGEST)
+  d.update(k.subjectPublicKey.get())
+  return d.digest()
+
 class PEM_converter(object):
   """Convert between DER and PEM encodings for various kinds of ASN.1 data."""
 
@@ -517,9 +527,7 @@ class RSA(DER_object):
 
   def get_SKI(self):
     """Calculate the SKI of this keypair."""
-    d = POW.Digest(POW.SHA1_DIGEST)
-    d.update(self.get_public_DER())
-    return d.digest()
+    return calculate_SKI(self.get_public_DER())
 
   def get_RSApublic(self):
     """Convert the public key of this keypair into a RSApublic object."""
@@ -550,9 +558,7 @@ class RSApublic(DER_object):
 
   def get_SKI(self):
     """Calculate the SKI of this public key."""
-    d = POW.Digest(POW.SHA1_DIGEST)
-    d.update(self.get_DER())
-    return d.digest()
+    return calculate_SKI(self.get_DER())
 
 class SignedManifest(DER_object):
   """Class to hold a signed manifest.

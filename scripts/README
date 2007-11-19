@@ -84,6 +84,12 @@ Current TO DO list:
     state     := pending | active | deprecated | revoked
     timestamp := NULL | <time of next transition>
 
+  We can check for things with expired timers directly by doing
+  something like:
+
+    SELECT blah FROM ca_detail
+    WHERE timestamp IS NOT NULL and timestamp < UTC_TIMESTAMP()
+
   At this point I doubt we really need the revoked state.  If we do
   need the revoked state, the timer becomes the delay until we can get
   rid of the ca_detail object entirely, or something like that.

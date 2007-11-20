@@ -68,8 +68,16 @@ class sql_persistant(object):
 
   @classmethod
   def sql_fetch(cls, gctx, id):
-    """Fetch one object from SQL, based on its primary key."""
-    return cls.sql_fetch_where1(gctx, "%s = %s" % (cls.sql_template.index, id))
+    """Fetch one object from SQL, based on its primary key.  Since in
+    this one case we know that the primary index is also the cache
+    key, we check for a cache hit directly in the hope of bypassing the
+    SQL lookup entirely.
+    """
+    key = (cls, id)
+    if key in sql_cache:
+      return sql_cache[key]
+    else:
+      return cls.sql_fetch_where1(gctx, "%s = %s" % (cls.sql_template.index, id))
 
   @classmethod
   def sql_fetch_where1(cls, gctx, where):

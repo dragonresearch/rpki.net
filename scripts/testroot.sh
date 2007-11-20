@@ -92,4 +92,27 @@ then
   python http-client.py
   python testpoke.py -r list
 
+  python http-client.py
+  python testpoke.py -r list
+  python testpoke.py -r issue
+
+  python testpoke.py -r revoke
+  python testpoke.py -r list
+  python http-client.py
+  python testpoke.py -r list
+
+  python testpoke.py -r issue
+  python testpoke.py -r revoke
+  python testpoke.py -r issue
+  python testpoke.py -r revoke
+  python testpoke.py -r issue
+  python testpoke.py -r revoke
+  python testpoke.py -r list
+  python http-client.py
+  python testpoke.py -r list
+
+  python testpoke.py -r issue
+  python http-client.py
+  python testpoke.py -r list
+
 fi

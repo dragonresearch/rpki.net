@@ -452,7 +452,7 @@ class ca_detail_obj(sql_persistant):
     self.latest_manifest_cert = self.latest_ca_cert.issue(
       keypair     = self.private_key_id,
       subject_key = self.manifest_public_key,
-      serial      = ca.next_serial_number(),
+      serial      = ca.next_manifest_number(),
       sia         = None,
       aia         = self.ca_cert_uri,
       crldp       = self.crl_uri(ca),

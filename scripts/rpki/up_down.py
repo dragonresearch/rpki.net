@@ -333,7 +333,7 @@ class revoke_pdu(revoke_syntax):
     
   def get_SKI(self):
     """Convert g(SKI) encoding from PDU back to raw SKI."""
-    return base64.b64decode(self.ski.replace("_", "/").replace("-", "+"))
+    return base64.urlsafe_b64decode(self.ski + "=")
 
   def serve_pdu(self, gctx, q_msg, r_msg, child):
     """Serve one revoke request PDU."""

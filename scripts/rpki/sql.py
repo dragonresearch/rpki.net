@@ -507,7 +507,7 @@ class ca_detail_obj(sql_persistant):
       if now > child_cert.cert.getNotAfter() + crl_interval:
         child_cert.sql_delete()
       else:
-        certlist.append((child_cert.cert.getSerial(), child_cert.revoked, ()))
+        certlist.append((child_cert.cert.getSerial(), child_cert.revoked.toASN1tuple(), ()))
     certlist.sort()
 
     self.latest_crl = rpki.x509.CRL.generate(

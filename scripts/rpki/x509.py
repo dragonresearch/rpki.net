@@ -155,7 +155,7 @@ class DER_object(object):
     """Calculate g(SKI) for this object.  Only work for subclasses
     that implement get_SKI().
     """
-    return base64.b64encode(self.get_SKI()).replace("+", "-").replace("/", "_")
+    return base64.urlsafe_b64encode(self.get_SKI()).rstrip("=")
 
   def get_AKI(self):
     """Get the AKI extension from this object.  Only works for subclasses that support getExtension()."""
@@ -673,7 +673,7 @@ class CRL(DER_object):
   def generate(cls, keypair, issuer, serial, thisUpdate, nextUpdate, revokedCertificates, version = 1, digestType = "sha256WithRSAEncryption"):
     crl = POW.pkix.CertificateList()
     crl.setVersion(version)
-    crl.setIssuer(issuer.get_POWpkix().getIssuer())
+    crl.setIssuer(issuer.get_POWpkix().getSubject())
     crl.setThisUpdate(thisUpdate.toASN1tuple())
     crl.setNextUpdate(nextUpdate.toASN1tuple())
     if revokedCertificates:

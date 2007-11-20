@@ -87,4 +87,9 @@ then
   mimencode -u |
   $openssl x509 -noout -inform DER -text
 
+  python testpoke.py -r revoke
+  python testpoke.py -r list
+  python http-client.py
+  python testpoke.py -r list
+
 fi

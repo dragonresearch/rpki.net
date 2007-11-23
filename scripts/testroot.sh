@@ -34,31 +34,30 @@ trap "kill $rpkid" 0
 
 # Create a self instance
 
-python irbe-cli.py self --action create --crl_interval 84600
+time python irbe-cli.py self --action create --crl_interval 84600
 
 # Create a business signing context, issue the necessary business cert, and set up the cert chain
 
-python irbe-cli.py --pem_out bsc.req bsc --action create --self_id 1 --generate_keypair --signing_cert biz-certs/Bob-CA.cer
-$openssl x509 -req -in bsc.req -out bsc.cer -CA biz-certs/Bob-CA.cer -CAkey biz-certs/Bob-CA.key -CAserial biz-certs/Bob-CA.srl
-python irbe-cli.py bsc --action set --self_id 1 --bsc_id 1 --signing_cert bsc.cer
+time python irbe-cli.py --pem_out bsc.req bsc --action create --self_id 1 --generate_keypair --signing_cert biz-certs/Bob-CA.cer
+time $openssl x509 -req -in bsc.req -out bsc.cer -CA biz-certs/Bob-CA.cer -CAkey biz-certs/Bob-CA.key -CAserial biz-certs/Bob-CA.srl
+time python irbe-cli.py bsc --action set --self_id 1 --bsc_id 1 --signing_cert bsc.cer
 rm -f bsc.req bsc.cer
 
 # Create a repository context
 
-python irbe-cli.py repository --self_id 1 --action create --bsc_id 1
+time python irbe-cli.py repository --self_id 1 --action create --bsc_id 1
 
 # Create a parent context pointing at testroot.py
 
-python irbe-cli.py parent --self_id 1 --action create --bsc_id 1 --repository_id 1 \
+time python irbe-cli.py parent --self_id 1 --action create --bsc_id 1 --repository_id 1 \
     --peer_contact_uri https://localhost:44333/ \
     --cms_ta biz-certs/Elena-Root.cer \
     --https_ta biz-certs/Elena-Root.cer \
     --sia_base rsync://wombat.invalid/
 
-# Create a child context -- note that we're using the -CA as trust anchor rather than -Root,
-# because the APNIC poke tool doesn't offer any way to construct CMS chains
+# Create a child context
 
-python irbe-cli.py child --self_id 1 --action create --bsc_id 1 --cms_ta biz-certs/Frank-Root.cer
+time python irbe-cli.py child --self_id 1 --action create --bsc_id 1 --cms_ta biz-certs/Frank-Root.cer
 
 # Need to link irdb to created child.  For now, just do this manually in MySQL CLI:
 #
@@ -73,46 +72,47 @@ then
   python irdb.py     & irdb=$!
   trap "kill $rpkid $irdb $testroot" 0
 
-  python http-client.py
-  python testpoke.py -r list
-  python testpoke.py -r issue
+  date; time python http-client.py
+  date; time python testpoke.py -r list
+  date; time python testpoke.py -r issue
 
-  python http-client.py
-  python testpoke.py -r list
-  python testpoke.py -r issue
+  date; time python http-client.py
+  date; time python testpoke.py -r list
+  date; time python testpoke.py -r issue
 
-  python testpoke.py -r issue |
+  date; python testpoke.py -r issue |
   qh |
   sed -n '/^(certificate/,/^)certificate/s/^-//p' |
   mimencode -u |
   $openssl x509 -noout -inform DER -text
 
-  python testpoke.py -r revoke
-  python testpoke.py -r list
-  python http-client.py
-  python testpoke.py -r list
+  date; time python testpoke.py -r revoke
+  date; time python testpoke.py -r list
+  date; time python http-client.py
+  date; time python testpoke.py -r list
 
-  python http-client.py
-  python testpoke.py -r list
-  python testpoke.py -r issue
+  date; time python http-client.py
+  date; time python testpoke.py -r list
+  date; time python testpoke.py -r issue
 
-  python testpoke.py -r revoke
-  python testpoke.py -r list
-  python http-client.py
-  python testpoke.py -r list
+  date; time python testpoke.py -r revoke
+  date; time python testpoke.py -r list
+  date; time python http-client.py
+  date; time python testpoke.py -r list
 
-  python testpoke.py -r issue
-  python testpoke.py -r revoke
-  python testpoke.py -r issue
-  python testpoke.py -r revoke
-  python testpoke.py -r issue
-  python testpoke.py -r revoke
-  python testpoke.py -r list
-  python http-client.py
-  python testpoke.py -r list
+  date; time python testpoke.py -r issue
+  date; time python testpoke.py -r revoke
+  date; time python testpoke.py -r issue
+  date; time python testpoke.py -r revoke
+  date; time python testpoke.py -r issue
+  date; time python testpoke.py -r revoke
+  date; time python testpoke.py -r list
+  date; time python http-client.py
+  date; time python testpoke.py -r list
 
-  python testpoke.py -r issue
-  python http-client.py
-  python testpoke.py -r list
+  date; time python testpoke.py -r issue
+  date; time python http-client.py
+  date; time python testpoke.py -r list
+  date
 
 fi

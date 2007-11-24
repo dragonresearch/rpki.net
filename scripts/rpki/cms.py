@@ -93,9 +93,9 @@ def verify(cms, ta):
     raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed with status %s" % status
 
 
-def xml_verify(elt, ta):
+def xml_verify(cms, ta):
   """Composite routine to verify CMS-wrapped XML."""
-  return lxml.etree.fromstring(verify(elt, ta))
+  return lxml.etree.fromstring(verify(cms, ta))
 
 def xml_sign(elt, key, certs, encoding = "us-ascii"):
   """Composite routine to sign CMS-wrapped XML."""

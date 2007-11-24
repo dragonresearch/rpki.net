@@ -210,6 +210,15 @@ Current TO DO list:
 
   Deferred for the moment, not sure for how long.
 
+- Need to handle loss of connnection to database server.  MySQLdb
+  throws an exception, which we can catch, and retrying is easy
+  enough, but need to be a bit careful about recovery action depending
+  on whether we had uncommitted changes.
+
+- tlslite code seems a bit flakey under heavy use.  irdb-setup.py has
+  now failed to run to completion on two different machines, in both
+  cases something myterious and bad happened in the tls code.
+
 Once this lot is done we'll be close to something that shows at least
 the basics of normal operation, albiet in a form that's not yet usable
 in production.

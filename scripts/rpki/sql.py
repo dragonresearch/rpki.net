@@ -340,6 +340,10 @@ class ca_obj(sql_persistant):
     self.sql_mark_dirty()
     return self.last_crl_sn
 
+  def rekey(self, gctx):
+    """Initiate a rekey operation for this ca."""
+    raise rpki.exceptions.NotImplementedYet
+
 class ca_detail_obj(sql_persistant):
   """Internal CA detail object."""
 

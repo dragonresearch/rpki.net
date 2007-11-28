@@ -79,21 +79,21 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
     r_pdu.type = "reply"
     return r_pdu
 
-  def serve_pre_save_hook(self, q_pdu, r_pdu):
+  def serve_pre_save_hook(self, gctx, q_pdu, r_pdu):
     """Overridable hook."""
     pass
 
-  def serve_post_save_hook(self, q_pdu, r_pdu):
+  def serve_post_save_hook(self, gctx, q_pdu, r_pdu):
     """Overridable hook."""
     pass
 
   def serve_create(self, gctx, r_msg):
     """Handle a create action."""
     r_pdu = self.make_reply()
-    self.serve_pre_save_hook(self, r_pdu)
+    self.serve_pre_save_hook(gctx, self, r_pdu)
     self.sql_store(gctx)
     setattr(r_pdu, self.sql_template.index, getattr(self, self.sql_template.index))
-    self.serve_post_save_hook(self, r_pdu)
+    self.serve_post_save_hook(gctx, self, r_pdu)
     r_msg.append(r_pdu)
 
   def serve_fetch_one(self, gctx):
@@ -113,9 +113,9 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
         if v is not None:
           setattr(db_pdu, a, v)
       db_pdu.sql_mark_dirty()
-      db_pdu.serve_pre_save_hook(self, r_pdu)
+      db_pdu.serve_pre_save_hook(gctx, self, r_pdu)
       db_pdu.sql_store(gctx)
-      db_pdu.serve_post_save_hook(self, r_pdu)
+      db_pdu.serve_post_save_hook(gctx, self, r_pdu)
       r_msg.append(r_pdu)
     else:
       r_msg.append(make_error_report(self))
@@ -155,6 +155,12 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
       raise rpki.exceptions.BadQuery, "Unexpected query: type %s, action %s" % (self.type, self.action)
     dispatch[self.action](gctx, r_msg)
   
+  def unimplemented_control(self, *controls):
+    """Uniform handling for unimplemented control operations."""
+    if reduce(lambda x,y: x or getattr(self, y), controls, False):
+      raise rpki.exceptions.NotImplementedYet, "Unimplemented control %s" % ", ".join(
+        b for b in controls if getattr(self, b))
+
 class extension_preference_elt(base_elt):
   """Container for extension preferences."""
 
@@ -234,18 +240,37 @@ class self_elt(data_elt):
     """Fetch all route_origin objects that link to this self object."""
     return route_origin_elt.sql_fetch_where(gctx, "self_id = %s" % self.self_id)
   
-  def serve_pre_save_hook(self, q_pdu, r_pdu):
+  def serve_pre_save_hook(self, gctx, q_pdu, r_pdu):
     """Extra server actions for self_elt -- handle extension preferences."""
     if self is not q_pdu:
       if q_pdu.clear_extension_preferences:
         self.prefs = []
       self.prefs.extend(pdu.prefs)
 
-  def serve_post_save_hook(self, q_pdu, r_pdu):
+  def serve_post_save_hook(self, gctx, q_pdu, r_pdu):
     """Extra server actions for self_elt."""
-    if self.rekey or self.reissue or self.revoke or self.run_now or self.publish_world_now:
-      raise rpki.exceptions.NotImplementedYet, "Unimplemented control %s" % ", ".join(
-        b for b in ("rekey", "reissue", "revoke", "run_now", "publish_world_now") if getattr(self, b))
+    if self.rekey:
+      self.serve_rekey(gctx)
+    if self.reissue:
+      self.serve_reissue(gctx)
+    if self.revoke:
+      self.serve_revoke(gctx)
+    self.unimplemented_control("run_now", "publish_world_now")
+
+  def serve_rekey(self, gctx):
+    """Handle a left-right rekey action for this self."""
+    for parent in self.parents(gctx):
+      parent.serve_rekey(gctx)
+
+  def serve_revoke(self, gctx):
+    """Handle a left-right revoke action for this self."""
+    for parent in self.parents(gctx):
+      parent.serve_revoke(gctx)
+
+  def serve_reissue(self, gctx):
+    """Handle a left-right reissue action for this self."""
+    for parent in self.parents(gctx):
+      parent.serve_reissue(gctx)
 
   def serve_fetch_one(self, gctx):
     """Find the self object on which a get, set, or destroy method
@@ -409,7 +434,7 @@ class bsc_elt(data_elt):
     """Fetch all child objects that link to this BSC object."""
     return child_elt.sql_fetch_where(gctx, "bsc_id = %s" % self.bsc_id)
 
-  def serve_pre_save_hook(self, q_pdu, r_pdu):
+  def serve_pre_save_hook(self, gctx, q_pdu, r_pdu):
     """Extra server actions for bsc_elt -- handle signing certs and key generation."""
     if self is not q_pdu:
       if q_pdu.clear_signing_certs:
@@ -479,11 +504,37 @@ class parent_elt(data_elt):
     """Fetch all CA objects that link to this parent object."""
     return rpki.sql.ca_obj.sql_fetch_where(gctx, "parent_id = %s" % self.parent_id)
 
-  def serve_post_save_hook(self, q_pdu, r_pdu):
+  def serve_post_save_hook(self, gctx, q_pdu, r_pdu):
     """Extra server actions for parent_elt."""
-    if self.rekey or self.reissue or self.revoke:
-      raise rpki.exceptions.NotImplementedYet, "Unimplemented control %s" % ", ".join(
-        b for b in ("rekey","reissue","revoke") if getattr(self, b))
+    if self.rekey:
+      self.serve_rekey(gctx)
+    if self.reissue:
+      self.serve_reissue(gctx)
+    if self.revoke:
+      self.serve_revoke(gctx)
+
+  def serve_rekey(self, gctx):
+    """Handle a left-right rekey action for this parent."""
+    for ca in self.cas(gctx):
+      ca.rekey(gctx)
+
+  def serve_revoke(self, gctx):
+    """Handle a left-right revoke action for this parent."""
+    for ca in self.cas(gctx):
+      for ca_detail in ca.ca_details(gctx):
+        raise rpki.exceptions.NotImplementedYet
+
+  def serve_reissue(self, gctx):
+    """Handle a left-right reissue action for this parent."""
+    for ca in self.cas(gctx):
+      for ca_detail in ca.ca_details(gctx):
+        for child_certs in ca_detail.child_certs(gctx):
+          #
+          # I guess this reuses existing SIA and resources.  Should
+          # child_cert.reissue() allow defaults for those?  At present
+          # that would be a no-op, so what was the point?
+          #
+          raise rpki.exceptions.NotImplementedYet
 
   def startElement(self, stack, name, attrs):
     """Handle <parent/> element."""
@@ -572,11 +623,9 @@ class child_elt(data_elt):
       raise rpki.exceptions.ClassNameMismatch, "child.self_id = %d, parent.self_id = %d" % (self.self_id, parent.self_id)
     return ca
 
-  def serve_post_save_hook(self, q_pdu, r_pdu):
+  def serve_post_save_hook(self, gctx, q_pdu, r_pdu):
     """Extra server actions for child_elt."""
-    if self.reissue:
-      raise rpki.exceptions.NotImplementedYet, "Unimplemented control %s" % ", ".join(
-        b for b in ("reissue",) if getattr(self, b))
+    self.unimplemented_control("reissue")
 
   def startElement(self, stack, name, attrs):
     """Handle <child/> element."""
@@ -749,11 +798,9 @@ class route_origin_elt(data_elt):
     """Fetch all ca_detail objects that link to this route_origin object."""
     return rpki.sql.ca_detail_obj.sql_fetch(gctx, self.ca_detail_id)
 
-  def serve_post_save_hook(self, q_pdu, r_pdu):
+  def serve_post_save_hook(self, gctx, q_pdu, r_pdu):
     """Extra server actions for route_origin_elt."""
-    if self.suppress_publication:
-      raise rpki.exceptions.NotImplementedYet, "Unimplemented control %s" % ", ".join(
-        b for b in ("suppress_publication",) if getattr(self, b))
+    self.unimplemented_control("suppress_publication")
 
   def startElement(self, stack, name, attrs):
     """Handle <route_origin/> element."""

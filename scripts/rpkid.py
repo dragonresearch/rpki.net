@@ -15,13 +15,16 @@ import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng
 def left_right_handler(query, path):
   """Process one left-right PDU."""
   try:
+    print "Entering left_right_handler()"
     q_elt = rpki.cms.xml_verify(query, gctx.cms_ta_irbe)
     rpki.relaxng.left_right.assertValid(q_elt)
     q_msg = rpki.left_right.sax_handler.saxify(q_elt)
     r_msg = q_msg.serve_top_level(gctx)
     r_elt = r_msg.toXML()
     rpki.relaxng.left_right.assertValid(r_elt)
-    return 200, rpki.cms.xml_sign(r_elt, gctx.cms_key, gctx.cms_certs)
+    reply = rpki.cms.xml_sign(r_elt, gctx.cms_key, gctx.cms_certs)
+    print "Exiting left_right_handler()"
+    return 200, reply
   except Exception, data:
     traceback.print_exc()
     return 500, "Unhandled exception %s" % data
@@ -29,13 +32,16 @@ def left_right_handler(query, path):
 def up_down_handler(query, path):
   """Process one up-down PDU."""
   try:
+    print "Entering up_down_handler()"
     child_id = path.partition("/up-down/")[2]
     if not child_id.isdigit():
       raise rpki.exceptions.BadContactURL, "Bad path: %s" % path
     child = rpki.left_right.child_elt.sql_fetch(gctx, long(child_id))
     if child is None:
       raise rpki.exceptions.ChildNotFound, "Could not find child %s" % child_id
-    return 200, child.serve_up_down(gctx, query)
+    reply = child.serve_up_down(gctx, query)
+    print "Exiting up_down_handler()"
+    return 200, reply
   except Exception, data:
     traceback.print_exc()
     return 400, "Could not process PDU: %s" % data
@@ -44,10 +50,12 @@ def cronjob_handler(query, path):
   """Periodic tasks.  As simple as possible for now, may need to break
   this up into separate handlers later.
   """
+  print "Entering cronjob_handler()"
   for s in rpki.left_right.self_elt.sql_fetch_all(gctx):
     s.client_poll(gctx)
     s.update_children(gctx)
     s.regenerate_crls_and_manifests(gctx)
+  print "Exiting cronjob_handler()"
   return 200, "OK"
 
 class global_context(object):

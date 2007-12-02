@@ -32,9 +32,15 @@ mysql -u rpki -p`awk '$1 == "sql-password" {print $3}' rpkid.conf` rpki <../docs
 rm -rf publication/*
 
 # Start rpkid so we can configure it, make sure we shut it down on exit
+# If we're running under screen, just run it in a different screen instead.
 
-python rpkid.py >>rpkid.log 2>&1 & rpkid=$!
-trap "kill $rpkid" 0 1 2 3 13 15
+if test -n "$STY"
+then
+  screen python rpkid.py
+else
+  python rpkid.py >>rpkid.log 2>&1 & rpkid=$!
+  trap "kill $rpkid" 0 1 2 3 13 15
+fi
 
 # Create a self instance
 
@@ -67,10 +73,19 @@ python irbe-cli.py child --self_id 1 --action create --bsc_id 1 --cms_ta biz-cer
 # Run the other daemons, arrange for everything to go away on shutdown,
 # run initial cron job to set things up, then wait
 
-python testroot.py >>testroot.log 2>&1 & testroot=$!
-python irdb.py     >>irdb.log     2>&1 & irdb=$!
-trap "kill $rpkid $irdb $testroot" 0 1 2 3 13 15
+if test -n "$STY"
+then
+  screen python testroot.py
+  screen python irdb.py
+else
+  python testroot.py >>testroot.log 2>&1 & testroot=$!
+  python irdb.py     >>irdb.log     2>&1 & irdb=$!
+  trap "kill $rpkid $irdb $testroot" 0 1 2 3 13 15
+fi
 
 python http-client.py
 
-tail +0f rpkid.log
+if test -z "$STY"
+then
+  tail +0f rpkid.log
+fi

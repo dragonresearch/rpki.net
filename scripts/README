@@ -53,6 +53,10 @@ pure Python and only 2% about any kind of crypto.
 
 Current TO DO list:
 
+- resource_set_notafter attribute added to RelaxNG but not yet to
+  rpki.up_down.class_elt.  Need to convert to and from Python datetime
+  but maybe lxml already has code to help us with that.
+
 - Things implemented but not yet tested:
 
   - Client side of expiration now assumes that parent will reissue

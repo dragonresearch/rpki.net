@@ -157,9 +157,9 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
   
   def unimplemented_control(self, *controls):
     """Uniform handling for unimplemented control operations."""
-    if reduce(lambda x,y: x or getattr(self, y), controls, False):
-      raise rpki.exceptions.NotImplementedYet, "Unimplemented control %s" % ", ".join(
-        b for b in controls if getattr(self, b))
+    unimplemented = [x for x in controls if getattr(self, x, False)]
+    if unimplemented:
+      raise rpki.exceptions.NotImplementedYet, "Unimplemented control %s" % ", ".join(unimplemented)
 
 class extension_preference_elt(base_elt):
   """Container for extension preferences."""

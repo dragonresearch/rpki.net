@@ -921,7 +921,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
 ## Parsed RelaxNG up_down schema
 up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: up-down-schema.rnc 974 2007-09-16 19:37:23Z sra $
+  $Id: up-down-schema.rnc 1350 2007-12-03 22:54:07Z sra $
   
   RelaxNG (Compact Syntax) Scheme for up-down protocol, extracted
   from APNIC Wiki.
@@ -1031,6 +1031,11 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodi
         <data type="string">
           <param name="maxLength">512000</param>
           <param name="pattern">[\-,/:0-9a-fA-F]*</param>
+        </data>
+      </attribute>
+      <attribute name="resource_set_notafter">
+        <data type="dateTime">
+          <param name="pattern">.*Z</param>
         </data>
       </attribute>
       <optional>

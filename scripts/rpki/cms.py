@@ -21,8 +21,6 @@ def sign(plaintext, keypair, certs):
   OpenSSL CLI tool will accept them.  rpki.x509 handles that for us.
   """
 
-  print "Entering cms.sign()"
-
   certs.chainsort()
 
   signer_filename = "cms.tmp.signer.pem"
@@ -54,8 +52,6 @@ def sign(plaintext, keypair, certs):
   os.unlink(certfile_filename)
   os.unlink(plaintext_filename)
 
-  print "Exiting cms.sign()"
-
   return cms
 
 # openssl smime -verify -inform DER -in THING.der -CAfile biz-certs/Alice-Root.cer
@@ -66,8 +62,6 @@ def verify(cms, ta):
   Returns the plaintext on success.  If OpenSSL CLI tool reports
   anything other than successful verification, we raise an exception.
   """  
-
-  print "Entering cms.verify()"
 
   ta_filename = "cms.tmp.ta.pem"
 
@@ -86,7 +80,6 @@ def verify(cms, ta):
   os.unlink(ta_filename)
 
   if status == "Verification successful\n":
-    print "Exit cms.verify()"
     return plaintext
   else:
     if debug:
@@ -102,17 +95,13 @@ def verify(cms, ta):
 
 def xml_verify(cms, ta):
   """Composite routine to verify CMS-wrapped XML."""
-  print "Entering cms.xml_verify()"
   val = lxml.etree.fromstring(verify(cms, ta))
-  print "Exiting cms.xml_verify()"
   return val
 
 def xml_sign(elt, key, certs, encoding = "us-ascii"):
   """Composite routine to sign CMS-wrapped XML."""
-  print "Entering cms.xml_sign()"
   val = sign(lxml.etree.tostring(elt, pretty_print = True, encoding = encoding, xml_declaration = True),
              key, certs)
-  print "Exiting cms.xml_sign()"
   return val
 
 def dumpasn1(thing):

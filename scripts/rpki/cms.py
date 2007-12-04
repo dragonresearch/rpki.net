@@ -8,7 +8,7 @@ requires disk I/O, and likes PEM format.  Fix this later.
 
 import os, rpki.x509, rpki.exceptions, lxml.etree
 
-debug = False
+debug = True
 
 # openssl smime -sign -nodetach -outform DER -signer biz-certs/Alice-EE.cer
 #                -certfile biz-certs/Alice-CA.cer -inkey biz-certs/Alice-EE.key 

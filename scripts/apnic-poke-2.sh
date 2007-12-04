@@ -45,11 +45,40 @@ python irbe-cli.py repository --self_id 1 --action create --bsc_id 1
 
 # Create a parent context pointing at APNIC -- this is where we plug in the values from their YAML
 
+cat >apnic.pem <<-'EOF'
+	-----BEGIN CERTIFICATE-----
+	MIIEFjCCAv6gAwIBAgIBADANBgkqhkiG9w0BAQsFADBJMUcwRQYDVQQDEz5Eb2N1
+	bWVudGF0aW9uIFByZWZpeGVzIENNUyBQYXJlbnQgVEEgc2lnbmVyIC0gTm90IGZv
+	ciByZWFsIHVzZTAeFw0wNzEyMDEwNjMyNDdaFw0xNzExMjgwNjMyNDdaMEkxRzBF
+	BgNVBAMTPkRvY3VtZW50YXRpb24gUHJlZml4ZXMgQ01TIFBhcmVudCBUQSBzaWdu
+	ZXIgLSBOb3QgZm9yIHJlYWwgdXNlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB
+	CgKCAQEAtsRcgBpO7cTN+QGPnBaPtmfdsUZbctrfSBycS3QhwAItzZryqIHN9stP
+	A+0WEOC4+cfaY9xETqGwbq725p8FRwxUx9NBQS7jrL1ToNCJ+2qSH5ThK2hOQiCT
+	3fv2FNJ/7gFFqofWt3mLyNEmnis95pRwzTtqH6ZaAaZk+AzwL77ww8AlwL/qfLtD
+	mjrsUfoELfkbS4ywFK0orjVKeGvzG8Dx7WiGvwmdhNNJ8/IAZmJC0NI8r9VIfcw3
+	2B7bnDGkKH3E0NNRIajPmLbaNfT0Dxw+BjIC3Ty48o3ghSScqviyThNFyj8cr9SB
+	Ww8ReAU6v9q4XWRnlZt8Lc9WIsF/MwIDAQABo4IBBzCCAQMwDAYDVR0TBAUwAwEB
+	/zAOBgNVHQ8BAf8EBAMCAQYwHQYDVR0OBBYEFPzZTgRZylsJph8KV9AU3klSgl8r
+	MHEGA1UdIwRqMGiAFPzZTgRZylsJph8KV9AU3klSgl8roU2kSzBJMUcwRQYDVQQD
+	Ez5Eb2N1bWVudGF0aW9uIFByZWZpeGVzIENNUyBQYXJlbnQgVEEgc2lnbmVyIC0g
+	Tm90IGZvciByZWFsIHVzZYIBADBRBgNVHR8ESjBIMEagRKBChkBodHRwOi8vbWly
+	aW4uYXBuaWMubmV0L2RvY3VtZW50YXRpb24tcHJlZml4ZXMvY21zL3BhcmVudC9j
+	bXMuY3JsMA0GCSqGSIb3DQEBCwUAA4IBAQCNz/BUN5bsAyMPi0X7oKZV/cAwmr2S
+	gQgIxaUHnQ6EJp4b2CUmlpPQ9pT/m+gPbajaRgUZmANfMF0uAFZpCP3hTRAc6NMH
+	3Pwjzw1ICGSRRJASSizYN4hSxGpWW1hgghGTB3w5CjCm2VlwrQKJjb7/9H/gb4hi
+	RRZpaudithCEDlgkFhgU4uttSDLH2Rv14GtfmtyqDpmCE33STA7K+e9rdxaCqHC8
+	u33zqm4oQxOX7wuJ/JxeJxExtZ0amu8yTZ+tDtQ4Iiu1VPl67o0mjYrBKRV4z2fC
+	wa/PKqombrC/qs+2+t/66mB9xaK1YpKnW2FL6Rjs+rZUJJQ16JhJkF7T
+	-----END CERTIFICATE-----
+EOF
+
 python irbe-cli.py parent --self_id 1 --action create --bsc_id 1 --repository_id 1 \
     --peer_contact_uri https://mirin.apnic.net/cgi-bin/up-down-parent.cgi \
-    --cms_ta   mirin-cms-test/cms-trust-anchor-parent.cer \
-    --https_ta mirin-cms-test/cms-trust-anchor-parent.cer \
+    --cms_ta   apnic.pem \
+    --https_ta apnic.pem \
     --sia_base rsync://wombat.invalid/
+
+rm -f apnic.pem
 
 # Create a child context -- note that we're using the -CA as trust anchor rather than -Root,
 # because the APNIC poke tool doesn't offer any way to construct CMS chains

@@ -112,11 +112,13 @@
           <param name="pattern">[\-,/:0-9a-fA-F]*</param>
         </data>
       </attribute>
-      <attribute name="resource_set_notafter">
-        <data type="dateTime">
-          <param name="pattern">.*Z</param>
-        </data>
-      </attribute>
+      <optional>
+        <attribute name="resource_set_notafter">
+          <data type="dateTime">
+            <param name="pattern">.*Z</param>
+          </data>
+        </attribute>
+      </optional>
       <optional>
         <attribute name="suggested_sia_head">
           <data type="anyURI">

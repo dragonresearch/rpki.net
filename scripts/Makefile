@@ -16,7 +16,9 @@ all:: up-down-schema.rng
 up-down-schema.rng: up-down-schema.rnc
 	trang up-down-schema.rnc up-down-schema.rng
 
-#test:: all ; python xml-parse-test.py
+test:: relaxng
+
+test:: all ; python xml-parse-test.py
 
 dont-run-trang:
 	touch *.rng

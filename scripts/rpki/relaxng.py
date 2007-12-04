@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rng 1287 2007-11-14 04:17:16Z sra $
+  $Id: left-right-schema.rnc 1287 2007-11-14 04:17:16Z sra $
   
   RelaxNG (Compact Syntax) Schema for RPKI left-right protocol.
   
@@ -449,6 +449,20 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     </optional>
     <optional>
       <attribute name="repository_id">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="sender_name">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="recipient_name">
         <data type="token">
           <param name="maxLength">1024</param>
         </data>
@@ -921,7 +935,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
 ## Parsed RelaxNG up_down schema
 up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: up-down-schema.rnc 1353 2007-12-04 06:19:01Z sra $
+  $Id: up-down-schema.rng 1354 2007-12-04 06:20:10Z sra $
   
   RelaxNG (Compact Syntax) Scheme for up-down protocol, extracted
   from APNIC Wiki.

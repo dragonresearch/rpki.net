@@ -263,7 +263,9 @@
                 peer_contact_uri="https://re.bar.example/bandicoot/"
                 sia_base="rsync://repo.foo.example/wombat/"
                 bsc_id="17"
-                repository_id="120">
+                repository_id="120"
+		sender_name="tweedledee"
+		recipient_name="tweedledum">
             <cms_ta>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN

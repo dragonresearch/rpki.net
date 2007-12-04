@@ -76,7 +76,9 @@ python irbe-cli.py parent --self_id 1 --action create --bsc_id 1 --repository_id
     --peer_contact_uri https://mirin.apnic.net/cgi-bin/up-down-parent.cgi \
     --cms_ta   apnic.pem \
     --https_ta apnic.pem \
-    --sia_base rsync://wombat.invalid/
+    --sia_base rsync://wombat.invalid/ \
+    --recipient_name PARENT \
+    --sender_name    CHILD
 
 rm -f apnic.pem
 

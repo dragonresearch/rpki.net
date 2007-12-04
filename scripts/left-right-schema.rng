@@ -449,6 +449,20 @@
       </attribute>
     </optional>
     <optional>
+      <attribute name="sender_name">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="recipient_name">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+    </optional>
+    <optional>
       <ref name="cms_ta"/>
     </optional>
     <optional>

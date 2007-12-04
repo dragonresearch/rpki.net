@@ -63,6 +63,8 @@ CREATE TABLE parent (
        https_ta             LONGBLOB,
        peer_contact_uri     TEXT,
        sia_base             TEXT,
+       sender_name          TEXT,
+       recipient_name       TEXT,
        self_id              BIGINT unsigned NOT NULL,
        bsc_id               BIGINT unsigned NOT NULL,
        repository_id        BIGINT unsigned NOT NULL,

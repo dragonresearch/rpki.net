@@ -106,6 +106,8 @@ parent_payload = (attribute peer_contact_uri { xsd:anyURI { maxLength="1024" } }
                   attribute sia_base { xsd:anyURI { maxLength="1024" } }?,
                   attribute bsc_id { xsd:token { maxLength="1024" } }?,
                   attribute repository_id { xsd:token { maxLength="1024" } }?,
+                  attribute sender_name { xsd:token { maxLength="1024" } }?,
+                  attribute recipient_name { xsd:token { maxLength="1024" } }?,
                   cms_ta?,
                   https_ta?)
 

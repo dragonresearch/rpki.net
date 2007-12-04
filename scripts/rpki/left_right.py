@@ -485,13 +485,13 @@ class parent_elt(data_elt):
 
   element_name = "parent"
   attributes = ("action", "type", "self_id", "parent_id", "bsc_id", "repository_id",
-                "peer_contact_uri", "sia_base")
+                "peer_contact_uri", "sia_base", "sender_name", "recipient_name")
   elements = ("cms_ta", "https_ta")
   booleans = ("rekey", "reissue", "revoke")
 
   sql_template = rpki.sql.template("parent", "parent_id", "self_id", "bsc_id", "repository_id",
                                    ("cms_ta", rpki.x509.X509), ("https_ta", rpki.x509.X509),
-                                   "peer_contact_uri", "sia_base")
+                                   "peer_contact_uri", "sia_base", "sender_name", "recipient_name")
 
   cms_ta = None
   https_ta = None
@@ -577,7 +577,10 @@ class parent_elt(data_elt):
     bsc = self.bsc(gctx)
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
-    q_msg = rpki.up_down.message_pdu.make_query(q_pdu)
+    q_msg = rpki.up_down.message_pdu.make_query(
+      payload = q_pdu,
+      sender = self.sender_name,
+      recipient = self.recipient_name)
     q_elt = q_msg.toXML()
     rpki.relaxng.up_down.assertValid(q_elt)
     q_cms = rpki.cms.xml_sign(q_elt, bsc.private_key_id, bsc.signing_cert, encoding = "UTF-8")

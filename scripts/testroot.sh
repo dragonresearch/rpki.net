@@ -53,7 +53,9 @@ time python irbe-cli.py parent --self_id 1 --action create --bsc_id 1 --reposito
     --peer_contact_uri https://localhost:44333/ \
     --cms_ta biz-certs/Elena-Root.cer \
     --https_ta biz-certs/Elena-Root.cer \
-    --sia_base rsync://wombat.invalid/
+    --sia_base rsync://wombat.invalid/ \
+    --sender_name tweedledee \
+    --recipient_name tweedledum
 
 # Create a child context
 

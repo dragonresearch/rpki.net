@@ -478,7 +478,7 @@ class message_pdu(base_elt):
     return r_msg
 
   @classmethod
-  def make_query(cls, payload, sender = "CHILD", recipient = "PARENT"):
+  def make_query(cls, payload, sender, recipient):
     """Construct one message PDU."""
     assert not cls.type2name[type(payload)].endswith("_response")
     self = cls()

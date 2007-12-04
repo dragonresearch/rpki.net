@@ -66,11 +66,19 @@ def get_PEM_chain(name, cert = None):
   return chain
 
 def query_up_down(q_pdu):
-  q_msg = rpki.up_down.message_pdu.make_query(q_pdu, sender = yaml_data["sender-id"], recipient = yaml_data["recipient-id"])
+  q_msg = rpki.up_down.message_pdu.make_query(
+    payload = q_pdu,
+    sender = yaml_data["sender-id"],
+    recipient = yaml_data["recipient-id"])
   q_elt = q_msg.toXML()
   rpki.relaxng.up_down.assertValid(q_elt)
   q_cms = rpki.cms.xml_sign(q_elt, cms_key, cms_certs, encoding = "UTF-8")
-  r_cms = rpki.https.client(x509TrustList = https_tas, privateKey = https_key, certChain = https_certs, msg = q_cms, url = yaml_data["posturl"])
+  r_cms = rpki.https.client(
+    x509TrustList = https_tas,
+    privateKey = https_key,
+    certChain = https_certs,
+    msg = q_cms,
+    url = yaml_data["posturl"])
   r_xml = rpki.cms.verify(r_cms, cms_ta)
   r_elt = lxml.etree.fromstring(r_xml)
   rpki.relaxng.up_down.assertValid(r_elt)

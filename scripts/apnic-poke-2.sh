@@ -46,9 +46,9 @@ python irbe-cli.py repository --self_id 1 --action create --bsc_id 1
 # Create a parent context pointing at APNIC -- this is where we plug in the values from their YAML
 
 python irbe-cli.py parent --self_id 1 --action create --bsc_id 1 --repository_id 1 \
-    --peer_contact_uri https://localhost:44333/ \
-    --cms_ta biz-certs/Elena-Root.cer \
-    --https_ta biz-certs/Elena-Root.cer \
+    --peer_contact_uri https://mirin.apnic.net/cgi-bin/up-down-parent.cgi \
+    --cms_ta   mirin-cms-test/cms-trust-anchor-parent.cer \
+    --https_ta mirin-cms-test/cms-trust-anchor-parent.cer \
     --sia_base rsync://wombat.invalid/
 
 # Create a child context -- note that we're using the -CA as trust anchor rather than -Root,

@@ -12,7 +12,7 @@ cms-cert-file: biz-certs/Bob-EE.cer
 cms-key-file: biz-certs/Bob-EE.key
 cms-cert-chain-file: [ biz-certs/Bob-CA.cer ]
 
-cms-ca-cert-file: mirin-cms-test/cms-trust-anchor-parent.cer
+cms-ca-cert-file: mirin-cms-trust-anchor-parent.cer
 
 ssl-cert-file: biz-certs/Bob-EE.cer
 ssl-key-file: biz-certs/Bob-EE.key

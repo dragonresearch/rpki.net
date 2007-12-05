@@ -8,7 +8,7 @@ Usage: python rpkid.py [ { -c | --config } configfile ] [ { -h | --help } ]
 Default configuration file is rpkid.conf, override with --config option.
 """
 
-import traceback, os, time, getopt, sys, MySQLdb
+import traceback, os, time, getopt, sys, MySQLdb, lxml.etree
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
 import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng
 
@@ -23,6 +23,11 @@ def left_right_handler(query, path):
     rpki.relaxng.left_right.assertValid(r_elt)
     reply = rpki.cms.xml_sign(r_elt, gctx.cms_key, gctx.cms_certs)
     return 200, reply
+  except lxml.etree.DocumentInvalid:
+    print "Received reply document does not pass schema check:"
+    print lxml.etree.tostring(r_elt, pretty_print = True)
+    traceback.print_exc()
+    return 500, "Schema violation"
   except Exception, data:
     traceback.print_exc()
     return 500, "Unhandled exception %s" % data

@@ -481,6 +481,10 @@ class message_pdu(base_elt):
   def make_query(cls, payload, sender, recipient):
     """Construct one message PDU."""
     assert not cls.type2name[type(payload)].endswith("_response")
+    if sender is None:
+      sender = "tweedledee"
+    if recipient is None:
+      recipient = "tweedledum"
     self = cls()
     self.sender = sender
     self.recipient = recipient

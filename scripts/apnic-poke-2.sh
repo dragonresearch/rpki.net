@@ -41,7 +41,7 @@ rm -f bsc.req bsc.cer
 
 # List what's in the BSC, for today's debugging fun
 
-python irbe-cli.py bsc --action list --self_id 1 --bsc_id 1
+#python irbe-cli.py bsc --action list --self_id 1
 
 # Create a repository context
 

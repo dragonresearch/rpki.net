@@ -582,7 +582,12 @@ class parent_elt(data_elt):
       sender = self.sender_name,
       recipient = self.recipient_name)
     q_elt = q_msg.toXML()
-    rpki.relaxng.up_down.assertValid(q_elt)
+    try:
+      rpki.relaxng.up_down.assertValid(q_elt)
+    except lxml.etree.DocumentInvalid:
+      print "Message does not pass schema check:"
+      print lxml.etree.tostring(q_elt, pretty_print = True)
+      raise
     q_cms = rpki.cms.xml_sign(q_elt, bsc.private_key_id, bsc.signing_cert, encoding = "UTF-8")
     r_cms = rpki.https.client(x509TrustList = rpki.x509.X509_chain(self.https_ta),
                               privateKey = gctx.https_key,

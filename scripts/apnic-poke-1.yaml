@@ -9,7 +9,7 @@ sender-id: "1"
 cms-cert-file: biz-certs/Frank-EE.cer
 cms-key-file: biz-certs/Frank-EE.key
 cms-ca-cert-file: biz-certs/Bob-Root.cer
-cms-cert-chain-file: [ biz-certs/Frank-CA.cer ]
+#cms-cert-chain-file: [ biz-certs/Frank-CA.cer ]
 
 ssl-cert-file: biz-certs/Frank-EE.cer
 ssl-key-file: biz-certs/Frank-EE.key

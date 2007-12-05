@@ -39,6 +39,10 @@ $openssl x509 -req -in bsc.req -out bsc.cer \
 python irbe-cli.py bsc --action set --self_id 1 --bsc_id 1 --signing_cert bsc.cer
 rm -f bsc.req bsc.cer
 
+# List what's in the BSC, for today's debugging fun
+
+python irbe-cli.py bsc --action list --self_id 1 --bsc_id 1
+
 # Create a repository context
 
 python irbe-cli.py repository --self_id 1 --action create --bsc_id 1

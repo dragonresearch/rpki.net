@@ -8,7 +8,7 @@ requires disk I/O, and likes PEM format.  Fix this later.
 
 import os, rpki.x509, rpki.exceptions, lxml.etree
 
-debug = True
+debug = 2
 
 # openssl smime -sign -nodetach -outform DER -signer biz-certs/Alice-EE.cer
 #                -certfile biz-certs/Alice-CA.cer -inkey biz-certs/Alice-EE.key 
@@ -52,6 +52,11 @@ def sign(plaintext, keypair, certs):
   os.unlink(certfile_filename)
   os.unlink(plaintext_filename)
 
+  if debug >= 2:
+    print
+    print "CMS dump:"
+    dumpasn1(cms)
+
   return cms
 
 # openssl smime -verify -inform DER -in THING.der -CAfile biz-certs/Alice-Root.cer
@@ -82,7 +87,7 @@ def verify(cms, ta):
   if status == "Verification successful\n":
     return plaintext
   else:
-    if debug:
+    if debug >= 1:
       print "CMS verification failed, dumping inputs:"
       print
       print "TA:"

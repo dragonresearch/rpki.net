@@ -54,7 +54,7 @@ def sign(plaintext, keypair, certs):
 
   if debug >= 2:
     print
-    print "CMS dump:"
+    print "Signed CMS:"
     dumpasn1(cms)
 
   return cms
@@ -67,6 +67,11 @@ def verify(cms, ta):
   Returns the plaintext on success.  If OpenSSL CLI tool reports
   anything other than successful verification, we raise an exception.
   """  
+
+  if debug >= 2:
+    print
+    print "Verifying CMS:"
+    dumpasn1(cms)
 
   ta_filename = "cms.tmp.ta.pem"
 

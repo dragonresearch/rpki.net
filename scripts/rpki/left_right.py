@@ -75,6 +75,9 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
       r_pdu = self.__class__()
       r_pdu.self_id = self.self_id
       setattr(r_pdu, self.sql_template.index, getattr(self, self.sql_template.index))
+    else:
+      for b in r_pdu.booleans:
+        setattr(r_pdu, b, False)
     r_pdu.action = self.action
     r_pdu.type = "reply"
     return r_pdu

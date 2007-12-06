@@ -86,8 +86,7 @@ python irbe-cli.py parent --self_id 1 --action create --bsc_id 1 --repository_id
 
 rm -f apnic.pem
 
-# Create a child context -- note that we're using the -CA as trust anchor rather than -Root,
-# because the APNIC poke tool doesn't offer any way to construct CMS chains
+# Create a child context
 
 python irbe-cli.py child --self_id 1 --action create --bsc_id 1 --cms_ta biz-certs/Frank-Root.cer
 

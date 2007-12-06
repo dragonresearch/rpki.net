@@ -615,7 +615,6 @@ class child_cert_obj(sql_persistant):
       subject_key = self.cert.getPublicKey(),
       sia         = sia,
       resources   = resources,
-      notAfter    = resources.valid_until,
       child_cert  = child_cert)
 
     if must_revoke:

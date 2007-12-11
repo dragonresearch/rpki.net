@@ -53,6 +53,27 @@ pure Python and only 2% about any kind of crypto.
 
 Current TO DO list:
 
+- Add optional "tag" attribute (a la IMAP) to left-right object
+  elements (excellent suggestion from RobK).
+
+- Work on a common protocol dump format with APNIC and other
+  implementors.  Randy points out that it would be good if we could
+  all read each other's dumps.
+
+  "Obvious" format would be an OpenSSL-style PEM of the CMS, with
+  a "text" portion (the place where "openssl x509 -text" would put a
+  text dump of a cert) showing the wrapped XML.
+
+- Rewrite code that handles revoke on shrink to revoke -all- old
+  certs for that key, not just most recent.  Not certain, but this may
+  have been the cause of a cert dropping not showing up in the CRL
+  during testing with APNIC in Vancouver.
+
+- Rewrite hooks that call CRL generation and publication to do so
+  immediately rather than waiting for cron.   Batching to handle all
+  of a bunch of events at once would be nice, but start by getting it
+  right, then worry about making it faster.
+
 - resource_set_notafter attribute added to RelaxNG but not yet to
   rpki.up_down.class_elt.  Need to convert to and from Python datetime
   but maybe lxml already has code to help us with that.
@@ -173,7 +194,9 @@ Current TO DO list:
   bits of abstraction still to be done.
 
 - Need a logging subsystem, including syslog support.  Absent a better
-  plan, see the Python syslog module.
+  plan, see the Python syslog module.  Primatives in the traceback
+  module provide a handy way to capture origin of a logging call
+  without a lot of error-prone manual tagging.
 
 - Subsetting (req_* attributes in up-down protocol)
 

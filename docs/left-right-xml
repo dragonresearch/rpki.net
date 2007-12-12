@@ -7,14 +7,14 @@
 <completely_gratuitous_wrapper_element_to_let_me_run_this_through_xmllint>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-        <self action="create" type="query">
+        <self action="create" type="query" tag="a000">
             <extension_preference name="name">Launcelot</extension_preference>
             <extension_preference name="quest">Holy Grail</extension_preference>
         </self>
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-        <self action="create" type="reply" self_id="42"/>
+        <self action="create" type="reply" tag="a000" self_id="42"/>
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">

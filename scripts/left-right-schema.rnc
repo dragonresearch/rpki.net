@@ -15,19 +15,22 @@ start = element msg {
     list_resources_elt | report_error_elt )*
 }
 
+# Tag attributes for bulk operations
+tag = attribute tag { xsd:token {maxLength="1024" } }?
+
 # Combinations of action and type attributes used in later definitions.
 # The same patterns repeat in most of the elements in this protocol.
 
-ctl_cq = attribute action { "create"  }, attribute type { "query" }
-ctl_sq = attribute action { "set"     }, attribute type { "query" }
-ctl_gq = attribute action { "get"     }, attribute type { "query" }
-ctl_lq = attribute action { "list"    }, attribute type { "query" }
-ctl_dq = attribute action { "destroy" }, attribute type { "query" }
-ctl_cr = attribute action { "create"  }, attribute type { "reply" }
-ctl_sr = attribute action { "set"     }, attribute type { "reply" }
-ctl_gr = attribute action { "get"     }, attribute type { "reply" }
-ctl_lr = attribute action { "list"    }, attribute type { "reply" }
-ctl_dr = attribute action { "destroy" }, attribute type { "reply" }
+ctl_cq = attribute action { "create"  }, attribute type { "query" }, tag
+ctl_sq = attribute action { "set"     }, attribute type { "query" }, tag
+ctl_gq = attribute action { "get"     }, attribute type { "query" }, tag
+ctl_lq = attribute action { "list"    }, attribute type { "query" }, tag
+ctl_dq = attribute action { "destroy" }, attribute type { "query" }, tag
+ctl_cr = attribute action { "create"  }, attribute type { "reply" }, tag
+ctl_sr = attribute action { "set"     }, attribute type { "reply" }, tag
+ctl_gr = attribute action { "get"     }, attribute type { "reply" }, tag
+ctl_lr = attribute action { "list"    }, attribute type { "reply" }, tag
+ctl_dr = attribute action { "destroy" }, attribute type { "reply" }, tag
 
 # Base64 encoded DER stuff
 base64 = xsd:base64Binary { maxLength="512000" }

@@ -618,8 +618,9 @@ class child_cert_obj(sql_persistant):
       child_cert  = child_cert)
 
     if must_revoke:
-      assert child_cert is not self
-      self.revoke()
+      for cert in child.child_certs(gctx = gctx, ca_detail = ca_detail, ski = self.ski):
+        if cert is not child_cert:
+          cert.revoke()
 
     return child_cert
 

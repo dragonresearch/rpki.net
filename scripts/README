@@ -53,8 +53,10 @@ pure Python and only 2% about any kind of crypto.
 
 Current TO DO list:
 
-- Add optional "tag" attribute (a la IMAP) to left-right object
-  elements (excellent suggestion from RobK).
+- Need scripted tests that shrink and grow and shrink and shrink and
+  grow and shrink and grow and grow and ....   Initial tests with
+  APNIC required doing this by hand, and there's a body of code that
+  only gets exercised when the IRDB changes, so need scripted tests.
 
 - Work on a common protocol dump format with APNIC and other
   implementors.  Randy points out that it would be good if we could

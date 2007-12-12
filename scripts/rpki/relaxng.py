@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rng 1358 2007-12-04 18:10:24Z sra $
+  $Id: left-right-schema.rnc 1372 2007-12-12 13:34:15Z sra $
   
   RelaxNG (Compact Syntax) Schema for RPKI left-right protocol.
   
@@ -36,6 +36,16 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </zeroOrMore>
     </element>
   </start>
+  <!-- Tag attributes for bulk operations -->
+  <define name="tag">
+    <optional>
+      <attribute name="tag">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+    </optional>
+  </define>
   <!--
     Combinations of action and type attributes used in later definitions.
     The same patterns repeat in most of the elements in this protocol.
@@ -47,6 +57,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <attribute name="type">
       <value>query</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_sq">
     <attribute name="action">
@@ -55,6 +66,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <attribute name="type">
       <value>query</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_gq">
     <attribute name="action">
@@ -63,6 +75,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <attribute name="type">
       <value>query</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_lq">
     <attribute name="action">
@@ -71,6 +84,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <attribute name="type">
       <value>query</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_dq">
     <attribute name="action">
@@ -79,6 +93,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <attribute name="type">
       <value>query</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_cr">
     <attribute name="action">
@@ -87,6 +102,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <attribute name="type">
       <value>reply</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_sr">
     <attribute name="action">
@@ -95,6 +111,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <attribute name="type">
       <value>reply</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_gr">
     <attribute name="action">
@@ -103,6 +120,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <attribute name="type">
       <value>reply</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_lr">
     <attribute name="action">
@@ -111,6 +129,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <attribute name="type">
       <value>reply</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_dr">
     <attribute name="action">
@@ -119,6 +138,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <attribute name="type">
       <value>reply</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <!-- Base64 encoded DER stuff -->
   <define name="base64">

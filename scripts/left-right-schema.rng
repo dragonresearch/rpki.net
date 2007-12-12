@@ -30,6 +30,16 @@
       </zeroOrMore>
     </element>
   </start>
+  <!-- Tag attributes for bulk operations -->
+  <define name="tag">
+    <optional>
+      <attribute name="tag">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+    </optional>
+  </define>
   <!--
     Combinations of action and type attributes used in later definitions.
     The same patterns repeat in most of the elements in this protocol.
@@ -41,6 +51,7 @@
     <attribute name="type">
       <value>query</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_sq">
     <attribute name="action">
@@ -49,6 +60,7 @@
     <attribute name="type">
       <value>query</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_gq">
     <attribute name="action">
@@ -57,6 +69,7 @@
     <attribute name="type">
       <value>query</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_lq">
     <attribute name="action">
@@ -65,6 +78,7 @@
     <attribute name="type">
       <value>query</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_dq">
     <attribute name="action">
@@ -73,6 +87,7 @@
     <attribute name="type">
       <value>query</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_cr">
     <attribute name="action">
@@ -81,6 +96,7 @@
     <attribute name="type">
       <value>reply</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_sr">
     <attribute name="action">
@@ -89,6 +105,7 @@
     <attribute name="type">
       <value>reply</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_gr">
     <attribute name="action">
@@ -97,6 +114,7 @@
     <attribute name="type">
       <value>reply</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_lr">
     <attribute name="action">
@@ -105,6 +123,7 @@
     <attribute name="type">
       <value>reply</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <define name="ctl_dr">
     <attribute name="action">
@@ -113,6 +132,7 @@
     <attribute name="type">
       <value>reply</value>
     </attribute>
+    <ref name="tag"/>
   </define>
   <!-- Base64 encoded DER stuff -->
   <define name="base64">

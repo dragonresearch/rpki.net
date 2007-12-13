@@ -13,7 +13,7 @@ Default configuration file is testroot.conf, override with --config option.
 import traceback, os, time, getopt, sys, lxml
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
 import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng
-import rpki.sundial
+import rpki.sundial, rpki.log
 
 root_name = "wombat"
 root_base = "rsync://" + root_name + ".invalid/"
@@ -139,6 +139,8 @@ def up_down_handler(query, path):
 
 os.environ["TZ"] = "UTC"
 time.tzset()
+
+rpki.log.init("testroot")
 
 cfg_file = "testroot.conf"
 

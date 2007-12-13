@@ -6,7 +6,10 @@ engine for every registrant object in the IRDB.
 """
 
 import os, MySQLdb, getopt, sys, lxml.etree, lxml.sax
-import rpki.left_right, rpki.relaxng, rpki.cms, rpki.https, rpki.x509, rpki.config
+import rpki.left_right, rpki.relaxng, rpki.cms, rpki.https
+import rpki.x509, rpki.config, rpki.log
+
+rpki.log.init("irbe-setup")
 
 cfg = rpki.config.parser("irbe.conf")
 
@@ -24,9 +27,8 @@ https_tas   = rpki.x509.X509_chain(Auto_files = cfg.multiget("irbe-cli", "https-
 https_url   = cfg.get(                                       "irbe-cli", "https-url")
 
 def call_rpkid(pdu):
-  """Hand a PDU to rpkid and get back the response.  Should be able to
-  steal most of this code from irbe-cli.  Just throw an exception if
-  anything bad happens, no fancy error handling.
+  """Hand a PDU to rpkid and get back the response.  Just throw an
+  exception if anything bad happens, no fancy error handling.
   """
 
   pdu.type = "query"

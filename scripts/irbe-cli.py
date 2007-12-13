@@ -7,7 +7,7 @@ The query back-channel is handled by a separate program.
 """
 
 import getopt, sys, lxml.etree, lxml.sax
-import rpki.left_right, rpki.relaxng, rpki.cms, rpki.https, rpki.x509, rpki.config
+import rpki.left_right, rpki.relaxng, rpki.cms, rpki.https, rpki.x509, rpki.config, rpki.log
 
 pem_out = None
 
@@ -115,6 +115,8 @@ def usage(code=1):
   sys.exit(code)
 
 # Main program
+
+rpki.log.init("irbe-cli")
 
 cfg = rpki.config.parser("irbe.conf")
 cfg_section = "irbe-cli"

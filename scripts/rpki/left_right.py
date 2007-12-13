@@ -4,7 +4,7 @@
 
 import base64, lxml.etree, time, traceback, os
 import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions
-import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial
+import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log
 
 xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
@@ -315,6 +315,8 @@ class self_elt(data_elt):
   def client_poll(self, gctx):
     """Run the regular client poll cycle with each of this self's parents in turn."""
 
+    rpki.log.trace()
+
     for parent in self.parents(gctx):
 
       # This will need a callback when we go event-driven
@@ -337,6 +339,8 @@ class self_elt(data_elt):
     issue new certs as necessary.  Must handle changes both in
     resources and in expiration date.
     """
+
+    rpki.log.trace()
 
     now = rpki.sundial.datetime.utcnow()
 
@@ -374,6 +378,8 @@ class self_elt(data_elt):
     moment due to implementation silliness, so for now we generate a
     new manifest whenever we generate a new CRL
     """
+
+    rpki.log.trace()
 
     now = rpki.sundial.datetime.utcnow()
     for parent in self.parents(gctx):
@@ -577,6 +583,9 @@ class parent_elt(data_elt):
 
     For now, keep this dead simple lock step, rewrite it later.
     """
+
+    rpki.log.trace()
+
     bsc = self.bsc(gctx)
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
@@ -661,6 +670,9 @@ class child_elt(data_elt):
 
   def serve_up_down(self, gctx, query):
     """Outer layer of server handling for one up-down PDU from this child."""
+
+    rpki.log.trace()
+
     bsc = self.bsc(gctx)
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
@@ -744,6 +756,7 @@ class repository_elt(data_elt):
   @classmethod
   def object_write(cls, base, uri, obj):
     """Write an object to disk. [TEMPORARY]"""
+    rpki.log.trace()
     filename = cls.uri_to_filename(base, uri)
     dirname = os.path.dirname(filename)
     if not os.path.isdir(dirname):
@@ -755,18 +768,21 @@ class repository_elt(data_elt):
   @classmethod
   def object_delete(cls, base, uri):
     """Delete an object from disk. [TEMPORARY]"""
+    rpki.log.trace()
     os.remove(cls.uri_to_filename(base, uri))
 
   def publish(self, gctx, *things):
     """Placeholder for publication operation. [TEMPORARY]"""
+    rpki.log.trace()
     for obj, uri in things:
-      print "Pretending to publish %s to repository %s at %s" % (repr(obj), repr(self), repr(uri))
+      rpki.log.info("Pretending to publish %s to repository %s at %s" % (repr(obj), repr(self), repr(uri)))
       self.object_write(gctx.publication_kludge_base, uri, obj)
 
   def withdraw(self, gctx, *things):
     """Placeholder for publication withdrawal operation. [TEMPORARY]"""
+    rpki.log.trace()
     for obj, uri in things:
-      print "Pretending to withdraw %s from repository %s at %s" % (repr(obj), repr(self), repr(uri))
+      rpki.log.info("Pretending to withdraw %s from repository %s at %s" % (repr(obj), repr(self), repr(uri)))
       self.object_delete(gctx.publication_kludge_base, uri)
 
 class route_origin_elt(data_elt):
@@ -943,6 +959,8 @@ def irdb_query(gctx, self_id, child_id = None):
   and also the intermediate state needed for the event-driven code
   that this function will need to become.
   """
+
+  rpki.log.trace()
 
   q_msg = msg()
   q_msg.append(list_resources_elt())

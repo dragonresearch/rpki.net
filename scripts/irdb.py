@@ -1,7 +1,8 @@
 # $Id$
 
 import tlslite.api, MySQLdb, urlparse, traceback, lxml.etree
-import rpki.https, rpki.config, rpki.resource_set, rpki.cms, rpki.relaxng, rpki.exceptions, rpki.left_right
+import rpki.https, rpki.config, rpki.resource_set, rpki.cms, rpki.relaxng
+import rpki.exceptions, rpki.left_right, rpki.log
 
 def handler(query, path):
   try:
@@ -42,6 +43,8 @@ def handler(query, path):
     # This should generate a <report_error/> PDU, but this will do for initial debugging
     traceback.print_exc()
     return 500, "Unhandled exception %s" % data
+
+rpki.log.init("irdb")
 
 cfg = rpki.config.parser("irbe.conf")
 cfg_section = "irdb"

@@ -8,7 +8,7 @@ general version should use SQL anyway.
 """
 
 import httplib, BaseHTTPServer, tlslite.api, glob, traceback, urlparse, socket
-import rpki.x509, rpki.exceptions
+import rpki.x509, rpki.exceptions, rpki.log
 
 rpki_content_type = "application/x-rpki"
 
@@ -51,7 +51,7 @@ def client(msg, privateKey, certChain, x509TrustList, url, timeout = 300):
           "HTTP request failed with status %s, response %s" % (response.status, r)
 
 class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
-  """Derived type to supply POST handler."""
+  """Derived type to supply POST handler and override logging."""
 
   rpki_handlers = None                  # Subclass must bind
 
@@ -82,6 +82,13 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     self.end_headers()
     self.wfile.write(rtext)
 
+  def log_message(self, format, *args):
+    """Redirect HTTP server logging into our own logging system."""
+    if args:
+      rpki.log.info(format % args)
+    else:
+      rpki.log.info(format)
+
 class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
   """Derived type to handle TLS aspects of HTTPS."""
 
@@ -104,7 +111,7 @@ class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
       tlsConnection.ignoreAbruptClose = True
       return True
     except tlslite.api.TLSError, error:
-      print "TLS handshake failure:", str(error)
+      rpki.log.warn("TLS handshake failure: " + str(error))
       return False
 
 def server(handlers, privateKey, certChain, port = 4433, host = ""):

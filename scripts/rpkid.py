@@ -10,10 +10,11 @@ Default configuration file is rpkid.conf, override with --config option.
 
 import traceback, os, time, getopt, sys, MySQLdb, lxml.etree
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
-import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng
+import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng, rpki.log
 
 def left_right_handler(query, path):
   """Process one left-right PDU."""
+  rpki.log.trace()
   try:
     q_elt = rpki.cms.xml_verify(query, gctx.cms_ta_irbe)
     rpki.relaxng.left_right.assertValid(q_elt)
@@ -34,6 +35,7 @@ def left_right_handler(query, path):
 
 def up_down_handler(query, path):
   """Process one up-down PDU."""
+  rpki.log.trace()
   try:
     child_id = path.partition("/up-down/")[2]
     if not child_id.isdigit():
@@ -52,6 +54,7 @@ def cronjob_handler(query, path):
   this up into separate handlers later.
   """
 
+  rpki.log.trace()
   for s in rpki.left_right.self_elt.sql_fetch_all(gctx):
     s.client_poll(gctx)
     s.update_children(gctx)
@@ -86,6 +89,8 @@ class global_context(object):
 
 os.environ["TZ"] = "UTC"
 time.tzset()
+
+rpki.log.init("rpkid")
 
 cfg_file = "rpkid.conf"
 

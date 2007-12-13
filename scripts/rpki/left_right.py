@@ -320,10 +320,10 @@ class self_elt(data_elt):
     for parent in self.parents(gctx):
 
       # This will need a callback when we go event-driven
-      r_pdu = rpki.up_down.list_pdu.query(gctx, parent)
+      r_msg = rpki.up_down.list_pdu.query(gctx, parent)
 
       ca_map = dict((ca.parent_resource_class, ca) for ca in parent.cas(gctx))
-      for rc in r_pdu.payload.classes:
+      for rc in r_msg.payload.classes:
         if rc.class_name in ca_map:
           ca = ca_map[rc.class_name]
           del  ca_map[rc.class_name]
@@ -531,7 +531,7 @@ class parent_elt(data_elt):
     """Handle a left-right revoke action for this parent."""
     for ca in self.cas(gctx):
       for ca_detail in ca.ca_details(gctx):
-        raise rpki.exceptions.NotImplementedYet
+        ca_detail.revoke(gctx)
 
   def serve_reissue(self, gctx):
     """Handle a left-right reissue action for this parent."""

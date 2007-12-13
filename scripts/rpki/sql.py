@@ -313,13 +313,7 @@ class ca_obj(sql_persistant):
 
     repository = parent.repository(gctx)
     for ca_detail in self.ca_details(gctx):
-      for child_cert in ca_detail.child_certs(gctx):
-        repository.withdraw(gctx, (child_cert.cert, child_cert.uri(self)))
-        child_cert.sql_delete(gctx)
-      for child_cert in ca_detail.child_certs(gctx, revoked = True):
-        child_cert.sql_delete(gctx)
-      repository.withdraw(gctx, (ca_detail.latest_crl, ca_detail.crl_uri()), (ca_detail.latest_manifest, ca_detail.manifest_uri(self)))
-      ca_detail.sql_delete(gctx)
+      ca_detail.delete(gctx, ca, repository)
     self.sql_delete(gctx)
 
   def next_serial_number(self):
@@ -405,6 +399,29 @@ class ca_detail_obj(sql_persistant):
     if predecessor is not None:
       predecessor.state = "deprecated"
       predecessor.sql_mark_dirty()
+
+  def delete(self, gctx, ca, repository):
+    """Delete this ca_detail and all of its associated child_cert objects."""
+
+    for child_cert in self.child_certs(gctx):
+      repository.withdraw(gctx, (child_cert.cert, child_cert.uri(ca)))
+      child_cert.sql_delete(gctx)
+    for child_cert in self.child_certs(gctx, revoked = True):
+      child_cert.sql_delete(gctx)
+    repository.withdraw(gctx, (self.latest_crl, self.crl_uri()), (self.latest_manifest, self.manifest_uri(ca)))
+    self.sql_delete(gctx)
+
+  def revoke(self, gctx):
+    """Request revocation of all certificates whose SKI matches the key for this ca_detail."""
+
+    # This will need a callback when we go event-driven
+    r_msg = rpki.up_down.revoke_pdu.query(gctx, self)
+
+    if r_msg.payload.ski != self.latest_ca_cert.gSKI():
+      raise rpki.exceptions.SKIMismatch
+
+    ca = self.ca(gctx)
+    self.delete(gctx, ca, ca.parent(gctx).repository(gctx))
 
   def update(self, gctx, parent, ca, rc, sia_uri_changed, old_resources):
     """Need to get a new certificate for this ca_detail and perhaps

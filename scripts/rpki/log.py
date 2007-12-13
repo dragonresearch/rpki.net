@@ -27,7 +27,7 @@ notice  = logger(syslog.LOG_NOTICE)
 info    = logger(syslog.LOG_INFO)
 debug   = logger(syslog.LOG_DEBUG)
 
-enable_trace = True
+enable_trace = False
 
 def trace():
   """Execution trace -- where are we now, and whence came we here?"""

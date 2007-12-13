@@ -58,3 +58,6 @@ class BadSender(Exception):
 
 class ClassNameMismatch(Exception):
   """class_name does not match child context."""
+
+class SKIMismatch(Exception):
+  """SKI value in response does not match request."""

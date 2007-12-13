@@ -16,10 +16,6 @@ all:: up-down-schema.rng
 up-down-schema.rng: up-down-schema.rnc
 	trang up-down-schema.rnc up-down-schema.rng
 
-test:: relaxng
-
-#test:: all ; python xml-parse-test.py
-
 dont-run-trang:
 	touch *.rng
 
@@ -28,6 +24,10 @@ relaxng: left-right-protocol-samples/.stamp left-right-schema.rng up-down-schema
 	xmllint --noout --relaxng    up-down-schema.rng    up-down-protocol-samples/*.xml
 
 # all:: resource-cert-samples-regen
+
+# test:: relaxng
+
+# test:: all ; python xml-parse-test.py
 
 resource-cert-samples-regen: resource-cert-samples/.stamp
 	cd resource-cert-samples && make

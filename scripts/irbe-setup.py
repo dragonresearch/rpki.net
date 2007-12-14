@@ -58,17 +58,11 @@ def call_rpkid(pdu):
   return pdu
 
 print "Create a self instance"
-pdu = rpki.left_right.self_elt()
-pdu.action = "create"
-pdu.crl_interval = 84600
-pdu = call_rpkid(pdu)
+pdu = call_rpkid(rpki.left_right.self_elt.make_pdu(action = "create", crl_interval = 84600))
 self_id = pdu.self_id
 
 print "Create a business signing context"
-pdu = rpki.left_right.bsc_elt()
-pdu.action = "create"
-pdu.self_id = self_id
-pdu.generate_keypair = True
+pdu = rpki.left_right.bsc_elt.make_pdu(action = "create", self_id = self_id, generate_keypair = True)
 pdu.signing_cert.append(rpki.x509.X509(Auto_file = "biz-certs/Bob-CA.cer"))
 pdu = call_rpkid(pdu)
 bsc_id = pdu.bsc_id
@@ -84,32 +78,19 @@ cer = rpki.x509.X509(PEM = o.read())
 o.close()
 
 print "Set up the business cert chain"
-pdu = rpki.left_right.bsc_elt()
-pdu.action = "set"
-pdu.self_id = self_id
-pdu.bsc_id = bsc_id
+pdu = rpki.left_right.bsc_elt.make_pdu(action = "set", self_id = self_id, bsc_id = bsc_id)
 pdu.signing_cert.append(cer)
 call_rpkid(pdu)
 
 print "Create a repository context"
-pdu = rpki.left_right.repository_elt()
-pdu.action = "create"
-pdu.self_id = self_id
-pdu.bsc_id = bsc_id
-pdu = call_rpkid(pdu)
+pdu = call_rpkid(rpki.left_right.repository_elt.make_pdu(action = "create", self_id = self_id, bsc_id = bsc_id))
 repository_id = pdu.repository_id
 
 print "Create a parent context"
-pdu = rpki.left_right.parent_elt()
-pdu.action = "create"
-pdu.self_id = self_id
-pdu.bsc_id = bsc_id
-pdu.repository_id = repository_id
-pdu.peer_contact_uri = "https://localhost:44333/" 
-pdu.cms_ta = rpki.x509.X509(Auto_file = "biz-certs/Elena-Root.cer")
-pdu.https_ta = pdu.cms_ta
-pdu.sia_base = "rsync://wombat.invalid/"
-pdu = call_rpkid(pdu)
+ta = rpki.x509.X509(Auto_file = "biz-certs/Elena-Root.cer")
+pdu = call_rpkid(rpki.left_right.parent_elt.make_pdu(
+  action = "create", self_id = self_id, bsc_id = bsc_id, repository_id = repository_id, cms_ta = ta, https_ta = ta,
+  peer_contact_uri = "https://localhost:44333/", sia_base = "rsync://wombat.invalid/"))
 parent_id = pdu.parent_id
 
 print "Create child contexts for everybody"
@@ -122,12 +103,7 @@ registrants = cur.fetchall()
 
 for registrant_id, subject_name  in registrants:
   print "Attempting to bind", registrant_id, subject_name
-  pdu = rpki.left_right.child_elt()
-  pdu.action = "create"
-  pdu.self_id = self_id
-  pdu.bsc_id = bsc_id
-  pdu.cms_ta = cer
-  pdu = call_rpkid(pdu)
+  pdu = call_rpkid(rpki.left_right.child_elt.make_pdu(action = "create", self_id = self_id, bsc_id = bsc_id, cms_ta = cer))
   print "Attempting to bind", registrant_id, subject_name, pdu.child_id
   cur.execute("""UPDATE registrant
                  SET rpki_self_id = %d, rpki_child_id = %d

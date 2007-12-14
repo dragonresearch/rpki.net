@@ -69,6 +69,14 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
     """Return BSC object to which this object links."""
     return bsc_elt.sql_fetch(gctx, self.bsc_id)
 
+  @classmethod
+  def make_pdu(cls, **kargs):
+    """Generic left-right PDU constructor."""
+    self = cls()
+    for k,v in kargs.items():
+      setattr(self, k, v)
+    return self
+
   def make_reply(self, r_pdu = None):
     """Construct a reply PDU."""
     if r_pdu is None:

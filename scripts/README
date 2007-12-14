@@ -66,11 +66,6 @@ Current TO DO list:
   a "text" portion (the place where "openssl x509 -text" would put a
   text dump of a cert) showing the wrapped XML.
 
-- Rewrite code that handles revoke on shrink to revoke -all- old
-  certs for that key, not just most recent.  Not certain, but this may
-  have been the cause of a cert dropping not showing up in the CRL
-  during testing with APNIC in Vancouver.
-
 - Rewrite hooks that call CRL generation and publication to do so
   immediately rather than waiting for cron.   Batching to handle all
   of a bunch of events at once would be nice, but start by getting it
@@ -97,6 +92,11 @@ Current TO DO list:
 
   - Protection against up-down operations specifying a class_name that
     belongs to some other self context.
+
+  - Rewrote code that handles revoke on shrink to revoke -all- old
+    certs for that key, not just most recent.  Not certain, but this
+    may have been the cause of a cert dropping not showing up in the
+    CRL during testing with APNIC in Vancouver.
 
 - Implement remaining left-right control booleans -- among other
   reasons, these are the IRBE triggers for things like key rollover,

@@ -189,8 +189,8 @@ ro_elt |= element route_origin { ctl_dr, self_id, ro_id }
 # <list_resources/> element
 
 list_resources_elt = element list_resources {
-  ( attribute type { "query" }, self_id, child_id ) |
-  ( attribute type { "reply" }, self_id, child_id,
+  ( attribute type { "query" }, tag, self_id, child_id ) |
+  ( attribute type { "reply" }, tag, self_id, child_id,
     attribute valid_until { xsd:token { maxLength="1024" } },
     attribute subject_name { xsd:token { maxLength="1024" } }?,
     attribute as { xsd:token { maxLength="1024" } }?,
@@ -202,7 +202,7 @@ list_resources_elt = element list_resources {
 # <report_error/> element
 
 report_error_elt = element report_error {
-  self_id,
+  tag, self_id,
   attribute error_code { xsd:token { maxLength="1024" } },
   xsd:string { maxLength="512000" }?
 }

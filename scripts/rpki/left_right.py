@@ -88,6 +88,7 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
         setattr(r_pdu, b, False)
     r_pdu.action = self.action
     r_pdu.type = "reply"
+    r_pdu.tag = self.tag
     return r_pdu
 
   def serve_pre_save_hook(self, gctx, q_pdu, r_pdu):

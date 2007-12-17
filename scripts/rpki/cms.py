@@ -73,8 +73,6 @@ def sign(plaintext, keypair, certs):
          "-in", plaintext_filename,
          "-out", signed_filename)
 
-  rpki.log.debug("CMS signing command: %s" % str(cmd))
-
   rpki.log.trace()
 
   pid = os.fork()
@@ -103,11 +101,8 @@ def sign(plaintext, keypair, certs):
 
   rpki.log.trace()
 
-  os.unlink(key_filename)
-  os.unlink(signer_filename)
-  os.unlink(certfile_filename)
-  os.unlink(plaintext_filename)
-  os.unlink(signed_filename)
+  for f in (key_filename, signer_filename, certfile_filename, plaintext_filename, signed_filename):
+    os.unlink(f)
 
   rpki.log.trace()
 

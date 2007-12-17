@@ -6,7 +6,7 @@ For the moment these just call the OpenSSL CLI tool, which is slow,
 requires disk I/O, and likes PEM format.  Fix this later.
 """
 
-import os, rpki.x509, rpki.exceptions, lxml.etree
+import os, rpki.x509, rpki.exceptions, lxml.etree, rpki.log
 
 debug = 1
 
@@ -23,34 +23,93 @@ def sign(plaintext, keypair, certs):
 
   certs.chainsort()
 
-  signer_filename = "cms.tmp.signer.pem"
-  certfile_filename = "cms.tmp.certfile.pem"
-  plaintext_filename = "cms.tmp.plaintext"
+  mypid = str(os.getpid())
+
+  rpki.log.trace()
+
+  signer_filename = "cms.tmp." + mypid + ".signer.pem"
+  certfile_filename = "cms.tmp." + mypid + ".certfile.pem"
+  plaintext_filename = "cms.tmp." + mypid + ".plaintext"
+  signed_filename = "cms.tmp." + mypid + ".signed"
+  key_filename = "cms.tmp." + mypid + ".key.pem"
   
+  rpki.log.trace()
+
   f = open(signer_filename, "w")
   f.write(certs[0].get_PEM())
   f.close()
+
+  rpki.log.trace()
 
   f = open(certfile_filename, "w")
   for cert in certs[1:]:
     f.write(cert.get_PEM())
   f.close()
 
+  rpki.log.trace()
+
   f = open(plaintext_filename, "w")
   f.write(plaintext)
   f.close()
 
-  i,o = os.popen2(("openssl", "smime", "-sign", "-nodetach", "-outform", "DER", "-binary",
-                   "-signer", signer_filename,
-                   "-certfile", certfile_filename, "-inkey", "/dev/stdin", "-in", plaintext_filename))
-  i.write(keypair.get_PEM())
-  i.close()
-  cms = o.read()
-  o.close()
+  rpki.log.trace()
 
+  # This is evil, key should NOT be on disk, but OpenSSL CLI goes into
+  # a spin wait sometimes and I now suspect it's an I/O problem.
+  # So we whack this with chmod() to minimize the risk.
+
+  f = open(key_filename, "w")
+  f.close()
+  os.chmod(key_filename, 0600)
+  f = open(key_filename, "w")
+  f.write(keypair.get_PEM())
+  f.close()
+  os.chmod(key_filename, 0600)
+
+  cmd = ("openssl", "smime", "-sign", "-nodetach", "-outform", "DER", "-binary",
+         "-inkey", key_filename,
+         "-signer", signer_filename,
+         "-certfile", certfile_filename,
+         "-in", plaintext_filename,
+         "-out", signed_filename)
+
+  rpki.log.debug("CMS signing command: %s" % str(cmd))
+
+  rpki.log.trace()
+
+  pid = os.fork()
+
+  if pid == 0:
+    rpki.log.trace()
+    os.execvp(cmd[0], cmd)
+    raise rpki.exceptions.SubprocessError, "os.execvp() returned, which should never happen"
+
+  rpki.log.trace()
+
+  assert pid != 0
+
+  retpid, status = os.waitpid(pid, 0)
+
+  rpki.log.trace()
+
+  if status != 0:
+    raise rpki.exceptions.SubprocessError, "CMS signing command returned status 0x%x" % status
+
+  rpki.log.trace()
+
+  f = open(signed_filename, "r")
+  cms = f.read()
+  f.close()
+
+  rpki.log.trace()
+
+  os.unlink(key_filename)
   os.unlink(signer_filename)
   os.unlink(certfile_filename)
   os.unlink(plaintext_filename)
+  os.unlink(signed_filename)
+
+  rpki.log.trace()
 
   if debug >= 2:
     print
@@ -73,7 +132,9 @@ def verify(cms, ta):
     print "Verifying CMS:"
     dumpasn1(cms)
 
-  ta_filename = "cms.tmp.ta.pem"
+  mypid = str(os.getpid())
+
+  ta_filename = "cms.tmp." + mypid + ".ta.pem"
 
   f = open(ta_filename, "w")
   f.write(ta.get_PEM())

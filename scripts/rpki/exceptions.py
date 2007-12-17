@@ -61,3 +61,6 @@ class ClassNameMismatch(Exception):
 
 class SKIMismatch(Exception):
   """SKI value in response does not match request."""
+
+class SubprocessError(Exception):
+  """Subprocess returned unexpected error."""

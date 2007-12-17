@@ -880,6 +880,7 @@
           <attribute name="type">
             <value>query</value>
           </attribute>
+          <ref name="tag"/>
           <ref name="self_id"/>
           <ref name="child_id"/>
         </group>
@@ -887,6 +888,7 @@
           <attribute name="type">
             <value>reply</value>
           </attribute>
+          <ref name="tag"/>
           <ref name="self_id"/>
           <ref name="child_id"/>
           <attribute name="valid_until">
@@ -929,6 +931,7 @@
   <!-- <report_error/> element -->
   <define name="report_error_elt">
     <element name="report_error">
+      <ref name="tag"/>
       <ref name="self_id"/>
       <attribute name="error_code">
         <data type="token">

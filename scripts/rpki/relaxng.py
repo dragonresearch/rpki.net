@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rng 1373 2007-12-12 13:35:07Z sra $
+  $Id: left-right-schema.rnc 1372 2007-12-12 13:34:15Z sra $
   
   RelaxNG (Compact Syntax) Schema for RPKI left-right protocol.
   
@@ -886,6 +886,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
           <attribute name="type">
             <value>query</value>
           </attribute>
+          <ref name="tag"/>
           <ref name="self_id"/>
           <ref name="child_id"/>
         </group>
@@ -893,6 +894,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
           <attribute name="type">
             <value>reply</value>
           </attribute>
+          <ref name="tag"/>
           <ref name="self_id"/>
           <ref name="child_id"/>
           <attribute name="valid_until">
@@ -935,6 +937,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <!-- <report_error/> element -->
   <define name="report_error_elt">
     <element name="report_error">
+      <ref name="tag"/>
       <ref name="self_id"/>
       <attribute name="error_code">
         <data type="token">

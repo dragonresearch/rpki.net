@@ -30,7 +30,9 @@ mysql -u rpki -p`awk '$1 == "sql-password" {print $3}' rpkid.conf` rpki <../docs
 # Start rpkid so we can configure it, make sure we shut it down on exit
 
 python rpkid.py & rpkid=$!
-trap "kill $rpkid" 0
+trap "kill $rpkid" 0 1 2 3 13 15
+
+: Waiting to let rpkid start up; sleep 5
 
 # Create a self instance
 
@@ -72,7 +74,9 @@ then
 
   python testroot.py & testroot=$!
   python irdb.py     & irdb=$!
-  trap "kill $rpkid $irdb $testroot" 0
+  trap "kill $rpkid $irdb $testroot" 0 1 2 3 13 15
+
+  : Waiting to let daemons start up; sleep 5
 
   date; time python http-client.py
   date; time python testpoke.py -r list

@@ -198,7 +198,7 @@ class self_elt(data_elt):
   """<self/> element."""
 
   element_name = "self"
-  attributes = ("action", "type", "self_id", "crl_interval")
+  attributes = ("action", "type", "tag", "self_id", "crl_interval")
   elements = ("extension_preference",)
   booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now", "clear_extension_preferences")
 
@@ -408,7 +408,7 @@ class bsc_elt(data_elt):
   """<bsc/> (Business Signing Context) element."""
   
   element_name = "bsc"
-  attributes = ("action", "type", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
+  attributes = ("action", "type", "tag", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
   elements = ('signing_cert',)
   booleans = ("generate_keypair", "clear_signing_certs")
 
@@ -501,7 +501,7 @@ class parent_elt(data_elt):
   """<parent/> element."""
 
   element_name = "parent"
-  attributes = ("action", "type", "self_id", "parent_id", "bsc_id", "repository_id",
+  attributes = ("action", "type", "tag", "self_id", "parent_id", "bsc_id", "repository_id",
                 "peer_contact_uri", "sia_base", "sender_name", "recipient_name")
   elements = ("cms_ta", "https_ta")
   booleans = ("rekey", "reissue", "revoke")
@@ -625,7 +625,7 @@ class child_elt(data_elt):
   """<child/> element."""
 
   element_name = "child"
-  attributes = ("action", "type", "self_id", "child_id", "bsc_id")
+  attributes = ("action", "type", "tag", "self_id", "child_id", "bsc_id")
   elements = ("cms_ta",)
   booleans = ("reissue", )
 
@@ -712,7 +712,7 @@ class repository_elt(data_elt):
   """<repository/> element."""
 
   element_name = "repository"
-  attributes = ("action", "type", "self_id", "repository_id", "bsc_id", "peer_contact_uri")
+  attributes = ("action", "type", "tag", "self_id", "repository_id", "bsc_id", "peer_contact_uri")
   elements = ("cms_ta", "https_ta")
 
   sql_template = rpki.sql.template("repository", "repository_id", "self_id", "bsc_id",
@@ -797,7 +797,7 @@ class route_origin_elt(data_elt):
   """<route_origin/> element."""
 
   element_name = "route_origin"
-  attributes = ("action", "type", "self_id", "route_origin_id", "as_number", "ipv4", "ipv6")
+  attributes = ("action", "type", "tag", "self_id", "route_origin_id", "as_number", "ipv4", "ipv6")
   booleans = ("suppress_publication",)
 
   sql_template = rpki.sql.template("route_origin", "route_origin_id", "self_id", "as_number",
@@ -861,7 +861,7 @@ class list_resources_elt(base_elt):
   """<list_resources/> element."""
 
   element_name = "list_resources"
-  attributes = ("type", "self_id", "child_id", "valid_until", "as", "ipv4", "ipv6", "subject_name")
+  attributes = ("type", "self_id", "tag", "child_id", "valid_until", "as", "ipv4", "ipv6", "subject_name")
   valid_until = None
 
   def startElement(self, stack, name, attrs):
@@ -888,7 +888,7 @@ class report_error_elt(base_elt):
   """<report_error/> element."""
 
   element_name = "report_error"
-  attributes = ("self_id", "error_code")
+  attributes = ("tag", "self_id", "error_code")
 
   def startElement(self, stack, name, attrs):
     """Handle <report_error/> element."""
@@ -898,6 +898,14 @@ class report_error_elt(base_elt):
   def toXML(self):
     """Generate <report_error/> element."""
     return self.make_elt()
+
+  @classmethod
+  def from_exception(cls, exc, self_id = None):
+    """Generate a <report_error/> element from an exception."""
+    self = cls()
+    self.self_id = self_id
+    self.error_code = exc.__class__.__name__
+    return self
 
 class msg(list):
   """Left-right PDU."""
@@ -988,7 +996,7 @@ def irdb_query(gctx, self_id, child_id = None):
   rpki.relaxng.left_right.assertValid(r_elt)
   r_msg = rpki.left_right.sax_handler.saxify(r_elt)
   if len(r_msg) == 0 or not isinstance(r_msg[0], list_resources_elt) or r_msg[0].type != "reply":
-    raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % r_msg.toXML()
+    raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")
   return rpki.resource_set.resource_bag(
     as          = r_msg[0].as,
     v4          = r_msg[0].ipv4,

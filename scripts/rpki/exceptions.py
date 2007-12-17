@@ -64,3 +64,6 @@ class SKIMismatch(Exception):
 
 class SubprocessError(Exception):
   """Subprocess returned unexpected error."""
+
+class BadIRDBReply(Exception):
+  """Unexpected reply to IRDB query."""

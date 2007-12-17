@@ -15,24 +15,36 @@ def handler(query, path):
     r_msg = rpki.left_right.msg()
 
     for q_pdu in q_msg:
-      assert isinstance(q_pdu, rpki.left_right.list_resources_elt) and q_pdu.type == "query"
 
-      r_pdu = rpki.left_right.list_resources_elt()
-      r_pdu.type = "reply"
-      r_pdu.self_id = q_pdu.self_id
-      r_pdu.child_id = q_pdu.child_id
+      try:
+        if not isinstance(q_pdu, rpki.left_right.list_resources_elt) or q_pdu.type != "query":
+          raise rpki.exceptions.BadQuery, "Unexpected %s PDU" % repr(q_pdu)
 
-      cur.execute("""SELECT registrant_id, subject_name, valid_until FROM registrant
-                     WHERE registrant.rpki_self_id = %s AND registrant.rpki_child_id = %s
-                     """ % (q_pdu.self_id, q_pdu.child_id))
-      assert cur.rowcount == 1, "This query should have produced a single exact match, something's messed up (self_id = %s, child_id = %s)" % (self_id, child_id)
+        r_pdu = rpki.left_right.list_resources_elt()
+        r_pdu.type = "reply"
+        r_pdu.tag = q_pdu.tag
+        r_pdu.self_id = q_pdu.self_id
+        r_pdu.child_id = q_pdu.child_id
 
-      registrant_id, subject_name, valid_until = cur.fetchone()
-      r_pdu.subject_name = subject_name
-      r_pdu.valid_until = valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
-      r_pdu.as   = rpki.resource_set.resource_set_as.from_sql(cur,   "SELECT start_as, end_as FROM asn WHERE registrant_id = %s" % registrant_id)
-      r_pdu.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(cur, "SELECT start_ip, end_ip FROM net WHERE registrant_id = %s AND version = 4" % registrant_id)
-      r_pdu.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(cur, "SELECT start_ip, end_ip FROM net WHERE registrant_id = %s AND version = 6" % registrant_id)
+        cur.execute("""SELECT registrant_id, subject_name, valid_until FROM registrant
+                       WHERE registrant.rpki_self_id = %s AND registrant.rpki_child_id = %s
+                       """ % (q_pdu.self_id, q_pdu.child_id))
+        if cur.rowcount != 1:
+          raise rpki.exceptions.NotInDatabase, \
+                "This query should have produced a single exact match, something's messed up (rowcount = %d, self_id = %s, child_id = %s)" \
+                % (cur.rowcount, q_pdu.self_id, q_pdu.child_id)
+
+        registrant_id, subject_name, valid_until = cur.fetchone()
+        r_pdu.subject_name = subject_name
+        r_pdu.valid_until = valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
+        r_pdu.as   = rpki.resource_set.resource_set_as.from_sql(cur,   "SELECT start_as, end_as FROM asn WHERE registrant_id = %s" % registrant_id)
+        r_pdu.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(cur, "SELECT start_ip, end_ip FROM net WHERE registrant_id = %s AND version = 4" % registrant_id)
+        r_pdu.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(cur, "SELECT start_ip, end_ip FROM net WHERE registrant_id = %s AND version = 6" % registrant_id)
+
+      except Exception, data:
+        traceback.print_exc()
+        r_pdu = rpki.left_right.report_error_elt.from_exception(data, q_pdu.self_id)
+
       r_msg.append(r_pdu)
 
     r_elt = r_msg.toXML()
@@ -40,9 +52,12 @@ def handler(query, path):
     return 200, rpki.cms.xml_sign(r_elt, cms_key, cms_certs)
 
   except Exception, data:
-    # This should generate a <report_error/> PDU, but this will do for initial debugging
     traceback.print_exc()
-    return 500, "Unhandled exception %s" % data
+
+    # We only get here in cases where we couldn't or wouldn't generate
+    # <report_error/>, so just return HTTP failure.
+
+    return 500, "Unhandled exception %s: %s" % (data.__class__.__name__, data)
 
 rpki.log.init("irdb")
 

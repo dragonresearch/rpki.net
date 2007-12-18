@@ -36,7 +36,7 @@ do
 	distinguished_name	= req_dn
 	x509_extensions		= req_x509_ext
 	prompt			= no
-	default_md		= sha1
+	default_md		= sha256
 
 	[ req_dn ]
 	CN			= Test Certificate $i $j
@@ -53,7 +53,7 @@ do
 
   done
 
-  test -r $i-Root.cer || openssl x509 -req -in $i-Root.req -out $i-Root.cer -extfile $i-Root.cnf -extensions req_x509_ext -signkey $i-Root.key
+  test -r $i-Root.cer || openssl x509 -req -in $i-Root.req -out $i-Root.cer -extfile $i-Root.cnf -extensions req_x509_ext -signkey $i-Root.key -days 60
   test -r $i-CA.cer   || openssl x509 -req -in $i-CA.req   -out $i-CA.cer   -extfile $i-CA.cnf   -extensions req_x509_ext -CA $i-Root.cer -CAkey $i-Root.key -CAcreateserial
   test -r $i-EE.cer   || openssl x509 -req -in $i-EE.req   -out $i-EE.cer   -extfile $i-EE.cnf   -extensions req_x509_ext -CA $i-CA.cer   -CAkey $i-CA.key   -CAcreateserial
 

@@ -63,9 +63,14 @@ time python irbe-cli.py parent --self_id 1 --action create --bsc_id 1 --reposito
 
 time python irbe-cli.py child --self_id 1 --action create --bsc_id 1 --cms_ta biz-certs/Frank-Root.cer
 
-# Need to link irdb to created child.  For now, just do this manually in MySQL CLI:
-#
-#   UPDATE registrant SET rpki_self_id = 1, rpki_child_id = 1 WHERE subject_name = "Epilogue Technology Corporation"
+# Need to link irdb to created child and clear conflicting links.
+# For now, just do this "manually" in MySQL CLI.
+
+echo '
+  UPDATE registrant SET rpki_self_id = NULL, rpki_child_id = NULL;
+  UPDATE registrant SET rpki_self_id = 1, rpki_child_id = 1 WHERE subject_name = "Epilogue Technology Corporation";
+' |
+mysql -u irdb -p`awk '$1 == "sql-password" {print $3}' irbe.conf` irdb
 
 if test "$1" = "run"
 then

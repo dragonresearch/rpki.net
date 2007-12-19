@@ -2,14 +2,24 @@
 
 import rpki.resource_set, os, yaml
 
+class allocation_db(list):
+
+  def __init__(self, yaml):
+    allocation(yaml, self).closure()
+
+  @classmethod
+  def from_file(cls, filename):
+    return cls(yaml.safe_load(open(filename)))
+
 class allocation(object):
 
   parent = None
 
-  def __init__(self, yaml, parent = None):
+  def __init__(self, yaml, db, parent = None):
+    db.append(self)
     self.name = yaml["name"]
     self.parent = parent
-    self.kids = [allocation(k, self) for k in yaml.get("kids", ())]
+    self.kids = [allocation(k, db, self) for k in yaml.get("kids", ())]
     self.base = rpki.resource_set.resource_bag(
       as = rpki.resource_set.resource_set_as(yaml.get("asn")),
       v4 = rpki.resource_set.resource_set_ipv4(yaml.get("ipv4")),
@@ -23,13 +33,6 @@ class allocation(object):
     self.resources = resources
     return resources
 
-  def flatten(self):
-    """Return a list of self and kids."""
-    ret = [self]
-    for kid in self.kids:
-      ret.extend(kid.flatten())
-    return ret
-
   def is_leaf(self):
     return not self.kids
 
@@ -37,17 +40,20 @@ class allocation(object):
     return self.parent is None
 
   def __str__(self):
-    return "%s\n  ASN: %s\n IPv4: %s\n IPv6: %s\n Kids: %s\n" \
-           % (self.name,
-              self.resources.as, self.resources.v4, self.resources.v6,
-              ", ".join(k.name for k in self.kids))
+    s = self.name + "\n"
+    if self.resources.as:
+      s += "  ASN: %s\n" % self.resources.as
+    if self.resources.v4:
+      s += " IPv4: %s\n" % self.resources.v4
+    if self.resources.v6:
+      s += " IPv6: %s\n" % self.resources.v6
+    if self.kids:
+      s += " Kids: %s\n" % ", ".join(k.name for k in self.kids)
+    if self.parent:
+      s += "   Up: %s\n" % self.parent.name
+    return s
 
-f = open("testdb2.yaml")
-y = yaml.safe_load(f)
-f.close()
+if __name__ == "__main__":
 
-root = allocation(y)
-root.closure()
-
-for i in root.flatten():
-  print i
+  for i in allocation_db.from_file("testdb2.yaml"):
+    print i

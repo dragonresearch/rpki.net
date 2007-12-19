@@ -129,7 +129,7 @@ class resource_set(list):
 
   def __init__(self, ini = None):
     """Initialize a resource_set."""
-    if isinstance(ini, long):
+    if isinstance(ini, int) or isinstance(ini, long):
       ini = str(ini)
     if ini == inherit_token:
       self.inherit = True
@@ -140,7 +140,7 @@ class resource_set(list):
     elif isinstance(ini, list):
       self.extend(ini)
     else:
-      assert ini is None or ini == ""
+      assert ini is None or ini == "", "Unexpected initializer: %s" % str(ini)
     assert not self.inherit or not self
     self.sort()
     if __debug__:
@@ -189,7 +189,7 @@ class resource_set(list):
   def union(self, other):
     """Set union for resource sets."""
     assert not self.inherit
-    assert type(self) is type(other)
+    assert type(self) is type(other), "Type mismatch: %s %s" % (repr(type(self)), repr(type(other)))
     set1 = self[:]
     set2 = other[:]
     result = []
@@ -440,6 +440,15 @@ class resource_bag(object):
     return self.__class__(self.as.intersection(other.as),
                           self.v4.intersection(other.v4),
                           self.v6.intersection(other.v6),
+                          self.valid_until)
+
+  def union(self, other):
+    """Compute union with another resource_bag.
+    valid_until attribute (if any) inherits from self.
+    """
+    return self.__class__(self.as.union(other.as),
+                          self.v4.union(other.v4),
+                          self.v6.union(other.v6),
                           self.valid_until)
 
 # Test suite for set operations.  This will probably go away eventually

@@ -1,0 +1,68 @@
+# $Id$
+
+name: Root
+kids:
+  - name: R0
+    kids:
+      - name: Alice
+        ipv4: 192.0.2.1-192.0.2.33
+        asn:  64533
+      - name: Bob
+        ipv4: 192.0.2.44-192.0.2.100
+  - name: R1
+    kids:
+      - name: Carol
+        ipv6: 2001:db8::44-2001:db8::100
+      - name: Dave
+        ipv6: 2001:db8::10:0:44/128
+        asn:  64544
+  - name: R2
+    kids:
+      - name: Elena
+        ipv4: 10.0.0.0/24
+        ipv6: 2001:db8::a00:0/120
+      - name: Frank
+        ipv4: 10.3.0.0/24
+        ipv6: 2001:db8::a03:0/120
+  - name: R3
+    kids:
+      - name: Ginny
+        asn:  64534-64540
+      - name: Harry
+        asn:  666-677
+  - name: R4
+    kids:
+      - name: Ilse
+        ipv4: 10.3.0.0/16
+      - name: Jack
+        ipv4: 10.2.0.0/16
+  - name: R5
+    kids:
+      - name: Kari
+        asn:  222-233
+      - name: Leon
+        asn:  244-255
+  - name: R6
+    kids:
+      - name: Mary
+        ipv4: 10.77.0.0/16
+      - name: Neal
+        ipv4: 10.66.0.0/16
+  - name: R7
+    kids:
+      - name: Olga
+        ipv4: 10.88.0.0/16
+      - name: Piet
+        ipv4: 10.99.0.0/16
+  - name: R8
+    kids:
+      - name: Qi
+        asn:  111-122
+      - name: Rex
+        asn:  333-344
+  - name: R9
+    kids:
+      - name: Sandra
+        asn:  555-566
+      - name: Thad
+        asn:  577-588

@@ -3,7 +3,7 @@
 #
 # Run irbe-setup.py, under screen if possible.
 
-make test
+#make test
 
 if test -n "$STY"
 then

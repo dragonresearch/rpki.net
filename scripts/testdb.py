@@ -6,10 +6,16 @@ class allocation_db(list):
 
   def __init__(self, yaml):
     allocation(yaml, self).closure()
+    for i, a in zip(range(len(self)), self):
+      a.number = i
 
   @classmethod
   def from_file(cls, filename):
     return cls(yaml.safe_load(open(filename)))
+
+  def dict_iter(self):
+    for a in self:
+      yield a.make_dict()
 
 class allocation(object):
 
@@ -33,27 +39,29 @@ class allocation(object):
     self.resources = resources
     return resources
 
+  def make_dict(self):
+    return { "name"   : self.name,
+             "parent" : None if self.parent is None else self.parent.name,
+             "kids"   : [k.name for k in self.kids],
+             "as"     : self.resources.as,
+             "v4"     : self.resources.v4,
+             "v6"     : self.resources.v6,
+             "number" : self.number }
+
   def is_leaf(self):
     return not self.kids
 
   def is_root(self):
     return self.parent is None
 
-  def __str__(self):
-    s = self.name + "\n"
-    if self.resources.as:
-      s += "  ASN: %s\n" % self.resources.as
-    if self.resources.v4:
-      s += " IPv4: %s\n" % self.resources.v4
-    if self.resources.v6:
-      s += " IPv6: %s\n" % self.resources.v6
-    if self.kids:
-      s += " Kids: %s\n" % ", ".join(k.name for k in self.kids)
-    if self.parent:
-      s += "   Up: %s\n" % self.parent.name
-    return s
-
 if __name__ == "__main__":
-
-  for i in allocation_db.from_file("testdb2.yaml"):
-    print i
+  for d in allocation_db.from_file("testdb2.yaml").dict_iter():
+    print '''
+Name: %(name)s
+ ASN: %(as)s
+IPv4: %(v4)s
+IPv6: %(v6)s
+Rent: %(parent)s
+Kids: %(kids)s
+ Num: %(number)s
+''' % d

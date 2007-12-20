@@ -1,6 +1,6 @@
 # $Id$
 
-import rpki.resource_set, os, yaml
+import rpki.resource_set, os, yaml, MySQLdb
 
 debug          = True
 irbe_name      = "testdb"
@@ -10,6 +10,8 @@ max_twigs      = 10
 irdb_base_port = 4400
 rpki_base_port = irdb_base_port + max_twigs
 root_port      = rpki_base_port + max_twigs
+rpki_sql_file  = "../docs/rpki-db-schema.sql"
+irdb_sql_file  = "../docs/sample-irdb.sql"
 
 def main():
 
@@ -31,7 +33,15 @@ def main():
     if a.is_twig():
       a.setup_conf_file()
 
-  # 2: Initialize sql for rpki.py and irdb.py instances
+  # Initialize sql for rpki.py and irdb.py instances
+
+  rpki_sql = open(rpki_sql_file).read()
+  irdb_sql = open(irdb_sql_file).read()
+  
+  for a in db:
+    if a.is_twig():
+      a.setup_sql(rpki_sql, irdb_sql)
+
   # 4: Populate IRDB(s)
   # 5: Start RPKI and IRDB instances
   # 6: Create objects in RPKI engines
@@ -145,6 +155,13 @@ class allocation(object):
       f = open(self.name + ".conf", "w")
       f.write(s)
       f.close()
+
+  def setup_sql(self, rpki_sql, irdb_sql):
+    for name, user, passwd, sql in ((self.rpki_db_name, "rpki", rpki_db_pass, rpki_sql),
+                                    (self.irdb_db_name, "irdb", irdb_db_pass, irdb_sql)):
+      db = MySQLdb.connect(user = user, db = name, passwd = passwd)
+      db.cursor().execute(sql)
+      db.close()
 
 def setup_biz_cert_chain(name):
   s = ""

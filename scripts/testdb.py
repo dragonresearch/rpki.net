@@ -18,12 +18,13 @@ def main():
 
   # Steps we need to take here
   #
+  # 0: Construct biz keys and certs for this script to use (doh)
   # 1: Construct config files for rpkid.py and irdb.py instances
   # 2: Initialize sql for rpki.py and irdb.py instances
   # 3: Construct biz keys and certs for rpki.py and irdb.py instances
 
   for a in db:
-    setup_biz_certs(a.name)
+    a.setup_biz_certs()
 
   # 4: Populate IRDB(s)
   # 5: Start RPKI and IRDB instances
@@ -105,6 +106,31 @@ class allocation(object):
   def is_root(self): return self.parent is None
   def is_twig(self): return self.parent is not None and self.kids
 
+  def setup_biz_certs(self):
+    for tag in ("rpkid", "irdbd"):
+      setup_biz_cert_chain(self.name + "-" + tag)
+
+def setup_biz_cert_chain(name):
+  s = ""
+  for kind in ("EE", "CA", "TA"):
+    n = "%s-%s" % (name, kind)
+    c = biz_cert_fmt_1 % (n, "true" if kind in ("CA", "TA") else "false")
+    if debug:
+      print "Would write config file " + n + " containing:\n\n" + c
+    else:
+      f = open("%s.cnf" % n, "w")
+      f.write(c)
+      f.close()
+    if not os.path.exists(n + ".key") or not os.path.exists(n + ".req"):
+      s += biz_cert_fmt_2 % ((n,) * 3)
+  s += biz_cert_fmt_3 % ((name,) * 14)
+  if debug:
+    print "Would execute:\n\n" + s
+  else:
+    r = os.system(s)
+    if r != 0:
+      raise RunTimeError, "Command failed (status %x):\n%s" % (r, s)
+
 biz_cert_fmt_1 = '''\
 [ req ]
 distinguished_name	= req_dn
@@ -131,25 +157,112 @@ openssl x509 -req -in %s-CA.req -out %s-CA.cer -extfile %s-CA.cnf -extensions re
 openssl x509 -req -in %s-EE.req -out %s-EE.cer -extfile %s-EE.cnf -extensions req_x509_ext -CA %s-CA.cer -CAkey %s-CA.key -CAcreateserial
 '''
 
-def setup_biz_certs(name):
-  s = ""
-  for kind in ("EE", "CA", "TA"):
-    n = "%s-%s" % (name, kind)
-    c = biz_cert_fmt_1 % (n, "true" if kind in ("CA", "TA") else "false")
-    if debug:
-      print "Would write config file " + n + " containing:\n\n" + c
-    else:
-      f = open("%s.cnf" % n, "w")
-      f.write(c)
-      f.close()
-    if not os.path.exists(n + ".key") or not os.path.exists(n + ".req"):
-      s += biz_cert_fmt_2 % ((n,) * 3)
-  s += biz_cert_fmt_3 % ((name,) * 14)
-  if debug:
-    print "Would execute:\n\n" + s
-  else:
-    r = os.system(s)
-    if r != 0:
-      raise RunTimeError, "Command failed (status %x):\n%s" % (r, s)
+poke_yaml_fmt_1 = '''---
+version:                1
+posturl:                https://localhost:%(parent_https_port)s/up-down/%(my_child_id)s
+recipient-id:           "%(parent_recipient_id)s"
+sender-id:              "%(my_sender_id)s"
+
+cms-cert-file:          %(my_name)s-EE.cer
+cms-key-file:           %(my_name)s-EE.key
+cms-ca-cert-file:       %(parent_name)s-Root.cer
+cms-cert-chain-file:    [ %(my_name)s-CA.cer ]
+
+ssl-cert-file:          %(my_name)s-EE.cer
+ssl-key-file:           %(my_name)s-EE.key
+ssl-ca-cert-file:       %(parent_name)s-Root.cer
+
+requests:
+  list:
+    type:               list
+  issue:
+    type:               issue
+    class:              %(my_class_name)s
+    sia:                [ "%(my_sia_dir)s" ]
+  revoke:
+    type:               revoke
+    class:              %(my_class_name)s
+    ski:                "%(my_ski)s"
+'''
+
+conf_fmt_1 = '''\
+
+[rpkid]
+
+sql-database	= %(rpki_db_name)s
+sql-username	= rpki
+sql-password	= %(rpki_db_pass)s
+
+# RPKI daemon is Bob
+
+cms-key		= Bob-EE.key
+cms-cert.0	= Bob-EE.cer
+cms-cert.1	= Bob-CA.cer
+
+cms-ta-irdb	= Carol-Root.cer
+cms-ta-irbe	= Alice-Root.cer
+
+https-key	= Bob-EE.key
+https-cert.0	= Bob-EE.cer
+https-cert.1	= Bob-CA.cer
+
+https-ta.0	= Alice-Root.cer
+https-ta.1	= Carol-Root.cer
+https-ta.2	= Dave-Root.cer
+https-ta.3	= Elena-Root.cer
+https-ta.4	= Frank-Root.cer
+https-ta.5	= Ginny-Root.cer
+https-ta.6	= Harry-Root.cer
+
+irdb-url	= https://localhost:4434/
+
+[irdb]
+
+# IRDB is Carol
+
+sql-database	= %(irdb_db_name)s
+sql-username	= irdb
+sql-password	= %(irdb_db_pass)s
+
+cms-key		= Carol-EE.key
+cms-cert.0	= Carol-EE.cer
+cms-cert.1	= Carol-CA.cer
+cms-ta		= Bob-Root.cer
+
+https-key	= Carol-EE.key
+https-cert.0	= Carol-EE.cer
+https-cert.1	= Carol-CA.cer
+https-ta.0	= Alice-Root.cer
+https-ta.1	= Bob-Root.cer
+https-ta.2	= Dave-Root.cer
+https-ta.3	= Elena-Root.cer
+https-ta.4	= Frank-Root.cer
+https-ta.5	= Ginny-Root.cer
+https-ta.6	= Harry-Root.cer
+
+https-url	= https://localhost:4434/
+
+[irbe-cli]
+
+# IRBE CLI is Alice
+
+cms-key		= Alice-EE.key
+cms-cert.0	= Alice-EE.cer
+cms-cert.1	= Alice-CA.cer
+cms-ta		= Bob-Root.cer
+
+https-key	= Alice-EE.key
+https-cert.0	= Alice-EE.cer
+https-cert.1	= Alice-CA.cer
+https-ta.0	= Bob-Root.cer
+https-ta.1	= Carol-Root.cer
+https-ta.2	= Dave-Root.cer
+https-ta.3	= Elena-Root.cer
+https-ta.4	= Frank-Root.cer
+https-ta.5	= Ginny-Root.cer
+https-ta.6	= Harry-Root.cer
+
+https-url	= https://localhost:4433/left-right
+'''
 
 main()

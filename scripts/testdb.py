@@ -2,30 +2,36 @@
 
 import rpki.resource_set, os, yaml
 
-debug = True
+debug          = True
+irbe_name      = "testdb"
+irdb_db_pass   = "fnord"
+rpki_db_pass   = "fnord"
+max_twigs      = 10
+irdb_base_port = 4400
+rpki_base_port = irdb_base_port + max_twigs
+root_port      = rpki_base_port + max_twigs
 
 def main():
 
   y = [y for y in yaml.safe_load_all(open("testdb2.yaml"))]
 
   db = allocation_db(y[0])
-  db.dump()
+  #db.dump()
 
-  for delta in y[1:]:
-    print "Applying delta %s\n" % delta
-    db.apply_delta(delta)
-    db.dump()
+  # Construct biz keys and certs for this script to use; construct biz
+  # keys and certs for all the rpki.py and irdb.py instances.
 
-  # Steps we need to take here
-  #
-  # 0: Construct biz keys and certs for this script to use (doh)
-  # 1: Construct config files for rpkid.py and irdb.py instances
-  # 2: Initialize sql for rpki.py and irdb.py instances
-  # 3: Construct biz keys and certs for rpki.py and irdb.py instances
-
+  setup_biz_cert_chain(irbe_name)
   for a in db:
     a.setup_biz_certs()
 
+  # Construct config files for rpkid.py and irdb.py instances
+
+  for a in db:
+    if a.is_twig():
+      a.setup_conf_file()
+
+  # 2: Initialize sql for rpki.py and irdb.py instances
   # 4: Populate IRDB(s)
   # 5: Start RPKI and IRDB instances
   # 6: Create objects in RPKI engines
@@ -34,8 +40,11 @@ def main():
   # 8a: Run cron in all RPKI instances
   # 8b: Run all YAML clients
   # 8c: Read and apply next deltas from master YAML
-  #
-  # This is going to be ugly
+
+  for delta in y[1:]:
+    print "Applying delta %s\n" % delta
+    db.apply_delta(delta)
+    #db.dump()
 
 class allocation_db(list):
 
@@ -46,7 +55,7 @@ class allocation_db(list):
     self.map = dict((a.name, a) for a in self)
     twigs = [a for a in self if a.is_twig()]
     for i, a in zip(range(len(twigs)), twigs):
-      a.number = i
+      a.set_twig_number(i)
 
   def apply_delta(self, delta):
     for d in delta:
@@ -59,8 +68,11 @@ class allocation_db(list):
 
 class allocation(object):
 
-  parent = None
-  number = None
+  parent       = None
+  irdb_db_name = None
+  irdb_port    = None
+  rpki_db_name = None
+  rpki_port    = None
 
   def __init__(self, yaml, db, parent = None):
     db.append(self)
@@ -94,7 +106,6 @@ class allocation(object):
 
   def __str__(self):
     s = self.name + "\n"
-    if self.number is not None: s += "    #: %s\n" % self.number
     if self.resources.as:       s += "  ASN: %s\n" % self.resources.as
     if self.resources.v4:       s += " IPv4: %s\n" % self.resources.v4
     if self.resources.v6:       s += " IPv6: %s\n" % self.resources.v6
@@ -106,9 +117,34 @@ class allocation(object):
   def is_root(self): return self.parent is None
   def is_twig(self): return self.parent is not None and self.kids
 
+  def set_twig_number(self, n):
+    if n > max_twigs:
+      raise RuntimeError, "You asked for %d rpki engine instances, maximum is %d, sorry" % (n, max_twigs)
+    self.irdb_db_name = "irdb%d" % n
+    self.irdb_port    = irdb_base_port + n
+    self.rpki_db_name = "rpki%d" % n
+    self.rpki_port    = rpki_base_port + n
+
   def setup_biz_certs(self):
-    for tag in ("rpkid", "irdbd"):
+    for tag in ("RPKI", "IRDB"):
       setup_biz_cert_chain(self.name + "-" + tag)
+
+  def setup_conf_file(self):
+    d = { "my_name"      : self.name,
+          "irbe_name"    : irbe_name,
+          "irdb_db_name" : self.irdb_db_name,
+          "irdb_db_pass" : irdb_db_pass,
+          "irdb_port"    : self.irdb_port,
+          "rpki_db_name" : self.rpki_db_name,
+          "rpki_db_pass" : rpki_db_pass,
+          "rpki_port"    : self.rpki_port }
+    s = conf_fmt_1 % d
+    if debug:
+      print "Would write config file " + self.name + ".conf containing:\n" + s
+    else:
+      f = open(self.name + ".conf", "w")
+      f.write(s)
+      f.close()
 
 def setup_biz_cert_chain(name):
   s = ""
@@ -116,7 +152,7 @@ def setup_biz_cert_chain(name):
     n = "%s-%s" % (name, kind)
     c = biz_cert_fmt_1 % (n, "true" if kind in ("CA", "TA") else "false")
     if debug:
-      print "Would write config file " + n + " containing:\n\n" + c
+      print "Would write config file " + n + ".cnf containing:\n\n" + c
     else:
       f = open("%s.cnf" % n, "w")
       f.write(c)
@@ -193,74 +229,55 @@ sql-database	= %(rpki_db_name)s
 sql-username	= rpki
 sql-password	= %(rpki_db_pass)s
 
-# RPKI daemon is Bob
+cms-key		= %(my_name)s-RPKI-EE.key
+cms-cert.0	= %(my_name)s-RPKI-EE.cer
+cms-cert.1	= %(my_name)s-RPKI-CA.cer
 
-cms-key		= Bob-EE.key
-cms-cert.0	= Bob-EE.cer
-cms-cert.1	= Bob-CA.cer
+cms-ta-irdb	= %(my_name)s-IRDB-TA.cer
+cms-ta-irbe	= %(irbe_name)s-TA.cer
 
-cms-ta-irdb	= Carol-Root.cer
-cms-ta-irbe	= Alice-Root.cer
+https-key	= %(my_name)s-RPKI-EE.key
+https-cert.0	= %(my_name)s-RPKI-EE.cer
+https-cert.1	= %(my_name)s-RPKI-CA.cer
 
-https-key	= Bob-EE.key
-https-cert.0	= Bob-EE.cer
-https-cert.1	= Bob-CA.cer
+https-ta.0	= %(irbe_name)s-TA.cer
+https-ta.1	= %(my_name)s-IRDB-TA.cer
 
-https-ta.0	= Alice-Root.cer
-https-ta.1	= Carol-Root.cer
-https-ta.2	= Dave-Root.cer
-https-ta.3	= Elena-Root.cer
-https-ta.4	= Frank-Root.cer
-https-ta.5	= Ginny-Root.cer
-https-ta.6	= Harry-Root.cer
+irdb-url	= https://localhost:%(irdb_port)d/
 
-irdb-url	= https://localhost:4434/
+https-server-port = %(rpki_port)d
 
 [irdb]
-
-# IRDB is Carol
 
 sql-database	= %(irdb_db_name)s
 sql-username	= irdb
 sql-password	= %(irdb_db_pass)s
 
-cms-key		= Carol-EE.key
-cms-cert.0	= Carol-EE.cer
-cms-cert.1	= Carol-CA.cer
-cms-ta		= Bob-Root.cer
+cms-key		= %(my_name)s-IRDB-EE.key
+cms-cert.0	= %(my_name)s-IRDB-EE.cer
+cms-cert.1	= %(my_name)s-IRDB-CA.cer
+cms-ta		= %(my_name)s-RPKI-TA.cer
 
-https-key	= Carol-EE.key
-https-cert.0	= Carol-EE.cer
-https-cert.1	= Carol-CA.cer
-https-ta.0	= Alice-Root.cer
-https-ta.1	= Bob-Root.cer
-https-ta.2	= Dave-Root.cer
-https-ta.3	= Elena-Root.cer
-https-ta.4	= Frank-Root.cer
-https-ta.5	= Ginny-Root.cer
-https-ta.6	= Harry-Root.cer
+https-key	= %(my_name)s-IRDB-EE.key
+https-cert.0	= %(my_name)s-IRDB-EE.cer
+https-cert.1	= %(my_name)s-IRDB-CA.cer
+https-ta.0	= %(irbe_name)s-TA.cer
+https-ta.1	= %(my_name)s-RPKI-TA.cer
 
-https-url	= https://localhost:4434/
+https-url	= https://localhost:%(irdb_port)d/
 
 [irbe-cli]
 
-# IRBE CLI is Alice
+cms-key		= %(irbe_name)s-EE.key
+cms-cert.0	= %(irbe_name)s-EE.cer
+cms-cert.1	= %(irbe_name)s-CA.cer
+cms-ta		= %(my_name)s-RPKI-TA.cer
 
-cms-key		= Alice-EE.key
-cms-cert.0	= Alice-EE.cer
-cms-cert.1	= Alice-CA.cer
-cms-ta		= Bob-Root.cer
-
-https-key	= Alice-EE.key
-https-cert.0	= Alice-EE.cer
-https-cert.1	= Alice-CA.cer
-https-ta.0	= Bob-Root.cer
-https-ta.1	= Carol-Root.cer
-https-ta.2	= Dave-Root.cer
-https-ta.3	= Elena-Root.cer
-https-ta.4	= Frank-Root.cer
-https-ta.5	= Ginny-Root.cer
-https-ta.6	= Harry-Root.cer
+https-key	= %(irbe_name)s-EE.key
+https-cert.0	= %(irbe_name)s-EE.cer
+https-cert.1	= %(irbe_name)s-CA.cer
+https-ta.0	= %(my_name)s-RPKI-TA.cer
+https-ta.1	= %(my_name)s-IRDB-TA.cer
 
 https-url	= https://localhost:4433/left-right
 '''

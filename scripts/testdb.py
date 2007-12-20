@@ -1,6 +1,6 @@
 # $Id$
 
-import rpki.resource_set, os, yaml, MySQLdb
+import rpki.resource_set, os, yaml, MySQLdb, rpki.sundial
 
 debug          = True
 irbe_name      = "testdb"
@@ -18,43 +18,51 @@ def main():
   y = [y for y in yaml.safe_load_all(open("testdb2.yaml"))]
 
   db = allocation_db(y[0])
-  #db.dump()
 
-  # Construct biz keys and certs for this script to use; construct biz
-  # keys and certs for all the rpki.py and irdb.py instances.
+  if True:
 
-  setup_biz_cert_chain(irbe_name)
-  for a in db:
-    a.setup_biz_certs()
+    db.dump()
+    for delta in y[1:]:
+      print "Applying delta %s\n" % delta
+      db.apply_delta(delta)
+      db.dump()
 
-  # Construct config files for rpkid.py and irdb.py instances
+  else:
 
-  for a in db:
-    if a.is_twig():
-      a.setup_conf_file()
+    # Construct biz keys and certs for this script to use; construct biz
+    # keys and certs for all the rpki.py and irdb.py instances.
 
-  # Initialize sql for rpki.py and irdb.py instances
+    setup_biz_cert_chain(irbe_name)
+    for a in db:
+      a.setup_biz_certs()
 
-  rpki_sql = open(rpki_sql_file).read()
-  irdb_sql = open(irdb_sql_file).read()
-  
-  for a in db:
-    if a.is_twig():
-      a.setup_sql(rpki_sql, irdb_sql)
+    # Construct config files for rpkid.py and irdb.py instances
 
-  # 4: Populate IRDB(s)
-  # 5: Start RPKI and IRDB instances
-  # 6: Create objects in RPKI engines
-  # 7: Write YAML files for leaves
-  # 8: Start cycle:
-  # 8a: Run cron in all RPKI instances
-  # 8b: Run all YAML clients
-  # 8c: Read and apply next deltas from master YAML
+    for a in db:
+      if a.is_twig():
+        a.setup_conf_file()
 
-  for delta in y[1:]:
-    print "Applying delta %s\n" % delta
-    db.apply_delta(delta)
-    #db.dump()
+    # Initialize sql for rpki.py and irdb.py instances
+
+    rpki_sql = open(rpki_sql_file).read()
+    irdb_sql = open(irdb_sql_file).read()
+
+    for a in db:
+      if a.is_twig():
+        a.setup_sql(rpki_sql, irdb_sql)
+
+    # 4: Populate IRDB(s)
+    # 5: Start RPKI and IRDB instances
+    # 6: Create objects in RPKI engines
+    # 7: Write YAML files for leaves
+    # 8: Start cycle:
+    # 8a: Run cron in all RPKI instances
+    # 8b: Run all YAML clients
+    # 8c: Make sure that everybody got what they were supposed to get
+    #     and that everything that was supposed to be published has been
+    #     published
+    # 8d: Read and apply next deltas from master YAML
+
 
 class allocation_db(list):
 
@@ -92,7 +100,8 @@ class allocation(object):
     self.base = rpki.resource_set.resource_bag(
       as = rpki.resource_set.resource_set_as(yaml.get("asn")),
       v4 = rpki.resource_set.resource_set_ipv4(yaml.get("ipv4")),
-      v6 = rpki.resource_set.resource_set_ipv6(yaml.get("ipv6")))
+      v6 = rpki.resource_set.resource_set_ipv6(yaml.get("ipv6")),
+      valid_until = yaml["valid_until"])
 
   def closure(self):
     """Compute the transitive resource closure for one resource attribute."""
@@ -113,9 +122,10 @@ class allocation(object):
   def apply_sub_as(self, text): self.base.as = self.base.as.difference(rpki.resource_set.resource_set_as(text))
   def apply_sub_v4(self, text): self.base.v4 = self.base.v4.difference(rpki.resource_set.resource_set_ipv4(text))
   def apply_sub_v6(self, text): self.base.v6 = self.base.v6.difference(rpki.resource_set.resource_set_ipv6(text))
+  def apply_valid_until(self, stamp): self.base.valid_until = stamp
 
   def __str__(self):
-    s = self.name + "\n"
+    s = self.name + " " + self.resources.valid_until.strftime("%Y-%m-%dT%H:%M:%SZ") + "\n"
     if self.resources.as:       s += "  ASN: %s\n" % self.resources.as
     if self.resources.v4:       s += " IPv4: %s\n" % self.resources.v4
     if self.resources.v6:       s += " IPv6: %s\n" % self.resources.v6
@@ -157,11 +167,17 @@ class allocation(object):
       f.close()
 
   def setup_sql(self, rpki_sql, irdb_sql):
-    for name, user, passwd, sql in ((self.rpki_db_name, "rpki", rpki_db_pass, rpki_sql),
-                                    (self.irdb_db_name, "irdb", irdb_db_pass, irdb_sql)):
-      db = MySQLdb.connect(user = user, db = name, passwd = passwd)
-      db.cursor().execute(sql)
-      db.close()
+
+    db = MySQLdb.connect(user = "rpki", db = self.rpki_db_name, passwd = rpki_db_pass)
+    db.cursor().execute(rpki_sql)
+    db.close()
+
+    db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
+    cur = db.cursor()
+    cur.execute(irdb_sql)
+    for kid in self.kids:
+      cur.execute("INSERT registrant (IRBE_mapped_id, subject_name, valid_until) VALUES (%s, %s, %s)", (kid.name, kid.name, kid.valid_until))
+    db.close()
 
 def setup_biz_cert_chain(name):
   s = ""

@@ -245,6 +245,51 @@ class allocation(object):
     assert pdu.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)
     return pdu
 
+  def create_rpki_objects(self):
+    """Create RPKI engine objects for this engine.
+
+    Parent and child objects are tricky:
+
+    - Parent object needs to know child_id by which parent refers to
+      this engine in order to set the contact URI correctly.
+
+    - Child object needs to record the child_id by which this engine
+      refers to the child.
+
+    This all just works so long as we walk the set of engines in the
+    right order (parents before their children).
+
+    Root node of the engine tree is special, it too has a parent but
+    that one is the magic self-signed micro engine.
+    """
+
+    self.self_id = self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "create", crl_interval = 84600)).self_id
+
+    pdu = call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "create", self_id = self.self_id, generate_keypair = True))
+    self.bsc_id = pdu.bsc_id
+
+    cmd = ("openssl", "x509", "-req", "-CA", self.name + "-RPKI-CA.cer", "-CAkey", self.name + "-RPKI-CA.key", "-CAserial", self.name + "-RPKI-CA.srl")
+    signer = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
+    bsc_ee = rpki.x509.X509(PEM = signer.communicate(input = pdu.pkcs10_cert_request.get_PEM())[0])
+
+    self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "set", self_id = self.self_id, bsc_id = self.bsc_id,
+                                                     signing_cert = [bsc_ee, rpki.x509.X509(PEM_file = self.name + "-RPKI-CA.cer")]))
+
+    self.repository_id = self.call_rpkid(rpki.left_right.repository_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id)).repository_id
+
+    if self.parent is None:
+      self.parent_id = self.call_rpkid(rpki.left_right.parent_elt.make_pdu(
+        action = "create", self_id = self.self_id, bsc_id = self.bsc_id, repository_id = self.repository_id, sia_base = self.sia_base,
+        cms_ta = root_ta, https_ta = root_ta, peer_contact_uri = root_uri)).parent_id
+    else:
+      self.parent_id = self.call_rpkid(rpki.left_right.parent_elt.make_pdu(
+        action = "create", self_id = self.self_id, bsc_id = self.bsc_id, repository_id = self.repository_id, sia_base = self.sia_base,
+        cms_ta = self.parent.rpkid_ta, https_ta = self.parent.rpkid_ta,
+        peer_contact_uri = "https://localhost:%s/up-down/%s" % (self.parent.rpki_port, self.child_id))).parent_id
+
+    for kid in self.kids:
+      kid.child_id = self.call_rpkid(rpki.left_right.child_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id, cms_ta = kid.rpkid_ta)).child_id
+
 def setup_biz_cert_chain(name):
   s = ""
   for kind in ("EE", "CA", "TA"):
@@ -262,9 +307,7 @@ def setup_biz_cert_chain(name):
   if debug:
     print "Would execute:\n\n" + s
   else:
-    r = subprocess.call(s, shell=True)
-    if r != 0:
-      raise RunTimeError, "Command failed (status %x):\n%s" % (r, s)
+    subprocess.check_call(s, shell=True)
 
 biz_cert_fmt_1 = '''\
 [ req ]

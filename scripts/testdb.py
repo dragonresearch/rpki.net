@@ -1,12 +1,14 @@
 # $Id$
 
 import os, yaml, MySQLdb, subprocess, signal
-import rpki.resource_set, rpki.sundial
+import rpki.resource_set, rpki.sundial, rpki.x509
 
 just_show      = True
 debug          = True
 
 irbe_name      = "testdb"
+irbe_key       = None
+irbe_certs     = None
 
 irdb_db_pass   = "fnord"
 rpki_db_pass   = "fnord"
@@ -39,10 +41,14 @@ def main():
 
   else:
 
-    # Construct biz keys and certs for this script to use; construct biz
-    # keys and certs for all the rpki.py and irdb.py instances.
+    # Construct biz keys and certs for this script to use
 
     setup_biz_cert_chain(irbe_name)
+    irbe_key = rpki.x509.X509(PEM_file = irbe_name + "-EE.key")
+    irbe_certs = rpki.x509.X509_chain(PEM_files = (irbe_name + "-EE.cer", irbe_name + "-CA.cer"))
+
+    # Construct biz keys and certs for rpki.py and irdb.py instances.
+
     for a in db:
       a.setup_biz_certs()
 
@@ -161,6 +167,7 @@ class allocation(object):
   def setup_biz_certs(self):
     for tag in ("RPKI", "IRDB"):
       setup_biz_cert_chain(self.name + "-" + tag)
+    self.rpkid_ta = rpki.x509.X509(PEM_file = self.name + "-RPKI-TA.cer")
 
   def setup_conf_file(self):
     d = { "my_name"      : self.name,
@@ -218,6 +225,26 @@ class allocation(object):
         pass
       proc.wait()
 
+  def call_rpkid(self, pdu):
+    pdu.type = "query"
+    elt = rpki.left_right.msg((pdu,)).toXML()
+    rpki.relaxng.left_right.assertValid(elt)
+    cms = rpki.cms.xml_sign(
+      elt           = elt,
+      key           = irbe_key,
+      certs         = irbe_certs)
+    cms = rpki.https.client(
+      privateKey    = irbe_key,
+      certChain     = irbe_certs,
+      x509TrustList = rpki.x509.X509_chain(self.rpkid_ta),
+      url           = "https://localhost:%d/left-right" % self.rpki_port,
+      msg           = cms)
+    elt = rpki.cms.xml_verify(cms = cms, ta = self.rpkid_ta)
+    rpki.relaxng.left_right.assertValid(elt)
+    pdu = rpki.left_right.sax_handler.saxify(elt)[0]
+    assert pdu.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)
+    return pdu
+
 def setup_biz_cert_chain(name):
   s = ""
   for kind in ("EE", "CA", "TA"):
@@ -235,7 +262,7 @@ def setup_biz_cert_chain(name):
   if debug:
     print "Would execute:\n\n" + s
   else:
-    r = os.system(s)
+    r = subprocess.call(s, shell=True)
     if r != 0:
       raise RunTimeError, "Command failed (status %x):\n%s" % (r, s)
 
@@ -312,8 +339,7 @@ https-key	= %(my_name)s-RPKI-EE.key
 https-cert.0	= %(my_name)s-RPKI-EE.cer
 https-cert.1	= %(my_name)s-RPKI-CA.cer
 
-https-ta.0	= %(irbe_name)s-TA.cer
-https-ta.1	= %(my_name)s-IRDB-TA.cer
+https-ta	= %(irbe_name)s-TA.cer
 
 irdb-url	= https://localhost:%(irdb_port)d/
 
@@ -351,7 +377,7 @@ https-cert.1	= %(irbe_name)s-CA.cer
 https-ta.0	= %(my_name)s-RPKI-TA.cer
 https-ta.1	= %(my_name)s-IRDB-TA.cer
 
-https-url	= https://localhost:4433/left-right
+https-url	= https://localhost:%(rpki_port)d/left-right
 '''
 
 main()

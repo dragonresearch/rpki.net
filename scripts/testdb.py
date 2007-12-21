@@ -1,19 +1,19 @@
 # $Id$
 
-import os, yaml, MySQLdb, subprocess, signal
-import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https
+import os, yaml, MySQLdb, subprocess, signal, time
+import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https, rpki.log, rpki.left_right
 
-just_show      = True
-debug          = True
+debug          = False
 
 irbe_name      = "testdb"
 irbe_key       = None
 irbe_certs     = None
+work_dir       = irbe_name + ".dir"
 
 irdb_db_pass   = "fnord"
 rpki_db_pass   = "fnord"
 
-max_engines    = 10
+max_engines    = 11
 irdb_base_port = 4400
 rpki_base_port = irdb_base_port + max_engines
 root_port      = rpki_base_port + max_engines
@@ -22,57 +22,63 @@ rpki_sql       = open("../docs/rpki-db-schema.sql").read()
 irdb_sql       = open("../docs/sample-irdb.sql").read()
 
 prog_python    = "/usr/local/bin/python"
-prog_rpkid     = "rpkid.py"
-prog_irdbd     = "irbd.py"
-prog_poke      = "testpoke.py"
-prog_rootd     = "testroot.py"
+prog_rpkid     = "../rpkid.py"
+prog_irdbd     = "../irdb.py"
+prog_poke      = "../testpoke.py"
+prog_rootd     = "../testroot.py"
 
 def main():
 
-  y = [y for y in yaml.safe_load_all(open("testdb2.yaml"))]
+  rpki.log.init(irbe_name)
+
+  try:
+    os.chdir(work_dir)
+  except:
+    os.mkdir(work_dir)
+    os.chdir(work_dir)
+
+  y = [y for y in yaml.safe_load_all(open("../testdb2.yaml"))]
 
   db = allocation_db(y.pop(0))
 
-  if just_show:
+  # Construct biz keys and certs for this script to use
 
-    db.dump()
-    for delta in y:
-      print "Applying delta %s\n" % delta
-      db.apply_delta(delta)
-      db.dump()
+  setup_biz_cert_chain(irbe_name)
+  global irbe_key, irbe_certs
+  irbe_key = rpki.x509.RSA(PEM_file = irbe_name + "-EE.key")
+  irbe_certs = rpki.x509.X509_chain(PEM_files = (irbe_name + "-EE.cer", irbe_name + "-CA.cer"))
 
-  else:
+  # Construct biz keys and certs for rpki.py and irdb.py instances.
 
-    # Construct biz keys and certs for this script to use
+  for a in db:
+    a.setup_biz_certs()
 
-    setup_biz_cert_chain(irbe_name)
-    irbe_key = rpki.x509.X509(PEM_file = irbe_name + "-EE.key")
-    irbe_certs = rpki.x509.X509_chain(PEM_files = (irbe_name + "-EE.cer", irbe_name + "-CA.cer"))
+  # Construct config files for rpkid.py and irdb.py instances
 
-    # Construct biz keys and certs for rpki.py and irdb.py instances.
+  for a in db.engines:
+    a.setup_conf_file()
 
-    for a in db:
-      a.setup_biz_certs()
+  # Initialize sql for rpki.py and irdb.py instances
 
-    # Construct config files for rpkid.py and irdb.py instances
+  for a in db.engines:
+    a.setup_sql(rpki_sql, irdb_sql)
 
-    for a in db.engines:
-      a.setup_conf_file()
+  # Populate IRDB(s)
 
-    # Initialize sql for rpki.py and irdb.py instances
+  for a in db.engines:
+    a.sync_sql()
 
-    for a in db.engines:
-      a.setup_sql(rpki_sql, irdb_sql)
-
-    # Populate IRDB(s)
-
-    for a in db.engines:
-      a.sync_sql()
+  try:
 
     # Start RPKI and IRDB instances
 
     for a in db.engines:
       a.run_daemons()
+
+    # Wait a little while for all those instances to come up
+
+    rpki.log.info("Sleeping while daemons start up")
+    time.sleep(10)
 
     # Create objects in RPKI engines
 
@@ -111,11 +117,16 @@ def main():
       else:
         break
 
-    # Clean up
+  # Clean up
 
-    for a in db.engines:
-      a.kill_daemons()
+  finally:
 
+    try:
+      for a in db.engines:
+        a.kill_daemons()
+    except Exception, data:
+      rpki.log.warn("Couldn't clean up daemons (%s), continuing" % data)
+  
 class allocation_db(list):
 
   def __init__(self, yaml):
@@ -171,6 +182,7 @@ class allocation(object):
     return resources
 
   def apply_delta(self, yaml):
+    rpki.log.info("Applying delta: %s" % yaml)
     for k,v in yaml.items():
       if k != "name":
         getattr(self, "apply_" + k)(v)
@@ -198,19 +210,21 @@ class allocation(object):
   def is_twig(self): return self.parent is not None and self.kids
 
   def set_engine_number(self, n):
-    if n > max_engines:
-      raise RuntimeError, "You asked for %d rpki engine instances, maximum is %d, sorry" % (n, max_engines)
+    if n >= max_engines:
+      raise RuntimeError, "You asked for more rpki engine instances than I can handle, maximum is %d, sorry" % max_engines
     self.irdb_db_name = "irdb%d" % n
     self.irdb_port    = irdb_base_port + n
     self.rpki_db_name = "rpki%d" % n
     self.rpki_port    = rpki_base_port + n
 
   def setup_biz_certs(self):
+    rpki.log.info("Biz certs for %s" % self.name)
     for tag in ("RPKI", "IRDB"):
       setup_biz_cert_chain(self.name + "-" + tag)
     self.rpkid_ta = rpki.x509.X509(PEM_file = self.name + "-RPKI-TA.cer")
 
   def setup_conf_file(self):
+    rpki.log.info("Config files for %s" % self.name)
     d = { "my_name"      : self.name,
           "irbe_name"    : irbe_name,
           "irdb_db_name" : self.irdb_db_name,
@@ -228,17 +242,22 @@ class allocation(object):
       f.close()
 
   def setup_sql(self, rpki_sql, irdb_sql):
+    rpki.log.info("MySQL setup for %s" % self.name)
     db = MySQLdb.connect(user = "rpki", db = self.rpki_db_name, passwd = rpki_db_pass)
-    db.cursor().execute(rpki_sql)
+    cur = db.cursor()
+    for sql in rpki_sql.split(";"):
+      cur.execute(sql)
     db.close()
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
     cur = db.cursor()
-    cur.execute(irdb_sql)
+    for sql in irdb_sql.split(";"):
+      cur.execute(sql)
     for kid in self.kids:
-      cur.execute("INSERT registrant (IRBE_mapped_id, subject_name, valid_until) VALUES (%s, %s, %s)", (kid.name, kid.name, kid.valid_until))
+      cur.execute("INSERT registrant (IRBE_mapped_id, subject_name, valid_until) VALUES (%s, %s, %s)", (kid.name, kid.name, kid.resources.valid_until))
     db.close()
 
   def sync_sql(self):
+    rpki.log.info("MySQL sync for %s" % self.name)
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
     cur = db.cursor()
     cur.execute("DELETE FROM asn")
@@ -246,19 +265,21 @@ class allocation(object):
     for kid in self.kids:
       cur.execute("SELECT registrant_id FROM registrant WHERE IRBE_mapped_id = %s", kid.name)
       registrant_id = cur.fetchone()[0]
-      for as_range in kid.as:
+      for as_range in kid.resources.as:
         cur.execute("INSERT asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)", (as_range.min, as_range.max, registrant_id))
-      for v4_range in kid.v4:
-        cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)", (as_v4.min, as_v4.max, registrant_id))
-      for v6_range in kid.v6:
-        cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)", (as_v6.min, as_v6.max, registrant_id))
+      for v4_range in kid.resources.v4:
+        cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)", (v4_range.min, v4_range.max, registrant_id))
+      for v6_range in kid.resources.v6:
+        cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)", (v6_range.min, v6_range.max, registrant_id))
     db.close()
 
   def run_daemons(self):
+    rpki.log.info("Running daemons for %s" % self.name)
     self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "-c", self.name + ".conf"))
     self.irdbd_process = subprocess.Popen((prog_python, prog_irdbd, "-c", self.name + ".conf"))
 
   def kill_daemons(self):
+    rpki.log.info("Killing daemons for %s" % self.name)
     for proc in (self.rpkid_process, self.irdbd_process):
       try:
         os.kill(proc.pid, signal.SIGTERM)
@@ -267,6 +288,7 @@ class allocation(object):
       proc.wait()
 
   def call_rpkid(self, pdu):
+    rpki.log.info("Calling rpkid for %s" % self.name)
     pdu.type = "query"
     elt = rpki.left_right.msg((pdu,)).toXML()
     rpki.relaxng.left_right.assertValid(elt)
@@ -274,11 +296,13 @@ class allocation(object):
       elt           = elt,
       key           = irbe_key,
       certs         = irbe_certs)
+    url = "https://localhost:%d/left-right" % self.rpki_port
+    rpki.log.debug("Attempting to connect to %s" % url)
     cms = rpki.https.client(
       privateKey    = irbe_key,
       certChain     = irbe_certs,
       x509TrustList = rpki.x509.X509_chain(self.rpkid_ta),
-      url           = "https://localhost:%d/left-right" % self.rpki_port,
+      url           = url,
       msg           = cms)
     elt = rpki.cms.xml_verify(cms = cms, ta = self.rpkid_ta)
     rpki.relaxng.left_right.assertValid(elt)
@@ -304,9 +328,11 @@ class allocation(object):
     that one is the magic self-signed micro engine.
     """
 
+    rpki.log.info("Creating rpkid objects %s" % self.name)
+
     self.self_id = self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "create", crl_interval = 84600)).self_id
 
-    pdu = call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "create", self_id = self.self_id, generate_keypair = True))
+    pdu = self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "create", self_id = self.self_id, generate_keypair = True))
     self.bsc_id = pdu.bsc_id
 
     cmd = ("openssl", "x509", "-req", "-CA", self.name + "-RPKI-CA.cer", "-CAkey", self.name + "-RPKI-CA.key", "-CAserial", self.name + "-RPKI-CA.srl")
@@ -337,6 +363,7 @@ class allocation(object):
     revoke requests would require class and SKI values.
     """
 
+    rpki.log.info("Writing leaf YAML for %s" % self.name)
     f = open(self.name + ".yaml", "w")
     f.write(yaml_fmt_1 % {
       child_id    : self.child_id,
@@ -347,6 +374,9 @@ class allocation(object):
 
   def run_cron(self):
     """Trigger cron run for this engine."""
+
+    rpki.log.info("Running cron for %s" % self.name)
+
     rpki.https.client(privateKey      = irbe_key,
                       certChain       = irbe_certs,
                       x509TrustList   = rpki.x509.X509_chain(self.rpkid_ta),
@@ -354,6 +384,7 @@ class allocation(object):
                       msg             = "Run cron now, please")
 
   def run_yaml(self):
+    rpki.log.info("[NOT] Running YAML for %s" % self.name)
     pass
 
 def setup_biz_cert_chain(name):
@@ -444,7 +475,8 @@ https-ta	= %(irbe_name)s-TA.cer
 
 irdb-url	= https://localhost:%(irdb_port)d/
 
-https-server-port = %(rpki_port)d
+server-host     = localhost
+server-port     = %(rpki_port)d
 
 [irdb]
 

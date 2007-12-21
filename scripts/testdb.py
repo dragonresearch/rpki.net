@@ -1,7 +1,7 @@
 # $Id$
 
 import os, yaml, MySQLdb, subprocess, signal
-import rpki.resource_set, rpki.sundial, rpki.x509
+import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https
 
 just_show      = True
 debug          = True
@@ -24,17 +24,19 @@ irdb_sql       = open("../docs/sample-irdb.sql").read()
 prog_python    = "/usr/local/bin/python"
 prog_rpkid     = "rpkid.py"
 prog_irdbd     = "irbd.py"
+prog_poke      = "testpoke.py"
+prog_rootd     = "testroot.py"
 
 def main():
 
   y = [y for y in yaml.safe_load_all(open("testdb2.yaml"))]
 
-  db = allocation_db(y[0])
+  db = allocation_db(y.pop(0))
 
   if just_show:
 
     db.dump()
-    for delta in y[1:]:
+    for delta in y:
       print "Applying delta %s\n" % delta
       db.apply_delta(delta)
       db.dump()
@@ -77,15 +79,42 @@ def main():
     for a in db.engines:
       a.create_rpki_objects()
 
-    # 7: Write YAML files for leaves
-    # 8: Start cycle:
-    # 8a: Run cron in all RPKI instances
-    # 8b: Run all YAML clients
-    # 8c: Make sure that everybody got what they were supposed to get
-    #     and that everything that was supposed to be published has been
-    #     published
-    # 8d: Read and apply next deltas from master YAML
+    # Write YAML files for leaves
 
+    for a in db.leaves:
+      a.write_leaf_yaml()
+
+    # 8: Start cycle:
+
+    while True:
+
+      # Run cron in all RPKI instances
+
+      for a in db.engines:
+        a.run_cron()
+
+      # Run all YAML clients
+
+      for a in db.leaves:
+        a.run_yaml()
+
+      # Make sure that everybody got what they were supposed to get
+      # and that everything that was supposed to be published has been
+      # published.  [Not written yet]
+
+      pass
+
+      # Read and apply next deltas from master YAML
+
+      if y:
+        db.apply_delta(y.pop(0))
+      else:
+        break
+
+    # Clean up
+
+    for a in db.engines:
+      a.kill_daemons()
 
 class allocation_db(list):
 
@@ -100,6 +129,7 @@ class allocation_db(list):
     self.root.closure()
     self.map = dict((a.name, a) for a in self)
     self.engines = [a for a in self if not a.is_leaf()]
+    self.leaves = [a for a in self if a.is_leaf()]
     for i, a in zip(range(len(self.engines)), self.engines):
       a.set_engine_number(i)
 
@@ -301,6 +331,31 @@ class allocation(object):
     for kid in self.kids:
       kid.child_id = self.call_rpkid(rpki.left_right.child_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id, cms_ta = kid.rpkid_ta)).child_id
 
+  def write_leaf_yaml(self):
+    """Write YAML scripts for leaf nodes.  Only supports list requests
+    at the moment: issue requests would require class and SIA values,
+    revoke requests would require class and SKI values.
+    """
+
+    f = open(self.name + ".yaml", "w")
+    f.write(yaml_fmt_1 % {
+      child_id    : self.child_id,
+      parent_name : self.parent.name,
+      my_name     : self.name,
+      https_port  : self.parent.rpki_port })
+    f.close()
+
+  def run_cron(self):
+    """Trigger cron run for this engine."""
+    rpki.https.client(privateKey      = irbe_key,
+                      certChain       = irbe_certs,
+                      x509TrustList   = rpki.x509.X509_chain(self.rpkid_ta),
+                      url             = "https://localhost:%d/cronjob" % self.rpki_port,
+                      msg             = "Run cron now, please")
+
+  def run_yaml(self):
+    pass
+
 def setup_biz_cert_chain(name):
   s = ""
   for kind in ("EE", "CA", "TA"):
@@ -348,9 +403,9 @@ openssl x509 -req -in %s-EE.req -out %s-EE.cer -extfile %s-EE.cnf -extensions re
 
 poke_yaml_fmt_1 = '''---
 version:                1
-posturl:                https://localhost:%(parent_https_port)s/up-down/%(my_child_id)s
-recipient-id:           "%(parent_recipient_id)s"
-sender-id:              "%(my_sender_id)s"
+posturl:                https://localhost:%(https_port)s/up-down/%(child_id)s
+recipient-id:           "%(parent_name)s"
+sender-id:              "%(my_name)s"
 
 cms-cert-file:          %(my_name)s-EE.cer
 cms-key-file:           %(my_name)s-EE.key
@@ -364,14 +419,6 @@ ssl-ca-cert-file:       %(parent_name)s-Root.cer
 requests:
   list:
     type:               list
-  issue:
-    type:               issue
-    class:              %(my_class_name)s
-    sia:                [ "%(my_sia_dir)s" ]
-  revoke:
-    type:               revoke
-    class:              %(my_class_name)s
-    ski:                "%(my_ski)s"
 '''
 
 conf_fmt_1 = '''\

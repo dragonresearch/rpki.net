@@ -72,7 +72,11 @@ def main():
     for a in db.engines:
       a.run_daemons()
 
-    # 6: Create objects in RPKI engines
+    # Create objects in RPKI engines
+
+    for a in db.engines:
+      a.create_rpki_objects()
+
     # 7: Write YAML files for leaves
     # 8: Start cycle:
     # 8a: Run cron in all RPKI instances

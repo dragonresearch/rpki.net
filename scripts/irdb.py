@@ -1,6 +1,15 @@
 # $Id$
 
-import tlslite.api, MySQLdb, urlparse, traceback, lxml.etree
+"""
+IR database daemon.
+
+Usage: python rpkid.py [ { -c | --config } configfile ] [ { -h | --help } ]
+
+Default configuration file is irbe.conf, override with --config option.
+"""
+
+import sys, os, time, getopt, urlparse, traceback
+import tlslite.api, MySQLdb, lxml.etree
 import rpki.https, rpki.config, rpki.resource_set, rpki.cms, rpki.relaxng
 import rpki.exceptions, rpki.left_right, rpki.log
 
@@ -59,9 +68,24 @@ def handler(query, path):
 
     return 500, "Unhandled exception %s: %s" % (data.__class__.__name__, data)
 
+os.environ["TZ"] = "UTC"
+time.tzset()
+
 rpki.log.init("irdb")
 
-cfg = rpki.config.parser("irbe.conf")
+cfg_file = "irbe.conf"
+
+opts,argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+for o,a in opts:
+  if o in ("-h", "--help", "-?"):
+    print __doc__
+    sys.exit(0)
+  if o in ("-c", "--config"):
+    cfg_file = a
+if argv:
+  raise RuntimeError, "Unexpected arguments %s" % argv
+
+cfg = rpki.config.parser(cfg_file)
 cfg_section = "irdb"
 
 db = MySQLdb.connect(user   = cfg.get(cfg_section, "sql-username"),

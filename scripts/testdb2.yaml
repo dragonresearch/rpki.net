@@ -1,102 +1,73 @@
 # $Id$
 
-name: Root
+name:           Root
+valid_until:    2008-07-14T12:30:00Z
+sia_base:       "rsync://wombat.invalid/"
 kids:
   - name: R0
     kids:
       - name: Alice
         ipv4: 192.0.2.1-192.0.2.33
         asn:  64533
-        valid_until: 2008-07-14T12:30:00Z
       - name: Bob
         ipv4: 192.0.2.44-192.0.2.100
-        valid_until: 2008-07-14T12:30:00Z
-    valid_until: 2008-07-14T12:30:00Z
   - name: R1
     kids:
       - name: Carol
         ipv6: 2001:db8::44-2001:db8::100
-        valid_until: 2008-07-14T12:30:00Z
       - name: Dave
         ipv6: 2001:db8::10:0:44/128
         asn:  64544
-        valid_until: 2008-07-14T12:30:00Z
-    valid_until: 2008-07-14T12:30:00Z
   - name: R2
     kids:
       - name: Elena
         ipv4: 10.0.0.0/24
         ipv6: 2001:db8::a00:0/120
-        valid_until: 2008-07-14T12:30:00Z
       - name: Frank
         ipv4: 10.3.0.0/24
         ipv6: 2001:db8::a03:0/120
-        valid_until: 2008-07-14T12:30:00Z
-    valid_until: 2008-07-14T12:30:00Z
   - name: R3
     kids:
       - name: Ginny
         asn:  64534-64540
-        valid_until: 2008-07-14T12:30:00Z
       - name: Harry
         asn:  666-677
-        valid_until: 2008-07-14T12:30:00Z
-    valid_until: 2008-07-14T12:30:00Z
   - name: R4
     kids:
       - name: Ilse
         ipv4: 10.3.0.0/16
-        valid_until: 2008-07-14T12:30:00Z
       - name: Jack
         ipv4: 10.2.0.0/16
-        valid_until: 2008-07-14T12:30:00Z
-    valid_until: 2008-07-14T12:30:00Z
   - name: R5
     kids:
       - name: Kari
         asn:  222-233
-        valid_until: 2008-07-14T12:30:00Z
       - name: Leon
         asn:  244-255
-        valid_until: 2008-07-14T12:30:00Z
-    valid_until: 2008-07-14T12:30:00Z
   - name: R6
     kids:
       - name: Mary
         ipv4: 10.77.0.0/16
-        valid_until: 2008-07-14T12:30:00Z
       - name: Neal
         ipv4: 10.66.0.0/16
-        valid_until: 2008-07-14T12:30:00Z
-    valid_until: 2008-07-14T12:30:00Z
   - name: R7
     kids:
       - name: Olga
         ipv4: 10.88.0.0/16
-        valid_until: 2008-07-14T12:30:00Z
       - name: Piet
         ipv4: 10.99.0.0/16
-        valid_until: 2008-07-14T12:30:00Z
-    valid_until: 2008-07-14T12:30:00Z
   - name: R8
     kids:
       - name: Qi
         asn:  111-122
-        valid_until: 2008-07-14T12:30:00Z
       - name: Rex
         asn:  333-344
-        valid_until: 2008-07-14T12:30:00Z
-    valid_until: 2008-07-14T12:30:00Z
   - name: R9
     kids:
       - name: Sandra
         asn:  555-566
-        valid_until: 2008-07-14T12:30:00Z
       - name: Thad
         asn:  577-588
-        valid_until: 2008-07-14T12:30:00Z
-    valid_until: 2008-07-14T12:30:00Z
-valid_until: 2008-07-14T12:30:00Z
 ---
 - name: Alice
   add_as: 33

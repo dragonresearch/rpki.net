@@ -88,6 +88,11 @@ class allocation_db(list):
   def __init__(self, yaml):
     self.root = allocation(yaml, self)
     assert self.root.is_root()
+    for a in self:
+      if a.sia_base is None:
+        a.sia_base = a.parent.sia_base + a.name + "/"
+      if a.base.valid_until is None:
+        a.base.valid_until = a.parent.base.valid_until
     self.root.closure()
     self.map = dict((a.name, a) for a in self)
     self.engines = [a for a in self if not a.is_leaf()]
@@ -120,7 +125,8 @@ class allocation(object):
       as = rpki.resource_set.resource_set_as(yaml.get("asn")),
       v4 = rpki.resource_set.resource_set_ipv4(yaml.get("ipv4")),
       v6 = rpki.resource_set.resource_set_ipv6(yaml.get("ipv6")),
-      valid_until = yaml["valid_until"])
+      valid_until = yaml.get("valid_until"))
+    self.sia_base = yaml.get("sia_base")
 
   def closure(self):
     """Compute the transitive resource closure for one resource attribute."""
@@ -144,13 +150,14 @@ class allocation(object):
   def apply_valid_until(self, stamp): self.base.valid_until = stamp
 
   def __str__(self):
-    s = self.name + " " + self.resources.valid_until.strftime("%Y-%m-%dT%H:%M:%SZ") + "\n"
+    s = self.name + "\n"
     if self.resources.as:       s += "  ASN: %s\n" % self.resources.as
     if self.resources.v4:       s += " IPv4: %s\n" % self.resources.v4
     if self.resources.v6:       s += " IPv6: %s\n" % self.resources.v6
     if self.kids:               s += " Kids: %s\n" % ", ".join(k.name for k in self.kids)
     if self.parent:             s += "   Up: %s\n" % self.parent.name
-    return s
+    if self.sia_base:           s += "  SIA: %s\n" % self.sia_base
+    return s + "Until: %s\n" % self.resources.valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
 
   def is_leaf(self): return not self.kids
   def is_root(self): return self.parent is None

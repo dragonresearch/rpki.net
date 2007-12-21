@@ -104,7 +104,7 @@ class msg(rpki.left_right.msg):
 class sax_handler(rpki.left_right.sax_handler):
   pdu = msg
 
-top_opts = ["help", "pem_out="]
+top_opts = ["config=", "help", "pem_out="]
 
 def usage(code=1):
   print "Usage:", sys.argv[0], " ".join(["--" + x for x in top_opts])
@@ -118,25 +118,29 @@ def usage(code=1):
 
 rpki.log.init("irbe-cli")
 
-cfg = rpki.config.parser("irbe.conf")
-cfg_section = "irbe-cli"
-
-q_msg = rpki.left_right.msg()
-
 argv = sys.argv[1:]
 
 if not argv:
   usage(0)
 
-opts, argv = getopt.getopt(argv, "h", top_opts)
+cfg_file = "irbe.conf"
+
+opts, argv = getopt.getopt(argv, "c:h?", top_opts)
 for o, a in opts:
-  if o in ("-h", "--help"):
+  if o in ("-?", "-h", "--help"):
     usage(0)
+  if o in ("-c", "--config"):
+    cfg_file = a
   if o == "--pem_out":
     pem_out = a
 
 if not argv:
   usage(1)
+
+cfg = rpki.config.parser(cfg_file)
+cfg_section = "irbe-cli"
+
+q_msg = rpki.left_right.msg()
 
 while argv:
   try:

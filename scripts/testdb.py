@@ -1,17 +1,27 @@
 # $Id$
 
-import rpki.resource_set, os, yaml, MySQLdb, rpki.sundial
+import os, yaml, MySQLdb, subprocess, signal
+import rpki.resource_set, rpki.sundial
 
+just_show      = True
 debug          = True
+
 irbe_name      = "testdb"
+
 irdb_db_pass   = "fnord"
 rpki_db_pass   = "fnord"
-max_twigs      = 10
+
+max_engines    = 10
 irdb_base_port = 4400
-rpki_base_port = irdb_base_port + max_twigs
-root_port      = rpki_base_port + max_twigs
-rpki_sql_file  = "../docs/rpki-db-schema.sql"
-irdb_sql_file  = "../docs/sample-irdb.sql"
+rpki_base_port = irdb_base_port + max_engines
+root_port      = rpki_base_port + max_engines
+
+rpki_sql       = open("../docs/rpki-db-schema.sql").read()
+irdb_sql       = open("../docs/sample-irdb.sql").read()
+
+prog_python    = "/usr/local/bin/python"
+prog_rpkid     = "rpkid.py"
+prog_irdbd     = "irbd.py"
 
 def main():
 
@@ -19,7 +29,7 @@ def main():
 
   db = allocation_db(y[0])
 
-  if True:
+  if just_show:
 
     db.dump()
     for delta in y[1:]:
@@ -38,21 +48,24 @@ def main():
 
     # Construct config files for rpkid.py and irdb.py instances
 
-    for a in db:
-      if a.is_twig():
-        a.setup_conf_file()
+    for a in db.engines:
+      a.setup_conf_file()
 
     # Initialize sql for rpki.py and irdb.py instances
 
-    rpki_sql = open(rpki_sql_file).read()
-    irdb_sql = open(irdb_sql_file).read()
+    for a in db.engines:
+      a.setup_sql(rpki_sql, irdb_sql)
 
-    for a in db:
-      if a.is_twig():
-        a.setup_sql(rpki_sql, irdb_sql)
+    # Populate IRDB(s)
 
-    # 4: Populate IRDB(s)
-    # 5: Start RPKI and IRDB instances
+    for a in db.engines:
+      a.sync_sql()
+
+    # Start RPKI and IRDB instances
+
+    for a in db.engines:
+      a.run_daemons()
+
     # 6: Create objects in RPKI engines
     # 7: Write YAML files for leaves
     # 8: Start cycle:
@@ -71,9 +84,9 @@ class allocation_db(list):
     assert self.root.is_root()
     self.root.closure()
     self.map = dict((a.name, a) for a in self)
-    twigs = [a for a in self if a.is_twig()]
-    for i, a in zip(range(len(twigs)), twigs):
-      a.set_twig_number(i)
+    self.engines = [a for a in self if not a.is_leaf()]
+    for i, a in zip(range(len(self.engines)), self.engines):
+      a.set_engine_number(i)
 
   def apply_delta(self, delta):
     for d in delta:
@@ -137,9 +150,9 @@ class allocation(object):
   def is_root(self): return self.parent is None
   def is_twig(self): return self.parent is not None and self.kids
 
-  def set_twig_number(self, n):
-    if n > max_twigs:
-      raise RuntimeError, "You asked for %d rpki engine instances, maximum is %d, sorry" % (n, max_twigs)
+  def set_engine_number(self, n):
+    if n > max_engines:
+      raise RuntimeError, "You asked for %d rpki engine instances, maximum is %d, sorry" % (n, max_engines)
     self.irdb_db_name = "irdb%d" % n
     self.irdb_port    = irdb_base_port + n
     self.rpki_db_name = "rpki%d" % n
@@ -167,17 +180,43 @@ class allocation(object):
       f.close()
 
   def setup_sql(self, rpki_sql, irdb_sql):
-
     db = MySQLdb.connect(user = "rpki", db = self.rpki_db_name, passwd = rpki_db_pass)
     db.cursor().execute(rpki_sql)
     db.close()
-
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
     cur = db.cursor()
     cur.execute(irdb_sql)
     for kid in self.kids:
       cur.execute("INSERT registrant (IRBE_mapped_id, subject_name, valid_until) VALUES (%s, %s, %s)", (kid.name, kid.name, kid.valid_until))
     db.close()
+
+  def sync_sql(self):
+    db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
+    cur = db.cursor()
+    cur.execute("DELETE FROM asn")
+    cur.execute("DELETE FROM net")
+    for kid in self.kids:
+      cur.execute("SELECT registrant_id FROM registrant WHERE IRBE_mapped_id = %s", kid.name)
+      registrant_id = cur.fetchone()[0]
+      for as_range in kid.as:
+        cur.execute("INSERT asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)", (as_range.min, as_range.max, registrant_id))
+      for v4_range in kid.v4:
+        cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)", (as_v4.min, as_v4.max, registrant_id))
+      for v6_range in kid.v6:
+        cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)", (as_v6.min, as_v6.max, registrant_id))
+    db.close()
+
+  def run_daemons(self):
+    self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "-c", self.name + ".conf"))
+    self.irdbd_process = subprocess.Popen((prog_python, prog_irdbd, "-c", self.name + ".conf"))
+
+  def kill_daemons(self):
+    for proc in (self.rpkid_process, self.irdbd_process):
+      try:
+        os.kill(proc.pid, signal.SIGTERM)
+      except:
+        pass
+      proc.wait()
 
 def setup_biz_cert_chain(name):
   s = ""

@@ -3,7 +3,7 @@
 import os, yaml, MySQLdb, subprocess, signal, time
 import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https, rpki.log, rpki.left_right
 
-debug          = False
+# Most of these globals probably belong in a config file.
 
 irbe_name      = "testdb"
 irbe_key       = None
@@ -16,7 +16,10 @@ rpki_db_pass   = "fnord"
 max_engines    = 11
 irdb_base_port = 4400
 rpki_base_port = irdb_base_port + max_engines
-root_port      = rpki_base_port + max_engines
+
+rootd_port     = rpki_base_port + max_engines
+rootd_name     = "rootd"
+rootd_ta       = None
 
 rpki_sql       = open("../docs/rpki-db-schema.sql").read()
 irdb_sql       = open("../docs/sample-irdb.sql").read()
@@ -28,6 +31,8 @@ prog_poke      = "../testpoke.py"
 prog_rootd     = "../testroot.py"
 
 def main():
+
+  rootd_process = None
 
   rpki.log.init(irbe_name)
 
@@ -48,17 +53,27 @@ def main():
   irbe_key = rpki.x509.RSA(PEM_file = irbe_name + "-EE.key")
   irbe_certs = rpki.x509.X509_chain(PEM_files = (irbe_name + "-EE.cer", irbe_name + "-CA.cer"))
 
-  # Construct biz keys and certs for rpki.py and irdb.py instances.
+  # Construct biz keys and certs for rootd instance to use
+
+  setup_biz_cert_chain(rootd_name)
+  global rootd_ta
+  rootd_ta = rpki.x509.X509(PEM_file = rootd_name + "-TA.cer")
+
+  # Construct biz keys and certs for rpkid and irdbd instances.
 
   for a in db:
     a.setup_biz_certs()
 
-  # Construct config files for rpkid.py and irdb.py instances
+  # Construct config file for rootd instance
+
+  setup_rootd_conf(db.root.name)
+
+  # Construct config files for rpkidd and irdbd instances
 
   for a in db.engines:
     a.setup_conf_file()
 
-  # Initialize sql for rpki.py and irdb.py instances
+  # Initialize SQL for rpkid and irdbd instances
 
   for a in db.engines:
     a.setup_sql(rpki_sql, irdb_sql)
@@ -70,7 +85,12 @@ def main():
 
   try:
 
-    # Start RPKI and IRDB instances
+    # Start rootd instance
+
+    rpki.log.info("Running rootd")
+    rootd_process = subprocess.Popen((prog_python, prog_rootd, "-c", rootd_name + ".conf"))
+
+    # Start rpkid and irdbd instances
 
     for a in db.engines:
       a.run_daemons()
@@ -124,6 +144,8 @@ def main():
     try:
       for a in db.engines:
         a.kill_daemons()
+      if rootd_process is not None:
+        os.kill(rootd_process.pid, signal.SIGTERM)
     except Exception, data:
       rpki.log.warn("Couldn't clean up daemons (%s), continuing" % data)
   
@@ -233,13 +255,9 @@ class allocation(object):
           "rpki_db_name" : self.rpki_db_name,
           "rpki_db_pass" : rpki_db_pass,
           "rpki_port"    : self.rpki_port }
-    s = conf_fmt_1 % d
-    if debug:
-      print "Would write config file " + self.name + ".conf containing:\n" + s
-    else:
-      f = open(self.name + ".conf", "w")
-      f.write(s)
-      f.close()
+    f = open(self.name + ".conf", "w")
+    f.write(conf_fmt_1 % d)
+    f.close()
 
   def setup_sql(self, rpki_sql, irdb_sql):
     rpki.log.info("MySQL setup for %s" % self.name)
@@ -347,7 +365,8 @@ class allocation(object):
     if self.parent is None:
       self.parent_id = self.call_rpkid(rpki.left_right.parent_elt.make_pdu(
         action = "create", self_id = self.self_id, bsc_id = self.bsc_id, repository_id = self.repository_id, sia_base = self.sia_base,
-        cms_ta = root_ta, https_ta = root_ta, peer_contact_uri = root_uri)).parent_id
+        cms_ta = rootd_ta, https_ta = rootd_ta,
+        peer_contact_uri = "https://localhost:%s/" % rootd_port)).parent_id
     else:
       self.parent_id = self.call_rpkid(rpki.left_right.parent_elt.make_pdu(
         action = "create", self_id = self.self_id, bsc_id = self.bsc_id, repository_id = self.repository_id, sia_base = self.sia_base,
@@ -366,10 +385,10 @@ class allocation(object):
     rpki.log.info("Writing leaf YAML for %s" % self.name)
     f = open(self.name + ".yaml", "w")
     f.write(yaml_fmt_1 % {
-      child_id    : self.child_id,
-      parent_name : self.parent.name,
-      my_name     : self.name,
-      https_port  : self.parent.rpki_port })
+      "child_id"    : self.child_id,
+      "parent_name" : self.parent.name,
+      "my_name"     : self.name,
+      "https_port"  : self.parent.rpki_port })
     f.close()
 
   def run_cron(self):
@@ -391,20 +410,21 @@ def setup_biz_cert_chain(name):
   s = ""
   for kind in ("EE", "CA", "TA"):
     n = "%s-%s" % (name, kind)
-    c = biz_cert_fmt_1 % (n, "true" if kind in ("CA", "TA") else "false")
-    if debug:
-      print "Would write config file " + n + ".cnf containing:\n\n" + c
-    else:
-      f = open("%s.cnf" % n, "w")
-      f.write(c)
-      f.close()
+    f = open("%s.cnf" % n, "w")
+    f.write(biz_cert_fmt_1 % (n, "true" if kind in ("CA", "TA") else "false"))
+    f.close()
     if not os.path.exists(n + ".key") or not os.path.exists(n + ".req"):
       s += biz_cert_fmt_2 % ((n,) * 3)
-  s += biz_cert_fmt_3 % ((name,) * 14)
-  if debug:
-    print "Would execute:\n\n" + s
-  else:
-    subprocess.check_call(s, shell=True)
+  subprocess.check_call(s + (biz_cert_fmt_3 % ((name,) * 14)), shell=True)
+
+def setup_rootd_conf(rpkid_name):
+  rpki.log.info("Config files for %s" % rootd_name)
+  d = { "rootd_name"   : rootd_name,
+        "rootd_port"   : rootd_port,
+        "rpkid_name"   : rpkid_name }
+  f = open(rootd_name + ".conf", "w")
+  f.write(rootd_fmt_1 % d)
+  f.close()
 
 biz_cert_fmt_1 = '''\
 [ req ]
@@ -432,7 +452,7 @@ openssl x509 -req -in %s-CA.req -out %s-CA.cer -extfile %s-CA.cnf -extensions re
 openssl x509 -req -in %s-EE.req -out %s-EE.cer -extfile %s-EE.cnf -extensions req_x509_ext -CA %s-CA.cer -CAkey %s-CA.key -CAcreateserial
 '''
 
-poke_yaml_fmt_1 = '''---
+yaml_fmt_1 = '''---
 version:                1
 posturl:                https://localhost:%(https_port)s/up-down/%(child_id)s
 recipient-id:           "%(parent_name)s"
@@ -511,6 +531,28 @@ https-ta.0	= %(my_name)s-RPKI-TA.cer
 https-ta.1	= %(my_name)s-IRDB-TA.cer
 
 https-url	= https://localhost:%(rpki_port)d/left-right
+'''
+
+rootd_fmt_1 = '''\
+
+[testroot]
+
+cms-key			= %(rootd_name)s-EE.key
+cms-cert.0		= %(rootd_name)s-EE.cer
+cms-cert.1		= %(rootd_name)s-CA.cer
+cms-ta			= %(rpkid_name)s-RPKI-TA.cer
+
+https-key		= %(rootd_name)s-EE.key
+https-cert.0		= %(rootd_name)s-EE.cer
+https-cert.1		= %(rootd_name)s-CA.cer
+
+server-port		= %(rootd_port)s
+
+rpki-key		= %(rootd_name)s.key
+rpki-issuer		= %(rootd_name)s.cer
+rpki-subject-filename	= %(rootd_name)s.subject.cer
+rpki-pkcs10-filename	= %(rootd_name)s.subject.pkcs10
+
 '''
 
 main()

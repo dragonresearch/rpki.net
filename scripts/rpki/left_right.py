@@ -688,8 +688,8 @@ class child_elt(data_elt):
     q_elt = rpki.cms.xml_verify(query, self.cms_ta)
     rpki.relaxng.up_down.assertValid(q_elt)
     q_msg = rpki.up_down.sax_handler.saxify(q_elt)
-    if q_msg.sender != str(self.child_id):
-      raise rpki.exceptions.BadSender, "Unexpected XML sender %s" % q_msg.sender
+    #if q_msg.sender != str(self.child_id):
+    #  raise rpki.exceptions.BadSender, "Unexpected XML sender %s" % q_msg.sender
     try:
       r_msg = q_msg.serve_top_level(gctx, self)
     except Exception, data:

@@ -34,3 +34,7 @@ CREATE TABLE net (
        PRIMARY KEY          (net_id),
        FOREIGN KEY          (registrant_id) REFERENCES registrant ON DELETE SET NULL ON UPDATE SET NULL
 );
+
+-- Local Variables:
+-- indent-tab-mode: nil
+-- End:

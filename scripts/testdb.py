@@ -20,6 +20,7 @@ rpki_base_port = irdb_base_port + max_engines
 rootd_port     = rpki_base_port + max_engines
 rootd_name     = "rootd"
 rootd_ta       = None
+rootd_sia      = "rsync://wombat.invalid/"
 
 rpki_sql       = open("../docs/rpki-db-schema.sql").read()
 irdb_sql       = open("../docs/sample-irdb.sql").read()
@@ -29,6 +30,7 @@ prog_rpkid     = "../rpkid.py"
 prog_irdbd     = "../irdb.py"
 prog_poke      = "../testpoke.py"
 prog_rootd     = "../testroot.py"
+prog_openssl   = "../../openssl/openssl/apps/openssl"
 
 def main():
 
@@ -66,7 +68,7 @@ def main():
 
   # Construct config file for rootd instance
 
-  setup_rootd_conf(db.root.name)
+  setup_rootd(db.root.name)
 
   # Construct config files for rpkidd and irdbd instances
 
@@ -353,8 +355,8 @@ class allocation(object):
     pdu = self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "create", self_id = self.self_id, generate_keypair = True))
     self.bsc_id = pdu.bsc_id
 
-    cmd = ("openssl", "x509", "-req", "-CA", self.name + "-RPKI-CA.cer", "-CAkey", self.name + "-RPKI-CA.key", "-CAserial", self.name + "-RPKI-CA.srl")
-    signer = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
+    cmd = (prog_openssl, "x509", "-req", "-CA", self.name + "-RPKI-CA.cer", "-CAkey", self.name + "-RPKI-CA.key", "-CAserial", self.name + "-RPKI-CA.srl")
+    signer = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     bsc_ee = rpki.x509.X509(PEM = signer.communicate(input = pdu.pkcs10_cert_request.get_PEM())[0])
 
     self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "set", self_id = self.self_id, bsc_id = self.bsc_id,
@@ -365,12 +367,12 @@ class allocation(object):
     if self.parent is None:
       self.parent_id = self.call_rpkid(rpki.left_right.parent_elt.make_pdu(
         action = "create", self_id = self.self_id, bsc_id = self.bsc_id, repository_id = self.repository_id, sia_base = self.sia_base,
-        cms_ta = rootd_ta, https_ta = rootd_ta,
+        cms_ta = rootd_ta, https_ta = rootd_ta, sender_name = self.name, recipient_name = "Walrus",
         peer_contact_uri = "https://localhost:%s/" % rootd_port)).parent_id
     else:
       self.parent_id = self.call_rpkid(rpki.left_right.parent_elt.make_pdu(
         action = "create", self_id = self.self_id, bsc_id = self.bsc_id, repository_id = self.repository_id, sia_base = self.sia_base,
-        cms_ta = self.parent.rpkid_ta, https_ta = self.parent.rpkid_ta,
+        cms_ta = self.parent.rpkid_ta, https_ta = self.parent.rpkid_ta, sender_name = self.name, recipient_name = self.parent.name,
         peer_contact_uri = "https://localhost:%s/up-down/%s" % (self.parent.rpki_port, self.child_id))).parent_id
 
     for kid in self.kids:
@@ -409,22 +411,32 @@ class allocation(object):
 def setup_biz_cert_chain(name):
   s = ""
   for kind in ("EE", "CA", "TA"):
-    n = "%s-%s" % (name, kind)
-    f = open("%s.cnf" % n, "w")
-    f.write(biz_cert_fmt_1 % (n, "true" if kind in ("CA", "TA") else "false"))
+    d = { "name"    : name,
+          "kind"    : kind,
+          "ca"      : "true" if kind in ("CA", "TA") else "false",
+          "openssl" : prog_openssl }
+    f = open("%(name)s-%(kind)s.cnf" % d, "w")
+    f.write(biz_cert_fmt_1 % d)
     f.close()
-    if not os.path.exists(n + ".key") or not os.path.exists(n + ".req"):
-      s += biz_cert_fmt_2 % ((n,) * 3)
-  subprocess.check_call(s + (biz_cert_fmt_3 % ((name,) * 14)), shell=True)
+    if not os.path.exists("%(name)s-%(kind)s.key" % d) or not os.path.exists("%(name)s-%(kind)s.req" % d):
+      s += biz_cert_fmt_2 % d
+  subprocess.check_call(s + (biz_cert_fmt_3 % { "name" : name, "openssl" : prog_openssl }), shell=True)
 
-def setup_rootd_conf(rpkid_name):
+def setup_rootd(rpkid_name):
   rpki.log.info("Config files for %s" % rootd_name)
-  d = { "rootd_name"   : rootd_name,
-        "rootd_port"   : rootd_port,
-        "rpkid_name"   : rpkid_name }
+  d = { "rootd_name" : rootd_name,
+        "rootd_port" : rootd_port,
+        "rpkid_name" : rpkid_name,
+        "rootd_sia"  : rootd_sia,
+        "openssl"    : prog_openssl }
   f = open(rootd_name + ".conf", "w")
   f.write(rootd_fmt_1 % d)
   f.close()
+  s = ""
+  if not os.path.exists(rootd_name + ".key") or not os.path.exists(rootd_name  + ".req"):
+    s += rootd_fmt_2 % d
+  s += rootd_fmt_3 % d
+  subprocess.check_call(s, shell=True)
 
 biz_cert_fmt_1 = '''\
 [ req ]
@@ -434,22 +446,22 @@ prompt			= no
 default_md		= sha256
 
 [ req_dn ]
-CN			= Test Certificate %s
+CN			= Test Certificate %(name)s
 
 [ req_x509_ext ]
-basicConstraints	= CA:%s
+basicConstraints	= CA:%(ca)s
 subjectKeyIdentifier	= hash
 authorityKeyIdentifier	= keyid:always
 '''
 
 biz_cert_fmt_2 = '''\
-openssl req -new -newkey rsa:2048 -nodes -keyout %s.key -out %s.req -config %s.cnf &&
+%(openssl)s req -new -newkey rsa:2048 -nodes -keyout %(name)s-%(kind)s.key -out %(name)s-%(kind)s.req -config %(name)s-%(kind)s.cnf &&
 '''
 
 biz_cert_fmt_3 = '''\
-openssl x509 -req -in %s-TA.req -out %s-TA.cer -extfile %s-TA.cnf -extensions req_x509_ext -signkey %s-TA.key -days 60 &&
-openssl x509 -req -in %s-CA.req -out %s-CA.cer -extfile %s-CA.cnf -extensions req_x509_ext -CA %s-TA.cer -CAkey %s-TA.key -CAcreateserial &&
-openssl x509 -req -in %s-EE.req -out %s-EE.cer -extfile %s-EE.cnf -extensions req_x509_ext -CA %s-CA.cer -CAkey %s-CA.key -CAcreateserial
+%(openssl)s x509 -req -in %(name)s-TA.req -out %(name)s-TA.cer -extfile %(name)s-TA.cnf -extensions req_x509_ext -signkey %(name)s-TA.key -days 60 &&
+%(openssl)s x509 -req -in %(name)s-CA.req -out %(name)s-CA.cer -extfile %(name)s-CA.cnf -extensions req_x509_ext -CA %(name)s-TA.cer -CAkey %(name)s-TA.key -CAcreateserial &&
+%(openssl)s x509 -req -in %(name)s-EE.req -out %(name)s-EE.cer -extfile %(name)s-EE.cnf -extensions req_x509_ext -CA %(name)s-CA.cer -CAkey %(name)s-CA.key -CAcreateserial
 '''
 
 yaml_fmt_1 = '''---
@@ -553,6 +565,31 @@ rpki-issuer		= %(rootd_name)s.cer
 rpki-subject-filename	= %(rootd_name)s.subject.cer
 rpki-pkcs10-filename	= %(rootd_name)s.subject.pkcs10
 
+[req]
+default_bits		= 2048
+encrypt_key		= no
+distinguished_name	= req_dn
+req_extensions		= req_x509_ext
+prompt			= no
+
+[req_dn]
+CN			= Completely Bogus Test Root (NOT FOR PRODUCTION USE)
+
+[req_x509_ext]
+basicConstraints	= critical,CA:true
+subjectKeyIdentifier	= hash
+keyUsage		= critical,keyCertSign,cRLSign
+subjectInfoAccess	= 1.3.6.1.5.5.7.48.5;URI:%(rootd_sia)s
+sbgp-autonomousSysNum	= critical,AS:0-4294967295
+sbgp-ipAddrBlock	= critical,IPv4:0.0.0.0/0,IPv6:0::/0
+'''
+
+rootd_fmt_2 = '''\
+%(openssl)s req -new -newkey rsa:2048 -nodes -keyout %(rootd_name)s.key -out %(rootd_name)s.req -config %(rootd_name)s.conf &&
+'''
+
+rootd_fmt_3 = '''\
+%(openssl)s x509 -req -in %(rootd_name)s.req -out %(rootd_name)s.cer -extfile %(rootd_name)s.conf -extensions req_x509_ext -signkey %(rootd_name)s.key -text -sha256
 '''
 
 main()

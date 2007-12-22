@@ -375,8 +375,12 @@ class allocation(object):
         cms_ta = self.parent.rpkid_ta, https_ta = self.parent.rpkid_ta, sender_name = self.name, recipient_name = self.parent.name,
         peer_contact_uri = "https://localhost:%s/up-down/%s" % (self.parent.rpki_port, self.child_id))).parent_id
 
+    db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
+    cur = db.cursor()
     for kid in self.kids:
       kid.child_id = self.call_rpkid(rpki.left_right.child_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id, cms_ta = kid.rpkid_ta)).child_id
+      cur.execute("UPDATE registrant SET rpki_self_id = %s, rpki_child_id = %s WHERE IRBE_mapped_id = %s", (self.self_id, kid.child_id, kid.name))
+    db.close()
 
   def write_leaf_yaml(self):
     """Write YAML scripts for leaf nodes.  Only supports list requests

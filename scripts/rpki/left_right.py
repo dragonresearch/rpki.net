@@ -606,8 +606,7 @@ class parent_elt(data_elt):
     try:
       rpki.relaxng.up_down.assertValid(q_elt)
     except lxml.etree.DocumentInvalid:
-      print "Message does not pass schema check:"
-      print lxml.etree.tostring(q_elt, pretty_print = True)
+      rpki.log.error("Message does not pass schema check: " + lxml.etree.tostring(q_elt, pretty_print = True))
       raise
     q_cms = rpki.cms.xml_sign(q_elt, bsc.private_key_id, bsc.signing_cert, encoding = "UTF-8")
     r_cms = rpki.https.client(x509TrustList = rpki.x509.X509_chain(self.https_ta),
@@ -693,7 +692,7 @@ class child_elt(data_elt):
     try:
       r_msg = q_msg.serve_top_level(gctx, self)
     except Exception, data:
-      traceback.print_exc()
+      rpki.log.error(traceback.format_exc())
       r_msg = q_msg.serve_error(data)
     #
     # Exceptions from this point on are problematic, as we have no
@@ -704,8 +703,8 @@ class child_elt(data_elt):
     try:
       rpki.relaxng.up_down.assertValid(r_elt)
     except:
-      print lxml.etree.tostring(r_elt, pretty_print = True, encoding = "UTF-8")
-      traceback.print_exc()
+      rpki.log.debug(lxml.etree.tostring(r_elt, pretty_print = True, encoding = "UTF-8"))
+      rpki.log.error(traceback.format_exc())
       raise
     return rpki.cms.xml_sign(r_elt, bsc.private_key_id, bsc.signing_cert, encoding = "UTF-8")
 

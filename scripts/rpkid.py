@@ -25,12 +25,11 @@ def left_right_handler(query, path):
     reply = rpki.cms.xml_sign(r_elt, gctx.cms_key, gctx.cms_certs)
     return 200, reply
   except lxml.etree.DocumentInvalid:
-    print "Received reply document does not pass schema check:"
-    print lxml.etree.tostring(r_elt, pretty_print = True)
-    traceback.print_exc()
+    rpki.log.warning("Received reply document does not pass schema check: " + lxml.etree.tostring(r_elt, pretty_print = True))
+    rpki.log.warning(traceback.format_exc())
     return 500, "Schema violation"
   except Exception, data:
-    traceback.print_exc()
+    rpki.log.error(traceback.format_exc())
     return 500, "Unhandled exception %s" % data
 
 def up_down_handler(query, path):
@@ -46,7 +45,7 @@ def up_down_handler(query, path):
     reply = child.serve_up_down(gctx, query)
     return 200, reply
   except Exception, data:
-    traceback.print_exc()
+    rpki.log.error(traceback.format_exc())
     return 400, "Could not process PDU: %s" % data
 
 def cronjob_handler(query, path):

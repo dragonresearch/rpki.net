@@ -51,7 +51,7 @@ def handler(query, path):
         r_pdu.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(cur, "SELECT start_ip, end_ip FROM net WHERE registrant_id = %s AND version = 6" % registrant_id)
 
       except Exception, data:
-        traceback.print_exc()
+        rpki.log.error(traceback.format_exc())
         r_pdu = rpki.left_right.report_error_elt.from_exception(data, q_pdu.self_id)
 
       r_msg.append(r_pdu)
@@ -61,7 +61,7 @@ def handler(query, path):
     return 200, rpki.cms.xml_sign(r_elt, cms_key, cms_certs)
 
   except Exception, data:
-    traceback.print_exc()
+    rpki.log.error(traceback.format_exc())
 
     # We only get here in cases where we couldn't or wouldn't generate
     # <report_error/>, so just return HTTP failure.

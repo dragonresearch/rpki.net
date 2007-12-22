@@ -113,7 +113,7 @@ def up_down_handler(query, path):
     rpki.relaxng.up_down.assertValid(q_elt)
     q_msg = sax_handler.saxify(q_elt)
   except Exception, data:
-    traceback.print_exc()
+    rpki.log.error(traceback.format_exc())
     return 400, "Could not process PDU: %s" % data
   try:
     r_msg = q_msg.serve_top_level(None, None)
@@ -121,20 +121,18 @@ def up_down_handler(query, path):
     try:
       rpki.relaxng.up_down.assertValid(r_elt)
     except lxml.etree.DocumentInvalid:
-      print
-      print lxml.etree.tostring(r_elt, pretty_print = True, encoding ="utf-8", xml_declaration = True)
-      print
+      rpki.log.debug(lxml.etree.tostring(r_elt, pretty_print = True, encoding ="utf-8", xml_declaration = True))
       raise
     return 200, rpki.cms.xml_sign(r_elt, cms_key, cms_certs, encoding = "utf-8")
   except Exception, data:
-    traceback.print_exc()
+    rpki.log.error(traceback.format_exc())
     try:
       r_msg = q_msg.serve_error(data)
       r_elt = r_msg.toXML()
       rpki.relaxng.up_down.assertValid(r_elt)
       return 200, rpki.cms.xml_sign(r_elt, cms_key, cms_certs, encoding = "utf-8")
     except Exception, data:
-      traceback.print_exc()
+      rpki.log.error(traceback.format_exc())
       return 500, "Could not process PDU: %s" % data
 
 os.environ["TZ"] = "UTC"

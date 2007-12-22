@@ -75,7 +75,7 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         rcode, rtext = handler(query = self.rfile.read(int(self.headers["Content-Length"])),
                                path  = self.path)
     except Exception, edata:
-      traceback.print_exc()
+      rpki.log.error(traceback.format_exc())
       rcode, rtext = 500, "Unhandled exception %s" % edata
     self.send_response(rcode)
     self.send_header("Content-Type", rpki_content_type)

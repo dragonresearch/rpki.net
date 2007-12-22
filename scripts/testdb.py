@@ -283,7 +283,7 @@ class allocation(object):
     cur.execute("DELETE FROM asn")
     cur.execute("DELETE FROM net")
     for kid in self.kids:
-      cur.execute("SELECT registrant_id FROM registrant WHERE IRBE_mapped_id = %s", kid.name)
+      cur.execute("SELECT registrant_id FROM registrant WHERE IRBE_mapped_id = %s", (kid.name,))
       registrant_id = cur.fetchone()[0]
       for as_range in kid.resources.as:
         cur.execute("INSERT asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)", (as_range.min, as_range.max, registrant_id))

@@ -77,17 +77,19 @@ class sql_persistant(object):
     if key in sql_cache:
       return sql_cache[key]
     else:
-      return cls.sql_fetch_where1(gctx, "%s = %s" % (cls.sql_template.index, id))
+      return cls.sql_fetch_where1(gctx, "%s = %s", (cls.sql_template.index, id))
 
   @classmethod
-  def sql_fetch_where1(cls, gctx, where):
+  def sql_fetch_where1(cls, gctx, where, args = None):
     """Fetch one object from SQL, based on an arbitrary SQL WHERE expression."""
-    results = cls.sql_fetch_where(gctx, where)
+    results = cls.sql_fetch_where(gctx, where, args)
     if len(results) == 0:
       return None
     elif len(results) == 1:
       return results[0]
     else:
+      if args is not None:
+        where = where % args
       raise rpki.exceptions.DBConsistancyError, \
             "Database contained multiple matches for %s where %s" % (cls.__name__, where)
 
@@ -97,12 +99,12 @@ class sql_persistant(object):
     return cls.sql_fetch_where(gctx, None)
 
   @classmethod
-  def sql_fetch_where(cls, gctx, where):
+  def sql_fetch_where(cls, gctx, where, args = None):
     """Fetch objects of this type matching an arbitrary SQL WHERE expression."""
     if where is None:
       gctx.cur.execute(cls.sql_template.select)
     else:
-      gctx.cur.execute(cls.sql_template.select + " WHERE " + where)
+      gctx.cur.execute(cls.sql_template.select + " WHERE " + where, args)
     results = []
     for row in gctx.cur.fetchall():
       key = (cls, row[0])
@@ -225,11 +227,11 @@ class ca_obj(sql_persistant):
 
   def ca_details(self, gctx):
     """Fetch all ca_detail objects that link to this CA object."""
-    return ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s" % self.ca_id)
+    return ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s", (self.ca_id,))
 
   def fetch_active(self, gctx):
     """Fetch the active ca_detail for this CA, if any."""
-    return ca_detail_obj.sql_fetch_where1(gctx, "ca_id = %s AND state = 'active'" % self.ca_id)
+    return ca_detail_obj.sql_fetch_where1(gctx, "ca_id = %s AND state = 'active'", (self.ca_id,))
 
   def construct_sia_uri(self, gctx, parent, rc):
     """Construct the sia_uri value for this CA given configured
@@ -260,7 +262,7 @@ class ca_obj(sql_persistant):
     rc_resources = rc.to_resource_bag()
     cert_map = dict((c.cert.get_SKI(), c) for c in rc.certs)
 
-    for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL" % self.ca_id):
+    for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL", (self.ca_id,)):
       ski = ca_detail.latest_ca_cert.get_SKI()
       if ca_detail.state != "deprecated":
         current_resources = ca_detail.latest_ca_cert.get_3779resources()
@@ -375,7 +377,7 @@ class ca_detail_obj(sql_persistant):
 
   def route_origins(self, gctx):
     """Fetch all route_origin objects that link to this ca_detail."""
-    return rpki.left_right.route_origin_elt.sql_fetch_where(gctx, "ca_detail_id = %s" % self.ca_detail_id)
+    return rpki.left_right.route_origin_elt.sql_fetch_where(gctx, "ca_detail_id = %s", (self.ca_detail_id,))
 
   def crl_uri(self, ca):
     """Return publication URI for this ca_detail's CRL."""
@@ -431,7 +433,7 @@ class ca_detail_obj(sql_persistant):
     # This will need a callback when we go event-driven
     issue_response = rpki.up_down.issue_pdu.query(gctx, parent, ca, self)
 
-    self.latest_ca_cert = issue_response.classes[0].certs[0].cert
+    self.latest_ca_cert = issue_response.payload.classes[0].certs[0].cert
     new_resources = self.latest_ca_cert.get_3779resources()
 
     if sia_uri_changed or old_resources.oversized(new_resources):
@@ -649,17 +651,21 @@ class child_cert_obj(sql_persistant):
     code calls this indirectly, through methods in other classes.
     """
 
+    args = []
     if revoked:
       where = "revoked IS NOT NULL"
     else:
       where = "revoked IS NULL"
     if child:
-      where += " AND child_id = %s" % child.child_id
+      where += " AND child_id = %s"
+      args.append(child.child_id)
     if ca_detail:
-      where += " AND ca_detail_id = %s" % ca_detail.ca_detail_id
+      where += " AND ca_detail_id = %s"
+      args.append(ca_detail.ca_detail_id)
     if ski:
-      where += " AND ski = '%s'" % ski
+      where += " AND ski = %s"
+      args.append(ski)
     if unique:
-      return cls.sql_fetch_where1(gctx, where)
+      return cls.sql_fetch_where1(gctx, where, args)
     else:
-      return cls.sql_fetch_where(gctx, where)
+      return cls.sql_fetch_where(gctx, where, args)

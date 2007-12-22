@@ -67,3 +67,6 @@ class SubprocessError(Exception):
 
 class BadIRDBReply(Exception):
   """Unexpected reply to IRDB query."""
+
+class NotFound(Exception):
+  """Object not found in database."""

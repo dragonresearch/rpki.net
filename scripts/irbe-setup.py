@@ -108,4 +108,4 @@ for registrant_id, subject_name  in registrants:
   cur.execute("""UPDATE registrant
                  SET rpki_self_id = %d, rpki_child_id = %d
                  WHERE registrant_id = %d
-              """ % (self_id, pdu.child_id, registrant_id))
+              """, (self_id, pdu.child_id, registrant_id))

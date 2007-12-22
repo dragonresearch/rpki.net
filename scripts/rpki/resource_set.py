@@ -246,18 +246,18 @@ class resource_set(list):
     return other.issubset(self)
 
   @classmethod
-  def from_sql(cls, cursor, query):
+  def from_sql(cls, cur, query, args = None):
     """Create resource set from an SQL query.
 
-    cursor is a DB API 2.0 cursor object.
+    cur is a DB API 2.0 cursor object.
 
     query is an SQL query that returns a sequence of (min, max) pairs.
     """
 
-    cursor.execute(query)
+    cur.execute(query, args)
     return cls(ini = [cls.range_type(cls.range_type.datum_type(b),
                                      cls.range_type.datum_type(e))
-                      for (b,e) in cursor.fetchall()])
+                      for (b,e) in cur.fetchall()])
 
 class resource_set_as(resource_set):
   """ASN resource set."""

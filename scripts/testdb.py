@@ -44,6 +44,8 @@ def main():
     os.mkdir(work_dir)
     os.chdir(work_dir)
 
+  subprocess.check_call(("rm", "-rf", "publication"))
+
   y = [y for y in yaml.safe_load_all(open("../testdb2.yaml"))]
 
   db = allocation_db(y.pop(0))
@@ -409,8 +411,8 @@ class allocation(object):
                       msg             = "Run cron now, please")
 
   def run_yaml(self):
-    rpki.log.info("[NOT] Running YAML for %s" % self.name)
-    pass
+    rpki.log.info("Running YAML for %s" % self.name)
+    subprocess.check_call((prog_python, prog_poke, "-c", self.name + ".yaml", "-r", "list"))
 
 def setup_biz_cert_chain(name):
   s = "exec >/dev/null 2>&1\n"
@@ -474,14 +476,14 @@ posturl:                https://localhost:%(https_port)s/up-down/%(child_id)s
 recipient-id:           "%(parent_name)s"
 sender-id:              "%(my_name)s"
 
-cms-cert-file:          %(my_name)s-EE.cer
-cms-key-file:           %(my_name)s-EE.key
-cms-ca-cert-file:       %(parent_name)s-Root.cer
-cms-cert-chain-file:    [ %(my_name)s-CA.cer ]
+cms-cert-file:          %(my_name)s-RPKI-EE.cer
+cms-key-file:           %(my_name)s-RPKI-EE.key
+cms-ca-cert-file:       %(parent_name)s-RPKI-TA.cer
+cms-cert-chain-file:    [ %(my_name)s-RPKI-CA.cer ]
 
-ssl-cert-file:          %(my_name)s-EE.cer
-ssl-key-file:           %(my_name)s-EE.key
-ssl-ca-cert-file:       %(parent_name)s-Root.cer
+ssl-cert-file:          %(my_name)s-RPKI-EE.cer
+ssl-key-file:           %(my_name)s-RPKI-EE.key
+ssl-ca-cert-file:       %(parent_name)s-RPKI-TA.cer
 
 requests:
   list:
@@ -602,3 +604,7 @@ rootd_fmt_3 = '''\
 '''
 
 main()
+
+# Local Variables:
+# compile-command: "python testdb.py"
+# End:

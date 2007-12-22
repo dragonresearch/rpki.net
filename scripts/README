@@ -248,6 +248,9 @@ Current TO DO list:
   now failed to run to completion on two different machines, in both
   cases something myterious and bad happened in the tls code.
 
+- ROA generation.  We have a bunch of the primitives for this but we
+  aren't yet generating the ROAs themselves.
+
 Once this lot is done we'll be close to something that shows at least
 the basics of normal operation, albiet in a form that's not yet usable
 in production.

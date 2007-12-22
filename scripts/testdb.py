@@ -505,7 +505,8 @@ https-key	= %(my_name)s-RPKI-EE.key
 https-cert.0	= %(my_name)s-RPKI-EE.cer
 https-cert.1	= %(my_name)s-RPKI-CA.cer
 
-https-ta	= %(irbe_name)s-TA.cer
+#https-ta	= %(irbe_name)s-TA.cer
+https-ta	= %(my_name)s-IRDB-TA.cer
 
 irdb-url	= https://localhost:%(irdb_port)d/
 
@@ -528,8 +529,8 @@ cms-ta		= %(my_name)s-RPKI-TA.cer
 https-key	= %(my_name)s-IRDB-EE.key
 https-cert.0	= %(my_name)s-IRDB-EE.cer
 https-cert.1	= %(my_name)s-IRDB-CA.cer
-https-ta.0	= %(irbe_name)s-TA.cer
-https-ta.1	= %(my_name)s-RPKI-TA.cer
+#https-ta.0	= %(irbe_name)s-TA.cer
+#https-ta.1	= %(my_name)s-RPKI-TA.cer
 
 https-url	= https://localhost:%(irdb_port)d/
 
@@ -544,7 +545,7 @@ https-key	= %(irbe_name)s-EE.key
 https-cert.0	= %(irbe_name)s-EE.cer
 https-cert.1	= %(irbe_name)s-CA.cer
 https-ta.0	= %(my_name)s-RPKI-TA.cer
-https-ta.1	= %(my_name)s-IRDB-TA.cer
+#https-ta.1	= %(my_name)s-IRDB-TA.cer
 
 https-url	= https://localhost:%(rpki_port)d/left-right
 '''

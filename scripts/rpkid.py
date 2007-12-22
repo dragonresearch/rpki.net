@@ -104,7 +104,13 @@ for o,a in opts:
 if argv:
   raise RuntimeError, "Unexpected arguments %s" % argv
 
-gctx = global_context(cfg = rpki.config.parser(cfg_file), section = "rpkid")
+cfg = rpki.config.parser(cfg_file)
+cfg_section = "rpkid"
+
+if cfg.has_option(cfg_section, "startup-message"):
+  rpki.log.info(cfg.get(cfg_section, "startup-message"))
+
+gctx = global_context(cfg = cfg, section = cfg_section)
 
 rpki.https.server(privateKey = gctx.https_key,
                   certChain = gctx.https_certs,

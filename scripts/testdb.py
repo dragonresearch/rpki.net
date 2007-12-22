@@ -409,7 +409,7 @@ class allocation(object):
     pass
 
 def setup_biz_cert_chain(name):
-  s = ""
+  s = "exec >/dev/null 2>&1\n"
   for kind in ("EE", "CA", "TA"):
     d = { "name"    : name,
           "kind"    : kind,
@@ -432,7 +432,7 @@ def setup_rootd(rpkid_name):
   f = open(rootd_name + ".conf", "w")
   f.write(rootd_fmt_1 % d)
   f.close()
-  s = ""
+  s = "exec >/dev/null 2>&1\n"
   if not os.path.exists(rootd_name + ".key") or not os.path.exists(rootd_name  + ".req"):
     s += rootd_fmt_2 % d
   s += rootd_fmt_3 % d
@@ -488,6 +488,8 @@ conf_fmt_1 = '''\
 
 [rpkid]
 
+startup-message = This is %(my_name)s rpkid
+
 sql-database	= %(rpki_db_name)s
 sql-username	= rpki
 sql-password	= %(rpki_db_pass)s
@@ -511,6 +513,8 @@ server-host     = localhost
 server-port     = %(rpki_port)d
 
 [irdb]
+
+startup-message = This is %(my_name)s irdbd
 
 sql-database	= %(irdb_db_name)s
 sql-username	= irdb

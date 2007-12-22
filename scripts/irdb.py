@@ -88,6 +88,9 @@ if argv:
 cfg = rpki.config.parser(cfg_file)
 cfg_section = "irdb"
 
+if cfg.has_option(cfg_section, "startup-message"):
+  rpki.log.info(cfg.get(cfg_section, "startup-message"))
+
 db = MySQLdb.connect(user   = cfg.get(cfg_section, "sql-username"),
                      db     = cfg.get(cfg_section, "sql-database"),
                      passwd = cfg.get(cfg_section, "sql-password"))

@@ -388,6 +388,10 @@ class allocation(object):
     """Write YAML scripts for leaf nodes.  Only supports list requests
     at the moment: issue requests would require class and SIA values,
     revoke requests would require class and SKI values.
+
+    ...Except that we can cheat and assume class 1 because we just
+    know that rpkid will assign that with the current setup.  So we
+    also support issue, kludge though this is.
     """
 
     rpki.log.info("Writing leaf YAML for %s" % self.name)
@@ -396,7 +400,8 @@ class allocation(object):
       "child_id"    : self.child_id,
       "parent_name" : self.parent.name,
       "my_name"     : self.name,
-      "https_port"  : self.parent.rpki_port })
+      "https_port"  : self.parent.rpki_port,
+      "sia"         : self.sia_base })
     f.close()
 
   def run_cron(self):
@@ -413,6 +418,7 @@ class allocation(object):
   def run_yaml(self):
     rpki.log.info("Running YAML for %s" % self.name)
     subprocess.check_call((prog_python, prog_poke, "-c", self.name + ".yaml", "-r", "list"))
+    subprocess.check_call((prog_python, prog_poke, "-c", self.name + ".yaml", "-r", "issue"))
 
 def setup_biz_cert_chain(name):
   s = "exec >/dev/null 2>&1\n"
@@ -488,6 +494,14 @@ ssl-ca-cert-file:       %(parent_name)s-RPKI-TA.cer
 requests:
   list:
     type:               list
+  issue:
+    type:               issue
+    #
+    # This is cheating, we know a priori that the class will be "1"
+    #
+    class:              1
+    sia:
+      -                 %(sia)s
 '''
 
 conf_fmt_1 = '''\

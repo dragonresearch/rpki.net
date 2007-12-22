@@ -1,6 +1,6 @@
 # $Id$
 
-import MySQLdb, time
+import MySQLdb, time, traceback
 import rpki.x509, rpki.resource_set, rpki.sundial
 
 def connect(cfg, section="sql"):
@@ -88,10 +88,9 @@ class sql_persistant(object):
     elif len(results) == 1:
       return results[0]
     else:
-      if args is not None:
-        where = where % args
       raise rpki.exceptions.DBConsistancyError, \
-            "Database contained multiple matches for %s where %s" % (cls.__name__, where)
+            "Database contained multiple matches for %s where %s" % \
+            (cls.__name__, where % tuple(repr(a) for a in args))
 
   @classmethod
   def sql_fetch_all(cls, gctx):
@@ -498,7 +497,8 @@ class ca_detail_obj(sql_persistant):
       serial      = ca.next_serial_number(),
       aia         = self.ca_cert_uri,
       crldp       = self.crl_uri(ca),
-      sia         = sia,
+      sia         = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", ca.sia_uri)),
+                     (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", self.manifest_uri(ca)))),
       resources   = resources,
       notAfter    = resources.valid_until)
 
@@ -622,6 +622,9 @@ class child_cert_obj(sql_persistant):
 
     must_revoke = old_resources.oversized(resources) or old_resources.valid_until > resources.valid_until
 
+    if resources.valid_until != old_resources.valid_until:
+      rpki.log.debug("Validity changed: %s %s" % ( old_resources.valid_until, resources.valid_until))
+
     if must_revoke:
       child_cert = None
     else:
@@ -652,10 +655,10 @@ class child_cert_obj(sql_persistant):
     """
 
     args = []
+    where = "revoked IS"
     if revoked:
-      where = "revoked IS NOT NULL"
-    else:
-      where = "revoked IS NULL"
+      where += " NOT"
+    where += " NULL"
     if child:
       where += " AND child_id = %s"
       args.append(child.child_id)

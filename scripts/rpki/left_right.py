@@ -366,12 +366,13 @@ class self_elt(data_elt):
           continue
         old_resources = child_cert.cert.get_3779resources()
         new_resources = irdb_resources.intersection(old_resources)
-        if old_resources != new_resources or old_resources.valid_until != new_resources.valid_until:
+        if old_resources != new_resources:
+          rpki.log.debug("Need to reissue %s" % repr(child_cert))
           child_cert.reissue(
             gctx      = gctx,
             ca_detail = ca_detail,
             resources = new_resources,
-            sia       = ca_detail.ca(gctx).sia_uri())
+            sia       = ca_detail.ca(gctx).sia_uri)
         elif old_resources.valid_until < now:
           parent = ca.parent(gctx)
           repository = parent.repository(gctx)

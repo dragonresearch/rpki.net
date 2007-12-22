@@ -428,7 +428,10 @@ class resource_bag(object):
     return not self.as and not self.v4 and not self.v6
 
   def __eq__(self, other):
-    return self.as == other.as and self.v4 == other.v4 and self.v6 == other.v6
+    return self.as == other.as and \
+           self.v4 == other.v4 and \
+           self.v6 == other.v6 and \
+           self.valid_until == other.valid_until
 
   def __ne__(self, other):
     return not (self == other)

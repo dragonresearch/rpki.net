@@ -5,6 +5,8 @@ import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https, rpki.log, rpki.le
 
 # Most of these globals probably belong in a config file.
 
+yaml_script    = "../testdb1.yaml"
+
 irbe_name      = "testdb"
 irbe_key       = None
 irbe_certs     = None
@@ -46,7 +48,7 @@ def main():
 
   subprocess.check_call(("rm", "-rf", "publication"))
 
-  y = [y for y in yaml.safe_load_all(open("../testdb2.yaml"))]
+  y = [y for y in yaml.safe_load_all(open(yaml_script))]
 
   db = allocation_db(y.pop(0))
 
@@ -132,14 +134,17 @@ def main():
       # and that everything that was supposed to be published has been
       # published.  [Not written yet]
 
-      pass
+      # If we've run out of deltas to apply, we're done
 
-      # Read and apply next deltas from master YAML
-
-      if y:
-        db.apply_delta(y.pop(0))
-      else:
+      if not y:
         break
+
+      # Apply next deltas and resync IRDBs
+
+      db.apply_delta(y.pop(0))
+
+      for a in db.engines:
+        a.sync_sql()
 
   # Clean up
 
@@ -293,6 +298,7 @@ class allocation(object):
         cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)", (v4_range.min, v4_range.max, registrant_id))
       for v6_range in kid.resources.v6:
         cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)", (v6_range.min, v6_range.max, registrant_id))
+      cur.execute("UPDATE registrant SET valid_until = %s WHERE registrant_id = %s", (kid.resources.valid_until, registrant_id))
     db.close()
 
   def run_daemons(self):

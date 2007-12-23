@@ -163,24 +163,6 @@ def main():
     except Exception, data:
       rpki.log.warn("Couldn't clean up daemons (%s), continuing" % data)
 
-def wakeup(signum, frame):
-  """Handler called when we receive a SIGALRM signal."""
-  rpki.log.info("Wakeup call received, continuing")
-
-def cmd_sleep(seconds = None):
-  """Set an alarm, then wait for it to go off."""
-  if seconds is None:
-    rpki.log.info("Pausing indefinitely, send a SIGALRM to wake me up")
-  else:
-    rpki.log.info("Sleeping %s seconds" % seconds)
-    signal.alarm(int(seconds))
-  signal.pause()
-
-## @var cmds
-# Dispatch table for commands embedded in delta sections
-
-cmds = { "sleep" : cmd_sleep }
-
 class timedelta(datetime.timedelta):
   """Timedelta with text parsing.  This accepts two input formats:
 
@@ -205,13 +187,35 @@ class timedelta(datetime.timedelta):
   @classmethod
   def parse(cls, arg):
     """Parse text into a timedelta object."""
-    if isinstance(arg, int):
+    if not isinstance(arg, str):
       return cls(seconds = arg)
-    assert isinstance(arg, str)
-    if (arg.isdigit()):
-      return cls(seconds = arg)
+    elif arg.isdigit():
+      return cls(seconds = int(arg))
     else:
       return cls(**dict((k, int(v)) for (k, v) in cls.regexp.match(arg).groupdict().items() if v is not None))
+
+  def convert_to_seconds(self):
+    """Convert a timedelta interval to seconds."""
+    return self.days * 24 * 60 * 60 + self.seconds
+
+def wakeup(signum, frame):
+  """Handler called when we receive a SIGALRM signal."""
+  rpki.log.info("Wakeup call received, continuing")
+
+def cmd_sleep(interval = None):
+  """Set an alarm, then wait for it to go off."""
+  if interval is None:
+    rpki.log.info("Pausing indefinitely, send a SIGALRM to wake me up")
+  else:
+    seconds = timedelta.parse(interval).convert_to_seconds()
+    rpki.log.info("Sleeping %s seconds" % seconds)
+    signal.alarm(seconds)
+  signal.pause()
+
+## @var cmds
+# Dispatch table for commands embedded in delta sections
+
+cmds = { "sleep" : cmd_sleep }
 
 class allocation_db(list):
   """Representation of all the entities and allocations in the test system.

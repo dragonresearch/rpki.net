@@ -11,7 +11,10 @@ kids:
         ipv4: 192.0.2.1-192.0.2.33
         asn:  64533
 ---
-- sleep 5
+- name: Alice
+  valid_add:   10
+---
+- sleep 1M
 - name: Alice
   add_as: 33
   valid_add:   2d

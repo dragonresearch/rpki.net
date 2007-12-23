@@ -166,19 +166,17 @@ def wakeup(signum, frame):
 
 signal.signal(signal.SIGALRM, wakeup)
 
-def cmd_pause():
-  """Do nothing until a signal arrives."""
-  rpki.log.info("Pausing indefinitely, send a SIGALRM to wake me up")
-  signal.pause()
-
-def cmd_sleep(seconds):
+def cmd_sleep(seconds = None):
   """Set an alarm, then wait for it to go off."""
-  rpki.log.info("Sleeping %s seconds" % seconds)
-  signal.alarm(int(seconds))
+
+  if seconds is None:
+    rpki.log.info("Pausing indefinitely, send a SIGALRM to wake me up")
+  else:
+    rpki.log.info("Sleeping %s seconds" % seconds)
+    signal.alarm(int(seconds))
   signal.pause()
 
-cmds = { "pause" : cmd_pause,
-         "sleep" : cmd_sleep }
+cmds = { "sleep" : cmd_sleep }
 
 class allocation_db(list):
 

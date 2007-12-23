@@ -1,6 +1,6 @@
 # $Id$
 
-import os, yaml, MySQLdb, subprocess, signal, time
+import os, yaml, MySQLdb, subprocess, signal, time, datetime, re
 import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https, rpki.log, rpki.left_right
 
 # Most of these globals probably belong in a config file.
@@ -36,9 +36,14 @@ prog_openssl   = "../../openssl/openssl/apps/openssl"
 
 def main():
 
-  rootd_process = None
+  os.environ["TZ"] = "UTC"
+  time.tzset()
 
   rpki.log.init(irbe_name)
+
+  signal.signal(signal.SIGALRM, wakeup)
+
+  rootd_process = None
 
   try:
     os.chdir(work_dir)
@@ -157,18 +162,13 @@ def main():
         os.kill(rootd_process.pid, signal.SIGTERM)
     except Exception, data:
       rpki.log.warn("Couldn't clean up daemons (%s), continuing" % data)
-  
-# Signal handling and commands to make use of it
 
 def wakeup(signum, frame):
   """Handler called when we receive a SIGALRM signal."""
   rpki.log.info("Wakeup call received, continuing")
 
-signal.signal(signal.SIGALRM, wakeup)
-
 def cmd_sleep(seconds = None):
   """Set an alarm, then wait for it to go off."""
-
   if seconds is None:
     rpki.log.info("Pausing indefinitely, send a SIGALRM to wake me up")
   else:
@@ -176,11 +176,50 @@ def cmd_sleep(seconds = None):
     signal.alarm(int(seconds))
   signal.pause()
 
+## @var cmds
+# Dispatch table for commands embedded in delta sections
+
 cmds = { "sleep" : cmd_sleep }
 
+class timedelta(datetime.timedelta):
+  """Timedelta with text parsing.  This accepts two input formats:
+
+  - A simple integer, indicating a number of seconds.
+
+  - A string of the form "wD xH yM zS" where w, x, y, and z are integers
+    and D, H, M, and S indicate days, hours, minutes, and seconds.
+    All of the fields are optional, but at least one must be specified.
+    Eg, "3D4H" means "three days plus four hours".
+  """
+
+  ## @var regexp
+  # Hideously ugly regular expression to parse the complex text form.
+  # Tags are intended for use with re.MatchObject.groupdict() and map
+  # directly to the keywords expected by the timedelta constructor.
+
+  regexp = re.compile("\\s*(?:(?P<days>\\d+)D)?" +
+                      "\\s*(?:(?P<hours>\\d+)H)?" +
+                      "\\s*(?:(?P<minutes>\\d+)M)?" +
+                      "\\s*(?:(?P<seconds>\\d+)S)?\\s*", re.I)
+
+  @classmethod
+  def parse(cls, arg):
+    """Parse text into a timedelta object."""
+    if isinstance(arg, int):
+      return cls(seconds = arg)
+    assert isinstance(arg, str)
+    if (arg.isdigit()):
+      return cls(seconds = arg)
+    else:
+      return cls(**dict((k, int(v)) for (k, v) in cls.regexp.match(arg).groupdict().items() if v is not None))
+
 class allocation_db(list):
+  """Representation of all the entities and allocations in the test system.
+  Almost everything is generated out of this database.
+  """
 
   def __init__(self, yaml):
+    """Initialize database from the (first) YAML document."""
     self.root = allocation(yaml, self)
     assert self.root.is_root()
     for a in self:
@@ -196,6 +235,7 @@ class allocation_db(list):
       a.set_engine_number(i)
 
   def apply_delta(self, delta):
+    """Apply a delta or run a command."""
     for d in delta:
       if isinstance(d, str):
         c = d.split()
@@ -205,6 +245,7 @@ class allocation_db(list):
     self.root.closure()
 
   def dump(self):
+    """Print content of the database."""
     for a in self:
       print a
 
@@ -217,19 +258,23 @@ class allocation(object):
   rpki_port    = None
 
   def __init__(self, yaml, db, parent = None):
+    """Initialize one entity and insert it into the database."""
     db.append(self)
     self.name = yaml["name"]
     self.parent = parent
     self.kids = [allocation(k, db, self) for k in yaml.get("kids", ())]
+    valid_until = yaml.get("valid_until")
+    if valid_until is None and "valid_for" in yaml:
+      valid_until = datetime.datetime.utcnow() + timedelta.parse(yaml["valid_for"])
     self.base = rpki.resource_set.resource_bag(
       as = rpki.resource_set.resource_set_as(yaml.get("asn")),
       v4 = rpki.resource_set.resource_set_ipv4(yaml.get("ipv4")),
       v6 = rpki.resource_set.resource_set_ipv6(yaml.get("ipv6")),
-      valid_until = yaml.get("valid_until"))
+      valid_until = valid_until)
     self.sia_base = yaml.get("sia_base")
 
   def closure(self):
-    """Compute the transitive resource closure for one resource attribute."""
+    """Compute the transitive resource closure."""
     resources = self.base
     for kid in self.kids:
       resources = resources.union(kid.closure())
@@ -237,6 +282,7 @@ class allocation(object):
     return resources
 
   def apply_delta(self, yaml):
+    """Apply deltas to this entity."""
     rpki.log.info("Applying delta: %s" % yaml)
     for k,v in yaml.items():
       if k != "name":
@@ -249,6 +295,9 @@ class allocation(object):
   def apply_sub_v4(self, text): self.base.v4 = self.base.v4.difference(rpki.resource_set.resource_set_ipv4(text))
   def apply_sub_v6(self, text): self.base.v6 = self.base.v6.difference(rpki.resource_set.resource_set_ipv6(text))
   def apply_valid_until(self, stamp): self.base.valid_until = stamp
+  def apply_valid_for(self, text):    self.base.valid_until = datetime.datetime.utcnow() + timedelta.parse(text)
+  def apply_valid_add(self, text):    self.base.valid_until += timedelta.parse(text)
+  def apply_valid_sub(self, text):    self.base.valid_until -= timedelta.parse(text)
 
   def __str__(self):
     s = self.name + "\n"
@@ -265,20 +314,23 @@ class allocation(object):
   def is_twig(self): return self.parent is not None and self.kids
 
   def set_engine_number(self, n):
+    """Set the engine number for this entity."""
     if n >= max_engines:
-      raise RuntimeError, "You asked for more rpki engine instances than I can handle, maximum is %d, sorry" % max_engines
+      raise RuntimeError, "You asked for more RPKI engine instances than I can handle, maximum is %d, sorry" % max_engines
     self.irdb_db_name = "irdb%d" % n
     self.irdb_port    = irdb_base_port + n
     self.rpki_db_name = "rpki%d" % n
     self.rpki_port    = rpki_base_port + n
 
   def setup_biz_certs(self):
+    """Create business certs for this entity."""
     rpki.log.info("Biz certs for %s" % self.name)
     for tag in ("RPKI", "IRDB"):
       setup_biz_cert_chain(self.name + "-" + tag)
     self.rpkid_ta = rpki.x509.X509(PEM_file = self.name + "-RPKI-TA.cer")
 
   def setup_conf_file(self):
+    """Write config files for this entity."""
     rpki.log.info("Config files for %s" % self.name)
     d = { "my_name"      : self.name,
           "irbe_name"    : irbe_name,
@@ -293,6 +345,7 @@ class allocation(object):
     f.close()
 
   def setup_sql(self, rpki_sql, irdb_sql):
+    """Set up this entity's IRDB."""
     rpki.log.info("MySQL setup for %s" % self.name)
     db = MySQLdb.connect(user = "rpki", db = self.rpki_db_name, passwd = rpki_db_pass)
     cur = db.cursor()
@@ -308,6 +361,10 @@ class allocation(object):
     db.close()
 
   def sync_sql(self):
+    """Whack this entity's IRDB to match our master database.  We do
+    this once during setup, then do it again every time we apply a
+    delta to this entity.
+    """
     rpki.log.info("MySQL sync for %s" % self.name)
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
     cur = db.cursor()
@@ -326,11 +383,13 @@ class allocation(object):
     db.close()
 
   def run_daemons(self):
+    """Run daemons for this entity."""
     rpki.log.info("Running daemons for %s" % self.name)
     self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "-c", self.name + ".conf"))
     self.irdbd_process = subprocess.Popen((prog_python, prog_irdbd, "-c", self.name + ".conf"))
 
   def kill_daemons(self):
+    """Kill daemons for this entity."""
     rpki.log.info("Killing daemons for %s" % self.name)
     for proc in (self.rpkid_process, self.irdbd_process):
       try:
@@ -340,6 +399,9 @@ class allocation(object):
       proc.wait()
 
   def call_rpkid(self, pdu):
+    """Send a left-right message to this entity's RPKI daemon and
+    return the response.
+    """
     rpki.log.info("Calling rpkid for %s" % self.name)
     pdu.type = "query"
     elt = rpki.left_right.msg((pdu,)).toXML()
@@ -380,22 +442,26 @@ class allocation(object):
     that one is the magic self-signed micro engine.
     """
 
-    rpki.log.info("Creating rpkid objects %s" % self.name)
-
+    rpki.log.info("Creating rpkid self object for %s" % self.name)
     self.self_id = self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "create", crl_interval = 84600)).self_id
 
+    rpki.log.info("Creating rpkid BSC object for %s" % self.name)
     pdu = self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "create", self_id = self.self_id, generate_keypair = True))
     self.bsc_id = pdu.bsc_id
 
+    rpki.log.info("Issuing BSC EE cert for %s" % self.name)
     cmd = (prog_openssl, "x509", "-req", "-CA", self.name + "-RPKI-CA.cer", "-CAkey", self.name + "-RPKI-CA.key", "-CAserial", self.name + "-RPKI-CA.srl")
     signer = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     bsc_ee = rpki.x509.X509(PEM = signer.communicate(input = pdu.pkcs10_cert_request.get_PEM())[0])
 
+    rpki.log.info("Installing BSC EE cert for %s" % self.name)
     self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "set", self_id = self.self_id, bsc_id = self.bsc_id,
                                                      signing_cert = [bsc_ee, rpki.x509.X509(PEM_file = self.name + "-RPKI-CA.cer")]))
 
+    rpki.log.info("Creating rpkid repository object for %s" % self.name)
     self.repository_id = self.call_rpkid(rpki.left_right.repository_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id)).repository_id
 
+    rpki.log.info("Creating rpkid parent object for %s" % self.name)
     if self.parent is None:
       self.parent_id = self.call_rpkid(rpki.left_right.parent_elt.make_pdu(
         action = "create", self_id = self.self_id, bsc_id = self.bsc_id, repository_id = self.repository_id, sia_base = self.sia_base,
@@ -407,6 +473,7 @@ class allocation(object):
         cms_ta = self.parent.rpkid_ta, https_ta = self.parent.rpkid_ta, sender_name = self.name, recipient_name = self.parent.name,
         peer_contact_uri = "https://localhost:%s/up-down/%s" % (self.parent.rpki_port, self.child_id))).parent_id
 
+    rpki.log.info("Creating rpkid child objects for %s" % self.name)
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
     cur = db.cursor()
     for kid in self.kids:
@@ -438,7 +505,6 @@ class allocation(object):
     """Trigger cron run for this engine."""
 
     rpki.log.info("Running cron for %s" % self.name)
-
     rpki.https.client(privateKey      = irbe_key,
                       certChain       = irbe_certs,
                       x509TrustList   = rpki.x509.X509_chain(self.rpkid_ta),
@@ -446,11 +512,13 @@ class allocation(object):
                       msg             = "Run cron now, please")
 
   def run_yaml(self):
+    """Run YAML scripts for this leaf entity."""
     rpki.log.info("Running YAML for %s" % self.name)
     subprocess.check_call((prog_python, prog_poke, "-c", self.name + ".yaml", "-r", "list"))
     subprocess.check_call((prog_python, prog_poke, "-c", self.name + ".yaml", "-r", "issue"))
 
 def setup_biz_cert_chain(name):
+  """Build a set of business certs."""
   s = "exec >/dev/null 2>&1\n"
   for kind in ("EE", "CA", "TA"):
     d = { "name"    : name,
@@ -465,6 +533,7 @@ def setup_biz_cert_chain(name):
   subprocess.check_call(s + (biz_cert_fmt_3 % { "name" : name, "openssl" : prog_openssl }), shell=True)
 
 def setup_rootd(rpkid_name):
+  """Write the config files for rootd."""
   rpki.log.info("Config files for %s" % rootd_name)
   d = { "rootd_name" : rootd_name,
         "rootd_port" : rootd_port,

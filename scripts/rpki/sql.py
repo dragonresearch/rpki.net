@@ -51,7 +51,9 @@ def sql_assert_pristine():
 def sql_sweep(gctx):
   """Write any dirty objects out to SQL."""
   for s in sql_dirty.copy():
+    rpki.log.debug("Sweeping %s" % repr(s))
     s.sql_store(gctx)
+  sql_assert_pristine()
 
 def fetch_column(gctx, *query):
   """Pull a single column from SQL, return it as a list."""
@@ -507,8 +509,10 @@ class ca_detail_obj(sql_persistant):
         child_id     = child.child_id,
         ca_detail_id = self.ca_detail_id,
         cert         = cert)
+      rpki.log.debug("Created new child_cert %s" % repr(child_cert))
     else:
       child_cert.cert = cert
+      rpki.log.debug("Reusing existing child_cert %s" % repr(child_cert))
 
     child_cert.ski = cert.get_SKI()
 
@@ -597,6 +601,7 @@ class child_cert_obj(sql_persistant):
   def revoke(self):
     """Mark a child cert as revoked."""
     if self.revoked is None:
+      rpki.log.debug("Revoking %s" % repr(self))
       self.revoked = rpki.sundial.datetime.utcnow()
       self.sql_mark_dirty()
 

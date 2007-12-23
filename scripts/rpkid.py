@@ -9,7 +9,7 @@ Default configuration file is rpkid.conf, override with --config option.
 """
 
 import traceback, os, time, getopt, sys, MySQLdb, lxml.etree
-import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
+import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
 import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng, rpki.log
 
 def left_right_handler(query, path):
@@ -23,6 +23,7 @@ def left_right_handler(query, path):
     r_elt = r_msg.toXML()
     rpki.relaxng.left_right.assertValid(r_elt)
     reply = rpki.cms.xml_sign(r_elt, gctx.cms_key, gctx.cms_certs)
+    rpki.sql.sql_sweep(gctx)
     return 200, reply
   except lxml.etree.DocumentInvalid:
     rpki.log.warning("Received reply document does not pass schema check: " + lxml.etree.tostring(r_elt, pretty_print = True))
@@ -43,6 +44,7 @@ def up_down_handler(query, path):
     if child is None:
       raise rpki.exceptions.ChildNotFound, "Could not find child %s" % child_id
     reply = child.serve_up_down(gctx, query)
+    rpki.sql.sql_sweep(gctx)
     return 200, reply
   except Exception, data:
     rpki.log.error(traceback.format_exc())
@@ -58,6 +60,7 @@ def cronjob_handler(query, path):
     s.client_poll(gctx)
     s.update_children(gctx)
     s.regenerate_crls_and_manifests(gctx)
+  rpki.sql.sql_sweep(gctx)
   return 200, "OK"
 
 class global_context(object):

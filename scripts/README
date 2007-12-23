@@ -251,13 +251,6 @@ Current TO DO list:
 - ROA generation.  We have a bunch of the primitives for this but we
   aren't yet generating the ROAs themselves.
 
-- May need to revisit database representation of SKIs.   Currently
-  they're BLOBs, but MySQL doesn't seem to cope very well with this.
-  Either there's some magic MySQL query syntax I'm supposed to use
-  when writing WHERE clauses that test BLOB values, or I need to
-  switch to an encoded form instead, probably g(SKI).   The latter is
-  probably easier to debug anyway.
-
 Once this lot is done we'll be close to something that shows at least
 the basics of normal operation, albiet in a form that's not yet usable
 in production.

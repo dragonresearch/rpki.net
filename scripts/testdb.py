@@ -158,6 +158,28 @@ def main():
     except Exception, data:
       rpki.log.warn("Couldn't clean up daemons (%s), continuing" % data)
   
+# Signal handling and commands to make use of it
+
+def wakeup(signum, frame):
+  """Handler called when we receive a SIGALRM signal."""
+  rpki.log.info("Wakeup call received, continuing")
+
+signal.signal(signal.SIGALRM, wakeup)
+
+def cmd_pause():
+  """Do nothing until a signal arrives."""
+  rpki.log.info("Pausing indefinitely, send a SIGALRM to wake me up")
+  signal.pause()
+
+def cmd_sleep(seconds):
+  """Set an alarm, then wait for it to go off."""
+  rpki.log.info("Sleeping %s seconds" % seconds)
+  signal.alarm(int(seconds))
+  signal.pause()
+
+cmds = { "pause" : cmd_pause,
+         "sleep" : cmd_sleep }
+
 class allocation_db(list):
 
   def __init__(self, yaml):
@@ -177,7 +199,11 @@ class allocation_db(list):
 
   def apply_delta(self, delta):
     for d in delta:
-      self.map[d["name"]].apply_delta(d)
+      if isinstance(d, str):
+        c = d.split()
+        cmds[c[0]](*c[1:])
+      else:
+        self.map[d["name"]].apply_delta(d)
     self.root.closure()
 
   def dump(self):

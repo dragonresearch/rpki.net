@@ -8,7 +8,9 @@ Usage: python rpkid.py [ { -c | --config } config_file ]
                        [ { -h | --help } ]
                        [ { -y | --yaml }   yaml_script ]
 
-Default configuration file is testbed.conf, override with --config option.
+Default config_file is testbed.conf, override with --config option.
+
+Default yaml_script is testbed.yaml, override with -yaml option.
 
 yaml_script is a YAML file describing the tests to be run, and is
 intended to be implementation agnostic.
@@ -27,7 +29,7 @@ cfg_file = "testbed.conf"
 
 yaml_script = None
 
-opts,argv = getopt.getopt(sys.argv[1:], "c:hy?", ["config=", "help", "yaml"])
+opts,argv = getopt.getopt(sys.argv[1:], "c:hy:?", ["config=", "help", "yaml="])
 for o,a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
@@ -42,8 +44,18 @@ if argv:
 
 cfg = rpki.config.parser(cfg_file, "testbed")
 
+# Load the YAML script early, so we can report errors ASAP
+
 if yaml_script is None:
-  yaml_script  = cfg.get("yaml_script",    "../testbed.1.yaml")
+  yaml_script  = cfg.get("yaml_script", "testbed.yaml")
+
+try:
+  yaml_script = [y for y in yaml.safe_load_all(open(yaml_script))]
+except:
+  print __doc__
+  raise
+
+# Most filenames in the following are relative to the working directory.
 
 testbed_name   = cfg.get("testbed_name",   "testbed")
 testbed_dir    = cfg.get("testbed_dir",    testbed_name + ".dir")
@@ -93,9 +105,7 @@ def main():
 
   subprocess.check_call(("rm", "-rf", "publication"))
 
-  y = [y for y in yaml.safe_load_all(open(yaml_script))]
-
-  db = allocation_db(y.pop(0))
+  db = allocation_db(yaml_script.pop(0))
 
   # Construct biz keys and certs for this script to use
 
@@ -181,12 +191,12 @@ def main():
 
       # If we've run out of deltas to apply, we're done
 
-      if not y:
+      if not yaml_script:
         break
 
       # Apply next deltas and resync IRDBs
 
-      db.apply_delta(y.pop(0))
+      db.apply_delta(yaml_script.pop(0))
 
       for a in db.engines:
         a.sync_sql()
@@ -757,7 +767,3 @@ rootd_fmt_3 = '''\
 '''
 
 main()
-
-# Local Variables:
-# compile-command: "python testbed.py"
-# End:

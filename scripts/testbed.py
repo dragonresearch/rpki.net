@@ -1,5 +1,22 @@
 # $Id$
 
+"""
+Test framework to configure and drive a collection of rpkid.py and
+irdbd.py instances under control of a master script.
+
+Usage: python rpkid.py [ { -c | --config } config_file ]
+                       [ { -h | --help } ]
+                       [ { -y | --yaml }   yaml_script ]
+
+Default configuration file is testbed.conf, override with --config option.
+
+yaml_script is a YAML file describing the tests to be run, and is
+intended to be implementation agnostic.
+
+config_file contains settings for various implementation-specific
+things that don't belong in yaml_script.
+"""
+
 import os, yaml, MySQLdb, subprocess, signal, time, datetime, re, getopt, sys
 import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https, rpki.log, rpki.left_right, rpki.config
 

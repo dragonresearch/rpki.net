@@ -294,3 +294,10 @@ If the Python implementation ends up becoming the production version
 of the engine rather than just a prototype, it might make sense to
 revisit this, as the current mess of crypto libraries smells like an
 accident waiting to happen.
+
+Biz certs currently used by test scripts don't include SKI or AKI.  I
+think this is because the test scripts use "openssl x509" rather than
+"openssl ca" when generating these certs.  Not critical, and will
+probably become completely irrelevant when RobK supplies the
+all-singing all-dancing biz cert scripts, but should not be a big
+problem to fix either if it gets in the way again.

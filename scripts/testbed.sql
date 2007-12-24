@@ -2,7 +2,7 @@
 --
 -- Run this manually under the MySQL CLI to set up databases for testdb.py.
 -- testdb.py doesn't do this automatically because it requires privileges
--- that testdb.py doesn't (or at least shouldn't) have.
+-- that testbed.py doesn't (or at least shouldn't) have.
 
 CREATE DATABASE irdb0;
 CREATE DATABASE irdb1;

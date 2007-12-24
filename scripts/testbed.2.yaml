@@ -1,6 +1,6 @@
 # $Id$
 
-name:           Root
+name:           RIR
 valid_until:    2008-07-14T12:30:00Z
 sia_base:       "rsync://wombat.invalid/"
 kids:

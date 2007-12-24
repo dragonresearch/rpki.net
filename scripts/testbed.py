@@ -6,7 +6,7 @@ import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https, rpki.log, rpki.le
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-cfg_file = "testdb.conf"
+cfg_file = "testbed.conf"
 
 yaml_script = None
 
@@ -24,13 +24,13 @@ if argv:
   raise RuntimeError, "Unexpected arguments %s" % argv
 
 cfg = rpki.config.parser(cfg_file)
-cfg_section = "testdb"
+cfg_section = "testbed"
 
 if yaml_script is None:
-  yaml_script  = cfg.get(cfg_section, "yaml_script",    "../testdb1.yaml")
+  yaml_script  = cfg.get(cfg_section, "yaml_script",    "../testbed.1.yaml")
 
-irbe_name      = cfg.get(cfg_section, "irbe_name",      "testdb")
-work_dir       = cfg.get(cfg_section, "work_dir",       irbe_name + ".dir")
+testbed_name   = cfg.get(cfg_section, "testbed_name",   "testbed")
+testbed_dir    = cfg.get(cfg_section, "testbed_dir",    testbed_name + ".dir")
 
 irdb_db_pass   = cfg.get(cfg_section, "irdb_db_pass",   "fnord")
 rpki_db_pass   = cfg.get(cfg_section, "rpki_db_pass",   "fnord")
@@ -56,24 +56,24 @@ irdb_sql_file  = cfg.get(cfg_section, "irdb_sql_file",  "../docs/sample-irdb.sql
 rpki_sql       = open(rpki_sql_file).read()
 irdb_sql       = open(irdb_sql_file).read()
 
-irbe_key       = None
-irbe_certs     = None
+testbed_key    = None
+testbed_certs  = None
 rootd_ta       = None
 
 def main():
   """Main program, up front to make control logic more obvious."""
 
-  rpki.log.init(irbe_name)
+  rpki.log.init(testbed_name)
 
   signal.signal(signal.SIGALRM, wakeup)
 
   rootd_process = None
 
   try:
-    os.chdir(work_dir)
+    os.chdir(testbed_dir)
   except:
-    os.mkdir(work_dir)
-    os.chdir(work_dir)
+    os.mkdir(testbed_dir)
+    os.chdir(testbed_dir)
 
   subprocess.check_call(("rm", "-rf", "publication"))
 
@@ -83,10 +83,10 @@ def main():
 
   # Construct biz keys and certs for this script to use
 
-  setup_biz_cert_chain(irbe_name)
-  global irbe_key, irbe_certs
-  irbe_key = rpki.x509.RSA(PEM_file = irbe_name + "-EE.key")
-  irbe_certs = rpki.x509.X509_chain(PEM_files = (irbe_name + "-EE.cer", irbe_name + "-CA.cer"))
+  setup_biz_cert_chain(testbed_name)
+  global testbed_key, testbed_certs
+  testbed_key = rpki.x509.RSA(PEM_file = testbed_name + "-EE.key")
+  testbed_certs = rpki.x509.X509_chain(PEM_files = (testbed_name + "-EE.cer", testbed_name + "-CA.cer"))
 
   # Construct biz keys and certs for rootd instance to use
 
@@ -361,7 +361,7 @@ class allocation(object):
     """Write config files for this entity."""
     rpki.log.info("Config files for %s" % self.name)
     d = { "my_name"      : self.name,
-          "irbe_name"    : irbe_name,
+          "testbed_name" : testbed_name,
           "irdb_db_name" : self.irdb_db_name,
           "irdb_db_pass" : irdb_db_pass,
           "irdb_port"    : self.irdb_port,
@@ -436,13 +436,13 @@ class allocation(object):
     rpki.relaxng.left_right.assertValid(elt)
     cms = rpki.cms.xml_sign(
       elt           = elt,
-      key           = irbe_key,
-      certs         = irbe_certs)
+      key           = testbed_key,
+      certs         = testbed_certs)
     url = "https://localhost:%d/left-right" % self.rpki_port
     rpki.log.debug("Attempting to connect to %s" % url)
     cms = rpki.https.client(
-      privateKey    = irbe_key,
-      certChain     = irbe_certs,
+      privateKey    = testbed_key,
+      certChain     = testbed_certs,
       x509TrustList = rpki.x509.X509_chain(self.rpkid_ta),
       url           = url,
       msg           = cms)
@@ -533,8 +533,8 @@ class allocation(object):
     """Trigger cron run for this engine."""
 
     rpki.log.info("Running cron for %s" % self.name)
-    rpki.https.client(privateKey      = irbe_key,
-                      certChain       = irbe_certs,
+    rpki.https.client(privateKey      = testbed_key,
+                      certChain       = testbed_certs,
                       x509TrustList   = rpki.x509.X509_chain(self.rpkid_ta),
                       url             = "https://localhost:%d/cronjob" % self.rpki_port,
                       msg             = "Run cron now, please")
@@ -585,7 +585,7 @@ prompt			= no
 default_md		= sha256
 
 [ req_dn ]
-CN			= Test Certificate %(name)s
+CN			= Test Certificate %(name)s %(kind)s
 
 [ req_x509_ext ]
 basicConstraints	= CA:%(ca)s
@@ -646,13 +646,12 @@ cms-cert.0	= %(my_name)s-RPKI-EE.cer
 cms-cert.1	= %(my_name)s-RPKI-CA.cer
 
 cms-ta-irdb	= %(my_name)s-IRDB-TA.cer
-cms-ta-irbe	= %(irbe_name)s-TA.cer
+cms-ta-irbe	= %(testbed_name)s-TA.cer
 
 https-key	= %(my_name)s-RPKI-EE.key
 https-cert.0	= %(my_name)s-RPKI-EE.cer
 https-cert.1	= %(my_name)s-RPKI-CA.cer
 
-#https-ta	= %(irbe_name)s-TA.cer
 https-ta	= %(my_name)s-IRDB-TA.cer
 
 irdb-url	= https://localhost:%(irdb_port)d/
@@ -676,23 +675,20 @@ cms-ta		= %(my_name)s-RPKI-TA.cer
 https-key	= %(my_name)s-IRDB-EE.key
 https-cert.0	= %(my_name)s-IRDB-EE.cer
 https-cert.1	= %(my_name)s-IRDB-CA.cer
-#https-ta.0	= %(irbe_name)s-TA.cer
-#https-ta.1	= %(my_name)s-RPKI-TA.cer
 
 https-url	= https://localhost:%(irdb_port)d/
 
 [irbe-cli]
 
-cms-key		= %(irbe_name)s-EE.key
-cms-cert.0	= %(irbe_name)s-EE.cer
-cms-cert.1	= %(irbe_name)s-CA.cer
+cms-key		= %(testbed_name)s-EE.key
+cms-cert.0	= %(testbed_name)s-EE.cer
+cms-cert.1	= %(testbed_name)s-CA.cer
 cms-ta		= %(my_name)s-RPKI-TA.cer
 
-https-key	= %(irbe_name)s-EE.key
-https-cert.0	= %(irbe_name)s-EE.cer
-https-cert.1	= %(irbe_name)s-CA.cer
+https-key	= %(testbed_name)s-EE.key
+https-cert.0	= %(testbed_name)s-EE.cer
+https-cert.1	= %(testbed_name)s-CA.cer
 https-ta.0	= %(my_name)s-RPKI-TA.cer
-#https-ta.1	= %(my_name)s-IRDB-TA.cer
 
 https-url	= https://localhost:%(rpki_port)d/left-right
 '''
@@ -747,5 +743,5 @@ rootd_fmt_3 = '''\
 main()
 
 # Local Variables:
-# compile-command: "python testdb.py"
+# compile-command: "python testbed.py"
 # End:

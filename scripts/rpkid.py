@@ -66,28 +66,28 @@ def cronjob_handler(query, path):
 class global_context(object):
   """A container for various global parameters."""
 
-  def __init__(self, cfg, section):
+  def __init__(self, cfg):
 
-    self.db = MySQLdb.connect(user   = cfg.get(section, "sql-username"),
-                              db     = cfg.get(section, "sql-database"),
-                              passwd = cfg.get(section, "sql-password"))
+    self.db = MySQLdb.connect(user   = cfg.get("sql-username"),
+                              db     = cfg.get("sql-database"),
+                              passwd = cfg.get("sql-password"))
     self.cur = self.db.cursor()
 
-    self.cms_ta_irdb = rpki.x509.X509(Auto_file = cfg.get(section, "cms-ta-irdb"))
-    self.cms_ta_irbe = rpki.x509.X509(Auto_file = cfg.get(section, "cms-ta-irbe"))
-    self.cms_key     = rpki.x509.RSA(Auto_file = cfg.get(section, "cms-key"))
-    self.cms_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget(section, "cms-cert"))
+    self.cms_ta_irdb = rpki.x509.X509(Auto_file = cfg.get("cms-ta-irdb"))
+    self.cms_ta_irbe = rpki.x509.X509(Auto_file = cfg.get("cms-ta-irbe"))
+    self.cms_key     = rpki.x509.RSA(Auto_file = cfg.get("cms-key"))
+    self.cms_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
 
-    self.https_key   = rpki.x509.RSA(Auto_file = cfg.get(section, "https-key"))
-    self.https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget(section, "https-cert"))
-    self.https_tas   = rpki.x509.X509_chain(Auto_files = cfg.multiget(section, "https-ta"))
+    self.https_key   = rpki.x509.RSA(Auto_file = cfg.get("https-key"))
+    self.https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
+    self.https_tas   = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta"))
 
-    self.irdb_url    = cfg.get(section, "irdb-url")
+    self.irdb_url    = cfg.get("irdb-url")
 
-    self.https_server_host = cfg.get(section, "server-host", "")
-    self.https_server_port = int(cfg.get(section, "server-port", "4433"))
+    self.https_server_host = cfg.get("server-host", "")
+    self.https_server_port = int(cfg.get("server-port", "4433"))
 
-    self.publication_kludge_base = cfg.get(section, "publication-kludge-base", "publication/")
+    self.publication_kludge_base = cfg.get("publication-kludge-base", "publication/")
 
 os.environ["TZ"] = "UTC"
 time.tzset()
@@ -106,13 +106,13 @@ for o,a in opts:
 if argv:
   raise RuntimeError, "Unexpected arguments %s" % argv
 
-cfg = rpki.config.parser(cfg_file)
-cfg_section = "rpkid"
+cfg = rpki.config.parser(cfg_file, "rpkid")
 
-if cfg.has_option(cfg_section, "startup-message"):
-  rpki.log.info(cfg.get(cfg_section, "startup-message"))
+startup_msg = cfg.get("startup-message", "")
+if startup_msg:
+  rpki.log.info(startup_msg)
 
-gctx = global_context(cfg = cfg, section = cfg_section)
+gctx = global_context(cfg)
 
 rpki.https.server(privateKey = gctx.https_key,
                   certChain = gctx.https_certs,

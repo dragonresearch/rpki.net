@@ -14,7 +14,6 @@ kids:
 - name: Alice
   valid_add:   10
 ---
-- sleep 1M
 - name: Alice
   add_as: 33
   valid_add:   2d

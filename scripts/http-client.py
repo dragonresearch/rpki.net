@@ -27,11 +27,10 @@ if argv:
   print __doc__
   raise RuntimeError, "Unexpected arguments %s" % argv
 
-cfg = rpki.config.parser(cfg_file)
-section = "client"
+cfg = rpki.config.parser(cfg_file, "client")
 
-print rpki.https.client(privateKey      = rpki.x509.RSA(Auto_file = cfg.get( section, "https-key")),
-                        certChain       = rpki.x509.X509_chain(Auto_files = cfg.multiget(section, "https-cert")),
-                        x509TrustList   = rpki.x509.X509_chain(Auto_files = cfg.multiget(section, "https-ta")),
-                        url             = cfg.get(section, "https-url"),
+print rpki.https.client(privateKey      = rpki.x509.RSA(Auto_file = cfg.get("https-key")),
+                        certChain       = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert")),
+                        x509TrustList   = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta")),
+                        url             = cfg.get("https-url"),
                         msg             = msg)

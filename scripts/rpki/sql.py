@@ -3,13 +3,13 @@
 import MySQLdb, time, traceback
 import rpki.x509, rpki.resource_set, rpki.sundial
 
-def connect(cfg, section="sql"):
+def connect(cfg):
   """Connect to a MySQL database using connection parameters from an
      rpki.config.parser object.
   """
-  return MySQLdb.connect(user   = cfg.get(section, "sql-username"),
-                         db     = cfg.get(section, "sql-database"),
-                         passwd = cfg.get(section, "sql-password"))
+  return MySQLdb.connect(user   = cfg.get("sql-username"),
+                         db     = cfg.get("sql-database"),
+                         passwd = cfg.get("sql-password"))
 
 class template(object):
   """SQL template generator."""

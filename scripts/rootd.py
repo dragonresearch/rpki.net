@@ -152,25 +152,24 @@ for o,a in opts:
 if argv:
   raise RuntimeError, "Unexpected arguments %s" % argv
 
-cfg = rpki.config.parser(cfg_file)
-section = "rootd"
+cfg = rpki.config.parser(cfg_file, "rootd")
 
-cms_ta      = rpki.x509.X509(Auto_file = cfg.get(section, "cms-ta"))
-cms_key     = rpki.x509.RSA(Auto_file = cfg.get(section, "cms-key"))
-cms_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget(section, "cms-cert"))
+cms_ta      = rpki.x509.X509(Auto_file = cfg.get("cms-ta"))
+cms_key     = rpki.x509.RSA(Auto_file = cfg.get("cms-key"))
+cms_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
 
-https_key   = rpki.x509.RSA(Auto_file = cfg.get(section, "https-key"))
-https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget(section, "https-cert"))
+https_key   = rpki.x509.RSA(Auto_file = cfg.get("https-key"))
+https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
 
-https_server_host = cfg.get(section, "server-host", "")
-https_server_port = int(cfg.get(section, "server-port"))
+https_server_host = cfg.get("server-host", "")
+https_server_port = int(cfg.get("server-port"))
 
-rpki_key    = rpki.x509.RSA(Auto_file = cfg.get(section, "rpki-key"))
-rpki_issuer = rpki.x509.X509(Auto_file = cfg.get(section, "rpki-issuer"))
+rpki_key    = rpki.x509.RSA(Auto_file = cfg.get("rpki-key"))
+rpki_issuer = rpki.x509.X509(Auto_file = cfg.get("rpki-issuer"))
 
-rpki_subject_filename = cfg.get(section, "rpki-subject-filename")
+rpki_subject_filename = cfg.get("rpki-subject-filename")
 
-rpki_pkcs10_filename  = cfg.get(section, "rpki-pkcs10-filename", "")
+rpki_pkcs10_filename  = cfg.get("rpki-pkcs10-filename", "")
 
 rpki.https.server(privateKey    = https_key,
                   certChain     = https_certs,

@@ -85,23 +85,23 @@ for o,a in opts:
 if argv:
   raise RuntimeError, "Unexpected arguments %s" % argv
 
-cfg = rpki.config.parser(cfg_file)
-cfg_section = "irdb"
+cfg = rpki.config.parser(cfg_file, "irdb")
 
-if cfg.has_option(cfg_section, "startup-message"):
-  rpki.log.info(cfg.get(cfg_section, "startup-message"))
+startup_msg = cfg.get("startup-message", "")
+if startup_msg:
+  rpki.log.info(startup_msg)
 
-db = MySQLdb.connect(user   = cfg.get(cfg_section, "sql-username"),
-                     db     = cfg.get(cfg_section, "sql-database"),
-                     passwd = cfg.get(cfg_section, "sql-password"))
+db = MySQLdb.connect(user   = cfg.get("sql-username"),
+                     db     = cfg.get("sql-database"),
+                     passwd = cfg.get("sql-password"))
 
 cur = db.cursor()
 
-cms_ta          = rpki.x509.X509(Auto_file = cfg.get(cfg_section, "cms-ta"))
-cms_key         = rpki.x509.RSA(Auto_file = cfg.get(cfg_section, "cms-key"))
-cms_certs       = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "cms-cert"))
+cms_ta          = rpki.x509.X509(Auto_file = cfg.get("cms-ta"))
+cms_key         = rpki.x509.RSA(Auto_file = cfg.get("cms-key"))
+cms_certs       = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
 
-u = urlparse.urlparse(cfg.get(cfg_section, "https-url"))
+u = urlparse.urlparse(cfg.get("https-url"))
 
 assert u.scheme in ("", "https") and \
        u.username is None and \
@@ -110,8 +110,8 @@ assert u.scheme in ("", "https") and \
        u.query    == "" and \
        u.fragment == ""
 
-rpki.https.server(privateKey = rpki.x509.RSA(Auto_file = cfg.get(cfg_section, "https-key")),
-                  certChain  = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "https-cert")),
+rpki.https.server(privateKey = rpki.x509.RSA(Auto_file = cfg.get("https-key")),
+                  certChain  = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert")),
                   host       = u.hostname or "localhost",
                   port       = u.port or 443,
                   handlers   = ((u.path, handler),))

@@ -137,8 +137,7 @@ for o, a in opts:
 if not argv:
   usage(1)
 
-cfg = rpki.config.parser(cfg_file)
-cfg_section = "irbe-cli"
+cfg = rpki.config.parser(cfg_file, "irbe-cli")
 
 q_msg = rpki.left_right.msg()
 
@@ -165,16 +164,16 @@ except lxml.etree.DocumentInvalid:
   raise
 
 q_cms = rpki.cms.sign(q_xml,
-                        rpki.x509.RSA(Auto_file = cfg.get(cfg_section, "cms-key")),
-                        rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "cms-cert")))
+                        rpki.x509.RSA(Auto_file = cfg.get("cms-key")),
+                        rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert")))
 
-r_cms = rpki.https.client(privateKey    = rpki.x509.RSA(Auto_file = cfg.get(cfg_section, "https-key")),
-                          certChain     = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "https-cert")),
-                          x509TrustList = rpki.x509.X509_chain(Auto_files = cfg.multiget(cfg_section, "https-ta")),
-                          url           = cfg.get(cfg_section, "https-url"),
+r_cms = rpki.https.client(privateKey    = rpki.x509.RSA(Auto_file = cfg.get("https-key")),
+                          certChain     = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert")),
+                          x509TrustList = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta")),
+                          url           = cfg.get("https-url"),
                           msg           = q_cms)
 
-r_xml = rpki.cms.verify(r_cms, rpki.x509.X509(Auto_file = cfg.get(cfg_section, "cms-ta")))
+r_xml = rpki.cms.verify(r_cms, rpki.x509.X509(Auto_file = cfg.get("cms-ta")))
 
 r_elt = lxml.etree.fromstring(r_xml)
 try:

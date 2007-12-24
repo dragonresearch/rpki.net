@@ -40,35 +40,34 @@ if argv:
   print __doc__
   raise RuntimeError, "Unexpected arguments %s" % argv
 
-cfg = rpki.config.parser(cfg_file)
-cfg_section = "testbed"
+cfg = rpki.config.parser(cfg_file, "testbed")
 
 if yaml_script is None:
-  yaml_script  = cfg.get(cfg_section, "yaml_script",    "../testbed.1.yaml")
+  yaml_script  = cfg.get("yaml_script",    "../testbed.1.yaml")
 
-testbed_name   = cfg.get(cfg_section, "testbed_name",   "testbed")
-testbed_dir    = cfg.get(cfg_section, "testbed_dir",    testbed_name + ".dir")
+testbed_name   = cfg.get("testbed_name",   "testbed")
+testbed_dir    = cfg.get("testbed_dir",    testbed_name + ".dir")
 
-irdb_db_pass   = cfg.get(cfg_section, "irdb_db_pass",   "fnord")
-rpki_db_pass   = cfg.get(cfg_section, "rpki_db_pass",   "fnord")
+irdb_db_pass   = cfg.get("irdb_db_pass",   "fnord")
+rpki_db_pass   = cfg.get("rpki_db_pass",   "fnord")
 
-max_engines    = cfg.get(cfg_section, "max_engines",    11)
-irdb_base_port = cfg.get(cfg_section, "irdb_base_port", 4400)
-rpki_base_port = cfg.get(cfg_section, "rpki_base_port", irdb_base_port + max_engines)
+max_engines    = cfg.get("max_engines",    11)
+irdb_base_port = cfg.get("irdb_base_port", 4400)
+rpki_base_port = cfg.get("rpki_base_port", irdb_base_port + max_engines)
 
-rootd_port     = cfg.get(cfg_section, "rootd_port",     rpki_base_port + max_engines)
-rootd_name     = cfg.get(cfg_section, "rootd_name",     "rootd")
-rootd_sia      = cfg.get(cfg_section, "rootd_sia",      "rsync://wombat.invalid/")
+rootd_port     = cfg.get("rootd_port",     rpki_base_port + max_engines)
+rootd_name     = cfg.get("rootd_name",     "rootd")
+rootd_sia      = cfg.get("rootd_sia",      "rsync://wombat.invalid/")
 
-prog_python    = cfg.get(cfg_section, "prog_python",    "python")
-prog_rpkid     = cfg.get(cfg_section, "prog_rpkid",     "../rpkid.py")
-prog_irdbd     = cfg.get(cfg_section, "prog_irdbd",     "../irdb.py")
-prog_poke      = cfg.get(cfg_section, "prog_poke",      "../testpoke.py")
-prog_rootd     = cfg.get(cfg_section, "prog_rootd",     "../rootd.py")
-prog_openssl   = cfg.get(cfg_section, "prog_openssl",   "../../openssl/openssl/apps/openssl")
+prog_python    = cfg.get("prog_python",    "python")
+prog_rpkid     = cfg.get("prog_rpkid",     "../rpkid.py")
+prog_irdbd     = cfg.get("prog_irdbd",     "../irdb.py")
+prog_poke      = cfg.get("prog_poke",      "../testpoke.py")
+prog_rootd     = cfg.get("prog_rootd",     "../rootd.py")
+prog_openssl   = cfg.get("prog_openssl",   "../../openssl/openssl/apps/openssl")
 
-rpki_sql_file  = cfg.get(cfg_section, "rpki_sql_file",  "../docs/rpki-db-schema.sql")
-irdb_sql_file  = cfg.get(cfg_section, "irdb_sql_file",  "../docs/sample-irdb.sql")
+rpki_sql_file  = cfg.get("rpki_sql_file",  "../docs/rpki-db-schema.sql")
+irdb_sql_file  = cfg.get("irdb_sql_file",  "../docs/sample-irdb.sql")
 
 rpki_sql       = open(rpki_sql_file).read()
 irdb_sql       = open(irdb_sql_file).read()

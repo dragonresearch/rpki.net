@@ -6,11 +6,11 @@ def test(filename, section):
 
   print "[Checking " + filename + "]\n"
 
-  cfg = rpki.config.parser(filename)
+  cfg = rpki.config.parser(filename, section)
 
-  db = MySQLdb.connect(user   = cfg.get(section, "sql-username"),
-                       db     = cfg.get(section, "sql-database"),
-                       passwd = cfg.get(section, "sql-password"))
+  db = MySQLdb.connect(user   = cfg.get("sql-username"),
+                       db     = cfg.get("sql-database"),
+                       passwd = cfg.get("sql-password"))
 
   cur = db.cursor()
 

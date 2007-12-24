@@ -5,9 +5,9 @@ Trivial RPKI up-down protocol root server, for testing.  Not suitable
 for production use.  Overrides a bunch of method definitions from the
 rpki.* classes in order to reuse as much code as possible.
 
-Usage: python testroot.py [ { -c | --config } configfile ] [ { -h | --help } ]
+Usage: python rootd.py [ { -c | --config } configfile ] [ { -h | --help } ]
 
-Default configuration file is testroot.conf, override with --config option.
+Default configuration file is rootd.conf, override with --config option.
 """
 
 import traceback, os, time, getopt, sys, lxml
@@ -15,9 +15,9 @@ import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
 import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng
 import rpki.sundial, rpki.log
 
-root_name = "wombat"
-root_base = "rsync://" + root_name + ".invalid/"
-root_cert = root_base + "testroot.cer"
+rootd_name = "wombat"
+rootd_base = "rsync://" + rootd_name + ".invalid/"
+rootd_cert = rootd_base + "rootd.cer"
 
 rpki_subject_lifetime = rpki.sundial.timedelta(days = 30)
 
@@ -45,15 +45,15 @@ def stash_subject_pkcs10(pkcs10):
 
 def compose_response(r_msg):
     rc = rpki.up_down.class_elt()
-    rc.class_name = root_name
-    rc.cert_url = rpki.up_down.multi_uri(root_cert)
+    rc.class_name = rootd_name
+    rc.cert_url = rpki.up_down.multi_uri(rootd_cert)
     rc.from_resource_bag(rpki_issuer.get_3779resources())
     rc.issuer = rpki_issuer
     r_msg.payload.classes.append(rc)
     rpki_subject = get_subject_cert()
     if rpki_subject is not None:
       rc.certs.append(rpki.up_down.certificate_elt())
-      rc.certs[0].cert_url = rpki.up_down.multi_uri(root_base + rpki_subject.gSKI() + ".cer")
+      rc.certs[0].cert_url = rpki.up_down.multi_uri(rootd_base + rpki_subject.gSKI() + ".cer")
       rc.certs[0].cert = rpki_subject
 
 class list_pdu(rpki.up_down.list_pdu):
@@ -71,12 +71,12 @@ class issue_pdu(rpki.up_down.issue_pdu):
       resources = rpki_issuer.get_3779resources()
       req_key = self.pkcs10.getPublicKey()
       req_sia = self.pkcs10.get_SIA()
-      crldp = root_base + rpki_issuer.gSKI() + ".crl"
+      crldp = rootd_base + rpki_issuer.gSKI() + ".crl"
       set_subject_cert(rpki_issuer.issue(keypair     = rpki_key,
                                          subject_key = req_key,
                                          serial      = int(time.time()),
                                          sia         = req_sia,
-                                         aia         = root_cert,
+                                         aia         = rootd_cert,
                                          crldp       = crldp,
                                          resources   = resources,
                                          notAfter    = rpki.sundial.datetime.utcnow() + rpki_subject_lifetime))
@@ -138,9 +138,9 @@ def up_down_handler(query, path):
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-rpki.log.init("testroot")
+rpki.log.init("rootd")
 
-cfg_file = "testroot.conf"
+cfg_file = "rootd.conf"
 
 opts,argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
 for o,a in opts:
@@ -153,7 +153,7 @@ if argv:
   raise RuntimeError, "Unexpected arguments %s" % argv
 
 cfg = rpki.config.parser(cfg_file)
-section = "testroot"
+section = "rootd"
 
 cms_ta      = rpki.x509.X509(Auto_file = cfg.get(section, "cms-ta"))
 cms_key     = rpki.x509.RSA(Auto_file = cfg.get(section, "cms-key"))

@@ -1,6 +1,6 @@
 # $Id$
 #
-# Generate test root resource certificate for use with testroot.py server.
+# Generate test root resource certificate for use with rootd.py server.
 
 [ req ]
 default_bits		= 2048

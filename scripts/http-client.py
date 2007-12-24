@@ -8,7 +8,7 @@ Usage: python http-client [ { -c | --config } configfile ]
 Default configuration file is http-demo.conf, override with --config option.
 """
 
-import rpki.config, rpki.https, getopt
+import rpki.config, rpki.https, getopt, sys
 
 msg = "This is a test.  This is only a test.  Had this been real you would now be really confused.\n"
 

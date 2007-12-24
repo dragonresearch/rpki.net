@@ -14,16 +14,16 @@ openssl=../openssl/openssl/apps/openssl
 
 set -ex
 
-# Generate new key and cert for testroot.py if needed
+# Generate new key and cert for rootd.py if needed
 
-if test ! -r testroot.cer -o ! -r testroot.key
+if test ! -r rootd.cer -o ! -r rootd.key
 then
-  $openssl req -new -newkey rsa:2048 -nodes -keyout testroot.key -out testroot.req -config testroot.cnf
+  $openssl req -new -newkey rsa:2048 -nodes -keyout rootd.key -out rootd.req -config rootd.cnf
 
-  $openssl x509 -req -in testroot.req -out testroot.cer -extfile testroot.cnf -extensions req_x509_ext \
-      -signkey testroot.key -text -sha256
+  $openssl x509 -req -in rootd.req -out rootd.cer -extfile rootd.cnf -extensions req_x509_ext \
+      -signkey rootd.key -text -sha256
 
-  rm -f testroot.req
+  rm -f rootd.req
 fi
 
 # Blow away old rpkid database (!) so we can start clean
@@ -65,7 +65,7 @@ rm -f bsc.req bsc.cer
 
 python irbe-cli.py repository --self_id 1 --action create --bsc_id 1
 
-# Create a parent context pointing at testroot.py
+# Create a parent context pointing at rootd.py
 
 python irbe-cli.py parent --self_id 1 --action create --bsc_id 1 --repository_id 1 \
     --peer_contact_uri https://localhost:44333/ \
@@ -82,12 +82,12 @@ python irbe-cli.py child --self_id 1 --action create --bsc_id 1 --cms_ta biz-cer
 
 if test -n "$STY"
 then
-  screen python testroot.py
+  screen python rootd.py
   screen python irdb.py
 else
-  python testroot.py >>testroot.log 2>&1 & testroot=$!
+  python rootd.py >>rootd.log 2>&1 & rootd=$!
   python irdb.py     >>irdb.log     2>&1 & irdb=$!
-  trap "kill $rpkid $irdb $testroot" 0 1 2 3 13 15
+  trap "kill $rpkid $irdb $rootd" 0 1 2 3 13 15
 fi
 
 python http-client.py

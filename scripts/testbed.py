@@ -47,7 +47,7 @@ prog_python    = cfg.get(cfg_section, "prog_python",    "python")
 prog_rpkid     = cfg.get(cfg_section, "prog_rpkid",     "../rpkid.py")
 prog_irdbd     = cfg.get(cfg_section, "prog_irdbd",     "../irdb.py")
 prog_poke      = cfg.get(cfg_section, "prog_poke",      "../testpoke.py")
-prog_rootd     = cfg.get(cfg_section, "prog_rootd",     "../testroot.py")
+prog_rootd     = cfg.get(cfg_section, "prog_rootd",     "../rootd.py")
 prog_openssl   = cfg.get(cfg_section, "prog_openssl",   "../../openssl/openssl/apps/openssl")
 
 rpki_sql_file  = cfg.get(cfg_section, "rpki_sql_file",  "../docs/rpki-db-schema.sql")
@@ -695,7 +695,7 @@ https-url	= https://localhost:%(rpki_port)d/left-right
 
 rootd_fmt_1 = '''\
 
-[testroot]
+[rootd]
 
 cms-key			= %(rootd_name)s-EE.key
 cms-cert.0		= %(rootd_name)s-EE.cer

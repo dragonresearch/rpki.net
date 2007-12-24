@@ -51,4 +51,4 @@ rpki/relaxng.py: left-right-schema.rng up-down-schema.rng make-relaxng.py
 	python make-relaxng.py >$@.tmp
 	mv $@.tmp $@
 
-test:: all ; sh -x testroot.sh run
+test:: all ; sh -x rootd.sh run

@@ -1,43 +1,67 @@
 # $Id$
 
-import os, yaml, MySQLdb, subprocess, signal, time, datetime, re
-import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https, rpki.log, rpki.left_right
+import os, yaml, MySQLdb, subprocess, signal, time, datetime, re, getopt, sys
+import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https, rpki.log, rpki.left_right, rpki.config
 
-# Most of these globals probably belong in a config file.
+os.environ["TZ"] = "UTC"
+time.tzset()
 
-yaml_script    = "../testdb1.yaml"
+cfg_file = "testdb.conf"
 
-irbe_name      = "testdb"
+yaml_script = None
+
+opts,argv = getopt.getopt(sys.argv[1:], "c:hy?", ["config=", "help", "yaml"])
+for o,a in opts:
+  if o in ("-h", "--help", "-?"):
+    print __doc__
+    sys.exit(0)
+  elif o in ("-c", "--config"):
+    cfg_file = a
+  elif o in ("-y", "--yaml"):
+    yaml_script = a
+if argv:
+  print __doc__
+  raise RuntimeError, "Unexpected arguments %s" % argv
+
+cfg = rpki.config.parser(cfg_file)
+cfg_section = "testdb"
+
+if yaml_script is None:
+  yaml_script  = cfg.get(cfg_section, "yaml_script",    "../testdb1.yaml")
+
+irbe_name      = cfg.get(cfg_section, "irbe_name",      "testdb")
+work_dir       = cfg.get(cfg_section, "work_dir",       irbe_name + ".dir")
+
+irdb_db_pass   = cfg.get(cfg_section, "irdb_db_pass",   "fnord")
+rpki_db_pass   = cfg.get(cfg_section, "rpki_db_pass",   "fnord")
+
+max_engines    = cfg.get(cfg_section, "max_engines",    11)
+irdb_base_port = cfg.get(cfg_section, "irdb_base_port", 4400)
+rpki_base_port = cfg.get(cfg_section, "rpki_base_port", irdb_base_port + max_engines)
+
+rootd_port     = cfg.get(cfg_section, "rootd_port",     rpki_base_port + max_engines)
+rootd_name     = cfg.get(cfg_section, "rootd_name",     "rootd")
+rootd_sia      = cfg.get(cfg_section, "rootd_sia",      "rsync://wombat.invalid/")
+
+prog_python    = cfg.get(cfg_section, "prog_python",    "python")
+prog_rpkid     = cfg.get(cfg_section, "prog_rpkid",     "../rpkid.py")
+prog_irdbd     = cfg.get(cfg_section, "prog_irdbd",     "../irdb.py")
+prog_poke      = cfg.get(cfg_section, "prog_poke",      "../testpoke.py")
+prog_rootd     = cfg.get(cfg_section, "prog_rootd",     "../testroot.py")
+prog_openssl   = cfg.get(cfg_section, "prog_openssl",   "../../openssl/openssl/apps/openssl")
+
+rpki_sql_file  = cfg.get(cfg_section, "rpki_sql_file",  "../docs/rpki-db-schema.sql")
+irdb_sql_file  = cfg.get(cfg_section, "irdb_sql_file",  "../docs/sample-irdb.sql")
+
+rpki_sql       = open(rpki_sql_file).read()
+irdb_sql       = open(irdb_sql_file).read()
+
 irbe_key       = None
 irbe_certs     = None
-work_dir       = irbe_name + ".dir"
-
-irdb_db_pass   = "fnord"
-rpki_db_pass   = "fnord"
-
-max_engines    = 11
-irdb_base_port = 4400
-rpki_base_port = irdb_base_port + max_engines
-
-rootd_port     = rpki_base_port + max_engines
-rootd_name     = "rootd"
 rootd_ta       = None
-rootd_sia      = "rsync://wombat.invalid/"
-
-rpki_sql       = open("../docs/rpki-db-schema.sql").read()
-irdb_sql       = open("../docs/sample-irdb.sql").read()
-
-prog_python    = "/usr/local/bin/python"
-prog_rpkid     = "../rpkid.py"
-prog_irdbd     = "../irdb.py"
-prog_poke      = "../testpoke.py"
-prog_rootd     = "../testroot.py"
-prog_openssl   = "../../openssl/openssl/apps/openssl"
 
 def main():
-
-  os.environ["TZ"] = "UTC"
-  time.tzset()
+  """Main program, up front to make control logic more obvious."""
 
   rpki.log.init(irbe_name)
 

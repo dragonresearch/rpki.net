@@ -58,6 +58,18 @@ Current TO DO list:
   APNIC required doing this by hand, and there's a body of code that
   only gets exercised when the IRDB changes, so need scripted tests.
 
+  testbed.py is the framework for this, no doubt will add more
+  features later.  Most urgent issues on this front at the moment are
+
+  a) Coming up with some useful test scenarios (YAML for testbed.py)
+     that test interesting combinations of events, and
+
+  b) Analysis tools so that we can check whether the right things
+     happened during the test.
+
+  A first cut at (b) would just be tools to make the test results
+  readable by humans, but need to automate eventually.
+
 - Work on a common protocol dump format with APNIC and other
   implementors.  Randy points out that it would be good if we could
   all read each other's dumps.

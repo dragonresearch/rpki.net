@@ -195,11 +195,6 @@ Current TO DO list:
   one-line methods.  The remaining ones are probably hints at minor
   bits of abstraction still to be done.
 
-- Need a logging subsystem, including syslog support.  Absent a better
-  plan, see the Python syslog module.  Primatives in the traceback
-  module provide a handy way to capture origin of a logging call
-  without a lot of error-prone manual tagging.
-
 - Subsetting (req_* attributes in up-down protocol)
 
 - Error handling: make sure that exceptions map correctly to up-down

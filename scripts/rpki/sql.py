@@ -55,11 +55,6 @@ def sql_sweep(gctx):
     s.sql_store(gctx)
   sql_assert_pristine()
 
-def fetch_column(gctx, *query):
-  """Pull a single column from SQL, return it as a list."""
-  gctx.cur.execute(*query)
-  return [x[0] for x in gctx.cur.fetchall()]
-
 class sql_persistant(object):
   """Mixin for persistant class that needs to be stored in SQL.
   """

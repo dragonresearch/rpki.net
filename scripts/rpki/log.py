@@ -5,17 +5,20 @@
 
 import syslog, traceback
 
-def init(ident = "rpki"):
+enable_trace = False
+
+def init(ident = "rpki", flags = syslog.LOG_PID | syslog.LOG_PERROR, facility = syslog.LOG_DAEMON, trace = False):
   """Initialize logging system."""
-  return syslog.openlog(ident, syslog.LOG_PID | syslog.LOG_PERROR, syslog.LOG_DAEMON)
+
+  global enable_trace
+  enable_trace = trace
+
+  return syslog.openlog(ident, flags, facility)
 
 class logger(object):
   """Closure for logging."""
 
   def __init__(self, priority):
-    self.set_priority(priority)
-
-  def set_priority(self, priority):
     self.priority = priority
 
   def __call__(self, message):
@@ -26,8 +29,6 @@ warning = logger(syslog.LOG_WARNING)
 notice  = logger(syslog.LOG_NOTICE)
 info    = logger(syslog.LOG_INFO)
 debug   = logger(syslog.LOG_DEBUG)
-
-enable_trace = False
 
 def trace():
   """Execution trace -- where are we now, and whence came we here?"""

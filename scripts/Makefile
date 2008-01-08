@@ -25,9 +25,9 @@ relaxng: left-right-protocol-samples/.stamp left-right-schema.rng up-down-schema
 
 # all:: resource-cert-samples-regen
 
-# test:: relaxng
+all-tests:: relaxng
 
-# test:: all ; python xml-parse-test.py
+all-tests:: all ; python xml-parse-test.py
 
 resource-cert-samples-regen: resource-cert-samples/.stamp
 	cd resource-cert-samples && make
@@ -35,9 +35,6 @@ resource-cert-samples-regen: resource-cert-samples/.stamp
 resource-cert-samples/.stamp: generate-testrepo.py Makefile
 	python generate-testrepo.py
 	touch $@
-
-wraptest: all
-	(echo '<wrapper>'; python xml-parse-test.py; echo '</wrapper>') | fgrep -v '<?xml' | xmlindent
 
 doxygen:
 	cd rpki && doxygen
@@ -51,7 +48,8 @@ rpki/relaxng.py: left-right-schema.rng up-down-schema.rng make-relaxng.py
 	python make-relaxng.py >$@.tmp
 	mv $@.tmp $@
 
-#test:: all ; sh -x rootd.sh run
-
-test:: all
+test all-tests:: all
 	python testbed.py -y testbed.1.yaml
+
+all-tests:: all
+	python testbed.py -y testbed.2.yaml

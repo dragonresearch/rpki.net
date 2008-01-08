@@ -2,7 +2,7 @@
 
 import glob, rpki.up_down, rpki.left_right, rpki.relaxng, xml.sax, lxml.etree, lxml.sax, POW, POW.pkix
 
-verbose = False
+verbose = True
 
 def test(fileglob, rng, sax_handler, encoding, tester=None):
   files = glob.glob(fileglob)
@@ -20,7 +20,7 @@ def test(fileglob, rng, sax_handler, encoding, tester=None):
     print lxml.etree.tostring(elt_out, pretty_print=True, encoding=encoding, xml_declaration=True)
 
 def pprint_cert(cert):
-  print POW.derRead(POW.X509_CERTIFICATE, cert.toString()).pprint()
+  print cert.get_POW().pprint()
 
 def ud_tester(elt_in, elt_out, msg):
   assert isinstance(msg, rpki.up_down.message_pdu)

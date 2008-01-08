@@ -68,7 +68,8 @@ Current TO DO list:
      happened during the test.
 
   A first cut at (b) would just be tools to make the test results
-  readable by humans, but need to automate eventually.
+  readable by humans, but need to automate eventually.  Running rcynic
+  on the output would also be useful.
 
 - Work on a common protocol dump format with APNIC and other
   implementors.  Randy points out that it would be good if we could

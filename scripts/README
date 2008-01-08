@@ -8,19 +8,27 @@ External Python packages required:
 
 - lxml, which in turn requires the libxml2 C libraries.
 
+  http://codespeak.net/lxml/
+
   FreeBSD: /usr/ports/devel/py-lxml
 
 - MySQLdb, which in turn requires MySQL client and server.  I'm
   testing with MySQL 5.1.
 
+  http://sourceforge.net/projects/mysql-python/
+
   FreeBSD: /usr/ports/databases/py-MySQLdb
 
 - TLSLite, which pulls in other crypto packages.
+
+  http://trevp.net/tlslite/
 
   FreeBSD: /usr/ports/security/py-tlslite
 
 - Cryptlib, at the moment just to support TLSlite but may end up using
   it for other things later.
+
+  http://www.cs.auckland.ac.nz/~pgut001/cryptlib/
 
   FreeBSD: /usr/ports/security/cryptlib
 
@@ -37,8 +45,10 @@ External Python packages required:
 - Eventually I expect that this will require an event-handling package
   like Twisted, but I'm not there yet.
 
-- The testpoke tool (up-down protocol command line test client) also
-  uses PyYAML, mostly for compatability with APNIC's equivalent tool.
+- The testpoke tool (up-down protocol command line test client) and
+  testbed tools also uses PyYAML.
+
+  http://pyyaml.org/
 
   FreeBSD: /usr/ports/devel/py-yaml
 

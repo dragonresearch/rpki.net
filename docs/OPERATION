@@ -77,14 +77,25 @@ all logging also goes to stderr.
 
 ----------------------------------------------------------------
 
-rpkid.py config file:
+rpkid.py:
+
+rpkid is the main RPKI engine daemon.  Configuration of rpkid is a two
+step process: a config file to bootstrap rpkid to the point where it
+can speak using the left-right protocol, followed by dynamic
+configuration via the left-right protocol.  In production use the
+latter stage would be handled by the IRBE stub; for test and
+develoment purposes it's handled by the irbe-cli.py command line
+interface or by the testbed.py test framework.
+
+rpkid stores dynamic data in an SQL database, which must have been
+created for it, as explained in the installation guide.
 
 The default config file is rpkid.conf, start rpkid with "-c filename"
 to choose a different config file.  All options are in the section
 "[rpkid]".  Certificates, keys, and trust anchors may be in either DER
 or PEM format.
 
-Options:
+Config file options:
 
 startup-message:	String to log on startup, useful when
 			debugging a collection of rpkid instances at
@@ -145,14 +156,21 @@ publication-kludge-base: [TEMPORARY] Local directory under which
 
 ----------------------------------------------------------------
 
-rootd.py config file:
+rootd.py:
+
+rootd is a stripped down implmenetation of (only) the server side of
+the up-down protocol.  It's a separate program because the root
+certificate of an RPKI certificate tree requires special handling and
+may also require a special handling policy.  rootd is a simple
+implementation intended for test use, it's not suitable for use in a
+production system.  All configuration comes via the config file.
 
 The default config file is rootd.conf, start rootd with "-c filename"
 to choose a different config file.  All options are in the section
 "[rootd]".  Certificates, keys, and trust anchors may be in either DER
 or PEM format.
 
-Options:
+Config file options:
 
 cms-ta:			Name of file containing trust anchor to use
 			when verifying CMS up-down queries.
@@ -200,14 +218,28 @@ rpki-pkcs10-filename:	Name of file that rootd should use when saving
 
 ----------------------------------------------------------------
 
-irdbd.py config file:
+irdbd.py:
 
-The default config file is irdbd.conf, start irdbd with "-c filename"
-to choose a different config file.  All options are in the section
-"[irdbd]".  Certificates, keys, and trust anchors may be in either DER
-or PEM format.
+irdbd is a sample implemntation of the server side of the IRDB
+callback subset of the left-right protocol.  In production use this
+service is a function of the IRBE stub; irdbd may be suitable for
+production use in simple cases, but an IR with a complex IRDB may need
+to extend or rewrite irdbd.
 
-Options:
+irdbd requires a pre-populated database to represent the IR's
+customers.  irdbd expects this database to use the SQL schema defined
+in docs/sample-irdb.sql.  Once this database has been populated, the
+IRBE stub needs to create the appropriate objects in rpkid's database
+via the control subset of the left-right protocol, and store the
+linkage IDs (foreign keys into rpkid's database, basicly) in the
+IRDB.  The irbe-setup.py program shows an example of how to do this.
+
+irdbd's default config file is irdbd.conf, start irdbd with "-c
+filename" to choose a different config file.  All options are in the
+section "[irdbd]".  Certificates, keys, and trust anchors may be in
+either DER or PEM format.
+
+Config file options:
 
 startup-message:	String to log on startup, useful when
 			debugging a collection of irdbd instances at
@@ -254,7 +286,7 @@ to choose a different config file.  All options are in the section
 "[irbe-cli]".  Certificates, keys, and trust anchors may be in either
 DER or PEM format.
 
-Options:
+Config file options:
 
 cms-ta:			Name of file containing CMS trust anchor to
 			use when authenticating messages from rpkid.
@@ -342,7 +374,7 @@ filename" to choose a different config file.  All options are in the
 section "[cronjob]".  Certificates, keys, and trust anchors may be in
 either DER or PEM format.
 
-Options:
+Config file options:
 
 https-key:		Name of file containing RSA key to use in the
 			HTTPS client role when contacting rpkid. 

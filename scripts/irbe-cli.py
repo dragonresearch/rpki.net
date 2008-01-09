@@ -165,10 +165,10 @@ except lxml.etree.DocumentInvalid:
 
 q_cms = rpki.cms.sign(q_xml,
                         rpki.x509.RSA(Auto_file = cfg.get("cms-key")),
-                        rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert")))
+                        rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-certs")))
 
 r_cms = rpki.https.client(privateKey    = rpki.x509.RSA(Auto_file = cfg.get("https-key")),
-                          certChain     = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert")),
+                          certChain     = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-certs")),
                           x509TrustList = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta")),
                           url           = cfg.get("https-url"),
                           msg           = q_cms)

@@ -694,27 +694,27 @@ sql-username	= irdb
 sql-password	= %(irdb_db_pass)s
 
 cms-key		= %(my_name)s-IRDB-EE.key
-cms-cert.0	= %(my_name)s-IRDB-EE.cer
-cms-cert.1	= %(my_name)s-IRDB-CA.cer
+cms-certs.0	= %(my_name)s-IRDB-EE.cer
+cms-certs.1	= %(my_name)s-IRDB-CA.cer
 cms-ta		= %(my_name)s-RPKI-TA.cer
 
 https-key	= %(my_name)s-IRDB-EE.key
-https-cert.0	= %(my_name)s-IRDB-EE.cer
-https-cert.1	= %(my_name)s-IRDB-CA.cer
+https-certs.0	= %(my_name)s-IRDB-EE.cer
+https-certs.1	= %(my_name)s-IRDB-CA.cer
 
 https-url	= https://localhost:%(irdb_port)d/
 
 [irbe-cli]
 
 cms-key		= %(testbed_name)s-EE.key
-cms-cert.0	= %(testbed_name)s-EE.cer
-cms-cert.1	= %(testbed_name)s-CA.cer
-cms-ta		= %(my_name)s-RPKI-TA.cer
+cms-certs.0	= %(testbed_name)s-EE.cer
+cms-certs.1	= %(testbed_name)s-CA.cer
+cms-tas		= %(my_name)s-RPKI-TA.cer
 
 https-key	= %(testbed_name)s-EE.key
-https-cert.0	= %(testbed_name)s-EE.cer
-https-cert.1	= %(testbed_name)s-CA.cer
-https-ta.0	= %(my_name)s-RPKI-TA.cer
+https-certs.0	= %(testbed_name)s-EE.cer
+https-certs.1	= %(testbed_name)s-CA.cer
+https-tas	= %(my_name)s-RPKI-TA.cer
 
 https-url	= https://localhost:%(rpki_port)d/left-right
 '''

@@ -80,7 +80,7 @@ class global_context(object):
 
     self.https_key   = rpki.x509.RSA(Auto_file = cfg.get("https-key"))
     self.https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
-    self.https_tas   = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta"))
+    self.https_ta    = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta"))
 
     self.irdb_url    = cfg.get("irdb-url")
 

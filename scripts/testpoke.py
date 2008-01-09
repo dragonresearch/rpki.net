@@ -74,7 +74,7 @@ def query_up_down(q_pdu):
   rpki.relaxng.up_down.assertValid(q_elt)
   q_cms = rpki.cms.xml_sign(q_elt, cms_key, cms_certs, encoding = "UTF-8")
   r_cms = rpki.https.client(
-    x509TrustList = https_tas,
+    x509TrustList = https_ta,
     privateKey = https_key,
     certChain = https_certs,
     msg = q_cms,
@@ -114,8 +114,10 @@ https_key   = get_PEM("ssl-key", rpki.x509.RSA)
 https_cert  = get_PEM("ssl-cert", rpki.x509.X509)
 https_certs = get_PEM_chain("ssl-cert-chain", https_cert)
 
-https_tas   = rpki.x509.X509_chain()
-if https_ta is not None:
-  https_tas.append(https_ta)
+ta = https_ta
+https_ta    = rpki.x509.X509_chain()
+if ta is not None:
+  https_ta.append(ta)
+del ta
 
 dispatch[yaml_req["type"]]()

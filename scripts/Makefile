@@ -48,8 +48,7 @@ rpki/relaxng.py: left-right-schema.rng up-down-schema.rng make-relaxng.py
 	python make-relaxng.py >$@.tmp
 	mv $@.tmp $@
 
-all-tests:: all
-	sh -x rootd.sh run
+# all-tests:: all; sh -x rootd.sh run
 
 test all-tests:: all
 	python testbed.py -y testbed.1.yaml

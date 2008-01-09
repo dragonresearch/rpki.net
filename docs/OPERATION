@@ -123,11 +123,9 @@ https-certs:		Name(s) of file(s) containing certificate(s)
 			certificate using OpenSSL-style subscripts:
 			https-certs.0, https-certs.1, etc.
 
-https-tas:		Name(s) of file(s) containing trust anchors
+https-ta:		Name of file containing trust anchor to use
 			when verifying irdbd's HTTPS server
-			certificate.  You can specify more than one
-			trust anchor using OpenSSL-style subscripts:
-			https-tas.0, https-tas.1, etc.
+			certificate.
 
 irdb-url:		Service URL for irdbd.  Must be a https// URL.
 
@@ -181,8 +179,6 @@ https-server-host:	Hostname or IP address on which to listen for
 
 https-server-port:	TCP port on which to listen for HTTPS
 			connections.
-
-
 
 rpki-key:		Name of file containing RSA key to use in
 			signing resource certificates.

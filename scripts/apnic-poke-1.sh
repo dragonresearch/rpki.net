@@ -90,7 +90,7 @@ else
   trap "kill $rpkid $irdb $rootd" 0 1 2 3 13 15
 fi
 
-python http-client.py
+python cronjob.py
 
 if test -z "$STY"
 then

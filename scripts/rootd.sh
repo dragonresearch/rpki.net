@@ -83,11 +83,11 @@ then
 
   : Waiting to let daemons start up; sleep 5
 
-  date; time python http-client.py
+  date; time python cronjob.py
   date; time python testpoke.py -r list
   date; time python testpoke.py -r issue
 
-  date; time python http-client.py
+  date; time python cronjob.py
   date; time python testpoke.py -r list
   date; time python testpoke.py -r issue
 
@@ -99,16 +99,16 @@ then
 
   date; time python testpoke.py -r revoke
   date; time python testpoke.py -r list
-  date; time python http-client.py
+  date; time python cronjob.py
   date; time python testpoke.py -r list
 
-  date; time python http-client.py
+  date; time python cronjob.py
   date; time python testpoke.py -r list
   date; time python testpoke.py -r issue
 
   date; time python testpoke.py -r revoke
   date; time python testpoke.py -r list
-  date; time python http-client.py
+  date; time python cronjob.py
   date; time python testpoke.py -r list
 
   date; time python testpoke.py -r issue
@@ -118,11 +118,11 @@ then
   date; time python testpoke.py -r issue
   date; time python testpoke.py -r revoke
   date; time python testpoke.py -r list
-  date; time python http-client.py
+  date; time python cronjob.py
   date; time python testpoke.py -r list
 
   date; time python testpoke.py -r issue
-  date; time python http-client.py
+  date; time python cronjob.py
   date; time python testpoke.py -r list
   date
 

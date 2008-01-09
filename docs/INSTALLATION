@@ -1,4 +1,4 @@
-$Id$
+$Id$ -*- Text -*- 
 
 Preliminary installation instructions for rpkid et al.  These are the
 production-side RPKI tools, for Internet Registries (RIRs, LIRs, etc).

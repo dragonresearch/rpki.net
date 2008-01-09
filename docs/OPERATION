@@ -594,4 +594,70 @@ specified.  For example, "3D4H" means "three days plus four hours".
 
 ----------------------------------------------------------------
 
-testpoke.py
+testpoke.py:
+
+This is a command-line client for the up-down protocol.  Unlike all of
+the above programs, testpoke does not accept a config file in
+OpenSSL-compatable format at all.  Instead, it is configured
+exclusively by a YAML script.  testpoke's design was constrained by a
+desire to have it be compatable with APNIC's rpki_poke.pl tool, so
+that the two tools could use a common configuration language to
+simplify scripted testing.  There are minor variations due to slightly
+different feature sets, but YAML files intended for one program will
+usually work with the other.
+
+README for APNIC's tool describing the input language can be found at
+http://mirin.apnic.net/svn/rpki_engine/branches/gary-poker/client/poke/README
+
+testpoke.py takes a simplified command line and uses only one YAML
+input file.
+
+Usage: python testpoke.py [ { -c | --config } configfile ]
+                          [ { -r | --request } requestname ]
+			  [ { -h | --help } ]
+
+Default configuration file is testpoke.yaml, override with --config
+option.
+
+The --request option specifies the specific command within the YAML
+file to execute.   
+
+Sample configuration file:
+
+    ---
+    # $Id$
+
+    version: 1
+    posturl: https://localhost:4433/up-down/1
+    recipient-id: wombat
+    sender-id: "1"
+
+    cms-cert-file: biz-certs/Frank-EE.cer
+    cms-key-file: biz-certs/Frank-EE.key
+    cms-ca-cert-file: biz-certs/Bob-Root.cer
+    cms-cert-chain-file: [ biz-certs/Frank-CA.cer ]
+
+    ssl-cert-file: biz-certs/Frank-EE.cer
+    ssl-key-file: biz-certs/Frank-EE.key
+    ssl-ca-cert-file: biz-certs/Bob-Root.cer
+
+    requests:
+      list:
+	type: list
+      issue:
+	type: issue
+	class: 1
+	sia: [ "rsync://bandicoot.invalid/some/where/" ]
+      revoke:
+	type: revoke
+	class: 1
+	ski: "CB5K6APY-4KcGAW9jaK_cVPXKX0"
+
+testpoke adds one extension to the language described in APNIC's
+README: the cms-cert-chain-* and ssl-cert-chain-* options, which allow
+one to specify a chain of intermediate certificates to be presented in
+the CMS or TLS protocol.  APNIC's initial implementation required
+direct knowledge of the issuing certificate (ie, it supported a
+maximum chain length of one); subsequent APNIC code changes have
+probably relaxed this restriction, and with luck APNIC has copied
+testpoke's syntax to express chains of intermediate certificates.

@@ -73,7 +73,7 @@ rootd_sia      = cfg.get("rootd_sia",      "rsync://wombat.invalid/")
 
 prog_python    = cfg.get("prog_python",    "python")
 prog_rpkid     = cfg.get("prog_rpkid",     "../rpkid.py")
-prog_irdbd     = cfg.get("prog_irdbd",     "../irdb.py")
+prog_irdbd     = cfg.get("prog_irdbd",     "../irdbd.py")
 prog_poke      = cfg.get("prog_poke",      "../testpoke.py")
 prog_rootd     = cfg.get("prog_rootd",     "../rootd.py")
 prog_openssl   = cfg.get("prog_openssl",   "../../openssl/openssl/apps/openssl")
@@ -685,7 +685,7 @@ irdb-url	= https://localhost:%(irdb_port)d/
 server-host     = localhost
 server-port     = %(rpki_port)d
 
-[irdb]
+[irdbd]
 
 startup-message = This is %(my_name)s irdbd
 

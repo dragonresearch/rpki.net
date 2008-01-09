@@ -78,8 +78,8 @@ then
   rm -rf publication
 
   python rootd.py & rootd=$!
-  python irdb.py     & irdb=$!
-  trap "kill $rpkid $irdb $rootd" 0 1 2 3 13 15
+  python irdbd.py & irdbd=$!
+  trap "kill $rpkid $irdbd $rootd" 0 1 2 3 13 15
 
   : Waiting to let daemons start up; sleep 5
 

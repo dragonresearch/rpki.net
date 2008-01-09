@@ -11,20 +11,20 @@ import rpki.x509, rpki.config, rpki.log
 
 rpki.log.init("irbe-setup")
 
-cfg = rpki.config.parser("irbe.conf")
+cfg = rpki.config.parser("irbe.conf", "irbe-cli")
 
-db = MySQLdb.connect(user   = cfg.get("sql-username", section = "irdb"),
-                     db     = cfg.get("sql-database", section = "irdb"),
-                     passwd = cfg.get("sql-password", section = "irdb"))
+db = MySQLdb.connect(user   = cfg.get("sql-username", section = "irdbd"),
+                     db     = cfg.get("sql-database", section = "irdbd"),
+                     passwd = cfg.get("sql-password", section = "irdbd"))
 cur = db.cursor()
 
-cms_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert",   section = "irbe-cli"))
-cms_key     = rpki.x509.RSA(       Auto_file  = cfg.get(     "cms-key",    section = "irbe-cli"))
-cms_ta      = rpki.x509.X509(      Auto_file  = cfg.get(     "cms-ta",     section = "irbe-cli"))
-https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert", section = "irbe-cli"))
-https_key   = rpki.x509.RSA(       Auto_file  = cfg.get(     "https-key",  section = "irbe-cli"))
-https_tas   = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta",   section = "irbe-cli"))
-https_url   = cfg.get(                                       "https-url",  section = "irbe-cli")
+cms_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
+cms_key     = rpki.x509.RSA(       Auto_file  = cfg.get(     "cms-key"))
+cms_ta      = rpki.x509.X509(      Auto_file  = cfg.get(     "cms-ta"))
+https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
+https_key   = rpki.x509.RSA(       Auto_file  = cfg.get(     "https-key"))
+https_tas   = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta"))
+https_url   = cfg.get(                                       "https-url")
 
 def call_rpkid(pdu):
   """Hand a PDU to rpkid and get back the response.  Just throw an

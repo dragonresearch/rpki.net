@@ -95,10 +95,10 @@ python irbe-cli.py child --self_id 1 --action create --bsc_id 1 --cms_ta biz-cer
 
 if test -n "$STY"
 then
-  screen python irdb.py
+  screen python irdbd.py
 else
-  python irdb.py     >>irdb.log     2>&1 & irdb=$!
-  trap "kill $rpkid $irdb" 0 1 2 3 13 15
+  python irdbd.py >>irdbd.log 2>&1 & irdbd=$!
+  trap "kill $rpkid $irdbd" 0 1 2 3 13 15
 fi
 
 python cronjob.py

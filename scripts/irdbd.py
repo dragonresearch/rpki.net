@@ -3,9 +3,9 @@
 """
 IR database daemon.
 
-Usage: python rpkid.py [ { -c | --config } configfile ] [ { -h | --help } ]
+Usage: python irdbd.py [ { -c | --config } configfile ] [ { -h | --help } ]
 
-Default configuration file is irbe.conf, override with --config option.
+Default configuration file is irdbd.conf, override with --config option.
 """
 
 import sys, os, time, getopt, urlparse, traceback
@@ -71,9 +71,9 @@ def handler(query, path):
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-rpki.log.init("irdb")
+rpki.log.init("irdbd")
 
-cfg_file = "irbe.conf"
+cfg_file = "irdbd.conf"
 
 opts,argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
 for o,a in opts:
@@ -85,7 +85,7 @@ for o,a in opts:
 if argv:
   raise RuntimeError, "Unexpected arguments %s" % argv
 
-cfg = rpki.config.parser(cfg_file, "irdb")
+cfg = rpki.config.parser(cfg_file, "irdbd")
 
 startup_msg = cfg.get("startup-message", "")
 if startup_msg:

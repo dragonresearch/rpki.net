@@ -724,13 +724,13 @@ rootd_fmt_1 = '''\
 [rootd]
 
 cms-key			= %(rootd_name)s-EE.key
-cms-cert.0		= %(rootd_name)s-EE.cer
-cms-cert.1		= %(rootd_name)s-CA.cer
+cms-certs.0		= %(rootd_name)s-EE.cer
+cms-certs.1		= %(rootd_name)s-CA.cer
 cms-ta			= %(rpkid_name)s-RPKI-TA.cer
 
 https-key		= %(rootd_name)s-EE.key
-https-cert.0		= %(rootd_name)s-EE.cer
-https-cert.1		= %(rootd_name)s-CA.cer
+https-certs.0		= %(rootd_name)s-EE.cer
+https-certs.1		= %(rootd_name)s-CA.cer
 
 server-port		= %(rootd_port)s
 

@@ -22,7 +22,7 @@ rootd.py	A separate daemon for handling the root of an RPKI
 		is a special case in several ways and it was simpler
 		to keep the special cases out of the main daemon.
 
-irdb.py		A sample implementation of an IR database daemon.
+irdbd.py	A sample implementation of an IR database daemon.
 		rpkid calls into this to perform lookups via the
 		left-right protocol.
 
@@ -33,8 +33,7 @@ irbe-setup.py	An example of a script to set up the mappings between
 		the IRDB and rpkid's own database, using the
 		left-right control protocol.
 
-http-client.py	A trivial HTTP client, originally written for testing,
-		now used to drive rpkid cron events.
+cronjob.py	A trivial HTTP client used to drive rpkid cron events.
 
 testbed.py	A test tool for running a collection of rpkid and irdb
 		instances under common control, driven by a unified
@@ -43,9 +42,9 @@ testbed.py	A test tool for running a collection of rpkid and irdb
 testpoke.py	A simple client for the up-down protocol, mostly
 		compatable with APNIC's rpki_poke.pl tool.
 
-Most of these programs take configuration files in a common format.
-The test programs also take input in YAML format to drive the tests.
-Configuration files are described below.
+Most of these programs take configuration files in a common format
+similar to that used by the OpenSSL command line tool.  The test
+programs also take input in YAML format to drive the tests.
 
 Basic operation consists of creating the appropriate MySQL databases,
 starting rpkid, rootd, and irdbd, using the left-right control
@@ -54,11 +53,173 @@ to invoke rpkid's cron action at regular intervals.  All other
 operations should occur either as a result of cron events or as a
 result of incoming left-right and up-down protocol requests.
 
-Note that the publication protocol hasn't yet been written.  At the
-moment rpkid just writes its outputs to a local directory.
+Note that the publication protocol isn't fully specified yet, much
+less implmenented.  At the moment rpkid just writes its outputs to a
+local directory tree.
 
 Note that the full event-driven model for rpkid hasn't yet been
 implemented.  The design is intended to allow an arbitrary number of
 hosted RPKI engines to run in a single rpkid instance, but without the
 event-driven tasking model one has to set up a separate rpkid instance
 for each hosted RPKI engine.
+
+At present the daemon programs all run in foreground, that is, if one
+wants them to run in background one must do so manually, eg, using
+Bourne shell syntax:
+
+  $ python whatever.py &
+  $ echo >whatever.pid  "$!"
+
+All of the daemons use syslog.  At present they all set LOG_PERROR, so
+all logging also goes to stderr.
+
+----------------------------------------------------------------
+
+rpkid.py config file:
+
+The default config file is rpkid.conf, start rpkid with "-c filename"
+to choose a different config file.  All options are in the section
+"[rpkid]".  Certificates, keys, and trust anchors may be in either DER
+or PEM format.
+
+Options:
+
+startup-message:	String to log on startup, useful when
+			debugging a collection of rpkid instances at
+			once.
+
+sql-username:		Username to hand to MySQL when connecting to
+			rpkid's database.
+
+sql-database:		MySQL's database name for rpkid's database.
+
+sql-password:		Password to hand to MySQL when connecting to
+			rpkid's database.
+
+cms-ta-irdb:		Name of file containing CMS trust anchor to
+			use when authenticating messages from irdbd.
+
+cms-ta-irdb:		Name of file containing CMS trust anchor to
+			use when authenticating control messages from
+			IRBE.
+
+cms-key:		Name of file containing RSA key to use when
+			signing CMS messages to IRBE or irdbd.
+
+cms-certs:		Name(s) of file(s) containing certificate(s)
+			to include in CMS wrapper when signing
+			messages to IRBE or irdbd.   You can specify
+			more than one certificate using OpenSSL-style
+			subscripts: cms-certs.0, cms-certs.1, etc.
+
+https-key:		Name of file containing RSA key to use, both
+			in the HTTPS server role (for both up-down and
+			left-right protocols) and in the HTTPS client
+			role (left-right protocol only).
+
+https-certs:		Name(s) of file(s) containing certificate(s)
+			to use in same contexts where https-key is
+			used.  You can specify more than one
+			certificate using OpenSSL-style subscripts:
+			https-certs.0, https-certs.1, etc.
+
+https-tas:		Name(s) of file(s) containing trust anchors
+			when verifying irdbd's HTTPS server
+			certificate.  You can specify more than one
+			trust anchor using OpenSSL-style subscripts:
+			https-tas.0, https-tas.1, etc.
+
+irdb-url:		Service URL for irdbd.  Must be a https// URL.
+
+https-server-host:	Hostname or IP address on which to listen for
+			HTTPS connections.  Default is localhost.
+
+https-server-port:	TCP port on which to listen for HTTPS
+			connections.
+
+publication-kludge-base: [TEMPORARY] Local directory under which
+			generated certificates etc should be
+			published.  This is a temporary expedient
+			until the publication protocol is defined and
+			implemented.  Default is "publication/"
+
+----------------------------------------------------------------
+
+rootd.py config file:
+
+The default config file is rootd.conf, start rpkid with "-c filename"
+to choose a different config file.  All options are in the section
+"[rootd]".  Certificates, keys, and trust anchors may be in either DER
+or PEM format.
+
+Options:
+
+cms-ta:			Name of file containing trust anchor to use
+			when verifying CMS up-down queries.
+
+cms-key:		Name of file containing RSA key to use when
+			signing CMS up-down replies.
+
+cms-certs:		Name(s) of file(s) containing certificate(s)
+			to include in CMS wrapper when signing up-down
+			replies.   You can specify more than one
+			certificate using OpenSSL-style subscripts:
+			cms-certs.0, cms-certs.1, etc.
+
+https-key:		Name of file containing RSA key to use in the
+			HTTPS server role for the up-down protocol.
+
+https-certs:		Name(s) of file(s) containing certificate(s)
+			to use in the HTTPS server role for the
+			up-down protocol.  You can specify more than
+			one certificate using OpenSSL-style
+			subscripts: https-certs.0, https-certs.1,
+			etc.
+
+https-server-host:	Hostname or IP address on which to listen for
+			HTTPS connections.  Default is localhost.
+
+https-server-port:	TCP port on which to listen for HTTPS
+			connections.
+
+
+
+rpki-key:		Name of file containing RSA key to use in
+			signing resource certificates.
+
+rpki-issuer:		Name of file containing self-signed root
+			resource certificate corresponding to
+			rpki-key.
+
+rpki-subject-filename:	Name of file that rootd should use to save the
+			one and only certificate it issues.
+
+rpki-pkcs10-filename:	Name of file that rootd should use when saving
+			a copy of the received PKCS #10 request for a
+			resource certificate.  This is only used for
+			debugging.  Default is not to save the PKCS
+			#10 request.
+
+----------------------------------------------------------------
+
+irdbd.py
+
+----------------------------------------------------------------
+
+irbe-cli.py
+
+----------------------------------------------------------------
+
+irbe-setup.py
+
+----------------------------------------------------------------
+
+cronjob.py
+
+----------------------------------------------------------------
+
+testbed.py
+
+----------------------------------------------------------------
+
+testpoke.py

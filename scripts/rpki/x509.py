@@ -346,22 +346,23 @@ class X509_chain(list):
 
     Various other routines want their certs presented in this order.
     """
-    bag = self[:]
-    issuer_names = [x.getIssuer() for x in bag]
-    subject_map = dict([(x.getSubject(), x) for x in bag])
-    chain = []
-    for subject in subject_map:
-      if subject not in issuer_names:
-        cert = subject_map[subject]
+    if len(self) > 1:
+      bag = self[:]
+      issuer_names = [x.getIssuer() for x in bag]
+      subject_map = dict([(x.getSubject(), x) for x in bag])
+      chain = []
+      for subject in subject_map:
+        if subject not in issuer_names:
+          cert = subject_map[subject]
+          chain.append(cert)
+          bag.remove(cert)
+      if len(chain) != 1:
+        raise rpki.exceptions.NotACertificateChain, "Certificates in bag don't form a proper chain"
+      while bag:
+        cert = subject_map[chain[-1].getIssuer()]
         chain.append(cert)
         bag.remove(cert)
-    if len(chain) != 1:
-      raise rpki.exceptions.NotACertificateChain, "Certificates in bag don't form a proper chain"
-    while bag:
-      cert = subject_map[chain[-1].getIssuer()]
-      chain.append(cert)
-      bag.remove(cert)
-    self[:] = chain
+      self[:] = chain
 
   def tlslite_certChain(self):
     """Return a certChain in the format tlslite likes."""

@@ -424,7 +424,7 @@ https-ta:		Name of file containing trust anchor to use
 
 https-url:		Service URL for rpkid.  Must be a https:// URL.
 
-Options in the "[irdbd] section:
+Options in the "[irdbd]" section:
 
 sql-username:		Username to hand to MySQL when connecting to
 			irdbd's database.

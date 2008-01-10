@@ -21,6 +21,11 @@ Programs:
   useful, cool, enjoy, but if they blow up in your face, set your
   computer on fire, and turn your cat blue, that's your problem.
 
+  scripts also contains rpkid and friends, an (unfinished) collection
+  of Python programs to handle the publication side of the RPKI
+  project.  rpkid and friends will move to a directory of their own at
+  some point as part of a code cleanup and reorganization pass.
+
 Other:
 
 - docs: Design documents for various protocols used by the entities

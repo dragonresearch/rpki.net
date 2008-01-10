@@ -112,7 +112,7 @@ sql-password:		Password to hand to MySQL when connecting to
 cms-ta-irdb:		Name of file containing CMS trust anchor to
 			use when authenticating messages from irdbd.
 
-cms-ta-irdb:		Name of file containing CMS trust anchor to
+cms-ta-irbe:		Name of file containing CMS trust anchor to
 			use when authenticating control messages from
 			IRBE.
 
@@ -143,7 +143,9 @@ https-ta:		Name of file containing trust anchor to use
 irdb-url:		Service URL for irdbd.  Must be a https:// URL.
 
 https-server-host:	Hostname or IP address on which to listen for
-			HTTPS connections.  Default is localhost.
+			HTTPS connections.  Current default is
+			INADDR_ANY (IPv4 0.0.0.0); this will need to
+			be hacked to support IPv6 for production.
 
 https-server-port:	TCP port on which to listen for HTTPS
 			connections.
@@ -392,7 +394,7 @@ to choose a different config file.  Most options are in the section
 "[irbe-cli]", but a few are in the section "[irdbd]".  Certificates,
 keys, and trust anchors may be in either DER or PEM format.
 
-Options in the "[irbe-cli] section:
+Options in the "[irbe-cli]" section:
 
 cms-ta:			Name of file containing CMS trust anchor to
 			use when authenticating messages from rpkid.
@@ -612,11 +614,11 @@ http://mirin.apnic.net/svn/rpki_engine/branches/gary-poker/client/poke/README
 testpoke.py takes a simplified command line and uses only one YAML
 input file.
 
-Usage: python testpoke.py [ { -c | --config } configfile ]
+Usage: python testpoke.py [ { -y | --yaml }    configfile ]
                           [ { -r | --request } requestname ]
 			  [ { -h | --help } ]
 
-Default configuration file is testpoke.yaml, override with --config
+Default configuration file is testpoke.yaml, override with --yaml
 option.
 
 The --request option specifies the specific command within the YAML

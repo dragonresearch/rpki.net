@@ -5,9 +5,11 @@ Trivial RPKI up-down protocol client, for testing.
 
 Configuration file is YAML to be compatable with APNIC rpki_poke.pl tool.
 
-Usage: python testpoke.py [ { -c | --config } configfile ] [ { -r | --request } requestname ] [ { -h | --help } ]
+Usage: python testpoke.py [ { -y | --yaml }    configfile ]
+                          [ { -r | --request } requestname ]
+                          [ { -h | --help } ]
 
-Default configuration file is testpoke.yaml, override with --config option.
+Default configuration file is testpoke.yaml, override with --yaml option.
 """
 
 import traceback, os, time, getopt, sys, lxml, yaml
@@ -25,11 +27,11 @@ def usage(code):
 yaml_file = "testpoke.yaml"
 yaml_cmd = None
 
-opts,argv = getopt.getopt(sys.argv[1:], "c:r:h?", ["config=", "request=", "help"])
+opts,argv = getopt.getopt(sys.argv[1:], "y:r:h?", ["yaml=", "request=", "help"])
 for o,a in opts:
   if o in ("-h", "--help", "-?"):
     usage(0)
-  elif o in ("-c", "--config"):
+  elif o in ("-y", "--yaml"):
     yaml_file = a
   elif o in ("-r", "--request"):
     yaml_cmd = a

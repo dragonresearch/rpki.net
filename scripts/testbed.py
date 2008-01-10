@@ -568,8 +568,8 @@ class allocation(object):
   def run_yaml(self):
     """Run YAML scripts for this leaf entity."""
     rpki.log.info("Running YAML for %s" % self.name)
-    subprocess.check_call((prog_python, prog_poke, "-c", self.name + ".yaml", "-r", "list"))
-    subprocess.check_call((prog_python, prog_poke, "-c", self.name + ".yaml", "-r", "issue"))
+    subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "list"))
+    subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "issue"))
 
 def setup_biz_cert_chain(name):
   """Build a set of business certs."""

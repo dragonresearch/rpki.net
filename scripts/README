@@ -81,6 +81,14 @@ Current TO DO list:
   readable by humans, but need to automate eventually.  Running rcynic
   on the output would also be useful.
 
+  Being able to specify interaction with other servers (not running
+  under testbed) in a testbed.yaml might be useful for interop tests.
+  Kind of breaks testbed's fundamental model, though.  Replacing what
+  testbed thinks is a leaf with somebody else would be easy, so maybe
+  we could specify some way to hang a bunch of rpkids under an
+  external parent?  Hmm, data needed would look a lot like
+  testpoke.yaml, maybe we can reuse some of that language?
+
 - Work on a common protocol dump format with APNIC and other
   implementors.  Randy points out that it would be good if we could
   all read each other's dumps.

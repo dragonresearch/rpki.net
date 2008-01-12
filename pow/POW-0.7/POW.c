@@ -51,6 +51,7 @@
 #include <openssl/sha.h>
 #include <openssl/hmac.h>
 #include <openssl/ripemd.h>
+#include <openssl/pkcs7.h>
 
 #include <time.h>
 
@@ -117,6 +118,7 @@
 #define DH_PRIVATE_KEY        6 
 #define X509_CERTIFICATE      7
 #define X_X509_CRL            8     //X509_CRL already used by OpenSSL library
+#define PKCS7_MESSAGE         9
 
 // Asymmetric ciphers
 #define RSA_CIPHER            1
@@ -153,6 +155,7 @@
 #define X_digest_Check(op) ((op)->ob_type == &digesttype)
 #define X_hmac_Check(op) ((op)->ob_type == &hmactype)
 #define X_ssl_Check(op) ((op)->ob_type == &ssltype)
+#define X_pkcs7_Check(op) ((op)->ob_type == &pkcs7type)
 
 static char pow_module__doc__ [] = 
 "<moduleDescription>\n"
@@ -210,6 +213,7 @@ static PyTypeObject symmetrictype;
 static PyTypeObject digesttype;
 static PyTypeObject hmactype;
 static PyTypeObject ssltype;
+static PyTypeObject pkcs7type;
 /*========== Pre-definitions ==========*/
 
 /*========== C stucts ==========*/
@@ -263,6 +267,11 @@ typedef struct {
    SSL *ssl;
    SSL_CTX *ctx;
 } ssl_object;
+
+typedef struct {
+   PyObject_HEAD
+   PKCS7 *pkcs7;
+} pkcs7_object;
 /*========== C structs ==========*/
 
 /*========== helper functions ==========*/
@@ -537,6 +546,40 @@ error:
    Py_XDECREF(result_list);
    return NULL;
 }
+
+static void
+set_openssl_pyerror(const char *msg)
+{
+   char *buf = NULL;
+   BIO *bio = NULL;
+   int len;
+
+   if (!(bio = BIO_new(BIO_s_mem())))
+     goto error;
+
+   BIO_puts(bio, msg);
+   BIO_puts(bio, ":\n");
+   ERR_print_errors(bio);
+
+   if (!(len = BIO_ctrl_pending(bio)))
+      goto error;
+   if (!(buf = malloc(len + 1)))
+      goto error;
+   if (BIO_read(bio, buf, len) != len)
+      goto error;
+   buf[len] = '\0';
+
+   PyErr_SetString(SSLErrorObject, buf);
+
+   /* fall through */
+error:
+
+   if (bio)
+      BIO_free(bio);
+   if (buf)
+      free(buf);
+}
+
 /*========== helper funcitons ==========*/
 
 /*========== X509 code ==========*/
@@ -6064,6 +6107,392 @@ static PyTypeObject hmactype = {
    hmactype__doc__                     /* Documentation string */
 };
 /*========== hmac Code ==========*/
+
+/*========== PKCS7 code ==========*/
+static pkcs7_object *
+PKCS7_object_new(void)
+{
+   pkcs7_object *self;
+
+   self = PyObject_New( pkcs7_object, &pkcs7type );
+   if (self == NULL)
+      goto error;
+
+   self->pkcs7 = NULL;
+   return self;
+
+error:
+
+   Py_XDECREF(self);
+   return NULL;
+}
+
+static pkcs7_object *
+PKCS7_object_pem_read(BIO *in)
+{
+   pkcs7_object *self;
+
+   if ( !(self = PyObject_New( pkcs7_object, &pkcs7type ) ) )
+      goto error;
+
+   if( !(self->pkcs7 = PEM_read_bio_PKCS7( in, NULL, NULL, NULL ) ) )
+      { PyErr_SetString( SSLErrorObject, "could not load PEM encoded PKCS7 message" ); goto error; }
+
+   return self;
+
+error:
+
+   Py_XDECREF(self);
+   return NULL;
+}
+
+static pkcs7_object *
+PKCS7_object_der_read(char *src, int len)
+{
+   pkcs7_object *self;
+   BIO *bio = NULL;
+
+   if ( !(self = PyObject_New( pkcs7_object, &pkcs7type ) ) )
+      goto error;
+
+   self->pkcs7 = PKCS7_new();
+
+   if ( !(bio = BIO_new_mem_buf(src, len) ) )
+     goto error;
+
+   if( !(d2i_PKCS7_bio( bio, &self->pkcs7 ) ) )
+      { PyErr_SetString( SSLErrorObject, "could not load PEM encoded PKCS7 message" ); goto error; }
+
+   BIO_free(bio);
+
+   return self;
+
+error:
+
+   if (bio)
+      BIO_free(bio);
+
+   Py_XDECREF(self);
+   return NULL;
+}
+
+static PyObject *
+PKCS7_object_write_helper(pkcs7_object *self, PyObject *args, int format)
+{
+   int len=0;
+   char *buf=NULL;
+   BIO *out_bio=NULL;
+   PyObject *cert=NULL;
+   
+   if (!PyArg_ParseTuple(args, ""))
+      return NULL;
+
+   out_bio = BIO_new(BIO_s_mem());
+
+   if (format == DER_FORMAT)
+   {
+      if (!i2d_PKCS7_bio(out_bio, self->pkcs7) )
+         { PyErr_SetString( SSLErrorObject, "unable to write certificate" ); goto error; }
+   }
+   else if (format == PEM_FORMAT)
+   {
+      if (!PEM_write_bio_PKCS7(out_bio, self->pkcs7) )
+         { PyErr_SetString( SSLErrorObject, "unable to write certificate" ); goto error; }
+   }
+   else
+      { PyErr_SetString( SSLErrorObject, "internal error, unkown output format" ); goto error; }
+
+   if ( !(len = BIO_ctrl_pending(out_bio) ) )
+      { PyErr_SetString( SSLErrorObject, "unable to get bytes stored in bio" ); goto error; }
+
+   if ( !(buf = malloc(len) ) )
+      { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+
+   if ( BIO_read( out_bio, buf, len ) != len )
+      { PyErr_SetString( SSLErrorObject, "unable to write out cert" ); goto error; }
+
+   cert = Py_BuildValue("s#", buf, len);
+
+   BIO_free(out_bio);
+   free(buf);
+   return cert;
+   
+error:   
+
+   if (out_bio)
+      BIO_free(out_bio);
+
+   if (buf)
+      free(buf);
+
+   Py_XDECREF(cert);
+   return NULL;
+}
+
+static char PKCS7_object_pem_write__doc__[] = 
+"<method>\n"
+"   <header>\n"
+"      <memberof>PKCS7</memberof>\n"
+"      <name>pemWrite</name>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This method returns a PEM encoded PKCS7 message as a\n"
+"         string.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
+static PyObject *
+PKCS7_object_pem_write(pkcs7_object *self, PyObject *args)
+{
+   return PKCS7_object_write_helper(self, args, PEM_FORMAT);
+}
+
+static char PKCS7_object_der_write__doc__[] =
+"<method>\n"
+"   <header>\n"
+"      <memberof>PKCS7</memberof>\n"
+"      <name>derWrite</name>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This method returns a DER encoded PKCS7 message as a\n"
+"         string.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
+static PyObject *
+PKCS7_object_der_write(pkcs7_object *self, PyObject *args)
+{
+   return PKCS7_object_write_helper(self, args, DER_FORMAT);
+}
+
+static char PKCS7_object_sign__doc__[] = 
+"<method>\n"
+"   <header>\n"
+"      <memberof>PKCS7</memberof>\n"
+"      <name>sign</name>\n"
+"      <parameter>signcert</parameter>\n"
+"      <parameter>key</parameter>\n"
+"      <parameter>certs</parameter>\n"
+"      <parameter>data</parameter>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This method signs a message with a private key.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
+static PyObject *
+PKCS7_object_sign(pkcs7_object *self, PyObject *args)
+{
+   asymmetric_object *signkey = NULL;
+   x509_object *signcert = NULL, *tmpX509 = NULL;
+   PyObject *x509_sequence = NULL;
+   STACK_OF(X509) *x509_stack = NULL;
+   EVP_PKEY *pkey = NULL;
+   char *buf = NULL;
+   int len, size = 0, i;
+   BIO *bio = NULL;
+   PKCS7 *p7 = NULL;
+
+
+   if (!PyArg_ParseTuple(args, "O!O!Os#", &x509type, &signcert, &asymmetrictype, &signkey, &x509_sequence, &buf, &len))
+      goto error;
+
+   if (signkey->key_type != RSA_PRIVATE_KEY)
+      { PyErr_SetString( SSLErrorObject, "unsupported key type" ); goto error; }
+
+   if ( !( PyTuple_Check( x509_sequence ) || PyList_Check(x509_sequence) ) )
+      { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
+
+   size = PySequence_Size( x509_sequence );
+
+   if (!(x509_stack = sk_X509_new_null() ) )
+      { PyErr_SetString( SSLErrorObject, "could not create new x509 stack" ); goto error; }
+
+   for (i=0; i < size; i++)
+   {
+      if ( !( tmpX509 = (x509_object*)PySequence_GetItem( x509_sequence, i ) ) )
+         goto error;
+
+      if ( !X_X509_Check( tmpX509 ) )
+         { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
+
+      if (!sk_X509_push( x509_stack, tmpX509->x509 ) )
+         { PyErr_SetString( SSLErrorObject, "could not add x509 to stack" ); goto error; }
+      Py_DECREF(tmpX509);
+      tmpX509 = NULL;
+   }
+
+   if ( !(pkey = EVP_PKEY_new() ) )
+      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+
+   if ( !(EVP_PKEY_assign_RSA(pkey, signkey->cipher) ) )
+      { PyErr_SetString( SSLErrorObject, "EVP_PKEY assignment error" ); goto error; }
+
+   if ( !(bio = BIO_new_mem_buf(buf, len)))
+      goto error;
+
+   if ( !(p7 = PKCS7_sign(signcert->x509, pkey, x509_stack, bio, PKCS7_BINARY)))
+      { set_openssl_pyerror( "could not sign PKCS7 message" ); goto error; }
+
+   if (self->pkcs7)
+      PKCS7_free(self->pkcs7);
+   self->pkcs7 = p7;
+   p7 = NULL;
+
+   sk_X509_free(x509_stack);
+   BIO_free(bio);
+
+   return Py_BuildValue("");
+
+error:
+
+   Py_XDECREF(tmpX509);
+
+   if (p7)
+      PKCS7_free(p7);
+
+   if (bio)
+      BIO_free(bio);
+
+   if (x509_stack)
+      sk_X509_free(x509_stack);
+
+   if (pkey)
+      EVP_PKEY_free(pkey);
+
+   return NULL;
+}
+
+static char PKCS7_object_verify__doc__[] = 
+"<method>\n"
+"   <header>\n"
+"      <memberof>PKCS7</memberof>\n"
+"      <name>verify</name>\n"
+"      <parameter>store</parameter>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This method verifies a message against a trusted store.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
+static PyObject *
+PKCS7_object_verify(pkcs7_object *self, PyObject *args)
+{
+   x509_store_object *store = NULL;
+   PyObject *result = NULL;
+   char *buf = NULL;
+   BIO *bio = NULL;
+   int len;
+
+   if (!PyArg_ParseTuple(args, "O!", &x509_storetype, &store))
+      goto error;
+
+   if ( !(bio = BIO_new(BIO_s_mem())))
+      goto error;
+
+   if (PKCS7_verify(self->pkcs7, NULL, store->store, NULL, bio, 0) <= 0)
+      { set_openssl_pyerror( "could not verify PKCS7 message" ); goto error; }
+
+   if ( !(len = BIO_ctrl_pending(bio) ) )
+      { PyErr_SetString( SSLErrorObject, "unable to get bytes stored in bio" ); goto error; }
+
+   if ( !(buf = malloc(len) ) )
+      { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+
+   if ( BIO_read( bio, buf, len ) != len )
+      { PyErr_SetString( SSLErrorObject, "unable to write out PKCS7 content" ); goto error; }
+
+   result = Py_BuildValue("s#", buf, len);
+
+   BIO_free(bio);
+   free(buf);
+
+   return result;
+
+error:
+
+   if (bio)
+      BIO_free(bio);
+
+   if (buf)
+      free(buf);
+
+   return NULL;
+}
+
+static struct PyMethodDef PKCS7_object_methods[] = {
+   {"pemWrite",      (PyCFunction)PKCS7_object_pem_write,       METH_VARARGS,  NULL}, 
+   {"derWrite",      (PyCFunction)PKCS7_object_der_write,       METH_VARARGS,  NULL}, 
+   {"sign",          (PyCFunction)PKCS7_object_sign,            METH_VARARGS,  NULL}, 
+   {"verify",        (PyCFunction)PKCS7_object_verify,          METH_VARARGS,  NULL},
+ 
+   {NULL,      NULL}    /* sentinel */
+};
+
+static PyObject *
+PKCS7_object_getattr(pkcs7_object *self, char *name)
+{
+   return Py_FindMethod(PKCS7_object_methods, (PyObject *)self, name);
+}
+
+static void
+PKCS7_object_dealloc(pkcs7_object *self, char *name)
+{
+   PKCS7_free( self->pkcs7 );
+   PyObject_Del(self);
+}
+
+static char pkcs7type__doc__[] =
+"<class>\n"
+"   <header>\n"
+"      <name>PKCS7</name>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This class provides basic access OpenSSL's PKCS7 functionality.\n"
+"      </para>\n"
+"   </body>\n"
+"</class>\n"
+;
+
+static PyTypeObject pkcs7type = {
+   PyObject_HEAD_INIT(0)
+   0,                                  /*ob_size*/
+   "PKCS7",                            /*tp_name*/
+   sizeof(pkcs7_object),               /*tp_basicsize*/
+   0,                                  /*tp_itemsize*/
+   (destructor)PKCS7_object_dealloc,   /*tp_dealloc*/
+   (printfunc)0,                       /*tp_print*/
+   (getattrfunc)PKCS7_object_getattr,  /*tp_getattr*/
+   (setattrfunc)0,                     /*tp_setattr*/
+   (cmpfunc)0,                         /*tp_compare*/
+   (reprfunc)0,                        /*tp_repr*/
+   0,                                  /*tp_as_number*/
+   0,                                  /*tp_as_sequence*/
+   0,                                  /*tp_as_mapping*/
+   (hashfunc)0,                        /*tp_hash*/
+   (ternaryfunc)0,                     /*tp_call*/
+   (reprfunc)0,                        /*tp_str*/
+   0,
+   0,
+   0,
+   0,
+   pkcs7type__doc__                    /* Documentation string */
+};
+/*========== PKCS7 Code ==========*/
+
 /*========== module functions ==========*/
 static char pow_module_new_ssl__doc__[] = 
 "<constructor>\n"
@@ -6289,6 +6718,37 @@ error:
    return NULL;
 }
 
+static char pow_module_new_pkcs7__doc__[] = 
+"<constructor>\n"
+"   <header>\n"
+"      <memberof>PKCS7</memberof>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This constructor creates a skeletal PKCS7 object.\n"
+"      </para>\n"
+"   </body>\n"
+"</constructor>\n"
+;
+
+static PyObject *
+pow_module_new_pkcs7 (PyObject *self, PyObject *args)
+{
+   pkcs7_object *pkcs7 = NULL;
+
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
+   
+   if ( !(pkcs7 = PKCS7_object_new() ) ) 
+      { PyErr_SetString( SSLErrorObject, "could not create new pkcs7 object" ); goto error; }
+
+   return (PyObject*)pkcs7;
+ 
+error:
+
+   return NULL;
+}
+
 static char pow_module_pem_read__doc__[] = 
 "<modulefunction>\n"
 "   <header>\n"
@@ -6308,6 +6768,7 @@ static char pow_module_pem_read__doc__[] =
 "         <member><constant>RSA_PRIVATE_KEY</constant></member>\n"
 "         <member><constant>X509_CERTIFICATE</constant></member>\n"
 "         <member><constant>X509_CRL</constant></member>\n"
+"         <member><constant>PKCS7_MESSAGE</constant></member>\n"
 "      </simplelist>\n"
 "      <para>\n"
 "         <parameter>pass</parameter> should only be provided if an encrypted\n"
@@ -6316,7 +6777,8 @@ static char pow_module_pem_read__doc__[] =
 "         and the PEM file is encrypted the user will be prompted.  If this is\n"
 "         not desirable, always supply a password.  The object returned will be \n"
 "         and instance of <classname>Asymmetric</classname>, \n"
-"         <classname>X509</classname> or <classname>X509Crl</classname>.\n"
+"         <classname>X509</classname>, <classname>X509Crl</classname>,\n"
+"         or <classname>PKCS7</classname>.\n"
 "      </para>\n"
 "   </body>\n"
 "</modulefunction>\n"
@@ -6349,6 +6811,8 @@ pow_module_pem_read (PyObject *self, PyObject *args)
          { obj = (PyObject*)X509_object_pem_read( in ); break ; }
       case X_X509_CRL:
          { obj = (PyObject*)x509_crl_object_pem_read( in ); break ; }
+      case PKCS7_MESSAGE:
+         { obj = (PyObject*)PKCS7_object_pem_read( in ); break ; }
 
       default:
          { PyErr_SetString( SSLErrorObject, "unknown pem encoding" ); goto error; }
@@ -6385,11 +6849,12 @@ static char pow_module_der_read__doc__[] =
 "         <member><constant>RSA_PRIVATE_KEY</constant></member>\n"
 "         <member><constant>X509_CERTIFICATE</constant></member>\n"
 "         <member><constant>X509_CRL</constant></member>\n"
+"         <member><constant>PKCS7_MESSAGE</constant></member>\n"
 "      </simplelist>\n"
 "      <para>\n"
 "         As with the PEM operations, the object returned will be and instance \n"
-"         of <classname>Asymmetric</classname>, <classname>X509</classname> or \n"
-"         <classname>X509Crl</classname>.\n"
+"         of <classname>Asymmetric</classname>, <classname>X509</classname>,\n"
+"         <classname>X509Crl</classname>, or <classname>PKCS7</classname>.\n"
 "      </para>\n"
 "   </body>\n"
 "</modulefunction>\n"
@@ -6415,6 +6880,8 @@ pow_module_der_read (PyObject *self, PyObject *args)
          { obj = (PyObject*)X509_object_der_read( src, len ); break ; }
       case X_X509_CRL:
          { obj = (PyObject*)x509_crl_object_der_read( src, len ); break ; }
+      case PKCS7_MESSAGE:
+         { obj = (PyObject*)PKCS7_object_der_read( src, len ); break ; }
 
       default:
          { PyErr_SetString( SSLErrorObject, "unknown der encoding" ); goto error; }
@@ -6976,6 +7443,12 @@ pow_module_docset(PyObject *self, PyObject *args)
    docset_helper_add( docset, hmac_object_copy__doc__ );
    docset_helper_add( docset, hmac_object_mac__doc__ );
     
+   // pkcs7 documentation
+   docset_helper_add( docset, PKCS7_object_pem_write__doc__ );
+   docset_helper_add( docset, PKCS7_object_der_write__doc__ );
+   docset_helper_add( docset, PKCS7_object_sign__doc__ );
+   docset_helper_add( docset, PKCS7_object_verify__doc__ );
+
    // symmetric documentation
    docset_helper_add( docset, symmetrictype__doc__ );
    docset_helper_add( docset, symmetric_object_encrypt_init__doc__ );
@@ -7008,6 +7481,7 @@ static struct PyMethodDef pow_module_methods[] = {
    {"derRead",       (PyCFunction)pow_module_der_read,         METH_VARARGS,  NULL}, 
    {"Digest",        (PyCFunction)pow_module_new_digest,       METH_VARARGS,  NULL}, 
    {"Hmac",          (PyCFunction)pow_module_new_hmac,         METH_VARARGS,  NULL}, 
+   {"PKCS7",         (PyCFunction)pow_module_new_pkcs7,        METH_VARARGS,  NULL}, 
    {"Asymmetric",    (PyCFunction)pow_module_new_asymmetric,   METH_VARARGS,  NULL}, 
    {"Symmetric",     (PyCFunction)pow_module_new_symmetric,    METH_VARARGS,  NULL}, 
    {"X509Store",     (PyCFunction)pow_module_new_x509_store,   METH_VARARGS,  NULL}, 
@@ -7034,22 +7508,23 @@ init_POW(void)
 {
    PyObject *m, *d;
 
-   x509type.ob_type = &PyType_Type;
-   x509_storetype.ob_type = &PyType_Type;
-   x509_crltype.ob_type = &PyType_Type;
+   x509type.ob_type         = &PyType_Type;
+   x509_storetype.ob_type   = &PyType_Type;
+   x509_crltype.ob_type     = &PyType_Type;
    x509_revokedtype.ob_type = &PyType_Type;
-   ssltype.ob_type = &PyType_Type;
-   asymmetrictype.ob_type = &PyType_Type;
-   symmetrictype.ob_type = &PyType_Type;
-   digesttype.ob_type = &PyType_Type;
-   hmactype.ob_type = &PyType_Type;
+   ssltype.ob_type          = &PyType_Type;
+   asymmetrictype.ob_type   = &PyType_Type;
+   symmetrictype.ob_type    = &PyType_Type;
+   digesttype.ob_type       = &PyType_Type;
+   hmactype.ob_type         = &PyType_Type;
+   pkcs7type.ob_type        = &PyType_Type;
 
    m = Py_InitModule4("_POW", pow_module_methods,
       pow_module__doc__,
       (PyObject*)NULL,PYTHON_API_VERSION);
 
    d = PyModule_GetDict(m);
-   SSLErrorObject = PyString_FromString("POW.SSLError");
+   SSLErrorObject = PyErr_NewException("POW.SSLError", NULL, NULL);
    PyDict_SetItemString(d, "SSLError", SSLErrorObject);
 
    // constants for SSL_get_error()
@@ -7102,6 +7577,7 @@ init_POW(void)
 #endif
    install_int_const( d, "X509_CERTIFICATE",          X509_CERTIFICATE );
    install_int_const( d, "X509_CRL",                  X_X509_CRL );
+   install_int_const( d, "PKCS7_MESSAGE",             PKCS7_MESSAGE );
 
    // asymmetric ciphers
 #ifndef OPENSSL_NO_RSA

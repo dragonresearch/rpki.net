@@ -340,6 +340,7 @@ class allocation(object):
       v6 = rpki.resource_set.resource_set_ipv6(yaml.get("ipv6")),
       valid_until = valid_until)
     self.sia_base = yaml.get("sia_base")
+    self.extra_conf = yaml.get("extra_conf", [])
 
   def closure(self):
     """Compute the transitive resource closure."""
@@ -410,6 +411,8 @@ class allocation(object):
           "rpki_port"    : self.rpki_port }
     f = open(self.name + ".conf", "w")
     f.write(conf_fmt_1 % d)
+    for line in self.extra_conf:
+      f.write(line + "\n")
     f.close()
 
   def setup_sql(self, rpki_sql, irdb_sql):
@@ -673,32 +676,6 @@ requests:
 
 conf_fmt_1 = '''\
 
-[rpkid]
-
-startup-message = This is %(my_name)s rpkid
-
-sql-database	= %(rpki_db_name)s
-sql-username	= rpki
-sql-password	= %(rpki_db_pass)s
-
-cms-key		= %(my_name)s-RPKI-EE.key
-cms-cert.0	= %(my_name)s-RPKI-EE.cer
-cms-cert.1	= %(my_name)s-RPKI-CA.cer
-
-cms-ta-irdb	= %(my_name)s-IRDB-TA.cer
-cms-ta-irbe	= %(testbed_name)s-TA.cer
-
-https-key	= %(my_name)s-RPKI-EE.key
-https-cert.0	= %(my_name)s-RPKI-EE.cer
-https-cert.1	= %(my_name)s-RPKI-CA.cer
-
-https-ta	= %(my_name)s-IRDB-TA.cer
-
-irdb-url	= https://localhost:%(irdb_port)d/
-
-server-host     = localhost
-server-port     = %(rpki_port)d
-
 [irdbd]
 
 startup-message = This is %(my_name)s irdbd
@@ -731,6 +708,32 @@ https-certs.1	= %(testbed_name)s-CA.cer
 https-tas	= %(my_name)s-RPKI-TA.cer
 
 https-url	= https://localhost:%(rpki_port)d/left-right
+
+[rpkid]
+
+startup-message = This is %(my_name)s rpkid
+
+sql-database	= %(rpki_db_name)s
+sql-username	= rpki
+sql-password	= %(rpki_db_pass)s
+
+cms-key		= %(my_name)s-RPKI-EE.key
+cms-cert.0	= %(my_name)s-RPKI-EE.cer
+cms-cert.1	= %(my_name)s-RPKI-CA.cer
+
+cms-ta-irdb	= %(my_name)s-IRDB-TA.cer
+cms-ta-irbe	= %(testbed_name)s-TA.cer
+
+https-key	= %(my_name)s-RPKI-EE.key
+https-cert.0	= %(my_name)s-RPKI-EE.cer
+https-cert.1	= %(my_name)s-RPKI-CA.cer
+
+https-ta	= %(my_name)s-IRDB-TA.cer
+
+irdb-url	= https://localhost:%(irdb_port)d/
+
+server-host     = localhost
+server-port     = %(rpki_port)d
 '''
 
 rootd_fmt_1 = '''\

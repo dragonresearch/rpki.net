@@ -20,7 +20,9 @@ For the moment these just call the OpenSSL CLI tool, which is slow,
 requires disk I/O, and likes PEM format.  Fix this later.
 """
 
-import os, rpki.x509, rpki.exceptions, lxml.etree, rpki.log
+import os, rpki.x509, rpki.exceptions, lxml.etree, rpki.log, POW
+
+cmstest = False
 
 debug = 1
 
@@ -37,86 +39,98 @@ def sign(plaintext, keypair, certs):
 
   certs.chainsort()
 
-  mypid = str(os.getpid())
+  if not cmstest:
 
-  rpki.log.trace()
+    rpki.log.info("Running old CMS signer")
 
-  signer_filename = "cms.tmp." + mypid + ".signer.pem"
-  certfile_filename = "cms.tmp." + mypid + ".certfile.pem"
-  plaintext_filename = "cms.tmp." + mypid + ".plaintext"
-  signed_filename = "cms.tmp." + mypid + ".signed"
-  key_filename = "cms.tmp." + mypid + ".key.pem"
-  
-  rpki.log.trace()
+    mypid = str(os.getpid())
 
-  f = open(signer_filename, "w")
-  f.write(certs[0].get_PEM())
-  f.close()
-
-  rpki.log.trace()
-
-  f = open(certfile_filename, "w")
-  for cert in certs[1:]:
-    f.write(cert.get_PEM())
-  f.close()
-
-  rpki.log.trace()
-
-  f = open(plaintext_filename, "w")
-  f.write(plaintext)
-  f.close()
-
-  rpki.log.trace()
-
-  # This is evil, key should NOT be on disk, but OpenSSL CLI goes into
-  # a spin wait sometimes and I now suspect it's an I/O problem.
-  # So we whack this with chmod() to minimize the risk.
-
-  f = open(key_filename, "w")
-  f.close()
-  os.chmod(key_filename, 0600)
-  f = open(key_filename, "w")
-  f.write(keypair.get_PEM())
-  f.close()
-  os.chmod(key_filename, 0600)
-
-  cmd = ("openssl", "smime", "-sign", "-nodetach", "-outform", "DER", "-binary",
-         "-inkey", key_filename,
-         "-signer", signer_filename,
-         "-certfile", certfile_filename,
-         "-in", plaintext_filename,
-         "-out", signed_filename)
-
-  rpki.log.trace()
-
-  pid = os.fork()
-
-  if pid == 0:
     rpki.log.trace()
-    os.execvp(cmd[0], cmd)
-    raise rpki.exceptions.SubprocessError, "os.execvp() returned, which should never happen"
 
-  rpki.log.trace()
+    signer_filename = "cms.tmp." + mypid + ".signer.pem"
+    certfile_filename = "cms.tmp." + mypid + ".certfile.pem"
+    plaintext_filename = "cms.tmp." + mypid + ".plaintext"
+    signed_filename = "cms.tmp." + mypid + ".signed"
+    key_filename = "cms.tmp." + mypid + ".key.pem"
 
-  assert pid != 0
+    rpki.log.trace()
 
-  retpid, status = os.waitpid(pid, 0)
+    f = open(signer_filename, "w")
+    f.write(certs[0].get_PEM())
+    f.close()
 
-  rpki.log.trace()
+    rpki.log.trace()
 
-  if status != 0:
-    raise rpki.exceptions.SubprocessError, "CMS signing command returned status 0x%x" % status
+    f = open(certfile_filename, "w")
+    for cert in certs[1:]:
+      f.write(cert.get_PEM())
+    f.close()
 
-  rpki.log.trace()
+    rpki.log.trace()
 
-  f = open(signed_filename, "r")
-  cms = f.read()
-  f.close()
+    f = open(plaintext_filename, "w")
+    f.write(plaintext)
+    f.close()
 
-  rpki.log.trace()
+    rpki.log.trace()
 
-  for f in (key_filename, signer_filename, certfile_filename, plaintext_filename, signed_filename):
-    os.unlink(f)
+    # This is evil, key should NOT be on disk, but OpenSSL CLI goes into
+    # a spin wait sometimes and I now suspect it's an I/O problem.
+    # So we whack this with chmod() to minimize the risk.
+
+    f = open(key_filename, "w")
+    f.close()
+    os.chmod(key_filename, 0600)
+    f = open(key_filename, "w")
+    f.write(keypair.get_PEM())
+    f.close()
+    os.chmod(key_filename, 0600)
+
+    cmd = ("openssl", "smime", "-sign", "-nodetach", "-outform", "DER", "-binary",
+           "-inkey", key_filename,
+           "-signer", signer_filename,
+           "-certfile", certfile_filename,
+           "-in", plaintext_filename,
+           "-out", signed_filename)
+
+    rpki.log.trace()
+
+    pid = os.fork()
+
+    if pid == 0:
+      rpki.log.trace()
+      os.execvp(cmd[0], cmd)
+      raise rpki.exceptions.SubprocessError, "os.execvp() returned, which should never happen"
+
+    rpki.log.trace()
+
+    assert pid != 0
+
+    retpid, status = os.waitpid(pid, 0)
+
+    rpki.log.trace()
+
+    if status != 0:
+      raise rpki.exceptions.SubprocessError, "CMS signing command returned status 0x%x" % status
+
+    rpki.log.trace()
+
+    f = open(signed_filename, "r")
+    cms = f.read()
+    f.close()
+
+    rpki.log.trace()
+
+    for f in (key_filename, signer_filename, certfile_filename, plaintext_filename, signed_filename):
+      os.unlink(f)
+
+  else:                                 # cmstest
+
+    rpki.log.info("Running new CMS signer")
+
+    p7 = POW.PKCS7()
+    p7.sign(certs[0].get_POW(), keypair.get_POW(), [x.get_POW() for x in certs[1:]], plaintext)
+    cms = p7.derWrite()
 
   rpki.log.trace()
 
@@ -141,23 +155,41 @@ def verify(cms, ta):
     print "Verifying CMS:"
     dumpasn1(cms)
 
-  mypid = str(os.getpid())
+  if not cmstest:
 
-  ta_filename = "cms.tmp." + mypid + ".ta.pem"
+    rpki.log.info("Running old CMS verifier")
 
-  f = open(ta_filename, "w")
-  f.write(ta.get_PEM())
-  f.close()
+    mypid = str(os.getpid())
 
-  i,o,e = os.popen3(("openssl", "smime", "-verify", "-inform", "DER", "-binary", "-CAfile", ta_filename))
-  i.write(cms)
-  i.close()
-  plaintext = o.read()
-  o.close()
-  status = e.read()
-  e.close()
+    ta_filename = "cms.tmp." + mypid + ".ta.pem"
 
-  os.unlink(ta_filename)
+    f = open(ta_filename, "w")
+    f.write(ta.get_PEM())
+    f.close()
+
+    i,o,e = os.popen3(("openssl", "smime", "-verify", "-inform", "DER", "-binary", "-CAfile", ta_filename))
+    i.write(cms)
+    i.close()
+    plaintext = o.read()
+    o.close()
+    status = e.read()
+    e.close()
+
+    os.unlink(ta_filename)
+
+  else:                                 # cmstest
+
+    rpki.log.info("Running new CMS verifier")
+
+    p7 = POW.derRead(POW.PKCS7_MESSAGE, cms)
+
+    store = POW.X509Store()
+    store.addTrust(ta.get_POW())
+
+    plaintext = p7.verify(store)
+    return plaintext
+
+    # never get here with new verifier, throws exception
 
   if status == "Verification successful\n":
     return plaintext

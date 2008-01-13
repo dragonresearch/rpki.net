@@ -16,13 +16,13 @@
 
 """CMS routines.
 
-For the moment these just call the OpenSSL CLI tool, which is slow,
-requires disk I/O, and likes PEM format.  Fix this later.
+These used to use the OpenSSL CLI too, which was slow.  I've since
+added minimal PKCS #7 / CMS capability to POW, so we now use that
+instead.  I should write a pretty DER_object wrapper around the POW
+code and include it in x509.py, but I haven't gotten to that yet.
 """
 
 import os, rpki.x509, rpki.exceptions, lxml.etree, rpki.log, POW
-
-cmstest = False
 
 debug = 1
 
@@ -37,102 +37,9 @@ def sign(plaintext, keypair, certs):
   OpenSSL CLI tool will accept them.  rpki.x509 handles that for us.
   """
 
-  certs.chainsort()
-
-  if not cmstest:
-
-    rpki.log.info("Running old CMS signer")
-
-    mypid = str(os.getpid())
-
-    rpki.log.trace()
-
-    signer_filename = "cms.tmp." + mypid + ".signer.pem"
-    certfile_filename = "cms.tmp." + mypid + ".certfile.pem"
-    plaintext_filename = "cms.tmp." + mypid + ".plaintext"
-    signed_filename = "cms.tmp." + mypid + ".signed"
-    key_filename = "cms.tmp." + mypid + ".key.pem"
-
-    rpki.log.trace()
-
-    f = open(signer_filename, "w")
-    f.write(certs[0].get_PEM())
-    f.close()
-
-    rpki.log.trace()
-
-    f = open(certfile_filename, "w")
-    for cert in certs[1:]:
-      f.write(cert.get_PEM())
-    f.close()
-
-    rpki.log.trace()
-
-    f = open(plaintext_filename, "w")
-    f.write(plaintext)
-    f.close()
-
-    rpki.log.trace()
-
-    # This is evil, key should NOT be on disk, but OpenSSL CLI goes into
-    # a spin wait sometimes and I now suspect it's an I/O problem.
-    # So we whack this with chmod() to minimize the risk.
-
-    f = open(key_filename, "w")
-    f.close()
-    os.chmod(key_filename, 0600)
-    f = open(key_filename, "w")
-    f.write(keypair.get_PEM())
-    f.close()
-    os.chmod(key_filename, 0600)
-
-    cmd = ("openssl", "smime", "-sign", "-nodetach", "-outform", "DER", "-binary",
-           "-inkey", key_filename,
-           "-signer", signer_filename,
-           "-certfile", certfile_filename,
-           "-in", plaintext_filename,
-           "-out", signed_filename)
-
-    rpki.log.trace()
-
-    pid = os.fork()
-
-    if pid == 0:
-      rpki.log.trace()
-      os.execvp(cmd[0], cmd)
-      raise rpki.exceptions.SubprocessError, "os.execvp() returned, which should never happen"
-
-    rpki.log.trace()
-
-    assert pid != 0
-
-    retpid, status = os.waitpid(pid, 0)
-
-    rpki.log.trace()
-
-    if status != 0:
-      raise rpki.exceptions.SubprocessError, "CMS signing command returned status 0x%x" % status
-
-    rpki.log.trace()
-
-    f = open(signed_filename, "r")
-    cms = f.read()
-    f.close()
-
-    rpki.log.trace()
-
-    for f in (key_filename, signer_filename, certfile_filename, plaintext_filename, signed_filename):
-      os.unlink(f)
-
-  else:                                 # cmstest
-
-    rpki.log.info("Running new CMS signer")
-
-    p7 = POW.PKCS7()
-    p7.sign(certs[0].get_POW(), keypair.get_POW(), [x.get_POW() for x in certs[1:]], plaintext)
-    cms = p7.derWrite()
-
-  rpki.log.trace()
+  p7 = POW.PKCS7()
+  p7.sign(certs[0].get_POW(), keypair.get_POW(), [x.get_POW() for x in certs[1:]], plaintext)
+  cms = p7.derWrite()
 
   if debug >= 2:
     print
@@ -146,8 +53,7 @@ def sign(plaintext, keypair, certs):
 def verify(cms, ta):
   """Verify the signature of a chunk of CMS.
 
-  Returns the plaintext on success.  If OpenSSL CLI tool reports
-  anything other than successful verification, we raise an exception.
+  Returns the plaintext on success, otherwise raise an exception.
   """  
 
   if debug >= 2:
@@ -155,45 +61,15 @@ def verify(cms, ta):
     print "Verifying CMS:"
     dumpasn1(cms)
 
-  if not cmstest:
+  p7 = POW.derRead(POW.PKCS7_MESSAGE, cms)
 
-    rpki.log.info("Running old CMS verifier")
+  store = POW.X509Store()
+  store.addTrust(ta.get_POW())
 
-    mypid = str(os.getpid())
+  try:
+    return p7.verify(store)
 
-    ta_filename = "cms.tmp." + mypid + ".ta.pem"
-
-    f = open(ta_filename, "w")
-    f.write(ta.get_PEM())
-    f.close()
-
-    i,o,e = os.popen3(("openssl", "smime", "-verify", "-inform", "DER", "-binary", "-CAfile", ta_filename))
-    i.write(cms)
-    i.close()
-    plaintext = o.read()
-    o.close()
-    status = e.read()
-    e.close()
-
-    os.unlink(ta_filename)
-
-  else:                                 # cmstest
-
-    rpki.log.info("Running new CMS verifier")
-
-    p7 = POW.derRead(POW.PKCS7_MESSAGE, cms)
-
-    store = POW.X509Store()
-    store.addTrust(ta.get_POW())
-
-    plaintext = p7.verify(store)
-    return plaintext
-
-    # never get here with new verifier, throws exception
-
-  if status == "Verification successful\n":
-    return plaintext
-  else:
+  except:
     if debug >= 1:
       print "CMS verification failed, dumping inputs:"
       print
@@ -202,8 +78,7 @@ def verify(cms, ta):
       print
       print "CMS:"
       dumpasn1(cms)
-    raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed with status %s" % status
-
+    raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed"
 
 def xml_verify(cms, ta):
   """Composite routine to verify CMS-wrapped XML."""

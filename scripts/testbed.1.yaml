@@ -6,7 +6,6 @@ valid_for:      2d
 sia_base:       "rsync://wombat.invalid/"
 kids:
   - name: R0
-    extra_conf: [ "cmstest = 1" ]
     kids:
       - name: Alice
         ipv4: 192.0.2.1-192.0.2.33

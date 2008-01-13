@@ -126,9 +126,6 @@ startup_msg = cfg.get("startup-message", "")
 if startup_msg:
   rpki.log.info(startup_msg)
 
-if cfg.get("cmstest", False):
-  rpki.cms.cmstest = True
-
 gctx = global_context(cfg)
 
 rpki.https.server(privateKey = gctx.https_key,

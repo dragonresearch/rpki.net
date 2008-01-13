@@ -303,11 +303,7 @@ objects become pairs of certs instead of a single TA, but this is
 mostly just generalization and reuse of existing code, no bold new
 adventures.
 
-At some point we need to do performance testing.  All of our crypto is
-done internally except for CMS, for which we still call the OpenSSL
-CLI tool.  The simplest solution would probably be to extend POW to
-support CMS; cryptlib might be more entertaining solution, but am not
-sure it's worth the time sink.
+At some point we need to do performance testing.
 
 Although it may not be worth the effort, it'd be nice to get back to
 only one crypto library.  As far as I know the only things we're using

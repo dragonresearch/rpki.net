@@ -3704,10 +3704,31 @@ ssl_object_use_certificate(ssl_object *self, PyObject *args)
       goto error;
 
    if (self->ctxset)
-      { PyErr_SetString( SSLErrorObject, "cannont be called after setFd()" ); goto error; }
+      { PyErr_SetString( SSLErrorObject, "cannot be called after setFd()" ); goto error; }
 
    if ( !SSL_CTX_use_certificate(self->ctx, x509->x509) )
       { PyErr_SetString( SSLErrorObject, "could not use certificate" ); goto error; }
+
+   return Py_BuildValue("");
+
+error:
+
+   return NULL;
+}
+
+static PyObject *
+ssl_object_add_certificate(ssl_object *self, PyObject *args)
+{
+   x509_object *x509 = NULL;
+
+   if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
+      goto error;
+
+   if (self->ctxset)
+      { PyErr_SetString( SSLErrorObject, "cannot be called after setFd()" ); goto error; }
+
+   if ( !SSL_CTX_add_extra_chain_cert(self->ctx, x509->x509) )
+      { set_openssl_pyerror( "could not add certificate" ); goto error; }
 
    return Py_BuildValue("");
 
@@ -3744,7 +3765,7 @@ ssl_object_use_key(ssl_object *self, PyObject *args)
       goto error;
 
    if (self->ctxset)
-      { PyErr_SetString( SSLErrorObject, "cannont be called after setFd()" ); goto error; }
+      { PyErr_SetString( SSLErrorObject, "cannot be called after setFd()" ); goto error; }
 
    if ( !(pkey = EVP_PKEY_new() ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -4280,7 +4301,7 @@ ssl_object_get_ciphers(ssl_object *self, PyObject *args)
       goto error;
 
    if (!self->ctxset)
-      { PyErr_SetString( SSLErrorObject, "cannont be called before setFd()" ); goto error; }
+      { PyErr_SetString( SSLErrorObject, "cannot be called before setFd()" ); goto error; }
 
    list = PyList_New(0);
    
@@ -4347,7 +4368,7 @@ ssl_object_set_ciphers(ssl_object *self, PyObject *args)
       { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
 
    if (!self->ctxset)
-      { PyErr_SetString( SSLErrorObject, "cannont be called before setFd()" ); goto error; }
+      { PyErr_SetString( SSLErrorObject, "cannot be called before setFd()" ); goto error; }
 
    cipherstr = malloc(8);  //very bogus, realloc dosn't work with out some
                            //previously allocated memory! Really should.
@@ -4409,7 +4430,7 @@ ssl_object_get_cipher(ssl_object *self, PyObject *args)
       goto error;
 
    if (!self->ctxset)
-      { PyErr_SetString( SSLErrorObject, "cannont be called before setFd()" ); goto error; }
+      { PyErr_SetString( SSLErrorObject, "cannot be called before setFd()" ); goto error; }
    
    return Py_BuildValue("s", SSL_get_cipher( self->ssl ));
 
@@ -4458,7 +4479,7 @@ ssl_object_set_verify_mode(ssl_object *self, PyObject *args)
       goto error;
 
    if (self->ctxset)
-      { PyErr_SetString( SSLErrorObject, "cannont be called after setfd()" ); goto error; }
+      { PyErr_SetString( SSLErrorObject, "cannot be called after setfd()" ); goto error; }
 
    SSL_CTX_set_verify( self->ctx, mode, stub_callback );
 
@@ -4471,6 +4492,7 @@ error:
 
 static struct PyMethodDef ssl_object_methods[] = {
    {"useCertificate",   (PyCFunction)ssl_object_use_certificate,  METH_VARARGS,  NULL},
+   {"addCertificate",   (PyCFunction)ssl_object_add_certificate,  METH_VARARGS,  NULL},
    {"useKey",           (PyCFunction)ssl_object_use_key,          METH_VARARGS,  NULL},
    {"checkKey",         (PyCFunction)ssl_object_check_key,        METH_VARARGS,  NULL},
    {"setFd",            (PyCFunction)ssl_object_set_fd,           METH_VARARGS,  NULL},

@@ -7136,6 +7136,7 @@ static char pow_module_get_error__doc__[] =
 "   <body>\n"
 "      <para>\n"
 "         Pops an error off the global error stack and returns it as a string.\n"
+"         Returns None if the global error stack is empty.\n"
 "      </para>\n"
 "   </body>\n"
 "</modulefunction>\n"
@@ -7151,7 +7152,11 @@ pow_module_get_error(PyObject *self, PyObject *args)
       goto error;
    
    error = ERR_get_error();
-   ERR_error_string( error, buf );
+
+   if (!error)
+      return Py_None;
+
+   ERR_error_string_n( error, buf, sizeof(buf) );
 
    return Py_BuildValue("s", buf);
 

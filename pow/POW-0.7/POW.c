@@ -4078,13 +4078,12 @@ ssl_object_read(ssl_object *self, PyObject *args)
 
    if (ret <= 0) 
    {
-      free(msg);
       err = SSL_get_error( self->ssl, ret );
       PyErr_SetObject(SSLErrorObject, ssl_err_factory( err ) );
       goto error;
    }
-   else
-      data = Py_BuildValue("s#", msg, ret);
+
+   data = Py_BuildValue("s#", msg, ret);
 
    free(msg);
    return data;

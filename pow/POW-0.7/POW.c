@@ -3720,6 +3720,7 @@ static PyObject *
 ssl_object_add_certificate(ssl_object *self, PyObject *args)
 {
    x509_object *x509 = NULL;
+   X509 *x = NULL;
 
    if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
       goto error;
@@ -3727,12 +3728,20 @@ ssl_object_add_certificate(ssl_object *self, PyObject *args)
    if (self->ctxset)
       { PyErr_SetString( SSLErrorObject, "cannot be called after setFd()" ); goto error; }
 
-   if ( !SSL_CTX_add_extra_chain_cert(self->ctx, x509->x509) )
+   if ( !(x = X509_dup(x509->x509)) )
+      { PyErr_SetString( SSLErrorObject, "could not duplicate X509 object" ); goto error; }
+
+   if ( !SSL_CTX_add_extra_chain_cert(self->ctx, x) )
       { set_openssl_pyerror( "could not add certificate" ); goto error; }
+
+   x = NULL;
 
    return Py_BuildValue("");
 
 error:
+
+   if (x)
+      X509_free(x);
 
    return NULL;
 }

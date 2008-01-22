@@ -29,12 +29,7 @@ import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
 import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng
 import rpki.sundial, rpki.log
 
-rootd_name = "wombat"
-rootd_base = "rsync://" + rootd_name + ".invalid/"
-rootd_cert = rootd_base + "rootd.cer"
-
 rpki_subject_lifetime = rpki.sundial.timedelta(days = 30)
-
 
 def get_subject_cert():
   try:
@@ -184,6 +179,10 @@ rpki_issuer = rpki.x509.X509(Auto_file = cfg.get("rpki-issuer"))
 rpki_subject_filename = cfg.get("rpki-subject-filename")
 
 rpki_pkcs10_filename  = cfg.get("rpki-pkcs10-filename", "")
+
+rootd_name  = cfg.get("rootd_name", "wombat")
+rootd_base  = cfg.get("rootd_base", "rsync://" + rootd_name + ".invalid/")
+rootd_cert  = cfg.get("rootd_cert", rootd_base + "rootd.cer")
 
 rpki.https.server(privateKey    = https_key,
                   certChain     = https_certs,

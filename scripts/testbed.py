@@ -62,12 +62,20 @@ cfg = rpki.config.parser(cfg_file, "testbed")
 
 if yaml_script is None:
   yaml_script  = cfg.get("yaml_script", "testbed.yaml")
-
 try:
   yaml_script = [y for y in yaml.safe_load_all(open(yaml_script))]
 except:
   print __doc__
   raise
+
+# Define port allocator early, so we can use it while reading config
+
+def allocate_port():
+  """Allocate a TCP port number."""
+  global base_port
+  p = base_port
+  base_port += 1
+  return p
 
 # Most filenames in the following are relative to the working directory.
 
@@ -77,13 +85,17 @@ testbed_dir    = cfg.get("testbed_dir",    testbed_name + ".dir")
 irdb_db_pass   = cfg.get("irdb_db_pass",   "fnord")
 rpki_db_pass   = cfg.get("rpki_db_pass",   "fnord")
 
-max_engines    = cfg.get("max_engines",    11)
-irdb_base_port = cfg.get("irdb_base_port", 4400)
-rpki_base_port = cfg.get("rpki_base_port", irdb_base_port + max_engines)
+base_port      = cfg.get("base_port",      4400)
 
-rootd_port     = cfg.get("rootd_port",     rpki_base_port + max_engines)
+rsyncd_port    = allocate_port()
+rootd_port     = allocate_port()
+
+rsyncd_module  = cfg.get("rsyncd_module",  testbed_name)
+rootd_sia      = cfg.get("rootd_sia",      "rsync://localhost:%d/%s/" % (rsyncd_port, rsyncd_module))
+
 rootd_name     = cfg.get("rootd_name",     "rootd")
-rootd_sia      = cfg.get("rootd_sia",      "rsync://wombat.invalid/")
+rsyncd_name    = cfg.get("rcynic_name",    "rsyncd")
+rcynic_name    = cfg.get("rcynic_name",    "rcynic")
 
 prog_python    = cfg.get("prog_python",    "python")
 prog_rpkid     = cfg.get("prog_rpkid",     "../rpkid.py")
@@ -91,6 +103,10 @@ prog_irdbd     = cfg.get("prog_irdbd",     "../irdbd.py")
 prog_poke      = cfg.get("prog_poke",      "../testpoke.py")
 prog_rootd     = cfg.get("prog_rootd",     "../rootd.py")
 prog_openssl   = cfg.get("prog_openssl",   "../../openssl/openssl/apps/openssl")
+prog_rsyncd    = cfg.get("prog_rsyncd",    "rsync")
+prog_rcynic    = cfg.get("prog_rcynic",    "../../rcynic/rcynic")
+
+rcynic_stats   = cfg.get("rcynic_stats",   "xsltproc ../../rcynic/rcynic.xsl %s.xml | w3m -T text/html -dump" % rcynic_name)
 
 rpki_sql_file  = cfg.get("rpki_sql_file",  "../docs/rpki-db-schema.sql")
 irdb_sql_file  = cfg.get("irdb_sql_file",  "../docs/sample-irdb.sql")
@@ -102,6 +118,7 @@ testbed_key    = None
 testbed_certs  = None
 rootd_ta       = None
 
+
 def main():
   """Main program, up front to make control logic more obvious."""
 
@@ -110,14 +127,19 @@ def main():
   signal.signal(signal.SIGALRM, wakeup)
 
   rootd_process = None
+  rsyncd_process = None
 
   try:
     os.chdir(testbed_dir)
   except:
-    os.mkdir(testbed_dir)
+    os.makedirs(testbed_dir)
     os.chdir(testbed_dir)
 
-  subprocess.check_call(("rm", "-rf", "publication"))
+  # Clean up old state
+
+  subprocess.check_call(("rm", "-rf", "publication", "rcynic-data", "rootd.subject.pkcs10", "rootd.req"))
+
+  # Read the first YAML document as our master configuration
 
   db = allocation_db(yaml_script.pop(0))
 
@@ -139,11 +161,17 @@ def main():
   for a in db:
     a.setup_biz_certs()
 
-  # Construct config file for rootd instance
+  # Create the (psuedo) publication directory
+
+  setup_publication()
+
+  # Construct config files for rootd, rsyncd, rcynic instances
 
   setup_rootd(db.root.name)
+  setup_rsyncd()
+  setup_rcynic()
 
-  # Construct config files for rpkidd and irdbd instances
+  # Construct config files for rpkid and irdbd instances
 
   for a in db.engines:
     a.setup_conf_file()
@@ -164,6 +192,11 @@ def main():
 
     rpki.log.info("Running rootd")
     rootd_process = subprocess.Popen((prog_python, prog_rootd, "-c", rootd_name + ".conf"))
+
+    # Start rsyncd instance
+
+    rpki.log.info("Running rsyncd")
+    rsyncd_process = subprocess.Popen((prog_rsyncd, "--daemon", "--no-detach", "--config", rsyncd_name + ".conf"))
 
     # Start rpkid and irdbd instances
 
@@ -201,7 +234,11 @@ def main():
 
       # Make sure that everybody got what they were supposed to get
       # and that everything that was supposed to be published has been
-      # published.  [Not written yet]
+      # published.
+      #
+      # As a first cut at this, try running rcynic on the outputs.
+
+      run_rcynic()
 
       # If we've run out of deltas to apply, we're done
 
@@ -222,8 +259,10 @@ def main():
     try:
       for a in db.engines:
         a.kill_daemons()
-      if rootd_process is not None:
-        os.kill(rootd_process.pid, signal.SIGTERM)
+      for p in (rootd_process, rsyncd_process):
+        if p is not None:
+          rpki.log.info("Killing process %d" % p.pid)
+          os.kill(p.pid, signal.SIGTERM)
     except Exception, data:
       rpki.log.warn("Couldn't clean up daemons (%s), continuing" % data)
 
@@ -291,8 +330,10 @@ class allocation_db(list):
     self.root = allocation(yaml, self)
     assert self.root.is_root()
     for a in self:
-      if a.sia_base is None:
+      if a.sia_base is None and a.parent is not None:
         a.sia_base = a.parent.sia_base + a.name + "/"
+      elif a.sia_base is None and a.parent is None:
+        a.sia_base = rootd_sia + a.name + "/"
       if a.base.valid_until is None:
         a.base.valid_until = a.parent.base.valid_until
     self.root.closure()
@@ -384,12 +425,10 @@ class allocation(object):
 
   def set_engine_number(self, n):
     """Set the engine number for this entity."""
-    if n >= max_engines:
-      raise RuntimeError, "You asked for more RPKI engine instances than I can handle, maximum is %d, sorry" % max_engines
     self.irdb_db_name = "irdb%d" % n
-    self.irdb_port    = irdb_base_port + n
+    self.irdb_port    = allocate_port()
     self.rpki_db_name = "rpki%d" % n
-    self.rpki_port    = rpki_base_port + n
+    self.rpki_port    = allocate_port()
 
   def setup_biz_certs(self):
     """Create business certs for this entity."""
@@ -601,7 +640,7 @@ def setup_biz_cert_chain(name):
     f.close()
     if not os.path.exists("%(name)s-%(kind)s.key" % d) or not os.path.exists("%(name)s-%(kind)s.req" % d):
       s += biz_cert_fmt_2 % d
-  subprocess.check_call(s + (biz_cert_fmt_3 % { "name" : name, "openssl" : prog_openssl }), shell=True)
+  subprocess.check_call(s + (biz_cert_fmt_3 % { "name" : name, "openssl" : prog_openssl }), shell = True)
 
 def setup_rootd(rpkid_name):
   """Write the config files for rootd."""
@@ -610,6 +649,7 @@ def setup_rootd(rpkid_name):
         "rootd_port" : rootd_port,
         "rpkid_name" : rpkid_name,
         "rootd_sia"  : rootd_sia,
+        "rsyncd_dir" : rsyncd_dir,
         "openssl"    : prog_openssl }
   f = open(rootd_name + ".conf", "w")
   f.write(rootd_fmt_1 % d)
@@ -618,7 +658,41 @@ def setup_rootd(rpkid_name):
   if not os.path.exists(rootd_name + ".key") or not os.path.exists(rootd_name  + ".req"):
     s += rootd_fmt_2 % d
   s += rootd_fmt_3 % d
-  subprocess.check_call(s, shell=True)
+  subprocess.check_call(s, shell = True)
+
+def setup_rcynic():
+  """Write the config file for rcynic."""
+  rpki.log.info("Config file for rcynic")
+  d = { "rcynic_name" : rcynic_name,
+        "rootd_name"  : rootd_name }
+  f = open(rcynic_name + ".conf", "w")
+  f.write(rcynic_fmt_1 % d)
+  f.close()
+
+def setup_rsyncd():
+  """Write the config file for rsyncd."""
+  rpki.log.info("Config file for rsyncd")
+  d = { "rsyncd_name"   : rsyncd_name,
+        "rsyncd_port"   : rsyncd_port,
+        "rsyncd_module" : rsyncd_module,
+        "rsyncd_dir"    : rsyncd_dir }
+  f = open(rsyncd_name + ".conf", "w")
+  f.write(rsyncd_fmt_1 % d)
+  f.close()
+
+def setup_publication():
+  """Set up (pseudo) publication directory."""
+  rpki.log.info("Pseudo-publication directory")
+  assert rootd_sia.startswith("rsync://")
+  global rsyncd_dir
+  rsyncd_dir = os.getcwd() + "/publication/" + rootd_sia[len("rsync://"):]
+  os.makedirs(rsyncd_dir)
+
+def run_rcynic():
+  """Run rcynic to see whether what was published makes sense."""
+  rpki.log.info("Running rcynic")
+  subprocess.check_call((prog_rcynic, "-c", rcynic_name + ".conf"))
+  subprocess.call(rcynic_stats, shell = True)
 
 biz_cert_fmt_1 = '''\
 [ req ]
@@ -751,9 +825,13 @@ https-certs.1		= %(rootd_name)s-CA.cer
 
 server-port		= %(rootd_port)s
 
+rootd_base              = %(rootd_sia)s
+rootd_cert              = %(rootd_sia)sWOMBAT.cer
+
+rpki-subject-filename	= %(rsyncd_dir)sWOMBAT.cer
+
 rpki-key		= %(rootd_name)s.key
 rpki-issuer		= %(rootd_name)s.cer
-rpki-subject-filename	= %(rootd_name)s.subject.cer
 rpki-pkcs10-filename	= %(rootd_name)s.subject.pkcs10
 
 [req]
@@ -776,11 +854,34 @@ sbgp-ipAddrBlock	= critical,IPv4:0.0.0.0/0,IPv6:0::/0
 '''
 
 rootd_fmt_2 = '''\
-%(openssl)s req -new -newkey rsa:2048 -nodes -keyout %(rootd_name)s.key -out %(rootd_name)s.req -config %(rootd_name)s.conf &&
+%(openssl)s req -new -newkey rsa:2048 -nodes -keyout %(rootd_name)s.key -out %(rootd_name)s.req -config %(rootd_name)s.conf -text &&
 '''
 
 rootd_fmt_3 = '''\
-%(openssl)s x509 -req -in %(rootd_name)s.req -out %(rootd_name)s.cer -extfile %(rootd_name)s.conf -extensions req_x509_ext -signkey %(rootd_name)s.key -text -sha256
+%(openssl)s x509 -req -in %(rootd_name)s.req -out %(rootd_name)s.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_ext -signkey %(rootd_name)s.key -sha256
+'''
+
+rcynic_fmt_1 = '''\
+[rcynic]
+xml-summary             = %(rcynic_name)s.xml
+jitter                  = 0
+use-links               = yes
+use-syslog              = yes
+use-stderr              = yes
+log-level               = log_debug
+trust-anchor            = %(rootd_name)s.cer
+'''
+
+rsyncd_fmt_1 = '''\
+port                    = %(rsyncd_port)d
+address                 = localhost
+
+[%(rsyncd_module)s]
+read only               = yes
+transfer logging        = yes
+use chroot              = no
+path                    = %(rsyncd_dir)s
+comment                 = RPKI test
 '''
 
 main()

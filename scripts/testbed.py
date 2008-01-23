@@ -638,9 +638,11 @@ def setup_biz_cert_chain(name):
     f = open("%(name)s-%(kind)s.cnf" % d, "w")
     f.write(biz_cert_fmt_1 % d)
     f.close()
-    if not os.path.exists("%(name)s-%(kind)s.key" % d) or not os.path.exists("%(name)s-%(kind)s.req" % d):
+    if not os.path.exists("%(name)s-%(kind)s.key" % d):
       s += biz_cert_fmt_2 % d
-  subprocess.check_call(s + (biz_cert_fmt_3 % { "name" : name, "openssl" : prog_openssl }), shell = True)
+    s += biz_cert_fmt_3 % d
+  s += (biz_cert_fmt_4 % { "name" : name, "openssl" : prog_openssl })
+  subprocess.check_call(s, shell = True)
 
 def setup_rootd(rpkid_name):
   """Write the config files for rootd."""
@@ -655,7 +657,7 @@ def setup_rootd(rpkid_name):
   f.write(rootd_fmt_1 % d)
   f.close()
   s = "exec >/dev/null 2>&1\n"
-  if not os.path.exists(rootd_name + ".key") or not os.path.exists(rootd_name  + ".req"):
+  if not os.path.exists(rootd_name + ".key"):
     s += rootd_fmt_2 % d
   s += rootd_fmt_3 % d
   subprocess.check_call(s, shell = True)
@@ -711,10 +713,14 @@ authorityKeyIdentifier	= keyid:always
 '''
 
 biz_cert_fmt_2 = '''\
-%(openssl)s req -new -newkey rsa:2048 -nodes -keyout %(name)s-%(kind)s.key -out %(name)s-%(kind)s.req -config %(name)s-%(kind)s.cnf &&
+%(openssl)s genrsa -out %(name)s-%(kind)s.key 2048 &&
 '''
 
 biz_cert_fmt_3 = '''\
+%(openssl)s req -new -key %(name)s-%(kind)s.key -out %(name)s-%(kind)s.req -config %(name)s-%(kind)s.cnf &&
+'''
+
+biz_cert_fmt_4 = '''\
 %(openssl)s x509 -req -in %(name)s-TA.req -out %(name)s-TA.cer -extfile %(name)s-TA.cnf -extensions req_x509_ext -signkey %(name)s-TA.key -days 60 &&
 %(openssl)s x509 -req -in %(name)s-CA.req -out %(name)s-CA.cer -extfile %(name)s-CA.cnf -extensions req_x509_ext -CA %(name)s-TA.cer -CAkey %(name)s-TA.key -CAcreateserial &&
 %(openssl)s x509 -req -in %(name)s-EE.req -out %(name)s-EE.cer -extfile %(name)s-EE.cnf -extensions req_x509_ext -CA %(name)s-CA.cer -CAkey %(name)s-CA.key -CAcreateserial
@@ -854,10 +860,11 @@ sbgp-ipAddrBlock	= critical,IPv4:0.0.0.0/0,IPv6:0::/0
 '''
 
 rootd_fmt_2 = '''\
-%(openssl)s req -new -newkey rsa:2048 -nodes -keyout %(rootd_name)s.key -out %(rootd_name)s.req -config %(rootd_name)s.conf -text &&
+%(openssl)s genrsa -out %(rootd_name)s.key 2048 &&
 '''
 
 rootd_fmt_3 = '''\
+%(openssl)s req -new -key %(rootd_name)s.key -out %(rootd_name)s.req -config %(rootd_name)s.conf -text &&
 %(openssl)s x509 -req -in %(rootd_name)s.req -out %(rootd_name)s.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_ext -signkey %(rootd_name)s.key -sha256
 '''
 
@@ -866,9 +873,9 @@ rcynic_fmt_1 = '''\
 xml-summary             = %(rcynic_name)s.xml
 jitter                  = 0
 use-links               = yes
-use-syslog              = yes
+use-syslog              = no
 use-stderr              = yes
-log-level               = log_debug
+log-level               = log_verbose
 trust-anchor            = %(rootd_name)s.cer
 '''
 

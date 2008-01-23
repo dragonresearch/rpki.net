@@ -259,9 +259,9 @@ def main():
     try:
       for a in db.engines:
         a.kill_daemons()
-      for p in (rootd_process, rsyncd_process):
+      for p,n in ((rootd_process, "rootd"), (rsyncd_process, "rsyncd")):
         if p is not None:
-          rpki.log.info("Killing process %d" % p.pid)
+          rpki.log.info("Killing %n[%d]" % (n, p.pid))
           os.kill(p.pid, signal.SIGTERM)
     except Exception, data:
       rpki.log.warn("Couldn't clean up daemons (%s), continuing" % data)

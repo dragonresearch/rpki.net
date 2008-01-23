@@ -221,6 +221,10 @@ class resource_set(list):
         if this.max > that.max: max = this.max
         else:                   max = that.max
         result.append(type(this)(min, max))
+    for i in range(len(result) - 2, -1, -1):
+      if result[i].max + 1 == result[i + 1].min:
+        result[i].max = result[i + 1].max
+        result.pop(i + 1)
     return type(self)(result)
 
   def intersection(self, other):

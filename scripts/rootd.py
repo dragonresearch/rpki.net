@@ -62,7 +62,7 @@ def compose_response(r_msg):
     rpki_subject = get_subject_cert()
     if rpki_subject is not None:
       rc.certs.append(rpki.up_down.certificate_elt())
-      rc.certs[0].cert_url = rpki.up_down.multi_uri(rootd_base + rpki_subject.gSKI() + ".cer")
+      rc.certs[0].cert_url = rpki.up_down.multi_uri(rootd_cert)
       rc.certs[0].cert = rpki_subject
 
 class list_pdu(rpki.up_down.list_pdu):

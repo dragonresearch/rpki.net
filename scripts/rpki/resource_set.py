@@ -424,7 +424,7 @@ class resource_bag(object):
     v6 = None
     for x in exts:
       if x[0] == rpki.oids.name2oid["sbgp-autonomousSysNum"]: # 
-        assert x[2][1] is None, "RDI not implemented: %s" % (str(x))
+        assert len(x[2]) == 1 or x[2][1] is None, "RDI not implemented: %s" % (str(x))
         assert as is None
         as = resource_set_as(x[2][0])
       if x[0] == rpki.oids.name2oid["sbgp-ipAddrBlock"]:
@@ -467,6 +467,20 @@ class resource_bag(object):
                           self.v4.union(other.v4),
                           self.v6.union(other.v6),
                           self.valid_until)
+
+  def __str__(self):
+    s = ""
+    if self.as:
+      s += "AS: %s" % self.as
+    if self.v4:
+      if s:
+        s += ", "
+      s += "V4: %s" % self.v4
+    if self.v6:
+      if s:
+        s += ", "
+      s += "V6: %s" % self.v6
+    return s
 
 # Test suite for set operations.  This will probably go away eventually
 

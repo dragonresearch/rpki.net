@@ -1839,12 +1839,25 @@ _addFragment('''
 ''')
 class ASIdentifiers(Sequence):
    def __init__(self, optional=0, default=''):
+      #
+      # This is what we -should- be doing
+      #self.asnum = ASIdentifierChoice()
+      #self.rdi   = ASIdentifierChoice()
+      #self.explicitAsnum = Explicit(CLASS_CONTEXT, FORM_CONSTRUCTED, 0, self.asnum, 1)
+      #self.explictRdi    = Explicit(CLASS_CONTEXT, FORM_CONSTRUCTED, 1, self.rdi,   1)
+      #contents = [ self.explicitAsnum, self.explictRdi ]
+      #
+      # ...but it generates a spurious empty RDI clause, so try this instead
+      # since we know that we never use RDI anyway.
       self.asnum = ASIdentifierChoice()
-      self.rdi   = ASIdentifierChoice()
       self.explicitAsnum = Explicit(CLASS_CONTEXT, FORM_CONSTRUCTED, 0, self.asnum, 1)
-      self.explictRdi    = Explicit(CLASS_CONTEXT, FORM_CONSTRUCTED, 1, self.rdi,   1)
-      contents = [ self.explicitAsnum, self.explictRdi ]
+      contents = [ self.explicitAsnum ]
+      #
       Sequence.__init__(self, contents, optional, default)
+
+   def set(self, values):
+      assert len(values) == 1 or (len(values) == 2 and values[1] is None)
+      Sequence.set(self, (values[0],))
 
 _addFragment('''
 <class>

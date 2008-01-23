@@ -1,0 +1,24 @@
+# $Id$
+---
+version:                1
+posturl:                https://localhost:4401/up-down/1
+recipient-id:           "rootd"
+sender-id:              "RIR"
+
+cms-cert-file:          RIR-RPKI-EE.cer
+cms-key-file:           RIR-RPKI-EE.key
+cms-ca-cert-file:       rootd-TA.cer
+cms-cert-chain-file:    [ RIR-RPKI-CA.cer ]
+
+ssl-cert-file:          RIR-RPKI-EE.cer
+ssl-key-file:           RIR-RPKI-EE.key
+ssl-ca-cert-file:       rootd-TA.cer
+
+requests:
+  list:
+    type:               list
+  issue:
+    type:               issue
+    class:              1
+    sia:
+      -                 rsync://localhost:4400/testbed/RIR/

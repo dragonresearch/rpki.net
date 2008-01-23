@@ -508,8 +508,7 @@ class ca_detail_obj(sql_persistant):
       serial      = ca.next_serial_number(),
       aia         = self.ca_cert_uri,
       crldp       = self.crl_uri(ca),
-      sia         = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", ca.sia_uri)),
-                     (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", self.manifest_uri(ca)))),
+      sia         = sia,
       resources   = resources,
       notAfter    = resources.valid_until)
 

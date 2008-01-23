@@ -106,7 +106,7 @@ prog_openssl   = cfg.get("prog_openssl",   "../../openssl/openssl/apps/openssl")
 prog_rsyncd    = cfg.get("prog_rsyncd",    "rsync")
 prog_rcynic    = cfg.get("prog_rcynic",    "../../rcynic/rcynic")
 
-rcynic_stats   = cfg.get("rcynic_stats",   "xsltproc ../../rcynic/rcynic.xsl %s.xml | w3m -T text/html -dump" % rcynic_name)
+rcynic_stats   = cfg.get("rcynic_stats",   "xsltproc ../../rcynic/rcynic.xsl %s.xml | w3m -T text/html -dump | awk 'NR > 1'" % rcynic_name)
 
 rpki_sql_file  = cfg.get("rpki_sql_file",  "../docs/rpki-db-schema.sql")
 irdb_sql_file  = cfg.get("irdb_sql_file",  "../docs/sample-irdb.sql")
@@ -261,7 +261,7 @@ def main():
         a.kill_daemons()
       for p,n in ((rootd_process, "rootd"), (rsyncd_process, "rsyncd")):
         if p is not None:
-          rpki.log.info("Killing %n[%d]" % (n, p.pid))
+          rpki.log.info("Killing %s" % n)
           os.kill(p.pid, signal.SIGTERM)
     except Exception, data:
       rpki.log.warning("Couldn't clean up daemons (%s), continuing" % data)
@@ -693,8 +693,10 @@ def setup_publication():
 def run_rcynic():
   """Run rcynic to see whether what was published makes sense."""
   rpki.log.info("Running rcynic")
-  subprocess.check_call((prog_rcynic, "-c", rcynic_name + ".conf"))
-  subprocess.call(rcynic_stats, shell = True)
+  env = os.environ.copy()
+  env["TZ"] = ""
+  subprocess.check_call((prog_rcynic, "-c", rcynic_name + ".conf"), env = env)
+  subprocess.call(rcynic_stats, shell = True, env = env)
 
 biz_cert_fmt_1 = '''\
 [ req ]

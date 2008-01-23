@@ -264,7 +264,7 @@ def main():
           rpki.log.info("Killing %n[%d]" % (n, p.pid))
           os.kill(p.pid, signal.SIGTERM)
     except Exception, data:
-      rpki.log.warn("Couldn't clean up daemons (%s), continuing" % data)
+      rpki.log.warning("Couldn't clean up daemons (%s), continuing" % data)
 
 class timedelta(datetime.timedelta):
   """Timedelta with text parsing.  This accepts two input formats:

@@ -512,7 +512,7 @@ class _GeneralObject(object):
 
    def _isSet(self):
       'are the values of this object set or not'
-      if self.value != None:
+      if self.value is not None:
          return 1
       else:
          return 0
@@ -561,7 +561,7 @@ class _GeneralObject(object):
    </method>
    ''')
    def set(self, value):
-      if value != None:
+      if value is not None:
          self.value = value
 
    _addFragment('''
@@ -641,7 +641,7 @@ class _GeneralObject(object):
    def read(self, io=None):    
 
       processDefOpt = 0
-      if io == None:
+      if io is None:
          processDefOpt = 1
       elif isinstance(io, _TlvIo):
          if not io:
@@ -702,7 +702,7 @@ class _GeneralObject(object):
    def write(self, file):
       if not self._ioSafe():
          raise DerError, 'object not set which must be: %s' % repr(self)
-      elif self.optional and self.value == None:
+      elif self.optional and self.value is None:
          pass
       else:
          buf = cStringIO.StringIO()
@@ -765,7 +765,7 @@ class Any(_GeneralObject):
       self.normnumber = None
 
    def _ioSafe(self):
-      if self.optional or (self._isSet() and self.normclass != None and self.normform != None and self.normnumber != None):
+      if self.optional or (self._isSet() and self.normclass is not None and self.normform is not None and self.normnumber is not None):
          return 1
       else:
          return 0
@@ -787,7 +787,7 @@ class Any(_GeneralObject):
    def write(self,file):
       if not self._ioSafe():
          raise DerError, 'object not set which must be: %s' % repr(self)
-      elif self.optional and self.value == None:
+      elif self.optional and self.value is None:
          pass
       else:
          buf = cStringIO.StringIO()
@@ -802,7 +802,7 @@ class Any(_GeneralObject):
    def read(self, io=None):    
 
       processDefOpt = 0
-      if io == None:
+      if io is None:
          processDefOpt = 1
       elif isinstance(io, _TlvIo):
          if not io:
@@ -1645,7 +1645,7 @@ class Sequence(_GeneralObject):                           # 0x10
    ''')
 
    def set(self, values):
-      if self.contents == None:
+      if self.contents is None:
          raise DerError, 'the contents attribute should be set before using this object'
       if not( isinstance(values, types.ListType) or isinstance(values, types.TupleType) ):
          raise DerError, 'a sequence should be set with a list or tuple of values' 
@@ -1677,7 +1677,7 @@ class Sequence(_GeneralObject):                           # 0x10
    ''')
 
    def get(self):
-      if self.contents == None:
+      if self.contents is None:
          return _GeneralObject.get(self)   
       else:
          results = []
@@ -1686,7 +1686,7 @@ class Sequence(_GeneralObject):                           # 0x10
          return tuple(results)
 
    def reset(self):
-      if self.contents == None:
+      if self.contents is None:
          raise DerError, 'this object has no members to set'
       self.next = 0
       for obj in self.contents:
@@ -1695,7 +1695,7 @@ class Sequence(_GeneralObject):                           # 0x10
       _GeneralObject.reset(self)
 
    def _isSet(self):
-      if self.contents == None:
+      if self.contents is None:
          raise DerError, 'this object has no members to set'
       for obj in self.contents:
          if not obj._ioSafe():
@@ -1703,7 +1703,7 @@ class Sequence(_GeneralObject):                           # 0x10
       return 1
 
    def findUnset(self):
-      if self.contents == None:
+      if self.contents is None:
          raise DerError, 'this object has no members to check'
       for obj in self.contents:
          if not obj._ioSafe():
@@ -1760,7 +1760,7 @@ class SequenceOf(Sequence):
       return 1
 
    def reset(self):
-      if self.contents == None:
+      if self.contents is None:
          raise DerError, 'this object has no members to set'
       self.next = 0
       self.sequenceOf = []
@@ -2092,7 +2092,7 @@ class Choice(object):
    </method>
    ''')
    def set(self, val):
-      if isinstance(val, types.NoneType):
+      if val is None:
          return
       if not (isinstance(val, types.ListType) or isinstance(val, types.TupleType)):
          raise DerError, 'argument should be a list or tuple'
@@ -2203,7 +2203,7 @@ class Choice(object):
       processDefOpt = 0
       readindicator = 0
 
-      if io == None:
+      if io is None:
          processDefOpt = 1
       elif isinstance(io, _TlvIo):
          if not io:

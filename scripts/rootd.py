@@ -78,6 +78,7 @@ class issue_pdu(rpki.up_down.issue_pdu):
     rpki_subject = get_subject_cert()
     if rpki_subject is None:
       resources = rpki_issuer.get_3779resources()
+      rpki.log.info("Generating subject cert with resources " + str(resources))
       req_key = self.pkcs10.getPublicKey()
       req_sia = self.pkcs10.get_SIA()
       crldp = rootd_base + rpki_issuer.gSKI() + ".crl"
@@ -89,6 +90,17 @@ class issue_pdu(rpki.up_down.issue_pdu):
                                          crldp       = crldp,
                                          resources   = resources,
                                          notAfter    = rpki.sundial.datetime.utcnow() + rpki_subject_lifetime))
+      now = rpki.sundial.datetime.utcnow()
+      crl = rpki.x509.CRL.generate(
+        keypair             = rpki_key,
+        issuer              = rpki_issuer,
+        serial              = 1,
+        thisUpdate          = now,
+        nextUpdate          = now + rpki_subject_lifetime,
+        revokedCertificates = ())
+      f = open(os.path.dirname(rpki_subject_filename) + "/" + rpki_issuer.gSKI() + ".crl", "wb")
+      f.write(crl.get_DER())
+      f.close()
     compose_response(r_msg)
 
 class revoke_pdu(rpki.up_down.revoke_pdu):
@@ -177,7 +189,6 @@ rpki_key    = rpki.x509.RSA(Auto_file = cfg.get("rpki-key"))
 rpki_issuer = rpki.x509.X509(Auto_file = cfg.get("rpki-issuer"))
 
 rpki_subject_filename = cfg.get("rpki-subject-filename")
-
 rpki_pkcs10_filename  = cfg.get("rpki-pkcs10-filename", "")
 
 rootd_name  = cfg.get("rootd_name", "wombat")

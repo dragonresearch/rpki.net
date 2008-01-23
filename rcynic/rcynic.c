@@ -575,7 +575,7 @@ static int install_object(const rcynic_ctx_t *rc,
 
 /*
  * Iterator over URIs in our copy of a SIA collection.
- * dir should be NULL when first called.
+ * *dir should be NULL when first called.
  */
 static int next_uri(const rcynic_ctx_t *rc, 
 		    const char *base_uri,

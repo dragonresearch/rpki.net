@@ -80,13 +80,24 @@ def verify(cms, ta):
       dumpasn1(cms)
     raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed"
 
+# openssl smime -verify -noverify -inform DER -in THING.der
+
+def extract(cms):
+  """Extract the content of a signed CMS message WITHOUT verifying the
+  signature.   Don't try this at home, kids.
+  """
+
+  return POW.derRead(POW.PKCS7_MESSAGE, cms).extract()
+
 def xml_verify(cms, ta):
   """Composite routine to verify CMS-wrapped XML."""
+
   val = lxml.etree.fromstring(verify(cms, ta))
   return val
 
 def xml_sign(elt, key, certs, encoding = "us-ascii"):
   """Composite routine to sign CMS-wrapped XML."""
+
   val = sign(lxml.etree.tostring(elt, pretty_print = True, encoding = encoding, xml_declaration = True),
              key, certs)
   return val
@@ -96,6 +107,7 @@ def dumpasn1(thing):
   Use a temporary file rather than popen4() because dumpasn1 uses
   seek() when decoding ASN.1 content nested in OCTET STRING values.
   """
+
   fn = "dumpasn1.tmp"
   try:
     f = open(fn, "w")

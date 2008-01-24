@@ -6402,23 +6402,8 @@ error:
    return NULL;
 }
 
-static char PKCS7_object_verify__doc__[] = 
-"<method>\n"
-"   <header>\n"
-"      <memberof>PKCS7</memberof>\n"
-"      <name>verify</name>\n"
-"      <parameter>store</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method verifies a message against a trusted store.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
 static PyObject *
-PKCS7_object_verify(pkcs7_object *self, PyObject *args)
+PKCS7_object_verify_helper(pkcs7_object *self, PyObject *args, int noverify)
 {
    x509_store_object *store = NULL;
    PyObject *result = NULL;
@@ -6426,14 +6411,25 @@ PKCS7_object_verify(pkcs7_object *self, PyObject *args)
    BIO *bio = NULL;
    int len;
 
-   if (!PyArg_ParseTuple(args, "O!", &x509_storetype, &store))
-      goto error;
-
    if ( !(bio = BIO_new(BIO_s_mem())))
       goto error;
 
-   if (PKCS7_verify(self->pkcs7, NULL, store->store, NULL, bio, 0) <= 0)
-      { set_openssl_pyerror( "could not verify PKCS7 message" ); goto error; }
+   if (noverify) {
+
+      if (!PyArg_ParseTuple(args, ""))
+	 goto error;
+      if (PKCS7_verify(self->pkcs7, NULL, NULL, NULL, bio, PKCS7_NOVERIFY) <= 0)
+	 { set_openssl_pyerror( "could not extract PKCS7 message" ); goto error; }
+
+   } else {
+
+      if (!PyArg_ParseTuple(args, "O!", &x509_storetype, &store))
+	 goto error;
+
+      if (PKCS7_verify(self->pkcs7, NULL, store->store, NULL, bio, 0) <= 0)
+	 { set_openssl_pyerror( "could not verify PKCS7 message" ); goto error; }
+
+   }
 
    if ( !(len = BIO_ctrl_pending(bio) ) )
       { PyErr_SetString( SSLErrorObject, "unable to get bytes stored in bio" ); goto error; }
@@ -6462,11 +6458,55 @@ error:
    return NULL;
 }
 
+static char PKCS7_object_verify__doc__[] = 
+"<method>\n"
+"   <header>\n"
+"      <memberof>PKCS7</memberof>\n"
+"      <name>verify</name>\n"
+"      <parameter>store</parameter>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This method verifies a message against a trusted store.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
+static PyObject *
+PKCS7_object_verify(pkcs7_object *self, PyObject *args)
+{
+   return PKCS7_object_verify_helper(self, args, 0);
+}
+
+static char PKCS7_object_extract__doc__[] = 
+"<method>\n"
+"   <header>\n"
+"      <memberof>PKCS7</memberof>\n"
+"      <name>extract</name>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This method extracts the content of a signed message without\n"
+"         verifying it.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
+static PyObject *
+PKCS7_object_extract(pkcs7_object *self, PyObject *args)
+{
+   return PKCS7_object_verify_helper(self, args, 1);
+}
+
+
 static struct PyMethodDef PKCS7_object_methods[] = {
    {"pemWrite",      (PyCFunction)PKCS7_object_pem_write,       METH_VARARGS,  NULL}, 
    {"derWrite",      (PyCFunction)PKCS7_object_der_write,       METH_VARARGS,  NULL}, 
    {"sign",          (PyCFunction)PKCS7_object_sign,            METH_VARARGS,  NULL}, 
    {"verify",        (PyCFunction)PKCS7_object_verify,          METH_VARARGS,  NULL},
+   {"extract",       (PyCFunction)PKCS7_object_extract,         METH_VARARGS,  NULL},
  
    {NULL,      NULL}    /* sentinel */
 };
@@ -7483,6 +7523,7 @@ pow_module_docset(PyObject *self, PyObject *args)
    docset_helper_add( docset, PKCS7_object_der_write__doc__ );
    docset_helper_add( docset, PKCS7_object_sign__doc__ );
    docset_helper_add( docset, PKCS7_object_verify__doc__ );
+   docset_helper_add( docset, PKCS7_object_extract__doc__ );
 
    // symmetric documentation
    docset_helper_add( docset, symmetrictype__doc__ );

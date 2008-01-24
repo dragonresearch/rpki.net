@@ -385,8 +385,7 @@ class self_elt(data_elt):
           child_cert.reissue(
             gctx      = gctx,
             ca_detail = ca_detail,
-            resources = new_resources,
-            sia       = ca_detail.ca(gctx).sia_uri)
+            resources = new_resources)
         elif old_resources.valid_until < now:
           parent = ca.parent(gctx)
           repository = parent.repository(gctx)

@@ -453,8 +453,7 @@ class ca_detail_obj(sql_persistant):
           child_cert.reissue(
             gctx      = gctx,
             ca_detail = self,
-            resources = child_resources.intersection(new_resources),
-            sia       = ca.sia_uri)
+            resources = child_resources.intersection(new_resources))
 
   @classmethod
   def create(cls, gctx, ca):
@@ -613,7 +612,7 @@ class child_cert_obj(sql_persistant):
       self.revoked = rpki.sundial.datetime.utcnow()
       self.sql_mark_dirty()
 
-  def reissue(self, gctx, ca_detail, resources, sia):
+  def reissue(self, gctx, ca_detail, resources, sia = None):
     """Reissue an existing cert, reusing the public key.  If the cert
     we would generate is identical to the one we already have, we just
     return the one we already have.  If we have to revoke the old
@@ -627,6 +626,9 @@ class child_cert_obj(sql_persistant):
 
     old_resources = self.cert.get_3779resources()
     old_sia       = self.cert.get_SIA()
+
+    if sia is None:
+      sia = old_sia
 
     assert resources.valid_until is not None and old_resources.valid_until is not None
 

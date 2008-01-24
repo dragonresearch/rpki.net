@@ -416,11 +416,14 @@ class ca_detail_obj(sql_persistant):
     """Delete this ca_detail and all of its associated child_cert objects."""
 
     for child_cert in self.child_certs(gctx):
-      repository.withdraw(gctx, (child_cert.cert, child_cert.uri(ca)))
+      repository.withdraw(gctx,
+                          (child_cert.cert, child_cert.uri(ca)))
       child_cert.sql_delete(gctx)
     for child_cert in self.child_certs(gctx, revoked = True):
       child_cert.sql_delete(gctx)
-    repository.withdraw(gctx, (self.latest_crl, self.crl_uri()), (self.latest_manifest, self.manifest_uri(ca)))
+    repository.withdraw(gctx,
+                        (self.latest_crl, self.crl_uri()),
+                        (self.latest_manifest, self.manifest_uri(ca)))
     self.sql_delete(gctx)
 
   def revoke(self, gctx):
@@ -530,7 +533,9 @@ class ca_detail_obj(sql_persistant):
     parent = ca.parent(gctx)
     repository = parent.repository(gctx)
 
-    repository.publish(gctx, (child_cert.cert, child_cert.uri(ca)), (self.latest_manifest, self.manifest_uri(ca)))
+    repository.publish(gctx,
+                       (child_cert.cert, child_cert.uri(ca)),
+                       (self.latest_manifest, self.manifest_uri(ca)))
 
     return child_cert
 
@@ -541,7 +546,9 @@ class ca_detail_obj(sql_persistant):
     """
 
     ca = self.ca(gctx)
-    crl_interval = rpki.sundial.timedelta(seconds = ca.parent(gctx).self(gctx).crl_interval)
+    parent = ca.parent(gctx)
+    repository = parent.repository(gctx)
+    crl_interval = rpki.sundial.timedelta(seconds = parent.self(gctx).crl_interval)
     now = rpki.sundial.datetime.utcnow()
 
     certlist = []
@@ -560,20 +567,31 @@ class ca_detail_obj(sql_persistant):
       nextUpdate          = now + crl_interval,
       revokedCertificates = certlist)
 
+    repository.publish(gctx,
+                       (self.latest_crl, self.crl_uri(ca)))
+
   def generate_manifest(self, gctx):
     """Generate a new manifest for this ca_detail."""
 
     ca = self.ca(gctx)
+    parent = ca.parent(gctx)
+    repository = parent.repository(gctx)
+    crl_interval = rpki.sundial.timedelta(seconds = parent.self(gctx).crl_interval)
+    now = rpki.sundial.datetime.utcnow()
+
     certs = self.child_certs(gctx)
 
     m = rpki.x509.SignedManifest()
     m.build(
       serial         = ca.next_manifest_number(),
-      nextUpdate     = rpki.sundial.datetime.utcnow() + rpki.sundial.timedelta(seconds = ca.parent(gctx).self(gctx).crl_interval),
+      nextUpdate     = now + crl_interval,
       names_and_objs = [(c.uri_tail(), c.cert) for c in certs],
       keypair        = self.manifest_private_key_id,
       certs          = rpki.x509.X509_chain(self.latest_manifest_cert))
     self.latest_manifest = m
+
+    repository.publish(gctx,
+                       (self.latest_manifest, self.manifest_uri(ca)))
 
 class child_cert_obj(sql_persistant):
   """Certificate that has been issued to a child."""

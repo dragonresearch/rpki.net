@@ -391,8 +391,8 @@ class self_elt(data_elt):
           repository = parent.repository(gctx)
           child_cert.sql_delete(gctx)
           ca_detail.generate_manifest(gctx)
-          repository.publish(gctx,  (ca_detail.latest_manifest, ca_detail.manifest_uri(ca)))
-          repository.withdraw(gctx, (child_cert.cert, child_cert.uri(ca)))
+          repository.withdraw(gctx,
+                              (child_cert.cert, child_cert.uri(ca)))
 
   def regenerate_crls_and_manifests(self, gctx):
     """Generate new CRLs and manifests as necessary for all of this
@@ -408,15 +408,9 @@ class self_elt(data_elt):
       repository = parent.repository(gctx)
       for ca in parent.cas(gctx):
         ca_detail = ca.fetch_active(gctx)
-        #
-        # Temporary kludge until I sort out initial publication.
-        #
-        if True or now > ca_detail.latest_crl.getNextUpdate():
+        if now > ca_detail.latest_crl.getNextUpdate():
           ca_detail.generate_crl(gctx)
           ca_detail.generate_manifest(gctx)
-          repository.publish(gctx,
-                             (ca_detail.latest_crl,      ca_detail.crl_uri(ca)),
-                             (ca_detail.latest_manifest, ca_detail.manifest_uri(ca)))
 
 class bsc_elt(data_elt):
   """<bsc/> (Business Signing Context) element."""

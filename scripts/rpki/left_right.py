@@ -391,8 +391,7 @@ class self_elt(data_elt):
           repository = parent.repository(gctx)
           child_cert.sql_delete(gctx)
           ca_detail.generate_manifest(gctx)
-          repository.withdraw(gctx,
-                              (child_cert.cert, child_cert.uri(ca)))
+          repository.withdraw(gctx, child_cert.cert, child_cert.uri(ca))
 
   def regenerate_crls_and_manifests(self, gctx):
     """Generate new CRLs and manifests as necessary for all of this
@@ -786,19 +785,17 @@ class repository_elt(data_elt):
     rpki.log.trace()
     os.remove(cls.uri_to_filename(base, uri))
 
-  def publish(self, gctx, *things):
+  def publish(self, gctx, obj, uri):
     """Placeholder for publication operation. [TEMPORARY]"""
     rpki.log.trace()
-    for obj, uri in things:
-      rpki.log.info("Pretending to publish %s to repository %s at %s" % (repr(obj), repr(self), repr(uri)))
-      self.object_write(gctx.publication_kludge_base, uri, obj)
+    rpki.log.info("Pretending to publish %s to repository %s at %s" % (repr(obj), repr(self), repr(uri)))
+    self.object_write(gctx.publication_kludge_base, uri, obj)
 
-  def withdraw(self, gctx, *things):
+  def withdraw(self, gctx, obj, uri):
     """Placeholder for publication withdrawal operation. [TEMPORARY]"""
     rpki.log.trace()
-    for obj, uri in things:
-      rpki.log.info("Pretending to withdraw %s from repository %s at %s" % (repr(obj), repr(self), repr(uri)))
-      self.object_delete(gctx.publication_kludge_base, uri)
+    rpki.log.info("Pretending to withdraw %s from repository %s at %s" % (repr(obj), repr(self), repr(uri)))
+    self.object_delete(gctx.publication_kludge_base, uri)
 
 class route_origin_elt(data_elt):
   """<route_origin/> element."""

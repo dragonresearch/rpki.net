@@ -416,14 +416,12 @@ class ca_detail_obj(sql_persistant):
     """Delete this ca_detail and all of its associated child_cert objects."""
 
     for child_cert in self.child_certs(gctx):
-      repository.withdraw(gctx,
-                          (child_cert.cert, child_cert.uri(ca)))
+      repository.withdraw(gctx, child_cert.cert, child_cert.uri(ca))
       child_cert.sql_delete(gctx)
     for child_cert in self.child_certs(gctx, revoked = True):
       child_cert.sql_delete(gctx)
-    repository.withdraw(gctx,
-                        (self.latest_crl, self.crl_uri()),
-                        (self.latest_manifest, self.manifest_uri(ca)))
+    repository.withdraw(gctx, self.latest_manifest, self.manifest_uri(ca))
+    repository.withdraw(gctx, self.latest_crl, self.crl_uri())
     self.sql_delete(gctx)
 
   def revoke(self, gctx):
@@ -501,6 +499,7 @@ class ca_detail_obj(sql_persistant):
     place; if not specified, we create a new one.  Returns the
     child_cert object containing the newly issued cert.
     """
+
     assert child_cert is None or (child_cert.child_id == child.child_id and
                                   child_cert.ca_detail_id == self.ca_detail_id)
 
@@ -528,15 +527,10 @@ class ca_detail_obj(sql_persistant):
 
     child_cert.sql_store(gctx)
 
+    ca.parent(gctx).repository(gctx).publish(gctx, child_cert.cert, child_cert.uri(ca))
+
     self.generate_manifest(gctx)
     
-    parent = ca.parent(gctx)
-    repository = parent.repository(gctx)
-
-    repository.publish(gctx,
-                       (child_cert.cert, child_cert.uri(ca)),
-                       (self.latest_manifest, self.manifest_uri(ca)))
-
     return child_cert
 
   def generate_crl(self, gctx):
@@ -567,8 +561,7 @@ class ca_detail_obj(sql_persistant):
       nextUpdate          = now + crl_interval,
       revokedCertificates = certlist)
 
-    repository.publish(gctx,
-                       (self.latest_crl, self.crl_uri(ca)))
+    repository.publish(gctx, self.latest_crl, self.crl_uri(ca))
 
   def generate_manifest(self, gctx):
     """Generate a new manifest for this ca_detail."""
@@ -590,8 +583,7 @@ class ca_detail_obj(sql_persistant):
       certs          = rpki.x509.X509_chain(self.latest_manifest_cert))
     self.latest_manifest = m
 
-    repository.publish(gctx,
-                       (self.latest_manifest, self.manifest_uri(ca)))
+    repository.publish(gctx, self.latest_manifest, self.manifest_uri(ca))
 
 class child_cert_obj(sql_persistant):
   """Certificate that has been issued to a child."""

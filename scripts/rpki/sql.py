@@ -377,16 +377,14 @@ class ca_obj(sql_persistant):
       whatever) issued by the old keypair.
 
     - Generate a final CRL, signed with the old keypair, listing all
-      the revoked certs, with a next CRL time after the last cert
-      signed by the old keypair will have expired.
+      the revoked certs, with a next CRL time after the last cert or
+      CRL signed by the old keypair will have expired.
 
     - Destroy old keypair.
 
     - Leave final CRL in place until its next CRL time has passed.
 
-    I have this vague recollection that there's some kind of n+1 issue
-    with CRL generation cycles, need to ask the X.509 guys whether
-    it's relevant here.
+
     """
 
     raise rpki.exceptions.NotImplementedYet

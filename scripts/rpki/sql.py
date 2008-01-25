@@ -347,7 +347,48 @@ class ca_obj(sql_persistant):
     return self.last_crl_sn
 
   def rekey(self, gctx):
-    """Initiate a rekey operation for this ca."""
+    """Initiate a rekey operation for this ca.
+
+    Noone who was at the meeting in Prague 2007 quite remembers why we
+    used this name for this operation, but discussion months later
+    concluded that it corresponds to the rollover operations in
+    Geoff's "Common Management Tasks" document, so that's what this
+    code does, with minor variations.
+
+    Tasks:
+
+    - Generate a new keypair.
+
+    - Request cert from parent using new keypair.
+
+    - Mark result as our active ca_detail.
+
+    - Reissue all child certs issued by this ca using the new ca_detail.
+
+    - Schedule old ca_detail for removal.  Geoff specifies a
+      timer-based method, opinions vary on whether this is ok or we
+      should instead just mark the old ca_detail as deprecated and
+      leave it that way until we receive an explicit trigger from the
+      IRBE.
+
+    - Request revocation of old keypair by parent.
+
+    - Revoke all certs (children, internal use certs like manifest,
+      whatever) issued by the old keypair.
+
+    - Generate a final CRL, signed with the old keypair, listing all
+      the revoked certs, with a next CRL time after the last cert
+      signed by the old keypair will have expired.
+
+    - Destroy old keypair.
+
+    - Leave final CRL in place until its next CRL time has passed.
+
+    I have this vague recollection that there's some kind of n+1 issue
+    with CRL generation cycles, need to ask the X.509 guys whether
+    it's relevant here.
+    """
+
     raise rpki.exceptions.NotImplementedYet
 
 class ca_detail_obj(sql_persistant):

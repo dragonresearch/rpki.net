@@ -105,6 +105,14 @@ class datetime(pydatetime.datetime):
     """Convert to SQL storage format."""
     return self
 
+  def later(self, other):
+    """Return the later of two timestamps."""
+    return other if other > self else self
+
+  def earlier(self, other):
+    """Return the earlier of two timestamps."""
+    return other if other < self else self
+
 # Alias to simplify imports for callers
 
 timedelta = pydatetime.timedelta

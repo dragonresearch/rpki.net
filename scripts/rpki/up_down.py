@@ -312,7 +312,7 @@ class issue_pdu(base_elt):
   @classmethod
   def query(cls, gctx, parent, ca, ca_detail):
     """Send an "issue" request to parent associated with ca."""
-    assert ca_detail is not None and ca_detail.state != "deprecated"
+    assert ca_detail is not None and ca_detail.state in ("pending", "active")
     sia = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", ca.sia_uri)),
            (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", ca_detail.manifest_uri(ca))))
     self = cls()

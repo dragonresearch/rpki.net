@@ -45,10 +45,13 @@ if test_empty_manifest:
 else:
   names_and_objs = [(fn, rpki.x509.X509(Auto_file = fn)) for fn in glob.glob("resource-cert-samples/*.cer")]
 
+now = rpki.sundial.datetime.utcnow()
+
 m = rpki.x509.SignedManifest()
 m.build(
   serial         = 17,
-  nextUpdate     = rpki.sundial.datetime.utcnow() + rpki.sundial.timedelta(days = 1),
+  thisUpdate     = now,
+  nextUpdate     = now + rpki.sundial.timedelta(days = 1),
   names_and_objs = names_and_objs,
   keypair        = rpki.x509.RSA(Auto_file = "biz-certs/Alice-EE.key"),
   certs          = rpki.x509.X509_chain(Auto_files = ("biz-certs/Alice-EE.cer", "biz-certs/Alice-CA.cer")))

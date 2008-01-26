@@ -239,9 +239,21 @@ class ca_obj(sql_persistant):
     """Fetch all ca_detail objects that link to this CA object."""
     return ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s", (self.ca_id,))
 
+  def fetch_pending(self, gctx):
+    """Fetch the pending ca_details for this CA, if any."""
+    return ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND state = 'pending'", (self.ca_id,))
+
   def fetch_active(self, gctx):
     """Fetch the active ca_detail for this CA, if any."""
     return ca_detail_obj.sql_fetch_where1(gctx, "ca_id = %s AND state = 'active'", (self.ca_id,))
+
+  def fetch_deprecated(self, gctx):
+    """Fetch deprecated ca_details for this CA, if any."""
+    return ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND state = 'deprecated'", (self.ca_id,))
+
+  def fetch_revoked(self, gctx):
+    """Fetch revoked ca_details for this CA, if any."""
+    return ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND state = 'revoked'", (self.ca_id,))
 
   def construct_sia_uri(self, gctx, parent, rc):
     """Construct the sia_uri value for this CA given configured
@@ -274,7 +286,7 @@ class ca_obj(sql_persistant):
 
     for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL", (self.ca_id,)):
       ski = ca_detail.latest_ca_cert.get_SKI()
-      if ca_detail.state != "deprecated":
+      if ca_detail.state in ("pending", "active"):
         current_resources = ca_detail.latest_ca_cert.get_3779resources()
         if sia_uri_changed or \
              ca_detail.latest_ca_cert != cert_map[ski].cert or \
@@ -383,11 +395,27 @@ class ca_obj(sql_persistant):
     - Destroy old keypair.
 
     - Leave final CRL in place until its next CRL time has passed.
-
-
     """
 
-    raise rpki.exceptions.NotImplementedYet
+    parent = self.parent(gctx)
+    old_detail = self.fetch_active(gctx)
+    new_detail = ca_detail_obj.create(gctx, self)
+
+    # This will need a callback when we go event-driven
+    issue_response = rpki.up_down.issue_pdu.query(gctx, parent, self, new_detail)
+
+    new_detail.activate(
+      gctx        = gctx,
+      ca          = self,
+      cert        = issue_response.payload.classes[0].certs[0].cert,
+      uri         = issue_response.payload.classes[0].certs[0].cert_url,
+      predecessor = old_detail)
+
+  def revoke(self, gctx):
+    """Revoke deprecated ca_detail objects associated with this ca."""
+
+    for ca_detail in self.fetch_deprecated(gctx):
+      ca_detail.revoke(gctx)
 
 class ca_detail_obj(sql_persistant):
   """Internal CA detail object."""
@@ -404,7 +432,6 @@ class ca_detail_obj(sql_persistant):
     ("latest_manifest",         rpki.x509.SignedManifest),
     ("latest_crl",              rpki.x509.CRL),
     "state",
-    ("state_timer",             rpki.sundial.datetime),
     "ca_cert_uri",
     "ca_id")
   
@@ -450,6 +477,8 @@ class ca_detail_obj(sql_persistant):
     if predecessor is not None:
       predecessor.state = "deprecated"
       predecessor.sql_mark_dirty()
+      for child_cert in predecessor.child_certs(gctx):
+        child_cert.reissue(gctx, self)
 
   def delete(self, gctx, ca, repository):
     """Delete this ca_detail and all of its associated child_cert objects."""
@@ -464,7 +493,22 @@ class ca_detail_obj(sql_persistant):
     self.sql_delete(gctx)
 
   def revoke(self, gctx):
-    """Request revocation of all certificates whose SKI matches the key for this ca_detail."""
+    """Request revocation of all certificates whose SKI matches the key for this ca_detail.
+
+    Tasks:
+
+    - Request revocation of old keypair by parent.
+
+    - Revoke all child certs issued by the old keypair.
+
+    - Generate a final CRL, signed with the old keypair, listing all
+      the revoked certs, with a next CRL time after the last cert or
+      CRL signed by the old keypair will have expired.
+
+    - Destroy old keypair (and manifest keypair).
+
+    - Leave final CRL in place until its next CRL time has passed.
+    """
 
     # This will need a callback when we go event-driven
     r_msg = rpki.up_down.revoke_pdu.query(gctx, self)
@@ -472,8 +516,29 @@ class ca_detail_obj(sql_persistant):
     if r_msg.payload.ski != self.latest_ca_cert.gSKI():
       raise rpki.exceptions.SKIMismatch
 
-    ca = self.ca(gctx)
-    self.delete(gctx, ca, ca.parent(gctx).repository(gctx))
+    nextUpdate = rpki.sundial.datetime.utcnow()
+
+    if self.latest_manifest is not None:
+      nextUpdate = nextUpdate.later(self.latest_manifest.getNextUpdate())
+
+    if self.latest_crl is not None:
+      nextUpdate = nextUpdate.later(self.latest_crl.getNextUpdate())
+
+    for child_cert in self.chidl_certs(gctx):
+      nextUpdate = nextUpdate.later(child_cert.cert.getNotAfter())
+      child_cert.revoke()
+
+    nextUpdate += rpki.sundial.timedelta(seconds = parent.self(gctx).crl_interval)
+
+    generate_crl(gctx, nextUpdate)
+    generate_manifest(gctx, nextUpdate)
+
+    self.private_key_id = None
+    self.manifest_private_key_id = None
+    self.manifest_public_key = None
+    self.latest_manifest_cert = None
+    self.state = "revoked"
+    self.sql_mark_dirty()
 
   def update(self, gctx, parent, ca, rc, sia_uri_changed, old_resources):
     """Need to get a new certificate for this ca_detail and perhaps
@@ -572,7 +637,7 @@ class ca_detail_obj(sql_persistant):
     
     return child_cert
 
-  def generate_crl(self, gctx):
+  def generate_crl(self, gctx, nextUpdate = None):
     """Generate a new CRL for this ca_detail.  At the moment this is
     unconditional, that is, it is up to the caller to decide whether a
     new CRL is needed.
@@ -583,6 +648,9 @@ class ca_detail_obj(sql_persistant):
     repository = parent.repository(gctx)
     crl_interval = rpki.sundial.timedelta(seconds = parent.self(gctx).crl_interval)
     now = rpki.sundial.datetime.utcnow()
+
+    if nextUpdate is None:
+      nextUpdate = now + crl_interval
 
     certlist = []
     for child_cert in self.child_certs(gctx, revoked = True):
@@ -597,12 +665,12 @@ class ca_detail_obj(sql_persistant):
       issuer              = self.latest_ca_cert,
       serial              = ca.next_crl_number(),
       thisUpdate          = now,
-      nextUpdate          = now + crl_interval,
+      nextUpdate          = nextUpdate,
       revokedCertificates = certlist)
 
     repository.publish(gctx, self.latest_crl, self.crl_uri(ca))
 
-  def generate_manifest(self, gctx):
+  def generate_manifest(self, gctx, nextUpdate = None):
     """Generate a new manifest for this ca_detail."""
 
     ca = self.ca(gctx)
@@ -611,12 +679,16 @@ class ca_detail_obj(sql_persistant):
     crl_interval = rpki.sundial.timedelta(seconds = parent.self(gctx).crl_interval)
     now = rpki.sundial.datetime.utcnow()
 
+    if nextUpdate is None:
+      nextUpdate = now + crl_interval
+
     certs = self.child_certs(gctx)
 
     m = rpki.x509.SignedManifest()
     m.build(
       serial         = ca.next_manifest_number(),
-      nextUpdate     = now + crl_interval,
+      thisUpdate     = now,
+      nextUpdate     = nextUpdate,
       names_and_objs = [(c.uri_tail(), c.cert) for c in certs],
       keypair        = self.manifest_private_key_id,
       certs          = rpki.x509.X509_chain(self.latest_manifest_cert))
@@ -661,7 +733,7 @@ class child_cert_obj(sql_persistant):
       self.revoked = rpki.sundial.datetime.utcnow()
       self.sql_mark_dirty()
 
-  def reissue(self, gctx, ca_detail, resources, sia = None):
+  def reissue(self, gctx, ca_detail, resources = None, sia = None):
     """Reissue an existing cert, reusing the public key.  If the cert
     we would generate is identical to the one we already have, we just
     return the one we already have.  If we have to revoke the old
@@ -675,21 +747,26 @@ class child_cert_obj(sql_persistant):
 
     old_resources = self.cert.get_3779resources()
     old_sia       = self.cert.get_SIA()
+    old_ca_detail = self.ca_detail(gctx)
+
+    if resources is None:
+      resources = old_resources
 
     if sia is None:
       sia = old_sia
 
     assert resources.valid_until is not None and old_resources.valid_until is not None
 
-    if resources == old_resources and sia == old_sia:
+    if resources == old_resources and sia == old_sia and ca_detail == old_ca_detail:
       return self
 
     must_revoke = old_resources.oversized(resources) or old_resources.valid_until > resources.valid_until
+    new_issuer  = ca_detail != old_ca_detail
 
     if resources.valid_until != old_resources.valid_until:
       rpki.log.debug("Validity changed: %s %s" % ( old_resources.valid_until, resources.valid_until))
 
-    if must_revoke:
+    if must_revoke or new_issuer:
       child_cert = None
     else:
       child_cert = self

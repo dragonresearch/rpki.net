@@ -398,6 +398,10 @@ class self_elt(data_elt):
     self's CAs.  Extracting nextUpdate from a manifest is hard at the
     moment due to implementation silliness, so for now we generate a
     new manifest whenever we generate a new CRL
+
+    This method also cleans up tombstones left behind by revoked
+    ca_detail objects, since we're walking through the relevant
+    portions of the database anyway.
     """
 
     rpki.log.trace()
@@ -406,6 +410,9 @@ class self_elt(data_elt):
     for parent in self.parents(gctx):
       repository = parent.repository(gctx)
       for ca in parent.cas(gctx):
+        for ca_detail in ca.fetch_revoked(gctx):
+          if now > ca_detail.latest_crl.getNextUpdate():
+            ca_detail.delete(gctx, ca, repository)
         ca_detail = ca.fetch_active(gctx)
         if now > ca_detail.latest_crl.getNextUpdate():
           ca_detail.generate_crl(gctx)
@@ -545,8 +552,7 @@ class parent_elt(data_elt):
   def serve_revoke(self, gctx):
     """Handle a left-right revoke action for this parent."""
     for ca in self.cas(gctx):
-      for ca_detail in ca.ca_details(gctx):
-        ca_detail.revoke(gctx)
+      ca.revoke(gctx)
 
   def serve_reissue(self, gctx):
     """Handle a left-right reissue action for this parent."""

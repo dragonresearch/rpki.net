@@ -623,7 +623,7 @@ class SignedManifest(DER_object):
     m.fromString(s)
     self.content = m
 
-  def build(self, serial, nextUpdate, names_and_objs, keypair, certs, version = 0):
+  def build(self, serial, thisUpdate, nextUpdate, names_and_objs, keypair, certs, version = 0):
     """Build the inner content of this manifest and sign it with CMS."""
     filelist = []
     for name, obj in names_and_objs:
@@ -634,7 +634,7 @@ class SignedManifest(DER_object):
     m = rpki.manifest.Manifest()
     m.version.set(version)
     m.manifestNumber.set(serial)
-    m.thisUpdate.set(rpki.sundial.datetime.utcnow().toGeneralizedTime())
+    m.thisUpdate.set(thisUpdate.toGeneralizedTime())
     m.nextUpdate.set(nextUpdate.toGeneralizedTime())
     m.fileHashAlg.set((2, 16, 840, 1, 101, 3, 4, 2, 1)) # id-sha256
     m.fileList.set(filelist)

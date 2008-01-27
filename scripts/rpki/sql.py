@@ -14,7 +14,7 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-import MySQLdb, time, traceback
+import MySQLdb, time
 import rpki.x509, rpki.resource_set, rpki.sundial
 
 def connect(cfg):
@@ -284,7 +284,7 @@ class ca_obj(sql_persistant):
     rc_resources = rc.to_resource_bag()
     cert_map = dict((c.cert.get_SKI(), c) for c in rc.certs)
 
-    for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL", (self.ca_id,)):
+    for ca_detail in ca_detail_obj.sql_fetch_where(gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL AND state != 'revoked'", (self.ca_id,)):
       ski = ca_detail.latest_ca_cert.get_SKI()
       if ca_detail.state in ("pending", "active"):
         current_resources = ca_detail.latest_ca_cert.get_3779resources()
@@ -361,12 +361,6 @@ class ca_obj(sql_persistant):
   def rekey(self, gctx):
     """Initiate a rekey operation for this ca.
 
-    Noone who was at the meeting in Prague 2007 quite remembers why we
-    used this name for this operation, but discussion months later
-    concluded that it corresponds to the rollover operations in
-    Geoff's "Common Management Tasks" document, so that's what this
-    code does, with minor variations.
-
     Tasks:
 
     - Generate a new keypair.
@@ -376,26 +370,9 @@ class ca_obj(sql_persistant):
     - Mark result as our active ca_detail.
 
     - Reissue all child certs issued by this ca using the new ca_detail.
-
-    - Schedule old ca_detail for removal.  Geoff specifies a
-      timer-based method, opinions vary on whether this is ok or we
-      should instead just mark the old ca_detail as deprecated and
-      leave it that way until we receive an explicit trigger from the
-      IRBE.
-
-    - Request revocation of old keypair by parent.
-
-    - Revoke all certs (children, internal use certs like manifest,
-      whatever) issued by the old keypair.
-
-    - Generate a final CRL, signed with the old keypair, listing all
-      the revoked certs, with a next CRL time after the last cert or
-      CRL signed by the old keypair will have expired.
-
-    - Destroy old keypair.
-
-    - Leave final CRL in place until its next CRL time has passed.
     """
+
+    rpki.log.trace()
 
     parent = self.parent(gctx)
     old_detail = self.fetch_active(gctx)
@@ -413,6 +390,8 @@ class ca_obj(sql_persistant):
 
   def revoke(self, gctx):
     """Revoke deprecated ca_detail objects associated with this ca."""
+
+    rpki.log.trace()
 
     for ca_detail in self.fetch_deprecated(gctx):
       ca_detail.revoke(gctx)
@@ -516,6 +495,10 @@ class ca_detail_obj(sql_persistant):
     if r_msg.payload.ski != self.latest_ca_cert.gSKI():
       raise rpki.exceptions.SKIMismatch
 
+    ca = self.ca(gctx)
+    parent = ca.parent(gctx)
+    crl_interval = rpki.sundial.timedelta(seconds = parent.self(gctx).crl_interval)
+
     nextUpdate = rpki.sundial.datetime.utcnow()
 
     if self.latest_manifest is not None:
@@ -524,14 +507,14 @@ class ca_detail_obj(sql_persistant):
     if self.latest_crl is not None:
       nextUpdate = nextUpdate.later(self.latest_crl.getNextUpdate())
 
-    for child_cert in self.chidl_certs(gctx):
+    for child_cert in self.child_certs(gctx):
       nextUpdate = nextUpdate.later(child_cert.cert.getNotAfter())
       child_cert.revoke()
 
-    nextUpdate += rpki.sundial.timedelta(seconds = parent.self(gctx).crl_interval)
+    nextUpdate += crl_interval
 
-    generate_crl(gctx, nextUpdate)
-    generate_manifest(gctx, nextUpdate)
+    self.generate_crl(gctx, nextUpdate)
+    self.generate_manifest(gctx, nextUpdate)
 
     self.private_key_id = None
     self.manifest_private_key_id = None

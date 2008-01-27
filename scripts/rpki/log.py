@@ -21,13 +21,16 @@ import syslog, traceback
 
 enable_trace = False
 
-def init(ident = "rpki", flags = syslog.LOG_PID | syslog.LOG_PERROR, facility = syslog.LOG_DAEMON, trace = False):
+def init(ident = "rpki", flags = syslog.LOG_PID | syslog.LOG_PERROR, facility = syslog.LOG_DAEMON):
   """Initialize logging system."""
+
+  return syslog.openlog(ident, flags, facility)
+
+def set_trace(trace):
+  """Enable or disable call tracing."""
 
   global enable_trace
   enable_trace = trace
-
-  return syslog.openlog(ident, flags, facility)
 
 class logger(object):
   """Closure for logging."""
@@ -38,11 +41,11 @@ class logger(object):
   def __call__(self, message):
     return syslog.syslog(self.priority, message)
 
-error   = logger(syslog.LOG_ERR)
-warning = logger(syslog.LOG_WARNING)
-notice  = logger(syslog.LOG_NOTICE)
-info    = logger(syslog.LOG_INFO)
-debug   = logger(syslog.LOG_DEBUG)
+error = logger(syslog.LOG_ERR)
+warn  = logger(syslog.LOG_WARNING)
+note  = logger(syslog.LOG_NOTICE)
+info  = logger(syslog.LOG_INFO)
+debug = logger(syslog.LOG_DEBUG)
 
 def trace():
   """Execution trace -- where are we now, and whence came we here?"""

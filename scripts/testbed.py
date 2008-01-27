@@ -33,7 +33,7 @@ config_file contains settings for various implementation-specific
 things that don't belong in yaml_script.
 """
 
-import os, yaml, MySQLdb, subprocess, signal, time, datetime, re, getopt, sys
+import os, yaml, MySQLdb, subprocess, signal, time, datetime, re, getopt, sys, lxml
 import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https, rpki.log, rpki.left_right, rpki.config
 
 os.environ["TZ"] = "UTC"
@@ -264,7 +264,7 @@ def main():
           rpki.log.info("Killing %s" % n)
           os.kill(p.pid, signal.SIGTERM)
     except Exception, data:
-      rpki.log.warning("Couldn't clean up daemons (%s), continuing" % data)
+      rpki.log.warn("Couldn't clean up daemons (%s), continuing" % data)
 
 class timedelta(datetime.timedelta):
   """Timedelta with text parsing.  This accepts two input formats:
@@ -404,10 +404,32 @@ class allocation(object):
   def apply_sub_as(self, text): self.base.as = self.base.as.difference(rpki.resource_set.resource_set_as(text))
   def apply_sub_v4(self, text): self.base.v4 = self.base.v4.difference(rpki.resource_set.resource_set_ipv4(text))
   def apply_sub_v6(self, text): self.base.v6 = self.base.v6.difference(rpki.resource_set.resource_set_ipv6(text))
+
   def apply_valid_until(self, stamp): self.base.valid_until = stamp
   def apply_valid_for(self, text):    self.base.valid_until = datetime.datetime.utcnow() + timedelta.parse(text)
   def apply_valid_add(self, text):    self.base.valid_until += timedelta.parse(text)
   def apply_valid_sub(self, text):    self.base.valid_until -= timedelta.parse(text)
+
+  def apply_rekey(self, target):
+    if self.is_leaf():
+      raise RuntimeError, "Can't rekey YAML leaf %s, sorry" % self.name
+    elif target is None:
+      rpki.log.info("Rekeying <self/> %s" % self.name)
+      self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "set", self_id = self.self_id, rekey = "yes"))
+    else:
+      rpki.log.info("Rekeying <parent/> %s %s" % (self.name, target))
+      self.call_rpkid(rpki.left_right.parent_elt.make_pdu(action = "set", self_id = self.self_id, parent_id = target, rekey = "yes"))
+
+  def apply_revoke(self, target):
+    if self.is_leaf():
+      rpki.log.info("Attempting to revoke YAML leaf %s" % self.name)
+      subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "revoke"))
+    elif target is None:
+      rpki.log.info("Revoking <self/> %s" % self.name)
+      self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "set", self_id = self.self_id, revoke = "yes"))
+    else:
+      rpki.log.info("Revoking <parent/> %s %s" % (self.name, target))
+      self.call_rpkid(rpki.left_right.parent_elt.make_pdu(action = "set", self_id = self.self_id, parent_id = target, revoke = "yes"))
 
   def __str__(self):
     s = self.name + "\n"
@@ -516,6 +538,7 @@ class allocation(object):
     pdu.type = "query"
     elt = rpki.left_right.msg((pdu,)).toXML()
     rpki.relaxng.left_right.assertValid(elt)
+    rpki.log.debug(lxml.etree.tostring(elt, pretty_print = True, encoding = "us-ascii"))
     cms = rpki.cms.xml_sign(
       elt           = elt,
       key           = testbed_key,
@@ -530,6 +553,7 @@ class allocation(object):
       msg           = cms)
     elt = rpki.cms.xml_verify(cms = cms, ta = self.rpkid_ta)
     rpki.relaxng.left_right.assertValid(elt)
+    rpki.log.debug(lxml.etree.tostring(elt, pretty_print = True, encoding = "us-ascii"))
     pdu = rpki.left_right.sax_handler.saxify(elt)[0]
     assert pdu.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)
     return pdu

@@ -264,33 +264,38 @@ class self_elt(data_elt):
   
   def serve_pre_save_hook(self, gctx, q_pdu, r_pdu):
     """Extra server actions for self_elt -- handle extension preferences."""
+    rpki.log.trace()
     if self is not q_pdu:
       if q_pdu.clear_extension_preferences:
         self.prefs = []
-      self.prefs.extend(pdu.prefs)
+      self.prefs.extend(q_pdu.prefs)
 
   def serve_post_save_hook(self, gctx, q_pdu, r_pdu):
     """Extra server actions for self_elt."""
-    if self.rekey:
+    rpki.log.trace()
+    if q_pdu.rekey:
       self.serve_rekey(gctx)
-    if self.reissue:
+    if q_pdu.reissue:
       self.serve_reissue(gctx)
-    if self.revoke:
+    if q_pdu.revoke:
       self.serve_revoke(gctx)
     self.unimplemented_control("run_now", "publish_world_now")
 
   def serve_rekey(self, gctx):
     """Handle a left-right rekey action for this self."""
+    rpki.log.trace()
     for parent in self.parents(gctx):
       parent.serve_rekey(gctx)
 
   def serve_revoke(self, gctx):
     """Handle a left-right revoke action for this self."""
+    rpki.log.trace()
     for parent in self.parents(gctx):
       parent.serve_revoke(gctx)
 
   def serve_reissue(self, gctx):
     """Handle a left-right reissue action for this self."""
+    rpki.log.trace()
     for parent in self.parents(gctx):
       parent.serve_reissue(gctx)
 
@@ -537,11 +542,11 @@ class parent_elt(data_elt):
 
   def serve_post_save_hook(self, gctx, q_pdu, r_pdu):
     """Extra server actions for parent_elt."""
-    if self.rekey:
+    if q_pdu.rekey:
       self.serve_rekey(gctx)
-    if self.reissue:
+    if q_pdu.reissue:
       self.serve_reissue(gctx)
-    if self.revoke:
+    if q_pdu.revoke:
       self.serve_revoke(gctx)
 
   def serve_rekey(self, gctx):

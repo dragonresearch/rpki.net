@@ -26,7 +26,7 @@ Usage: python testpoke.py [ { -y | --yaml }    configfile ]
 Default configuration file is testpoke.yaml, override with --yaml option.
 """
 
-import traceback, os, time, getopt, sys, lxml, yaml
+import os, time, getopt, sys, lxml, yaml
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
 import rpki.https, rpki.config, rpki.cms, rpki.exceptions
 import rpki.relaxng, rpki.oids

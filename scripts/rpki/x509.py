@@ -610,11 +610,11 @@ class SignedManifest(DER_object):
 
   def getThisUpdate(self):
     """Get thisUpdate value from this manifest."""
-    return rpki.sundial.datetime.fromGeneralizedTime(self.get_content())
+    return rpki.sundial.datetime.fromGeneralizedTime(self.get_content().thisUpdate.get())
 
   def getNextUpdate(self):
     """Get nextUpdate value from this manifest."""
-    return rpki.sundial.datetime.fromGeneralizedTime(self.get_content())
+    return rpki.sundial.datetime.fromGeneralizedTime(self.get_content().nextUpdate.get())
 
   def verify(self, ta):
     """Verify this manifest."""

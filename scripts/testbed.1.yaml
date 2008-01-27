@@ -24,6 +24,12 @@ kids:
         ipv4: 192.0.2.1-192.0.2.33
         asn:  64533
 ---
+- name: R0
+  rekey:
+---
+- name: R0
+  revoke:
+---
 - name: Alice
   valid_add:   10
 ---

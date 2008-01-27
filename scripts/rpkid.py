@@ -40,8 +40,8 @@ def left_right_handler(query, path):
     rpki.sql.sql_sweep(gctx)
     return 200, reply
   except lxml.etree.DocumentInvalid:
-    rpki.log.warning("Received reply document does not pass schema check: " + lxml.etree.tostring(r_elt, pretty_print = True))
-    rpki.log.warning(traceback.format_exc())
+    rpki.log.warn("Received reply document does not pass schema check: " + lxml.etree.tostring(r_elt, pretty_print = True))
+    rpki.log.warn(traceback.format_exc())
     return 500, "Schema violation"
   except Exception, data:
     rpki.log.error(traceback.format_exc())

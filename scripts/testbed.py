@@ -315,10 +315,22 @@ def cmd_sleep(interval = None):
     signal.alarm(seconds)
   signal.pause()
 
+def cmd_shell(*cmd):
+  """Run a shell command."""
+  cmd = " ".join(cmd)
+  status = subprocess.call(cmd, shell = True)
+  rpki.log.info("Shell command returned status %d" % status)
+
+def cmd_echo(*words):
+  """Echo some text to the log."""
+  rpki.log.note(" ".join(words))
+
 ## @var cmds
 # Dispatch table for commands embedded in delta sections
 
-cmds = { "sleep" : cmd_sleep }
+cmds = { "sleep" : cmd_sleep,
+         "shell" : cmd_shell,
+         "echo"  : cmd_echo }
 
 class allocation_db(list):
   """Representation of all the entities and allocations in the test system.

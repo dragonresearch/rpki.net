@@ -85,7 +85,7 @@ testbed_dir    = cfg.get("testbed_dir",    testbed_name + ".dir")
 irdb_db_pass   = cfg.get("irdb_db_pass",   "fnord")
 rpki_db_pass   = cfg.get("rpki_db_pass",   "fnord")
 
-base_port      = cfg.get("base_port",      4400)
+base_port      = int(cfg.get("base_port",  "4400"))
 
 rsyncd_port    = allocate_port()
 rootd_port     = allocate_port()
@@ -266,6 +266,8 @@ def main():
     except Exception, data:
       rpki.log.warn("Couldn't clean up daemons (%s), continuing" % data)
 
+# Define time delta parser early, so we can use it while reading config
+
 class timedelta(datetime.timedelta):
   """Timedelta with text parsing.  This accepts two input formats:
 
@@ -341,6 +343,8 @@ class allocation_db(list):
     """Initialize database from the (first) YAML document."""
     self.root = allocation(yaml, self)
     assert self.root.is_root()
+    if self.root.crl_interval is None:
+      self.root.crl_interval = timedelta.parse(cfg.get("crl_interval", "1d")).convert_to_seconds()
     for a in self:
       if a.sia_base is None and a.parent is not None:
         a.sia_base = a.parent.sia_base + a.name + "/"
@@ -348,6 +352,8 @@ class allocation_db(list):
         a.sia_base = rootd_sia + a.name + "/"
       if a.base.valid_until is None:
         a.base.valid_until = a.parent.base.valid_until
+      if a.crl_interval is None:
+        a.crl_interval = a.parent.crl_interval
     self.root.closure()
     self.map = dict((a.name, a) for a in self)
     self.engines = [a for a in self if not a.is_leaf()]
@@ -377,6 +383,7 @@ class allocation(object):
   irdb_port    = None
   rpki_db_name = None
   rpki_port    = None
+  crl_interval = None
 
   def __init__(self, yaml, db, parent = None):
     """Initialize one entity and insert it into the database."""
@@ -393,6 +400,8 @@ class allocation(object):
       v6 = rpki.resource_set.resource_set_ipv6(yaml.get("ipv6")),
       valid_until = valid_until)
     self.sia_base = yaml.get("sia_base")
+    if "crl_interval" in yaml:
+      self.crl_interval = timedelta.parse(yaml["crl_interval"]).convert_to_seconds()
     self.extra_conf = yaml.get("extra_conf", [])
 
   def closure(self):
@@ -589,7 +598,7 @@ class allocation(object):
     """
 
     rpki.log.info("Creating rpkid self object for %s" % self.name)
-    self.self_id = self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "create", crl_interval = 84600)).self_id
+    self.self_id = self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "create", crl_interval = self.crl_interval)).self_id
 
     rpki.log.info("Creating rpkid BSC object for %s" % self.name)
     pdu = self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "create", self_id = self.self_id, generate_keypair = True))

@@ -61,7 +61,178 @@ pure Python and only 2% about any kind of crypto.
 
 
 
-Current TO DO list:
+TO DO:
+
+- Test framework, one self-instance per engine-instance.  testbed.py
+
+  [Done]
+
+- Test framework, multiple self-instances per engine-instance.
+  Depends on async tasking model.
+
+  [Not started]
+
+- Scripted tests to grow and shrink and revoke and ....  See
+  testbed.*.yaml, but more systematic testing needed.
+
+  [Started]
+
+- Analysis tools to analyze results of scripted testing.  So far have
+  rcynic hooked into testbed.py.  Prettyprinter might be useful.
+
+  [Started]
+
+- User validation tool (dig Randy's description out of email, but this
+  is the thing that validates, eg, a ROA, probably using output of an
+  rcynic run as one of its inputs).
+
+  [Not started]
+
+- Common protocol dump format with APNIC and other implementors so we
+  can read each other's dumps.  "Obvious" format would be an
+  OpenSSL-style PEM of the CMS, with a "text" portion (the place where
+  "openssl x509 -text" would put a text dump of a cert) showing the
+  wrapped XML.
+
+  [Not started]
+
+- Rewrite hooks that call CRL generation and publication to do so
+  immediately rather than waiting for cron.
+
+  [Done]
+
+- resource_set_notafter attribute added to RelaxNG but not yet to
+  rpki.up_down.class_elt.  Need to convert to and from
+  rpki.sundial.datetime.
+
+  [Not started]
+
+- Left-right IRBE triggers for RPKI key rollover.
+
+  [Done]
+
+- Kludgy local publication hack.  Should be handling cert/crl/manifest
+  publication/withdrawal.  Not sure this is handling withdrawal
+  properly yet, rcynic is whining about stuff that probably should
+  have been withdrawn before rcynic saw it.  Or maybe rcynic is wrong?
+
+  [Done, other than double-checking on withdrawal issue]
+
+- Publication protocol and implementation thereof.   Protocol design
+  started, Randy had comments that sent me back to the drawing board
+  (he was right).  Next step is to integrate Randy's advice, which
+  probably means picking up more of the left-right protocol framework.
+
+  [Started]
+
+- Subsetting (req_* attributes in up-down protocol)
+
+  [Not started]
+
+- Error handling: make sure that exceptions map correctly to up-down
+  error codes, flesh out left-right error codes.  Note that the same
+  exception may produce different error codes depending on which
+  up-down PDU we're processing (sigh).
+
+  [Not started]
+
+- db.commit(), db.rollback(), and related data integrity issues.
+
+  [Not started]
+
+- Test with larger data set -- Tim gave me plenty of data, I have the
+  low-level tools and the glue logic to create child objects for all
+  the entities in the IRDB, but I don't yet have logic to poll on
+  behalf of each of them and check result for sanity.  Maybe it'd be
+  easier to write something that dumps Tim's database in YAML format
+  for testbed.py to chew on?
+
+  [Not started]
+
+- Clean up rootd.py to be usable in a production system.   Most urgent
+  issue is handling of private keys.   May not need much else, as this
+  is not a high-traffic server.
+
+  [Not started]
+
+- Handle loss of connnection to database server and other MySQL
+  errors.  MySQLdb throws an exception, which we can catch, and
+  retrying is easy enough, but need to be a bit careful about recovery
+  action depending on whether we had uncommitted changes.
+
+  [Not started]
+
+- tlslite code seems flakey under heavy use, and doesn't support all
+  the cert checks we want.  Best bet for getting this right is
+  probably to hack on the POW Ssl class until it supports everything
+  shown in the OpenSSL book; aside from speed, the main advantage here
+  is that there -is- a list of all the things one needs to do to use
+  TLS properly if one follows this recipe, whereas with TLSlite it's
+  all a mystery.
+
+  Depends on async tasking model.
+
+  Useful side effect of doing this via POW: it brings us back to only
+  needing one crypto library (in particular it lets us punt M2Crypto,
+  which appears to be coded as an accident waiting to happen).
+
+  [Not started]
+
+- ROA generation.  We have a bunch of the primitives for this but we
+  aren't yet generating the ROAs themselves.
+
+  [Not started]
+
+- Make rpkid fully event-driven, except for SQL queries.  This
+  probably involves the "twisted" framework.
+
+  [Not started]
+
+- Update biz trust anchor model to what we came up with in Amsterdam.
+  This has been waiting for work we hope RobK is doing.  This is
+  probably not a lot of coding, probably a few extra cert fields in
+  the self object which we then need to toss into the
+  rpki.x509.X509_chain objects before verifying CMS or TLS, and
+  perhaps the existing TA fields in various objects become pairs of
+  certs instead of a single TA, but this is mostly just generalization
+  and reuse of existing code, no bold new adventures.
+
+  [Not started]
+
+- Performance testing
+
+  [Not started]
+
+
+
+Things implemented but not yet tested:
+
+- Client side of expiration now assumes that parent will reissue
+  when its IRDB changes.
+
+- Parent side of revocation (child_cert objects) and CRL generation
+  implemented.
+
+- Parent side of expiration implemented.
+
+- Child batch processing loop: regeneration or removal of expired
+  certs based on what's in the IRDB.
+
+- Batch regeneration of CRLs and manifests for all CAs.
+
+- Protection against up-down operations specifying a class_name that
+  belongs to some other self context.
+
+- Rewrote code that handles revoke on shrink to revoke -all- old certs
+  for that key, not just most recent.  Not certain, but this may have
+  been the cause of a cert dropping not showing up in the CRL during
+  testing with APNIC in Vancouver.
+
+
+
+OLD to do list.  This isn't really organized as a todo list but it
+contains some useful notes, so retain it for now.  Real TODO list is
+above.
 
 - Need scripted tests that shrink and grow and shrink and shrink and
   grow and shrink and grow and grow and ....   Initial tests with

@@ -203,6 +203,19 @@ TO DO:
 
   [Not started]
 
+- rcynic handling of RPKI trust anchors probably needs updating.
+  Discussions over last N months of how RPKI trust anchors work, how
+  we package them, and how we roll them over.  Last I recall (need to
+  check email archives) APNIC had proposed a relatively simple format
+  (CMS signed PEM-encoded X.509 object set, or something like that).
+  Need to do analysis to make sure this is adaquate for our needs, if
+  so just use it.  This would involve minor changes to rcynic.
+
+  Alternatively, this could be a separate program to keep this grot
+  out of rcynic itself, but that's probably a usability nightmare.
+
+  [Not started]
+
 
 
 Things implemented but not yet tested:

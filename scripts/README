@@ -216,6 +216,27 @@ TO DO:
 
   [Not started]
 
+- Update operation and installation docs.
+
+  [Ongoing]
+
+- Update internals docs (Doxygen).
+
+  [Ongoing]
+
+- Reorganize code (directory names, module names, which objects are in
+  which modules) to make it easier to understand and maintain;
+  portions of the existing code were done in extreme haste to meet
+  testing deadlines and it shows.
+
+  [Not started]
+
+- Add gctx pointers to Python representations of all the SQL objects
+  so we can stop passing all these flipping explicit gctx pointers
+  around.
+
+  [Not started] 
+
 
 
 Things implemented but not yet tested:

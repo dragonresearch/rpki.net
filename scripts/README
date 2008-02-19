@@ -218,6 +218,9 @@ TO DO:
 
 - Update operation and installation docs.
 
+  Known current omissions: left-right "rekey" and "revoke" operations,
+  testbed.py's rootd_sia config option.
+
   [Ongoing]
 
 - Update internals docs (Doxygen).
@@ -239,7 +242,7 @@ TO DO:
 
 
 
-Things implemented but not yet tested:
+Things implemented but not yet tested. 
 
 - Client side of expiration now assumes that parent will reissue
   when its IRDB changes.
@@ -264,267 +267,40 @@ Things implemented but not yet tested:
 
 
 
-OLD to do list.  This isn't really organized as a todo list but it
-contains some useful notes, so retain it for now.  Real TODO list is
-above.
+Other random notes:
 
-- Need scripted tests that shrink and grow and shrink and shrink and
-  grow and shrink and grow and grow and ....   Initial tests with
-  APNIC required doing this by hand, and there's a body of code that
-  only gets exercised when the IRDB changes, so need scripted tests.
+Being able to specify interaction with other servers (not running
+under testbed) in a testbed.yaml might be useful for interop tests.
+Kind of breaks testbed's fundamental model, though.  Replacing what
+testbed thinks is a leaf with somebody else would be easy, so maybe we
+could specify some way to hang a bunch of rpkids under an external
+parent?  Hmm, data needed would look a lot like testpoke.yaml, maybe
+we can reuse some of that language?
 
-  testbed.py is the framework for this, no doubt will add more
-  features later.  Most urgent issues on this front at the moment are
+There's a three-way tradeoff lurking in the publication protocol,
+manifest generation, and CRL generation:
 
-  a) Coming up with some useful test scenarios (YAML for testbed.py)
-     that test interesting combinations of events, and
+1) Consistancy issues for relying parties (eg, don't want to withdraw
+   something that's still listed in the manifest);
 
-  b) Analysis tools so that we can check whether the right things
-     happened during the test.
+2) Efficiency issues for the RPKI engine (eg, generating a new
+   manifest for each individual change during a batch run could be
+   expensive, would prefer to batch up the changes into a single
+   manifest run); and
 
-  A first cut at (b) would just be tools to make the test results
-  readable by humans, but need to automate eventually.  Running rcynic
-  on the output would also be useful.
+3) Coherency issues for the RPKI engine (don't want to defer things
+   that could result in loss of state if something bad happens).
 
-  Being able to specify interaction with other servers (not running
-  under testbed) in a testbed.yaml might be useful for interop tests.
-  Kind of breaks testbed's fundamental model, though.  Replacing what
-  testbed thinks is a leaf with somebody else would be easy, so maybe
-  we could specify some way to hang a bunch of rpkids under an
-  external parent?  Hmm, data needed would look a lot like
-  testpoke.yaml, maybe we can reuse some of that language?
+Considerations (1) and (3) have to dominate, which may mean we take a
+hit on (2).
 
-- Work on a common protocol dump format with APNIC and other
-  implementors.  Randy points out that it would be good if we could
-  all read each other's dumps.
-
-  "Obvious" format would be an OpenSSL-style PEM of the CMS, with
-  a "text" portion (the place where "openssl x509 -text" would put a
-  text dump of a cert) showing the wrapped XML.
-
-- Rewrite hooks that call CRL generation and publication to do so
-  immediately rather than waiting for cron.   Batching to handle all
-  of a bunch of events at once would be nice, but start by getting it
-  right, then worry about making it faster.
-
-- resource_set_notafter attribute added to RelaxNG but not yet to
-  rpki.up_down.class_elt.  Need to convert to and from Python datetime
-  but maybe lxml already has code to help us with that.
-
-- Things implemented but not yet tested:
-
-  - Client side of expiration now assumes that parent will reissue
-    when its IRDB changes.
-
-  - Parent side of revocation (child_cert objects) and CRL generation
-    implemented.
-
-  - Parent side of expiration implemented.
-
-  - Child batch processing loop: regeneration or removal of expired
-    certs based on what's in the IRDB.
-
-  - Batch regeneration of CRLs and manifests for all CAs.
-
-  - Protection against up-down operations specifying a class_name that
-    belongs to some other self context.
-
-  - Rewrote code that handles revoke on shrink to revoke -all- old
-    certs for that key, not just most recent.  Not certain, but this
-    may have been the cause of a cert dropping not showing up in the
-    CRL during testing with APNIC in Vancouver.
-
-- Implement remaining left-right control booleans -- among other
-  reasons, these are the IRBE triggers for things like key rollover,
-  which we need to test some of the stuff that's already done.
-
-- Child side of revocation...Common Management Tasks page in the APNIC
-  Wiki shows some states where revocation is triggered by the child
-  after a delay.  Other text in Common Management Tasks suggests that
-  ca_detail also needs deferred transitions from pending to active,
-  although Randy and I don't entirely believe that this is necessary
-  or even advisable.   Revocation delay is enough to require a
-  deferred state transition timestamp to ca_detail object.
-
-  Model for this is an enumerated state value (which we already had)
-  and a timestamp (which may be NULL) for next scheduled transition.
-  At the moment we think that the state progression is linear, ie,
-  there's no need for a next_state field.
-
-    state     := pending | active | deprecated
-    timestamp := NULL | <time of next transition>
-
-  We can check for things with expired timers directly by doing
-  something like:
-
-    SELECT blah FROM ca_detail
-    WHERE timestamp IS NOT NULL and timestamp < UTC_TIMESTAMP()
-
-  Well, maybe.  I don't really understand MySQL well enough to be sure
-  that it'll do the right thing comparing TIMESTAMP to DATETIME.
-
-  How do we, as child, find out that a cert has been revoked?  In the
-  up-down protocol we just see a new cert, there's no indication what
-  happened to the old one.  Either:
-
-  a) We asked to have it revoked, duh.
-
-  b) Parent reissued with same resource class and key, revoking the
-     old cert (oversize, or something).  We have to detect this when
-     processing <list_response/> and probably also <issue_response/>,
-     and perform immediate reissue to any affected children, because
-     the old cert is no good anymore.
-
-  In either case we're done with the old cert once it's been revoked.
-  Since we don't find out about that directly, we're done with it when
-  the parent issues a new cert.
-
-  This suggest that the client "deprecated" state only occurs when
-  there's also a timer set to make it go away.
-
-  Common Management Tasks has a delay between receipt of a new cert by
-  the child and that cert going active.  Neither Randy nor I sees a
-  need for this delay, but if we need to implement it we do so using
-  the new cert's timer (ie, timer is on pending -> active transition),
-  so active -> deprecated transition for old cert happens as side
-  effect of activation of the new cert.
-
-  Need logic to decide whether to ask parent to revoke when timer goes
-  off to remove from deprecated state.  Is the test just whether the
-  cert that's going away has the same key as the active cert?
-
-- Publication protocol and implementation thereof.   Defer until core
-  functionality in the main engine is done.
-
-  As an interim measure, I've hacked up a local filesystem publication
-  kludge.
-
-  Need publication hooks for:
-
-  - Cert publication
-
-  - CRL publication
-
-  - Manifest publication
-
-  - Withdrawal of any of the above
-
-  Currently some of the hooks are in the wrong places.
-
-  There's a three-way tradeoff lurking here:
-
-  1) Consistancy issues for relying parties (eg, don't want to
-     withdraw something that's still listed in the manifest);
-
-  2) Efficiency issues for the RPKI engine (eg, generating a new
-     manifest for each individual change during a batch run could be
-     expensive, would prefer to batch up the changes into a single
-     manifest run); and
-
-  3) Coherency issues for the RPKI engine (don't want to defer things
-     that could result in loss of state if something bad happens).
-
-  Considerations (1) and (3) have to dominate, which may mean we take
-  a hit on (2).
-
-- Most of the explicit calls to sql_fetch*() are now encapsulated in
-  one-line methods.  The remaining ones are probably hints at minor
-  bits of abstraction still to be done.
-
-- Subsetting (req_* attributes in up-down protocol)
-
-- Error handling: make sure that exceptions map correctly to up-down
-  error codes, flesh out left-right error codes.  Note that the same
-  exception may produce different error codes depending on which
-  up-down PDU we're processing (sigh).
-
-- Haven't done anything about db.commit() and db.rollback() yet, for
-  that matter haven't yet whacked MySQL to enable those features.
-
-- Test with larger data set -- Tim gave me plenty of data and I have
-  the low-level tools, just haven't written the glue logic to create
-  child objects for all the entities in the IRDB, poll on behalf of
-  each of them, and check the result for sanity
-
-- Need to figure out how we're going to handle "root" case (IANA/RIR
-  self-signed resource cert issuing to its children).  Right now this
-  is a separate little program, which is nice for testing but feels
-  wrong.  As Randy puts it, this is kind of a special case of a
-  parent, although we might want to represent it differently.  If this
-  were really only IANA and the RIRs, handling it as a special case
-  separate program might make sense, but anybody who wants to certify
-  private address space is going to have this problem, and the
-  separate daemon approach just feels wrong for that.
-
-  If it's not a separate daemon, will need left-right protocol support
-  to configure whatever it is we're going to configure, with all the
-  usual private key hygiene issues.  This might imply a level of
-  indirection, eg, the self-signed cert is generated in the IRBE, the
-  RPKI engine generates PKCS#10 for a working cert to be issued by the
-  self-signed cert (perhaps with RFC 3779 inheritance for everything,
-  to keep it small), so that the RPKI engine never needs to hold the
-  private key for the root.  Or maybe the root key is no more special
-  than any of the other keys we have to protect.  Or maybe it's so
-  special that we take the separate daemon approach so we can
-  sneakernet the root key.  Or some combination of the above.
-
-  Deferred for the moment, not sure for how long.
-
-- Need to handle loss of connnection to database server.  MySQLdb
-  throws an exception, which we can catch, and retrying is easy
-  enough, but need to be a bit careful about recovery action depending
-  on whether we had uncommitted changes.
-
-- tlslite code seems a bit flakey under heavy use.  irdb-setup.py has
-  now failed to run to completion on two different machines, in both
-  cases something myterious and bad happened in the tls code.
-
-- ROA generation.  We have a bunch of the primitives for this but we
-  aren't yet generating the ROAs themselves.
-
-Once this lot is done we'll be close to something that shows at least
-the basics of normal operation, albiet in a form that's not yet usable
-in production.
-
-Follow-up after that will be getting rid of remaining synchronous code
-(make daemon fully event-driven, except perhaps for SQL queries),
-address rollback, commit, and other data integrity issues, and see how
-well the resulting code handles hosting (multiple self objects in same
-daemon).  Will need some way of implementing loops in the event
-system.  Absent some fancier method, probably just store a list of
-object ids, then have the event handlers step through that fetching
-the next object (and coping with the case where an object that was in
-the list when the initial query was made isn't there anymore...).
-
-Somewhere along the way I'll need to update to the new model of trust
-anchors we ended up with in Amsterdam, first step for which will
-involve writing it down (well, RobK was supposed to do that, but I was
-supposed to convert some pencil sketches into graphviz for him so
-we're both lame on this so far).  I don't think this results in major
-changes, probably a few extra cert fields in the self object which we
-then need to toss into the rpki.x509.X509_chain objects before
-verifying CMS or TLS, and perhaps the existing TA fields in various
-objects become pairs of certs instead of a single TA, but this is
-mostly just generalization and reuse of existing code, no bold new
-adventures.
-
-At some point we need to do performance testing.
-
-Although it may not be worth the effort, it'd be nice to get back to
-only one crypto library.  As far as I know the only things we're using
-M2Crypto or cryptlib for are TLS.  POW supports TLS, but tlslite
-doesn't support POW.  I suspect that tlslite has some kind of driver
-interface, since it already supports two crypto packages, so there may
-be a simple answer here.  Not worth getting anywhere near this until
-after making the jump to Twisted, as that might also affect this mess.
-If the Python implementation ends up becoming the production version
-of the engine rather than just a prototype, it might make sense to
-revisit this, as the current mess of crypto libraries smells like an
-accident waiting to happen.
+Most of the explicit calls to sql_fetch*() are now encapsulated in
+one-line methods.  The remaining ones are probably hints at minor bits
+of abstraction still to be done.
 
 Biz certs currently used by test scripts don't include SKI or AKI.  I
 think this is because the test scripts use "openssl x509" rather than
 "openssl ca" when generating these certs.  Not critical, and will
-probably become completely irrelevant when RobK supplies the
-all-singing all-dancing biz cert scripts, but should not be a big
-problem to fix either if it gets in the way again.
+probably become completely irrelevant with all-singing all-dancing
+post-Amsterdam biz cert scripts, but should not be a big problem to
+fix either if it gets in the way again.

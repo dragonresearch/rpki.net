@@ -1534,10 +1534,12 @@ static void walk_cert(rcynic_ctx_t *rc,
 
     rsync_sia(rc, parent->sia);
 
+    logmsg(rc, log_debug, "Walking unauthenticated store");
     while (next_uri(rc, parent->sia, rc->unauthenticated,
 		    uri, sizeof(uri), &dir))
       walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0);
 
+    logmsg(rc, log_debug, "Walking old authenticated store");
     while (next_uri(rc, parent->sia, rc->old_authenticated,
 		    uri, sizeof(uri), &dir))
       walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1);

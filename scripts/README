@@ -98,13 +98,6 @@ TO DO:
 
   [Not started]
 
-- Kludgy local publication hack.  Should be handling cert/crl/manifest
-  publication/withdrawal.  Not sure this is handling withdrawal
-  properly yet, rcynic is whining about stuff that probably should
-  have been withdrawn before rcynic saw it.  Or maybe rcynic is wrong?
-
-  [Done, other than double-checking on withdrawal issue]
-
 - Publication protocol and implementation thereof.   Protocol design
   started, Randy had comments that sent me back to the drawing board
   (he was right).  Next step is to integrate Randy's advice, which
@@ -205,8 +198,9 @@ TO DO:
 
 - rcynic does not yet handle manifests.  This is both a real problem
   (manifests were added for a reason) and a user acceptance problem
-  (without manifest support rcynic checks old certs that we know will
-  fail, which generates spurious errors).
+  (without manifest support rcynic checks old certs that are supposed
+  to fail because they've been revoked, resulting in what appear to be
+  spurious errors, which just annoy the user).
 
   [Not started]
 
@@ -258,6 +252,14 @@ Things implemented but not yet tested.
   for that key, not just most recent.  Not certain, but this may have
   been the cause of a cert dropping not showing up in the CRL during
   testing with APNIC in Vancouver.
+
+- Kludgy local publication hack seems to work now, including
+  withdrawal.  rcynic still whines occasionally, but I think that's
+  just because, without manifest support, rcynic has no way of telling
+  the difference between certs we withdrew on purpose and certs that
+  were removed by an attacker, so the first rcynic run after a cert
+  has been revoked pulls the old cert from the previous rcynic pass,
+  find that it's listed in the CRL, and whines about it.
 
 
 

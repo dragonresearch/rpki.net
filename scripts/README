@@ -63,10 +63,6 @@ pure Python and only 2% about any kind of crypto.
 
 TO DO:
 
-- Test framework, one self-instance per engine-instance.  testbed.py
-
-  [Done]
-
 - Test framework, multiple self-instances per engine-instance.
   Depends on async tasking model.
 
@@ -96,20 +92,11 @@ TO DO:
 
   [Not started]
 
-- Rewrite hooks that call CRL generation and publication to do so
-  immediately rather than waiting for cron.
-
-  [Done]
-
 - resource_set_notafter attribute added to RelaxNG but not yet to
   rpki.up_down.class_elt.  Need to convert to and from
   rpki.sundial.datetime.
 
   [Not started]
-
-- Left-right IRBE triggers for RPKI key rollover.
-
-  [Done]
 
 - Kludgy local publication hack.  Should be handling cert/crl/manifest
   publication/withdrawal.  Not sure this is handling withdrawal
@@ -213,6 +200,13 @@ TO DO:
 
   Alternatively, this could be a separate program to keep this grot
   out of rcynic itself, but that's probably a usability nightmare.
+
+  [Not started]
+
+- rcynic does not yet handle manifests.  This is both a real problem
+  (manifests were added for a reason) and a user acceptance problem
+  (without manifest support rcynic checks old certs that we know will
+  fail, which generates spurious errors).
 
   [Not started]
 

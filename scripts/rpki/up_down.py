@@ -353,7 +353,7 @@ class revoke_pdu(revoke_syntax):
     """Serve one revoke request PDU."""
     for ca_detail in child.ca_from_class_name(gctx, self.class_name).ca_details(gctx):
       for child_cert in child.child_certs(gctx, ca_detail = ca_detail, ski = self.get_SKI()):
-        child_cert.revoke()
+        child_cert.revoke(gctx)
     rpki.sql.sql_sweep(gctx)
     r_msg.payload = revoke_response_pdu()
     r_msg.payload.class_name = self.class_name

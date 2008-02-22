@@ -799,13 +799,13 @@ class repository_elt(data_elt):
   def publish(self, gctx, obj, uri):
     """Placeholder for publication operation. [TEMPORARY]"""
     rpki.log.trace()
-    rpki.log.info("Pretending to publish %s to repository %s at %s" % (repr(obj), repr(self), repr(uri)))
+    rpki.log.info("Publishing %s to repository %s at %s" % (repr(obj), repr(self), repr(uri)))
     self.object_write(gctx.publication_kludge_base, uri, obj)
 
   def withdraw(self, gctx, obj, uri):
     """Placeholder for publication withdrawal operation. [TEMPORARY]"""
     rpki.log.trace()
-    rpki.log.info("Pretending to withdraw %s from repository %s at %s" % (repr(obj), repr(self), repr(uri)))
+    rpki.log.info("Withdrawing %s from repository %s at %s" % (repr(obj), repr(self), repr(uri)))
     self.object_delete(gctx.publication_kludge_base, uri)
 
 class route_origin_elt(data_elt):

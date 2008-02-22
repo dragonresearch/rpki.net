@@ -509,7 +509,7 @@ class ca_detail_obj(sql_persistant):
 
     for child_cert in self.child_certs(gctx):
       nextUpdate = nextUpdate.later(child_cert.cert.getNotAfter())
-      child_cert.revoke()
+      child_cert.revoke(gctx)
 
     nextUpdate += crl_interval
 
@@ -709,11 +709,14 @@ class child_cert_obj(sql_persistant):
     """Return the publication URI for this child_cert."""
     return ca.sia_uri + self.uri_tail()
 
-  def revoke(self):
+  def revoke(self, gctx):
     """Mark a child cert as revoked."""
     if self.revoked is None:
       rpki.log.debug("Revoking %s" % repr(self))
       self.revoked = rpki.sundial.datetime.utcnow()
+      ca = self.ca_detail(gctx).ca(gctx)
+      repository = ca.parent(gctx).repository(gctx)
+      repository.withdraw(gctx, self.cert, self.uri(ca))
       self.sql_mark_dirty()
 
   def reissue(self, gctx, ca_detail, resources = None, sia = None):
@@ -766,7 +769,7 @@ class child_cert_obj(sql_persistant):
     if must_revoke:
       for cert in child.child_certs(gctx = gctx, ca_detail = ca_detail, ski = self.ski):
         if cert is not child_cert:
-          cert.revoke()
+          cert.revoke(gctx)
 
     return child_cert
 

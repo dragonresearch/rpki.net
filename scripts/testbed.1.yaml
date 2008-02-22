@@ -17,7 +17,6 @@
 name:           RIR
 #valid_until:    2008-07-14T12:30:00Z
 valid_for:      2d
-crl_interval:   5m
 kids:
   - name: R0
     kids:
@@ -25,18 +24,12 @@ kids:
         ipv4: 192.0.2.1-192.0.2.33
         asn:  64533
 ---
-- shell set -x; rm -rf snapshot-*
-- shell set -x; sleep 2 && cd rcynic-data && dir=../snapshot-$(date -u +%Y.%m.%d.%H.%M.%S) && mkdir $dir && pax -rwvl . $dir
 - name: R0
   rekey:
 ---
-- sleep 5m
-- shell set -x; sleep 2 && cd rcynic-data && dir=../snapshot-$(date -u +%Y.%m.%d.%H.%M.%S) && mkdir $dir && pax -rwvl . $dir
 - name: R0
   revoke:
 ---
-- sleep 5m
-- shell set -x; sleep 2 && cd rcynic-data && dir=../snapshot-$(date -u +%Y.%m.%d.%H.%M.%S) && mkdir $dir && pax -rwvl . $dir
 - name: Alice
   valid_add:   10
 ---
@@ -52,7 +45,6 @@ kids:
 - name: Alice
 # valid_until: 2009-04-01T00:00:00
   valid_for:   10d
-- shell find snapshot-* -type f -print0 | xargs -0 ls -li | sort -n +2
 
 # Local Variables:
 # indent-tabs-mode: nil

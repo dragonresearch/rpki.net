@@ -45,7 +45,3 @@ kids:
 - name: Alice
 # valid_until: 2009-04-01T00:00:00
   valid_for:   10d
-
-# Local Variables:
-# indent-tabs-mode: nil
-# End:

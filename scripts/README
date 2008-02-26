@@ -66,20 +66,30 @@ TO DO:
 - Scripted tests to grow and shrink and revoke and ....  See
   testbed.*.yaml, but more systematic testing needed.
 
-  [Ongoing]
+  PRIORITY: Required
 
-- Analysis tools to analyze results of scripted testing.  So far have
-  rcynic hooked into testbed.py.  Prettyprinter might be useful.
+  TIME REQUIRED: as needed, open-ended
 
-  [Started]
+  STATUS: Ongoing
 
-- User validation tool (dig Randy's description out of email, but this
-  is the thing that validates, eg, a ROA, probably using output of an
-  rcynic run as one of its inputs).
+- Randy's "user validation tool" (fetch and validate certs and
+  probably the ROA for a prefix I want to accept in a route filter I
+  am building in Python/Perl).  This probably uses rcync's output as
+  one of its inputs.
+
+  This is a basic tool for a sysadmin who wants to -use- all this crud
+  we're working so hard to generate.  It's not required for the
+  generation tools to work, but without it the entire toolset does
+  nothing obviously useful, which will make it a very hard sell during
+  the limited public test stage.
+
+  PRIORITY: Required
 
   DEPENDS ON: ROA generation
 
-  [Not started]
+  TIME REQUIRED: three days
+
+  STATUS: Not started
 
 - Common protocol dump format with APNIC and other implementors so we
   can read each other's dumps.  "Obvious" format would be an
@@ -87,7 +97,11 @@ TO DO:
   "openssl x509 -text" would put a text dump of a cert) showing the
   wrapped XML.
 
-  [Not started]
+  PRIORITY: Desirable
+
+  TIME REQUIRED: one day
+
+  STATUS: Not started
 
 - Clean unused cruft out of left-right protocol, or at least have
   control booleans we don't intend to implement at present signal an
@@ -97,13 +111,24 @@ TO DO:
   implement.  Removing unused booleans or raising errors when they're
   used is trivial.
 
-  [Started]
+  PRIORITY: Required
+
+  TIME REQUIRED: Less than one day
+
+  STATUS: Started
 
 - resource_set_notafter attribute added to RelaxNG but not yet to
   rpki.up_down.class_elt.  Need to convert to and from
-  rpki.sundial.datetime.
+  rpki.sundial.datetime.  This is an up-down protocol feature that was
+  added fairly late and that none of us properly implement yet, but
+  failing to handle it would be a spec violation and eventually cause
+  an interop problem.
 
-  [Not started]
+  PRIORITY: Required
+
+  TIME REQUIRED: Less than one day
+
+  STATUS: Not started
 
 - Publication protocol and implementation thereof.   Protocol design
   started, Randy had comments that sent me back to the drawing board
@@ -119,12 +144,18 @@ TO DO:
   parent's namespace in nesting case.   In theory this is
   straightforward but requires careful checking.
 
-  TIME REQUIRED: two weeks for implementation once protocol settled.
+  ARIN can't host output of non-hosted RPKI engines without this, and
+  that's critical both to the security model as discussed with ARIN
+  staff in late 2006, so I believe we need this capability even as
+  part of the initial limited test.
 
-  Might be less than two weeks, depends on how much of protocol and
-  implementation I can steal from, eg, existing left-right protocol.
+  PRIORITY: Required
 
-  [Started]
+  TIME REQUIRED: 1-2 weeks for implementation once protocol settled,
+  depending on how much of the protocol and implementation I can steal
+  from the existing left-right protocol.
+
+  STATUS: Started
 
 - Subsetting (req_* attributes in up-down protocol)
 
@@ -135,7 +166,13 @@ TO DO:
   table to hold subset masks and tweaking almost every bit of code
   that touches that table.
 
-  [Not started]
+  PRIORITY: Required
+
+  TIME REQUIRED (minimal version): One day
+
+  TIME REQUIRED (real version): 1-2 weeks
+
+  STATUS: Not started
 
 - Error handling: make sure that exceptions map correctly to up-down
   error codes, flesh out left-right error codes.  Note that the same
@@ -144,12 +181,12 @@ TO DO:
 
   Will require code audit for coherency.
 
-  TIME REQUIRED: 4 days
+  TIME REQUIRED: four days
 
   DEPENDS ON: almost everything else, as almost any code change can
   raise new exceptions that we'd need to handle.
 
-  [Not started]
+  STATUS: Not started
 
 - db.commit(), db.rollback(), and related data integrity issues.
 
@@ -160,7 +197,7 @@ TO DO:
   tasking change will affect the exception handling that triggers
   rollback.
 
-  [Not started]
+  STATUS: Not started
 
 - Test with larger data set -- Tim gave me plenty of data, I have the
   low-level tools and the glue logic to create child objects for all
@@ -169,26 +206,26 @@ TO DO:
   easier to write something that dumps Tim's database in YAML format
   for testbed.py to chew on?
 
-  [Not started]
+  STATUS: Not started
 
 - Clean up rootd.py to be usable in a production system.   Most urgent
   issue is handling of private keys.   May not need much else, as this
   is not a high-traffic server.
 
-  [Not started]
+  STATUS: Not started
 
 - Handle loss of connnection to database server and other MySQL
   errors.  MySQLdb throws an exception, which we can catch, and
   retrying is easy enough, but need to be a bit careful about recovery
   action depending on whether we had uncommitted changes.
 
-  [Not started]
+  STATUS: Not started
 
 - Test framework, multiple self-instances per engine-instance.
 
   DEPENDS ON: async tasking model.
 
-  [Not started]
+  STATUS: Not started
 
 - tlslite code seems flakey under heavy use, and doesn't support all
   the cert checks we want.  Best bet for getting this right is
@@ -206,19 +243,19 @@ TO DO:
 
   DEPENDS ON: async tasking model.
 
-  [Not started]
+  STATUS: Not started
 
 - ROA generation.  We have a bunch of the primitives for this but we
   aren't yet generating the ROAs themselves.
 
-  [Not started]
+  STATUS: Not started
 
 - Make rpkid fully event-driven (async tasking model), except for SQL
   queries.  This probably involves the "twisted" framework.
 
   TIME REQUIRED: one week.
 
-  [Not started]
+  STATUS: Not started
 
 - Update biz trust anchor model to what we came up with in Amsterdam.
   This has been waiting for work we hope RobK is doing.  This is
@@ -231,11 +268,11 @@ TO DO:
 
   TIME REQUIRED: one week.
 
-  [Not started]
+  STATUS: Not started
 
 - Performance testing
 
-  [Not started]
+  STATUS: Not started
 
 - rcynic handling of RPKI trust anchors probably needs updating.
   Discussions over last N months of how RPKI trust anchors work, how
@@ -250,7 +287,7 @@ TO DO:
 
   TIME REQUIRED: three days.
 
-  [Not started]
+  STATUS: Not started
 
 - rcynic does not yet handle manifests.  This is both a real problem
   (manifests were added for a reason) and a user acceptance problem
@@ -260,35 +297,39 @@ TO DO:
 
   TIME REQUIRED: one week.
 
-  [Not started]
+  STATUS: Not started
 
 - Update operation and installation docs.
 
   Known current omissions: left-right "rekey" and "revoke" operations,
   testbed.py's rootd_sia config option.
 
-  [Ongoing]
+  STATUS: Ongoing
 
 - Update internals docs (Doxygen).
 
-  [Ongoing]
+  STATUS: Ongoing
 
 - Reorganize code (directory names, module names, which objects are in
-  which modules) to make it easier to understand and maintain;
-  portions of the existing code were done in extreme haste to meet
-  testing deadlines and it shows.
+  which modules, add gctx pointers to objects so we can stop passing
+  all these flipping explicit gctx pointers in almost every function
+  call) to make it easier to understand and maintain.  Portions of the
+  existing code were done in extreme haste to meet testing deadlines,
+  and it shows.
 
-  [Not started]
+  STATUS: Not started
 
-- Add gctx pointers to Python representations of all the SQL objects
-  so we can stop passing all these flipping explicit gctx pointers
-  around.
+  TIME REQUIRED: two days
 
-  [Not started] 
+  PRIORITY: Highly desirable (to preserve programmers' and
+  maintainers' sanity, if nothing else)
 
 - Add HSM support.  Architecture includes it, current code does not.
 
-  [Not started]
+  STATUS: Not started
+
+  PRIORITY: Desirable.  Am guessing ARIN does not require this for
+  initial test
 
 
 

@@ -63,15 +63,10 @@ pure Python and only 2% about any kind of crypto.
 
 TO DO:
 
-- Test framework, multiple self-instances per engine-instance.
-  Depends on async tasking model.
-
-  [Not started]
-
 - Scripted tests to grow and shrink and revoke and ....  See
   testbed.*.yaml, but more systematic testing needed.
 
-  [Started]
+  [Ongoing]
 
 - Analysis tools to analyze results of scripted testing.  So far have
   rcynic hooked into testbed.py.  Prettyprinter might be useful.
@@ -82,6 +77,8 @@ TO DO:
   is the thing that validates, eg, a ROA, probably using output of an
   rcynic run as one of its inputs).
 
+  DEPENDS ON: ROA generation
+
   [Not started]
 
 - Common protocol dump format with APNIC and other implementors so we
@@ -91,6 +88,16 @@ TO DO:
   wrapped XML.
 
   [Not started]
+
+- Clean unused cruft out of left-right protocol, or at least have
+  control booleans we don't intend to implement at present signal an
+  error if used.
+
+  Bottleneck here has been deciding what to punt and what to
+  implement.  Removing unused booleans or raising errors when they're
+  used is trivial.
+
+  [Started]
 
 - resource_set_notafter attribute added to RelaxNG but not yet to
   rpki.up_down.class_elt.  Need to convert to and from
@@ -103,9 +110,30 @@ TO DO:
   (he was right).  Next step is to integrate Randy's advice, which
   probably means picking up more of the left-right protocol framework.
 
+  Desirable although not strictly required that protcol be agreed upon
+  among the RIRs.  Might not be practical given how long it takes
+  group to decide anything.
+
+  Tricky bit is making sure that repository receives enough
+  information to know whether parent has authorized child to use
+  parent's namespace in nesting case.   In theory this is
+  straightforward but requires careful checking.
+
+  TIME REQUIRED: two weeks for implementation once protocol settled.
+
+  Might be less than two weeks, depends on how much of protocol and
+  implementation I can steal from, eg, existing left-right protocol.
+
   [Started]
 
 - Subsetting (req_* attributes in up-down protocol)
+
+  Minimal implementation would be to recognize this as correct
+  protocol and signal an internal server error if it's ever used.
+
+  More serious implementation would require expanding SQL child_cert
+  table to hold subset masks and tweaking almost every bit of code
+  that touches that table.
 
   [Not started]
 
@@ -114,9 +142,23 @@ TO DO:
   exception may produce different error codes depending on which
   up-down PDU we're processing (sigh).
 
+  Will require code audit for coherency.
+
+  TIME REQUIRED: 4 days
+
+  DEPENDS ON: almost everything else, as almost any code change can
+  raise new exceptions that we'd need to handle.
+
   [Not started]
 
 - db.commit(), db.rollback(), and related data integrity issues.
+
+  TIME REQUIRED: two weeks for commit and rollback.  Data integrity
+  fuzzier.
+
+  DEPENDS ON: async tasking model, sort of -- could do it first, but
+  tasking change will affect the exception handling that triggers
+  rollback.
 
   [Not started]
 
@@ -142,6 +184,12 @@ TO DO:
 
   [Not started]
 
+- Test framework, multiple self-instances per engine-instance.
+
+  DEPENDS ON: async tasking model.
+
+  [Not started]
+
 - tlslite code seems flakey under heavy use, and doesn't support all
   the cert checks we want.  Best bet for getting this right is
   probably to hack on the POW Ssl class until it supports everything
@@ -150,11 +198,13 @@ TO DO:
   TLS properly if one follows this recipe, whereas with TLSlite it's
   all a mystery.
 
-  Depends on async tasking model.
-
   Useful side effect of doing this via POW: it brings us back to only
   needing one crypto library (in particular it lets us punt M2Crypto,
   which appears to be coded as an accident waiting to happen).
+
+  TIME REQUIRED: one week.
+
+  DEPENDS ON: async tasking model.
 
   [Not started]
 
@@ -163,8 +213,10 @@ TO DO:
 
   [Not started]
 
-- Make rpkid fully event-driven, except for SQL queries.  This
-  probably involves the "twisted" framework.
+- Make rpkid fully event-driven (async tasking model), except for SQL
+  queries.  This probably involves the "twisted" framework.
+
+  TIME REQUIRED: one week.
 
   [Not started]
 
@@ -176,6 +228,8 @@ TO DO:
   perhaps the existing TA fields in various objects become pairs of
   certs instead of a single TA, but this is mostly just generalization
   and reuse of existing code, no bold new adventures.
+
+  TIME REQUIRED: one week.
 
   [Not started]
 
@@ -194,6 +248,8 @@ TO DO:
   Alternatively, this could be a separate program to keep this grot
   out of rcynic itself, but that's probably a usability nightmare.
 
+  TIME REQUIRED: three days.
+
   [Not started]
 
 - rcynic does not yet handle manifests.  This is both a real problem
@@ -201,6 +257,8 @@ TO DO:
   (without manifest support rcynic checks old certs that are supposed
   to fail because they've been revoked, resulting in what appear to be
   spurious errors, which just annoy the user).
+
+  TIME REQUIRED: one week.
 
   [Not started]
 

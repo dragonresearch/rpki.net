@@ -68,7 +68,7 @@ TO DO:
 
   PRIORITY: Required
 
-  TIME REQUIRED: as needed, open-ended
+  TIME REQUIRED: open-ended
 
   STATUS: Ongoing
 
@@ -115,7 +115,7 @@ TO DO:
 
   TIME REQUIRED: Less than one day
 
-  STATUS: Started
+  STATUS: Not started
 
 - resource_set_notafter attribute added to RelaxNG but not yet to
   rpki.up_down.class_elt.  Need to convert to and from
@@ -181,6 +181,8 @@ TO DO:
 
   Will require code audit for coherency.
 
+  PRIORITY: Required
+
   TIME REQUIRED: four days
 
   DEPENDS ON: almost everything else, as almost any code change can
@@ -188,10 +190,23 @@ TO DO:
 
   STATUS: Not started
 
-- db.commit(), db.rollback(), and related data integrity issues.
+- db.commit(), db.rollback(), code audit for data integrity issues,
+  fix any data integrity issues that turn up.
 
-  TIME REQUIRED: two weeks for commit and rollback.  Data integrity
-  fuzzier.
+  Among other issues, we need to handle loss of connnection to
+  database server and other MySQL errors.  MySQLdb throws an
+  exception, which we can catch, and retrying is easy enough, but need
+  to be careful about recovery action depending on whether we had
+  uncommitted changes.
+
+  PRIORITY: Required
+
+  TIME REQUIRED (commit and rollback): Two weeks
+
+  TIME REQUIRED (data integrity audit): Three days
+
+  TIME REQUIRED (fix data integrity): Unknown, depends on code audit
+  and results of runtime testing.
 
   DEPENDS ON: async tasking model, sort of -- could do it first, but
   tasking change will affect the exception handling that triggers
@@ -202,9 +217,16 @@ TO DO:
 - Test with larger data set -- Tim gave me plenty of data, I have the
   low-level tools and the glue logic to create child objects for all
   the entities in the IRDB, but I don't yet have logic to poll on
-  behalf of each of them and check result for sanity.  Maybe it'd be
-  easier to write something that dumps Tim's database in YAML format
-  for testbed.py to chew on?
+  behalf of each of them and check result for sanity.
+
+  Maybe it'd be easier to write something that dumps Tim's database in
+  YAML format for testbed.py to chew on?
+
+  PRIORITY: Highly desirable
+
+  TIME REQUIRED (setup): One day to convert Tim's data to YAML
+
+  TIME REQUIRED (testing): Unknown, depends on what we turn up
 
   STATUS: Not started
 
@@ -212,18 +234,20 @@ TO DO:
   issue is handling of private keys.   May not need much else, as this
   is not a high-traffic server.
 
-  STATUS: Not started
+  PRIORITY: Highly desirable (not strictly needed for limited testing)
 
-- Handle loss of connnection to database server and other MySQL
-  errors.  MySQLdb throws an exception, which we can catch, and
-  retrying is easy enough, but need to be a bit careful about recovery
-  action depending on whether we had uncommitted changes.
+  TIME REQUIRED: Two days
 
   STATUS: Not started
 
-- Test framework, multiple self-instances per engine-instance.
+- Test framework, multiple self-instances per engine-instance (single
+  self-instance per engine-instance is already done).
+
+  PRIORITY: Required
 
   DEPENDS ON: async tasking model.
+
+  TIME REQUIRED: One week
 
   STATUS: Not started
 
@@ -239,25 +263,35 @@ TO DO:
   needing one crypto library (in particular it lets us punt M2Crypto,
   which appears to be coded as an accident waiting to happen).
 
-  TIME REQUIRED: one week.
+  PRIORITY: Required (cert checking is a security issue).
 
-  DEPENDS ON: async tasking model.
+  TIME REQUIRED: Two weeks.
+
+  DEPENDS ON: Async tasking model.
 
   STATUS: Not started
 
 - ROA generation.  We have a bunch of the primitives for this but we
   aren't yet generating the ROAs themselves.
 
+  PRIORITY: Required
+
+  TIME REQUIRED: Three days
+
   STATUS: Not started
 
 - Make rpkid fully event-driven (async tasking model), except for SQL
   queries.  This probably involves the "twisted" framework.
+
+  PRIORITY: Required (to implement hosting model)
 
   TIME REQUIRED: one week.
 
   STATUS: Not started
 
 - Update biz trust anchor model to what we came up with in Amsterdam.
+  This was a direct result of security review by Kent and Housley.
+
   This has been waiting for work we hope RobK is doing.  This is
   probably not a lot of coding, probably a few extra cert fields in
   the self object which we then need to toss into the
@@ -266,7 +300,9 @@ TO DO:
   certs instead of a single TA, but this is mostly just generalization
   and reuse of existing code, no bold new adventures.
 
-  TIME REQUIRED: one week.
+  PRIORITY: Required (security issue)
+
+  TIME REQUIRED: One week.
 
   STATUS: Not started
 
@@ -276,26 +312,33 @@ TO DO:
 
 - rcynic handling of RPKI trust anchors probably needs updating.
   Discussions over last N months of how RPKI trust anchors work, how
-  we package them, and how we roll them over.  Last I recall (need to
-  check email archives) APNIC had proposed a relatively simple format
-  (CMS signed PEM-encoded X.509 object set, or something like that).
-  Need to do analysis to make sure this is adaquate for our needs, if
-  so just use it.  This would involve minor changes to rcynic.
+  we package them, and how we roll them over.  The last (TA rollover)
+  is the driver for this.
+
+  Last I recall (need to check email archives) APNIC had proposed a
+  relatively simple format (CMS signed PEM-encoded X.509 object set,
+  or something like that).  Need to do analysis to make sure this is
+  adaquate for our needs, if so just use it.  This would involve minor
+  changes to rcynic.
 
   Alternatively, this could be a separate program to keep this grot
   out of rcynic itself, but that's probably a usability nightmare.
 
-  TIME REQUIRED: three days.
+  PRIORITY: Required (usability issue for relying parties)
+
+  TIME REQUIRED: Three days.
 
   STATUS: Not started
 
 - rcynic does not yet handle manifests.  This is both a real problem
-  (manifests were added for a reason) and a user acceptance problem
-  (without manifest support rcynic checks old certs that are supposed
-  to fail because they've been revoked, resulting in what appear to be
-  spurious errors, which just annoy the user).
+  (manifests were added to plug a security hole) and a user acceptance
+  problem (without manifest support rcynic checks old certs that are
+  supposed to fail because they've been revoked, resulting in what
+  appear to be spurious errors, which just annoy the user).
 
-  TIME REQUIRED: one week.
+  PRIORITY: Required
+
+  TIME REQUIRED: One week.
 
   STATUS: Not started
 
@@ -304,9 +347,21 @@ TO DO:
   Known current omissions: left-right "rekey" and "revoke" operations,
   testbed.py's rootd_sia config option.
 
+  TIME REQUIRED (current work items): Less than one day
+
+  PRIORITY: Required
+
   STATUS: Ongoing
 
-- Update internals docs (Doxygen).
+- Update internals docs (Doxygen).   Mostly this means updating
+  function comments in the Python code, as the rest is automatic.  May
+  require a bit of overview text to explain the workings of the code,
+  this overview text may well turn out to be just the current flat
+  text documents marked up for inclusion by Doxygen.
+
+  PRIORITY: Desirable
+
+  TIME REQUIRED: Two days
 
   STATUS: Ongoing
 
@@ -325,8 +380,12 @@ TO DO:
   maintainers' sanity, if nothing else)
 
 - Add HSM support.  Architecture includes it, current code does not.
+  First step here would be talking to somebody who understands PKCS#11
+  better than I do, ie, Richard Lamb or Francis Dupont.
 
   STATUS: Not started
+
+  TIME REQUIRED: Unknown
 
   PRIORITY: Desirable.  Am guessing ARIN does not require this for
   initial test

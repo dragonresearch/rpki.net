@@ -228,6 +228,10 @@ TO DO:
 
   [Not started] 
 
+- Add HSM support.  Architecture includes it, current code does not.
+
+  [Not started]
+
 
 
 Things implemented but not yet tested. 

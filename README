@@ -16,15 +16,13 @@ Programs:
 
 - rcynic: "cynical rsync" validator for rsync-based RPKI repositories.
 
+- rpkid: rpkid and friends, an (unfinished) collection of Python
+  programs to handle the publication side of the RPKI project.
+
 - tests and scripts: various little test programs and utilities, not
   really intended for use by anyone but the author.  If they're
   useful, cool, enjoy, but if they blow up in your face, set your
   computer on fire, and turn your cat blue, that's your problem.
-
-  scripts also contains rpkid and friends, an (unfinished) collection
-  of Python programs to handle the publication side of the RPKI
-  project.  rpkid and friends will move to a directory of their own at
-  some point as part of a code cleanup and reorganization pass.
 
 Other:
 

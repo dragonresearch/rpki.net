@@ -30,7 +30,7 @@
 ##
 ## The documentation you're reading is generated automatically by
 ## Doxygen from comments and documentation in
-## <a href="http://viewvc.hactrn.net/subvert-rpki.hactrn.net/scripts/rpki/">the code</a>.
+## <a href="http://viewvc.hactrn.net/subvert-rpki.hactrn.net/rpkid/rpki/">the code</a>.
 ##
 ## This work is funded by <a href="http://www.arin.net/">ARIN</a>, in
 ## collaboration with the other RIRs.  If you're interested in this

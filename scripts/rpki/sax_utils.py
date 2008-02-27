@@ -63,7 +63,7 @@ class handler(xml.sax.handler.ContentHandler):
     a = dict()
     for k,v in attrs.items():
       if isinstance(k, tuple):
-        if k == ('http://www.w3.org/XML/1998/namespace', 'lang'):
+        if k == ("http://www.w3.org/XML/1998/namespace", "lang"):
           k = "xml:lang"
         else:
           assert k[0] is None

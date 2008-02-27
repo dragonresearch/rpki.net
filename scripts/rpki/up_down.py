@@ -142,6 +142,7 @@ class class_elt(base_elt):
       self.resource_set_as   = rpki.resource_set.resource_set_as(attrs["resource_set_as"])
       self.resource_set_ipv4 = rpki.resource_set.resource_set_ipv4(attrs["resource_set_ipv4"])
       self.resource_set_ipv6 = rpki.resource_set.resource_set_ipv6(attrs["resource_set_ipv6"])
+      self.resource_set_notafter = rpki.sundial.datetime.fromXMLtime(attrs.get("resource_set_notafter"))
 
   def endElement(self, stack, name, text):
     """Handle <class/> elements and their children."""
@@ -153,8 +154,9 @@ class class_elt(base_elt):
 
   def toXML(self):
     """Generate a <class/> element."""
-    elt = self.make_elt("class", "class_name", "cert_url",
-                        "resource_set_as", "resource_set_ipv4", "resource_set_ipv6", "suggested_sia_head")
+    elt = self.make_elt("class", "class_name", "cert_url", "resource_set_as",
+                        "resource_set_ipv4", "resource_set_ipv6",
+                        "resource_set_notafter", "suggested_sia_head")
     elt.extend([i.toXML() for i in self.certs])
     if self.issuer is not None:
       self.make_b64elt(elt, "issuer", self.issuer.get_DER())
@@ -164,13 +166,15 @@ class class_elt(base_elt):
     """Build a resource_bag from from this <class/> element."""
     return rpki.resource_set.resource_bag(self.resource_set_as,
                                           self.resource_set_ipv4,
-                                          self.resource_set_ipv6)
+                                          self.resource_set_ipv6,
+                                          self.resource_set_notafter)
 
   def from_resource_bag(self, bag):
     """Set resources of this class element from a resource_bag."""
     self.resource_set_as   = bag.as
     self.resource_set_ipv4 = bag.v4
     self.resource_set_ipv6 = bag.v6
+    self.resource_set_notafter = bag.valid_until
 
 class list_pdu(base_elt):
   """Up-Down protocol "list" PDU."""
@@ -422,7 +426,7 @@ class error_response_pdu(base_elt):
     if self.description:
       elt = self.make_elt("description")
       elt.text = str(self.description)
-      elt.set("xml:lang", "en-US")
+      elt.set("{http://www.w3.org/XML/1998/namespace}lang", "en-US")
       payload.append(elt)
     return payload
 

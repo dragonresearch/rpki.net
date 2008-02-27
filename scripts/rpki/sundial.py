@@ -75,11 +75,17 @@ class datetime(pydatetime.datetime):
   @classmethod
   def fromXMLtime(cls, x):
     """Convert from XML time representation."""
-    return cls.strptime(x, "%Y-%m-%dT%H:%M:%SZ")
+    if x is None:
+      return None
+    else:
+      return cls.strptime(x, "%Y-%m-%dT%H:%M:%SZ")
 
   def toXMLtime(self):
     """Convert to XML time representation."""
     return self.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+  def __str__(self):
+    return self.toXMLtime()
 
   @classmethod
   def fromdatetime(cls, x):

@@ -117,7 +117,7 @@ TO DO:
 
   TIME REQUIRED: Less than one day
 
-  STATUS: Not started
+  STATUS: Error signalling done
 
 - resource_set_notafter attribute added to RelaxNG but not yet to
   rpki.up_down.class_elt.  Need to convert to and from

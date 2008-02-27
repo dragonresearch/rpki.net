@@ -275,11 +275,9 @@ class self_elt(data_elt):
     rpki.log.trace()
     if q_pdu.rekey:
       self.serve_rekey(gctx)
-    if q_pdu.reissue:
-      self.serve_reissue(gctx)
     if q_pdu.revoke:
       self.serve_revoke(gctx)
-    self.unimplemented_control("run_now", "publish_world_now")
+    self.unimplemented_control("reissue", "run_now", "publish_world_now")
 
   def serve_rekey(self, gctx):
     """Handle a left-right rekey action for this self."""
@@ -292,12 +290,6 @@ class self_elt(data_elt):
     rpki.log.trace()
     for parent in self.parents(gctx):
       parent.serve_revoke(gctx)
-
-  def serve_reissue(self, gctx):
-    """Handle a left-right reissue action for this self."""
-    rpki.log.trace()
-    for parent in self.parents(gctx):
-      parent.serve_reissue(gctx)
 
   def serve_fetch_one(self, gctx):
     """Find the self object on which a get, set, or destroy method
@@ -478,9 +470,13 @@ class bsc_elt(data_elt):
       self.signing_cert.extend(q_pdu.signing_cert)
     if q_pdu.generate_keypair:
       #
-      # Hard wire 2048-bit RSA with SHA-256 in schema for now.
-      # Assume no HSM for now.
+      # For the moment we only support 2048-bit RSA with SHA-256, no
+      # HSM.  Assertion just checks that the schema hasn't changed out
+      # from under this code.
       #
+      assert (q_pdu.key_type is None or q_pdu.key_type == "rsa") and \
+             (q_pdu.hash_alg is None or q_pdu.hash_alg == "sha256") and \
+             (q_pdu.key_length is None or q_pdu.key_length == 2048)
       keypair = rpki.x509.RSA()
       keypair.generate()
       self.private_key_id = keypair
@@ -544,10 +540,9 @@ class parent_elt(data_elt):
     """Extra server actions for parent_elt."""
     if q_pdu.rekey:
       self.serve_rekey(gctx)
-    if q_pdu.reissue:
-      self.serve_reissue(gctx)
     if q_pdu.revoke:
       self.serve_revoke(gctx)
+    self.unimplemented_control("reissue")
 
   def serve_rekey(self, gctx):
     """Handle a left-right rekey action for this parent."""
@@ -558,18 +553,6 @@ class parent_elt(data_elt):
     """Handle a left-right revoke action for this parent."""
     for ca in self.cas(gctx):
       ca.revoke(gctx)
-
-  def serve_reissue(self, gctx):
-    """Handle a left-right reissue action for this parent."""
-    for ca in self.cas(gctx):
-      for ca_detail in ca.ca_details(gctx):
-        for child_certs in ca_detail.child_certs(gctx):
-          #
-          # I guess this reuses existing SIA and resources.  Should
-          # child_cert.reissue() allow defaults for those?  At present
-          # that would be a no-op, so what was the point?
-          #
-          raise rpki.exceptions.NotImplementedYet
 
   def startElement(self, stack, name, attrs):
     """Handle <parent/> element."""

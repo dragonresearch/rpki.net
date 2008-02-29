@@ -41,9 +41,10 @@ class ROAIPAddrBlocks(SequenceOf):
  
 class RouteOriginAttestation(Sequence):
   def __init__(self, optional=0, default=''):
-    self.version = Integer(0, chr(0x00))
+    self.version = Integer()
+    self.explicitVersion = Explicit(CLASS_CONTEXT, FORM_CONSTRUCTED, 0, self.version, 0, 'oAMCAQA=')
     self.asID = Integer()
     self.exactMatch = Boolean()
     self.ipAddrBlocks = ROAIPAddrBlocks()
-    contents = [ self.version, self.asID, self.exactMatch, self.ipAddrBlocks ]
+    contents = [ self.explicitVersion, self.asID, self.exactMatch, self.ipAddrBlocks ]
     Sequence.__init__(self, contents, optional, default)

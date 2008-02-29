@@ -119,19 +119,6 @@ TO DO:
 
   STATUS: Error signalling done
 
-- resource_set_notafter attribute added to RelaxNG but not yet to
-  rpki.up_down.class_elt.  Need to convert to and from
-  rpki.sundial.datetime.  This is an up-down protocol feature that was
-  added fairly late and that none of us properly implement yet, but
-  failing to handle it would be a spec violation and eventually cause
-  an interop problem.
-
-  PRIORITY: Required
-
-  TIME REQUIRED: Less than one day
-
-  STATUS: Done
-
 - Publication protocol and implementation thereof.   Protocol design
   started, Randy had comments that sent me back to the drawing board
   (he was right).  Next step is to integrate Randy's advice, which
@@ -344,17 +331,6 @@ TO DO:
 
   STATUS: Not started
 
-- Update operation and installation docs.
-
-  Known current omissions: left-right "rekey" and "revoke" operations,
-  testbed.py's rootd_sia config option.
-
-  TIME REQUIRED (current work items): Less than one day
-
-  PRIORITY: Required
-
-  STATUS: Ongoing
-
 - Update internals docs (Doxygen).   Mostly this means updating
   function comments in the Python code, as the rest is automatic.  May
   require a bit of overview text to explain the workings of the code,
@@ -374,7 +350,7 @@ TO DO:
   existing code were done in extreme haste to meet testing deadlines,
   and it shows.
 
-  STATUS: Not started
+  STATUS: File renaming mostly done, gctx stuff not started
 
   TIME REQUIRED: two days
 

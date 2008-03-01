@@ -123,6 +123,7 @@ def main():
   """Main program, up front to make control logic more obvious."""
 
   rpki.log.init(testbed_name)
+  rpki.log.info("Starting")
 
   signal.signal(signal.SIGALRM, wakeup)
 
@@ -135,120 +136,82 @@ def main():
     os.makedirs(testbed_dir)
     os.chdir(testbed_dir)
 
-  # Clean up old state
-
+  rpki.log.info("Cleaning up old state")
   subprocess.check_call(("rm", "-rf", "publication", "rcynic-data", "rootd.subject.pkcs10", "rootd.req"))
 
-  # Read the first YAML document as our master configuration
-
+  rpki.log.info("Reading master YAML configuration")
   db = allocation_db(yaml_script.pop(0))
 
-  # Construct biz keys and certs for this script to use
-
+  rpki.log.info("Constructing biz keys and certs for control script")
   setup_biz_cert_chain(testbed_name)
   global testbed_key, testbed_certs
   testbed_key = rpki.x509.RSA(PEM_file = testbed_name + "-EE.key")
   testbed_certs = rpki.x509.X509_chain(PEM_files = (testbed_name + "-EE.cer", testbed_name + "-CA.cer"))
 
-  # Construct biz keys and certs for rootd instance to use
-
+  rpki.log.info("Constructing biz keys and certs for rootd")
   setup_biz_cert_chain(rootd_name)
   global rootd_ta
   rootd_ta = rpki.x509.X509(PEM_file = rootd_name + "-TA.cer")
 
-  # Construct biz keys and certs for rpkid and irdbd instances.
-
   for a in db:
     a.setup_biz_certs()
 
-  # Create the (psuedo) publication directory
-
   setup_publication()
-
-  # Construct config files for rootd, rsyncd, rcynic instances
-
   setup_rootd(db.root.name)
   setup_rsyncd()
   setup_rcynic()
 
-  # Construct config files for rpkid and irdbd instances
-
   for a in db.engines:
     a.setup_conf_file()
-
-  # Initialize SQL for rpkid and irdbd instances
-
-  for a in db.engines:
     a.setup_sql(rpki_sql, irdb_sql)
-
-  # Populate IRDB(s)
-
-  for a in db.engines:
     a.sync_sql()
 
   try:
 
-    # Start rootd instance
-
-    rpki.log.info("Running rootd")
+    rpki.log.info("Starting rootd")
     rootd_process = subprocess.Popen((prog_python, prog_rootd, "-c", rootd_name + ".conf"))
 
-    # Start rsyncd instance
-
-    rpki.log.info("Running rsyncd")
+    rpki.log.info("Starting rsyncd")
     rsyncd_process = subprocess.Popen((prog_rsyncd, "--daemon", "--no-detach", "--config", rsyncd_name + ".conf"))
 
     # Start rpkid and irdbd instances
-
     for a in db.engines:
       a.run_daemons()
-
-    # Wait a little while for all those instances to come up
 
     rpki.log.info("Sleeping while daemons start up")
     time.sleep(10)
 
     # Create objects in RPKI engines
-
     for a in db.engines:
       a.create_rpki_objects()
 
     # Write YAML files for leaves
-
     for a in db.leaves:
       a.write_leaf_yaml()
 
-    # 8: Start cycle:
-
+    # Loop until we run out of control YAML
     while True:
 
       # Run cron in all RPKI instances
-
       for a in db.engines:
         a.run_cron()
 
       # Run all YAML clients
-
       for a in db.leaves:
         a.run_yaml()
 
-      # Make sure that everybody got what they were supposed to get
-      # and that everything that was supposed to be published has been
-      # published.
-      #
-      # As a first cut at this, try running rcynic on the outputs.
-
+      # Run rcynic to check results
       run_rcynic()
 
       # If we've run out of deltas to apply, we're done
-
       if not yaml_script:
+        rpki.log.info("No more deltas to apply, done")
         break
 
-      # Apply next deltas and resync IRDBs
-
+      rpki.log.info("Applying deltas")
       db.apply_delta(yaml_script.pop(0))
 
+      # Resync IRDBs
       for a in db.engines:
         a.sync_sql()
 
@@ -257,6 +220,7 @@ def main():
   finally:
 
     try:
+      rpki.log.info("Shutting down")
       for a in db.engines:
         a.kill_daemons()
       for p,n in ((rootd_process, "rootd"), (rsyncd_process, "rsyncd")):
@@ -475,14 +439,14 @@ class allocation(object):
 
   def setup_biz_certs(self):
     """Create business certs for this entity."""
-    rpki.log.info("Biz certs for %s" % self.name)
+    rpki.log.info("Constructing biz keys and certs for %s" % self.name)
     for tag in ("RPKI", "IRDB"):
       setup_biz_cert_chain(self.name + "-" + tag)
     self.rpkid_ta = rpki.x509.X509(PEM_file = self.name + "-RPKI-TA.cer")
 
   def setup_conf_file(self):
     """Write config files for this entity."""
-    rpki.log.info("Config files for %s" % self.name)
+    rpki.log.info("Writing config files for %s" % self.name)
     d = { "my_name"      : self.name,
           "testbed_name" : testbed_name,
           "irdb_db_name" : self.irdb_db_name,
@@ -499,7 +463,7 @@ class allocation(object):
 
   def setup_sql(self, rpki_sql, irdb_sql):
     """Set up this entity's IRDB."""
-    rpki.log.info("MySQL setup for %s" % self.name)
+    rpki.log.info("Setting up MySQL for %s" % self.name)
     db = MySQLdb.connect(user = "rpki", db = self.rpki_db_name, passwd = rpki_db_pass)
     cur = db.cursor()
     for sql in rpki_sql.split(";"):
@@ -518,7 +482,7 @@ class allocation(object):
     this once during setup, then do it again every time we apply a
     delta to this entity.
     """
-    rpki.log.info("MySQL sync for %s" % self.name)
+    rpki.log.info("Updating MySQL data for IRDB %s" % self.name)
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
     cur = db.cursor()
     cur.execute("DELETE FROM asn")
@@ -691,7 +655,7 @@ def setup_biz_cert_chain(name):
 
 def setup_rootd(rpkid_name):
   """Write the config files for rootd."""
-  rpki.log.info("Config files for %s" % rootd_name)
+  rpki.log.info("Writing config files for %s" % rootd_name)
   d = { "rootd_name" : rootd_name,
         "rootd_port" : rootd_port,
         "rpkid_name" : rpkid_name,
@@ -729,7 +693,7 @@ def setup_rsyncd():
 
 def setup_publication():
   """Set up (pseudo) publication directory."""
-  rpki.log.info("Pseudo-publication directory")
+  rpki.log.info("Creating (pseudo) publication directory")
   assert rootd_sia.startswith("rsync://")
   global rsyncd_dir
   rsyncd_dir = os.getcwd() + "/publication/" + rootd_sia[len("rsync://"):]

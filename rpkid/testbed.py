@@ -118,6 +118,7 @@ testbed_key    = None
 testbed_certs  = None
 rootd_ta       = None
 
+startup_delay  = int(cfg.get("startup_delay", "10"))
 
 def main():
   """Main program, up front to make control logic more obvious."""
@@ -178,8 +179,8 @@ def main():
     for a in db.engines:
       a.run_daemons()
 
-    rpki.log.info("Sleeping while daemons start up")
-    time.sleep(10)
+    rpki.log.info("Sleeping %d seconds while daemons start up" % startup_delay)
+    time.sleep(startup_delay)
 
     # Create objects in RPKI engines
     for a in db.engines:

@@ -368,6 +368,15 @@ TO DO:
   PRIORITY: Desirable.  Am guessing ARIN does not require this for
   initial test
 
+- Installation packaging, so that rpkid can be installed like a normal
+  package.
+
+  STATUS: Not started
+
+  TIME REQUIRED: Three days
+
+  PRIORITY: Desirable
+
 
 
 Things implemented but not yet tested. 

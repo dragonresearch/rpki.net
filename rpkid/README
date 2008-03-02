@@ -383,6 +383,35 @@ TO DO:
 
   PRIORITY: Desirable
 
+- Tighten up syntax checking in left-right schema.
+
+  STATUS: Not started
+
+  TIME REQUIRED: Less than a day
+
+  PRIORITY: Desirable
+
+- Rethink exposing SQL primary indices in protocols.  Right now, we
+  use autoincremented SQL indices in many places in the left-right
+  protocol, and they're even expose in a few places in our
+  implementation of the up-down protocol.  This is nice and unique but
+  may be operationally fragile, since up-down usage means that URLs
+  contain mechanically assigned identifiers rather than an identifier
+  negotiated between the two parties during contract setup.
+
+  RobK suggested that we should instead use something like a hash of
+  the client's name, which would be probabilistically unique, would
+  not expose information, but would be stable even if we had to
+  rebuild the database.
+
+  STATUS: Not started
+
+  TIME REQUIRED: Two or three days to evaluate.  Implementation time
+  if we decide to make a change unknown, but probably on the order of
+  a few days.
+
+  PRIORITY: Rethinking desirable; reworking unknown
+
 
 
 Things implemented but not yet tested. 

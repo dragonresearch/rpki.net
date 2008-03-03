@@ -82,6 +82,8 @@ class resource_range_ip(resource_range):
   def _prefixlen(self):
     """Determine whether a resource_range_ip can be expressed as a prefix."""
     mask = self.min ^ self.max
+    if self.min & mask != 0:
+      return -1
     prefixlen = self.datum_type.bits
     while mask & 1:
       prefixlen -= 1

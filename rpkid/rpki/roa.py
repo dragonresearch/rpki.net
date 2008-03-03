@@ -18,11 +18,29 @@
 
 At the moment this is just the ASN.1 encoder.
 
-This corresponds to draft-ietf-sidr-roa-format-01, which is a work in
+This corresponds to draft-ietf-sidr-roa-format-02, which is a work in
 progress, so this may need updating later.
 """
 
 from POW._der import *
+
+# draft-ietf-sidr-roa-format-02 2.1.3.2
+#
+#      RouteOriginAttestation ::= SEQUENCE { 
+#         version [0] INTEGER DEFAULT 0, 
+#         asID  ASID, 
+#         exactMatch BOOLEAN  
+#         ipAddrBlocks ROAIPAddrBlocks } 
+#     
+#      ASID ::= INTEGER 
+#       
+#      ROAIPAddrBlocks ::= SEQUENCE of ROAIPAddressFamily 
+#       
+#      ROAIPAddressFamily ::= SEQUENCE { 
+#         addressFamily OCTET STRING (SIZE (2..3)), 
+#         addresses SEQUENCE OF IPAddress } 
+#    
+#      IPAddress ::= BIT STRING 
 
 class IPAddresses(SequenceOf):
   def __init__(self, optional=0, default=''):

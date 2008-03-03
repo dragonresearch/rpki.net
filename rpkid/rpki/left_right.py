@@ -855,6 +855,19 @@ class route_origin_elt(data_elt):
     """Generate <route_origin/> element."""
     return self.make_elt()
 
+  def generate_roa(self, gctx):
+    """Generate a ROA based on this <route_origin/> object."""
+    content = rpki.roa.RouteOriginAttestation()
+    content.version.set(0)
+    content.asID.set(self.as_number)
+    content.exactMatch.set(self.exact_match)
+
+    # Probably want to (tags-query-replace "to_tuple" "to_rfc3779_tuple")
+    # then create parallel functions "to_roa_tuple" (or whatever) for
+    # use here, since syntax is similar but not identical.
+
+    raise rpki.exceptions.NotImplementedYet
+
 class list_resources_elt(base_elt):
   """<list_resources/> element."""
 

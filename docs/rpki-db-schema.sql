@@ -154,6 +154,7 @@ DROP TABLE IF EXISTS route_origin;
 CREATE TABLE route_origin (
        route_origin_id      SERIAL NOT NULL,
        as_number            DECIMAL(24,0),
+       cert                 LONGBLOB,
        roa                  LONGBLOB,
        self_id              BIGINT unsigned NOT NULL,
        ca_detail_id         BIGINT unsigned,

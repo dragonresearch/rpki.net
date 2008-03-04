@@ -423,9 +423,9 @@ class bsc_elt(data_elt):
   elements = ('signing_cert',)
   booleans = ("generate_keypair", "clear_signing_certs")
 
-  sql_template = rpki.sql.template("bsc", "bsc_id", "self_id",
+  sql_template = rpki.sql.template("bsc", "bsc_id", "self_id", "hash_alg",
                                    ("public_key", rpki.x509.RSApublic),
-                                   ("private_key_id", rpki.x509.RSA), "hash_alg")
+                                   ("private_key_id", rpki.x509.RSA))
 
   pkcs10_cert_request = None
   public_key = None
@@ -799,9 +799,11 @@ class route_origin_elt(data_elt):
   booleans = ("suppress_publication",)
 
   sql_template = rpki.sql.template("route_origin", "route_origin_id", "self_id", "as_number",
-                                   "ca_detail_id", "roa")
+                                   "ca_detail_id", "roa",
+                                   ("cert", rpki.x509.X509))
 
   ca_detail_id = None
+  cert = None
   roa = None
 
   def sql_fetch_hook(self, gctx):
@@ -908,36 +910,32 @@ class route_origin_elt(data_elt):
     keypair = rpki.x509.RSA()
     keypair.generate()
 
-    # Hmm, may need to specify SIA here naming the ROA itself.  In
-    # which case it's the EE cert that needs to go into the
-    # ca_detail's manifest, not the ROA.  Hmm, where do we even store
-    # the EE cert, other than in the ROA itself?
+    sia = ((rpki.oids.name2oid["id-ad-signedObject"], ("uri", self.roa_uri(ca, keypair))),)
 
-    ee_cert = ca_detail.issue_ee(ca, resources)
-
-    self.roa = rpki.cms.sign(payload.toString(), keypair, (ee_cert,))
+    self.cert = ca_detail.issue_ee(ca, resources, sia)
+    self.roa = rpki.cms.sign(payload.toString(), keypair, (self.cert,))
     self.ca_detail_id = ca_detail.ca_detail_id
     self.sql_store(gctx)
 
-    parent.repository(gctx).publish(gctx, self.roa, self.uri(ca))
+    repository = parent.repository(gctx)
+
+    repository.publish(gctx, self.roa, self.roa_uri(ca))
+    repository.publish(gctx, self.cert, self.ee_uri(ca))
 
     ca_detail.generate_manifest(gctx)
 
     raise rpki.exceptions.NotImplementedYet
 
-  def uri_tail(self):
-    """Return the tail (filename) portion of the URI for this route_origin's ROA."""
-
-    # And just what -is- the filename for a ROA?  In a
-    # single-signature model it could be the hash of the EE public
-    # key, which is a bit painful to extract.  In a multiple-signature
-    # model ... feh.  I'm tempted just to hash the ROA itself and have
-    # done.
-
-    raise rpki.exceptions.NotImplementedYet
-
-  def uri(self, ca):
+  def roa_uri(self, ca, key = None):
     """Return the publication URI for this route_origin's ROA."""
+    return ca.sia_uri + (key or self.cert).gSKI() + ".roa"
+
+  def ee_uri_tail(self):
+    """Return the tail (filename) portion of the URI for this route_origin's ROA's EE certificate."""
+    return self.cert.gSKI() + ".cer"
+
+  def ee_uri(self, ca):
+    """Return the publication URI for this route_origin's ROA's EE certificate."""
     return ca.sia_uri + self.uri_tail()
 
 class list_resources_elt(base_elt):

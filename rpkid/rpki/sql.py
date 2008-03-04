@@ -671,15 +671,15 @@ class ca_detail_obj(sql_persistant):
     if nextUpdate is None:
       nextUpdate = now + crl_interval
 
-    certs = [(c.uri_tail(), c.cert) for c in self.child_certs(gctx)]
-    roas = [(r.uri_tail(), r.roa) for r in self.route_origins(gctx) if r is not None]
+    certs = [(c.uri_tail(), c.cert) for c in self.child_certs(gctx)] + \
+            [(r.ee_uri_tail(), r.cert) for r in self.route_origins(gctx) if r.cert is not None]
 
     m = rpki.x509.SignedManifest()
     m.build(
       serial         = ca.next_manifest_number(),
       thisUpdate     = now,
       nextUpdate     = nextUpdate,
-      names_and_objs = certs + roas,
+      names_and_objs = certs,
       keypair        = self.manifest_private_key_id,
       certs          = rpki.x509.X509_chain(self.latest_manifest_cert))
     self.latest_manifest = m

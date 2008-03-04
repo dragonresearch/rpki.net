@@ -561,15 +561,10 @@ class ca_detail_obj(sql_persistant):
     self.sql_store(gctx)
     return self
 
-  def generate_manifest_cert(self, ca):
-    """Generate a new manifest certificate for this ca_detail."""
+  def issue_ee(self, ca, resources):
+    """Issue a new EE certificate."""
 
-    resources = rpki.resource_set.resource_bag(
-      as = rpki.resource_set.resource_set_as("<inherit>"),
-      v4 = rpki.resource_set.resource_set_ipv4("<inherit>"),
-      v6 = rpki.resource_set.resource_set_ipv6("<inherit>"))
-
-    self.latest_manifest_cert = self.latest_ca_cert.issue(
+    return self.latest_ca_cert.issue(
       keypair     = self.private_key_id,
       subject_key = self.manifest_public_key,
       serial      = ca.next_serial_number(),
@@ -579,6 +574,17 @@ class ca_detail_obj(sql_persistant):
       resources   = resources,
       notAfter    = self.latest_ca_cert.getNotAfter(),
       is_ca       = False)
+
+
+  def generate_manifest_cert(self, ca):
+    """Generate a new manifest certificate for this ca_detail."""
+
+    resources = rpki.resource_set.resource_bag(
+      as = rpki.resource_set.resource_set_as("<inherit>"),
+      v4 = rpki.resource_set.resource_set_ipv4("<inherit>"),
+      v6 = rpki.resource_set.resource_set_ipv6("<inherit>"))
+
+    self.latest_manifest_cert = self.issue_ee(ca, resources)
 
   def issue(self, gctx, ca, child, subject_key, sia, resources, child_cert = None):
     """Issue a new certificate to a child.  Optional child_cert

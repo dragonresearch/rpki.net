@@ -856,30 +856,70 @@ class route_origin_elt(data_elt):
     return self.make_elt()
 
   def generate_roa(self, gctx):
-    """Generate a ROA based on this <route_origin/> object."""
-    content = rpki.roa.RouteOriginAttestation()
-    content.version.set(0)
-    content.asID.set(self.as_number)
-    content.exactMatch.set(self.exact_match)
-    content.ipAddrBlocks.set((a.to_roa_tuple() for a in (self.v4, self.v6) if a))
+    """Generate a ROA based on this <route_origin/> object.
 
-    # Current ROA spec urges one-off EE certs, so we need to generate
-    # a new keypair, issue an EE cert using our ca_detail, and use
-    # that cert to sign the CMS.  See
-    # ca_detail_obj.generate_manifest() for details, may want to
-    # refactor it to share code.
+    At present this does not support ROAs with multiple signatures
+    (neither does the current CMS code).
+
+    At present we have no way of performing a direct lookup from a
+    desired set of resources to a covering certificate, so we have to
+    search.  This could be quite slow if we have a lot of active
+    ca_detail objects.  Punt on the issue for now, revisit if
+    profiling shows this as a hotspot.
+
+    Once we have the right covering certificate, we generate the ROA
+    payload, generate a new EE certificate, use the EE certificate to
+    sign the ROA payload, publish the result, then throw away the
+    private key for the EE cert, all per the ROA specification.  This
+    implies that generating a lot of ROAs will tend to thrash
+    /dev/random, but there is not much we can do about that.
+    """
+
+    # Ugly and expensive search for covering ca_detail, there has to
+    # be a better way...
+
+    for parents in self.self(gctx).parents(gctx):
+      for ca in parent.cas(gctx):
+        ca_detail = ca.fetch_active(gctx)
+        if ca_detail is not None:
+          resources = ca_detail.latest_ca_cert.get_3779resources()
+          if self.v4.issubset(resources.v4) and self.v6.issubset(resources.v6):
+            break
+          ca_detail = None
+      if ca_detail is not None:
+        break
+
+    if ca_detail is None:
+      rpki.log.warn("generate_roa() could not find a covering certificate")
+      return
+
+    resources = rpki.resource_set.resource_bag(v4 = self.v4, v6 = self.v6)
+
+    payload = rpki.roa.RouteOriginAttestation()
+    payload.version.set(0)
+    payload.asID.set(self.as_number)
+    payload.exactMatch.set(self.exact_match)
+    payload.ipAddrBlocks.set((a.to_roa_tuple() for a in (self.v4, self.v6) if a))
 
     keypair = rpki.x509.RSA()
     keypair.generate()
 
-    # ... and then a miracle occurs ...
+    ee_cert = ca_detail.issue_ee(ca, resources)
 
-    self.roa = rpki.cms.sign(content.toString(), keypair, cert)
+    self.roa = rpki.cms.sign(payload.toString(), keypair, (ee_cert,))
     self.sql_mark_dirty()
 
-    # Publish the ROA somewhere around here.  If we implemented the
-    # suppress_publication attribute and it were set, we'd skip this
-    # step, but we don't, so we don't.
+    # Publish the ROA.  Filename?  Hash of EE cert's public key?
+
+    # Generate new manifest.  If we're generating a lot of ROAs we
+    # would want to batch this, but get it right before worrying about
+    # making it fast.
+
+    # Maybe the ca_detail object needs some kind of "manifest dirty"
+    # bit so that we can batch manifest updates?  More likely we'd use
+    # a Python set(), same as we do for SQL dirty.
+
+    # Link this route_origin to the ca_detail that signed its ROA.
 
     raise rpki.exceptions.NotImplementedYet
 

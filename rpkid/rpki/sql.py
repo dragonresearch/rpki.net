@@ -572,7 +572,7 @@ class ca_detail_obj(sql_persistant):
     self.latest_manifest_cert = self.latest_ca_cert.issue(
       keypair     = self.private_key_id,
       subject_key = self.manifest_public_key,
-      serial      = ca.next_manifest_number(),
+      serial      = ca.next_serial_number(),
       sia         = None,
       aia         = self.ca_cert_uri,
       crldp       = self.crl_uri(ca),
@@ -665,14 +665,15 @@ class ca_detail_obj(sql_persistant):
     if nextUpdate is None:
       nextUpdate = now + crl_interval
 
-    certs = self.child_certs(gctx)
+    certs = [(c.uri_tail(), c.cert) for c in self.child_certs(gctx)]
+    roas = [(r.uri_tail(), r.roa) for r in self.route_origins(gctx) if r is not None]
 
     m = rpki.x509.SignedManifest()
     m.build(
       serial         = ca.next_manifest_number(),
       thisUpdate     = now,
       nextUpdate     = nextUpdate,
-      names_and_objs = [(c.uri_tail(), c.cert) for c in certs],
+      names_and_objs = certs + roas,
       keypair        = self.manifest_private_key_id,
       certs          = rpki.x509.X509_chain(self.latest_manifest_cert))
     self.latest_manifest = m

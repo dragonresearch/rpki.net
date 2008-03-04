@@ -863,9 +863,23 @@ class route_origin_elt(data_elt):
     content.exactMatch.set(self.exact_match)
     content.ipAddrBlocks.set((a.to_roa_tuple() for a in (self.v4, self.v6) if a))
 
-    # Ok, if I've remembered the ASN.1 encoder voodoo correctly,
-    # content.toString() is now the eContent value for the CMS wrapper.
-    # Next task is to figure out what cert is signing this....
+    # Current ROA spec urges one-off EE certs, so we need to generate
+    # a new keypair, issue an EE cert using our ca_detail, and use
+    # that cert to sign the CMS.  See
+    # ca_detail_obj.generate_manifest() for details, may want to
+    # refactor it to share code.
+
+    keypair = rpki.x509.RSA()
+    keypair.generate()
+
+    # ... and then a miracle occurs ...
+
+    self.roa = rpki.cms.sign(content.toString(), keypair, cert)
+    self.sql_mark_dirty()
+
+    # Publish the ROA somewhere around here.  If we implemented the
+    # suppress_publication attribute and it were set, we'd skip this
+    # step, but we don't, so we don't.
 
     raise rpki.exceptions.NotImplementedYet
 

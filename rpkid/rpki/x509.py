@@ -191,7 +191,7 @@ class DER_object(object):
     """Get RFC 3779 resources as rpki.resource_set objects.
     Only works for subclasses that support getExtensions().
     """
-    resources = rpki.resource_set.resource_bag.from_asn1_tuples(self.get_POWpkix().getExtensions())
+    resources = rpki.resource_set.resource_bag.from_rfc3779_tuples(self.get_POWpkix().getExtensions())
     try:
       resources.valid_until = self.getNotAfter()
     except AttributeError:
@@ -322,10 +322,10 @@ class X509(DER_object):
       assert not is_ca
 
     if resources is not None and resources.as:
-      exts.append(["sbgp-autonomousSysNum", True, (resources.as.to_tuple(), None)])
+      exts.append(["sbgp-autonomousSysNum", True, (resources.as.to_rfc3779_tuple(), None)])
 
     if resources is not None and (resources.v4 or resources.v6):
-      exts.append(["sbgp-ipAddrBlock", True, [x for x in (resources.v4.to_tuple(), resources.v6.to_tuple()) if x is not None]])
+      exts.append(["sbgp-ipAddrBlock", True, [x for x in (resources.v4.to_rfc3779_tuple(), resources.v6.to_rfc3779_tuple()) if x is not None]])
 
     for x in exts:
       x[0] = rpki.oids.name2oid[x[0]]

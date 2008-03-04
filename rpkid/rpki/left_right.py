@@ -861,10 +861,11 @@ class route_origin_elt(data_elt):
     content.version.set(0)
     content.asID.set(self.as_number)
     content.exactMatch.set(self.exact_match)
+    content.ipAddrBlocks.set((a.to_roa_tuple() for a in (self.v4, self.v6) if a))
 
-    # Probably want to (tags-query-replace "to_tuple" "to_rfc3779_tuple")
-    # then create parallel functions "to_roa_tuple" (or whatever) for
-    # use here, since syntax is similar but not identical.
+    # Ok, if I've remembered the ASN.1 encoder voodoo correctly,
+    # content.toString() is now the eContent value for the CMS wrapper.
+    # Next task is to figure out what cert is signing this....
 
     raise rpki.exceptions.NotImplementedYet
 

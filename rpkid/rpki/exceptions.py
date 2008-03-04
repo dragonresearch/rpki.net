@@ -84,3 +84,6 @@ class BadIRDBReply(Exception):
 
 class NotFound(Exception):
   """Object not found in database."""
+
+class MustBePrefix(Exception):
+  """Resource range cannot be expressed as a prefix."""

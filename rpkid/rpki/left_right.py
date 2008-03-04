@@ -876,9 +876,13 @@ class route_origin_elt(data_elt):
     """
 
     # Ugly and expensive search for covering ca_detail, there has to
-    # be a better way...
+    # be a better way.
+    #
+    # If we're reissuing (not handled yet) we can optimize this by 
+    # first checking the ca_detail we used last time, but it may not
+    # be active, in which we have to check the ca_detail that replaced it.
 
-    for parents in self.self(gctx).parents(gctx):
+    for parent in self.self(gctx).parents(gctx):
       for ca in parent.cas(gctx):
         ca_detail = ca.fetch_active(gctx)
         if ca_detail is not None:
@@ -904,24 +908,37 @@ class route_origin_elt(data_elt):
     keypair = rpki.x509.RSA()
     keypair.generate()
 
+    # Hmm, may need to specify SIA here naming the ROA itself.  In
+    # which case it's the EE cert that needs to go into the
+    # ca_detail's manifest, not the ROA.  Hmm, where do we even store
+    # the EE cert, other than in the ROA itself?
+
     ee_cert = ca_detail.issue_ee(ca, resources)
 
     self.roa = rpki.cms.sign(payload.toString(), keypair, (ee_cert,))
-    self.sql_mark_dirty()
+    self.ca_detail_id = ca_detail.ca_detail_id
+    self.sql_store(gctx)
 
-    # Publish the ROA.  Filename?  Hash of EE cert's public key?
+    parent.repository(gctx).publish(gctx, self.roa, self.uri(ca))
 
-    # Generate new manifest.  If we're generating a lot of ROAs we
-    # would want to batch this, but get it right before worrying about
-    # making it fast.
-
-    # Maybe the ca_detail object needs some kind of "manifest dirty"
-    # bit so that we can batch manifest updates?  More likely we'd use
-    # a Python set(), same as we do for SQL dirty.
-
-    # Link this route_origin to the ca_detail that signed its ROA.
+    ca_detail.generate_manifest(gctx)
 
     raise rpki.exceptions.NotImplementedYet
+
+  def uri_tail(self):
+    """Return the tail (filename) portion of the URI for this route_origin's ROA."""
+
+    # And just what -is- the filename for a ROA?  In a
+    # single-signature model it could be the hash of the EE public
+    # key, which is a bit painful to extract.  In a multiple-signature
+    # model ... feh.  I'm tempted just to hash the ROA itself and have
+    # done.
+
+    raise rpki.exceptions.NotImplementedYet
+
+  def uri(self, ca):
+    """Return the publication URI for this route_origin's ROA."""
+    return ca.sia_uri + self.uri_tail()
 
 class list_resources_elt(base_elt):
   """<list_resources/> element."""

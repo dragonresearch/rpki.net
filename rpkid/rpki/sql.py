@@ -561,14 +561,14 @@ class ca_detail_obj(sql_persistant):
     self.sql_store(gctx)
     return self
 
-  def issue_ee(self, ca, resources):
+  def issue_ee(self, ca, resources, sia = None):
     """Issue a new EE certificate."""
 
     return self.latest_ca_cert.issue(
       keypair     = self.private_key_id,
       subject_key = self.manifest_public_key,
       serial      = ca.next_serial_number(),
-      sia         = None,
+      sia         = sia,
       aia         = self.ca_cert_uri,
       crldp       = self.crl_uri(ca),
       resources   = resources,

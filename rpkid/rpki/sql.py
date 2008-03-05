@@ -458,15 +458,19 @@ class ca_detail_obj(sql_persistant):
       predecessor.sql_mark_dirty()
       for child_cert in predecessor.child_certs(gctx):
         child_cert.reissue(gctx, self)
+      for route_origin in predecessor.route_origins(gctx):
+        raise rpki.exceptions.NotImplementedYet, "Don't (yet) know how to reissue ROAs"
 
   def delete(self, gctx, ca, repository):
-    """Delete this ca_detail and all of its associated child_cert objects."""
+    """Delete this ca_detail and all of the certs it issued."""
 
     for child_cert in self.child_certs(gctx):
       repository.withdraw(gctx, child_cert.cert, child_cert.uri(ca))
       child_cert.sql_delete(gctx)
     for child_cert in self.child_certs(gctx, revoked = True):
       child_cert.sql_delete(gctx)
+    for route_origin in self.route_origins(gctx):
+      raise rpki.exceptions.NotImplementedYet, "Don't (yet) know how to withdraw ROAs"
     repository.withdraw(gctx, self.latest_manifest, self.manifest_uri(ca))
     repository.withdraw(gctx, self.latest_crl, self.crl_uri())
     self.sql_delete(gctx)

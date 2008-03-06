@@ -111,9 +111,6 @@ rcynic_stats   = cfg.get("rcynic_stats",   "xsltproc --param refresh 0 ../../rcy
 rpki_sql_file  = cfg.get("rpki_sql_file",  "../docs/rpki-db-schema.sql")
 irdb_sql_file  = cfg.get("irdb_sql_file",  "../docs/sample-irdb.sql")
 
-rpki_sql       = open(rpki_sql_file).read()
-irdb_sql       = open(irdb_sql_file).read()
-
 testbed_key    = None
 testbed_certs  = None
 rootd_ta       = None
@@ -130,6 +127,9 @@ def main():
 
   rootd_process = None
   rsyncd_process = None
+
+  rpki_sql = mangle_sql(rpki_sql_file)
+  irdb_sql = mangle_sql(irdb_sql_file)
 
   try:
     os.chdir(testbed_dir)
@@ -467,12 +467,12 @@ class allocation(object):
     rpki.log.info("Setting up MySQL for %s" % self.name)
     db = MySQLdb.connect(user = "rpki", db = self.rpki_db_name, passwd = rpki_db_pass)
     cur = db.cursor()
-    for sql in rpki_sql.split(";"):
+    for sql in rpki_sql:
       cur.execute(sql)
     db.close()
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
     cur = db.cursor()
-    for sql in irdb_sql.split(";"):
+    for sql in irdb_sql:
       cur.execute(sql)
     for kid in self.kids:
       cur.execute("INSERT registrant (IRBE_mapped_id, subject_name, valid_until) VALUES (%s, %s, %s)", (kid.name, kid.name, kid.resources.valid_until))
@@ -707,6 +707,18 @@ def run_rcynic():
   env["TZ"] = ""
   subprocess.check_call((prog_rcynic, "-c", rcynic_name + ".conf"), env = env)
   subprocess.call(rcynic_stats, shell = True, env = env)
+
+def mangle_sql(filename):
+  """Mangle an SQL file into a sequence of SQL statements."""
+  #
+  # There is no pretty way to do this.  Just shut your eyes, it'll be over soon.
+  #
+  f = open(filename)
+  statements = " ".join(" ".join(word for word in line.expandtabs().split(" ") if word)
+                        for line in [line.strip(" \t\n") for line in f.readlines()]
+                        if line and not line.startswith("--")).rstrip(";").split(";")
+  f.close()
+  return [stmt.strip() for stmt in statements]
 
 biz_cert_fmt_1 = '''\
 [ req ]

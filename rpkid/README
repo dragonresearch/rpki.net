@@ -419,6 +419,19 @@ TO DO:
 
   PRIORITY: Rethinking desirable; reworking unknown
 
+- IETF SIDR WG is still mumbling about ROAs with multiple signatures.
+  As far as I can tell there is no need for this, but the WG may not
+  agree.  If ARIN wants me to implement this, will require both
+  some SQL work (current table relationships assume ROA is tied to a
+  single ca_detail) and some OpenSSL work (OpenSSL doesn't fully
+  support multiple signatures yet, have not investigated in depth).
+
+  STATUS: Not started
+
+  PRIORITY: Minimal, IETF feeping creaturism
+
+  TIME REQUIRED: Unknown
+
 
 
 Things implemented but not yet tested. 

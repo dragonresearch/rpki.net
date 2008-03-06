@@ -269,11 +269,18 @@ TO DO:
   general...except that ROAs can only hold prefixes.  So left-right
   should only allow prefixes, and SQL should only store prefixes.
 
+  Initial pass at ROA generation is done, not usable yet: ROA
+  maintenance (after initial generation) not done, and the current CRL
+  mechanism needs revision as it's too closely tied to child_cert
+  objects.  Need to rewrite with a separate CRL table hanging off the
+  ca_detail object, then clean up excess baggage that currently hangs
+  off the child_cert object.
+
   PRIORITY: Required
 
   TIME REQUIRED: Three days
 
-  STATUS: Not started
+  STATUS: Started
 
 - Make rpkid fully event-driven (async tasking model), except for SQL
   queries.  This probably involves the "twisted" framework.

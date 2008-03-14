@@ -6340,7 +6340,7 @@ PKCS7_object_sign(pkcs7_object *self, PyObject *args)
 			 &buf, &len))
       goto error;
 
-   if ( !X_X509_Check( signcert ) && !PyNone_Check( signcert ))
+   if ( !X_X509_Check( signcert ) && (PyObject *) signcert != Py_None)
       { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
 
    if (signkey->key_type != RSA_PRIVATE_KEY)
@@ -6377,7 +6377,7 @@ PKCS7_object_sign(pkcs7_object *self, PyObject *args)
    if ( !(bio = BIO_new_mem_buf(buf, len)))
       goto error;
 
-   if ( PyNone_Check( signcert ) )
+   if ( (PyObject *) signcert == Py_None )
       flags |= PKCS7_NOCERTS;
    else
       x509 = signcert->x509;
@@ -7214,7 +7214,7 @@ pow_module_get_error(PyObject *self, PyObject *args)
    error = ERR_get_error();
 
    if (!error)
-      return Py_None;
+      Py_RETURN_NONE;
 
    ERR_error_string_n( error, buf, sizeof(buf) );
 

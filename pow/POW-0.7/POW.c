@@ -6328,18 +6328,25 @@ PKCS7_object_sign(pkcs7_object *self, PyObject *args)
    STACK_OF(X509) *x509_stack = NULL;
    EVP_PKEY *pkey = NULL;
    char *buf = NULL;
-   int len, size = 0, i;
+   int len, size = 0, i, flags = PKCS7_BINARY | PKCS7_NOATTR;
    BIO *bio = NULL;
    PKCS7 *p7 = NULL;
+   X509 *x509 = NULL;
 
-
-   if (!PyArg_ParseTuple(args, "O!O!Os#", &x509type, &signcert, &asymmetrictype, &signkey, &x509_sequence, &buf, &len))
+   if (!PyArg_ParseTuple(args, "OO!Os#",
+			 &signcert,
+			 &asymmetrictype, &signkey,
+			 &x509_sequence,
+			 &buf, &len))
       goto error;
+
+   if ( !X_X509_Check( signcert ) && !PyNone_Check( signcert ))
+      { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
 
    if (signkey->key_type != RSA_PRIVATE_KEY)
       { PyErr_SetString( SSLErrorObject, "unsupported key type" ); goto error; }
 
-   if ( !( PyTuple_Check( x509_sequence ) || PyList_Check(x509_sequence) ) )
+   if ( !PyTuple_Check( x509_sequence ) && !PyList_Check( x509_sequence ) )
       { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
 
    size = PySequence_Size( x509_sequence );
@@ -6370,7 +6377,12 @@ PKCS7_object_sign(pkcs7_object *self, PyObject *args)
    if ( !(bio = BIO_new_mem_buf(buf, len)))
       goto error;
 
-   if ( !(p7 = PKCS7_sign(signcert->x509, pkey, x509_stack, bio, PKCS7_BINARY)))
+   if ( PyNone_Check( signcert ) )
+      flags |= PKCS7_NOCERTS;
+   else
+      x509 = signcert->x509;
+
+   if ( !(p7 = PKCS7_sign(x509, pkey, x509_stack, bio, flags)))
       { set_openssl_pyerror( "could not sign PKCS7 message" ); goto error; }
 
    if (self->pkcs7)

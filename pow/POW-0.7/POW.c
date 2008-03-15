@@ -802,7 +802,7 @@ static char X509_object_sign__doc__[] =
 "      <memberof>X509</memberof>\n"
 "      <name>sign</name>\n"
 "      <parameter>key</parameter>\n"
-"      <parameter>digest=MD5_DIGEST</parameter>\n"
+"      <optional><parameter>digest=MD5_DIGEST</parameter></optional>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -6310,6 +6310,7 @@ static char PKCS7_object_sign__doc__[] =
 "      <parameter>key</parameter>\n"
 "      <parameter>certs</parameter>\n"
 "      <parameter>data</parameter>\n"
+"      <optional><parameter>no_certs</parameter></optional>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -6331,17 +6332,15 @@ PKCS7_object_sign(pkcs7_object *self, PyObject *args)
    int len, size = 0, i, flags = PKCS7_BINARY | PKCS7_NOATTR;
    BIO *bio = NULL;
    PKCS7 *p7 = NULL;
-   X509 *x509 = NULL;
+   PyObject *no_certs = Py_True;
 
-   if (!PyArg_ParseTuple(args, "OO!Os#",
-			 &signcert,
+   if (!PyArg_ParseTuple(args, "O!O!Os#|O",
+			 &x509type, &signcert,
 			 &asymmetrictype, &signkey,
 			 &x509_sequence,
-			 &buf, &len))
+			 &buf, &len,
+			 no_certs))
       goto error;
-
-   if ( !X_X509_Check( signcert ) && (PyObject *) signcert != Py_None)
-      { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
 
    if (signkey->key_type != RSA_PRIVATE_KEY)
       { PyErr_SetString( SSLErrorObject, "unsupported key type" ); goto error; }
@@ -6377,12 +6376,10 @@ PKCS7_object_sign(pkcs7_object *self, PyObject *args)
    if ( !(bio = BIO_new_mem_buf(buf, len)))
       goto error;
 
-   if ( (PyObject *) signcert == Py_None )
+   if ( PyBool_Check(no_certs) )
       flags |= PKCS7_NOCERTS;
-   else
-      x509 = signcert->x509;
 
-   if ( !(p7 = PKCS7_sign(x509, pkey, x509_stack, bio, flags)))
+   if ( !(p7 = PKCS7_sign(signcert->x509, pkey, x509_stack, bio, flags)))
       { set_openssl_pyerror( "could not sign PKCS7 message" ); goto error; }
 
    if (self->pkcs7)

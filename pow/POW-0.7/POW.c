@@ -6332,14 +6332,14 @@ PKCS7_object_sign(pkcs7_object *self, PyObject *args)
    int len, size = 0, i, flags = PKCS7_BINARY | PKCS7_NOATTR;
    BIO *bio = NULL;
    PKCS7 *p7 = NULL;
-   PyObject *no_certs = Py_True;
+   PyObject *no_certs = Py_False;
 
-   if (!PyArg_ParseTuple(args, "O!O!Os#|O",
+   if (!PyArg_ParseTuple(args, "O!O!Os#|O!",
 			 &x509type, &signcert,
 			 &asymmetrictype, &signkey,
 			 &x509_sequence,
 			 &buf, &len,
-			 no_certs))
+			 &PyBool_Type, &no_certs))
       goto error;
 
    if (signkey->key_type != RSA_PRIVATE_KEY)
@@ -6376,7 +6376,7 @@ PKCS7_object_sign(pkcs7_object *self, PyObject *args)
    if ( !(bio = BIO_new_mem_buf(buf, len)))
       goto error;
 
-   if ( PyBool_Check(no_certs) )
+   if ( no_certs == Py_True )
       flags |= PKCS7_NOCERTS;
 
    if ( !(p7 = PKCS7_sign(signcert->x509, pkey, x509_stack, bio, flags)))

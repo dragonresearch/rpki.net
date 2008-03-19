@@ -123,17 +123,6 @@ CREATE TABLE ca_detail (
        FOREIGN KEY              (ca_id) REFERENCES ca
 );
 
-DROP TABLE IF EXISTS revoked;
-
-CREATE TABLE revoked (
-       revoked_id           SERIAL NOT NULL,
-       serial               BIGINT unsigned NOT NULL,
-       expires              DATETIME NOT NULL,
-       ca_detail_id         BIGINT unsigned NOT NULL,
-       PRIMARY KEY          (revoked_id),
-       FOREIGN KEY          (ca_detail_id) REFERENCES ca_detail
-);
-
 DROP TABLE IF EXISTS child;
 
 CREATE TABLE child (
@@ -152,6 +141,7 @@ CREATE TABLE child_cert (
        child_cert_id        SERIAL NOT NULL,
        cert                 LONGBLOB NOT NULL,
        ski                  TINYBLOB NOT NULL,
+       revoked              DATETIME,
        child_id             BIGINT unsigned NOT NULL,
        ca_detail_id         BIGINT unsigned NOT NULL,
        PRIMARY KEY          (child_cert_id),

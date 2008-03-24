@@ -580,6 +580,52 @@ error:
       free(buf);
 }
 
+static STACK_OF(X509) *
+x509_helper_sequence_to_stack(PyObject *x509_sequence)
+{
+   x509_object *tmpX509 = NULL;
+   STACK_OF(X509) *x509_stack = NULL;
+   int size = 0, i = 0;
+
+   if ( x509_sequence != Py_None && !PyTuple_Check( x509_sequence ) && !PyList_Check(x509_sequence) )
+      { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
+
+   if (!(x509_stack = sk_X509_new_null() ) )
+      { PyErr_SetString( SSLErrorObject, "could not create new x509 stack" ); goto error; }
+
+   if ( x509_sequence != Py_None )
+   {
+      size = PySequence_Size( x509_sequence );
+
+      for (i=0; i < size; i++)
+      {
+	 if ( !( tmpX509 = (x509_object*)PySequence_GetItem( x509_sequence, i ) ) )
+	    goto error;
+
+	 if ( !X_X509_Check( tmpX509 ) )
+	    { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
+
+	 if (!sk_X509_push( x509_stack, tmpX509->x509 ) )
+	    { PyErr_SetString( SSLErrorObject, "could not add x509 to stack" ); goto error; }
+	 Py_DECREF(tmpX509);
+	 tmpX509 = NULL;
+      }
+   }
+
+   return x509_stack;
+
+error:
+
+   if(x509_stack)
+      sk_X509_free(x509_stack);
+
+   Py_XDECREF(tmpX509);
+
+   return NULL;
+}
+
+
+
 /*========== helper funcitons ==========*/
 
 /*========== X509 code ==========*/
@@ -1865,36 +1911,17 @@ static char x509_store_object_verify_chain__doc__[] =
 static PyObject *
 x509_store_object_verify_chain(x509_store_object *self, PyObject *args)
 {
-   PyObject *x509_sequence=NULL;
+   PyObject *x509_sequence = NULL;
    X509_STORE_CTX csc;
-   x509_object *x509=NULL, *tmpX509=NULL;
-   STACK_OF(X509) *x509_stack=NULL;
-   int result=0, size=0, i=0;
+   x509_object *x509 = NULL;
+   STACK_OF(X509) *x509_stack = NULL;
+   int result = 0;
 
    if (!PyArg_ParseTuple(args, "O!O", &x509type, &x509, &x509_sequence))
       goto error;
 
-   if ( !( PyTuple_Check( x509_sequence ) || PyList_Check(x509_sequence) ) )
-      { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
-
-   size = PySequence_Size( x509_sequence );
-
-   if (!(x509_stack = sk_X509_new_null() ) )
-      { PyErr_SetString( SSLErrorObject, "could not create new x509 stack" ); goto error; }
-
-   for (i=0; i < size; i++)
-   {
-      if ( !( tmpX509 = (x509_object*)PySequence_GetItem( x509_sequence, i ) ) )
-         goto error;
-
-      if ( !X_X509_Check( tmpX509 ) )
-         { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
-
-      if (!sk_X509_push( x509_stack, tmpX509->x509 ) )
-         { PyErr_SetString( SSLErrorObject, "could not add x509 to stack" ); goto error; }
-      Py_DECREF(tmpX509);
-      tmpX509 = NULL;
-   }
+   if ( !(x509_stack = x509_helper_sequence_to_stack(x509_sequence)) )
+      goto error;
 
    X509_STORE_CTX_init( &csc, self->store, x509->x509, x509_stack );
    result = X509_verify_cert( &csc );
@@ -1907,8 +1934,6 @@ error:
 
    if(x509_stack)
       sk_X509_free(x509_stack);
-
-   Py_XDECREF(tmpX509);
 
    return NULL;
 }
@@ -6324,12 +6349,12 @@ static PyObject *
 PKCS7_object_sign(pkcs7_object *self, PyObject *args)
 {
    asymmetric_object *signkey = NULL;
-   x509_object *signcert = NULL, *tmpX509 = NULL;
+   x509_object *signcert = NULL;
    PyObject *x509_sequence = NULL;
    STACK_OF(X509) *x509_stack = NULL;
    EVP_PKEY *pkey = NULL;
    char *buf = NULL;
-   int len, size = 0, i, flags = PKCS7_BINARY | PKCS7_NOATTR;
+   int len, flags = PKCS7_BINARY | PKCS7_NOATTR;
    BIO *bio = NULL;
    PKCS7 *p7 = NULL;
    PyObject *no_certs = Py_False;
@@ -6345,27 +6370,8 @@ PKCS7_object_sign(pkcs7_object *self, PyObject *args)
    if (signkey->key_type != RSA_PRIVATE_KEY)
       { PyErr_SetString( SSLErrorObject, "unsupported key type" ); goto error; }
 
-   if ( !PyTuple_Check( x509_sequence ) && !PyList_Check( x509_sequence ) )
-      { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
-
-   size = PySequence_Size( x509_sequence );
-
-   if (!(x509_stack = sk_X509_new_null() ) )
-      { PyErr_SetString( SSLErrorObject, "could not create new x509 stack" ); goto error; }
-
-   for (i=0; i < size; i++)
-   {
-      if ( !( tmpX509 = (x509_object*)PySequence_GetItem( x509_sequence, i ) ) )
-         goto error;
-
-      if ( !X_X509_Check( tmpX509 ) )
-         { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
-
-      if (!sk_X509_push( x509_stack, tmpX509->x509 ) )
-         { PyErr_SetString( SSLErrorObject, "could not add x509 to stack" ); goto error; }
-      Py_DECREF(tmpX509);
-      tmpX509 = NULL;
-   }
+   if ( !(x509_stack = x509_helper_sequence_to_stack(x509_sequence)) )
+      goto error;
 
    if ( !(pkey = EVP_PKEY_new() ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -6394,8 +6400,6 @@ PKCS7_object_sign(pkcs7_object *self, PyObject *args)
 
 error:
 
-   Py_XDECREF(tmpX509);
-
    if (p7)
       PKCS7_free(p7);
 
@@ -6411,52 +6415,69 @@ error:
    return NULL;
 }
 
+static char PKCS7_object_verify__doc__[] = 
+"<method>\n"
+"   <header>\n"
+"      <memberof>PKCS7</memberof>\n"
+"      <name>verify</name>\n"
+"      <parameter>store</parameter>\n"
+"      <optional><parameter>certs</parameter></optional>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This method verifies a message against a trusted store.\n"
+"         The optional certs parameter is a set of certificates to search\n"
+"         for the signer's certificate.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
 static PyObject *
-PKCS7_object_verify_helper(pkcs7_object *self, PyObject *args, int noverify)
+PKCS7_object_verify(pkcs7_object *self, PyObject *args)
 {
    x509_store_object *store = NULL;
-   PyObject *result = NULL;
+   PyObject *result = NULL, *certs_sequence = Py_None;
+   STACK_OF(X509) *certs_stack = NULL;
    char *buf = NULL;
    BIO *bio = NULL;
    int len;
 
-   if ( !(bio = BIO_new(BIO_s_mem())))
+   if (!(bio = BIO_new(BIO_s_mem())))
       goto error;
 
-   if (noverify) {
+   if (!PyArg_ParseTuple(args, "O!|O", &x509_storetype, &store, &certs_sequence))
+      goto error;
 
-      if (!PyArg_ParseTuple(args, ""))
-	 goto error;
-      if (PKCS7_verify(self->pkcs7, NULL, NULL, NULL, bio, PKCS7_NOVERIFY) <= 0)
-	 { set_openssl_pyerror( "could not extract PKCS7 message" ); goto error; }
+   if (certs_sequence != Py_None &&
+       !(certs_stack = x509_helper_sequence_to_stack(certs_sequence)))
+      goto error;
 
-   } else {
+   if (PKCS7_verify(self->pkcs7, certs_stack, store->store, NULL, bio, 0) <= 0)
+      { set_openssl_pyerror( "could not verify PKCS7 message" ); goto error; }
 
-      if (!PyArg_ParseTuple(args, "O!", &x509_storetype, &store))
-	 goto error;
-
-      if (PKCS7_verify(self->pkcs7, NULL, store->store, NULL, bio, 0) <= 0)
-	 { set_openssl_pyerror( "could not verify PKCS7 message" ); goto error; }
-
-   }
-
-   if ( !(len = BIO_ctrl_pending(bio) ) )
+   if (!(len = BIO_ctrl_pending(bio)))
       { PyErr_SetString( SSLErrorObject, "unable to get bytes stored in bio" ); goto error; }
 
-   if ( !(buf = malloc(len) ) )
+   if (!(buf = malloc(len) ) )
       { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
 
-   if ( BIO_read( bio, buf, len ) != len )
+   if (BIO_read( bio, buf, len ) != len)
       { PyErr_SetString( SSLErrorObject, "unable to write out PKCS7 content" ); goto error; }
 
    result = Py_BuildValue("s#", buf, len);
 
+   if (certs_stack)
+      sk_X509_free(certs_stack);
    BIO_free(bio);
    free(buf);
 
    return result;
 
 error:
+
+   if (certs_stack)
+      sk_X509_free(certs_stack);
 
    if (bio)
       BIO_free(bio);
@@ -6467,55 +6488,12 @@ error:
    return NULL;
 }
 
-static char PKCS7_object_verify__doc__[] = 
-"<method>\n"
-"   <header>\n"
-"      <memberof>PKCS7</memberof>\n"
-"      <name>verify</name>\n"
-"      <parameter>store</parameter>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method verifies a message against a trusted store.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-PKCS7_object_verify(pkcs7_object *self, PyObject *args)
-{
-   return PKCS7_object_verify_helper(self, args, 0);
-}
-
-static char PKCS7_object_extract__doc__[] = 
-"<method>\n"
-"   <header>\n"
-"      <memberof>PKCS7</memberof>\n"
-"      <name>extract</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method extracts the content of a signed message without\n"
-"         verifying it.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-PKCS7_object_extract(pkcs7_object *self, PyObject *args)
-{
-   return PKCS7_object_verify_helper(self, args, 1);
-}
-
 
 static struct PyMethodDef PKCS7_object_methods[] = {
    {"pemWrite",      (PyCFunction)PKCS7_object_pem_write,       METH_VARARGS,  NULL}, 
    {"derWrite",      (PyCFunction)PKCS7_object_der_write,       METH_VARARGS,  NULL}, 
    {"sign",          (PyCFunction)PKCS7_object_sign,            METH_VARARGS,  NULL}, 
    {"verify",        (PyCFunction)PKCS7_object_verify,          METH_VARARGS,  NULL},
-   {"extract",       (PyCFunction)PKCS7_object_extract,         METH_VARARGS,  NULL},
  
    {NULL,      NULL}    /* sentinel */
 };
@@ -7532,7 +7510,6 @@ pow_module_docset(PyObject *self, PyObject *args)
    docset_helper_add( docset, PKCS7_object_der_write__doc__ );
    docset_helper_add( docset, PKCS7_object_sign__doc__ );
    docset_helper_add( docset, PKCS7_object_verify__doc__ );
-   docset_helper_add( docset, PKCS7_object_extract__doc__ );
 
    // symmetric documentation
    docset_helper_add( docset, symmetrictype__doc__ );

@@ -80,15 +80,6 @@ def verify(cms, ta):
       dumpasn1(cms)
     raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed"
 
-# openssl smime -verify -noverify -inform DER -in THING.der
-
-def extract(cms):
-  """Extract the content of a signed CMS message WITHOUT verifying the
-  signature.   Don't try this at home, kids.
-  """
-
-  return POW.derRead(POW.PKCS7_MESSAGE, cms).extract()
-
 def xml_verify(cms, ta):
   """Composite routine to verify CMS-wrapped XML."""
 

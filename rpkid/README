@@ -302,6 +302,11 @@ TO DO:
   certs instead of a single TA, but this is mostly just generalization
   and reuse of existing code, no bold new adventures.
 
+  Discussion in Philadelphia revealed that this is not yet a done
+  deal.  Housley, RobK, and I all seem to be on the same page, and we
+  think that what we're proposing will make sense to APNIC once we
+  explain it properly, but overall we have not yet converged.
+
   PRIORITY: Required (security issue)
 
   TIME REQUIRED: One week.
@@ -312,19 +317,17 @@ TO DO:
 
   STATUS: Not started
 
-- rcynic handling of RPKI trust anchors probably needs updating.
-  Discussions over last N months of how RPKI trust anchors work, how
-  we package them, and how we roll them over.  The last (TA rollover)
-  is the driver for this.
+- rcynic handling of RPKI trust anchors needs updating.  Discussions
+  over last N months of how RPKI trust anchors work, how we package
+  them, and how we roll them over.  The last (TA rollover) is the
+  driver for this.
 
-  Last I recall (need to check email archives) APNIC had proposed a
-  relatively simple format (CMS signed PEM-encoded X.509 object set,
-  or something like that).  Need to do analysis to make sure this is
-  adaquate for our needs, if so just use it.  This would involve minor
-  changes to rcynic.
-
-  Alternatively, this could be a separate program to keep this grot
-  out of rcynic itself, but that's probably a usability nightmare.
+  APNIC has apparently moved on from their proposal to use CMS-signed
+  OpenSSL "PEM" format, they're now proposing a CMS-signed ASN.1
+  SEQUENCE OF something.  Precise details of APNIC's new model not yet
+  known.  Need to do analysis to make sure this is adaquate for our
+  needs, if so just use it.  This would involve minor changes to
+  rcynic.
 
   PRIORITY: Required (usability issue for relying parties)
 

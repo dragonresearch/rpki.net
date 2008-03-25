@@ -13,7 +13,7 @@ openssl-${VERSION}/Makefile: openssl-${VERSION}/config
 	cd openssl-${VERSION}; PERL=/usr/bin/perl ./config enable-rfc3779 no-dso
 
 openssl-${VERSION}/config: openssl-${VERSION}.tar.gz
-	gzcat openssl-${VERSION}.tar.gz | tar -xf -
+	gzip -c -d openssl-${VERSION}.tar.gz | tar -xf -
 	ln -s . openssl-${VERSION}/lib
 	touch $@
 

@@ -23,7 +23,7 @@ ${DIRNAME}/${BIN}: configured.stamp
 	cd ${DIRNAME} && ${MAKE} ${BIN_LOG}
 
 extracted.stamp: ${TARBALL}
-	gzcat ${TARBALL} | tar -xf -
+	gzip -c -d ${TARBALL} | tar -xf -
 	touch $@
 
 patched.stamp: extracted.stamp

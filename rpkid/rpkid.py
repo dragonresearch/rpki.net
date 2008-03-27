@@ -87,14 +87,15 @@ class global_context(object):
                               passwd = cfg.get("sql-password"))
     self.cur = self.db.cursor()
 
-    self.cms_ta_irdb = rpki.x509.X509(Auto_file = cfg.get("cms-ta-irdb"))
-    self.cms_ta_irbe = rpki.x509.X509(Auto_file = cfg.get("cms-ta-irbe"))
-    self.cms_key     = rpki.x509.RSA(Auto_file = cfg.get("cms-key"))
-    self.cms_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
+    self.cms_ta_irdb   = rpki.x509.X509(Auto_file = cfg.get("cms-ta-irdb"))
+    self.cms_ta_irbe   = rpki.x509.X509(Auto_file = cfg.get("cms-ta-irbe"))
+    self.cms_key       = rpki.x509.RSA(Auto_file = cfg.get("cms-key"))
+    self.cms_certs     = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
 
-    self.https_key   = rpki.x509.RSA(Auto_file = cfg.get("https-key"))
-    self.https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
-    self.https_ta    = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta"))
+    self.https_key     = rpki.x509.RSA(Auto_file = cfg.get("https-key"))
+    self.https_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
+    self.https_ta_irdb = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta-irdb"))
+    self.https_ta_irbe = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta-irbe"))
 
     self.irdb_url    = cfg.get("irdb-url")
 
@@ -130,6 +131,7 @@ gctx = global_context(cfg)
 
 rpki.https.server(privateKey = gctx.https_key,
                   certChain = gctx.https_certs,
+                  x509TrustList = gctx.https_ta_irbe,
                   host = gctx.https_server_host,
                   port = gctx.https_server_port,
                   handlers=(("/left-right", left_right_handler),

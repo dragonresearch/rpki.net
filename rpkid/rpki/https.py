@@ -106,29 +106,45 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
   """Derived type to handle TLS aspects of HTTPS."""
 
-  rpki_certChain = None
-  rpki_privateKey = None
   rpki_sessionCache = None
+  rpki_privateKey   = None
+  rpki_certChain    = None
+  rpki_checker      = None
   
   def handshake(self, tlsConnection):
     """TLS handshake handler."""
-    assert self.rpki_certChain is not None
-    assert self.rpki_privateKey is not None
+    assert self.rpki_certChain    is not None
+    assert self.rpki_privateKey   is not None
     assert self.rpki_sessionCache is not None
     try:
+      #
       # We could add a "settings = foo" argument to the following call
       # to pass in a tlslite.HandshakeSettings object that would let
       # us insist on, eg, particular SSL/TLS versions.
+      #
       tlsConnection.handshakeServer(certChain    = self.rpki_certChain,
                                     privateKey   = self.rpki_privateKey,
-                                    sessionCache = self.rpki_sessionCache)
+                                    sessionCache = self.rpki_sessionCache,
+                                    checker      = self.rpki_checker,
+                                    reqCert      = self.rpki_checker is not None)
       tlsConnection.ignoreAbruptClose = True
       return True
     except tlslite.api.TLSError, error:
       rpki.log.warn("TLS handshake failure: " + str(error))
       return False
 
-def server(handlers, privateKey, certChain, port = 4433, host = ""):
+class Checker(tlslite.api.Checker):
+  """Derived class to add a logging wrapper."""
+
+  def __call__(self, tlsConnection):
+    """Wrap some logging code around standard tlslite checker."""
+
+    for i in range(tlsConnection.session.clientCertChain.getNumCerts()):
+      rpki.log.debug("Received client cert[%d] %s" % (i, tlsConnection.session.clientCertChain.x509List[i].getCommonName()))
+
+    return tlslite.api.Checker.__call__(self, tlsConnection)
+
+def server(handlers, privateKey, certChain, port = 4433, host = "", x509TrustList = None):
   """Run an HTTPS server and wait (forever) for connections."""
 
   if not isinstance(handlers, (tuple, list)):
@@ -142,5 +158,11 @@ def server(handlers, privateKey, certChain, port = 4433, host = ""):
   httpd.rpki_privateKey = privateKey.get_tlslite()
   httpd.rpki_certChain = certChain.tlslite_certChain()
   httpd.rpki_sessionCache = tlslite.api.SessionCache()
+
+  if x509TrustList is not None:
+    x509TrustList = x509TrustList.tlslite_trustList()
+    for x in x509TrustList:
+      rpki.log.debug("HTTPS trust anchor %s" % x.getCommonName())
+    httpd.rpki_checker = Checker(x509TrustList = x509TrustList)
 
   httpd.serve_forever()

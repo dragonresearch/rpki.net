@@ -789,27 +789,28 @@ sql-username	= irdb
 sql-password	= %(irdb_db_pass)s
 
 cms-key		= %(my_name)s-IRDB-EE.key
-cms-certs.0	= %(my_name)s-IRDB-EE.cer
-cms-certs.1	= %(my_name)s-IRDB-CA.cer
+cms-cert.0	= %(my_name)s-IRDB-EE.cer
+cms-cert.1	= %(my_name)s-IRDB-CA.cer
 cms-ta		= %(my_name)s-RPKI-TA.cer
 
 https-key	= %(my_name)s-IRDB-EE.key
-https-certs.0	= %(my_name)s-IRDB-EE.cer
-https-certs.1	= %(my_name)s-IRDB-CA.cer
+https-cert.0	= %(my_name)s-IRDB-EE.cer
+https-cert.1	= %(my_name)s-IRDB-CA.cer
+#https-ta	= %(my_name)s-RPKI-TA.cer
 
 https-url	= https://localhost:%(irdb_port)d/
 
 [irbe-cli]
 
 cms-key		= %(testbed_name)s-EE.key
-cms-certs.0	= %(testbed_name)s-EE.cer
-cms-certs.1	= %(testbed_name)s-CA.cer
-cms-tas		= %(my_name)s-RPKI-TA.cer
+cms-cert.0	= %(testbed_name)s-EE.cer
+cms-cert.1	= %(testbed_name)s-CA.cer
+cms-ta		= %(my_name)s-RPKI-TA.cer
 
 https-key	= %(testbed_name)s-EE.key
-https-certs.0	= %(testbed_name)s-EE.cer
-https-certs.1	= %(testbed_name)s-CA.cer
-https-tas	= %(my_name)s-RPKI-TA.cer
+https-cert.0	= %(testbed_name)s-EE.cer
+https-cert.1	= %(testbed_name)s-CA.cer
+#https-ta	= %(my_name)s-RPKI-TA.cer
 
 https-url	= https://localhost:%(rpki_port)d/left-right
 
@@ -832,7 +833,8 @@ https-key	= %(my_name)s-RPKI-EE.key
 https-cert.0	= %(my_name)s-RPKI-EE.cer
 https-cert.1	= %(my_name)s-RPKI-CA.cer
 
-https-ta	= %(my_name)s-IRDB-TA.cer
+#https-ta-irdb	= %(my_name)s-IRDB-TA.cer
+#https-ta-irbe	= %(testbed_name)s-TA.cer
 
 irdb-url	= https://localhost:%(irdb_port)d/
 
@@ -845,13 +847,14 @@ rootd_fmt_1 = '''\
 [rootd]
 
 cms-key			= %(rootd_name)s-EE.key
-cms-certs.0		= %(rootd_name)s-EE.cer
-cms-certs.1		= %(rootd_name)s-CA.cer
+cms-cert.0		= %(rootd_name)s-EE.cer
+cms-cert.1		= %(rootd_name)s-CA.cer
 cms-ta			= %(rpkid_name)s-RPKI-TA.cer
 
 https-key		= %(rootd_name)s-EE.key
-https-certs.0		= %(rootd_name)s-EE.cer
-https-certs.1		= %(rootd_name)s-CA.cer
+https-cert.0		= %(rootd_name)s-EE.cer
+https-cert.1		= %(rootd_name)s-CA.cer
+#https-ta		= %(rpkid_name)s-RPKI-TA.cer
 
 server-port		= %(rootd_port)s
 

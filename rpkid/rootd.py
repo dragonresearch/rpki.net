@@ -177,10 +177,11 @@ cfg = rpki.config.parser(cfg_file, "rootd")
 
 cms_ta      = rpki.x509.X509(Auto_file = cfg.get("cms-ta"))
 cms_key     = rpki.x509.RSA(Auto_file = cfg.get("cms-key"))
-cms_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-certs"))
+cms_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
 
 https_key   = rpki.x509.RSA(Auto_file = cfg.get("https-key"))
-https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-certs"))
+https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
+https_ta    = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta"))
 
 https_server_host = cfg.get("server-host", "")
 https_server_port = int(cfg.get("server-port"))
@@ -197,6 +198,7 @@ rootd_cert  = cfg.get("rootd_cert", rootd_base + "rootd.cer")
 
 rpki.https.server(privateKey    = https_key,
                   certChain     = https_certs,
+                  x509TrustList = https_ta,
                   host          = https_server_host,
                   port          = https_server_port,
                   handlers      = up_down_handler)

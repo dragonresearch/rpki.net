@@ -113,7 +113,7 @@ cur = db.cursor()
 
 cms_ta          = rpki.x509.X509(Auto_file = cfg.get("cms-ta"))
 cms_key         = rpki.x509.RSA(Auto_file = cfg.get("cms-key"))
-cms_certs       = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-certs"))
+cms_certs       = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
 
 u = urlparse.urlparse(cfg.get("https-url"))
 
@@ -124,8 +124,9 @@ assert u.scheme in ("", "https") and \
        u.query    == "" and \
        u.fragment == ""
 
-rpki.https.server(privateKey = rpki.x509.RSA(Auto_file = cfg.get("https-key")),
-                  certChain  = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-certs")),
-                  host       = u.hostname or "localhost",
-                  port       = u.port or 443,
-                  handlers   = ((u.path, handler),))
+rpki.https.server(privateKey    = rpki.x509.RSA(Auto_file = cfg.get("https-key")),
+                  certChain     = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert")),
+                  x509TrustList = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta")),
+                  host          = u.hostname or "localhost",
+                  port          = u.port or 443,
+                  handlers      = ((u.path, handler),))

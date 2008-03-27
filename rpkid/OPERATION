@@ -134,22 +134,22 @@ cms-ta-irbe:		Name of file containing CMS trust anchor to
 cms-key:		Name of file containing RSA key to use when
 			signing CMS messages to IRBE or irdbd.
 
-cms-certs:		Name(s) of file(s) containing certificate(s)
+cms-cert:		Name(s) of file(s) containing certificate(s)
 			to include in CMS wrapper when signing
 			messages to IRBE or irdbd.   You can specify
 			more than one certificate using OpenSSL-style
-			subscripts: cms-certs.0, cms-certs.1, etc.
+			subscripts: cms-cert.0, cms-cert.1, etc.
 
 https-key:		Name of file containing RSA key to use, both
 			in the HTTPS server role (for both up-down and
 			left-right protocols) and in the HTTPS client
 			role (left-right protocol only).
 
-https-certs:		Name(s) of file(s) containing certificate(s)
+https-cert:		Name(s) of file(s) containing certificate(s)
 			to use in same contexts where https-key is
 			used.  You can specify more than one
 			certificate using OpenSSL-style subscripts:
-			https-certs.0, https-certs.1, etc.
+			https-cert.0, https-cert.1, etc.
 
 https-ta:		Name of file containing trust anchor to use
 			when verifying irdbd's HTTPS server
@@ -195,20 +195,20 @@ cms-ta:			Name of file containing trust anchor to use
 cms-key:		Name of file containing RSA key to use when
 			signing CMS up-down replies.
 
-cms-certs:		Name(s) of file(s) containing certificate(s)
+cms-cert:		Name(s) of file(s) containing certificate(s)
 			to include in CMS wrapper when signing up-down
 			replies.   You can specify more than one
 			certificate using OpenSSL-style subscripts:
-			cms-certs.0, cms-certs.1, etc.
+			cms-cert.0, cms-cert.1, etc.
 
 https-key:		Name of file containing RSA key to use in the
 			HTTPS server role for the up-down protocol.
 
-https-certs:		Name(s) of file(s) containing certificate(s)
+https-cert:		Name(s) of file(s) containing certificate(s)
 			to use in the HTTPS server role for the
 			up-down protocol.  You can specify more than
 			one certificate using OpenSSL-style
-			subscripts: https-certs.0, https-certs.1,
+			subscripts: https-cert.0, https-cert.1,
 			etc.
 
 https-server-host:	Hostname or IP address on which to listen for
@@ -276,21 +276,21 @@ cms-ta:			Name of file containing CMS trust anchor to
 cms-key:		Name of file containing RSA key to use when
 			signing CMS messages to rpkid.
 
-cms-certs:		Name(s) of file(s) containing certificate(s)
+cms-cert:		Name(s) of file(s) containing certificate(s)
 			to include in CMS wrapper when signing
 			messages to rpkid.  You can specify more than
 			one certificate using OpenSSL-style
-			subscripts: cms-certs.0, cms-certs.1, etc.
+			subscripts: cms-cert.0, cms-cert.1, etc.
 
 https-key:		Name of file containing RSA key to use in the
 			HTTPS server role when listening for
 			connections from rpkid. 
 
-https-certs:		Name(s) of file(s) containing certificate(s)
+https-cert:		Name(s) of file(s) containing certificate(s)
 			to use in the HTTPS server role when listening
 			for connections from rpkid.  You can specify
 			more than one certificate using OpenSSL-style
-			subscripts: https-certs.0, https-certs.1, etc.
+			subscripts: https-cert.0, https-cert.1, etc.
 
 https-url:		Service URL for irdbd.  Must be a https:// URL.
 
@@ -378,20 +378,20 @@ cms-ta:			Name of file containing CMS trust anchor to
 cms-key:		Name of file containing RSA key to use when
 			signing CMS messages to rpkid.
 
-cms-certs:		Name(s) of file(s) containing certificate(s)
+cms-cert:		Name(s) of file(s) containing certificate(s)
 			to include in CMS wrapper when signing
 			messages to rpkid.  You can specify more than
 			one certificate using OpenSSL-style
-			subscripts: cms-certs.0, cms-certs.1, etc.
+			subscripts: cms-cert.0, cms-cert.1, etc.
 
 https-key:		Name of file containing RSA key to use in the
 			HTTPS client role when contacting rpkid. 
 
-https-certs:		Name(s) of file(s) containing certificate(s)
+https-cert:		Name(s) of file(s) containing certificate(s)
 			to use in the HTTPS client role when
 			contacting rpkid.  You can specify more than
 			one certificate using OpenSSL-style
-			subscripts: https-certs.0, https-certs.1,
+			subscripts: https-cert.0, https-cert.1,
 			etc.
 
 https-ta:		Name of file containing trust anchor to use
@@ -417,20 +417,20 @@ cms-ta:			Name of file containing CMS trust anchor to
 cms-key:		Name of file containing RSA key to use when
 			signing CMS messages to rpkid.
 
-cms-certs:		Name(s) of file(s) containing certificate(s)
+cms-cert:		Name(s) of file(s) containing certificate(s)
 			to include in CMS wrapper when signing
 			messages to rpkid.  You can specify more than
 			one certificate using OpenSSL-style
-			subscripts: cms-certs.0, cms-certs.1, etc.
+			subscripts: cms-cert.0, cms-cert.1, etc.
 
 https-key:		Name of file containing RSA key to use in the
 			HTTPS client role when contacting rpkid. 
 
-https-certs:		Name(s) of file(s) containing certificate(s)
+https-cert:		Name(s) of file(s) containing certificate(s)
 			to use in the HTTPS client role when
 			contacting rpkid.  You can specify more than
 			one certificate using OpenSSL-style
-			subscripts: https-certs.0, https-certs.1,
+			subscripts: https-cert.0, https-cert.1,
 			etc.
 
 https-ta:		Name of file containing trust anchor to use
@@ -472,11 +472,11 @@ Config file options:
 https-key:		Name of file containing RSA key to use in the
 			HTTPS client role when contacting rpkid. 
 
-https-certs:		Name(s) of file(s) containing certificate(s)
+https-cert:		Name(s) of file(s) containing certificate(s)
 			to use in the HTTPS client role when
 			contacting rpkid.  You can specify more than
 			one certificate using OpenSSL-style
-			subscripts: https-certs.0, https-certs.1,
+			subscripts: https-cert.0, https-cert.1,
 			etc.
 
 https-ta:		Name of file containing trust anchor to use

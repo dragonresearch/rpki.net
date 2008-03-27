@@ -17,6 +17,11 @@
 import MySQLdb, time
 import rpki.x509, rpki.resource_set, rpki.sundial
 
+# Turn all MySQL warnings into exceptions, at least for now
+#
+import warnings, _mysql_exceptions
+warnings.simplefilter("error", _mysql_exceptions.Warning)
+
 def connect(cfg):
   """Connect to a MySQL database using connection parameters from an
      rpki.config.parser object.
@@ -66,7 +71,10 @@ def sql_sweep(gctx):
   """Write any dirty objects out to SQL."""
   for s in sql_dirty.copy():
     rpki.log.debug("Sweeping %s" % repr(s))
-    s.sql_store(gctx)
+    if s.sql_deleted:
+      s.sql_delete(gctx)
+    else:
+      s.sql_store(gctx)
   sql_assert_pristine()
 
 class sql_persistant(object):
@@ -76,6 +84,10 @@ class sql_persistant(object):
   ## @var sql_in_db
   # Whether this object is already in SQL or not.
   sql_in_db = False
+
+  ## @var sql_deleted
+  # Whether our cached copy of this object has been deleted.
+  sql_deleted = False
 
   @classmethod
   def sql_fetch(cls, gctx, id):
@@ -146,6 +158,10 @@ class sql_persistant(object):
     """Query whether this object needs to be written back to SQL."""
     return self in sql_dirty
 
+  def sql_mark_deleted(self):
+    """Mark this object as needing to be deleted in SQL."""
+    self.sql_deleted = True
+
   def sql_store(self, gctx):
     """Store this object to SQL."""
     if not self.sql_in_db:
@@ -171,7 +187,7 @@ class sql_persistant(object):
       if sql_cache.get(key) == self:
         del sql_cache[key]
       self.sql_in_db = False
-      self.sql_mark_clean()
+    self.sql_mark_clean()
 
   def sql_encode(self):
     """Convert object attributes into a dict for use with canned SQL
@@ -426,9 +442,13 @@ class ca_detail_obj(sql_persistant):
     """Fetch CA object to which this ca_detail links."""
     return ca_obj.sql_fetch(gctx, self.ca_id)
 
-  def child_certs(self, gctx, child = None, ski = None, revoked = False, unique = False):
+  def child_certs(self, gctx, child = None, ski = None, unique = False):
     """Fetch all child_cert objects that link to this ca_detail."""
-    return rpki.sql.child_cert_obj.fetch(gctx, child, self, ski, revoked, unique)
+    return rpki.sql.child_cert_obj.fetch(gctx, child, self, ski, unique)
+
+  def revoked_certs(self, gctx):
+    """Fetch all revoked_cert objects that link to this ca_detail."""
+    return revoked_cert_obj.sql_fetch_where(gctx, "ca_detail_id = %s", (self.ca_detail_id,))
 
   def route_origins(self, gctx):
     """Fetch all route_origin objects that link to this ca_detail."""
@@ -467,8 +487,8 @@ class ca_detail_obj(sql_persistant):
     for child_cert in self.child_certs(gctx):
       repository.withdraw(gctx, child_cert.cert, child_cert.uri(ca))
       child_cert.sql_delete(gctx)
-    for child_cert in self.child_certs(gctx, revoked = True):
-      child_cert.sql_delete(gctx)
+    for revoked__cert in self.revoked_certs(gctx):
+      revoked_cert.sql_delete(gctx)
     for route_origin in self.route_origins(gctx):
       raise rpki.exceptions.NotImplementedYet, "Don't (yet) know how to withdraw ROAs"
     repository.withdraw(gctx, self.latest_manifest, self.manifest_uri(ca))
@@ -503,7 +523,7 @@ class ca_detail_obj(sql_persistant):
     parent = ca.parent(gctx)
     crl_interval = rpki.sundial.timedelta(seconds = parent.self(gctx).crl_interval)
 
-    nextUpdate = rpki.sundial.datetime.utcnow()
+    nextUpdate = rpki.sundial.now()
 
     if self.latest_manifest is not None:
       nextUpdate = nextUpdate.later(self.latest_manifest.getNextUpdate())
@@ -640,17 +660,17 @@ class ca_detail_obj(sql_persistant):
     parent = ca.parent(gctx)
     repository = parent.repository(gctx)
     crl_interval = rpki.sundial.timedelta(seconds = parent.self(gctx).crl_interval)
-    now = rpki.sundial.datetime.utcnow()
+    now = rpki.sundial.now()
 
     if nextUpdate is None:
       nextUpdate = now + crl_interval
 
     certlist = []
-    for child_cert in self.child_certs(gctx, revoked = True):
-      if now > child_cert.cert.getNotAfter() + crl_interval:
-        child_cert.sql_delete()
+    for revoked_cert in self.revoked_certs(gctx):
+      if now > revoked_cert.expires + crl_interval:
+        revoked_cert.sql_delete()
       else:
-        certlist.append((child_cert.cert.getSerial(), child_cert.revoked.toASN1tuple(), ()))
+        certlist.append((revoked_cert.serial, revoked_cert.revoked.toASN1tuple(), ()))
     certlist.sort()
 
     self.latest_crl = rpki.x509.CRL.generate(
@@ -670,7 +690,7 @@ class ca_detail_obj(sql_persistant):
     parent = ca.parent(gctx)
     repository = parent.repository(gctx)
     crl_interval = rpki.sundial.timedelta(seconds = parent.self(gctx).crl_interval)
-    now = rpki.sundial.datetime.utcnow()
+    now = rpki.sundial.now()
 
     if nextUpdate is None:
       nextUpdate = now + crl_interval
@@ -693,14 +713,13 @@ class ca_detail_obj(sql_persistant):
 class child_cert_obj(sql_persistant):
   """Certificate that has been issued to a child."""
 
-  sql_template = template("child_cert", "child_cert_id", ("cert", rpki.x509.X509), "child_id", "ca_detail_id", "ski", ("revoked", rpki.sundial.datetime))
+  sql_template = template("child_cert", "child_cert_id", ("cert", rpki.x509.X509), "child_id", "ca_detail_id", "ski")
 
   def __init__(self, child_id = None, ca_detail_id = None, cert = None):
     """Initialize a child_cert_obj."""
     self.child_id = child_id
     self.ca_detail_id = ca_detail_id
     self.cert = cert
-    self.revoked = None
     if child_id or ca_detail_id or cert:
       self.sql_mark_dirty()
 
@@ -721,14 +740,15 @@ class child_cert_obj(sql_persistant):
     return ca.sia_uri + self.uri_tail()
 
   def revoke(self, gctx):
-    """Mark a child cert as revoked."""
-    if self.revoked is None:
-      rpki.log.debug("Revoking %s" % repr(self))
-      self.revoked = rpki.sundial.datetime.utcnow()
-      ca = self.ca_detail(gctx).ca(gctx)
-      repository = ca.parent(gctx).repository(gctx)
-      repository.withdraw(gctx, self.cert, self.uri(ca))
-      self.sql_mark_dirty()
+    """Revoke a child cert."""
+    rpki.log.debug("Revoking %s" % repr(self))
+    ca_detail = self.ca_detail(gctx)
+    ca = ca_detail.ca(gctx)
+    revoked_cert_obj.revoke(cert = self.cert, ca_detail = ca_detail)
+    repository = ca.parent(gctx).repository(gctx)
+    repository.withdraw(gctx, self.cert, self.uri(ca))
+    sql_sweep(gctx)
+    self.sql_delete(gctx)
 
   def reissue(self, gctx, ca_detail, resources = None, sia = None):
     """Reissue an existing cert, reusing the public key.  If the cert
@@ -785,7 +805,7 @@ class child_cert_obj(sql_persistant):
     return child_cert
 
   @classmethod
-  def fetch(cls, gctx, child = None, ca_detail = None, ski = None, revoked = False, unique = False):
+  def fetch(cls, gctx, child = None, ca_detail = None, ski = None, unique = False):
     """Fetch all child_cert objects matching a particular set of
     parameters.  This is a wrapper to consolidate various queries that
     would otherwise be inline SQL WHERE expressions.  In most cases
@@ -793,20 +813,53 @@ class child_cert_obj(sql_persistant):
     """
 
     args = []
-    where = "revoked IS"
-    if revoked:
-      where += " NOT"
-    where += " NULL"
+    where = []
+
     if child:
-      where += " AND child_id = %s"
+      where.append("child_id = %s")
       args.append(child.child_id)
+
     if ca_detail:
-      where += " AND ca_detail_id = %s"
+      where.append("ca_detail_id = %s")
       args.append(ca_detail.ca_detail_id)
+
     if ski:
-      where += " AND ski = %s"
+      where.append("ski = %s")
       args.append(ski)
+
+    where = " AND ".join(where)
+
     if unique:
       return cls.sql_fetch_where1(gctx, where, args)
     else:
       return cls.sql_fetch_where(gctx, where, args)
+
+class revoked_cert_obj(sql_persistant):
+  """Tombstone for a revoked certificate."""
+
+  sql_template = template("revoked_cert", "revoked_cert_id",
+                          "serial", "ca_detail_id",
+                          ("revoked", rpki.sundial.datetime),
+                          ("expires", rpki.sundial.datetime))
+
+  def __init__(self, serial = None, revoked = None, expires = None, ca_detail_id = None):
+    """Initialize a revoked_cert_obj."""
+    self.serial = serial
+    self.revoked = revoked
+    self.expires = expires
+    self.ca_detail_id = ca_detail_id
+    if serial or revoked or expires or ca_detail_id:
+      self.sql_mark_dirty()
+
+  def ca_detail(self, gctx):
+    """Fetch ca_detail object to which this revoked_cert_obj links."""
+    return ca_detail_obj.sql_fetch(gctx, self.ca_detail_id)
+
+  @classmethod
+  def revoke(cls, cert, ca_detail):
+    """Revoke a certificate."""
+    return cls(
+      serial       = cert.getSerial(),
+      expires      = cert.getNotAfter(),
+      revoked      = rpki.sundial.now(),
+      ca_detail_id = ca_detail.ca_detail_id)

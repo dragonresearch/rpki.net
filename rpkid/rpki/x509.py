@@ -286,7 +286,7 @@ class X509(DER_object):
             cn = None, resources = None, is_ca = True):
     """Issue a certificate."""
 
-    now = rpki.sundial.datetime.utcnow()
+    now = rpki.sundial.now()
     aki = self.get_SKI()
     ski = subject_key.get_SKI()
 

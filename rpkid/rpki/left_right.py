@@ -361,7 +361,7 @@ class self_elt(data_elt):
 
     rpki.log.trace()
 
-    now = rpki.sundial.datetime.utcnow()
+    now = rpki.sundial.now()
 
     for child in self.children(gctx):
       child_certs = child.child_certs(gctx)
@@ -403,7 +403,7 @@ class self_elt(data_elt):
 
     rpki.log.trace()
 
-    now = rpki.sundial.datetime.utcnow()
+    now = rpki.sundial.now()
     for parent in self.parents(gctx):
       repository = parent.repository(gctx)
       for ca in parent.cas(gctx):
@@ -633,9 +633,9 @@ class child_elt(data_elt):
 
   cms_ta = None
 
-  def child_certs(self, gctx, ca_detail = None, ski = None, revoked = False, unique = False):
+  def child_certs(self, gctx, ca_detail = None, ski = None, unique = False):
     """Fetch all child_cert objects that link to this child object."""
-    return rpki.sql.child_cert_obj.fetch(gctx, self, ca_detail, ski, revoked, unique)
+    return rpki.sql.child_cert_obj.fetch(gctx, self, ca_detail, ski, unique)
 
   def parents(self, gctx):
     """Fetch all parent objects that link to self object to which this child object links."""

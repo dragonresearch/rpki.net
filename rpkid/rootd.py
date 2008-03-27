@@ -89,8 +89,8 @@ class issue_pdu(rpki.up_down.issue_pdu):
                                          aia         = rootd_cert,
                                          crldp       = crldp,
                                          resources   = resources,
-                                         notAfter    = rpki.sundial.datetime.utcnow() + rpki_subject_lifetime))
-      now = rpki.sundial.datetime.utcnow()
+                                         notAfter    = rpki.sundial.now() + rpki_subject_lifetime))
+      now = rpki.sundial.now()
       crl = rpki.x509.CRL.generate(
         keypair             = rpki_key,
         issuer              = rpki_issuer,

@@ -141,12 +141,23 @@ CREATE TABLE child_cert (
        child_cert_id        SERIAL NOT NULL,
        cert                 LONGBLOB NOT NULL,
        ski                  TINYBLOB NOT NULL,
-       revoked              DATETIME,
        child_id             BIGINT unsigned NOT NULL,
        ca_detail_id         BIGINT unsigned NOT NULL,
        PRIMARY KEY          (child_cert_id),
        FOREIGN KEY          (ca_detail_id) REFERENCES ca_detail,
        FOREIGN KEY          (child_id) REFERENCES child
+);
+
+DROP TABLE IF EXISTS revoked_cert;
+
+CREATE TABLE revoked_cert (
+       revoked_cert_id      SERIAL NOT NULL,
+       serial               BIGINT unsigned NOT NULL,
+       revoked              DATETIME NOT NULL,
+       expires              DATETIME NOT NULL,
+       ca_detail_id         BIGINT unsigned NOT NULL,
+       PRIMARY KEY          (revoked_cert_id),
+       FOREIGN KEY          (ca_detail_id) REFERENCES ca_detail
 );
 
 DROP TABLE IF EXISTS route_origin;

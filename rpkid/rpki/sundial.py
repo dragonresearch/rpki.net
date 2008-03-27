@@ -22,6 +22,10 @@ that occur with the more obvious module names.
 
 import datetime as pydatetime
 
+def now():
+  """Get current timestamp."""
+  return datetime.utcnow()
+
 class datetime(pydatetime.datetime):
   """RPKI extensions to standard datetime.datetime class.  All work
   here is in UTC, so we use naive datetime objects.
@@ -108,8 +112,18 @@ class datetime(pydatetime.datetime):
     return cls.fromdatetime(x)
 
   def to_sql(self):
-    """Convert to SQL storage format."""
-    return self
+    """Convert to SQL storage format.
+
+    There's something whacky going on in the MySQLdb module, it throws
+    range errors when storing a derived type into a DATETIME column.
+    Investigate some day, but for now brute force this by copying the
+    relevant fields into a datetime.datetime for MySQLdb's
+    consumption.
+
+    """
+    return pydatetime.datetime(year = self.year, month = self.month, day = self.day,
+                               hour = self.hour, minute = self.minute, second = self.second,
+                               microsecond = 0, tzinfo = None)
 
   def later(self, other):
     """Return the later of two timestamps."""
@@ -125,7 +139,7 @@ timedelta = pydatetime.timedelta
 
 if __name__ == "__main__":
 
-  now = datetime.utcnow()
+  now = datetime.now()
   print now
   print repr(now)
   print now.strftime("%s")

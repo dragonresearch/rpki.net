@@ -36,8 +36,14 @@ resource-cert-samples/.stamp: generate-testrepo.py Makefile
 	python generate-testrepo.py
 	touch $@
 
-doxygen:
+TWEAKHTML  := xsltproc --html tweak-doc.xsl
+#HTML2TEXT := w3m  -dump -T text/html
+HTML2TEXT  := lynx -dump -nolist -force_html /dev/stdin
+
+dox doxygen:
 	cd rpki && doxygen
+	${TWEAKHTML} rpki/html/Installation.html | ${HTML2TEXT} >INSTALLATION
+	${TWEAKHTML} rpki/html/Operation.html    | ${HTML2TEXT} >OPERATION
 
 tags:
 	find . -type f -name '*.py' | etags -

@@ -1,81 +1,74 @@
-$Id$ -*- Text -*- 
+   [Converted from HTML, see rpki/__init__.py for source]
 
-Copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+Installation
 
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
+   Preliminary installation instructions for rpkid et al.
 
-THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
+   These are the production-side RPKI tools, for Internet Registries
+   (RIRs, LIRs, etc). See ../rcynic/README for relying party tools.
+
+   rpkid is a set of Python modules supporting generation and maintenance
+   of resource certificates. Most of the code is in the rpkid/rpki/
+   directory. rpkid itself is a relatively small program that calls the
+   library modules. There are several other programs that make use of the
+   same libraries, as well as a collection of test programs.
+
+   At present the package is intended to be run out of its build
+   directory. Setting up proper installation in a system area using the
+   Python distutils package would likely not be very hard but has not yet
+   been done.
+
+   Note that initial development of this code has been on FreeBSD, so
+   installation will probably be easiest on FreeBSD.
+
+   The first step to running the code is to build the OpenSSL and POW
+   binaries. At present the OpenSSL code is just a copy of the stock
+   OpenSSL 0.9.8g release, compiled with special options to enable RFC
+   3779 support that ISC wrote under previous contract to ARIN. The POW
+   (Python OpenSSL Wrapper) library is an extended copy of the stock POW
+   release.
+
+   To build these, cd to the top-level directory in the distribution and
+   type "make".
+
+   $ cd $top
+   $ make
+
+   This should automatically build everything, in the right order,
+   including staticly linking the POW extension module with the OpenSSL
+   library to provide RFC 3779 support.
+
+   Next, see the list of required Python modules in rpkid/README. Note
+   that the Python code requires Python version 2.5. Install any modules
+   that might be missing.
+
+   You will also need a MySQL installation. This code was developed using
+   MySQL 5.1 and has been tested with MySQL 5.0 and 5.1.
+
+   The architecture is intended to support hardware signing modules
+   (HSMs), but the code to support them has not been written.
+
+   At this point, you should have all the necessary software installed.
+   You will probably want to test it. All tests should be run from the
+   rpkid/ directory.
+
+   Some of the tests require MySQL databases to store their data. To set
+   up all the databases that the tests will need, run the SQL commands in
+   rpkid/testbed.sql. The MySQL command line client is usually the easiest
+   way to do this, eg:
+
+   $ cd $top/scripts
+   $ mysql -u root -p <testbed.sql
+
+   To run the tests, run "make all-tests":
+
+   $ cd $top/scripts
+   $ make all-tests
+
+   If nothing explodes, your installation is probably ok. Any Python
+   backtraces in the output indicate a problem.
+     __________________________________________________________________
 
 
-Preliminary installation instructions for rpkid et al.  These are the
-production-side RPKI tools, for Internet Registries (RIRs, LIRs, etc).
-See ../rcynic/README for relying party tools.
-
-rpkid is a set of Python modules supporting generation and maintenance
-of resource certificates.  Most of the code is in the scripts/rpki/
-directory.  rpkid itself is a relatively small program that calls the
-library modules.  There are several other programs that make use of
-the same libraries, as well as a collection of test programs.
-
-At present the package is intended to be run out of its build
-directory.  Setting up proper installation in a system area using the
-Python distutils package would likely not be very hard but has not yet
-been done.
-
-Note that initial development of this code has been on FreeBSD, so
-installation will probably be easiest on FreeBSD.
-
-The first step to running the code is to build the OpenSSL and POW
-binaries.  At present the OpenSSL code is just a copy of the stock
-OpenSSL 0.9.8g release, compiled with special options to enable the
-RFC 3779 support that ISC wrote under previous contract to ARIN.  The
-POW (Python OpenSSL Wrapper) library is an extended copy of the stock
-POW release.
-
-To build these, cd to the top-level directory in the distribution and
-type "make".
-
-  $ cd $top
-  $ make
-
-This should automatically build everything, in the right order,
-including staticly linking the POW extension module with the OpenSSL
-library to provide RFC 3779 support.
-
-Next, see the list of required Python modules in scripts/README.  Note
-that the Python code requires Python version 2.5.  Install any modules
-that might be missing.
-
-You will also need a MySQL installation.  This code was developed
-using MySQL 5.1 and has been tested with MySQL 5.0 and 5.1.
-
-The architecture is intended to support hardware signing modules
-(HSMs), but the code to support them has not been written.
-
-At this point, you should have all the necessary software installed.
-You will probably want to test it.  All tests should be run from the
-scripts/ directory.
-
-Some of the tests require MySQL databases to store their data.  To set
-up all the databases that the tests will need, run the SQL commands in
-scripts/testbed.sql.  The MySQL command line client is usually the
-easiest way to do this, eg:
-
-  $ cd $top/scripts
-  $ mysql -u root -p <testbed.sql
-
-To run the tests, run "make all-tests":
-
-  $ cd $top/scripts
-  $ make all-tests
-
-If nothing explodes, your installation is probably ok.  Any Python
-backtraces in the output indicate a problem.
+    Generated on Fri Mar 28 19:50:13 2008 for Resource PKI Engine by
+    doxygen 1.5.5

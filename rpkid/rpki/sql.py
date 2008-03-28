@@ -14,18 +14,17 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-import MySQLdb, time
+import MySQLdb, time,  warnings, _mysql_exceptions
 import rpki.x509, rpki.resource_set, rpki.sundial
 
-# Turn all MySQL warnings into exceptions, at least for now
-#
-import warnings, _mysql_exceptions
-warnings.simplefilter("error", _mysql_exceptions.Warning)
-
-def connect(cfg):
+def connect(cfg, throw_exception_on_warning = True):
   """Connect to a MySQL database using connection parameters from an
      rpki.config.parser object.
   """
+
+  if throw_exception_on_warning:
+    warnings.simplefilter("error", _mysql_exceptions.Warning)
+
   return MySQLdb.connect(user   = cfg.get("sql-username"),
                          db     = cfg.get("sql-database"),
                          passwd = cfg.get("sql-password"))

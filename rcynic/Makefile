@@ -2,7 +2,9 @@
 
 OPENSSL_DIR = ../openssl/openssl
 
-CFLAGS = -g -I${OPENSSL_DIR}/include -Wall -Werror -Wshadow -Wmissing-prototypes -Wmissing-declarations
+# Disable -Werror as long as we're using OpenSSL snapshots.
+
+CFLAGS = -g -I${OPENSSL_DIR}/include -Wall -Wshadow -Wmissing-prototypes -Wmissing-declarations
 LDFLAGS = -static
 
 # -H -Wl,-t

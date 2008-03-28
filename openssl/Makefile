@@ -1,6 +1,6 @@
 # $Id$
 
-VERSION = 0.9.8g
+VERSION = SNAP-20080328
 
 all: openssl-${VERSION}/Makefile
 	cd openssl-${VERSION}; make $@

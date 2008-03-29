@@ -435,6 +435,17 @@ TO DO:
 
   TIME REQUIRED: Unknown
 
+- Deaddrop of incoming messages, for audit.  Absent a better theory,
+  steal existing tech for this: preface with minimal RFC 2822 header
+  and drop it into a Maildir folder using built-in Python Maildir
+  library code, at which point it becomes soebody else's problem.
+
+  STATUS: Not started
+
+  Priority: Desirable, trivial to implement.
+
+  TIME REQUIRED: One day
+
 
 
 Things implemented but not yet tested. 

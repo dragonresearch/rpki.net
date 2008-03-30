@@ -11,6 +11,7 @@ External Python packages required:
   http://codespeak.net/lxml/
 
   FreeBSD: /usr/ports/devel/py-lxml
+  Fedora:  python-lxml.i386
 
 - MySQLdb, which in turn requires MySQL client and server.  I'm
   testing with MySQL 5.1.
@@ -18,6 +19,7 @@ External Python packages required:
   http://sourceforge.net/projects/mysql-python/
 
   FreeBSD: /usr/ports/databases/py-MySQLdb
+  Fedora:  MySQL-python.i386
 
 - TLSLite, which pulls in other crypto packages.
 

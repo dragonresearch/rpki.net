@@ -134,10 +134,15 @@ class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
       return False
 
 class Checker(tlslite.api.Checker):
-  """Derived class to add a logging wrapper."""
+  """Derived class to handle X.509 client certificate checking."""
 
   def __call__(self, tlsConnection):
-    """Wrap some logging code around standard tlslite checker."""
+    """Wrap some logging code around standard tlslite.Checker class.
+
+    This is probably also the place where we need to figure out which
+    trust anchor to use, since this is the first point at which we
+    have access to the certificate chain provided by the client.
+    """
 
     for i in range(tlsConnection.session.clientCertChain.getNumCerts()):
       rpki.log.debug("Received client cert[%d] %s" % (i, tlsConnection.session.clientCertChain.x509List[i].getCommonName()))

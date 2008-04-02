@@ -66,12 +66,12 @@ def compose_response(r_msg):
       rc.certs[0].cert = rpki_subject
 
 class list_pdu(rpki.up_down.list_pdu):
-  def serve_pdu(self, xxx1, q_msg, r_msg, xxx2):
+  def serve_pdu(self, q_msg, r_msg, ignored):
     r_msg.payload = rpki.up_down.list_response_pdu()
     compose_response(r_msg)
 
 class issue_pdu(rpki.up_down.issue_pdu):
-  def serve_pdu(self, xxx1, q_msg, r_msg, xxx2):
+  def serve_pdu(self, q_msg, r_msg, ignored):
     stash_subject_pkcs10(self.pkcs10)
     self.pkcs10.check_valid_rpki()
     r_msg.payload = rpki.up_down.issue_response_pdu()
@@ -104,7 +104,7 @@ class issue_pdu(rpki.up_down.issue_pdu):
     compose_response(r_msg)
 
 class revoke_pdu(rpki.up_down.revoke_pdu):
-  def serve_pdu(self, xxx1, q_msg, r_msg, xxx2):
+  def serve_pdu(self, q_msg, r_msg, ignored):
     rpki_subject = get_subject_cert()
     if rpki_subject is None or rpki_subject.gSKI() != self.ski:
       raise rpki.exceptions.NotInDatabase
@@ -137,7 +137,7 @@ def up_down_handler(query, path):
     rpki.log.error(traceback.format_exc())
     return 400, "Could not process PDU: %s" % data
   try:
-    r_msg = q_msg.serve_top_level(None, None)
+    r_msg = q_msg.serve_top_level(None)
     r_elt = r_msg.toXML()
     try:
       rpki.relaxng.up_down.assertValid(r_elt)

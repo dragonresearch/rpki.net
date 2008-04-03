@@ -19,3 +19,6 @@ openssl-${VERSION}/config: openssl-${VERSION}.tar.gz
 
 install:
 	@echo Not attempting to install modified OpenSSL, if you want that, do it yourself
+
+sandblast:
+	svn st -v openssl* | awk '/^I/ && NF == 2 {system("set -x; rm -rf " $$2)}'

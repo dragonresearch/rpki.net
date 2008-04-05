@@ -26,6 +26,38 @@ import rpki.x509, rpki.exceptions, rpki.log
 
 rpki_content_type = "application/x-rpki"
 
+class Checker(tlslite.api.Checker):
+  """Derived class to handle X.509 client certificate checking."""
+
+  def __call__(self, tlsConnection):
+    """Wrap some logging code around standard tlslite.Checker class.
+
+    This is probably also the place where we need to figure out which
+    trust anchor to use, since this is the first point at which we
+    have access to the certificate chain provided by the client.
+    """
+
+    for i in range(tlsConnection.session.clientCertChain.getNumCerts()):
+      rpki.log.debug("Received cert[%d] %s" % (i, tlsConnection.session.clientCertChain.x509List[i].getCommonName()))
+
+    return tlslite.api.Checker.__call__(self, tlsConnection)
+
+class httpsClient(tlslite.api.HTTPTLSConnection):
+  """Derived class to let us replace the default Checker."""
+
+  def __init__(self, host, port = None,
+               certChain = None, privateKey = None,
+               x509TrustList = None, settings = None):
+    """Create a new httpsClient."""
+
+    tlslite.api.HTTPTLSConnection.__init__(
+      self, host = host, port = port, settings = settings,
+      certChain = certChain, privateKey = privateKey)
+
+    rpki.log.debug("Found checker %s" % repr(self.checker))
+
+    self.checker = Checker(x509TrustList = x509TrustList)
+
 def client(msg, privateKey, certChain, x509TrustList, url, timeout = 300):
   """Open client HTTPS connection, send a message, wait for response.
 
@@ -48,11 +80,11 @@ def client(msg, privateKey, certChain, x509TrustList, url, timeout = 300):
   # pass in a tlslite.HandshakeSettings object that would let us
   # insist on, eg, particular SSL/TLS versions.
 
-  httpc = tlslite.api.HTTPTLSConnection(host          = u.hostname or "localhost",
-                                        port          = u.port or 443,
-                                        privateKey    = privateKey.get_tlslite(),
-                                        certChain     = certChain.tlslite_certChain(),
-                                        x509TrustList = x509TrustList.tlslite_trustList())
+  httpc = httpsClient(host          = u.hostname or "localhost",
+                      port          = u.port or 443,
+                      privateKey    = privateKey.get_tlslite(),
+                      certChain     = certChain.tlslite_certChain(),
+                      x509TrustList = x509TrustList.tlslite_trustList())
   httpc.connect()
   httpc.sock.settimeout(timeout)
   httpc.request("POST", u.path, msg, {"Content-Type" : rpki_content_type})
@@ -103,7 +135,7 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     else:
       rpki.log.info(format)
 
-class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
+class httpsServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
   """Derived type to handle TLS aspects of HTTPS."""
 
   rpki_sessionCache = None
@@ -133,22 +165,6 @@ class httpServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
       rpki.log.warn("TLS handshake failure: " + str(error))
       return False
 
-class Checker(tlslite.api.Checker):
-  """Derived class to handle X.509 client certificate checking."""
-
-  def __call__(self, tlsConnection):
-    """Wrap some logging code around standard tlslite.Checker class.
-
-    This is probably also the place where we need to figure out which
-    trust anchor to use, since this is the first point at which we
-    have access to the certificate chain provided by the client.
-    """
-
-    for i in range(tlsConnection.session.clientCertChain.getNumCerts()):
-      rpki.log.debug("Received client cert[%d] %s" % (i, tlsConnection.session.clientCertChain.x509List[i].getCommonName()))
-
-    return tlslite.api.Checker.__call__(self, tlsConnection)
-
 def server(handlers, privateKey, certChain, port = 4433, host = "", x509TrustList = None):
   """Run an HTTPS server and wait (forever) for connections."""
 
@@ -158,7 +174,7 @@ def server(handlers, privateKey, certChain, port = 4433, host = "", x509TrustLis
   class boundRequestHandler(requestHandler):
     rpki_handlers = handlers
 
-  httpd = httpServer((host, port), boundRequestHandler)
+  httpd = httpsServer((host, port), boundRequestHandler)
 
   httpd.rpki_privateKey = privateKey.get_tlslite()
   httpd.rpki_certChain = certChain.tlslite_certChain()

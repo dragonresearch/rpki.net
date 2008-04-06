@@ -231,6 +231,9 @@ class X509(DER_object):
     if self.POWpkix:
       self.DER = self.POWpkix.toString()
       return self.get_DER()
+    if self.tlslite:
+      self.DER = self.tlslite.writeBytes()
+      return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
   def get_POW(self):

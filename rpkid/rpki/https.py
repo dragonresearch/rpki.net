@@ -29,6 +29,16 @@ rpki_content_type = "application/x-rpki"
 class Checker(tlslite.api.Checker):
   """Derived class to handle X.509 client certificate checking."""
 
+  x509TrustList = None
+
+  def __init__(self, x509TrustList = None):
+    """Initialize our modified checker."""
+
+    if False:
+      self.x509TrustList = x509TrustList
+    else:
+      rpki.log.debug("Ignoring HTTPS trust anchors %s, validation disabled" % repr(x509TrustList))
+
   def __call__(self, tlsConnection):
     """Wrap some logging code around standard tlslite.Checker class.
 
@@ -38,9 +48,12 @@ class Checker(tlslite.api.Checker):
     """
 
     for i in range(tlsConnection.session.clientCertChain.getNumCerts()):
-      rpki.log.debug("Received cert[%d] %s" % (i, tlsConnection.session.clientCertChain.x509List[i].getCommonName()))
+      x = rpki.x509.X509(tlslite = tlsConnection.session.clientCertChain.x509List[i])
+      rpki.log.debug("Received cert[%d] %s" % (i, x.getSubject()))
 
-    return tlslite.api.Checker.__call__(self, tlsConnection)
+    # Disabling this removes the need for cryptlib_py
+    if self.x509TrustList is not None:
+      tlslite.api.Checker.__call__(self, tlsConnection)
 
 class httpsClient(tlslite.api.HTTPTLSConnection):
   """Derived class to let us replace the default Checker."""
@@ -53,8 +66,6 @@ class httpsClient(tlslite.api.HTTPTLSConnection):
     tlslite.api.HTTPTLSConnection.__init__(
       self, host = host, port = port, settings = settings,
       certChain = certChain, privateKey = privateKey)
-
-    rpki.log.debug("Found checker %s" % repr(self.checker))
 
     self.checker = Checker(x509TrustList = x509TrustList)
 
@@ -183,7 +194,8 @@ def server(handlers, privateKey, certChain, port = 4433, host = "", x509TrustLis
   if x509TrustList is not None:
     x509TrustList = x509TrustList.tlslite_trustList()
     for x in x509TrustList:
-      rpki.log.debug("HTTPS trust anchor %s" % x.getCommonName())
+      rpki.log.debug("HTTPS trust anchor %s" % rpki.x509.X509(tlslite = x).getSubject())
+
     httpd.rpki_checker = Checker(x509TrustList = x509TrustList)
 
   httpd.serve_forever()

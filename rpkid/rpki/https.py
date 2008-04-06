@@ -24,36 +24,46 @@ general version should use SQL anyway.
 import httplib, BaseHTTPServer, tlslite.api, glob, traceback, urlparse, socket
 import rpki.x509, rpki.exceptions, rpki.log
 
+# This probably should be wrapped somewhere in rpki.x509 eventually
+import POW
+
+# Not for production use!
+disable_tls_certificate_validation_exceptions = True
+
 rpki_content_type = "application/x-rpki"
 
 class Checker(tlslite.api.Checker):
   """Derived class to handle X.509 client certificate checking."""
 
-  x509TrustList = None
-
   def __init__(self, x509TrustList = None):
-    """Initialize our modified checker."""
+    """Initialize our modified certificate checker."""
 
-    if False:
-      self.x509TrustList = x509TrustList
-    else:
-      rpki.log.debug("Ignoring HTTPS trust anchors %s, validation disabled" % repr(x509TrustList))
+    self.x509store = POW.X509Store()
+    if x509TrustList is not None:
+      for x in x509TrustList:
+        rpki.log.debug("HTTPS trust anchor %s" % x.getSubject())
+        self.x509store.addTrust(x.get_POW())
 
   def __call__(self, tlsConnection):
-    """Wrap some logging code around standard tlslite.Checker class.
+    """POW/OpenSSL-based certificate checker."""
 
-    This is probably also the place where we need to figure out which
-    trust anchor to use, since this is the first point at which we
-    have access to the certificate chain provided by the client.
-    """
+    if tlsConnection._client:
+      chain = tlsConnection.session.serverCertChain
+      peer = "server"
+    else:
+      chain = tlsConnection.session.clientCertChain
+      peer = "client"
 
-    for i in range(tlsConnection.session.clientCertChain.getNumCerts()):
-      x = rpki.x509.X509(tlslite = tlsConnection.session.clientCertChain.x509List[i])
-      rpki.log.debug("Received cert[%d] %s" % (i, x.getSubject()))
+    chain = [rpki.x509.X509(tlslite = chain.x509List[i]) for i in range(chain.getNumCerts())]
 
-    # Disabling this removes the need for cryptlib_py
-    if self.x509TrustList is not None:
-      tlslite.api.Checker.__call__(self, tlsConnection)
+    for i in range(len(chain)):
+      rpki.log.debug("Received cert[%d] %s from %s" % (i, chain[i].getSubject(), peer))
+
+    if not self.x509store.verifyChain(chain[0].get_POW(), [x.get_POW() for x in chain[1:]]):
+      if disable_tls_certificate_validation_exceptions:
+        rpki.log.warn("DANGER WILL ROBINSON!  IGNORING TLS VALIDATION FAILURE!")
+      else:
+        raise rpki.exceptions.TLSValidationError
 
 class httpsClient(tlslite.api.HTTPTLSConnection):
   """Derived class to let us replace the default Checker."""
@@ -95,7 +105,7 @@ def client(msg, privateKey, certChain, x509TrustList, url, timeout = 300):
                       port          = u.port or 443,
                       privateKey    = privateKey.get_tlslite(),
                       certChain     = certChain.tlslite_certChain(),
-                      x509TrustList = x509TrustList.tlslite_trustList())
+                      x509TrustList = x509TrustList)
   httpc.connect()
   httpc.sock.settimeout(timeout)
   httpc.request("POST", u.path, msg, {"Content-Type" : rpki_content_type})
@@ -169,10 +179,10 @@ class httpsServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
                                     privateKey   = self.rpki_privateKey,
                                     sessionCache = self.rpki_sessionCache,
                                     checker      = self.rpki_checker,
-                                    reqCert      = self.rpki_checker is not None)
+                                    reqCert      = True)
       tlsConnection.ignoreAbruptClose = True
       return True
-    except tlslite.api.TLSError, error:
+    except (tlslite.api.TLSError, rpki.exceptions.TLSValidationError), error:
       rpki.log.warn("TLS handshake failure: " + str(error))
       return False
 
@@ -190,12 +200,6 @@ def server(handlers, privateKey, certChain, port = 4433, host = "", x509TrustLis
   httpd.rpki_privateKey = privateKey.get_tlslite()
   httpd.rpki_certChain = certChain.tlslite_certChain()
   httpd.rpki_sessionCache = tlslite.api.SessionCache()
-
-  if x509TrustList is not None:
-    x509TrustList = x509TrustList.tlslite_trustList()
-    for x in x509TrustList:
-      rpki.log.debug("HTTPS trust anchor %s" % rpki.x509.X509(tlslite = x).getSubject())
-
-    httpd.rpki_checker = Checker(x509TrustList = x509TrustList)
+  httpd.rpki_checker = Checker(x509TrustList = x509TrustList)
 
   httpd.serve_forever()

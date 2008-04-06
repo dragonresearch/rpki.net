@@ -87,3 +87,6 @@ class NotFound(Exception):
 
 class MustBePrefix(Exception):
   """Resource range cannot be expressed as a prefix."""
+
+class TLSValidationError(Exception):
+  """TLS certificate validation error."""

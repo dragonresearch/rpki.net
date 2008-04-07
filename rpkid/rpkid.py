@@ -52,11 +52,11 @@ if startup_msg:
 
 gctx = rpki.gctx.global_context(cfg)
 
-rpki.https.server(privateKey = gctx.https_key,
-                  certChain = gctx.https_certs,
-                  x509TrustList = gctx.https_ta_irbe,
-                  host = gctx.https_server_host,
-                  port = gctx.https_server_port,
-                  handlers=(("/left-right", gctx.left_right_handler),
-                            ("/up-down/",   gctx.up_down_handler),
-                            ("/cronjob",    gctx.cronjob_handler)))
+rpki.https.server(server_key = gctx.https_key,
+                  server_certs = gctx.https_certs,
+                  client_ta    = gctx.https_ta_irbe,
+                  host         = gctx.https_server_host,
+                  port         = gctx.https_server_port,
+                  handlers     = (("/left-right", gctx.left_right_handler),
+                                  ("/up-down/",   gctx.up_down_handler),
+                                  ("/cronjob",    gctx.cronjob_handler)))

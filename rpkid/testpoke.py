@@ -90,9 +90,9 @@ def query_up_down(q_pdu):
   rpki.relaxng.up_down.assertValid(q_elt)
   q_cms = rpki.cms.xml_sign(q_elt, cms_key, cms_certs, encoding = "UTF-8")
   r_cms = rpki.https.client(
-    x509TrustList = https_ta,
-    privateKey = https_key,
-    certChain = https_certs,
+    server_ta    = https_ta,
+    client_key   = https_key,
+    client_certs = https_certs,
     msg = q_cms,
     url = yaml_data["posturl"])
   r_xml = rpki.cms.verify(r_cms, cms_ta)

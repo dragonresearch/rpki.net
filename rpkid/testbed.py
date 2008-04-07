@@ -532,11 +532,11 @@ class allocation(object):
     url = "https://localhost:%d/left-right" % self.rpki_port
     rpki.log.debug("Attempting to connect to %s" % url)
     cms = rpki.https.client(
-      privateKey    = testbed_key,
-      certChain     = testbed_certs,
-      x509TrustList = rpki.x509.X509_chain(self.rpkid_ta),
-      url           = url,
-      msg           = cms)
+      client_key   = testbed_key,
+      client_certs = testbed_certs,
+      server_ta    = rpki.x509.X509_chain(self.rpkid_ta),
+      url          = url,
+      msg          = cms)
     elt = rpki.cms.xml_verify(cms = cms, ta = self.rpkid_ta)
     rpki.relaxng.left_right.assertValid(elt)
     rpki.log.debug(lxml.etree.tostring(elt, pretty_print = True, encoding = "us-ascii"))
@@ -625,11 +625,11 @@ class allocation(object):
     """Trigger cron run for this engine."""
 
     rpki.log.info("Running cron for %s" % self.name)
-    rpki.https.client(privateKey      = testbed_key,
-                      certChain       = testbed_certs,
-                      x509TrustList   = rpki.x509.X509_chain(self.rpkid_ta),
-                      url             = "https://localhost:%d/cronjob" % self.rpki_port,
-                      msg             = "Run cron now, please")
+    rpki.https.client(client_key   = testbed_key,
+                      client_certs = testbed_certs,
+                      server_ta    = rpki.x509.X509_chain(self.rpkid_ta),
+                      url          = "https://localhost:%d/cronjob" % self.rpki_port,
+                      msg          = "Run cron now, please")
 
   def run_yaml(self):
     """Run YAML scripts for this leaf entity."""

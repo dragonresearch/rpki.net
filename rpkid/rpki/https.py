@@ -35,14 +35,22 @@ rpki_content_type = "application/x-rpki"
 class Checker(tlslite.api.Checker):
   """Derived class to handle X.509 client certificate checking."""
 
-  def __init__(self, x509TrustList = None):
+  def __init__(self, trust_anchors = None, dynamic_x509store = None):
     """Initialize our modified certificate checker."""
 
-    self.x509store = POW.X509Store()
-    if x509TrustList is not None:
-      for x in x509TrustList:
+    self.dynamic_x509store = dynamic_x509store
+
+    if dynamic_x509store is None:
+      self.x509store = POW.X509Store()
+      for x in trust_anchors:
         rpki.log.debug("HTTPS trust anchor %s" % x.getSubject())
         self.x509store.addTrust(x.get_POW())
+
+  def x509store_thunk(self):
+    if self.dynamic_x509store is not None:
+      return self.dynamic_x509store()
+    else:
+      return self.x509store
 
   def __call__(self, tlsConnection):
     """POW/OpenSSL-based certificate checker."""
@@ -57,9 +65,9 @@ class Checker(tlslite.api.Checker):
     chain = [rpki.x509.X509(tlslite = chain.x509List[i]) for i in range(chain.getNumCerts())]
 
     for i in range(len(chain)):
-      rpki.log.debug("Received cert[%d] %s from %s" % (i, chain[i].getSubject(), peer))
+      rpki.log.debug("Received %s TLS cert[%d] %s" % (peer, i, chain[i].getSubject()))
 
-    if not self.x509store.verifyChain(chain[0].get_POW(), [x.get_POW() for x in chain[1:]]):
+    if not self.x509store_thunk().verifyChain(chain[0].get_POW(), [x.get_POW() for x in chain[1:]]):
       if disable_tls_certificate_validation_exceptions:
         rpki.log.warn("DANGER WILL ROBINSON!  IGNORING TLS VALIDATION FAILURE!")
       else:
@@ -69,17 +77,17 @@ class httpsClient(tlslite.api.HTTPTLSConnection):
   """Derived class to let us replace the default Checker."""
 
   def __init__(self, host, port = None,
-               certChain = None, privateKey = None,
-               x509TrustList = None, settings = None):
+               client_certs = None, client_key = None,
+               server_ta = None, settings = None):
     """Create a new httpsClient."""
 
     tlslite.api.HTTPTLSConnection.__init__(
       self, host = host, port = port, settings = settings,
-      certChain = certChain, privateKey = privateKey)
+      certChain = client_certs, privateKey = client_key)
 
-    self.checker = Checker(x509TrustList = x509TrustList)
+    self.checker = Checker(trust_anchors = server_ta)
 
-def client(msg, privateKey, certChain, x509TrustList, url, timeout = 300):
+def client(msg, client_key, client_certs, server_ta, url, timeout = 300):
   """Open client HTTPS connection, send a message, wait for response.
 
   This function wraps most of what one needs to do to send a message
@@ -101,11 +109,11 @@ def client(msg, privateKey, certChain, x509TrustList, url, timeout = 300):
   # pass in a tlslite.HandshakeSettings object that would let us
   # insist on, eg, particular SSL/TLS versions.
 
-  httpc = httpsClient(host          = u.hostname or "localhost",
-                      port          = u.port or 443,
-                      privateKey    = privateKey.get_tlslite(),
-                      certChain     = certChain.tlslite_certChain(),
-                      x509TrustList = x509TrustList)
+  httpc = httpsClient(host         = u.hostname or "localhost",
+                      port         = u.port or 443,
+                      client_key   = client_key.get_tlslite(),
+                      client_certs = client_certs.tlslite_certChain(),
+                      server_ta    = server_ta)
   httpc.connect()
   httpc.sock.settimeout(timeout)
   httpc.request("POST", u.path, msg, {"Content-Type" : rpki_content_type})
@@ -160,14 +168,14 @@ class httpsServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
   """Derived type to handle TLS aspects of HTTPS."""
 
   rpki_sessionCache = None
-  rpki_privateKey   = None
-  rpki_certChain    = None
+  rpki_server_key   = None
+  rpki_server_certs = None
   rpki_checker      = None
   
   def handshake(self, tlsConnection):
     """TLS handshake handler."""
-    assert self.rpki_certChain    is not None
-    assert self.rpki_privateKey   is not None
+    assert self.rpki_server_certs is not None
+    assert self.rpki_server_key   is not None
     assert self.rpki_sessionCache is not None
     try:
       #
@@ -175,8 +183,8 @@ class httpsServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
       # to pass in a tlslite.HandshakeSettings object that would let
       # us insist on, eg, particular SSL/TLS versions.
       #
-      tlsConnection.handshakeServer(certChain    = self.rpki_certChain,
-                                    privateKey   = self.rpki_privateKey,
+      tlsConnection.handshakeServer(certChain    = self.rpki_server_certs,
+                                    privateKey   = self.rpki_server_key,
                                     sessionCache = self.rpki_sessionCache,
                                     checker      = self.rpki_checker,
                                     reqCert      = True)
@@ -186,7 +194,7 @@ class httpsServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
       rpki.log.warn("TLS handshake failure: " + str(error))
       return False
 
-def server(handlers, privateKey, certChain, port = 4433, host = "", x509TrustList = None):
+def server(handlers, server_key, server_certs, port = 4433, host = "", client_ta = None):
   """Run an HTTPS server and wait (forever) for connections."""
 
   if not isinstance(handlers, (tuple, list)):
@@ -197,9 +205,9 @@ def server(handlers, privateKey, certChain, port = 4433, host = "", x509TrustLis
 
   httpd = httpsServer((host, port), boundRequestHandler)
 
-  httpd.rpki_privateKey = privateKey.get_tlslite()
-  httpd.rpki_certChain = certChain.tlslite_certChain()
+  httpd.rpki_server_key   = server_key.get_tlslite()
+  httpd.rpki_server_certs = server_certs.tlslite_certChain()
   httpd.rpki_sessionCache = tlslite.api.SessionCache()
-  httpd.rpki_checker = Checker(x509TrustList = x509TrustList)
+  httpd.rpki_checker      = Checker(trust_anchors = client_ta)
 
   httpd.serve_forever()

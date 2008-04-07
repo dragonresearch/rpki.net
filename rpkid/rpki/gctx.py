@@ -75,11 +75,11 @@ class global_context(object):
     rpki.relaxng.left_right.assertValid(q_elt)
     q_cms = rpki.cms.xml_sign(q_elt, self.cms_key, self.cms_certs)
     r_cms = rpki.https.client(
-      privateKey    = self.https_key,
-      certChain     = self.https_certs,
-      x509TrustList = self.https_ta_irdb,
-      url           = self.irdb_url,
-      msg           = q_cms)
+      client_key   = self.https_key,
+      client_certs = self.https_certs,
+      server_ta    = self.https_ta_irdb,
+      url          = self.irdb_url,
+      msg          = q_cms)
     r_elt = rpki.cms.xml_verify(r_cms, self.cms_ta_irdb)
     rpki.relaxng.left_right.assertValid(r_elt)
     r_msg = rpki.left_right.sax_handler.saxify(r_elt)

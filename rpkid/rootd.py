@@ -196,9 +196,9 @@ rootd_name  = cfg.get("rootd_name", "wombat")
 rootd_base  = cfg.get("rootd_base", "rsync://" + rootd_name + ".invalid/")
 rootd_cert  = cfg.get("rootd_cert", rootd_base + "rootd.cer")
 
-rpki.https.server(privateKey    = https_key,
-                  certChain     = https_certs,
-                  x509TrustList = https_ta,
-                  host          = https_server_host,
-                  port          = https_server_port,
-                  handlers      = up_down_handler)
+rpki.https.server(server_key   = https_key,
+                  server_certs = https_certs,
+                  client_ta    = https_ta,
+                  host         = https_server_host,
+                  port         = https_server_port,
+                  handlers     = up_down_handler)

@@ -612,11 +612,11 @@ class parent_elt(data_elt):
     # The following certs look wrong for what we're doing here.
     # We should be using a bsc, shouldn't we?
 
-    r_cms = rpki.https.client(x509TrustList = rpki.x509.X509_chain(self.https_ta),
-                              privateKey = self.gctx.https_key,
-                              certChain = self.gctx.https_certs,
-                              msg = q_cms,
-                              url = self.peer_contact_uri)
+    r_cms = rpki.https.client(server_ta    = rpki.x509.X509_chain(self.https_ta),
+                              client_key   = self.gctx.https_key,
+                              client_certs = self.gctx.https_certs,
+                              msg          = q_cms,
+                              url          = self.peer_contact_uri)
     r_elt = rpki.cms.xml_verify(r_cms, self.cms_ta)
     rpki.relaxng.up_down.assertValid(r_elt)
     r_msg = rpki.up_down.sax_handler.saxify(r_elt)

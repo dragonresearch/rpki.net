@@ -53,13 +53,13 @@ def call_rpkid(pdu):
   except lxml.etree.DocumentInvalid:
     print lxml.etree.tostring(elt, pretty_print = True, encoding = "us-ascii")
     raise
-  elt = rpki.cms.xml_verify(cms = rpki.https.client(privateKey    = https_key,
-                                                    certChain     = https_certs,
-                                                    x509TrustList = https_tas,
-                                                    url           = https_url,
-                                                    msg           = rpki.cms.xml_sign(elt   = elt,
-                                                                                      key   = cms_key,
-                                                                                      certs = cms_certs)),
+  elt = rpki.cms.xml_verify(cms = rpki.https.client(client_key   = https_key,
+                                                    client_certs = https_certs,
+                                                    server_ta    = https_tas,
+                                                    url          = https_url,
+                                                    msg          = rpki.cms.xml_sign(elt   = elt,
+                                                                                     key   = cms_key,
+                                                                                     certs = cms_certs)),
                             ta = cms_ta)
   try:
     rpki.relaxng.left_right.assertValid(elt)

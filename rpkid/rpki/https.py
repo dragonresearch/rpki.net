@@ -24,11 +24,11 @@ general version should use SQL anyway.
 import httplib, BaseHTTPServer, tlslite.api, glob, traceback, urlparse, socket
 import rpki.x509, rpki.exceptions, rpki.log
 
-# This probably should be wrapped somewhere in rpki.x509 eventually
+# This should be wrapped somewhere in rpki.x509 eventually
 import POW
 
-# Not for production use!
-disable_tls_certificate_validation_exceptions = True
+# Do not set this to True for production use!
+disable_tls_certificate_validation_exceptions = False
 
 rpki_content_type = "application/x-rpki"
 
@@ -45,6 +45,8 @@ class Checker(tlslite.api.Checker):
       for x in trust_anchors:
         rpki.log.debug("HTTPS trust anchor %s" % x.getSubject())
         self.x509store.addTrust(x.get_POW())
+    else:
+      rpki.log.debug("HTTPS dynamic trust anchors")
 
   def x509store_thunk(self):
     if self.dynamic_x509store is not None:
@@ -104,6 +106,9 @@ def client(msg, client_key, client_certs, server_ta, url, timeout = 300):
          u.params   == "" and \
          u.query    == "" and \
          u.fragment == ""
+
+  for client_cert in client_certs:
+    rpki.log.debug("Sending client TLS cert %s" % client_cert.getSubject())
 
   # We could add a "settings = foo" argument to the following call to
   # pass in a tlslite.HandshakeSettings object that would let us
@@ -177,6 +182,7 @@ class httpsServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
     assert self.rpki_server_certs is not None
     assert self.rpki_server_key   is not None
     assert self.rpki_sessionCache is not None
+
     try:
       #
       # We could add a "settings = foo" argument to the following call
@@ -194,7 +200,7 @@ class httpsServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
       rpki.log.warn("TLS handshake failure: " + str(error))
       return False
 
-def server(handlers, server_key, server_certs, port = 4433, host = "", client_ta = None):
+def server(handlers, server_key, server_certs, port = 4433, host = "", client_ta = None, dynamic_x509store = None):
   """Run an HTTPS server and wait (forever) for connections."""
 
   if not isinstance(handlers, (tuple, list)):
@@ -208,6 +214,6 @@ def server(handlers, server_key, server_certs, port = 4433, host = "", client_ta
   httpd.rpki_server_key   = server_key.get_tlslite()
   httpd.rpki_server_certs = server_certs.tlslite_certChain()
   httpd.rpki_sessionCache = tlslite.api.SessionCache()
-  httpd.rpki_checker      = Checker(trust_anchors = client_ta)
+  httpd.rpki_checker      = Checker(trust_anchors = client_ta, dynamic_x509store = dynamic_x509store)
 
   httpd.serve_forever()

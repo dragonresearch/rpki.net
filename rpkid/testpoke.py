@@ -21,6 +21,7 @@ Configuration file is YAML to be compatable with APNIC rpki_poke.pl tool.
 
 Usage: python testpoke.py [ { -y | --yaml }    configfile ]
                           [ { -r | --request } requestname ]
+                          [ { -d | --debug } ]
                           [ { -h | --help } ]
 
 Default configuration file is testpoke.yaml, override with --yaml option.
@@ -29,7 +30,7 @@ Default configuration file is testpoke.yaml, override with --yaml option.
 import os, time, getopt, sys, lxml, yaml
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
 import rpki.https, rpki.config, rpki.cms, rpki.exceptions
-import rpki.relaxng, rpki.oids
+import rpki.relaxng, rpki.oids, rpki.log
 
 os.environ["TZ"] = "UTC"
 time.tzset()
@@ -41,7 +42,7 @@ def usage(code):
 yaml_file = "testpoke.yaml"
 yaml_cmd = None
 
-opts,argv = getopt.getopt(sys.argv[1:], "y:r:h?", ["yaml=", "request=", "help"])
+opts,argv = getopt.getopt(sys.argv[1:], "y:r:h?d", ["yaml=", "request=", "help", "debug"])
 for o,a in opts:
   if o in ("-h", "--help", "-?"):
     usage(0)
@@ -49,6 +50,8 @@ for o,a in opts:
     yaml_file = a
   elif o in ("-r", "--request"):
     yaml_cmd = a
+  elif o in ("-d", "--debug"):
+    rpki.log.init("testpoke")
 if argv:
   usage(1)
 
@@ -125,7 +128,7 @@ cms_cert    = get_PEM("cms-cert", rpki.x509.X509)
 cms_key     = get_PEM("cms-key", rpki.x509.RSA)
 cms_certs   = get_PEM_chain("cms-cert-chain", cms_cert)
 
-https_ta    = get_PEM("ssl-ta", rpki.x509.X509)
+https_ta    = get_PEM("ssl-ca-cert", rpki.x509.X509)
 https_key   = get_PEM("ssl-key", rpki.x509.RSA)
 https_cert  = get_PEM("ssl-cert", rpki.x509.X509)
 https_certs = get_PEM_chain("ssl-cert-chain", https_cert)

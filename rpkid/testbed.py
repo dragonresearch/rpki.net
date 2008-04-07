@@ -409,7 +409,7 @@ class allocation(object):
   def apply_revoke(self, target):
     if self.is_leaf():
       rpki.log.info("Attempting to revoke YAML leaf %s" % self.name)
-      subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "revoke"))
+      subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "revoke", "-d"))
     elif target is None:
       rpki.log.info("Revoking <self/> %s" % self.name)
       self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "set", self_id = self.self_id, revoke = "yes"))
@@ -634,8 +634,8 @@ class allocation(object):
   def run_yaml(self):
     """Run YAML scripts for this leaf entity."""
     rpki.log.info("Running YAML for %s" % self.name)
-    subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "list"))
-    subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "issue"))
+    subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "list", "-d"))
+    subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "issue", "-d"))
 
 def setup_biz_cert_chain(name):
   """Build a set of business certs."""
@@ -764,6 +764,7 @@ cms-cert-chain-file:    [ %(my_name)s-RPKI-CA.cer ]
 ssl-cert-file:          %(my_name)s-RPKI-EE.cer
 ssl-key-file:           %(my_name)s-RPKI-EE.key
 ssl-ca-cert-file:       %(parent_name)s-RPKI-TA.cer
+ssl-cert-chain-file:    [ %(my_name)s-RPKI-CA.cer ]
 
 requests:
   list:

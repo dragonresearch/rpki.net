@@ -118,7 +118,7 @@
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
         <bsc action="create" type="reply" self_id="42" bsc_id="17">
-            <pkcs10_cert_request>cmVxdWVzdAo=</pkcs10_cert_request>
+            <pkcs10_request>cmVxdWVzdAo=</pkcs10_request>
         </bsc>
     </msg>
     
@@ -194,15 +194,6 @@
                 5tNbASf9blRIQcQ9uy+S8mOlHQWfOhe6nN++LhVxYlOzdDKFboTmCwYZwNJHhnRl
                 okQ8do5ItBt92MoJgI26PoOiE3xXVyuYb1b7vw==
             </signing_cert>
-            <public_key>
-                MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA64aCougbqPB/PjR9ipPd
-                5c/QGlKh8QsCvh4ka3VjRp+zCUEiOI6W7hKUGVoNlqwFjZo2CsqX8qoW0e/SsQp9
-                RMH80jgYjfxVPvK3S+sMoXredH+PhOqttf1rCEXbvqP4t9FWUdKJz558oHbOMXir
-                P7MFUrWk96F/id+BFG01aKy9RE68DlkcPZAJjpcQ0kEYCIyAQckqgVrIaH2XQiEt
-                B5asHrvGH0N5fmUWDeBfHTGVI3dbc6nLU9RYlVo/RCo0C38fi44/PIdnJCZG4+m2
-                ZXG+QbhNWVr4BsSIpF0oiQDelrebDrK4TYJ4skfwLHdlmJbtaeG7zwukDQkNCIIX
-                RwIDAQAB
-            </public_key>
         </bsc>
     </msg>
     
@@ -250,15 +241,6 @@
                 5tNbASf9blRIQcQ9uy+S8mOlHQWfOhe6nN++LhVxYlOzdDKFboTmCwYZwNJHhnRl
                 okQ8do5ItBt92MoJgI26PoOiE3xXVyuYb1b7vw==
             </signing_cert>
-            <public_key>
-                MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA64aCougbqPB/PjR9ipPd
-                5c/QGlKh8QsCvh4ka3VjRp+zCUEiOI6W7hKUGVoNlqwFjZo2CsqX8qoW0e/SsQp9
-                RMH80jgYjfxVPvK3S+sMoXredH+PhOqttf1rCEXbvqP4t9FWUdKJz558oHbOMXir
-                P7MFUrWk96F/id+BFG01aKy9RE68DlkcPZAJjpcQ0kEYCIyAQckqgVrIaH2XQiEt
-                B5asHrvGH0N5fmUWDeBfHTGVI3dbc6nLU9RYlVo/RCo0C38fi44/PIdnJCZG4+m2
-                ZXG+QbhNWVr4BsSIpF0oiQDelrebDrK4TYJ4skfwLHdlmJbtaeG7zwukDQkNCIIX
-                RwIDAQAB
-            </public_key>
         </bsc>
     </msg>
     

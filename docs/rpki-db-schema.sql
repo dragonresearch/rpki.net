@@ -38,9 +38,9 @@ DROP TABLE IF EXISTS bsc;
 CREATE TABLE bsc (
         bsc_id                  SERIAL NOT NULL,
         private_key_id          LONGBLOB,
-        self_id                 BIGINT unsigned NOT NULL,
-        public_key              LONGBLOB,
+        pkcs10_request          LONGBLOB,
         hash_alg                ENUM ('sha256'),
+        self_id                 BIGINT unsigned NOT NULL,
         PRIMARY KEY             (bsc_id),
         FOREIGN KEY             (self_id) REFERENCES self
 );

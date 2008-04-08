@@ -24,6 +24,9 @@ xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
 nsmap = { None : xmlns }
 
+# Enforce strict checking of XML "sender" field in up-down protocol
+enforce_strict_up_down_xml_sender = False
+
 class base_elt(object):
   """Virtual base type for left-right message elements."""
 
@@ -597,6 +600,7 @@ class parent_elt(data_elt):
     bsc = self.bsc()
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
+
     q_msg = rpki.up_down.message_pdu.make_query(
       payload = q_pdu,
       sender = self.sender_name,
@@ -609,14 +613,12 @@ class parent_elt(data_elt):
       raise
     q_cms = rpki.cms.xml_sign(q_elt, bsc.private_key_id, bsc.signing_cert, encoding = "UTF-8")
 
-    # The following certs look wrong for what we're doing here.
-    # We should be using a bsc, shouldn't we?
-
     r_cms = rpki.https.client(server_ta    = rpki.x509.X509_chain(self.https_ta),
-                              client_key   = self.gctx.https_key,
-                              client_certs = self.gctx.https_certs,
+                              client_key   = bsc.private_key_id,
+                              client_certs = bsc.signing_cert,
                               msg          = q_cms,
                               url          = self.peer_contact_uri)
+
     r_elt = rpki.cms.xml_verify(r_cms, self.cms_ta)
     rpki.relaxng.up_down.assertValid(r_elt)
     r_msg = rpki.up_down.sax_handler.saxify(r_elt)
@@ -691,8 +693,8 @@ class child_elt(data_elt):
     rpki.relaxng.up_down.assertValid(q_elt)
     q_msg = rpki.up_down.sax_handler.saxify(q_elt)
     q_msg.payload.gctx = self.gctx
-    #if q_msg.sender != str(self.child_id):
-    #  raise rpki.exceptions.BadSender, "Unexpected XML sender %s" % q_msg.sender
+    if enforce_strict_up_down_xml_sender and q_msg.sender != str(self.child_id):
+      raise rpki.exceptions.BadSender, "Unexpected XML sender %s" % q_msg.sender
     try:
       r_msg = q_msg.serve_top_level(self)
     except Exception, data:

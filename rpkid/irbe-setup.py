@@ -86,7 +86,7 @@ i,o = os.popen2(("openssl", "x509", "-req",
                  "-CA", "biz-certs/Bob-CA.cer",
                  "-CAkey", "biz-certs/Bob-CA.key",
                  "-CAserial", "biz-certs/Bob-CA.srl"))
-i.write(pdu.pkcs10_cert_request.get_PEM())
+i.write(pdu.pkcs10_request.get_PEM())
 i.close()
 cer = rpki.x509.X509(PEM = o.read())
 o.close()

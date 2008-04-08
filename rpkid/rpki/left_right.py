@@ -426,12 +426,11 @@ class bsc_elt(data_elt):
   booleans = ("generate_keypair", "clear_signing_certs")
 
   sql_template = rpki.sql.template("bsc", "bsc_id", "self_id", "hash_alg",
-                                   ("public_key", rpki.x509.RSApublic),
-                                   ("private_key_id", rpki.x509.RSA))
+                                   ("private_key_id", rpki.x509.RSA),
+                                   ("pkcs10_request", rpki.x509.PKCS10))
 
-  pkcs10_cert_request = None
-  public_key = None
   private_key_id = None
+  pkcs10_request = None
 
   def __init__(self):
     """Initialize bsc_elt.""" 
@@ -482,12 +481,12 @@ class bsc_elt(data_elt):
       keypair = rpki.x509.RSA()
       keypair.generate()
       self.private_key_id = keypair
-      self.public_key = keypair.get_RSApublic()
-      r_pdu.pkcs10_cert_request = rpki.x509.PKCS10.create(keypair)
+      self.pkcs10_request = rpki.x509.PKCS10.create(keypair)
+      r_pdu.pkcs10_request = self.pkcs10_request
 
   def startElement(self, stack, name, attrs):
     """Handle <bsc/> element."""
-    if not name in ("signing_cert", "public_key", "pkcs10_cert_request"):
+    if not name in ("signing_cert", "pkcs10_request"):
       assert name == "bsc", "Unexpected name %s, stack %s" % (name, stack)
       self.read_attrs(attrs)
 
@@ -495,10 +494,8 @@ class bsc_elt(data_elt):
     """Handle <bsc/> element."""
     if name == "signing_cert":
       self.signing_cert.append(rpki.x509.X509(Base64 = text))
-    elif name == "public_key":
-      self.public_key = rpki.x509.RSApublic(Base64 = text)
-    elif name == "pkcs10_cert_request":
-      self.pkcs10_cert_request = rpki.x509.PKCS10(Base64 = text)
+    elif name == "pkcs10_request":
+      self.pkcs10_request = rpki.x509.PKCS10(Base64 = text)
     else:
       assert name == "bsc", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -508,10 +505,8 @@ class bsc_elt(data_elt):
     elt = self.make_elt()
     for cert in self.signing_cert:
       self.make_b64elt(elt, "signing_cert", cert.get_DER())
-    if self.pkcs10_cert_request is not None:
-      self.make_b64elt(elt, "pkcs10_cert_request", self.pkcs10_cert_request.get_DER())
-    if self.public_key is not None:
-      self.make_b64elt(elt, "public_key", self.public_key.get_DER())
+    if self.pkcs10_request is not None:
+      self.make_b64elt(elt, "pkcs10_request", self.pkcs10_request.get_DER())
     return elt
 
 class parent_elt(data_elt):

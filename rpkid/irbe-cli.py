@@ -83,10 +83,10 @@ class bsc_elt(cmd_mixin, rpki.left_right.bsc_elt):
 
   def client_reply_decode(self):
     global pem_out
-    if pem_out is not None and self.pkcs10_cert_request is not None:
+    if pem_out is not None and self.pkcs10_request is not None:
       if isinstance(pem_out, str):
         pem_out = open(pem_out, "w")
-      pem_out.write(self.pkcs10_cert_request.get_PEM())
+      pem_out.write(self.pkcs10_request.get_PEM())
 
 class parent_elt(cmd_mixin, rpki.left_right.parent_elt):
   pass

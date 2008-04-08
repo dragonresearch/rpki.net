@@ -327,15 +327,10 @@
         <ref name="base64"/>
       </element>
     </zeroOrMore>
-    <optional>
-      <element name="public_key">
-        <ref name="base64"/>
-      </element>
-    </optional>
   </define>
   <define name="bsc_pkcs10">
     <optional>
-      <element name="pkcs10_cert_request">
+      <element name="pkcs10_request">
         <ref name="base64"/>
       </element>
     </optional>
@@ -386,6 +381,7 @@
       <ref name="self_id"/>
       <ref name="bsc_id"/>
       <ref name="bsc_payload"/>
+      <ref name="bsc_pkcs10"/>
     </element>
   </define>
   <define name="bsc_elt" combine="choice">
@@ -400,6 +396,7 @@
       <ref name="self_id"/>
       <ref name="bsc_id"/>
       <ref name="bsc_payload"/>
+      <ref name="bsc_pkcs10"/>
     </element>
   </define>
   <define name="bsc_elt" combine="choice">

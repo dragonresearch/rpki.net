@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rng 1531 2008-02-27 19:02:11Z sra $
+  $Id: left-right-schema.rnc 1531 2008-02-27 19:02:11Z sra $
   
   RelaxNG (Compact Syntax) Schema for RPKI left-right protocol.
   
@@ -333,15 +333,10 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
         <ref name="base64"/>
       </element>
     </zeroOrMore>
-    <optional>
-      <element name="public_key">
-        <ref name="base64"/>
-      </element>
-    </optional>
   </define>
   <define name="bsc_pkcs10">
     <optional>
-      <element name="pkcs10_cert_request">
+      <element name="pkcs10_request">
         <ref name="base64"/>
       </element>
     </optional>
@@ -392,6 +387,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <ref name="self_id"/>
       <ref name="bsc_id"/>
       <ref name="bsc_payload"/>
+      <ref name="bsc_pkcs10"/>
     </element>
   </define>
   <define name="bsc_elt" combine="choice">
@@ -406,6 +402,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <ref name="self_id"/>
       <ref name="bsc_id"/>
       <ref name="bsc_payload"/>
+      <ref name="bsc_pkcs10"/>
     </element>
   </define>
   <define name="bsc_elt" combine="choice">

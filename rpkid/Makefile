@@ -23,11 +23,14 @@ relaxng: left-right-protocol-samples/.stamp left-right-schema.rng up-down-schema
 	xmllint --noout --relaxng left-right-schema.rng left-right-protocol-samples/*.xml
 	xmllint --noout --relaxng    up-down-schema.rng    up-down-protocol-samples/*.xml
 
+parse-test: all
+	python xml-parse-test.py
+
 # all:: resource-cert-samples-regen
 
 all-tests:: relaxng
 
-all-tests:: all ; python xml-parse-test.py
+all-tests:: parse-test
 
 resource-cert-samples-regen: resource-cert-samples/.stamp
 	cd resource-cert-samples && make

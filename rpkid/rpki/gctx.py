@@ -172,23 +172,11 @@ class global_context(object):
 
     store = POW.X509Store()
 
-    def add_anchors(x, y = None):
+    kids = [c.cms_ta for c in rpki.left_right.child_elt.sql_fetch_all(self)]
+
+    for x in kids + self.https_ta_irbe:
       if x is not None:
         rpki.log.debug("HTTPS dynamic trust anchor %s" % x.getSubject())
         store.addTrust(x.get_POW())
-      if y is not None and y != x:
-        rpki.log.debug("HTTPS dynamic trust anchor %s" % y.getSubject())
-        store.addTrust(y.get_POW())
-
-    for parent in rpki.left_right.parent_elt.sql_fetch_all(self):
-      add_anchors(parent.cms_ta, parent.https_ta)
-
-    for child in rpki.left_right.child_elt.sql_fetch_all(self):
-      add_anchors(child.cms_ta)
-
-    for repository in rpki.left_right.repository_elt.sql_fetch_all(self):
-      add_anchors(repository.cms_ta, repository.https_ta)
-
-    add_anchors(self.https_ta_irbe[0])
     
     return store

@@ -27,22 +27,7 @@ External Python packages required:
 
   FreeBSD: /usr/ports/security/py-tlslite
 
-- Cryptlib, at the moment just to support TLSlite but may end up using
-  it for other things later.
-
-  http://www.cs.auckland.ac.nz/~pgut001/cryptlib/
-
-  FreeBSD: /usr/ports/security/cryptlib
-
-  ...but the FreeBSD port doesn't (yet?) install the Python bindings,
-  sigh, so at the moment you have to do that by hand:
-
-  # cd /usr/ports/security/cryptlib
-  # make install
-  # cd work/bindings
-  # python setup.py install
-  # cd ../..
-  # make clean
+- Cryptlib is no longer required.
 
 - Eventually I expect that this will require an event-handling package
   like Twisted, but I'm not there yet.
@@ -67,59 +52,41 @@ $Revision$
 
 TO DO:
 
-- Scripted tests to grow and shrink and revoke and ....  See
-  testbed.*.yaml, but more systematic testing needed.
+- Update biz trust anchor model to what we came up with in Amsterdam.
+  This was a direct result of security review by Kent and Housley.
 
-  PRIORITY: Required
+  This has been waiting for work we hope RobK is doing.  This is
+  probably not a lot of coding, probably a few extra cert fields in
+  the self object which we then need to toss into the
+  rpki.x509.X509_chain objects before verifying CMS or TLS, and
+  perhaps the existing TA fields in various objects become pairs of
+  certs instead of a single TA, but this is mostly just generalization
+  and reuse of existing code, no bold new adventures.
 
-  TIME REQUIRED: open-ended
+  Discussion in Philadelphia revealed that this is not yet a done
+  deal.  Housley, RobK, and I all seem to be on the same page, and we
+  think that what we're proposing will make sense to APNIC once we
+  explain it properly, but overall we have not yet converged.
 
-  STATUS: Ongoing
-
-- Randy's "user validation tool" (fetch and validate certs and
-  probably the ROA for a prefix I want to accept in a route filter I
-  am building in Python/Perl).  This probably uses rcync's output as
-  one of its inputs.
-
-  This is a basic tool for a sysadmin who wants to -use- all this crud
-  we're working so hard to generate.  It's not required for the
-  generation tools to work, but without it the entire toolset does
-  nothing obviously useful, which will make it a very hard sell during
-  the limited public test stage.
-
-  PRIORITY: Required
-
-  DEPENDS ON: ROA generation
-
-  TIME REQUIRED: three days
+  PRIORITY: Required (security issue)
 
   STATUS: Not started
 
-- Common protocol dump format with APNIC and other implementors so we
-  can read each other's dumps.  "Obvious" format would be an
-  OpenSSL-style PEM of the CMS, with a "text" portion (the place where
-  "openssl x509 -text" would put a text dump of a cert) showing the
-  wrapped XML.
+- rcynic handling of RPKI trust anchors needs updating.  Discussions
+  over last N months of how RPKI trust anchors work, how we package
+  them, and how we roll them over.  The last (TA rollover) is the
+  driver for this.
 
-  PRIORITY: Desirable
+  APNIC has apparently moved on from their proposal to use CMS-signed
+  OpenSSL "PEM" format, they're now proposing a CMS-signed ASN.1
+  SEQUENCE OF something.  Precise details of APNIC's new model not yet
+  known.  Need to do analysis to make sure this is adaquate for our
+  needs, if so just use it.  This would involve minor changes to
+  rcynic.
 
-  TIME REQUIRED: one day
+  PRIORITY: Required (usability issue for relying parties)
 
   STATUS: Not started
-
-- Clean unused cruft out of left-right protocol, or at least have
-  control booleans we don't intend to implement at present signal an
-  error if used.
-
-  Bottleneck here has been deciding what to punt and what to
-  implement.  Removing unused booleans or raising errors when they're
-  used is trivial.
-
-  PRIORITY: Required
-
-  TIME REQUIRED: Less than one day
-
-  STATUS: Error signalling done
 
 - Publication protocol and implementation thereof.   Protocol design
   started, Randy had comments that sent me back to the drawing board
@@ -142,125 +109,10 @@ TO DO:
 
   PRIORITY: Required
 
-  TIME REQUIRED: 1-2 weeks for implementation once protocol settled,
   depending on how much of the protocol and implementation I can steal
   from the existing left-right protocol.
 
   STATUS: Started
-
-- Subsetting (req_* attributes in up-down protocol)
-
-  Minimal implementation would be to recognize this as correct
-  protocol and signal an internal server error if it's ever used.
-
-  More serious implementation would require expanding SQL child_cert
-  table to hold subset masks and tweaking almost every bit of code
-  that touches that table.
-
-  PRIORITY: Required
-
-  TIME REQUIRED (minimal version): One day
-
-  TIME REQUIRED (real version): 1-2 weeks
-
-  STATUS: Not started
-
-- Error handling: make sure that exceptions map correctly to up-down
-  error codes, flesh out left-right error codes.  Note that the same
-  exception may produce different error codes depending on which
-  up-down PDU we're processing (sigh).
-
-  Will require code audit for coherency.
-
-  PRIORITY: Required
-
-  TIME REQUIRED: four days
-
-  DEPENDS ON: almost everything else, as almost any code change can
-  raise new exceptions that we'd need to handle.
-
-  STATUS: Not started
-
-- db.commit(), db.rollback(), code audit for data integrity issues,
-  fix any data integrity issues that turn up.
-
-  Among other issues, we need to handle loss of connnection to
-  database server and other MySQL errors.  MySQLdb throws an
-  exception, which we can catch, and retrying is easy enough, but need
-  to be careful about recovery action depending on whether we had
-  uncommitted changes.
-
-  PRIORITY: Required
-
-  TIME REQUIRED (commit and rollback): Two weeks
-
-  TIME REQUIRED (data integrity audit): Three days
-
-  TIME REQUIRED (fix data integrity): Unknown, depends on code audit
-  and results of runtime testing.
-
-  DEPENDS ON: async tasking model, sort of -- could do it first, but
-  tasking change will affect the exception handling that triggers
-  rollback.
-
-  STATUS: Not started
-
-- Test with larger data set -- Tim gave me plenty of data, I have the
-  low-level tools and the glue logic to create child objects for all
-  the entities in the IRDB, but I don't yet have logic to poll on
-  behalf of each of them and check result for sanity.
-
-  Maybe it'd be easier to write something that dumps Tim's database in
-  YAML format for testbed.py to chew on?
-
-  PRIORITY: Highly desirable
-
-  TIME REQUIRED (setup): One day to convert Tim's data to YAML
-
-  TIME REQUIRED (testing): Unknown, depends on what we turn up
-
-  STATUS: Not started
-
-- Clean up rootd.py to be usable in a production system.   Most urgent
-  issue is handling of private keys.   May not need much else, as this
-  is not a high-traffic server.
-
-  PRIORITY: Highly desirable (not strictly needed for limited testing)
-
-  TIME REQUIRED: Two days
-
-  STATUS: Not started
-
-- Test framework, multiple self-instances per engine-instance (single
-  self-instance per engine-instance is already done).
-
-  PRIORITY: Required
-
-  DEPENDS ON: async tasking model.
-
-  TIME REQUIRED: One week
-
-  STATUS: Not started
-
-- tlslite code seems flakey under heavy use, and doesn't support all
-  the cert checks we want.  Best bet for getting this right is
-  probably to hack on the POW Ssl class until it supports everything
-  shown in the OpenSSL book; aside from speed, the main advantage here
-  is that there -is- a list of all the things one needs to do to use
-  TLS properly if one follows this recipe, whereas with TLSlite it's
-  all a mystery.
-
-  Useful side effect of doing this via POW: it brings us back to only
-  needing one crypto library (in particular it lets us punt M2Crypto,
-  which appears to be coded as an accident waiting to happen).
-
-  PRIORITY: Required (cert checking is a security issue).
-
-  TIME REQUIRED: Two weeks.
-
-  DEPENDS ON: Async tasking model.
-
-  STATUS: Not started
 
 - ROA generation.  We have a bunch of the primitives for this but we
   aren't yet generating the ROAs themselves.
@@ -280,62 +132,7 @@ TO DO:
 
   PRIORITY: Required
 
-  TIME REQUIRED: Three days
-
   STATUS: Started
-
-- Make rpkid fully event-driven (async tasking model), except for SQL
-  queries.  This probably involves the "twisted" framework.
-
-  PRIORITY: Required (to implement hosting model)
-
-  TIME REQUIRED: one week.
-
-  STATUS: Not started
-
-- Update biz trust anchor model to what we came up with in Amsterdam.
-  This was a direct result of security review by Kent and Housley.
-
-  This has been waiting for work we hope RobK is doing.  This is
-  probably not a lot of coding, probably a few extra cert fields in
-  the self object which we then need to toss into the
-  rpki.x509.X509_chain objects before verifying CMS or TLS, and
-  perhaps the existing TA fields in various objects become pairs of
-  certs instead of a single TA, but this is mostly just generalization
-  and reuse of existing code, no bold new adventures.
-
-  Discussion in Philadelphia revealed that this is not yet a done
-  deal.  Housley, RobK, and I all seem to be on the same page, and we
-  think that what we're proposing will make sense to APNIC once we
-  explain it properly, but overall we have not yet converged.
-
-  PRIORITY: Required (security issue)
-
-  TIME REQUIRED: One week.
-
-  STATUS: Not started
-
-- Performance testing
-
-  STATUS: Not started
-
-- rcynic handling of RPKI trust anchors needs updating.  Discussions
-  over last N months of how RPKI trust anchors work, how we package
-  them, and how we roll them over.  The last (TA rollover) is the
-  driver for this.
-
-  APNIC has apparently moved on from their proposal to use CMS-signed
-  OpenSSL "PEM" format, they're now proposing a CMS-signed ASN.1
-  SEQUENCE OF something.  Precise details of APNIC's new model not yet
-  known.  Need to do analysis to make sure this is adaquate for our
-  needs, if so just use it.  This would involve minor changes to
-  rcynic.
-
-  PRIORITY: Required (usability issue for relying parties)
-
-  TIME REQUIRED: Three days.
-
-  STATUS: Not started
 
 - rcynic does not yet handle manifests.  This is both a real problem
   (manifests were added to plug a security hole) and a user acceptance
@@ -345,7 +142,153 @@ TO DO:
 
   PRIORITY: Required
 
-  TIME REQUIRED: One week.
+  STATUS: Not started
+
+- Scripted tests to grow and shrink and revoke and ....  See
+  testbed.*.yaml, but more systematic testing needed.
+
+  PRIORITY: Required
+
+  STATUS: Ongoing
+
+- Randy's "user validation tool" (fetch and validate certs and
+  probably the ROA for a prefix I want to accept in a route filter I
+  am building in Python/Perl).  This probably uses rcync's output as
+  one of its inputs.
+
+  This is a basic tool for a sysadmin who wants to -use- all this crud
+  we're working so hard to generate.  It's not required for the
+  generation tools to work, but without it the entire toolset does
+  nothing obviously useful, which will make it a very hard sell during
+  the limited public test stage.
+
+  PRIORITY: Required
+
+  DEPENDS ON: ROA generation
+
+  STATUS: Not started
+
+- Common protocol dump format with APNIC and other implementors so we
+  can read each other's dumps.  "Obvious" format would be an
+  OpenSSL-style PEM of the CMS, with a "text" portion (the place where
+  "openssl x509 -text" would put a text dump of a cert) showing the
+  wrapped XML.
+
+  PRIORITY: Desirable
+
+  STATUS: Not started
+
+- Clean unused cruft out of left-right protocol, or at least have
+  control booleans we don't intend to implement at present signal an
+  error if used.
+
+  Bottleneck here has been deciding what to punt and what to
+  implement.  Removing unused booleans or raising errors when they're
+  used is trivial.
+
+  PRIORITY: Required
+
+  STATUS: Error signalling done
+
+- Subsetting (req_* attributes in up-down protocol)
+
+  Minimal implementation would be to recognize this as correct
+  protocol and signal an internal server error if it's ever used.
+
+  More serious implementation would require expanding SQL child_cert
+  table to hold subset masks and tweaking almost every bit of code
+  that touches that table.
+
+  PRIORITY: Required
+
+  STATUS: Not started
+
+- Error handling: make sure that exceptions map correctly to up-down
+  error codes, flesh out left-right error codes.  Note that the same
+  exception may produce different error codes depending on which
+  up-down PDU we're processing (sigh).
+
+  Will require code audit for coherency.
+
+  PRIORITY: Required
+
+  DEPENDS ON: almost everything else, as almost any code change can
+  raise new exceptions that we'd need to handle.
+
+  STATUS: Not started
+
+- db.commit(), db.rollback(), code audit for data integrity issues,
+  fix any data integrity issues that turn up.
+
+  Among other issues, we need to handle loss of connnection to
+  database server and other MySQL errors.  MySQLdb throws an
+  exception, which we can catch, and retrying is easy enough, but need
+  to be careful about recovery action depending on whether we had
+  uncommitted changes.
+
+  PRIORITY: Required
+
+  DEPENDS ON: async tasking model, sort of -- could do it first, but
+  tasking change will affect the exception handling that triggers
+  rollback.
+
+  STATUS: Not started
+
+- Test with larger data set -- Tim gave me plenty of data, I have the
+  low-level tools and the glue logic to create child objects for all
+  the entities in the IRDB, but I don't yet have logic to poll on
+  behalf of each of them and check result for sanity.
+
+  Maybe it'd be easier to write something that dumps Tim's database in
+  YAML format for testbed.py to chew on?
+
+  PRIORITY: Highly desirable
+
+  STATUS: Not started
+
+- Clean up rootd.py to be usable in a production system.   Most urgent
+  issue is handling of private keys.   May not need much else, as this
+  is not a high-traffic server.
+
+  PRIORITY: Highly desirable (not strictly needed for limited testing)
+
+  STATUS: Not started
+
+- Test framework, multiple self-instances per engine-instance (single
+  self-instance per engine-instance is already done).
+
+  PRIORITY: Required
+
+  DEPENDS ON: async tasking model.
+
+  STATUS: Not started
+
+- tlslite code seems flakey under heavy use, and doesn't support all
+  the cert checks we want.  Best bet for getting this right is
+  probably to hack on the POW Ssl class until it supports everything
+  shown in the OpenSSL book; aside from speed, the main advantage here
+  is that there -is- a list of all the things one needs to do to use
+  TLS properly if one follows this recipe, whereas with TLSlite it's
+  all a mystery.
+
+  Useful side effect of doing this via POW: it brings us back to only
+  needing one crypto library (in particular it lets us punt M2Crypto,
+  which appears to be coded as an accident waiting to happen).
+
+  PRIORITY: Required (cert checking is a security issue).
+
+  DEPENDS ON: Async tasking model.
+
+  STATUS: Not started
+
+- Make rpkid fully event-driven (async tasking model), except for SQL
+  queries.  This probably involves the "twisted" framework.
+
+  PRIORITY: Required (to implement hosting model)
+
+  STATUS: Not started
+
+- Performance testing
 
   STATUS: Not started
 
@@ -356,8 +299,6 @@ TO DO:
   text documents marked up for inclusion by Doxygen.
 
   PRIORITY: Desirable
-
-  TIME REQUIRED: Two days
 
   STATUS: Ongoing
 
@@ -370,8 +311,6 @@ TO DO:
 
   STATUS: File renaming mostly done, other stuff not started
 
-  TIME REQUIRED: two days
-
   PRIORITY: Highly desirable (to preserve programmers' and
   maintainers' sanity, if nothing else)
 
@@ -381,8 +320,6 @@ TO DO:
 
   STATUS: Not started
 
-  TIME REQUIRED: Unknown
-
   PRIORITY: Desirable.  Am guessing ARIN does not require this for
   initial test
 
@@ -391,15 +328,11 @@ TO DO:
 
   STATUS: Not started
 
-  TIME REQUIRED: Three days
-
   PRIORITY: Desirable
 
 - Tighten up syntax checking in left-right schema.
 
   STATUS: Not started
-
-  TIME REQUIRED: Less than a day
 
   PRIORITY: Desirable
 
@@ -418,7 +351,6 @@ TO DO:
 
   STATUS: Not started
 
-  TIME REQUIRED: Two or three days to evaluate.  Implementation time
   if we decide to make a change unknown, but probably on the order of
   a few days.
 
@@ -435,8 +367,6 @@ TO DO:
 
   PRIORITY: Minimal, IETF feeping creaturism
 
-  TIME REQUIRED: Unknown
-
 - Deaddrop of incoming messages, for audit.  Absent a better theory,
   steal existing tech for this: preface with minimal RFC 2822 header
   and drop it into a Maildir folder using built-in Python Maildir
@@ -446,7 +376,6 @@ TO DO:
 
   Priority: Desirable, trivial to implement.
 
-  TIME REQUIRED: One day
 
 
 

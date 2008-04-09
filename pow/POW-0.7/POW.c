@@ -1335,8 +1335,6 @@ static char X509_object_get_not_before__doc__[] =
 static PyObject *
 X509_object_get_not_before (x509_object *self, PyObject *args)
 {
-   ASN1_UTCTIME *time;
-
    if (!PyArg_ParseTuple(args, ""))
       goto error;
 
@@ -1368,8 +1366,6 @@ static char X509_object_get_not_after__doc__[] =
 static PyObject *
 X509_object_get_not_after (x509_object *self, PyObject *args)
 {
-   ASN1_UTCTIME *time=NULL;
-
    if (!PyArg_ParseTuple(args, ""))
       goto error;
 
@@ -7834,6 +7830,8 @@ pow_module_docset(PyObject *self, PyObject *args)
    docset_helper_add( docset, pow_module_new_x509_store__doc__ );
    docset_helper_add( docset, pow_module_new_x509_crl__doc__ );
    docset_helper_add( docset, pow_module_new_x509_revoked__doc__ );
+   docset_helper_add( docset, pow_module_new_pkcs7__doc__ );
+   docset_helper_add( docset, pow_module_new_cms__doc__ );
    // functions
    docset_helper_add( docset, pow_module_pem_read__doc__ );
    docset_helper_add( docset, pow_module_der_read__doc__ );

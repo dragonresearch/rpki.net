@@ -52,6 +52,7 @@
 #include <openssl/hmac.h>
 #include <openssl/ripemd.h>
 #include <openssl/pkcs7.h>
+#include <openssl/cms.h>
 
 #include <time.h>
 
@@ -119,6 +120,7 @@
 #define X509_CERTIFICATE      7
 #define X_X509_CRL            8     //X509_CRL already used by OpenSSL library
 #define PKCS7_MESSAGE         9
+#define CMS_MESSAGE	      10
 
 // Asymmetric ciphers
 #define RSA_CIPHER            1
@@ -156,6 +158,7 @@
 #define X_hmac_Check(op) ((op)->ob_type == &hmactype)
 #define X_ssl_Check(op) ((op)->ob_type == &ssltype)
 #define X_pkcs7_Check(op) ((op)->ob_type == &pkcs7type)
+#define X_cms_Check(op) ((op)->ob_type == &cmstype)
 
 static char pow_module__doc__ [] = 
 "<moduleDescription>\n"
@@ -214,6 +217,7 @@ static PyTypeObject digesttype;
 static PyTypeObject hmactype;
 static PyTypeObject ssltype;
 static PyTypeObject pkcs7type;
+static PyTypeObject cmstype;
 /*========== Pre-definitions ==========*/
 
 /*========== C stucts ==========*/
@@ -272,6 +276,12 @@ typedef struct {
    PyObject_HEAD
    PKCS7 *pkcs7;
 } pkcs7_object;
+
+typedef struct {
+   PyObject_HEAD
+   CMS_ContentInfo *cms;
+} cms_object;
+
 /*========== C structs ==========*/
 
 /*========== helper functions ==========*/
@@ -4549,7 +4559,7 @@ static ssl_object *
 newssl_object(int type)
 {
    ssl_object *self;
-   SSL_METHOD *method;
+   const SSL_METHOD *method;
 
    
    if ( !(self = PyObject_NEW(ssl_object, &ssltype) ) )
@@ -6550,6 +6560,393 @@ static PyTypeObject pkcs7type = {
 };
 /*========== PKCS7 Code ==========*/
 
+/*========== CMS code ==========*/
+static cms_object *
+CMS_object_new(void)
+{
+   cms_object *self;
+
+   self = PyObject_New( cms_object, &cmstype );
+   if (self == NULL)
+      goto error;
+
+   self->cms = NULL;
+   return self;
+
+error:
+
+   Py_XDECREF(self);
+   return NULL;
+}
+
+static cms_object *
+CMS_object_pem_read(BIO *in)
+{
+   cms_object *self;
+
+   if ( !(self = PyObject_New( cms_object, &cmstype ) ) )
+      goto error;
+
+   if( !(self->cms = PEM_read_bio_CMS( in, NULL, NULL, NULL ) ) )
+      { PyErr_SetString( SSLErrorObject, "could not load PEM encoded CMS message" ); goto error; }
+
+   return self;
+
+error:
+
+   Py_XDECREF(self);
+   return NULL;
+}
+
+static cms_object *
+CMS_object_der_read(char *src, int len)
+{
+   cms_object *self;
+   BIO *bio = NULL;
+
+   if ( !(self = PyObject_New( cms_object, &cmstype ) ) )
+      goto error;
+
+   self->cms = CMS_ContentInfo_new();
+
+   if ( !(bio = BIO_new_mem_buf(src, len) ) )
+     goto error;
+
+   if( !(d2i_CMS_bio( bio, &self->cms ) ) )
+      { PyErr_SetString( SSLErrorObject, "could not load PEM encoded CMS message" ); goto error; }
+
+   BIO_free(bio);
+
+   return self;
+
+error:
+
+   if (bio)
+      BIO_free(bio);
+
+   Py_XDECREF(self);
+   return NULL;
+}
+
+static PyObject *
+CMS_object_write_helper(cms_object *self, PyObject *args, int format)
+{
+   int len=0;
+   char *buf=NULL;
+   BIO *out_bio=NULL;
+   PyObject *cert=NULL;
+   
+   if (!PyArg_ParseTuple(args, ""))
+      return NULL;
+
+   out_bio = BIO_new(BIO_s_mem());
+
+   if (format == DER_FORMAT)
+   {
+      if (!i2d_CMS_bio(out_bio, self->cms) )
+         { PyErr_SetString( SSLErrorObject, "unable to write certificate" ); goto error; }
+   }
+   else if (format == PEM_FORMAT)
+   {
+      if (!PEM_write_bio_CMS(out_bio, self->cms) )
+         { PyErr_SetString( SSLErrorObject, "unable to write certificate" ); goto error; }
+   }
+   else
+      { PyErr_SetString( SSLErrorObject, "internal error, unkown output format" ); goto error; }
+
+   if ( !(len = BIO_ctrl_pending(out_bio) ) )
+      { PyErr_SetString( SSLErrorObject, "unable to get bytes stored in bio" ); goto error; }
+
+   if ( !(buf = malloc(len) ) )
+      { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+
+   if ( BIO_read( out_bio, buf, len ) != len )
+      { PyErr_SetString( SSLErrorObject, "unable to write out cert" ); goto error; }
+
+   cert = Py_BuildValue("s#", buf, len);
+
+   BIO_free(out_bio);
+   free(buf);
+   return cert;
+   
+error:   
+
+   if (out_bio)
+      BIO_free(out_bio);
+
+   if (buf)
+      free(buf);
+
+   Py_XDECREF(cert);
+   return NULL;
+}
+
+static char CMS_object_pem_write__doc__[] = 
+"<method>\n"
+"   <header>\n"
+"      <memberof>CMS</memberof>\n"
+"      <name>pemWrite</name>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This method returns a PEM encoded CMS message as a\n"
+"         string.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
+static PyObject *
+CMS_object_pem_write(cms_object *self, PyObject *args)
+{
+   return CMS_object_write_helper(self, args, PEM_FORMAT);
+}
+
+static char CMS_object_der_write__doc__[] =
+"<method>\n"
+"   <header>\n"
+"      <memberof>CMS</memberof>\n"
+"      <name>derWrite</name>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This method returns a DER encoded CMS message as a\n"
+"         string.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
+static PyObject *
+CMS_object_der_write(cms_object *self, PyObject *args)
+{
+   return CMS_object_write_helper(self, args, DER_FORMAT);
+}
+
+static char CMS_object_sign__doc__[] = 
+"<method>\n"
+"   <header>\n"
+"      <memberof>CMS</memberof>\n"
+"      <name>sign</name>\n"
+"      <parameter>signcert</parameter>\n"
+"      <parameter>key</parameter>\n"
+"      <parameter>certs</parameter>\n"
+"      <parameter>data</parameter>\n"
+"      <optional><parameter>no_certs</parameter></optional>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This method signs a message with a private key.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
+static PyObject *
+CMS_object_sign(cms_object *self, PyObject *args)
+{
+   asymmetric_object *signkey = NULL;
+   x509_object *signcert = NULL;
+   PyObject *x509_sequence = NULL;
+   STACK_OF(X509) *x509_stack = NULL;
+   EVP_PKEY *pkey = NULL;
+   char *buf = NULL;
+   int len, flags = CMS_BINARY | CMS_NOATTR;
+   BIO *bio = NULL;
+   CMS_ContentInfo *cms = NULL;
+   PyObject *no_certs = Py_False;
+
+   if (!PyArg_ParseTuple(args, "O!O!Os#|O!",
+			 &x509type, &signcert,
+			 &asymmetrictype, &signkey,
+			 &x509_sequence,
+			 &buf, &len,
+			 &PyBool_Type, &no_certs))
+      goto error;
+
+   if (signkey->key_type != RSA_PRIVATE_KEY)
+      { PyErr_SetString( SSLErrorObject, "unsupported key type" ); goto error; }
+
+   if ( !(x509_stack = x509_helper_sequence_to_stack(x509_sequence)) )
+      goto error;
+
+   if ( !(pkey = EVP_PKEY_new() ) )
+      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+
+   if ( !(EVP_PKEY_assign_RSA(pkey, signkey->cipher) ) )
+      { PyErr_SetString( SSLErrorObject, "EVP_PKEY assignment error" ); goto error; }
+
+   if ( !(bio = BIO_new_mem_buf(buf, len)))
+      goto error;
+
+   if ( no_certs == Py_True )
+      flags |= CMS_NOCERTS;
+
+   if ( !(cms = CMS_sign(signcert->x509, pkey, x509_stack, bio, flags)))
+      { set_openssl_pyerror( "could not sign CMS message" ); goto error; }
+
+   if (self->cms)
+      CMS_ContentInfo_free(self->cms);
+   self->cms = cms;
+   cms = NULL;
+
+   sk_X509_free(x509_stack);
+   BIO_free(bio);
+
+   return Py_BuildValue("");
+
+error:
+
+   if (cms)
+      CMS_ContentInfo_free(cms);
+
+   if (bio)
+      BIO_free(bio);
+
+   if (x509_stack)
+      sk_X509_free(x509_stack);
+
+   if (pkey)
+      EVP_PKEY_free(pkey);
+
+   return NULL;
+}
+
+static char CMS_object_verify__doc__[] = 
+"<method>\n"
+"   <header>\n"
+"      <memberof>CMS</memberof>\n"
+"      <name>verify</name>\n"
+"      <parameter>store</parameter>\n"
+"      <optional><parameter>certs</parameter></optional>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This method verifies a message against a trusted store.\n"
+"         The optional certs parameter is a set of certificates to search\n"
+"         for the signer's certificate.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
+static PyObject *
+CMS_object_verify(cms_object *self, PyObject *args)
+{
+   x509_store_object *store = NULL;
+   PyObject *result = NULL, *certs_sequence = Py_None;
+   STACK_OF(X509) *certs_stack = NULL;
+   char *buf = NULL;
+   BIO *bio = NULL;
+   int len;
+
+   if (!(bio = BIO_new(BIO_s_mem())))
+      goto error;
+
+   if (!PyArg_ParseTuple(args, "O!|O", &x509_storetype, &store, &certs_sequence))
+      goto error;
+
+   if (certs_sequence != Py_None &&
+       !(certs_stack = x509_helper_sequence_to_stack(certs_sequence)))
+      goto error;
+
+   if (CMS_verify(self->cms, certs_stack, store->store, NULL, bio, 0) <= 0)
+      { set_openssl_pyerror( "could not verify CMS message" ); goto error; }
+
+   if (!(len = BIO_ctrl_pending(bio)))
+      { PyErr_SetString( SSLErrorObject, "unable to get bytes stored in bio" ); goto error; }
+
+   if (!(buf = malloc(len) ) )
+      { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+
+   if (BIO_read( bio, buf, len ) != len)
+      { PyErr_SetString( SSLErrorObject, "unable to write out CMS content" ); goto error; }
+
+   result = Py_BuildValue("s#", buf, len);
+
+   if (certs_stack)
+      sk_X509_free(certs_stack);
+   BIO_free(bio);
+   free(buf);
+
+   return result;
+
+error:
+
+   if (certs_stack)
+      sk_X509_free(certs_stack);
+
+   if (bio)
+      BIO_free(bio);
+
+   if (buf)
+      free(buf);
+
+   return NULL;
+}
+
+
+static struct PyMethodDef CMS_object_methods[] = {
+   {"pemWrite",      (PyCFunction)CMS_object_pem_write,       METH_VARARGS,  NULL}, 
+   {"derWrite",      (PyCFunction)CMS_object_der_write,       METH_VARARGS,  NULL}, 
+   {"sign",          (PyCFunction)CMS_object_sign,            METH_VARARGS,  NULL}, 
+   {"verify",        (PyCFunction)CMS_object_verify,          METH_VARARGS,  NULL},
+ 
+   {NULL,      NULL}    /* sentinel */
+};
+
+static PyObject *
+CMS_object_getattr(cms_object *self, char *name)
+{
+   return Py_FindMethod(CMS_object_methods, (PyObject *)self, name);
+}
+
+static void
+CMS_object_dealloc(cms_object *self, char *name)
+{
+   CMS_ContentInfo_free( self->cms );
+   PyObject_Del(self);
+}
+
+static char cmstype__doc__[] =
+"<class>\n"
+"   <header>\n"
+"      <name>CMS</name>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This class provides basic access OpenSSL's CMS functionality.\n"
+"      </para>\n"
+"   </body>\n"
+"</class>\n"
+;
+
+static PyTypeObject cmstype = {
+   PyObject_HEAD_INIT(0)
+   0,                                  /*ob_size*/
+   "CMS",                              /*tp_name*/
+   sizeof(cms_object),                 /*tp_basicsize*/
+   0,                                  /*tp_itemsize*/
+   (destructor)CMS_object_dealloc,     /*tp_dealloc*/
+   (printfunc)0,                       /*tp_print*/
+   (getattrfunc)CMS_object_getattr,    /*tp_getattr*/
+   (setattrfunc)0,                     /*tp_setattr*/
+   (cmpfunc)0,                         /*tp_compare*/
+   (reprfunc)0,                        /*tp_repr*/
+   0,                                  /*tp_as_number*/
+   0,                                  /*tp_as_sequence*/
+   0,                                  /*tp_as_mapping*/
+   (hashfunc)0,                        /*tp_hash*/
+   (ternaryfunc)0,                     /*tp_call*/
+   (reprfunc)0,                        /*tp_str*/
+   0,
+   0,
+   0,
+   0,
+   cmstype__doc__                    /* Documentation string */
+};
+/*========== CMS Code ==========*/
+
 /*========== module functions ==========*/
 static char pow_module_new_ssl__doc__[] = 
 "<constructor>\n"
@@ -6797,9 +7194,40 @@ pow_module_new_pkcs7 (PyObject *self, PyObject *args)
       goto error;
    
    if ( !(pkcs7 = PKCS7_object_new() ) ) 
-      { PyErr_SetString( SSLErrorObject, "could not create new pkcs7 object" ); goto error; }
+      { PyErr_SetString( SSLErrorObject, "could not create new PKCS7 object" ); goto error; }
 
    return (PyObject*)pkcs7;
+ 
+error:
+
+   return NULL;
+}
+
+static char pow_module_new_cms__doc__[] = 
+"<constructor>\n"
+"   <header>\n"
+"      <memberof>CMS</memberof>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This constructor creates a skeletal CMS object.\n"
+"      </para>\n"
+"   </body>\n"
+"</constructor>\n"
+;
+
+static PyObject *
+pow_module_new_cms (PyObject *self, PyObject *args)
+{
+   cms_object *cms = NULL;
+
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
+   
+   if ( !(cms = CMS_object_new() ) ) 
+      { PyErr_SetString( SSLErrorObject, "could not create new CMS object" ); goto error; }
+
+   return (PyObject*)cms;
  
 error:
 
@@ -6826,6 +7254,7 @@ static char pow_module_pem_read__doc__[] =
 "         <member><constant>X509_CERTIFICATE</constant></member>\n"
 "         <member><constant>X509_CRL</constant></member>\n"
 "         <member><constant>PKCS7_MESSAGE</constant></member>\n"
+"         <member><constant>CMS_MESSAGE</constant></member>\n"
 "      </simplelist>\n"
 "      <para>\n"
 "         <parameter>pass</parameter> should only be provided if an encrypted\n"
@@ -6835,7 +7264,7 @@ static char pow_module_pem_read__doc__[] =
 "         not desirable, always supply a password.  The object returned will be \n"
 "         and instance of <classname>Asymmetric</classname>, \n"
 "         <classname>X509</classname>, <classname>X509Crl</classname>,\n"
-"         or <classname>PKCS7</classname>.\n"
+"         <classname>PKCS7</classname>, or <classname>CMS</classname>.\n"
 "      </para>\n"
 "   </body>\n"
 "</modulefunction>\n"
@@ -6870,6 +7299,8 @@ pow_module_pem_read (PyObject *self, PyObject *args)
          { obj = (PyObject*)x509_crl_object_pem_read( in ); break ; }
       case PKCS7_MESSAGE:
          { obj = (PyObject*)PKCS7_object_pem_read( in ); break ; }
+      case CMS_MESSAGE:
+         { obj = (PyObject*)CMS_object_pem_read( in ); break ; }
 
       default:
          { PyErr_SetString( SSLErrorObject, "unknown pem encoding" ); goto error; }
@@ -6907,11 +7338,13 @@ static char pow_module_der_read__doc__[] =
 "         <member><constant>X509_CERTIFICATE</constant></member>\n"
 "         <member><constant>X509_CRL</constant></member>\n"
 "         <member><constant>PKCS7_MESSAGE</constant></member>\n"
+"         <member><constant>CMS_MESSAGE</constant></member>\n"
 "      </simplelist>\n"
 "      <para>\n"
 "         As with the PEM operations, the object returned will be and instance \n"
 "         of <classname>Asymmetric</classname>, <classname>X509</classname>,\n"
-"         <classname>X509Crl</classname>, or <classname>PKCS7</classname>.\n"
+"         <classname>X509Crl</classname>, <classname>PKCS7</classname>,\n"
+"         or <classname>CMS</classname>.\n"
 "      </para>\n"
 "   </body>\n"
 "</modulefunction>\n"
@@ -6939,6 +7372,8 @@ pow_module_der_read (PyObject *self, PyObject *args)
          { obj = (PyObject*)x509_crl_object_der_read( src, len ); break ; }
       case PKCS7_MESSAGE:
          { obj = (PyObject*)PKCS7_object_der_read( src, len ); break ; }
+      case CMS_MESSAGE:
+         { obj = (PyObject*)CMS_object_der_read( src, len ); break ; }
 
       default:
          { PyErr_SetString( SSLErrorObject, "unknown der encoding" ); goto error; }
@@ -7511,6 +7946,12 @@ pow_module_docset(PyObject *self, PyObject *args)
    docset_helper_add( docset, PKCS7_object_sign__doc__ );
    docset_helper_add( docset, PKCS7_object_verify__doc__ );
 
+   // cms documentation
+   docset_helper_add( docset, CMS_object_pem_write__doc__ );
+   docset_helper_add( docset, CMS_object_der_write__doc__ );
+   docset_helper_add( docset, CMS_object_sign__doc__ );
+   docset_helper_add( docset, CMS_object_verify__doc__ );
+
    // symmetric documentation
    docset_helper_add( docset, symmetrictype__doc__ );
    docset_helper_add( docset, symmetric_object_encrypt_init__doc__ );
@@ -7544,6 +7985,7 @@ static struct PyMethodDef pow_module_methods[] = {
    {"Digest",        (PyCFunction)pow_module_new_digest,       METH_VARARGS,  NULL}, 
    {"Hmac",          (PyCFunction)pow_module_new_hmac,         METH_VARARGS,  NULL}, 
    {"PKCS7",         (PyCFunction)pow_module_new_pkcs7,        METH_VARARGS,  NULL}, 
+   {"CMS",           (PyCFunction)pow_module_new_cms,          METH_VARARGS,  NULL}, 
    {"Asymmetric",    (PyCFunction)pow_module_new_asymmetric,   METH_VARARGS,  NULL}, 
    {"Symmetric",     (PyCFunction)pow_module_new_symmetric,    METH_VARARGS,  NULL}, 
    {"X509Store",     (PyCFunction)pow_module_new_x509_store,   METH_VARARGS,  NULL}, 
@@ -7580,6 +8022,7 @@ init_POW(void)
    digesttype.ob_type       = &PyType_Type;
    hmactype.ob_type         = &PyType_Type;
    pkcs7type.ob_type        = &PyType_Type;
+   cmstype.ob_type          = &PyType_Type;
 
    m = Py_InitModule4("_POW", pow_module_methods,
       pow_module__doc__,
@@ -7640,6 +8083,7 @@ init_POW(void)
    install_int_const( d, "X509_CERTIFICATE",          X509_CERTIFICATE );
    install_int_const( d, "X509_CRL",                  X_X509_CRL );
    install_int_const( d, "PKCS7_MESSAGE",             PKCS7_MESSAGE );
+   install_int_const( d, "CMS_MESSAGE",               CMS_MESSAGE );
 
    // asymmetric ciphers
 #ifndef OPENSSL_NO_RSA

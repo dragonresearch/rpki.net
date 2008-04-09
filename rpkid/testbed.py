@@ -585,19 +585,19 @@ class allocation(object):
     if self.parent is None:
       self.parent_id = self.call_rpkid(rpki.left_right.parent_elt.make_pdu(
         action = "create", self_id = self.self_id, bsc_id = self.bsc_id, repository_id = self.repository_id, sia_base = self.sia_base,
-        cms_ta = rootd_ta, https_ta = rootd_ta, sender_name = self.name, recipient_name = "Walrus",
+        peer_biz_cert = rootd_ta, peer_biz_glue = rootd_ta, sender_name = self.name, recipient_name = "Walrus",
         peer_contact_uri = "https://localhost:%s/" % rootd_port)).parent_id
     else:
       self.parent_id = self.call_rpkid(rpki.left_right.parent_elt.make_pdu(
         action = "create", self_id = self.self_id, bsc_id = self.bsc_id, repository_id = self.repository_id, sia_base = self.sia_base,
-        cms_ta = self.parent.rpkid_ta, https_ta = self.parent.rpkid_ta, sender_name = self.name, recipient_name = self.parent.name,
+        peer_biz_cert = self.parent.rpkid_ta, peer_biz_glue = self.parent.rpkid_ta, sender_name = self.name, recipient_name = self.parent.name,
         peer_contact_uri = "https://localhost:%s/up-down/%s" % (self.parent.rpki_port, self.child_id))).parent_id
 
     rpki.log.info("Creating rpkid child objects for %s" % self.name)
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
     cur = db.cursor()
     for kid in self.kids:
-      kid.child_id = self.call_rpkid(rpki.left_right.child_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id, cms_ta = kid.rpkid_ta)).child_id
+      kid.child_id = self.call_rpkid(rpki.left_right.child_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id, peer_biz_cert = kid.rpkid_ta)).child_id
       cur.execute("UPDATE registrant SET rpki_self_id = %s, rpki_child_id = %s WHERE IRBE_mapped_id = %s", (self.self_id, kid.child_id, kid.name))
     db.close()
 

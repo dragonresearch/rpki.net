@@ -464,10 +464,10 @@
 ##   parent     --action= --type= --tag= --self_id= --parent_id=
 ##              --bsc_id= --repository_id= --peer_contact_uri=
 ##              --sia_base= --sender_name= --recipient_name=
-##              --cms_ta= --https_ta= --rekey --reissue --revoke
+##              --peer_biz_cert= --peer_biz_glue= --rekey --reissue --revoke
 ## 
 ##   repository --action= --type= --tag= --self_id= --repository_id=
-##              --bsc_id= --peer_contact_uri= --cms_ta= --https_ta= 
+##              --bsc_id= --peer_contact_uri= --peer_biz_cert= --peer_biz_glue= 
 ## 
 ##   self       --action= --type= --tag= --self_id= --crl_interval=
 ##              --extension_preference= --rekey --reissue --revoke
@@ -475,7 +475,7 @@
 ##               --clear_extension_preferences
 ## 
 ##   child      --action= --type= --tag= --self_id= --child_id=
-##              --bsc_id= --cms_ta= --reissue
+##              --bsc_id= --peer_biz_cert= --peer_biz_glue= --reissue
 ## 
 ##   route_origin --action= --type= --tag= --self_id= --route_origin_id=
 ##               --as_number= --ipv4= --ipv6= --suppress_publication

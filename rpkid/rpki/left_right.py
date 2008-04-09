@@ -515,15 +515,15 @@ class parent_elt(data_elt):
   element_name = "parent"
   attributes = ("action", "type", "tag", "self_id", "parent_id", "bsc_id", "repository_id",
                 "peer_contact_uri", "sia_base", "sender_name", "recipient_name")
-  elements = ("cms_ta", "https_ta")
+  elements = ("peer_biz_cert", "peer_biz_glue")
   booleans = ("rekey", "reissue", "revoke")
 
   sql_template = rpki.sql.template("parent", "parent_id", "self_id", "bsc_id", "repository_id",
-                                   ("cms_ta", rpki.x509.X509), ("https_ta", rpki.x509.X509),
+                                   ("peer_biz_cert", rpki.x509.X509), ("peer_biz_glue", rpki.x509.X509),
                                    "peer_contact_uri", "sia_base", "sender_name", "recipient_name")
 
-  cms_ta = None
-  https_ta = None
+  peer_biz_cert = None
+  peer_biz_glue = None
 
   def repository(self):
     """Fetch repository object to which this parent object links."""
@@ -553,16 +553,16 @@ class parent_elt(data_elt):
 
   def startElement(self, stack, name, attrs):
     """Handle <parent/> element."""
-    if name not in ("cms_ta", "https_ta"):
+    if name not in ("peer_biz_cert", "peer_biz_glue"):
       assert name == "parent", "Unexpected name %s, stack %s" % (name, stack)
       self.read_attrs(attrs)
 
   def endElement(self, stack, name, text):
     """Handle <parent/> element."""
-    if name == "cms_ta":
-      self.cms_ta = rpki.x509.X509(Base64 = text)
-    elif name == "https_ta":
-      self.https_ta = rpki.x509.X509(Base64 = text)
+    if name == "peer_biz_cert":
+      self.peer_biz_cert = rpki.x509.X509(Base64 = text)
+    elif name == "peer_biz_glue":
+      self.peer_biz_glue = rpki.x509.X509(Base64 = text)
     else:
       assert name == "parent", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -570,10 +570,10 @@ class parent_elt(data_elt):
   def toXML(self):
     """Generate <parent/> element."""
     elt = self.make_elt()
-    if self.cms_ta and not self.cms_ta.empty():
-      self.make_b64elt(elt, "cms_ta", self.cms_ta.get_DER())
-    if self.https_ta and not self.https_ta.empty():
-      self.make_b64elt(elt, "https_ta", self.https_ta.get_DER())
+    if self.peer_biz_cert and not self.peer_biz_cert.empty():
+      self.make_b64elt(elt, "peer_biz_cert", self.peer_biz_cert.get_DER())
+    if self.peer_biz_glue and not self.peer_biz_glue.empty():
+      self.make_b64elt(elt, "peer_biz_glue", self.peer_biz_glue.get_DER())
     return elt
 
   def query_up_down(self, q_pdu):
@@ -608,13 +608,13 @@ class parent_elt(data_elt):
       raise
     q_cms = rpki.cms.xml_sign(q_elt, bsc.private_key_id, bsc.signing_cert, encoding = "UTF-8")
 
-    r_cms = rpki.https.client(server_ta    = rpki.x509.X509_chain(self.https_ta),
+    r_cms = rpki.https.client(server_ta    = rpki.x509.X509_chain(self.peer_biz_cert),
                               client_key   = bsc.private_key_id,
                               client_certs = bsc.signing_cert,
                               msg          = q_cms,
                               url          = self.peer_contact_uri)
 
-    r_elt = rpki.cms.xml_verify(r_cms, self.cms_ta)
+    r_elt = rpki.cms.xml_verify(r_cms, self.peer_biz_cert)
     rpki.relaxng.up_down.assertValid(r_elt)
     r_msg = rpki.up_down.sax_handler.saxify(r_elt)
     r_msg.payload.check_response()
@@ -626,12 +626,13 @@ class child_elt(data_elt):
 
   element_name = "child"
   attributes = ("action", "type", "tag", "self_id", "child_id", "bsc_id")
-  elements = ("cms_ta",)
+  elements = ("peer_biz_cert", "peer_biz_glue")
   booleans = ("reissue", )
 
-  sql_template = rpki.sql.template("child", "child_id", "self_id", "bsc_id", ("cms_ta", rpki.x509.X509))
+  sql_template = rpki.sql.template("child", "child_id", "self_id", "bsc_id", ("peer_biz_cert", rpki.x509.X509))
 
-  cms_ta = None
+  peer_biz_cert = None
+  peer_biz_glue = None
 
   def child_certs(self, ca_detail = None, ski = None, unique = False):
     """Fetch all child_cert objects that link to this child object."""
@@ -657,14 +658,16 @@ class child_elt(data_elt):
 
   def startElement(self, stack, name, attrs):
     """Handle <child/> element."""
-    if name != "cms_ta":
+    if name not in ("peer_biz_cert", "peer_biz_glue"):
       assert name == "child", "Unexpected name %s, stack %s" % (name, stack)
       self.read_attrs(attrs)
 
   def endElement(self, stack, name, text):
     """Handle <child/> element."""
-    if name == "cms_ta":
-      self.cms_ta = rpki.x509.X509(Base64 = text)
+    if name == "peer_biz_cert":
+      self.peer_biz_cert = rpki.x509.X509(Base64 = text)
+    elif name == "peer_biz_glue":
+      self.peer_biz_glue = rpki.x509.X509(Base64 = text)
     else:
       assert name == "child", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -672,8 +675,10 @@ class child_elt(data_elt):
   def toXML(self):
     """Generate <child/> element."""
     elt = self.make_elt()
-    if self.cms_ta:
-      self.make_b64elt(elt, "cms_ta", self.cms_ta.get_DER())
+    if self.peer_biz_cert and not self.peer_biz_cert.empty():
+      self.make_b64elt(elt, "peer_biz_cert", self.peer_biz_cert.get_DER())
+    if self.peer_biz_glue and not self.peer_biz_glue.empty():
+      self.make_b64elt(elt, "peer_biz_glue", self.peer_biz_glue.get_DER())
     return elt
 
   def serve_up_down(self, query):
@@ -684,7 +689,7 @@ class child_elt(data_elt):
     bsc = self.bsc()
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
-    q_elt = rpki.cms.xml_verify(query, self.cms_ta)
+    q_elt = rpki.cms.xml_verify(query, self.peer_biz_cert)
     rpki.relaxng.up_down.assertValid(q_elt)
     q_msg = rpki.up_down.sax_handler.saxify(q_elt)
     q_msg.payload.gctx = self.gctx
@@ -714,14 +719,14 @@ class repository_elt(data_elt):
 
   element_name = "repository"
   attributes = ("action", "type", "tag", "self_id", "repository_id", "bsc_id", "peer_contact_uri")
-  elements = ("cms_ta", "https_ta")
+  elements = ("peer_biz_cert", "peer_biz_glue")
 
   sql_template = rpki.sql.template("repository", "repository_id", "self_id", "bsc_id",
-                                   ("cms_ta", rpki.x509.X509), "peer_contact_uri",
-                                   ("https_ta", rpki.x509.X509))
+                                   ("peer_biz_cert", rpki.x509.X509), "peer_contact_uri",
+                                   ("peer_biz_glue", rpki.x509.X509))
 
-  cms_ta = None
-  https_ta = None
+  peer_biz_cert = None
+  peer_biz_glue = None
 
   def parents(self):
     """Fetch all parent objects that link to this repository object."""
@@ -729,16 +734,16 @@ class repository_elt(data_elt):
 
   def startElement(self, stack, name, attrs):
     """Handle <repository/> element."""
-    if name not in ("cms_ta", "https_ta"):
+    if name not in ("peer_biz_cert", "peer_biz_glue"):
       assert name == "repository", "Unexpected name %s, stack %s" % (name, stack)
       self.read_attrs(attrs)
 
   def endElement(self, stack, name, text):
     """Handle <repository/> element."""
-    if name == "cms_ta":
-      self.cms_ta = rpki.x509.X509(Base64 = text)
-    elif name == "https_ta":
-      self.https_ta = rpki.x509.X509(Base64 = text)
+    if name == "peer_biz_cert":
+      self.peer_biz_cert = rpki.x509.X509(Base64 = text)
+    elif name == "peer_biz_glue":
+      self.peer_biz_glue = rpki.x509.X509(Base64 = text)
     else:
       assert name == "repository", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -746,10 +751,10 @@ class repository_elt(data_elt):
   def toXML(self):
     """Generate <repository/> element."""
     elt = self.make_elt()
-    if self.cms_ta:
-      self.make_b64elt(elt, "cms_ta", self.cms_ta.get_DER())
-    if self.https_ta:
-      self.make_b64elt(elt, "https_ta", self.https_ta.get_DER())
+    if self.peer_biz_cert:
+      self.make_b64elt(elt, "peer_biz_cert", self.peer_biz_cert.get_DER())
+    if self.peer_biz_glue:
+      self.make_b64elt(elt, "peer_biz_glue", self.peer_biz_glue.get_DER())
     return elt
 
   @staticmethod

@@ -2,7 +2,7 @@
 <!--Automatically generated, do not edit.-->
 <msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1">
   <parent action="create" type="query" self_id="42" peer_contact_uri="https://re.bar.example/bandicoot/" sia_base="rsync://repo.foo.example/wombat/" bsc_id="17" repository_id="120" sender_name="tweedledee" recipient_name="tweedledum">
-    <cms_ta>
+    <peer_biz_cert>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -20,8 +20,8 @@
 		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
-	    </cms_ta>
-    <https_ta>
+	    </peer_biz_cert>
+    <peer_biz_glue>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -39,6 +39,6 @@
 		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
-	    </https_ta>
+	    </peer_biz_glue>
   </parent>
 </msg>

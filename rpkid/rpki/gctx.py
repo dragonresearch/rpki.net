@@ -172,11 +172,14 @@ class global_context(object):
 
     store = POW.X509Store()
 
-    kids = [c.cms_ta for c in rpki.left_right.child_elt.sql_fetch_all(self)]
+    children = rpki.left_right.child_elt.sql_fetch_all(self)
 
-    for x in kids + self.https_ta_irbe:
-      if x is not None:
-        rpki.log.debug("HTTPS dynamic trust anchor %s" % x.getSubject())
-        store.addTrust(x.get_POW())
+    certs = [c.peer_biz_cert for c in children if c.peer_biz_cert is not None] + \
+            [c.peer_biz_glue for c in children if c.peer_biz_glue is not None] + \
+            self.https_ta_irbe
+
+    for x in certs:
+      rpki.log.debug("HTTPS dynamic trust anchor %s" % x.getSubject())
+      store.addTrust(x.get_POW())
     
     return store

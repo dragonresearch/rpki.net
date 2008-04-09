@@ -48,13 +48,13 @@ class cmd_mixin(object):
     self.action = arg
     self.type = "query"
 
-  def client_query_cms_ta(self, arg):
-    """Special handler for --cms_ta option."""
-    self.cms_ta = rpki.x509.X509(Auto_file=arg)
+  def client_query_peer_biz_cert(self, arg):
+    """Special handler for --peer_biz_cert option."""
+    self.peer_biz_cert = rpki.x509.X509(Auto_file=arg)
 
   def client_query_https_ta(self, arg):
-    """Special handler for --https_ta option."""
-    self.https_ta = rpki.x509.X509(Auto_file=arg)
+    """Special handler for --peer_biz_glue option."""
+    self.peer_biz_glue = rpki.x509.X509(Auto_file=arg)
 
   def client_reply_decode(self):
     pass

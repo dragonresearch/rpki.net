@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rng 1637 2008-04-08 23:41:30Z sra $
+  $Id: left-right-schema.rnc 1637 2008-04-08 23:41:30Z sra $
   
   RelaxNG (Compact Syntax) Schema for RPKI left-right protocol.
   
@@ -146,14 +146,14 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <param name="maxLength">512000</param>
     </data>
   </define>
-  <!-- How we wrap trust anchor elements -->
-  <define name="cms_ta">
-    <element name="cms_ta">
+  <!-- How we wrap peer business cert elements -->
+  <define name="peer_biz_cert">
+    <element name="peer_biz_cert">
       <ref name="base64"/>
     </element>
   </define>
-  <define name="https_ta">
-    <element name="https_ta">
+  <define name="peer_biz_glue">
+    <element name="peer_biz_glue">
       <ref name="base64"/>
     </element>
   </define>
@@ -486,10 +486,10 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </attribute>
     </optional>
     <optional>
-      <ref name="cms_ta"/>
+      <ref name="peer_biz_cert"/>
     </optional>
     <optional>
-      <ref name="https_ta"/>
+      <ref name="peer_biz_glue"/>
     </optional>
   </define>
   <define name="parent_elt" combine="choice">
@@ -588,7 +588,10 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </attribute>
     </optional>
     <optional>
-      <ref name="cms_ta"/>
+      <ref name="peer_biz_cert"/>
+    </optional>
+    <optional>
+      <ref name="peer_biz_glue"/>
     </optional>
   </define>
   <define name="child_elt" combine="choice">
@@ -687,10 +690,10 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </attribute>
     </optional>
     <optional>
-      <ref name="cms_ta"/>
+      <ref name="peer_biz_cert"/>
     </optional>
     <optional>
-      <ref name="https_ta"/>
+      <ref name="peer_biz_glue"/>
     </optional>
   </define>
   <define name="repository_elt" combine="choice">

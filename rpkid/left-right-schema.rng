@@ -140,14 +140,14 @@
       <param name="maxLength">512000</param>
     </data>
   </define>
-  <!-- How we wrap trust anchor elements -->
-  <define name="cms_ta">
-    <element name="cms_ta">
+  <!-- How we wrap peer business cert elements -->
+  <define name="peer_biz_cert">
+    <element name="peer_biz_cert">
       <ref name="base64"/>
     </element>
   </define>
-  <define name="https_ta">
-    <element name="https_ta">
+  <define name="peer_biz_glue">
+    <element name="peer_biz_glue">
       <ref name="base64"/>
     </element>
   </define>
@@ -480,10 +480,10 @@
       </attribute>
     </optional>
     <optional>
-      <ref name="cms_ta"/>
+      <ref name="peer_biz_cert"/>
     </optional>
     <optional>
-      <ref name="https_ta"/>
+      <ref name="peer_biz_glue"/>
     </optional>
   </define>
   <define name="parent_elt" combine="choice">
@@ -582,7 +582,10 @@
       </attribute>
     </optional>
     <optional>
-      <ref name="cms_ta"/>
+      <ref name="peer_biz_cert"/>
+    </optional>
+    <optional>
+      <ref name="peer_biz_glue"/>
     </optional>
   </define>
   <define name="child_elt" combine="choice">
@@ -681,10 +684,10 @@
       </attribute>
     </optional>
     <optional>
-      <ref name="cms_ta"/>
+      <ref name="peer_biz_cert"/>
     </optional>
     <optional>
-      <ref name="https_ta"/>
+      <ref name="peer_biz_glue"/>
     </optional>
   </define>
   <define name="repository_elt" combine="choice">

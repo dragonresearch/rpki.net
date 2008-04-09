@@ -537,7 +537,7 @@ class allocation(object):
       server_ta    = rpki.x509.X509_chain(self.rpkid_ta),
       url          = url,
       msg          = cms)
-    elt = rpki.cms.xml_verify(cms = cms, ta = self.rpkid_ta)
+    elt = rpki.cms.xml_verify(der = cms, ta = self.rpkid_ta)
     rpki.relaxng.left_right.assertValid(elt)
     rpki.log.debug(lxml.etree.tostring(elt, pretty_print = True, encoding = "us-ascii"))
     pdu = rpki.left_right.sax_handler.saxify(elt)[0]

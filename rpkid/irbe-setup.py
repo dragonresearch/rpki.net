@@ -53,7 +53,7 @@ def call_rpkid(pdu):
   except lxml.etree.DocumentInvalid:
     print lxml.etree.tostring(elt, pretty_print = True, encoding = "us-ascii")
     raise
-  elt = rpki.cms.xml_verify(cms = rpki.https.client(client_key   = https_key,
+  elt = rpki.cms.xml_verify(der = rpki.https.client(client_key   = https_key,
                                                     client_certs = https_certs,
                                                     server_ta    = https_tas,
                                                     url          = https_url,

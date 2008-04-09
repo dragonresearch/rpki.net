@@ -17,7 +17,7 @@
 """CMS routines.
 
 These used to use the OpenSSL CLI too, which was slow.  I've since
-added minimal PKCS #7 / CMS capability to POW, so we now use that
+added minimal PKCS #7 and CMS capability to POW, so we now use that
 instead.  I should write a pretty DER_object wrapper around the POW
 code and include it in x509.py, but I haven't gotten to that yet.
 """
@@ -37,20 +37,20 @@ def sign(plaintext, keypair, certs):
   OpenSSL CLI tool will accept them.  rpki.x509 handles that for us.
   """
 
-  p7 = POW.PKCS7()
-  p7.sign(certs[0].get_POW(), keypair.get_POW(), [x.get_POW() for x in certs[1:]], plaintext)
-  cms = p7.derWrite()
+  cms = POW.CMS()
+  cms.sign(certs[0].get_POW(), keypair.get_POW(), [x.get_POW() for x in certs[1:]], plaintext)
+  der = cms.derWrite()
 
   if debug >= 2:
     print
     print "Signed CMS:"
-    dumpasn1(cms)
+    dumpasn1(der)
 
-  return cms
+  return der
 
 # openssl smime -verify -inform DER -in THING.der -CAfile biz-certs/Alice-Root.cer
 
-def verify(cms, ta):
+def verify(der, ta):
   """Verify the signature of a chunk of CMS.
 
   Returns the plaintext on success, otherwise raise an exception.
@@ -59,15 +59,15 @@ def verify(cms, ta):
   if debug >= 2:
     print
     print "Verifying CMS:"
-    dumpasn1(cms)
+    dumpasn1(der)
 
-  p7 = POW.derRead(POW.PKCS7_MESSAGE, cms)
+  cms = POW.derRead(POW.CMS_MESSAGE, der)
 
   store = POW.X509Store()
   store.addTrust(ta.get_POW())
 
   try:
-    return p7.verify(store)
+    return cms.verify(store)
 
   except:
     if debug >= 1:
@@ -77,13 +77,13 @@ def verify(cms, ta):
       dumpasn1(ta.get_DER())
       print
       print "CMS:"
-      dumpasn1(cms)
+      dumpasn1(der)
     raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed"
 
-def xml_verify(cms, ta):
+def xml_verify(der, ta):
   """Composite routine to verify CMS-wrapped XML."""
 
-  val = lxml.etree.fromstring(verify(cms, ta))
+  val = lxml.etree.fromstring(verify(der, ta))
   return val
 
 def xml_sign(elt, key, certs, encoding = "us-ascii"):

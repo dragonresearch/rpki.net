@@ -64,7 +64,12 @@ def verify(der, ta):
   cms = POW.derRead(POW.CMS_MESSAGE, der)
 
   store = POW.X509Store()
-  store.addTrust(ta.get_POW())
+
+  if isinstance(ta, (tuple, list)):
+    for x in ta:
+      store.addTrust(x.get_POW())
+  else:
+    store.addTrust(ta.get_POW())
 
   try:
     return cms.verify(store)
@@ -73,8 +78,13 @@ def verify(der, ta):
     if debug >= 1:
       print "CMS verification failed, dumping inputs:"
       print
-      print "TA:"
-      dumpasn1(ta.get_DER())
+      if isinstance(ta, (tuple, list)):
+        for x in ta:
+          print "TA:"
+          dumpasn1(x.get_DER())
+      else:
+        print "TA:"
+        dumpasn1(ta.get_DER())
       print
       print "CMS:"
       dumpasn1(der)

@@ -633,6 +633,7 @@ class child_elt(data_elt):
 
   peer_biz_cert = None
   peer_biz_glue = None
+  clear_https_ta_cache = False
 
   def child_certs(self, ca_detail = None, ski = None, unique = False):
     """Fetch all child_cert objects that link to this child object."""
@@ -655,6 +656,9 @@ class child_elt(data_elt):
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for child_elt."""
     self.unimplemented_control("reissue")
+    if self.clear_https_ta_cache:
+      self.gctx.clear_https_ta_cache()
+      self.clear_https_ta_cache = False
 
   def startElement(self, stack, name, attrs):
     """Handle <child/> element."""
@@ -666,8 +670,10 @@ class child_elt(data_elt):
     """Handle <child/> element."""
     if name == "peer_biz_cert":
       self.peer_biz_cert = rpki.x509.X509(Base64 = text)
+      self.clear_https_ta_cache = True
     elif name == "peer_biz_glue":
       self.peer_biz_glue = rpki.x509.X509(Base64 = text)
+      self.clear_https_ta_cache = True
     else:
       assert name == "child", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()

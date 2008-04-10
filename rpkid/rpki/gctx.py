@@ -163,23 +163,30 @@ class global_context(object):
     self.sql_sweep()
     return 200, "OK"
 
+  ## @var https_ta_cache
+  # HTTPS trust anchor cache, to avoid regenerating it for every TLS connection.
+  https_ta_cache = None
+
+  def clear_https_ta_cache(self):
+    """Clear cached HTTPS trust anchor X509Store."""
+
+    if self.https_ta_cache is not None:
+      rpki.log.debug("Clearing HTTPS trust anchor cache")
+      self.https_ta_cache = None
+
   def build_x509store(self):
-    """Build a dynamic x509store object.  This is horribly
-    inefficient, so will require some kind of caching scheme
-    eventually, but the task at hand is just to confirm that this
-    method will work at all.
-    """
+    """Build a dynamic x509store object."""
 
-    store = POW.X509Store()
+    if self.https_ta_cache is None:
 
-    children = rpki.left_right.child_elt.sql_fetch_all(self)
+      store = POW.X509Store()
+      children = rpki.left_right.child_elt.sql_fetch_all(self)
+      certs = [c.peer_biz_cert for c in children if c.peer_biz_cert is not None] + \
+              [c.peer_biz_glue for c in children if c.peer_biz_glue is not None] + \
+              self.https_ta_irbe
+      for x in certs:
+        rpki.log.debug("HTTPS dynamic trust anchor %s" % x.getSubject())
+        store.addTrust(x.get_POW())
+      self.https_ta_cache = store
 
-    certs = [c.peer_biz_cert for c in children if c.peer_biz_cert is not None] + \
-            [c.peer_biz_glue for c in children if c.peer_biz_glue is not None] + \
-            self.https_ta_irbe
-
-    for x in certs:
-      rpki.log.debug("HTTPS dynamic trust anchor %s" % x.getSubject())
-      store.addTrust(x.get_POW())
-    
-    return store
+    return self.https_ta_cache

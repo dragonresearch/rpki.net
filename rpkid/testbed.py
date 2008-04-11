@@ -310,6 +310,11 @@ class route_origin(object):
   def __eq__(self, other):
     return self.asn == other.asn and self.v4 == other.v4 and self.v6 == other.v6
 
+  def __hash__(self):
+    v4 = tuple(self.v4) if self.v4 is not None else None
+    v6 = tuple(self.v6) if self.v6 is not None else None
+    return self.asn.__hash__() + v4.__hash__() + v6.__hash__()
+
   def __str__(self):
     if self.v4 and self.v6: s = str(self.v4) + "," + str(self.v6)
     elif self.v4:           s = str(self.v4)
@@ -388,11 +393,10 @@ class allocation(object):
     self.sia_base = yaml.get("sia_base")
     if "crl_interval" in yaml:
       self.crl_interval = timedelta.parse(yaml["crl_interval"]).convert_to_seconds()
-    self.route_origins = {}
+    self.route_origins = set()
     if "route_origins" in yaml:
       for y in yaml.get("route_origins"):
-        ro = route_origin.parse(y)
-        self.route_origins[ro.asn] = ro
+        self.route_origins.add(route_origin.parse(y))
     self.extra_conf = yaml.get("extra_conf", [])
 
   def closure(self):
@@ -424,15 +428,11 @@ class allocation(object):
 
   def apply_route_origin_add(self, yaml):
     for y in yaml:
-      print "+ ", y
-      ro = route_origin.parse(y)
-      self.route_origins[ro.asn] = ro
+      self.route_origins.add(route_origin.parse(y))
 
   def apply_route_origin_del(self, yaml):
     for y in yaml:
-      print "- ", y
-      ro = route_origin.parse(y)
-      self.route_origins.pop(ro.asn, None)
+      self.route_origins.remove(route_origin.parse(y))
 
   def apply_rekey(self, target):
     if self.is_leaf():

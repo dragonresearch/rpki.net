@@ -91,6 +91,8 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
     """Generic left-right PDU constructor."""
     self = cls()
     for k,v in kargs.items():
+      if isinstance(v, bool):
+        v = 1 if v else 0
       setattr(self, k, v)
     return self
 
@@ -820,8 +822,9 @@ class route_origin_elt(data_elt):
   attributes = ("action", "type", "tag", "self_id", "route_origin_id", "as_number", "exact_match", "ipv4", "ipv6")
   booleans = ("suppress_publication",)
 
-  sql_template = rpki.sql.template("route_origin", "route_origin_id", "self_id", "as_number", "exact_match",
-                                   "ca_detail_id", "roa",
+  sql_template = rpki.sql.template("route_origin", "route_origin_id", "ca_detail_id",
+                                   "self_id", "as_number", "exact_match",
+                                   ("roa", rpki.x509.ROA),
                                    ("cert", rpki.x509.X509))
 
   ca_detail_id = None
@@ -855,11 +858,6 @@ class route_origin_elt(data_elt):
   def ca_detail(self):
     """Fetch all ca_detail objects that link to this route_origin object."""
     return rpki.sql.ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
-
-  def serve_pre_save_hook(self, q_pdu, r_pdu):
-    """Extra server actions for route_origin_elt -- normalize exact_match."""
-    if self.exact_match is None:
-      self.exact_match = False
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for route_origin_elt."""
@@ -905,6 +903,10 @@ class route_origin_elt(data_elt):
     /dev/random, but there is not much we can do about that.
     """
 
+    if self.exact_match is None:
+      rpki.log.warn("Can't generate ROA with undefined exactMatch")
+      return
+
     if self.ipv4 is None and self.ipv6 is None:
       rpki.log.warn("Can't generate ROA for empty address list")
       return
@@ -934,19 +936,13 @@ class route_origin_elt(data_elt):
 
     resources = rpki.resource_set.resource_bag(v4 = self.ipv4, v6 = self.ipv6)
 
-    payload = rpki.roa.RouteOriginAttestation()
-    payload.version.set(0)
-    payload.asID.set(self.as_number)
-    payload.exactMatch.set(self.exact_match)
-    payload.ipAddrBlocks.set((a.to_roa_tuple() for a in (self.ipv4, self.ipv6) if a))
-
     keypair = rpki.x509.RSA()
     keypair.generate()
 
     sia = ((rpki.oids.name2oid["id-ad-signedObject"], ("uri", self.roa_uri(ca, keypair))),)
 
     self.cert = ca_detail.issue_ee(ca, resources, keypair.get_RSApublic(), sia = sia)
-    self.roa = rpki.cms.sign(payload.toString(), keypair, (self.cert,))
+    self.roa = rpki.x509.ROA.build(self.as_number, self.exact_match, self.ipv4, self.ipv6, keypair, (self.cert,))
     self.ca_detail_id = ca_detail.ca_detail_id
     self.sql_store()
 
@@ -956,8 +952,6 @@ class route_origin_elt(data_elt):
     repository.publish(self.cert, self.ee_uri(ca))
 
     ca_detail.generate_manifest()
-
-    raise rpki.exceptions.NotImplementedYet
 
   def roa_uri(self, ca, key = None):
     """Return the publication URI for this route_origin's ROA."""
@@ -969,7 +963,7 @@ class route_origin_elt(data_elt):
 
   def ee_uri(self, ca):
     """Return the publication URI for this route_origin's ROA's EE certificate."""
-    return ca.sia_uri + self.uri_tail()
+    return ca.sia_uri + self.ee_uri_tail()
 
 class list_resources_elt(base_elt):
   """<list_resources/> element."""

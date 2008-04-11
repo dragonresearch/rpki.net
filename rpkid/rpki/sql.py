@@ -449,7 +449,8 @@ class ca_detail_obj(sql_persistant):
       for child_cert in predecessor.child_certs():
         child_cert.reissue(self)
       for route_origin in predecessor.route_origins():
-        raise rpki.exceptions.NotImplementedYet, "Don't (yet) know how to reissue ROAs"
+        if route_origin.roa:
+          raise rpki.exceptions.NotImplementedYet, "Don't (yet) know how to reissue ROAs"
 
   def delete(self, ca, repository):
     """Delete this ca_detail and all of the certs it issued."""
@@ -460,7 +461,8 @@ class ca_detail_obj(sql_persistant):
     for revoked__cert in self.revoked_certs():
       revoked_cert.sql_delete()
     for route_origin in self.route_origins():
-      raise rpki.exceptions.NotImplementedYet, "Don't (yet) know how to withdraw ROAs"
+      if route_origin.roa:
+        raise rpki.exceptions.NotImplementedYet, "Don't (yet) know how to withdraw ROAs"
     repository.withdraw(self.latest_manifest, self.manifest_uri(ca))
     repository.withdraw(self.latest_crl, self.crl_uri())
     self.sql_delete()
@@ -669,15 +671,13 @@ class ca_detail_obj(sql_persistant):
     certs = [(c.uri_tail(), c.cert) for c in self.child_certs()] + \
             [(r.ee_uri_tail(), r.cert) for r in self.route_origins() if r.cert is not None]
 
-    m = rpki.x509.SignedManifest()
-    m.build(
+    self.latest_manifest = rpki.x509.SignedManifest.build(
       serial         = ca.next_manifest_number(),
       thisUpdate     = now,
       nextUpdate     = nextUpdate,
       names_and_objs = certs,
       keypair        = self.manifest_private_key_id,
       certs          = rpki.x509.X509_chain(self.latest_manifest_cert))
-    self.latest_manifest = m
 
     repository.publish(self.latest_manifest, self.manifest_uri(ca))
 

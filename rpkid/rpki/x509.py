@@ -27,7 +27,8 @@ some of the nasty details.  This involves a lot of format conversion.
 """
 
 import POW, tlslite.api, POW.pkix, base64, time
-import rpki.exceptions, rpki.resource_set, rpki.manifest, rpki.cms, rpki.oids, rpki.sundial
+import rpki.exceptions, rpki.resource_set, rpki.cms, rpki.oids, rpki.sundial
+import rpki.manifest, rpki.roa
 
 def calculate_SKI(public_key_der):
   """Calculate the SKI value given the DER representation of a public
@@ -578,39 +579,53 @@ class RSApublic(DER_object):
     """Calculate the SKI of this public key."""
     return calculate_SKI(self.get_DER())
 
-class SignedManifest(DER_object):
-  """Class to hold a signed manifest.
+class CMS_object(DER_object):
+  """Class to hold a CMS-wrapped object.
 
-  Signed manifests are a little different from the other DER_object
+  CMS-wrapped objects are a little different from the other DER_object
   types because the signed object is CMS wrapping inner content that's
   also ASN.1, and due to our current minimal support for CMS we can't
   just handle this as a pretty composite object.  So, for now anyway,
-  this SignedManifest object refers to the outer CMS wrapped manifest
-  so that the usual DER and PEM operations do the obvious things, and
-  the inner content is handle via separate methods using rpki.manifest.
+  a CMS_object is the outer CMS wrapped object so that the usual DER
+  and PEM operations do the obvious things, and the inner content is
+  handle via separate methods.
   """
 
   formats = ("DER",)
   other_clear = ("content",)
-  pem_converter = PEM_converter("RPKI MANIFEST")
   
   def get_DER(self):
-    """Get the DER value of this manifest."""
+    """Get the DER value of this CMS_object."""
     assert not self.empty()
     if self.DER:
       return self.DER
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
   def get_content(self):
-    """Get the inner content of this manifest."""
+    """Get the inner content of this CMS_object."""
     assert self.content is not None
     return self.content
 
   def set_content(self, content):
-    """Set the (inner) content of this manifest, clearing the wrapper."""
+    """Set the (inner) content of this CMS_object, clearing the wrapper."""
     self.clear()
     self.content = content
 
+  def verify_and_store(self, ta, obj):
+    """Verify CMS wrapper and store inner content."""
+    s = rpki.cms.verify(self.get_DER(), ta)
+    obj.fromString(s)
+    self.content = obj
+
+  def sign(self, keypair, certs):
+    """Sign and wrap inner content."""
+    self.DER = rpki.cms.sign(self.get_content().toString(), keypair, certs)
+
+class SignedManifest(CMS_object):
+  """Class to hold a signed manifest."""
+
+  pem_converter = PEM_converter("RPKI MANIFEST")
+  
   def getThisUpdate(self):
     """Get thisUpdate value from this manifest."""
     return rpki.sundial.datetime.fromGeneralizedTime(self.get_content().thisUpdate.get())
@@ -621,13 +636,12 @@ class SignedManifest(DER_object):
 
   def verify(self, ta):
     """Verify this manifest."""
-    m = rpki.manifest.Manifest()
-    s = rpki.cms.verify(self.get_DER(), ta)
-    m.fromString(s)
-    self.content = m
+    self.verify_and_store(ta, rpki.manifest.Manifest())
 
-  def build(self, serial, thisUpdate, nextUpdate, names_and_objs, keypair, certs, version = 0):
-    """Build the inner content of this manifest and sign it with CMS."""
+  @classmethod
+  def build(cls, serial, thisUpdate, nextUpdate, names_and_objs, keypair, certs, version = 0):
+    """Build a signed manifest."""
+    self = cls()
     filelist = []
     for name, obj in names_and_objs:
       d = POW.Digest(POW.SHA256_DIGEST)
@@ -642,7 +656,30 @@ class SignedManifest(DER_object):
     m.fileHashAlg.set((2, 16, 840, 1, 101, 3, 4, 2, 1)) # id-sha256
     m.fileList.set(filelist)
     self.set_content(m)
-    self.DER = rpki.cms.sign(m.toString(), keypair, certs)
+    self.sign(keypair, certs)
+    return self
+
+class ROA(CMS_object):
+  """Class to hold a signed ROA."""
+
+  pem_converter = PEM_converter("ROUTE ORIGIN ATTESTATION")
+
+  def verify(self, ta):
+    """Verify this ROA."""
+    self.verify_and_store(ta, rpki.roa.RouteOriginAttestation())
+
+  @classmethod
+  def build(cls, as_number, exact_match, ipv4, ipv6, keypair, certs, version = 0):
+    """Build a ROA."""
+    self = cls()
+    r = rpki.roa.RouteOriginAttestation()
+    r.version.set(version)
+    r.asID.set(as_number)
+    r.exactMatch.set(exact_match)
+    r.ipAddrBlocks.set((a.to_roa_tuple() for a in (ipv4, ipv6) if a))
+    self.set_content(r)
+    self.sign(keypair, certs)
+    return self
 
 class CRL(DER_object):
   """Class to hold a Certificate Revocation List."""

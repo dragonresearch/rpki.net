@@ -302,10 +302,11 @@ cmds = { "sleep" : cmd_sleep,
 class route_origin(object):
   """Representation for a route_origin object."""
 
-  def __init__(self, asn, ipv4, ipv6):
+  def __init__(self, asn, ipv4, ipv6, exact_match):
     self.asn = asn
     self.v4 = rpki.resource_set.resource_set_ipv4("".join(ipv4.split())) if ipv4 else None
     self.v6 = rpki.resource_set.resource_set_ipv6("".join(ipv6.split())) if ipv6 else None
+    self.exact_match = exact_match
 
   def __eq__(self, other):
     return self.asn == other.asn and self.v4 == other.v4 and self.v6 == other.v6
@@ -323,7 +324,7 @@ class route_origin(object):
 
   @classmethod
   def parse(cls, yaml):
-    return cls(yaml.get("asn"), yaml.get("ipv4"), yaml.get("ipv6"))
+    return cls(yaml.get("asn"), yaml.get("ipv4"), yaml.get("ipv6"), yaml.get("exact_match", False))
     
 class allocation_db(list):
   """Representation of all the entities and allocations in the test system.
@@ -559,8 +560,8 @@ class allocation(object):
     rpki.log.info("Calling rpkid for %s" % self.name)
     pdu.type = "query"
     elt = rpki.left_right.msg((pdu,)).toXML()
-    rpki.relaxng.left_right.assertValid(elt)
     rpki.log.debug(lxml.etree.tostring(elt, pretty_print = True, encoding = "us-ascii"))
+    rpki.relaxng.left_right.assertValid(elt)
     cms = rpki.cms.xml_sign(
       elt           = elt,
       key           = testbed_key,
@@ -574,8 +575,8 @@ class allocation(object):
       url          = url,
       msg          = cms)
     elt = rpki.cms.xml_verify(der = cms, ta = self.rpkid_ta)
-    rpki.relaxng.left_right.assertValid(elt)
     rpki.log.debug(lxml.etree.tostring(elt, pretty_print = True, encoding = "us-ascii"))
+    rpki.relaxng.left_right.assertValid(elt)
     pdu = rpki.left_right.sax_handler.saxify(elt)[0]
     assert pdu.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)
     return pdu
@@ -641,7 +642,10 @@ class allocation(object):
     rpki.log.info("Creating rpkid route_origin objects for %s" % self.name)
     for ro in self.route_origins:
       ro.route_origin_id = self.call_rpkid(rpki.left_right.route_origin_elt.make_pdu(
-        action = "create", self_id = self.self_id, as_number = ro.asn, ipv4 = ro.v4, ipv6 = ro.v6)).route_origin_id
+        action = "create", self_id = self.self_id, as_number = ro.asn,
+        exact_match = ro.exact_match, ipv4 = ro.v4, ipv6 = ro.v6)).route_origin_id
+
+#       exact_match = 1 if ro.exact_match else 0
 
   def write_leaf_yaml(self):
     """Write YAML scripts for leaf nodes.  Only supports list requests

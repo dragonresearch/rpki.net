@@ -367,6 +367,12 @@ class allocation(object):
     self.sia_base = yaml.get("sia_base")
     if "crl_interval" in yaml:
       self.crl_interval = timedelta.parse(yaml["crl_interval"]).convert_to_seconds()
+    self.route_origins = {}
+    if "route_origins" in yaml:
+      for asn,addrs in yaml.get("route_origins").items():
+        self.route_origins[asn] = {
+          "v4" : rpki.resource_set.resource_set_ipv4(addrs.get("ipv4")),
+          "v6" : rpki.resource_set.resource_set_ipv6(addrs.get("ipv6")) }
     self.extra_conf = yaml.get("extra_conf", [])
 
   def closure(self):
@@ -429,7 +435,7 @@ class allocation(object):
 
   def is_leaf(self): return not self.kids
   def is_root(self): return self.parent is None
-  def is_twig(self): return self.parent is not None and self.kids
+  def is_twig(self): return not self.is_leaf() and not self.is_root()
 
   def set_engine_number(self, n):
     """Set the engine number for this entity."""

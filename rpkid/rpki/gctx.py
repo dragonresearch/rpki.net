@@ -159,6 +159,7 @@ class global_context(object):
     for s in rpki.left_right.self_elt.sql_fetch_all(self):
       s.client_poll()
       s.update_children()
+      s.generate_roas()
       s.regenerate_crls_and_manifests()
     self.sql_sweep()
     return 200, "OK"

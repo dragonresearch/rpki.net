@@ -417,6 +417,16 @@ class self_elt(data_elt):
           ca_detail.generate_crl()
           ca_detail.generate_manifest()
 
+  def generate_roas(self):
+    """Generate ROAs for this self's route_origin objects.
+
+    This doesn't yet handle revocation or regeneration of existing
+    ROAs, the underlying support for that hasn't been written yet.
+    """
+
+    for route_origin in self.route_origins():
+      route_origin.generate_roa()
+
 class bsc_elt(data_elt):
   """<bsc/> (Business Signing Context) element."""
   

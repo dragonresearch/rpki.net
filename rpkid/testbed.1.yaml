@@ -23,6 +23,10 @@ kids:
       - name: Alice
         ipv4: 192.0.2.1-192.0.2.33
         asn:  64533
+    ipv4: 10.3.0.0/16
+    route_origins:
+      666:
+        ipv4: 10.3.0.44/32
 ---
 - name: R0
   rekey:

@@ -555,12 +555,12 @@ class ca_detail_obj(sql_persistant):
     self.sql_store()
     return self
 
-  def issue_ee(self, ca, resources, sia = None):
+  def issue_ee(self, ca, resources, subject_key, sia = None):
     """Issue a new EE certificate."""
 
     return self.latest_ca_cert.issue(
       keypair     = self.private_key_id,
-      subject_key = self.manifest_public_key,
+      subject_key = subject_key,
       serial      = ca.next_serial_number(),
       sia         = sia,
       aia         = self.ca_cert_uri,
@@ -578,7 +578,7 @@ class ca_detail_obj(sql_persistant):
       v4 = rpki.resource_set.resource_set_ipv4("<inherit>"),
       v6 = rpki.resource_set.resource_set_ipv6("<inherit>"))
 
-    self.latest_manifest_cert = self.issue_ee(ca, resources)
+    self.latest_manifest_cert = self.issue_ee(ca, resources, self.manifest_public_key)
 
   def issue(self, ca, child, subject_key, sia, resources, child_cert = None):
     """Issue a new certificate to a child.  Optional child_cert

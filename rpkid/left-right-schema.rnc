@@ -172,6 +172,7 @@ ro_id = attribute route_origin_id { sql_id }
 ro_bool = attribute suppress_publication { "yes" }?
 
 ro_payload = (attribute as_number { xsd:token { maxLength="1024" } }?,
+              attribute exact_match { xsd:boolean }?,
               attribute ipv4 { xsd:token { maxLength="1024" } }?,
               attribute ipv6 { xsd:token { maxLength="1024" } }?)
 

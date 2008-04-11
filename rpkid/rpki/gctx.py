@@ -176,7 +176,13 @@ class global_context(object):
       self.https_ta_cache = None
 
   def build_x509store(self):
-    """Build a dynamic x509store object."""
+    """Build a dynamic x509store object.
+
+    This probably should be refactored to do the real work in the
+    rpki.https module so that this module can treat the x509store as a
+    black box.  This method's jobs would then be just to identify
+    certs that need to be added and to cache an opaque object.
+    """
 
     if self.https_ta_cache is None:
 
@@ -186,7 +192,8 @@ class global_context(object):
               [c.peer_biz_glue for c in children if c.peer_biz_glue is not None] + \
               self.https_ta_irbe
       for x in certs:
-        rpki.log.debug("HTTPS dynamic trust anchor %s" % x.getSubject())
+        if rpki.https.debug_tls_certs:
+          rpki.log.debug("HTTPS dynamic trust anchor %s" % x.getSubject())
         store.addTrust(x.get_POW())
       self.https_ta_cache = store
 

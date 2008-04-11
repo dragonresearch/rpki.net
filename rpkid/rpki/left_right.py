@@ -18,7 +18,7 @@
 
 import base64, lxml.etree, time, traceback, os
 import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions
-import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log
+import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
 
 xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
@@ -817,10 +817,10 @@ class route_origin_elt(data_elt):
   """<route_origin/> element."""
 
   element_name = "route_origin"
-  attributes = ("action", "type", "tag", "self_id", "route_origin_id", "as_number", "ipv4", "ipv6")
+  attributes = ("action", "type", "tag", "self_id", "route_origin_id", "as_number", "exact_match", "ipv4", "ipv6")
   booleans = ("suppress_publication",)
 
-  sql_template = rpki.sql.template("route_origin", "route_origin_id", "self_id", "as_number",
+  sql_template = rpki.sql.template("route_origin", "route_origin_id", "self_id", "as_number", "exact_match",
                                    "ca_detail_id", "roa",
                                    ("cert", rpki.x509.X509))
 
@@ -841,11 +841,12 @@ class route_origin_elt(data_elt):
 
   def sql_insert_hook(self):
     """Extra SQL insert actions for route_origin_elt -- handle address ranges."""
-    if self.ipv4 + self.ipv6:
+    if self.ipv4 or self.ipv6:
       self.gctx.cur.executemany("""
                 INSERT route_origin_range (route_origin_id, start_ip, end_ip)
                 VALUES (%s, %s, %s)""",
-                           ((self.route_origin_id, x.min, x.max) for x in self.ipv4 + self.ipv6))
+                           ((self.route_origin_id, x.min, x.max)
+                            for x in (self.ipv4 or []) + (self.ipv6 or [])))
   
   def sql_delete_hook(self):
     """Extra SQL delete actions for route_origin_elt -- handle address ranges."""
@@ -854,6 +855,11 @@ class route_origin_elt(data_elt):
   def ca_detail(self):
     """Fetch all ca_detail objects that link to this route_origin object."""
     return rpki.sql.ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
+
+  def serve_pre_save_hook(self, q_pdu, r_pdu):
+    """Extra server actions for route_origin_elt -- normalize exact_match."""
+    if self.exact_match is None:
+      self.exact_match = False
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for route_origin_elt."""
@@ -899,6 +905,10 @@ class route_origin_elt(data_elt):
     /dev/random, but there is not much we can do about that.
     """
 
+    if self.ipv4 is None and self.ipv6 is None:
+      rpki.log.warn("Can't generate ROA for empty address list")
+      return
+
     # Ugly and expensive search for covering ca_detail, there has to
     # be a better way.
     #
@@ -911,7 +921,8 @@ class route_origin_elt(data_elt):
         ca_detail = ca.fetch_active()
         if ca_detail is not None:
           resources = ca_detail.latest_ca_cert.get_3779resources()
-          if self.v4.issubset(resources.v4) and self.v6.issubset(resources.v6):
+          if ((self.ipv4 is None or self.ipv4.issubset(resources.v4)) and
+              (self.ipv6 is None or self.ipv6.issubset(resources.v6))):
             break
           ca_detail = None
       if ca_detail is not None:
@@ -921,20 +932,20 @@ class route_origin_elt(data_elt):
       rpki.log.warn("generate_roa() could not find a covering certificate")
       return
 
-    resources = rpki.resource_set.resource_bag(v4 = self.v4, v6 = self.v6)
+    resources = rpki.resource_set.resource_bag(v4 = self.ipv4, v6 = self.ipv6)
 
     payload = rpki.roa.RouteOriginAttestation()
     payload.version.set(0)
     payload.asID.set(self.as_number)
     payload.exactMatch.set(self.exact_match)
-    payload.ipAddrBlocks.set((a.to_roa_tuple() for a in (self.v4, self.v6) if a))
+    payload.ipAddrBlocks.set((a.to_roa_tuple() for a in (self.ipv4, self.ipv6) if a))
 
     keypair = rpki.x509.RSA()
     keypair.generate()
 
     sia = ((rpki.oids.name2oid["id-ad-signedObject"], ("uri", self.roa_uri(ca, keypair))),)
 
-    self.cert = ca_detail.issue_ee(ca, resources, sia)
+    self.cert = ca_detail.issue_ee(ca, resources, keypair.get_RSApublic(), sia = sia)
     self.roa = rpki.cms.sign(payload.toString(), keypair, (self.cert,))
     self.ca_detail_id = ca_detail.ca_detail_id
     self.sql_store()

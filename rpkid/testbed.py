@@ -337,10 +337,8 @@ class allocation_db(list):
     if self.root.crl_interval is None:
       self.root.crl_interval = timedelta.parse(cfg.get("crl_interval", "1d")).convert_to_seconds()
     for a in self:
-      if a.sia_base is None and a.parent is not None:
-        a.sia_base = a.parent.sia_base + a.name + "/"
-      elif a.sia_base is None and a.parent is None:
-        a.sia_base = rootd_sia + a.name + "/"
+      if a.sia_base is None:
+        a.sia_base = (rootd_sia if a.is_root() else a.parent.sia_base) + a.name + "/"
       if a.base.valid_until is None:
         a.base.valid_until = a.parent.base.valid_until
       if a.crl_interval is None:
@@ -394,8 +392,8 @@ class allocation(object):
     if "crl_interval" in yaml:
       self.crl_interval = timedelta.parse(yaml["crl_interval"]).convert_to_seconds()
     self.route_origins = set()
-    if "route_origins" in yaml:
-      for y in yaml.get("route_origins"):
+    if "route_origin" in yaml:
+      for y in yaml.get("route_origin"):
         self.route_origins.add(route_origin.parse(y))
     self.extra_conf = yaml.get("extra_conf", [])
 
@@ -465,7 +463,7 @@ class allocation(object):
     if self.sia_base:           s += "  SIA: %s\n" % self.sia_base
     return s + "Until: %s\n" % self.resources.valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-  def is_leaf(self): return not self.kids
+  def is_leaf(self): return not self.kids and not self.route_origins
   def is_root(self): return self.parent is None
   def is_twig(self): return not self.is_leaf() and not self.is_root()
 
@@ -620,7 +618,7 @@ class allocation(object):
     self.repository_id = self.call_rpkid(rpki.left_right.repository_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id)).repository_id
 
     rpki.log.info("Creating rpkid parent object for %s" % self.name)
-    if self.parent is None:
+    if self.is_root():
       self.parent_id = self.call_rpkid(rpki.left_right.parent_elt.make_pdu(
         action = "create", self_id = self.self_id, bsc_id = self.bsc_id, repository_id = self.repository_id, sia_base = self.sia_base,
         peer_biz_cert = rootd_ta, peer_biz_glue = rootd_ta, sender_name = self.name, recipient_name = "Walrus",
@@ -635,9 +633,15 @@ class allocation(object):
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
     cur = db.cursor()
     for kid in self.kids:
-      kid.child_id = self.call_rpkid(rpki.left_right.child_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id, peer_biz_cert = kid.rpkid_ta)).child_id
+      kid.child_id = self.call_rpkid(rpki.left_right.child_elt.make_pdu(
+        action = "create", self_id = self.self_id, bsc_id = self.bsc_id, peer_biz_cert = kid.rpkid_ta)).child_id
       cur.execute("UPDATE registrant SET rpki_self_id = %s, rpki_child_id = %s WHERE IRBE_mapped_id = %s", (self.self_id, kid.child_id, kid.name))
     db.close()
+
+    rpki.log.info("Creating rpkid route_origin objects for %s" % self.name)
+    for ro in self.route_origins:
+      ro.route_origin_id = self.call_rpkid(rpki.left_right.route_origin_elt.make_pdu(
+        action = "create", self_id = self.self_id, as_number = ro.asn, ipv4 = ro.v4, ipv6 = ro.v6)).route_origin_id
 
   def write_leaf_yaml(self):
     """Write YAML scripts for leaf nodes.  Only supports list requests

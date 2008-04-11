@@ -784,6 +784,11 @@
       </attribute>
     </optional>
     <optional>
+      <attribute name="exact_match">
+        <data type="boolean"/>
+      </attribute>
+    </optional>
+    <optional>
       <attribute name="ipv4">
         <data type="token">
           <param name="maxLength">1024</param>

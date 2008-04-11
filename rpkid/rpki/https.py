@@ -30,6 +30,9 @@ import POW
 # Do not set this to True for production use!
 disable_tls_certificate_validation_exceptions = False
 
+# Chatter suppression
+debug_tls_certs = False
+
 rpki_content_type = "application/x-rpki"
 
 class Checker(tlslite.api.Checker):
@@ -43,9 +46,10 @@ class Checker(tlslite.api.Checker):
     if dynamic_x509store is None:
       self.x509store = POW.X509Store()
       for x in trust_anchors:
-        rpki.log.debug("HTTPS trust anchor %s" % x.getSubject())
+        if debug_tls_certs:
+          rpki.log.debug("HTTPS trust anchor %s" % x.getSubject())
         self.x509store.addTrust(x.get_POW())
-    else:
+    elif debug_tls_certs:
       rpki.log.debug("HTTPS dynamic trust anchors")
 
   def x509store_thunk(self):
@@ -66,8 +70,9 @@ class Checker(tlslite.api.Checker):
 
     chain = [rpki.x509.X509(tlslite = chain.x509List[i]) for i in range(chain.getNumCerts())]
 
-    for i in range(len(chain)):
-      rpki.log.debug("Received %s TLS cert[%d] %s" % (peer, i, chain[i].getSubject()))
+    if debug_tls_certs:
+      for i in range(len(chain)):
+        rpki.log.debug("Received %s TLS cert[%d] %s" % (peer, i, chain[i].getSubject()))
 
     if not self.x509store_thunk().verifyChain(chain[0].get_POW(), [x.get_POW() for x in chain[1:]]):
       if disable_tls_certificate_validation_exceptions:
@@ -107,8 +112,9 @@ def client(msg, client_key, client_certs, server_ta, url, timeout = 300):
          u.query    == "" and \
          u.fragment == ""
 
-  for client_cert in client_certs:
-    rpki.log.debug("Sending client TLS cert %s" % client_cert.getSubject())
+  if debug_tls_certs:
+    for client_cert in client_certs:
+      rpki.log.debug("Sending client TLS cert %s" % client_cert.getSubject())
 
   # We could add a "settings = foo" argument to the following call to
   # pass in a tlslite.HandshakeSettings object that would let us

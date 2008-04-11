@@ -299,6 +299,27 @@ cmds = { "sleep" : cmd_sleep,
          "shell" : cmd_shell,
          "echo"  : cmd_echo }
 
+class route_origin(object):
+  """Representation for a route_origin object."""
+
+  def __init__(self, asn, ipv4, ipv6):
+    self.asn = asn
+    self.v4 = rpki.resource_set.resource_set_ipv4("".join(ipv4.split())) if ipv4 else None
+    self.v6 = rpki.resource_set.resource_set_ipv6("".join(ipv6.split())) if ipv6 else None
+
+  def __eq__(self, other):
+    return self.asn == other.asn and self.v4 == other.v4 and self.v6 == other.v6
+
+  def __str__(self):
+    if self.v4 and self.v6: s = str(self.v4) + "," + str(self.v6)
+    elif self.v4:           s = str(self.v4)
+    else:                   s = str(self.v6)
+    return "%s: %s" % (self.asn, s)
+
+  @classmethod
+  def parse(cls, yaml):
+    return cls(yaml.get("asn"), yaml.get("ipv4"), yaml.get("ipv6"))
+    
 class allocation_db(list):
   """Representation of all the entities and allocations in the test system.
   Almost everything is generated out of this database.
@@ -369,10 +390,9 @@ class allocation(object):
       self.crl_interval = timedelta.parse(yaml["crl_interval"]).convert_to_seconds()
     self.route_origins = {}
     if "route_origins" in yaml:
-      for asn,addrs in yaml.get("route_origins").items():
-        self.route_origins[asn] = {
-          "v4" : rpki.resource_set.resource_set_ipv4(addrs.get("ipv4")),
-          "v6" : rpki.resource_set.resource_set_ipv6(addrs.get("ipv6")) }
+      for y in yaml.get("route_origins"):
+        ro = route_origin.parse(y)
+        self.route_origins[ro.asn] = ro
     self.extra_conf = yaml.get("extra_conf", [])
 
   def closure(self):
@@ -401,6 +421,18 @@ class allocation(object):
   def apply_valid_for(self, text):    self.base.valid_until = datetime.datetime.utcnow() + timedelta.parse(text)
   def apply_valid_add(self, text):    self.base.valid_until += timedelta.parse(text)
   def apply_valid_sub(self, text):    self.base.valid_until -= timedelta.parse(text)
+
+  def apply_route_origin_add(self, yaml):
+    for y in yaml:
+      print "+ ", y
+      ro = route_origin.parse(y)
+      self.route_origins[ro.asn] = ro
+
+  def apply_route_origin_del(self, yaml):
+    for y in yaml:
+      print "- ", y
+      ro = route_origin.parse(y)
+      self.route_origins.pop(ro.asn, None)
 
   def apply_rekey(self, target):
     if self.is_leaf():

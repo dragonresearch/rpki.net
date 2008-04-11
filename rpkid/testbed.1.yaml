@@ -25,7 +25,7 @@ kids:
         asn:  64533
     ipv4: 10.3.0.0/16
     route_origins:
-      666:
+      - asn: 666
         ipv4: 10.3.0.44/32
 ---
 - name: R0
@@ -36,6 +36,10 @@ kids:
 ---
 - name: Alice
   valid_add:   10
+- name: R0
+  route_origin_add:
+    - asn: 17
+      ipv4: 10.3.0.1/32, 10.0.0.44/32
 ---
 - name: Alice
   add_as: 33

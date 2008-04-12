@@ -947,11 +947,28 @@ class route_origin_elt(data_elt):
     self.sql_store()
 
     repository = parent.repository()
-
     repository.publish(self.roa, self.roa_uri(ca))
     repository.publish(self.cert, self.ee_uri(ca))
-
     ca_detail.generate_manifest()
+
+  def withdraw_roa(self):
+    """Withdraw ROA associated with this route_origin."""
+
+    ca_detail = self.ca_detail()
+    ca = ca_detail.ca()
+    repository = ca.parent().repository()
+    repository.publish(self.roa, self.roa_uri(ca))
+    repository.publish(self.cert, self.ee_uri(ca))
+    ca_detail.generate_manifest()
+
+  def reissue_roa(self):
+    """Reissue ROA associated with this route_origin."""
+    rpki.log.debug("route_origin.ca_detail %s" % repr(self.ca_detail()))
+    self.withdraw_roa()
+    rpki.log.debug("route_origin.ca_detail %s" % repr(self.ca_detail()))
+    if self.ca_detail().state != 'active':
+       self.ca_detail_id = None
+    self.generate_roa()
 
   def roa_uri(self, ca, key = None):
     """Return the publication URI for this route_origin's ROA."""

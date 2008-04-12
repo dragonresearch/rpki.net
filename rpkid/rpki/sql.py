@@ -449,8 +449,7 @@ class ca_detail_obj(sql_persistant):
       for child_cert in predecessor.child_certs():
         child_cert.reissue(self)
       for route_origin in predecessor.route_origins():
-        if route_origin.roa:
-          raise rpki.exceptions.NotImplementedYet, "Don't (yet) know how to reissue ROAs"
+        route_origin.reissue_roa()
 
   def delete(self, ca, repository):
     """Delete this ca_detail and all of the certs it issued."""
@@ -461,8 +460,7 @@ class ca_detail_obj(sql_persistant):
     for revoked__cert in self.revoked_certs():
       revoked_cert.sql_delete()
     for route_origin in self.route_origins():
-      if route_origin.roa:
-        raise rpki.exceptions.NotImplementedYet, "Don't (yet) know how to withdraw ROAs"
+      route_origin.withdraw_roa()
     repository.withdraw(self.latest_manifest, self.manifest_uri(ca))
     repository.withdraw(self.latest_crl, self.crl_uri())
     self.sql_delete()

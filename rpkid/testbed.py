@@ -949,7 +949,8 @@ jitter                  = 0
 use-links               = yes
 use-syslog              = yes
 use-stderr              = yes
-log-level               = log_telemetry
+#log-level               = log_telemetry
+log-level               = log_debug
 trust-anchor            = %(rootd_name)s.cer
 '''
 

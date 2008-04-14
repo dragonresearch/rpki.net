@@ -951,24 +951,37 @@ class route_origin_elt(data_elt):
     repository.publish(self.cert, self.ee_uri(ca))
     ca_detail.generate_manifest()
 
-  def withdraw_roa(self):
-    """Withdraw ROA associated with this route_origin."""
+  def withdraw_roa(self, reissue = False):
+    """Withdraw ROA associated with this route_origin.
+
+    In order to preserve make-before-break properties without
+    duplicating code, this method also handles issuing a new ROA.
+    """
 
     ca_detail = self.ca_detail()
     ca = ca_detail.ca()
     repository = ca.parent().repository()
-    repository.publish(self.roa, self.roa_uri(ca))
-    repository.publish(self.cert, self.ee_uri(ca))
+    cert = self.cert
+    roa = self.roa
+    roa_uri = self.roa_uri(ca)
+    ee_uri = self.ee_uri(ca)
+
+    if ca_detail.state != 'active':
+      self.ca_detail_id = None
+    if reissue:
+      self.generate_roa()
+
+    rpki.log.debug("Withdrawing ROA and revoking its EE cert")
+    rpki.sql.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
+    repository.withdraw(roa, roa_uri)
+    repository.withdraw(cert, ee_uri)
+    self.gctx.sql_sweep()
+    ca_detail.generate_crl()
     ca_detail.generate_manifest()
 
   def reissue_roa(self):
     """Reissue ROA associated with this route_origin."""
-    rpki.log.debug("route_origin.ca_detail %s" % repr(self.ca_detail()))
-    self.withdraw_roa()
-    rpki.log.debug("route_origin.ca_detail %s" % repr(self.ca_detail()))
-    if self.ca_detail().state != 'active':
-       self.ca_detail_id = None
-    self.generate_roa()
+    self.withdraw_roa(reissue = True)
 
   def roa_uri(self, ca, key = None):
     """Return the publication URI for this route_origin's ROA."""

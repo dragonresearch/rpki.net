@@ -947,9 +947,8 @@ rcynic_fmt_1 = '''\
 xml-summary             = %(rcynic_name)s.xml
 jitter                  = 0
 use-links               = yes
-use-syslog              = yes
+use-syslog              = no
 use-stderr              = yes
-#log-level               = log_telemetry
 log-level               = log_debug
 trust-anchor            = %(rootd_name)s.cer
 '''

@@ -163,6 +163,7 @@ static const struct {
   QQ(crldp_missing,		"CRLDP extensions missing")	 \
   QQ(aia_mismatch,		"Mismatched AIA extensions")	 \
   QQ(unknown_verify_error,	"Unknown OpenSSL verify error")	 \
+  QQ(current_cert_recheck,      "Certificates rechecked")	 \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QQ(mib_openssl_##x, 0)
@@ -210,7 +211,7 @@ typedef struct certinfo {
 typedef struct rcynic_ctx {
   char *authenticated, *old_authenticated, *unauthenticated;
   char *jane, *rsync_program;
-  STACK *rsync_cache, *host_counters;
+  STACK *rsync_cache, *host_counters, *backup_cache;
   int indent, rsync_timeout, use_syslog, allow_stale_crl, use_links;
   int priority[LOG_LEVEL_T_MAX];
   log_level_t log_level;
@@ -409,6 +410,29 @@ static int mkdir_maybe(const rcynic_ctx_t *rc, const char *name)
 }
 
 /*
+ * strdup() a string and push it onto a stack.
+ */
+static int sk_push_strdup(STACK *sk, const char *str)
+{
+  char *s = strdup(str);
+
+  if (s && sk_push(sk, s))
+    return 1;
+  if (s)
+    free(s);
+  return 0;
+}
+
+/*
+ * Compare two URI strings, for OpenSSL STACK operations.
+ */
+
+static int uri_cmp(const char * const *a, const char * const *b)
+{
+  return strcmp(*a, *b);
+}
+
+/*
  * Is string an rsync URI?
  */
 static int is_rsync(const char *uri)
@@ -543,6 +567,7 @@ static int cp(const char *source, const char *target)
 
 static int ln(const char *source, const char *target)
 {
+  unlink(target);
   return link(source, target) == 0;
 }
 
@@ -723,11 +748,6 @@ static int rm_rf(const char *name)
  * Taken all together, this is pretty icky.  Breaking it into separate
  * functions wouldn't help much.  Don't read this on a full stomach.
  */
-
-static int rsync_cmp(const char * const *a, const char * const *b)
-{
-  return strcmp(*a, *b);
-}
 
 static int rsync_cached(const rcynic_ctx_t *rc,
 			const char *uri)
@@ -926,11 +946,8 @@ static int rsync(const rcynic_ctx_t *rc,
   strcpy(buffer, uri + SIZEOF_RSYNC);
   if ((s = strrchr(buffer, '/')) != NULL && s[1] == '\0')
     *s = '\0';
-  if ((s = strdup(buffer)) == NULL || !sk_push(rc->rsync_cache, s)) {
-    if (s)
-      free(s);
+  if (!sk_push_strdup(rc->rsync_cache, buffer))
     logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri);
-  }
 
   return ret;
 }
@@ -1419,16 +1436,6 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
     goto punt;
   }
 
-#if 0
-  /*
-   * Ongoing discussion about removing this restriction from the profile.
-   */
-  if (!subj->ca && subj->sia[0]) {
-    logmsg(rc, log_data_err, "EE certificate %s with SIA extension", uri);
-    goto punt;
-  }
-#endif
-
   if (!subj->crldp[0]) {
     logmsg(rc, log_data_err, "Missing CRLDP extension for %s", uri);
     mib_increment(rc, uri, crldp_missing);
@@ -1460,11 +1467,20 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 
   assert(certs);
 
-  if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) && 
-      !access(path, R_OK))
-    return NULL;	       /* Already seen, don't walk it again */
+  /*
+   * If target file already exists and we're not here to recheck with
+   * better data, just get out now.
+   */
 
-  logmsg(rc, log_telemetry, "Checking cert %s", uri);
+  if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) && 
+      !access(path, R_OK)) {
+    if (backup || sk_find(rc->backup_cache, uri) < 0)
+      return NULL;
+    mib_increment(rc, uri, current_cert_recheck);
+    logmsg(rc, log_telemetry, "Rechecking cert %s", uri);
+  } else {
+    logmsg(rc, log_telemetry, "Checking cert %s", uri);
+  }
 
   rc->indent++;
 
@@ -1473,6 +1489,11 @@ static X509 *check_cert(rcynic_ctx_t *rc,
     install_object(rc, uri, path, 5);
     mib_increment(rc, uri,
 		  (backup ? backup_cert_accepted : current_cert_accepted));
+    if (!backup)
+      sk_delete(rc->backup_cache, sk_find(rc->backup_cache, uri));
+    else if (!sk_push_strdup(rc->backup_cache, uri))
+      logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri);
+      
   } else if (!access(path, F_OK)) {
     mib_increment(rc, uri,
 		  (backup ? backup_cert_rejected : current_cert_rejected));
@@ -1538,11 +1559,13 @@ static void walk_cert(rcynic_ctx_t *rc,
     while (next_uri(rc, parent->sia, rc->unauthenticated,
 		    uri, sizeof(uri), &dir))
       walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0);
+    logmsg(rc, log_debug, "Done walking unauthenticated store");
 
     logmsg(rc, log_debug, "Walking old authenticated store");
     while (next_uri(rc, parent->sia, rc->old_authenticated,
 		    uri, sizeof(uri), &dir))
       walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1);
+    logmsg(rc, log_debug, "Done walking old authenticated store");
 
     assert(sk_X509_num(certs) == n_cert);
 
@@ -1729,8 +1752,13 @@ int main(int argc, char *argv[])
 
   }
 
-  if ((rc.rsync_cache = sk_new(rsync_cmp)) == NULL) {
+  if ((rc.rsync_cache = sk_new(uri_cmp)) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate rsync_cache stack");
+    goto done;
+  }
+
+  if ((rc.backup_cache = sk_new(uri_cmp)) == NULL) {
+    logmsg(&rc, log_sys_err, "Couldn't allocate backup_cache stack");
     goto done;
   }
 
@@ -1944,6 +1972,7 @@ int main(int argc, char *argv[])
    */
   sk_X509_pop_free(certs, X509_free);
   sk_pop_free(rc.rsync_cache, free);
+  sk_pop_free(rc.backup_cache, free);
   sk_pop_free(rc.host_counters, free);
   X509_STORE_free(rc.x509_store);
   NCONF_free(cfg_handle);

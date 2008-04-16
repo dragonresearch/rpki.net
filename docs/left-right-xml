@@ -40,6 +40,7 @@
                 publish_world_now="yes"
                 clear_extension_preferences="yes"
 		crl_interval="3600"
+		regen_margin="86400"
 		use_hsm="no">
             <extension_preference name="color">Blue</extension_preference>
         </self>

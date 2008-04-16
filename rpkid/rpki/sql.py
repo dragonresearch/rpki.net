@@ -449,7 +449,7 @@ class ca_detail_obj(sql_persistant):
       for child_cert in predecessor.child_certs():
         child_cert.reissue(self)
       for route_origin in predecessor.route_origins():
-        route_origin.reissue_roa()
+        route_origin.regenerate_roa()
 
   def delete(self, ca, repository):
     """Delete this ca_detail and all of the certs it issued."""

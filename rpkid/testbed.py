@@ -337,6 +337,8 @@ class allocation_db(list):
     assert self.root.is_root()
     if self.root.crl_interval is None:
       self.root.crl_interval = timedelta.parse(cfg.get("crl_interval", "1d")).convert_to_seconds()
+    if self.root.regen_margin is None:
+      self.root.regen_margin = timedelta.parse(cfg.get("regen_margin", "1d")).convert_to_seconds()
     for a in self:
       if a.sia_base is None:
         a.sia_base = (rootd_sia if a.is_root() else a.parent.sia_base) + a.name + "/"
@@ -344,6 +346,8 @@ class allocation_db(list):
         a.base.valid_until = a.parent.base.valid_until
       if a.crl_interval is None:
         a.crl_interval = a.parent.crl_interval
+      if a.regen_margin is None:
+        a.regen_margin = a.parent.regen_margin
     self.root.closure()
     self.map = dict((a.name, a) for a in self)
     self.engines = [a for a in self if not a.is_leaf()]
@@ -374,6 +378,7 @@ class allocation(object):
   rpki_db_name = None
   rpki_port    = None
   crl_interval = None
+  regen_margin = None
 
   def __init__(self, yaml, db, parent = None):
     """Initialize one entity and insert it into the database."""
@@ -392,6 +397,8 @@ class allocation(object):
     self.sia_base = yaml.get("sia_base")
     if "crl_interval" in yaml:
       self.crl_interval = timedelta.parse(yaml["crl_interval"]).convert_to_seconds()
+    if "regen_margin" in yaml:
+      self.regen_margin = timedelta.parse(yaml["regen_margin"]).convert_to_seconds()
     self.route_origins = set()
     if "route_origin" in yaml:
       for y in yaml.get("route_origin"):
@@ -600,7 +607,8 @@ class allocation(object):
     """
 
     rpki.log.info("Creating rpkid self object for %s" % self.name)
-    self.self_id = self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "create", crl_interval = self.crl_interval)).self_id
+    self.self_id = self.call_rpkid(rpki.left_right.self_elt.make_pdu(
+      action = "create", crl_interval = self.crl_interval, regen_margin = self.regen_margin)).self_id
 
     rpki.log.info("Creating rpkid BSC object for %s" % self.name)
     pdu = self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "create", self_id = self.self_id, generate_keypair = True))

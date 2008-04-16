@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="US-ASCII"?>
 <!--Automatically generated, do not edit.-->
 <msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1">
-  <self action="set" type="query" self_id="42" rekey="yes" reissue="yes" revoke="yes" run_now="yes" publish_world_now="yes" clear_extension_preferences="yes" crl_interval="3600" use_hsm="no">
+  <self action="set" type="query" self_id="42" rekey="yes" reissue="yes" revoke="yes" run_now="yes" publish_world_now="yes" clear_extension_preferences="yes" crl_interval="3600" regen_margin="86400" use_hsm="no">
     <extension_preference name="color">Blue</extension_preference>
   </self>
 </msg>

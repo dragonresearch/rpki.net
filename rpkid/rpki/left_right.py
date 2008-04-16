@@ -214,15 +214,16 @@ class self_elt(data_elt):
   """<self/> element."""
 
   element_name = "self"
-  attributes = ("action", "type", "tag", "self_id", "crl_interval")
+  attributes = ("action", "type", "tag", "self_id", "crl_interval", "regen_margin")
   elements = ("extension_preference",)
   booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now", "clear_extension_preferences")
 
-  sql_template = rpki.sql.template("self", "self_id", "use_hsm", "crl_interval")
+  sql_template = rpki.sql.template("self", "self_id", "use_hsm", "crl_interval", "regen_margin")
 
   self_id = None
   use_hsm = False
   crl_interval = None
+  regen_margin = None
 
   def __init__(self):
     """Initialize a self_elt."""
@@ -419,15 +420,11 @@ class self_elt(data_elt):
           ca_detail.generate_crl()
           ca_detail.generate_manifest()
 
-  def generate_roas(self):
-    """Generate ROAs for this self's route_origin objects.
-
-    This doesn't yet handle revocation or regeneration of existing
-    ROAs, the underlying support for that hasn't been written yet.
-    """
+  def update_roas(self):
+    """Generate or update ROAs for this self's route_origin objects."""
 
     for route_origin in self.route_origins():
-      route_origin.generate_roa()
+      route_origin.update_roa()
 
 class bsc_elt(data_elt):
   """<bsc/> (Business Signing Context) element."""
@@ -883,6 +880,34 @@ class route_origin_elt(data_elt):
     """Generate <route_origin/> element."""
     return self.make_elt()
 
+  def update_roa(self):
+    """Bring this route_origin's ROA up to date if necesssary."""
+
+    if self.roa is None:
+      return self.generate_roa()
+
+    ca_detail = self.ca_detail()
+
+    if ca_detail.state != "active":
+      return self.regenerate_roa()
+
+    regen_margin = rpki.sundial.timedelta(seconds = self.self().regen_margin)
+
+    if rpki.sundial.now() + regen_margin > self.cert.getNotAfter():
+      return self.regenerate_roa()
+
+    ca_resources = ca_detail.latest_ca_cert.get_3779resources()
+    ee_resources = self.cert.get_3779resources()
+
+    if ee_resources.oversized(ca_resources):
+      return self.regenerate_roa()
+
+    v4 = self.ipv4 if self.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
+    v6 = self.ipv6 if self.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
+
+    if ee_resources.v4 != v4 or ee_resources.v6 != v6:
+      return self.regenerate_roa()
+
   def generate_roa(self):
     """Generate a ROA based on this <route_origin/> object.
 
@@ -918,17 +943,20 @@ class route_origin_elt(data_elt):
     # first checking the ca_detail we used last time, but it may not
     # be active, in which we have to check the ca_detail that replaced it.
 
-    for parent in self.self().parents():
-      for ca in parent.cas():
-        ca_detail = ca.fetch_active()
+    ca_detail = self.ca_detail()
+    if ca_detail is None or ca_detail.state != "active":
+      ca_detail = None
+      for parent in self.self().parents():
+        for ca in parent.cas():
+          ca_detail = ca.fetch_active()
+          if ca_detail is not None:
+            resources = ca_detail.latest_ca_cert.get_3779resources()
+            if ((self.ipv4 is None or self.ipv4.issubset(resources.v4)) and
+                (self.ipv6 is None or self.ipv6.issubset(resources.v6))):
+              break
+            ca_detail = None
         if ca_detail is not None:
-          resources = ca_detail.latest_ca_cert.get_3779resources()
-          if ((self.ipv4 is None or self.ipv4.issubset(resources.v4)) and
-              (self.ipv6 is None or self.ipv6.issubset(resources.v6))):
-            break
-          ca_detail = None
-      if ca_detail is not None:
-        break
+          break
 
     if ca_detail is None:
       rpki.log.warn("generate_roa() could not find a covering certificate")
@@ -951,11 +979,12 @@ class route_origin_elt(data_elt):
     repository.publish(self.cert, self.ee_uri(ca))
     ca_detail.generate_manifest()
 
-  def withdraw_roa(self, reissue = False):
+  def withdraw_roa(self, regenerate = False):
     """Withdraw ROA associated with this route_origin.
 
     In order to preserve make-before-break properties without
-    duplicating code, this method also handles issuing a new ROA.
+    duplicating code, this method also handles generating a
+    replacement ROA when requested.
     """
 
     ca_detail = self.ca_detail()
@@ -968,7 +997,7 @@ class route_origin_elt(data_elt):
 
     if ca_detail.state != 'active':
       self.ca_detail_id = None
-    if reissue:
+    if regenerate:
       self.generate_roa()
 
     rpki.log.debug("Withdrawing ROA and revoking its EE cert")
@@ -979,9 +1008,9 @@ class route_origin_elt(data_elt):
     ca_detail.generate_crl()
     ca_detail.generate_manifest()
 
-  def reissue_roa(self):
+  def regenerate_roa(self):
     """Reissue ROA associated with this route_origin."""
-    self.withdraw_roa(reissue = True)
+    self.withdraw_roa(regenerate = True)
 
   def roa_uri(self, ca, key = None):
     """Return the publication URI for this route_origin's ROA."""

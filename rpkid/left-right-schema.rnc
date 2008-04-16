@@ -52,7 +52,8 @@ self_bool = (attribute rekey { "yes" }?,
              attribute clear_extension_preferences { "yes" }?)
 
 self_payload = (attribute use_hsm { "yes" | "no" }?,
-                attribute crl_interval { xsd:token { maxLength="1024" } }?,
+                attribute crl_interval { xsd:positiveInteger }?,
+                attribute regen_margin { xsd:positiveInteger }?,
                 element extension_preference {
                   attribute name { xsd:token { maxLength="1024" } },
                   xsd:string { maxLength="512000" }

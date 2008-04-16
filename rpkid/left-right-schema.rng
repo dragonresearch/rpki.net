@@ -201,9 +201,12 @@
     </optional>
     <optional>
       <attribute name="crl_interval">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
+        <data type="positiveInteger"/>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="regen_margin">
+        <data type="positiveInteger"/>
       </attribute>
     </optional>
     <zeroOrMore>

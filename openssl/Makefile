@@ -1,6 +1,6 @@
 # $Id$
 
-VERSION = SNAP-20080409
+VERSION = SNAP-20080417
 
 all: openssl-${VERSION}/Makefile
 	cd openssl-${VERSION}; make $@

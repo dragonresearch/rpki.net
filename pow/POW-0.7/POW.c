@@ -6743,20 +6743,21 @@ CMS_object_sign(cms_object *self, PyObject *args)
 {
    asymmetric_object *signkey = NULL;
    x509_object *signcert = NULL;
-   PyObject *x509_sequence = NULL;
+   PyObject *x509_sequence = NULL, *no_certs = Py_False;
    STACK_OF(X509) *x509_stack = NULL;
    EVP_PKEY *pkey = NULL;
-   char *buf = NULL;
-   int len, flags = CMS_BINARY | CMS_NOATTR;
+   char *buf = NULL, *oid = NULL;
+   int len, flags = CMS_BINARY | CMS_NOSMIMECAP | CMS_PARTIAL;
    BIO *bio = NULL;
    CMS_ContentInfo *cms = NULL;
-   PyObject *no_certs = Py_False;
+   ASN1_OBJECT *econtent_type = NULL;
 
-   if (!PyArg_ParseTuple(args, "O!O!Os#|O!",
+   if (!PyArg_ParseTuple(args, "O!O!Os#|sO!",
 			 &x509type, &signcert,
 			 &asymmetrictype, &signkey,
 			 &x509_sequence,
 			 &buf, &len,
+			 &oid,
 			 &PyBool_Type, &no_certs))
       goto error;
 
@@ -6767,19 +6768,31 @@ CMS_object_sign(cms_object *self, PyObject *args)
       goto error;
 
    if ( !(pkey = EVP_PKEY_new() ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      { set_openssl_pyerror( "could not allocate memory" ); goto error; }
 
    if ( !(EVP_PKEY_assign_RSA(pkey, signkey->cipher) ) )
-      { PyErr_SetString( SSLErrorObject, "EVP_PKEY assignment error" ); goto error; }
+      { set_openssl_pyerror( "EVP_PKEY assignment error" ); goto error; }
 
    if ( !(bio = BIO_new_mem_buf(buf, len)))
       goto error;
 
+   if ( oid && (econtent_type = OBJ_txt2obj(oid, 0)) == NULL )
+      { set_openssl_pyerror( "could not parse OID" ); goto error; }
+
    if ( no_certs == Py_True )
       flags |= CMS_NOCERTS;
 
-   if ( !(cms = CMS_sign(signcert->x509, pkey, x509_stack, bio, flags)))
+   if ( !(cms = CMS_sign(NULL, NULL, x509_stack, bio, flags)))
+      { set_openssl_pyerror( "could not create CMS message" ); goto error; }
+
+   if (econtent_type)
+      CMS_set1_eContentType(cms, econtent_type);
+
+   if ( !CMS_add1_signer(cms, signcert->x509, pkey, EVP_sha256(), flags))
       { set_openssl_pyerror( "could not sign CMS message" ); goto error; }
+
+   if ( !CMS_final(cms, bio, NULL, flags))
+      { set_openssl_pyerror( "could not finalize CMS signatures" ); goto error; }
 
    if (self->cms)
       CMS_ContentInfo_free(self->cms);
@@ -6788,6 +6801,8 @@ CMS_object_sign(cms_object *self, PyObject *args)
 
    sk_X509_free(x509_stack);
    BIO_free(bio);
+   if (econtent_type)
+      ASN1_OBJECT_free(econtent_type);
 
    return Py_BuildValue("");
 
@@ -6804,6 +6819,9 @@ error:
 
    if (pkey)
       EVP_PKEY_free(pkey);
+
+   if (econtent_type)
+      ASN1_OBJECT_free(econtent_type);
 
    return NULL;
 }

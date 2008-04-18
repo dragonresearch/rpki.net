@@ -22,20 +22,25 @@ ee = rpki.x509.X509(Auto_file = "biz-certs/Alice-EE.cer").get_POW()
 ca = rpki.x509.X509(Auto_file = "biz-certs/Alice-CA.cer").get_POW()
 ta = rpki.x509.X509(Auto_file = "biz-certs/Alice-Root.cer").get_POW()
 
+oid = "1.2.840.113549.1.9.16.1.24"
+
 plaintext = "Wombats Are Us"
 
-p7 = POW.PKCS7()
+cms = POW.CMS()
 
-#p7.sign(ee, key, [ca], plaintext)
-#p7.sign(ee, key, [], plaintext)
-#p7.sign(ee, key, [], plaintext, False)
-p7.sign(ee, key, [], plaintext, True)
+#cms.sign(ee, key, [ca], plaintext, oid)
+#cms.sign(ee, key, [ca], plaintext, oid, False)
+#cms.sign(ee, key, [ca], plaintext, oid, True)
 
-#print p7.pemWrite()
+#cms.sign(ee, key, [], plaintext, oid)
+#cms.sign(ee, key, [], plaintext, oid, False)
+cms.sign(ee, key, [], plaintext, oid, True)
+
+#print cms.pemWrite()
 
 if False:
   f = open("test-pow-cms.der", "w")
-  f.write(p7.derWrite())
+  f.write(cms.derWrite())
   f.close()
   if False:
     f = os.popen("dumpasn1 2>&1 -a test-pow-cms.der")
@@ -57,6 +62,6 @@ if store.verify(ee):
 else:
   print "Couldn't verify EE"
 
-result = p7.verify(store, [ee])
+result = cms.verify(store, [ee])
 print result
 

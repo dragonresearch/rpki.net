@@ -42,6 +42,6 @@ cfg = rpki.config.parser(cfg_file, "cronjob")
 
 print rpki.https.client(client_key   = rpki.x509.RSA(Auto_file = cfg.get("https-key")),
                         client_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert")),
-                        server_ta    = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta")),
+                        server_ta    = rpki.x509.X509(Auto_file = cfg.get("https-ta")),
                         url          = cfg.get("https-url"),
                         msg          = "Please run cron now.")

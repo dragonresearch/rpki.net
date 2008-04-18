@@ -133,10 +133,4 @@ https_key   = get_PEM("ssl-key", rpki.x509.RSA)
 https_cert  = get_PEM("ssl-cert", rpki.x509.X509)
 https_certs = get_PEM_chain("ssl-cert-chain", https_cert)
 
-ta = https_ta
-https_ta    = rpki.x509.X509_chain()
-if ta is not None:
-  https_ta.append(ta)
-del ta
-
 dispatch[yaml_req["type"]]()

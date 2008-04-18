@@ -578,7 +578,7 @@ class allocation(object):
     cms = rpki.https.client(
       client_key   = testbed_key,
       client_certs = testbed_certs,
-      server_ta    = rpki.x509.X509_chain(self.rpkid_ta),
+      server_ta    = self.rpkid_ta,
       url          = url,
       msg          = cms)
     elt = rpki.cms.xml_verify(der = cms, ta = self.rpkid_ta)
@@ -681,7 +681,7 @@ class allocation(object):
     rpki.log.info("Running cron for %s" % self.name)
     rpki.https.client(client_key   = testbed_key,
                       client_certs = testbed_certs,
-                      server_ta    = rpki.x509.X509_chain(self.rpkid_ta),
+                      server_ta    = self.rpkid_ta,
                       url          = "https://localhost:%d/cronjob" % self.rpki_port,
                       msg          = "Run cron now, please")
 

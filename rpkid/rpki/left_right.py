@@ -617,7 +617,7 @@ class parent_elt(data_elt):
       raise
     q_cms = rpki.cms.xml_sign(q_elt, bsc.private_key_id, bsc.signing_cert, encoding = "UTF-8")
 
-    r_cms = rpki.https.client(server_ta    = rpki.x509.X509_chain(self.peer_biz_cert),
+    r_cms = rpki.https.client(server_ta    = self.peer_biz_cert,
                               client_key   = bsc.private_key_id,
                               client_certs = bsc.signing_cert,
                               msg          = q_cms,

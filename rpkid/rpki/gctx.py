@@ -41,10 +41,10 @@ class global_context(object):
     self.cms_key       = rpki.x509.RSA(Auto_file = cfg.get("cms-key"))
     self.cms_certs     = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
 
+    self.https_ta_irdb = rpki.x509.X509(Auto_file = cfg.get("https-ta-irdb"))
+    self.https_ta_irbe = rpki.x509.X509(Auto_file = cfg.get("https-ta-irbe"))
     self.https_key     = rpki.x509.RSA(Auto_file = cfg.get("https-key"))
     self.https_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
-    self.https_ta_irdb = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta-irdb"))
-    self.https_ta_irbe = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta-irbe"))
 
     self.irdb_url    = cfg.get("irdb-url")
 
@@ -190,7 +190,7 @@ class global_context(object):
       children = rpki.left_right.child_elt.sql_fetch_all(self)
       certs = [c.peer_biz_cert for c in children if c.peer_biz_cert is not None] + \
               [c.peer_biz_glue for c in children if c.peer_biz_glue is not None] + \
-              self.https_ta_irbe
+              [ self.https_ta_irbe ]
       for x in certs:
         if rpki.https.debug_tls_certs:
           rpki.log.debug("HTTPS dynamic trust anchor %s" % x.getSubject())

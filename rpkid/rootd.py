@@ -179,9 +179,9 @@ cms_ta      = rpki.x509.X509(Auto_file = cfg.get("cms-ta"))
 cms_key     = rpki.x509.RSA(Auto_file = cfg.get("cms-key"))
 cms_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
 
+https_ta    = rpki.x509.X509(Auto_file = cfg.get("https-ta"))
 https_key   = rpki.x509.RSA(Auto_file = cfg.get("https-key"))
 https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
-https_ta    = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta"))
 
 https_server_host = cfg.get("server-host", "")
 https_server_port = int(cfg.get("server-port"))

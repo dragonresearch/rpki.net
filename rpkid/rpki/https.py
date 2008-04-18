@@ -38,17 +38,16 @@ rpki_content_type = "application/x-rpki"
 class Checker(tlslite.api.Checker):
   """Derived class to handle X.509 client certificate checking."""
 
-  def __init__(self, trust_anchors = None, dynamic_x509store = None):
+  def __init__(self, trust_anchor = None, dynamic_x509store = None):
     """Initialize our modified certificate checker."""
 
     self.dynamic_x509store = dynamic_x509store
 
     if dynamic_x509store is None:
       self.x509store = POW.X509Store()
-      for x in trust_anchors:
-        if debug_tls_certs:
-          rpki.log.debug("HTTPS trust anchor %s" % x.getSubject())
-        self.x509store.addTrust(x.get_POW())
+      if debug_tls_certs:
+        rpki.log.debug("HTTPS trust anchor %s" % trust_anchor.getSubject())
+      self.x509store.addTrust(trust_anchor.get_POW())
     elif debug_tls_certs:
       rpki.log.debug("HTTPS dynamic trust anchors")
 
@@ -92,7 +91,7 @@ class httpsClient(tlslite.api.HTTPTLSConnection):
       self, host = host, port = port, settings = settings,
       certChain = client_certs, privateKey = client_key)
 
-    self.checker = Checker(trust_anchors = server_ta)
+    self.checker = Checker(trust_anchor = server_ta)
 
 def client(msg, client_key, client_certs, server_ta, url, timeout = 300):
   """Open client HTTPS connection, send a message, wait for response.
@@ -220,6 +219,6 @@ def server(handlers, server_key, server_certs, port = 4433, host = "", client_ta
   httpd.rpki_server_key   = server_key.get_tlslite()
   httpd.rpki_server_certs = server_certs.tlslite_certChain()
   httpd.rpki_sessionCache = tlslite.api.SessionCache()
-  httpd.rpki_checker      = Checker(trust_anchors = client_ta, dynamic_x509store = dynamic_x509store)
+  httpd.rpki_checker      = Checker(trust_anchor = client_ta, dynamic_x509store = dynamic_x509store)
 
   httpd.serve_forever()

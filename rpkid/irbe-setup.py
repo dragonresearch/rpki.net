@@ -37,7 +37,7 @@ cms_key     = rpki.x509.RSA(       Auto_file  = cfg.get(     "cms-key"))
 cms_ta      = rpki.x509.X509(      Auto_file  = cfg.get(     "cms-ta"))
 https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
 https_key   = rpki.x509.RSA(       Auto_file  = cfg.get(     "https-key"))
-https_tas   = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta"))
+https_ta    = rpki.x509.X509(      Auto_file  = cfg.get(     "https-ta"))
 https_url   = cfg.get(                                       "https-url")
 
 def call_rpkid(pdu):
@@ -55,7 +55,7 @@ def call_rpkid(pdu):
     raise
   elt = rpki.cms.xml_verify(der = rpki.https.client(client_key   = https_key,
                                                     client_certs = https_certs,
-                                                    server_ta    = https_tas,
+                                                    server_ta    = https_ta,
                                                     url          = https_url,
                                                     msg          = rpki.cms.xml_sign(elt   = elt,
                                                                                      key   = cms_key,

@@ -126,7 +126,7 @@ assert u.scheme in ("", "https") and \
 
 rpki.https.server(server_key   = rpki.x509.RSA(Auto_file = cfg.get("https-key")),
                   server_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert")),
-                  client_ta    = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-ta")),
+                  client_ta    = rpki.x509.X509(Auto_file = cfg.get("https-ta")),
                   host         = u.hostname or "localhost",
                   port         = u.port or 443,
                   handlers     = ((u.path, handler),))

@@ -22,31 +22,6 @@ ee = rpki.x509.X509(Auto_file = "biz-certs/Alice-EE.cer").get_POW()
 ca = rpki.x509.X509(Auto_file = "biz-certs/Alice-CA.cer").get_POW()
 ta = rpki.x509.X509(Auto_file = "biz-certs/Alice-Root.cer").get_POW()
 
-oid = "1.2.840.113549.1.9.16.1.24"
-
-plaintext = "Wombats Are Us"
-
-cms = POW.CMS()
-
-#cms.sign(ee, key, [ca], plaintext, oid)
-#cms.sign(ee, key, [ca], plaintext, oid, False)
-#cms.sign(ee, key, [ca], plaintext, oid, True)
-
-#cms.sign(ee, key, [], plaintext, oid)
-#cms.sign(ee, key, [], plaintext, oid, False)
-cms.sign(ee, key, [], plaintext, oid, True)
-
-#print cms.pemWrite()
-
-if False:
-  f = open("test-pow-cms.der", "w")
-  f.write(cms.derWrite())
-  f.close()
-  if False:
-    f = os.popen("dumpasn1 2>&1 -a test-pow-cms.der")
-    print "\n".join(x for x in f.read().splitlines() if x.startswith(" "))
-    f.close()
-
 store = POW.X509Store()
 store.addTrust(ta)
 
@@ -62,6 +37,29 @@ if store.verify(ee):
 else:
   print "Couldn't verify EE"
 
-result = cms.verify(store, [ee])
-print result
+oid = "1.2.840.113549.1.9.16.1.24"
 
+plaintext = "Wombats Are Us"
+
+for args in ((ee, key, [ca], plaintext, oid),
+             (ee, key, [ca], plaintext, oid, True),
+             (ee, key, [ca], plaintext, oid, False),
+             (ee, key, [], plaintext, oid),
+             (ee, key, [], plaintext, oid, True),
+             (ee, key, [], plaintext, oid, False)):
+
+  print "Testing", repr(args)
+
+  cms = POW.CMS()
+  cms.sign(*args)
+
+  if False:
+    f = open("test-pow-cms.der", "w")
+    f.write(cms.derWrite())
+    f.close()
+    if False:
+      f = os.popen("dumpasn1 2>&1 -a test-pow-cms.der")
+      print "\n".join(x for x in f.read().splitlines() if x.startswith(" "))
+      f.close()
+
+  cms.verify(store, [ee])

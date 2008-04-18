@@ -194,7 +194,12 @@ which tried to pull in -lefence (/usr/ports/devel/ElectricFence), so I
 installed that.  Sadly, ElectricFence is not kidding when it says it
 is very very very slow, but it was the bignum debugging printouts that
 were driving me nuts, so I ended up creating my own "debug-sra"
-configuration for the options I want.
+configuration for the options I want:
+
+  "debug-sra", "gcc:-DOPENSSL_RFC3779 -DDEBUG_SAFESTACK -DREF_CHECK -DCONF_DEBUG -DCRYPTO_MDEBUG -ggdb -g2 -Wall -Wshadow -Wmissing-prototypes -Wmissing-declarations -Werror::(unknown)::::::",
+
+You may have to remove -Werror when working with OpenSSL snapshots,
+since snapshots sometimes generate compilation warnings.
 
 
 

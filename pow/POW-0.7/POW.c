@@ -6747,7 +6747,7 @@ CMS_object_sign(cms_object *self, PyObject *args)
    STACK_OF(X509) *x509_stack = NULL;
    EVP_PKEY *pkey = NULL;
    char *buf = NULL, *oid = NULL;
-   int len, flags = CMS_BINARY | CMS_NOSMIMECAP | CMS_PARTIAL;
+   int i, len, flags = CMS_BINARY | CMS_NOSMIMECAP | CMS_PARTIAL;
    BIO *bio = NULL;
    CMS_ContentInfo *cms = NULL;
    ASN1_OBJECT *econtent_type = NULL;
@@ -6782,8 +6782,12 @@ CMS_object_sign(cms_object *self, PyObject *args)
    if ( no_certs == Py_True )
       flags |= CMS_NOCERTS;
 
-   if ( !(cms = CMS_sign(NULL, NULL, x509_stack, bio, flags)))
+   if ( !(cms = CMS_sign(NULL, NULL, NULL, bio, flags)))
       { set_openssl_pyerror( "could not create CMS message" ); goto error; }
+
+   for ( i = 0; i < sk_X509_num(x509_stack); i++ )
+      if ( !CMS_add1_cert(cms, sk_X509_value(x509_stack, i)))
+	 { set_openssl_pyerror( "could not add cert to CMS message" ); goto error; }
 
    if (econtent_type)
       CMS_set1_eContentType(cms, econtent_type);

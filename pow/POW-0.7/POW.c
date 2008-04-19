@@ -148,17 +148,17 @@
 #define DER_FORMAT            2
 
 // Object check functions
-#define X_X509_Check(op) ((op)->ob_type == &x509type)
-#define X_X509_store_Check(op) ((op)->ob_type == &x509_storetype)
-#define X_X509_crl_Check(op) ((op)->ob_type == &x509_crltype)
+#define X_X509_Check(op)	 ((op)->ob_type == &x509type)
+#define X_X509_store_Check(op)	 ((op)->ob_type == &x509_storetype)
+#define X_X509_crl_Check(op)	 ((op)->ob_type == &x509_crltype)
 #define X_X509_revoked_Check(op) ((op)->ob_type == &x509_revokedtype)
-#define X_asymmetric_Check(op) ((op)->ob_type == &asymmetrictype)
-#define X_symmetric_Check(op) ((op)->ob_type == &symmetrictype)
-#define X_digest_Check(op) ((op)->ob_type == &digesttype)
-#define X_hmac_Check(op) ((op)->ob_type == &hmactype)
-#define X_ssl_Check(op) ((op)->ob_type == &ssltype)
-#define X_pkcs7_Check(op) ((op)->ob_type == &pkcs7type)
-#define X_cms_Check(op) ((op)->ob_type == &cmstype)
+#define X_asymmetric_Check(op)	 ((op)->ob_type == &asymmetrictype)
+#define X_symmetric_Check(op)	 ((op)->ob_type == &symmetrictype)
+#define X_digest_Check(op)	 ((op)->ob_type == &digesttype)
+#define X_hmac_Check(op)	 ((op)->ob_type == &hmactype)
+#define X_ssl_Check(op)		 ((op)->ob_type == &ssltype)
+#define X_pkcs7_Check(op)	 ((op)->ob_type == &pkcs7type)
+#define X_cms_Check(op)		 ((op)->ob_type == &cmstype)
 
 static char pow_module__doc__ [] = 
 "<moduleDescription>\n"
@@ -290,9 +290,9 @@ typedef struct {
    Simple function to install a constant in the module name space.
 */
 static void
-install_int_const( PyObject *d, char *name, int value )
+install_int_const( PyObject *d, char *name, long value )
 {
-   PyObject *v = PyInt_FromLong( (long)value );
+   PyObject *v = PyInt_FromLong(value);
    if (!v || PyDict_SetItemString(d, name, v) )
       PyErr_Clear();
 

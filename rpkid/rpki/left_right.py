@@ -610,21 +610,16 @@ class parent_elt(data_elt):
       sender = self.sender_name,
       recipient = self.recipient_name)
     q_elt = q_msg.toXML()
-    try:
-      rpki.relaxng.up_down.assertValid(q_elt)
-    except lxml.etree.DocumentInvalid:
-      rpki.log.error("Message does not pass schema check: " + lxml.etree.tostring(q_elt, pretty_print = True))
-      raise
-    q_cms = rpki.cms.xml_sign(q_elt, bsc.private_key_id, bsc.signing_cert, encoding = "UTF-8")
+    q_cms = rpki.x509.up_down_pdu.build(q_elt, bsc.private_key_id, bsc.signing_cert)
 
-    r_cms = rpki.https.client(server_ta    = self.peer_biz_cert,
-                              client_key   = bsc.private_key_id,
-                              client_certs = bsc.signing_cert,
-                              msg          = q_cms,
-                              url          = self.peer_contact_uri)
+    der = rpki.https.client(server_ta    = self.peer_biz_cert,
+                            client_key   = bsc.private_key_id,
+                            client_certs = bsc.signing_cert,
+                            msg          = q_cms.get_DER(),
+                            url          = self.peer_contact_uri)
 
-    r_elt = rpki.cms.xml_verify(r_cms, self.peer_biz_cert)
-    rpki.relaxng.up_down.assertValid(r_elt)
+    r_cms = rpki.x509.up_down_pdu(DER = der)
+    r_elt = r_cms.verify(self.peer_biz_cert)
     r_msg = rpki.up_down.sax_handler.saxify(r_elt)
     r_msg.payload.check_response()
     return r_msg
@@ -704,8 +699,8 @@ class child_elt(data_elt):
     bsc = self.bsc()
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
-    q_elt = rpki.cms.xml_verify(query, self.peer_biz_cert)
-    rpki.relaxng.up_down.assertValid(q_elt)
+    q_cms = rpki.x509.up_down_pdu(DER = query)
+    q_elt = q_cms.verify(self.peer_biz_cert)
     q_msg = rpki.up_down.sax_handler.saxify(q_elt)
     q_msg.payload.gctx = self.gctx
     if enforce_strict_up_down_xml_sender and q_msg.sender != str(self.child_id):
@@ -721,13 +716,8 @@ class child_elt(data_elt):
     # May require refactoring, ignore the issue for now.
     #
     r_elt = r_msg.toXML()
-    try:
-      rpki.relaxng.up_down.assertValid(r_elt)
-    except:
-      rpki.log.debug(lxml.etree.tostring(r_elt, pretty_print = True, encoding = "UTF-8"))
-      rpki.log.error(traceback.format_exc())
-      raise
-    return rpki.cms.xml_sign(r_elt, bsc.private_key_id, bsc.signing_cert, encoding = "UTF-8")
+    r_cms = rpki.x509.up_down_pdu.build(r_elt, bsc.private_key_id, bsc.signing_cert)
+    return r_cms.get_DER()
 
 class repository_elt(data_elt):
   """<repository/> element."""

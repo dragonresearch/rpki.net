@@ -26,7 +26,7 @@ Default configuration file is rootd.conf, override with --config option.
 
 import traceback, os, time, getopt, sys, lxml
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
-import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng
+import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng
 import rpki.sundial, rpki.log
 
 rpki_subject_lifetime = rpki.sundial.timedelta(days = 30)
@@ -130,8 +130,8 @@ class sax_handler(rpki.sax_utils.handler):
 
 def up_down_handler(query, path):
   try:
-    q_elt = rpki.cms.xml_verify(query, cms_ta)
-    rpki.relaxng.up_down.assertValid(q_elt)
+    q_cms = rpki.x509.up_down_pdu(DER = query)
+    q_elt = q_cms.verify(cms_ta)
     q_msg = sax_handler.saxify(q_elt)
   except Exception, data:
     rpki.log.error(traceback.format_exc())
@@ -139,19 +139,15 @@ def up_down_handler(query, path):
   try:
     r_msg = q_msg.serve_top_level(None)
     r_elt = r_msg.toXML()
-    try:
-      rpki.relaxng.up_down.assertValid(r_elt)
-    except lxml.etree.DocumentInvalid:
-      rpki.log.debug(lxml.etree.tostring(r_elt, pretty_print = True, encoding ="utf-8", xml_declaration = True))
-      raise
-    return 200, rpki.cms.xml_sign(r_elt, cms_key, cms_certs, encoding = "utf-8")
+    r_cms = rpki.x509.up_down_pdu.build(r_elt, cms_key, cms_certs)
+    return 200, r_cms.get_DER()
   except Exception, data:
     rpki.log.error(traceback.format_exc())
     try:
       r_msg = q_msg.serve_error(data)
       r_elt = r_msg.toXML()
-      rpki.relaxng.up_down.assertValid(r_elt)
-      return 200, rpki.cms.xml_sign(r_elt, cms_key, cms_certs, encoding = "utf-8")
+      r_cms = rpki.x509.up_down_pdu.build(r_elt, cms_key, cms_certs)
+      return 200, r_cms.get_DER()
     except Exception, data:
       rpki.log.error(traceback.format_exc())
       return 500, "Could not process PDU: %s" % data

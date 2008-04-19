@@ -29,7 +29,7 @@ Default configuration file is testpoke.yaml, override with --yaml option.
 
 import os, time, getopt, sys, lxml, yaml
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
-import rpki.https, rpki.config, rpki.cms, rpki.exceptions
+import rpki.https, rpki.config, rpki.exceptions
 import rpki.relaxng, rpki.oids, rpki.log
 
 os.environ["TZ"] = "UTC"
@@ -90,18 +90,16 @@ def query_up_down(q_pdu):
     sender = yaml_data["sender-id"],
     recipient = yaml_data["recipient-id"])
   q_elt = q_msg.toXML()
-  rpki.relaxng.up_down.assertValid(q_elt)
-  q_cms = rpki.cms.xml_sign(q_elt, cms_key, cms_certs, encoding = "UTF-8")
-  r_cms = rpki.https.client(
+  q_cms = rpki.x509.up_down_pdu.build(q_elt, cms_key, cms_certs)
+  der = rpki.https.client(
     server_ta    = https_ta,
     client_key   = https_key,
     client_certs = https_certs,
-    msg = q_cms,
-    url = yaml_data["posturl"])
-  r_xml = rpki.cms.verify(r_cms, cms_ta)
-  r_elt = lxml.etree.fromstring(r_xml)
-  rpki.relaxng.up_down.assertValid(r_elt)
-  return r_xml
+    msg          = q_cms.get_DER(),
+    url          = yaml_data["posturl"])
+  r_cms = rpki.x509.up_down_pdu(DER = der)
+  r_elt = r_cms.verify(cms_ta)
+  return r_cms.prettyprint_content()
 
 def do_list():
   print query_up_down(rpki.up_down.list_pdu())

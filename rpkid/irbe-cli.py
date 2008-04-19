@@ -21,7 +21,7 @@ The query back-channel is handled by a separate program.
 """
 
 import getopt, sys, lxml.etree, lxml.sax
-import rpki.left_right, rpki.relaxng, rpki.cms, rpki.https, rpki.x509, rpki.config, rpki.log
+import rpki.left_right, rpki.relaxng, rpki.https, rpki.x509, rpki.config, rpki.log
 
 pem_out = None
 
@@ -153,6 +153,14 @@ if not argv:
 
 cfg = rpki.config.parser(cfg_file, "irbe-cli")
 
+cms_key     = rpki.x509.RSA(       Auto_file  = cfg.get(     "cms-key"))
+cms_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
+cms_ta      = rpki.x509.X509(      Auto_file  = cfg.get(     "cms-ta"))
+https_key   = rpki.x509.RSA(       Auto_file  = cfg.get(     "https-key"))
+https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
+https_ta    = rpki.x509.X509(      Auto_file  = cfg.get(     "https-ta"))
+https_url   = cfg.get(                                       "https-url")
+
 q_msg = rpki.left_right.msg()
 
 while argv:
@@ -163,41 +171,19 @@ while argv:
   argv = q_pdu.client_getopt(argv[1:])
   q_msg.append(q_pdu)
 
-# We don't use rpki.cms.xml_sign() and rpki.cms.xml_verify() because
-# we want to display the raw XML.  If and when that changes, we clean
-# up the following slightly.
-
 q_elt = q_msg.toXML()
-q_xml = lxml.etree.tostring(q_elt, pretty_print=True, encoding="us-ascii", xml_declaration=True)
-try:
-  rpki.relaxng.left_right.assertValid(q_elt)
-except lxml.etree.DocumentInvalid:
-  print "Generated query document does not pass schema check:"
-  print
-  print q_xml
-  raise
+q_cms = rpki.x509.left_right_pdu.build(q_elt, cms_key, cms_certs)
 
-q_cms = rpki.cms.sign(q_xml,
-                        rpki.x509.RSA(Auto_file = cfg.get("cms-key")),
-                        rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert")))
+der = rpki.https.client(client_key   = https_key,
+                        client_certs = https_certs,
+                        server_ta    = https_ta,
+                        url          = https_url,
+                        msg          = q_cms.get_DER())
 
-r_cms = rpki.https.client(client_key   = rpki.x509.RSA(Auto_file = cfg.get("https-key")),
-                          client_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert")),
-                          server_ta    = rpki.x509.X509(Auto_file = cfg.get("https-ta")),
-                          url          = cfg.get("https-url"),
-                          msg          = q_cms)
+r_cms = rpki.x509.left_right(DER = der)
+r_elt = r_cms.verify(r_cms, cms_ta)
 
-r_xml = rpki.cms.verify(r_cms, rpki.x509.X509(Auto_file = cfg.get("cms-ta")))
-
-r_elt = lxml.etree.fromstring(r_xml)
-try:
-  rpki.relaxng.left_right.assertValid(r_elt)
-except lxml.etree.DocumentInvalid:
-  print "Received reply document does not pass schema check:"
-  print r_xml
-  raise
-
-print r_xml
+print r_cms.prettyprint_content()
 
 handler = sax_handler()
 lxml.sax.saxify(r_elt, handler)

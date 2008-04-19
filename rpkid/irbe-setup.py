@@ -20,7 +20,7 @@ engine for every registrant object in the IRDB.
 """
 
 import os, MySQLdb, getopt, sys, lxml.etree, lxml.sax
-import rpki.left_right, rpki.relaxng, rpki.cms, rpki.https
+import rpki.left_right, rpki.relaxng, rpki.https
 import rpki.x509, rpki.config, rpki.log
 
 rpki.log.init("irbe-setup")
@@ -48,24 +48,14 @@ def call_rpkid(pdu):
   pdu.type = "query"
   msg = rpki.left_right.msg((pdu,))
   elt = msg.toXML()
-  try:
-    rpki.relaxng.left_right.assertValid(elt)
-  except lxml.etree.DocumentInvalid:
-    print lxml.etree.tostring(elt, pretty_print = True, encoding = "us-ascii")
-    raise
-  elt = rpki.cms.xml_verify(der = rpki.https.client(client_key   = https_key,
-                                                    client_certs = https_certs,
-                                                    server_ta    = https_ta,
-                                                    url          = https_url,
-                                                    msg          = rpki.cms.xml_sign(elt   = elt,
-                                                                                     key   = cms_key,
-                                                                                     certs = cms_certs)),
-                            ta = cms_ta)
-  try:
-    rpki.relaxng.left_right.assertValid(elt)
-  except lxml.etree.DocumentInvalid:
-    print lxml.etree.tostring(elt, pretty_print = True, encoding = "us-ascii")
-    raise
+  cms = rpki.x509.let_right_pdu.build(elt, cms_key, cms_certs)
+  der = rpki.https.client(client_key   = https_key,
+                          client_certs = https_certs,
+                          server_ta    = https_ta,
+                          url          = https_url,
+                          msg          = cms)
+  cms = rpki.x509.left_right_pdu(DER = der)
+  elt = cms.verify(cms_ta)
   msg = rpki.left_right.sax_handler.saxify(elt)
   pdu = msg[0]
   assert len(msg) == 1 and pdu.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)

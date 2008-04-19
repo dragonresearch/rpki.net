@@ -568,22 +568,18 @@ class allocation(object):
     pdu.type = "query"
     elt = rpki.left_right.msg((pdu,)).toXML()
     rpki.log.debug(lxml.etree.tostring(elt, pretty_print = True, encoding = "us-ascii"))
-    rpki.relaxng.left_right.assertValid(elt)
-    cms = rpki.cms.xml_sign(
-      elt           = elt,
-      key           = testbed_key,
-      certs         = testbed_certs)
+    cms = rpki.x509.left_right_pdu.build(elt, testbed_key, testbed_certs)
     url = "https://localhost:%d/left-right" % self.rpki_port
     rpki.log.debug("Attempting to connect to %s" % url)
-    cms = rpki.https.client(
+    der = rpki.https.client(
       client_key   = testbed_key,
       client_certs = testbed_certs,
       server_ta    = self.rpkid_ta,
       url          = url,
-      msg          = cms)
-    elt = rpki.cms.xml_verify(der = cms, ta = self.rpkid_ta)
+      msg          = cms.get_DER())
+    cms = rpki.x509.left_right_pdu(DER = der)
+    elt = cms.verify(ta = self.rpkid_ta)
     rpki.log.debug(lxml.etree.tostring(elt, pretty_print = True, encoding = "us-ascii"))
-    rpki.relaxng.left_right.assertValid(elt)
     pdu = rpki.left_right.sax_handler.saxify(elt)[0]
     assert pdu.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)
     return pdu

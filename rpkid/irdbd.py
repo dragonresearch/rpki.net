@@ -24,13 +24,13 @@ Default configuration file is irdbd.conf, override with --config option.
 
 import sys, os, time, getopt, urlparse, traceback
 import tlslite.api, MySQLdb, lxml.etree
-import rpki.https, rpki.config, rpki.resource_set, rpki.cms, rpki.relaxng
-import rpki.exceptions, rpki.left_right, rpki.log
+import rpki.https, rpki.config, rpki.resource_set, rpki.relaxng
+import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509
 
 def handler(query, path):
   try:
-    q_elt = rpki.cms.xml_verify(query, cms_ta)
-    rpki.relaxng.left_right.assertValid(q_elt)
+    q_cms = rpki.x509.left_right_pdu(DER = query)
+    q_elt = q_cms.verify(cms_ta)
     q_msg = rpki.left_right.sax_handler.saxify(q_elt)
     if not isinstance(q_msg, rpki.left_right.msg):
       raise rpki.exceptions.BadQuery, "Unexpected %s PDU" % repr(q_msg)
@@ -71,8 +71,8 @@ def handler(query, path):
       r_msg.append(r_pdu)
 
     r_elt = r_msg.toXML()
-    rpki.relaxng.left_right.assertValid(r_elt)
-    return 200, rpki.cms.xml_sign(r_elt, cms_key, cms_certs)
+    r_cms = rpki.x509.left_right_pdu.build(r_elt, cms_key, cms_certs)
+    return 200, r_cms.get_DER()
 
   except Exception, data:
     rpki.log.error(traceback.format_exc())

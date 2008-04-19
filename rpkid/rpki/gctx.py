@@ -21,7 +21,7 @@ the identifier gctx is scattered all through the code at the moment.
 
 import traceback, os, time, getopt, sys, MySQLdb, lxml.etree
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
-import rpki.https, rpki.config, rpki.cms, rpki.exceptions, rpki.relaxng, rpki.log
+import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log
 
 # This should be wrapped somewhere in rpki.x509 eventually
 import POW
@@ -75,16 +75,15 @@ class global_context(object):
     q_msg[0].self_id = self_id
     q_msg[0].child_id = child_id
     q_elt = q_msg.toXML()
-    rpki.relaxng.left_right.assertValid(q_elt)
-    q_cms = rpki.cms.xml_sign(q_elt, self.cms_key, self.cms_certs)
-    r_cms = rpki.https.client(
+    q_cms = rpki.x509.left_right_pdu.build(q_elt, self.cms_key, self.cms_certs)
+    der = rpki.https.client(
       client_key   = self.https_key,
       client_certs = self.https_certs,
       server_ta    = self.https_ta_irdb,
       url          = self.irdb_url,
-      msg          = q_cms)
-    r_elt = rpki.cms.xml_verify(r_cms, self.cms_ta_irdb)
-    rpki.relaxng.left_right.assertValid(r_elt)
+      msg          = q_cms.get_DER())
+    r_cms = rpki.x509.left_right_pdu(DER = der)
+    r_elt = r_cms.verify(self.cms_ta_irdb)
     r_msg = rpki.left_right.sax_handler.saxify(r_elt)
     if len(r_msg) == 0 or not isinstance(r_msg[0], rpki.left_right.list_resources_elt) or r_msg[0].type != "reply":
       raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")
@@ -116,13 +115,13 @@ class global_context(object):
     """Process one left-right PDU."""
     rpki.log.trace()
     try:
-      q_elt = rpki.cms.xml_verify(query, self.cms_ta_irbe)
-      rpki.relaxng.left_right.assertValid(q_elt)
+      q_cms = rpki.x509.left_right_pdu(DER = query)
+      q_elt = q_cms.verify(self.cms_ta_irbe)
       q_msg = rpki.left_right.sax_handler.saxify(q_elt)
       r_msg = q_msg.serve_top_level(self)
       r_elt = r_msg.toXML()
-      rpki.relaxng.left_right.assertValid(r_elt)
-      reply = rpki.cms.xml_sign(r_elt, self.cms_key, self.cms_certs)
+      r_cms = rpki.x509.left_right_pdu.build(r_elt, self.cms_key, self.cms_certs)
+      reply = r_cms.get_DER()
       self.sql_sweep()
       return 200, reply
     except lxml.etree.DocumentInvalid:

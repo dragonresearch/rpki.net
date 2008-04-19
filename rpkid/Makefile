@@ -16,6 +16,12 @@ all:: up-down-schema.rng
 up-down-schema.rng: up-down-schema.rnc
 	trang up-down-schema.rnc up-down-schema.rng
 
+clean:
+	find . -type f -name '*.pyc' -delete
+
+install:
+	@true
+
 dont-run-trang:
 	touch *.rng
 

@@ -14,31 +14,30 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-"""CMS routines.
-
-These used to use the OpenSSL CLI too, which was slow.  I've since
-added minimal PKCS #7 and CMS capability to POW, so we now use that
-instead.  I should write a pretty DER_object wrapper around the POW
-code and include it in x509.py, but I haven't gotten to that yet.
+"""CMS routines.  I should write a pretty DER_object wrapper around
+the POW code and include it in x509.py, haven't gotten to that yet.
 """
 
 import os, rpki.x509, rpki.exceptions, lxml.etree, rpki.log, POW
 
 debug = 1
 
+id_data = (1, 2, 840, 113549, 1, 7,  1)
+
 # openssl smime -sign -nodetach -outform DER -signer biz-certs/Alice-EE.cer
 #                -certfile biz-certs/Alice-CA.cer -inkey biz-certs/Alice-EE.key 
 #                -in THING -out THING.der
 
-def sign(plaintext, keypair, certs):
-  """Sign plaintext as CMS with specified key and bag of certificates.
-
-  We have to sort the certificates into the correct order before the
-  OpenSSL CLI tool will accept them.  rpki.x509 handles that for us.
-  """
+def sign(plaintext, keypair, certs, oid = id_data, no_certs = False):
+  """Sign plaintext as CMS with specified key and bag of certificates."""
 
   cms = POW.CMS()
-  cms.sign(certs[0].get_POW(), keypair.get_POW(), [x.get_POW() for x in certs[1:]], plaintext)
+  cms.sign(certs[0].get_POW(),
+           keypair.get_POW(),
+           [x.get_POW() for x in certs[1:]],
+           plaintext,
+           ".".join(str(i) for i in oid),
+           no_certs)
   der = cms.derWrite()
 
   if debug >= 2:

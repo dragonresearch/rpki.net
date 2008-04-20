@@ -22,3 +22,6 @@ install:
 
 sandblast:
 	svn st -v openssl* | awk '/^I/ && NF == 2 {system("set -x; rm -rf " $$2)}'
+
+test:
+	@true

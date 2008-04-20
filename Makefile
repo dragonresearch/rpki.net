@@ -2,8 +2,10 @@
 
 SUBDIRS = openssl rcynic tests pow rpkid
 
-all install clean:
+all install clean test:
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && make $@); done
+
+test: all
 
 export:
 	svn export http://subvert-rpki.hactrn.net/

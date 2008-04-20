@@ -17,3 +17,6 @@ clean:
 
 ${BIN}: ${OBJ} ${LIB} Makefile
 	${CC} -g -o $@ ${OBJ} ${LIB}
+
+test:
+	@true

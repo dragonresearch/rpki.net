@@ -74,17 +74,14 @@ class global_context(object):
     q_msg[0].type = "query"
     q_msg[0].self_id = self_id
     q_msg[0].child_id = child_id
-    q_elt = q_msg.toXML()
-    q_cms = rpki.x509.left_right_pdu.build(q_elt, self.cms_key, self.cms_certs)
+    q_cms = rpki.left_right.cms_msg.wrap(q_msg, self.cms_key, self.cms_certs)
     der = rpki.https.client(
       client_key   = self.https_key,
       client_certs = self.https_certs,
       server_ta    = self.https_ta_irdb,
       url          = self.irdb_url,
-      msg          = q_cms.get_DER())
-    r_cms = rpki.x509.left_right_pdu(DER = der)
-    r_elt = r_cms.verify(self.cms_ta_irdb)
-    r_msg = rpki.left_right.sax_handler.saxify(r_elt)
+      msg          = q_cms)
+    r_msg = rpki.left_right.cms_msg.unwrap(der, self.cms_ta_irdb)
     if len(r_msg) == 0 or not isinstance(r_msg[0], rpki.left_right.list_resources_elt) or r_msg[0].type != "reply":
       raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")
     return rpki.resource_set.resource_bag(
@@ -115,19 +112,11 @@ class global_context(object):
     """Process one left-right PDU."""
     rpki.log.trace()
     try:
-      q_cms = rpki.x509.left_right_pdu(DER = query)
-      q_elt = q_cms.verify(self.cms_ta_irbe)
-      q_msg = rpki.left_right.sax_handler.saxify(q_elt)
+      q_msg = rpki.left_right.cms_msg.unwrap(query, self.cms_ta_irbe)
       r_msg = q_msg.serve_top_level(self)
-      r_elt = r_msg.toXML()
-      r_cms = rpki.x509.left_right_pdu.build(r_elt, self.cms_key, self.cms_certs)
-      reply = r_cms.get_DER()
+      reply = rpki.left_right.cms_msg.wrap(r_msg, self.cms_key, self.cms_certs)
       self.sql_sweep()
       return 200, reply
-    except lxml.etree.DocumentInvalid:
-      rpki.log.warn("Received reply document does not pass schema check: " + lxml.etree.tostring(r_elt, pretty_print = True))
-      rpki.log.warn(traceback.format_exc())
-      return 500, "Schema violation"
     except Exception, data:
       rpki.log.error(traceback.format_exc())
       return 500, "Unhandled exception %s" % data

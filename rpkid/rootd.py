@@ -124,30 +124,28 @@ class message_pdu(rpki.up_down.message_pdu):
     "error_response"  : rpki.up_down.error_response_pdu }
   type2name = dict((v,k) for k,v in name2type.items())
 
-class sax_handler(rpki.sax_utils.handler):
-  def create_top_level(self, name, attrs):
-    return message_pdu()
+class sax_handler(rpki.up_down.sax_handler):
+  pdu = message_pdu
+
+class cms_msg(rpki.up_down.cms_msg):
+  saxify = sax_handler.saxify
 
 def up_down_handler(query, path):
   try:
-    q_cms = rpki.x509.up_down_pdu(DER = query)
-    q_elt = q_cms.verify(cms_ta)
-    q_msg = sax_handler.saxify(q_elt)
+    q_msg = cms_msg.unwrap(query, cms_ta)
   except Exception, data:
     rpki.log.error(traceback.format_exc())
     return 400, "Could not process PDU: %s" % data
   try:
     r_msg = q_msg.serve_top_level(None)
-    r_elt = r_msg.toXML()
-    r_cms = rpki.x509.up_down_pdu.build(r_elt, cms_key, cms_certs)
-    return 200, r_cms.get_DER()
+    r_cms = cms_msg.wrap(r_msg, cms_key, cms_certs)
+    return 200, r_cms
   except Exception, data:
     rpki.log.error(traceback.format_exc())
     try:
       r_msg = q_msg.serve_error(data)
-      r_elt = r_msg.toXML()
-      r_cms = rpki.x509.up_down_pdu.build(r_elt, cms_key, cms_certs)
-      return 200, r_cms.get_DER()
+      r_cms = cms_msg.wrap(r_msg, cms_key, cms_certs)
+      return 200, r_cms
     except Exception, data:
       rpki.log.error(traceback.format_exc())
       return 500, "Could not process PDU: %s" % data

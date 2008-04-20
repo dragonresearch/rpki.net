@@ -19,7 +19,7 @@ IRDB.  Our main task here is to create child objects in the RPKI
 engine for every registrant object in the IRDB.
 """
 
-import os, MySQLdb, getopt, sys, lxml.etree, lxml.sax
+import os, MySQLdb, getopt, sys, lxml.etree
 import rpki.left_right, rpki.relaxng, rpki.https
 import rpki.x509, rpki.config, rpki.log
 
@@ -47,16 +47,13 @@ def call_rpkid(pdu):
 
   pdu.type = "query"
   msg = rpki.left_right.msg((pdu,))
-  elt = msg.toXML()
-  cms = rpki.x509.let_right_pdu.build(elt, cms_key, cms_certs)
+  cms = rpki.x509.left_right_pdu.wrap(msg, cms_key, cms_certs)
   der = rpki.https.client(client_key   = https_key,
                           client_certs = https_certs,
                           server_ta    = https_ta,
                           url          = https_url,
                           msg          = cms)
-  cms = rpki.x509.left_right_pdu(DER = der)
-  elt = cms.verify(cms_ta)
-  msg = rpki.left_right.sax_handler.saxify(elt)
+  msg = rpki.left_right.cms_msg.unwrap(der, cms_ta)
   pdu = msg[0]
   assert len(msg) == 1 and pdu.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)
   return pdu

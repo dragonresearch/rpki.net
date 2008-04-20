@@ -566,9 +566,9 @@ class allocation(object):
     """
     rpki.log.info("Calling rpkid for %s" % self.name)
     pdu.type = "query"
-    elt = rpki.left_right.msg((pdu,)).toXML()
-    rpki.log.debug(lxml.etree.tostring(elt, pretty_print = True, encoding = "us-ascii"))
-    cms = rpki.x509.left_right_pdu.build(elt, testbed_key, testbed_certs)
+    msg = rpki.left_right.msg((pdu,))
+    cms, xml = rpki.left_right.cms_msg.wrap(msg, testbed_key, testbed_certs, pretty_print = True)
+    rpki.log.debug(xml)
     url = "https://localhost:%d/left-right" % self.rpki_port
     rpki.log.debug("Attempting to connect to %s" % url)
     der = rpki.https.client(
@@ -576,11 +576,10 @@ class allocation(object):
       client_certs = testbed_certs,
       server_ta    = self.rpkid_ta,
       url          = url,
-      msg          = cms.get_DER())
-    cms = rpki.x509.left_right_pdu(DER = der)
-    elt = cms.verify(ta = self.rpkid_ta)
-    rpki.log.debug(lxml.etree.tostring(elt, pretty_print = True, encoding = "us-ascii"))
-    pdu = rpki.left_right.sax_handler.saxify(elt)[0]
+      msg          = cms)
+    msg, xml = rpki.left_right.cms_msg.unwrap(der, self.rpkid_ta, pretty_print = True)
+    rpki.log.debug(xml)
+    pdu = msg[0]
     assert pdu.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)
     return pdu
 

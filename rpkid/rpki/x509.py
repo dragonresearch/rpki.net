@@ -28,7 +28,7 @@ some of the nasty details.  This involves a lot of format conversion.
 
 import POW, tlslite.api, POW.pkix, base64, lxml.etree, os
 import rpki.exceptions, rpki.resource_set, rpki.oids, rpki.sundial
-import rpki.manifest, rpki.roa, rpki.relaxng
+import rpki.manifest, rpki.roa
 
 def calculate_SKI(public_key_der):
   """Calculate the SKI value given the DER representation of a public
@@ -209,7 +209,7 @@ class DER_object(object):
     return self.get_DER()
 
   def dumpasn1(self):
-    """Prettyprint an ASN.1 DER object using cryptlib dumpasn1 tool.
+    """Pretty print an ASN.1 DER object using cryptlib dumpasn1 tool.
     Use a temporary file rather than popen4() because dumpasn1 uses
     seek() when decoding ASN.1 content nested in OCTET STRING values.
     """
@@ -754,8 +754,8 @@ class XML_CMS_object(CMS_object):
     """Decode XML and set inner content."""
     self.content = lxml.etree.fromstring(xml)
 
-  def prettyprint_content(self):
-    """Prettyprint XML content of this message."""
+  def pretty_print_content(self):
+    """Pretty print XML content of this message."""
     return lxml.etree.tostring(self.get_content(), pretty_print = True, encoding = self.encoding, xml_declaration = True)
 
   def schema_check(self):
@@ -763,35 +763,35 @@ class XML_CMS_object(CMS_object):
     try:
       self.schema.assertValid(self.get_content())
     except lxml.etree.DocumentInvalid:
-      rpki.log.error("PDU failed schema check: " + self.prettyprint_content())
+      rpki.log.error("PDU failed schema check: " + self.pretty_print_content())
       raise
 
   @classmethod
-  def build(cls, elt, keypair, certs):
-    """Build a CMS-wrapped XML PDU."""
+  def wrap(cls, msg, keypair, certs, pretty_print = False):
+    """Build a CMS-wrapped XML PDU and return its DER encoding."""
     self = cls()
-    self.set_content(elt)
+    self.set_content(msg.toXML())
     self.schema_check()
     self.sign(keypair, certs)
-    return self
+    if pretty_print:
+      return self.get_DER(), self.pretty_print_content()
+    else:
+      return self.get_DER()
 
-  def verify(self, ta):
-    """Wrapper around CMS_object.verify(), adds RelaxNG schema check."""
+  @classmethod
+  def unwrap(cls, der, ta, pretty_print = False):
+    """Unwrap a CMS-wrapped XML PDU and return Python objects."""
+    self = cls(DER = der)
     CMS_object.verify(self, ta)
     self.schema_check()
-    return self.get_content()
+    msg = self.saxify(self.get_content())
+    if pretty_print:
+      return msg, self.pretty_print_content()
+    else:
+      return msg
 
-class left_right_pdu(XML_CMS_object):
-  """Class to hold a CMS-signed left-right PDU."""
-
-  encoding = "us-ascii"
-  schema = rpki.relaxng.left_right
-
-class up_down_pdu(XML_CMS_object):
-  """Class to hold a CMS-signed up-down PDU."""
-
-  encoding = "UTF-8"
-  schema = rpki.relaxng.up_down
+  def verify(self, ta):
+    raise NotImplementedError, "Should not be calling this, it's obsolete"
 
 class CRL(DER_object):
   """Class to hold a Certificate Revocation List."""

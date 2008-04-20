@@ -118,6 +118,9 @@ class msg(rpki.left_right.msg):
 class sax_handler(rpki.left_right.sax_handler):
   pdu = msg
 
+class cms_msg(rpki.left_right.cms_msg):
+  saxify = sax_handler.saxify
+
 top_opts = ["config=", "help", "pem_out="]
 
 def usage(code=1):
@@ -171,24 +174,19 @@ while argv:
   argv = q_pdu.client_getopt(argv[1:])
   q_msg.append(q_pdu)
 
-q_elt = q_msg.toXML()
-q_cms = rpki.x509.left_right_pdu.build(q_elt, cms_key, cms_certs)
+q_cms = rpki.left_right.cms_msg.wrap(q_msg, cms_key, cms_certs)
 
 der = rpki.https.client(client_key   = https_key,
                         client_certs = https_certs,
                         server_ta    = https_ta,
                         url          = https_url,
-                        msg          = q_cms.get_DER())
+                        msg          = q_cms)
 
-r_cms = rpki.x509.left_right(DER = der)
-r_elt = r_cms.verify(r_cms, cms_ta)
+r_msg, r_xml = cms_msg.unwrap(der, r_cms, cms_ta, pretty_print = True)
 
-print r_cms.prettyprint_content()
-
-handler = sax_handler()
-lxml.sax.saxify(r_elt, handler)
-r_msg = handler.result
+print r_xml
 
 for r_pdu in r_msg:
   r_pdu.client_reply_decode()
-  #r_pdu.client_reply_show()
+  if False:
+    r_pdu.client_reply_show()

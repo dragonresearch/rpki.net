@@ -17,7 +17,7 @@
 """RPKI "left-right" protocol."""
 
 import base64, lxml.etree, time, traceback, os
-import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions
+import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.sax_utils
 import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
 
 xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
@@ -609,18 +609,15 @@ class parent_elt(data_elt):
       payload = q_pdu,
       sender = self.sender_name,
       recipient = self.recipient_name)
-    q_elt = q_msg.toXML()
-    q_cms = rpki.x509.up_down_pdu.build(q_elt, bsc.private_key_id, bsc.signing_cert)
+    q_cms = rpki.up_down.cms_msg.wrap(q_msg, bsc.private_key_id, bsc.signing_cert)
 
     der = rpki.https.client(server_ta    = self.peer_biz_cert,
                             client_key   = bsc.private_key_id,
                             client_certs = bsc.signing_cert,
-                            msg          = q_cms.get_DER(),
+                            msg          = q_cms,
                             url          = self.peer_contact_uri)
 
-    r_cms = rpki.x509.up_down_pdu(DER = der)
-    r_elt = r_cms.verify(self.peer_biz_cert)
-    r_msg = rpki.up_down.sax_handler.saxify(r_elt)
+    r_msg = rpki.up_down.cms_msg.unwrap(der, self.peer_biz_cert)
     r_msg.payload.check_response()
     return r_msg
 
@@ -699,9 +696,7 @@ class child_elt(data_elt):
     bsc = self.bsc()
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
-    q_cms = rpki.x509.up_down_pdu(DER = query)
-    q_elt = q_cms.verify(self.peer_biz_cert)
-    q_msg = rpki.up_down.sax_handler.saxify(q_elt)
+    q_msg = rpki.up_down.cms_msg.unwrap(query, self.peer_biz_cert)
     q_msg.payload.gctx = self.gctx
     if enforce_strict_up_down_xml_sender and q_msg.sender != str(self.child_id):
       raise rpki.exceptions.BadSender, "Unexpected XML sender %s" % q_msg.sender
@@ -715,9 +710,8 @@ class child_elt(data_elt):
     # sane way of reporting errors in the error reporting mechanism.
     # May require refactoring, ignore the issue for now.
     #
-    r_elt = r_msg.toXML()
-    r_cms = rpki.x509.up_down_pdu.build(r_elt, bsc.private_key_id, bsc.signing_cert)
-    return r_cms.get_DER()
+    r_cms = rpki.up_down.cms_msg.wrap(r_msg, bsc.private_key_id, bsc.signing_cert)
+    return r_cms
 
 class repository_elt(data_elt):
   """<repository/> element."""
@@ -1114,11 +1108,13 @@ class msg(list):
 class sax_handler(rpki.sax_utils.handler):
   """SAX handler for Left-Right protocol."""
 
-  ## @var pdu
-  # Top-level PDU class
   pdu = msg
+  name = "msg"
+  version = "1"
 
-  def create_top_level(self, name, attrs):
-    """Top-level PDU for this protocol is <msg/>."""
-    assert name == "msg" and attrs["version"] == "1"
-    return self.pdu()
+class cms_msg(rpki.x509.XML_CMS_object):
+  """Class to hold a CMS-signed left-right PDU."""
+
+  encoding = "us-ascii"
+  schema = rpki.relaxng.left_right
+  saxify = sax_handler.saxify

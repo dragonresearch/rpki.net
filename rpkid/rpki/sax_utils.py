@@ -91,3 +91,8 @@ class handler(xml.sax.handler.ContentHandler):
     self = cls()
     lxml.sax.saxify(elt, self)
     return self.result
+
+  def create_top_level(self, name, attrs):
+    """Handle top-level PDU for this protocol."""
+    assert name == self.name and attrs["version"] == self.version
+    return self.pdu()

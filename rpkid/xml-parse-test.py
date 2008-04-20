@@ -14,11 +14,12 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-import glob, rpki.up_down, rpki.left_right, rpki.relaxng, xml.sax, lxml.etree, lxml.sax, POW, POW.pkix
+import glob, xml.sax, lxml.etree, lxml.sax, POW, POW.pkix
+import rpki.up_down, rpki.left_right, rpki.relaxng
 
 verbose = True
 
-def test(fileglob, rng, sax_handler, encoding, tester=None):
+def test(fileglob, rng, sax_handler, encoding, tester = None):
   files = glob.glob(fileglob)
   files.sort()
   for f in files:
@@ -31,7 +32,7 @@ def test(fileglob, rng, sax_handler, encoding, tester=None):
     rng.assertValid(elt_out)
     if (tester):
       tester(elt_in, elt_out, handler.result)
-    print lxml.etree.tostring(elt_out, pretty_print=True, encoding=encoding, xml_declaration=True)
+    print lxml.etree.tostring(elt_out, pretty_print = True, encoding = encoding, xml_declaration = True)
 
 def pprint_cert(cert):
   print cert.get_POW().pprint()
@@ -54,14 +55,14 @@ def lr_tester(elt_in, elt_out, msg):
       for cert in bsc.signing_cert:
         pprint_cert(cert)
 
-test(fileglob="up-down-protocol-samples/*.xml",
-     rng=rpki.relaxng.up_down,
-     sax_handler=rpki.up_down.sax_handler,
-     encoding="utf-8",
-     tester=ud_tester)
+test(fileglob = "up-down-protocol-samples/*.xml",
+     rng = rpki.relaxng.up_down,
+     sax_handler = rpki.up_down.sax_handler,
+     encoding = "utf-8",
+     tester = ud_tester)
 
-test(fileglob="left-right-protocol-samples/*.xml",
-     rng=rpki.relaxng.left_right,
-     sax_handler=rpki.left_right.sax_handler,
-     encoding="us-ascii",
-     tester=lr_tester)
+test(fileglob = "left-right-protocol-samples/*.xml",
+     rng = rpki.relaxng.left_right,
+     sax_handler = rpki.left_right.sax_handler,
+     encoding = "us-ascii",
+     tester = lr_tester)

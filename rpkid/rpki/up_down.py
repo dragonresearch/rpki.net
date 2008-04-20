@@ -17,7 +17,8 @@
 """RPKI "up-down" protocol."""
 
 import base64, lxml.etree, time
-import rpki.sax_utils, rpki.resource_set, rpki.x509, rpki.exceptions
+import rpki.resource_set, rpki.x509, rpki.exceptions
+import rpki.sax_utils, rpki.relaxng
 
 xmlns="http://www.apnic.net/specs/rescerts/up-down/"
 
@@ -511,6 +512,13 @@ class message_pdu(base_elt):
 class sax_handler(rpki.sax_utils.handler):
   """SAX handler for Up-Down protocol."""
 
-  def create_top_level(self, name, attrs):
-    """Top-level PDU for this protocol is <message/>."""
-    return message_pdu()
+  pdu = message_pdu
+  name = "message"
+  version = "1"
+
+class cms_msg(rpki.x509.XML_CMS_object):
+  """Class to hold a CMS-signed up-down PDU."""
+
+  encoding = "UTF-8"
+  schema = rpki.relaxng.up_down
+  saxify = sax_handler.saxify

@@ -52,33 +52,31 @@ $Revision$
 
 TO DO:
 
-      * Update business trust anchor model to what was defined in Amsterdam. This
+      - Update business trust anchor model to what was defined in Amsterdam. This
 	was a direct result of security review by Kent and Housley.
 
-	This has been waiting for work hopefully being completed by the RIPE NCC, but
-	is probably not a lot of coding, probably a few extra certificate fields in the
-	self object which needs to go into the rpki.x509.X509_chain objects before
-	verifying CMS or TLS. Possibly the existing TA fields in various objects need
-	to become pairs of certificates instead of a single TA, but this is mostly just
-	generalization and reuse of existing code. Discussion in Philadelphia revealed
-	that this model is not yet a done deal.
+	This is probably not a lot of coding, probably a few extra certificate
+	fields that need to be passed in when verifying CMS or TLS.  So far the
+	existing TA fields in various objects have become pairs of certificates
+	instead of a TA, but they're not yet tied into a real single TA.   We
+	may also need a cert or two in the <self/> object so that we can tie
+	everything together into a single TA for the entire RPKI engine instance.
 
 	PRIORITY: Required for pilot (security issue)
 
 	TIME REQUIRED: Two weeks.
 
-	STATUS: Not started
+	STATUS: Started
 
 
-      * rcynic handling of RPKI trust anchors needs updating, per discussions
+      - rcynic handling of RPKI trust anchors needs updating, per discussions
 	over previous months of how RPKI trust anchors work, how we package them,
 	and how we roll them over. The last (TA rollover) is the driver for this.
 
-	APNIC has apparently moved on from their proposal to use CMS-signed OpenSSL
-	"PEM" format, they're now proposing a CMS-signed ASN.1 SEQUENCE OF
-	something. Precise details of APNIC's new model not yet known. Need to do
-	analysis to make sure this is adequate for our needs, if so just use it.
-	This would involve minor changes to rcynic.
+	APNIC is now proposing a CMS-signed ASN.1 blob containing a version
+	number and an RPKI certificate.  Kent and Housley have not bought into
+	this yet.  Need to do analysis to make sure this is adequate for our
+	needs, if so just use it.  This would involve minor changes to rcynic.
 
 	PRIORITY: Required for pilot (usability issue for relying parties)
 
@@ -87,7 +85,7 @@ TO DO:
 	STATUS: Not started
 
 
-      * Publication protocol and implementation thereof. Desirable although not
+      - Publication protocol and implementation thereof. Desirable although not
 	strictly required that protocol be agreed upon among the RIRs. Tricky bit
 	is making sure that repository receives enough information to know whether
 	parent has authorized child to use parent's namespace in nesting case; in
@@ -106,7 +104,7 @@ TO DO:
 	STATUS: Started
 
 
-      * Resource subsetting (req_* attributes in up-down protocol), minimal 
+      - Resource subsetting (req_* attributes in up-down protocol), minimal 
 	implementation.    Recognize this as correct protocol and signal an
 	internal server error if ever used.
 
@@ -117,8 +115,16 @@ TO DO:
 	STATUS: Not started
 
 
-      * ROA generation code is incomplete, no support yet for maintenance after
-	initial generation, and interaction with CRL mechanism needs work
+      - ROA generation code.  First cut at this seems to work and output looks
+        right, but this hasn't been tested properly yet due to lack of a ROA
+        validation tool.
+
+	For reasons that presumably made sense at the time, the
+	left-right protocol for route_origin objects allows ranges as
+	well as prefixes, and the SQL for stores everything as ranges,
+	which is nice and general...except that ROAs can only hold
+	prefixes.  So left-right schema should only allow prefixes,
+	and SQL should only store prefixes.
 
 	PRIORITY: Required for pilot
 
@@ -127,7 +133,7 @@ TO DO:
 	STATUS: Started
 
 
-      * rcynic does not yet handle manifests. This is both a real problem
+      - rcynic does not yet handle manifests. This is both a real problem
 	(manifests were added to plug a security hole) and a user acceptance
 	problem (without manifest support rcynic checks old certs that are supposed
 	to fail because they've been revoked, resulting in what appear to be
@@ -140,7 +146,7 @@ TO DO:
 	STATUS: Not started
 
 
-      * User validation tool: fetch and validate certs and ROA for a prefix that
+      - User validation tool: fetch and validate certs and ROA for a prefix that
 	the user wants to accept in a router filter the user is building. This
 	probably uses rcynic's output as one of its inputs.
 
@@ -153,7 +159,7 @@ TO DO:
 	STATUS: Not started
 
 
-      * Make rpkid fully event-driven (async tasking model), except for SQL
+      - Make rpkid fully event-driven (async tasking model), except for SQL
 	queries. This probably involves the "twisted" framework.
 
 	PRIORITY: Required (to implement scalable hosting model)
@@ -163,7 +169,7 @@ TO DO:
 	STATUS: Not started
 
 
-      * Error handling: make sure that exceptions map correctly to up-down error
+      - Error handling: make sure that exceptions map correctly to up-down error
 	codes, flesh out left-right error codes. Note that the same exception may
 	produce different error codes depending on which up-down PDU we're
 	processing (sigh).
@@ -180,7 +186,7 @@ TO DO:
 	STATUS: Not started
 
 
-      * db.commit(), db.rollback(), code audit for data integrity issues, fix any
+      - db.commit(), db.rollback(), code audit for data integrity issues, fix any
 	data integrity issues that turn up. Among other issues, need to handle loss
 	of connection to database server and other MySQL errors. Need to be careful
 	about recovery action depending on whether we had uncommitted changes.
@@ -199,7 +205,7 @@ TO DO:
 	STATUS: Not started
 
 
-      * Test framework for multiple self-instances per engine-instance (single
+      - Test framework for multiple self-instances per engine-instance (single
 	self-instance per engine-instance is already done).
 
 	PRIORITY: Required for testing
@@ -211,9 +217,16 @@ TO DO:
 	STATUS: Not started
 
 
-      * Current TLS code (tlslite) is flakey under heavy use and doesn't support
-	all the required certificate checks. Best fix would be to add what support
-	we need to POW Ssl class.
+      - Current TLS code (tlslite) appeared to be flakey under heavy use back
+	in November, and doesn't support all the required certificate
+	checks out of the box.
+
+	Certificate checker has now been replaced with something based on
+	OpenSSL/POW, and the result seems to work.  If the TLS code itself is
+	still unstable, best bet would be to replace it with a Tls class cloned
+	from the existing POW Ssl class; the current Ssl class isn't adaquate
+	either, but there's documentation (eg, the O'Reilly OpenSSL book) that
+	explains in some detail what this code would need to do.
 
 	PRIORITY: Required for pilot (cert checking is a security issue).
 
@@ -224,7 +237,7 @@ TO DO:
 	STATUS: Not started
 
 
-      * Resource subsetting (req_* attributes in up-down protocol), full
+      - Resource subsetting (req_* attributes in up-down protocol), full
         implementation.  Requires expanding SQL child_cert table to hold subset
         masks and rewriting a fair amount of code.
 
@@ -235,12 +248,12 @@ TO DO:
 	STATUS: Not started
 
 
-      * Performance testing
+      - Performance testing
 
 	STATUS: Not started
 
 
-      * Clean up rootd.py to be usable in a production system. Most urgent issue is
+      - Clean up rootd.py to be usable in a production system. Most urgent issue is
 	handling of private keys. May not need much else, as this is not a
 	high-traffic server.
 
@@ -251,7 +264,7 @@ TO DO:
 	STATUS: Not started
 
 
-      * Update internals docs (Doxygen). Mostly this means updating function
+      - Update internals docs (Doxygen). Mostly this means updating function
 	comments in the Python code, as the rest is automatic. May require a bit of
 	overview text to explain the workings of the code, this overview text may
 	well turn out to be just the current flat text documents marked up for
@@ -264,7 +277,7 @@ TO DO:
 	STATUS: Ongoing
 
 
-      * Reorganize code (directory names, module names, which objects are in which
+      - Reorganize code (directory names, module names, which objects are in which
 	modules, add gctx pointers to objects to avoid passing explicit gctx
 	pointers in almost every function call) to make it easier to understand and
 	maintain. Portions of the existing code were done in extreme haste to meet
@@ -274,10 +287,11 @@ TO DO:
 
 	TIME REQUIRED: One week.
 
-	STATUS: File renaming mostly done, other stuff not started
+	STATUS: Explicit gctx eradication done; much file renaming done; other
+	stuff not started.
 
 
-      * Add HSM support. Architecture includes it, current code does not. First
+      - Add HSM support. Architecture includes it, current code does not. First
 	step here would be talking to somebody with strong understanding of PKCS#
 	11.
 
@@ -288,7 +302,7 @@ TO DO:
 	STATUS: Not started
 
 
-      * Installation packaging, so that rpkid can be built and installed like a
+      - Installation packaging, so that rpkid can be built and installed like a
 	normal package.
 
 	PRIORITY: Desirable
@@ -299,7 +313,7 @@ TO DO:
 	STATUS: Not started
 
 
-      * Tighten up syntax checking in left-right schema.
+      - Tighten up syntax checking in left-right schema.
 
 	PRIORITY: Desirable
 
@@ -308,7 +322,7 @@ TO DO:
 	STATUS: Not started
 
 
-      * Rethink exposing SQL primary indices in protocols. Right now,
+      - Rethink exposing SQL primary indices in protocols. Right now,
 	auto-incremented SQL indices are used in many places in the left-right
 	protocol, and are even exposed in a few places in our implementation of the
 	up-down protocol. This is nice and unique but may be operationally fragile,
@@ -328,7 +342,7 @@ TO DO:
 	STATUS: Not started
 
 
-      * Common protocol dump format with APNIC and other implementors so we can
+      - Common protocol dump format with APNIC and other implementors so we can
 	exchange protocol dumps.
 
 	PRIORITY: Desirable
@@ -338,7 +352,7 @@ TO DO:
 	STATUS: Not started
 
 
-      * IETF SIDR WG is still talking about ROAs with multiple signatures. No
+      - IETF SIDR WG is still talking about ROAs with multiple signatures. No
 	obvious need for this but IETF may mandate it anyway. Full implementation
 	would require significant work revising current SQL table relations and
 	upgrading CMS support.
@@ -350,7 +364,7 @@ TO DO:
 	STATUS: Not started
 
 
-      * Deaddrop of incoming messages, for audit.  Absent a better theory,
+      - Deaddrop of incoming messages, for audit.  Absent a better theory,
         steal existing tech for this: preface with minimal RFC 2822 header
 	and drop it into a Maildir folder using built-in Python Maildir
 	library code, at which point it becomes soebody else's problem.

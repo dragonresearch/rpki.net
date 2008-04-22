@@ -373,6 +373,9 @@ TO DO:
 
 	PRIORITY: Desirable, trivial to implement.
 
+      - Investigate using EKU (RFC 3280 4.2.1.13) as an alternative to
+        wiring in BPKI EE certs for left-right protocol.
+
 
 
 Other random notes:

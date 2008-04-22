@@ -54,19 +54,6 @@ for args in ((ee, key, [ca], plaintext, oid),
   cms.sign(*args)
 
   if True:
-    f = open("test-pow-cms.der", "w")
-    f.write(cms.derWrite())
-    f.close()
-    if True:
-      f = os.popen("dumpasn1 2>&1 -a test-pow-cms.der")
-      print "\n".join(x for x in f.read().splitlines() if x.startswith(" "))
-      f.close()
-    if True:
-      os.unlink("test-pow-cms.der")
+    print cms.pprint()
 
-  if True:
-    f = os.popen("../openssl/openssl/apps/openssl cms -print -cmsout -inform DER", "w")
-    f.write(cms.derWrite())
-    f.close()
-    
   cms.verify(store, [ee])

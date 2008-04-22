@@ -6751,12 +6751,13 @@ CMS_object_sign(cms_object *self, PyObject *args)
    STACK_OF(X509) *x509_stack = NULL;
    EVP_PKEY *pkey = NULL;
    char *buf = NULL, *oid = NULL;
-   int i, len, flags = 0;
+   int i, len;
+   unsigned flags = 0;
    BIO *bio = NULL;
    CMS_ContentInfo *cms = NULL;
    ASN1_OBJECT *econtent_type = NULL;
 
-   if (!PyArg_ParseTuple(args, "O!O!Os#|si",
+   if (!PyArg_ParseTuple(args, "O!O!Os#|sI",
                          &x509type, &signcert,
                          &asymmetrictype, &signkey,
                          &x509_sequence,
@@ -6840,13 +6841,19 @@ static char CMS_object_verify__doc__[] =
 "      <memberof>CMS</memberof>\n"
 "      <name>verify</name>\n"
 "      <parameter>store</parameter>\n"
-"      <optional><parameter>certs</parameter></optional>\n"
+"      <optional>\n"
+"        <parameter>certs</parameter>\n"
+"        <parameter>flags</parameter>\n"
+"      </optional>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
 "         This method verifies a message against a trusted store.\n"
 "         The optional certs parameter is a set of certificates to search\n"
 "         for the signer's certificate.\n"
+"         Supported flags: CMS_NOINTERN, CMS_NOCRL,\n"
+"         CMS_NO_SIGNER_CERT_VERIFY, CMS_NO_ATTR_VERIFY,\n"
+"         CMS_NO_CONTENT_VERIFY.\n"
 "      </para>\n"
 "   </body>\n"
 "</method>\n"
@@ -6858,6 +6865,7 @@ CMS_object_verify(cms_object *self, PyObject *args)
    x509_store_object *store = NULL;
    PyObject *result = NULL, *certs_sequence = Py_None;
    STACK_OF(X509) *certs_stack = NULL;
+   unsigned flags = 0;
    char *buf = NULL;
    BIO *bio = NULL;
    int len;
@@ -6865,14 +6873,16 @@ CMS_object_verify(cms_object *self, PyObject *args)
    if (!(bio = BIO_new(BIO_s_mem())))
       goto error;
 
-   if (!PyArg_ParseTuple(args, "O!|O", &x509_storetype, &store, &certs_sequence))
+   if (!PyArg_ParseTuple(args, "O!|OI", &x509_storetype, &store, &certs_sequence, &flags))
       goto error;
+
+   flags &= CMS_NOINTERN | CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY | CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY;
 
    if (certs_sequence != Py_None &&
        !(certs_stack = x509_helper_sequence_to_stack(certs_sequence)))
       goto error;
 
-   if (CMS_verify(self->cms, certs_stack, store->store, NULL, bio, 0) <= 0)
+   if (CMS_verify(self->cms, certs_stack, store->store, NULL, bio, flags) <= 0)
       { set_openssl_pyerror( "could not verify CMS message" ); goto error; }
 
    if (!(len = BIO_ctrl_pending(bio)))
@@ -6940,6 +6950,63 @@ CMS_object_eContentType(cms_object *self, PyObject *args)
    return Py_BuildValue("s", buf);
 }
 
+static char CMS_object_pprint__doc__[] =
+"<method>\n"
+"   <header>\n"
+"      <memberof>CMS</memberof>\n"
+"      <name>pprint</name>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This method returns a formatted string showing the information\n"
+"         held in the certificate.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
+static PyObject *
+CMS_object_pprint(cms_object *self, PyObject *args)
+{
+   int len = 0, ret = 0;
+   char *buf = NULL;
+   BIO *bio = NULL;
+   PyObject *result = NULL;
+   
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
+
+   bio = BIO_new(BIO_s_mem());
+
+   if (!CMS_ContentInfo_print_ctx(bio, self->cms, 0, NULL) )
+      { PyErr_SetString( SSLErrorObject, "unable to pprint CMS" ); goto error; }
+
+   if ( !(len = BIO_ctrl_pending(bio) ) )
+      { PyErr_SetString( SSLErrorObject, "unable to get bytes stored in bio" ); goto error; }
+
+   if ( !(buf = malloc(len) ) )
+      { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+
+   if ( (ret = BIO_read( bio, buf, len ) ) != len )
+      { PyErr_SetString( SSLErrorObject, "unable to pprint CMS" ); goto error; }
+
+   result = Py_BuildValue("s#", buf, len);
+
+   BIO_free(bio);
+   free(buf);
+   return result;
+   
+error:   
+
+   if (bio)
+      BIO_free(bio);
+
+   if (buf)
+      free(buf);
+
+   return NULL;
+
+}
 
 static struct PyMethodDef CMS_object_methods[] = {
    {"pemWrite",     (PyCFunction)CMS_object_pem_write,    METH_VARARGS,  NULL},
@@ -6947,6 +7014,7 @@ static struct PyMethodDef CMS_object_methods[] = {
    {"sign",         (PyCFunction)CMS_object_sign,         METH_VARARGS,  NULL},
    {"verify",       (PyCFunction)CMS_object_verify,       METH_VARARGS,  NULL},
    {"eContentType", (PyCFunction)CMS_object_eContentType, METH_VARARGS,  NULL},
+   {"pprint",       (PyCFunction)CMS_object_pprint,       METH_VARARGS,  NULL},
  
    {NULL,      NULL}    /* sentinel */
 };
@@ -8010,6 +8078,7 @@ pow_module_docset(PyObject *self, PyObject *args)
    docset_helper_add( docset, CMS_object_sign__doc__ );
    docset_helper_add( docset, CMS_object_verify__doc__ );
    docset_helper_add( docset, CMS_object_eContentType__doc__ );
+   docset_helper_add( docset, CMS_object_pprint__doc__ );
 
    // symmetric documentation
    docset_helper_add( docset, symmetrictype__doc__ );

@@ -610,7 +610,8 @@ class allocation(object):
     self.bsc_id = pdu.bsc_id
 
     rpki.log.info("Issuing BSC EE cert for %s" % self.name)
-    cmd = (prog_openssl, "x509", "-req", "-CA", self.name + "-RPKI-CA.cer", "-CAkey", self.name + "-RPKI-CA.key", "-CAserial", self.name + "-RPKI-CA.srl")
+    cmd = (prog_openssl, "x509", "-req", "-CA", self.name + "-RPKI-CA.cer", "-CAkey", self.name + "-RPKI-CA.key", "-CAserial", self.name + "-RPKI-CA.srl",
+           "-extfile", self.name + "-RPKI-EE.cnf", "-extensions", "req_x509_ext")
     signer = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     bsc_ee = rpki.x509.X509(PEM = signer.communicate(input = pdu.pkcs10_request.get_PEM())[0])
 

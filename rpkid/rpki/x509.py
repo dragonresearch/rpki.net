@@ -662,16 +662,17 @@ class CMS_object(DER_object):
     self.decode(content)
     return self.get_content()
 
-  def sign(self, keypair, certs, no_certs = False):
+  def sign(self, keypair, certs, crls = None, no_certs = False):
     """Sign and wrap inner content."""
 
     cms = POW.CMS()
     cms.sign(certs[0].get_POW(),
              keypair.get_POW(),
-             [x.get_POW() for x in certs[1:]],
              self.encode(),
+             [x.get_POW() for x in certs[1:]],
+             crls,
              self.econtent_oid,
-             no_certs)
+             POW.CMS_NOCERTS if no_certs else 0)
     self.DER = cms.derWrite()
 
 class DER_CMS_object(CMS_object):

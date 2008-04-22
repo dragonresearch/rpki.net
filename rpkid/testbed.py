@@ -772,18 +772,18 @@ def mangle_sql(filename):
 
 biz_cert_fmt_1 = '''\
 [ req ]
-distinguished_name	= req_dn
-x509_extensions		= req_x509_ext
-prompt			= no
-default_md		= sha256
+distinguished_name      = req_dn
+x509_extensions         = req_x509_ext
+prompt                  = no
+default_md              = sha256
 
 [ req_dn ]
-CN			= Test Certificate %(name)s %(kind)s
+CN                      = Test Certificate %(name)s %(kind)s
 
 [ req_x509_ext ]
-basicConstraints	= CA:%(ca)s
-subjectKeyIdentifier	= hash
-authorityKeyIdentifier	= keyid:always
+basicConstraints        = CA:%(ca)s
+subjectKeyIdentifier    = hash
+authorityKeyIdentifier  = keyid:always
 '''
 
 biz_cert_fmt_2 = '''\
@@ -835,59 +835,52 @@ conf_fmt_1 = '''\
 
 startup-message = This is %(my_name)s irdbd
 
-sql-database	= %(irdb_db_name)s
-sql-username	= irdb
-sql-password	= %(irdb_db_pass)s
+sql-database    = %(irdb_db_name)s
+sql-username    = irdb
+sql-password    = %(irdb_db_pass)s
 
-cms-key		= %(my_name)s-IRDB-EE.key
-cms-cert.0	= %(my_name)s-IRDB-EE.cer
-cms-cert.1	= %(my_name)s-IRDB-CA.cer
-cms-ta		= %(my_name)s-RPKI-TA.cer
+cms-key         = %(my_name)s-IRDB-EE.key
+cms-cert.0      = %(my_name)s-IRDB-EE.cer
+cms-cert.1      = %(my_name)s-IRDB-CA.cer
+cms-ta          = %(my_name)s-RPKI-TA.cer
 
-https-key	= %(my_name)s-IRDB-EE.key
-https-cert.0	= %(my_name)s-IRDB-EE.cer
-https-cert.1	= %(my_name)s-IRDB-CA.cer
-https-ta	= %(my_name)s-RPKI-TA.cer
+https-key       = %(my_name)s-IRDB-EE.key
+https-cert.0    = %(my_name)s-IRDB-EE.cer
+https-cert.1    = %(my_name)s-IRDB-CA.cer
+https-ta        = %(my_name)s-RPKI-TA.cer
 
-https-url	= https://localhost:%(irdb_port)d/
+https-url       = https://localhost:%(irdb_port)d/
 
 [irbe-cli]
 
-cms-key		= %(testbed_name)s-EE.key
-cms-cert.0	= %(testbed_name)s-EE.cer
-cms-cert.1	= %(testbed_name)s-CA.cer
-cms-ta		= %(my_name)s-RPKI-TA.cer
+cms-key         = %(testbed_name)s-EE.key
+cms-cert.0      = %(testbed_name)s-EE.cer
+cms-cert.1      = %(testbed_name)s-CA.cer
+cms-ta          = %(my_name)s-RPKI-TA.cer
 
-https-key	= %(testbed_name)s-EE.key
-https-cert.0	= %(testbed_name)s-EE.cer
-https-cert.1	= %(testbed_name)s-CA.cer
-https-ta	= %(my_name)s-RPKI-TA.cer
+https-key       = %(testbed_name)s-EE.key
+https-cert.0    = %(testbed_name)s-EE.cer
+https-cert.1    = %(testbed_name)s-CA.cer
+https-ta        = %(my_name)s-RPKI-TA.cer
 
-https-url	= https://localhost:%(rpki_port)d/left-right
+https-url       = https://localhost:%(rpki_port)d/left-right
 
 [rpkid]
 
 startup-message = This is %(my_name)s rpkid
 
-sql-database	= %(rpki_db_name)s
-sql-username	= rpki
-sql-password	= %(rpki_db_pass)s
+sql-database    = %(rpki_db_name)s
+sql-username    = rpki
+sql-password    = %(rpki_db_pass)s
 
-cms-key		= %(my_name)s-RPKI-EE.key
-cms-cert.0	= %(my_name)s-RPKI-EE.cer
-cms-cert.1	= %(my_name)s-RPKI-CA.cer
+ee-key          = %(my_name)s-RPKI-EE.key
+cert-chain.0    = %(my_name)s-RPKI-EE.cer
+cert-chain.1    = %(my_name)s-RPKI-CA.cer
 
-cms-ta-irdb	= %(my_name)s-IRDB-TA.cer
-cms-ta-irbe	= %(testbed_name)s-TA.cer
+ta-irdb         = %(my_name)s-IRDB-TA.cer
+ta-irbe         = %(testbed_name)s-TA.cer
 
-https-key	= %(my_name)s-RPKI-EE.key
-https-cert.0	= %(my_name)s-RPKI-EE.cer
-https-cert.1	= %(my_name)s-RPKI-CA.cer
-
-https-ta-irdb	= %(my_name)s-IRDB-TA.cer
-https-ta-irbe	= %(testbed_name)s-TA.cer
-
-irdb-url	= https://localhost:%(irdb_port)d/
+irdb-url        = https://localhost:%(irdb_port)d/
 
 server-host     = localhost
 server-port     = %(rpki_port)d
@@ -897,44 +890,44 @@ rootd_fmt_1 = '''\
 
 [rootd]
 
-cms-key			= %(rootd_name)s-EE.key
-cms-cert.0		= %(rootd_name)s-EE.cer
-cms-cert.1		= %(rootd_name)s-CA.cer
-cms-ta			= %(rpkid_name)s-RPKI-TA.cer
+cms-key                 = %(rootd_name)s-EE.key
+cms-cert.0              = %(rootd_name)s-EE.cer
+cms-cert.1              = %(rootd_name)s-CA.cer
+cms-ta                  = %(rpkid_name)s-RPKI-TA.cer
 
-https-key		= %(rootd_name)s-EE.key
-https-cert.0		= %(rootd_name)s-EE.cer
-https-cert.1		= %(rootd_name)s-CA.cer
-https-ta		= %(rpkid_name)s-RPKI-TA.cer
+https-key               = %(rootd_name)s-EE.key
+https-cert.0            = %(rootd_name)s-EE.cer
+https-cert.1            = %(rootd_name)s-CA.cer
+https-ta                = %(rpkid_name)s-RPKI-TA.cer
 
-server-port		= %(rootd_port)s
+server-port             = %(rootd_port)s
 
 rootd_base              = %(rootd_sia)s
 rootd_cert              = %(rootd_sia)sWOMBAT.cer
 
-rpki-subject-filename	= %(rsyncd_dir)sWOMBAT.cer
+rpki-subject-filename   = %(rsyncd_dir)sWOMBAT.cer
 
-rpki-key		= %(rootd_name)s.key
-rpki-issuer		= %(rootd_name)s.cer
-rpki-pkcs10-filename	= %(rootd_name)s.subject.pkcs10
+rpki-key                = %(rootd_name)s.key
+rpki-issuer             = %(rootd_name)s.cer
+rpki-pkcs10-filename    = %(rootd_name)s.subject.pkcs10
 
 [req]
-default_bits		= 2048
-encrypt_key		= no
-distinguished_name	= req_dn
-req_extensions		= req_x509_ext
-prompt			= no
+default_bits            = 2048
+encrypt_key             = no
+distinguished_name      = req_dn
+req_extensions          = req_x509_ext
+prompt                  = no
 
 [req_dn]
-CN			= Completely Bogus Test Root (NOT FOR PRODUCTION USE)
+CN                      = Completely Bogus Test Root (NOT FOR PRODUCTION USE)
 
 [req_x509_ext]
-basicConstraints	= critical,CA:true
-subjectKeyIdentifier	= hash
-keyUsage		= critical,keyCertSign,cRLSign
-subjectInfoAccess	= 1.3.6.1.5.5.7.48.5;URI:%(rootd_sia)s
-sbgp-autonomousSysNum	= critical,AS:0-4294967295
-sbgp-ipAddrBlock	= critical,IPv4:0.0.0.0/0,IPv6:0::/0
+basicConstraints        = critical,CA:true
+subjectKeyIdentifier    = hash
+keyUsage                = critical,keyCertSign,cRLSign
+subjectInfoAccess       = 1.3.6.1.5.5.7.48.5;URI:%(rootd_sia)s
+sbgp-autonomousSysNum   = critical,AS:0-4294967295
+sbgp-ipAddrBlock        = critical,IPv4:0.0.0.0/0,IPv6:0::/0
 '''
 
 rootd_fmt_2 = '''\

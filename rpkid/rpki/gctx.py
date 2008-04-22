@@ -36,15 +36,23 @@ class global_context(object):
                               passwd = cfg.get("sql-password"))
     self.cur = self.db.cursor()
 
-    self.cms_ta_irdb   = rpki.x509.X509(Auto_file = cfg.get("cms-ta-irdb"))
-    self.cms_ta_irbe   = rpki.x509.X509(Auto_file = cfg.get("cms-ta-irbe"))
-    self.cms_key       = rpki.x509.RSA(Auto_file = cfg.get("cms-key"))
-    self.cms_certs     = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
+    if False:
+      self.cms_ta_irdb   = rpki.x509.X509(Auto_file = cfg.get("cms-ta-irdb"))
+      self.cms_ta_irbe   = rpki.x509.X509(Auto_file = cfg.get("cms-ta-irbe"))
+      self.cms_key       = rpki.x509.RSA(Auto_file = cfg.get("cms-key"))
+      self.cms_certs     = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
 
-    self.https_ta_irdb = rpki.x509.X509(Auto_file = cfg.get("https-ta-irdb"))
-    self.https_ta_irbe = rpki.x509.X509(Auto_file = cfg.get("https-ta-irbe"))
-    self.https_key     = rpki.x509.RSA(Auto_file = cfg.get("https-key"))
-    self.https_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
+      self.https_ta_irdb = rpki.x509.X509(Auto_file = cfg.get("https-ta-irdb"))
+      self.https_ta_irbe = rpki.x509.X509(Auto_file = cfg.get("https-ta-irbe"))
+      self.https_key     = rpki.x509.RSA(Auto_file = cfg.get("https-key"))
+      self.https_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
+
+    else:
+
+      self.ta_irdb    = rpki.x509.X509(Auto_file = cfg.get("ta-irdb"))
+      self.ta_irbe    = rpki.x509.X509(Auto_file = cfg.get("ta-irbe"))
+      self.ee_key     = rpki.x509.RSA(Auto_file = cfg.get("ee-key"))
+      self.cert_chain = rpki.x509.X509_chain(Auto_files = cfg.multiget("cert-chain"))
 
     self.irdb_url    = cfg.get("irdb-url")
 
@@ -74,14 +82,14 @@ class global_context(object):
     q_msg[0].type = "query"
     q_msg[0].self_id = self_id
     q_msg[0].child_id = child_id
-    q_cms = rpki.left_right.cms_msg.wrap(q_msg, self.cms_key, self.cms_certs)
+    q_cms = rpki.left_right.cms_msg.wrap(q_msg, self.ee_key, self.cert_chain)
     der = rpki.https.client(
-      client_key   = self.https_key,
-      client_certs = self.https_certs,
-      server_ta    = self.https_ta_irdb,
+      client_key   = self.ee_key,
+      client_certs = self.cert_chain,
+      server_ta    = self.ta_irdb,
       url          = self.irdb_url,
       msg          = q_cms)
-    r_msg = rpki.left_right.cms_msg.unwrap(der, self.cms_ta_irdb)
+    r_msg = rpki.left_right.cms_msg.unwrap(der, self.ta_irdb)
     if len(r_msg) == 0 or not isinstance(r_msg[0], rpki.left_right.list_resources_elt) or r_msg[0].type != "reply":
       raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")
     return rpki.resource_set.resource_bag(
@@ -112,9 +120,9 @@ class global_context(object):
     """Process one left-right PDU."""
     rpki.log.trace()
     try:
-      q_msg = rpki.left_right.cms_msg.unwrap(query, self.cms_ta_irbe)
+      q_msg = rpki.left_right.cms_msg.unwrap(query, self.ta_irbe)
       r_msg = q_msg.serve_top_level(self)
-      reply = rpki.left_right.cms_msg.wrap(r_msg, self.cms_key, self.cms_certs)
+      reply = rpki.left_right.cms_msg.wrap(r_msg, self.ee_key, self.cert_chain)
       self.sql_sweep()
       return 200, reply
     except Exception, data:
@@ -178,7 +186,7 @@ class global_context(object):
       children = rpki.left_right.child_elt.sql_fetch_all(self)
       certs = [c.peer_biz_cert for c in children if c.peer_biz_cert is not None] + \
               [c.peer_biz_glue for c in children if c.peer_biz_glue is not None] + \
-              [ self.https_ta_irbe ]
+              [ self.ta_irbe ]
       for x in certs:
         if rpki.https.debug_tls_certs:
           rpki.log.debug("HTTPS dynamic trust anchor %s" % x.getSubject())

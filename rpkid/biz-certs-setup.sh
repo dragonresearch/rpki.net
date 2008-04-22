@@ -62,14 +62,14 @@ do
 
 	EOF
 
-    test -r $i-$j.key -a -r $i-$j.req ||
-    openssl req -new -newkey rsa:2048 -nodes -keyout $i-$j.key -out $i-$j.req -config $i-$j.cnf
+    test -r $i-$j.key || openssl genrsa -out $i-$j.key 2048
+    test -r $i-$j.req || openssl req -new -sha256 -key $i-$j.key -out $i-$j.req -config $i-$j.cnf
 
   done
 
-  test -r $i-Root.cer || openssl x509 -req -in $i-Root.req -out $i-Root.cer -extfile $i-Root.cnf -extensions req_x509_ext -signkey $i-Root.key -days 60
-  test -r $i-CA.cer   || openssl x509 -req -in $i-CA.req   -out $i-CA.cer   -extfile $i-CA.cnf   -extensions req_x509_ext -CA $i-Root.cer -CAkey $i-Root.key -CAcreateserial
-  test -r $i-EE.cer   || openssl x509 -req -in $i-EE.req   -out $i-EE.cer   -extfile $i-EE.cnf   -extensions req_x509_ext -CA $i-CA.cer   -CAkey $i-CA.key   -CAcreateserial
+  test -r $i-Root.cer || openssl x509 -sha256 -req -in $i-Root.req -out $i-Root.cer -extfile $i-Root.cnf -extensions req_x509_ext -signkey $i-Root.key -days 60
+  test -r $i-CA.cer   || openssl x509 -sha256 -req -in $i-CA.req   -out $i-CA.cer   -extfile $i-CA.cnf   -extensions req_x509_ext -CA $i-Root.cer -CAkey $i-Root.key -CAcreateserial
+  test -r $i-EE.cer   || openssl x509 -sha256 -req -in $i-EE.req   -out $i-EE.cer   -extfile $i-EE.cnf   -extensions req_x509_ext -CA $i-CA.cer   -CAkey $i-CA.key   -CAcreateserial
 
 done
 

@@ -42,24 +42,31 @@ oid = "1.2.840.113549.1.9.16.1.24"
 plaintext = "Wombats Are Us"
 
 for args in ((ee, key, [ca], plaintext, oid),
-             (ee, key, [ca], plaintext, oid, True),
-             (ee, key, [ca], plaintext, oid, False),
+             (ee, key, [ca], plaintext, oid, POW.CMS_NOATTR),
+             (ee, key, [ca], plaintext, oid, POW.CMS_NOCERTS),
              (ee, key, [], plaintext, oid),
-             (ee, key, [], plaintext, oid, True),
-             (ee, key, [], plaintext, oid, False)):
+             (ee, key, [], plaintext, oid, POW.CMS_NOATTR),
+             (ee, key, [], plaintext, oid, POW.CMS_NOCERTS)):
 
   print "Testing", repr(args)
 
   cms = POW.CMS()
   cms.sign(*args)
 
-  if False:
+  if True:
     f = open("test-pow-cms.der", "w")
     f.write(cms.derWrite())
     f.close()
-    if False:
+    if True:
       f = os.popen("dumpasn1 2>&1 -a test-pow-cms.der")
       print "\n".join(x for x in f.read().splitlines() if x.startswith(" "))
       f.close()
+    if True:
+      os.unlink("test-pow-cms.der")
 
+  if True:
+    f = os.popen("../openssl/openssl/apps/openssl cms -print -cmsout -inform DER", "w")
+    f.write(cms.derWrite())
+    f.close()
+    
   cms.verify(store, [ee])

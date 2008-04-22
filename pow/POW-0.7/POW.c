@@ -120,7 +120,7 @@
 #define X509_CERTIFICATE      7
 #define X_X509_CRL            8     //X509_CRL already used by OpenSSL library
 #define PKCS7_MESSAGE         9
-#define CMS_MESSAGE	      10
+#define CMS_MESSAGE           10
 
 // Asymmetric ciphers
 #define RSA_CIPHER            1
@@ -148,17 +148,17 @@
 #define DER_FORMAT            2
 
 // Object check functions
-#define X_X509_Check(op)	 ((op)->ob_type == &x509type)
-#define X_X509_store_Check(op)	 ((op)->ob_type == &x509_storetype)
-#define X_X509_crl_Check(op)	 ((op)->ob_type == &x509_crltype)
+#define X_X509_Check(op)         ((op)->ob_type == &x509type)
+#define X_X509_store_Check(op)   ((op)->ob_type == &x509_storetype)
+#define X_X509_crl_Check(op)     ((op)->ob_type == &x509_crltype)
 #define X_X509_revoked_Check(op) ((op)->ob_type == &x509_revokedtype)
-#define X_asymmetric_Check(op)	 ((op)->ob_type == &asymmetrictype)
-#define X_symmetric_Check(op)	 ((op)->ob_type == &symmetrictype)
-#define X_digest_Check(op)	 ((op)->ob_type == &digesttype)
-#define X_hmac_Check(op)	 ((op)->ob_type == &hmactype)
-#define X_ssl_Check(op)		 ((op)->ob_type == &ssltype)
-#define X_pkcs7_Check(op)	 ((op)->ob_type == &pkcs7type)
-#define X_cms_Check(op)		 ((op)->ob_type == &cmstype)
+#define X_asymmetric_Check(op)   ((op)->ob_type == &asymmetrictype)
+#define X_symmetric_Check(op)    ((op)->ob_type == &symmetrictype)
+#define X_digest_Check(op)       ((op)->ob_type == &digesttype)
+#define X_hmac_Check(op)         ((op)->ob_type == &hmactype)
+#define X_ssl_Check(op)          ((op)->ob_type == &ssltype)
+#define X_pkcs7_Check(op)        ((op)->ob_type == &pkcs7type)
+#define X_cms_Check(op)          ((op)->ob_type == &cmstype)
 
 static char pow_module__doc__ [] = 
 "<moduleDescription>\n"
@@ -609,16 +609,16 @@ x509_helper_sequence_to_stack(PyObject *x509_sequence)
 
       for (i=0; i < size; i++)
       {
-	 if ( !( tmpX509 = (x509_object*)PySequence_GetItem( x509_sequence, i ) ) )
-	    goto error;
+         if ( !( tmpX509 = (x509_object*)PySequence_GetItem( x509_sequence, i ) ) )
+            goto error;
 
-	 if ( !X_X509_Check( tmpX509 ) )
-	    { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
+         if ( !X_X509_Check( tmpX509 ) )
+            { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
 
-	 if (!sk_X509_push( x509_stack, tmpX509->x509 ) )
-	    { PyErr_SetString( SSLErrorObject, "could not add x509 to stack" ); goto error; }
-	 Py_DECREF(tmpX509);
-	 tmpX509 = NULL;
+         if (!sk_X509_push( x509_stack, tmpX509->x509 ) )
+            { PyErr_SetString( SSLErrorObject, "could not add x509 to stack" ); goto error; }
+         Py_DECREF(tmpX509);
+         tmpX509 = NULL;
       }
    }
 
@@ -6366,11 +6366,11 @@ PKCS7_object_sign(pkcs7_object *self, PyObject *args)
    PyObject *no_certs = Py_False;
 
    if (!PyArg_ParseTuple(args, "O!O!Os#|O!",
-			 &x509type, &signcert,
-			 &asymmetrictype, &signkey,
-			 &x509_sequence,
-			 &buf, &len,
-			 &PyBool_Type, &no_certs))
+                         &x509type, &signcert,
+                         &asymmetrictype, &signkey,
+                         &x509_sequence,
+                         &buf, &len,
+                         &PyBool_Type, &no_certs))
       goto error;
 
    if (signkey->key_type != RSA_PRIVATE_KEY)
@@ -6728,11 +6728,15 @@ static char CMS_object_sign__doc__[] =
 "      <parameter>key</parameter>\n"
 "      <parameter>certs</parameter>\n"
 "      <parameter>data</parameter>\n"
-"      <optional><parameter>no_certs</parameter></optional>\n"
+"      <optional>\n"
+"        <parameter>eContentType</parameter>\n"
+"        <parameter>flags</parameter>\n"
+"      </optional>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
 "         This method signs a message with a private key.\n"
+"         Supported flags: CMS_NOCERTS, CMS_NOATTR.\n"
 "      </para>\n"
 "   </body>\n"
 "</method>\n"
@@ -6743,23 +6747,26 @@ CMS_object_sign(cms_object *self, PyObject *args)
 {
    asymmetric_object *signkey = NULL;
    x509_object *signcert = NULL;
-   PyObject *x509_sequence = NULL, *no_certs = Py_False;
+   PyObject *x509_sequence = NULL;
    STACK_OF(X509) *x509_stack = NULL;
    EVP_PKEY *pkey = NULL;
    char *buf = NULL, *oid = NULL;
-   int i, len, flags = CMS_BINARY | CMS_NOSMIMECAP | CMS_PARTIAL;
+   int i, len, flags = 0;
    BIO *bio = NULL;
    CMS_ContentInfo *cms = NULL;
    ASN1_OBJECT *econtent_type = NULL;
 
-   if (!PyArg_ParseTuple(args, "O!O!Os#|sO!",
-			 &x509type, &signcert,
-			 &asymmetrictype, &signkey,
-			 &x509_sequence,
-			 &buf, &len,
-			 &oid,
-			 &PyBool_Type, &no_certs))
+   if (!PyArg_ParseTuple(args, "O!O!Os#|si",
+                         &x509type, &signcert,
+                         &asymmetrictype, &signkey,
+                         &x509_sequence,
+                         &buf, &len,
+                         &oid,
+                         &flags))
       goto error;
+
+   flags &= CMS_NOCERTS | CMS_NOATTR;
+   flags |= CMS_BINARY | CMS_NOSMIMECAP | CMS_PARTIAL | CMS_USE_KEYID;
 
    if (signkey->key_type != RSA_PRIVATE_KEY)
       { PyErr_SetString( SSLErrorObject, "unsupported key type" ); goto error; }
@@ -6779,15 +6786,12 @@ CMS_object_sign(cms_object *self, PyObject *args)
    if ( oid && (econtent_type = OBJ_txt2obj(oid, 0)) == NULL )
       { set_openssl_pyerror( "could not parse OID" ); goto error; }
 
-   if ( no_certs == Py_True )
-      flags |= CMS_NOCERTS;
-
    if ( !(cms = CMS_sign(NULL, NULL, NULL, bio, flags)))
       { set_openssl_pyerror( "could not create CMS message" ); goto error; }
 
    for ( i = 0; i < sk_X509_num(x509_stack); i++ )
       if ( !CMS_add1_cert(cms, sk_X509_value(x509_stack, i)))
-	 { set_openssl_pyerror( "could not add cert to CMS message" ); goto error; }
+         { set_openssl_pyerror( "could not add cert to CMS message" ); goto error; }
 
    if (econtent_type)
       CMS_set1_eContentType(cms, econtent_type);
@@ -8222,6 +8226,15 @@ init_POW(void)
    install_int_const( d, "GEN_IPADD",                 GEN_IPADD );
    install_int_const( d, "GEN_RID",                   GEN_RID );
 
+   // CMS flags
+   install_int_const( d, "CMS_NOCERTS",               CMS_NOCERTS );
+   install_int_const( d, "CMS_NOATTR",                CMS_NOATTR );
+   install_int_const( d, "CMS_NOINTERN",              CMS_NOINTERN );
+   install_int_const( d, "CMS_NOCRL",                 CMS_NOCRL );
+   install_int_const( d, "CMS_NO_SIGNER_CERT_VERIFY", CMS_NO_SIGNER_CERT_VERIFY );
+   install_int_const( d, "CMS_NO_ATTR_VERIFY",        CMS_NO_ATTR_VERIFY );
+   install_int_const( d, "CMS_NO_CONTENT_VERIFY",     CMS_NO_CONTENT_VERIFY );
+
    // initialise library
    SSL_library_init();
    OpenSSL_add_all_algorithms();
@@ -8238,6 +8251,6 @@ init_POW(void)
 
 /*
  * Local Variables:
- * indent-tab-mode: nil
+ * indent-tabs-mode: nil
  * End:
  */

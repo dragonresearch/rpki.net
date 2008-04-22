@@ -16,77 +16,84 @@
 
 """Exception definitions for RPKI modules."""
 
-class NotInDatabase(Exception):
+class RPKI_Exception(Exception):
+  """Base class for RPKI exceptions."""
+
+class NotInDatabase(RPKI_Exception):
   """Lookup failed for an object expected to be in the database."""
 
-class BadURISyntax(Exception):
+class BadURISyntax(RPKI_Exception):
   """Illegal syntax for a URI."""
 
-class BadStatusCode(Exception):
+class BadStatusCode(RPKI_Exception):
   """Unrecognized protocol status code."""
 
-class BadQuery(Exception):
+class BadQuery(RPKI_Exception):
   """Unexpected protocol query."""
 
-class DBConsistancyError(Exception):
+class DBConsistancyError(RPKI_Exception):
   """Found multiple matches for a database query that shouldn't ever return that."""
 
-class CMSVerificationFailed(Exception):
+class CMSVerificationFailed(RPKI_Exception):
   """Verification of a CMS message failed."""
 
-class HTTPRequestFailed(Exception):
+class HTTPRequestFailed(RPKI_Exception):
   """HTTP request failed."""
 
-class DERObjectConversionError(Exception):
+class DERObjectConversionError(RPKI_Exception):
   """Error trying to convert a DER-based object from one representation to another."""
 
-class NotACertificateChain(Exception):
+class NotACertificateChain(RPKI_Exception):
   """Certificates don't form a proper chain."""
 
-class BadContactURL(Exception):
+class BadContactURL(RPKI_Exception):
   """Error trying to parse up-down protocol contact URL."""
 
-class BadClassNameSyntax(Exception):
+class BadClassNameSyntax(RPKI_Exception):
   """Illegal syntax for a class_name."""
 
-class BadIssueResponse(Exception):
+class BadIssueResponse(RPKI_Exception):
   """issue_response PDU with wrong number of classes or certificates."""
 
-class NotImplementedYet(Exception):
+class NotImplementedYet(RPKI_Exception):
   """Internal error -- not implemented yet."""
 
-class BadPKCS10(Exception):
+class BadPKCS10(RPKI_Exception):
   """Bad PKCS #10 object."""
 
-class UpstreamError(Exception):
+class UpstreamError(RPKI_Exception):
   """Received an error from upstream."""
 
-class ChildNotFound(Exception):
+class ChildNotFound(RPKI_Exception):
   """Could not find specified child in database."""
 
-class BSCNotFound(Exception):
+class BSCNotFound(RPKI_Exception):
   """Could not find specified BSC in database."""
 
-class BadSender(Exception):
+class BadSender(RPKI_Exception):
   """Unexpected XML sender value."""
 
-class ClassNameMismatch(Exception):
+class ClassNameMismatch(RPKI_Exception):
   """class_name does not match child context."""
 
-class SKIMismatch(Exception):
+class SKIMismatch(RPKI_Exception):
   """SKI value in response does not match request."""
 
-class SubprocessError(Exception):
+class SubprocessError(RPKI_Exception):
   """Subprocess returned unexpected error."""
 
-class BadIRDBReply(Exception):
+class BadIRDBReply(RPKI_Exception):
   """Unexpected reply to IRDB query."""
 
-class NotFound(Exception):
+class NotFound(RPKI_Exception):
   """Object not found in database."""
 
-class MustBePrefix(Exception):
+class MustBePrefix(RPKI_Exception):
   """Resource range cannot be expressed as a prefix."""
 
-class TLSValidationError(Exception):
+class TLSValidationError(RPKI_Exception):
   """TLS certificate validation error."""
+
+class WrongEContentType(RPKI_Exception):
+  """Received wrong CMS eContentType."""
+  

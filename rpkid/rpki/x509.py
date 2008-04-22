@@ -644,6 +644,8 @@ class CMS_object(DER_object):
     """Verify CMS wrapper and store inner content."""
 
     cms = POW.derRead(POW.CMS_MESSAGE, self.get_DER())
+    if cms.eContentType() != self.econtent_oid:
+      raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (cms.eContentType(), self.econtent_oid)
     store = POW.X509Store()
     if isinstance(ta, (tuple, list)):
       for x in ta:

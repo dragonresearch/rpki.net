@@ -6903,12 +6903,46 @@ error:
    return NULL;
 }
 
+static char CMS_object_eContentType__doc__[] = 
+"<method>\n"
+"   <header>\n"
+"      <memberof>CMS</memberof>\n"
+"      <name>get_eContentType</name>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This method returns the eContentType of a CMS message.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
+static PyObject *
+CMS_object_eContentType(cms_object *self, PyObject *args)
+{
+   const ASN1_OBJECT *oid = NULL;
+   char buf[512];
+
+   if (!PyArg_ParseTuple(args, ""))
+      return NULL;
+
+   if ( !(oid = CMS_get0_eContentType(self->cms))) {
+      set_openssl_pyerror("Could not extract eContentType from CMS message");
+      return NULL;
+   }
+
+   OBJ_obj2txt(buf, sizeof(buf), oid, 1);
+
+   return Py_BuildValue("s", buf);
+}
+
 
 static struct PyMethodDef CMS_object_methods[] = {
-   {"pemWrite",      (PyCFunction)CMS_object_pem_write,       METH_VARARGS,  NULL}, 
-   {"derWrite",      (PyCFunction)CMS_object_der_write,       METH_VARARGS,  NULL}, 
-   {"sign",          (PyCFunction)CMS_object_sign,            METH_VARARGS,  NULL}, 
-   {"verify",        (PyCFunction)CMS_object_verify,          METH_VARARGS,  NULL},
+   {"pemWrite",     (PyCFunction)CMS_object_pem_write,    METH_VARARGS,  NULL},
+   {"derWrite",     (PyCFunction)CMS_object_der_write,    METH_VARARGS,  NULL},
+   {"sign",         (PyCFunction)CMS_object_sign,         METH_VARARGS,  NULL},
+   {"verify",       (PyCFunction)CMS_object_verify,       METH_VARARGS,  NULL},
+   {"eContentType", (PyCFunction)CMS_object_eContentType, METH_VARARGS,  NULL},
  
    {NULL,      NULL}    /* sentinel */
 };
@@ -7971,6 +8005,7 @@ pow_module_docset(PyObject *self, PyObject *args)
    docset_helper_add( docset, CMS_object_der_write__doc__ );
    docset_helper_add( docset, CMS_object_sign__doc__ );
    docset_helper_add( docset, CMS_object_verify__doc__ );
+   docset_helper_add( docset, CMS_object_eContentType__doc__ );
 
    // symmetric documentation
    docset_helper_add( docset, symmetrictype__doc__ );

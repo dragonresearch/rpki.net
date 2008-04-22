@@ -7978,8 +7978,10 @@ pow_module_docset(PyObject *self, PyObject *args)
       goto error;
    
    docset = PyList_New(0);
+
    // module documentation
    docset_helper_add( docset, pow_module__doc__ );
+
    // constructors
    docset_helper_add( docset, pow_module_new_symmetric__doc__ );
    docset_helper_add( docset, pow_module_new_asymmetric__doc__ );
@@ -7992,6 +7994,7 @@ pow_module_docset(PyObject *self, PyObject *args)
    docset_helper_add( docset, pow_module_new_x509_revoked__doc__ );
    docset_helper_add( docset, pow_module_new_pkcs7__doc__ );
    docset_helper_add( docset, pow_module_new_cms__doc__ );
+
    // functions
    docset_helper_add( docset, pow_module_pem_read__doc__ );
    docset_helper_add( docset, pow_module_der_read__doc__ );
@@ -8184,9 +8187,7 @@ init_POW(void)
    pkcs7type.ob_type        = &PyType_Type;
    cmstype.ob_type          = &PyType_Type;
 
-   m = Py_InitModule4("_POW", pow_module_methods,
-      pow_module__doc__,
-      (PyObject*)NULL,PYTHON_API_VERSION);
+   m = Py_InitModule3("_POW", pow_module_methods, pow_module__doc__);
 
    d = PyModule_GetDict(m);
    SSLErrorObject = PyErr_NewException("POW.SSLError", NULL, NULL);

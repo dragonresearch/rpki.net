@@ -6726,9 +6726,10 @@ static char CMS_object_sign__doc__[] =
 "      <name>sign</name>\n"
 "      <parameter>signcert</parameter>\n"
 "      <parameter>key</parameter>\n"
-"      <parameter>certs</parameter>\n"
 "      <parameter>data</parameter>\n"
 "      <optional>\n"
+"        <parameter>certs</parameter>\n"
+"        <parameter>crls</parameter>\n"
 "        <parameter>eContentType</parameter>\n"
 "        <parameter>flags</parameter>\n"
 "      </optional>\n"
@@ -6747,21 +6748,24 @@ CMS_object_sign(cms_object *self, PyObject *args)
 {
    asymmetric_object *signkey = NULL;
    x509_object *signcert = NULL;
-   PyObject *x509_sequence = NULL;
+   x509_crl_object *crlobj = NULL;
+   PyObject *x509_sequence = Py_None, *crl_sequence = Py_None;
    STACK_OF(X509) *x509_stack = NULL;
    EVP_PKEY *pkey = NULL;
    char *buf = NULL, *oid = NULL;
-   int i, len;
+   int i, n, len;
    unsigned flags = 0;
    BIO *bio = NULL;
    CMS_ContentInfo *cms = NULL;
    ASN1_OBJECT *econtent_type = NULL;
+   X509_CRL *crl = NULL;
 
-   if (!PyArg_ParseTuple(args, "O!O!Os#|sI",
+   if (!PyArg_ParseTuple(args, "O!O!s#|OOsI",
                          &x509type, &signcert,
                          &asymmetrictype, &signkey,
-                         &x509_sequence,
                          &buf, &len,
+                         &x509_sequence,
+                         &crl_sequence,
                          &oid,
                          &flags))
       goto error;
@@ -6800,6 +6804,31 @@ CMS_object_sign(cms_object *self, PyObject *args)
    if ( !CMS_add1_signer(cms, signcert->x509, pkey, EVP_sha256(), flags))
       { set_openssl_pyerror( "could not sign CMS message" ); goto error; }
 
+   if (crl_sequence != Py_None) {
+
+     if (!PyTuple_Check(crl_sequence) && !PyList_Check(crl_sequence))
+        { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
+
+     n = PySequence_Size( crl_sequence );
+
+     for (i = 0; i < n; i++) {
+       	if ( !(crlobj = (x509_crl_object *) PySequence_GetItem(crl_sequence, i)))
+           goto error;
+
+        if (!X_X509_crl_Check(crlobj))
+           { PyErr_SetString( PyExc_TypeError, "inappropriate type" ); goto error; }
+
+        if ( !(crl = X509_CRL_dup(crlobj->crl)))
+           { PyErr_SetString( PyExc_TypeError, "couldn't clone CRL" ); goto error; }
+
+        if (!CMS_add0_crl(self->cms, crl))
+           { set_openssl_pyerror( "could not add CRL to CMS" ); goto error; }
+
+        Py_DECREF(crlobj);
+        crlobj = NULL;
+     }
+   }
+
    if ( !CMS_final(cms, bio, NULL, flags))
       { set_openssl_pyerror( "could not finalize CMS signatures" ); goto error; }
 
@@ -6831,6 +6860,9 @@ error:
 
    if (econtent_type)
       ASN1_OBJECT_free(econtent_type);
+
+   if (crlobj)
+      Py_XDECREF(crlobj);
 
    return NULL;
 }

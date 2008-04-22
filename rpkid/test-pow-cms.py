@@ -41,12 +41,12 @@ oid = "1.2.840.113549.1.9.16.1.24"
 
 plaintext = "Wombats Are Us"
 
-for args in ((ee, key, [ca], plaintext, oid),
-             (ee, key, [ca], plaintext, oid, POW.CMS_NOATTR),
-             (ee, key, [ca], plaintext, oid, POW.CMS_NOCERTS),
-             (ee, key, [], plaintext, oid),
-             (ee, key, [], plaintext, oid, POW.CMS_NOATTR),
-             (ee, key, [], plaintext, oid, POW.CMS_NOCERTS)):
+for args in ((ee, key, plaintext, [ca], (), oid),
+             (ee, key, plaintext, [ca], (), oid, POW.CMS_NOATTR),
+             (ee, key, plaintext, [ca], (), oid, POW.CMS_NOCERTS),
+             (ee, key, plaintext, [],   (), oid),
+             (ee, key, plaintext, [],   (), oid, POW.CMS_NOATTR),
+             (ee, key, plaintext, [],   (), oid, POW.CMS_NOCERTS)):
 
   print "Testing", repr(args)
 

@@ -36,25 +36,12 @@ class global_context(object):
                               passwd = cfg.get("sql-password"))
     self.cur = self.db.cursor()
 
-    if False:
-      self.cms_ta_irdb   = rpki.x509.X509(Auto_file = cfg.get("cms-ta-irdb"))
-      self.cms_ta_irbe   = rpki.x509.X509(Auto_file = cfg.get("cms-ta-irbe"))
-      self.cms_key       = rpki.x509.RSA(Auto_file = cfg.get("cms-key"))
-      self.cms_certs     = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
+    self.ta_irdb    = rpki.x509.X509(Auto_file = cfg.get("ta-irdb"))
+    self.ta_irbe    = rpki.x509.X509(Auto_file = cfg.get("ta-irbe"))
+    self.ee_key     = rpki.x509.RSA(Auto_file = cfg.get("ee-key"))
+    self.cert_chain = rpki.x509.X509_chain(Auto_files = cfg.multiget("cert-chain"))
 
-      self.https_ta_irdb = rpki.x509.X509(Auto_file = cfg.get("https-ta-irdb"))
-      self.https_ta_irbe = rpki.x509.X509(Auto_file = cfg.get("https-ta-irbe"))
-      self.https_key     = rpki.x509.RSA(Auto_file = cfg.get("https-key"))
-      self.https_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
-
-    else:
-
-      self.ta_irdb    = rpki.x509.X509(Auto_file = cfg.get("ta-irdb"))
-      self.ta_irbe    = rpki.x509.X509(Auto_file = cfg.get("ta-irbe"))
-      self.ee_key     = rpki.x509.RSA(Auto_file = cfg.get("ee-key"))
-      self.cert_chain = rpki.x509.X509_chain(Auto_files = cfg.multiget("cert-chain"))
-
-    self.irdb_url    = cfg.get("irdb-url")
+    self.irdb_url   = cfg.get("irdb-url")
 
     self.https_server_host = cfg.get("server-host", "")
     self.https_server_port = int(cfg.get("server-port", "4433"))

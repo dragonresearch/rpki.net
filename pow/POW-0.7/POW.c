@@ -302,7 +302,7 @@ install_int_const( PyObject *d, char *name, long value )
 int
 docset_helper_add(PyObject *set, char *v)
 {
-   PyObject *value=NULL;
+   PyObject *value = NULL;
 
    if ( !(value = PyString_FromString(v) ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -414,7 +414,7 @@ X509_object_helper_set_name(X509_NAME *name, PyObject *name_sequence)
    char *valueptr = NULL, *typeptr = NULL;
 
    no_pairs = PySequence_Size( name_sequence );
-   for (i=0; i < no_pairs; i++)
+   for (i = 0; i < no_pairs; i++)
    {
       if ( ( pair = PySequence_GetItem( name_sequence, i ) ) == NULL  )
          return NULL;
@@ -469,9 +469,9 @@ error:
 static PyObject *
 X509_object_helper_get_name(X509_NAME *name, int format)
 {
-   int no_entries=0, no_pairs=0, i=0, j=0, value_len=0, nid=0;
-   X509_NAME_ENTRY *entry=NULL;
-   char *value=NULL, long_name[512];
+   int no_entries = 0, no_pairs = 0, i = 0, j = 0, value_len = 0, nid = 0;
+   X509_NAME_ENTRY *entry = NULL;
+   char *value = NULL, long_name[512];
    const char *short_name;
 
    PyObject *result_list = NULL;
@@ -484,7 +484,7 @@ X509_object_helper_get_name(X509_NAME *name, int format)
    if ( !(result_list = PyTuple_New( no_entries ) ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
 
-   for(i=0; i<no_entries; i++)
+   for(i = 0; i < no_entries; i++)
    {
       if ( !(entry = X509_NAME_get_entry( name, i ) ) )
          { PyErr_SetString( SSLErrorObject, "could not get certificate name" ); goto error; }
@@ -539,11 +539,11 @@ error:
    if (result_list)
    {
       no_pairs = PyTuple_Size( result_list );
-      for (i=0; i < no_pairs; i++)
+      for (i = 0; i < no_pairs; i++)
       {
          pair = PyTuple_GetItem( result_list, i );
          no_entries = PyTuple_Size( result_list );
-         for (j=0; j < no_entries; j++)
+         for (j = 0; j < no_entries; j++)
          {
             py_value = PyTuple_GetItem( pair, i );
             Py_DECREF( py_value );
@@ -607,7 +607,7 @@ x509_helper_sequence_to_stack(PyObject *x509_sequence)
    {
       size = PySequence_Size( x509_sequence );
 
-      for (i=0; i < size; i++)
+      for (i = 0; i < size; i++)
       {
          if ( !( tmpX509 = (x509_object*)PySequence_GetItem( x509_sequence, i ) ) )
             goto error;
@@ -634,7 +634,53 @@ error:
    return NULL;
 }
 
+static PyObject *
+stack_to_tuple_helper(STACK *sk, PyObject *(*handler)(void *))
+{
+   PyObject *result_list = NULL, *result_tuple = NULL, *obj = NULL;
+   int n, i;
 
+   if ( !(result_list = PyList_New(0))) {
+      PyErr_SetString( SSLErrorObject, "could not allocate memory" );
+      goto error;
+   }
+
+   while (sk_num(sk)) {
+
+      if ( !(obj = handler(sk_value(sk, 0)))) {
+         PyErr_SetString(SSLErrorObject, "could not allocate memory");
+         goto error;
+      }
+
+      sk_shift(sk);
+
+      if (PyList_Append(result_list, obj) != 0)
+         goto error;
+
+      obj = NULL;
+   }
+
+   result_tuple = PyList_AsTuple(result_list);
+   Py_DECREF(result_list);
+ 
+   return Py_BuildValue("O", result_tuple);
+
+error:
+
+   if (obj)
+      Py_DECREF(obj);
+
+   if (result_list) {
+      n = PyList_Size(result_list);
+      for (i = 0; i < n; i++) {
+         obj = PyList_GetItem(result_list, i);
+         Py_DECREF(obj);
+      }
+      Py_DECREF(result_list);
+   }
+
+   return NULL;
+}
 
 /*========== helper funcitons ==========*/
 
@@ -710,10 +756,10 @@ error:
 static PyObject *
 X509_object_write_helper(x509_object *self, PyObject *args, int format)
 {
-   int len=0;
-   char *buf=NULL;
-   BIO *out_bio=NULL;
-   PyObject *cert=NULL;
+   int len = 0;
+   char *buf = NULL;
+   BIO *out_bio = NULL;
+   PyObject *cert = NULL;
    
    if (!PyArg_ParseTuple(args, ""))
       return NULL;
@@ -826,7 +872,7 @@ static char X509_object_set_public_key__doc__[] =
 static PyObject *
 X509_object_set_public_key(x509_object *self, PyObject *args)
 {
-   EVP_PKEY *pkey=NULL;
+   EVP_PKEY *pkey = NULL;
    asymmetric_object *asym;
 
    if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
@@ -858,7 +904,7 @@ static char X509_object_sign__doc__[] =
 "      <memberof>X509</memberof>\n"
 "      <name>sign</name>\n"
 "      <parameter>key</parameter>\n"
-"      <optional><parameter>digest=MD5_DIGEST</parameter></optional>\n"
+"      <optional><parameter>digest = MD5_DIGEST</parameter></optional>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -888,9 +934,9 @@ static char X509_object_sign__doc__[] =
 static PyObject *
 X509_object_sign(x509_object *self, PyObject *args)
 {
-   EVP_PKEY *pkey=NULL;
+   EVP_PKEY *pkey = NULL;
    asymmetric_object *asym;
-   int digest=MD5_DIGEST;
+   int digest = MD5_DIGEST;
 
    if (!PyArg_ParseTuple(args, "O!|i", &asymmetrictype, &asym, &digest))
       goto error;
@@ -986,7 +1032,7 @@ static char X509_object_get_version__doc__[] =
 static PyObject *
 X509_object_get_version(x509_object *self, PyObject *args)
 {
-   long version=0;
+   long version = 0;
 
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -1021,7 +1067,7 @@ static char X509_object_set_version__doc__[] =
 static PyObject *
 X509_object_set_version(x509_object *self, PyObject *args)
 {
-   long version=0;
+   long version = 0;
 
    if (!PyArg_ParseTuple(args, "l", &version))
       goto error;
@@ -1054,8 +1100,8 @@ static char X509_object_get_serial__doc__[] =
 static PyObject *
 X509_object_get_serial(x509_object *self, PyObject *args)
 {
-   long serial=0;
-   ASN1_INTEGER *asn1i=NULL;
+   long serial = 0;
+   ASN1_INTEGER *asn1i = NULL;
 
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -1093,8 +1139,8 @@ static char X509_object_set_serial__doc__[] =
 static PyObject *
 X509_object_set_serial(x509_object *self, PyObject *args)
 {
-   long serial=0;
-   ASN1_INTEGER *asn1i=NULL;
+   long serial = 0;
+   ASN1_INTEGER *asn1i = NULL;
 
    if (!PyArg_ParseTuple(args, "l", &serial))
       goto error;
@@ -1125,7 +1171,7 @@ static char X509_object_get_issuer__doc__[] =
 "   <header>\n"
 "      <memberof>X509</memberof>\n"
 "      <name>getIssuer</name>\n"
-"      <parameter>format=SHORTNAME_FORMAT</parameter>\n"
+"      <parameter>format = SHORTNAME_FORMAT</parameter>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -1158,7 +1204,7 @@ X509_object_get_issuer(x509_object *self, PyObject *args)
 {
    PyObject *result_list = NULL;
    X509_NAME *name = NULL;
-   int format=SHORTNAME_FORMAT;
+   int format = SHORTNAME_FORMAT;
 
    if (!PyArg_ParseTuple(args, "|i", &format))
       goto error;
@@ -1181,7 +1227,7 @@ static char X509_object_get_subject__doc__[] =
 "   <header>\n"
 "      <memberof>X509</memberof>\n"
 "      <name>getSubject</name>\n"
-"      <parameter>format=SHORTNAME_FORMAT</parameter>\n"
+"      <parameter>format = SHORTNAME_FORMAT</parameter>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -1198,7 +1244,7 @@ X509_object_get_subject(x509_object *self, PyObject *args)
 {
    PyObject *result_list = NULL;
    X509_NAME *name = NULL;
-   int format=SHORTNAME_FORMAT;
+   int format = SHORTNAME_FORMAT;
 
    if (!PyArg_ParseTuple(args, "|i", &format))
       goto error;
@@ -1399,7 +1445,7 @@ static PyObject *
 X509_object_set_not_after (x509_object *self, PyObject *args)
 {
    //int new_time = 0;
-   char *new_time=NULL;
+   char *new_time = NULL;
 
    if (!PyArg_ParseTuple(args, "s", &new_time))
       goto error;
@@ -1437,7 +1483,7 @@ static PyObject *
 X509_object_set_not_before (x509_object *self, PyObject *args)
 {
    //int new_time = 0;
-   char *new_time=NULL;
+   char *new_time = NULL;
 
    if (!PyArg_ParseTuple(args, "s", &new_time))
       goto error;
@@ -1489,10 +1535,10 @@ static char X509_object_add_extension__doc__[] =
 static PyObject *
 X509_object_add_extension(x509_object *self, PyObject *args)
 {
-   int critical=0, nid=0, len=0;
-   char *name=NULL, *buf=NULL;
-   ASN1_OCTET_STRING *octetString=NULL;
-   X509_EXTENSION *extn=NULL;
+   int critical = 0, nid = 0, len = 0;
+   char *name = NULL, *buf = NULL;
+   ASN1_OCTET_STRING *octetString = NULL;
+   X509_EXTENSION *extn = NULL;
 
    if (!PyArg_ParseTuple(args, "sis#", &name, &critical, &buf, &len))
       goto error;
@@ -1550,7 +1596,7 @@ X509_object_clear_extensions(x509_object *self, PyObject *args)
    if (self->x509->cert_info->extensions)
    {
       sk_X509_EXTENSION_free(self->x509->cert_info->extensions);
-      self->x509->cert_info->extensions=NULL;
+      self->x509->cert_info->extensions = NULL;
    }
 
    return Py_BuildValue("");
@@ -1578,7 +1624,7 @@ static char X509_object_count_extensions__doc__[] =
 static PyObject *
 X509_object_count_extensions(x509_object *self, PyObject *args)
 {
-   int num=0;
+   int num = 0;
    if (!PyArg_ParseTuple(args, ""))
       goto error;
 
@@ -1614,8 +1660,8 @@ static char X509_object_get_extension__doc__[] =
 static PyObject *
 X509_object_get_extension(x509_object *self, PyObject *args)
 {
-   int num=0, index=0, ext_nid=0;
-   char const *ext_ln=NULL;
+   int num = 0, index = 0, ext_nid = 0;
+   char const *ext_ln = NULL;
    char unknown_ext [] = "unkown";
    X509_EXTENSION *ext;
    if (!PyArg_ParseTuple(args, "i", &index))
@@ -1665,10 +1711,10 @@ static char x509_object_pprint__doc__[] =
 static PyObject *
 x509_object_pprint(x509_object *self, PyObject *args)
 {
-   int len=0, ret=0;
-   char *buf=NULL;
-   BIO *out_bio=NULL;
-   PyObject *cert=NULL;
+   int len = 0, ret = 0;
+   char *buf = NULL;
+   BIO *out_bio = NULL;
+   PyObject *cert = NULL;
    
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -1822,7 +1868,7 @@ static PyTypeObject x509type = {
 static x509_store_object *
 x509_store_object_new(void)
 {
-   x509_store_object *self=NULL;
+   x509_store_object *self = NULL;
 
    self = PyObject_New( x509_store_object, &x509_storetype );
    if (self == NULL)
@@ -1865,8 +1911,8 @@ static PyObject *
 x509_store_object_verify(x509_store_object *self, PyObject *args)
 {
    X509_STORE_CTX csc;
-   x509_object *x509=NULL;
-   int result=0;
+   x509_object *x509 = NULL;
+   int result = 0;
 
    if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
       goto error;
@@ -1967,7 +2013,7 @@ static char x509_store_object_add_trust__doc__[] =
 static PyObject *
 x509_store_object_add_trust(x509_store_object *self, PyObject *args)
 {
-   x509_object *x509=NULL;
+   x509_object *x509 = NULL;
 
    if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
       goto error;
@@ -2006,7 +2052,7 @@ static char x509_store_object_add_crl__doc__[] =
 static PyObject *
 x509_store_object_add_crl(x509_store_object *self, PyObject *args)
 {
-   x509_crl_object *crl=NULL;
+   x509_crl_object *crl = NULL;
 
    if (!PyArg_ParseTuple(args, "O!", &x509_crltype, &crl))
       goto error;
@@ -2110,7 +2156,7 @@ static PyTypeObject x509_storetype = {
 static x509_crl_object *
 x509_crl_object_new(void)
 {
-   x509_crl_object *self=NULL;
+   x509_crl_object *self = NULL;
 
    self = PyObject_New( x509_crl_object, &x509_crltype );
    if (self == NULL)
@@ -2186,7 +2232,7 @@ static char x509_crl_object_get_version__doc__[] =
 static PyObject *
 x509_crl_object_get_version(x509_crl_object *self, PyObject *args)
 {
-   long version=0;
+   long version = 0;
 
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -2221,8 +2267,8 @@ static char x509_crl_object_set_version__doc__[] =
 static PyObject *
 x509_crl_object_set_version(x509_crl_object *self, PyObject *args)
 {
-   long version=0;
-   ASN1_INTEGER *asn1_version=NULL;
+   long version = 0;
+   ASN1_INTEGER *asn1_version = NULL;
 
    if (!PyArg_ParseTuple(args, "i", &version))
       goto error;
@@ -2250,7 +2296,7 @@ static char x509_crl_object_get_issuer__doc__[] =
 "   <header>\n"
 "      <memberof>X509Crl</memberof>\n"
 "      <name>getIssuer</name>\n"
-"      <parameter>format=SHORTNAME_FORMAT</parameter>\n"
+"      <parameter>format = SHORTNAME_FORMAT</parameter>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -2266,7 +2312,7 @@ static PyObject *
 x509_crl_object_get_issuer(x509_crl_object *self, PyObject *args)
 {
    PyObject *result_list = NULL;
-   int format=SHORTNAME_FORMAT;
+   int format = SHORTNAME_FORMAT;
 
    if (!PyArg_ParseTuple(args, "|i", &format))
       goto error;
@@ -2355,7 +2401,7 @@ static PyObject *
 x509_crl_object_set_this_update (x509_crl_object *self, PyObject *args)
 {
    //int new_time = 0;
-   char *new_time=NULL;
+   char *new_time = NULL;
 
    if (!PyArg_ParseTuple(args, "s", &new_time))
       goto error;
@@ -2424,8 +2470,8 @@ static PyObject *
 x509_crl_object_set_next_update (x509_crl_object *self, PyObject *args)
 {
    //int new_time = 0;
-   char *new_time=NULL;
-   ASN1_UTCTIME *time=NULL;
+   char *new_time = NULL;
+   ASN1_UTCTIME *time = NULL;
 
    if (!PyArg_ParseTuple(args, "s", &new_time))
       goto error;
@@ -2545,7 +2591,7 @@ x509_crl_object_set_revoked(x509_crl_object *self, PyObject *args)
    PyObject *revoked_sequence = NULL;
    x509_revoked_object *revoked = NULL;
    X509_REVOKED *tmp_revoked = NULL;
-   int i=0,size=0;
+   int i = 0,size = 0;
 
    if (!PyArg_ParseTuple(args, "O", &revoked_sequence))
       goto error;
@@ -2554,7 +2600,7 @@ x509_crl_object_set_revoked(x509_crl_object *self, PyObject *args)
       { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
 
    size = PySequence_Size( revoked_sequence );
-   for (i=0; i < size; i++)
+   for (i = 0; i < size; i++)
    {
       if ( !( revoked = (x509_revoked_object*)PySequence_GetItem( revoked_sequence, i ) ) )
          goto error;
@@ -2584,17 +2630,17 @@ error:
 static PyObject *
 x509_crl_object_helper_get_revoked(STACK_OF(X509_REVOKED) *revoked)
 {
-   int no_entries=0, inlist=0, i=0;
-   X509_REVOKED *revoke_tmp=NULL;
-   x509_revoked_object *revoke_obj=NULL;
-   PyObject *item=NULL, *result_list=NULL, *result_tuple=NULL;
+   int no_entries = 0, inlist = 0, i = 0;
+   X509_REVOKED *revoke_tmp = NULL;
+   x509_revoked_object *revoke_obj = NULL;
+   PyObject *item = NULL, *result_list = NULL, *result_tuple = NULL;
 
    no_entries = sk_X509_REVOKED_num( revoked );
 
    if ( !(result_list = PyList_New(0) ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
 
-   for(i=0; i<no_entries; i++)
+   for(i = 0; i < no_entries; i++)
    {
       if ( !(revoke_obj = PyObject_New( x509_revoked_object, &x509_revokedtype ) ) )
          { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -2620,7 +2666,7 @@ error:
    if (result_list)
    {
       inlist = PyList_Size( result_list );
-      for (i=0; i < inlist; i++)
+      for (i = 0; i < inlist; i++)
       {
          item = PyList_GetItem( result_list, i );
          Py_DECREF(item);
@@ -2738,10 +2784,10 @@ static char X509_crl_object_add_extension__doc__[] =
 static PyObject *
 X509_crl_object_add_extension(x509_crl_object *self, PyObject *args)
 {
-   int critical=0, nid=0, len=0;
-   char *name=NULL, *buf=NULL;
-   ASN1_OCTET_STRING *octetString=NULL;
-   X509_EXTENSION *extn=NULL;
+   int critical = 0, nid = 0, len = 0;
+   char *name = NULL, *buf = NULL;
+   ASN1_OCTET_STRING *octetString = NULL;
+   X509_EXTENSION *extn = NULL;
 
    if (!PyArg_ParseTuple(args, "sis#", &name, &critical, &buf, &len))
       goto error;
@@ -2799,7 +2845,7 @@ X509_crl_object_clear_extensions(x509_crl_object *self, PyObject *args)
    if (self->crl->crl->extensions)
    {
       sk_X509_EXTENSION_free(self->crl->crl->extensions);
-      self->crl->crl->extensions=NULL;
+      self->crl->crl->extensions = NULL;
    }
 
    return Py_BuildValue("");
@@ -2827,7 +2873,7 @@ static char X509_crl_object_count_extensions__doc__[] =
 static PyObject *
 X509_crl_object_count_extensions(x509_crl_object *self, PyObject *args)
 {
-   int num=0;
+   int num = 0;
    if (!PyArg_ParseTuple(args, ""))
       goto error;
 
@@ -2863,8 +2909,8 @@ static char X509_crl_object_get_extension__doc__[] =
 static PyObject *
 X509_crl_object_get_extension(x509_crl_object *self, PyObject *args)
 {
-   int num=0, index=0, ext_nid=0;
-   char const *ext_ln=NULL;
+   int num = 0, index = 0, ext_nid = 0;
+   char const *ext_ln = NULL;
    char unknown_ext [] = "unkown";
    X509_EXTENSION *ext;
    if (!PyArg_ParseTuple(args, "i", &index))
@@ -2902,7 +2948,7 @@ static char x509_crl_object_sign__doc__[] =
 "      <memberof>X509Crl</memberof>\n"
 "      <name>sign</name>\n"
 "      <parameter>key</parameter>\n"
-"      <parameter>digest=MD5_DIGEST</parameter>\n"
+"      <parameter>digest = MD5_DIGEST</parameter>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -2929,9 +2975,9 @@ static char x509_crl_object_sign__doc__[] =
 static PyObject *
 x509_crl_object_sign(x509_crl_object *self, PyObject *args)
 {
-   EVP_PKEY *pkey=NULL;
+   EVP_PKEY *pkey = NULL;
    asymmetric_object *asym;
-   int digest=MD5_DIGEST;
+   int digest = MD5_DIGEST;
 
    if (!PyArg_ParseTuple(args, "O!|i", &asymmetrictype, &asym, &digest))
       goto error;
@@ -3033,8 +3079,8 @@ static char x509_crl_object_verify__doc__[] =
 static PyObject *
 x509_crl_object_verify(x509_crl_object *self, PyObject *args)
 {
-   int result=0;
-   EVP_PKEY *pkey=NULL;
+   int result = 0;
+   EVP_PKEY *pkey = NULL;
    asymmetric_object *asym;
 
    if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
@@ -3062,10 +3108,10 @@ error:
 static PyObject *
 x509_crl_object_write_helper(x509_crl_object *self, PyObject *args, int format)
 {
-   int len=0, ret=0;
-   char *buf=NULL;
-   BIO *out_bio=NULL;
-   PyObject *cert=NULL;
+   int len = 0, ret = 0;
+   char *buf = NULL;
+   BIO *out_bio = NULL;
+   PyObject *cert = NULL;
    
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -3170,10 +3216,10 @@ static char x509_crl_object_pprint__doc__[] =
 static PyObject *
 x509_crl_object_pprint(x509_crl_object *self, PyObject *args)
 {
-   int len=0, ret=0;
-   char *buf=NULL;
-   BIO *out_bio=NULL;
-   PyObject *crl=NULL;
+   int len = 0, ret = 0;
+   char *buf = NULL;
+   BIO *out_bio = NULL;
+   PyObject *crl = NULL;
    
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -3290,7 +3336,7 @@ static PyTypeObject x509_crltype = {
 /*========== revoked Code ==========*/
 x509_revoked_object* x509_revoked_object_new(void)
 {
-   x509_revoked_object *self=NULL;
+   x509_revoked_object *self = NULL;
 
    if ( !(self = PyObject_New( x509_revoked_object, &x509_revokedtype ) ) )
       goto error;
@@ -3325,7 +3371,7 @@ static char x509_revoked_object_set_serial__doc__[] =
 static PyObject *
 x509_revoked_object_set_serial(x509_revoked_object *self, PyObject *args)
 {
-   int serial=0;
+   int serial = 0;
 
    if (!PyArg_ParseTuple(args, "i", &serial))
       goto error;
@@ -3358,7 +3404,7 @@ static char x509_revoked_object_get_serial__doc__[] =
 static PyObject *
 x509_revoked_object_get_serial(x509_revoked_object *self, PyObject *args)
 {
-   int serial=0;
+   int serial = 0;
 
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -3426,7 +3472,7 @@ static char x509_revoked_object_set_date__doc__[] =
 static PyObject *
 x509_revoked_object_set_date(x509_revoked_object *self, PyObject *args)
 {
-   char *time=NULL;
+   char *time = NULL;
 
    if (!PyArg_ParseTuple(args, "s", &time))
       goto error;
@@ -3478,10 +3524,10 @@ static char X509_revoked_object_add_extension__doc__[] =
 static PyObject *
 X509_revoked_object_add_extension(x509_revoked_object *self, PyObject *args)
 {
-   int critical=0, nid=0, len=0;
-   char *name=NULL, *buf=NULL;
-   ASN1_OCTET_STRING *octetString=NULL;
-   X509_EXTENSION *extn=NULL;
+   int critical = 0, nid = 0, len = 0;
+   char *name = NULL, *buf = NULL;
+   ASN1_OCTET_STRING *octetString = NULL;
+   X509_EXTENSION *extn = NULL;
 
    if (!PyArg_ParseTuple(args, "sis#", &name, &critical, &buf, &len))
       goto error;
@@ -3539,7 +3585,7 @@ X509_revoked_object_clear_extensions(x509_revoked_object *self, PyObject *args)
    if (self->revoked->extensions)
    {
       sk_X509_EXTENSION_free(self->revoked->extensions);
-      self->revoked->extensions=NULL;
+      self->revoked->extensions = NULL;
    }
 
    return Py_BuildValue("");
@@ -3567,7 +3613,7 @@ static char X509_revoked_object_count_extensions__doc__[] =
 static PyObject *
 X509_revoked_object_count_extensions(x509_revoked_object *self, PyObject *args)
 {
-   int num=0;
+   int num = 0;
    if (!PyArg_ParseTuple(args, ""))
       goto error;
 
@@ -3603,8 +3649,8 @@ static char X509_revoked_object_get_extension__doc__[] =
 static PyObject *
 X509_revoked_object_get_extension(x509_revoked_object *self, PyObject *args)
 {
-   int num=0, index=0, ext_nid=0;
-   char const *ext_ln=NULL;
+   int num = 0, index = 0, ext_nid = 0;
+   char const *ext_ln = NULL;
    char unknown_ext [] = "unkown";
    X509_EXTENSION *ext;
    if (!PyArg_ParseTuple(args, "i", &index))
@@ -3729,7 +3775,7 @@ static char ssl_object_use_certificate__doc__[] =
 static PyObject *
 ssl_object_use_certificate(ssl_object *self, PyObject *args)
 {
-   x509_object *x509=NULL;
+   x509_object *x509 = NULL;
 
    if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
       goto error;
@@ -3798,8 +3844,8 @@ static char ssl_object_use_key__doc__[] =
 static PyObject *
 ssl_object_use_key(ssl_object *self, PyObject *args)
 {
-   asymmetric_object *asym=NULL;
-   EVP_PKEY *pkey=NULL;
+   asymmetric_object *asym = NULL;
+   EVP_PKEY *pkey = NULL;
 
    if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
       goto error;
@@ -3877,7 +3923,7 @@ static char ssl_object_set_fd__doc__[] =
 static PyObject *
 ssl_object_set_fd(ssl_object *self, PyObject *args)
 {
-   int fd=0, self_index=0;
+   int fd = 0, self_index = 0;
    
    if (!PyArg_ParseTuple(args, "i", &fd))
       goto error;
@@ -3957,7 +4003,7 @@ static char ssl_object_accept__doc__[] =
 static PyObject *
 ssl_object_accept(ssl_object *self, PyObject *args)
 {
-   int ret=0, err=0;
+   int ret = 0, err = 0;
    
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -4015,7 +4061,7 @@ static char ssl_object_connect__doc__[] =
 static PyObject *
 ssl_object_connect(ssl_object *self, PyObject *args)
 {
-   int ret, err=0;
+   int ret, err = 0;
    
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -4059,7 +4105,7 @@ static PyObject *
 ssl_object_write(ssl_object *self, PyObject *args)
 {
    char *msg;
-   int length=0, ret=0, err=0;
+   int length = 0, ret = 0, err = 0;
    
    if (!PyArg_ParseTuple(args, "s#", &msg, &length))
       goto error;
@@ -4086,7 +4132,7 @@ static char ssl_object_read__doc__[] =
 "   <header>\n"
 "      <memberof>Ssl</memberof>\n"
 "      <name>read</name>\n"
-"      <parameter>amount=1024</parameter>\n"
+"      <parameter>amount = 1024</parameter>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -4103,8 +4149,8 @@ static PyObject *
 ssl_object_read(ssl_object *self, PyObject *args)
 {
    PyObject *data;
-   char *msg=NULL;
-   int len = 1024, ret=0, err=0;
+   char *msg = NULL;
+   int len = 1024, ret = 0, err = 0;
    
    if (!PyArg_ParseTuple(args, "|i", &len))
       goto error;
@@ -4155,8 +4201,8 @@ static char ssl_object_peer_certificate__doc__[] =
 static PyObject *
 ssl_object_peer_certificate(ssl_object *self, PyObject *args)
 {
-   X509 *x509=NULL;
-   x509_object *x509_obj=NULL;
+   X509 *x509 = NULL;
+   x509_object *x509_obj = NULL;
 
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -4251,7 +4297,7 @@ static char ssl_object_shutdown__doc__[] =
 static PyObject *
 ssl_object_shutdown(ssl_object *self, PyObject *args)
 {
-   int ret=0, err=0;
+   int ret = 0, err = 0;
 
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -4299,7 +4345,7 @@ static char ssl_object_get_shutdown__doc__[] =
 static PyObject *
 ssl_object_get_shutdown(ssl_object *self, PyObject *args)
 {
-   int state=0;
+   int state = 0;
 
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -4332,9 +4378,9 @@ static char ssl_object_get_ciphers__doc__[] =
 static PyObject *
 ssl_object_get_ciphers(ssl_object *self, PyObject *args)
 {
-   int inlist=0, i=0;
-   const char *cipher=NULL;
-   PyObject *list=NULL, *name=NULL;
+   int inlist = 0, i = 0;
+   const char *cipher = NULL;
+   PyObject *list = NULL, *name = NULL;
 
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -4360,7 +4406,7 @@ error:
    if (list)
    {
       inlist = PyList_Size( list );
-      for (i=0; i < inlist; i++)
+      for (i = 0; i < inlist; i++)
       {
          name = PyList_GetItem( list, i );
          Py_DECREF(name);
@@ -4395,10 +4441,10 @@ static char ssl_object_set_ciphers__doc__[] =
 static PyObject *
 ssl_object_set_ciphers(ssl_object *self, PyObject *args)
 {
-   PyObject *ciphers=NULL;
-   PyObject *cipher=NULL;
-   int size=0, cipherstrlen=0, nextstrlen=0, i=0;
-   char *cipherstr=NULL;
+   PyObject *ciphers = NULL;
+   PyObject *cipher = NULL;
+   int size = 0, cipherstrlen = 0, nextstrlen = 0, i = 0;
+   char *cipherstr = NULL;
 
    if (!PyArg_ParseTuple(args, "O", &ciphers))
       goto error;
@@ -4413,7 +4459,7 @@ ssl_object_set_ciphers(ssl_object *self, PyObject *args)
                            //previously allocated memory! Really should.
    memset(cipherstr, 0, 8);
    size = PySequence_Size(ciphers);
-   for (i=0; i < size; i++)
+   for (i = 0; i < size; i++)
    {
       if ( !( cipher = PySequence_GetItem( ciphers, i ) ) )
          goto error;
@@ -4512,7 +4558,7 @@ static char ssl_object_set_verify_mode__doc__[] =
 static PyObject *
 ssl_object_set_verify_mode(ssl_object *self, PyObject *args)
 {
-   int mode=0;
+   int mode = 0;
 
    if (!PyArg_ParseTuple(args, "i", &mode))
       goto error;
@@ -4659,7 +4705,7 @@ static PyTypeObject ssltype = {
 static asymmetric_object *
 asymmetric_object_new(int cipher_type, int key_size)
 {
-   asymmetric_object *self=NULL;
+   asymmetric_object *self = NULL;
 
    self = PyObject_New( asymmetric_object, &asymmetrictype );
    if (self == NULL)
@@ -4685,7 +4731,7 @@ error:
 static asymmetric_object *
 asymmetric_object_pem_read(int key_type, BIO *in, char *pass)
 {
-   asymmetric_object *self=NULL;
+   asymmetric_object *self = NULL;
 
    self = PyObject_New( asymmetric_object, &asymmetrictype );
    if (self == NULL)
@@ -4724,7 +4770,7 @@ error:
 static asymmetric_object *
 asymmetric_object_der_read(int key_type, char *src, int len)
 {
-   asymmetric_object *self=NULL;
+   asymmetric_object *self = NULL;
    unsigned char *ptr = src;
 
    self = PyObject_New( asymmetric_object, &asymmetrictype );
@@ -4769,8 +4815,8 @@ static char asymmetric_object_pem_write__doc__[] =
 "      <memberof>Asymmetric</memberof>\n"
 "      <name>pemWrite</name>\n"
 "      <parameter>keytype</parameter>\n"
-"      <parameter>ciphertype=None</parameter>\n"
-"      <parameter>passphrase=None</parameter>\n"
+"      <parameter>ciphertype = None</parameter>\n"
+"      <parameter>passphrase = None</parameter>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -4793,10 +4839,10 @@ static char asymmetric_object_pem_write__doc__[] =
 static PyObject *
 asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
 {
-   int key_type=0, cipher=0, len=0, ret=0;
-   char *kstr=NULL, *buf=NULL;
-   BIO *out_bio=NULL;
-   PyObject *asymmetric=NULL;
+   int key_type = 0, cipher = 0, len = 0, ret = 0;
+   char *kstr = NULL, *buf = NULL;
+   BIO *out_bio = NULL;
+   PyObject *asymmetric = NULL;
 
    if (!PyArg_ParseTuple(args, "|iis", &key_type, &cipher, &kstr))
       goto error;
@@ -4889,9 +4935,9 @@ static char asymmetric_object_der_write__doc__[] =
 static PyObject *
 asymmetric_object_der_write(asymmetric_object *self, PyObject *args)
 {
-   int len=0, key_type=0;
-   unsigned char *buf=NULL, *p=NULL;
-   PyObject *asymmetric=NULL;
+   int len = 0, key_type = 0;
+   unsigned char *buf = NULL, *p = NULL;
+   PyObject *asymmetric = NULL;
 
    if (!PyArg_ParseTuple(args, "|i", &key_type))
       goto error;
@@ -4959,9 +5005,9 @@ static char asymmetric_object_public_encrypt__doc__[] =
 static PyObject *
 asymmetric_object_public_encrypt(asymmetric_object *self, PyObject *args)
 {
-   char *plain_text=NULL, *cipher_text=NULL;
-   int len=0, size=0;
-   PyObject *obj=NULL;
+   char *plain_text = NULL, *cipher_text = NULL;
+   int len = 0, size = 0;
+   PyObject *obj = NULL;
 
    switch( self->cipher_type )
    {
@@ -5018,9 +5064,9 @@ static char asymmetric_object_private_encrypt__doc__[] =
 static PyObject *
 asymmetric_object_private_encrypt(asymmetric_object *self, PyObject *args)
 {
-   char *plain_text=NULL, *cipher_text=NULL;
-   int len=0, size=0;
-   PyObject *obj=NULL;
+   char *plain_text = NULL, *cipher_text = NULL;
+   int len = 0, size = 0;
+   PyObject *obj = NULL;
 
    if ( !(self->key_type == RSA_PRIVATE_KEY) ) 
       { PyErr_SetString( SSLErrorObject, "cannot perform private encryption with this key" ); goto error; }
@@ -5071,9 +5117,9 @@ static char asymmetric_object_public_decrypt__doc__[] =
 static PyObject *
 asymmetric_object_public_decrypt(asymmetric_object *self, PyObject *args)
 {
-   char *plain_text=NULL, *cipher_text=NULL;
-   int len=0, size=0;
-   PyObject *obj=NULL;
+   char *plain_text = NULL, *cipher_text = NULL;
+   int len = 0, size = 0;
+   PyObject *obj = NULL;
 
    switch( self->cipher_type )
    {
@@ -5129,9 +5175,9 @@ static char asymmetric_object_private_decrypt__doc__[] =
 static PyObject *
 asymmetric_object_private_decrypt(asymmetric_object *self, PyObject *args)
 {
-   char *plain_text=NULL, *cipher_text=NULL;
-   int len=0, size=0;
-   PyObject *obj=NULL;
+   char *plain_text = NULL, *cipher_text = NULL;
+   int len = 0, size = 0;
+   PyObject *obj = NULL;
 
    if ( !(self->key_type == RSA_PRIVATE_KEY) ) 
       { PyErr_SetString( SSLErrorObject, "cannot perform private decryption with this key" ); goto error; }
@@ -5200,9 +5246,9 @@ static char asymmetric_object_sign__doc__[] =
 static PyObject *
 asymmetric_object_sign(asymmetric_object *self, PyObject *args)
 {
-   char *digest_text=NULL, *signed_text=NULL; 
-   int digest_len=0, digest_type=0, digest_nid=0, signed_len=0;
-   PyObject *obj=NULL;
+   char *digest_text = NULL, *signed_text = NULL; 
+   int digest_len = 0, digest_type = 0, digest_nid = 0, signed_len = 0;
+   PyObject *obj = NULL;
 
    if (!PyArg_ParseTuple(args, "s#i", &digest_text, &digest_len, &digest_type))
       goto error;
@@ -5318,8 +5364,8 @@ static char asymmetric_object_verify__doc__[] =
 static PyObject *
 asymmetric_object_verify(asymmetric_object *self, PyObject *args)
 {
-   char *digest_text=NULL, *signed_text=NULL; 
-   int digest_len=0, digest_type=0, digest_nid=0, signed_len=0, result=0;
+   char *digest_text = NULL, *signed_text = NULL; 
+   int digest_len = 0, digest_type = 0, digest_nid = 0, signed_len = 0, result = 0;
 
    if (!PyArg_ParseTuple(args, "s#s#i", &signed_text, &signed_len, &digest_text, &digest_len, &digest_type))
       goto error;
@@ -5432,7 +5478,7 @@ static PyTypeObject asymmetrictype = {
 static symmetric_object *
 symmetric_object_new(int cipher_type)
 {
-   symmetric_object *self=NULL;
+   symmetric_object *self = NULL;
 
    self = PyObject_New( symmetric_object, &symmetrictype );
    if (self == NULL)
@@ -5455,7 +5501,7 @@ static char symmetric_object_encrypt_init__doc__[] =
 "      <memberof>Symmetric</memberof>\n"
 "      <name>encryptInit</name>\n"
 "      <parameter>key</parameter>\n"
-"      <parameter>initialvalue=''</parameter>\n"
+"      <parameter>initialvalue = ''</parameter>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -5475,8 +5521,8 @@ static char symmetric_object_encrypt_init__doc__[] =
 static PyObject *
 symmetric_object_encrypt_init(symmetric_object *self, PyObject *args)
 {
-   char *key=NULL, *iv=NULL, nulliv [] = "";
-   const EVP_CIPHER *cipher=NULL;
+   char *key = NULL, *iv = NULL, nulliv [] = "";
+   const EVP_CIPHER *cipher = NULL;
 
    if (!PyArg_ParseTuple(args, "s|s", &key, &iv))
       goto error;
@@ -5503,7 +5549,7 @@ static char symmetric_object_decrypt_init__doc__[] =
 "      <memberof>Symmetric</memberof>\n"
 "      <name>decryptInit</name>\n"
 "      <parameter>key</parameter>\n"
-"      <parameter>initialvalue=''</parameter>\n"
+"      <parameter>initialvalue = ''</parameter>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -5519,8 +5565,8 @@ static char symmetric_object_decrypt_init__doc__[] =
 static PyObject *
 symmetric_object_decrypt_init(symmetric_object *self, PyObject *args)
 {
-   char *key=NULL, *iv=NULL, nulliv [] = "";
-   const EVP_CIPHER *cipher=NULL;
+   char *key = NULL, *iv = NULL, nulliv [] = "";
+   const EVP_CIPHER *cipher = NULL;
 
    if (!PyArg_ParseTuple(args, "s|s", &key, &iv))
       goto error;
@@ -5561,9 +5607,9 @@ static char symmetric_object_update__doc__[] =
 static PyObject *
 symmetric_object_update(symmetric_object *self, PyObject *args)
 {
-   int inl=0, outl=0;
-   char *in=NULL, *out=NULL;
-   PyObject *py_out=NULL;
+   int inl = 0, outl = 0;
+   char *in = NULL, *out = NULL;
+   PyObject *py_out = NULL;
 
    if (!PyArg_ParseTuple(args, "s#", &in, &inl))
       goto error;
@@ -5593,7 +5639,7 @@ static char symmetric_object_final__doc__[] =
 "   <header>\n"
 "      <memberof>Symmetric</memberof>\n"
 "      <name>final</name>\n"
-"      <parameter>size=1024</parameter>\n"
+"      <parameter>size = 1024</parameter>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -5609,9 +5655,9 @@ static char symmetric_object_final__doc__[] =
 static PyObject *
 symmetric_object_final(symmetric_object *self, PyObject *args)
 {
-   int outl=0, size=1024;
-   char *out=NULL;
-   PyObject *py_out=NULL;
+   int outl = 0, size = 1024;
+   char *out = NULL;
+   PyObject *py_out = NULL;
 
    if (!PyArg_ParseTuple(args, "|i", &size))
       goto error;
@@ -5726,7 +5772,7 @@ static PyTypeObject symmetrictype = {
 static digest_object *
 digest_object_new(int digest_type)
 {
-   digest_object *self=NULL;
+   digest_object *self = NULL;
 
    self = PyObject_New( digest_object, &digesttype );
    if (self == NULL)
@@ -5782,8 +5828,8 @@ static char digest_object_update__doc__[] =
 static PyObject *
 digest_object_update(digest_object *self, PyObject *args)
 {
-   char *data=NULL;
-   int len=0;
+   char *data = NULL;
+   int len = 0;
 
    if (!PyArg_ParseTuple(args, "s#", &data, &len))
       goto error;
@@ -5815,7 +5861,7 @@ static char digest_object_copy__doc__[] =
 static PyObject *
 digest_object_copy(digest_object *self, PyObject *args)
 {
-   digest_object *new=NULL;
+   digest_object *new = NULL;
 
    if ( !(new = PyObject_New( digest_object, &digesttype ) ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -5853,8 +5899,8 @@ static PyObject *
 digest_object_digest(digest_object *self, PyObject *args)
 {
    char digest_text[EVP_MAX_MD_SIZE];
-   void *md_copy=NULL;
-   int digest_len=0;
+   void *md_copy = NULL;
+   int digest_len = 0;
 
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -5955,8 +6001,8 @@ static PyTypeObject digesttype = {
 static hmac_object *
 hmac_object_new(int digest_type, char *key, int key_len)
 {
-   hmac_object *self=NULL;
-   const EVP_MD *md=NULL;
+   hmac_object *self = NULL;
+   const EVP_MD *md = NULL;
 
    self = PyObject_New( hmac_object, &hmactype );
    if (self == NULL)
@@ -6014,8 +6060,8 @@ static char hmac_object_update__doc__[] =
 static PyObject *
 hmac_object_update(hmac_object *self, PyObject *args)
 {
-   char *data=NULL;
-   int len=0;
+   char *data = NULL;
+   int len = 0;
 
    if (!PyArg_ParseTuple(args, "s#", &data, &len))
       goto error;
@@ -6047,7 +6093,7 @@ static char hmac_object_copy__doc__[] =
 static PyObject *
 hmac_object_copy(hmac_object *self, PyObject *args)
 {
-   hmac_object *new=NULL;
+   hmac_object *new = NULL;
 
    if ( !(new = PyObject_New( hmac_object, &hmactype ) ) )
       { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
@@ -6083,8 +6129,8 @@ static PyObject *
 hmac_object_mac(hmac_object *self, PyObject *args)
 {
    char hmac_text[EVP_MAX_MD_SIZE];
-   void *hmac_copy=NULL;
-   int hmac_len=0;
+   void *hmac_copy = NULL;
+   int hmac_len = 0;
 
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -6240,10 +6286,10 @@ error:
 static PyObject *
 PKCS7_object_write_helper(pkcs7_object *self, PyObject *args, int format)
 {
-   int len=0;
-   char *buf=NULL;
-   BIO *out_bio=NULL;
-   PyObject *cert=NULL;
+   int len = 0;
+   char *buf = NULL;
+   BIO *out_bio = NULL;
+   PyObject *cert = NULL;
    
    if (!PyArg_ParseTuple(args, ""))
       return NULL;
@@ -6627,10 +6673,10 @@ error:
 static PyObject *
 CMS_object_write_helper(cms_object *self, PyObject *args, int format)
 {
-   int len=0;
-   char *buf=NULL;
-   BIO *out_bio=NULL;
-   PyObject *cert=NULL;
+   int len = 0;
+   char *buf = NULL;
+   BIO *out_bio = NULL;
+   PyObject *cert = NULL;
    
    if (!PyArg_ParseTuple(args, ""))
       return NULL;
@@ -7029,15 +7075,110 @@ CMS_object_pprint(cms_object *self, PyObject *args)
    return result;
    
 error:   
-
    if (bio)
       BIO_free(bio);
-
    if (buf)
       free(buf);
-
    return NULL;
+}
 
+
+static PyObject *
+cms_object_helper_get_cert(void *cert)
+{
+   x509_object *obj = PyObject_New(x509_object, &x509type);
+
+   if (obj)
+      obj->x509 = cert;
+
+   return (PyObject *) obj;
+}
+
+static char CMS_object_certs__doc__[] = 
+"<method>\n"
+"   <header>\n"
+"      <memberof>CMS</memberof>\n"
+"      <name>certs</name>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This method returns any certs embedded in a CMS message.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
+static PyObject *
+CMS_object_certs(cms_object *self, PyObject *args)
+{
+   STACK_OF(X509) *certs = NULL;
+   PyObject *result = NULL;
+
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
+
+   if ( !(certs = CMS_get1_certs(self->cms))) {
+      set_openssl_pyerror("Could not extract certs from CMS message");
+      goto error;
+   }
+
+   result = stack_to_tuple_helper(certs, cms_object_helper_get_cert);
+
+error:                          /* fall through */
+
+   if (certs)
+      sk_X509_pop_free(certs, X509_free);
+
+   return result;
+}
+
+static PyObject *
+cms_object_helper_get_crl(void *crl)
+{
+   x509_crl_object *obj = PyObject_New(x509_crl_object, &x509_crltype);
+
+   if (obj)
+      obj->crl = crl;
+
+   return (PyObject *) obj;
+}
+
+static char CMS_object_crls__doc__[] = 
+"<method>\n"
+"   <header>\n"
+"      <memberof>CMS</memberof>\n"
+"      <name>crls</name>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This method returns any CRLs embedded in a CMS message.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
+static PyObject *
+CMS_object_crls(cms_object *self, PyObject *args)
+{
+   STACK_OF(X509_CRL) *crls = NULL;
+   PyObject *result = NULL;
+
+   if (!PyArg_ParseTuple(args, ""))
+      goto error;
+
+   if ( !(crls = CMS_get1_crls(self->cms))) {
+      set_openssl_pyerror("Could not extract CRLs from CMS message");
+      goto error;
+   }
+
+   result = stack_to_tuple_helper(crls, cms_object_helper_get_crl);
+
+error:                          /* fall through */
+
+   if (crls)
+      sk_X509_CRL_pop_free(crls, X509_CRL_free);
+
+   return result;
 }
 
 static struct PyMethodDef CMS_object_methods[] = {
@@ -7047,7 +7188,9 @@ static struct PyMethodDef CMS_object_methods[] = {
    {"verify",       (PyCFunction)CMS_object_verify,       METH_VARARGS,  NULL},
    {"eContentType", (PyCFunction)CMS_object_eContentType, METH_VARARGS,  NULL},
    {"pprint",       (PyCFunction)CMS_object_pprint,       METH_VARARGS,  NULL},
- 
+   {"certs",        (PyCFunction)CMS_object_certs,        METH_VARARGS,  NULL},
+   {"crls",         (PyCFunction)CMS_object_crls,         METH_VARARGS,  NULL},
+
    {NULL,      NULL}    /* sentinel */
 };
 
@@ -7108,7 +7251,7 @@ static char pow_module_new_ssl__doc__[] =
 "<constructor>\n"
 "   <header>\n"
 "      <memberof>Ssl</memberof>\n"
-"      <parameter>protocol=SSLV23METHOD</parameter>\n"
+"      <parameter>protocol = SSLV23METHOD</parameter>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -7139,8 +7282,8 @@ static char pow_module_new_ssl__doc__[] =
 static PyObject *
 pow_module_new_ssl (PyObject *self, PyObject *args)
 {
-   ssl_object *ssl=NULL;
-   int ctxtype=SSLV23_METHOD;
+   ssl_object *ssl = NULL;
+   int ctxtype = SSLV23_METHOD;
 
    if (!PyArg_ParseTuple(args, "|i", &ctxtype))
       goto error;
@@ -7173,7 +7316,7 @@ static char pow_module_new_x509__doc__[] =
 static PyObject *
 pow_module_new_x509 (PyObject *self, PyObject *args)
 {
-   x509_object *x509=NULL;
+   x509_object *x509 = NULL;
 
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -7192,8 +7335,8 @@ static char pow_module_new_asymmetric__doc__[] =
 "<constructor>\n"
 "   <header>\n"
 "      <memberof>Asymmetric</memberof>\n"
-"      <parameter>ciphertype=RSA_CIPHER</parameter>\n"
-"      <parameter>keylength=1024</parameter>\n"
+"      <parameter>ciphertype = RSA_CIPHER</parameter>\n"
+"      <parameter>keylength = 1024</parameter>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -7232,7 +7375,7 @@ static char pow_module_new_asymmetric__doc__[] =
 static PyObject *
 pow_module_new_asymmetric (PyObject *self, PyObject *args)
 {
-   int cipher_type=RSA_CIPHER, key_size=1024;
+   int cipher_type = RSA_CIPHER, key_size = 1024;
 
    if (!PyArg_ParseTuple(args, "|ii", &cipher_type, &key_size))
       goto error;
@@ -7273,7 +7416,7 @@ static char pow_module_new_digest__doc__[] =
 static PyObject *
 pow_module_new_digest (PyObject *self, PyObject *args)
 {
-   int digest_type=0;
+   int digest_type = 0;
 
    if (!PyArg_ParseTuple(args, "i", &digest_type))
       goto error;
@@ -7315,8 +7458,8 @@ static char pow_module_new_hmac__doc__[] =
 static PyObject *
 pow_module_new_hmac (PyObject *self, PyObject *args)
 {
-   int digest_type=0, key_len=0;
-   char *key=NULL;
+   int digest_type = 0, key_len = 0;
+   char *key = NULL;
 
    if (!PyArg_ParseTuple(args, "is#", &digest_type, &key, &key_len))
       goto error;
@@ -7396,7 +7539,7 @@ static char pow_module_pem_read__doc__[] =
 "      <name>pemRead</name>\n"
 "      <parameter>type</parameter>\n"
 "      <parameter>string</parameter>\n"
-"      <parameter>pass=None</parameter>\n"
+"      <parameter>pass = None</parameter>\n"
 "   </header>\n"
 "   <body>\n"
 "      <para>\n"
@@ -7429,10 +7572,10 @@ static char pow_module_pem_read__doc__[] =
 static PyObject *
 pow_module_pem_read (PyObject *self, PyObject *args)
 {
-   BIO *in=NULL;
-   PyObject *obj=NULL;
-   int object_type=0, len=0;
-   char *pass=NULL, *src=NULL;
+   BIO *in = NULL;
+   PyObject *obj = NULL;
+   int object_type = 0, len = 0;
+   char *pass = NULL, *src = NULL;
 
    if (!PyArg_ParseTuple(args, "is#|s", &object_type, &src, &len, &pass))
       goto error;
@@ -7509,9 +7652,9 @@ static char pow_module_der_read__doc__[] =
 static PyObject *
 pow_module_der_read (PyObject *self, PyObject *args)
 {
-   PyObject *obj=NULL;
-   int object_type=0, len=0;
-   char *src=NULL;
+   PyObject *obj = NULL;
+   int object_type = 0, len = 0;
+   char *src = NULL;
 
    if (!PyArg_ParseTuple(args, "is#", &object_type, &src, &len))
       goto error;
@@ -7584,7 +7727,7 @@ static char pow_module_new_symmetric__doc__[] =
 "         object.  The parameter <parameter>type</parameter> specifies which kind\n"
 "         of cipher to create. <constant>type</constant> should be one of the following: \n"
 "      </para>\n"
-"      <simplelist columns=\"2\">\n"
+"      <simplelist columns = \"2\">\n"
 "         <member><constant>DES_ECB</constant></member>     \n"
 "         <member><constant>DES_EDE</constant></member>\n"
 "         <member><constant>DES_EDE3</constant></member>   \n"
@@ -7635,7 +7778,7 @@ static char pow_module_new_symmetric__doc__[] =
 static PyObject *
 pow_module_new_symmetric (PyObject *self, PyObject *args)
 {
-   int cipher_type=0; 
+   int cipher_type = 0; 
 
    if (!PyArg_ParseTuple(args, "i", &cipher_type))
       goto error; 
@@ -7693,9 +7836,9 @@ static char pow_module_new_x509_revoked__doc__[] =
 static PyObject *
 pow_module_new_x509_revoked (PyObject *self, PyObject *args)
 {
-   int serial=-1;
-   char *date=NULL;
-   x509_revoked_object *revoke=NULL;
+   int serial = -1;
+   char *date = NULL;
+   x509_revoked_object *revoke = NULL;
 
    if (!PyArg_ParseTuple(args, "|is", &serial, &date))
       goto error; 
@@ -7739,7 +7882,7 @@ static char pow_module_add_object__doc__[] =
 static PyObject *
 pow_module_add_object(PyObject *self, PyObject *args)
 {
-   char *oid=NULL, *sn=NULL, *ln=NULL;
+   char *oid = NULL, *sn = NULL, *ln = NULL;
    
    if (!PyArg_ParseTuple(args, "sss", &oid, &sn, &ln))
       goto error;
@@ -7846,8 +7989,8 @@ static char pow_module_seed__doc__[] =
 static PyObject *
 pow_module_seed(PyObject *self, PyObject *args)
 {
-   char *in=NULL;
-   int inl=0;
+   char *in = NULL;
+   int inl = 0;
 
    if (!PyArg_ParseTuple(args, "s#", &in, &inl))
       goto error;
@@ -7882,9 +8025,9 @@ static char pow_module_add__doc__[] =
 static PyObject *
 pow_module_add(PyObject *self, PyObject *args)
 {
-   char *in=NULL;
-   int inl=0;
-   double entropy=0;
+   char *in = NULL;
+   int inl = 0;
+   double entropy = 0;
 
    if (!PyArg_ParseTuple(args, "s#d", &in, &inl, &entropy))
       goto error;
@@ -7917,7 +8060,7 @@ static char pow_module_write_random_file__doc__[] =
 static PyObject *
 pow_module_write_random_file(PyObject *self, PyObject *args)
 {
-   char *file=NULL;
+   char *file = NULL;
 
    if (!PyArg_ParseTuple(args, "s", &file))
       goto error;
@@ -7953,8 +8096,8 @@ static char pow_module_read_random_file__doc__[] =
 static PyObject *
 pow_module_read_random_file(PyObject *self, PyObject *args)
 {
-   char *file=NULL;
-   int len=-1;
+   char *file = NULL;
+   int len = -1;
 
    if (!PyArg_ParseTuple(args, "s|i", &file, &len))
       goto error;
@@ -8114,6 +8257,8 @@ pow_module_docset(PyObject *self, PyObject *args)
    docset_helper_add( docset, CMS_object_verify__doc__ );
    docset_helper_add( docset, CMS_object_eContentType__doc__ );
    docset_helper_add( docset, CMS_object_pprint__doc__ );
+   docset_helper_add( docset, CMS_object_certs__doc__ );
+   docset_helper_add( docset, CMS_object_crls__doc__ );
 
    // symmetric documentation
    docset_helper_add( docset, symmetrictype__doc__ );

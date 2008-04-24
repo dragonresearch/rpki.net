@@ -36,10 +36,11 @@ class global_context(object):
                               passwd = cfg.get("sql-password"))
     self.cur = self.db.cursor()
 
-    self.ta_irdb    = rpki.x509.X509(Auto_file = cfg.get("ta-irdb"))
-    self.ta_irbe    = rpki.x509.X509(Auto_file = cfg.get("ta-irbe"))
-    self.ee_key     = rpki.x509.RSA(Auto_file = cfg.get("ee-key"))
-    self.cert_chain = rpki.x509.X509_chain(Auto_files = cfg.multiget("cert-chain"))
+    self.bpki_ta    = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
+    self.irdb_cert  = rpki.x509.X509(Auto_file = cfg.get("irdb-cert"))
+    self.irbe_cert  = rpki.x509.X509(Auto_file = cfg.get("irbe-cert"))
+    self.rpkid_cert = rpki.x509.X509(Auto_file = cfg.get("rpkid-cert"))
+    self.rpkid_key  = rpki.x509.RSA( Auto_file = cfg.get("rpkid-key"))
 
     self.irdb_url   = cfg.get("irdb-url")
 
@@ -69,14 +70,14 @@ class global_context(object):
     q_msg[0].type = "query"
     q_msg[0].self_id = self_id
     q_msg[0].child_id = child_id
-    q_cms = rpki.left_right.cms_msg.wrap(q_msg, self.ee_key, self.cert_chain)
+    q_cms = rpki.left_right.cms_msg.wrap(q_msg, self.rpkid_key, self.rpkid_cert)
     der = rpki.https.client(
-      client_key   = self.ee_key,
-      client_certs = self.cert_chain,
-      server_ta    = self.ta_irdb,
+      client_key   = self.rpkid_key,
+      client_cert  = self.rpkid_cert,
+      server_ta    = self.irdb_cert,
       url          = self.irdb_url,
       msg          = q_cms)
-    r_msg = rpki.left_right.cms_msg.unwrap(der, self.ta_irdb)
+    r_msg = rpki.left_right.cms_msg.unwrap(der, self.irdb_cert)
     if len(r_msg) == 0 or not isinstance(r_msg[0], rpki.left_right.list_resources_elt) or r_msg[0].type != "reply":
       raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")
     return rpki.resource_set.resource_bag(
@@ -107,9 +108,9 @@ class global_context(object):
     """Process one left-right PDU."""
     rpki.log.trace()
     try:
-      q_msg = rpki.left_right.cms_msg.unwrap(query, self.ta_irbe)
+      q_msg = rpki.left_right.cms_msg.unwrap(query, self.bpki_ta)
       r_msg = q_msg.serve_top_level(self)
-      reply = rpki.left_right.cms_msg.wrap(r_msg, self.ee_key, self.cert_chain)
+      reply = rpki.left_right.cms_msg.wrap(r_msg, self.rpkid_key, self.rpkid_cert)
       self.sql_sweep()
       return 200, reply
     except Exception, data:
@@ -155,7 +156,7 @@ class global_context(object):
     """Clear cached HTTPS trust anchor X509Store."""
 
     if self.https_ta_cache is not None:
-      rpki.log.debug("Clearing HTTPS trust anchor cache")
+      rpki.log.debug("Clearing HTTPS trusted cert cache")
       self.https_ta_cache = None
 
   def build_x509store(self):
@@ -168,15 +169,17 @@ class global_context(object):
     """
 
     if self.https_ta_cache is None:
-
       store = POW.X509Store()
+      selves = rpki.left_right.self_elt.sql_fetch_all(self)
       children = rpki.left_right.child_elt.sql_fetch_all(self)
       certs = [c.peer_biz_cert for c in children if c.peer_biz_cert is not None] + \
               [c.peer_biz_glue for c in children if c.peer_biz_glue is not None] + \
-              [ self.ta_irbe ]
+              [s.biz_cert for s in selves if s.biz_cert is not None] + \
+              [s.biz_glue for s in selves if s.biz_glue is not None] + \
+              [self.irbe_cert, self.irdb_cert, self.bpki_ta]
       for x in certs:
         if rpki.https.debug_tls_certs:
-          rpki.log.debug("HTTPS dynamic trust anchor %s" % x.getSubject())
+          rpki.log.debug("HTTPS dynamic trusted cert %s" % x.getSubject())
         store.addTrust(x.get_POW())
       self.https_ta_cache = store
 

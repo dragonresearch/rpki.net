@@ -111,10 +111,6 @@ rcynic_stats   = cfg.get("rcynic_stats",   "xsltproc --param refresh 0 ../../rcy
 rpki_sql_file  = cfg.get("rpki_sql_file",  "../docs/rpki-db-schema.sql")
 irdb_sql_file  = cfg.get("irdb_sql_file",  "../docs/sample-irdb.sql")
 
-testbed_key    = None
-testbed_certs  = None
-rootd_ta       = None
-
 startup_delay  = int(cfg.get("startup_delay", "10"))
 
 def main():
@@ -143,14 +139,8 @@ def main():
   rpki.log.info("Reading master YAML configuration")
   db = allocation_db(yaml_script.pop(0))
 
-  rpki.log.info("Constructing biz keys and certs for control script")
-  setup_biz_cert_chain(testbed_name)
-  global testbed_key, testbed_certs
-  testbed_key = rpki.x509.RSA(PEM_file = testbed_name + "-EE.key")
-  testbed_certs = rpki.x509.X509_chain(PEM_files = (testbed_name + "-EE.cer", testbed_name + "-CA.cer"))
-
   rpki.log.info("Constructing biz keys and certs for rootd")
-  setup_biz_cert_chain(rootd_name)
+  setup_biz_cert_chain(rootd_name, ee = ("RPKI",))
   global rootd_ta
   rootd_ta = rpki.x509.X509(PEM_file = rootd_name + "-TA.cer")
 
@@ -158,7 +148,7 @@ def main():
     a.setup_biz_certs()
 
   setup_publication()
-  setup_rootd(db.root.name)
+  setup_rootd(db.root.name, "SELF-1")
   setup_rsyncd()
   setup_rcynic()
 
@@ -485,9 +475,10 @@ class allocation(object):
   def setup_biz_certs(self):
     """Create business certs for this entity."""
     rpki.log.info("Constructing biz keys and certs for %s" % self.name)
-    for tag in ("RPKI", "IRDB"):
-      setup_biz_cert_chain(self.name + "-" + tag)
-    self.rpkid_ta = rpki.x509.X509(PEM_file = self.name + "-RPKI-TA.cer")
+    setup_biz_cert_chain(self.name, ee = ("RPKI", "IRDB", "IRBE"), ca = ("SELF-1",))
+    self.rpkid_ta = rpki.x509.X509(PEM_file = self.name + "-TA.cer")
+    self.irbe_cer = rpki.x509.X509(PEM_file = self.name + "-IRBE.cer")
+    self.irbe_key = rpki.x509.RSA( PEM_file = self.name + "-IRBE.key")
 
   def setup_conf_file(self):
     """Write config files for this entity."""
@@ -567,13 +558,13 @@ class allocation(object):
     rpki.log.info("Calling rpkid for %s" % self.name)
     pdu.type = "query"
     msg = rpki.left_right.msg((pdu,))
-    cms, xml = rpki.left_right.cms_msg.wrap(msg, testbed_key, testbed_certs, pretty_print = True)
+    cms, xml = rpki.left_right.cms_msg.wrap(msg, self.irbe_key, self.irbe_cer, pretty_print = True)
     rpki.log.debug(xml)
     url = "https://localhost:%d/left-right" % self.rpki_port
     rpki.log.debug("Attempting to connect to %s" % url)
     der = rpki.https.client(
-      client_key   = testbed_key,
-      client_certs = testbed_certs,
+      client_key   = self.irbe_key,
+      client_cert  = self.irbe_cer,
       server_ta    = self.rpkid_ta,
       url          = url,
       msg          = cms)
@@ -602,22 +593,26 @@ class allocation(object):
     """
 
     rpki.log.info("Creating rpkid self object for %s" % self.name)
+    self_ca = rpki.x509.X509(Auto_file = self.name + "-SELF-1.cer")
     self.self_id = self.call_rpkid(rpki.left_right.self_elt.make_pdu(
-      action = "create", crl_interval = self.crl_interval, regen_margin = self.regen_margin)).self_id
+      action = "create", crl_interval = self.crl_interval, regen_margin = self.regen_margin, biz_cert = self_ca)).self_id
 
     rpki.log.info("Creating rpkid BSC object for %s" % self.name)
     pdu = self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "create", self_id = self.self_id, generate_keypair = True))
     self.bsc_id = pdu.bsc_id
 
     rpki.log.info("Issuing BSC EE cert for %s" % self.name)
-    cmd = (prog_openssl, "x509", "-req", "-CA", self.name + "-RPKI-CA.cer", "-CAkey", self.name + "-RPKI-CA.key", "-CAserial", self.name + "-RPKI-CA.srl",
-           "-extfile", self.name + "-RPKI-EE.cnf", "-extensions", "req_x509_ext")
+    cmd = (prog_openssl, "x509", "-req", "-extfile", self.name + "-RPKI.cnf", "-extensions", "req_x509_ext", "-days", "30",
+           "-CA", self.name + "-SELF-1.cer", "-CAkey",    self.name + "-SELF-1.key", "-CAcreateserial")
     signer = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-    bsc_ee = rpki.x509.X509(PEM = signer.communicate(input = pdu.pkcs10_request.get_PEM())[0])
+    signed = signer.communicate(input = pdu.pkcs10_request.get_PEM())
+    if not signed[0]:
+      rpki.log.error(signed[1])
+      raise RuntimeError, "Couldn't issue BSC EE certificate"
+    bsc_ee = rpki.x509.X509(PEM = signed[0])
 
     rpki.log.info("Installing BSC EE cert for %s" % self.name)
-    self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "set", self_id = self.self_id, bsc_id = self.bsc_id,
-                                                     signing_cert = [bsc_ee, rpki.x509.X509(PEM_file = self.name + "-RPKI-CA.cer")]))
+    self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "set", self_id = self.self_id, bsc_id = self.bsc_id, signing_cert = (bsc_ee,)))
 
     rpki.log.info("Creating rpkid repository object for %s" % self.name)
     self.repository_id = self.call_rpkid(rpki.left_right.repository_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id)).repository_id
@@ -626,12 +621,12 @@ class allocation(object):
     if self.is_root():
       self.parent_id = self.call_rpkid(rpki.left_right.parent_elt.make_pdu(
         action = "create", self_id = self.self_id, bsc_id = self.bsc_id, repository_id = self.repository_id, sia_base = self.sia_base,
-        peer_biz_cert = rootd_ta, peer_biz_glue = rootd_ta, sender_name = self.name, recipient_name = "Walrus",
+        peer_biz_cert = rootd_ta, sender_name = self.name, recipient_name = "Walrus",
         peer_contact_uri = "https://localhost:%s/" % rootd_port)).parent_id
     else:
       self.parent_id = self.call_rpkid(rpki.left_right.parent_elt.make_pdu(
         action = "create", self_id = self.self_id, bsc_id = self.bsc_id, repository_id = self.repository_id, sia_base = self.sia_base,
-        peer_biz_cert = self.parent.rpkid_ta, peer_biz_glue = self.parent.rpkid_ta, sender_name = self.name, recipient_name = self.parent.name,
+        peer_biz_cert = self.parent.rpkid_ta, sender_name = self.name, recipient_name = self.parent.name,
         peer_contact_uri = "https://localhost:%s/up-down/%s" % (self.parent.rpki_port, self.child_id))).parent_id
 
     rpki.log.info("Creating rpkid child objects for %s" % self.name)
@@ -648,8 +643,6 @@ class allocation(object):
       ro.route_origin_id = self.call_rpkid(rpki.left_right.route_origin_elt.make_pdu(
         action = "create", self_id = self.self_id, as_number = ro.asn,
         exact_match = ro.exact_match, ipv4 = ro.v4, ipv6 = ro.v6)).route_origin_id
-
-#       exact_match = 1 if ro.exact_match else 0
 
   def write_leaf_yaml(self):
     """Write YAML scripts for leaf nodes.  Only supports list requests
@@ -675,8 +668,8 @@ class allocation(object):
     """Trigger cron run for this engine."""
 
     rpki.log.info("Running cron for %s" % self.name)
-    rpki.https.client(client_key   = testbed_key,
-                      client_certs = testbed_certs,
+    rpki.https.client(client_key   = self.irbe_key,
+                      client_cert  = self.irbe_cer,
                       server_ta    = self.rpkid_ta,
                       url          = "https://localhost:%d/cronjob" % self.rpki_port,
                       msg          = "Run cron now, please")
@@ -687,13 +680,13 @@ class allocation(object):
     subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "list", "-d"))
     subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "issue", "-d"))
 
-def setup_biz_cert_chain(name):
+def setup_biz_cert_chain(name, ee = (), ca = ()):
   """Build a set of business certs."""
   s = "exec >/dev/null 2>&1\n"
-  for kind in ("EE", "CA", "TA"):
+  for kind in ("TA",) + ee + ca:
     d = { "name"    : name,
           "kind"    : kind,
-          "ca"      : "true" if kind in ("CA", "TA") else "false",
+          "ca"      : "false" if kind in ee else "true",
           "openssl" : prog_openssl }
     f = open("%(name)s-%(kind)s.cnf" % d, "w")
     f.write(biz_cert_fmt_1 % d)
@@ -701,15 +694,20 @@ def setup_biz_cert_chain(name):
     if not os.path.exists("%(name)s-%(kind)s.key" % d):
       s += biz_cert_fmt_2 % d
     s += biz_cert_fmt_3 % d
-  s += (biz_cert_fmt_4 % { "name" : name, "openssl" : prog_openssl })
+  d = { "name" : name, "openssl" : prog_openssl }
+  s += biz_cert_fmt_4 % d
+  for kind in ee + ca:
+    d["kind"] =  kind
+    s += biz_cert_fmt_5 % d
   subprocess.check_call(s, shell = True)
 
-def setup_rootd(rpkid_name):
+def setup_rootd(rpkid_name, rpkid_tag):
   """Write the config files for rootd."""
   rpki.log.info("Writing config files for %s" % rootd_name)
   d = { "rootd_name" : rootd_name,
         "rootd_port" : rootd_port,
         "rpkid_name" : rpkid_name,
+        "rpkid_tag"  : rpkid_tag,
         "rootd_sia"  : rootd_sia,
         "rsyncd_dir" : rsyncd_dir,
         "openssl"    : prog_openssl }
@@ -795,9 +793,12 @@ biz_cert_fmt_3 = '''\
 '''
 
 biz_cert_fmt_4 = '''\
-%(openssl)s x509 -req -in %(name)s-TA.req -out %(name)s-TA.cer -extfile %(name)s-TA.cnf -extensions req_x509_ext -signkey %(name)s-TA.key -days 60 &&
-%(openssl)s x509 -req -in %(name)s-CA.req -out %(name)s-CA.cer -extfile %(name)s-CA.cnf -extensions req_x509_ext -CA %(name)s-TA.cer -CAkey %(name)s-TA.key -CAcreateserial &&
-%(openssl)s x509 -req -in %(name)s-EE.req -out %(name)s-EE.cer -extfile %(name)s-EE.cnf -extensions req_x509_ext -CA %(name)s-CA.cer -CAkey %(name)s-CA.key -CAcreateserial
+%(openssl)s x509 -req -in %(name)s-TA.req -out %(name)s-TA.cer -extfile %(name)s-TA.cnf -extensions req_x509_ext -signkey %(name)s-TA.key -days 60 \
+'''
+
+biz_cert_fmt_5 = ''' && \
+%(openssl)s x509 -req -in %(name)s-%(kind)s.req -out %(name)s-%(kind)s.cer -extfile %(name)s-%(kind)s.cnf -extensions req_x509_ext -days 30 \
+                     -CA %(name)s-TA.cer -CAkey %(name)s-TA.key -CAcreateserial \
 '''
 
 yaml_fmt_1 = '''---
@@ -838,31 +839,18 @@ startup-message = This is %(my_name)s irdbd
 sql-database    = %(irdb_db_name)s
 sql-username    = irdb
 sql-password    = %(irdb_db_pass)s
-
-cms-key         = %(my_name)s-IRDB-EE.key
-cms-cert.0      = %(my_name)s-IRDB-EE.cer
-cms-cert.1      = %(my_name)s-IRDB-CA.cer
-cms-ta          = %(my_name)s-RPKI-TA.cer
-
-https-key       = %(my_name)s-IRDB-EE.key
-https-cert.0    = %(my_name)s-IRDB-EE.cer
-https-cert.1    = %(my_name)s-IRDB-CA.cer
-https-ta        = %(my_name)s-RPKI-TA.cer
-
+bpki-ta         = %(my_name)s-TA.cer
+rpkid-cert      = %(my_name)s-RPKI.cer
+irdbd-cert      = %(my_name)s-IRDB.cer
+irdbd-key       = %(my_name)s-IRDB.key
 https-url       = https://localhost:%(irdb_port)d/
 
 [irbe-cli]
 
-cms-key         = %(testbed_name)s-EE.key
-cms-cert.0      = %(testbed_name)s-EE.cer
-cms-cert.1      = %(testbed_name)s-CA.cer
-cms-ta          = %(my_name)s-RPKI-TA.cer
-
-https-key       = %(testbed_name)s-EE.key
-https-cert.0    = %(testbed_name)s-EE.cer
-https-cert.1    = %(testbed_name)s-CA.cer
-https-ta        = %(my_name)s-RPKI-TA.cer
-
+bpki-ta         = %(my_name)s-TA.cer
+rpkid-cert      = %(my_name)s-RPKI.cer
+irbe-cert       = %(my_name)s-IRBE.cer
+irbe-key        = %(my_name)s-IRBE.key
 https-url       = https://localhost:%(rpki_port)d/left-right
 
 [rpkid]
@@ -873,12 +861,11 @@ sql-database    = %(rpki_db_name)s
 sql-username    = rpki
 sql-password    = %(rpki_db_pass)s
 
-ee-key          = %(my_name)s-RPKI-EE.key
-cert-chain.0    = %(my_name)s-RPKI-EE.cer
-cert-chain.1    = %(my_name)s-RPKI-CA.cer
-
-ta-irdb         = %(my_name)s-IRDB-TA.cer
-ta-irbe         = %(testbed_name)s-TA.cer
+bpki-ta         = %(my_name)s-TA.cer
+rpkid-key       = %(my_name)s-RPKI.key
+rpkid-cert      = %(my_name)s-RPKI.cer
+irdb-cert       = %(my_name)s-IRDB.cer
+irbe-cert       = %(my_name)s-IRBE.cer
 
 irdb-url        = https://localhost:%(irdb_port)d/
 
@@ -890,15 +877,10 @@ rootd_fmt_1 = '''\
 
 [rootd]
 
-cms-key                 = %(rootd_name)s-EE.key
-cms-cert.0              = %(rootd_name)s-EE.cer
-cms-cert.1              = %(rootd_name)s-CA.cer
-cms-ta                  = %(rpkid_name)s-RPKI-TA.cer
-
-https-key               = %(rootd_name)s-EE.key
-https-cert.0            = %(rootd_name)s-EE.cer
-https-cert.1            = %(rootd_name)s-CA.cer
-https-ta                = %(rpkid_name)s-RPKI-TA.cer
+bpki-ta                 = %(rootd_name)s-TA.cer
+rootd-bpki-cert         = %(rootd_name)s-RPKI.cer
+rootd-bpki-key          = %(rootd_name)s-RPKI.key
+child-bpki-cert         = %(rootd_name)s-%(rpkid_name)s.cer
 
 server-port             = %(rootd_port)s
 
@@ -917,6 +899,8 @@ encrypt_key             = no
 distinguished_name      = req_dn
 req_extensions          = req_x509_ext
 prompt                  = no
+default_md              = sha256
+default_days            = 60
 
 [req_dn]
 CN                      = Completely Bogus Test Root (NOT FOR PRODUCTION USE)
@@ -936,7 +920,9 @@ rootd_fmt_2 = '''\
 
 rootd_fmt_3 = '''\
 %(openssl)s req -new -key %(rootd_name)s.key -out %(rootd_name)s.req -config %(rootd_name)s.conf -text &&
-%(openssl)s x509 -req -in %(rootd_name)s.req -out %(rootd_name)s.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_ext -signkey %(rootd_name)s.key -sha256
+%(openssl)s x509 -req -in %(rootd_name)s.req -out %(rootd_name)s.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_ext -signkey %(rootd_name)s.key &&
+%(openssl)s x509 -req -in %(rpkid_name)s-%(rpkid_tag)s.req -out %(rootd_name)s-%(rpkid_name)s.cer -extfile %(rootd_name)s.conf -extensions req_x509_ext \
+                     -CA %(rootd_name)s-TA.cer -CAkey %(rootd_name)s-TA.key -CAcreateserial
 '''
 
 rcynic_fmt_1 = '''\

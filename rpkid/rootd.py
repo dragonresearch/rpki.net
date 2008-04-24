@@ -132,19 +132,19 @@ class cms_msg(rpki.up_down.cms_msg):
 
 def up_down_handler(query, path):
   try:
-    q_msg = cms_msg.unwrap(query, cms_ta)
+    q_msg = cms_msg.unwrap(query, (bpki_ta, child_bpki_cert))
   except Exception, data:
     rpki.log.error(traceback.format_exc())
     return 400, "Could not process PDU: %s" % data
   try:
     r_msg = q_msg.serve_top_level(None)
-    r_cms = cms_msg.wrap(r_msg, cms_key, cms_certs)
+    r_cms = cms_msg.wrap(r_msg, rootd_bpki_key, rootd_bpki_cert)
     return 200, r_cms
   except Exception, data:
     rpki.log.error(traceback.format_exc())
     try:
       r_msg = q_msg.serve_error(data)
-      r_cms = cms_msg.wrap(r_msg, cms_key, cms_certs)
+      r_cms = cms_msg.wrap(r_msg, rootd_bpki_key, rootd_bpki_cert)
       return 200, r_cms
     except Exception, data:
       rpki.log.error(traceback.format_exc())
@@ -169,13 +169,10 @@ if argv:
 
 cfg = rpki.config.parser(cfg_file, "rootd")
 
-cms_ta      = rpki.x509.X509(Auto_file = cfg.get("cms-ta"))
-cms_key     = rpki.x509.RSA(Auto_file = cfg.get("cms-key"))
-cms_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
-
-https_ta    = rpki.x509.X509(Auto_file = cfg.get("https-ta"))
-https_key   = rpki.x509.RSA(Auto_file = cfg.get("https-key"))
-https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
+bpki_ta         = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
+rootd_bpki_key  = rpki.x509.RSA( Auto_file = cfg.get("rootd-bpki-key"))
+rootd_bpki_cert = rpki.x509.X509(Auto_file = cfg.get("rootd-bpki-cert"))
+child_bpki_cert = rpki.x509.X509(Auto_file = cfg.get("child-bpki-cert"))
 
 https_server_host = cfg.get("server-host", "")
 https_server_port = int(cfg.get("server-port"))
@@ -190,9 +187,9 @@ rootd_name  = cfg.get("rootd_name", "wombat")
 rootd_base  = cfg.get("rootd_base", "rsync://" + rootd_name + ".invalid/")
 rootd_cert  = cfg.get("rootd_cert", rootd_base + "rootd.cer")
 
-rpki.https.server(server_key   = https_key,
-                  server_certs = https_certs,
-                  client_ta    = https_ta,
+rpki.https.server(server_key   = rootd_bpki_key,
+                  server_cert  = rootd_bpki_cert,
+                  client_ta    = (bpki_ta, child_bpki_cert),
                   host         = https_server_host,
                   port         = https_server_port,
                   handlers     = up_down_handler)

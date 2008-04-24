@@ -40,8 +40,13 @@ if argv:
 
 cfg = rpki.config.parser(cfg_file, "cronjob")
 
-print rpki.https.client(client_key   = rpki.x509.RSA(Auto_file = cfg.get("https-key")),
-                        client_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert")),
-                        server_ta    = rpki.x509.X509(Auto_file = cfg.get("https-ta")),
+irbe_key   = rpki.x509.RSA( Auto_file = cfg.get("irbe-key"))
+irbe_cert  = rpki.x509.X509(Auto_files = cfg.get("irbe-cert"))
+bpki_ta    = rpki.x509.X509(Auto_files = cfg.get("bpki-ta"))
+rpkid_cert = rpki.x509.X509(Auto_files = cfg.get("rpkid-cert"))
+
+print rpki.https.client(client_key   = irbe_key,
+                        client_cert  = irbe_cert,
+                        server_ta    = (bpki_ta, rpkid_cert),
                         url          = cfg.get("https-url"),
                         msg          = "Please run cron now.")

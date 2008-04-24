@@ -156,13 +156,11 @@ if not argv:
 
 cfg = rpki.config.parser(cfg_file, "irbe-cli")
 
-cms_key     = rpki.x509.RSA(       Auto_file  = cfg.get(     "cms-key"))
-cms_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
-cms_ta      = rpki.x509.X509(      Auto_file  = cfg.get(     "cms-ta"))
-https_key   = rpki.x509.RSA(       Auto_file  = cfg.get(     "https-key"))
-https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
-https_ta    = rpki.x509.X509(      Auto_file  = cfg.get(     "https-ta"))
-https_url   = cfg.get(                                       "https-url")
+bpki_ta     = rpki.x509.X509(Auto_file  = cfg.get("bpki-ta"))
+rpkid_cert  = rpki.x509.X509(Auto_files = cfg.get("rpkid-cert"))
+irbe_cert   = rpki.x509.X509(Auto_files = cfg.get("irbe-cert"))
+irbe_key    = rpki.x509.RSA( Auto_file  = cfg.get("irbe-key"))
+https_url   = cfg.get("https-url")
 
 q_msg = rpki.left_right.msg()
 
@@ -174,15 +172,15 @@ while argv:
   argv = q_pdu.client_getopt(argv[1:])
   q_msg.append(q_pdu)
 
-q_cms = rpki.left_right.cms_msg.wrap(q_msg, cms_key, cms_certs)
+q_cms = rpki.left_right.cms_msg.wrap(q_msg, irbe_key, irbe_cert)
 
-der = rpki.https.client(client_key   = https_key,
-                        client_certs = https_certs,
-                        server_ta    = https_ta,
+der = rpki.https.client(client_key   = irbe_key,
+                        client_cert  = irbe_cert,
+                        server_ta    = (bpki_ta, rpkid_cert),
                         url          = https_url,
                         msg          = q_cms)
 
-r_msg, r_xml = cms_msg.unwrap(der, r_cms, cms_ta, pretty_print = True)
+r_msg, r_xml = cms_msg.unwrap(der, r_cms, (bpki_ta, rpkid_cert), pretty_print = True)
 
 print r_xml
 

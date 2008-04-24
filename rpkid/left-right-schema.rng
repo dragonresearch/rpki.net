@@ -221,6 +221,16 @@
         </data>
       </element>
     </zeroOrMore>
+    <optional>
+      <element name="biz_cert">
+        <ref name="base64"/>
+      </element>
+    </optional>
+    <optional>
+      <element name="biz_glue">
+        <ref name="base64"/>
+      </element>
+    </optional>
   </define>
   <define name="self_id">
     <attribute name="self_id">

@@ -30,7 +30,7 @@ import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509
 def handler(query, path):
   try:
 
-    q_msg = rpki.left_right.cms_msg.unwrap(query, cms_ta)
+    q_msg = rpki.left_right.cms_msg.unwrap(query, (bpki_ta, rpkid_cert))
 
     if not isinstance(q_msg, rpki.left_right.msg):
       raise rpki.exceptions.BadQuery, "Unexpected %s PDU" % repr(q_msg)
@@ -70,7 +70,7 @@ def handler(query, path):
 
       r_msg.append(r_pdu)
 
-    return 200, rpki.left_right.cms_msg.wrap(r_msg, cms_key, cms_certs)
+    return 200, rpki.left_right.cms_msg.wrap(r_msg, irdbd_key, irdbd_cert)
 
   except Exception, data:
     rpki.log.error(traceback.format_exc())
@@ -109,9 +109,10 @@ db = MySQLdb.connect(user   = cfg.get("sql-username"),
 
 cur = db.cursor()
 
-cms_ta          = rpki.x509.X509(Auto_file = cfg.get("cms-ta"))
-cms_key         = rpki.x509.RSA(Auto_file = cfg.get("cms-key"))
-cms_certs       = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
+bpki_ta         = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
+rpkid_cert      = rpki.x509.X509(Auto_file = cfg.get("rpkid-cert"))
+irdbd_cert      = rpki.x509.X509(Auto_file = cfg.get("irdbd-cert"))
+irdbd_key       = rpki.x509.RSA( Auto_file = cfg.get("irdbd-key"))
 
 u = urlparse.urlparse(cfg.get("https-url"))
 
@@ -122,9 +123,9 @@ assert u.scheme in ("", "https") and \
        u.query    == "" and \
        u.fragment == ""
 
-rpki.https.server(server_key   = rpki.x509.RSA(Auto_file = cfg.get("https-key")),
-                  server_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert")),
-                  client_ta    = rpki.x509.X509(Auto_file = cfg.get("https-ta")),
+rpki.https.server(server_key   = irdbd_key,
+                  server_cert  = irdbd_cert,
+                  client_ta    = (bpki_ta, rpkid_cert),
                   host         = u.hostname or "localhost",
                   port         = u.port or 443,
                   handlers     = ((u.path, handler),))

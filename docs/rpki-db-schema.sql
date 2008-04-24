@@ -21,6 +21,8 @@ CREATE TABLE self (
         use_hsm                 BOOLEAN,
         crl_interval            BIGINT unsigned,
         regen_margin            BIGINT unsigned,
+        biz_cert                LONGBLOB,
+        biz_glue                LONGBLOB,
         PRIMARY KEY             (self_id)
 );
 

@@ -32,13 +32,11 @@ db = MySQLdb.connect(user   = cfg.get("sql-username", section = "irdbd"),
                      passwd = cfg.get("sql-password", section = "irdbd"))
 cur = db.cursor()
 
-cms_certs   = rpki.x509.X509_chain(Auto_files = cfg.multiget("cms-cert"))
-cms_key     = rpki.x509.RSA(       Auto_file  = cfg.get(     "cms-key"))
-cms_ta      = rpki.x509.X509(      Auto_file  = cfg.get(     "cms-ta"))
-https_certs = rpki.x509.X509_chain(Auto_files = cfg.multiget("https-cert"))
-https_key   = rpki.x509.RSA(       Auto_file  = cfg.get(     "https-key"))
-https_ta    = rpki.x509.X509(      Auto_file  = cfg.get(     "https-ta"))
-https_url   = cfg.get(                                       "https-url")
+bpki_ta     = rpki.x509.X509(Auto_file  = cfg.get("bpki-ta"))
+rpkid_cert  = rpki.x509.X509(Auto_files = cfg.get("rpkid-cert"))
+irbe_cert   = rpki.x509.X509(Auto_files = cfg.get("irbe-cert"))
+irbe_key    = rpki.x509.RSA( Auto_file  = cfg.get("irbe-key"))
+https_url   = cfg.get("https-url")
 
 def call_rpkid(pdu):
   """Hand a PDU to rpkid and get back the response.  Just throw an
@@ -47,13 +45,13 @@ def call_rpkid(pdu):
 
   pdu.type = "query"
   msg = rpki.left_right.msg((pdu,))
-  cms = rpki.x509.left_right_pdu.wrap(msg, cms_key, cms_certs)
-  der = rpki.https.client(client_key   = https_key,
-                          client_certs = https_certs,
-                          server_ta    = https_ta,
+  cms = rpki.x509.left_right_pdu.wrap(msg, irbe_key, irbe_cert)
+  der = rpki.https.client(client_key   = irbe_key,
+                          client_cert  = irbe_cert,
+                          server_ta    = (bpki_ta, rpkid_cert),
                           url          = https_url,
                           msg          = cms)
-  msg = rpki.left_right.cms_msg.unwrap(der, cms_ta)
+  msg = rpki.left_right.cms_msg.unwrap(der, (bpki_ta, rpkid_cert))
   pdu = msg[0]
   assert len(msg) == 1 and pdu.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)
   return pdu

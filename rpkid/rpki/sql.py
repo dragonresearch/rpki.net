@@ -675,7 +675,7 @@ class ca_detail_obj(sql_persistant):
       nextUpdate     = nextUpdate,
       names_and_objs = certs,
       keypair        = self.manifest_private_key_id,
-      certs          = rpki.x509.X509_chain(self.latest_manifest_cert))
+      certs          = self.latest_manifest_cert)
 
     repository.publish(self.latest_manifest, self.manifest_uri(ca))
 

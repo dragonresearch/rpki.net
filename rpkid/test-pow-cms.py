@@ -14,7 +14,7 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-import POW, rpki.x509, os
+import POW, rpki.x509, os, traceback
 
 key = rpki.x509.RSA(Auto_file = "biz-certs/Alice-EE.key").get_POW()
 ee = rpki.x509.X509(Auto_file = "biz-certs/Alice-EE.cer").get_POW()
@@ -53,7 +53,21 @@ for args in ((ee, key, plaintext, [ca], (), oid),
   cms = POW.CMS()
   cms.sign(*args)
 
-  if True:
+  print "Certs:"
+  try:
+    for x in cms.certs():
+      print x.pprint()
+  except:
+    pass
+
+  print "CRLs:"
+  try:
+    for c in cms.crls():
+      print c.pprint()
+  except:
+    pass
+
+  if False:
     print cms.pprint()
 
   cms.verify(store, [ee])

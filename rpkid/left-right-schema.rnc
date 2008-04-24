@@ -57,7 +57,9 @@ self_payload = (attribute use_hsm { "yes" | "no" }?,
                 element extension_preference {
                   attribute name { xsd:token { maxLength="1024" } },
                   xsd:string { maxLength="512000" }
-                }*)
+                }*,
+                element biz_cert { base64 }?,
+                element biz_glue { base64 }?)
 
 self_id = attribute self_id { sql_id }
 

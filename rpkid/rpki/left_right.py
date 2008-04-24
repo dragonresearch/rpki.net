@@ -215,15 +215,18 @@ class self_elt(data_elt):
 
   element_name = "self"
   attributes = ("action", "type", "tag", "self_id", "crl_interval", "regen_margin")
-  elements = ("extension_preference",)
+  elements = ("extension_preference", "biz_cert", "biz_glue")
   booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now", "clear_extension_preferences")
 
-  sql_template = rpki.sql.template("self", "self_id", "use_hsm", "crl_interval", "regen_margin")
+  sql_template = rpki.sql.template("self", "self_id", "use_hsm", "crl_interval", "regen_margin",
+                                   ("biz_cert", rpki.x509.X509), ("biz_glue", rpki.x509.X509))
 
   self_id = None
   use_hsm = False
   crl_interval = None
   regen_margin = None
+  biz_cert = None
+  biz_glue = None
 
   def __init__(self):
     """Initialize a self_elt."""
@@ -322,14 +325,19 @@ class self_elt(data_elt):
       self.prefs.append(pref)
       stack.append(pref)
       pref.startElement(stack, name, attrs)
-    else:
+    elif name not in ("biz_cert", "biz_glue"):
       assert name == "self", "Unexpected name %s, stack %s" % (name, stack)
       self.read_attrs(attrs)
 
   def endElement(self, stack, name, text):
     """Handle <self/> element."""
-    assert name == "self", "Unexpected name %s, stack %s" % (name, stack)
-    stack.pop()
+    if name == "biz_cert":
+      self.biz_cert = rpki.x509.X509(Base64 = text)
+    elif name == "biz_glue":
+      self.biz_glue = rpki.x509.X509(Base64 = text)
+    else:
+      assert name == "self", "Unexpected name %s, stack %s" % (name, stack)
+      stack.pop()
 
   def toXML(self):
     """Generate <self/> element."""
@@ -443,12 +451,12 @@ class bsc_elt(data_elt):
 
   def __init__(self):
     """Initialize bsc_elt.""" 
-    self.signing_cert = rpki.x509.X509_chain()
+    self.signing_cert = []
 
   def sql_fetch_hook(self):
     """Extra SQL fetch actions for bsc_elt -- handle signing certs."""
     self.gctx.cur.execute("SELECT cert FROM bsc_cert WHERE bsc_id = %s", (self.bsc_id,))
-    self.signing_cert[:] = [rpki.x509.X509(DER = x) for (x,) in self.gctx.cur.fetchall()]
+    self.signing_cert = [rpki.x509.X509(DER = x) for (x,) in self.gctx.cur.fetchall()]
 
   def sql_insert_hook(self):
     """Extra SQL insert actions for bsc_elt -- handle signing certs."""
@@ -613,7 +621,7 @@ class parent_elt(data_elt):
 
     der = rpki.https.client(server_ta    = self.peer_biz_cert,
                             client_key   = bsc.private_key_id,
-                            client_certs = bsc.signing_cert,
+                            client_cert  = bsc.signing_cert,
                             msg          = q_cms,
                             url          = self.peer_contact_uri)
 

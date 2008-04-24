@@ -75,7 +75,7 @@ def get_PEM(name, cls, y = yaml_data):
   return None
 
 def get_PEM_chain(name, cert = None):
-  chain = rpki.x509.X509_chain()
+  chain = []
   if cert is not None:
     chain.append(cert)
   if name in yaml_data:
@@ -93,7 +93,7 @@ def query_up_down(q_pdu):
   der = rpki.https.client(
     server_ta    = https_ta,
     client_key   = https_key,
-    client_certs = https_certs,
+    client_cert  = https_certs,
     msg          = q_cms,
     url          = yaml_data["posturl"])
   r_msg, r_xml = rpki.up_down.cms_msg.unwrap(der, cms_ta, pretty_print = True)

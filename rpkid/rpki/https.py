@@ -31,9 +31,16 @@ import POW
 disable_tls_certificate_validation_exceptions = False
 
 # Chatter suppression
-debug_tls_certs = False
+debug_tls_certs = True
 
 rpki_content_type = "application/x-rpki"
+
+def tlslite_certChain(x509):
+  """Utility function to construct tlslite certChains."""
+  if isinstance(x509, rpki.x509.X509):
+    return tlslite.api.X509CertChain([x509.get_tlslite()])
+  else:
+    return tlslite.api.X509CertChain([x.get_tlslite() for x in x509])
 
 class Checker(tlslite.api.Checker):
   """Derived class to handle X.509 client certificate checking."""
@@ -43,13 +50,18 @@ class Checker(tlslite.api.Checker):
 
     self.dynamic_x509store = dynamic_x509store
 
-    if dynamic_x509store is None:
-      self.x509store = POW.X509Store()
+    if dynamic_x509store is not None:
+      return
+
+    self.x509store = POW.X509Store()
+
+    if isinstance(trust_anchor, rpki.x509.X509):
+      trust_anchor = (trust_anchor,)
+
+    for x in trust_anchor:
       if debug_tls_certs:
-        rpki.log.debug("HTTPS trust anchor %s" % trust_anchor.getSubject())
-      self.x509store.addTrust(trust_anchor.get_POW())
-    elif debug_tls_certs:
-      rpki.log.debug("HTTPS dynamic trust anchors")
+        rpki.log.debug("HTTPS trusted cert %s" % x.getSubject())
+      self.x509store.addTrust(x.get_POW())
 
   def x509store_thunk(self):
     if self.dynamic_x509store is not None:
@@ -83,17 +95,17 @@ class httpsClient(tlslite.api.HTTPTLSConnection):
   """Derived class to let us replace the default Checker."""
 
   def __init__(self, host, port = None,
-               client_certs = None, client_key = None,
+               client_cert = None, client_key = None,
                server_ta = None, settings = None):
     """Create a new httpsClient."""
 
     tlslite.api.HTTPTLSConnection.__init__(
       self, host = host, port = port, settings = settings,
-      certChain = client_certs, privateKey = client_key)
+      certChain = client_cert, privateKey = client_key)
 
     self.checker = Checker(trust_anchor = server_ta)
 
-def client(msg, client_key, client_certs, server_ta, url, timeout = 300):
+def client(msg, client_key, client_cert, server_ta, url, timeout = 300):
   """Open client HTTPS connection, send a message, wait for response.
 
   This function wraps most of what one needs to do to send a message
@@ -112,8 +124,8 @@ def client(msg, client_key, client_certs, server_ta, url, timeout = 300):
          u.fragment == ""
 
   if debug_tls_certs:
-    for client_cert in client_certs:
-      rpki.log.debug("Sending client TLS cert %s" % client_cert.getSubject())
+    for cert in (client_cert,) if isinstance(client_cert, rpki.x509.X509) else client_cert:
+      rpki.log.debug("Sending client TLS cert %s" % cert.getSubject())
 
   # We could add a "settings = foo" argument to the following call to
   # pass in a tlslite.HandshakeSettings object that would let us
@@ -122,7 +134,7 @@ def client(msg, client_key, client_certs, server_ta, url, timeout = 300):
   httpc = httpsClient(host         = u.hostname or "localhost",
                       port         = u.port or 443,
                       client_key   = client_key.get_tlslite(),
-                      client_certs = client_certs.tlslite_certChain(),
+                      client_cert  = tlslite_certChain(client_cert),
                       server_ta    = server_ta)
   httpc.connect()
   httpc.sock.settimeout(timeout)
@@ -179,12 +191,12 @@ class httpsServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
 
   rpki_sessionCache = None
   rpki_server_key   = None
-  rpki_server_certs = None
+  rpki_server_cert  = None
   rpki_checker      = None
   
   def handshake(self, tlsConnection):
     """TLS handshake handler."""
-    assert self.rpki_server_certs is not None
+    assert self.rpki_server_cert  is not None
     assert self.rpki_server_key   is not None
     assert self.rpki_sessionCache is not None
 
@@ -194,7 +206,7 @@ class httpsServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
       # to pass in a tlslite.HandshakeSettings object that would let
       # us insist on, eg, particular SSL/TLS versions.
       #
-      tlsConnection.handshakeServer(certChain    = self.rpki_server_certs,
+      tlsConnection.handshakeServer(certChain    = self.rpki_server_cert,
                                     privateKey   = self.rpki_server_key,
                                     sessionCache = self.rpki_sessionCache,
                                     checker      = self.rpki_checker,
@@ -205,7 +217,7 @@ class httpsServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
       rpki.log.warn("TLS handshake failure: " + str(error))
       return False
 
-def server(handlers, server_key, server_certs, port = 4433, host = "", client_ta = None, dynamic_x509store = None):
+def server(handlers, server_key, server_cert, port = 4433, host = "", client_ta = None, dynamic_x509store = None):
   """Run an HTTPS server and wait (forever) for connections."""
 
   if not isinstance(handlers, (tuple, list)):
@@ -217,7 +229,7 @@ def server(handlers, server_key, server_certs, port = 4433, host = "", client_ta
   httpd = httpsServer((host, port), boundRequestHandler)
 
   httpd.rpki_server_key   = server_key.get_tlslite()
-  httpd.rpki_server_certs = server_certs.tlslite_certChain()
+  httpd.rpki_server_cert  = tlslite_certChain(server_cert)
   httpd.rpki_sessionCache = tlslite.api.SessionCache()
   httpd.rpki_checker      = Checker(trust_anchor = client_ta, dynamic_x509store = dynamic_x509store)
 

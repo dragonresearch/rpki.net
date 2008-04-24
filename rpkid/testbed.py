@@ -633,8 +633,10 @@ class allocation(object):
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
     cur = db.cursor()
     for kid in self.kids:
+      peer_biz_cert = cross_certify(self.name + "-SELF-1", kid.name + "-SELF-1")
+      rpki.log.info("Creating rpkid child object for %s as child of %s" % (kid.name, self.name))
       kid.child_id = self.call_rpkid(rpki.left_right.child_elt.make_pdu(
-        action = "create", self_id = self.self_id, bsc_id = self.bsc_id, peer_biz_cert = kid.rpkid_ta)).child_id
+        action = "create", self_id = self.self_id, bsc_id = self.bsc_id, peer_biz_cert = peer_biz_cert)).child_id
       cur.execute("UPDATE registrant SET rpki_self_id = %s, rpki_child_id = %s WHERE IRBE_mapped_id = %s", (self.self_id, kid.child_id, kid.name))
     db.close()
 
@@ -700,6 +702,26 @@ def setup_biz_cert_chain(name, ee = (), ca = ()):
     d["kind"] =  kind
     s += biz_cert_fmt_5 % d
   subprocess.check_call(s, shell = True)
+
+def cross_certify(certifier, certificant):
+  """Cross-certify and return the resulting certificate."""
+  rpki.log.info("Cross certifying %s into %s's BPKI" % (certificant, certifier))
+  certfile = certifier + "-" + certificant + ".cer"
+  signer = subprocess.Popen((prog_openssl, "x509", "-req",
+                             "-in",         certificant + ".req",
+                             "-out",        certfile,
+                             "-extfile",    certifier + ".cnf",
+                             "-extensions", "req_x509_ext",
+                             "-CA",         certifier + ".cer",
+                             "-CAkey",      certifier + ".key",
+                             "-CAcreateserial"),
+                            stdout = subprocess.PIPE,
+                            stderr = subprocess.PIPE)
+  errors = signer.communicate()[1]
+  if signer.returncode != 0:
+    rpki.log.error("Cross certification error: " + errors)
+    raise RuntimeError, "Couldn't cross-certify %s into %s's BPKI" % (certificant, certifier)
+  return rpki.x509.X509(Auto_file = certfile)
 
 def setup_rootd(rpkid_name, rpkid_tag):
   """Write the config files for rootd."""

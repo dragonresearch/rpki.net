@@ -23,27 +23,35 @@ digraph bpki_symmetric {
 	// Hosted entities
 	node			[ color=blue ];
 	Alice_CA		[ shape=diamond ];
-	Bob_CA			[ shape=diamond ];
 	Alice_EE		[ label="Alice\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
-	Bob_EE			[ label="Bob\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
+	Ellen_CA		[ shape=diamond ];
+	Ellen_EE		[ label="Ellen\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
 
 	// Peers
-	node			[ color=red ];
-	Carol_CA		[ shape=diamond ];
-	Dave_CA			[ shape=diamond ];
+	node			[ color=red, shape=diamond ];
+	Bob_CA;
+	Carol_CA;
+	Dave_CA;
+	Frank_CA;
+	Ginny_CA;
+	Harry_CA;
 
 	edge			[ color=black ];
 	TA -> rpkid;
 	TA -> irdbd;
 	TA -> irbe;
 	TA -> Alice_CA;
-	TA -> Bob_CA;
+	TA -> Ellen_CA;
 
 	edge			[ color=blue ];
 	Alice_CA -> Alice_EE;
-	Bob_CA   -> Bob_EE;
+	Alice_CA -> Bob_CA;
+	Alice_CA -> Carol_CA;
 	Alice_CA -> Dave_CA;
-	Bob_CA   -> Carol_CA;
+	Ellen_CA -> Ellen_EE;
+	Ellen_CA -> Frank_CA;
+	Ellen_CA -> Ginny_CA;
+	Ellen_CA -> Harry_CA;
 }
 
 digraph bpki_asymmetric {
@@ -59,31 +67,46 @@ digraph bpki_asymmetric {
 	// Hosted entities
 	node			[ color=blue ];
 	Alice_CA		[ shape=diamond ];
-	Bob_CA			[ shape=diamond ];
+	Ellen_CA		[ shape=diamond ];
 
 	// Peers
-	node			[ color=red ];
-	Alice_EE		[ label="Alice\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
-	Bob_EE			[ label="Bob\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
-	Carol_CA		[ shape=diamond ];
-	Dave_CA			[ shape=diamond ];
+	node			[ color=red, shape=diamond ];
+	Bob_CA;
+	Carol_CA;
+	Dave_CA;
+	Frank_CA;
+	Ginny_CA;
+	Harry_CA;
+
+	// EE certs issued to us by peers
+	node			[ color=red, shape=record ];
+	Alice_Bob_EE		[ label="Alice-Bob\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
+	Alice_Carol_EE		[ label="Alice-Carol\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
+	Alice_Dave_EE		[ label="Alice-Dave\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
+	Ellen_Frank_EE		[ label="Ellen-Frank\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
+	Ellen_Ginny_EE		[ label="Ellen-Ginny\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
+	Ellen_Harry_EE		[ label="Ellen-Harry\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
 
 	edge			[ color=black ];
 	TA -> rpkid;
 	TA -> irdbd;
 	TA -> irbe;
 	TA -> Alice_CA;
-	TA -> Bob_CA;
+	TA -> Ellen_CA;
 
 	edge			[ color=blue ];
+	Alice_CA -> Bob_CA;
+	Alice_CA -> Carol_CA;
 	Alice_CA -> Dave_CA;
-	Bob_CA   -> Carol_CA;
+	Ellen_CA -> Frank_CA;
+	Ellen_CA -> Ginny_CA;
+	Ellen_CA -> Harry_CA;
 
 	edge			[ color=red ];
-	Dave_CA  -> Alice_EE;
-	Carol_CA -> Bob_EE;
+	Bob_CA -> Alice_Bob_EE;
+	Carol_CA -> Alice_Carol_EE;
+	Dave_CA -> Alice_Dave_EE;
+	Frank_CA -> Ellen_Frank_EE;
+	Ginny_CA -> Ellen_Ginny_EE;
+	Harry_CA -> Ellen_Harry_EE;
 }
-
-// Local Variables:
-// compile-command: "dot -Tps2 bpki.dot | ps2pdf - bpki.pdf"
-// End:

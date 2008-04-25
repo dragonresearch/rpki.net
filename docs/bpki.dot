@@ -1,0 +1,52 @@
+// $Id$
+//
+// Color code:
+//   Black: hosting entity
+//   Blue:  hosted entity
+//   Red: peers
+//
+// Shape code:
+//   Diamond:  TA
+//   Box:      CA
+//   Triangle: EE
+
+digraph bpki {
+	rotate=90;	size="11,8.5";	splines=true;	ratio=fill;
+	node		[ shape=triangle ];
+
+	// Hosting entity
+	node		[ color=black ];
+	TA		[ shape=diamond ];
+	RPKID;
+	IRDBD;
+	IRBE;
+
+	// Hosted entities
+	node		[ color=blue ];
+	Alice		[ shape=box ];
+	Bob		[ shape=box ];
+	Alice_EE;
+	Bob_EE;
+
+	// Peers
+	node		[ color=red ];
+	Carol		[ shape=box ];
+	Dave		[ shape=box ];
+
+	edge		[ color=black ];
+	TA -> RPKID;
+	TA -> IRDBD;
+	TA -> IRBE;
+	TA -> Alice;
+	TA -> Bob;
+
+	edge		[ color=blue ];
+	Alice -> Alice_EE;
+	Bob -> Bob_EE;
+	Alice -> Dave;
+	Bob -> Carol;
+}
+
+// Local Variables:
+// compile-command: "dot -Tps2 bpki.dot | ps2pdf - bpki.pdf"
+// End:

@@ -48,13 +48,29 @@ class cmd_mixin(object):
     self.action = arg
     self.type = "query"
 
-  def client_query_peer_biz_cert(self, arg):
-    """Special handler for --peer_biz_cert option."""
-    self.peer_biz_cert = rpki.x509.X509(Auto_file=arg)
+  def client_query_bpki_cert(self, arg):
+    """Special handler for --bpki_cert option."""
+    self.bpki_cert = rpki.x509.X509(Auto_file=arg)
 
-  def client_query_https_ta(self, arg):
-    """Special handler for --peer_biz_glue option."""
-    self.peer_biz_glue = rpki.x509.X509(Auto_file=arg)
+  def client_query_glue(self, arg):
+    """Special handler for --bpki_glue option."""
+    self.bpki_glue = rpki.x509.X509(Auto_file=arg)
+
+  def client_query_bpki_cms_cert(self, arg):
+    """Special handler for --bpki_cms_cert option."""
+    self.bpki_cms_cert = rpki.x509.X509(Auto_file=arg)
+
+  def client_query_cms_glue(self, arg):
+    """Special handler for --bpki_cms_glue option."""
+    self.bpki_cms_glue = rpki.x509.X509(Auto_file=arg)
+
+  def client_query_bpki_https_cert(self, arg):
+    """Special handler for --bpki_https_cert option."""
+    self.bpki_https_cert = rpki.x509.X509(Auto_file=arg)
+
+  def client_query_https_glue(self, arg):
+    """Special handler for --bpki_https_glue option."""
+    self.bpki_https_glue = rpki.x509.X509(Auto_file=arg)
 
   def client_reply_decode(self):
     pass

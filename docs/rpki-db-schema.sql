@@ -21,8 +21,8 @@ CREATE TABLE self (
         use_hsm                 BOOLEAN,
         crl_interval            BIGINT unsigned,
         regen_margin            BIGINT unsigned,
-        biz_cert                LONGBLOB,
-        biz_glue                LONGBLOB,
+        bpki_cert               LONGBLOB,
+        bpki_glue               LONGBLOB,
         PRIMARY KEY             (self_id)
 );
 
@@ -63,8 +63,10 @@ DROP TABLE IF EXISTS repository;
 CREATE TABLE repository (
         repository_id           SERIAL NOT NULL,
         peer_contact_uri        TEXT,
-        peer_biz_cert           LONGBLOB,
-        peer_biz_glue           LONGBLOB,
+        bpki_cms_cert           LONGBLOB,
+        bpki_cms_glue           LONGBLOB,
+        bpki_https_cert         LONGBLOB,
+        bpki_https_glue         LONGBLOB,
         bsc_id                  BIGINT unsigned NOT NULL,
         self_id                 BIGINT unsigned NOT NULL,
         PRIMARY KEY             (repository_id),
@@ -76,8 +78,10 @@ DROP TABLE IF EXISTS parent;
 
 CREATE TABLE parent (
         parent_id               SERIAL NOT NULL,
-        peer_biz_cert           LONGBLOB,
-        peer_biz_glue           LONGBLOB,
+        bpki_cms_cert           LONGBLOB,
+        bpki_cms_glue           LONGBLOB,
+        bpki_https_cert         LONGBLOB,
+        bpki_https_glue         LONGBLOB,
         peer_contact_uri        TEXT,
         sia_base                TEXT,
         sender_name             TEXT,
@@ -130,8 +134,8 @@ DROP TABLE IF EXISTS child;
 
 CREATE TABLE child (
         child_id                SERIAL NOT NULL,
-        peer_biz_cert           LONGBLOB,
-        peer_biz_glue           LONGBLOB,
+        bpki_cert               LONGBLOB,
+        bpki_glue               LONGBLOB,
         self_id                 BIGINT unsigned NOT NULL,
         bsc_id                  BIGINT unsigned NOT NULL,
         PRIMARY KEY             (child_id),

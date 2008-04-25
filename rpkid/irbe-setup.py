@@ -88,7 +88,7 @@ repository_id = pdu.repository_id
 print "Create a parent context"
 ta = rpki.x509.X509(Auto_file = "biz-certs/Elena-Root.cer")
 pdu = call_rpkid(rpki.left_right.parent_elt.make_pdu(
-  action = "create", self_id = self_id, bsc_id = bsc_id, repository_id = repository_id, peer_biz_cert = ta,
+  action = "create", self_id = self_id, bsc_id = bsc_id, repository_id = repository_id, bpki_cms_cert = ta,
   peer_contact_uri = "https://localhost:44333/", sia_base = "rsync://wombat.invalid/"))
 parent_id = pdu.parent_id
 
@@ -102,7 +102,7 @@ registrants = cur.fetchall()
 
 for registrant_id, subject_name  in registrants:
   print "Attempting to bind", registrant_id, subject_name
-  pdu = call_rpkid(rpki.left_right.child_elt.make_pdu(action = "create", self_id = self_id, bsc_id = bsc_id, peer_biz_cert = cer))
+  pdu = call_rpkid(rpki.left_right.child_elt.make_pdu(action = "create", self_id = self_id, bsc_id = bsc_id, bpki_cms_cert = cer))
   print "Attempting to bind", registrant_id, subject_name, pdu.child_id
   cur.execute("""UPDATE registrant
                  SET rpki_self_id = %d, rpki_child_id = %d

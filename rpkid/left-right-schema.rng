@@ -140,17 +140,6 @@
       <param name="maxLength">512000</param>
     </data>
   </define>
-  <!-- How we wrap peer business cert elements -->
-  <define name="peer_biz_cert">
-    <element name="peer_biz_cert">
-      <ref name="base64"/>
-    </element>
-  </define>
-  <define name="peer_biz_glue">
-    <element name="peer_biz_glue">
-      <ref name="base64"/>
-    </element>
-  </define>
   <!-- Base definition for all fields that are really just SQL primary indices -->
   <define name="sql_id">
     <data type="token">
@@ -209,6 +198,16 @@
         <data type="positiveInteger"/>
       </attribute>
     </optional>
+    <optional>
+      <element name="bpki_cert">
+        <ref name="base64"/>
+      </element>
+    </optional>
+    <optional>
+      <element name="bpki_glue">
+        <ref name="base64"/>
+      </element>
+    </optional>
     <zeroOrMore>
       <element name="extension_preference">
         <attribute name="name">
@@ -221,16 +220,6 @@
         </data>
       </element>
     </zeroOrMore>
-    <optional>
-      <element name="biz_cert">
-        <ref name="base64"/>
-      </element>
-    </optional>
-    <optional>
-      <element name="biz_glue">
-        <ref name="base64"/>
-      </element>
-    </optional>
   </define>
   <define name="self_id">
     <attribute name="self_id">
@@ -493,10 +482,24 @@
       </attribute>
     </optional>
     <optional>
-      <ref name="peer_biz_cert"/>
+      <element name="bpki_cms_cert">
+        <ref name="base64"/>
+      </element>
     </optional>
     <optional>
-      <ref name="peer_biz_glue"/>
+      <element name="bpki_cms_glue">
+        <ref name="base64"/>
+      </element>
+    </optional>
+    <optional>
+      <element name="bpki_https_cert">
+        <ref name="base64"/>
+      </element>
+    </optional>
+    <optional>
+      <element name="bpki_https_glue">
+        <ref name="base64"/>
+      </element>
     </optional>
   </define>
   <define name="parent_elt" combine="choice">
@@ -595,10 +598,14 @@
       </attribute>
     </optional>
     <optional>
-      <ref name="peer_biz_cert"/>
+      <element name="bpki_cert">
+        <ref name="base64"/>
+      </element>
     </optional>
     <optional>
-      <ref name="peer_biz_glue"/>
+      <element name="bpki_glue">
+        <ref name="base64"/>
+      </element>
     </optional>
   </define>
   <define name="child_elt" combine="choice">
@@ -697,10 +704,24 @@
       </attribute>
     </optional>
     <optional>
-      <ref name="peer_biz_cert"/>
+      <element name="bpki_cms_cert">
+        <ref name="base64"/>
+      </element>
     </optional>
     <optional>
-      <ref name="peer_biz_glue"/>
+      <element name="bpki_cms_glue">
+        <ref name="base64"/>
+      </element>
+    </optional>
+    <optional>
+      <element name="bpki_https_cert">
+        <ref name="base64"/>
+      </element>
+    </optional>
+    <optional>
+      <element name="bpki_https_glue">
+        <ref name="base64"/>
+      </element>
     </optional>
   </define>
   <define name="repository_elt" combine="choice">

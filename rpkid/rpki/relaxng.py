@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rng 1701 2008-04-24 05:44:46Z sra $
+  $Id: left-right-schema.rnc 1701 2008-04-24 05:44:46Z sra $
   
   RelaxNG (Compact Syntax) Schema for RPKI left-right protocol.
   
@@ -146,17 +146,6 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <param name="maxLength">512000</param>
     </data>
   </define>
-  <!-- How we wrap peer business cert elements -->
-  <define name="peer_biz_cert">
-    <element name="peer_biz_cert">
-      <ref name="base64"/>
-    </element>
-  </define>
-  <define name="peer_biz_glue">
-    <element name="peer_biz_glue">
-      <ref name="base64"/>
-    </element>
-  </define>
   <!-- Base definition for all fields that are really just SQL primary indices -->
   <define name="sql_id">
     <data type="token">
@@ -215,6 +204,16 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
         <data type="positiveInteger"/>
       </attribute>
     </optional>
+    <optional>
+      <element name="bpki_cert">
+        <ref name="base64"/>
+      </element>
+    </optional>
+    <optional>
+      <element name="bpki_glue">
+        <ref name="base64"/>
+      </element>
+    </optional>
     <zeroOrMore>
       <element name="extension_preference">
         <attribute name="name">
@@ -227,16 +226,6 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
         </data>
       </element>
     </zeroOrMore>
-    <optional>
-      <element name="biz_cert">
-        <ref name="base64"/>
-      </element>
-    </optional>
-    <optional>
-      <element name="biz_glue">
-        <ref name="base64"/>
-      </element>
-    </optional>
   </define>
   <define name="self_id">
     <attribute name="self_id">
@@ -499,10 +488,24 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </attribute>
     </optional>
     <optional>
-      <ref name="peer_biz_cert"/>
+      <element name="bpki_cms_cert">
+        <ref name="base64"/>
+      </element>
     </optional>
     <optional>
-      <ref name="peer_biz_glue"/>
+      <element name="bpki_cms_glue">
+        <ref name="base64"/>
+      </element>
+    </optional>
+    <optional>
+      <element name="bpki_https_cert">
+        <ref name="base64"/>
+      </element>
+    </optional>
+    <optional>
+      <element name="bpki_https_glue">
+        <ref name="base64"/>
+      </element>
     </optional>
   </define>
   <define name="parent_elt" combine="choice">
@@ -601,10 +604,14 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </attribute>
     </optional>
     <optional>
-      <ref name="peer_biz_cert"/>
+      <element name="bpki_cert">
+        <ref name="base64"/>
+      </element>
     </optional>
     <optional>
-      <ref name="peer_biz_glue"/>
+      <element name="bpki_glue">
+        <ref name="base64"/>
+      </element>
     </optional>
   </define>
   <define name="child_elt" combine="choice">
@@ -703,10 +710,24 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </attribute>
     </optional>
     <optional>
-      <ref name="peer_biz_cert"/>
+      <element name="bpki_cms_cert">
+        <ref name="base64"/>
+      </element>
     </optional>
     <optional>
-      <ref name="peer_biz_glue"/>
+      <element name="bpki_cms_glue">
+        <ref name="base64"/>
+      </element>
+    </optional>
+    <optional>
+      <element name="bpki_https_cert">
+        <ref name="base64"/>
+      </element>
+    </optional>
+    <optional>
+      <element name="bpki_https_glue">
+        <ref name="base64"/>
+      </element>
     </optional>
   </define>
   <define name="repository_elt" combine="choice">

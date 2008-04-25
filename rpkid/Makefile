@@ -55,7 +55,7 @@ dox doxygen:
 	${TWEAKHTML} rpki/html/Operation.html    | ${HTML2TEXT} >OPERATION
 
 tags:
-	find . -type f -name '*.py' | etags -
+	find . -type f -name '*.py' ! -name relaxng.py | etags -
 
 all:: rpki/relaxng.py
 

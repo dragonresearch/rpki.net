@@ -588,13 +588,13 @@ class CMS_object(DER_object):
 
     for x in ta:
       if self.debug_cms_certs:
-        rpki.log.debug("CMS trusted cert %s" % x.getSubject())
+        rpki.log.debug("CMS trusted cert issuer %s subject %s" % (x.getIssuer(), x.getSubject()))
       store.addTrust(x.get_POW())
 
     if self.debug_cms_certs:
       try:
         for x in cms.certs():
-          rpki.log.debug("Received CMS cert %s" % x.getSubject())
+          rpki.log.debug("Received CMS cert issuer %s subject %s" % (x.getIssuer(), x.getSubject()))
       except:
         pass
 

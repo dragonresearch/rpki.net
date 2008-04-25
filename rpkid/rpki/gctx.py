@@ -72,12 +72,12 @@ class global_context(object):
     q_msg[0].child_id = child_id
     q_cms = rpki.left_right.cms_msg.wrap(q_msg, self.rpkid_key, self.rpkid_cert)
     der = rpki.https.client(
+      server_ta    = (self.bpki_ta, self.irdb_cert),
       client_key   = self.rpkid_key,
       client_cert  = self.rpkid_cert,
-      server_ta    = self.irdb_cert,
       url          = self.irdb_url,
       msg          = q_cms)
-    r_msg = rpki.left_right.cms_msg.unwrap(der, self.irdb_cert)
+    r_msg = rpki.left_right.cms_msg.unwrap(der, (self.bpki_ta, self.irdb_cert))
     if len(r_msg) == 0 or not isinstance(r_msg[0], rpki.left_right.list_resources_elt) or r_msg[0].type != "reply":
       raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")
     return rpki.resource_set.resource_bag(
@@ -172,14 +172,14 @@ class global_context(object):
       store = POW.X509Store()
       selves = rpki.left_right.self_elt.sql_fetch_all(self)
       children = rpki.left_right.child_elt.sql_fetch_all(self)
-      certs = [c.peer_biz_cert for c in children if c.peer_biz_cert is not None] + \
-              [c.peer_biz_glue for c in children if c.peer_biz_glue is not None] + \
-              [s.biz_cert for s in selves if s.biz_cert is not None] + \
-              [s.biz_glue for s in selves if s.biz_glue is not None] + \
+      certs = [c.bpki_cert for c in children if c.bpki_cert is not None] + \
+              [c.bpki_glue for c in children if c.bpki_glue is not None] + \
+              [s.bpki_cert for s in selves if s.bpki_cert is not None] + \
+              [s.bpki_glue for s in selves if s.bpki_glue is not None] + \
               [self.irbe_cert, self.irdb_cert, self.bpki_ta]
       for x in certs:
         if rpki.https.debug_tls_certs:
-          rpki.log.debug("HTTPS dynamic trusted cert %s" % x.getSubject())
+          rpki.log.debug("HTTPS dynamic trusted cert issuer %s subject %s" % (x.getIssuer(), x.getSubject()))
         store.addTrust(x.get_POW())
       self.https_ta_cache = store
 

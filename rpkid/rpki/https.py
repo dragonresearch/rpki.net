@@ -60,7 +60,7 @@ class Checker(tlslite.api.Checker):
 
     for x in trust_anchor:
       if debug_tls_certs:
-        rpki.log.debug("HTTPS trusted cert %s" % x.getSubject())
+        rpki.log.debug("HTTPS trusted cert issuer %s subject %s" % (x.getIssuer(), x.getSubject()))
       self.x509store.addTrust(x.get_POW())
 
   def x509store_thunk(self):
@@ -83,7 +83,7 @@ class Checker(tlslite.api.Checker):
 
     if debug_tls_certs:
       for i in range(len(chain)):
-        rpki.log.debug("Received %s TLS cert[%d] %s" % (peer, i, chain[i].getSubject()))
+        rpki.log.debug("Received %s TLS cert[%d] issuer %s subject %s" % (peer, i, chain[i].getIssuer(), chain[i].getSubject()))
 
     if not self.x509store_thunk().verifyChain(chain[0].get_POW(), [x.get_POW() for x in chain[1:]]):
       if disable_tls_certificate_validation_exceptions:
@@ -123,9 +123,11 @@ def client(msg, client_key, client_cert, server_ta, url, timeout = 300):
          u.query    == "" and \
          u.fragment == ""
 
+  rpki.log.debug("Contacting URL %s" % url)
+
   if debug_tls_certs:
     for cert in (client_cert,) if isinstance(client_cert, rpki.x509.X509) else client_cert:
-      rpki.log.debug("Sending client TLS cert %s" % cert.getSubject())
+      rpki.log.debug("Sending client TLS cert issuer %s subject %s" % (cert.getIssuer(), cert.getSubject()))
 
   # We could add a "settings = foo" argument to the following call to
   # pass in a tlslite.HandshakeSettings object that would let us

@@ -53,17 +53,17 @@ def stash_subject_pkcs10(pkcs10):
     f.close()
 
 def compose_response(r_msg):
-    rc = rpki.up_down.class_elt()
-    rc.class_name = rootd_name
-    rc.cert_url = rpki.up_down.multi_uri(rootd_cert)
-    rc.from_resource_bag(rpki_issuer.get_3779resources())
-    rc.issuer = rpki_issuer
-    r_msg.payload.classes.append(rc)
-    rpki_subject = get_subject_cert()
-    if rpki_subject is not None:
-      rc.certs.append(rpki.up_down.certificate_elt())
-      rc.certs[0].cert_url = rpki.up_down.multi_uri(rootd_cert)
-      rc.certs[0].cert = rpki_subject
+  rc = rpki.up_down.class_elt()
+  rc.class_name = rootd_name
+  rc.cert_url = rpki.up_down.multi_uri(rootd_cert)
+  rc.from_resource_bag(rpki_issuer.get_3779resources())
+  rc.issuer = rpki_issuer
+  r_msg.payload.classes.append(rc)
+  rpki_subject = get_subject_cert()
+  if rpki_subject is not None:
+    rc.certs.append(rpki.up_down.certificate_elt())
+    rc.certs[0].cert_url = rpki.up_down.multi_uri(rootd_cert)
+    rc.certs[0].cert = rpki_subject
 
 class list_pdu(rpki.up_down.list_pdu):
   def serve_pdu(self, q_msg, r_msg, ignored):
@@ -177,7 +177,7 @@ child_bpki_cert = rpki.x509.X509(Auto_file = cfg.get("child-bpki-cert"))
 https_server_host = cfg.get("server-host", "")
 https_server_port = int(cfg.get("server-port"))
 
-rpki_key    = rpki.x509.RSA(Auto_file = cfg.get("rpki-key"))
+rpki_key    = rpki.x509.RSA( Auto_file = cfg.get("rpki-key"))
 rpki_issuer = rpki.x509.X509(Auto_file = cfg.get("rpki-issuer"))
 
 rpki_subject_filename = cfg.get("rpki-subject-filename")

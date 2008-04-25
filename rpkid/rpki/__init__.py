@@ -464,18 +464,23 @@
 ##   parent     --action= --type= --tag= --self_id= --parent_id=
 ##              --bsc_id= --repository_id= --peer_contact_uri=
 ##              --sia_base= --sender_name= --recipient_name=
-##              --peer_biz_cert= --peer_biz_glue= --rekey --reissue --revoke
+##              --bpki_cms_cert= --bpki_cms_glue=
+##              --bpki_https_cert= --bpki_https_glue=
+##              --rekey --reissue --revoke
 ## 
 ##   repository --action= --type= --tag= --self_id= --repository_id=
-##              --bsc_id= --peer_contact_uri= --peer_biz_cert= --peer_biz_glue= 
+##              --bsc_id= --peer_contact_uri=
+##              --bpki_cms_cert= --bpki_cms_glue= 
+##              --bpki_https_cert= --bpki_https_glue=
 ## 
 ##   self       --action= --type= --tag= --self_id= --crl_interval=
+##              --bpki_cert= --bpki_glue=
 ##              --extension_preference= --rekey --reissue --revoke
-##               --run_now --publish_world_now
-##               --clear_extension_preferences
+##              --run_now --publish_world_now
+##              --clear_extension_preferences
 ## 
 ##   child      --action= --type= --tag= --self_id= --child_id=
-##              --bsc_id= --peer_biz_cert= --peer_biz_glue= --reissue
+##              --bsc_id= --bpki_cms_cert= --bpki_cms_glue= --reissue
 ## 
 ##   route_origin --action= --type= --tag= --self_id= --route_origin_id=
 ##               --as_number= --ipv4= --ipv6= --suppress_publication

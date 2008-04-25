@@ -35,10 +35,6 @@ ctl_dr = attribute action { "destroy" }, attribute type { "reply" }, tag
 # Base64 encoded DER stuff
 base64 = xsd:base64Binary { maxLength="512000" }
 
-# How we wrap peer business cert elements
-peer_biz_cert = element peer_biz_cert { base64 }
-peer_biz_glue = element peer_biz_glue { base64 }
-
 # Base definition for all fields that are really just SQL primary indices
 sql_id = xsd:token { maxLength="1024" }
 
@@ -54,12 +50,12 @@ self_bool = (attribute rekey { "yes" }?,
 self_payload = (attribute use_hsm { "yes" | "no" }?,
                 attribute crl_interval { xsd:positiveInteger }?,
                 attribute regen_margin { xsd:positiveInteger }?,
+                element bpki_cert { base64 }?,
+                element bpki_glue { base64 }?,
                 element extension_preference {
                   attribute name { xsd:token { maxLength="1024" } },
                   xsd:string { maxLength="512000" }
-                }*,
-                element biz_cert { base64 }?,
-                element biz_glue { base64 }?)
+                }*)
 
 self_id = attribute self_id { sql_id }
 
@@ -113,8 +109,10 @@ parent_payload = (attribute peer_contact_uri { xsd:anyURI { maxLength="1024" } }
                   attribute repository_id { xsd:token { maxLength="1024" } }?,
                   attribute sender_name { xsd:token { maxLength="1024" } }?,
                   attribute recipient_name { xsd:token { maxLength="1024" } }?,
-                  peer_biz_cert?,
-                  peer_biz_glue?)
+                  element bpki_cms_cert { base64 }?,
+                  element bpki_cms_glue { base64 }?,
+                  element bpki_https_cert { base64 }?,
+                  element bpki_https_glue { base64 }?)
 
 parent_elt |= element parent { ctl_cq, self_id, parent_bool, parent_payload }
 parent_elt |= element parent { ctl_cr, self_id, parent_id }
@@ -134,8 +132,8 @@ child_id = attribute child_id { sql_id }
 child_bool = attribute reissue { "yes" }?
 
 child_payload = (attribute bsc_id { xsd:token { maxLength="1024" } }?,
-                 peer_biz_cert?,
-                 peer_biz_glue?)
+                 element bpki_cert { base64 }?,
+                 element bpki_glue { base64 }?)
 
 child_elt |= element child { ctl_cq, self_id, child_bool, child_payload }
 child_elt |= element child { ctl_cr, self_id, child_id }
@@ -154,8 +152,10 @@ repository_id = attribute repository_id { sql_id }
 
 repository_payload = (attribute peer_contact_uri { xsd:anyURI { maxLength="1024" } }?,
                       attribute bsc_id { xsd:token { maxLength="1024" } }?,
-                      peer_biz_cert?,
-                      peer_biz_glue?)
+                      element bpki_cms_cert { base64 }?,
+                      element bpki_cms_glue { base64 }?,
+                      element bpki_https_cert { base64 }?,
+                      element bpki_https_glue { base64 }?)
 
 repository_elt |= element repository { ctl_cq, self_id, repository_payload }
 repository_elt |= element repository { ctl_cr, self_id, repository_id }

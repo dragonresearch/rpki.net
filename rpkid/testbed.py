@@ -118,6 +118,7 @@ def main():
 
   rpki.log.init(testbed_name)
   rpki.log.info("Starting")
+  rpki.log.set_trace(True)
 
   signal.signal(signal.SIGALRM, wakeup)
 
@@ -141,8 +142,6 @@ def main():
 
   rpki.log.info("Constructing biz keys and certs for rootd")
   setup_biz_cert_chain(rootd_name, ee = ("RPKI",))
-  global rootd_ta
-  rootd_ta = rpki.x509.X509(PEM_file = rootd_name + "-TA.cer")
 
   for a in db:
     a.setup_biz_certs()
@@ -592,18 +591,18 @@ class allocation(object):
     that one is the magic self-signed micro engine.
     """
 
-    rpki.log.info("Creating rpkid self object for %s" % self.name)
     self_ca = rpki.x509.X509(Auto_file = self.name + "-SELF-1.cer")
+    rpki.log.info("Creating rpkid self object for %s" % self.name)
     self.self_id = self.call_rpkid(rpki.left_right.self_elt.make_pdu(
-      action = "create", crl_interval = self.crl_interval, regen_margin = self.regen_margin, biz_cert = self_ca)).self_id
+      action = "create", crl_interval = self.crl_interval, regen_margin = self.regen_margin, bpki_cert = self_ca)).self_id
 
     rpki.log.info("Creating rpkid BSC object for %s" % self.name)
     pdu = self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "create", self_id = self.self_id, generate_keypair = True))
     self.bsc_id = pdu.bsc_id
 
     rpki.log.info("Issuing BSC EE cert for %s" % self.name)
-    cmd = (prog_openssl, "x509", "-req", "-extfile", self.name + "-RPKI.cnf", "-extensions", "req_x509_ext", "-days", "30",
-           "-CA", self.name + "-SELF-1.cer", "-CAkey",    self.name + "-SELF-1.key", "-CAcreateserial")
+    cmd = (prog_openssl, "x509", "-req", "-sha256", "-extfile", self.name + "-RPKI.conf", "-extensions", "req_x509_ext", "-days", "30",
+           "-CA", self.name + "-SELF-1.cer", "-CAkey",    self.name + "-SELF-1.key", "-CAcreateserial", "-text")
     signer = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     signed = signer.communicate(input = pdu.pkcs10_request.get_PEM())
     if not signed[0]:
@@ -614,29 +613,33 @@ class allocation(object):
     rpki.log.info("Installing BSC EE cert for %s" % self.name)
     self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "set", self_id = self.self_id, bsc_id = self.bsc_id, signing_cert = (bsc_ee,)))
 
+    # Once we have a real repository protocol we'll have to do cross-certification here
     rpki.log.info("Creating rpkid repository object for %s" % self.name)
     self.repository_id = self.call_rpkid(rpki.left_right.repository_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id)).repository_id
 
     rpki.log.info("Creating rpkid parent object for %s" % self.name)
     if self.is_root():
+      rootd_cert = cross_certify(self.name + "-SELF-1", rootd_name + "-TA")
       self.parent_id = self.call_rpkid(rpki.left_right.parent_elt.make_pdu(
         action = "create", self_id = self.self_id, bsc_id = self.bsc_id, repository_id = self.repository_id, sia_base = self.sia_base,
-        peer_biz_cert = rootd_ta, sender_name = self.name, recipient_name = "Walrus",
+        bpki_cms_cert = rootd_cert, bpki_https_cert = rootd_cert, sender_name = self.name, recipient_name = "Walrus",
         peer_contact_uri = "https://localhost:%s/" % rootd_port)).parent_id
     else:
+      parent_cms_cert = cross_certify(self.name + "-SELF-1", self.parent.name + "-SELF-1")
+      parent_https_cert = cross_certify(self.name + "-SELF-1", self.parent.name + "-TA")
       self.parent_id = self.call_rpkid(rpki.left_right.parent_elt.make_pdu(
         action = "create", self_id = self.self_id, bsc_id = self.bsc_id, repository_id = self.repository_id, sia_base = self.sia_base,
-        peer_biz_cert = self.parent.rpkid_ta, sender_name = self.name, recipient_name = self.parent.name,
+        bpki_cms_cert = parent_cms_cert, bpki_https_cert = parent_https_cert, sender_name = self.name, recipient_name = self.parent.name,
         peer_contact_uri = "https://localhost:%s/up-down/%s" % (self.parent.rpki_port, self.child_id))).parent_id
 
     rpki.log.info("Creating rpkid child objects for %s" % self.name)
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
     cur = db.cursor()
     for kid in self.kids:
-      peer_biz_cert = cross_certify(self.name + "-SELF-1", kid.name + "-SELF-1")
+      bpki_cert = cross_certify(self.name + "-SELF-1", kid.name + "-SELF-1")
       rpki.log.info("Creating rpkid child object for %s as child of %s" % (kid.name, self.name))
       kid.child_id = self.call_rpkid(rpki.left_right.child_elt.make_pdu(
-        action = "create", self_id = self.self_id, bsc_id = self.bsc_id, peer_biz_cert = peer_biz_cert)).child_id
+        action = "create", self_id = self.self_id, bsc_id = self.bsc_id, bpki_cert = bpki_cert)).child_id
       cur.execute("UPDATE registrant SET rpki_self_id = %s, rpki_child_id = %s WHERE IRBE_mapped_id = %s", (self.self_id, kid.child_id, kid.name))
     db.close()
 
@@ -690,7 +693,7 @@ def setup_biz_cert_chain(name, ee = (), ca = ()):
           "kind"    : kind,
           "ca"      : "false" if kind in ee else "true",
           "openssl" : prog_openssl }
-    f = open("%(name)s-%(kind)s.cnf" % d, "w")
+    f = open("%(name)s-%(kind)s.conf" % d, "w")
     f.write(biz_cert_fmt_1 % d)
     f.close()
     if not os.path.exists("%(name)s-%(kind)s.key" % d):
@@ -705,22 +708,23 @@ def setup_biz_cert_chain(name, ee = (), ca = ()):
 
 def cross_certify(certifier, certificant):
   """Cross-certify and return the resulting certificate."""
-  rpki.log.info("Cross certifying %s into %s's BPKI" % (certificant, certifier))
   certfile = certifier + "-" + certificant + ".cer"
-  signer = subprocess.Popen((prog_openssl, "x509", "-req",
+  rpki.log.trace()
+  rpki.log.info("Cross certifying %s into %s's BPKI (%s)" % (certificant, certifier, certfile))
+  signer = subprocess.Popen((prog_openssl, "x509", "-req", "-sha256", "-text",
+                             "-extensions", "req_x509_ext", "-CAcreateserial",
                              "-in",         certificant + ".req",
                              "-out",        certfile,
-                             "-extfile",    certifier + ".cnf",
-                             "-extensions", "req_x509_ext",
+                             "-extfile",    certifier + ".conf",
                              "-CA",         certifier + ".cer",
-                             "-CAkey",      certifier + ".key",
-                             "-CAcreateserial"),
+                             "-CAkey",      certifier + ".key"),
                             stdout = subprocess.PIPE,
                             stderr = subprocess.PIPE)
   errors = signer.communicate()[1]
   if signer.returncode != 0:
-    rpki.log.error("Cross certification error: " + errors)
-    raise RuntimeError, "Couldn't cross-certify %s into %s's BPKI" % (certificant, certifier)
+    msg = "Couldn't cross-certify %s into %s's BPKI: %s" % (certificant, certifier, errors)
+    rpki.log.error(msg)
+    raise RuntimeError, msg
   return rpki.x509.X509(Auto_file = certfile)
 
 def setup_rootd(rpkid_name, rpkid_tag):
@@ -811,15 +815,15 @@ biz_cert_fmt_2 = '''\
 '''
 
 biz_cert_fmt_3 = '''\
-%(openssl)s req -new -key %(name)s-%(kind)s.key -out %(name)s-%(kind)s.req -config %(name)s-%(kind)s.cnf &&
+%(openssl)s req -new -sha256 -key %(name)s-%(kind)s.key -out %(name)s-%(kind)s.req -config %(name)s-%(kind)s.conf &&
 '''
 
 biz_cert_fmt_4 = '''\
-%(openssl)s x509 -req -in %(name)s-TA.req -out %(name)s-TA.cer -extfile %(name)s-TA.cnf -extensions req_x509_ext -signkey %(name)s-TA.key -days 60 \
+%(openssl)s x509 -req -sha256 -in %(name)s-TA.req -out %(name)s-TA.cer -extfile %(name)s-TA.conf -extensions req_x509_ext -signkey %(name)s-TA.key -days 60 -text \
 '''
 
 biz_cert_fmt_5 = ''' && \
-%(openssl)s x509 -req -in %(name)s-%(kind)s.req -out %(name)s-%(kind)s.cer -extfile %(name)s-%(kind)s.cnf -extensions req_x509_ext -days 30 \
+%(openssl)s x509 -req -sha256 -in %(name)s-%(kind)s.req -out %(name)s-%(kind)s.cer -extfile %(name)s-%(kind)s.conf -extensions req_x509_ext -days 30 -text \
                      -CA %(name)s-TA.cer -CAkey %(name)s-TA.key -CAcreateserial \
 '''
 
@@ -941,10 +945,11 @@ rootd_fmt_2 = '''\
 '''
 
 rootd_fmt_3 = '''\
-%(openssl)s req -new -key %(rootd_name)s.key -out %(rootd_name)s.req -config %(rootd_name)s.conf -text &&
-%(openssl)s x509 -req -in %(rootd_name)s.req -out %(rootd_name)s.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_ext -signkey %(rootd_name)s.key &&
-%(openssl)s x509 -req -in %(rpkid_name)s-%(rpkid_tag)s.req -out %(rootd_name)s-%(rpkid_name)s.cer -extfile %(rootd_name)s.conf -extensions req_x509_ext \
-                     -CA %(rootd_name)s-TA.cer -CAkey %(rootd_name)s-TA.key -CAcreateserial
+%(openssl)s req -new -sha256 -key %(rootd_name)s.key -out %(rootd_name)s.req -config %(rootd_name)s.conf -text &&
+%(openssl)s x509 -req -sha256 -in %(rootd_name)s.req -out %(rootd_name)s.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_ext \
+                      -signkey %(rootd_name)s.key &&
+%(openssl)s x509 -req -sha256 -in %(rpkid_name)s-%(rpkid_tag)s.req -out %(rootd_name)s-%(rpkid_name)s.cer -extfile %(rootd_name)s.conf -extensions req_x509_ext -text \
+                      -CA %(rootd_name)s-TA.cer -CAkey %(rootd_name)s-TA.key -CAcreateserial
 '''
 
 rcynic_fmt_1 = '''\

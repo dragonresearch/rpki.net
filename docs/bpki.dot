@@ -3,48 +3,85 @@
 // Color code:
 //   Black: hosting entity
 //   Blue:  hosted entity
-//   Red: peers
+//   Red:   cross-certified peer
 //
 // Shape code:
-//   Diamond:  TA
-//   Box:      CA
-//   Triangle: EE
+//   Octagon: TA
+//   Diamond: CA
+//   Record:  EE
 
-digraph bpki {
-	rotate=90;	size="11,8.5";	splines=true;	ratio=fill;
-	node		[ shape=triangle ];
+digraph bpki_symmetric {
+	rotate=90; size="11,8.5"; splines=true;	ratio=fill;
 
 	// Hosting entity
-	node		[ color=black ];
-	TA		[ shape=diamond ];
-	RPKID;
-	IRDBD;
-	IRBE;
+	node			[ color=black, shape=record ];
+	TA			[ shape=octagon ];
+	rpkid			[ label="rpkid|{HTTPS server|HTTPS left-right client|CMS left-right}" ];
+	irdbd			[ label="irdbd|{HTTPS left-right server|CMS left-right}" ];
+	irbe			[ label="IRBE|{HTTPS left-right client|CMS left-right}" ];
 
 	// Hosted entities
-	node		[ color=blue ];
-	Alice		[ shape=box ];
-	Bob		[ shape=box ];
-	Alice_EE;
-	Bob_EE;
+	node			[ color=blue ];
+	Alice_CA		[ shape=diamond ];
+	Bob_CA			[ shape=diamond ];
+	Alice_EE		[ label="Alice\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
+	Bob_EE			[ label="Bob\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
 
 	// Peers
-	node		[ color=red ];
-	Carol		[ shape=box ];
-	Dave		[ shape=box ];
+	node			[ color=red ];
+	Carol_CA		[ shape=diamond ];
+	Dave_CA			[ shape=diamond ];
 
-	edge		[ color=black ];
-	TA -> RPKID;
-	TA -> IRDBD;
-	TA -> IRBE;
-	TA -> Alice;
-	TA -> Bob;
+	edge			[ color=black ];
+	TA -> rpkid;
+	TA -> irdbd;
+	TA -> irbe;
+	TA -> Alice_CA;
+	TA -> Bob_CA;
 
-	edge		[ color=blue ];
-	Alice -> Alice_EE;
-	Bob -> Bob_EE;
-	Alice -> Dave;
-	Bob -> Carol;
+	edge			[ color=blue ];
+	Alice_CA -> Alice_EE;
+	Bob_CA   -> Bob_EE;
+	Alice_CA -> Dave_CA;
+	Bob_CA   -> Carol_CA;
+}
+
+digraph bpki_asymmetric {
+	rotate=90; size="11,8.5"; splines=true;	ratio=fill;
+
+	// Hosting entity
+	node			[ color=black, shape=record ];
+	TA			[ shape=octagon ];
+	rpkid			[ label="rpkid|{HTTPS server|HTTPS left-right client|CMS left-right}" ];
+	irdbd			[ label="irdbd|{HTTPS left-right server|CMS left-right}" ];
+	irbe			[ label="IRBE|{HTTPS left-right client|CMS left-right}" ];
+
+	// Hosted entities
+	node			[ color=blue ];
+	Alice_CA		[ shape=diamond ];
+	Bob_CA			[ shape=diamond ];
+
+	// Peers
+	node			[ color=red ];
+	Alice_EE		[ label="Alice\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
+	Bob_EE			[ label="Bob\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
+	Carol_CA		[ shape=diamond ];
+	Dave_CA			[ shape=diamond ];
+
+	edge			[ color=black ];
+	TA -> rpkid;
+	TA -> irdbd;
+	TA -> irbe;
+	TA -> Alice_CA;
+	TA -> Bob_CA;
+
+	edge			[ color=blue ];
+	Alice_CA -> Dave_CA;
+	Bob_CA   -> Carol_CA;
+
+	edge			[ color=red ];
+	Dave_CA  -> Alice_EE;
+	Carol_CA -> Bob_EE;
 }
 
 // Local Variables:

@@ -1,10 +1,5 @@
 // $Id$
 //
-// Pictures to show why I prefer the symmetric BPKI model.  As far as
-// I can tell, the asymmetric model is every bit as complex for me as
-// the symmetric model; the only difference is the added annoyance of
-// having to keep track of a larger number of BSC EE certificates.
-//
 // Color code:
 //   Black:	Hosting entity
 //   Blue:	Hosted entity
@@ -14,54 +9,6 @@
 //   Octagon:	TA
 //   Diamond:	CA
 //   Record:	EE
-
-digraph bpki_symmetric {
-	rotate = 90; size = "11,8.5"; splines = true; ratio = fill;
-
-	// Hosting entity
-	node			[ color = black, shape = record ];
-	TA			[ shape = octagon ];
-	rpkid			[ label = "rpkid|{HTTPS server|HTTPS left-right client|CMS left-right}" ];
-	irdbd			[ label = "irdbd|{HTTPS left-right server|CMS left-right}" ];
-	irbe			[ label = "IRBE|{HTTPS left-right client|CMS left-right}" ];
-
-	// Hosted entities
-	node			[ color = blue, fontcolor = blue ];
-	Alice_CA		[ shape = diamond ];
-	Alice_EE		[ label = "Alice\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
-	Ellen_CA		[ shape = diamond ];
-	Ellen_EE		[ label = "Ellen\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
-
-	// Peers
-	node			[ color = red, fontcolor = red, shape = diamond ];
-	Bob_CA;
-	Carol_CA;
-	Dave_CA;
-	Frank_CA;
-	Ginny_CA;
-	Harry_CA;
-
-	edge			[ color = black, style = solid ];
-	TA -> Alice_CA;
-	TA -> Ellen_CA;
-
-	edge			[ color = black, style = dashed ];
-	TA -> rpkid;
-	TA -> irdbd;
-	TA -> irbe;
-
-	edge			[ color = blue, style = solid ];
-	Alice_CA -> Bob_CA;
-	Alice_CA -> Carol_CA;
-	Alice_CA -> Dave_CA;
-	Ellen_CA -> Frank_CA;
-	Ellen_CA -> Ginny_CA;
-	Ellen_CA -> Harry_CA;
-
-	edge			[ color = blue, style = dashed ]
-	Alice_CA -> Alice_EE;
-	Ellen_CA -> Ellen_EE;
-}
 
 digraph bpki_asymmetric {
 	rotate = 90; size = "11,8.5"; splines = true; ratio = fill;

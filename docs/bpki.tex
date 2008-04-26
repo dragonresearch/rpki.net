@@ -50,10 +50,10 @@ Black objects belong to the hosting entity, blue objects belong to the
 hosted entities, red objects are cross-certified objects from peers.
 The arrows indicate certificate issuance: solid arrows are the ones
 that my own RPKI engine will care about during certificate validation,
-dashed arrows show relationships between EE keys and certificates used
-when my engine signs something.  ``BSC'' stands for ``business signing
-context,'' which is a database object in my implementation
-representing the context needed to sign a CMS message or TLS session.
+dashed arrows show the origin of EE certificates my engine uses to
+sign things.  ``BSC'' stands for ``business signing context,'' which
+is a database object in my implementation representing the context
+needed to sign a CMS message or TLS session.
 
 Other than the above-mentioned annoyance with the HTTPS server
 certificate, the ``symmetric'' BPKI model worked out pretty much as

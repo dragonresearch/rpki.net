@@ -27,6 +27,8 @@ kids:
         route_origin:
           - asn: 42
             ipv4: 192.0.2.32/32
+      - name: Bob
+        ipv4: 192.0.2.44-192.0.2.100
     ipv4: 10.3.0.0/16
     route_origin:
       - asn: 666

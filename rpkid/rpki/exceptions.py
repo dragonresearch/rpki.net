@@ -97,3 +97,5 @@ class TLSValidationError(RPKI_Exception):
 class WrongEContentType(RPKI_Exception):
   """Received wrong CMS eContentType."""
   
+class EmptyPEM(RPKI_Exception):
+  """Couldn't find PEM block to convert."""

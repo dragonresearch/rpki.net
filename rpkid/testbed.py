@@ -140,11 +140,11 @@ def main():
   rpki.log.info("Reading master YAML configuration")
   db = allocation_db(yaml_script.pop(0))
 
-  rpki.log.info("Constructing biz keys and certs for rootd")
-  setup_biz_cert_chain(rootd_name, ee = ("RPKI",))
+  rpki.log.info("Constructing BPKI keys and certs for rootd")
+  setup_bpki_cert_chain(rootd_name, ee = ("RPKI",))
 
   for a in db:
-    a.setup_biz_certs()
+    a.setup_bpki_certs()
 
   setup_publication()
   setup_rootd(db.root.name, "SELF-1")
@@ -175,9 +175,9 @@ def main():
     for a in db.engines:
       a.create_rpki_objects()
 
-    # Write YAML files for leaves
+    # Setup keys and certs and write YAML files for leaves
     for a in db.leaves:
-      a.write_leaf_yaml()
+      a.setup_yaml_leaf()
 
     # Loop until we run out of control YAML
     while True:
@@ -471,13 +471,16 @@ class allocation(object):
     self.rpki_db_name = "rpki%d" % n
     self.rpki_port    = allocate_port()
 
-  def setup_biz_certs(self):
-    """Create business certs for this entity."""
-    rpki.log.info("Constructing biz keys and certs for %s" % self.name)
-    setup_biz_cert_chain(self.name, ee = ("RPKI", "IRDB", "IRBE"), ca = ("SELF-1",))
-    self.rpkid_ta = rpki.x509.X509(PEM_file = self.name + "-TA.cer")
-    self.irbe_cer = rpki.x509.X509(PEM_file = self.name + "-IRBE.cer")
-    self.irbe_key = rpki.x509.RSA( PEM_file = self.name + "-IRBE.key")
+  def setup_bpki_certs(self):
+    """Create BPKI certificates for this entity."""
+    rpki.log.info("Constructing BPKI keys and certs for %s" % self.name)
+    if self.is_leaf():
+      setup_bpki_cert_chain(self.name, ee = ("RPKI",))
+    else:
+      setup_bpki_cert_chain(self.name, ee = ("RPKI", "IRDB", "IRBE"), ca = ("SELF-1",))
+      self.rpkid_ta  = rpki.x509.X509(PEM_file = self.name + "-TA.cer")
+      self.irbe_key  = rpki.x509.RSA( PEM_file = self.name + "-IRBE.key")
+      self.irbe_cert = rpki.x509.X509(PEM_file = self.name + "-IRBE.cer")
 
   def setup_conf_file(self):
     """Write config files for this entity."""
@@ -557,13 +560,13 @@ class allocation(object):
     rpki.log.info("Calling rpkid for %s" % self.name)
     pdu.type = "query"
     msg = rpki.left_right.msg((pdu,))
-    cms, xml = rpki.left_right.cms_msg.wrap(msg, self.irbe_key, self.irbe_cer, pretty_print = True)
+    cms, xml = rpki.left_right.cms_msg.wrap(msg, self.irbe_key, self.irbe_cert, pretty_print = True)
     rpki.log.debug(xml)
     url = "https://localhost:%d/left-right" % self.rpki_port
     rpki.log.debug("Attempting to connect to %s" % url)
     der = rpki.https.client(
       client_key   = self.irbe_key,
-      client_cert  = self.irbe_cer,
+      client_cert  = self.irbe_cert,
       server_ta    = self.rpkid_ta,
       url          = url,
       msg          = cms)
@@ -572,6 +575,32 @@ class allocation(object):
     pdu = msg[0]
     assert pdu.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)
     return pdu
+
+  def cross_certify(self, certificant):
+    """Cross-certify and return the resulting certificate."""
+
+    if self.is_leaf():
+      certifier = self.name + "-TA"
+    else:
+      certifier = self.name + "-SELF-1"
+    certfile = certifier + "-" + certificant + ".cer"
+    rpki.log.trace()
+    rpki.log.info("Cross certifying %s into %s's BPKI (%s)" % (certificant, certifier, certfile))
+    signer = subprocess.Popen((prog_openssl, "x509", "-req", "-sha256", "-text",
+                               "-extensions", "req_x509_ext", "-CAcreateserial",
+                               "-in",         certificant + ".req",
+                               "-out",        certfile,
+                               "-extfile",    certifier + ".conf",
+                               "-CA",         certifier + ".cer",
+                               "-CAkey",      certifier + ".key"),
+                              stdout = subprocess.PIPE,
+                              stderr = subprocess.PIPE)
+    errors = signer.communicate()[1]
+    if signer.returncode != 0:
+      msg = "Couldn't cross-certify %s into %s's BPKI: %s" % (certificant, certifier, errors)
+      rpki.log.error(msg)
+      raise RuntimeError, msg
+    return rpki.x509.X509(Auto_file = certfile)
 
   def create_rpki_objects(self):
     """Create RPKI engine objects for this engine.
@@ -619,14 +648,14 @@ class allocation(object):
 
     rpki.log.info("Creating rpkid parent object for %s" % self.name)
     if self.is_root():
-      rootd_cert = cross_certify(self.name + "-SELF-1", rootd_name + "-TA")
+      rootd_cert = self.cross_certify(rootd_name + "-TA")
       self.parent_id = self.call_rpkid(rpki.left_right.parent_elt.make_pdu(
         action = "create", self_id = self.self_id, bsc_id = self.bsc_id, repository_id = self.repository_id, sia_base = self.sia_base,
         bpki_cms_cert = rootd_cert, bpki_https_cert = rootd_cert, sender_name = self.name, recipient_name = "Walrus",
         peer_contact_uri = "https://localhost:%s/" % rootd_port)).parent_id
     else:
-      parent_cms_cert = cross_certify(self.name + "-SELF-1", self.parent.name + "-SELF-1")
-      parent_https_cert = cross_certify(self.name + "-SELF-1", self.parent.name + "-TA")
+      parent_cms_cert = self.cross_certify(self.parent.name + "-SELF-1")
+      parent_https_cert = self.cross_certify(self.parent.name + "-TA")
       self.parent_id = self.call_rpkid(rpki.left_right.parent_elt.make_pdu(
         action = "create", self_id = self.self_id, bsc_id = self.bsc_id, repository_id = self.repository_id, sia_base = self.sia_base,
         bpki_cms_cert = parent_cms_cert, bpki_https_cert = parent_https_cert, sender_name = self.name, recipient_name = self.parent.name,
@@ -636,7 +665,10 @@ class allocation(object):
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
     cur = db.cursor()
     for kid in self.kids:
-      bpki_cert = cross_certify(self.name + "-SELF-1", kid.name + "-SELF-1")
+      if kid.is_leaf():
+        bpki_cert = self.cross_certify(kid.name + "-TA")
+      else:
+        bpki_cert = self.cross_certify(kid.name + "-SELF-1")
       rpki.log.info("Creating rpkid child object for %s as child of %s" % (kid.name, self.name))
       kid.child_id = self.call_rpkid(rpki.left_right.child_elt.make_pdu(
         action = "create", self_id = self.self_id, bsc_id = self.bsc_id, bpki_cert = bpki_cert)).child_id
@@ -649,15 +681,23 @@ class allocation(object):
         action = "create", self_id = self.self_id, as_number = ro.asn,
         exact_match = ro.exact_match, ipv4 = ro.v4, ipv6 = ro.v6)).route_origin_id
 
-  def write_leaf_yaml(self):
-    """Write YAML scripts for leaf nodes.  Only supports list requests
-    at the moment: issue requests would require class and SIA values,
-    revoke requests would require class and SKI values.
-
-    ...Except that we can cheat and assume class 1 because we just
-    know that rpkid will assign that with the current setup.  So we
-    also support issue, kludge though this is.
+  def setup_yaml_leaf(self):
+    """Generate certificates and write YAML scripts for leaf nodes.
+    We're cheating a bit here: properly speaking, we can't generate
+    issue or revoke requests without knowing the class, which is
+    generated on the fly, but at the moment the test case is
+    simplistic enough that the class will always be "1", so we just
+    wire in that value for now.
     """
+
+    if not os.path.exists(self.name + ".key"):
+      rpki.log.info("Generating RPKI key for %s" % self.name)
+      subprocess.check_call((prog_openssl, "genrsa", "-out", self.name + ".key", "2048" ),
+                            stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+    ski = rpki.x509.RSA(PEM_file = self.name + ".key").gSKI()
+
+    self.cross_certify(self.parent.name + "-TA")
+    self.cross_certify(self.parent.name + "-SELF-1")
 
     rpki.log.info("Writing leaf YAML for %s" % self.name)
     f = open(self.name + ".yaml", "w")
@@ -666,7 +706,8 @@ class allocation(object):
       "parent_name" : self.parent.name,
       "my_name"     : self.name,
       "https_port"  : self.parent.rpki_port,
-      "sia"         : self.sia_base })
+      "sia"         : self.sia_base,
+      "ski"         : ski })
     f.close()
 
   def run_cron(self):
@@ -674,7 +715,7 @@ class allocation(object):
 
     rpki.log.info("Running cron for %s" % self.name)
     rpki.https.client(client_key   = self.irbe_key,
-                      client_cert  = self.irbe_cer,
+                      client_cert  = self.irbe_cert,
                       server_ta    = self.rpkid_ta,
                       url          = "https://localhost:%d/cronjob" % self.rpki_port,
                       msg          = "Run cron now, please")
@@ -685,8 +726,8 @@ class allocation(object):
     subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "list", "-d"))
     subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "issue", "-d"))
 
-def setup_biz_cert_chain(name, ee = (), ca = ()):
-  """Build a set of business certs."""
+def setup_bpki_cert_chain(name, ee = (), ca = ()):
+  """Build a set of BPKI certificates."""
   s = "exec >/dev/null 2>&1\n"
   for kind in ("TA",) + ee + ca:
     d = { "name"    : name,
@@ -694,38 +735,17 @@ def setup_biz_cert_chain(name, ee = (), ca = ()):
           "ca"      : "false" if kind in ee else "true",
           "openssl" : prog_openssl }
     f = open("%(name)s-%(kind)s.conf" % d, "w")
-    f.write(biz_cert_fmt_1 % d)
+    f.write(bpki_cert_fmt_1 % d)
     f.close()
     if not os.path.exists("%(name)s-%(kind)s.key" % d):
-      s += biz_cert_fmt_2 % d
-    s += biz_cert_fmt_3 % d
+      s += bpki_cert_fmt_2 % d
+    s += bpki_cert_fmt_3 % d
   d = { "name" : name, "openssl" : prog_openssl }
-  s += biz_cert_fmt_4 % d
+  s += bpki_cert_fmt_4 % d
   for kind in ee + ca:
     d["kind"] =  kind
-    s += biz_cert_fmt_5 % d
+    s += bpki_cert_fmt_5 % d
   subprocess.check_call(s, shell = True)
-
-def cross_certify(certifier, certificant):
-  """Cross-certify and return the resulting certificate."""
-  certfile = certifier + "-" + certificant + ".cer"
-  rpki.log.trace()
-  rpki.log.info("Cross certifying %s into %s's BPKI (%s)" % (certificant, certifier, certfile))
-  signer = subprocess.Popen((prog_openssl, "x509", "-req", "-sha256", "-text",
-                             "-extensions", "req_x509_ext", "-CAcreateserial",
-                             "-in",         certificant + ".req",
-                             "-out",        certfile,
-                             "-extfile",    certifier + ".conf",
-                             "-CA",         certifier + ".cer",
-                             "-CAkey",      certifier + ".key"),
-                            stdout = subprocess.PIPE,
-                            stderr = subprocess.PIPE)
-  errors = signer.communicate()[1]
-  if signer.returncode != 0:
-    msg = "Couldn't cross-certify %s into %s's BPKI: %s" % (certificant, certifier, errors)
-    rpki.log.error(msg)
-    raise RuntimeError, msg
-  return rpki.x509.X509(Auto_file = certfile)
 
 def setup_rootd(rpkid_name, rpkid_tag):
   """Write the config files for rootd."""
@@ -794,7 +814,7 @@ def mangle_sql(filename):
   f.close()
   return [stmt.strip() for stmt in statements]
 
-biz_cert_fmt_1 = '''\
+bpki_cert_fmt_1 = '''\
 [ req ]
 distinguished_name      = req_dn
 x509_extensions         = req_x509_ext
@@ -810,19 +830,19 @@ subjectKeyIdentifier    = hash
 authorityKeyIdentifier  = keyid:always
 '''
 
-biz_cert_fmt_2 = '''\
+bpki_cert_fmt_2 = '''\
 %(openssl)s genrsa -out %(name)s-%(kind)s.key 2048 &&
 '''
 
-biz_cert_fmt_3 = '''\
+bpki_cert_fmt_3 = '''\
 %(openssl)s req -new -sha256 -key %(name)s-%(kind)s.key -out %(name)s-%(kind)s.req -config %(name)s-%(kind)s.conf &&
 '''
 
-biz_cert_fmt_4 = '''\
+bpki_cert_fmt_4 = '''\
 %(openssl)s x509 -req -sha256 -in %(name)s-TA.req -out %(name)s-TA.cer -extfile %(name)s-TA.conf -extensions req_x509_ext -signkey %(name)s-TA.key -days 60 -text \
 '''
 
-biz_cert_fmt_5 = ''' && \
+bpki_cert_fmt_5 = ''' && \
 %(openssl)s x509 -req -sha256 -in %(name)s-%(kind)s.req -out %(name)s-%(kind)s.cer -extfile %(name)s-%(kind)s.conf -extensions req_x509_ext -days 30 -text \
                      -CA %(name)s-TA.cer -CAkey %(name)s-TA.key -CAcreateserial \
 '''
@@ -833,27 +853,34 @@ posturl:                https://localhost:%(https_port)s/up-down/%(child_id)s
 recipient-id:           "%(parent_name)s"
 sender-id:              "%(my_name)s"
 
-cms-cert-file:          %(my_name)s-RPKI-EE.cer
-cms-key-file:           %(my_name)s-RPKI-EE.key
-cms-ca-cert-file:       %(parent_name)s-RPKI-TA.cer
-cms-cert-chain-file:    [ %(my_name)s-RPKI-CA.cer ]
+cms-cert-file:          %(my_name)s-RPKI.cer
+cms-key-file:           %(my_name)s-RPKI.key
+cms-ca-cert-file:       %(my_name)s-TA.cer
+cms-ca-certs-file:
+  -                     %(my_name)s-TA-%(parent_name)s-TA.cer
+  -                     %(my_name)s-TA-%(parent_name)s-SELF-1.cer
 
-ssl-cert-file:          %(my_name)s-RPKI-EE.cer
-ssl-key-file:           %(my_name)s-RPKI-EE.key
-ssl-ca-cert-file:       %(parent_name)s-RPKI-TA.cer
-ssl-cert-chain-file:    [ %(my_name)s-RPKI-CA.cer ]
+ssl-cert-file:          %(my_name)s-RPKI.cer
+ssl-key-file:           %(my_name)s-RPKI.key
+ssl-ca-cert-file:       %(my_name)s-TA.cer
+ssl-ca-certs-file:
+  -                     %(my_name)s-TA-%(parent_name)s-TA.cer
+
+# We're cheating here by hardwiring the class name
 
 requests:
   list:
-    type:               list
+    type:                       list
   issue:
-    type:               issue
-    #
-    # This is cheating, we know a priori that the class will be "1"
-    #
-    class:              1
+    type:                       issue
+    class:                      1
     sia:
-      -                 %(sia)s
+      -                         %(sia)s
+    cert-request-key-file:      %(my_name)s.key
+  revoke:
+    type:                       revoke
+    class:                      1
+    ski:                        %(ski)s
 '''
 
 conf_fmt_1 = '''\

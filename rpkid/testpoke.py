@@ -91,16 +91,17 @@ def query_up_down(q_pdu):
     recipient = yaml_data["recipient-id"])
   q_cms = rpki.up_down.cms_msg.wrap(q_msg, cms_key, cms_certs)
   der = rpki.https.client(
-    server_ta    = https_ta,
+    server_ta    = [https_ta] + https_ca_certs,
     client_key   = https_key,
     client_cert  = https_certs,
     msg          = q_cms,
     url          = yaml_data["posturl"])
-  r_msg, r_xml = rpki.up_down.cms_msg.unwrap(der, cms_ta, pretty_print = True)
-  return r_xml
+  r_msg, r_xml = rpki.up_down.cms_msg.unwrap(der, [cms_ta] + cms_ca_certs, pretty_print = True)
+  print r_xml
+  r_msg.payload.check_response()
 
 def do_list():
-  print query_up_down(rpki.up_down.list_pdu())
+  query_up_down(rpki.up_down.list_pdu())
 
 def do_issue():
   q_pdu = rpki.up_down.issue_pdu()
@@ -109,24 +110,26 @@ def do_issue():
          (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", yaml_req["sia"][0] + req_key.gSKI() + ".mnf")))
   q_pdu.class_name = yaml_req["class"]
   q_pdu.pkcs10 = rpki.x509.PKCS10.create_ca(req_key, sia)
-  print query_up_down(q_pdu)
+  query_up_down(q_pdu)
 
 def do_revoke():
   q_pdu = rpki.up_down.revoke_pdu()
   q_pdu.class_name = yaml_req["class"]
   q_pdu.ski = yaml_req["ski"]
-  print query_up_down(q_pdu)
+  query_up_down(q_pdu)
 
 dispatch = { "list" : do_list, "issue" : do_issue, "revoke" : do_revoke }
 
-cms_ta      = get_PEM("cms-ca-cert", rpki.x509.X509)
-cms_cert    = get_PEM("cms-cert", rpki.x509.X509)
-cms_key     = get_PEM("cms-key", rpki.x509.RSA)
-cms_certs   = get_PEM_chain("cms-cert-chain", cms_cert)
+cms_ta         = get_PEM("cms-ca-cert", rpki.x509.X509)
+cms_cert       = get_PEM("cms-cert", rpki.x509.X509)
+cms_key        = get_PEM("cms-key", rpki.x509.RSA)
+cms_certs      = get_PEM_chain("cms-cert-chain", cms_cert)
+cms_ca_certs   = get_PEM_chain("cms-ca-certs")
 
-https_ta    = get_PEM("ssl-ca-cert", rpki.x509.X509)
-https_key   = get_PEM("ssl-key", rpki.x509.RSA)
-https_cert  = get_PEM("ssl-cert", rpki.x509.X509)
-https_certs = get_PEM_chain("ssl-cert-chain", https_cert)
+https_ta       = get_PEM("ssl-ca-cert", rpki.x509.X509)
+https_key      = get_PEM("ssl-key", rpki.x509.RSA)
+https_cert     = get_PEM("ssl-cert", rpki.x509.X509)
+https_certs    = get_PEM_chain("ssl-cert-chain", https_cert)
+https_ca_certs = get_PEM_chain("ssl-ca-certs")
 
 dispatch[yaml_req["type"]]()

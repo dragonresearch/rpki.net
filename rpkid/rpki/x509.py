@@ -60,7 +60,8 @@ class PEM_converter(object):
       pass
     while lines and lines.pop(-1) != self.e:
       pass
-    assert lines
+    if not lines:
+      raise rpki.exceptions.EmptyPEM, "Could not find PEM in:\n%s" % pem
     return base64.b64decode("".join(lines))
 
   def to_PEM(self, der):
@@ -214,16 +215,18 @@ class DER_object(object):
     seek() when decoding ASN.1 content nested in OCTET STRING values.
     """
 
+    ret = None
     fn = "dumpasn1.tmp"
     try:
       f = open(fn, "wb")
       f.write(self.get_DER())
       f.close()
       f = os.popen("dumpasn1 2>&1 -a " + fn)
-      print "\n".join(x for x in f.read().splitlines() if x.startswith(" "))
+      ret = "\n".join(x for x in f.read().splitlines() if x.startswith(" "))
       f.close()
     finally:
       os.unlink(fn)
+    return ret
 
 class X509(DER_object):
   """X.509 certificates.
@@ -355,6 +358,19 @@ class X509(DER_object):
     cert.sign(keypair.get_POW(), POW.SHA256_DIGEST)
 
     return X509(POWpkix = cert)
+
+  @classmethod
+  def normalize_chain(cls, chain):
+    """Normalize a chain of certificates into a tuple of X509 objects.
+    Given all the glue certificates needed for BPKI cross
+    certification, it's easiest to allow sloppy arguments to the HTTPS
+    and CMS validation methods and provide a single method that
+    normalizes the allowed cases.  So this method allows X509, None,
+    lists, and tuples, and returns a tuple of X509 objects.
+    """
+    if isinstance(chain, cls):
+      chain = (chain,)
+    return tuple(x for x in chain if x is not None)
 
 class PKCS10(DER_object):
   """Class to hold a PKCS #10 request."""
@@ -554,7 +570,7 @@ class CMS_object(DER_object):
   econtent_oid = POWify("id-data")
   
   dump_on_verify_failure = False
-  debug_cms_certs = True
+  debug_cms_certs = False
 
   def get_DER(self):
     """Get the DER value of this CMS_object."""
@@ -583,8 +599,7 @@ class CMS_object(DER_object):
 
     store = POW.X509Store()
 
-    if isinstance(ta, X509):
-      ta = (ta,)
+    ta = X509.normalize_chain(ta)
 
     for x in ta:
       if self.debug_cms_certs:
@@ -602,8 +617,7 @@ class CMS_object(DER_object):
       content = cms.verify(store)
     except:
       if self.dump_on_verify_failure:
-        print "CMS verification failed, dumping ASN.1:"
-        self.dumpasn1()
+        rpki.log.debug("CMS verification failed, dumping ASN.1:\n" + self.dumpasn1())
       raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed"
 
     self.decode(content)

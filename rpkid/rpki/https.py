@@ -31,7 +31,7 @@ import POW
 disable_tls_certificate_validation_exceptions = False
 
 # Chatter suppression
-debug_tls_certs = True
+debug_tls_certs = False
 
 rpki_content_type = "application/x-rpki"
 
@@ -55,8 +55,8 @@ class Checker(tlslite.api.Checker):
 
     self.x509store = POW.X509Store()
 
-    if isinstance(trust_anchor, rpki.x509.X509):
-      trust_anchor = (trust_anchor,)
+    trust_anchor = rpki.x509.X509.normalize_chain(trust_anchor)
+    assert trust_anchor
 
     for x in trust_anchor:
       if debug_tls_certs:

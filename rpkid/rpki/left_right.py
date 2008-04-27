@@ -634,16 +634,17 @@ class parent_elt(data_elt):
       recipient = self.recipient_name)
     q_cms = rpki.up_down.cms_msg.wrap(q_msg, bsc.private_key_id, bsc.signing_cert)
 
-    assert self.self().bpki_cert is not None
-    assert self.bpki_https_cert is not None
-
-    der = rpki.https.client(server_ta    = (self.gctx.bpki_ta, self.self().bpki_cert, self.bpki_https_cert),
+    der = rpki.https.client(server_ta    = (self.gctx.bpki_ta,
+                                            self.self().bpki_cert, self.self().bpki_glue,
+                                            self.bpki_https_cert, self.bpki_https_glue),
                             client_key   = bsc.private_key_id,
                             client_cert  = bsc.signing_cert,
                             msg          = q_cms,
                             url          = self.peer_contact_uri)
 
-    r_msg = rpki.up_down.cms_msg.unwrap(der, (self.gctx.bpki_ta, self.self().bpki_cert, self.bpki_cms_cert))
+    r_msg = rpki.up_down.cms_msg.unwrap(der, (self.gctx.bpki_ta,
+                                              self.self().bpki_cert, self.self().bpki_glue,
+                                              self.bpki_cms_cert, self.bpki_cms_glue))
     r_msg.payload.check_response()
     return r_msg
 
@@ -724,7 +725,9 @@ class child_elt(data_elt):
     bsc = self.bsc()
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
-    q_msg = rpki.up_down.cms_msg.unwrap(query, (self.gctx.bpki_ta, self.self().bpki_cert, self.bpki_cert))
+    q_msg = rpki.up_down.cms_msg.unwrap(query, (self.gctx.bpki_ta,
+                                                self.self().bpki_cert, self.self().bpki_glue,
+                                                self.bpki_cert, self.bpki_glue))
     q_msg.payload.gctx = self.gctx
     if enforce_strict_up_down_xml_sender and q_msg.sender != str(self.child_id):
       raise rpki.exceptions.BadSender, "Unexpected XML sender %s" % q_msg.sender

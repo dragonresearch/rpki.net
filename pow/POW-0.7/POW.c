@@ -286,9 +286,62 @@ typedef struct {
 
 /*========== helper functions ==========*/
 
+/*
+ * Error handling macros.  These macros make two assumptions:
+ *
+ * 1) All the macros assume that there's a cleanup label named
+ *    "error" which these macros can use as a goto target.
+ *
+ * 2) assert_no_unhandled_openssl_errors() assumes that the return
+ *    value is stored in a PyObject* variable named "result".
+ *
+ * These are icky assumptions, but they make it easier to provide
+ * uniform error handling and make the code easier to read, not to
+ * mention making it easier to track down obscure OpenSSL errors.
+ */
+
+#define lose(_msg_)                                             \
+   do {                                                         \
+      PyErr_SetString(SSLErrorObject, (_msg_));                 \
+      goto error;                                               \
+   } while (0)
+
+#define lose_type_error(_msg_)                                  \
+   do {                                                         \
+      PyErr_SetString(PyExc_TypeError, (_msg_));                \
+      goto error;                                               \
+   } while (0)
+
+#define lose_openssl_error(_msg_)                               \
+   do {                                                         \
+      set_openssl_pyerror((_msg_));                             \
+      goto error;                                               \
+   } while (0)
+
+#define assert_no_unhandled_openssl_errors()                    \
+   do {                                                         \
+      if (ERR_peek_error()) {                                   \
+         if (result) {                                          \
+            Py_XDECREF(result);                                 \
+            result = NULL;                                      \
+         }                                                      \
+         lose_openssl_error(assert_helper(__LINE__));           \
+      }                                                         \
+   } while (0)
+
+static char *
+assert_helper(int line)
+{
+   static const char fmt[] = "Unhandled OpenSSL error at " __FILE__ ":%d!";
+   static char msg[sizeof(fmt) + 10];
+
+   snprintf(msg, sizeof(msg), fmt, line);
+   return msg;
+}
+
 /* 
-   Simple function to install a constant in the module name space.
-*/
+ * Simple function to install a constant in the module name space.
+ */
 static void
 install_int_const( PyObject *d, char *name, long value )
 {
@@ -299,13 +352,13 @@ install_int_const( PyObject *d, char *name, long value )
    Py_XDECREF(v);
 }
 
-int
+static int
 docset_helper_add(PyObject *set, char *v)
 {
    PyObject *value = NULL;
 
    if ( !(value = PyString_FromString(v) ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if ( PyList_Append( set, value ) != 0)
       goto error;
@@ -319,9 +372,9 @@ error:
 }
 
 /*
-   Generate an encrypion envelope.  Saves a lot of space having thie case
-   statement in one place.
-*/
+ * Generate an encrypion envelope.  Saves a lot of space having this case
+ * statement in one place.
+ */
 static const EVP_CIPHER *
 evp_cipher_factory(int cipher_type)
 {
@@ -420,22 +473,22 @@ X509_object_helper_set_name(X509_NAME *name, PyObject *name_sequence)
          return NULL;
 
       if ( !( PyTuple_Check(pair) || PyList_Check(pair) ) )
-         { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
+         lose_type_error("inapropriate type");
 
       if ( PySequence_Size(pair) != 2 )
-         { PyErr_SetString( SSLErrorObject, "each name entry must have 2 elements" ); goto error; }
+         lose("each name entry must have 2 elements");
 
       if ( !(type = PySequence_GetItem( pair, 0 ) ) )
-         { PyErr_SetString( PyExc_TypeError, "could not get type string" ); goto error; }
+         lose_type_error("could not get type string");
 
       if ( !PyString_Check(type) )
-         { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
+         lose_type_error("inapropriate type");
 
       if ( !( value = PySequence_GetItem( pair, 1 ) ) )
-         { PyErr_SetString( PyExc_TypeError, "could not get value string" ); goto error; }
+         lose_type_error("could not get value string");
 
       if ( !PyString_Check(value) )
-         { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
+         lose_type_error("inapropriate type");
 
       typeptr = PyString_AsString(type);
       valueptr = PyString_AsString(value);
@@ -443,10 +496,10 @@ X509_object_helper_set_name(X509_NAME *name, PyObject *name_sequence)
       str_type = ASN1_PRINTABLE_type( valueptr, -1 );
       if ( !(nid = OBJ_ln2nid(typeptr)) )
          if ( !(nid = OBJ_sn2nid(typeptr)) )
-            { PyErr_SetString( SSLErrorObject, "unknown ASN1 object" ); goto error; }
+            lose("unknown ASN1 object");
 
       if ( !X509_NAME_add_entry_by_NID( name, nid, str_type, valueptr, strlen(valueptr), -1, 0 ) )
-         { PyErr_SetString( SSLErrorObject, "unable to add name entry" ); goto error; }
+         lose("unable to add name entry");
 
       Py_DECREF(pair);
       Py_DECREF(type);
@@ -482,12 +535,12 @@ X509_object_helper_get_name(X509_NAME *name, int format)
    no_entries = X509_NAME_entry_count( name );
 
    if ( !(result_list = PyTuple_New( no_entries ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    for(i = 0; i < no_entries; i++)
    {
       if ( !(entry = X509_NAME_get_entry( name, i ) ) )
-         { PyErr_SetString( SSLErrorObject, "could not get certificate name" ); goto error; }
+         lose("could not get certificate name");
 
       if (entry->value->length + 1 > value_len)
       {
@@ -495,7 +548,7 @@ X509_object_helper_get_name(X509_NAME *name, int format)
             free(value);
 
          if ( !(value = malloc( entry->value->length + 1 ) ) )
-            { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+            lose("could not allocate memory");
 
          value_len = entry->value->length + 1; 
       }
@@ -503,7 +556,7 @@ X509_object_helper_get_name(X509_NAME *name, int format)
       value[ entry->value->length ] = 0;
 
       if ( !(i2t_ASN1_OBJECT(long_name, sizeof(long_name), entry->object) ) )
-         { PyErr_SetString( SSLErrorObject, "could not object name" ); goto error; }
+         lose("could not object name");
 
       if ( format == SHORTNAME_FORMAT )
       {
@@ -514,12 +567,12 @@ X509_object_helper_get_name(X509_NAME *name, int format)
       else if ( format == LONGNAME_FORMAT )
          py_type = PyString_FromString(long_name);
       else
-         { PyErr_SetString( SSLErrorObject, "unkown name format" ); goto error; }
+         lose("unkown name format");
 
       py_value = PyString_FromString(value);
 
       if ( !(pair = PyTuple_New( 2 ) ) )
-         { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+         lose("could not allocate memory");
 
       PyTuple_SetItem( pair, 0, py_type );
       PyTuple_SetItem( pair, 1, py_value );
@@ -598,10 +651,10 @@ x509_helper_sequence_to_stack(PyObject *x509_sequence)
    int size = 0, i = 0;
 
    if ( x509_sequence != Py_None && !PyTuple_Check( x509_sequence ) && !PyList_Check(x509_sequence) )
-      { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
+      lose_type_error("inapropriate type");
 
    if (!(x509_stack = sk_X509_new_null() ) )
-      { PyErr_SetString( SSLErrorObject, "could not create new x509 stack" ); goto error; }
+      lose("could not create new x509 stack");
 
    if ( x509_sequence != Py_None )
    {
@@ -613,10 +666,10 @@ x509_helper_sequence_to_stack(PyObject *x509_sequence)
             goto error;
 
          if ( !X_X509_Check( tmpX509 ) )
-            { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
+            lose_type_error("inapropriate type");
 
          if (!sk_X509_push( x509_stack, tmpX509->x509 ) )
-            { PyErr_SetString( SSLErrorObject, "could not add x509 to stack" ); goto error; }
+            lose("could not add x509 to stack");
          Py_DECREF(tmpX509);
          tmpX509 = NULL;
       }
@@ -704,9 +757,9 @@ error:
 }
 
 /*
-   This function is pretty dumb.  Most of the work is done by the module
-   function pow_module_pem_read().
-*/
+ * This function is pretty dumb.  Most of the work is done by the module
+ * function pow_module_pem_read().
+ */
 static x509_object *
 X509_object_pem_read(BIO *in)
 {
@@ -716,7 +769,7 @@ X509_object_pem_read(BIO *in)
       goto error;
 
    if( !(self->x509 = PEM_read_bio_X509( in, NULL, NULL, NULL ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not load PEM encoded certificate" ); goto error; }
+      lose("could not load PEM encoded certificate");
 
    return self;
 
@@ -738,7 +791,7 @@ X509_object_der_read(char *src, int len)
    self->x509 = X509_new();
 
    if( !(d2i_X509( &self->x509, (const unsigned char **) &ptr, len ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not load PEM encoded certificate" ); goto error; }
+      lose("could not load PEM encoded certificate");
 
    return self;
 
@@ -749,10 +802,10 @@ error:
 }
 
 /*
-   Unlike the previous function this creates the BIO itself.  The BIO_s_mem
-   is used as a buffer which the certificate is read into, from this buffer
-   it is read into a char[] and returned as a string.
-*/
+ * Unlike the previous function this creates the BIO itself.  The BIO_s_mem
+ * is used as a buffer which the certificate is read into, from this buffer
+ * it is read into a char[] and returned as a string.
+ */
 static PyObject *
 X509_object_write_helper(x509_object *self, PyObject *args, int format)
 {
@@ -769,24 +822,24 @@ X509_object_write_helper(x509_object *self, PyObject *args, int format)
    if (format == DER_FORMAT)
    {
       if (!i2d_X509_bio(out_bio, self->x509) )
-         { PyErr_SetString( SSLErrorObject, "unable to write certificate" ); goto error; }
+         lose("unable to write certificate");
    }
    else if (format == PEM_FORMAT)
    {
       if (!PEM_write_bio_X509(out_bio, self->x509) )
-         { PyErr_SetString( SSLErrorObject, "unable to write certificate" ); goto error; }
+         lose("unable to write certificate");
    }
    else
-      { PyErr_SetString( SSLErrorObject, "internal error, unkown output format" ); goto error; }
+      lose("internal error, unkown output format");
 
    if ( !(len = BIO_ctrl_pending(out_bio) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to get bytes stored in bio" ); goto error; }
+      lose("unable to get bytes stored in bio");
 
    if ( !(buf = malloc(len) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+      lose("unable to allocate memory");
 
    if ( BIO_read( out_bio, buf, len ) != len )
-      { PyErr_SetString( SSLErrorObject, "unable to write out cert" ); goto error; }
+      lose("unable to write out cert");
 
    cert = Py_BuildValue("s#", buf, len);
 
@@ -849,8 +902,8 @@ X509_object_der_write(x509_object *self, PyObject *args)
 }
 
 /*
-   Currently this function only supports RSA keys.
-*/
+ * Currently this function only supports RSA keys.
+ */
 static char X509_object_set_public_key__doc__[] = 
 "<method>\n"
 "   <header>\n"
@@ -879,13 +932,13 @@ X509_object_set_public_key(x509_object *self, PyObject *args)
       goto error;
 
    if ( !(pkey = EVP_PKEY_new() ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if ( !(EVP_PKEY_assign_RSA(pkey, asym->cipher) ) )
-      { PyErr_SetString( SSLErrorObject, "EVP_PKEY assignment error" ); goto error; }
+      lose("EVP_PKEY assignment error");
 
    if ( !(X509_set_pubkey(self->x509,pkey) ) )
-      { PyErr_SetString( SSLErrorObject, "could not set certificate's public key" ); goto error; }
+      lose("could not set certificate's public key");
 
    return Py_BuildValue("");
 
@@ -942,62 +995,62 @@ X509_object_sign(x509_object *self, PyObject *args)
       goto error;
 
    if ( !(pkey = EVP_PKEY_new() ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if (asym->key_type != RSA_PRIVATE_KEY)
-      { PyErr_SetString( SSLErrorObject, "cannot use this type of key" ); goto error; }
+      lose("cannot use this type of key");
 
    if ( !(EVP_PKEY_assign_RSA(pkey, asym->cipher) ) )
-      { PyErr_SetString( SSLErrorObject, "EVP_PKEY assignment error" ); goto error; }
+      lose("EVP_PKEY assignment error");
 
    switch (digest)
    {
       case MD5_DIGEST:
       { 
          if (!X509_sign(self->x509, pkey, EVP_md5() ) ) 
-            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+            lose("could not sign certificate");
          break;
       }
       case MD2_DIGEST:
       { 
          if (!X509_sign(self->x509, pkey, EVP_md2() ) ) 
-            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+            lose("could not sign certificate");
          break;
       }
       case SHA_DIGEST:
       { 
          if (!X509_sign(self->x509, pkey, EVP_sha() ) ) 
-            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+            lose("could not sign certificate");
          break;
       }
       case SHA1_DIGEST:
       { 
          if (!X509_sign(self->x509, pkey, EVP_sha1() ) ) 
-            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+            lose("could not sign certificate");
          break;
       }
       case RIPEMD160_DIGEST:
       { 
          if (!X509_sign(self->x509, pkey, EVP_ripemd160() ) ) 
-            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+            lose("could not sign certificate");
          break;
       }
       case SHA256_DIGEST:
       { 
          if (!X509_sign(self->x509, pkey, EVP_sha256() ) ) 
-            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+            lose("could not sign certificate");
          break;
       }
       case SHA384_DIGEST:
       { 
          if (!X509_sign(self->x509, pkey, EVP_sha384() ) ) 
-            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+            lose("could not sign certificate");
          break;
       }
       case SHA512_DIGEST:
       { 
          if (!X509_sign(self->x509, pkey, EVP_sha512() ) ) 
-            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+            lose("could not sign certificate");
          break;
       }
    }
@@ -1038,7 +1091,7 @@ X509_object_get_version(x509_object *self, PyObject *args)
       goto error;
 
    if ( !(version = X509_get_version( self->x509 ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not get certificate version" ); goto error; }
+      lose("could not get certificate version");
 
    return Py_BuildValue("l", version);
 
@@ -1073,7 +1126,7 @@ X509_object_set_version(x509_object *self, PyObject *args)
       goto error;
 
    if ( !X509_set_version( self->x509, version ) )
-      { PyErr_SetString( SSLErrorObject, "could not set certificate version" ); goto error; }
+      lose("could not set certificate version");
 
    return Py_BuildValue("");
 
@@ -1107,10 +1160,10 @@ X509_object_get_serial(x509_object *self, PyObject *args)
       goto error;
 
    if ( !(asn1i = X509_get_serialNumber( self->x509 ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not get serial number" ); goto error; }
+      lose("could not get serial number");
 
    if ( (serial = ASN1_INTEGER_get(asn1i) ) == -1 )
-      { PyErr_SetString( SSLErrorObject, "could not convert ASN1 Integer to long" ); goto error; }
+      lose("could not convert ASN1 Integer to long");
 
    return Py_BuildValue("l", serial);
 
@@ -1146,13 +1199,13 @@ X509_object_set_serial(x509_object *self, PyObject *args)
       goto error;
 
    if ( !(asn1i = ASN1_INTEGER_new() ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if ( !ASN1_INTEGER_set( asn1i, serial ) )
-      { PyErr_SetString( SSLErrorObject, "could not set ASN1 integer" ); goto error; }
+      lose("could not set ASN1 integer");
 
    if ( !X509_set_serialNumber( self->x509, asn1i ) )
-      { PyErr_SetString( SSLErrorObject, "could not set certificate serial" ); goto error; }
+      lose("could not set certificate serial");
 
    ASN1_INTEGER_free(asn1i);
 
@@ -1210,10 +1263,10 @@ X509_object_get_issuer(x509_object *self, PyObject *args)
       goto error;
 
    if ( !(name = X509_get_issuer_name( self->x509 ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not get issuers name" ); goto error; }
+      lose("could not get issuers name");
 
    if ( !(result_list = X509_object_helper_get_name(name, format) ) )
-      { PyErr_SetString( SSLErrorObject, "failed to produce name list" ); goto error; }
+      lose("failed to produce name list");
 
    return result_list;
 
@@ -1250,10 +1303,10 @@ X509_object_get_subject(x509_object *self, PyObject *args)
       goto error;
 
    if ( !(name = X509_get_subject_name( self->x509 ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not get issuers name" ); goto error; }
+      lose("could not get issuers name");
 
    if ( !(result_list = X509_object_helper_get_name(name, format) ) )
-      { PyErr_SetString( SSLErrorObject, "failed to produce name list" ); goto error; }
+      lose("failed to produce name list");
 
    return result_list;
 
@@ -1289,16 +1342,16 @@ X509_object_set_subject(x509_object *self, PyObject *args)
       goto error;
 
    if ( !( PyTuple_Check( name_sequence ) || PyList_Check(name_sequence) ) )
-      { PyErr_SetString( PyExc_TypeError, "Inapropriate type" ); goto error; }
+      lose_type_error("Inapropriate type");
 
    if ( !(name = X509_NAME_new() ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if ( !X509_object_helper_set_name(name, name_sequence) )
-      { PyErr_SetString( SSLErrorObject, "unable to set new name" ); goto error; }
+      lose("unable to set new name");
 
    if ( !X509_set_subject_name(self->x509,name) )
-      { PyErr_SetString( SSLErrorObject, "unable to set name" ); goto error; }
+      lose("unable to set name");
    
    X509_NAME_free(name);
 
@@ -1336,16 +1389,16 @@ X509_object_set_issuer(x509_object *self, PyObject *args)
       goto error;
 
    if ( !( PyTuple_Check( name_sequence ) || PyList_Check(name_sequence) ) )
-      { PyErr_SetString( PyExc_TypeError, "Inapropriate type" ); goto error; }
+      lose_type_error("Inapropriate type");
 
    if ( !(name = X509_NAME_new() ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if ( !X509_object_helper_set_name(name, name_sequence) )
-      { PyErr_SetString( SSLErrorObject, "unable to set new name" ); goto error; }
+      lose("unable to set new name");
 
    if ( !X509_set_issuer_name(self->x509,name) )
-      { PyErr_SetString( SSLErrorObject, "unable to set name" ); goto error; }
+      lose("unable to set name");
 
    X509_NAME_free(name);
 
@@ -1451,7 +1504,7 @@ X509_object_set_not_after (x509_object *self, PyObject *args)
       goto error;
 
    if ( !ASN1_UTCTIME_set_string(self->x509->cert_info->validity->notAfter, new_time) )
-      { PyErr_SetString( SSLErrorObject, "could not set time" ); goto error; }
+      lose("could not set time");
 
    return Py_BuildValue("");
 
@@ -1489,7 +1542,7 @@ X509_object_set_not_before (x509_object *self, PyObject *args)
       goto error;
 
    if ( !ASN1_UTCTIME_set_string(self->x509->cert_info->validity->notBefore, new_time) )
-      { PyErr_SetString( SSLErrorObject, "could not set time" ); goto error; }
+      lose("could not set time");
 
    return Py_BuildValue("");
 
@@ -1544,23 +1597,23 @@ X509_object_add_extension(x509_object *self, PyObject *args)
       goto error;
 
    if ( !(octetString = M_ASN1_OCTET_STRING_new() ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if ( !ASN1_OCTET_STRING_set(octetString, buf, len) )
-      { PyErr_SetString( SSLErrorObject, "could not set ASN1 Octect string" ); goto error; }
+      lose("could not set ASN1 Octect string");
 
    if ( NID_undef == (nid = OBJ_txt2nid(name) ) )
-      { PyErr_SetString( SSLErrorObject, "extension has unknown object identifier" ); goto error; }
+      lose("extension has unknown object identifier");
 
    if ( !( extn = X509_EXTENSION_create_by_NID(NULL, nid, critical, octetString) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to create ASN1 X509 Extension object" ); goto error; }
+      lose("unable to create ASN1 X509 Extension object");
 
    if (!self->x509->cert_info->extensions)
       if ( !(self->x509->cert_info->extensions = sk_X509_EXTENSION_new_null() ) ) 
-         { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+         lose("unable to allocate memory");
 
    if ( !sk_X509_EXTENSION_push(self->x509->cert_info->extensions, extn) )
-      { PyErr_SetString( SSLErrorObject, "unable to add extension" ); goto error; }
+      lose("unable to add extension");
 
    return Py_BuildValue("");
 
@@ -1675,13 +1728,13 @@ X509_object_get_extension(x509_object *self, PyObject *args)
       num = 0;
 
    if (index >= num)
-      { PyErr_SetString( SSLErrorObject, "certificate does not have that many extensions" ); goto error; }
+      lose("certificate does not have that many extensions");
 
    if ( !(ext = sk_X509_EXTENSION_value(self->x509->cert_info->extensions, index) ) )
-      { PyErr_SetString( SSLErrorObject, "could not get extension" ); goto error; }
+      lose("could not get extension");
 
    if ( NID_undef == (ext_nid = OBJ_obj2nid(ext->object) ) )
-      { PyErr_SetString( SSLErrorObject, "extension has unknown object identifier" ); goto error; }
+      lose("extension has unknown object identifier");
 
    if ( NULL == (ext_ln = OBJ_nid2sn(ext_nid) ) )
       ext_ln = unknown_ext;
@@ -1722,16 +1775,16 @@ x509_object_pprint(x509_object *self, PyObject *args)
    out_bio = BIO_new(BIO_s_mem());
 
    if (!X509_print(out_bio, self->x509) )
-      { PyErr_SetString( SSLErrorObject, "unable to write crl" ); goto error; }
+      lose("unable to write crl");
 
    if ( !(len = BIO_ctrl_pending(out_bio) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to get bytes stored in bio" ); goto error; }
+      lose("unable to get bytes stored in bio");
 
    if ( !(buf = malloc(len) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+      lose("unable to allocate memory");
 
    if ( (ret = BIO_read( out_bio, buf, len ) ) != len )
-      { PyErr_SetString( SSLErrorObject, "unable to write out cert" ); goto error; }
+      lose("unable to write out cert");
 
    cert = Py_BuildValue("s#", buf, len);
 
@@ -2182,7 +2235,7 @@ x509_crl_object_pem_read(BIO *in)
       goto error;
 
    if( !(self->crl = PEM_read_bio_X509_CRL( in, NULL, NULL, NULL ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not load certificate" ); goto error; }
+      lose("could not load certificate");
 
    return self;
 
@@ -2204,7 +2257,7 @@ x509_crl_object_der_read(char *src, int len)
    self->crl = X509_CRL_new();
 
    if( !(d2i_X509_CRL( &self->crl, (const unsigned char **) &ptr, len ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not load PEM encoded CRL" ); goto error; }
+      lose("could not load PEM encoded CRL");
 
    return self;
 
@@ -2238,7 +2291,7 @@ x509_crl_object_get_version(x509_crl_object *self, PyObject *args)
       goto error;
 
    if ( (version = ASN1_INTEGER_get( self->crl->crl->version ) ) == -1 )
-      { PyErr_SetString( SSLErrorObject, "could not get crl version" ); goto error; }
+      lose("could not get crl version");
 
    return Py_BuildValue("l", version);
 
@@ -2274,10 +2327,10 @@ x509_crl_object_set_version(x509_crl_object *self, PyObject *args)
       goto error;
 
    if ( !(asn1_version = ASN1_INTEGER_new() ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if ( !ASN1_INTEGER_set( asn1_version, version ) )
-      { PyErr_SetString( SSLErrorObject, "could not get set version" ); goto error; }
+      lose("could not get set version");
 
    self->crl->crl->version = asn1_version;
 
@@ -2318,7 +2371,7 @@ x509_crl_object_get_issuer(x509_crl_object *self, PyObject *args)
       goto error;
 
    if ( !(result_list = X509_object_helper_get_name(self->crl->crl->issuer, format) ) )
-      { PyErr_SetString( SSLErrorObject, "failed to produce name list" ); goto error; }
+      lose("failed to produce name list");
 
    return result_list;
 
@@ -2355,16 +2408,16 @@ x509_crl_object_set_issuer(x509_crl_object *self, PyObject *args)
       goto error;
 
    if ( !( PyTuple_Check( name_sequence ) || PyList_Check(name_sequence) ) )
-      { PyErr_SetString( PyExc_TypeError, "Inapropriate type" ); goto error; }
+      lose_type_error("Inapropriate type");
 
    if ( !(name = X509_NAME_new() ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if ( !X509_object_helper_set_name(name, name_sequence) )
-      { PyErr_SetString( SSLErrorObject, "unable to set new name" ); goto error; }
+      lose("unable to set new name");
 
    if ( !X509_NAME_set(&self->crl->crl->issuer,name ) )
-      { PyErr_SetString( SSLErrorObject, "unable to set name" ); goto error; }
+      lose("unable to set name");
 
    X509_NAME_free(name);
 
@@ -2407,7 +2460,7 @@ x509_crl_object_set_this_update (x509_crl_object *self, PyObject *args)
       goto error;
 
    if ( !ASN1_UTCTIME_set_string(self->crl->crl->lastUpdate,new_time) )
-      { PyErr_SetString( SSLErrorObject, "could not set time" ); goto error; }
+      lose("could not set time");
 
    return Py_BuildValue("");
 
@@ -2478,12 +2531,12 @@ x509_crl_object_set_next_update (x509_crl_object *self, PyObject *args)
 
    if (self->crl->crl->nextUpdate == NULL)
       if ( !(time = ASN1_UTCTIME_new() ) )
-         { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+         lose("could not allocate memory");
 
    self->crl->crl->nextUpdate = time;
 
    if (!ASN1_UTCTIME_set_string(time, new_time) )
-      { PyErr_SetString( SSLErrorObject, "could not set next update" ); goto error; }
+      lose("could not set next update");
 
 
    return Py_BuildValue("");
@@ -2597,7 +2650,7 @@ x509_crl_object_set_revoked(x509_crl_object *self, PyObject *args)
       goto error;
 
    if ( !( PyTuple_Check( revoked_sequence ) || PyList_Check(revoked_sequence) ) )
-      { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
+      lose_type_error("inapropriate type");
 
    size = PySequence_Size( revoked_sequence );
    for (i = 0; i < size; i++)
@@ -2606,13 +2659,13 @@ x509_crl_object_set_revoked(x509_crl_object *self, PyObject *args)
          goto error;
 
       if ( !X_X509_revoked_Check( revoked ) )
-         { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
+         lose_type_error("inapropriate type");
 
       if ( !(tmp_revoked = X509_REVOKED_dup( revoked->revoked ) ) )
-         { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+         lose("could not allocate memory");
 
       if (!X509_CRL_add0_revoked( self->crl, tmp_revoked ) )
-         { PyErr_SetString( SSLErrorObject, "could not add revokation to stack" ); goto error; }
+         lose("could not add revokation to stack");
 
       Py_DECREF(revoked);
       revoked = NULL;
@@ -2638,15 +2691,15 @@ x509_crl_object_helper_get_revoked(STACK_OF(X509_REVOKED) *revoked)
    no_entries = sk_X509_REVOKED_num( revoked );
 
    if ( !(result_list = PyList_New(0) ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    for(i = 0; i < no_entries; i++)
    {
       if ( !(revoke_obj = PyObject_New( x509_revoked_object, &x509_revokedtype ) ) )
-         { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+         lose("could not allocate memory");
 
       if ( !(revoke_tmp = sk_X509_REVOKED_value( revoked, i ) ) )
-         { PyErr_SetString( SSLErrorObject, "could not get revocation" ); goto error; }
+         lose("could not get revocation");
 
       revoke_obj->revoked = revoke_tmp;
 
@@ -2793,23 +2846,23 @@ X509_crl_object_add_extension(x509_crl_object *self, PyObject *args)
       goto error;
 
    if ( !(octetString = M_ASN1_OCTET_STRING_new() ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if ( !ASN1_OCTET_STRING_set(octetString, buf, len) )
-      { PyErr_SetString( SSLErrorObject, "could not set ASN1 Octect string" ); goto error; }
+      lose("could not set ASN1 Octect string");
 
    if ( NID_undef == (nid = OBJ_txt2nid(name) ) )
-      { PyErr_SetString( SSLErrorObject, "extension has unknown object identifier" ); goto error; }
+      lose("extension has unknown object identifier");
 
    if ( !( extn = X509_EXTENSION_create_by_NID(NULL, nid, critical, octetString) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to create ASN1 X509 Extension object" ); goto error; }
+      lose("unable to create ASN1 X509 Extension object");
 
    if (!self->crl->crl->extensions)
       if ( !(self->crl->crl->extensions = sk_X509_EXTENSION_new_null() ) ) 
-         { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+         lose("unable to allocate memory");
 
    if ( !sk_X509_EXTENSION_push(self->crl->crl->extensions, extn) )
-      { PyErr_SetString( SSLErrorObject, "unable to add extension" ); goto error; }
+      lose("unable to add extension");
 
    return Py_BuildValue("");
 
@@ -2924,13 +2977,13 @@ X509_crl_object_get_extension(x509_crl_object *self, PyObject *args)
       num = 0;
 
    if (index >= num)
-      { PyErr_SetString( SSLErrorObject, "certificate does not have that many extensions" ); goto error; }
+      lose("certificate does not have that many extensions");
 
    if ( !(ext = sk_X509_EXTENSION_value(self->crl->crl->extensions, index) ) )
-      { PyErr_SetString( SSLErrorObject, "could not get extension" ); goto error; }
+      lose("could not get extension");
 
    if ( NID_undef == (ext_nid = OBJ_obj2nid(ext->object) ) )
-      { PyErr_SetString( SSLErrorObject, "extension has unknown object identifier" ); goto error; }
+      lose("extension has unknown object identifier");
 
    if ( NULL == (ext_ln = OBJ_nid2sn(ext_nid) ) )
       ext_ln = unknown_ext;
@@ -2983,62 +3036,62 @@ x509_crl_object_sign(x509_crl_object *self, PyObject *args)
       goto error;
 
    if ( !(pkey = EVP_PKEY_new() ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if (asym->key_type != RSA_PRIVATE_KEY)
-      { PyErr_SetString( SSLErrorObject, "cannot use this type of key" ); goto error; }
+      lose("cannot use this type of key");
 
    if ( !(EVP_PKEY_assign_RSA(pkey, asym->cipher) ) )
-      { PyErr_SetString( SSLErrorObject, "EVP_PKEY assignment error" ); goto error; }
+      lose("EVP_PKEY assignment error");
 
    switch (digest)
    {
       case MD5_DIGEST:
       { 
          if (!X509_CRL_sign(self->crl, pkey, EVP_md5() ) ) 
-            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+            lose("could not sign certificate");
          break;
       }
       case MD2_DIGEST:
       { 
          if (!X509_CRL_sign(self->crl, pkey, EVP_md2() ) ) 
-            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+            lose("could not sign certificate");
          break;
       }
       case SHA_DIGEST:
       { 
          if (!X509_CRL_sign(self->crl, pkey, EVP_sha() ) ) 
-            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+            lose("could not sign certificate");
          break;
       }
       case SHA1_DIGEST:
       { 
          if (!X509_CRL_sign(self->crl, pkey, EVP_sha1() ) ) 
-            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+            lose("could not sign certificate");
          break;
       }
       case RIPEMD160_DIGEST:
       { 
          if (!X509_CRL_sign(self->crl, pkey, EVP_ripemd160() ) ) 
-            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+            lose("could not sign certificate");
          break;
       }
       case SHA256_DIGEST:
       { 
          if (!X509_CRL_sign(self->crl, pkey, EVP_sha256() ) ) 
-            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+            lose("could not sign certificate");
          break;
       }
       case SHA384_DIGEST:
       { 
          if (!X509_CRL_sign(self->crl, pkey, EVP_sha384() ) ) 
-            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+            lose("could not sign certificate");
          break;
       }
       case SHA512_DIGEST:
       { 
          if (!X509_CRL_sign(self->crl, pkey, EVP_sha512() ) ) 
-            { PyErr_SetString( SSLErrorObject, "could not sign certificate" ); goto error; }
+            lose("could not sign certificate");
          break;
       }
    }
@@ -3087,10 +3140,10 @@ x509_crl_object_verify(x509_crl_object *self, PyObject *args)
       goto error;
 
    if ( !(pkey = EVP_PKEY_new() ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if ( !(EVP_PKEY_assign_RSA(pkey, asym->cipher) ) )
-      { PyErr_SetString( SSLErrorObject, "EVP_PKEY assignment error" ); goto error; }
+      lose("EVP_PKEY assignment error");
 
    result = X509_CRL_verify(self->crl,pkey);
 
@@ -3121,24 +3174,24 @@ x509_crl_object_write_helper(x509_crl_object *self, PyObject *args, int format)
    if (format == DER_FORMAT)
    {
       if (!i2d_X509_CRL_bio(out_bio, self->crl) )
-         { PyErr_SetString( SSLErrorObject, "unable to write certificate" ); goto error; }
+         lose("unable to write certificate");
    }
    else if (format == PEM_FORMAT)
    {
       if (!PEM_write_bio_X509_CRL(out_bio, self->crl) )
-         { PyErr_SetString( SSLErrorObject, "unable to write certificate" ); goto error; }
+         lose("unable to write certificate");
    }
    else
-      { PyErr_SetString( SSLErrorObject, "internal error, unkown output format" ); goto error; }
+      lose("internal error, unkown output format");
 
    if ( !(len = BIO_ctrl_pending(out_bio) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to get bytes stored in bio" ); goto error; }
+      lose("unable to get bytes stored in bio");
 
    if ( !(buf = malloc(len) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+      lose("unable to allocate memory");
 
    if ( (ret = BIO_read( out_bio, buf, len ) ) != len )
-      { PyErr_SetString( SSLErrorObject, "unable to write out cert" ); goto error; }
+      lose("unable to write out cert");
 
    cert = Py_BuildValue("s#", buf, len);
 
@@ -3227,16 +3280,16 @@ x509_crl_object_pprint(x509_crl_object *self, PyObject *args)
    out_bio = BIO_new(BIO_s_mem());
 
    if (!X509_CRL_print(out_bio, self->crl) )
-      { PyErr_SetString( SSLErrorObject, "unable to write crl" ); goto error; }
+      lose("unable to write crl");
 
    if ( !(len = BIO_ctrl_pending(out_bio) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to get bytes stored in bio" ); goto error; }
+      lose("unable to get bytes stored in bio");
 
    if ( !(buf = malloc(len) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+      lose("unable to allocate memory");
 
    if ( (ret = BIO_read( out_bio, buf, len ) ) != len )
-      { PyErr_SetString( SSLErrorObject, "unable to write out cert" ); goto error; }
+      lose("unable to write out cert");
 
    crl = Py_BuildValue("s#", buf, len);
 
@@ -3377,7 +3430,7 @@ x509_revoked_object_set_serial(x509_revoked_object *self, PyObject *args)
       goto error;
 
    if (!ASN1_INTEGER_set( self->revoked->serialNumber, serial ) )
-      { PyErr_SetString( SSLErrorObject, "unable to set serial number" ); goto error; }
+      lose("unable to set serial number");
 
    return Py_BuildValue("");
 
@@ -3410,7 +3463,7 @@ x509_revoked_object_get_serial(x509_revoked_object *self, PyObject *args)
       goto error;
 
    if ( (serial = ASN1_INTEGER_get( self->revoked->serialNumber ) ) == -1 )
-      { PyErr_SetString( SSLErrorObject, "unable to get serial number" ); goto error; }
+      lose("unable to get serial number");
 
    return Py_BuildValue("i", serial);
 
@@ -3478,7 +3531,7 @@ x509_revoked_object_set_date(x509_revoked_object *self, PyObject *args)
       goto error;
 
    if (!ASN1_UTCTIME_set_string( self->revoked->revocationDate, time ))
-      { PyErr_SetString( PyExc_TypeError, "could not set revocationDate" ); goto error; }
+      lose_type_error("could not set revocationDate");
 
    return Py_BuildValue("");
 
@@ -3533,23 +3586,23 @@ X509_revoked_object_add_extension(x509_revoked_object *self, PyObject *args)
       goto error;
 
    if ( !(octetString = M_ASN1_OCTET_STRING_new() ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if ( !ASN1_OCTET_STRING_set(octetString, buf, strlen(buf)) )
-      { PyErr_SetString( SSLErrorObject, "could not set ASN1 Octect string" ); goto error; }
+      lose("could not set ASN1 Octect string");
 
    if ( NID_undef == (nid = OBJ_txt2nid(name) ) )
-      { PyErr_SetString( SSLErrorObject, "extension has unknown object identifier" ); goto error; }
+      lose("extension has unknown object identifier");
 
    if ( !( extn = X509_EXTENSION_create_by_NID(NULL, nid, critical, octetString) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to create ASN1 X509 Extension object" ); goto error; }
+      lose("unable to create ASN1 X509 Extension object");
 
    if (!self->revoked->extensions)
       if ( !(self->revoked->extensions = sk_X509_EXTENSION_new_null() ) ) 
-         { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+         lose("unable to allocate memory");
 
    if ( !sk_X509_EXTENSION_push(self->revoked->extensions, extn) )
-      { PyErr_SetString( SSLErrorObject, "unable to add extension" ); goto error; }
+      lose("unable to add extension");
 
    return Py_BuildValue("");
 
@@ -3664,13 +3717,13 @@ X509_revoked_object_get_extension(x509_revoked_object *self, PyObject *args)
       num = 0;
 
    if (index >= num)
-      { PyErr_SetString( SSLErrorObject, "certificate does not have that many extensions" ); goto error; }
+      lose("certificate does not have that many extensions");
 
    if ( !(ext = sk_X509_EXTENSION_value(self->revoked->extensions, index) ) )
-      { PyErr_SetString( SSLErrorObject, "could not get extension" ); goto error; }
+      lose("could not get extension");
 
    if ( NID_undef == (ext_nid = OBJ_obj2nid(ext->object) ) )
-      { PyErr_SetString( SSLErrorObject, "extension has unknown object identifier" ); goto error; }
+      lose("extension has unknown object identifier");
 
    if ( NULL == (ext_ln = OBJ_nid2sn(ext_nid) ) )
       ext_ln = unknown_ext;
@@ -3781,10 +3834,10 @@ ssl_object_use_certificate(ssl_object *self, PyObject *args)
       goto error;
 
    if (self->ctxset)
-      { PyErr_SetString( SSLErrorObject, "cannot be called after setFd()" ); goto error; }
+      lose("cannot be called after setFd()");
 
    if ( !SSL_CTX_use_certificate(self->ctx, x509->x509) )
-      { PyErr_SetString( SSLErrorObject, "could not use certificate" ); goto error; }
+      lose("could not use certificate");
 
    return Py_BuildValue("");
 
@@ -3803,13 +3856,13 @@ ssl_object_add_certificate(ssl_object *self, PyObject *args)
       goto error;
 
    if (self->ctxset)
-      { PyErr_SetString( SSLErrorObject, "cannot be called after setFd()" ); goto error; }
+      lose("cannot be called after setFd()");
 
    if ( !(x = X509_dup(x509->x509)) )
-      { PyErr_SetString( SSLErrorObject, "could not duplicate X509 object" ); goto error; }
+      lose("could not duplicate X509 object");
 
    if ( !SSL_CTX_add_extra_chain_cert(self->ctx, x) )
-      { set_openssl_pyerror( "could not add certificate" ); goto error; }
+      lose_openssl_error("could not add certificate");
 
    x = NULL;
 
@@ -3851,19 +3904,19 @@ ssl_object_use_key(ssl_object *self, PyObject *args)
       goto error;
 
    if (self->ctxset)
-      { PyErr_SetString( SSLErrorObject, "cannot be called after setFd()" ); goto error; }
+      lose("cannot be called after setFd()");
 
    if ( !(pkey = EVP_PKEY_new() ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if (asym->key_type != RSA_PRIVATE_KEY)
-      { PyErr_SetString( SSLErrorObject, "cannot use this type of key" ); goto error; }
+      lose("cannot use this type of key");
 
    if ( !EVP_PKEY_assign_RSA(pkey, asym->cipher) )
-      { PyErr_SetString( SSLErrorObject, "EVP_PKEY assignment error" ); goto error; }
+      lose("EVP_PKEY assignment error");
 
    if ( !SSL_CTX_use_PrivateKey(self->ctx, pkey) )
-      { PyErr_SetString( SSLErrorObject, "ctx key assignment error" ); goto error; }
+      lose("ctx key assignment error");
 
    return Py_BuildValue("");
 
@@ -3929,15 +3982,15 @@ ssl_object_set_fd(ssl_object *self, PyObject *args)
       goto error;
 
    if ( !(self->ssl = SSL_new( self->ctx ) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to create ssl sturcture" ); goto error; }
+      lose("unable to create ssl sturcture");
 
    if ( !SSL_set_fd( self->ssl, fd ) )
-      { PyErr_SetString( SSLErrorObject, "unable to set file descriptor" ); goto error; }
+      lose("unable to set file descriptor");
 
    if ( (self_index = SSL_get_ex_new_index(0, "self_index", NULL, NULL, NULL) ) != -1 )
       SSL_set_ex_data(self->ssl, self_index, self);
    else
-      { PyErr_SetString( SSLErrorObject, "unable to create ex data index" ); goto error; }
+      lose("unable to create ex data index");
 
    self->ctxset = 1;
 
@@ -4156,7 +4209,7 @@ ssl_object_read(ssl_object *self, PyObject *args)
       goto error;
 
    if ( !(msg = malloc(len) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+      lose("unable to allocate memory");
 
    Py_BEGIN_ALLOW_THREADS 
    ret = SSL_read( self->ssl, msg, len );
@@ -4208,7 +4261,7 @@ ssl_object_peer_certificate(ssl_object *self, PyObject *args)
       goto error;
 
    if ( !(x509_obj = X509_object_new() ) )
-      { PyErr_SetString( SSLErrorObject, "could not create x509 object" ); goto error; }
+      lose("could not create x509 object");
 
    x509 = SSL_get_peer_certificate( self->ssl );
 
@@ -4217,7 +4270,7 @@ ssl_object_peer_certificate(ssl_object *self, PyObject *args)
       X509_free( x509_obj->x509 ); 
 
       if ( !(x509_obj->x509 = x509 ) )
-         { PyErr_SetString( SSLErrorObject, "could not create x509 object" ); goto error; }
+         lose("could not create x509 object");
       return Py_BuildValue("O", x509_obj);
    }
    else
@@ -4257,7 +4310,7 @@ ssl_object_clear(ssl_object *self, PyObject *args)
       goto error;
    
    if (!SSL_clear( self->ssl ) )
-      { PyErr_SetString( SSLErrorObject, "failed to clear ssl connection" ); goto error; }
+      lose("failed to clear ssl connection");
 
    return Py_BuildValue("");
 
@@ -4386,7 +4439,7 @@ ssl_object_get_ciphers(ssl_object *self, PyObject *args)
       goto error;
 
    if (!self->ctxset)
-      { PyErr_SetString( SSLErrorObject, "cannot be called before setFd()" ); goto error; }
+      lose("cannot be called before setFd()");
 
    list = PyList_New(0);
    
@@ -4450,10 +4503,10 @@ ssl_object_set_ciphers(ssl_object *self, PyObject *args)
       goto error;
 
    if ( !(PyList_Check(ciphers) || PyTuple_Check(ciphers)) )
-      { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
+      lose_type_error("inapropriate type");
 
    if (!self->ctxset)
-      { PyErr_SetString( SSLErrorObject, "cannot be called before setFd()" ); goto error; }
+      lose("cannot be called before setFd()");
 
    cipherstr = malloc(8);  //very bogus, realloc dosn't work with out some
                            //previously allocated memory! Really should.
@@ -4465,13 +4518,13 @@ ssl_object_set_ciphers(ssl_object *self, PyObject *args)
          goto error;
 
       if ( !PyString_Check(cipher) )
-         { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
+         lose_type_error("inapropriate type");
 
       cipherstrlen = strlen(cipherstr);
       nextstrlen = strlen( PyString_AsString(cipher) );
 
       if ( !(cipherstr = realloc( cipherstr, cipherstrlen + nextstrlen + 2)) )
-         { PyErr_SetString( PyExc_TypeError, "could allocate memory" ); goto error; }
+         lose_type_error("could allocate memory");
 
       if (cipherstrlen)
          strcat( cipherstr, ":\0" );
@@ -4515,7 +4568,7 @@ ssl_object_get_cipher(ssl_object *self, PyObject *args)
       goto error;
 
    if (!self->ctxset)
-      { PyErr_SetString( SSLErrorObject, "cannot be called before setFd()" ); goto error; }
+      lose("cannot be called before setFd()");
    
    return Py_BuildValue("s", SSL_get_cipher( self->ssl ));
 
@@ -4564,7 +4617,7 @@ ssl_object_set_verify_mode(ssl_object *self, PyObject *args)
       goto error;
 
    if (self->ctxset)
-      { PyErr_SetString( SSLErrorObject, "cannot be called after setfd()" ); goto error; }
+      lose("cannot be called after setfd()");
 
    SSL_CTX_set_verify( self->ctx, mode, stub_callback );
 
@@ -4626,12 +4679,12 @@ newssl_object(int type)
       case SSLV23_METHOD:        method = SSLv23_method();         break;
                                                                      
       default:    
-         { PyErr_SetString( SSLErrorObject, "unkown ctx method" ); goto error; }
+         lose("unkown ctx method");
                    
    } 
 
    if ( !(self->ctx = SSL_CTX_new( method ) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to create new ctx" ); goto error; }
+      lose("unable to create new ctx");
 
    return self;
 
@@ -4712,10 +4765,10 @@ asymmetric_object_new(int cipher_type, int key_size)
       goto error;
 
    if (cipher_type != RSA_CIPHER)
-      { PyErr_SetString( SSLErrorObject, "unsupported cipher" ); goto error; }
+      lose("unsupported cipher");
 
    if ( !(self->cipher = RSA_generate_key(key_size,RSA_F4,NULL,NULL) ) )
-      {  PyErr_SetString( SSLErrorObject, "could not generate key" ); goto error; }
+      lose("could not generate key");
 
    self->key_type = RSA_PRIVATE_KEY;
    self->cipher_type = RSA_CIPHER;
@@ -4742,7 +4795,7 @@ asymmetric_object_pem_read(int key_type, BIO *in, char *pass)
       case RSA_PUBLIC_KEY:
       {
          if( !(self->cipher = PEM_read_bio_RSA_PUBKEY( in, NULL, NULL, NULL ) ) )
-            {  PyErr_SetString( SSLErrorObject, "could not load public key" ); goto error; }
+            lose("could not load public key");
          self->key_type = RSA_PUBLIC_KEY;
          self->cipher_type = RSA_CIPHER;
          break;
@@ -4750,13 +4803,13 @@ asymmetric_object_pem_read(int key_type, BIO *in, char *pass)
       case RSA_PRIVATE_KEY:
       {
          if( !(self->cipher = PEM_read_bio_RSAPrivateKey( in, NULL, NULL, pass) ) )
-            {  PyErr_SetString( SSLErrorObject, "could not load private key" ); goto error; }
+            lose("could not load private key");
          self->key_type = RSA_PRIVATE_KEY;
          self->cipher_type = RSA_CIPHER;
          break;
       }
       default:
-         {  PyErr_SetString( SSLErrorObject, "unkown key type" ); goto error; }
+         lose("unkown key type");
    }
 
    return self;
@@ -4782,7 +4835,7 @@ asymmetric_object_der_read(int key_type, char *src, int len)
       case RSA_PUBLIC_KEY:
       {
          if( !(self->cipher = d2i_RSA_PUBKEY( NULL, (const unsigned char **) &ptr, len ) ) )
-            {  PyErr_SetString( SSLErrorObject, "could not load public key" ); goto error; }
+            lose("could not load public key");
 
          self->key_type = RSA_PUBLIC_KEY;
          self->cipher_type = RSA_CIPHER;
@@ -4791,14 +4844,14 @@ asymmetric_object_der_read(int key_type, char *src, int len)
       case RSA_PRIVATE_KEY:
       {
          if( !(self->cipher = d2i_RSAPrivateKey( NULL, (const unsigned char **) &ptr, len ) ) )
-            {  PyErr_SetString( SSLErrorObject, "could not load private key" ); goto error; }
+            lose("could not load private key");
 
          self->key_type = RSA_PRIVATE_KEY;
          self->cipher_type = RSA_CIPHER;
          break;
       }
       default:
-         {  PyErr_SetString( SSLErrorObject, "unkown key type" ); goto error; }
+         lose("unkown key type");
    }
 
    return self;
@@ -4851,10 +4904,10 @@ asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
       key_type = self->key_type;
 
    if ( !(out_bio = BIO_new(BIO_s_mem()) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to create new BIO" ); goto error; }
+      lose("unable to create new BIO");
 
    if ( (kstr && !cipher) || (cipher && !kstr) )
-      {PyErr_SetString(SSLErrorObject,"cipher type and key string must both be supplied");goto error;}
+      lose("cipher type and key string must both be supplied");
 
 
    switch( key_type )
@@ -4864,38 +4917,38 @@ asymmetric_object_pem_write(asymmetric_object *self, PyObject *args)
          if (kstr && cipher)
          {
             if (!PEM_write_bio_RSAPrivateKey(out_bio, self->cipher, evp_cipher_factory(cipher), NULL, 0, NULL, kstr) )
-               { PyErr_SetString( SSLErrorObject, "unable to write key" ); goto error; }
+               lose("unable to write key");
          }
          else
          {
             if (!PEM_write_bio_RSAPrivateKey(out_bio, self->cipher, NULL, NULL, 0, NULL, NULL) )
-               { PyErr_SetString( SSLErrorObject, "unable to write key" ); goto error; }
+               lose("unable to write key");
          }
          break;
       }
       case RSA_PUBLIC_KEY:
       {
          if (kstr && cipher)
-            { PyErr_SetString( SSLErrorObject, "public keys should not encrypted" ); goto error; }
+            lose("public keys should not encrypted");
          else
          {
             if (!PEM_write_bio_RSA_PUBKEY(out_bio, self->cipher) )
-               { PyErr_SetString( SSLErrorObject, "unable to write key" ); goto error; }
+               lose("unable to write key");
          }
          break;
       }
       default:
-         { PyErr_SetString( SSLErrorObject, "unsupported key type" ); goto error; }
+         lose("unsupported key type");
    }
 
    if ( !(len = BIO_ctrl_pending(out_bio) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to get number of bytes in bio" ); goto error; }
+      lose("unable to get number of bytes in bio");
 
    if ( !(buf = malloc(len) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+      lose("unable to allocate memory");
 
    if ( (ret = BIO_read( out_bio, buf, len ) ) != len )
-      { PyErr_SetString( SSLErrorObject, "unable to write out key" ); goto error; }
+      lose("unable to write out key");
 
    asymmetric = Py_BuildValue("s#", buf, len);
 
@@ -4951,24 +5004,24 @@ asymmetric_object_der_write(asymmetric_object *self, PyObject *args)
       {
          len = i2d_RSAPrivateKey(self->cipher, NULL);
          if ( !(buf = malloc(len) ) )
-            { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+            lose("could not allocate memory");
          p = buf;
          if (!i2d_RSAPrivateKey(self->cipher, &buf) )
-            { PyErr_SetString( SSLErrorObject, "unable to write key" ); goto error; }
+            lose("unable to write key");
          break;
       }
       case RSA_PUBLIC_KEY:
       {
          len = i2d_RSA_PUBKEY(self->cipher, NULL);
          if ( !(buf = malloc(len) ) )
-            { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+            lose("could not allocate memory");
          p = buf;
          if (!i2d_RSA_PUBKEY(self->cipher, &buf) )
-            { PyErr_SetString( SSLErrorObject, "unable to write key" ); goto error; }
+            lose("unable to write key");
          break;
       }
       default:
-         { PyErr_SetString( SSLErrorObject, "unsupported key type" ); goto error; }
+         lose("unsupported key type");
    }
 
    asymmetric = Py_BuildValue("s#", p, len);
@@ -5018,17 +5071,17 @@ asymmetric_object_public_encrypt(asymmetric_object *self, PyObject *args)
 
          size = RSA_size(self->cipher);
          if ( len > size )
-            { PyErr_SetString( SSLErrorObject, "plain text is too long" ); goto error; }
+            lose("plain text is too long");
 
          if ( !(cipher_text = malloc( size + 16 ) ) )
-            { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+            lose("could not allocate memory");
 
          if ( (len = RSA_public_encrypt( len, plain_text, cipher_text, self->cipher, RSA_PKCS1_PADDING ) ) < 0 )
-            { PyErr_SetString( SSLErrorObject, "could not encrypt plain text" ); goto error; }
+            lose("could not encrypt plain text");
          break;
       }
       default:
-         { PyErr_SetString( SSLErrorObject, "unsupported cipher type" ); goto error; }
+         lose("unsupported cipher type");
    }
 
    obj = Py_BuildValue("s#", cipher_text, len);
@@ -5069,20 +5122,20 @@ asymmetric_object_private_encrypt(asymmetric_object *self, PyObject *args)
    PyObject *obj = NULL;
 
    if ( !(self->key_type == RSA_PRIVATE_KEY) ) 
-      { PyErr_SetString( SSLErrorObject, "cannot perform private encryption with this key" ); goto error; }
+      lose("cannot perform private encryption with this key");
 
    if (!PyArg_ParseTuple(args, "s#", &plain_text, &len) )
       goto error;
 
    size = RSA_size(self->cipher);
    if ( len > size )
-      { PyErr_SetString( SSLErrorObject, "plain text is too long" ); goto error; }
+      lose("plain text is too long");
 
    if ( !(cipher_text = malloc( size + 16 ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if ( (len = RSA_private_encrypt( len, plain_text, cipher_text, self->cipher, RSA_PKCS1_PADDING ) ) < 0 )
-      { PyErr_SetString( SSLErrorObject, "could not encrypt plain text" ); goto error; }
+      lose("could not encrypt plain text");
 
    obj = Py_BuildValue("s#", cipher_text, len);
    free( cipher_text );
@@ -5130,17 +5183,17 @@ asymmetric_object_public_decrypt(asymmetric_object *self, PyObject *args)
    
          size = RSA_size(self->cipher);
          if ( len > size )
-            { PyErr_SetString( SSLErrorObject, "cipher text is too long" ); goto error; }
+            lose("cipher text is too long");
 
          if ( !(plain_text = malloc( size + 16 ) ) )
-            { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+            lose("could not allocate memory");
 
          if ( (len = RSA_public_decrypt( len, cipher_text, plain_text, self->cipher, RSA_PKCS1_PADDING ) ) < 0 )
-            { PyErr_SetString( SSLErrorObject, "could not decrypt cipher text" ); goto error; }
+            lose("could not decrypt cipher text");
          break;
       }
       default:
-         { PyErr_SetString( SSLErrorObject, "unsupported cipher type" ); goto error; }
+         lose("unsupported cipher type");
    }
 
    obj = Py_BuildValue("s#", plain_text, len);
@@ -5180,20 +5233,20 @@ asymmetric_object_private_decrypt(asymmetric_object *self, PyObject *args)
    PyObject *obj = NULL;
 
    if ( !(self->key_type == RSA_PRIVATE_KEY) ) 
-      { PyErr_SetString( SSLErrorObject, "cannot perform private decryption with this key" ); goto error; }
+      lose("cannot perform private decryption with this key");
 
    if (!PyArg_ParseTuple(args, "s#", &cipher_text, &len))
       goto error;
 
    size = RSA_size(self->cipher);
    if ( len > size )
-      { PyErr_SetString( SSLErrorObject, "cipher text is too long" ); goto error; }
+      lose("cipher text is too long");
 
    if ( !(plain_text = malloc( size + 16 ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if ( (len = RSA_private_decrypt( len, cipher_text, plain_text, self->cipher, RSA_PKCS1_PADDING ) ) < 0 )
-      { PyErr_SetString( SSLErrorObject, "could not decrypt cipher text" ); goto error; }
+      lose("could not decrypt cipher text");
 
    obj = Py_BuildValue("s#", plain_text, len);
    free( plain_text );
@@ -5254,10 +5307,10 @@ asymmetric_object_sign(asymmetric_object *self, PyObject *args)
       goto error;
 
    if (self->key_type != RSA_PRIVATE_KEY)
-      { PyErr_SetString( SSLErrorObject, "unsupported key type" ); goto error; }
+      lose("unsupported key type");
     
    if ( !(signed_text = malloc( RSA_size(self->cipher) ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    switch(digest_type)
    {
@@ -5278,10 +5331,10 @@ asymmetric_object_sign(asymmetric_object *self, PyObject *args)
       case SHA512_DIGEST:
          { digest_nid = NID_sha512; digest_len = SHA512_DIGEST_LENGTH; break; }
       default:
-         { PyErr_SetString( SSLErrorObject, "unsupported digest" ); goto error; }
+         lose("unsupported digest");
    }
    if ( !(RSA_sign( digest_nid, digest_text, digest_len, signed_text, &signed_len, self->cipher ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not sign digest" ); goto error; }
+      lose("could not sign digest");
 
    obj = Py_BuildValue("s#", signed_text, signed_len);
    free(signed_text);
@@ -5389,7 +5442,7 @@ asymmetric_object_verify(asymmetric_object *self, PyObject *args)
       case SHA512_DIGEST:
          { digest_len = SHA512_DIGEST_LENGTH; digest_nid = NID_sha512; break; }
       default:
-         { PyErr_SetString( SSLErrorObject, "unsupported digest" ); goto error; }
+         lose("unsupported digest");
    }
    result = RSA_verify( digest_nid, digest_text, digest_len, signed_text, signed_len, self->cipher );
 
@@ -5531,10 +5584,10 @@ symmetric_object_encrypt_init(symmetric_object *self, PyObject *args)
       iv = nulliv;
 
    if ( !(cipher = evp_cipher_factory( self->cipher_type ) ) )
-         { PyErr_SetString( SSLErrorObject, "unsupported cipher" ); goto error; }
+         lose("unsupported cipher");
 
    if ( !EVP_EncryptInit( &self->cipher_ctx, cipher, key, iv ) )
-      { PyErr_SetString( SSLErrorObject, "could not initialise cipher" ); goto error; }
+      lose("could not initialise cipher");
    
    return Py_BuildValue("");
 
@@ -5575,10 +5628,10 @@ symmetric_object_decrypt_init(symmetric_object *self, PyObject *args)
       iv = nulliv;
 
    if ( !(cipher = evp_cipher_factory( self->cipher_type ) ) )
-         { PyErr_SetString( SSLErrorObject, "unsupported cipher" ); goto error; }
+         lose("unsupported cipher");
 
    if ( !EVP_DecryptInit( &self->cipher_ctx, cipher, key, iv ) )
-      { PyErr_SetString( SSLErrorObject, "could not initialise cipher" ); goto error; }
+      lose("could not initialise cipher");
    
    return Py_BuildValue("");
 
@@ -5615,13 +5668,13 @@ symmetric_object_update(symmetric_object *self, PyObject *args)
       goto error;
 
    if ( !(out = malloc( inl + EVP_CIPHER_CTX_block_size( &self->cipher_ctx) ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if ( !EVP_CipherUpdate( &self->cipher_ctx, out, &outl, in, inl ) )
-      { PyErr_SetString( SSLErrorObject, "could not update cipher" ); goto error; }
+      lose("could not update cipher");
 
    if ( !(py_out = Py_BuildValue("s#", out, outl) ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    free(out);
    return py_out;
@@ -5663,13 +5716,13 @@ symmetric_object_final(symmetric_object *self, PyObject *args)
       goto error;
 
    if ( !(out = malloc( size + EVP_CIPHER_CTX_block_size( &self->cipher_ctx) ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if ( !EVP_CipherFinal( &self->cipher_ctx, out, &outl ) )
-      { PyErr_SetString( SSLErrorObject, "could not update cipher" ); goto error; }
+      lose("could not update cipher");
 
    if ( !(py_out = Py_BuildValue("s#", out, outl) ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    free(out);
    return py_out;
@@ -5797,7 +5850,7 @@ digest_object_new(int digest_type)
       case SHA512_DIGEST: 
          { self->digest_type = SHA512_DIGEST; EVP_DigestInit( &self->digest_ctx, EVP_sha512() ); break; }
       default:
-         { PyErr_SetString( SSLErrorObject, "unsupported digest" ); goto error; }
+         lose("unsupported digest");
    }
 
    return self;
@@ -5864,11 +5917,11 @@ digest_object_copy(digest_object *self, PyObject *args)
    digest_object *new = NULL;
 
    if ( !(new = PyObject_New( digest_object, &digesttype ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    new->digest_type = self->digest_type;
    if (!EVP_MD_CTX_copy( &new->digest_ctx, &self->digest_ctx ))
-      { PyErr_SetString( SSLErrorObject, "could not copy digest" ); goto error; }
+      lose("could not copy digest");
 
    return (PyObject*)new;
 
@@ -5906,10 +5959,10 @@ digest_object_digest(digest_object *self, PyObject *args)
       goto error;
 
    if ( !(md_copy = malloc( sizeof(EVP_MD_CTX) ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if (!EVP_MD_CTX_copy( md_copy, &self->digest_ctx ))
-      { PyErr_SetString( SSLErrorObject, "could not copy digest" ); goto error; }
+      lose("could not copy digest");
 
    EVP_DigestFinal( md_copy, digest_text, &digest_len );
 
@@ -6027,7 +6080,7 @@ hmac_object_new(int digest_type, char *key, int key_len)
       case SHA512_DIGEST: 
          { md = EVP_sha512(); break; }
       default:
-         { PyErr_SetString( SSLErrorObject, "unsupported digest" ); goto error; }
+         lose("unsupported digest");
    }
 
    HMAC_Init( &self->hmac_ctx, key, key_len, md );
@@ -6096,7 +6149,7 @@ hmac_object_copy(hmac_object *self, PyObject *args)
    hmac_object *new = NULL;
 
    if ( !(new = PyObject_New( hmac_object, &hmactype ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    memcpy( &new->hmac_ctx, &self->hmac_ctx, sizeof(HMAC_CTX) );
 
@@ -6136,7 +6189,7 @@ hmac_object_mac(hmac_object *self, PyObject *args)
       goto error;
 
    if ( !(hmac_copy = malloc( sizeof(HMAC_CTX) ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    memcpy( hmac_copy, &self->hmac_ctx, sizeof(HMAC_CTX) );
    HMAC_Final( hmac_copy, hmac_text, &hmac_len );
@@ -6243,7 +6296,7 @@ PKCS7_object_pem_read(BIO *in)
       goto error;
 
    if( !(self->pkcs7 = PEM_read_bio_PKCS7( in, NULL, NULL, NULL ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not load PEM encoded PKCS7 message" ); goto error; }
+      lose("could not load PEM encoded PKCS7 message");
 
    return self;
 
@@ -6268,7 +6321,7 @@ PKCS7_object_der_read(char *src, int len)
      goto error;
 
    if( !(d2i_PKCS7_bio( bio, &self->pkcs7 ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not load PEM encoded PKCS7 message" ); goto error; }
+      lose("could not load PEM encoded PKCS7 message");
 
    BIO_free(bio);
 
@@ -6299,24 +6352,24 @@ PKCS7_object_write_helper(pkcs7_object *self, PyObject *args, int format)
    if (format == DER_FORMAT)
    {
       if (!i2d_PKCS7_bio(out_bio, self->pkcs7) )
-         { PyErr_SetString( SSLErrorObject, "unable to write certificate" ); goto error; }
+         lose("unable to write certificate");
    }
    else if (format == PEM_FORMAT)
    {
       if (!PEM_write_bio_PKCS7(out_bio, self->pkcs7) )
-         { PyErr_SetString( SSLErrorObject, "unable to write certificate" ); goto error; }
+         lose("unable to write certificate");
    }
    else
-      { PyErr_SetString( SSLErrorObject, "internal error, unkown output format" ); goto error; }
+      lose("internal error, unkown output format");
 
    if ( !(len = BIO_ctrl_pending(out_bio) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to get bytes stored in bio" ); goto error; }
+      lose("unable to get bytes stored in bio");
 
    if ( !(buf = malloc(len) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+      lose("unable to allocate memory");
 
    if ( BIO_read( out_bio, buf, len ) != len )
-      { PyErr_SetString( SSLErrorObject, "unable to write out cert" ); goto error; }
+      lose("unable to write out cert");
 
    cert = Py_BuildValue("s#", buf, len);
 
@@ -6420,16 +6473,16 @@ PKCS7_object_sign(pkcs7_object *self, PyObject *args)
       goto error;
 
    if (signkey->key_type != RSA_PRIVATE_KEY)
-      { PyErr_SetString( SSLErrorObject, "unsupported key type" ); goto error; }
+      lose("unsupported key type");
 
    if ( !(x509_stack = x509_helper_sequence_to_stack(x509_sequence)) )
       goto error;
 
    if ( !(pkey = EVP_PKEY_new() ) )
-      { PyErr_SetString( SSLErrorObject, "could not allocate memory" ); goto error; }
+      lose("could not allocate memory");
 
    if ( !(EVP_PKEY_assign_RSA(pkey, signkey->cipher) ) )
-      { PyErr_SetString( SSLErrorObject, "EVP_PKEY assignment error" ); goto error; }
+      lose("EVP_PKEY assignment error");
 
    if ( !(bio = BIO_new_mem_buf(buf, len)))
       goto error;
@@ -6438,7 +6491,7 @@ PKCS7_object_sign(pkcs7_object *self, PyObject *args)
       flags |= PKCS7_NOCERTS;
 
    if ( !(p7 = PKCS7_sign(signcert->x509, pkey, x509_stack, bio, flags)))
-      { set_openssl_pyerror( "could not sign PKCS7 message" ); goto error; }
+      lose_openssl_error("could not sign PKCS7 message");
 
    if (self->pkcs7)
       PKCS7_free(self->pkcs7);
@@ -6506,16 +6559,16 @@ PKCS7_object_verify(pkcs7_object *self, PyObject *args)
       goto error;
 
    if (PKCS7_verify(self->pkcs7, certs_stack, store->store, NULL, bio, 0) <= 0)
-      { set_openssl_pyerror( "could not verify PKCS7 message" ); goto error; }
+      lose_openssl_error("could not verify PKCS7 message");
 
    if (!(len = BIO_ctrl_pending(bio)))
-      { PyErr_SetString( SSLErrorObject, "unable to get bytes stored in bio" ); goto error; }
+      lose("unable to get bytes stored in bio");
 
    if (!(buf = malloc(len) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+      lose("unable to allocate memory");
 
    if (BIO_read( bio, buf, len ) != len)
-      { PyErr_SetString( SSLErrorObject, "unable to write out PKCS7 content" ); goto error; }
+      lose("unable to write out PKCS7 content");
 
    result = Py_BuildValue("s#", buf, len);
 
@@ -6630,7 +6683,7 @@ CMS_object_pem_read(BIO *in)
       goto error;
 
    if( !(self->cms = PEM_read_bio_CMS( in, NULL, NULL, NULL ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not load PEM encoded CMS message" ); goto error; }
+      lose("could not load PEM encoded CMS message");
 
    return self;
 
@@ -6655,7 +6708,7 @@ CMS_object_der_read(char *src, int len)
      goto error;
 
    if( !(d2i_CMS_bio( bio, &self->cms ) ) )
-      { PyErr_SetString( SSLErrorObject, "could not load PEM encoded CMS message" ); goto error; }
+      lose("could not load PEM encoded CMS message");
 
    BIO_free(bio);
 
@@ -6686,24 +6739,24 @@ CMS_object_write_helper(cms_object *self, PyObject *args, int format)
    if (format == DER_FORMAT)
    {
       if (!i2d_CMS_bio(out_bio, self->cms) )
-         { PyErr_SetString( SSLErrorObject, "unable to write certificate" ); goto error; }
+         lose("unable to write certificate");
    }
    else if (format == PEM_FORMAT)
    {
       if (!PEM_write_bio_CMS(out_bio, self->cms) )
-         { PyErr_SetString( SSLErrorObject, "unable to write certificate" ); goto error; }
+         lose("unable to write certificate");
    }
    else
-      { PyErr_SetString( SSLErrorObject, "internal error, unkown output format" ); goto error; }
+      lose("internal error, unkown output format");
 
    if ( !(len = BIO_ctrl_pending(out_bio) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to get bytes stored in bio" ); goto error; }
+      lose("unable to get bytes stored in bio");
 
    if ( !(buf = malloc(len) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+      lose("unable to allocate memory");
 
    if ( BIO_read( out_bio, buf, len ) != len )
-      { PyErr_SetString( SSLErrorObject, "unable to write out cert" ); goto error; }
+      lose("unable to write out cert");
 
    cert = Py_BuildValue("s#", buf, len);
 
@@ -6795,11 +6848,11 @@ CMS_object_sign(cms_object *self, PyObject *args)
    asymmetric_object *signkey = NULL;
    x509_object *signcert = NULL;
    x509_crl_object *crlobj = NULL;
-   PyObject *x509_sequence = Py_None, *crl_sequence = Py_None;
+   PyObject *x509_sequence = Py_None, *crl_sequence = Py_None, *result = NULL;
    STACK_OF(X509) *x509_stack = NULL;
    EVP_PKEY *pkey = NULL;
    char *buf = NULL, *oid = NULL;
-   int i, n, len;
+   int i, n, len, err;
    unsigned flags = 0;
    BIO *bio = NULL;
    CMS_ContentInfo *cms = NULL;
@@ -6816,59 +6869,83 @@ CMS_object_sign(cms_object *self, PyObject *args)
                          &flags))
       goto error;
 
+   assert_no_unhandled_openssl_errors();
+
    flags &= CMS_NOCERTS | CMS_NOATTR;
    flags |= CMS_BINARY | CMS_NOSMIMECAP | CMS_PARTIAL | CMS_USE_KEYID;
 
    if (signkey->key_type != RSA_PRIVATE_KEY)
-      { PyErr_SetString( SSLErrorObject, "unsupported key type" ); goto error; }
+      lose("unsupported key type");
 
    if ( !(x509_stack = x509_helper_sequence_to_stack(x509_sequence)) )
       goto error;
 
+   assert_no_unhandled_openssl_errors();
+
    if ( !(pkey = EVP_PKEY_new() ) )
-      { set_openssl_pyerror( "could not allocate memory" ); goto error; }
+      lose_openssl_error("could not allocate memory");
+
+   assert_no_unhandled_openssl_errors();
 
    if ( !(EVP_PKEY_assign_RSA(pkey, signkey->cipher) ) )
-      { set_openssl_pyerror( "EVP_PKEY assignment error" ); goto error; }
+      lose_openssl_error("EVP_PKEY assignment error");
+
+   assert_no_unhandled_openssl_errors();
 
    if ( !(bio = BIO_new_mem_buf(buf, len)))
       goto error;
 
+   assert_no_unhandled_openssl_errors();
+
    if ( oid && (econtent_type = OBJ_txt2obj(oid, 0)) == NULL )
-      { set_openssl_pyerror( "could not parse OID" ); goto error; }
+      lose_openssl_error("could not parse OID");
+
+   assert_no_unhandled_openssl_errors();
 
    if ( !(cms = CMS_sign(NULL, NULL, NULL, bio, flags)))
-      { set_openssl_pyerror( "could not create CMS message" ); goto error; }
+      lose_openssl_error("could not create CMS message");
+
+   assert_no_unhandled_openssl_errors();
 
    for ( i = 0; i < sk_X509_num(x509_stack); i++ )
       if ( !CMS_add1_cert(cms, sk_X509_value(x509_stack, i)))
-         { set_openssl_pyerror( "could not add cert to CMS message" ); goto error; }
+         lose_openssl_error("could not add cert to CMS message");
+
+   assert_no_unhandled_openssl_errors();
 
    if (econtent_type)
       CMS_set1_eContentType(cms, econtent_type);
 
+   assert_no_unhandled_openssl_errors();
+
    if ( !CMS_add1_signer(cms, signcert->x509, pkey, EVP_sha256(), flags))
-      { set_openssl_pyerror( "could not sign CMS message" ); goto error; }
+      lose_openssl_error("could not sign CMS message");
+
+   pkey = NULL;                 /* CMS_add1_signer() now owns pkey */
+
+   assert_no_unhandled_openssl_errors();
 
    if (crl_sequence != Py_None) {
 
      if (!PyTuple_Check(crl_sequence) && !PyList_Check(crl_sequence))
-        { PyErr_SetString( PyExc_TypeError, "inapropriate type" ); goto error; }
+        lose_type_error("inapropriate type");
 
      n = PySequence_Size( crl_sequence );
 
      for (i = 0; i < n; i++) {
-       	if ( !(crlobj = (x509_crl_object *) PySequence_GetItem(crl_sequence, i)))
+        if ( !(crlobj = (x509_crl_object *) PySequence_GetItem(crl_sequence, i)))
            goto error;
 
         if (!X_X509_crl_Check(crlobj))
-           { PyErr_SetString( PyExc_TypeError, "inappropriate type" ); goto error; }
+           lose_type_error("inappropriate type");
 
         if ( !(crl = X509_CRL_dup(crlobj->crl)))
-           { PyErr_SetString( PyExc_TypeError, "couldn't clone CRL" ); goto error; }
+           lose_type_error("couldn't clone CRL");
+
+        assert_no_unhandled_openssl_errors();
 
         if (!CMS_add0_crl(self->cms, crl))
-           { set_openssl_pyerror( "could not add CRL to CMS" ); goto error; }
+           lose_openssl_error("could not add CRL to CMS");
 
         Py_DECREF(crlobj);
         crlobj = NULL;
@@ -6876,21 +6953,30 @@ CMS_object_sign(cms_object *self, PyObject *args)
    }
 
    if ( !CMS_final(cms, bio, NULL, flags))
-      { set_openssl_pyerror( "could not finalize CMS signatures" ); goto error; }
+      lose_openssl_error("could not finalize CMS signatures");
+
+   /*
+    * I'm seeing a succesful return from CMS_final() with an
+    * EVP_R_COMMAND_NOT_SUPPORTED error left on the error stack.
+    * Smells like an OpenSSL bug.  Appears to do no immediate harm, so
+    * for now we discard it and move on.
+    */
+   err = ERR_peek_error();
+   if (ERR_GET_LIB(err) == ERR_LIB_EVP && ERR_GET_FUNC(err) == EVP_F_EVP_PKEY_CTX_CTRL && ERR_GET_REASON(err) == EVP_R_COMMAND_NOT_SUPPORTED)
+      ERR_get_error();          /* Discard this error  */
+
+   assert_no_unhandled_openssl_errors();
 
    if (self->cms)
       CMS_ContentInfo_free(self->cms);
    self->cms = cms;
    cms = NULL;
 
-   sk_X509_free(x509_stack);
-   BIO_free(bio);
-   if (econtent_type)
-      ASN1_OBJECT_free(econtent_type);
+   result = Py_BuildValue("");
 
-   return Py_BuildValue("");
+error:                          /* fall through */
 
-error:
+   assert_no_unhandled_openssl_errors();
 
    if (cms)
       CMS_ContentInfo_free(cms);
@@ -6910,7 +6996,7 @@ error:
    if (crlobj)
       Py_XDECREF(crlobj);
 
-   return NULL;
+   return result;
 }
 
 static char CMS_object_verify__doc__[] = 
@@ -6946,42 +7032,58 @@ CMS_object_verify(cms_object *self, PyObject *args)
    unsigned flags = 0;
    char *buf = NULL;
    BIO *bio = NULL;
-   int len;
-
-   if (!(bio = BIO_new(BIO_s_mem())))
-      goto error;
+   int len, err;
 
    if (!PyArg_ParseTuple(args, "O!|OI", &x509_storetype, &store, &certs_sequence, &flags))
       goto error;
 
-   flags &= CMS_NOINTERN | CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY | CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY;
-
-   if (certs_sequence != Py_None &&
-       !(certs_stack = x509_helper_sequence_to_stack(certs_sequence)))
+   if (!(bio = BIO_new(BIO_s_mem())))
       goto error;
 
+   assert_no_unhandled_openssl_errors();
+
+   flags &= CMS_NOINTERN | CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY | CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY;
+
+   if (certs_sequence != Py_None && !(certs_stack = x509_helper_sequence_to_stack(certs_sequence)))
+      goto error;
+
+   assert_no_unhandled_openssl_errors();
+
    if (CMS_verify(self->cms, certs_stack, store->store, NULL, bio, flags) <= 0)
-      { set_openssl_pyerror( "could not verify CMS message" ); goto error; }
+      lose_openssl_error("could not verify CMS message");
+
+   /*
+    * I'm seeing a succesful return from CMS_verify() with an
+    * EVP_R_COMMAND_NOT_SUPPORTED error left on the error stack.
+    * Smells like an OpenSSL bug.  Appears to do no immediate harm, so
+    * for now we discard it and move on.
+    */
+   err = ERR_peek_error();
+   if (ERR_GET_LIB(err) == ERR_LIB_EVP && ERR_GET_FUNC(err) == EVP_F_EVP_PKEY_CTX_CTRL && ERR_GET_REASON(err) == EVP_R_COMMAND_NOT_SUPPORTED)
+      ERR_get_error();          /* Discard this error  */
+
+   assert_no_unhandled_openssl_errors();
 
    if (!(len = BIO_ctrl_pending(bio)))
-      { PyErr_SetString( SSLErrorObject, "unable to get bytes stored in bio" ); goto error; }
+      lose("unable to get bytes stored in bio");
+
+   assert_no_unhandled_openssl_errors();
 
    if (!(buf = malloc(len) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+      lose("unable to allocate memory");
+
+   assert_no_unhandled_openssl_errors();
 
    if (BIO_read( bio, buf, len ) != len)
-      { PyErr_SetString( SSLErrorObject, "unable to write out CMS content" ); goto error; }
+      lose("unable to write out CMS content");
+
+   assert_no_unhandled_openssl_errors();
 
    result = Py_BuildValue("s#", buf, len);
 
-   if (certs_stack)
-      sk_X509_free(certs_stack);
-   BIO_free(bio);
-   free(buf);
+error:                          /* fall through */
 
-   return result;
-
-error:
+   assert_no_unhandled_openssl_errors();
 
    if (certs_stack)
       sk_X509_free(certs_stack);
@@ -6992,7 +7094,7 @@ error:
    if (buf)
       free(buf);
 
-   return NULL;
+   return result;
 }
 
 static char CMS_object_eContentType__doc__[] = 
@@ -7013,19 +7115,24 @@ static PyObject *
 CMS_object_eContentType(cms_object *self, PyObject *args)
 {
    const ASN1_OBJECT *oid = NULL;
+   PyObject *result = NULL;
    char buf[512];
 
    if (!PyArg_ParseTuple(args, ""))
       return NULL;
 
-   if ( !(oid = CMS_get0_eContentType(self->cms))) {
-      set_openssl_pyerror("Could not extract eContentType from CMS message");
-      return NULL;
-   }
+   if ( !(oid = CMS_get0_eContentType(self->cms)))
+      lose_openssl_error("Could not extract eContentType from CMS message");
 
    OBJ_obj2txt(buf, sizeof(buf), oid, 1);
 
-   return Py_BuildValue("s", buf);
+   result = Py_BuildValue("s", buf);
+
+error:
+
+   assert_no_unhandled_openssl_errors();
+
+   return result;
 }
 
 static char CMS_object_pprint__doc__[] =
@@ -7057,29 +7164,30 @@ CMS_object_pprint(cms_object *self, PyObject *args)
    bio = BIO_new(BIO_s_mem());
 
    if (!CMS_ContentInfo_print_ctx(bio, self->cms, 0, NULL) )
-      { PyErr_SetString( SSLErrorObject, "unable to pprint CMS" ); goto error; }
+      lose("unable to pprint CMS");
 
    if ( !(len = BIO_ctrl_pending(bio) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to get bytes stored in bio" ); goto error; }
+      lose("unable to get bytes stored in bio");
 
    if ( !(buf = malloc(len) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to allocate memory" ); goto error; }
+      lose("unable to allocate memory");
 
    if ( (ret = BIO_read( bio, buf, len ) ) != len )
-      { PyErr_SetString( SSLErrorObject, "unable to pprint CMS" ); goto error; }
+      lose("unable to pprint CMS");
 
    result = Py_BuildValue("s#", buf, len);
 
-   BIO_free(bio);
-   free(buf);
-   return result;
-   
-error:   
+error:                          /* fall through */
+
+   assert_no_unhandled_openssl_errors();
+
    if (bio)
       BIO_free(bio);
+
    if (buf)
       free(buf);
-   return NULL;
+
+   return result;
 }
 
 
@@ -7117,12 +7225,12 @@ CMS_object_certs(cms_object *self, PyObject *args)
    if (!PyArg_ParseTuple(args, ""))
       goto error;
 
-   if ( !(certs = CMS_get1_certs(self->cms))) {
-      set_openssl_pyerror("Could not extract certs from CMS message");
-      goto error;
-   }
-
-   result = stack_to_tuple_helper(certs, cms_object_helper_get_cert);
+   if ((certs = CMS_get1_certs(self->cms)) != NULL)
+      result = stack_to_tuple_helper(certs, cms_object_helper_get_cert);
+   else if (!ERR_peek_error())
+      result = Py_BuildValue("()");
+   else
+      lose_openssl_error("Could not extract certs from CMS message");
 
 error:                          /* fall through */
 
@@ -7166,12 +7274,12 @@ CMS_object_crls(cms_object *self, PyObject *args)
    if (!PyArg_ParseTuple(args, ""))
       goto error;
 
-   if ( !(crls = CMS_get1_crls(self->cms))) {
-      set_openssl_pyerror("Could not extract CRLs from CMS message");
-      goto error;
-   }
-
-   result = stack_to_tuple_helper(crls, cms_object_helper_get_crl);
+   if ((crls = CMS_get1_crls(self->cms)) != NULL)
+      result = stack_to_tuple_helper(crls, cms_object_helper_get_crl);
+   else if (!ERR_peek_error())
+      result = Py_BuildValue("()");
+   else
+      lose_openssl_error("Could not extract CRLs from CMS message");
 
 error:                          /* fall through */
 
@@ -7322,7 +7430,7 @@ pow_module_new_x509 (PyObject *self, PyObject *args)
       goto error;
    
    if ( !(x509 = X509_object_new() ) ) 
-      { PyErr_SetString( SSLErrorObject, "could not create new x509 object" ); goto error; }
+      lose("could not create new x509 object");
 
    return (PyObject*)x509;
  
@@ -7493,7 +7601,7 @@ pow_module_new_pkcs7 (PyObject *self, PyObject *args)
       goto error;
    
    if ( !(pkcs7 = PKCS7_object_new() ) ) 
-      { PyErr_SetString( SSLErrorObject, "could not create new PKCS7 object" ); goto error; }
+      lose("could not create new PKCS7 object");
 
    return (PyObject*)pkcs7;
  
@@ -7524,7 +7632,7 @@ pow_module_new_cms (PyObject *self, PyObject *args)
       goto error;
    
    if ( !(cms = CMS_object_new() ) ) 
-      { PyErr_SetString( SSLErrorObject, "could not create new CMS object" ); goto error; }
+      lose("could not create new CMS object");
 
    return (PyObject*)cms;
  
@@ -7581,10 +7689,10 @@ pow_module_pem_read (PyObject *self, PyObject *args)
       goto error;
 
    if ( !(in = BIO_new_mem_buf(src, -1) ) )
-      { PyErr_SetString( SSLErrorObject, "unable to create new BIO" ); goto error; }
+      lose("unable to create new BIO");
 
    if ( !BIO_write( in, src, len ) )
-      { PyErr_SetString( SSLErrorObject, "unable to write to BIO" ); goto error; }
+      lose("unable to write to BIO");
 
    switch(object_type)
    {
@@ -7602,7 +7710,7 @@ pow_module_pem_read (PyObject *self, PyObject *args)
          { obj = (PyObject*)CMS_object_pem_read( in ); break ; }
 
       default:
-         { PyErr_SetString( SSLErrorObject, "unknown pem encoding" ); goto error; }
+         lose("unknown pem encoding");
    }
 
    BIO_free(in);
@@ -7675,7 +7783,7 @@ pow_module_der_read (PyObject *self, PyObject *args)
          { obj = (PyObject*)CMS_object_der_read( src, len ); break ; }
 
       default:
-         { PyErr_SetString( SSLErrorObject, "unknown der encoding" ); goto error; }
+         lose("unknown der encoding");
    }
 
    if (obj)
@@ -7846,11 +7954,11 @@ pow_module_new_x509_revoked (PyObject *self, PyObject *args)
    revoke = x509_revoked_object_new();
    if (serial != -1)
       if ( !ASN1_INTEGER_set( revoke->revoked->serialNumber, serial ) )
-         { PyErr_SetString( SSLErrorObject, "unable to set serial number" ); goto error; }
+         lose("unable to set serial number");
 
    if (date != NULL)
       if (!ASN1_UTCTIME_set_string( revoke->revoked->revocationDate, date ))
-         { PyErr_SetString( PyExc_TypeError, "could not set revocationDate" ); goto error; }
+         lose_type_error("could not set revocationDate");
 
    return (PyObject*)revoke;
 
@@ -7888,7 +7996,7 @@ pow_module_add_object(PyObject *self, PyObject *args)
       goto error;
    
    if (!OBJ_create(oid, sn, ln) )
-      {PyErr_SetString(SSLErrorObject, "unable to add object"); goto error;}
+      lose("unable to add object");
 
    return Py_BuildValue("");
 
@@ -8066,7 +8174,7 @@ pow_module_write_random_file(PyObject *self, PyObject *args)
       goto error;
    
    if ( RAND_write_file( file ) == -1 )
-      {PyErr_SetString(SSLErrorObject, "could not write random file"); goto error;}
+      lose("could not write random file");
 
    return Py_BuildValue("");
 
@@ -8103,7 +8211,7 @@ pow_module_read_random_file(PyObject *self, PyObject *args)
       goto error;
    
    if (!RAND_load_file( file, len ) )
-      {PyErr_SetString(SSLErrorObject, "could not load random file"); goto error;}
+      lose("could not load random file");
 
    return Py_BuildValue("");
 

@@ -53,21 +53,14 @@ for args in ((ee, key, plaintext, [ca], (), oid),
   cms = POW.CMS()
   cms.sign(*args)
 
+  #print cms.pprint()
+
   print "Certs:"
-  try:
-    for x in cms.certs():
-      print x.pprint()
-  except:
-    pass
+  for x in cms.certs():
+    print x.pprint()
 
   print "CRLs:"
-  try:
-    for c in cms.crls():
-      print c.pprint()
-  except:
-    pass
-
-  if False:
-    print cms.pprint()
+  for c in cms.crls():
+    print c.pprint()
 
   cms.verify(store, [ee])

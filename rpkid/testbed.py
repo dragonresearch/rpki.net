@@ -108,8 +108,8 @@ prog_rcynic    = cfg.get("prog_rcynic",    "../../rcynic/rcynic")
 
 rcynic_stats   = cfg.get("rcynic_stats",   "xsltproc --param refresh 0 ../../rcynic/rcynic.xsl %s.xml | w3m -T text/html -dump" % rcynic_name)
 
-rpki_sql_file  = cfg.get("rpki_sql_file",  "rpki-db-schema.sql")
-irdb_sql_file  = cfg.get("irdb_sql_file",  "sample-irdb.sql")
+rpki_sql_file  = cfg.get("rpki_sql_file",  "rpkid.sql")
+irdb_sql_file  = cfg.get("irdb_sql_file",  "irdbd.sql")
 
 startup_delay  = int(cfg.get("startup_delay", "10"))
 

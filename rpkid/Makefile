@@ -70,7 +70,7 @@ rpki/relaxng.py: left-right-schema.rng up-down-schema.rng make-relaxng.py
 	python make-relaxng.py >$@.tmp
 	mv $@.tmp $@
 
-pdf: rpki-db-schema.pdf irdbd.pdf
+pdf: rpkid.pdf irdbd.pdf
 
 doc:: pdf
 

@@ -215,10 +215,10 @@ irdbd.py
 
    irdbd requires a pre-populated database to represent the IR's
    customers. irdbd expects this database to use the SQL schema defined in
-   rpkid/sample-irdb.sql. Once this database has been populated, the IRBE
-   stub needs to create the appropriate objects in rpkid's database via
-   the control subset of the left-right protocol, and store the linkage
-   IDs (foreign keys into rpkid's database, basicly) in the IRDB. The
+   rpkid/irdbd.sql. Once this database has been populated, the IRBE stub
+   needs to create the appropriate objects in rpkid's database via the
+   control subset of the left-right protocol, and store the linkage IDs
+   (foreign keys into rpkid's database, basicly) in the IRDB. The
    irbe-setup.py program shows an example of how to do this.
 
    irdbd's default config file is irdbd.conf, start irdbd with "-c
@@ -623,5 +623,5 @@ testpoke.py
      __________________________________________________________________
 
 
-    Generated on Tue Apr 29 20:43:06 2008 for Resource PKI Engine by
+    Generated on Tue Apr 29 23:31:33 2008 for Resource PKI Engine by
     doxygen 1.5.5

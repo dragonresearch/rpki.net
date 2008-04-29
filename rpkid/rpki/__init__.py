@@ -394,7 +394,7 @@
 ## 
 ## irdbd requires a pre-populated database to represent the IR's
 ## customers.  irdbd expects this database to use the SQL schema defined
-## in rpkid/sample-irdb.sql.  Once this database has been populated, the
+## in rpkid/irdbd.sql.  Once this database has been populated, the
 ## IRBE stub needs to create the appropriate objects in rpkid's database
 ## via the control subset of the left-right protocol, and store the
 ## linkage IDs (foreign keys into rpkid's database, basicly) in the

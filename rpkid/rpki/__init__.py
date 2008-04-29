@@ -20,6 +20,15 @@
 # since its existance defines the package, it's as sensible a place as
 # any to put the Doxygen mainpage.
 
+# The "usage" text in the OPERATIONS section is a pain to keep
+# syncrhonized with programs like irbe-cli.py which generate their
+# usage dynamically.  In theory we could address this by running each
+# of these programs with the --help option, saving the resulting usage
+# message to a file, and including it here using Doxygen's
+# "verbinclude" command.  There's a similar problem with config files,
+# though, and I see no obvious way to automate them.  Keeping the
+# documentation with the config file options would be nice.  Someday.
+
 ## @mainpage
 ##
 ## This collection of Python modules implements a prototype of the
@@ -100,14 +109,14 @@
 ## easiest way to do this, eg:
 ## 
 ## @verbatim
-##   $ cd $top/scripts
+##   $ cd $top/rpkid
 ##   $ mysql -u root -p <testbed.sql
 ## @endverbatim
 ## 
 ## To run the tests, run "make all-tests":
 ## 
 ## @verbatim
-##   $ cd $top/scripts
+##   $ cd $top/rpkid
 ##   $ make all-tests
 ## @endverbatim
 ## 
@@ -122,7 +131,13 @@
 ## production-side RPKI tools, for Internet Registries (RIRs, LIRs, etc).
 ## See ../rcynic/README for relying party tools.
 ## 
-## At present the package is intended to be run out of the @c scripts/
+## @warning
+## rpkid is still in development, and the code changes more often than
+## the hand-maintained portions of this documentation.  The following
+## text was reasonably accurate at the time it was written but may be
+## obsolete by the time you read it.
+##
+## At present the package is intended to be run out of the @c rpkid/
 ## directory.
 ## 
 ## In addition to the library routines in the @c rpkid/rpki/ directory,
@@ -379,7 +394,7 @@
 ## 
 ## irdbd requires a pre-populated database to represent the IR's
 ## customers.  irdbd expects this database to use the SQL schema defined
-## in docs/sample-irdb.sql.  Once this database has been populated, the
+## in rpkid/sample-irdb.sql.  Once this database has been populated, the
 ## IRBE stub needs to create the appropriate objects in rpkid's database
 ## via the control subset of the left-right protocol, and store the
 ## linkage IDs (foreign keys into rpkid's database, basicly) in the

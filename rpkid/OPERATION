@@ -7,7 +7,13 @@ Operation
    These are the production-side RPKI tools, for Internet Registries
    (RIRs, LIRs, etc). See ../rcynic/README for relying party tools.
 
-   At present the package is intended to be run out of the scripts/
+   Warning:
+          rpkid is still in development, and the code changes more often
+          than the hand-maintained portions of this documentation. The
+          following text was reasonably accurate at the time it was
+          written but may be obsolete by the time you read it.
+
+   At present the package is intended to be run out of the rpkid/
    directory.
 
    In addition to the library routines in the rpkid/rpki/ directory, the
@@ -209,7 +215,7 @@ irdbd.py
 
    irdbd requires a pre-populated database to represent the IR's
    customers. irdbd expects this database to use the SQL schema defined in
-   docs/sample-irdb.sql. Once this database has been populated, the IRBE
+   rpkid/sample-irdb.sql. Once this database has been populated, the IRBE
    stub needs to create the appropriate objects in rpkid's database via
    the control subset of the left-right protocol, and store the linkage
    IDs (foreign keys into rpkid's database, basicly) in the IRDB. The
@@ -278,18 +284,23 @@ irbe-cli.py
    parent     --action= --type= --tag= --self_id= --parent_id=
               --bsc_id= --repository_id= --peer_contact_uri=
               --sia_base= --sender_name= --recipient_name=
-              --peer_biz_cert= --peer_biz_glue= --rekey --reissue --revoke
+              --bpki_cms_cert= --bpki_cms_glue=
+              --bpki_https_cert= --bpki_https_glue=
+              --rekey --reissue --revoke
 
    repository --action= --type= --tag= --self_id= --repository_id=
-              --bsc_id= --peer_contact_uri= --peer_biz_cert= --peer_biz_glue=
+              --bsc_id= --peer_contact_uri=
+              --bpki_cms_cert= --bpki_cms_glue=
+              --bpki_https_cert= --bpki_https_glue=
 
    self       --action= --type= --tag= --self_id= --crl_interval=
+              --bpki_cert= --bpki_glue=
               --extension_preference= --rekey --reissue --revoke
-               --run_now --publish_world_now
-               --clear_extension_preferences
+              --run_now --publish_world_now
+              --clear_extension_preferences
 
    child      --action= --type= --tag= --self_id= --child_id=
-              --bsc_id= --peer_biz_cert= --peer_biz_glue= --reissue
+              --bsc_id= --bpki_cms_cert= --bpki_cms_glue= --reissue
 
    route_origin --action= --type= --tag= --self_id= --route_origin_id=
                --as_number= --ipv4= --ipv6= --suppress_publication
@@ -612,5 +623,5 @@ testpoke.py
      __________________________________________________________________
 
 
-    Generated on Thu Apr 10 09:50:53 2008 for Resource PKI Engine by
+    Generated on Tue Apr 29 16:40:17 2008 for Resource PKI Engine by
     doxygen 1.5.5

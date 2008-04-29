@@ -22,12 +22,6 @@ repository-engine-objects.pdf	Graphviz source for "
 
 repository-structure.txt	Old notes on repository structure
 
-rpki-db-schema.pdf		Current working draft of SQL objects
-rpki-db-schema.sql		in the RPKI engine
-
-sample-irbe.pdf			A toy database representing the IR back end
-sample-irbe.sql			database
-
 signed-manifests		ASN.1 for signed manifests
 
 up-down-protocol		Pointer to up-down protocol specification

@@ -14,6 +14,11 @@
 -- OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 -- PERFORMANCE OF THIS SOFTWARE.
 
+-- SQL objects needed by irdbd.py.  You only need this if you're using
+-- irdbd.py as your IRDB; if you have a "real" backend you can do
+-- anything you like so long as you implement the relevant portion of
+-- the left-right protocol.
+
 DROP TABLE IF EXISTS registrant;
 
 CREATE TABLE registrant (

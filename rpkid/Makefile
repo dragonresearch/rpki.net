@@ -59,6 +59,8 @@ dox doxygen:
 	${TWEAKHTML} rpki/html/Installation.html | ${HTML2TEXT} >INSTALLATION
 	${TWEAKHTML} rpki/html/Operation.html    | ${HTML2TEXT} >OPERATION
 
+doc:: dox
+
 tags:
 	find . -type f -name '*.py' ! -name relaxng.py | etags -
 
@@ -68,8 +70,9 @@ rpki/relaxng.py: left-right-schema.rng up-down-schema.rng make-relaxng.py
 	python make-relaxng.py >$@.tmp
 	mv $@.tmp $@
 
-all:: rpki-db-schema.pdf
-all:: sample-irdb.pdf
+pdf: rpki-db-schema.pdf irdbd.pdf
+
+doc:: pdf
 
 # all-tests:: all; sh -x rootd.sh run
 

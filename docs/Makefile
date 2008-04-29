@@ -1,13 +1,10 @@
 # $Id$
 
-all: rpki-db-schema.pdf sample-irdb.pdf repository-engine-objects.pdf bpki.pdf
+all: repository-engine-objects.pdf bpki.pdf
 
 bpki.pdf: bpki-symmetric.pdf bpki-asymmetric.pdf
 
-.SUFFIXES: .pdf .sql .dot .tex
-
-.sql.pdf:
-	sh ../scripts/graphviz-sql.sh $<
+.SUFFIXES: .pdf .dot .tex
 
 .dot.pdf:
 	dot -Tps2 $< | ps2pdf - $@

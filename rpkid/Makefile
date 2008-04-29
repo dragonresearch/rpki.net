@@ -1,5 +1,10 @@
 # $Id$
 
+.SUFFIXES: .pdf .sql
+
+.sql.pdf:
+	-sh ../scripts/graphviz-sql.sh $<
+
 all:: left-right-protocol-samples/.stamp
 
 left-right-protocol-samples/.stamp: left-right-protocol-samples.xsl ../docs/left-right-xml
@@ -62,6 +67,9 @@ all:: rpki/relaxng.py
 rpki/relaxng.py: left-right-schema.rng up-down-schema.rng make-relaxng.py
 	python make-relaxng.py >$@.tmp
 	mv $@.tmp $@
+
+all:: rpki-db-schema.pdf
+all:: sample-irdb.pdf
 
 # all-tests:: all; sh -x rootd.sh run
 

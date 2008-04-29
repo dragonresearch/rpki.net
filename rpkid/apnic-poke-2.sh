@@ -23,7 +23,7 @@ set -ex
 
 # Blow away old rpkid database (!) so we can start clean
 
-mysql -u rpki -p`awk '$1 == "sql-password" {print $3}' rpkid.conf` rpki <../docs/rpki-db-schema.sql
+mysql -u rpki -p`awk '$1 == "sql-password" {print $3}' rpkid.conf` rpki <rpki-db-schema.sql
 
 # Clear out any old publication results
 

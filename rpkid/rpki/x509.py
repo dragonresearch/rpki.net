@@ -189,6 +189,14 @@ class DER_object(object):
     """Get the SIA extension from this object.  Only works for subclasses that support getExtension()."""
     return (self.get_POWpkix().getExtension(rpki.oids.name2oid["subjectInfoAccess"]) or ((), 0, None))[2]
 
+  def get_basicConstraints(self):
+    """Get the basicConstraints extension from this object.  Only works for subclasses that support getExtension()."""
+    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["basicConstraints"]) or ((), 0, None))[2]
+
+  def is_CA(self):
+    """Return True if and only if object has the basicConstraints extension and its cA value is true."""
+    return self.get_basicConstraints()[0] != 0
+
   def get_3779resources(self):
     """Get RFC 3779 resources as rpki.resource_set objects.
     Only works for subclasses that support getExtensions().

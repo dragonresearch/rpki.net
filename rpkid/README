@@ -55,12 +55,21 @@ TO DO:
       - Update business trust anchor model to what was defined in Amsterdam. This
 	was a direct result of security review by Kent and Housley.
 
-	This is probably not a lot of coding, probably a few extra certificate
-	fields that need to be passed in when verifying CMS or TLS.  So far the
-	existing TA fields in various objects have become pairs of certificates
-	instead of a TA, but they're not yet tied into a real single TA.   We
-	may also need a cert or two in the <self/> object so that we can tie
-	everything together into a single TA for the entire RPKI engine instance.
+	Much of this is now done.  Remaining tasks:
+
+	    Add CRL to BSC
+	    Check for CRL in received CMS
+	    Check chain length in received CMS
+	    Check chain length in received TLS
+	    Check EE vs CA during validation
+	    If CMS cert in SQL is EE:
+	       Disallow certs in CMS
+	       Disallow CRLs in CMS
+	    Else:
+	       Expect exactly one EE cert in CMS
+	       Expect exactly one CRL in CMS
+	    If TLS cert in SQL is EE:
+	       EE cert in SQL must be same as EE cert received from TLS
 
 	PRIORITY: Required for pilot (security issue)
 

@@ -55,7 +55,7 @@ TWEAKHTML  := xsltproc --html tweak-doc.xsl
 HTML2TEXT  := lynx -dump -nolist -force_html /dev/stdin
 
 dox doxygen:
-	cd rpki && doxygen
+	cd rpki && TZ='' doxygen
 	${TWEAKHTML} rpki/html/Installation.html | ${HTML2TEXT} >INSTALLATION
 	${TWEAKHTML} rpki/html/Operation.html    | ${HTML2TEXT} >OPERATION
 

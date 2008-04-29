@@ -605,18 +605,26 @@ class CMS_object(DER_object):
     if cms.eContentType() != self.econtent_oid:
       raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (cms.eContentType(), self.econtent_oid)
 
-    store = POW.X509Store()
-
-    ta = X509.normalize_chain(ta)
-
-    for x in ta:
-      if self.debug_cms_certs:
-        rpki.log.debug("CMS trusted cert issuer %s subject %s" % (x.getIssuer(), x.getSubject()))
-      store.addTrust(x.get_POW())
+    certs = cms.certs()
+    crls  = cms.crls()
 
     if self.debug_cms_certs:
-      for x in cms.certs():
+      for x in certs:
         rpki.log.debug("Received CMS cert issuer %s subject %s" % (x.getIssuer(), x.getSubject()))
+      for c in crls:
+        rpki.log.debug("Received CMS CRL issuer %s" % c.getIssuer())
+
+    store = POW.X509Store()
+
+    trusted_ee = None
+
+    for x in X509.normalize_chain(ta):
+      if self.debug_cms_certs:
+        rpki.log.debug("CMS trusted cert issuer %s subject %s" % (x.getIssuer(), x.getSubject()))
+      if not x.is_CA():
+        assert trusted_ee is None, "Can't have two EE certs in the same validation chain"
+        trusted_ee = x
+      store.addTrust(x.get_POW())
 
     try:
       content = cms.verify(store)

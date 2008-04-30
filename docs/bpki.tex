@@ -39,21 +39,22 @@ each hosted entity, which scales poorly, or to rely on the TLS
 ``Server Name Indication'' extension (RFC 4366 3.1) which is not yet
 widely implemented.
 
-Here's my engine's view of the BPKI tree in the symmetric model
-(explanation follows):
-
-\begin{center}
+\begin{figure}[hbp]
 \includegraphics[width = 6.5in]{bpki-symmetric}
-\end{center}
+\caption{Symmetric BPKI model}
+\label{bpki-symmetric}
+\end{figure}
 
-Black objects belong to the hosting entity, blue objects belong to the
-hosted entities, red objects are cross-certified objects from peers.
-The arrows indicate certificate issuance: solid arrows are the ones
-that my own RPKI engine will care about during certificate validation,
-dashed arrows show the origin of EE certificates my engine uses to
-sign things.  ``BSC'' stands for ``business signing context,'' which
-is a database object in my implementation representing the context
-needed to sign a CMS message or TLS session.
+Figure \ref{bpki-symmetric} shows my engine's view of the BPKI tree in
+the symmetric model.  Black objects belong to the hosting entity, blue
+objects belong to the hosted entities, red objects are cross-certified
+objects from peers.  The arrows indicate certificate issuance: solid
+arrows are the ones that my own RPKI engine will care about during
+certificate validation, dotted arrows show the origin of EE
+certificates my engine uses to sign things.  ``BSC'' stands for
+``business signing context,'' which is a database object in my
+implementation representing the context needed to sign a CMS message
+or TLS session.
 
 Other than the above-mentioned annoyance with the HTTPS server
 certificate, the ``symmetric'' BPKI model worked out pretty much as
@@ -63,16 +64,17 @@ again excepting the HTTPS server case, where client certificate is the
 first hint that the engine has of the client's identity, so the server
 must be prepared to accept any current client certificate.
 
-Here's my engine's view of the BPKI tree in the asymmetric model:
-
-\begin{center}
+\begin{figure}[hbp]
 \includegraphics[width = 6.5in]{bpki-asymmetric}
-\end{center}
+\caption{Asymmetric BPKI model}
+\label{bpki-asymmetric}
+\end{figure}
 
-Note that not much has changed here from the symmetric case.  As far
-as I can tell, the asymmetric model is just as complex for my engine
-as the symmetric model; the only real difference is that the engine
-has to keep track of a larger number of BSC EE certificates in the
-asymmetric case.
+Figure \ref{bpki-asymmetric} shows my engine's view of the BPKI tree
+in the asymmetric model.  Note that not much has changed here from the
+symmetric case.  As far as I can tell, the asymmetric model is just as
+complex for my engine as the symmetric model; the only real difference
+is that the engine has to keep track of a larger number of BSC EE
+certificates in the asymmetric case.
 
 \end{document}

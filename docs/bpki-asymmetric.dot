@@ -42,12 +42,18 @@ digraph bpki_asymmetric {
 	Ellen_Frank_EE		[ label = "Ellen-Frank\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
 	Ellen_Ginny_EE		[ label = "Ellen-Ginny\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
 	Ellen_Harry_EE		[ label = "Ellen-Harry\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
+	Bob_EE			[ label = "Bob\nEE|{HTTPS up-down|CMS up-down}" ];
+	Carol_EE		[ label = "Carol\nEE|{HTTPS up-down|CMS up-down}" ];
+	Dave_EE			[ label = "Dave\nEE|{HTTPS up-down|CMS up-down}" ];
+	Frank_EE		[ label = "Frank\nEE|{HTTPS up-down|CMS up-down}" ];
+	Ginny_EE		[ label = "Ginny\nEE|{HTTPS up-down|CMS up-down}" ];
+	Harry_EE		[ label = "Bob\nEE|{HTTPS up-down|CMS up-down}" ];
 
 	edge			[ color = black, style = solid ];
 	TA -> Alice_CA;
 	TA -> Ellen_CA;
 
-	edge			[ color = black, style = dashed ];
+	edge			[ color = black, style = dotted ];
 	TA -> rpkid;
 	TA -> irdbd;
 	TA -> irbe;
@@ -60,11 +66,19 @@ digraph bpki_asymmetric {
 	Ellen_CA -> Ginny_CA;
 	Ellen_CA -> Harry_CA;
 
-	edge			[ color = red, style = dashed ];
+	edge			[ color = red, style = dotted ];
 	Bob_CA   -> Alice_Bob_EE;
 	Carol_CA -> Alice_Carol_EE;
 	Dave_CA  -> Alice_Dave_EE;
 	Frank_CA -> Ellen_Frank_EE;
 	Ginny_CA -> Ellen_Ginny_EE;
 	Harry_CA -> Ellen_Harry_EE;
+
+	edge			[ color = red, style = solid ];
+	Bob_CA   -> Bob_EE;
+	Carol_CA -> Carol_EE;
+	Dave_CA  -> Dave_EE;
+	Frank_CA -> Frank_EE;
+	Ginny_CA -> Ginny_EE;
+	Harry_CA -> Harry_EE;
 }

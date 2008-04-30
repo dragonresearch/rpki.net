@@ -579,6 +579,7 @@ class CMS_object(DER_object):
   
   dump_on_verify_failure = False
   debug_cms_certs = False
+  require_crls = False                  # This is only an option because I haven't implemented sending CRLs yet
 
   def get_DER(self):
     """Get the DER value of this CMS_object."""
@@ -605,8 +606,8 @@ class CMS_object(DER_object):
     if cms.eContentType() != self.econtent_oid:
       raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (cms.eContentType(), self.econtent_oid)
 
-    certs = cms.certs()
-    crls  = cms.crls()
+    certs = [X509(POW = x) for x in cms.certs()]
+    crls  = [CRL(POW = c) for c in cms.crls()]
 
     if self.debug_cms_certs:
       for x in certs:
@@ -625,6 +626,25 @@ class CMS_object(DER_object):
         assert trusted_ee is None, "Can't have two EE certs in the same validation chain"
         trusted_ee = x
       store.addTrust(x.get_POW())
+
+    rpki.log.debug("CMS.verify(): Trusted_EE %s" % repr(trusted_ee))
+    rpki.log.debug("CMS.verify(): Certs %s" % repr(certs))
+    rpki.log.debug("CMS.verify(): CRLS %s" % repr(crls))
+
+    if trusted_ee:
+      if certs and (len(certs) > 1 or certs[0] != trusted_ee):
+        raise rpki.exceptions.UnexpectedCMSCerts, certs
+      if crls:
+        raise rpki.exceptions.UnexpectedCMSCRLs, crls
+    else:
+      if not certs:
+        raise rpki.exceptions.MissingCMSEEcert, certs        
+      if len(certs) > 1 or certs[0].is_CA():
+        raise rpki.exceptions.UnexpectedCMSCerts, certs
+      if self.require_crls and not crls:
+        raise rpki.exceptions.MissingCMSCRL, crls
+      if len(crls) > 1:
+        raise rpki.exceptions.UnexpectedCMSCRLs, crls
 
     try:
       content = cms.verify(store)

@@ -99,3 +99,15 @@ class WrongEContentType(RPKI_Exception):
   
 class EmptyPEM(RPKI_Exception):
   """Couldn't find PEM block to convert."""
+
+class UnexpectedCMSCerts(RPKI_Exception):
+  """Received CMS certs when not expecting any."""
+
+class UnexpectedCMSCRLs(RPKI_Exception):
+  """Received CMS CRLs when not expecting any."""
+
+class MissingCMSEEcert(RPKI_Exception):
+  """Didn't receive CMS EE cert when expecting one."""
+
+class MissingCMSCRL(RPKI_Exception):
+  """Didn't receive CMS CRL when expecting one."""

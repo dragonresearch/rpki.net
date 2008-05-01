@@ -15,7 +15,9 @@
   - OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
   - PERFORMANCE OF THIS SOFTWARE.
   -
-  -  See left-right-protocol for comments.
+  -
+  - This is a collection of sample left-right protocol PDU samples
+  - to use as test cases for the left-right protocol RelaxNG schema.
   -->
 
 <completely_gratuitous_wrapper_element_to_let_me_run_this_through_xmllint>
@@ -238,7 +240,7 @@
     </msg>
     
     <msg version="1" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-        <bsc action="set" type="query" self_id="42" bsc_id="17" clear_signing_certs="yes">
+        <bsc action="set" type="query" self_id="42" bsc_id="17">
             <signing_cert>
                 MIIDHTCCAgWgAwIBAgIJAKUUCoKn9ovVMA0GCSqGSIb3DQEBBQUAMCYxJDAiBgNV
                 BAMTG1Rlc3QgQ2VydGlmaWNhdGUgQWxpY2UgUm9vdDAeFw0wNzA4MDExOTUzMDda
@@ -258,6 +260,17 @@
                 vvqVBYkoBWRbmcy6wVU8JpYegNNgVRbi6zeAq33gS75m9uy+4z8Ql6DqVF0s/y+/
                 240tLCW62X98EzrALKsxhkqVZCtdc5HSRaOQr0K3I03S
             </signing_cert>
+	    <signing_cert_crl>
+	        MIIBfjBoAgEBMA0GCSqGSIb3DQEBCwUAMCYxJDAiBgNVBAMTG1Rlc3QgQ2VydGlm
+		aWNhdGUgUklSIFNFTEYtMRcNMDgwNTAxMDQ1MjAxWhcNMDgwNTMxMDQ1MjAxWqAO
+		MAwwCgYDVR0UBAMCAQEwDQYJKoZIhvcNAQELBQADggEBACTbbaYh+f4EtXFIKPwH
+		K2NYq/MrhE2BnHDyA43siryddtac1E2bOtXPkC74nY5yGm4wZU07qPovJNGu1McG
+		J2hV2uUyAN00lJU3EikrS1ewz7vqjINar1ZUMDkh0wMYKLB9S8SdwNvCf1vcjshz
+		yasBRse9PCH1R0bmDaP8FZM47P55dKiijaN87HQKyZPOExFslnWH+Nr+mAF1xost
+		pwGcc3jreVZWbtQ2RdUDJYcNrSSCH8JYqd5ZgAYcE53xxy43rKcULz054GDFcS/B
+		rprwJgfrjkPttAl80cfrVOUl77ZFfFxzOeHCmQMl9VSoCxmWvnBCBBO4H7meJ7NO
+		gyc=
+	    </signing_cert_crl>
         </bsc>
     </msg>
     
@@ -290,25 +303,6 @@
                 vvqVBYkoBWRbmcy6wVU8JpYegNNgVRbi6zeAq33gS75m9uy+4z8Ql6DqVF0s/y+/
                 240tLCW62X98EzrALKsxhkqVZCtdc5HSRaOQr0K3I03S
             </signing_cert>
-            <signing_cert>
-                MIIDGDCCAgCgAwIBAgIJANkdU8+R7K3fMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
-                BAMTGVRlc3QgQ2VydGlmaWNhdGUgQWxpY2UgQ0EwHhcNMDcwODAxMTk1MzA3WhcN
-                MDcwODMxMTk1MzA3WjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEFsaWNl
-                IEVFMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA64aCougbqPB/PjR9
-                ipPd5c/QGlKh8QsCvh4ka3VjRp+zCUEiOI6W7hKUGVoNlqwFjZo2CsqX8qoW0e/S
-                sQp9RMH80jgYjfxVPvK3S+sMoXredH+PhOqttf1rCEXbvqP4t9FWUdKJz558oHbO
-                MXirP7MFUrWk96F/id+BFG01aKy9RE68DlkcPZAJjpcQ0kEYCIyAQckqgVrIaH2X
-                QiEtB5asHrvGH0N5fmUWDeBfHTGVI3dbc6nLU9RYlVo/RCo0C38fi44/PIdnJCZG
-                4+m2ZXG+QbhNWVr4BsSIpF0oiQDelrebDrK4TYJ4skfwLHdlmJbtaeG7zwukDQkN
-                CIIXRwIDAQABo00wSzAJBgNVHRMEAjAAMB0GA1UdDgQWBBTjSaMtxysroFSek8cD
-                OTdc6+ZY0jAfBgNVHSMEGDAWgBReiOCEd94f7LzmuFbMNonD6PE4GjANBgkqhkiG
-                9w0BAQUFAAOCAQEAH8ccePGVdGeytS14upV+20hxsGHLS66XxZJlQyQmYOwy4OL9
-                F17VODm7UC3h6qnAGbNCvRa6TPah1gRWfwkZDlYC48whDlxi2QX23PcuVKstrv3i
-                MiVcTm6AuVyfDn4DJ89TDUY+bPFne46lpSBxt9xXg6UsHMSthoerTYVcaYNHoGpt
-                wQPCgrYT/bdQeUpAL7rtha+by0x74vUgO8W84MX0XjCWqXgyP/XBlqxjx7B9Gydw
-                5tNbASf9blRIQcQ9uy+S8mOlHQWfOhe6nN++LhVxYlOzdDKFboTmCwYZwNJHhnRl
-                okQ8do5ItBt92MoJgI26PoOiE3xXVyuYb1b7vw==
-            </signing_cert>
         </bsc>
     </msg>
     
@@ -336,25 +330,6 @@
                 jc52x5f4tgdcfBhjnMzkCAx2kvw5Wp3NekkOKl5YYnPK++zT9IBwqrqJmsJvyLPO
                 vvqVBYkoBWRbmcy6wVU8JpYegNNgVRbi6zeAq33gS75m9uy+4z8Ql6DqVF0s/y+/
                 240tLCW62X98EzrALKsxhkqVZCtdc5HSRaOQr0K3I03S
-            </signing_cert>
-            <signing_cert>
-                MIIDGDCCAgCgAwIBAgIJANkdU8+R7K3fMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
-                BAMTGVRlc3QgQ2VydGlmaWNhdGUgQWxpY2UgQ0EwHhcNMDcwODAxMTk1MzA3WhcN
-                MDcwODMxMTk1MzA3WjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEFsaWNl
-                IEVFMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA64aCougbqPB/PjR9
-                ipPd5c/QGlKh8QsCvh4ka3VjRp+zCUEiOI6W7hKUGVoNlqwFjZo2CsqX8qoW0e/S
-                sQp9RMH80jgYjfxVPvK3S+sMoXredH+PhOqttf1rCEXbvqP4t9FWUdKJz558oHbO
-                MXirP7MFUrWk96F/id+BFG01aKy9RE68DlkcPZAJjpcQ0kEYCIyAQckqgVrIaH2X
-                QiEtB5asHrvGH0N5fmUWDeBfHTGVI3dbc6nLU9RYlVo/RCo0C38fi44/PIdnJCZG
-                4+m2ZXG+QbhNWVr4BsSIpF0oiQDelrebDrK4TYJ4skfwLHdlmJbtaeG7zwukDQkN
-                CIIXRwIDAQABo00wSzAJBgNVHRMEAjAAMB0GA1UdDgQWBBTjSaMtxysroFSek8cD
-                OTdc6+ZY0jAfBgNVHSMEGDAWgBReiOCEd94f7LzmuFbMNonD6PE4GjANBgkqhkiG
-                9w0BAQUFAAOCAQEAH8ccePGVdGeytS14upV+20hxsGHLS66XxZJlQyQmYOwy4OL9
-                F17VODm7UC3h6qnAGbNCvRa6TPah1gRWfwkZDlYC48whDlxi2QX23PcuVKstrv3i
-                MiVcTm6AuVyfDn4DJ89TDUY+bPFne46lpSBxt9xXg6UsHMSthoerTYVcaYNHoGpt
-                wQPCgrYT/bdQeUpAL7rtha+by0x74vUgO8W84MX0XjCWqXgyP/XBlqxjx7B9Gydw
-                5tNbASf9blRIQcQ9uy+S8mOlHQWfOhe6nN++LhVxYlOzdDKFboTmCwYZwNJHhnRl
-                okQ8do5ItBt92MoJgI26PoOiE3xXVyuYb1b7vw==
             </signing_cert>
         </bsc>
     </msg>
@@ -1291,9 +1266,3 @@
     </msg>
     
 </completely_gratuitous_wrapper_element_to_let_me_run_this_through_xmllint>
-
-<!--
-  - Local Variables:
-  - compile-command: "xmllint -noout left-right-xml"
-  - End:
- -->

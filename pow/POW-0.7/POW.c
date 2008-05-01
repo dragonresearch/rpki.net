@@ -6857,7 +6857,6 @@ CMS_object_sign(cms_object *self, PyObject *args)
    BIO *bio = NULL;
    CMS_ContentInfo *cms = NULL;
    ASN1_OBJECT *econtent_type = NULL;
-   X509_CRL *crl = NULL;
 
    if (!PyArg_ParseTuple(args, "O!O!s#|OOsI",
                          &x509type, &signcert,
@@ -6926,27 +6925,20 @@ CMS_object_sign(cms_object *self, PyObject *args)
    assert_no_unhandled_openssl_errors();
 
    if (crl_sequence != Py_None) {
-
      if (!PyTuple_Check(crl_sequence) && !PyList_Check(crl_sequence))
         lose_type_error("inapropriate type");
-
      n = PySequence_Size( crl_sequence );
-
      for (i = 0; i < n; i++) {
         if ( !(crlobj = (x509_crl_object *) PySequence_GetItem(crl_sequence, i)))
            goto error;
-
         if (!X_X509_crl_Check(crlobj))
            lose_type_error("inappropriate type");
-
-        if ( !(crl = X509_CRL_dup(crlobj->crl)))
-           lose_type_error("couldn't clone CRL");
-
+        if (!crlobj->crl)
+           lose("CRL object with null crl field!");
         assert_no_unhandled_openssl_errors();
-
-        if (!CMS_add0_crl(self->cms, crl))
+        if (!CMS_add0_crl(self->cms, crlobj->crl))
            lose_openssl_error("could not add CRL to CMS");
-
+        CRYPTO_add(&crlobj->crl->references, 1, CRYPTO_LOCK_X509_CRL);
         Py_DECREF(crlobj);
         crlobj = NULL;
      }

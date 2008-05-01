@@ -443,34 +443,19 @@ class bsc_elt(data_elt):
   
   element_name = "bsc"
   attributes = ("action", "type", "tag", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
-  elements = ('signing_cert',)
-  booleans = ("generate_keypair", "clear_signing_certs")
+  elements = ("signing_cert", "signing_cert_crl")
+  booleans = ("generate_keypair",)
 
   sql_template = rpki.sql.template("bsc", "bsc_id", "self_id", "hash_alg",
                                    ("private_key_id", rpki.x509.RSA),
-                                   ("pkcs10_request", rpki.x509.PKCS10))
+                                   ("pkcs10_request", rpki.x509.PKCS10),
+                                   ("signing_cert", rpki.x509.X509),
+                                   ("signing_cert_crl", rpki.x509.CRL))
 
   private_key_id = None
   pkcs10_request = None
-
-  def __init__(self):
-    """Initialize bsc_elt.""" 
-    self.signing_cert = []
-
-  def sql_fetch_hook(self):
-    """Extra SQL fetch actions for bsc_elt -- handle signing certs."""
-    self.gctx.cur.execute("SELECT cert FROM bsc_cert WHERE bsc_id = %s", (self.bsc_id,))
-    self.signing_cert = [rpki.x509.X509(DER = x) for (x,) in self.gctx.cur.fetchall()]
-
-  def sql_insert_hook(self):
-    """Extra SQL insert actions for bsc_elt -- handle signing certs."""
-    if self.signing_cert:
-      self.gctx.cur.executemany("INSERT bsc_cert (cert, bsc_id) VALUES (%s, %s)",
-                                ((x.get_DER(), self.bsc_id) for x in self.signing_cert))
-
-  def sql_delete_hook(self):
-    """Extra SQL delete actions for bsc_elt -- handle signing certs."""
-    self.gctx.cur.execute("DELETE FROM bsc_cert WHERE bsc_id = %s", (self.bsc_id,))
+  signing_cert = None
+  signing_cert_crl = None
 
   def repositories(self):
     """Fetch all repository objects that link to this BSC object."""
@@ -485,36 +470,29 @@ class bsc_elt(data_elt):
     return child_elt.sql_fetch_where(self.gctx, "bsc_id = %s", (self.bsc_id,))
 
   def serve_pre_save_hook(self, q_pdu, r_pdu):
-    """Extra server actions for bsc_elt -- handle signing certs and key generation."""
-    if self is not q_pdu:
-      if q_pdu.clear_signing_certs:
-        self.signing_cert[:] = []
-      self.signing_cert.extend(q_pdu.signing_cert)
+    """Extra server actions for bsc_elt -- handle key generation.
+    For now this only allows RSA with SHA-256.
+    """
     if q_pdu.generate_keypair:
-      #
-      # For the moment we only support 2048-bit RSA with SHA-256, no
-      # HSM.  Assertion just checks that the schema hasn't changed out
-      # from under this code.
-      #
-      assert (q_pdu.key_type is None or q_pdu.key_type == "rsa") and \
-             (q_pdu.hash_alg is None or q_pdu.hash_alg == "sha256") and \
-             (q_pdu.key_length is None or q_pdu.key_length == 2048)
+      assert q_pdu.key_type in (None, "rsa") and q_pdu.hash_alg in (None, "sha256")
       keypair = rpki.x509.RSA()
-      keypair.generate()
+      keypair.generate(keylength = q_pdu.key_length or 2048)
       self.private_key_id = keypair
       self.pkcs10_request = rpki.x509.PKCS10.create(keypair)
       r_pdu.pkcs10_request = self.pkcs10_request
 
   def startElement(self, stack, name, attrs):
     """Handle <bsc/> element."""
-    if not name in ("signing_cert", "pkcs10_request"):
+    if name not in ("pkcs10_request", "signing_cert", "signing_cert_crl"):
       assert name == "bsc", "Unexpected name %s, stack %s" % (name, stack)
       self.read_attrs(attrs)
 
   def endElement(self, stack, name, text):
     """Handle <bsc/> element."""
     if name == "signing_cert":
-      self.signing_cert.append(rpki.x509.X509(Base64 = text))
+      self.signing_cert = rpki.x509.X509(Base64 = text)
+    elif name == "signing_cert_crl":
+      self.signing_cert_crl = rpki.x509.CRL(Base64 = text)
     elif name == "pkcs10_request":
       self.pkcs10_request = rpki.x509.PKCS10(Base64 = text)
     else:
@@ -524,8 +502,10 @@ class bsc_elt(data_elt):
   def toXML(self):
     """Generate <bsc/> element."""
     elt = self.make_elt()
-    for cert in self.signing_cert:
-      self.make_b64elt(elt, "signing_cert", cert.get_DER())
+    if self.signing_cert is not None:
+      self.make_b64elt(elt, "signing_cert", self.signing_cert.get_DER())
+    if self.signing_cert_crl is not None:
+      self.make_b64elt(elt, "signing_cert_crl", self.signing_cert_crl.get_DER())
     if self.pkcs10_request is not None:
       self.make_b64elt(elt, "pkcs10_request", self.pkcs10_request.get_DER())
     return elt
@@ -632,7 +612,10 @@ class parent_elt(data_elt):
       payload = q_pdu,
       sender = self.sender_name,
       recipient = self.recipient_name)
-    q_cms = rpki.up_down.cms_msg.wrap(q_msg, bsc.private_key_id, bsc.signing_cert)
+
+    q_cms = rpki.up_down.cms_msg.wrap(q_msg, bsc.private_key_id,
+                                      bsc.signing_cert,
+                                      bsc.signing_cert_crl)
 
     der = rpki.https.client(server_ta    = (self.gctx.bpki_ta,
                                             self.self().bpki_cert, self.self().bpki_glue,
@@ -645,6 +628,7 @@ class parent_elt(data_elt):
     r_msg = rpki.up_down.cms_msg.unwrap(der, (self.gctx.bpki_ta,
                                               self.self().bpki_cert, self.self().bpki_glue,
                                               self.bpki_cms_cert, self.bpki_cms_glue))
+
     r_msg.payload.check_response()
     return r_msg
 
@@ -741,7 +725,8 @@ class child_elt(data_elt):
     # sane way of reporting errors in the error reporting mechanism.
     # May require refactoring, ignore the issue for now.
     #
-    r_cms = rpki.up_down.cms_msg.wrap(r_msg, bsc.private_key_id, bsc.signing_cert)
+    r_cms = rpki.up_down.cms_msg.wrap(r_msg, bsc.private_key_id,
+                                      bsc.signing_cert, bsc.signing_cert_crl)
     return r_cms
 
 class repository_elt(data_elt):

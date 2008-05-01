@@ -45,19 +45,11 @@ CREATE TABLE bsc (
         private_key_id          LONGBLOB,
         pkcs10_request          LONGBLOB,
         hash_alg                ENUM ('sha256'),
+        signing_cert            LONGBLOB,
+        signing_cert_crl        LONGBLOB,
         self_id                 BIGINT unsigned NOT NULL,
         PRIMARY KEY             (bsc_id),
         FOREIGN KEY             (self_id) REFERENCES self
-);
-
-DROP TABLE IF EXISTS bsc_cert;
-
-CREATE TABLE bsc_cert (
-        bsc_cert_id             SERIAL NOT NULL,
-        cert                    LONGBLOB,
-        bsc_id                  BIGINT unsigned NOT NULL,
-        PRIMARY KEY             (bsc_cert_id),
-        FOREIGN KEY             (bsc_id) REFERENCES bsc
 );
 
 DROP TABLE IF EXISTS repository;

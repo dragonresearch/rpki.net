@@ -140,13 +140,17 @@ class global_context(object):
     """
 
     rpki.log.trace()
-    for s in rpki.left_right.self_elt.sql_fetch_all(self):
-      s.client_poll()
-      s.update_children()
-      s.update_roas()
-      s.regenerate_crls_and_manifests()
-    self.sql_sweep()
-    return 200, "OK"
+    try:
+      for s in rpki.left_right.self_elt.sql_fetch_all(self):
+        s.client_poll()
+        s.update_children()
+        s.update_roas()
+        s.regenerate_crls_and_manifests()
+      self.sql_sweep()
+      return 200, "OK"
+    except Exception, data:
+      rpki.log.error(traceback.format_exc())
+      return 500, "Unhandled exception %s" % data
 
   ## @var https_ta_cache
   # HTTPS trust anchor cache, to avoid regenerating it for every TLS connection.

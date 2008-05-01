@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="US-ASCII"?>
 <!--Automatically generated, do not edit.-->
 <msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1">
-  <bsc action="set" type="query" self_id="42" bsc_id="17" clear_signing_certs="yes">
+  <bsc action="set" type="query" self_id="42" bsc_id="17">
     <signing_cert>
                 MIIDHTCCAgWgAwIBAgIJAKUUCoKn9ovVMA0GCSqGSIb3DQEBBQUAMCYxJDAiBgNV
                 BAMTG1Rlc3QgQ2VydGlmaWNhdGUgQWxpY2UgUm9vdDAeFw0wNzA4MDExOTUzMDda
@@ -21,5 +21,16 @@
                 vvqVBYkoBWRbmcy6wVU8JpYegNNgVRbi6zeAq33gS75m9uy+4z8Ql6DqVF0s/y+/
                 240tLCW62X98EzrALKsxhkqVZCtdc5HSRaOQr0K3I03S
             </signing_cert>
+    <signing_cert_crl>
+	        MIIBfjBoAgEBMA0GCSqGSIb3DQEBCwUAMCYxJDAiBgNVBAMTG1Rlc3QgQ2VydGlm
+		aWNhdGUgUklSIFNFTEYtMRcNMDgwNTAxMDQ1MjAxWhcNMDgwNTMxMDQ1MjAxWqAO
+		MAwwCgYDVR0UBAMCAQEwDQYJKoZIhvcNAQELBQADggEBACTbbaYh+f4EtXFIKPwH
+		K2NYq/MrhE2BnHDyA43siryddtac1E2bOtXPkC74nY5yGm4wZU07qPovJNGu1McG
+		J2hV2uUyAN00lJU3EikrS1ewz7vqjINar1ZUMDkh0wMYKLB9S8SdwNvCf1vcjshz
+		yasBRse9PCH1R0bmDaP8FZM47P55dKiijaN87HQKyZPOExFslnWH+Nr+mAF1xost
+		pwGcc3jreVZWbtQ2RdUDJYcNrSSCH8JYqd5ZgAYcE53xxy43rKcULz054GDFcS/B
+		rprwJgfrjkPttAl80cfrVOUl77ZFfFxzOeHCmQMl9VSoCxmWvnBCBBO4H7meJ7NO
+		gyc=
+	    </signing_cert_crl>
   </bsc>
 </msg>

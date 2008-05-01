@@ -95,7 +95,11 @@ class bsc_elt(cmd_mixin, rpki.left_right.bsc_elt):
 
   def client_query_signing_cert(self, arg):
     """--signing_cert option."""
-    self.signing_cert.append(rpki.x509.X509(Auto_file=arg))
+    self.signing_cert = rpki.x509.X509(Auto_file=arg)
+
+  def client_query_signing_cert_crl(self, arg):
+    """--signing_cert_crl option."""
+    self.signing_cert_crl = rpki.x509.CRL(Auto_file=arg)
 
   def client_reply_decode(self):
     global pem_out

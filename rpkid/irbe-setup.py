@@ -62,7 +62,6 @@ self_id = pdu.self_id
 
 print "Create a business signing context"
 pdu = rpki.left_right.bsc_elt.make_pdu(action = "create", self_id = self_id, generate_keypair = True)
-pdu.signing_cert.append(rpki.x509.X509(Auto_file = "biz-certs/Bob-CA.cer"))
 pdu = call_rpkid(pdu)
 bsc_id = pdu.bsc_id
 
@@ -77,8 +76,7 @@ cer = rpki.x509.X509(PEM = o.read())
 o.close()
 
 print "Set up the business cert chain"
-pdu = rpki.left_right.bsc_elt.make_pdu(action = "set", self_id = self_id, bsc_id = bsc_id)
-pdu.signing_cert.append(cer)
+pdu = rpki.left_right.bsc_elt.make_pdu(action = "set", self_id = self_id, bsc_id = bsc_id, signing_cert = cer)
 call_rpkid(pdu)
 
 print "Create a repository context"

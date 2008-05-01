@@ -584,7 +584,6 @@ class allocation(object):
     else:
       certifier = self.name + "-SELF-1"
     certfile = certifier + "-" + certificant + ".cer"
-    rpki.log.trace()
     rpki.log.info("Cross certifying %s into %s's BPKI (%s)" % (certificant, certifier, certfile))
     signer = subprocess.Popen((prog_openssl, "x509", "-req", "-sha256", "-text",
                                "-extensions", "req_x509_ext", "-CAcreateserial",
@@ -638,9 +637,10 @@ class allocation(object):
       rpki.log.error(signed[1])
       raise RuntimeError, "Couldn't issue BSC EE certificate"
     bsc_ee = rpki.x509.X509(PEM = signed[0])
+    bsc_crl = rpki.x509.CRL(PEM_file = self.name + "-SELF-1.crl")
 
     rpki.log.info("Installing BSC EE cert for %s" % self.name)
-    self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "set", self_id = self.self_id, bsc_id = self.bsc_id, signing_cert = (bsc_ee,)))
+    self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "set", self_id = self.self_id, bsc_id = self.bsc_id, signing_cert = bsc_ee, signing_cert_crl = bsc_crl))
 
     # Once we have a real repository protocol we'll have to do cross-certification here
     rpki.log.info("Creating rpkid repository object for %s" % self.name)
@@ -745,6 +745,9 @@ def setup_bpki_cert_chain(name, ee = (), ca = ()):
   for kind in ee + ca:
     d["kind"] =  kind
     s += bpki_cert_fmt_5 % d
+  for kind in ("TA",) + ca:
+    d["kind"] =  kind
+    s += bpki_cert_fmt_6 % d
   subprocess.check_call(s, shell = True)
 
 def setup_rootd(rpkid_name, rpkid_tag):
@@ -828,6 +831,20 @@ CN                      = Test Certificate %(name)s %(kind)s
 basicConstraints        = CA:%(ca)s
 subjectKeyIdentifier    = hash
 authorityKeyIdentifier  = keyid:always
+
+
+[ ca ]
+default_ca = ca_default
+
+[ ca_default ]
+
+certificate             = %(name)s-%(kind)s.cer
+serial                  = %(name)s-%(kind)s.srl
+private_key             = %(name)s-%(kind)s.key
+database                = %(name)s-%(kind)s.idx
+crlnumber               = %(name)s-%(kind)s.cnm
+default_crl_days        = 30
+default_md              = sha256
 '''
 
 bpki_cert_fmt_2 = '''\
@@ -836,6 +853,8 @@ bpki_cert_fmt_2 = '''\
 
 bpki_cert_fmt_3 = '''\
 %(openssl)s req -new -sha256 -key %(name)s-%(kind)s.key -out %(name)s-%(kind)s.req -config %(name)s-%(kind)s.conf &&
+touch %(name)s-%(kind)s.idx &&
+echo >%(name)s-%(kind)s.cnm 01 &&
 '''
 
 bpki_cert_fmt_4 = '''\
@@ -845,6 +864,10 @@ bpki_cert_fmt_4 = '''\
 bpki_cert_fmt_5 = ''' && \
 %(openssl)s x509 -req -sha256 -in %(name)s-%(kind)s.req -out %(name)s-%(kind)s.cer -extfile %(name)s-%(kind)s.conf -extensions req_x509_ext -days 30 -text \
                      -CA %(name)s-TA.cer -CAkey %(name)s-TA.key -CAcreateserial \
+'''
+
+bpki_cert_fmt_6 = ''' && \
+%(openssl)s ca -batch -gencrl -out %(name)s-%(kind)s.crl -config %(name)s-%(kind)s.conf \
 '''
 
 yaml_fmt_1 = '''---

@@ -511,7 +511,7 @@ class RSA(DER_object):
   def generate(self, keylength = 2048):
     """Generate a new keypair."""
     self.clear()
-    self.set(POW=POW.Asymmetric(POW.RSA_CIPHER, keylength))
+    self.set(POW = POW.Asymmetric(POW.RSA_CIPHER, keylength))
 
   def get_public_DER(self):
     """Get the DER encoding of the public key from this keypair."""
@@ -659,6 +659,8 @@ class CMS_object(DER_object):
   def sign(self, keypair, certs, crls = None, no_certs = False):
     """Sign and wrap inner content."""
 
+    rpki.log.trace()
+
     if isinstance(certs, X509):
       cert = certs
       certs = ()
@@ -666,14 +668,25 @@ class CMS_object(DER_object):
       cert = certs[0]
       certs = certs[1:]
 
+    if crls:
+      rpki.log.warn("CMS CRL support disabled due to an OpenSSL bug I haven't tracked down yet, ignoring CRL")
+      crls = ()
+
+    if crls is None:
+      crls = ()
+    elif isinstance(crls, CRL):
+      crls = (crls,)
+
     cms = POW.CMS()
+
     cms.sign(cert.get_POW(),
              keypair.get_POW(),
              self.encode(),
              [x.get_POW() for x in certs],
-             crls,
+             [c.get_POW() for c in crls],
              self.econtent_oid,
              POW.CMS_NOCERTS if no_certs else 0)
+
     self.DER = cms.derWrite()
 
 class DER_CMS_object(CMS_object):
@@ -771,12 +784,13 @@ class XML_CMS_object(CMS_object):
       raise
 
   @classmethod
-  def wrap(cls, msg, keypair, certs, pretty_print = False):
+  def wrap(cls, msg, keypair, certs, crls = None, pretty_print = False):
     """Build a CMS-wrapped XML PDU and return its DER encoding."""
+    rpki.log.trace()
     self = cls()
     self.set_content(msg.toXML())
     self.schema_check()
-    self.sign(keypair, certs)
+    self.sign(keypair, certs, crls)
     if pretty_print:
       return self.get_DER(), self.pretty_print_content()
     else:

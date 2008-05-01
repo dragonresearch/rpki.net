@@ -52,8 +52,8 @@ def lr_tester(elt_in, elt_out, msg):
   assert isinstance(msg, rpki.left_right.msg)
   if verbose:
     for bsc in [x for x in msg if isinstance(x, rpki.left_right.bsc_elt)]:
-      for cert in bsc.signing_cert:
-        pprint_cert(cert)
+      if bsc.signing_cert is not None:
+        pprint_cert(bsc.signing_cert)
 
 test(fileglob = "up-down-protocol-samples/*.xml",
      rng = rpki.relaxng.up_down,

@@ -7,8 +7,8 @@
 
 all:: left-right-protocol-samples/.stamp
 
-left-right-protocol-samples/.stamp: left-right-protocol-samples.xsl ../docs/left-right-xml
-	xsltproc left-right-protocol-samples.xsl ../docs/left-right-xml
+left-right-protocol-samples/.stamp: left-right-protocol-samples.xsl left-right-protocol-samples.xml
+	xsltproc left-right-protocol-samples.xsl left-right-protocol-samples.xml
 	touch $@
 
 all:: left-right-schema.rng

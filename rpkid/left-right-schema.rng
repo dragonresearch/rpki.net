@@ -312,11 +312,6 @@
         </attribute>
       </optional>
     </optional>
-    <optional>
-      <attribute name="clear_signing_certs">
-        <value>yes</value>
-      </attribute>
-    </optional>
   </define>
   <define name="bsc_id">
     <attribute name="bsc_id">
@@ -324,11 +319,16 @@
     </attribute>
   </define>
   <define name="bsc_payload">
-    <zeroOrMore>
+    <optional>
       <element name="signing_cert">
         <ref name="base64"/>
       </element>
-    </zeroOrMore>
+    </optional>
+    <optional>
+      <element name="signing_cert_crl">
+        <ref name="base64"/>
+      </element>
+    </optional>
   </define>
   <define name="bsc_pkcs10">
     <optional>

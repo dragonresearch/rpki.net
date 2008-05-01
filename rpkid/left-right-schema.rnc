@@ -75,12 +75,12 @@ self_elt |= element self { ctl_dr, self_id }
 bsc_bool = ((attribute generate_keypair { "yes" },
              attribute key_type { "rsa" }?,
              attribute hash_alg { "sha256" }?,
-             attribute key_length { "2048" }?)?,
-            attribute clear_signing_certs { "yes" }?)
+             attribute key_length { "2048" }?)?)
 
 bsc_id = attribute bsc_id { sql_id }
 
-bsc_payload = (element signing_cert { base64 }*)
+bsc_payload = (element signing_cert { base64 }?,
+               element signing_cert_crl { base64 }?)
 
 bsc_pkcs10 = element pkcs10_request { base64 }?
 

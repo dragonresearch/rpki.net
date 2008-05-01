@@ -502,7 +502,7 @@
 ## 
 ##   bsc        --action= --type= --tag= --self_id= --bsc_id=
 ##              --key_type= --hash_alg= --key_length= --signing_cert=
-##              --generate_keypair --clear_signing_certs
+##              --signing_cert_crl= --generate_keypair
 ## @endverbatim
 ## 
 ## Global options (@c --config, @c --help, @c --pem_out) come first, then zero or

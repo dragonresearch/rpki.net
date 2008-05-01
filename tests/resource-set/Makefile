@@ -18,12 +18,13 @@ clean:
 ${BIN}: ${OBJ} ${LIB} Makefile
 	${CC} -g -o $@ ${OBJ} ${LIB}
 
-test: ${BIN} test.conf
-	@echo This test needs more work
-	@echo ''
-	${OPENSSL_DIR}/apps/openssl req -new -x509 -config test.conf -keyout test.key -out test.cer -outform DER
-	@echo ''
+# This test needs more work
+
+test: ${BIN} test.cer
 	./${BIN} -v -a AS:17 -i IPv4:10.0.0.44 -d test.cer
+
+test.cer: test.conf
+	${OPENSSL_DIR}/apps/openssl req -new -x509 -config test.conf -keyout test.key -out test.cer -outform DER
 
 immaculate: clean
 	rm -f test.key test.cer

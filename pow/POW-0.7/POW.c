@@ -287,6 +287,16 @@ typedef struct {
 /*========== helper functions ==========*/
 
 /*
+ * Minimal intervention debug-by-printf() hack, use only for good.
+ */
+
+#if 0
+#define	KVETCH(_msg_)	write(2, _msg_ "\n", sizeof(_msg_))
+#else
+#define KVETCH(_msg_)
+#endif
+
+/*
  * Error handling macros.  These macros make two assumptions:
  *
  * 1) All the macros assume that there's a cleanup label named
@@ -6936,8 +6946,12 @@ CMS_object_sign(cms_object *self, PyObject *args)
         if (!crlobj->crl)
            lose("CRL object with null crl field!");
 
+        KVETCH("CMS_object_sign(): About to call CMS_add0_crl()");
+
         if (!CMS_add0_crl(self->cms, crlobj->crl))
            lose_openssl_error("could not add CRL to CMS");
+
+        KVETCH("CMS_object_sign(): Survived call to CMS_add0_crl()");
 
         CRYPTO_add(&crlobj->crl->references, 1, CRYPTO_LOCK_X509_CRL);
 
@@ -6958,8 +6972,10 @@ CMS_object_sign(cms_object *self, PyObject *args)
     * for now we discard it and move on.
     */
    err = ERR_peek_error();
-   if (ERR_GET_LIB(err) == ERR_LIB_EVP && ERR_GET_FUNC(err) == EVP_F_EVP_PKEY_CTX_CTRL && ERR_GET_REASON(err) == EVP_R_COMMAND_NOT_SUPPORTED)
+   if (ERR_GET_LIB(err) == ERR_LIB_EVP && ERR_GET_FUNC(err) == EVP_F_EVP_PKEY_CTX_CTRL && ERR_GET_REASON(err) == EVP_R_COMMAND_NOT_SUPPORTED) {
+      KVETCH("CMS_object_sign(): Ignoring EVP_R_COMMAND_NOT_SUPPORTED");
       ERR_get_error();          /* Discard this error  */
+   }
 
    assert_no_unhandled_openssl_errors();
 
@@ -7055,8 +7071,10 @@ CMS_object_verify(cms_object *self, PyObject *args)
     * for now we discard it and move on.
     */
    err = ERR_peek_error();
-   if (ERR_GET_LIB(err) == ERR_LIB_EVP && ERR_GET_FUNC(err) == EVP_F_EVP_PKEY_CTX_CTRL && ERR_GET_REASON(err) == EVP_R_COMMAND_NOT_SUPPORTED)
+   if (ERR_GET_LIB(err) == ERR_LIB_EVP && ERR_GET_FUNC(err) == EVP_F_EVP_PKEY_CTX_CTRL && ERR_GET_REASON(err) == EVP_R_COMMAND_NOT_SUPPORTED) {
+      KVETCH("CMS_object_verify(): Ignoring EVP_R_COMMAND_NOT_SUPPORTED");
       ERR_get_error();          /* Discard this error  */
+   }
 
    assert_no_unhandled_openssl_errors();
 

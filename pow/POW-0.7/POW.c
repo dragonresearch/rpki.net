@@ -6901,14 +6901,8 @@ CMS_object_sign(cms_object *self, PyObject *args)
 
    assert_no_unhandled_openssl_errors();
 
-   if ( !(cms = CMS_sign(NULL, NULL, NULL, bio, flags)))
+   if ( !(cms = CMS_sign(NULL, NULL, x509_stack, bio, flags)))
       lose_openssl_error("could not create CMS message");
-
-   assert_no_unhandled_openssl_errors();
-
-   for ( i = 0; i < sk_X509_num(x509_stack); i++ )
-      if ( !CMS_add1_cert(cms, sk_X509_value(x509_stack, i)))
-         lose_openssl_error("could not add cert to CMS message");
 
    assert_no_unhandled_openssl_errors();
 
@@ -6925,20 +6919,30 @@ CMS_object_sign(cms_object *self, PyObject *args)
    assert_no_unhandled_openssl_errors();
 
    if (crl_sequence != Py_None) {
+
      if (!PyTuple_Check(crl_sequence) && !PyList_Check(crl_sequence))
         lose_type_error("inapropriate type");
+
      n = PySequence_Size( crl_sequence );
+
      for (i = 0; i < n; i++) {
+
         if ( !(crlobj = (x509_crl_object *) PySequence_GetItem(crl_sequence, i)))
            goto error;
+
         if (!X_X509_crl_Check(crlobj))
            lose_type_error("inappropriate type");
+
         if (!crlobj->crl)
            lose("CRL object with null crl field!");
-        assert_no_unhandled_openssl_errors();
+
         if (!CMS_add0_crl(self->cms, crlobj->crl))
            lose_openssl_error("could not add CRL to CMS");
+
         CRYPTO_add(&crlobj->crl->references, 1, CRYPTO_LOCK_X509_CRL);
+
+        assert_no_unhandled_openssl_errors();
+
         Py_DECREF(crlobj);
         crlobj = NULL;
      }

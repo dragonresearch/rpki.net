@@ -668,10 +668,6 @@ class CMS_object(DER_object):
       cert = certs[0]
       certs = certs[1:]
 
-    if crls:
-      rpki.log.warn("CMS CRL support disabled due to an OpenSSL bug I haven't tracked down yet, ignoring CRL")
-      crls = ()
-
     if crls is None:
       crls = ()
     elif isinstance(crls, CRL):

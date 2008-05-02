@@ -552,12 +552,12 @@ class RSApublic(DER_object):
     """Calculate the SKI of this public key."""
     return calculate_SKI(self.get_DER())
 
-def POWify(oid):
+def POWify_OID(oid):
   """Utility function to convert tuple form of an OID to
   the dotted-decimal string form that POW uses.
   """
   if isinstance(oid, str):
-    return POWify(rpki.oids.name2oid[oid])
+    return POWify_OID(rpki.oids.name2oid[oid])
   else:
     return ".".join(str(i) for i in oid)
 
@@ -575,12 +575,25 @@ class CMS_object(DER_object):
 
   formats = ("DER",)
   other_clear = ("content",)
-  econtent_oid = POWify("id-data")
+  econtent_oid = POWify_OID("id-data")
   
-  dump_on_verify_failure = False
-  debug_cms_certs = False
-  require_crls = False                  # This is only an option because I haven't implemented sending CRLs yet
+  ## @var dump_on_verify_failure
+  # Set this to True to get dumpasn1 dumps of ASN.1 on CMS verify failures.
 
+  dump_on_verify_failure = False
+
+  ## @var debug_cms_certs
+  # Set this to True to log a lot of chatter about CMS certificates.
+
+  debug_cms_certs = True
+
+  ## @var require_crls
+  # Set this to False to make CMS CRLs optional in the cases where we
+  # would otherwise require them.  Some day this option should go away
+  # and CRLs should be uncondtionally mandatory in such cases.
+
+  require_crls = False
+  
   def get_DER(self):
     """Get the DER value of this CMS_object."""
     assert not self.empty()
@@ -627,11 +640,9 @@ class CMS_object(DER_object):
         trusted_ee = x
       store.addTrust(x.get_POW())
 
-    rpki.log.debug("CMS.verify(): Trusted_EE %s" % repr(trusted_ee))
-    rpki.log.debug("CMS.verify(): Certs %s" % repr(certs))
-    rpki.log.debug("CMS.verify(): CRLS %s" % repr(crls))
-
     if trusted_ee:
+      if self.debug_cms_certs:
+        rpki.log.debug("Trusted CMS EE cert issuer %s subject %s" % (trusted_ee.getIssuer(), trusted_ee.getSubject()))
       if certs and (len(certs) > 1 or certs[0] != trusted_ee):
         raise rpki.exceptions.UnexpectedCMSCerts, certs
       if crls:
@@ -641,8 +652,11 @@ class CMS_object(DER_object):
         raise rpki.exceptions.MissingCMSEEcert, certs        
       if len(certs) > 1 or certs[0].is_CA():
         raise rpki.exceptions.UnexpectedCMSCerts, certs
-      if self.require_crls and not crls:
-        raise rpki.exceptions.MissingCMSCRL, crls
+      if not crls:
+        if self.require_crls:
+          raise rpki.exceptions.MissingCMSCRL, crls
+        else:
+          rpki.log.warn("MISSING CRL!  Ignoring per self.require_crls setting")
       if len(crls) > 1:
         raise rpki.exceptions.UnexpectedCMSCRLs, crls
 
@@ -703,7 +717,7 @@ class SignedManifest(DER_CMS_object):
 
   pem_converter = PEM_converter("RPKI MANIFEST")
   content_class = rpki.manifest.Manifest
-  econtent_oid = POWify("id-ct-rpkiManifest")
+  econtent_oid = POWify_OID("id-ct-rpkiManifest")
   
   def getThisUpdate(self):
     """Get thisUpdate value from this manifest."""
@@ -739,7 +753,7 @@ class ROA(DER_CMS_object):
 
   pem_converter = PEM_converter("ROUTE ORIGIN ATTESTATION")
   content_class = rpki.roa.RouteOriginAttestation
-  econtent_oid = POWify("id-ct-routeOriginAttestation")
+  econtent_oid = POWify_OID("id-ct-routeOriginAttestation")
 
   @classmethod
   def build(cls, as_number, exact_match, ipv4, ipv6, keypair, certs, version = 0):
@@ -757,7 +771,7 @@ class ROA(DER_CMS_object):
 class XML_CMS_object(CMS_object):
   """Class to hold CMS-wrapped XML protocol data."""
 
-  econtent_oid = POWify("id-ct-xml")
+  econtent_oid = POWify_OID("id-ct-xml")
 
   def encode(self):
     """Encode inner content for signing."""
@@ -849,6 +863,10 @@ class CRL(DER_object):
   def getNextUpdate(self):
     """Get nextUpdate value from this CRL."""
     return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().getNextUpdate())
+
+  def getIssuer(self):
+    """Get issuer value of this CRL."""
+    return self.get_POW().getIssuer()
 
   @classmethod
   def generate(cls, keypair, issuer, serial, thisUpdate, nextUpdate, revokedCertificates, version = 1, digestType = "sha256WithRSAEncryption"):

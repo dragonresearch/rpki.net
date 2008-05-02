@@ -6948,7 +6948,7 @@ CMS_object_sign(cms_object *self, PyObject *args)
 
         KVETCH("CMS_object_sign(): About to call CMS_add0_crl()");
 
-        if (!CMS_add0_crl(self->cms, crlobj->crl))
+        if (!CMS_add0_crl(cms, crlobj->crl))
            lose_openssl_error("could not add CRL to CMS");
 
         KVETCH("CMS_object_sign(): Survived call to CMS_add0_crl()");

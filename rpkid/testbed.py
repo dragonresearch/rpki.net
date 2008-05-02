@@ -118,7 +118,6 @@ def main():
 
   rpki.log.init(testbed_name)
   rpki.log.info("Starting")
-  rpki.log.set_trace(True)
 
   signal.signal(signal.SIGALRM, wakeup)
 

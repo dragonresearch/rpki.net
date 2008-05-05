@@ -89,7 +89,7 @@ def query_up_down(q_pdu):
     payload = q_pdu,
     sender = yaml_data["sender-id"],
     recipient = yaml_data["recipient-id"])
-  q_cms = rpki.up_down.cms_msg.wrap(q_msg, cms_key, cms_certs)
+  q_cms = rpki.up_down.cms_msg.wrap(q_msg, cms_key, cms_certs, cms_crl)
   der = rpki.https.client(
     server_ta    = [https_ta] + https_ca_certs,
     client_key   = https_key,
@@ -123,6 +123,7 @@ dispatch = { "list" : do_list, "issue" : do_issue, "revoke" : do_revoke }
 cms_ta         = get_PEM("cms-ca-cert", rpki.x509.X509)
 cms_cert       = get_PEM("cms-cert", rpki.x509.X509)
 cms_key        = get_PEM("cms-key", rpki.x509.RSA)
+cms_crl        = get_PEM("cms-crl", rpki.x509.CRL)
 cms_certs      = get_PEM_chain("cms-cert-chain", cms_cert)
 cms_ca_certs   = get_PEM_chain("cms-ca-certs")
 

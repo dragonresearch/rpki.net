@@ -108,7 +108,7 @@ class global_context(object):
     """Process one left-right PDU."""
     rpki.log.trace()
     try:
-      q_msg = rpki.left_right.cms_msg.unwrap(query, self.bpki_ta)
+      q_msg = rpki.left_right.cms_msg.unwrap(query, (self.bpki_ta, self.irbe_cert))
       r_msg = q_msg.serve_top_level(self)
       reply = rpki.left_right.cms_msg.wrap(r_msg, self.rpkid_key, self.rpkid_cert)
       self.sql_sweep()

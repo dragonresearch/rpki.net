@@ -477,9 +477,10 @@ class allocation(object):
       setup_bpki_cert_chain(self.name, ee = ("RPKI",))
     else:
       setup_bpki_cert_chain(self.name, ee = ("RPKI", "IRDB", "IRBE"), ca = ("SELF-1",))
-      self.rpkid_ta  = rpki.x509.X509(PEM_file = self.name + "-TA.cer")
-      self.irbe_key  = rpki.x509.RSA( PEM_file = self.name + "-IRBE.key")
-      self.irbe_cert = rpki.x509.X509(PEM_file = self.name + "-IRBE.cer")
+      self.rpkid_ta   = rpki.x509.X509(PEM_file = self.name + "-TA.cer")
+      self.irbe_key   = rpki.x509.RSA( PEM_file = self.name + "-IRBE.key")
+      self.irbe_cert  = rpki.x509.X509(PEM_file = self.name + "-IRBE.cer")
+      self.rpkid_cert = rpki.x509.X509(PEM_file = self.name + "-RPKI.cer")
 
   def setup_conf_file(self):
     """Write config files for this entity."""
@@ -559,7 +560,8 @@ class allocation(object):
     rpki.log.info("Calling rpkid for %s" % self.name)
     pdu.type = "query"
     msg = rpki.left_right.msg((pdu,))
-    cms, xml = rpki.left_right.cms_msg.wrap(msg, self.irbe_key, self.irbe_cert, pretty_print = True)
+    cms, xml = rpki.left_right.cms_msg.wrap(msg, self.irbe_key, self.irbe_cert,
+                                            pretty_print = True)
     rpki.log.debug(xml)
     url = "https://localhost:%d/left-right" % self.rpki_port
     rpki.log.debug("Attempting to connect to %s" % url)
@@ -569,7 +571,8 @@ class allocation(object):
       server_ta    = self.rpkid_ta,
       url          = url,
       msg          = cms)
-    msg, xml = rpki.left_right.cms_msg.unwrap(der, self.rpkid_ta, pretty_print = True)
+    msg, xml = rpki.left_right.cms_msg.unwrap(der, (self.rpkid_ta, self.rpkid_cert),
+                                              pretty_print = True)
     rpki.log.debug(xml)
     pdu = msg[0]
     assert pdu.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)
@@ -878,6 +881,7 @@ sender-id:              "%(my_name)s"
 cms-cert-file:          %(my_name)s-RPKI.cer
 cms-key-file:           %(my_name)s-RPKI.key
 cms-ca-cert-file:       %(my_name)s-TA.cer
+cms-crl-file:           %(my_name)s-TA.crl
 cms-ca-certs-file:
   -                     %(my_name)s-TA-%(parent_name)s-TA.cer
   -                     %(my_name)s-TA-%(parent_name)s-SELF-1.cer
@@ -955,6 +959,7 @@ rootd_fmt_1 = '''\
 bpki-ta                 = %(rootd_name)s-TA.cer
 rootd-bpki-cert         = %(rootd_name)s-RPKI.cer
 rootd-bpki-key          = %(rootd_name)s-RPKI.key
+rootd-bpki-crl          = %(rootd_name)s-TA.crl
 child-bpki-cert         = %(rootd_name)s-%(rpkid_name)s.cer
 
 server-port             = %(rootd_port)s

@@ -138,13 +138,13 @@ def up_down_handler(query, path):
     return 400, "Could not process PDU: %s" % data
   try:
     r_msg = q_msg.serve_top_level(None)
-    r_cms = cms_msg.wrap(r_msg, rootd_bpki_key, rootd_bpki_cert)
+    r_cms = cms_msg.wrap(r_msg, rootd_bpki_key, rootd_bpki_cert, rootd_bpki_crl)
     return 200, r_cms
   except Exception, data:
     rpki.log.error(traceback.format_exc())
     try:
       r_msg = q_msg.serve_error(data)
-      r_cms = cms_msg.wrap(r_msg, rootd_bpki_key, rootd_bpki_cert)
+      r_cms = cms_msg.wrap(r_msg, rootd_bpki_key, rootd_bpki_cert, rootd_bpki_crl)
       return 200, r_cms
     except Exception, data:
       rpki.log.error(traceback.format_exc())
@@ -172,6 +172,7 @@ cfg = rpki.config.parser(cfg_file, "rootd")
 bpki_ta         = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
 rootd_bpki_key  = rpki.x509.RSA( Auto_file = cfg.get("rootd-bpki-key"))
 rootd_bpki_cert = rpki.x509.X509(Auto_file = cfg.get("rootd-bpki-cert"))
+rootd_bpki_crl  = rpki.x509.CRL( Auto_file = cfg.get("rootd-bpki-crl"))
 child_bpki_cert = rpki.x509.X509(Auto_file = cfg.get("child-bpki-cert"))
 
 https_server_host = cfg.get("server-host", "")

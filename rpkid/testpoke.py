@@ -118,6 +118,10 @@ def do_revoke():
   q_pdu.ski = yaml_req["ski"]
   query_up_down(q_pdu)
 
+# Some day this should be conditional
+rpki.log.init("testpoke")
+rpki.log.set_trace(True)
+
 dispatch = { "list" : do_list, "issue" : do_issue, "revoke" : do_revoke }
 
 cms_ta         = get_PEM("cms-ca-cert", rpki.x509.X509)

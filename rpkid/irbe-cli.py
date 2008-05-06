@@ -176,10 +176,10 @@ if not argv:
 
 cfg = rpki.config.parser(cfg_file, "irbe-cli")
 
-bpki_ta     = rpki.x509.X509(Auto_file  = cfg.get("bpki-ta"))
-rpkid_cert  = rpki.x509.X509(Auto_files = cfg.get("rpkid-cert"))
-irbe_cert   = rpki.x509.X509(Auto_files = cfg.get("irbe-cert"))
-irbe_key    = rpki.x509.RSA( Auto_file  = cfg.get("irbe-key"))
+bpki_ta     = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
+rpkid_cert  = rpki.x509.X509(Auto_file = cfg.get("rpkid-cert"))
+irbe_cert   = rpki.x509.X509(Auto_file = cfg.get("irbe-cert"))
+irbe_key    = rpki.x509.RSA( Auto_file = cfg.get("irbe-key"))
 https_url   = cfg.get("https-url")
 
 q_msg = rpki.left_right.msg()
@@ -200,7 +200,7 @@ der = rpki.https.client(client_key   = irbe_key,
                         url          = https_url,
                         msg          = q_cms)
 
-r_msg, r_xml = cms_msg.unwrap(der, r_cms, (bpki_ta, rpkid_cert), pretty_print = True)
+r_msg, r_xml = cms_msg.unwrap(der, (bpki_ta, rpkid_cert), pretty_print = True)
 
 print r_xml
 

@@ -31,7 +31,7 @@ import POW
 disable_tls_certificate_validation_exceptions = False
 
 # Chatter suppression
-debug_tls_certs = False
+debug_tls_certs = True
 
 rpki_content_type = "application/x-rpki"
 

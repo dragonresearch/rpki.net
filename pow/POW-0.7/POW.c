@@ -6718,7 +6718,7 @@ CMS_object_der_read(char *src, int len)
      goto error;
 
    if( !(d2i_CMS_bio( bio, &self->cms ) ) )
-      lose("could not load PEM encoded CMS message");
+      lose("could not load DER encoded CMS message");
 
    BIO_free(bio);
 

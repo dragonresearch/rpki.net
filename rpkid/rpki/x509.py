@@ -28,7 +28,7 @@ some of the nasty details.  This involves a lot of format conversion.
 
 import POW, tlslite.api, POW.pkix, base64, lxml.etree, os
 import rpki.exceptions, rpki.resource_set, rpki.oids, rpki.sundial
-import rpki.manifest, rpki.roa
+import rpki.manifest, rpki.roa, rpki.log
 
 def calculate_SKI(public_key_der):
   """Calculate the SKI value given the DER representation of a public
@@ -573,7 +573,7 @@ class CMS_object(DER_object):
   handle via separate methods.
   """
 
-  formats = ("DER",)
+  formats = ("DER", "POW")
   other_clear = ("content",)
   econtent_oid = POWify_OID("id-data")
   
@@ -595,8 +595,8 @@ class CMS_object(DER_object):
   require_crls = False
   
   ## @var print_on_der_error
-  # Log alleged DER when we have trouble parsing it, in case it's
-  # really somebody's Perl debug trace or something.
+  # Set this to True to log alleged DER when we have trouble parsing
+  # it, in case it's really a Perl backtrace or something.
 
   print_on_der_error = True
 
@@ -605,7 +605,17 @@ class CMS_object(DER_object):
     assert not self.empty()
     if self.DER:
       return self.DER
+    if self.POW:
+      self.DER = self.POW.derWrite()
+      return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
+
+  def get_POW(self):
+    """Get the POW value of this CMS_object."""
+    assert not self.empty()
+    if not self.POW:
+      self.POW = POW.derRead(POW.CMS_MESSAGE, self.get_DER())
+    return self.POW
 
   def get_content(self):
     """Get the inner content of this CMS_object."""
@@ -621,15 +631,15 @@ class CMS_object(DER_object):
     """Verify CMS wrapper and store inner content."""
 
     try:
-      cms = POW.derRead(POW.CMS_MESSAGE, self.get_DER())
+      cms = self.get_POW()
     except:
       if self.print_on_der_error:
         rpki.log.debug("Problem parsing DER CMS message, might not really be DER: %s"
                        % repr(self.get_DER()))
-      raise rpki.exceptions.UnparsableCMSDER, self
+      raise rpki.exceptions.UnparsableCMSDER
 
     if cms.eContentType() != self.econtent_oid:
-      raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (cms.eContentType(), self.econtent_oid), cms
+      raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (cms.eContentType(), self.econtent_oid)
 
     certs = [X509(POW = x) for x in cms.certs()]
     crls  = [CRL(POW = c) for c in cms.crls()]
@@ -676,7 +686,12 @@ class CMS_object(DER_object):
       content = cms.verify(store)
     except:
       if self.dump_on_verify_failure:
-        rpki.log.debug("CMS verification failed, dumping ASN.1:\n" + self.dumpasn1())
+        if True:
+          dbg = self.dumpasn1()
+        else:
+          dbg = cms.pprint()
+        print "CMS verification failed, dumping ASN.1 (%d octets):\n%s" \
+                       % (len(self.get_DER()), dbg)
       raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed"
 
     self.decode(content)
@@ -709,7 +724,7 @@ class CMS_object(DER_object):
              self.econtent_oid,
              POW.CMS_NOCERTS if no_certs else 0)
 
-    self.DER = cms.derWrite()
+    self.POW = cms
 
 class DER_CMS_object(CMS_object):
   """Class to hold CMS objects with DER-based content."""
@@ -785,6 +800,20 @@ class XML_CMS_object(CMS_object):
 
   econtent_oid = POWify_OID("id-ct-xml")
 
+  ## @var dump_outbound_cms
+  # If set, we write all outbound XML-CMS PDUs to disk, for debugging.
+  # Value of this variable is prefix portion of filename, tail will
+  # be a timestamp.
+
+  dump_outbound_cms = None
+
+  ## @var dump_outbound_cms
+  # If set, we write all inbound XML-CMS PDUs to disk, for debugging.
+  # Value of this variable is prefix portion of filename, tail will
+  # be a timestamp.
+
+  dump_inbound_cms = None
+
   def encode(self):
     """Encode inner content for signing."""
     return lxml.etree.tostring(self.get_content(), pretty_print = True, encoding = self.encoding, xml_declaration = True)
@@ -805,6 +834,12 @@ class XML_CMS_object(CMS_object):
       rpki.log.error("PDU failed schema check: " + self.pretty_print_content())
       raise
 
+  def dump_to_disk(self, prefix):
+    """Write DER of current message to disk, for debugging."""
+    f = open(prefix + rpki.sundial.now().isoformat() + "Z.cms", "wb")
+    f.write(self.get_DER())
+    f.close()
+
   @classmethod
   def wrap(cls, msg, keypair, certs, crls = None, pretty_print = False):
     """Build a CMS-wrapped XML PDU and return its DER encoding."""
@@ -813,6 +848,8 @@ class XML_CMS_object(CMS_object):
     self.set_content(msg.toXML())
     self.schema_check()
     self.sign(keypair, certs, crls)
+    if self.dump_outbound_cms:
+      self.dump_to_disk(self.dump_outbound_cms)
     if pretty_print:
       return self.get_DER(), self.pretty_print_content()
     else:
@@ -822,6 +859,8 @@ class XML_CMS_object(CMS_object):
   def unwrap(cls, der, ta, pretty_print = False):
     """Unwrap a CMS-wrapped XML PDU and return Python objects."""
     self = cls(DER = der)
+    if self.dump_inbound_cms:
+      self.dump_to_disk(self.dump_inbound_cms)
     self.verify(ta)
     self.schema_check()
     msg = self.saxify(self.get_content())

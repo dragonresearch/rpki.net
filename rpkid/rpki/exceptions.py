@@ -111,3 +111,6 @@ class MissingCMSEEcert(RPKI_Exception):
 
 class MissingCMSCRL(RPKI_Exception):
   """Didn't receive CMS CRL when expecting one."""
+
+class UnparsableCMSDER(RPKI_Exception):
+  """Alleged CMS DER wasn't parsable."""

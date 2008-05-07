@@ -580,7 +580,7 @@ class CMS_object(DER_object):
   ## @var dump_on_verify_failure
   # Set this to True to get dumpasn1 dumps of ASN.1 on CMS verify failures.
 
-  dump_on_verify_failure = False
+  dump_on_verify_failure = True
 
   ## @var debug_cms_certs
   # Set this to True to log a lot of chatter about CMS certificates.
@@ -594,6 +594,12 @@ class CMS_object(DER_object):
 
   require_crls = False
   
+  ## @var print_on_der_error
+  # Log alleged DER when we have trouble parsing it, in case it's
+  # really somebody's Perl debug trace or something.
+
+  print_on_der_error = True
+
   def get_DER(self):
     """Get the DER value of this CMS_object."""
     assert not self.empty()
@@ -614,10 +620,16 @@ class CMS_object(DER_object):
   def verify(self, ta):
     """Verify CMS wrapper and store inner content."""
 
-    cms = POW.derRead(POW.CMS_MESSAGE, self.get_DER())
+    try:
+      cms = POW.derRead(POW.CMS_MESSAGE, self.get_DER())
+    except:
+      if self.print_on_der_error:
+        rpki.log.debug("Problem parsing DER CMS message, might not really be DER: %s"
+                       % repr(self.get_DER()))
+      raise rpki.exceptions.UnparsableCMSDER, self
 
     if cms.eContentType() != self.econtent_oid:
-      raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (cms.eContentType(), self.econtent_oid)
+      raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (cms.eContentType(), self.econtent_oid), cms
 
     certs = [X509(POW = x) for x in cms.certs()]
     crls  = [CRL(POW = c) for c in cms.crls()]

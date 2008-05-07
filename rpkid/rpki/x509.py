@@ -810,7 +810,7 @@ class XML_CMS_object(CMS_object):
   def unwrap(cls, der, ta, pretty_print = False):
     """Unwrap a CMS-wrapped XML PDU and return Python objects."""
     self = cls(DER = der)
-    CMS_object.verify(self, ta)
+    self.verify(ta)
     self.schema_check()
     msg = self.saxify(self.get_content())
     if pretty_print:

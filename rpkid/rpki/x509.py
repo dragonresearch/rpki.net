@@ -818,9 +818,6 @@ class XML_CMS_object(CMS_object):
     else:
       return msg
 
-  def verify(self, ta):
-    raise NotImplementedError, "Should not be calling this, it's obsolete"
-
 class CRL(DER_object):
   """Class to hold a Certificate Revocation List."""
 

@@ -28,7 +28,8 @@ Usage: python cross-certify.py { -i | --in     } input_cert
                                { -k | --key    } issuing_cert_key
                                { -s | --serial } serial_number
                                [ { -h | --help } ]
-                               [ { -o | --out  } output_filename ]
+                               [ { -o | --out  }     filename  (default: stdout)  ]
+                               [ { -l | --lifetime } timedelta (default: 30 days) ]
 """
 
 import os, time, getopt, sys, POW
@@ -42,9 +43,10 @@ def usage(code):
   sys.exit(code)
 
 output = None
+lifetime = rpki.sundial.timedelta(days = 30)
 
-opts,argv = getopt.getopt(sys.argv[1:], "h?i:o:c:k:s:",
-                          ["help", "in", "out", "ca", "key", "serial"])
+opts,argv = getopt.getopt(sys.argv[1:], "h?i:o:c:k:s:l:",
+                          ["help", "in", "out", "ca", "key", "serial", "lifetime"])
 for o,a in opts:
   if o in ("-h", "--help", "-?"):
     usage(0)
@@ -58,11 +60,13 @@ for o,a in opts:
     keypair = rpki.x509.RSA(Auto_file = a)
   elif o in ("-s", "--serial"):
     serial = int(a)
+  elif o in ("-l", "--lifetime"):
+    lifetime = rpki.sundial.timedelta.parse(a)
 if argv:
   usage(1)
 
 now = rpki.sundial.now()
-notAfter = now + rpki.sundial.timedelta(days = 30)
+notAfter = now + lifetime
 
 x = POW.pkix.Certificate()
 x.setVersion(2)

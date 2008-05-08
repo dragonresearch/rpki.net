@@ -43,14 +43,6 @@ def usage(code):
 
 output = None
 
-# debugging only
-
-if True:
-  child   = rpki.x509.X509(Auto_file = "APNIC-CMS-CERT.cer")
-  parent  = rpki.x509.X509(Auto_file = "ISC-SELF-1.cer")
-  keypair = rpki.x509.RSA(Auto_file  = "ISC-SELF-1.key")
-  serial  = 99
-
 opts,argv = getopt.getopt(sys.argv[1:], "h?i:o:c:k:s:",
                           ["help", "in", "out", "ca", "key", "serial"])
 for o,a in opts:

@@ -21,6 +21,7 @@ that occur with the more obvious module names.
 """
 
 import datetime as pydatetime
+import re
 
 def now():
   """Get current timestamp."""
@@ -133,9 +134,40 @@ class datetime(pydatetime.datetime):
     """Return the earlier of two timestamps."""
     return other if other < self else self
 
-# Alias to simplify imports for callers
+class timedelta(pydatetime.timedelta):
+  """Timedelta with text parsing.  This accepts two input formats:
 
-timedelta = pydatetime.timedelta
+  - A simple integer, indicating a number of seconds.
+
+  - A string of the form "wD xH yM zS" where w, x, y, and z are integers
+    and D, H, M, and S indicate days, hours, minutes, and seconds.
+    All of the fields are optional, but at least one must be specified.
+    Eg, "3D4H" means "three days plus four hours".
+  """
+
+  ## @var regexp
+  # Hideously ugly regular expression to parse the complex text form.
+  # Tags are intended for use with re.MatchObject.groupdict() and map
+  # directly to the keywords expected by the timedelta constructor.
+
+  regexp = re.compile("\\s*(?:(?P<days>\\d+)D)?" +
+                      "\\s*(?:(?P<hours>\\d+)H)?" +
+                      "\\s*(?:(?P<minutes>\\d+)M)?" +
+                      "\\s*(?:(?P<seconds>\\d+)S)?\\s*", re.I)
+
+  @classmethod
+  def parse(cls, arg):
+    """Parse text into a timedelta object."""
+    if not isinstance(arg, str):
+      return cls(seconds = arg)
+    elif arg.isdigit():
+      return cls(seconds = int(arg))
+    else:
+      return cls(**dict((k, int(v)) for (k, v) in cls.regexp.match(arg).groupdict().items() if v is not None))
+
+  def convert_to_seconds(self):
+    """Convert a timedelta interval to seconds."""
+    return self.days * 24 * 60 * 60 + self.seconds
 
 if __name__ == "__main__":
 

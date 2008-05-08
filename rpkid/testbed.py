@@ -219,43 +219,6 @@ def main():
     except Exception, data:
       rpki.log.warn("Couldn't clean up daemons (%s), continuing" % data)
 
-# Define time delta parser early, so we can use it while reading config
-
-class timedelta(datetime.timedelta):
-  """Timedelta with text parsing.  This accepts two input formats:
-
-  - A simple integer, indicating a number of seconds.
-
-  - A string of the form "wD xH yM zS" where w, x, y, and z are integers
-    and D, H, M, and S indicate days, hours, minutes, and seconds.
-    All of the fields are optional, but at least one must be specified.
-    Eg, "3D4H" means "three days plus four hours".
-  """
-
-  ## @var regexp
-  # Hideously ugly regular expression to parse the complex text form.
-  # Tags are intended for use with re.MatchObject.groupdict() and map
-  # directly to the keywords expected by the timedelta constructor.
-
-  regexp = re.compile("\\s*(?:(?P<days>\\d+)D)?" +
-                      "\\s*(?:(?P<hours>\\d+)H)?" +
-                      "\\s*(?:(?P<minutes>\\d+)M)?" +
-                      "\\s*(?:(?P<seconds>\\d+)S)?\\s*", re.I)
-
-  @classmethod
-  def parse(cls, arg):
-    """Parse text into a timedelta object."""
-    if not isinstance(arg, str):
-      return cls(seconds = arg)
-    elif arg.isdigit():
-      return cls(seconds = int(arg))
-    else:
-      return cls(**dict((k, int(v)) for (k, v) in cls.regexp.match(arg).groupdict().items() if v is not None))
-
-  def convert_to_seconds(self):
-    """Convert a timedelta interval to seconds."""
-    return self.days * 24 * 60 * 60 + self.seconds
-
 def wakeup(signum, frame):
   """Handler called when we receive a SIGALRM signal."""
   rpki.log.info("Wakeup call received, continuing")
@@ -265,7 +228,7 @@ def cmd_sleep(interval = None):
   if interval is None:
     rpki.log.info("Pausing indefinitely, send a SIGALRM to wake me up")
   else:
-    seconds = timedelta.parse(interval).convert_to_seconds()
+    seconds = rpki.sundial.timedelta.parse(interval).convert_to_seconds()
     rpki.log.info("Sleeping %s seconds" % seconds)
     signal.alarm(seconds)
   signal.pause()
@@ -324,9 +287,9 @@ class allocation_db(list):
     self.root = allocation(yaml, self)
     assert self.root.is_root()
     if self.root.crl_interval is None:
-      self.root.crl_interval = timedelta.parse(cfg.get("crl_interval", "1d")).convert_to_seconds()
+      self.root.crl_interval = rpki.sundial.timedelta.parse(cfg.get("crl_interval", "1d")).convert_to_seconds()
     if self.root.regen_margin is None:
-      self.root.regen_margin = timedelta.parse(cfg.get("regen_margin", "1d")).convert_to_seconds()
+      self.root.regen_margin = rpki.sundial.timedelta.parse(cfg.get("regen_margin", "1d")).convert_to_seconds()
     for a in self:
       if a.sia_base is None:
         a.sia_base = (rootd_sia if a.is_root() else a.parent.sia_base) + a.name + "/"
@@ -376,7 +339,7 @@ class allocation(object):
     self.kids = [allocation(k, db, self) for k in yaml.get("kids", ())]
     valid_until = yaml.get("valid_until")
     if valid_until is None and "valid_for" in yaml:
-      valid_until = datetime.datetime.utcnow() + timedelta.parse(yaml["valid_for"])
+      valid_until = rpki.sundial.now() + rpki.sundial.timedelta.parse(yaml["valid_for"])
     self.base = rpki.resource_set.resource_bag(
       as = rpki.resource_set.resource_set_as(yaml.get("asn")),
       v4 = rpki.resource_set.resource_set_ipv4(yaml.get("ipv4")),
@@ -384,9 +347,9 @@ class allocation(object):
       valid_until = valid_until)
     self.sia_base = yaml.get("sia_base")
     if "crl_interval" in yaml:
-      self.crl_interval = timedelta.parse(yaml["crl_interval"]).convert_to_seconds()
+      self.crl_interval = rpki.sundial.timedelta.parse(yaml["crl_interval"]).convert_to_seconds()
     if "regen_margin" in yaml:
-      self.regen_margin = timedelta.parse(yaml["regen_margin"]).convert_to_seconds()
+      self.regen_margin = rpki.sundial.timedelta.parse(yaml["regen_margin"]).convert_to_seconds()
     self.route_origins = set()
     if "route_origin" in yaml:
       for y in yaml.get("route_origin"):
@@ -416,9 +379,9 @@ class allocation(object):
   def apply_sub_v6(self, text): self.base.v6 = self.base.v6.difference(rpki.resource_set.resource_set_ipv6(text))
 
   def apply_valid_until(self, stamp): self.base.valid_until = stamp
-  def apply_valid_for(self, text):    self.base.valid_until = datetime.datetime.utcnow() + timedelta.parse(text)
-  def apply_valid_add(self, text):    self.base.valid_until += timedelta.parse(text)
-  def apply_valid_sub(self, text):    self.base.valid_until -= timedelta.parse(text)
+  def apply_valid_for(self, text):    self.base.valid_until = rpki.sundial.now() + rpki.sundial.timedelta.parse(text)
+  def apply_valid_add(self, text):    self.base.valid_until += rpki.sundial.timedelta.parse(text)
+  def apply_valid_sub(self, text):    self.base.valid_until -= rpki.sundial.timedelta.parse(text)
 
   def apply_route_origin_add(self, yaml):
     for y in yaml:

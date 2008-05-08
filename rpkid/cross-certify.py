@@ -89,7 +89,7 @@ x.setExtensions(((rpki.oids.name2oid["subjectKeyIdentifier"], False,
                     (rpki.oids.name2oid["authorityKeyIdentifier"], False,
                      (parent.get_SKI(), (), None)),
                     (rpki.oids.name2oid["basicConstraints"], True,
-                     (1, None))))
+                     (1, 0))))
 x.sign(keypair.get_POW(), POW.SHA256_DIGEST)
 
 cert = rpki.x509.X509(POWpkix = x)

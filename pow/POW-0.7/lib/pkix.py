@@ -333,13 +333,20 @@ class Validity(Sequence):
       contents = [self.notBefore, self.notAfter]
       Sequence.__init__(self, contents, optional, default)
 
+# IA5String should not be allowed in DirectoryString, but old
+# implementations (deprecated but not quite outlawed by RFC 3280)
+# sometimes use it for EmailAddress attributes in subject names, which
+# triggers decode failures here unless we violate RFC 3280 by allowing
+# IA5String.  Do not use, do not use, do not use.
+
 class DirectoryString(Choice):
    def __init__(self, optional=0, default=''):
       choices =   {  'teletexString'            :  T61String(),
                      'printableString'          :  PrintableString(),
                      'universalString'          :  UniversalString(),
                      'bmpString'                :  BmpString(),
-                     'utf8String'               :  Utf8String()   } 
+                     'utf8String'               :  Utf8String(),
+                     'ia5String'                :  IA5String()    } 
 
       Choice.__init__(self, choices, optional, default)
 

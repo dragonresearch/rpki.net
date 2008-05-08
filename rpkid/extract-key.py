@@ -23,6 +23,8 @@ it is occasionally useful to be able to extract the private key from
 MySQL.  This script is just a convenience, it doesn't enable anything
 that couldn't be done via the mysql command line tool.
 
+While we're at this we also extract the corresponding certificate.
+
 Usage: python extract-key.py [ { -s | --self     } self_id        ]
                              [ { -b | --bsc      } bsc_id         ]
                              [ { -u | --user     } mysql_user_id  ]
@@ -71,10 +73,12 @@ if argv:
 
 cur = MySQLdb.connect(user = user, db = db, passwd = passwd).cursor()
 
-cur.execute("SELECT private_key_id FROM bsc WHERE self_id = %s AND bsc_id = %s",
+cur.execute("SELECT private_key_id, signing_cert FROM bsc WHERE self_id = %s AND bsc_id = %s",
             (self_id, bsc_id))
 
-key = rpki.x509.RSA(DER = cur.fetchone()[0])
+key, cer = cur.fetchone()
 
-print key.get_PEM()
+print rpki.x509.RSA(DER = key).get_PEM()
 
+if cer:
+  print rpki.x509.X509(DER = cer).get_PEM()

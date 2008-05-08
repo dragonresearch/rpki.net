@@ -26,7 +26,7 @@ refactoring.
 Usage: python cross-certify.py { -i | --in     } input_cert
                                { -c | --ca     } issuing_cert
                                { -k | --key    } issuing_cert_key
-                               { -s | --serial } serial_number
+                               { -s | --serial } serial_filename
                                [ { -h | --help } ]
                                [ { -o | --out  }     filename  (default: stdout)  ]
                                [ { -l | --lifetime } timedelta (default: 30 days) ]
@@ -46,7 +46,7 @@ output = None
 lifetime = rpki.sundial.timedelta(days = 30)
 
 opts,argv = getopt.getopt(sys.argv[1:], "h?i:o:c:k:s:l:",
-                          ["help", "in", "out", "ca", "key", "serial", "lifetime"])
+                          ["help", "in=", "out=", "ca=", "key=", "serial=", "lifetime="])
 for o,a in opts:
   if o in ("-h", "--help", "-?"):
     usage(0)
@@ -59,7 +59,7 @@ for o,a in opts:
   elif o in ("-k", "--key"):
     keypair = rpki.x509.RSA(Auto_file = a)
   elif o in ("-s", "--serial"):
-    serial = int(a)
+    serial_file = a
   elif o in ("-l", "--lifetime"):
     lifetime = rpki.sundial.timedelta.parse(a)
 if argv:
@@ -67,6 +67,14 @@ if argv:
 
 now = rpki.sundial.now()
 notAfter = now + lifetime
+
+try:
+  f = open(serial_file, "r")
+  serial = f.read()
+  f.close()
+  serial = int(serial.splitlines()[0], 16)
+except IOError:
+  serial = 1
 
 x = POW.pkix.Certificate()
 x.setVersion(2)
@@ -85,6 +93,10 @@ x.setExtensions(((rpki.oids.name2oid["subjectKeyIdentifier"], False,
 x.sign(keypair.get_POW(), POW.SHA256_DIGEST)
 
 cert = rpki.x509.X509(POWpkix = x)
+
+f = open(serial_file, "w")
+f.write("%02x\n" % (serial + 1))
+f.close()
 
 if output is None:
   print cert.get_PEM()

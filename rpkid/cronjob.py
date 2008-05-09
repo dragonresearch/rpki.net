@@ -40,10 +40,14 @@ if argv:
 
 cfg = rpki.config.parser(cfg_file, "cronjob")
 
+# Some day this should be conditional
+rpki.log.init("cronjob")
+rpki.log.set_trace(True)
+
 irbe_key   = rpki.x509.RSA( Auto_file = cfg.get("irbe-key"))
-irbe_cert  = rpki.x509.X509(Auto_files = cfg.get("irbe-cert"))
-bpki_ta    = rpki.x509.X509(Auto_files = cfg.get("bpki-ta"))
-rpkid_cert = rpki.x509.X509(Auto_files = cfg.get("rpkid-cert"))
+irbe_cert  = rpki.x509.X509(Auto_file = cfg.get("irbe-cert"))
+bpki_ta    = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
+rpkid_cert = rpki.x509.X509(Auto_file = cfg.get("rpkid-cert"))
 
 print rpki.https.client(client_key   = irbe_key,
                         client_cert  = irbe_cert,

@@ -60,7 +60,7 @@ class Checker(tlslite.api.Checker):
 
     for x in trust_anchor:
       if debug_tls_certs:
-        rpki.log.debug("HTTPS trusted cert issuer %s subject %s" % (x.getIssuer(), x.getSubject()))
+        rpki.log.debug("HTTPS trusted cert issuer %s [%s] subject %s [%s]" % (x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
       self.x509store.addTrust(x.get_POW())
 
   def x509store_thunk(self):
@@ -83,7 +83,7 @@ class Checker(tlslite.api.Checker):
 
     if debug_tls_certs:
       for i in range(len(chain)):
-        rpki.log.debug("Received %s TLS cert[%d] issuer %s subject %s" % (peer, i, chain[i].getIssuer(), chain[i].getSubject()))
+        rpki.log.debug("Received %s TLS cert[%d] issuer %s [%s] subject %s [%s]" % (peer, i, chain[i].getIssuer(), chain[i].hAKI(), chain[i].getSubject(), chain[i].hSKI()))
 
     if not self.x509store_thunk().verifyChain(chain[0].get_POW(), [x.get_POW() for x in chain[1:]]):
       if disable_tls_certificate_validation_exceptions:

@@ -165,7 +165,8 @@ class DER_object(object):
     """Return hexadecimal string representation of SKI for this
     object.  Only work for subclasses that implement get_SKI().
     """
-    return ":".join(("%02X" % ord(i) for i in self.get_SKI()))
+    ski = self.get_SKI()
+    return ":".join(("%02X" % ord(i) for i in ski)) if ski else ""
 
   def gSKI(self):
     """Calculate g(SKI) for this object.  Only work for subclasses
@@ -173,9 +174,23 @@ class DER_object(object):
     """
     return base64.urlsafe_b64encode(self.get_SKI()).rstrip("=")
 
+  def hAKI(self):
+    """Return hexadecimal string representation of AKI for this
+    object.  Only work for subclasses that implement get_AKI().
+    """
+    aki = self.get_AKI()
+    return ":".join(("%02X" % ord(i) for i in aki)) if aki else ""
+
+  def gAKI(self):
+    """Calculate g(AKI) for this object.  Only work for subclasses
+    that implement get_AKI().
+    """
+    return base64.urlsafe_b64encode(self.get_AKI()).rstrip("=")
+
   def get_AKI(self):
     """Get the AKI extension from this object.  Only works for subclasses that support getExtension()."""
-    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["authorityKeyIdentifier"]) or ((), 0, None))[2]
+    aki = (self.get_POWpkix().getExtension(rpki.oids.name2oid["authorityKeyIdentifier"]) or ((), 0, None))[2]
+    return aki[0] if isinstance(aki, tuple) else aki
 
   def get_SKI(self):
     """Get the SKI extension from this object.  Only works for subclasses that support getExtension()."""
@@ -191,11 +206,12 @@ class DER_object(object):
 
   def get_basicConstraints(self):
     """Get the basicConstraints extension from this object.  Only works for subclasses that support getExtension()."""
-    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["basicConstraints"]) or ((), 0, (0, None)))[2]
+    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["basicConstraints"]) or ((), 0, None))[2]
 
   def is_CA(self):
     """Return True if and only if object has the basicConstraints extension and its cA value is true."""
-    return self.get_basicConstraints()[0] != 0
+    basicConstraints = self.get_basicConstraints()
+    return basicConstraints and basicConstraints[0] != 0
 
   def get_3779resources(self):
     """Get RFC 3779 resources as rpki.resource_set objects.

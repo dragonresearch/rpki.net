@@ -183,7 +183,7 @@ class global_context(object):
               [self.irbe_cert, self.irdb_cert, self.bpki_ta]
       for x in certs:
         if rpki.https.debug_tls_certs:
-          rpki.log.debug("HTTPS dynamic trusted cert issuer %s subject %s" % (x.getIssuer(), x.getSubject()))
+          rpki.log.debug("HTTPS dynamic trusted cert issuer %s [%s] subject %s [%s]" % (x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
         store.addTrust(x.get_POW())
       self.https_ta_cache = store
 

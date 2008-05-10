@@ -67,6 +67,7 @@ class sql_persistant(object):
     key, we check for a cache hit directly in the hope of bypassing the
     SQL lookup entirely.
     """
+    assert isinstance(id, (int, long))
     key = (cls, id)
     if key in gctx.sql_cache:
       return gctx.sql_cache[key]

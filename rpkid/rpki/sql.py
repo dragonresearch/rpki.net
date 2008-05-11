@@ -80,7 +80,7 @@ class sql_persistant(object):
     if key in gctx.sql_cache:
       return gctx.sql_cache[key]
     else:
-      return cls.sql_fetch_where1(gctx, "%s = %s", (cls.sql_template.index, id))
+      return cls.sql_fetch_where1(gctx, "%s = %%s" % cls.sql_template.index, (id,))
 
   @classmethod
   def sql_fetch_where1(cls, gctx, where, args = None):
@@ -104,9 +104,13 @@ class sql_persistant(object):
   def sql_fetch_where(cls, gctx, where, args = None):
     """Fetch objects of this type matching an arbitrary SQL WHERE expression."""
     if where is None:
+      assert args is None
+      rpki.log.debug("sql_fetch_where(%s)" % repr(cls.sql_template.select))
       gctx.cur.execute(cls.sql_template.select)
     else:
-      gctx.cur.execute(cls.sql_template.select + " WHERE " + where, args)
+      query = cls.sql_template.select + " WHERE " + where
+      rpki.log.debug("sql_fetch_where(%s, %s)" % (repr(query), repr(args)))
+      gctx.cur.execute(query, args)
     results = []
     for row in gctx.cur.fetchall():
       key = (cls, row[0])

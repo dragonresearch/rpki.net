@@ -84,7 +84,6 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
 
   def bsc(self):
     """Return BSC object to which this object links."""
-    assert isinstance(self.bsc_id, (int, long))
     return bsc_elt.sql_fetch(self.gctx, self.bsc_id)
 
   @classmethod

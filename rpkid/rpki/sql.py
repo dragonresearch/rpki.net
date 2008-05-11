@@ -62,12 +62,20 @@ class sql_persistant(object):
 
   @classmethod
   def sql_fetch(cls, gctx, id):
-    """Fetch one object from SQL, based on its primary key.  Since in
-    this one case we know that the primary index is also the cache
-    key, we check for a cache hit directly in the hope of bypassing the
-    SQL lookup entirely.
+    """Fetch one object from SQL, based on its primary key.
+
+    Since in this one case we know that the primary index is also the
+    cache key, we check for a cache hit directly in the hope of
+    bypassing the SQL lookup entirely.
+
+    This method is usually called via a one-line class-specific
+    wrapper.  As a convenience, we also accept an id of None, and just
+    return None in this case.
     """
-    assert isinstance(id, (int, long))
+
+    if id is None:
+      return None
+    assert isinstance(id, (int, long)), "id should be an integer, was %s" % repr(type(id))
     key = (cls, id)
     if key in gctx.sql_cache:
       return gctx.sql_cache[key]

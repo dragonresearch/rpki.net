@@ -31,9 +31,7 @@ class global_context(object):
 
   def __init__(self, cfg):
 
-    self.db = MySQLdb.connect(user   = cfg.get("sql-username"),
-                              db     = cfg.get("sql-database"),
-                              passwd = cfg.get("sql-password"))
+    self.db = rpki.sql.connect(cfg)
     self.cur = self.db.cursor()
 
     self.bpki_ta    = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))

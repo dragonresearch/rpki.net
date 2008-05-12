@@ -30,8 +30,11 @@ import POW
 # Do not set this to True for production use!
 disable_tls_certificate_validation_exceptions = False
 
-# Chatter suppression
+# Chatter about TLS certificates
 debug_tls_certs = True
+
+# Vile debugging hack
+pem_dump_tls_certs = False
 
 rpki_content_type = "application/x-rpki"
 
@@ -62,6 +65,8 @@ class Checker(tlslite.api.Checker):
       if debug_tls_certs:
         rpki.log.debug("HTTPS trusted cert issuer %s [%s] subject %s [%s]" % (x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
       self.x509store.addTrust(x.get_POW())
+      if pem_dump_tls_certs:
+        print x.get_PEM()
 
   def x509store_thunk(self):
     if self.dynamic_x509store is not None:
@@ -84,6 +89,8 @@ class Checker(tlslite.api.Checker):
     if debug_tls_certs:
       for i in range(len(chain)):
         rpki.log.debug("Received %s TLS cert[%d] issuer %s [%s] subject %s [%s]" % (peer, i, chain[i].getIssuer(), chain[i].hAKI(), chain[i].getSubject(), chain[i].hSKI()))
+        if pem_dump_tls_certs:
+          print chain[i].get_PEM()
 
     result = self.x509store_thunk().verifyDetailed(chain[0].get_POW(), [x.get_POW() for x in chain[1:]])
     rpki.log.debug("TLS certificate validation result %s" % repr(result))

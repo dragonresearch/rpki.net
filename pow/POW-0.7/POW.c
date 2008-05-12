@@ -2053,6 +2053,78 @@ error:
    return NULL;
 }
 
+static char x509_store_object_verify_detailed__doc__[] =
+"<method>\n"
+"   <header>\n"
+"      <memberof>X509Store</memberof>\n"
+"      <name>verifyDetailed</name>\n"
+"      <parameter>certificate</parameter>\n"
+"      <optional>\n"
+"        <parameter>chain</parameter>\n"
+"      </optional>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         The <classname>X509Store</classname> method <function>verifyDetailed</function> \n"
+"         is based on the <function>X509_verify_cert</function> but is initialised \n"
+"         with a <classname>X509</classname> object to verify and list of \n"
+"         <classname>X509</classname> objects which form a chain to a trusted \n"
+"         certificate.  Certain aspects of the verification are handled but not others.  \n"
+"         The certificates will be verified against <constant>notBefore</constant>, \n"
+"         <constant>notAfter</constant> and trusted certificates.  It crucially will \n"
+"         not handle checking the certificate against CRLs.  This functionality will \n"
+"         probably make it into OpenSSL 0.9.7.\n"
+"      </para>\n"
+"      <para>\n"
+"         This may all sound quite straight forward but determining the \n"
+"         certificate associated with the signature on another certificate\n"
+"         can be very time consuming.  The management aspects of\n"
+"         certificates are addressed by various V3 extensions which are not\n"
+"         currently supported.\n"
+"      </para>\n"
+"      <para>\n"
+"         Unlike the <function>verify</function> and <function>verifyChain</function>\n"
+"         methods, <function>verifyDetailed</function> returns some information about\n"
+"         what went wrong when verification fails.  The return value is currently a 3-tuple:\n"
+"         the first value is the return value from X509_verify_cert(), the second and third\n"
+"         are the error and error_depth values from the X509_STORE_CTX.\n"
+"         Other values may added to this tuple later.\n"
+"   </body>\n"
+"</method>\n"
+;
+
+static PyObject *
+x509_store_object_verify_detailed(x509_store_object *self, PyObject *args)
+{
+   PyObject *x509_sequence = Py_None;
+   X509_STORE_CTX csc;
+   x509_object *x509 = NULL;
+   STACK_OF(X509) *x509_stack = NULL;
+   PyObject *result = NULL;
+   int ret = 0;
+
+   if (!PyArg_ParseTuple(args, "O!|O", &x509type, &x509, &x509_sequence))
+      goto error;
+
+   if (x509_sequence && !(x509_stack = x509_helper_sequence_to_stack(x509_sequence)))
+      goto error;
+
+   X509_STORE_CTX_init( &csc, self->store, x509->x509, x509_stack );
+
+   ret = X509_verify_cert( &csc );
+
+   result = Py_BuildValue("(iii)", ret, csc.error, csc.error_depth);
+
+   X509_STORE_CTX_cleanup( &csc );
+
+error:                          /* fall through */
+
+   if (x509_stack)
+      sk_X509_free(x509_stack);
+
+   return result;
+}
+
 static char x509_store_object_add_trust__doc__[] =
 "<method>\n"
 "   <header>\n"
@@ -2130,10 +2202,11 @@ error:
 }
 
 static struct PyMethodDef x509_store_object_methods[] = {
-   {"verify",           (PyCFunction)x509_store_object_verify,       METH_VARARGS,  NULL}, 
-   {"verifyChain",      (PyCFunction)x509_store_object_verify_chain, METH_VARARGS,  NULL}, 
-   {"addTrust",         (PyCFunction)x509_store_object_add_trust,    METH_VARARGS,  NULL}, 
-   {"addCrl",           (PyCFunction)x509_store_object_add_crl,      METH_VARARGS,  NULL}, 
+   {"verify",         (PyCFunction)x509_store_object_verify,          METH_VARARGS,  NULL}, 
+   {"verifyChain",    (PyCFunction)x509_store_object_verify_chain,    METH_VARARGS,  NULL}, 
+   {"verifyDetailed", (PyCFunction)x509_store_object_verify_detailed, METH_VARARGS,  NULL}, 
+   {"addTrust",       (PyCFunction)x509_store_object_add_trust,       METH_VARARGS,  NULL}, 
+   {"addCrl",         (PyCFunction)x509_store_object_add_crl,         METH_VARARGS,  NULL}, 
  
    {NULL,      NULL}    /* sentinel */
 };
@@ -8351,6 +8424,7 @@ pow_module_docset(PyObject *self, PyObject *args)
    docset_helper_add( docset, x509_storetype__doc__ );
    docset_helper_add( docset, x509_store_object_verify__doc__ );
    docset_helper_add( docset, x509_store_object_verify_chain__doc__ );
+   docset_helper_add( docset, x509_store_object_verify_detailed__doc__ );
    docset_helper_add( docset, x509_store_object_add_trust__doc__ );
    docset_helper_add( docset, x509_store_object_add_crl__doc__ );
 

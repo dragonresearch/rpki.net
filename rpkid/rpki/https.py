@@ -85,7 +85,9 @@ class Checker(tlslite.api.Checker):
       for i in range(len(chain)):
         rpki.log.debug("Received %s TLS cert[%d] issuer %s [%s] subject %s [%s]" % (peer, i, chain[i].getIssuer(), chain[i].hAKI(), chain[i].getSubject(), chain[i].hSKI()))
 
-    if not self.x509store_thunk().verifyChain(chain[0].get_POW(), [x.get_POW() for x in chain[1:]]):
+    result = self.x509store_thunk().verifyDetailed(chain[0].get_POW(), [x.get_POW() for x in chain[1:]])
+    rpki.log.debug("TLS certificate validation result %s" % repr(result))
+    if not result[0]:
       if disable_tls_certificate_validation_exceptions:
         rpki.log.warn("DANGER WILL ROBINSON!  IGNORING TLS VALIDATION FAILURE!")
       else:

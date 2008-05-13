@@ -277,7 +277,10 @@ class X509(DER_object):
       self.DER = self.POWpkix.toString()
       return self.get_DER()
     if self.tlslite:
-      self.DER = self.tlslite.writeBytes()
+      der = self.tlslite.writeBytes()
+      if not isinstance(der, str): # Apparently sometimes tlslite strings aren't strings,
+        der = der.tostring()       # then again somtimes they are.  Isn't that special?
+      self.DER = der
       return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 

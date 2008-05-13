@@ -7019,14 +7019,8 @@ CMS_object_sign(cms_object *self, PyObject *args)
         if (!crlobj->crl)
            lose("CRL object with null crl field!");
 
-        KVETCH("CMS_object_sign(): About to call CMS_add0_crl()");
-
-        if (!CMS_add0_crl(cms, crlobj->crl))
+        if (!CMS_add1_crl(cms, crlobj->crl))
            lose_openssl_error("could not add CRL to CMS");
-
-        KVETCH("CMS_object_sign(): Survived call to CMS_add0_crl()");
-
-        CRYPTO_add(&crlobj->crl->references, 1, CRYPTO_LOCK_X509_CRL);
 
         assert_no_unhandled_openssl_errors();
 
@@ -7037,18 +7031,6 @@ CMS_object_sign(cms_object *self, PyObject *args)
 
    if ( !CMS_final(cms, bio, NULL, flags))
       lose_openssl_error("could not finalize CMS signatures");
-
-   /*
-    * I'm seeing a succesful return from CMS_final() with an
-    * EVP_R_COMMAND_NOT_SUPPORTED error left on the error stack.
-    * Smells like an OpenSSL bug.  Appears to do no immediate harm, so
-    * for now we discard it and move on.
-    */
-   err = ERR_peek_error();
-   if (ERR_GET_LIB(err) == ERR_LIB_EVP && ERR_GET_FUNC(err) == EVP_F_EVP_PKEY_CTX_CTRL && ERR_GET_REASON(err) == EVP_R_COMMAND_NOT_SUPPORTED) {
-      KVETCH("CMS_object_sign(): Ignoring EVP_R_COMMAND_NOT_SUPPORTED");
-      ERR_get_error();          /* Discard this error  */
-   }
 
    assert_no_unhandled_openssl_errors();
 
@@ -7136,18 +7118,6 @@ CMS_object_verify(cms_object *self, PyObject *args)
 
    if (CMS_verify(self->cms, certs_stack, store->store, NULL, bio, flags) <= 0)
       lose_openssl_error("could not verify CMS message");
-
-   /*
-    * I'm seeing a succesful return from CMS_verify() with an
-    * EVP_R_COMMAND_NOT_SUPPORTED error left on the error stack.
-    * Smells like an OpenSSL bug.  Appears to do no immediate harm, so
-    * for now we discard it and move on.
-    */
-   err = ERR_peek_error();
-   if (ERR_GET_LIB(err) == ERR_LIB_EVP && ERR_GET_FUNC(err) == EVP_F_EVP_PKEY_CTX_CTRL && ERR_GET_REASON(err) == EVP_R_COMMAND_NOT_SUPPORTED) {
-      KVETCH("CMS_object_verify(): Ignoring EVP_R_COMMAND_NOT_SUPPORTED");
-      ERR_get_error();          /* Discard this error  */
-   }
 
    assert_no_unhandled_openssl_errors();
 

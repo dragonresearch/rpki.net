@@ -420,7 +420,7 @@ class allocation(object):
     if self.kids:               s += " Kids: %s\n" % ", ".join(k.name for k in self.kids)
     if self.parent:             s += "   Up: %s\n" % self.parent.name
     if self.sia_base:           s += "  SIA: %s\n" % self.sia_base
-    return s + "Until: %s\n" % self.resources.valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return s + "Until: %s\n" % self.resources.valid_until
 
   def is_leaf(self): return not self.kids and not self.route_origins
   def is_root(self): return self.parent is None
@@ -475,7 +475,7 @@ class allocation(object):
     for sql in irdb_sql:
       cur.execute(sql)
     for kid in self.kids:
-      cur.execute("INSERT registrant (IRBE_mapped_id, subject_name, valid_until) VALUES (%s, %s, %s)", (kid.name, kid.name, kid.resources.valid_until))
+      cur.execute("INSERT registrant (IRBE_mapped_id, subject_name, valid_until) VALUES (%s, %s, %s)", (kid.name, kid.name, kid.resources.valid_until.to_sql()))
     db.close()
 
   def sync_sql(self):
@@ -497,7 +497,7 @@ class allocation(object):
         cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)", (v4_range.min, v4_range.max, registrant_id))
       for v6_range in kid.resources.v6:
         cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)", (v6_range.min, v6_range.max, registrant_id))
-      cur.execute("UPDATE registrant SET valid_until = %s WHERE registrant_id = %s", (kid.resources.valid_until, registrant_id))
+      cur.execute("UPDATE registrant SET valid_until = %s WHERE registrant_id = %s", (kid.resources.valid_until.to_sql(), registrant_id))
     db.close()
 
   def run_daemons(self):
@@ -527,7 +527,6 @@ class allocation(object):
                                             pretty_print = True)
     rpki.log.debug(xml)
     url = "https://localhost:%d/left-right" % self.rpki_port
-    rpki.log.debug("Attempting to connect to %s" % url)
     der = rpki.https.client(
       client_key   = self.irbe_key,
       client_cert  = self.irbe_cert,

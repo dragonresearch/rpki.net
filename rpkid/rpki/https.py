@@ -31,10 +31,7 @@ import POW
 disable_tls_certificate_validation_exceptions = False
 
 # Chatter about TLS certificates
-debug_tls_certs = True
-
-# Vile debugging hack
-pem_dump_tls_certs = False
+debug_tls_certs = False
 
 rpki_content_type = "application/x-rpki"
 
@@ -47,6 +44,17 @@ def tlslite_certChain(x509):
 
 class Checker(tlslite.api.Checker):
   """Derived class to handle X.509 client certificate checking."""
+
+  ## @var refuse_tls_ca_certs
+  # Raise an exception upon receiving CA certificates via TLS rather
+  # than just quietly ignoring them.
+
+  refuse_tls_ca_certs = False
+
+  ## @var pem_dump_tls_certs
+  # Vile debugging hack
+
+  pem_dump_tls_certs = False
 
   def __init__(self, trust_anchor = None, dynamic_x509store = None):
     """Initialize our modified certificate checker."""
@@ -65,7 +73,7 @@ class Checker(tlslite.api.Checker):
       if debug_tls_certs:
         rpki.log.debug("HTTPS trusted cert issuer %s [%s] subject %s [%s]" % (x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
       self.x509store.addTrust(x.get_POW())
-      if pem_dump_tls_certs:
+      if self.pem_dump_tls_certs:
         print x.get_PEM()
 
   def x509store_thunk(self):
@@ -75,7 +83,11 @@ class Checker(tlslite.api.Checker):
       return self.x509store
 
   def __call__(self, tlsConnection):
-    """POW/OpenSSL-based certificate checker."""
+    """POW/OpenSSL-based certificate checker.
+
+    Given our BPKI model, we're only interested in the TLS EE
+    certificates.
+    """
 
     if tlsConnection._client:
       chain = tlsConnection.session.serverCertChain
@@ -87,18 +99,23 @@ class Checker(tlslite.api.Checker):
     chain = [rpki.x509.X509(tlslite = chain.x509List[i]) for i in range(chain.getNumCerts())]
 
     ee = None
+
     for x in chain:
+
       if debug_tls_certs:
         rpki.log.debug("Received %s TLS %s cert issuer %s [%s] subject %s [%s]"
                        % (peer, "CA" if x.is_CA() else "EE", x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
-        if pem_dump_tls_certs:
+        if self.pem_dump_tls_certs:
           print x.get_PEM()
+
       if x.is_CA():
-        rpki.log.debug("Ignoring received TLS CA cert")
-      elif ee is None:
-        ee = x
-      else:
+        if self.refuse_tls_ca_certs:
+          raise rpki.exceptions.ReceivedTLSCACert
+        continue
+
+      if ee is not None:
         raise rpki.exceptions.MultipleTLSEECert, chain
+      ee = x
 
     result = self.x509store_thunk().verifyDetailed(ee.get_POW())
     if not result[0]:

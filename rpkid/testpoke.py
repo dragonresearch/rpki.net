@@ -41,6 +41,7 @@ def usage(code):
 
 yaml_file = "testpoke.yaml"
 yaml_cmd = None
+debug = False
 
 opts,argv = getopt.getopt(sys.argv[1:], "y:r:h?d", ["yaml=", "request=", "help", "debug"])
 for o,a in opts:
@@ -51,9 +52,13 @@ for o,a in opts:
   elif o in ("-r", "--request"):
     yaml_cmd = a
   elif o in ("-d", "--debug"):
-    rpki.log.init("testpoke")
+    debug = True
 if argv:
   usage(1)
+
+if debug:
+  rpki.log.init("testpoke")
+  rpki.log.set_trace(True)
 
 f = open(yaml_file)
 yaml_data = yaml.load(f)
@@ -117,10 +122,6 @@ def do_revoke():
   q_pdu.class_name = yaml_req["class"]
   q_pdu.ski = yaml_req["ski"]
   query_up_down(q_pdu)
-
-# Some day this should be conditional
-rpki.log.init("testpoke")
-rpki.log.set_trace(True)
 
 dispatch = { "list" : do_list, "issue" : do_issue, "revoke" : do_revoke }
 

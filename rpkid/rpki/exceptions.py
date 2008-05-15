@@ -94,6 +94,12 @@ class MustBePrefix(RPKI_Exception):
 class TLSValidationError(RPKI_Exception):
   """TLS certificate validation error."""
 
+class MultipleTLSEECert(TLSValidationError):
+  """Received more than one TLS EE certificate."""
+
+class ReceivedTLSCACert(TLSValidationError):
+  """Received CA certificate via TLS."""
+
 class WrongEContentType(RPKI_Exception):
   """Received wrong CMS eContentType."""
   
@@ -114,6 +120,3 @@ class MissingCMSCRL(RPKI_Exception):
 
 class UnparsableCMSDER(RPKI_Exception):
   """Alleged CMS DER wasn't parsable."""
-
-class MultipleTLSEECert(RPKI_Exception):
-  """Received more than one TLS EE certificate."""

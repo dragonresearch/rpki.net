@@ -54,11 +54,18 @@ class sql_persistant(object):
 
   ## @var sql_in_db
   # Whether this object is already in SQL or not.
+
   sql_in_db = False
 
   ## @var sql_deleted
   # Whether our cached copy of this object has been deleted.
+
   sql_deleted = False
+
+  ## @var sql_debug
+  # Enable logging of SQL actions
+
+  sql_debug = False
 
   @classmethod
   def sql_fetch(cls, gctx, id):
@@ -105,11 +112,13 @@ class sql_persistant(object):
     """Fetch objects of this type matching an arbitrary SQL WHERE expression."""
     if where is None:
       assert args is None
-      rpki.log.debug("sql_fetch_where(%s)" % repr(cls.sql_template.select))
+      if cls.sql_debug:
+        rpki.log.debug("sql_fetch_where(%s)" % repr(cls.sql_template.select))
       gctx.cur.execute(cls.sql_template.select)
     else:
       query = cls.sql_template.select + " WHERE " + where
-      rpki.log.debug("sql_fetch_where(%s, %s)" % (repr(query), repr(args)))
+      if cls.sql_debug:
+        rpki.log.debug("sql_fetch_where(%s, %s)" % (repr(query), repr(args)))
       gctx.cur.execute(query, args)
     results = []
     for row in gctx.cur.fetchall():

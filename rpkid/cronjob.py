@@ -18,7 +18,8 @@
 Tool to trigger "cron" runs in rpkid.
 
 Usage: python cronjob.py [ { -c | --config } configfile ]
-                         [ { -h | --help } ]
+                         [ { -d | --debug  } ]
+                         [ { -h | --help   } ]
 
 Default configuration file is cronjob.conf, override with --config option.
 """
@@ -26,6 +27,7 @@ Default configuration file is cronjob.conf, override with --config option.
 import rpki.config, rpki.https, getopt, sys
 
 cfg_file = "cronjob.conf"
+debug = False
 
 opts,argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
 for o,a in opts:
@@ -34,15 +36,17 @@ for o,a in opts:
     sys.exit(0)
   elif o in ("-c", "--config"):
     cfg_file = a
+  elif o in ("-d", "--debug"):
+    debug = True
 if argv:
   print __doc__
   raise RuntimeError, "Unexpected arguments %s" % argv
 
 cfg = rpki.config.parser(cfg_file, "cronjob")
 
-# Some day this should be conditional
-rpki.log.init("cronjob")
-rpki.log.set_trace(True)
+if debug:
+  rpki.log.init("cronjob")
+  rpki.log.set_trace(True)
 
 irbe_key   = rpki.x509.RSA( Auto_file = cfg.get("irbe-key"))
 irbe_cert  = rpki.x509.X509(Auto_file = cfg.get("irbe-cert"))

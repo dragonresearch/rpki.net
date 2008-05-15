@@ -52,22 +52,12 @@ $Revision$
 
 TO DO:
 
-      - Update business trust anchor model to what was defined in Amsterdam. This
-	was a direct result of security review by Kent and Housley.
+      - Update BPKI model to what was defined in Amsterdam.  This was
+	a direct result of security review by Kent and Housley.
 
 	Much of this is now done.  Remaining tasks:
 
-	    Add CRL to BSC
-	    Check for CRL in received CMS
-	    Check chain length in received CMS
 	    Check chain length in received TLS
-	    Check EE vs CA during validation
-	    If CMS cert in SQL is EE:
-	       Disallow certs in CMS
-	       Disallow CRLs in CMS
-	    Else:
-	       Expect exactly one EE cert in CMS
-	       Expect exactly one CRL in CMS
 	    If TLS cert in SQL is EE:
 	       EE cert in SQL must be same as EE cert received from TLS
 
@@ -78,14 +68,16 @@ TO DO:
 	STATUS: Started
 
 
-      - rcynic handling of RPKI trust anchors needs updating, per discussions
-	over previous months of how RPKI trust anchors work, how we package them,
-	and how we roll them over. The last (TA rollover) is the driver for this.
+      - rcynic handling of RPKI trust anchors needs updating, per
+	discussions over previous months of how RPKI trust anchors
+	work, how we package them, and how we roll them over. The last
+	(TA rollover) is the driver for this.
 
-	APNIC is now proposing a CMS-signed ASN.1 blob containing a version
-	number and an RPKI certificate.  Kent and Housley have not bought into
-	this yet.  Need to do analysis to make sure this is adequate for our
-	needs, if so just use it.  This would involve minor changes to rcynic.
+	APNIC is now proposing a CMS-signed ASN.1 blob containing a
+	version number and an RPKI certificate.  Kent and Housley have
+	not bought into this yet.  Need to do analysis to make sure
+	this is adequate for our needs, if so just use it.  This would
+	involve minor changes to rcynic.
 
 	PRIORITY: Required for pilot (usability issue for relying parties)
 
@@ -94,28 +86,30 @@ TO DO:
 	STATUS: Not started
 
 
-      - Publication protocol and implementation thereof. Desirable although not
-	strictly required that protocol be agreed upon among the RIRs. Tricky bit
-	is making sure that repository receives enough information to know whether
-	parent has authorized child to use parent's namespace in nesting case; in
+      - Publication protocol and implementation thereof. Desirable
+	although not strictly required that protocol be agreed upon
+	among the RIRs. Tricky bit is making sure that repository
+	receives enough information to know whether parent has
+	authorized child to use parent's namespace in nesting case; in
 	theory this is straightforward but requires careful checking.
 
-	ARIN can't host output of non-hosted RPKI engines without this, and that's
-	critical both to the security model as discussed with ARIN staff in late 2006,
-	hence this is a required capability even for testing.
+	ARIN can't host output of non-hosted RPKI engines without
+	this, and that's critical both to the security model as
+	discussed with ARIN staff in late 2006, hence this is a
+	required capability even for testing.
 
 	PRIORITY: Required for pilot
 
-	TIME REQUIRED: 3-4 weeks for implementation once protocol settled, depending on
-	how much of the existing left-right protocol design and implementation can be
-	reused.
+	TIME REQUIRED: 3-4 weeks for implementation once protocol
+	settled, depending on how much of the existing left-right
+	protocol design and implementation can be reused.
 
 	STATUS: Started
 
 
-      - Resource subsetting (req_* attributes in up-down protocol), minimal 
-	implementation.    Recognize this as correct protocol and signal an
-	internal server error if ever used.
+      - Resource subsetting (req_* attributes in up-down protocol),
+	minimal implementation.  Recognize this as correct protocol
+	and signal an internal server error if ever used.
 
 	PRIORITY: Required for pilot.
 
@@ -124,9 +118,9 @@ TO DO:
 	STATUS: Not started
 
 
-      - ROA generation code.  First cut at this seems to work and output looks
-        right, but this hasn't been tested properly yet due to lack of a ROA
-        validation tool.
+      - ROA generation code.  First cut at this seems to work and
+        output looks right, but this hasn't been tested properly yet
+        due to lack of a ROA validation tool.
 
 	For reasons that presumably made sense at the time, the
 	left-right protocol for route_origin objects allows ranges as
@@ -135,6 +129,11 @@ TO DO:
 	prefixes.  So left-right schema should only allow prefixes,
 	and SQL should only store prefixes.
 
+        Current ROA code implements current draft.  Upcoming draft
+        will probably change ROA format to remove per-ROA exactMatch
+        field and add a per-prefix maxLength field; implementing this
+        will require mods to <route_origin/>.
+
 	PRIORITY: Required for pilot
 
 	TIME REQUIRED: One week (remaining)
@@ -142,11 +141,12 @@ TO DO:
 	STATUS: Started
 
 
-      - rcynic does not yet handle manifests. This is both a real problem
-	(manifests were added to plug a security hole) and a user acceptance
-	problem (without manifest support rcynic checks old certs that are supposed
-	to fail because they've been revoked, resulting in what appear to be
-	spurious errors, which just annoy the user).
+      - rcynic does not yet handle manifests. This is both a real
+	problem (manifests were added to plug a security hole) and a
+	user acceptance problem (without manifest support rcynic
+	checks old certs that are supposed to fail because they've
+	been revoked, resulting in what appear to be spurious errors,
+	which just annoy the user).
 
 	PRIORITY: Required for pilot
 
@@ -155,9 +155,10 @@ TO DO:
 	STATUS: Not started
 
 
-      - User validation tool: fetch and validate certs and ROA for a prefix that
-	the user wants to accept in a router filter the user is building. This
-	probably uses rcynic's output as one of its inputs.
+      - User validation tool: fetch and validate certs and ROA for a
+	prefix that the user wants to accept in a router filter the
+	user is building. This probably uses rcynic's output as one of
+	its inputs.
 
 	PRIORITY: Required
 
@@ -168,8 +169,9 @@ TO DO:
 	STATUS: Not started
 
 
-      - Make rpkid fully event-driven (async tasking model), except for SQL
-	queries. This probably involves the "twisted" framework.
+      - Make rpkid fully event-driven (async tasking model), except
+	for SQL queries. This probably involves the "twisted"
+	framework.
 
 	PRIORITY: Required (to implement scalable hosting model)
 
@@ -178,10 +180,10 @@ TO DO:
 	STATUS: Not started
 
 
-      - Error handling: make sure that exceptions map correctly to up-down error
-	codes, flesh out left-right error codes. Note that the same exception may
-	produce different error codes depending on which up-down PDU we're
-	processing (sigh).
+      - Error handling: make sure that exceptions map correctly to
+	up-down error codes, flesh out left-right error codes. Note
+	that the same exception may produce different error codes
+	depending on which up-down PDU we're processing (sigh).
 
 	Will require code audit for coherency, which is most of the work.
 
@@ -189,16 +191,18 @@ TO DO:
 
 	TIME REQUIRED: Two weeks
 
-	DEPENDS ON: almost everything else, as almost any code change can raise new
-	exceptions that we'd need to handle.
+	DEPENDS ON: almost everything else, as almost any code change
+	can raise new exceptions that we'd need to handle.
 
 	STATUS: Not started
 
 
-      - db.commit(), db.rollback(), code audit for data integrity issues, fix any
-	data integrity issues that turn up. Among other issues, need to handle loss
-	of connection to database server and other MySQL errors. Need to be careful
-	about recovery action depending on whether we had uncommitted changes.
+      - db.commit(), db.rollback(), code audit for data integrity
+	issues, fix any data integrity issues that turn up. Among
+	other issues, need to handle loss of connection to database
+	server and other MySQL errors. Need to be careful about
+	recovery action depending on whether we had uncommitted
+	changes.
 
 	PRIORITY: Required
 
@@ -206,16 +210,16 @@ TO DO:
 
 	TIME REQUIRED (data integrity audit): 1 week
 
-	TIME REQUIRED (fix data integrity): Unknown, depends on code audit and results
-	of runtime testing.
+	TIME REQUIRED (fix data integrity): Unknown, depends on code
+	audit and results of runtime testing.
 
 	DEPENDS ON: async tasking model rollback.
 
 	STATUS: Not started
 
 
-      - Test framework for multiple self-instances per engine-instance (single
-	self-instance per engine-instance is already done).
+      - Test framework for multiple self-instances per engine-instance
+	(single self-instance per engine-instance is already done).
 
 	PRIORITY: Required for testing
 
@@ -226,16 +230,17 @@ TO DO:
 	STATUS: Not started
 
 
-      - Current TLS code (tlslite) appeared to be flakey under heavy use back
-	in November, and doesn't support all the required certificate
-	checks out of the box.
+      - Current TLS code (tlslite) appeared to be flakey under heavy
+	use back in November, and doesn't support all the required
+	certificate checks out of the box.
 
-	Certificate checker has now been replaced with something based on
-	OpenSSL/POW, and the result seems to work.  If the TLS code itself is
-	still unstable, best bet would be to replace it with a Tls class cloned
-	from the existing POW Ssl class; the current Ssl class isn't adaquate
-	either, but there's documentation (eg, the O'Reilly OpenSSL book) that
-	explains in some detail what this code would need to do.
+	Certificate checker has now been replaced with something based
+	on OpenSSL/POW, and the result seems to work.  If the TLS code
+	itself is still unstable, best bet would be to replace it with
+	a Tls class cloned from the existing POW Ssl class; the
+	current Ssl class isn't adaquate either, but there's
+	documentation (eg, the O'Reilly OpenSSL book) that explains in
+	some detail what this code would need to do.
 
 	PRIORITY: Required for pilot (cert checking is a security issue).
 
@@ -246,9 +251,9 @@ TO DO:
 	STATUS: Not started
 
 
-      - Resource subsetting (req_* attributes in up-down protocol), full
-        implementation.  Requires expanding SQL child_cert table to hold subset
-        masks and rewriting a fair amount of code.
+      - Resource subsetting (req_* attributes in up-down protocol),
+        full implementation.  Requires expanding SQL child_cert table
+        to hold subset masks and rewriting a fair amount of code.
 
 	PRIORITY: Required for full implementation.
 
@@ -262,9 +267,9 @@ TO DO:
 	STATUS: Not started
 
 
-      - Clean up rootd.py to be usable in a production system. Most urgent issue is
-	handling of private keys. May not need much else, as this is not a
-	high-traffic server.
+      - Clean up rootd.py to be usable in a production system. Most
+	urgent issue is handling of private keys. May not need much
+	else, as this is not a high-traffic server.
 
 	PRIORITY: Highly desirable (not strictly needed for pilot testing)
 
@@ -273,10 +278,11 @@ TO DO:
 	STATUS: Not started
 
 
-      - Update internals docs (Doxygen). Mostly this means updating function
-	comments in the Python code, as the rest is automatic. May require a bit of
-	overview text to explain the workings of the code, this overview text may
-	well turn out to be just the current flat text documents marked up for
+      - Update internals docs (Doxygen). Mostly this means updating
+	function comments in the Python code, as the rest is
+	automatic. May require a bit of overview text to explain the
+	workings of the code, this overview text may well turn out to
+	be just the current flat text documents marked up for
 	inclusion by Doxygen.
 
 	PRIORITY: Desirable
@@ -286,11 +292,12 @@ TO DO:
 	STATUS: Ongoing
 
 
-      - Reorganize code (directory names, module names, which objects are in which
-	modules, add gctx pointers to objects to avoid passing explicit gctx
-	pointers in almost every function call) to make it easier to understand and
-	maintain. Portions of the existing code were done in extreme haste to meet
-	testing deadlines, and it shows.
+      - Reorganize code (directory names, module names, which objects
+	are in which modules, add gctx pointers to objects to avoid
+	passing explicit gctx pointers in almost every function call)
+	to make it easier to understand and maintain. Portions of the
+	existing code were done in extreme haste to meet testing
+	deadlines, and it shows.
 
 	PRIORITY: Highly desirable
 
@@ -311,13 +318,13 @@ TO DO:
 	STATUS: Not started
 
 
-      - Installation packaging, so that rpkid can be built and installed like a
-	normal package.
+      - Installation packaging, so that rpkid can be built and
+	installed like a normal package.
 
 	PRIORITY: Desirable
 
-	TIME REQUIRED: One week, longer if installation for many platforms is
-	required
+	TIME REQUIRED: One week, longer if installation for many
+	platforms is required
 
 	STATUS: Not started
 
@@ -332,21 +339,24 @@ TO DO:
 
 
       - Rethink exposing SQL primary indices in protocols. Right now,
-	auto-incremented SQL indices are used in many places in the left-right
-	protocol, and are even exposed in a few places in our implementation of the
-	up-down protocol. This is nice and unique but may be operationally fragile,
-	since up-down usage means that URLs contain mechanically assigned
-	identifiers rather than an identifier negotiated between the two parties
+	auto-incremented SQL indices are used in many places in the
+	left-right protocol, and are even exposed in a few places in
+	our implementation of the up-down protocol. This is nice and
+	unique but may be operationally fragile, since up-down usage
+	means that URLs contain mechanically assigned identifiers
+	rather than an identifier negotiated between the two parties
 	during contract setup.
 
-	The RIPE NCC suggested that we should instead use something like a hash of the
-	client's name, which would be probabilistically unique, would not expose
-	information, but would be stable even if we had to rebuild the database.
+	The RIPE NCC suggested that we should instead use something
+	like a hash of the client's name, which would be
+	probabilistically unique, would not expose information, but
+	would be stable even if we had to rebuild the database.
 
 	PRIORITY: Rethinking desirable; reworking unknown
 
-	TIME REQUIRED: One week to evaluate. Implementation time if we decide to make a
-	change unknown, but probably on the order of another week.
+	TIME REQUIRED: One week to evaluate. Implementation time if we
+	decide to make a change unknown, but probably on the order of
+	another week.
 
 	STATUS: Not started
 
@@ -361,10 +371,11 @@ TO DO:
 	STATUS: Not started
 
 
-      - IETF SIDR WG is still talking about ROAs with multiple signatures. No
-	obvious need for this but IETF may mandate it anyway. Full implementation
-	would require significant work revising current SQL table relations and
-	upgrading CMS support.
+      - IETF SIDR WG is still talking about ROAs with multiple
+	signatures. No obvious need for this but IETF may mandate it
+	anyway. Full implementation would require significant work
+	revising current SQL table relations and upgrading CMS
+	support.
 
 	PRIORITY: Minimal, IETF feeping creaturism
 
@@ -373,10 +384,11 @@ TO DO:
 	STATUS: Not started
 
 
-      - Deaddrop of incoming messages, for audit.  Absent a better theory,
-        steal existing tech for this: preface with minimal RFC 2822 header
-	and drop it into a Maildir folder using built-in Python Maildir
-	library code, at which point it becomes soebody else's problem.
+      - Deaddrop of incoming messages, for audit.  Absent a better
+        theory, steal existing tech for this: preface with minimal RFC
+        2822 header and drop it into a Maildir folder using built-in
+        Python Maildir library code, at which point it becomes soebody
+        else's problem.
 
 	STATUS: Not started
 

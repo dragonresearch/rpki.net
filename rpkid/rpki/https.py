@@ -86,15 +86,23 @@ class Checker(tlslite.api.Checker):
 
     chain = [rpki.x509.X509(tlslite = chain.x509List[i]) for i in range(chain.getNumCerts())]
 
-    if debug_tls_certs:
-      for i in range(len(chain)):
-        rpki.log.debug("Received %s TLS cert[%d] issuer %s [%s] subject %s [%s]" % (peer, i, chain[i].getIssuer(), chain[i].hAKI(), chain[i].getSubject(), chain[i].hSKI()))
+    ee = None
+    for x in chain:
+      if debug_tls_certs:
+        rpki.log.debug("Received %s TLS %s cert issuer %s [%s] subject %s [%s]"
+                       % (peer, "CA" if x.is_CA() else "EE", x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
         if pem_dump_tls_certs:
-          print chain[i].get_PEM()
+          print x.get_PEM()
+      if x.is_CA():
+        rpki.log.debug("Ignoring received TLS CA cert")
+      elif ee is None:
+        ee = x
+      else:
+        raise rpki.exceptions.MultipleTLSEECert, chain
 
-    result = self.x509store_thunk().verifyDetailed(chain[0].get_POW(), [x.get_POW() for x in chain[1:]])
-    rpki.log.debug("TLS certificate validation result %s" % repr(result))
+    result = self.x509store_thunk().verifyDetailed(ee.get_POW())
     if not result[0]:
+      rpki.log.debug("TLS certificate validation result %s" % repr(result))
       if disable_tls_certificate_validation_exceptions:
         rpki.log.warn("DANGER WILL ROBINSON!  IGNORING TLS VALIDATION FAILURE!")
       else:

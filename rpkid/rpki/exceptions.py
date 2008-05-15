@@ -114,3 +114,6 @@ class MissingCMSCRL(RPKI_Exception):
 
 class UnparsableCMSDER(RPKI_Exception):
   """Alleged CMS DER wasn't parsable."""
+
+class MultipleTLSEECert(RPKI_Exception):
+  """Received more than one TLS EE certificate."""

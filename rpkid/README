@@ -14,7 +14,7 @@ External Python packages required:
   Fedora:  python-lxml.i386
 
 - MySQLdb, which in turn requires MySQL client and server.  I'm
-  testing with MySQL 5.1.
+  testing with MySQL 5.0 and 5.1.
 
   http://sourceforge.net/projects/mysql-python/
 
@@ -27,11 +27,6 @@ External Python packages required:
 
   FreeBSD: /usr/ports/security/py-tlslite
 
-- Cryptlib is no longer required.
-
-- Eventually I expect that this will require an event-handling package
-  like Twisted, but I'm not there yet.
-
 - The testpoke tool (up-down protocol command line test client) and
   testbed tools also uses PyYAML.
 
@@ -39,34 +34,18 @@ External Python packages required:
 
   FreeBSD: /usr/ports/devel/py-yaml
 
+- Eventually I expect that this will require an event-handling package
+  like Twisted, but I'm not there yet.
+
 We also use a hacked copy of the Python OpenSSL Wrappers (POW)
 package, but our copy has enough modifications that it's expanded in
-the Subversion tree.  Depending on how this all works out, I may end
-up splitting the POW.pkix module out of the POW package and using it
-with Cryptlib, as the POW.pkix package is 98% about doing ASN.1 in
-pure Python and only 2% about any kind of crypto.
+the Subversion tree.
 
 
 
 $Revision$
 
 TO DO:
-
-      - Update BPKI model to what was defined in Amsterdam.  This was
-	a direct result of security review by Kent and Housley.
-
-	Much of this is now done.  Remaining tasks:
-
-	    Check chain length in received TLS
-	    If TLS cert in SQL is EE:
-	       EE cert in SQL must be same as EE cert received from TLS
-
-	PRIORITY: Required for pilot (security issue)
-
-	TIME REQUIRED: Two weeks.
-
-	STATUS: Started
-
 
       - rcynic handling of RPKI trust anchors needs updating, per
 	discussions over previous months of how RPKI trust anchors

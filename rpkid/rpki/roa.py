@@ -29,7 +29,7 @@ from POW._der import *
 #      RouteOriginAttestation ::= SEQUENCE { 
 #         version [0] INTEGER DEFAULT 0, 
 #         asID  ASID, 
-#         exactMatch BOOLEAN  
+#         exactMatch BOOLEAN,
 #         ipAddrBlocks ROAIPAddrBlocks } 
 #     
 #      ASID ::= INTEGER 
@@ -39,6 +39,26 @@ from POW._der import *
 #      ROAIPAddressFamily ::= SEQUENCE { 
 #         addressFamily OCTET STRING (SIZE (2..3)), 
 #         addresses SEQUENCE OF IPAddress } 
+#    
+#      IPAddress ::= BIT STRING 
+
+# Proposed new format, neither in draft nor in this code yet, but
+# included here for reference anyway:
+#
+#      RouteOriginAttestation ::= SEQUENCE {
+#         version [0] INTEGER DEFAULT 0,
+#         asID  ASID,
+#         ipAddrBlocks SEQUENCE OF ROAIPAddressFamily }
+#
+#      ASID ::= INTEGER
+#
+#      ROAIPAddressFamily ::= SEQUENCE {
+#         addressFamily OCTET STRING (SIZE (2..3)),
+#         addresses SEQUENCE OF ROAIPAddress }
+#
+#      ROAIPAddress ::= {
+#         address IPAddress,
+#         maxLength INTEGER }
 #    
 #      IPAddress ::= BIT STRING 
 

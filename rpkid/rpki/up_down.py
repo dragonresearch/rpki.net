@@ -267,6 +267,14 @@ class issue_pdu(base_elt):
   def serve_pdu(self, q_msg, r_msg, child):
     """Serve one issue request PDU."""
 
+    # Subsetting not yet implemented, this is the one place where we
+    # have to handle it, by reporting that we're lame.
+
+    if self.req_resource_set_as or \
+       self.req_resource_set_ipv4 or \
+       self.req_resource_set_ipv6:
+      raise rpki.exceptions.NotImplementedYet, "req_* attributes not implemented yet, sorry"
+
     # Check the request
     ca = child.ca_from_class_name(self.class_name)
     ca_detail = ca.fetch_active()

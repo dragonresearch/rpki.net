@@ -85,7 +85,6 @@ TO DO:
 
 	STATUS: Started
 
-
       - Resource subsetting (req_* attributes in up-down protocol),
 	minimal implementation.  Recognize this as correct protocol
 	and signal an internal server error if ever used.
@@ -94,8 +93,7 @@ TO DO:
 
 	TIME REQUIRED: Two days
 
-	STATUS: Not started
-
+	STATUS: code written, not yet tested.
 
       - ROA generation code.  First cut at this seems to work and
         output looks right, but this hasn't been tested properly yet

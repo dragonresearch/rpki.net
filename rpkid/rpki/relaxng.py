@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rng 1730 2008-05-01 07:07:28Z sra $
+  $Id: left-right-schema.rnc 1788 2008-05-16 21:48:48Z sra $
   
   RelaxNG (Compact Syntax) Schema for RPKI left-right protocol.
   
@@ -29,7 +29,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
           <ref name="parent_elt"/>
           <ref name="child_elt"/>
           <ref name="repository_elt"/>
-          <ref name="ro_elt"/>
+          <ref name="route_origin_elt"/>
           <ref name="list_resources_elt"/>
           <ref name="report_error_elt"/>
         </choice>
@@ -148,8 +148,50 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   </define>
   <!-- Base definition for all fields that are really just SQL primary indices -->
   <define name="sql_id">
+    <data type="nonNegativeInteger"/>
+  </define>
+  <!-- URIs -->
+  <define name="uri">
+    <data type="anyURI">
+      <param name="maxLength">4096</param>
+    </data>
+  </define>
+  <!-- Name fields imported from up-down protocol -->
+  <define name="up_down_name">
     <data type="token">
       <param name="maxLength">1024</param>
+    </data>
+  </define>
+  <!-- Resource lists -->
+  <define name="asn_list">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[\-,/0-9]*</param>
+    </data>
+  </define>
+  <define name="ipv4_address_list">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[\-,/.0-9]*</param>
+    </data>
+  </define>
+  <define name="ipv6_address_list">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[\-,/:0-9a-fA-F]*</param>
+    </data>
+  </define>
+  <!-- Prefix resource lists, same as address resource lists not no ranges allowed -->
+  <define name="ipv4_prefix_list">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[,/.0-9]*</param>
+    </data>
+  </define>
+  <define name="ipv6_prefix_list">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[,/:0-9a-fA-F]*</param>
     </data>
   </define>
   <!-- <self/> element -->
@@ -447,44 +489,28 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="parent_payload">
     <optional>
       <attribute name="peer_contact_uri">
-        <data type="anyURI">
-          <param name="maxLength">1024</param>
-        </data>
+        <ref name="uri"/>
       </attribute>
     </optional>
     <optional>
       <attribute name="sia_base">
-        <data type="anyURI">
-          <param name="maxLength">1024</param>
-        </data>
+        <ref name="uri"/>
       </attribute>
     </optional>
     <optional>
-      <attribute name="bsc_id">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
-      </attribute>
+      <ref name="bsc_id"/>
     </optional>
     <optional>
-      <attribute name="repository_id">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
-      </attribute>
+      <ref name="repository_id"/>
     </optional>
     <optional>
       <attribute name="sender_name">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
+        <ref name="up_down_name"/>
       </attribute>
     </optional>
     <optional>
       <attribute name="recipient_name">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
+        <ref name="up_down_name"/>
       </attribute>
     </optional>
     <optional>
@@ -597,11 +623,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   </define>
   <define name="child_payload">
     <optional>
-      <attribute name="bsc_id">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
-      </attribute>
+      <ref name="bsc_id"/>
     </optional>
     <optional>
       <element name="bpki_cert">
@@ -697,17 +719,11 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="repository_payload">
     <optional>
       <attribute name="peer_contact_uri">
-        <data type="anyURI">
-          <param name="maxLength">1024</param>
-        </data>
+        <ref name="uri"/>
       </attribute>
     </optional>
     <optional>
-      <attribute name="bsc_id">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
-      </attribute>
+      <ref name="bsc_id"/>
     </optional>
     <optional>
       <element name="bpki_cms_cert">
@@ -803,24 +819,22 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     </element>
   </define>
   <!-- <route_origin/> element -->
-  <define name="ro_id">
+  <define name="route_origin_id">
     <attribute name="route_origin_id">
       <ref name="sql_id"/>
     </attribute>
   </define>
-  <define name="ro_bool">
+  <define name="route_origin_bool">
     <optional>
       <attribute name="suppress_publication">
         <value>yes</value>
       </attribute>
     </optional>
   </define>
-  <define name="ro_payload">
+  <define name="route_origin_payload">
     <optional>
       <attribute name="as_number">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
+        <data type="positiveInteger"/>
       </attribute>
     </optional>
     <optional>
@@ -830,91 +844,87 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     </optional>
     <optional>
       <attribute name="ipv4">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
+        <ref name="ipv4_prefix_list"/>
       </attribute>
     </optional>
     <optional>
       <attribute name="ipv6">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
+        <ref name="ipv6_prefix_list"/>
       </attribute>
     </optional>
   </define>
-  <define name="ro_elt" combine="choice">
+  <define name="route_origin_elt" combine="choice">
     <element name="route_origin">
       <ref name="ctl_cq"/>
       <ref name="self_id"/>
-      <ref name="ro_bool"/>
-      <ref name="ro_payload"/>
+      <ref name="route_origin_bool"/>
+      <ref name="route_origin_payload"/>
     </element>
   </define>
-  <define name="ro_elt" combine="choice">
+  <define name="route_origin_elt" combine="choice">
     <element name="route_origin">
       <ref name="ctl_cr"/>
       <ref name="self_id"/>
-      <ref name="ro_id"/>
+      <ref name="route_origin_id"/>
     </element>
   </define>
-  <define name="ro_elt" combine="choice">
+  <define name="route_origin_elt" combine="choice">
     <element name="route_origin">
       <ref name="ctl_sq"/>
       <ref name="self_id"/>
-      <ref name="ro_id"/>
-      <ref name="ro_bool"/>
-      <ref name="ro_payload"/>
+      <ref name="route_origin_id"/>
+      <ref name="route_origin_bool"/>
+      <ref name="route_origin_payload"/>
     </element>
   </define>
-  <define name="ro_elt" combine="choice">
+  <define name="route_origin_elt" combine="choice">
     <element name="route_origin">
       <ref name="ctl_sr"/>
       <ref name="self_id"/>
-      <ref name="ro_id"/>
+      <ref name="route_origin_id"/>
     </element>
   </define>
-  <define name="ro_elt" combine="choice">
+  <define name="route_origin_elt" combine="choice">
     <element name="route_origin">
       <ref name="ctl_gq"/>
       <ref name="self_id"/>
-      <ref name="ro_id"/>
+      <ref name="route_origin_id"/>
     </element>
   </define>
-  <define name="ro_elt" combine="choice">
+  <define name="route_origin_elt" combine="choice">
     <element name="route_origin">
       <ref name="ctl_gr"/>
       <ref name="self_id"/>
-      <ref name="ro_id"/>
-      <ref name="ro_payload"/>
+      <ref name="route_origin_id"/>
+      <ref name="route_origin_payload"/>
     </element>
   </define>
-  <define name="ro_elt" combine="choice">
+  <define name="route_origin_elt" combine="choice">
     <element name="route_origin">
       <ref name="ctl_lq"/>
       <ref name="self_id"/>
     </element>
   </define>
-  <define name="ro_elt" combine="choice">
+  <define name="route_origin_elt" combine="choice">
     <element name="route_origin">
       <ref name="ctl_lr"/>
       <ref name="self_id"/>
-      <ref name="ro_id"/>
-      <ref name="ro_payload"/>
+      <ref name="route_origin_id"/>
+      <ref name="route_origin_payload"/>
     </element>
   </define>
-  <define name="ro_elt" combine="choice">
+  <define name="route_origin_elt" combine="choice">
     <element name="route_origin">
       <ref name="ctl_dq"/>
       <ref name="self_id"/>
-      <ref name="ro_id"/>
+      <ref name="route_origin_id"/>
     </element>
   </define>
-  <define name="ro_elt" combine="choice">
+  <define name="route_origin_elt" combine="choice">
     <element name="route_origin">
       <ref name="ctl_dr"/>
       <ref name="self_id"/>
-      <ref name="ro_id"/>
+      <ref name="route_origin_id"/>
     </element>
   </define>
   <!-- <list_resources/> element -->
@@ -937,8 +947,8 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
           <ref name="self_id"/>
           <ref name="child_id"/>
           <attribute name="valid_until">
-            <data type="token">
-              <param name="maxLength">1024</param>
+            <data type="dateTime">
+              <param name="pattern">.*Z</param>
             </data>
           </attribute>
           <optional>
@@ -950,23 +960,17 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
           </optional>
           <optional>
             <attribute name="as">
-              <data type="token">
-                <param name="maxLength">1024</param>
-              </data>
+              <ref name="asn_list"/>
             </attribute>
           </optional>
           <optional>
             <attribute name="ipv4">
-              <data type="token">
-                <param name="maxLength">1024</param>
-              </data>
+              <ref name="ipv4_address_list"/>
             </attribute>
           </optional>
           <optional>
             <attribute name="ipv6">
-              <data type="token">
-                <param name="maxLength">1024</param>
-              </data>
+              <ref name="ipv6_address_list"/>
             </attribute>
           </optional>
         </group>

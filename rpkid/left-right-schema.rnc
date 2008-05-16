@@ -11,8 +11,8 @@ default namespace = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
 start = element msg {
   attribute version { xsd:positiveInteger { maxInclusive="1" } },
-  ( self_elt | bsc_elt | parent_elt | child_elt | repository_elt | ro_elt |
-    list_resources_elt | report_error_elt )*
+  ( self_elt | bsc_elt | parent_elt | child_elt | repository_elt |
+    route_origin_elt | list_resources_elt | report_error_elt )*
 }
 
 # Tag attributes for bulk operations
@@ -36,7 +36,22 @@ ctl_dr = attribute action { "destroy" }, attribute type { "reply" }, tag
 base64 = xsd:base64Binary { maxLength="512000" }
 
 # Base definition for all fields that are really just SQL primary indices
-sql_id = xsd:token { maxLength="1024" }
+sql_id = xsd:nonNegativeInteger
+
+# URIs
+uri = xsd:anyURI { maxLength="4096" }
+
+# Name fields imported from up-down protocol
+up_down_name = xsd:token { maxLength="1024" }
+
+# Resource lists
+asn_list          = xsd:string { maxLength="512000" pattern="[\-,/0-9]*" }
+ipv4_address_list = xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" }
+ipv6_address_list = xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" }
+
+# Prefix resource lists, same as address resource lists not no ranges allowed
+ipv4_prefix_list = xsd:string { maxLength="512000" pattern="[,/.0-9]*" }
+ipv6_prefix_list = xsd:string { maxLength="512000" pattern="[,/:0-9a-fA-F]*" }
 
 # <self/> element
 
@@ -103,12 +118,12 @@ parent_bool = (attribute rekey { "yes" }?,
                attribute reissue { "yes" }?,
                attribute revoke { "yes" }?)
 
-parent_payload = (attribute peer_contact_uri { xsd:anyURI { maxLength="1024" } }?,
-                  attribute sia_base { xsd:anyURI { maxLength="1024" } }?,
-                  attribute bsc_id { xsd:token { maxLength="1024" } }?,
-                  attribute repository_id { xsd:token { maxLength="1024" } }?,
-                  attribute sender_name { xsd:token { maxLength="1024" } }?,
-                  attribute recipient_name { xsd:token { maxLength="1024" } }?,
+parent_payload = (attribute peer_contact_uri { uri }?,
+                  attribute sia_base { uri }?,
+                  bsc_id?,
+                  repository_id?,
+                  attribute sender_name { up_down_name }?,
+                  attribute recipient_name { up_down_name }?,
                   element bpki_cms_cert { base64 }?,
                   element bpki_cms_glue { base64 }?,
                   element bpki_https_cert { base64 }?,
@@ -131,7 +146,7 @@ child_id = attribute child_id { sql_id }
 
 child_bool = attribute reissue { "yes" }?
 
-child_payload = (attribute bsc_id { xsd:token { maxLength="1024" } }?,
+child_payload = (bsc_id?,
                  element bpki_cert { base64 }?,
                  element bpki_glue { base64 }?)
 
@@ -150,8 +165,8 @@ child_elt |= element child { ctl_dr, self_id, child_id }
 
 repository_id = attribute repository_id { sql_id }
 
-repository_payload = (attribute peer_contact_uri { xsd:anyURI { maxLength="1024" } }?,
-                      attribute bsc_id { xsd:token { maxLength="1024" } }?,
+repository_payload = (attribute peer_contact_uri { uri }?,
+                      bsc_id?,
                       element bpki_cms_cert { base64 }?,
                       element bpki_cms_glue { base64 }?,
                       element bpki_https_cert { base64 }?,
@@ -170,36 +185,36 @@ repository_elt |= element repository { ctl_dr, self_id, repository_id }
 
 # <route_origin/> element
 
-ro_id = attribute route_origin_id { sql_id }
+route_origin_id = attribute route_origin_id { sql_id }
 
-ro_bool = attribute suppress_publication { "yes" }?
+route_origin_bool = attribute suppress_publication { "yes" }?
 
-ro_payload = (attribute as_number { xsd:token { maxLength="1024" } }?,
-              attribute exact_match { xsd:boolean }?,
-              attribute ipv4 { xsd:token { maxLength="1024" } }?,
-              attribute ipv6 { xsd:token { maxLength="1024" } }?)
+route_origin_payload = (attribute as_number { xsd:positiveInteger }?,
+                        attribute exact_match { xsd:boolean }?,
+                        attribute ipv4 { ipv4_prefix_list }?,
+                        attribute ipv6 { ipv6_prefix_list }?)
 
-ro_elt |= element route_origin { ctl_cq, self_id, ro_bool, ro_payload }
-ro_elt |= element route_origin { ctl_cr, self_id, ro_id }
-ro_elt |= element route_origin { ctl_sq, self_id, ro_id, ro_bool, ro_payload }
-ro_elt |= element route_origin { ctl_sr, self_id, ro_id }
-ro_elt |= element route_origin { ctl_gq, self_id, ro_id }
-ro_elt |= element route_origin { ctl_gr, self_id, ro_id, ro_payload }
-ro_elt |= element route_origin { ctl_lq, self_id }
-ro_elt |= element route_origin { ctl_lr, self_id, ro_id, ro_payload }
-ro_elt |= element route_origin { ctl_dq, self_id, ro_id }
-ro_elt |= element route_origin { ctl_dr, self_id, ro_id }
+route_origin_elt |= element route_origin { ctl_cq, self_id, route_origin_bool, route_origin_payload }
+route_origin_elt |= element route_origin { ctl_cr, self_id, route_origin_id }
+route_origin_elt |= element route_origin { ctl_sq, self_id, route_origin_id, route_origin_bool, route_origin_payload }
+route_origin_elt |= element route_origin { ctl_sr, self_id, route_origin_id }
+route_origin_elt |= element route_origin { ctl_gq, self_id, route_origin_id }
+route_origin_elt |= element route_origin { ctl_gr, self_id, route_origin_id, route_origin_payload }
+route_origin_elt |= element route_origin { ctl_lq, self_id }
+route_origin_elt |= element route_origin { ctl_lr, self_id, route_origin_id, route_origin_payload }
+route_origin_elt |= element route_origin { ctl_dq, self_id, route_origin_id }
+route_origin_elt |= element route_origin { ctl_dr, self_id, route_origin_id }
 
 # <list_resources/> element
 
 list_resources_elt = element list_resources {
   ( attribute type { "query" }, tag, self_id, child_id ) |
   ( attribute type { "reply" }, tag, self_id, child_id,
-    attribute valid_until { xsd:token { maxLength="1024" } },
+    attribute valid_until { xsd:dateTime { pattern=".*Z" } },
     attribute subject_name { xsd:token { maxLength="1024" } }?,
-    attribute as { xsd:token { maxLength="1024" } }?,
-    attribute ipv4 { xsd:token { maxLength="1024" } }?,
-    attribute ipv6 { xsd:token { maxLength="1024" } }?
+    attribute as { asn_list }?,
+    attribute ipv4 { ipv4_address_list }?,
+    attribute ipv6 { ipv6_address_list }?
   )
 }
 

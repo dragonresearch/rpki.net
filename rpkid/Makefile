@@ -35,7 +35,7 @@ relaxng: left-right-protocol-samples/.stamp left-right-schema.rng up-down-schema
 	xmllint --noout --relaxng    up-down-schema.rng    up-down-protocol-samples/*.xml
 
 unit-tests: all
-	PWD=`pwd`; for i in rpki/*.py; do PYTHONPATH=$$PWD python $$i; done
+	PWD=`pwd`; for i in rpki/*.py; do echo "[$$i]"; PYTHONPATH=$$PWD python $$i; done
 
 all-tests:: unit-tests
 

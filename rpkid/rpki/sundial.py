@@ -171,23 +171,18 @@ class timedelta(pydatetime.timedelta):
 
 if __name__ == "__main__":
 
-  now = datetime.now()
-  print now
-  print repr(now)
-  print now.strftime("%s")
-  print now.toUTCTime()
-  print now.toGeneralizedTime()
-  print now.toASN1tuple()
-  print now.toXMLtime()
+  def test(t):
+    print
+    print "str:                ", t
+    print "repr:               ", repr(t)
+    print "seconds since epoch:", t.strftime("%s")
+    print "UTCTime:            ", t.toUTCTime()
+    print "GeneralizedTime:    ", t.toGeneralizedTime()
+    print "ASN1tuple:          ", t.toASN1tuple()
+    print "XMLtime:            ", t.toXMLtime()
+    print
 
   print
-
-  then = now
-  then += timedelta(days = 30)
-  print then
-  print repr(then)
-  print then.strftime("%s")
-  print then.toUTCTime()
-  print then.toGeneralizedTime()
-  print then.toASN1tuple()
-  print then.toXMLtime()
+  print "Testing time conversion routines"
+  test(now())
+  test(now() + timedelta(days = 30))

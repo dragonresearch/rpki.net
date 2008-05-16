@@ -241,7 +241,7 @@ class resource_set(list):
         result.append(type(this)(min, max))
     for i in range(len(result) - 2, -1, -1):
       if result[i].max + 1 == result[i + 1].min:
-        result[i].max = result[i + 1].max
+        result[i] = type(result[i])(result[i].min, result[i+1].max)
         result.pop(i + 1)
     return type(self)(result)
 
@@ -585,8 +585,10 @@ if __name__ == "__main__":
     assert v1 == v2
     print "x&y:", v1
 
+  print
   print "Testing set operations on resource sets"
   test(resource_set_as, "1,2,3,4,5,6,11,12,13,14,15", "1,2,3,4,5,6,111,121,131,141,151")
   test(resource_set_ipv4, "10.0.0.44/32,10.6.0.2/32", "10.3.0.0/24,10.0.0.77/32")
   test(resource_set_ipv4, "10.0.0.44/32,10.6.0.2/32", "10.0.0.0/24")
   test(resource_set_ipv4, "10.0.0.0/24", "10.3.0.0/24,10.0.0.77/32")
+  print

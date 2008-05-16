@@ -697,7 +697,7 @@ class CMS_object(DER_object):
         if self.require_crls:
           raise rpki.exceptions.MissingCMSCRL, crls
         else:
-          rpki.log.warn("MISSING CRL!  Ignoring per self.require_crls setting")
+          rpki.log.warn("MISSING CMS CRL!  Ignoring per self.require_crls setting")
       if len(crls) > 1:
         raise rpki.exceptions.UnexpectedCMSCRLs, crls
 

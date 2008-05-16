@@ -157,7 +157,7 @@ def client(msg, client_key, client_cert, server_ta, url, timeout = 300):
          u.query    == "" and \
          u.fragment == ""
 
-  rpki.log.debug("Contacting URL %s" % url)
+  rpki.log.debug("Contacting %s" % url)
 
   if debug_tls_certs:
     for cert in (client_cert,) if isinstance(client_cert, rpki.x509.X509) else client_cert:

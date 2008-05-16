@@ -879,7 +879,7 @@ class route_origin_elt(data_elt):
     if self.ipv4 is not None:
       self.ipv4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
     if self.ipv6 is not None:
-      self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv4)
+      self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
 
   def endElement(self, stack, name, text):
     """Handle <route_origin/> element."""

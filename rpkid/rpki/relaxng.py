@@ -6,9 +6,9 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rng 1790 2008-05-16 22:11:00Z sra $
+  $Id: left-right-schema.rnc 1792 2008-05-16 22:20:20Z sra $
   
-  RelaxNG (Compact Syntax) Schema for RPKI left-right protocol.
+  RelaxNG Schema for RPKI left-right protocol.
   
   libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
   run the compact syntax through trang to get XML syntax.
@@ -1001,16 +1001,12 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
 ## Parsed RelaxNG up_down schema
 up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: up-down-schema.rng 1531 2008-02-27 19:02:11Z sra $
+  $Id: up-down-schema.rnc 1792 2008-05-16 22:20:20Z sra $
   
-  RelaxNG (Compact Syntax) Scheme for up-down protocol, extracted
-  from APNIC Wiki.
+  RelaxNG Scheme for up-down protocol, extracted from APNIC Wiki.
   
-  libxml2 (including xmllint) only groks the XML syntax of RelaxNG,
-  so run this through a converter like /usr/ports/textproc/trang to get
-  XML syntax:
-  
-    $ trang up-down-schema.rnc up-down-schema.rng
+  libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
+  run the compact syntax through trang to get XML syntax.
 -->
 <grammar ns="http://www.apnic.net/specs/rescerts/up-down/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
   <start>

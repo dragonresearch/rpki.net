@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id$
+  $Id: left-right-schema.rnc 1792 2008-05-16 22:20:20Z sra $
   
-  RelaxNG (Compact Syntax) Schema for RPKI left-right protocol.
+  RelaxNG Schema for RPKI left-right protocol.
   
   libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
   run the compact syntax through trang to get XML syntax.

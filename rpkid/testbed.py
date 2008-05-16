@@ -33,7 +33,7 @@ config_file contains settings for various implementation-specific
 things that don't belong in yaml_script.
 """
 
-import os, yaml, MySQLdb, subprocess, signal, time, datetime, re, getopt, sys, lxml
+import os, yaml, MySQLdb, subprocess, signal, time, re, getopt, sys, lxml
 import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https, rpki.log, rpki.left_right, rpki.config
 
 os.environ["TZ"] = "UTC"
@@ -337,7 +337,9 @@ class allocation(object):
     self.name = yaml["name"]
     self.parent = parent
     self.kids = [allocation(k, db, self) for k in yaml.get("kids", ())]
-    valid_until = yaml.get("valid_until")
+    valid_until = None
+    if "valid_until" in yaml:
+      valid_until = rpki.sundial.datetime.fromdatetime(yaml.get("valid_until"))
     if valid_until is None and "valid_for" in yaml:
       valid_until = rpki.sundial.now() + rpki.sundial.timedelta.parse(yaml["valid_for"])
     self.base = rpki.resource_set.resource_bag(
@@ -378,7 +380,7 @@ class allocation(object):
   def apply_sub_v4(self, text): self.base.v4 = self.base.v4.difference(rpki.resource_set.resource_set_ipv4(text))
   def apply_sub_v6(self, text): self.base.v6 = self.base.v6.difference(rpki.resource_set.resource_set_ipv6(text))
 
-  def apply_valid_until(self, stamp): self.base.valid_until = stamp
+  def apply_valid_until(self, stamp): self.base.valid_until = rpki.sundial.datetime.fromdatetime(stamp)
   def apply_valid_for(self, text):    self.base.valid_until = rpki.sundial.now() + rpki.sundial.timedelta.parse(text)
   def apply_valid_add(self, text):    self.base.valid_until += rpki.sundial.timedelta.parse(text)
   def apply_valid_sub(self, text):    self.base.valid_until -= rpki.sundial.timedelta.parse(text)
@@ -404,7 +406,7 @@ class allocation(object):
   def apply_revoke(self, target):
     if self.is_leaf():
       rpki.log.info("Attempting to revoke YAML leaf %s" % self.name)
-      subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "revoke", "-d"))
+      subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "revoke"))
     elif target is None:
       rpki.log.info("Revoking <self/> %s" % self.name)
       self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "set", self_id = self.self_id, revoke = "yes"))

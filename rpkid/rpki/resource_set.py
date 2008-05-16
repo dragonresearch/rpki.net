@@ -117,6 +117,15 @@ class resource_range_ip(resource_range):
       raise rpki.exceptions.MustBePrefix, "%s cannot be expressed as a prefix" % str(self)
     return _long2bs(self.min, self.datum_type.bits, prefixlen = prefixlen)
 
+  @classmethod
+  def make_prefix(cls, address, prefixlen):
+    """Construct a resource range corresponding to a prefix."""
+    assert isinstance(address, cls.datum_type) and isinstance(prefixlen, (int, long))
+    assert prefixlen >= 0 and prefixlen <= cls.datum_type.bits, "Nonsensical prefix length: %s" % prefixlen
+    mask = (1 << (cls.datum_type.bits - prefixlen)) - 1
+    assert (address & mask) == 0, "Resource not in canonical form: %s/s" % (address, prefixlen)
+    return cls(cls.datum_type(address), cls.datum_type(address | mask))
+
 class resource_range_ipv4(resource_range_ip):
   """Range of IPv4 addresses."""
 
@@ -336,12 +345,7 @@ class resource_set_ip(resource_set):
       return self.range_type(self.range_type.datum_type(r.group(1)), self.range_type.datum_type(r.group(2)))
     r = re.match("^([0-9:.a-fA-F]+)/([0-9]+)$", x)
     if r:
-      min = self.range_type.datum_type(r.group(1))
-      prefixlen = int(r.group(2))
-      mask = (1 << (self.range_type.datum_type.bits - prefixlen)) - 1
-      assert (min & mask) == 0, "Resource not in canonical form: %s" % (x)
-      max = self.range_type.datum_type(min | mask)
-      return self.range_type(min, max)
+      return self.range_type.make_prefix(self.range_type.datum_type(r.group(1)), int(r.group(2)))
     raise RuntimeError, 'Bad IP resource "%s"' % (x)
 
   def parse_rfc3779_tuple(self, x):
@@ -502,6 +506,49 @@ class resource_bag(object):
         s += ", "
       s += "V6: %s" % self.v6
     return s
+
+# Sadly, there are enough differences between RFC 3779 and the data
+# structures in the latest proposed ROA format that we can't just use
+# the RFC 3779 code for ROAs.  So we need a separate set of classes
+# that are similar in concept but different in detail, with conversion
+# functions.  Such is life.  I suppose it might be possible to do this
+# with multiple inheritance, but that's probably more bother than it's
+# worth.
+
+class roa_prefix(object):
+  """ROA prefix.  This is similar to the resource_range_ip class, but
+  differs in that it only represents prefixes, never ranges, and
+  includes the maximum prefix length as an additional value.
+  """
+
+  def __init__(self, address, prefixlen, max_prefixlen = None):
+    """Initialize a ROA prefix.  max_prefixlen is optional and
+    defaults to prefixlen.  max_prefixlen must not be smaller than
+    prefixlen.
+    """
+    if max_prefixlen is None:
+      max_prefixlen = prefixlen
+    assert max_prefixlen >= prefixlen, "Bad max_prefixlen: %d must not be shorter than %d" % (max_prefixlen, prefixlen)
+    self.address = address
+    self.prefixlen = prefixlen
+    self.max_prefixlen = max_prefixlen
+
+  def __cmp__(self, other):
+    """Compare two ROA prefix objects.  Comparision is based on
+    address, prefixlen, and max_prefixlen, in that order.
+    """
+    c = self.address - other.address
+    if c == 0: c = self.prefixlen - other.prefixlen
+    if c == 0: c = self.max_prefixlen - other.max_prefixlen
+    if c < 0: c = -1
+    if c > 0: c =  1
+    return c
+
+  def __str__(self):
+    """Convert a ROA prefix to string format."""
+    return str(self.address) + "/" + str(self.prefixlen) + "-" + str(self.max_prefixlen)
+
+  # CONTINUE HERE
 
 # Test suite for set operations.  This will probably go away eventually
 

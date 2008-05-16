@@ -161,12 +161,12 @@ class resource_set(list):
 
   def __init__(self, ini = None):
     """Initialize a resource_set."""
-    if isinstance(ini, int) or isinstance(ini, long):
+    if isinstance(ini, (int, long)):
       ini = str(ini)
     if ini == inherit_token:
       self.inherit = True
     elif isinstance(ini, str) and len(ini):
-      self.extend(map(self.parse_str, ini.split(",")))
+      self.extend(self.parse_str(s) for s in ini.split(","))
     elif isinstance(ini, tuple):
       self.parse_rfc3779_tuple(ini)
     elif isinstance(ini, list):
@@ -176,7 +176,7 @@ class resource_set(list):
     assert not self.inherit or not self
     self.sort()
     if __debug__:
-      for i in range(0, len(self) - 1):
+      for i in xrange(0, len(self) - 1):
         assert self[i].max < self[i+1].min, "Resource overlap: %s %s" % (self[i], self[i+1])
 
   def __str__(self):
@@ -184,7 +184,7 @@ class resource_set(list):
     if self.inherit:
       return inherit_token
     else:
-      return ",".join(map(str, self))
+      return ",".join(str(x) for x in self)
 
   def _comm(self, other):
     """Like comm(1), sort of.
@@ -239,8 +239,8 @@ class resource_set(list):
         if this.max > that.max: max = this.max
         else:                   max = that.max
         result.append(type(this)(min, max))
-    for i in range(len(result) - 2, -1, -1):
-      if result[i].max + 1 == result[i + 1].min:
+    for i in xrange(len(result) - 2, -1, -1):
+      if result[i].max + 1 == result[i+1].min:
         result[i] = type(result[i])(result[i].min, result[i+1].max)
         result.pop(i + 1)
     return type(self)(result)
@@ -519,6 +519,8 @@ class roa_prefix(object):
   """ROA prefix.  This is similar to the resource_range_ip class, but
   differs in that it only represents prefixes, never ranges, and
   includes the maximum prefix length as an additional value.
+
+  This is a virtual class, you don't want to use it directly.
   """
 
   def __init__(self, address, prefixlen, max_prefixlen = None):
@@ -546,15 +548,72 @@ class roa_prefix(object):
 
   def __str__(self):
     """Convert a ROA prefix to string format."""
-    return str(self.address) + "/" + str(self.prefixlen) + "-" + str(self.max_prefixlen)
+    if self.prefixlen == self.max_prefixlen:
+      return str(self.address) + "/" + str(self.prefixlen)
+    else:
+      return str(self.address) + "/" + str(self.prefixlen) + "-" + str(self.max_prefixlen)
 
-  # CONTINUE HERE
+  def to_resource_range(self):
+    """Convert this ROA prefix to the equivilent resource_range_ip
+    object.  This is an irreversable transformation because it loses
+    the max_prefixlen attribute, nothing we can do about that.
+    """
+    return self.range_type.make_prefix(self.address, self.prefixlen)
 
-# Test suite for set operations.  This will probably go away eventually
+  def min(self):
+    """Return lowest address covered by prefix."""
+    return self.address
+
+  def max(self):
+    """Return highest address covered by prefix."""
+    t = self.range_type.datum_type
+    return t(self.address | ((1 << (t.bits - self.prefixlen)) - 1))
+    
+class roa_prefix_ipv4(roa_prefix):
+  """IPv4 ROA prefix."""
+
+  range_type = resource_range_ipv4
+
+class roa_prefix_ipv6(roa_prefix):
+  """IPv6 ROA prefix."""
+
+  range_type = resource_range_ipv6
+
+class roa_prefix_set(list):
+  """Set of ROA prefixes, analogous to the resource_set_ip class."""
+
+  def __init__(self, ini = None):
+    """Initialize a ROA prefix set."""
+    if isinstance(ini, str) and len(str):
+      self.extend(self.parse_str(s) for s in ini.split(","))
+    elif isinstance(ini, (list, tuple)):
+      self.extend(ini)
+    else:
+      assert ini is None or ini == "", "Unexpected initializer: %s" % str(ini)
+    self.sort()
+    if __debug__:
+      for i in xrange(0, len(self) - 1):
+        assert self[i].max() < self[i+1].min(), "Prefix overlap: %s %s" % (self[i], self[i+1])
+
+  def __str__(self):
+    """Convert a ROA prefix set to string format."""
+    return ",".join(str(x) for x in self)
+
+  def parse_str(self, x):
+    """Parse ROA prefix from text (eg, an XML attribute)."""
+    r = re.match("^([0-9:.a-fA-F]+)/([0-9]+)-([0-9]+)$", x)
+    if r:
+      return self.range_type.roa_prefix(self.range_type.datum_type(r.group(1)), int(r.group(2)), int(r.group(3)))
+    r = re.match("^([0-9:.a-fA-F]+)/([0-9]+)$", x)
+    if r:
+      return self.range_type.roa_prefix(self.range_type.datum_type(r.group(1)), int(r.group(2)))
+    raise RuntimeError, 'Bad ROA prefix "%s"' % (x)
+
+# Test suite for set operations.
 
 if __name__ == "__main__":
 
-  def test(t, s1, s2):
+  def test1(t, s1, s2):
     print
     r1 = t(s1)
     r2 = t(s2)
@@ -587,8 +646,8 @@ if __name__ == "__main__":
 
   print
   print "Testing set operations on resource sets"
-  test(resource_set_as, "1,2,3,4,5,6,11,12,13,14,15", "1,2,3,4,5,6,111,121,131,141,151")
-  test(resource_set_ipv4, "10.0.0.44/32,10.6.0.2/32", "10.3.0.0/24,10.0.0.77/32")
-  test(resource_set_ipv4, "10.0.0.44/32,10.6.0.2/32", "10.0.0.0/24")
-  test(resource_set_ipv4, "10.0.0.0/24", "10.3.0.0/24,10.0.0.77/32")
+  test1(resource_set_as, "1,2,3,4,5,6,11,12,13,14,15", "1,2,3,4,5,6,111,121,131,141,151")
+  test1(resource_set_ipv4, "10.0.0.44/32,10.6.0.2/32", "10.3.0.0/24,10.0.0.77/32")
+  test1(resource_set_ipv4, "10.0.0.44/32,10.6.0.2/32", "10.0.0.0/24")
+  test1(resource_set_ipv4, "10.0.0.0/24", "10.3.0.0/24,10.0.0.77/32")
   print

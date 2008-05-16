@@ -1,6 +1,6 @@
 # $Id$
 #
-# RelaxNG (Compact Syntax) Schema for RPKI left-right protocol.
+# RelaxNG Schema for RPKI left-right protocol.
 #
 # libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
 # run the compact syntax through trang to get XML syntax.

@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rnc 1788 2008-05-16 21:48:48Z sra $
+  $Id: left-right-schema.rng 1790 2008-05-16 22:11:00Z sra $
   
   RelaxNG (Compact Syntax) Schema for RPKI left-right protocol.
   

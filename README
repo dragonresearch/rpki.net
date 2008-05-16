@@ -5,14 +5,20 @@ Files associated with routing PKI project.
 Required reading:
 
 - RFC 3779
-- Portions of RFC 3280
-- draft-ietf-sidr-res-certs
+- Portions of RFCs 3280 and 3852
+- draft-ietf-sidr-*
 
 Programs:
 
 - openssl: development copy of OpenSSL with RFC 3779 support added.
   Patches for this have been submitted to the OpenSSL project and were
   incorporated into release OpenSSL 0.9.8e.
+
+  At present we're using unmodified copies of OpenSSL project
+  snapshots, because we need CMS code that's not yet in any released
+  version.  So we keep a distribution tarball and a makefile that
+  knows how to unpack, configure, and build it, so that other tools in
+  this package can use the resulting libraries.
 
 - rcynic: "cynical rsync" validator for rsync-based RPKI repositories.
 

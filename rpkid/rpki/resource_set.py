@@ -175,6 +175,10 @@ class resource_set(list):
       assert ini is None or ini == "", "Unexpected initializer: %s" % str(ini)
     assert not self.inherit or not self
     self.sort()
+    for i in xrange(len(self) - 2, -1, -1):
+      if self[i].max + 1 == self[i+1].min:
+        self[i] = type(self[i])(self[i].min, self[i+1].max)
+        self.pop(i + 1)
     if __debug__:
       for i in xrange(0, len(self) - 1):
         assert self[i].max < self[i+1].min, "Resource overlap: %s %s" % (self[i], self[i+1])
@@ -239,10 +243,6 @@ class resource_set(list):
         if this.max > that.max: max = this.max
         else:                   max = that.max
         result.append(type(this)(min, max))
-    for i in xrange(len(result) - 2, -1, -1):
-      if result[i].max + 1 == result[i+1].min:
-        result[i] = type(result[i])(result[i].min, result[i+1].max)
-        result.pop(i + 1)
     return type(self)(result)
 
   def intersection(self, other):
@@ -665,15 +665,14 @@ if __name__ == "__main__":
     print "x&y:", v1
 
   def test2(t, s1, s2):
-    print "x:     ", s1
-    print "y:     ", s2
+    print "x:  ", s1
+    print "y:  ", s2
     r1 = t(s1)
     r2 = t(s2)
-    print "x:     ", r1
-    print "y:     ", r2
-    print "x == y:", (r1 == r2)
-    print "x > y: ", (r1 > r2)
-    print "x < y: ", (r1 < r2)
+    print "x:  ", r1
+    print "y:  ", r2
+    print "x>y:", (r1 > r2)
+    print "x<y:", (r1 < r2)
     test1(t.resource_set_type, r1.to_resource_set(), r2.to_resource_set())
 
   print

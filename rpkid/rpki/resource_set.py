@@ -27,14 +27,27 @@ We also provide some basic set operations (union, intersection, etc).
 import re
 import rpki.ipaddrs, rpki.oids, rpki.exceptions
 
+## @var inherit_token
+# Token used to indicate inheritance in read and print syntax.
+
 inherit_token = "<inherit>"
 
 class resource_range(object):
-  """Generic resource range type.
+  """Generic resource range type.  Assumes underlying type is some
+  kind of integer.
 
-  Assumes underlying type is some kind of integer.  You probably don't
-  want to use this type directly.
+  This is a virtual class.  You probably don't want to use this type
+  directly.
   """
+
+  ## @var min
+  # Minimum value of range.
+
+  ## @var max
+  # Maximum value of range.
+
+  ## @var datum_type
+  # Type of underlying data (min and max).
 
   def __init__(self, min, max):
     """Initialize and sanity check a resource_range."""
@@ -77,6 +90,8 @@ class resource_range_ip(resource_range):
 
   Prefixes are converted to ranges on input, and ranges that can be
   represented as prefixes are written as prefixes on output.
+
+  This is a virtual class.  You probably don't want to use it directly.
   """
 
   def _prefixlen(self):
@@ -137,7 +152,7 @@ class resource_range_ipv6(resource_range_ip):
   datum_type = rpki.ipaddrs.v6addr
 
 def _rsplit(rset, that):
-  """Split a resource range into two resource ranges."""
+  """Utility function to split a resource range into two resource ranges."""
   this = rset.pop(0)
   cell_type = type(this.min)
   assert type(this) is type(that) and type(this.max) is cell_type and \
@@ -152,10 +167,17 @@ def _rsplit(rset, that):
 
 class resource_set(list):
   """Generic resource set.
+  This is a list subclass containing resource ranges.
 
-  List type containing resource ranges.  You probably don't want to
-  use this type directly.
+  This is a virtual class.  You probably don't want to use it
+  directly.
   """
+
+  ## @var range_type
+  # Type of range underlying this type of resource_set.
+
+  ## @var inherit
+  # Boolean indicating whether this resource_set uses RFC 3779 inheritance.
 
   inherit = False
 
@@ -335,8 +357,12 @@ class resource_set_as(resource_set):
 class resource_set_ip(resource_set):
   """(Generic) IP address resource set.
 
-  You probably don't want to use this type directly.
+  This is a virtual class.  You probably don't want to use it
+  directly.
   """
+
+  ## @var afi
+  # Address Family Identifier value associated with this resource_set_ip subclass.
 
   def parse_str(self, x):
     """Parse IP address resource sets from text (eg, XML attributes)."""
@@ -396,12 +422,15 @@ class resource_set_ipv6(resource_set_ip):
   afi = "\x00\x02"
 
 def _bs2long(bs):
-  """Convert a bitstring (tuple representation) into a long."""
+  """Utility function to convert a bitstring (POW.pkix tuple
+  representation) into a Python long.
+  """
   return reduce(lambda x, y: (x << 1) | y, bs, 0L)
 
 def _long2bs(number, addrlen, prefixlen = None, strip = None):
-  """Convert a long into a tuple bitstring.  This is a bit complicated
-  because it supports the fiendishly compact encoding used in RFC 3779.
+  """Utility function to convert a Python long into a POW.pkix tuple
+  bitstring.  This is a bit complicated because it supports the
+  fiendishly compact encoding used in RFC 3779.
   """
   assert prefixlen is None or strip is None
   bs = []
@@ -422,6 +451,18 @@ class resource_bag(object):
   """Container to simplify passing around the usual triple of AS,
   IPv4, and IPv6 resource sets.
   """
+
+  ## @var as
+  # Set of Autonomous System Number resources.
+
+  ## @var v4
+  # Set of IPv4 resources.
+
+  ## @var v6
+  # Set of IPv6 resources.
+
+  ## @var valid_until
+  # Expiration date of resources, for setting certificate notAfter field.
 
   def __init__(self, as = None, v4 = None, v6 = None, valid_until = None):
     self.as = as or resource_set_as()
@@ -520,8 +561,20 @@ class roa_prefix(object):
   differs in that it only represents prefixes, never ranges, and
   includes the maximum prefix length as an additional value.
 
-  This is a virtual class, you don't want to use it directly.
+  This is a virtual class, you probably don't want to use it directly.
   """
+
+  ## @var address
+  # Address portion of prefix.
+
+  ## @var prefixlen
+  # (Minimum) prefix length.
+
+  ## @var max_prefixlen
+  # Maxmimum prefix length.
+
+  ## @var range_type
+  # Type of corresponding resource_range_ip.
 
   def __init__(self, address, prefixlen, max_prefixlen = None):
     """Initialize a ROA prefix.  max_prefixlen is optional and
@@ -581,6 +634,12 @@ class roa_prefix_ipv6(roa_prefix):
 
 class roa_prefix_set(list):
   """Set of ROA prefixes, analogous to the resource_set_ip class."""
+
+  ## @var prefix_type
+  # Type of underlying roa_prefix.
+
+  ## @var resource_set_type
+  # Type of corresponding resource_set_ip class.
 
   def __init__(self, ini = None):
     """Initialize a ROA prefix set."""

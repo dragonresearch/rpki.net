@@ -584,7 +584,7 @@ class roa_prefix_set(list):
 
   def __init__(self, ini = None):
     """Initialize a ROA prefix set."""
-    if isinstance(ini, str) and len(str):
+    if isinstance(ini, str) and len(ini):
       self.extend(self.parse_str(s) for s in ini.split(","))
     elif isinstance(ini, (list, tuple)):
       self.extend(ini)
@@ -603,18 +603,38 @@ class roa_prefix_set(list):
     """Parse ROA prefix from text (eg, an XML attribute)."""
     r = re.match("^([0-9:.a-fA-F]+)/([0-9]+)-([0-9]+)$", x)
     if r:
-      return self.range_type.roa_prefix(self.range_type.datum_type(r.group(1)), int(r.group(2)), int(r.group(3)))
+      return self.prefix_type(self.prefix_type.range_type.datum_type(r.group(1)), int(r.group(2)), int(r.group(3)))
     r = re.match("^([0-9:.a-fA-F]+)/([0-9]+)$", x)
     if r:
-      return self.range_type.roa_prefix(self.range_type.datum_type(r.group(1)), int(r.group(2)))
+      return self.prefix_type(self.prefix_type.range_type.datum_type(r.group(1)), int(r.group(2)))
     raise RuntimeError, 'Bad ROA prefix "%s"' % (x)
+
+  def to_resource_set(self):
+    """Convert a ROA prefix set to a resource set.  This is an
+    irreversable transformation.
+    """
+    return self.resource_set_type([p.to_resource_range() for p in self])
+
+class roa_prefix_set_ipv4(roa_prefix_set):
+  """Set of IPv4 ROA prefixes."""
+
+  prefix_type = roa_prefix_ipv4
+  resource_set_type = resource_set_ipv4
+
+class roa_prefix_set_ipv6(roa_prefix_set):
+  """Set of IPv6 ROA prefixes."""
+
+  prefix_type = roa_prefix_ipv6
+  resource_set_type = resource_set_ipv6
 
 # Test suite for set operations.
 
 if __name__ == "__main__":
 
   def test1(t, s1, s2):
-    print
+    if isinstance(s1, str) and isinstance(s2, str):
+      print "x:  ", s1
+      print "y:  ", s2
     r1 = t(s1)
     r2 = t(s2)
     print "x:  ", r1
@@ -644,10 +664,34 @@ if __name__ == "__main__":
     assert v1 == v2
     print "x&y:", v1
 
+  def test2(t, s1, s2):
+    print "x:     ", s1
+    print "y:     ", s2
+    r1 = t(s1)
+    r2 = t(s2)
+    print "x:     ", r1
+    print "y:     ", r2
+    print "x == y:", (r1 == r2)
+    print "x > y: ", (r1 > r2)
+    print "x < y: ", (r1 < r2)
+    test1(t.resource_set_type, r1.to_resource_set(), r2.to_resource_set())
+
   print
   print "Testing set operations on resource sets"
+  print
   test1(resource_set_as, "1,2,3,4,5,6,11,12,13,14,15", "1,2,3,4,5,6,111,121,131,141,151")
+  print
   test1(resource_set_ipv4, "10.0.0.44/32,10.6.0.2/32", "10.3.0.0/24,10.0.0.77/32")
+  print
   test1(resource_set_ipv4, "10.0.0.44/32,10.6.0.2/32", "10.0.0.0/24")
+  print
   test1(resource_set_ipv4, "10.0.0.0/24", "10.3.0.0/24,10.0.0.77/32")
+  print
+  print "Testing set operations on ROA prefixes"
+  print
+  test2(roa_prefix_set_ipv4, "10.0.0.44/32,10.6.0.2/32", "10.3.0.0/24,10.0.0.77/32")
+  print
+  test2(roa_prefix_set_ipv4, "10.0.0.0/24-32,10.6.0.0/24-32", "10.3.0.0/24,10.0.0.0/16-32")
+  print
+  test2(roa_prefix_set_ipv4, "10.3.0.0/24-24,10.0.0.0/16-32", "10.3.0.0/24,10.0.0.0/16-32")
   print

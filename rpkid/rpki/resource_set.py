@@ -674,6 +674,17 @@ class roa_prefix_set(list):
     """
     return self.resource_set_type([p.to_resource_range() for p in self])
 
+  @classmethod
+  def from_sql(cls, cur, query, args = None):
+    """Create ROA prefix set from an SQL query.  cur is a DB API 2.0
+    cursor object.  query is an SQL query that returns a sequence of
+    (address, prefixlen, max_prefixlen) triples.
+    """
+
+    cur.execute(query, args)
+    return cls([cls.prefix_type(cls.prefix_type.range_type.datum_type(x), int(y), int(z))
+                for (x,y,z) in cur.fetchall()])
+
 class roa_prefix_set_ipv4(roa_prefix_set):
   """Set of IPv4 ROA prefixes."""
 

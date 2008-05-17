@@ -343,7 +343,7 @@ class allocation(object):
     if valid_until is None and "valid_for" in yaml:
       valid_until = rpki.sundial.now() + rpki.sundial.timedelta.parse(yaml["valid_for"])
     self.base = rpki.resource_set.resource_bag(
-      as = rpki.resource_set.resource_set_as(yaml.get("asn")),
+      asn = rpki.resource_set.resource_set_as(yaml.get("asn")),
       v4 = rpki.resource_set.resource_set_ipv4(yaml.get("ipv4")),
       v6 = rpki.resource_set.resource_set_ipv6(yaml.get("ipv6")),
       valid_until = valid_until)
@@ -373,10 +373,10 @@ class allocation(object):
       if k != "name":
         getattr(self, "apply_" + k)(v)
 
-  def apply_add_as(self, text): self.base.as = self.base.as.union(rpki.resource_set.resource_set_as(text))
+  def apply_add_as(self, text): self.base.asn = self.base.asn.union(rpki.resource_set.resource_set_as(text))
   def apply_add_v4(self, text): self.base.v4 = self.base.v4.union(rpki.resource_set.resource_set_ipv4(text))
   def apply_add_v6(self, text): self.base.v6 = self.base.v6.union(rpki.resource_set.resource_set_ipv6(text))
-  def apply_sub_as(self, text): self.base.as = self.base.as.difference(rpki.resource_set.resource_set_as(text))
+  def apply_sub_as(self, text): self.base.asn = self.base.asn.difference(rpki.resource_set.resource_set_as(text))
   def apply_sub_v4(self, text): self.base.v4 = self.base.v4.difference(rpki.resource_set.resource_set_ipv4(text))
   def apply_sub_v6(self, text): self.base.v6 = self.base.v6.difference(rpki.resource_set.resource_set_ipv6(text))
 
@@ -416,7 +416,7 @@ class allocation(object):
 
   def __str__(self):
     s = self.name + "\n"
-    if self.resources.as:       s += "  ASN: %s\n" % self.resources.as
+    if self.resources.asn:      s += "  ASN: %s\n" % self.resources.asn
     if self.resources.v4:       s += " IPv4: %s\n" % self.resources.v4
     if self.resources.v6:       s += " IPv6: %s\n" % self.resources.v6
     if self.kids:               s += " Kids: %s\n" % ", ".join(k.name for k in self.kids)
@@ -493,7 +493,7 @@ class allocation(object):
     for kid in self.kids:
       cur.execute("SELECT registrant_id FROM registrant WHERE IRBE_mapped_id = %s", (kid.name,))
       registrant_id = cur.fetchone()[0]
-      for as_range in kid.resources.as:
+      for as_range in kid.resources.asn:
         cur.execute("INSERT asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)", (as_range.min, as_range.max, registrant_id))
       for v4_range in kid.resources.v4:
         cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)", (v4_range.min, v4_range.max, registrant_id))

@@ -1038,7 +1038,7 @@ class list_resources_elt(base_elt):
   """<list_resources/> element."""
 
   element_name = "list_resources"
-  attributes = ("type", "self_id", "tag", "child_id", "valid_until", "as", "ipv4", "ipv6", "subject_name")
+  attributes = ("type", "self_id", "tag", "child_id", "valid_until", "asn", "ipv4", "ipv6", "subject_name")
   valid_until = None
 
   def startElement(self, stack, name, attrs):
@@ -1047,8 +1047,8 @@ class list_resources_elt(base_elt):
     self.read_attrs(attrs)
     if isinstance(self.valid_until, str):
       self.valid_until = rpki.sundial.datetime.fromXMLtime(self.valid_until)
-    if self.as is not None:
-      self.as = rpki.resource_set.resource_set_as(self.as)
+    if self.asn is not None:
+      self.asn = rpki.resource_set.resource_set_as(self.asn)
     if self.ipv4 is not None:
       self.ipv4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
     if self.ipv6 is not None:

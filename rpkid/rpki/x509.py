@@ -372,8 +372,8 @@ class X509(DER_object):
     else:
       assert not is_ca
 
-    if resources is not None and resources.as:
-      exts.append(["sbgp-autonomousSysNum", True, (resources.as.to_rfc3779_tuple(), None)])
+    if resources is not None and resources.asn:
+      exts.append(["sbgp-autonomousSysNum", True, (resources.asn.to_rfc3779_tuple(), None)])
 
     if resources is not None and (resources.v4 or resources.v6):
       exts.append(["sbgp-ipAddrBlock", True, [x for x in (resources.v4.to_rfc3779_tuple(), resources.v6.to_rfc3779_tuple()) if x is not None]])
@@ -709,8 +709,7 @@ class CMS_object(DER_object):
           dbg = self.dumpasn1()
         else:
           dbg = cms.pprint()
-        print "CMS verification failed, dumping ASN.1 (%d octets):\n%s" \
-                       % (len(self.get_DER()), dbg)
+        print "CMS verification failed, dumping ASN.1 (%d octets):\n%s" % (len(self.get_DER()), dbg)
       raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed"
 
     self.decode(content)

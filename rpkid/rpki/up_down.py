@@ -172,7 +172,7 @@ class class_elt(base_elt):
 
   def from_resource_bag(self, bag):
     """Set resources of this class element from a resource_bag."""
-    self.resource_set_as   = bag.as
+    self.resource_set_as   = bag.asn
     self.resource_set_ipv4 = bag.v4
     self.resource_set_ipv6 = bag.v6
     self.resource_set_notafter = bag.valid_until

@@ -35,17 +35,17 @@ def main():
   """Main program, including the toy database itself."""
 
   db = allocation_db()
-  db.add("ISP1", ipv4="192.0.2.1-192.0.2.33", asn="64533")
-  db.add("ISP2", ipv4="192.0.2.44-192.0.2.100")
-  db.add("ISP3", ipv6="2001:db8::44-2001:db8::100")
-  db.add("ISP4", ipv6="2001:db8::10:0:44/128", asn="64544")
-  db.add("ISP5a", ipv4="10.0.0.0/24", ipv6="2001:db8::a00:0/120")
-  db.add("ISP5b", ipv4="10.3.0.0/24", ipv6="2001:db8::a03:0/120")
-  db.add("ISP5c", asn="64534-64540")
-  db.add("LIR1", children=["ISP1", "ISP2"])
-  db.add("LIR2", children=["ISP3", "ISP4"])
-  db.add("LIR3", children=["ISP5a", "ISP5b", "ISP5c"])
-  db.add("RIR",  children=["LIR1", "LIR2", "LIR3"])
+  db.add("ISP1", ipv4 = "192.0.2.1-192.0.2.33", asn = "64533")
+  db.add("ISP2", ipv4 = "192.0.2.44-192.0.2.100")
+  db.add("ISP3", ipv6 = "2001:db8::44-2001:db8::100")
+  db.add("ISP4", ipv6 = "2001:db8::10:0:44/128", asn = "64544")
+  db.add("ISP5a", ipv4 = "10.0.0.0/24", ipv6 = "2001:db8::a00:0/120")
+  db.add("ISP5b", ipv4 = "10.3.0.0/24", ipv6 = "2001:db8::a03:0/120")
+  db.add("ISP5c", asn = "64534-64540")
+  db.add("LIR1", children = ["ISP1", "ISP2"])
+  db.add("LIR2", children = ["ISP3", "ISP4"])
+  db.add("LIR3", children = ["ISP5a", "ISP5b", "ISP5c"])
+  db.add("RIR",  children = ["LIR1", "LIR2", "LIR3"])
 
   if not os.path.isdir(subdir):
     os.mkdir(subdir)

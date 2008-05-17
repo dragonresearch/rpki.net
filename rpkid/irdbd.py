@@ -60,7 +60,7 @@ def handler(query, path):
         registrant_id, subject_name, valid_until = cur.fetchone()
         r_pdu.subject_name = subject_name
         r_pdu.valid_until = valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
-        r_pdu.as   = rpki.resource_set.resource_set_as.from_sql(cur,   "SELECT start_as, end_as FROM asn WHERE registrant_id = %s", (registrant_id,))
+        r_pdu.asn  = rpki.resource_set.resource_set_as.from_sql(cur,   "SELECT start_as, end_as FROM asn WHERE registrant_id = %s", (registrant_id,))
         r_pdu.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(cur, "SELECT start_ip, end_ip FROM net WHERE registrant_id = %s AND version = 4", (registrant_id,))
         r_pdu.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(cur, "SELECT start_ip, end_ip FROM net WHERE registrant_id = %s AND version = 6", (registrant_id,))
 

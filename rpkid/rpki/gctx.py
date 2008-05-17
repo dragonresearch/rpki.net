@@ -79,7 +79,7 @@ class global_context(object):
     if len(r_msg) == 0 or not isinstance(r_msg[0], rpki.left_right.list_resources_elt) or r_msg[0].type != "reply":
       raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")
     return rpki.resource_set.resource_bag(
-      as          = r_msg[0].as,
+      asn         = r_msg[0].asn,
       v4          = r_msg[0].ipv4,
       v6          = r_msg[0].ipv6,
       valid_until = r_msg[0].valid_until)

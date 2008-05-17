@@ -959,7 +959,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
             </attribute>
           </optional>
           <optional>
-            <attribute name="as">
+            <attribute name="asn">
               <ref name="asn_list"/>
             </attribute>
           </optional>
@@ -995,6 +995,11 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     </element>
   </define>
 </grammar>
+<!--
+  Local Variables:
+  indent-tabs-mode: nil
+  End:
+-->
 '''))
 
 ## @var up_down
@@ -1244,4 +1249,9 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodi
     </optional>
   </define>
 </grammar>
+<!--
+  Local Variables:
+  indent-tabs-mode: nil
+  End:
+-->
 '''))

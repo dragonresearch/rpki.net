@@ -953,7 +953,7 @@
             </attribute>
           </optional>
           <optional>
-            <attribute name="as">
+            <attribute name="asn">
               <ref name="asn_list"/>
             </attribute>
           </optional>
@@ -989,3 +989,8 @@
     </element>
   </define>
 </grammar>
+<!--
+  Local Variables:
+  indent-tabs-mode: nil
+  End:
+-->

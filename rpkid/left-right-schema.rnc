@@ -212,7 +212,7 @@ list_resources_elt = element list_resources {
   ( attribute type { "reply" }, tag, self_id, child_id,
     attribute valid_until { xsd:dateTime { pattern=".*Z" } },
     attribute subject_name { xsd:token { maxLength="1024" } }?,
-    attribute as { asn_list }?,
+    attribute asn { asn_list }?,
     attribute ipv4 { ipv4_address_list }?,
     attribute ipv6 { ipv6_address_list }?
   )
@@ -225,3 +225,7 @@ report_error_elt = element report_error {
   attribute error_code { xsd:token { maxLength="1024" } },
   xsd:string { maxLength="512000" }?
 }
+
+# Local Variables:
+# indent-tabs-mode: nil
+# End:

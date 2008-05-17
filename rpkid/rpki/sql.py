@@ -368,17 +368,10 @@ class ca_obj(sql_persistant):
     return self.last_crl_sn
 
   def rekey(self):
-    """Initiate a rekey operation for this ca.
-
-    Tasks:
-
-    - Generate a new keypair.
-
-    - Request cert from parent using new keypair.
-
-    - Mark result as our active ca_detail.
-
-    - Reissue all child certs issued by this ca using the new ca_detail.
+    """Initiate a rekey operation for this ca.  Generate a new
+    keypair.  Request cert from parent using new keypair.  Mark result
+    as our active ca_detail.  Reissue all child certs issued by this
+    ca using the new ca_detail.
     """
 
     rpki.log.trace()
@@ -596,7 +589,7 @@ class ca_detail_obj(sql_persistant):
     """Generate a new manifest certificate for this ca_detail."""
 
     resources = rpki.resource_set.resource_bag(
-      as = rpki.resource_set.resource_set_as("<inherit>"),
+      asn = rpki.resource_set.resource_set_as("<inherit>"),
       v4 = rpki.resource_set.resource_set_ipv4("<inherit>"),
       v6 = rpki.resource_set.resource_set_ipv6("<inherit>"))
 

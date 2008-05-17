@@ -1256,7 +1256,7 @@
 			subject_name="Wombats are us"
 			ipv4="10.0.0.44/32,10.3.0.44/32"
 			ipv6="fe80:deed:f00d::/48,fe80:dead:beef:2::-fe80:dead:beef:2::49"
-			as="666"/>
+			asn="666"/>
     </msg>
     
     <!-- === -->

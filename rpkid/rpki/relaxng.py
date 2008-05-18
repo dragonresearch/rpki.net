@@ -166,32 +166,19 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="asn_list">
     <data type="string">
       <param name="maxLength">512000</param>
-      <param name="pattern">[\-,/0-9]*</param>
+      <param name="pattern">[\-,0-9]*</param>
     </data>
   </define>
-  <define name="ipv4_address_list">
+  <define name="ipv4_list">
     <data type="string">
       <param name="maxLength">512000</param>
-      <param name="pattern">[\-,/.0-9]*</param>
+      <param name="pattern">[\-,0-9/.]*</param>
     </data>
   </define>
-  <define name="ipv6_address_list">
+  <define name="ipv6_list">
     <data type="string">
       <param name="maxLength">512000</param>
-      <param name="pattern">[\-,/:0-9a-fA-F]*</param>
-    </data>
-  </define>
-  <!-- Prefix resource lists, same as address resource lists not no ranges allowed -->
-  <define name="ipv4_prefix_list">
-    <data type="string">
-      <param name="maxLength">512000</param>
-      <param name="pattern">[,/.0-9]*</param>
-    </data>
-  </define>
-  <define name="ipv6_prefix_list">
-    <data type="string">
-      <param name="maxLength">512000</param>
-      <param name="pattern">[,/:0-9a-fA-F]*</param>
+      <param name="pattern">[\-,0-9/:a-fA-F]*</param>
     </data>
   </define>
   <!-- <self/> element -->
@@ -844,12 +831,12 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     </optional>
     <optional>
       <attribute name="ipv4">
-        <ref name="ipv4_prefix_list"/>
+        <ref name="ipv4_list"/>
       </attribute>
     </optional>
     <optional>
       <attribute name="ipv6">
-        <ref name="ipv6_prefix_list"/>
+        <ref name="ipv6_list"/>
       </attribute>
     </optional>
   </define>
@@ -965,12 +952,12 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
           </optional>
           <optional>
             <attribute name="ipv4">
-              <ref name="ipv4_address_list"/>
+              <ref name="ipv4_list"/>
             </attribute>
           </optional>
           <optional>
             <attribute name="ipv6">
-              <ref name="ipv6_address_list"/>
+              <ref name="ipv6_list"/>
             </attribute>
           </optional>
         </group>

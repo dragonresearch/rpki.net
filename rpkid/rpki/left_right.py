@@ -826,11 +826,11 @@ class route_origin_elt(data_elt):
   """<route_origin/> element."""
 
   element_name = "route_origin"
-  attributes = ("action", "type", "tag", "self_id", "route_origin_id", "as_number", "exact_match", "ipv4", "ipv6")
+  attributes = ("action", "type", "tag", "self_id", "route_origin_id", "as_number", "ipv4", "ipv6")
   booleans = ("suppress_publication",)
 
   sql_template = rpki.sql.template("route_origin", "route_origin_id", "ca_detail_id",
-                                   "self_id", "as_number", "exact_match",
+                                   "self_id", "as_number",
                                    ("roa", rpki.x509.ROA),
                                    ("cert", rpki.x509.X509))
 
@@ -839,28 +839,28 @@ class route_origin_elt(data_elt):
   roa = None
 
   def sql_fetch_hook(self):
-    """Extra SQL fetch actions for route_origin_elt -- handle address ranges."""
-    self.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(self.gctx.cur, """
-                SELECT start_ip, end_ip FROM route_origin_range
-                WHERE route_origin_id = %s AND start_ip NOT LIKE '%:%'
+    """Extra SQL fetch actions for route_origin_elt -- handle prefix list."""
+    self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4.from_sql(self.gctx.cur, """
+                SELECT address, prefixlen, max_prefixlen FROM route_origin_prefix
+                WHERE route_origin_id = %s AND address NOT LIKE '%:%'
                 """, (self.route_origin_id,))
-    self.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(self.gctx.cur, """
-                SELECT start_ip, end_ip FROM route_origin_range
-                WHERE route_origin_id = %s AND start_ip LIKE '%:%'
+    self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6.from_sql(self.gctx.cur, """
+                SELECT address, prefixlen, max_prefixlen FROM route_origin_prefix
+                WHERE route_origin_id = %s AND address LIKE '%:%'
                 """, (self.route_origin_id,))
 
   def sql_insert_hook(self):
     """Extra SQL insert actions for route_origin_elt -- handle address ranges."""
     if self.ipv4 or self.ipv6:
       self.gctx.cur.executemany("""
-                INSERT route_origin_range (route_origin_id, start_ip, end_ip)
-                VALUES (%s, %s, %s)""",
-                           ((self.route_origin_id, x.min, x.max)
+                INSERT route_origin_prefix (route_origin_id, address, prefixlen, max_prefixlen)
+                VALUES (%s, %s, %s, %s)""",
+                           ((self.route_origin_id, x.address, x.prefixlen, x.max_prefixlen)
                             for x in (self.ipv4 or []) + (self.ipv6 or [])))
   
   def sql_delete_hook(self):
     """Extra SQL delete actions for route_origin_elt -- handle address ranges."""
-    self.gctx.cur.execute("DELETE FROM route_origin_range WHERE route_origin_id = %s", (self.route_origin_id,))
+    self.gctx.cur.execute("DELETE FROM route_origin_prefix WHERE route_origin_id = %s", (self.route_origin_id,))
 
   def ca_detail(self):
     """Fetch all ca_detail objects that link to this route_origin object."""
@@ -877,9 +877,9 @@ class route_origin_elt(data_elt):
     if self.as_number is not None:
       self.as_number = long(self.as_number)
     if self.ipv4 is not None:
-      self.ipv4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
+      self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4(self.ipv4)
     if self.ipv6 is not None:
-      self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
+      self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6)
 
   def endElement(self, stack, name, text):
     """Handle <route_origin/> element."""
@@ -912,8 +912,8 @@ class route_origin_elt(data_elt):
     if ee_resources.oversized(ca_resources):
       return self.regenerate_roa()
 
-    v4 = self.ipv4 if self.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
-    v6 = self.ipv6 if self.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
+    v4 = self.ipv4.to_resource_set() if self.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
+    v6 = self.ipv6.to_resource_set() if self.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
 
     if ee_resources.v4 != v4 or ee_resources.v6 != v6:
       return self.regenerate_roa()
@@ -938,12 +938,8 @@ class route_origin_elt(data_elt):
     /dev/random, but there is not much we can do about that.
     """
 
-    if self.exact_match is None:
-      rpki.log.warn("Can't generate ROA with undefined exactMatch")
-      return
-
     if self.ipv4 is None and self.ipv6 is None:
-      rpki.log.warn("Can't generate ROA for empty address list")
+      rpki.log.warn("Can't generate ROA for empty prefix list")
       return
 
     # Ugly and expensive search for covering ca_detail, there has to
@@ -953,6 +949,9 @@ class route_origin_elt(data_elt):
     # first checking the ca_detail we used last time, but it may not
     # be active, in which we have to check the ca_detail that replaced it.
 
+    v4 = self.ipv4.to_resource_set() if self.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
+    v6 = self.ipv6.to_resource_set() if self.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
+
     ca_detail = self.ca_detail()
     if ca_detail is None or ca_detail.state != "active":
       ca_detail = None
@@ -961,8 +960,7 @@ class route_origin_elt(data_elt):
           ca_detail = ca.fetch_active()
           if ca_detail is not None:
             resources = ca_detail.latest_ca_cert.get_3779resources()
-            if ((self.ipv4 is None or self.ipv4.issubset(resources.v4)) and
-                (self.ipv6 is None or self.ipv6.issubset(resources.v6))):
+            if v4.issubset(resources.v4) and v6.issubset(resources.v6):
               break
             ca_detail = None
         if ca_detail is not None:
@@ -972,7 +970,7 @@ class route_origin_elt(data_elt):
       rpki.log.warn("generate_roa() could not find a covering certificate")
       return
 
-    resources = rpki.resource_set.resource_bag(v4 = self.ipv4, v6 = self.ipv6)
+    resources = rpki.resource_set.resource_bag(v4 = v4, v6 = v6)
 
     keypair = rpki.x509.RSA()
     keypair.generate()
@@ -980,7 +978,7 @@ class route_origin_elt(data_elt):
     sia = ((rpki.oids.name2oid["id-ad-signedObject"], ("uri", self.roa_uri(ca, keypair))),)
 
     self.cert = ca_detail.issue_ee(ca, resources, keypair.get_RSApublic(), sia = sia)
-    self.roa = rpki.x509.ROA.build(self.as_number, self.exact_match, self.ipv4, self.ipv6, keypair, (self.cert,))
+    self.roa = rpki.x509.ROA.build(self.as_number, self.ipv4, self.ipv6, keypair, (self.cert,))
     self.ca_detail_id = ca_detail.ca_detail_id
     self.sql_store()
 

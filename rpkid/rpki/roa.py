@@ -18,13 +18,13 @@
 
 At the moment this is just the ASN.1 encoder.
 
-This corresponds to draft-ietf-sidr-roa-format-02, which is a work in
+This corresponds to draft-ietf-sidr-roa-format, which is a work in
 progress, so this may need updating later.
 """
 
 from POW._der import *
 
-# draft-ietf-sidr-roa-format-02 2.1.3.2
+# draft-ietf-sidr-roa-format-02 2.1.3.2 specifies:
 #
 #      RouteOriginAttestation ::= SEQUENCE { 
 #         version [0] INTEGER DEFAULT 0, 
@@ -41,9 +41,9 @@ from POW._der import *
 #         addresses SEQUENCE OF IPAddress } 
 #    
 #      IPAddress ::= BIT STRING 
-
-# Proposed new format, neither in draft nor in this code yet, but
-# included here for reference anyway:
+#
+# ... but we now implement the new format that will supposedly appear
+# in the upcoming draft-ietf-sidr-roa-format-03:
 #
 #      RouteOriginAttestation ::= SEQUENCE {
 #         version [0] INTEGER DEFAULT 0,
@@ -58,22 +58,29 @@ from POW._der import *
 #
 #      ROAIPAddress ::= {
 #         address IPAddress,
-#         maxLength INTEGER }
+#         maxLength INTEGER OPTIONAL }
 #    
 #      IPAddress ::= BIT STRING 
 
-class IPAddresses(SequenceOf):
+class ROAIPAddress(Sequence):
   def __init__(self, optional=0, default=''):
-    SequenceOf.__init__(self, BitString, optional, default)
+    self.address = BitString()
+    self.maxLength = Integer(1)
+    contents = [ self.address, self.maxLength ]
+    Sequence.__init__(self, contents, optional, default)
+
+class ROAIPAddresses(SequenceOf):
+  def __init__(self, optional=0, default=''):
+    SequenceOf.__init__(self, ROAIPAddress, optional, default)
 
 class ROAIPAddressFamily(Sequence):
   def __init__(self, optional=0, default=''):
     self.addressFamily = OctetString()
-    self.addresses = IPAddresses()
+    self.addresses = ROAIPAddresses()
     contents = [ self.addressFamily, self.addresses ]
     Sequence.__init__(self, contents, optional, default)
 
-class ROAIPAddrBlocks(SequenceOf):
+class ROAIPAddressFamilies(SequenceOf):
   def __init__(self, optional=0, default=''):
     SequenceOf.__init__(self,  ROAIPAddressFamily, optional, default)
  
@@ -82,7 +89,6 @@ class RouteOriginAttestation(Sequence):
     self.version = Integer()
     self.explicitVersion = Explicit(CLASS_CONTEXT, FORM_CONSTRUCTED, 0, self.version, 0, 'oAMCAQA=')
     self.asID = Integer()
-    self.exactMatch = Boolean()
-    self.ipAddrBlocks = ROAIPAddrBlocks()
-    contents = [ self.explicitVersion, self.asID, self.exactMatch, self.ipAddrBlocks ]
+    self.ipAddrBlocks = ROAIPAddressFamilies()
+    contents = [ self.explicitVersion, self.asID, self.ipAddrBlocks ]
     Sequence.__init__(self, contents, optional, default)

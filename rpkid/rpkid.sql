@@ -177,13 +177,14 @@ CREATE TABLE route_origin (
         FOREIGN KEY             (ca_detail_id) REFERENCES ca_detail
 );
 
-DROP TABLE IF EXISTS route_origin_range;
+DROP TABLE IF EXISTS route_origin_prefix;
 
-CREATE TABLE route_origin_range (
-        start_ip                VARCHAR(40),
-        end_ip                  VARCHAR(40),
+CREATE TABLE route_origin_prefix (
+        address                 VARCHAR(40) NOT NULL,
+        prefixlen               TINYINT NOT NULL,
+        max_prefixlen           TINYINT NOT NULL,
         route_origin_id         BIGINT unsigned NOT NULL,
-        PRIMARY KEY             (route_origin_id, start_ip, end_ip),
+        PRIMARY KEY             (route_origin_id, address, prefixlen, max_prefixlen),
         FOREIGN KEY             (route_origin_id) REFERENCES route_origin
 );
 

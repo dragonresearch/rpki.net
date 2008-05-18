@@ -45,13 +45,9 @@ uri = xsd:anyURI { maxLength="4096" }
 up_down_name = xsd:token { maxLength="1024" }
 
 # Resource lists
-asn_list          = xsd:string { maxLength="512000" pattern="[\-,/0-9]*" }
-ipv4_address_list = xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" }
-ipv6_address_list = xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" }
-
-# Prefix resource lists, same as address resource lists not no ranges allowed
-ipv4_prefix_list = xsd:string { maxLength="512000" pattern="[,/.0-9]*" }
-ipv6_prefix_list = xsd:string { maxLength="512000" pattern="[,/:0-9a-fA-F]*" }
+asn_list  = xsd:string { maxLength="512000" pattern="[\-,0-9]*" }
+ipv4_list = xsd:string { maxLength="512000" pattern="[\-,0-9/.]*" }
+ipv6_list = xsd:string { maxLength="512000" pattern="[\-,0-9/:a-fA-F]*" }
 
 # <self/> element
 
@@ -191,8 +187,8 @@ route_origin_bool = attribute suppress_publication { "yes" }?
 
 route_origin_payload = (attribute as_number { xsd:positiveInteger }?,
                         attribute exact_match { xsd:boolean }?,
-                        attribute ipv4 { ipv4_prefix_list }?,
-                        attribute ipv6 { ipv6_prefix_list }?)
+                        attribute ipv4 { ipv4_list }?,
+                        attribute ipv6 { ipv6_list }?)
 
 route_origin_elt |= element route_origin { ctl_cq, self_id, route_origin_bool, route_origin_payload }
 route_origin_elt |= element route_origin { ctl_cr, self_id, route_origin_id }
@@ -213,8 +209,8 @@ list_resources_elt = element list_resources {
     attribute valid_until { xsd:dateTime { pattern=".*Z" } },
     attribute subject_name { xsd:token { maxLength="1024" } }?,
     attribute asn { asn_list }?,
-    attribute ipv4 { ipv4_address_list }?,
-    attribute ipv6 { ipv6_address_list }?
+    attribute ipv4 { ipv4_list }?,
+    attribute ipv6 { ipv6_list }?
   )
 }
 

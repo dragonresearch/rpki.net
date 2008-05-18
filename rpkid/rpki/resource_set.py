@@ -57,6 +57,7 @@ class resource_range(object):
 
   def __cmp__(self, other):
     """Compare two resource_range objects."""
+    assert self.__class__ is other.__class__
     c = self.min - other.min
     if c == 0: c = self.max - other.max
     if c < 0:  c = -1
@@ -124,13 +125,6 @@ class resource_range_ip(resource_range):
                                _long2bs(self.max, self.datum_type.bits, strip = 1)))
     else:
       return ("addressPrefix", _long2bs(self.min, self.datum_type.bits, prefixlen = prefixlen))
-
-  def to_roa_tuple(self):
-    """Convert a resource_range_ip to tuple format for ROA ASN.1 encoding."""
-    prefixlen = self._prefixlen()
-    if prefixlen < 0:
-      raise rpki.exceptions.MustBePrefix, "%s cannot be expressed as a prefix" % str(self)
-    return _long2bs(self.min, self.datum_type.bits, prefixlen = prefixlen)
 
   @classmethod
   def make_prefix(cls, address, prefixlen):
@@ -401,14 +395,6 @@ class resource_set_ip(resource_set):
     else:
       return None
 
-  def to_roa_tuple(self):
-    """Convert IP resource set into tuple format used by ROA ASN.1 encoder.
-       This is a variation on the format used in RFC 3779."""
-    if self:
-      return (self.afi, tuple(a.to_roa_tuple() for a in self))
-    else:
-      return None
-
 class resource_set_ipv4(resource_set_ip):
   """IPv4 address resource set."""
 
@@ -592,6 +578,7 @@ class roa_prefix(object):
     """Compare two ROA prefix objects.  Comparision is based on
     address, prefixlen, and max_prefixlen, in that order.
     """
+    assert self.__class__ is other.__class__
     c = self.address - other.address
     if c == 0: c = self.prefixlen - other.prefixlen
     if c == 0: c = self.max_prefixlen - other.max_prefixlen
@@ -622,6 +609,11 @@ class roa_prefix(object):
     t = self.range_type.datum_type
     return t(self.address | ((1 << (t.bits - self.prefixlen)) - 1))
     
+  def to_roa_tuple(self):
+    """Convert a resource_range_ip to tuple format for ROA ASN.1 encoding."""
+    return (_long2bs(self.address, self.range_type.datum_type.bits, prefixlen = self.prefixlen),
+            None if self.prefixlen == self.max_prefixlen else self.max_prefixlen)
+
 class roa_prefix_ipv4(roa_prefix):
   """IPv4 ROA prefix."""
 
@@ -684,6 +676,14 @@ class roa_prefix_set(list):
     cur.execute(query, args)
     return cls([cls.prefix_type(cls.prefix_type.range_type.datum_type(x), int(y), int(z))
                 for (x,y,z) in cur.fetchall()])
+
+  def to_roa_tuple(self):
+    """Convert ROA prefix set into tuple format used by ROA ASN.1 encoder.
+       This is a variation on the format used in RFC 3779."""
+    if self:
+      return (self.resource_set_type.afi, tuple(a.to_roa_tuple() for a in self))
+    else:
+      return None
 
 class roa_prefix_set_ipv4(roa_prefix_set):
   """Set of IPv4 ROA prefixes."""

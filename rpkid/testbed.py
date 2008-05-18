@@ -255,8 +255,8 @@ class route_origin(object):
 
   def __init__(self, asn, ipv4, ipv6, exact_match):
     self.asn = asn
-    self.v4 = rpki.resource_set.resource_set_ipv4("".join(ipv4.split())) if ipv4 else None
-    self.v6 = rpki.resource_set.resource_set_ipv6("".join(ipv6.split())) if ipv6 else None
+    self.v4 = rpki.resource_set.roa_prefix_set_ipv4("".join(ipv4.split())) if ipv4 else None
+    self.v6 = rpki.resource_set.roa_prefix_set_ipv6("".join(ipv6.split())) if ipv6 else None
     self.exact_match = exact_match
 
   def __eq__(self, other):
@@ -308,6 +308,8 @@ class allocation_db(list):
 
   def apply_delta(self, delta):
     """Apply a delta or run a command."""
+    if delta is None:
+      return
     for d in delta:
       if isinstance(d, str):
         c = d.split()

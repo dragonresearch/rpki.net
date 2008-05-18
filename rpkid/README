@@ -95,29 +95,6 @@ TO DO:
 
 	STATUS: code written, not yet tested.
 
-      - ROA generation code.  First cut at this seems to work and
-        output looks right, but this hasn't been tested properly yet
-        due to lack of a ROA validation tool.
-
-	For reasons that presumably made sense at the time, the
-	left-right protocol for route_origin objects allows ranges as
-	well as prefixes, and the SQL for stores everything as ranges,
-	which is nice and general...except that ROAs can only hold
-	prefixes.  So left-right schema should only allow prefixes,
-	and SQL should only store prefixes.
-
-        Current ROA code implements current draft.  Upcoming draft
-        will probably change ROA format to remove per-ROA exactMatch
-        field and add a per-prefix maxLength field; implementing this
-        will require mods to <route_origin/>.
-
-	PRIORITY: Required for pilot
-
-	TIME REQUIRED: One week (remaining)
-
-	STATUS: Started
-
-
       - rcynic does not yet handle manifests. This is both a real
 	problem (manifests were added to plug a security hole) and a
 	user acceptance problem (without manifest support rcynic

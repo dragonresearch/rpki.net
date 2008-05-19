@@ -54,9 +54,17 @@ TO DO:
 
 	APNIC is now proposing a CMS-signed ASN.1 blob containing a
 	version number and an RPKI certificate.  Kent and Housley have
-	not bought into this yet.  Need to do analysis to make sure
-	this is adequate for our needs, if so just use it.  This would
-	involve minor changes to rcynic.
+	not bought into this yet.
+
+	RIPE is proposing that trust anchors just be a URL and a
+	public key, which one would use by fetching a self-signed RPKI
+	cert from the URL and comparing the public key.
+
+	If everybody homes under IANA, none of this is necessary and
+	what rcynic already does should suffice.
+
+	Need to pick something and go with it.  All but "home under
+	IANA" would require minor changes to rcynic.
 
 	PRIORITY: Required for pilot (usability issue for relying parties)
 

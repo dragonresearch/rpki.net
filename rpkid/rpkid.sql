@@ -30,14 +30,6 @@ CREATE TABLE self (
 
 DROP TABLE IF EXISTS self_pref;
 
-CREATE TABLE self_pref (
-        pref_name               VARCHAR(100),
-        pref_value              TEXT,
-        self_id                 BIGINT unsigned NOT NULL,
-        PRIMARY KEY             (self_id, pref_name),
-        FOREIGN KEY             (self_id) REFERENCES self
-);
-
 DROP TABLE IF EXISTS bsc;
 
 CREATE TABLE bsc (

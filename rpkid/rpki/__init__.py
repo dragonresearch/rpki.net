@@ -476,31 +476,30 @@
 ## @verbatim
 ## Usage: irbe-cli.py --config= --help --pem_out=
 ## 
-##   parent     --action= --type= --tag= --self_id= --parent_id=
+##   parent     --action= --tag= --self_id= --parent_id=
 ##              --bsc_id= --repository_id= --peer_contact_uri=
 ##              --sia_base= --sender_name= --recipient_name=
 ##              --bpki_cms_cert= --bpki_cms_glue=
 ##              --bpki_https_cert= --bpki_https_glue=
 ##              --rekey --reissue --revoke
 ## 
-##   repository --action= --type= --tag= --self_id= --repository_id=
+##   repository --action= --tag= --self_id= --repository_id=
 ##              --bsc_id= --peer_contact_uri=
 ##              --bpki_cms_cert= --bpki_cms_glue= 
 ##              --bpki_https_cert= --bpki_https_glue=
 ## 
-##   self       --action= --type= --tag= --self_id= --crl_interval=
+##   self       --action= --tag= --self_id= --crl_interval=
 ##              --bpki_cert= --bpki_glue=
-##              --extension_preference= --rekey --reissue --revoke
+##              --rekey --reissue --revoke
 ##              --run_now --publish_world_now
-##              --clear_extension_preferences
 ## 
-##   child      --action= --type= --tag= --self_id= --child_id=
+##   child      --action= --tag= --self_id= --child_id=
 ##              --bsc_id= --bpki_cms_cert= --bpki_cms_glue= --reissue
 ## 
-##   route_origin --action= --type= --tag= --self_id= --route_origin_id=
+##   route_origin --action= --tag= --self_id= --route_origin_id=
 ##               --as_number= --ipv4= --ipv6= --suppress_publication
 ## 
-##   bsc        --action= --type= --tag= --self_id= --bsc_id=
+##   bsc        --action= --tag= --self_id= --bsc_id=
 ##              --key_type= --hash_alg= --key_length= --signing_cert=
 ##              --signing_cert_crl= --generate_keypair
 ## @endverbatim

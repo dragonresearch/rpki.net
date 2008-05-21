@@ -187,35 +187,13 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
     if unimplemented:
       raise rpki.exceptions.NotImplementedYet, "Unimplemented control %s" % ", ".join(unimplemented)
 
-class extension_preference_elt(base_elt):
-  """Container for extension preferences."""
-
-  element_name = "extension_preference"
-  attributes = ("name",)
-
-  def startElement(self, stack, name, attrs):
-    """Handle <extension_preference/> elements."""
-    assert name == "extension_preference", "Unexpected name %s, stack %s" % (name, stack)
-    self.read_attrs(attrs)
-
-  def endElement(self, stack, name, text):
-    """Handle <extension_preference/> elements."""
-    self.value = text
-    stack.pop()
-
-  def toXML(self):
-    """Generate <extension_preference/> elements."""
-    elt = self.make_elt()
-    elt.text = self.value
-    return elt
-
 class self_elt(data_elt):
   """<self/> element."""
 
   element_name = "self"
   attributes = ("action", "tag", "self_id", "crl_interval", "regen_margin")
-  elements = ("extension_preference", "bpki_cert", "bpki_glue")
-  booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now", "clear_extension_preferences")
+  elements = ("bpki_cert", "bpki_glue")
+  booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now")
 
   sql_template = rpki.sql.template("self", "self_id", "use_hsm", "crl_interval", "regen_margin",
                                    ("bpki_cert", rpki.x509.X509), ("bpki_glue", rpki.x509.X509))
@@ -226,29 +204,6 @@ class self_elt(data_elt):
   regen_margin = None
   bpki_cert = None
   bpki_glue = None
-
-  def __init__(self):
-    """Initialize a self_elt."""
-    self.prefs = []
-
-  def sql_fetch_hook(self):
-    """Extra SQL fetch actions for self_elt -- handle extension preferences."""
-    self.gctx.cur.execute("SELECT pref_name, pref_value FROM self_pref WHERE self_id = %s", (self.self_id,))
-    for name, value in self.gctx.cur.fetchall():
-      e = extension_preference_elt()
-      e.name = name
-      e.value = value
-      self.prefs.append(e)
-
-  def sql_insert_hook(self):
-    """Extra SQL insert actions for self_elt -- handle extension preferences."""
-    if self.prefs:
-      self.gctx.cur.executemany("INSERT self_pref (self_id, pref_name, pref_value) VALUES (%s, %s, %s)",
-                                ((e.name, e.value, self.self_id) for e in self.prefs))
-  
-  def sql_delete_hook(self):
-    """Extra SQL delete actions for self_elt -- handle extension preferences."""
-    self.gctx.cur.execute("DELETE FROM self_pref WHERE self_id = %s", (self.self_id,))
 
   def bscs(self):
     """Fetch all BSC objects that link to this self object."""
@@ -269,14 +224,6 @@ class self_elt(data_elt):
   def route_origins(self):
     """Fetch all route_origin objects that link to this self object."""
     return route_origin_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
-  
-  def serve_pre_save_hook(self, q_pdu, r_pdu):
-    """Extra server actions for self_elt -- handle extension preferences."""
-    rpki.log.trace()
-    if self is not q_pdu:
-      if q_pdu.clear_extension_preferences:
-        self.prefs = []
-      self.prefs.extend(q_pdu.prefs)
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for self_elt."""
@@ -319,12 +266,7 @@ class self_elt(data_elt):
 
   def startElement(self, stack, name, attrs):
     """Handle <self/> element."""
-    if name == "extension_preference":
-      pref = extension_preference_elt()
-      self.prefs.append(pref)
-      stack.append(pref)
-      pref.startElement(stack, name, attrs)
-    elif name not in ("bpki_cert", "bpki_glue"):
+    if name not in ("bpki_cert", "bpki_glue"):
       assert name == "self", "Unexpected name %s, stack %s" % (name, stack)
       self.read_attrs(attrs)
 
@@ -345,7 +287,6 @@ class self_elt(data_elt):
       self.make_b64elt(elt, "bpki_cert", self.bpki_cert.get_DER())
     if self.bpki_glue and not self.bpki_glue.empty():
       self.make_b64elt(elt, "bpki_glue", self.bpki_glue.get_DER())
-    elt.extend([i.toXML() for i in self.prefs])
     return elt
 
   def client_poll(self):

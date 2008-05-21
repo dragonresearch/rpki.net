@@ -68,18 +68,13 @@ self_bool = (attribute rekey { "yes" }?,
              attribute reissue { "yes" }?,
              attribute revoke { "yes" }?,
              attribute run_now { "yes" }?,
-             attribute publish_world_now { "yes" }?,
-             attribute clear_extension_preferences { "yes" }?)
+             attribute publish_world_now { "yes" }?)
 
 self_payload = (attribute use_hsm { "yes" | "no" }?,
                 attribute crl_interval { xsd:positiveInteger }?,
                 attribute regen_margin { xsd:positiveInteger }?,
                 element bpki_cert { base64 }?,
-                element bpki_glue { base64 }?,
-                element extension_preference {
-                  attribute name { xsd:token { maxLength="1024" } },
-                  xsd:string { maxLength="512000" }
-                }*)
+                element bpki_glue { base64 }?)
 
 self_id = attribute self_id { sql_id }
 

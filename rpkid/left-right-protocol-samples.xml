@@ -23,10 +23,7 @@
 <completely_gratuitous_wrapper_element_to_let_me_run_this_through_xmllint>
     
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-        <self action="create" tag="a000">
-            <extension_preference name="name">Launcelot</extension_preference>
-            <extension_preference name="quest">Holy Grail</extension_preference>
-        </self>
+        <self action="create" tag="a000"/>
     </msg>
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
@@ -40,7 +37,6 @@
                 revoke="yes"
                 run_now="yes"
                 publish_world_now="yes"
-                clear_extension_preferences="yes"
 		crl_interval="3600"
 		regen_margin="86400"
 		use_hsm="no">
@@ -82,7 +78,6 @@
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
 	    </bpki_glue>
-            <extension_preference name="color">Blue</extension_preference>
         </self>
     </msg>
     
@@ -134,9 +129,6 @@
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
 	    </bpki_glue>
-            <extension_preference name="name">Launcelot</extension_preference>
-            <extension_preference name="quest">Holy Grail</extension_preference>
-            <extension_preference name="color">Blue</extension_preference>
         </self>
     </msg>
     
@@ -184,15 +176,8 @@
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
 	    </bpki_glue>
-            <extension_preference name="name">Launcelot</extension_preference>
-            <extension_preference name="quest">Holy Grail</extension_preference>
-            <extension_preference name="color">Blue</extension_preference>
         </self>
-        <self action="list" self_id="99">
-            <extension_preference name="name">Arthur, King of the Britons</extension_preference>
-            <extension_preference name="quest">Holy Grail</extension_preference>
-            <extension_preference name="airspeed_velocity_of_an_unladen_swallow">African or European swallow?</extension_preference>
-        </self>
+        <self action="list" self_id="99"/>
     </msg>
     
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">

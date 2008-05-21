@@ -77,14 +77,7 @@ class cmd_mixin(object):
         print "  %s: %s" % (i, getattr(self, i))
 
 class self_elt(cmd_mixin, rpki.left_right.self_elt):
-
-  def client_query_extension_preference(self, arg):
-    """--extension_preferences option."""
-    k,v = arg.split("=", 1)
-    pref = rpki.left_right.extension_preference_elt()
-    pref.name = k
-    pref.value = v
-    self.prefs.append(pref)
+  pass
 
 class bsc_elt(cmd_mixin, rpki.left_right.bsc_elt):
 

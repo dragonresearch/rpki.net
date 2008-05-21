@@ -201,11 +201,6 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
         <value>yes</value>
       </attribute>
     </optional>
-    <optional>
-      <attribute name="clear_extension_preferences">
-        <value>yes</value>
-      </attribute>
-    </optional>
   </define>
   <define name="self_payload">
     <optional>
@@ -236,18 +231,6 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
         <ref name="base64"/>
       </element>
     </optional>
-    <zeroOrMore>
-      <element name="extension_preference">
-        <attribute name="name">
-          <data type="token">
-            <param name="maxLength">1024</param>
-          </data>
-        </attribute>
-        <data type="string">
-          <param name="maxLength">512000</param>
-        </data>
-      </element>
-    </zeroOrMore>
   </define>
   <define name="self_id">
     <attribute name="self_id">

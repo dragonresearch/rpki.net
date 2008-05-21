@@ -40,8 +40,5 @@
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
 	    </bpki_glue>
-    <extension_preference name="name">Launcelot</extension_preference>
-    <extension_preference name="quest">Holy Grail</extension_preference>
-    <extension_preference name="color">Blue</extension_preference>
   </self>
 </msg>

@@ -32,19 +32,19 @@ def handler(query, path):
 
     q_msg = rpki.left_right.cms_msg.unwrap(query, (bpki_ta, rpkid_cert))
 
-    if not isinstance(q_msg, rpki.left_right.msg):
+    if not isinstance(q_msg, rpki.left_right.msg) or q_msg.type != "query":
       raise rpki.exceptions.BadQuery, "Unexpected %s PDU" % repr(q_msg)
 
     r_msg = rpki.left_right.msg()
+    r_msg.type = "reply"
 
     for q_pdu in q_msg:
 
       try:
-        if not isinstance(q_pdu, rpki.left_right.list_resources_elt) or q_pdu.type != "query":
+        if not isinstance(q_pdu, rpki.left_right.list_resources_elt):
           raise rpki.exceptions.BadQuery, "Unexpected %s PDU" % repr(q_pdu)
 
         r_pdu = rpki.left_right.list_resources_elt()
-        r_pdu.type = "reply"
         r_pdu.tag = q_pdu.tag
         r_pdu.self_id = q_pdu.self_id
         r_pdu.child_id = q_pdu.child_id

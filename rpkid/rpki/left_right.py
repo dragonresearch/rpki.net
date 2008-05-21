@@ -106,7 +106,6 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
       for b in r_pdu.booleans:
         setattr(r_pdu, b, False)
     r_pdu.action = self.action
-    r_pdu.type = "reply"
     r_pdu.tag = self.tag
     return r_pdu
 
@@ -178,8 +177,8 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
                  "get"     : self.serve_get,
                  "list"    : self.serve_list,
                  "destroy" : self.serve_destroy }
-    if self.type != "query" or self.action not in dispatch:
-      raise rpki.exceptions.BadQuery, "Unexpected query: type %s, action %s" % (self.type, self.action)
+    if self.action not in dispatch:
+      raise rpki.exceptions.BadQuery, "Unexpected query: action %s" % self.action
     dispatch[self.action](r_msg)
   
   def unimplemented_control(self, *controls):
@@ -214,7 +213,7 @@ class self_elt(data_elt):
   """<self/> element."""
 
   element_name = "self"
-  attributes = ("action", "type", "tag", "self_id", "crl_interval", "regen_margin")
+  attributes = ("action", "tag", "self_id", "crl_interval", "regen_margin")
   elements = ("extension_preference", "bpki_cert", "bpki_glue")
   booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now", "clear_extension_preferences")
 
@@ -442,7 +441,7 @@ class bsc_elt(data_elt):
   """<bsc/> (Business Signing Context) element."""
   
   element_name = "bsc"
-  attributes = ("action", "type", "tag", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
+  attributes = ("action", "tag", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
   elements = ("signing_cert", "signing_cert_crl")
   booleans = ("generate_keypair",)
 
@@ -514,7 +513,7 @@ class parent_elt(data_elt):
   """<parent/> element."""
 
   element_name = "parent"
-  attributes = ("action", "type", "tag", "self_id", "parent_id", "bsc_id", "repository_id",
+  attributes = ("action", "tag", "self_id", "parent_id", "bsc_id", "repository_id",
                 "peer_contact_uri", "sia_base", "sender_name", "recipient_name")
   elements = ("bpki_cms_cert", "bpki_cms_glue", "bpki_https_cert", "bpki_https_glue")
   booleans = ("rekey", "reissue", "revoke")
@@ -637,7 +636,7 @@ class child_elt(data_elt):
   """<child/> element."""
 
   element_name = "child"
-  attributes = ("action", "type", "tag", "self_id", "child_id", "bsc_id")
+  attributes = ("action", "tag", "self_id", "child_id", "bsc_id")
   elements = ("bpki_cert", "bpki_glue")
   booleans = ("reissue", )
 
@@ -733,7 +732,7 @@ class repository_elt(data_elt):
   """<repository/> element."""
 
   element_name = "repository"
-  attributes = ("action", "type", "tag", "self_id", "repository_id", "bsc_id", "peer_contact_uri")
+  attributes = ("action", "tag", "self_id", "repository_id", "bsc_id", "peer_contact_uri")
   elements = ("bpki_cms_cert", "bpki_cms_glue", "bpki_https_cert", "bpki_https_glue")
 
   sql_template = rpki.sql.template("repository", "repository_id", "self_id", "bsc_id", "peer_contact_uri",
@@ -826,7 +825,7 @@ class route_origin_elt(data_elt):
   """<route_origin/> element."""
 
   element_name = "route_origin"
-  attributes = ("action", "type", "tag", "self_id", "route_origin_id", "as_number", "ipv4", "ipv6")
+  attributes = ("action", "tag", "self_id", "route_origin_id", "as_number", "ipv4", "ipv6")
   booleans = ("suppress_publication",)
 
   sql_template = rpki.sql.template("route_origin", "route_origin_id", "ca_detail_id",
@@ -1036,7 +1035,7 @@ class list_resources_elt(base_elt):
   """<list_resources/> element."""
 
   element_name = "list_resources"
-  attributes = ("type", "self_id", "tag", "child_id", "valid_until", "asn", "ipv4", "ipv6", "subject_name")
+  attributes = ("self_id", "tag", "child_id", "valid_until", "asn", "ipv4", "ipv6", "subject_name")
   valid_until = None
 
   def startElement(self, stack, name, attrs):
@@ -1099,6 +1098,7 @@ class msg(list):
     """Handle left-right PDU."""
     if name == "msg":
       assert self.version == int(attrs["version"])
+      self.type = attrs["type"]
     else:
       elt = self.pdus[name]()
       self.append(elt)
@@ -1117,13 +1117,14 @@ class msg(list):
 
   def toXML(self):
     """Generate left-right PDU."""
-    elt = lxml.etree.Element("{%s}msg" % (xmlns), nsmap = nsmap, version = str(self.version))
+    elt = lxml.etree.Element("{%s}msg" % (xmlns), nsmap = nsmap, version = str(self.version), type = self.type)
     elt.extend([i.toXML() for i in self])
     return elt
 
   def serve_top_level(self, gctx):
     """Serve one msg PDU."""
     r_msg = self.__class__()
+    r_msg.type = "reply"
     for q_pdu in self:
       q_pdu.gctx = gctx
       q_pdu.serve_dispatch(r_msg)

@@ -11,26 +11,39 @@ default namespace = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 
 start = element msg {
   attribute version { xsd:positiveInteger { maxInclusive="1" } },
-  ( self_elt | bsc_elt | parent_elt | child_elt | repository_elt |
-    route_origin_elt | list_resources_elt | report_error_elt )*
+  ( (attribute type { "query" }, query_elt*) |
+    (attribute type { "reply" }, reply_elt*) )
 }
+
+# PDUs allowed in a query
+query_elt |= self_query
+query_elt |= bsc_query
+query_elt |= parent_query
+query_elt |= child_query
+query_elt |= repository_query
+query_elt |= route_origin_query
+query_elt |= list_resources_query
+
+# PDUs allowed in a reply
+reply_elt |= self_reply
+reply_elt |= bsc_reply
+reply_elt |= parent_reply
+reply_elt |= child_reply
+reply_elt |= repository_reply
+reply_elt |= route_origin_reply
+reply_elt |= list_resources_reply
+reply_elt |= report_error_reply
 
 # Tag attributes for bulk operations
 tag = attribute tag { xsd:token {maxLength="1024" } }?
 
 # Combinations of action and type attributes used in later definitions.
 # The same patterns repeat in most of the elements in this protocol.
-
-ctl_cq = attribute action { "create"  }, attribute type { "query" }, tag
-ctl_sq = attribute action { "set"     }, attribute type { "query" }, tag
-ctl_gq = attribute action { "get"     }, attribute type { "query" }, tag
-ctl_lq = attribute action { "list"    }, attribute type { "query" }, tag
-ctl_dq = attribute action { "destroy" }, attribute type { "query" }, tag
-ctl_cr = attribute action { "create"  }, attribute type { "reply" }, tag
-ctl_sr = attribute action { "set"     }, attribute type { "reply" }, tag
-ctl_gr = attribute action { "get"     }, attribute type { "reply" }, tag
-ctl_lr = attribute action { "list"    }, attribute type { "reply" }, tag
-ctl_dr = attribute action { "destroy" }, attribute type { "reply" }, tag
+ctl_create  = attribute action { "create"  }, tag
+ctl_set     = attribute action { "set"     }, tag
+ctl_get     = attribute action { "get"     }, tag
+ctl_list    = attribute action { "list"    }, tag
+ctl_destroy = attribute action { "destroy" }, tag
 
 # Base64 encoded DER stuff
 base64 = xsd:base64Binary { maxLength="512000" }
@@ -70,16 +83,16 @@ self_payload = (attribute use_hsm { "yes" | "no" }?,
 
 self_id = attribute self_id { sql_id }
 
-self_elt |= element self { ctl_cq, self_bool, self_payload }
-self_elt |= element self { ctl_cr, self_id }
-self_elt |= element self { ctl_sq, self_id, self_bool, self_payload }
-self_elt |= element self { ctl_sr, self_id }
-self_elt |= element self { ctl_gq, self_id }
-self_elt |= element self { ctl_gr, self_id, self_payload }
-self_elt |= element self { ctl_lq }
-self_elt |= element self { ctl_lr, self_id, self_payload }
-self_elt |= element self { ctl_dq, self_id }
-self_elt |= element self { ctl_dr, self_id }
+self_query |= element self { ctl_create,  self_bool, self_payload }
+self_reply |= element self { ctl_create,  self_id }
+self_query |= element self { ctl_set,     self_id, self_bool, self_payload }
+self_reply |= element self { ctl_set,     self_id }
+self_query |= element self { ctl_get,     self_id }
+self_reply |= element self { ctl_get,     self_id, self_payload }
+self_query |= element self { ctl_list }
+self_reply |= element self { ctl_list,    self_id, self_payload }
+self_query |= element self { ctl_destroy, self_id }
+self_reply |= element self { ctl_destroy, self_id }
 
 # <bsc/> element.  Key parameters hardwired for now.
 
@@ -95,16 +108,16 @@ bsc_payload = (element signing_cert { base64 }?,
 
 bsc_pkcs10 = element pkcs10_request { base64 }?
 
-bsc_elt |= element bsc { ctl_cq, self_id, bsc_bool, bsc_payload }
-bsc_elt |= element bsc { ctl_cr, self_id, bsc_id, bsc_pkcs10 }
-bsc_elt |= element bsc { ctl_sq, self_id, bsc_id, bsc_bool, bsc_payload }
-bsc_elt |= element bsc { ctl_sr, self_id, bsc_id, bsc_pkcs10 }
-bsc_elt |= element bsc { ctl_gq, self_id, bsc_id }
-bsc_elt |= element bsc { ctl_gr, self_id, bsc_id, bsc_payload, bsc_pkcs10 }
-bsc_elt |= element bsc { ctl_lq, self_id }
-bsc_elt |= element bsc { ctl_lr, self_id, bsc_id, bsc_payload, bsc_pkcs10 }
-bsc_elt |= element bsc { ctl_dq, self_id, bsc_id }
-bsc_elt |= element bsc { ctl_dr, self_id, bsc_id }
+bsc_query |= element bsc { ctl_create,  self_id, bsc_bool, bsc_payload }
+bsc_reply |= element bsc { ctl_create,  self_id, bsc_id, bsc_pkcs10 }
+bsc_query |= element bsc { ctl_set,     self_id, bsc_id, bsc_bool, bsc_payload }
+bsc_reply |= element bsc { ctl_set,     self_id, bsc_id, bsc_pkcs10 }
+bsc_query |= element bsc { ctl_get,     self_id, bsc_id }
+bsc_reply |= element bsc { ctl_get,     self_id, bsc_id, bsc_payload, bsc_pkcs10 }
+bsc_query |= element bsc { ctl_list,    self_id }
+bsc_reply |= element bsc { ctl_list,    self_id, bsc_id, bsc_payload, bsc_pkcs10 }
+bsc_query |= element bsc { ctl_destroy, self_id, bsc_id }
+bsc_reply |= element bsc { ctl_destroy, self_id, bsc_id }
 
 # <parent/> element
 
@@ -125,16 +138,16 @@ parent_payload = (attribute peer_contact_uri { uri }?,
                   element bpki_https_cert { base64 }?,
                   element bpki_https_glue { base64 }?)
 
-parent_elt |= element parent { ctl_cq, self_id, parent_bool, parent_payload }
-parent_elt |= element parent { ctl_cr, self_id, parent_id }
-parent_elt |= element parent { ctl_sq, self_id, parent_id, parent_bool, parent_payload }
-parent_elt |= element parent { ctl_sr, self_id, parent_id }
-parent_elt |= element parent { ctl_gq, self_id, parent_id }
-parent_elt |= element parent { ctl_gr, self_id, parent_id, parent_payload }
-parent_elt |= element parent { ctl_lq, self_id }
-parent_elt |= element parent { ctl_lr, self_id, parent_id, parent_payload }
-parent_elt |= element parent { ctl_dq, self_id, parent_id }
-parent_elt |= element parent { ctl_dr, self_id, parent_id }
+parent_query |= element parent { ctl_create,  self_id, parent_bool, parent_payload }
+parent_reply |= element parent { ctl_create,  self_id, parent_id }
+parent_query |= element parent { ctl_set,     self_id, parent_id, parent_bool, parent_payload }
+parent_reply |= element parent { ctl_set,     self_id, parent_id }
+parent_query |= element parent { ctl_get,     self_id, parent_id }
+parent_reply |= element parent { ctl_get,     self_id, parent_id, parent_payload }
+parent_query |= element parent { ctl_list,    self_id }
+parent_reply |= element parent { ctl_list,    self_id, parent_id, parent_payload }
+parent_query |= element parent { ctl_destroy, self_id, parent_id }
+parent_reply |= element parent { ctl_destroy, self_id, parent_id }
 
 # <child/> element
 
@@ -146,16 +159,16 @@ child_payload = (bsc_id?,
                  element bpki_cert { base64 }?,
                  element bpki_glue { base64 }?)
 
-child_elt |= element child { ctl_cq, self_id, child_bool, child_payload }
-child_elt |= element child { ctl_cr, self_id, child_id }
-child_elt |= element child { ctl_sq, self_id, child_id, child_bool, child_payload }
-child_elt |= element child { ctl_sr, self_id, child_id }
-child_elt |= element child { ctl_gq, self_id, child_id }
-child_elt |= element child { ctl_gr, self_id, child_id, child_payload }
-child_elt |= element child { ctl_lq, self_id }
-child_elt |= element child { ctl_lr, self_id, child_id, child_payload }
-child_elt |= element child { ctl_dq, self_id, child_id }
-child_elt |= element child { ctl_dr, self_id, child_id }
+child_query |= element child { ctl_create,  self_id, child_bool, child_payload }
+child_reply |= element child { ctl_create,  self_id, child_id }
+child_query |= element child { ctl_set,     self_id, child_id, child_bool, child_payload }
+child_reply |= element child { ctl_set,     self_id, child_id }
+child_query |= element child { ctl_get,     self_id, child_id }
+child_reply |= element child { ctl_get,     self_id, child_id, child_payload }
+child_query |= element child { ctl_list,    self_id }
+child_reply |= element child { ctl_list,    self_id, child_id, child_payload }
+child_query |= element child { ctl_destroy, self_id, child_id }
+child_reply |= element child { ctl_destroy, self_id, child_id }
 
 # <repository/> element
 
@@ -168,16 +181,16 @@ repository_payload = (attribute peer_contact_uri { uri }?,
                       element bpki_https_cert { base64 }?,
                       element bpki_https_glue { base64 }?)
 
-repository_elt |= element repository { ctl_cq, self_id, repository_payload }
-repository_elt |= element repository { ctl_cr, self_id, repository_id }
-repository_elt |= element repository { ctl_sq, self_id, repository_id, repository_payload }
-repository_elt |= element repository { ctl_sr, self_id, repository_id }
-repository_elt |= element repository { ctl_gq, self_id, repository_id }
-repository_elt |= element repository { ctl_gr, self_id, repository_id, repository_payload }
-repository_elt |= element repository { ctl_lq, self_id }
-repository_elt |= element repository { ctl_lr, self_id, repository_id, repository_payload }
-repository_elt |= element repository { ctl_dq, self_id, repository_id }
-repository_elt |= element repository { ctl_dr, self_id, repository_id }
+repository_query |= element repository { ctl_create,  self_id, repository_payload }
+repository_reply |= element repository { ctl_create,  self_id, repository_id }
+repository_query |= element repository { ctl_set,     self_id, repository_id, repository_payload }
+repository_reply |= element repository { ctl_set,     self_id, repository_id }
+repository_query |= element repository { ctl_get,     self_id, repository_id }
+repository_reply |= element repository { ctl_get,     self_id, repository_id, repository_payload }
+repository_query |= element repository { ctl_list,    self_id }
+repository_reply |= element repository { ctl_list,    self_id, repository_id, repository_payload }
+repository_query |= element repository { ctl_destroy, self_id, repository_id }
+repository_reply |= element repository { ctl_destroy, self_id, repository_id }
 
 # <route_origin/> element
 
@@ -190,33 +203,35 @@ route_origin_payload = (attribute as_number { xsd:positiveInteger }?,
                         attribute ipv4 { ipv4_list }?,
                         attribute ipv6 { ipv6_list }?)
 
-route_origin_elt |= element route_origin { ctl_cq, self_id, route_origin_bool, route_origin_payload }
-route_origin_elt |= element route_origin { ctl_cr, self_id, route_origin_id }
-route_origin_elt |= element route_origin { ctl_sq, self_id, route_origin_id, route_origin_bool, route_origin_payload }
-route_origin_elt |= element route_origin { ctl_sr, self_id, route_origin_id }
-route_origin_elt |= element route_origin { ctl_gq, self_id, route_origin_id }
-route_origin_elt |= element route_origin { ctl_gr, self_id, route_origin_id, route_origin_payload }
-route_origin_elt |= element route_origin { ctl_lq, self_id }
-route_origin_elt |= element route_origin { ctl_lr, self_id, route_origin_id, route_origin_payload }
-route_origin_elt |= element route_origin { ctl_dq, self_id, route_origin_id }
-route_origin_elt |= element route_origin { ctl_dr, self_id, route_origin_id }
+route_origin_query |= element route_origin { ctl_create,  self_id, route_origin_bool, route_origin_payload }
+route_origin_reply |= element route_origin { ctl_create,  self_id, route_origin_id }
+route_origin_query |= element route_origin { ctl_set,     self_id, route_origin_id, route_origin_bool, route_origin_payload }
+route_origin_reply |= element route_origin { ctl_set,     self_id, route_origin_id }
+route_origin_query |= element route_origin { ctl_get,     self_id, route_origin_id }
+route_origin_reply |= element route_origin { ctl_get,     self_id, route_origin_id, route_origin_payload }
+route_origin_query |= element route_origin { ctl_list,    self_id }
+route_origin_reply |= element route_origin { ctl_list,    self_id, route_origin_id, route_origin_payload }
+route_origin_query |= element route_origin { ctl_destroy, self_id, route_origin_id }
+route_origin_reply |= element route_origin { ctl_destroy, self_id, route_origin_id }
 
 # <list_resources/> element
 
-list_resources_elt = element list_resources {
-  ( attribute type { "query" }, tag, self_id, child_id ) |
-  ( attribute type { "reply" }, tag, self_id, child_id,
-    attribute valid_until { xsd:dateTime { pattern=".*Z" } },
-    attribute subject_name { xsd:token { maxLength="1024" } }?,
-    attribute asn { asn_list }?,
-    attribute ipv4 { ipv4_list }?,
-    attribute ipv6 { ipv6_list }?
-  )
+list_resources_query = element list_resources {
+  tag, self_id, child_id
+}
+
+list_resources_reply = element list_resources {
+  tag, self_id, child_id,
+  attribute valid_until { xsd:dateTime { pattern=".*Z" } },
+  attribute subject_name { xsd:token { maxLength="1024" } }?,
+  attribute asn { asn_list }?,
+  attribute ipv4 { ipv4_list }?,
+  attribute ipv6 { ipv6_list }?
 }
 
 # <report_error/> element
 
-report_error_elt = element report_error {
+report_error_reply = element report_error {
   tag, self_id,
   attribute error_code { xsd:token { maxLength="1024" } },
   xsd:string { maxLength="512000" }?

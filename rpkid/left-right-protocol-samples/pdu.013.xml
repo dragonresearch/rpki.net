@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="US-ASCII"?>
 <!--Automatically generated, do not edit.-->
-<msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1">
-  <bsc action="set" type="query" self_id="42" bsc_id="17">
+<msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1" type="query">
+  <bsc action="set" self_id="42" bsc_id="17">
     <signing_cert>
                 MIIDHTCCAgWgAwIBAgIJAKUUCoKn9ovVMA0GCSqGSIb3DQEBBQUAMCYxJDAiBgNV
                 BAMTG1Rlc3QgQ2VydGlmaWNhdGUgQWxpY2UgUm9vdDAeFw0wNzA4MDExOTUzMDda

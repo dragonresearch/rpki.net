@@ -64,8 +64,8 @@ class global_context(object):
     rpki.log.trace()
 
     q_msg = rpki.left_right.msg()
+    q_msg.type = "query"
     q_msg.append(rpki.left_right.list_resources_elt())
-    q_msg[0].type = "query"
     q_msg[0].self_id = self_id
     q_msg[0].child_id = child_id
     q_cms = rpki.left_right.cms_msg.wrap(q_msg, self.rpkid_key, self.rpkid_cert)
@@ -76,7 +76,7 @@ class global_context(object):
       url          = self.irdb_url,
       msg          = q_cms)
     r_msg = rpki.left_right.cms_msg.unwrap(der, (self.bpki_ta, self.irdb_cert))
-    if len(r_msg) == 0 or not isinstance(r_msg[0], rpki.left_right.list_resources_elt) or r_msg[0].type != "reply":
+    if len(r_msg) == 0 or not isinstance(r_msg[0], rpki.left_right.list_resources_elt) or r_msg.type != "reply":
       raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")
     return rpki.resource_set.resource_bag(
       asn         = r_msg[0].asn,
@@ -107,6 +107,8 @@ class global_context(object):
     rpki.log.trace()
     try:
       q_msg = rpki.left_right.cms_msg.unwrap(query, (self.bpki_ta, self.irbe_cert))
+      if q_msg.type != "query":
+        raise rpki.exceptions.BadQuery, "Message type is not query"
       r_msg = q_msg.serve_top_level(self)
       reply = rpki.left_right.cms_msg.wrap(r_msg, self.rpkid_key, self.rpkid_cert)
       self.sql_sweep()

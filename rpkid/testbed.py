@@ -525,8 +525,8 @@ class allocation(object):
     return the response.
     """
     rpki.log.info("Calling rpkid for %s" % self.name)
-    pdu.type = "query"
     msg = rpki.left_right.msg((pdu,))
+    msg.type = "query"
     cms, xml = rpki.left_right.cms_msg.wrap(msg, self.irbe_key, self.irbe_cert,
                                             pretty_print = True)
     rpki.log.debug(xml)
@@ -541,7 +541,7 @@ class allocation(object):
                                               pretty_print = True)
     rpki.log.debug(xml)
     pdu = msg[0]
-    assert pdu.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)
+    assert msg.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)
     return pdu
 
   def cross_certify(self, certificant):

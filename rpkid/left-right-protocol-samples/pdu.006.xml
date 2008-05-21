@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="US-ASCII"?>
 <!--Automatically generated, do not edit.-->
-<msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1">
-  <self action="get" type="reply" self_id="42">
+<msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1" type="reply">
+  <self action="get" self_id="42">
     <bpki_cert>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN

@@ -43,8 +43,8 @@ def call_rpkid(pdu):
   exception if anything bad happens, no fancy error handling.
   """
 
-  pdu.type = "query"
   msg = rpki.left_right.msg((pdu,))
+  msg.type = "query"
   cms = rpki.x509.left_right_pdu.wrap(msg, irbe_key, irbe_cert)
   der = rpki.https.client(client_key   = irbe_key,
                           client_cert  = irbe_cert,
@@ -53,7 +53,7 @@ def call_rpkid(pdu):
                           msg          = cms)
   msg = rpki.left_right.cms_msg.unwrap(der, (bpki_ta, rpkid_cert))
   pdu = msg[0]
-  assert len(msg) == 1 and pdu.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)
+  assert len(msg) == 1 and msg.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)
   return pdu
 
 print "Create a self instance"

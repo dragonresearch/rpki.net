@@ -43,11 +43,6 @@ class cmd_mixin(object):
         setattr(self, o, a)
     return argv
 
-  def client_query_action(self, arg):
-    """Special handler for --action option."""
-    self.action = arg
-    self.type = "query"
-
   def client_query_bpki_cert(self, arg):
     """Special handler for --bpki_cert option."""
     self.bpki_cert = rpki.x509.X509(Auto_file=arg)
@@ -183,6 +178,7 @@ irbe_key    = rpki.x509.RSA( Auto_file = cfg.get("irbe-key"))
 https_url   = cfg.get("https-url")
 
 q_msg = rpki.left_right.msg()
+q_msg.type = "query"
 
 while argv:
   try:

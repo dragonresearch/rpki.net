@@ -92,12 +92,10 @@ roa_reply |= element roa { attribute action { "withdraw" }, tag?, client_id?, ur
 
 error = xsd:token { maxLength="1024" }
 
-any = element * { attribute * { text }*, ( text | any* ) }
-
 report_error_reply = element report_error {
   tag?,
   attribute error_code { error },
-  ( text | any* )?
+  xsd:string { maxLength="512000" }?
 }
 
 # Local Variables:

@@ -5,7 +5,7 @@
 # libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
 # run the compact syntax through trang to get XML syntax.
 
-default namespace = "http://www.hactrn.net/uris/rpki/publication/"
+default namespace = "http://www.hactrn.net/uris/rpki/publication-spec/"
 
 # Top level PDU
 
@@ -16,19 +16,21 @@ start = element msg {
 }
 
 # PDUs allowed in a query
-query_elt = ( client_query | publish_query | retrieve_query | withdraw_query )
+query_elt = ( client_query | certificate_query | crl_query | manifest_query | roa_query )
 
 # PDUs allowed in a reply
-reply_elt = ( client_reply | publish_reply | retrieve_reply | withdraw_reply | report_error_reply )
+
+reply_elt = ( client_reply | certificate_reply | crl_reply | manifest_reply | roa_reply | report_error_reply )
 
 # Tag attributes for bulk operations
-tag = attribute tag { xsd:token {maxLength="1024" } }?
+tag = attribute tag { xsd:token {maxLength="1024" } }
 
 # Base64 encoded DER stuff
 base64 = xsd:base64Binary { maxLength="512000" }
 
 # Publication URLs
-url = attribute url { xsd:anyURI { maxLength="4096" } }
+uri_t = xsd:anyURI { maxLength="4096" }
+uri = attribute uri { uri_t }
 
 # Kinds of objects
 obj_type = attribute type { "certificate" | "crl" | "manifest" | "roa" }
@@ -37,39 +39,62 @@ obj_type = attribute type { "certificate" | "crl" | "manifest" | "roa" }
 
 client_id = attribute client_id { xsd:nonNegativeInteger }
 
-client_payload = (element bpki_cert { base64 }?, element bpki_glue { base64 }?)
+client_payload = (attribute base_uri { uri_t }?, element bpki_cert { base64 }?, element bpki_glue { base64 }?)
 
-client_query |= element client { attribute action { "create" },  tag, client_payload }
-client_reply |= element client { attribute action { "create" },  tag, client_id }
-client_query |= element client { attribute action { "set" },     tag, client_id, client_payload }
-client_reply |= element client { attribute action { "set" },     tag, client_id }
-client_query |= element client { attribute action { "get" },     tag, client_id }
-client_reply |= element client { attribute action { "get" },     tag, client_id, client_payload }
-client_query |= element client { attribute action { "list" },    tag }
-client_reply |= element client { attribute action { "list" },    tag, client_id, client_payload }
-client_query |= element client { attribute action { "destroy" }, tag, client_id }
-client_reply |= element client { attribute action { "destroy" }, tag, client_id }
+client_query |= element client { attribute action { "create" },  tag?, client_payload }
+client_reply |= element client { attribute action { "create" },  tag?, client_id }
+client_query |= element client { attribute action { "set" },     tag?, client_id, client_payload }
+client_reply |= element client { attribute action { "set" },     tag?, client_id }
+client_query |= element client { attribute action { "get" },     tag?, client_id }
+client_reply |= element client { attribute action { "get" },     tag?, client_id, client_payload }
+client_query |= element client { attribute action { "list" },    tag? }
+client_reply |= element client { attribute action { "list" },    tag?, client_id, client_payload }
+client_query |= element client { attribute action { "destroy" }, tag?, client_id }
+client_reply |= element client { attribute action { "destroy" }, tag?, client_id }
 
-# <publish/> element
+# <certificate/> element
 
-publish_query = element publish { tag, obj_type, url, base64 }
-publish_reply = element publish { tag, obj_type, url }
+certificate_query |= element certificate { attribute action { "publish" }, tag?, client_id?, uri, base64 }
+certificate_reply |= element certificate { attribute action { "publish" }, tag?, client_id?, uri }
+certificate_query |= element certificate { attribute action { "retrieve" }, tag?, client_id?, uri? }
+certificate_reply |= element certificate { attribute action { "retrieve" }, tag?, client_id?, uri, base64 }
+certificate_query |= element certificate { attribute action { "withdraw" }, tag?, client_id?, uri }
+certificate_reply |= element certificate { attribute action { "withdraw" }, tag?, client_id?, uri }
 
-# <retrieve/> element
+# <crl/> element
 
-retrieve_query = element retrieve { tag, obj_type?, url? }
-retrieve_reply = element retrieve { tag, obj_type, url, base64 }
+crl_query |= element crl { attribute action { "publish" }, tag?, client_id?, uri, base64 }
+crl_reply |= element crl { attribute action { "publish" }, tag?, client_id?, uri }
+crl_query |= element crl { attribute action { "retrieve" }, tag?, client_id?, uri? }
+crl_reply |= element crl { attribute action { "retrieve" }, tag?, client_id?, uri, base64 }
+crl_query |= element crl { attribute action { "withdraw" }, tag?, client_id?, uri }
+crl_reply |= element crl { attribute action { "withdraw" }, tag?, client_id?, uri }
 
-# <withdraw/> element
+# <manifest/> element
 
-withdraw_query = element withdraw { tag, obj_type, url }
-withdraw_reply = element withdraw { tag, obj_type, url }
+manifest_query |= element manifest { attribute action { "publish" }, tag?, client_id?, uri, base64 }
+manifest_reply |= element manifest { attribute action { "publish" }, tag?, client_id?, uri }
+manifest_query |= element manifest { attribute action { "retrieve" }, tag?, client_id?, uri? }
+manifest_reply |= element manifest { attribute action { "retrieve" }, tag?, client_id?, uri, base64 }
+manifest_query |= element manifest { attribute action { "withdraw" }, tag?, client_id?, uri }
+manifest_reply |= element manifest { attribute action { "withdraw" }, tag?, client_id?, uri }
+
+# <roa/> element
+
+roa_query |= element roa { attribute action { "publish" }, tag?, client_id?, uri, base64 }
+roa_reply |= element roa { attribute action { "publish" }, tag?, client_id?, uri }
+roa_query |= element roa { attribute action { "retrieve" }, tag?, client_id?, uri? }
+roa_reply |= element roa { attribute action { "retrieve" }, tag?, client_id?, uri, base64 }
+roa_query |= element roa { attribute action { "withdraw" }, tag?, client_id?, uri }
+roa_reply |= element roa { attribute action { "withdraw" }, tag?, client_id?, uri }
 
 # <report_error/> element
 
+error = xsd:token { maxLength="1024" }
+
 report_error_reply = element report_error {
-  tag,
-  attribute error_code { xsd:token { maxLength="1024" } },
+  tag?,
+  attribute error_code { error },
   xsd:string { maxLength="512000" }?
 }
 

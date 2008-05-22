@@ -7,21 +7,33 @@
 
 all:: left-right-protocol-samples/.stamp
 
-left-right-protocol-samples/.stamp: left-right-protocol-samples.xsl left-right-protocol-samples.xml
-	xsltproc left-right-protocol-samples.xsl left-right-protocol-samples.xml
+left-right-protocol-samples/.stamp: left-right-protocol-samples.xml split-protocol-samples.xsl 
+	xsltproc --stringparam dir left-right-protocol-samples split-protocol-samples.xsl left-right-protocol-samples.xml
 	touch $@
 
 all:: left-right-schema.rng
 
+rpki/relaxng.py: left-right-schema.rng
+
 left-right-schema.rng: left-right-schema.rnc
 	trang left-right-schema.rnc left-right-schema.rng
 
-all:: up-down-schema.rng
+all:: up-down-schema.rng 
+
+rpki/relaxng.py: up-down-schema.rng
 
 up-down-schema.rng: up-down-schema.rnc
 	trang up-down-schema.rnc up-down-schema.rng
 
-all:: publication-schema.rng
+all:: publication-protocol-samples/.stamp
+
+publication-protocol-samples/.stamp: publication-protocol-samples.xml split-protocol-samples.xsl 
+	xsltproc --stringparam dir publication-protocol-samples split-protocol-samples.xsl publication-protocol-samples.xml
+	touch $@
+
+all:: publication-schema.rng 
+
+rpki/relaxng.py: publication-schema.rng
 
 publication-schema.rng: publication-schema.rnc
 	trang publication-schema.rnc publication-schema.rng
@@ -35,9 +47,10 @@ install:
 dont-run-trang:
 	touch *.rng
 
-relaxng: left-right-protocol-samples/.stamp left-right-schema.rng up-down-schema.rng
-	xmllint --noout --relaxng left-right-schema.rng left-right-protocol-samples/*.xml
-	xmllint --noout --relaxng    up-down-schema.rng    up-down-protocol-samples/*.xml
+relaxng: left-right-protocol-samples/.stamp left-right-schema.rng up-down-schema.rng publication-protocol-samples/.stamp
+	xmllint --noout --relaxng  left-right-schema.rng  left-right-protocol-samples/*.xml
+	xmllint --noout --relaxng     up-down-schema.rng     up-down-protocol-samples/*.xml
+	xmllint --noout --relaxng publication-schema.rng publication-protocol-samples/*.xml
 
 unit-tests: all
 	PWD=`pwd`; for i in rpki/*.py; do echo "[$$i]"; PYTHONPATH=$$PWD python $$i; done
@@ -76,7 +89,7 @@ tags:
 
 all:: rpki/relaxng.py
 
-rpki/relaxng.py: left-right-schema.rng up-down-schema.rng make-relaxng.py
+rpki/relaxng.py: make-relaxng.py
 	python make-relaxng.py >$@.tmp
 	mv $@.tmp $@
 

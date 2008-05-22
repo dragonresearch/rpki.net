@@ -1210,3 +1210,620 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodi
   End:
 -->
 '''))
+
+## @var publication
+## Parsed RelaxNG publication schema
+publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  $Id: publication-schema.rnc 1808 2008-05-22 04:55:02Z sra $
+  
+  RelaxNG Schema for RPKI publication protocol.
+  
+  libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
+  run the compact syntax through trang to get XML syntax.
+-->
+<grammar ns="http://www.hactrn.net/uris/rpki/publication-spec/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <!-- Top level PDU -->
+  <start>
+    <element name="msg">
+      <attribute name="version">
+        <data type="positiveInteger">
+          <param name="maxInclusive">1</param>
+        </data>
+      </attribute>
+      <choice>
+        <group>
+          <attribute name="type">
+            <value>query</value>
+          </attribute>
+          <zeroOrMore>
+            <ref name="query_elt"/>
+          </zeroOrMore>
+        </group>
+        <group>
+          <attribute name="type">
+            <value>reply</value>
+          </attribute>
+          <zeroOrMore>
+            <ref name="reply_elt"/>
+          </zeroOrMore>
+        </group>
+      </choice>
+    </element>
+  </start>
+  <!-- PDUs allowed in a query -->
+  <define name="query_elt">
+    <choice>
+      <ref name="client_query"/>
+      <ref name="certificate_query"/>
+      <ref name="crl_query"/>
+      <ref name="manifest_query"/>
+      <ref name="roa_query"/>
+    </choice>
+  </define>
+  <!-- PDUs allowed in a reply -->
+  <define name="reply_elt">
+    <choice>
+      <ref name="client_reply"/>
+      <ref name="certificate_reply"/>
+      <ref name="crl_reply"/>
+      <ref name="manifest_reply"/>
+      <ref name="roa_reply"/>
+      <ref name="report_error_reply"/>
+    </choice>
+  </define>
+  <!-- Tag attributes for bulk operations -->
+  <define name="tag">
+    <attribute name="tag">
+      <data type="token">
+        <param name="maxLength">1024</param>
+      </data>
+    </attribute>
+  </define>
+  <!-- Base64 encoded DER stuff -->
+  <define name="base64">
+    <data type="base64Binary">
+      <param name="maxLength">512000</param>
+    </data>
+  </define>
+  <!-- Publication URLs -->
+  <define name="uri_t">
+    <data type="anyURI">
+      <param name="maxLength">4096</param>
+    </data>
+  </define>
+  <define name="uri">
+    <attribute name="uri">
+      <ref name="uri_t"/>
+    </attribute>
+  </define>
+  <!-- Kinds of objects -->
+  <define name="obj_type">
+    <attribute name="type">
+      <choice>
+        <value>certificate</value>
+        <value>crl</value>
+        <value>manifest</value>
+        <value>roa</value>
+      </choice>
+    </attribute>
+  </define>
+  <!-- <client/> element (use restricted to repository operator) -->
+  <define name="client_id">
+    <attribute name="client_id">
+      <data type="nonNegativeInteger"/>
+    </attribute>
+  </define>
+  <define name="client_payload">
+    <optional>
+      <attribute name="base_uri">
+        <ref name="uri_t"/>
+      </attribute>
+    </optional>
+    <optional>
+      <element name="bpki_cert">
+        <ref name="base64"/>
+      </element>
+    </optional>
+    <optional>
+      <element name="bpki_glue">
+        <ref name="base64"/>
+      </element>
+    </optional>
+  </define>
+  <define name="client_query" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>create</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="client_payload"/>
+    </element>
+  </define>
+  <define name="client_reply" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>create</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="client_id"/>
+    </element>
+  </define>
+  <define name="client_query" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>set</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="client_id"/>
+      <ref name="client_payload"/>
+    </element>
+  </define>
+  <define name="client_reply" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>set</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="client_id"/>
+    </element>
+  </define>
+  <define name="client_query" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>get</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="client_id"/>
+    </element>
+  </define>
+  <define name="client_reply" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>get</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="client_id"/>
+      <ref name="client_payload"/>
+    </element>
+  </define>
+  <define name="client_query" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>list</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+    </element>
+  </define>
+  <define name="client_reply" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>list</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="client_id"/>
+      <ref name="client_payload"/>
+    </element>
+  </define>
+  <define name="client_query" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>destroy</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="client_id"/>
+    </element>
+  </define>
+  <define name="client_reply" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>destroy</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="client_id"/>
+    </element>
+  </define>
+  <!-- <certificate/> element -->
+  <define name="certificate_query" combine="choice">
+    <element name="certificate">
+      <attribute name="action">
+        <value>publish</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="certificate_reply" combine="choice">
+    <element name="certificate">
+      <attribute name="action">
+        <value>publish</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <define name="certificate_query" combine="choice">
+    <element name="certificate">
+      <attribute name="action">
+        <value>retrieve</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <optional>
+        <ref name="uri"/>
+      </optional>
+    </element>
+  </define>
+  <define name="certificate_reply" combine="choice">
+    <element name="certificate">
+      <attribute name="action">
+        <value>retrieve</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="certificate_query" combine="choice">
+    <element name="certificate">
+      <attribute name="action">
+        <value>withdraw</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <define name="certificate_reply" combine="choice">
+    <element name="certificate">
+      <attribute name="action">
+        <value>withdraw</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <!-- <crl/> element -->
+  <define name="crl_query" combine="choice">
+    <element name="crl">
+      <attribute name="action">
+        <value>publish</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="crl_reply" combine="choice">
+    <element name="crl">
+      <attribute name="action">
+        <value>publish</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <define name="crl_query" combine="choice">
+    <element name="crl">
+      <attribute name="action">
+        <value>retrieve</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <optional>
+        <ref name="uri"/>
+      </optional>
+    </element>
+  </define>
+  <define name="crl_reply" combine="choice">
+    <element name="crl">
+      <attribute name="action">
+        <value>retrieve</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="crl_query" combine="choice">
+    <element name="crl">
+      <attribute name="action">
+        <value>withdraw</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <define name="crl_reply" combine="choice">
+    <element name="crl">
+      <attribute name="action">
+        <value>withdraw</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <!-- <manifest/> element -->
+  <define name="manifest_query" combine="choice">
+    <element name="manifest">
+      <attribute name="action">
+        <value>publish</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="manifest_reply" combine="choice">
+    <element name="manifest">
+      <attribute name="action">
+        <value>publish</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <define name="manifest_query" combine="choice">
+    <element name="manifest">
+      <attribute name="action">
+        <value>retrieve</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <optional>
+        <ref name="uri"/>
+      </optional>
+    </element>
+  </define>
+  <define name="manifest_reply" combine="choice">
+    <element name="manifest">
+      <attribute name="action">
+        <value>retrieve</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="manifest_query" combine="choice">
+    <element name="manifest">
+      <attribute name="action">
+        <value>withdraw</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <define name="manifest_reply" combine="choice">
+    <element name="manifest">
+      <attribute name="action">
+        <value>withdraw</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <!-- <roa/> element -->
+  <define name="roa_query" combine="choice">
+    <element name="roa">
+      <attribute name="action">
+        <value>publish</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="roa_reply" combine="choice">
+    <element name="roa">
+      <attribute name="action">
+        <value>publish</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <define name="roa_query" combine="choice">
+    <element name="roa">
+      <attribute name="action">
+        <value>retrieve</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <optional>
+        <ref name="uri"/>
+      </optional>
+    </element>
+  </define>
+  <define name="roa_reply" combine="choice">
+    <element name="roa">
+      <attribute name="action">
+        <value>retrieve</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="roa_query" combine="choice">
+    <element name="roa">
+      <attribute name="action">
+        <value>withdraw</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <define name="roa_reply" combine="choice">
+    <element name="roa">
+      <attribute name="action">
+        <value>withdraw</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <optional>
+        <ref name="client_id"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <!-- <report_error/> element -->
+  <define name="error">
+    <data type="token">
+      <param name="maxLength">1024</param>
+    </data>
+  </define>
+  <define name="report_error_reply">
+    <element name="report_error">
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <attribute name="error_code">
+        <ref name="error"/>
+      </attribute>
+      <optional>
+        <data type="string">
+          <param name="maxLength">512000</param>
+        </data>
+      </optional>
+    </element>
+  </define>
+</grammar>
+<!--
+  Local Variables:
+  indent-tabs-mode: nil
+  End:
+-->
+'''))

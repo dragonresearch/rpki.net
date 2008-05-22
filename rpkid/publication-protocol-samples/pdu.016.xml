@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="US-ASCII"?>
 <!--Automatically generated, do not edit.-->
-<msg xmlns="http://www.hactrn.net/uris/rpki/publication-spec/" version="1" type="query">
-  <certificate action="publish" uri="rsync://wombat.invalid/testbed/RIR/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.cer">
+<msg xmlns="http://www.hactrn.net/uris/rpki/publication-spec/" version="1" type="reply">
+  <certificate action="retrieve" uri="rsync://wombat.invalid/testbed/RIR/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.cer">
 	    MIIE+jCCA+KgAwIBAgIBDTANBgkqhkiG9w0BAQsFADAzMTEwLwYDVQQDEyhERjRBODAxN0U2
 	    NkE5RTkxNzJFNDYxMkQ4Q0Y0QzgzRjIzOERFMkEzMB4XDTA4MDUyMjE4MDUxMloXDTA4MDUy
 	    NDE3NTQ1M1owMzExMC8GA1UEAxMoOEZCODIxOEYwNkU1MEFCNzAyQTdEOTZEQzhGMENEQ0Q4

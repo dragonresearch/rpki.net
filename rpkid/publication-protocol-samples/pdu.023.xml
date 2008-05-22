@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="US-ASCII"?>
+<!--Automatically generated, do not edit.-->
+<msg xmlns="http://www.hactrn.net/uris/rpki/publication-spec/" version="1" type="query">
+  <crl action="publish" client_id="3" uri="rsync://wombat.invalid/testbed/RIR/1/30qAF-ZqnpFy5GEtjPTIPyON4qM.crl">
+	    MIIBwzCBrAIBATANBgkqhkiG9w0BAQsFADAzMTEwLwYDVQQDEyhERjRBODAxN0U2NkE5RTkx
+	    NzJFNDYxMkQ4Q0Y0QzgzRjIzOERFMkEzFw0wODA1MjIxODA0MTZaFw0wODA1MjIxODA1MTZa
+	    MBQwEgIBAhcNMDgwNTIyMTc1ODQwWqAvMC0wHwYDVR0jBBgwFoAU30qAF+ZqnpFy5GEtjPTI
+	    PyON4qMwCgYDVR0UBAMCAQYwDQYJKoZIhvcNAQELBQADggEBAKkM0Fb/pJpHVHWZyjp4wojH
+	    W2KkvA/DFtBiz3moxocSnkDVP3QI19uVvqdC6nH3hJyFmsAMwULR0f1XU/V4j+X+FqYEl6Nv
+	    p8zAEPIB4r8xbEFs7udRwXRAjkJmOQbv9aomF2i+d7jpTFVJxShZWOgsoGEhIy/aktKQrOIR
+	    c4ZDrXpQwXVj2Y7+cGVfQ4gvnPOdlyLcnNovoegazATvA3EcidBNPWRg7XTCz0LVBEB7JgPd
+	    nNyXRg35HdMEHBl7U9uUQJXP7S02oaQ1ehNDMfaJPgBBpQtAnM1lIzJfevd9+e4ywGsRpxAV
+	    8wxTXSPd1jwuKtS0kwrgsrQ8Ya85xUE=
+	</crl>
+</msg>

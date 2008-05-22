@@ -20,9 +20,8 @@ import base64, lxml.etree, time, traceback, os
 import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.sax_utils
 import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
 
-xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
-
-nsmap = { None : xmlns }
+left_right_xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
+left_right_nsmap = { None : left_right_xmlns }
 
 # Enforce strict checking of XML "sender" field in up-down protocol
 enforce_strict_up_down_xml_sender = False
@@ -33,6 +32,9 @@ class base_elt(object):
   attributes = ()
   elements = ()
   booleans = ()
+
+  xmlns = left_right_xmlns
+  nsmap = left_right_nsmap
 
   def startElement(self, stack, name, attrs):
     """Default startElement() handler: just process attributes."""
@@ -54,7 +56,7 @@ class base_elt(object):
 
   def make_elt(self):
     """XML element constructor."""
-    elt = lxml.etree.Element("{%s}%s" % (xmlns, self.element_name), nsmap = nsmap)
+    elt = lxml.etree.Element("{%s}%s" % (self.xmlns, self.element_name), nsmap = self.nsmap)
     for key in self.attributes:
       val = getattr(self, key, None)
       if val is not None:
@@ -69,11 +71,21 @@ class base_elt(object):
     if value is None:
       value = getattr(self, name, None)
     if value is not None:
-      lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap = nsmap).text = base64.b64encode(value)
+      lxml.etree.SubElement(elt, "{%s}%s" % (self.xmlns, name), nsmap = self.nsmap).text = base64.b64encode(value)
 
   def __str__(self):
     """Convert a base_elt object to string format."""
     lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
+
+  @classmethod
+  def make_pdu(cls, **kargs):
+    """Generic left-right PDU constructor."""
+    self = cls()
+    for k,v in kargs.items():
+      if isinstance(v, bool):
+        v = 1 if v else 0
+      setattr(self, k, v)
+    return self
 
 class data_elt(base_elt, rpki.sql.sql_persistant):
   """Virtual class for top-level left-right protocol data elements."""
@@ -85,16 +97,6 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
   def bsc(self):
     """Return BSC object to which this object links."""
     return bsc_elt.sql_fetch(self.gctx, self.bsc_id)
-
-  @classmethod
-  def make_pdu(cls, **kargs):
-    """Generic left-right PDU constructor."""
-    self = cls()
-    for k,v in kargs.items():
-      if isinstance(v, bool):
-        v = 1 if v else 0
-      setattr(self, k, v)
-    return self
 
   def make_reply(self, r_pdu = None):
     """Construct a reply PDU."""
@@ -1025,6 +1027,9 @@ class report_error_elt(base_elt):
 class msg(list):
   """Left-right PDU."""
 
+  xmlns = left_right_xmlns
+  nsmap = left_right_nsmap
+
   ## @var version
   # Protocol version
   version = 1
@@ -1058,7 +1063,7 @@ class msg(list):
 
   def toXML(self):
     """Generate left-right PDU."""
-    elt = lxml.etree.Element("{%s}msg" % (xmlns), nsmap = nsmap, version = str(self.version), type = self.type)
+    elt = lxml.etree.Element("{%s}msg" % (self.xmlns), nsmap = self.nsmap, version = str(self.version), type = self.type)
     elt.extend([i.toXML() for i in self])
     return elt
 

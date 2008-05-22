@@ -21,6 +21,11 @@ all:: up-down-schema.rng
 up-down-schema.rng: up-down-schema.rnc
 	trang up-down-schema.rnc up-down-schema.rng
 
+all:: publication-schema.rng
+
+publication-schema.rng: publication-schema.rnc
+	trang publication-schema.rnc publication-schema.rng
+
 clean:
 	find . -type f -name '*.pyc' -delete
 

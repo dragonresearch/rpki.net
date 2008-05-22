@@ -1,0 +1,78 @@
+# $Id$
+#
+# RelaxNG Schema for RPKI publication protocol.
+#
+# libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
+# run the compact syntax through trang to get XML syntax.
+
+default namespace = "http://www.hactrn.net/uris/rpki/publication/"
+
+# Top level PDU
+
+start = element msg {
+  attribute version { xsd:positiveInteger { maxInclusive="1" } },
+  ( (attribute type { "query" }, query_elt*) |
+    (attribute type { "reply" }, reply_elt*) )
+}
+
+# PDUs allowed in a query
+query_elt = ( client_query | publish_query | retrieve_query | withdraw_query )
+
+# PDUs allowed in a reply
+reply_elt = ( client_reply | publish_reply | retrieve_reply | withdraw_reply | report_error_reply )
+
+# Tag attributes for bulk operations
+tag = attribute tag { xsd:token {maxLength="1024" } }?
+
+# Base64 encoded DER stuff
+base64 = xsd:base64Binary { maxLength="512000" }
+
+# Publication URLs
+url = attribute url { xsd:anyURI { maxLength="4096" } }
+
+# Kinds of objects
+obj_type = attribute type { "certificate" | "crl" | "manifest" | "roa" }
+
+# <client/> element (use restricted to repository operator)
+
+client_id = attribute client_id { xsd:nonNegativeInteger }
+
+client_payload = (element bpki_cert { base64 }?, element bpki_glue { base64 }?)
+
+client_query |= element client { attribute action { "create" },  tag, client_payload }
+client_reply |= element client { attribute action { "create" },  tag, client_id }
+client_query |= element client { attribute action { "set" },     tag, client_id, client_payload }
+client_reply |= element client { attribute action { "set" },     tag, client_id }
+client_query |= element client { attribute action { "get" },     tag, client_id }
+client_reply |= element client { attribute action { "get" },     tag, client_id, client_payload }
+client_query |= element client { attribute action { "list" },    tag }
+client_reply |= element client { attribute action { "list" },    tag, client_id, client_payload }
+client_query |= element client { attribute action { "destroy" }, tag, client_id }
+client_reply |= element client { attribute action { "destroy" }, tag, client_id }
+
+# <publish/> element
+
+publish_query = element publish { tag, obj_type, url, base64 }
+publish_reply = element publish { tag, obj_type, url }
+
+# <retrieve/> element
+
+retrieve_query = element retrieve { tag, obj_type?, url? }
+retrieve_reply = element retrieve { tag, obj_type, url, base64 }
+
+# <withdraw/> element
+
+withdraw_query = element withdraw { tag, obj_type, url }
+withdraw_reply = element withdraw { tag, obj_type, url }
+
+# <report_error/> element
+
+report_error_reply = element report_error {
+  tag,
+  attribute error_code { xsd:token { maxLength="1024" } },
+  xsd:string { maxLength="512000" }?
+}
+
+# Local Variables:
+# indent-tabs-mode: nil
+# End:

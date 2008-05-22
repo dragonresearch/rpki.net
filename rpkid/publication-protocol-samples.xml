@@ -1,7 +1,7 @@
 <!-- -*- SGML -*-
   -  $Id$
   -
-  - Copyright (C) 2008  American Registry for Internet Numbers ("ARIN")
+  - Copyright (C) 2008	American Registry for Internet Numbers ("ARIN")
   -
   - Permission to use, copy, modify, and distribute this software for any
   - purpose with or without fee is hereby granted, provided that the above
@@ -23,8 +23,8 @@
 <completely_gratuitous_wrapper_element_to_let_me_run_this_through_xmllint>
     
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-        <client action="create" base_uri="rsync://wombat.invalid/">
-            <bpki_cert>
+	<client action="create" base_uri="rsync://wombat.invalid/">
+	    <bpki_cert>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -43,16 +43,16 @@
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
 	    </bpki_cert>
-        </client>
+	</client>
     </msg>
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-        <client action="create" client_id="3"/>
+	<client action="create" client_id="3"/>
     </msg>
     
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-        <client action="set" client_id="3">
-            <bpki_glue>
+	<client action="set" client_id="3">
+	    <bpki_glue>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -71,20 +71,20 @@
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
 	    </bpki_glue>
-        </client>
+	</client>
     </msg>
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-        <client action="set" client_id="3"/>
+	<client action="set" client_id="3"/>
     </msg>
     
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-        <client action="get" client_id="3"/>
+	<client action="get" client_id="3"/>
     </msg>
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-        <client action="get" client_id="3" base_uri="rsync://wombat.invalid/">
-            <bpki_cert>
+	<client action="get" client_id="3" base_uri="rsync://wombat.invalid/">
+	    <bpki_cert>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -103,16 +103,16 @@
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
 	    </bpki_cert>
-        </client>
+	</client>
     </msg>
     
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-        <client action="list"/>
+	<client action="list"/>
     </msg>
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-        <client action="list" client_id="3">
-            <bpki_cert>
+	<client action="list" client_id="3">
+	    <bpki_cert>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
 		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
@@ -131,15 +131,15 @@
 		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
 		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
 	    </bpki_cert>
-        </client>
+	</client>
     </msg>
     
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-        <client action="destroy" client_id="3"/>
+	<client action="destroy" client_id="3"/>
     </msg>
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-        <client action="destroy" client_id="3"/>
+	<client action="destroy" client_id="3"/>
     </msg>
     
     <!-- === -->
@@ -147,27 +147,34 @@
     <!-- === -->
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-        <report_error error_code="your_hair_is_on_fire">text string</report_error>
+	<report_error error_code="your_hair_is_on_fire">text string</report_error>
     </msg>
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-        <report_error error_code="your_hair_is_on_fire"><bag_of_data foo="bar"/></report_error>
+	<report_error error_code="your_hair_is_on_fire"><bag_of_data foo="bar"/></report_error>
     </msg>
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-        <report_error error_code="your_hair_is_on_fire">
-	<fee>
-	  <fie>
-	    <foe>
-	      fum
-	    </foe>
-	  </fie>
-	</fee>
+	<report_error error_code="your_hair_is_on_fire">
+	    <fee>
+		<fie>
+		    <foe>fum</foe>
+		</fie>
+	    </fee>
 	</report_error>
     </msg>
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-        <report_error error_code="your_hair_is_on_fire"/>
+	<report_error error_code="your_hair_is_on_fire">
+	    <fee arg="fee"/>
+	    <fie>
+		<foe>fum</foe>
+	    </fie>
+	</report_error>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<report_error error_code="your_hair_is_on_fire"/>
     </msg>
     
 </completely_gratuitous_wrapper_element_to_let_me_run_this_through_xmllint>

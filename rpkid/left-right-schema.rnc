@@ -226,10 +226,14 @@ list_resources_reply = element list_resources {
 
 # <report_error/> element
 
+error = xsd:token { maxLength="1024" }
+
+any = element * { attribute * { text }*, ( text | any* ) }
+
 report_error_reply = element report_error {
   tag, self_id,
-  attribute error_code { xsd:token { maxLength="1024" } },
-  xsd:string { maxLength="512000" }?
+  attribute error_code { error },
+  ( text | any* )?
 }
 
 # Local Variables:

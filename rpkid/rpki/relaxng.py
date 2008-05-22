@@ -933,19 +933,41 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     </element>
   </define>
   <!-- <report_error/> element -->
+  <define name="error">
+    <data type="token">
+      <param name="maxLength">1024</param>
+    </data>
+  </define>
+  <define name="any">
+    <element>
+      <anyName/>
+      <zeroOrMore>
+        <attribute>
+          <anyName/>
+        </attribute>
+      </zeroOrMore>
+      <choice>
+        <text/>
+        <zeroOrMore>
+          <ref name="any"/>
+        </zeroOrMore>
+      </choice>
+    </element>
+  </define>
   <define name="report_error_reply">
     <element name="report_error">
       <ref name="tag"/>
       <ref name="self_id"/>
       <attribute name="error_code">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
+        <ref name="error"/>
       </attribute>
       <optional>
-        <data type="string">
-          <param name="maxLength">512000</param>
-        </data>
+        <choice>
+          <text/>
+          <zeroOrMore>
+            <ref name="any"/>
+          </zeroOrMore>
+        </choice>
       </optional>
     </element>
   </define>
@@ -1215,7 +1237,7 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodi
 ## Parsed RelaxNG publication schema
 publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-schema.rnc 1810 2008-05-22 14:46:48Z sra $
+  $Id: publication-schema.rnc 1811 2008-05-22 16:39:41Z sra $
   
   RelaxNG Schema for RPKI publication protocol.
   
@@ -1805,7 +1827,6 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <param name="maxLength">1024</param>
     </data>
   </define>
-  <!-- any = element * { (attribute * { text } | text | any*)* } -->
   <define name="any">
     <element>
       <anyName/>

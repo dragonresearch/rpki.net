@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-schema.rnc 1810 2008-05-22 14:46:48Z sra $
+  $Id: publication-schema.rnc 1811 2008-05-22 16:39:41Z sra $
   
   RelaxNG Schema for RPKI publication protocol.
   
@@ -590,7 +590,6 @@
       <param name="maxLength">1024</param>
     </data>
   </define>
-  <!-- any = element * { (attribute * { text } | text | any*)* } -->
   <define name="any">
     <element>
       <anyName/>

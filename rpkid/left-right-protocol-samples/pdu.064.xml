@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="US-ASCII"?>
 <!--Automatically generated, do not edit.-->
 <msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1" type="reply">
-  <report_error self_id="42" error_code="your_hair_is_on_fire">text string</report_error>
+  <report_error self_id="42" error_code="your_hair_is_on_fire">
+    <bag_of_data foo="bar"/>
+  </report_error>
 </msg>

@@ -15,7 +15,7 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 import glob, xml.sax, lxml.etree, lxml.sax, POW, POW.pkix
-import rpki.up_down, rpki.left_right, rpki.pubproto, rpki.relaxng
+import rpki.up_down, rpki.left_right, rpki.publication, rpki.relaxng
 
 verbose = True
 
@@ -74,7 +74,7 @@ def lr_tester(elt_in, elt_out, msg):
               (obj.bpki_glue,         "Glue")))
 
 def pp_tester(elt_in, elt_out, msg):
-  assert isinstance(msg, rpki.pubproto.msg)
+  assert isinstance(msg, rpki.publication.msg)
 
 test(fileglob = "up-down-protocol-samples/*.xml",
      rng = rpki.relaxng.up_down,
@@ -90,6 +90,6 @@ test(fileglob = "left-right-protocol-samples/*.xml",
 
 test(fileglob = "publication-protocol-samples/*.xml",
      rng = rpki.relaxng.publication,
-     sax_handler = rpki.pubproto.sax_handler,
+     sax_handler = rpki.publication.sax_handler,
      encoding = "us-ascii",
      tester = pp_tester)

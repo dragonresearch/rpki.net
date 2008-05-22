@@ -28,8 +28,8 @@ import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.sax_utils
 import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
 import rpki.left_right
 
-pubproto_xmlns = "http://www.hactrn.net/uris/rpki/publication-spec/"
-pubproto_nsmap = { None : pubproto_xmlns }
+publication_xmlns = "http://www.hactrn.net/uris/rpki/publication-spec/"
+publication_nsmap = { None : publication_xmlns }
 
 class data_elt(rpki.left_right.base_elt):
   """Virtual class for top-level publication protocol data elements.
@@ -39,8 +39,8 @@ class data_elt(rpki.left_right.base_elt):
   rpki.left_right, but wait and see.
   """
 
-  xmlns = pubproto_xmlns
-  nsmap = pubproto_nsmap
+  xmlns = publication_xmlns
+  nsmap = publication_nsmap
 
 class client_elt(data_elt):
   """<client/> element."""
@@ -90,8 +90,8 @@ class report_error_elt(rpki.left_right.report_error_elt):
 class msg(rpki.left_right.msg):
   """Publication PDU."""
 
-  xmlns = pubproto_xmlns
-  nsmap = pubproto_nsmap
+  xmlns = publication_xmlns
+  nsmap = publication_nsmap
 
   ## @var version
   # Protocol version

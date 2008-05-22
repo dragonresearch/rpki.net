@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  $Id: publication-schema.rnc 1808 2008-05-22 04:55:02Z sra $
+  
+  RelaxNG Schema for RPKI publication protocol.
+  
+  libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
+  run the compact syntax through trang to get XML syntax.
+-->
+<grammar ns="http://www.hactrn.net/uris/rpki/publication/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <!-- Top level PDU -->
+  <start>
+    <element name="msg">
+      <attribute name="version">
+        <data type="positiveInteger">
+          <param name="maxInclusive">1</param>
+        </data>
+      </attribute>
+      <choice>
+        <group>
+          <attribute name="type">
+            <value>query</value>
+          </attribute>
+          <zeroOrMore>
+            <ref name="query_elt"/>
+          </zeroOrMore>
+        </group>
+        <group>
+          <attribute name="type">
+            <value>reply</value>
+          </attribute>
+          <zeroOrMore>
+            <ref name="reply_elt"/>
+          </zeroOrMore>
+        </group>
+      </choice>
+    </element>
+  </start>
+  <!-- PDUs allowed in a query -->
+  <define name="query_elt">
+    <choice>
+      <ref name="client_query"/>
+      <ref name="publish_query"/>
+      <ref name="retrieve_query"/>
+      <ref name="withdraw_query"/>
+    </choice>
+  </define>
+  <!-- PDUs allowed in a reply -->
+  <define name="reply_elt">
+    <choice>
+      <ref name="client_reply"/>
+      <ref name="publish_reply"/>
+      <ref name="retrieve_reply"/>
+      <ref name="withdraw_reply"/>
+      <ref name="report_error_reply"/>
+    </choice>
+  </define>
+  <!-- Tag attributes for bulk operations -->
+  <define name="tag">
+    <optional>
+      <attribute name="tag">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+    </optional>
+  </define>
+  <!-- Base64 encoded DER stuff -->
+  <define name="base64">
+    <data type="base64Binary">
+      <param name="maxLength">512000</param>
+    </data>
+  </define>
+  <!-- Publication URLs -->
+  <define name="url">
+    <attribute name="url">
+      <data type="anyURI">
+        <param name="maxLength">4096</param>
+      </data>
+    </attribute>
+  </define>
+  <!-- Kinds of objects -->
+  <define name="obj_type">
+    <attribute name="type">
+      <choice>
+        <value>certificate</value>
+        <value>crl</value>
+        <value>manifest</value>
+        <value>roa</value>
+      </choice>
+    </attribute>
+  </define>
+  <!-- <client/> element (use restricted to repository operator) -->
+  <define name="client_id">
+    <attribute name="client_id">
+      <data type="nonNegativeInteger"/>
+    </attribute>
+  </define>
+  <define name="client_payload">
+    <optional>
+      <element name="bpki_cert">
+        <ref name="base64"/>
+      </element>
+    </optional>
+    <optional>
+      <element name="bpki_glue">
+        <ref name="base64"/>
+      </element>
+    </optional>
+  </define>
+  <define name="client_query" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>create</value>
+      </attribute>
+      <ref name="tag"/>
+      <ref name="client_payload"/>
+    </element>
+  </define>
+  <define name="client_reply" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>create</value>
+      </attribute>
+      <ref name="tag"/>
+      <ref name="client_id"/>
+    </element>
+  </define>
+  <define name="client_query" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>set</value>
+      </attribute>
+      <ref name="tag"/>
+      <ref name="client_id"/>
+      <ref name="client_payload"/>
+    </element>
+  </define>
+  <define name="client_reply" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>set</value>
+      </attribute>
+      <ref name="tag"/>
+      <ref name="client_id"/>
+    </element>
+  </define>
+  <define name="client_query" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>get</value>
+      </attribute>
+      <ref name="tag"/>
+      <ref name="client_id"/>
+    </element>
+  </define>
+  <define name="client_reply" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>get</value>
+      </attribute>
+      <ref name="tag"/>
+      <ref name="client_id"/>
+      <ref name="client_payload"/>
+    </element>
+  </define>
+  <define name="client_query" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>list</value>
+      </attribute>
+      <ref name="tag"/>
+    </element>
+  </define>
+  <define name="client_reply" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>list</value>
+      </attribute>
+      <ref name="tag"/>
+      <ref name="client_id"/>
+      <ref name="client_payload"/>
+    </element>
+  </define>
+  <define name="client_query" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>destroy</value>
+      </attribute>
+      <ref name="tag"/>
+      <ref name="client_id"/>
+    </element>
+  </define>
+  <define name="client_reply" combine="choice">
+    <element name="client">
+      <attribute name="action">
+        <value>destroy</value>
+      </attribute>
+      <ref name="tag"/>
+      <ref name="client_id"/>
+    </element>
+  </define>
+  <!-- <publish/> element -->
+  <define name="publish_query">
+    <element name="publish">
+      <ref name="tag"/>
+      <ref name="obj_type"/>
+      <ref name="url"/>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="publish_reply">
+    <element name="publish">
+      <ref name="tag"/>
+      <ref name="obj_type"/>
+      <ref name="url"/>
+    </element>
+  </define>
+  <!-- <retrieve/> element -->
+  <define name="retrieve_query">
+    <element name="retrieve">
+      <ref name="tag"/>
+      <optional>
+        <ref name="obj_type"/>
+      </optional>
+      <optional>
+        <ref name="url"/>
+      </optional>
+    </element>
+  </define>
+  <define name="retrieve_reply">
+    <element name="retrieve">
+      <ref name="tag"/>
+      <ref name="obj_type"/>
+      <ref name="url"/>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <!-- <withdraw/> element -->
+  <define name="withdraw_query">
+    <element name="withdraw">
+      <ref name="tag"/>
+      <ref name="obj_type"/>
+      <ref name="url"/>
+    </element>
+  </define>
+  <define name="withdraw_reply">
+    <element name="withdraw">
+      <ref name="tag"/>
+      <ref name="obj_type"/>
+      <ref name="url"/>
+    </element>
+  </define>
+  <!-- <report_error/> element -->
+  <define name="report_error_reply">
+    <element name="report_error">
+      <ref name="tag"/>
+      <attribute name="error_code">
+        <data type="token">
+          <param name="maxLength">1024</param>
+        </data>
+      </attribute>
+      <optional>
+        <data type="string">
+          <param name="maxLength">512000</param>
+        </data>
+      </optional>
+    </element>
+  </define>
+</grammar>
+<!--
+  Local Variables:
+  indent-tabs-mode: nil
+  End:
+-->

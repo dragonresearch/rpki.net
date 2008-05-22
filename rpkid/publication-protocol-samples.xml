@@ -147,7 +147,27 @@
     <!-- === -->
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-        <report_error error_code="your_hair_is_on_fire">bag_of_data</report_error>
+        <report_error error_code="your_hair_is_on_fire">text string</report_error>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+        <report_error error_code="your_hair_is_on_fire"><bag_of_data foo="bar"/></report_error>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+        <report_error error_code="your_hair_is_on_fire">
+	<fee>
+	  <fie>
+	    <foe>
+	      fum
+	    </foe>
+	  </fie>
+	</fee>
+	</report_error>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+        <report_error error_code="your_hair_is_on_fire"/>
     </msg>
     
 </completely_gratuitous_wrapper_element_to_let_me_run_this_through_xmllint>

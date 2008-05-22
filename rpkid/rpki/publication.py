@@ -79,13 +79,65 @@ class client_elt(data_elt):
       self.make_b64elt(elt, "bpki_glue", self.bpki_glue.get_DER())
     return elt
 
+class publication_object_elt(data_elt):
+  """Virtual class for publishable objects.  These have very similar
+  syntax, differences lie in underlying datatype and methods.
+  """
+
+  attributes = ("action", "tag", "client_id", "uri")
+  payload = None
+
+  def startElement(self, stack, name, attrs):
+    """Handle a publishable element."""
+    assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
+    self.read_attrs(attrs)
+
+  def endElement(self, stack, name, text):
+    """Handle a publishable element element."""
+    assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
+    if text:
+      self.payload = self.payload_type(Base64 = text)
+    stack.pop()
+
+  def toXML(self):
+    """Generate <client/> element."""
+    elt = self.make_elt()
+    if self.payload:
+      elt.text = base64.b64encode(self.payload.get_DER())
+    return elt
+
+class certificate_elt(publication_object_elt):
+  """<certificate/> element."""
+
+  element_name = "certificate"
+  payload_type = rpki.x509.X509
+
+class crl_elt(publication_object_elt):
+  """<crl/> element."""
+
+  element_name = "crl"
+  payload_type = rpki.x509.CRL
+  
+class manifest_elt(publication_object_elt):
+  """<manifest/> element."""
+
+  element_name = "manifest"
+  payload_type = rpki.x509.SignedManifest
+
+class roa_elt(publication_object_elt):
+  """<roa/> element."""
+
+  element_name = "roa"
+  payload_type = rpki.x509.ROA
+
 class report_error_elt(rpki.left_right.report_error_elt):
   """<report_error/> element.
 
   For now this is identical to its left_right equivilent.
   """
 
-  pass
+  xmlns = publication_xmlns
+  nsmap = publication_nsmap
 
 class msg(rpki.left_right.msg):
   """Publication PDU."""
@@ -100,7 +152,7 @@ class msg(rpki.left_right.msg):
   ## @var pdus
   # Dispatch table of PDUs for this protocol.
   pdus = dict((x.element_name, x)
-              for x in (client_elt, report_error_elt))
+              for x in (client_elt, certificate_elt, crl_elt, manifest_elt, roa_elt, report_error_elt))
 
 class sax_handler(rpki.sax_utils.handler):
   """SAX handler for publication protocol."""

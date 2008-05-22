@@ -17,7 +17,7 @@
 import glob, xml.sax, lxml.etree, lxml.sax, POW, POW.pkix
 import rpki.up_down, rpki.left_right, rpki.publication, rpki.relaxng
 
-verbose = True
+verbose = False
 
 def test(fileglob, rng, sax_handler, encoding, tester = None):
   files = glob.glob(fileglob)

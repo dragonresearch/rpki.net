@@ -75,6 +75,18 @@ def lr_tester(elt_in, elt_out, msg):
 
 def pp_tester(elt_in, elt_out, msg):
   assert isinstance(msg, rpki.publication.msg)
+  for obj in msg:
+    if isinstance(obj, rpki.publication.client_elt):
+      pprint(((obj.bpki_cert,         "BPKI cert"),
+              (obj.bpki_glue,         "BPKI glue")))
+    if isinstance(obj, rpki.publication.certificate_elt):
+      pprint(((obj.payload,         "RPKI cert"),))
+    if isinstance(obj, rpki.publication.crl_elt):
+      pprint(((obj.payload,         "RPKI CRL"),))
+    if isinstance(obj, rpki.publication.manifest_elt):
+      pprint(((obj.payload,          "RPKI manifest"),))
+    if isinstance(obj, rpki.publication.roa_elt):
+      pprint(((obj.payload,          "ROA"),))
 
 test(fileglob = "up-down-protocol-samples/*.xml",
      rng = rpki.relaxng.up_down,

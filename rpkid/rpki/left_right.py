@@ -343,6 +343,7 @@ class self_elt(data_elt):
             ca_detail = ca_detail,
             resources = new_resources)
         elif old_resources.valid_until < now:
+          ca = ca_detail.ca()
           parent = ca.parent()
           repository = parent.repository()
           child_cert.sql_delete()

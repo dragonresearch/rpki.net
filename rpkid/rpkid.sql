@@ -28,8 +28,6 @@ CREATE TABLE self (
         PRIMARY KEY             (self_id)
 );
 
-DROP TABLE IF EXISTS self_pref;
-
 DROP TABLE IF EXISTS bsc;
 
 CREATE TABLE bsc (

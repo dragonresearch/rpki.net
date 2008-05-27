@@ -93,7 +93,7 @@ rpki/relaxng.py: make-relaxng.py
 	python make-relaxng.py >$@.tmp
 	mv $@.tmp $@
 
-pdf: rpkid.pdf irdbd.pdf
+pdf: rpkid.pdf irdbd.pdf pubd.pdf
 
 doc:: pdf
 

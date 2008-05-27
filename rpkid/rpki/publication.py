@@ -34,21 +34,31 @@ publication_nsmap = { None : publication_xmlns }
 class data_elt(rpki.left_right.base_elt):
   """Virtual class for top-level publication protocol data elements.
 
-  This is a placeholder.  It will probably end up being a mixin that
-  uses rpki.sql.sql_persistant, just like its counterpart in
+  This is a placeholder.  It may end up being a mixin that uses
+  rpki.sql.sql_persistant, just like its counterpart in
   rpki.left_right, but wait and see.
   """
 
   xmlns = publication_xmlns
   nsmap = publication_nsmap
 
-class client_elt(data_elt):
-  """<client/> element."""
+class client_elt(rpki.left_right.data_elt):
+  """<client/> element.
+
+  This reuses the rpki.left-right.data_elt class because its structure
+  is identical to that used in the left-right protocol.
+  """
+
+  xmlns = publication_xmlns
+  nsmap = publication_nsmap
 
   element_name = "client"
   attributes = ("action", "tag", "client_id", "base_uri")
   elements = ("bpki_cert", "bpki_glue")
 
+  sql_template = rpki.sql.template("client", "client_id", "base_uri", ("bpki_cert", rpki.x509.X509), ("bpki_glue", rpki.x509.X509))
+
+  base_uri  = None
   bpki_cert = None
   bpki_glue = None
 
@@ -78,6 +88,30 @@ class client_elt(data_elt):
     if self.bpki_glue and not self.bpki_glue.empty():
       self.make_b64elt(elt, "bpki_glue", self.bpki_glue.get_DER())
     return elt
+
+  def serve_fetch_one(self):
+    """Find the client object on which a get, set, or destroy method
+    should operate.
+    """
+    r = self.sql_fetch(self.gctx, self.client_id)
+    if r is None:
+      raise rpki.exceptions.NotFound
+    return r
+
+  def serve_list(self, r_msg):
+    """Handle a list action for client objects."""
+    for r_pdu in self.sql_fetch_all(self.gctx):
+      self.make_reply(r_pdu)
+      r_msg.append(r_pdu)
+
+  def make_reply(self, r_pdu = None):
+    """Construct a reply PDU."""
+    if r_pdu is None:
+      r_pdu = client_elt()
+      r_pdu.client_id = self.client_id
+    r_pdu.action = self.action
+    r_pdu.tag = self.tag
+    return r_pdu
 
 class publication_object_elt(data_elt):
   """Virtual class for publishable objects.  These have very similar

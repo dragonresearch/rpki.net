@@ -23,9 +23,6 @@ import traceback, os, time, getopt, sys, MySQLdb, lxml.etree
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
 import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log
 
-# This should be wrapped somewhere in rpki.x509 eventually
-import POW
-
 class global_context(object):
   """A container for various global parameters."""
 
@@ -157,34 +154,25 @@ class global_context(object):
   https_ta_cache = None
 
   def clear_https_ta_cache(self):
-    """Clear cached HTTPS trust anchor X509Store."""
+    """Clear dynamic TLS trust anchors."""
 
     if self.https_ta_cache is not None:
       rpki.log.debug("Clearing HTTPS trusted cert cache")
       self.https_ta_cache = None
 
-  def build_x509store(self):
-    """Build a dynamic x509store object.
-
-    This probably should be refactored to do the real work in the
-    rpki.https module so that this module can treat the x509store as a
-    black box.  This method's jobs would then be just to identify
-    certs that need to be added and to cache an opaque object.
-    """
+  def build_https_ta_cache(self):
+    """Build dynamic TLS trust anchors."""
 
     if self.https_ta_cache is None:
-      store = POW.X509Store()
+
       selves = rpki.left_right.self_elt.sql_fetch_all(self)
       children = rpki.left_right.child_elt.sql_fetch_all(self)
-      certs = [c.bpki_cert for c in children if c.bpki_cert is not None] + \
-              [c.bpki_glue for c in children if c.bpki_glue is not None] + \
-              [s.bpki_cert for s in selves if s.bpki_cert is not None] + \
-              [s.bpki_glue for s in selves if s.bpki_glue is not None] + \
-              [self.irbe_cert, self.irdb_cert, self.bpki_ta]
-      for x in certs:
-        if rpki.https.debug_tls_certs:
-          rpki.log.debug("HTTPS dynamic trusted cert issuer %s [%s] subject %s [%s]" % (x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
-        store.addTrust(x.get_POW())
-      self.https_ta_cache = store
+
+      self.https_ta_cache = rpki.https.build_https_ta_cache(
+        [c.bpki_cert for c in children if c.bpki_cert is not None] +
+        [c.bpki_glue for c in children if c.bpki_glue is not None] +
+        [s.bpki_cert for s in selves if s.bpki_cert is not None] +
+        [s.bpki_glue for s in selves if s.bpki_glue is not None] +
+        [self.irbe_cert, self.irdb_cert, self.bpki_ta])
 
     return self.https_ta_cache

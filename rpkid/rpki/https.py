@@ -42,6 +42,16 @@ def tlslite_certChain(x509):
   else:
     return tlslite.api.X509CertChain([x.get_tlslite() for x in x509])
 
+def build_https_ta_cache(certs):
+  """Build a dynamic TLS trust anchor cache."""
+
+  store = POW.X509Store()
+  for x in certs:
+    if rpki.https.debug_tls_certs:
+      rpki.log.debug("HTTPS dynamic trusted cert issuer %s [%s] subject %s [%s]" % (x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
+    store.addTrust(x.get_POW())
+  return store
+
 class Checker(tlslite.api.Checker):
   """Derived class to handle X.509 client certificate checking."""
 
@@ -56,12 +66,12 @@ class Checker(tlslite.api.Checker):
 
   pem_dump_tls_certs = False
 
-  def __init__(self, trust_anchor = None, dynamic_x509store = None):
+  def __init__(self, trust_anchor = None, dynamic_https_trust_anchor = None):
     """Initialize our modified certificate checker."""
 
-    self.dynamic_x509store = dynamic_x509store
+    self.dynamic_https_trust_anchor = dynamic_https_trust_anchor
 
-    if dynamic_x509store is not None:
+    if dynamic_https_trust_anchor is not None:
       return
 
     self.x509store = POW.X509Store()
@@ -77,8 +87,8 @@ class Checker(tlslite.api.Checker):
         print x.get_PEM()
 
   def x509store_thunk(self):
-    if self.dynamic_x509store is not None:
-      return self.dynamic_x509store()
+    if self.dynamic_https_trust_anchor is not None:
+      return self.dynamic_https_trust_anchor()
     else:
       return self.x509store
 
@@ -253,7 +263,7 @@ class httpsServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
       rpki.log.warn("TLS handshake failure: " + str(error))
       return False
 
-def server(handlers, server_key, server_cert, port = 4433, host = "", client_ta = None, dynamic_x509store = None):
+def server(handlers, server_key, server_cert, port = 4433, host = "", client_ta = None, dynamic_https_trust_anchor = None):
   """Run an HTTPS server and wait (forever) for connections."""
 
   if not isinstance(handlers, (tuple, list)):
@@ -267,6 +277,6 @@ def server(handlers, server_key, server_cert, port = 4433, host = "", client_ta 
   httpd.rpki_server_key   = server_key.get_tlslite()
   httpd.rpki_server_cert  = tlslite_certChain(server_cert)
   httpd.rpki_sessionCache = tlslite.api.SessionCache()
-  httpd.rpki_checker      = Checker(trust_anchor = client_ta, dynamic_x509store = dynamic_x509store)
+  httpd.rpki_checker      = Checker(trust_anchor = client_ta, dynamic_https_trust_anchor = dynamic_https_trust_anchor)
 
   httpd.serve_forever()

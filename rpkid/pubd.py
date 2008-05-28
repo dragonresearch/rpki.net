@@ -109,10 +109,6 @@ if argv:
 
 cfg = rpki.config.parser(cfg_file, "pubd")
 
-startup_msg = cfg.get("startup-message", "")
-if startup_msg:
-  rpki.log.info(startup_msg)
-
 pctx = pubd_context(cfg)
 
 rpki.https.server(host              = pctx.https_server_host,

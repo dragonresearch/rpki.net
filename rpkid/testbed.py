@@ -84,11 +84,13 @@ testbed_dir    = cfg.get("testbed_dir",    testbed_name + ".dir")
 
 irdb_db_pass   = cfg.get("irdb_db_pass",   "fnord")
 rpki_db_pass   = cfg.get("rpki_db_pass",   "fnord")
+pubd_db_pass   = cfg.get("pubd_db_pass",   "fnord")
 
 base_port      = int(cfg.get("base_port",  "4400"))
 
 rsyncd_port    = allocate_port()
 rootd_port     = allocate_port()
+pubd_port      = allocate_port()
 
 rsyncd_module  = cfg.get("rsyncd_module",  testbed_name)
 rootd_sia      = cfg.get("rootd_sia",      "rsync://localhost:%d/%s/" % (rsyncd_port, rsyncd_module))
@@ -96,12 +98,14 @@ rootd_sia      = cfg.get("rootd_sia",      "rsync://localhost:%d/%s/" % (rsyncd_
 rootd_name     = cfg.get("rootd_name",     "rootd")
 rsyncd_name    = cfg.get("rcynic_name",    "rsyncd")
 rcynic_name    = cfg.get("rcynic_name",    "rcynic")
+pubd_name      = cfg.get("pubd_name",      "pubd")
 
 prog_python    = cfg.get("prog_python",    "python")
 prog_rpkid     = cfg.get("prog_rpkid",     "../rpkid.py")
 prog_irdbd     = cfg.get("prog_irdbd",     "../irdbd.py")
 prog_poke      = cfg.get("prog_poke",      "../testpoke.py")
 prog_rootd     = cfg.get("prog_rootd",     "../rootd.py")
+prog_pubd      = cfg.get("prog_pubd",      "../pubd.py")
 prog_openssl   = cfg.get("prog_openssl",   "../../openssl/openssl/apps/openssl")
 prog_rsyncd    = cfg.get("prog_rsyncd",    "rsync")
 prog_rcynic    = cfg.get("prog_rcynic",    "../../rcynic/rcynic")
@@ -110,6 +114,7 @@ rcynic_stats   = cfg.get("rcynic_stats",   "xsltproc --param refresh 0 ../../rcy
 
 rpki_sql_file  = cfg.get("rpki_sql_file",  "rpkid.sql")
 irdb_sql_file  = cfg.get("irdb_sql_file",  "irdbd.sql")
+pub_sql_file   = cfg.get("pub_sql_file",   "pubd.sql")
 
 startup_delay  = int(cfg.get("startup_delay", "10"))
 
@@ -121,11 +126,13 @@ def main():
 
   signal.signal(signal.SIGALRM, wakeup)
 
+  pubd_process = None
   rootd_process = None
   rsyncd_process = None
 
   rpki_sql = mangle_sql(rpki_sql_file)
   irdb_sql = mangle_sql(irdb_sql_file)
+  pubd_sql = mangle_sql(pub_sql_file)
 
   try:
     os.chdir(testbed_dir)
@@ -142,10 +149,13 @@ def main():
   rpki.log.info("Constructing BPKI keys and certs for rootd")
   setup_bpki_cert_chain(rootd_name, ee = ("RPKI",))
 
+  rpki.log.info("Constructing BPKI keys and certs for pubd")
+  setup_bpki_cert_chain(pubd_name, ee = ("RPKI", "IRBE"))
+
   for a in db:
     a.setup_bpki_certs()
 
-  setup_publication()
+  setup_publication(pubd_sql)
   setup_rootd(db.root.name, "SELF-1")
   setup_rsyncd()
   setup_rcynic()
@@ -757,13 +767,26 @@ def setup_rsyncd():
   f.write(rsyncd_fmt_1 % d)
   f.close()
 
-def setup_publication():
-  """Set up (pseudo) publication directory."""
-  rpki.log.info("Creating (pseudo) publication directory")
+def setup_publication(pubd_sql):
+  """Set up publication daemon."""
+  rpki.log.info("Configure publication daemon")
+  pubd_dir = os.getcwd() + "/publication/"
   assert rootd_sia.startswith("rsync://")
   global rsyncd_dir
-  rsyncd_dir = os.getcwd() + "/publication/" + rootd_sia[len("rsync://"):]
+  rsyncd_dir = pubd_dir + rootd_sia[len("rsync://"):]
   os.makedirs(rsyncd_dir)
+  db = MySQLdb.connect(user = "pubd", db = "pubd", passwd = pubd_db_pass)
+  cur = db.cursor()
+  for sql in pubd_sql:
+    cur.execute(sql)
+  db.close()
+  d = { "pubd_name" : pubd_name,
+        "pubd_port" : pubd_port,
+        "pubd_pass" : pubd_db_pass,
+        "pubd_dir"  : pubd_dir }
+  f = open(pubd_name + ".conf", "w")
+  f.write(pubd_fmt_1 % d)
+  f.close()
 
 def run_rcynic():
   """Run rcynic to see whether what was published makes sense."""
@@ -993,6 +1016,21 @@ transfer logging        = yes
 use chroot              = no
 path                    = %(rsyncd_dir)s
 comment                 = RPKI test
+'''
+
+pubd_fmt_1 = '''\
+[pubd]
+
+sql-database            = %(pubd_name)s
+sql-username            = pubd
+sql-password            = %(pubd_pass)s
+bpki-ta                 = %(pubd_name)s-TA.cer
+pubd-cert               = %(pubd_name)s-RPKI.cer
+pubd-key                = %(pubd_name)s-RPKI.key
+irbe-cert               = %(pubd_name)s-IRBE.cer
+server-host             = localhost
+server-port             = %(pubd_port)d
+publication-base        = %(pubd_dir)s
 '''
 
 main()

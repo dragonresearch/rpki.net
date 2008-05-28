@@ -54,39 +54,31 @@ client_reply |= element client { attribute action { "destroy" }, tag?, client_id
 
 # <certificate/> element
 
-certificate_query |= element certificate { attribute action { "publish" }, tag?, client_id?, uri, base64 }
-certificate_reply |= element certificate { attribute action { "publish" }, tag?, client_id?, uri }
-certificate_query |= element certificate { attribute action { "retrieve" }, tag?, client_id?, uri? }
-certificate_reply |= element certificate { attribute action { "retrieve" }, tag?, client_id?, uri, base64 }
-certificate_query |= element certificate { attribute action { "withdraw" }, tag?, client_id?, uri }
-certificate_reply |= element certificate { attribute action { "withdraw" }, tag?, client_id?, uri }
+certificate_query |= element certificate { attribute action { "publish" }, tag?, uri, base64 }
+certificate_reply |= element certificate { attribute action { "publish" }, tag?, uri }
+certificate_query |= element certificate { attribute action { "withdraw" }, tag?, uri }
+certificate_reply |= element certificate { attribute action { "withdraw" }, tag?, uri }
 
 # <crl/> element
 
-crl_query |= element crl { attribute action { "publish" }, tag?, client_id?, uri, base64 }
-crl_reply |= element crl { attribute action { "publish" }, tag?, client_id?, uri }
-crl_query |= element crl { attribute action { "retrieve" }, tag?, client_id?, uri? }
-crl_reply |= element crl { attribute action { "retrieve" }, tag?, client_id?, uri, base64 }
-crl_query |= element crl { attribute action { "withdraw" }, tag?, client_id?, uri }
-crl_reply |= element crl { attribute action { "withdraw" }, tag?, client_id?, uri }
+crl_query |= element crl { attribute action { "publish" }, tag?, uri, base64 }
+crl_reply |= element crl { attribute action { "publish" }, tag?, uri }
+crl_query |= element crl { attribute action { "withdraw" }, tag?, uri }
+crl_reply |= element crl { attribute action { "withdraw" }, tag?, uri }
 
 # <manifest/> element
 
-manifest_query |= element manifest { attribute action { "publish" }, tag?, client_id?, uri, base64 }
-manifest_reply |= element manifest { attribute action { "publish" }, tag?, client_id?, uri }
-manifest_query |= element manifest { attribute action { "retrieve" }, tag?, client_id?, uri? }
-manifest_reply |= element manifest { attribute action { "retrieve" }, tag?, client_id?, uri, base64 }
-manifest_query |= element manifest { attribute action { "withdraw" }, tag?, client_id?, uri }
-manifest_reply |= element manifest { attribute action { "withdraw" }, tag?, client_id?, uri }
+manifest_query |= element manifest { attribute action { "publish" }, tag?, uri, base64 }
+manifest_reply |= element manifest { attribute action { "publish" }, tag?, uri }
+manifest_query |= element manifest { attribute action { "withdraw" }, tag?, uri }
+manifest_reply |= element manifest { attribute action { "withdraw" }, tag?, uri }
 
 # <roa/> element
 
-roa_query |= element roa { attribute action { "publish" }, tag?, client_id?, uri, base64 }
-roa_reply |= element roa { attribute action { "publish" }, tag?, client_id?, uri }
-roa_query |= element roa { attribute action { "retrieve" }, tag?, client_id?, uri? }
-roa_reply |= element roa { attribute action { "retrieve" }, tag?, client_id?, uri, base64 }
-roa_query |= element roa { attribute action { "withdraw" }, tag?, client_id?, uri }
-roa_reply |= element roa { attribute action { "withdraw" }, tag?, client_id?, uri }
+roa_query |= element roa { attribute action { "publish" }, tag?, uri, base64 }
+roa_reply |= element roa { attribute action { "publish" }, tag?, uri }
+roa_query |= element roa { attribute action { "withdraw" }, tag?, uri }
+roa_reply |= element roa { attribute action { "withdraw" }, tag?, uri }
 
 # <report_error/> element
 

@@ -48,16 +48,14 @@ class pubd_context(rpki.gctx.global_context):
     self.sql_cache = {}
     self.sql_dirty = set()
 
-  def handler_common(self, query, client_id, peer_certs):
-    """Common code for publication PDU processing."""
-      q_msg = rpki.publication.cms_msg.unwrap(query, peer_certs)
-      if q_msg.type != "query":
-        raise rpki.exceptions.BadQuery, "Message type is not query"
-      r_msg = q_msg.serve_top_level(self, client_id)
-      reply = rpki.publication.cms_msg.wrap(r_msg, self.pubd_key, self.pubd_cert)
-      self.sql_sweep()
-      return reply
-    
+  def handler_common(self, query, client, certs):
+    """Common PDU handler code."""
+    q_msg = rpki.publication.cms_msg.unwrap(query, certs)
+    r_msg = q_msg.serve_top_level(self, client)
+    reply = rpki.publication.cms_msg.wrap(r_msg, self.pubd_key, self.pubd_cert)
+    self.sql_sweep()
+    return reply
+
   def control_handler(self, query, path):
     """Process one PDU from the IRBE."""
     rpki.log.trace()
@@ -77,7 +75,7 @@ class pubd_context(rpki.gctx.global_context):
       client = rpki.publication.client_elt.sql_fetch(self, long(client_id))
       if client is None:
         raise rpki.exceptions.ClientNotFound, "Could not find client %s" % client_id
-      return 200, self.handler_common(query, client_id, (client.bpki_ta, client.irbe_cert))
+      return 200, self.handler_common(query, client, (client.bpki_ta, client.irbe_cert))
     except Exception, data:
       rpki.log.error(traceback.format_exc())
       return 500, "Could not process PDU: %s" % data

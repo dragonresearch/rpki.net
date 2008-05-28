@@ -1455,9 +1455,6 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
-      <optional>
-        <ref name="client_id"/>
-      </optional>
       <ref name="uri"/>
       <ref name="base64"/>
     </element>
@@ -1470,41 +1467,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
-      <optional>
-        <ref name="client_id"/>
-      </optional>
       <ref name="uri"/>
-    </element>
-  </define>
-  <define name="certificate_query" combine="choice">
-    <element name="certificate">
-      <attribute name="action">
-        <value>retrieve</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <optional>
-        <ref name="client_id"/>
-      </optional>
-      <optional>
-        <ref name="uri"/>
-      </optional>
-    </element>
-  </define>
-  <define name="certificate_reply" combine="choice">
-    <element name="certificate">
-      <attribute name="action">
-        <value>retrieve</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <optional>
-        <ref name="client_id"/>
-      </optional>
-      <ref name="uri"/>
-      <ref name="base64"/>
     </element>
   </define>
   <define name="certificate_query" combine="choice">
@@ -1514,9 +1477,6 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       </attribute>
       <optional>
         <ref name="tag"/>
-      </optional>
-      <optional>
-        <ref name="client_id"/>
       </optional>
       <ref name="uri"/>
     </element>
@@ -1528,9 +1488,6 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       </attribute>
       <optional>
         <ref name="tag"/>
-      </optional>
-      <optional>
-        <ref name="client_id"/>
       </optional>
       <ref name="uri"/>
     </element>
@@ -1544,9 +1501,6 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
-      <optional>
-        <ref name="client_id"/>
-      </optional>
       <ref name="uri"/>
       <ref name="base64"/>
     </element>
@@ -1559,41 +1513,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
-      <optional>
-        <ref name="client_id"/>
-      </optional>
       <ref name="uri"/>
-    </element>
-  </define>
-  <define name="crl_query" combine="choice">
-    <element name="crl">
-      <attribute name="action">
-        <value>retrieve</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <optional>
-        <ref name="client_id"/>
-      </optional>
-      <optional>
-        <ref name="uri"/>
-      </optional>
-    </element>
-  </define>
-  <define name="crl_reply" combine="choice">
-    <element name="crl">
-      <attribute name="action">
-        <value>retrieve</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <optional>
-        <ref name="client_id"/>
-      </optional>
-      <ref name="uri"/>
-      <ref name="base64"/>
     </element>
   </define>
   <define name="crl_query" combine="choice">
@@ -1603,9 +1523,6 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       </attribute>
       <optional>
         <ref name="tag"/>
-      </optional>
-      <optional>
-        <ref name="client_id"/>
       </optional>
       <ref name="uri"/>
     </element>
@@ -1617,9 +1534,6 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       </attribute>
       <optional>
         <ref name="tag"/>
-      </optional>
-      <optional>
-        <ref name="client_id"/>
       </optional>
       <ref name="uri"/>
     </element>
@@ -1633,9 +1547,6 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
-      <optional>
-        <ref name="client_id"/>
-      </optional>
       <ref name="uri"/>
       <ref name="base64"/>
     </element>
@@ -1648,41 +1559,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
-      <optional>
-        <ref name="client_id"/>
-      </optional>
       <ref name="uri"/>
-    </element>
-  </define>
-  <define name="manifest_query" combine="choice">
-    <element name="manifest">
-      <attribute name="action">
-        <value>retrieve</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <optional>
-        <ref name="client_id"/>
-      </optional>
-      <optional>
-        <ref name="uri"/>
-      </optional>
-    </element>
-  </define>
-  <define name="manifest_reply" combine="choice">
-    <element name="manifest">
-      <attribute name="action">
-        <value>retrieve</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <optional>
-        <ref name="client_id"/>
-      </optional>
-      <ref name="uri"/>
-      <ref name="base64"/>
     </element>
   </define>
   <define name="manifest_query" combine="choice">
@@ -1692,9 +1569,6 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       </attribute>
       <optional>
         <ref name="tag"/>
-      </optional>
-      <optional>
-        <ref name="client_id"/>
       </optional>
       <ref name="uri"/>
     </element>
@@ -1706,9 +1580,6 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       </attribute>
       <optional>
         <ref name="tag"/>
-      </optional>
-      <optional>
-        <ref name="client_id"/>
       </optional>
       <ref name="uri"/>
     </element>
@@ -1722,9 +1593,6 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
-      <optional>
-        <ref name="client_id"/>
-      </optional>
       <ref name="uri"/>
       <ref name="base64"/>
     </element>
@@ -1737,41 +1605,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
-      <optional>
-        <ref name="client_id"/>
-      </optional>
       <ref name="uri"/>
-    </element>
-  </define>
-  <define name="roa_query" combine="choice">
-    <element name="roa">
-      <attribute name="action">
-        <value>retrieve</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <optional>
-        <ref name="client_id"/>
-      </optional>
-      <optional>
-        <ref name="uri"/>
-      </optional>
-    </element>
-  </define>
-  <define name="roa_reply" combine="choice">
-    <element name="roa">
-      <attribute name="action">
-        <value>retrieve</value>
-      </attribute>
-      <optional>
-        <ref name="tag"/>
-      </optional>
-      <optional>
-        <ref name="client_id"/>
-      </optional>
-      <ref name="uri"/>
-      <ref name="base64"/>
     </element>
   </define>
   <define name="roa_query" combine="choice">
@@ -1781,9 +1615,6 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       </attribute>
       <optional>
         <ref name="tag"/>
-      </optional>
-      <optional>
-        <ref name="client_id"/>
       </optional>
       <ref name="uri"/>
     </element>
@@ -1795,9 +1626,6 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       </attribute>
       <optional>
         <ref name="tag"/>
-      </optional>
-      <optional>
-        <ref name="client_id"/>
       </optional>
       <ref name="uri"/>
     </element>

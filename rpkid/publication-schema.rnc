@@ -19,7 +19,6 @@ start = element msg {
 query_elt = ( client_query | certificate_query | crl_query | manifest_query | roa_query )
 
 # PDUs allowed in a reply
-
 reply_elt = ( client_reply | certificate_reply | crl_reply | manifest_reply | roa_reply | report_error_reply )
 
 # Tag attributes for bulk operations
@@ -31,9 +30,6 @@ base64 = xsd:base64Binary { maxLength="512000" }
 # Publication URLs
 uri_t = xsd:anyURI { maxLength="4096" }
 uri = attribute uri { uri_t }
-
-# Kinds of objects
-obj_type = attribute type { "certificate" | "crl" | "manifest" | "roa" }
 
 # <client/> element (use restricted to repository operator)
 

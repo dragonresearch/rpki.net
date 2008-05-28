@@ -111,10 +111,11 @@ cfg = rpki.config.parser(cfg_file, "pubd")
 
 pctx = pubd_context(cfg)
 
-rpki.https.server(host              = pctx.https_server_host,
-                  port              = pctx.https_server_port,
-                  server_key        = pctx.pubd_key,
-                  server_cert       = pctx.pubd_cert,
-                  dynamic_x509store = pctx.build_x509store,
-                  handlers          = (("/control", pctx.control_handler),
-                                       ("/client/", pctx.client_handler)))
+rpki.https.server(
+  dynamic_https_trust_anchor    = pctx.build_https_ta_cache,
+  host                          = pctx.https_server_host,
+  port                          = pctx.https_server_port,
+  server_key                    = pctx.pubd_key,
+  server_cert                   = pctx.pubd_cert,
+  handlers                      = (("/control", pctx.control_handler),
+                                   ("/client/", pctx.client_handler)))

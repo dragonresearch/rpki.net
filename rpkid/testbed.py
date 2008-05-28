@@ -170,6 +170,9 @@ def main():
     rpki.log.info("Starting rootd")
     rootd_process = subprocess.Popen((prog_python, prog_rootd, "-c", rootd_name + ".conf"))
 
+    rpki.log.info("Starting pubd")
+    pubd_process = subprocess.Popen((prog_python, prog_pubd, "-c", pubd_name + ".conf"))
+
     rpki.log.info("Starting rsyncd")
     rsyncd_process = subprocess.Popen((prog_rsyncd, "--daemon", "--no-detach", "--config", rsyncd_name + ".conf"))
 
@@ -222,7 +225,7 @@ def main():
       rpki.log.info("Shutting down")
       for a in db.engines:
         a.kill_daemons()
-      for p,n in ((rootd_process, "rootd"), (rsyncd_process, "rsyncd")):
+      for p,n in ((rootd_process, "rootd"), (pubd_process, "pubd"), (rsyncd_process, "rsyncd")):
         if p is not None:
           rpki.log.info("Killing %s" % n)
           os.kill(p.pid, signal.SIGTERM)

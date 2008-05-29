@@ -34,7 +34,8 @@ things that don't belong in yaml_script.
 """
 
 import os, yaml, MySQLdb, subprocess, signal, time, re, getopt, sys, lxml
-import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https, rpki.log, rpki.left_right, rpki.config
+import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https
+import rpki.log, rpki.left_right, rpki.config, rpki.publication
 
 os.environ["TZ"] = "UTC"
 time.tzset()
@@ -150,7 +151,7 @@ def main():
   setup_bpki_cert_chain(rootd_name, ee = ("RPKI",))
 
   rpki.log.info("Constructing BPKI keys and certs for pubd")
-  setup_bpki_cert_chain(pubd_name, ee = ("RPKI", "IRBE"))
+  setup_bpki_cert_chain(pubd_name, ee = ("PUBD", "IRBE"))
 
   for a in db:
     a.setup_bpki_certs()
@@ -533,12 +534,12 @@ class allocation(object):
         pass
       proc.wait()
 
-  def call_rpkid(self, pdu):
+  def call_rpkid(self, *pdu):
     """Send a left-right message to this entity's RPKI daemon and
     return the response.
     """
     rpki.log.info("Calling rpkid for %s" % self.name)
-    msg = rpki.left_right.msg((pdu,))
+    msg = rpki.left_right.msg(pdu)
     msg.type = "query"
     cms, xml = rpki.left_right.cms_msg.wrap(msg, self.irbe_key, self.irbe_cert,
                                             pretty_print = True)
@@ -553,13 +554,17 @@ class allocation(object):
     msg, xml = rpki.left_right.cms_msg.unwrap(der, (self.rpkid_ta, self.rpkid_cert),
                                               pretty_print = True)
     rpki.log.debug(xml)
-    pdu = msg[0]
-    assert msg.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)
-    return pdu
+    assert msg.type == "reply"
+    for pdu in msg:
+      assert not isinstance(pdu, rpki.left_right.report_error_elt)
+    return msg[0] if len(msg) == 1 else msg
 
-  def cross_certify(self, certificant):
+  def cross_certify(self, certificant, reverse = False):
     """Cross-certify and return the resulting certificate."""
 
+    if reverse:
+      certifier = certificant
+      certificant = self.name + "-TA"
     if self.is_leaf():
       certifier = self.name + "-TA"
     else:
@@ -623,9 +628,16 @@ class allocation(object):
     rpki.log.info("Installing BSC EE cert for %s" % self.name)
     self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "set", self_id = self.self_id, bsc_id = self.bsc_id, signing_cert = bsc_ee, signing_cert_crl = bsc_crl))
 
-    # Once we have a real repository protocol we'll have to do cross-certification here
+    rpki.log.info("Creating pubd client object for %s" % self.name)
+    client_cert = self.cross_certify(pubd_name + "-TA", reverse = True)
+    client_id = call_pubd(rpki.publication.client_elt.make_pdu(action = "create", base_uri = self.sia_base, bpki_cert = client_cert)).client_id
+
     rpki.log.info("Creating rpkid repository object for %s" % self.name)
-    self.repository_id = self.call_rpkid(rpki.left_right.repository_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id)).repository_id
+    repository_cert = self.cross_certify(pubd_name + "-TA")
+    self.repository_id = self.call_rpkid(rpki.left_right.repository_elt.make_pdu(
+      action = "create", self_id = self.self_id, bsc_id = self.bsc_id,
+      bpki_cms_cert = repository_cert, bpki_https_cert = repository_cert,
+      peer_contact_uri = "https://localhost:%d/client/%d/" % (pubd_port, client_id))).repository_id
 
     rpki.log.info("Creating rpkid parent object for %s" % self.name)
     if self.is_root():
@@ -790,6 +802,39 @@ def setup_publication(pubd_sql):
   f = open(pubd_name + ".conf", "w")
   f.write(pubd_fmt_1 % d)
   f.close()
+  global pubd_ta
+  global pubd_irbe_key
+  global pubd_irbe_cert
+  global pubd_pubd_cert
+  pubd_ta        = rpki.x509.X509(Auto_file = pubd_name + "-TA.cer")
+  pubd_irbe_key  = rpki.x509.RSA( Auto_file = pubd_name + "-IRBE.key")
+  pubd_irbe_cert = rpki.x509.X509(Auto_file = pubd_name + "-IRBE.cer")
+  pubd_pubd_cert = rpki.x509.X509(Auto_file = pubd_name + "-PUBD.cer")
+
+def call_pubd(*pdu):
+  """Send a publication message to publication daemon and return the
+  response.
+  """
+  rpki.log.info("Calling pubd")
+  msg = rpki.publication.msg(pdu)
+  msg.type = "query"
+  cms, xml = rpki.publication.cms_msg.wrap(msg, pubd_irbe_key, pubd_irbe_cert,
+                                           pretty_print = True)
+  rpki.log.debug(xml)
+  url = "https://localhost:%d/control" % pubd_port
+  der = rpki.https.client(
+    client_key   = pubd_irbe_key,
+    client_cert  = pubd_irbe_cert,
+    server_ta    = pubd_ta,
+    url          = url,
+    msg          = cms)
+  msg, xml = rpki.publication.cms_msg.unwrap(der, (pubd_ta, pubd_pubd_cert),
+                                             pretty_print = True)
+  rpki.log.debug(xml)
+  assert msg.type == "reply"
+  for pdu in msg:
+    assert not isinstance(pdu, rpki.publication.report_error_elt)
+  return msg[0] if len(msg) == 1 else msg
 
 def run_rcynic():
   """Run rcynic to see whether what was published makes sense."""
@@ -1028,8 +1073,8 @@ sql-database            = %(pubd_name)s
 sql-username            = pubd
 sql-password            = %(pubd_pass)s
 bpki-ta                 = %(pubd_name)s-TA.cer
-pubd-cert               = %(pubd_name)s-RPKI.cer
-pubd-key                = %(pubd_name)s-RPKI.key
+pubd-cert               = %(pubd_name)s-PUBD.cer
+pubd-key                = %(pubd_name)s-PUBD.key
 irbe-cert               = %(pubd_name)s-IRBE.cer
 server-host             = localhost
 server-port             = %(pubd_port)d

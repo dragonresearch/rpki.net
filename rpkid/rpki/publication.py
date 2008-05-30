@@ -14,40 +14,23 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-"""RPKI "publication" protocol.
-
-At the moment this module imports and tweaks classes from
-rpki.left_right.  The code in question should be refactored at some
-point to make the imports cleaner, but it's faster to write it this
-way and see which things I end up using before spending time on
-refactoring stuff I don't really need....
-"""
+"""RPKI "publication" protocol."""
 
 import base64, lxml.etree, time, traceback, os
-import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.sax_utils
+import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.xml_utils
 import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
-import rpki.left_right
 
 publication_xmlns = "http://www.hactrn.net/uris/rpki/publication-spec/"
 publication_nsmap = { None : publication_xmlns }
 
-class data_elt(rpki.left_right.base_elt):
-  """Virtual class for top-level publication protocol data elements.
-
-  This is a placeholder.  It may end up being a mixin that uses
-  rpki.sql.sql_persistant, just like its counterpart in
-  rpki.left_right, but wait and see.
-  """
+class data_elt(rpki.xml_utils.base_elt):
+  """Virtual class for publication protocol PDUs."""
 
   xmlns = publication_xmlns
   nsmap = publication_nsmap
 
-class client_elt(rpki.left_right.data_elt):
-  """<client/> element.
-
-  This reuses the rpki.left-right.data_elt class because its structure
-  is identical to that used in the left-right protocol.
-  """
+class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant):
+  """<client/> element."""
 
   xmlns = publication_xmlns
   nsmap = publication_nsmap
@@ -61,6 +44,8 @@ class client_elt(rpki.left_right.data_elt):
   base_uri  = None
   bpki_cert = None
   bpki_glue = None
+
+  clear_https_ta_cache = False
 
   def startElement(self, stack, name, attrs):
     """Handle <client/> element."""
@@ -89,6 +74,12 @@ class client_elt(rpki.left_right.data_elt):
       self.make_b64elt(elt, "bpki_glue", self.bpki_glue.get_DER())
     return elt
 
+  def serve_post_save_hook(self, q_pdu, r_pdu):
+    """Extra server actions for client_elt."""
+    if self.clear_https_ta_cache:
+      self.gctx.clear_https_ta_cache()
+      self.clear_https_ta_cache = False
+
   def serve_fetch_one(self):
     """Find the client object on which a get, set, or destroy method
     should operate.
@@ -98,26 +89,15 @@ class client_elt(rpki.left_right.data_elt):
       raise rpki.exceptions.NotFound
     return r
 
-  def serve_list(self, r_msg):
-    """Handle a list action for client objects."""
-    for r_pdu in self.sql_fetch_all(self.gctx):
-      self.make_reply(r_pdu)
-      r_msg.append(r_pdu)
-
-  def make_reply(self, r_pdu = None):
-    """Construct a reply PDU."""
-    if r_pdu is None:
-      r_pdu = client_elt()
-      r_pdu.client_id = self.client_id
-    r_pdu.action = self.action
-    r_pdu.tag = self.tag
-    return r_pdu
+  def serve_fetch_all(self):
+    """Find client objects on which a list method should operate."""
+    return self.sql_fetch_all(self.gctx)
 
   def serve_dispatch(self, r_msg, client):
     """Action dispatch handler."""
     if client is not None:
       raise rpki.exceptions.BadQuery, "Client query received on control channel"
-    rpki.left_right.data_elt.serve_dispatch(self, r_msg)
+    rpki.xml_utils.data_elt.serve_dispatch(self, r_msg)
 
   def check_allowed_uri(self, uri):
     if not uri.startswith(self.base_uri):
@@ -191,7 +171,6 @@ class publication_object_elt(data_elt):
       raise rpki.exceptions.BadURISyntax
     return filename
 
-
 class certificate_elt(publication_object_elt):
   """<certificate/> element."""
 
@@ -216,16 +195,37 @@ class roa_elt(publication_object_elt):
   element_name = "roa"
   payload_type = rpki.x509.ROA
 
-class report_error_elt(rpki.left_right.report_error_elt):
-  """<report_error/> element.
+## @var obj2elt
+# Map of data types to publication element wrapper types
 
-  For now this is identical to its left_right equivilent.
-  """
+obj2elt = dict((e.payload_type, e) for e in (certificate_elt, crl_elt, manifest_elt, roa_elt))
+
+class report_error_elt(rpki.xml_utils.base_elt):
+  """<report_error/> element."""
 
   xmlns = publication_xmlns
   nsmap = publication_nsmap
 
-class msg(rpki.left_right.msg):
+  element_name = "report_error"
+  attributes = ("tag", "error_code")
+
+  def startElement(self, stack, name, attrs):
+    """Handle <report_error/> element."""
+    assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
+    self.read_attrs(attrs)
+
+  def toXML(self):
+    """Generate <report_error/> element."""
+    return self.make_elt()
+
+  @classmethod
+  def from_exception(cls, exc):
+    """Generate a <report_error/> element from an exception."""
+    self = cls()
+    self.error_code = exc.__class__.__name__
+    return self
+
+class msg(rpki.xml_utils.msg):
   """Publication PDU."""
 
   xmlns = publication_xmlns
@@ -251,7 +251,7 @@ class msg(rpki.left_right.msg):
       q_pdu.serve_dispatch(r_msg, client)
     return r_msg
 
-class sax_handler(rpki.sax_utils.handler):
+class sax_handler(rpki.xml_utils.sax_handler):
   """SAX handler for publication protocol."""
 
   pdu = msg

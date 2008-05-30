@@ -637,7 +637,7 @@ class allocation(object):
     self.repository_id = self.call_rpkid(rpki.left_right.repository_elt.make_pdu(
       action = "create", self_id = self.self_id, bsc_id = self.bsc_id,
       bpki_cms_cert = repository_cert, bpki_https_cert = repository_cert,
-      peer_contact_uri = "https://localhost:%d/client/%d/" % (pubd_port, client_id))).repository_id
+      peer_contact_uri = "https://localhost:%d/client/%d" % (pubd_port, client_id))).repository_id
 
     rpki.log.info("Creating rpkid parent object for %s" % self.name)
     if self.is_root():

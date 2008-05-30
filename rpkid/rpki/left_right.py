@@ -17,8 +17,9 @@
 """RPKI "left-right" protocol."""
 
 import base64, lxml.etree, time, traceback, os
-import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.sax_utils
+import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.xml_utils
 import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
+import rpki.publication
 
 left_right_xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
 left_right_nsmap = { None : left_right_xmlns }
@@ -26,69 +27,17 @@ left_right_nsmap = { None : left_right_xmlns }
 # Enforce strict checking of XML "sender" field in up-down protocol
 enforce_strict_up_down_xml_sender = False
 
-class base_elt(object):
-  """Virtual base type for left-right message elements."""
-
-  attributes = ()
-  elements = ()
-  booleans = ()
+class base_elt(rpki.xml_utils.base_elt):
+  """Virtual class for left-right protocol PDUs."""
 
   xmlns = left_right_xmlns
   nsmap = left_right_nsmap
 
-  def startElement(self, stack, name, attrs):
-    """Default startElement() handler: just process attributes."""
-    self.read_attrs(attrs)
-
-  def endElement(self, stack, name, text):
-    """Default endElement() handler: just pop the stack."""
-    stack.pop()
-
-  def read_attrs(self, attrs):
-    """Template-driven attribute reader."""
-    for key in self.attributes:
-      val = attrs.get(key, None)
-      if isinstance(val, str) and val.isdigit():
-        val = long(val)
-      setattr(self, key, val)
-    for key in self.booleans:
-      setattr(self, key, attrs.get(key, False))
-
-  def make_elt(self):
-    """XML element constructor."""
-    elt = lxml.etree.Element("{%s}%s" % (self.xmlns, self.element_name), nsmap = self.nsmap)
-    for key in self.attributes:
-      val = getattr(self, key, None)
-      if val is not None:
-        elt.set(key, str(val))
-    for key in self.booleans:
-      if getattr(self, key, False):
-        elt.set(key, "yes")
-    return elt
-
-  def make_b64elt(self, elt, name, value = None):
-    """Constructor for Base64-encoded subelement."""
-    if value is None:
-      value = getattr(self, name, None)
-    if value is not None:
-      lxml.etree.SubElement(elt, "{%s}%s" % (self.xmlns, name), nsmap = self.nsmap).text = base64.b64encode(value)
-
-  def __str__(self):
-    """Convert a base_elt object to string format."""
-    lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
-
-  @classmethod
-  def make_pdu(cls, **kargs):
-    """Generic left-right PDU constructor."""
-    self = cls()
-    for k,v in kargs.items():
-      if isinstance(v, bool):
-        v = 1 if v else 0
-      setattr(self, k, v)
-    return self
-
-class data_elt(base_elt, rpki.sql.sql_persistant):
+class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant):
   """Virtual class for top-level left-right protocol data elements."""
+
+  xmlns = left_right_xmlns
+  nsmap = left_right_nsmap
 
   def self(this):
     """Fetch self object to which this object links."""
@@ -98,40 +47,13 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
     """Return BSC object to which this object links."""
     return bsc_elt.sql_fetch(self.gctx, self.bsc_id)
 
-  def make_reply(self, r_pdu = None):
-    """Construct a reply PDU."""
-    if r_pdu is None:
-      r_pdu = self.__class__()
-      r_pdu.self_id = self.self_id
-      setattr(r_pdu, self.sql_template.index, getattr(self, self.sql_template.index))
-    else:
-      for b in r_pdu.booleans:
-        setattr(r_pdu, b, False)
-    r_pdu.action = self.action
-    r_pdu.tag = self.tag
-    return r_pdu
-
-  def serve_pre_save_hook(self, q_pdu, r_pdu):
-    """Overridable hook."""
-    pass
-
-  def serve_post_save_hook(self, q_pdu, r_pdu):
-    """Overridable hook."""
-    pass
-
-  def serve_create(self, r_msg):
-    """Handle a create action."""
-    r_pdu = self.make_reply()
-    self.serve_pre_save_hook(self, r_pdu)
-    self.sql_store()
-    setattr(r_pdu, self.sql_template.index, getattr(self, self.sql_template.index))
-    self.serve_post_save_hook(self, r_pdu)
-    r_msg.append(r_pdu)
+  def make_reply_clone_hook(self, r_pdu):
+    """Set self_id when cloning."""
+    r_pdu.self_id = self.self_id
 
   def serve_fetch_one(self):
     """Find the object on which a get, set, or destroy method should
-    operate.  This is a separate method because the self_elt object
-    needs to override it.
+    operate.
     """
     where = self.sql_template.index + " = %s AND self_id = %s"
     args = (getattr(self, self.sql_template.index), self.self_id)
@@ -140,48 +62,9 @@ class data_elt(base_elt, rpki.sql.sql_persistant):
       raise rpki.exceptions.NotFound, "Lookup failed where %s" + (where % args)
     return r
 
-  def serve_set(self, r_msg):
-    """Handle a set action."""
-    db_pdu = self.serve_fetch_one()
-    r_pdu = self.make_reply()
-    for a in db_pdu.sql_template.columns[1:]:
-      v = getattr(self, a)
-      if v is not None:
-        setattr(db_pdu, a, v)
-    db_pdu.sql_mark_dirty()
-    db_pdu.serve_pre_save_hook(self, r_pdu)
-    db_pdu.sql_store()
-    db_pdu.serve_post_save_hook(self, r_pdu)
-    r_msg.append(r_pdu)
-
-  def serve_get(self, r_msg):
-    """Handle a get action."""
-    r_pdu = self.serve_fetch_one()
-    self.make_reply(r_pdu)
-    r_msg.append(r_pdu)
-
-  def serve_list(self, r_msg):
-    """Handle a list action for non-self objects."""
-    for r_pdu in self.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,)):
-      self.make_reply(r_pdu)
-      r_msg.append(r_pdu)
-
-  def serve_destroy(self, r_msg):
-    """Handle a destroy action."""
-    db_pdu = self.serve_fetch_one()
-    db_pdu.sql_delete()
-    r_msg.append(self.make_reply())
-
-  def serve_dispatch(self, r_msg):
-    """Action dispatch handler."""
-    dispatch = { "create"  : self.serve_create,
-                 "set"     : self.serve_set,
-                 "get"     : self.serve_get,
-                 "list"    : self.serve_list,
-                 "destroy" : self.serve_destroy }
-    if self.action not in dispatch:
-      raise rpki.exceptions.BadQuery, "Unexpected query: action %s" % self.action
-    dispatch[self.action](r_msg)
+  def serve_fetch_all(self):
+    """Find the objects on which a list method should operate."""
+    return self.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
   
   def unimplemented_control(self, *controls):
     """Uniform handling for unimplemented control operations."""
@@ -249,7 +132,7 @@ class self_elt(data_elt):
       parent.serve_revoke()
 
   def serve_fetch_one(self):
-    """Find the self object on which a get, set, or destroy method
+    """Find the self object upon which a get, set, or destroy action
     should operate.
     """
     r = self.sql_fetch(self.gctx, self.self_id)
@@ -257,14 +140,12 @@ class self_elt(data_elt):
       raise rpki.exceptions.NotFound
     return r
 
-  def serve_list(self, r_msg):
-    """Handle a list action for self objects.  This is different from
-    the list action for all other objects, where list only works
-    within a given self_id context.
+  def serve_fetch_all(self):
+    """Find the self objects upon which a list action should operate.
+    This is different from the list action for all other objects,
+    where list only works within a given self_id context.
     """
-    for r_pdu in self.sql_fetch_all(self.gctx):
-      self.make_reply(r_pdu)
-      r_msg.append(r_pdu)
+    return self.sql_fetch_all(self.gctx)
 
   def startElement(self, stack, name, attrs):
     """Handle <self/> element."""
@@ -755,12 +636,31 @@ class repository_elt(data_elt):
     rpki.log.trace()
     os.remove(cls.uri_to_filename(base, uri))
 
+  def call_pubd(self, *pdus):
+    """Send a message to publication daemon and return the response."""
+    rpki.log.trace()
+    bsc = self.bsc()
+    q_msg = rpki.publication.msg(pdus)
+    q_msg.type = "query"
+    q_cms = rpki.publication.cms_msg.wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
+    bpki_ta_path = (self.gctx.bpki_ta, self.self().bpki_cert, self.self().bpki_glue, self.bpki_https_cert, self.bpki_https_glue)
+    r_cms = rpki.https.client(
+      client_key   = bsc.private_key_id,
+      client_cert  = bsc.signing_cert,
+      server_ta    = bpki_ta_path,
+      url          = self.peer_contact_uri,
+      msg          = q_cms)
+    r_msg = rpki.publication.cms_msg.unwrap(r_cms, bpki_ta_path)
+    r_msg.payload_check_response()
+    assert len(r_msg) == 1
+    return r_msg[0]
+
   def publish(self, obj, uri):
     """Placeholder for publication operation. [TEMPORARY]"""
     rpki.log.trace()
     rpki.log.info("Publishing %s as %s" % (repr(obj), repr(uri)))
     if self.use_pubd:
-      raise rpki.exceptions.NotImplementedYet
+      self.call_pubd(rpki.publication.obj2elt[type(obj)].make_pdu(action = "publish", uri = uri, payload = obj))
     else:
       self.object_write(self.gctx.publication_kludge_base, uri, obj)
 
@@ -769,7 +669,7 @@ class repository_elt(data_elt):
     rpki.log.trace()
     rpki.log.info("Withdrawing %s from at %s" % (repr(obj), repr(uri)))
     if self.use_pubd:
-      raise rpki.exceptions.NotImplementedYet
+      self.call_pubd(rpki.publication.obj2elt[obj].make_pdu(action = "withdraw", uri = uri))
     else:
       self.object_delete(self.gctx.publication_kludge_base, uri)
 
@@ -1033,7 +933,7 @@ class report_error_elt(base_elt):
     self.error_code = exc.__class__.__name__
     return self
 
-class msg(list):
+class msg(rpki.xml_utils.msg):
   """Left-right PDU."""
 
   xmlns = left_right_xmlns
@@ -1049,33 +949,6 @@ class msg(list):
               for x in (self_elt, child_elt, parent_elt, bsc_elt, repository_elt,
                         route_origin_elt, list_resources_elt, report_error_elt))
 
-  def startElement(self, stack, name, attrs):
-    """Handle left-right PDU."""
-    if name == "msg":
-      assert self.version == int(attrs["version"])
-      self.type = attrs["type"]
-    else:
-      elt = self.pdus[name]()
-      self.append(elt)
-      stack.append(elt)
-      elt.startElement(stack, name, attrs)
-
-  def endElement(self, stack, name, text):
-    """Handle left-right PDU."""
-    assert name == "msg", "Unexpected name %s, stack %s" % (name, stack)
-    assert len(stack) == 1
-    stack.pop()
-
-  def __str__(self):
-    """Convert msg object to string."""
-    lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
-
-  def toXML(self):
-    """Generate left-right PDU."""
-    elt = lxml.etree.Element("{%s}msg" % (self.xmlns), nsmap = self.nsmap, version = str(self.version), type = self.type)
-    elt.extend([i.toXML() for i in self])
-    return elt
-
   def serve_top_level(self, gctx):
     """Serve one msg PDU."""
     r_msg = self.__class__()
@@ -1085,7 +958,7 @@ class msg(list):
       q_pdu.serve_dispatch(r_msg)
     return r_msg
 
-class sax_handler(rpki.sax_utils.handler):
+class sax_handler(rpki.xml_utils.sax_handler):
   """SAX handler for Left-Right protocol."""
 
   pdu = msg

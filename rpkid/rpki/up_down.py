@@ -18,7 +18,7 @@
 
 import base64, lxml.etree, time
 import rpki.resource_set, rpki.x509, rpki.exceptions
-import rpki.sax_utils, rpki.relaxng
+import rpki.xml_utils, rpki.relaxng
 
 xmlns="http://www.apnic.net/specs/rescerts/up-down/"
 
@@ -517,7 +517,7 @@ class message_pdu(base_elt):
     self.type = self.type2name[type(payload)]
     return self
 
-class sax_handler(rpki.sax_utils.handler):
+class sax_handler(rpki.xml_utils.sax_handler):
   """SAX handler for Up-Down protocol."""
 
   pdu = message_pdu

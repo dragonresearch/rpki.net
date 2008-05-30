@@ -688,6 +688,8 @@ class repository_elt(data_elt):
   bpki_https_cert = None
   bpki_https_glue = None
 
+  use_pubd = False
+
   def parents(self):
     """Fetch all parent objects that link to this repository object."""
     return parent_elt.sql_fetch_where(self.gctx, "repository_id = %s", (self.repository_id,))
@@ -757,13 +759,19 @@ class repository_elt(data_elt):
     """Placeholder for publication operation. [TEMPORARY]"""
     rpki.log.trace()
     rpki.log.info("Publishing %s as %s" % (repr(obj), repr(uri)))
-    self.object_write(self.gctx.publication_kludge_base, uri, obj)
+    if self.use_pubd:
+      raise rpki.exceptions.NotImplementedYet
+    else:
+      self.object_write(self.gctx.publication_kludge_base, uri, obj)
 
   def withdraw(self, obj, uri):
     """Placeholder for publication withdrawal operation. [TEMPORARY]"""
     rpki.log.trace()
     rpki.log.info("Withdrawing %s from at %s" % (repr(obj), repr(uri)))
-    self.object_delete(self.gctx.publication_kludge_base, uri)
+    if self.use_pubd:
+      raise rpki.exceptions.NotImplementedYet
+    else:
+      self.object_delete(self.gctx.publication_kludge_base, uri)
 
 class route_origin_elt(data_elt):
   """<route_origin/> element."""

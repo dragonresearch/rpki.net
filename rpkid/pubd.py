@@ -75,7 +75,7 @@ class pubd_context(rpki.gctx.global_context):
       client = rpki.publication.client_elt.sql_fetch(self, long(client_id))
       if client is None:
         raise rpki.exceptions.ClientNotFound, "Could not find client %s" % client_id
-      return 200, self.handler_common(query, client, (client.bpki_ta, client.irbe_cert))
+      return 200, self.handler_common(query, client, (self.bpki_ta, client.bpki_cert, client.bpki_glue))
     except Exception, data:
       rpki.log.error(traceback.format_exc())
       return 500, "Could not process PDU: %s" % data

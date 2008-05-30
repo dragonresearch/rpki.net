@@ -564,8 +564,8 @@ class allocation(object):
 
     if reverse:
       certifier = certificant
-      certificant = self.name + "-TA"
-    if self.is_leaf():
+      certificant = self.name + "-SELF-1"
+    elif self.is_leaf():
       certifier = self.name + "-TA"
     else:
       certifier = self.name + "-SELF-1"

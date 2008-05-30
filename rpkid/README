@@ -91,7 +91,10 @@ TO DO:
 	settled, depending on how much of the existing left-right
 	protocol design and implementation can be reused.
 
-	STATUS: Started
+	STATUS: Started.  Initial implementation seems to work, not
+	seriously tested yet.  BPKI CRLs don't work right yet,
+	probably need to extend publication control protocol to allow
+	IRBE to stuff new BPKI CRLs into the publication server.
 
       - Resource subsetting (req_* attributes in up-down protocol),
 	minimal implementation.  Recognize this as correct protocol

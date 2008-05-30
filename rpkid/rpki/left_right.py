@@ -569,7 +569,7 @@ class repository_elt(data_elt):
   bpki_https_cert = None
   bpki_https_glue = None
 
-  use_pubd = False
+  use_pubd = True
 
   def parents(self):
     """Fetch all parent objects that link to this repository object."""
@@ -651,7 +651,6 @@ class repository_elt(data_elt):
       url          = self.peer_contact_uri,
       msg          = q_cms)
     r_msg = rpki.publication.cms_msg.unwrap(r_cms, bpki_ta_path)
-    r_msg.payload_check_response()
     assert len(r_msg) == 1
     return r_msg[0]
 
@@ -669,7 +668,7 @@ class repository_elt(data_elt):
     rpki.log.trace()
     rpki.log.info("Withdrawing %s from at %s" % (repr(obj), repr(uri)))
     if self.use_pubd:
-      self.call_pubd(rpki.publication.obj2elt[obj].make_pdu(action = "withdraw", uri = uri))
+      self.call_pubd(rpki.publication.obj2elt[type(obj)].make_pdu(action = "withdraw", uri = uri))
     else:
       self.object_delete(self.gctx.publication_kludge_base, uri)
 

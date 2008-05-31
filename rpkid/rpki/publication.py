@@ -20,20 +20,14 @@ import base64, lxml.etree, time, traceback, os
 import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.xml_utils
 import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
 
-publication_xmlns = "http://www.hactrn.net/uris/rpki/publication-spec/"
-publication_nsmap = { None : publication_xmlns }
+class publication_namespace(object):
+  """XML namespace parameters for publication protocol."""
 
-class data_elt(rpki.xml_utils.base_elt):
-  """Virtual class for publication protocol PDUs."""
+  xmlns = "http://www.hactrn.net/uris/rpki/publication-spec/"
+  nsmap = { None : xmlns }
 
-  xmlns = publication_xmlns
-  nsmap = publication_nsmap
-
-class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant):
+class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant, publication_namespace):
   """<client/> element."""
-
-  xmlns = publication_xmlns
-  nsmap = publication_nsmap
 
   element_name = "client"
   attributes = ("action", "tag", "client_id", "base_uri")
@@ -103,7 +97,7 @@ class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant):
     if not uri.startswith(self.base_uri):
       raise rpki.exceptions.ForbiddenURI
 
-class publication_object_elt(data_elt):
+class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
   """Virtual class for publishable objects.  These have very similar
   syntax, differences lie in underlying datatype and methods.
   """
@@ -200,11 +194,8 @@ class roa_elt(publication_object_elt):
 
 obj2elt = dict((e.payload_type, e) for e in (certificate_elt, crl_elt, manifest_elt, roa_elt))
 
-class report_error_elt(rpki.xml_utils.base_elt):
+class report_error_elt(rpki.xml_utils.base_elt, publication_namespace):
   """<report_error/> element."""
-
-  xmlns = publication_xmlns
-  nsmap = publication_nsmap
 
   element_name = "report_error"
   attributes = ("tag", "error_code")
@@ -225,11 +216,8 @@ class report_error_elt(rpki.xml_utils.base_elt):
     self.error_code = exc.__class__.__name__
     return self
 
-class msg(rpki.xml_utils.msg):
+class msg(rpki.xml_utils.msg, publication_namespace):
   """Publication PDU."""
-
-  xmlns = publication_xmlns
-  nsmap = publication_nsmap
 
   ## @var version
   # Protocol version

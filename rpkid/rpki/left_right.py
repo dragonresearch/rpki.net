@@ -21,23 +21,17 @@ import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.xml_utils
 import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
 import rpki.publication
 
-left_right_xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
-left_right_nsmap = { None : left_right_xmlns }
-
 # Enforce strict checking of XML "sender" field in up-down protocol
 enforce_strict_up_down_xml_sender = False
 
-class base_elt(rpki.xml_utils.base_elt):
-  """Virtual class for left-right protocol PDUs."""
+class left_right_namespace(object):
+  """XML namespace parameters for left-right protocol."""
 
-  xmlns = left_right_xmlns
-  nsmap = left_right_nsmap
+  xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
+  nsmap = { None : xmlns }
 
-class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant):
+class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant, left_right_namespace):
   """Virtual class for top-level left-right protocol data elements."""
-
-  xmlns = left_right_xmlns
-  nsmap = left_right_nsmap
 
   def self(this):
     """Fetch self object to which this object links."""
@@ -882,7 +876,7 @@ class route_origin_elt(data_elt):
     """Return the publication URI for this route_origin's ROA's EE certificate."""
     return ca.sia_uri + self.ee_uri_tail()
 
-class list_resources_elt(base_elt):
+class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
   """<list_resources/> element."""
 
   element_name = "list_resources"
@@ -909,7 +903,7 @@ class list_resources_elt(base_elt):
       elt.set("valid_until", self.valid_until.toXMLtime())
     return elt
 
-class report_error_elt(base_elt):
+class report_error_elt(rpki.xml_utils.base_elt, left_right_namespace):
   """<report_error/> element."""
 
   element_name = "report_error"
@@ -932,11 +926,8 @@ class report_error_elt(base_elt):
     self.error_code = exc.__class__.__name__
     return self
 
-class msg(rpki.xml_utils.msg):
+class msg(rpki.xml_utils.msg, left_right_namespace):
   """Left-right PDU."""
-
-  xmlns = left_right_xmlns
-  nsmap = left_right_nsmap
 
   ## @var version
   # Protocol version

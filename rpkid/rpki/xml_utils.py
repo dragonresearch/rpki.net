@@ -103,8 +103,16 @@ class base_elt(object):
   protocol does not, due to different design assumptions.
   """
 
+  ## @var attributes
+  # XML attributes for this element.
   attributes = ()
+
+  ## @var elements
+  # XML elements contained by this element.
   elements = ()
+
+  ## @var booleans
+  # Boolean attributes (value "yes" or "no") for this element.
   booleans = ()
 
   def startElement(self, stack, name, attrs):

@@ -32,7 +32,7 @@ uri_t = xsd:anyURI { maxLength="4096" }
 uri = attribute uri { uri_t }
 
 # <config/> element (use restricted to repository operator)
-# config_id attribute and list command omitted deliberately, see code for details
+# config_id attribute, create, list, and destroy commands omitted deliberately, see code for details
 
 config_payload = (element bpki_crl { base64 }?)
 

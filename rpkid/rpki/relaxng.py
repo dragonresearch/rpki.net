@@ -1213,7 +1213,7 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodi
 ## Parsed RelaxNG publication schema
 publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-schema.rnc 1835 2008-06-02 23:43:01Z sra $
+  $Id: publication-schema.rnc 1837 2008-06-02 23:47:19Z sra $
   
   RelaxNG Schema for RPKI publication protocol.
   
@@ -1299,7 +1299,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
   </define>
   <!--
     <config/> element (use restricted to repository operator)
-    config_id attribute and list command omitted deliberately, see code for details
+    config_id attribute, create, list, and destroy commands omitted deliberately, see code for details
   -->
   <define name="config_payload">
     <optional>

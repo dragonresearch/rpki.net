@@ -15,8 +15,8 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 name:           RIR
-crl_interval:   60s
-regen_margin:   30s
+crl_interval:   5m
+regen_margin:   2m
 valid_for:      2d
 kids:
   - name: R0

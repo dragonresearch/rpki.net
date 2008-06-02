@@ -48,11 +48,11 @@ class pubd_context(rpki.gctx.global_context):
     self.sql_cache = {}
     self.sql_dirty = set()
 
-  def handler_common(self, query, client, certs):
+  def handler_common(self, query, client, certs, crl = None):
     """Common PDU handler code."""
     q_msg = rpki.publication.cms_msg.unwrap(query, certs)
     r_msg = q_msg.serve_top_level(self, client)
-    reply = rpki.publication.cms_msg.wrap(r_msg, self.pubd_key, self.pubd_cert)
+    reply = rpki.publication.cms_msg.wrap(r_msg, self.pubd_key, self.pubd_cert, crl)
     self.sql_sweep()
     return reply
 
@@ -75,7 +75,10 @@ class pubd_context(rpki.gctx.global_context):
       client = rpki.publication.client_elt.sql_fetch(self, long(client_id))
       if client is None:
         raise rpki.exceptions.ClientNotFound, "Could not find client %s" % client_id
-      return 200, self.handler_common(query, client, (self.bpki_ta, client.bpki_cert, client.bpki_glue))
+      config = rpki.publication.config_elt.fetch(self)
+      if config is None or config.bpki_crl is None:
+        raise rpki.exceptions.CMSCRLNotSet
+      return 200, self.handler_common(query, client, (self.bpki_ta, client.bpki_cert, client.bpki_glue), config.bpki_crl)
     except Exception, data:
       rpki.log.error(traceback.format_exc())
       return 500, "Could not process PDU: %s" % data

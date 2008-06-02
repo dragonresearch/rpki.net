@@ -28,9 +28,16 @@ pem_out = None
 class cmd_mixin(object):
   """Left-right protocol mix-in for command line client."""
 
+  ## @var excludes
+  # XML attributes and elements that should not be allowed as command
+  # line arguments.  At the moment the only such is the
+  # bsc.pkcs10_request sub-element, but writing this generally is no
+  # harder than handling that one special case.
+  excludes = ()
+
   def client_getopt(self, argv):
     """Parse options for this class."""
-    opts, argv = getopt.getopt(argv, "", [x + "=" for x in self.attributes + self.elements] + list(self.booleans))
+    opts, argv = getopt.getopt(argv, "", [x + "=" for x in self.attributes + self.elements if x not in self.excludes] + list(self.booleans))
     for o, a in opts:
       o = o[2:]
       handler = getattr(self, "client_query_" + o, None)
@@ -81,6 +88,8 @@ class self_elt(cmd_mixin, rpki.left_right.self_elt):
 
 class bsc_elt(cmd_mixin, rpki.left_right.bsc_elt):
 
+  excludes = ("pkcs10_request",)
+
   def client_query_signing_cert(self, arg):
     """--signing_cert option."""
     self.signing_cert = rpki.x509.X509(Auto_file=arg)
@@ -113,11 +122,11 @@ class route_origin_elt(cmd_mixin, rpki.left_right.route_origin_elt):
 
   def client_query_ipv4(self, arg):
     """Handle IPv4 addresses."""
-    self.ipv4 = resource_set.resource_set_ipv4(arg)
+    self.ipv4 = resource_set.roa_prefix_set_ipv4(arg)
 
   def client_query_ipv6(self, arg):
     """Handle IPv6 addresses."""
-    self.ipv6 = resource_set.resource_set_ipv6(arg)
+    self.ipv6 = resource_set.roa_prefix_set_ipv6(arg)
 
 class msg(rpki.left_right.msg):
   pdus = dict((x.element_name, x)
@@ -135,7 +144,7 @@ def usage(code=1):
   print "Usage:", sys.argv[0], " ".join(["--" + x for x in top_opts])
   for k,v in msg.pdus.items():
     print " ", k, \
-          " ".join(["--" + x + "=" for x in v.attributes + v.elements]), \
+          " ".join(["--" + x + "=" for x in v.attributes + v.elements if x not in v.excludes]), \
           " ".join(["--" + x for x in v.booleans])
   sys.exit(code)
 

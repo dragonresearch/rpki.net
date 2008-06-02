@@ -194,7 +194,6 @@ route_origin_id = attribute route_origin_id { sql_id }
 route_origin_bool = attribute suppress_publication { "yes" }?
 
 route_origin_payload = (attribute as_number { xsd:positiveInteger }?,
-                        attribute exact_match { xsd:boolean }?,
                         attribute ipv4 { ipv4_list }?,
                         attribute ipv6 { ipv6_list }?)
 

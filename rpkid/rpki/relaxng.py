@@ -801,11 +801,6 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </attribute>
     </optional>
     <optional>
-      <attribute name="exact_match">
-        <data type="boolean"/>
-      </attribute>
-    </optional>
-    <optional>
       <attribute name="ipv4">
         <ref name="ipv4_list"/>
       </attribute>
@@ -1257,6 +1252,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
   <!-- PDUs allowed in a query -->
   <define name="query_elt">
     <choice>
+      <ref name="config_query"/>
       <ref name="client_query"/>
       <ref name="certificate_query"/>
       <ref name="crl_query"/>
@@ -1267,6 +1263,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
   <!-- PDUs allowed in a reply -->
   <define name="reply_elt">
     <choice>
+      <ref name="config_reply"/>
       <ref name="client_reply"/>
       <ref name="certificate_reply"/>
       <ref name="crl_reply"/>
@@ -1299,6 +1296,59 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
     <attribute name="uri">
       <ref name="uri_t"/>
     </attribute>
+  </define>
+  <!--
+    <config/> element (use restricted to repository operator)
+    config_id attribute and list command omitted deliberately, see code for details
+  -->
+  <define name="config_payload">
+    <optional>
+      <element name="bpki_crl">
+        <ref name="base64"/>
+      </element>
+    </optional>
+  </define>
+  <define name="config_query" combine="choice">
+    <element name="config">
+      <attribute name="action">
+        <value>set</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="config_payload"/>
+    </element>
+  </define>
+  <define name="config_reply" combine="choice">
+    <element name="config">
+      <attribute name="action">
+        <value>set</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+    </element>
+  </define>
+  <define name="config_query" combine="choice">
+    <element name="config">
+      <attribute name="action">
+        <value>get</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+    </element>
+  </define>
+  <define name="config_reply" combine="choice">
+    <element name="config">
+      <attribute name="action">
+        <value>get</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="config_payload"/>
+    </element>
   </define>
   <!-- <client/> element (use restricted to repository operator) -->
   <define name="client_id">

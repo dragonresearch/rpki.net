@@ -117,11 +117,18 @@ class base_elt(object):
 
   def startElement(self, stack, name, attrs):
     """Default startElement() handler: just process attributes."""
-    self.read_attrs(attrs)
+    if name not in self.elements:
+      assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
+      self.read_attrs(attrs)
 
   def endElement(self, stack, name, text):
     """Default endElement() handler: just pop the stack."""
+    assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
     stack.pop()
+
+  def toXML(self):
+    """Default toXML() element generator."""
+    return self.make_elt()
 
   def read_attrs(self, attrs):
     """Template-driven attribute reader."""
@@ -171,6 +178,29 @@ class data_elt(base_elt):
   objects all implement the create/set/get/list/destroy action
   attribute.
   """
+
+  def endElement(self, stack, name, text):
+    """Default endElement handler for SQL-based objects.  This assumes
+    that sub-elements are Base64-encoded using the sql_template mechanism.
+    """
+    if name in self.elements:
+      elt_type = self.sql_template.map.get(name)
+      assert elt_type is not None, "Couldn't find element type for %s, stack %s" % (name, stack)
+      setattr(self, name, elt_type(Base64 = text))
+    else:
+      assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
+      stack.pop()
+
+  def toXML(self):
+    """Default element generator for SQL-based objects.  This assumes
+    that sub-elements are Base64-encoded DER objects.
+    """
+    elt = self.make_elt()
+    for i in self.elements:
+      x = getattr(self, i, None)
+      if x and not x.empty():
+        self.make_b64elt(elt, i, x.get_DER())
+    return elt
 
   def make_reply(self, r_pdu = None):
     """Construct a reply PDU."""

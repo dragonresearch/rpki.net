@@ -16,6 +16,18 @@
 
 -- SQL objects needed by pubd.py.
 
+-- The config table is weird because we're really only using it
+-- to store one BPKI CRL, but putting this here lets us use a lot of
+-- existing machinery and the alternatives are whacky in other ways.
+
+DROP TABLE IF EXISTS config;
+
+CREATE TABLE config (
+        config_id       SERIAL NOT NULL,
+        bpki_crl        LONGBLOB,
+        PRIMARY KEY     (config_id)
+);
+
 DROP TABLE IF EXISTS client;
 
 CREATE TABLE client (

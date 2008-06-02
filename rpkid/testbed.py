@@ -192,8 +192,14 @@ def main():
     for a in db.leaves:
       a.setup_yaml_leaf()
 
+    # Set pubd's BPKI CRL
+    set_pubd_crl()
+
     # Loop until we run out of control YAML
     while True:
+
+      # This is probably where we should be updating expired BPKI
+      # objects, particular CRLs
 
       # Run cron in all RPKI instances
       for a in db.engines:
@@ -267,11 +273,10 @@ cmds = { "sleep" : cmd_sleep,
 class route_origin(object):
   """Representation for a route_origin object."""
 
-  def __init__(self, asn, ipv4, ipv6, exact_match):
+  def __init__(self, asn, ipv4, ipv6):
     self.asn = asn
     self.v4 = rpki.resource_set.roa_prefix_set_ipv4("".join(ipv4.split())) if ipv4 else None
     self.v6 = rpki.resource_set.roa_prefix_set_ipv6("".join(ipv6.split())) if ipv6 else None
-    self.exact_match = exact_match
 
   def __eq__(self, other):
     return self.asn == other.asn and self.v4 == other.v4 and self.v6 == other.v6
@@ -289,7 +294,7 @@ class route_origin(object):
 
   @classmethod
   def parse(cls, yaml):
-    return cls(yaml.get("asn"), yaml.get("ipv4"), yaml.get("ipv6"), yaml.get("exact_match", False))
+    return cls(yaml.get("asn"), yaml.get("ipv4"), yaml.get("ipv6"))
     
 class allocation_db(list):
   """Representation of all the entities and allocations in the test system.
@@ -671,8 +676,8 @@ class allocation(object):
     rpki.log.info("Creating rpkid route_origin objects for %s" % self.name)
     for ro in self.route_origins:
       ro.route_origin_id = self.call_rpkid(rpki.left_right.route_origin_elt.make_pdu(
-        action = "create", self_id = self.self_id, as_number = ro.asn,
-        exact_match = ro.exact_match, ipv4 = ro.v4, ipv6 = ro.v6)).route_origin_id
+        action = "create", self_id = self.self_id,
+        as_number = ro.asn, ipv4 = ro.v4, ipv6 = ro.v6)).route_origin_id
 
   def setup_yaml_leaf(self):
     """Generate certificates and write YAML scripts for leaf nodes.
@@ -835,6 +840,16 @@ def call_pubd(*pdu):
   for pdu in msg:
     assert not isinstance(pdu, rpki.publication.report_error_elt)
   return msg[0] if len(msg) == 1 else msg
+
+def set_pubd_crl():
+  """Whack publication daemon's bpki_crl.  This must be configured
+  before publication daemon starts talking to its clients, and must be
+  updated whenever we update the CRL.
+  """
+  rpki.log.info("Setting pubd's BPKI CRL")
+  call_pubd(rpki.publication.config_elt.make_pdu(
+    action = "set",
+    bpki_crl = rpki.x509.CRL(Auto_file = pubd_name + "-TA.crl")))
 
 def run_rcynic():
   """Run rcynic to see whether what was published makes sense."""

@@ -26,7 +26,68 @@ class publication_namespace(object):
   xmlns = "http://www.hactrn.net/uris/rpki/publication-spec/"
   nsmap = { None : xmlns }
 
-class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant, publication_namespace):
+class control_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant, publication_namespace):
+  """Virtual class for control channel objects."""
+
+  def serve_dispatch(self, r_msg, client):
+    """Action dispatch handler.  This needs special handling because
+    we need to make sure that this PDU arrived via the control channel.
+    """
+    if client is not None:
+      raise rpki.exceptions.BadQuery, "Control query received on client channel"
+    rpki.xml_utils.data_elt.serve_dispatch(self, r_msg)
+
+class config_elt(control_elt):
+  """<config/> element.  This is a little weird because there should
+  never be more than one row in the SQL config table, but we have to
+  put the BPKI CRL somewhere and SQL is the least bad place available.
+
+  So we reuse a lot of the SQL machinery, but we nail config_id at 1,
+  we don't expose it in the XML protocol, and we only support the get
+  and set actions.
+  """
+
+  attributes = ("action", "tag")
+  element_name = "config"
+  elements = ("bpki_crl",)
+
+  sql_template = rpki.sql.template("config", "config_id", ("bpki_crl", rpki.x509.CRL))
+
+  wired_in_config_id = 1
+
+  def startElement(self, stack, name, attrs):
+    """StartElement() handler for config object.  This requires
+    special handling because of the weird way we treat config_id.
+    """
+    control_elt.startElement(self, stack, name, attrs)
+    self.config_id = self.wired_in_config_id
+
+  @classmethod
+  def fetch(cls, gctx):
+    """Fetch the config object from SQL.  This requires special
+    handling because of the weird way we treat config_id.
+    """
+    return cls.sql_fetch(gctx, cls.wired_in_config_id)
+
+  def serve_set(self, r_msg):
+    """Handle a set action.  This requires special handling because
+    config we don't support the create method.
+    """
+    if self.sql_fetch(self.gctx, self.config_id) is None:
+      control_elt.serve_create(self, r_msg)
+    else:
+      control_elt.serve_set(self, r_msg)
+
+  def serve_fetch_one(self):
+    """Find the config object on which a get or set method should
+    operate.
+    """
+    r = self.sql_fetch(self.gctx, self.config_id)
+    if r is None:
+      raise rpki.exceptions.NotFound
+    return r
+
+class client_elt(control_elt):
   """<client/> element."""
 
   element_name = "client"
@@ -41,32 +102,14 @@ class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant, publication_n
 
   clear_https_ta_cache = False
 
-  def startElement(self, stack, name, attrs):
-    """Handle <client/> element."""
-    if name not in ("bpki_cert", "bpki_glue"):
-      assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
-      self.read_attrs(attrs)
-
   def endElement(self, stack, name, text):
-    """Handle <client/> element."""
-    if name == "bpki_cert":
-      self.bpki_cert = rpki.x509.X509(Base64 = text)
+    """Handle subelements of <client/> element.  These require special
+    handling because modifying them invalidates the HTTPS trust anchor
+    cache.
+    """
+    control_elt.endElement(self, stack, name, text)
+    if name in self.elements:
       self.clear_https_ta_cache = True
-    elif name == "bpki_glue":
-      self.bpki_glue = rpki.x509.X509(Base64 = text)
-      self.clear_https_ta_cache = True
-    else:
-      assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
-      stack.pop()
-
-  def toXML(self):
-    """Generate <client/> element."""
-    elt = self.make_elt()
-    if self.bpki_cert and not self.bpki_cert.empty():
-      self.make_b64elt(elt, "bpki_cert", self.bpki_cert.get_DER())
-    if self.bpki_glue and not self.bpki_glue.empty():
-      self.make_b64elt(elt, "bpki_glue", self.bpki_glue.get_DER())
-    return elt
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for client_elt."""
@@ -87,28 +130,21 @@ class client_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant, publication_n
     """Find client objects on which a list method should operate."""
     return self.sql_fetch_all(self.gctx)
 
-  def serve_dispatch(self, r_msg, client):
-    """Action dispatch handler."""
-    if client is not None:
-      raise rpki.exceptions.BadQuery, "Client query received on control channel"
-    rpki.xml_utils.data_elt.serve_dispatch(self, r_msg)
-
   def check_allowed_uri(self, uri):
     if not uri.startswith(self.base_uri):
       raise rpki.exceptions.ForbiddenURI
 
 class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
   """Virtual class for publishable objects.  These have very similar
-  syntax, differences lie in underlying datatype and methods.
+  syntax, differences lie in underlying datatype and methods.  XML
+  methods are a little different from the pattern used for objects
+  that support the create/set/get/list/destroy actions, but
+  publishable objects don't go in SQL either so these classes would be
+  different in any case.
   """
 
   attributes = ("action", "tag", "client_id", "uri")
   payload = None
-
-  def startElement(self, stack, name, attrs):
-    """Handle a publishable element."""
-    assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
-    self.read_attrs(attrs)
 
   def endElement(self, stack, name, text):
     """Handle a publishable element element."""
@@ -127,7 +163,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
   def serve_dispatch(self, r_msg, client):
     """Action dispatch handler."""
     if client is None:
-      raise rpki.exceptions.BadQuery, "Control query received on client channel"
+      raise rpki.exceptions.BadQuery, "Client query received on control channel"
     dispatch = { "publish"  : self.serve_publish,
                  "withdraw" : self.serve_withdraw }
     if self.action not in dispatch:
@@ -200,15 +236,6 @@ class report_error_elt(rpki.xml_utils.base_elt, publication_namespace):
   element_name = "report_error"
   attributes = ("tag", "error_code")
 
-  def startElement(self, stack, name, attrs):
-    """Handle <report_error/> element."""
-    assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
-    self.read_attrs(attrs)
-
-  def toXML(self):
-    """Generate <report_error/> element."""
-    return self.make_elt()
-
   @classmethod
   def from_exception(cls, exc):
     """Generate a <report_error/> element from an exception."""
@@ -226,7 +253,7 @@ class msg(rpki.xml_utils.msg, publication_namespace):
   ## @var pdus
   # Dispatch table of PDUs for this protocol.
   pdus = dict((x.element_name, x)
-              for x in (client_elt, certificate_elt, crl_elt, manifest_elt, roa_elt, report_error_elt))
+              for x in (config_elt, client_elt, certificate_elt, crl_elt, manifest_elt, roa_elt, report_error_elt))
 
   def serve_top_level(self, gctx, client):
     """Serve one msg PDU."""

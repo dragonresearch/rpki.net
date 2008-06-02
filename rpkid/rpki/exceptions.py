@@ -120,3 +120,6 @@ class MissingCMSCRL(RPKI_Exception):
 
 class UnparsableCMSDER(RPKI_Exception):
   """Alleged CMS DER wasn't parsable."""
+
+class CMSCRLNotSet(RPKI_Exception):
+  """CMS CRL has not been configured."""

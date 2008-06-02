@@ -16,10 +16,10 @@ start = element msg {
 }
 
 # PDUs allowed in a query
-query_elt = ( client_query | certificate_query | crl_query | manifest_query | roa_query )
+query_elt = ( config_query | client_query | certificate_query | crl_query | manifest_query | roa_query )
 
 # PDUs allowed in a reply
-reply_elt = ( client_reply | certificate_reply | crl_reply | manifest_reply | roa_reply | report_error_reply )
+reply_elt = ( config_reply | client_reply | certificate_reply | crl_reply | manifest_reply | roa_reply | report_error_reply )
 
 # Tag attributes for bulk operations
 tag = attribute tag { xsd:token {maxLength="1024" } }
@@ -30,6 +30,16 @@ base64 = xsd:base64Binary { maxLength="512000" }
 # Publication URLs
 uri_t = xsd:anyURI { maxLength="4096" }
 uri = attribute uri { uri_t }
+
+# <config/> element (use restricted to repository operator)
+# config_id attribute and list command omitted deliberately, see code for details
+
+config_payload = (element bpki_crl { base64 }?)
+
+config_query |= element config { attribute action { "set" },     tag?, config_payload }
+config_reply |= element config { attribute action { "set" },     tag? }
+config_query |= element config { attribute action { "get" },     tag? }
+config_reply |= element config { attribute action { "get" },     tag?, config_payload }
 
 # <client/> element (use restricted to repository operator)
 

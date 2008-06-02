@@ -1196,7 +1196,7 @@
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<route_origin action="set" self_id="42" route_origin_id="88"
 	    suppress_publication="yes"
-	    as_number="12345" exact_match="true" ipv4="10.0.0.44/32" ipv6="2002:a00::/48"/>
+	    as_number="12345" ipv4="10.0.0.44/32" ipv6="2002:a00::/48-56"/>
     </msg>
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
@@ -1209,7 +1209,7 @@
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<route_origin action="get" self_id="42" route_origin_id="88"
-	    as_number="12345" exact_match="true" ipv4="10.0.0.44/32" ipv6="2002:a00::/48"/>
+	    as_number="12345" ipv4="10.0.0.44/32" ipv6="2002:a00::/48-56"/>
     </msg>
     
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">

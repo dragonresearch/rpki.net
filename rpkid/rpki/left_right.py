@@ -141,31 +141,6 @@ class self_elt(data_elt):
     """
     return self.sql_fetch_all(self.gctx)
 
-  def startElement(self, stack, name, attrs):
-    """Handle <self/> element."""
-    if name not in ("bpki_cert", "bpki_glue"):
-      assert name == "self", "Unexpected name %s, stack %s" % (name, stack)
-      self.read_attrs(attrs)
-
-  def endElement(self, stack, name, text):
-    """Handle <self/> element."""
-    if name == "bpki_cert":
-      self.bpki_cert = rpki.x509.X509(Base64 = text)
-    elif name == "bpki_glue":
-      self.bpki_glue = rpki.x509.X509(Base64 = text)
-    else:
-      assert name == "self", "Unexpected name %s, stack %s" % (name, stack)
-      stack.pop()
-
-  def toXML(self):
-    """Generate <self/> element."""
-    elt = self.make_elt()
-    if self.bpki_cert and not self.bpki_cert.empty():
-      self.make_b64elt(elt, "bpki_cert", self.bpki_cert.get_DER())
-    if self.bpki_glue and not self.bpki_glue.empty():
-      self.make_b64elt(elt, "bpki_glue", self.bpki_glue.get_DER())
-    return elt
-
   def client_poll(self):
     """Run the regular client poll cycle with each of this self's parents in turn."""
 
@@ -261,7 +236,7 @@ class bsc_elt(data_elt):
   
   element_name = "bsc"
   attributes = ("action", "tag", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
-  elements = ("signing_cert", "signing_cert_crl")
+  elements = ("pkcs10_request", "signing_cert", "signing_cert_crl")
   booleans = ("generate_keypair",)
 
   sql_template = rpki.sql.template("bsc", "bsc_id", "self_id", "hash_alg",
@@ -298,35 +273,6 @@ class bsc_elt(data_elt):
       self.private_key_id = keypair
       self.pkcs10_request = rpki.x509.PKCS10.create(keypair)
       r_pdu.pkcs10_request = self.pkcs10_request
-
-  def startElement(self, stack, name, attrs):
-    """Handle <bsc/> element."""
-    if name not in ("pkcs10_request", "signing_cert", "signing_cert_crl"):
-      assert name == "bsc", "Unexpected name %s, stack %s" % (name, stack)
-      self.read_attrs(attrs)
-
-  def endElement(self, stack, name, text):
-    """Handle <bsc/> element."""
-    if name == "signing_cert":
-      self.signing_cert = rpki.x509.X509(Base64 = text)
-    elif name == "signing_cert_crl":
-      self.signing_cert_crl = rpki.x509.CRL(Base64 = text)
-    elif name == "pkcs10_request":
-      self.pkcs10_request = rpki.x509.PKCS10(Base64 = text)
-    else:
-      assert name == "bsc", "Unexpected name %s, stack %s" % (name, stack)
-      stack.pop()
-
-  def toXML(self):
-    """Generate <bsc/> element."""
-    elt = self.make_elt()
-    if self.signing_cert is not None:
-      self.make_b64elt(elt, "signing_cert", self.signing_cert.get_DER())
-    if self.signing_cert_crl is not None:
-      self.make_b64elt(elt, "signing_cert_crl", self.signing_cert_crl.get_DER())
-    if self.pkcs10_request is not None:
-      self.make_b64elt(elt, "pkcs10_request", self.pkcs10_request.get_DER())
-    return elt
 
 class parent_elt(data_elt):
   """<parent/> element."""
@@ -372,39 +318,6 @@ class parent_elt(data_elt):
     """Handle a left-right revoke action for this parent."""
     for ca in self.cas():
       ca.revoke()
-
-  def startElement(self, stack, name, attrs):
-    """Handle <parent/> element."""
-    if name not in ("bpki_cms_cert", "bpki_cms_glue", "bpki_https_cert", "bpki_https_glue"):
-      assert name == "parent", "Unexpected name %s, stack %s" % (name, stack)
-      self.read_attrs(attrs)
-
-  def endElement(self, stack, name, text):
-    """Handle <parent/> element."""
-    if name == "bpki_cms_cert":
-      self.bpki_cms_cert = rpki.x509.X509(Base64 = text)
-    elif name == "bpki_cms_glue":
-      self.bpki_cms_glue = rpki.x509.X509(Base64 = text)
-    elif name == "bpki_https_cert":
-      self.bpki_https_cert = rpki.x509.X509(Base64 = text)
-    elif name == "bpki_https_glue":
-      self.bpki_https_glue = rpki.x509.X509(Base64 = text)
-    else:
-      assert name == "parent", "Unexpected name %s, stack %s" % (name, stack)
-      stack.pop()
-
-  def toXML(self):
-    """Generate <parent/> element."""
-    elt = self.make_elt()
-    if self.bpki_cms_cert and not self.bpki_cms_cert.empty():
-      self.make_b64elt(elt, "bpki_cms_cert", self.bpki_cms_cert.get_DER())
-    if self.bpki_cms_glue and not self.bpki_cms_glue.empty():
-      self.make_b64elt(elt, "bpki_cms_glue", self.bpki_cms_glue.get_DER())
-    if self.bpki_https_cert and not self.bpki_https_cert.empty():
-      self.make_b64elt(elt, "bpki_https_cert", self.bpki_https_cert.get_DER())
-    if self.bpki_https_glue and not self.bpki_https_glue.empty():
-      self.make_b64elt(elt, "bpki_https_glue", self.bpki_https_glue.get_DER())
-    return elt
 
   def query_up_down(self, q_pdu):
     """Client code for sending one up-down query PDU to this parent.
@@ -492,32 +405,14 @@ class child_elt(data_elt):
       self.gctx.clear_https_ta_cache()
       self.clear_https_ta_cache = False
 
-  def startElement(self, stack, name, attrs):
-    """Handle <child/> element."""
-    if name not in ("bpki_cert", "bpki_glue"):
-      assert name == "child", "Unexpected name %s, stack %s" % (name, stack)
-      self.read_attrs(attrs)
-
   def endElement(self, stack, name, text):
-    """Handle <child/> element."""
-    if name == "bpki_cert":
-      self.bpki_cert = rpki.x509.X509(Base64 = text)
+    """Handle subelements of <child/> element.  These require special
+    handling because modifying them invalidates the HTTPS trust anchor
+    cache.
+    """
+    rpki.xml_utils.data_elt.endElement(self, stack, name, text)
+    if name in self.elements:
       self.clear_https_ta_cache = True
-    elif name == "bpki_glue":
-      self.bpki_glue = rpki.x509.X509(Base64 = text)
-      self.clear_https_ta_cache = True
-    else:
-      assert name == "child", "Unexpected name %s, stack %s" % (name, stack)
-      stack.pop()
-
-  def toXML(self):
-    """Generate <child/> element."""
-    elt = self.make_elt()
-    if self.bpki_cert and not self.bpki_cert.empty():
-      self.make_b64elt(elt, "bpki_cert", self.bpki_cert.get_DER())
-    if self.bpki_glue and not self.bpki_glue.empty():
-      self.make_b64elt(elt, "bpki_glue", self.bpki_glue.get_DER())
-    return elt
 
   def serve_up_down(self, query):
     """Outer layer of server handling for one up-down PDU from this child."""
@@ -568,39 +463,6 @@ class repository_elt(data_elt):
   def parents(self):
     """Fetch all parent objects that link to this repository object."""
     return parent_elt.sql_fetch_where(self.gctx, "repository_id = %s", (self.repository_id,))
-
-  def startElement(self, stack, name, attrs):
-    """Handle <repository/> element."""
-    if name not in ("bpki_cms_cert", "bpki_cms_glue", "bpki_https_cert", "bpki_https_glue"):
-      assert name == "repository", "Unexpected name %s, stack %s" % (name, stack)
-      self.read_attrs(attrs)
-
-  def endElement(self, stack, name, text):
-    """Handle <repository/> element."""
-    if name == "bpki_cms_cert":
-      self.bpki_cms_cert = rpki.x509.X509(Base64 = text)
-    elif name == "bpki_cms_glue":
-      self.bpki_cms_glue = rpki.x509.X509(Base64 = text)
-    elif name == "bpki_https_cert":
-      self.bpki_https_cert = rpki.x509.X509(Base64 = text)
-    elif name == "bpki_https_glue":
-      self.bpki_https_glue = rpki.x509.X509(Base64 = text)
-    else:
-      assert name == "repository", "Unexpected name %s, stack %s" % (name, stack)
-      stack.pop()
-
-  def toXML(self):
-    """Generate <repository/> element."""
-    elt = self.make_elt()
-    if self.bpki_cms_cert:
-      self.make_b64elt(elt, "bpki_cms_cert", self.bpki_cms_cert.get_DER())
-    if self.bpki_cms_glue:
-      self.make_b64elt(elt, "bpki_cms_glue", self.bpki_cms_glue.get_DER())
-    if self.bpki_https_cert:
-      self.make_b64elt(elt, "bpki_https_cert", self.bpki_https_cert.get_DER())
-    if self.bpki_https_glue:
-      self.make_b64elt(elt, "bpki_https_glue", self.bpki_https_glue.get_DER())
-    return elt
 
   @staticmethod
   def uri_to_filename(base, uri):
@@ -715,7 +577,9 @@ class route_origin_elt(data_elt):
     self.unimplemented_control("suppress_publication")
 
   def startElement(self, stack, name, attrs):
-    """Handle <route_origin/> element."""
+    """Handle <route_origin/> element.  This requires special
+    processing due to the data types of some of the attributes.
+    """
     assert name == "route_origin", "Unexpected name %s, stack %s" % (name, stack)
     self.read_attrs(attrs)
     if self.as_number is not None:
@@ -724,15 +588,6 @@ class route_origin_elt(data_elt):
       self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4(self.ipv4)
     if self.ipv6 is not None:
       self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6)
-
-  def endElement(self, stack, name, text):
-    """Handle <route_origin/> element."""
-    assert name == "route_origin", "Unexpected name %s, stack %s" % (name, stack)
-    stack.pop()
-
-  def toXML(self):
-    """Generate <route_origin/> element."""
-    return self.make_elt()
 
   def update_roa(self):
     """Bring this route_origin's ROA up to date if necesssary."""
@@ -884,7 +739,9 @@ class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
   valid_until = None
 
   def startElement(self, stack, name, attrs):
-    """Handle <list_resources/> element."""
+    """Handle <list_resources/> element.  This requires special
+    handling due to the data types of some of the attributes.
+    """
     assert name == "list_resources", "Unexpected name %s, stack %s" % (name, stack)
     self.read_attrs(attrs)
     if isinstance(self.valid_until, str):
@@ -897,7 +754,9 @@ class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
       self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
 
   def toXML(self):
-    """Generate <list_resources/> element."""
+    """Generate <list_resources/> element.  This requires special
+    handling due to the data types of some of the attributes.
+    """
     elt = self.make_elt()
     if isinstance(self.valid_until, int):
       elt.set("valid_until", self.valid_until.toXMLtime())
@@ -908,15 +767,6 @@ class report_error_elt(rpki.xml_utils.base_elt, left_right_namespace):
 
   element_name = "report_error"
   attributes = ("tag", "self_id", "error_code")
-
-  def startElement(self, stack, name, attrs):
-    """Handle <report_error/> element."""
-    assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
-    self.read_attrs(attrs)
-
-  def toXML(self):
-    """Generate <report_error/> element."""
-    return self.make_elt()
 
   @classmethod
   def from_exception(cls, exc, self_id = None):

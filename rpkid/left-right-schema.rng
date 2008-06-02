@@ -795,11 +795,6 @@
       </attribute>
     </optional>
     <optional>
-      <attribute name="exact_match">
-        <data type="boolean"/>
-      </attribute>
-    </optional>
-    <optional>
       <attribute name="ipv4">
         <ref name="ipv4_list"/>
       </attribute>

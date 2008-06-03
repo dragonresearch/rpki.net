@@ -160,7 +160,10 @@ class left_right_cms_msg(rpki.left_right.cms_msg):
 # Publication protocol
 
 class config_elt(cmd_elt_mixin, rpki.publication.config_elt):
-  pass
+
+  def client_query_bpki_crl(self, arg):
+    """Special handler for --bpki_crl option."""
+    self.bpki_crl = rpki.x509.CRL(Auto_file = arg)
 
 class client_elt(cmd_elt_mixin, rpki.publication.client_elt):
   pass

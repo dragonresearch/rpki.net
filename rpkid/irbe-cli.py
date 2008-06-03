@@ -15,18 +15,16 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 """
-Command line IR back-end control program.
-
-The query back-channel is handled by a separate program.
+Command line IR back-end control program for rpkid and pubd.
 """
 
-import getopt, sys, lxml.etree, lxml.sax
-import rpki.left_right, rpki.relaxng, rpki.https, rpki.x509, rpki.config, rpki.log
+import getopt, sys
+import rpki.left_right, rpki.https, rpki.x509, rpki.config, rpki.log, rpki.publication
 
 pem_out = None
 
-class cmd_mixin(object):
-  """Left-right protocol mix-in for command line client."""
+class cmd_elt_mixin(object):
+  """Protocol mix-in for command line client element PDUs."""
 
   ## @var excludes
   # XML attributes and elements that should not be allowed as command
@@ -34,6 +32,16 @@ class cmd_mixin(object):
   # bsc.pkcs10_request sub-element, but writing this generally is no
   # harder than handling that one special case.
   excludes = ()
+
+  @classmethod
+  def usage(cls):
+    """Generate usage message for this PDU."""
+    args = " ".join("--" + x + "=" for x in cls.attributes + cls.elements if x not in cls.excludes)
+    opts = " ".join("--" + x for x in cls.booleans)
+    if args and opts:
+      return args + " " + opts
+    else:
+      return args or opts
 
   def client_getopt(self, argv):
     """Parse options for this class."""
@@ -52,27 +60,27 @@ class cmd_mixin(object):
 
   def client_query_bpki_cert(self, arg):
     """Special handler for --bpki_cert option."""
-    self.bpki_cert = rpki.x509.X509(Auto_file=arg)
+    self.bpki_cert = rpki.x509.X509(Auto_file = arg)
 
   def client_query_glue(self, arg):
     """Special handler for --bpki_glue option."""
-    self.bpki_glue = rpki.x509.X509(Auto_file=arg)
+    self.bpki_glue = rpki.x509.X509(Auto_file = arg)
 
   def client_query_bpki_cms_cert(self, arg):
     """Special handler for --bpki_cms_cert option."""
-    self.bpki_cms_cert = rpki.x509.X509(Auto_file=arg)
+    self.bpki_cms_cert = rpki.x509.X509(Auto_file = arg)
 
   def client_query_cms_glue(self, arg):
     """Special handler for --bpki_cms_glue option."""
-    self.bpki_cms_glue = rpki.x509.X509(Auto_file=arg)
+    self.bpki_cms_glue = rpki.x509.X509(Auto_file = arg)
 
   def client_query_bpki_https_cert(self, arg):
     """Special handler for --bpki_https_cert option."""
-    self.bpki_https_cert = rpki.x509.X509(Auto_file=arg)
+    self.bpki_https_cert = rpki.x509.X509(Auto_file = arg)
 
   def client_query_https_glue(self, arg):
     """Special handler for --bpki_https_glue option."""
-    self.bpki_https_glue = rpki.x509.X509(Auto_file=arg)
+    self.bpki_https_glue = rpki.x509.X509(Auto_file = arg)
 
   def client_reply_decode(self):
     pass
@@ -83,20 +91,31 @@ class cmd_mixin(object):
       if getattr(self, i) is not None:
         print "  %s: %s" % (i, getattr(self, i))
 
-class self_elt(cmd_mixin, rpki.left_right.self_elt):
+class cmd_msg_mixin(object):
+  """Protocol mix-in for command line client message PDUs."""
+
+  @classmethod
+  def usage(cls):
+    """Generate usage message for this PDU."""
+    for k,v in cls.pdus.items():
+      print " ", k, v.usage()
+
+# left-right protcol
+
+class self_elt(cmd_elt_mixin, rpki.left_right.self_elt):
   pass
 
-class bsc_elt(cmd_mixin, rpki.left_right.bsc_elt):
+class bsc_elt(cmd_elt_mixin, rpki.left_right.bsc_elt):
 
   excludes = ("pkcs10_request",)
 
   def client_query_signing_cert(self, arg):
     """--signing_cert option."""
-    self.signing_cert = rpki.x509.X509(Auto_file=arg)
+    self.signing_cert = rpki.x509.X509(Auto_file = arg)
 
   def client_query_signing_cert_crl(self, arg):
     """--signing_cert_crl option."""
-    self.signing_cert_crl = rpki.x509.CRL(Auto_file=arg)
+    self.signing_cert_crl = rpki.x509.CRL(Auto_file = arg)
 
   def client_reply_decode(self):
     global pem_out
@@ -105,16 +124,16 @@ class bsc_elt(cmd_mixin, rpki.left_right.bsc_elt):
         pem_out = open(pem_out, "w")
       pem_out.write(self.pkcs10_request.get_PEM())
 
-class parent_elt(cmd_mixin, rpki.left_right.parent_elt):
+class parent_elt(cmd_elt_mixin, rpki.left_right.parent_elt):
   pass
 
-class child_elt(cmd_mixin, rpki.left_right.child_elt):
+class child_elt(cmd_elt_mixin, rpki.left_right.child_elt):
   pass
 
-class repository_elt(cmd_mixin, rpki.left_right.repository_elt):
+class repository_elt(cmd_elt_mixin, rpki.left_right.repository_elt):
   pass
 
-class route_origin_elt(cmd_mixin, rpki.left_right.route_origin_elt):
+class route_origin_elt(cmd_elt_mixin, rpki.left_right.route_origin_elt):
 
   def client_query_as_number(self, arg):
     """Handle autonomous sequence numbers."""
@@ -128,25 +147,78 @@ class route_origin_elt(cmd_mixin, rpki.left_right.route_origin_elt):
     """Handle IPv6 addresses."""
     self.ipv6 = resource_set.roa_prefix_set_ipv6(arg)
 
-class msg(rpki.left_right.msg):
+class left_right_msg(cmd_msg_mixin, rpki.left_right.msg):
   pdus = dict((x.element_name, x)
               for x in (self_elt, bsc_elt, parent_elt, child_elt, repository_elt, route_origin_elt))
 
-class sax_handler(rpki.left_right.sax_handler):
-  pdu = msg
+class left_right_sax_handler(rpki.left_right.sax_handler):
+  pdu = left_right_msg
 
-class cms_msg(rpki.left_right.cms_msg):
-  saxify = sax_handler.saxify
+class left_right_cms_msg(rpki.left_right.cms_msg):
+  saxify = left_right_sax_handler.saxify
+
+# Publication protocol
+
+class config_elt(cmd_elt_mixin, rpki.publication.config_elt):
+  pass
+
+class client_elt(cmd_elt_mixin, rpki.publication.client_elt):
+  pass
+
+class certificate_elt(cmd_elt_mixin, rpki.publication.certificate_elt):
+  pass
+
+class crl_elt(cmd_elt_mixin, rpki.publication.crl_elt):
+  pass
+
+class manifest_elt(cmd_elt_mixin, rpki.publication.manifest_elt):
+  pass
+
+class roa_elt(cmd_elt_mixin, rpki.publication.roa_elt):
+  pass
+
+class publication_msg(cmd_msg_mixin, rpki.publication.msg):
+  pdus = dict((x.element_name, x)
+              for x in (config_elt, client_elt, certificate_elt, crl_elt, manifest_elt, roa_elt))
+
+class publication_sax_handler(rpki.publication.sax_handler):
+  pdu = publication_msg
+
+class publication_cms_msg(rpki.publication.cms_msg):
+  saxify = publication_sax_handler.saxify
+
+# Usage
 
 top_opts = ["config=", "help", "pem_out="]
 
-def usage(code=1):
-  print "Usage:", sys.argv[0], " ".join(["--" + x for x in top_opts])
-  for k,v in msg.pdus.items():
-    print " ", k, \
-          " ".join(["--" + x + "=" for x in v.attributes + v.elements if x not in v.excludes]), \
-          " ".join(["--" + x for x in v.booleans])
+
+def usage(code = 1):
+  print __doc__
+  print "Usage:"
+  print
+  print "# Top-level options:"
+  print " ", " ".join("--" + x for x in top_opts)
+  print
+  print "# left-right protocol:"
+  left_right_msg.usage()
+  print
+  print "# publication protocol:"
+  publication_msg.usage()
   sys.exit(code)
+
+# This should probably be a method of an as-yet-unwritten server class
+
+def call_daemon(cms_class, client_key, client_cert, server_ta, url, q_msg):
+  q_cms = cms_class.wrap(q_msg, client_key, client_cert)
+  der = rpki.https.client(client_key   = client_key,
+                          client_cert  = client_cert,
+                          server_ta    = server_ta,
+                          url          = url,
+                          msg          = q_cms)
+  r_msg, r_xml = cms_class.unwrap(der, server_ta, pretty_print = True)
+  print r_xml
+  for r_pdu in r_msg:
+    r_pdu.client_reply_decode()
 
 # Main program
 
@@ -173,36 +245,40 @@ if not argv:
 
 cfg = rpki.config.parser(cfg_file, "irbe-cli")
 
-bpki_ta     = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
-rpkid_cert  = rpki.x509.X509(Auto_file = cfg.get("rpkid-cert"))
-irbe_cert   = rpki.x509.X509(Auto_file = cfg.get("irbe-cert"))
-irbe_key    = rpki.x509.RSA( Auto_file = cfg.get("irbe-key"))
-https_url   = cfg.get("https-url")
+q_msg_left_right = left_right_msg()
+q_msg_left_right.type = "query"
 
-q_msg = rpki.left_right.msg()
-q_msg.type = "query"
+q_msg_publication = publication_msg()
+q_msg_publication.type = "query"
 
 while argv:
-  try:
-    q_pdu = msg.pdus[argv[0]]()
-  except KeyError:
+  if argv[0] in left_right_msg.pdus:
+    q_pdu = left_right_msg.pdus[argv[0]]()
+    q_msg = q_msg_left_right
+  elif argv[0] in publication_msg.pdus:
+    q_pdu = publication_msg.pdus[argv[0]]()
+    q_msg = q_msg_publication
+  else:
     usage(1)
   argv = q_pdu.client_getopt(argv[1:])
   q_msg.append(q_pdu)
 
-q_cms = rpki.left_right.cms_msg.wrap(q_msg, irbe_key, irbe_cert)
+if q_msg_left_right:
+  call_daemon(
+    cms_class   = left_right_cms_msg,
+    client_key  = rpki.x509.RSA( Auto_file = cfg.get("rpkid-irbe-key")),
+    client_cert = rpki.x509.X509(Auto_file = cfg.get("rpkid-irbe-cert")),
+    server_ta   = (rpki.x509.X509(Auto_file = cfg.get("rpkid-bpki-ta")),
+                   rpki.x509.X509(Auto_file = cfg.get("rpkid-cert"))),
+    url         = cfg.get("rpkid-url"),
+    q_msg       = q_msg_left_right)
 
-der = rpki.https.client(client_key   = irbe_key,
-                        client_cert  = irbe_cert,
-                        server_ta    = (bpki_ta, rpkid_cert),
-                        url          = https_url,
-                        msg          = q_cms)
-
-r_msg, r_xml = cms_msg.unwrap(der, (bpki_ta, rpkid_cert), pretty_print = True)
-
-print r_xml
-
-for r_pdu in r_msg:
-  r_pdu.client_reply_decode()
-  if False:
-    r_pdu.client_reply_show()
+if q_msg_publication:
+  call_daemon(
+    cms_class   = publication_cms_msg,
+    client_key  = rpki.x509.RSA( Auto_file = cfg.get("pubd-irbe-key")),
+    client_cert = rpki.x509.X509(Auto_file = cfg.get("pubd-irbe-cert")),
+    server_ta   = (rpki.x509.X509(Auto_file = cfg.get("pubd-bpki-ta")),
+                   rpki.x509.X509(Auto_file = cfg.get("pubd-cert"))),
+    url         = cfg.get("pubd-url"),
+    q_msg       = q_msg_publication)

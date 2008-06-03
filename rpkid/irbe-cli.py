@@ -192,7 +192,7 @@ class publication_cms_msg(rpki.publication.cms_msg):
 
 # Usage
 
-top_opts = ["config=", "help", "pem_out="]
+top_opts = ["config=", "help", "pem_out=", "verbose"]
 
 
 def usage(code = 1):
@@ -212,7 +212,9 @@ def usage(code = 1):
 # This should probably be a method of an as-yet-unwritten server class
 
 def call_daemon(cms_class, client_key, client_cert, server_ta, url, q_msg):
-  q_cms = cms_class.wrap(q_msg, client_key, client_cert)
+  q_cms, q_xml = cms_class.wrap(q_msg, client_key, client_cert, pretty_print = True)
+  if verbose:
+    print q_xml
   der = rpki.https.client(client_key   = client_key,
                           client_cert  = client_cert,
                           server_ta    = server_ta,
@@ -233,15 +235,18 @@ if not argv:
   usage(0)
 
 cfg_file = "irbe.conf"
+verbose = False
 
-opts, argv = getopt.getopt(argv, "c:h?", top_opts)
+opts, argv = getopt.getopt(argv, "c:hpv?", top_opts)
 for o, a in opts:
   if o in ("-?", "-h", "--help"):
     usage(0)
-  if o in ("-c", "--config"):
+  elif o in ("-c", "--config"):
     cfg_file = a
-  if o == "--pem_out":
+  elif o in ("-p", "--pem_out"):
     pem_out = a
+  elif o in ("-v", "--verbose"):
+    verbose = True
 
 if not argv:
   usage(1)

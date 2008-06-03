@@ -236,7 +236,7 @@ class bsc_elt(data_elt):
   
   element_name = "bsc"
   attributes = ("action", "tag", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
-  elements = ("pkcs10_request", "signing_cert", "signing_cert_crl")
+  elements = ("signing_cert", "signing_cert_crl", "pkcs10_request")
   booleans = ("generate_keypair",)
 
   sql_template = rpki.sql.template("bsc", "bsc_id", "self_id", "hash_alg",

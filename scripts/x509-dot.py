@@ -56,13 +56,11 @@ class x509(object):
 
     print
 
-# Eventually this should use sys.argv[1:]
-
-#certs = [x509(filename) for filename in glob.glob("../rpkid/biz-certs/*.cer")]
-
 certs = []
-for dirpath, dirnames, filenames in os.walk("../rpkid/testbed.dir/publication"):
-  certs += [x509(dirpath + "/" + filename) for filename in filenames if filename.endswith(".cer")]
+
+for topdir in sys.argv[1:] or ["."]:
+  for dirpath, dirnames, filenames in os.walk(topdir):
+    certs += [x509(dirpath + "/" + filename) for filename in filenames if filename.endswith(".cer")]
 
 for i in xrange(len(certs)):
   certs[i].set_node("cert_%d" % i)

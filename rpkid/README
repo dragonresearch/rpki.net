@@ -73,26 +73,25 @@ TO DO:
 	STATUS: Not started
 
 
-      - Publication protocol and implementation thereof. Desirable
-	although not strictly required that protocol be agreed upon
-	among the RIRs. Tricky bit is making sure that repository
-	receives enough information to know whether parent has
-	authorized child to use parent's namespace in nesting case; in
-	theory this is straightforward but requires careful checking.
+      - Publication protocol and implementation thereof.
 
-	ARIN can't host output of non-hosted RPKI engines without
-	this, and that's critical both to the security model as
-	discussed with ARIN staff in late 2006, hence this is a
-	required capability even for testing.
+        Tricky bit is making sure that repository receives enough
+	information to know whether parent has authorized child to use
+	parent's namespace in nesting case; in theory this is
+	straightforward but requires careful checking.
+
+	Current implementation just uses a configured path check and
+	does not attempt to trace back to permission from parent in
+	nested publication case.  Class and method design is intended
+	to make it easy to drop in additional checks if needed.
 
 	PRIORITY: Required for pilot
 
-	TIME REQUIRED: 3-4 weeks for implementation once protocol
-	settled, depending on how much of the existing left-right
-	protocol design and implementation can be reused.
+	TIME REQUIRED: 3-4 weeks for implementation.
 
 	STATUS: Initial implementation seems to work, not seriously
-	tested yet.
+	tested yet.  See above for notes on ACL checking.
+
 
       - Resource subsetting (req_* attributes in up-down protocol),
 	minimal implementation.  Recognize this as correct protocol
@@ -103,6 +102,7 @@ TO DO:
 	TIME REQUIRED: Two days
 
 	STATUS: code written, not yet tested.
+
 
       - rcynic does not yet handle manifests. This is both a real
 	problem (manifests were added to plug a security hole) and a

@@ -123,3 +123,6 @@ class UnparsableCMSDER(RPKI_Exception):
 
 class CMSCRLNotSet(RPKI_Exception):
   """CMS CRL has not been configured."""
+
+class ServerShuttingDown(RPKI_Exception):
+  """Server is shutting down."""

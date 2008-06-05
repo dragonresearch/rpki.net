@@ -21,7 +21,7 @@ subversion repository; generalizing it would not be hard, but the more
 general version should use SQL anyway.
 """
 
-import httplib, BaseHTTPServer, tlslite.api, glob, traceback, urlparse, socket
+import httplib, BaseHTTPServer, tlslite.api, glob, traceback, urlparse, socket, signal
 import rpki.x509, rpki.exceptions, rpki.log
 
 # This should be wrapped somewhere in rpki.x509 eventually
@@ -263,7 +263,7 @@ class httpsServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
       rpki.log.warn("TLS handshake failure: " + str(error))
       return False
 
-def server(handlers, server_key, server_cert, port = 4433, host = "", client_ta = None, dynamic_https_trust_anchor = None):
+def server(handlers, server_key, server_cert, port = 4433, host ="", client_ta = None, dynamic_https_trust_anchor = None, catch_signals = (signal.SIGINT, signal.SIGTERM)):
   """Run an HTTPS server and wait (forever) for connections."""
 
   if not isinstance(handlers, (tuple, list)):
@@ -279,4 +279,13 @@ def server(handlers, server_key, server_cert, port = 4433, host = "", client_ta 
   httpd.rpki_sessionCache = tlslite.api.SessionCache()
   httpd.rpki_checker      = Checker(trust_anchor = client_ta, dynamic_https_trust_anchor = dynamic_https_trust_anchor)
 
-  httpd.serve_forever()
+  try:
+    def raiseServerShuttingDown(signum, frame):
+      raise rpki.exceptions.ServerShuttingDown
+    old_signal_handlers = tuple((sig, signal.signal(sig, raiseServerShuttingDown)) for sig in catch_signals)
+    httpd.serve_forever()
+  except rpki.exceptions.ServerShuttingDown:
+    rpki.log.info("Exiting server")
+  finally:
+    for sig,handler in old_signal_handlers:
+      signal.signal(sig, handler)

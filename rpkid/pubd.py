@@ -17,7 +17,9 @@
 """
 RPKI publication engine.
 
-Usage: python pubd.py [ { -c | --config } configfile ] [ { -h | --help } ]
+Usage: python pubd.py [ { -c | --config } configfile ]
+                      [ { -h | --help } ]
+                      [ { -p | --profile } outputfile ]
 
 Default configuration file is pubd.conf, override with --config option.
 """
@@ -99,26 +101,40 @@ time.tzset()
 rpki.log.init("pubd")
 
 cfg_file = "pubd.conf"
+profile = False
 
-opts,argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+opts,argv = getopt.getopt(sys.argv[1:], "c:hp:?", ["config=", "help"])
 for o,a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
-  if o in ("-c", "--config"):
+  elif o in ("-c", "--config"):
     cfg_file = a
+  elif o in ("-p", "--profile"):
+    profile = a
 if argv:
   raise RuntimeError, "Unexpected arguments %s" % argv
 
-cfg = rpki.config.parser(cfg_file, "pubd")
+def main():
 
-pctx = pubd_context(cfg)
+  cfg = rpki.config.parser(cfg_file, "pubd")
 
-rpki.https.server(
-  dynamic_https_trust_anchor    = pctx.build_https_ta_cache,
-  host                          = pctx.https_server_host,
-  port                          = pctx.https_server_port,
-  server_key                    = pctx.pubd_key,
-  server_cert                   = pctx.pubd_cert,
-  handlers                      = (("/control", pctx.control_handler),
-                                   ("/client/", pctx.client_handler)))
+  if profile:
+    rpki.log.info("Running in profile mode with output to %s" % profile)
+
+  pctx = pubd_context(cfg)
+
+  rpki.https.server(
+    dynamic_https_trust_anchor    = pctx.build_https_ta_cache,
+    host                          = pctx.https_server_host,
+    port                          = pctx.https_server_port,
+    server_key                    = pctx.pubd_key,
+    server_cert                   = pctx.pubd_cert,
+    handlers                      = (("/control", pctx.control_handler),
+                                     ("/client/", pctx.client_handler)))
+
+if profile:
+  import cProfile
+  cProfile.run("main()", profile)
+else:
+  main()

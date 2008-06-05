@@ -17,7 +17,9 @@
 """
 RPKI engine daemon.  This is still very much a work in progress.
 
-Usage: python rpkid.py [ { -c | --config } configfile ] [ { -h | --help } ]
+Usage: python rpkid.py [ { -c | --config } configfile ]
+                       [ { -h | --help } ]
+                       [ { -p | --profile } outputfile ]
 
 Default configuration file is rpkid.conf, override with --config option.
 """
@@ -33,30 +35,44 @@ time.tzset()
 rpki.log.init("rpkid")
 
 cfg_file = "rpkid.conf"
+profile = None
 
-opts,argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+opts,argv = getopt.getopt(sys.argv[1:], "c:hp:?", ["config=", "help", "profile="])
 for o,a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
-  if o in ("-c", "--config"):
+  elif o in ("-c", "--config"):
     cfg_file = a
+  elif o in ("-p", "--profile"):
+    profile = a
 if argv:
   raise RuntimeError, "Unexpected arguments %s" % argv
 
-cfg = rpki.config.parser(cfg_file, "rpkid")
+def main():
 
-startup_msg = cfg.get("startup-message", "")
-if startup_msg:
-  rpki.log.info(startup_msg)
+  cfg = rpki.config.parser(cfg_file, "rpkid")
 
-gctx = rpki.gctx.global_context(cfg)
+  startup_msg = cfg.get("startup-message", "")
+  if startup_msg:
+    rpki.log.info(startup_msg)
 
-rpki.https.server(host                       = gctx.https_server_host,
-                  port                       = gctx.https_server_port,
-                  server_key                 = gctx.rpkid_key,
-                  server_cert                = gctx.rpkid_cert,
-                  dynamic_https_trust_anchor = gctx.build_https_ta_cache,
-                  handlers                   = (("/left-right", gctx.left_right_handler),
-                                                ("/up-down/",   gctx.up_down_handler),
-                                                ("/cronjob",    gctx.cronjob_handler)))
+  if profile:
+    rpki.log.info("Running in profile mode with output to %s" % profile)
+
+  gctx = rpki.gctx.global_context(cfg)
+
+  rpki.https.server(host                       = gctx.https_server_host,
+                    port                       = gctx.https_server_port,
+                    server_key                 = gctx.rpkid_key,
+                    server_cert                = gctx.rpkid_cert,
+                    dynamic_https_trust_anchor = gctx.build_https_ta_cache,
+                    handlers                   = (("/left-right", gctx.left_right_handler),
+                                                  ("/up-down/",   gctx.up_down_handler),
+                                                  ("/cronjob",    gctx.cronjob_handler)))
+
+if profile:
+  import cProfile
+  cProfile.run("main()", profile)
+else:
+  main()

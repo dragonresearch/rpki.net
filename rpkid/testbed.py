@@ -18,9 +18,10 @@
 Test framework to configure and drive a collection of rpkid.py and
 irdbd.py instances under control of a master script.
 
-Usage: python rpkid.py [ { -c | --config } config_file ]
-                       [ { -h | --help } ]
-                       [ { -y | --yaml }   yaml_script ]
+Usage: python testbed.py [ { -c | --config } config_file ]
+                         [ { -h | --help } ]
+                         [ { -p | --profile } ]
+                         [ { -y | --yaml }   yaml_script ]
 
 Default config_file is testbed.conf, override with --config option.
 
@@ -43,14 +44,17 @@ time.tzset()
 cfg_file = "testbed.conf"
 
 yaml_script = None
+profile = False
 
-opts,argv = getopt.getopt(sys.argv[1:], "c:hy:?", ["config=", "help", "yaml="])
+opts,argv = getopt.getopt(sys.argv[1:], "c:hpy:?", ["config=", "help", "profile", "yaml="])
 for o,a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
   elif o in ("-c", "--config"):
     cfg_file = a
+  elif o in ("-p", "--profile"):
+    profile = True
   elif o in ("-y", "--yaml"):
     yaml_script = a
 if argv:
@@ -172,7 +176,7 @@ def main():
     rootd_process = subprocess.Popen((prog_python, prog_rootd, "-c", rootd_name + ".conf"))
 
     rpki.log.info("Starting pubd")
-    pubd_process = subprocess.Popen((prog_python, prog_pubd, "-c", pubd_name + ".conf"))
+    pubd_process = subprocess.Popen((prog_python, prog_pubd, "-c", pubd_name + ".conf") + (("-p", pubd_name + ".prof") if profile else ()))
 
     rpki.log.info("Starting rsyncd")
     rsyncd_process = subprocess.Popen((prog_rsyncd, "--daemon", "--no-detach", "--config", rsyncd_name + ".conf"))
@@ -526,7 +530,7 @@ class allocation(object):
   def run_daemons(self):
     """Run daemons for this entity."""
     rpki.log.info("Running daemons for %s" % self.name)
-    self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "-c", self.name + ".conf"))
+    self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "-c", self.name + ".conf") + (("-p", self.name + ".prof") if profile else ()))
     self.irdbd_process = subprocess.Popen((prog_python, prog_irdbd, "-c", self.name + ".conf"))
 
   def kill_daemons(self):

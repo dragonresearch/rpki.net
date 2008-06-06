@@ -285,7 +285,7 @@ def server(handlers, server_key, server_cert, port = 4433, host ="", client_ta =
     old_signal_handlers = tuple((sig, signal.signal(sig, raiseServerShuttingDown)) for sig in catch_signals)
     httpd.serve_forever()
   except rpki.exceptions.ServerShuttingDown:
-    rpki.log.info("Exiting server")
+    pass
   finally:
     for sig,handler in old_signal_handlers:
       signal.signal(sig, handler)

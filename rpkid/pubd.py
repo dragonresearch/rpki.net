@@ -27,9 +27,9 @@ Default configuration file is pubd.conf, override with --config option.
 import traceback, os, time, getopt, sys, MySQLdb, lxml.etree
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
 import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log
-import rpki.rpki_engine, rpki.publication
+import rpki.publication
 
-class pubd_context(rpki.rpki_engine.rpkid_context):
+class pubd_context(object):
   """A container for various pubd parameters."""
 
   def __init__(self, cfg):
@@ -82,6 +82,17 @@ class pubd_context(rpki.rpki_engine.rpkid_context):
     except Exception, data:
       rpki.log.error(traceback.format_exc())
       return 500, "Could not process PDU: %s" % data
+
+  ## @var https_ta_cache
+  # HTTPS trust anchor cache, to avoid regenerating it for every TLS connection.
+  https_ta_cache = None
+
+  def clear_https_ta_cache(self):
+    """Clear dynamic TLS trust anchors."""
+
+    if self.https_ta_cache is not None:
+      rpki.log.debug("Clearing HTTPS trusted cert cache")
+      self.https_ta_cache = None
 
   def build_https_ta_cache(self):
     """Build dynamic TLS trust anchors."""

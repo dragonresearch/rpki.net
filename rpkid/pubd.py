@@ -27,9 +27,9 @@ Default configuration file is pubd.conf, override with --config option.
 import traceback, os, time, getopt, sys, MySQLdb, lxml.etree
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
 import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log
-import rpki.gctx, rpki.publication
+import rpki.rpki_engine, rpki.publication
 
-class pubd_context(rpki.gctx.global_context):
+class pubd_context(rpki.rpki_engine.rpkid_context):
   """A container for various pubd parameters."""
 
   def __init__(self, cfg):

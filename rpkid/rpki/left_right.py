@@ -158,7 +158,7 @@ class self_elt(data_elt):
           del  ca_map[rc.class_name]
           ca.check_for_updates(parent, rc)
         else:
-          rpki.sql.ca_obj.create(parent, rc)
+          rpki.rpki_engine.ca_obj.create(parent, rc)
       for ca in ca_map.values():
         ca.delete(parent)               # CA not listed by parent
       self.gctx.sql_sweep()
@@ -299,7 +299,7 @@ class parent_elt(data_elt):
 
   def cas(self):
     """Fetch all CA objects that link to this parent object."""
-    return rpki.sql.ca_obj.sql_fetch_where(self.gctx, "parent_id = %s", (self.parent_id,))
+    return rpki.rpki_engine.ca_obj.sql_fetch_where(self.gctx, "parent_id = %s", (self.parent_id,))
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for parent_elt."""
@@ -382,7 +382,7 @@ class child_elt(data_elt):
 
   def child_certs(self, ca_detail = None, ski = None, unique = False):
     """Fetch all child_cert objects that link to this child object."""
-    return rpki.sql.child_cert_obj.fetch(self.gctx, self, ca_detail, ski, unique)
+    return rpki.rpki_engine.child_cert_obj.fetch(self.gctx, self, ca_detail, ski, unique)
 
   def parents(self):
     """Fetch all parent objects that link to self object to which this child object links."""
@@ -392,7 +392,7 @@ class child_elt(data_elt):
     """Fetch the CA corresponding to an up-down class_name."""
     if not class_name.isdigit():
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % class_name
-    ca = rpki.sql.ca_obj.sql_fetch(self.gctx, long(class_name))
+    ca = rpki.rpki_engine.ca_obj.sql_fetch(self.gctx, long(class_name))
     parent = ca.parent()
     if self.self_id != parent.self_id:
       raise rpki.exceptions.ClassNameMismatch, "child.self_id = %d, parent.self_id = %d" % (self.self_id, parent.self_id)
@@ -570,7 +570,7 @@ class route_origin_elt(data_elt):
 
   def ca_detail(self):
     """Fetch all ca_detail objects that link to this route_origin object."""
-    return rpki.sql.ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
+    return rpki.rpki_engine.ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
 
   def serve_post_save_hook(self, q_pdu, r_pdu):
     """Extra server actions for route_origin_elt."""
@@ -708,7 +708,7 @@ class route_origin_elt(data_elt):
       self.generate_roa()
 
     rpki.log.debug("Withdrawing ROA and revoking its EE cert")
-    rpki.sql.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
+    rpki.rpki_engine.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
     repository.withdraw(roa, roa_uri)
     repository.withdraw(cert, ee_uri)
     self.gctx.sql_sweep()

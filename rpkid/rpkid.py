@@ -27,7 +27,7 @@ Default configuration file is rpkid.conf, override with --config option.
 import traceback, os, time, getopt, sys, MySQLdb, lxml.etree
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
 import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log
-import rpki.gctx
+import rpki.rpki_engine
 
 os.environ["TZ"] = "UTC"
 time.tzset()
@@ -60,7 +60,7 @@ def main():
   if profile:
     rpki.log.info("Running in profile mode with output to %s" % profile)
 
-  gctx = rpki.gctx.global_context(cfg)
+  gctx = rpki.rpki_engine.rpkid_context(cfg)
 
   rpki.https.server(host                       = gctx.https_server_host,
                     port                       = gctx.https_server_port,

@@ -34,8 +34,7 @@ class pubd_context(rpki.rpki_engine.rpkid_context):
 
   def __init__(self, cfg):
 
-    self.db = rpki.sql.connect(cfg)
-    self.cur = self.db.cursor()
+    self.sql = rpki.sql.session(cfg)
 
     self.bpki_ta   = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
     self.irbe_cert = rpki.x509.X509(Auto_file = cfg.get("irbe-cert"))
@@ -47,22 +46,19 @@ class pubd_context(rpki.rpki_engine.rpkid_context):
 
     self.publication_base = cfg.get("publication-base", "publication/")
 
-    self.sql_cache = {}
-    self.sql_dirty = set()
-
   def handler_common(self, query, client, certs, crl = None):
     """Common PDU handler code."""
     q_msg = rpki.publication.cms_msg.unwrap(query, certs)
     r_msg = q_msg.serve_top_level(self, client)
     reply = rpki.publication.cms_msg.wrap(r_msg, self.pubd_key, self.pubd_cert, crl)
-    self.sql_sweep()
+    self.sql.sweep()
     return reply
 
   def control_handler(self, query, path):
     """Process one PDU from the IRBE."""
     rpki.log.trace()
     try:
-      self.db.ping(True)
+      self.sql.ping()
       return 200, self.handler_common(query, None, (self.bpki_ta, self.irbe_cert))
     except Exception, data:
       rpki.log.error(traceback.format_exc())
@@ -72,7 +68,7 @@ class pubd_context(rpki.rpki_engine.rpkid_context):
     """Process one PDU from a client."""
     rpki.log.trace()
     try:
-      self.db.ping(True)
+      self.sql.ping()
       client_id = path.partition("/client/")[2]
       if not client_id.isdigit():
         raise rpki.exceptions.BadContactURL, "Bad path: %s" % path

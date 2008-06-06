@@ -28,8 +28,7 @@ class rpkid_context(object):
 
   def __init__(self, cfg):
 
-    self.db = rpki.sql.connect(cfg)
-    self.cur = self.db.cursor()
+    self.sql = rpki.sql.session(cfg)
 
     self.bpki_ta    = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
     self.irdb_cert  = rpki.x509.X509(Auto_file = cfg.get("irdb-cert"))
@@ -43,9 +42,6 @@ class rpkid_context(object):
     self.https_server_port = int(cfg.get("server-port", "4433"))
 
     self.publication_kludge_base = cfg.get("publication-kludge-base", "publication/")
-
-    self.sql_cache = {}
-    self.sql_dirty = set()
 
   def irdb_query(self, self_id, child_id = None):
     """Perform an IRDB callback query.  In the long run this should not
@@ -81,35 +77,17 @@ class rpkid_context(object):
       v6          = r_msg[0].ipv6,
       valid_until = r_msg[0].valid_until)
 
-  def sql_cache_clear(self):
-    """Clear the object cache."""
-    self.sql_cache.clear()
-
-  def sql_assert_pristine(self):
-    """Assert that there are no dirty objects in the cache."""
-    assert not self.sql_dirty, "Dirty objects in SQL cache: %s" % self.sql_dirty
-
-  def sql_sweep(self):
-    """Write any dirty objects out to SQL."""
-    for s in self.sql_dirty.copy():
-      rpki.log.debug("Sweeping %s" % repr(s))
-      if s.sql_deleted:
-        s.sql_delete()
-      else:
-        s.sql_store()
-    self.sql_assert_pristine()
-
   def left_right_handler(self, query, path):
     """Process one left-right PDU."""
     rpki.log.trace()
     try:
-      self.db.ping(True)
+      self.sql.ping()
       q_msg = rpki.left_right.cms_msg.unwrap(query, (self.bpki_ta, self.irbe_cert))
       if q_msg.type != "query":
         raise rpki.exceptions.BadQuery, "Message type is not query"
       r_msg = q_msg.serve_top_level(self)
       reply = rpki.left_right.cms_msg.wrap(r_msg, self.rpkid_key, self.rpkid_cert)
-      self.sql_sweep()
+      self.sql.sweep()
       return 200, reply
     except Exception, data:
       rpki.log.error(traceback.format_exc())
@@ -119,7 +97,7 @@ class rpkid_context(object):
     """Process one up-down PDU."""
     rpki.log.trace()
     try:
-      self.db.ping(True)
+      self.sql.ping()
       child_id = path.partition("/up-down/")[2]
       if not child_id.isdigit():
         raise rpki.exceptions.BadContactURL, "Bad path: %s" % path
@@ -127,7 +105,7 @@ class rpkid_context(object):
       if child is None:
         raise rpki.exceptions.ChildNotFound, "Could not find child %s" % child_id
       reply = child.serve_up_down(query)
-      self.sql_sweep()
+      self.sql.sweep()
       return 200, reply
     except Exception, data:
       rpki.log.error(traceback.format_exc())
@@ -140,13 +118,13 @@ class rpkid_context(object):
 
     rpki.log.trace()
     try:
-      self.db.ping(True)
+      self.sql.ping()
       for s in rpki.left_right.self_elt.sql_fetch_all(self):
         s.client_poll()
         s.update_children()
         s.update_roas()
         s.regenerate_crls_and_manifests()
-      self.sql_sweep()
+      self.sql.sweep()
       return 200, "OK"
     except Exception, data:
       rpki.log.error(traceback.format_exc())
@@ -694,7 +672,7 @@ class child_cert_obj(rpki.sql.sql_persistant):
     revoked_cert_obj.revoke(cert = self.cert, ca_detail = ca_detail)
     repository = ca.parent().repository()
     repository.withdraw(self.cert, self.uri(ca))
-    self.gctx.sql_sweep()
+    self.gctx.sql.sweep()
     self.sql_delete()
 
   def reissue(self, ca_detail, resources = None, sia = None):

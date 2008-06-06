@@ -298,18 +298,19 @@ class resource_set(list):
     return other.issubset(self)
 
   @classmethod
-  def from_sql(cls, cur, query, args = None):
+  def from_sql(cls, sql, query, args = None):
     """Create resource set from an SQL query.
 
-    cur is a DB API 2.0 cursor object.
+    sql is an object that supports execute() and fetchall() methods
+    like a DB API 2.0 cursor object.
 
     query is an SQL query that returns a sequence of (min, max) pairs.
     """
 
-    cur.execute(query, args)
+    sql.execute(query, args)
     return cls(ini = [cls.range_type(cls.range_type.datum_type(b),
                                      cls.range_type.datum_type(e))
-                      for (b,e) in cur.fetchall()])
+                      for (b,e) in sql.fetchall()])
 
 class resource_set_as(resource_set):
   """ASN resource set."""
@@ -667,15 +668,19 @@ class roa_prefix_set(list):
     return self.resource_set_type([p.to_resource_range() for p in self])
 
   @classmethod
-  def from_sql(cls, cur, query, args = None):
-    """Create ROA prefix set from an SQL query.  cur is a DB API 2.0
-    cursor object.  query is an SQL query that returns a sequence of
-    (address, prefixlen, max_prefixlen) triples.
+  def from_sql(cls, sql, query, args = None):
+    """Create ROA prefix set from an SQL query.
+
+    sql is an object that supports execute() and fetchall() methods
+    like a DB API 2.0 cursor object.
+
+    query is an SQL query that returns a sequence of (address,
+    prefixlen, max_prefixlen) triples.
     """
 
-    cur.execute(query, args)
+    sql.execute(query, args)
     return cls([cls.prefix_type(cls.prefix_type.range_type.datum_type(x), int(y), int(z))
-                for (x,y,z) in cur.fetchall()])
+                for (x,y,z) in sql.fetchall()])
 
   def to_roa_tuple(self):
     """Convert ROA prefix set into tuple format used by ROA ASN.1 encoder.

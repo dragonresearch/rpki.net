@@ -161,7 +161,7 @@ class self_elt(data_elt):
           rpki.rpki_engine.ca_obj.create(parent, rc)
       for ca in ca_map.values():
         ca.delete(parent)               # CA not listed by parent
-      self.gctx.sql_sweep()
+      self.gctx.sql.sweep()
 
   def update_children(self):
     """Check for updated IRDB data for all of this self's children and
@@ -546,19 +546,23 @@ class route_origin_elt(data_elt):
 
   def sql_fetch_hook(self):
     """Extra SQL fetch actions for route_origin_elt -- handle prefix list."""
-    self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4.from_sql(self.gctx.cur, """
-                SELECT address, prefixlen, max_prefixlen FROM route_origin_prefix
-                WHERE route_origin_id = %s AND address NOT LIKE '%:%'
-                """, (self.route_origin_id,))
-    self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6.from_sql(self.gctx.cur, """
-                SELECT address, prefixlen, max_prefixlen FROM route_origin_prefix
-                WHERE route_origin_id = %s AND address LIKE '%:%'
-                """, (self.route_origin_id,))
+    self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4.from_sql(
+      self.gctx.sql,
+      """
+          SELECT address, prefixlen, max_prefixlen FROM route_origin_prefix
+          WHERE route_origin_id = %s AND address NOT LIKE '%:%'
+      """, (self.route_origin_id,))
+    self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6.from_sql(
+      self.gctx.sql,
+      """
+          SELECT address, prefixlen, max_prefixlen FROM route_origin_prefix
+          WHERE route_origin_id = %s AND address LIKE '%:%'
+      """, (self.route_origin_id,))
 
   def sql_insert_hook(self):
     """Extra SQL insert actions for route_origin_elt -- handle address ranges."""
     if self.ipv4 or self.ipv6:
-      self.gctx.cur.executemany("""
+      self.gctx.sql.executemany("""
                 INSERT route_origin_prefix (route_origin_id, address, prefixlen, max_prefixlen)
                 VALUES (%s, %s, %s, %s)""",
                            ((self.route_origin_id, x.address, x.prefixlen, x.max_prefixlen)
@@ -566,7 +570,7 @@ class route_origin_elt(data_elt):
   
   def sql_delete_hook(self):
     """Extra SQL delete actions for route_origin_elt -- handle address ranges."""
-    self.gctx.cur.execute("DELETE FROM route_origin_prefix WHERE route_origin_id = %s", (self.route_origin_id,))
+    self.gctx.sql.execute("DELETE FROM route_origin_prefix WHERE route_origin_id = %s", (self.route_origin_id,))
 
   def ca_detail(self):
     """Fetch all ca_detail objects that link to this route_origin object."""
@@ -711,7 +715,7 @@ class route_origin_elt(data_elt):
     rpki.rpki_engine.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
     repository.withdraw(roa, roa_uri)
     repository.withdraw(cert, ee_uri)
-    self.gctx.sql_sweep()
+    self.gctx.sql.sweep()
     ca_detail.generate_crl()
     ca_detail.generate_manifest()
 

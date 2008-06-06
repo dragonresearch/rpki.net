@@ -15,59 +15,80 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 import MySQLdb, time,  warnings, _mysql_exceptions
-import rpki.x509, rpki.resource_set, rpki.sundial
+import rpki.x509, rpki.resource_set, rpki.sundial, rpki.log
 
-def connect(cfg, throw_exception_on_warning = True):
-  """Connect to a MySQL database using connection parameters from an
-     rpki.config.parser object.
-  """
-
-  if throw_exception_on_warning:
-    warnings.simplefilter("error", _mysql_exceptions.Warning)
-
-  return MySQLdb.connect(user   = cfg.get("sql-username"),
-                         db     = cfg.get("sql-database"),
-                         passwd = cfg.get("sql-password"))
-
-class sesssion(object):
+class session(object):
   """SQL session layer."""
+
+  _exceptions_enabled = False
 
   def __init__(self, cfg):
 
-    raise rpki.errorsNotImplementedYet, "This class is still under construction"
-
-    warnings.simplefilter("error", _mysql_exceptions.Warning)
+    if not self._exceptions_enabled:
+      warnings.simplefilter("error", _mysql_exceptions.Warning)
+      self.__class__._exceptions_enabled = True
 
     self.username = cfg.get("sql-username")
     self.database = cfg.get("sql-database")
     self.password = cfg.get("sql-password")
 
-    self.sql_cache = {}
-    self.sql_dirty = set()
+    self.cache = {}
+    self.dirty = set()
 
     self.connect()
 
   def connect(self):
-    self.db = MySQLdb.connect(user = username, db = database, passwd = password)
+    self.db = MySQLdb.connect(user = self.username, db = self.database, passwd = self.password)
     self.cur = self.db.cursor()
 
-  def sql_cache_clear(self):
+  def close(self):
+    if self.cur:
+      self.cur.close()
+    self.cur = None
+    if self.db:
+      self.db.close()
+    self.db = None
+
+  def ping(self):
+    return self.db.ping(True)
+
+  def _wrap_execute(self, func, query, args):
+    try:
+      return func(query, args)
+    except _mysql_exceptions.MySQLError:
+      if self.dirty:
+        rpki.log.warn("MySQL exception with dirty objects in SQL cache!")
+      raise
+
+  def execute(self, query, args = None):
+    return self._wrap_execute(self.cur.execute, query, args)
+
+  def executemany(self, query, args):
+    return self._wrap_execute(self.cur.executemany, query, args)
+
+  def fetchall(self):
+    return self.cur.fetchall()
+
+  def lastrowid(self):
+    return self.cur.lastrowid
+
+  def cache_clear(self):
     """Clear the object cache."""
-    self.sql_cache.clear()
+    self.cache.clear()
 
-  def sql_assert_pristine(self):
+  def assert_pristine(self):
     """Assert that there are no dirty objects in the cache."""
-    assert not self.sql_dirty, "Dirty objects in SQL cache: %s" % self.sql_dirty
+    assert not self.dirty, "Dirty objects in SQL cache: %s" % self.dirty
 
-  def sql_sweep(self):
+  def sweep(self):
     """Write any dirty objects out to SQL."""
-    for s in self.sql_dirty.copy():
+    for s in self.dirty.copy():
       rpki.log.debug("Sweeping %s" % repr(s))
       if s.sql_deleted:
         s.sql_delete()
       else:
         s.sql_store()
-    self.sql_assert_pristine()
+    self.assert_pristine()
 
 class template(object):
   """SQL template generator."""
@@ -124,8 +145,8 @@ class sql_persistant(object):
       return None
     assert isinstance(id, (int, long)), "id should be an integer, was %s" % repr(type(id))
     key = (cls, id)
-    if key in gctx.sql_cache:
-      return gctx.sql_cache[key]
+    if key in gctx.sql.cache:
+      return gctx.sql.cache[key]
     else:
       return cls.sql_fetch_where1(gctx, "%s = %%s" % cls.sql_template.index, (id,))
 
@@ -154,17 +175,17 @@ class sql_persistant(object):
       assert args is None
       if cls.sql_debug:
         rpki.log.debug("sql_fetch_where(%s)" % repr(cls.sql_template.select))
-      gctx.cur.execute(cls.sql_template.select)
+      gctx.sql.execute(cls.sql_template.select)
     else:
       query = cls.sql_template.select + " WHERE " + where
       if cls.sql_debug:
         rpki.log.debug("sql_fetch_where(%s, %s)" % (repr(query), repr(args)))
-      gctx.cur.execute(query, args)
+      gctx.sql.execute(query, args)
     results = []
-    for row in gctx.cur.fetchall():
+    for row in gctx.sql.fetchall():
       key = (cls, row[0])
-      if key in gctx.sql_cache:
-        results.append(gctx.sql_cache[key])
+      if key in gctx.sql.cache:
+        results.append(gctx.sql.cache[key])
       else:
         results.append(cls.sql_init(gctx, row, key))
     return results
@@ -175,22 +196,22 @@ class sql_persistant(object):
     self = cls()
     self.gctx = gctx
     self.sql_decode(dict(zip(cls.sql_template.columns, row)))
-    gctx.sql_cache[key] = self
+    gctx.sql.cache[key] = self
     self.sql_in_db = True
     self.sql_fetch_hook()
     return self
 
   def sql_mark_dirty(self):
     """Mark this object as needing to be written back to SQL."""
-    self.gctx.sql_dirty.add(self)
+    self.gctx.sql.dirty.add(self)
 
   def sql_mark_clean(self):
     """Mark this object as not needing to be written back to SQL."""
-    self.gctx.sql_dirty.discard(self)
+    self.gctx.sql.dirty.discard(self)
 
   def sql_is_dirty(self):
     """Query whether this object needs to be written back to SQL."""
-    return self in self.gctx.sql_dirty
+    return self in self.gctx.sql.dirty
 
   def sql_mark_deleted(self):
     """Mark this object as needing to be deleted in SQL."""
@@ -199,15 +220,15 @@ class sql_persistant(object):
   def sql_store(self):
     """Store this object to SQL."""
     if not self.sql_in_db:
-      self.gctx.cur.execute(self.sql_template.insert, self.sql_encode())
-      setattr(self, self.sql_template.index, self.gctx.cur.lastrowid)
-      self.gctx.sql_cache[(self.__class__, self.gctx.cur.lastrowid)] = self
+      self.gctx.sql.execute(self.sql_template.insert, self.sql_encode())
+      setattr(self, self.sql_template.index, self.gctx.sql.lastrowid())
+      self.gctx.sql.cache[(self.__class__, self.gctx.sql.lastrowid())] = self
       self.sql_insert_hook()
     else:
-      self.gctx.cur.execute(self.sql_template.update, self.sql_encode())
+      self.gctx.sql.execute(self.sql_template.update, self.sql_encode())
       self.sql_update_hook()
     key = (self.__class__, getattr(self, self.sql_template.index))
-    assert key in self.gctx.sql_cache and self.gctx.sql_cache[key] == self
+    assert key in self.gctx.sql.cache and self.gctx.sql.cache[key] == self
     self.sql_mark_clean()
     self.sql_in_db = True
 
@@ -215,11 +236,11 @@ class sql_persistant(object):
     """Delete this object from SQL."""
     if self.sql_in_db:
       id = getattr(self, self.sql_template.index)
-      self.gctx.cur.execute(self.sql_template.delete, id)
+      self.gctx.sql.execute(self.sql_template.delete, id)
       self.sql_delete_hook()
       key = (self.__class__, id)
-      if self.gctx.sql_cache.get(key) == self:
-        del self.gctx.sql_cache[key]
+      if self.gctx.sql.cache.get(key) == self:
+        del self.gctx.sql.cache[key]
       self.sql_in_db = False
     self.sql_mark_clean()
 

@@ -306,7 +306,7 @@ class issue_pdu(base_elt):
         resources = resources)
 
     # Save anything we modified and generate response
-    self.gctx.sql_sweep()
+    self.gctx.sql.sweep()
     assert child_cert and child_cert.sql_in_db
     c = certificate_elt()
     c.cert_url = multi_uri(child_cert.uri(ca))
@@ -365,7 +365,7 @@ class revoke_pdu(revoke_syntax):
     for ca_detail in child.ca_from_class_name(self.class_name).ca_details():
       for child_cert in child.child_certs(ca_detail = ca_detail, ski = self.get_SKI()):
         child_cert.revoke()
-    self.gctx.sql_sweep()
+    self.gctx.sql.sweep()
     r_msg.payload = revoke_response_pdu()
     r_msg.payload.class_name = self.class_name
     r_msg.payload.ski = self.ski

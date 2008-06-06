@@ -30,6 +30,8 @@ import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509
 def handler(query, path):
   try:
 
+    db.ping(reconnect = True)
+
     q_msg = rpki.left_right.cms_msg.unwrap(query, (bpki_ta, rpkid_cert))
 
     if not isinstance(q_msg, rpki.left_right.msg) or q_msg.type != "query":

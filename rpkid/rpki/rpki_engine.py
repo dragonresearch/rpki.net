@@ -103,6 +103,7 @@ class rpkid_context(object):
     """Process one left-right PDU."""
     rpki.log.trace()
     try:
+      self.db.ping(True)
       q_msg = rpki.left_right.cms_msg.unwrap(query, (self.bpki_ta, self.irbe_cert))
       if q_msg.type != "query":
         raise rpki.exceptions.BadQuery, "Message type is not query"
@@ -118,6 +119,7 @@ class rpkid_context(object):
     """Process one up-down PDU."""
     rpki.log.trace()
     try:
+      self.db.ping(True)
       child_id = path.partition("/up-down/")[2]
       if not child_id.isdigit():
         raise rpki.exceptions.BadContactURL, "Bad path: %s" % path
@@ -138,6 +140,7 @@ class rpkid_context(object):
 
     rpki.log.trace()
     try:
+      self.db.ping(True)
       for s in rpki.left_right.self_elt.sql_fetch_all(self):
         s.client_poll()
         s.update_children()

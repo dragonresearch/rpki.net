@@ -62,6 +62,7 @@ class pubd_context(rpki.rpki_engine.rpkid_context):
     """Process one PDU from the IRBE."""
     rpki.log.trace()
     try:
+      self.db.ping(True)
       return 200, self.handler_common(query, None, (self.bpki_ta, self.irbe_cert))
     except Exception, data:
       rpki.log.error(traceback.format_exc())
@@ -71,6 +72,7 @@ class pubd_context(rpki.rpki_engine.rpkid_context):
     """Process one PDU from a client."""
     rpki.log.trace()
     try:
+      self.db.ping(True)
       client_id = path.partition("/client/")[2]
       if not client_id.isdigit():
         raise rpki.exceptions.BadContactURL, "Bad path: %s" % path

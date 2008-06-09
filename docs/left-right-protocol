@@ -21,6 +21,10 @@ PERFORMANCE OF THIS SOFTWARE.
 
 - IRDB: Internet Registry Data Base
 
+- BPKI: Business PKI
+
+- RPKI: Resource PKI
+
 @section Protocol operations between IRBE and RPKI engine
 
 The left-right protocol is really two separate client/server protocols
@@ -76,6 +80,9 @@ object are "per-self" data.
 Since all other RPKI engine objects refer to a <self/> object via a
 "self_id" value, one must create a <self/> object before one can
 usefully configure any other left-right protocol objects.
+
+Every <self/> object has a self_id attribute, which must be specified
+for the "set", "get", and "destroy" actions.
 
 Payload data which can be configured in a <self/> object:
 
@@ -153,50 +160,65 @@ Control attributes that can be set to "yes" to force actions:
     if RPKI engine and publication engine somehow get out of sync.
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Business signing key context -- bundles all the stuff we need to
-;; sign outgoing CMS messages with a business key.
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@subsubsection <bsc/> object
 
-(biz-signing-context :action :create
-		     :self-id 42
-		     (:signing-cert cert1)
-		     ;;
-		     ;; Actions:
-		     ;;
-		     (:generate-keypair :key-type :rsa
-					:hash-alg :sha1
-					:key-length 2048))
-=> (biz-signing-context :biz-signing-context-id 17
-			(:pkcs10-cert-request req))
+The <bsc/> ("business signing context") object represents all the BPKI
+data needed to sign outgoing CMS or HTTPS messages.  Various other
+objects include pointers to a <bsc/> object.  Whether a particular
+<self/> uses only one <bsc/> or multiple is a configuration decision
+based on external requirements: the RPKI engine code doesn't care, it
+just cares that, for any object representing a relationship for which
+it must sign messages, there be a <bsc/> object that it can use to
+produce that signature.
 
-(biz-signing-context :action :set
-		     :self-id 42
-		     :biz-signing-context-id 17
-		     (:signing-cert cert2))
-=> (biz-signing-context :biz-signing-context-id 17)
+Every <bsc/> object has a bsc_id, which must be specified for the
+"get", "set", and "destroy" actions.  Every <bsc/> also has a self_id
+attribute which indicates the <self/> object with which this <bsc/>
+object is associated.
 
-(biz-signing-context :action :get
-		     :self-id 42
-		     :biz-signing-context-id 17)
-=> (biz-signing-context :biz-signing-context-id 17
-			(:signing-cert cert1)
-			(:signing-cert cert2)
-			(:public-key key))
+Payload data which can be configured in a <isc/> object:
 
-(biz-signing-context :action :list
-		     :self-id 42)
-=> ((biz-signing-context :biz-signing-context-id 17
-			 (:signing-cert cert1)
-			 (:signing-cert cert2)
-			 (:public-key key)))
+@li signing_cert (subelement)
 
-(biz-signing-context :action :destroy
-		     :self-id 42
-		     :biz-signing-context-id 17)
-=> (biz-signing-context :biz-signing-context-id 17)
+    BPKI certificate to use when generating a signature.
+
+@li signing_cert_crl (subelement)
+
+    CRL which would list signing_cert if it had been revoked.
+
+Control attributes that can be set to "yes" to force actions:
+
+@li generate_keypair
+
+    Generate a new BPKI keypair and return a PKCS #10 certificate
+    request.  The resulting certificate, once issued, should be
+    configured as this <bsc/> object's signing_cert.
+
+Additional attributes which may be specified when specifying
+"generate_keypair":
+
+@li key_type
+
+    Type of BPKI keypair to generate.  "rsa" is both the default and,
+    at the moment, the only allowed value.
+
+@li hash_alg
+
+    Cryptographic hash algorithm to use with this keypair.  "sha256"
+    is both the default and, at the moment, the only allowed value.
+
+@li key_length
+
+    Length in bits of the keypair to be generated.  "2048" is both the
+    default and, at the moment, the only allowed value.
+
+Replies to "create" and "set" actions that specify "generate-keypair"
+include a <bsc_pkcs10/> subelement, as do replies to "get" and "list"
+actions for a <bsc/> object for which a "generate-keypair" command has
+been issued.  The RPKI engine stores the PKCS #10 request, which
+allows the IRBE to reuse the request if and when it needs to reissue
+the corresponding BPKI signing certificate.
+
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

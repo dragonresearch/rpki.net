@@ -1,118 +1,157 @@
-;;; -*- Lisp -*-
-;;; $Id$
+-*- Text -*-
+$Id$
 
-;;; Copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
-;;;
-;;; Permission to use, copy, modify, and distribute this software for any
-;;; purpose with or without fee is hereby granted, provided that the above
-;;; copyright notice and this permission notice appear in all copies.
-;;;
-;;; THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-;;; REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-;;; AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-;;; INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-;;; LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-;;; OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-;;; PERFORMANCE OF THIS SOFTWARE.
+Copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
 
-;;; Scratch pad for working out API design for RPKI engine.
-;;;
-;;; This file is pseudocode, I just wanted to take advantage of
-;;; emacs's built-in support for languages with reasonable syntax.
-;;;
-;;; Terminology:
-;;;
-;;; - IRBE: Internet Registry Back End
-;;;
-;;; - RE: RPKI Engine
+Permission to use, copy, modify, and distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;
-;;; Protocol operations between IRBE and RE.
-;;;
-;;; This is really two separate protocols over channels that might or
-;;; not be the same.  Both are client/server protocols, but for some
-;;; the RE is the client and for others the IRBE is the client.
-;;;
-;;; This set of operations are initiated by the IRBE.
-;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;
-;;; This part of the protcol uses a kind of message-passing.  Each
-;;; object that the RE knows about takes five messages: :create, :set,
-;;; :get, :list, and :destroy.  Actions which are not just data
-;;; operations on objects are handled via an SNMP-like mechanism, as
-;;; if they were fields to be set.  For example, to generate a keypair
-;;; one "sets" the :generate-keypair field of a biz-signing-context
-;;; object, even though there is no such field in the object itself.
-;;; This is a bit of a kludge, but the reason for doing it as if these
-;;; were variables being set is to allow composite operations such as
-;;; creating a biz-signing-context, populating all of its data fields,
-;;; and generating a keypair, all as a single operation.  With this
-;;; model, that's trivial, otherwise it's at least two round trips.
-;;;
-;;; Fields can be set in either :create or :set operations, the
-;;; difference just being whether the object already exists.  A :get
-;;; operation returns all visible fields of the object.  A :list
-;;; operation returns a list containing what :get would have returned
-;;; on each of those objects.
-;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
- 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; "Self" ID context -- one RE instance.  In degenerate case there
-;; will be only one, but in hosting environments there might be many.
-;;
-;; We haven't yet defined any standard preferences, so none are shown.
-;;
-;; Extensions might also show up as preferences, using the
-;; extension-preference syntax.
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
 
-(self :action :create
-      (:extension-preference "name" "Launcelot")
-      (:extension-preference "quest" "Holy Grail"))
-=> (self :self-id 42)
+@section Terminology
 
-(self :action :set
-      :self-id 42
-      (:extension-preference "color" "Blue")
-      ;;
-      ;; <self> objects have a lot of actions:
-      ;;
-      (:rekey)				; Change all RPKI keys in this context now
-      (:reissue)			; Reissue any cert with changed keys
-      (:revoke)				; Revoke any old keys
-      (:run-now)			; Run this self context now
-      (:publish-world-now))		; Publish everything in this context now
-=> (self :self-id 42)
+- IRBE: Internet Registry Back End
 
-(self :action :get
-      :self-id 42)
-=> (self
-    :self-id 42
-    (:extension-preference "name" "Launcelot")
-    (:extension-preference "quest" "Holy Grail")
-    (:extension-preference "color" "Blue"))
+- IRDB: Internet Registry Data Base
 
-(self :action :list)
-=> ((self
-     :self-id 42
-     (:extension-preference "name" "Launcelot")
-     (:extension-preference "quest" "Holy Grail")
-     (:extension-preference "color" "Blue"))
-    (self
-     :self-id 99
-     (:extension-preference "name" "Arthur, King of the Britons")
-     (:extension-preference "quest" "Holy Grail")
-     (:extension-preference "airspeed-velocity-of-an-unladen-swallow"
-			    "African or European swallow?")))
+@section Protocol operations between IRBE and RPKI engine
 
-(self :action :destroy
-      :self-id 42)
-=> (self :self-id 42)
+The left-right protocol is really two separate client/server protocols
+over separate channels.  The IRBE is the client for one of the
+subprotocols, the RPKI engine is the client for the other.
+
+@subsection Operations initiated by the IRBE
+
+This part of the protcol uses a kind of message-passing.  Each object
+that the RPKI engine knows about takes five messages: "create", "set",
+"get", "list", and "destroy".  Actions which are not just data
+operations on objects are handled via an SNMP-like mechanism, as if
+they were fields to be set.  For example, to generate a keypair one
+"sets" the "generate-keypair" field of a BSC object, even though there
+is no such field in the object itself as stored in SQL.  This is a bit
+of a kludge, but the reason for doing it as if these were variables
+being set is to allow composite operations such as creating a BSC,
+populating all of its data fields, and generating a keypair, all as a
+single operation.  With this model, that's trivial, otherwise it's at
+least two round trips.
+
+Fields can be set in either "create" or "set" operations, the
+difference just being whether the object already exists.  A "get"
+operation returns all visible fields of the object.  A "list"
+operation returns a list containing what "get" would have returned on
+each of those objects.
+
+Left-right protocol objects are encoded as signed CMS messages
+containing XML as eContent and using an eContentType OID of id-ct-xml
+(1.2.840.113549.1.9.16.1.28).  These CMS messages are in turn passed
+as the data for HTTPS POST operations, with an HTTP content type of
+"application/x-rpki" for both the POST data and the response data.
+
+All operations allow an optional "tag" attribute which can be any
+alphanumeric token.  The main purpose of the tag attribute is to allow 
+
+@subsubsection <self/> object
+
+A <self/> object represents one virtual RPKI engine.  In simple cases
+where the RPKI engine operator operates the engine only on their own
+behalf, there will only be one <self/> object, representing the engine
+operator's organization, but in environments where the engine operator
+hosts other entities, there will be one <self/> object per hosted
+entity (probably including the engine operator's own organization,
+considered as a hosted customer of itself).
+
+Some of the RPKI engine's configured parameters and data are shared by
+all hosted entities, but most are tied to a specific <self/> object.
+Data which are shared by all hosted entities are referred to as
+"per-engine" data, data which are specific to a particular <self/>
+object are "per-self" data.
+
+Since all other RPKI engine objects refer to a <self/> object via a
+"self_id" value, one must create a <self/> object before one can
+usefully configure any other left-right protocol objects.
+
+Payload data which can be configured in a <self/> object:
+
+@li use_hsm (attribute)
+
+    Whether to use a Hardware Signing Module.  At present this option
+    has no effect, as the implementation does not yet support HSMs.
+
+@li crl_interval (attribute)
+
+    Positive integer representing the planned lifetime of an RPKI CRL
+    for this <self/>, measured in seconds.
+
+@li regen_margin (attribute)
+
+    Positive integer representing how long before expiration of an
+    RPKI certificiate a new one should be generated, measured in
+    seconds.  At present this only affects the one-off EE certificates
+    associated with ROAs.
+
+@li bpki_cert (subelement)
+
+    BPKI CA certificate for this <self/>.  This is used as part of the
+    certificate chain when validating incoming TLS and CMS messages,
+    and should be the issuer of cross-certification BPKI certificates
+    used in <repository/>, <parent/>, and <child/> objects.  If the
+    bpki_glue certificate is in use (below), the bpki_cert certificate
+    should be issued by the bpki_glue certificate; otherwise, the
+    bpki_cert certificate should be issued by the per-engine bpki_ta
+    certificate.
+
+@li bpki_glue (subelement)
+
+    Another BPKI CA certificate for this <self/>, usually not needed.
+    Certain pathological cross-certification cases require a
+    two-certificate chain due to issuer name conflicts.  If used, the
+    bpki_glue certificate should be the issuer of the bpki_cert
+    certificate and should be issued by the per-engine bpki_ta
+    certificate; if not needed, the bpki_glue certificate should be
+    left unset.
+
+Control attributes that can be set to "yes" to force actions:
+
+@li rekey
+
+    Start a key rollover for every RPKI CA associated with every
+    <parent/> object associated with this <self/> object.  This is the
+    first phase of a key rollover operation.
+
+@li revoke
+
+    Revoke any remaining certificates for any expired key associated
+    with any RPKI CA for any <parent/> object associated with this
+    <self/> object.   This is the second (cleanup) phase for a key
+    rollover operation; it's separate from the first phase to leave
+    time for new RPKI certificates to propegate and be installed.
+
+@li reissue
+
+    Not implemented, may be removed from protocol.  Original theory
+    was that this operation would force reissuance of any object with
+    a changed key, but as that happens automatically as part of the
+    key rollover mechanism this operation seems unnecessary.
+
+@li run_now
+
+    Force immediate processing for all tasks associated with this
+    <self/> object that would ordinarily be performed under cron.  Not
+    currently implemented.
+
+@li publish_world_now
+
+    Force (re)publication of every publishable object for this <self/>
+    object.  Not currently implemented.   Intended to aid in recovery
+    if RPKI engine and publication engine somehow get out of sync.
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -162,7 +201,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Parent context -- represents one parent of this RE
+;; Parent context -- represents one parent of this RPKI engine
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -218,7 +257,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Child context -- represents one child of this RE
+;; Child context -- represents one child of this RPKI engine
 ;;
 ;; "child-db-id" may be unnecessary -- old API had both "child" and
 ;; "child-id", the second of which was a settable attribute of child,
@@ -267,7 +306,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Repository context -- represents one repository in which this RE
+;; Repository context -- represents one repository in which this RPKI engine
 ;; publishes objects it signs.
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -313,7 +352,7 @@
 ;; Route Origin objects (prototype and control for ROAs)
 ;;
 ;; Previous versions of this protocol handled this via queries from
-;; the RE back into the IRBE, but the design group now believes that
+;; the RPKI engine back into the IRBE, but the design group now believes that
 ;; an imperative interface makes more sense.  We stick to the same
 ;; general object model used above because ROAs are published objects,
 ;; thus the IRBE presumably wants some kind of handle on the ROA.
@@ -369,13 +408,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
-;;; Protocol operations between IRBE and RE.
+;;; Protocol operations between IRBE and RPKI engine.
 ;;;
 ;;; This is really two separate protocols over channels that might or
 ;;; not be the same.  Both are client/server protocols, but for some
 ;;; the rpki engine and for others the irbe is the client.
 ;;;
-;;; This set of operations are initiated by the RE.
+;;; This set of operations are initiated by the RPKI engine.
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -386,7 +425,7 @@
      (:ipv4-prefix 10.3.0.44 32)
      (:ipv6-prefix fe80:dead:beef:: 48)
      (:as-number 666))
-    ((:subject-name "wombats are us")	; Allowed in protocol, but RE may reject with error
+    ((:subject-name "wombats are us")	; Allowed in protocol, but RPKI engine may reject with error
      (:ipv4-prefix 10.2..0.6 32)
      (:ipv6-prefix fe80:dead:beef:: 48)
      (:ipv6-range fe80:dead:beef:: fe80:dead:beef::49)

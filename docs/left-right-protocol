@@ -17,13 +17,13 @@ PERFORMANCE OF THIS SOFTWARE.
 
 @section Terminology
 
-- IRBE: Internet Registry Back End
+@li @em IRBE: Internet Registry Back End
 
-- IRDB: Internet Registry Data Base
+@li @em IRDB: Internet Registry Data Base
 
-- BPKI: Business PKI
+@li @em BPKI: Business PKI
 
-- RPKI: Resource PKI
+@li @em RPKI: Resource PKI
 
 @section Protocol operations between IRBE and RPKI engine
 
@@ -59,7 +59,8 @@ as the data for HTTPS POST operations, with an HTTP content type of
 "application/x-rpki" for both the POST data and the response data.
 
 All operations allow an optional "tag" attribute which can be any
-alphanumeric token.  The main purpose of the tag attribute is to allow 
+alphanumeric token.  The main purpose of the tag attribute is to allow
+batching of multiple requests into a single PDU.
 
 @subsubsection <self/> object
 
@@ -86,24 +87,24 @@ for the "set", "get", and "destroy" actions.
 
 Payload data which can be configured in a <self/> object:
 
-@li use_hsm (attribute)
+@li use_hsm (attribute):
 
     Whether to use a Hardware Signing Module.  At present this option
     has no effect, as the implementation does not yet support HSMs.
 
-@li crl_interval (attribute)
+@li crl_interval (attribute):
 
     Positive integer representing the planned lifetime of an RPKI CRL
     for this <self/>, measured in seconds.
 
-@li regen_margin (attribute)
+@li regen_margin (attribute):
 
     Positive integer representing how long before expiration of an
     RPKI certificiate a new one should be generated, measured in
     seconds.  At present this only affects the one-off EE certificates
     associated with ROAs.
 
-@li bpki_cert (subelement)
+@li bpki_cert (element):
 
     BPKI CA certificate for this <self/>.  This is used as part of the
     certificate chain when validating incoming TLS and CMS messages,
@@ -114,7 +115,7 @@ Payload data which can be configured in a <self/> object:
     bpki_cert certificate should be issued by the per-engine bpki_ta
     certificate.
 
-@li bpki_glue (subelement)
+@li bpki_glue (element):
 
     Another BPKI CA certificate for this <self/>, usually not needed.
     Certain pathological cross-certification cases require a
@@ -178,11 +179,11 @@ object is associated.
 
 Payload data which can be configured in a <isc/> object:
 
-@li signing_cert (subelement)
+@li signing_cert (element):
 
     BPKI certificate to use when generating a signature.
 
-@li signing_cert_crl (subelement)
+@li signing_cert_crl (element):
 
     CRL which would list signing_cert if it had been revoked.
 
@@ -213,7 +214,7 @@ Additional attributes which may be specified when specifying
     default and, at the moment, the only allowed value.
 
 Replies to "create" and "set" actions that specify "generate-keypair"
-include a <bsc_pkcs10/> subelement, as do replies to "get" and "list"
+include a <bsc_pkcs10/> element, as do replies to "get" and "list"
 actions for a <bsc/> object for which a "generate-keypair" command has
 been issued.  The RPKI engine stores the PKCS #10 request, which
 allows the IRBE to reuse the request if and when it needs to reissue
@@ -238,29 +239,29 @@ publishing issued by the certificate issued by this parent.
 
 Payload data which can be configured in a <parent/> object:
 
-@li peer_contact_uri (attribute)
+@li peer_contact_uri (attribute):
 
     HTTPS URI used to contact this parent.
 
-@li sia_base (attribute)
+@li sia_base (attribute):
 
     The leading portion of an rsync URI that the RPKI engine should
     use when composing the publication URI for objects issued by the
     RPKI certificate issued by this parent.
 
-@li sender_name (attribute)
+@li sender_name (attribute):
 
     Sender name to use in the up-down protocol when talking to this
     parent.  The RPKI engine doesn't really care what this value is,
     but other implementations of the up-down protocol do care.
 
-@li recipient_name (attribute)
+@li recipient_name (attribute):
 
     Recipient name to use in the up-down protocol when talking to this
     parent.   The RPKI engine doesn't really care what this value is,
     but other implementations of the up-down protocol do care.
 
-@li bpki_cms_cert (subelement)
+@li bpki_cms_cert (element):
 
     BPKI CMS CA certificate for this <parent/>.  This is used as part
     of the certificate chain when validating incoming CMS messages If
@@ -269,7 +270,7 @@ Payload data which can be configured in a <parent/> object:
     otherwise, the bpki_cms_cert certificate should be issued by the
     bpki_cert certificate in the <self/> object.
 
-@li bpki_cms_glue (subelement)
+@li bpki_cms_glue (element):
 
     Another BPKI CMS CA certificate for this <parent/>, usually not
     needed.  Certain pathological cross-certification cases require a
@@ -279,13 +280,13 @@ Payload data which can be configured in a <parent/> object:
     certificate in the <self/> object; if not needed, the
     bpki_cms_glue certificate should be left unset.
 
-@li bpki_https_cert (subelement)
+@li bpki_https_cert (element):
 
     BPKI HTTPS CA certificate for this <parent/>.  This is like the
     bpki_cms_cert object, only used for validating incoming TLS
     messages rather than CMS.
 
-@li bpki_cms_glue (subelement)
+@li bpki_cms_glue (element):
 
     Another BPKI HTTPS CA certificate for this <parent/>, usually not
     needed.  This is like the bpki_cms_glue certificate, only used for
@@ -320,7 +321,7 @@ self_id attribute which indicates the <self/> object with which this
 
 Payload data which can be configured in a <child/> object:
 
-@li bpki_cert (subelement)
+@li bpki_cert (element):
 
     BPKI CA certificate for this <child/>.  This is used as part of
     the certificate chain when validating incoming TLS and CMS
@@ -329,7 +330,7 @@ Payload data which can be configured in a <child/> object:
     certificate; otherwise, the bpki_cert certificate should be issued
     by the bpki_cert certificate in the <self/> object.
 
-@li bpki_glue (subelement)
+@li bpki_glue (element):
 
     Another BPKI CA certificate for this <child/>, usually not needed.
     Certain pathological cross-certification cases require a
@@ -357,11 +358,11 @@ object with which this <repository/> object is associated.
 
 Payload data which can be configured in a <repository/> object:
 
-@li peer_contact_uri (attribute)
+@li peer_contact_uri (attribute):
 
     HTTPS URI used to contact this repository.
 
-@li bpki_cms_cert (subelement)
+@li bpki_cms_cert (element):
 
     BPKI CMS CA certificate for this <repository/>.  This is used as part
     of the certificate chain when validating incoming CMS messages If
@@ -370,7 +371,7 @@ Payload data which can be configured in a <repository/> object:
     otherwise, the bpki_cms_cert certificate should be issued by the
     bpki_cert certificate in the <self/> object.
 
-@li bpki_cms_glue (subelement)
+@li bpki_cms_glue (element):
 
     Another BPKI CMS CA certificate for this <repository/>, usually not
     needed.  Certain pathological cross-certification cases require a
@@ -380,13 +381,13 @@ Payload data which can be configured in a <repository/> object:
     certificate in the <self/> object; if not needed, the
     bpki_cms_glue certificate should be left unset.
 
-@li bpki_https_cert (subelement)
+@li bpki_https_cert (element):
 
     BPKI HTTPS CA certificate for this <repository/>.  This is like the
     bpki_cms_cert object, only used for validating incoming TLS
     messages rather than CMS.
 
-@li bpki_cms_glue (subelement)
+@li bpki_cms_glue (element):
 
     Another BPKI HTTPS CA certificate for this <repository/>, usually not
     needed.  This is like the bpki_cms_glue certificate, only used for
@@ -421,17 +422,17 @@ the prefix and maxLength encoding used in the -03 draft.
 
 Payload data which can be configured in a <route_origin/> object:
 
-@li as_number (attribute)
+@li as_number (attribute):
 
     Autonomous System Number (ASN) to place in the generated ROA.  A
     single ROA can only grant authorization to a single ASN; multiple
     ASNs require multiple ROAs, thus multiple <route_origin/> objects.
 
-@li ipv4 (attribute)
+@li ipv4 (attribute):
 
     List of IPv4 prefix and maxLength values, see below for format.
 
-@li ipv6 (attribute)
+@li ipv6 (attribute):
 
     List of IPv6 prefix and maxLength values, see below for format.
 
@@ -460,34 +461,99 @@ ABNF for these address lists:
 For example, @c "10.0.1.0/24-32,10.0.2.0/24", which is a shorthand
 form of @c "10.0.1.0/24-32,10.0.2.0/24-24".
 
+@subsection Operations initiated by the RPKI engine
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;
-;;; Protocol operations between IRBE and RPKI engine.
-;;;
-;;; This is really two separate protocols over channels that might or
-;;; not be the same.  Both are client/server protocols, but for some
-;;; the rpki engine and for others the irbe is the client.
-;;;
-;;; This set of operations are initiated by the RPKI engine.
-;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+The left-right protocol also includes queries from the RPKI engine
+back to the IRDB.  These queries do not follow the message-passing
+pattern used in the IRBE-initiated part of the protocol.  Instead,
+there's a single query back to the IRDB, with a corresponding
+response.  The CMS and HTTPS encoding are the same as in the rest of
+the protocol, but the BPKI certificates will be different as the
+back-queries and responses form a separate communication channel.
 
-(list-resources :self-id 42		; issuer id
-		:child id)		; subject id
-=> (resources :valid-until 2008-04-01T00:00:00Z
-    ((:ipv4-prefix 10.0.0.44 32)
-     (:ipv4-prefix 10.3.0.44 32)
-     (:ipv6-prefix fe80:dead:beef:: 48)
-     (:as-number 666))
-    ((:subject-name "wombats are us")	; Allowed in protocol, but RPKI engine may reject with error
-     (:ipv4-prefix 10.2..0.6 32)
-     (:ipv6-prefix fe80:dead:beef:: 48)
-     (:ipv6-range fe80:dead:beef:: fe80:dead:beef::49)
-     (:as-number 666))
-    ...)
+@subsubsection <list_resources/> messages
 
-(report-error :self-id 42
-	      :error-token :your-hair-is-on-fire
-	      :bag-of-data whatever)
-=> ()
+The <list_resources/> query and response allow the RPKI engine to ask
+the IRDB for information about resources assigned to a particular
+child.  The query must include both a @c "self_id" attribute naming
+the <self/> that is making the request and also a @c "child_id"
+attribute naming the child that is the subject of the query.  The
+query and response also allow an optional @c "tag" attribute of the
+same form used elsewhere in this protocol, to allow batching.
+
+A <list_resources/> response includes the following attributes, along
+with the @c tag (if specified), @c self_id, and @c child_id copied
+from the request:
+
+@li @c valid_until:
+
+    A timestamp indicating the date and time at which certificates
+    generated by the RPKI engine for these data should expire.  The
+    timestamp is expressed as an XML @c xsd:dateTime, must be
+    expressed in UTC, and must carry the "Z" suffix indicating UTC.
+
+@li @c subject_name:
+
+    An optional text string naming the child.  Not currently used.
+
+@li @c asn:
+
+    A list of autonomous sequence numbers, expressed as a
+    comma-separated sequence of decimal integers with no whitespace.
+
+@li @c ipv4:
+
+    A list of IPv4 address prefixes and ranges, expressed as a
+    comma-separated list of prefixes and ranges with no whitespace.
+    See below for format details.
+
+@li @c ipv6:
+
+    A list of IPv6 address prefixes and ranges, expressed as a
+    comma-separated list of prefixes and ranges with no whitespace.
+    See below for format details.
+
+Entries in a list of address prefixes and ranges can be either
+prefixes, which are written in the usual address/prefixlen notation,
+or ranges, which are expressed as a pair of addresses denoting the
+beginning and end of the range, written in ascending order separated
+by a single "-" character.  This format is superficially similar to
+the format used for prefix and maxLength values in the <route_origin/>
+object, but the semantics differ: note in particular that
+<route_origin/> objects don't allow ranges, while <list_resources/>
+messages don't allow a maxLength specification.
+
+@subsection Error handling
+
+Error in this protocol are handled at two levels.
+
+Since all messages in this protocol are conveyed over HTTPS
+connections, basic errors are indicated via the HTTP response code.
+4xx and 5xx responses indicate that something bad happened.  Errors
+that make it impossible to decode a query or encode a response are
+handled in this way.
+
+Where possible, errors will result in a <report_error/> message which
+takes the place of the expected protocol response message.
+<report_error/> messages are CMS-signed XML messages like the rest of
+this protocol, and thus can be archived to provide an audit trail.
+
+<report_error/> messages only appear in replies, never in queries.
+The <report_error/> message can appear on either the "forward" (IRBE
+as client of RPKI engine) or "back" (RPKI engine as client of IRDB)
+communication channel.
+
+The <report_error/> message includes an optional @c "tag" attribute to
+assist in matching the error with a particular query when using
+batching, and also includes a @c "self_id" attribute indicating the
+<self/> that issued the error.
+
+The error itself is conveyed in the @c error_code (attribute).  The
+value of this attribute is a token indicating the specific error that
+occurred.  At present this will be the name of a Python exception; the
+production version of this protocol will nail down the allowed error
+tokens here, probably in the RelaxNG schema.
+
+The body of the <report_error/> element itself is an optional text
+string; if present, this is debugging information.  At present this
+capabilty is not used, debugging information goes to syslog.

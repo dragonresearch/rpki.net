@@ -231,12 +231,16 @@ stub.
 Every <parent/> object has a parent_id, which must be specified for
 the "get", "set", and "destroy" actions.  Every <parent/> also has a
 self_id attribute which indicates the <self/> object with which this
-<bsc/> object is associated, a bsc_id attribute indicating the <bsc/>
+<parent/> object is associated, a bsc_id attribute indicating the <bsc/>
 object to be used when signing messages sent to this parent, and a
 repository_id indicating the <repository/> object to be used when
 publishing issued by the certificate issued by this parent.
 
 Payload data which can be configured in a <parent/> object:
+
+@li peer_contact_uri (attribute)
+
+    HTTPS URI used to contact this parent.
 
 @li sia_base (attribute)
 
@@ -309,10 +313,10 @@ Control attributes that can be set to "yes" to force actions:
 The <child/> object represents the RPKI engine's view of particular
 child of the current <self/> in the up-down protocol.
 
-Every <child/> object has a parent_id, which must be specified for
-the "get", "set", and "destroy" actions.  Every <child/> also has a
+Every <child/> object has a parent_id, which must be specified for the
+"get", "set", and "destroy" actions.  Every <child/> also has a
 self_id attribute which indicates the <self/> object with which this
-<bsc/> object is associated.
+<child/> object is associated.
 
 Payload data which can be configured in a <child/> object:
 
@@ -341,48 +345,54 @@ Control attributes that can be set to "yes" to force actions:
 
     Not implemented, may be removed from protocol.
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Repository context -- represents one repository in which this RPKI engine
-;; publishes objects it signs.
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@subsubsection <repository/> object
 
-(repository :action :create
-	    :self-id 42
-	    (:uri uri)
-	    (:ta ta)
-	    (:biz-signing-context biz-signing-context))
-=> (repository :repository-id 120)
+The <repository/> object represents the RPKI engine's view of a
+particular publication repository used by the current <self/> object.
 
-(repository :action :set
-	    :self-id 42
-	    :repository-id 120
-	    (:uri uri)
-	    (:ta ta)
-	    (:biz-signing-context biz-signing-context))
-=> (repository :repository-id 120)
+Every <repository/> object has a repository_id, which must be
+specified for the "get", "set", and "destroy" actions.  Every
+<repository/> also has a self_id attribute which indicates the <self/>
+object with which this <repository/> object is associated.
 
-(repository :action :get
-	    :self-id 42
-	    :repository-id 120)
-=> (repository :repository-id 120
-	       (:uri uri)
-	       (:ta ta)
-	       (:biz-signing-context biz-signing-context))
+Payload data which can be configured in a <repository/> object:
 
-(repository :action :list
-	    :self-id 42
-	    :repository-id 120)
-=> ((repository :repository-id 120
-		(:uri uri)
-		(:ta ta)
-		(:biz-signing-context biz-signing-context)))
+@li peer_contact_uri (attribute)
 
-(repository :action :destroy
-	    :self-id 42
-	    :repository-id 120)
-=> (repository :repository-id 120)
+    HTTPS URI used to contact this repository.
+
+@li bpki_cms_cert (subelement)
+
+    BPKI CMS CA certificate for this <repository/>.  This is used as part
+    of the certificate chain when validating incoming CMS messages If
+    the bpki_cms_glue certificate is in use (below), the bpki_cms_cert
+    certificate should be issued by the bpki_cms_glue certificate;
+    otherwise, the bpki_cms_cert certificate should be issued by the
+    bpki_cert certificate in the <self/> object.
+
+@li bpki_cms_glue (subelement)
+
+    Another BPKI CMS CA certificate for this <repository/>, usually not
+    needed.  Certain pathological cross-certification cases require a
+    two-certificate chain due to issuer name conflicts.  If used, the
+    bpki_cms_glue certificate should be the issuer of the
+    bpki_cms_cert certificate and should be issued by the bpki_cert
+    certificate in the <self/> object; if not needed, the
+    bpki_cms_glue certificate should be left unset.
+
+@li bpki_https_cert (subelement)
+
+    BPKI HTTPS CA certificate for this <repository/>.  This is like the
+    bpki_cms_cert object, only used for validating incoming TLS
+    messages rather than CMS.
+
+@li bpki_cms_glue (subelement)
+
+    Another BPKI HTTPS CA certificate for this <repository/>, usually not
+    needed.  This is like the bpki_cms_glue certificate, only used for
+    validating incoming TLS messages rather than CMS.
+
+At present there are no control attributes for <repository/> objects.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

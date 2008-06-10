@@ -143,10 +143,10 @@
 ## In addition to the library routines in the @c rpkid/rpki/ directory,
 ## the package includes the following programs:
 ## 
-## @li @c rpkid.py
+## @li @c rpkid.py:
 ##              The main RPKI engine daemon
 ## 
-## @li @c rootd.py
+## @li @c rootd.py:
 ##              A separate daemon for handling the root of an RPKI
 ##              certificate tree.  This is essentially a stripped down
 ##              version of rpkid with no SQL database, no left-right
@@ -155,29 +155,29 @@
 ##              is a special case in several ways and it was simpler
 ##              to keep the special cases out of the main daemon.
 ## 
-## @li @c irdbd.py
+## @li @c irdbd.py:
 ##              A sample implementation of an IR database daemon.
 ##              rpkid calls into this to perform lookups via the
 ##              left-right protocol.
 ## 
-## @li @c irbe-cli.py
+## @li @c irbe-cli.py:
 ##              A command-line client for the left-right control
 ##              protocol. 
 ## 
-## @li @c irbe-setup.py
+## @li @c irbe-setup.py:
 ##              An example of a script to set up the mappings between
 ##              the IRDB and rpkid's own database, using the
 ##              left-right control protocol.
 ## 
-## @li @c cronjob.py
+## @li @c cronjob.py:
 ##              A trivial HTTP client used to drive rpkid cron events.
 ## 
-## @li @c testbed.py
+## @li @c testbed.py:
 ##              A test tool for running a collection of rpkid and irdb
 ##              instances under common control, driven by a unified
 ##              test script.
 ## 
-## @li @c testpoke.py
+## @li @c testpoke.py:
 ##              A simple client for the up-down protocol, mostly
 ##              compatable with APNIC's rpki_poke.pl tool.
 ## 
@@ -237,74 +237,74 @@
 ## 
 ## %Config file options:
 ## 
-## @li @c startup-message
+## @li @c startup-message:
 ##                      String to %log on startup, useful when
 ##                      debugging a collection of rpkid instances at
 ##                      once.
 ## 
-## @li @c sql-username
+## @li @c sql-username:
 ##                      Username to hand to MySQL when connecting to
 ##                      rpkid's database.
 ## 
-## @li @c sql-database
+## @li @c sql-database:
 ##                      MySQL's database name for rpkid's database.
 ## 
-## @li @c sql-password
+## @li @c sql-password:
 ##                      Password to hand to MySQL when connecting to
 ##                      rpkid's database.
 ## 
-## @li @c cms-ta-irdb
+## @li @c cms-ta-irdb:
 ##                      Name of file containing CMS trust anchor to
 ##                      use when authenticating messages from irdbd.
 ## 
-## @li @c cms-ta-irbe
+## @li @c cms-ta-irbe:
 ##                      Name of file containing CMS trust anchor to
 ##                      use when authenticating control messages from
 ##                      IRBE.
 ## 
-## @li @c cms-key
+## @li @c cms-key:
 ##                      Name of file containing RSA key to use when
 ##                      signing CMS messages to IRBE or irdbd.
 ## 
-## @li @c cms-cert
+## @li @c cms-cert:
 ##                      Name(s) of file(s) containing certificate(s)
 ##                      to include in CMS wrapper when signing
 ##                      messages to IRBE or irdbd.   You can specify
 ##                      more than one certificate using OpenSSL-style
 ##                      subscripts: cms-cert.0, cms-cert.1, etc.
 ## 
-## @li @c https-key
+## @li @c https-key:
 ##                      Name of file containing RSA key to use, both
 ##                      in the HTTPS server role (for both up-down and
 ##                      left-right protocols) and in the HTTPS client
 ##                      role (left-right protocol only).
 ## 
-## @li @c https-cert
+## @li @c https-cert:
 ##                      Name(s) of file(s) containing certificate(s)
 ##                      to use in same contexts where https-key is
 ##                      used.  You can specify more than one
 ##                      certificate using OpenSSL-style subscripts:
 ##                      https-cert.0, https-cert.1, etc.
 ## 
-## @li @c https-ta
+## @li @c https-ta:
 ##                      Name of file containing trust anchor to use
 ##                      when verifying irdbd's HTTPS server
 ##                      certificate.
 ## 
-## @li @c irdb-url
+## @li @c irdb-url:
 ##                      Service URL for irdbd.  Must be a %https:// URL.
 ## 
-## @li @c https-server-host
+## @li @c https-server-host:
 ##                      Hostname or IP address on which to listen for
 ##                      HTTPS connections.  Current default is
 ##                      INADDR_ANY (IPv4 0.0.0.0); this will need to
 ##                      be hacked to support IPv6 for production.
 ## 
-## @li @c https-server-port
+## @li @c https-server-port:
 ##                      TCP port on which to listen for HTTPS
 ##                      connections.
 ## 
-## @li @c publication-kludge-base
+## @li @c publication-kludge-base:
 ##                      [TEMPORARY] Local directory under which
 ##                      generated certificates etc should be
 ##                      published.  This is a temporary expedient
@@ -328,26 +328,26 @@
 ## 
 ## %Config file options:
 ## 
-## @li @c cms-ta
+## @li @c cms-ta:
 ##                      Name of file containing trust anchor to use
 ##                      when verifying CMS up-down queries.
 ## 
-## @li @c cms-key
+## @li @c cms-key:
 ##                      Name of file containing RSA key to use when
 ##                      signing CMS up-down replies.
 ## 
-## @li @c cms-cert
+## @li @c cms-cert:
 ##                      Name(s) of file(s) containing certificate(s)
 ##                      to include in CMS wrapper when signing up-down
 ##                      replies.   You can specify more than one
 ##                      certificate using OpenSSL-style subscripts:
 ##                      cms-cert.0, cms-cert.1, etc.
 ## 
-## @li @c https-key
+## @li @c https-key:
 ##                      Name of file containing RSA key to use in the
 ##                      HTTPS server role for the up-down protocol.
 ## 
-## @li @c https-cert
+## @li @c https-cert:
 ##                      Name(s) of file(s) containing certificate(s)
 ##                      to use in the HTTPS server role for the
 ##                      up-down protocol.  You can specify more than
@@ -355,28 +355,28 @@
 ##                      subscripts: https-cert.0, https-cert.1,
 ##                      etc.
 ## 
-## @li @c https-server-host
+## @li @c https-server-host:
 ##                      Hostname or IP address on which to listen for
 ##                      HTTPS connections.  Default is localhost.
 ## 
-## @li @c https-server-port
+## @li @c https-server-port:
 ##                      TCP port on which to listen for HTTPS
 ##                      connections.
 ## 
-## @li @c rpki-key
+## @li @c rpki-key:
 ##                      Name of file containing RSA key to use in
 ##                      signing resource certificates.
 ## 
-## @li @c rpki-issuer
+## @li @c rpki-issuer:
 ##                      Name of file containing self-signed root
 ##                      resource certificate corresponding to
 ##                      rpki-key.
 ## 
-## rpki-subject-filename:
+## @li @c rpki-subject-filename:
 ##                      Name of file that rootd should use to save the
 ##                      one and only certificate it issues.
 ## 
-## rpki-pkcs10-filename:
+## @li @c rpki-pkcs10-filename:
 ##                      Name of file that rootd should use when saving
 ##                      a copy of the received PKCS #10 request for a
 ##                      resource certificate.  This is only used for
@@ -407,50 +407,50 @@
 ## 
 ## %Config file options:
 ## 
-## @li @c startup-message
+## @li @c startup-message:
 ##                      String to %log on startup, useful when
 ##                      debugging a collection of irdbd instances at
 ##                      once.
 ## 
-## @li @c sql-username
+## @li @c sql-username:
 ##                      Username to hand to MySQL when connecting to
 ##                      irdbd's database.
 ## 
-## @li @c sql-database
+## @li @c sql-database:
 ##                      MySQL's database name for irdbd's database.
 ## 
-## @li @c sql-password
+## @li @c sql-password:
 ##                      Password to hand to MySQL when connecting to
 ##                      irdbd's database.
 ## 
-## @li @c cms-ta
+## @li @c cms-ta:
 ##                      Name of file containing CMS trust anchor to
 ##                      use when authenticating messages from rpkid.
 ## 
-## @li @c cms-key
+## @li @c cms-key:
 ##                      Name of file containing RSA key to use when
 ##                      signing CMS messages to rpkid.
 ## 
-## @li @c cms-cert
+## @li @c cms-cert:
 ##                      Name(s) of file(s) containing certificate(s)
 ##                      to include in CMS wrapper when signing
 ##                      messages to rpkid.  You can specify more than
 ##                      one certificate using OpenSSL-style
 ##                      subscripts: cms-cert.0, cms-cert.1, etc.
 ## 
-## @li @c https-key
+## @li @c https-key:
 ##                      Name of file containing RSA key to use in the
 ##                      HTTPS server role when listening for
 ##                      connections from rpkid. 
 ## 
-## @li @c https-cert
+## @li @c https-cert:
 ##                      Name(s) of file(s) containing certificate(s)
 ##                      to use in the HTTPS server role when listening
 ##                      for connections from rpkid.  You can specify
 ##                      more than one certificate using OpenSSL-style
 ##                      subscripts: https-cert.0, https-cert.1, etc.
 ## 
-## @li @c https-url
+## @li @c https-url:
 ##                      Service URL for irdbd.  Must be a %https:// URL.
 ## 
 ## 
@@ -510,14 +510,14 @@
 ## elements in the left-right protocol, and the command-specific options
 ## map to attributes or subelements for those commands.
 ## 
-## @c --action is one of create, set, get, %list, or destroy; exactly one of
-## these must be specified for each command.
+## @c --action is one of @c create, @c set, @c get, @c %list, or @c
+## destroy; exactly one of these must be specified for each command.
 ## 
-## @c --type is query or reply; since irbe-cli is a client, query is the
-## default. 
+## @c --type is @c query or @c reply; since irbe-cli is a client,
+## @c query is the default.
 ## 
-## @c --tag is an optional arbitrary tag (think IMAP) to simplify matching
-## up replies with batched queries.
+## @c --tag is an optional arbitrary tag (think IMAP) to simplify
+## matching up replies with batched queries.
 ## 
 ## @c --*_id options refer to the primary keys of previously created
 ## objects.
@@ -536,26 +536,26 @@
 ## 
 ## %Config file options:
 ## 
-## @li @c cms-ta
+## @li @c cms-ta:
 ##                      Name of file containing CMS trust anchor to
 ##                      use when authenticating messages from rpkid.
 ## 
-## @li @c cms-key
+## @li @c cms-key:
 ##                      Name of file containing RSA key to use when
 ##                      signing CMS messages to rpkid.
 ## 
-## @li @c cms-cert
+## @li @c cms-cert:
 ##                      Name(s) of file(s) containing certificate(s)
 ##                      to include in CMS wrapper when signing
 ##                      messages to rpkid.  You can specify more than
 ##                      one certificate using OpenSSL-style
 ##                      subscripts: cms-cert.0, cms-cert.1, etc.
 ## 
-## @li @c https-key
+## @li @c https-key:
 ##                      Name of file containing RSA key to use in the
 ##                      HTTPS client role when contacting rpkid. 
 ## 
-## @li @c https-cert
+## @li @c https-cert:
 ##                      Name(s) of file(s) containing certificate(s)
 ##                      to use in the HTTPS client role when
 ##                      contacting rpkid.  You can specify more than
@@ -563,12 +563,12 @@
 ##                      subscripts: https-cert.0, https-cert.1,
 ##                      etc.
 ## 
-## @li @c https-ta
+## @li @c https-ta:
 ##                      Name of file containing trust anchor to use
 ##                      when verifying rpkid's HTTPS server
 ##                      certificate.
 ## 
-## @li @c https-url
+## @li @c https-url:
 ##                      Service URL for rpkid.  Must be a %https:// URL.
 ## 
 ## 
@@ -581,26 +581,26 @@
 ## 
 ## Options in the "[irbe-cli]" section:
 ## 
-## @li @c cms-ta
+## @li @c cms-ta:
 ##                      Name of file containing CMS trust anchor to
 ##                      use when authenticating messages from rpkid.
 ## 
-## @li @c cms-key
+## @li @c cms-key:
 ##                      Name of file containing RSA key to use when
 ##                      signing CMS messages to rpkid.
 ## 
-## @li @c cms-cert
+## @li @c cms-cert:
 ##                      Name(s) of file(s) containing certificate(s)
 ##                      to include in CMS wrapper when signing
 ##                      messages to rpkid.  You can specify more than
 ##                      one certificate using OpenSSL-style
 ##                      subscripts: cms-cert.0, cms-cert.1, etc.
 ## 
-## @li @c https-key
+## @li @c https-key:
 ##                      Name of file containing RSA key to use in the
 ##                      HTTPS client role when contacting rpkid. 
 ## 
-## @li @c https-cert
+## @li @c https-cert:
 ##                      Name(s) of file(s) containing certificate(s)
 ##                      to use in the HTTPS client role when
 ##                      contacting rpkid.  You can specify more than
@@ -608,24 +608,24 @@
 ##                      subscripts: https-cert.0, https-cert.1,
 ##                      etc.
 ## 
-## @li @c https-ta
+## @li @c https-ta:
 ##                      Name of file containing trust anchor to use
 ##                      when verifying rpkid's HTTPS server
 ##                      certificate.
 ## 
-## @li @c https-url
+## @li @c https-url:
 ##                      Service URL for rpkid.  Must be a %https:// URL.
 ## 
 ## Options in the "[irdbd]" section:
 ## 
-## @li @c sql-username
+## @li @c sql-username:
 ##                      Username to hand to MySQL when connecting to
 ##                      irdbd's database.
 ## 
-## @li @c sql-database
+## @li @c sql-database:
 ##                      MySQL's database name for irdbd's database.
 ## 
-## @li @c sql-password
+## @li @c sql-password:
 ##                      Password to hand to MySQL when connecting to
 ##                      irdbd's database.
 ## 
@@ -648,11 +648,11 @@
 ## 
 ## %Config file options:
 ## 
-## @li @c https-key
+## @li @c https-key:
 ##                      Name of file containing RSA key to use in the
 ##                      HTTPS client role when contacting rpkid. 
 ## 
-## @li @c https-cert
+## @li @c https-cert:
 ##                      Name(s) of file(s) containing certificate(s)
 ##                      to use in the HTTPS client role when
 ##                      contacting rpkid.  You can specify more than
@@ -660,12 +660,12 @@
 ##                      subscripts: https-cert.0, https-cert.1,
 ##                      etc.
 ## 
-## @li @c https-ta
+## @li @c https-ta:
 ##                      Name of file containing trust anchor to use
 ##                      when verifying rpkid's HTTPS server
 ##                      certificate.
 ## 
-## @li @c https-url
+## @li @c https-url:
 ##                      Service URL for rpkid.  Must be a %https:// URL.
 ## 
 ## 
@@ -695,16 +695,20 @@
 ## 
 ## testbed.conf options:
 ## 
-## testbed_dir: Working directory into which testbed should write the
+## @li @c testbed_dir:
+##              Working directory into which testbed should write the
 ##              (many) files it generates.  Default is "testbed.dir".
 ## 
-## irdb_db_pass:        MySQL password for the "irdb" user.  Default is
+## @li @c irdb_db_pass:
+##              MySQL password for the "irdb" user.  Default is
 ##              "fnord".  You may want to override this.
 ## 
-## rpki_db_pass:        MySQL password for the "rpki" user.  Default is
+## @li @c rpki_db_pass:
+##              MySQL password for the "rpki" user.  Default is
 ##              "fnord".  You may want to override this.
 ## 
-## rootd_sia:   rsync URI naming a (perhaps fictious) directory to use
+## @li @c rootd_sia:
+##              rsync URI naming a (perhaps fictious) directory to use
 ##              as the id-ad-caRepository SIA value in the generated
 ##              root resource certificate.  Default is
 ##              "rsync://wombat.invalid/".  You may want to override
@@ -765,24 +769,28 @@
 ## 
 ## Operators in subsequent (update) documents:
 ## 
-##   add_as, add_v4, add_v6:    These add ASN, IPv4, or IPv6
-##                              resources, respectively.
+## @li @c add_as, @c add_v4, @c add_v6:
+##              These add ASN, IPv4, or IPv6 resources, respectively.
 ## 
-##   sub_as, sub_v4, sub_v6:    These subtract resources.
+## @li @c sub_as, @c sub_v4, @c sub_v6:
+##              These subtract resources.
 ## 
-##   valid_until:               Set an absolute expiration date.
+## @li @c valid_until:
+##              Set an absolute expiration date.
 ## 
-##   valid_for:                 Set a relative expiration date.
+## @li @c valid_for:
+##              Set a relative expiration date.
 ## 
-##   valid_add, valid_sub:      Add to or subtract from validity interval.
+## @li @c valid_add, @c valid_sub:
+##              Add to or subtract from validity interval.
 ## 
-##   sleep [interval]:          Sleep for specified interval, or until
-##                              testbed receives a SIGALRM signal.
+## @li @c sleep [interval]:
+##              Sleep for specified interval, or until testbed receives a SIGALRM signal.
 ## 
 ## Absolute timestamps should be in the form shown (UTC timestamp format
 ## as used in XML).
 ## 
-## Intervals (valid_add, valid_sub, valid_for, sleep) are either
+## Intervals (@c valid_add, @c valid_sub, @c valid_for, @c sleep) are either
 ## integers, in which case they're interpreted as seconds, or are a
 ## string of the form "wD xH yM zS" where w, x, y, and z are integers and
 ## D, H, M, and S indicate days, hours, minutes, and seconds.  In the

@@ -394,63 +394,71 @@ Payload data which can be configured in a <repository/> object:
 
 At present there are no control attributes for <repository/> objects.
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Route Origin objects (prototype and control for ROAs)
-;;
-;; Previous versions of this protocol handled this via queries from
-;; the RPKI engine back into the IRBE, but the design group now believes that
-;; an imperative interface makes more sense.  We stick to the same
-;; general object model used above because ROAs are published objects,
-;; thus the IRBE presumably wants some kind of handle on the ROA.
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@subsubsection <route_origin/> object
 
-(route-origin :action :create
-	      :self-id 42)
-=> (route-origin :route-origin-id 88)
+The <route_origin/> object is a kind of prototype for a ROA.  It
+contains all the information needed to generate a ROA once the RPKI
+engine obtains the appropriate RPKI certificates from its parent(s).
 
-(route-origin :action :set
-	      :self-id 42
-	      :route-origin-id 88
-	      :as-number 12345
-	      :publish :yes
-	      (:ipv4-prefix 10.0.0.44 32)
-	      (:ipv4-range  10.2.0.6 10.2.0.77)
-	      (:ipv6-prefix 2002:a00:: 48)
-	      (:ipv6-range  2002:a02:6:: 2002:a02:4d::))
-=> (route-origin :route-origin-id 88)
+Note that a <route_origin/> object represents a ROA to be generated on
+behalf of <self/>, not on behalf of a <child/>.  Thus, a hosted entity
+that has no children but which does need to generate ROAs would be
+represented by a hosted <self/> with no <child/> objects but one or
+more <route_origin/> objects.   While lumping ROA generation in with
+the other RPKI engine activities may seem a little odd at first, it's
+a natural consequence of the design requirement that the RPKI daemon
+never transmit private keys across the network in any form; given this
+requirement, the RPKI engine that holds the private keys for an RPKI
+certificate must also be the engine which generates any ROAs that
+derive from that RPKI certificate.
 
-(route-origin :action :get
-	      :self-id 42
-	      :route-origin-id 88)
-=> (route-origin :route-origin-id 88
-		 (:as-number 12345)
-		 (:ipv4-prefix 10.0.0.44 32)
-		 (:ipv4-range  10.2.0.6 10.2.0.77)
-		 (:ipv6-prefix 2002:a00:: 48)
-		 (:ipv6-range  2002:a02:6:: 2002:a02:4d::))
+The precise content of the <route_origin/> has changed over time as
+the underlying ROA specification has changed.  The current
+implementation as of this writing matches what we expect to see in
+draft-ietf-sidr-roa-format-03, once it is issued.  In particular, note
+that the exactMatch boolean from the -02 draft has been replaced by
+the prefix and maxLength encoding used in the -03 draft.
 
-(route-origin :action :list
-	      :self-id 42)
-=> ((route-origin :route-origin-id 88
-		  (:as-number 12345)
-		  (:ipv4-prefix 10.0.0.44 32)
-		  (:ipv4-range  10.2.0.6 10.2.0.77)
-		  (:ipv6-prefix 2002:a00:: 48)
-		  (:ipv6-range  2002:a02:6:: 2002:a02:4d::)))
+Payload data which can be configured in a <route_origin/> object:
 
-(route-origin :action :destroy
-	      :self-id 42
-	      :route-origin-id 88)
-=> (route-origin :route-origin-id 88)
+@li as_number (attribute)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; "Blind object signing" would probably be another imperative message
-;; to be added above, similar to (route-origin).
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    Autonomous System Number (ASN) to place in the generated ROA.  A
+    single ROA can only grant authorization to a single ASN; multiple
+    ASNs require multiple ROAs, thus multiple <route_origin/> objects.
+
+@li ipv4 (attribute)
+
+    List of IPv4 prefix and maxLength values, see below for format.
+
+@li ipv6 (attribute)
+
+    List of IPv6 prefix and maxLength values, see below for format.
+
+Control attributes that can be set to "yes" to force actions:
+
+@li suppress_publication
+
+    Not implemented, may be removed from protocol.
+
+The lists of IPv4 and IPv6 prefix and maxLength values are represented
+as comma-separated text strings, with no whitespace permitted.  Each
+entry in such a string represents a single prefix/maxLength pair.
+
+ABNF for these address lists:
+
+@verbatim
+
+  <ROAIPAddress> ::= <address> "/" <prefixlen> [ "-" <max_prefixlen> ]
+                        ; Where <max_prefixlen> defaults to the same
+                        ; value as <prefixlen>.
+
+  <ROAIPAddressList> ::= <ROAIPAddress> *( "," <ROAIPAddress> )
+
+@endverbatim
+
+For example, @c "10.0.1.0/24-32,10.0.2.0/24", which is a shorthand
+form of @c "10.0.1.0/24-32,10.0.2.0/24-24".
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

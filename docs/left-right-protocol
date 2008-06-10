@@ -219,112 +219,127 @@ been issued.  The RPKI engine stores the PKCS #10 request, which
 allows the IRBE to reuse the request if and when it needs to reissue
 the corresponding BPKI signing certificate.
 
+@subsubsection <parent/> object
 
+The <parent/> object represents the RPKI engine's view of a particular
+parent of the current <self/> object in the up-down protocol.  Due to
+the way that the resource hierarchy works, a given <self/> may obtain
+resources from multiple parents, but it will always have at least one;
+in the case of IANA or an RIR, the parent RPKI engine may be a trivial
+stub.
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Parent context -- represents one parent of this RPKI engine
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+Every <parent/> object has a parent_id, which must be specified for
+the "get", "set", and "destroy" actions.  Every <parent/> also has a
+self_id attribute which indicates the <self/> object with which this
+<bsc/> object is associated, a bsc_id attribute indicating the <bsc/>
+object to be used when signing messages sent to this parent, and a
+repository_id indicating the <repository/> object to be used when
+publishing issued by the certificate issued by this parent.
 
-(parent :action :create
-	:self-id 42
-	(:ta ta)
-	(:uri uri)
-	(:sia-base sia-base)
-	(:biz-signing-context biz-signing-context)
-	(:repository repository))
-=> (parent :parent-id 666)
+Payload data which can be configured in a <parent/> object:
 
-(parent :action :set
-	:self-id 42
-	:parent-id 666
-	(:ta ta)
-	(:uri uri)
-	(:sia-base sia-base)
-	(:biz-signing-context biz-signing-context)
-	(:repository repository)
-	;;
-	;; Actions:
-	;;
-	(:rekey)			; Change all keys now
-	(:reissue)			; Reissue all certs with changed keys now
-	(:revoke))			; Revoke any old keys now
-=> (parent :parent-id 666)
+@li sia_base (attribute)
 
-(parent :action :get
-	:self-id 42
-	:parent-id 666)
-=> (parent :parent-id 666
-	   (:ta ta)
-	   (:uri uri)
-	   (:sia-base sia-base)
-	   (:biz-signing-context biz-signing-context)
-	   (:repository repository))
+    The leading portion of an rsync URI that the RPKI engine should
+    use when composing the publication URI for objects issued by the
+    RPKI certificate issued by this parent.
 
-(parent :action :list
-	:self-id 42
-	:parent-id 666)
-=> ((parent :parent-id 666
-	    (:ta ta)
-	    (:uri uri)
-	    (:sia-base sia-base)
-	    (:biz-signing-context biz-signing-context)
-	    (:repository repository)))
+@li sender_name (attribute)
 
-(parent :action :destroy
-	:self-id 42
-	:parent-id 666)
-=> (parent :parent-id 666)
+    Sender name to use in the up-down protocol when talking to this
+    parent.  The RPKI engine doesn't really care what this value is,
+    but other implementations of the up-down protocol do care.
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Child context -- represents one child of this RPKI engine
-;;
-;; "child-db-id" may be unnecessary -- old API had both "child" and
-;; "child-id", the second of which was a settable attribute of child,
-;; I'm not quite sure what it was, so here I'm calling it child-db-id
-;; in case we need it for something.  Perhaps this corresponds to the
-;; optional child ID in the list-resources callback to the IRBE?
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@li recipient_name (attribute)
 
-(child :action :create
-       :self-id 42
-       (:ta ta)
-       (:biz-signing-context biz-signing-context)
-       (:child-db-id child-db-id))
-=> (child :child-id 3)
+    Recipient name to use in the up-down protocol when talking to this
+    parent.   The RPKI engine doesn't really care what this value is,
+    but other implementations of the up-down protocol do care.
 
-(child :action :set
-       :self-id 42
-       :child-id 3
-       (:ta ta)
-       (:biz-signing-context biz-signing-context)
-       (:child-db-id child-db-id)
-       (:reissue))			; Reissue any certs to this child now
-=> (child :child-id 3)
+@li bpki_cms_cert (subelement)
 
-(child :action :get
-       :self-id 42
-       :child-id 3)
-=> (child :child-id 3
-	  (:ta ta)
-	  (:biz-signing-context biz-signing-context)
-	  (:child-db-id child-db-id))
+    BPKI CMS CA certificate for this <parent/>.  This is used as part
+    of the certificate chain when validating incoming CMS messages If
+    the bpki_cms_glue certificate is in use (below), the bpki_cms_cert
+    certificate should be issued by the bpki_cms_glue certificate;
+    otherwise, the bpki_cms_cert certificate should be issued by the
+    bpki_cert certificate in the <self/> object.
 
-(child :action :list
-       :self-id 42
-       :child-id 3)
-=> ((child :child-id 3
-	   (:ta ta)
-	   (:biz-signing-context biz-signing-context)
-	   (:child-db-id child-db-id)))
+@li bpki_cms_glue (subelement)
 
-(child :action :destroy
-       :self-id 42
-       :child-id 3)
-=> (child :child-id 3)
+    Another BPKI CMS CA certificate for this <parent/>, usually not
+    needed.  Certain pathological cross-certification cases require a
+    two-certificate chain due to issuer name conflicts.  If used, the
+    bpki_cms_glue certificate should be the issuer of the
+    bpki_cms_cert certificate and should be issued by the bpki_cert
+    certificate in the <self/> object; if not needed, the
+    bpki_cms_glue certificate should be left unset.
+
+@li bpki_https_cert (subelement)
+
+    BPKI HTTPS CA certificate for this <parent/>.  This is like the
+    bpki_cms_cert object, only used for validating incoming TLS
+    messages rather than CMS.
+
+@li bpki_cms_glue (subelement)
+
+    Another BPKI HTTPS CA certificate for this <parent/>, usually not
+    needed.  This is like the bpki_cms_glue certificate, only used for
+    validating incoming TLS messages rather than CMS.
+
+Control attributes that can be set to "yes" to force actions:
+
+@li rekey
+
+    This is like the rekey command in the <self/> object, but limited
+    to RPKI CAs under this parent.
+
+@li reissue
+
+    This is like the reissue command in the <self/> object, but limited
+    to RPKI CAs under this parent.
+
+@li revoke
+
+    This is like the revoke command in the <self/> object, but limited
+    to RPKI CAs under this parent.
+
+@subsubsection <child/> object
+
+The <child/> object represents the RPKI engine's view of particular
+child of the current <self/> in the up-down protocol.
+
+Every <child/> object has a parent_id, which must be specified for
+the "get", "set", and "destroy" actions.  Every <child/> also has a
+self_id attribute which indicates the <self/> object with which this
+<bsc/> object is associated.
+
+Payload data which can be configured in a <child/> object:
+
+@li bpki_cert (subelement)
+
+    BPKI CA certificate for this <child/>.  This is used as part of
+    the certificate chain when validating incoming TLS and CMS
+    messages.  If the bpki_glue certificate is in use (below), the
+    bpki_cert certificate should be issued by the bpki_glue
+    certificate; otherwise, the bpki_cert certificate should be issued
+    by the bpki_cert certificate in the <self/> object.
+
+@li bpki_glue (subelement)
+
+    Another BPKI CA certificate for this <child/>, usually not needed.
+    Certain pathological cross-certification cases require a
+    two-certificate chain due to issuer name conflicts.  If used, the
+    bpki_glue certificate should be the issuer of the bpki_cert
+    certificate and should be issued by the bpki_cert certificate in
+    the <self/> object; if not needed, the bpki_glue certificate
+    should be left unset.
+
+Control attributes that can be set to "yes" to force actions:
+
+@li reissue
+
+    Not implemented, may be removed from protocol.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

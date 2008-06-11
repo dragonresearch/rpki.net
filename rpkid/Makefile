@@ -79,6 +79,7 @@ HTML2TEXT  := lynx -dump -nolist -force_html /dev/stdin
 
 dox doxygen:
 	cd rpki && TZ='' doxygen
+	cd rpki/latex && TZ='' make >/dev/null 2>&1
 	${TWEAKHTML} rpki/html/Installation.html | ${HTML2TEXT} >INSTALLATION
 	${TWEAKHTML} rpki/html/Operation.html    | ${HTML2TEXT} >OPERATION
 	${TWEAKHTML} rpki/html/Left-right.html   | ${HTML2TEXT} >../docs/left-right-protocol

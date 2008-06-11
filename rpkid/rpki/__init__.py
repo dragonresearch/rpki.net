@@ -29,7 +29,7 @@
 # though, and I see no obvious way to automate them.  Keeping the
 # documentation with the config file options would be nice.  Someday.
 
-## @mainpage
+## @mainpage RPKI Engine Reference Manual
 ##
 ## This collection of Python modules implements a prototype of the
 ## RPKI Engine.  This is a work in progress.

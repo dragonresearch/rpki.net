@@ -150,7 +150,10 @@
 ## the package includes the following programs:
 ## 
 ## @li @c rpkid.py:
-##              The main RPKI engine daemon
+##              The main RPKI engine daemon.
+## 
+## @li @c pubd.py:
+##              The publication engine daemon.
 ## 
 ## @li @c rootd.py:
 ##              A separate daemon for handling the root of an RPKI
@@ -160,7 +163,7 @@
 ##              the up-down protocol.  It's separate because the root
 ##              is a special case in several ways and it was simpler
 ##              to keep the special cases out of the main daemon.
-## 
+##
 ## @li @c irdbd.py:
 ##              A sample implementation of an IR database daemon.
 ##              rpkid calls into this to perform lookups via the
@@ -309,13 +312,86 @@
 ## @li @c https-server-port:
 ##                      TCP port on which to listen for HTTPS
 ##                      connections.
+##
+##
+## @section pubd pubd.py
+##
+## pubd is the publication daemon.  It implements the server side of
+## the publication protocol, and is used by rpkid to publish the
+## certificates and other objects that rpkid generates.
+##
+## pubd is separate from rpkid for two reasons:
+##
+## @li The hosting model allows entities which choose to run their own
+##     copies of rpkid to publish their output under a common
+##     publication point.  In general, encouraging shared publication
+##     services where practical is a good thing for relying parties,
+##     as it will speed up rcynic synchronization time.
+##
+## @li The publication server has to run on (or at least close to) the
+##     publication point itself, which in turn must be on a publically
+##     reachable server to be useful.  rpkid, on the other hand, need
+##     only be reachable by the IRBE and its children in the RPKI tree.
+##     rpkid is a much more complex piece of software than pubd, so in
+##     some situations it might make sense to wrap tighter firewall
+##     constraints around rpkid than would be practical if rpkid and
+##     pubd were a single program.
+##
+## pubd stores dynamic data in an SQL database, which must have been
+## created for it, as explained in the installation guide.  pubd also
+## stores the published objects themselves as disk files in a
+## configurable location which should correspond to an appropriate
+## module definition in rsync.conf.
+##
+## The default %config file is pubd.conf, start pubd with "-c
+## filename" to choose a different %config file.  ALl options are in
+## the section "[pubd]".  Certifiates, keys, and trust anchors may be
+## either DER or PEM format.
+##
+## %Config file options:
+##
+## @li @c sql-username:
+##                      Username to hand to MySQL when connecting to
+##                      pubd's database.
 ## 
-## @li @c publication-kludge-base:
-##                      [TEMPORARY] Local directory under which
-##                      generated certificates etc should be
-##                      published.  This is a temporary expedient
-##                      until the publication protocol is defined and
-##                      implemented.  Default is "publication/"
+## @li @c sql-database:
+##                      MySQL's database name for pubd's database.
+## 
+## @li @c sql-password:
+##                      Password to hand to MySQL when connecting to
+##                      pubd's database.
+## 
+## @li @c bpki-ta:
+##                      Name of file containing master BPKI trust
+##                      anchor for  pubd.  All BPKI validation in pubd
+##                      traces back to this trust anchor.
+## 
+## @li @c irbe-cert:
+##                      Name of file containing BPKI certificate used
+##                      by IRBE when talking to pubd.
+## 
+## @li @c pubd-cert:
+##                      Name of file containing BPKI certificate used
+##                      by pubd.
+##
+## @li @c pubd-key:
+##                      Name of file containing RSA key corresponding
+##                      to @c pubd-cert.
+## 
+## @li @c server-host:
+##                      Hostname or IP address on which to listen for
+##                      HTTPS connections.  Current default is
+##                      INADDR_ANY (IPv4 0.0.0.0); this will need to
+##                      be hacked to support IPv6 for production.
+## 
+## @li @c server-port:
+##                      TCP port on which to listen for HTTPS
+##                      connections.
+##
+## @li @c publication-base:
+##                      Path to base of filesystem tree where pubd
+##                      should store publishable objects.  Default is
+##                      "publication/".
 ##
 ##
 ## @section rootd rootd.py

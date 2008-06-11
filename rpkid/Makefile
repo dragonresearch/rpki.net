@@ -73,19 +73,25 @@ resource-cert-samples/.stamp: generate-testrepo.py Makefile
 	python generate-testrepo.py
 	touch $@
 
-TWEAKHTML  := xsltproc --html tweak-doc.xsl
-#HTML2TEXT := w3m  -dump -T text/html
-HTML2TEXT  := lynx -dump -nolist -force_html /dev/stdin
+HTML2TEXT = xsltproc --html tweak-doc.xsl $? | lynx -dump -nolist -force_html /dev/stdin >$@
 
 dox doxygen:
 	cd rpki && TZ='' doxygen
 	cd rpki/latex && TZ='' make >/dev/null 2>&1
-	${TWEAKHTML} rpki/html/Installation.html | ${HTML2TEXT} >INSTALLATION
-	${TWEAKHTML} rpki/html/Operation.html    | ${HTML2TEXT} >OPERATION
-	${TWEAKHTML} rpki/html/Left-right.html   | ${HTML2TEXT} >../docs/left-right-protocol
-	${TWEAKHTML} rpki/html/Publication.html  | ${HTML2TEXT} >../docs/publication-protocol
 
-doc:: dox
+doc:: dox INSTALLATION OPERATION ../docs/left-right-protocol ../docs/publication-protocol
+
+INSTALLATION: rpki/html/Installation.html
+	${HTML2TEXT}
+
+OPERATION: rpki/html/Operation.html
+	${HTML2TEXT}
+
+../docs/left-right-protocol: rpki/html/Left-right.html
+	${HTML2TEXT}
+
+../docs/publication-protocol: rpki/html/Publication.html
+	${HTML2TEXT}
 
 tags:
 	find . -type f -name '*.py' ! -name relaxng.py | etags -

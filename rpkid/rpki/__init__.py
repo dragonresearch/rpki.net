@@ -838,7 +838,7 @@
 ## 
 ## @verbatim
 ##     ---
-##     # $Id$
+##     # Sample YAML configuration file for testpoke.py
 ## 
 ##     version: 1
 ##     posturl: https://localhost:4433/up-down/1

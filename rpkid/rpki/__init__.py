@@ -45,11 +45,18 @@
 ## collaboration with the other RIRs.  If you're interested in this
 ## package you might also be interested in:
 ##
-## @li <a href="http://viewvc.hactrn.net/subvert-rpki.hactrn.net/rcynic/">the rcynic validation tool</a>
-## @li <a href="http://www.hactrn.net/opaque/rcynic.html">a sample of rcynic's summary output</a>
+## @li <a href="http://viewvc.hactrn.net/subvert-rpki.hactrn.net/rcynic/">The rcynic validation tool</a>
+## @li <a href="http://www.hactrn.net/opaque/rcynic.html">A live sample of rcynic's summary output</a>
 ## @li <a href="http://mirin.apnic.net/resourcecerts/wiki/">APNIC's Wiki</a>
 ## @li <a href="http://mirin.apnic.net/trac/">APNIC's project Trac instance</a>
 ##
+## Besides the automatically-generated code documentation, this manual
+## also includes several sections documenting the overall package:
+##
+## @li The @subpage Installation "installation instructions"
+## @li The @subpage Operation "operation instructions"
+## @li A description of the @subpage Left-right "left-right protocol"
+
 ## @page Installation Installation
 ##
 ## Preliminary installation instructions for rpkid et al.  These are the
@@ -122,9 +129,7 @@
 ## 
 ## If nothing explodes, your installation is probably ok.  Any Python
 ## backtraces in the output indicate a problem.
-##
-##
-##
+
 ## @page Operation Operation
 ##
 ## Preliminary operation instructions for rpkid et al.  These are the
@@ -869,3 +874,504 @@
 ## maximum chain length of one); subsequent APNIC code changes have
 ## probably relaxed this restriction, and with luck APNIC has copied
 ## testpoke's syntax to express chains of intermediate certificates.
+
+## @page Left-right Left-right protocol
+##
+## The left-right protocol is really two separate client/server
+## protocols over separate channels between the RPKI engine and the IR
+## back end (IRBE).  The IRBE is the client for one of the
+## subprotocols, the RPKI engine is the client for the other.
+## 
+## @section Terminology
+## 
+## @li @em IRBE: Internet Registry Back End
+## 
+## @li @em IRDB: Internet Registry Data Base
+## 
+## @li @em BPKI: Business PKI
+## 
+## @li @em RPKI: Resource PKI
+## 
+## @section Operations initiated by the IRBE
+## 
+## This part of the protcol uses a kind of message-passing.  Each %object
+## that the RPKI engine knows about takes five messages: "create", "set",
+## "get", "list", and "destroy".  Actions which are not just data
+## operations on %objects are handled via an SNMP-like mechanism, as if
+## they were fields to be set.  For example, to generate a keypair one
+## "sets" the "generate-keypair" field of a BSC %object, even though there
+## is no such field in the %object itself as stored in SQL.  This is a bit
+## of a kludge, but the reason for doing it as if these were variables
+## being set is to allow composite operations such as creating a BSC,
+## populating all of its data fields, and generating a keypair, all as a
+## single operation.  With this model, that's trivial, otherwise it's at
+## least two round trips.
+## 
+## Fields can be set in either "create" or "set" operations, the
+## difference just being whether the %object already exists.  A "get"
+## operation returns all visible fields of the %object.  A "list"
+## operation returns a %list containing what "get" would have returned on
+## each of those %objects.
+## 
+## Left-right protocol %objects are encoded as signed CMS messages
+## containing XML as eContent and using an eContentType OID of @c id-ct-xml
+## (1.2.840.113549.1.9.16.1.28).  These CMS messages are in turn passed
+## as the data for HTTPS POST operations, with an HTTP content type of
+## "application/x-rpki" for both the POST data and the response data.
+## 
+## All operations allow an optional "tag" attribute which can be any
+## alphanumeric token.  The main purpose of the tag attribute is to allow
+## batching of multiple requests into a single PDU.
+## 
+## @subsection self_obj <self/> object
+## 
+## A @c &lt;self/&gt; %object represents one virtual RPKI engine.  In simple cases
+## where the RPKI engine operator operates the engine only on their own
+## behalf, there will only be one @c &lt;self/&gt; %object, representing the engine
+## operator's organization, but in environments where the engine operator
+## hosts other entities, there will be one @c @c &lt;self/&gt; %object per hosted
+## entity (probably including the engine operator's own organization,
+## considered as a hosted customer of itself).
+## 
+## Some of the RPKI engine's configured parameters and data are shared by
+## all hosted entities, but most are tied to a specific @c &lt;self/&gt; %object.
+## Data which are shared by all hosted entities are referred to as
+## "per-engine" data, data which are specific to a particular @c &lt;self/&gt;
+## %object are "per-self" data.
+## 
+## Since all other RPKI engine %objects refer to a @c &lt;self/&gt; %object via a
+## "self_id" value, one must create a @c &lt;self/&gt; %object before one can
+## usefully configure any other left-right protocol %objects.
+## 
+## Every @c &lt;self/&gt; %object has a self_id attribute, which must be specified
+## for the "set", "get", and "destroy" actions.
+## 
+## Payload data which can be configured in a @c &lt;self/&gt; %object:
+## 
+## @li @c use_hsm (attribute):
+##     Whether to use a Hardware Signing Module.  At present this option
+##     has no effect, as the implementation does not yet support HSMs.
+## 
+## @li @c crl_interval (attribute):
+##     Positive integer representing the planned lifetime of an RPKI CRL
+##     for this @c &lt;self/&gt;, measured in seconds.
+## 
+## @li @c regen_margin (attribute):
+##     Positive integer representing how long before expiration of an
+##     RPKI certificiate a new one should be generated, measured in
+##     seconds.  At present this only affects the one-off EE certificates
+##     associated with ROAs.
+## 
+## @li @c bpki_cert (element):
+##     BPKI CA certificate for this @c &lt;self/&gt;.  This is used as part of the
+##     certificate chain when validating incoming TLS and CMS messages,
+##     and should be the issuer of cross-certification BPKI certificates
+##     used in @c &lt;repository/&gt;, @c &lt;parent/&gt;, and @c &lt;child/&gt; %objects.  If the
+##     bpki_glue certificate is in use (below), the bpki_cert certificate
+##     should be issued by the bpki_glue certificate; otherwise, the
+##     bpki_cert certificate should be issued by the per-engine bpki_ta
+##     certificate.
+## 
+## @li @c bpki_glue (element):
+##     Another BPKI CA certificate for this @c &lt;self/&gt;, usually not needed.
+##     Certain pathological cross-certification cases require a
+##     two-certificate chain due to issuer name conflicts.  If used, the
+##     bpki_glue certificate should be the issuer of the bpki_cert
+##     certificate and should be issued by the per-engine bpki_ta
+##     certificate; if not needed, the bpki_glue certificate should be
+##     left unset.
+## 
+## Control attributes that can be set to "yes" to force actions:
+## 
+## @li @c rekey:
+##     Start a key rollover for every RPKI CA associated with every
+##     @c &lt;parent/&gt; %object associated with this @c &lt;self/&gt; %object.  This is the
+##     first phase of a key rollover operation.
+## 
+## @li @c revoke:
+##     Revoke any remaining certificates for any expired key associated
+##     with any RPKI CA for any @c &lt;parent/&gt; %object associated with this
+##     @c &lt;self/&gt; %object.   This is the second (cleanup) phase for a key
+##     rollover operation; it's separate from the first phase to leave
+##     time for new RPKI certificates to propegate and be installed.
+## 
+## @li @c reissue:
+##     Not implemented, may be removed from protocol.  Original theory
+##     was that this operation would force reissuance of any %object with
+##     a changed key, but as that happens automatically as part of the
+##     key rollover mechanism this operation seems unnecessary.
+## 
+## @li @c run_now:
+##     Force immediate processing for all tasks associated with this
+##     @c &lt;self/&gt; %object that would ordinarily be performed under cron.  Not
+##     currently implemented.
+## 
+## @li @c publish_world_now:
+##     Force (re)publication of every publishable %object for this @c &lt;self/&gt;
+##     %object.  Not currently implemented.   Intended to aid in recovery
+##     if RPKI engine and publication engine somehow get out of sync.
+## 
+## 
+## @subsection bsc_obj <bsc/> object
+## 
+## The @c &lt;bsc/&gt; ("business signing context") %object represents all the BPKI
+## data needed to sign outgoing CMS or HTTPS messages.  Various other
+## %objects include pointers to a @c &lt;bsc/&gt; %object.  Whether a particular
+## @c &lt;self/&gt; uses only one @c &lt;bsc/&gt; or multiple is a configuration decision
+## based on external requirements: the RPKI engine code doesn't care, it
+## just cares that, for any %object representing a relationship for which
+## it must sign messages, there be a @c &lt;bsc/&gt; %object that it can use to
+## produce that signature.
+## 
+## Every @c &lt;bsc/&gt; %object has a bsc_id, which must be specified for the
+## "get", "set", and "destroy" actions.  Every @c &lt;bsc/&gt; also has a self_id
+## attribute which indicates the @c &lt;self/&gt; %object with which this @c &lt;bsc/&gt;
+## %object is associated.
+## 
+## Payload data which can be configured in a @c &lt;isc/&gt; %object:
+## 
+## @li @c signing_cert (element):
+##     BPKI certificate to use when generating a signature.
+## 
+## @li @c signing_cert_crl (element):
+##     CRL which would %list signing_cert if it had been revoked.
+## 
+## Control attributes that can be set to "yes" to force actions:
+## 
+## @li @c generate_keypair:
+##     Generate a new BPKI keypair and return a PKCS #10 certificate
+##     request.  The resulting certificate, once issued, should be
+##     configured as this @c &lt;bsc/&gt; %object's signing_cert.
+## 
+## Additional attributes which may be specified when specifying
+## "generate_keypair":
+## 
+## @li @c key_type:
+##     Type of BPKI keypair to generate.  "rsa" is both the default and,
+##     at the moment, the only allowed value.
+## 
+## @li @c hash_alg:
+##     Cryptographic hash algorithm to use with this keypair.  "sha256"
+##     is both the default and, at the moment, the only allowed value.
+## 
+## @li @c key_length:
+##     Length in bits of the keypair to be generated.  "2048" is both the
+##     default and, at the moment, the only allowed value.
+## 
+## Replies to "create" and "set" actions that specify "generate-keypair"
+## include a &lt;bsc_pkcs10/> element, as do replies to "get" and "list"
+## actions for a @c &lt;bsc/&gt; %object for which a "generate-keypair" command has
+## been issued.  The RPKI engine stores the PKCS #10 request, which
+## allows the IRBE to reuse the request if and when it needs to reissue
+## the corresponding BPKI signing certificate.
+## 
+## @subsection parent_obj <parent/> object
+## 
+## The @c &lt;parent/&gt; %object represents the RPKI engine's view of a particular
+## parent of the current @c &lt;self/&gt; %object in the up-down protocol.  Due to
+## the way that the resource hierarchy works, a given @c &lt;self/&gt; may obtain
+## resources from multiple parents, but it will always have at least one;
+## in the case of IANA or an RIR, the parent RPKI engine may be a trivial
+## stub.
+## 
+## Every @c &lt;parent/&gt; %object has a parent_id, which must be specified for
+## the "get", "set", and "destroy" actions.  Every @c &lt;parent/&gt; also has a
+## self_id attribute which indicates the @c &lt;self/&gt; %object with which this
+## @c &lt;parent/&gt; %object is associated, a bsc_id attribute indicating the @c &lt;bsc/&gt;
+## %object to be used when signing messages sent to this parent, and a
+## repository_id indicating the @c &lt;repository/&gt; %object to be used when
+## publishing issued by the certificate issued by this parent.
+## 
+## Payload data which can be configured in a @c &lt;parent/&gt; %object:
+## 
+## @li @c peer_contact_uri (attribute):
+##     HTTPS URI used to contact this parent.
+## 
+## @li @c sia_base (attribute):
+##     The leading portion of an rsync URI that the RPKI engine should
+##     use when composing the publication URI for %objects issued by the
+##     RPKI certificate issued by this parent.
+## 
+## @li @c sender_name (attribute):
+##     Sender name to use in the up-down protocol when talking to this
+##     parent.  The RPKI engine doesn't really care what this value is,
+##     but other implementations of the up-down protocol do care.
+## 
+## @li @c recipient_name (attribute):
+##     Recipient name to use in the up-down protocol when talking to this
+##     parent.   The RPKI engine doesn't really care what this value is,
+##     but other implementations of the up-down protocol do care.
+## 
+## @li @c bpki_cms_cert (element):
+##     BPKI CMS CA certificate for this @c &lt;parent/&gt;.  This is used as part
+##     of the certificate chain when validating incoming CMS messages If
+##     the bpki_cms_glue certificate is in use (below), the bpki_cms_cert
+##     certificate should be issued by the bpki_cms_glue certificate;
+##     otherwise, the bpki_cms_cert certificate should be issued by the
+##     bpki_cert certificate in the @c &lt;self/&gt; %object.
+## 
+## @li @c bpki_cms_glue (element):
+##     Another BPKI CMS CA certificate for this @c &lt;parent/&gt;, usually not
+##     needed.  Certain pathological cross-certification cases require a
+##     two-certificate chain due to issuer name conflicts.  If used, the
+##     bpki_cms_glue certificate should be the issuer of the
+##     bpki_cms_cert certificate and should be issued by the bpki_cert
+##     certificate in the @c &lt;self/&gt; %object; if not needed, the
+##     bpki_cms_glue certificate should be left unset.
+## 
+## @li @c bpki_https_cert (element):
+##     BPKI HTTPS CA certificate for this @c &lt;parent/&gt;.  This is like the
+##     bpki_cms_cert %object, only used for validating incoming TLS
+##     messages rather than CMS.
+## 
+## @li @c bpki_cms_glue (element):
+##     Another BPKI HTTPS CA certificate for this @c &lt;parent/&gt;, usually not
+##     needed.  This is like the bpki_cms_glue certificate, only used for
+##     validating incoming TLS messages rather than CMS.
+## 
+## Control attributes that can be set to "yes" to force actions:
+## 
+## @li @c rekey:
+##     This is like the rekey command in the @c &lt;self/&gt; %object, but limited
+##     to RPKI CAs under this parent.
+## 
+## @li @c reissue:
+##     This is like the reissue command in the @c &lt;self/&gt; %object, but limited
+##     to RPKI CAs under this parent.
+## 
+## @li @c revoke:
+##     This is like the revoke command in the @c &lt;self/&gt; %object, but limited
+##     to RPKI CAs under this parent.
+## 
+## @subsection child_obj <child/> object
+## 
+## The @c &lt;child/&gt; %object represents the RPKI engine's view of particular
+## child of the current @c &lt;self/&gt; in the up-down protocol.
+## 
+## Every @c &lt;child/&gt; %object has a parent_id, which must be specified for the
+## "get", "set", and "destroy" actions.  Every @c &lt;child/&gt; also has a
+## self_id attribute which indicates the @c &lt;self/&gt; %object with which this
+## @c &lt;child/&gt; %object is associated.
+## 
+## Payload data which can be configured in a @c &lt;child/&gt; %object:
+## 
+## @li @c bpki_cert (element):
+##     BPKI CA certificate for this @c &lt;child/&gt;.  This is used as part of
+##     the certificate chain when validating incoming TLS and CMS
+##     messages.  If the bpki_glue certificate is in use (below), the
+##     bpki_cert certificate should be issued by the bpki_glue
+##     certificate; otherwise, the bpki_cert certificate should be issued
+##     by the bpki_cert certificate in the @c &lt;self/&gt; %object.
+## 
+## @li @c bpki_glue (element):
+##     Another BPKI CA certificate for this @c &lt;child/&gt;, usually not needed.
+##     Certain pathological cross-certification cases require a
+##     two-certificate chain due to issuer name conflicts.  If used, the
+##     bpki_glue certificate should be the issuer of the bpki_cert
+##     certificate and should be issued by the bpki_cert certificate in
+##     the @c &lt;self/&gt; %object; if not needed, the bpki_glue certificate
+##     should be left unset.
+## 
+## Control attributes that can be set to "yes" to force actions:
+## 
+## @li @c reissue:
+##     Not implemented, may be removed from protocol.
+## 
+## @subsection repository_obj <repository/> object
+## 
+## The @c &lt;repository/&gt; %object represents the RPKI engine's view of a
+## particular publication repository used by the current @c &lt;self/&gt; %object.
+## 
+## Every @c &lt;repository/&gt; %object has a repository_id, which must be
+## specified for the "get", "set", and "destroy" actions.  Every
+## @c &lt;repository/&gt; also has a self_id attribute which indicates the @c &lt;self/&gt;
+## %object with which this @c &lt;repository/&gt; %object is associated.
+## 
+## Payload data which can be configured in a @c &lt;repository/&gt; %object:
+## 
+## @li @c peer_contact_uri (attribute):
+##     HTTPS URI used to contact this repository.
+## 
+## @li @c bpki_cms_cert (element):
+##     BPKI CMS CA certificate for this @c &lt;repository/&gt;.  This is used as part
+##     of the certificate chain when validating incoming CMS messages If
+##     the bpki_cms_glue certificate is in use (below), the bpki_cms_cert
+##     certificate should be issued by the bpki_cms_glue certificate;
+##     otherwise, the bpki_cms_cert certificate should be issued by the
+##     bpki_cert certificate in the @c &lt;self/&gt; %object.
+## 
+## @li @c bpki_cms_glue (element):
+##     Another BPKI CMS CA certificate for this @c &lt;repository/&gt;, usually not
+##     needed.  Certain pathological cross-certification cases require a
+##     two-certificate chain due to issuer name conflicts.  If used, the
+##     bpki_cms_glue certificate should be the issuer of the
+##     bpki_cms_cert certificate and should be issued by the bpki_cert
+##     certificate in the @c &lt;self/&gt; %object; if not needed, the
+##     bpki_cms_glue certificate should be left unset.
+## 
+## @li @c bpki_https_cert (element):
+##     BPKI HTTPS CA certificate for this @c &lt;repository/&gt;.  This is like the
+##     bpki_cms_cert %object, only used for validating incoming TLS
+##     messages rather than CMS.
+## 
+## @li @c bpki_cms_glue (element):
+##     Another BPKI HTTPS CA certificate for this @c &lt;repository/&gt;, usually not
+##     needed.  This is like the bpki_cms_glue certificate, only used for
+##     validating incoming TLS messages rather than CMS.
+## 
+## At present there are no control attributes for @c &lt;repository/&gt; %objects.
+## 
+## @subsection route_origin_obj <route_origin/> object
+## 
+## The @c &lt;route_origin/&gt; %object is a kind of prototype for a ROA.  It
+## contains all the information needed to generate a ROA once the RPKI
+## engine obtains the appropriate RPKI certificates from its parent(s).
+## 
+## Note that a @c &lt;route_origin/&gt; %object represents a ROA to be generated on
+## behalf of @c &lt;self/&gt;, not on behalf of a @c &lt;child/&gt;.  Thus, a hosted entity
+## that has no children but which does need to generate ROAs would be
+## represented by a hosted @c &lt;self/&gt; with no @c &lt;child/&gt; %objects but one or
+## more @c &lt;route_origin/&gt; %objects.   While lumping ROA generation in with
+## the other RPKI engine activities may seem a little odd at first, it's
+## a natural consequence of the design requirement that the RPKI daemon
+## never transmit private keys across the network in any form; given this
+## requirement, the RPKI engine that holds the private keys for an RPKI
+## certificate must also be the engine which generates any ROAs that
+## derive from that RPKI certificate.
+## 
+## The precise content of the @c &lt;route_origin/&gt; has changed over time as
+## the underlying ROA specification has changed.  The current
+## implementation as of this writing matches what we expect to see in
+## draft-ietf-sidr-roa-format-03, once it is issued.  In particular, note
+## that the exactMatch boolean from the -02 draft has been replaced by
+## the prefix and maxLength encoding used in the -03 draft.
+## 
+## Payload data which can be configured in a @c &lt;route_origin/&gt; %object:
+## 
+## @li @c as_number (attribute):
+##     Autonomous System Number (ASN) to place in the generated ROA.  A
+##     single ROA can only grant authorization to a single ASN; multiple
+##     ASNs require multiple ROAs, thus multiple @c &lt;route_origin/&gt; %objects.
+## 
+## @li @c ipv4 (attribute):
+##     %List of IPv4 prefix and maxLength values, see below for format.
+## 
+## @li @c ipv6 (attribute):
+##     %List of IPv6 prefix and maxLength values, see below for format.
+## 
+## Control attributes that can be set to "yes" to force actions:
+## 
+## @li @c suppress_publication:
+##     Not implemented, may be removed from protocol.
+## 
+## The lists of IPv4 and IPv6 prefix and maxLength values are represented
+## as comma-separated text strings, with no whitespace permitted.  Each
+## entry in such a string represents a single prefix/maxLength pair.
+## 
+## ABNF for these address lists:
+## 
+## @verbatim
+## 
+##   <ROAIPAddress> ::= <address> "/" <prefixlen> [ "-" <max_prefixlen> ]
+##                         ; Where <max_prefixlen> defaults to the same
+##                         ; value as <prefixlen>.
+## 
+##   <ROAIPAddressList> ::= <ROAIPAddress> *( "," <ROAIPAddress> )
+## 
+## @endverbatim
+## 
+## For example, @c "10.0.1.0/24-32,10.0.2.0/24", which is a shorthand
+## form of @c "10.0.1.0/24-32,10.0.2.0/24-24".
+## 
+## @section irdb_queries Operations initiated by the RPKI engine
+## 
+## The left-right protocol also includes queries from the RPKI engine
+## back to the IRDB.  These queries do not follow the message-passing
+## pattern used in the IRBE-initiated part of the protocol.  Instead,
+## there's a single query back to the IRDB, with a corresponding
+## response.  The CMS and HTTPS encoding are the same as in the rest of
+## the protocol, but the BPKI certificates will be different as the
+## back-queries and responses form a separate communication channel.
+## 
+## @subsection list_resources_msg <list_resources/> messages
+## 
+## The @c &lt;list_resources/&gt; query and response allow the RPKI engine to ask
+## the IRDB for information about resources assigned to a particular
+## child.  The query must include both a @c "self_id" attribute naming
+## the @c &lt;self/&gt; that is making the request and also a @c "child_id"
+## attribute naming the child that is the subject of the query.  The
+## query and response also allow an optional @c "tag" attribute of the
+## same form used elsewhere in this protocol, to allow batching.
+## 
+## A @c &lt;list_resources/&gt; response includes the following attributes, along
+## with the @c tag (if specified), @c self_id, and @c child_id copied
+## from the request:
+## 
+## @li @c valid_until:
+##     A timestamp indicating the date and time at which certificates
+##     generated by the RPKI engine for these data should expire.  The
+##     timestamp is expressed as an XML @c xsd:dateTime, must be
+##     expressed in UTC, and must carry the "Z" suffix indicating UTC.
+## 
+## @li @c subject_name:
+##     An optional text string naming the child.  Not currently used.
+## 
+## @li @c asn:
+##     A %list of autonomous sequence numbers, expressed as a
+##     comma-separated sequence of decimal integers with no whitespace.
+## 
+## @li @c ipv4:
+##     A %list of IPv4 address prefixes and ranges, expressed as a
+##     comma-separated %list of prefixes and ranges with no whitespace.
+##     See below for format details.
+## 
+## @li @c ipv6:
+##     A %list of IPv6 address prefixes and ranges, expressed as a
+##     comma-separated %list of prefixes and ranges with no whitespace.
+##     See below for format details.
+## 
+## Entries in a %list of address prefixes and ranges can be either
+## prefixes, which are written in the usual address/prefixlen notation,
+## or ranges, which are expressed as a pair of addresses denoting the
+## beginning and end of the range, written in ascending order separated
+## by a single "-" character.  This format is superficially similar to
+## the format used for prefix and maxLength values in the @c &lt;route_origin/&gt;
+## %object, but the semantics differ: note in particular that
+## @c &lt;route_origin/&gt; %objects don't allow ranges, while @c &lt;list_resources/&gt;
+## messages don't allow a maxLength specification.
+## 
+## @section left_right_error_handling Error handling
+## 
+## Error in this protocol are handled at two levels.
+## 
+## Since all messages in this protocol are conveyed over HTTPS
+## connections, basic errors are indicated via the HTTP response code.
+## 4xx and 5xx responses indicate that something bad happened.  Errors
+## that make it impossible to decode a query or encode a response are
+## handled in this way.
+## 
+## Where possible, errors will result in a @c &lt;report_error/&gt; message which
+## takes the place of the expected protocol response message.
+## @c &lt;report_error/&gt; messages are CMS-signed XML messages like the rest of
+## this protocol, and thus can be archived to provide an audit trail.
+## 
+## @c &lt;report_error/&gt; messages only appear in replies, never in queries.
+## The @c &lt;report_error/&gt; message can appear on either the "forward" (IRBE
+## as client of RPKI engine) or "back" (RPKI engine as client of IRDB)
+## communication channel.
+## 
+## The @c &lt;report_error/&gt; message includes an optional @c "tag" attribute to
+## assist in matching the error with a particular query when using
+## batching, and also includes a @c "self_id" attribute indicating the
+## @c &lt;self/&gt; that issued the error.
+## 
+## The error itself is conveyed in the @c error_code (attribute).  The
+## value of this attribute is a token indicating the specific error that
+## occurred.  At present this will be the name of a Python exception; the
+## production version of this protocol will nail down the allowed error
+## tokens here, probably in the RelaxNG schema.
+## 
+## The body of the @c &lt;report_error/&gt; element itself is an optional text
+## string; if present, this is debugging information.  At present this
+## capabilty is not used, debugging information goes to syslog.
+ 

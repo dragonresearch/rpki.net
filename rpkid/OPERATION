@@ -1,5 +1,3 @@
-   [Converted from HTML, see rpki/__init__.py for source]
-
 Operation
 
    Preliminary operation instructions for rpkid et al.
@@ -584,7 +582,7 @@ testpoke.py
    Sample configuration file:
 
      ---
-     # $Id$
+     # $Id: __init__.py 1866 2008-06-11 18:27:14Z sra $
 
      version: 1
      posturl: https://localhost:4433/up-down/1
@@ -623,5 +621,5 @@ testpoke.py
      __________________________________________________________________
 
 
-    Generated on Tue Jun 10 04:18:59 2008 for Resource PKI Engine by
+    Generated on Wed Jun 11 18:58:48 2008 for Resource PKI Engine by
     doxygen 1.5.5

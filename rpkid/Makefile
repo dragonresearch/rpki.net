@@ -81,6 +81,8 @@ dox doxygen:
 	cd rpki && TZ='' doxygen
 	${TWEAKHTML} rpki/html/Installation.html | ${HTML2TEXT} >INSTALLATION
 	${TWEAKHTML} rpki/html/Operation.html    | ${HTML2TEXT} >OPERATION
+	${TWEAKHTML} rpki/html/Left-right.html   | ${HTML2TEXT} >../docs/left-right-protocol
+	${TWEAKHTML} rpki/html/Publication.html  | ${HTML2TEXT} >../docs/publication-protocol
 
 doc:: dox
 

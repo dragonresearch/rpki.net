@@ -17,9 +17,7 @@
 
 <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version='1.0'>
 
-  <xsl:template match="div[@class = 'navigation']">
-    <p>[Converted from HTML, see rpki/__init__.py for source]</p>
-  </xsl:template>
+  <xsl:template match="div[@class = 'navigation']"/>
 
   <xsl:template match="node() | @*">
     <xsl:copy>

@@ -40,15 +40,6 @@ class resource_range(object):
   directly.
   """
 
-  ## @var min
-  # Minimum value of range.
-
-  ## @var max
-  # Maximum value of range.
-
-  ## @var datum_type
-  # Type of underlying data (min and max).
-
   def __init__(self, min, max):
     """Initialize and sanity check a resource_range."""
     assert min <= max, "Mis-ordered range: %s before %s" % (str(min), str(max))
@@ -69,6 +60,9 @@ class resource_range_as(resource_range):
 
   Denotes a single ASN by a range whose min and max values are identical.
   """
+
+  ## @var datum_type
+  # Type of underlying data (min and max).
 
   datum_type = long
 
@@ -138,10 +132,16 @@ class resource_range_ip(resource_range):
 class resource_range_ipv4(resource_range_ip):
   """Range of IPv4 addresses."""
 
+  ## @var datum_type
+  # Type of underlying data (min and max).
+
   datum_type = rpki.ipaddrs.v4addr
 
 class resource_range_ipv6(resource_range_ip):
   """Range of IPv6 addresses."""
+
+  ## @var datum_type
+  # Type of underlying data (min and max).
 
   datum_type = rpki.ipaddrs.v6addr
 
@@ -166,9 +166,6 @@ class resource_set(list):
   This is a virtual class.  You probably don't want to use it
   directly.
   """
-
-  ## @var range_type
-  # Type of range underlying this type of resource_set.
 
   ## @var inherit
   # Boolean indicating whether this resource_set uses RFC 3779 inheritance.
@@ -315,6 +312,9 @@ class resource_set(list):
 class resource_set_as(resource_set):
   """ASN resource set."""
 
+  ## @var range_type
+  # Type of range underlying this type of resource_set.
+
   range_type = resource_range_as
 
   def parse_str(self, x):
@@ -356,9 +356,6 @@ class resource_set_ip(resource_set):
   directly.
   """
 
-  ## @var afi
-  # Address Family Identifier value associated with this resource_set_ip subclass.
-
   def parse_str(self, x):
     """Parse IP address resource sets from text (eg, XML attributes)."""
     r = re.match("^([0-9:.a-fA-F]+)-([0-9:.a-fA-F]+)$", x)
@@ -399,13 +396,27 @@ class resource_set_ip(resource_set):
 class resource_set_ipv4(resource_set_ip):
   """IPv4 address resource set."""
 
+  ## @var range_type
+  # Type of range underlying this type of resource_set.
+
   range_type = resource_range_ipv4
+
+  ## @var afi
+  # Address Family Identifier value for IPv4.
+
   afi = "\x00\x01"
 
 class resource_set_ipv6(resource_set_ip):
   """IPv6 address resource set."""
 
+  ## @var range_type
+  # Type of range underlying this type of resource_set.
+
   range_type = resource_range_ipv6
+
+  ## @var afi
+  # Address Family Identifier value for IPv6.
+
   afi = "\x00\x02"
 
 def _bs2long(bs):
@@ -560,9 +571,6 @@ class roa_prefix(object):
   ## @var max_prefixlen
   # Maxmimum prefix length.
 
-  ## @var range_type
-  # Type of corresponding resource_range_ip.
-
   def __init__(self, address, prefixlen, max_prefixlen = None):
     """Initialize a ROA prefix.  max_prefixlen is optional and
     defaults to prefixlen.  max_prefixlen must not be smaller than
@@ -618,21 +626,21 @@ class roa_prefix(object):
 class roa_prefix_ipv4(roa_prefix):
   """IPv4 ROA prefix."""
 
+  ## @var range_type
+  # Type of corresponding resource_range_ip.
+
   range_type = resource_range_ipv4
 
 class roa_prefix_ipv6(roa_prefix):
   """IPv6 ROA prefix."""
 
+  ## @var range_type
+  # Type of corresponding resource_range_ip.
+
   range_type = resource_range_ipv6
 
 class roa_prefix_set(list):
   """Set of ROA prefixes, analogous to the resource_set_ip class."""
-
-  ## @var prefix_type
-  # Type of underlying roa_prefix.
-
-  ## @var resource_set_type
-  # Type of corresponding resource_set_ip class.
 
   def __init__(self, ini = None):
     """Initialize a ROA prefix set."""
@@ -693,13 +701,27 @@ class roa_prefix_set(list):
 class roa_prefix_set_ipv4(roa_prefix_set):
   """Set of IPv4 ROA prefixes."""
 
+  ## @var prefix_type
+  # Type of underlying roa_prefix.
+
   prefix_type = roa_prefix_ipv4
+
+  ## @var resource_set_type
+  # Type of corresponding resource_set_ip class.
+
   resource_set_type = resource_set_ipv4
 
 class roa_prefix_set_ipv6(roa_prefix_set):
   """Set of IPv6 ROA prefixes."""
 
+  ## @var prefix_type
+  # Type of underlying roa_prefix.
+
   prefix_type = roa_prefix_ipv6
+
+  ## @var resource_set_type
+  # Type of corresponding resource_set_ip class.
+
   resource_set_type = resource_set_ipv6
 
 # Test suite for set operations.

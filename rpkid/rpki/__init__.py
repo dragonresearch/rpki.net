@@ -37,6 +37,14 @@
 # Doxygen from comments and documentation in
 # <a href="http://viewvc.hactrn.net/subvert-rpki.hactrn.net/rpkid/rpki/">the code</a>.
 #
+# Besides the automatically-generated code documentation, this manual
+# also includes documentation of the overall package:
+#
+# @li The @subpage Installation "installation instructions"
+# @li The @subpage Operation "operation instructions"
+# @li A description of the @subpage Left-right "left-right protocol"
+# @li A description of the @subpage Publication "publication protocol"
+#
 # This work is funded by <a href="http://www.arin.net/">ARIN</a>, in
 # collaboration with the other RIRs.  If you're interested in this
 # package you might also be interested in:
@@ -45,20 +53,12 @@
 # @li <a href="http://www.hactrn.net/opaque/rcynic.html">A live sample of rcynic's summary output</a>
 # @li <a href="http://mirin.apnic.net/resourcecerts/wiki/">APNIC's Wiki</a>
 # @li <a href="http://mirin.apnic.net/trac/">APNIC's project Trac instance</a>
-#
-# Besides the automatically-generated code documentation, this manual
-# also includes several sections documenting the overall package:
-#
-# @li The @subpage Installation "installation instructions"
-# @li The @subpage Operation "operation instructions"
-# @li A description of the @subpage Left-right "left-right protocol"
-# @li A description of the @subpage Publication "publication protocol"
 
-## @page Installation Installation
+## @page Installation Installation Guide
 #
 # Preliminary installation instructions for rpkid et al.  These are the
 # production-side RPKI tools, for Internet Registries (RIRs, LIRs, etc).
-# See ../rcynic/README for relying party tools.
+# See the "rcynic" program for relying party tools.
 #
 # rpkid is a set of Python modules supporting generation and maintenance
 # of resource certificates.  Most of the code is in the rpkid/rpki/
@@ -74,12 +74,15 @@
 # Note that initial development of this code has been on FreeBSD, so
 # installation will probably be easiest on FreeBSD.
 #
-# The first step to running the code is to build the OpenSSL and POW
-# binaries.  At present the OpenSSL code is just a copy of the stock
-# OpenSSL 0.9.8g release, compiled with special options to enable
-# RFC 3779 support that ISC wrote under previous contract to ARIN.  The
-# POW (Python OpenSSL Wrapper) library is an extended copy of the stock
-# POW release.
+# Before attempting to build the package, see the %list of required
+# Python modules in rpkid/README.  Note that the Python code requires
+# Python version 2.5.  Install any modules that might be missing.
+#
+# The next step is to build the OpenSSL and POW binaries.  At present
+# the OpenSSL code is just a copy of the stock OpenSSL 0.9.8g release,
+# compiled with special options to enable RFC 3779 support that ISC
+# wrote under previous contract to ARIN.  The POW (Python OpenSSL
+# Wrapper) library is an extended copy of the stock POW release.
 #
 # To build these, cd to the top-level directory in the distribution and
 # type "make".
@@ -92,10 +95,6 @@
 # This should automatically build everything, in the right order,
 # including staticly linking the POW extension module with the OpenSSL
 # library to provide RFC 3779 support.
-#
-# Next, see the %list of required Python modules in rpkid/README.  Note
-# that the Python code requires Python version 2.5.  Install any modules
-# that might be missing.
 #
 # You will also need a MySQL installation.  This code was developed
 # using MySQL 5.1 and has been tested with MySQL 5.0 and 5.1.
@@ -127,11 +126,11 @@
 # If nothing explodes, your installation is probably ok.  Any Python
 # backtraces in the output indicate a problem.
 
-## @page Operation Operation
+## @page Operation Operation Guide
 #
 # Preliminary operation instructions for rpkid et al.  These are the
 # production-side RPKI tools, for Internet Registries (RIRs, LIRs, etc).
-# See ../rcynic/README for relying party tools.
+# See rcynic/README for relying party tools.
 #
 # @warning
 # rpkid is still in development, and the code changes more often than
@@ -193,20 +192,16 @@
 # configuration files which may be useful as examples.
 #
 # Basic operation consists of creating the appropriate MySQL databases,
-# starting rpkid, rootd, and irdbd, using the left-right control
+# starting rpkid, pubd, rootd, and irdbd, using the left-right control
 # protocol to set up rpkid's internal state, and setting up a cron job
 # to invoke rpkid's cron action at regular intervals.  All other
 # operations should occur either as a result of cron events or as a
 # result of incoming left-right and up-down protocol requests.
 #
-# Note that the publication protocol isn't fully specified yet, much
-# less implmenented.  At the moment rpkid just writes its outputs to a
-# local directory tree.
-#
 # Note that the full event-driven model for rpkid hasn't yet been
 # implemented.  The design is intended to allow an arbitrary number of
 # hosted RPKI engines to run in a single rpkid instance, but without the
-# event-driven tasking model one has to set up a separate rpkid instance
+# event-driven tasking model one must set up a separate rpkid instance
 # for each hosted RPKI engine.
 #
 # At present the daemon programs all run in foreground, that is, if one
@@ -224,16 +219,18 @@
 #
 # @section rpkid rpkid.py
 #
-# rpkid is the main RPKI engine daemon.  Configuration of rpkid is a two
-# step process: a %config file to bootstrap rpkid to the point where it
-# can speak using the left-right protocol, followed by dynamic
-# configuration via the left-right protocol.  In production use the
-# latter stage would be handled by the IRBE stub; for test and
-# develoment purposes it's handled by the irbe-cli.py command line
-# interface or by the testbed.py test framework.
+# rpkid is the main RPKI engine daemon.  Configuration of rpkid is a
+# two step process: a %config file to bootstrap rpkid to the point
+# where it can speak using the @link Left-right left-right protocol,
+# @endlink followed by dynamic configuration via the left-right
+# protocol.  In production use the latter stage would be handled by
+# the IRBE stub; for test and develoment purposes it's handled by the
+# irbe-cli.py command line interface or by the testbed.py test
+# framework.
 #
 # rpkid stores dynamic data in an SQL database, which must have been
-# created for it, as explained in the installation guide.
+# created for it, as explained in the @link Installation installation
+# guide. @endlink
 #
 # The default %config file is rpkid.conf, start rpkid with "-c filename"
 # to choose a different %config file.  All options are in the section
@@ -258,54 +255,37 @@
 #                      Password to hand to MySQL when connecting to
 #                      rpkid's database.
 #
-# @li @c cms-ta-irdb:
-#                      Name of file containing CMS trust anchor to
-#                      use when authenticating messages from irdbd.
+# @li @c bpki-ta:
+#                      Name of file containing BPKI trust anchor.
+#                      All BPKI certificate verification within rpkid
+#                      traces back to this trust anchor. 
 #
-# @li @c cms-ta-irbe:
-#                      Name of file containing CMS trust anchor to
-#                      use when authenticating control messages from
-#                      IRBE.
-#
-# @li @c cms-key:
-#                      Name of file containing RSA key to use when
-#                      signing CMS messages to IRBE or irdbd.
-#
-# @li @c cms-cert:
-#                      Name(s) of file(s) containing certificate(s)
-#                      to include in CMS wrapper when signing
-#                      messages to IRBE or irdbd.   You can specify
-#                      more than one certificate using OpenSSL-style
-#                      subscripts: cms-cert.0, cms-cert.1, etc.
-#
-# @li @c https-key:
-#                      Name of file containing RSA key to use, both
-#                      in the HTTPS server role (for both up-down and
-#                      left-right protocols) and in the HTTPS client
-#                      role (left-right protocol only).
-#
-# @li @c https-cert:
-#                      Name(s) of file(s) containing certificate(s)
-#                      to use in same contexts where https-key is
-#                      used.  You can specify more than one
-#                      certificate using OpenSSL-style subscripts:
-#                      https-cert.0, https-cert.1, etc.
-#
-# @li @c https-ta:
-#                      Name of file containing trust anchor to use
-#                      when verifying irdbd's HTTPS server
+# @li @c rpkid-cert:
+#                      Name of file containing rpkid's own BPKI EE
 #                      certificate.
+#
+# @li @c rpkid-key:
+#                      Name of file containing RSA key corresponding
+#                      to rpkid-cert.
+#
+# @li @c irbe-cert:
+#                      Name of file containing BPKI certificate used
+#                      by IRBE when talking to rpkid.
+#
+# @li @c irdb-cert:
+#                      Name of file containing BPKI certificate used
+#                      by irdbd.
 #
 # @li @c irdb-url:
 #                      Service URL for irdbd.  Must be a %https:// URL.
 #
-# @li @c https-server-host:
+# @li @c server-host:
 #                      Hostname or IP address on which to listen for
 #                      HTTPS connections.  Current default is
 #                      INADDR_ANY (IPv4 0.0.0.0); this will need to
 #                      be hacked to support IPv6 for production.
 #
-# @li @c https-server-port:
+# @li @c server-port:
 #                      TCP port on which to listen for HTTPS
 #                      connections.
 #
@@ -406,38 +386,33 @@
 #
 # %Config file options:
 #
-# @li @c cms-ta:
-#                      Name of file containing trust anchor to use
-#                      when verifying CMS up-down queries.
+# @li @c bpki-ta:
+#                      Name of file containing BPKI trust anchor.  All
+#                      BPKI certificate validation in rootd traces
+#                      back to this trust anchor.
 #
-# @li @c cms-key:
-#                      Name of file containing RSA key to use when
-#                      signing CMS up-down replies.
+# @li @c rootd-bpki-cert:
+#                      Name of file containing rootd's own BPKI
+#                      certificate. 
 #
-# @li @c cms-cert:
-#                      Name(s) of file(s) containing certificate(s)
-#                      to include in CMS wrapper when signing up-down
-#                      replies.   You can specify more than one
-#                      certificate using OpenSSL-style subscripts:
-#                      cms-cert.0, cms-cert.1, etc.
+# @li @c rootd-bpki-key:
+#                      Name of file containing RSA key corresponding to
+#                      rootd-bpki-cert.
 #
-# @li @c https-key:
-#                      Name of file containing RSA key to use in the
-#                      HTTPS server role for the up-down protocol.
+# @li @c rootd-bpki-crl:
+#                      Name of file containing BPKI CRL that would
+#                      cover rootd-bpki-cert had it been revoked.
 #
-# @li @c https-cert:
-#                      Name(s) of file(s) containing certificate(s)
-#                      to use in the HTTPS server role for the
-#                      up-down protocol.  You can specify more than
-#                      one certificate using OpenSSL-style
-#                      subscripts: https-cert.0, https-cert.1,
-#                      etc.
+# @li @c child-bpki-cert:
+#                      Name of file containing BPKI certificate for 
+#                      rootd's one and only child (RPKI engine to
+#                      which rootd issues an RPKI certificate).
 #
-# @li @c https-server-host:
+# @li @c server-host:
 #                      Hostname or IP address on which to listen for
 #                      HTTPS connections.  Default is localhost.
 #
-# @li @c https-server-port:
+# @li @c server-port:
 #                      TCP port on which to listen for HTTPS
 #                      connections.
 #
@@ -501,32 +476,23 @@
 #                      Password to hand to MySQL when connecting to
 #                      irdbd's database.
 #
-# @li @c cms-ta:
-#                      Name of file containing CMS trust anchor to
-#                      use when authenticating messages from rpkid.
+# @li @c bpki-ta:
+#                      Name of file containing BPKI trust anchor.  All
+#                      BPKI certificate validation in irdbd traces
+#                      back to this trust anchor.
 #
-# @li @c cms-key:
-#                      Name of file containing RSA key to use when
-#                      signing CMS messages to rpkid.
+# @li @c irdbd-cert:
+#                      Name of file containing irdbd's own BPKI
+#                      certificate. 
 #
-# @li @c cms-cert:
-#                      Name(s) of file(s) containing certificate(s)
-#                      to include in CMS wrapper when signing
-#                      messages to rpkid.  You can specify more than
-#                      one certificate using OpenSSL-style
-#                      subscripts: cms-cert.0, cms-cert.1, etc.
+# @li @c irdbd-key:
+#                      Name of file containing RSA key corresponding
+#                      to irdbd-cert.
 #
-# @li @c https-key:
-#                      Name of file containing RSA key to use in the
-#                      HTTPS server role when listening for
-#                      connections from rpkid.
-#
-# @li @c https-cert:
-#                      Name(s) of file(s) containing certificate(s)
-#                      to use in the HTTPS server role when listening
-#                      for connections from rpkid.  You can specify
-#                      more than one certificate using OpenSSL-style
-#                      subscripts: https-cert.0, https-cert.1, etc.
+# @li @c rpkid-cert:
+#                      Name of file containing certificate used the
+#                      one and only by rpkid instance authorized to
+#                      contact this irdbd instance.
 #
 # @li @c https-url:
 #                      Service URL for irdbd.  Must be a %https:// URL.
@@ -534,36 +500,33 @@
 #
 # @section irdbd_cli irbe-cli.py
 #
-# irbe-cli is a simple command line client for the control subset of the
-# left-right protocol.  In production use this functionality would be
-# part of the IRBE stub.
+# irbe-cli is a simple command line client for the control subsets of
+# the @link Left-right left-right @endlink and @link Publication
+# publication @endlink protocols.  In production use this
+# functionality would be part of the IRBE stub.
 #
 # Basic configuration of irbe-cli is handled via a %config file.  The
 # specific action or actions to be performed are specified on the
-# command line, and map closely to the left-right protocol itself.
+# command line, and map closely to the protocols themselves.
 #
-# At present the user is assumed to be able to read the (XML) left-right
-# protocol messages, and with one exception, no attempt is made to
-# interpret the responses other than to check for errors.  The one
-# exception is that, if the @c --pem_out option is specified on the command
-# line, any PKCS \#10 requests received from rpkid will be written in PEM
-# format to that file; this makes it easier to hand these requests off
-# to the business PKI in order to issue signing certs corresponding to
-# newly generated business keys.
+# At present the user is assumed to be able to read the (XML)
+# left-right and publication protocol messages, and with one
+# exception, irdbd-cli makes no attempt to interpret the responses
+# other than to check for signature and syntax errors.  The one
+# exception is that, if the @c --pem_out option is specified on the
+# command line, any PKCS \#10 requests received from rpkid will be
+# written in PEM format to that file; this makes it easier to hand
+# these requests off to the business PKI in order to issue signing
+# certs corresponding to newly generated business keys.
 #
 # @verbinclude irbe-cli.usage
 #
-# Global options (@c --config, @c --help, @c --pem_out) come first, then zero or
-# more commands (parent, repository, self, child, route_origin, bsc),
-# each followed by its own set of options.   The commands map to
-# elements in the left-right protocol, and the command-specific options
-# map to attributes or subelements for those commands.
-#
-# @c --action is one of @c create, @c set, @c get, @c %list, or @c
-# destroy; exactly one of these must be specified for each command.
-#
-# @c --type is @c query or @c reply; since irbe-cli is a client,
-# @c query is the default.
+# Global options (@c --config, @c --help, @c --pem_out) come first,
+# then zero or more commands (@c parent, @c repository, @c self, @c
+# child, @c route_origin, @c bsc, @c config, @c client), each followed
+# by its own set of options.  The commands map to elements in the
+# protocols, and the command-specific options map to attributes or
+# subelements for those commands.
 #
 # @c --tag is an optional arbitrary tag (think IMAP) to simplify
 # matching up replies with batched queries.
@@ -572,56 +535,65 @@
 # objects.
 #
 # The remaining options are specific to the particular commands, and
-# follow directly from the left-right protocol specification.
+# follow directly from the protocol specifications.
 #
 # A trailing "=" in the above option summary indicates that an option
 # takes a value, eg, "--action create" or "--action=create".  Options
 # without a trailing "=" correspond to boolean control attributes.
 #
-# The default %config file for irbe-cli is irbe.conf, start rpkid with
-# "-c filename" (or "--config filename") to choose a different %config
-# file.  All options are in the section "[irbe-cli]".  Certificates,
-# keys, and trust anchors may be in either DER or PEM format.
+# The default %config file for irbe-cli is irbe-cli.conf, start
+# irbe-cli with "-c filename" (or "--config filename") to choose a
+# different %config file.  All options are in the section
+# "[irbe-cli]".  Certificates, keys, and trust anchors may be in
+# either DER or PEM format.
 #
 # %Config file options:
 #
-# @li @c cms-ta:
-#                      Name of file containing CMS trust anchor to
+# @li @c rpkid-bpki-ta:
+#                      Name of file containing BPKI trust anchor to
 #                      use when authenticating messages from rpkid.
 #
-# @li @c cms-key:
-#                      Name of file containing RSA key to use when
-#                      signing CMS messages to rpkid.
+# @li @c rpkid-irbe-cert:
+#                      Name of file containing BPKI certificate
+#                      irbe-cli should use when talking to rpkid.
 #
-# @li @c cms-cert:
-#                      Name(s) of file(s) containing certificate(s)
-#                      to include in CMS wrapper when signing
-#                      messages to rpkid.  You can specify more than
-#                      one certificate using OpenSSL-style
-#                      subscripts: cms-cert.0, cms-cert.1, etc.
+# @li @c rpkid-irbe-key:
+#                      Name of file containing RSA key corresponding to
+#                      rpkid-irbe-cert.
 #
-# @li @c https-key:
-#                      Name of file containing RSA key to use in the
-#                      HTTPS client role when contacting rpkid.
+# @li @c rpkid-cert:
+#                      Name of file containing rpkid's BPKI certificate.
 #
-# @li @c https-cert:
-#                      Name(s) of file(s) containing certificate(s)
-#                      to use in the HTTPS client role when
-#                      contacting rpkid.  You can specify more than
-#                      one certificate using OpenSSL-style
-#                      subscripts: https-cert.0, https-cert.1,
-#                      etc.
-#
-# @li @c https-ta:
-#                      Name of file containing trust anchor to use
-#                      when verifying rpkid's HTTPS server
-#                      certificate.
-#
-# @li @c https-url:
+# @li @c rpkid-url:
 #                      Service URL for rpkid.  Must be a %https:// URL.
+#
+# @li @c pubd-bpki-ta:
+#                      Name of file containing BPKI trust anchor to
+#                      use when authenticating messages from pubd.
+#
+# @li @c pubd-irbe-cert:
+#                      Name of file containing BPKI certificate
+#                      irbe-cli should use when talking to pubd.
+#
+# @li @c pubd-irbe-key:
+#                      Name of file containing RSA key corresponding to
+#                      pubd-irbe-cert.
+#
+# @li @c pubd-cert:
+#                      Name of file containing pubd's BPKI certificate.
+#
+# @li @c pubd-url:
+#                      Service URL for pubd.  Must be a %https:// URL.
+#
 #
 #
 # @section irbe_setup irbe-setup.py config file
+#
+# @warning
+# irbe-setup is old code, not currently used, kept in case it is
+# useful at some later date.  It may not work properly or at all.  If
+# you don't understand what it does, you don't need it. You have been
+# warned.
 #
 # The default %config file is irbe.conf, start rpkid with "-c filename"
 # to choose a different %config file.  Most options are in the section
@@ -630,37 +602,20 @@
 #
 # Options in the "[irbe-cli]" section:
 #
-# @li @c cms-ta:
-#                      Name of file containing CMS trust anchor to
-#                      use when authenticating messages from rpkid.
+# @li @c bpki-ta:
+#                      Name of file containing BPKI trust anchor.
 #
-# @li @c cms-key:
-#                      Name of file containing RSA key to use when
-#                      signing CMS messages to rpkid.
+# @li @c irbe-cert:
+#                      Name of file containing BPKI certificate
+#                      irbe-setup should use.
 #
-# @li @c cms-cert:
-#                      Name(s) of file(s) containing certificate(s)
-#                      to include in CMS wrapper when signing
-#                      messages to rpkid.  You can specify more than
-#                      one certificate using OpenSSL-style
-#                      subscripts: cms-cert.0, cms-cert.1, etc.
+# @li @c irbe-key:
+#                      Name of file containing RSA key corresponding
+#                      to irbe-cert.
 #
-# @li @c https-key:
-#                      Name of file containing RSA key to use in the
-#                      HTTPS client role when contacting rpkid.
-#
-# @li @c https-cert:
-#                      Name(s) of file(s) containing certificate(s)
-#                      to use in the HTTPS client role when
-#                      contacting rpkid.  You can specify more than
-#                      one certificate using OpenSSL-style
-#                      subscripts: https-cert.0, https-cert.1,
-#                      etc.
-#
-# @li @c https-ta:
-#                      Name of file containing trust anchor to use
-#                      when verifying rpkid's HTTPS server
-#                      certificate.
+# @li @c rpkid-cert:
+#                      Name of file containing rpkid's BPKI
+#                      certificate. 
 #
 # @li @c https-url:
 #                      Service URL for rpkid.  Must be a %https:// URL.
@@ -697,22 +652,19 @@
 #
 # %Config file options:
 #
-# @li @c https-key:
-#                      Name of file containing RSA key to use in the
-#                      HTTPS client role when contacting rpkid.
+# @li @c bpki-ta:
+#                      Name of file containing BPKI trust anchor.
 #
-# @li @c https-cert:
-#                      Name(s) of file(s) containing certificate(s)
-#                      to use in the HTTPS client role when
-#                      contacting rpkid.  You can specify more than
-#                      one certificate using OpenSSL-style
-#                      subscripts: https-cert.0, https-cert.1,
-#                      etc.
-#
-# @li @c https-ta:
-#                      Name of file containing trust anchor to use
-#                      when verifying rpkid's HTTPS server
+# @li @c irbe-cert:
+#                      Name of file containing cronjob.py's BPKI
 #                      certificate.
+#
+# @li @c https-key:
+#                      Name of file containing RSA key corresponding
+#                      to irbe-cert.
+#
+# @li @c rpkid-cert:
+#                      Name of file containing rpkid's BPKI certificate.
 #
 # @li @c https-url:
 #                      Service URL for rpkid.  Must be a %https:// URL.
@@ -1423,7 +1375,7 @@
 #
 # The %publication protocol is really two separate client/server
 # protocols, between different parties.  The first is a configuration
-# protocol for the IRBE to use to configure the %publication engine,
+# protocol for an IRBE to use to configure a %publication engine,
 # the second is the interface by which authorized clients request
 # %publication of specific objects.
 #
@@ -1437,7 +1389,7 @@
 #
 # The %publication engine operates a single HTTPS server which serves
 # both of these subprotocols.  The two subprotocols share a single
-# server port, but use distinct URLs.
+# server port, but use distinct URLs to allow demultiplexing.
 #
 # @section Terminology
 #
@@ -1468,13 +1420,14 @@
 # Payload data which can be configured in a &lt;config/&gt; %object:
 #
 # @li @c bpki_crl (element):
-#     This is the BPKI CRL used by the %publication server when signing
-#     the CMS wrapper on responses in the %publication subprotocol.  As
-#     the CRL must be updated at regular intervals, it's not practical
-#     to restart the %publication server when the BPKI CRL needs to be
-#     updated.  Fortunately, the BPKI model doesn't require use of a
-#     BPKI CRL between the IRBE and the %publication server, so we can
-#     use the %publication control subprotocol to update the BPKI CRL.
+#     This is the BPKI CRL used by the %publication server when
+#     signing the CMS wrapper on responses in the %publication
+#     subprotocol.  As the CRL must be updated at regular intervals,
+#     it's not practical to restart the %publication server when the
+#     BPKI CRL needs to be updated.  The BPKI model doesn't require
+#     use of a BPKI CRL between the IRBE and the %publication server,
+#     so we can use the %publication control subprotocol to update the
+#     BPKI CRL.
 #
 # @subsection client_obj <client/> object
 #
@@ -1566,15 +1519,13 @@
 # &lt;report_error/&gt; messages are CMS-signed XML messages like the rest of
 # this protocol, and thus can be archived to provide an audit trail.
 #
-# &lt;report_error/&gt; messages only appear in replies, never in queries.
-# The &lt;report_error/&gt; message can appear on either the "forward" (IRBE
-# as client of RPKI engine) or "back" (RPKI engine as client of IRDB)
-# communication channel.
+# &lt;report_error/&gt; messages only appear in replies, never in
+# queries.  The &lt;report_error/&gt; message can appear in both the
+# control and publication subprotocols.
 #
 # The &lt;report_error/&gt; message includes an optional @c "tag" attribute to
 # assist in matching the error with a particular query when using
-# batching, and also includes a @c "self_id" attribute indicating the
-# &lt;self/&gt; that issued the error.
+# batching.
 #
 # The error itself is conveyed in the @c error_code (attribute).  The
 # value of this attribute is a token indicating the specific error that

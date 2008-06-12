@@ -34,6 +34,8 @@ Operation Guide
      * irbe-cli.py: A command-line client for the left-right control
        protocol.
 
+     * cross-certify.py: A BPKI cross-certification tool.
+
      * irbe-setup.py: An example of a script to set up the mappings
        between the IRDB and rpkid's own database, using the left-right
        control protocol.
@@ -313,6 +315,24 @@ irbe-cli.py
 
       Command line IR back-end control program for rpkid and pubd.
 
+      $Id: irbe-cli.py 1880 2008-06-12 21:54:53Z sra $
+
+      Copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+
+      Permission to use, copy, modify, and distribute this software for any
+      purpose with or without fee is hereby granted, provided that the above
+      copyright notice and this permission notice appear in all copies.
+
+      THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
+      REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILIT
+Y
+      AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
+      INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FRO
+M
+      LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+      OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+      PERFORMANCE OF THIS SOFTWARE.
+
       Usage:
 
       # Top-level options:
@@ -396,6 +416,22 @@ irbe-cli.py
      * pubd-cert: Name of file containing pubd's BPKI certificate.
 
      * pubd-url: Service URL for pubd. Must be a https:// URL.
+
+cross-certify.py
+
+   cross-certify.py is a small tool to extract certain fields from an
+   existing X.509 certificate and generate issue a new certificate that
+   can be used as part of a cross-certification chain. cross-certify
+   doesn't take a config file, all of its arguments are specified on the
+   command line.
+
+    python cross-certify.py { -i | --in     } input_cert
+                            { -c | --ca     } issuing_cert
+                            { -k | --key    } issuing_cert_key
+                            { -s | --serial } serial_filename
+                            [ { -h | --help } ]
+                            [ { -o | --out  }     filename ]
+                            [ { -l | --lifetime } timedelta ]
 
 irbe-setup.py config file
 
@@ -649,5 +685,5 @@ testpoke.py
      __________________________________________________________________
 
 
-    Generated on Thu Jun 12 20:50:24 2008 for RPKI Engine by  doxygen
+    Generated on Thu Jun 12 22:02:16 2008 for RPKI Engine by  doxygen
     1.5.5

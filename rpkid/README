@@ -4,6 +4,8 @@ Python RPKI production tools.
 
 Requires Python 2.5.
 
+See doc/Installation for installation instructions.
+
 External Python packages required:
 
 - lxml, which in turn requires the libxml2 C libraries.

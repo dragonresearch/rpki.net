@@ -41,6 +41,36 @@ We also use a hacked copy of the Python OpenSSL Wrappers (POW)
 package, but our copy has enough modifications that it's expanded in
 the Subversion tree.
 
+Other (non-Python) code used in test routines, building documentation,
+or translating RelaxNG schemas from compact to XML format; none of
+these should be needed just to build and run the package, although
+accidental dependencies on them have crept into the Makefile from
+time to time as they are part of the development environment:
+
+- xsltproc, from the libxslt package:
+
+  http://xmlsoft.org/XSLT/
+
+  FreeBSD: /usr/ports/textproc/libxslt
+
+- Doxygen, which in turn pulls in Graphviz and pdflatex:
+
+  http://www.doxygen.org/
+
+  FreeBSD: /usr/ports/devel/doxygen
+
+- Lynx:
+
+  http://lynx.isc.org/current/
+
+  FreeBSD: /usr/ports/www/lynx
+
+- Trang:
+
+  http://www.thaiopensource.com/relaxng/trang.html
+
+  FreeBSD: /usr/ports/textproc/trang
+
 
 
 $Revision$

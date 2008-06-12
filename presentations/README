@@ -5,23 +5,17 @@ confusing.
 
 README				This file
 
+070523.lacnic-pki.pdf		A presentation from LACNIC, May 2007
+
+bpki.pdf			Old discussion of a design choice
+				between two slightly different
+				business PKI (BPKI) architectures
+
 entity-decompose.pdf		An overview presentation
 
 images				Some old pictures
-
-left-right-protocol		Pseudo-code for left-right protocol
-
-left-right-xml			XML samples of left-right protocol
-
-presentations			More presentations
-
-publication-protocol		Pseudo-code for publication protocol
 
 repository-engine-objects.dot	Objects in the RPKI engine (PDF)
 repository-engine-objects.pdf	Graphviz source for "
 
 repository-structure.txt	Old notes on repository structure
-
-signed-manifests		ASN.1 for signed manifests
-
-up-down-protocol		Pointer to up-down protocol specification

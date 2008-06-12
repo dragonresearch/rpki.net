@@ -3,11 +3,12 @@
 VERSION = SNAP-20080509
 
 all: openssl-${VERSION}/Makefile
-	cd openssl-${VERSION}; make $@
+	cd openssl-${VERSION}; ${MAKE} $@
 	ln -sf openssl-${VERSION} openssl
 
 clean:
 	rm -rf openssl-${VERSION} openssl
+	cd tests; ${MAKE} $@
 
 openssl-${VERSION}/Makefile: openssl-${VERSION}/config
 	cd openssl-${VERSION}; PERL=/usr/bin/perl ./config enable-rfc3779 no-dso
@@ -23,5 +24,5 @@ install:
 sandblast:
 	svn st -v openssl* | awk '/^I/ && NF == 2 {system("set -x; rm -rf " $$2)}'
 
-test:
-	@true
+test: all
+	cd tests; ${MAKE} $@

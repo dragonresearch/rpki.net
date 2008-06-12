@@ -1,9 +1,9 @@
 # $Id$
 
-SUBDIRS = openssl rcynic tests pow rpkid
+SUBDIRS = openssl rcynic utils pow rpkid
 
 all install clean test:
-	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && make $@); done
+	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
 
 test: all
 

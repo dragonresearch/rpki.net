@@ -22,17 +22,17 @@ Programs:
 
 - rcynic: "cynical rsync" validator for rsync-based RPKI repositories.
 
-- rpkid: rpkid and friends, an (unfinished) collection of Python
-  programs to handle the publication side of the RPKI project.
+- rpkid: rpkid and friends, a collection of Python programs to handle
+  the publication side of the RPKI project.
 
-- tests and scripts: various little test programs and utilities, not
+- utils and scripts: various little test programs and utilities, not
   really intended for use by anyone but the author.  If they're
   useful, cool, enjoy, but if they blow up in your face, set your
   computer on fire, and turn your cat blue, that's your problem.
 
 Other:
 
-- docs: Design documents for various protocols used by the entities
-  that generate and publish RPKI data.
+- presentations: miscellaneous presentations and design documents for
+  the project.
 
 - wiki-mirror: Mirror of selected documents from a Wiki at APNIC.

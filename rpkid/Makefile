@@ -67,34 +67,25 @@ all-tests:: relaxng
 all-tests:: parse-test
 
 resource-cert-samples-regen: resource-cert-samples/.stamp
-	cd resource-cert-samples && make
+	cd resource-cert-samples && ${MAKE}
 
 resource-cert-samples/.stamp: generate-testrepo.py Makefile
 	python generate-testrepo.py
 	touch $@
-
-HTML2TEXT = xsltproc --html tweak-doc.xsl $? | lynx -dump -nolist -force_html /dev/stdin >$@
 
 irbe-cli.usage: irbe-cli.py
 	python irbe-cli.py --help | sed 's/^/      /' >$@
 
 dox doxygen: irbe-cli.usage
 	TZ='' doxygen
-	cd doc/latex && TZ='' make >/dev/null 2>&1
+	cd doc/latex && TZ='' ${MAKE} >/dev/null 2>&1
+	for i in Installation Operation Left-right Publication; do \
+		xsltproc --html tweak-doc.xsl doc/html/$$i.html | lynx -dump -nolist -force_html /dev/stdin >doc/$$i; \
+	done
+	cd doc; ln -f latex/refman.pdf manual.pdf
+	cd doc; tar -cf - html | gzip -9 >manual.tar.gz
 
-doc:: dox doc/INSTALLATION doc/OPERATION doc/left-right-protocol doc/publication-protocol
-
-doc/INSTALLATION: doc/html/Installation.html
-	${HTML2TEXT}
-
-doc/OPERATION: doc/html/Operation.html
-	${HTML2TEXT}
-
-doc/left-right-protocol: doc/html/Left-right.html
-	${HTML2TEXT}
-
-doc/publication-protocol: doc/html/Publication.html
-	${HTML2TEXT}
+doc:: dox
 
 tags:
 	find . -type f -name '*.py' ! -name relaxng.py | etags -

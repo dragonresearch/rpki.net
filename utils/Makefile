@@ -1,9 +1,9 @@
 # $Id$
 
-SUBDIRS = resource-set uri
+SUBDIRS = uri
 
 all clean test:
-	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && make $@); done
+	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
 
 install:
 	@true

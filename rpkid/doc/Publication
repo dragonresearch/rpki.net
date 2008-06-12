@@ -3,8 +3,8 @@ Publication protocol
    The publication protocol is really two separate client/server
    protocols, between different parties.
 
-   The first is a configuration protocol for the IRBE to use to configure
-   the publication engine, the second is the interface by which authorized
+   The first is a configuration protocol for an IRBE to use to configure a
+   publication engine, the second is the interface by which authorized
    clients request publication of specific objects.
 
    Much of the architecture of the publication protocol is borrowed from
@@ -16,7 +16,7 @@ Publication protocol
 
    The publication engine operates a single HTTPS server which serves both
    of these subprotocols. The two subprotocols share a single server port,
-   but use distinct URLs.
+   but use distinct URLs to allow demultiplexing.
 
 Terminology
 
@@ -50,10 +50,9 @@ Publication control subprotocol
        server when signing the CMS wrapper on responses in the publication
        subprotocol. As the CRL must be updated at regular intervals, it's
        not practical to restart the publication server when the BPKI CRL
-       needs to be updated. Fortunately, the BPKI model doesn't require
-       use of a BPKI CRL between the IRBE and the publication server, so
-       we can use the publication control subprotocol to update the BPKI
-       CRL.
+       needs to be updated. The BPKI model doesn't require use of a BPKI
+       CRL between the IRBE and the publication server, so we can use the
+       publication control subprotocol to update the BPKI CRL.
 
 <client/> object
 
@@ -144,14 +143,12 @@ Error handling
    this protocol, and thus can be archived to provide an audit trail.
 
    <report_error/> messages only appear in replies, never in queries. The
-   <report_error/> message can appear on either the "forward" (IRBE as
-   client of RPKI engine) or "back" (RPKI engine as client of IRDB)
-   communication channel.
+   <report_error/> message can appear in both the control and publication
+   subprotocols.
 
    The <report_error/> message includes an optional "tag" attribute to
    assist in matching the error with a particular query when using
-   batching, and also includes a "self_id" attribute indicating the
-   <self/> that issued the error.
+   batching.
 
    The error itself is conveyed in the error_code (attribute). The value
    of this attribute is a token indicating the specific error that
@@ -223,5 +220,5 @@ Additional access control considerations.
      __________________________________________________________________
 
 
-    Generated on Thu Jun 12 18:21:05 2008 for RPKI Engine by  doxygen
+    Generated on Thu Jun 12 20:50:24 2008 for RPKI Engine by  doxygen
     1.5.5

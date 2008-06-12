@@ -1,9 +1,9 @@
-Installation
+Installation Guide
 
    Preliminary installation instructions for rpkid et al.
 
    These are the production-side RPKI tools, for Internet Registries
-   (RIRs, LIRs, etc). See ../rcynic/README for relying party tools.
+   (RIRs, LIRs, etc). See the "rcynic" program for relying party tools.
 
    rpkid is a set of Python modules supporting generation and maintenance
    of resource certificates. Most of the code is in the rpkid/rpki/
@@ -19,12 +19,15 @@ Installation
    Note that initial development of this code has been on FreeBSD, so
    installation will probably be easiest on FreeBSD.
 
-   The first step to running the code is to build the OpenSSL and POW
-   binaries. At present the OpenSSL code is just a copy of the stock
-   OpenSSL 0.9.8g release, compiled with special options to enable RFC
-   3779 support that ISC wrote under previous contract to ARIN. The POW
-   (Python OpenSSL Wrapper) library is an extended copy of the stock POW
-   release.
+   Before attempting to build the package, see the list of required Python
+   modules in rpkid/README. Note that the Python code requires Python
+   version 2.5. Install any modules that might be missing.
+
+   The next step is to build the OpenSSL and POW binaries. At present the
+   OpenSSL code is just a copy of the stock OpenSSL 0.9.8g release,
+   compiled with special options to enable RFC 3779 support that ISC wrote
+   under previous contract to ARIN. The POW (Python OpenSSL Wrapper)
+   library is an extended copy of the stock POW release.
 
    To build these, cd to the top-level directory in the distribution and
    type "make".
@@ -35,10 +38,6 @@ Installation
    This should automatically build everything, in the right order,
    including staticly linking the POW extension module with the OpenSSL
    library to provide RFC 3779 support.
-
-   Next, see the list of required Python modules in rpkid/README. Note
-   that the Python code requires Python version 2.5. Install any modules
-   that might be missing.
 
    You will also need a MySQL installation. This code was developed using
    MySQL 5.1 and has been tested with MySQL 5.0 and 5.1.
@@ -68,5 +67,5 @@ Installation
      __________________________________________________________________
 
 
-    Generated on Thu Jun 12 18:21:05 2008 for RPKI Engine by  doxygen
+    Generated on Thu Jun 12 20:50:24 2008 for RPKI Engine by  doxygen
     1.5.5

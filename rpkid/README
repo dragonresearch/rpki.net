@@ -67,6 +67,12 @@ time to time as they are part of the development environment:
 
   FreeBSD: /usr/ports/www/lynx
 
+- W3m
+
+  http://w3m.sourceforge.net/
+
+  FreeBSD: /usr/ports/www/w3m
+
 - Trang:
 
   http://www.thaiopensource.com/relaxng/trang.html

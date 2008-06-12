@@ -168,6 +168,9 @@
 #              A command-line client for the left-right control
 #              protocol.
 #
+# @li @c cross-certify.py:
+#              A BPKI cross-certification tool.
+#
 # @li @c irbe-setup.py:
 #              An example of a script to set up the mappings between
 #              the IRDB and rpkid's own database, using the
@@ -585,6 +588,25 @@
 # @li @c pubd-url:
 #                      Service URL for pubd.  Must be a %https:// URL.
 #
+#
+#
+# @section cross-certify.py
+#
+# cross-certify.py is a small tool to extract certain fields from an
+# existing X.509 certificate and generate issue a new certificate that
+# can be used as part of a cross-certification chain.  cross-certify
+# doesn't take a config file, all of its arguments are specified on
+# the command line.
+#
+# @verbatim
+#    python cross-certify.py { -i | --in     } input_cert
+#                            { -c | --ca     } issuing_cert
+#                            { -k | --key    } issuing_cert_key
+#                            { -s | --serial } serial_filename
+#                            [ { -h | --help } ]
+#                            [ { -o | --out  }     filename ]
+#                            [ { -l | --lifetime } timedelta ]
+# @endverbatim
 #
 #
 # @section irbe_setup irbe-setup.py config file

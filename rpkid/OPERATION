@@ -17,7 +17,9 @@ Operation
    In addition to the library routines in the rpkid/rpki/ directory, the
    package includes the following programs:
 
-     * rpkid.py: The main RPKI engine daemon
+     * rpkid.py: The main RPKI engine daemon.
+
+     * pubd.py: The publication engine daemon.
 
      * rootd.py: A separate daemon for handling the root of an RPKI
        certificate tree. This is essentially a stripped down version of
@@ -143,10 +145,69 @@ rpkid.py
      * https-server-port: TCP port on which to listen for HTTPS
        connections.
 
-     * publication-kludge-base: [TEMPORARY] Local directory under which
-       generated certificates etc should be published. This is a temporary
-       expedient until the publication protocol is defined and
-       implemented. Default is "publication/"
+pubd.py
+
+   pubd is the publication daemon. It implements the server side of the
+   publication protocol, and is used by rpkid to publish the certificates
+   and other objects that rpkid generates.
+
+   pubd is separate from rpkid for two reasons:
+
+     * The hosting model allows entities which choose to run their own
+       copies of rpkid to publish their output under a common publication
+       point. In general, encouraging shared publication services where
+       practical is a good thing for relying parties, as it will speed up
+       rcynic synchronization time.
+
+     * The publication server has to run on (or at least close to) the
+       publication point itself, which in turn must be on a publically
+       reachable server to be useful. rpkid, on the other hand, need only
+       be reachable by the IRBE and its children in the RPKI tree. rpkid
+       is a much more complex piece of software than pubd, so in some
+       situations it might make sense to wrap tighter firewall constraints
+       around rpkid than would be practical if rpkid and pubd were a
+       single program.
+
+   pubd stores dynamic data in an SQL database, which must have been
+   created for it, as explained in the installation guide. pubd also
+   stores the published objects themselves as disk files in a configurable
+   location which should correspond to an appropriate module definition in
+   rsync.conf.
+
+   The default config file is pubd.conf, start pubd with "-c filename" to
+   choose a different config file. ALl options are in the section
+   "[pubd]". Certifiates, keys, and trust anchors may be either DER or PEM
+   format.
+
+   Config file options:
+
+     * sql-username: Username to hand to MySQL when connecting to pubd's
+       database.
+
+     * sql-database: MySQL's database name for pubd's database.
+
+     * sql-password: Password to hand to MySQL when connecting to pubd's
+       database.
+
+     * bpki-ta: Name of file containing master BPKI trust anchor for pubd.
+       All BPKI validation in pubd traces back to this trust anchor.
+
+     * irbe-cert: Name of file containing BPKI certificate used by IRBE
+       when talking to pubd.
+
+     * pubd-cert: Name of file containing BPKI certificate used by pubd.
+
+     * pubd-key: Name of file containing RSA key corresponding to
+       pubd-cert.
+
+     * server-host: Hostname or IP address on which to listen for HTTPS
+       connections. Current default is INADDR_ANY (IPv4 0.0.0.0); this
+       will need to be hacked to support IPv6 for production.
+
+     * server-port: TCP port on which to listen for HTTPS connections.
+
+     * publication-base: Path to base of filesystem tree where pubd should
+       store publishable objects. Default is "publication/".
 
 rootd.py
 
@@ -277,34 +338,35 @@ irbe-cli.py
    the business PKI in order to issue signing certs corresponding to newly
    generated business keys.
 
- Usage: irbe-cli.py --config= --help --pem_out=
+Command line IR back-end control program for rpkid and pubd.
 
-   parent     --action= --tag= --self_id= --parent_id=
-              --bsc_id= --repository_id= --peer_contact_uri=
-              --sia_base= --sender_name= --recipient_name=
-              --bpki_cms_cert= --bpki_cms_glue=
-              --bpki_https_cert= --bpki_https_glue=
-              --rekey --reissue --revoke
+Usage:
 
-   repository --action= --tag= --self_id= --repository_id=
-              --bsc_id= --peer_contact_uri=
-              --bpki_cms_cert= --bpki_cms_glue=
-              --bpki_https_cert= --bpki_https_glue=
+# Top-level options:
+  --config= --help --pem_out= --verbose
 
-   self       --action= --tag= --self_id= --crl_interval=
-              --bpki_cert= --bpki_glue=
-              --rekey --reissue --revoke
-              --run_now --publish_world_now
+# left-right protocol:
+  parent --action= --tag= --self_id= --parent_id= --bsc_id= --repository_id= --p
+eer_contact_uri= --sia_base= --sender_name= --recipient_name= --bpki_cms_cert= -
+-bpki_cms_glue= --bpki_https_cert= --bpki_https_glue= --rekey --reissue --revoke
+  repository --action= --tag= --self_id= --repository_id= --bsc_id= --peer_conta
+ct_uri= --bpki_cms_cert= --bpki_cms_glue= --bpki_https_cert= --bpki_https_glue=
+  self --action= --tag= --self_id= --crl_interval= --regen_margin= --bpki_cert=
+--bpki_glue= --rekey --reissue --revoke --run_now --publish_world_now
+  child --action= --tag= --self_id= --child_id= --bsc_id= --bpki_cert= --bpki_gl
+ue= --reissue
+  route_origin --action= --tag= --self_id= --route_origin_id= --as_number= --ipv
+4= --ipv6= --suppress_publication
+  bsc --action= --tag= --self_id= --bsc_id= --key_type= --hash_alg= --key_length
+= --signing_cert= --signing_cert_crl= --generate_keypair
 
-   child      --action= --tag= --self_id= --child_id=
-              --bsc_id= --bpki_cms_cert= --bpki_cms_glue= --reissue
-
-   route_origin --action= --tag= --self_id= --route_origin_id=
-               --as_number= --ipv4= --ipv6= --suppress_publication
-
-   bsc        --action= --tag= --self_id= --bsc_id=
-              --key_type= --hash_alg= --key_length= --signing_cert=
-              --signing_cert_crl= --generate_keypair
+# publication protocol:
+  certificate --action= --tag= --client_id= --uri=
+  roa --action= --tag= --client_id= --uri=
+  manifest --action= --tag= --client_id= --uri=
+  client --action= --tag= --client_id= --base_uri= --bpki_cert= --bpki_glue=
+  config --action= --tag= --bpki_crl=
+  crl --action= --tag= --client_id= --uri=
 
    Global options (--config, --help, --pem_out) come first, then zero or
    more commands (parent, repository, self, child, route_origin, bsc),
@@ -621,5 +683,5 @@ testpoke.py
      __________________________________________________________________
 
 
-    Generated on Wed Jun 11 22:30:25 2008 for RPKI Engine by  doxygen
+    Generated on Thu Jun 12 00:09:16 2008 for RPKI Engine by  doxygen
     1.5.5

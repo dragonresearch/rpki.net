@@ -75,7 +75,10 @@ resource-cert-samples/.stamp: generate-testrepo.py Makefile
 
 HTML2TEXT = xsltproc --html tweak-doc.xsl $? | lynx -dump -nolist -force_html /dev/stdin >$@
 
-dox doxygen:
+irbe-cli.usage: irbe-cli.py
+	python irbe-cli.py --help >$@
+
+dox doxygen: irbe-cli.usage
 	cd rpki && TZ='' doxygen
 	cd rpki/latex && TZ='' make >/dev/null 2>&1
 

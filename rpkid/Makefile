@@ -79,21 +79,21 @@ irbe-cli.usage: irbe-cli.py
 	python irbe-cli.py --help | sed 's/^/      /' >$@
 
 dox doxygen: irbe-cli.usage
-	cd rpki && TZ='' doxygen
-	cd rpki/latex && TZ='' make >/dev/null 2>&1
+	TZ='' doxygen
+	cd doc/latex && TZ='' make >/dev/null 2>&1
 
-doc:: dox INSTALLATION OPERATION ../docs/left-right-protocol ../docs/publication-protocol
+doc:: dox doc/INSTALLATION doc/OPERATION doc/left-right-protocol doc/publication-protocol
 
-INSTALLATION: rpki/html/Installation.html
+doc/INSTALLATION: doc/html/Installation.html
 	${HTML2TEXT}
 
-OPERATION: rpki/html/Operation.html
+doc/OPERATION: doc/html/Operation.html
 	${HTML2TEXT}
 
-../docs/left-right-protocol: rpki/html/Left-right.html
+doc/left-right-protocol: doc/html/Left-right.html
 	${HTML2TEXT}
 
-../docs/publication-protocol: rpki/html/Publication.html
+doc/publication-protocol: doc/html/Publication.html
 	${HTML2TEXT}
 
 tags:

@@ -16,8 +16,6 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 # Generate Doxygen manual for RPKI code.
-#
-# At the moment this is just for the Python libraries.
 
 lock=cronjob.lock
 
@@ -30,11 +28,10 @@ case "$1" in
 locked)
     exec >cronjob.log 2>&1
     set -x
-    cd rpki || exit
     /usr/local/bin/svn update --quiet
-    /bin/rm -rf html
+    /bin/rm -rf doc/html
     PATH=/bin:/usr/bin:/usr/local/bin /usr/local/bin/doxygen </dev/null
-    /usr/local/bin/rsync --archive --itemize-changes --delete-after html/ $target/
+    /usr/local/bin/rsync --archive --itemize-changes --delete-after doc/html/ $target/
     ;;
 
 *)

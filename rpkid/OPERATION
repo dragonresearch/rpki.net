@@ -338,35 +338,40 @@ irbe-cli.py
    the business PKI in order to issue signing certs corresponding to newly
    generated business keys.
 
-Command line IR back-end control program for rpkid and pubd.
+      Command line IR back-end control program for rpkid and pubd.
 
-Usage:
+      Usage:
 
-# Top-level options:
-  --config= --help --pem_out= --verbose
+      # Top-level options:
+      --config= --help --pem_out= --verbose
 
-# left-right protocol:
-  parent --action= --tag= --self_id= --parent_id= --bsc_id= --repository_id= --p
-eer_contact_uri= --sia_base= --sender_name= --recipient_name= --bpki_cms_cert= -
--bpki_cms_glue= --bpki_https_cert= --bpki_https_glue= --rekey --reissue --revoke
-  repository --action= --tag= --self_id= --repository_id= --bsc_id= --peer_conta
-ct_uri= --bpki_cms_cert= --bpki_cms_glue= --bpki_https_cert= --bpki_https_glue=
-  self --action= --tag= --self_id= --crl_interval= --regen_margin= --bpki_cert=
---bpki_glue= --rekey --reissue --revoke --run_now --publish_world_now
-  child --action= --tag= --self_id= --child_id= --bsc_id= --bpki_cert= --bpki_gl
-ue= --reissue
-  route_origin --action= --tag= --self_id= --route_origin_id= --as_number= --ipv
-4= --ipv6= --suppress_publication
-  bsc --action= --tag= --self_id= --bsc_id= --key_type= --hash_alg= --key_length
-= --signing_cert= --signing_cert_crl= --generate_keypair
+      # left-right protocol:
+      parent --action= --tag= --self_id= --parent_id= --bsc_id=
+          --repository_id= --peer_contact_uri= --sia_base= --sender_name=
+          --recipient_name= --bpki_cms_cert= --bpki_cms_glue=
+          --bpki_https_cert= --bpki_https_glue= --rekey --reissue --revoke
+      repository --action= --tag= --self_id= --repository_id= --bsc_id=
+          --peer_contact_uri= --bpki_cms_cert= --bpki_cms_glue=
+          --bpki_https_cert= --bpki_https_glue=
+      self --action= --tag= --self_id= --crl_interval= --regen_margin=
+          --bpki_cert= --bpki_glue= --rekey --reissue --revoke --run_now
+          --publish_world_now
+      child --action= --tag= --self_id= --child_id= --bsc_id= --bpki_cert=
+          --bpki_glue= --reissue
+      route_origin --action= --tag= --self_id= --route_origin_id=
+          --as_number= --ipv4= --ipv6= --suppress_publication
+      bsc --action= --tag= --self_id= --bsc_id= --key_type= --hash_alg=
+          --key_length= --signing_cert= --signing_cert_crl=
+          --generate_keypair
 
-# publication protocol:
-  certificate --action= --tag= --client_id= --uri=
-  roa --action= --tag= --client_id= --uri=
-  manifest --action= --tag= --client_id= --uri=
-  client --action= --tag= --client_id= --base_uri= --bpki_cert= --bpki_glue=
-  config --action= --tag= --bpki_crl=
-  crl --action= --tag= --client_id= --uri=
+      # publication protocol:
+      certificate --action= --tag= --client_id= --uri=
+      roa --action= --tag= --client_id= --uri=
+      manifest --action= --tag= --client_id= --uri=
+      client --action= --tag= --client_id= --base_uri= --bpki_cert=
+          --bpki_glue=
+      config --action= --tag= --bpki_crl=
+      crl --action= --tag= --client_id= --uri=
 
    Global options (--config, --help, --pem_out) come first, then zero or
    more commands (parent, repository, self, child, route_origin, bsc),
@@ -683,5 +688,5 @@ testpoke.py
      __________________________________________________________________
 
 
-    Generated on Thu Jun 12 00:09:16 2008 for RPKI Engine by  doxygen
+    Generated on Thu Jun 12 02:11:59 2008 for RPKI Engine by  doxygen
     1.5.5

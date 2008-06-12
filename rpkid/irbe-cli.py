@@ -18,10 +18,19 @@
 Command line IR back-end control program for rpkid and pubd.
 """
 
-import getopt, sys
+import getopt, sys, textwrap
 import rpki.left_right, rpki.https, rpki.x509, rpki.config, rpki.log, rpki.publication
 
 pem_out = None
+
+class UsageWrapper(textwrap.TextWrapper):
+  """Call interface around Python textwrap.Textwrapper class."""
+
+  def __call__(self, *args):
+    """Format arguments, with TextWrapper indentation."""
+    return self.fill(textwrap.dedent(" ".join(args)))
+
+usage_fill = UsageWrapper(subsequent_indent = " " * 4)
 
 class cmd_elt_mixin(object):
   """Protocol mix-in for command line client element PDUs."""
@@ -98,7 +107,7 @@ class cmd_msg_mixin(object):
   def usage(cls):
     """Generate usage message for this PDU."""
     for k,v in cls.pdus.items():
-      print " ", k, v.usage()
+      print usage_fill(k, v.usage())
 
 # left-right protcol
 
@@ -194,13 +203,13 @@ class publication_cms_msg(rpki.publication.cms_msg):
 
 top_opts = ["config=", "help", "pem_out=", "verbose"]
 
-
 def usage(code = 1):
-  print __doc__
+  print __doc__.strip()
+  print
   print "Usage:"
   print
   print "# Top-level options:"
-  print " ", " ".join("--" + x for x in top_opts)
+  print usage_fill(*["--" + x for x in top_opts])
   print
   print "# left-right protocol:"
   left_right_msg.usage()

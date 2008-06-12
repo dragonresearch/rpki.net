@@ -590,7 +590,7 @@
 #
 #
 #
-# @section cross-certify.py
+# @section cross_certify cross-certify.py
 #
 # cross-certify.py is a small tool to extract certain fields from an
 # existing X.509 certificate and generate issue a new certificate that

@@ -31,7 +31,7 @@ locked)
     /usr/local/bin/svn update --quiet
     /bin/rm -rf doc/html
     PATH=/bin:/usr/bin:/usr/local/bin /usr/local/bin/doxygen </dev/null
-    /usr/local/bin/rsync --archive --no-times --itemize-changes --delete-after doc/html/ $target/
+    /usr/local/bin/rsync --archive --itemize-changes --delete-after doc/html/ $target/
     ;;
 
 *)

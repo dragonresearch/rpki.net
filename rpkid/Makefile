@@ -1,10 +1,5 @@
 # $Id$
 
-.SUFFIXES: .pdf .sql
-
-.sql.pdf:
-	-sh ../scripts/graphviz-sql.sh $<
-
 all:: left-right-protocol-samples/.stamp
 
 left-right-protocol-samples/.stamp: left-right-protocol-samples.xml split-protocol-samples.xsl 
@@ -76,17 +71,6 @@ resource-cert-samples/.stamp: generate-testrepo.py Makefile
 irbe-cli.usage: irbe-cli.py
 	python irbe-cli.py --help | sed 's/^/      /' >$@
 
-dox doxygen: irbe-cli.usage
-	TZ='' doxygen
-	cd doc/latex && TZ='' ${MAKE} >/dev/null 2>&1
-	for i in Installation Operation Left-right Publication; do \
-		xsltproc --html tweak-doc.xsl doc/html/$$i.html | lynx -dump -nolist -force_html /dev/stdin >doc/$$i; \
-	done
-	cd doc; ln -f latex/refman.pdf manual.pdf
-	cd doc; tar -cf - html | gzip -9 >manual.tar.gz
-
-doc:: dox
-
 tags:
 	find . -type f -name '*.py' ! -name relaxng.py | etags -
 
@@ -96,10 +80,6 @@ rpki/relaxng.py: make-relaxng.py
 	python make-relaxng.py >$@.tmp
 	mv $@.tmp $@
 
-pdf: rpkid.pdf irdbd.pdf pubd.pdf
-
-doc:: pdf
-
 # all-tests:: all; sh -x rootd.sh run
 
 test all-tests:: all
@@ -107,3 +87,41 @@ test all-tests:: all
 
 all-tests:: all
 	python testbed.py -y testbed.2.yaml
+
+# Documentation
+
+doc/irdbd.dot: irdbd.sql
+	sh ../scripts/graphviz-sql.sh $? >$@
+
+doc/pubd.dot: pubd.sql
+	sh ../scripts/graphviz-sql.sh $? >$@
+
+doc/rpkid.dot: rpkid.sql
+	sh ../scripts/graphviz-sql.sh $? >$@
+
+doc:: doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
+
+doc/irdbd.pdf: doc/irdbd.dot
+	dot -Tps2 $? | ps2pdf - $@
+
+doc/pubd.pdf: doc/pubd.dot
+	dot -Tps2 $? | ps2pdf - $@
+
+doc/rpkid.pdf: doc/rpkid.dot
+	dot -Tps2 $? | ps2pdf - $@
+
+doc:: doc/irdbd.pdf doc/pubd.pdf doc/rpkid.pdf
+
+# Certain invocations of Graphviz by Doxygen whine about fonts.  Not
+# clear whose bug this is.  Apparently harmless, so just ignore it.
+
+dox doxygen: irbe-cli.usage doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
+	TZ='' doxygen 2>&1 | awk '$$0 != "Error: Could not find/open font"'
+	cd doc/latex && TZ='' ${MAKE} >/dev/null 2>&1
+	for i in Installation Operation Left-right Publication; do \
+		xsltproc --html tweak-doc.xsl doc/html/$$i.html | lynx -dump -nolist -force_html /dev/stdin >doc/$$i; \
+	done
+	cd doc; ln -f latex/refman.pdf manual.pdf
+	cd doc; tar -cf - html | gzip -9 >manual.tar.gz
+
+doc:: dox

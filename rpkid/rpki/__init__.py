@@ -1616,3 +1616,120 @@
 # repository makes to publish the RPKI engine's output is conditional
 # upon the %object to be published passing whatever access control checks
 # the %publication server imposes.
+
+## @page rpkid-sql rpkid SQL schema
+#
+# @dotfile rpkid.dot "Diagram of rpkid.sql"
+#
+# @verbinclude rpkid.sql
+
+## @page pubd-sql pubd SQL Schema
+#
+# @dotfile pubd.dot "Diagram of pubd.sql"
+#
+# @verbinclude pubd.sql
+
+## @page irdbd-sql irdbd SQL Schema
+#
+# @dotfile irdbd.dot "Diagram of irdbd.sql"
+#
+# @verbinclude irdbd.sql
+
+## @page bpki-digraph rpkid BPKI Diagram
+#
+# @dot
+# // Color code:
+# //   Black:	Hosting entity
+# //   Blue:	Hosted entity
+# //   Red:	Cross-certified peer
+# //
+# // Shape code:
+# //   Octagon:	TA
+# //   Diamond:	CA
+# //   Record:	EE
+# 
+# digraph bpki_symmetric {
+# 	splines = true; ratio = fill;
+# 
+# 	// Hosting entity
+# 	node			[ color = black, shape = record ];
+# 	TA			[ shape = octagon ];
+# 	rpkid			[ label = "rpkid|{HTTPS server|HTTPS left-right client|CMS left-right}" ];
+# 	irdbd			[ label = "irdbd|{HTTPS left-right server|CMS left-right}" ];
+# 	irbe			[ label = "IRBE|{HTTPS left-right client|CMS left-right}" ];
+# 
+# 	// Hosted entities
+# 	node			[ color = blue, fontcolor = blue ];
+# 	Alice_CA		[ shape = diamond ];
+# 	Alice_EE		[ label = "Alice\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
+# 	Ellen_CA		[ shape = diamond ];
+# 	Ellen_EE		[ label = "Ellen\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
+# 
+# 	// Peers
+# 	node			[ color = red, fontcolor = red, shape = diamond ];
+# 	Bob_CA;
+# 	Carol_CA;
+# 	Dave_CA;
+# 	Frank_CA;
+# 	Ginny_CA;
+# 	Harry_CA;
+# 	node			[ shape = record ];
+# 	Bob_EE			[ label = "Bob\nEE|{HTTPS up-down|CMS up-down}" ];
+# 	Carol_EE		[ label = "Carol\nEE|{HTTPS up-down|CMS up-down}" ];
+# 	Dave_EE			[ label = "Dave\nEE|{HTTPS up-down|CMS up-down}" ];
+# 	Frank_EE		[ label = "Frank\nEE|{HTTPS up-down|CMS up-down}" ];
+# 	Ginny_EE		[ label = "Ginny\nEE|{HTTPS up-down|CMS up-down}" ];
+# 	Harry_EE		[ label = "Bob\nEE|{HTTPS up-down|CMS up-down}" ];
+# 
+# 	edge			[ color = black, style = solid ];
+# 	TA -> Alice_CA;
+# 	TA -> Ellen_CA;
+# 
+# 	edge			[ color = black, style = dotted ];
+# 	TA -> rpkid;
+# 	TA -> irdbd;
+# 	TA -> irbe;
+# 
+# 	edge			[ color = blue, style = solid ];
+# 	Alice_CA -> Bob_CA;
+# 	Alice_CA -> Carol_CA;
+# 	Alice_CA -> Dave_CA;
+# 	Ellen_CA -> Frank_CA;
+# 	Ellen_CA -> Ginny_CA;
+# 	Ellen_CA -> Harry_CA;
+# 
+# 	edge			[ color = blue, style = dotted ];
+# 	Alice_CA -> Alice_EE;
+# 	Ellen_CA -> Ellen_EE;
+# 
+# 	edge			[ color = red, style = solid ];
+# 	Bob_CA   -> Bob_EE;
+# 	Carol_CA -> Carol_EE;
+# 	Dave_CA  -> Dave_EE;
+# 	Frank_CA -> Frank_EE;
+# 	Ginny_CA -> Ginny_EE;
+# 	Harry_CA -> Harry_EE;
+# }
+# @enddot
+#
+# Black objects belong to the hosting entity, blue objects belong to
+# the hosted entities, red objects are cross-certified objects from
+# peers.  The arrows indicate certificate issuance: solid arrows are
+# the ones that this RPKI engine will care about during certificate
+# validation, dotted arrows show the origin of EE certificates this
+# engine uses to sign things.
+#
+# There's one nasty bit here: it's not possible to use exactly the
+# same BPKI keys and certificates for HTTPS and CMS.  The reason for
+# this is simple: each hosted entity has its own BPKI, as does the
+# hosting entity, but the HTTPS listener is shared.  The only ways to
+# avoid this would be to use separate listeners for each hosted
+# entity, which scales poorly, or to rely on the TLS "Server Name
+# Indication" extension (RFC 4366 3.1) which is not yet widely
+# implemented.
+#
+# The certificate tree looks complicated, but the set of certificates
+# needed to build a particular validation chain is obvious, again
+# excepting the HTTPS server case, where client certificate is the
+# first hint that the engine has of the client's identity, so the
+# server must be prepared to accept any current client certificate.

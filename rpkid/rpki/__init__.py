@@ -74,9 +74,41 @@
 # Note that initial development of this code has been on FreeBSD, so
 # installation will probably be easiest on FreeBSD.
 #
-# Before attempting to build the package, see the %list of required
-# Python modules in rpkid/README.  Note that the Python code requires
-# Python version 2.5.  Install any modules that might be missing.
+# Before attempting to build the package, you need to install any
+# missing prerequisites.  Note that the Python code requires Python
+# version 2.5.  rpkid et al are mostly self-contained, but do require
+# a small number of external packages to run.
+#
+# <ul>
+#   <li>
+#     <a href="http://codespeak.net/lxml/">http://codespeak.net/lxml/</a>.
+#     lxml in turn requires the Gnome LibXML2 C libraries.
+#     <ul>
+#       <li>FreeBSD: /usr/ports/devel/py-lxml</li>
+#       <li>Fedora:  python-lxml.i386</li>
+#     </ul>
+#   </li>
+#   <li>
+#     <a href="http://sourceforge.net/projects/mysql-python/">http://sourceforge.net/projects/mysql-python/</a>.
+#     MySQLdb in turn requires MySQL client and server.  rpkid et al have
+#     been tested with MySQL 5.0 and 5.1.
+#     <ul>
+#       <li>FreeBSD: /usr/ports/databases/py-MySQLdb</li>
+#       <li>Fedora:  MySQL-python.i386</li>
+#     </ul>
+#   </li>
+#   <li>
+#     <a href="http://trevp.net/tlslite/">http://trevp.net/tlslite/</a>.
+#     TLSLite pulls in other crypto packages.
+#     <ul>
+#       <li>FreeBSD: /usr/ports/security/py-tlslite</li>
+#     </ul>
+#   </li>
+# </ul>
+#
+# rpkid et al also make heavy use of a modified copy of the Python
+# OpenSSL Wrappers (POW) package, but this copy has enough modifications
+# and additions that it's included in the subversion tree.
 #
 # The next step is to build the OpenSSL and POW binaries.  At present
 # the OpenSSL code is just a copy of the stock OpenSSL 0.9.8g release,
@@ -104,7 +136,37 @@
 #
 # At this point, you should have all the necessary software installed.
 # You will probably want to test it.  All tests should be run from the
-# rpkid/ directory.
+# rpkid/ directory.  The test suite requires a few more external
+# packages, only one of which is Python code.
+#
+# <ul>
+#   <li>
+#     <a href="http://pyyaml.org/">http://pyyaml.org/</a>.
+#     testpoke.py (an up-down protocol command line test client) and
+#     testbed.py (a test harness) use PyYAML.
+#     <ul>
+#       <li>FreeBSD: /usr/ports/devel/py-yaml</li>
+#     </ul>
+#   </li>
+#   <li>
+#     <a href="http://xmlsoft.org/XSLT/">http://xmlsoft.org/XSLT/</a>.
+#     Some of the test code uses xsltproc, from the Gnome LibXSLT
+#     package.
+#     <ul>
+#       <li>FreeBSD: /usr/ports/textproc/libxslt</li>
+#     </ul>
+#   </li>
+#   <li>
+#     <a href="http://w3m.sourceforge.net/">http://w3m.sourceforge.net/</a>.
+#     testbed.py uses w3m to display the summary output from rcynic.
+#     Nothing terrible will happen if w3m isn't available, testbed.py
+#     will just complain about it being missing and won't display
+#     rcynic's output.
+#     <ul>
+#       <li>FreeBSD: /usr/ports/www/w3m</li>
+#     </ul>
+#   </li>
+# </ul>
 #
 # Some of the tests require MySQL databases to store their data.  To set
 # up all the databases that the tests will need, run the SQL commands in
@@ -125,6 +187,44 @@
 #
 # If nothing explodes, your installation is probably ok.  Any Python
 # backtraces in the output indicate a problem.
+#
+# There's a last set of tools that only developers should need, as
+# they're only used when modifying schemas or regenerating the
+# documentation.  These tools are listed here for completeness.
+#
+# <ul>
+#   <li>
+#     <a href="http://www.doxygen.org/">http://www.doxygen.org/</a>.
+#     Doxygen in turn pulls in several other tools, notably Graphviz,
+#     pdfLaTeX, and Ghostscript.
+#     <ul>
+#       <li>FreeBSD: /usr/ports/devel/doxygen</li>
+#     </ul>
+#   </li>
+#   <li>
+#     <a href="http://lynx.isc.org/current/">http://lynx.isc.org/current/</a>.
+#     The documentation build process uses xsltproc and Lynx to dump
+#     flat text versions of a few critical documentation pages.
+#     <ul>
+#       <li>FreeBSD: /usr/ports/www/lynx</li>
+#     </ul>
+#   </li>
+#   <li>
+#     <a href="http://www.thaiopensource.com/relaxng/trang.html">http://www.thaiopensource.com/relaxng/trang.html</a>.
+#     Trang is used to convert RelaxNG schemas from the human-readable
+#     "compact" form to the XML form that LibXML2 understands.  Trang in
+#     turn requires Java.
+#     <ul>
+#       <li>FreeBSD: /usr/ports/textproc/trang</li>
+#     </ul>
+#   </li>
+#   <li>
+#     <a href="http://search.cpan.org/dist/SQL-Translator/">http://search.cpan.org/dist/SQL-Translator/</a>.
+#     SQL-Translator, also known as "SQL Fairy", includes code to parse
+#     an SQL schema and dump a description of it as Graphviz input.
+#     SQL Fairy in turn requires Perl.
+#   </li>
+# </ul>
 
 ## @page Operation Operation Guide
 #

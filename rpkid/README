@@ -4,80 +4,8 @@ Python RPKI production tools.
 
 Requires Python 2.5.
 
-See doc/Installation for installation instructions.
-
-External Python packages required:
-
-- lxml, which in turn requires the libxml2 C libraries.
-
-  http://codespeak.net/lxml/
-
-  FreeBSD: /usr/ports/devel/py-lxml
-  Fedora:  python-lxml.i386
-
-- MySQLdb, which in turn requires MySQL client and server.  I'm
-  testing with MySQL 5.0 and 5.1.
-
-  http://sourceforge.net/projects/mysql-python/
-
-  FreeBSD: /usr/ports/databases/py-MySQLdb
-  Fedora:  MySQL-python.i386
-
-- TLSLite, which pulls in other crypto packages.
-
-  http://trevp.net/tlslite/
-
-  FreeBSD: /usr/ports/security/py-tlslite
-
-- The testpoke tool (up-down protocol command line test client) and
-  testbed tools also uses PyYAML.
-
-  http://pyyaml.org/
-
-  FreeBSD: /usr/ports/devel/py-yaml
-
-- Eventually I expect that this will require an event-handling package
-  like Twisted, but I'm not there yet.
-
-We also use a hacked copy of the Python OpenSSL Wrappers (POW)
-package, but our copy has enough modifications that it's expanded in
-the Subversion tree.
-
-Other (non-Python) code used in test routines, building documentation,
-or translating RelaxNG schemas from compact to XML format; none of
-these should be needed just to build and run the package, although
-accidental dependencies on them have crept into the Makefile from
-time to time as they are part of the development environment:
-
-- xsltproc, from the libxslt package:
-
-  http://xmlsoft.org/XSLT/
-
-  FreeBSD: /usr/ports/textproc/libxslt
-
-- Doxygen, which in turn pulls in Graphviz and pdflatex:
-
-  http://www.doxygen.org/
-
-  FreeBSD: /usr/ports/devel/doxygen
-
-- Lynx:
-
-  http://lynx.isc.org/current/
-
-  FreeBSD: /usr/ports/www/lynx
-
-- W3m
-
-  http://w3m.sourceforge.net/
-
-  FreeBSD: /usr/ports/www/w3m
-
-- Trang:
-
-  http://www.thaiopensource.com/relaxng/trang.html
-
-  FreeBSD: /usr/ports/textproc/trang
+See doc/Installation for installation instructions and required
+packages.
 
 
 

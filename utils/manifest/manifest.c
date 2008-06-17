@@ -16,6 +16,12 @@
 
 /* $Id$ */
 
+/*
+ * Decoder test for RPKI manifests.
+ *
+ * NB: This does -not- check the CMS signatures, just the encoding.
+ */
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -74,42 +80,15 @@ ASN1_SEQUENCE(Manifest) = {
 } ASN1_SEQUENCE_END(Manifest)
 
 /*
- * Read certificate in DER format.
- */
-static X509 *read_cert(const char *filename)
-{
-  X509 *x = NULL;
-  BIO *b;
-
-  if ((b = BIO_new_file(filename, "r")) != NULL)
-    x = d2i_X509_bio(b, NULL);
-
-  BIO_free(b);
-  return x;
-}
-
-/*
- * Read CRL in DER format.
- */
-static X509_CRL *read_crl(const char *filename)
-{
-  X509_CRL *crl = NULL;
-  BIO *b;
-
-  if ((b = BIO_new_file(filename, "r")) != NULL)
-    crl = d2i_X509_CRL_bio(b, NULL);
-
-  BIO_free(b);
-  return crl;
-}
-
-/*
  * Read manifest (CMS object) in DER format.
+ *
+ * NB: When invoked this way, CMS_verify() does -not- verify, it just decodes the ASN.1.
  */
-static Manifest *read_manifest(const char *filename)
+static const Manifest *read_manifest(const char *filename, const int print_cms, const int print_manifest)
 {
   CMS_ContentInfo *cms = NULL;
-  Manifest *m = NULL;
+  const ASN1_OBJECT *oid = NULL;
+  const Manifest *m = NULL;
   char buf[512];
   BIO *b;
   int i, j;
@@ -119,39 +98,47 @@ static Manifest *read_manifest(const char *filename)
     goto done;
   BIO_free(b);
 
-#if 0
-  if ((b = BIO_new(BIO_s_fd())) == NULL)
-    goto done;
-  BIO_set_fd(b, 1, BIO_NOCLOSE);
-  CMS_ContentInfo_print_ctx(b, cms, 0, NULL);
-  BIO_free(b);
-#endif
+  if (print_cms) {
+    if ((b = BIO_new(BIO_s_fd())) == NULL)
+      goto done;
+    BIO_set_fd(b, 1, BIO_NOCLOSE);
+    CMS_ContentInfo_print_ctx(b, cms, 0, NULL);
+    BIO_free(b);
+  }
 
   if ((b = BIO_new(BIO_s_mem())) == NULL ||
       CMS_verify(cms, NULL, NULL, NULL, b, CMS_NOCRL | CMS_NO_SIGNER_CERT_VERIFY | CMS_NO_ATTR_VERIFY | CMS_NO_CONTENT_VERIFY) <= 0 ||
       (m = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), b, NULL)) == NULL)
     goto done;
 
-  if (m->version)
-    printf("version:        %ld\n", ASN1_INTEGER_get(m->version));
-  else
-    printf("version:        0 [defaulted]\n");
-  printf("manifestNumber: %ld\n", ASN1_INTEGER_get(m->manifestNumber));
-  printf("thisUpdate:     %s\n", m->thisUpdate->data);
-  printf("nextUpdate:     %s\n", m->nextUpdate->data);
-  OBJ_obj2txt(buf, sizeof(buf), m->fileHashAlg, 0);
-  printf("fileHashAlg:    %s\n", buf);
+  if (print_manifest) {
 
-  for (i = 0; i < sk_FileAndHash_num(m->fileList); i++) {
-    FileAndHash *fah = sk_FileAndHash_value(m->fileList, i);
-    printf("  file[%2d]:       %s\n", i, fah->file->data);
-    printf("  hash[%2d]:       ", i);
-    for (j = 0; j < fah->hash->length; j++)
-      printf("%02x%s", fah->hash->data[j], j == fah->hash->length - 1 ? "\n" : ":");
+    if ((oid = CMS_get0_eContentType(cms)) == NULL)
+      goto done;
+    OBJ_obj2txt(buf, sizeof(buf), oid, 0);
+    printf("eContentType:   %s\n", buf);
+
+    if (m->version)
+      printf("version:        %ld\n", ASN1_INTEGER_get(m->version));
+    else
+      printf("version:        0 [defaulted]\n");
+    printf("manifestNumber: %ld\n", ASN1_INTEGER_get(m->manifestNumber));
+    printf("thisUpdate:     %s\n", m->thisUpdate->data);
+    printf("nextUpdate:     %s\n", m->nextUpdate->data);
+    OBJ_obj2txt(buf, sizeof(buf), m->fileHashAlg, 0);
+    printf("fileHashAlg:    %s\n", buf);
+
+    for (i = 0; i < sk_FileAndHash_num(m->fileList); i++) {
+      FileAndHash *fah = sk_FileAndHash_value(m->fileList, i);
+      printf("  file[%2d]:       %s\n", i, fah->file->data);
+      printf("  hash[%2d]:       ", i);
+      for (j = 0; j < fah->hash->length; j++)
+	printf("%02x%s", fah->hash->data[j], j == fah->hash->length - 1 ? "\n" : ":");
+    }
+
+    if (X509_cmp_current_time(m->nextUpdate) < 0)
+      printf("MANIFEST HAS EXPIRED\n");
   }
-
-  if (X509_cmp_current_time(m->nextUpdate) < 0)
-    printf("MANIFEST HAS EXPIRED\n");
 
  done:
   if (ERR_peek_error())
@@ -166,11 +153,7 @@ static Manifest *read_manifest(const char *filename)
  */
 int main (int argc, char *argv[])
 {
-  Manifest *m;
-
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
-
-  m = read_manifest(argv[1]);
-  return m == NULL;
+  return read_manifest(argv[1], 0, 1) == NULL;
 }

@@ -52,6 +52,7 @@
 #include <openssl/conf.h>
 #include <openssl/rand.h>
 #include <openssl/asn1t.h>
+#include <openssl/cms.h>
 
 #ifndef FILENAME_MAX
 #define	FILENAME_MAX	1024
@@ -203,7 +204,7 @@ typedef struct host_counter {
  */
 typedef struct certinfo {
   int ca, ta;
-  char uri[URI_MAX], sia[URI_MAX], aia[URI_MAX], crldp[URI_MAX];
+  char uri[URI_MAX], sia[URI_MAX], aia[URI_MAX], crldp[URI_MAX], manifest[URI_MAX];
 } certinfo_t;
 
 /*
@@ -254,11 +255,17 @@ ASN1_SEQUENCE(FileAndHash) = {
   ASN1_SIMPLE(FileAndHash, hash, ASN1_BIT_STRING)
 } ASN1_SEQUENCE_END(FileAndHash)
 
+DECLARE_STACK_OF(FileAndHash)
+DECLARE_ASN1_FUNCTIONS(FileAndHash)
+
+#define sk_FileAndHash_num(st)		SKM_sk_num(FileAndHash, (st))
+#define sk_FileAndHash_value(st, i)	SKM_sk_value(FileAndHash, (st), (i))
+
 typedef struct Manifest_st {
   ASN1_INTEGER *version, *manifestNumber;
   ASN1_GENERALIZEDTIME *thisUpdate, *nextUpdate;
   ASN1_OBJECT *fileHashAlg;
-  FileAndHash *fileList;
+  STACK_OF(FileAndHash) *fileList;
 } Manifest;
 
 ASN1_SEQUENCE(Manifest) = {
@@ -1115,6 +1122,21 @@ static X509_CRL *read_crl(const char *filename)
   return crl;
 }
 
+/*
+ * Read CMS in DER format.
+ */
+static CMS_ContentInfo *read_cms(const char *filename)
+{
+  CMS_ContentInfo *cms = NULL;
+  BIO *b;
+
+  if ((b = BIO_new_file(filename, "r")) != NULL)
+    cms = d2i_CMS_bio(b, NULL);
+
+  BIO_free(b);
+  return cms;
+}
+
 
 
 /*
@@ -1175,10 +1197,9 @@ static void extract_access_uri(const AUTHORITY_INFO_ACCESS *xia,
 
 static void parse_cert(X509 *x, certinfo_t *c, const char *uri)
 {
-  static const unsigned char aia_oid[] =
-    {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x2};
-  static const unsigned char sia_oid[] =
-    {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x5};
+  static const unsigned char id_ad_caIssuers[]    = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x2};
+  static const unsigned char id_ad_caRepository[] = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x5};
+  static const unsigned char id_ad_rpkiManifest[] = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0xa};
 
   STACK_OF(DIST_POINT) *crldp;
   AUTHORITY_INFO_ACCESS *xia;
@@ -1192,12 +1213,13 @@ static void parse_cert(X509 *x, certinfo_t *c, const char *uri)
   strcpy(c->uri, uri);
 
   if ((xia = X509_get_ext_d2i(x, NID_info_access, NULL, NULL)) != NULL) {
-    extract_access_uri(xia, aia_oid, sizeof(aia_oid), c->aia, sizeof(c->aia));
+    extract_access_uri(xia, id_ad_caIssuers, sizeof(id_ad_caIssuers), c->aia, sizeof(c->aia));
     sk_ACCESS_DESCRIPTION_pop_free(xia, ACCESS_DESCRIPTION_free);
   }
 
   if ((xia = X509_get_ext_d2i(x, NID_sinfo_access, NULL, NULL)) != NULL) {
-    extract_access_uri(xia, sia_oid, sizeof(sia_oid), c->sia, sizeof(c->sia));
+    extract_access_uri(xia, id_ad_caRepository, sizeof(id_ad_caRepository), c->sia, sizeof(c->sia));
+    extract_access_uri(xia, id_ad_rpkiManifest, sizeof(id_ad_rpkiManifest), c->sia, sizeof(c->manifest));
     sk_ACCESS_DESCRIPTION_pop_free(xia, ACCESS_DESCRIPTION_free);
   }
 

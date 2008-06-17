@@ -1,6 +1,6 @@
 # $Id$
 
-SUBDIRS = uri
+SUBDIRS = uri manifest
 
 all clean test:
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done

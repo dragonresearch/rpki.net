@@ -21,4 +21,5 @@ ${BIN}: ${OBJ} ${LIB} Makefile
 MANIFEST_DIR = ../../rpkid/testbed.dir/publication
 
 test: all
+	-date -u +%Y%m%d%H%M%S
 	if test -d ${MANIFEST_DIR}; then find ${MANIFEST_DIR} -type f -name '*.mnf' -print -exec ./manifest {} \; ; else :; fi

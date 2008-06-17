@@ -150,6 +150,9 @@ static Manifest *read_manifest(const char *filename)
       printf("%02x%s", fah->hash->data[j], j == fah->hash->length - 1 ? "\n" : ":");
   }
 
+  if (X509_cmp_current_time(m->nextUpdate) < 0)
+    printf("MANIFEST HAS EXPIRED\n");
+
  done:
   if (ERR_peek_error())
     ERR_print_errors_fp(stderr);

@@ -1093,6 +1093,39 @@ static int prune_unauthenticated(const rcynic_ctx_t *rc,
 
 
 /*
+ * Open a file with an BIO pipeline to hash the file content.
+ * The BIO package will handle this automatically if asked nicely, but
+ * the sequence of operations is not obvious.  This routine hides most
+ * of that.  Callers of this routine can use the BIO normally, with two
+ * exceptions:
+ *
+ * 1) Calling BIO_gets() on the BIO will return the hash.  This only
+ *    works -after- reading the file content.
+ *
+ * 2) Because this is a BIO pipeline, it must be closed with
+ *    BIO_free_all() rather than plain BIO_free().
+ *
+ * For the moment we only handle SHA256, that being the mandatory
+ * to implement hash for RPKI manifests.  Generalizing this would
+ * be trivial if there were a reason to do so.
+ */
+static BIO *bio_new_sha256_file(const char *filename)
+{
+  BIO *b1 = NULL, *b2 = NULL;
+
+  if ((b1 = BIO_new_file(filename, "rb")) != NULL &&
+      (b2 = BIO_new(BIO_f_md())) != NULL &&
+      BIO_set_md(b2, EVP_sha256())) {
+    BIO_push(b2, b1);
+    return b2;
+  } else {
+    BIO_free(b1);
+    BIO_free(b2);
+    return NULL;
+  }
+}
+
+/*
  * Read certificate in DER format.
  */
 static X509 *read_cert(const char *filename)
@@ -1100,10 +1133,10 @@ static X509 *read_cert(const char *filename)
   X509 *x = NULL;
   BIO *b;
 
-  if ((b = BIO_new_file(filename, "r")) != NULL)
+  if ((b = bio_new_sha256_file(filename)) != NULL)
     x = d2i_X509_bio(b, NULL);
 
-  BIO_free(b);
+  BIO_free_all(b);
   return x;
 }
 
@@ -1115,10 +1148,10 @@ static X509_CRL *read_crl(const char *filename)
   X509_CRL *crl = NULL;
   BIO *b;
 
-  if ((b = BIO_new_file(filename, "r")) != NULL)
+  if ((b = bio_new_sha256_file(filename)) != NULL)
     crl = d2i_X509_CRL_bio(b, NULL);
 
-  BIO_free(b);
+  BIO_free_all(b);
   return crl;
 }
 
@@ -1130,10 +1163,10 @@ static CMS_ContentInfo *read_cms(const char *filename)
   CMS_ContentInfo *cms = NULL;
   BIO *b;
 
-  if ((b = BIO_new_file(filename, "r")) != NULL)
+  if ((b = bio_new_sha256_file(filename)) != NULL)
     cms = d2i_CMS_bio(b, NULL);
 
-  BIO_free(b);
+  BIO_free_all(b);
   return cms;
 }
 
@@ -1219,7 +1252,7 @@ static void parse_cert(X509 *x, certinfo_t *c, const char *uri)
 
   if ((xia = X509_get_ext_d2i(x, NID_sinfo_access, NULL, NULL)) != NULL) {
     extract_access_uri(xia, id_ad_caRepository, sizeof(id_ad_caRepository), c->sia, sizeof(c->sia));
-    extract_access_uri(xia, id_ad_rpkiManifest, sizeof(id_ad_rpkiManifest), c->sia, sizeof(c->manifest));
+    extract_access_uri(xia, id_ad_rpkiManifest, sizeof(id_ad_rpkiManifest), c->manifest, sizeof(c->manifest));
     sk_ACCESS_DESCRIPTION_pop_free(xia, ACCESS_DESCRIPTION_free);
   }
 

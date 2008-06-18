@@ -1,6 +1,6 @@
 # $Id$
 
-SUBDIRS = uri manifest
+SUBDIRS = uri manifest cert_hash
 
 all clean test:
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done

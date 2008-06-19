@@ -1247,6 +1247,8 @@ static void parse_cert(X509 *x, certinfo_t *c, const char *uri)
 
   c->ca = X509_check_ca(x) == 1;
 
+  if (uri == NULL)
+    uri = "";
   assert(strlen(uri) < sizeof(c->uri));
   strcpy(c->uri, uri);
 
@@ -1341,44 +1343,90 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 
 
 
-#if 0
-
 /*
  * Check whether we already have a particular manifest, attempt to fetch it
  * and check issuer's signature if we don't.
  */
 
-static Manifest *check_manifest_1(const char *uri,
-				  char *path, const int pathlen,
+static int check_x509_cb(int ok, X509_STORE_CTX *ctx);
+
+static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
+				  const char *uri,
+				  char *path,
+				  const int pathlen,
 				  const char *prefix,
-				  STACK_OF(X509) *certs)
+				  STACK_OF(X509) *certs,
+				  X509_CRL *crl)
 {
   CMS_ContentInfo *cms = NULL;
   STACK_OF(X509) *signers = NULL;
   STACK_OF(X509_CRL) *crls = NULL;
-  Manifest *result = NULL;
+  Manifest *manifest = NULL, *result = NULL;
+  BIO *bio = NULL;
+  rcynic_x509_store_ctx_t rctx;
+  certinfo_t certinfo;
 
-  assert(uri && path && certs);
+  assert(rc && uri && path && prefix && certs);
 
-  if (!uri_to_filename(uri, path, pathlen, prefix) || 
+  if (!uri_to_filename(uri, path, pathlen, prefix) ||
       (cms = read_cms(path, NULL, 0)) == NULL)
-    goto done;
+    goto done1;
 
-  if ((signers = CMS_get0_signers(cms)) == NULL || sk_X509_num(signers) != 1 ||
-      (crls = CMS_get0_crls(cms)) == NULL || sk_X509_CRL_num(crls) != 1)
-    goto done;
+  if ((signers = CMS_get0_signers(cms)) == NULL || sk_X509_num(signers) != 1)
+    goto done1;
+
+  if ((crls = sk_X509_CRL_new_null()) == NULL || !sk_X509_CRL_push(crls, crl))
+    goto done1;
+
+  if (!X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, sk_X509_value(signers, 0), NULL))
+    goto done1;
+  
+  parse_cert(sk_X509_value(signers, 0), &certinfo, NULL);
+
+  rctx.rc = rc;
+  rctx.subj = &certinfo;
+
+  X509_STORE_CTX_trusted_stack(&rctx.ctx, certs);
+  X509_STORE_CTX_set0_crls(&rctx.ctx, crls);
+  X509_STORE_CTX_set_verify_cb(&rctx.ctx, check_x509_cb);
+
+  X509_VERIFY_PARAM_set_flags(rctx.ctx.param,
+			      X509_V_FLAG_CRL_CHECK |
+			      X509_V_FLAG_POLICY_CHECK |
+			      X509_V_FLAG_EXPLICIT_POLICY |
+			      X509_V_FLAG_X509_STRICT);
+
+  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param,
+				/* {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0xe, 0x2} */
+				OBJ_txt2obj("1.3.6.1.5.5.7.14.2", 0));
+
+  if (X509_verify_cert(&rctx.ctx) <= 0) {
+    logmsg(rc, log_data_err, "Validation failure for CMS EE certificate");
+    goto done2;
+  }
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    goto done2;
+
+  if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
+    logmsg(rc, log_data_err, "Validation failure for CMS message");
+    goto done2;
+  }
+ 
+  if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
+    logmsg(rc, log_data_err, "Failure decoding manifest");
+    goto done2;
+  }
 
   /*
-   * Here we have to check the CMS message, extract the manifest from
-   * the eContent, and check the manifest.  Unfortunately, the CMS
-   * code wants to receive an X509_STORE, which interferes with the
-   * games we play with a X509_STORE_CTX in check_x509().  This may
-   * require us to disable CMS_verify()'s certificate checking and do
-   * that part of the job ourselves, which, in turn, may require
-   * refactoring to avoid duplicating most of check_x509().  Sigh.
+   * Still need to check manifest internals for sanity (dates, etc).
    */
 
- done:
+ done2:
+  X509_STORE_CTX_cleanup(&rctx.ctx);
+  BIO_free(bio);
+
+ done1:
   CMS_ContentInfo_free(cms);
   sk_X509_free(signers);
   sk_X509_CRL_free(crls);
@@ -1388,21 +1436,29 @@ static Manifest *check_manifest_1(const char *uri,
 
 static Manifest *check_manifest(const rcynic_ctx_t *rc,
 				const char *uri,
-				STACK_OF(X509) *certs)
+				STACK_OF(X509) *certs,
+				X509_CRL *crl)
 {
   char path[FILENAME_MAX];
   Manifest *manifest;
 
+#if 0
+  /*
+   * This snippet should just read a manifest that's already been
+   * checked, without verifying it.  We could write such a function,
+   * but let's see if we need it first....
+   */
   if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) && 
       (manifest = read_manifest(path, NULL, 0)) != NULL)
     return manifest;
+#endif
 
   logmsg(rc, log_telemetry, "Checking manifest %s", uri);
 
   rsync_manifest(rc, uri);
 
-  if ((manifest = check_manifest_1(uri, path, sizeof(path),
-			 rc->unauthenticated, certs))) {
+  if ((manifest = check_manifest_1(rc, uri, path, sizeof(path),
+				   rc->unauthenticated, certs, crl))) {
     install_object(rc, uri, path, 5);
     mib_increment(rc, uri, current_manifest_accepted);
     return manifest;
@@ -1410,8 +1466,8 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
     mib_increment(rc, uri, current_manifest_rejected);
   }
 
-  if ((manifest = check_manifest_1(uri, path, sizeof(path),
-			 rc->old_authenticated, certs))) {
+  if ((manifest = check_manifest_1(rc, uri, path, sizeof(path),
+				   rc->old_authenticated, certs, crl))) {
     install_object(rc, uri, path, 5);
     mib_increment(rc, uri, backup_manifest_accepted);
     return manifest;
@@ -1422,8 +1478,6 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
   return NULL;
 }
 
-#endif
-
 
 
 /*
@@ -1431,7 +1485,7 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
  * and checks for conformance to the RPKI certificate profile.
  */
 
-static int check_cert_cb(int ok, X509_STORE_CTX *ctx)
+static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
 {
   rcynic_x509_store_ctx_t *rctx = (rcynic_x509_store_ctx_t *) ctx;
 
@@ -1535,7 +1589,7 @@ static int check_x509(const rcynic_ctx_t *rc,
 
   X509_STORE_CTX_trusted_stack(&rctx.ctx, certs);
   X509_STORE_CTX_set0_crls(&rctx.ctx, crls);
-  X509_STORE_CTX_set_verify_cb(&rctx.ctx, check_cert_cb);
+  X509_STORE_CTX_set_verify_cb(&rctx.ctx, check_x509_cb);
 
   X509_VERIFY_PARAM_set_flags(rctx.ctx.param,
 			      X509_V_FLAG_CRL_CHECK |

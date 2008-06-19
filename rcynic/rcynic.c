@@ -1093,81 +1093,72 @@ static int prune_unauthenticated(const rcynic_ctx_t *rc,
 
 
 /*
- * Open a file with an BIO pipeline to hash the file content.
- * The BIO package will handle this automatically if asked nicely, but
- * the sequence of operations is not obvious.  This routine hides most
- * of that.  Callers of this routine can use the BIO normally, with two
- * exceptions:
- *
- * 1) Calling BIO_gets() on the BIO will return the hash.  This only
- *    works -after- reading the file content.
- *
- * 2) Because this is a BIO pipeline, it must be closed with
- *    BIO_free_all() rather than plain BIO_free().
- *
- * For the moment we only handle SHA256, that being the mandatory
- * to implement hash for RPKI manifests.  Generalizing this would
- * be trivial if there were a reason to do so.
+ * Read a DER object using a BIO pipeline that hashes the file content
+ * as we read it.  Returns the internal form of the parsed DER object,
+ * sets the hash buffer (if specified) as a side effect.  The default
+ * hash algorithm is SHA-256.
  */
-static BIO *bio_new_sha256_file(const char *filename)
+static void *read_file_with_hash(const char *filename,
+				 const ASN1_ITEM *it,
+				 const EVP_MD *md,
+				 unsigned char *hashbuf,
+				 const size_t hashlen)
 {
-  BIO *b1 = NULL, *b2 = NULL;
+  void *result = NULL;
+  BIO *b;
 
-  if ((b1 = BIO_new_file(filename, "rb")) != NULL &&
-      (b2 = BIO_new(BIO_f_md())) != NULL &&
-      BIO_set_md(b2, EVP_sha256())) {
-    BIO_push(b2, b1);
-    return b2;
-  } else {
-    BIO_free(b1);
-    BIO_free(b2);
-    return NULL;
+  if ((b = BIO_new_file(filename, "rb")) == NULL)
+    goto error;
+  
+  if (hashbuf != NULL) {
+    BIO *b2 = BIO_new(BIO_f_md());
+    if (b2 == NULL)
+      goto error;
+    if (md == NULL)
+      md = EVP_sha256();
+    if (!BIO_set_md(b2, md)) {
+      BIO_free(b2);
+      goto error;
+    }
+    BIO_push(b2, b);
+    b = b2;
   }
+
+  if ((result = ASN1_item_d2i_bio(it, b, NULL)) == NULL)
+    goto error;
+
+  if (hashbuf != NULL) {
+    memset(hashbuf, 0, hashlen);
+    BIO_gets(b, hashbuf, hashlen);
+  }    
+
+ error:
+  BIO_free_all(b);
+  return result;
 }
 
 /*
- * Read certificate in DER format.
+ * Read and hash a certificate.
  */
-static X509 *read_cert(const char *filename)
+static X509 *read_cert(const char *filename, unsigned char *hashbuf, const size_t hashlen)
 {
-  X509 *x = NULL;
-  BIO *b;
-
-  if ((b = bio_new_sha256_file(filename)) != NULL)
-    x = d2i_X509_bio(b, NULL);
-
-  BIO_free_all(b);
-  return x;
+  return read_file_with_hash(filename, ASN1_ITEM_rptr(X509), NULL, hashbuf, hashlen);
 }
 
 /*
- * Read CRL in DER format.
+ * Read and hash a CRL.
  */
-static X509_CRL *read_crl(const char *filename)
+static X509_CRL *read_crl(const char *filename, unsigned char *hashbuf, const size_t hashlen)
 {
-  X509_CRL *crl = NULL;
-  BIO *b;
-
-  if ((b = bio_new_sha256_file(filename)) != NULL)
-    crl = d2i_X509_CRL_bio(b, NULL);
-
-  BIO_free_all(b);
-  return crl;
+  return read_file_with_hash(filename, ASN1_ITEM_rptr(X509_CRL), NULL, hashbuf, hashlen);
 }
 
 /*
- * Read CMS in DER format.
+ * Read and hash a CMS message.
  */
-static CMS_ContentInfo *read_cms(const char *filename)
+static CMS_ContentInfo *read_cms(const char *filename, unsigned char *hashbuf, const size_t hashlen)
 {
-  CMS_ContentInfo *cms = NULL;
-  BIO *b;
-
-  if ((b = bio_new_sha256_file(filename)) != NULL)
-    cms = d2i_CMS_bio(b, NULL);
-
-  BIO_free_all(b);
-  return cms;
+  return read_file_with_hash(filename, ASN1_ITEM_rptr(CMS_ContentInfo), NULL, hashbuf, hashlen);
 }
 
 
@@ -1282,7 +1273,7 @@ static X509_CRL *check_crl_1(const char *uri,
   assert(uri && path && issuer);
 
   if (!uri_to_filename(uri, path, pathlen, prefix) || 
-      (crl = read_crl(path)) == NULL)
+      (crl = read_crl(path, NULL, 0)) == NULL)
     return NULL;
 
   if ((pkey = X509_get_pubkey(issuer)) == NULL)
@@ -1306,7 +1297,7 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
   X509_CRL *crl;
 
   if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) && 
-      (crl = read_crl(path)) != NULL)
+      (crl = read_crl(path, NULL, 0)) != NULL)
     return crl;
 
   logmsg(rc, log_telemetry, "Checking CRL %s", uri);
@@ -1495,7 +1486,7 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
   if (access(path, R_OK))
     return NULL;
 
-  if ((x = read_cert(path)) == NULL) {
+  if ((x = read_cert(path, NULL, 0)) == NULL) {
     logmsg(rc, log_sys_err, "Can't read certificate %s", path);
     return NULL;
   }
@@ -1931,7 +1922,7 @@ int main(int argc, char *argv[])
     
     logmsg(&rc, log_telemetry, "Processing trust anchor %s", val->value);
 
-    if ((x = read_cert(val->value)) == NULL) {
+    if ((x = read_cert(val->value, NULL, 0)) == NULL) {
       logmsg(&rc, log_usage_err, "Couldn't read trust anchor %s", val->value);
       goto done;
     }

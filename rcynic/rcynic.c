@@ -1355,18 +1355,18 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 				  char *path,
 				  const int pathlen,
 				  const char *prefix,
-				  STACK_OF(X509) *certs,
-				  X509_CRL *crl)
+				  STACK_OF(X509) *certs)
 {
   CMS_ContentInfo *cms = NULL;
   STACK_OF(X509) *signers = NULL;
   STACK_OF(X509_CRL) *crls = NULL;
+  X509_CRL *crl = NULL;
   Manifest *manifest = NULL, *result = NULL;
   BIO *bio = NULL;
   rcynic_x509_store_ctx_t rctx;
   certinfo_t certinfo;
 
-  assert(rc && uri && path && prefix && certs);
+  assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
 
   if (!uri_to_filename(uri, path, pathlen, prefix) ||
       (cms = read_cms(path, NULL, 0)) == NULL)
@@ -1375,14 +1375,21 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   if ((signers = CMS_get0_signers(cms)) == NULL || sk_X509_num(signers) != 1)
     goto done1;
 
+  parse_cert(sk_X509_value(signers, 0), &certinfo, NULL);
+
+  if ((crl = check_crl(rc, certinfo.crldp,
+		       sk_X509_value(certs, sk_X509_num(certs) - 1))) == NULL) {
+    logmsg(rc, log_data_err, "Bad CRL %s for manifest EE certificate", certinfo.crldp);
+    goto done1;
+  }
+
   if ((crls = sk_X509_CRL_new_null()) == NULL || !sk_X509_CRL_push(crls, crl))
     goto done1;
+  crl = NULL;
 
   if (!X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, sk_X509_value(signers, 0), NULL))
     goto done1;
   
-  parse_cert(sk_X509_value(signers, 0), &certinfo, NULL);
-
   rctx.rc = rc;
   rctx.subj = &certinfo;
 
@@ -1429,7 +1436,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
  done1:
   CMS_ContentInfo_free(cms);
   sk_X509_free(signers);
-  sk_X509_CRL_free(crls);
+  sk_X509_CRL_pop_free(crls, X509_CRL_free);
 
   return result;
 }
@@ -1458,7 +1465,7 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
   rsync_manifest(rc, uri);
 
   if ((manifest = check_manifest_1(rc, uri, path, sizeof(path),
-				   rc->unauthenticated, certs, crl))) {
+				   rc->unauthenticated, certs))) {
     install_object(rc, uri, path, 5);
     mib_increment(rc, uri, current_manifest_accepted);
     return manifest;
@@ -1467,7 +1474,7 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
   }
 
   if ((manifest = check_manifest_1(rc, uri, path, sizeof(path),
-				   rc->old_authenticated, certs, crl))) {
+				   rc->old_authenticated, certs))) {
     install_object(rc, uri, path, 5);
     mib_increment(rc, uri, backup_manifest_accepted);
     return manifest;

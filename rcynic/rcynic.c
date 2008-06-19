@@ -155,6 +155,10 @@ static const struct {
   QQ(current_cert_rejected,	"Current certificates rejected") \
   QQ(current_crl_accepted,	"Current CRLs accepted")	 \
   QQ(current_crl_rejected,	"Current CRLs rejected")	 \
+  QQ(current_manifest_accepted, "Current Manifests accepted")    \
+  QQ(current_manifest_rejected, "Current Manifests rejected")    \
+  QQ(backup_manifest_accepted,  "Backup Manifests accepted")     \
+  QQ(backup_manifest_rejected,  "Backup Manifests rejected")     \
   QQ(rsync_failed,		"rsync transfers failed")	 \
   QQ(rsync_succeeded,		"rsync transfers succeeded")	 \
   QQ(rsync_timed_out,		"rsync transfers timed out")	 \
@@ -256,7 +260,6 @@ ASN1_SEQUENCE(FileAndHash) = {
 } ASN1_SEQUENCE_END(FileAndHash)
 
 DECLARE_STACK_OF(FileAndHash)
-DECLARE_ASN1_FUNCTIONS(FileAndHash)
 
 #define sk_FileAndHash_num(st)		SKM_sk_num(FileAndHash, (st))
 #define sk_FileAndHash_value(st, i)	SKM_sk_value(FileAndHash, (st), (i))
@@ -276,6 +279,12 @@ ASN1_SEQUENCE(Manifest) = {
   ASN1_SIMPLE(Manifest, fileHashAlg, ASN1_OBJECT),
   ASN1_SEQUENCE_OF(Manifest, fileList, FileAndHash)
 } ASN1_SEQUENCE_END(Manifest)
+
+DECLARE_ASN1_FUNCTIONS(FileAndHash)
+DECLARE_ASN1_FUNCTIONS(Manifest)
+
+IMPLEMENT_ASN1_FUNCTIONS(FileAndHash)
+IMPLEMENT_ASN1_FUNCTIONS(Manifest)
 
 
 
@@ -1000,6 +1009,11 @@ static int rsync_crl(const rcynic_ctx_t *rc, const char *uri)
   return rsync(rc, NULL, uri);
 }
 
+static int rsync_manifest(const rcynic_ctx_t *rc, const char *uri)
+{
+  return rsync(rc, NULL, uri);
+}
+
 static int rsync_sia(const rcynic_ctx_t *rc, const char *uri)
 {
   static const char * const rsync_args[] = { "--recursive", "--delete", NULL };
@@ -1324,6 +1338,91 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 
   return NULL;
 }
+
+
+
+#if 0
+
+/*
+ * Check whether we already have a particular manifest, attempt to fetch it
+ * and check issuer's signature if we don't.
+ */
+
+static Manifest *check_manifest_1(const char *uri,
+				  char *path, const int pathlen,
+				  const char *prefix,
+				  STACK_OF(X509) *certs)
+{
+  CMS_ContentInfo *cms = NULL;
+  STACK_OF(X509) *signers = NULL;
+  STACK_OF(X509_CRL) *crls = NULL;
+  Manifest *result = NULL;
+
+  assert(uri && path && certs);
+
+  if (!uri_to_filename(uri, path, pathlen, prefix) || 
+      (cms = read_cms(path, NULL, 0)) == NULL)
+    goto done;
+
+  if ((signers = CMS_get0_signers(cms)) == NULL || sk_X509_num(signers) != 1 ||
+      (crls = CMS_get0_crls(cms)) == NULL || sk_X509_CRL_num(crls) != 1)
+    goto done;
+
+  /*
+   * Here we have to check the CMS message, extract the manifest from
+   * the eContent, and check the manifest.  Unfortunately, the CMS
+   * code wants to receive an X509_STORE, which interferes with the
+   * games we play with a X509_STORE_CTX in check_x509().  This may
+   * require us to disable CMS_verify()'s certificate checking and do
+   * that part of the job ourselves, which, in turn, may require
+   * refactoring to avoid duplicating most of check_x509().  Sigh.
+   */
+
+ done:
+  CMS_ContentInfo_free(cms);
+  sk_X509_free(signers);
+  sk_X509_CRL_free(crls);
+
+  return result;
+}
+
+static Manifest *check_manifest(const rcynic_ctx_t *rc,
+				const char *uri,
+				STACK_OF(X509) *certs)
+{
+  char path[FILENAME_MAX];
+  Manifest *manifest;
+
+  if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) && 
+      (manifest = read_manifest(path, NULL, 0)) != NULL)
+    return manifest;
+
+  logmsg(rc, log_telemetry, "Checking manifest %s", uri);
+
+  rsync_manifest(rc, uri);
+
+  if ((manifest = check_manifest_1(uri, path, sizeof(path),
+			 rc->unauthenticated, certs))) {
+    install_object(rc, uri, path, 5);
+    mib_increment(rc, uri, current_manifest_accepted);
+    return manifest;
+  } else if (!access(path, F_OK)) {
+    mib_increment(rc, uri, current_manifest_rejected);
+  }
+
+  if ((manifest = check_manifest_1(uri, path, sizeof(path),
+			 rc->old_authenticated, certs))) {
+    install_object(rc, uri, path, 5);
+    mib_increment(rc, uri, backup_manifest_accepted);
+    return manifest;
+  } else if (!access(path, F_OK)) {
+    mib_increment(rc, uri, backup_manifest_rejected);
+  }
+
+  return NULL;
+}
+
+#endif
 
 
 

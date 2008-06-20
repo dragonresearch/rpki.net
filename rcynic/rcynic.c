@@ -175,6 +175,8 @@ static const struct {
   QQ(manifest_decode_error,     "Manifest decode errors")        \
   QQ(stale_manifest,            "Stale manifests")               \
   QQ(manifest_not_yet_valid,    "Manifests not yet valid")       \
+  QQ(manifest_bad_econtenttype, "Bad manifest eContentType")     \
+  QQ(manifest_missing_signer,   "Missing manifest signers")      \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QQ(mib_openssl_##x, 0)
@@ -1373,8 +1375,8 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 				  const char *prefix,
 				  STACK_OF(X509) *certs)
 {
-  const unsigned char id_ct_rpkiManifest[] = {0x0b, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x10, 0x01, 0x1a};
-  const unsigned char id_sha256[]          = {0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01};
+  static const unsigned char id_ct_rpkiManifest[] = {0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x10, 0x01, 0x1a};
+  static const unsigned char id_sha256[]          = {0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01};
   CMS_ContentInfo *cms = NULL;
   const ASN1_OBJECT *eContentType = NULL;
   STACK_OF(X509) *signers = NULL;
@@ -1384,34 +1386,50 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   BIO *bio = NULL;
   rcynic_x509_store_ctx_t rctx;
   certinfo_t certinfo;
+  int initialized_store_ctx = 0;
 
   assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
 
   if (!uri_to_filename(uri, path, pathlen, prefix) ||
       (cms = read_cms(path, NULL, 0)) == NULL)
-    goto done1;
+    goto done;
 
   if ((eContentType = CMS_get0_eContentType(cms)) == NULL ||
-      oid_cmp(eContentType, id_ct_rpkiManifest, sizeof(id_ct_rpkiManifest)))
-    goto done1;
+      oid_cmp(eContentType, id_ct_rpkiManifest, sizeof(id_ct_rpkiManifest))) {
+    logmsg(rc, log_data_err, "Bad manifest eContentType");
+    mib_increment(rc, uri, manifest_bad_econtenttype);
+    goto done;
+  }
 
-  if ((signers = CMS_get0_signers(cms)) == NULL || sk_X509_num(signers) != 1)
-    goto done1;
+  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+    goto done;
+
+  if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
+    logmsg(rc, log_data_err, "Validation failure for manifest CMS message");
+    mib_increment(rc, uri, manifest_invalid_cms);
+    goto done;
+  }
+
+  if ((signers = CMS_get0_signers(cms)) == NULL || sk_X509_num(signers) != 1) {
+    logmsg(rc, log_data_err, "Couldn't extract signers from manifest CMS");
+    mib_increment(rc, uri, manifest_missing_signer);
+    goto done;
+  }
 
   parse_cert(sk_X509_value(signers, 0), &certinfo, NULL);
 
   if ((crl = check_crl(rc, certinfo.crldp,
 		       sk_X509_value(certs, sk_X509_num(certs) - 1))) == NULL) {
     logmsg(rc, log_data_err, "Bad CRL %s for manifest EE certificate", certinfo.crldp);
-    goto done1;
+    goto done;
   }
 
   if ((crls = sk_X509_CRL_new_null()) == NULL || !sk_X509_CRL_push(crls, crl))
-    goto done1;
+    goto done;
   crl = NULL;
 
-  if (!X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, sk_X509_value(signers, 0), NULL))
-    goto done1;
+  if (!(initialized_store_ctx = X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, sk_X509_value(signers, 0), NULL)))
+    goto done;
   
   rctx.rc = rc;
   rctx.subj = &certinfo;
@@ -1433,52 +1451,42 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   if (X509_verify_cert(&rctx.ctx) <= 0) {
     logmsg(rc, log_data_err, "Validation failure for manifest EE certificate");
     mib_increment(rc, uri, manifest_invalid_ee);
-    goto done2;
+    goto done;
   }
 
-  if ((bio = BIO_new(BIO_s_mem())) == NULL)
-    goto done2;
-
-  if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    logmsg(rc, log_data_err, "Validation failure for manifest CMS message");
-    mib_increment(rc, uri, manifest_invalid_cms);
-    goto done2;
-  }
- 
   if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
     logmsg(rc, log_data_err, "Failure decoding manifest");
     mib_increment(rc, uri, manifest_decode_error);
-    goto done2;
+    goto done;
   }
 
   if (X509_cmp_current_time(manifest->thisUpdate) > 0) {
     logmsg(rc, log_data_err, "Manifest not yet valid");
     mib_increment(rc, uri, manifest_not_yet_valid);
-    goto done2;
+    goto done;
   }
 
   if (X509_cmp_current_time(manifest->nextUpdate) < 0) {
     logmsg(rc, log_data_err, "Stale manifest");
     mib_increment(rc, uri, stale_manifest);
     if (!rc->allow_stale_manifest)
-      goto done2;
+      goto done;
   }
 
   if (manifest->fileHashAlg == NULL ||
       oid_cmp(manifest->fileHashAlg, id_sha256, sizeof(id_sha256)))
-    goto done2;
+    goto done;
 
 #warning Still need to check CRL against manifest
 
   result = manifest;
   manifest = NULL;
 
- done2:
-  X509_STORE_CTX_cleanup(&rctx.ctx);
+ done:
+  if (initialized_store_ctx)
+    X509_STORE_CTX_cleanup(&rctx.ctx);
   BIO_free(bio);
   Manifest_free(manifest);
-
- done1:
   CMS_ContentInfo_free(cms);
   sk_X509_free(signers);
   sk_X509_CRL_pop_free(crls, X509_CRL_free);
@@ -1842,10 +1850,20 @@ static void walk_cert(rcynic_ctx_t *rc,
     char uri[URI_MAX];
     certinfo_t child;
     DIR *dir = NULL;
+    Manifest *manifest = NULL;
 
     rc->indent++;
 
     rsync_sia(rc, parent->sia);
+
+    if (parent->manifest[0])
+      manifest = check_manifest(rc, parent->manifest, certs);
+
+#warning Need to do something with manifest...
+    if (manifest) {
+      logmsg(rc, log_debug, "Got manifest!");
+      Manifest_free(manifest);
+    }
 
     logmsg(rc, log_debug, "Walking unauthenticated store");
     while (next_uri(rc, parent->sia, rc->unauthenticated,

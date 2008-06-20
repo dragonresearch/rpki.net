@@ -170,6 +170,11 @@ static const struct {
   QQ(aia_mismatch,		"Mismatched AIA extensions")	 \
   QQ(unknown_verify_error,	"Unknown OpenSSL verify error")	 \
   QQ(current_cert_recheck,      "Certificates rechecked")	 \
+  QQ(manifest_invalid_ee,       "Invalid manifest certificates") \
+  QQ(manifest_invalid_cms,      "Manifest validation failures")  \
+  QQ(manifest_decode_error,     "Manifest decode errors")        \
+  QQ(stale_manifest,            "Stale manifests")               \
+  QQ(manifest_not_yet_valid,    "Manifests not yet valid")       \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QQ(mib_openssl_##x, 0)
@@ -218,8 +223,8 @@ typedef struct rcynic_ctx {
   char *authenticated, *old_authenticated, *unauthenticated;
   char *jane, *rsync_program;
   STACK *rsync_cache, *host_counters, *backup_cache;
-  int indent, rsync_timeout, use_syslog, allow_stale_crl, use_links;
-  int priority[LOG_LEVEL_T_MAX];
+  int indent, use_syslog, allow_stale_crl, allow_stale_manifest, use_links;
+  int rsync_timeout, priority[LOG_LEVEL_T_MAX];
   log_level_t log_level;
   X509_STORE *x509_store;
 } rcynic_ctx_t;
@@ -529,6 +534,18 @@ static int uri_to_filename(const char *name,
   }
 
   return 1;
+}
+
+/*
+ * OID comparison.
+ */
+static int oid_cmp(const ASN1_OBJECT *obj, const unsigned char *oid, const size_t oidlen)
+{
+  assert(obj != NULL && oid != NULL);
+  if (obj->length != oidlen)
+    return obj->length - oidlen;
+  else
+    return memcmp(obj->data, oid, oidlen);
 }
 
 /*
@@ -1223,8 +1240,7 @@ static void extract_access_uri(const AUTHORITY_INFO_ACCESS *xia,
     assert(a != NULL);
     if (a->location->type != GEN_URI)
       return;
-    if (a->method->length == oidlen &&
-	!memcmp(a->method->data, oid, oidlen) &&
+    if (!oid_cmp(a->method, oid, oidlen) &&
 	is_rsync((char *) a->location->d.uniformResourceIdentifier->data) &&
 	urilen > a->location->d.uniformResourceIdentifier->length) {
       strcpy(uri, (char *) a->location->d.uniformResourceIdentifier->data);
@@ -1357,7 +1373,10 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 				  const char *prefix,
 				  STACK_OF(X509) *certs)
 {
+  const unsigned char id_ct_rpkiManifest[] = {0x0b, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x10, 0x01, 0x1a};
+  const unsigned char id_sha256[]          = {0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01};
   CMS_ContentInfo *cms = NULL;
+  const ASN1_OBJECT *eContentType = NULL;
   STACK_OF(X509) *signers = NULL;
   STACK_OF(X509_CRL) *crls = NULL;
   X509_CRL *crl = NULL;
@@ -1370,6 +1389,10 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 
   if (!uri_to_filename(uri, path, pathlen, prefix) ||
       (cms = read_cms(path, NULL, 0)) == NULL)
+    goto done1;
+
+  if ((eContentType = CMS_get0_eContentType(cms)) == NULL ||
+      oid_cmp(eContentType, id_ct_rpkiManifest, sizeof(id_ct_rpkiManifest)))
     goto done1;
 
   if ((signers = CMS_get0_signers(cms)) == NULL || sk_X509_num(signers) != 1)
@@ -1408,7 +1431,8 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 				OBJ_txt2obj("1.3.6.1.5.5.7.14.2", 0));
 
   if (X509_verify_cert(&rctx.ctx) <= 0) {
-    logmsg(rc, log_data_err, "Validation failure for CMS EE certificate");
+    logmsg(rc, log_data_err, "Validation failure for manifest EE certificate");
+    mib_increment(rc, uri, manifest_invalid_ee);
     goto done2;
   }
 
@@ -1416,22 +1440,43 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     goto done2;
 
   if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    logmsg(rc, log_data_err, "Validation failure for CMS message");
+    logmsg(rc, log_data_err, "Validation failure for manifest CMS message");
+    mib_increment(rc, uri, manifest_invalid_cms);
     goto done2;
   }
  
   if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
     logmsg(rc, log_data_err, "Failure decoding manifest");
+    mib_increment(rc, uri, manifest_decode_error);
     goto done2;
   }
 
-  /*
-   * Still need to check manifest internals for sanity (dates, etc).
-   */
+  if (X509_cmp_current_time(manifest->thisUpdate) > 0) {
+    logmsg(rc, log_data_err, "Manifest not yet valid");
+    mib_increment(rc, uri, manifest_not_yet_valid);
+    goto done2;
+  }
+
+  if (X509_cmp_current_time(manifest->nextUpdate) < 0) {
+    logmsg(rc, log_data_err, "Stale manifest");
+    mib_increment(rc, uri, stale_manifest);
+    if (!rc->allow_stale_manifest)
+      goto done2;
+  }
+
+  if (manifest->fileHashAlg == NULL ||
+      oid_cmp(manifest->fileHashAlg, id_sha256, sizeof(id_sha256)))
+    goto done2;
+
+#warning Still need to check CRL against manifest
+
+  result = manifest;
+  manifest = NULL;
 
  done2:
   X509_STORE_CTX_cleanup(&rctx.ctx);
   BIO_free(bio);
+  Manifest_free(manifest);
 
  done1:
   CMS_ContentInfo_free(cms);
@@ -1443,22 +1488,27 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 
 static Manifest *check_manifest(const rcynic_ctx_t *rc,
 				const char *uri,
-				STACK_OF(X509) *certs,
-				X509_CRL *crl)
+				STACK_OF(X509) *certs)
 {
+  CMS_ContentInfo *cms = NULL;
+  Manifest *manifest = NULL;
   char path[FILENAME_MAX];
-  Manifest *manifest;
+  BIO *bio = NULL;
 
-#if 0
-  /*
-   * This snippet should just read a manifest that's already been
-   * checked, without verifying it.  We could write such a function,
-   * but let's see if we need it first....
-   */
-  if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) && 
-      (manifest = read_manifest(path, NULL, 0)) != NULL)
+  if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) &&
+      (cms = read_cms(path, NULL, 0)) != NULL &&
+      (bio = BIO_new(BIO_s_mem()))!= NULL &&
+      CMS_verify(cms, NULL, NULL, NULL, bio,
+		 CMS_NO_SIGNER_CERT_VERIFY |
+		 CMS_NO_ATTR_VERIFY |
+		 CMS_NO_CONTENT_VERIFY) > 0)
+    manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL);
+
+  CMS_ContentInfo_free(cms);
+  BIO_free(bio);
+
+  if (manifest != NULL)
     return manifest;
-#endif
 
   logmsg(rc, log_telemetry, "Checking manifest %s", uri);
 
@@ -1850,6 +1900,7 @@ int main(int argc, char *argv[])
   set_directory(&rc.unauthenticated,	"rcynic-data/unauthenticated/");
   rc.log_level = log_telemetry;
   rc.allow_stale_crl = 1;
+  rc.allow_stale_manifest = 1;
 
 #define QQ(x,y)   rc.priority[x] = y;
   LOG_LEVELS;
@@ -1968,6 +2019,10 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "allow-stale-crl") &&
 	     !configure_boolean(&rc, &rc.allow_stale_crl, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "allow-stale-manifest") &&
+	     !configure_boolean(&rc, &rc.allow_stale_manifest, val->value))
       goto done;
 
     else if (!name_cmp(val->name, "use-links") &&

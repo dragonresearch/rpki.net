@@ -1260,13 +1260,11 @@ static void parse_cert(X509 *x, certinfo_t *c, const char *uri)
   STACK_OF(DIST_POINT) *crldp;
   AUTHORITY_INFO_ACCESS *xia;
 
-  assert(x != NULL && c != NULL);
+  assert(x != NULL && c != NULL && uri != NULL);
   memset(c, 0, sizeof(*c));
 
   c->ca = X509_check_ca(x) == 1;
 
-  if (uri == NULL)
-    uri = "";
   assert(strlen(uri) < sizeof(c->uri));
   strcpy(c->uri, uri);
 
@@ -1396,7 +1394,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 
   if ((eContentType = CMS_get0_eContentType(cms)) == NULL ||
       oid_cmp(eContentType, id_ct_rpkiManifest, sizeof(id_ct_rpkiManifest))) {
-    logmsg(rc, log_data_err, "Bad manifest eContentType");
+    logmsg(rc, log_data_err, "Bad manifest %s eContentType", uri);
     mib_increment(rc, uri, manifest_bad_econtenttype);
     goto done;
   }
@@ -1405,22 +1403,22 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     goto done;
 
   if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    logmsg(rc, log_data_err, "Validation failure for manifest CMS message");
+    logmsg(rc, log_data_err, "Validation failure for manifest %s CMS message", uri);
     mib_increment(rc, uri, manifest_invalid_cms);
     goto done;
   }
 
   if ((signers = CMS_get0_signers(cms)) == NULL || sk_X509_num(signers) != 1) {
-    logmsg(rc, log_data_err, "Couldn't extract signers from manifest CMS");
+    logmsg(rc, log_data_err, "Couldn't extract signers from manifest %s CMS", uri);
     mib_increment(rc, uri, manifest_missing_signer);
     goto done;
   }
 
-  parse_cert(sk_X509_value(signers, 0), &certinfo, NULL);
+  parse_cert(sk_X509_value(signers, 0), &certinfo, uri);
 
   if ((crl = check_crl(rc, certinfo.crldp,
 		       sk_X509_value(certs, sk_X509_num(certs) - 1))) == NULL) {
-    logmsg(rc, log_data_err, "Bad CRL %s for manifest EE certificate", certinfo.crldp);
+    logmsg(rc, log_data_err, "Bad CRL %s for manifest %s EE certificate", certinfo.crldp, uri);
     goto done;
   }
 
@@ -1449,25 +1447,25 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 				OBJ_txt2obj("1.3.6.1.5.5.7.14.2", 0));
 
   if (X509_verify_cert(&rctx.ctx) <= 0) {
-    logmsg(rc, log_data_err, "Validation failure for manifest EE certificate");
+    logmsg(rc, log_data_err, "Validation failure for manifest %s EE certificate",uri);
     mib_increment(rc, uri, manifest_invalid_ee);
     goto done;
   }
 
   if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
-    logmsg(rc, log_data_err, "Failure decoding manifest");
+    logmsg(rc, log_data_err, "Failure decoding manifest %s", uri);
     mib_increment(rc, uri, manifest_decode_error);
     goto done;
   }
 
   if (X509_cmp_current_time(manifest->thisUpdate) > 0) {
-    logmsg(rc, log_data_err, "Manifest not yet valid");
+    logmsg(rc, log_data_err, "Manifest %s not yet valid", uri);
     mib_increment(rc, uri, manifest_not_yet_valid);
     goto done;
   }
 
   if (X509_cmp_current_time(manifest->nextUpdate) < 0) {
-    logmsg(rc, log_data_err, "Stale manifest");
+    logmsg(rc, log_data_err, "Stale manifest %s", uri);
     mib_increment(rc, uri, stale_manifest);
     if (!rc->allow_stale_manifest)
       goto done;

@@ -16,9 +16,13 @@
 
 /* $Id$ */
 
-/*
+/** @mainpage
  * "Cynical rsync": Recursively walk RPKI tree using rsync to pull
  * data from remote sites, validating certificates and CRLs as we go.
+ *
+ * Doxygen doesn't quite know what to make of a one-file C program,
+ * and ends up putting most of the interesting data @link rcynic.c
+ * here. @endlink
  */
 
 #include <assert.h>
@@ -70,7 +74,7 @@
 
 #define	XML_SUMMARY_VERSION	1
 
-/*
+/**
  * Logging levels.  Same general idea as syslog(), but our own
  * catagories based on what makes sense for this program.  Default
  * mappings to syslog() priorities are here because it's the easiest
@@ -98,10 +102,9 @@ static const struct {
 };
 #undef	QQ
 
-/*
- * MIB counters.  We import a long list of validation failure codes
- * from OpenSSL (crypto/x509/x509_vfy.h), but we also have codes
- * specific to rcynic.
+/**
+ * MIB counters derived from OpenSSL.  Long list of validation failure
+ * codes from OpenSSL (crypto/x509/x509_vfy.h).
  */
 
 #define	MIB_COUNTERS_FROM_OPENSSL			\
@@ -145,6 +148,10 @@ static const struct {
   QV(X509_V_ERR_INVALID_POLICY_EXTENSION)		\
   QV(X509_V_ERR_NO_EXPLICIT_POLICY)			\
   QV(X509_V_ERR_UNNESTED_RESOURCE)
+
+/**
+ * MIB counters specific to rcynic.
+ */
 
 #define MIB_COUNTERS						 \
   QQ(backup_cert_accepted,	"Backup certificates accepted")  \
@@ -201,7 +208,7 @@ static const long mib_counter_openssl[] = { MIB_COUNTERS 0 };
 #undef	QV
 #undef	QQ
 
-/*
+/**
  * Per-host MIB counter object.
  * hostname[] must be first element.
  */
@@ -210,7 +217,7 @@ typedef struct host_counter {
   unsigned long counters[MIB_COUNTER_T_MAX];
 } host_mib_counter_t;
 
-/*
+/**
  * Structure to hold data parsed out of a certificate.
  */
 typedef struct certinfo {
@@ -218,7 +225,7 @@ typedef struct certinfo {
   char uri[URI_MAX], sia[URI_MAX], aia[URI_MAX], crldp[URI_MAX], manifest[URI_MAX];
 } certinfo_t;
 
-/*
+/**
  * Program context that would otherwise be a mess of global variables.
  */
 typedef struct rcynic_ctx {
@@ -231,9 +238,9 @@ typedef struct rcynic_ctx {
   X509_STORE *x509_store;
 } rcynic_ctx_t;
 
-/*
+/**
  * Extended context for verify callbacks.  This is a wrapper around
- * OpenSSL's X509_STORE_CTX, and the embedded X509_STORE_CTX -must- be
+ * OpenSSL's X509_STORE_CTX, and the embedded X509_STORE_CTX @em must be
  * the first element of this structure in order for the evil cast to
  * do the right thing.  This is ugly but safe, as the C language
  * promises us that the address of the first element of a structure is
@@ -245,6 +252,9 @@ typedef struct rcynic_x509_store_ctx {
   const certinfo_t *subj;
 } rcynic_x509_store_ctx_t;
 
+/**
+ * Subversion ID data.
+ */
 static const char svn_id[] = "$Id$";
 
 
@@ -295,7 +305,7 @@ IMPLEMENT_ASN1_FUNCTIONS(Manifest)
 
 
 
-/*
+/**
  * Logging.
  */
 static void logmsg(const rcynic_ctx_t *rc, 
@@ -330,7 +340,7 @@ static void logmsg(const rcynic_ctx_t *rc,
   va_end(ap);
 }
 
-/*
+/**
  * Print OpenSSL library errors.
  */
 static void log_openssl_errors(const rcynic_ctx_t *rc)
@@ -352,7 +362,7 @@ static void log_openssl_errors(const rcynic_ctx_t *rc)
     }
 }
 
-/*
+/**
  * Configure logging.
  */
 static int configure_logmsg(rcynic_ctx_t *rc, const char *name)
@@ -372,7 +382,7 @@ static int configure_logmsg(rcynic_ctx_t *rc, const char *name)
   return 0;
 }
 
-/*
+/**
  * Configure syslog.
  */
 static int configure_syslog(const rcynic_ctx_t *rc, 
@@ -394,7 +404,7 @@ static int configure_syslog(const rcynic_ctx_t *rc,
   }
 }
 
-/*
+/**
  * Configure boolean variable.
  */
 static int configure_boolean(const rcynic_ctx_t *rc,
@@ -416,7 +426,7 @@ static int configure_boolean(const rcynic_ctx_t *rc,
   }
 }
 
-/*
+/**
  * Configure integer variable.
  */
 static int configure_integer(const rcynic_ctx_t *rc,
@@ -441,7 +451,7 @@ static int configure_integer(const rcynic_ctx_t *rc,
 
 
 
-/*
+/**
  * Make a directory if it doesn't already exist.
  */
 static int mkdir_maybe(const rcynic_ctx_t *rc, const char *name)
@@ -468,7 +478,7 @@ static int mkdir_maybe(const rcynic_ctx_t *rc, const char *name)
   return mkdir(buffer, 0777) == 0;
 }
 
-/*
+/**
  * strdup() a string and push it onto a stack.
  */
 static int sk_push_strdup(STACK *sk, const char *str)
@@ -482,7 +492,7 @@ static int sk_push_strdup(STACK *sk, const char *str)
   return 0;
 }
 
-/*
+/**
  * Compare two URI strings, for OpenSSL STACK operations.
  */
 
@@ -491,7 +501,7 @@ static int uri_cmp(const char * const *a, const char * const *b)
   return strcmp(*a, *b);
 }
 
-/*
+/**
  * Is string an rsync URI?
  */
 static int is_rsync(const char *uri)
@@ -499,7 +509,7 @@ static int is_rsync(const char *uri)
   return uri && !strncmp(uri, "rsync://", SIZEOF_RSYNC);
 }
 
-/*
+/**
  * Convert an rsync URI to a filename, checking for evil character
  * sequences.
  */
@@ -538,7 +548,7 @@ static int uri_to_filename(const char *name,
   return 1;
 }
 
-/*
+/**
  * OID comparison.
  */
 static int oid_cmp(const ASN1_OBJECT *obj, const unsigned char *oid, const size_t oidlen)
@@ -550,7 +560,7 @@ static int oid_cmp(const ASN1_OBJECT *obj, const unsigned char *oid, const size_
     return memcmp(obj->data, oid, oidlen);
 }
 
-/*
+/**
  * Host MIB counter comparision.  This relies on hostname[] being the
  * first element of a host_mib_counter_t, hence the (unreadable, but
  * correct ANSI/ISO C) assertion.  Given all the icky casts involved
@@ -563,7 +573,7 @@ static int host_counter_cmp(const char * const *a, const char * const *b)
   return strcasecmp(*a, *b);
 }
 
-/*
+/**
  * MIB counter manipulation.
  */
 static void mib_increment(const rcynic_ctx_t *rc,
@@ -605,16 +615,9 @@ static void mib_increment(const rcynic_ctx_t *rc,
   h->counters[counter]++;
 }
 
-/*
- * Install an object.  It'd be nice if we could just use link(), but
- * that would require us to trust rsync never to do anything bad.  For
- * now we just copy in the simplest way possible.  Come back to this
- * if profiling shows a hotspot here.
- *
- * Well, ok, profiling didn't show an issue, but inode exhaustion did.
- * So we now make copy vs link a configuration choice.
+/**
+ * Copy a file
  */
-
 static int cp(const char *source, const char *target)
 {
   FILE *in = NULL, *out = NULL;
@@ -636,11 +639,25 @@ static int cp(const char *source, const char *target)
   return ret;
 }
 
+/**
+ * Link a file
+ */
+
 static int ln(const char *source, const char *target)
 {
   unlink(target);
   return link(source, target) == 0;
 }
+
+/**
+ * Install an object.  It'd be nice if we could just use link(), but
+ * that would require us to trust rsync never to do anything bad.  For
+ * now we just copy in the simplest way possible.  Come back to this
+ * if profiling shows a hotspot here.
+ *
+ * Well, ok, profiling didn't show an issue, but inode exhaustion did.
+ * So we now make copy vs link a configuration choice.
+ */
 
 static int install_object(const rcynic_ctx_t *rc,
 			  const char *uri,
@@ -669,7 +686,7 @@ static int install_object(const rcynic_ctx_t *rc,
   return 1;
 }
 
-/*
+/**
  * Iterator over URIs in our copy of a SIA collection.
  * *dir should be NULL when first called.
  */
@@ -715,7 +732,7 @@ static int next_uri(const rcynic_ctx_t *rc,
   return 0;
 }
 
-/*
+/**
  * Set a directory name, making sure it has the trailing slash we
  * require in various other routines.
  */
@@ -739,7 +756,7 @@ static void set_directory(char **out, const char *in)
   *out = s;
 }
 
-/*
+/**
  * Remove a directory tree, like rm -rf.
  */
 static int rm_rf(const char *name)
@@ -800,24 +817,8 @@ static int rm_rf(const char *name)
 
 
 
-/*
- * Run rsync.  This is fairly nasty, because we need to:
- *
- * (a) Construct the argument list for rsync;
- *
- * (b) Run rsync in a child process;
- *
- * (c) Sit listening to rsync's output, logging whatever we get;
- *
- * (d) Impose an optional time limit on rsync's execution time
- *
- * (e) Clean up from (b), (c), and (d); and
- *
- * (f) Keep track of which URIs we've already fetched, so we don't
- *     have to do it again.
- *
- * Taken all together, this is pretty icky.  Breaking it into separate
- * functions wouldn't help much.  Don't read this on a full stomach.
+/**
+ * Maintain a cache of URIs we've already fetched.
  */
 
 static int rsync_cached(const rcynic_ctx_t *rc,
@@ -836,6 +837,26 @@ static int rsync_cached(const rcynic_ctx_t *rc,
   }
   return 1;
 }
+
+/**
+ * Run rsync.  This is fairly nasty, because we need to:
+ *
+ * @li Construct the argument list for rsync;
+ *
+ * @li Run rsync in a child process;
+ *
+ * @li Sit listening to rsync's output, logging whatever we get;
+ *
+ * @li Impose an optional time limit on rsync's execution time
+ *
+ * @li Clean up from (b), (c), and (d); and
+ *
+ * @li Keep track of which URIs we've already fetched, so we don't
+ *     have to do it again.
+ *
+ * Taken all together, this is pretty icky.  Breaking it into separate
+ * functions wouldn't help much.  Don't read this on a full stomach.
+ */
 
 static int rsync(const rcynic_ctx_t *rc,
 		 const char * const *args,
@@ -1023,15 +1044,27 @@ static int rsync(const rcynic_ctx_t *rc,
   return ret;
 }
 
+/**
+ * rsync a CRL.
+ */
+
 static int rsync_crl(const rcynic_ctx_t *rc, const char *uri)
 {
   return rsync(rc, NULL, uri);
 }
 
+/**
+ * rsync a manifest.
+ */
+
 static int rsync_manifest(const rcynic_ctx_t *rc, const char *uri)
 {
   return rsync(rc, NULL, uri);
 }
+
+/**
+ * rsync an SIA collection.
+ */
 
 static int rsync_sia(const rcynic_ctx_t *rc, const char *uri)
 {
@@ -1041,7 +1074,7 @@ static int rsync_sia(const rcynic_ctx_t *rc, const char *uri)
 
 
 
-/*
+/**
  * Clean up old stuff from previous rsync runs.  --delete doesn't help
  * if the URI changes and we never visit the old URI again.
  */
@@ -1125,7 +1158,7 @@ static int prune_unauthenticated(const rcynic_ctx_t *rc,
 
 
 
-/*
+/**
  * Read a DER object using a BIO pipeline that hashes the file content
  * as we read it.  Returns the internal form of the parsed DER object,
  * sets the hash buffer (if specified) as a side effect.  The default
@@ -1170,7 +1203,7 @@ static void *read_file_with_hash(const char *filename,
   return result;
 }
 
-/*
+/**
  * Read and hash a certificate.
  */
 static X509 *read_cert(const char *filename, unsigned char *hashbuf, const size_t hashlen)
@@ -1178,7 +1211,7 @@ static X509 *read_cert(const char *filename, unsigned char *hashbuf, const size_
   return read_file_with_hash(filename, ASN1_ITEM_rptr(X509), NULL, hashbuf, hashlen);
 }
 
-/*
+/**
  * Read and hash a CRL.
  */
 static X509_CRL *read_crl(const char *filename, unsigned char *hashbuf, const size_t hashlen)
@@ -1186,7 +1219,7 @@ static X509_CRL *read_crl(const char *filename, unsigned char *hashbuf, const si
   return read_file_with_hash(filename, ASN1_ITEM_rptr(X509_CRL), NULL, hashbuf, hashlen);
 }
 
-/*
+/**
  * Read and hash a CMS message.
  */
 static CMS_ContentInfo *read_cms(const char *filename, unsigned char *hashbuf, const size_t hashlen)
@@ -1196,8 +1229,8 @@ static CMS_ContentInfo *read_cms(const char *filename, unsigned char *hashbuf, c
 
 
 
-/*
- * Parse interesting stuff from a certificate.
+/**
+ * Extract CRLDP data from a certificate.
  */
 
 static void extract_crldp_uri(const STACK_OF(DIST_POINT) *crldp,
@@ -1227,6 +1260,10 @@ static void extract_crldp_uri(const STACK_OF(DIST_POINT) *crldp,
   }
 }
 
+/**
+ * Extract SIA or AIA data from a certificate.
+ */
+
 static void extract_access_uri(const AUTHORITY_INFO_ACCESS *xia,
 			       const unsigned char *oid,
 			       const int oidlen,
@@ -1250,6 +1287,10 @@ static void extract_access_uri(const AUTHORITY_INFO_ACCESS *xia,
     }
   }
 }
+
+/**
+ * Parse interesting stuff from a certificate.
+ */
 
 static void parse_cert(X509 *x, certinfo_t *c, const char *uri)
 {
@@ -1288,9 +1329,8 @@ static void parse_cert(X509 *x, certinfo_t *c, const char *uri)
 
 
 
-/*
- * Check whether we already have a particular CRL, attempt to fetch it
- * and check issuer's signature if we don't.
+/**
+ * Attempt to read and check one CRL from disk.
  */
 
 static X509_CRL *check_crl_1(const char *uri,
@@ -1320,6 +1360,11 @@ static X509_CRL *check_crl_1(const char *uri,
   X509_CRL_free(crl);
   return NULL;
 }
+
+/**
+ * Check whether we already have a particular CRL, attempt to fetch it
+ * and check issuer's signature if we don't.
+ */
 
 static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 			   const char *uri,
@@ -1359,12 +1404,11 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 
 
 
-/*
- * Check whether we already have a particular manifest, attempt to fetch it
- * and check issuer's signature if we don't.
- */
-
 static int check_x509_cb(int ok, X509_STORE_CTX *ctx);
+
+/**
+ * Read and check one manifest from disk.
+ */
 
 static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 				  const char *uri,
@@ -1492,6 +1536,11 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   return result;
 }
 
+/**
+ * Check whether we already have a particular manifest, attempt to fetch it
+ * and check issuer's signature if we don't.
+ */
+
 static Manifest *check_manifest(const rcynic_ctx_t *rc,
 				const char *uri,
 				STACK_OF(X509) *certs)
@@ -1543,9 +1592,8 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 
 
 
-/*
- * Check a certificate, including all the crypto, path validation,
- * and checks for conformance to the RPKI certificate profile.
+/**
+ * Validation callback function for use with x509_verify_cert().
  */
 
 static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
@@ -1606,6 +1654,11 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
 	   X509_verify_cert_error_string(ctx->error));
   return ok;
 }
+
+/**
+ * Check crypto aspects of a certificate, including policy checks
+ * and RFC 3779 path validation.
+ */
 
 static int check_x509(const rcynic_ctx_t *rc,
 		      STACK_OF(X509) *certs,
@@ -1681,6 +1734,10 @@ static int check_x509(const rcynic_ctx_t *rc,
   return ret;
 }
 
+/**
+ * Check a certificate for conformance to the RPKI certificate profile.
+ */
+
 static X509 *check_cert_1(const rcynic_ctx_t *rc,
 			  const char *uri,
 			  char *path,
@@ -1752,6 +1809,11 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
   return NULL;
 }
 
+/**
+ * Try to find a good copy of a certificate either in fresh data or in
+ * backup data from a previous run of this program.
+ */
+
 static X509 *check_cert(rcynic_ctx_t *rc,
 			char *uri,
 			STACK_OF(X509) *certs,
@@ -1804,15 +1866,15 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 
 
 
-/*
+static void walk_cert(rcynic_ctx_t *rc,
+		      const certinfo_t *parent,
+		      STACK_OF(X509) *certs);
+
+/**
  * Recursive walk of certificate hierarchy (core of the program).  The
  * daisy chain recursion is to avoid having to duplicate the stack
  * manipulation and error handling.
  */
-
-static void walk_cert(rcynic_ctx_t *rc,
-		      const certinfo_t *parent,
-		      STACK_OF(X509) *certs);
 
 static void walk_cert_1(rcynic_ctx_t *rc,
 			char *uri,
@@ -1836,6 +1898,12 @@ static void walk_cert_1(rcynic_ctx_t *rc,
   walk_cert(rc, subj, certs);
   X509_free(sk_X509_pop(certs));
 }
+
+/**
+ * Recursive walk of certificate hierarchy (core of the program).  The
+ * daisy chain recursion is to avoid having to duplicate the stack
+ * manipulation and error handling.
+ */
 
 static void walk_cert(rcynic_ctx_t *rc,
 		      const certinfo_t *parent,
@@ -1883,7 +1951,7 @@ static void walk_cert(rcynic_ctx_t *rc,
 
 
 
-/*
+/**
  * Main program.  Parse command line, read config file, iterate over
  * trust anchors found via config file and do a tree walk for each
  * trust anchor.

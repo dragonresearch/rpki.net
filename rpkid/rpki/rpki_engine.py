@@ -227,7 +227,9 @@ class ca_obj(rpki.sql.sql_persistant):
     cert_map = dict((c.cert.get_SKI(), c) for c in rc.certs)
 
     for ca_detail in ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL AND state != 'revoked'", (self.ca_id,)):
+
       ski = ca_detail.latest_ca_cert.get_SKI()
+
       if ca_detail.state in ("pending", "active"):
         current_resources = ca_detail.latest_ca_cert.get_3779resources()
         if sia_uri_changed or \
@@ -240,8 +242,14 @@ class ca_obj(rpki.sql.sql_persistant):
             rc               = rc,
             sia_uri_changed  = sia_uri_changed,
             old_resources    = current_resources)
-      del cert_map[ski]
-    assert not cert_map, "Certificates in list_response missing from our database, SKIs %s" % ", ".join(c.cert.hSKI() for c in cert_map.values())
+
+      if ski in cert_map:
+        del cert_map[ski]
+      else:
+        rpki.log.warn("Certificate in database missing from list_response, SKI %s, this should never happen" % ":".join(("%02X" % ord(i) for i in ski)))
+
+    if cert_map:
+      rpki.log.warn("Certificates in list_response missing from our database, SKIs %s" % ", ".join(c.cert.hSKI() for c in cert_map.values()))
 
   @classmethod
   def create(cls, parent, rc):

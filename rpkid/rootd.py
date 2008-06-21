@@ -32,22 +32,30 @@ import rpki.sundial, rpki.log
 rpki_subject_lifetime = rpki.sundial.timedelta(days = 30)
 
 def get_subject_cert():
+  filename = rpki_root_dir + rpki_subject_cert
   try:
-    x = rpki.x509.X509(Auto_file = rpki_root_dir + rpki_subject_cert)
+    x = rpki.x509.X509(Auto_file = filename)
+    rpki.log.debug("Read subject cert %s" % filename)
     return x
   except IOError:
+    rpki.log.debug("Failed to read subject cert %s" % filename)
     return None
 
 def set_subject_cert(cert):
-  f = open(rpki_root_dir + rpki_subject_cert, "wb")
+  filename = rpki_root_dir + rpki_subject_cert
+  rpki.log.debug("Writing subject cert %s" % filename)
+  f = open(filename, "wb")
   f.write(cert.get_DER())
   f.close()
 
 def del_subject_cert():
-  os.remove(rpki_root_dir + rpki_subject_cert)
+  filename = rpki_root_dir + rpki_subject_cert
+  rpki.log.debug("Deleting subject cert %s" % filename)
+  os.remove(filename)
 
 def stash_subject_pkcs10(pkcs10):
   if rpki_subject_pkcs10:
+    rpki.log.debug("Writing subject PKCS #10 %s" % rpki_subject_pkcs10)
     f = open(rpki_subject_pkcs10, "wb")
     f.write(pkcs10.get_DER())
     f.close()
@@ -100,6 +108,7 @@ class issue_pdu(rpki.up_down.issue_pdu):
         thisUpdate          = now,
         nextUpdate          = now + rpki_subject_lifetime,
         revokedCertificates = ())
+      rpki.log.debug("Writing CRL %s" % rpki_root_dir + rpki_root_crl)
       f = open(rpki_root_dir + rpki_root_crl, "wb")
       f.write(crl.get_DER())
       f.close()
@@ -125,6 +134,7 @@ class issue_pdu(rpki.up_down.issue_pdu):
         names_and_objs = [(rpki_subject_cert, subject_cert), (rpki_root_crl, crl)],
         keypair        = manifest_keypair,
         certs          = manifest_cert)
+      rpki.log.debug("Writing manifest %s" % rpki_root_dir + rpki_root_manifest)
       f = open(rpki_root_dir + rpki_root_manifest, "wb")
       f.write(manifest.get_DER())
       f.close()

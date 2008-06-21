@@ -190,7 +190,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
 
   def serve_withdraw(self):
     """Withdraw an object."""
-    rpki.log.info("Withdrawing %s from at %s" % (repr(self.payload), repr(self.uri)))
+    rpki.log.info("Withdrawing %s" % repr(self.uri))
     os.remove(self.uri_to_filename())
 
   def uri_to_filename(self):

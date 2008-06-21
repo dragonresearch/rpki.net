@@ -232,19 +232,28 @@ rootd.py
 
      * server-port: TCP port on which to listen for HTTPS connections.
 
-     * rpki-key: Name of file containing RSA key to use in signing
+     * rpki-root-key: Name of file containing RSA key to use in signing
        resource certificates.
 
-     * rpki-issuer: Name of file containing self-signed root resource
-       certificate corresponding to rpki-key.
+     * rpki-root-cert: Name of file containing self-signed root resource
+       certificate corresponding to rpki-root-key.
 
-     * rpki-subject-filename: Name of file that rootd should use to save
-       the one and only certificate it issues.
+     * rpki-root-dir: Name of directory where rootd should write RPKI
+       subject certificate, manifest, and CRL.
 
-     * rpki-pkcs10-filename: Name of file that rootd should use when
-       saving a copy of the received PKCS #10 request for a resource
-       certificate. This is only used for debugging. Default is not to
-       save the PKCS #10 request.
+     * rpki-subject-cert: Name of file that rootd should use to save the
+       one and only certificate it issues. Default is "Subroot.cer".
+
+     * rpki-root-crl: Name of file to which rootd should save its RPKI
+       CRL. Default is "Root.crl".
+
+     * rpki-root-manifest: Name of file to which rootd should save its
+       RPKI manifest. Default is "Root.mnf".
+
+     * rpki-subject-pkcs10: Name of file that rootd should use when saving
+       a copy of the received PKCS #10 request for a resource certificate.
+       This is only used for debugging. Default is not to save the PKCS
+       #10 request.
 
 irdbd.py
 
@@ -685,5 +694,5 @@ testpoke.py
      __________________________________________________________________
 
 
-    Generated on Mon Jun 16 22:22:49 2008 for RPKI Engine by  doxygen
+    Generated on Sat Jun 21 07:55:37 2008 for RPKI Engine by  doxygen
     1.5.5

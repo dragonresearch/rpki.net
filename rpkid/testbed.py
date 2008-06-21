@@ -1020,14 +1020,20 @@ child-bpki-cert         = %(rootd_name)s-%(rpkid_name)s.cer
 
 server-port             = %(rootd_port)s
 
-rootd_base              = %(rootd_sia)s
-rootd_cert              = %(rootd_sia)sWOMBAT.cer
+rpki-root-dir           = %(rsyncd_dir)s
+rpki-base-uri           = %(rootd_sia)s
+rpki-root-cert-uri      = %(rootd_sia)s%(rootd_name)s.cer
 
-rpki-subject-filename   = %(rsyncd_dir)sWOMBAT.cer
+rpki-root-key           = %(rootd_name)s.key
+rpki-root-cert          = %(rootd_name)s.cer
 
-rpki-key                = %(rootd_name)s.key
-rpki-issuer             = %(rootd_name)s.cer
-rpki-pkcs10-filename    = %(rootd_name)s.subject.pkcs10
+rpki-subject-pkcs10     = %(rootd_name)s.subject.pkcs10
+
+rpki-root-crl           = Bandicoot.crl
+rpki-root-manifest      = Bandicoot.mnf
+
+rpki-class-name         = Wombat
+rpki-subject-cert       = Wombat.cer
 
 [req]
 default_bits            = 2048
@@ -1045,7 +1051,7 @@ CN                      = Completely Bogus Test Root (NOT FOR PRODUCTION USE)
 basicConstraints        = critical,CA:true
 subjectKeyIdentifier    = hash
 keyUsage                = critical,keyCertSign,cRLSign
-subjectInfoAccess       = 1.3.6.1.5.5.7.48.5;URI:%(rootd_sia)s
+subjectInfoAccess       = 1.3.6.1.5.5.7.48.5;URI:%(rootd_sia)s,1.3.6.1.5.5.7.48.10;URI:%(rootd_sia)sBandicoot.mnf
 sbgp-autonomousSysNum   = critical,AS:0-4294967295
 sbgp-ipAddrBlock        = critical,IPv4:0.0.0.0/0,IPv6:0::/0
 '''

@@ -269,10 +269,8 @@ class bsc_elt(data_elt):
     """
     if q_pdu.generate_keypair:
       assert q_pdu.key_type in (None, "rsa") and q_pdu.hash_alg in (None, "sha256")
-      keypair = rpki.x509.RSA()
-      keypair.generate(keylength = q_pdu.key_length or 2048)
-      self.private_key_id = keypair
-      self.pkcs10_request = rpki.x509.PKCS10.create(keypair)
+      self.private_key_id = rpki.x509.RSA.generate(keylength = q_pdu.key_length or 2048)
+      self.pkcs10_request = rpki.x509.PKCS10.create(self.private_key_id)
       r_pdu.pkcs10_request = self.pkcs10_request
 
 class parent_elt(data_elt):
@@ -676,8 +674,7 @@ class route_origin_elt(data_elt):
 
     resources = rpki.resource_set.resource_bag(v4 = v4, v6 = v6)
 
-    keypair = rpki.x509.RSA()
-    keypair.generate()
+    keypair = rpki.x509.RSA.generate()
 
     sia = ((rpki.oids.name2oid["id-ad-signedObject"], ("uri", self.roa_uri(ca, keypair))),)
 

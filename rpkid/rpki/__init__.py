@@ -519,20 +519,33 @@
 #                      TCP port on which to listen for HTTPS
 #                      connections.
 #
-# @li @c rpki-key:
+# @li @c rpki-root-key:
 #                      Name of file containing RSA key to use in
 #                      signing resource certificates.
 #
-# @li @c rpki-issuer:
+# @li @c rpki-root-cert:
 #                      Name of file containing self-signed root
 #                      resource certificate corresponding to
-#                      rpki-key.
+#                      rpki-root-key.
 #
-# @li @c rpki-subject-filename:
+# @li @c rpki-root-dir:
+#                      Name of directory where rootd should write
+#                      RPKI subject certificate, manifest, and CRL.
+#
+# @li @c rpki-subject-cert:
 #                      Name of file that rootd should use to save the
 #                      one and only certificate it issues.
+#                      Default is "Subroot.cer".
 #
-# @li @c rpki-pkcs10-filename:
+# @li @c rpki-root-crl:
+#                      Name of file to which rootd should save its
+#                      RPKI CRL.  Default is "Root.crl".
+#
+# @li @c rpki-root-manifest:
+#                      Name of file to which rootd should save its
+#                      RPKI manifest.  Default is "Root.mnf".
+#
+# @li @c rpki-subject-pkcs10:
 #                      Name of file that rootd should use when saving
 #                      a copy of the received PKCS #10 request for a
 #                      resource certificate.  This is only used for

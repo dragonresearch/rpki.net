@@ -527,10 +527,10 @@ class RSA(DER_object):
       self.tlslite = tlslite.api.parsePEMKey(self.get_PEM(), private=True)
     return self.tlslite
 
-  def generate(self, keylength = 2048):
+  @classmethod
+  def generate(cls, keylength = 2048):
     """Generate a new keypair."""
-    self.clear()
-    self.set(POW = POW.Asymmetric(POW.RSA_CIPHER, keylength))
+    return cls(POW = POW.Asymmetric(POW.RSA_CIPHER, keylength))
 
   def get_public_DER(self):
     """Get the DER encoding of the public key from this keypair."""

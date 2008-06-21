@@ -491,12 +491,10 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     self.ca_id = ca.ca_id
     self.state = "pending"
 
-    self.private_key_id = rpki.x509.RSA()
-    self.private_key_id.generate()
+    self.private_key_id = rpki.x509.RSA.generate()
     self.public_key = self.private_key_id.get_RSApublic()
 
-    self.manifest_private_key_id = rpki.x509.RSA()
-    self.manifest_private_key_id.generate()
+    self.manifest_private_key_id = rpki.x509.RSA.generate()
     self.manifest_public_key = self.manifest_private_key_id.get_RSApublic()
 
     self.sql_store()

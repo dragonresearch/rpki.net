@@ -33,37 +33,37 @@ rpki_subject_lifetime = rpki.sundial.timedelta(days = 30)
 
 def get_subject_cert():
   try:
-    x = rpki.x509.X509(Auto_file = rpki_subject_filename)
+    x = rpki.x509.X509(Auto_file = rpki_root_dir + rpki_subject_cert)
     return x
   except IOError:
     return None
 
 def set_subject_cert(cert):
-  f = open(rpki_subject_filename, "wb")
+  f = open(rpki_root_dir + rpki_subject_cert, "wb")
   f.write(cert.get_DER())
   f.close()
 
 def del_subject_cert():
-  os.remove(rpki_subject_filename)
+  os.remove(rpki_root_dir + rpki_subject_cert)
 
 def stash_subject_pkcs10(pkcs10):
-  if rpki_pkcs10_filename:
-    f = open(rpki_pkcs10_filename, "wb")
+  if rpki_subject_pkcs10:
+    f = open(rpki_subject_pkcs10, "wb")
     f.write(pkcs10.get_DER())
     f.close()
 
 def compose_response(r_msg):
   rc = rpki.up_down.class_elt()
-  rc.class_name = rootd_name
-  rc.cert_url = rpki.up_down.multi_uri(rootd_cert)
-  rc.from_resource_bag(rpki_issuer.get_3779resources())
-  rc.issuer = rpki_issuer
+  rc.class_name = rpki_class_name
+  rc.cert_url = rpki.up_down.multi_uri(rpki_root_cert_uri)
+  rc.from_resource_bag(rpki_root_cert.get_3779resources())
+  rc.issuer = rpki_root_cert
   r_msg.payload.classes.append(rc)
-  rpki_subject = get_subject_cert()
-  if rpki_subject is not None:
+  subject_cert = get_subject_cert()
+  if subject_cert is not None:
     rc.certs.append(rpki.up_down.certificate_elt())
-    rc.certs[0].cert_url = rpki.up_down.multi_uri(rootd_cert)
-    rc.certs[0].cert = rpki_subject
+    rc.certs[0].cert_url = rpki.up_down.multi_uri(rpki_base_uri + rpki_subject_cert)
+    rc.certs[0].cert = subject_cert
 
 class list_pdu(rpki.up_down.list_pdu):
   def serve_pdu(self, q_msg, r_msg, ignored):
@@ -75,38 +75,65 @@ class issue_pdu(rpki.up_down.issue_pdu):
     stash_subject_pkcs10(self.pkcs10)
     self.pkcs10.check_valid_rpki()
     r_msg.payload = rpki.up_down.issue_response_pdu()
-    rpki_subject = get_subject_cert()
-    if rpki_subject is None:
-      resources = rpki_issuer.get_3779resources()
+    subject_cert = get_subject_cert()
+    if subject_cert is None:
+      resources = rpki_root_cert.get_3779resources()
       rpki.log.info("Generating subject cert with resources " + str(resources))
       req_key = self.pkcs10.getPublicKey()
       req_sia = self.pkcs10.get_SIA()
-      crldp = rootd_base + rpki_issuer.gSKI() + ".crl"
-      set_subject_cert(rpki_issuer.issue(keypair     = rpki_key,
-                                         subject_key = req_key,
-                                         serial      = int(time.time()),
-                                         sia         = req_sia,
-                                         aia         = rootd_cert,
-                                         crldp       = crldp,
-                                         resources   = resources,
-                                         notAfter    = rpki.sundial.now() + rpki_subject_lifetime))
+      crldp = rpki_base_uri + rpki_root_crl
       now = rpki.sundial.now()
+      subject_cert = rpki_root_cert.issue(
+        keypair     = rpki_root_key,
+        subject_key = req_key,
+        serial      = int(time.time()),
+        sia         = req_sia,
+        aia         = rpki_root_cert_uri,
+        crldp       = crldp,
+        resources   = resources,
+        notAfter    = now + rpki_subject_lifetime)
+      set_subject_cert(subject_cert)
       crl = rpki.x509.CRL.generate(
-        keypair             = rpki_key,
-        issuer              = rpki_issuer,
+        keypair             = rpki_root_key,
+        issuer              = rpki_root_cert,
         serial              = 1,
         thisUpdate          = now,
         nextUpdate          = now + rpki_subject_lifetime,
         revokedCertificates = ())
-      f = open(os.path.dirname(rpki_subject_filename) + "/" + rpki_issuer.gSKI() + ".crl", "wb")
+      f = open(rpki_root_dir + rpki_root_crl, "wb")
       f.write(crl.get_DER())
+      f.close()
+      manifest_resources = rpki.resource_set.resource_bag(
+        asn = rpki.resource_set.resource_set_as("<inherit>"),
+        v4 = rpki.resource_set.resource_set_ipv4("<inherit>"),
+        v6 = rpki.resource_set.resource_set_ipv6("<inherit>"))
+      manifest_keypair = rpki.x509.RSA.generate()
+      manifest_cert = rpki_root_cert.issue(
+        keypair     = rpki_root_key,
+        subject_key = manifest_keypair.get_RSApublic(),
+        serial      = int(time.time()) + 1,
+        sia         = None,
+        aia         = rpki_root_cert_uri,
+        crldp       = crldp,
+        resources   = manifest_resources,
+        notAfter    = now + rpki_subject_lifetime,
+        is_ca       = False)
+      manifest = rpki.x509.SignedManifest.build(
+        serial         = int(time.time()),
+        thisUpdate     = now,
+        nextUpdate     = now + rpki_subject_lifetime,
+        names_and_objs = [(rpki_subject_cert, subject_cert), (rpki_root_crl, crl)],
+        keypair        = manifest_keypair,
+        certs          = manifest_cert)
+      f = open(rpki_root_dir + rpki_root_manifest, "wb")
+      f.write(manifest.get_DER())
       f.close()
     compose_response(r_msg)
 
 class revoke_pdu(rpki.up_down.revoke_pdu):
   def serve_pdu(self, q_msg, r_msg, ignored):
-    rpki_subject = get_subject_cert()
-    if rpki_subject is None or rpki_subject.gSKI() != self.ski:
+    subject_cert = get_subject_cert()
+    if subject_cert is None or subject_cert.gSKI() != self.ski:
       raise rpki.exceptions.NotInDatabase
     del_subject_cert()
     r_msg.payload = rpki.up_down.revoke_response_pdu()
@@ -169,24 +196,28 @@ if argv:
 
 cfg = rpki.config.parser(cfg_file, "rootd")
 
-bpki_ta         = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
-rootd_bpki_key  = rpki.x509.RSA( Auto_file = cfg.get("rootd-bpki-key"))
-rootd_bpki_cert = rpki.x509.X509(Auto_file = cfg.get("rootd-bpki-cert"))
-rootd_bpki_crl  = rpki.x509.CRL( Auto_file = cfg.get("rootd-bpki-crl"))
-child_bpki_cert = rpki.x509.X509(Auto_file = cfg.get("child-bpki-cert"))
+bpki_ta                 = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
+rootd_bpki_key          = rpki.x509.RSA( Auto_file = cfg.get("rootd-bpki-key"))
+rootd_bpki_cert         = rpki.x509.X509(Auto_file = cfg.get("rootd-bpki-cert"))
+rootd_bpki_crl          = rpki.x509.CRL( Auto_file = cfg.get("rootd-bpki-crl"))
+child_bpki_cert         = rpki.x509.X509(Auto_file = cfg.get("child-bpki-cert"))
 
-https_server_host = cfg.get("server-host", "")
-https_server_port = int(cfg.get("server-port"))
+https_server_host       = cfg.get("server-host", "")
+https_server_port       = int(cfg.get("server-port"))
 
-rpki_key    = rpki.x509.RSA( Auto_file = cfg.get("rpki-key"))
-rpki_issuer = rpki.x509.X509(Auto_file = cfg.get("rpki-issuer"))
+rpki_class_name         = cfg.get("rpki-class-name", "wombat")
 
-rpki_subject_filename = cfg.get("rpki-subject-filename")
-rpki_pkcs10_filename  = cfg.get("rpki-pkcs10-filename", "")
+rpki_root_dir           = cfg.get("rpki-root-dir")
+rpki_base_uri           = cfg.get("rpki-base-uri", "rsync://" + rpki_class_name + ".invalid/")
 
-rootd_name  = cfg.get("rootd_name", "wombat")
-rootd_base  = cfg.get("rootd_base", "rsync://" + rootd_name + ".invalid/")
-rootd_cert  = cfg.get("rootd_cert", rootd_base + "rootd.cer")
+rpki_root_key           = rpki.x509.RSA( Auto_file = cfg.get("rpki-root-key"))
+rpki_root_cert          = rpki.x509.X509(Auto_file = cfg.get("rpki-root-cert"))
+rpki_root_cert_uri      = cfg.get("rpki-root-cert-uri", rpki_base_uri + "Root.cer")
+
+rpki_root_manifest      = cfg.get("rpki-root-manifest", "Root.mnf")
+rpki_root_crl           = cfg.get("rpki-root-crl",      "Root.crl")
+rpki_subject_cert       = cfg.get("rpki-subject-cert",  "Subroot.cer")
+rpki_subject_pkcs10     = cfg.get("rpki-subject-pkcs10", "")
 
 rpki.https.server(server_key   = rootd_bpki_key,
                   server_cert  = rootd_bpki_cert,

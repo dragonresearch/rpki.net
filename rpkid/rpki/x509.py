@@ -595,7 +595,8 @@ class CMS_object(DER_object):
   formats = ("DER", "POW")
   other_clear = ("content",)
   econtent_oid = POWify_OID("id-data")
-  
+  pem_converter = PEM_converter("CMS")
+
   ## @var dump_on_verify_failure
   # Set this to True to get dumpasn1 dumps of ASN.1 on CMS verify failures.
 

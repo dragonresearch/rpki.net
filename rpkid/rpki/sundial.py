@@ -150,10 +150,13 @@ class timedelta(pydatetime.timedelta):
   # Tags are intended for use with re.MatchObject.groupdict() and map
   # directly to the keywords expected by the timedelta constructor.
 
-  regexp = re.compile("\\s*(?:(?P<days>\\d+)D)?" +
-                      "\\s*(?:(?P<hours>\\d+)H)?" +
-                      "\\s*(?:(?P<minutes>\\d+)M)?" +
-                      "\\s*(?:(?P<seconds>\\d+)S)?\\s*", re.I)
+  regexp = re.compile("\\s*".join(("^",
+                                   "(?:(?P<days>\\d+)D)?",
+                                   "(?:(?P<hours>\\d+)H)?",
+                                   "(?:(?P<minutes>\\d+)M)?",
+                                   "(?:(?P<seconds>\\d+)S)?",
+                                   "$")),
+                      re.I)
 
   @classmethod
   def parse(cls, arg):
@@ -163,7 +166,12 @@ class timedelta(pydatetime.timedelta):
     elif arg.isdigit():
       return cls(seconds = int(arg))
     else:
-      return cls(**dict((k, int(v)) for (k, v) in cls.regexp.match(arg).groupdict().items() if v is not None))
+      match = cls.regexp.match(arg)
+      if match:
+        return cls(**dict((k, int(v)) for (k, v) in match.groupdict().items() if v is not None))
+      else:
+        raise RuntimeError, "Couldn't parse timedelta %s" % repr(arg)
+
 
   def convert_to_seconds(self):
     """Convert a timedelta interval to seconds."""
@@ -186,3 +194,5 @@ if __name__ == "__main__":
   print "Testing time conversion routines"
   test(now())
   test(now() + timedelta(days = 30))
+  test(now() + timedelta.parse("3d5s"))
+  timedelta.parse(" 3d 5s ")

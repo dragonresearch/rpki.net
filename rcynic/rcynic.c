@@ -707,48 +707,33 @@ static int install_object(const rcynic_ctx_t *rc,
 
 /**
  * Iterator over URIs in our copy of a SIA collection.
- * *dir should be NULL when first called.
+ * *iterator should be zero when first called.
  */
-static int next_uri(const rcynic_ctx_t *rc, 
-		    const char *base_uri,
-		    const char *prefix,
-		    char *uri, const size_t urilen,
-		    DIR **dir)
+static FileAndHash *next_uri(const rcynic_ctx_t *rc, 
+			     const char *base_uri,
+			     const char *prefix,
+			     char *uri,
+			     const size_t urilen,
+			     const Manifest *manifest,
+			     int *iterator)
 {
-  char path[FILENAME_MAX];
-  struct dirent *d;
-  size_t remaining, len;
+  FileAndHash *fah = NULL;
 
-  assert(base_uri && prefix && uri && dir);
+  assert(base_uri && prefix && uri && manifest && iterator);
 
-  if (*dir == NULL &&
-      ((!uri_to_filename(base_uri, path, sizeof(path), prefix)) ||
-       ((*dir = opendir(path)) == NULL)))
-    return 0;
-
-  len = strlen(base_uri);
-  if (len > urilen)
-    return 0;
-  remaining = urilen - len;
-
-  while ((d = readdir(*dir)) != NULL) {
-    if (d->d_type != DT_REG || d->d_name[0] == '.')
-      continue;
-    len = strlen(d->d_name);
-    if (len < 4 || strcmp(d->d_name + len - 4, ".cer"))
-      continue;
-    if (len >= remaining) {
-      logmsg(rc, log_data_err, "URI %s%s too long, skipping", base_uri, d->d_name);
+  while ((fah = sk_FileAndHash_value(manifest->fileList, *iterator)) != NULL) {
+    ++ *iterator;
+    if (strlen(base_uri) + strlen(fah->file->data) >= urilen) {
+      logmsg(rc, log_data_err, "URI %s%s too long, skipping", base_uri, fah->file->data);
       continue;
     }
     strcpy(uri, base_uri);
-    strcat(uri, d->d_name);
-    return 1;
+    strcat(uri, fah->file->data);
+    return fah;
   }
 
-  closedir(*dir);
-  *dir = NULL;
-  return 0;
+  *iterator = 0;
+  return NULL;
 }
 
 /**
@@ -1999,33 +1984,35 @@ static void walk_cert(rcynic_ctx_t *rc,
     int n_cert = sk_X509_num(certs);
     char uri[URI_MAX];
     certinfo_t child;
-    DIR *dir = NULL;
+    int iterator = 0;
     Manifest *manifest = NULL;
+    FileAndHash *fah;
 
     rc->indent++;
 
     rsync_sia(rc, parent->sia);
 
-    if (parent->manifest[0])
-      manifest = check_manifest(rc, parent->manifest, certs);
+    if (!parent->manifest[0] || (manifest = check_manifest(rc, parent->manifest, certs)) == NULL) {
 
-#warning Need to do something with manifest...
-    if (manifest) {
-      logmsg(rc, log_debug, "Got manifest!");
+      logmsg(rc, log_data_err, "Couldn't get manifest, skipping collection");
+
+    } else {
+
+      logmsg(rc, log_debug, "Walking unauthenticated store");
+      while ((fah = next_uri(rc, parent->sia, rc->unauthenticated, uri, sizeof(uri), manifest, &iterator)) != NULL)
+	if (has_suffix(uri, ".cer"))
+	  walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0, NULL, 0);		/* fah->hash->data, fah->hash->length */
+      logmsg(rc, log_debug, "Done walking unauthenticated store");
+
+      logmsg(rc, log_debug, "Walking old authenticated store");
+      while ((fah = next_uri(rc, parent->sia, rc->old_authenticated, uri, sizeof(uri), manifest, &iterator)) != NULL)
+	if (has_suffix(uri, ".cer"))
+	  walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1, NULL, 0);	/* fah->hash->data, fah->hash->length */
+      logmsg(rc, log_debug, "Done walking old authenticated store");
+
       Manifest_free(manifest);
+
     }
-
-    logmsg(rc, log_debug, "Walking unauthenticated store");
-    while (next_uri(rc, parent->sia, rc->unauthenticated,
-		    uri, sizeof(uri), &dir))
-      walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0, NULL, 0);
-    logmsg(rc, log_debug, "Done walking unauthenticated store");
-
-    logmsg(rc, log_debug, "Walking old authenticated store");
-    while (next_uri(rc, parent->sia, rc->old_authenticated,
-		    uri, sizeof(uri), &dir))
-      walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1, NULL, 0);
-    logmsg(rc, log_debug, "Done walking old authenticated store");
 
     assert(sk_X509_num(certs) == n_cert);
 

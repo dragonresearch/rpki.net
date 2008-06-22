@@ -1198,7 +1198,7 @@ static void *read_file_with_hash(const char *filename,
 
   if ((b = BIO_new_file(filename, "rb")) == NULL)
     goto error;
-  
+
   if (hash != NULL) {
     BIO *b2 = BIO_new(BIO_f_md());
     if (b2 == NULL)
@@ -1356,17 +1356,30 @@ static void parse_cert(X509 *x, certinfo_t *c, const char *uri)
 static X509_CRL *check_crl_1(const char *uri,
 			     char *path, const int pathlen,
 			     const char *prefix,
-			     X509 *issuer)
+			     X509 *issuer,
+			     const unsigned char *hash,
+			     const size_t hashlen)
 {
+  unsigned char hashbuf[EVP_MAX_MD_SIZE];
   X509_CRL *crl = NULL;
   EVP_PKEY *pkey;
   int ret;
 
-  assert(uri && path && issuer);
+  assert(uri && path && issuer && hashlen <= sizeof(hashbuf));
 
-  if (!uri_to_filename(uri, path, pathlen, prefix) || 
-      (crl = read_crl(path, NULL, 0)) == NULL)
-    return NULL;
+  if (!uri_to_filename(uri, path, pathlen, prefix))
+    goto punt;
+
+  if (hash)
+    crl = read_crl(path, hashbuf, sizeof(hashbuf));
+  else
+    crl = read_crl(path, NULL, 0);
+
+  if (!crl)
+    goto punt;
+
+  if (hash && memcmp(hashbuf, hash, hashlen))
+    goto punt;
 
   if ((pkey = X509_get_pubkey(issuer)) == NULL)
     goto punt;
@@ -1387,21 +1400,29 @@ static X509_CRL *check_crl_1(const char *uri,
  */
 static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 			   const char *uri,
-			   X509 *issuer)
+			   X509 *issuer,
+			   const unsigned char *hash,
+			   const size_t hashlen)
 {
   char path[FILENAME_MAX];
   X509_CRL *crl;
 
-  if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) && 
-      (crl = read_crl(path, NULL, 0)) != NULL)
-    return crl;
+  if (uri_to_filename(uri, path, sizeof(path), rc->authenticated)) {
+    unsigned char hashbuf[EVP_MAX_MD_SIZE];
+    if (hash)
+      crl = read_crl(path, hashbuf, sizeof(hashbuf));
+    else
+      crl = read_crl(path, NULL, 0);
+    if (crl)
+      return crl;
+  }
 
   logmsg(rc, log_telemetry, "Checking CRL %s", uri);
 
   rsync_crl(rc, uri);
 
-  if ((crl = check_crl_1(uri, path, sizeof(path),
-			 rc->unauthenticated, issuer))) {
+  if ((crl = check_crl_1(uri, path, sizeof(path), rc->unauthenticated,
+			 issuer, hash, hashlen))) {
     install_object(rc, uri, path, 5);
     mib_increment(rc, uri, current_crl_accepted);
     return crl;
@@ -1409,8 +1430,8 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
     mib_increment(rc, uri, current_crl_rejected);
   }
 
-  if ((crl = check_crl_1(uri, path, sizeof(path),
-			 rc->old_authenticated, issuer))) {
+  if ((crl = check_crl_1(uri, path, sizeof(path), rc->old_authenticated,
+			 issuer, hash, hashlen))) {
     install_object(rc, uri, path, 5);
     mib_increment(rc, uri, backup_crl_accepted);
     return crl;
@@ -1447,6 +1468,8 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   rcynic_x509_store_ctx_t rctx;
   certinfo_t certinfo;
   int i, initialized_store_ctx = 0;
+  FileAndHash *fah = NULL;
+  char *crl_tail;
 
   assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
 
@@ -1461,8 +1484,10 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     goto done;
   }
 
-  if ((bio = BIO_new(BIO_s_mem())) == NULL)
+  if ((bio = BIO_new(BIO_s_mem())) == NULL) {
+    logmsg(rc, log_sys_err, "Couldn't allocate BIO for manifest %s", uri);
     goto done;
+  }
 
   if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
     logmsg(rc, log_data_err, "Validation failure for manifest %s CMS message", uri);
@@ -1478,8 +1503,55 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 
   parse_cert(sk_X509_value(signers, 0), &certinfo, uri);
 
-  if ((crl = check_crl(rc, certinfo.crldp,
-		       sk_X509_value(certs, sk_X509_num(certs) - 1))) == NULL) {
+  if ((crl_tail = strrchr(certinfo.crldp, '/')) == NULL) {
+    logmsg(rc, log_data_err, "Couldn't find trailing slash in %s CRLDP for manifest %s", certinfo.crldp, uri);
+    goto done;
+  }
+  crl_tail++;
+
+  if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
+    logmsg(rc, log_data_err, "Failure decoding manifest %s", uri);
+    mib_increment(rc, uri, manifest_decode_error);
+    goto done;
+  }
+
+  if (X509_cmp_current_time(manifest->thisUpdate) > 0) {
+    logmsg(rc, log_data_err, "Manifest %s not yet valid", uri);
+    mib_increment(rc, uri, manifest_not_yet_valid);
+    goto done;
+  }
+
+  if (X509_cmp_current_time(manifest->nextUpdate) < 0) {
+    logmsg(rc, log_data_err, "Stale manifest %s", uri);
+    mib_increment(rc, uri, stale_manifest);
+    if (!rc->allow_stale_manifest)
+      goto done;
+  }
+
+  if (manifest->fileHashAlg == NULL ||
+      oid_cmp(manifest->fileHashAlg, id_sha256, sizeof(id_sha256)))
+    goto done;
+
+  for (i = 0; (fah = sk_FileAndHash_value(manifest->fileList, i)) != NULL; i++)
+    if (!strcmp(fah->file->data, crl_tail))
+      break;
+
+#warning Not enforcing requirement that CRLs be listed in manifests
+  /*
+   * For now we tolerate CRL not listed in manifest.  Either clean
+   * this up or turn it into a config option eventually.
+   */
+
+  if (fah) {
+    crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1),
+		    fah->hash->data, fah->hash->length);
+  } else {
+    logmsg(rc, log_data_err, "Couldn't find CRL %s in manifest %s, blundering onward", certinfo.crldp, uri);
+    crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1),
+		    NULL, 0);
+  }
+
+  if (!crl) {
     logmsg(rc, log_data_err, "Bad CRL %s for manifest %s EE certificate", certinfo.crldp, uri);
     goto done;
   }
@@ -1513,29 +1585,6 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     mib_increment(rc, uri, manifest_invalid_ee);
     goto done;
   }
-
-  if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
-    logmsg(rc, log_data_err, "Failure decoding manifest %s", uri);
-    mib_increment(rc, uri, manifest_decode_error);
-    goto done;
-  }
-
-  if (X509_cmp_current_time(manifest->thisUpdate) > 0) {
-    logmsg(rc, log_data_err, "Manifest %s not yet valid", uri);
-    mib_increment(rc, uri, manifest_not_yet_valid);
-    goto done;
-  }
-
-  if (X509_cmp_current_time(manifest->nextUpdate) < 0) {
-    logmsg(rc, log_data_err, "Stale manifest %s", uri);
-    mib_increment(rc, uri, stale_manifest);
-    if (!rc->allow_stale_manifest)
-      goto done;
-  }
-
-  if (manifest->fileHashAlg == NULL ||
-      oid_cmp(manifest->fileHashAlg, id_sha256, sizeof(id_sha256)))
-    goto done;
 
 #warning Still need to check CRL against manifest
 
@@ -1705,7 +1754,7 @@ static int check_x509(const rcynic_ctx_t *rc,
     goto done;
   }
 
-  if ((crl = check_crl(rc, subj->crldp, issuer)) == NULL) {
+  if ((crl = check_crl(rc, subj->crldp, issuer, NULL, 0)) == NULL) {
     logmsg(rc, log_data_err, "Bad CRL %s for %s", subj->crldp, subj->uri);
     goto done;
   }

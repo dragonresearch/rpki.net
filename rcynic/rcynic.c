@@ -1992,9 +1992,13 @@ static void walk_cert(rcynic_ctx_t *rc,
 
     rsync_sia(rc, parent->sia);
 
-    if (!parent->manifest[0] || (manifest = check_manifest(rc, parent->manifest, certs)) == NULL) {
+    if (!parent->manifest[0]) {
 
-      logmsg(rc, log_data_err, "Couldn't get manifest, skipping collection");
+      logmsg(rc, log_data_err, "Parent certificate does not specify a manifest, skipping collection");
+
+    } else if ((manifest = check_manifest(rc, parent->manifest, certs)) == NULL) {
+
+      logmsg(rc, log_data_err, "Couldn't get manifest %s, skipping collection", parent->manifest);
 
     } else {
 

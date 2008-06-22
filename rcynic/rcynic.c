@@ -1998,16 +1998,18 @@ static void walk_cert(rcynic_ctx_t *rc,
 
     } else {
 
+#warning Still need to handle non-certificate manifest entries
+
       logmsg(rc, log_debug, "Walking unauthenticated store");
       while ((fah = next_uri(rc, parent->sia, rc->unauthenticated, uri, sizeof(uri), manifest, &iterator)) != NULL)
 	if (has_suffix(uri, ".cer"))
-	  walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0, NULL, 0);		/* fah->hash->data, fah->hash->length */
+	  walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0, fah->hash->data, fah->hash->length);
       logmsg(rc, log_debug, "Done walking unauthenticated store");
 
       logmsg(rc, log_debug, "Walking old authenticated store");
       while ((fah = next_uri(rc, parent->sia, rc->old_authenticated, uri, sizeof(uri), manifest, &iterator)) != NULL)
 	if (has_suffix(uri, ".cer"))
-	  walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1, NULL, 0);	/* fah->hash->data, fah->hash->length */
+	  walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1, fah->hash->data, fah->hash->length);
       logmsg(rc, log_debug, "Done walking old authenticated store");
 
       Manifest_free(manifest);

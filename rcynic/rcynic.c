@@ -661,7 +661,6 @@ static int cp(const char *source, const char *target)
 /**
  * Link a file
  */
-
 static int ln(const char *source, const char *target)
 {
   unlink(target);
@@ -677,7 +676,6 @@ static int ln(const char *source, const char *target)
  * Well, ok, profiling didn't show an issue, but inode exhaustion did.
  * So we now make copy vs link a configuration choice.
  */
-
 static int install_object(const rcynic_ctx_t *rc,
 			  const char *uri,
 			  const char *source,
@@ -749,6 +747,18 @@ static int next_uri(const rcynic_ctx_t *rc,
   closedir(*dir);
   *dir = NULL;
   return 0;
+}
+
+/**
+ * Check str for a trailing suffix.
+ */
+static int has_suffix(const char *str, const char *suffix)
+{
+  size_t len_str, len_suffix;
+  assert(str != NULL && suffix != NULL);
+  len_str = strlen(str);
+  len_suffix = strlen(suffix);
+  return len_str >= len_suffix && !strcmp(str + len_str - len_suffix, suffix);
 }
 
 /**
@@ -839,7 +849,6 @@ static int rm_rf(const char *name)
 /**
  * Maintain a cache of URIs we've already fetched.
  */
-
 static int rsync_cached(const rcynic_ctx_t *rc,
 			const char *uri)
 {
@@ -876,7 +885,6 @@ static int rsync_cached(const rcynic_ctx_t *rc,
  * Taken all together, this is pretty icky.  Breaking it into separate
  * functions wouldn't help much.  Don't read this on a full stomach.
  */
-
 static int rsync(const rcynic_ctx_t *rc,
 		 const char * const *args,
 		 const char *uri)
@@ -1066,7 +1074,6 @@ static int rsync(const rcynic_ctx_t *rc,
 /**
  * rsync a CRL.
  */
-
 static int rsync_crl(const rcynic_ctx_t *rc, const char *uri)
 {
   return rsync(rc, NULL, uri);
@@ -1075,7 +1082,6 @@ static int rsync_crl(const rcynic_ctx_t *rc, const char *uri)
 /**
  * rsync a manifest.
  */
-
 static int rsync_manifest(const rcynic_ctx_t *rc, const char *uri)
 {
   return rsync(rc, NULL, uri);
@@ -1084,7 +1090,6 @@ static int rsync_manifest(const rcynic_ctx_t *rc, const char *uri)
 /**
  * rsync an SIA collection.
  */
-
 static int rsync_sia(const rcynic_ctx_t *rc, const char *uri)
 {
   static const char * const rsync_args[] = { "--recursive", "--delete", NULL };
@@ -1097,7 +1102,6 @@ static int rsync_sia(const rcynic_ctx_t *rc, const char *uri)
  * Clean up old stuff from previous rsync runs.  --delete doesn't help
  * if the URI changes and we never visit the old URI again.
  */
-
 static int prune_unauthenticated(const rcynic_ctx_t *rc,
 				 const char *name,
 				 const size_t baselen)
@@ -1186,7 +1190,7 @@ static int prune_unauthenticated(const rcynic_ctx_t *rc,
 static void *read_file_with_hash(const char *filename,
 				 const ASN1_ITEM *it,
 				 const EVP_MD *md,
-				 unsigned char *hashbuf,
+				 unsigned char *hash,
 				 const size_t hashlen)
 {
   void *result = NULL;
@@ -1195,7 +1199,7 @@ static void *read_file_with_hash(const char *filename,
   if ((b = BIO_new_file(filename, "rb")) == NULL)
     goto error;
   
-  if (hashbuf != NULL) {
+  if (hash != NULL) {
     BIO *b2 = BIO_new(BIO_f_md());
     if (b2 == NULL)
       goto error;
@@ -1212,9 +1216,9 @@ static void *read_file_with_hash(const char *filename,
   if ((result = ASN1_item_d2i_bio(it, b, NULL)) == NULL)
     goto error;
 
-  if (hashbuf != NULL) {
-    memset(hashbuf, 0, hashlen);
-    BIO_gets(b, hashbuf, hashlen);
+  if (hash != NULL) {
+    memset(hash, 0, hashlen);
+    BIO_gets(b, hash, hashlen);
   }    
 
  error:
@@ -1225,25 +1229,25 @@ static void *read_file_with_hash(const char *filename,
 /**
  * Read and hash a certificate.
  */
-static X509 *read_cert(const char *filename, unsigned char *hashbuf, const size_t hashlen)
+static X509 *read_cert(const char *filename, unsigned char *hash, const size_t hashlen)
 {
-  return read_file_with_hash(filename, ASN1_ITEM_rptr(X509), NULL, hashbuf, hashlen);
+  return read_file_with_hash(filename, ASN1_ITEM_rptr(X509), NULL, hash, hashlen);
 }
 
 /**
  * Read and hash a CRL.
  */
-static X509_CRL *read_crl(const char *filename, unsigned char *hashbuf, const size_t hashlen)
+static X509_CRL *read_crl(const char *filename, unsigned char *hash, const size_t hashlen)
 {
-  return read_file_with_hash(filename, ASN1_ITEM_rptr(X509_CRL), NULL, hashbuf, hashlen);
+  return read_file_with_hash(filename, ASN1_ITEM_rptr(X509_CRL), NULL, hash, hashlen);
 }
 
 /**
  * Read and hash a CMS message.
  */
-static CMS_ContentInfo *read_cms(const char *filename, unsigned char *hashbuf, const size_t hashlen)
+static CMS_ContentInfo *read_cms(const char *filename, unsigned char *hash, const size_t hashlen)
 {
-  return read_file_with_hash(filename, ASN1_ITEM_rptr(CMS_ContentInfo), NULL, hashbuf, hashlen);
+  return read_file_with_hash(filename, ASN1_ITEM_rptr(CMS_ContentInfo), NULL, hash, hashlen);
 }
 
 
@@ -1251,7 +1255,6 @@ static CMS_ContentInfo *read_cms(const char *filename, unsigned char *hashbuf, c
 /**
  * Extract CRLDP data from a certificate.
  */
-
 static void extract_crldp_uri(const STACK_OF(DIST_POINT) *crldp,
 			      char *uri, const int urilen)
 {
@@ -1282,7 +1285,6 @@ static void extract_crldp_uri(const STACK_OF(DIST_POINT) *crldp,
 /**
  * Extract SIA or AIA data from a certificate.
  */
-
 static void extract_access_uri(const AUTHORITY_INFO_ACCESS *xia,
 			       const unsigned char *oid,
 			       const int oidlen,
@@ -1310,7 +1312,6 @@ static void extract_access_uri(const AUTHORITY_INFO_ACCESS *xia,
 /**
  * Parse interesting stuff from a certificate.
  */
-
 static void parse_cert(X509 *x, certinfo_t *c, const char *uri)
 {
   static const unsigned char id_ad_caIssuers[]    = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x2};
@@ -1384,7 +1385,6 @@ static X509_CRL *check_crl_1(const char *uri,
  * Check whether we already have a particular CRL, attempt to fetch it
  * and check issuer's signature if we don't.
  */
-
 static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 			   const char *uri,
 			   X509 *issuer)
@@ -1428,7 +1428,6 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx);
 /**
  * Read and check one manifest from disk.
  */
-
 static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 				  const char *uri,
 				  char *path,
@@ -1447,7 +1446,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   BIO *bio = NULL;
   rcynic_x509_store_ctx_t rctx;
   certinfo_t certinfo;
-  int initialized_store_ctx = 0;
+  int i, initialized_store_ctx = 0;
 
   assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
 
@@ -1559,7 +1558,6 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
  * Check whether we already have a particular manifest, attempt to fetch it
  * and check issuer's signature if we don't.
  */
-
 static Manifest *check_manifest(const rcynic_ctx_t *rc,
 				const char *uri,
 				STACK_OF(X509) *certs)
@@ -1614,7 +1612,6 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 /**
  * Validation callback function for use with x509_verify_cert().
  */
-
 static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
 {
   rcynic_x509_store_ctx_t *rctx = (rcynic_x509_store_ctx_t *) ctx;
@@ -1678,7 +1675,6 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
  * Check crypto aspects of a certificate, including policy checks
  * and RFC 3779 path validation.
  */
-
 static int check_x509(const rcynic_ctx_t *rc,
 		      STACK_OF(X509) *certs,
 		      X509 *x,
@@ -1756,7 +1752,6 @@ static int check_x509(const rcynic_ctx_t *rc,
 /**
  * Check a certificate for conformance to the RPKI certificate profile.
  */
-
 static X509 *check_cert_1(const rcynic_ctx_t *rc,
 			  const char *uri,
 			  char *path,
@@ -1832,7 +1827,6 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
  * Try to find a good copy of a certificate either in fresh data or in
  * backup data from a previous run of this program.
  */
-
 static X509 *check_cert(rcynic_ctx_t *rc,
 			char *uri,
 			STACK_OF(X509) *certs,
@@ -1894,7 +1888,6 @@ static void walk_cert(rcynic_ctx_t *rc,
  * daisy chain recursion is to avoid having to duplicate the stack
  * manipulation and error handling.
  */
-
 static void walk_cert_1(rcynic_ctx_t *rc,
 			char *uri,
 			STACK_OF(X509) *certs,

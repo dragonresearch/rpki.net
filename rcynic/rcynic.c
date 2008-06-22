@@ -153,37 +153,39 @@ static const struct {
  * MIB counters specific to rcynic.
  */
 
-#define MIB_COUNTERS						 \
-  QQ(backup_cert_accepted,	"Backup certificates accepted")  \
-  QQ(backup_cert_rejected,	"Backup certificates rejected")  \
-  QQ(backup_crl_accepted,	"Backup CRLs accepted")		 \
-  QQ(backup_crl_rejected,	"Backup CRLs rejected")		 \
-  QQ(current_cert_accepted,	"Current certificates accepted") \
-  QQ(current_cert_rejected,	"Current certificates rejected") \
-  QQ(current_crl_accepted,	"Current CRLs accepted")	 \
-  QQ(current_crl_rejected,	"Current CRLs rejected")	 \
-  QQ(current_manifest_accepted, "Current Manifests accepted")    \
-  QQ(current_manifest_rejected, "Current Manifests rejected")    \
-  QQ(backup_manifest_accepted,  "Backup Manifests accepted")     \
-  QQ(backup_manifest_rejected,  "Backup Manifests rejected")     \
-  QQ(rsync_failed,		"rsync transfers failed")	 \
-  QQ(rsync_succeeded,		"rsync transfers succeeded")	 \
-  QQ(rsync_timed_out,		"rsync transfers timed out")	 \
-  QQ(stale_crl,			"Stale CRLs")			 \
-  QQ(malformed_sia,		"Malformed SIA extensions")	 \
-  QQ(sia_missing,		"SIA extensions missing")	 \
-  QQ(aia_missing,		"AIA extensions missing")	 \
-  QQ(crldp_missing,		"CRLDP extensions missing")	 \
-  QQ(aia_mismatch,		"Mismatched AIA extensions")	 \
-  QQ(unknown_verify_error,	"Unknown OpenSSL verify error")	 \
-  QQ(current_cert_recheck,      "Certificates rechecked")	 \
-  QQ(manifest_invalid_ee,       "Invalid manifest certificates") \
-  QQ(manifest_invalid_cms,      "Manifest validation failures")  \
-  QQ(manifest_decode_error,     "Manifest decode errors")        \
-  QQ(stale_manifest,            "Stale manifests")               \
-  QQ(manifest_not_yet_valid,    "Manifests not yet valid")       \
-  QQ(manifest_bad_econtenttype, "Bad manifest eContentType")     \
-  QQ(manifest_missing_signer,   "Missing manifest signers")      \
+#define MIB_COUNTERS							 \
+  QQ(backup_cert_accepted,		"Backup certificates accepted")  \
+  QQ(backup_cert_rejected,		"Backup certificates rejected")  \
+  QQ(backup_crl_accepted,		"Backup CRLs accepted")		 \
+  QQ(backup_crl_rejected,		"Backup CRLs rejected")		 \
+  QQ(current_cert_accepted,		"Current certificates accepted") \
+  QQ(current_cert_rejected,		"Current certificates rejected") \
+  QQ(current_crl_accepted,		"Current CRLs accepted")	 \
+  QQ(current_crl_rejected,		"Current CRLs rejected")	 \
+  QQ(current_manifest_accepted,		"Current Manifests accepted")    \
+  QQ(current_manifest_rejected,		"Current Manifests rejected")    \
+  QQ(backup_manifest_accepted,		"Backup Manifests accepted")     \
+  QQ(backup_manifest_rejected,		"Backup Manifests rejected")     \
+  QQ(rsync_failed,			"rsync transfers failed")	 \
+  QQ(rsync_succeeded,			"rsync transfers succeeded")	 \
+  QQ(rsync_timed_out,			"rsync transfers timed out")	 \
+  QQ(stale_crl,				"Stale CRLs")			 \
+  QQ(malformed_sia,			"Malformed SIA extensions")	 \
+  QQ(sia_missing,			"SIA extensions missing")	 \
+  QQ(aia_missing,			"AIA extensions missing")	 \
+  QQ(crldp_missing,			"CRLDP extensions missing")	 \
+  QQ(aia_mismatch,			"Mismatched AIA extensions")	 \
+  QQ(unknown_verify_error,		"Unknown OpenSSL verify error")	 \
+  QQ(current_cert_recheck,		"Certificates rechecked")	 \
+  QQ(manifest_invalid_ee,		"Invalid manifest certificates") \
+  QQ(manifest_invalid_cms,		"Manifest validation failures")  \
+  QQ(manifest_decode_error,		"Manifest decode errors")        \
+  QQ(stale_manifest,			"Stale manifests")               \
+  QQ(manifest_not_yet_valid,		"Manifests not yet valid")       \
+  QQ(manifest_bad_econtenttype,		"Bad manifest eContentType")     \
+  QQ(manifest_missing_signer,		"Missing manifest signers")      \
+  QQ(certificate_digest_mismatch,	"Certificate digest mismatches") \
+  QQ(crl_digest_mismatch,		"CRL digest mismatches")	 \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QQ(mib_openssl_##x, 0)
@@ -1353,7 +1355,8 @@ static void parse_cert(X509 *x, certinfo_t *c, const char *uri)
  * Attempt to read and check one CRL from disk.
  */
 
-static X509_CRL *check_crl_1(const char *uri,
+static X509_CRL *check_crl_1(const rcynic_ctx_t *rc,
+			     const char *uri,
 			     char *path, const int pathlen,
 			     const char *prefix,
 			     X509 *issuer,
@@ -1378,8 +1381,11 @@ static X509_CRL *check_crl_1(const char *uri,
   if (!crl)
     goto punt;
 
-  if (hash && memcmp(hashbuf, hash, hashlen))
+  if (hash && memcmp(hashbuf, hash, hashlen)) {
+    logmsg(rc, log_data_err, "Manifest digest mismatch for CRL %s", uri);
+    mib_increment(rc, uri, crl_digest_mismatch);
     goto punt;
+  }
 
   if ((pkey = X509_get_pubkey(issuer)) == NULL)
     goto punt;
@@ -1421,7 +1427,7 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 
   rsync_crl(rc, uri);
 
-  if ((crl = check_crl_1(uri, path, sizeof(path), rc->unauthenticated,
+  if ((crl = check_crl_1(rc, uri, path, sizeof(path), rc->unauthenticated,
 			 issuer, hash, hashlen))) {
     install_object(rc, uri, path, 5);
     mib_increment(rc, uri, current_crl_accepted);
@@ -1430,7 +1436,7 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
     mib_increment(rc, uri, current_crl_rejected);
   }
 
-  if ((crl = check_crl_1(uri, path, sizeof(path), rc->old_authenticated,
+  if ((crl = check_crl_1(rc, uri, path, sizeof(path), rc->old_authenticated,
 			 issuer, hash, hashlen))) {
     install_object(rc, uri, path, 5);
     mib_increment(rc, uri, backup_crl_accepted);
@@ -1585,8 +1591,6 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     mib_increment(rc, uri, manifest_invalid_ee);
     goto done;
   }
-
-#warning Still need to check CRL against manifest
 
   result = manifest;
   manifest = NULL;
@@ -1808,8 +1812,11 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
 			  const char *prefix,
 			  STACK_OF(X509) *certs,
 			  const certinfo_t *issuer,
-			  certinfo_t *subj)
+			  certinfo_t *subj,
+			  const unsigned char *hash,
+			  const size_t hashlen)
 {
+  unsigned char hashbuf[EVP_MAX_MD_SIZE];
   X509 *x = NULL;
 
   assert(uri && path && certs && issuer && subj);
@@ -1822,9 +1829,20 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
   if (access(path, R_OK))
     return NULL;
 
-  if ((x = read_cert(path, NULL, 0)) == NULL) {
+  if (hash)
+    x = read_cert(path, hashbuf, sizeof(hashbuf));
+  else
+    x = read_cert(path, NULL, 0);
+
+  if (!x) {
     logmsg(rc, log_sys_err, "Can't read certificate %s", path);
-    return NULL;
+    goto punt;
+  }
+
+  if (hash && memcmp(hashbuf, hash, hashlen)) {
+    logmsg(rc, log_data_err, "Manifest digest mismatch for certificate %s", uri);
+    mib_increment(rc, uri, certificate_digest_mismatch);
+    goto punt;
   }
 
   parse_cert(x, subj, uri);
@@ -1882,7 +1900,9 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 			const certinfo_t *issuer,
 			certinfo_t *subj,
 			const char *prefix,
-			const int backup)
+			const int backup,
+			const unsigned char *hash,
+			const size_t hashlen)
 {
   char path[FILENAME_MAX];
   X509 *x;
@@ -1907,7 +1927,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
   rc->indent++;
 
   if ((x = check_cert_1(rc, uri, path, sizeof(path), prefix,
-			certs, issuer, subj)) != NULL) {
+			certs, issuer, subj, hash, hashlen)) != NULL) {
     install_object(rc, uri, path, 5);
     mib_increment(rc, uri,
 		  (backup ? backup_cert_accepted : current_cert_accepted));
@@ -1943,11 +1963,14 @@ static void walk_cert_1(rcynic_ctx_t *rc,
 			const certinfo_t *issuer,
 			certinfo_t *subj,
 			const char *prefix,
-			const int backup)
+			const int backup,
+			const unsigned char *hash,
+			const size_t hashlen
+)
 {
   X509 *x;
 
-  if ((x = check_cert(rc, uri, certs, issuer, subj, prefix, backup)) == NULL)
+  if ((x = check_cert(rc, uri, certs, issuer, subj, prefix, backup, hash, hashlen)) == NULL)
     return;
 
   if (!sk_X509_push(certs, x)) {
@@ -1995,13 +2018,13 @@ static void walk_cert(rcynic_ctx_t *rc,
     logmsg(rc, log_debug, "Walking unauthenticated store");
     while (next_uri(rc, parent->sia, rc->unauthenticated,
 		    uri, sizeof(uri), &dir))
-      walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0);
+      walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0, NULL, 0);
     logmsg(rc, log_debug, "Done walking unauthenticated store");
 
     logmsg(rc, log_debug, "Walking old authenticated store");
     while (next_uri(rc, parent->sia, rc->old_authenticated,
 		    uri, sizeof(uri), &dir))
-      walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1);
+      walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1, NULL, 0);
     logmsg(rc, log_debug, "Done walking old authenticated store");
 
     assert(sk_X509_num(certs) == n_cert);

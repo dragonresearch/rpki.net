@@ -23,7 +23,7 @@ ${BIN}: ${OBJ} ${LIB} Makefile
 
 test: ${BIN}
 	./${BIN} -j 0
-	-xsltproc rcynic.xsl rcynic.xml | w3m -T text/html -dump
+	-xsltproc --param refresh 0 rcynic.xsl rcynic.xml | w3m -T text/html -dump
 
 install: ${BIN} scripts/install.sh
 	cd scripts; . ./install.sh

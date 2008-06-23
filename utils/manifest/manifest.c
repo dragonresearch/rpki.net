@@ -84,7 +84,7 @@ ASN1_SEQUENCE(Manifest) = {
  *
  * NB: When invoked this way, CMS_verify() does -not- verify, it just decodes the ASN.1.
  */
-static const Manifest *read_manifest(const char *filename, const int print_cms, const int print_manifest)
+static const Manifest *read_manifest(const char *filename, const int print_cms, const int print_manifest, const int print_signerinfo)
 {
   CMS_ContentInfo *cms = NULL;
   const ASN1_OBJECT *oid = NULL;
@@ -97,6 +97,18 @@ static const Manifest *read_manifest(const char *filename, const int print_cms, 
       (cms = d2i_CMS_bio(b, NULL)) == NULL)
     goto done;
   BIO_free(b);
+
+  if (print_signerinfo) {
+    STACK_OF(CMS_SignerInfo) *signerInfos = CMS_get0_SignerInfos(cms);
+    for (i = 0; i < sk_CMS_SignerInfo_num(signerInfos); i++) {
+      ASN1_OCTET_STRING *hash = NULL;
+      if (CMS_SignerInfo_get0_signer_id(sk_CMS_SignerInfo_value(signerInfos, i), &hash, NULL, NULL)) {
+	printf("SignerId[%d]:    ", i);
+	for (j = 0; j < hash->length; j++)
+	  printf("%02x%s", hash->data[j], j == hash->length - 1 ? "\n" : ":");
+      }
+    }
+  }
 
   if (print_cms) {
     if ((b = BIO_new(BIO_s_fd())) == NULL)
@@ -130,7 +142,7 @@ static const Manifest *read_manifest(const char *filename, const int print_cms, 
 
     for (i = 0; i < sk_FileAndHash_num(m->fileList); i++) {
       FileAndHash *fah = sk_FileAndHash_value(m->fileList, i);
-      printf("%3d:            ", i);
+      printf("fileList[%3d]:  ", i);
       for (j = 0; j < fah->hash->length; j++)
 	printf("%02x%s", fah->hash->data[j], j == fah->hash->length - 1 ? " " : ":");
       printf(" %s\n", fah->file->data);
@@ -155,5 +167,5 @@ int main (int argc, char *argv[])
 {
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
-  return read_manifest(argv[1], 0, 1) == NULL;
+  return read_manifest(argv[1], 0, 1, 1) == NULL;
 }

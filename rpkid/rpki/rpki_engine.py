@@ -381,7 +381,11 @@ class ca_detail_obj(rpki.sql.sql_persistant):
 
   def crl_uri(self, ca):
     """Return publication URI for this ca_detail's CRL."""
-    return ca.sia_uri + self.public_key.gSKI() + ".crl"
+    return ca.sia_uri + self.crl_uri_tail()
+
+  def crl_uri_tail(self):
+    """Return tail (filename portion) of publication URI for this ca_detail's CRL."""
+    return self.public_key.gSKI() + ".crl"
 
   def manifest_uri(self, ca):
     """Return publication URI for this ca_detail's manifest."""
@@ -622,8 +626,9 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     route_origins = [r for r in self.route_origins() if r.cert is not None and r.roa is not None]
 
     certs = [(c.uri_tail(), c.cert) for c in self.child_certs()] + \
+            [(r.roa_uri_tail(), r.cert) for r in route_origins] + \
             [(r.ee_uri_tail(), r.cert) for r in route_origins] + \
-            [(r.roa_uri_tail(), r.cert) for r in route_origins]
+            [(self.crl_uri_tail(), self.latest_crl)]
 
     self.latest_manifest = rpki.x509.SignedManifest.build(
       serial         = ca.next_manifest_number(),

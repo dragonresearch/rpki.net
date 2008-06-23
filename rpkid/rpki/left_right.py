@@ -723,7 +723,11 @@ class route_origin_elt(data_elt):
 
   def roa_uri(self, ca, key = None):
     """Return the publication URI for this route_origin's ROA."""
-    return ca.sia_uri + (key or self.cert).gSKI() + ".roa"
+    return ca.sia_uri + self.roa_uri_tail(key)
+
+  def roa_uri_tail(self, key = None):
+    """Return the tail (filename portion) of the publication URI for this route_origin's ROA."""
+    return (key or self.cert).gSKI() + ".roa"
 
   def ee_uri_tail(self):
     """Return the tail (filename) portion of the URI for this route_origin's ROA's EE certificate."""

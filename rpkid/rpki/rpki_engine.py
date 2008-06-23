@@ -619,8 +619,11 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     if nextUpdate is None:
       nextUpdate = now + crl_interval
 
+    route_origins = [r for r in self.route_origins() if r.cert is not None and r.roa is not None]
+
     certs = [(c.uri_tail(), c.cert) for c in self.child_certs()] + \
-            [(r.ee_uri_tail(), r.cert) for r in self.route_origins() if r.cert is not None]
+            [(r.ee_uri_tail(), r.cert) for r in route_origins] + \
+            [(r.roa_uri_tail(), r.cert) for r in route_origins]
 
     self.latest_manifest = rpki.x509.SignedManifest.build(
       serial         = ca.next_manifest_number(),

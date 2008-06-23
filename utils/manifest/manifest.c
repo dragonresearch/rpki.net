@@ -130,10 +130,10 @@ static const Manifest *read_manifest(const char *filename, const int print_cms, 
 
     for (i = 0; i < sk_FileAndHash_num(m->fileList); i++) {
       FileAndHash *fah = sk_FileAndHash_value(m->fileList, i);
-      printf("  file[%2d]:       %s\n", i, fah->file->data);
-      printf("  hash[%2d]:       ", i);
+      printf("%3d:            ", i);
       for (j = 0; j < fah->hash->length; j++)
-	printf("%02x%s", fah->hash->data[j], j == fah->hash->length - 1 ? "\n" : ":");
+	printf("%02x%s", fah->hash->data[j], j == fah->hash->length - 1 ? " " : ":");
+      printf(" %s\n", fah->file->data);
     }
 
     if (X509_cmp_current_time(m->nextUpdate) < 0)

@@ -626,7 +626,7 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     route_origins = [r for r in self.route_origins() if r.cert is not None and r.roa is not None]
 
     certs = [(c.uri_tail(), c.cert) for c in self.child_certs()] + \
-            [(r.roa_uri_tail(), r.cert) for r in route_origins] + \
+            [(r.roa_uri_tail(), r.roa) for r in route_origins] + \
             [(r.ee_uri_tail(), r.cert) for r in route_origins] + \
             [(self.crl_uri_tail(), self.latest_crl)]
 

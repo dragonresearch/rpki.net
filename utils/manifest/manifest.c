@@ -100,14 +100,26 @@ static const Manifest *read_manifest(const char *filename, const int print_cms, 
 
   if (print_signerinfo) {
     STACK_OF(CMS_SignerInfo) *signerInfos = CMS_get0_SignerInfos(cms);
+    STACK_OF(X509) *certs = CMS_get1_certs(cms);
+    STACK_OF(X509_CRL) *crls = CMS_get1_crls(cms);
+    printf("Certificates:   %d\n", certs ? sk_X509_num(certs) : 0);
+    printf("CRLs:           %d\n", crls ? sk_X509_CRL_num(crls) : 0);
     for (i = 0; i < sk_CMS_SignerInfo_num(signerInfos); i++) {
       ASN1_OCTET_STRING *hash = NULL;
-      if (CMS_SignerInfo_get0_signer_id(sk_CMS_SignerInfo_value(signerInfos, i), &hash, NULL, NULL)) {
-	printf("SignerId[%d]:    ", i);
+      printf("SignerId[%d]:    ", i);
+      if (CMS_SignerInfo_get0_signer_id(sk_CMS_SignerInfo_value(signerInfos, i), &hash, NULL, NULL))
 	for (j = 0; j < hash->length; j++)
-	  printf("%02x%s", hash->data[j], j == hash->length - 1 ? "\n" : ":");
-      }
+	  printf("%02x%s", hash->data[j], j == hash->length - 1 ? "" : ":");
+      else
+	printf("[Could not read SID]");
+      if (certs)
+	for (j = 0; j < sk_X509_num(certs); j++)
+	  if (!CMS_SignerInfo_cert_cmp(sk_CMS_SignerInfo_value(signerInfos, i), sk_X509_value(certs, j)))
+	    printf(" [Matches certificate %d]", j);
+      printf("\n");
     }
+    sk_X509_pop_free(certs, X509_free);
+    sk_X509_CRL_pop_free(crls, X509_CRL_free);
   }
 
   if (print_cms) {
@@ -133,7 +145,7 @@ static const Manifest *read_manifest(const char *filename, const int print_cms, 
     if (m->version)
       printf("version:        %ld\n", ASN1_INTEGER_get(m->version));
     else
-      printf("version:        0 [defaulted]\n");
+      printf("version:        0 [Defaulted]\n");
     printf("manifestNumber: %ld\n", ASN1_INTEGER_get(m->manifestNumber));
     printf("thisUpdate:     %s\n", m->thisUpdate->data);
     printf("nextUpdate:     %s\n", m->nextUpdate->data);
@@ -165,7 +177,10 @@ static const Manifest *read_manifest(const char *filename, const int print_cms, 
  */
 int main (int argc, char *argv[])
 {
+  int result = 0;
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
-  return read_manifest(argv[1], 0, 1, 1) == NULL;
+  while (--argc > 0)
+    result |=  read_manifest(*++argv, 0, 1, 1) == NULL;
+  return result;
 }

@@ -186,6 +186,7 @@ static const struct {
   QQ(manifest_missing_signer,		"Missing manifest signers")      \
   QQ(certificate_digest_mismatch,	"Certificate digest mismatches") \
   QQ(crl_digest_mismatch,		"CRL digest mismatches")	 \
+  QQ(crl_not_in_manifest,               "CRL not listed in manifest")    \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QQ(mib_openssl_##x, 0)
@@ -235,7 +236,7 @@ typedef struct rcynic_ctx {
   char *jane, *rsync_program;
   STACK *rsync_cache, *host_counters, *backup_cache;
   int indent, use_syslog, allow_stale_crl, allow_stale_manifest, use_links;
-  int rsync_timeout, priority[LOG_LEVEL_T_MAX];
+  int require_crl_in_manifest, rsync_timeout, priority[LOG_LEVEL_T_MAX];
   log_level_t log_level;
   X509_STORE *x509_store;
 } rcynic_ctx_t;
@@ -1527,17 +1528,14 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     if (!strcmp(fah->file->data, crl_tail))
       break;
 
-#warning Not enforcing requirement that CRLs be listed in manifests
-  /*
-   * For now we tolerate CRL not listed in manifest.  Either clean
-   * this up or turn it into a config option eventually.
-   */
-
   if (fah) {
     crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1),
 		    fah->hash->data, fah->hash->length);
   } else {
-    logmsg(rc, log_data_err, "Couldn't find CRL %s in manifest %s, blundering onward", certinfo.crldp, uri);
+    logmsg(rc, log_data_err, "Couldn't find CRL %s in manifest %s", certinfo.crldp, uri);
+    mib_increment(rc, uri, crl_not_in_manifest);
+    if (rc->require_crl_in_manifest)
+      goto done;
     crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1),
 		    NULL, 0);
   }
@@ -2008,12 +2006,16 @@ static void walk_cert(rcynic_ctx_t *rc,
       while ((fah = next_uri(rc, parent->sia, rc->unauthenticated, uri, sizeof(uri), manifest, &iterator)) != NULL)
 	if (has_suffix(uri, ".cer"))
 	  walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0, fah->hash->data, fah->hash->length);
+	else
+	  logmsg(rc, log_debug, "Don't (yet) know how to check %s", uri);
       logmsg(rc, log_debug, "Done walking unauthenticated store");
 
       logmsg(rc, log_debug, "Walking old authenticated store");
       while ((fah = next_uri(rc, parent->sia, rc->old_authenticated, uri, sizeof(uri), manifest, &iterator)) != NULL)
 	if (has_suffix(uri, ".cer"))
 	  walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1, fah->hash->data, fah->hash->length);
+	else
+	  logmsg(rc, log_debug, "Don't (yet) know how to check %s", uri);
       logmsg(rc, log_debug, "Done walking old authenticated store");
 
       Manifest_free(manifest);
@@ -2184,6 +2186,10 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "allow-stale-manifest") &&
 	     !configure_boolean(&rc, &rc.allow_stale_manifest, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "require-crl-in-manifest") &&
+	     !configure_boolean(&rc, &rc.require_crl_in_manifest, val->value))
       goto done;
 
     else if (!name_cmp(val->name, "use-links") &&

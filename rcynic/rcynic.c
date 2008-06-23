@@ -707,6 +707,18 @@ static int install_object(const rcynic_ctx_t *rc,
 }
 
 /**
+ * Check str for a trailing suffix.
+ */
+static int has_suffix(const char *str, const char *suffix)
+{
+  size_t len_str, len_suffix;
+  assert(str != NULL && suffix != NULL);
+  len_str = strlen(str);
+  len_suffix = strlen(suffix);
+  return len_str >= len_suffix && !strcmp(str + len_str - len_suffix, suffix);
+}
+
+/**
  * Iterator over URIs in our copy of a SIA collection.
  * *iterator should be zero when first called.
  */
@@ -738,18 +750,6 @@ static FileAndHash *next_uri(const rcynic_ctx_t *rc,
 
   *iterator = 0;
   return NULL;
-}
-
-/**
- * Check str for a trailing suffix.
- */
-static int has_suffix(const char *str, const char *suffix)
-{
-  size_t len_str, len_suffix;
-  assert(str != NULL && suffix != NULL);
-  len_str = strlen(str);
-  len_suffix = strlen(suffix);
-  return len_str >= len_suffix && !strcmp(str + len_str - len_suffix, suffix);
 }
 
 /**
@@ -1951,8 +1951,7 @@ static void walk_cert_1(rcynic_ctx_t *rc,
 			const char *prefix,
 			const int backup,
 			const unsigned char *hash,
-			const size_t hashlen
-)
+			const size_t hashlen)
 {
   X509 *x;
 
@@ -2004,6 +2003,29 @@ static void walk_cert(rcynic_ctx_t *rc,
     } else {
 
 #warning Still need to handle non-certificate manifest entries
+      /*
+       * Not quite sure how to handle ROAs yet.  Tricky bit is
+       * following the links from the EE certs to the ROAs while
+       * simultaneously using the manifest to read everything.  Maze
+       * of twisty pointers....
+       *
+       * It'd probably work just to keep a map of pointers from EE
+       * cert to ROA; building this up while scanning the certs would
+       * be cheap, as we have the parsed cert info in child at that
+       * point anyway.  So build up a map during the cert pass, then
+       * use it during the ROA pass.  Well, ok, we need to be a bit
+       * careful with the child certinfo, as the current code might
+       * not fill it in under all circumstances, so be sure to
+       * memset() it or call parse_cert() where we don't now, as
+       * needed.
+       *
+       * Separate problem of handling objects that are neither certs
+       * nor ROAs.  At the moment the only such is the CRL that covers
+       * this collection of certs, which we should be able to check
+       * for in some trivial manner.  But we probably ought to whine
+       * about anything else we find in the manifest, as we don't
+       * understand it and can't check it.
+       */
 
       logmsg(rc, log_debug, "Walking unauthenticated store");
       while ((fah = next_uri(rc, parent->sia, rc->unauthenticated, uri, sizeof(uri), manifest, &iterator, ".cer")) != NULL)
@@ -2020,7 +2042,6 @@ static void walk_cert(rcynic_ctx_t *rc,
       logmsg(rc, log_debug, "Done walking old authenticated store");
 
       Manifest_free(manifest);
-
     }
 
     assert(sk_X509_num(certs) == n_cert);

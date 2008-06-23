@@ -21,5 +21,4 @@ ${BIN}: ${OBJ} ${LIB} Makefile
 TARGET = ../../rpkid/testbed.dir/publication/localhost:4400/testbed/WOMBAT.cer
 
 test: all
-	./${BIN} ${TARGET}
-	openssl dgst -sha256 -c < ${TARGET}
+	if test -r ${TARGET}; then ./${BIN} ${TARGET}; openssl dgst -sha256 -c < ${TARGET}; else :; fi

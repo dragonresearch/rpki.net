@@ -1893,7 +1893,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
   char path[FILENAME_MAX];
   X509 *x;
 
-  assert(certs);
+  assert(rc && uri && certs && issuer && subj && prefix);
 
   /*
    * If target file already exists and we're not here to recheck with
@@ -2018,6 +2018,15 @@ static void walk_cert(rcynic_ctx_t *rc,
        * not fill it in under all circumstances, so be sure to
        * memset() it or call parse_cert() where we don't now, as
        * needed.
+       *
+       * Hmm, no, we can't count on the SIA pointers, and the EE certs
+       * might or might not already be bundled into the ROAs.  The ROA
+       * spec says we're supposed to figure this out by looking at the
+       * SignerInfos field in the CMS.  By happy coincidence, the
+       * SignerInfos is required by profile to use SHA-256, ie, the
+       * same hash we already have for everything in the manifest.
+       * So, in theory, we can just look up the right EE cert in the
+       * manifest if it's not already in the CMS.
        *
        * Separate problem of handling objects that are neither certs
        * nor ROAs.  At the moment the only such is the CRL that covers

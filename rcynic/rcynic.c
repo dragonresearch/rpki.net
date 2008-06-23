@@ -716,14 +716,17 @@ static FileAndHash *next_uri(const rcynic_ctx_t *rc,
 			     char *uri,
 			     const size_t urilen,
 			     const Manifest *manifest,
-			     int *iterator)
+			     int *iterator,
+			     const char *suffix)
 {
   FileAndHash *fah = NULL;
 
   assert(base_uri && prefix && uri && manifest && iterator);
 
   while ((fah = sk_FileAndHash_value(manifest->fileList, *iterator)) != NULL) {
-    ++ *iterator;
+    ++*iterator;
+    if (suffix && !has_suffix(fah->file->data, suffix))
+      continue;
     if (strlen(base_uri) + strlen(fah->file->data) >= urilen) {
       logmsg(rc, log_data_err, "URI %s%s too long, skipping", base_uri, fah->file->data);
       continue;
@@ -2003,19 +2006,17 @@ static void walk_cert(rcynic_ctx_t *rc,
 #warning Still need to handle non-certificate manifest entries
 
       logmsg(rc, log_debug, "Walking unauthenticated store");
-      while ((fah = next_uri(rc, parent->sia, rc->unauthenticated, uri, sizeof(uri), manifest, &iterator)) != NULL)
-	if (has_suffix(uri, ".cer"))
-	  walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0, fah->hash->data, fah->hash->length);
-	else
-	  logmsg(rc, log_debug, "Don't (yet) know how to check %s", uri);
+      while ((fah = next_uri(rc, parent->sia, rc->unauthenticated, uri, sizeof(uri), manifest, &iterator, ".cer")) != NULL)
+	walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0, fah->hash->data, fah->hash->length);
+      while ((fah = next_uri(rc, parent->sia, rc->unauthenticated, uri, sizeof(uri), manifest, &iterator, ".roa")) != NULL)
+	logmsg(rc, log_debug, "Don't yet know how to check %s", uri);
       logmsg(rc, log_debug, "Done walking unauthenticated store");
 
       logmsg(rc, log_debug, "Walking old authenticated store");
-      while ((fah = next_uri(rc, parent->sia, rc->old_authenticated, uri, sizeof(uri), manifest, &iterator)) != NULL)
-	if (has_suffix(uri, ".cer"))
-	  walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1, fah->hash->data, fah->hash->length);
-	else
-	  logmsg(rc, log_debug, "Don't (yet) know how to check %s", uri);
+      while ((fah = next_uri(rc, parent->sia, rc->old_authenticated, uri, sizeof(uri), manifest, &iterator, ".cer")) != NULL)
+	walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1, fah->hash->data, fah->hash->length);
+      while ((fah = next_uri(rc, parent->sia, rc->old_authenticated, uri, sizeof(uri), manifest, &iterator, ".roa")) != NULL)
+	logmsg(rc, log_debug, "Don't yet know how to check %s", uri);
       logmsg(rc, log_debug, "Done walking old authenticated store");
 
       Manifest_free(manifest);

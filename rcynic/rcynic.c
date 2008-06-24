@@ -187,6 +187,16 @@ static const struct {
   QQ(certificate_digest_mismatch,	"Certificate digest mismatches") \
   QQ(crl_digest_mismatch,		"CRL digest mismatches")	 \
   QQ(crl_not_in_manifest,               "CRL not listed in manifest")    \
+  QQ(roa_invalid_ee,			"Invalid ROA certificates")	 \
+  QQ(roa_invalid_cms,			"ROA validation failures")	 \
+  QQ(roa_decode_error,			"ROA decode errors")		 \
+  QQ(roa_bad_econtenttype,		"Bad ROA eContentType")		 \
+  QQ(roa_missing_signer,		"Missing ROA signers")		 \
+  QQ(roa_digest_mismatch,		"ROA digest mismatches")	 \
+  QQ(current_roa_accepted,		"Current ROAs accepted")	 \
+  QQ(current_roa_rejected,		"Current ROAs rejected")	 \
+  QQ(backup_roa_accepted,		"Backup ROAs accepted")		 \
+  QQ(backup_roa_rejected,		"Backup ROAs rejected")		 \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QQ(mib_openssl_##x, 0)
@@ -260,13 +270,23 @@ typedef struct rcynic_x509_store_ctx {
  */
 static const char svn_id[] = "$Id$";
 
+/*
+ * ASN.1 Object identifiers in form suitable for use with oid_cmp()
+ */
+static const unsigned char id_ad_caIssuers[]              = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x2};
+static const unsigned char id_ad_caRepository[]           = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x5};
+static const unsigned char id_ad_rpkiManifest[]           = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0xa};
+static const unsigned char id_ct_routeOriginAttestation[] = {0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x10, 0x01, 0x18};
+static const unsigned char id_ct_rpkiManifest[]           = {0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x10, 0x01, 0x1a};
+static const unsigned char id_sha256[]                    = {0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01};
+
 
 
 /*
- * ASN.1 templates for signed manifests.  Not sure that ASN1_EXP_OPT()
- * is the right macro for "version", but it's what the examples for
- * this construction use.  Probably doesn't matter since this program
- * only decodes manifests, never encodes them.
+ * ASN.1 templates.  Not sure that ASN1_EXP_OPT() is the right macro
+ * for these defaulted "version" fields, but it's what the examples
+ * for this construction use.  Probably doesn't matter since this
+ * program only decodes manifests, never encodes them.
  */
 
 typedef struct FileAndHash_st {
@@ -324,6 +344,94 @@ IMPLEMENT_ASN1_FUNCTIONS(Manifest)
 #define sk_FileAndHash_pop(st)			SKM_sk_pop(FileAndHash, (st))
 #define sk_FileAndHash_sort(st)			SKM_sk_sort(FileAndHash, (st))
 #define sk_FileAndHash_is_sorted(st)		SKM_sk_is_sorted(FileAndHash, (st))
+
+typedef struct ROAIPAddress_st {
+  ASN1_BIT_STRING *IPAddress;
+  ASN1_INTEGER *maxLength;
+} ROAIPAddress;
+
+DECLARE_STACK_OF(ROAIPAddress)
+
+ASN1_SEQUENCE(ROAIPAddress) = {
+  ASN1_SIMPLE(ROAIPAddress, IPAddress, ASN1_BIT_STRING),
+  ASN1_EXP_OPT(ROAIPAddress, maxLength, ASN1_INTEGER, 0)
+} ASN1_SEQUENCE_END(ROAIPAddress)
+
+typedef struct ROAIPAddressFamily_st {
+  ASN1_OCTET_STRING *addressFamily;
+  STACK_OF(ROAIPAddress) *addresses;
+} ROAIPAddressFamily;
+
+DECLARE_STACK_OF(ROAIPAddressFamily)
+
+ASN1_SEQUENCE(ROAIPAddressFamily) = {
+  ASN1_SIMPLE(ROAIPAddressFamily, addressFamily, ASN1_OCTET_STRING),
+  ASN1_SEQUENCE_OF(ROAIPAddressFamily, addresses, ROAIPAddress)
+} ASN1_SEQUENCE_END(ROAIPAddressFamily)
+
+typedef struct ROA_st {
+  ASN1_INTEGER *version, *manifestNumber;
+  ASN1_INTEGER *asID;
+  STACK_OF(ROAIPAddressFamily) *ipAddrBlocks;
+} ROA;
+
+ASN1_SEQUENCE(ROA) = {
+  ASN1_EXP_OPT(ROA, version, ASN1_INTEGER, 0),
+  ASN1_SIMPLE(ROA, asID, ASN1_INTEGER),
+  ASN1_SEQUENCE_OF(ROA, ipAddrBlocks, ROAIPAddressFamily)
+} ASN1_SEQUENCE_END(ROA)
+
+DECLARE_ASN1_FUNCTIONS(ROAIPAddress)
+DECLARE_ASN1_FUNCTIONS(ROAIPAddressFamily)
+DECLARE_ASN1_FUNCTIONS(ROA)
+
+IMPLEMENT_ASN1_FUNCTIONS(ROAIPAddress)
+IMPLEMENT_ASN1_FUNCTIONS(ROAIPAddressFamily)
+IMPLEMENT_ASN1_FUNCTIONS(ROA)
+
+#define sk_ROAIPAddress_new(st)				SKM_sk_new(ROAIPAddress, (st))
+#define sk_ROAIPAddress_new_null()			SKM_sk_new_null(ROAIPAddress)
+#define sk_ROAIPAddress_free(st)			SKM_sk_free(ROAIPAddress, (st))
+#define sk_ROAIPAddress_num(st)				SKM_sk_num(ROAIPAddress, (st))
+#define sk_ROAIPAddress_value(st, i)			SKM_sk_value(ROAIPAddress, (st), (i))
+#define sk_ROAIPAddress_set(st, i, val)			SKM_sk_set(ROAIPAddress, (st), (i), (val))
+#define sk_ROAIPAddress_zero(st)			SKM_sk_zero(ROAIPAddress, (st))
+#define sk_ROAIPAddress_push(st, val)			SKM_sk_push(ROAIPAddress, (st), (val))
+#define sk_ROAIPAddress_unshift(st, val)		SKM_sk_unshift(ROAIPAddress, (st), (val))
+#define sk_ROAIPAddress_find(st, val)			SKM_sk_find(ROAIPAddress, (st), (val))
+#define sk_ROAIPAddress_find_ex(st, val)		SKM_sk_find_ex(ROAIPAddress, (st), (val))
+#define sk_ROAIPAddress_delete(st, i)			SKM_sk_delete(ROAIPAddress, (st), (i))
+#define sk_ROAIPAddress_delete_ptr(st, ptr)		SKM_sk_delete_ptr(ROAIPAddress, (st), (ptr))
+#define sk_ROAIPAddress_insert(st, val, i)		SKM_sk_insert(ROAIPAddress, (st), (val), (i))
+#define sk_ROAIPAddress_set_cmp_func(st, cmp)		SKM_sk_set_cmp_func(ROAIPAddress, (st), (cmp))
+#define sk_ROAIPAddress_dup(st)				SKM_sk_dup(ROAIPAddress, st)
+#define sk_ROAIPAddress_pop_free(st, free_func)		SKM_sk_pop_free(ROAIPAddress, (st), (free_func))
+#define sk_ROAIPAddress_shift(st)			SKM_sk_shift(ROAIPAddress, (st))
+#define sk_ROAIPAddress_pop(st)				SKM_sk_pop(ROAIPAddress, (st))
+#define sk_ROAIPAddress_sort(st)			SKM_sk_sort(ROAIPAddress, (st))
+#define sk_ROAIPAddress_is_sorted(st)			SKM_sk_is_sorted(ROAIPAddress, (st))
+
+#define sk_ROAIPAddressFamily_new(st)			SKM_sk_new(ROAIPAddressFamily, (st))
+#define sk_ROAIPAddressFamily_new_null()		SKM_sk_new_null(ROAIPAddressFamily)
+#define sk_ROAIPAddressFamily_free(st)			SKM_sk_free(ROAIPAddressFamily, (st))
+#define sk_ROAIPAddressFamily_num(st)			SKM_sk_num(ROAIPAddressFamily, (st))
+#define sk_ROAIPAddressFamily_value(st, i)		SKM_sk_value(ROAIPAddressFamily, (st), (i))
+#define sk_ROAIPAddressFamily_set(st, i, val)		SKM_sk_set(ROAIPAddressFamily, (st), (i), (val))
+#define sk_ROAIPAddressFamily_zero(st)			SKM_sk_zero(ROAIPAddressFamily, (st))
+#define sk_ROAIPAddressFamily_push(st, val)		SKM_sk_push(ROAIPAddressFamily, (st), (val))
+#define sk_ROAIPAddressFamily_unshift(st, val)		SKM_sk_unshift(ROAIPAddressFamily, (st), (val))
+#define sk_ROAIPAddressFamily_find(st, val)		SKM_sk_find(ROAIPAddressFamily, (st), (val))
+#define sk_ROAIPAddressFamily_find_ex(st, val)		SKM_sk_find_ex(ROAIPAddressFamily, (st), (val))
+#define sk_ROAIPAddressFamily_delete(st, i)		SKM_sk_delete(ROAIPAddressFamily, (st), (i))
+#define sk_ROAIPAddressFamily_delete_ptr(st, ptr)	SKM_sk_delete_ptr(ROAIPAddressFamily, (st), (ptr))
+#define sk_ROAIPAddressFamily_insert(st, val, i)	SKM_sk_insert(ROAIPAddressFamily, (st), (val), (i))
+#define sk_ROAIPAddressFamily_set_cmp_func(st, cmp)	SKM_sk_set_cmp_func(ROAIPAddressFamily, (st), (cmp))
+#define sk_ROAIPAddressFamily_dup(st)			SKM_sk_dup(ROAIPAddressFamily, st)
+#define sk_ROAIPAddressFamily_pop_free(st, free_func)	SKM_sk_pop_free(ROAIPAddressFamily, (st), (free_func))
+#define sk_ROAIPAddressFamily_shift(st)			SKM_sk_shift(ROAIPAddressFamily, (st))
+#define sk_ROAIPAddressFamily_pop(st)			SKM_sk_pop(ROAIPAddressFamily, (st))
+#define sk_ROAIPAddressFamily_sort(st)			SKM_sk_sort(ROAIPAddressFamily, (st))
+#define sk_ROAIPAddressFamily_is_sorted(st)		SKM_sk_is_sorted(ROAIPAddressFamily, (st))
 
 
 
@@ -1079,6 +1187,14 @@ static int rsync_manifest(const rcynic_ctx_t *rc, const char *uri)
 }
 
 /**
+ * rsync a ROA.
+ */
+static int rsync_roa(const rcynic_ctx_t *rc, const char *uri)
+{
+  return rsync(rc, NULL, uri);
+}
+
+/**
  * rsync an SIA collection.
  */
 static int rsync_sia(const rcynic_ctx_t *rc, const char *uri)
@@ -1305,10 +1421,6 @@ static void extract_access_uri(const AUTHORITY_INFO_ACCESS *xia,
  */
 static void parse_cert(X509 *x, certinfo_t *c, const char *uri)
 {
-  static const unsigned char id_ad_caIssuers[]    = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x2};
-  static const unsigned char id_ad_caRepository[] = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x5};
-  static const unsigned char id_ad_rpkiManifest[] = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0xa};
-
   STACK_OF(DIST_POINT) *crldp;
   AUTHORITY_INFO_ACCESS *xia;
 
@@ -1432,215 +1544,6 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
     return crl;
   } else if (!access(path, F_OK)) {
     mib_increment(rc, uri, backup_crl_rejected);
-  }
-
-  return NULL;
-}
-
-
-
-static int check_x509_cb(int ok, X509_STORE_CTX *ctx);
-
-/**
- * Read and check one manifest from disk.
- */
-static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
-				  const char *uri,
-				  char *path,
-				  const int pathlen,
-				  const char *prefix,
-				  STACK_OF(X509) *certs)
-{
-  static const unsigned char id_ct_rpkiManifest[] = {0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x10, 0x01, 0x1a};
-  static const unsigned char id_sha256[]          = {0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01};
-  CMS_ContentInfo *cms = NULL;
-  const ASN1_OBJECT *eContentType = NULL;
-  STACK_OF(X509) *signers = NULL;
-  STACK_OF(X509_CRL) *crls = NULL;
-  X509_CRL *crl = NULL;
-  Manifest *manifest = NULL, *result = NULL;
-  BIO *bio = NULL;
-  rcynic_x509_store_ctx_t rctx;
-  certinfo_t certinfo;
-  int i, initialized_store_ctx = 0;
-  FileAndHash *fah = NULL;
-  char *crl_tail;
-
-  assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
-
-  if (!uri_to_filename(uri, path, pathlen, prefix) ||
-      (cms = read_cms(path, NULL, 0)) == NULL)
-    goto done;
-
-  if ((eContentType = CMS_get0_eContentType(cms)) == NULL ||
-      oid_cmp(eContentType, id_ct_rpkiManifest, sizeof(id_ct_rpkiManifest))) {
-    logmsg(rc, log_data_err, "Bad manifest %s eContentType", uri);
-    mib_increment(rc, uri, manifest_bad_econtenttype);
-    goto done;
-  }
-
-  if ((bio = BIO_new(BIO_s_mem())) == NULL) {
-    logmsg(rc, log_sys_err, "Couldn't allocate BIO for manifest %s", uri);
-    goto done;
-  }
-
-  if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    logmsg(rc, log_data_err, "Validation failure for manifest %s CMS message", uri);
-    mib_increment(rc, uri, manifest_invalid_cms);
-    goto done;
-  }
-
-  if ((signers = CMS_get0_signers(cms)) == NULL || sk_X509_num(signers) != 1) {
-    logmsg(rc, log_data_err, "Couldn't extract signers from manifest %s CMS", uri);
-    mib_increment(rc, uri, manifest_missing_signer);
-    goto done;
-  }
-
-  parse_cert(sk_X509_value(signers, 0), &certinfo, uri);
-
-  if ((crl_tail = strrchr(certinfo.crldp, '/')) == NULL) {
-    logmsg(rc, log_data_err, "Couldn't find trailing slash in %s CRLDP for manifest %s", certinfo.crldp, uri);
-    goto done;
-  }
-  crl_tail++;
-
-  if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
-    logmsg(rc, log_data_err, "Failure decoding manifest %s", uri);
-    mib_increment(rc, uri, manifest_decode_error);
-    goto done;
-  }
-
-  if (X509_cmp_current_time(manifest->thisUpdate) > 0) {
-    logmsg(rc, log_data_err, "Manifest %s not yet valid", uri);
-    mib_increment(rc, uri, manifest_not_yet_valid);
-    goto done;
-  }
-
-  if (X509_cmp_current_time(manifest->nextUpdate) < 0) {
-    logmsg(rc, log_data_err, "Stale manifest %s", uri);
-    mib_increment(rc, uri, stale_manifest);
-    if (!rc->allow_stale_manifest)
-      goto done;
-  }
-
-  if (manifest->fileHashAlg == NULL ||
-      oid_cmp(manifest->fileHashAlg, id_sha256, sizeof(id_sha256)))
-    goto done;
-
-  for (i = 0; (fah = sk_FileAndHash_value(manifest->fileList, i)) != NULL; i++)
-    if (!strcmp(fah->file->data, crl_tail))
-      break;
-
-  if (fah) {
-    crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1),
-		    fah->hash->data, fah->hash->length);
-  } else {
-    logmsg(rc, log_data_err, "Couldn't find CRL %s in manifest %s", certinfo.crldp, uri);
-    mib_increment(rc, uri, crl_not_in_manifest);
-    if (rc->require_crl_in_manifest)
-      goto done;
-    crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1),
-		    NULL, 0);
-  }
-
-  if (!crl) {
-    logmsg(rc, log_data_err, "Bad CRL %s for manifest %s EE certificate", certinfo.crldp, uri);
-    goto done;
-  }
-
-  if ((crls = sk_X509_CRL_new_null()) == NULL || !sk_X509_CRL_push(crls, crl))
-    goto done;
-  crl = NULL;
-
-  if (!(initialized_store_ctx = X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, sk_X509_value(signers, 0), NULL)))
-    goto done;
-  
-  rctx.rc = rc;
-  rctx.subj = &certinfo;
-
-  X509_STORE_CTX_trusted_stack(&rctx.ctx, certs);
-  X509_STORE_CTX_set0_crls(&rctx.ctx, crls);
-  X509_STORE_CTX_set_verify_cb(&rctx.ctx, check_x509_cb);
-
-  X509_VERIFY_PARAM_set_flags(rctx.ctx.param,
-			      X509_V_FLAG_CRL_CHECK |
-			      X509_V_FLAG_POLICY_CHECK |
-			      X509_V_FLAG_EXPLICIT_POLICY |
-			      X509_V_FLAG_X509_STRICT);
-
-  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param,
-				/* {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0xe, 0x2} */
-				OBJ_txt2obj("1.3.6.1.5.5.7.14.2", 0));
-
-  if (X509_verify_cert(&rctx.ctx) <= 0) {
-    logmsg(rc, log_data_err, "Validation failure for manifest %s EE certificate",uri);
-    mib_increment(rc, uri, manifest_invalid_ee);
-    goto done;
-  }
-
-  result = manifest;
-  manifest = NULL;
-
- done:
-  if (initialized_store_ctx)
-    X509_STORE_CTX_cleanup(&rctx.ctx);
-  BIO_free(bio);
-  Manifest_free(manifest);
-  CMS_ContentInfo_free(cms);
-  sk_X509_free(signers);
-  sk_X509_CRL_pop_free(crls, X509_CRL_free);
-
-  return result;
-}
-
-/**
- * Check whether we already have a particular manifest, attempt to fetch it
- * and check issuer's signature if we don't.
- */
-static Manifest *check_manifest(const rcynic_ctx_t *rc,
-				const char *uri,
-				STACK_OF(X509) *certs)
-{
-  CMS_ContentInfo *cms = NULL;
-  Manifest *manifest = NULL;
-  char path[FILENAME_MAX];
-  BIO *bio = NULL;
-
-  if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) &&
-      (cms = read_cms(path, NULL, 0)) != NULL &&
-      (bio = BIO_new(BIO_s_mem()))!= NULL &&
-      CMS_verify(cms, NULL, NULL, NULL, bio,
-		 CMS_NO_SIGNER_CERT_VERIFY |
-		 CMS_NO_ATTR_VERIFY |
-		 CMS_NO_CONTENT_VERIFY) > 0)
-    manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL);
-
-  CMS_ContentInfo_free(cms);
-  BIO_free(bio);
-
-  if (manifest != NULL)
-    return manifest;
-
-  logmsg(rc, log_telemetry, "Checking manifest %s", uri);
-
-  rsync_manifest(rc, uri);
-
-  if ((manifest = check_manifest_1(rc, uri, path, sizeof(path),
-				   rc->unauthenticated, certs))) {
-    install_object(rc, uri, path, 5);
-    mib_increment(rc, uri, current_manifest_accepted);
-    return manifest;
-  } else if (!access(path, F_OK)) {
-    mib_increment(rc, uri, current_manifest_rejected);
-  }
-
-  if ((manifest = check_manifest_1(rc, uri, path, sizeof(path),
-				   rc->old_authenticated, certs))) {
-    install_object(rc, uri, path, 5);
-    mib_increment(rc, uri, backup_manifest_accepted);
-    return manifest;
-  } else if (!access(path, F_OK)) {
-    mib_increment(rc, uri, backup_manifest_rejected);
   }
 
   return NULL;
@@ -1930,6 +1833,376 @@ static X509 *check_cert(rcynic_ctx_t *rc,
   rc->indent--;
 
   return x;
+}
+
+
+
+/**
+ * Read and check one manifest from disk.
+ */
+static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
+				  const char *uri,
+				  char *path,
+				  const int pathlen,
+				  const char *prefix,
+				  STACK_OF(X509) *certs)
+{
+  CMS_ContentInfo *cms = NULL;
+  const ASN1_OBJECT *eContentType = NULL;
+  STACK_OF(X509) *signers = NULL;
+  STACK_OF(X509_CRL) *crls = NULL;
+  X509_CRL *crl = NULL;
+  Manifest *manifest = NULL, *result = NULL;
+  BIO *bio = NULL;
+  rcynic_x509_store_ctx_t rctx;
+  certinfo_t certinfo;
+  int i, initialized_store_ctx = 0;
+  FileAndHash *fah = NULL;
+  char *crl_tail;
+
+  assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
+
+  if (!uri_to_filename(uri, path, pathlen, prefix) ||
+      (cms = read_cms(path, NULL, 0)) == NULL)
+    goto done;
+
+  if ((eContentType = CMS_get0_eContentType(cms)) == NULL ||
+      oid_cmp(eContentType, id_ct_rpkiManifest, sizeof(id_ct_rpkiManifest))) {
+    logmsg(rc, log_data_err, "Bad manifest %s eContentType", uri);
+    mib_increment(rc, uri, manifest_bad_econtenttype);
+    goto done;
+  }
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL) {
+    logmsg(rc, log_sys_err, "Couldn't allocate BIO for manifest %s", uri);
+    goto done;
+  }
+
+  if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
+    logmsg(rc, log_data_err, "Validation failure for manifest %s CMS message", uri);
+    mib_increment(rc, uri, manifest_invalid_cms);
+    goto done;
+  }
+
+  if ((signers = CMS_get0_signers(cms)) == NULL || sk_X509_num(signers) != 1) {
+    logmsg(rc, log_data_err, "Couldn't extract signers from manifest %s CMS", uri);
+    mib_increment(rc, uri, manifest_missing_signer);
+    goto done;
+  }
+
+  parse_cert(sk_X509_value(signers, 0), &certinfo, uri);
+
+  if ((crl_tail = strrchr(certinfo.crldp, '/')) == NULL) {
+    logmsg(rc, log_data_err, "Couldn't find trailing slash in %s CRLDP for manifest %s", certinfo.crldp, uri);
+    goto done;
+  }
+  crl_tail++;
+
+  if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
+    logmsg(rc, log_data_err, "Failure decoding manifest %s", uri);
+    mib_increment(rc, uri, manifest_decode_error);
+    goto done;
+  }
+
+  if (X509_cmp_current_time(manifest->thisUpdate) > 0) {
+    logmsg(rc, log_data_err, "Manifest %s not yet valid", uri);
+    mib_increment(rc, uri, manifest_not_yet_valid);
+    goto done;
+  }
+
+  if (X509_cmp_current_time(manifest->nextUpdate) < 0) {
+    logmsg(rc, log_data_err, "Stale manifest %s", uri);
+    mib_increment(rc, uri, stale_manifest);
+    if (!rc->allow_stale_manifest)
+      goto done;
+  }
+
+  if (manifest->fileHashAlg == NULL ||
+      oid_cmp(manifest->fileHashAlg, id_sha256, sizeof(id_sha256)))
+    goto done;
+
+  for (i = 0; (fah = sk_FileAndHash_value(manifest->fileList, i)) != NULL; i++)
+    if (!strcmp(fah->file->data, crl_tail))
+      break;
+
+  if (fah) {
+    crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1),
+		    fah->hash->data, fah->hash->length);
+  } else {
+    logmsg(rc, log_data_err, "Couldn't find CRL %s in manifest %s", certinfo.crldp, uri);
+    mib_increment(rc, uri, crl_not_in_manifest);
+    if (rc->require_crl_in_manifest)
+      goto done;
+    crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1),
+		    NULL, 0);
+  }
+
+  if (!crl) {
+    logmsg(rc, log_data_err, "Bad CRL %s for manifest %s EE certificate", certinfo.crldp, uri);
+    goto done;
+  }
+
+  if ((crls = sk_X509_CRL_new_null()) == NULL || !sk_X509_CRL_push(crls, crl))
+    goto done;
+  crl = NULL;
+
+  if (!(initialized_store_ctx = X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, sk_X509_value(signers, 0), NULL)))
+    goto done;
+  
+  rctx.rc = rc;
+  rctx.subj = &certinfo;
+
+  X509_STORE_CTX_trusted_stack(&rctx.ctx, certs);
+  X509_STORE_CTX_set0_crls(&rctx.ctx, crls);
+  X509_STORE_CTX_set_verify_cb(&rctx.ctx, check_x509_cb);
+
+  X509_VERIFY_PARAM_set_flags(rctx.ctx.param,
+			      X509_V_FLAG_CRL_CHECK |
+			      X509_V_FLAG_POLICY_CHECK |
+			      X509_V_FLAG_EXPLICIT_POLICY |
+			      X509_V_FLAG_X509_STRICT);
+
+  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param,
+				/* {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0xe, 0x2} */
+				OBJ_txt2obj("1.3.6.1.5.5.7.14.2", 0));
+
+  if (X509_verify_cert(&rctx.ctx) <= 0) {
+    logmsg(rc, log_data_err, "Validation failure for manifest %s EE certificate",uri);
+    mib_increment(rc, uri, manifest_invalid_ee);
+    goto done;
+  }
+
+  result = manifest;
+  manifest = NULL;
+
+ done:
+  if (initialized_store_ctx)
+    X509_STORE_CTX_cleanup(&rctx.ctx);
+  BIO_free(bio);
+  Manifest_free(manifest);
+  CMS_ContentInfo_free(cms);
+  sk_X509_free(signers);
+  sk_X509_CRL_pop_free(crls, X509_CRL_free);
+
+  return result;
+}
+
+/**
+ * Check whether we already have a particular manifest, attempt to fetch it
+ * and check issuer's signature if we don't.
+ */
+static Manifest *check_manifest(const rcynic_ctx_t *rc,
+				const char *uri,
+				STACK_OF(X509) *certs)
+{
+  CMS_ContentInfo *cms = NULL;
+  Manifest *manifest = NULL;
+  char path[FILENAME_MAX];
+  BIO *bio = NULL;
+
+  if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) &&
+      (cms = read_cms(path, NULL, 0)) != NULL &&
+      (bio = BIO_new(BIO_s_mem()))!= NULL &&
+      CMS_verify(cms, NULL, NULL, NULL, bio,
+		 CMS_NO_SIGNER_CERT_VERIFY |
+		 CMS_NO_ATTR_VERIFY |
+		 CMS_NO_CONTENT_VERIFY) > 0)
+    manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL);
+
+  CMS_ContentInfo_free(cms);
+  BIO_free(bio);
+
+  if (manifest != NULL)
+    return manifest;
+
+  logmsg(rc, log_telemetry, "Checking manifest %s", uri);
+
+  rsync_manifest(rc, uri);
+
+  if ((manifest = check_manifest_1(rc, uri, path, sizeof(path),
+				   rc->unauthenticated, certs))) {
+    install_object(rc, uri, path, 5);
+    mib_increment(rc, uri, current_manifest_accepted);
+    return manifest;
+  } else if (!access(path, F_OK)) {
+    mib_increment(rc, uri, current_manifest_rejected);
+  }
+
+  if ((manifest = check_manifest_1(rc, uri, path, sizeof(path),
+				   rc->old_authenticated, certs))) {
+    install_object(rc, uri, path, 5);
+    mib_increment(rc, uri, backup_manifest_accepted);
+    return manifest;
+  } else if (!access(path, F_OK)) {
+    mib_increment(rc, uri, backup_manifest_rejected);
+  }
+
+  return NULL;
+}
+
+
+
+/**
+ * Read and check one roa from disk.
+ */
+static ROA *check_roa_1(const rcynic_ctx_t *rc,
+			const char *uri,
+			char *path,
+			const int pathlen,
+			const char *prefix,
+			STACK_OF(X509) *certs)
+{
+  CMS_ContentInfo *cms = NULL;
+  const ASN1_OBJECT *eContentType = NULL;
+  STACK_OF(X509) *signers = NULL;
+  STACK_OF(X509_CRL) *crls = NULL;
+  X509_CRL *crl = NULL;
+  ROA *roa = NULL, *result = NULL;
+  BIO *bio = NULL;
+  rcynic_x509_store_ctx_t rctx;
+  certinfo_t certinfo;
+  int i, initialized_store_ctx = 0;
+
+  assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
+
+  if (!uri_to_filename(uri, path, pathlen, prefix) ||
+      (cms = read_cms(path, NULL, 0)) == NULL)
+    goto done;
+
+  if (!(eContentType = CMS_get0_eContentType(cms)) ||
+      oid_cmp(eContentType, id_ct_routeOriginAttestation,
+	      sizeof(id_ct_routeOriginAttestation))) {
+    logmsg(rc, log_data_err, "Bad roa %s eContentType", uri);
+    mib_increment(rc, uri, roa_bad_econtenttype);
+    goto done;
+  }
+
+  if ((bio = BIO_new(BIO_s_mem())) == NULL) {
+    logmsg(rc, log_sys_err, "Couldn't allocate BIO for roa %s", uri);
+    goto done;
+  }
+
+  if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
+    logmsg(rc, log_data_err, "Validation failure for roa %s CMS message", uri);
+    mib_increment(rc, uri, roa_invalid_cms);
+    goto done;
+  }
+
+  if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1) {
+    logmsg(rc, log_data_err, "Couldn't extract signers from roa %s CMS", uri);
+    mib_increment(rc, uri, roa_missing_signer);
+    goto done;
+  }
+
+  parse_cert(sk_X509_value(signers, 0), &certinfo, uri);
+
+  if (!(roa = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, NULL))) {
+    logmsg(rc, log_data_err, "Failure decoding roa %s", uri);
+    mib_increment(rc, uri, roa_decode_error);
+    goto done;
+  }
+
+  if (!(crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1), NULL, 0))) {
+    logmsg(rc, log_data_err, "Bad CRL %s for roa %s EE certificate", certinfo.crldp, uri);
+    goto done;
+  }
+
+  if (!(crls = sk_X509_CRL_new_null()) || !sk_X509_CRL_push(crls, crl))
+    goto done;
+  crl = NULL;
+
+  if (!(initialized_store_ctx = X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, sk_X509_value(signers, 0), NULL)))
+    goto done;
+  
+  rctx.rc = rc;
+  rctx.subj = &certinfo;
+
+  X509_STORE_CTX_trusted_stack(&rctx.ctx, certs);
+  X509_STORE_CTX_set0_crls(&rctx.ctx, crls);
+  X509_STORE_CTX_set_verify_cb(&rctx.ctx, check_x509_cb);
+
+  X509_VERIFY_PARAM_set_flags(rctx.ctx.param,
+			      X509_V_FLAG_CRL_CHECK |
+			      X509_V_FLAG_POLICY_CHECK |
+			      X509_V_FLAG_EXPLICIT_POLICY |
+			      X509_V_FLAG_X509_STRICT);
+
+  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param,
+				/* {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0xe, 0x2} */
+				OBJ_txt2obj("1.3.6.1.5.5.7.14.2", 0));
+
+  if (X509_verify_cert(&rctx.ctx) <= 0) {
+    logmsg(rc, log_data_err, "Validation failure for roa %s EE certificate",uri);
+    mib_increment(rc, uri, roa_invalid_ee);
+    goto done;
+  }
+
+  result = roa;
+  roa = NULL;
+
+ done:
+  if (initialized_store_ctx)
+    X509_STORE_CTX_cleanup(&rctx.ctx);
+  BIO_free(bio);
+  ROA_free(roa);
+  CMS_ContentInfo_free(cms);
+  sk_X509_free(signers);
+  sk_X509_CRL_pop_free(crls, X509_CRL_free);
+
+  return result;
+}
+
+/**
+ * Check whether we already have a particular roa, attempt to fetch it
+ * and check issuer's signature if we don't.
+ */
+static ROA *check_roa(const rcynic_ctx_t *rc,
+				const char *uri,
+				STACK_OF(X509) *certs)
+{
+  CMS_ContentInfo *cms = NULL;
+  ROA *roa = NULL;
+  char path[FILENAME_MAX];
+  BIO *bio = NULL;
+
+  if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) &&
+      (cms = read_cms(path, NULL, 0)) != NULL &&
+      (bio = BIO_new(BIO_s_mem()))!= NULL &&
+      CMS_verify(cms, NULL, NULL, NULL, bio,
+		 CMS_NO_SIGNER_CERT_VERIFY |
+		 CMS_NO_ATTR_VERIFY |
+		 CMS_NO_CONTENT_VERIFY) > 0)
+    roa = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, NULL);
+
+  CMS_ContentInfo_free(cms);
+  BIO_free(bio);
+
+  if (roa != NULL)
+    return roa;
+
+  logmsg(rc, log_telemetry, "Checking roa %s", uri);
+
+  rsync_roa(rc, uri);
+
+  if ((roa = check_roa_1(rc, uri, path, sizeof(path),
+				   rc->unauthenticated, certs))) {
+    install_object(rc, uri, path, 5);
+    mib_increment(rc, uri, current_roa_accepted);
+    return roa;
+  } else if (!access(path, F_OK)) {
+    mib_increment(rc, uri, current_roa_rejected);
+  }
+
+  if ((roa = check_roa_1(rc, uri, path, sizeof(path),
+				   rc->old_authenticated, certs))) {
+    install_object(rc, uri, path, 5);
+    mib_increment(rc, uri, backup_roa_accepted);
+    return roa;
+  } else if (!access(path, F_OK)) {
+    mib_increment(rc, uri, backup_roa_rejected);
+  }
+
+  return NULL;
 }
 
 

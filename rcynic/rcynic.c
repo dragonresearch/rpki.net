@@ -835,8 +835,7 @@ static FileAndHash *next_uri(const rcynic_ctx_t *rc,
 			     char *uri,
 			     const size_t urilen,
 			     const Manifest *manifest,
-			     int *iterator,
-			     const char *suffix)
+			     int *iterator)
 {
   FileAndHash *fah = NULL;
 
@@ -844,8 +843,6 @@ static FileAndHash *next_uri(const rcynic_ctx_t *rc,
 
   while ((fah = sk_FileAndHash_value(manifest->fileList, *iterator)) != NULL) {
     ++*iterator;
-    if (suffix && !has_suffix(fah->file->data, suffix))
-      continue;
     if (strlen(base_uri) + strlen(fah->file->data) >= urilen) {
       logmsg(rc, log_data_err, "URI %s%s too long, skipping", base_uri, fah->file->data);
       continue;
@@ -2044,29 +2041,45 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 /**
  * Read and check one ROA from disk.
  */
-static ROA *check_roa_1(const rcynic_ctx_t *rc,
-			const char *uri,
-			char *path,
-			const int pathlen,
-			const char *prefix,
-			STACK_OF(X509) *certs)
+static int check_roa_1(const rcynic_ctx_t *rc,
+		       const char *uri,
+		       char *path,
+		       const int pathlen,
+		       const char *prefix,
+		       STACK_OF(X509) *certs,
+		       const unsigned char *hash,
+		       const size_t hashlen)
 {
+  unsigned char hashbuf[EVP_MAX_MD_SIZE];
   CMS_ContentInfo *cms = NULL;
   const ASN1_OBJECT *eContentType = NULL;
   STACK_OF(X509) *signers = NULL;
   STACK_OF(X509_CRL) *crls = NULL;
   X509_CRL *crl = NULL;
-  ROA *roa = NULL, *result = NULL;
+  ROA *roa = NULL;
   BIO *bio = NULL;
   rcynic_x509_store_ctx_t rctx;
   certinfo_t certinfo;
-  int initialized_store_ctx = 0;
+  int initialized_store_ctx = 0, result = 0;
 
   assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
 
-  if (!uri_to_filename(uri, path, pathlen, prefix) ||
-      (cms = read_cms(path, NULL, 0)) == NULL)
+  if (!uri_to_filename(uri, path, pathlen, prefix))
     goto done;
+
+  if (hash)
+    cms = read_cms(path, hashbuf, sizeof(hashbuf));
+  else
+    cms = read_cms(path, NULL, 0);
+
+  if (!cms)
+    goto done;
+
+  if (hash && memcmp(hashbuf, hash, hashlen)) {
+    logmsg(rc, log_data_err, "Manifest digest mismatch for ROA %s", uri);
+    mib_increment(rc, uri, roa_digest_mismatch);
+    goto done;
+  }
 
   if (!(eContentType = CMS_get0_eContentType(cms)) ||
       oid_cmp(eContentType, id_ct_routeOriginAttestation,
@@ -2100,6 +2113,8 @@ static ROA *check_roa_1(const rcynic_ctx_t *rc,
     mib_increment(rc, uri, roa_decode_error);
     goto done;
   }
+
+#warning "Not yet checking ROA content against EE certificate"
 
   if (!(crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1), NULL, 0))) {
     logmsg(rc, log_data_err, "Bad CRL %s for ROA %s EE certificate", certinfo.crldp, uri);
@@ -2136,8 +2151,7 @@ static ROA *check_roa_1(const rcynic_ctx_t *rc,
     goto done;
   }
 
-  result = roa;
-  roa = NULL;
+  result = 1;
 
  done:
   if (initialized_store_ctx)
@@ -2155,53 +2169,39 @@ static ROA *check_roa_1(const rcynic_ctx_t *rc,
  * Check whether we already have a particular ROA, attempt to fetch it
  * and check issuer's signature if we don't.
  */
-static ROA *check_roa(const rcynic_ctx_t *rc,
-				const char *uri,
-				STACK_OF(X509) *certs)
+static void check_roa(const rcynic_ctx_t *rc,
+		      const char *uri,
+		      STACK_OF(X509) *certs,
+		      const unsigned char *hash,
+		      const size_t hashlen)
 {
-  CMS_ContentInfo *cms = NULL;
-  ROA *roa = NULL;
   char path[FILENAME_MAX];
-  BIO *bio = NULL;
 
   if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) &&
-      (cms = read_cms(path, NULL, 0)) != NULL &&
-      (bio = BIO_new(BIO_s_mem()))!= NULL &&
-      CMS_verify(cms, NULL, NULL, NULL, bio,
-		 CMS_NO_SIGNER_CERT_VERIFY |
-		 CMS_NO_ATTR_VERIFY |
-		 CMS_NO_CONTENT_VERIFY) > 0)
-    roa = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, NULL);
-
-  CMS_ContentInfo_free(cms);
-  BIO_free(bio);
-
-  if (roa != NULL)
-    return roa;
+      !access(path, F_OK))
+    return;
 
   logmsg(rc, log_telemetry, "Checking ROA %s", uri);
 
   rsync_roa(rc, uri);
 
-  if ((roa = check_roa_1(rc, uri, path, sizeof(path),
-				   rc->unauthenticated, certs))) {
+  if (check_roa_1(rc, uri, path, sizeof(path), rc->unauthenticated,
+		  certs, hash, hashlen)) {
     install_object(rc, uri, path, 5);
     mib_increment(rc, uri, current_roa_accepted);
-    return roa;
+    return;
   } else if (!access(path, F_OK)) {
     mib_increment(rc, uri, current_roa_rejected);
   }
 
-  if ((roa = check_roa_1(rc, uri, path, sizeof(path),
-				   rc->old_authenticated, certs))) {
+  if (check_roa_1(rc, uri, path, sizeof(path), rc->old_authenticated,
+		  certs, hash, hashlen)) {
     install_object(rc, uri, path, 5);
     mib_increment(rc, uri, backup_roa_accepted);
-    return roa;
+    return;
   } else if (!access(path, F_OK)) {
     mib_increment(rc, uri, backup_roa_rejected);
   }
-
-  return NULL;
 }
 
 
@@ -2259,7 +2259,6 @@ static void walk_cert(rcynic_ctx_t *rc,
     int iterator = 0;
     Manifest *manifest = NULL;
     FileAndHash *fah;
-    ROA *roa;
 
     rc->indent++;
 
@@ -2276,19 +2275,23 @@ static void walk_cert(rcynic_ctx_t *rc,
     } else {
 
       logmsg(rc, log_debug, "Walking unauthenticated store");
-      while ((fah = next_uri(rc, parent->sia, rc->unauthenticated, uri, sizeof(uri), manifest, &iterator, ".cer")) != NULL)
-	walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0, fah->hash->data, fah->hash->length);
-      while ((fah = next_uri(rc, parent->sia, rc->unauthenticated, uri, sizeof(uri), manifest, &iterator, ".roa")) != NULL)
-	if ((roa = check_roa(rc, uri, certs)) != NULL)
-	  ROA_free(roa);
+      while ((fah = next_uri(rc, parent->sia, rc->unauthenticated, uri, sizeof(uri), manifest, &iterator)) != NULL)
+	if (has_suffix(uri, ".cer"))
+	  walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0, fah->hash->data, fah->hash->length);
+	else if (has_suffix(uri, ".roa"))
+	  check_roa(rc, uri, certs, fah->hash->data, fah->hash->length);
+	else if (!has_suffix(uri, ".crl"))
+	  logmsg(rc, log_telemetry, "Don't know how to check object %s, ignoring", uri);
       logmsg(rc, log_debug, "Done walking unauthenticated store");
 
       logmsg(rc, log_debug, "Walking old authenticated store");
-      while ((fah = next_uri(rc, parent->sia, rc->old_authenticated, uri, sizeof(uri), manifest, &iterator, ".cer")) != NULL)
-	walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1, fah->hash->data, fah->hash->length);
-      while ((fah = next_uri(rc, parent->sia, rc->old_authenticated, uri, sizeof(uri), manifest, &iterator, ".roa")) != NULL)
-	if ((roa = check_roa(rc, uri, certs)) != NULL)
-	  ROA_free(roa);
+      while ((fah = next_uri(rc, parent->sia, rc->old_authenticated, uri, sizeof(uri), manifest, &iterator)) != NULL)
+	if (has_suffix(uri, ".cer"))
+	  walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1, fah->hash->data, fah->hash->length);
+	else if (has_suffix(uri, ".roa"))
+	  check_roa(rc, uri, certs, fah->hash->data, fah->hash->length);
+	else if (!has_suffix(uri, ".crl"))
+	  logmsg(rc, log_telemetry, "Don't know how to check object %s, ignoring", uri);
       logmsg(rc, log_debug, "Done walking old authenticated store");
 
       Manifest_free(manifest);

@@ -2042,7 +2042,7 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 
 
 /**
- * Read and check one roa from disk.
+ * Read and check one ROA from disk.
  */
 static ROA *check_roa_1(const rcynic_ctx_t *rc,
 			const char *uri,
@@ -2060,7 +2060,7 @@ static ROA *check_roa_1(const rcynic_ctx_t *rc,
   BIO *bio = NULL;
   rcynic_x509_store_ctx_t rctx;
   certinfo_t certinfo;
-  int i, initialized_store_ctx = 0;
+  int initialized_store_ctx = 0;
 
   assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
 
@@ -2071,24 +2071,24 @@ static ROA *check_roa_1(const rcynic_ctx_t *rc,
   if (!(eContentType = CMS_get0_eContentType(cms)) ||
       oid_cmp(eContentType, id_ct_routeOriginAttestation,
 	      sizeof(id_ct_routeOriginAttestation))) {
-    logmsg(rc, log_data_err, "Bad roa %s eContentType", uri);
+    logmsg(rc, log_data_err, "Bad ROA %s eContentType", uri);
     mib_increment(rc, uri, roa_bad_econtenttype);
     goto done;
   }
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL) {
-    logmsg(rc, log_sys_err, "Couldn't allocate BIO for roa %s", uri);
+    logmsg(rc, log_sys_err, "Couldn't allocate BIO for ROA %s", uri);
     goto done;
   }
 
   if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    logmsg(rc, log_data_err, "Validation failure for roa %s CMS message", uri);
+    logmsg(rc, log_data_err, "Validation failure for ROA %s CMS message", uri);
     mib_increment(rc, uri, roa_invalid_cms);
     goto done;
   }
 
   if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1) {
-    logmsg(rc, log_data_err, "Couldn't extract signers from roa %s CMS", uri);
+    logmsg(rc, log_data_err, "Couldn't extract signers from ROA %s CMS", uri);
     mib_increment(rc, uri, roa_missing_signer);
     goto done;
   }
@@ -2096,13 +2096,13 @@ static ROA *check_roa_1(const rcynic_ctx_t *rc,
   parse_cert(sk_X509_value(signers, 0), &certinfo, uri);
 
   if (!(roa = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, NULL))) {
-    logmsg(rc, log_data_err, "Failure decoding roa %s", uri);
+    logmsg(rc, log_data_err, "Failure decoding ROA %s", uri);
     mib_increment(rc, uri, roa_decode_error);
     goto done;
   }
 
   if (!(crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1), NULL, 0))) {
-    logmsg(rc, log_data_err, "Bad CRL %s for roa %s EE certificate", certinfo.crldp, uri);
+    logmsg(rc, log_data_err, "Bad CRL %s for ROA %s EE certificate", certinfo.crldp, uri);
     goto done;
   }
 
@@ -2131,7 +2131,7 @@ static ROA *check_roa_1(const rcynic_ctx_t *rc,
 				OBJ_txt2obj("1.3.6.1.5.5.7.14.2", 0));
 
   if (X509_verify_cert(&rctx.ctx) <= 0) {
-    logmsg(rc, log_data_err, "Validation failure for roa %s EE certificate",uri);
+    logmsg(rc, log_data_err, "Validation failure for ROA %s EE certificate",uri);
     mib_increment(rc, uri, roa_invalid_ee);
     goto done;
   }
@@ -2152,7 +2152,7 @@ static ROA *check_roa_1(const rcynic_ctx_t *rc,
 }
 
 /**
- * Check whether we already have a particular roa, attempt to fetch it
+ * Check whether we already have a particular ROA, attempt to fetch it
  * and check issuer's signature if we don't.
  */
 static ROA *check_roa(const rcynic_ctx_t *rc,
@@ -2179,7 +2179,7 @@ static ROA *check_roa(const rcynic_ctx_t *rc,
   if (roa != NULL)
     return roa;
 
-  logmsg(rc, log_telemetry, "Checking roa %s", uri);
+  logmsg(rc, log_telemetry, "Checking ROA %s", uri);
 
   rsync_roa(rc, uri);
 
@@ -2259,6 +2259,7 @@ static void walk_cert(rcynic_ctx_t *rc,
     int iterator = 0;
     Manifest *manifest = NULL;
     FileAndHash *fah;
+    ROA *roa;
 
     rc->indent++;
 
@@ -2274,52 +2275,20 @@ static void walk_cert(rcynic_ctx_t *rc,
 
     } else {
 
-#warning Still need to handle non-certificate manifest entries
-      /*
-       * Not quite sure how to handle ROAs yet.  Tricky bit is
-       * following the links from the EE certs to the ROAs while
-       * simultaneously using the manifest to read everything.  Maze
-       * of twisty pointers....
-       *
-       * It'd probably work just to keep a map of pointers from EE
-       * cert to ROA; building this up while scanning the certs would
-       * be cheap, as we have the parsed cert info in child at that
-       * point anyway.  So build up a map during the cert pass, then
-       * use it during the ROA pass.  Well, ok, we need to be a bit
-       * careful with the child certinfo, as the current code might
-       * not fill it in under all circumstances, so be sure to
-       * memset() it or call parse_cert() where we don't now, as
-       * needed.
-       *
-       * Hmm, no, we can't count on the SIA pointers, and the EE certs
-       * might or might not already be bundled into the ROAs.  The ROA
-       * spec says we're supposed to figure this out by looking at the
-       * SignerInfos field in the CMS.  By happy coincidence, the
-       * SignerInfos is required by profile to use SHA-256, ie, the
-       * same hash we already have for everything in the manifest.
-       * So, in theory, we can just look up the right EE cert in the
-       * manifest if it's not already in the CMS.
-       *
-       * Separate problem of handling objects that are neither certs
-       * nor ROAs.  At the moment the only such is the CRL that covers
-       * this collection of certs, which we should be able to check
-       * for in some trivial manner.  But we probably ought to whine
-       * about anything else we find in the manifest, as we don't
-       * understand it and can't check it.
-       */
-
       logmsg(rc, log_debug, "Walking unauthenticated store");
       while ((fah = next_uri(rc, parent->sia, rc->unauthenticated, uri, sizeof(uri), manifest, &iterator, ".cer")) != NULL)
 	walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0, fah->hash->data, fah->hash->length);
       while ((fah = next_uri(rc, parent->sia, rc->unauthenticated, uri, sizeof(uri), manifest, &iterator, ".roa")) != NULL)
-	logmsg(rc, log_debug, "Don't yet know how to check %s", uri);
+	if ((roa = check_roa(rc, uri, certs)) != NULL)
+	  ROA_free(roa);
       logmsg(rc, log_debug, "Done walking unauthenticated store");
 
       logmsg(rc, log_debug, "Walking old authenticated store");
       while ((fah = next_uri(rc, parent->sia, rc->old_authenticated, uri, sizeof(uri), manifest, &iterator, ".cer")) != NULL)
 	walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1, fah->hash->data, fah->hash->length);
       while ((fah = next_uri(rc, parent->sia, rc->old_authenticated, uri, sizeof(uri), manifest, &iterator, ".roa")) != NULL)
-	logmsg(rc, log_debug, "Don't yet know how to check %s", uri);
+	if ((roa = check_roa(rc, uri, certs)) != NULL)
+	  ROA_free(roa);
       logmsg(rc, log_debug, "Done walking old authenticated store");
 
       Manifest_free(manifest);

@@ -370,8 +370,7 @@ ASN1_SEQUENCE(ROAIPAddressFamily) = {
 } ASN1_SEQUENCE_END(ROAIPAddressFamily)
 
 typedef struct ROA_st {
-  ASN1_INTEGER *version, *manifestNumber;
-  ASN1_INTEGER *asID;
+  ASN1_INTEGER *version, *asID;
   STACK_OF(ROAIPAddressFamily) *ipAddrBlocks;
 } ROA;
 

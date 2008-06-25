@@ -1028,7 +1028,7 @@ static int rsync(const rcynic_ctx_t *rc,
 		 const char * const *args,
 		 const char *uri)
 {
-  static char *rsync_cmd[] = {
+  static const char *rsync_cmd[] = {
     "rsync", "--update", "--times", "--copy-links", "--itemize-changes", NULL
   };
 

@@ -64,15 +64,30 @@
 
 #define	SIZEOF_RSYNC	(sizeof("rsync://") - 1)
 
+/**
+ * Maximum length of an URI.
+ */
 #define	URI_MAX		(FILENAME_MAX + SIZEOF_RSYNC)
 
+/**
+ * Maximum number of times we try to kill an inferior process before
+ * giving up.
+ */
 #define	KILL_MAX	10
 
 #ifndef	HOST_NAME_MAX
 #define	HOST_NAME_MAX	256
 #endif
 
+/**
+ * Version number of XML summary output.
+ */
 #define	XML_SUMMARY_VERSION	1
+
+/**
+ * How much buffer space do we need for a raw address?
+ */
+#define ADDR_RAW_BUF_LEN	16
 
 /**
  * Logging levels.  Same general idea as syslog(), but our own
@@ -197,6 +212,9 @@ static const struct {
   QQ(current_roa_rejected,		"Current ROAs rejected")	 \
   QQ(backup_roa_accepted,		"Backup ROAs accepted")		 \
   QQ(backup_roa_rejected,		"Backup ROAs rejected")		 \
+  QQ(malformed_roa_addressfamily,       "Malformed ROA addressFamilys")	 \
+  QQ(manifest_wrong_version,            "Wrong manifest versions")	 \
+  QQ(roa_wrong_version,			"Wrong ROA versions")		 \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QQ(mib_openssl_##x, 0)
@@ -1900,6 +1918,12 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     goto done;
   }
 
+  if (manifest->version) {
+    logmsg(rc, log_data_err, "Manifest %s version should be defaulted zero, not %ld", ASN1_INTEGER_get(manifest->version));
+    mib_increment(rc, uri, manifest_wrong_version);
+    goto done;
+  }
+
   if (X509_cmp_current_time(manifest->thisUpdate) > 0) {
     logmsg(rc, log_data_err, "Manifest %s not yet valid", uri);
     mib_increment(rc, uri, manifest_not_yet_valid);
@@ -2039,6 +2063,40 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 
 
 /**
+ * Extract a ROA prefix from the ASN.1 bitstring encoding.
+ */
+static int extract_roa_prefix(unsigned char *addr,
+			      unsigned *prefixlen,
+			      const ASN1_BIT_STRING *bs,
+			      const unsigned afi)
+{
+  unsigned length;
+
+  switch (afi) {
+  case IANA_AFI_IPV4: length =  4; break;
+  case IANA_AFI_IPV6: length = 16; break;
+  default: return 0;
+  }
+
+  if (bs->length < 0 || bs->length > length)
+    return 0;
+
+  if (bs->length > 0) {
+    memcpy(addr, bs->data, bs->length);
+    if ((bs->flags & 7) != 0) {
+      unsigned char mask = 0xFF >> (8 - (bs->flags & 7));
+      addr[bs->length - 1] &= ~mask;
+    }
+  }
+
+  memset(addr + bs->length, 0, length - bs->length);
+
+  *prefixlen = (bs->length * 8) - (bs->flags & 7);
+
+  return 1;
+}
+
+/**
  * Read and check one ROA from disk.
  */
 static int check_roa_1(const rcynic_ctx_t *rc,
@@ -2050,22 +2108,26 @@ static int check_roa_1(const rcynic_ctx_t *rc,
 		       const unsigned char *hash,
 		       const size_t hashlen)
 {
-  unsigned char hashbuf[EVP_MAX_MD_SIZE];
-  CMS_ContentInfo *cms = NULL;
+  unsigned char hashbuf[EVP_MAX_MD_SIZE], addrbuf[ADDR_RAW_BUF_LEN];
   const ASN1_OBJECT *eContentType = NULL;
-  STACK_OF(X509) *signers = NULL;
+  STACK_OF(IPAddressFamily) *roa_resources = NULL, *ee_resources = NULL;
   STACK_OF(X509_CRL) *crls = NULL;
+  STACK_OF(X509) *signers = NULL;
+  CMS_ContentInfo *cms = NULL;
   X509_CRL *crl = NULL;
   ROA *roa = NULL;
   BIO *bio = NULL;
   rcynic_x509_store_ctx_t rctx;
   certinfo_t certinfo;
-  int initialized_store_ctx = 0, result = 0;
+  int i, j, initialized_store_ctx = 0, result = 0;
+  unsigned afi, *safi = NULL, safi_, prefixlen;
+  ROAIPAddressFamily *rf;
+  ROAIPAddress *ra;
 
   assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
 
   if (!uri_to_filename(uri, path, pathlen, prefix))
-    goto done;
+    goto error;
 
   if (hash)
     cms = read_cms(path, hashbuf, sizeof(hashbuf));
@@ -2073,12 +2135,12 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     cms = read_cms(path, NULL, 0);
 
   if (!cms)
-    goto done;
+    goto error;
 
   if (hash && memcmp(hashbuf, hash, hashlen)) {
     logmsg(rc, log_data_err, "Manifest digest mismatch for ROA %s", uri);
     mib_increment(rc, uri, roa_digest_mismatch);
-    goto done;
+    goto error;
   }
 
   if (!(eContentType = CMS_get0_eContentType(cms)) ||
@@ -2086,24 +2148,24 @@ static int check_roa_1(const rcynic_ctx_t *rc,
 	      sizeof(id_ct_routeOriginAttestation))) {
     logmsg(rc, log_data_err, "Bad ROA %s eContentType", uri);
     mib_increment(rc, uri, roa_bad_econtenttype);
-    goto done;
+    goto error;
   }
 
   if ((bio = BIO_new(BIO_s_mem())) == NULL) {
     logmsg(rc, log_sys_err, "Couldn't allocate BIO for ROA %s", uri);
-    goto done;
+    goto error;
   }
 
   if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
     logmsg(rc, log_data_err, "Validation failure for ROA %s CMS message", uri);
     mib_increment(rc, uri, roa_invalid_cms);
-    goto done;
+    goto error;
   }
 
   if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1) {
     logmsg(rc, log_data_err, "Couldn't extract signers from ROA %s CMS", uri);
     mib_increment(rc, uri, roa_missing_signer);
-    goto done;
+    goto error;
   }
 
   parse_cert(sk_X509_value(signers, 0), &certinfo, uri);
@@ -2111,22 +2173,67 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   if (!(roa = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, NULL))) {
     logmsg(rc, log_data_err, "Failure decoding ROA %s", uri);
     mib_increment(rc, uri, roa_decode_error);
-    goto done;
+    goto error;
   }
 
-#warning "Not yet checking ROA content against EE certificate"
+  if (roa->version) {
+    logmsg(rc, log_data_err, "ROA %s version should be defaulted zero, not %ld", uri, ASN1_INTEGER_get(roa->version));
+    mib_increment(rc, uri, roa_wrong_version);
+    goto error;
+  }
+
+  /*
+   * ROA issuer doesn't need rights to the ASN, so we don't need to
+   * check the asID field.
+   */
+
+  ee_resources = X509_get_ext_d2i(sk_X509_value(signers, 0), NID_sbgp_ipAddrBlock, NULL, NULL);
+
+  if (!(roa_resources = sk_IPAddressFamily_new_null()))
+    goto error;
+
+  for (i = 0; i < sk_ROAIPAddressFamily_num(roa->ipAddrBlocks); i++) {
+    rf = sk_ROAIPAddressFamily_value(roa->ipAddrBlocks, i);
+    if (!rf || !rf->addressFamily || rf->addressFamily->length < 2 || rf->addressFamily->length > 3) {
+      logmsg(rc, log_data_err, "ROA %s addressFamily length should be 2 or 3", uri);
+      mib_increment(rc, uri, malformed_roa_addressfamily);
+      goto error;
+    }
+    afi = (rf->addressFamily->data[0] << 8) | (rf->addressFamily->data[1]);
+    if (rf->addressFamily->length == 3)
+      *(safi = &safi_) = rf->addressFamily->data[2];
+    for (j = 0; j < sk_ROAIPAddress_num(rf->addresses); j++) {
+      ra = sk_ROAIPAddress_value(rf->addresses, j);
+      if (!ra ||
+	  !extract_roa_prefix(addrbuf, &prefixlen, ra->IPAddress, afi) ||
+	  !v3_addr_add_prefix(roa_resources, afi, safi, addrbuf, prefixlen)) {
+	logmsg(rc, log_data_err, "Failed to copy resources from ROA %s into resource set", uri);
+	goto error;
+      }
+    }
+  }
+
+  if (!v3_addr_canonize(roa_resources)) {
+    logmsg(rc, log_data_err, "Failed to put resources from ROA %s into canonical resource set form", uri);
+    goto error;
+  }
+
+  if (!v3_addr_subset(roa_resources, ee_resources)) {
+    logmsg(rc, log_data_err, "ROA %s resources are not a subset of its signing EE certificate's resources", uri);
+    goto error;
+  }
 
   if (!(crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1), NULL, 0))) {
     logmsg(rc, log_data_err, "Bad CRL %s for ROA %s EE certificate", certinfo.crldp, uri);
-    goto done;
+    goto error;
   }
 
   if (!(crls = sk_X509_CRL_new_null()) || !sk_X509_CRL_push(crls, crl))
-    goto done;
+    goto error;
   crl = NULL;
 
   if (!(initialized_store_ctx = X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, sk_X509_value(signers, 0), NULL)))
-    goto done;
+    goto error;
   
   rctx.rc = rc;
   rctx.subj = &certinfo;
@@ -2148,12 +2255,12 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   if (X509_verify_cert(&rctx.ctx) <= 0) {
     logmsg(rc, log_data_err, "Validation failure for ROA %s EE certificate",uri);
     mib_increment(rc, uri, roa_invalid_ee);
-    goto done;
+    goto error;
   }
 
   result = 1;
 
- done:
+ error:
   if (initialized_store_ctx)
     X509_STORE_CTX_cleanup(&rctx.ctx);
   BIO_free(bio);
@@ -2161,6 +2268,8 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   CMS_ContentInfo_free(cms);
   sk_X509_free(signers);
   sk_X509_CRL_pop_free(crls, X509_CRL_free);
+  sk_IPAddressFamily_pop_free(roa_resources, IPAddressFamily_free);
+  sk_IPAddressFamily_pop_free(ee_resources, IPAddressFamily_free);
 
   return result;
 }

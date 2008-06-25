@@ -27,3 +27,9 @@ test: ${BIN}
 
 install: ${BIN} scripts/install.sh
 	cd scripts; . ./install.sh
+
+doc::
+	doxygen
+
+doc::
+	cd doc/latex && make pdf && ln -f refman.pdf ..

@@ -16,7 +16,9 @@
 
 /* $Id$ */
 
-/** @mainpage
+/**
+ * @mainpage
+ *
  * "Cynical rsync": Recursively walk RPKI tree using rsync to pull
  * data from remote sites, validating certificates and CRLs as we go.
  *
@@ -291,12 +293,36 @@ static const char svn_id[] = "$Id$";
 /*
  * ASN.1 Object identifiers in form suitable for use with oid_cmp()
  */
-static const unsigned char id_ad_caIssuers[]              = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x2};
-static const unsigned char id_ad_caRepository[]           = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x5};
-static const unsigned char id_ad_rpkiManifest[]           = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0xa};
-static const unsigned char id_ct_routeOriginAttestation[] = {0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x10, 0x01, 0x18};
-static const unsigned char id_ct_rpkiManifest[]           = {0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x10, 0x01, 0x1a};
-static const unsigned char id_sha256[]                    = {0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01};
+
+/** 1.3.6.1.5.5.7.48.2 */
+static const unsigned char id_ad_caIssuers[] =
+  {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x2};
+
+/** 1.3.6.1.5.5.7.48.5 */
+static const unsigned char id_ad_caRepository[] =
+  {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x5};
+
+/** 1.3.6.1.5.5.7.48.10 */
+static const unsigned char id_ad_rpkiManifest[] =
+  {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0xa};
+
+/** 1.2.840.113549.1.9.16.1.24 */
+static const unsigned char id_ct_routeOriginAttestation[] =
+  {0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x10, 0x01, 0x18};
+
+/** 1.2.840.113549.1.9.16.1.26 */
+static const unsigned char id_ct_rpkiManifest[] =
+  {0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x10, 0x01, 0x1a};
+
+/** 2.16.840.1.101.3.4.2.1 */
+static const unsigned char id_sha256[] =
+  {0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01};
+
+/**
+ * RPKI certificate policy OID in form suitable for use with
+ * X509_VERIFY_PARAM_add0_policy().
+ */
+static const char rpki_policy_oid[] = "1.3.6.1.5.5.7.14.2";
 
 
 
@@ -1684,9 +1710,7 @@ static int check_x509(const rcynic_ctx_t *rc,
 			      X509_V_FLAG_EXPLICIT_POLICY |
 			      X509_V_FLAG_X509_STRICT);
 
-  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param,
-				/* {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0xe, 0x2} */
-				OBJ_txt2obj("1.3.6.1.5.5.7.14.2", 0));
+  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
 
  if (X509_verify_cert(&rctx.ctx) <= 0) {
     logmsg(rc, log_data_err, "Validation failure for %s",
@@ -1982,9 +2006,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 			      X509_V_FLAG_EXPLICIT_POLICY |
 			      X509_V_FLAG_X509_STRICT);
 
-  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param,
-				/* {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0xe, 0x2} */
-				OBJ_txt2obj("1.3.6.1.5.5.7.14.2", 0));
+  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
 
   if (X509_verify_cert(&rctx.ctx) <= 0) {
     logmsg(rc, log_data_err, "Validation failure for manifest %s EE certificate",uri);
@@ -2248,9 +2270,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
 			      X509_V_FLAG_EXPLICIT_POLICY |
 			      X509_V_FLAG_X509_STRICT);
 
-  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param,
-				/* {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0xe, 0x2} */
-				OBJ_txt2obj("1.3.6.1.5.5.7.14.2", 0));
+  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
 
   if (X509_verify_cert(&rctx.ctx) <= 0) {
     logmsg(rc, log_data_err, "Validation failure for ROA %s EE certificate",uri);

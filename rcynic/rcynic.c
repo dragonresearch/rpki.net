@@ -2427,7 +2427,7 @@ int main(int argc, char *argv[])
 {
   int opt_jitter = 0, use_syslog = 0, use_stderr = 0, syslog_facility = 0;
   int opt_syslog = 0, opt_stderr = 0, opt_level = 0, prune = 1;
-  char *cfg_file = "rcynic.conf", path[FILENAME_MAX];
+  char *cfg_file = "rcynic.conf";
   char *lockfile = NULL, *xmlfile = NULL;
   int c, i, j, ret = 1, jitter = 600, lockfd = -1;
   STACK_OF(CONF_VALUE) *cfg_section = NULL;
@@ -2682,47 +2682,95 @@ int main(int argc, char *argv[])
 
   for (i = 0; i < sk_CONF_VALUE_num(cfg_section); i++) {
     CONF_VALUE *val = sk_CONF_VALUE_value(cfg_section, i);
+    char path1[FILENAME_MAX], path2[FILENAME_MAX];
     certinfo_t ta_info;
-    X509 *x;
+    X509 *x = NULL;
 
     assert(val && val->name && val->value);
 
-    if (name_cmp(val->name, "trust-anchor"))
-      continue;
-    
-    logmsg(&rc, log_telemetry, "Processing trust anchor %s", val->value);
-
-    if ((x = read_cert(val->value, NULL, 0)) == NULL) {
-      logmsg(&rc, log_usage_err, "Couldn't read trust anchor %s", val->value);
-      goto done;
-    }
-
-    hash = X509_subject_name_hash(x);
-
-    for (j = 0; j < INT_MAX; j++) {
-      if (snprintf(path, sizeof(path), "%s%lx.%d.cer",
-		   rc.authenticated, hash, j) == sizeof(path)) {
-	logmsg(&rc, log_sys_err,
-	       "Couldn't construct path name for trust anchor %s", val->value);
+    if (!name_cmp(val->name, "trust-anchor")) {
+      /*
+       * Old local file trust anchor method.
+       */
+      logmsg(&rc, log_telemetry, "Processing trust anchor from local file %s", val->value);
+      if (strlen(val->value) >= sizeof(path1)) {
+	logmsg(&rc, log_usage_err, "Trust anchor path name too long %s", val->value);
 	goto done;
       }
-      if (access(path, F_OK))
-	break;
+      strcpy(path1, val->value);
+      if ((x = read_cert(path1, NULL, 0)) == NULL) {
+	logmsg(&rc, log_usage_err, "Couldn't read trust anchor %s", path1);
+	goto done;
+      }
+      hash = X509_subject_name_hash(x);
+      for (j = 0; j < INT_MAX; j++) {
+	if (snprintf(path2, sizeof(path2), "%s%lx.%d.cer",
+		     rc.authenticated, hash, j) == sizeof(path2)) {
+	  logmsg(&rc, log_sys_err,
+		 "Couldn't construct path name for trust anchor %s", path1);
+	  goto done;
+	}
+	if (access(path2, F_OK))
+	  break;
+      }
+      if (j == INT_MAX) {
+	logmsg(&rc, log_sys_err, "Couldn't find a free name for trust anchor %s", path1);
+	goto done;
+      }
     }
 
-    if (j == INT_MAX) {
-      logmsg(&rc, log_sys_err,
-	     "Couldn't find a free name for trust anchor %s", val->value);
-      goto done;
+    if (!name_cmp(val->name, "trust-anchor-uri-with-key")) {
+      /*
+       * Newfangled URI + public key method.
+       */
+      EVP_PKEY *pkey = NULL, *xpkey = NULL;
+      char uri[URI_MAX];
+      BIO *bio = NULL;
+
+      j = strcspn(val->value, " \t");
+      if (j >= sizeof(uri)) {
+	logmsg(&rc, log_usage_err, "Trust anchor URI too long %s", val->value);
+	goto done;
+      }
+      memcpy(uri, val->value, j);
+      uri[j] = '\0';
+      if (!uri_to_filename(uri, path1, sizeof(path1), rc.unauthenticated)) {
+	logmsg(&rc, log_usage_err, "Couldn't convert trust anchor URI %s to filename", uri);
+	goto done;
+      }
+      logmsg(&rc, log_telemetry, "Processing trust anchor from URI %s", uri);
+      rsync_file(&rc, uri);
+      j += strspn(val->value + j, " \t");
+      bio = BIO_new_file(val->value + j, "rb");
+      if (bio)
+	pkey = d2i_PUBKEY_bio(bio, NULL);
+      BIO_free(bio);
+      if (!pkey) {
+	logmsg(&rc, log_usage_err, "Couldn't read trust anchor public key for %s from %s", uri, val->value + j);
+	goto done;
+      }
+      if ((x = read_cert(path1, NULL, 0)) == NULL)
+	logmsg(&rc, log_data_err, "Couldn't read trust anchor %s", path1);
+      if (x && (xpkey = X509_get_pubkey(x)) == NULL)
+	logmsg(&rc, log_data_err, "Couldn't read public key from trust anchor %s", uri);
+      j = (xpkey && !EVP_PKEY_cmp(pkey, xpkey));
+      EVP_PKEY_free(pkey);
+      EVP_PKEY_free(xpkey);
+      if (!j) {
+	logmsg(&rc, log_data_err, "Public key did not match trust anchor %s", uri);
+	goto done;
+      }
     }
 
-    logmsg(&rc, log_telemetry, "Copying trust anchor %s to %lx.%d.cer",
-	   val->value, hash, j);
+    if (!x)
+      continue;
+
+    logmsg(&rc, log_telemetry, "Copying trust anchor %s to %s", path1, path2);
 
     if (!mkdir_maybe(&rc, rc.authenticated) ||
-	!(rc.use_links ? ln(val->value, path) : cp(val->value, path))) {
+	!(rc.use_links ? ln(path1, path2) : cp(path1, path2))) {
       logmsg(&rc, log_sys_err, "Couldn't %s trust anchor %s",
-	     (rc.use_links ? "link" : "copy"), val->value);
+	     (rc.use_links ? "link" : "copy"), path1);
       goto done;
     }
 
@@ -2731,7 +2779,7 @@ int main(int argc, char *argv[])
     sk_X509_push(certs, x);
 
     if (ta_info.crldp[0] && !check_x509(&rc, certs, x, &ta_info)) {
-      logmsg(&rc, log_data_err, "Couldn't get CRL for trust anchor %s", val->value);
+      logmsg(&rc, log_data_err, "Couldn't get CRL for trust anchor %s", path1);
     } else {
       walk_cert(&rc, &ta_info, certs);
     }

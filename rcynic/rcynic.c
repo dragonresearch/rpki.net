@@ -1211,25 +1211,9 @@ static int rsync(const rcynic_ctx_t *rc,
 }
 
 /**
- * rsync a CRL.
+ * rsync a single file (CRL, manifest, ROA, whatever).
  */
-static int rsync_crl(const rcynic_ctx_t *rc, const char *uri)
-{
-  return rsync(rc, NULL, uri);
-}
-
-/**
- * rsync a manifest.
- */
-static int rsync_manifest(const rcynic_ctx_t *rc, const char *uri)
-{
-  return rsync(rc, NULL, uri);
-}
-
-/**
- * rsync a ROA.
- */
-static int rsync_roa(const rcynic_ctx_t *rc, const char *uri)
+static int rsync_file(const rcynic_ctx_t *rc, const char *uri)
 {
   return rsync(rc, NULL, uri);
 }
@@ -1566,7 +1550,7 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 
   logmsg(rc, log_telemetry, "Checking CRL %s", uri);
 
-  rsync_crl(rc, uri);
+  rsync_file(rc, uri);
 
   if ((crl = check_crl_1(rc, uri, path, sizeof(path), rc->unauthenticated,
 			 issuer, hash, hashlen))) {
@@ -2059,7 +2043,7 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 
   logmsg(rc, log_telemetry, "Checking manifest %s", uri);
 
-  rsync_manifest(rc, uri);
+  rsync_file(rc, uri);
 
   if ((manifest = check_manifest_1(rc, uri, path, sizeof(path),
 				   rc->unauthenticated, certs))) {
@@ -2312,7 +2296,7 @@ static void check_roa(const rcynic_ctx_t *rc,
 
   logmsg(rc, log_telemetry, "Checking ROA %s", uri);
 
-  rsync_roa(rc, uri);
+  rsync_file(rc, uri);
 
   if (check_roa_1(rc, uri, path, sizeof(path), rc->unauthenticated,
 		  certs, hash, hashlen)) {

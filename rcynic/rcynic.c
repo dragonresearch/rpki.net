@@ -832,8 +832,7 @@ static int ln(const char *source, const char *target)
  */
 static int install_object(const rcynic_ctx_t *rc,
 			  const char *uri,
-			  const char *source,
-			  const int space)
+			  const char *source)
 {
   char target[FILENAME_MAX];
 
@@ -853,7 +852,7 @@ static int install_object(const rcynic_ctx_t *rc,
     return 0;
   }
 
-  logmsg(rc, log_telemetry, "Accepted%*s%s", space, " ", uri);
+  logmsg(rc, log_telemetry, "Accepted     %s", uri);
   return 1;
 }
 
@@ -1554,7 +1553,7 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 
   if ((crl = check_crl_1(rc, uri, path, sizeof(path), rc->unauthenticated,
 			 issuer, hash, hashlen))) {
-    install_object(rc, uri, path, 5);
+    install_object(rc, uri, path);
     mib_increment(rc, uri, current_crl_accepted);
     return crl;
   } else if (!access(path, F_OK)) {
@@ -1563,7 +1562,7 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 
   if ((crl = check_crl_1(rc, uri, path, sizeof(path), rc->old_authenticated,
 			 issuer, hash, hashlen))) {
-    install_object(rc, uri, path, 5);
+    install_object(rc, uri, path);
     mib_increment(rc, uri, backup_crl_accepted);
     return crl;
   } else if (!access(path, F_OK)) {
@@ -1839,7 +1838,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 
   if ((x = check_cert_1(rc, uri, path, sizeof(path), prefix,
 			certs, issuer, subj, hash, hashlen)) != NULL) {
-    install_object(rc, uri, path, 5);
+    install_object(rc, uri, path);
     mib_increment(rc, uri,
 		  (backup ? backup_cert_accepted : current_cert_accepted));
     if (!backup)
@@ -2047,7 +2046,7 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 
   if ((manifest = check_manifest_1(rc, uri, path, sizeof(path),
 				   rc->unauthenticated, certs))) {
-    install_object(rc, uri, path, 5);
+    install_object(rc, uri, path);
     mib_increment(rc, uri, current_manifest_accepted);
     return manifest;
   } else if (!access(path, F_OK)) {
@@ -2056,7 +2055,7 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 
   if ((manifest = check_manifest_1(rc, uri, path, sizeof(path),
 				   rc->old_authenticated, certs))) {
-    install_object(rc, uri, path, 5);
+    install_object(rc, uri, path);
     mib_increment(rc, uri, backup_manifest_accepted);
     return manifest;
   } else if (!access(path, F_OK)) {
@@ -2300,7 +2299,7 @@ static void check_roa(const rcynic_ctx_t *rc,
 
   if (check_roa_1(rc, uri, path, sizeof(path), rc->unauthenticated,
 		  certs, hash, hashlen)) {
-    install_object(rc, uri, path, 5);
+    install_object(rc, uri, path);
     mib_increment(rc, uri, current_roa_accepted);
     return;
   } else if (!access(path, F_OK)) {
@@ -2309,7 +2308,7 @@ static void check_roa(const rcynic_ctx_t *rc,
 
   if (check_roa_1(rc, uri, path, sizeof(path), rc->old_authenticated,
 		  certs, hash, hashlen)) {
-    install_object(rc, uri, path, 5);
+    install_object(rc, uri, path);
     mib_increment(rc, uri, backup_roa_accepted);
     return;
   } else if (!access(path, F_OK)) {

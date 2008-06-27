@@ -775,7 +775,8 @@ def setup_rcynic():
   """Write the config file for rcynic."""
   rpki.log.info("Config file for rcynic")
   d = { "rcynic_name" : rcynic_name,
-        "rootd_name"  : rootd_name }
+        "rootd_name"  : rootd_name,
+        "rootd_sia"   : rootd_sia }
   f = open(rcynic_name + ".conf", "w")
   f.write(rcynic_fmt_1 % d)
   f.close()
@@ -1061,9 +1062,11 @@ rootd_fmt_2 = '''\
 '''
 
 rootd_fmt_3 = '''\
+%(openssl)s rsa -pubout -outform DER -in %(rootd_name)s.key -out %(rootd_name)s.pkey  &&
 %(openssl)s req -new -sha256 -key %(rootd_name)s.key -out %(rootd_name)s.req -config %(rootd_name)s.conf -text &&
 %(openssl)s x509 -req -sha256 -in %(rootd_name)s.req -out %(rootd_name)s.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_ext \
                       -signkey %(rootd_name)s.key &&
+ln -f %(rootd_name)s.cer  %(rsyncd_dir)s &&
 %(openssl)s x509 -req -sha256 -in %(rpkid_name)s-%(rpkid_tag)s.req -out %(rootd_name)s-%(rpkid_name)s.cer -extfile %(rootd_name)s.conf -extensions req_x509_ext -text \
                       -CA %(rootd_name)s-TA.cer -CAkey %(rootd_name)s-TA.key -CAcreateserial
 '''
@@ -1076,7 +1079,8 @@ use-links               = yes
 use-syslog              = no
 use-stderr              = yes
 log-level               = log_debug
-trust-anchor            = %(rootd_name)s.cer
+#trust-anchor            = %(rootd_name)s.cer
+trust-anchor-uri-with-key = %(rootd_sia)s%(rootd_name)s.cer %(rootd_name)s.pkey
 '''
 
 rsyncd_fmt_1 = '''\

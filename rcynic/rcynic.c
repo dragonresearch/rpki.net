@@ -2681,9 +2681,11 @@ int main(int argc, char *argv[])
 
   for (i = 0; i < sk_CONF_VALUE_num(cfg_section); i++) {
     CONF_VALUE *val = sk_CONF_VALUE_value(cfg_section, i);
-    char path1[FILENAME_MAX], path2[FILENAME_MAX];
+    char path1[FILENAME_MAX], path2[FILENAME_MAX], uri[URI_MAX];
+    EVP_PKEY *pkey = NULL, *xpkey = NULL;
     certinfo_t ta_info;
     X509 *x = NULL;
+    BIO *bio = NULL;
 
     assert(val && val->name && val->value);
 
@@ -2721,11 +2723,11 @@ int main(int argc, char *argv[])
     if (!name_cmp(val->name, "trust-anchor-uri-with-key")) {
       /*
        * Newfangled URI + public key method.
+       *
+       * NB: EVP_PKEY_cmp() returns 1 for success, not 0 like every
+       *     other xyz_cmp() function in the entire OpenSSL library.
+       *     Go figure.
        */
-      EVP_PKEY *pkey = NULL, *xpkey = NULL;
-      char uri[URI_MAX];
-      BIO *bio = NULL;
-
       j = strcspn(val->value, " \t");
       if (j >= sizeof(uri)) {
 	logmsg(&rc, log_usage_err, "Trust anchor URI too long %s", val->value);
@@ -2752,7 +2754,7 @@ int main(int argc, char *argv[])
 	logmsg(&rc, log_data_err, "Couldn't read trust anchor %s", path1);
       if (x && (xpkey = X509_get_pubkey(x)) == NULL)
 	logmsg(&rc, log_data_err, "Couldn't read public key from trust anchor %s", uri);
-      j = (xpkey && !EVP_PKEY_cmp(pkey, xpkey));
+      j = (xpkey && EVP_PKEY_cmp(pkey, xpkey));
       EVP_PKEY_free(pkey);
       EVP_PKEY_free(xpkey);
       if (!j) {

@@ -125,7 +125,6 @@ static const struct {
  */
 
 #define	MIB_COUNTERS_FROM_OPENSSL			\
-  QV(X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT)		\
   QV(X509_V_ERR_UNABLE_TO_GET_CRL)			\
   QV(X509_V_ERR_UNABLE_TO_DECRYPT_CERT_SIGNATURE)	\
   QV(X509_V_ERR_UNABLE_TO_DECRYPT_CRL_SIGNATURE)	\
@@ -217,6 +216,7 @@ static const struct {
   QQ(malformed_roa_addressfamily,       "Malformed ROA addressFamilys")	 \
   QQ(manifest_wrong_version,            "Wrong manifest versions")	 \
   QQ(roa_wrong_version,			"Wrong ROA versions")		 \
+  QQ(trust_anchor_not_self_signed,	"Trust anchor not self-signed")	 \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QQ(mib_openssl_##x, 0)
@@ -267,6 +267,7 @@ typedef struct rcynic_ctx {
   STACK *rsync_cache, *host_counters, *backup_cache;
   int indent, use_syslog, allow_stale_crl, allow_stale_manifest, use_links;
   int require_crl_in_manifest, rsync_timeout, priority[LOG_LEVEL_T_MAX];
+  int allow_non_self_signed_trust_anchor;
   log_level_t log_level;
   X509_STORE *x509_store;
 } rcynic_ctx_t;
@@ -1610,15 +1611,35 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
       ok = 1;
     return ok;
 
+  case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT:
+    /*
+     * This is another error that's only an error in the strange world
+     * of OpenSSL, but a more serious one.  By default, OpenSSL
+     * expects all trust anchors to be self-signed.  This is not a
+     * PKIX requirement, it's just an OpenSSL thing, but one violates
+     * it at one's peril, because the only way to convince OpenSSL to
+     * allow a non-self-signed trust anchor is to intercept this
+     * "error" in the verify callback handler.
+     *
+     * So this program supports non-self-signed trust anchors, but be
+     * warned that enabling this feature may cause this program's
+     * output not to work with other OpenSSL-based applications.
+     */
+    logmsg(rctx->rc, log_data_err, "Trust anchor not self-signed while checking %s",
+	   rctx->subj->uri);
+    mib_increment(rctx->rc, rctx->subj->uri, trust_anchor_not_self_signed);
+    if (rctx->rc->allow_non_self_signed_trust_anchor)
+      ok = 1;
+    return ok;
+
+  /*
+   * Increment counters for all known OpenSSL verify errors except
+   * the ones we handle explicitly above.
+   */
 #define QV(x)							\
   case x:							\
     mib_increment(rctx->rc, rctx->subj->uri, mib_openssl_##x);	\
     break;
-
-    /*
-     * Increment counters for all known OpenSSL verify errors except
-     * the ones we handle explicitly above.
-     */
     MIB_COUNTERS_FROM_OPENSSL;
 #undef	QV
 
@@ -2573,6 +2594,10 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "allow-stale-manifest") &&
 	     !configure_boolean(&rc, &rc.allow_stale_manifest, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "allow-non-self-signed-trust-anchor") &&
+	     !configure_boolean(&rc, &rc.allow_non_self_signed_trust_anchor, val->value))
       goto done;
 
     else if (!name_cmp(val->name, "require-crl-in-manifest") &&

@@ -2735,7 +2735,8 @@ int main(int argc, char *argv[])
       }
       memcpy(uri, val->value, j);
       uri[j] = '\0';
-      if (!uri_to_filename(uri, path1, sizeof(path1), rc.unauthenticated)) {
+      if (!uri_to_filename(uri, path1, sizeof(path1), rc.unauthenticated) ||
+	  !uri_to_filename(uri, path2, sizeof(path2), rc.authenticated)) {
 	logmsg(&rc, log_usage_err, "Couldn't convert trust anchor URI %s to filename", uri);
 	goto done;
       }
@@ -2754,7 +2755,7 @@ int main(int argc, char *argv[])
 	logmsg(&rc, log_data_err, "Couldn't read trust anchor %s", path1);
       if (x && (xpkey = X509_get_pubkey(x)) == NULL)
 	logmsg(&rc, log_data_err, "Couldn't read public key from trust anchor %s", uri);
-      j = (xpkey && EVP_PKEY_cmp(pkey, xpkey));
+      j = (xpkey && EVP_PKEY_cmp(pkey, xpkey) == 1);
       EVP_PKEY_free(pkey);
       EVP_PKEY_free(xpkey);
       if (!j) {
@@ -2768,7 +2769,7 @@ int main(int argc, char *argv[])
 
     logmsg(&rc, log_telemetry, "Copying trust anchor %s to %s", path1, path2);
 
-    if (!mkdir_maybe(&rc, rc.authenticated) ||
+    if (!mkdir_maybe(&rc, path2) ||
 	!(rc.use_links ? ln(path1, path2) : cp(path1, path2))) {
       logmsg(&rc, log_sys_err, "Couldn't %s trust anchor %s",
 	     (rc.use_links ? "link" : "copy"), path1);

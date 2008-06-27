@@ -18,6 +18,12 @@
 #include <openssl/x509v3.h>
 #include <openssl/safestack.h>
 
+static const unsigned char id_ad_caIssuers[] =              {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x2}; /* 1.3.6.1.5.5.7.48.2 */
+static const unsigned char id_ad_caRepository[] =           {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x5}; /* 1.3.6.1.5.5.7.48.5 */
+static const unsigned char id_ad_signedObjectRepository[] = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x9}; /* 1.3.6.1.5.5.7.48.9 */
+static const unsigned char id_ad_rpkiManifest[] =           {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0xa}; /* 1.3.6.1.5.5.7.48.10 */
+static const unsigned char id_ad_signedObject[] =           {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0xb}; /* 1.3.6.1.5.5.7.48.11 */
+
 static X509 *read_cert(const char *filename, int format, int verbose)
 {
   X509 *x = NULL;
@@ -79,11 +85,7 @@ static enum decode_errors decode_crldp(X509 *x, int verbose)
 	err = decode_not_GeneralName;
 	break;
       }
-      if (!strncmp(n->d.uniformResourceIdentifier->data,
-		   "rsync://", sizeof("rsync://") - 1)) {
-	printf(" CRL: %s\n", n->d.uniformResourceIdentifier->data);
-	break;
-      }
+      printf(" CRLDP: %s\n", n->d.uniformResourceIdentifier->data);
     }
   }
 
@@ -91,9 +93,14 @@ static enum decode_errors decode_crldp(X509 *x, int verbose)
   return err;
 }
 
-static enum decode_errors decode_access(X509 *x, int verbose, char *tag,
-					int nid, unsigned char *oid,
-					int oidlen)
+#define decode_xia(_x_, _v_, _tag_, _nid_, _oid_)  _decode_xia(_x_, _v_, _tag_, _nid_, _oid_, sizeof(_oid_))
+
+static enum decode_errors _decode_xia(X509 *x,
+				      int verbose,
+				      char *tag,
+				      int nid,
+				      const unsigned char *oid,
+				      int oidlen)
 {
   enum decode_errors err = decode_ok;
   AUTHORITY_INFO_ACCESS *as = X509_get_ext_d2i(x, nid, NULL, NULL);
@@ -109,13 +116,8 @@ static enum decode_errors decode_access(X509 *x, int verbose, char *tag,
 	err = decode_not_URI;
 	break;
       }
-      if (a->method->length == oidlen &&
-	  !memcmp(a->method->data, oid, oidlen) &&
-	  !strncmp(a->location->d.uniformResourceIdentifier->data,
-		   "rsync://", sizeof("rsync://") - 1)) {
+      if (a->method->length == oidlen && !memcmp(a->method->data, oid, oidlen))
 	printf(" %s: %s\n", tag, a->location->d.uniformResourceIdentifier->data);
-	break;
-      }
     }
   }
 
@@ -123,21 +125,9 @@ static enum decode_errors decode_access(X509 *x, int verbose, char *tag,
   return err;
 }
 
-static void decode_aia(X509 *x, int verbose)
-{
-  static unsigned char oid[] = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x2};
-  decode_access(x, verbose, "AIA", NID_info_access, oid, sizeof(oid));
-}
-
-static void decode_sia(X509 *x, int verbose)
-{
-  static unsigned char oid[] = {0x2b, 0x6, 0x1, 0x5, 0x5, 0x7, 0x30, 0x5};
-  decode_access(x, verbose, "SIA", NID_sinfo_access, oid, sizeof(oid));
-}
-
 int main(int argc, char *argv[])
 {
-  int c, format = 'p', ret = 0, verbose = 0;
+  int c, format = 'd', ret = 0, verbose = 0;
   X509 *x;
 
   OpenSSL_add_all_algorithms();
@@ -163,13 +153,16 @@ int main(int argc, char *argv[])
     argv += optind;
 
     while (argc-- > 0) {
-      printf("File %s\n", *argv);
+      printf("File: %s\n", *argv);
       if ((x = read_cert(*argv++, format, verbose)) == NULL) {
 	printf("Couldn't read certificate, skipping\n");
 	continue;
       }
-      decode_aia(x, verbose);
-      decode_sia(x, verbose);
+      decode_xia(x, verbose, "AIA:caIssuers",              NID_info_access,  id_ad_caIssuers);
+      decode_xia(x, verbose, "SIA:caRepository",           NID_sinfo_access, id_ad_caRepository);
+      decode_xia(x, verbose, "SIA:signedObjectRepository", NID_sinfo_access, id_ad_signedObjectRepository);
+      decode_xia(x, verbose, "SIA:rpkiManifest",           NID_sinfo_access, id_ad_rpkiManifest);
+      decode_xia(x, verbose, "SIA:signedObject",           NID_sinfo_access, id_ad_signedObject);
       decode_crldp(x, verbose);
       X509_free(x);
     }

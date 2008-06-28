@@ -474,7 +474,8 @@ X509_object_helper_set_name(X509_NAME *name, PyObject *name_sequence)
 {
    PyObject *pair = NULL; PyObject *type = NULL; PyObject *value = NULL;
    int no_pairs = 0, i = 0, str_type = 0, nid;
-   char *valueptr = NULL, *typeptr = NULL;
+   unsigned char *valueptr = NULL;
+   char *typeptr = NULL;
 
    no_pairs = PySequence_Size( name_sequence );
    for (i = 0; i < no_pairs; i++)
@@ -501,14 +502,14 @@ X509_object_helper_set_name(X509_NAME *name, PyObject *name_sequence)
          lose_type_error("inapropriate type");
 
       typeptr = PyString_AsString(type);
-      valueptr = PyString_AsString(value);
+      valueptr = (unsigned char *) PyString_AsString(value);
 
       str_type = ASN1_PRINTABLE_type( valueptr, -1 );
       if ( !(nid = OBJ_ln2nid(typeptr)) )
          if ( !(nid = OBJ_sn2nid(typeptr)) )
             lose("unknown ASN1 object");
 
-      if ( !X509_NAME_add_entry_by_NID( name, nid, str_type, valueptr, strlen(valueptr), -1, 0 ) )
+      if ( !X509_NAME_add_entry_by_NID( name, nid, str_type, valueptr, strlen((char *) valueptr), -1, 0 ) )
          lose("unable to add name entry");
 
       Py_DECREF(pair);
@@ -730,8 +731,9 @@ stack_to_tuple_helper(STACK *sk, PyObject *(*handler)(void *))
 
 error:
 
-   if (obj)
+   if (obj) {
       Py_DECREF(obj);
+   }
 
    if (result_list) {
       n = PyList_Size(result_list);
@@ -790,7 +792,7 @@ error:
 }
 
 static x509_object *
-X509_object_der_read(char *src, int len)
+X509_object_der_read(unsigned char *src, int len)
 {
    x509_object *self;
    unsigned char *ptr = src;
@@ -1599,7 +1601,8 @@ static PyObject *
 X509_object_add_extension(x509_object *self, PyObject *args)
 {
    int critical = 0, nid = 0, len = 0;
-   char *name = NULL, *buf = NULL;
+   char *name = NULL;
+   unsigned char *buf = NULL;
    ASN1_OCTET_STRING *octetString = NULL;
    X509_EXTENSION *extn = NULL;
 
@@ -2329,7 +2332,7 @@ error:
 }
 
 static x509_crl_object *
-x509_crl_object_der_read(char *src, int len)
+x509_crl_object_der_read(unsigned char *src, int len)
 {
    x509_crl_object *self;
    unsigned char* ptr = src;
@@ -2921,7 +2924,8 @@ static PyObject *
 X509_crl_object_add_extension(x509_crl_object *self, PyObject *args)
 {
    int critical = 0, nid = 0, len = 0;
-   char *name = NULL, *buf = NULL;
+   char *name = NULL;
+   unsigned char *buf = NULL;
    ASN1_OCTET_STRING *octetString = NULL;
    X509_EXTENSION *extn = NULL;
 
@@ -3661,7 +3665,8 @@ static PyObject *
 X509_revoked_object_add_extension(x509_revoked_object *self, PyObject *args)
 {
    int critical = 0, nid = 0, len = 0;
-   char *name = NULL, *buf = NULL;
+   char *name = NULL;
+   unsigned char *buf = NULL;
    ASN1_OCTET_STRING *octetString = NULL;
    X509_EXTENSION *extn = NULL;
 
@@ -3671,7 +3676,7 @@ X509_revoked_object_add_extension(x509_revoked_object *self, PyObject *args)
    if ( !(octetString = M_ASN1_OCTET_STRING_new() ) )
       lose("could not allocate memory");
 
-   if ( !ASN1_OCTET_STRING_set(octetString, buf, strlen(buf)) )
+   if ( !ASN1_OCTET_STRING_set(octetString, buf, strlen((char *) buf)) )
       lose("could not set ASN1 Octect string");
 
    if ( NID_undef == (nid = OBJ_txt2nid(name) ) )
@@ -4904,7 +4909,7 @@ error:
 }
 
 static asymmetric_object *
-asymmetric_object_der_read(int key_type, char *src, int len)
+asymmetric_object_der_read(int key_type, unsigned char *src, int len)
 {
    asymmetric_object *self = NULL;
    unsigned char *ptr = src;
@@ -5141,7 +5146,7 @@ static char asymmetric_object_public_encrypt__doc__[] =
 static PyObject *
 asymmetric_object_public_encrypt(asymmetric_object *self, PyObject *args)
 {
-   char *plain_text = NULL, *cipher_text = NULL;
+   unsigned char *plain_text = NULL, *cipher_text = NULL;
    int len = 0, size = 0;
    PyObject *obj = NULL;
 
@@ -5200,7 +5205,7 @@ static char asymmetric_object_private_encrypt__doc__[] =
 static PyObject *
 asymmetric_object_private_encrypt(asymmetric_object *self, PyObject *args)
 {
-   char *plain_text = NULL, *cipher_text = NULL;
+   unsigned char *plain_text = NULL, *cipher_text = NULL;
    int len = 0, size = 0;
    PyObject *obj = NULL;
 
@@ -5253,7 +5258,7 @@ static char asymmetric_object_public_decrypt__doc__[] =
 static PyObject *
 asymmetric_object_public_decrypt(asymmetric_object *self, PyObject *args)
 {
-   char *plain_text = NULL, *cipher_text = NULL;
+   unsigned char *plain_text = NULL, *cipher_text = NULL;
    int len = 0, size = 0;
    PyObject *obj = NULL;
 
@@ -5311,7 +5316,7 @@ static char asymmetric_object_private_decrypt__doc__[] =
 static PyObject *
 asymmetric_object_private_decrypt(asymmetric_object *self, PyObject *args)
 {
-   char *plain_text = NULL, *cipher_text = NULL;
+   unsigned char *plain_text = NULL, *cipher_text = NULL;
    int len = 0, size = 0;
    PyObject *obj = NULL;
 
@@ -5382,8 +5387,8 @@ static char asymmetric_object_sign__doc__[] =
 static PyObject *
 asymmetric_object_sign(asymmetric_object *self, PyObject *args)
 {
-   char *digest_text = NULL, *signed_text = NULL; 
-   int digest_len = 0, digest_type = 0, digest_nid = 0, signed_len = 0;
+   unsigned char *digest_text = NULL, *signed_text = NULL; 
+   unsigned int digest_len = 0, digest_type = 0, digest_nid = 0, signed_len = 0;
    PyObject *obj = NULL;
 
    if (!PyArg_ParseTuple(args, "s#i", &digest_text, &digest_len, &digest_type))
@@ -5500,7 +5505,7 @@ static char asymmetric_object_verify__doc__[] =
 static PyObject *
 asymmetric_object_verify(asymmetric_object *self, PyObject *args)
 {
-   char *digest_text = NULL, *signed_text = NULL; 
+   unsigned char *digest_text = NULL, *signed_text = NULL; 
    int digest_len = 0, digest_type = 0, digest_nid = 0, signed_len = 0, result = 0;
 
    if (!PyArg_ParseTuple(args, "s#s#i", &signed_text, &signed_len, &digest_text, &digest_len, &digest_type))
@@ -5657,7 +5662,7 @@ static char symmetric_object_encrypt_init__doc__[] =
 static PyObject *
 symmetric_object_encrypt_init(symmetric_object *self, PyObject *args)
 {
-   char *key = NULL, *iv = NULL, nulliv [] = "";
+   unsigned char *key = NULL, *iv = NULL, nulliv [] = "";
    const EVP_CIPHER *cipher = NULL;
 
    if (!PyArg_ParseTuple(args, "s|s", &key, &iv))
@@ -5701,7 +5706,7 @@ static char symmetric_object_decrypt_init__doc__[] =
 static PyObject *
 symmetric_object_decrypt_init(symmetric_object *self, PyObject *args)
 {
-   char *key = NULL, *iv = NULL, nulliv [] = "";
+   unsigned char *key = NULL, *iv = NULL, nulliv [] = "";
    const EVP_CIPHER *cipher = NULL;
 
    if (!PyArg_ParseTuple(args, "s|s", &key, &iv))
@@ -5744,7 +5749,7 @@ static PyObject *
 symmetric_object_update(symmetric_object *self, PyObject *args)
 {
    int inl = 0, outl = 0;
-   char *in = NULL, *out = NULL;
+   unsigned char *in = NULL, *out = NULL;
    PyObject *py_out = NULL;
 
    if (!PyArg_ParseTuple(args, "s#", &in, &inl))
@@ -5792,7 +5797,7 @@ static PyObject *
 symmetric_object_final(symmetric_object *self, PyObject *args)
 {
    int outl = 0, size = 1024;
-   char *out = NULL;
+   unsigned char *out = NULL;
    PyObject *py_out = NULL;
 
    if (!PyArg_ParseTuple(args, "|i", &size))
@@ -6034,9 +6039,9 @@ static char digest_object_digest__doc__[] =
 static PyObject *
 digest_object_digest(digest_object *self, PyObject *args)
 {
-   char digest_text[EVP_MAX_MD_SIZE];
+   unsigned char digest_text[EVP_MAX_MD_SIZE];
    void *md_copy = NULL;
-   int digest_len = 0;
+   unsigned digest_len = 0;
 
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -6196,7 +6201,7 @@ static char hmac_object_update__doc__[] =
 static PyObject *
 hmac_object_update(hmac_object *self, PyObject *args)
 {
-   char *data = NULL;
+   unsigned char *data = NULL;
    int len = 0;
 
    if (!PyArg_ParseTuple(args, "s#", &data, &len))
@@ -6264,9 +6269,9 @@ static char hmac_object_mac__doc__[] =
 static PyObject *
 hmac_object_mac(hmac_object *self, PyObject *args)
 {
-   char hmac_text[EVP_MAX_MD_SIZE];
+   unsigned char hmac_text[EVP_MAX_MD_SIZE];
    void *hmac_copy = NULL;
-   int hmac_len = 0;
+   unsigned int hmac_len = 0;
 
    if (!PyArg_ParseTuple(args, ""))
       goto error;
@@ -6935,7 +6940,7 @@ CMS_object_sign(cms_object *self, PyObject *args)
    STACK_OF(X509) *x509_stack = NULL;
    EVP_PKEY *pkey = NULL;
    char *buf = NULL, *oid = NULL;
-   int i, n, len, err;
+   int i, n, len;
    unsigned flags = 0;
    BIO *bio = NULL;
    CMS_ContentInfo *cms = NULL;
@@ -7060,8 +7065,9 @@ error:                          /* fall through */
    if (econtent_type)
       ASN1_OBJECT_free(econtent_type);
 
-   if (crlobj)
+   if (crlobj) {
       Py_XDECREF(crlobj);
+   }
 
    return result;
 }
@@ -7099,7 +7105,7 @@ CMS_object_verify(cms_object *self, PyObject *args)
    unsigned flags = 0;
    char *buf = NULL;
    BIO *bio = NULL;
-   int len, err;
+   int len;
 
    if (!PyArg_ParseTuple(args, "O!|OI", &x509_storetype, &store, &certs_sequence, &flags))
       goto error;
@@ -7819,7 +7825,7 @@ pow_module_der_read (PyObject *self, PyObject *args)
 {
    PyObject *obj = NULL;
    int object_type = 0, len = 0;
-   char *src = NULL;
+   unsigned char *src = NULL;
 
    if (!PyArg_ParseTuple(args, "is#", &object_type, &src, &len))
       goto error;
@@ -7835,9 +7841,9 @@ pow_module_der_read (PyObject *self, PyObject *args)
       case X_X509_CRL:
          { obj = (PyObject*)x509_crl_object_der_read( src, len ); break ; }
       case PKCS7_MESSAGE:
-         { obj = (PyObject*)PKCS7_object_der_read( src, len ); break ; }
+         { obj = (PyObject*)PKCS7_object_der_read( (char *) src, len ); break ; }
       case CMS_MESSAGE:
-         { obj = (PyObject*)CMS_object_der_read( src, len ); break ; }
+         { obj = (PyObject*)CMS_object_der_read( (char *) src, len ); break ; }
 
       default:
          lose("unknown der encoding");

@@ -91,7 +91,7 @@ static void file_handler(const char *filename, const char *targetdir)
   unsigned long hash;
   const char *fmt;
   X509_CRL *crl = NULL;
-  X509 *x509 = NULL;
+  X509 *cer = NULL;
   BIO *b = NULL;
   int i, is_crl;
 
@@ -110,20 +110,17 @@ static void file_handler(const char *filename, const char *targetdir)
 
   if (is_crl
       ? !(crl = d2i_X509_CRL_bio(b, NULL))
-      : !(x509 = d2i_X509_bio(b, NULL)))
+      : !(cer = d2i_X509_bio(b, NULL)))
     lose_openssl("Couldn't read DER object", filename);
 
   BIO_free(b);
   b = NULL;
 
-  if (!x509 && !crl)
-    return;
-
   if (is_crl) {
     hash = X509_NAME_hash(X509_CRL_get_issuer(crl));
     fmt = "%s/%lx.r%d";
   } else {
-    hash = X509_subject_name_hash(x509);
+    hash = X509_subject_name_hash(cer);
     fmt = "%s/%lx.%d";
   }
 
@@ -143,11 +140,11 @@ static void file_handler(const char *filename, const char *targetdir)
 
   if (is_crl
       ? !PEM_write_bio_X509_CRL(b, crl)
-      : !PEM_write_bio_X509(b, x509))
+      : !PEM_write_bio_X509(b, cer))
     lose_openssl("Couldn't write PEM object", path);
 
  done:
-  X509_free(x509);
+  X509_free(cer);
   X509_CRL_free(crl);
   BIO_free(b);
 }

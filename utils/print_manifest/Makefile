@@ -6,8 +6,10 @@ CFLAGS = -g -I${OPENSSL_DIR}/include
 
 # -H -Wl,-t
 
-BIN = manifest
-OBJ = manifest.o
+NAME = print_manifest
+
+BIN = ${NAME}
+OBJ = ${NAME}.o
 LIB = ${OPENSSL_DIR}/libcrypto.a
 
 all: ${BIN}
@@ -22,4 +24,4 @@ MANIFEST_DIR = ../../rpkid/testbed.dir/publication
 
 test: all
 	-date -u +'now:            %Y%m%d%H%M%SZ'
-	if test -d ${MANIFEST_DIR}; then find ${MANIFEST_DIR} -type f -name '*.mnf' -print -exec ./manifest {} \; ; else :; fi
+	if test -d ${MANIFEST_DIR}; then find ${MANIFEST_DIR} -type f -name '*.mnf' -print -exec ./${BIN} {} \; ; else :; fi

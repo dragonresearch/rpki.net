@@ -6,8 +6,10 @@ CFLAGS = -g -I${OPENSSL_DIR}/include
 
 # -H -Wl,-t
 
-BIN = roa
-OBJ = roa.o
+NAME = print_roa
+
+BIN = ${NAME}
+OBJ = ${NAME}.o
 LIB = ${OPENSSL_DIR}/libcrypto.a
 
 all: ${BIN}
@@ -22,4 +24,4 @@ ROA_DIR = ../../rpkid/testbed.dir/publication
 
 test: all
 	-date -u +'now:            %Y%m%d%H%M%SZ'
-	if test -d ${ROA_DIR}; then find ${ROA_DIR} -type f -name '*.roa' -print -exec ./roa {} \; ; else :; fi
+	if test -d ${ROA_DIR}; then find ${ROA_DIR} -type f -name '*.roa' -print -exec ./${BIN} {} \; ; else :; fi

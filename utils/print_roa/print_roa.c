@@ -252,7 +252,7 @@ static const ROA *read_roa(const char *filename, const int print_cms, const int 
       for (j = 0; j < sk_ROAIPAddress_num(f->addresses); j++) {
 	ROAIPAddress *a = sk_ROAIPAddress_value(f->addresses, j);
 
-	printf("     IPaddress: ", afi);
+	printf("     IPaddress: ");
 
 	switch (afi) {
 

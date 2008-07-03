@@ -2,7 +2,7 @@
 
 OPENSSL_DIR = ../../openssl/openssl
 
-CFLAGS = -g -I${OPENSSL_DIR}/include
+CFLAGS = -g -I${OPENSSL_DIR}/include -Wall
 
 # -H -Wl,-t
 

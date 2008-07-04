@@ -45,8 +45,6 @@
 #define ADDR_RAW_BUF_LEN	16
 #endif
 
-static int verbose = 1;
-
 
 
 /*
@@ -237,9 +235,6 @@ static void file_handler(const char *filename, const unsigned prefix_afi, const 
   ROA *r = NULL;
   int i, j, k;
   long asid;
-
-  if (verbose)
-    printf("Reading %s\n", filename);
 
   if (!(b = BIO_new_file(filename, "rb")))
     lose_openssl("Couldn't open CMS file", filename);

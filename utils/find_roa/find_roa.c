@@ -233,8 +233,8 @@ static void file_handler(const char *filename, const unsigned prefix_afi, const 
   CMS_ContentInfo *cms = NULL;
   BIO *b = NULL;
   ROA *r = NULL;
-  int i, j, k;
-  long asid;
+  int i, j, k, n;
+  unsigned long asid;
 
   if (!(b = BIO_new_file(filename, "rb")))
     lose_openssl("Couldn't open CMS file", filename);
@@ -253,7 +253,7 @@ static void file_handler(const char *filename, const unsigned prefix_afi, const 
   if ((r = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), b, NULL)) == NULL)
     lose_openssl("Couldn't parse ROA", filename);
 
-  asid = ASN1_INTEGER_get(r->asID);
+  asid = (unsigned long) ASN1_INTEGER_get(r->asID);
 
   for (i = 0; i < sk_ROAIPAddressFamily_num(r->ipAddrBlocks); i++) {
     ROAIPAddressFamily *f = sk_ROAIPAddressFamily_value(r->ipAddrBlocks, i);
@@ -307,7 +307,22 @@ static void file_handler(const char *filename, const unsigned prefix_afi, const 
       /*
        * If we get here, we have a match.
        */
-      printf("Match: %s\n", filename);
+      printf("ASN %lu prefix ", asid);
+      switch (prefix_afi) {
+      case IANA_AFI_IPV4:
+	printf("%u.%u.%u.%u", prefix[0], prefix[1], prefix[2], prefix[3]);
+	break;
+      case IANA_AFI_IPV6:
+	for (n = 16; n > 1 && prefix[n-1] == 0x00 && prefix[n-2] == 0x00; n -= 2)
+	  ;
+	for (k = 0; k < n; k += 2)
+	  printf("%x%s", (prefix[k] << 8) | prefix[k+1], (k < 14 ? ":" : ""));
+	if (k < 16)
+	  printf(":");
+	break;
+      }
+      printf("/%lu ROA %s\n", prefixlen, filename);
+      goto done;
     }
   }
 
@@ -370,62 +385,54 @@ int main (int argc, char *argv[])
   unsigned char prefix[ADDR_RAW_BUF_LEN];
   unsigned long prefixlen;
   unsigned afi;
-  char *s = NULL, *p;
-  int len, ret = 1;
+  char *s = NULL, *p = NULL;
+  int i, len, ret = 1;
 
   if (argc < 3) {
-    fprintf(stderr, "usage: %s prefix authtree\n", argv[0]);
-    goto done;
+    fprintf(stderr, "usage: %s authtree prefix [prefix...]\n", argv[0]);
+    return 1;
   }
 
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
 
-  if ((s = strdup(argv[1])) == NULL)
-    lose("Couldn't strdup()", argv[1]);
+  for (i = 2; i < argc; i++) {
 
-  if ((p = strchr(s, '/')) != NULL)
-    *p++ = '\0';
+    if ((s = strdup(argv[i])) == NULL)
+      lose("Couldn't strdup()", argv[i]);
 
-  len = a2i_ipadd(prefix, s);
+    if ((p = strchr(s, '/')) != NULL)
+      *p++ = '\0';
 
-  switch (len) {
-  case  4: afi = IANA_AFI_IPV4; break;
-  case 16: afi = IANA_AFI_IPV6; break;
-  default: lose("Unknown AFI", argv[1]);
+    len = a2i_ipadd(prefix, s);
+
+    switch (len) {
+    case  4: afi = IANA_AFI_IPV4; break;
+    case 16: afi = IANA_AFI_IPV6; break;
+    default: lose("Unknown AFI", argv[i]);
+    }
+
+    if (p) {
+      if (*p == '\0' ||
+	  (prefixlen = strtoul(p, &p, 10)) == ULONG_MAX ||
+	  *p != '\0' || 
+	  prefixlen > ADDR_RAW_BUF_LEN * 8)
+	lose("Bad prefix length", argv[i]);
+    } else  {
+      prefixlen = len * 8;
+    }
+
+    assert(prefixlen <= ADDR_RAW_BUF_LEN * 8);
+
+    free(s);
+    p = s = NULL;
+
+    if (!handle_directory(argv[1], afi, prefix, prefixlen))
+      goto done;
+
   }
 
-  if (p) {
-    if (*p == '\0' ||
-	(prefixlen = strtoul(p, &p, 10)) == ULONG_MAX ||
-	*p != '\0' || 
-	prefixlen > ADDR_RAW_BUF_LEN * 8)
-      lose("Bad prefix length", argv[1]);
-  } else  {
-    prefixlen = len * 8;
-  }
-
-  assert(prefixlen <= ADDR_RAW_BUF_LEN * 8);
-
-  ret = !handle_directory(argv[2], afi, prefix, prefixlen);
-
-#if 0
-  switch (afi) {
-  case IANA_AFI_IPV4:
-    printf("%u.%u.%u.%u", prefix[0], prefix[1], prefix[2], prefix[3]);
-    break;
-  case IANA_AFI_IPV6:
-    for (n = 16; n > 1 && prefix[n-1] == 0x00 && prefix[n-2] == 0x00; n -= 2)
-      ;
-    for (i = 0; i < n; i += 2)
-      printf("%x%s", (prefix[i] << 8) | prefix[i+1], (i < 14 ? ":" : ""));
-    if (i < 16)
-      printf(":");
-    break;
-  }
-  printf("/%lu\n", prefixlen);
-#endif
-
+  ret = 0;
 
  done:
   if (s)

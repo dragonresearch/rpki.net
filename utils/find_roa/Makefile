@@ -21,4 +21,4 @@ ${BIN}: ${OBJ} ${LIB} Makefile
 	${CC} -g -o $@ ${OBJ} ${LIB}
 
 test: ${BIN}
-	./${BIN} 10.3.0.44 ../../rcynic/rcynic-data/authenticated
+	./${BIN} ../../rcynic/rcynic-data/authenticated 10.3.0.44 10.2.0.6 10.0.0.0/24

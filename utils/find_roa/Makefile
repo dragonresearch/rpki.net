@@ -2,7 +2,7 @@
 
 OPENSSL_DIR = ../../openssl/openssl
 
-CFLAGS = -g -I${OPENSSL_DIR}/include
+CFLAGS = -g -I${OPENSSL_DIR}/include -Wall
 
 # -H -Wl,-t
 
@@ -20,5 +20,5 @@ clean:
 ${BIN}: ${OBJ} ${LIB} Makefile
 	${CC} -g -o $@ ${OBJ} ${LIB}
 
-test:
-	@true
+test: ${BIN}
+	./${BIN} 10.3.0.44 ../../rcynic/rcynic-data/authenticated

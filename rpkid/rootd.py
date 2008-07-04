@@ -38,7 +38,6 @@ def get_subject_cert():
     rpki.log.debug("Read subject cert %s" % filename)
     return x
   except IOError:
-    rpki.log.debug("Failed to read subject cert %s" % filename)
     return None
 
 def set_subject_cert(cert):

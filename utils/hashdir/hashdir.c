@@ -118,10 +118,10 @@ static void file_handler(const char *filename, const char *targetdir)
 
   if (is_crl) {
     hash = X509_NAME_hash(X509_CRL_get_issuer(crl));
-    fmt = "%s/%lx.r%d";
+    fmt = "%s/%08lx.r%d";
   } else {
     hash = X509_subject_name_hash(cer);
-    fmt = "%s/%lx.%d";
+    fmt = "%s/%08lx.%d";
   }
 
   for (i = 0; i < INT_MAX; i++)

@@ -21,26 +21,7 @@ LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 
-draft-ietf-sidr-roa-format-02 2.1.3.2 specifies:
-
-     RouteOriginAttestation ::= SEQUENCE { 
-        version [0] INTEGER DEFAULT 0, 
-        asID  ASID, 
-        exactMatch BOOLEAN,
-        ipAddrBlocks ROAIPAddrBlocks } 
-    
-     ASID ::= INTEGER 
-      
-     ROAIPAddrBlocks ::= SEQUENCE of ROAIPAddressFamily 
-      
-     ROAIPAddressFamily ::= SEQUENCE { 
-        addressFamily OCTET STRING (SIZE (2..3)), 
-        addresses SEQUENCE OF IPAddress } 
-   
-     IPAddress ::= BIT STRING 
-
-... but we now implement the new format that will supposedly appear
-in the upcoming draft-ietf-sidr-roa-format-03:
+draft-ietf-sidr-roa-format-03 2.1.3.2 specifies:
 
      RouteOriginAttestation ::= SEQUENCE {
         version [0] INTEGER DEFAULT 0,
@@ -53,11 +34,11 @@ in the upcoming draft-ietf-sidr-roa-format-03:
         addressFamily OCTET STRING (SIZE (2..3)),
         addresses SEQUENCE OF ROAIPAddress }
 
-     ROAIPAddress ::= {
+     ROAIPAddress ::= SEQUENCE {
         address IPAddress,
         maxLength INTEGER OPTIONAL }
-   
-     IPAddress ::= BIT STRING 
+
+     IPAddress ::= BIT STRING
 """
 
 from POW._der import *

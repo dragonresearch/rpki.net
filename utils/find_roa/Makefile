@@ -15,10 +15,13 @@ LIB = ${OPENSSL_DIR}/libcrypto.a
 all: ${BIN}
 
 clean:
-	rm -f ${BIN} ${OBJ}
+	rm -rf ${BIN} ${OBJ} hashed-pem-dir
 
 ${BIN}: ${OBJ} ${LIB} Makefile
 	${CC} -g -o $@ ${OBJ} ${LIB}
 
+TEST_ARGS = ../../rcynic/rcynic-data/authenticated 10.3.0.44 10.2.0.6 10.0.0.0/24
+
 test: ${BIN}
-	./${BIN} ../../rcynic/rcynic-data/authenticated 10.3.0.44 10.2.0.6 10.0.0.0/24
+#	./${BIN} ${TEST_ARGS}
+	sh ./test_roa.sh ${TEST_ARGS}

@@ -19,7 +19,7 @@ ${BIN}: ${OBJ} ${LIB} Makefile
 	${CC} -g -o $@ ${OBJ} ${LIB}
 
 INPUT  = ../../rcynic/rcynic-data/authenticated
-OUTPUT = test.out
+OUTPUT = hashed-pem-dir
 
 test: ${BIN}
 	if test -d ${INPUT}; then rm -rf ${OUTPUT} && mkdir ${OUTPUT} && ./hashdir ${INPUT} ${OUTPUT}; else :; fi

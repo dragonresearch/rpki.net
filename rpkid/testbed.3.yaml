@@ -35,8 +35,8 @@ kids:
       - asn: 666
         ipv4: 10.3.0.0/23
 ---
--- shell find publication -type f -name '*.roa' -print -exec ../../utils/print_roa/print_roa {} \;
--- shell find publication -type f -name '*.mnf' -print -exec ../../utils/print_manifest/print_manifest {} \;
+- shell find publication -type f -name '*.roa' -print -exec ../../utils/print_roa/print_roa {} \;
+- shell find publication -type f -name '*.mnf' -print -exec ../../utils/print_manifest/print_manifest {} \;
 ---
--- shell find publication -type f -name '*.roa' -print -exec ../../utils/print_roa/print_roa {} \;
--- shell find publication -type f -name '*.mnf' -print -exec ../../utils/print_manifest/print_manifest {} \;
+- shell find publication -type f -name '*.roa' -print -exec ../../utils/print_roa/print_roa {} \;
+- shell find publication -type f -name '*.mnf' -print -exec ../../utils/print_manifest/print_manifest {} \;

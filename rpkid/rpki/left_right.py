@@ -669,7 +669,7 @@ class route_origin_elt(data_elt):
           break
 
     if ca_detail is None:
-      rpki.log.warn("generate_roa() could not find a covering certificate")
+      rpki.log.warn("generate_roa() could not find a certificate covering %s %s" % (v4, v6))
       return
 
     resources = rpki.resource_set.resource_bag(v4 = v4, v6 = v6)

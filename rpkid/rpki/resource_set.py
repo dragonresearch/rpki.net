@@ -371,14 +371,15 @@ class resource_set_ip(resource_set):
     if x[0] == "addressesOrRanges":
       for aor in x[1]:
         if aor[0] == "addressRange":
+          mask = (1L << (self.range_type.datum_type.bits - len(aor[1][1]))) - 1
           min = _bs2long(aor[1][0]) << (self.range_type.datum_type.bits - len(aor[1][0]))
           max = _bs2long(aor[1][1]) << (self.range_type.datum_type.bits - len(aor[1][1]))
-          mask = (1L << (self.range_type.datum_type.bits - len(aor[1][1]))) - 1
+          max = max | mask
         else:
-          min = _bs2long(aor[1]) << (self.range_type.datum_type.bits - len(aor[1]))
           mask = (1L << (self.range_type.datum_type.bits - len(aor[1]))) - 1
+          min = _bs2long(aor[1]) << (self.range_type.datum_type.bits - len(aor[1]))
+          max = min | mask
           assert (min & mask) == 0, "Resource not in canonical form: %s" % (str(x))
-        max = min | mask
         self.append(self.range_type(self.range_type.datum_type(min), self.range_type.datum_type(max)))
     else:
       assert x[0] == "inherit"

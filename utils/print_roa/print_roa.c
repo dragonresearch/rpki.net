@@ -64,7 +64,7 @@ DECLARE_STACK_OF(ROAIPAddress)
 
 ASN1_SEQUENCE(ROAIPAddress) = {
   ASN1_SIMPLE(ROAIPAddress, IPAddress, ASN1_BIT_STRING),
-  ASN1_EXP_OPT(ROAIPAddress, maxLength, ASN1_INTEGER, 0)
+  ASN1_OPT(ROAIPAddress, maxLength, ASN1_INTEGER)
 } ASN1_SEQUENCE_END(ROAIPAddress)
 
 typedef struct ROAIPAddressFamily_st {
@@ -279,7 +279,7 @@ static const ROA *read_roa(const char *filename, const int print_cms, const int 
 
 	}
 
-	printf("/%u\n", addr_prefixlen(a->IPAddress));
+	printf("/%u", addr_prefixlen(a->IPAddress));
 
 	if (a->maxLength)
 	  printf("-%ld", ASN1_INTEGER_get(a->maxLength));

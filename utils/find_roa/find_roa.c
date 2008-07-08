@@ -63,7 +63,7 @@ DECLARE_STACK_OF(ROAIPAddress)
 
 ASN1_SEQUENCE(ROAIPAddress) = {
   ASN1_SIMPLE(ROAIPAddress, IPAddress, ASN1_BIT_STRING),
-  ASN1_EXP_OPT(ROAIPAddress, maxLength, ASN1_INTEGER, 0)
+  ASN1_OPT(ROAIPAddress, maxLength, ASN1_INTEGER)
 } ASN1_SEQUENCE_END(ROAIPAddress)
 
 typedef struct ROAIPAddressFamily_st {

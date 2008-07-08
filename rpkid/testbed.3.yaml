@@ -16,43 +16,27 @@
 
 name:           RIR
 crl_interval:   2d
-regen_margin:   30m
-valid_for:      7d
+regen_margin:   1h
+valid_for:      90d
 kids:
   - name: R0
     kids:
       - name: Alice
-        ipv4: 192.0.2.1-192.0.2.33
+        ipv4: 192.0.2.0-192.0.2.33
         asn:  64533
         route_origin:
           - asn: 42
             ipv4: 192.0.2.32/32
+            ipv4: 192.0.2.0/30-32
       - name: Bob
         ipv4: 192.0.2.44-192.0.2.100
     ipv4: 10.3.0.0/16
     route_origin:
       - asn: 666
-        ipv4: 10.3.0.44/32
+        ipv4: 10.3.0.0/23
 ---
-- shell find publication -type f -name '*.roa' -print
-- shell find publication -type f -name '*.mnf' -print -exec ../../utils/manifest/manifest {} \;
-- name: R0
-  rekey:
+-- shell find publication -type f -name '*.roa' -print -exec ../../utils/print_roa/print_roa {} \;
+-- shell find publication -type f -name '*.mnf' -print -exec ../../utils/print_manifest/print_manifest {} \;
 ---
-- shell find publication -type f -name '*.roa' -print
-- shell find publication -type f -name '*.mnf' -print -exec ../../utils/manifest/manifest {} \;
-- name: R0
-  revoke:
----
-- shell find publication -type f -name '*.roa' -print
-- shell find publication -type f -name '*.mnf' -print -exec ../../utils/manifest/manifest {} \;
-- name: Alice
-  valid_add:   10
-- name: R0
-  route_origin_add:
-    - asn: 17
-      ipv4: 10.3.0.1/32, 10.0.0.44/32
----
-- sleep 30
-- shell find publication -type f -name '*.roa' -print
-- shell find publication -type f -name '*.mnf' -print -exec ../../utils/manifest/manifest {} \;
+-- shell find publication -type f -name '*.roa' -print -exec ../../utils/print_roa/print_roa {} \;
+-- shell find publication -type f -name '*.mnf' -print -exec ../../utils/print_manifest/print_manifest {} \;

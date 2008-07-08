@@ -222,13 +222,18 @@ class sql_persistant(object):
 
   def sql_store(self):
     """Store this object to SQL."""
+    args = self.sql_encode()
     if not self.sql_in_db:
-      self.gctx.sql.execute(self.sql_template.insert, self.sql_encode())
+      if self.sql_debug:
+        rpki.log.debug("sql_fetch_store(%s, %s)" % (repr(self.sql_template.insert), repr(args)))
+      self.gctx.sql.execute(self.sql_template.insert, args)
       setattr(self, self.sql_template.index, self.gctx.sql.lastrowid())
       self.gctx.sql.cache[(self.__class__, self.gctx.sql.lastrowid())] = self
       self.sql_insert_hook()
     else:
-      self.gctx.sql.execute(self.sql_template.update, self.sql_encode())
+      if self.sql_debug:
+        rpki.log.debug("sql_fetch_store(%s, %s)" % (repr(self.sql_template.update), repr(args)))
+      self.gctx.sql.execute(self.sql_template.update, args)
       self.sql_update_hook()
     key = (self.__class__, getattr(self, self.sql_template.index))
     assert key in self.gctx.sql.cache and self.gctx.sql.cache[key] == self

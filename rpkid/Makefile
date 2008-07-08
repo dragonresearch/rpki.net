@@ -82,11 +82,14 @@ rpki/relaxng.py: make-relaxng.py
 
 # all-tests:: all; sh -x rootd.sh run
 
-test all-tests:: all
+all-tests:: all
 	python testbed.py -y testbed.1.yaml
 
 all-tests:: all
 	python testbed.py -y testbed.2.yaml
+
+test all-tests:: all
+	python testbed.py -y testbed.3.yaml
 
 # Documentation
 

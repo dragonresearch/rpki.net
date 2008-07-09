@@ -20,8 +20,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import POW.pkix, rpki.oids
 
-print
-print "# Local additions"
+need_header = True
 
 for oid,name in rpki.oids.oid2name.items():
   try:
@@ -29,6 +28,10 @@ for oid,name in rpki.oids.oid2name.items():
   except:
     o = POW.pkix.Oid()
     o.set(oid)
+    if need_header:
+      print
+      print "# Local additions"
+      need_header = False
     print
     print "OID =", " ".join(("%02X" % ord(c)) for c in o.toString())
     print "Comment = RPKI project"

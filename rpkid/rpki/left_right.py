@@ -543,6 +543,10 @@ class route_origin_elt(data_elt):
   cert = None
   roa = None
 
+  ## @var publish_ee_separately
+  # Whether to publish the ROA EE certificate separately from the ROA.
+  publish_ee_separately = False
+
   def sql_fetch_hook(self):
     """Extra SQL fetch actions for route_origin_elt -- handle prefix list."""
     self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4.from_sql(
@@ -685,7 +689,8 @@ class route_origin_elt(data_elt):
 
     repository = parent.repository()
     repository.publish(self.roa, self.roa_uri(ca))
-    repository.publish(self.cert, self.ee_uri(ca))
+    if self.publish_ee_separately:
+      repository.publish(self.cert, self.ee_uri(ca))
     ca_detail.generate_manifest()
 
   def withdraw_roa(self, regenerate = False):
@@ -712,7 +717,8 @@ class route_origin_elt(data_elt):
     rpki.log.debug("Withdrawing ROA and revoking its EE cert")
     rpki.rpki_engine.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
     repository.withdraw(roa, roa_uri)
-    repository.withdraw(cert, ee_uri)
+    if self.publish_ee_separately:
+      repository.withdraw(cert, ee_uri)
     self.gctx.sql.sweep()
     ca_detail.generate_crl()
     ca_detail.generate_manifest()

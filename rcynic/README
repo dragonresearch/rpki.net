@@ -237,6 +237,38 @@ prune			Clean up old files corresponding to URIs that
 			indefinitely unless you enable this option.
 			Values: true or false.  Default: true
 
+allow-stale-manifest	Allow use of manifests which are past their
+			nextUpdate timestamp.  This is probably
+			harmless, but since it may be an early warning
+			of problems, it's configurable.
+			Values: true or false.  Default: true
+
+require-crl-in-manifest	Reject manifests which don't list the CRL
+			covering the manifest EE certificate.
+			Values: true or false.  Default: false
+
+allow-non-self-signed-trust-anchor
+			Experimental.  Attempts to work around OpenSSL's
+			strong preference for self-signed trust
+			anchors.  Do not use this unless you really know
+			what you are doing.
+			Values: true or false.  Default: false
+
+trust-anchor		Specify one RPKI trust anchor, represented as
+			a local file containing an X.509 certificate
+			in DER format.  Value of this option is the
+			pathname of the file.  No default.
+
+trust-anchor-uri-with-key
+			Experimental. Specify one RPKI trust anchor,
+			represented as an rsync URI and a local file
+			containing the RSA public key of the X.509
+			object specified by the URI.  The RSA public
+			key should be in DER format.  Value for this
+			option consists of the URI and the filename of
+			the public key, in that order, separated by
+			whitespace.  No default.
+
 There's a companion XSLT template in rcynic.xsl, which translates what
 the xml-summary option writes into HTML.
 

@@ -1,0 +1,49 @@
+$Id$
+
+A collection of small RPKI utility programs which can be combined in
+various useful ways by relying parties or by rpkid test scripts.
+
+uri/uri:
+	Extract URIs from AIA, SIA, and CRLDP extensions of an X.509v3
+	certificate.
+
+	Usage: uri [-p | -d] cert [cert...]
+
+uri/*.awk:
+	Experimental AWK scripts to postprocess uri/uri's output in
+	various ways.
+
+hashdir/hashdir:
+	Copy authenticated result tree from an rcynic run into the
+	format expected by most OpenSSL-based programs ("PEM" format
+	files with names in the form that OpenSSL's -CApath lookup
+	routines expect).
+			
+	Usage: hashdir input-directory output-directory
+
+print_manifest/print_manifest:
+	Prettyprint the content of a manifest.  Does NOT attempt to
+	verify the signature.
+			
+	Usage: print_manifest manifest [manifest...]
+
+print_roa/print_roa:
+	Prettyprint the content of a ROA.  Does NOT attempt to verify
+	the signature.
+
+	Usage: print_roa ROA [ROA...]
+
+find_roa/find_roa:
+	Search authenticated result tree from an rcynic run for ROAs
+	matching specified prefixes.
+
+	Usage: find_roa authtree prefix [prefix...]
+
+find_roa/test_roa.sh:
+	Script combining hashdir/hashdir, print_roa/print_roa,
+	find_roa/find_roa, and the OpenSSL CLI tool.  Builds hashed
+ 	directory, searches for ROAs matching specified prefixes,
+	verifies the CMS signature and certificate path of each ROA
+	found, and prettyprints each ROA that passes the checks.
+
+	Usage: test_roa.sh authtree prefix [prefix...]

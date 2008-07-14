@@ -199,7 +199,7 @@ static int handle_directory(const char *name, const char *targetdir)
 int main(int argc, char *argv[])
 {
   if (argc != 3) {
-    fprintf(stderr, "usage: %s input-directory output-directory\n");
+    fprintf(stderr, "usage: %s input-directory output-directory\n", argv[0]);
     return 1;
   }
 

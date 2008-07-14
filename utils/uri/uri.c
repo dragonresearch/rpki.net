@@ -159,10 +159,15 @@ int main(int argc, char *argv[])
       format = c;
       break;
     default:
-      fprintf(stderr, "usage: %s [-p | -d] cert [cert...]\n", argv[0]);
       ret = 1;
     }
   }
+
+  if (argc == optind)
+    ret = 1;
+
+  if (ret != 0)
+    fprintf(stderr, "usage: %s [-p | -d] cert [cert...]\n", argv[0]);
 
   if (ret == 0) {
     argc -= optind;

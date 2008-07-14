@@ -180,6 +180,10 @@ int main (int argc, char *argv[])
   int result = 0;
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
+  if (argc < 2) {
+    fprintf(stderr, "usage: %s manifest [manifest...]\n", argv[0]);
+    return 1;
+  }
   while (--argc > 0)
     result |=  read_manifest(*++argv, 0, 1, 1) == NULL;
   return result;

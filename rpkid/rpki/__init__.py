@@ -44,10 +44,19 @@
 # @li The @subpage Operation "operation instructions"
 # @li A description of the @subpage Left-right "left-right protocol"
 # @li A description of the @subpage Publication "publication protocol"
+# @li A description of the @subpage bpki-model "business PKI (BPKI) model"
+#     used to secure the up-down, left-right, and publication protocols
+# @li A description of the several @subpage sql-schemas "SQL database schemas"
+# @li Some suggestions for @subpage further-reading "further reading"
 #
-# This work is funded by <a href="http://www.arin.net/">ARIN</a>, in
-# collaboration with the other RIRs.  If you're interested in this
-# package you might also be interested in:
+# This work has been funded by <a
+# href="http://www.arin.net/">ARIN</a>, in collaboration with the
+# other Regional Internet Registries.
+
+## @ @page further-reading Further Reading
+#
+# If you're interested in this package you might also be interested
+# in:
 #
 # @li <a href="http://viewvc.hactrn.net/subvert-rpki.hactrn.net/rcynic/">The rcynic validation tool</a>
 # @li <a href="http://www.hactrn.net/opaque/rcynic.html">A live sample of rcynic's summary output</a>
@@ -1730,6 +1739,12 @@
 # upon the %object to be published passing whatever access control checks
 # the %publication server imposes.
 
+## @page sql-schemas SQL database schemas
+#
+# @li @subpage rpkid-sql "rpkid database schema"
+# @li @subpage pubd-sql "pubd database schema"
+# @li @subpage irdbd-sql "irdbd database schema"
+
 ## @page rpkid-sql rpkid SQL schema
 #
 # @dotfile rpkid.dot "Diagram of rpkid.sql"
@@ -1748,80 +1763,112 @@
 #
 # @verbinclude irdbd.sql
 
+## @page bpki-model Business PKI model
+#
+# The "business PKI" (BPKI) is the PKI used to authenticate
+# communication on the up-down, left-right, and publication protocols.
+# BPKI certificates are @em not resource PKI (RPKI) certificates.  The
+# BPKI is a separate PKI that represents relationships between the
+# various entities involved in the production side of the RPKI system.
+# In most cases the BPKI tree will follow existing business
+# relationships, hence the name "BPKI".
+#
+# Setup of the BPKI is handled by the IRBE; for the most part, the
+# RPKI and publication engines just use the result.  The one place
+# where the engines are directly involved in creation of new BPKI
+# certificates is in the production of end-entity certificates for use
+# by the engines.
+#
+# There are a few design principals that underly the chosen BPKI model:
+# @li Each engine should rely on a single BPKI trust anchor; all other
+#     trust material should be cross-certified into the engine's BPKI
+#     tree.
+# @li Private keys must never transit the network.
+# @li Except for end entity certificates, the engine should only have
+#     access to the BPKI certificates; in particular, the private key
+#     for the BPKI trust anchor should not be accessible to the engine.
+# @li The number of BPKI keys and certificates that the engine has to
+#     manage should be no larger than is necessary.
+#
+# ...NOT FINISHED...
+#
+# @subpage bpki-digraph "BPKI diagram"
+
 ## @page bpki-digraph rpkid BPKI Diagram
 #
 # @dot
 # // Color code:
-# //   Black:	Hosting entity
-# //   Blue:	Hosted entity
-# //   Red:	Cross-certified peer
+# //   Black:   Hosting entity
+# //   Blue:    Hosted entity
+# //   Red:     Cross-certified peer
 # //
 # // Shape code:
-# //   Octagon:	TA
-# //   Diamond:	CA
-# //   Record:	EE
+# //   Octagon: TA
+# //   Diamond: CA
+# //   Record:  EE
 # 
 # digraph bpki_symmetric {
-# 	splines = true; ratio = fill;
+#       splines = true;
+#       ratio = fill;
 # 
-# 	// Hosting entity
-# 	node			[ color = black, shape = record ];
-# 	TA			[ shape = octagon ];
-# 	rpkid			[ label = "rpkid|{HTTPS server|HTTPS left-right client|CMS left-right}" ];
-# 	irdbd			[ label = "irdbd|{HTTPS left-right server|CMS left-right}" ];
-# 	irbe			[ label = "IRBE|{HTTPS left-right client|CMS left-right}" ];
+#       // Hosting entity
+#       node                    [ color = black, shape = record ];
+#       TA                      [ shape = octagon ];
+#       rpkid                   [ label = "rpkid|{HTTPS server|HTTPS left-right client|CMS left-right}" ];
+#       irdbd                   [ label = "irdbd|{HTTPS left-right server|CMS left-right}" ];
+#       irbe                    [ label = "IRBE|{HTTPS left-right client|CMS left-right}" ];
 # 
-# 	// Hosted entities
-# 	node			[ color = blue, fontcolor = blue ];
-# 	Alice_CA		[ shape = diamond ];
-# 	Alice_EE		[ label = "Alice\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
-# 	Ellen_CA		[ shape = diamond ];
-# 	Ellen_EE		[ label = "Ellen\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
+#       // Hosted entities
+#       node                    [ color = blue, fontcolor = blue ];
+#       Alice_CA                [ shape = diamond ];
+#       Alice_EE                [ label = "Alice\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
+#       Ellen_CA                [ shape = diamond ];
+#       Ellen_EE                [ label = "Ellen\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
 # 
-# 	// Peers
-# 	node			[ color = red, fontcolor = red, shape = diamond ];
-# 	Bob_CA;
-# 	Carol_CA;
-# 	Dave_CA;
-# 	Frank_CA;
-# 	Ginny_CA;
-# 	Harry_CA;
-# 	node			[ shape = record ];
-# 	Bob_EE			[ label = "Bob\nEE|{HTTPS up-down|CMS up-down}" ];
-# 	Carol_EE		[ label = "Carol\nEE|{HTTPS up-down|CMS up-down}" ];
-# 	Dave_EE			[ label = "Dave\nEE|{HTTPS up-down|CMS up-down}" ];
-# 	Frank_EE		[ label = "Frank\nEE|{HTTPS up-down|CMS up-down}" ];
-# 	Ginny_EE		[ label = "Ginny\nEE|{HTTPS up-down|CMS up-down}" ];
-# 	Harry_EE		[ label = "Bob\nEE|{HTTPS up-down|CMS up-down}" ];
+#       // Peers
+#       node                    [ color = red, fontcolor = red, shape = diamond ];
+#       Bob_CA;
+#       Carol_CA;
+#       Dave_CA;
+#       Frank_CA;
+#       Ginny_CA;
+#       Harry_CA;
+#       node                    [ shape = record ];
+#       Bob_EE                  [ label = "Bob\nEE|{HTTPS up-down|CMS up-down}" ];
+#       Carol_EE                [ label = "Carol\nEE|{HTTPS up-down|CMS up-down}" ];
+#       Dave_EE                 [ label = "Dave\nEE|{HTTPS up-down|CMS up-down}" ];
+#       Frank_EE                [ label = "Frank\nEE|{HTTPS up-down|CMS up-down}" ];
+#       Ginny_EE                [ label = "Ginny\nEE|{HTTPS up-down|CMS up-down}" ];
+#       Harry_EE                [ label = "Bob\nEE|{HTTPS up-down|CMS up-down}" ];
 # 
-# 	edge			[ color = black, style = solid ];
-# 	TA -> Alice_CA;
-# 	TA -> Ellen_CA;
+#       edge                    [ color = black, style = solid ];
+#       TA -> Alice_CA;
+#       TA -> Ellen_CA;
 # 
-# 	edge			[ color = black, style = dotted ];
-# 	TA -> rpkid;
-# 	TA -> irdbd;
-# 	TA -> irbe;
+#       edge                    [ color = black, style = dotted ];
+#       TA -> rpkid;
+#       TA -> irdbd;
+#       TA -> irbe;
 # 
-# 	edge			[ color = blue, style = solid ];
-# 	Alice_CA -> Bob_CA;
-# 	Alice_CA -> Carol_CA;
-# 	Alice_CA -> Dave_CA;
-# 	Ellen_CA -> Frank_CA;
-# 	Ellen_CA -> Ginny_CA;
-# 	Ellen_CA -> Harry_CA;
+#       edge                    [ color = blue, style = solid ];
+#       Alice_CA -> Bob_CA;
+#       Alice_CA -> Carol_CA;
+#       Alice_CA -> Dave_CA;
+#       Ellen_CA -> Frank_CA;
+#       Ellen_CA -> Ginny_CA;
+#       Ellen_CA -> Harry_CA;
 # 
-# 	edge			[ color = blue, style = dotted ];
-# 	Alice_CA -> Alice_EE;
-# 	Ellen_CA -> Ellen_EE;
+#       edge                    [ color = blue, style = dotted ];
+#       Alice_CA -> Alice_EE;
+#       Ellen_CA -> Ellen_EE;
 # 
-# 	edge			[ color = red, style = solid ];
-# 	Bob_CA   -> Bob_EE;
-# 	Carol_CA -> Carol_EE;
-# 	Dave_CA  -> Dave_EE;
-# 	Frank_CA -> Frank_EE;
-# 	Ginny_CA -> Ginny_EE;
-# 	Harry_CA -> Harry_EE;
+#       edge                    [ color = red, style = solid ];
+#       Bob_CA   -> Bob_EE;
+#       Carol_CA -> Carol_EE;
+#       Dave_CA  -> Dave_EE;
+#       Frank_CA -> Frank_EE;
+#       Ginny_CA -> Ginny_EE;
+#       Harry_CA -> Harry_EE;
 # }
 # @enddot
 #

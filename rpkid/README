@@ -13,89 +13,31 @@ $Revision$
 
 TO DO:
 
-      - rcynic handling of RPKI trust anchors needs updating, per
+      - rcynic handling of RPKI trust anchors may need updating, per
 	discussions over previous months of how RPKI trust anchors
-	work, how we package them, and how we roll them over. The last
-	(TA rollover) is the driver for this.
-
-	APNIC is now proposing a CMS-signed ASN.1 blob containing a
-	version number and an RPKI certificate.  Kent and Housley have
-	not bought into this yet.
-
-	RIPE is proposing that trust anchors just be a URL and a
-	public key, which one would use by fetching a self-signed RPKI
-	cert from the URL and comparing the public key.
-
-	If everybody homes under IANA, none of this is necessary and
-	what rcynic already does should suffice.
-
-	Need to pick something and go with it.  All but "home under
-	IANA" would require minor changes to rcynic.
-
-	PRIORITY: Required for pilot (usability issue for relying parties)
-
-	TIME REQUIRED: One week.
-
-	STATUS: Not started
-
-
-      - Publication protocol and implementation thereof.
-
-        Tricky bit is making sure that repository receives enough
-	information to know whether parent has authorized child to use
-	parent's namespace in nesting case; in theory this is
-	straightforward but requires careful checking.
-
-	Current implementation just uses a configured path check and
-	does not attempt to trace back to permission from parent in
-	nested publication case.  Class and method design is intended
-	to make it easy to drop in additional checks if needed.
-
-	PRIORITY: Required for pilot
-
-	TIME REQUIRED: 3-4 weeks for implementation.
-
-	STATUS: Initial implementation seems to work, not seriously
-	tested yet.  See above for notes on ACL checking.
-
-
-      - Resource subsetting (req_* attributes in up-down protocol),
-	minimal implementation.  Recognize this as correct protocol
-	and signal an internal server error if ever used.
-
-	PRIORITY: Required for pilot.
-
-	TIME REQUIRED: Two days
-
-	STATUS: code written, not yet tested.
-
-
-      - rcynic does not yet handle manifests. This is both a real
-	problem (manifests were added to plug a security hole) and a
-	user acceptance problem (without manifest support rcynic
-	checks old certs that are supposed to fail because they've
-	been revoked, resulting in what appear to be spurious errors,
-	which just annoy the user).
-
-	PRIORITY: Required for pilot
-
-	TIME REQUIRED: Two weeks.
-
-	STATUS: Not started
-
-
-      - User validation tool: fetch and validate certs and ROA for a
-	prefix that the user wants to accept in a router filter the
-	user is building. This probably uses rcynic's output as one of
-	its inputs.
+	work, how we package them, and how we roll them over.  Current
+	code supports local file and RIPE key+URI methods, as these
+	were trivial to implement and needed no coordinated action.
+	May need to revisit this depending on subsequent discussions.
 
 	PRIORITY: Required
 
-	DEPENDS ON: ROA generation
+	STATUS: Local file and RIPE key+URI methods implemented.
 
-	TIME REQUIRED: 1-2 weeks
 
-	STATUS: Not started
+      - Publication protocol ACL checking may need revisiting.  Tricky
+        bit is making sure that repository receives enough information
+        to know whether parent has authorized child to use parent's
+        namespace in nesting case; in theory this is straightforward
+        but requires careful checking.  Current implementation just
+        uses a configured path check and does not attempt to trace
+        back to permission from parent in nested publication case.
+        Class and method design is intended to make it easy to drop in
+        additional checks if needed.
+
+	PRIORITY: Required
+
+	STATUS: Trivial version (required path check) done.
 
 
       - Make rpkid fully event-driven (async tasking model), except
@@ -354,14 +296,3 @@ manifest generation, and CRL generation:
 
 Considerations (1) and (3) have to dominate, which may mean we take a
 hit on (2).
-
-Most of the explicit calls to sql_fetch*() are now encapsulated in
-one-line methods.  The remaining ones are probably hints at minor bits
-of abstraction still to be done.
-
-Biz certs currently used by test scripts don't include SKI or AKI.  I
-think this is because the test scripts use "openssl x509" rather than
-"openssl ca" when generating these certs.  Not critical, and will
-probably become completely irrelevant with all-singing all-dancing
-post-Amsterdam biz cert scripts, but should not be a big problem to
-fix either if it gets in the way again.

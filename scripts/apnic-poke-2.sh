@@ -42,24 +42,24 @@ fi
 
 # Create a self instance
 
-python irbe-cli.py self --action create --crl_interval 84600
+python irbe_cli.py self --action create --crl_interval 84600
 
 # Create a business signing context, issue the necessary business cert, and set up the cert chain
 
-python irbe-cli.py --pem_out bsc.req bsc --action create --self_id 1 \
+python irbe_cli.py --pem_out bsc.req bsc --action create --self_id 1 \
     --generate_keypair --signing_cert biz-certs/Bob-CA.cer
 $openssl x509 -req -in bsc.req -out bsc.cer \
     -CA biz-certs/Bob-CA.cer -CAkey biz-certs/Bob-CA.key -CAserial biz-certs/Bob-CA.srl
-python irbe-cli.py bsc --action set --self_id 1 --bsc_id 1 --signing_cert bsc.cer
+python irbe_cli.py bsc --action set --self_id 1 --bsc_id 1 --signing_cert bsc.cer
 rm -f bsc.req bsc.cer
 
 # List what's in the BSC, for today's debugging fun
 
-#python irbe-cli.py bsc --action list --self_id 1
+#python irbe_cli.py bsc --action list --self_id 1
 
 # Create a repository context
 
-python irbe-cli.py repository --self_id 1 --action create --bsc_id 1
+python irbe_cli.py repository --self_id 1 --action create --bsc_id 1
 
 # Create a parent context pointing at APNIC -- this is where we plug in the values from their YAML
 
@@ -90,7 +90,7 @@ cat >apnic.pem <<-'EOF'
 	-----END CERTIFICATE-----
 EOF
 
-python irbe-cli.py parent --self_id 1 --action create --bsc_id 1 --repository_id 1 \
+python irbe_cli.py parent --self_id 1 --action create --bsc_id 1 --repository_id 1 \
     --peer_contact_uri https://mirin.apnic.net/cgi-bin/up-down-parent.cgi \
     --cms_ta   apnic.pem \
     --https_ta apnic.pem \
@@ -102,7 +102,7 @@ rm -f apnic.pem
 
 # Create a child context
 
-python irbe-cli.py child --self_id 1 --action create --bsc_id 1 --cms_ta biz-certs/Frank-Root.cer
+python irbe_cli.py child --self_id 1 --action create --bsc_id 1 --cms_ta biz-certs/Frank-Root.cer
 
 # Run the other daemons, arrange for everything to go away on shutdown,
 # run initial cron job to set things up, then wait

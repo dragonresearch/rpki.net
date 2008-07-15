@@ -50,22 +50,22 @@ trap "kill $rpkid" 0 1 2 3 13 15
 
 # Create a self instance
 
-time python irbe-cli.py self --action create --crl_interval 84600
+time python irbe_cli.py self --action create --crl_interval 84600
 
 # Create a business signing context, issue the necessary business cert, and set up the cert chain
 
-time python irbe-cli.py --pem_out bsc.req bsc --action create --self_id 1 --generate_keypair --signing_cert biz-certs/Bob-CA.cer
+time python irbe_cli.py --pem_out bsc.req bsc --action create --self_id 1 --generate_keypair --signing_cert biz-certs/Bob-CA.cer
 time $openssl x509 -req -in bsc.req -out bsc.cer -CA biz-certs/Bob-CA.cer -CAkey biz-certs/Bob-CA.key -CAserial biz-certs/Bob-CA.srl
-time python irbe-cli.py bsc --action set --self_id 1 --bsc_id 1 --signing_cert bsc.cer
+time python irbe_cli.py bsc --action set --self_id 1 --bsc_id 1 --signing_cert bsc.cer
 rm -f bsc.req bsc.cer
 
 # Create a repository context
 
-time python irbe-cli.py repository --self_id 1 --action create --bsc_id 1
+time python irbe_cli.py repository --self_id 1 --action create --bsc_id 1
 
 # Create a parent context pointing at rootd.py
 
-time python irbe-cli.py parent --self_id 1 --action create --bsc_id 1 --repository_id 1 \
+time python irbe_cli.py parent --self_id 1 --action create --bsc_id 1 --repository_id 1 \
     --peer_contact_uri https://localhost:44333/ \
     --cms_ta biz-certs/Elena-Root.cer \
     --https_ta biz-certs/Elena-Root.cer \
@@ -75,7 +75,7 @@ time python irbe-cli.py parent --self_id 1 --action create --bsc_id 1 --reposito
 
 # Create a child context
 
-time python irbe-cli.py child --self_id 1 --action create --bsc_id 1 --cms_ta biz-certs/Frank-Root.cer
+time python irbe_cli.py child --self_id 1 --action create --bsc_id 1 --cms_ta biz-certs/Frank-Root.cer
 
 # Need to link irdb to created child and clear conflicting links.
 # For now, just do this "manually" in MySQL CLI.

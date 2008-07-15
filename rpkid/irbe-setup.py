@@ -25,7 +25,7 @@ import rpki.x509, rpki.config, rpki.log
 
 rpki.log.init("irbe-setup")
 
-cfg = rpki.config.parser("irbe.conf", "irbe-cli")
+cfg = rpki.config.parser("irbe.conf", "irbe_cli")
 
 db = MySQLdb.connect(user   = cfg.get("sql-username", section = "irdbd"),
                      db     = cfg.get("sql-database", section = "irdbd"),

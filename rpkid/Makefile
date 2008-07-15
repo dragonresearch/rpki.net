@@ -68,8 +68,8 @@ resource-cert-samples/.stamp: generate-testrepo.py Makefile
 	python generate-testrepo.py
 	touch $@
 
-irbe-cli.usage: irbe-cli.py
-	python irbe-cli.py --help | sed 's/^/      /' >$@
+irbe_cli.usage: irbe_cli.py
+	python irbe_cli.py --help | sed 's/^/      /' >$@
 
 tags:
 	find . -type f -name '*.py' ! -name relaxng.py | etags -
@@ -118,7 +118,7 @@ doc:: doc/irdbd.pdf doc/pubd.pdf doc/rpkid.pdf
 # Certain invocations of Graphviz by Doxygen whine about fonts.  Not
 # clear whose bug this is.  Apparently harmless, so just ignore it.
 
-dox doxygen: irbe-cli.usage doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
+dox doxygen: irbe_cli.usage doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
 	TZ='' doxygen 2>&1 | awk '$$0 != "Error: Could not find/open font"'
 	cd doc/latex && TZ='' ${MAKE} >/dev/null 2>&1
 	for i in Installation Operation Left-right Publication; do \

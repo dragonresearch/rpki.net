@@ -236,7 +236,7 @@ def call_daemon(cms_class, client_key, client_cert, server_ta, url, q_msg):
 
 # Main program
 
-rpki.log.init("irbe-cli")
+rpki.log.init("irbe_cli")
 
 argv = sys.argv[1:]
 
@@ -260,7 +260,7 @@ for o, a in opts:
 if not argv:
   usage(1)
 
-cfg = rpki.config.parser(cfg_file, "irbe-cli")
+cfg = rpki.config.parser(cfg_file, "irbe_cli")
 
 q_msg_left_right = left_right_msg()
 q_msg_left_right.type = "query"

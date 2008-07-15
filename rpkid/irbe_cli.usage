@@ -1,6 +1,6 @@
       Command line IR back-end control program for rpkid and pubd.
       
-      $Id: irbe-cli.py 1880 2008-06-12 21:54:53Z sra $
+      $Id: irbe_cli.py 1880 2008-06-12 21:54:53Z sra $
       
       Copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
       

@@ -8,7 +8,7 @@ Much of this code lifted from rpki.x509.X509.issue(), but this is a
 sufficiently different purpose that it's probably not worth
 refactoring.
 
-Usage: python cross-certify.py { -i | --in     } input_cert
+Usage: python cross_certify.py { -i | --in     } input_cert
                                { -c | --ca     } issuing_cert
                                { -k | --key    } issuing_cert_key
                                { -s | --serial } serial_filename

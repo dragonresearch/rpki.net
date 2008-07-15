@@ -20,7 +20,7 @@
 # since its existance defines the package, it's as sensible a place as
 # any to put the Doxygen mainpage.
 
-# The "usage" text for irbe-cli in the OPERATIONS section is generated
+# The "usage" text for irbe_cli in the OPERATIONS section is generated
 # automatically by running the program with its --help command.
 # Should do the same with the other programs.  Don't yet have a sane
 # way to automate options in config files, though.  Would be nice.
@@ -273,11 +273,11 @@
 #              rpkid calls into this to perform lookups via the
 #              left-right protocol.
 #
-# @li @c irbe-cli.py:
+# @li @c irbe_cli.py:
 #              A command-line client for the left-right control
 #              protocol.
 #
-# @li @c cross-certify.py:
+# @li @c cross_certify.py:
 #              A BPKI cross-certification tool.
 #
 # @li @c irbe-setup.py:
@@ -337,7 +337,7 @@
 # @endlink followed by dynamic configuration via the left-right
 # protocol.  In production use the latter stage would be handled by
 # the IRBE stub; for test and develoment purposes it's handled by the
-# irbe-cli.py command line interface or by the testbed.py test
+# irbe_cli.py command line interface or by the testbed.py test
 # framework.
 #
 # rpkid stores dynamic data in an SQL database, which must have been
@@ -623,14 +623,14 @@
 #                      Service URL for irdbd.  Must be a %https:// URL.
 #
 #
-# @section irdbd_cli irbe-cli.py
+# @section irdbd_cli irbe_cli.py
 #
-# irbe-cli is a simple command line client for the control subsets of
+# irbe_cli is a simple command line client for the control subsets of
 # the @link Left-right left-right @endlink and @link Publication
 # publication @endlink protocols.  In production use this
 # functionality would be part of the IRBE stub.
 #
-# Basic configuration of irbe-cli is handled via a %config file.  The
+# Basic configuration of irbe_cli is handled via a %config file.  The
 # specific action or actions to be performed are specified on the
 # command line, and map closely to the protocols themselves.
 #
@@ -644,7 +644,7 @@
 # these requests off to the business PKI in order to issue signing
 # certs corresponding to newly generated business keys.
 #
-# @verbinclude irbe-cli.usage
+# @verbinclude irbe_cli.usage
 #
 # Global options (@c --config, @c --help, @c --pem_out) come first,
 # then zero or more commands (@c parent, @c repository, @c self, @c
@@ -666,10 +666,10 @@
 # takes a value, eg, "--action create" or "--action=create".  Options
 # without a trailing "=" correspond to boolean control attributes.
 #
-# The default %config file for irbe-cli is irbe-cli.conf, start
-# irbe-cli with "-c filename" (or "--config filename") to choose a
+# The default %config file for irbe_cli is irbe_cli.conf, start
+# irbe_cli with "-c filename" (or "--config filename") to choose a
 # different %config file.  All options are in the section
-# "[irbe-cli]".  Certificates, keys, and trust anchors may be in
+# "[irbe_cli]".  Certificates, keys, and trust anchors may be in
 # either DER or PEM format.
 #
 # %Config file options:
@@ -680,7 +680,7 @@
 #
 # @li @c rpkid-irbe-cert:
 #                      Name of file containing BPKI certificate
-#                      irbe-cli should use when talking to rpkid.
+#                      irbe_cli should use when talking to rpkid.
 #
 # @li @c rpkid-irbe-key:
 #                      Name of file containing RSA key corresponding to
@@ -698,7 +698,7 @@
 #
 # @li @c pubd-irbe-cert:
 #                      Name of file containing BPKI certificate
-#                      irbe-cli should use when talking to pubd.
+#                      irbe_cli should use when talking to pubd.
 #
 # @li @c pubd-irbe-key:
 #                      Name of file containing RSA key corresponding to
@@ -712,16 +712,16 @@
 #
 #
 #
-# @section cross_certify cross-certify.py
+# @section cross_certify cross_certify.py
 #
-# cross-certify.py is a small tool to extract certain fields from an
+# cross_certify.py is a small tool to extract certain fields from an
 # existing X.509 certificate and generate issue a new certificate that
-# can be used as part of a cross-certification chain.  cross-certify
+# can be used as part of a cross-certification chain.  cross_certify
 # doesn't take a config file, all of its arguments are specified on
 # the command line.
 #
 # @verbatim
-#    python cross-certify.py { -i | --in     } input_cert
+#    python cross_certify.py { -i | --in     } input_cert
 #                            { -c | --ca     } issuing_cert
 #                            { -k | --key    } issuing_cert_key
 #                            { -s | --serial } serial_filename
@@ -741,10 +741,10 @@
 #
 # The default %config file is irbe.conf, start rpkid with "-c filename"
 # to choose a different %config file.  Most options are in the section
-# "[irbe-cli]", but a few are in the section "[irdbd]".  Certificates,
+# "[irbe_cli]", but a few are in the section "[irdbd]".  Certificates,
 # keys, and trust anchors may be in either DER or PEM format.
 #
-# Options in the "[irbe-cli]" section:
+# Options in the "[irbe_cli]" section:
 #
 # @li @c bpki-ta:
 #                      Name of file containing BPKI trust anchor.

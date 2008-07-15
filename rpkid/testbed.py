@@ -981,7 +981,7 @@ irdbd-cert      = %(my_name)s-IRDB.cer
 irdbd-key       = %(my_name)s-IRDB.key
 https-url       = https://localhost:%(irdb_port)d/
 
-[irbe-cli]
+[irbe_cli]
 
 bpki-ta         = %(my_name)s-TA.cer
 rpkid-cert      = %(my_name)s-RPKI.cer

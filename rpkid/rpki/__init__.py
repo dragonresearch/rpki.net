@@ -53,7 +53,7 @@
 # href="http://www.arin.net/">ARIN</a>, in collaboration with the
 # other Regional Internet Registries.
 
-## @ @page further-reading Further Reading
+## @page further-reading Further Reading
 #
 # If you're interested in this package you might also be interested
 # in:
@@ -1773,16 +1773,17 @@
 # In most cases the BPKI tree will follow existing business
 # relationships, hence the name "BPKI".
 #
-# Setup of the BPKI is handled by the IRBE; for the most part, the
+# Setup of the BPKI is handled by the back end; for the most part, the
 # RPKI and publication engines just use the result.  The one place
 # where the engines are directly involved in creation of new BPKI
 # certificates is in the production of end-entity certificates for use
 # by the engines.
 #
 # There are a few design principals that underly the chosen BPKI model:
-# @li Each engine should rely on a single BPKI trust anchor; all other
-#     trust material should be cross-certified into the engine's BPKI
-#     tree.
+# @li Each engine should rely on a single BPKI trust anchor which is
+#     controlled by the back end entity that runs the engine; all
+#     other trust material should be cross-certified into the engine's
+#     BPKI tree.
 # @li Private keys must never transit the network.
 # @li Except for end entity certificates, the engine should only have
 #     access to the BPKI certificates; in particular, the private key
@@ -1790,11 +1791,13 @@
 # @li The number of BPKI keys and certificates that the engine has to
 #     manage should be no larger than is necessary.
 #
-# ...NOT FINISHED...
+# rpkid's hosting model adds an additional constraint: rpkid's BPKI
+# trust anchor belongs to the entity operating rpkid, but the entities
+# hosted by rpkid should have control of their own BPKI private keys.
+# This implies the need for an additional layer of BPKI certificate
+# hierarchy within rpkid.
 #
-# @subpage bpki-digraph "BPKI diagram"
-
-## @page bpki-digraph rpkid BPKI Diagram
+# ...NOT FINISHED...
 #
 # @dot
 # // Color code:
@@ -1809,7 +1812,7 @@
 # 
 # digraph bpki_symmetric {
 #       splines = true;
-#       ratio = fill;
+#       size = "14,14";
 # 
 #       // Hosting entity
 #       node                    [ color = black, shape = record ];
@@ -1893,3 +1896,7 @@
 # excepting the HTTPS server case, where client certificate is the
 # first hint that the engine has of the client's identity, so the
 # server must be prepared to accept any current client certificate.
+
+# Local Variables:
+# compile-command: "cd .. && make doc"
+# End:

@@ -31,10 +31,10 @@ Operation Guide
      * irdbd.py: A sample implementation of an IR database daemon. rpkid
        calls into this to perform lookups via the left-right protocol.
 
-     * irbe-cli.py: A command-line client for the left-right control
+     * irbe_cli.py: A command-line client for the left-right control
        protocol.
 
-     * cross-certify.py: A BPKI cross-certification tool.
+     * cross_certify.py: A BPKI cross-certification tool.
 
      * irbe-setup.py: An example of a script to set up the mappings
        between the IRDB and rpkid's own database, using the left-right
@@ -84,7 +84,7 @@ rpkid.py
    can speak using the left-right protocol, followed by dynamic
    configuration via the left-right protocol. In production use the latter
    stage would be handled by the IRBE stub; for test and develoment
-   purposes it's handled by the irbe-cli.py command line interface or by
+   purposes it's handled by the irbe_cli.py command line interface or by
    the testbed.py test framework.
 
    rpkid stores dynamic data in an SQL database, which must have been
@@ -302,13 +302,13 @@ irdbd.py
 
      * https-url: Service URL for irdbd. Must be a https:// URL.
 
-irbe-cli.py
+irbe_cli.py
 
-   irbe-cli is a simple command line client for the control subsets of the
+   irbe_cli is a simple command line client for the control subsets of the
    left-right and publication protocols. In production use this
    functionality would be part of the IRBE stub.
 
-   Basic configuration of irbe-cli is handled via a config file. The
+   Basic configuration of irbe_cli is handled via a config file. The
    specific action or actions to be performed are specified on the command
    line, and map closely to the protocols themselves.
 
@@ -319,12 +319,12 @@ irbe-cli.py
    --pem_out option is specified on the command line, any PKCS #10
    requests received from rpkid will be written in PEM format to that
    file; this makes it easier to hand these requests off to the business
-   PKI in order to issue signing certs corresponding to newly generated
-   business keys.
+   PKI (BPKI in order to issue signing certs corresponding to newly
+   generated business keys.
 
       Command line IR back-end control program for rpkid and pubd.
 
-      $Id: irbe-cli.py 1880 2008-06-12 21:54:53Z sra $
+      $Id: irbe_cli.py 1995 2008-07-15 17:38:45Z sra $
 
       Copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
 
@@ -393,9 +393,9 @@ M
    takes a value, eg, "--action create" or "--action=create". Options
    without a trailing "=" correspond to boolean control attributes.
 
-   The default config file for irbe-cli is irbe-cli.conf, start irbe-cli
+   The default config file for irbe_cli is irbe_cli.conf, start irbe_cli
    with "-c filename" (or "--config filename") to choose a different
-   config file. All options are in the section "[irbe-cli]". Certificates,
+   config file. All options are in the section "[irbe_cli]". Certificates,
    keys, and trust anchors may be in either DER or PEM format.
 
    Config file options:
@@ -403,7 +403,7 @@ M
      * rpkid-bpki-ta: Name of file containing BPKI trust anchor to use
        when authenticating messages from rpkid.
 
-     * rpkid-irbe-cert: Name of file containing BPKI certificate irbe-cli
+     * rpkid-irbe-cert: Name of file containing BPKI certificate irbe_cli
        should use when talking to rpkid.
 
      * rpkid-irbe-key: Name of file containing RSA key corresponding to
@@ -416,7 +416,7 @@ M
      * pubd-bpki-ta: Name of file containing BPKI trust anchor to use when
        authenticating messages from pubd.
 
-     * pubd-irbe-cert: Name of file containing BPKI certificate irbe-cli
+     * pubd-irbe-cert: Name of file containing BPKI certificate irbe_cli
        should use when talking to pubd.
 
      * pubd-irbe-key: Name of file containing RSA key corresponding to
@@ -426,15 +426,15 @@ M
 
      * pubd-url: Service URL for pubd. Must be a https:// URL.
 
-cross-certify.py
+cross_certify.py
 
-   cross-certify.py is a small tool to extract certain fields from an
+   cross_certify.py is a small tool to extract certain fields from an
    existing X.509 certificate and generate issue a new certificate that
-   can be used as part of a cross-certification chain. cross-certify
+   can be used as part of a cross-certification chain. cross_certify
    doesn't take a config file, all of its arguments are specified on the
    command line.
 
-    python cross-certify.py { -i | --in     } input_cert
+    python cross_certify.py { -i | --in     } input_cert
                             { -c | --ca     } issuing_cert
                             { -k | --key    } issuing_cert_key
                             { -s | --serial } serial_filename
@@ -452,10 +452,10 @@ irbe-setup.py config file
 
    The default config file is irbe.conf, start rpkid with "-c filename" to
    choose a different config file. Most options are in the section
-   "[irbe-cli]", but a few are in the section "[irdbd]". Certificates,
+   "[irbe_cli]", but a few are in the section "[irdbd]". Certificates,
    keys, and trust anchors may be in either DER or PEM format.
 
-   Options in the "[irbe-cli]" section:
+   Options in the "[irbe_cli]" section:
 
      * bpki-ta: Name of file containing BPKI trust anchor.
 
@@ -637,7 +637,7 @@ testpoke.py
 
    README for APNIC's tool describing the input language can be found at
    http://mirin.apnic.net/svn/rpki_engine/branches/gary-poker/client/poke/
-   README
+   README.
 
    testpoke.py takes a simplified command line and uses only one YAML
    input file.
@@ -694,5 +694,5 @@ testpoke.py
      __________________________________________________________________
 
 
-    Generated on Sat Jun 21 07:55:37 2008 for RPKI Engine by  doxygen
-    1.5.5
+    Generated on Tue Jul 15 19:00:15 2008 for RPKI Engine by  doxygen
+    1.5.6

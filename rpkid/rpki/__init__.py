@@ -45,7 +45,7 @@
 # @li A description of the @subpage Left-right "left-right protocol"
 # @li A description of the @subpage Publication "publication protocol"
 # @li A description of the @subpage bpki-model "BPKI model"
-#     used to secure the up-down, left-right, and publication protocols
+#     used to secure the up-down, left-right, and %publication protocols
 # @li A description of the several @subpage sql-schemas "SQL database schemas"
 # @li Some suggestions for @subpage further-reading "further reading"
 #
@@ -956,7 +956,8 @@
 # usually work with the other.
 #
 # README for APNIC's tool describing the input language can be found at
-# http://mirin.apnic.net/svn/rpki_engine/branches/gary-poker/client/poke/README
+# <a href="http://mirin.apnic.net/svn/rpki_engine/branches/gary-poker/client/poke/README">
+# http://mirin.apnic.net/svn/rpki_engine/branches/gary-poker/client/poke/README</a>.
 #
 # testpoke.py takes a simplified command line and uses only one YAML
 # input file.
@@ -1938,8 +1939,8 @@
 #       Alice_CA;
 #       Bob_CA;
 #       node                    [ color = red, fontcolor = red, shape = record ];
-#       Alice_EE                [ label = "Alice\nEE|{HTTPS up-down|CMS up-down}" ];
-#       Bob_EE                  [ label = "Bob\nEE|{HTTPS up-down|CMS up-down}" ];
+#       Alice_EE                [ label = "Alice\nEE|{HTTPS client|CMS}" ];
+#       Bob_EE                  [ label = "Bob\nEE|{HTTPS client|CMS}" ];
 # 
 #       edge                    [ color = black, style = dotted ];
 #       TA -> pubd;

@@ -44,7 +44,7 @@
 # @li The @subpage Operation "operation instructions"
 # @li A description of the @subpage Left-right "left-right protocol"
 # @li A description of the @subpage Publication "publication protocol"
-# @li A description of the @subpage bpki-model "business PKI (BPKI) model"
+# @li A description of the @subpage bpki-model "BPKI model"
 #     used to secure the up-down, left-right, and publication protocols
 # @li A description of the several @subpage sql-schemas "SQL database schemas"
 # @li Some suggestions for @subpage further-reading "further reading"
@@ -641,7 +641,7 @@
 # exception is that, if the @c --pem_out option is specified on the
 # command line, any PKCS \#10 requests received from rpkid will be
 # written in PEM format to that file; this makes it easier to hand
-# these requests off to the business PKI in order to issue signing
+# these requests off to the business PKI (BPKI in order to issue signing
 # certs corresponding to newly generated business keys.
 #
 # @verbinclude irbe_cli.usage
@@ -1763,21 +1763,20 @@
 #
 # @verbinclude irdbd.sql
 
-## @page bpki-model Business PKI model
+## @page bpki-model BPKI model
 #
 # The "business PKI" (BPKI) is the PKI used to authenticate
-# communication on the up-down, left-right, and publication protocols.
+# communication on the up-down, left-right, and %publication protocols.
 # BPKI certificates are @em not resource PKI (RPKI) certificates.  The
 # BPKI is a separate PKI that represents relationships between the
 # various entities involved in the production side of the RPKI system.
 # In most cases the BPKI tree will follow existing business
 # relationships, hence the name "BPKI".
 #
-# Setup of the BPKI is handled by the back end; for the most part, the
-# RPKI and publication engines just use the result.  The one place
-# where the engines are directly involved in creation of new BPKI
-# certificates is in the production of end-entity certificates for use
-# by the engines.
+# Setup of the BPKI is handled by the back end; for the most part,
+# rpkid and pubd just use the result.  The one place where the engines
+# are directly involved in creation of new BPKI certificates is in the
+# production of end-entity certificates for use by the engines.
 #
 # There are a few design principals that underly the chosen BPKI model:
 # @li Each engine should rely on a single BPKI trust anchor which is
@@ -1797,7 +1796,8 @@
 # This implies the need for an additional layer of BPKI certificate
 # hierarchy within rpkid.
 #
-# ...NOT FINISHED...
+# Here is a simplified picture of what the BPKI might look like for an
+# rpkid operator that hosts two entities, "Alice" and "Ellen":
 #
 # @dot
 # // Color code:
@@ -1810,13 +1810,13 @@
 # //   Diamond: CA
 # //   Record:  EE
 # 
-# digraph bpki_symmetric {
+# digraph bpki_rpkid {
 #       splines = true;
 #       size = "14,14";
 # 
 #       // Hosting entity
 #       node                    [ color = black, shape = record ];
-#       TA                      [ shape = octagon ];
+#       TA                      [ shape = octagon, label = "BPKI TA" ];
 #       rpkid                   [ label = "rpkid|{HTTPS server|HTTPS left-right client|CMS left-right}" ];
 #       irdbd                   [ label = "irdbd|{HTTPS left-right server|CMS left-right}" ];
 #       irbe                    [ label = "IRBE|{HTTPS left-right client|CMS left-right}" ];
@@ -1877,25 +1877,112 @@
 #
 # Black objects belong to the hosting entity, blue objects belong to
 # the hosted entities, red objects are cross-certified objects from
-# peers.  The arrows indicate certificate issuance: solid arrows are
-# the ones that this RPKI engine will care about during certificate
-# validation, dotted arrows show the origin of EE certificates this
-# engine uses to sign things.
+# the hosted entities' peers.  The arrows indicate certificate
+# issuance: solid arrows are the ones that rpkid will care about
+# during certificate validation, dotted arrows show the origin of the
+# EE certificates that rpkid uses to sign CMS and TLS messages.
 #
-# There's one nasty bit here: it's not possible to use exactly the
-# same BPKI keys and certificates for HTTPS and CMS.  The reason for
-# this is simple: each hosted entity has its own BPKI, as does the
+# There's one nasty bit where the model had to bend to fit the current
+# state of the underlying protocols: it's not possible to use exactly
+# the same BPKI keys and certificates for HTTPS and CMS.  The reason
+# for this is simple: each hosted entity has its own BPKI, as does the
 # hosting entity, but the HTTPS listener is shared.  The only ways to
-# avoid this would be to use separate listeners for each hosted
-# entity, which scales poorly, or to rely on the TLS "Server Name
-# Indication" extension (RFC 4366 3.1) which is not yet widely
-# implemented.
+# avoid sharing the HTTPS server certificate would be to use separate
+# listeners for each hosted entity, which scales poorly, or to rely on
+# the TLS "Server Name Indication" extension (RFC 4366 3.1) which is
+# not yet widely implemented.
 #
 # The certificate tree looks complicated, but the set of certificates
-# needed to build a particular validation chain is obvious, again
-# excepting the HTTPS server case, where client certificate is the
+# needed to build any particular validation chain is obvious, again
+# excepting the HTTPS server case, where the client certificate is the
 # first hint that the engine has of the client's identity, so the
 # server must be prepared to accept any current client certificate.
+#
+# Detailed instructions on how to build a BPKI are beyond the scope of
+# this document, but one can handle simple cases using the OpenSSL
+# command line tool and cross_certify.py; the latter is a tool
+# designed specifically for the purpose of generating the
+# cross-certification certificates needed to splice foreign trust
+# material into a BPKI tree.
+#
+# The BPKI tree for a pubd instance is similar to to the BPKI tree for
+# an rpkid instance, but is a bit simpler, as pubd does not provide
+# hosting in the same sense that rpkid does: pubd is a relatively
+# simple server that publishes objects as instructed by its clients.
+#
+# Here's a simplified picture of what the BPKI might look like for a
+# pubd operator that serves two clients, "Alice" and "Bob":
+#
+# @dot
+# // Color code:
+# //   Black:   Operating entity
+# //   Red:     Cross-certified client
+# //
+# // Shape code:
+# //   Octagon: TA
+# //   Diamond: CA
+# //   Record:  EE
+# 
+# digraph bpki_pubd {
+#       splines = true;
+#       size = "14,14";
+# 
+#       // Operating entity
+#       node                    [ color = black, fontcolor = black, shape = record ];
+#       TA                      [ shape = octagon, label = "BPKI TA" ];
+#       pubd                    [ label = "pubd|{HTTPS server|CMS}" ];
+#       ctl                     [ label = "Control|{HTTPS client|CMS}" ];
+# 
+#       // Clients
+#       node                    [ color = red, fontcolor = red, shape = diamond ];
+#       Alice_CA;
+#       Bob_CA;
+#       node                    [ color = red, fontcolor = red, shape = record ];
+#       Alice_EE                [ label = "Alice\nEE|{HTTPS up-down|CMS up-down}" ];
+#       Bob_EE                  [ label = "Bob\nEE|{HTTPS up-down|CMS up-down}" ];
+# 
+#       edge                    [ color = black, style = dotted ];
+#       TA -> pubd;
+#       TA -> ctl;
+#
+#       edge                    [ color = black, style = solid ];
+#       TA -> Alice_CA;
+#       TA -> Bob_CA;
+#
+#       edge                    [ color = red, style = solid ];
+#       Alice_CA -> Alice_EE;
+#       Bob_CA -> Bob_EE;
+# }
+# @enddot
+#
+# While it is likely that RIRs (at least) will operate both rpkid and
+# pubd instances, the two functions are conceptually separate.  As far
+# as pubd is concerned, it doesn't matter who operates the rpkid
+# instance: pubd just has clients, each of which has trust material
+# that has been cross-certified into pubd's BPKI.  Similarly, rpkid
+# doesn't really care who operates a pubd instance that it's been
+# configured to use, it just treats that pubd as a foreign BPKI whose
+# trust material has to be cross-certified into its own BPKI.  Cross
+# certification itself is done by the back end operator, using
+# cross_certify or some equivalent tool; the resulting BPKI
+# certificates are configured into rpkid and pubd via the left-right
+# protocol and the control subprotocol of the publication protocol,
+# respectively.
+#
+# Because the BPKI tree is almost entirely controlled by the operating
+# entity, CRLs are not necessary for most of the BPKI.  The one
+# exception to this is the EE certificates issued under the
+# cross-certification points.  These EE certificates are generated by
+# the peer, not the local operator, and thus require CRLs.  Because of
+# this, both rpkid and pubd require regular updates of certain BPKI
+# CRLs, again via the left-right and publication control protocols.
+#
+# Because the left-right protocol and the publication control
+# subprotocol are used to configure BPKI certificates and CRLs, they
+# cannot themselves use certificates and CRLs configured in this way.
+# This is why the configuration files for rpkid and pubd require
+# static configuration of the left-right and publication control
+# certificates.
 
 # Local Variables:
 # compile-command: "cd .. && make doc"

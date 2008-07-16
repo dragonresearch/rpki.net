@@ -222,7 +222,7 @@ class self_elt(data_elt):
           if now > ca_detail.latest_crl.getNextUpdate():
             ca_detail.delete(ca, repository)
         ca_detail = ca.fetch_active()
-        if now > ca_detail.latest_crl.getNextUpdate():
+        if ca_detail is not None and now > ca_detail.latest_crl.getNextUpdate():
           ca_detail.generate_crl()
           ca_detail.generate_manifest()
 

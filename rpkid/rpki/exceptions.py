@@ -127,3 +127,6 @@ class CMSCRLNotSet(RPKI_Exception):
 
 class ServerShuttingDown(RPKI_Exception):
   """Server is shutting down."""
+
+class NoActiveCA(RPKI_Exception):
+  """No active ca_detail for specified class."""

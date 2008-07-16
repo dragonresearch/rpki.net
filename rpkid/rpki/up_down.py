@@ -277,9 +277,11 @@ class issue_pdu(base_elt):
       raise rpki.exceptions.NotImplementedYet, "req_* attributes not implemented yet, sorry"
 
     # Check the request
+    self.pkcs10.check_valid_rpki()
     ca = child.ca_from_class_name(self.class_name)
     ca_detail = ca.fetch_active()
-    self.pkcs10.check_valid_rpki()
+    if ca_detail is None:
+      raise rpki.exceptions.NoActiveCA, "No active CA for class %s" % self.class_name
 
     # Check current cert, if any
 

@@ -230,6 +230,11 @@ class ca_obj(rpki.sql.sql_persistant):
 
       ski = ca_detail.latest_ca_cert.get_SKI()
 
+      if ski not in cert_map:
+        rpki.log.warn("Certificate in database missing from list_response, SKI %s, this should never happen" % ":".join(("%02X" % ord(i) for i in ski)))
+        ca_detail.delete(self, parent.repository())
+        continue
+
       if ca_detail.state in ("pending", "active"):
         current_resources = ca_detail.latest_ca_cert.get_3779resources()
         if sia_uri_changed or \
@@ -243,10 +248,7 @@ class ca_obj(rpki.sql.sql_persistant):
             sia_uri_changed  = sia_uri_changed,
             old_resources    = current_resources)
 
-      if ski in cert_map:
-        del cert_map[ski]
-      else:
-        rpki.log.warn("Certificate in database missing from list_response, SKI %s, this should never happen" % ":".join(("%02X" % ord(i) for i in ski)))
+      del cert_map[ski]
 
     if cert_map:
       rpki.log.warn("Certificates in list_response missing from our database, SKIs %s" % ", ".join(c.cert.hSKI() for c in cert_map.values()))
@@ -286,7 +288,7 @@ class ca_obj(rpki.sql.sql_persistant):
 
     repository = parent.repository()
     for ca_detail in self.ca_details():
-      ca_detail.delete(ca, repository)
+      ca_detail.delete(self, repository)
     self.sql_delete()
 
   def next_serial_number(self):
@@ -421,7 +423,7 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     for route_origin in self.route_origins():
       route_origin.withdraw_roa()
     repository.withdraw(self.latest_manifest, self.manifest_uri(ca))
-    repository.withdraw(self.latest_crl, self.crl_uri())
+    repository.withdraw(self.latest_crl, self.crl_uri(ca))
     self.sql_delete()
 
   def revoke(self):

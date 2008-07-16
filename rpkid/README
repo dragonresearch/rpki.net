@@ -140,7 +140,8 @@ TO DO:
 
       - Clean up rootd.py to be usable in a production system. Most
 	urgent issue is handling of private keys. May not need much
-	else, as this is not a high-traffic server.
+	else, as this is not a high-traffic server, but probably
+	should use publication protocol.
 
 	PRIORITY: Highly desirable (not strictly needed for pilot testing)
 

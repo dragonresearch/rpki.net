@@ -723,10 +723,16 @@ class allocation(object):
                       msg          = "Run cron now, please")
 
   def run_yaml(self):
-    """Run YAML scripts for this leaf entity."""
+    """Run YAML scripts for this leaf entity.  Since we're not
+    bothering to check the class list returned by the list command,
+    the issue command may fail, so we treat failure of the list
+    command as an error, but only issue a warning when issue fails.
+    """
+
     rpki.log.info("Running YAML for %s" % self.name)
     subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "list"))
-    subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "issue"))
+    if subprocess.call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "issue")) != 0:
+      rpki.log.warn("YAML issue command failed for %s, continuing" % self.name)
 
 def setup_bpki_cert_chain(name, ee = (), ca = ()):
   """Build a set of BPKI certificates."""

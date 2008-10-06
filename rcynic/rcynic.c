@@ -1947,7 +1947,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   }
 
   if (manifest->version) {
-    logmsg(rc, log_data_err, "Manifest %s version should be defaulted zero, not %ld", ASN1_INTEGER_get(manifest->version));
+    logmsg(rc, log_data_err, "Manifest %s version should be defaulted zero, not %ld", uri, ASN1_INTEGER_get(manifest->version));
     mib_increment(rc, uri, manifest_wrong_version);
     goto done;
   }

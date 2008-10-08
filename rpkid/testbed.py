@@ -989,11 +989,11 @@ https-url       = https://localhost:%(irdb_port)d/
 
 [irbe_cli]
 
-bpki-ta         = %(my_name)s-TA.cer
+rpkid-bpki-ta   = %(my_name)s-TA.cer
 rpkid-cert      = %(my_name)s-RPKI.cer
-irbe-cert       = %(my_name)s-IRBE.cer
-irbe-key        = %(my_name)s-IRBE.key
-https-url       = https://localhost:%(rpki_port)d/left-right
+rpkid-irbe-cert = %(my_name)s-IRBE.cer
+rpkid-irbe-key  = %(my_name)s-IRBE.key
+rpkid-url       = https://localhost:%(rpki_port)d/left-right
 
 [rpkid]
 

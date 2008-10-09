@@ -1814,6 +1814,7 @@
 # digraph bpki_rpkid {
 #       splines = true;
 #       size = "14,14";
+#       node                    [ fontname = Times, fontsize = 9 ];
 # 
 #       // Hosting entity
 #       node                    [ color = black, shape = record ];
@@ -1927,6 +1928,7 @@
 # digraph bpki_pubd {
 #       splines = true;
 #       size = "14,14";
+#       node                    [ fontname = Times, fontsize = 9 ];
 # 
 #       // Operating entity
 #       node                    [ color = black, fontcolor = black, shape = record ];

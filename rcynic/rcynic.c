@@ -245,10 +245,12 @@ static const long mib_counter_openssl[] = { MIB_COUNTERS 0 };
  * Per-host MIB counter object.
  * hostname[] must be first element.
  */
-typedef struct host_counter {
+typedef struct host_mib_counter {
   char hostname[URI_MAX];
   unsigned long counters[MIB_COUNTER_T_MAX];
-} host_mib_counter_t;
+} HOST_MIB_COUNTER;
+
+DECLARE_STACK_OF(HOST_MIB_COUNTER)
 
 /**
  * Structure to hold data parsed out of a certificate.
@@ -264,7 +266,8 @@ typedef struct certinfo {
 typedef struct rcynic_ctx {
   char *authenticated, *old_authenticated, *unauthenticated;
   char *jane, *rsync_program;
-  STACK *rsync_cache, *host_counters, *backup_cache;
+  STACK_OF(STRING) *rsync_cache, *backup_cache;
+  STACK_OF(HOST_MIB_COUNTER) *host_counters;
   int indent, use_syslog, allow_stale_crl, allow_stale_manifest, use_links;
   int require_crl_in_manifest, rsync_timeout, priority[LOG_LEVEL_T_MAX];
   int allow_non_self_signed_trust_anchor;
@@ -324,6 +327,68 @@ static const unsigned char id_sha256[] =
  * X509_VERIFY_PARAM_add0_policy().
  */
 static const char rpki_policy_oid[] = "1.3.6.1.5.5.7.14.2";
+
+/**
+ * Missing definition that should have been in safestack.h.
+ */
+#ifndef sk_STRING_delete
+#define sk_STRING_delete(st, i) SKM_sk_delete(STRING, (st), (i))
+#endif
+
+
+
+/**
+ * Type-safe wrapper around free() to keep safestack macros happy.
+ */
+static void STRING_free(STRING s)
+{
+  free(s);
+}
+
+/**
+ * Allocate a new HOST_MIB_COUNTER object.
+ */
+static HOST_MIB_COUNTER *HOST_MIB_COUNTER_new(void)
+{
+  HOST_MIB_COUNTER *h = malloc(sizeof(*h));
+  if (h)
+    memset(h, 0, sizeof(*h));
+  return h;
+}
+
+/**
+ * Type-safe wrapper around free() to keep safestack macros happy.
+ */
+static void HOST_MIB_COUNTER_free(HOST_MIB_COUNTER *h)
+{
+  free(h);
+}
+
+/*
+ * Safestack macros for HOST_MIB_COUNTER.
+ */
+
+#define sk_HOST_MIB_COUNTER_new(st)			SKM_sk_new(HOST_MIB_COUNTER, (st))
+#define sk_HOST_MIB_COUNTER_new_null()			SKM_sk_new_null(HOST_MIB_COUNTER)
+#define sk_HOST_MIB_COUNTER_free(st)			SKM_sk_free(HOST_MIB_COUNTER, (st))
+#define sk_HOST_MIB_COUNTER_num(st)			SKM_sk_num(HOST_MIB_COUNTER, (st))
+#define sk_HOST_MIB_COUNTER_value(st, i)		SKM_sk_value(HOST_MIB_COUNTER, (st), (i))
+#define sk_HOST_MIB_COUNTER_set(st, i, val)		SKM_sk_set(HOST_MIB_COUNTER, (st), (i), (val))
+#define sk_HOST_MIB_COUNTER_zero(st)			SKM_sk_zero(HOST_MIB_COUNTER, (st))
+#define sk_HOST_MIB_COUNTER_push(st, val)		SKM_sk_push(HOST_MIB_COUNTER, (st), (val))
+#define sk_HOST_MIB_COUNTER_unshift(st, val)		SKM_sk_unshift(HOST_MIB_COUNTER, (st), (val))
+#define sk_HOST_MIB_COUNTER_find(st, val)		SKM_sk_find(HOST_MIB_COUNTER, (st), (val))
+#define sk_HOST_MIB_COUNTER_find_ex(st, val)		SKM_sk_find_ex(HOST_MIB_COUNTER, (st), (val))
+#define sk_HOST_MIB_COUNTER_delete(st, i)		SKM_sk_delete(HOST_MIB_COUNTER, (st), (i))
+#define sk_HOST_MIB_COUNTER_delete_ptr(st, ptr)		SKM_sk_delete_ptr(HOST_MIB_COUNTER, (st), (ptr))
+#define sk_HOST_MIB_COUNTER_insert(st, val, i)		SKM_sk_insert(HOST_MIB_COUNTER, (st), (val), (i))
+#define sk_HOST_MIB_COUNTER_set_cmp_func(st, cmp)	SKM_sk_set_cmp_func(HOST_MIB_COUNTER, (st), (cmp))
+#define sk_HOST_MIB_COUNTER_dup(st)			SKM_sk_dup(HOST_MIB_COUNTER, st)
+#define sk_HOST_MIB_COUNTER_pop_free(st, free_func)	SKM_sk_pop_free(HOST_MIB_COUNTER, (st), (free_func))
+#define sk_HOST_MIB_COUNTER_shift(st)			SKM_sk_shift(HOST_MIB_COUNTER, (st))
+#define sk_HOST_MIB_COUNTER_pop(st)			SKM_sk_pop(HOST_MIB_COUNTER, (st))
+#define sk_HOST_MIB_COUNTER_sort(st)			SKM_sk_sort(HOST_MIB_COUNTER, (st))
+#define sk_HOST_MIB_COUNTER_is_sorted(st)		SKM_sk_is_sorted(HOST_MIB_COUNTER, (st))
 
 
 
@@ -655,11 +720,11 @@ static int mkdir_maybe(const rcynic_ctx_t *rc, const char *name)
 /**
  * strdup() a string and push it onto a stack.
  */
-static int sk_push_strdup(STACK *sk, const char *str)
+static int sk_STRING_push_strdup(STACK_OF(STRING) *sk, const char *str)
 {
   char *s = strdup(str);
 
-  if (s && sk_push(sk, s))
+  if (s && sk_STRING_push(sk, s))
     return 1;
   if (s)
     free(s);
@@ -735,16 +800,11 @@ static int oid_cmp(const ASN1_OBJECT *obj, const unsigned char *oid, const size_
 }
 
 /**
- * Host MIB counter comparision.  This relies on hostname[] being the
- * first element of a host_mib_counter_t, hence the (unreadable, but
- * correct ANSI/ISO C) assertion.  Given all the icky casts involved
- * in using the raw stack functions, anything else we do here would be
- * more complicated without being significantly safer.
+ * Host MIB counter comparision.
  */
-static int host_counter_cmp(const char * const *a, const char * const *b)
+static int host_mib_counter_cmp(const HOST_MIB_COUNTER * const *a, const HOST_MIB_COUNTER * const *b)
 {
-  assert(!&((host_mib_counter_t*)0)->hostname);
-  return strcasecmp(*a, *b);
+  return strcasecmp((*a)->hostname, (*b)->hostname);
 }
 
 /**
@@ -754,8 +814,7 @@ static void mib_increment(const rcynic_ctx_t *rc,
 			  const char *uri,
 			  const mib_counter_t counter)
 {
-  host_mib_counter_t *h = NULL;
-  char hostname[URI_MAX];
+  HOST_MIB_COUNTER *h = NULL, hn;
   char *s;
 
   assert(rc && uri);
@@ -763,23 +822,26 @@ static void mib_increment(const rcynic_ctx_t *rc,
   if (!rc->host_counters)
     return;
 
-  if (!uri_to_filename(uri, hostname, sizeof(hostname), NULL)) {
+  memset(&hn, 0, sizeof(hn));
+
+  if (!uri_to_filename(uri, hn.hostname, sizeof(hn.hostname), NULL)) {
     logmsg(rc, log_data_err, "Couldn't convert URI %s to hostname", uri);
     return;
   }
 
-  if ((s = strchr(hostname, '/')) != NULL)
+  if ((s = strchr(hn.hostname, '/')) != NULL)
     *s = '\0';
 
-  if ((h = (void *) sk_value(rc->host_counters,
-			     sk_find(rc->host_counters, hostname))) == NULL) {
-    if ((h = malloc(sizeof(*h))) == NULL) {
+  h = sk_HOST_MIB_COUNTER_value(rc->host_counters,
+				sk_HOST_MIB_COUNTER_find(rc->host_counters,
+							 &hn));
+  if (!h) {
+    if ((h = HOST_MIB_COUNTER_new()) == NULL) {
       logmsg(rc, log_sys_err, "Couldn't allocate MIB counters for %s", uri);
       return;
     }
-    memset(h, 0, sizeof(*h));
-    strcpy(h->hostname, hostname);
-    if (!sk_push(rc->host_counters, (void *) h)) {
+    strcpy(h->hostname, hn.hostname);
+    if (!sk_HOST_MIB_COUNTER_push(rc->host_counters, h)) {
       logmsg(rc, log_sys_err, "Couldn't store MIB counters for %s", uri);
       free(h);
       return;
@@ -997,7 +1059,7 @@ static int rsync_cached(const rcynic_ctx_t *rc,
   strcpy(buffer, uri);
   if ((s = strrchr(buffer, '/')) != NULL && s[1] == '\0')
     *s = '\0';
-  while (sk_find(rc->rsync_cache, buffer) < 0) {
+  while (sk_STRING_find(rc->rsync_cache, buffer) < 0) {
     if ((s = strrchr(buffer, '/')) == NULL)
       return 0;
     *s = '\0';
@@ -1204,7 +1266,7 @@ static int rsync(const rcynic_ctx_t *rc,
   strcpy(buffer, uri + SIZEOF_RSYNC);
   if ((s = strrchr(buffer, '/')) != NULL && s[1] == '\0')
     *s = '\0';
-  if (!sk_push_strdup(rc->rsync_cache, buffer))
+  if (!sk_STRING_push_strdup(rc->rsync_cache, buffer))
     logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri);
 
   return ret;
@@ -1847,7 +1909,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 
   if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) && 
       !access(path, R_OK)) {
-    if (backup || sk_find(rc->backup_cache, uri) < 0)
+    if (backup || sk_STRING_find(rc->backup_cache, uri) < 0)
       return NULL;
     mib_increment(rc, uri, current_cert_recheck);
     logmsg(rc, log_telemetry, "Rechecking cert %s", uri);
@@ -1863,8 +1925,8 @@ static X509 *check_cert(rcynic_ctx_t *rc,
     mib_increment(rc, uri,
 		  (backup ? backup_cert_accepted : current_cert_accepted));
     if (!backup)
-      sk_delete(rc->backup_cache, sk_find(rc->backup_cache, uri));
-    else if (!sk_push_strdup(rc->backup_cache, uri))
+      sk_STRING_delete(rc->backup_cache, sk_STRING_find(rc->backup_cache, uri));
+    else if (!sk_STRING_push_strdup(rc->backup_cache, uri))
       logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri);
       
   } else if (!access(path, F_OK)) {
@@ -2628,18 +2690,18 @@ int main(int argc, char *argv[])
 
   }
 
-  if ((rc.rsync_cache = sk_new(uri_cmp)) == NULL) {
+  if ((rc.rsync_cache = sk_STRING_new(uri_cmp)) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate rsync_cache stack");
     goto done;
   }
 
-  if ((rc.backup_cache = sk_new(uri_cmp)) == NULL) {
+  if ((rc.backup_cache = sk_STRING_new(uri_cmp)) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate backup_cache stack");
     goto done;
   }
 
-  if ((xmlfile) &&
-      (rc.host_counters = sk_new(host_counter_cmp)) == NULL) {
+  if ((xmlfile != NULL) &&
+      (rc.host_counters = sk_HOST_MIB_COUNTER_new(host_mib_counter_cmp)) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate host_counters stack");
     goto done;
   }
@@ -2826,7 +2888,7 @@ int main(int argc, char *argv[])
  done:
   log_openssl_errors(&rc);
 
-  if (sk_num(rc.host_counters) > 0) {
+  if (sk_HOST_MIB_COUNTER_num(rc.host_counters) > 0) {
 
     char tad[sizeof("2006-10-13T11:22:33Z") + 1];
     char hostname[HOST_NAME_MAX];
@@ -2866,8 +2928,8 @@ int main(int argc, char *argv[])
     if (ok)
       ok &= fprintf(f, "  </labels>\n") != EOF;
 
-    for (i = 0; ok && i < sk_num(rc.host_counters); i++) {
-      host_mib_counter_t *h = (void *) sk_value(rc.host_counters, i);
+    for (i = 0; ok && i < sk_HOST_MIB_COUNTER_num(rc.host_counters); i++) {
+      HOST_MIB_COUNTER *h = sk_HOST_MIB_COUNTER_value(rc.host_counters, i);
       assert(h);
 
       if (ok)
@@ -2898,9 +2960,9 @@ int main(int argc, char *argv[])
    * Do NOT free cfg_section, NCONF_free() takes care of that
    */
   sk_X509_pop_free(certs, X509_free);
-  sk_pop_free(rc.rsync_cache, free);
-  sk_pop_free(rc.backup_cache, free);
-  sk_pop_free(rc.host_counters, free);
+  sk_STRING_pop_free(rc.rsync_cache, STRING_free);
+  sk_STRING_pop_free(rc.backup_cache, STRING_free);
+  sk_HOST_MIB_COUNTER_pop_free(rc.host_counters, HOST_MIB_COUNTER_free);
   X509_STORE_free(rc.x509_store);
   NCONF_free(cfg_handle);
   CONF_modules_free();

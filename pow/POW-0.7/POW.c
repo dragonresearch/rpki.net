@@ -699,7 +699,7 @@ error:
 }
 
 static PyObject *
-stack_to_tuple_helper(STACK *sk, PyObject *(*handler)(void *))
+stack_to_tuple_helper(_STACK *sk, PyObject *(*handler)(void *))
 {
    PyObject *result_list = NULL, *result_tuple = NULL, *obj = NULL;
    int n, i;
@@ -7289,7 +7289,8 @@ CMS_object_certs(cms_object *self, PyObject *args)
       goto error;
 
    if ((certs = CMS_get1_certs(self->cms)) != NULL)
-      result = stack_to_tuple_helper(certs, cms_object_helper_get_cert);
+      result = stack_to_tuple_helper(CHECKED_PTR_OF(STACK_OF(X509), certs),
+                                     cms_object_helper_get_cert);
    else if (!ERR_peek_error())
       result = Py_BuildValue("()");
    else
@@ -7338,7 +7339,8 @@ CMS_object_crls(cms_object *self, PyObject *args)
       goto error;
 
    if ((crls = CMS_get1_crls(self->cms)) != NULL)
-      result = stack_to_tuple_helper(crls, cms_object_helper_get_crl);
+      result = stack_to_tuple_helper(CHECKED_PTR_OF(STACK_OF(X509_CRL), crls),
+                                     cms_object_helper_get_crl);
    else if (!ERR_peek_error())
       result = Py_BuildValue("()");
    else

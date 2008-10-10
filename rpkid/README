@@ -13,19 +13,158 @@ $Revision$
 
 TO DO:
 
-      - rcynic handling of RPKI trust anchors may need updating, per
-	discussions over previous months of how RPKI trust anchors
-	work, how we package them, and how we roll them over.  Current
-	code supports local file and RIPE key+URI methods, as these
-	were trivial to implement and needed no coordinated action.
-	May need to revisit this depending on subsequent discussions.
 
-	PRIORITY: Required
+      * Make rpkid fully event-driven (async tasking model), except for SQL
+	queries. This may involve the "twisted" framework.
 
-	STATUS: Local file and RIPE key+URI methods implemented.
+	TIME REQUIRED: Two weeks.
 
+	STATUS: Not started
 
-      - Publication protocol ACL checking may need revisiting.  Tricky
+      * Error handling: make sure that exceptions map correctly to up-down error
+	codes, flesh out left-right error codes. Note that the same exception may
+	produce different error codes depending on which up-down PDU we're
+	processing (sigh).
+
+	Will require code audit for coherency, which is most of the work.
+
+	TIME REQUIRED: Two weeks
+
+	DEPENDS ON: almost everything else, as almost any code change can raise new
+	exceptions that we'd need to handle.
+
+	STATUS: Not started
+
+      * db.commit(), db.rollback(), code audit for data integrity issues, fix any
+	data integrity issues that turn up. Among other issues, need to handle loss
+	of connection to database server and other MySQL errors. Need to be careful
+	about recovery action depending on whether we had uncommitted changes.
+
+	TIME REQUIRED (commit and rollback): 3-4 weeks
+
+	TIME REQUIRED (data integrity audit): 1 week
+
+	TIME REQUIRED (fix data integrity): Unknown, depends on code audit and results
+	of runtime testing.
+
+	DEPENDS ON: async tasking model rollback.
+
+	STATUS: Not started
+
+      * Test framework for multiple self-instances per engine-instance (single
+	self-instance per engine-instance already done).
+
+	DEPENDS ON: Async tasking model.
+
+	TIME REQUIRED: One week
+
+	STATUS: Not started
+
+      * Current TLS code (tlslite) is flakey and slow.  Unless I can
+        find a good Python TLS interface that somebody else is
+        maintaining, best option would be to add TLS support to POW.
+
+	TIME REQUIRED: 3-4 weeks
+
+	DEPENDS ON: Async tasking model.
+
+	STATUS: Not started
+
+      * Resource subsetting (req_* attributes in up-down protocol), full
+        implementation.  Requires expanding SQL child_cert table to hold subset
+        masks and rewriting a fair amount of code.
+
+	TIME REQUIRED: 3-4 weeks
+
+	STATUS: Not started
+
+      * Performance testing.  Some very preliminary tests show a
+        hotspot in the TLS code, but further testing will be needed,
+        particularly after the async tasking model change.
+
+	STATUS: Barely started
+
+      * Clean up rootd.py to be usable in a production system.  Most
+	urgent issues are handling of private keys and publishing
+	outputs in pubd. May not need much else, as this is not a
+	high-traffic server.
+
+	TIME REQUIRED: One week
+
+	STATUS: Not started
+
+      * Update internals docs (Doxygen). Mostly this means updating
+	function comments in the Python code, as the rest is
+	automatic.  May require a bit more overview text to explain
+	the workings and usage of the code.
+
+	TIME REQUIRED: One week.
+
+	STATUS: Ongoing
+
+      * Add HSM support. Architecture includes it, current code does
+	not.  First step here would be talking to somebody with strong
+	understanding of PKCS# 11.
+
+	TIME REQUIRED: Unknown
+
+	STATUS: Not started
+
+      * Installation packaging, so that rpkid can be built and installed like a
+	normal package.
+
+	TIME REQUIRED: One week, longer if installation for many platforms is
+	required
+
+	STATUS: Not started
+
+      * Tighten up syntax checking in left-right schema.
+
+	TIME REQUIRED: One day.
+
+	STATUS: Not started
+
+      * Rethink exposing SQL primary indices in protocols. Right now,
+	auto-incremented SQL indices are used in many places in the
+	left-right protocol, and are even exposed in a few places in
+	our implementation of the up-down protocol.  This is nicely
+	unique but may be operationally fragile, since up-down usage
+	means that URLs contain mechanically assigned identifiers
+	rather than an identifier negotiated between the two parties
+	during contract setup.
+
+	Review by RIPE NCC staff suggested that we should instead use
+	something like a hash of the client's name, which would be
+	probabilistically unique and would not expose information, but
+	would be stable even if we had to rebuild the database.
+
+	TIME REQUIRED: One week to evaluate. Implementation time if we decide to make a
+	change unknown, but probably on the order of another week.
+
+	STATUS: Not started
+
+      * IETF SIDR WG is still talking about ROAs with multiple
+	signatures. No obvious need for this but IETF may mandate it
+	anyway.  Full implementation would require significant work
+	revising current SQL table relations and upgrading CMS
+	support, and would also require nontrivial rewrite of rcynic.
+
+	TIME REQUIRED: Unknown
+
+	STATUS: Not started
+
+      * rcynic handling of RPKI trust anchors does not yet match most
+        recent agreement by design team.  Currently waiting for an OID
+        assignment for the CMS-wrapped indirection format that the
+        design team settled on.
+
+	TIME REQUIRED: Three days
+
+	DEPENDS ON: OID assignment
+
+	STATUS: Not started
+
+      * Publication protocol ACL checking may need revisiting.  Tricky
         bit is making sure that repository receives enough information
         to know whether parent has authorized child to use parent's
         namespace in nesting case; in theory this is straightforward
@@ -35,228 +174,9 @@ TO DO:
         Class and method design is intended to make it easy to drop in
         additional checks if needed.
 
-	PRIORITY: Required
-
 	STATUS: Trivial version (required path check) done.
 
-
-      - Make rpkid fully event-driven (async tasking model), except
-	for SQL queries. This probably involves the "twisted"
-	framework.
-
-	PRIORITY: Required (to implement scalable hosting model)
-
-	TIME REQUIRED: Two weeks.
-
-	STATUS: Not started
-
-
-      - Error handling: make sure that exceptions map correctly to
-	up-down error codes, flesh out left-right error codes. Note
-	that the same exception may produce different error codes
-	depending on which up-down PDU we're processing (sigh).
-
-	Will require code audit for coherency, which is most of the work.
-
-	PRIORITY: Required
-
-	TIME REQUIRED: Two weeks
-
-	DEPENDS ON: almost everything else, as almost any code change
-	can raise new exceptions that we'd need to handle.
-
-	STATUS: Not started
-
-
-      - db.commit(), db.rollback(), code audit for data integrity
-	issues, fix any data integrity issues that turn up. Among
-	other issues, need to handle loss of connection to database
-	server and other MySQL errors. Need to be careful about
-	recovery action depending on whether we had uncommitted
-	changes.
-
-	PRIORITY: Required
-
-	TIME REQUIRED (commit and rollback): 3-4 weeks
-
-	TIME REQUIRED (data integrity audit): 1 week
-
-	TIME REQUIRED (fix data integrity): Unknown, depends on code
-	audit and results of runtime testing.
-
-	DEPENDS ON: async tasking model rollback.
-
-	STATUS: Not started
-
-
-      - Test framework for multiple self-instances per engine-instance
-	(single self-instance per engine-instance is already done).
-
-	PRIORITY: Required for testing
-
-	DEPENDS ON: Async tasking model.
-
-	TIME REQUIRED: One week
-
-	STATUS: Not started
-
-
-      - Current TLS code (tlslite) appeared to be flakey under heavy
-	use back in November, and doesn't support all the required
-	certificate checks out of the box.
-
-	Certificate checker has now been replaced with something based
-	on OpenSSL/POW, and the result seems to work.  If the TLS code
-	itself is still unstable, best bet would be to replace it with
-	a Tls class cloned from the existing POW Ssl class; the
-	current Ssl class isn't adaquate either, but there's
-	documentation (eg, the O'Reilly OpenSSL book) that explains in
-	some detail what this code would need to do.
-
-	PRIORITY: Required for pilot (cert checking is a security issue).
-
-	TIME REQUIRED: 3-4 weeks
-
-	DEPENDS ON: Async tasking model.
-
-	STATUS: Not started
-
-
-      - Resource subsetting (req_* attributes in up-down protocol),
-        full implementation.  Requires expanding SQL child_cert table
-        to hold subset masks and rewriting a fair amount of code.
-
-	PRIORITY: Required for full implementation.
-
-	TIME REQUIRED: 3-4 weeks
-
-	STATUS: Not started
-
-
-      - Performance testing
-
-	STATUS: Not started
-
-
-      - Clean up rootd.py to be usable in a production system. Most
-	urgent issue is handling of private keys. May not need much
-	else, as this is not a high-traffic server, but probably
-	should use publication protocol.
-
-	PRIORITY: Highly desirable (not strictly needed for pilot testing)
-
-	TIME REQUIRED: One week
-
-	STATUS: Not started
-
-
-      - Update internals docs (Doxygen). Mostly this means updating
-	function comments in the Python code, as the rest is
-	automatic. May require a bit of overview text to explain the
-	workings of the code, this overview text may well turn out to
-	be just the current flat text documents marked up for
-	inclusion by Doxygen.
-
-	PRIORITY: Desirable
-
-	TIME REQUIRED: One week.
-
-	STATUS: Ongoing
-
-
-      - Reorganize code (directory names, module names, which objects
-	are in which modules, add gctx pointers to objects to avoid
-	passing explicit gctx pointers in almost every function call)
-	to make it easier to understand and maintain. Portions of the
-	existing code were done in extreme haste to meet testing
-	deadlines, and it shows.
-
-	PRIORITY: Highly desirable
-
-	TIME REQUIRED: One week.
-
-	STATUS: Explicit gctx eradication done; much file renaming done; other
-	stuff not started.
-
-
-      - Add HSM support. Architecture includes it, current code does not. First
-	step here would be talking to somebody with strong understanding of PKCS#
-	11.
-
-	PRIORITY: Desirable, not required for pilot
-
-	TIME REQUIRED: Unknown
-
-	STATUS: Not started
-
-
-      - Installation packaging, so that rpkid can be built and
-	installed like a normal package.
-
-	PRIORITY: Desirable
-
-	TIME REQUIRED: One week, longer if installation for many
-	platforms is required
-
-	STATUS: Not started
-
-
-      - Tighten up syntax checking in left-right schema.
-
-	PRIORITY: Desirable
-
-	TIME REQUIRED: One day.
-
-	STATUS: Not started
-
-
-      - Rethink exposing SQL primary indices in protocols. Right now,
-	auto-incremented SQL indices are used in many places in the
-	left-right protocol, and are even exposed in a few places in
-	our implementation of the up-down protocol. This is nice and
-	unique but may be operationally fragile, since up-down usage
-	means that URLs contain mechanically assigned identifiers
-	rather than an identifier negotiated between the two parties
-	during contract setup.
-
-	The RIPE NCC suggested that we should instead use something
-	like a hash of the client's name, which would be
-	probabilistically unique, would not expose information, but
-	would be stable even if we had to rebuild the database.
-
-	PRIORITY: Rethinking desirable; reworking unknown
-
-	TIME REQUIRED: One week to evaluate. Implementation time if we
-	decide to make a change unknown, but probably on the order of
-	another week.
-
-	STATUS: Not started
-
-
-      - Common protocol dump format with APNIC and other implementors so we can
-	exchange protocol dumps.
-
-	PRIORITY: Desirable
-
-	TIME REQUIRED: Two days
-
-	STATUS: Not started
-
-
-      - IETF SIDR WG is still talking about ROAs with multiple
-	signatures. No obvious need for this but IETF may mandate it
-	anyway. Full implementation would require significant work
-	revising current SQL table relations and upgrading CMS
-	support.
-
-	PRIORITY: Minimal, IETF feeping creaturism
-
-	TIME REQUIRED: Unknown
-
-	STATUS: Not started
-
-
-      - Deaddrop of incoming messages, for audit.  Absent a better
+      * Deaddrop of incoming messages, for audit.  Absent a better
         theory, steal existing tech for this: preface with minimal RFC
         2822 header and drop it into a Maildir folder using built-in
         Python Maildir library code, at which point it becomes soebody
@@ -264,10 +184,50 @@ TO DO:
 
 	STATUS: Not started
 
-	PRIORITY: Desirable, trivial to implement.
-
-      - Investigate using EKU (RFC 3280 4.2.1.13) as an alternative to
+      * Investigate using EKU (RFC 3280 4.2.1.13) as an alternative to
         wiring in BPKI EE certs for left-right protocol.
+
+	STATUS: Not started
+
+      * Rethink current ROA generation scheme: why are we pushing
+        <route_origin/> objects into rpkid instead of letting rpkid
+        pull data from irdbd as it does for resources?  Is there a
+        better way to represent proto-ROA data in SQL so that we can
+        query directly for the resources we need (NB: this might
+        require rethinking other rpkid SQL tables)?
+
+	STATUS: Not started
+
+      * Really need scripts and better doc on BPKI setup.
+
+	TIME REQUIRED: One week
+
+	STATUS: Not started
+
+      * Testing of this by anybody but the author and a few friends is
+        going to require some kind of user interface.  Python based
+        web UI is probably the most cost effective approach, Django
+        might be a good base for this.  Some of the operations
+        suggested in an initial brainstorming session on this are
+        outside the scope of what rpkid currently knows how to do (eg,
+        signing S/MIME "please route" messages), so one of the tasks
+        here is to see if trying to write a user interface sheds light
+        on required features that are currently missing.
+
+	STATUS: Not started
+
+      * At present there is no mechanism by which an IRBE could
+        request signing of objects other than ROAs.  Eg, there has
+        been some discussion of signing S/MIME letters to humans
+        asking for routing, as an alternative to ROAs.  If we decide
+        to support this at all, it turns into a generalization of the
+        ROA problem, and suggests that perhaps ROA generation should
+        be handled somewhere outside of rpkid and only passed to rpkid
+        for signing.  This would be a significant change to the
+        architecture, as it would remove rpkid's responsibility for
+        keeping ROAs up to date.
+
+	STATUS: Not started
 
 
 

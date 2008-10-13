@@ -126,7 +126,7 @@ class resource_range_ip(resource_range):
     assert isinstance(address, cls.datum_type) and isinstance(prefixlen, (int, long))
     assert prefixlen >= 0 and prefixlen <= cls.datum_type.bits, "Nonsensical prefix length: %s" % prefixlen
     mask = (1 << (cls.datum_type.bits - prefixlen)) - 1
-    assert (address & mask) == 0, "Resource not in canonical form: %s/s" % (address, prefixlen)
+    assert (address & mask) == 0, "Resource not in canonical form: %s/%s" % (address, prefixlen)
     return cls(cls.datum_type(address), cls.datum_type(address | mask))
 
 class resource_range_ipv4(resource_range_ip):

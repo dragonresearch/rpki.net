@@ -418,7 +418,7 @@ class error_response_pdu(base_elt):
     if name == "status":
       code = int(text)
       if code not in self.codes:
-        raise rpki.exceptions.BadStatusCode, "%s is not a known status code"
+        raise rpki.exceptions.BadStatusCode, "%s is not a known status code" % code
       self.status = code
     elif name == "description":
       self.description = text

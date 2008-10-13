@@ -107,7 +107,7 @@ class issue_pdu(rpki.up_down.issue_pdu):
         thisUpdate          = now,
         nextUpdate          = now + rpki_subject_lifetime,
         revokedCertificates = ())
-      rpki.log.debug("Writing CRL %s" % rpki_root_dir + rpki_root_crl)
+      rpki.log.debug("Writing CRL %s" % (rpki_root_dir + rpki_root_crl))
       f = open(rpki_root_dir + rpki_root_crl, "wb")
       f.write(crl.get_DER())
       f.close()
@@ -133,7 +133,7 @@ class issue_pdu(rpki.up_down.issue_pdu):
         names_and_objs = [(rpki_subject_cert, subject_cert), (rpki_root_crl, crl)],
         keypair        = manifest_keypair,
         certs          = manifest_cert)
-      rpki.log.debug("Writing manifest %s" % rpki_root_dir + rpki_root_manifest)
+      rpki.log.debug("Writing manifest %s" % (rpki_root_dir + rpki_root_manifest))
       f = open(rpki_root_dir + rpki_root_manifest, "wb")
       f.write(manifest.get_DER())
       f.close()

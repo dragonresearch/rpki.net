@@ -54,7 +54,7 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant, left_right_name
     args = (getattr(self, self.sql_template.index), self.self_id)
     r = self.sql_fetch_where1(self.gctx, where, args)
     if r is None:
-      raise rpki.exceptions.NotFound, "Lookup failed where %s" + (where % args)
+      raise rpki.exceptions.NotFound, "Lookup failed where " + (where % args)
     return r
 
   def serve_fetch_all(self):

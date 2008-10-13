@@ -668,7 +668,7 @@ class CMS_object(DER_object):
       for x in certs:
         rpki.log.debug("Received CMS cert issuer %s subject %s" % (x.getIssuer(), x.getSubject()))
       for c in crls:
-        rpki.log.debug("Received CMS CRL issuer %s" % c.getIssuer())
+        rpki.log.debug("Received CMS CRL issuer %s" % repr(c.getIssuer()))
 
     store = POW.X509Store()
 

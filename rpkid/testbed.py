@@ -893,7 +893,7 @@ default_md              = sha256
 CN                      = Test Certificate %(name)s %(kind)s
 
 [ req_x509_ext ]
-basicConstraints        = CA:%(ca)s
+basicConstraints        = critical,CA:%(ca)s
 subjectKeyIdentifier    = hash
 authorityKeyIdentifier  = keyid:always
 
@@ -1046,7 +1046,7 @@ rpki-subject-cert       = Wombat.cer
 default_bits            = 2048
 encrypt_key             = no
 distinguished_name      = req_dn
-req_extensions          = req_x509_ext
+#req_extensions          = req_x509_ext
 prompt                  = no
 default_md              = sha256
 default_days            = 60
@@ -1057,10 +1057,20 @@ CN                      = Completely Bogus Test Root (NOT FOR PRODUCTION USE)
 [req_x509_ext]
 basicConstraints        = critical,CA:true
 subjectKeyIdentifier    = hash
+authorityKeyIdentifier  = keyid:always
+
+[req_x509_rpki_ext]
+basicConstraints        = critical,CA:true
+subjectKeyIdentifier    = hash
 keyUsage                = critical,keyCertSign,cRLSign
 subjectInfoAccess       = 1.3.6.1.5.5.7.48.5;URI:%(rootd_sia)s,1.3.6.1.5.5.7.48.10;URI:%(rootd_sia)sBandicoot.mnf
 sbgp-autonomousSysNum   = critical,AS:0-4294967295
 sbgp-ipAddrBlock        = critical,IPv4:0.0.0.0/0,IPv6:0::/0
+certificatePolicies     = critical, @rpki_certificate_policy
+
+[rpki_certificate_policy]
+
+policyIdentifier = 1.3.6.1.5.5.7.14.2
 '''
 
 rootd_fmt_2 = '''\
@@ -1069,8 +1079,8 @@ rootd_fmt_2 = '''\
 
 rootd_fmt_3 = '''\
 %(openssl)s rsa -pubout -outform DER -in %(rootd_name)s.key -out %(rootd_name)s.pkey  &&
-%(openssl)s req -new -sha256 -key %(rootd_name)s.key -out %(rootd_name)s.req -config %(rootd_name)s.conf -text &&
-%(openssl)s x509 -req -sha256 -in %(rootd_name)s.req -out %(rootd_name)s.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_ext \
+%(openssl)s req -new -sha256 -key %(rootd_name)s.key -out %(rootd_name)s.req -config %(rootd_name)s.conf -text -extensions req_x509_rpki_ext &&
+%(openssl)s x509 -req -sha256 -in %(rootd_name)s.req -out %(rootd_name)s.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_rpki_ext \
                       -signkey %(rootd_name)s.key &&
 ln -f %(rootd_name)s.cer  %(rsyncd_dir)s &&
 %(openssl)s x509 -req -sha256 -in %(rpkid_name)s-%(rpkid_tag)s.req -out %(rootd_name)s-%(rpkid_name)s.cer -extfile %(rootd_name)s.conf -extensions req_x509_ext -text \

@@ -11,6 +11,10 @@ class x509(object):
   ski = None
   aki = None
 
+  show_file = True
+  show_ski = False
+  show_aki = False
+
   def __init__(self, filename):
 
     self.filename = filename
@@ -41,7 +45,20 @@ class x509(object):
 
   def dot(self):
 
-    print '%s [shape = record, label = "{File %s|Issuer %s|Subject %s|AKI %s|SKI %s}"];' % (self.node, self.filename, self.issuer, self.subject, self.aki, self.ski)
+    s = '%s [shape = record, label = "{Issuer %s|Subject %s' % (self.node, self.issuer, self.subject)
+
+    if self.show_file:
+      s += '|File %s' % self.filename
+
+    if self.show_aki:
+      s += '|AKI %s' % self.aki
+
+    if self.show_ski:
+      s += '|SKI %s' % self.ski
+
+    s += '}"];'
+
+    print s
 
     issuer = subjects.get(self.issuer)
 

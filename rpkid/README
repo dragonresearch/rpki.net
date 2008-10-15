@@ -85,9 +85,9 @@ TO DO:
 	STATUS: Barely started
 
       * Clean up rootd.py to be usable in a production system.  Most
-	urgent issues are handling of private keys and publishing
-	outputs in pubd. May not need much else, as this is not a
-	high-traffic server.
+	urgent issues are handling of private keys, publishing outputs
+	in pubd, and reissuing when details or keys change. May not
+	need much else, as this is not a high-traffic server.
 
 	TIME REQUIRED: One week
 

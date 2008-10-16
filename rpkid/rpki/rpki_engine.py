@@ -231,7 +231,7 @@ class ca_obj(rpki.sql.sql_persistant):
       ski = ca_detail.latest_ca_cert.get_SKI()
 
       if ski not in cert_map:
-        rpki.log.warn("Certificate in database missing from list_response, SKI %s, this should never happen" % ":".join(("%02X" % ord(i) for i in ski)))
+        rpki.log.warn("Certificate in database missing from list_response, SKI %s, this should never happen" % ca_detail.latest_ca_cert.gSKI())
         ca_detail.delete(self, parent.repository())
         continue
 
@@ -251,7 +251,7 @@ class ca_obj(rpki.sql.sql_persistant):
       del cert_map[ski]
 
     if cert_map:
-      rpki.log.warn("Certificates in list_response missing from our database, SKIs %s" % ", ".join(c.cert.hSKI() for c in cert_map.values()))
+      rpki.log.warn("Certificates in list_response missing from our database, SKIs %s" % ", ".join(c.cert.gSKI() for c in cert_map.values()))
 
   @classmethod
   def create(cls, parent, rc):

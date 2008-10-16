@@ -138,4 +138,10 @@ https_cert     = get_PEM("ssl-cert", rpki.x509.X509)
 https_certs    = get_PEM_chain("ssl-cert-chain", https_cert)
 https_ca_certs = get_PEM_chain("ssl-ca-certs")
 
-dispatch[yaml_req["type"]]()
+if debug:
+  dispatch[yaml_req["type"]]()
+else:
+  try:
+    dispatch[yaml_req["type"]]()
+  except Exception, edata:
+    print "Failed:", edata

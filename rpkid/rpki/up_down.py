@@ -281,7 +281,7 @@ class issue_pdu(base_elt):
     ca = child.ca_from_class_name(self.class_name)
     ca_detail = ca.fetch_active()
     if ca_detail is None:
-      raise rpki.exceptions.NoActiveCA, "No active CA for class %s" % self.class_name
+      raise rpki.exceptions.NoActiveCA, "No active CA for class %s" % repr(self.class_name)
 
     # Check current cert, if any
 

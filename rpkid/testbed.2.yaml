@@ -89,4 +89,4 @@ kids:
   sub_as: 33
 ---
 - name: Alice
-  valid_for: 1y
+  valid_for: 365d

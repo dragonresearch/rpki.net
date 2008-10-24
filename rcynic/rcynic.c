@@ -200,6 +200,8 @@ static const struct {
   QQ(manifest_not_yet_valid,		"Manifests not yet valid")       \
   QQ(manifest_bad_econtenttype,		"Bad manifest eContentType")     \
   QQ(manifest_missing_signer,		"Missing manifest signers")      \
+  QQ(manifest_missing_crldp,            "Missing manifest CRLDP")        \
+  QQ(manifest_malformed_crldp,          "Malformed manifest CRLDP")      \
   QQ(certificate_digest_mismatch,	"Certificate digest mismatches") \
   QQ(crl_digest_mismatch,		"CRL digest mismatches")	 \
   QQ(crl_not_in_manifest,               "CRL not listed in manifest")    \
@@ -1996,8 +1998,15 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 
   parse_cert(sk_X509_value(signers, 0), &certinfo, uri);
 
+  if (!certinfo.crldp[0]) {
+    logmsg(rc, log_data_err, "No CRLDP in manifest %s", uri);
+    mib_increment(rc, uri, manifest_missing_crldp);
+    goto done;
+  }
+
   if ((crl_tail = strrchr(certinfo.crldp, '/')) == NULL) {
-    logmsg(rc, log_data_err, "Couldn't find trailing slash in %s CRLDP for manifest %s", certinfo.crldp, uri);
+    logmsg(rc, log_data_err, "Couldn't find trailing slash in CRLDP %s for manifest %s", certinfo.crldp, uri);
+    mib_increment(rc, uri, manifest_malformed_crldp);
     goto done;
   }
   crl_tail++;

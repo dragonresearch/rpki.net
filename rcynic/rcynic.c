@@ -219,6 +219,8 @@ static const struct {
   QQ(manifest_wrong_version,            "Wrong manifest versions")	 \
   QQ(roa_wrong_version,			"Wrong ROA versions")		 \
   QQ(trust_anchor_not_self_signed,	"Trust anchor not self-signed")	 \
+  QQ(uri_too_long,			"URI too long")			 \
+  QQ(malformed_crldp,			"Malformed CRDLP extension")	 \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QQ(mib_openssl_##x, 0)
@@ -752,38 +754,48 @@ static int is_rsync(const char *uri)
 
 /**
  * Convert an rsync URI to a filename, checking for evil character
- * sequences.
+ * sequences.  NB: This routine can't call mib_increment(), because
+ * mib_increment() calls it, so errors detected here only go into
+ * the log, not the MIB.
  */
-static int uri_to_filename(const char *name,
+static int uri_to_filename(const rcynic_ctx_t *rc,
+			   const char *uri,
 			   char *buffer,
 			   const size_t buflen,
 			   const char *prefix)
 {
+  const char *u;
   size_t n;
 
   buffer[0] = '\0';
 
-  if (!is_rsync(name))
+  if (!is_rsync(uri)) {
+    logmsg(rc, log_telemetry, "%s is not an rsync URI, not converting to filename", uri);
     return 0;
+  }
 
-  name += SIZEOF_RSYNC;
-  n = strlen(name);
+  u = uri + SIZEOF_RSYNC;
+  n = strlen(u);
   
-  if (name[0] == '/' || name[0] == '.' || strstr(name, "//") ||
-      strstr(name, "/../") || (n >= 3 && !strcmp(name + n - 3, "/..")))
+  if (u[0] == '/' || u[0] == '.' || strstr(u, "//") || strstr(u, "/../") ||
+      (n >= 3 && !strcmp(u + n - 3, "/.."))) {
+    logmsg(rc, log_data_err, "Dangerous URI %s, not converting to filename", uri);
     return 0;
+  }
 
   if (prefix)
     n += strlen(prefix);
 
-  if (n >= buflen)
+  if (n >= buflen) {
+    logmsg(rc, log_data_err, "URI %s too long, not converting to filename", uri);
     return 0;
+  }
 
   if (prefix) {
     strcpy(buffer, prefix);
-    strcat(buffer, name);
+    strcat(buffer, u);
   } else {
-    strcpy(buffer, name);
+    strcpy(buffer, u);
   }
 
   return 1;
@@ -826,7 +838,7 @@ static void mib_increment(const rcynic_ctx_t *rc,
 
   memset(&hn, 0, sizeof(hn));
 
-  if (!uri_to_filename(uri, hn.hostname, sizeof(hn.hostname), NULL)) {
+  if (!uri_to_filename(rc, uri, hn.hostname, sizeof(hn.hostname), NULL)) {
     logmsg(rc, log_data_err, "Couldn't convert URI %s to hostname", uri);
     return;
   }
@@ -901,7 +913,7 @@ static int install_object(const rcynic_ctx_t *rc,
 {
   char target[FILENAME_MAX];
 
-  if (!uri_to_filename(uri, target, sizeof(target), rc->authenticated)) {
+  if (!uri_to_filename(rc, uri, target, sizeof(target), rc->authenticated)) {
     logmsg(rc, log_data_err, "Couldn't generate installation name for %s", uri);
     return 0;
   }
@@ -1122,7 +1134,7 @@ static int rsync(const rcynic_ctx_t *rc,
   if (rc->rsync_program)
     argv[0] = rc->rsync_program;
 
-  if (!uri_to_filename(uri, path, sizeof(path), rc->unauthenticated)) {
+  if (!uri_to_filename(rc, uri, path, sizeof(path), rc->unauthenticated)) {
     logmsg(rc, log_data_err, "Couldn't extract filename from URI: %s", uri);
     return 0;
   }
@@ -1450,40 +1462,66 @@ static CMS_ContentInfo *read_cms(const char *filename, unsigned char *hash, cons
 /**
  * Extract CRLDP data from a certificate.
  */
-static void extract_crldp_uri(const STACK_OF(DIST_POINT) *crldp,
-			      char *uri, const int urilen)
+static void extract_crldp_uri(const rcynic_ctx_t *rc,
+			      const char *uri,
+			      const STACK_OF(DIST_POINT) *crldp,
+			      char *result,
+			      const int resultlen)
 {
   DIST_POINT *d;
   int i;
 
-  if (!crldp || sk_DIST_POINT_num(crldp) != 1)
+  assert(crldp);
+
+  if (sk_DIST_POINT_num(crldp) != 1) {
+    logmsg(rc, log_data_err, "CRLDistributionPoints sequence length is %d (should be 1) for %s",
+	   sk_DIST_POINT_num(crldp), uri);
+    mib_increment(rc, uri, malformed_crldp);
     return;
+  }
 
   d = sk_DIST_POINT_value(crldp, 0);
 
-  if (d->reasons || d->CRLissuer || !d->distpoint || d->distpoint->type != 0)
+  if (d->reasons || d->CRLissuer || !d->distpoint || d->distpoint->type != 0) {
+    logmsg(rc, log_data_err, "CRLDP does not match RPKI certificate profile for %s", uri);
+    mib_increment(rc, uri, malformed_crldp);
     return;
+  }
 
   for (i = 0; i < sk_GENERAL_NAME_num(d->distpoint->name.fullname); i++) {
     GENERAL_NAME *n = sk_GENERAL_NAME_value(d->distpoint->name.fullname, i);
     assert(n != NULL);
-    if (n->type != GEN_URI)
-      return;
-    if (is_rsync((char *) n->d.uniformResourceIdentifier->data) &&
-	urilen > n->d.uniformResourceIdentifier->length) {
-      strcpy(uri, (char *) n->d.uniformResourceIdentifier->data);
+    if (n->type != GEN_URI) {
+      logmsg(rc, log_data_err, "CRLDP contains non-URI GeneralName for %s", uri);
+      mib_increment(rc, uri, malformed_crldp);
       return;
     }
+    if (!is_rsync((char *) n->d.uniformResourceIdentifier->data)) {
+      logmsg(rc, log_verbose, "Skipping non-rsync URI %s for %s",
+	     (char *) n->d.uniformResourceIdentifier->data, uri);
+      continue;
+    }
+    if (resultlen <= n->d.uniformResourceIdentifier->length) {
+      logmsg(rc, log_data_err, "Skipping improbably long URI %s for %s",
+	     (char *) n->d.uniformResourceIdentifier->data, uri);
+      mib_increment(rc, uri, uri_too_long);
+      continue;
+    }
+    strcpy(result, (char *) n->d.uniformResourceIdentifier->data);
+    return;
   }
 }
 
 /**
  * Extract SIA or AIA data from a certificate.
  */
-static void extract_access_uri(const AUTHORITY_INFO_ACCESS *xia,
+static void extract_access_uri(const rcynic_ctx_t *rc,
+			       const char *uri,
+			       const AUTHORITY_INFO_ACCESS *xia,
 			       const unsigned char *oid,
 			       const int oidlen,
-			       char *uri, const int urilen)
+			       char *result,
+			       const int resultlen)
 {
   int i;
 
@@ -1495,19 +1533,28 @@ static void extract_access_uri(const AUTHORITY_INFO_ACCESS *xia,
     assert(a != NULL);
     if (a->location->type != GEN_URI)
       return;
-    if (!oid_cmp(a->method, oid, oidlen) &&
-	is_rsync((char *) a->location->d.uniformResourceIdentifier->data) &&
-	urilen > a->location->d.uniformResourceIdentifier->length) {
-      strcpy(uri, (char *) a->location->d.uniformResourceIdentifier->data);
-      return;
+    if (oid_cmp(a->method, oid, oidlen))
+      continue;
+    if (!is_rsync((char *) a->location->d.uniformResourceIdentifier->data)) {
+      logmsg(rc, log_verbose, "Skipping non-rsync URI %s for %s",
+	     a->location->d.uniformResourceIdentifier->data, uri);
+      continue;
     }
+    if (resultlen <= a->location->d.uniformResourceIdentifier->length) {
+      logmsg(rc, log_data_err, "Skipping improbably long URI %s for %s",
+	     a->location->d.uniformResourceIdentifier->data, uri);
+      mib_increment(rc, uri, uri_too_long);
+      continue;
+    }
+    strcpy(result, (char *) a->location->d.uniformResourceIdentifier->data);
+    return;
   }
 }
 
 /**
  * Parse interesting stuff from a certificate.
  */
-static void parse_cert(X509 *x, certinfo_t *c, const char *uri)
+static void parse_cert(const rcynic_ctx_t *rc, X509 *x, certinfo_t *c, const char *uri)
 {
   STACK_OF(DIST_POINT) *crldp;
   AUTHORITY_INFO_ACCESS *xia;
@@ -1521,19 +1568,18 @@ static void parse_cert(X509 *x, certinfo_t *c, const char *uri)
   strcpy(c->uri, uri);
 
   if ((xia = X509_get_ext_d2i(x, NID_info_access, NULL, NULL)) != NULL) {
-    extract_access_uri(xia, id_ad_caIssuers, sizeof(id_ad_caIssuers), c->aia, sizeof(c->aia));
+    extract_access_uri(rc, uri, xia, id_ad_caIssuers, sizeof(id_ad_caIssuers), c->aia, sizeof(c->aia));
     sk_ACCESS_DESCRIPTION_pop_free(xia, ACCESS_DESCRIPTION_free);
   }
 
   if ((xia = X509_get_ext_d2i(x, NID_sinfo_access, NULL, NULL)) != NULL) {
-    extract_access_uri(xia, id_ad_caRepository, sizeof(id_ad_caRepository), c->sia, sizeof(c->sia));
-    extract_access_uri(xia, id_ad_rpkiManifest, sizeof(id_ad_rpkiManifest), c->manifest, sizeof(c->manifest));
+    extract_access_uri(rc, uri, xia, id_ad_caRepository, sizeof(id_ad_caRepository), c->sia, sizeof(c->sia));
+    extract_access_uri(rc, uri, xia, id_ad_rpkiManifest, sizeof(id_ad_rpkiManifest), c->manifest, sizeof(c->manifest));
     sk_ACCESS_DESCRIPTION_pop_free(xia, ACCESS_DESCRIPTION_free);
   }
 
-  if ((crldp = X509_get_ext_d2i(x, NID_crl_distribution_points,
-				NULL, NULL)) != NULL) {
-    extract_crldp_uri(crldp, c->crldp, sizeof(c->crldp));
+  if ((crldp = X509_get_ext_d2i(x, NID_crl_distribution_points, NULL, NULL)) != NULL) {
+    extract_crldp_uri(rc, uri, crldp, c->crldp, sizeof(c->crldp));
     sk_DIST_POINT_pop_free(crldp, DIST_POINT_free);
   }
 }
@@ -1559,7 +1605,7 @@ static X509_CRL *check_crl_1(const rcynic_ctx_t *rc,
 
   assert(uri && path && issuer && hashlen <= sizeof(hashbuf));
 
-  if (!uri_to_filename(uri, path, pathlen, prefix))
+  if (!uri_to_filename(rc, uri, path, pathlen, prefix))
     goto punt;
 
   if (hash)
@@ -1602,7 +1648,7 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
   char path[FILENAME_MAX];
   X509_CRL *crl;
 
-  if (uri_to_filename(uri, path, sizeof(path), rc->authenticated)) {
+  if (uri_to_filename(rc, uri, path, sizeof(path), rc->authenticated)) {
     unsigned char hashbuf[EVP_MAX_MD_SIZE];
     if (hash)
       crl = read_crl(path, hashbuf, sizeof(hashbuf));
@@ -1816,7 +1862,7 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
 
   assert(uri && path && certs && issuer && subj);
 
-  if (!uri_to_filename(uri, path, pathlen, prefix)) {
+  if (!uri_to_filename(rc, uri, path, pathlen, prefix)) {
     logmsg(rc, log_data_err, "Can't convert URI %s to filename", uri);
     return NULL;
   }
@@ -1840,7 +1886,7 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
     goto punt;
   }
 
-  parse_cert(x, subj, uri);
+  parse_cert(rc, x, subj, uri);
 
   if (subj->sia[0] && subj->sia[strlen(subj->sia) - 1] != '/') {
     logmsg(rc, log_data_err, "Malformed SIA %s for %s", subj->sia, uri);
@@ -1909,7 +1955,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
    * better data, just get out now.
    */
 
-  if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) && 
+  if (uri_to_filename(rc, uri, path, sizeof(path), rc->authenticated) && 
       !access(path, R_OK)) {
     if (backup || sk_STRING_find(rc->backup_cache, uri) < 0)
       return NULL;
@@ -1968,7 +2014,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 
   assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
 
-  if (!uri_to_filename(uri, path, pathlen, prefix) ||
+  if (!uri_to_filename(rc, uri, path, pathlen, prefix) ||
       (cms = read_cms(path, NULL, 0)) == NULL)
     goto done;
 
@@ -1996,7 +2042,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     goto done;
   }
 
-  parse_cert(sk_X509_value(signers, 0), &certinfo, uri);
+  parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri);
 
   if (!certinfo.crldp[0]) {
     logmsg(rc, log_data_err, "No CRLDP in manifest %s", uri);
@@ -2117,7 +2163,7 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
   char path[FILENAME_MAX];
   BIO *bio = NULL;
 
-  if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) &&
+  if (uri_to_filename(rc, uri, path, sizeof(path), rc->authenticated) &&
       (cms = read_cms(path, NULL, 0)) != NULL &&
       (bio = BIO_new(BIO_s_mem()))!= NULL &&
       CMS_verify(cms, NULL, NULL, NULL, bio,
@@ -2223,7 +2269,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
 
   assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
 
-  if (!uri_to_filename(uri, path, pathlen, prefix))
+  if (!uri_to_filename(rc, uri, path, pathlen, prefix))
     goto error;
 
   if (hash)
@@ -2265,7 +2311,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     goto error;
   }
 
-  parse_cert(sk_X509_value(signers, 0), &certinfo, uri);
+  parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri);
 
   if (!(roa = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, NULL))) {
     logmsg(rc, log_data_err, "Failure decoding ROA %s", uri);
@@ -2381,7 +2427,7 @@ static void check_roa(const rcynic_ctx_t *rc,
 {
   char path[FILENAME_MAX];
 
-  if (uri_to_filename(uri, path, sizeof(path), rc->authenticated) &&
+  if (uri_to_filename(rc, uri, path, sizeof(path), rc->authenticated) &&
       !access(path, F_OK))
     return;
 
@@ -2831,8 +2877,8 @@ int main(int argc, char *argv[])
       }
       memcpy(uri, val->value, j);
       uri[j] = '\0';
-      if (!uri_to_filename(uri, path1, sizeof(path1), rc.unauthenticated) ||
-	  !uri_to_filename(uri, path2, sizeof(path2), rc.authenticated)) {
+      if (!uri_to_filename(&rc, uri, path1, sizeof(path1), rc.unauthenticated) ||
+	  !uri_to_filename(&rc, uri, path2, sizeof(path2), rc.authenticated)) {
 	logmsg(&rc, log_usage_err, "Couldn't convert trust anchor URI %s to filename", uri);
 	goto done;
       }
@@ -2872,7 +2918,7 @@ int main(int argc, char *argv[])
       goto done;
     }
 
-    parse_cert(x, &ta_info, "");
+    parse_cert(&rc, x, &ta_info, "");
     ta_info.ta = 1;
     sk_X509_push(certs, x);
 

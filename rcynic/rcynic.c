@@ -64,7 +64,8 @@
 #define	FILENAME_MAX	1024
 #endif
 
-#define	SIZEOF_RSYNC	(sizeof("rsync://") - 1)
+#define	SCHEME_RSYNC	("rsync://")
+#define	SIZEOF_RSYNC	(sizeof(SCHEME_RSYNC) - 1)
 
 /**
  * Maximum length of an URI.
@@ -749,7 +750,7 @@ static int uri_cmp(const char * const *a, const char * const *b)
  */
 static int is_rsync(const char *uri)
 {
-  return uri && !strncmp(uri, "rsync://", SIZEOF_RSYNC);
+  return uri && !strncmp(uri, SCHEME_RSYNC, SIZEOF_RSYNC);
 }
 
 /**
@@ -777,7 +778,7 @@ static int uri_to_filename(const rcynic_ctx_t *rc,
   u = uri + SIZEOF_RSYNC;
   n = strlen(u);
   
-  if (u[0] == '/' || u[0] == '.' || strstr(u, "//") || strstr(u, "/../") ||
+  if (u[0] == '/' || u[0] == '.' || strstr(u, "/../") ||
       (n >= 3 && !strcmp(u + n - 3, "/.."))) {
     logmsg(rc, log_data_err, "Dangerous URI %s, not converting to filename", uri);
     return 0;

@@ -107,7 +107,7 @@ static const Manifest *read_manifest(const char *filename, const int print_cms, 
     for (i = 0; i < sk_CMS_SignerInfo_num(signerInfos); i++) {
       ASN1_OCTET_STRING *hash = NULL;
       printf("SignerId[%d]:    ", i);
-      if (CMS_SignerInfo_get0_signer_id(sk_CMS_SignerInfo_value(signerInfos, i), &hash, NULL, NULL))
+      if (CMS_SignerInfo_get0_signer_id(sk_CMS_SignerInfo_value(signerInfos, i), &hash, NULL, NULL) && hash != NULL)
 	for (j = 0; j < hash->length; j++)
 	  printf("%02x%s", hash->data[j], j == hash->length - 1 ? "" : ":");
       else

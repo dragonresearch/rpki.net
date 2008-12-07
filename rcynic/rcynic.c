@@ -2797,6 +2797,7 @@ int main(int argc, char *argv[])
       logmsg(&rc, log_telemetry, "Lock %s held by another process", lockfile);
     else
       logmsg(&rc, log_sys_err, "Problem locking %s: %s", lockfile, strerror(errno));
+    lockfd = -1;
     goto done;
   }
 
@@ -3029,6 +3030,8 @@ int main(int argc, char *argv[])
   free(rc.unauthenticated);
   if (rc.rsync_program)
     free(rc.rsync_program);
+  if (lockfile && lockfd >= 0)
+    unlink(lockfile);
   if (lockfile)
     free(lockfile);
   if (xmlfile)

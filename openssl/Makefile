@@ -11,7 +11,7 @@ clean:
 	cd tests; ${MAKE} $@
 
 openssl-${VERSION}/Makefile: openssl-${VERSION}/config
-	cd openssl-${VERSION}; PERL=/usr/bin/perl ./config enable-rfc3779 no-dso
+	cd openssl-${VERSION}; PERL=/usr/bin/perl ./config enable-rfc3779 enable-cms no-dso
 
 openssl-${VERSION}/config: openssl-${VERSION}.tar.gz
 	gzip -c -d openssl-${VERSION}.tar.gz | tar -xf -

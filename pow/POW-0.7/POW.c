@@ -1984,7 +1984,7 @@ x509_store_object_verify(x509_store_object *self, PyObject *args)
       goto error;
 
    X509_STORE_CTX_init( &csc, self->store, x509->x509, NULL );
-   result = X509_verify_cert( &csc );
+   result = X509_verify_cert( &csc ) == 1;
 
    X509_STORE_CTX_cleanup( &csc );
 
@@ -2042,7 +2042,7 @@ x509_store_object_verify_chain(x509_store_object *self, PyObject *args)
       goto error;
 
    X509_STORE_CTX_init( &csc, self->store, x509->x509, x509_stack );
-   result = X509_verify_cert( &csc );
+   result = X509_verify_cert( &csc ) == 1;
 
    X509_STORE_CTX_cleanup( &csc );
    sk_X509_free(x509_stack);
@@ -2114,7 +2114,7 @@ x509_store_object_verify_detailed(x509_store_object *self, PyObject *args)
 
    X509_STORE_CTX_init( &csc, self->store, x509->x509, x509_stack );
 
-   ret = X509_verify_cert( &csc );
+   ret = X509_verify_cert( &csc ) == 1;
 
    result = Py_BuildValue("(iii)", ret, csc.error, csc.error_depth);
 

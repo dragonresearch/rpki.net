@@ -29,8 +29,6 @@ import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
 import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng
 import rpki.sundial, rpki.log
 
-rpki_subject_lifetime = rpki.sundial.timedelta(days = 30)
-
 def get_subject_cert():
   filename = rpki_root_dir + rpki_subject_cert
   try:
@@ -227,6 +225,8 @@ rpki_root_manifest      = cfg.get("rpki-root-manifest", "Root.mnf")
 rpki_root_crl           = cfg.get("rpki-root-crl",      "Root.crl")
 rpki_subject_cert       = cfg.get("rpki-subject-cert",  "Subroot.cer")
 rpki_subject_pkcs10     = cfg.get("rpki-subject-pkcs10", "")
+
+rpki_subject_lifetime   = rpki.sundial.timedelta(days = int(cfg.get("rpki-subject-lifetime", "30")))
 
 rpki.https.server(server_key   = rootd_bpki_key,
                   server_cert  = rootd_bpki_cert,

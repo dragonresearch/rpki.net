@@ -226,7 +226,7 @@ rpki_root_crl           = cfg.get("rpki-root-crl",      "Root.crl")
 rpki_subject_cert       = cfg.get("rpki-subject-cert",  "Subroot.cer")
 rpki_subject_pkcs10     = cfg.get("rpki-subject-pkcs10", "")
 
-rpki_subject_lifetime   = rpki.sundial.timedelta(days = int(cfg.get("rpki-subject-lifetime", "30")))
+rpki_subject_lifetime   = rpki.sundial.timedelta.parse(cfg.get("rpki-subject-lifetime", "30d"))
 
 rpki.https.server(server_key   = rootd_bpki_key,
                   server_cert  = rootd_bpki_cert,

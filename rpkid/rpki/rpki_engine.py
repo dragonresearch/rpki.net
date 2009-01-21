@@ -420,7 +420,7 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     for child_cert in self.child_certs():
       repository.withdraw(child_cert.cert, child_cert.uri(ca))
       child_cert.sql_delete()
-    for revoked__cert in self.revoked_certs():
+    for revoked_cert in self.revoked_certs():
       revoked_cert.sql_delete()
     for route_origin in self.route_origins():
       route_origin.withdraw_roa()

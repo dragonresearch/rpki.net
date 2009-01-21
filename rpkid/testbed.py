@@ -139,17 +139,28 @@ def main():
   irdb_sql = mangle_sql(irdb_sql_file)
   pubd_sql = mangle_sql(pub_sql_file)
 
+  rpki.log.info("Initializing test directory")
+
+  # Connect to test directory, creating it if necessary
   try:
     os.chdir(testbed_dir)
   except:
     os.makedirs(testbed_dir)
     os.chdir(testbed_dir)
 
-  rpki.log.info("Cleaning up old state")
-  subprocess.check_call(("rm", "-rf", "publication", "rcynic-data", "rootd.subject.pkcs10", "rootd.req"))
+  # Discard everything but keys, which take a while to generate
+  for root, dirs, files in os.walk(".", topdown = False):
+    for file in files:
+      if not file.endswith(".key"):
+        os.remove(os.path.join(root, file))
+    for dir in dirs:
+      os.rmdir(os.path.join(root, dir))
 
   rpki.log.info("Reading master YAML configuration")
-  db = allocation_db(yaml_script.pop(0))
+  y = yaml_script.pop(0)
+
+  rpki.log.info("Constructing internal allocation database")
+  db = allocation_db(y)
 
   rpki.log.info("Constructing BPKI keys and certs for rootd")
   setup_bpki_cert_chain(rootd_name, ee = ("RPKI",))
@@ -161,7 +172,7 @@ def main():
     a.setup_bpki_certs()
 
   setup_publication(pubd_sql)
-  setup_rootd(db.root.name, "SELF-1")
+  setup_rootd(db.root.name, "SELF-1", y.get("rootd", {}))
   setup_rsyncd()
   setup_rcynic()
 
@@ -758,7 +769,7 @@ def setup_bpki_cert_chain(name, ee = (), ca = ()):
     s += bpki_cert_fmt_6 % d
   subprocess.check_call(s, shell = True)
 
-def setup_rootd(rpkid_name, rpkid_tag):
+def setup_rootd(rpkid_name, rpkid_tag, rootd_yaml):
   """Write the config files for rootd."""
   rpki.log.info("Writing config files for %s" % rootd_name)
   d = { "rootd_name" : rootd_name,
@@ -767,7 +778,8 @@ def setup_rootd(rpkid_name, rpkid_tag):
         "rpkid_tag"  : rpkid_tag,
         "rootd_sia"  : rootd_sia,
         "rsyncd_dir" : rsyncd_dir,
-        "openssl"    : prog_openssl }
+        "openssl"    : prog_openssl,
+        "lifetime"   : rootd_yaml.get("lifetime", "30d") }
   f = open(rootd_name + ".conf", "w")
   f.write(rootd_fmt_1 % d)
   f.close()
@@ -1035,6 +1047,7 @@ rpki-root-key           = %(rootd_name)s.key
 rpki-root-cert          = %(rootd_name)s.cer
 
 rpki-subject-pkcs10     = %(rootd_name)s.subject.pkcs10
+rpki-subject-lifetime   = %(lifetime)s
 
 rpki-root-crl           = Bandicoot.crl
 rpki-root-manifest      = Bandicoot.mnf

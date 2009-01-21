@@ -604,7 +604,7 @@ class route_origin_elt(data_elt):
 
     ca_detail = self.ca_detail()
 
-    if ca_detail.state != "active":
+    if ca_detail is None or ca_detail.state != "active":
       return self.regenerate_roa()
 
     regen_margin = rpki.sundial.timedelta(seconds = self.self().regen_margin)
@@ -649,11 +649,8 @@ class route_origin_elt(data_elt):
       return
 
     # Ugly and expensive search for covering ca_detail, there has to
-    # be a better way.
-    #
-    # If we're reissuing (not handled yet) we can optimize this by 
-    # first checking the ca_detail we used last time, but it may not
-    # be active, in which we have to check the ca_detail that replaced it.
+    # be a better way, but it would require the ability to test for
+    # resource subsets in SQL.
 
     v4 = self.ipv4.to_resource_set() if self.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
     v6 = self.ipv6.to_resource_set() if self.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
@@ -676,6 +673,8 @@ class route_origin_elt(data_elt):
       rpki.log.warn("generate_roa() could not find a certificate covering %s %s" % (v4, v6))
       return
 
+    ca = ca_detail.ca()
+
     resources = rpki.resource_set.resource_bag(v4 = v4, v6 = v6)
 
     keypair = rpki.x509.RSA.generate()
@@ -687,7 +686,7 @@ class route_origin_elt(data_elt):
     self.ca_detail_id = ca_detail.ca_detail_id
     self.sql_store()
 
-    repository = parent.repository()
+    repository = ca.parent().repository()
     repository.publish(self.roa, self.roa_uri(ca))
     if self.publish_ee_separately:
       repository.publish(self.cert, self.ee_uri(ca))
@@ -725,7 +724,10 @@ class route_origin_elt(data_elt):
 
   def regenerate_roa(self):
     """Reissue ROA associated with this route_origin."""
-    self.withdraw_roa(regenerate = True)
+    if self.ca_detail() is None:
+      self.generate_roa()
+    else:
+      self.withdraw_roa(regenerate = True)
 
   def roa_uri(self, ca, key = None):
     """Return the publication URI for this route_origin's ROA."""

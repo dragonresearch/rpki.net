@@ -77,6 +77,9 @@ class BadSender(RPKI_Exception):
 class ClassNameMismatch(RPKI_Exception):
   """class_name does not match child context."""
 
+class ClassNameUnknown(RPKI_Exception):
+  """Unknown class_name."""
+
 class SKIMismatch(RPKI_Exception):
   """SKI value in response does not match request."""
 

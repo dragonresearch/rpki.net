@@ -118,9 +118,13 @@ class rpkid_context(object):
     try:
       self.sql.ping()
       for s in rpki.left_right.self_elt.sql_fetch_all(self):
+        rpki.log.debug("Self %s polling parents" % s.self_id)
         s.client_poll()
+        rpki.log.debug("Self %s updating children" % s.self_id)
         s.update_children()
+        rpki.log.debug("Self %s updating ROAs" % s.self_id)
         s.update_roas()
+        rpki.log.debug("Self %s regenerating CRLs and manifests" % s.self_id)
         s.regenerate_crls_and_manifests()
       self.sql.sweep()
       return 200, "OK"

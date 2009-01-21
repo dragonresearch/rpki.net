@@ -174,6 +174,8 @@ class self_elt(data_elt):
 
     now = rpki.sundial.now()
 
+    rsn = now + rpki.sundial.timedelta(seconds = self.regen_margin)
+
     for child in self.children():
       child_certs = child.child_certs()
       if not child_certs:
@@ -188,12 +190,14 @@ class self_elt(data_elt):
           continue
         old_resources = child_cert.cert.get_3779resources()
         new_resources = irdb_resources.intersection(old_resources)
-        if old_resources != new_resources:
-          rpki.log.debug("Need to reissue %s" % repr(child_cert))
+        if old_resources != new_resources or (old_resources.valid_until < rsn  and irdb_resources.valid_until > now):
+          rpki.log.debug("Need to reissue child certificate SKI %s" % child_cert.cert.gSKI())
           child_cert.reissue(
             ca_detail = ca_detail,
             resources = new_resources)
         elif old_resources.valid_until < now:
+          rpki.log.debug("Child certificate SKI %s has expired: cert.valid_until %s, irdb.valid_until %s"
+                         % (child_cert.cert.gSKI(), old_resources.valid_until, irdb_resources.valid_until))
           ca = ca_detail.ca()
           parent = ca.parent()
           repository = parent.repository()
@@ -392,9 +396,11 @@ class child_elt(data_elt):
     if not class_name.isdigit():
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % class_name
     ca = rpki.rpki_engine.ca_obj.sql_fetch(self.gctx, long(class_name))
+    if ca is None:
+      raise rpki.exceptions.ClassNameUnknown, "Unknown class name %s" % class_name
     parent = ca.parent()
     if self.self_id != parent.self_id:
-      raise rpki.exceptions.ClassNameMismatch, "child.self_id = %d, parent.self_id = %d" % (self.self_id, parent.self_id)
+      raise rpki.exceptions.ClassNameMismatch, "Class name mismatch: child.self_id = %d, parent.self_id = %d" % (self.self_id, parent.self_id)
     return ca
 
   def serve_post_save_hook(self, q_pdu, r_pdu):

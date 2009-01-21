@@ -15,11 +15,11 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 rootd:
-  lifetime:     2m
+  lifetime:     2m30s
 name:           RIR
-crl_interval:   90s
-regen_margin:   1m
-valid_for:      2m
+crl_interval:   1m30s
+regen_margin:   2m
+valid_for:      2m30s
 kids:
   - name: R0
     kids:

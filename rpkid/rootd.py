@@ -50,12 +50,85 @@ def del_subject_cert():
   rpki.log.debug("Deleting subject cert %s" % filename)
   os.remove(filename)
 
-def stash_subject_pkcs10(pkcs10):
-  if rpki_subject_pkcs10:
-    rpki.log.debug("Writing subject PKCS #10 %s" % rpki_subject_pkcs10)
-    f = open(rpki_subject_pkcs10, "wb")
-    f.write(pkcs10.get_DER())
-    f.close()
+def get_subject_pkcs10():
+  filename = rpki_subject_pkcs10
+  try:
+    x = rpki.x509.PKCS10(Auto_file = filename)
+    rpki.log.debug("Read subject PKCS #10 %s" % filename)
+    return x
+  except IOError:
+    return None
+
+def set_subject_pkcs10(pkcs10):
+  rpki.log.debug("Writing subject PKCS #10 %s" % rpki_subject_pkcs10)
+  f = open(rpki_subject_pkcs10, "wb")
+  f.write(pkcs10.get_DER())
+  f.close()
+
+def issue_subject_cert_maybe():
+  subject_cert = get_subject_cert()
+  if subject_cert is not None:
+    if not subject_cert.expired():
+      return subject_cert
+    rpki.log.debug("Subject certificate has expired")
+  pkcs10 = get_subject_pkcs10()
+  if pkcs10 is None:
+    rpki.log.debug("No saved PKCS #10 request")
+    return None
+  resources = rpki_root_cert.get_3779resources()
+  rpki.log.info("Generating subject cert with resources " + str(resources))
+  req_key = pkcs10.getPublicKey()
+  req_sia = pkcs10.get_SIA()
+  crldp = rpki_base_uri + rpki_root_crl
+  now = rpki.sundial.now()
+  subject_cert = rpki_root_cert.issue(
+    keypair     = rpki_root_key,
+    subject_key = req_key,
+    serial      = int(time.time()),
+    sia         = req_sia,
+    aia         = rpki_root_cert_uri,
+    crldp       = crldp,
+    resources   = resources,
+    notAfter    = now + rpki_subject_lifetime)
+  crl = rpki.x509.CRL.generate(
+    keypair             = rpki_root_key,
+    issuer              = rpki_root_cert,
+    serial              = 1,
+    thisUpdate          = now,
+    nextUpdate          = now + rpki_subject_lifetime,
+    revokedCertificates = ())
+  rpki.log.debug("Writing CRL %s" % (rpki_root_dir + rpki_root_crl))
+  f = open(rpki_root_dir + rpki_root_crl, "wb")
+  f.write(crl.get_DER())
+  f.close()
+  manifest_resources = rpki.resource_set.resource_bag(
+    asn = rpki.resource_set.resource_set_as("<inherit>"),
+    v4 = rpki.resource_set.resource_set_ipv4("<inherit>"),
+    v6 = rpki.resource_set.resource_set_ipv6("<inherit>"))
+  manifest_keypair = rpki.x509.RSA.generate()
+  manifest_cert = rpki_root_cert.issue(
+    keypair     = rpki_root_key,
+    subject_key = manifest_keypair.get_RSApublic(),
+    serial      = int(time.time()) + 1,
+    sia         = None,
+    aia         = rpki_root_cert_uri,
+    crldp       = crldp,
+    resources   = manifest_resources,
+    notAfter    = now + rpki_subject_lifetime,
+    is_ca       = False)
+  manifest = rpki.x509.SignedManifest.build(
+    serial         = int(time.time()),
+    thisUpdate     = now,
+    nextUpdate     = now + rpki_subject_lifetime,
+    names_and_objs = [(rpki_subject_cert, subject_cert), (rpki_root_crl, crl)],
+    keypair        = manifest_keypair,
+    certs          = manifest_cert)
+  rpki.log.debug("Writing manifest %s" % (rpki_root_dir + rpki_root_manifest))
+  f = open(rpki_root_dir + rpki_root_manifest, "wb")
+  f.write(manifest.get_DER())
+  f.close()
+  set_subject_cert(subject_cert)
+  return subject_cert
 
 def compose_response(r_msg):
   rc = rpki.up_down.class_elt()
@@ -64,7 +137,7 @@ def compose_response(r_msg):
   rc.from_resource_bag(rpki_root_cert.get_3779resources())
   rc.issuer = rpki_root_cert
   r_msg.payload.classes.append(rc)
-  subject_cert = get_subject_cert()
+  subject_cert = issue_subject_cert_maybe()
   if subject_cert is not None:
     rc.certs.append(rpki.up_down.certificate_elt())
     rc.certs[0].cert_url = rpki.up_down.multi_uri(rpki_base_uri + rpki_subject_cert)
@@ -77,64 +150,9 @@ class list_pdu(rpki.up_down.list_pdu):
 
 class issue_pdu(rpki.up_down.issue_pdu):
   def serve_pdu(self, q_msg, r_msg, ignored):
-    stash_subject_pkcs10(self.pkcs10)
     self.pkcs10.check_valid_rpki()
+    set_subject_pkcs10(self.pkcs10)
     r_msg.payload = rpki.up_down.issue_response_pdu()
-    subject_cert = get_subject_cert()
-    if subject_cert is None:
-      resources = rpki_root_cert.get_3779resources()
-      rpki.log.info("Generating subject cert with resources " + str(resources))
-      req_key = self.pkcs10.getPublicKey()
-      req_sia = self.pkcs10.get_SIA()
-      crldp = rpki_base_uri + rpki_root_crl
-      now = rpki.sundial.now()
-      subject_cert = rpki_root_cert.issue(
-        keypair     = rpki_root_key,
-        subject_key = req_key,
-        serial      = int(time.time()),
-        sia         = req_sia,
-        aia         = rpki_root_cert_uri,
-        crldp       = crldp,
-        resources   = resources,
-        notAfter    = now + rpki_subject_lifetime)
-      set_subject_cert(subject_cert)
-      crl = rpki.x509.CRL.generate(
-        keypair             = rpki_root_key,
-        issuer              = rpki_root_cert,
-        serial              = 1,
-        thisUpdate          = now,
-        nextUpdate          = now + rpki_subject_lifetime,
-        revokedCertificates = ())
-      rpki.log.debug("Writing CRL %s" % (rpki_root_dir + rpki_root_crl))
-      f = open(rpki_root_dir + rpki_root_crl, "wb")
-      f.write(crl.get_DER())
-      f.close()
-      manifest_resources = rpki.resource_set.resource_bag(
-        asn = rpki.resource_set.resource_set_as("<inherit>"),
-        v4 = rpki.resource_set.resource_set_ipv4("<inherit>"),
-        v6 = rpki.resource_set.resource_set_ipv6("<inherit>"))
-      manifest_keypair = rpki.x509.RSA.generate()
-      manifest_cert = rpki_root_cert.issue(
-        keypair     = rpki_root_key,
-        subject_key = manifest_keypair.get_RSApublic(),
-        serial      = int(time.time()) + 1,
-        sia         = None,
-        aia         = rpki_root_cert_uri,
-        crldp       = crldp,
-        resources   = manifest_resources,
-        notAfter    = now + rpki_subject_lifetime,
-        is_ca       = False)
-      manifest = rpki.x509.SignedManifest.build(
-        serial         = int(time.time()),
-        thisUpdate     = now,
-        nextUpdate     = now + rpki_subject_lifetime,
-        names_and_objs = [(rpki_subject_cert, subject_cert), (rpki_root_crl, crl)],
-        keypair        = manifest_keypair,
-        certs          = manifest_cert)
-      rpki.log.debug("Writing manifest %s" % (rpki_root_dir + rpki_root_manifest))
-      f = open(rpki_root_dir + rpki_root_manifest, "wb")
-      f.write(manifest.get_DER())
-      f.close()
     compose_response(r_msg)
 
 class revoke_pdu(rpki.up_down.revoke_pdu):
@@ -224,7 +242,7 @@ rpki_root_cert_uri      = cfg.get("rpki-root-cert-uri", rpki_base_uri + "Root.ce
 rpki_root_manifest      = cfg.get("rpki-root-manifest", "Root.mnf")
 rpki_root_crl           = cfg.get("rpki-root-crl",      "Root.crl")
 rpki_subject_cert       = cfg.get("rpki-subject-cert",  "Subroot.cer")
-rpki_subject_pkcs10     = cfg.get("rpki-subject-pkcs10", "")
+rpki_subject_pkcs10     = cfg.get("rpki-subject-pkcs10", "Subroot.pkcs10")
 
 rpki_subject_lifetime   = rpki.sundial.timedelta.parse(cfg.get("rpki-subject-lifetime", "30d"))
 

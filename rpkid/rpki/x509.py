@@ -333,6 +333,10 @@ class X509(DER_object):
     """Extract the public key from this certificate."""
     return RSApublic(DER = self.get_POWpkix().tbs.subjectPublicKeyInfo.toString())
 
+  def expired(self):
+    """Test whether this certificate has expired."""
+    return self.getNotAfter() <= rpki.sundial.now()
+
   def issue(self, keypair, subject_key, serial, sia, aia, crldp, notAfter,
             cn = None, resources = None, is_ca = True):
     """Issue a certificate."""

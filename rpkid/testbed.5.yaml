@@ -19,7 +19,7 @@ rootd:
 name:           RIR
 crl_interval:   1m30s
 regen_margin:   2m
-valid_for:      2m30s
+valid_for:      1h
 kids:
   - name: R0
     kids:

@@ -66,11 +66,12 @@ def set_subject_pkcs10(pkcs10):
   f.close()
 
 def issue_subject_cert_maybe():
+  now = rpki.sundial.now()
   subject_cert = get_subject_cert()
   if subject_cert is not None:
-    if not subject_cert.expired():
+    if subject_cert.getNotAfter() > now + rpki_subject_regen:
       return subject_cert
-    rpki.log.debug("Subject certificate has expired")
+    rpki.log.debug("Subject certificate has reached expiration threshold, regenerating")
   pkcs10 = get_subject_pkcs10()
   if pkcs10 is None:
     rpki.log.debug("No saved PKCS #10 request")
@@ -80,7 +81,6 @@ def issue_subject_cert_maybe():
   req_key = pkcs10.getPublicKey()
   req_sia = pkcs10.get_SIA()
   crldp = rpki_base_uri + rpki_root_crl
-  now = rpki.sundial.now()
   subject_cert = rpki_root_cert.issue(
     keypair     = rpki_root_key,
     subject_key = req_key,
@@ -245,6 +245,7 @@ rpki_subject_cert       = cfg.get("rpki-subject-cert",  "Subroot.cer")
 rpki_subject_pkcs10     = cfg.get("rpki-subject-pkcs10", "Subroot.pkcs10")
 
 rpki_subject_lifetime   = rpki.sundial.timedelta.parse(cfg.get("rpki-subject-lifetime", "30d"))
+rpki_subject_regen      = rpki.sundial.timedelta.parse(cfg.get("rpki-subject-regen", rpki_subject_lifetime.convert_to_seconds() / 2))
 
 rpki.https.server(server_key   = rootd_bpki_key,
                   server_cert  = rootd_bpki_cert,

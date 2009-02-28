@@ -402,7 +402,14 @@ static void HOST_MIB_COUNTER_free(HOST_MIB_COUNTER *h)
  * for these defaulted "version" fields, but it's what the examples
  * for this construction use.  Probably doesn't matter since this
  * program only decodes manifests, never encodes them.
+ *
+ * Putting this section under conditional compilation is a hack to
+ * keep Doxygen's parser from becoming hopelessly confused by the
+ * weird OpenSSL ASN.1 macros.  Someday perhaps I'll have time to
+ * track down the problem in Doxygen's parser, but this works for now.
  */
+
+#ifndef DOXYGEN_GETS_HOPELESSLY_CONFUSED_BY_THIS_SECTION
 
 typedef struct FileAndHash_st {
   ASN1_IA5STRING *file;
@@ -546,6 +553,8 @@ IMPLEMENT_ASN1_FUNCTIONS(ROA)
 #define sk_ROAIPAddressFamily_pop(st)			SKM_sk_pop(ROAIPAddressFamily, (st))
 #define sk_ROAIPAddressFamily_sort(st)			SKM_sk_sort(ROAIPAddressFamily, (st))
 #define sk_ROAIPAddressFamily_is_sorted(st)		SKM_sk_is_sorted(ROAIPAddressFamily, (st))
+
+#endif /* DOXYGEN_GETS_HOPELESSLY_CONFUSED_BY_THIS_SECTION */
 
 
 

@@ -121,7 +121,7 @@ to do a global search (m-x tags-search if you're an emacs user) for
 all instances of a global symbol before attempting to use it, as there
 are a lot of things that one just has to know about how all the global
 stuff hangs together.  There are header files full of magic
-definitions that one just has to one need to be extended.  There are
+definitions that one just has to know need to be extended.  There are
 magic pre-sorted lists of handlers that one just needs to know about.
 Little or none of this is documented.  Use the Source, Luke.
 
@@ -160,11 +160,6 @@ write the assembly language only once and use it with various
 assemblers with nontrivially different syntax.  Much of the
 documentation markup (including manual pages) for the C code is .pod.
 
-I have not yet figured out where to hook in the extra goop that RFC
-3779 will need for verification.  Making extensions critical is easy
-enough, but the validation stuff in RFC 3779 2.3 and 3.3 needs to go
-somewhere.
-
 A lot of the missing documentation is buried in ssleay.txt, which the
 other documentation says not to read because it's so old.  But it's
 where Eric explains all the basic data structures and expected usage
@@ -201,14 +196,7 @@ configuration for the options I want:
 You may have to remove -Werror when working with OpenSSL snapshots,
 since snapshots sometimes generate compilation warnings.
 
-
-
-Random reminders and notes to myself:
-
-- The new stuff in crypto/x509v3/x509v3.h is not organized properly
-  yet, it's all lumped in one place rather than being interleved with
-  the other supported extensions.  This was to make it easier for me
-  to debug, but will proably need to be cleaned up eventually.
+Other random notes:
 
 - The reference for RDIs in RFC 3779 is incorrect.  I've been told
   that the authoritative definition of RDIs is ISO 10747, available as
@@ -221,8 +209,6 @@ Random reminders and notes to myself:
   exactly one extension of a particular type, we call this function
   twice with the idx parameter and make sure that the second call
   returns NULL.
-
-- May need to check AKID in crypto/x509/x509_vfy.c:get_crl().
 
 - Request extensions: see X509_REQ_get_extensions(),
   X509_REQ_add_extensions(), and copy_extensions().
@@ -394,16 +380,9 @@ Please report any problems.
 
 The RFC 3997 patches were committed to the OpenSSL Project's CVS
 repository on 27 November 2006, on both HEAD and the
-OpenSSL_0_9_8-stable branch (thanks, Ben!).  At the moment this code
-is only available from the OpenSSL project via CVS, but as it is now
-part of the OpenSSL source tree it should be present in future
-releases.  At least for now, it's disabled by default, so you have to
-do "./config enable-rfc3779" to enable it.
-
-
-
-The RFC 3779 patches shipped with OpenSSL 0.9.8e.  Still disabled by
-default, but turning them on is easy:
+OpenSSL_0_9_8-stable branch (thanks, Ben!), and shipped with OpenSSL
+0.9.8e.  The patches are disabled by default, but turning them on is
+easy:
 
   ./config enable-rfc3779
 

@@ -29,30 +29,26 @@ rcynic_dir = "../rcynic/rcynic-data/authenticated"
 
 class prefix(object):
 
-  def __init__(self, asn, t):
+  @classmethod
+  def from_asn1(cls, asn, t):
     x = 0L
     for y in t[0]:
       x = (x << 1) | y
-    for y in xrange(self.addr_type.bits - len(t[0])):
+    for y in xrange(cls.addr_type.bits - len(t[0])):
       x = (x << 1)
-
+    self = cls()
     self.asn = asn
-    self.prefix = self.addr_type(x)
+    self.prefix = cls.addr_type(x)
     self.prefixlen = len(t[0])
     self.max_prefixlen = self.prefixlen if t[1] is None else t[1]
+    self.pdu = self.to_pdu()
+    return self
 
   def __str__(self):
     return "%s/%s-%s[%s]" % (self.prefix, self.prefixlen, self.max_prefixlen, self.asn)
 
   def __cmp__(self, other):
-    c = self.addr_type.bits - other.addr_type.bits
-    if c == 0: c = self.prefix - other.prefix
-    if c == 0: c = self.prefixlen - other.prefixlen
-    if c == 0: c = self.max_prefixlen - other.max_prefixlen
-    if c == 0: c = self.asn - other.asn
-    if c < 0: c = -1
-    if c > 0: c =  1
-    return c
+    return cmp(self.pdu, other.pdu)
 
   def to_pdu(self, announce = 1, color = 0):
     return (struct.pack("!BBHBBBB", 0, self.pdu_type, color, announce, self.prefixlen, self.max_prefixlen, 0) +
@@ -80,7 +76,7 @@ for root, dirs, files in os.walk(rcynic_dir):
       asn = roa[1]
       for afi, addrs in roa[2]:
         for addr in addrs:
-          prefixes.append(prefix.map[afi](asn, addr))
+          prefixes.append(prefix.map[afi].from_asn1(asn, addr))
 
 prefixes.sort()
 

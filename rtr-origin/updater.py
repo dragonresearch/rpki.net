@@ -63,7 +63,7 @@ class prefix(object):
 
   def __str__(self):
     plm = "%s/%s-%s" % (self.prefix, self.prefixlen, self.max_prefixlen)
-    return "%8s  %-32s %s" % (self.asn, plm, ":".join(("%02X" % ord(b) for b in self.to_pdu())))
+    return "%s %8s  %-32s %s" % ("+" if self.announce else "-", self.asn, plm, ":".join(("%02X" % ord(b) for b in self.to_pdu())))
 
   def pprint(self):
     print "# Class:       ", self.__class__.__name__
@@ -180,7 +180,7 @@ class prefix_set(list):
       return prefix.from_pdu_file(self)
 
   def to_file(self, filename):
-    """Write prefix_set to a file."""
+    """Low-level method to write prefix_set to a file."""
     f = self._pdufile(filename, "wb")
     for p in self:
       f.write(p.to_pdu())
@@ -188,7 +188,7 @@ class prefix_set(list):
 
   @classmethod
   def from_file(cls, filename):
-    """Read prefix_set from a file."""
+    """Low-level method to read prefix_set from a file."""
     self = cls()
     f = cls._pdufile(filename, "rb")
     for p in f:
@@ -196,7 +196,29 @@ class prefix_set(list):
     f.close()
     return self
 
-def test():
+  def diff_to_file(self, other, outputfile):
+    """Compare this prefix_set with an older one and write a file
+    consisting of the changes.
+    """
+    f = self._pdufile(outputfile, "wb")
+    old = other[:]
+    new = self[:]
+    while old and new:
+      if old[0] < new[0]:               # Only in old: withdraw prefix
+        f.write(old.pop(0).to_pdu(announce = 0))
+      elif old[0] > new[0]:             # Only in new: announce prefix
+        f.write(new.pop(0).to_pdu(announce = 1))
+      else:
+        assert old[0] == new[0]
+        del old[0]
+        del new[0]
+    while old:
+      f.write(old.pop(0).to_pdu(announce = 0))
+    while new:
+      f.write(new.pop(0).to_pdu(announce = 1))
+    f.close()
+
+def test1():
   prefixes = prefix_set.from_rcynic("../rcynic/rcynic-data/authenticated")
   for p in prefixes:
     print p
@@ -207,5 +229,18 @@ def test():
   os.unlink("fnord")
   print prefixes == fnord
 
+def test2():
+  p1 = prefix_set.from_rcynic("../rcynic/rcynic-data/authenticated")
+  p2 = prefix_set.from_rcynic("../rpkid/testbed.dir/rcynic-data/authenticated")
+  p2.diff_to_file(p1, "fnord")
+  fnord = prefix_set.from_file("fnord")
+  print "# Old:"
+  for p in p1: print p
+  print "# New:"
+  for p in p2: print p
+  print "# Diff:"
+  for p in fnord: print p
+  #os.unlink("fnord")
+
 if __name__ == "__main__":
-  test()
+  test2()

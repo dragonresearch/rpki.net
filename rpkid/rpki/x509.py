@@ -11,7 +11,23 @@ some of the nasty details.  This involves a lot of format conversion.
 
 $Id$
 
-Copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+
+Copyright (C) 2009  Internet Systems Consortium ("ISC")
+
+Permission to use, copy, modify, and distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
+
+
+Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -716,6 +732,31 @@ class CMS_object(DER_object):
           dbg = cms.pprint()
         print "CMS verification failed, dumping ASN.1 (%d octets):\n%s" % (len(self.get_DER()), dbg)
       raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed"
+
+    self.decode(content)
+    return self.get_content()
+
+  def extract(self):
+    """Extract and store inner content from CMS wrapper without
+    verifying the CMS.
+
+    DANGER WILL ROBINSON!!!
+
+    Do not use this method on unvalidated data.  Use the verify()
+    method instead.
+
+    If you don't understand this warning, don't use this method.
+    """
+
+    try:
+      cms = self.get_POW()
+    except:
+      raise rpki.exceptions.UnparsableCMSDER
+
+    if cms.eContentType() != self.econtent_oid:
+      raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (cms.eContentType(), self.econtent_oid)
+
+    content = cms.verify(POW.X509Store(), None, POW.CMS_NOCRL | POW.CMS_NO_SIGNER_CERT_VERIFY | POW.CMS_NO_ATTR_VERIFY | POW.CMS_NO_CONTENT_VERIFY)
 
     self.decode(content)
     return self.get_content()

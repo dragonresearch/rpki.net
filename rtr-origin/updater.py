@@ -198,18 +198,18 @@ class prefix_set(list):
 
   def diff_to_file(self, other, outputfile):
     """Compare this prefix_set with an older one and write a file
-    consisting of the changes.
+    consisting of the changes.  Since we store prefix_sets in sorted
+    order, computing the difference is a trivial linear comparison.
     """
     f = self._pdufile(outputfile, "wb")
     old = other[:]
     new = self[:]
     while old and new:
-      if old[0] < new[0]:               # Only in old: withdraw prefix
+      if old[0] < new[0]:
         f.write(old.pop(0).to_pdu(announce = 0))
-      elif old[0] > new[0]:             # Only in new: announce prefix
+      elif old[0] > new[0]:
         f.write(new.pop(0).to_pdu(announce = 1))
       else:
-        assert old[0] == new[0]
         del old[0]
         del new[0]
     while old:

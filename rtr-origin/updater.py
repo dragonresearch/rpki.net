@@ -62,7 +62,17 @@ class prefix(object):
     return self
 
   def __str__(self):
-    return "%s/%s-%s[%s]" % (self.prefix, self.prefixlen, self.max_prefixlen, self.asn)
+    plm = "%s/%s-%s" % (self.prefix, self.prefixlen, self.max_prefixlen)
+    return "%8s  %-32s %s" % (self.asn, plm, ":".join(("%02X" % ord(i) for i in p.to_pdu())))
+
+  def pprint(self):
+    print "# Class:       ", self.__class__.__name__
+    print "# ASN:         ", self.asn
+    print "# Prefix:      ", self.prefix
+    print "# Prefixlen:   ", self.prefixlen
+    print "# MaxPrefixlen:", self.max_prefixlen
+    print "# Color:       ", self.color
+    print "# Announce:    ", self.announce
 
   def __cmp__(self, other):
     return cmp(self.to_pdu(), other.to_pdu())
@@ -72,6 +82,7 @@ class prefix(object):
     assert self.announce in (0, 1)
     assert self.prefixlen >= 0 and self.prefixlen <= self.addr_type.bits
     assert self.max_prefixlen >= self.prefixlen and self.max_prefixlen <= self.addr_type.bits
+    assert len(self.to_pdu()) == 12 + self.addr_type.bits / 8, "Expected %d byte PDU, got %d" % (12 + self.addr_type.bits / 8, len(self.to_pdu()))
 
   def to_pdu(self, announce = None):
     """Generate the wire format PDU for this prefix."""
@@ -94,20 +105,27 @@ class prefix(object):
     """Read one wire format PDU from a file.  This is intended to be
     used in an iterator, so it raises StopIteration on end of file.
     """
+    assert cls._pdu is None
     b = f.read(8)
     if b == "":
       raise StopIteration
     version, pdu_type, color, announce, prefixlen, max_prefixlen, source = cls.header_struct.unpack(b)
-    assert version == self.version, "PDU version is %d, expected %d" % (version, self.version)
-    assert source == self.source
+    assert version == cls.version, "PDU version is %d, expected %d" % (version, self.version)
+    assert source == cls.source
+    pdu = b
     self = cls.pdu_map[pdu_type]()
     self.prefixlen = prefixlen
     self.max_prefixlen = max_prefixlen
     self.color = color
     self.announce = announce
-    self.prefix = self.addr_type.from_bytes(f.read(self.addr_type.bits / 8))
-    self.asn = cls.serial_struct.unpack(f.read(4))
+    b = f.read(self.addr_type.bits / 8)
+    pdu += b
+    self.prefix = self.addr_type.from_bytes(b)
+    b = f.read(4)
+    pdu += b
+    self.asn = cls.serial_struct.unpack(b)[0]
     self.check()
+    assert pdu == self.to_pdu()
     return self
 
 class v4prefix(prefix):
@@ -152,7 +170,44 @@ class prefix_set(list):
         del self[i + 1]
     return self
 
+  class _pdufile(file):
+    """File subclass with PDU iterator."""
+
+    def __iter__(self):
+      return self
+
+    def next(self):
+      return prefix.from_pdu_file(self)
+
+  def to_file(self, filename):
+    """Write prefix_set to a file."""
+    f = self._pdufile(filename, "wb")
+    for p in self:
+      f.write(p.to_pdu())
+    f.close()
+
+  @classmethod
+  def from_file(cls, filename):
+    """Read prefix_set from a file."""
+    self = cls()
+    f = cls._pdufile(filename, "rb")
+    for p in f:
+      self.append(p)
+    f.close()
+    return self
+
 prefixes = prefix_set.from_rcynic("../rcynic/rcynic-data/authenticated")
 
 for p in prefixes:
-  print "%-40s %s" % (p, ":".join(("%02X" % ord(i) for i in p.to_pdu())))
+  print p
+
+prefixes.to_file("fnord")
+
+fnord = prefix_set.from_file("fnord")
+
+for p in fnord:
+  print p
+
+os.unlink("fnord")
+
+print prefixes == fnord

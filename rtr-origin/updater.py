@@ -23,7 +23,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, os, rpki.x509, rpki.ipaddrs
+import sys, os, struct, rpki.x509, rpki.ipaddrs
 
 rcynic_dir = "../rcynic/rcynic-data/authenticated"
 
@@ -54,11 +54,18 @@ class prefix(object):
     if c > 0: c =  1
     return c
 
+  def to_pdu(self, announce = 1, color = 0):
+    return (struct.pack("!BBHBBBB", 0, self.pdu_type, color, announce, self.prefixlen, self.max_prefixlen, 0) +
+            self.prefix.to_bytes() +
+            struct.pack("!L", self.asn))
+
 class v4prefix(prefix):
   addr_type = rpki.ipaddrs.v4addr
+  pdu_type = 4
 
 class v6prefix(prefix):
   addr_type = rpki.ipaddrs.v6addr
+  pdu_type = 6
 
 prefix.map = { "\x00\x01" : v4prefix,
                "\x00\x02" : v6prefix }
@@ -82,4 +89,4 @@ for i in xrange(len(prefixes) - 2, -1, -1):
     del prefixes[i + 1]
 
 for p in prefixes:
-  print p
+  print "%-40s %s" % (p, ":".join(("%02X" % ord(i) for i in p.to_pdu())))

@@ -23,7 +23,10 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, os, struct, rpki.x509, rpki.ipaddrs, rpki.sundial
+import sys, os, struct, time, rpki.x509, rpki.ipaddrs, rpki.sundial
+
+os.environ["TZ"] = "UTC"
+time.tzset()
 
 class prefix(object):
   """Object representing one prefix.  This corresponds closely to one
@@ -35,6 +38,8 @@ class prefix(object):
   version = 0                           # Protocol version
   source = 0                            # Source (0 == RPKI)
 
+  _pdu = None                           # Cached when first generated
+  
   @classmethod
   def from_asn1(cls, asn, t):
     """Read a prefix from a ROA in the tuple format used by our ASN.1 decoder."""
@@ -49,23 +54,37 @@ class prefix(object):
     self.prefixlen = len(t[0])
     self.max_prefixlen = self.prefixlen if t[1] is None else t[1]
     self.color = 0
-    self.pdu = self.to_pdu()
+    self.announce = 1
+    self.check()
     return self
 
   def __str__(self):
     return "%s/%s-%s[%s]" % (self.prefix, self.prefixlen, self.max_prefixlen, self.asn)
 
   def __cmp__(self, other):
-    return cmp(self.pdu, other.pdu)
+    return cmp(self.to_pdu(), other.to_pdu())
 
-  def to_pdu(self, announce = 1):
-    """Generate the wire format PDU for this prefix.  The announce bit
-    is handled via an optional argument because of the way we use it
-    when generating diffs.
-    """
-    return (struct.pack("!BBHBBBB", self.version, self.pdu_type, self.color, announce, self.prefixlen, self.max_prefixlen, self.source) +
+  def check(self):
+    """Check attributes to make sure they're within range."""
+    assert self.announce in (0, 1)
+    assert self.prefixlen >= 0 and self.prefixlen <= self.addr_type.bits
+    assert self.max_prefixlen >= self.prefixlen and self.max_prefixlen <= self.addr_type.bits
+
+  def to_pdu(self, announce = None):
+    """Generate the wire format PDU for this prefix."""
+    if announce is not None:
+      assert announce in (0, 1)
+    elif self._pdu is not None:
+      return self._pdu
+    pdu =  (struct.pack("!BBHBBBB", self.version, self.pdu_type, self.color,
+                        announce if announce is not None else self.announce,
+                        self.prefixlen, self.max_prefixlen, self.source) +
             self.prefix.to_bytes() +
             struct.pack("!L", self.asn))
+    if announce is None:
+      assert self._pdu is None
+      self._pdu = pdu
+    return pdu
 
   @classmethod
   def from_pdu_file(cls, f):
@@ -77,13 +96,15 @@ class prefix(object):
       raise StopIteration
     version, pdu_type, color, announce, prefixlen, max_prefixlen, source = struct.unpack("!BBHBBBB", b)
     assert version == self.version, "PDU version is %d, expected %d" % (version, self.version)
-    assert announce == 1 and source == self.source
+    assert source == self.source
     self = cls.pdu_map[pdu_type]()
     self.prefixlen = prefixlen
     self.max_prefixlen = max_prefixlen
     self.color = color
+    self.announce = announce
     self.prefix = self.addr_type.from_bytes(f.read(self.addr_type.bits / 8))
     self.asn = struct.unpack("!L", f.read(4))
+    self.check()
     return self
 
 class v4prefix(prefix):
@@ -112,6 +133,7 @@ class prefix_set(list):
     """
     self = cls()
     self.timestamp = rpki.sundial.now()
+    self.serial = self.timestamp.totimestamp()
     for root, dirs, files in os.walk(rcynic_dir):
       for f in files:
         if f.endswith(".roa"):

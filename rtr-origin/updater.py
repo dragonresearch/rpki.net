@@ -63,7 +63,7 @@ class prefix(object):
 
   def __str__(self):
     plm = "%s/%s-%s" % (self.prefix, self.prefixlen, self.max_prefixlen)
-    return "%8s  %-32s %s" % (self.asn, plm, ":".join(("%02X" % ord(i) for i in p.to_pdu())))
+    return "%8s  %-32s %s" % (self.asn, plm, ":".join(("%02X" % ord(b) for b in self.to_pdu())))
 
   def pprint(self):
     print "# Class:       ", self.__class__.__name__
@@ -196,18 +196,16 @@ class prefix_set(list):
     f.close()
     return self
 
-prefixes = prefix_set.from_rcynic("../rcynic/rcynic-data/authenticated")
+def test():
+  prefixes = prefix_set.from_rcynic("../rcynic/rcynic-data/authenticated")
+  for p in prefixes:
+    print p
+  prefixes.to_file("fnord")
+  fnord = prefix_set.from_file("fnord")
+  for p in fnord:
+    print p
+  os.unlink("fnord")
+  print prefixes == fnord
 
-for p in prefixes:
-  print p
-
-prefixes.to_file("fnord")
-
-fnord = prefix_set.from_file("fnord")
-
-for p in fnord:
-  print p
-
-os.unlink("fnord")
-
-print prefixes == fnord
+if __name__ == "__main__":
+  test()

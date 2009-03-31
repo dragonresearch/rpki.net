@@ -40,6 +40,9 @@ class prefix(object):
 
   _pdu = None                           # Cached when first generated
   
+  header_struct = struct.Struct("!BBHBBBB")
+  serial_struct = struct.Struct("!L")
+
   @classmethod
   def from_asn1(cls, asn, t):
     """Read a prefix from a ROA in the tuple format used by our ASN.1 decoder."""
@@ -76,11 +79,11 @@ class prefix(object):
       assert announce in (0, 1)
     elif self._pdu is not None:
       return self._pdu
-    pdu =  (struct.pack("!BBHBBBB", self.version, self.pdu_type, self.color,
-                        announce if announce is not None else self.announce,
-                        self.prefixlen, self.max_prefixlen, self.source) +
+    pdu =  (self.header_struct.pack(self.version, self.pdu_type, self.color,
+                                    announce if announce is not None else self.announce,
+                                    self.prefixlen, self.max_prefixlen, self.source) +
             self.prefix.to_bytes() +
-            struct.pack("!L", self.asn))
+            self.serial_struct.pack(self.asn))
     if announce is None:
       assert self._pdu is None
       self._pdu = pdu
@@ -94,7 +97,7 @@ class prefix(object):
     b = f.read(8)
     if b == "":
       raise StopIteration
-    version, pdu_type, color, announce, prefixlen, max_prefixlen, source = struct.unpack("!BBHBBBB", b)
+    version, pdu_type, color, announce, prefixlen, max_prefixlen, source = cls.header_struct.unpack(b)
     assert version == self.version, "PDU version is %d, expected %d" % (version, self.version)
     assert source == self.source
     self = cls.pdu_map[pdu_type]()
@@ -103,7 +106,7 @@ class prefix(object):
     self.color = color
     self.announce = announce
     self.prefix = self.addr_type.from_bytes(f.read(self.addr_type.bits / 8))
-    self.asn = struct.unpack("!L", f.read(4))
+    self.asn = cls.serial_struct.unpack(f.read(4))
     self.check()
     return self
 

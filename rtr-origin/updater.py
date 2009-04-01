@@ -23,7 +23,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, os, struct, time, rpki.x509, rpki.ipaddrs, rpki.sundial
+import sys, os, struct, time, glob, rpki.x509, rpki.ipaddrs, rpki.sundial
 
 os.environ["TZ"] = "UTC"
 time.tzset()
@@ -288,8 +288,7 @@ class prefix_set(list):
     prefix_set.
     """
     self = cls()
-    self.timestamp = rpki.sundial.now()
-    self.serial = self.timestamp.totimestamp()
+    self.serial = rpki.sundial.now().totimestamp()
     for root, dirs, files in os.walk(rcynic_dir):
       for f in files:
         if f.endswith(".roa"):
@@ -321,6 +320,37 @@ class prefix_set(list):
       self.append(p)
     f.close()
     return self
+
+  @classmethod
+  def load_axfr(cls, filename):
+    """Load an AXFR-style prefix_set from a file, parse filename to
+    obtain serial.
+    """
+    fn1, fn2 = os.path.basename(filename).split(".")
+    assert fn1.isdigit() and fn2 == "ax"
+    self = cls.from_file(filename)
+    self.serial = int(fn1)
+    return self
+
+  def save_axfr(self):
+    """Write AXFR-style prefix_set to file with magic filename."""
+    self.to_file("%d.ax" % self.serial)
+
+  @classmethod
+  def load_ixfr(cls, filename):
+    """Load an IXFR-style prefix_set from a file, parse filename to
+    obtain serials.
+    """
+    fn1, fn2, fn3 = os.path.basename(filename).split(".")
+    assert fn1.isdigit() and fn2 == "ix" and fn3.isdigit()
+    self = cls.from_file(filename)
+    self.from_serial = int(fn3)
+    self.to_serial = int(fn1)
+    return self
+    
+  def save_ixfr(self, other):
+    """Write an IXFR-style prefix-set to file with magic filename."""
+    self.diff_to_file(other, "%d.ix.%d" % (self.serial, other.serial))
 
   def diff_to_file(self, other, outputfile):
     """Compare this prefix_set with an older one and write a file
@@ -368,5 +398,29 @@ def test2():
   for p in fnord: print p
   os.unlink("fnord")
 
+def test3():
+
+  p1 = prefix_set.from_rcynic("../rcynic/rcynic-data/authenticated")
+  p1.save_axfr()
+
+  time.sleep(5)
+
+  p2 = prefix_set.from_rcynic("../rpkid/testbed.dir/rcynic-data/authenticated")
+  p2.save_axfr()
+  p2.save_ixfr(p1)
+
+  axfrs = [prefix_set.load_axfr(f) for f in glob.glob("*.ax")]
+  ixfrs = [prefix_set.load_ixfr(f) for f in glob.glob("*.ix.*")]
+
+  for a in axfrs:
+    print "# AXFR", a.serial
+    for p in a:
+      print p
+
+  for i in ixfrs:
+    print "# IXFR", i.from_serial, "->", i.to_serial
+    for p in i:
+      print p
+
 if __name__ == "__main__":
-  test2()
+  test3()

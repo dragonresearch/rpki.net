@@ -28,7 +28,36 @@ import sys, os, struct, time, rpki.x509, rpki.ipaddrs, rpki.sundial
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-class prefix(object):
+class pdu(object):
+  """Object representing a generic PDU in the rpki-router protocol.
+  Real PDUs are subclasses of this class.
+  """
+
+  version = 0                           # Protocol version
+
+  _pdu = None                           # Cached when first generated
+
+  header_struct = struct.Struct("!BB")
+
+  def __cmp__(self, other):
+    return cmp(self.to_pdu(), other.to_pdu())
+
+  @classmethod
+  def from_pdu_file(cls, f):
+    """Read one wire format PDU from a file.  This is intended to be
+    used in an iterator, so it raises StopIteration on end of file.
+    """
+    assert cls._pdu is None
+    b = f.read(cls.header_struct.size)
+    if b == "":
+      raise StopIteration
+    t = cls.header_struct.unpack(b)
+    assert t[0] == cls.version, "PDU version is %d, expected %d" % (t[0], cls.version)
+    self = cls.pdu_map[t[1]].from_pdu_file_helper(f, b)
+    self.check()
+    return self
+
+class prefix(pdu):
   """Object representing one prefix.  This corresponds closely to one
   PDU in the rpki-router protocol, so closely that we use lexical
   ordering of the wire format of the PDU as the ordering for this
@@ -74,9 +103,6 @@ class prefix(object):
     print "# Color:       ", self.color
     print "# Announce:    ", self.announce
 
-  def __cmp__(self, other):
-    return cmp(self.to_pdu(), other.to_pdu())
-
   def check(self):
     """Check attributes to make sure they're within range."""
     assert self.announce in (0, 1)
@@ -90,42 +116,35 @@ class prefix(object):
       assert announce in (0, 1)
     elif self._pdu is not None:
       return self._pdu
-    pdu =  (self.header_struct.pack(self.version, self.pdu_type, self.color,
+    pdu = (self.header_struct.pack(self.version, self.pdu_type, self.color,
                                     announce if announce is not None else self.announce,
                                     self.prefixlen, self.max_prefixlen, self.source) +
-            self.prefix.to_bytes() +
-            self.serial_struct.pack(self.asn))
+           self.prefix.to_bytes() +
+           self.serial_struct.pack(self.asn))
     if announce is None:
       assert self._pdu is None
       self._pdu = pdu
     return pdu
 
   @classmethod
-  def from_pdu_file(cls, f):
-    """Read one wire format PDU from a file.  This is intended to be
-    used in an iterator, so it raises StopIteration on end of file.
-    """
-    assert cls._pdu is None
-    b = f.read(8)
-    if b == "":
-      raise StopIteration
+  def from_pdu_file_helper(cls, f, b):
+    """Read one wire format prefix PDU from a file."""
+    b += f.read(cls.header_struct.size - len(b))
+    p = b
     version, pdu_type, color, announce, prefixlen, max_prefixlen, source = cls.header_struct.unpack(b)
-    assert version == cls.version, "PDU version is %d, expected %d" % (version, self.version)
     assert source == cls.source
-    pdu = b
-    self = cls.pdu_map[pdu_type]()
+    self = cls()
     self.prefixlen = prefixlen
     self.max_prefixlen = max_prefixlen
     self.color = color
     self.announce = announce
     b = f.read(self.addr_type.bits / 8)
-    pdu += b
+    p += b
     self.prefix = self.addr_type.from_bytes(b)
-    b = f.read(4)
-    pdu += b
+    b = f.read(cls.serial_struct.size)
+    p += b
     self.asn = cls.serial_struct.unpack(b)[0]
-    self.check()
-    assert pdu == self.to_pdu()
+    assert p == self.to_pdu()
     return self
 
 class v4prefix(prefix):
@@ -139,7 +158,17 @@ class v6prefix(prefix):
   pdu_type = 6
 
 prefix.afi_map = { "\x00\x01" : v4prefix, "\x00\x02" : v6prefix }
-prefix.pdu_map = { 4 : v4prefix, 6 : v6prefix }
+
+pdu.pdu_map = dict((p.pdu_type, p) for p in (v4prefix, v6prefix))
+
+class pdufile(file):
+  """File subclass with PDU iterator."""
+
+  def __iter__(self):
+    return self
+
+  def next(self):
+    return pdu.from_pdu_file(self)
 
 class prefix_set(list):
   """Object representing a set of prefixes, that is, one versioned and
@@ -170,18 +199,9 @@ class prefix_set(list):
         del self[i + 1]
     return self
 
-  class _pdufile(file):
-    """File subclass with PDU iterator."""
-
-    def __iter__(self):
-      return self
-
-    def next(self):
-      return prefix.from_pdu_file(self)
-
   def to_file(self, filename):
     """Low-level method to write prefix_set to a file."""
-    f = self._pdufile(filename, "wb")
+    f = pdufile(filename, "wb")
     for p in self:
       f.write(p.to_pdu())
     f.close()
@@ -190,7 +210,7 @@ class prefix_set(list):
   def from_file(cls, filename):
     """Low-level method to read prefix_set from a file."""
     self = cls()
-    f = cls._pdufile(filename, "rb")
+    f = pdufile(filename, "rb")
     for p in f:
       self.append(p)
     f.close()
@@ -201,7 +221,7 @@ class prefix_set(list):
     consisting of the changes.  Since we store prefix_sets in sorted
     order, computing the difference is a trivial linear comparison.
     """
-    f = self._pdufile(outputfile, "wb")
+    f = pdufile(outputfile, "wb")
     old = other[:]
     new = self[:]
     while old and new:
@@ -240,7 +260,7 @@ def test2():
   for p in p2: print p
   print "# Diff:"
   for p in fnord: print p
-  #os.unlink("fnord")
+  os.unlink("fnord")
 
 if __name__ == "__main__":
   test2()

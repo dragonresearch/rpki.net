@@ -42,6 +42,10 @@ class pdu(object):
   def __cmp__(self, other):
     return cmp(self.to_pdu(), other.to_pdu())
 
+  def check(self):
+    """Check attributes to make sure they're within range."""
+    pass
+
   @classmethod
   def from_pdu_file(cls, f):
     """Read one wire format PDU from a file.  This is intended to be
@@ -51,11 +55,80 @@ class pdu(object):
     b = f.read(cls.header_struct.size)
     if b == "":
       raise StopIteration
-    t = cls.header_struct.unpack(b)
-    assert t[0] == cls.version, "PDU version is %d, expected %d" % (t[0], cls.version)
-    self = cls.pdu_map[t[1]].from_pdu_file_helper(f, b)
+    version, pdu_type = cls.header_struct.unpack(b)
+    assert version == cls.version, "PDU version is %d, expected %d" % (version, cls.version)
+    self = cls.pdu_map[pdu_type].from_pdu_file_helper(f, b)
     self.check()
     return self
+
+class pdu_with_serial(pdu):
+  """Base class for PDUs consisting of just a serial number."""
+
+  header_struct = struct.Struct("!BBHL")
+
+  def __str__(self):
+    return "#%s" % self.serial
+
+  def to_pdu(self):
+    """Generate the wire format PDU for this prefix."""
+    if self._pdu is None:
+      self._pdu = self.header_struct.pack(self.version, self.pdu_type, 0, self.serial)
+    return self._pdu
+
+  @classmethod
+  def from_pdu_file_helper(cls, f, b):
+    """Read one wire format prefix PDU from a file."""
+    self = cls()
+    b += f.read(cls.header_struct.size - len(b))
+    version, pdu_type, zero, self.serial = cls.header_struct.unpack(b)
+    assert zero == 0
+    assert b == self.to_pdu()
+    return self
+
+class pdu_empty(pdu):
+  """Base class for emtpy PDUs."""
+
+  header_struct = struct.Struct("!BBH")
+
+  def to_pdu(self):
+    """Generate the wire format PDU for this prefix."""
+    if self._pdu is None:
+      self._pdu = self.header_struct.pack(self.version, self.pdu_type, 0)
+    return self._pdu
+
+  @classmethod
+  def from_pdu_file_helper(cls, f, b):
+    """Read one wire format prefix PDU from a file."""
+    self = cls()
+    b += f.read(cls.header_struct.size - len(b))
+    version, pdu_type, zero = cls.header_struct.unpack(b)
+    assert zero == 0
+    assert b == self.to_pdu()
+    return self
+
+class serial_notify(pdu_with_serial):
+  """Serial Notify PDU."""
+  pdu_type = 0
+
+class serial_query(pdu_with_serial):
+  """Serial Query PDU."""
+  pdu_type = 1
+
+class reset_query(pdu_empty):
+  """Reset Query PDU."""
+  pdu_type = 2
+
+class cache_response(pdu_empty):
+  """Cache Response PDU."""
+  pdu_type = 3
+
+class end_of_data(pdu_with_serial):
+  """End of Data PDU."""
+  pdu_type = 7
+
+class cache_reset(pdu_empty):
+  """Cache reset PDU."""
+  pdu_type = 8
 
 class prefix(pdu):
   """Object representing one prefix.  This corresponds closely to one
@@ -64,11 +137,8 @@ class prefix(pdu):
   class.
   """
 
-  version = 0                           # Protocol version
   source = 0                            # Source (0 == RPKI)
 
-  _pdu = None                           # Cached when first generated
-  
   header_struct = struct.Struct("!BBHBBBB")
   serial_struct = struct.Struct("!L")
 
@@ -117,8 +187,8 @@ class prefix(pdu):
     elif self._pdu is not None:
       return self._pdu
     pdu = (self.header_struct.pack(self.version, self.pdu_type, self.color,
-                                    announce if announce is not None else self.announce,
-                                    self.prefixlen, self.max_prefixlen, self.source) +
+                                   announce if announce is not None else self.announce,
+                                   self.prefixlen, self.max_prefixlen, self.source) +
            self.prefix.to_bytes() +
            self.serial_struct.pack(self.asn))
     if announce is None:
@@ -129,15 +199,11 @@ class prefix(pdu):
   @classmethod
   def from_pdu_file_helper(cls, f, b):
     """Read one wire format prefix PDU from a file."""
+    self = cls()
     b += f.read(cls.header_struct.size - len(b))
     p = b
-    version, pdu_type, color, announce, prefixlen, max_prefixlen, source = cls.header_struct.unpack(b)
+    version, pdu_type, self.color, self.announce, self.prefixlen, self.max_prefixlen, source = cls.header_struct.unpack(b)
     assert source == cls.source
-    self = cls()
-    self.prefixlen = prefixlen
-    self.max_prefixlen = max_prefixlen
-    self.color = color
-    self.announce = announce
     b = f.read(self.addr_type.bits / 8)
     p += b
     self.prefix = self.addr_type.from_bytes(b)
@@ -147,19 +213,23 @@ class prefix(pdu):
     assert p == self.to_pdu()
     return self
 
-class v4prefix(prefix):
+class ipv4_prefix(prefix):
   """IPv4 flavor of a prefix."""
-  addr_type = rpki.ipaddrs.v4addr
   pdu_type = 4
+  addr_type = rpki.ipaddrs.v4addr
 
-class v6prefix(prefix):
+class ipv6_prefix(prefix):
   """IPv6 flavor of a prefix."""
-  addr_type = rpki.ipaddrs.v6addr
   pdu_type = 6
+  addr_type = rpki.ipaddrs.v6addr
 
-prefix.afi_map = { "\x00\x01" : v4prefix, "\x00\x02" : v6prefix }
+class error_report(pdu):
+  """Error Report PDU.  Not yet implemented."""
+  pdu_type = 10
 
-pdu.pdu_map = dict((p.pdu_type, p) for p in (v4prefix, v6prefix))
+prefix.afi_map = { "\x00\x01" : ipv4_prefix, "\x00\x02" : ipv6_prefix }
+
+pdu.pdu_map = dict((p.pdu_type, p) for p in (ipv4_prefix, ipv6_prefix, serial_notify, serial_query, reset_query, cache_response, end_of_data, cache_reset, error_report))
 
 class pdufile(file):
   """File subclass with PDU iterator."""

@@ -369,16 +369,16 @@ class prefix_set(list):
 
 def test():
 
-  p1 = prefix_set.parse_rcynic("../rcynic/rcynic-data/authenticated")
-  p1.save_axfr()
-
-  time.sleep(5)
-
-  p2 = prefix_set.parse_rcynic("../rpkid/testbed.dir/rcynic-data/authenticated")
-  p2.save_axfr()
-  p2.save_ixfr(p1)
-
   axfrs = [prefix_set.load_axfr(f) for f in glob.glob("*.ax")]
+
+  for dir in ("../rcynic/rcynic-data/authenticated", "../rpkid/testbed.dir/rcynic-data/authenticated"):
+    p = prefix_set.parse_rcynic(dir)
+    p.save_axfr()
+    for a in axfrs:
+      p.save_ixfr(a)
+    axfrs.append(p)
+    time.sleep(2)
+
   ixfrs = [prefix_set.load_ixfr(f) for f in glob.glob("*.ix.*")]
 
   def pp(serial):

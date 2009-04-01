@@ -224,8 +224,44 @@ class ipv6_prefix(prefix):
   addr_type = rpki.ipaddrs.v6addr
 
 class error_report(pdu):
-  """Error Report PDU.  Not yet implemented."""
+  """Error Report PDU.  This is kind of painful to parse, an explicit
+  count for the encapsulated PDU would simplify this considerably.
+  """
+
   pdu_type = 10
+
+  header_struct = struct.Struct("!BBH")
+  errlen_struct = struct.Struct("!B")
+
+  errmsg = ""
+
+  def __str__(self):
+    return "#%s: %s" % (self.errno, self.errmsg)
+
+  def to_pdu(self):
+    """Generate the wire format PDU for this prefix."""
+    if self._pdu is None:
+      assert isinstance(self.errno, int)
+      assert isinstance(self.errpdu, pdu)
+      assert not isinstance(self.errpdu, error_report)
+      self._pdu = (self.header_struct.pack(self.version, self.pdu_type, self.errno) +
+                   self.errpdu.to_pdu() +
+                   self.errlen_struct.pack(len(self.errmsg)) +
+                   self.errmsg)
+    return self._pdu
+
+  @classmethod
+  def from_pdu_file_helper(cls, f, b):
+    """Read one wire format prefix PDU from a file."""
+    self = cls()
+    b += f.read(cls.header_struct.size - len(b))
+    version, pdu_type, self.errno = cls.header_struct.unpack(b)
+    self.errpdu = pdu.from_pdu_file(f)
+    b = f.read(cls.errlen_struct.size)
+    n = cls.errlen_struct.unpack(b)
+    if n:
+      self.errmsg = f.read(n)
+    return self
 
 prefix.afi_map = { "\x00\x01" : ipv4_prefix, "\x00\x02" : ipv6_prefix }
 

@@ -283,7 +283,7 @@ class prefix_set(list):
   """
 
   @classmethod
-  def from_rcynic(cls, rcynic_dir):
+  def parse_rcynic(cls, rcynic_dir):
     """Parse ROAS fetched (and validated!) by rcynic to create a new
     prefix_set.
     """
@@ -304,15 +304,8 @@ class prefix_set(list):
         del self[i + 1]
     return self
 
-  def to_file(self, filename):
-    """Low-level method to write prefix_set to a file."""
-    f = pdufile(filename, "wb")
-    for p in self:
-      f.write(p.to_pdu())
-    f.close()
-
   @classmethod
-  def from_file(cls, filename):
+  def _load_file(cls, filename):
     """Low-level method to read prefix_set from a file."""
     self = cls()
     f = pdufile(filename, "rb")
@@ -328,13 +321,9 @@ class prefix_set(list):
     """
     fn1, fn2 = os.path.basename(filename).split(".")
     assert fn1.isdigit() and fn2 == "ax"
-    self = cls.from_file(filename)
+    self = cls._load_file(filename)
     self.serial = int(fn1)
     return self
-
-  def save_axfr(self):
-    """Write AXFR-style prefix_set to file with magic filename."""
-    self.to_file("%d.ax" % self.serial)
 
   @classmethod
   def load_ixfr(cls, filename):
@@ -343,21 +332,25 @@ class prefix_set(list):
     """
     fn1, fn2, fn3 = os.path.basename(filename).split(".")
     assert fn1.isdigit() and fn2 == "ix" and fn3.isdigit()
-    self = cls.from_file(filename)
+    self = cls._load_file(filename)
     self.from_serial = int(fn3)
     self.to_serial = int(fn1)
     return self
-    
-  def save_ixfr(self, other):
-    """Write an IXFR-style prefix-set to file with magic filename."""
-    self.diff_to_file(other, "%d.ix.%d" % (self.serial, other.serial))
 
-  def diff_to_file(self, other, outputfile):
-    """Compare this prefix_set with an older one and write a file
-    consisting of the changes.  Since we store prefix_sets in sorted
-    order, computing the difference is a trivial linear comparison.
+  def save_axfr(self):
+    """Write AXFR-style prefix_set to file with magic filename."""
+    f = pdufile("%d.ax" % self.serial, "wb")
+    for p in self:
+      f.write(p.to_pdu())
+    f.close()
+
+  def save_ixfr(self, other):
+    """Comparing this prefix_set with an older one and write the
+    resulting IXFR-style prefix-set to file with magic filename.
+    Since we store prefix_sets in sorted order, computing the
+    difference is a trivial linear comparison.
     """
-    f = pdufile(outputfile, "wb")
+    f = pdufile("%d.ix.%d" % (self.serial, other.serial), "wb")
     old = other[:]
     new = self[:]
     while old and new:
@@ -374,53 +367,32 @@ class prefix_set(list):
       f.write(new.pop(0).to_pdu(announce = 1))
     f.close()
 
-def test1():
-  prefixes = prefix_set.from_rcynic("../rcynic/rcynic-data/authenticated")
-  for p in prefixes:
-    print p
-  prefixes.to_file("fnord")
-  fnord = prefix_set.from_file("fnord")
-  for p in fnord:
-    print p
-  os.unlink("fnord")
-  print prefixes == fnord
+def test():
 
-def test2():
-  p1 = prefix_set.from_rcynic("../rcynic/rcynic-data/authenticated")
-  p2 = prefix_set.from_rcynic("../rpkid/testbed.dir/rcynic-data/authenticated")
-  p2.diff_to_file(p1, "fnord")
-  fnord = prefix_set.from_file("fnord")
-  print "# Old:"
-  for p in p1: print p
-  print "# New:"
-  for p in p2: print p
-  print "# Diff:"
-  for p in fnord: print p
-  os.unlink("fnord")
-
-def test3():
-
-  p1 = prefix_set.from_rcynic("../rcynic/rcynic-data/authenticated")
+  p1 = prefix_set.parse_rcynic("../rcynic/rcynic-data/authenticated")
   p1.save_axfr()
 
   time.sleep(5)
 
-  p2 = prefix_set.from_rcynic("../rpkid/testbed.dir/rcynic-data/authenticated")
+  p2 = prefix_set.parse_rcynic("../rpkid/testbed.dir/rcynic-data/authenticated")
   p2.save_axfr()
   p2.save_ixfr(p1)
 
   axfrs = [prefix_set.load_axfr(f) for f in glob.glob("*.ax")]
   ixfrs = [prefix_set.load_ixfr(f) for f in glob.glob("*.ix.*")]
 
+  def pp(serial):
+    return "%d (%s)" % (serial, rpki.sundial.datetime.utcfromtimestamp(serial))
+
   for a in axfrs:
-    print "# AXFR", a.serial
+    print "# AXFR", pp(a.serial)
     for p in a:
       print p
 
   for i in ixfrs:
-    print "# IXFR", i.from_serial, "->", i.to_serial
+    print "# IXFR", pp(i.from_serial), "->", pp(i.to_serial)
     for p in i:
       print p
 
 if __name__ == "__main__":
-  test3()
+  test()

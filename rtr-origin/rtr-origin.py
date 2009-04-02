@@ -656,7 +656,8 @@ class server_asynchat(pdu_asynchat):
 
   def notify(self, data = None):
     """Receive a wakeup from cronjob instance."""
-    self.log_info(data, "notify")
+    if self.check_serial():
+      self.push_pdu(serial_notify(serial = self.current_serial))
 
 class client_asynchat(pdu_asynchat):
   """Client protocol engine, handles upcalls from pdu_asynchat."""

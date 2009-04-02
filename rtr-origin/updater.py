@@ -344,6 +344,18 @@ class prefix_set(list):
       f.write(p.to_pdu())
     f.close()
 
+  def mark_current(self):
+    """Mark the current serial number as current."""
+    tmpfn = "current.%d.tmp" % os.getpid()
+    try:
+      f = open(tmpfn, "w")
+      f.write("%d\n" % self.serial)
+      f.close()
+      os.rename(tmpfn, "current")
+    except:
+      os.unlink(tmpfn)
+      raise
+
   def save_ixfr(self, other):
     """Comparing this prefix_set with an older one and write the
     resulting IXFR-style prefix-set to file with magic filename.
@@ -376,6 +388,7 @@ def test():
     p.save_axfr()
     for a in axfrs:
       p.save_ixfr(a)
+    p.mark_current()
     axfrs.append(p)
     time.sleep(2)
 

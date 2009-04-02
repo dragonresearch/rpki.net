@@ -638,6 +638,18 @@ class server_asynchat(pdu_asynchat):
     log("deliver_pdu(%s)" % pdu)
     pdu.serve(self)
 
+  wakeup = None
+
+  def set_wakeup(self, wakeup):
+    """Record companion wakeup socket, for shutdown."""
+    self.wakeup = wakeup
+
+  def handle_close(self):
+    """Intercept close event so we can shut down wakeup socket too."""
+    if self.wakeup is not None:
+      self.wakeup.close()
+    asynchat.async_chat.handle_close(self)
+
 class client_asynchat(pdu_asynchat):
   """Client protocol engine, handles upcalls from pdu_asynchat."""
 
@@ -648,18 +660,22 @@ class client_asynchat(pdu_asynchat):
       self.ssh = subprocess.Popen(sshargs, executable = "/usr/bin/ssh", stdin = s[0], stdout = s[0], close_fds = True)
     else:
       print "[Ignoring arguments, using direct socket loopback kludge for testing]"
-      self.ssh = subprocess.Popen(["/usr/local/bin/python", "updater.py", "server"], stdin = s[0], stdout = s[0], close_fds = True)
+      self.ssh = subprocess.Popen(["/usr/local/bin/python", "rtr-origin.py", "server"], stdin = s[0], stdout = s[0], close_fds = True)
     asynchat.async_chat.__init__(self, conn = s[1])
     self.start_new_pdu()
 
   def deliver_pdu(self, pdu):
-    """Handle received PDU.  For now, just print it."""
+    """Handle received PDU.  For now, just print it and shut down."""
     log("deliver_pdu(%s)" % pdu)
     print pdu
+    self.close()
 
   def cleanup(self):
     """Clean up this chat session's child process."""
-    os.kill(self.ssh.pid, signal.SIGINT)
+    try:
+      os.kill(self.ssh.pid, signal.SIGINT)
+    except:
+      pass
 
 class server_wakeup(asyncore.dispatcher):
   """asycnore dispatcher for server.  This just handles the PF_UNIX
@@ -704,6 +720,8 @@ def server_main():
     log("starting wakeup")
     wakeup = server_wakeup(chat = server)
     log("wakeup setup got %s" % repr(wakeup))
+    log("setting chat's wakeup handle")
+    server.set_wakeup(wakeup)
     log("looping")
     asyncore.loop()
   finally:
@@ -722,9 +740,10 @@ def client_main():
     client.push_pdu(reset_query())
     log("chat connected: %s" % client.connected)
     asyncore.loop()
-  finally:
+  except:
     if client is not None:
       client.cleanup()
+    raise
 
 def log_really(msg):
   """Logging hack, debugging code only, clean up later..."""

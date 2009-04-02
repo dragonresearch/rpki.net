@@ -212,7 +212,8 @@ class end_of_data(pdu_with_serial):
   def consume(self, client):
     """Handle results in test client.  Print PDU and shut down."""
     print self
-    client.close()
+    # Well, don't shut down for what I'm testing now.
+    #client.close()
 
 class cache_reset(pdu_empty):
   """Cache reset PDU."""
@@ -517,6 +518,12 @@ def cronjob_main():
     for p in i:
       print p
 
+  s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+  for name in glob.iglob("wakeup.*"):
+    print "# Notifying %s" % name
+    s.sendto("Hello, Polly!", name)
+  s.close()
+    
 class file_producer(object):
   """File-based producer object for asynchat."""
 
@@ -580,8 +587,8 @@ class pdu_asynchat(asynchat.async_chat):
     self.log_info(msg, None)
 
   def log_info(self, msg, tag = "info"):
-    """Intercept asyncore's logging."""
-    tag = "asyncore" if tag is None else "asyncore %s" % tag
+    """Intercept asynchat's logging."""
+    tag = "asynchat" if tag is None else "asynchat %s" % tag
     sys.stderr.write("[%s] %s\n" % (tag, msg))
 
 class server_asynchat(pdu_asynchat):
@@ -647,6 +654,10 @@ class server_asynchat(pdu_asynchat):
     old_serial = self.current_serial
     return old_serial != self.get_serial()
 
+  def notify(self, data = None):
+    """Receive a wakeup from cronjob instance."""
+    self.log_info(data, "notify")
+
 class client_asynchat(pdu_asynchat):
   """Client protocol engine, handles upcalls from pdu_asynchat."""
 
@@ -691,15 +702,19 @@ class server_wakeup(asyncore.dispatcher):
     self.my_socket_filename = "wakeup.%d" % os.getpid()
     self.create_socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     self.bind(self.my_socket_filename)
-    self.listen(5)
 
   def writable(self):
     """This socket is read-only, never writable."""
     return False
 
+  def handle_connect(self):
+    """Ignore connect events (not very useful on datagram socket)."""
+    pass
+
   def handle_read(self):
     """Handle receipt of a datagram."""
-    self.my_asynchat_handle.notify(self.recv(512))
+    data = self.recv(512)
+    self.my_asynchat_handle.notify(data)
 
   def cleanup(self):
     """Clean up this dispatcher's socket."""
@@ -708,6 +723,15 @@ class server_wakeup(asyncore.dispatcher):
       os.unlink(self.my_socket_filename)
     except:
       pass
+
+  def log(self, msg):
+    """Intercept asyncore's logging."""
+    self.log_info(msg, None)
+
+  def log_info(self, msg, tag = "info"):
+    """Intercept asyncore's logging."""
+    tag = "asyncore" if tag is None else "asyncore %s" % tag
+    sys.stderr.write("[%s] %s\n" % (tag, msg))
 
 def server_main():
   """Main program for server mode.  Not really written yet."""

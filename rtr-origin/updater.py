@@ -23,7 +23,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, os, struct, time, glob, socket, asyncore, asynchat
+import sys, os, struct, time, glob, socket, asyncore, asynchat, subprocess
 import rpki.x509, rpki.ipaddrs, rpki.sundial
 
 os.environ["TZ"] = "UTC"
@@ -456,17 +456,22 @@ def updater_main():
     for p in i:
       print p
 
+class file_producer(object):
+  """File-based producer object for asynchat."""
+
+  def __init__(self, handle, buffersize):
+    self.handle = handle
+    self.buffersize = buffersize
+
+  def more(self):
+    return self.handle.read(self.buffersize)
+
 class pdu_asynchat(asynchat.async_chat):
   """asynchat subclass that understands our PDUs.  This just handles
   the network I/O.  Specific engines (client, server) should be
   subclasses of this with methods that do something useful with the
   resulting PDUs.
   """
-
-  def __init__(self):
-    """Set up connection and start listening for first PDU."""
-    asynchat.async_chat.__init__(self, conn = sys.stdin)
-    self.start_new_pdu()
 
   def start_new_pdu(self):
     """Starting read of a new PDU, set up initial decoder."""
@@ -500,11 +505,41 @@ class pdu_asynchat(asynchat.async_chat):
     """Subclass must implement this."""
     raise NotImplementedError
 
+  def push_pdu(self, pdu):
+    """Write PDU to asynchat stream."""
+    self.push(pdu.to_pdu())
+
+  def push_file(self, f):
+    """Write content of a file to an asynchat stream."""
+    self.push_with_producer(file_producer(f, self.ac_out_buffer_size))
+
 class server_asynchat(pdu_asynchat):
   """Server protocol engine, handles upcalls from pdu_asynchat to
   implement protocol logic.
   """
-  pass
+
+  def __init__(self):
+    """Set up stdin as connection and start listening for first PDU."""
+    asynchat.async_chat.__init__(self, conn = sys.stdin)
+    self.start_new_pdu()
+
+  def deliver_pdu(self, pdu):
+    """Handle received PDU."""
+    pdu.handle_request(self)
+
+class clientr_asynchat(pdu_asynchat):
+  """Client protocol engine, handles upcalls from pdu_asynchat."""
+
+  def __init__(self, *sshargs):
+    """Set up ssh connection and start listening for first PDU."""
+    s = socket.socketpair()
+    self.ssh = subprocess.Popen(sshargs, executable = "/usr/bin/ssh", stdin = s[0], stdout = s[0], close_fds = True)
+    asynchat.async_chat.__init__(self, conn = s[1])
+    self.start_new_pdu()
+
+  def deliver_pdu(self, pdu):
+    """Handle received PDU.  For now, just print it."""
+    pdu.pprint()
 
 class server_wakeup(asyncore.dispatcher):
   """asycnore dispatcher for server.  This just handles the PF_UNIX

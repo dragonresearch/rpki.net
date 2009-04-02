@@ -38,7 +38,7 @@ class pdu(object):
 
   _pdu = None                           # Cached when first generated
 
-  header_struct = struct.Struct("!BB")
+  common_header_struct = struct.Struct("!BB")
 
   def __cmp__(self, other):
     return cmp(self.to_pdu(), other.to_pdu())
@@ -53,10 +53,10 @@ class pdu(object):
     used in an iterator, so it raises StopIteration on end of file.
     """
     assert cls._pdu is None
-    b = f.read(cls.header_struct.size)
+    b = f.read(cls.common_header_struct.size)
     if b == "":
       raise StopIteration
-    version, pdu_type = cls.header_struct.unpack(b)
+    version, pdu_type = cls.common_header_struct.unpack(b)
     assert version == cls.version, "PDU version is %d, expected %d" % (version, cls.version)
     self = cls.pdu_map[pdu_type]()
     self.from_pdu_file_helper(f, b)
@@ -66,17 +66,18 @@ class pdu(object):
   @classmethod
   def initial_asynchat_decoder(cls, chat):
     """Set up initial read for asynchat PDU reader."""
-    chat.set_terminator(cls.header_struct.size)
-    chat.set_next_decoder(cls.chat_decode_pdu_header)
+    chat.set_terminator(cls.common_header_struct.size)
+    chat.set_next_decoder(cls.chat_decode_common_header)
 
   @classmethod
-  def chat_decode_pdu_header(cls, chat, b):
+  def chat_decode_common_header(cls, chat, b):
     """Decode PDU header from an asynchat reader."""
     assert cls._pdu is None
-    version, pdu_type = cls.header_struct.unpack(b)
+    version, pdu_type = cls.common_header_struct.unpack(b)
     assert version == cls.version, "PDU version is %d, expected %d" % (version, cls.version)
     self = cls.pdu_map[pdu_type]()
-    chat.set_next_decoder(self.chat_decode_pdu_header)
+    chat.set_terminator(self.header_struct.size)
+    chat.set_next_decoder(self.chat_decode_header)
     return None
 
 class pdu_with_serial(pdu):
@@ -100,6 +101,13 @@ class pdu_with_serial(pdu):
     assert zero == 0
     assert b == self.to_pdu()
 
+  def chat_decode_header(self, chat, b):
+    """Decode PDU from an asynchat reader."""
+    version, pdu_type, zero, self.serial = self.header_struct.unpack(b)
+    assert zero == 0
+    assert b == self.to_pdu()
+    return self
+
 class pdu_empty(pdu):
   """Base class for emtpy PDUs."""
 
@@ -117,6 +125,13 @@ class pdu_empty(pdu):
     version, pdu_type, zero = self.header_struct.unpack(b)
     assert zero == 0
     assert b == self.to_pdu()
+
+  def chat_decode_header(self, chat, b):
+    """Decode PDU from an asynchat reader."""
+    version, pdu_type, zero = self.header_struct.unpack(b)
+    assert zero == 0
+    assert b == self.to_pdu()
+    return self
 
 class serial_notify(pdu_with_serial):
   """Serial Notify PDU."""
@@ -152,7 +167,7 @@ class prefix(pdu):
   source = 0                            # Source (0 == RPKI)
 
   header_struct = struct.Struct("!BBHBBBB")
-  serial_struct = struct.Struct("!L")
+  asnum_struct = struct.Struct("!L")
 
   @classmethod
   def from_asn1(cls, asn, t):
@@ -202,7 +217,7 @@ class prefix(pdu):
                                    announce if announce is not None else self.announce,
                                    self.prefixlen, self.max_prefixlen, self.source) +
            self.prefix.to_bytes() +
-           self.serial_struct.pack(self.asn))
+           self.asnum_struct.pack(self.asn))
     if announce is None:
       assert self._pdu is None
       self._pdu = pdu
@@ -217,10 +232,32 @@ class prefix(pdu):
     b = f.read(self.addr_type.bits / 8)
     p += b
     self.prefix = self.addr_type.from_bytes(b)
-    b = f.read(self.serial_struct.size)
+    b = f.read(self.asnum_struct.size)
     p += b
-    self.asn = self.serial_struct.unpack(b)[0]
+    self.asn = self.asnum_struct.unpack(b)[0]
     assert p == self.to_pdu()
+
+  def chat_decode_header(self, chat, b):
+    """Decode PDU header from an asynchat reader."""
+    version, pdu_type, self.color, self.announce, self.prefixlen, self.max_prefixlen, source = self.header_struct.unpack(b)
+    assert source == self.source
+    chat.clear_ibuf()
+    chat.set_terminator(self.addr_type.bits / 8)
+    chat.set_next_decoder(self.chat_decode_prefix)
+    return None
+
+  def chat_decode_prefix(self, chat, b):
+    """Decode prefix from an asynchat reader."""
+    self.prefix = self.addr_type.from_bytes(b)
+    chat.clear_ibuf()
+    chat.set_terminator(self.asnum_struct.size)
+    chat.set_next_decoder(self.chat_decode_asnum)
+    return None
+
+  def chat_decode_asnum(self, chat, b):
+    """Decode autonomous system number from an asynchat reader."""
+    self.asn = self.asnum_struct.unpack(b)[0]
+    return self
 
 class ipv4_prefix(prefix):
   """IPv4 flavor of a prefix."""
@@ -424,38 +461,44 @@ class pdu_asynchat(asynchat.async_chat):
   the network I/O.  Specific engines (client, server) should be
   subclasses of this with methods that do something useful with the
   resulting PDUs.
-
-  [The following is already obsolete, update when it holds still...]
-  The core of this mechanism is self.next_pdu_decoder, which is a
-  bound method to the pdu class or an instance of one of its
-  subclasses.  A decoder returns either None, indicating that the PDU
-  is now complete and ready to be consumed, or a bound method to the
-  next decoder.  set_terminator() is handled by the decoders, since
-  only they know what they need to see next.
   """
 
   def __init__(self):
+    """Set up connection and start listening for first PDU."""
     asynchat.async_chat.__init__(self, conn = sys.stdin)
     self.start_new_pdu()
 
   def start_new_pdu(self):
+    """Starting read of a new PDU, set up initial decoder."""
     self.clear_ibuf()
+    self.next_decoder = None
     pdu.initial_asynchat_decoder(self)
+    assert self.next_decoder is not None
 
   def clear_ibuf(self):
+    """Clear the input buffer."""
     self.ibuf = ""
 
   def collect_incoming_data(self, data):
+    """Collect data into the input buffer."""
     self.ibuf += data
 
   def set_next_decoder(self, decoder):
+    """Set decoder to use with the next chunk of data."""
     self.next_decoder = decoder
 
   def found_terminator(self):
-    p = self.next_decoder(self, ibuf)
-    if p is not None:
-      self.deliver_pdu(p)
+    """Got requested data, hand it to decoder.  If we get back a PDU,
+    pass it up, then loop back to listen for another PDU.
+    """
+    pdu = self.next_decoder(self, ibuf)
+    if pdu is not None:
+      self.deliver_pdu(pdu)
       self.start_next_pdu()
+
+  def deliver_pdu(self, pdu):
+    """Subclass must implement this."""
+    raise NotImplementedError
 
 class server_asynchat(pdu_asynchat):
   """Server protocol engine, handles upcalls from pdu_asynchat to

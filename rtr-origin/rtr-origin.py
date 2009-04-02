@@ -85,14 +85,12 @@ class pdu(object):
   @classmethod
   def initial_asynchat_decoder(cls, chat):
     """Set up initial read for asynchat PDU reader."""
-    log("initial_asynchat_decoder()")
     chat.set_terminator(cls.common_header_struct.size)
     chat.set_next_decoder(cls.chat_decode_common_header)
 
   @classmethod
   def chat_decode_common_header(cls, chat, b):
     """Decode PDU header from an asynchat reader."""
-    log("chat_decode_common_header()")
     assert cls._pdu is None
     version, pdu_type = cls.common_header_struct.unpack(b)
     assert version == cls.version, "PDU version is %d, expected %d" % (version, cls.version)
@@ -121,8 +119,7 @@ class pdu_with_serial(pdu):
       self.serial = serial
 
   def __str__(self):
-    log("__str__()")
-    return "[%s #%s]" % (self.__class__.__name__, self.serial)
+    return "[%s, serial #%s]" % (self.__class__.__name__, self.serial)
 
   def to_pdu(self):
     """Generate the wire format PDU for this prefix."""
@@ -139,7 +136,6 @@ class pdu_with_serial(pdu):
 
   def chat_decode_header(self, chat, b):
     """Decode PDU from an asynchat reader."""
-    log("chat_decode_header()")
     version, pdu_type, zero, self.serial = self.header_struct.unpack(b)
     assert zero == 0
     assert b == self.to_pdu()
@@ -151,7 +147,6 @@ class pdu_empty(pdu):
   header_struct = struct.Struct("!BBH")
 
   def __str__(self):
-    log("__str__()")
     return "[%s]" % self.__class__.__name__
 
   def to_pdu(self):
@@ -169,7 +164,6 @@ class pdu_empty(pdu):
 
   def chat_decode_header(self, chat, b):
     """Decode PDU from an asynchat reader."""
-    log("chat_decode_header()")
     version, pdu_type, zero = self.header_struct.unpack(b)
     assert zero == 0
     assert b == self.to_pdu()
@@ -255,7 +249,6 @@ class prefix(pdu):
     return self
 
   def __str__(self):
-    log("__str__()")
     plm = "%s/%s-%s" % (self.prefix, self.prefixlen, self.max_prefixlen)
     return "%s %8s  %-32s %s" % ("+" if self.announce else "-", self.asn, plm, ":".join(("%02X" % ord(b) for b in self.to_pdu())))
 
@@ -307,7 +300,6 @@ class prefix(pdu):
 
   def chat_decode_header(self, chat, b):
     """Decode PDU header from an asynchat reader."""
-    log("chat_decode_header()")
     version, pdu_type, self.color, self.announce, self.prefixlen, self.max_prefixlen, source = self.header_struct.unpack(b)
     assert source == self.source
     chat.consume(self.header_struct.size)
@@ -317,7 +309,6 @@ class prefix(pdu):
 
   def chat_decode_prefix(self, chat, b):
     """Decode prefix from an asynchat reader."""
-    log("chat_decode_prefix()")
     self.prefix = self.addr_type.from_bytes(b)
     chat.consume(self.addr_type.bits / 8)
     chat.set_terminator(self.asnum_struct.size)
@@ -352,7 +343,6 @@ class error_report(pdu):
   errmsg = ""
 
   def __str__(self):
-    log("__str__()")
     return "#%s: %s" % (self.errno, self.errmsg)
 
   def to_pdu(self):
@@ -535,7 +525,6 @@ class file_producer(object):
     self.buffersize = buffersize
 
   def more(self):
-    log("more()")
     return self.handle.read(self.buffersize)
 
 class pdu_asynchat(asynchat.async_chat):
@@ -547,7 +536,6 @@ class pdu_asynchat(asynchat.async_chat):
 
   def start_new_pdu(self):
     """Starting read of a new PDU, set up initial decoder."""
-    log("start_new_pdu()")
     self.buffer = ""
     self.next_decoder = None
     pdu.initial_asynchat_decoder(self)
@@ -555,24 +543,20 @@ class pdu_asynchat(asynchat.async_chat):
 
   def consume(self, n):
     """Consume n bytes from the input buffer."""
-    log("consume()")
     self.buffer = self.buffer[n:]
 
   def collect_incoming_data(self, data):
     """Collect data into the input buffer."""
-    log("collect_incoming_data()")
     self.buffer += data
 
   def set_next_decoder(self, decoder):
     """Set decoder to use with the next chunk of data."""
-    log("set_next_decoder()")
     self.next_decoder = decoder
 
   def found_terminator(self):
     """Got requested data, hand it to decoder.  If we get back a PDU,
     pass it up, then loop back to listen for another PDU.
     """
-    log("found_terminator()")
     pdu = self.next_decoder(self, self.buffer)
     if pdu is not None:
       self.deliver_pdu(pdu)
@@ -585,76 +569,20 @@ class pdu_asynchat(asynchat.async_chat):
   def push_pdu(self, pdu):
     """Write PDU to asynchat stream."""
     data = pdu.to_pdu()
-    log("push_pdu(%d)" % len(data))
     self.push(data)
 
   def push_file(self, f):
     """Write content of a file to an asynchat stream."""
-    log("push_file()")
     self.push_with_producer(file_producer(f, self.ac_out_buffer_size))
 
-  def log(self, message):
+  def log(self, msg):
     """Intercept asyncore's logging."""
-    log_really("asyncore: %s" % message)
+    self.log_info(msg, None)
 
-  def log_info(self, message, type = "info"):
+  def log_info(self, msg, tag = "info"):
     """Intercept asyncore's logging."""
-    log_really("asyncore[%s]: %s" % (type, message))
-
-  if False:
-
-    # Whole bunch of nasty debugging code that I hope I will never
-    # need to use again but would rather not have to type ever again
-    # either.
-
-    def initiate_send(self):
-      """DEBUGGING KLUDGE"""
-      log("initiate_send()")
-      asynchat.async_chat.initiate_send(self)
-
-    def refill_buffer(self):
-      """DEBUGGING KLUDGE"""
-      log("refill_buffer()")
-      asynchat.async_chat.refill_buffer(self)
-
-    def send(self, data):
-      """DEBUGGING KLUDGE"""
-      log("send(%s)" % repr(data))
-      ret = asynchat.async_chat.send(self, data)
-      log("send(): %s" % repr(ret))
-      return ret
-
-    def recv(self, size):
-      """DEBUGGING KLUDGE"""
-      log("recv(%d)" % size)
-      ret = asynchat.async_chat.recv(self, size)
-      log("recv(): %s" % repr(ret))
-      return ret
-
-    def readable(self):
-      """DEBUGGING KLUDGE"""
-      log("readable()")
-      return asynchat.async_chat.readable(self)
-
-    def handle_read_event(self):
-      """DEBUGGING KLUDGE"""
-      log("handle_read_event()")
-      asynchat.async_chat.handle_read_event(self)
-
-    def __getattr__(self, attr):
-      """DEBUGGING KLUDGE"""
-      log("__getattr__(%s, %s)" % (repr(self), repr(attr)))
-      ret = asynchat.async_chat.__getattr__(self, attr)
-      log("__getattr__(): %s" % repr(ret))
-      return ret
-
-    def __repr__(self):
-      """DEBUGGING KLUDGE"""
-      return asyncore.dispatcher.__repr__(self)
-
-    def __strr__(self):
-      """DEBUGGING KLUDGE"""
-      return asyncore.dispatcher.__repr__(self)
+    tag = "asyncore" if tag is None else "asyncore %s" % tag
+    sys.stderr.write("[%s] %s\n" % (tag, msg))
 
 class server_asynchat(pdu_asynchat):
   """Server protocol engine, handles upcalls from pdu_asynchat to
@@ -663,7 +591,6 @@ class server_asynchat(pdu_asynchat):
 
   def __init__(self):
     """Set up stdin as connection and start listening for first PDU."""
-    log("server_asynchat.__init__()")
     asynchat.async_chat.__init__(self)
     #
     # I don't know a sane way to get asynchat.async_chat.__init__() to
@@ -683,11 +610,9 @@ class server_asynchat(pdu_asynchat):
     #
     self.get_serial()
     self.start_new_pdu()
-    log("server_asynchat.__init__(%s)" % repr(self))
 
   def deliver_pdu(self, pdu):
     """Handle received PDU."""
-    log("deliver_pdu(%s)" % pdu)
     pdu.serve(self)
 
   wakeup = None
@@ -731,7 +656,7 @@ class client_asynchat(pdu_asynchat):
     """Set up ssh connection and start listening for first PDU."""
     s = socket.socketpair()
     if self.debug_using_direct_server_subprocess:
-      print "[Ignoring arguments, using direct subprocess kludge for testing]"
+      print "[Ignoring ssh arguments, using direct subprocess kludge for testing]"
       self.ssh = subprocess.Popen(["/usr/local/bin/python", "rtr-origin.py", "server"], stdin = s[0], stdout = s[0], close_fds = True)
     else:
       self.ssh = subprocess.Popen(sshargs, executable = "/usr/bin/ssh", stdin = s[0], stdout = s[0], close_fds = True)
@@ -740,7 +665,6 @@ class client_asynchat(pdu_asynchat):
 
   def deliver_pdu(self, pdu):
     """Handle received PDU."""
-    log("deliver_pdu(%s)" % pdu)
     pdu.consume(self)
 
   def cleanup(self):
@@ -775,12 +699,10 @@ class server_wakeup(asyncore.dispatcher):
 
   def handle_read(self):
     """Handle receipt of a datagram."""
-    log("handle_read()")
     self.my_asynchat_handle.notify(self.recv(512))
 
   def cleanup(self):
     """Clean up this dispatcher's socket."""
-    log("wakeup.close()")
     self.close()
     try:
       os.unlink(self.my_socket_filename)
@@ -791,19 +713,11 @@ def server_main():
   """Main program for server mode.  Not really written yet."""
   wakeup = None
   try:
-    log("starting chat")
     server = server_asynchat()
-    log("chat setup got %s" % repr(server))
-    log("chat connected: %s" % server.connected)
-    log("starting wakeup")
     wakeup = server_wakeup(chat = server)
-    log("wakeup setup got %s" % repr(wakeup))
-    log("setting chat's wakeup handle")
     server.set_wakeup(wakeup)
-    log("looping")
     asyncore.loop()
   finally:
-    log("finally")
     if wakeup is not None:
       wakeup.cleanup()
 
@@ -812,25 +726,12 @@ def client_main():
   client = None
   try:
     client = client_asynchat()
-    log("chat connected: %s" % client.connected)
-    log("sleeping...")
-    time.sleep(2)
     client.push_pdu(reset_query())
-    log("chat connected: %s" % client.connected)
     asyncore.loop()
   except:
     if client is not None:
       client.cleanup()
     raise
-
-def log_really(msg):
-  """Logging hack, debugging code only, clean up later..."""
-  sys.stderr.write(("[%s] " % jane) + msg + "\n")
-
-def log(msg):
-  """Logging hack, debugging code only, clean up later..."""
-  if False:
-    log_really(msg)
 
 if len(sys.argv) == 1:
   jane = "client"

@@ -23,7 +23,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, os, struct, time, glob, rpki.x509, rpki.ipaddrs, rpki.sundial
+import sys, os, struct, time, glob, socket, asyncore, asynchat
+import rpki.x509, rpki.ipaddrs, rpki.sundial
 
 os.environ["TZ"] = "UTC"
 time.tzset()
@@ -379,7 +380,13 @@ class prefix_set(list):
       f.write(new.pop(0).to_pdu(announce = 1))
     f.close()
 
-def test():
+def updater_main():
+  """Toy version of main program for updater.  This isn't ready for
+  real use yet, but does most of the basic operations.  Sending notify
+  wakeup calls to server processes is waiting for me to write server
+  code for this to talk to.  Still needs cleanup, config file (instead
+  of wired in magic filenames), etc.
+  """
 
   axfrs = [prefix_set.load_axfr(f) for f in glob.glob("*.ax")]
 
@@ -407,5 +414,59 @@ def test():
     for p in i:
       print p
 
+class pdu_asynchat(asynchat.async_chat):
+  """asynchat subclass that understands our PDUs.  This just handles
+  the network I/O.  Specific engines (client, server) should be
+  subclasses of this with methods that do something useful with the
+  resulting PDUs.
+  """
+
+  def __init__(self):
+    asynchat.async_chat.__init__(self, conn = sys.stdin)
+    self.start_new_pdu()
+
+  def start_new_pdu(self):
+    self.pdu = None
+    self.clear_ibuf()
+    self.next_pdu_decoder = pdu.initial_decoder(self)
+
+  def clear_ibuf(self):
+    self.ibuf = ""
+
+  def set_pdu(self, p):
+    self.pdu = p
+
+  def collect_incoming_data(self, data):
+    self.ibuf += data
+
+  def found_terminator(self):
+    self.next_pdu_decoder = self.next_pdu_decoder(self, ibuf)
+    if self.next_pdu_decoder is None:
+      assert self.pdu is not None
+      self.deliver_pdu(self.pdu)
+      self.start_next_pdu()
+
+class server_asynchat(pdu_asynchat):
+  """Server protocol engine, handles upcalls from pdu_asynchat to
+  implement protocol logic.
+  """
+  pass
+
+class server_wakeup(asyncore.dispatcher):
+  """asycnore dispatcher for server.  This just handles the PF_UNIX
+  sockets we use to receive wakeup calls from the cronjob when it's
+  time for us to send a notify PDU to our client.
+  """
+
+def server_main():
+  """Main program for server mode.  Not really written yet."""
+  server = server_asynchat(blah = blah)
+  wakeup = server_wakeup(blee = blee)
+  asyncore.loop()
+
+def client_main():
+  """Main program for client mode.  Not really written yet."""
+  raise NotImplementedError
+
 if __name__ == "__main__":
-  test()
+  updater_main()

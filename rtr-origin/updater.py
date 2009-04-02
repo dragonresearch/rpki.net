@@ -58,9 +58,26 @@ class pdu(object):
       raise StopIteration
     version, pdu_type = cls.header_struct.unpack(b)
     assert version == cls.version, "PDU version is %d, expected %d" % (version, cls.version)
-    self = cls.pdu_map[pdu_type].from_pdu_file_helper(f, b)
+    self = cls.pdu_map[pdu_type]()
+    self.from_pdu_file_helper(f, b)
     self.check()
     return self
+
+  @classmethod
+  def initial_asynchat_decoder(cls, chat):
+    """Set up initial read for asynchat PDU reader."""
+    chat.set_terminator(cls.header_struct.size)
+    chat.set_next_decoder(cls.chat_decode_pdu_header)
+
+  @classmethod
+  def chat_decode_pdu_header(cls, chat, b):
+    """Decode PDU header from an asynchat reader."""
+    assert cls._pdu is None
+    version, pdu_type = cls.header_struct.unpack(b)
+    assert version == cls.version, "PDU version is %d, expected %d" % (version, cls.version)
+    self = cls.pdu_map[pdu_type]()
+    chat.set_next_decoder(self.chat_decode_pdu_header)
+    return None
 
 class pdu_with_serial(pdu):
   """Base class for PDUs consisting of just a serial number."""
@@ -76,15 +93,12 @@ class pdu_with_serial(pdu):
       self._pdu = self.header_struct.pack(self.version, self.pdu_type, 0, self.serial)
     return self._pdu
 
-  @classmethod
-  def from_pdu_file_helper(cls, f, b):
+  def from_pdu_file_helper(self, f, b):
     """Read one wire format prefix PDU from a file."""
-    self = cls()
-    b += f.read(cls.header_struct.size - len(b))
-    version, pdu_type, zero, self.serial = cls.header_struct.unpack(b)
+    b += f.read(self.header_struct.size - len(b))
+    version, pdu_type, zero, self.serial = self.header_struct.unpack(b)
     assert zero == 0
     assert b == self.to_pdu()
-    return self
 
 class pdu_empty(pdu):
   """Base class for emtpy PDUs."""
@@ -97,15 +111,12 @@ class pdu_empty(pdu):
       self._pdu = self.header_struct.pack(self.version, self.pdu_type, 0)
     return self._pdu
 
-  @classmethod
-  def from_pdu_file_helper(cls, f, b):
+  def from_pdu_file_helper(self, f, b):
     """Read one wire format prefix PDU from a file."""
-    self = cls()
-    b += f.read(cls.header_struct.size - len(b))
-    version, pdu_type, zero = cls.header_struct.unpack(b)
+    b += f.read(self.header_struct.size - len(b))
+    version, pdu_type, zero = self.header_struct.unpack(b)
     assert zero == 0
     assert b == self.to_pdu()
-    return self
 
 class serial_notify(pdu_with_serial):
   """Serial Notify PDU."""
@@ -197,22 +208,19 @@ class prefix(pdu):
       self._pdu = pdu
     return pdu
 
-  @classmethod
-  def from_pdu_file_helper(cls, f, b):
+  def from_pdu_file_helper(self, f, b):
     """Read one wire format prefix PDU from a file."""
-    self = cls()
-    b += f.read(cls.header_struct.size - len(b))
+    b += f.read(self.header_struct.size - len(b))
     p = b
-    version, pdu_type, self.color, self.announce, self.prefixlen, self.max_prefixlen, source = cls.header_struct.unpack(b)
-    assert source == cls.source
+    version, pdu_type, self.color, self.announce, self.prefixlen, self.max_prefixlen, source = self.header_struct.unpack(b)
+    assert source == self.source
     b = f.read(self.addr_type.bits / 8)
     p += b
     self.prefix = self.addr_type.from_bytes(b)
-    b = f.read(cls.serial_struct.size)
+    b = f.read(self.serial_struct.size)
     p += b
-    self.asn = cls.serial_struct.unpack(b)[0]
+    self.asn = self.serial_struct.unpack(b)[0]
     assert p == self.to_pdu()
-    return self
 
 class ipv4_prefix(prefix):
   """IPv4 flavor of a prefix."""
@@ -251,18 +259,15 @@ class error_report(pdu):
                    self.errmsg)
     return self._pdu
 
-  @classmethod
-  def from_pdu_file_helper(cls, f, b):
+  def from_pdu_file_helper(self, f, b):
     """Read one wire format prefix PDU from a file."""
-    self = cls()
-    b += f.read(cls.header_struct.size - len(b))
-    version, pdu_type, self.errno = cls.header_struct.unpack(b)
+    b += f.read(self.header_struct.size - len(b))
+    version, pdu_type, self.errno = self.header_struct.unpack(b)
     self.errpdu = pdu.from_pdu_file(f)
-    b = f.read(cls.errlen_struct.size)
-    n = cls.errlen_struct.unpack(b)
+    b = f.read(self.errlen_struct.size)
+    n = self.errlen_struct.unpack(b)
     if n:
       self.errmsg = f.read(n)
-    return self
 
 prefix.afi_map = { "\x00\x01" : ipv4_prefix, "\x00\x02" : ipv6_prefix }
 
@@ -419,6 +424,14 @@ class pdu_asynchat(asynchat.async_chat):
   the network I/O.  Specific engines (client, server) should be
   subclasses of this with methods that do something useful with the
   resulting PDUs.
+
+  [The following is already obsolete, update when it holds still...]
+  The core of this mechanism is self.next_pdu_decoder, which is a
+  bound method to the pdu class or an instance of one of its
+  subclasses.  A decoder returns either None, indicating that the PDU
+  is now complete and ready to be consumed, or a bound method to the
+  next decoder.  set_terminator() is handled by the decoders, since
+  only they know what they need to see next.
   """
 
   def __init__(self):
@@ -426,24 +439,22 @@ class pdu_asynchat(asynchat.async_chat):
     self.start_new_pdu()
 
   def start_new_pdu(self):
-    self.pdu = None
     self.clear_ibuf()
-    self.next_pdu_decoder = pdu.initial_decoder(self)
+    pdu.initial_asynchat_decoder(self)
 
   def clear_ibuf(self):
     self.ibuf = ""
 
-  def set_pdu(self, p):
-    self.pdu = p
-
   def collect_incoming_data(self, data):
     self.ibuf += data
 
+  def set_next_decoder(self, decoder):
+    self.next_decoder = decoder
+
   def found_terminator(self):
-    self.next_pdu_decoder = self.next_pdu_decoder(self, ibuf)
-    if self.next_pdu_decoder is None:
-      assert self.pdu is not None
-      self.deliver_pdu(self.pdu)
+    p = self.next_decoder(self, ibuf)
+    if p is not None:
+      self.deliver_pdu(p)
       self.start_next_pdu()
 
 class server_asynchat(pdu_asynchat):

@@ -1,10 +1,28 @@
 """
-Router origin-authentication update job.  Work in progress.
+Router origin-authentication rpki-router protocol implementation.
+This is a work in progress.
 
-This should be run under cron, after rcynic finishes.  It chews over
-the data rcynic collected and generates output suitable as input for a
-companion server program (not yet written) which serves the resulting
-data to the routers.
+As presently written, this program can run in one of three different
+modes: cronjob, server, and client.
+
+cronjob mode is intended to be run right after rcynic, and does the
+real work of groveling through the ROAs that rcynic collects and
+translating that data into the form used in the rpki-router protocol.
+cronjob mode prepares both full dumps (axfr) and incremental dumps
+against a specific prior version (ixfr).  [Terminology here borrowed
+from DNS, as is much of the protocol design.]  Finally, cronjob mode
+sends wakeup messages to any active servers, so that they can notify
+their clients that a new version is available.
+
+server mode implements the server side of the rpkk-router protocol.
+Other than one PF_UNIX socket inode, it doesn't write anything to
+disk, so it can be run with minimal privileges.  Most of the hard work
+has already been done in cronjob mode, so all that server mode has to do
+is serve up the results.
+
+client mode is, at presnt, a toy client, intended only for debugging.
+It allows one to issue queries to a server and prints out the
+responses.
 
 $Id$
 
@@ -23,7 +41,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, os, struct, time, glob, socket, asyncore, asynchat, subprocess, fcntl, signal
+import sys, os, struct, time, glob, socket, fcntl, signal
+import asyncore, asynchat, subprocess
 import rpki.x509, rpki.ipaddrs, rpki.sundial
 
 os.environ["TZ"] = "UTC"
@@ -85,14 +104,25 @@ class pdu(object):
       chat.set_next_decoder(self.chat_decode_header)
       return None
 
+  def consume(self, client):
+    """Handle results in test client.  Default is just to print the PDU."""
+    print self
+
 class pdu_with_serial(pdu):
   """Base class for PDUs consisting of just a serial number."""
 
   header_struct = struct.Struct("!BBHL")
 
+  def __init__(self, serial = None):
+    if serial is not None:
+      if isinstance(serial, str):
+        serial = int(serial)
+      assert isinstance(serial, int)
+      self.serial = serial
+
   def __str__(self):
     log("__str__()")
-    return "#%s" % self.serial
+    return "[%s #%s]" % (self.__class__.__name__, self.serial)
 
   def to_pdu(self):
     """Generate the wire format PDU for this prefix."""
@@ -119,6 +149,10 @@ class pdu_empty(pdu):
   """Base class for emtpy PDUs."""
 
   header_struct = struct.Struct("!BBH")
+
+  def __str__(self):
+    log("__str__()")
+    return "[%s]" % self.__class__.__name__
 
   def to_pdu(self):
     """Generate the wire format PDU for this prefix."""
@@ -147,19 +181,30 @@ class serial_notify(pdu_with_serial):
 
 class serial_query(pdu_with_serial):
   """Serial Query PDU."""
+
   pdu_type = 1
+
+  def serve(self, server):
+    """Received a serial query, send  full current state in response."""
+    try:
+      f = open("%s.ix.%s" % (server.get_serial(), self.serial), "rb")
+      server.push_pdu(cache_response())
+      server.push_file(f)
+      server.push_pdu(end_of_data(serial = server.current_serial))
+    except IOError:
+      server.push_pdu(cache_reset())
 
 class reset_query(pdu_empty):
   """Reset Query PDU."""
 
   pdu_type = 2
 
-  def serve(self, chat):
+  def serve(self, server):
     """Received a reset query, send full current state in response."""
-    f = open("current", "r")
-    current = f.read().strip() + ".ax"
-    f.close()
-    chat.push_file(open(current, "rb"))
+    f = open("%s.ax" % server.get_serial(), "rb")
+    server.push_pdu(cache_response())
+    server.push_file(f)
+    server.push_pdu(end_of_data(serial = server.current_serial))
 
 class cache_response(pdu_empty):
   """Cache Response PDU."""
@@ -167,7 +212,13 @@ class cache_response(pdu_empty):
 
 class end_of_data(pdu_with_serial):
   """End of Data PDU."""
+
   pdu_type = 7
+
+  def consume(self, client):
+    """Handle results in test client.  Print PDU and shut down."""
+    print self
+    client.close()
 
 class cache_reset(pdu_empty):
   """Cache reset PDU."""
@@ -442,8 +493,8 @@ class prefix_set(list):
       f.write(new.pop(0).to_pdu(announce = 1))
     f.close()
 
-def updater_main():
-  """Toy version of main program for updater.  This isn't ready for
+def cronjob_main():
+  """Toy version of main program for cronjob.  This isn't ready for
   real use yet, but does most of the basic operations.  Sending notify
   wakeup calls to server processes is waiting for me to write server
   code for this to talk to.  Still needs cleanup, config file (instead
@@ -630,6 +681,7 @@ class server_asynchat(pdu_asynchat):
     #
     # Ok, you can look again now.
     #
+    self.get_serial()
     self.start_new_pdu()
     log("server_asynchat.__init__(%s)" % repr(self))
 
@@ -650,32 +702,58 @@ class server_asynchat(pdu_asynchat):
       self.wakeup.close()
     asynchat.async_chat.handle_close(self)
 
+  def get_serial(self):
+    """Read, cache, and return current serial number, or None if we
+    can't find the serial number file.  The latter condition should
+    never happen, but maybe we got started in server mode while the
+    cronjob mode instance is still building its database.
+    """
+    try:
+      f = open("current", "r")
+      self.current_serial = f.read().strip()
+      assert self.current_serial.isdigit()
+      f.close()
+    except IOError:
+      self.current_serial = None
+    return self.current_serial
+
+  def check_serial(self):
+    """Check for a new serial number."""
+    old_serial = self.current_serial
+    return old_serial != self.get_serial()
+
 class client_asynchat(pdu_asynchat):
   """Client protocol engine, handles upcalls from pdu_asynchat."""
+
+  debug_using_direct_server_subprocess = True
 
   def __init__(self, *sshargs):
     """Set up ssh connection and start listening for first PDU."""
     s = socket.socketpair()
-    if False:
-      self.ssh = subprocess.Popen(sshargs, executable = "/usr/bin/ssh", stdin = s[0], stdout = s[0], close_fds = True)
-    else:
-      print "[Ignoring arguments, using direct socket loopback kludge for testing]"
+    if self.debug_using_direct_server_subprocess:
+      print "[Ignoring arguments, using direct subprocess kludge for testing]"
       self.ssh = subprocess.Popen(["/usr/local/bin/python", "rtr-origin.py", "server"], stdin = s[0], stdout = s[0], close_fds = True)
+    else:
+      self.ssh = subprocess.Popen(sshargs, executable = "/usr/bin/ssh", stdin = s[0], stdout = s[0], close_fds = True)
     asynchat.async_chat.__init__(self, conn = s[1])
     self.start_new_pdu()
 
   def deliver_pdu(self, pdu):
-    """Handle received PDU.  For now, just print it and shut down."""
+    """Handle received PDU."""
     log("deliver_pdu(%s)" % pdu)
-    print pdu
-    self.close()
+    pdu.consume(self)
 
   def cleanup(self):
-    """Clean up this chat session's child process."""
-    try:
-      os.kill(self.ssh.pid, signal.SIGINT)
-    except:
-      pass
+    """Force clean up this client's child process.  If everything goes
+    well, child will have exited already before this method is called,
+    but we may need to whack it with a stick if something breaks.
+    """
+    if self.ssh.returncode is None:
+      sig = signal.SIGINT if self.debug_using_direct_server_subprocess else signal.SIGKILL
+      try:
+        os.kill(self.ssh.pid, sig)
+      except OSError:
+        pass
 
 class server_wakeup(asyncore.dispatcher):
   """asycnore dispatcher for server.  This just handles the PF_UNIX
@@ -760,7 +838,7 @@ else:
   assert len(sys.argv) == 2
   jane = sys.argv[1]
 
-{ "updater" : updater_main,
+{ "cronjob" : cronjob_main,
   "client"  : client_main,
   "server"  : server_main,
   }[jane]()

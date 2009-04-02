@@ -542,62 +542,68 @@ class pdu_asynchat(asynchat.async_chat):
     log("push_file()")
     self.push_with_producer(file_producer(f, self.ac_out_buffer_size))
 
-  def initiate_send(self):
-    """DEBUGGING KLUDGE"""
-    log("initiate_send()")
-    asynchat.async_chat.initiate_send(self)
-
-  def refill_buffer(self):
-    """DEBUGGING KLUDGE"""
-    log("refill_buffer()")
-    asynchat.async_chat.refill_buffer(self)
-
-  def send(self, data):
-    """DEBUGGING KLUDGE"""
-    log("send(%s)" % repr(data))
-    ret = asynchat.async_chat.send(self, data)
-    log("send(): %s" % repr(ret))
-    return ret
-
-  def recv(self, size):
-    """DEBUGGING KLUDGE"""
-    log("recv(%d)" % size)
-    ret = asynchat.async_chat.recv(self, size)
-    log("recv(): %s" % repr(ret))
-    return ret
-
-  def readable(self):
-    """DEBUGGING KLUDGE"""
-    log("readable()")
-    return asynchat.async_chat.readable(self)
-
-  def handle_read_event(self):
-    """DEBUGGING KLUDGE"""
-    log("handle_read_event()")
-    asynchat.async_chat.handle_read_event(self)
-
-  def __getattr__(self, attr):
-    """DEBUGGING KLUDGE"""
-    log("__getattr__(%s, %s)" % (repr(self), repr(attr)))
-    ret = asynchat.async_chat.__getattr__(self, attr)
-    log("__getattr__(): %s" % repr(ret))
-    return ret
-
-  def __repr__(self):
-    """DEBUGGING KLUDGE"""
-    return asyncore.dispatcher.__repr__(self)
-  
-  def __strr__(self):
-    """DEBUGGING KLUDGE"""
-    return asyncore.dispatcher.__repr__(self)
-
   def log(self, message):
     """Intercept asyncore's logging."""
-    log("asyncore: %s" % message)
+    log_really("asyncore: %s" % message)
 
   def log_info(self, message, type = "info"):
     """Intercept asyncore's logging."""
-    log("asyncore[%s]: %s" % (type, message))
+    log_really("asyncore[%s]: %s" % (type, message))
+
+  if False:
+
+    # Whole bunch of nasty debugging code that I hope I will never
+    # need to use again but would rather not have to type ever again
+    # either.
+
+    def initiate_send(self):
+      """DEBUGGING KLUDGE"""
+      log("initiate_send()")
+      asynchat.async_chat.initiate_send(self)
+
+    def refill_buffer(self):
+      """DEBUGGING KLUDGE"""
+      log("refill_buffer()")
+      asynchat.async_chat.refill_buffer(self)
+
+    def send(self, data):
+      """DEBUGGING KLUDGE"""
+      log("send(%s)" % repr(data))
+      ret = asynchat.async_chat.send(self, data)
+      log("send(): %s" % repr(ret))
+      return ret
+
+    def recv(self, size):
+      """DEBUGGING KLUDGE"""
+      log("recv(%d)" % size)
+      ret = asynchat.async_chat.recv(self, size)
+      log("recv(): %s" % repr(ret))
+      return ret
+
+    def readable(self):
+      """DEBUGGING KLUDGE"""
+      log("readable()")
+      return asynchat.async_chat.readable(self)
+
+    def handle_read_event(self):
+      """DEBUGGING KLUDGE"""
+      log("handle_read_event()")
+      asynchat.async_chat.handle_read_event(self)
+
+    def __getattr__(self, attr):
+      """DEBUGGING KLUDGE"""
+      log("__getattr__(%s, %s)" % (repr(self), repr(attr)))
+      ret = asynchat.async_chat.__getattr__(self, attr)
+      log("__getattr__(): %s" % repr(ret))
+      return ret
+
+    def __repr__(self):
+      """DEBUGGING KLUDGE"""
+      return asyncore.dispatcher.__repr__(self)
+
+    def __strr__(self):
+      """DEBUGGING KLUDGE"""
+      return asyncore.dispatcher.__repr__(self)
 
 class server_asynchat(pdu_asynchat):
   """Server protocol engine, handles upcalls from pdu_asynchat to
@@ -649,10 +655,11 @@ class client_asynchat(pdu_asynchat):
   def deliver_pdu(self, pdu):
     """Handle received PDU.  For now, just print it."""
     log("deliver_pdu(%s)" % pdu)
+    print pdu
 
   def cleanup(self):
     """Clean up this chat session's child process."""
-    os.kill(self.ssh.pid, signal.SIGTERM)
+    os.kill(self.ssh.pid, signal.SIGINT)
 
 class server_wakeup(asyncore.dispatcher):
   """asycnore dispatcher for server.  This just handles the PF_UNIX
@@ -719,9 +726,14 @@ def client_main():
     if client is not None:
       client.cleanup()
 
-def log(msg):
+def log_really(msg):
   """Logging hack, debugging code only, clean up later..."""
   sys.stderr.write(("[%s] " % jane) + msg + "\n")
+
+def log(msg):
+  """Logging hack, debugging code only, clean up later..."""
+  if False:
+    log_really(msg)
 
 if len(sys.argv) == 1:
   jane = "client"

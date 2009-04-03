@@ -104,7 +104,7 @@ class pdu(object):
 
   def consume(self, client):
     """Handle results in test client.  Default is just to print the PDU."""
-    print self
+    log(self)
 
 class pdu_with_serial(pdu):
   """Base class for PDUs consisting of just a serial number."""
@@ -176,11 +176,11 @@ class serial_notify(pdu_with_serial):
 
   def consume(self, client):
     """Handle results in test client."""
-    print self
+    log(self)
     if self.serial != client.current_serial:
       client.push_pdu(serial_query(serial = client.current_serial))
     else:
-      print "[Notify did not change serial number, ignoring]"
+      log("[Notify did not change serial number, ignoring]")
 
 class serial_query(pdu_with_serial):
   """Serial Query PDU."""
@@ -188,14 +188,25 @@ class serial_query(pdu_with_serial):
   pdu_type = 1
 
   def serve(self, server):
-    """Received a serial query, send  full current state in response."""
-    try:
-      f = open("%s.ix.%s" % (server.get_serial(), self.serial), "rb")
+    """Received a serial query, send incremental transfer in response.
+    If client is already up to date, just send an empty incremental
+    transfer.
+    """
+    log(self)
+    if int(server.get_serial()) == self.serial:
+      log("[Client is already current, sending empty IXFR]")
       server.push_pdu(cache_response())
-      server.push_file(f)
       server.push_pdu(end_of_data(serial = server.current_serial))
-    except IOError:
-      server.push_pdu(cache_reset())
+    else:
+      try:
+        fn = "%s.ix.%s" % (server.current_serial, self.serial)
+        log("Looking for %s" % fn)
+        f = open(fn, "rb")
+        server.push_pdu(cache_response())
+        server.push_file(f)
+        server.push_pdu(end_of_data(serial = server.current_serial))
+      except IOError:
+        server.push_pdu(cache_reset())
 
 class reset_query(pdu_empty):
   """Reset Query PDU."""
@@ -204,6 +215,7 @@ class reset_query(pdu_empty):
 
   def serve(self, server):
     """Received a reset query, send full current state in response."""
+    log(self)
     f = open("%s.ax" % server.get_serial(), "rb")
     server.push_pdu(cache_response())
     server.push_file(f)
@@ -220,7 +232,7 @@ class end_of_data(pdu_with_serial):
 
   def consume(self, client):
     """Handle results in test client."""
-    print self
+    log(self)
     client.current_serial = self.serial
     #client.close()
 
@@ -593,12 +605,11 @@ class pdu_asynchat(asynchat.async_chat):
 
   def log(self, msg):
     """Intercept asyncore's logging."""
-    self.log_info(msg, None)
+    log(msg)
 
   def log_info(self, msg, tag = "info"):
     """Intercept asynchat's logging."""
-    tag = "asynchat" if tag is None else "asynchat %s" % tag
-    sys.stderr.write("[%s] %s\n" % (tag, msg))
+    log("asynchat: %s: %s" % (tag, msg))
 
 class server_asynchat(pdu_asynchat):
   """Server protocol engine, handles upcalls from pdu_asynchat to
@@ -679,7 +690,7 @@ class client_asynchat(pdu_asynchat):
     """Set up ssh connection and start listening for first PDU."""
     s = socket.socketpair()
     if self.debug_using_direct_server_subprocess:
-      print "[Ignoring ssh arguments, using direct subprocess kludge for testing]"
+      log("[Ignoring ssh arguments, using direct subprocess kludge for testing]")
       self.ssh = subprocess.Popen(["/usr/local/bin/python", "rtr-origin.py", "server"], stdin = s[0], stdout = s[0], close_fds = True)
     else:
       self.ssh = subprocess.Popen(sshargs, executable = "/usr/bin/ssh", stdin = s[0], stdout = s[0], close_fds = True)
@@ -738,12 +749,11 @@ class server_wakeup(asyncore.dispatcher):
 
   def log(self, msg):
     """Intercept asyncore's logging."""
-    self.log_info(msg, None)
+    log(msg)
 
   def log_info(self, msg, tag = "info"):
     """Intercept asyncore's logging."""
-    tag = "asyncore" if tag is None else "asyncore %s" % tag
-    sys.stderr.write("[%s] %s\n" % (tag, msg))
+    log("asyncore: %s: %s" % (tag, msg))
 
 def server_main():
   """Main program for server mode.  Not really written yet."""
@@ -781,6 +791,10 @@ def client_main():
     if client is not None:
       client.cleanup()
     raise
+
+def log(msg):
+  """Basic logging."""
+  sys.stderr.write("[%s] %s\n" % (jane, msg))
 
 if len(sys.argv) == 1:
   jane = "client"

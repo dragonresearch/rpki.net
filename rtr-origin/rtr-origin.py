@@ -171,7 +171,16 @@ class pdu_empty(pdu):
 
 class serial_notify(pdu_with_serial):
   """Serial Notify PDU."""
+
   pdu_type = 0
+
+  def consume(self, client):
+    """Handle results in test client."""
+    print self
+    if self.serial != client.current_serial:
+      client.push_pdu(serial_query(serial = client.current_serial))
+    else:
+      print "[Notify did not change serial number, ignoring]"
 
 class serial_query(pdu_with_serial):
   """Serial Query PDU."""
@@ -210,9 +219,9 @@ class end_of_data(pdu_with_serial):
   pdu_type = 7
 
   def consume(self, client):
-    """Handle results in test client.  Print PDU and shut down."""
+    """Handle results in test client."""
     print self
-    # Well, don't shut down for what I'm testing now.
+    client.current_serial = self.serial
     #client.close()
 
 class cache_reset(pdu_empty):
@@ -662,6 +671,8 @@ class server_asynchat(pdu_asynchat):
 class client_asynchat(pdu_asynchat):
   """Client protocol engine, handles upcalls from pdu_asynchat."""
 
+  current_serial = None
+
   debug_using_direct_server_subprocess = True
 
   def __init__(self, *sshargs):
@@ -752,7 +763,20 @@ def client_main():
   try:
     client = client_asynchat()
     client.push_pdu(reset_query())
-    asyncore.loop()
+    period = rpki.sundial.timedelta(seconds = 90)
+    wakeup = rpki.sundial.now() + period
+    while asyncore.socket_map:
+      #
+      # asyncore's model of these timing parameters is a little
+      # whacky, and seems to force me to wake up more often than
+      # should be necessary.  For now, so be it.  In the long term, if
+      # I do serious work with asyncore, I should hack up a better
+      # select() loop for asyncore, implementing using a timer queue.
+      #
+      asyncore.loop(timeout = 30, count = 1)
+      if rpki.sundial.now() > wakeup:
+        client.push_pdu(serial_query(serial = client.current_serial))
+        wakeup = rpki.sundial.now() + period
   except:
     if client is not None:
       client.cleanup()

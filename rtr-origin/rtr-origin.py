@@ -137,6 +137,7 @@ class pdu_with_serial(pdu):
   def chat_decode_header(self, chat, b):
     """Decode PDU from an asynchat reader."""
     version, pdu_type, zero, self.serial = self.header_struct.unpack(b)
+    chat.consume(self.header_struct.size)
     assert zero == 0
     assert b == self.to_pdu()
     return self
@@ -165,6 +166,7 @@ class pdu_empty(pdu):
   def chat_decode_header(self, chat, b):
     """Decode PDU from an asynchat reader."""
     version, pdu_type, zero = self.header_struct.unpack(b)
+    chat.consume(self.header_struct.size)
     assert zero == 0
     assert b == self.to_pdu()
     return self
@@ -177,7 +179,9 @@ class serial_notify(pdu_with_serial):
   def consume(self, client):
     """Handle results in test client."""
     log(self)
-    if self.serial != client.current_serial:
+    if client.current_serial is None:
+      client.push_pdu(reset_query())
+    elif self.serial != client.current_serial:
       client.push_pdu(serial_query(serial = client.current_serial))
     else:
       log("[Notify did not change serial number, ignoring]")
@@ -216,10 +220,17 @@ class reset_query(pdu_empty):
   def serve(self, server):
     """Received a reset query, send full current state in response."""
     log(self)
-    f = open("%s.ax" % server.get_serial(), "rb")
-    server.push_pdu(cache_response())
-    server.push_file(f)
-    server.push_pdu(end_of_data(serial = server.current_serial))
+    if server.get_serial() is None:
+      server.push_pdu(error_report(errno = 666, errpdu = self, errmsg = "Sorry, I have no current data to give you"))
+      return
+    try:
+      fn = "%s.ax" % server.current_serial
+      f = open(fn, "rb")
+      server.push_pdu(cache_response())
+      server.push_file(f)
+      server.push_pdu(end_of_data(serial = server.current_serial))
+    except IOError:
+      server.push_pdu(error_report(errno = 666, errpdu = self, errmsg = "Couldn't open %s" % fn))
 
 class cache_response(pdu_empty):
   """Cache Response PDU."""
@@ -340,6 +351,7 @@ class prefix(pdu):
   def chat_decode_asnum(self, chat, b):
     """Decode autonomous system number from an asynchat reader."""
     self.asn = self.asnum_struct.unpack(b)[0]
+    chat.consume(self.asnum_struct.size)
     return self
 
 class ipv4_prefix(prefix):
@@ -353,41 +365,76 @@ class ipv6_prefix(prefix):
   addr_type = rpki.ipaddrs.v6addr
 
 class error_report(pdu):
-  """Error Report PDU.  This is kind of painful to parse, an explicit
-  count for the encapsulated PDU would simplify this considerably.
+  """Error Report PDU.  This is kind of painful to parse, but easier
+  than it used to be.
   """
 
   pdu_type = 10
 
-  header_struct = struct.Struct("!BBH")
-  errlen_struct = struct.Struct("!B")
+  header_struct = struct.Struct("!BBHHH")
 
-  errmsg = ""
+  def __init__(self, errno = None, errpdu = None, errmsg = ""):
+    self.errno = errno
+    self.errpdu = errpdu
+    self.errmsg = errmsg
 
   def __str__(self):
-    return "#%s: %s" % (self.errno, self.errmsg)
+    return "Error #%s: %s" % (self.errno, self.errmsg)
 
   def to_pdu(self):
     """Generate the wire format PDU for this prefix."""
     if self._pdu is None:
       assert isinstance(self.errno, int)
-      assert isinstance(self.errpdu, pdu)
       assert not isinstance(self.errpdu, error_report)
-      self._pdu = (self.header_struct.pack(self.version, self.pdu_type, self.errno) +
-                   self.errpdu.to_pdu() +
-                   self.errlen_struct.pack(len(self.errmsg)) +
-                   self.errmsg)
+      p = self.errpdu
+      if p is None:
+        p = ""
+      elif isinstance(p, pdu):
+        p = p.to_pdu()
+      assert isinstance(p, str)
+      self._pdu = (self.header_struct.pack(self.version, self.pdu_type, self.errno,
+                                           len(p), len(self.errmsg)) +
+                   p + self.errmsg)
     return self._pdu
 
   def from_pdu_file_helper(self, f, b):
     """Read one wire format prefix PDU from a file."""
     b += f.read(self.header_struct.size - len(b))
-    version, pdu_type, self.errno = self.header_struct.unpack(b)
-    self.errpdu = pdu.from_pdu_file(f)
-    b = f.read(self.errlen_struct.size)
-    n = self.errlen_struct.unpack(b)
-    if n:
-      self.errmsg = f.read(n)
+    version, pdu_type, self.errno, self.pdulen, self.errlen = self.header_struct.unpack(b)
+    if self.pdulen:
+      # This is wrong, we should be checking the length but methods
+      # don't allows that yet.
+      self.errpdu = pdu.from_pdu_file(f)
+    if self.errlen:
+      self.errmsg = f.read(self.errlen)
+
+  def chat_decode_header(self, chat, b):
+    """Decode PDU header from an asynchat reader."""
+    version, pdu_type, self.errno, self.pdulen, self.errlen = self.header_struct.unpack(b)
+    chat.consume(self.header_struct.size)
+    if self.pdulen:
+      chat.set_terminator(self.pdulen)
+      chat.set_next_decoder(self.chat_decode_pdu)
+      return None
+    else:
+      return self.chat_decode_pdu(chat, b)
+
+  def chat_decode_pdu(self, chat, b):
+    """Decode encapsulated PDU from an asynchat reader."""
+    self.pdu = b[:self.pdulen]
+    chat.consume(self.pdulen)
+    if self.errlen:
+      chat.set_terminator(self.errlen)
+      chat.set_next_decoder(self.chat_decode_errmsg)
+      return None
+    else:
+      return self.chat_decode_errmsg(chat, b)
+
+  def chat_decode_errmsg(self, chat, b):
+    """Decode error message number from an asynchat reader."""
+    self.errmsg = b[:self.errlen]
+    chat.consume(self.errlen)
+    return self
 
 prefix.afi_map = { "\x00\x01" : ipv4_prefix, "\x00\x02" : ipv6_prefix }
 
@@ -785,7 +832,10 @@ def client_main():
       #
       asyncore.loop(timeout = 30, count = 1)
       if rpki.sundial.now() > wakeup:
-        client.push_pdu(serial_query(serial = client.current_serial))
+        if client.current_serial is None:
+          client.push_pdu(reset_query())
+        else:
+          client.push_pdu(serial_query(serial = client.current_serial))
         wakeup = rpki.sundial.now() + period
   except:
     if client is not None:

@@ -55,28 +55,35 @@ class read_buffer(object):
     self.buffer = ""
 
   def update(self, need, callback):
+    """Update count of needed bytes and callback, then dispatch to callback."""
     self.need = need
     self.callback = callback
     return self.callback(self)
 
   def available(self):
+    """How much data do we have available in this buffer?"""
     return len(self.buffer)
 
   def needed(self):
+    """How much more data does this buffer need to become ready?"""
     return self.need - self.available()
 
   def ready(self):
+    """Is this buffer ready to read yet?"""
     return self.available() >= self.need
 
-  def consume(self, n):
+  def get(self, n):
+    """Hand some data to the caller."""
     b = self.buffer[:n]
     self.buffer = self.buffer[n:]
     return b
 
-  def feed(self, b):
+  def put(self, b):
+    """Accumulate some data."""
     self.buffer += b
 
   def retry(self):
+    """Try dispatching to the callback again."""
     return self.callback(self)
 
 class pdu(object):
@@ -139,7 +146,7 @@ class pdu_with_serial(pdu):
   def got_header(self, reader):
     if not reader.ready():
       return None
-    b = reader.consume(self.header_struct.size)
+    b = reader.get(self.header_struct.size)
     version, pdu_type, zero, self.serial = self.header_struct.unpack(b)
     assert zero == 0
     assert b == self.to_pdu()
@@ -162,7 +169,7 @@ class pdu_empty(pdu):
   def got_header(self, reader):
     if not reader.ready():
       return None
-    b = reader.consume(self.header_struct.size)
+    b = reader.get(self.header_struct.size)
     version, pdu_type, zero = self.header_struct.unpack(b)
     assert zero == 0
     assert b == self.to_pdu()
@@ -320,9 +327,9 @@ class prefix(pdu):
   def got_pdu(self, reader):
     if not reader.ready():
       return None
-    b1 = reader.consume(self.header_struct.size)
-    b2 = reader.consume(self.addr_type.bits / 8)
-    b3 = reader.consume(self.asnum_struct.size)
+    b1 = reader.get(self.header_struct.size)
+    b2 = reader.get(self.addr_type.bits / 8)
+    b3 = reader.get(self.asnum_struct.size)
     version, pdu_type, self.color, self.announce, self.prefixlen, self.max_prefixlen, source = self.header_struct.unpack(b1)
     assert source == self.source
     self.prefix = self.addr_type.from_bytes(b2)
@@ -382,9 +389,9 @@ class error_report(pdu):
   def got_pdu(self, reader):
     if not reader.ready():
       return None
-    b = reader.consume(self.header_struct.size)
-    self.errpdu = reader.consume(self.pdulen)
-    self.errmsg = reader.consume(self.errlen)
+    b = reader.get(self.header_struct.size)
+    self.errpdu = reader.get(self.pdulen)
+    self.errmsg = reader.get(self.errlen)
     assert b + self.errpdu + self.errmsg == self.to_pdu()
     return self
 
@@ -433,7 +440,7 @@ class prefix_set(list):
         if b == "":
           assert r.available() == 0
           return self
-        r.feed(b)
+        r.put(b)
         p = r.retry()
       self.append(p)
 
@@ -574,7 +581,7 @@ class pdu_asynchat(asynchat.async_chat):
 
   def collect_incoming_data(self, data):
     """Collect data into the read buffer."""
-    self.reader.feed(data)
+    self.reader.put(data)
     
   def found_terminator(self):
     """Got requested data, see if we now have a PDU.  If so, pass it

@@ -119,7 +119,8 @@ class pdu(object):
     return reader.update(need = self.header_struct.size, callback = self.got_header)
 
   def consume(self, client):
-    """Handle results in test client.  Default is just to print the PDU."""
+    """Handle results in test client.  Default behavior is just to
+    print out the PDU."""
     log(self)
 
 class pdu_with_serial(pdu):
@@ -181,7 +182,9 @@ class serial_notify(pdu_with_serial):
   pdu_type = 0
 
   def consume(self, client):
-    """Handle results in test client."""
+    """Respond to a serial_notify message with either a serial_query
+    or reset_query, depending on what we already know.
+    """
     log(self)
     if client.current_serial is None:
       client.push_pdu(reset_query())
@@ -248,14 +251,20 @@ class end_of_data(pdu_with_serial):
   pdu_type = 7
 
   def consume(self, client):
-    """Handle results in test client."""
+    """Handle end_of_data response."""
     log(self)
     client.current_serial = self.serial
     #client.close()
 
 class cache_reset(pdu_empty):
   """Cache reset PDU."""
+
   pdu_type = 8
+
+  def consume(self, client):
+    """Handle cache_reset response, by issuing a reset_query."""
+    log(self)
+    client.push_pdu(reset_query())
 
 class prefix(pdu):
   """Object representing one prefix.  This corresponds closely to one
@@ -596,10 +605,6 @@ class pdu_channel(asynchat.async_chat):
     else:
       self.deliver_pdu(p)
       self.start_new_pdu()
-
-  def deliver_pdu(self, pdu):
-    """Subclass must implement this."""
-    raise NotImplementedError
 
   def push_pdu(self, pdu):
     """Write PDU to stream."""

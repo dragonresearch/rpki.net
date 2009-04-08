@@ -123,6 +123,29 @@ class pdu(object):
     print out the PDU."""
     log(self)
 
+  def send_ixfr(self, server):
+    """Send an incremental response.  Caller should catch IOError."""
+    fn = "%s.ix.%s" % (server.current_serial, self.serial)
+    f = open(fn, "rb")
+    server.push_pdu(incremental_response())
+    server.push_file(f)
+    server.push_pdu(end_of_data(serial = server.current_serial))
+
+  def send_axfr(self, server):
+    """Send a complete response, or send an error if we can't."""
+    try:
+      fn = "%s.ax" % server.current_serial
+      f = open(fn, "rb")
+      server.push_pdu(complete_response())
+      server.push_file(f)
+      server.push_pdu(end_of_data(serial = server.current_serial))
+    except IOError:
+      server.push_pdu(error_report(errno = 666, errpdu = self, errmsg = "Couldn't open %s" % fn))
+
+  def send_nodata(self, server):
+    """Send a nodata error."""
+    server.push_pdu(error_report(errno = 666, errpdu = self, errmsg = "Sorry, I have no current data to give you"))
+
 class pdu_with_serial(pdu):
   """Base class for PDUs consisting of just a serial number."""
 
@@ -205,21 +228,16 @@ class serial_query(pdu_with_serial):
     """
     log(self)
     if server.get_serial() is None:
-      server.push_pdu(error_report(errno = 666, errpdu = self, errmsg = "Sorry, I have no current data to give you"))
+      self.send_nodata(server)
     elif int(server.current_serial) == self.serial:
       log("[Client is already current, sending empty IXFR]")
-      server.push_pdu(cache_response())
+      server.push_pdu(incremental_response())
       server.push_pdu(end_of_data(serial = server.current_serial))
     else:
       try:
-        fn = "%s.ix.%s" % (server.current_serial, self.serial)
-        log("Looking for %s" % fn)
-        f = open(fn, "rb")
-        server.push_pdu(cache_response())
-        server.push_file(f)
-        server.push_pdu(end_of_data(serial = server.current_serial))
+        self.send_ixfr(server)
       except IOError:
-        server.push_pdu(cache_reset())
+        self.send_axfr(server)
 
 class reset_query(pdu_empty):
   """Reset Query PDU."""
@@ -230,20 +248,17 @@ class reset_query(pdu_empty):
     """Received a reset query, send full current state in response."""
     log(self)
     if server.get_serial() is None:
-      server.push_pdu(error_report(errno = 666, errpdu = self, errmsg = "Sorry, I have no current data to give you"))
+      self.send_nodata(server)
     else:
-      try:
-        fn = "%s.ax" % server.current_serial
-        f = open(fn, "rb")
-        server.push_pdu(cache_response())
-        server.push_file(f)
-        server.push_pdu(end_of_data(serial = server.current_serial))
-      except IOError:
-        server.push_pdu(error_report(errno = 666, errpdu = self, errmsg = "Couldn't open %s" % fn))
+      self.send_axfr(server)
 
-class cache_response(pdu_empty):
-  """Cache Response PDU."""
+class incremental_response(pdu_empty):
+  """Incremental Response PDU."""
   pdu_type = 3
+
+class complete_response(pdu_empty):
+  """Complete Response PDU."""
+  pdu_type = 5
 
 class end_of_data(pdu_with_serial):
   """End of Data PDU."""
@@ -255,16 +270,6 @@ class end_of_data(pdu_with_serial):
     log(self)
     client.current_serial = self.serial
     #client.close()
-
-class cache_reset(pdu_empty):
-  """Cache reset PDU."""
-
-  pdu_type = 8
-
-  def consume(self, client):
-    """Handle cache_reset response, by issuing a reset_query."""
-    log(self)
-    client.push_pdu(reset_query())
 
 class prefix(pdu):
   """Object representing one prefix.  This corresponds closely to one
@@ -359,9 +364,7 @@ class ipv6_prefix(prefix):
   addr_type = rpki.ipaddrs.v6addr
 
 class error_report(pdu):
-  """Error Report PDU.  This is kind of painful to parse, but easier
-  than it used to be.
-  """
+  """Error Report PDU."""
 
   pdu_type = 10
 
@@ -386,9 +389,9 @@ class error_report(pdu):
       elif isinstance(p, pdu):
         p = p.to_pdu()
       assert isinstance(p, str)
-      self._pdu = (self.header_struct.pack(self.version, self.pdu_type, self.errno,
-                                           len(p), len(self.errmsg)) +
-                   p + self.errmsg)
+      self._pdu = self.header_struct.pack(self.version, self.pdu_type, self.errno, len(p), len(self.errmsg))
+      self._pdu += p
+      self._pdu += self.errmsg
     return self._pdu
 
   def got_header(self, reader):
@@ -408,7 +411,8 @@ class error_report(pdu):
 
 prefix.afi_map = { "\x00\x01" : ipv4_prefix, "\x00\x02" : ipv6_prefix }
 
-pdu.pdu_map = dict((p.pdu_type, p) for p in (ipv4_prefix, ipv6_prefix, serial_notify, serial_query, reset_query, cache_response, end_of_data, cache_reset, error_report))
+pdu.pdu_map = dict((p.pdu_type, p) for p in (ipv4_prefix, ipv6_prefix, serial_notify, serial_query, reset_query,
+                                             incremental_response, complete_response, end_of_data, error_report))
 
 class prefix_set(list):
   """Object representing a set of prefixes, that is, one versioned and

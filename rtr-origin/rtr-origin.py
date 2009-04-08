@@ -706,6 +706,7 @@ class client_channel(pdu_channel):
       log("[Ignoring ssh arguments, using direct subprocess kludge for testing]")
       self.ssh = subprocess.Popen(["/usr/local/bin/python", "rtr-origin.py", "server"], stdin = s[0], stdout = s[0], close_fds = True)
     else:
+      log("[Running ssh: %s]" % " ".join(sshargs))
       self.ssh = subprocess.Popen(sshargs, executable = "/usr/bin/ssh", stdin = s[0], stdout = s[0], close_fds = True)
     pdu_channel.__init__(self, conn = s[1])
     self.start_new_pdu()
@@ -782,6 +783,7 @@ def server_main():
   """Main program for server mode.  Server is event driven, so
   everything interesting happens in the channel classes.
   """
+  log("[Starting]")
   kickme = None
   try:
     server = server_channel()
@@ -795,7 +797,8 @@ def client_main():
   """Main program for client mode.  Not really written yet."""
   client = None
   try:
-    client = client_channel()
+    log("[Startup]")
+    client = client_channel("ssh", "-p", "2222", "-s", "localhost", "rpki-rtr")
     client.push_pdu(reset_query())
     period = rpki.sundial.timedelta(seconds = 90)
     wakeup = rpki.sundial.now() + period

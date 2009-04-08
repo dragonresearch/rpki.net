@@ -305,7 +305,7 @@ class prefix(pdu):
     plm = "%s/%s-%s" % (self.prefix, self.prefixlen, self.max_prefixlen)
     return "%s %8s  %-32s %s" % ("+" if self.announce else "-", self.asn, plm, ":".join(("%02X" % ord(b) for b in self.to_pdu())))
 
-  def pprint(self):
+  def show(self):
     print "# Class:       ", self.__class__.__name__
     print "# ASN:         ", self.asn
     print "# Prefix:      ", self.prefix
@@ -421,9 +421,32 @@ class prefix_set(list):
   """
 
   @classmethod
+  def _load_file(cls, filename):
+    """Low-level method to read prefix_set from a file."""
+    self = cls()
+    f = open(filename, "rb")
+    r = read_buffer()
+    while True:
+      p = pdu.read_pdu(r)
+      while p is None:
+        b = f.read(r.needed())
+        if b == "":
+          assert r.available() == 0
+          return self
+        r.put(b)
+        p = r.retry()
+      self.append(p)
+
+class axfr_set(prefix_set):
+  """Object representing a complete set of prefixes, that is, one
+  versioned and (theoretically) consistant set of prefixes extracted
+  from rcynic's output, all with the announce field set.
+  """
+
+  @classmethod
   def parse_rcynic(cls, rcynic_dir):
     """Parse ROAS fetched (and validated!) by rcynic to create a new
-    prefix_set.
+    axfr_set.
     """
     self = cls()
     self.serial = rpki.sundial.now().totimestamp()
@@ -443,47 +466,16 @@ class prefix_set(list):
     return self
 
   @classmethod
-  def _load_file(cls, filename):
-    """Low-level method to read prefix_set from a file."""
-    self = cls()
-    f = open(filename, "rb")
-    r = read_buffer()
-    while True:
-      p = pdu.read_pdu(r)
-      while p is None:
-        b = f.read(r.needed())
-        if b == "":
-          assert r.available() == 0
-          return self
-        r.put(b)
-        p = r.retry()
-      self.append(p)
-
-  @classmethod
-  def load_axfr(cls, filename):
-    """Load an AXFR-style prefix_set from a file, parse filename to
-    obtain serial.
-    """
+  def load(cls, filename):
+    """Load an axfr_set from a file, parse filename to obtain serial."""
     fn1, fn2 = os.path.basename(filename).split(".")
     assert fn1.isdigit() and fn2 == "ax"
     self = cls._load_file(filename)
     self.serial = int(fn1)
     return self
 
-  @classmethod
-  def load_ixfr(cls, filename):
-    """Load an IXFR-style prefix_set from a file, parse filename to
-    obtain serials.
-    """
-    fn1, fn2, fn3 = os.path.basename(filename).split(".")
-    assert fn1.isdigit() and fn2 == "ix" and fn3.isdigit()
-    self = cls._load_file(filename)
-    self.from_serial = int(fn3)
-    self.to_serial = int(fn1)
-    return self
-
   def save_axfr(self):
-    """Write AXFR-style prefix_set to file with magic filename."""
+    """Write axfr__set to file with magic filename."""
     f = open("%d.ax" % self.serial, "wb")
     for p in self:
       f.write(p.to_pdu())
@@ -502,10 +494,10 @@ class prefix_set(list):
       raise
 
   def save_ixfr(self, other):
-    """Comparing this prefix_set with an older one and write the
-    resulting IXFR-style prefix-set to file with magic filename.
-    Since we store prefix_sets in sorted order, computing the
-    difference is a trivial linear comparison.
+    """Comparing this axfr_set with an older one and write the
+    resulting ixfr_set to file with magic filename.  Since we store
+    prefix_sets in sorted order, computing the difference is a trivial
+    linear comparison.
     """
     f = open("%d.ix.%d" % (self.serial, other.serial), "wb")
     old = other[:]
@@ -523,6 +515,36 @@ class prefix_set(list):
     while new:
       f.write(new.pop(0).to_pdu(announce = 1))
     f.close()
+
+  def show(self):
+    """Print this axfr_set."""
+    print "# AXFR %d (%s)" % (self.serial, rpki.sundial.datetime.utcfromtimestamp(self.serial))
+    for p in self:
+      print p
+
+class ixfr_set(prefix_set):
+  """Object representing an incremental set of prefixes, that is, the
+  differences between one versioned and (theoretically) consistant set
+  of prefixes extracted from rcynic's output and another, with the announce
+  fields set or cleared as necessary to indicate the changes.
+  """
+
+  @classmethod
+  def load(cls, filename):
+    """Load an ixfr_set from a file, parse filename to obtain serials."""
+    fn1, fn2, fn3 = os.path.basename(filename).split(".")
+    assert fn1.isdigit() and fn2 == "ix" and fn3.isdigit()
+    self = cls._load_file(filename)
+    self.from_serial = int(fn3)
+    self.to_serial = int(fn1)
+    return self
+
+  def show(self):
+    """Print this ixfr_set."""
+    print "# IXFR %d (%s) -> %d (%s)" % (self.from_serial, rpki.sundial.datetime.utcfromtimestamp(self.from_serial),
+                                         self.to_serial, rpki.sundial.datetime.utcfromtimestamp(self.to_serial))
+    for p in self:
+      print p
 
 class file_producer(object):
   """File-based producer object for asynchat."""
@@ -748,10 +770,10 @@ def cronjob_main():
   cleanup, config file (instead of wired in magic filenames), etc.
   """
 
-  axfrs = [prefix_set.load_axfr(f) for f in glob.glob("*.ax")]
+  axfrs = [axfr_set.load(f) for f in glob.glob("*.ax")]
 
   for dir in ("../rcynic/rcynic-data/authenticated", "../rpkid/testbed.dir/rcynic-data/authenticated"):
-    p = prefix_set.parse_rcynic(dir)
+    p = axfr_set.parse_rcynic(dir)
     p.save_axfr()
     for a in axfrs:
       p.save_ixfr(a)
@@ -770,21 +792,10 @@ def cronjob_main():
 
 def show_main():
   """Main program for show mode.  Just displays current AXFR and IXFR dumps"""
-
-  def pprint(serial):
-    return "%d (%s)" % (serial, rpki.sundial.datetime.utcfromtimestamp(serial))
-
   for f in glob.glob("*.ax"):
-    s =  prefix_set.load_axfr(f)
-    print "# AXFR", pprint(s.serial)
-    for p in s:
-      print p
-
+    axfr_set.load(f).show()
   for f in glob.glob("*.ix.*"):
-    s = prefix_set.load_ixfr(f)
-    print "# IXFR", pprint(s.from_serial), "->", pprint(s.to_serial)
-    for p in s:
-      print p
+    ixfr_set.load(f).show()
 
 def server_main():
   """Main program for server mode.  Server is event driven, so
@@ -834,7 +845,7 @@ def log(msg):
   sys.stderr.write("[%s] %s\n" % (jane, msg))
 
 if len(sys.argv) == 1:
-  jane = "show"
+  jane = "client"
 else:
   assert len(sys.argv) == 2
   jane = sys.argv[1]

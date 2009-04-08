@@ -524,47 +524,6 @@ class prefix_set(list):
       f.write(new.pop(0).to_pdu(announce = 1))
     f.close()
 
-def cronjob_main():
-  """Toy version of main program for cronjob.  This isn't ready for
-  real use yet, but does most of the basic operations.  Still needs
-  cleanup, config file (instead of wired in magic filenames), etc.
-  """
-
-  axfrs = [prefix_set.load_axfr(f) for f in glob.glob("*.ax")]
-
-  for dir in ("../rcynic/rcynic-data/authenticated", "../rpkid/testbed.dir/rcynic-data/authenticated"):
-    p = prefix_set.parse_rcynic(dir)
-    p.save_axfr()
-    for a in axfrs:
-      p.save_ixfr(a)
-    p.mark_current()
-    axfrs.append(p)
-    time.sleep(2)
-
-  ixfrs = [prefix_set.load_ixfr(f) for f in glob.glob("*.ix.*")]
-
-  def pp(serial):
-    return "%d (%s)" % (serial, rpki.sundial.datetime.utcfromtimestamp(serial))
-
-  for a in axfrs:
-    print "# AXFR", pp(a.serial)
-    for p in a:
-      print p
-
-  for i in ixfrs:
-    print "# IXFR", pp(i.from_serial), "->", pp(i.to_serial)
-    for p in i:
-      print p
-
-  s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-  for name in glob.iglob("kickme.*"):
-    print "# Kicking %s" % name
-    try:
-      s.sendto("Hello, Polly!", name)
-    except:
-      print "# Failed to kick %s" % name
-  s.close()
-    
 class file_producer(object):
   """File-based producer object for asynchat."""
 
@@ -783,6 +742,50 @@ class kickme_channel(asyncore.dispatcher):
     log("Exiting after unhandled exception")
     asyncore.close_all()
 
+def cronjob_main():
+  """Toy version of main program for cronjob.  This isn't ready for
+  real use yet, but does most of the basic operations.  Still needs
+  cleanup, config file (instead of wired in magic filenames), etc.
+  """
+
+  axfrs = [prefix_set.load_axfr(f) for f in glob.glob("*.ax")]
+
+  for dir in ("../rcynic/rcynic-data/authenticated", "../rpkid/testbed.dir/rcynic-data/authenticated"):
+    p = prefix_set.parse_rcynic(dir)
+    p.save_axfr()
+    for a in axfrs:
+      p.save_ixfr(a)
+    p.mark_current()
+    axfrs.append(p)
+    time.sleep(2)
+
+  s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+  for name in glob.iglob("kickme.*"):
+    print "# Kicking %s" % name
+    try:
+      s.sendto("Hello, Polly!", name)
+    except:
+      print "# Failed to kick %s" % name
+  s.close()
+
+def show_main():
+  """Main program for show mode.  Just displays current AXFR and IXFR dumps"""
+
+  def pprint(serial):
+    return "%d (%s)" % (serial, rpki.sundial.datetime.utcfromtimestamp(serial))
+
+  for f in glob.glob("*.ax"):
+    s =  prefix_set.load_axfr(f)
+    print "# AXFR", pprint(s.serial)
+    for p in s:
+      print p
+
+  for f in glob.glob("*.ix.*"):
+    s = prefix_set.load_ixfr(f)
+    print "# IXFR", pprint(s.from_serial), "->", pprint(s.to_serial)
+    for p in s:
+      print p
+
 def server_main():
   """Main program for server mode.  Server is event driven, so
   everything interesting happens in the channel classes.
@@ -831,7 +834,7 @@ def log(msg):
   sys.stderr.write("[%s] %s\n" % (jane, msg))
 
 if len(sys.argv) == 1:
-  jane = "client"
+  jane = "show"
 else:
   assert len(sys.argv) == 2
   jane = sys.argv[1]
@@ -839,4 +842,5 @@ else:
 { "cronjob" : cronjob_main,
   "client"  : client_main,
   "server"  : server_main,
+  "show"    : show_main,
   }[jane]()

@@ -124,12 +124,15 @@ class pdu(object):
     log(self)
 
   def send_ixfr(self, server):
-    """Send an incremental response.  Caller should catch IOError."""
-    fn = "%s.ix.%s" % (server.current_serial, self.serial)
-    f = open(fn, "rb")
-    server.push_pdu(incremental_response())
-    server.push_file(f)
-    server.push_pdu(end_of_data(serial = server.current_serial))
+    """Send an incremental response, or cache reset if we can't."""
+    try:
+      fn = "%s.ix.%s" % (server.current_serial, self.serial)
+      f = open(fn, "rb")
+      server.push_pdu(incremental_response())
+      server.push_file(f)
+      server.push_pdu(end_of_data(serial = server.current_serial))
+    except IOError:
+      server.push_pdu(cache_reset())
 
   def send_axfr(self, server):
     """Send a complete response, or send an error if we can't."""
@@ -234,10 +237,7 @@ class serial_query(pdu_with_serial):
       server.push_pdu(incremental_response())
       server.push_pdu(end_of_data(serial = server.current_serial))
     else:
-      try:
-        self.send_ixfr(server)
-      except IOError:
-        self.send_axfr(server)
+      self.send_ixfr(server)
 
 class reset_query(pdu_empty):
   """Reset Query PDU."""
@@ -270,6 +270,16 @@ class end_of_data(pdu_with_serial):
     log(self)
     client.current_serial = self.serial
     #client.close()
+
+class cache_reset(pdu_empty):
+  """Cache reset PDU."""
+
+  pdu_type = 8
+
+  def consume(self, client):
+    """Handle cache_reset response, by issuing a reset_query."""
+    log(self)
+    client.push_pdu(reset_query())
 
 class prefix(pdu):
   """Object representing one prefix.  This corresponds closely to one
@@ -412,7 +422,8 @@ class error_report(pdu):
 prefix.afi_map = { "\x00\x01" : ipv4_prefix, "\x00\x02" : ipv6_prefix }
 
 pdu.pdu_map = dict((p.pdu_type, p) for p in (ipv4_prefix, ipv6_prefix, serial_notify, serial_query, reset_query,
-                                             incremental_response, complete_response, end_of_data, error_report))
+                                             incremental_response, complete_response, end_of_data, cache_reset,
+                                             error_report))
 
 class prefix_set(list):
   """Object representing a set of prefixes, that is, one versioned and
@@ -800,6 +811,14 @@ def show_main():
 def server_main():
   """Main program for server mode.  Server is event driven, so
   everything interesting happens in the channel classes.
+
+  In production use this server is run under sshd.  The subsystem
+  mechanism in sshd does not allow us to pass arguments on the command
+  line, so either we need a wrapper or we need wired-in names for
+  things like our config file.  sshd will have us running in whatever
+  it thinks is our home directory on startup, so it may be that the
+  easiest approach here is to let sshd put us in the right directory
+  and just look for our config file there.
   """
   log("[Starting]")
   kickme = None

@@ -123,27 +123,12 @@ class pdu(object):
     print out the PDU."""
     log(self)
 
-  def send_ixfr(self, server):
-    """Send an incremental response, or cache reset if we can't."""
-    try:
-      fn = "%s.ix.%s" % (server.current_serial, self.serial)
-      f = open(fn, "rb")
-      server.push_pdu(incremental_response())
-      server.push_file(f)
-      server.push_pdu(end_of_data(serial = server.current_serial))
-    except IOError:
-      server.push_pdu(cache_reset())
-
-  def send_axfr(self, server):
-    """Send a complete response, or send an error if we can't."""
-    try:
-      fn = "%s.ax" % server.current_serial
-      f = open(fn, "rb")
-      server.push_pdu(complete_response())
-      server.push_file(f)
-      server.push_pdu(end_of_data(serial = server.current_serial))
-    except IOError:
-      server.push_pdu(error_report(errno = 666, errpdu = self, errmsg = "Couldn't open %s" % fn))
+  def send_file(self, server, filename):
+    """Send a content of a file as a cache response.  Caller should catch IOError."""
+    f = open(filename, "rb")
+    server.push_pdu(cache_response())
+    server.push_file(f)
+    server.push_pdu(end_of_data(serial = server.current_serial))
 
   def send_nodata(self, server):
     """Send a nodata error."""
@@ -234,10 +219,13 @@ class serial_query(pdu_with_serial):
       self.send_nodata(server)
     elif int(server.current_serial) == self.serial:
       log("[Client is already current, sending empty IXFR]")
-      server.push_pdu(incremental_response())
+      server.push_pdu(cache_response())
       server.push_pdu(end_of_data(serial = server.current_serial))
     else:
-      self.send_ixfr(server)
+      try:
+        self.send_file(server, "%s.ix.%s" % (server.current_serial, self.serial))
+      except IOError:
+        server.push_pdu(cache_reset())
 
 class reset_query(pdu_empty):
   """Reset Query PDU."""
@@ -250,15 +238,14 @@ class reset_query(pdu_empty):
     if server.get_serial() is None:
       self.send_nodata(server)
     else:
-      self.send_axfr(server)
+      try:
+        self.send_file(server, "%s.ax" % server.current_serial)
+      except IOError:
+        server.push_pdu(error_report(errno = 666, errpdu = self, errmsg = "Couldn't open %s" % fn))
 
-class incremental_response(pdu_empty):
+class cache_response(pdu_empty):
   """Incremental Response PDU."""
   pdu_type = 3
-
-class complete_response(pdu_empty):
-  """Complete Response PDU."""
-  pdu_type = 5
 
 class end_of_data(pdu_with_serial):
   """End of Data PDU."""
@@ -422,8 +409,7 @@ class error_report(pdu):
 prefix.afi_map = { "\x00\x01" : ipv4_prefix, "\x00\x02" : ipv6_prefix }
 
 pdu.pdu_map = dict((p.pdu_type, p) for p in (ipv4_prefix, ipv6_prefix, serial_notify, serial_query, reset_query,
-                                             incremental_response, complete_response, end_of_data, cache_reset,
-                                             error_report))
+                                             cache_response, end_of_data, cache_reset, error_report))
 
 class prefix_set(list):
   """Object representing a set of prefixes, that is, one versioned and

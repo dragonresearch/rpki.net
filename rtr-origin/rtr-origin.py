@@ -42,11 +42,8 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import sys, os, struct, time, glob, socket, fcntl, signal
-import asyncore, asynchat, subprocess, traceback
-import rpki.x509, rpki.ipaddrs, rpki.sundial
-
-os.environ["TZ"] = "UTC"
-time.tzset()
+import asyncore, asynchat, subprocess, traceback, getopt
+import rpki.x509, rpki.ipaddrs, rpki.sundial, rpki.config
 
 class read_buffer(object):
   """Wrapper around synchronous/asynchronous read state."""
@@ -686,7 +683,7 @@ class client_channel(pdu_channel):
     s = socket.socketpair()
     if self.debug_using_direct_server_subprocess:
       log("[Ignoring ssh arguments, using direct subprocess kludge for testing]")
-      self.ssh = subprocess.Popen(["/usr/local/bin/python", "rtr-origin.py", "server"], stdin = s[0], stdout = s[0], close_fds = True)
+      self.ssh = subprocess.Popen(["/usr/local/bin/python", "rtr-origin.py", "--server"], stdin = s[0], stdout = s[0], close_fds = True)
     else:
       log("[Running ssh: %s]" % " ".join(sshargs))
       self.ssh = subprocess.Popen(sshargs, executable = "/usr/bin/ssh", stdin = s[0], stdout = s[0], close_fds = True)
@@ -846,17 +843,37 @@ def client_main():
     raise
 
 def log(msg):
-  """Basic logging."""
-  sys.stderr.write("[%s] %s\n" % (jane, msg))
+  """Temporary."""
+  rpki.log.warn(str(msg))
 
-if len(sys.argv) == 1:
-  jane = "client"
-else:
-  assert len(sys.argv) == 2
-  jane = sys.argv[1]
+os.environ["TZ"] = "UTC"
+time.tzset()
+
+cfg_file = "rtr-origin.conf"
+
+mode = None
+
+opts,argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help", "cronjob", "client", "server", "show"])
+for o,a in opts:
+  if o in ("-h", "--help", "-?"):
+    print __doc__
+    sys.exit(0)
+  if o in ("-c", "--config"):
+    cfg_file = a
+  if o in ("--cronjob", "--client", "--server", "--show"):
+    assert mode is None
+    mode = o[2:]
+if argv:
+  raise RuntimeError, "Unexpected arguments %s" % argv
+if mode is None:
+  raise RuntimeError, "No mode selected"
+
+rpki.log.init("rtr-origin/" + mode)
+
+cfg = rpki.config.parser(cfg_file, "mode")
 
 { "cronjob" : cronjob_main,
   "client"  : client_main,
   "server"  : server_main,
   "show"    : show_main,
-  }[jane]()
+  }[mode]()

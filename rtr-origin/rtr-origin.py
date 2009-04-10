@@ -758,40 +758,38 @@ class kickme_channel(asyncore.dispatcher):
     log("Exiting after unhandled exception")
     asyncore.close_all()
 
-def cronjob_main():
-  """Toy version of main program for cronjob.  This isn't ready for
-  real use yet, but does most of the basic operations.  Still needs
-  cleanup, config file (instead of wired in magic filenames), etc.
-  """
+def cronjob_main(argv):
+  """Main program for cronjob."""
 
-  axfrs = [axfr_set.load(f) for f in glob.glob("*.ax")]
+  if len(argv) != 1:
+    raise RuntimeError, "Expected one argument, got %s" % argv
 
-  for dir in ("../rcynic/rcynic-data/authenticated", "../rpkid/testbed.dir/rcynic-data/authenticated"):
-    p = axfr_set.parse_rcynic(dir)
-    p.save_axfr()
-    for a in axfrs:
-      p.save_ixfr(a)
-    p.mark_current()
-    axfrs.append(p)
-    time.sleep(2)
+  pdus = axfr_set.parse_rcynic(argv[0])
+  pdus.save_axfr()
+  for axfr in glob.glob("*.ax"):
+    pdus.save_ixfr(axfr_set.load(axfr))
+  pdus.mark_current()
 
-  s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+  msg = "Good morning, serial %s is ready" % pdus.serial
+  sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
   for name in glob.iglob("kickme.*"):
-    print "# Kicking %s" % name
     try:
-      s.sendto("Hello, Polly!", name)
+      print "# Kicking %s" % name
+      sock.sendto(msg, name)
     except:
       print "# Failed to kick %s" % name
-  s.close()
+  sock.close()
 
-def show_main():
+def show_main(argv):
   """Main program for show mode.  Just displays current AXFR and IXFR dumps"""
+  if argv:
+    raise RuntimeError, "Unexpected arguments: %s" % argv
   for f in glob.glob("*.ax"):
     axfr_set.load(f).show()
   for f in glob.glob("*.ix.*"):
     ixfr_set.load(f).show()
 
-def server_main():
+def server_main(argv):
   """Main program for server mode.  Server is event driven, so
   everything interesting happens in the channel classes.
 
@@ -804,6 +802,8 @@ def server_main():
   and just look for our config file there.
   """
   log("[Starting]")
+  if argv:
+    raise RuntimeError, "Unexpected arguments: %s" % argv
   kickme = None
   try:
     server = server_channel()
@@ -813,11 +813,13 @@ def server_main():
     if kickme is not None:
       kickme.cleanup()
 
-def client_main():
+def client_main(argv):
   """Main program for client mode.  Not really written yet."""
+  log("[Startup]")
+  if argv:
+    raise RuntimeError, "Unexpected arguments: %s" % argv
   client = None
   try:
-    log("[Startup]")
     client = client_channel("ssh", "-p", "2222", "-s", "localhost", "rpki-rtr")
     client.push_pdu(reset_query())
     period = rpki.sundial.timedelta(seconds = 90)
@@ -853,18 +855,24 @@ cfg_file = "rtr-origin.conf"
 
 mode = None
 
-opts,argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help", "cronjob", "client", "server", "show"])
+main_dispatch = {
+  "cronjob" : cronjob_main,
+  "client"  : client_main,
+  "server"  : server_main,
+  "show"    : show_main }
+
+opts,argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"] + main_dispatch.keys())
 for o,a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
   if o in ("-c", "--config"):
     cfg_file = a
-  if o in ("--cronjob", "--client", "--server", "--show"):
-    assert mode is None
+  if len(o) > 2 and o[2:] in main_dispatch:
+    if mode is not None:
+      raise RuntimeError, "Conflicting modes selected"
     mode = o[2:]
-if argv:
-  raise RuntimeError, "Unexpected arguments %s" % argv
+
 if mode is None:
   raise RuntimeError, "No mode selected"
 
@@ -872,8 +880,4 @@ rpki.log.init("rtr-origin/" + mode)
 
 cfg = rpki.config.parser(cfg_file, "mode")
 
-{ "cronjob" : cronjob_main,
-  "client"  : client_main,
-  "server"  : server_main,
-  "show"    : show_main,
-  }[mode]()
+main_dispatch[mode](argv)

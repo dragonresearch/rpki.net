@@ -36,15 +36,21 @@ class http_message(object):
       if headers[i + 1][0].isspace():
         headers[i] += headers[i + 1]
         del headers[i + 1]
-    headers = [h.split(":", 1) for h in headers]
-    self.headers = dict((k.lower(), v) for (k,v) in headers)
+    self.headers = {}
+    for h in headers:
+      k,v = h.split(":", 1)
+      k = k.capitalize()
+      if k in self.headers:
+        self.headers[k] += ", " + v
+      else:
+        self.headers[k] = v
     return self
 
   def format(self):
     s = self.format_first_line()
     if self.body is not None:
       assert isinstance(self.body, str)
-      self.headers["content-length"] = len(self.body)
+      self.headers["Content-length"] = len(self.body)
     for kv in self.headers.iteritems():
       s += "%s: %s\r\n" % kv
     s += "\r\n"
@@ -63,7 +69,7 @@ class http_message(object):
 class http_request(http_message):
 
   def __init__(self, cmd = None, path = None, version = (1,0), body = None, headers = None):
-    if cmd is not None and cmd.upper() != "POST" and body is not None:
+    if cmd is not None and cmd != "POST" and body is not None:
       raise RuntimeError
     self.cmd = cmd
     self.path = path
@@ -73,7 +79,7 @@ class http_request(http_message):
 
   def parse_first_line(self, cmd, path, version):
     self.parse_version(version)
-    self.cmd = cmd.upper()
+    self.cmd = cmd
     self.path = path
 
   def format_first_line(self):
@@ -131,7 +137,7 @@ class http_stream(asynchat.async_chat):
 
   def handle_body(self):
     self.msg.body = self.get_buffer()
-    assert len(self.msg.body) == int(self.msg.headers["content-length"])
+    assert len(self.msg.body) == int(self.msg.headers["Content-length"])
     self.handle_message()
 
   def handle_error(self):
@@ -143,13 +149,13 @@ class http_server(http_stream):
   def handle_headers(self):
     self.msg = http_request.parse_from_wire(self.get_buffer())
     if self.msg.cmd == "POST":
-      self.set_terminator(int(self.msg.headers["content-length"]))
+      self.set_terminator(int(self.msg.headers["Content-length"]))
     else:
       self.handle_message()
 
   def handle_message(self):
     print self.msg
-    self.push(http_response(code = 200, msg = "OK", body = self.msg.format(), headers = { "content-type" : "text/plain" }).format())
+    self.push(http_response(code = 200, msg = "OK", body = self.msg.format(), headers = { "Content-type" : "text/plain" }).format())
     if False:
       self.close_when_done()
     else:
@@ -162,7 +168,7 @@ class http_client(http_stream):
 
   def handle_headers(self):
     self.msg = http_response.parse_from_wire(self.get_buffer())
-    self.set_terminator(int(self.msg.headers["content-length"]))
+    self.set_terminator(int(self.msg.headers["Content-length"]))
 
   def handle_message(self):
     print self.msg
@@ -215,10 +221,10 @@ else:
   # whether the parser can survive multiple mssages.
 
   client = http_client.queue_messages([
-    http_request(cmd = sys.argv[1], path = "/", body = "Hi, Mom!\r\n", headers = { "content-type" : "text/plain" }),
-    http_request(cmd = sys.argv[1], path = "/", body = "Hi, Dad!\r\n", headers = { "content-type" : "text/plain" }),
-    http_request(cmd = sys.argv[1], path = "/", body = "Hi, Bro!\r\n", headers = { "content-type" : "text/plain" }),
-    http_request(cmd = sys.argv[1], path = "/", body = "Hi, Sis!\r\n", headers = { "content-type" : "text/plain" }),
+    http_request(cmd = sys.argv[1].upper(), path = "/", body = "Hi, Mom!\r\n", headers = { "Content-type" : "text/plain" }),
+    http_request(cmd = sys.argv[1].upper(), path = "/", body = "Hi, Dad!\r\n", headers = { "Content-type" : "text/plain" }),
+    http_request(cmd = sys.argv[1].upper(), path = "/", body = "Hi, Bro!\r\n", headers = { "Content-type" : "text/plain" }),
+    http_request(cmd = sys.argv[1].upper(), path = "/", body = "Hi, Sis!\r\n", headers = { "Content-type" : "text/plain" }),
     ])
 
 asyncore.loop()

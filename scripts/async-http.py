@@ -57,12 +57,14 @@ class http_message(object):
 
   def parse_version(self, version):
     if version[:5] != "HTTP/":
-      raise RuntimeError
+      raise RuntimeError, "Couldn't parse version %s" % version
     self.version = tuple(int(i) for i in version[5:].split("."))
 
 class http_request(http_message):
 
   def __init__(self, cmd = None, path = None, version = (1,0), body = None, headers = None):
+    if cmd is not None and cmd.upper() != "POST" and body is not None:
+      raise RuntimeError
     self.cmd = cmd
     self.path = path
     self.version = version
@@ -75,7 +77,7 @@ class http_request(http_message):
     self.path = path
 
   def format_first_line(self):
-    return "%s %s HTTPS/%d.%d\r\n" % (self.cmd, self.path, self.version[0], self.version[1])
+    return "%s %s HTTP/%d.%d\r\n" % (self.cmd, self.path, self.version[0], self.version[1])
 
 class http_response(http_message):
 
@@ -92,11 +94,11 @@ class http_response(http_message):
     self.msg = msg
 
   def format_first_line(self):
-    return "HTTPS/%d.%d %s %s\r\n" % (self.version[0], self.version[1], self.code, self.msg)
+    return "HTTP/%d.%d %s %s\r\n" % (self.version[0], self.version[1], self.code, self.msg)
 
-class http_server(asynchat.async_chat):
+class http_stream(asynchat.async_chat):
 
-  def __init__(self, conn):
+  def __init__(self, conn = None):
     asynchat.async_chat.__init__(self, conn = conn)
     self.buffer = []
     self.set_terminator("\r\n\r\n")
@@ -123,6 +125,17 @@ class http_server(asynchat.async_chat):
       return self.handle_body()
     raise RuntimeError
 
+  def handle_body(self):
+    self.msg.body = self.get_buffer()
+    assert len(self.msg.body) == int(self.msg.headers["content-length"])
+    self.handle_message()
+
+  def handle_error(self):
+    print traceback.format_exc()
+    asyncore.close_all()
+
+class http_server(http_stream):
+
   def handle_headers(self):
     self.msg = http_request.parse_from_wire(self.get_buffer())
     if self.msg.cmd == "POST":
@@ -130,24 +143,30 @@ class http_server(asynchat.async_chat):
     else:
       self.handle_message()
 
-  def handle_body(self):
-    self.msg.body = self.get_buffer()
-    assert len(self.msg.body) == int(self.msg.headers["content-length"])
-    self.handle_message()
-
   def handle_message(self):
+    print self.msg
     self.push(http_response(code = 200, msg = "OK", body = self.msg.format(), headers = { "content-type" : "text/plain" }).format())
     self.close_when_done()
 
-  def handle_error(self):
-    print traceback.format_exc()
-    asyncore.close_all()
+class http_client(http_stream):
+
+  def handle_headers(self):
+    self.msg = http_response.parse_from_wire(self.get_buffer())
+    self.set_terminator(int(self.msg.headers["content-length"]))
+
+  def handle_message(self):
+    print self.msg
+
+  def handle_connect(self):
+    pass
 
 class http_listener(asyncore.dispatcher):
 
   def __init__(self):
     asyncore.dispatcher.__init__(self)
     self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+    self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
     self.bind(("", 8000))
     self.listen(5)
 
@@ -158,6 +177,17 @@ class http_listener(asyncore.dispatcher):
     print traceback.format_exc()
     asyncore.close_all()
 
-listener = http_listener()
+assert len(sys.argv) in (1, 2)
+
+if len(sys.argv) == 1:
+
+  listener = http_listener()
+
+else:
+
+  client = http_client()
+  client.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+  client.connect(("", 8000))
+  client.push(http_request(cmd = sys.argv[1], path = "/", body = "Hi, Mom!\r\n", headers = { "content-type" : "text/plain" }).format())
 
 asyncore.loop()

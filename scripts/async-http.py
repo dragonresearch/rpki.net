@@ -101,6 +101,10 @@ class http_stream(asynchat.async_chat):
   def __init__(self, conn = None):
     asynchat.async_chat.__init__(self, conn = conn)
     self.buffer = []
+    self.restart()
+
+  def restart(self):
+    assert not self.buffer
     self.set_terminator("\r\n\r\n")
 
   def reading_headers(self):
@@ -146,7 +150,13 @@ class http_server(http_stream):
   def handle_message(self):
     print self.msg
     self.push(http_response(code = 200, msg = "OK", body = self.msg.format(), headers = { "content-type" : "text/plain" }).format())
-    self.close_when_done()
+    if False:
+      self.close_when_done()
+    else:
+      self.restart()
+
+  def handle_close(self):
+    asyncore.close_all()
 
 class http_client(http_stream):
 
@@ -156,9 +166,24 @@ class http_client(http_stream):
 
   def handle_message(self):
     print self.msg
+    self.next_msg()
 
   def handle_connect(self):
-    pass
+    self.next_msg()
+
+  @classmethod
+  def queue_messages(cls, msgs):
+    self = cls()
+    self.msgs = msgs
+    self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+    self.connect(("", 8000))
+    
+  def next_msg(self):
+    if self.msgs:
+      self.push(self.msgs.pop(0).format())
+      self.restart()
+    else:
+      self.close_when_done()
 
 class http_listener(asyncore.dispatcher):
 
@@ -185,9 +210,15 @@ if len(sys.argv) == 1:
 
 else:
 
-  client = http_client()
-  client.create_socket(socket.AF_INET, socket.SOCK_STREAM)
-  client.connect(("", 8000))
-  client.push(http_request(cmd = sys.argv[1], path = "/", body = "Hi, Mom!\r\n", headers = { "content-type" : "text/plain" }).format())
+  # This doesn't comply with HTTP, we're not signalling reusable
+  # connections properly.  For the moment this is just a test to see
+  # whether the parser can survive multiple mssages.
+
+  client = http_client.queue_messages([
+    http_request(cmd = sys.argv[1], path = "/", body = "Hi, Mom!\r\n", headers = { "content-type" : "text/plain" }),
+    http_request(cmd = sys.argv[1], path = "/", body = "Hi, Dad!\r\n", headers = { "content-type" : "text/plain" }),
+    http_request(cmd = sys.argv[1], path = "/", body = "Hi, Bro!\r\n", headers = { "content-type" : "text/plain" }),
+    http_request(cmd = sys.argv[1], path = "/", body = "Hi, Sis!\r\n", headers = { "content-type" : "text/plain" }),
+    ])
 
 asyncore.loop()

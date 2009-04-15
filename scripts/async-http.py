@@ -27,7 +27,9 @@ import sys, os, time, socket, fcntl, asyncore, asynchat, getopt, email, tracebac
 
 class http_message(object):
 
-  def __init__(self, headers):
+  @classmethod
+  def parse_from_wire(cls, headers):
+    self = cls()
     headers = headers.split("\r\n")
     self.parse_first_line(*headers.pop(0).split(None, 2))
     for i in xrange(len(headers) - 2, -1, -1):
@@ -36,46 +38,67 @@ class http_message(object):
         del headers[i + 1]
     headers = [h.split(":", 1) for h in headers]
     self.headers = dict((k.lower(), v) for (k,v) in headers)
+    return self
+
+  def format(self):
+    s = self.format_first_line()
+    if self.body is not None:
+      assert isinstance(self.body, str)
+      self.headers["content-length"] = len(self.body)
+    for kv in self.headers.iteritems():
+      s += "%s: %s\r\n" % kv
+    s += "\r\n"
+    if self.body is not None:
+      s += self.body
+    return s
 
   def __str__(self):
-    s =  "Version: %d.%d\n" % self.version
-    s += "Type:    %s\n" % self.__class__.__name__
-    s += "Command: %s\n" % getattr(self, "cmd", "")
-    s += "Path:    %s\n" % getattr(self, "path", "")
-    s += "Code:    %s\n" % getattr(self, "code", "")
-    s += "Msg:     %s\n" % getattr(self, "msg", "")
-    for k,v in self.headers.iteritems():
-      s += " %s: %s\n" % (k, v)
-    return s
+    return self.format()
+
+  def parse_version(self, version):
+    if version[:5] != "HTTP/":
+      raise RuntimeError
+    self.version = tuple(int(i) for i in version[5:].split("."))
 
 class http_request(http_message):
 
-  def parse_first_line(self, cmd, path, version = None):
+  def __init__(self, cmd = None, path = None, version = (1,0), body = None, headers = None):
+    self.cmd = cmd
+    self.path = path
+    self.version = version
+    self.body = body
+    self.headers = {} if headers is None else headers
+
+  def parse_first_line(self, cmd, path, version):
+    self.parse_version(version)
     self.cmd = cmd.upper()
     self.path = path
-    if version is None:
-      self.version = (0, 9)
-    elif version[:5] == "HTTP/":
-      self.version = tuple(int(i) for i in version[5:].split("."))
-    else:
-      raise RuntimeError
+
+  def format_first_line(self):
+    return "%s %s HTTPS/%d.%d\r\n" % (self.cmd, self.path, self.version[0], self.version[1])
 
 class http_response(http_message):
 
+  def __init__(self, code = None, msg = None, version = (1,0), body = None, headers = None):
+    self.code = code
+    self.msg = msg
+    self.version = version
+    self.body = body
+    self.headers = {} if headers is None else headers
+
   def parse_first_line(self, version, code, msg):
-    if version[:5] == "HTTP/":
-      self.version = tuple(int(i) for i in version[5:].split("."))
-    else:
-      raise RuntimeError
+    self.parse_version(version)
     self.code = int(code)
     self.msg = msg
 
+  def format_first_line(self):
+    return "HTTPS/%d.%d %s %s\r\n" % (self.version[0], self.version[1], self.code, self.msg)
+
 class http_server(asynchat.async_chat):
-  """This started out as the asynchat example from the Python manual."""
 
   def __init__(self, conn):
     asynchat.async_chat.__init__(self, conn = conn)
-    self.ibuffer = []
+    self.buffer = []
     self.set_terminator("\r\n\r\n")
 
   def reading_headers(self):
@@ -86,11 +109,11 @@ class http_server(asynchat.async_chat):
 
   def collect_incoming_data(self, data):
     """Buffer the data"""
-    self.ibuffer.append(data)
+    self.buffer.append(data)
 
-  def get_ibuffer(self):
-    val = "".join(self.ibuffer)
-    self.ibuffer = []
+  def get_buffer(self):
+    val = "".join(self.buffer)
+    self.buffer = []
     return val
 
   def found_terminator(self):
@@ -101,17 +124,20 @@ class http_server(asynchat.async_chat):
     raise RuntimeError
 
   def handle_headers(self):
-    msg = http_request(self.get_ibuffer())
-    print msg
-    self.reply(msg)
+    self.msg = http_request.parse_from_wire(self.get_buffer())
+    if self.msg.cmd == "POST":
+      self.set_terminator(int(self.msg.headers["content-length"]))
+    else:
+      self.handle_message()
 
-  def reply(self, msg):
-    self.push("HTTP/1.0 200 Yo!\r\nContent-Type: text/plain\r\n\r\n")
-    self.push(str(msg).replace("\n", "\r\n"))
+  def handle_body(self):
+    self.msg.body = self.get_buffer()
+    assert len(self.msg.body) == int(self.msg.headers["content-length"])
+    self.handle_message()
+
+  def handle_message(self):
+    self.push(http_response(code = 200, msg = "OK", body = self.msg.format(), headers = { "content-type" : "text/plain" }).format())
     self.close_when_done()
-
-  def push_line(self, line = ""):
-    self.push(line + "\r\n")
 
   def handle_error(self):
     print traceback.format_exc()

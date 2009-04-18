@@ -33,6 +33,9 @@ disable_tls_certificate_validation_exceptions = False
 # Chatter about TLS certificates
 debug_tls_certs = False
 
+# Debugging hack while converting to event-driven I/O model
+trace_synchronous_calls = False
+
 rpki_content_type = "application/x-rpki"
 
 def tlslite_certChain(x509):
@@ -149,7 +152,7 @@ class httpsClient(tlslite.api.HTTPTLSConnection):
 
     self.checker = Checker(trust_anchor = server_ta)
 
-def client(msg, client_key, client_cert, server_ta, url, timeout = 300):
+def client(msg, client_key, client_cert, server_ta, url, timeout = 300, callback = None):
   """Open client HTTPS connection, send a message, wait for response.
 
   This function wraps most of what one needs to do to send a message
@@ -157,7 +160,11 @@ def client(msg, client_key, client_cert, server_ta, url, timeout = 300):
   up to snuff; it's better than with the other packages I've found,
   but doesn't appear to handle subjectAltName extensions (sigh).
   """
-  
+
+  # This is an easy way to find synchronous calls that need conversion
+  if trace_synchronous_calls and callback is None:
+    raise RuntimeError, "Syncronous call to rpki.http.client()"
+
   u = urlparse.urlparse(url)
 
   assert u.scheme in ("", "https") and \
@@ -186,12 +193,20 @@ def client(msg, client_key, client_cert, server_ta, url, timeout = 300):
   httpc.sock.settimeout(timeout)
   httpc.request("POST", u.path, msg, {"Content-Type" : rpki_content_type})
   response = httpc.getresponse()
-  if response.status == httplib.OK:
-    return response.read()
+  rpki.log.debug("HTTPS client returned")
+  r = response.read()
+  if response.status != httplib.OK:
+    rpki.log.debug("HTTPS client returned failure")
+    r = rpki.exceptions.HTTPRequestFailed("HTTP request failed with status %s, response %s" % (response.status, r))
+  if callback is not None:
+    rpki.log.debug("HTTPS client callback supplied, using it")
+    callback(r)
+  elif response.status == httplib.OK:
+    rpki.log.debug("HTTPS no client callback, returning success")
+    return r
   else:
-    r = response.read()
-    raise rpki.exceptions.HTTPRequestFailed, \
-          "HTTP request failed with status %s, response %s" % (response.status, r)
+    rpki.log.debug("HTTPS no client callback, raising exception")
+    raise r
 
 class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
   """Derived type to supply POST handler and override logging."""
@@ -262,6 +277,15 @@ class httpsServer(tlslite.api.TLSSocketServerMixIn, BaseHTTPServer.HTTPServer):
     except (tlslite.api.TLSError, rpki.exceptions.TLSValidationError), error:
       rpki.log.warn("TLS handshake failure: " + str(error))
       return False
+
+  def handle_error(self, request, client_address):
+    """Override SOcketServer error handling.  This may be wrong in the
+    long run, but at the moment I'm seeing the server hang while
+    trying to shut down, because the default handler is intercepting
+    ServerShuttingDown in certain states, for reasons unknown.
+    """
+
+    raise
 
 def server(handlers, server_key, server_cert, port = 4433, host ="", client_ta = None, dynamic_https_trust_anchor = None, catch_signals = (signal.SIGINT, signal.SIGTERM)):
   """Run an HTTPS server and wait (forever) for connections."""

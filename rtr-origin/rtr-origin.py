@@ -242,6 +242,7 @@ class reset_query(pdu_empty):
 
 class cache_response(pdu_empty):
   """Incremental Response PDU."""
+
   pdu_type = 3
 
 class end_of_data(pdu_with_serial):
@@ -253,7 +254,6 @@ class end_of_data(pdu_with_serial):
     """Handle end_of_data response."""
     log(self)
     client.current_serial = self.serial
-    #client.close()
 
 class cache_reset(pdu_empty):
   """Cache reset PDU."""
@@ -278,15 +278,15 @@ class prefix(pdu):
   asnum_struct = struct.Struct("!L")
 
   @classmethod
-  def from_asn1(cls, asn, t):
+  def from_asn1(cls, asnum, t):
     """Read a prefix from a ROA in the tuple format used by our ASN.1 decoder."""
+    assert len(t[0]) <= cls.addr_type.bits
     x = 0L
     for y in t[0]:
       x = (x << 1) | y
-    for y in xrange(cls.addr_type.bits - len(t[0])):
-      x = (x << 1)
+    x <<= (cls.addr_type.bits - len(t[0]))
     self = cls()
-    self.asn = asn
+    self.asn = asnum
     self.prefix = cls.addr_type(x)
     self.prefixlen = len(t[0])
     self.max_prefixlen = self.prefixlen if t[1] is None else t[1]
@@ -449,10 +449,10 @@ class axfr_set(prefix_set):
         if f.endswith(".roa"):
           roa = rpki.x509.ROA(DER_file = os.path.join(root, f)).extract().get()
           assert roa[0] == 0, "ROA version is %d, expected 0" % roa[0]
-          asn = roa[1]
+          asnum = roa[1]
           for afi, addrs in roa[2]:
             for addr in addrs:
-              self.append(prefix.afi_map[afi].from_asn1(asn, addr))
+              self.append(prefix.afi_map[afi].from_asn1(asnum, addr))
     self.sort()
     for i in xrange(len(self) - 2, -1, -1):
       if self[i] == self[i + 1]:
@@ -587,8 +587,7 @@ class pdu_channel(asynchat.async_chat):
 
   def push_pdu(self, pdu):
     """Write PDU to stream."""
-    data = pdu.to_pdu()
-    self.push(data)
+    self.push(pdu.to_pdu())
 
   def push_file(self, f):
     """Write content of a file to stream."""

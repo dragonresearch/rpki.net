@@ -2,10 +2,6 @@
 
 "Cynical rsync" -- fetch and validate RPKI certificates.
 
-This is the C implementation.  It's still rough in places, but it
-appears to work, and at least for the current test data available from
-APNIC and RIPE it produces the same results as my Perl prototype did.
-
 To build this you will need to link it against an OpenSSL libcrypto
 that has support for the RFC 3779 extensions.  See ../openssl/README.
  

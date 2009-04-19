@@ -1,6 +1,20 @@
 # $Id$
 
-# Copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# Copyright (C) 2009  Internet Systems Consortium ("ISC")
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+
+# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -13,6 +27,7 @@
 # LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
+
 
 # This file exists to tell Python that this the content of this
 # directory constitute a Python package.  Since we're not doing
@@ -33,6 +48,14 @@
 # See http://viewvc.hactrn.net/subvert-rpki.hactrn.net/ for code,
 # design documents, a text mirror of portions of APNIC's Wiki, etc.
 #
+# The RPKI Engine is an implementation of the production-side tools
+# for generating certificates, CRLs, and ROAs.  The
+# <a href="http://viewvc.hactrn.net/subvert-rpki.hactrn.net/rcynic/">relying party tools</a>
+# are a separate (and much simpler) package.
+#
+# The Subversion repository for the entire project is available for
+# (read-only) anonymous access at http://subvert-rpki.hactrn.net/.
+#
 # The documentation you're reading is generated automatically by
 # Doxygen from comments and documentation in
 # <a href="http://viewvc.hactrn.net/subvert-rpki.hactrn.net/rpkid/rpki/">the code</a>.
@@ -49,9 +72,9 @@
 # @li A description of the several @subpage sql-schemas "SQL database schemas"
 # @li Some suggestions for @subpage further-reading "further reading"
 #
-# This work has been funded by <a
+# This work was funded from 2006 through 2008 by <a
 # href="http://www.arin.net/">ARIN</a>, in collaboration with the
-# other Regional Internet Registries.
+# other Regional Internet Registries.  Current work is funded by DHS.
 
 ## @page further-reading Further Reading
 #

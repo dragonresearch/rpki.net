@@ -182,7 +182,7 @@ class sax_handler(rpki.up_down.sax_handler):
 class cms_msg(rpki.up_down.cms_msg):
   saxify = sax_handler.saxify
 
-def up_down_handler(query, path):
+def up_down_handler(query, path, cb):
   try:
     q_msg = cms_msg.unwrap(query, (bpki_ta, child_bpki_cert))
   except Exception, data:

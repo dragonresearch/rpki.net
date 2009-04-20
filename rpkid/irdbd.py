@@ -27,7 +27,7 @@ import tlslite.api, MySQLdb, lxml.etree
 import rpki.https, rpki.config, rpki.resource_set, rpki.relaxng
 import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509
 
-def handler(query, path):
+def handler(query, path, cb):
   try:
 
     db.ping()

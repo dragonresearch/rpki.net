@@ -19,7 +19,21 @@ things that don't belong in yaml_script.
 
 $Id$
 
-Copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+Copyright (C) 2009  Internet Systems Consortium ("ISC")
+
+Permission to use, copy, modify, and distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
+
+Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -36,7 +50,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import os, yaml, MySQLdb, subprocess, signal, time, re, getopt, sys, lxml, traceback
 import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https
-import rpki.log, rpki.left_right, rpki.config, rpki.publication
+import rpki.log, rpki.left_right, rpki.config, rpki.publication, rpki.async
 
 os.environ["TZ"] = "UTC"
 time.tzset()
@@ -126,24 +140,6 @@ pub_sql_file   = cfg.get("pub_sql_file",   "pubd.sql")
 
 startup_delay  = int(cfg.get("startup_delay", "10"))
 
-class async_iterator(object):
-  """Experimental iteration construct for event-driven code.  This
-  belongs in the library eventually, but it's easier to debug the
-  initial version here.
-  """
-
-  def __init__(self, iterable, handler_cb, done_cb):
-    self.handler_cb = handler_cb
-    self.done_cb = done_cb
-    self.iterator = iter(iterable)
-
-  def __call__(self):
-    try:
-      self.handler_cb(self.iterator.next())
-    except StopIteration:
-      if self.done_cb is not None:
-        self.done_cb()
-
 class main(object):
   """Main program, implemented as a class to handle asynchronous I/O
   in underlying libraries.
@@ -229,11 +225,13 @@ class main(object):
       time.sleep(startup_delay)
 
       assert not hasattr(self, "iterator")
-      self.iterator = async_iterator(self.db.engines, self.create_rpki_objects, self.created_rpki_objects)
+      self.iterator = rpki.async.iterator(self.db.engines, self.create_rpki_objects, self.created_rpki_objects)
       self.iterator()
 
       # At this point we have gone into (pseudo) event-driven code.
       # See comments above about cleanup of this try/finally code
+
+      rpki.log.info("All done")
 
     # Clean up
 
@@ -253,8 +251,7 @@ class main(object):
 
   def create_rpki_objects(self, a):
     """Create objects in RPKI engines"""
-    a.create_rpki_objects()
-    self.iterator()
+    a.create_rpki_objects(self.iterator)
 
   def created_rpki_objects(self):
     del self.iterator
@@ -273,14 +270,11 @@ class main(object):
 
     # Run cron in all RPKI instances
     assert not hasattr(self, "iterator")
-    self.iterator = async_iterator(self.db.engines, self.run_cron, self.run_yaml)
+    self.iterator = rpki.async.iterator(self.db.engines, self.run_cron, self.run_yaml)
     self.iterator()
 
   def run_cron(self, a):
-    a.run_cron(self.run_cron_cb)
-
-  def run_cron_cb(self, *ignored):
-    self.iterator()
+    a.run_cron(self.iterator)
 
   def run_yaml(self):
     del self.iterator
@@ -294,11 +288,8 @@ class main(object):
 
     # If we've run out of deltas to apply, we're done
     if not yaml_script:
-
       rpki.log.info("No more deltas to apply, done")
-
     else:
-
       rpki.log.info("Applying deltas")
       self.db.apply_delta(yaml_script.pop(0), self.apply_delta_done)
 
@@ -404,7 +395,7 @@ class allocation_db(list):
     else:
       self.cb = cb
       assert not hasattr(self, "iterator")
-      self.iterator = async_iterator(delta, self.apply_one_delta, self.apply_delta_done)
+      self.iterator = rpki.async.iterator(delta, self.apply_one_delta, self.apply_delta_done)
       self.iterator()
 
   def apply_one_delta(self, d):
@@ -478,7 +469,7 @@ class allocation(object):
     rpki.log.info("Applying delta: %s" % yaml)
     self.apply_delta_caller_cb = cb
     assert not hasattr(self, "iterator")
-    self.iterator = async_iterator(yaml.items(), self.apply_one_delta, self.apply_delta_done)
+    self.iterator = rpki.async.iterator(yaml.items(), self.apply_one_delta, self.apply_delta_done)
     self.iterator()
 
   def apply_one_delta(self, kv):
@@ -734,7 +725,7 @@ class allocation(object):
       raise RuntimeError, msg
     return rpki.x509.X509(Auto_file = certfile)
 
-  def create_rpki_objects(self):
+  def create_rpki_objects(self, cb):
     """Create RPKI engine objects for this engine.
 
     Parent and child objects are tricky:
@@ -750,128 +741,137 @@ class allocation(object):
 
     Root node of the engine tree is special, it too has a parent but
     that one is the magic self-signed micro engine.
+
+    The rest of this is straightforward, just nasty because of all the
+    protocol callbacks.
     """
 
-    self_ca = rpki.x509.X509(Auto_file = self.name + "-SELF-1.cer")
-    rpki.log.info("Creating rpkid self object for %s" % self.name)
-    self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "create", crl_interval = self.crl_interval, regen_margin = self.regen_margin, bpki_cert = self_ca),
-                    cb = self.create_rpki_objects_1)
+    def start():
+      self_ca = rpki.x509.X509(Auto_file = self.name + "-SELF-1.cer")
 
-  def create_rpki_objects_1(self, val):
-    self.self_id = val.self_id
+      rpki.log.info("Creating rpkid self object for %s" % self.name)
+      self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "create", crl_interval = self.crl_interval, regen_margin = self.regen_margin, bpki_cert = self_ca),
+                      cb = got_self_id)
 
-    rpki.log.info("Creating rpkid BSC object for %s" % self.name)
-    self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "create", self_id = self.self_id, generate_keypair = True),
-                    cb = self.create_rpki_objects_2)
+    def got_self_id(val):
+      self.self_id = val.self_id
 
-  def create_rpki_objects_2(self, val):
-    self.bsc_id = val.bsc_id
+      rpki.log.info("Creating rpkid BSC object for %s" % self.name)
+      self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "create", self_id = self.self_id, generate_keypair = True),
+                      cb = got_bsc_id)
 
-    rpki.log.info("Issuing BSC EE cert for %s" % self.name)
-    cmd = (prog_openssl, "x509", "-req", "-sha256", "-extfile", self.name + "-RPKI.conf", "-extensions", "req_x509_ext", "-days", "30",
-           "-CA", self.name + "-SELF-1.cer", "-CAkey",    self.name + "-SELF-1.key", "-CAcreateserial", "-text")
-    signer = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-    signed = signer.communicate(input = val.pkcs10_request.get_PEM())
-    if not signed[0]:
-      rpki.log.error(signed[1])
-      raise RuntimeError, "Couldn't issue BSC EE certificate"
-    bsc_ee = rpki.x509.X509(PEM = signed[0])
-    bsc_crl = rpki.x509.CRL(PEM_file = self.name + "-SELF-1.crl")
+    def got_bsc_id(val):
+      self.bsc_id = val.bsc_id
 
-    rpki.log.info("Installing BSC EE cert for %s" % self.name)
-    self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "set", self_id = self.self_id, bsc_id = self.bsc_id, signing_cert = bsc_ee, signing_cert_crl = bsc_crl),
-                    cb = self.create_rpki_objects_3)
+      rpki.log.info("Issuing BSC EE cert for %s" % self.name)
+      cmd = (prog_openssl, "x509", "-req", "-sha256", "-extfile", self.name + "-RPKI.conf", "-extensions", "req_x509_ext", "-days", "30",
+             "-CA", self.name + "-SELF-1.cer", "-CAkey",    self.name + "-SELF-1.key", "-CAcreateserial", "-text")
+      signer = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+      signed = signer.communicate(input = val.pkcs10_request.get_PEM())
+      if not signed[0]:
+        rpki.log.error(signed[1])
+        raise RuntimeError, "Couldn't issue BSC EE certificate"
+      bsc_ee = rpki.x509.X509(PEM = signed[0])
+      bsc_crl = rpki.x509.CRL(PEM_file = self.name + "-SELF-1.crl")
 
-  def create_rpki_objects_3(self, val):
+      rpki.log.info("Installing BSC EE cert for %s" % self.name)
+      self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "set", self_id = self.self_id, bsc_id = self.bsc_id, signing_cert = bsc_ee, signing_cert_crl = bsc_crl),
+                      cb = bsc_ee_set)
 
-    rpki.log.info("Creating pubd client object for %s" % self.name)
-    client_cert = self.cross_certify(pubd_name + "-TA", reverse = True)
-    call_pubd(rpki.publication.client_elt.make_pdu(action = "create", base_uri = self.sia_base, bpki_cert = client_cert),
-              cb = self.create_rpki_objects_4)
+    def bsc_ee_set(val):
 
-  def create_rpki_objects_4(self, val):
-    client_id = val.client_id
+      rpki.log.info("Creating pubd client object for %s" % self.name)
+      client_cert = self.cross_certify(pubd_name + "-TA", reverse = True)
+      call_pubd(rpki.publication.client_elt.make_pdu(action = "create", base_uri = self.sia_base, bpki_cert = client_cert),
+                cb = got_client_id)
 
-    rpki.log.info("Creating rpkid repository object for %s" % self.name)
-    repository_cert = self.cross_certify(pubd_name + "-TA")
-    self.call_rpkid(rpki.left_right.repository_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id,
-                                                            bpki_cms_cert = repository_cert, bpki_https_cert = repository_cert,
-                                                            peer_contact_uri = "https://localhost:%d/client/%d" % (pubd_port, client_id)),
-                    cb = self.create_rpki_objects_5)
+    def got_client_id(val):
+      client_id = val.client_id
 
-  def create_rpki_objects_5(self, val):
-    self.repository_id = val.repository_id
+      rpki.log.info("Creating rpkid repository object for %s" % self.name)
+      repository_cert = self.cross_certify(pubd_name + "-TA")
+      self.call_rpkid(rpki.left_right.repository_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id,
+                                                              bpki_cms_cert = repository_cert, bpki_https_cert = repository_cert,
+                                                              peer_contact_uri = "https://localhost:%d/client/%d" % (pubd_port, client_id)),
+                      cb = got_repository_id)
 
-    rpki.log.info("Creating rpkid parent object for %s" % self.name)
-    if self.is_root():
-      rootd_cert = self.cross_certify(rootd_name + "-TA")
-      self.call_rpkid(rpki.left_right.parent_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id,
-                                                          repository_id = self.repository_id, sia_base = self.sia_base,
-                                                          bpki_cms_cert = rootd_cert, bpki_https_cert = rootd_cert, sender_name = self.name, recipient_name = "Walrus",
-                                                          peer_contact_uri = "https://localhost:%s/" % rootd_port),
-                      cb = self.create_rpki_objects_6)
-    else:
-      parent_cms_cert = self.cross_certify(self.parent.name + "-SELF-1")
-      parent_https_cert = self.cross_certify(self.parent.name + "-TA")
-      self.call_rpkid(rpki.left_right.parent_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id,
-                                                          repository_id = self.repository_id, sia_base = self.sia_base,
-                                                          bpki_cms_cert = parent_cms_cert, bpki_https_cert = parent_https_cert,
-                                                          sender_name = self.name, recipient_name = self.parent.name,
-                                                          peer_contact_uri = "https://localhost:%s/up-down/%s" % (self.parent.rpki_port, self.child_id)),
-                      cb = self.create_rpki_objects_6)
+    def got_repository_id(val):
+      self.repository_id = val.repository_id
 
-  def create_rpki_objects_6(self, val):
-    self.parent_id = val.parent_id
+      rpki.log.info("Creating rpkid parent object for %s" % self.name)
+      if self.is_root():
+        rootd_cert = self.cross_certify(rootd_name + "-TA")
+        self.call_rpkid(rpki.left_right.parent_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id,
+                                                            repository_id = self.repository_id, sia_base = self.sia_base,
+                                                            bpki_cms_cert = rootd_cert, bpki_https_cert = rootd_cert, sender_name = self.name, recipient_name = "Walrus",
+                                                            peer_contact_uri = "https://localhost:%s/" % rootd_port),
+                        cb = got_parent_id)
+      else:
+        parent_cms_cert = self.cross_certify(self.parent.name + "-SELF-1")
+        parent_https_cert = self.cross_certify(self.parent.name + "-TA")
+        self.call_rpkid(rpki.left_right.parent_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id,
+                                                            repository_id = self.repository_id, sia_base = self.sia_base,
+                                                            bpki_cms_cert = parent_cms_cert, bpki_https_cert = parent_https_cert,
+                                                            sender_name = self.name, recipient_name = self.parent.name,
+                                                            peer_contact_uri = "https://localhost:%s/up-down/%s" % (self.parent.rpki_port, self.child_id)),
+                        cb = got_parent_id)
 
-    rpki.log.info("Creating rpkid child objects for %s" % self.name)
-    self.sql_db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
-    self.sql_cur = self.sql_db.cursor()
-    assert not hasattr(self, "iterator")
-    self.iterator = async_iterator(self.kids, self.create_rpki_objects_7, self.create_rpki_objects_8)
-    self.iterator()
+    def got_parent_id(val):
+      self.parent_id = val.parent_id
 
-  def create_rpki_objects_7(self, kid):
-    self.kid = kid
-    if kid.is_leaf():
-      bpki_cert = self.cross_certify(kid.name + "-TA")
-    else:
-      bpki_cert = self.cross_certify(kid.name + "-SELF-1")
-    rpki.log.info("Creating rpkid child object for %s as child of %s" % (kid.name, self.name))
-    self.call_rpkid(rpki.left_right.child_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id, bpki_cert = bpki_cert),
-                    cb = self.create_rpki_objects_7_cb)
+      rpki.log.info("Creating rpkid child objects for %s" % self.name)
+      self.sql_db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
+      self.sql_cur = self.sql_db.cursor()
+      assert not hasattr(self, "iterator")
+      self.iterator = rpki.async.iterator(self.kids, do_one_kid, kids_done)
+      self.iterator()
 
-  def create_rpki_objects_7_cb(self, val):
-    self.kid.child_id = val.child_id
-    self.sql_cur.execute("UPDATE registrant SET rpki_self_id = %s, rpki_child_id = %s WHERE IRBE_mapped_id = %s", (self.self_id, self.kid.child_id, self.kid.name))
-    self.iterator()
+    def do_one_kid(kid):
+      self.kid = kid
+      if kid.is_leaf():
+        bpki_cert = self.cross_certify(kid.name + "-TA")
+      else:
+        bpki_cert = self.cross_certify(kid.name + "-SELF-1")
+      rpki.log.info("Creating rpkid child object for %s as child of %s" % (kid.name, self.name))
 
-  def create_rpki_objects_8(self):
-    self.sql_db.close()
-    del self.iterator
-    del self.sql_cur
-    del self.sql_db
-    if hasattr(self, "kid"):
-      del self.kid
+      def do_one_kid_cb(val):
+        self.kid.child_id = val.child_id
+        self.sql_cur.execute("UPDATE registrant SET rpki_self_id = %s, rpki_child_id = %s WHERE IRBE_mapped_id = %s", (self.self_id, self.kid.child_id, self.kid.name))
+        self.iterator()
 
-    rpki.log.info("Creating rpkid route_origin objects for %s" % self.name)
-    assert not hasattr(self, "iterator")
-    self.iterator = async_iterator(self.route_origins, self.create_rpki_objects_9, self.create_rpki_objects_10)
-    self.iterator()
+      self.call_rpkid(rpki.left_right.child_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id, bpki_cert = bpki_cert),
+                      cb = do_one_kid_cb)
 
-  def create_rpki_objects_9(self, ro):
-    self.ro = ro
-    self.call_rpkid(rpki.left_right.route_origin_elt.make_pdu(action = "create", self_id = self.self_id,
-                                                              as_number = ro.asn, ipv4 = ro.v4, ipv6 = ro.v6),
-                                         cb = self.create_rpki_objects_9_cb)
+    def kids_done():
+      self.sql_db.close()
+      del self.iterator
+      del self.sql_cur
+      del self.sql_db
+      if hasattr(self, "kid"):
+        del self.kid
 
-  def create_rpki_objects_9_cb(self, val):
-    self.ro.route_origin_id = val.route_origin_id
-    self.iterator()
+      rpki.log.info("Creating rpkid route_origin objects for %s" % self.name)
+      assert not hasattr(self, "iterator")
+      self.iterator = rpki.async.iterator(self.route_origins, do_one_ro, cleanup)
+      self.iterator()
 
-  def create_rpki_objects_10(self):
-    if hasattr(self, "ro"):
-      del self.ro
-    del self.iterator
+    def do_one_ro(ro):
+      self.ro = ro
+      self.call_rpkid(rpki.left_right.route_origin_elt.make_pdu(action = "create", self_id = self.self_id,
+                                                                as_number = ro.asn, ipv4 = ro.v4, ipv6 = ro.v6),
+                      cb = do_one_ro_cb)
+
+    def do_one_ro_cb(val):
+      self.ro.route_origin_id = val.route_origin_id
+      self.iterator()
+
+    def cleanup():
+      if hasattr(self, "ro"):
+        del self.ro
+      del self.iterator
+      cb()
+
+    start()
 
   def setup_yaml_leaf(self):
     """Generate certificates and write YAML scripts for leaf nodes.

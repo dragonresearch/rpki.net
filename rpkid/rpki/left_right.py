@@ -142,7 +142,7 @@ class self_elt(data_elt):
     """
     return self.sql_fetch_all(self.gctx)
 
-  def client_poll(self):
+  def client_poll(self, cb):
     """Run the regular client poll cycle with each of this self's parents in turn."""
 
     rpki.log.trace()
@@ -164,7 +164,9 @@ class self_elt(data_elt):
         ca.delete(parent)               # CA not listed by parent
       self.gctx.sql.sweep()
 
-  def update_children(self):
+    cb()
+
+  def update_children(self, cb):
     """Check for updated IRDB data for all of this self's children and
     issue new certs as necessary.  Must handle changes both in
     resources and in expiration date.
@@ -205,6 +207,8 @@ class self_elt(data_elt):
           ca_detail.generate_manifest()
           repository.withdraw(child_cert.cert, child_cert.uri(ca))
 
+    cb()
+
   def regenerate_crls_and_manifests(self):
     """Generate new CRLs and manifests as necessary for all of this
     self's CAs.  Extracting nextUpdate from a manifest is hard at the
@@ -235,6 +239,7 @@ class self_elt(data_elt):
 
     for route_origin in self.route_origins():
       route_origin.update_roa()
+
 
 class bsc_elt(data_elt):
   """<bsc/> (Business Signing Context) element."""

@@ -225,16 +225,25 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     try:
       handler = self.rpki_find_handler()
       if self.headers["Content-Type"] != rpki_content_type:
-        rcode, rtext = 415, "Received Content-Type %s, expected %s" \
-                       % (self.headers["Content-Type"], rpki_content_type)
+        result = 415, "No handler for Content-Type %s" % self.headers["Content-Type"]
       elif handler is None:
-        rcode, rtext = 404, "No handler found for URL " + self.path
+        result = 404, "No handler found for URL " + self.path
       else:
-        rcode, rtext = handler(query = self.rfile.read(int(self.headers["Content-Length"])),
-                               path  = self.path)
+        self.called_back = False
+        result = handler(query = self.rfile.read(int(self.headers["Content-Length"])),
+                         path  = self.path,
+                         cb    = self.do_POST_cb)
+        assert result is not None or self.called_back, "Missing HTTPS server callback from %s" % repr(handler)
     except Exception, edata:
       rpki.log.error(traceback.format_exc())
-      rcode, rtext = 500, "Unhandled exception %s" % edata
+      result = 500, "Unhandled exception %s" % edata
+    if result is not None:
+      self.do_POST_cb(result[0], result[1])
+
+  def do_POST_cb(self, rcode, rtext):
+    """Send result back to client."""
+    rpki.log.info("HTTPS server callback")
+    self.called_back = True
     self.send_response(rcode)
     self.send_header("Content-Type", rpki_content_type)
     self.end_headers()

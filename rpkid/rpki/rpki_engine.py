@@ -19,7 +19,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import traceback, os, time, getopt, sys, MySQLdb, lxml.etree
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
-import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log
+import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log, rpki.async
 
 class rpkid_context(object):
   """A container for various global rpkid parameters."""
@@ -75,7 +75,7 @@ class rpkid_context(object):
       v6          = r_msg[0].ipv6,
       valid_until = r_msg[0].valid_until)
 
-  def left_right_handler(self, query, path):
+  def left_right_handler(self, query, path, cb):
     """Process one left-right PDU."""
     rpki.log.trace()
     try:
@@ -91,7 +91,7 @@ class rpkid_context(object):
       rpki.log.error(traceback.format_exc())
       return 500, "Unhandled exception %s" % data
 
-  def up_down_handler(self, query, path):
+  def up_down_handler(self, query, path, cb):
     """Process one up-down PDU."""
     rpki.log.trace()
     try:
@@ -109,28 +109,39 @@ class rpkid_context(object):
       rpki.log.error(traceback.format_exc())
       return 400, "Could not process PDU: %s" % data
 
-  def cronjob_handler(self, query, path):
-    """Periodic tasks.  As simple as possible for now, may need to break
-    this up into separate handlers later.
-    """
+  def cronjob_handler(self, query, path, cb):
+    """Periodic tasks.  This will need another rewrite once we have internal timers."""
 
     rpki.log.trace()
-    try:
-      self.sql.ping()
-      for s in rpki.left_right.self_elt.sql_fetch_all(self):
-        rpki.log.debug("Self %s polling parents" % s.self_id)
-        s.client_poll()
-        rpki.log.debug("Self %s updating children" % s.self_id)
-        s.update_children()
-        rpki.log.debug("Self %s updating ROAs" % s.self_id)
-        s.update_roas()
-        rpki.log.debug("Self %s regenerating CRLs and manifests" % s.self_id)
-        s.regenerate_crls_and_manifests()
+    self.sql.ping()
+
+    def cronjob_done():
       self.sql.sweep()
-      return 200, "OK"
-    except Exception, data:
-      rpki.log.error(traceback.format_exc())
-      return 500, "Unhandled exception %s" % data
+      cb(200, "OK")
+
+    self.cronjob_iterator = rpki.async.iterator(rpki.left_right.self_elt.sql_fetch_all(self),
+                                                self.cronjob_do_one, cronjob_done)
+    self.cronjob_iterator()
+
+  def cronjob_do_one(self, s):
+    """Handle periodic tasks for one <self_elt/>."""
+
+    def client_poll():
+      rpki.log.debug("Self %s polling parents" % s.self_id)
+      s.client_poll(update_children)
+
+    def update_children():
+      rpki.log.debug("Self %s updating children" % s.self_id)
+      s.update_children(update_roas_crls_and_manifests)
+
+    def update_roas_crls_and_manifests():
+      rpki.log.debug("Self %s updating ROAs" % s.self_id)
+      s.update_roas()
+      rpki.log.debug("Self %s regenerating CRLs and manifests" % s.self_id)
+      s.regenerate_crls_and_manifests()
+      self.cronjob_iterator()
+
+    client_poll()
 
   ## @var https_ta_cache
   # HTTPS trust anchor cache, to avoid regenerating it for every TLS connection.

@@ -54,7 +54,7 @@ class pubd_context(object):
     self.sql.sweep()
     return reply
 
-  def control_handler(self, query, path):
+  def control_handler(self, query, path, cb):
     """Process one PDU from the IRBE."""
     rpki.log.trace()
     try:
@@ -64,7 +64,7 @@ class pubd_context(object):
       rpki.log.error(traceback.format_exc())
       return 500, "Unhandled exception %s" % data
 
-  def client_handler(self, query, path):
+  def client_handler(self, query, path, cb):
     """Process one PDU from a client."""
     rpki.log.trace()
     try:

@@ -129,7 +129,7 @@ class pdu(object):
 
   def send_nodata(self, server):
     """Send a nodata error."""
-    server.push_pdu(error_report(errno = 666, errpdu = self, errmsg = "Sorry, I have no current data to give you"))
+    server.push_pdu(error_report(errno = error_report.codes["No Data Available"], errpdu = self))
 
 class pdu_with_serial(pdu):
   """Base class for PDUs consisting of just a serial number."""
@@ -238,7 +238,7 @@ class reset_query(pdu_empty):
       try:
         self.send_file(server, "%s.ax" % server.current_serial)
       except IOError:
-        server.push_pdu(error_report(errno = 666, errpdu = self, errmsg = "Couldn't open %s" % fn))
+        server.push_pdu(error_report(errno = error_report.codes["Internal Error"], errpdu = self, errmsg = "Couldn't open %s" % fn))
 
 class cache_response(pdu_empty):
   """Incremental Response PDU."""
@@ -364,10 +364,17 @@ class error_report(pdu):
 
   header_struct = struct.Struct("!BBHHH")
 
-  def __init__(self, errno = None, errpdu = None, errmsg = ""):
+  msgs = {
+    1 : "Internal Error",
+    2 : "No Data Available" }
+
+  codes = dict((v,k) for k,v in msgs.items())
+
+  def __init__(self, errno = None, errpdu = None, errmsg = None):
+    assert errno is None or errno in self.msgs
     self.errno = errno
     self.errpdu = errpdu
-    self.errmsg = errmsg
+    self.errmsg = errmsg if errmsg is not None or errno is None else self.msgs[errno]
 
   def __str__(self):
     return "Error #%s: %s" % (self.errno, self.errmsg)
@@ -385,7 +392,7 @@ class error_report(pdu):
       assert isinstance(p, str)
       self._pdu = self.header_struct.pack(self.version, self.pdu_type, self.errno, len(p), len(self.errmsg))
       self._pdu += p
-      self._pdu += self.errmsg
+      self._pdu += self.errmsg.encode("utf8")
     return self._pdu
 
   def got_header(self, reader):
@@ -399,8 +406,8 @@ class error_report(pdu):
       return None
     b = reader.get(self.header_struct.size)
     self.errpdu = reader.get(self.pdulen)
-    self.errmsg = reader.get(self.errlen)
-    assert b + self.errpdu + self.errmsg == self.to_pdu()
+    self.errmsg = reader.get(self.errlen).decode("utf8")
+    assert b + self.errpdu + self.errmsg.encode("utf8") == self.to_pdu()
     return self
 
 prefix.afi_map = { "\x00\x01" : ipv4_prefix, "\x00\x02" : ipv6_prefix }

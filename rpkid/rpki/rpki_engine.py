@@ -115,33 +115,31 @@ class rpkid_context(object):
     rpki.log.trace()
     self.sql.ping()
 
+    def cronjob_do_one(iterator, s):
+
+      def client_poll():
+        rpki.log.debug("Self %s polling parents" % s.self_id)
+        s.client_poll(update_children)
+
+      def update_children():
+        rpki.log.debug("Self %s updating children" % s.self_id)
+        s.update_children(update_roas_crls_and_manifests)
+
+      def update_roas_crls_and_manifests():
+        rpki.log.debug("Self %s updating ROAs" % s.self_id)
+        s.update_roas()
+        rpki.log.debug("Self %s regenerating CRLs and manifests" % s.self_id)
+        s.regenerate_crls_and_manifests()
+        iterator()
+
+      client_poll()
+
     def cronjob_done():
       self.sql.sweep()
       cb(200, "OK")
 
-    self.cronjob_iterator = rpki.async.iterator(rpki.left_right.self_elt.sql_fetch_all(self),
-                                                self.cronjob_do_one, cronjob_done)
-    self.cronjob_iterator()
-
-  def cronjob_do_one(self, s):
-    """Handle periodic tasks for one <self_elt/>."""
-
-    def client_poll():
-      rpki.log.debug("Self %s polling parents" % s.self_id)
-      s.client_poll(update_children)
-
-    def update_children():
-      rpki.log.debug("Self %s updating children" % s.self_id)
-      s.update_children(update_roas_crls_and_manifests)
-
-    def update_roas_crls_and_manifests():
-      rpki.log.debug("Self %s updating ROAs" % s.self_id)
-      s.update_roas()
-      rpki.log.debug("Self %s regenerating CRLs and manifests" % s.self_id)
-      s.regenerate_crls_and_manifests()
-      self.cronjob_iterator()
-
-    client_poll()
+    rpki.async.iterator(rpki.left_right.self_elt.sql_fetch_all(self),
+                        cronjob_do_one, cronjob_done)
 
   ## @var https_ta_cache
   # HTTPS trust anchor cache, to avoid regenerating it for every TLS connection.

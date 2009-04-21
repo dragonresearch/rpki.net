@@ -25,10 +25,14 @@ class iterator(object):
     self.handler_cb = handler_cb
     self.done_cb = done_cb
     self.iterator = iter(iterable)
+    self.next()
 
   def __call__(self, *ignored):
+    self.next()
+
+  def next(self):
     try:
-      self.handler_cb(self.iterator.next())
+      self.handler_cb(self, self.iterator.next())
     except StopIteration:
       if self.done_cb is not None:
         self.done_cb()

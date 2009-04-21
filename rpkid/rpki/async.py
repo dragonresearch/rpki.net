@@ -19,20 +19,32 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 class iterator(object):
-  """Iteration construct for event-driven code."""
+  """Iteration construct for event-driven code.  Takes three
+  arguments:
 
-  def __init__(self, iterable, handler_cb, done_cb):
-    self.handler_cb = handler_cb
-    self.done_cb = done_cb
+  - Some kind of iterable object
+
+  - A callback to call on each item in the iteration
+
+  - A callback to call after the iteration terminates.
+
+  The item callback receives two arguments: the callable iterator
+  object and the current value of the iteration.  It should call the
+  iterator (or arrange for the iterator to be called) when it is time
+  to continue to the next item in the iteration.
+
+  The termination callback receives no arguments.
+  """
+
+  def __init__(self, iterable, item_callback, done_callback):
+    self.item_callback = item_callback
+    self.done_callback = done_callback
     self.iterator = iter(iterable)
-    self.next()
+    self()
 
   def __call__(self, *ignored):
-    self.next()
-
-  def next(self):
     try:
-      self.handler_cb(self, self.iterator.next())
+      self.item_callback(self, self.iterator.next())
     except StopIteration:
-      if self.done_cb is not None:
-        self.done_cb()
+      if self.done_callback is not None:
+        self.done_callback()

@@ -1,0 +1,101 @@
+# $Id$
+#
+# RelaxNG Schema for RPKI publication protocol.
+#
+# libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
+# run the compact syntax through trang to get XML syntax.
+
+default namespace = "http://www.hactrn.net/uris/rpki/publication-spec/"
+
+# Top level PDU
+
+start = element msg {
+  attribute version { xsd:positiveInteger { maxInclusive="1" } },
+  ( (attribute type { "query" }, query_elt*) |
+    (attribute type { "reply" }, reply_elt*) )
+}
+
+# PDUs allowed in a query
+query_elt = ( config_query | client_query | certificate_query | crl_query | manifest_query | roa_query )
+
+# PDUs allowed in a reply
+reply_elt = ( config_reply | client_reply | certificate_reply | crl_reply | manifest_reply | roa_reply | report_error_reply )
+
+# Tag attributes for bulk operations
+tag = attribute tag { xsd:token {maxLength="1024" } }
+
+# Base64 encoded DER stuff
+base64 = xsd:base64Binary { maxLength="512000" }
+
+# Publication URLs
+uri_t = xsd:anyURI { maxLength="4096" }
+uri = attribute uri { uri_t }
+
+# <config/> element (use restricted to repository operator)
+# config_id attribute, create, list, and destroy commands omitted deliberately, see code for details
+
+config_payload = (element bpki_crl { base64 }?)
+
+config_query |= element config { attribute action { "set" },     tag?, config_payload }
+config_reply |= element config { attribute action { "set" },     tag? }
+config_query |= element config { attribute action { "get" },     tag? }
+config_reply |= element config { attribute action { "get" },     tag?, config_payload }
+
+# <client/> element (use restricted to repository operator)
+
+client_id = attribute client_id { xsd:nonNegativeInteger }
+
+client_payload = (attribute base_uri { uri_t }?, element bpki_cert { base64 }?, element bpki_glue { base64 }?)
+
+client_query |= element client { attribute action { "create" },  tag?, client_payload }
+client_reply |= element client { attribute action { "create" },  tag?, client_id }
+client_query |= element client { attribute action { "set" },     tag?, client_id, client_payload }
+client_reply |= element client { attribute action { "set" },     tag?, client_id }
+client_query |= element client { attribute action { "get" },     tag?, client_id }
+client_reply |= element client { attribute action { "get" },     tag?, client_id, client_payload }
+client_query |= element client { attribute action { "list" },    tag? }
+client_reply |= element client { attribute action { "list" },    tag?, client_id, client_payload }
+client_query |= element client { attribute action { "destroy" }, tag?, client_id }
+client_reply |= element client { attribute action { "destroy" }, tag?, client_id }
+
+# <certificate/> element
+
+certificate_query |= element certificate { attribute action { "publish" }, tag?, uri, base64 }
+certificate_reply |= element certificate { attribute action { "publish" }, tag?, uri }
+certificate_query |= element certificate { attribute action { "withdraw" }, tag?, uri }
+certificate_reply |= element certificate { attribute action { "withdraw" }, tag?, uri }
+
+# <crl/> element
+
+crl_query |= element crl { attribute action { "publish" }, tag?, uri, base64 }
+crl_reply |= element crl { attribute action { "publish" }, tag?, uri }
+crl_query |= element crl { attribute action { "withdraw" }, tag?, uri }
+crl_reply |= element crl { attribute action { "withdraw" }, tag?, uri }
+
+# <manifest/> element
+
+manifest_query |= element manifest { attribute action { "publish" }, tag?, uri, base64 }
+manifest_reply |= element manifest { attribute action { "publish" }, tag?, uri }
+manifest_query |= element manifest { attribute action { "withdraw" }, tag?, uri }
+manifest_reply |= element manifest { attribute action { "withdraw" }, tag?, uri }
+
+# <roa/> element
+
+roa_query |= element roa { attribute action { "publish" }, tag?, uri, base64 }
+roa_reply |= element roa { attribute action { "publish" }, tag?, uri }
+roa_query |= element roa { attribute action { "withdraw" }, tag?, uri }
+roa_reply |= element roa { attribute action { "withdraw" }, tag?, uri }
+
+# <report_error/> element
+
+error = xsd:token { maxLength="1024" }
+
+report_error_reply = element report_error {
+  tag?,
+  attribute error_code { error },
+  xsd:string { maxLength="512000" }?
+}
+
+# Local Variables:
+# indent-tabs-mode: nil
+# End:

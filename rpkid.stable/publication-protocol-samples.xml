@@ -1,0 +1,370 @@
+<!-- -*- SGML -*-
+  -  $Id$
+  -
+  - Copyright (C) 2008	American Registry for Internet Numbers ("ARIN")
+  -
+  - Permission to use, copy, modify, and distribute this software for any
+  - purpose with or without fee is hereby granted, provided that the above
+  - copyright notice and this permission notice appear in all copies.
+  -
+  - THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
+  - REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+  - AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
+  - INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+  - LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+  - OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+  - PERFORMANCE OF THIS SOFTWARE.
+  -
+  -
+  - This is a collection of sample publication protocol PDU samples
+  - to use as test cases for the publication protocol RelaxNG schema.
+  -->
+
+<completely_gratuitous_wrapper_element_to_let_me_run_this_through_xmllint>
+    
+    <msg xmlns="http://www.hactrn.net/uris/rpki/publication-spec/" type="query" version="1">
+	<config action="set">
+	    <bpki_crl>
+		MIIBezBlAgEBMA0GCSqGSIb3DQEBCwUAMCMxITAfBgNVBAMTGFRlc3QgQ2VydGlm
+		aWNhdGUgcHViZCBUQRcNMDgwNjAyMjE0OTQ1WhcNMDgwNzAyMjE0OTQ1WqAOMAww
+		CgYDVR0UBAMCAQEwDQYJKoZIhvcNAQELBQADggEBAFWCWgBl4ljVqX/CHo+RpqYt
+		vmKMnjPVflMXUB7i28RGP4DAq4l7deDU7Q82xEJyE4TXMWDWAV6UG6uUGum0VHWO
+		cj9ohqyiZUGfOsKg2hbwkETm8sAENOsi1yNdyKGk6jZ16aF5fubxQqZa1pdGCSac
+		1/ZYC5sLLhEz3kmz+B9z9mXFVc5TgAh4dN3Gy5ftF8zZAFpDGnS4biCnRVqhGv6R
+		0Lh/5xmii+ZU6kNDhbeMsjJg+ZOmtN+wMeHSIbjiy0WuuaZ3k2xSh0C94anrHBZA
+		vvCRhbazjR0Ef5OMZ5lcllw3uO8IHuoisHKkehy4Y0GySdj98fV+OuiRTH9vt/M=
+	    </bpki_crl>
+	</config>
+    </msg>
+
+    <msg xmlns="http://www.hactrn.net/uris/rpki/publication-spec/" type="reply" version="1">
+	<config action="set"/>
+    </msg>
+
+    <msg xmlns="http://www.hactrn.net/uris/rpki/publication-spec/" type="query" version="1">
+	<config action="get"/>
+    </msg>
+
+    <msg xmlns="http://www.hactrn.net/uris/rpki/publication-spec/" type="reply" version="1">
+	<config action="get">
+	    <bpki_crl>
+		MIIBezBlAgEBMA0GCSqGSIb3DQEBCwUAMCMxITAfBgNVBAMTGFRlc3QgQ2VydGlm
+		aWNhdGUgcHViZCBUQRcNMDgwNjAyMjE0OTQ1WhcNMDgwNzAyMjE0OTQ1WqAOMAww
+		CgYDVR0UBAMCAQEwDQYJKoZIhvcNAQELBQADggEBAFWCWgBl4ljVqX/CHo+RpqYt
+		vmKMnjPVflMXUB7i28RGP4DAq4l7deDU7Q82xEJyE4TXMWDWAV6UG6uUGum0VHWO
+		cj9ohqyiZUGfOsKg2hbwkETm8sAENOsi1yNdyKGk6jZ16aF5fubxQqZa1pdGCSac
+		1/ZYC5sLLhEz3kmz+B9z9mXFVc5TgAh4dN3Gy5ftF8zZAFpDGnS4biCnRVqhGv6R
+		0Lh/5xmii+ZU6kNDhbeMsjJg+ZOmtN+wMeHSIbjiy0WuuaZ3k2xSh0C94anrHBZA
+		vvCRhbazjR0Ef5OMZ5lcllw3uO8IHuoisHKkehy4Y0GySdj98fV+OuiRTH9vt/M=
+	    </bpki_crl>
+	</config>
+    </msg>
+
+    <!-- === -->
+
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<client action="create" base_uri="rsync://wombat.invalid/">
+	    <bpki_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cert>
+	</client>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<client action="create" client_id="3"/>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<client action="set" client_id="3">
+	    <bpki_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_glue>
+	</client>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<client action="set" client_id="3"/>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<client action="get" client_id="3"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<client action="get" client_id="3" base_uri="rsync://wombat.invalid/">
+	    <bpki_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cert>
+	</client>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<client action="list"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<client action="list" client_id="3">
+	    <bpki_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cert>
+	</client>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<client action="destroy" client_id="3"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<client action="destroy" client_id="3"/>
+    </msg>
+    
+    <!-- === -->
+
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<certificate action="publish" uri="rsync://wombat.invalid/testbed/RIR/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.cer">
+	    MIIE+jCCA+KgAwIBAgIBDTANBgkqhkiG9w0BAQsFADAzMTEwLwYDVQQDEyhERjRBODAxN0U2
+	    NkE5RTkxNzJFNDYxMkQ4Q0Y0QzgzRjIzOERFMkEzMB4XDTA4MDUyMjE4MDUxMloXDTA4MDUy
+	    NDE3NTQ1M1owMzExMC8GA1UEAxMoOEZCODIxOEYwNkU1MEFCNzAyQTdEOTZEQzhGMENEQ0Q4
+	    MjhGN0YxNzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMeziKp0k5nP7v6SZoNs
+	    XIMQYRgNtC6Fr/9Xm/1yQHomiPqHUk47rHhGojYiK5AhkrwoYhkH4UjJl2iwklDYczXuaBU3
+	    F5qrKlZ4aZnjIxdlP7+hktVpeApL6yuJTUAYeC3UIxnLDVdD6phydZ/FOQluffiNDjzteCCv
+	    oyOUatqt8WB+oND6LToHp028g1YUYLHG6mur0dPdcHOVXLSmUDuZ1HDz1nDuYvIVKjB/MpH9
+	    aW9XeaQ6ZFIlZVPwuuvI2brR+ThH7Gv27GL/o8qFdC300VQfoTZ+rKPGDE8K1cI906BL4kiw
+	    x9z0oiDcE96QCz+B0vsjc9mGaA1jgAxlXWsCAwEAAaOCAhcwggITMB0GA1UdDgQWBBSPuCGP
+	    BuUKtwKn2W3I8M3Ngo9/FzAfBgNVHSMEGDAWgBTfSoAX5mqekXLkYS2M9Mg/I43iozBVBgNV
+	    HR8ETjBMMEqgSKBGhkRyc3luYzovL2xvY2FsaG9zdDo0NDAwL3Rlc3RiZWQvUklSLzEvMzBx
+	    QUYtWnFucEZ5NUdFdGpQVElQeU9ONHFNLmNybDBFBggrBgEFBQcBAQQ5MDcwNQYIKwYBBQUH
+	    MAKGKXJzeW5jOi8vbG9jYWxob3N0OjQ0MDAvdGVzdGJlZC9XT01CQVQuY2VyMBgGA1UdIAEB
+	    /wQOMAwwCgYIKwYBBQUHDgIwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAQYwgZsG
+	    CCsGAQUFBwELBIGOMIGLMDQGCCsGAQUFBzAFhihyc3luYzovL2xvY2FsaG9zdDo0NDAwL3Rl
+	    c3RiZWQvUklSL1IwLzEvMFMGCCsGAQUFBzAKhkdyc3luYzovL2xvY2FsaG9zdDo0NDAwL3Rl
+	    c3RiZWQvUklSL1IwLzEvajdnaGp3YmxDcmNDcDlsdHlQRE56WUtQZnhjLm1uZjAaBggrBgEF
+	    BQcBCAEB/wQLMAmgBzAFAgMA/BUwPgYIKwYBBQUHAQcBAf8ELzAtMCsEAgABMCUDAwAKAzAO
+	    AwUAwAACAQMFAcAAAiAwDgMFAsAAAiwDBQDAAAJkMA0GCSqGSIb3DQEBCwUAA4IBAQCEhuH7
+	    jtI2PJY6+zwv306vmCuXhtu9Lr2mmRw2ZErB8EMcb5xypMrNqMoKeu14K2x4a4RPJkK4yATh
+	    M81FPNRsU5mM0acIRnAPtxjHvPME7PHN2w2nGLASRsZmaa+b8A7SSOxVcFURazENztppsolH
+	    eTpm0cpLItK7mNpudUg1JGuFo94VLf1MnE2EqARG1vTsNhel/SM/UvOArCCOBvf0Gz7kSuup
+	    DSZ7qx+LiDmtEsLdbGNQBiYPbLrDk41PHrxdx28qIj7ejZkRzNFw/3pi8/XK281h8zeHoFVu
+	    6ghRPy5dbOA4akX/KG6b8XIx0iwPYdLiDbdWFbtTdPcXBauY
+	</certificate>
+    </msg>
+
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<certificate action="publish" uri="rsync://wombat.invalid/testbed/RIR/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.cer"/>
+    </msg>
+
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<certificate action="withdraw" uri="rsync://wombat.invalid/testbed/RIR/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.cer"/>
+    </msg>
+
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<certificate action="withdraw" uri="rsync://wombat.invalid/testbed/RIR/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.cer"/>
+    </msg>
+
+    <!-- === -->
+
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<crl action="publish" uri="rsync://wombat.invalid/testbed/RIR/1/30qAF-ZqnpFy5GEtjPTIPyON4qM.crl">
+	    MIIBwzCBrAIBATANBgkqhkiG9w0BAQsFADAzMTEwLwYDVQQDEyhERjRBODAxN0U2NkE5RTkx
+	    NzJFNDYxMkQ4Q0Y0QzgzRjIzOERFMkEzFw0wODA1MjIxODA0MTZaFw0wODA1MjIxODA1MTZa
+	    MBQwEgIBAhcNMDgwNTIyMTc1ODQwWqAvMC0wHwYDVR0jBBgwFoAU30qAF+ZqnpFy5GEtjPTI
+	    PyON4qMwCgYDVR0UBAMCAQYwDQYJKoZIhvcNAQELBQADggEBAKkM0Fb/pJpHVHWZyjp4wojH
+	    W2KkvA/DFtBiz3moxocSnkDVP3QI19uVvqdC6nH3hJyFmsAMwULR0f1XU/V4j+X+FqYEl6Nv
+	    p8zAEPIB4r8xbEFs7udRwXRAjkJmOQbv9aomF2i+d7jpTFVJxShZWOgsoGEhIy/aktKQrOIR
+	    c4ZDrXpQwXVj2Y7+cGVfQ4gvnPOdlyLcnNovoegazATvA3EcidBNPWRg7XTCz0LVBEB7JgPd
+	    nNyXRg35HdMEHBl7U9uUQJXP7S02oaQ1ehNDMfaJPgBBpQtAnM1lIzJfevd9+e4ywGsRpxAV
+	    8wxTXSPd1jwuKtS0kwrgsrQ8Ya85xUE=
+	</crl>
+    </msg>
+
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<crl action="publish" uri="rsync://wombat.invalid/testbed/RIR/1/30qAF-ZqnpFy5GEtjPTIPyON4qM.crl"/>
+    </msg>
+
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<crl action="withdraw" uri="rsync://wombat.invalid/testbed/RIR/1/30qAF-ZqnpFy5GEtjPTIPyON4qM.crl"/>
+    </msg>
+
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<crl action="withdraw" uri="rsync://wombat.invalid/testbed/RIR/1/30qAF-ZqnpFy5GEtjPTIPyON4qM.crl"/>
+    </msg>
+
+    <!-- === -->
+
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<manifest action="publish" uri="rsync://wombat.invalid/testbed/RIR/R0/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.mnf">
+	    MIIHCgYJKoZIhvcNAQcCoIIG+zCCBvcCAQMxDTALBglghkgBZQMEAgEwggEeBgsqhkiG9w0B
+	    CRABGqCCAQ0EggEJMIIBBQIBEhgPMjAwODA1MjIxODA1MTVaGA8yMDA4MDUyMjE4MDYxNVoG
+	    CWCGSAFlAwQCATCB0jBEFh9ZbTVUTzRJYnlDb0pNZ3E2R2o4dG41Mng5U0UuY2VyAyEA4L8Z
+	    WMyuhOx+o6kUfsRR++QjSaRaATy4UOeVtjvZVqYwRBYfWnRxbjB3NEVFbU9hclAzQmd1SUY3
+	    MDhhNTM4LmNlcgMhAGQI1gYJotxWmwzcmpLNFZJ656uWOjcPYANlbNz80xm8MEQWH2xxa1Vx
+	    RHEwMDBESW9ZVjlybXdLTGdrN2F6by5jZXIDIQB7jRAEpkPvc4s4PX9vDvnTifj3BIE145FO
+	    1ne2kEejVqCCBBEwggQNMIIC9aADAgECAgEFMA0GCSqGSIb3DQEBCwUAMDMxMTAvBgNVBAMT
+	    KDhGQjgyMThGMDZFNTBBQjcwMkE3RDk2REM4RjBDRENEODI4RjdGMTcwHhcNMDgwNTIyMTc1
+	    NzQ5WhcNMDgwNTI0MTc1NDUzWjAzMTEwLwYDVQQDEyhERkRBMjMyMUJENEVCMDNFQTE1RkUy
+	    N0NGRkRGMEFGRkU1QjBFNjY4MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2/Gk
+	    AHW5pDqye0+TvUp7sl0rVgmTfeHpVp18ypxvuovogVJgkjEtBEikfaFU0646wYD6JM6IJFJX
+	    lWLWd7bVmhkWViKuZL0VmT2wpUToNHCLUGUQUVVX8R7oSHFdTArv2AqH+6yt0LmczDH1y2M6
+	    2Tgkz9wZ9ryyuPx3VX4PkHzUMlkGFICj1fvyXkcAu8jBaxR9UME1c413TPaMi6lMh1HUmtVN
+	    LJMP5+/SnwEAW/Z3dPClCFIgQXK3nAKPVzAIwADEiqhK7cSchhO7ikI1CVt0XzG4n7oaILc3
+	    Hq/DAxyiutw5GlkUlKPri2YJzJ3+H4P+TveSa/b02fVA5csm/QIDAQABo4IBKjCCASYwHQYD
+	    VR0OBBYEFN/aIyG9TrA+oV/ifP/fCv/lsOZoMB8GA1UdIwQYMBaAFI+4IY8G5Qq3AqfZbcjw
+	    zc2Cj38XMFgGA1UdHwRRME8wTaBLoEmGR3JzeW5jOi8vbG9jYWxob3N0OjQ0MDAvdGVzdGJl
+	    ZC9SSVIvUjAvMS9qN2doandibENyY0NwOWx0eVBETnpZS1BmeGMuY3JsMGAGCCsGAQUFBwEB
+	    BFQwUjBQBggrBgEFBQcwAoZEcnN5bmM6Ly9sb2NhbGhvc3Q6NDQwMC90ZXN0YmVkL1JJUi8x
+	    L2o3Z2hqd2JsQ3JjQ3A5bHR5UEROellLUGZ4Yy5jZXIwGAYDVR0gAQH/BA4wDDAKBggrBgEF
+	    BQcOAjAOBgNVHQ8BAf8EBAMCB4AwDQYJKoZIhvcNAQELBQADggEBADpsE9HfgVTgmX1WeJTE
+	    fm87CXuOoGH85RFiAngSt5kR4gYCyadklOZ7Eta+ERUZVu4tcKO6sJOTuHPfVrAvR0VpgH+j
+	    PvXboYWSfwJdi00BC28ScrVM2zarA7B10+J6Oq8tbFlAyVBkrbuPet/axmndBtGWhrBTynGl
+	    nc/5L371Lxy6CrOYqXO0Qx3SrOKaailAe3zTIpHQeACqnPdL00zIBw/hVy/VNaH1wy+FmhAz
+	    TsmsQUrMyovJcu/ry5w0KHlP8BTnqfykikCWR+Lw0VQHmpJGAbtrmsOeIbfLY1zl7A81lDAl
+	    AG/ZH1DUdDOUIXMLHWur+D2rwjp7RL16LHYxggGqMIIBpgIBA4AU39ojIb1OsD6hX+J8/98K
+	    /+Ww5mgwCwYJYIZIAWUDBAIBoGswGgYJKoZIhvcNAQkDMQ0GCyqGSIb3DQEJEAEaMBwGCSqG
+	    SIb3DQEJBTEPFw0wODA1MjIxODA1MTVaMC8GCSqGSIb3DQEJBDEiBCBj/GjEQw3LgKPf5DTz
+	    8eu1fcp6/cQjqqne6ZqFkF42azANBgkqhkiG9w0BAQEFAASCAQBOY0uHNMwy/o1nFANSgha5
+	    PZxt8fz+wTrbeomCb+lxqQKq1clcSiQORVGc8NmqC8sS5OR3eTw/3qnK9yPHxz2UQ4hn1pBa
+	    +Zy5veM61qMaXCw6w98EyNcvUfA1AkezAjkabfHQDs3o4Ezh49thXXyRcBoF+O6Lmi+LZbT2
+	    4jvfFbaXW9zsb6/DaoDkeHnlk+YYgfSP4wOnkK5uqxtDW8QpMPq3GGdIp0oJDkzEdj7VsWIL
+	    9JP2mxxL8fTPVUyAPOmURYwYDXqhke2O9eVDiCYhrEfB8/84Rint4Cj8n5aCujnAtqtwxHpD
+	    0NRYO/V1MjhG+ARy1vRH1Dm0r92RBam3
+	</manifest>
+    </msg>
+
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<manifest action="publish" uri="rsync://wombat.invalid/testbed/RIR/R0/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.mnf"/>
+    </msg>
+
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<manifest action="withdraw" uri="rsync://wombat.invalid/testbed/RIR/R0/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.mnf"/>
+    </msg>
+
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<manifest action="withdraw" uri="rsync://wombat.invalid/testbed/RIR/R0/1/j7ghjwblCrcCp9ltyPDNzYKPfxc.mnf"/>
+    </msg>
+
+    <!-- === -->
+
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<roa action="publish" uri="rsync://wombat.invalid/testbed/RIR/R0/1/lqkUqDq000DIoYV9rmwKLgk7azo.roa">
+	    MIIGmwYJKoZIhvcNAQcCoIIGjDCCBogCAQMxDTALBglghkgBZQMEAgEwKgYLKoZIhvcNAQkQ
+	    ARigGwQZMBcCAgKaMBEwDwQCAAEwCTAHAwUACgMALKCCBJgwggSUMIIDfKADAgECAgEJMA0G
+	    CSqGSIb3DQEBCwUAMDMxMTAvBgNVBAMTKDhGQjgyMThGMDZFNTBBQjcwMkE3RDk2REM4RjBD
+	    RENEODI4RjdGMTcwHhcNMDgwNTIyMTc1ODI0WhcNMDgwNTI0MTc1NDUzWjAzMTEwLwYDVQQD
+	    Eyg5NkE5MTRBODNBQjREMzQwQzhBMTg1N0RBRTZDMEEyRTA5M0I2QjNBMIIBIjANBgkqhkiG
+	    9w0BAQEFAAOCAQ8AMIIBCgKCAQEApoK50BjW5bcF4gsdaYhndtVADZvQk3RCsvuqDElF6uLi
+	    9BYQq/NHyDOIMyJtvCmzjdv3Y135n1sNO7YvssqHlt7dMfCQTD5ND1GpFnQLdWP7stWM5AbO
+	    nJV6+PtDITUA/QHOli7Do0YCUgR6G+1QJsMu0DK+TRSzBJ6WP7WIYOBOOg3y/NKc1rkWhS1Q
+	    dcQepbHgQYZHzzpjNDR6+oYVuhuUEWx1P6O4pv/p+tpE0SDua7jBjMywIYHkPQBecf2IX1RU
+	    WNojB9dJlnRx5YUUneP2SvF2MrmdDbclgzwhf6alqD2OjiMuoBOG8yeTKcuhzCMnrFAklbst
+	    6x3Rnq9BswIDAQABo4IBsTCCAa0wHQYDVR0OBBYEFJapFKg6tNNAyKGFfa5sCi4JO2s6MB8G
+	    A1UdIwQYMBaAFI+4IY8G5Qq3AqfZbcjwzc2Cj38XMFgGA1UdHwRRME8wTaBLoEmGR3JzeW5j
+	    Oi8vbG9jYWxob3N0OjQ0MDAvdGVzdGJlZC9SSVIvUjAvMS9qN2doandibENyY0NwOWx0eVBE
+	    TnpZS1BmeGMuY3JsMGAGCCsGAQUFBwEBBFQwUjBQBggrBgEFBQcwAoZEcnN5bmM6Ly9sb2Nh
+	    bGhvc3Q6NDQwMC90ZXN0YmVkL1JJUi8xL2o3Z2hqd2JsQ3JjQ3A5bHR5UEROellLUGZ4Yy5j
+	    ZXIwGAYDVR0gAQH/BA4wDDAKBggrBgEFBQcOAjAOBgNVHQ8BAf8EBAMCB4AwYwYIKwYBBQUH
+	    AQsEVzBVMFMGCCsGAQUFBzALhkdyc3luYzovL2xvY2FsaG9zdDo0NDAwL3Rlc3RiZWQvUklS
+	    L1IwLzEvbHFrVXFEcTAwMERJb1lWOXJtd0tMZ2s3YXpvLnJvYTAgBggrBgEFBQcBBwEB/wQR
+	    MA8wDQQCAAEwBwMFAAoDACwwDQYJKoZIhvcNAQELBQADggEBAL8iHwsyGOYhhIf3nVuL361y
+	    TOJSP8SR0mtQLHULPl+GkYk+5MRNWtL8ucTXFvniYJtOCXEGGEIO9eDXvkQIXQSz/qbF9URQ
+	    fuf38ghRza257syVhal6UHTgCFYuRIO9CUjcU1vkWUxH05BBIHlYdtlIQbAG/mRsCPCEgSmG
+	    bbQaomGlUOqmJMlKxLLcoAtz2vDrwVotgHyfS5h2mgINFjnlLcNLTci+sfs7/aQAkDYx7K98
+	    se/ZlMorvGkFNhHoOTcGIrWkYsfkbTygVwWRm278PaB3o4449Kvsg/gb8BZeHXRs68cr5Mcf
+	    jP7Q6jeypjTgDBnwb1yzoJIKWszFuSgxggGqMIIBpgIBA4AUlqkUqDq000DIoYV9rmwKLgk7
+	    azowCwYJYIZIAWUDBAIBoGswGgYJKoZIhvcNAQkDMQ0GCyqGSIb3DQEJEAEYMBwGCSqGSIb3
+	    DQEJBTEPFw0wODA1MjIxNzU4MjRaMC8GCSqGSIb3DQEJBDEiBCDCyf9v9Wed515TRp2WwnyM
+	    1rk6dB///X+aqIym2e9jdTANBgkqhkiG9w0BAQEFAASCAQAFvzrHeRPW+wn4WSyoyBEq0zKS
+	    Cyh5tu1qTR0NHs6Rr/p8Pk81P1HQLND/U+znJZKLWlO2niEHUXPIicPDYchbj8ApH9VxKA+1
+	    lCWllOzFAsYyZFr3/VNs9pVp2eT4F9eEYBrBVDSNrD72MMTlWm1T5MEXqltTJJOCKzUEX96x
+	    91iW6A+4erop7S8hpCnxqkTin4bFVreqYcGc4CC4bh+L9pPqJnURcEk7Qeu/WEHQBm38voB4
+	    S11qRZNrJMQ99oiJR7hXDIBm66HjGqoUL2gPCfpgJEVVnM9pVv2k889z4eTTck2Qj54gga2W
+	    Xkvw4Je420aDx88s9T2+PqXcbZ4g
+	</roa>
+    </msg>
+
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<roa action="publish" uri="rsync://wombat.invalid/testbed/RIR/R0/1/lqkUqDq000DIoYV9rmwKLgk7azo.roa"/>
+    </msg>
+
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<roa action="withdraw" uri="rsync://wombat.invalid/testbed/RIR/R0/1/lqkUqDq000DIoYV9rmwKLgk7azo.roa"/>
+    </msg>
+
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<roa action="withdraw" uri="rsync://wombat.invalid/testbed/RIR/R0/1/lqkUqDq000DIoYV9rmwKLgk7azo.roa"/>
+    </msg>
+
+    <!-- === -->
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<report_error error_code="your_hair_is_on_fire">text string</report_error>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
+	<report_error error_code="your_hair_is_on_fire"/>
+    </msg>
+    
+</completely_gratuitous_wrapper_element_to_let_me_run_this_through_xmllint>

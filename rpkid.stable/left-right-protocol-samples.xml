@@ -1,0 +1,1257 @@
+<!-- -*- SGML -*-
+  -  $Id$
+  -
+  - Copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
+  -
+  - Permission to use, copy, modify, and distribute this software for any
+  - purpose with or without fee is hereby granted, provided that the above
+  - copyright notice and this permission notice appear in all copies.
+  -
+  - THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
+  - REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+  - AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
+  - INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+  - LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+  - OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+  - PERFORMANCE OF THIS SOFTWARE.
+  -
+  -
+  - This is a collection of sample left-right protocol PDU samples
+  - to use as test cases for the left-right protocol RelaxNG schema.
+  -->
+
+<completely_gratuitous_wrapper_element_to_let_me_run_this_through_xmllint>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<self action="create" tag="a000"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<self action="create" tag="a000" self_id="42"/>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<self action="set" self_id="42"
+		rekey="yes"
+		reissue="yes"
+		revoke="yes"
+		run_now="yes"
+		publish_world_now="yes"
+		crl_interval="3600"
+		regen_margin="86400"
+		use_hsm="no">
+	    <bpki_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cert>
+	    <bpki_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_glue>
+	</self>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<self action="set" self_id="42"/>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<self action="get" self_id="42"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<self action="get" self_id="42">
+	    <bpki_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cert>
+	    <bpki_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_glue>
+	</self>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<self action="list"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<self action="list" self_id="42">
+	    <bpki_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cert>
+	    <bpki_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_glue>
+	</self>
+	<self action="list" self_id="99"/>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<self action="destroy" self_id="42"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<self action="destroy" self_id="42"/>
+    </msg>
+    
+    <!-- ==== -->
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<bsc action="create" self_id="42"
+		generate_keypair="yes"
+		key_type="rsa"
+		hash_alg="sha256"
+		key_length="2048">
+	    <signing_cert>
+		MIIDHTCCAgWgAwIBAgIJAKUUCoKn9ovVMA0GCSqGSIb3DQEBBQUAMCYxJDAiBgNV
+		BAMTG1Rlc3QgQ2VydGlmaWNhdGUgQWxpY2UgUm9vdDAeFw0wNzA4MDExOTUzMDda
+		Fw0wNzA4MzExOTUzMDdaMCQxIjAgBgNVBAMTGVRlc3QgQ2VydGlmaWNhdGUgQWxp
+		Y2UgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDmLngkGT5kWsXd
+		IgLeV+5zNvcDt0+D4cds1cu+bw6Y/23z1+ooA8fU1gXQ28bl6ELM8WRLHgcntqzr
+		5UX6S1xPdNfFYt8z4E1ZuvwCPsxcSwVdlYRvzAGNQivDpcJ75Mf5DTeDpr6wm7yn
+		2pzxvQIet5djOX51RVGA3hOwCbhq2ceHs0ZruWG3T70H3Sa1ZVxP7m0DJlsSZa6v
+		3oEeFOKZQlqrgeU74mJyLAGx/fNbIw+UBrvejfjZobIv985vQ06DZ5S2AquQ2bht
+		O/2bW3yqeOjH98YK0zlOpYtaZ2fyx4JLjHCspoki6+4W9UG+TuqdkB20mRsr25XT
+		9kLuwIGZAgMBAAGjUDBOMAwGA1UdEwQFMAMBAf8wHQYDVR0OBBYEFF6I4IR33h/s
+		vOa4Vsw2icPo8TgaMB8GA1UdIwQYMBaAFG9ed1KlOQDyB+k7Yeb8LSjG5FDtMA0G
+		CSqGSIb3DQEBBQUAA4IBAQDVzBuGyXIq/rfMjoNKIHTUgppkc+FjS02cFASpB5mk
+		ksSpGWYHMZKlqz47qDi44KAG+kmPIPOT0em81+/VGeY1oizJyKSeNDhNboth5oTu
+		ShDr4flTQCoYvRxm1wh8WIIg09nwibzGztuV1XxtdzfQV5kK5bMBlDXnUfAYydsO
+		jc52x5f4tgdcfBhjnMzkCAx2kvw5Wp3NekkOKl5YYnPK++zT9IBwqrqJmsJvyLPO
+		vvqVBYkoBWRbmcy6wVU8JpYegNNgVRbi6zeAq33gS75m9uy+4z8Ql6DqVF0s/y+/
+		240tLCW62X98EzrALKsxhkqVZCtdc5HSRaOQr0K3I03S
+	    </signing_cert>
+	</bsc>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<bsc action="create" self_id="42" bsc_id="17">
+	    <pkcs10_request>cmVxdWVzdAo=</pkcs10_request>
+	</bsc>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<bsc action="set" self_id="42" bsc_id="17">
+	    <signing_cert>
+		MIIDHTCCAgWgAwIBAgIJAKUUCoKn9ovVMA0GCSqGSIb3DQEBBQUAMCYxJDAiBgNV
+		BAMTG1Rlc3QgQ2VydGlmaWNhdGUgQWxpY2UgUm9vdDAeFw0wNzA4MDExOTUzMDda
+		Fw0wNzA4MzExOTUzMDdaMCQxIjAgBgNVBAMTGVRlc3QgQ2VydGlmaWNhdGUgQWxp
+		Y2UgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDmLngkGT5kWsXd
+		IgLeV+5zNvcDt0+D4cds1cu+bw6Y/23z1+ooA8fU1gXQ28bl6ELM8WRLHgcntqzr
+		5UX6S1xPdNfFYt8z4E1ZuvwCPsxcSwVdlYRvzAGNQivDpcJ75Mf5DTeDpr6wm7yn
+		2pzxvQIet5djOX51RVGA3hOwCbhq2ceHs0ZruWG3T70H3Sa1ZVxP7m0DJlsSZa6v
+		3oEeFOKZQlqrgeU74mJyLAGx/fNbIw+UBrvejfjZobIv985vQ06DZ5S2AquQ2bht
+		O/2bW3yqeOjH98YK0zlOpYtaZ2fyx4JLjHCspoki6+4W9UG+TuqdkB20mRsr25XT
+		9kLuwIGZAgMBAAGjUDBOMAwGA1UdEwQFMAMBAf8wHQYDVR0OBBYEFF6I4IR33h/s
+		vOa4Vsw2icPo8TgaMB8GA1UdIwQYMBaAFG9ed1KlOQDyB+k7Yeb8LSjG5FDtMA0G
+		CSqGSIb3DQEBBQUAA4IBAQDVzBuGyXIq/rfMjoNKIHTUgppkc+FjS02cFASpB5mk
+		ksSpGWYHMZKlqz47qDi44KAG+kmPIPOT0em81+/VGeY1oizJyKSeNDhNboth5oTu
+		ShDr4flTQCoYvRxm1wh8WIIg09nwibzGztuV1XxtdzfQV5kK5bMBlDXnUfAYydsO
+		jc52x5f4tgdcfBhjnMzkCAx2kvw5Wp3NekkOKl5YYnPK++zT9IBwqrqJmsJvyLPO
+		vvqVBYkoBWRbmcy6wVU8JpYegNNgVRbi6zeAq33gS75m9uy+4z8Ql6DqVF0s/y+/
+		240tLCW62X98EzrALKsxhkqVZCtdc5HSRaOQr0K3I03S
+	    </signing_cert>
+	    <signing_cert_crl>
+		MIIBfjBoAgEBMA0GCSqGSIb3DQEBCwUAMCYxJDAiBgNVBAMTG1Rlc3QgQ2VydGlm
+		aWNhdGUgUklSIFNFTEYtMRcNMDgwNTAxMDQ1MjAxWhcNMDgwNTMxMDQ1MjAxWqAO
+		MAwwCgYDVR0UBAMCAQEwDQYJKoZIhvcNAQELBQADggEBACTbbaYh+f4EtXFIKPwH
+		K2NYq/MrhE2BnHDyA43siryddtac1E2bOtXPkC74nY5yGm4wZU07qPovJNGu1McG
+		J2hV2uUyAN00lJU3EikrS1ewz7vqjINar1ZUMDkh0wMYKLB9S8SdwNvCf1vcjshz
+		yasBRse9PCH1R0bmDaP8FZM47P55dKiijaN87HQKyZPOExFslnWH+Nr+mAF1xost
+		pwGcc3jreVZWbtQ2RdUDJYcNrSSCH8JYqd5ZgAYcE53xxy43rKcULz054GDFcS/B
+		rprwJgfrjkPttAl80cfrVOUl77ZFfFxzOeHCmQMl9VSoCxmWvnBCBBO4H7meJ7NO
+		gyc=
+	    </signing_cert_crl>
+	</bsc>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<bsc action="set" self_id="42" bsc_id="17"/>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<bsc action="get" self_id="42" bsc_id="17"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<bsc action="get" self_id="42" bsc_id="17">
+	    <signing_cert>
+		MIIDHTCCAgWgAwIBAgIJAKUUCoKn9ovVMA0GCSqGSIb3DQEBBQUAMCYxJDAiBgNV
+		BAMTG1Rlc3QgQ2VydGlmaWNhdGUgQWxpY2UgUm9vdDAeFw0wNzA4MDExOTUzMDda
+		Fw0wNzA4MzExOTUzMDdaMCQxIjAgBgNVBAMTGVRlc3QgQ2VydGlmaWNhdGUgQWxp
+		Y2UgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDmLngkGT5kWsXd
+		IgLeV+5zNvcDt0+D4cds1cu+bw6Y/23z1+ooA8fU1gXQ28bl6ELM8WRLHgcntqzr
+		5UX6S1xPdNfFYt8z4E1ZuvwCPsxcSwVdlYRvzAGNQivDpcJ75Mf5DTeDpr6wm7yn
+		2pzxvQIet5djOX51RVGA3hOwCbhq2ceHs0ZruWG3T70H3Sa1ZVxP7m0DJlsSZa6v
+		3oEeFOKZQlqrgeU74mJyLAGx/fNbIw+UBrvejfjZobIv985vQ06DZ5S2AquQ2bht
+		O/2bW3yqeOjH98YK0zlOpYtaZ2fyx4JLjHCspoki6+4W9UG+TuqdkB20mRsr25XT
+		9kLuwIGZAgMBAAGjUDBOMAwGA1UdEwQFMAMBAf8wHQYDVR0OBBYEFF6I4IR33h/s
+		vOa4Vsw2icPo8TgaMB8GA1UdIwQYMBaAFG9ed1KlOQDyB+k7Yeb8LSjG5FDtMA0G
+		CSqGSIb3DQEBBQUAA4IBAQDVzBuGyXIq/rfMjoNKIHTUgppkc+FjS02cFASpB5mk
+		ksSpGWYHMZKlqz47qDi44KAG+kmPIPOT0em81+/VGeY1oizJyKSeNDhNboth5oTu
+		ShDr4flTQCoYvRxm1wh8WIIg09nwibzGztuV1XxtdzfQV5kK5bMBlDXnUfAYydsO
+		jc52x5f4tgdcfBhjnMzkCAx2kvw5Wp3NekkOKl5YYnPK++zT9IBwqrqJmsJvyLPO
+		vvqVBYkoBWRbmcy6wVU8JpYegNNgVRbi6zeAq33gS75m9uy+4z8Ql6DqVF0s/y+/
+		240tLCW62X98EzrALKsxhkqVZCtdc5HSRaOQr0K3I03S
+	    </signing_cert>
+	</bsc>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<bsc action="list" self_id="42"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<bsc action="get" self_id="42" bsc_id="17">
+	    <signing_cert>
+		MIIDHTCCAgWgAwIBAgIJAKUUCoKn9ovVMA0GCSqGSIb3DQEBBQUAMCYxJDAiBgNV
+		BAMTG1Rlc3QgQ2VydGlmaWNhdGUgQWxpY2UgUm9vdDAeFw0wNzA4MDExOTUzMDda
+		Fw0wNzA4MzExOTUzMDdaMCQxIjAgBgNVBAMTGVRlc3QgQ2VydGlmaWNhdGUgQWxp
+		Y2UgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDmLngkGT5kWsXd
+		IgLeV+5zNvcDt0+D4cds1cu+bw6Y/23z1+ooA8fU1gXQ28bl6ELM8WRLHgcntqzr
+		5UX6S1xPdNfFYt8z4E1ZuvwCPsxcSwVdlYRvzAGNQivDpcJ75Mf5DTeDpr6wm7yn
+		2pzxvQIet5djOX51RVGA3hOwCbhq2ceHs0ZruWG3T70H3Sa1ZVxP7m0DJlsSZa6v
+		3oEeFOKZQlqrgeU74mJyLAGx/fNbIw+UBrvejfjZobIv985vQ06DZ5S2AquQ2bht
+		O/2bW3yqeOjH98YK0zlOpYtaZ2fyx4JLjHCspoki6+4W9UG+TuqdkB20mRsr25XT
+		9kLuwIGZAgMBAAGjUDBOMAwGA1UdEwQFMAMBAf8wHQYDVR0OBBYEFF6I4IR33h/s
+		vOa4Vsw2icPo8TgaMB8GA1UdIwQYMBaAFG9ed1KlOQDyB+k7Yeb8LSjG5FDtMA0G
+		CSqGSIb3DQEBBQUAA4IBAQDVzBuGyXIq/rfMjoNKIHTUgppkc+FjS02cFASpB5mk
+		ksSpGWYHMZKlqz47qDi44KAG+kmPIPOT0em81+/VGeY1oizJyKSeNDhNboth5oTu
+		ShDr4flTQCoYvRxm1wh8WIIg09nwibzGztuV1XxtdzfQV5kK5bMBlDXnUfAYydsO
+		jc52x5f4tgdcfBhjnMzkCAx2kvw5Wp3NekkOKl5YYnPK++zT9IBwqrqJmsJvyLPO
+		vvqVBYkoBWRbmcy6wVU8JpYegNNgVRbi6zeAq33gS75m9uy+4z8Ql6DqVF0s/y+/
+		240tLCW62X98EzrALKsxhkqVZCtdc5HSRaOQr0K3I03S
+	    </signing_cert>
+	</bsc>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<bsc action="destroy" self_id="42" bsc_id="17"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<bsc action="destroy" self_id="42" bsc_id="17"/>
+    </msg>
+    
+    <!-- ==== -->
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<parent action="create" self_id="42"
+		peer_contact_uri="https://re.bar.example/bandicoot/"
+		sia_base="rsync://repo.foo.example/wombat/"
+		bsc_id="17"
+		repository_id="120"
+		sender_name="tweedledee"
+		recipient_name="tweedledum">
+	    <bpki_cms_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cms_cert>
+	    <bpki_cms_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cms_glue>
+	    <bpki_https_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_https_cert>
+	    <bpki_https_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_https_glue>
+	</parent>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<parent action="create" self_id="42" parent_id="666"/>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<parent action="set" self_id="42" parent_id="666"
+		peer_contact_uri="https://re.bar.example/bandicoot/"
+		sia_base="rsync://repo.foo.example/wombat/"
+		bsc_id="17"
+		repository_id="120"
+		rekey="yes"
+		reissue="yes"
+		revoke="yes">
+	    <bpki_cms_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cms_cert>
+	    <bpki_cms_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cms_glue>
+	    <bpki_https_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_https_cert>
+	    <bpki_https_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_https_glue>
+	</parent>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<parent action="set" self_id="42" parent_id="666"/>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<parent action="get" self_id="42" parent_id="666"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<parent action="get" self_id="42" parent_id="666"
+		peer_contact_uri="https://re.bar.example/bandicoot/"
+		sia_base="rsync://repo.foo.example/wombat/"
+		bsc_id="17"
+		repository_id="120">
+	    <bpki_cms_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cms_cert>
+	    <bpki_cms_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cms_glue>
+	    <bpki_https_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_https_cert>
+	    <bpki_https_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_https_glue>
+	</parent>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<parent action="list" self_id="42"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<parent action="list" self_id="42" parent_id="666"
+		peer_contact_uri="https://re.bar.example/bandicoot/"
+		sia_base="rsync://repo.foo.example/wombat/"
+		bsc_id="17"
+		repository_id="120">
+	    <bpki_cms_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cms_cert>
+	    <bpki_cms_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cms_glue>
+	    <bpki_https_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_https_cert>
+	    <bpki_https_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_https_glue>
+	</parent>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<parent action="destroy" self_id="42"
+    parent_id="666"/> </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<parent action="destroy" self_id="42" parent_id="666"/>
+    </msg>
+    
+    <!-- ==== -->
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<child action="create" self_id="42"
+		bsc_id="17">
+	    <bpki_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cert>
+	</child>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<child action="create" self_id="42" child_id="3"/>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<child action="set" self_id="42" child_id="3"
+		bsc_id="17"
+		reissue="yes">
+	    <bpki_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cert>
+	</child>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<child action="set" self_id="42" child_id="3"/>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<child action="get" self_id="42" child_id="3"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<child action="get" self_id="42" child_id="3"
+		bsc_id="17">
+	    <bpki_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cert>
+	</child>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<child action="list" self_id="42"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<child action="list" self_id="42" child_id="3"
+		bsc_id="17">
+	    <bpki_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cert>
+	</child>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<child action="destroy" self_id="42" child_id="3"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<child action="destroy" self_id="42" child_id="3"/>
+    </msg>
+    
+    <!-- ==== -->
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<repository action="create" self_id="42"
+		peer_contact_uri="https://re.bar.example/bandicoot/"
+		bsc_id="17">
+	    <bpki_cms_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cms_cert>
+	    <bpki_cms_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cms_glue>
+	    <bpki_https_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_https_cert>
+	    <bpki_https_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_https_glue>
+	</repository>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<repository action="create" self_id="42" repository_id="120"/>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<repository action="set" self_id="42" repository_id="120"
+		peer_contact_uri="https://re.bar.example/bandicoot/"
+		bsc_id="17">
+	    <bpki_cms_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cms_cert>
+	    <bpki_cms_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cms_glue>
+	    <bpki_https_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_https_cert>
+	    <bpki_https_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_https_glue>
+	</repository>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<repository action="set" self_id="42" repository_id="120"/>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<repository action="get" self_id="42" repository_id="120"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<repository action="get" self_id="42" repository_id="120"
+		peer_contact_uri="https://re.bar.example/bandicoot/"
+		bsc_id="17">
+	    <bpki_cms_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cms_cert>
+	    <bpki_cms_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cms_glue>
+	    <bpki_https_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_https_cert>
+	    <bpki_https_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_https_glue>
+	</repository>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<repository action="list" self_id="42"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<repository action="list" self_id="42" repository_id="120"
+		peer_contact_uri="https://re.bar.example/bandicoot/"
+		bsc_id="17">
+	    <bpki_cms_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cms_cert>
+	    <bpki_cms_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_cms_glue>
+	    <bpki_https_cert>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_https_cert>
+	    <bpki_https_glue>
+		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
+		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
+		MDcwODMxMTk1MzEwWjAkMSIwIAYDVQQDExlUZXN0IENlcnRpZmljYXRlIEJvYiBS
+		b290MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArKYUtJaM5PH5917S
+		G2ACc7iBYdQO2HYyu8Gb6i9Q2Gxc3cWEX7RTBvgOL79pWf3GIdnoupzMnoZVtY3G
+		Ux2G/0WkmLui2TCeDhcfXdQ4rcp8J3V/6ESj+yuEPPOG8UN17mUKKgujrch6ZvgC
+		DO9AyOK/uXu+ABQXTPsn2pVe2EVh3V004ShLi8GKgVdqb/rW/6GTg0Xb/zLT6WWM
+		uT++6sXTlztJdQYkRamJvKfQDU1naC8mAkGf79Tba0xyBGAUII0GfREY6t4/+NAP
+		2Yyb3xNlBqcJoTov0JfNKHZcCZePr79j7LK/hkZxxip+Na9xDpE+oQRV+DRukCRJ
+		diqg+wIDAQABo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBTDEsXJe6pjAQD4
+		ULlB7+GMDBlimTAfBgNVHSMEGDAWgBTDEsXJe6pjAQD4ULlB7+GMDBlimTANBgkq
+		hkiG9w0BAQUFAAOCAQEAWWkNcW6S1tKKqtzJsdfhjJiAAPQmOXJskv0ta/8f6Acg
+		cum1YieNdtT0n96P7CUHOWP8QBb91JzeewR7b6WJLwb1Offs3wNq3kk75pJe89r4
+		XY39EZHhMW+Dv0PhIKu2CgD4LeyH1FVTQkF/QObGEmkn+s+HTsuzd1l2VLwcP1Sm
+		sqep6LAlFj62qqaIJzNeQ9NVkBqtkygnYlBOkaBTHfQTux3jYNpEo8JJB5e/WFdH
+		YyMNrG2xMOtIC7T4+IOHgT8PgrNhaeDg9ctewj0X8Qi9nI9nXeinicLX8vj6hdEq
+		3ORv7RZMJNYqv1HQ3wUE2B7fCPFv7EUwzaCds1kgRQ==
+	    </bpki_https_glue>
+	</repository>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<repository action="destroy" self_id="42" repository_id="120"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<repository action="destroy" self_id="42" repository_id="120"/>
+    </msg>
+    
+    <!-- ==== -->
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<route_origin action="create" self_id="42"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<route_origin action="create" self_id="42" route_origin_id="88"/>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<route_origin action="set" self_id="42" route_origin_id="88"
+	    suppress_publication="yes"
+	    as_number="12345" ipv4="10.0.0.44/32" ipv6="2002:a00::/48-56"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<route_origin action="set" self_id="42" route_origin_id="88"/>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<route_origin action="get" self_id="42" route_origin_id="88"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<route_origin action="get" self_id="42" route_origin_id="88"
+	    as_number="12345" ipv4="10.0.0.44/32" ipv6="2002:a00::/48-56"/>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<route_origin action="list" self_id="42"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<route_origin action="list" self_id="42" route_origin_id="88"
+	    as_number="12345" ipv4="10.0.0.44/32" ipv6="2002:a00::/48"/>
+    </msg>
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<route_origin action="destroy" self_id="42" route_origin_id="88"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<route_origin action="destroy" self_id="42" route_origin_id="88"/>
+    </msg>
+    
+    <!-- ==== -->
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<list_resources self_id="42" child_id="289"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<list_resources self_id="42" child_id="289"
+			valid_until="2008-04-01T00:00:00Z"
+			subject_name="Wombats are us"
+			ipv4="10.0.0.44/32,10.3.0.44/32"
+			ipv6="fe80:deed:f00d::/48,fe80:dead:beef:2::-fe80:dead:beef:2::49"
+			asn="666"/>
+    </msg>
+    
+    <!-- === -->
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<report_error self_id="42" error_code="your_hair_is_on_fire">text string</report_error>
+    </msg>
+
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<report_error self_id="42" error_code="your_hair_is_on_fire"/>
+    </msg>
+
+</completely_gratuitous_wrapper_element_to_let_me_run_this_through_xmllint>

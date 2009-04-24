@@ -56,8 +56,9 @@ for o,a in opts:
 if argv:
   usage(1)
 
+rpki.log.init("testpoke")
+
 if debug:
-  rpki.log.init("testpoke")
   rpki.log.set_trace(True)
 
 f = open(yaml_file)

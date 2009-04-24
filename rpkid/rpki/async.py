@@ -18,6 +18,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
+import rpki.log
+
 class iterator(object):
   """Iteration construct for event-driven code.  Takes three
   arguments:
@@ -39,7 +41,11 @@ class iterator(object):
   def __init__(self, iterable, item_callback, done_callback):
     self.item_callback = item_callback
     self.done_callback = done_callback
-    self.iterator = iter(iterable)
+    try:
+      self.iterator = iter(iterable)
+    except:
+      rpki.log.debug("Problem constructing iterator for %s" % repr(iterable))
+      raise
     self()
 
   def __call__(self, *ignored):

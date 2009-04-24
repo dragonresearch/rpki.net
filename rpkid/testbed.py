@@ -385,7 +385,7 @@ class allocation_db(list):
   def apply_delta(self, delta, cb):
     """Apply a delta or run a command."""
 
-    def once(iterator, d):
+    def each(iterator, d):
       if isinstance(d, str):
         c = d.split()
         cmds[c[0]](*c[1:])
@@ -400,7 +400,7 @@ class allocation_db(list):
     if delta is None:
       cb()
     else:
-      rpki.async.iterator(delta, once, done)
+      rpki.async.iterator(delta, each, done)
 
   def dump(self):
     """Print content of the database."""
@@ -457,13 +457,13 @@ class allocation(object):
 
     rpki.log.info("Applying delta: %s" % yaml)
 
-    def once(iterator, kv):
+    def each(iterator, kv):
       if kv[0] == "name":
         iterator()
       else:
         getattr(self, "apply_" + kv[0])(kv[1], iterator)
 
-    rpki.async.iterator(yaml.items(), once, cb)
+    rpki.async.iterator(yaml.items(), each, cb)
 
   def apply_add_as(self, text, cb):
     self.base.asn = self.base.asn.union(rpki.resource_set.resource_set_as(text))
@@ -803,7 +803,7 @@ class allocation(object):
       sql_db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
       sql_cur = sql_db.cursor()
 
-      def once(iterator, kid):
+      def each(iterator, kid):
 
         if kid.is_leaf():
           bpki_cert = self.cross_certify(kid.name + "-TA")
@@ -824,7 +824,7 @@ class allocation(object):
         sql_db.close()
         do_route_origins()
 
-      rpki.async.iterator(self.kids, once, done)
+      rpki.async.iterator(self.kids, each, done)
 
     def do_route_origins():
       rpki.log.info("Creating rpkid route_origin objects for %s" % self.name)

@@ -46,23 +46,26 @@ class pubd_context(object):
 
     self.publication_base = cfg.get("publication-base", "publication/")
 
-  def handler_common(self, query, client, certs, crl = None):
+  def handler_common(self, query, client, cb, certs, crl = None):
     """Common PDU handler code."""
+
+    def done(r_msg):
+      reply = rpki.publication.cms_msg.wrap(r_msg, self.pubd_key, self.pubd_cert, crl)
+      self.sql.sweep()
+      cb(reply)
+
     q_msg = rpki.publication.cms_msg.unwrap(query, certs)
-    r_msg = q_msg.serve_top_level(self, client)
-    reply = rpki.publication.cms_msg.wrap(r_msg, self.pubd_key, self.pubd_cert, crl)
-    self.sql.sweep()
-    return reply
+    q_msg.serve_top_level(self, client, done)
 
   def control_handler(self, query, path, cb):
     """Process one PDU from the IRBE."""
     rpki.log.trace()
     try:
       self.sql.ping()
-      return 200, self.handler_common(query, None, (self.bpki_ta, self.irbe_cert))
+      self.handler_common(query, None, lambda x: cb(200, x), (self.bpki_ta, self.irbe_cert))
     except Exception, data:
       rpki.log.error(traceback.format_exc())
-      return 500, "Unhandled exception %s" % data
+      cb(500, "Unhandled exception %s" % data)
 
   def client_handler(self, query, path, cb):
     """Process one PDU from a client."""
@@ -78,10 +81,10 @@ class pubd_context(object):
       config = rpki.publication.config_elt.fetch(self)
       if config is None or config.bpki_crl is None:
         raise rpki.exceptions.CMSCRLNotSet
-      return 200, self.handler_common(query, client, (self.bpki_ta, client.bpki_cert, client.bpki_glue), config.bpki_crl)
+      self.handler_common(query, client, lambda x: cb(200, x), (self.bpki_ta, client.bpki_cert, client.bpki_glue), config.bpki_crl)
     except Exception, data:
       rpki.log.error(traceback.format_exc())
-      return 500, "Could not process PDU: %s" % data
+      cb(500, "Could not process PDU: %s" % data)
 
   ## @var https_ta_cache
   # HTTPS trust anchor cache, to avoid regenerating it for every TLS connection.

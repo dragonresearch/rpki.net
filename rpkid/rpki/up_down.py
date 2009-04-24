@@ -62,7 +62,7 @@ class base_elt(object):
     if value is not None:
       lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap=nsmap).text = base64.b64encode(value)
 
-  def serve_pdu(self, q_msg, r_msg, child):
+  def serve_pdu(self, q_msg, r_msg, child, callback):
     """Default PDU handler to catch unexpected types."""
     raise rpki.exceptions.BadQuery, "Unexpected query type %s" % q_msg.type
 
@@ -185,37 +185,42 @@ class list_pdu(base_elt):
     """Generate (empty) payload of "list" PDU."""
     return []
 
-  def serve_pdu(self, q_msg, r_msg, child):
+  def serve_pdu(self, q_msg, r_msg, child, callback):
     """Serve one "list" PDU."""
-    r_msg.payload = list_response_pdu()
 
-    # This will require a callback when we go event-driven
-    irdb_resources = self.gctx.irdb_query(child.self_id, child.child_id)
+    def handle(irdb_resources):
 
-    for parent in child.parents():
-      for ca in parent.cas():
-        ca_detail = ca.fetch_active()
-        if not ca_detail:
-          continue
-        resources = ca_detail.latest_ca_cert.get_3779resources().intersection(irdb_resources)
-        if resources.empty():
-          continue
-        rc = class_elt()
-        rc.class_name = str(ca.ca_id)
-        rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
-        rc.from_resource_bag(resources)
-        for child_cert in child.child_certs(ca_detail = ca_detail):
-          c = certificate_elt()
-          c.cert_url = multi_uri(child_cert.uri(ca))
-          c.cert = child_cert.cert
-          rc.certs.append(c)
-        rc.issuer = ca_detail.latest_ca_cert
-        r_msg.payload.classes.append(rc)
+      rpki.log.info("list_pdu.serve_pdu callback")
+
+      r_msg.payload = list_response_pdu()
+
+      for parent in child.parents():
+        for ca in parent.cas():
+          ca_detail = ca.fetch_active()
+          if not ca_detail:
+            continue
+          resources = ca_detail.latest_ca_cert.get_3779resources().intersection(irdb_resources)
+          if resources.empty():
+            continue
+          rc = class_elt()
+          rc.class_name = str(ca.ca_id)
+          rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
+          rc.from_resource_bag(resources)
+          for child_cert in child.child_certs(ca_detail = ca_detail):
+            c = certificate_elt()
+            c.cert_url = multi_uri(child_cert.uri(ca))
+            c.cert = child_cert.cert
+            rc.certs.append(c)
+          rc.issuer = ca_detail.latest_ca_cert
+          r_msg.payload.classes.append(rc)
+      callback()
+
+    self.gctx.irdb_query(child.self_id, child.child_id, handle)
 
   @classmethod
-  def query(cls, parent):
+  def query(cls, parent, cb):
     """Send a "list" query to parent."""
-    return parent.query_up_down(cls())
+    return parent.query_up_down(cls(), cb)
 
 class class_response_syntax(base_elt):
   """Syntax for Up-Down protocol "list_response" and "issue_response" PDUs."""
@@ -265,7 +270,7 @@ class issue_pdu(base_elt):
     elt.text = self.pkcs10.get_Base64()
     return [elt]
 
-  def serve_pdu(self, q_msg, r_msg, child):
+  def serve_pdu(self, q_msg, r_msg, child, callback):
     """Serve one issue request PDU."""
 
     # Subsetting not yet implemented, this is the one place where we
@@ -285,46 +290,51 @@ class issue_pdu(base_elt):
 
     # Check current cert, if any
 
-    # This will require a callback when we go event-driven
-    irdb_resources = self.gctx.irdb_query(child.self_id, child.child_id)
+    def got_resources(irdb_resources):
 
-    resources = irdb_resources.intersection(ca_detail.latest_ca_cert.get_3779resources())
-    req_key = self.pkcs10.getPublicKey()
-    req_sia = self.pkcs10.get_SIA()
-    child_cert = child.child_certs(ca_detail = ca_detail, ski = req_key.get_SKI(), unique = True)
+      resources = irdb_resources.intersection(ca_detail.latest_ca_cert.get_3779resources())
+      req_key = self.pkcs10.getPublicKey()
+      req_sia = self.pkcs10.get_SIA()
+      child_cert = child.child_certs(ca_detail = ca_detail, ski = req_key.get_SKI(), unique = True)
 
-    # Generate new cert or regenerate old one if necessary
+      # Generate new cert or regenerate old one if necessary
 
-    if child_cert is None:
-      child_cert = ca_detail.issue(
-        ca          = ca,
-        child       = child,
-        subject_key = req_key,
-        sia         = req_sia,
-        resources   = resources)
-    else:
-      child_cert = child_cert.reissue(
-        ca_detail = ca_detail,
-        sia       = req_sia,
-        resources = resources)
+      def got_child_cert(child_cert):
+        # Save anything we modified and generate response
+        self.gctx.sql.sweep()
+        assert child_cert and child_cert.sql_in_db
+        c = certificate_elt()
+        c.cert_url = multi_uri(child_cert.uri(ca))
+        c.cert = child_cert.cert
+        rc = class_elt()
+        rc.class_name = self.class_name
+        rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
+        rc.from_resource_bag(resources)
+        rc.certs.append(c)
+        rc.issuer = ca_detail.latest_ca_cert
+        r_msg.payload = issue_response_pdu()
+        r_msg.payload.classes.append(rc)
+        callback()
 
-    # Save anything we modified and generate response
-    self.gctx.sql.sweep()
-    assert child_cert and child_cert.sql_in_db
-    c = certificate_elt()
-    c.cert_url = multi_uri(child_cert.uri(ca))
-    c.cert = child_cert.cert
-    rc = class_elt()
-    rc.class_name = self.class_name
-    rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
-    rc.from_resource_bag(resources)
-    rc.certs.append(c)
-    rc.issuer = ca_detail.latest_ca_cert
-    r_msg.payload = issue_response_pdu()
-    r_msg.payload.classes.append(rc)
+      if child_cert is None:
+        ca_detail.issue(
+          ca          = ca,
+          child       = child,
+          subject_key = req_key,
+          sia         = req_sia,
+          resources   = resources,
+          callback    = got_child_cert)
+      else:
+        child_cert.reissue(
+          ca_detail = ca_detail,
+          sia       = req_sia,
+          resources = resources,
+          callback  = got_child_cert)
+
+    self.gctx.irdb_query(child.self_id, child.child_id, got_resources)
 
   @classmethod
-  def query(cls, parent, ca, ca_detail):
+  def query(cls, parent, ca, ca_detail, callback):
     """Send an "issue" request to parent associated with ca."""
     assert ca_detail is not None and ca_detail.state in ("pending", "active")
     sia = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", ca.sia_uri)),
@@ -332,7 +342,7 @@ class issue_pdu(base_elt):
     self = cls()
     self.class_name = ca.parent_resource_class
     self.pkcs10 = rpki.x509.PKCS10.create_ca(ca_detail.private_key_id, sia)
-    return parent.query_up_down(self)
+    parent.query_up_down(self, callback)
 
 class issue_response_pdu(class_response_syntax):
   """Up-Down protocol "issue_response" PDU."""
@@ -363,25 +373,34 @@ class revoke_pdu(revoke_syntax):
     """Convert g(SKI) encoding from PDU back to raw SKI."""
     return base64.urlsafe_b64decode(self.ski + "=")
 
-  def serve_pdu(self, q_msg, r_msg, child):
+  def serve_pdu(self, q_msg, r_msg, child, cb):
     """Serve one revoke request PDU."""
-    for ca_detail in child.ca_from_class_name(self.class_name).ca_details():
-      for child_cert in child.child_certs(ca_detail = ca_detail, ski = self.get_SKI()):
-        child_cert.revoke()
-    self.gctx.sql.sweep()
-    r_msg.payload = revoke_response_pdu()
-    r_msg.payload.class_name = self.class_name
-    r_msg.payload.ski = self.ski
+
+    def loop1(iterator1, ca_detail):
+
+      def loop2(iterator2, child_cert):
+        child_cert.revoke(iterator2)
+
+      rpki.async.iterator(child.child_certs(ca_detail = ca_detail, ski = self.get_SKI()), loop2, iterator1)
+
+    def done():
+      self.gctx.sql.sweep()
+      r_msg.payload = revoke_response_pdu()
+      r_msg.payload.class_name = self.class_name
+      r_msg.payload.ski = self.ski
+      cb()
+
+    rpki.async.iterator(child.ca_from_class_name(self.class_name).ca_details(), loop1, done)
 
   @classmethod
-  def query(cls, ca_detail):
+  def query(cls, ca_detail, cb):
     """Send a "revoke" request to parent associated with ca_detail."""
     ca = ca_detail.ca()
     parent = ca.parent()
     self = cls()
     self.class_name = ca.parent_resource_class
     self.ski = ca_detail.latest_ca_cert.gSKI()
-    return parent.query_up_down(self)
+    return parent.query_up_down(self, cb)
 
 class revoke_response_pdu(revoke_syntax):
   """Up-Down protocol "revoke_response" PDU."""
@@ -402,7 +421,8 @@ class error_response_pdu(base_elt):
     1302 : "Revoke - no such key",
     2001 : "Internal Server Error - Request not performed" }
 
-  exceptions = {}
+  exceptions = {
+    rpki.exceptions.NoActiveCA : 1202 }
 
   def __init__(self, exception = None):
     """Initialize an error_response PDU from an exception object."""
@@ -487,14 +507,18 @@ class message_pdu(base_elt):
     """Convert a message PDU to a string."""
     lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "UTF-8")
 
-  def serve_top_level(self, child):
+  def serve_top_level(self, child, callback):
     """Serve one message request PDU."""
+
     r_msg = message_pdu()
     r_msg.sender = self.recipient
     r_msg.recipient = self.sender
-    self.payload.serve_pdu(self, r_msg, child)
-    r_msg.type = self.type2name[type(r_msg.payload)]
-    return r_msg
+
+    def done():
+      r_msg.type = self.type2name[type(r_msg.payload)]
+      callback(r_msg)
+
+    self.payload.serve_pdu(self, r_msg, child, done)
 
   def serve_error(self, exception):
     """Generate an error_response message PDU."""

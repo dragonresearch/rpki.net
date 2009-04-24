@@ -17,17 +17,30 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import syslog, traceback
+import syslog, traceback, sys, os
 
 ## @var enable_trace
 # Whether call tracing is enabled.
 
 enable_trace = False
 
+## @var use_syslog
+# Whether to use syslog
+
+use_syslog = False
+
+tag = ""
+pid = 0
+
 def init(ident = "rpki", flags = syslog.LOG_PID | syslog.LOG_PERROR, facility = syslog.LOG_DAEMON):
   """Initialize logging system."""
 
-  return syslog.openlog(ident, flags, facility)
+  if use_syslog:
+    return syslog.openlog(ident, flags, facility)
+  else:
+    global tag, pid
+    tag = ident
+    pid = os.getpid()
 
 def set_trace(trace):
   """Enable or disable call tracing."""
@@ -42,7 +55,10 @@ class logger(object):
     self.priority = priority
 
   def __call__(self, message):
-    return syslog.syslog(self.priority, message)
+    if use_syslog:
+      return syslog.syslog(self.priority, message)
+    else:
+      sys.stderr.write("%s[%d]: %s\n" % (tag, pid, message))
 
 error = logger(syslog.LOG_ERR)
 warn  = logger(syslog.LOG_WARNING)

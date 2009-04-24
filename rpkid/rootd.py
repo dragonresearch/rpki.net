@@ -144,19 +144,21 @@ def compose_response(r_msg):
     rc.certs[0].cert = subject_cert
 
 class list_pdu(rpki.up_down.list_pdu):
-  def serve_pdu(self, q_msg, r_msg, ignored):
+  def serve_pdu(self, q_msg, r_msg, ignored, callback):
     r_msg.payload = rpki.up_down.list_response_pdu()
     compose_response(r_msg)
+    callback()
 
 class issue_pdu(rpki.up_down.issue_pdu):
-  def serve_pdu(self, q_msg, r_msg, ignored):
+  def serve_pdu(self, q_msg, r_msg, ignored, callback):
     self.pkcs10.check_valid_rpki()
     set_subject_pkcs10(self.pkcs10)
     r_msg.payload = rpki.up_down.issue_response_pdu()
     compose_response(r_msg)
+    callback()
 
 class revoke_pdu(rpki.up_down.revoke_pdu):
-  def serve_pdu(self, q_msg, r_msg, ignored):
+  def serve_pdu(self, q_msg, r_msg, ignored, callback):
     subject_cert = get_subject_cert()
     if subject_cert is None or subject_cert.gSKI() != self.ski:
       raise rpki.exceptions.NotInDatabase
@@ -164,6 +166,7 @@ class revoke_pdu(rpki.up_down.revoke_pdu):
     r_msg.payload = rpki.up_down.revoke_response_pdu()
     r_msg.payload.class_name = self.class_name
     r_msg.payload.ski = self.ski
+    callback()
 
 class message_pdu(rpki.up_down.message_pdu):
   name2type = {
@@ -187,20 +190,21 @@ def up_down_handler(query, path, cb):
     q_msg = cms_msg.unwrap(query, (bpki_ta, child_bpki_cert))
   except Exception, data:
     rpki.log.error(traceback.format_exc())
-    return 400, "Could not process PDU: %s" % data
-  try:
-    r_msg = q_msg.serve_top_level(None)
+    return cb(400, "Could not process PDU: %s" % data)
+
+  def done(r_msg):
     r_cms = cms_msg.wrap(r_msg, rootd_bpki_key, rootd_bpki_cert, rootd_bpki_crl)
-    return 200, r_cms
+    cb(200, r_cms)
+
+  try:
+    q_msg.serve_top_level(None, done)
   except Exception, data:
     rpki.log.error(traceback.format_exc())
     try:
-      r_msg = q_msg.serve_error(data)
-      r_cms = cms_msg.wrap(r_msg, rootd_bpki_key, rootd_bpki_cert, rootd_bpki_crl)
-      return 200, r_cms
+      done(q_msg.serve_error(data))
     except Exception, data:
       rpki.log.error(traceback.format_exc())
-      return 500, "Could not process PDU: %s" % data
+      cb(500, "Could not process PDU: %s" % data)
 
 os.environ["TZ"] = "UTC"
 time.tzset()

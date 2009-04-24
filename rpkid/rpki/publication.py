@@ -30,13 +30,13 @@ class publication_namespace(object):
 class control_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant, publication_namespace):
   """Virtual class for control channel objects."""
 
-  def serve_dispatch(self, r_msg, client):
+  def serve_dispatch(self, r_msg, client, cb):
     """Action dispatch handler.  This needs special handling because
     we need to make sure that this PDU arrived via the control channel.
     """
     if client is not None:
       raise rpki.exceptions.BadQuery, "Control query received on client channel"
-    rpki.xml_utils.data_elt.serve_dispatch(self, r_msg)
+    rpki.xml_utils.data_elt.serve_dispatch(self, r_msg, cb)
 
 class config_elt(control_elt):
   """<config/> element.  This is a little weird because there should
@@ -70,14 +70,14 @@ class config_elt(control_elt):
     """
     return cls.sql_fetch(gctx, cls.wired_in_config_id)
 
-  def serve_set(self, r_msg):
+  def serve_set(self, r_msg, cb):
     """Handle a set action.  This requires special handling because
-    config we don't support the create method.
+    config doesn't support the create method.
     """
     if self.sql_fetch(self.gctx, self.config_id) is None:
-      control_elt.serve_create(self, r_msg)
+      control_elt.serve_create(self, r_msg, cb)
     else:
-      control_elt.serve_set(self, r_msg)
+      control_elt.serve_set(self, r_msg, cb)
 
   def serve_fetch_one(self):
     """Find the config object on which a get or set method should
@@ -112,11 +112,12 @@ class client_elt(control_elt):
     if name in self.elements:
       self.clear_https_ta_cache = True
 
-  def serve_post_save_hook(self, q_pdu, r_pdu):
+  def serve_post_save_hook(self, q_pdu, r_pdu, cb):
     """Extra server actions for client_elt."""
     if self.clear_https_ta_cache:
       self.gctx.clear_https_ta_cache()
       self.clear_https_ta_cache = False
+    cb()
 
   def serve_fetch_one(self):
     """Find the client object on which a get, set, or destroy method
@@ -161,7 +162,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
       elt.text = base64.b64encode(self.payload.get_DER())
     return elt
 
-  def serve_dispatch(self, r_msg, client):
+  def serve_dispatch(self, r_msg, client, cb):
     """Action dispatch handler."""
     if client is None:
       raise rpki.exceptions.BadQuery, "Client query received on control channel"
@@ -176,6 +177,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     r_pdu.tag = self.tag
     r_pdu.uri = self.uri
     r_msg.append(r_pdu)
+    cb()
 
   def serve_publish(self):
     """Publish an object."""
@@ -256,16 +258,21 @@ class msg(rpki.xml_utils.msg, publication_namespace):
   pdus = dict((x.element_name, x)
               for x in (config_elt, client_elt, certificate_elt, crl_elt, manifest_elt, roa_elt, report_error_elt))
 
-  def serve_top_level(self, gctx, client):
+  def serve_top_level(self, gctx, client, cb):
     """Serve one msg PDU."""
     if self.type != "query":
       raise rpki.exceptions.BadQuery, "Message type is not query"
     r_msg = self.__class__()
     r_msg.type = "reply"
-    for q_pdu in self:
+
+    def loop(iterator, q_pdu):
       q_pdu.gctx = gctx
-      q_pdu.serve_dispatch(r_msg, client)
-    return r_msg
+      q_pdu.serve_dispatch(r_msg, client, iterator)
+
+    def done():
+      cb(r_msg)
+
+    rpki.async.iterator(self, loop, done)
 
 class sax_handler(rpki.xml_utils.sax_handler):
   """SAX handler for publication protocol."""

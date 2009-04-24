@@ -220,24 +220,30 @@ class data_elt(base_elt):
     """Overridable hook."""
     pass
 
-  def serve_pre_save_hook(self, q_pdu, r_pdu):
+  def serve_pre_save_hook(self, q_pdu, r_pdu, cb):
     """Overridable hook."""
-    pass
+    cb()
 
-  def serve_post_save_hook(self, q_pdu, r_pdu):
+  def serve_post_save_hook(self, q_pdu, r_pdu, cb):
     """Overridable hook."""
-    pass
+    cb()
 
-  def serve_create(self, r_msg):
+  def serve_create(self, r_msg, cb):
     """Handle a create action."""
     r_pdu = self.make_reply()
-    self.serve_pre_save_hook(self, r_pdu)
-    self.sql_store()
-    setattr(r_pdu, self.sql_template.index, getattr(self, self.sql_template.index))
-    self.serve_post_save_hook(self, r_pdu)
-    r_msg.append(r_pdu)
 
-  def serve_set(self, r_msg):
+    def one():
+      self.sql_store()
+      setattr(r_pdu, self.sql_template.index, getattr(self, self.sql_template.index))
+      self.serve_post_save_hook(self, r_pdu, two)
+
+    def two():
+      r_msg.append(r_pdu)
+      cb()
+
+    self.serve_pre_save_hook(self, r_pdu, one)
+
+  def serve_set(self, r_msg, cb):
     """Handle a set action."""
     db_pdu = self.serve_fetch_one()
     r_pdu = self.make_reply()
@@ -246,30 +252,39 @@ class data_elt(base_elt):
       if v is not None:
         setattr(db_pdu, a, v)
     db_pdu.sql_mark_dirty()
-    db_pdu.serve_pre_save_hook(self, r_pdu)
-    db_pdu.sql_store()
-    db_pdu.serve_post_save_hook(self, r_pdu)
-    r_msg.append(r_pdu)
 
-  def serve_get(self, r_msg):
+    def one():
+      db_pdu.sql_store()
+      db_pdu.serve_post_save_hook(self, r_pdu, two)
+
+    def two():
+      r_msg.append(r_pdu)
+      cb()
+
+    db_pdu.serve_pre_save_hook(self, r_pdu, one)
+
+  def serve_get(self, r_msg, cb):
     """Handle a get action."""
     r_pdu = self.serve_fetch_one()
     self.make_reply(r_pdu)
     r_msg.append(r_pdu)
+    cb()
 
-  def serve_list(self, r_msg):
+  def serve_list(self, r_msg, cb):
     """Handle a list action for non-self objects."""
     for r_pdu in self.serve_fetch_all():
       self.make_reply(r_pdu)
       r_msg.append(r_pdu)
+    cb()
 
-  def serve_destroy(self, r_msg):
+  def serve_destroy(self, r_msg, cb):
     """Handle a destroy action."""
     db_pdu = self.serve_fetch_one()
     db_pdu.sql_delete()
     r_msg.append(self.make_reply())
+    cb()
 
-  def serve_dispatch(self, r_msg):
+  def serve_dispatch(self, r_msg, cb):
     """Action dispatch handler."""
     dispatch = { "create"  : self.serve_create,
                  "set"     : self.serve_set,
@@ -278,7 +293,7 @@ class data_elt(base_elt):
                  "destroy" : self.serve_destroy }
     if self.action not in dispatch:
       raise rpki.exceptions.BadQuery, "Unexpected query: action %s" % self.action
-    dispatch[self.action](r_msg)
+    dispatch[self.action](r_msg, cb)
   
   def unimplemented_control(self, *controls):
     """Uniform handling for unimplemented control operations."""

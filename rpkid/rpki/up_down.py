@@ -427,10 +427,7 @@ class error_response_pdu(base_elt):
   def __init__(self, exception = None):
     """Initialize an error_response PDU from an exception object."""
     if exception is not None:
-      if exception in self.exceptions:
-        self.status = exceptions[exception]
-      else:
-        self.status = 2001
+      self.status = self.exceptions.get(type(exception), 2001)
       self.description = str(exception)
 
   def endElement(self, stack, name, text):

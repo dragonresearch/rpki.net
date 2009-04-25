@@ -973,12 +973,12 @@ static FileAndHash *next_uri(const rcynic_ctx_t *rc,
 
   while ((fah = sk_FileAndHash_value(manifest->fileList, *iterator)) != NULL) {
     ++*iterator;
-    if (strlen(base_uri) + strlen(fah->file->data) >= urilen) {
+    if (strlen(base_uri) + strlen((char *) fah->file->data) >= urilen) {
       logmsg(rc, log_data_err, "URI %s%s too long, skipping", base_uri, fah->file->data);
       continue;
     }
     strcpy(uri, base_uri);
-    strcat(uri, fah->file->data);
+    strcat(uri, (char *) fah->file->data);
     return fah;
   }
 
@@ -1435,7 +1435,7 @@ static void *read_file_with_hash(const char *filename,
 
   if (hash != NULL) {
     memset(hash, 0, hashlen);
-    BIO_gets(b, hash, hashlen);
+    BIO_gets(b, (char *) hash, hashlen);
   }    
 
  error:
@@ -1983,7 +1983,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
     mib_increment(rc, uri,
 		  (backup ? backup_cert_accepted : current_cert_accepted));
     if (!backup)
-      sk_STRING_delete(rc->backup_cache, sk_STRING_find(rc->backup_cache, uri));
+      (void) sk_STRING_delete(rc->backup_cache, sk_STRING_find(rc->backup_cache, uri));
     else if (!sk_STRING_push_strdup(rc->backup_cache, uri))
       logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri);
       
@@ -2097,7 +2097,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     goto done;
 
   for (i = 0; (fah = sk_FileAndHash_value(manifest->fileList, i)) != NULL; i++)
-    if (!strcmp(fah->file->data, crl_tail))
+    if (!strcmp((char *) fah->file->data, crl_tail))
       break;
 
   if (fah) {

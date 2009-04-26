@@ -96,15 +96,19 @@ def query_up_down(q_pdu):
     sender = yaml_data["sender-id"],
     recipient = yaml_data["recipient-id"])
   q_cms = rpki.up_down.cms_msg.wrap(q_msg, cms_key, cms_certs, cms_crl)
-  der = rpki.https.client(
+
+  def done(der):
+    r_msg, r_xml = rpki.up_down.cms_msg.unwrap(der, [cms_ta] + cms_ca_certs, pretty_print = True)
+    print r_xml
+    r_msg.payload.check_response()
+
+  rpki.https.client(
     server_ta    = [https_ta] + https_ca_certs,
     client_key   = https_key,
     client_cert  = https_certs,
     msg          = q_cms,
-    url          = yaml_data["posturl"])
-  r_msg, r_xml = rpki.up_down.cms_msg.unwrap(der, [cms_ta] + cms_ca_certs, pretty_print = True)
-  print r_xml
-  r_msg.payload.check_response()
+    url          = yaml_data["posturl"],
+    callback     = done)
 
 def do_list():
   query_up_down(rpki.up_down.list_pdu())

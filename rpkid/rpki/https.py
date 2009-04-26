@@ -34,7 +34,7 @@ disable_tls_certificate_validation_exceptions = False
 debug_tls_certs = False
 
 # Debugging hack while converting to event-driven I/O model
-trace_synchronous_calls = False
+trace_synchronous_calls = True
 
 rpki_content_type = "application/x-rpki"
 
@@ -163,7 +163,7 @@ def client(msg, client_key, client_cert, server_ta, url, timeout = 300, callback
 
   # This is an easy way to find synchronous calls that need conversion
   if trace_synchronous_calls and callback is None:
-    raise RuntimeError, "Syncronous call to rpki.http.client()"
+    raise RuntimeError, "Synchronous call to rpki.http.client()"
 
   u = urlparse.urlparse(url)
 

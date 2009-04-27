@@ -85,6 +85,15 @@ class http_message(object):
       raise RuntimeError, "Couldn't parse version %s" % version
     self.version = tuple(int(i) for i in version[5:].split("."))
 
+  def persistent(self):
+    c = self.headers.get("Connection")
+    if self.version == (1,1):
+      return c is None or "close" not in c.lower()
+    elif self.version == (1,0):
+      return c is not None and "keep-alive" in c.lower()
+    else:
+      raise RuntimeError, "Version is neither 1.0 nor 1.1"
+
 class http_request(http_message):
 
   def __init__(self, cmd = None, path = None, version = (1,0), body = None, **headers):
@@ -169,14 +178,17 @@ class http_server(http_stream):
 
   def handle_message(self):
     print "[Got message]"
+    print "[Connection %s persistent]" % ("is" if self.msg.persistent() else "isn't")
     print self.msg
-    self.push(http_response(code = 200, reason = "OK", body = self.msg.format(), Content_Type = "text/plain").format())
-    if False:
-      print "[Closing]"
-      self.close_when_done()
-    else:
+    self.push(http_response(code = 200, reason = "OK", body = self.msg.format(),
+                            Connection = "Keep-Alive" if self.msg.persistent() else "Close",
+                            Content_Type = "text/plain").format())
+    if self.msg.persistent():
       print "[Listening for next message]"
       self.restart()
+    else:
+      print "[Closing]"
+      self.close_when_done()
 
   def handle_close(self):
     print "[Closing all connections]"
@@ -222,6 +234,7 @@ class http_client(http_stream):
 
   def handle_message(self):
     print "[Got message]"
+    print "[Connection %s persistent]" % ("is" if self.msg.persistent() else "isn't")
     print self.msg
     self.next_msg()
 
@@ -235,6 +248,11 @@ class http_client(http_stream):
 
   def next_msg(self):
     if self.message_queue:
+      try:
+        if not self.msg.persistent():
+          raise RuntimeError, "Attempting to send subsequent message to non-persistent connection"
+      except AttributeError:
+        pass
       print "[Pulling next message from queue]"
       self.push(self.message_queue.pop(0).format())
       self.restart()
@@ -259,7 +277,7 @@ class http_orator(dict):
     assert u.query    == ""
     assert u.fragment == ""
 
-    request = http_request(cmd = "POST", path = u.path, body = body, Content_Type = "text/plain")
+    request = http_request(cmd = "POST", path = u.path, body = body, Content_Type = "text/plain", Connection = "Keep-Alive")
     hostport = (u.hostname or "localhost", u.port or 80)
 
     if hostport not in self:

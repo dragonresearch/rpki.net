@@ -29,14 +29,29 @@ class http_message(object):
 
   software_name = "WombatWare test HTTP code"
 
-  @staticmethod
-  def fixheader(key):
-    return "-".join(s.capitalize() for s in key.split("-"))
-
   def __init__(self, version = None, body = None, headers = None):
     self.version = version
     self.body = body
-    self.headers = {} if headers is None else dict((self.fixheader(k.replace("_", "-")), v) for (k,v) in headers.iteritems())
+    self.headers = headers
+    self.normalize_headers()
+
+  def normalize_headers(self, headers = None):
+    if headers is None:
+      headers = () if self.headers is None else self.headers.items()
+      translate_underscore = True
+    else:
+      translate_underscore = False
+    result = {}
+    for k,v in headers:
+      if translate_underscore:
+        k = k.replace("_", "-")
+      k = "-".join(s.capitalize() for s in k.split("-"))
+      v = v.strip()
+      if k in result:
+        result[k] += ", " + v
+      else:
+        result[k] = v
+    self.headers = result
 
   @classmethod
   def parse_from_wire(cls, headers):
@@ -47,14 +62,7 @@ class http_message(object):
       if headers[i + 1][0].isspace():
         headers[i] += headers[i + 1]
         del headers[i + 1]
-    self.headers = {}
-    for h in headers:
-      k,v = h.split(":", 1)
-      k = self.fixheader(k)
-      if k in self.headers:
-        self.headers[k] += ", " + v
-      else:
-        self.headers[k] = v
+    self.normalize_headers([h.split(":", 1) for h in headers])
     return self
 
   def format(self):
@@ -97,20 +105,20 @@ class http_request(http_message):
 
 class http_response(http_message):
 
-  def __init__(self, code = None, text = None, version = (1,0), body = None, **headers):
+  def __init__(self, code = None, reason = None, version = (1,0), body = None, **headers):
     http_message.__init__(self, version = version, body = body, headers = headers)
     self.code = code
-    self.text = text
+    self.reason = reason
 
-  def parse_first_line(self, version, code, text):
+  def parse_first_line(self, version, code, reason):
     self.parse_version(version)
     self.code = int(code)
-    self.text = text
+    self.reason = reason
 
   def format_first_line(self):
     self.headers.setdefault("Date", time.strftime("%a, %d %b %Y %T GMT"))
     self.headers.setdefault("Server", self.software_name)
-    return "HTTP/%d.%d %s %s\r\n" % (self.version[0], self.version[1], self.code, self.text)
+    return "HTTP/%d.%d %s %s\r\n" % (self.version[0], self.version[1], self.code, self.reason)
 
 class http_stream(asynchat.async_chat):
 
@@ -165,7 +173,7 @@ class http_server(http_stream):
 
   def handle_message(self):
     print self.msg
-    self.push(http_response(code = 200, text = "OK", body = self.msg.format(), Content_Type = "text/plain").format())
+    self.push(http_response(code = 200, reason = "OK", body = self.msg.format(), Content_Type = "text/plain").format())
     if False:
       self.close_when_done()
     else:
@@ -230,9 +238,9 @@ if cmd is None:
 
 else:
 
-  # This doesn't comply with HTTP, we're not signalling reusable
+  # This doesn't comply with HTTP, as we're not signalling reusable
   # connections properly.  For the moment this is just a test to see
-  # whether the parser can survive multiple mssages.
+  # whether the parser can survive multiple messages.
 
   client = http_client.queue_messages([
     http_request(cmd = cmd, path = "/", body = "Hi, Mom!\r\n", Content_Type = "text/plain"),

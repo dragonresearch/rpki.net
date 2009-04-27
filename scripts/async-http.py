@@ -23,11 +23,20 @@ PERFORMANCE OF THIS SOFTWARE.
 #    lynx -post_data -mime_header -source http://127.0.0.1:8000/
 
 
-import sys, os, time, socket, fcntl, asyncore, asynchat, getopt, email, traceback
+import sys, os, time, socket, asyncore, asynchat, traceback, urlparse
 
 class http_message(object):
 
   software_name = "WombatWare test HTTP code"
+
+  @staticmethod
+  def fixheader(key):
+    return "-".join(s.capitalize() for s in key.split("-"))
+
+  def __init__(self, version = None, body = None, headers = None):
+    self.version = version
+    self.body = body
+    self.headers = {} if headers is None else dict((self.fixheader(k.replace("_", "-")), v) for (k,v) in headers.iteritems())
 
   @classmethod
   def parse_from_wire(cls, headers):
@@ -41,7 +50,7 @@ class http_message(object):
     self.headers = {}
     for h in headers:
       k,v = h.split(":", 1)
-      k = "-".join(s.capitalize() for s in k.split("-"))
+      k = self.fixheader(k)
       if k in self.headers:
         self.headers[k] += ", " + v
       else:
@@ -70,14 +79,12 @@ class http_message(object):
 
 class http_request(http_message):
 
-  def __init__(self, cmd = None, path = None, version = (1,0), body = None, headers = None):
+  def __init__(self, cmd = None, path = None, version = (1,0), body = None, **headers):
     if cmd is not None and cmd != "POST" and body is not None:
       raise RuntimeError
+    http_message.__init__(self, version = version, body = body, headers = headers)
     self.cmd = cmd
     self.path = path
-    self.version = version
-    self.body = body
-    self.headers = {} if headers is None else headers
 
   def parse_first_line(self, cmd, path, version):
     self.parse_version(version)
@@ -90,22 +97,20 @@ class http_request(http_message):
 
 class http_response(http_message):
 
-  def __init__(self, code = None, msg = None, version = (1,0), body = None, headers = None):
+  def __init__(self, code = None, text = None, version = (1,0), body = None, **headers):
+    http_message.__init__(self, version = version, body = body, headers = headers)
     self.code = code
-    self.msg = msg
-    self.version = version
-    self.body = body
-    self.headers = {} if headers is None else headers
+    self.text = text
 
-  def parse_first_line(self, version, code, msg):
+  def parse_first_line(self, version, code, text):
     self.parse_version(version)
     self.code = int(code)
-    self.msg = msg
+    self.text = text
 
   def format_first_line(self):
     self.headers.setdefault("Date", time.strftime("%a, %d %b %Y %T GMT"))
     self.headers.setdefault("Server", self.software_name)
-    return "HTTP/%d.%d %s %s\r\n" % (self.version[0], self.version[1], self.code, self.msg)
+    return "HTTP/%d.%d %s %s\r\n" % (self.version[0], self.version[1], self.code, self.text)
 
 class http_stream(asynchat.async_chat):
 
@@ -160,7 +165,7 @@ class http_server(http_stream):
 
   def handle_message(self):
     print self.msg
-    self.push(http_response(code = 200, msg = "OK", body = self.msg.format(), headers = { "Content-Type" : "text/plain" }).format())
+    self.push(http_response(code = 200, text = "OK", body = self.msg.format(), Content_Type = "text/plain").format())
     if False:
       self.close_when_done()
     else:
@@ -215,7 +220,11 @@ class http_listener(asyncore.dispatcher):
 
 assert len(sys.argv) in (1, 2)
 
-if len(sys.argv) == 1:
+cmd = None if len(sys.argv) == 1 else sys.argv[1].upper()
+
+#cmd = "POST"
+
+if cmd is None:
 
   listener = http_listener()
 
@@ -226,10 +235,9 @@ else:
   # whether the parser can survive multiple mssages.
 
   client = http_client.queue_messages([
-    http_request(cmd = sys.argv[1].upper(), path = "/", body = "Hi, Mom!\r\n", headers = { "Content-Type" : "text/plain" }),
-    http_request(cmd = sys.argv[1].upper(), path = "/", body = "Hi, Dad!\r\n", headers = { "Content-Type" : "text/plain" }),
-    http_request(cmd = sys.argv[1].upper(), path = "/", body = "Hi, Bro!\r\n", headers = { "Content-Type" : "text/plain" }),
-    http_request(cmd = sys.argv[1].upper(), path = "/", body = "Hi, Sis!\r\n", headers = { "Content-Type" : "text/plain" }),
-    ])
+    http_request(cmd = cmd, path = "/", body = "Hi, Mom!\r\n", Content_Type = "text/plain"),
+    http_request(cmd = cmd, path = "/", body = "Hi, Dad!\r\n", Content_Type = "text/plain"),
+    http_request(cmd = cmd, path = "/", body = "Hi, Bro!\r\n", Content_Type = "text/plain"),
+    http_request(cmd = cmd, path = "/", body = "Hi, Sis!\r\n", Content_Type = "text/plain") ])
 
 asyncore.loop()

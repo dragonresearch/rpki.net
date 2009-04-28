@@ -101,12 +101,20 @@ class datetime(pydatetime.datetime):
 
   def __add__(self, other):
     """Force correct class for timedelta results."""
-    return self.fromdatetime(pydatetime.datetime.__add__(self, other))
+    x = pydatetime.datetime.__add__(self, other)
+    if isinstance(x, pydatetime.timedelta):
+      return timedelta.fromtimedelta(x)
+    else:
+      return datetime.fromdatetime(x)
   
   def __sub__(self, other):
     """Force correct class for timedelta results."""
-    return self.fromdatetime(pydatetime.datetime.__sub__(self, other))
-  
+    x = pydatetime.datetime.__sub__(self, other)
+    if isinstance(x, pydatetime.timedelta):
+      return timedelta.fromtimedelta(x)
+    else:
+      return datetime.fromdatetime(x)
+
   @classmethod
   def from_sql(cls, x):
     """Convert from SQL storage format."""
@@ -176,6 +184,11 @@ class timedelta(pydatetime.timedelta):
   def convert_to_seconds(self):
     """Convert a timedelta interval to seconds."""
     return self.days * 24 * 60 * 60 + self.seconds
+
+  @classmethod
+  def fromtimedelta(cls, x):
+    """Convert a datetime.timedelta object into this subclass."""
+    return cls(days = x.days, seconds = x.seconds, microseconds = x.microseconds)
 
 if __name__ == "__main__":
 

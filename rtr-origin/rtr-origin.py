@@ -44,6 +44,7 @@ PERFORMANCE OF THIS SOFTWARE.
 import sys, os, struct, time, glob, socket, fcntl, signal
 import asyncore, asynchat, subprocess, traceback, getopt
 import rpki.x509, rpki.ipaddrs, rpki.sundial, rpki.config
+import rpki.async
 
 class read_buffer(object):
   """Wrapper around synchronous/asynchronous read state."""
@@ -682,6 +683,8 @@ class client_channel(pdu_channel):
 
   current_serial = None
 
+  timer = None
+
   debug_using_direct_server_subprocess = True
 
   def __init__(self, *sshargs):
@@ -705,6 +708,7 @@ class client_channel(pdu_channel):
     well, child will have exited already before this method is called,
     but we may need to whack it with a stick if something breaks.
     """
+    self.timer.cancel()
     if self.ssh.returncode is None:
       sig = signal.SIGINT if self.debug_using_direct_server_subprocess else signal.SIGKILL
       try:
@@ -814,10 +818,25 @@ def server_main(argv):
   try:
     server = server_channel()
     kickme = kickme_channel(server = server)
-    asyncore.loop()
+    rpki.async.event_loop()
   finally:
     if kickme is not None:
       kickme.cleanup()
+
+class client_timer(rpki.async.timer):
+  """Timer class for client mode, to handle the periodic serial queries."""
+
+  def __init__(self, client, period):
+    self.client = client
+    self.period = period
+    self.set(period)
+
+  def expired(self):
+    if self.client.current_serial is None:
+      self.client.push_pdu(reset_query())
+    else:
+      self.client.push_pdu(serial_query(serial = self.client.current_serial))
+    self.set(self.period)
 
 def client_main(argv):
   """Main program for client mode.  Not really written yet."""
@@ -825,26 +844,12 @@ def client_main(argv):
   if argv:
     raise RuntimeError, "Unexpected arguments: %s" % argv
   client = None
+  timer  = None
   try:
     client = client_channel("ssh", "-p", "2222", "-s", "localhost", "rpki-rtr")
     client.push_pdu(reset_query())
-    period = rpki.sundial.timedelta(seconds = 90)
-    wakeup = rpki.sundial.now() + period
-    while asyncore.socket_map:
-      #
-      # asyncore's model of these timing parameters is a little
-      # whacky, and seems to force me to wake up more often than
-      # should be necessary.  For now, so be it.  In the long term, if
-      # I do serious work with asyncore, I should hack up a better
-      # select() loop for asyncore, implementing using a timer queue.
-      #
-      asyncore.loop(timeout = 30, count = 1)
-      if rpki.sundial.now() > wakeup:
-        if client.current_serial is None:
-          client.push_pdu(reset_query())
-        else:
-          client.push_pdu(serial_query(serial = client.current_serial))
-        wakeup = rpki.sundial.now() + period
+    client.timer = client_timer(client, rpki.sundial.timedelta(minutes = 10))
+    rpki.async.event_loop()
   except:
     if client is not None:
       client.cleanup()

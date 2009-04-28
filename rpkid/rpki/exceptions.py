@@ -48,7 +48,7 @@ class NotACertificateChain(RPKI_Exception):
   """Certificates don't form a proper chain."""
 
 class BadContactURL(RPKI_Exception):
-  """Error trying to parse up-down protocol contact URL."""
+  """Error trying to parse contact URL."""
 
 class BadClassNameSyntax(RPKI_Exception):
   """Illegal syntax for a class_name."""
@@ -133,3 +133,6 @@ class ServerShuttingDown(RPKI_Exception):
 
 class NoActiveCA(RPKI_Exception):
   """No active ca_detail for specified class."""
+
+class BadClientURL(RPKI_Exception):
+  """URL given to HTTPS client does not match profile."""

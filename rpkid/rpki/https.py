@@ -167,12 +167,13 @@ def client(msg, client_key, client_cert, server_ta, url, timeout = 300, callback
 
   u = urlparse.urlparse(url)
 
-  assert u.scheme in ("", "https") and \
-         u.username is None and \
-         u.password is None and \
-         u.params   == "" and \
-         u.query    == "" and \
-         u.fragment == ""
+  if (u.scheme not in ("", "https") or
+      u.username is not None or
+      u.password is not None or
+      u.params   != "" or
+      u.query    != "" or
+      u.fragment != ""):
+    raise rpki.exceptions.BadClientURL, "Unusable URL %s" % url
 
   rpki.log.debug("Contacting %s" % url)
 

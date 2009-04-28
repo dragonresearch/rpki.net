@@ -26,7 +26,7 @@ import sys, os, time, socket, asyncore, asynchat, traceback, urlparse
 
 class http_message(object):
 
-  software_name = "WombatWare test HTTP code"
+  software_name = "BalmyBandicoot HTTP test code"
 
   def __init__(self, version = None, body = None, headers = None):
     self.version = version
@@ -178,10 +178,18 @@ class http_server(http_stream):
   def handle_message(self):
     if debug: print "[Got message]"
     if debug: print "[Connection %s persistent]" % ("is" if self.msg.persistent() else "isn't")
+    print "Query:"
     print self.msg
-    self.push(http_response(code = 200, reason = "OK", body = self.msg.format(),
-                            Connection = "Keep-Alive" if self.msg.persistent() else "Close",
-                            Content_Type = "text/plain").format())
+    print
+    msg = http_response(code = 200, reason = "OK", body = self.msg.format(),
+                        Connection = "Keep-Alive" if self.msg.persistent() else "Close",
+                        Cache_Control = "no-cache,no-store",
+                        Content_Type = "text/plain")
+
+    print "Reply:"
+    print msg
+    print
+    self.push(msg.format())
     if self.msg.persistent():
       if debug: print "[Listening for next message]"
       self.restart()
@@ -215,10 +223,10 @@ class http_listener(asyncore.dispatcher):
 
 class http_client(http_stream):
 
-  def __init__(self, orator, hostport):
+  def __init__(self, narrator, hostport):
     if debug: print "[Creating new connection]"
     http_stream.__init__(self)
-    self.orator = orator
+    self.narrator = narrator
     self.hostport = hostport
     self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
     self.connect(hostport)
@@ -233,7 +241,12 @@ class http_client(http_stream):
   def handle_message(self):
     if debug: print "[Got message]"
     if debug: print "[Connection %s persistent]" % ("is" if self.msg.persistent() else "isn't")
+    print "Query:"
+    print self.narrator.done_msg(self.hostport)
+    print
+    print "Reply:"
     print self.msg
+    print
     self.next_msg(first = False)
 
   def handle_connect(self):
@@ -245,7 +258,7 @@ class http_client(http_stream):
     self.message_queue.append(msg)
 
   def next_msg(self, first):
-    msg = self.orator.next_msg(self.hostport, first or self.msg.persistent())
+    msg = self.narrator.next_msg(self.hostport, first or self.msg.persistent())
     if msg is not None:
       if debug: print "[Got a new message to send from my queue]"
       self.push(msg.format())
@@ -258,7 +271,7 @@ class http_client(http_stream):
     if self.get_terminator() is None:
       self.found_terminator()
 
-class http_orator(object):
+class http_narrator(object):
 
   def __init__(self):
     self.clients = {}
@@ -276,13 +289,16 @@ class http_orator(object):
     if hostport not in self.clients:
       self.clients[hostport] = http_client(self, hostport)
       
+  def done_msg(self, hostport):
+    return self.queues[hostport].pop(0)
+
   def next_msg(self, hostport, usable):
     queue = self.queues.get(hostport)
     if queue and not usable:
       self.clients[hostport] = http_client(self, hostport)
     if queue and usable:
       if debug: print "[Reusing existing connection]"
-      return queue.pop(0)
+      return queue[0]
     else:
       return None
 
@@ -294,12 +310,8 @@ if len(sys.argv) == 1:
 
 else:
 
-  # This doesn't comply with HTTP, as we're not signalling reusable
-  # connections properly.  For the moment this is just a test to see
-  # whether the parser can survive multiple messages.
-
-  orator = http_orator()
+  narrator = http_narrator()
   for url in sys.argv[1:]:
-    orator.query(url = url, body = "Hi, I'm trying to talk to URL %s" % url)
+    narrator.query(url = url, body = "Hi, I'm trying to talk to URL %s" % url)
 
 asyncore.loop()

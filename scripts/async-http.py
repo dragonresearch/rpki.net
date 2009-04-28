@@ -23,6 +23,11 @@ PERFORMANCE OF THIS SOFTWARE.
 #    lynx -post_data -mime_header -source http://127.0.0.1:8000/
 
 import sys, os, time, socket, asyncore, asynchat, traceback, urlparse
+import rpki.async
+
+debug = True
+
+allow_persistence = False
 
 class http_message(object):
 
@@ -182,7 +187,7 @@ class http_server(http_stream):
     print self.msg
     print
     msg = http_response(code = 200, reason = "OK", body = self.msg.format(),
-                        Connection = "Keep-Alive" if self.msg.persistent() else "Close",
+                        Connection = "Keep-Alive" if allow_persistence and self.msg.persistent() else "Close",
                         Cache_Control = "no-cache,no-store",
                         Content_Type = "text/plain")
 
@@ -190,16 +195,12 @@ class http_server(http_stream):
     print msg
     print
     self.push(msg.format())
-    if self.msg.persistent():
+    if allow_persistence and self.msg.persistent():
       if debug: print "[Listening for next message]"
       self.restart()
     else:
       if debug: print "[Closing]"
       self.close_when_done()
-
-  def handle_close(self):
-    if debug: print "[Closing all connections]"
-    asyncore.close_all()
 
 class http_listener(asyncore.dispatcher):
 
@@ -258,7 +259,7 @@ class http_client(http_stream):
     self.message_queue.append(msg)
 
   def next_msg(self, first):
-    msg = self.narrator.next_msg(self.hostport, first or self.msg.persistent())
+    msg = self.narrator.next_msg(self.hostport, first or (allow_persistence and self.msg.persistent()))
     if msg is not None:
       if debug: print "[Got a new message to send from my queue]"
       self.push(msg.format())
@@ -280,7 +281,9 @@ class http_narrator(object):
   def query(self, url, body = None):
     u = urlparse.urlparse(url)
     assert u.scheme == "http" and u.username is None and u.password is None and u.params == "" and u.query == "" and u.fragment == ""
-    request = http_request(cmd = "POST", path = u.path, body = body, Content_Type = "text/plain", Connection = "Keep-Alive")
+    request = http_request(cmd = "POST", path = u.path, body = body,
+                           Content_Type = "text/plain",
+                           Connection = "Keep-Alive" if allow_persistence else "Close")
     hostport = (u.hostname or "localhost", u.port or 80)
     if hostport in self.queues:
       self.queues[hostport].append(request)
@@ -302,8 +305,6 @@ class http_narrator(object):
     else:
       return None
 
-debug = False
-
 if len(sys.argv) == 1:
 
   listener = http_listener(port = 8000)
@@ -314,4 +315,4 @@ else:
   for url in sys.argv[1:]:
     narrator.query(url = url, body = "Hi, I'm trying to talk to URL %s" % url)
 
-asyncore.loop()
+rpki.async.event_loop()

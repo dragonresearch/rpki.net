@@ -17,7 +17,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import MySQLdb, time,  warnings, _mysql_exceptions
+import MySQLdb,  warnings, _mysql_exceptions
 import rpki.x509, rpki.resource_set, rpki.sundial, rpki.log
 
 class session(object):

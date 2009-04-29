@@ -19,7 +19,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, MySQLdb, getopt, sys, lxml.etree
+import os, MySQLdb
 import rpki.left_right, rpki.relaxng, rpki.https
 import rpki.x509, rpki.config, rpki.log
 
@@ -45,7 +45,7 @@ def call_rpkid(pdu):
 
   msg = rpki.left_right.msg((pdu,))
   msg.type = "query"
-  cms = rpki.x509.left_right_pdu.wrap(msg, irbe_key, irbe_cert)
+  cms = rpki.left_right.cms_msg.wrap(msg, irbe_key, irbe_cert)
   der = rpki.https.client(client_key   = irbe_key,
                           client_cert  = irbe_cert,
                           server_ta    = (bpki_ta, rpkid_cert),

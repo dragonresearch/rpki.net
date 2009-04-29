@@ -17,7 +17,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import base64, lxml.etree, time, traceback, os
+import base64, os
 import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.xml_utils
 import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
 
@@ -30,11 +30,11 @@ class publication_namespace(object):
 class control_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant, publication_namespace):
   """Virtual class for control channel objects."""
 
-  def serve_dispatch(self, r_msg, client, cb):
+  def serve_dispatch(self, r_msg, cb):
     """Action dispatch handler.  This needs special handling because
     we need to make sure that this PDU arrived via the control channel.
     """
-    if client is not None:
+    if self.client is not None:
       raise rpki.exceptions.BadQuery, "Control query received on client channel"
     rpki.xml_utils.data_elt.serve_dispatch(self, r_msg, cb)
 
@@ -162,15 +162,15 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
       elt.text = base64.b64encode(self.payload.get_DER())
     return elt
 
-  def serve_dispatch(self, r_msg, client, cb):
+  def serve_dispatch(self, r_msg, cb):
     """Action dispatch handler."""
-    if client is None:
+    if self.client is None:
       raise rpki.exceptions.BadQuery, "Client query received on control channel"
     dispatch = { "publish"  : self.serve_publish,
                  "withdraw" : self.serve_withdraw }
     if self.action not in dispatch:
       raise rpki.exceptions.BadQuery, "Unexpected query: action %s" % self.action
-    client.check_allowed_uri(self.uri)
+    self.client.check_allowed_uri(self.uri)
     dispatch[self.action]()
     r_pdu = self.__class__()
     r_pdu.action = self.action
@@ -267,7 +267,8 @@ class msg(rpki.xml_utils.msg, publication_namespace):
 
     def loop(iterator, q_pdu):
       q_pdu.gctx = gctx
-      q_pdu.serve_dispatch(r_msg, client, iterator)
+      q_pdu.client = client
+      q_pdu.serve_dispatch(r_msg, iterator)
 
     def done():
       cb(r_msg)

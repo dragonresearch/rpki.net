@@ -21,7 +21,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import httplib, BaseHTTPServer, tlslite.api, glob, traceback, urlparse, socket, signal
+import httplib, BaseHTTPServer, tlslite.api, traceback, urlparse, signal
 import rpki.x509, rpki.exceptions, rpki.log
 
 # This should be wrapped somewhere in rpki.x509 eventually

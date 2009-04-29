@@ -136,3 +136,12 @@ class NoActiveCA(RPKI_Exception):
 
 class BadClientURL(RPKI_Exception):
   """URL given to HTTPS client does not match profile."""
+
+class ClientNotFound(RPKI_Exception):
+  """Could not find specified client in database."""
+
+class BadExtension(RPKI_Exception):
+  """Forbidden X.509 extension."""
+
+class ForbiddenURI(RPKI_Exception):
+  """Forbidden URI, does not start with correct base URI."""

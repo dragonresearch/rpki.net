@@ -21,7 +21,7 @@ import base64, lxml.etree, time
 import rpki.resource_set, rpki.x509, rpki.exceptions
 import rpki.xml_utils, rpki.relaxng
 
-xmlns="http://www.apnic.net/specs/rescerts/up-down/"
+xmlns = "http://www.apnic.net/specs/rescerts/up-down/"
 
 nsmap = { None : xmlns }
 
@@ -242,9 +242,8 @@ class class_response_syntax(base_elt):
     return [c.toXML() for c in self.classes]
 
 class list_response_pdu(class_response_syntax):
-    """Up-Down protocol "list_response" PDU."""
-
-    pass
+  """Up-Down protocol "list_response" PDU."""
+  pass
 
 class issue_pdu(base_elt):
   """Up-Down protocol "issue" PDU."""

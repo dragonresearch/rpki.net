@@ -95,7 +95,7 @@ class allocation(object):
 
   parent = None
 
-  def __init__(self, name, asn = None, ipv4 = None, ipv6 = None, children = [], allocation_map = None):
+  def __init__(self, name, asn = None, ipv4 = None, ipv6 = None, children = (), allocation_map = None):
     """Create a new allocation entry.
 
     This binds the parent attributes of any children, and computes the

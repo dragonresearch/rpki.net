@@ -16,7 +16,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import glob, xml.sax, lxml.etree, lxml.sax, POW, POW.pkix
+import glob, lxml.etree, lxml.sax
 import rpki.up_down, rpki.left_right, rpki.publication, rpki.relaxng
 
 verbose = False

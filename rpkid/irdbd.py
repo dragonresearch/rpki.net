@@ -22,8 +22,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, os, time, getopt, urlparse, traceback
-import tlslite.api, MySQLdb, lxml.etree
+import sys, os, time, getopt, urlparse, traceback, MySQLdb
 import rpki.https, rpki.config, rpki.resource_set, rpki.relaxng
 import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509
 
@@ -72,7 +71,7 @@ def handler(query, path, cb):
 
       r_msg.append(r_pdu)
 
-    return 200, rpki.left_right.cms_msg.wrap(r_msg, irdbd_key, irdbd_cert)
+    cb(200, rpki.left_right.cms_msg.wrap(r_msg, irdbd_key, irdbd_cert))
 
   except Exception, data:
     rpki.log.error(traceback.format_exc())
@@ -80,7 +79,7 @@ def handler(query, path, cb):
     # We only get here in cases where we couldn't or wouldn't generate
     # <report_error/>, so just return HTTP failure.
 
-    return 500, "Unhandled exception %s: %s" % (data.__class__.__name__, data)
+    cb(500, "Unhandled exception %s: %s" % (data.__class__.__name__, data))
 
 os.environ["TZ"] = "UTC"
 time.tzset()

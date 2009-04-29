@@ -18,13 +18,21 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-print "# Automatically generated, do not edit."
-print
-print "import lxml.etree"
+format_1 = """\
+# Automatically generated, do not edit.
+
+import lxml.etree
+"""
+
+format_2 = """\
+## @var %s
+## Parsed RelaxNG %s schema
+%s = lxml.etree.RelaxNG(lxml.etree.fromstring('''%s'''))
+"""
+
+print format_1
 
 for varname, filename in (("left_right",  "left-right-schema.rng"),
                           ("up_down",     "up-down-schema.rng"),
                           ("publication", "publication-schema.rng")):
-  f = open(filename)
-  print "\n## @var %s\n## Parsed RelaxNG %s schema\n%s = lxml.etree.RelaxNG(lxml.etree.fromstring('''%s'''))" % (varname, varname, varname, f.read())
-  f.close()
+  print format_2 % (varname, varname, varname, open(filename).read())

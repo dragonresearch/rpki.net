@@ -17,7 +17,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import traceback, os, time, getopt, sys, MySQLdb, lxml.etree
+import traceback, lxml.etree
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
 import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log, rpki.async
 
@@ -217,7 +217,6 @@ class ca_obj(rpki.sql.sql_persistant):
     information and the parent's up-down protocol list_response PDU.
     """
 
-    repository = parent.repository()
     sia_uri = rc.suggested_sia_head and rc.suggested_sia_head.rsync()
     if not sia_uri or not sia_uri.startswith(parent.sia_base):
       sia_uri = parent.sia_base

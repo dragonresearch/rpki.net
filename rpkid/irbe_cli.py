@@ -150,11 +150,11 @@ class route_origin_elt(cmd_elt_mixin, rpki.left_right.route_origin_elt):
 
   def client_query_ipv4(self, arg):
     """Handle IPv4 addresses."""
-    self.ipv4 = resource_set.roa_prefix_set_ipv4(arg)
+    self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4(arg)
 
   def client_query_ipv6(self, arg):
     """Handle IPv6 addresses."""
-    self.ipv6 = resource_set.roa_prefix_set_ipv6(arg)
+    self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(arg)
 
 class left_right_msg(cmd_msg_mixin, rpki.left_right.msg):
   pdus = dict((x.element_name, x)

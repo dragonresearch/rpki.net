@@ -48,7 +48,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, yaml, MySQLdb, subprocess, signal, time, re, getopt, sys, lxml, traceback
+import os, yaml, MySQLdb, subprocess, signal, time, getopt, sys
 import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https
 import rpki.log, rpki.left_right, rpki.config, rpki.publication, rpki.async
 

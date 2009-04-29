@@ -165,7 +165,7 @@ class http_stream(asynchat.async_chat):
     self.handle_message()
 
   def handle_error(self):
-    if debug: print "[Error]"
+    if debug: print "[Error in HTTP stream handler]"
     print traceback.format_exc()
     asyncore.close_all()
 
@@ -181,7 +181,6 @@ class http_server(http_stream):
       self.handle_message()
 
   def handle_message(self):
-    if debug: print "[Got message]"
     if debug: print "[Connection %s persistent]" % ("is" if self.msg.persistent() else "isn't")
     print "Query:"
     print self.msg
@@ -218,7 +217,7 @@ class http_listener(asyncore.dispatcher):
     server = http_server(self.accept()[0])
 
   def handle_error(self):
-    if debug: print "[Error]"
+    if debug: print "[Error in HTTP listener]"
     print traceback.format_exc()
     asyncore.close_all()
 
@@ -240,7 +239,6 @@ class http_client(http_stream):
       self.set_terminator(None)
 
   def handle_message(self):
-    if debug: print "[Got message]"
     if debug: print "[Connection %s persistent]" % ("is" if self.msg.persistent() else "isn't")
     print "Query:"
     print self.narrator.done_msg(self.hostport)
@@ -282,6 +280,7 @@ class http_narrator(object):
     u = urlparse.urlparse(url)
     assert u.scheme == "http" and u.username is None and u.password is None and u.params == "" and u.query == "" and u.fragment == ""
     request = http_request(cmd = "POST", path = u.path, body = body,
+                           Host = u.hostname,
                            Content_Type = "text/plain",
                            Connection = "Keep-Alive" if allow_persistence else "Close")
     hostport = (u.hostname or "localhost", u.port or 80)
@@ -300,7 +299,6 @@ class http_narrator(object):
     if queue and not usable:
       self.clients[hostport] = http_client(self, hostport)
     if queue and usable:
-      if debug: print "[Reusing existing connection]"
       return queue[0]
     else:
       return None

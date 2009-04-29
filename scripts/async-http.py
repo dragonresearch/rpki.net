@@ -256,13 +256,30 @@ class http_client(http_stream):
       self.set_terminator(None)
 
   def handle_message(self):
+    try:
+      msg = self.narrator.done_msg(self.hostport)
+      print "Query:"
+      print msg
+      print
+    except IndexError:
+      #
+      # This is not a good test.  If we get here, we certainly have an
+      # unsolicited message, but if we get an unsolicited message with
+      # something in the queue we will get confused and match up the
+      # wrong query and reply.  Needs fixing.
+      #
+      print "[Received unsolicited message]"
     if debug: print "[Connection %s persistent]" % ("is" if self.msg.persistent() else "isn't")
-    print "Query:"
-    print self.narrator.done_msg(self.hostport)
-    print
     print "Reply:"
     print self.msg
     print
+    #
+    # Hmm, this is probably the first place where the persistence
+    # handling is confused.  Why are we even looking for a next
+    # message when the connection should close?  Fixing this may
+    # simplify unsnarling the rest of the client-side persistence
+    # hairball.
+    #
     self.next_msg(first = False)
 
   def handle_connect(self):

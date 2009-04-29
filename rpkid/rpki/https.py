@@ -216,7 +216,7 @@ class requestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
   def rpki_find_handler(self):
     """Helper method to search self.rpki_handlers."""
-    for s,h in self.rpki_handlers:
+    for s, h in self.rpki_handlers:
       if self.path.startswith(s):
         return h
     return None
@@ -321,5 +321,5 @@ def server(handlers, server_key, server_cert, port = 4433, host ="", client_ta =
   except rpki.exceptions.ServerShuttingDown:
     pass
   finally:
-    for sig,handler in old_signal_handlers:
+    for sig, handler in old_signal_handlers:
       signal.signal(sig, handler)

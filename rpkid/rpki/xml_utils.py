@@ -62,7 +62,7 @@ class sax_handler(xml.sax.handler.ContentHandler):
     that's the object we'll be returning as our final result.
     """
     a = dict()
-    for k,v in attrs.items():
+    for k, v in attrs.items():
       if isinstance(k, tuple):
         if k == ("http://www.w3.org/XML/1998/namespace", "lang"):
           k = "xml:lang"
@@ -168,7 +168,7 @@ class base_elt(object):
   def make_pdu(cls, **kargs):
     """Generic PDU constructor."""
     self = cls()
-    for k,v in kargs.items():
+    for k, v in kargs.items():
       if isinstance(v, bool):
         v = 1 if v else 0
       setattr(self, k, v)

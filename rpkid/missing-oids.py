@@ -22,7 +22,7 @@ import POW.pkix, rpki.oids
 
 need_header = True
 
-for oid,name in rpki.oids.oid2name.items():
+for oid, name in rpki.oids.oid2name.items():
   try:
     POW.pkix.oid2obj(oid)
   except:

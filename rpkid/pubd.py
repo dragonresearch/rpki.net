@@ -115,8 +115,8 @@ rpki.log.init("pubd")
 cfg_file = "pubd.conf"
 profile = False
 
-opts,argv = getopt.getopt(sys.argv[1:], "c:hp:?", ["config=", "help"])
-for o,a in opts:
+opts, argv = getopt.getopt(sys.argv[1:], "c:hp:?", ["config=", "help"])
+for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)

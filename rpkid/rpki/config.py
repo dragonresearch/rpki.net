@@ -22,11 +22,11 @@ import ConfigParser
 
 class parser(ConfigParser.RawConfigParser):
 
-  def __init__(self, file = None, section = None):
+  def __init__(self, filename = None, section = None):
     """Initialize this parser."""
     ConfigParser.RawConfigParser.__init__(self)
-    if file:
-      self.read(file)
+    if filename:
+      self.read(filename)
     self.default_section = section
 
   def multiget(self, option, section = None):

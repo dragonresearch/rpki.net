@@ -135,11 +135,5 @@ dox doxygen: irbe_cli.usage doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
 
 doc:: dox
 
-# Preliminary experiment with pylint.  Its default coding style
-# differs enough from mine that it's not really usable without
-# customization.  In the long run this should be use a pylint config
-# file rather than attempting to do it inline here.  Useful options
-# which lead to the others: --help, --rcfile, --generate-rcfile.
-
 lint:
-	find * -name .svn -prune -o -type f -name '*.py' -print0 | xargs -0 pylint --output-format parseable --indent-string '  '
+	pylint --rcfile ../scripts/pylint.rc rpki/[a-z]*.py cronjob.py cross_certify.py irbe_cli.py irdbd.py pubd.py rootd.py rpkid.py testbed.py testpoke.py

@@ -66,10 +66,10 @@ pdu = call_rpkid(pdu)
 bsc_id = pdu.bsc_id
 
 print "Issue the business cert"
-i,o = os.popen2(("openssl", "x509", "-req",
-                 "-CA", "biz-certs/Bob-CA.cer",
-                 "-CAkey", "biz-certs/Bob-CA.key",
-                 "-CAserial", "biz-certs/Bob-CA.srl"))
+i, o = os.popen2(("openssl", "x509", "-req",
+                  "-CA", "biz-certs/Bob-CA.cer",
+                  "-CAkey", "biz-certs/Bob-CA.key",
+                  "-CAserial", "biz-certs/Bob-CA.srl"))
 i.write(pdu.pkcs10_request.get_PEM())
 i.close()
 cer = rpki.x509.X509(PEM = o.read())

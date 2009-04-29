@@ -63,8 +63,8 @@ profile = False
 # Debugging hack whiel converting to event-driven I/O
 rpki.https.trace_synchronous_calls = True
 
-opts,argv = getopt.getopt(sys.argv[1:], "c:hpy:?", ["config=", "help", "profile", "yaml="])
-for o,a in opts:
+opts, argv = getopt.getopt(sys.argv[1:], "c:hpy:?", ["config=", "help", "profile", "yaml="])
+for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
@@ -242,7 +242,7 @@ class main(object):
         rpki.log.info("Shutting down")
         for a in self.db.engines:
           a.kill_daemons()
-        for p,n in ((self.rootd_process, "rootd"), (self.pubd_process, "pubd"), (self.rsyncd_process, "rsyncd")):
+        for p, n in ((self.rootd_process, "rootd"), (self.pubd_process, "pubd"), (self.rsyncd_process, "rsyncd")):
           if p is not None:
             rpki.log.info("Killing %s" % n)
             os.kill(p.pid, signal.SIGTERM)

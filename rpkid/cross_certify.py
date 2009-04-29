@@ -46,9 +46,9 @@ def usage(code):
 output = None
 lifetime = rpki.sundial.timedelta(days = 30)
 
-opts,argv = getopt.getopt(sys.argv[1:], "h?i:o:c:k:s:l:",
-                          ["help", "in=", "out=", "ca=", "key=", "serial=", "lifetime="])
-for o,a in opts:
+opts, argv = getopt.getopt(sys.argv[1:], "h?i:o:c:k:s:l:",
+                           ["help", "in=", "out=", "ca=", "key=", "serial=", "lifetime="])
+for o, a in opts:
   if o in ("-h", "--help", "-?"):
     usage(0)
   elif o in ("-i", "--in"):

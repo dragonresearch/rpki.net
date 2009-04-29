@@ -53,9 +53,9 @@ user = "rpki"
 passwd = "fnord"
 db   = "rpki"
 
-opts,argv = getopt.getopt(sys.argv[1:], "s:b:u:p:d:h?",
-                          ["self=", "bsc=", "user=", "password=", "db=", "help"])
-for o,a in opts:
+opts, argv = getopt.getopt(sys.argv[1:], "s:b:u:p:d:h?",
+                           ["self=", "bsc=", "user=", "password=", "db=", "help"])
+for o, a in opts:
   if o in ("-h", "--help", "-?"):
     usage(0)
   elif o in ("-s", "--self"):

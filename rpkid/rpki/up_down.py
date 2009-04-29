@@ -476,7 +476,7 @@ class message_pdu(base_elt):
     "revoke_response" : revoke_response_pdu,
     "error_response"  : error_response_pdu }
 
-  type2name = dict((v,k) for k,v in name2type.items())
+  type2name = dict((v, k) for k, v in name2type.items())
 
   def toXML(self):
     """Generate payload of message PDU."""

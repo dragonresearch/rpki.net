@@ -307,7 +307,7 @@ class resource_set(list):
     sql.execute(query, args)
     return cls(ini = [cls.range_type(cls.range_type.datum_type(b),
                                      cls.range_type.datum_type(e))
-                      for (b,e) in sql.fetchall()])
+                      for (b, e) in sql.fetchall()])
 
 class resource_set_as(resource_set):
   """ASN resource set."""
@@ -690,7 +690,7 @@ class roa_prefix_set(list):
 
     sql.execute(query, args)
     return cls([cls.prefix_type(cls.prefix_type.range_type.datum_type(x), int(y), int(z))
-                for (x,y,z) in sql.fetchall()])
+                for (x, y, z) in sql.fetchall()])
 
   def to_roa_tuple(self):
     """Convert ROA prefix set into tuple format used by ROA ASN.1 encoder.

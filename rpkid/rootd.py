@@ -177,7 +177,7 @@ class message_pdu(rpki.up_down.message_pdu):
     "revoke"          : revoke_pdu,
     "revoke_response" : rpki.up_down.revoke_response_pdu,
     "error_response"  : rpki.up_down.error_response_pdu }
-  type2name = dict((v,k) for k,v in name2type.items())
+  type2name = dict((v, k) for k, v in name2type.items())
 
 class sax_handler(rpki.up_down.sax_handler):
   pdu = message_pdu
@@ -213,8 +213,8 @@ rpki.log.init("rootd")
 
 cfg_file = "rootd.conf"
 
-opts,argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
-for o,a in opts:
+opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)

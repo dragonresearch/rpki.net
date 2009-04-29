@@ -43,8 +43,8 @@ yaml_file = "testpoke.yaml"
 yaml_cmd = None
 debug = False
 
-opts,argv = getopt.getopt(sys.argv[1:], "y:r:h?d", ["yaml=", "request=", "help", "debug"])
-for o,a in opts:
+opts, argv = getopt.getopt(sys.argv[1:], "y:r:h?d", ["yaml=", "request=", "help", "debug"])
+for o, a in opts:
   if o in ("-h", "--help", "-?"):
     usage(0)
   elif o in ("-y", "--yaml"):

@@ -97,7 +97,7 @@ class template(object):
   """SQL template generator."""
   def __init__(self, table_name, index_column, *data_columns):
     """Build a SQL template."""
-    type_map     = dict((x[0],x[1]) for x in data_columns if isinstance(x, tuple))
+    type_map     = dict((x[0], x[1]) for x in data_columns if isinstance(x, tuple))
     data_columns = tuple(isinstance(x, tuple) and x[0] or x for x in data_columns)
     columns      = (index_column,) + data_columns
     self.table   = table_name

@@ -88,8 +88,8 @@ rpki.log.init("irdbd")
 
 cfg_file = "irdbd.conf"
 
-opts,argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
-for o,a in opts:
+opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)

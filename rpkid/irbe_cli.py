@@ -106,7 +106,7 @@ class cmd_msg_mixin(object):
   @classmethod
   def usage(cls):
     """Generate usage message for this PDU."""
-    for k,v in cls.pdus.items():
+    for k, v in cls.pdus.items():
       print usage_fill(k, v.usage())
 
 # left-right protcol

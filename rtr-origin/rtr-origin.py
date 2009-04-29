@@ -237,7 +237,8 @@ class reset_query(pdu_empty):
       self.send_nodata(server)
     else:
       try:
-        self.send_file(server, "%s.ax" % server.current_serial)
+        fn = "%s.ax" % server.current_serial
+        self.send_file(server, fn)
       except IOError:
         server.push_pdu(error_report(errno = error_report.codes["Internal Error"], errpdu = self, errmsg = "Couldn't open %s" % fn))
 
@@ -369,7 +370,7 @@ class error_report(pdu):
     1 : "Internal Error",
     2 : "No Data Available" }
 
-  codes = dict((v,k) for k,v in msgs.items())
+  codes = dict((v, k) for k, v in msgs.items())
 
   def __init__(self, errno = None, errpdu = None, errmsg = None):
     assert errno is None or errno in self.msgs
@@ -844,7 +845,6 @@ def client_main(argv):
   if argv:
     raise RuntimeError, "Unexpected arguments: %s" % argv
   client = None
-  timer  = None
   try:
     client = client_channel("ssh", "-p", "2222", "-s", "localhost", "rpki-rtr")
     client.push_pdu(reset_query())
@@ -872,8 +872,8 @@ main_dispatch = {
   "server"  : server_main,
   "show"    : show_main }
 
-opts,argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"] + main_dispatch.keys())
-for o,a in opts:
+opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"] + main_dispatch.keys())
+for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)

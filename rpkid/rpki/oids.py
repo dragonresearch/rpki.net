@@ -54,4 +54,4 @@ oid2name = {
 ## @var name2oid
 # Mapping table of string names to OIDs
 
-name2oid = dict((v,k) for k,v in oid2name.items())
+name2oid = dict((v, k) for k, v in oid2name.items())

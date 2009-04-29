@@ -21,6 +21,23 @@ PERFORMANCE OF THIS SOFTWARE.
 # Command that may be useful for testing server side of this:
 #
 #    lynx -post_data -mime_header -source http://127.0.0.1:8000/
+#
+# Testing the client side of this is more entertaining, both because
+# we need to be liberal in what we accept and also because servers do
+# wildly different things depending both on HTTP version number and
+# options signaled by the client and also on internal details in the
+# server context (such as whether the content is static or generated
+# by CGI).  It's useful to test against static content, but also to
+# test against CGI-generated output, eg, the following trivial script:
+#
+#    print "Content-Type: text/plain; charset=US-ASCII\r"
+#    print "\r"
+#    for i in xrange(100):
+#      print "%08d" % i, "." * 120, "\r"
+#
+# At least with Apache 2.0, result of running this differs
+# significantly depending on whether client signals HTTP 1.0 or 1.1;
+# the latter produces chunked output.
 
 import sys, os, time, socket, asyncore, asynchat, traceback, urlparse
 import rpki.async

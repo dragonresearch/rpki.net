@@ -18,6 +18,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
+schemas = ("left_right", "up_down", "publication")
+
 format_1 = """\
 # Automatically generated, do not edit.
 
@@ -25,14 +27,14 @@ import lxml.etree
 """
 
 format_2 = """\
-## @var %s
-## Parsed RelaxNG %s schema
-%s = lxml.etree.RelaxNG(lxml.etree.fromstring('''%s'''))
+## @var %(name)s
+## Parsed RelaxNG %(name)s schema
+%(name)s = lxml.etree.RelaxNG(lxml.etree.fromstring('''%(rng)s'''))
 """
 
 print format_1
 
-for varname, filename in (("left_right",  "left-right-schema.rng"),
-                          ("up_down",     "up-down-schema.rng"),
-                          ("publication", "publication-schema.rng")):
-  print format_2 % (varname, varname, varname, open(filename).read())
+for name in schemas:
+  print format_2 % {
+    "name" : name,
+    "rng"  : open(name.replace("_", "-") + "-schema.rng").read() }

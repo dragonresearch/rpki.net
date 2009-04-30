@@ -44,7 +44,7 @@ import rpki.async
 
 debug = True
 
-want_persistent_client = False
+want_persistent_client = True
 want_persistent_server = False
 
 class http_message(object):
@@ -296,10 +296,11 @@ class http_client(http_stream):
       print "[%s: Ignoring empty response received while closing]" % repr(self)
       return
     else:
-      print "[%s: Unexpected state]" % repr(self)
+      raise RuntimeError, "[%s: Unexpected state]" % repr(self)
     print "Reply:"
     print self.msg
     print
+    self.state = "idle"
     msg = self.narrator.next_request(self.hostport, not self.expect_close)
     if msg is not None:
       if debug: print "[%s: Got a new message to send from my queue]" % repr(self)

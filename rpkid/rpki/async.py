@@ -94,6 +94,10 @@ class timer(object):
     except ValueError:
       pass
 
+  def is_set(self):
+    """Test whether this timer is currently set."""
+    return self in self.queue
+
   def expired(self):
     """Handle a timer that has expired.  Subclass must define this."""
     raise NotImplementedError

@@ -45,7 +45,7 @@ import rpki.async
 debug = True
 
 want_persistent_client = True
-want_persistent_server = False
+want_persistent_server = True
 
 class http_message(object):
 
@@ -160,6 +160,7 @@ class http_stream(asynchat.async_chat):
 
   def restart(self):
     assert not self.buffer
+    self.chunking = False
     self.set_terminator("\r\n\r\n")
 
   def collect_incoming_data(self, data):
@@ -172,14 +173,29 @@ class http_stream(asynchat.async_chat):
     return val
 
   def found_terminator(self):
-    if isinstance(self.get_terminator(), str):
-      return self.handle_headers()
+    if self.chunking:
+      self.handle_chunk()
+    elif not isinstance(self.get_terminator(), str):
+      self.handle_body()
     else:
-      return self.handle_body()
+      if debug: print "[%s: Got headers]" % repr(self)
+      self.msg = self.parse_type.parse_from_wire(self.get_buffer())
+      if "chunked" in self.msg.headers.get("Transfer-Encoding", "").lower():
+        self.chunking = True
+        self.start_chunk()
+      elif "Content-Length" in self.msg.headers:
+        self.set_terminator(int(self.msg.headers["Content-Length"]))
+      else:
+        self.handle_no_content_length()
+      
+  def start_chunk(self):
+    raise NotImplementedError
+
+  def handle_chunk(self):
+    raise NotImplementedError
 
   def handle_body(self):
     self.msg.body = self.get_buffer()
-    #assert len(self.msg.body) == int(self.msg.headers["Content-Length"])
     self.handle_message()
 
   def handle_error(self):
@@ -189,18 +205,14 @@ class http_stream(asynchat.async_chat):
 
 class http_server(http_stream):
 
+  parse_type = http_request
+
   def __init__(self, conn = None):
     http_stream.__init__(self, conn)
     self.expect_close = not want_persistent_server
 
-  def handle_headers(self):
-    if debug: print "[%s: Got headers]" % repr(self)
-    self.msg = http_request.parse_from_wire(self.get_buffer())
-    if self.msg.cmd == "POST":
-      if debug: print "[%s: Waiting for POST body]" % repr(self)
-      self.set_terminator(int(self.msg.headers["Content-Length"]))
-    else:
-      self.handle_message()
+  def handle_no_content_length(self):
+    self.handle_message()
 
   def handle_message(self):
     if not self.msg.persistent():
@@ -255,6 +267,8 @@ class http_listener(asyncore.dispatcher):
 
 class http_client(http_stream):
 
+  parse_type = http_response
+
   def __init__(self, narrator, hostport):
     if debug: print "[%s: Creating new connection]" % repr(self)
     http_stream.__init__(self)
@@ -265,12 +279,8 @@ class http_client(http_stream):
     self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
     self.connect(hostport)
 
-  def handle_headers(self):
-    self.msg = http_response.parse_from_wire(self.get_buffer())
-    if "Content-Length" in self.msg.headers:
-      self.set_terminator(int(self.msg.headers["Content-Length"]))
-    else:
-      self.set_terminator(None)
+  def handle_no_content_length(self):
+    self.set_terminator(None)
 
   def send_request(self, msg):
     print "[%s: Sending request]" % repr(self)
@@ -317,7 +327,7 @@ class http_client(http_stream):
 
   def handle_close(self):
     if self.get_terminator() is None:
-      self.found_terminator()
+      self.handle_body()
 
 class http_narrator(object):
 
@@ -329,6 +339,7 @@ class http_narrator(object):
     u = urlparse.urlparse(url)
     assert u.scheme == "http" and u.username is None and u.password is None and u.params == "" and u.query == "" and u.fragment == ""
     request = http_request(cmd = "POST", path = u.path, body = body,
+                           #version = (1,1),
                            Host = u.hostname,
                            Content_Type = "text/plain")
     hostport = (u.hostname or "localhost", u.port or 80)

@@ -828,11 +828,12 @@ class client_timer(rpki.async.timer):
   """Timer class for client mode, to handle the periodic serial queries."""
 
   def __init__(self, client, period):
+    rpki.async.timer.__init__(self)
     self.client = client
     self.period = period
     self.set(period)
 
-  def expired(self):
+  def handler(self):
     if self.client.current_serial is None:
       self.client.push_pdu(reset_query())
     else:

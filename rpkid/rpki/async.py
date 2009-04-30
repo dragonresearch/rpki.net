@@ -81,8 +81,8 @@ class timer(object):
     else:
       self.when = when
     assert isinstance(self.when, rpki.sundial.datetime)
-    self.cancel()
-    self.queue.append(self)
+    if self not in self.queue:
+      self.queue.append(self)
     self.queue.sort()
 
   def __cmp__(self, other):

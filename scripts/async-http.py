@@ -47,6 +47,8 @@ debug = True
 want_persistent_client = True
 want_persistent_server = True
 
+default_http_version = (1, 0)
+
 class http_message(object):
 
   software_name = "BalmyBandicoot HTTP test code"
@@ -109,16 +111,16 @@ class http_message(object):
 
   def persistent(self):
     c = self.headers.get("Connection")
-    if self.version == (1,1):
+    if self.version == (1, 1):
       return c is None or "close" not in c.lower()
-    elif self.version == (1,0):
+    elif self.version == (1, 0):
       return c is not None and "keep-alive" in c.lower()
     else:
       return False
 
 class http_request(http_message):
 
-  def __init__(self, cmd = None, path = None, version = (1,0), body = None, **headers):
+  def __init__(self, cmd = None, path = None, version = default_http_version, body = None, **headers):
     if cmd is not None and cmd != "POST" and body is not None:
       raise RuntimeError
     http_message.__init__(self, version = version, body = body, headers = headers)
@@ -136,7 +138,7 @@ class http_request(http_message):
 
 class http_response(http_message):
 
-  def __init__(self, code = None, reason = None, version = (1,0), body = None, **headers):
+  def __init__(self, code = None, reason = None, version = default_http_version, body = None, **headers):
     http_message.__init__(self, version = version, body = body, headers = headers)
     self.code = code
     self.reason = reason
@@ -151,7 +153,13 @@ class http_response(http_message):
     self.headers.setdefault("Server", self.software_name)
     return "HTTP/%d.%d %s %s\r\n" % (self.version[0], self.version[1], self.code, self.reason)
 
+def logger(self, msg):
+  if debug:
+    print "[%s: %s]" % (repr(self), msg)
+
 class http_stream(asynchat.async_chat):
+
+  log = logger
 
   def __init__(self, conn = None):
     asynchat.async_chat.__init__(self, conn = conn)
@@ -160,7 +168,7 @@ class http_stream(asynchat.async_chat):
 
   def restart(self):
     assert not self.buffer
-    self.chunking = False
+    self.chunk_handler = None
     self.set_terminator("\r\n\r\n")
 
   def collect_incoming_data(self, data):
@@ -173,33 +181,58 @@ class http_stream(asynchat.async_chat):
     return val
 
   def found_terminator(self):
-    if self.chunking:
-      self.handle_chunk()
+    if self.chunk_handler:
+      self.chunk_handler()
     elif not isinstance(self.get_terminator(), str):
       self.handle_body()
     else:
-      if debug: print "[%s: Got headers]" % repr(self)
+      self.log("Got headers")
       self.msg = self.parse_type.parse_from_wire(self.get_buffer())
-      if "chunked" in self.msg.headers.get("Transfer-Encoding", "").lower():
-        self.chunking = True
-        self.start_chunk()
+      if self.msg.version == (1, 1) and "chunked" in self.msg.headers.get("Transfer-Encoding", "").lower():
+        self.msg.body = []
+        self.chunk_handler = self.chunk_header
+        self.set_terminator("\r\n")
       elif "Content-Length" in self.msg.headers:
         self.set_terminator(int(self.msg.headers["Content-Length"]))
       else:
         self.handle_no_content_length()
       
-  def start_chunk(self):
-    raise NotImplementedError
+  def chunk_header(self):
+    n = int(self.get_buffer().partition(";")[0], 16)
+    self.log("Chunk length %s" % n)
+    if n:
+      self.chunk_handler = self.chunk_body
+      self.set_terminator(n)
+    else:
+      self.msg.body = "".join(self.msg.body)
+      self.chunk_handler = self.chunk_discard_trailer
 
-  def handle_chunk(self):
-    raise NotImplementedError
+  def chunk_body(self):
+    self.log("Chunk body")
+    self.msg.body += self.buffer
+    self.buffer = []
+    self.chunk_handler = self.chunk_discard_crlf
+    self.set_terminator("\r\n")
+
+  def chunk_discard_crlf(self):
+    self.log("Chunk CRLF")
+    s = self.get_buffer()
+    assert s == "", "Expected chunk CRLF, got '%s'" % s
+    self.chunk_handler = self.chunk_header
+
+  def chunk_discard_trailer(self):
+    self.log("Chunk trailer")
+    s = self.get_buffer()
+    assert s == "", "Expected end of chunk trailers, got '%s'" % s
+    self.chunk_handler = None
+    self.handle_message()
 
   def handle_body(self):
     self.msg.body = self.get_buffer()
     self.handle_message()
 
   def handle_error(self):
-    if debug: print "[%s: Error in HTTP stream handler]" % repr(self)
+    self.log("Error in HTTP stream handler")
     print traceback.format_exc()
     asyncore.close_all()
 
@@ -229,13 +262,15 @@ class http_server(http_stream):
     print
     self.push(msg.format())
     if self.expect_close:
-      if debug: print "[%s: Closing]" % repr(self)
+      self.log("Closing")
       self.close_when_done()
     else:      
-      if debug: print "[%s: Listening for next message]" % repr(self)
+      self.log("Listening for next message")
       self.restart()
 
 class http_listener(asyncore.dispatcher):
+
+  log = logger
 
   def __init__(self, port):
     asyncore.dispatcher.__init__(self)
@@ -244,14 +279,14 @@ class http_listener(asyncore.dispatcher):
     self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
     self.bind(("", port))
     self.listen(5)
-    if debug: print "[%s: Listening on port %s]" % (repr(self), port)
+    self.log("Listening on port %s" % port)
 
   def handle_accept(self):
-    if debug: print "[%s: Accepting connection]" % repr(self)
+    self.log("Accepting connection")
     server = http_server(self.accept()[0])
 
   def handle_error(self):
-    if debug: print "[%s: Error in HTTP listener]" % repr(self)
+    self.log("Error in HTTP listener")
     print traceback.format_exc()
     asyncore.close_all()
 
@@ -269,10 +304,10 @@ class http_client(http_stream):
 
   parse_type = http_response
 
-  def __init__(self, narrator, hostport):
-    if debug: print "[%s: Creating new connection]" % repr(self)
+  def __init__(self, manager, hostport):
+    self.log("Creating new connection")
     http_stream.__init__(self)
-    self.narrator = narrator
+    self.manager = manager
     self.hostport = hostport
     self.state = "idle"
     self.expect_close = not want_persistent_client
@@ -283,7 +318,7 @@ class http_client(http_stream):
     self.set_terminator(None)
 
   def send_request(self, msg):
-    print "[%s: Sending request]" % repr(self)
+    self.log("Sending request")
     assert self.state == "idle"
     assert msg is not None
     self.state = "request-sent"
@@ -294,16 +329,16 @@ class http_client(http_stream):
   def handle_message(self):
     if not self.msg.persistent():
       self.expect_close = True
-    print "[%s: Message received, state %s]" % (repr(self), self.state)
+    self.log("Message received, state %s" % self.state)
     if self.state == "request-sent":
       print "Query:"
-      print self.narrator.done_with_request(self.hostport)
+      print self.manager.done_with_request(self.hostport)
       print
     elif self.state == "idle":
-      print "[%s: Received unsolicited message]" % repr(self)
+      self.log("Received unsolicited message")
     elif self.state == "closing":
       assert not self.msg.body
-      print "[%s: Ignoring empty response received while closing]" % repr(self)
+      self.log("Ignoring empty response received while closing")
       return
     else:
       raise RuntimeError, "[%s: Unexpected state]" % repr(self)
@@ -311,25 +346,31 @@ class http_client(http_stream):
     print self.msg
     print
     self.state = "idle"
-    msg = self.narrator.next_request(self.hostport, not self.expect_close)
+    msg = self.manager.next_request(self.hostport, not self.expect_close)
     if msg is not None:
-      if debug: print "[%s: Got a new message to send from my queue]" % repr(self)
+      self.log("Got a new message to send from my queue")
       self.send_request(msg)
     else:
-      if debug: print "[%s: Closing]" % repr(self)
+      self.log("Closing")
       self.state = "closing"
       self.close_when_done()
 
   def handle_connect(self):
-    if debug: print "[%s: Connected]" % repr(self)
-    msg = self.narrator.next_request(self.hostport, True)
+    self.log("Connected")
+    msg = self.manager.next_request(self.hostport, True)
     self.send_request(msg)
 
   def handle_close(self):
     if self.get_terminator() is None:
       self.handle_body()
 
-class http_narrator(object):
+class http_manager(object):
+
+  log = logger
+
+  # Hmm, these parallel dicts are almost certainly a hint that we need
+  # an http_queue class or some such, then the manager can become a
+  # simple map of destinations to queues, or something like that.
 
   def __init__(self):
     self.clients = {}
@@ -339,7 +380,6 @@ class http_narrator(object):
     u = urlparse.urlparse(url)
     assert u.scheme == "http" and u.username is None and u.password is None and u.params == "" and u.query == "" and u.fragment == ""
     request = http_request(cmd = "POST", path = u.path, body = body,
-                           #version = (1,1),
                            Host = u.hostname,
                            Content_Type = "text/plain")
     hostport = (u.hostname or "localhost", u.port or 80)
@@ -355,22 +395,22 @@ class http_narrator(object):
 
   def done_with_request(self, hostport):
     req = self.queues[hostport].pop(0)
-    print "[%s: Dequeuing request %s]" % (repr(self), repr(req))
+    self.log("Dequeuing request %s" % repr(req))
     return req
 
   def next_request(self, hostport, usable):
     queue = self.queues.get(hostport)
     if not queue:
-      print "[%s: Queue is empty]" % repr(self)
+      self.log("Queue is empty")
       return None
-    print "[%s: Queue: %s]" % (repr(self), repr(queue))
+    self.log("Queue: %s" % repr(queue))
     if usable:
-      print "[%s: Queue not empty and connection usable]" % repr(self)
+      self.log("Queue not empty and connection usable")
       return queue[0]
     else:
-      print "[%s: Queue not empty but connection not usable, spawning]" % repr(self)
+      self.log("Queue not empty but connection not usable, spawning")
       self.clients[hostport] = http_client(self, hostport)
-      print "[%s: Spawned connection %s]" % (repr(self), repr(self.clients[hostport]))
+      self.log("Spawned connection %s" % repr(self.clients[hostport]))
       return None
 
 if len(sys.argv) == 1:
@@ -379,8 +419,8 @@ if len(sys.argv) == 1:
 
 else:
 
-  narrator = http_narrator()
+  manager = http_manager()
   for url in sys.argv[1:]:
-    narrator.query(url = url, body = "Hi, I'm trying to talk to URL %s" % url)
+    manager.query(url = url, body = "Hi, I'm trying to talk to URL %s" % url)
 
 rpki.async.event_loop()

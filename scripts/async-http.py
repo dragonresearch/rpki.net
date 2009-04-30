@@ -40,12 +40,15 @@ PERFORMANCE OF THIS SOFTWARE.
 # the latter produces chunked output.
 
 import sys, os, time, socket, asyncore, asynchat, traceback, urlparse
-import rpki.async
+import rpki.async, rpki.sundial
 
 debug = True
 
 want_persistent_client = True
 want_persistent_server = True
+
+idle_timeout_default   = rpki.sundial.timedelta(seconds = 60)
+active_timeout_default = rpki.sundial.timedelta(seconds = 15)
 
 default_http_version = (1, 0)
 
@@ -161,19 +164,34 @@ class http_stream(asynchat.async_chat):
 
   log = logger
 
+  idle_timeout = idle_timeout_default
+  active_timeout = active_timeout_default
+
   def __init__(self, conn = None):
     asynchat.async_chat.__init__(self, conn = conn)
     self.buffer = []
+    self.timer = rpki.async.timer(self.handle_timeout)
     self.restart()
 
   def restart(self):
     assert not self.buffer
     self.chunk_handler = None
     self.set_terminator("\r\n\r\n")
+    if self.idle_timeout is not None:
+      self.timer.set(self.idle_timeout)
+    else:
+      self.timer.cancel()
+
+  def update_active_timeout(self):
+    if self.active_timeout is not None:
+      self.timer.set(self.active_timeout)
+    else:
+      self.timer.cancel()
 
   def collect_incoming_data(self, data):
     """Buffer the data"""
     self.buffer.append(data)
+    self.update_active_timeout()
 
   def get_buffer(self):
     val = "".join(self.buffer)
@@ -181,6 +199,7 @@ class http_stream(asynchat.async_chat):
     return val
 
   def found_terminator(self):
+    self.update_active_timeout()
     if self.chunk_handler:
       self.chunk_handler()
     elif not isinstance(self.get_terminator(), str):
@@ -235,6 +254,15 @@ class http_stream(asynchat.async_chat):
     self.log("Error in HTTP stream handler")
     print traceback.format_exc()
     asyncore.close_all()
+
+  def handle_timeout(self):
+    self.log("Timeout, closing")
+    self.close()
+
+  def handle_close(self):
+    asynchat.async_chat.handle_close(self)
+    self.timer.cancel()
+    self.log("Closed")
 
 class http_server(http_stream):
 
@@ -305,7 +333,7 @@ class http_client(http_stream):
   parse_type = http_response
 
   def __init__(self, manager, hostport):
-    self.log("Creating new connection")
+    self.log("Creating new connection to %s" % repr(hostport))
     http_stream.__init__(self)
     self.manager = manager
     self.hostport = hostport
@@ -361,6 +389,7 @@ class http_client(http_stream):
     self.send_request(msg)
 
   def handle_close(self):
+    http_stream.handle_close(self)
     if self.get_terminator() is None:
       self.handle_body()
 

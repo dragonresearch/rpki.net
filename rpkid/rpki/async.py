@@ -100,8 +100,19 @@ class timer(object):
     return self in self.queue
 
   def expired(self):
-    """Handle a timer that has expired.  Subclass must define this."""
+    """Handle a timer that has expired.  This must either be overriden
+    by a subclass or set dynamically by set_handler().
+    """
     raise NotImplementedError
+
+  def set_handler(self, handler):
+    """Set timer's expiration handler.  This is an alternative to
+    subclassing the timer class, and may be easier to use when
+    integrating timers into other classes (eg, the handler can be a
+    bound method to an object in a class representing a network
+    connection).
+    """
+    self.expired = handler
 
   @classmethod
   def runq(cls):

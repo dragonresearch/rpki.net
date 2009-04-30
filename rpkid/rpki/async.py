@@ -58,15 +58,27 @@ class iterator(object):
 
 
 class timer(object):
-  """Timer construct for event-driven code.
+  """Timer construct for event-driven code.  It can be used in either of two ways:
 
-  This is a virtual class, users must subclass it and define an expired() method.
+  - As a virtual class, in which case the subclass should provide a
+    handler() method to receive the wakup event when the timer expires; or
+
+  - By setting an explicit handler callback, either via the
+    constructor or the set_handler() method.
+
+  Subclassing is probably more Pythonic, but setting an explict
+  handler turns out to be very convenient when combined with bound
+  methods to other objects.
   """
 
   ## @var queue
   # Timer queue, shared by all timer instances (there can be only one queue).
 
   queue = []
+
+  def __init__(self, handler = None):
+    if handler is not None:
+      self.set_handler(handler)
 
   def set(self, when):
     """Set a timer.  Argument can be a datetime, to specify an
@@ -99,7 +111,7 @@ class timer(object):
     """Test whether this timer is currently set."""
     return self in self.queue
 
-  def expired(self):
+  def handler(self):
     """Handle a timer that has expired.  This must either be overriden
     by a subclass or set dynamically by set_handler().
     """
@@ -112,15 +124,15 @@ class timer(object):
     bound method to an object in a class representing a network
     connection).
     """
-    self.expired = handler
+    self.handler = handler
 
   @classmethod
   def runq(cls):
     """Run the timer queue: for each timer whose call time has passed,
-    pull the timer off the queue and call its expired() handler.
+    pull the timer off the queue and call its handler() method.
     """
     while cls.queue and rpki.sundial.now() >= cls.queue[0].when:
-      cls.queue.pop(0).expired()
+      cls.queue.pop(0).handler()
 
   def __repr__(self):
     return "<%s %s>" % (self.__class__.__name__, repr(self.when))

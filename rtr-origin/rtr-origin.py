@@ -730,7 +730,7 @@ class kickme_channel(asyncore.dispatcher):
   def __init__(self, server):
     asyncore.dispatcher.__init__(self)
     self.server = server
-    self.sockname = "kickme.%d" % os.getpid()
+    self.sockname = "%s.%d" % (kickme_base, os.getpid())
     self.create_socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     self.bind(self.sockname)
 
@@ -783,7 +783,7 @@ def cronjob_main(argv):
 
   msg = "Good morning, serial %s is ready" % pdus.serial
   sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-  for name in glob.iglob("kickme.*"):
+  for name in glob.iglob("%s.*" % kickme_base):
     try:
       print "# Kicking %s" % name
       sock.sendto(msg, name)
@@ -866,6 +866,8 @@ time.tzset()
 cfg_file = "rtr-origin.conf"
 
 mode = None
+
+kickme_base = "sockets/kickme"
 
 main_dispatch = {
   "cronjob" : cronjob_main,

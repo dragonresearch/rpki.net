@@ -158,7 +158,7 @@ class http_response(http_message):
 
 def logger(self, msg):
   if debug:
-    print "[%s: %s]" % (repr(self), msg)
+    print "[%r: %s]" % (self, msg)
 
 class http_stream(asynchat.async_chat):
 
@@ -268,12 +268,20 @@ class http_server(http_stream):
 
   parse_type = http_request
 
-  def __init__(self, conn = None):
+  def __init__(self, conn, handlers):
+    self.handlers = handlers
     http_stream.__init__(self, conn)
     self.expect_close = not want_persistent_server
 
   def handle_no_content_length(self):
     self.handle_message()
+
+  def find_handler(self, path):
+    """Helper method to search self.handlers."""
+    for s, h in self.handlers:
+      if path.startswith(s):
+        return h
+    return None
 
   def handle_message(self):
     if not self.msg.persistent():
@@ -281,16 +289,31 @@ class http_server(http_stream):
     print "Query:"
     print self.msg
     print
-    msg = http_response(code = 200, reason = "OK", body = self.msg.format(),
-                        Connection = "Close" if self.expect_close else "Keep-Alive",
-                        Cache_Control = "no-cache,no-store",
-                        Content_Type = "text/plain")
+    handler = self.find_handler(self.msg.path)
+    error = None
+    if False and self.msg.cmd != "POST":
+      error = 501, "No handler for method %s" % self.msg.cmd
+    elif False and self.headers["Content-Type"] != rpki_content_type:
+      error = 415, "No handler for Content-Type %s" % self.headers["Content-Type"]
+    elif handler is None:
+      error = 404, "No handler for URL %s" % self.msg.path
+    if error is None:
+      handler(self.msg, self.send_message)
+    else:
+      self.send_error(*error)
+
+  def send_error(self, code, reason):
+    self.handle_message_message(http_response(code = code, reason = reason))
+
+  def send_message(self, msg):
+    msg.headers["Connection"] = "Close" if self.expect_close else "Keep-Alive"
     print "Reply:"
     print msg
     print
     self.push(msg.format())
     if self.expect_close:
       self.log("Closing")
+      self.timer.cancel()
       self.close_when_done()
     else:      
       self.log("Listening for next message")
@@ -300,18 +323,19 @@ class http_listener(asyncore.dispatcher):
 
   log = logger
 
-  def __init__(self, port):
+  def __init__(self, handlers, port = 80, host = ""):
     asyncore.dispatcher.__init__(self)
+    self.handlers = handlers
     self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
     self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-    self.bind(("", port))
+    self.bind((host, port))
     self.listen(5)
-    self.log("Listening on port %s" % port)
+    self.log("Listening on (host, port) %r, handlers %r" % ((host, port), handlers))
 
   def handle_accept(self):
     self.log("Accepting connection")
-    server = http_server(self.accept()[0])
+    server = http_server(conn = self.accept()[0], handlers = self.handlers)
 
   def handle_error(self):
     self.log("Error in HTTP listener")
@@ -333,7 +357,7 @@ class http_client(http_stream):
   parse_type = http_response
 
   def __init__(self, manager, hostport):
-    self.log("Creating new connection to %s" % repr(hostport))
+    self.log("Creating new connection to %r" % hostport)
     http_stream.__init__(self)
     self.manager = manager
     self.hostport = hostport
@@ -369,7 +393,7 @@ class http_client(http_stream):
       self.log("Ignoring empty response received while closing")
       return
     else:
-      raise RuntimeError, "[%s: Unexpected state]" % repr(self)
+      raise RuntimeError, "[%r: Unexpected state]" % self
     print "Reply:"
     print self.msg
     print
@@ -424,7 +448,7 @@ class http_manager(object):
 
   def done_with_request(self, hostport):
     req = self.queues[hostport].pop(0)
-    self.log("Dequeuing request %s" % repr(req))
+    self.log("Dequeuing request %r" % req)
     return req
 
   def next_request(self, hostport, usable):
@@ -432,19 +456,61 @@ class http_manager(object):
     if not queue:
       self.log("Queue is empty")
       return None
-    self.log("Queue: %s" % repr(queue))
+    self.log("Queue: %r" % queue)
     if usable:
       self.log("Queue not empty and connection usable")
       return queue[0]
     else:
       self.log("Queue not empty but connection not usable, spawning")
       self.clients[hostport] = http_client(self, hostport)
-      self.log("Spawned connection %s" % repr(self.clients[hostport]))
+      self.log("Spawned connection %r" % self.clients[hostport])
       return None
+
+# server: reuse rest-style dispatcher from current https code.
+# 
+# 	add downcall to set result: don't do this presently, because
+# 	can't, but want it in new code.  so break async_http
+# 	http_server.handle_message() into two method, one handles
+# 	upcall to app dispatch, other is downcall to send result;
+# 	latter probably used as bound method passed as callback to
+# 	app.
+# 
+# 	dunno if client method hack (below) would work for server.
+# 	maybe.  if so it would be a method of the request message
+# 	which would need to include a handle on the server stream.
+# 
+# client: need callback; right now demo code just consumes result
+# 	directly (by printing it), for real use we need to give result
+# 	to somebody.  hand them the query message too, for matchup?
+# 	we're pulling it off queue as part of response processing
+# 	anyway, might be useful to make it available.  or even make
+# 	the callback for the result be a method of the query message,
+# 	which has the cute property that we can have multiple methods,
+# 	eg one for callback, one for errback.
+
+
+def client(msg, client_key, client_cert, server_ta, url, timeout = 300, callback = None):
+  pass
+
+def server(handlers, port, host =""):
+  if not isinstance(handlers, (tuple, list)):
+    handlers = (("/", handlers),)
+  listener = http_listener(port = 8000, handlers = handlers)
+  rpki.async.event_loop()
 
 if len(sys.argv) == 1:
 
-  listener = http_listener(port = 8000)
+  def handler(query_message, reply_callback):
+    reply_callback(http_response(
+      code              = 200,
+      reason            = "OK",
+      body              = str(query_message),
+      Cache_Control     = "no-cache,no-store",
+      Content_Type      = "text/plain"))
+
+  server(port = 8000, handlers = handler)
+
+  rpki.async.event_loop()
 
 else:
 
@@ -452,4 +518,4 @@ else:
   for url in sys.argv[1:]:
     manager.query(url = url, body = "Hi, I'm trying to talk to URL %s" % url)
 
-rpki.async.event_loop()
+  rpki.async.event_loop()

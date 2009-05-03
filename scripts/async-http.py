@@ -489,14 +489,26 @@ class http_manager(object):
 # 	eg one for callback, one for errback.
 
 
-def client(msg, client_key, client_cert, server_ta, url, timeout = 300, callback = None):
+def client(msg, url, timeout = 300, callback = None):
   pass
 
-def server(handlers, port, host =""):
+import signal
+
+def server(handlers, port, host ="", catch_signals = (signal.SIGINT, signal.SIGTERM)):
   if not isinstance(handlers, (tuple, list)):
     handlers = (("/", handlers),)
-  listener = http_listener(port = 8000, handlers = handlers)
-  rpki.async.event_loop()
+  try:
+    def raiseExitNow(signum, frame):
+      print "[Signal received, shutting down]"
+      raise asyncore.ExitNow
+    old_signal_handlers = tuple((sig, signal.signal(sig, raiseExitNow)) for sig in catch_signals)
+    listener = http_listener(port = 8000, handlers = handlers)
+    rpki.async.event_loop()
+  except asyncore.ExitNow:
+    pass
+  finally:
+    for sig, handler in old_signal_handlers:
+      signal.signal(sig, handler)
 
 if len(sys.argv) == 1:
 
@@ -508,9 +520,15 @@ if len(sys.argv) == 1:
       Cache_Control     = "no-cache,no-store",
       Content_Type      = "text/plain"))
 
-  server(port = 8000, handlers = handler)
+  def other_handler(query_message, reply_callback):
+    reply_callback(http_response(
+      code              = 200,
+      reason            = "OK",
+      body              = "Ok, you found it.\r\n\r\n" + str(query_message),
+      Cache_Control     = "no-cache,no-store",
+      Content_Type      = "text/plain"))
 
-  rpki.async.event_loop()
+  server(port = 8000, handlers = (("/wombat", other_handler), ("/", handler)))
 
 else:
 

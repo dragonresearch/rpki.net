@@ -123,12 +123,13 @@ class http_message(object):
 
 class http_request(http_message):
 
-  def __init__(self, cmd = None, path = None, version = default_http_version, body = None, **headers):
+  def __init__(self, cmd = None, path = None, version = default_http_version, body = None, callback = None, **headers):
     if cmd is not None and cmd != "POST" and body is not None:
       raise RuntimeError
     http_message.__init__(self, version = version, body = body, headers = headers)
     self.cmd = cmd
     self.path = path
+    self.callback = callback
 
   def parse_first_line(self, cmd, path, version):
     self.parse_version(version)
@@ -357,7 +358,7 @@ class http_client(http_stream):
   parse_type = http_response
 
   def __init__(self, manager, hostport):
-    self.log("Creating new connection to %r" % hostport)
+    self.log("Creating new connection to %s" % repr(hostport))
     http_stream.__init__(self)
     self.manager = manager
     self.hostport = hostport
@@ -382,9 +383,11 @@ class http_client(http_stream):
     if not self.msg.persistent():
       self.expect_close = True
     self.log("Message received, state %s" % self.state)
+    msg = None
     if self.state == "request-sent":
+      msg = self.manager.done_with_request(self.hostport)
       print "Query:"
-      print self.manager.done_with_request(self.hostport)
+      print msg
       print
     elif self.state == "idle":
       self.log("Received unsolicited message")
@@ -398,6 +401,8 @@ class http_client(http_stream):
     print self.msg
     print
     self.state = "idle"
+    if msg != None:
+      msg.callback(self.msg)
     msg = self.manager.next_request(self.hostport, not self.expect_close)
     if msg is not None:
       self.log("Got a new message to send from my queue")
@@ -429,12 +434,11 @@ class http_manager(object):
     self.clients = {}
     self.queues  = {}
 
-  def query(self, url, body = None):
+  def query(self, url, callback, body = None):
     u = urlparse.urlparse(url)
     assert u.scheme == "http" and u.username is None and u.password is None and u.params == "" and u.query == "" and u.fragment == ""
-    request = http_request(cmd = "POST", path = u.path, body = body,
-                           Host = u.hostname,
-                           Content_Type = "text/plain")
+    request = http_request(cmd = "POST", path = u.path, body = body, callback = callback,
+                           Host = u.hostname, Content_Type = "text/plain")
     hostport = (u.hostname or "localhost", u.port or 80)
     assert (hostport in self.queues) == (hostport in self.clients)
     if hostport not in self.queues:
@@ -532,8 +536,13 @@ if len(sys.argv) == 1:
 
 else:
 
+  def got_it(msg):
+    print "Got response:"
+    print msg
+    print
+
   manager = http_manager()
   for url in sys.argv[1:]:
-    manager.query(url = url, body = "Hi, I'm trying to talk to URL %s" % url)
+    manager.query(url = url, callback = got_it, body = "Hi, I'm trying to talk to URL %s" % url)
 
   rpki.async.event_loop()

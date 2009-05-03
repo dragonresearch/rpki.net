@@ -39,7 +39,7 @@ PERFORMANCE OF THIS SOFTWARE.
 # significantly depending on whether client signals HTTP 1.0 or 1.1;
 # the latter produces chunked output.
 
-import sys, os, time, socket, asyncore, asynchat, traceback, urlparse
+import sys, os, time, socket, asyncore, asynchat, traceback, urlparse, signal
 import rpki.async, rpki.sundial
 
 debug = True
@@ -174,12 +174,13 @@ class http_stream(asynchat.async_chat):
     self.timer = rpki.async.timer(self.handle_timeout)
     self.restart()
 
-  def restart(self):
+  def restart(self, idle = True):
     assert not self.buffer
     self.chunk_handler = None
     self.set_terminator("\r\n\r\n")
-    if self.idle_timeout is not None:
-      self.timer.set(self.idle_timeout)
+    timeout = self.idle_timeout if idle else self.active_timeout
+    if timeout is not None:
+      self.timer.set(timeout)
     else:
       self.timer.cancel()
 
@@ -366,7 +367,7 @@ class http_client(http_stream):
       self.state = "request-sent"
       msg.headers["Connection"] = "Close" if self.expect_close else "Keep-Alive"
       self.push(msg.format())
-      self.restart()
+      self.restart(idle = False)
 
   def handle_message(self):
     if not self.msg.persistent():
@@ -396,10 +397,13 @@ class http_client(http_stream):
     if msg is not None:
       self.log("Got a new message to send from my queue")
       self.send_request(msg)
-    else:
+    elif self.expect_close:
       self.log("Closing")
       self.state = "closing"
       self.close_when_done()
+    else:
+      self.log("Idling")
+      self.timer.set(self.idle_timeout)
 
   def handle_connect(self):
     self.log("Connected")
@@ -419,11 +423,13 @@ class http_queue(object):
   log = logger
 
   def __init__(self, hostport, *requests):
+    self.log("Creating queue for %r with initial requests %r" % (hostport, requests))
     self.hostport = hostport
     self.queue  = list(requests)
     self.client = http_client(self, hostport)
 
   def request(self, *requests):
+    self.log("Adding requests %r" % requests)
     need_kick = self.client.state == "idle" and not self.queue
     self.queue.extend(requests)
     if need_kick:
@@ -458,38 +464,14 @@ class http_manager(dict):
     request = http_request(cmd = "POST", path = u.path, body = body, callback = callback,
                            Host = u.hostname, Content_Type = "text/plain")
     hostport = (u.hostname or "localhost", u.port or 80)
+    self.log("Created request %r for %r" % (request, hostport))
     if hostport in self:
       self[hostport].request(request)
     else:
       self[hostport] = http_queue(hostport, request)
 
-# server: reuse rest-style dispatcher from current https code.
-# 
-# 	add downcall to set result: don't do this presently, because
-# 	can't, but want it in new code.  so break async_http
-# 	http_server.handle_message() into two method, one handles
-# 	upcall to app dispatch, other is downcall to send result;
-# 	latter probably used as bound method passed as callback to
-# 	app.
-# 
-# 	dunno if client method hack (below) would work for server.
-# 	maybe.  if so it would be a method of the request message
-# 	which would need to include a handle on the server stream.
-# 
-# client: need callback; right now demo code just consumes result
-# 	directly (by printing it), for real use we need to give result
-# 	to somebody.  hand them the query message too, for matchup?
-# 	we're pulling it off queue as part of response processing
-# 	anyway, might be useful to make it available.  or even make
-# 	the callback for the result be a method of the query message,
-# 	which has the cute property that we can have multiple methods,
-# 	eg one for callback, one for errback.
-
-
 def client(msg, url, timeout = 300, callback = None):
   pass
-
-import signal
 
 def server(handlers, port, host ="", catch_signals = (signal.SIGINT, signal.SIGTERM)):
   if not isinstance(handlers, (tuple, list)):
@@ -529,13 +511,26 @@ if len(sys.argv) == 1:
 
 else:
 
-  def got_it(msg):
+  def got_one(msg):
     print "Got response:"
     print msg
     print
 
   manager = http_manager()
-  for url in sys.argv[1:]:
-    manager.query(url = url, callback = got_it, body = "Hi, I'm trying to talk to URL %s" % url)
+
+  timer = rpki.async.timer()
+
+  def loop(iterator, url):
+    print "[Scheduler loop]"
+    manager.query(url = url, callback = got_one, body = "Hi, I'm trying to talk to URL %s" % url)
+    timer.set(rpki.sundial.timedelta(seconds = 3))
+
+  def done():
+    print "[Scheduler done]"
+    for q in manager.values():
+      assert not q.queue, "Requests still scheduled: %r %r" % (q.hostport, q.queue)
+    assert not async.timer.queue, "Timers still scheduled: %r" % async.timer.queue
+
+  timer.set_handler(rpki.async.iterator(sys.argv[1:], loop, done))
 
   rpki.async.event_loop()

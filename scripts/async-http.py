@@ -343,16 +343,6 @@ class http_listener(asyncore.dispatcher):
     print traceback.format_exc()
     asyncore.close_all()
 
-# Might need to know whether outbound data is fully sent, as part of
-# this state thing.  If so, calling .writable() ought to do the trick,
-# so long as it has no side effects (need to check asynchat.py for
-# that).
-#
-# I don't think there's anything we can do about crossed-in-mail
-# problem where we finish sending query just as server sends us
-# an unsolicited message.  One would like to think that the HTTP
-# specification rules this out, but no bets.
-
 class http_client(http_stream):
 
   parse_type = http_response
@@ -454,16 +444,13 @@ class http_queue(object):
       return self.queue[0]
     else:
       self.log("Queue not empty but connection not usable, spawning")
-      self.client = http_client(self, hostport)
+      self.client = http_client(self, self.hostport)
       self.log("Spawned connection %r" % self.client)
       return None
 
-class http_manager(object):
+class http_manager(dict):
 
   log = logger
-
-  def __init__(self):
-    self.queues  = {}
 
   def query(self, url, callback, body = None):
     u = urlparse.urlparse(url)
@@ -471,10 +458,10 @@ class http_manager(object):
     request = http_request(cmd = "POST", path = u.path, body = body, callback = callback,
                            Host = u.hostname, Content_Type = "text/plain")
     hostport = (u.hostname or "localhost", u.port or 80)
-    if hostport in self.queues:
-      self.queues[hostport].request(request)
+    if hostport in self:
+      self[hostport].request(request)
     else:
-      self.queues[hostport] = http_queue(hostport, request)
+      self[hostport] = http_queue(hostport, request)
 
 # server: reuse rest-style dispatcher from current https code.
 # 

@@ -183,3 +183,7 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
   finally:
     for sig, handler in old_signal_handlers:
       signal.signal(sig, handler)
+
+def exit_event_loop():
+  """Force exit from event_loop()."""
+  raise asyncore.ExitNow

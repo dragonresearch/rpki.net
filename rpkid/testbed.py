@@ -285,6 +285,7 @@ class main(object):
     # If we've run out of deltas to apply, we're done
     if not yaml_script:
       rpki.log.info("No more deltas to apply, done")
+      rpki.async.exit_event_loop()
     else:
       rpki.log.info("Applying deltas")
       self.db.apply_delta(yaml_script.pop(0), self.apply_delta_done)

@@ -30,7 +30,7 @@ PERFORMANCE OF THIS SOFTWARE.
 import os, time, getopt, sys, yaml
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
 import rpki.https, rpki.config, rpki.exceptions
-import rpki.relaxng, rpki.oids, rpki.log
+import rpki.relaxng, rpki.oids, rpki.log, rpki.async
 
 os.environ["TZ"] = "UTC"
 time.tzset()
@@ -101,6 +101,7 @@ def query_up_down(q_pdu):
     r_msg, r_xml = rpki.up_down.cms_msg.unwrap(der, [cms_ta] + cms_ca_certs, pretty_print = True)
     print r_xml
     r_msg.payload.check_response()
+    rpki.async.exit_event_loop()
 
   rpki.https.client(
     server_ta    = [https_ta] + https_ca_certs,
@@ -143,10 +144,5 @@ https_cert     = get_PEM("ssl-cert", rpki.x509.X509)
 https_certs    = get_PEM_chain("ssl-cert-chain", https_cert)
 https_ca_certs = get_PEM_chain("ssl-ca-certs")
 
-if debug:
-  dispatch[yaml_req["type"]]()
-else:
-  try:
-    dispatch[yaml_req["type"]]()
-  except Exception, edata:
-    print "Failed:", edata
+dispatch[yaml_req["type"]]()
+rpki.async.event_loop()

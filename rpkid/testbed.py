@@ -229,7 +229,9 @@ class main(object):
 
       rpki.async.iterator(self.db.engines, create_rpki_objects, self.created_rpki_objects)
 
-      # At this point we have gone into (pseudo) event-driven code.
+      rpki.async.event_loop()
+
+      # At this point we have gone into event-driven code.
       # See comments above about cleanup of this try/finally code
 
       rpki.log.info("All done")
@@ -667,6 +669,7 @@ class allocation(object):
     rpki.log.info("Call to rpkid %s returned" % self.name)
 
   def call_rpkid_cb(self, val):
+    rpki.log.info("Callback from to rpkid %s" % self.name)
     if isinstance(val, Exception):
       raise val
     msg, xml = rpki.left_right.cms_msg.unwrap(val, (self.rpkid_ta, self.rpkid_cert),

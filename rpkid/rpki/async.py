@@ -18,7 +18,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import asyncore
+import asyncore, signal
 import rpki.log, rpki.sundial
 
 class iterator(object):
@@ -135,7 +135,7 @@ class timer(object):
       cls.queue.pop(0).handler()
 
   def __repr__(self):
-    return "<%s %s>" % (self.__class__.__name__, repr(self.when))
+    return "<%s %r %r>" % (self.__class__.__name__, self.when, self.handler)
 
   @classmethod
   def seconds_until_wakeup(cls):
@@ -167,8 +167,19 @@ class timer(object):
     while cls.queue:
       cls.queue.pop(0).cancel()
 
-def event_loop():
-  """Replacement for asyncore.loop(), adding timer support."""
-  while asyncore.socket_map:
-    asyncore.poll(timer.seconds_until_wakeup(), asyncore.socket_map)
-    timer.runq()
+def _raiseExitNow(signum, frame):
+  """Signal handler for event_loop()."""
+  raise asyncore.ExitNow
+
+def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
+  """Replacement for asyncore.loop(), adding timer and signal support."""
+  try:
+    old_signal_handlers = tuple((sig, signal.signal(sig, _raiseExitNow)) for sig in catch_signals)
+    while asyncore.socket_map or timer.queue:
+      asyncore.poll(timer.seconds_until_wakeup(), asyncore.socket_map)
+      timer.runq()
+  except asyncore.ExitNow:
+    pass
+  finally:
+    for sig, handler in old_signal_handlers:
+      signal.signal(sig, handler)

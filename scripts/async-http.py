@@ -39,7 +39,7 @@ PERFORMANCE OF THIS SOFTWARE.
 # significantly depending on whether client signals HTTP 1.0 or 1.1;
 # the latter produces chunked output.
 
-import sys, os, time, socket, asyncore, asynchat, traceback, urlparse, signal
+import sys, os, time, socket, asyncore, asynchat, traceback, urlparse
 import rpki.async, rpki.sundial
 
 debug = True
@@ -473,21 +473,11 @@ class http_manager(dict):
 def client(msg, url, timeout = 300, callback = None):
   pass
 
-def server(handlers, port, host ="", catch_signals = (signal.SIGINT, signal.SIGTERM)):
+def server(handlers, port, host =""):
   if not isinstance(handlers, (tuple, list)):
     handlers = (("/", handlers),)
-  try:
-    def raiseExitNow(signum, frame):
-      logger(None, "Signal received, shutting down")
-      raise asyncore.ExitNow
-    old_signal_handlers = tuple((sig, signal.signal(sig, raiseExitNow)) for sig in catch_signals)
-    listener = http_listener(port = 8000, handlers = handlers)
-    rpki.async.event_loop()
-  except asyncore.ExitNow:
-    pass
-  finally:
-    for sig, handler in old_signal_handlers:
-      signal.signal(sig, handler)
+  listener = http_listener(port = 8000, handlers = handlers)
+  rpki.async.event_loop()
 
 if len(sys.argv) == 1:
 

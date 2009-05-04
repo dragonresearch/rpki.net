@@ -159,7 +159,7 @@ class http_response(http_message):
 
 def logger(self, msg):
   if debug:
-    print "[%r: %s]" % (self, msg)
+    print "[%s %r: %s]" % (rpki.sundial.now().strftime("%T"), self, msg)
 
 class http_stream(asynchat.async_chat):
 
@@ -288,9 +288,6 @@ class http_server(http_stream):
   def handle_message(self):
     if not self.msg.persistent():
       self.expect_close = True
-    print "Query:"
-    print self.msg
-    print
     handler = self.find_handler(self.msg.path)
     error = None
     if False and self.msg.cmd != "POST":
@@ -309,9 +306,6 @@ class http_server(http_stream):
 
   def send_message(self, msg):
     msg.headers["Connection"] = "Close" if self.expect_close else "Keep-Alive"
-    print "Reply:"
-    print msg
-    print
     self.push(msg.format())
     if self.expect_close:
       self.log("Closing")
@@ -376,9 +370,6 @@ class http_client(http_stream):
     msg = None
     if self.state == "request-sent":
       msg = self.queue.done_with_request()
-      print "Query:"
-      print msg
-      print
     elif self.state == "idle":
       self.log("Received unsolicited message")
     elif self.state == "closing":
@@ -387,9 +378,6 @@ class http_client(http_stream):
       return
     else:
       raise RuntimeError, "[%r: Unexpected state]" % self
-    print "Reply:"
-    print self.msg
-    print
     self.state = "idle"
     if msg != None:
       msg.callback(self.msg)
@@ -400,6 +388,7 @@ class http_client(http_stream):
     elif self.expect_close:
       self.log("Closing")
       self.state = "closing"
+      self.queue.closing(self)
       self.close_when_done()
     else:
       self.log("Idling")
@@ -415,6 +404,7 @@ class http_client(http_stream):
 
   def handle_close(self):
     http_stream.handle_close(self)
+    self.queue.closing(self)
     if self.get_terminator() is None:
       self.handle_body()
 
@@ -430,9 +420,11 @@ class http_queue(object):
 
   def request(self, *requests):
     self.log("Adding requests %r" % requests)
-    need_kick = self.client.state == "idle" and not self.queue
+    need_kick = self.client is not None and self.client.state == "idle" and not self.queue
     self.queue.extend(requests)
-    if need_kick:
+    if self.client is None:
+      self.client = http_client(self, self.hostport)
+    elif need_kick:
       self.client.kickstart()
 
   def done_with_request(self):
@@ -454,6 +446,11 @@ class http_queue(object):
       self.log("Spawned connection %r" % self.client)
       return None
 
+  def closing(self, client):
+    if client is self.client:
+      self.log("Removing client")
+      self.client = None
+
 class http_manager(dict):
 
   log = logger
@@ -469,6 +466,9 @@ class http_manager(dict):
       self[hostport].request(request)
     else:
       self[hostport] = http_queue(hostport, request)
+
+  def __repr__(self):
+    return "<%s object at %s>" % (self.__class__.__name__, id(self))
 
 def client(msg, url, timeout = 300, callback = None):
   pass
@@ -512,9 +512,10 @@ if len(sys.argv) == 1:
 else:
 
   def got_one(msg):
-    print "Got response:"
-    print msg
-    print
+    print "[Got response]"
+    if True:
+      print msg
+      print
 
   manager = http_manager()
 
@@ -527,10 +528,12 @@ else:
 
   def done():
     print "[Scheduler done]"
-    for q in manager.values():
-      assert not q.queue, "Requests still scheduled: %r %r" % (q.hostport, q.queue)
-    assert not async.timer.queue, "Timers still scheduled: %r" % async.timer.queue
 
   timer.set_handler(rpki.async.iterator(sys.argv[1:], loop, done))
 
   rpki.async.event_loop()
+
+  for q in manager.values():
+    assert not q.queue, "Requests still scheduled: %r %r %r" % (q, q.hostport, q.queue)
+
+  assert not rpki.async.timer.queue, "Timers still scheduled: %r" % rpki.async.timer.queue

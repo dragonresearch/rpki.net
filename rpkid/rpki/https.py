@@ -51,8 +51,8 @@ rpki_content_type = "application/x-rpki"
 
 debug = True
 
-want_persistent_client = False
-want_persistent_server = False
+want_persistent_client = True
+want_persistent_server = True
 
 idle_timeout_default   = rpki.sundial.timedelta(seconds = 60)
 active_timeout_default = rpki.sundial.timedelta(seconds = 15)
@@ -396,11 +396,14 @@ class http_client(http_stream):
         rpki.log.debug("HTTPS client returned failure")
         msg.callback(rpki.exceptions.HTTPRequestFailed("HTTP request failed with status %s, reason %s, response %s" % (self.msg.code, self.msg.reason, self.msg.body)))
       else:
+        self.log("Delivering HTTPS client result")
         msg.callback(self.msg.body)
     msg = self.queue.next_request(not self.expect_close)
-    if msg is not None:
+    if msg is not None and self.state is "idle":
       self.log("Got a new message to send from my queue")
       self.send_request(msg)
+    elif msg is not None:
+      self.log("Connection state %s, nothing left for me to do at the moment" % self.state)
     elif self.expect_close:
       self.log("Closing")
       self.state = "closing"

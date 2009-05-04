@@ -50,7 +50,7 @@ want_persistent_server = True
 idle_timeout_default   = rpki.sundial.timedelta(seconds = 60)
 active_timeout_default = rpki.sundial.timedelta(seconds = 15)
 
-default_http_version = (1, 0)
+default_http_version = (1, 1)
 
 class http_message(object):
 
@@ -400,6 +400,7 @@ class http_client(http_stream):
 
   def kickstart(self):
     self.log("Kickstart")
+    assert self.state == "idle"
     self.send_request(self.queue.next_request(True))
 
   def handle_close(self):
@@ -412,15 +413,15 @@ class http_queue(object):
 
   log = logger
 
-  def __init__(self, hostport, *requests):
-    self.log("Creating queue for %r with initial requests %r" % (hostport, requests))
+  def __init__(self, hostport):
+    self.log("Creating queue for %s" % repr(hostport))
     self.hostport = hostport
-    self.queue  = list(requests)
-    self.client = http_client(self, hostport)
+    self.client = None
+    self.queue = []
 
   def request(self, *requests):
     self.log("Adding requests %r" % requests)
-    need_kick = self.client is not None and self.client.state == "idle" and not self.queue
+    need_kick = self.client is not None and not self.queue
     self.queue.extend(requests)
     if self.client is None:
       self.client = http_client(self, self.hostport)
@@ -462,10 +463,9 @@ class http_manager(dict):
                            Host = u.hostname, Content_Type = "text/plain")
     hostport = (u.hostname or "localhost", u.port or 80)
     self.log("Created request %r for %r" % (request, hostport))
-    if hostport in self:
-      self[hostport].request(request)
-    else:
-      self[hostport] = http_queue(hostport, request)
+    if hostport not in self:
+      self[hostport] = http_queue(hostport)
+    self[hostport].request(request)
 
   def __repr__(self):
     return "<%s object at %s>" % (self.__class__.__name__, id(self))
@@ -478,7 +478,7 @@ def server(handlers, port, host ="", catch_signals = (signal.SIGINT, signal.SIGT
     handlers = (("/", handlers),)
   try:
     def raiseExitNow(signum, frame):
-      print "[Signal received, shutting down]"
+      logger(None, "Signal received, shutting down")
       raise asyncore.ExitNow
     old_signal_handlers = tuple((sig, signal.signal(sig, raiseExitNow)) for sig in catch_signals)
     listener = http_listener(port = 8000, handlers = handlers)
@@ -512,7 +512,7 @@ if len(sys.argv) == 1:
 else:
 
   def got_one(msg):
-    print "[Got response]"
+    logger(None, "Got response")
     if True:
       print msg
       print
@@ -522,12 +522,12 @@ else:
   timer = rpki.async.timer()
 
   def loop(iterator, url):
-    print "[Scheduler loop]"
+    logger(None, "Scheduler loop")
     manager.query(url = url, callback = got_one, body = "Hi, I'm trying to talk to URL %s" % url)
     timer.set(rpki.sundial.timedelta(seconds = 3))
 
   def done():
-    print "[Scheduler done]"
+    logger(None, "Scheduler done")
 
   timer.set_handler(rpki.async.iterator(sys.argv[1:], loop, done))
 

@@ -428,6 +428,12 @@ class http_client(http_stream):
     if self.get_terminator() is None:
       self.handle_body()
 
+  def handle_timeout(self):
+    if self.state != "idle":
+      self.log("Timeout while in state %s" % self.state)
+    http_stream.handle_timeout(self)
+    self.queue.closing(self)
+
 class http_queue(object):
 
   log = logger

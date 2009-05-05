@@ -100,7 +100,12 @@ def query_up_down(q_pdu):
   def done(der):
     r_msg, r_xml = rpki.up_down.cms_msg.unwrap(der, [cms_ta] + cms_ca_certs, pretty_print = True)
     print r_xml
-    r_msg.payload.check_response()
+    try:
+      r_msg.payload.check_response()
+    except Exception, edata:
+      if debug:
+        raise
+      print "Failed:", edata
     rpki.async.exit_event_loop()
 
   rpki.https.client(
@@ -144,5 +149,10 @@ https_cert     = get_PEM("ssl-cert", rpki.x509.X509)
 https_certs    = get_PEM_chain("ssl-cert-chain", https_cert)
 https_ca_certs = get_PEM_chain("ssl-ca-certs")
 
-dispatch[yaml_req["type"]]()
-rpki.async.event_loop()
+try:
+  dispatch[yaml_req["type"]]()
+  rpki.async.event_loop()
+except Exception, edata:
+  if debug:
+    raise
+  print "Failed:", edata

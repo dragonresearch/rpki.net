@@ -137,6 +137,13 @@ class http_request(http_message):
     self.cmd = cmd
     self.path = path
     self.callback = callback
+    self.retried = False
+
+  def retry(self):
+    if self.retried:
+      raise rpki.exceptions.HTTPSRetryFailure
+    else:
+       self.retried = True
 
   def parse_first_line(self, cmd, path, version):
     self.parse_version(version)
@@ -214,7 +221,6 @@ class http_stream(asynchat.async_chat):
     elif not isinstance(self.get_terminator(), str):
       self.handle_body()
     else:
-      self.log("Got headers")
       self.msg = self.parse_type.parse_from_wire(self.get_buffer())
       if self.msg.version == (1, 1) and "chunked" in self.msg.headers.get("Transfer-Encoding", "").lower():
         self.msg.body = []
@@ -304,7 +310,10 @@ class http_server(http_stream):
     elif handler is None:
       error = 404, "No handler for URL %s" % self.msg.path
     if error is None:
-      handler(self.msg.body, self.msg.path, self.send_reply)
+      try:
+        handler(self.msg.body, self.msg.path, self.send_reply)
+      except Exception, edata:
+        self.send_error(500, "Unhandled exception %s" % edata)
     else:
       self.send_error(*error)
 
@@ -475,8 +484,18 @@ class http_queue(object):
   def closing(self, client):
     if client is self.client:
       self.log("Removing client")
-      self.client = None
-
+      if not self.queue:
+        self.log("Queue is empty")
+        self.client = None
+      else:
+        try:
+          self.queue[0].retry()
+        except:
+          self.log("Queue is not empty, but request has already been transmitted, giving up")
+          raise
+        else:
+          self.log("Queue is not empty, starting new client")
+          self.client = http_client(self, self.hostport)
 
 queues = {}
 

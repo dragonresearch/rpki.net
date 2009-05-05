@@ -145,3 +145,6 @@ class BadExtension(RPKI_Exception):
 
 class ForbiddenURI(RPKI_Exception):
   """Forbidden URI, does not start with correct base URI."""
+
+class HTTPSRetryFailure(RPKI_Exception):
+  """HTTPS connection failed and request has already been retried."""

@@ -17,7 +17,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import syslog, traceback, sys, os
+import syslog, traceback, sys, os, time
 
 ## @var enable_trace
 # Whether call tracing is enabled.
@@ -58,7 +58,7 @@ class logger(object):
     if use_syslog:
       return syslog.syslog(self.priority, message)
     else:
-      sys.stderr.write("%s[%d]: %s\n" % (tag, pid, message))
+      sys.stderr.write("%s %s[%d]: %s\n" % (time.strftime("%T"), tag, pid, message))
 
 error = logger(syslog.LOG_ERR)
 warn  = logger(syslog.LOG_WARNING)

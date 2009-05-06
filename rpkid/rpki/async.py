@@ -190,16 +190,18 @@ def _raiseExitNow(signum, frame):
 
 def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
   """Replacement for asyncore.loop(), adding timer and signal support."""
+  old_signal_handlers = {}
   try:
-    old_signal_handlers = tuple((sig, signal.signal(sig, _raiseExitNow)) for sig in catch_signals)
+    for sig in catch_signals:
+      old_signal_handlers[sig] = signal.signal(sig, _raiseExitNow)
     while asyncore.socket_map or timer.queue:
       asyncore.poll(timer.seconds_until_wakeup(), asyncore.socket_map)
       timer.runq()
   except asyncore.ExitNow:
     pass
   finally:
-    for sig, handler in old_signal_handlers:
-      signal.signal(sig, handler)
+    for sig in old_signal_handlers:
+      signal.signal(sig, old_signal_handlers[sig])
 
 def exit_event_loop():
   """Force exit from event_loop()."""

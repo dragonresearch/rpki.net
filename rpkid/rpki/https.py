@@ -313,6 +313,8 @@ class http_server(http_stream):
     if error is None:
       try:
         handler(self.msg.body, self.msg.path, self.send_reply)
+      except asyncore.ExitNow:
+        raise
       except Exception, edata:
         self.send_error(500, "Unhandled exception %s" % edata)
     else:
@@ -409,6 +411,8 @@ class http_client(http_stream):
         else:
           self.log("Delivering HTTPS client result")
           msg.callback(self.msg.body)
+      except asyncore.ExitNow:
+        raise
       except Exception, data:
         self.log("Unhandled exception from callback")
         rpki.log.error(traceback.format_exc())
@@ -495,6 +499,8 @@ class http_queue(object):
       else:
         try:
           self.queue[0].retry()
+        except asyncore.ExitNow:
+          raise
         except:
           self.log("Queue is not empty, but request has already been transmitted, giving up")
           self.client = None

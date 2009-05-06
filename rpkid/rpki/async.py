@@ -18,7 +18,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import asyncore, signal
+import asyncore, signal, traceback
 import rpki.log, rpki.sundial
 
 class iterator(object):
@@ -76,9 +76,11 @@ class timer(object):
 
   queue = []
 
-  def __init__(self, handler = None):
+  def __init__(self, handler = None, errback = None):
     if handler is not None:
       self.set_handler(handler)
+    if errback is not None:
+      self.set_errback(errback)
 
   def set(self, when):
     """Set a timer.  Argument can be a datetime, to specify an
@@ -126,13 +128,28 @@ class timer(object):
     """
     self.handler = handler
 
+  def errback(self, e):
+    """Error callback.  May be overridden, or set with set_errback()."""
+    rpki.log.error("Unhandled exception from timer: %s" % e)
+    rpki.log.error(traceback.format_exc())
+
+  def set_errback(self, errback):
+    """Set a timer's errback.  Like set_handler(), for errbacks."""
+    self.errback = errback
+
   @classmethod
   def runq(cls):
     """Run the timer queue: for each timer whose call time has passed,
     pull the timer off the queue and call its handler() method.
     """
     while cls.queue and rpki.sundial.now() >= cls.queue[0].when:
-      cls.queue.pop(0).handler()
+      t = cls.queue.pop(0)
+      try:
+        t.handler()
+      except asyncore.ExitNow:
+        raise
+      except Exception, e:
+        t.errback(e)
 
   def __repr__(self):
     return "<%s %r %r>" % (self.__class__.__name__, self.when, self.handler)

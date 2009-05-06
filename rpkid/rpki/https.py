@@ -130,13 +130,14 @@ class http_message(object):
 
 class http_request(http_message):
 
-  def __init__(self, cmd = None, path = None, version = default_http_version, body = None, callback = None, **headers):
+  def __init__(self, cmd = None, path = None, version = default_http_version, body = None, callback = None, errback = None, **headers):
     if cmd is not None and cmd != "POST" and body is not None:
       raise RuntimeError
     http_message.__init__(self, version = version, body = body, headers = headers)
     self.cmd = cmd
     self.path = path
     self.callback = callback
+    self.errback = errback
     self.retried = False
 
   def retry(self):
@@ -401,12 +402,16 @@ class http_client(http_stream):
       raise RuntimeError, "[%r: Unexpected state]" % self
     self.state = "idle"
     if msg != None:
-      if self.msg.code != 200:
-        rpki.log.debug("HTTPS client returned failure")
-        msg.callback(rpki.exceptions.HTTPRequestFailed("HTTP request failed with status %s, reason %s, response %s" % (self.msg.code, self.msg.reason, self.msg.body)))
-      else:
-        self.log("Delivering HTTPS client result")
-        msg.callback(self.msg.body)
+      try:
+        if self.msg.code != 200:
+          rpki.log.debug("HTTPS client returned failure")
+          msg.errback(rpki.exceptions.HTTPRequestFailed("HTTP request failed with status %s, reason %s, response %s" % (self.msg.code, self.msg.reason, self.msg.body)))
+        else:
+          self.log("Delivering HTTPS client result")
+          msg.callback(self.msg.body)
+      except Exception, data:
+        self.log("Unhandled exception from callback")
+        rpki.log.error(traceback.format_exc())
     msg = self.queue.next_request(not self.expect_close)
     if msg is not None and self.state is "idle":
       self.log("Got a new message to send from my queue")
@@ -492,6 +497,7 @@ class http_queue(object):
           self.queue[0].retry()
         except:
           self.log("Queue is not empty, but request has already been transmitted, giving up")
+          self.client = None
           raise
         else:
           self.log("Queue is not empty, starting new client")
@@ -499,7 +505,11 @@ class http_queue(object):
 
 queues = {}
 
-def client(msg, client_key, client_cert, server_ta, url, timeout = 300, callback = None):
+def default_client_errback(e):
+  """Default errback for clients."""
+  raise e
+
+def client(msg, client_key, client_cert, server_ta, url, timeout = 300, callback = None, errback = default_client_errback):
   """Open client HTTPS connection, send a message, wait for response.
 
   THIS VERSION DOES NOT DO TLS.  THIS IS EXPERIMENTAL CODE.  DO NOT

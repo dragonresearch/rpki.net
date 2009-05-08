@@ -670,7 +670,7 @@ class allocation(object):
     rpki.log.info("Call to rpkid %s returned" % self.name)
 
   def call_rpkid_cb(self, val):
-    rpki.log.info("Callback from to rpkid %s" % self.name)
+    rpki.log.info("Callback to rpkid %s" % self.name)
     if isinstance(val, Exception):
       raise val
     msg, xml = rpki.left_right.cms_msg.unwrap(val, (self.rpkid_ta, self.rpkid_cert),

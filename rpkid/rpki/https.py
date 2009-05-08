@@ -51,11 +51,11 @@ rpki_content_type = "application/x-rpki"
 
 debug = True
 
-want_persistent_client = False
-want_persistent_server = False
+want_persistent_client = True
+want_persistent_server = True
 
-idle_timeout_default   = rpki.sundial.timedelta(seconds = 60)
-active_timeout_default = rpki.sundial.timedelta(seconds = 15)
+idle_timeout_default   = rpki.sundial.timedelta(seconds = 300)
+active_timeout_default = idle_timeout_default
 
 default_http_version = (1, 0)
 
@@ -474,10 +474,8 @@ class http_queue(object):
 
   def request(self, *requests):
     self.log("Adding requests %r" % requests)
-    was_empty = not self.queue
     self.queue.extend(requests)
-    if was_empty:
-      self.restart()
+    self.restart()
 
   def restart(self):
     if self.client is None:
@@ -485,9 +483,11 @@ class http_queue(object):
       self.log("Attaching client %r" % client)
       self.client = client
       self.client.start()
-    else:
-      self.log("Sending new request to existing client %r" % self.client)
+    elif self.client.state == "idle":
+      self.log("Sending request to existing client %r" % self.client)
       self.send_request()
+    else:
+      self.log("Client exists and is not idle")
 
   def send_request(self):
     if self.queue:
@@ -499,7 +499,6 @@ class http_queue(object):
       self.client = None
 
   def return_result(self, result):
-    old_client = self.client
 
     req = self.queue.pop(0)
     self.log("Dequeuing request %r" % req)
@@ -520,7 +519,7 @@ class http_queue(object):
 
     self.log("Queue: %r" % self.queue)
 
-    if self.queue and self.client is old_client:
+    if self.queue:
       self.restart()
 
 

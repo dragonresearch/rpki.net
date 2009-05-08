@@ -51,8 +51,8 @@ rpki_content_type = "application/x-rpki"
 
 debug = True
 
-want_persistent_client = True
-want_persistent_server = True
+want_persistent_client = False
+want_persistent_server = False
 
 idle_timeout_default   = rpki.sundial.timedelta(seconds = 60)
 active_timeout_default = rpki.sundial.timedelta(seconds = 15)
@@ -354,7 +354,7 @@ class http_listener(asyncore.dispatcher):
     self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
     self.bind((host, port))
     self.listen(5)
-    self.log("Listening on (host, port) %r, handlers %r" % ((host, port), handlers))
+    self.log("Listening on %r, handlers %r" % ((host, port), handlers))
 
   def handle_accept(self):
     self.log("Accepting connection")
@@ -446,6 +446,7 @@ class http_client(http_stream):
 
   def handle_close(self):
     http_stream.handle_close(self)
+    self.log("State %s" % self.state)
     self.queue.closing(self)
     if self.get_terminator() is None:
       self.handle_body()
@@ -498,9 +499,9 @@ class http_queue(object):
   def closing(self, client):
     if client is self.client:
       self.log("Removing client")
+      self.client = None
       if not self.queue:
         self.log("Queue is empty")
-        self.client = None
       else:
         try:
           self.queue[0].retry()
@@ -508,7 +509,6 @@ class http_queue(object):
           raise
         except:
           self.log("Queue is not empty, but request has already been transmitted, giving up")
-          self.client = None
           raise
         else:
           self.log("Queue is not empty, starting new client")

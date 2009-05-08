@@ -421,10 +421,8 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     """Return publication URI for this ca_detail's manifest."""
     return ca.sia_uri + self.public_key.gSKI() + ".mnf"
 
-  def activate(self, ca, cert, uri, predecessor = None, callback = None):
+  def activate(self, ca, cert, uri, callback, predecessor = None):
     """Activate this ca_detail."""
-
-    assert callback is not None         # hack to catch positional arguments
 
     self.latest_ca_cert = cert
     self.ca_cert_uri = uri.rsync()

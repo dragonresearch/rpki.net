@@ -269,22 +269,23 @@ class http_stream(asynchat.async_chat):
   def handle_error(self):
     self.log("Error in HTTP stream handler")
     print traceback.format_exc()
-    asyncore.close_all()
+    #asyncore.close_all()
 
   def handle_timeout(self):
     self.log("Timeout, closing")
     self.close()
 
   def handle_close(self):
+    self.log("Close event in HTTP stream handler")
     asynchat.async_chat.handle_close(self)
     self.timer.cancel()
-    self.log("Closed")
 
 class http_server(http_stream):
 
   parse_type = http_request
 
   def __init__(self, conn, handlers):
+    self.log("Starting")
     self.handlers = handlers
     http_stream.__init__(self, conn)
     self.expect_close = not want_persistent_server
@@ -300,6 +301,7 @@ class http_server(http_stream):
     return None
 
   def handle_message(self):
+    self.log("Received request %s %s" % (self.msg.cmd, self.msg.path))
     if not self.msg.persistent():
       self.expect_close = True
     handler = self.find_handler(self.msg.path)
@@ -327,6 +329,7 @@ class http_server(http_stream):
     self.send_message(code = code, body = body)
 
   def send_message(self, code, reason = "OK", body = None):
+    self.log("Sending response %s %s" % (code, reason))
     msg = http_response(code = code, reason = reason, body = body,
                         Content_Type = rpki_content_type,
                         Connection = "Close" if self.expect_close else "Keep-Alive")
@@ -360,7 +363,7 @@ class http_listener(asyncore.dispatcher):
   def handle_error(self):
     self.log("Error in HTTP listener")
     print traceback.format_exc()
-    asyncore.close_all()
+    #asyncore.close_all()
 
 class http_client(http_stream):
 
@@ -406,8 +409,9 @@ class http_client(http_stream):
     if msg != None:
       try:
         if self.msg.code != 200:
-          rpki.log.debug("HTTPS client returned failure")
-          msg.errback(rpki.exceptions.HTTPRequestFailed("HTTP request failed with status %s, reason %s, response %s" % (self.msg.code, self.msg.reason, self.msg.body)))
+          e = rpki.exceptions.HTTPRequestFailed("HTTP request failed with status %s, reason %s, response %s" % (self.msg.code, self.msg.reason, self.msg.body))
+          rpki.log.debug("HTTPS client returned failure: %s" % e)
+          msg.errback(e)
         else:
           self.log("Delivering HTTPS client result")
           msg.callback(self.msg.body)
@@ -468,6 +472,7 @@ class http_queue(object):
     self.queue.extend(requests)
     if self.client is None:
       self.client = http_client(self, self.hostport)
+      self.log("Spawned connection %r" % self.client)
     elif need_kick:
       self.client.kickstart()
 

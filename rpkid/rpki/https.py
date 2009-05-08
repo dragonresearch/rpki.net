@@ -500,6 +500,17 @@ class http_queue(object):
     if client is self.client:
       self.log("Removing client")
       self.client = None
+
+      # This is both nasty and, perhaps, entirely unnecessary.  I
+      # originally added it for retry of failed persistent
+      # connections, but am less and less convinced that it's useful.
+      #
+      # For the moment, I have persistent connections disabled, so
+      # disabling this code should be harmless.
+
+      if True:
+        return
+
       if not self.queue:
         self.log("Queue is empty")
       else:

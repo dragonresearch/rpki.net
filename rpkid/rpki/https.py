@@ -267,9 +267,9 @@ class http_stream(asynchat.async_chat):
     self.handle_message()
 
   def handle_error(self):
-    self.log("Error in HTTP stream handler")
     print traceback.format_exc()
-    #asyncore.close_all()
+    self.log("Error in HTTP stream handler, closing")
+    self.close()
 
   def handle_timeout(self):
     self.log("Timeout, closing")
@@ -349,21 +349,30 @@ class http_listener(asyncore.dispatcher):
   def __init__(self, handlers, port = 80, host = ""):
     asyncore.dispatcher.__init__(self)
     self.handlers = handlers
-    self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
-    self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-    self.bind((host, port))
-    self.listen(5)
+    try:
+      self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+      self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+      self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+      self.bind((host, port))
+      self.listen(5)
+    except asyncore.ExitNow:
+      raise
+    except:
+      self.handle_error()
     self.log("Listening on %r, handlers %r" % ((host, port), handlers))
 
   def handle_accept(self):
     self.log("Accepting connection")
-    server = http_server(conn = self.accept()[0], handlers = self.handlers)
+    try:
+      http_server(conn = self.accept()[0], handlers = self.handlers)
+    except asyncore.ExitNow:
+      raise
+    except:
+      self.handle_error()
 
   def handle_error(self):
     self.log("Error in HTTP listener")
     print traceback.format_exc()
-    #asyncore.close_all()
 
 class http_client(http_stream):
 
@@ -373,10 +382,16 @@ class http_client(http_stream):
     self.log("Creating new connection to %s" % repr(hostport))
     http_stream.__init__(self)
     self.queue = queue
+    self.hostport = hostport
     self.state = "idle"
     self.expect_close = not want_persistent_client
-    self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
-    self.connect(hostport)
+
+  def start(self):
+    try:
+      self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+      self.connect(self.hostport)
+    except:
+      self.handle_error()
 
   def handle_no_content_length(self):
     self.set_terminator(None)
@@ -457,6 +472,13 @@ class http_client(http_stream):
     http_stream.handle_timeout(self)
     self.queue.closing(self)
 
+  def handle_error(self):
+    http_stream.handle_error(self)
+    self.queue.closing(self)
+    #
+    # May need to call request's errback function here.
+    # This whole queuing business sure complicates matters.
+
 class http_queue(object):
 
   log = logger
@@ -474,6 +496,7 @@ class http_queue(object):
     if self.client is None:
       self.client = http_client(self, self.hostport)
       self.log("Spawned connection %r" % self.client)
+      self.client.start()
     elif need_kick:
       self.client.kickstart()
 
@@ -494,36 +517,13 @@ class http_queue(object):
       self.log("Queue not empty but connection not usable, spawning")
       self.client = http_client(self, self.hostport)
       self.log("Spawned connection %r" % self.client)
+      self.client.start()
       return None
 
   def closing(self, client):
     if client is self.client:
       self.log("Removing client")
       self.client = None
-
-      # This is both nasty and, perhaps, entirely unnecessary.  I
-      # originally added it for retry of failed persistent
-      # connections, but am less and less convinced that it's useful.
-      #
-      # For the moment, I have persistent connections disabled, so
-      # disabling this code should be harmless.
-
-      if True:
-        return
-
-      if not self.queue:
-        self.log("Queue is empty")
-      else:
-        try:
-          self.queue[0].retry()
-        except asyncore.ExitNow:
-          raise
-        except:
-          self.log("Queue is not empty, but request has already been transmitted, giving up")
-          raise
-        else:
-          self.log("Queue is not empty, starting new client")
-          self.client = http_client(self, self.hostport)
 
 queues = {}
 

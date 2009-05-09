@@ -458,9 +458,10 @@ class http_client(http_stream):
   def handle_error(self):
     http_stream.handle_error(self)
     self.queue.detach(self)
-    #
-    # May need to call request's errback function here.
-    # This whole queuing business sure complicates matters.
+    try:
+      raise
+    except Exception, edata:
+      self.queue.return_result(edata)
 
 class http_queue(object):
 
@@ -510,7 +511,7 @@ class http_queue(object):
       else:
         assert isinstance(result, Exception)
         self.log("Returning exception %r to caller: %s" % (result, result))
-        msg.errback(result)
+        req.errback(result)
     except asyncore.ExitNow:
       raise
     except:
@@ -525,20 +526,19 @@ class http_queue(object):
 
 queues = {}
 
-def default_client_errback(e):
-  """Default errback for clients."""
-  raise e
-
-def client(msg, client_key, client_cert, server_ta, url, timeout = 300, callback = None, errback = default_client_errback):
+def client(msg, client_key, client_cert, server_ta, url, callback, errback = None):
   """Open client HTTPS connection, send a message, wait for response.
 
   THIS VERSION DOES NOT DO TLS.  THIS IS EXPERIMENTAL CODE.  DO NOT
   USE IN PRODUCTION UNTIL TLS SUPPORT HAS BEEN ADDED.
   """
 
-  # This is an easy way to find synchronous calls that need conversion
-  if callback is None:
-    raise RuntimeError, "Synchronous call to rpki.http.client()"
+  if errback is None:
+    if False:
+      raise RuntimeError, "rpki.https.client() call with no errback"
+    else:
+      def errback(e):
+        raise e
 
   u = urlparse.urlparse(url)
 
@@ -552,16 +552,28 @@ def client(msg, client_key, client_cert, server_ta, url, timeout = 300, callback
 
   rpki.log.debug("Contacting %s" % url)
 
-  request = http_request(cmd = "POST", path = u.path, body = msg, callback = callback,
-                         Host = u.hostname, Content_Type = rpki_content_type)
+  request = http_request(
+    cmd                 = "POST",
+    path                = u.path,
+    body                = msg,
+    callback            = callback,
+    errback             = errback,
+    Host                = u.hostname,
+    Content_Type        = rpki_content_type)
+
   hostport = (u.hostname or "localhost", u.port or 80)
+
   rpki.log.debug("Created request %r for %r" % (request, hostport))
   if hostport not in queues:
     queues[hostport] = http_queue(hostport)
   queues[hostport].request(request)
 
-def server(handlers, server_key, server_cert, port = 4433, host ="", client_ta = None, dynamic_https_trust_anchor = None):
-  """Run an HTTPS server and wait (forever) for connections."""
+def server(handlers, server_key, server_cert, port, host ="", client_ta = None, dynamic_https_trust_anchor = None):
+  """Run an HTTPS server and wait (forever) for connections.
+  
+  THIS VERSION DOES NOT DO TLS.  THIS IS EXPERIMENTAL CODE.  DO NOT
+  USE IN PRODUCTION UNTIL TLS SUPPORT HAS BEEN ADDED.
+  """
 
   if not isinstance(handlers, (tuple, list)):
     handlers = (("/", handlers),)

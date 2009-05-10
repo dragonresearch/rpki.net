@@ -228,7 +228,7 @@ list_resources_reply = element list_resources {
 error = xsd:token { maxLength="1024" }
 
 report_error_reply = element report_error {
-  tag, self_id,
+  tag, self_id?,
   attribute error_code { error },
   xsd:string { maxLength="512000" }?
 }

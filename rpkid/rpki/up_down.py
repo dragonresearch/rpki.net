@@ -17,7 +17,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import base64, lxml.etree, time
+import base64, lxml.etree, time, traceback
 import rpki.resource_set, rpki.x509, rpki.exceptions
 import rpki.xml_utils, rpki.relaxng
 
@@ -62,7 +62,7 @@ class base_elt(object):
     if value is not None:
       lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap=nsmap).text = base64.b64encode(value)
 
-  def serve_pdu(self, q_msg, r_msg, child, callback):
+  def serve_pdu(self, q_msg, r_msg, child, callback, errback):
     """Default PDU handler to catch unexpected types."""
     raise rpki.exceptions.BadQuery, "Unexpected query type %s" % q_msg.type
 
@@ -185,7 +185,7 @@ class list_pdu(base_elt):
     """Generate (empty) payload of "list" PDU."""
     return []
 
-  def serve_pdu(self, q_msg, r_msg, child, callback):
+  def serve_pdu(self, q_msg, r_msg, child, callback, errback):
     """Serve one "list" PDU."""
 
     def handle(irdb_resources):
@@ -215,12 +215,12 @@ class list_pdu(base_elt):
           r_msg.payload.classes.append(rc)
       callback()
 
-    self.gctx.irdb_query(child.self_id, child.child_id, handle)
+    self.gctx.irdb_query(child.self_id, child.child_id, handle, errback)
 
   @classmethod
-  def query(cls, parent, cb):
+  def query(cls, parent, cb, eb):
     """Send a "list" query to parent."""
-    return parent.query_up_down(cls(), cb)
+    parent.query_up_down(cls(), cb, eb)
 
 class class_response_syntax(base_elt):
   """Syntax for Up-Down protocol "list_response" and "issue_response" PDUs."""
@@ -269,7 +269,7 @@ class issue_pdu(base_elt):
     elt.text = self.pkcs10.get_Base64()
     return [elt]
 
-  def serve_pdu(self, q_msg, r_msg, child, callback):
+  def serve_pdu(self, q_msg, r_msg, child, callback, errback):
     """Serve one issue request PDU."""
 
     # Subsetting not yet implemented, this is the one place where we
@@ -322,18 +322,20 @@ class issue_pdu(base_elt):
           subject_key = req_key,
           sia         = req_sia,
           resources   = resources,
-          callback    = got_child_cert)
+          callback    = got_child_cert,
+          errback     = errback)
       else:
         child_cert.reissue(
           ca_detail = ca_detail,
           sia       = req_sia,
           resources = resources,
-          callback  = got_child_cert)
+          callback  = got_child_cert,
+          errback   = errback)
 
-    self.gctx.irdb_query(child.self_id, child.child_id, got_resources)
+    self.gctx.irdb_query(child.self_id, child.child_id, got_resources, errback)
 
   @classmethod
-  def query(cls, parent, ca, ca_detail, callback):
+  def query(cls, parent, ca, ca_detail, callback, errback):
     """Send an "issue" request to parent associated with ca."""
     assert ca_detail is not None and ca_detail.state in ("pending", "active")
     sia = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", ca.sia_uri)),
@@ -341,7 +343,7 @@ class issue_pdu(base_elt):
     self = cls()
     self.class_name = ca.parent_resource_class
     self.pkcs10 = rpki.x509.PKCS10.create_ca(ca_detail.private_key_id, sia)
-    parent.query_up_down(self, callback)
+    parent.query_up_down(self, callback, errback)
 
 class issue_response_pdu(class_response_syntax):
   """Up-Down protocol "issue_response" PDU."""
@@ -372,13 +374,13 @@ class revoke_pdu(revoke_syntax):
     """Convert g(SKI) encoding from PDU back to raw SKI."""
     return base64.urlsafe_b64decode(self.ski + "=")
 
-  def serve_pdu(self, q_msg, r_msg, child, cb):
+  def serve_pdu(self, q_msg, r_msg, child, cb, eb):
     """Serve one revoke request PDU."""
 
     def loop1(iterator1, ca_detail):
 
       def loop2(iterator2, child_cert):
-        child_cert.revoke(iterator2)
+        child_cert.revoke(iterator2, eb)
 
       rpki.async.iterator(child.child_certs(ca_detail = ca_detail, ski = self.get_SKI()), loop2, iterator1)
 
@@ -392,14 +394,14 @@ class revoke_pdu(revoke_syntax):
     rpki.async.iterator(child.ca_from_class_name(self.class_name).ca_details(), loop1, done)
 
   @classmethod
-  def query(cls, ca_detail, cb):
+  def query(cls, ca_detail, cb, eb):
     """Send a "revoke" request to parent associated with ca_detail."""
     ca = ca_detail.ca()
     parent = ca.parent()
     self = cls()
     self.class_name = ca.parent_resource_class
     self.ski = ca_detail.latest_ca_cert.gSKI()
-    return parent.query_up_down(self, cb)
+    parent.query_up_down(self, cb, eb)
 
 class revoke_response_pdu(revoke_syntax):
   """Up-Down protocol "revoke_response" PDU."""
@@ -514,7 +516,14 @@ class message_pdu(base_elt):
       r_msg.type = self.type2name[type(r_msg.payload)]
       callback(r_msg)
 
-    self.payload.serve_pdu(self, r_msg, child, done)
+    def lose(e):
+      rpki.log.error(traceback.format_exc())
+      callback(self.serve_error(e))
+
+    try:
+      self.payload.serve_pdu(self, r_msg, child, done, lose)
+    except Exception, edata:
+      lose(edata)
 
   def serve_error(self, exception):
     """Generate an error_response message PDU."""

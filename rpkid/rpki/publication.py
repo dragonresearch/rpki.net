@@ -17,7 +17,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import base64, os
+import base64, os, traceback
 import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.xml_utils
 import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
 
@@ -30,13 +30,13 @@ class publication_namespace(object):
 class control_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant, publication_namespace):
   """Virtual class for control channel objects."""
 
-  def serve_dispatch(self, r_msg, cb):
+  def serve_dispatch(self, r_msg, cb, eb):
     """Action dispatch handler.  This needs special handling because
     we need to make sure that this PDU arrived via the control channel.
     """
     if self.client is not None:
       raise rpki.exceptions.BadQuery, "Control query received on client channel"
-    rpki.xml_utils.data_elt.serve_dispatch(self, r_msg, cb)
+    rpki.xml_utils.data_elt.serve_dispatch(self, r_msg, cb, eb)
 
 class config_elt(control_elt):
   """<config/> element.  This is a little weird because there should
@@ -70,14 +70,14 @@ class config_elt(control_elt):
     """
     return cls.sql_fetch(gctx, cls.wired_in_config_id)
 
-  def serve_set(self, r_msg, cb):
+  def serve_set(self, r_msg, cb, eb):
     """Handle a set action.  This requires special handling because
     config doesn't support the create method.
     """
     if self.sql_fetch(self.gctx, self.config_id) is None:
-      control_elt.serve_create(self, r_msg, cb)
+      control_elt.serve_create(self, r_msg, cb, eb)
     else:
-      control_elt.serve_set(self, r_msg, cb)
+      control_elt.serve_set(self, r_msg, cb, eb)
 
   def serve_fetch_one(self):
     """Find the config object on which a get or set method should
@@ -112,7 +112,7 @@ class client_elt(control_elt):
     if name in self.elements:
       self.clear_https_ta_cache = True
 
-  def serve_post_save_hook(self, q_pdu, r_pdu, cb):
+  def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
     """Extra server actions for client_elt."""
     if self.clear_https_ta_cache:
       self.gctx.clear_https_ta_cache()
@@ -162,7 +162,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
       elt.text = base64.b64encode(self.payload.get_DER())
     return elt
 
-  def serve_dispatch(self, r_msg, cb):
+  def serve_dispatch(self, r_msg, cb, eb):
     """Action dispatch handler."""
     if self.client is None:
       raise rpki.exceptions.BadQuery, "Client query received on control channel"
@@ -266,9 +266,18 @@ class msg(rpki.xml_utils.msg, publication_namespace):
     r_msg.type = "reply"
 
     def loop(iterator, q_pdu):
-      q_pdu.gctx = gctx
-      q_pdu.client = client
-      q_pdu.serve_dispatch(r_msg, iterator)
+
+      def fail(e):
+        rpki.log.error(traceback.format_exc())
+        r_msg.append(report_error_elt.from_exception(e))
+        cb(r_msg)
+
+      try:
+        q_pdu.gctx = gctx
+        q_pdu.client = client
+        q_pdu.serve_dispatch(r_msg, iterator, fail)
+      except Exception, edata:
+        fail(edata)
 
     def done():
       cb(r_msg)

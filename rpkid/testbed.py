@@ -665,7 +665,8 @@ class allocation(object):
       server_ta    = self.rpkid_ta,
       url          = url,
       msg          = cms,
-      callback     = self.call_rpkid_cb)
+      callback     = self.call_rpkid_cb,
+      errback      = self.call_rpkid_cb)
 
     rpki.log.info("Call to rpkid %s returned" % self.name)
 
@@ -885,7 +886,8 @@ class allocation(object):
                       server_ta    = self.rpkid_ta,
                       url          = "https://localhost:%d/cronjob" % self.rpki_port,
                       msg          = "Run cron now, please",
-                      callback     = cb)
+                      callback     = cb,
+                      errback      = cb)
 
   def run_yaml(self):
     """Run YAML scripts for this leaf entity.  Since we're not
@@ -1014,7 +1016,8 @@ def call_pubd(pdu, cb):
     server_ta    = pubd_ta,
     url          = url,
     msg          = cms,
-    callback     = call_pubd_cb)
+    callback     = call_pubd_cb,
+    errback      = call_pubd_cb)
 
 def call_pubd_cb(val):
   if isinstance(val, Exception):

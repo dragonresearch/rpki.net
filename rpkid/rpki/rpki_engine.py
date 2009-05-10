@@ -41,7 +41,7 @@ class rpkid_context(object):
 
     self.publication_kludge_base = cfg.get("publication-kludge-base", "publication/")
 
-  def irdb_query(self, self_id, child_id, callback):
+  def irdb_query(self, self_id, child_id, callback, errback):
     """Perform an IRDB callback query."""
 
     rpki.log.trace()
@@ -56,12 +56,14 @@ class rpkid_context(object):
     def unwrap(der):
       r_msg = rpki.left_right.cms_msg.unwrap(der, (self.bpki_ta, self.irdb_cert))
       if len(r_msg) == 0 or not isinstance(r_msg[0], rpki.left_right.list_resources_elt) or r_msg.type != "reply":
-        raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")
-      callback(rpki.resource_set.resource_bag(
-        asn         = r_msg[0].asn,
-        v4          = r_msg[0].ipv4,
-        v6          = r_msg[0].ipv6,
-        valid_until = r_msg[0].valid_until))
+        errback(rpki.exceptions.BadIRDBReply(
+          "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")))
+      else:
+        callback(rpki.resource_set.resource_bag(
+          asn         = r_msg[0].asn,
+          v4          = r_msg[0].ipv4,
+          v6          = r_msg[0].ipv6,
+          valid_until = r_msg[0].valid_until))
 
     rpki.https.client(
       server_ta    = (self.bpki_ta, self.irdb_cert),
@@ -69,7 +71,8 @@ class rpkid_context(object):
       client_cert  = self.rpkid_cert,
       url          = self.irdb_url,
       msg          = q_cms,
-      callback     = unwrap)
+      callback     = unwrap,
+      errback      = errback)
 
   def left_right_handler(self, query, path, cb):
     """Process one left-right PDU."""
@@ -224,7 +227,7 @@ class ca_obj(rpki.sql.sql_persistant):
       raise rpki.exceptions.BadURISyntax, "SIA URI must end with a slash: %s" % sia_uri
     return sia_uri + str(self.ca_id) + "/"
 
-  def check_for_updates(self, parent, rc, cb):
+  def check_for_updates(self, parent, rc, cb, eb):
     """Parent has signaled continued existance of a resource class we
     already knew about, so we need to check for an updated
     certificate, changes in resource coverage, revocation and reissue
@@ -247,7 +250,8 @@ class ca_obj(rpki.sql.sql_persistant):
       if ski not in cert_map:
         rpki.log.warn("Certificate in database missing from list_response, class %s, SKI %s, maybe parent certificate went away?"
                       % (repr(rc.class_name), ca_detail.latest_ca_cert.gSKI()))
-        return ca_detail.delete(self, parent.repository(), iterator)
+        ca_detail.delete(self, parent.repository(), iterator, eb)
+        return
 
       def cleanup():
         del cert_map[ski]
@@ -259,13 +263,15 @@ class ca_obj(rpki.sql.sql_persistant):
             ca_detail.latest_ca_cert != cert_map[ski].cert or
             current_resources.undersized(rc_resources) or
             current_resources.oversized(rc_resources)):
-          return ca_detail.update(
+          ca_detail.update(
             parent           = parent,
             ca               = self,
             rc               = rc,
             sia_uri_changed  = sia_uri_changed,
             old_resources    = current_resources,
-            callback         = cleanup)
+            callback         = cleanup,
+            errback          = eb)
+          return
 
       cleanup()
 
@@ -278,7 +284,7 @@ class ca_obj(rpki.sql.sql_persistant):
     rpki.async.iterator(ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL AND state != 'revoked'", (self.ca_id,)), loop, done)
 
   @classmethod
-  def create(cls, parent, rc, cb):
+  def create(cls, parent, rc, cb, eb):
     """Parent has signaled existance of a new resource class, so we
     need to create and set up a corresponding CA object.
     """
@@ -296,9 +302,10 @@ class ca_obj(rpki.sql.sql_persistant):
         ca       = self,
         cert     = issue_response.payload.classes[0].certs[0].cert,
         uri      = issue_response.payload.classes[0].certs[0].cert_url,
-        callback = cb)
+        callback = cb,
+        errback  = eb)
 
-    rpki.up_down.issue_pdu.query(parent, self, ca_detail, done)
+    rpki.up_down.issue_pdu.query(parent, self, ca_detail, done, eb)
 
   def delete(self, parent):
     """The list of current resource classes received from parent does
@@ -334,7 +341,7 @@ class ca_obj(rpki.sql.sql_persistant):
     self.sql_mark_dirty()
     return self.last_crl_sn
 
-  def rekey(self, cb):
+  def rekey(self, cb, eb):
     """Initiate a rekey operation for this ca.  Generate a new
     keypair.  Request cert from parent using new keypair.  Mark result
     as our active ca_detail.  Reissue all child certs issued by this
@@ -353,17 +360,18 @@ class ca_obj(rpki.sql.sql_persistant):
         cert        = issue_response.payload.classes[0].certs[0].cert,
         uri         = issue_response.payload.classes[0].certs[0].cert_url,
         predecessor = old_detail,
-        callback    = cb)
+        callback    = cb,
+        errback     = eb)
 
-    rpki.up_down.issue_pdu.query(parent, self, new_detail, done)
+    rpki.up_down.issue_pdu.query(parent, self, new_detail, done, eb)
 
-  def revoke(self, cb):
+  def revoke(self, cb, eb):
     """Revoke deprecated ca_detail objects associated with this ca."""
 
     rpki.log.trace()
 
     def loop(iterator, ca_detail):
-      ca_detail.revoke(iterator)
+      ca_detail.revoke(iterator, eb)
 
     rpki.async.iterator(self.fetch_deprecated(), loop, cb)
 
@@ -421,7 +429,7 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     """Return publication URI for this ca_detail's manifest."""
     return ca.sia_uri + self.public_key.gSKI() + ".mnf"
 
-  def activate(self, ca, cert, uri, callback, predecessor = None):
+  def activate(self, ca, cert, uri, callback, errback, predecessor = None):
     """Activate this ca_detail."""
 
     self.latest_ca_cert = cert
@@ -429,7 +437,7 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     self.generate_manifest_cert(ca)
 
     def did_crl(*ignored):
-      self.generate_manifest(callback = did_manifest)
+      self.generate_manifest(callback = did_manifest, errback = errback)
 
     def did_manifest(*ignored):
       self.state = "active"
@@ -442,21 +450,21 @@ class ca_detail_obj(rpki.sql.sql_persistant):
         rpki.async.iterator(predecessor.child_certs(), do_one_child_cert, done_child_certs)
 
     def do_one_child_cert(iterator, child_cert):
-      child_cert.reissue(self, iterator)
+      child_cert.reissue(self, iterator, errback)
 
     def done_child_certs():
       rpki.async.iterator(predecessor.route_origins(), do_one_route_origin, callback)
 
     def do_one_route_origin(iterator, route_origin):
-      route_origin.regenerate_roa(iterator)
+      route_origin.regenerate_roa(iterator, errback)
 
-    self.generate_crl(callback = did_crl)
+    self.generate_crl(callback = did_crl, errback = errback)
 
-  def delete(self, ca, repository, cb):
+  def delete(self, ca, repository, cb, eb):
     """Delete this ca_detail and all of the certs it issued."""
 
     def withdraw_one_child(iterator, child_cert):
-      repository.withdraw(child_cert.cert, child_cert.uri(ca), iterator)
+      repository.withdraw(child_cert.cert, child_cert.uri(ca), iterator, eb)
 
     def child_certs_done():
       rpki.async.iterator(self.route_origins(), withdraw_one_roa, withdraw_manifest)
@@ -465,10 +473,10 @@ class ca_detail_obj(rpki.sql.sql_persistant):
       route_origin.withdraw_roa(iterator)
 
     def withdraw_manifest(*ignored):
-      repository.withdraw(self.latest_manifest, self.manifest_uri(ca), withdraw_crl)
+      repository.withdraw(self.latest_manifest, self.manifest_uri(ca), withdraw_crl, eb)
 
     def withdraw_crl(*ignored):
-      repository.withdraw(self.latest_crl, self.crl_uri(ca), done)
+      repository.withdraw(self.latest_crl, self.crl_uri(ca), done, eb)
 
     def done(*ignored):
       for cert in self.child_certs() + self.revoked_certs():
@@ -478,7 +486,7 @@ class ca_detail_obj(rpki.sql.sql_persistant):
 
     rpki.async.iterator(self.child_certs(), withdraw_one_child, child_certs_done)
 
-  def revoke(self, cb):
+  def revoke(self, cb, eb):
     """Request revocation of all certificates whose SKI matches the key for this ca_detail.
 
     Tasks:
@@ -517,14 +525,14 @@ class ca_detail_obj(rpki.sql.sql_persistant):
 
       def revoke_one_child(iterator, child_cert):
         self.nextUpdate = self.nextUpdate.later(child_cert.cert.getNotAfter())
-        child_cert.revoke(iterator)
+        child_cert.revoke(iterator, eb)
 
       def final_crl():
         self.nextUpdate += crl_interval
-        self.generate_crl(callback = final_manifest, nextUpdate = self.nextUpdate)
+        self.generate_crl(callback = final_manifest, errback = eb, nextUpdate = self.nextUpdate)
 
       def final_manifest(*ignored):
-        self.generate_manifest(callback = done, nextUpdate = self.nextUpdate)
+        self.generate_manifest(callback = done, errback = eb, nextUpdate = self.nextUpdate)
 
       def done(*ignored):
         self.private_key_id = None
@@ -537,9 +545,9 @@ class ca_detail_obj(rpki.sql.sql_persistant):
 
       rpki.async.iterator(self.child_certs(), revoke_one_child, final_crl)
 
-    rpki.up_down.revoke_pdu.query(self, parent_revoked)
+    rpki.up_down.revoke_pdu.query(self, parent_revoked, eb)
 
-  def update(self, parent, ca, rc, sia_uri_changed, old_resources, callback):
+  def update(self, parent, ca, rc, sia_uri_changed, old_resources, callback, errback):
     """Need to get a new certificate for this ca_detail and perhaps
     frob children of this ca_detail.
     """
@@ -554,7 +562,8 @@ class ca_detail_obj(rpki.sql.sql_persistant):
           child_cert.reissue(
             ca_detail = self,
             resources = child_resources.intersection(new_resources),
-            callback  = iterator)
+            callback  = iterator,
+            errback   = errback)
         else:
           iterator()
 
@@ -563,7 +572,7 @@ class ca_detail_obj(rpki.sql.sql_persistant):
       else:
         callback()
 
-    rpki.up_down.issue_pdu.query(parent, ca, self, issued)
+    rpki.up_down.issue_pdu.query(parent, ca, self, issued, errback)
 
   @classmethod
   def create(cls, ca):
@@ -607,7 +616,7 @@ class ca_detail_obj(rpki.sql.sql_persistant):
 
     self.latest_manifest_cert = self.issue_ee(ca, resources, self.manifest_public_key)
 
-  def issue(self, ca, child, subject_key, sia, resources, callback, child_cert = None):
+  def issue(self, ca, child, subject_key, sia, resources, callback, errback, child_cert = None):
     """Issue a new certificate to a child.  Optional child_cert
     argument specifies an existing child_cert object to update in
     place; if not specified, we create a new one.  Returns the
@@ -643,14 +652,14 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     child_cert.sql_store()
 
     def published(*ignored):
-      self.generate_manifest(done)
+      self.generate_manifest(done, errback)
 
     def done(*ignored):
       callback(child_cert)
       
-    ca.parent().repository().publish(child_cert.cert, child_cert.uri(ca), published)
+    ca.parent().repository().publish(child_cert.cert, child_cert.uri(ca), published, errback)
 
-  def generate_crl(self, callback, nextUpdate = None):
+  def generate_crl(self, callback, errback, nextUpdate = None):
     """Generate a new CRL for this ca_detail.  At the moment this is
     unconditional, that is, it is up to the caller to decide whether a
     new CRL is needed.
@@ -681,9 +690,9 @@ class ca_detail_obj(rpki.sql.sql_persistant):
       nextUpdate          = nextUpdate,
       revokedCertificates = certlist)
 
-    repository.publish(self.latest_crl, self.crl_uri(ca), callback = callback)
+    repository.publish(self.latest_crl, self.crl_uri(ca), callback = callback, errback = errback)
 
-  def generate_manifest(self, callback, nextUpdate = None):
+  def generate_manifest(self, callback, errback, nextUpdate = None):
     """Generate a new manifest for this ca_detail."""
 
     ca = self.ca()
@@ -713,7 +722,7 @@ class ca_detail_obj(rpki.sql.sql_persistant):
       keypair        = self.manifest_private_key_id,
       certs          = self.latest_manifest_cert)
 
-    repository.publish(self.latest_manifest, self.manifest_uri(ca), callback = callback)
+    repository.publish(self.latest_manifest, self.manifest_uri(ca), callback = callback, errback = errback)
 
 class child_cert_obj(rpki.sql.sql_persistant):
   """Certificate that has been issued to a child."""
@@ -751,7 +760,7 @@ class child_cert_obj(rpki.sql.sql_persistant):
     """Return the publication URI for this child_cert."""
     return ca.sia_uri + self.uri_tail()
 
-  def revoke(self, callback):
+  def revoke(self, callback, errback):
     """Revoke a child cert."""
 
     rpki.log.debug("Revoking %s" % repr(self))
@@ -765,9 +774,9 @@ class child_cert_obj(rpki.sql.sql_persistant):
       self.sql_delete()
       callback()
 
-    repository.withdraw(self.cert, self.uri(ca), done)
+    repository.withdraw(self.cert, self.uri(ca), done, errback)
 
-  def reissue(self, ca_detail, callback = None, resources = None, sia = None):
+  def reissue(self, ca_detail, callback = None, errback = None, resources = None, sia = None):
     """Reissue an existing cert, reusing the public key.  If the cert
     we would generate is identical to the one we already have, we just
     return the one we already have.  If we have to revoke the old
@@ -776,7 +785,9 @@ class child_cert_obj(rpki.sql.sql_persistant):
     child_cert_obj must use the return value from this method.
     """
 
+    # Hack during conversion, remove default values and these assertions eventually
     assert callback is not None
+    assert errback is not None
 
     ca = ca_detail.ca()
     child = self.child()
@@ -824,7 +835,8 @@ class child_cert_obj(rpki.sql.sql_persistant):
       sia         = sia,
       resources   = resources,
       child_cert  = child_cert,
-      callback    = revoke if must_revoke else callback)
+      callback    = revoke if must_revoke else callback,
+      errback     = errback)
 
   @classmethod
   def fetch(cls, gctx = None, child = None, ca_detail = None, ski = None, unique = False):

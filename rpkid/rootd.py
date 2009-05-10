@@ -144,13 +144,13 @@ def compose_response(r_msg):
     rc.certs[0].cert = subject_cert
 
 class list_pdu(rpki.up_down.list_pdu):
-  def serve_pdu(self, q_msg, r_msg, ignored, callback):
+  def serve_pdu(self, q_msg, r_msg, ignored, callback, errback):
     r_msg.payload = rpki.up_down.list_response_pdu()
     compose_response(r_msg)
     callback()
 
 class issue_pdu(rpki.up_down.issue_pdu):
-  def serve_pdu(self, q_msg, r_msg, ignored, callback):
+  def serve_pdu(self, q_msg, r_msg, ignored, callback, errback):
     self.pkcs10.check_valid_rpki()
     set_subject_pkcs10(self.pkcs10)
     r_msg.payload = rpki.up_down.issue_response_pdu()
@@ -158,7 +158,7 @@ class issue_pdu(rpki.up_down.issue_pdu):
     callback()
 
 class revoke_pdu(rpki.up_down.revoke_pdu):
-  def serve_pdu(self, q_msg, r_msg, ignored, callback):
+  def serve_pdu(self, q_msg, r_msg, ignored, callback, errback):
     subject_cert = get_subject_cert()
     if subject_cert is None or subject_cert.gSKI() != self.ski:
       raise rpki.exceptions.NotInDatabase

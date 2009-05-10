@@ -54,7 +54,7 @@ debug = True
 want_persistent_client = True
 want_persistent_server = True
 
-idle_timeout_default   = rpki.sundial.timedelta(seconds = 300)
+idle_timeout_default   = rpki.sundial.timedelta(seconds = 30)
 active_timeout_default = idle_timeout_default
 
 default_http_version = (1, 0)
@@ -318,6 +318,7 @@ class http_server(http_stream):
       except asyncore.ExitNow:
         raise
       except Exception, edata:
+        print traceback.format_exc()
         self.send_error(500, "Unhandled exception %s" % edata)
     else:
       self.send_error(*error)
@@ -533,12 +534,12 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback = Non
   USE IN PRODUCTION UNTIL TLS SUPPORT HAS BEEN ADDED.
   """
 
-  if errback is None:
-    if False:
-      raise RuntimeError, "rpki.https.client() call with no errback"
-    else:
-      def errback(e):
-        raise e
+  if errback is not None:
+    pass
+  elif False:
+    raise RuntimeError, "rpki.https.client() call with no errback"
+  else:
+    def errback(e): raise e
 
   u = urlparse.urlparse(url)
 

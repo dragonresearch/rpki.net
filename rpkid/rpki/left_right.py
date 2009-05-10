@@ -178,10 +178,15 @@ class self_elt(data_elt):
             rpki.rpki_engine.ca_obj.create(parent, rc, class_iterator, class_create_failed)
 
         def class_done():
-          for ca in ca_map.values():
-            ca.delete(parent)               # CA not listed by parent
-          self.gctx.sql.sweep()
-          parent_iterator()
+
+          def ca_loop(iterator, ca):
+            ca.delete(parent, iterator)
+            
+          def ca_done():
+            self.gctx.sql.sweep()
+            parent_iterator()
+
+          rpki.async.iterator(ca_map.values(), ca_loop, ca_done)
 
         rpki.async.iterator(r_msg.payload.classes, class_loop, class_done)
 

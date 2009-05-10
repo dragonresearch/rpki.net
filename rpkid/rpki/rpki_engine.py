@@ -307,7 +307,7 @@ class ca_obj(rpki.sql.sql_persistant):
 
     rpki.up_down.issue_pdu.query(parent, self, ca_detail, done, eb)
 
-  def delete(self, parent):
+  def delete(self, parent, callback):
     """The list of current resource classes received from parent does
     not include the class corresponding to this CA, so we need to
     delete it (and its little dog too...).
@@ -318,10 +318,20 @@ class ca_obj(rpki.sql.sql_persistant):
     CA, then finally delete this CA itself.
     """
 
+    def fail(e):
+      rpki.log.warn("Could not delete CA %r, skipping: %s" % (self, e))
+      callback()
+
+    def done():
+      self.sql_delete()      
+      callback()
+
     repository = parent.repository()
-    for ca_detail in self.ca_details():
-      ca_detail.delete(self, repository)
-    self.sql_delete()
+
+    def loop(iterator, ca_detail):
+      ca_detail.delete(self, repository, iterator, fail)
+
+    rpki.async.iterator(self.ca_details(), loop, done)
 
   def next_serial_number(self):
     """Allocate a certificate serial number."""

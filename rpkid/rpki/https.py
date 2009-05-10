@@ -35,7 +35,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, os, time, socket, asyncore, asynchat, traceback, urlparse
+import time, socket, asyncore, asynchat, traceback, urlparse
 import rpki.async, rpki.sundial, rpki.x509, rpki.exceptions, rpki.log
 
 print "====== WARNING WARNING WARNING ======"
@@ -76,7 +76,7 @@ class http_message(object):
     else:
       translate_underscore = False
     result = {}
-    for k,v in headers:
+    for k, v in headers:
       if translate_underscore:
         k = k.replace("_", "-")
       k = "-".join(s.capitalize() for s in k.split("-"))
@@ -144,7 +144,7 @@ class http_request(http_message):
     if self.retried:
       raise rpki.exceptions.HTTPSRetryFailure
     else:
-       self.retried = True
+      self.retried = True
 
   def parse_first_line(self, cmd, path, version):
     self.parse_version(version)
@@ -527,19 +527,12 @@ class http_queue(object):
 
 queues = {}
 
-def client(msg, client_key, client_cert, server_ta, url, callback, errback = None):
+def client(msg, client_key, client_cert, server_ta, url, callback, errback):
   """Open client HTTPS connection, send a message, wait for response.
 
   THIS VERSION DOES NOT DO TLS.  THIS IS EXPERIMENTAL CODE.  DO NOT
   USE IN PRODUCTION UNTIL TLS SUPPORT HAS BEEN ADDED.
   """
-
-  if errback is not None:
-    pass
-  elif False:
-    raise RuntimeError, "rpki.https.client() call with no errback"
-  else:
-    def errback(e): raise e
 
   u = urlparse.urlparse(url)
 
@@ -579,6 +572,6 @@ def server(handlers, server_key, server_cert, port, host ="", client_ta = None, 
   if not isinstance(handlers, (tuple, list)):
     handlers = (("/", handlers),)
 
-  listener = http_listener(port = port, handlers = handlers)
+  http_listener(port = port, handlers = handlers)
   rpki.async.event_loop()
 

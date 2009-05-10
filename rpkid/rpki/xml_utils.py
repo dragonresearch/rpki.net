@@ -18,6 +18,7 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import xml.sax, lxml.sax, lxml.etree, base64
+import rpki.exceptions
 
 class sax_handler(xml.sax.handler.ContentHandler):
   """SAX handler for RPKI protocols.
@@ -35,6 +36,7 @@ class sax_handler(xml.sax.handler.ContentHandler):
 
   def __init__(self):
     """Initialize SAX handler."""
+    xml.sax.handler.ContentHandler.__init__(self)
     self.text = ""
     self.stack = []
 

@@ -34,9 +34,9 @@ class left_right_namespace(object):
 class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant, left_right_namespace):
   """Virtual class for top-level left-right protocol data elements."""
 
-  def self(this):
+  def self(self):
     """Fetch self object to which this object links."""
-    return self_elt.sql_fetch(this.gctx, this.self_id)
+    return self_elt.sql_fetch(self.gctx, self.self_id)
 
   def bsc(self):
     """Return BSC object to which this object links."""
@@ -161,20 +161,21 @@ class self_elt(data_elt):
         ca_map = dict((ca.parent_resource_class, ca) for ca in parent.cas())
 
         def class_loop(class_iterator, rc):
+
+          def class_update_failed(e):
+            rpki.log.warn("Couldn't update class, skipping: %s" % e)
+            class_iterator()
+
+          def class_create_failed(e):
+            rpki.log.warn("Couldn't create class, skipping: %s" % e)
+            class_iterator()
+
           if rc.class_name in ca_map:
             ca = ca_map[rc.class_name]
             del  ca_map[rc.class_name]
             ca.check_for_updates(parent, rc, class_iterator, class_update_failed)
           else:
             rpki.rpki_engine.ca_obj.create(parent, rc, class_iterator, class_create_failed)
-
-        def class_update_failed(e):
-          rpki.log.warn("Couldn't update class, skipping: %s" % e)
-          class_iterator()
-
-        def class_create_failed(e):
-          rpki.log.warn("Couldn't create class, skipping: %s" % e)
-          class_iterator()
 
         def class_done():
           for ca in ca_map.values():
@@ -572,9 +573,13 @@ class repository_elt(data_elt):
     bpki_ta_path = (self.gctx.bpki_ta, self.self().bpki_cert, self.self().bpki_glue, self.bpki_https_cert, self.bpki_https_glue)
 
     def done(r_cms):
-      r_msg = rpki.publication.cms_msg.unwrap(r_cms, bpki_ta_path)
-      assert len(r_msg) == 1
-      callback(r_msg[0])
+      try:
+        r_msg = rpki.publication.cms_msg.unwrap(r_cms, bpki_ta_path)
+        if len(r_msg) != 1 or isinstance(r_msg[0], rpki.publication.report_error_elt):
+          raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %s" % msg
+        callback()
+      except Exception, edata:
+        errback(edata)
 
     rpki.https.client(
       client_key   = bsc.private_key_id,
@@ -582,7 +587,8 @@ class repository_elt(data_elt):
       server_ta    = bpki_ta_path,
       url          = self.peer_contact_uri,
       msg          = q_cms,
-      callback     = done)
+      callback     = done,
+      errback      = errback)
 
   def publish(self, obj, uri, callback, errback):
     """Publish one object in the repository."""

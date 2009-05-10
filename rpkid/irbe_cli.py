@@ -46,11 +46,11 @@ class cmd_elt_mixin(object):
   def usage(cls):
     """Generate usage message for this PDU."""
     args = " ".join("--" + x + "=" for x in cls.attributes + cls.elements if x not in cls.excludes)
-    opts = " ".join("--" + x for x in cls.booleans)
-    if args and opts:
-      return args + " " + opts
+    bools = " ".join("--" + x for x in cls.booleans)
+    if args and bools:
+      return args + " " + bools
     else:
-      return args or opts
+      return args or bools
 
   def client_getopt(self, argv):
     """Parse options for this class."""
@@ -224,15 +224,23 @@ def call_daemon(cms_class, client_key, client_cert, server_ta, url, q_msg):
   q_cms, q_xml = cms_class.wrap(q_msg, client_key, client_cert, pretty_print = True)
   if verbose:
     print q_xml
-  der = rpki.https.client(client_key   = client_key,
-                          client_cert  = client_cert,
-                          server_ta    = server_ta,
-                          url          = url,
-                          msg          = q_cms)
-  r_msg, r_xml = cms_class.unwrap(der, server_ta, pretty_print = True)
-  print r_xml
-  for r_pdu in r_msg:
-    r_pdu.client_reply_decode()
+
+  def done(der):
+    r_msg, r_xml = cms_class.unwrap(der, server_ta, pretty_print = True)
+    print r_xml
+    for r_pdu in r_msg:
+      r_pdu.client_reply_decode()
+
+  def fail(e):
+    print "Failed: %s" % e
+
+  rpki.https.client(client_key   = client_key,
+                    client_cert  = client_cert,
+                    server_ta    = server_ta,
+                    url          = url,
+                    msg          = q_cms,
+                    callback     = done,
+                    errback      = fail)
 
 # Main program
 

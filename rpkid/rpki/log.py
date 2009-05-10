@@ -42,11 +42,11 @@ def init(ident = "rpki", flags = syslog.LOG_PID | syslog.LOG_PERROR, facility = 
     tag = ident
     pid = os.getpid()
 
-def set_trace(trace):
+def set_trace(enable):
   """Enable or disable call tracing."""
 
   global enable_trace
-  enable_trace = trace
+  enable_trace = enable
 
 class logger(object):
   """Closure for logging."""

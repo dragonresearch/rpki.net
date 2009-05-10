@@ -148,3 +148,6 @@ class ForbiddenURI(RPKI_Exception):
 
 class HTTPSRetryFailure(RPKI_Exception):
   """HTTPS connection failed and request has already been retried."""
+
+class BadPublicationReply(RPKI_Exception):
+  """Unexpected reply to publication query."""

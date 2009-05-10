@@ -103,10 +103,13 @@ def query_up_down(q_pdu):
     try:
       r_msg.payload.check_response()
     except Exception, edata:
-      if debug:
-        raise
-      print "Failed:", edata
+      fail(edata)
     rpki.async.exit_event_loop()
+
+  def fail(e):
+    if debug:
+      raise e
+    print "Failed:", e
 
   rpki.https.client(
     server_ta    = [https_ta] + https_ca_certs,
@@ -114,7 +117,8 @@ def query_up_down(q_pdu):
     client_cert  = https_certs,
     msg          = q_cms,
     url          = yaml_data["posturl"],
-    callback     = done)
+    callback     = done,
+    errback      = fail)
 
 def do_list():
   query_up_down(rpki.up_down.list_pdu())

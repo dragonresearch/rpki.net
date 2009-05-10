@@ -165,7 +165,7 @@ class main(object):
     # Connect to test directory, creating it if necessary
     try:
       os.chdir(testbed_dir)
-    except:
+    except OSError:
       os.makedirs(testbed_dir)
       os.chdir(testbed_dir)
 
@@ -641,7 +641,7 @@ class allocation(object):
       try:
         rpki.log.info("Killing pid %d" % proc.pid)
         os.kill(proc.pid, signal.SIGTERM)
-      except:
+      except OSError:
         pass
       proc.wait()
 

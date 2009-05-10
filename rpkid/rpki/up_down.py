@@ -17,7 +17,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import base64, lxml.etree, time, traceback
+import base64, lxml.etree, traceback
 import rpki.resource_set, rpki.x509, rpki.exceptions
 import rpki.xml_utils, rpki.relaxng
 

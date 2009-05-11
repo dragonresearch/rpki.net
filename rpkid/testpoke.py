@@ -102,6 +102,8 @@ def query_up_down(q_pdu):
     print r_xml
     try:
       r_msg.payload.check_response()
+    except rpki.async.ExitNow:
+      raise
     except Exception, edata:
       fail(edata)
     rpki.async.exit_event_loop()

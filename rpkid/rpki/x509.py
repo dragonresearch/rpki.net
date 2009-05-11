@@ -44,7 +44,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import POW, tlslite.api, POW.pkix, base64, lxml.etree, os
 import rpki.exceptions, rpki.resource_set, rpki.oids, rpki.sundial
-import rpki.manifest, rpki.roa, rpki.log
+import rpki.manifest, rpki.roa, rpki.log, rpki.async
 
 def calculate_SKI(public_key_der):
   """Calculate the SKI value given the DER representation of a public
@@ -672,6 +672,8 @@ class CMS_object(DER_object):
 
     try:
       cms = self.get_POW()
+    except rpki.async.ExitNow:
+      raise
     except:
       if self.print_on_der_error:
         rpki.log.debug("Problem parsing DER CMS message, might not really be DER: %s"
@@ -724,6 +726,8 @@ class CMS_object(DER_object):
 
     try:
       content = cms.verify(store)
+    except rpki.async.ExitNow:
+      raise
     except:
       if self.dump_on_verify_failure:
         if True:
@@ -750,6 +754,8 @@ class CMS_object(DER_object):
 
     try:
       cms = self.get_POW()
+    except rpki.async.ExitNow:
+      raise
     except:
       raise rpki.exceptions.UnparsableCMSDER
 

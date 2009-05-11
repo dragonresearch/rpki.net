@@ -248,6 +248,8 @@ class main(object):
           if p is not None:
             rpki.log.info("Killing %s" % n)
             os.kill(p.pid, signal.SIGTERM)
+      except rpki.async.ExitNow:
+        raise
       except Exception, data:
         rpki.log.warn("Couldn't clean up daemons (%s), continuing" % data)
 

@@ -21,6 +21,8 @@ PERFORMANCE OF THIS SOFTWARE.
 import asyncore, signal, traceback
 import rpki.log, rpki.sundial
 
+ExitNow = asyncore.ExitNow
+
 class iterator(object):
   """Iteration construct for event-driven code.  Takes three
   arguments:
@@ -44,6 +46,8 @@ class iterator(object):
     self.done_callback = done_callback
     try:
       self.iterator = iter(iterable)
+    except ExitNow:
+      raise
     except:
       rpki.log.debug("Problem constructing iterator for %s" % repr(iterable))
       raise
@@ -146,7 +150,7 @@ class timer(object):
       t = cls.queue.pop(0)
       try:
         t.handler()
-      except asyncore.ExitNow:
+      except ExitNow:
         raise
       except Exception, e:
         t.errback(e)
@@ -186,7 +190,7 @@ class timer(object):
 
 def _raiseExitNow(signum, frame):
   """Signal handler for event_loop()."""
-  raise asyncore.ExitNow
+  raise ExitNow
 
 def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
   """Replacement for asyncore.loop(), adding timer and signal support."""
@@ -197,7 +201,7 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
     while asyncore.socket_map or timer.queue:
       asyncore.poll(timer.seconds_until_wakeup(), asyncore.socket_map)
       timer.runq()
-  except asyncore.ExitNow:
+  except ExitNow:
     pass
   finally:
     for sig in old_signal_handlers:
@@ -205,4 +209,4 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
 
 def exit_event_loop():
   """Force exit from event_loop()."""
-  raise asyncore.ExitNow
+  raise ExitNow

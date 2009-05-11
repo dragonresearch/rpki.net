@@ -315,7 +315,7 @@ class http_server(http_stream):
     if error is None:
       try:
         handler(self.msg.body, self.msg.path, self.send_reply)
-      except asyncore.ExitNow:
+      except rpki.async.ExitNow:
         raise
       except Exception, edata:
         print traceback.format_exc()
@@ -356,7 +356,7 @@ class http_listener(asyncore.dispatcher):
       self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
       self.bind((host, port))
       self.listen(5)
-    except asyncore.ExitNow:
+    except rpki.async.ExitNow:
       raise
     except:
       self.handle_error()
@@ -366,7 +366,7 @@ class http_listener(asyncore.dispatcher):
     self.log("Accepting connection")
     try:
       http_server(conn = self.accept()[0], handlers = self.handlers)
-    except asyncore.ExitNow:
+    except rpki.async.ExitNow:
       raise
     except:
       self.handle_error()
@@ -391,6 +391,8 @@ class http_client(http_stream):
     try:
       self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
       self.connect(self.hostport)
+    except rpki.async.ExitNow:
+      raise
     except:
       self.handle_error()
 
@@ -461,6 +463,8 @@ class http_client(http_stream):
     self.queue.detach(self)
     try:
       raise
+    except rpki.async.ExitNow:
+      raise
     except Exception, edata:
       self.queue.return_result(edata)
 
@@ -513,7 +517,7 @@ class http_queue(object):
         assert isinstance(result, Exception)
         self.log("Returning exception %r to caller: %s" % (result, result))
         req.errback(result)
-    except asyncore.ExitNow:
+    except rpki.async.ExitNow:
       raise
     except:
       self.log("Unhandled exception from callback")

@@ -188,6 +188,8 @@ class cms_msg(rpki.up_down.cms_msg):
 def up_down_handler(query, path, cb):
   try:
     q_msg = cms_msg.unwrap(query, (bpki_ta, child_bpki_cert))
+  except rpki.async.ExitNow:
+    raise
   except Exception, data:
     rpki.log.error(traceback.format_exc())
     return cb(400, "Could not process PDU: %s" % data)
@@ -198,10 +200,14 @@ def up_down_handler(query, path, cb):
 
   try:
     q_msg.serve_top_level(None, done)
+  except rpki.async.ExitNow:
+    raise
   except Exception, data:
     rpki.log.error(traceback.format_exc())
     try:
       done(q_msg.serve_error(data))
+    except rpki.async.ExitNow:
+      raise
     except Exception, data:
       rpki.log.error(traceback.format_exc())
       cb(500, "Could not process PDU: %s" % data)

@@ -276,6 +276,8 @@ class msg(rpki.xml_utils.msg, publication_namespace):
         q_pdu.gctx = gctx
         q_pdu.client = client
         q_pdu.serve_dispatch(r_msg, iterator, fail)
+      except rpki.async.ExitNow:
+        raise
       except Exception, edata:
         fail(edata)
 

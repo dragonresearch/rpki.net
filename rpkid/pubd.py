@@ -63,6 +63,8 @@ class pubd_context(object):
     try:
       self.sql.ping()
       self.handler_common(query, None, lambda x: cb(200, x), (self.bpki_ta, self.irbe_cert))
+    except rpki.async.ExitNow:
+      raise
     except Exception, data:
       rpki.log.error(traceback.format_exc())
       cb(500, "Unhandled exception %s" % data)
@@ -82,6 +84,8 @@ class pubd_context(object):
       if config is None or config.bpki_crl is None:
         raise rpki.exceptions.CMSCRLNotSet
       self.handler_common(query, client, lambda x: cb(200, x), (self.bpki_ta, client.bpki_cert, client.bpki_glue), config.bpki_crl)
+    except rpki.async.ExitNow:
+      raise
     except Exception, data:
       rpki.log.error(traceback.format_exc())
       cb(500, "Could not process PDU: %s" % data)

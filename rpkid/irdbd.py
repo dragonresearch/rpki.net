@@ -73,6 +73,9 @@ def handler(query, path, cb):
 
     cb(200, rpki.left_right.cms_msg.wrap(r_msg, irdbd_key, irdbd_cert))
 
+  except rpki.async.ExitNow:
+    raise
+
   except Exception, data:
     rpki.log.error(traceback.format_exc())
 

@@ -775,11 +775,22 @@ def cronjob_main(argv):
   if len(argv) != 1:
     raise RuntimeError, "Expected one argument, got %s" % argv
 
+  old_ixfrs = glob.glob("*.ix.*")
+
+  cutoff = rpki.sundial.now() - rpki.sundial.timedelta(days = 1)
+  for f in glob.iglob("*.ax"):
+    t = rpki.sundial.datetime.utcfromtimestamp(os.stat(f).st_mtime)
+    if  t < cutoff:
+      print "# Deleting old file %s, timestamp %s" % (f, t)
+      os.unlink(f)
+  
   pdus = axfr_set.parse_rcynic(argv[0])
   pdus.save_axfr()
   for axfr in glob.glob("*.ax"):
     pdus.save_ixfr(axfr_set.load(axfr))
   pdus.mark_current()
+
+  print "# New serial is %s" % pdus.serial
 
   msg = "Good morning, serial %s is ready" % pdus.serial
   sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
@@ -790,6 +801,10 @@ def cronjob_main(argv):
     except:
       print "# Failed to kick %s" % name
   sock.close()
+
+  for f in old_ixfrs:
+    print "# Deleting old file %s" % f
+    os.unlink(f)
 
 def show_main(argv):
   """Main program for show mode.  Just displays current AXFR and IXFR dumps"""

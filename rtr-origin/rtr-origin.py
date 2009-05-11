@@ -477,9 +477,13 @@ class axfr_set(prefix_set):
     self.serial = int(fn1)
     return self
 
+  def filename(self):
+    """Generate filename for this axfr_set."""
+    return "%d.ax" % self.serial
+
   def save_axfr(self):
     """Write axfr__set to file with magic filename."""
-    f = open("%d.ax" % self.serial, "wb")
+    f = open(self.filename(), "wb")
     for p in self:
       f.write(p.to_pdu())
     f.close()
@@ -541,6 +545,10 @@ class ixfr_set(prefix_set):
     self.from_serial = int(fn3)
     self.to_serial = int(fn1)
     return self
+
+  def filename(self):
+    """Generate filename for this ixfr_set."""
+    return "%d.ix.%d" % (self.to_serial, self.from_serial)
 
   def show(self):
     """Print this ixfr_set."""
@@ -786,8 +794,9 @@ def cronjob_main(argv):
   
   pdus = axfr_set.parse_rcynic(argv[0])
   pdus.save_axfr()
-  for axfr in glob.glob("*.ax"):
-    pdus.save_ixfr(axfr_set.load(axfr))
+  for axfr in glob.iglob("*.ax"):
+    if axfr != pdus.filename():
+      pdus.save_ixfr(axfr_set.load(axfr))
   pdus.mark_current()
 
   print "# New serial is %s" % pdus.serial
@@ -802,17 +811,25 @@ def cronjob_main(argv):
       print "# Failed to kick %s" % name
   sock.close()
 
-  for f in old_ixfrs:
-    print "# Deleting old file %s" % f
-    os.unlink(f)
+  old_ixfrs.sort()
+  for ixfr in old_ixfrs:
+    print "# Deleting old file %s" % ixfr
+    os.unlink(ixfr)
 
 def show_main(argv):
   """Main program for show mode.  Just displays current AXFR and IXFR dumps"""
+
   if argv:
     raise RuntimeError, "Unexpected arguments: %s" % argv
-  for f in glob.glob("*.ax"):
+
+  g = glob.glob("*.ax")
+  g.sort()
+  for f in g:
     axfr_set.load(f).show()
-  for f in glob.glob("*.ix.*"):
+
+  g = glob.glob("*.ix.*")
+  g.sort()
+  for f in g:
     ixfr_set.load(f).show()
 
 def server_main(argv):

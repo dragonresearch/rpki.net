@@ -1,4 +1,5 @@
-"""RPKI "left-right" protocol.
+"""
+RPKI "left-right" protocol.
 
 $Id$
 
@@ -26,13 +27,17 @@ import rpki.publication, rpki.async
 enforce_strict_up_down_xml_sender = False
 
 class left_right_namespace(object):
-  """XML namespace parameters for left-right protocol."""
+  """
+  XML namespace parameters for left-right protocol.
+  """
 
   xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
   nsmap = { None : xmlns }
 
 class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant, left_right_namespace):
-  """Virtual class for top-level left-right protocol data elements."""
+  """
+  Virtual class for top-level left-right protocol data elements.
+  """
 
   def self(self):
     """Fetch self object to which this object links."""
@@ -47,7 +52,8 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant, left_right_name
     r_pdu.self_id = self.self_id
 
   def serve_fetch_one(self):
-    """Find the object on which a get, set, or destroy method should
+    """
+    Find the object on which a get, set, or destroy method should
     operate.
     """
     where = self.sql_template.index + " = %s AND self_id = %s"
@@ -62,13 +68,17 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant, left_right_name
     return self.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
   
   def unimplemented_control(self, *controls):
-    """Uniform handling for unimplemented control operations."""
+    """
+    Uniform handling for unimplemented control operations.
+    """
     unimplemented = [x for x in controls if getattr(self, x, False)]
     if unimplemented:
       raise rpki.exceptions.NotImplementedYet, "Unimplemented control %s" % ", ".join(unimplemented)
 
 class self_elt(data_elt):
-  """<self/> element."""
+  """
+  <self/> element.
+  """
 
   element_name = "self"
   attributes = ("action", "tag", "self_id", "crl_interval", "regen_margin")
@@ -106,7 +116,9 @@ class self_elt(data_elt):
     return route_origin_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
-    """Extra server actions for self_elt."""
+    """
+    Extra server actions for self_elt.
+    """
     rpki.log.trace()
     if q_pdu.rekey:
       self.serve_rekey(cb, eb)
@@ -117,7 +129,9 @@ class self_elt(data_elt):
       cb()
 
   def serve_rekey(self, cb, eb):
-    """Handle a left-right rekey action for this self."""
+    """
+    Handle a left-right rekey action for this self.
+    """
     rpki.log.trace()
 
     def loop(iterator, parent):
@@ -126,7 +140,9 @@ class self_elt(data_elt):
     rpki.async.iterator(self.parents(), loop, cb)
 
   def serve_revoke(self, cb, eb):
-    """Handle a left-right revoke action for this self."""
+    """
+    Handle a left-right revoke action for this self.
+    """
     rpki.log.trace()
 
     def loop(iterator, parent):
@@ -135,7 +151,8 @@ class self_elt(data_elt):
     rpki.async.iterator(self.parents(), loop, cb)
 
   def serve_fetch_one(self):
-    """Find the self object upon which a get, set, or destroy action
+    """
+    Find the self object upon which a get, set, or destroy action
     should operate.
     """
     r = self.sql_fetch(self.gctx, self.self_id)
@@ -144,14 +161,18 @@ class self_elt(data_elt):
     return r
 
   def serve_fetch_all(self):
-    """Find the self objects upon which a list action should operate.
+    """
+    Find the self objects upon which a list action should operate.
     This is different from the list action for all other objects,
     where list only works within a given self_id context.
     """
     return self.sql_fetch_all(self.gctx)
 
   def client_poll(self, callback):
-    """Run the regular client poll cycle with each of this self's parents in turn."""
+    """
+    Run the regular client poll cycle with each of this self's parents
+    in turn.
+    """
 
     rpki.log.trace()
 
@@ -198,7 +219,8 @@ class self_elt(data_elt):
     rpki.async.iterator(self.parents(), parent_loop, callback)
 
   def update_children(self, cb):
-    """Check for updated IRDB data for all of this self's children and
+    """
+    Check for updated IRDB data for all of this self's children and
     issue new certs as necessary.  Must handle changes both in
     resources and in expiration date.
     """
@@ -275,7 +297,8 @@ class self_elt(data_elt):
 
 
   def regenerate_crls_and_manifests(self, cb):
-    """Generate new CRLs and manifests as necessary for all of this
+    """
+    Generate new CRLs and manifests as necessary for all of this
     self's CAs.  Extracting nextUpdate from a manifest is hard at the
     moment due to implementation silliness, so for now we generate a
     new manifest whenever we generate a new CRL
@@ -324,7 +347,9 @@ class self_elt(data_elt):
 
 
   def update_roas(self, cb):
-    """Generate or update ROAs for this self's route_origin objects."""
+    """
+    Generate or update ROAs for this self's route_origin objects.
+    """
 
     def loop(iterator, route_origin):
       route_origin.update_roa(iterator)
@@ -333,7 +358,9 @@ class self_elt(data_elt):
 
 
 class bsc_elt(data_elt):
-  """<bsc/> (Business Signing Context) element."""
+  """
+  <bsc/> (Business Signing Context) element.
+  """
   
   element_name = "bsc"
   attributes = ("action", "tag", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
@@ -364,8 +391,9 @@ class bsc_elt(data_elt):
     return child_elt.sql_fetch_where(self.gctx, "bsc_id = %s", (self.bsc_id,))
 
   def serve_pre_save_hook(self, q_pdu, r_pdu, cb, eb):
-    """Extra server actions for bsc_elt -- handle key generation.
-    For now this only allows RSA with SHA-256.
+    """
+    Extra server actions for bsc_elt -- handle key generation.  For
+    now this only allows RSA with SHA-256.
     """
     if q_pdu.generate_keypair:
       assert q_pdu.key_type in (None, "rsa") and q_pdu.hash_alg in (None, "sha256")
@@ -375,7 +403,9 @@ class bsc_elt(data_elt):
     cb()
 
 class parent_elt(data_elt):
-  """<parent/> element."""
+  """
+  <parent/> element.
+  """
 
   element_name = "parent"
   attributes = ("action", "tag", "self_id", "parent_id", "bsc_id", "repository_id",
@@ -402,7 +432,9 @@ class parent_elt(data_elt):
     return rpki.rpki_engine.ca_obj.sql_fetch_where(self.gctx, "parent_id = %s", (self.parent_id,))
 
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
-    """Extra server actions for parent_elt."""
+    """
+    Extra server actions for parent_elt.
+    """
     if q_pdu.rekey:
       self.serve_rekey(cb, eb)
     elif q_pdu.revoke:
@@ -412,7 +444,9 @@ class parent_elt(data_elt):
       cb()
 
   def serve_rekey(self, cb, eb):
-    """Handle a left-right rekey action for this parent."""
+    """
+    Handle a left-right rekey action for this parent.
+    """
 
     def loop(iterator, ca):
       ca.rekey(iterator, eb)
@@ -420,7 +454,9 @@ class parent_elt(data_elt):
     rpki.async.iterator(self.cas(), loop, cb)
 
   def serve_revoke(self, cb, eb):
-    """Handle a left-right revoke action for this parent."""
+    """
+    Handle a left-right revoke action for this parent.
+    """
 
     def loop(iterator, ca):
       ca.revoke(iterator, eb)
@@ -428,7 +464,9 @@ class parent_elt(data_elt):
     rpki.async.iterator(self.cas(), loop, cb)
 
   def query_up_down(self, q_pdu, cb, eb):
-    """Client code for sending one up-down query PDU to this parent."""
+    """
+    Client code for sending one up-down query PDU to this parent.
+    """
 
     rpki.log.trace()
 
@@ -463,7 +501,9 @@ class parent_elt(data_elt):
                       errback      = eb)
 
 class child_elt(data_elt):
-  """<child/> element."""
+  """
+  <child/> element.
+  """
 
   element_name = "child"
   attributes = ("action", "tag", "self_id", "child_id", "bsc_id")
@@ -487,7 +527,9 @@ class child_elt(data_elt):
     return parent_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
   def ca_from_class_name(self, class_name):
-    """Fetch the CA corresponding to an up-down class_name."""
+    """
+    Fetch the CA corresponding to an up-down class_name.
+    """
     if not class_name.isdigit():
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % class_name
     ca = rpki.rpki_engine.ca_obj.sql_fetch(self.gctx, long(class_name))
@@ -499,7 +541,9 @@ class child_elt(data_elt):
     return ca
 
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
-    """Extra server actions for child_elt."""
+    """
+    Extra server actions for child_elt.
+    """
     self.unimplemented_control("reissue")
     if self.clear_https_ta_cache:
       self.gctx.clear_https_ta_cache()
@@ -507,7 +551,8 @@ class child_elt(data_elt):
     cb()
 
   def endElement(self, stack, name, text):
-    """Handle subelements of <child/> element.  These require special
+    """
+    Handle subelements of <child/> element.  These require special
     handling because modifying them invalidates the HTTPS trust anchor
     cache.
     """
@@ -516,7 +561,9 @@ class child_elt(data_elt):
       self.clear_https_ta_cache = True
 
   def serve_up_down(self, query, callback):
-    """Outer layer of server handling for one up-down PDU from this child."""
+    """
+    Outer layer of server handling for one up-down PDU from this child.
+    """
 
     rpki.log.trace()
 
@@ -551,7 +598,9 @@ class child_elt(data_elt):
       done(q_msg.serve_error(data))
 
 class repository_elt(data_elt):
-  """<repository/> element."""
+  """
+  <repository/> element.
+  """
 
   element_name = "repository"
   attributes = ("action", "tag", "self_id", "repository_id", "bsc_id", "peer_contact_uri")
@@ -571,7 +620,9 @@ class repository_elt(data_elt):
     return parent_elt.sql_fetch_where(self.gctx, "repository_id = %s", (self.repository_id,))
 
   def call_pubd(self, callback, errback, *pdus):
-    """Send a message to publication daemon and return the response."""
+    """
+    Send a message to publication daemon and return the response.
+    """
     rpki.log.trace()
     bsc = self.bsc()
     q_msg = rpki.publication.msg(pdus)
@@ -600,19 +651,25 @@ class repository_elt(data_elt):
       errback      = errback)
 
   def publish(self, obj, uri, callback, errback):
-    """Publish one object in the repository."""
+    """
+    Publish one object in the repository.
+    """
     rpki.log.trace()
     rpki.log.info("Publishing %s as %s" % (repr(obj), repr(uri)))
     self.call_pubd(callback, errback, rpki.publication.obj2elt[type(obj)].make_pdu(action = "publish", uri = uri, payload = obj))
 
   def withdraw(self, obj, uri, callback, errback):
-    """Withdraw one object from the repository."""
+    """
+    Withdraw one object from the repository.
+    """
     rpki.log.trace()
     rpki.log.info("Withdrawing %s from at %s" % (repr(obj), repr(uri)))
     self.call_pubd(callback, errback, rpki.publication.obj2elt[type(obj)].make_pdu(action = "withdraw", uri = uri))
 
 class route_origin_elt(data_elt):
-  """<route_origin/> element."""
+  """
+  <route_origin/> element.
+  """
 
   element_name = "route_origin"
   attributes = ("action", "tag", "self_id", "route_origin_id", "as_number", "ipv4", "ipv6")
@@ -632,7 +689,9 @@ class route_origin_elt(data_elt):
   publish_ee_separately = False
 
   def sql_fetch_hook(self):
-    """Extra SQL fetch actions for route_origin_elt -- handle prefix list."""
+    """
+    Extra SQL fetch actions for route_origin_elt -- handle prefix list.
+    """
     self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4.from_sql(
       self.gctx.sql,
       """
@@ -647,16 +706,24 @@ class route_origin_elt(data_elt):
       """, (self.route_origin_id,))
 
   def sql_insert_hook(self):
-    """Extra SQL insert actions for route_origin_elt -- handle address ranges."""
+    """
+    Extra SQL insert actions for route_origin_elt -- handle address
+    ranges.
+    """
     if self.ipv4 or self.ipv6:
-      self.gctx.sql.executemany("""
-                INSERT route_origin_prefix (route_origin_id, address, prefixlen, max_prefixlen)
-                VALUES (%s, %s, %s, %s)""",
-                           ((self.route_origin_id, x.address, x.prefixlen, x.max_prefixlen)
-                            for x in (self.ipv4 or []) + (self.ipv6 or [])))
+      self.gctx.sql.executemany(
+        """
+            INSERT route_origin_prefix (route_origin_id, address, prefixlen, max_prefixlen)
+            VALUES (%s, %s, %s, %s)
+        """,
+        ((self.route_origin_id, x.address, x.prefixlen, x.max_prefixlen)
+         for x in (self.ipv4 or []) + (self.ipv6 or [])))
   
   def sql_delete_hook(self):
-    """Extra SQL delete actions for route_origin_elt -- handle address ranges."""
+    """
+    Extra SQL delete actions for route_origin_elt -- handle address
+    ranges.
+    """
     self.gctx.sql.execute("DELETE FROM route_origin_prefix WHERE route_origin_id = %s", (self.route_origin_id,))
 
   def ca_detail(self):
@@ -664,13 +731,16 @@ class route_origin_elt(data_elt):
     return rpki.rpki_engine.ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
 
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
-    """Extra server actions for route_origin_elt."""
+    """
+    Extra server actions for route_origin_elt.
+    """
     self.unimplemented_control("suppress_publication")
     cb()
 
   def startElement(self, stack, name, attrs):
-    """Handle <route_origin/> element.  This requires special
-    processing due to the data types of some of the attributes.
+    """
+    Handle <route_origin/> element.  This requires special processing
+    due to the data types of some of the attributes.
     """
     assert name == "route_origin", "Unexpected name %s, stack %s" % (name, stack)
     self.read_attrs(attrs)
@@ -682,7 +752,9 @@ class route_origin_elt(data_elt):
       self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6)
 
   def update_roa(self, callback):
-    """Bring this route_origin's ROA up to date if necesssary."""
+    """
+    Bring this route_origin's ROA up to date if necesssary.
+    """
 
     def lose(e):
       rpki.log.warn("Could not update ROA %r, skipping: %s" % (self, e))
@@ -722,7 +794,8 @@ class route_origin_elt(data_elt):
     callback()
 
   def generate_roa(self, callback, errback):
-    """Generate a ROA based on this <route_origin/> object.
+    """
+    Generate a ROA based on this <route_origin/> object.
 
     At present this does not support ROAs with multiple signatures
     (neither does the current CMS code).
@@ -796,7 +869,8 @@ class route_origin_elt(data_elt):
                        errback)
 
   def withdraw_roa(self, callback, errback, regenerate = False):
-    """Withdraw ROA associated with this route_origin.
+    """
+    Withdraw ROA associated with this route_origin.
 
     In order to preserve make-before-break properties without
     duplicating code, this method also handles generating a
@@ -837,7 +911,9 @@ class route_origin_elt(data_elt):
       one()
 
   def regenerate_roa(self, callback, errback):
-    """Reissue ROA associated with this route_origin."""
+    """
+    Reissue ROA associated with this route_origin.
+    """
     if self.ca_detail() is None:
       self.generate_roa(callback, errback)
     else:
@@ -860,15 +936,18 @@ class route_origin_elt(data_elt):
     return ca.sia_uri + self.ee_uri_tail()
 
 class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
-  """<list_resources/> element."""
+  """
+  <list_resources/> element.
+  """
 
   element_name = "list_resources"
   attributes = ("self_id", "tag", "child_id", "valid_until", "asn", "ipv4", "ipv6", "subject_name")
   valid_until = None
 
   def startElement(self, stack, name, attrs):
-    """Handle <list_resources/> element.  This requires special
-    handling due to the data types of some of the attributes.
+    """
+    Handle <list_resources/> element.  This requires special handling
+    due to the data types of some of the attributes.
     """
     assert name == "list_resources", "Unexpected name %s, stack %s" % (name, stack)
     self.read_attrs(attrs)
@@ -882,7 +961,8 @@ class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
       self.ipv6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
 
   def toXML(self):
-    """Generate <list_resources/> element.  This requires special
+    """
+    Generate <list_resources/> element.  This requires special
     handling due to the data types of some of the attributes.
     """
     elt = self.make_elt()
@@ -891,14 +971,18 @@ class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
     return elt
 
 class report_error_elt(rpki.xml_utils.base_elt, left_right_namespace):
-  """<report_error/> element."""
+  """
+  <report_error/> element.
+  """
 
   element_name = "report_error"
   attributes = ("tag", "self_id", "error_code")
 
   @classmethod
   def from_exception(cls, e, self_id = None):
-    """Generate a <report_error/> element from an exception."""
+    """
+    Generate a <report_error/> element from an exception.
+    """
     self = cls()
     self.self_id = self_id
     self.error_code = e.__class__.__name__
@@ -906,7 +990,9 @@ class report_error_elt(rpki.xml_utils.base_elt, left_right_namespace):
     return self
 
 class msg(rpki.xml_utils.msg, left_right_namespace):
-  """Left-right PDU."""
+  """
+  Left-right PDU.
+  """
 
   ## @var version
   # Protocol version
@@ -919,7 +1005,9 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
                         route_origin_elt, list_resources_elt, report_error_elt))
 
   def serve_top_level(self, gctx, cb):
-    """Serve one msg PDU."""
+    """
+    Serve one msg PDU.
+    """
     r_msg = self.__class__()
     r_msg.type = "reply"
 
@@ -944,14 +1032,18 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
     rpki.async.iterator(self, loop, done)
 
 class sax_handler(rpki.xml_utils.sax_handler):
-  """SAX handler for Left-Right protocol."""
+  """
+  SAX handler for Left-Right protocol.
+  """
 
   pdu = msg
   name = "msg"
   version = "1"
 
 class cms_msg(rpki.x509.XML_CMS_object):
-  """Class to hold a CMS-signed left-right PDU."""
+  """
+  Class to hold a CMS-signed left-right PDU.
+  """
 
   encoding = "us-ascii"
   schema = rpki.relaxng.left_right

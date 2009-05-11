@@ -33,7 +33,9 @@ openssl = "../../openssl/openssl/apps/openssl"
 keybits = 2048
 
 def main():
-  """Main program, including the toy database itself."""
+  """
+  Main program, including the toy database itself.
+  """
 
   db = allocation_db()
   db.add("ISP1", ipv4 = "192.0.2.1-192.0.2.33", asn = "64533")
@@ -59,8 +61,9 @@ def main():
               "".join([i.makefile_rules() for i in db]))
 
 def write_maybe(name, new_content):
-  """Write a file if and only if its contents have changed.
-  This simplifies interactions with "make".
+  """
+  Write a file if and only if its contents have changed.  This
+  simplifies interactions with "make".
   """
   old_content = None
   if os.path.isfile(name):
@@ -74,19 +77,23 @@ def write_maybe(name, new_content):
     f.close()
 
 class allocation_db(list):
-  """Class to represent an allocation database."""
+  """
+  Class to represent an allocation database.
+  """
 
   def __init__(self):
     self.allocation_map = {}
 
   def add(self, name, **kw):
-    """Add a new entry to this allocation database.
-    All arguments passed through to the allocation constructor.
+    """
+    Add a new entry to this allocation database.  All arguments passed
+    through to the allocation constructor.
     """
     self.insert(0, allocation(name = name, allocation_map = self.allocation_map, **kw))
 
 class allocation(object):
-  """Class representing one entity holding allocated resources.
+  """
+  Class representing one entity holding allocated resources.
 
   In order to simplify configuration, this class automatically
   computes the set of resources that this entity must hold in order to
@@ -96,7 +103,8 @@ class allocation(object):
   parent = None
 
   def __init__(self, name, asn = None, ipv4 = None, ipv6 = None, children = (), allocation_map = None):
-    """Create a new allocation entry.
+    """
+    Create a new allocation entry.
 
     This binds the parent attributes of any children, and computes the
     transitive closure of the set of resources this entity needs.
@@ -112,7 +120,9 @@ class allocation(object):
     allocation_map[name] = self
 
   def summarize(self, attrname, seed = None):
-    """Compute the transitive resource closure for one resource attribute."""
+    """
+    Compute the transitive resource closure for one resource attribute.
+    """
     if seed is None:
       seed = getattr(self, attrname)
     for child in self.children:
@@ -123,7 +133,9 @@ class allocation(object):
     return "%s\n  ASN: %s\n IPv4: %s\n IPv6: %s" % (self.name, self.asn, self.ipv4, self.ipv6)
 
   def cfg_string(self):
-    """Generate the OpenSSL configuration file needed for this entity."""
+    """
+    Generate the OpenSSL configuration file needed for this entity.
+    """
     keys = { "self"       : self.name,
              "keybits"    : keybits,
              "no_parent"  : "#",
@@ -144,7 +156,9 @@ class allocation(object):
     return openssl_cfg_fmt % keys
 
   def makefile_rules(self):
-    """Generate the makefile rules needed for this entity."""
+    """
+    Generate the makefile rules needed for this entity.
+    """
     keys = { "self"     : self.name,
              "keybits"  : keybits,
              "openssl"  : openssl }

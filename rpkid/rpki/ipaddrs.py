@@ -1,4 +1,5 @@
-"""Classes to represent IP addresses.
+"""
+Classes to represent IP addresses.
 
 Given some of the other operations we need to perform on them, it's
 most convenient to represent IP addresses as Python "long" values.
@@ -44,7 +45,8 @@ PERFORMANCE OF THIS SOFTWARE.
 import socket, struct
 
 class v4addr(long):
-  """IPv4 address.
+  """
+  IPv4 address.
 
   Derived from long, but supports IPv4 print syntax.
   """
@@ -52,7 +54,9 @@ class v4addr(long):
   bits = 32
   
   def __new__(cls, x):
-    """Construct a v4addr object."""
+    """
+    Construct a v4addr object.
+    """
     if isinstance(x, str):
       return cls.from_bytes(socket.inet_pton(socket.AF_INET, ".".join(str(int(i)) for i in x.split("."))))
     else:
@@ -72,7 +76,8 @@ class v4addr(long):
     return socket.inet_ntop(socket.AF_INET, self.to_bytes())
 
 class v6addr(long):
-  """IPv6 address.
+  """
+  IPv6 address.
 
   Derived from long, but supports IPv6 print syntax.
   """

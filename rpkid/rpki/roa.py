@@ -1,4 +1,5 @@
-"""ROA (Route Origin Authorization).
+"""
+ROA (Route Origin Authorization).
 
 At the moment this is just the ASN.1 encoder.
 

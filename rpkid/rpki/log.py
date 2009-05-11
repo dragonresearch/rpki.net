@@ -1,4 +1,5 @@
-"""Logging facilities for RPKI libraries.
+"""
+Logging facilities for RPKI libraries.
 
 $Id$
 
@@ -33,7 +34,9 @@ tag = ""
 pid = 0
 
 def init(ident = "rpki", flags = syslog.LOG_PID | syslog.LOG_PERROR, facility = syslog.LOG_DAEMON):
-  """Initialize logging system."""
+  """
+  Initialize logging system.
+  """
 
   if use_syslog:
     return syslog.openlog(ident, flags, facility)
@@ -43,13 +46,17 @@ def init(ident = "rpki", flags = syslog.LOG_PID | syslog.LOG_PERROR, facility = 
     pid = os.getpid()
 
 def set_trace(enable):
-  """Enable or disable call tracing."""
+  """
+  Enable or disable call tracing.
+  """
 
   global enable_trace
   enable_trace = enable
 
 class logger(object):
-  """Closure for logging."""
+  """
+  Closure for logging.
+  """
 
   def __init__(self, priority):
     self.priority = priority
@@ -67,7 +74,9 @@ info  = logger(syslog.LOG_INFO)
 debug = logger(syslog.LOG_DEBUG)
 
 def trace():
-  """Execution trace -- where are we now, and whence came we here?"""
+  """
+  Execution trace -- where are we now, and whence came we here?
+  """
 
   if enable_trace:
     bt = traceback.extract_stack(limit = 3)

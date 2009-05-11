@@ -1,4 +1,5 @@
-"""OID database.
+"""
+OID database.
 
 $Id$
 

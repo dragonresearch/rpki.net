@@ -1,5 +1,6 @@
-"""Configuration file parsing utilities, layered on top of stock
-Python ConfigParser module.
+"""
+Configuration file parsing utilities, layered on top of stock Python
+ConfigParser module.
 
 $Id$
 
@@ -23,14 +24,17 @@ import ConfigParser
 class parser(ConfigParser.RawConfigParser):
 
   def __init__(self, filename = None, section = None):
-    """Initialize this parser."""
+    """
+    Initialize this parser.
+    """
     ConfigParser.RawConfigParser.__init__(self)
     if filename:
       self.read(filename)
     self.default_section = section
 
   def multiget(self, option, section = None):
-    """Parse OpenSSL-style foo.0, foo.1, ... subscripted options.
+    """
+    Parse OpenSSL-style foo.0, foo.1, ... subscripted options.
 
     Returns a list of values matching the specified option name.
     """
@@ -47,7 +51,9 @@ class parser(ConfigParser.RawConfigParser):
     return [match[1] for match in matches]
 
   def get(self, option, default = None, section = None):
-    """Get an option, perhaps with a default value."""
+    """
+    Get an option, perhaps with a default value.
+    """
     if section is None:
       section = self.default_section
     if default is None or self.has_option(section, option):

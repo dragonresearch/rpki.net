@@ -50,9 +50,12 @@ def handler(query, path, cb):
         r_pdu.self_id = q_pdu.self_id
         r_pdu.child_id = q_pdu.child_id
 
-        cur.execute("""SELECT registrant_id, subject_name, valid_until FROM registrant
-                       WHERE registrant.rpki_self_id = %s AND registrant.rpki_child_id = %s
-                       """, (q_pdu.self_id, q_pdu.child_id))
+        cur.execute(
+          """
+              SELECT registrant_id, subject_name, valid_until FROM registrant
+              WHERE registrant.rpki_self_id = %s AND registrant.rpki_child_id = %s
+          """,
+          (q_pdu.self_id, q_pdu.child_id))
         if cur.rowcount != 1:
           raise rpki.exceptions.NotInDatabase, \
                 "This query should have produced a single exact match, something's messed up (rowcount = %d, self_id = %s, child_id = %s)" \

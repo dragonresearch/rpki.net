@@ -30,7 +30,9 @@ import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log
 import rpki.publication
 
 class pubd_context(object):
-  """A container for various pubd parameters."""
+  """
+  A container for various pubd parameters.
+  """
 
   def __init__(self, cfg):
 
@@ -47,7 +49,9 @@ class pubd_context(object):
     self.publication_base = cfg.get("publication-base", "publication/")
 
   def handler_common(self, query, client, cb, certs, crl = None):
-    """Common PDU handler code."""
+    """
+    Common PDU handler code.
+    """
 
     def done(r_msg):
       reply = rpki.publication.cms_msg.wrap(r_msg, self.pubd_key, self.pubd_cert, crl)
@@ -58,7 +62,9 @@ class pubd_context(object):
     q_msg.serve_top_level(self, client, done)
 
   def control_handler(self, query, path, cb):
-    """Process one PDU from the IRBE."""
+    """
+    Process one PDU from the IRBE.
+    """
     rpki.log.trace()
     try:
       self.sql.ping()
@@ -70,7 +76,9 @@ class pubd_context(object):
       cb(500, "Unhandled exception %s" % data)
 
   def client_handler(self, query, path, cb):
-    """Process one PDU from a client."""
+    """
+    Process one PDU from a client.
+    """
     rpki.log.trace()
     try:
       self.sql.ping()
@@ -95,14 +103,17 @@ class pubd_context(object):
   https_ta_cache = None
 
   def clear_https_ta_cache(self):
-    """Clear dynamic TLS trust anchors."""
-
+    """
+    Clear dynamic TLS trust anchors.
+    """
     if self.https_ta_cache is not None:
       rpki.log.debug("Clearing HTTPS trusted cert cache")
       self.https_ta_cache = None
 
   def build_https_ta_cache(self):
-    """Build dynamic TLS trust anchors."""
+    """
+    Build dynamic TLS trust anchors.
+    """
     if self.https_ta_cache is None:
       clients = rpki.publication.client_elt.sql_fetch_all(self)
       self.https_ta_cache = rpki.https.build_https_ta_cache(

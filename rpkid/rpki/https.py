@@ -1,4 +1,5 @@
-"""HTTPS utilities, both client and server.
+"""
+HTTPS utilities, both client and server.
 
 At the moment this only knows how to use the PEM certs in my
 subversion repository; generalizing it would not be hard, but the more
@@ -206,7 +207,9 @@ class http_stream(asynchat.async_chat):
       self.timer.cancel()
 
   def collect_incoming_data(self, data):
-    """Buffer the data"""
+    """
+    Buffer the data
+    """
     self.buffer.append(data)
     self.update_active_timeout()
 
@@ -294,7 +297,9 @@ class http_server(http_stream):
     self.handle_message()
 
   def find_handler(self, path):
-    """Helper method to search self.handlers."""
+    """
+    Helper method to search self.handlers.
+    """
     for s, h in self.handlers:
       if path.startswith(s):
         return h
@@ -532,7 +537,8 @@ class http_queue(object):
 queues = {}
 
 def client(msg, client_key, client_cert, server_ta, url, callback, errback):
-  """Open client HTTPS connection, send a message, wait for response.
+  """
+  Open client HTTPS connection, send a message, wait for response.
 
   THIS VERSION DOES NOT DO TLS.  THIS IS EXPERIMENTAL CODE.  DO NOT
   USE IN PRODUCTION UNTIL TLS SUPPORT HAS BEEN ADDED.
@@ -567,7 +573,8 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback):
   queues[hostport].request(request)
 
 def server(handlers, server_key, server_cert, port, host ="", client_ta = None, dynamic_https_trust_anchor = None):
-  """Run an HTTPS server and wait (forever) for connections.
+  """
+  Run an HTTPS server and wait (forever) for connections.
   
   THIS VERSION DOES NOT DO TLS.  THIS IS EXPERIMENTAL CODE.  DO NOT
   USE IN PRODUCTION UNTIL TLS SUPPORT HAS BEEN ADDED.

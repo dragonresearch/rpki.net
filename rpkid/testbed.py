@@ -93,7 +93,9 @@ except:
 # Define port allocator early, so we can use it while reading config
 
 def allocate_port():
-  """Allocate a TCP port number."""
+  """
+  Allocate a TCP port number.
+  """
   global base_port
   p = base_port
   base_port += 1
@@ -141,8 +143,9 @@ pub_sql_file   = cfg.get("pub_sql_file",   "pubd.sql")
 startup_delay  = int(cfg.get("startup_delay", "10"))
 
 class main(object):
-  """Main program, implemented as a class to handle asynchronous I/O
-  in underlying libraries.
+  """
+  Main program, implemented as a class to handle asynchronous I/O in
+  underlying libraries.
   """
 
   def __init__(self):
@@ -306,7 +309,9 @@ def wakeup(signum, frame):
   rpki.log.info("Wakeup call received, continuing")
 
 def cmd_sleep(interval = None):
-  """Set an alarm, then wait for it to go off."""
+  """
+  Set an alarm, then wait for it to go off.
+  """
   if interval is None:
     rpki.log.info("Pausing indefinitely, send a SIGALRM to wake me up")
   else:
@@ -316,7 +321,9 @@ def cmd_sleep(interval = None):
   signal.pause()
 
 def cmd_shell(*cmd):
-  """Run a shell command."""
+  """
+  Run a shell command.
+  """
   cmd = " ".join(cmd)
   status = subprocess.call(cmd, shell = True)
   rpki.log.info("Shell command returned status %d" % status)
@@ -333,7 +340,9 @@ cmds = { "sleep" : cmd_sleep,
          "echo"  : cmd_echo }
 
 class route_origin(object):
-  """Representation for a route_origin object."""
+  """
+  Representation for a route_origin object.
+  """
 
   def __init__(self, asn, ipv4, ipv6):
     self.asn = asn
@@ -359,12 +368,16 @@ class route_origin(object):
     return cls(yaml.get("asn"), yaml.get("ipv4"), yaml.get("ipv6"))
     
 class allocation_db(list):
-  """Representation of all the entities and allocations in the test system.
-  Almost everything is generated out of this database.
+  """
+  Representation of all the entities and allocations in the test
+  system.  Almost everything is generated out of this database.
   """
 
   def __init__(self, yaml):
-    """Initialize database from the (first) YAML document."""
+    """
+    Initialize database from the (first) YAML document.
+    """
+
     self.root = allocation(yaml, self)
     assert self.root.is_root()
     if self.root.crl_interval is None:
@@ -388,7 +401,9 @@ class allocation_db(list):
       a.set_engine_number(i)
 
   def apply_delta(self, delta, cb):
-    """Apply a delta or run a command."""
+    """
+    Apply a delta or run a command.
+    """
 
     def each(iterator, d):
       if isinstance(d, str):
@@ -408,7 +423,9 @@ class allocation_db(list):
       rpki.async.iterator(delta, each, done)
 
   def dump(self):
-    """Print content of the database."""
+    """
+    Print content of the database.
+    """
     for a in self:
       print a
 
@@ -450,7 +467,9 @@ class allocation(object):
     self.extra_conf = yaml.get("extra_conf", [])
 
   def closure(self):
-    """Compute the transitive resource closure."""
+    """
+    Compute the transitive resource closure.
+    """
     resources = self.base
     for kid in self.kids:
       resources = resources.union(kid.closure())
@@ -458,7 +477,9 @@ class allocation(object):
     return resources
 
   def apply_delta(self, yaml, cb):
-    """Apply deltas to this entity."""
+    """
+    Apply deltas to this entity.
+    """
 
     rpki.log.info("Applying delta: %s" % yaml)
 
@@ -557,14 +578,18 @@ class allocation(object):
   def is_twig(self): return not self.is_leaf() and not self.is_root()
 
   def set_engine_number(self, n):
-    """Set the engine number for this entity."""
+    """
+    Set the engine number for this entity.
+    """
     self.irdb_db_name = "irdb%d" % n
     self.irdb_port    = allocate_port()
     self.rpki_db_name = "rpki%d" % n
     self.rpki_port    = allocate_port()
 
   def setup_bpki_certs(self):
-    """Create BPKI certificates for this entity."""
+    """
+    Create BPKI certificates for this entity.
+    """
     rpki.log.info("Constructing BPKI keys and certs for %s" % self.name)
     if self.is_leaf():
       setup_bpki_cert_chain(self.name, ee = ("RPKI",))
@@ -576,7 +601,9 @@ class allocation(object):
       self.rpkid_cert = rpki.x509.X509(PEM_file = self.name + "-RPKI.cer")
 
   def setup_conf_file(self):
-    """Write config files for this entity."""
+    """
+    Write config files for this entity.
+    """
     rpki.log.info("Writing config files for %s" % self.name)
     d = { "my_name"      : self.name,
           "testbed_name" : testbed_name,
@@ -593,7 +620,9 @@ class allocation(object):
     f.close()
 
   def setup_sql(self, rpki_sql, irdb_sql):
-    """Set up this entity's IRDB."""
+    """
+    Set up this entity's IRDB.
+    """
     rpki.log.info("Setting up MySQL for %s" % self.name)
     db = MySQLdb.connect(user = "rpki", db = self.rpki_db_name, passwd = rpki_db_pass)
     cur = db.cursor()
@@ -605,13 +634,15 @@ class allocation(object):
     for sql in irdb_sql:
       cur.execute(sql)
     for kid in self.kids:
-      cur.execute("INSERT registrant (IRBE_mapped_id, subject_name, valid_until) VALUES (%s, %s, %s)", (kid.name, kid.name, kid.resources.valid_until.to_sql()))
+      cur.execute("INSERT registrant (IRBE_mapped_id, subject_name, valid_until) VALUES (%s, %s, %s)",
+                  (kid.name, kid.name, kid.resources.valid_until.to_sql()))
     db.close()
 
   def sync_sql(self):
-    """Whack this entity's IRDB to match our master database.  We do
-    this once during setup, then do it again every time we apply a
-    delta to this entity.
+    """
+    Whack this entity's IRDB to match our master database.  We do this
+    once during setup, then do it again every time we apply a delta to
+    this entity.
     """
     rpki.log.info("Updating MySQL data for IRDB %s" % self.name)
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
@@ -631,13 +662,17 @@ class allocation(object):
     db.close()
 
   def run_daemons(self):
-    """Run daemons for this entity."""
+    """
+    Run daemons for this entity.
+    """
     rpki.log.info("Running daemons for %s" % self.name)
     self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "-c", self.name + ".conf") + (("-p", self.name + ".prof") if profile else ()))
     self.irdbd_process = subprocess.Popen((prog_python, prog_irdbd, "-c", self.name + ".conf"))
 
   def kill_daemons(self):
-    """Kill daemons for this entity."""
+    """
+    Kill daemons for this entity.
+    """
     rpki.log.info("Killing daemons for %s" % self.name)
     for proc in (self.rpkid_process, self.irdbd_process):
       try:
@@ -648,8 +683,9 @@ class allocation(object):
       proc.wait()
 
   def call_rpkid(self, pdu, cb):
-    """Send a left-right message to this entity's RPKI daemon and
-    return the response.
+    """
+    Send a left-right message to this entity's RPKI daemon and return
+    the response.
     """
     rpki.log.info("Calling rpkid for %s" % self.name)
     msg = rpki.left_right.msg([pdu])
@@ -685,7 +721,9 @@ class allocation(object):
     self.call_rpkid_caller_cb(msg[0] if len(msg) == 1 else msg)
 
   def cross_certify(self, certificant, reverse = False):
-    """Cross-certify and return the resulting certificate."""
+    """
+    Cross-certify and return the resulting certificate.
+    """
 
     if reverse:
       certifier = certificant
@@ -713,7 +751,8 @@ class allocation(object):
     return rpki.x509.X509(Auto_file = certfile)
 
   def create_rpki_objects(self, cb):
-    """Create RPKI engine objects for this engine.
+    """
+    Create RPKI engine objects for this engine.
 
     Parent and child objects are tricky:
 
@@ -851,7 +890,8 @@ class allocation(object):
     start()
 
   def setup_yaml_leaf(self):
-    """Generate certificates and write YAML scripts for leaf nodes.
+    """
+    Generate certificates and write YAML scripts for leaf nodes.
     We're cheating a bit here: properly speaking, we can't generate
     issue or revoke requests without knowing the class, which is
     generated on the fly, but at the moment the test case is
@@ -880,7 +920,9 @@ class allocation(object):
     f.close()
 
   def run_cron(self, cb):
-    """Trigger cron run for this engine."""
+    """
+    Trigger cron run for this engine.
+    """
 
     rpki.log.info("Running cron for %s" % self.name)
     rpki.https.client(client_key   = self.irbe_key,
@@ -892,10 +934,11 @@ class allocation(object):
                       errback      = cb)
 
   def run_yaml(self):
-    """Run YAML scripts for this leaf entity.  Since we're not
-    bothering to check the class list returned by the list command,
-    the issue command may fail, so we treat failure of the list
-    command as an error, but only issue a warning when issue fails.
+    """
+    Run YAML scripts for this leaf entity.  Since we're not bothering
+    to check the class list returned by the list command, the issue
+    command may fail, so we treat failure of the list command as an
+    error, but only issue a warning when issue fails.
     """
 
     rpki.log.info("Running YAML for %s" % self.name)
@@ -904,7 +947,9 @@ class allocation(object):
       rpki.log.warn("YAML issue command failed for %s, continuing" % self.name)
 
 def setup_bpki_cert_chain(name, ee = (), ca = ()):
-  """Build a set of BPKI certificates."""
+  """
+  Build a set of BPKI certificates.
+  """
   s = "exec >/dev/null 2>&1\n"
   for kind in ("TA",) + ee + ca:
     d = { "name"    : name,
@@ -928,7 +973,9 @@ def setup_bpki_cert_chain(name, ee = (), ca = ()):
   subprocess.check_call(s, shell = True)
 
 def setup_rootd(rpkid_name, rpkid_tag, rootd_yaml):
-  """Write the config files for rootd."""
+  """
+  Write the config files for rootd.
+  """
   rpki.log.info("Writing config files for %s" % rootd_name)
   d = { "rootd_name" : rootd_name,
         "rootd_port" : rootd_port,
@@ -948,7 +995,9 @@ def setup_rootd(rpkid_name, rpkid_tag, rootd_yaml):
   subprocess.check_call(s, shell = True)
 
 def setup_rcynic():
-  """Write the config file for rcynic."""
+  """
+  Write the config file for rcynic.
+  """
   rpki.log.info("Config file for rcynic")
   d = { "rcynic_name" : rcynic_name,
         "rootd_name"  : rootd_name,
@@ -958,7 +1007,9 @@ def setup_rcynic():
   f.close()
 
 def setup_rsyncd():
-  """Write the config file for rsyncd."""
+  """
+  Write the config file for rsyncd.
+  """
   rpki.log.info("Config file for rsyncd")
   d = { "rsyncd_name"   : rsyncd_name,
         "rsyncd_port"   : rsyncd_port,
@@ -969,7 +1020,9 @@ def setup_rsyncd():
   f.close()
 
 def setup_publication(pubd_sql):
-  """Set up publication daemon."""
+  """
+  Set up publication daemon.
+  """
   rpki.log.info("Configure publication daemon")
   pubd_dir = os.getcwd() + "/publication/"
   assert rootd_sia.startswith("rsync://")
@@ -998,7 +1051,8 @@ def setup_publication(pubd_sql):
   pubd_pubd_cert = rpki.x509.X509(Auto_file = pubd_name + "-PUBD.cer")
 
 def call_pubd(pdu, cb):
-  """Send a publication message to publication daemon and return the
+  """
+  Send a publication message to publication daemon and return the
   response.
   """
   rpki.log.info("Calling pubd")
@@ -1033,8 +1087,9 @@ def call_pubd_cb(val):
   call_pubd_caller_cb(msg[0] if len(msg) == 1 else msg)
 
 def set_pubd_crl(cb):
-  """Whack publication daemon's bpki_crl.  This must be configured
-  before publication daemon starts talking to its clients, and must be
+  """
+  Whack publication daemon's bpki_crl.  This must be configured before
+  publication daemon starts talking to its clients, and must be
   updated whenever we update the CRL.
   """
   rpki.log.info("Setting pubd's BPKI CRL")
@@ -1042,7 +1097,9 @@ def set_pubd_crl(cb):
             cb = cb)
 
 def run_rcynic():
-  """Run rcynic to see whether what was published makes sense."""
+  """
+  Run rcynic to see whether what was published makes sense.
+  """
   rpki.log.info("Running rcynic")
   env = os.environ.copy()
   env["TZ"] = ""
@@ -1050,10 +1107,13 @@ def run_rcynic():
   subprocess.call(rcynic_stats, shell = True, env = env)
 
 def mangle_sql(filename):
-  """Mangle an SQL file into a sequence of SQL statements."""
-  #
-  # There is no pretty way to do this.  Just shut your eyes, it'll be over soon.
-  #
+  """
+  Mangle an SQL file into a sequence of SQL statements.
+  """
+  
+  # There is no pretty way to do this.  Just shut your eyes, it'll be
+  # over soon.
+  
   f = open(filename)
   statements = " ".join(" ".join(word for word in line.expandtabs().split(" ") if word)
                         for line in [line.strip(" \t\n") for line in f.readlines()]

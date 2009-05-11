@@ -1,4 +1,5 @@
-"""SQL interface code.
+"""
+SQL interface code.
 
 $Id$
 
@@ -21,7 +22,9 @@ import MySQLdb,  warnings, _mysql_exceptions
 import rpki.x509, rpki.resource_set, rpki.sundial, rpki.log
 
 class session(object):
-  """SQL session layer."""
+  """
+  SQL session layer.
+  """
 
   _exceptions_enabled = False
 
@@ -84,7 +87,9 @@ class session(object):
     assert not self.dirty, "Dirty objects in SQL cache: %s" % self.dirty
 
   def sweep(self):
-    """Write any dirty objects out to SQL."""
+    """
+    Write any dirty objects out to SQL.
+    """
     for s in self.dirty.copy():
       rpki.log.debug("Sweeping %s" % repr(s))
       if s.sql_deleted:
@@ -94,7 +99,10 @@ class session(object):
     self.assert_pristine()
 
 class template(object):
-  """SQL template generator."""
+  """
+  SQL template generator.
+  """
+
   def __init__(self, table_name, index_column, *data_columns):
     """Build a SQL template."""
     type_map     = dict((x[0], x[1]) for x in data_columns if isinstance(x, tuple))
@@ -113,7 +121,8 @@ class template(object):
     self.delete  = "DELETE FROM %s WHERE %s = %%s" % (table_name, index_column)
 
 class sql_persistant(object):
-  """Mixin for persistant class that needs to be stored in SQL.
+  """
+  Mixin for persistant class that needs to be stored in SQL.
   """
 
   ## @var sql_in_db
@@ -133,7 +142,8 @@ class sql_persistant(object):
 
   @classmethod
   def sql_fetch(cls, gctx, id):
-    """Fetch one object from SQL, based on its primary key.
+    """
+    Fetch one object from SQL, based on its primary key.
 
     Since in this one case we know that the primary index is also the
     cache key, we check for a cache hit directly in the hope of
@@ -155,7 +165,9 @@ class sql_persistant(object):
 
   @classmethod
   def sql_fetch_where1(cls, gctx, where, args = None):
-    """Fetch one object from SQL, based on an arbitrary SQL WHERE expression."""
+    """
+    Fetch one object from SQL, based on an arbitrary SQL WHERE expression.
+    """
     results = cls.sql_fetch_where(gctx, where, args)
     if len(results) == 0:
       return None
@@ -173,7 +185,9 @@ class sql_persistant(object):
 
   @classmethod
   def sql_fetch_where(cls, gctx, where, args = None):
-    """Fetch objects of this type matching an arbitrary SQL WHERE expression."""
+    """
+    Fetch objects of this type matching an arbitrary SQL WHERE expression.
+    """
     if where is None:
       assert args is None
       if cls.sql_debug:
@@ -195,7 +209,9 @@ class sql_persistant(object):
 
   @classmethod
   def sql_init(cls, gctx, row, key):
-    """Initialize one Python object from the result of a SQL query."""
+    """
+    Initialize one Python object from the result of a SQL query.
+    """
     self = cls()
     self.gctx = gctx
     self.sql_decode(dict(zip(cls.sql_template.columns, row)))
@@ -221,7 +237,9 @@ class sql_persistant(object):
     self.sql_deleted = True
 
   def sql_store(self):
-    """Store this object to SQL."""
+    """
+    Store this object to SQL.
+    """
     args = self.sql_encode()
     if not self.sql_in_db:
       if self.sql_debug:
@@ -241,7 +259,9 @@ class sql_persistant(object):
     self.sql_in_db = True
 
   def sql_delete(self):
-    """Delete this object from SQL."""
+    """
+    Delete this object from SQL.
+    """
     if self.sql_in_db:
       id = getattr(self, self.sql_template.index)
       self.gctx.sql.execute(self.sql_template.delete, id)
@@ -253,7 +273,8 @@ class sql_persistant(object):
     self.sql_mark_clean()
 
   def sql_encode(self):
-    """Convert object attributes into a dict for use with canned SQL
+    """
+    Convert object attributes into a dict for use with canned SQL
     queries.  This is a default version that assumes a one-to-one
     mapping between column names in SQL and attribute names in Python.
     If you need something fancier, override this.
@@ -265,7 +286,8 @@ class sql_persistant(object):
     return d
 
   def sql_decode(self, vals):
-    """Initialize an object with values returned by self.sql_fetch().
+    """
+    Initialize an object with values returned by self.sql_fetch().
     This is a default version that assumes a one-to-one mapping
     between column names in SQL and attribute names in Python.  If you
     need something fancier, override this.

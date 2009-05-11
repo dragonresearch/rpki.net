@@ -24,7 +24,9 @@ import rpki.left_right, rpki.https, rpki.x509, rpki.config, rpki.log, rpki.publi
 pem_out = None
 
 class UsageWrapper(textwrap.TextWrapper):
-  """Call interface around Python textwrap.Textwrapper class."""
+  """
+  Call interface around Python textwrap.Textwrapper class.
+  """
 
   def __call__(self, *args):
     """Format arguments, with TextWrapper indentation."""
@@ -33,7 +35,9 @@ class UsageWrapper(textwrap.TextWrapper):
 usage_fill = UsageWrapper(subsequent_indent = " " * 4)
 
 class cmd_elt_mixin(object):
-  """Protocol mix-in for command line client element PDUs."""
+  """
+  Protocol mix-in for command line client element PDUs.
+  """
 
   ## @var excludes
   # XML attributes and elements that should not be allowed as command
@@ -44,7 +48,9 @@ class cmd_elt_mixin(object):
 
   @classmethod
   def usage(cls):
-    """Generate usage message for this PDU."""
+    """
+    Generate usage message for this PDU.
+    """
     args = " ".join("--" + x + "=" for x in cls.attributes + cls.elements if x not in cls.excludes)
     bools = " ".join("--" + x for x in cls.booleans)
     if args and bools:
@@ -53,7 +59,9 @@ class cmd_elt_mixin(object):
       return args or bools
 
   def client_getopt(self, argv):
-    """Parse options for this class."""
+    """
+    Parse options for this class.
+    """
     opts, argv = getopt.getopt(argv, "", [x + "=" for x in self.attributes + self.elements if x not in self.excludes] + list(self.booleans))
     for o, a in opts:
       o = o[2:]
@@ -101,11 +109,15 @@ class cmd_elt_mixin(object):
         print "  %s: %s" % (i, getattr(self, i))
 
 class cmd_msg_mixin(object):
-  """Protocol mix-in for command line client message PDUs."""
+  """
+  Protocol mix-in for command line client message PDUs.
+  """
 
   @classmethod
   def usage(cls):
-    """Generate usage message for this PDU."""
+    """
+    Generate usage message for this PDU.
+    """
     for k, v in cls.pdus.items():
       print usage_fill(k, v.usage())
 

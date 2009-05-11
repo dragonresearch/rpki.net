@@ -1,6 +1,12 @@
-"""Set up the relationship between an IRBE and an RPKI engine given an
+"""
+Set up the relationship between an IRBE and an RPKI engine given an
 IRDB.  Our main task here is to create child objects in the RPKI
 engine for every registrant object in the IRDB.
+
+NB: This code is badly out of date, and has been kept only because
+some of what it's doing might be useful in other tools that haven't
+been written yet.  Don't believe anything you see here.
+
 
 $Id$
 
@@ -39,7 +45,8 @@ irbe_key    = rpki.x509.RSA( Auto_file  = cfg.get("irbe-key"))
 https_url   = cfg.get("https-url")
 
 def call_rpkid(pdu):
-  """Hand a PDU to rpkid and get back the response.  Just throw an
+  """
+  Hand a PDU to rpkid and get back the response.  Just throw an
   exception if anything bad happens, no fancy error handling.
   """
 
@@ -102,7 +109,10 @@ for registrant_id, subject_name  in registrants:
   print "Attempting to bind", registrant_id, subject_name
   pdu = call_rpkid(rpki.left_right.child_elt.make_pdu(action = "create", self_id = self_id, bsc_id = bsc_id, bpki_cms_cert = cer))
   print "Attempting to bind", registrant_id, subject_name, pdu.child_id
-  cur.execute("""UPDATE registrant
-                 SET rpki_self_id = %d, rpki_child_id = %d
-                 WHERE registrant_id = %d
-              """, (self_id, pdu.child_id, registrant_id))
+  cur.execute(
+    """
+      UPDATE registrant
+      SET rpki_self_id = %d, rpki_child_id = %d
+      WHERE registrant_id = %d
+    """,
+    (self_id, pdu.child_id, registrant_id))

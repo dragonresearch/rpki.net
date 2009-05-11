@@ -1,4 +1,5 @@
-"""Unified RPKI date/time handling, based on the standard Python datetime module.
+"""
+Unified RPKI date/time handling, based on the standard Python datetime module.
 
 Module name chosen to sidestep a nightmare of import-related errors
 that occur with the more obvious module names.
@@ -28,12 +29,14 @@ def now():
   return datetime.utcnow()
 
 class datetime(pydatetime.datetime):
-  """RPKI extensions to standard datetime.datetime class.  All work
-  here is in UTC, so we use naive datetime objects.
+  """
+  RPKI extensions to standard datetime.datetime class.  All work here
+  is in UTC, so we use naive datetime objects.
   """
 
   def totimestamp(self):
-    """Convert to seconds from epoch (like time.time()).  Conversion
+    """
+    Convert to seconds from epoch (like time.time()).  Conversion
     method is a bit silly, but avoids time module timezone whackiness.
     """
     return int(self.strftime("%s"))
@@ -58,7 +61,9 @@ class datetime(pydatetime.datetime):
 
   @classmethod
   def fromASN1tuple(cls, x):
-    """Convert from ASN.1 tuple representation."""
+    """
+    Convert from ASN.1 tuple representation.
+    """
     assert isinstance(x, tuple) and len(x) == 2 and x[0] in ("utcTime", "generalTime")
     if x[0] == "utcTime":
       return cls.fromUTCTime(x[1])
@@ -71,7 +76,9 @@ class datetime(pydatetime.datetime):
   PKIX_threshhold = pydatetime.datetime(2050, 1, 1)
 
   def toASN1tuple(self):
-    """Convert to ASN.1 tuple representation."""
+    """
+    Convert to ASN.1 tuple representation.
+    """
     if self < self.PKIX_threshhold:
       return "utcTime", self.toUTCTime()
     else:
@@ -79,7 +86,9 @@ class datetime(pydatetime.datetime):
 
   @classmethod
   def fromXMLtime(cls, x):
-    """Convert from XML time representation."""
+    """
+    Convert from XML time representation.
+    """
     if x is None:
       return None
     else:
@@ -94,13 +103,16 @@ class datetime(pydatetime.datetime):
 
   @classmethod
   def fromdatetime(cls, x):
-    """Convert a datetime.datetime object into this subclass.
-    This is whacky due to the weird constructors for datetime.
+    """
+    Convert a datetime.datetime object into this subclass.  This is
+    whacky due to the weird constructors for datetime.
     """
     return cls.combine(x.date(), x.time())
 
   def __add__(self, other):
-    """Force correct class for timedelta results."""
+    """
+    Force correct class for timedelta results.
+    """
     x = pydatetime.datetime.__add__(self, other)
     if isinstance(x, pydatetime.timedelta):
       return timedelta.fromtimedelta(x)
@@ -108,7 +120,9 @@ class datetime(pydatetime.datetime):
       return datetime.fromdatetime(x)
   
   def __sub__(self, other):
-    """Force correct class for timedelta results."""
+    """
+    Force correct class for timedelta results.
+    """
     x = pydatetime.datetime.__sub__(self, other)
     if isinstance(x, pydatetime.timedelta):
       return timedelta.fromtimedelta(x)
@@ -121,7 +135,8 @@ class datetime(pydatetime.datetime):
     return cls.fromdatetime(x)
 
   def to_sql(self):
-    """Convert to SQL storage format.
+    """
+    Convert to SQL storage format.
 
     There's something whacky going on in the MySQLdb module, it throws
     range errors when storing a derived type into a DATETIME column.
@@ -143,7 +158,8 @@ class datetime(pydatetime.datetime):
     return other if other < self else self
 
 class timedelta(pydatetime.timedelta):
-  """Timedelta with text parsing.  This accepts two input formats:
+  """
+  Timedelta with text parsing.  This accepts two input formats:
 
   - A simple integer, indicating a number of seconds.
 
@@ -168,7 +184,9 @@ class timedelta(pydatetime.timedelta):
 
   @classmethod
   def parse(cls, arg):
-    """Parse text into a timedelta object."""
+    """
+    Parse text into a timedelta object.
+    """
     if not isinstance(arg, str):
       return cls(seconds = arg)
     elif arg.isdigit():

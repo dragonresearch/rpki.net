@@ -24,7 +24,8 @@ import rpki.log, rpki.sundial
 ExitNow = asyncore.ExitNow
 
 class iterator(object):
-  """Iteration construct for event-driven code.  Takes three
+  """
+  Iteration construct for event-driven code.  Takes three
   arguments:
 
   - Some kind of iterable object
@@ -62,7 +63,8 @@ class iterator(object):
 
 
 class timer(object):
-  """Timer construct for event-driven code.  It can be used in either of two ways:
+  """
+  Timer construct for event-driven code.  It can be used in either of two ways:
 
   - As a virtual class, in which case the subclass should provide a
     handler() method to receive the wakup event when the timer expires; or
@@ -87,10 +89,11 @@ class timer(object):
       self.set_errback(errback)
 
   def set(self, when):
-    """Set a timer.  Argument can be a datetime, to specify an
-    absolute time, a timedelta, to specify an offset time, or None, to
-    indicate that the timer should expire immediately, which can be
-    useful in avoiding an excessively deep call stack.
+    """
+    Set a timer.  Argument can be a datetime, to specify an absolute
+    time, a timedelta, to specify an offset time, or None, to indicate
+    that the timer should expire immediately, which can be useful in
+    avoiding an excessively deep call stack.
     """
     if when is None:
       self.when = rpki.sundial.now()
@@ -107,7 +110,9 @@ class timer(object):
     return cmp(self.when, other.when)
 
   def cancel(self):
-    """Cancel a timer, if it was set."""
+    """
+    Cancel a timer, if it was set.
+    """
     try:
       self.queue.remove(self)
     except ValueError:
@@ -118,13 +123,15 @@ class timer(object):
     return self in self.queue
 
   def handler(self):
-    """Handle a timer that has expired.  This must either be overriden
-    by a subclass or set dynamically by set_handler().
+    """
+    Handle a timer that has expired.  This must either be overriden by
+    a subclass or set dynamically by set_handler().
     """
     raise NotImplementedError
 
   def set_handler(self, handler):
-    """Set timer's expiration handler.  This is an alternative to
+    """
+    Set timer's expiration handler.  This is an alternative to
     subclassing the timer class, and may be easier to use when
     integrating timers into other classes (eg, the handler can be a
     bound method to an object in a class representing a network
@@ -133,7 +140,9 @@ class timer(object):
     self.handler = handler
 
   def errback(self, e):
-    """Error callback.  May be overridden, or set with set_errback()."""
+    """
+    Error callback.  May be overridden, or set with set_errback().
+    """
     rpki.log.error("Unhandled exception from timer: %s" % e)
     rpki.log.error(traceback.format_exc())
 
@@ -143,7 +152,8 @@ class timer(object):
 
   @classmethod
   def runq(cls):
-    """Run the timer queue: for each timer whose call time has passed,
+    """
+    Run the timer queue: for each timer whose call time has passed,
     pull the timer off the queue and call its handler() method.
     """
     while cls.queue and rpki.sundial.now() >= cls.queue[0].when:
@@ -160,12 +170,13 @@ class timer(object):
 
   @classmethod
   def seconds_until_wakeup(cls):
-    """Calculate delay until next timer expires, or None if no timers
-    are set and we should wait indefinitely.  Rounds up to avoid
-    spinning in select() or poll().  We could calculate fractional
-    seconds in the right units instead, but select() and poll() don't
-    even take the same units (argh!), and we're not doing anything
-    that hair-triggered, so rounding up is simplest.
+    """
+    Calculate delay until next timer expires, or None if no timers are
+    set and we should wait indefinitely.  Rounds up to avoid spinning
+    in select() or poll().  We could calculate fractional seconds in
+    the right units instead, but select() and poll() don't even take
+    the same units (argh!), and we're not doing anything that
+    hair-triggered, so rounding up is simplest.
     """
     if not cls.queue:
       return None
@@ -181,7 +192,8 @@ class timer(object):
 
   @classmethod
   def clear(cls):
-    """Cancel every timer on the queue.  We could just throw away the
+    """
+    Cancel every timer on the queue.  We could just throw away the
     queue content, but this way we can notify subclasses that provide
     their own cancel() method.
     """
@@ -193,7 +205,9 @@ def _raiseExitNow(signum, frame):
   raise ExitNow
 
 def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
-  """Replacement for asyncore.loop(), adding timer and signal support."""
+  """
+  Replacement for asyncore.loop(), adding timer and signal support.
+  """
   old_signal_handlers = {}
   try:
     for sig in catch_signals:

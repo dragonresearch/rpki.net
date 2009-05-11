@@ -1,4 +1,5 @@
-"""Exception definitions for RPKI modules.
+"""
+Exception definitions for RPKI modules.
 
 $Id$
 
@@ -18,136 +19,228 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 class RPKI_Exception(Exception):
-  """Base class for RPKI exceptions."""
+  """
+  Base class for RPKI exceptions.
+  """
 
 class NotInDatabase(RPKI_Exception):
-  """Lookup failed for an object expected to be in the database."""
+  """
+  Lookup failed for an object expected to be in the database.
+  """
 
 class BadURISyntax(RPKI_Exception):
-  """Illegal syntax for a URI."""
+  """
+  Illegal syntax for a URI.
+  """
 
 class BadStatusCode(RPKI_Exception):
-  """Unrecognized protocol status code."""
+  """
+  Unrecognized protocol status code.
+  """
 
 class BadQuery(RPKI_Exception):
-  """Unexpected protocol query."""
+  """
+  Unexpected protocol query.
+  """
 
 class DBConsistancyError(RPKI_Exception):
-  """Found multiple matches for a database query that shouldn't ever return that."""
+  """
+  Found multiple matches for a database query that shouldn't ever
+  return that.
+  """
 
 class CMSVerificationFailed(RPKI_Exception):
-  """Verification of a CMS message failed."""
+  """
+  Verification of a CMS message failed.
+  """
 
 class HTTPRequestFailed(RPKI_Exception):
-  """HTTP request failed."""
+  """
+  HTTP request failed.
+  """
 
 class DERObjectConversionError(RPKI_Exception):
-  """Error trying to convert a DER-based object from one representation to another."""
+  """
+  Error trying to convert a DER-based object from one representation
+  to another.
+  """
 
 class NotACertificateChain(RPKI_Exception):
-  """Certificates don't form a proper chain."""
+  """
+  Certificates don't form a proper chain.
+  """
 
 class BadContactURL(RPKI_Exception):
-  """Error trying to parse contact URL."""
+  """
+  Error trying to parse contact URL.
+  """
 
 class BadClassNameSyntax(RPKI_Exception):
-  """Illegal syntax for a class_name."""
+  """
+  Illegal syntax for a class_name.
+  """
 
 class BadIssueResponse(RPKI_Exception):
-  """issue_response PDU with wrong number of classes or certificates."""
+  """
+  issue_response PDU with wrong number of classes or certificates.
+  """
 
 class NotImplementedYet(RPKI_Exception):
-  """Internal error -- not implemented yet."""
+  """
+  Internal error -- not implemented yet.
+  """
 
 class BadPKCS10(RPKI_Exception):
-  """Bad PKCS #10 object."""
+  """
+  Bad PKCS #10 object.
+  """
 
 class UpstreamError(RPKI_Exception):
-  """Received an error from upstream."""
+  """
+  Received an error from upstream.
+  """
 
 class ChildNotFound(RPKI_Exception):
-  """Could not find specified child in database."""
+  """
+  Could not find specified child in database.
+  """
 
 class BSCNotFound(RPKI_Exception):
-  """Could not find specified BSC in database."""
+  """
+  Could not find specified BSC in database.
+  """
 
 class BadSender(RPKI_Exception):
-  """Unexpected XML sender value."""
+  """
+  Unexpected XML sender value.
+  """
 
 class ClassNameMismatch(RPKI_Exception):
-  """class_name does not match child context."""
+  """
+  class_name does not match child context.
+  """
 
 class ClassNameUnknown(RPKI_Exception):
-  """Unknown class_name."""
+  """
+  Unknown class_name.
+  """
 
 class SKIMismatch(RPKI_Exception):
-  """SKI value in response does not match request."""
+  """
+  SKI value in response does not match request.
+  """
 
 class SubprocessError(RPKI_Exception):
-  """Subprocess returned unexpected error."""
+  """
+  Subprocess returned unexpected error.
+  """
 
 class BadIRDBReply(RPKI_Exception):
-  """Unexpected reply to IRDB query."""
+  """
+  Unexpected reply to IRDB query.
+  """
 
 class NotFound(RPKI_Exception):
-  """Object not found in database."""
+  """
+  Object not found in database.
+  """
 
 class MustBePrefix(RPKI_Exception):
-  """Resource range cannot be expressed as a prefix."""
+  """
+  Resource range cannot be expressed as a prefix.
+  """
 
 class TLSValidationError(RPKI_Exception):
-  """TLS certificate validation error."""
+  """
+  TLS certificate validation error.
+  """
 
 class MultipleTLSEECert(TLSValidationError):
-  """Received more than one TLS EE certificate."""
+  """
+  Received more than one TLS EE certificate.
+  """
 
 class ReceivedTLSCACert(TLSValidationError):
-  """Received CA certificate via TLS."""
+  """
+  Received CA certificate via TLS.
+  """
 
 class WrongEContentType(RPKI_Exception):
-  """Received wrong CMS eContentType."""
+  """
+  Received wrong CMS eContentType.
+  """
   
 class EmptyPEM(RPKI_Exception):
-  """Couldn't find PEM block to convert."""
+  """
+  Couldn't find PEM block to convert.
+  """
 
 class UnexpectedCMSCerts(RPKI_Exception):
-  """Received CMS certs when not expecting any."""
+  """
+  Received CMS certs when not expecting any.
+  """
 
 class UnexpectedCMSCRLs(RPKI_Exception):
-  """Received CMS CRLs when not expecting any."""
+  """
+  Received CMS CRLs when not expecting any.
+  """
 
 class MissingCMSEEcert(RPKI_Exception):
-  """Didn't receive CMS EE cert when expecting one."""
+  """
+  Didn't receive CMS EE cert when expecting one.
+  """
 
 class MissingCMSCRL(RPKI_Exception):
-  """Didn't receive CMS CRL when expecting one."""
+  """
+  Didn't receive CMS CRL when expecting one.
+  """
 
 class UnparsableCMSDER(RPKI_Exception):
-  """Alleged CMS DER wasn't parsable."""
+  """
+  Alleged CMS DER wasn't parsable.
+  """
 
 class CMSCRLNotSet(RPKI_Exception):
-  """CMS CRL has not been configured."""
+  """
+  CMS CRL has not been configured.
+  """
 
 class ServerShuttingDown(RPKI_Exception):
-  """Server is shutting down."""
+  """
+  Server is shutting down.
+  """
 
 class NoActiveCA(RPKI_Exception):
-  """No active ca_detail for specified class."""
+  """
+  No active ca_detail for specified class.
+  """
 
 class BadClientURL(RPKI_Exception):
-  """URL given to HTTPS client does not match profile."""
+  """
+  URL given to HTTPS client does not match profile.
+  """
 
 class ClientNotFound(RPKI_Exception):
-  """Could not find specified client in database."""
+  """
+  Could not find specified client in database.
+  """
 
 class BadExtension(RPKI_Exception):
-  """Forbidden X.509 extension."""
+  """
+  Forbidden X.509 extension.
+  """
 
 class ForbiddenURI(RPKI_Exception):
-  """Forbidden URI, does not start with correct base URI."""
+  """
+  Forbidden URI, does not start with correct base URI.
+  """
 
 class HTTPSRetryFailure(RPKI_Exception):
-  """HTTPS connection failed and request has already been retried."""
+  """
+  HTTPS connection failed and request has already been retried.
+  """
 
 class BadPublicationReply(RPKI_Exception):
-  """Unexpected reply to publication query."""
+  """
+  Unexpected reply to publication query.
+  """

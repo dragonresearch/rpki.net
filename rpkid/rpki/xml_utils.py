@@ -1,4 +1,5 @@
-"""XML utilities.
+"""
+XML utilities.
 
 $Id$
 
@@ -21,7 +22,8 @@ import xml.sax, lxml.sax, lxml.etree, base64
 import rpki.exceptions
 
 class sax_handler(xml.sax.handler.ContentHandler):
-  """SAX handler for RPKI protocols.
+  """
+  SAX handler for RPKI protocols.
 
   This class provides some basic amenities for parsing protocol XML of
   the kind we use in the RPKI protocols, including whacking all the
@@ -35,7 +37,9 @@ class sax_handler(xml.sax.handler.ContentHandler):
   """
 
   def __init__(self):
-    """Initialize SAX handler."""
+    """
+    Initialize SAX handler.
+    """
     xml.sax.handler.ContentHandler.__init__(self)
     self.text = ""
     self.stack = []
@@ -53,7 +57,8 @@ class sax_handler(xml.sax.handler.ContentHandler):
     self.text += content
 
   def startElement(self, name, attrs):
-    """Handle startElement() events.
+    """
+    Handle startElement() events.
 
     We maintain a stack of nested elements under construction so that
     we can feed events directly to the current element rather than
@@ -63,6 +68,7 @@ class sax_handler(xml.sax.handler.ContentHandler):
     we call a virtual method to create the corresponding object and
     that's the object we'll be returning as our final result.
     """
+
     a = dict()
     for k, v in attrs.items():
       if isinstance(k, tuple):
@@ -79,9 +85,9 @@ class sax_handler(xml.sax.handler.ContentHandler):
     self.stack[-1].startElement(self.stack, name, a)
 
   def endElement(self, name):
-    """Handle endElement() events.
-
-    Mostly this means handling any accumulated element text.
+    """
+    Handle endElement() events.  Mostly this means handling any
+    accumulated element text.
     """
     text = self.text.encode("ascii").strip()
     self.text = ""
@@ -89,19 +95,23 @@ class sax_handler(xml.sax.handler.ContentHandler):
 
   @classmethod
   def saxify(cls, elt):
-    """Create a one-off SAX parser, parse an ETree, return the result.
+    """
+    Create a one-off SAX parser, parse an ETree, return the result.
     """
     self = cls()
     lxml.sax.saxify(elt, self)
     return self.result
 
   def create_top_level(self, name, attrs):
-    """Handle top-level PDU for this protocol."""
+    """
+    Handle top-level PDU for this protocol.
+    """
     assert name == self.name and attrs["version"] == self.version
     return self.pdu()
 
 class base_elt(object):
-  """Virtual base class for XML message elements.  The left-right and
+  """
+  Virtual base class for XML message elements.  The left-right and
   publication protocols use this.  At least for now, the up-down
   protocol does not, due to different design assumptions.
   """
@@ -119,22 +129,30 @@ class base_elt(object):
   booleans = ()
 
   def startElement(self, stack, name, attrs):
-    """Default startElement() handler: just process attributes."""
+    """
+    Default startElement() handler: just process attributes.
+    """
     if name not in self.elements:
       assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
       self.read_attrs(attrs)
 
   def endElement(self, stack, name, text):
-    """Default endElement() handler: just pop the stack."""
+    """
+    Default endElement() handler: just pop the stack.
+    """
     assert name == self.element_name, "Unexpected name %s, stack %s" % (name, stack)
     stack.pop()
 
   def toXML(self):
-    """Default toXML() element generator."""
+    """
+    Default toXML() element generator.
+    """
     return self.make_elt()
 
   def read_attrs(self, attrs):
-    """Template-driven attribute reader."""
+    """
+    Template-driven attribute reader.
+    """
     for key in self.attributes:
       val = attrs.get(key, None)
       if isinstance(val, str) and val.isdigit():
@@ -144,7 +162,9 @@ class base_elt(object):
       setattr(self, key, attrs.get(key, False))
 
   def make_elt(self):
-    """XML element constructor."""
+    """
+    XML element constructor.
+    """
     elt = lxml.etree.Element("{%s}%s" % (self.xmlns, self.element_name), nsmap = self.nsmap)
     for key in self.attributes:
       val = getattr(self, key, None)
@@ -156,19 +176,25 @@ class base_elt(object):
     return elt
 
   def make_b64elt(self, elt, name, value = None):
-    """Constructor for Base64-encoded subelement."""
+    """
+    Constructor for Base64-encoded subelement.
+    """
     if value is None:
       value = getattr(self, name, None)
     if value is not None:
       lxml.etree.SubElement(elt, "{%s}%s" % (self.xmlns, name), nsmap = self.nsmap).text = base64.b64encode(value)
 
   def __str__(self):
-    """Convert a base_elt object to string format."""
+    """
+    Convert a base_elt object to string format.
+    """
     lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
 
   @classmethod
   def make_pdu(cls, **kargs):
-    """Generic PDU constructor."""
+    """
+    Generic PDU constructor.
+    """
     self = cls()
     for k, v in kargs.items():
       if isinstance(v, bool):
@@ -177,14 +203,16 @@ class base_elt(object):
     return self
 
 class data_elt(base_elt):
-  """Virtual base class for PDUs that map to SQL objects.  These
-  objects all implement the create/set/get/list/destroy action
-  attribute.
+  """
+  Virtual base class for PDUs that map to SQL objects.  These objects
+  all implement the create/set/get/list/destroy action attribute.
   """
 
   def endElement(self, stack, name, text):
-    """Default endElement handler for SQL-based objects.  This assumes
-    that sub-elements are Base64-encoded using the sql_template mechanism.
+    """
+    Default endElement handler for SQL-based objects.  This assumes
+    that sub-elements are Base64-encoded using the sql_template
+    mechanism.
     """
     if name in self.elements:
       elt_type = self.sql_template.map.get(name)
@@ -195,7 +223,8 @@ class data_elt(base_elt):
       stack.pop()
 
   def toXML(self):
-    """Default element generator for SQL-based objects.  This assumes
+    """
+    Default element generator for SQL-based objects.  This assumes
     that sub-elements are Base64-encoded DER objects.
     """
     elt = self.make_elt()
@@ -206,7 +235,9 @@ class data_elt(base_elt):
     return elt
 
   def make_reply(self, r_pdu = None):
-    """Construct a reply PDU."""
+    """
+    Construct a reply PDU.
+    """
     if r_pdu is None:
       r_pdu = self.__class__()
       self.make_reply_clone_hook(r_pdu)
@@ -231,7 +262,10 @@ class data_elt(base_elt):
     cb()
 
   def serve_create(self, r_msg, cb, eb):
-    """Handle a create action."""
+    """
+    Handle a create action.
+    """
+
     r_pdu = self.make_reply()
 
     def one():
@@ -246,7 +280,10 @@ class data_elt(base_elt):
     self.serve_pre_save_hook(self, r_pdu, one, eb)
 
   def serve_set(self, r_msg, cb, eb):
-    """Handle a set action."""
+    """
+    Handle a set action.
+    """
+
     db_pdu = self.serve_fetch_one()
     r_pdu = self.make_reply()
     for a in db_pdu.sql_template.columns[1:]:
@@ -266,28 +303,36 @@ class data_elt(base_elt):
     db_pdu.serve_pre_save_hook(self, r_pdu, one, eb)
 
   def serve_get(self, r_msg, cb, eb):
-    """Handle a get action."""
+    """
+    Handle a get action.
+    """
     r_pdu = self.serve_fetch_one()
     self.make_reply(r_pdu)
     r_msg.append(r_pdu)
     cb()
 
   def serve_list(self, r_msg, cb, eb):
-    """Handle a list action for non-self objects."""
+    """
+    Handle a list action for non-self objects.
+    """
     for r_pdu in self.serve_fetch_all():
       self.make_reply(r_pdu)
       r_msg.append(r_pdu)
     cb()
 
   def serve_destroy(self, r_msg, cb, eb):
-    """Handle a destroy action."""
+    """
+    Handle a destroy action.
+    """
     db_pdu = self.serve_fetch_one()
     db_pdu.sql_delete()
     r_msg.append(self.make_reply())
     cb()
 
   def serve_dispatch(self, r_msg, cb, eb):
-    """Action dispatch handler."""
+    """
+    Action dispatch handler.
+    """
     dispatch = { "create"  : self.serve_create,
                  "set"     : self.serve_set,
                  "get"     : self.serve_get,
@@ -298,16 +343,22 @@ class data_elt(base_elt):
     dispatch[self.action](r_msg, cb, eb)
   
   def unimplemented_control(self, *controls):
-    """Uniform handling for unimplemented control operations."""
+    """
+    Uniform handling for unimplemented control operations.
+    """
     unimplemented = [x for x in controls if getattr(self, x, False)]
     if unimplemented:
       raise rpki.exceptions.NotImplementedYet, "Unimplemented control %s" % ", ".join(unimplemented)
 
 class msg(list):
-  """Generic top-level PDU."""
+  """
+  Generic top-level PDU.
+  """
 
   def startElement(self, stack, name, attrs):
-    """Handle top-level PDU."""
+    """
+    Handle top-level PDU.
+    """
     if name == "msg":
       assert self.version == int(attrs["version"])
       self.type = attrs["type"]
@@ -318,7 +369,9 @@ class msg(list):
       elt.startElement(stack, name, attrs)
 
   def endElement(self, stack, name, text):
-    """Handle top-level PDU."""
+    """
+    Handle top-level PDU.
+    """
     assert name == "msg", "Unexpected name %s, stack %s" % (name, stack)
     assert len(stack) == 1
     stack.pop()
@@ -328,7 +381,9 @@ class msg(list):
     lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
 
   def toXML(self):
-    """Generate top-level PDU."""
+    """
+    Generate top-level PDU.
+    """
     elt = lxml.etree.Element("{%s}msg" % (self.xmlns), nsmap = self.nsmap, version = str(self.version), type = self.type)
     elt.extend([i.toXML() for i in self])
     return elt

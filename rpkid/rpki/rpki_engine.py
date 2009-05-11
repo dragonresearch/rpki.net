@@ -1,4 +1,5 @@
-"""Global context for rpkid.
+"""
+Global context for rpkid.
 
 $Id$
 
@@ -22,7 +23,9 @@ import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
 import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log, rpki.async
 
 class rpkid_context(object):
-  """A container for various global rpkid parameters."""
+  """
+  A container for various global rpkid parameters.
+  """
 
   def __init__(self, cfg):
 
@@ -42,7 +45,9 @@ class rpkid_context(object):
     self.publication_kludge_base = cfg.get("publication-kludge-base", "publication/")
 
   def irdb_query(self, self_id, child_id, callback, errback):
-    """Perform an IRDB callback query."""
+    """
+    Perform an IRDB callback query.
+    """
 
     rpki.log.trace()
 
@@ -75,7 +80,10 @@ class rpkid_context(object):
       errback      = errback)
 
   def left_right_handler(self, query, path, cb):
-    """Process one left-right PDU."""
+    """
+    Process one left-right PDU.
+    """
+
     rpki.log.trace()
 
     def done(r_msg):
@@ -96,7 +104,10 @@ class rpkid_context(object):
       cb(500, "Unhandled exception %s" % data)
 
   def up_down_handler(self, query, path, cb):
-    """Process one up-down PDU."""
+    """
+    Process one up-down PDU.
+    """
+
     rpki.log.trace()
 
     def done(reply):
@@ -119,7 +130,11 @@ class rpkid_context(object):
       cb(400, "Could not process PDU: %s" % data)
 
   def cronjob_handler(self, query, path, cb):
-    """Periodic tasks.  This will need another rewrite once we have internal timers."""
+    """
+    Periodic tasks.  This is somewhat obsolete now that we have
+    internal timers, but the test framework still uses this, and I
+    haven't yet refactored this code to use the new timers.
+    """
 
     rpki.log.trace()
     self.sql.ping()
@@ -155,14 +170,18 @@ class rpkid_context(object):
   https_ta_cache = None
 
   def clear_https_ta_cache(self):
-    """Clear dynamic TLS trust anchors."""
+    """
+    Clear dynamic TLS trust anchors.
+    """
 
     if self.https_ta_cache is not None:
       rpki.log.debug("Clearing HTTPS trusted cert cache")
       self.https_ta_cache = None
 
   def build_https_ta_cache(self):
-    """Build dynamic TLS trust anchors."""
+    """
+    Build dynamic TLS trust anchors.
+    """
 
     if self.https_ta_cache is None:
 
@@ -180,7 +199,9 @@ class rpkid_context(object):
 
 
 class ca_obj(rpki.sql.sql_persistant):
-  """Internal CA object."""
+  """
+  Internal CA object.
+  """
 
   sql_template = rpki.sql.template(
     "ca",
@@ -220,7 +241,8 @@ class ca_obj(rpki.sql.sql_persistant):
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND state = 'revoked'", (self.ca_id,))
 
   def construct_sia_uri(self, parent, rc):
-    """Construct the sia_uri value for this CA given configured
+    """
+    Construct the sia_uri value for this CA given configured
     information and the parent's up-down protocol list_response PDU.
     """
 
@@ -232,7 +254,8 @@ class ca_obj(rpki.sql.sql_persistant):
     return sia_uri + str(self.ca_id) + "/"
 
   def check_for_updates(self, parent, rc, cb, eb):
-    """Parent has signaled continued existance of a resource class we
+    """
+    Parent has signaled continued existance of a resource class we
     already knew about, so we need to check for an updated
     certificate, changes in resource coverage, revocation and reissue
     with the same key, etc.
@@ -289,8 +312,9 @@ class ca_obj(rpki.sql.sql_persistant):
 
   @classmethod
   def create(cls, parent, rc, cb, eb):
-    """Parent has signaled existance of a new resource class, so we
-    need to create and set up a corresponding CA object.
+    """
+    Parent has signaled existance of a new resource class, so we need
+    to create and set up a corresponding CA object.
     """
 
     self = cls()
@@ -312,9 +336,10 @@ class ca_obj(rpki.sql.sql_persistant):
     rpki.up_down.issue_pdu.query(parent, self, ca_detail, done, eb)
 
   def delete(self, parent, callback):
-    """The list of current resource classes received from parent does
-    not include the class corresponding to this CA, so we need to
-    delete it (and its little dog too...).
+    """
+    The list of current resource classes received from parent does not
+    include the class corresponding to this CA, so we need to delete
+    it (and its little dog too...).
 
     All certs published by this CA are now invalid, so need to
     withdraw them, the CRL, and the manifest from the repository,
@@ -338,28 +363,35 @@ class ca_obj(rpki.sql.sql_persistant):
     rpki.async.iterator(self.ca_details(), loop, done)
 
   def next_serial_number(self):
-    """Allocate a certificate serial number."""
+    """
+    Allocate a certificate serial number.
+    """
     self.last_issued_sn += 1
     self.sql_mark_dirty()
     return self.last_issued_sn
 
   def next_manifest_number(self):
-    """Allocate a manifest serial number."""
+    """
+    Allocate a manifest serial number.
+    """
     self.last_manifest_sn += 1
     self.sql_mark_dirty()
     return self.last_manifest_sn
 
   def next_crl_number(self):
-    """Allocate a CRL serial number."""
+    """
+    Allocate a CRL serial number.
+    """
     self.last_crl_sn += 1
     self.sql_mark_dirty()
     return self.last_crl_sn
 
   def rekey(self, cb, eb):
-    """Initiate a rekey operation for this ca.  Generate a new
-    keypair.  Request cert from parent using new keypair.  Mark result
-    as our active ca_detail.  Reissue all child certs issued by this
-    ca using the new ca_detail.
+    """
+    Initiate a rekey operation for this ca.  Generate a new keypair.
+    Request cert from parent using new keypair.  Mark result as our
+    active ca_detail.  Reissue all child certs issued by this ca using
+    the new ca_detail.
     """
 
     rpki.log.trace()
@@ -380,7 +412,9 @@ class ca_obj(rpki.sql.sql_persistant):
     rpki.up_down.issue_pdu.query(parent, self, new_detail, done, eb)
 
   def revoke(self, cb, eb):
-    """Revoke deprecated ca_detail objects associated with this ca."""
+    """
+    Revoke deprecated ca_detail objects associated with this ca.
+    """
 
     rpki.log.trace()
 
@@ -390,7 +424,9 @@ class ca_obj(rpki.sql.sql_persistant):
     rpki.async.iterator(self.fetch_deprecated(), loop, cb)
 
 class ca_detail_obj(rpki.sql.sql_persistant):
-  """Internal CA detail object."""
+  """
+  Internal CA detail object.
+  """
 
   sql_template = rpki.sql.template(
     "ca_detail",
@@ -408,7 +444,9 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     "ca_id")
   
   def sql_decode(self, vals):
-    """Extra assertions for SQL decode of a ca_detail_obj."""
+    """
+    Extra assertions for SQL decode of a ca_detail_obj.
+    """
     rpki.sql.sql_persistant.sql_decode(self, vals)
     assert (self.public_key is None and self.private_key_id is None) or \
            self.public_key.get_DER() == self.private_key_id.get_public_DER()
@@ -444,7 +482,9 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     return ca.sia_uri + self.public_key.gSKI() + ".mnf"
 
   def activate(self, ca, cert, uri, callback, errback, predecessor = None):
-    """Activate this ca_detail."""
+    """
+    Activate this ca_detail.
+    """
 
     self.latest_ca_cert = cert
     self.ca_cert_uri = uri.rsync()
@@ -475,7 +515,9 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     self.generate_crl(callback = did_crl, errback = errback)
 
   def delete(self, ca, repository, cb, eb):
-    """Delete this ca_detail and all of the certs it issued."""
+    """
+    Delete this ca_detail and all of the certs it issued.
+    """
 
     def withdraw_one_child(iterator, child_cert):
       repository.withdraw(child_cert.cert, child_cert.uri(ca), iterator, eb)
@@ -501,7 +543,9 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     rpki.async.iterator(self.child_certs(), withdraw_one_child, child_certs_done)
 
   def revoke(self, cb, eb):
-    """Request revocation of all certificates whose SKI matches the key for this ca_detail.
+    """
+    Request revocation of all certificates whose SKI matches the key
+    for this ca_detail.
 
     Tasks:
 
@@ -517,7 +561,8 @@ class ca_detail_obj(rpki.sql.sql_persistant):
 
     - Destroy old keypairs.
 
-    - Leave final CRL and manifest in place until their nextupdate time has passed.
+    - Leave final CRL and manifest in place until their nextupdate
+      time has passed.
     """
 
     def parent_revoked(r_msg):
@@ -562,8 +607,9 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     rpki.up_down.revoke_pdu.query(self, parent_revoked, eb)
 
   def update(self, parent, ca, rc, sia_uri_changed, old_resources, callback, errback):
-    """Need to get a new certificate for this ca_detail and perhaps
-    frob children of this ca_detail.
+    """
+    Need to get a new certificate for this ca_detail and perhaps frob
+    children of this ca_detail.
     """
 
     def issued(issue_response):
@@ -590,7 +636,9 @@ class ca_detail_obj(rpki.sql.sql_persistant):
 
   @classmethod
   def create(cls, ca):
-    """Create a new ca_detail object for a specified CA."""
+    """
+    Create a new ca_detail object for a specified CA.
+    """
     self = cls()
     self.gctx = ca.gctx
     self.ca_id = ca.ca_id
@@ -606,7 +654,9 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     return self
 
   def issue_ee(self, ca, resources, subject_key, sia = None):
-    """Issue a new EE certificate."""
+    """
+    Issue a new EE certificate.
+    """
 
     return self.latest_ca_cert.issue(
       keypair     = self.private_key_id,
@@ -621,7 +671,9 @@ class ca_detail_obj(rpki.sql.sql_persistant):
 
 
   def generate_manifest_cert(self, ca):
-    """Generate a new manifest certificate for this ca_detail."""
+    """
+    Generate a new manifest certificate for this ca_detail.
+    """
 
     resources = rpki.resource_set.resource_bag(
       asn = rpki.resource_set.resource_set_as("<inherit>"),
@@ -631,10 +683,11 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     self.latest_manifest_cert = self.issue_ee(ca, resources, self.manifest_public_key)
 
   def issue(self, ca, child, subject_key, sia, resources, callback, errback, child_cert = None):
-    """Issue a new certificate to a child.  Optional child_cert
-    argument specifies an existing child_cert object to update in
-    place; if not specified, we create a new one.  Returns the
-    child_cert object containing the newly issued cert.
+    """
+    Issue a new certificate to a child.  Optional child_cert argument
+    specifies an existing child_cert object to update in place; if not
+    specified, we create a new one.  Returns the child_cert object
+    containing the newly issued cert.
     """
 
     assert child_cert is None or (child_cert.child_id == child.child_id and
@@ -674,7 +727,8 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     ca.parent().repository().publish(child_cert.cert, child_cert.uri(ca), published, errback)
 
   def generate_crl(self, callback, errback, nextUpdate = None):
-    """Generate a new CRL for this ca_detail.  At the moment this is
+    """
+    Generate a new CRL for this ca_detail.  At the moment this is
     unconditional, that is, it is up to the caller to decide whether a
     new CRL is needed.
     """
@@ -707,7 +761,9 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     repository.publish(self.latest_crl, self.crl_uri(ca), callback = callback, errback = errback)
 
   def generate_manifest(self, callback, errback, nextUpdate = None):
-    """Generate a new manifest for this ca_detail."""
+    """
+    Generate a new manifest for this ca_detail.
+    """
 
     ca = self.ca()
     parent = ca.parent()
@@ -739,7 +795,9 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     repository.publish(self.latest_manifest, self.manifest_uri(ca), callback = callback, errback = errback)
 
 class child_cert_obj(rpki.sql.sql_persistant):
-  """Certificate that has been issued to a child."""
+  """
+  Certificate that has been issued to a child.
+  """
 
   sql_template = rpki.sql.template(
     "child_cert",
@@ -750,7 +808,9 @@ class child_cert_obj(rpki.sql.sql_persistant):
     "ski")
 
   def __init__(self, gctx = None, child_id = None, ca_detail_id = None, cert = None):
-    """Initialize a child_cert_obj."""
+    """
+    Initialize a child_cert_obj.
+    """
     self.gctx = gctx
     self.child_id = child_id
     self.ca_detail_id = ca_detail_id
@@ -775,7 +835,9 @@ class child_cert_obj(rpki.sql.sql_persistant):
     return ca.sia_uri + self.uri_tail()
 
   def revoke(self, callback, errback):
-    """Revoke a child cert."""
+    """
+    Revoke a child cert.
+    """
 
     rpki.log.debug("Revoking %s" % repr(self))
     ca_detail = self.ca_detail()
@@ -791,8 +853,9 @@ class child_cert_obj(rpki.sql.sql_persistant):
     repository.withdraw(self.cert, self.uri(ca), done, errback)
 
   def reissue(self, ca_detail, callback = None, errback = None, resources = None, sia = None):
-    """Reissue an existing cert, reusing the public key.  If the cert
-    we would generate is identical to the one we already have, we just
+    """
+    Reissue an existing cert, reusing the public key.  If the cert we
+    would generate is identical to the one we already have, we just
     return the one we already have.  If we have to revoke the old
     certificate when generating the new one, we have to generate a new
     child_cert_obj, so calling code that needs the updated
@@ -854,7 +917,8 @@ class child_cert_obj(rpki.sql.sql_persistant):
 
   @classmethod
   def fetch(cls, gctx = None, child = None, ca_detail = None, ski = None, unique = False):
-    """Fetch all child_cert objects matching a particular set of
+    """
+    Fetch all child_cert objects matching a particular set of
     parameters.  This is a wrapper to consolidate various queries that
     would otherwise be inline SQL WHERE expressions.  In most cases
     code calls this indirectly, through methods in other classes.
@@ -885,7 +949,9 @@ class child_cert_obj(rpki.sql.sql_persistant):
       return cls.sql_fetch_where(gctx, where, args)
 
 class revoked_cert_obj(rpki.sql.sql_persistant):
-  """Tombstone for a revoked certificate."""
+  """
+  Tombstone for a revoked certificate.
+  """
 
   sql_template = rpki.sql.template(
     "revoked_cert",
@@ -911,7 +977,9 @@ class revoked_cert_obj(rpki.sql.sql_persistant):
 
   @classmethod
   def revoke(cls, cert, ca_detail):
-    """Revoke a certificate."""
+    """
+    Revoke a certificate.
+    """
     return cls(
       serial       = cert.getSerial(),
       expires      = cert.getNotAfter(),

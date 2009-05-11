@@ -1,4 +1,5 @@
-"""RPKI "up-down" protocol.
+"""
+RPKI "up-down" protocol.
 
 $Id$
 
@@ -26,13 +27,15 @@ xmlns = "http://www.apnic.net/specs/rescerts/up-down/"
 nsmap = { None : xmlns }
 
 class base_elt(object):
-  """Generic PDU object.
+  """
+  Generic PDU object.
 
   Virtual class, just provides some default methods.
   """
 
   def startElement(self, stack, name, attrs):
-    """Ignore startElement() if there's no specific handler.
+    """
+    Ignore startElement() if there's no specific handler.
 
     Some elements have no attributes and we only care about their
     text content.
@@ -40,14 +43,17 @@ class base_elt(object):
     pass
 
   def endElement(self, stack, name, text):
-    """Ignore endElement() if there's no specific handler.
+    """
+    Ignore endElement() if there's no specific handler.
 
     If we don't need to do anything else, just pop the stack.
     """
     stack.pop()
 
   def make_elt(self, name, *attrs):
-    """Construct a element, copying over a set of attributes."""
+    """
+    Construct a element, copying over a set of attributes.
+    """
     elt = lxml.etree.Element("{%s}%s" % (xmlns, name), nsmap=nsmap)
     for key in attrs:
       val = getattr(self, key, None)
@@ -56,7 +62,9 @@ class base_elt(object):
     return elt
 
   def make_b64elt(self, elt, name, value=None):
-    """Construct a sub-element with Base64 text content."""
+    """
+    Construct a sub-element with Base64 text content.
+    """
     if value is None:
       value = getattr(self, name, None)
     if value is not None:
@@ -71,10 +79,14 @@ class base_elt(object):
     pass
 
 class multi_uri(list):
-  """Container for a set of URIs."""
+  """
+  Container for a set of URIs.
+  """
 
   def __init__(self, ini):
-    """Initialize a set of URIs, which includes basic some syntax checking."""
+    """
+    Initialize a set of URIs, which includes basic some syntax checking.
+    """
     if isinstance(ini, (list, tuple)):
       self[:] = ini
     elif isinstance(ini, str):
@@ -90,17 +102,23 @@ class multi_uri(list):
     return ",".join(self)
 
   def rsync(self):
-    """Find first rsync://... URI in self."""
+    """
+    Find first rsync://... URI in self.
+    """
     for s in self:
       if s.startswith("rsync://"):
         return s
     return None
 
 class certificate_elt(base_elt):
-  """Up-Down protocol representation of an issued certificate."""
+  """
+  Up-Down protocol representation of an issued certificate.
+  """
 
   def startElement(self, stack, name, attrs):
-    """Handle attributes of <certificate/> element."""
+    """
+    Handle attributes of <certificate/> element.
+    """
     assert name == "certificate", "Unexpected name %s, stack %s" % (name, stack)
     self.cert_url = multi_uri(attrs["cert_url"])
     self.req_resource_set_as   = rpki.resource_set.resource_set_as(attrs.get("req_resource_set_as"))
@@ -108,20 +126,26 @@ class certificate_elt(base_elt):
     self.req_resource_set_ipv6 = rpki.resource_set.resource_set_ipv6(attrs.get("req_resource_set_ipv6"))
 
   def endElement(self, stack, name, text):
-    """Handle text content of a <certificate/> element."""
+    """
+    Handle text content of a <certificate/> element.
+    """
     assert name == "certificate", "Unexpected name %s, stack %s" % (name, stack)
     self.cert = rpki.x509.X509(Base64=text)
     stack.pop()
 
   def toXML(self):
-    """Generate a <certificate/> element."""
+    """
+    Generate a <certificate/> element.
+    """
     elt = self.make_elt("certificate", "cert_url",
                         "req_resource_set_as", "req_resource_set_ipv4", "req_resource_set_ipv6")
     elt.text = self.cert.get_Base64()
     return elt
 
 class class_elt(base_elt):
-  """Up-Down protocol representation of a resource class."""
+  """
+  Up-Down protocol representation of a resource class.
+  """
 
   issuer = None
 
@@ -130,7 +154,9 @@ class class_elt(base_elt):
     self.certs = []
 
   def startElement(self, stack, name, attrs):
-    """Handle <class/> elements and their children."""
+    """
+    Handle <class/> elements and their children.
+    """
     if name == "certificate":
       cert = certificate_elt()
       self.certs.append(cert)
@@ -147,7 +173,9 @@ class class_elt(base_elt):
       self.resource_set_notafter = rpki.sundial.datetime.fromXMLtime(attrs.get("resource_set_notafter"))
 
   def endElement(self, stack, name, text):
-    """Handle <class/> elements and their children."""
+    """
+    Handle <class/> elements and their children.
+    """
     if name == "issuer":
       self.issuer = rpki.x509.X509(Base64=text)
     else:
@@ -155,7 +183,9 @@ class class_elt(base_elt):
       stack.pop()
 
   def toXML(self):
-    """Generate a <class/> element."""
+    """
+    Generate a <class/> element.
+    """
     elt = self.make_elt("class", "class_name", "cert_url", "resource_set_as",
                         "resource_set_ipv4", "resource_set_ipv6",
                         "resource_set_notafter", "suggested_sia_head")
@@ -165,28 +195,36 @@ class class_elt(base_elt):
     return elt
 
   def to_resource_bag(self):
-    """Build a resource_bag from from this <class/> element."""
+    """
+    Build a resource_bag from from this <class/> element.
+    """
     return rpki.resource_set.resource_bag(self.resource_set_as,
                                           self.resource_set_ipv4,
                                           self.resource_set_ipv6,
                                           self.resource_set_notafter)
 
   def from_resource_bag(self, bag):
-    """Set resources of this class element from a resource_bag."""
+    """
+    Set resources of this class element from a resource_bag.
+    """
     self.resource_set_as   = bag.asn
     self.resource_set_ipv4 = bag.v4
     self.resource_set_ipv6 = bag.v6
     self.resource_set_notafter = bag.valid_until
 
 class list_pdu(base_elt):
-  """Up-Down protocol "list" PDU."""
+  """
+  Up-Down protocol "list" PDU.
+  """
 
   def toXML(self):
     """Generate (empty) payload of "list" PDU."""
     return []
 
   def serve_pdu(self, q_msg, r_msg, child, callback, errback):
-    """Serve one "list" PDU."""
+    """
+    Serve one "list" PDU.
+    """
 
     def handle(irdb_resources):
 
@@ -223,14 +261,18 @@ class list_pdu(base_elt):
     parent.query_up_down(cls(), cb, eb)
 
 class class_response_syntax(base_elt):
-  """Syntax for Up-Down protocol "list_response" and "issue_response" PDUs."""
+  """
+  Syntax for Up-Down protocol "list_response" and "issue_response" PDUs.
+  """
 
   def __init__(self):
     """Initialize class_response_syntax."""
     self.classes = []
 
   def startElement(self, stack, name, attrs):
-    """Handle "list_response" and "issue_response" PDUs."""
+    """
+    Handle "list_response" and "issue_response" PDUs.
+    """
     assert name == "class", "Unexpected name %s, stack %s" % (name, stack)
     c = class_elt()
     self.classes.append(c)
@@ -242,14 +284,20 @@ class class_response_syntax(base_elt):
     return [c.toXML() for c in self.classes]
 
 class list_response_pdu(class_response_syntax):
-  """Up-Down protocol "list_response" PDU."""
+  """
+  Up-Down protocol "list_response" PDU.
+  """
   pass
 
 class issue_pdu(base_elt):
-  """Up-Down protocol "issue" PDU."""
+  """
+  Up-Down protocol "issue" PDU.
+  """
 
   def startElement(self, stack, name, attrs):
-    """Handle "issue" PDU."""
+    """
+    Handle "issue" PDU.
+    """
     assert name == "request", "Unexpected name %s, stack %s" % (name, stack)
     self.class_name = attrs["class_name"]
     self.req_resource_set_as   = rpki.resource_set.resource_set_as(attrs.get("req_resource_set_as"))
@@ -257,20 +305,26 @@ class issue_pdu(base_elt):
     self.req_resource_set_ipv6 = rpki.resource_set.resource_set_ipv6(attrs.get("req_resource_set_ipv6"))
 
   def endElement(self, stack, name, text):
-    """Handle "issue" PDU."""
+    """
+    Handle "issue" PDU.
+    """
     assert name == "request", "Unexpected name %s, stack %s" % (name, stack)
     self.pkcs10 = rpki.x509.PKCS10(Base64=text)
     stack.pop()
 
   def toXML(self):
-    """Generate payload of "issue" PDU."""
+    """
+    Generate payload of "issue" PDU.
+    """
     elt = self.make_elt("request", "class_name", "req_resource_set_as",
                         "req_resource_set_ipv4", "req_resource_set_ipv6")
     elt.text = self.pkcs10.get_Base64()
     return [elt]
 
   def serve_pdu(self, q_msg, r_msg, child, callback, errback):
-    """Serve one issue request PDU."""
+    """
+    Serve one issue request PDU.
+    """
 
     # Subsetting not yet implemented, this is the one place where we
     # have to handle it, by reporting that we're lame.
@@ -336,7 +390,9 @@ class issue_pdu(base_elt):
 
   @classmethod
   def query(cls, parent, ca, ca_detail, callback, errback):
-    """Send an "issue" request to parent associated with ca."""
+    """
+    Send an "issue" request to parent associated with ca.
+    """
     assert ca_detail is not None and ca_detail.state in ("pending", "active")
     sia = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", ca.sia_uri)),
            (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", ca_detail.manifest_uri(ca))))
@@ -346,17 +402,22 @@ class issue_pdu(base_elt):
     parent.query_up_down(self, callback, errback)
 
 class issue_response_pdu(class_response_syntax):
-  """Up-Down protocol "issue_response" PDU."""
+  """
+  Up-Down protocol "issue_response" PDU.
+  """
 
   def check_response(self):
-    """Check whether this looks like a reasonable issue_response PDU.
+    """
+    Check whether this looks like a reasonable issue_response PDU.
     XML schema should be tighter for this response.
     """
     if len(self.classes) != 1 or len(self.classes[0].certs) != 1:
       raise rpki.exceptions.BadIssueResponse
 
 class revoke_syntax(base_elt):
-  """Syntax for Up-Down protocol "revoke" and "revoke_response" PDUs."""
+  """
+  Syntax for Up-Down protocol "revoke" and "revoke_response" PDUs.
+  """
 
   def startElement(self, stack, name, attrs):
     """Handle "revoke" PDU."""
@@ -368,14 +429,18 @@ class revoke_syntax(base_elt):
     return [self.make_elt("key", "class_name", "ski")]
 
 class revoke_pdu(revoke_syntax):
-  """Up-Down protocol "revoke" PDU."""
+  """
+  Up-Down protocol "revoke" PDU.
+  """
     
   def get_SKI(self):
     """Convert g(SKI) encoding from PDU back to raw SKI."""
     return base64.urlsafe_b64decode(self.ski + "=")
 
   def serve_pdu(self, q_msg, r_msg, child, cb, eb):
-    """Serve one revoke request PDU."""
+    """
+    Serve one revoke request PDU.
+    """
 
     def loop1(iterator1, ca_detail):
 
@@ -395,7 +460,9 @@ class revoke_pdu(revoke_syntax):
 
   @classmethod
   def query(cls, ca_detail, cb, eb):
-    """Send a "revoke" request to parent associated with ca_detail."""
+    """
+    Send a "revoke" request to parent associated with ca_detail.
+    """
     ca = ca_detail.ca()
     parent = ca.parent()
     self = cls()
@@ -404,12 +471,16 @@ class revoke_pdu(revoke_syntax):
     parent.query_up_down(self, cb, eb)
 
 class revoke_response_pdu(revoke_syntax):
-  """Up-Down protocol "revoke_response" PDU."""
+  """
+  Up-Down protocol "revoke_response" PDU.
+  """
 
   pass
 
 class error_response_pdu(base_elt):
-  """Up-Down protocol "error_response" PDU."""
+  """
+  Up-Down protocol "error_response" PDU.
+  """
 
   codes = {
     1101 : "Already processing request",
@@ -426,13 +497,17 @@ class error_response_pdu(base_elt):
     rpki.exceptions.NoActiveCA : 1202 }
 
   def __init__(self, exception = None):
-    """Initialize an error_response PDU from an exception object."""
+    """
+    Initialize an error_response PDU from an exception object.
+    """
     if exception is not None:
       self.status = self.exceptions.get(type(exception), 2001)
       self.description = str(exception)
 
   def endElement(self, stack, name, text):
-    """Handle "error_response" PDU."""
+    """
+    Handle "error_response" PDU.
+    """
     if name == "status":
       code = int(text)
       if code not in self.codes:
@@ -446,7 +521,9 @@ class error_response_pdu(base_elt):
       stack[-1].endElement(stack, name, text)
 
   def toXML(self):
-    """Generate payload of "error_response" PDU."""
+    """
+    Generate payload of "error_response" PDU.
+    """
     assert self.status in self.codes
     elt = self.make_elt("status")
     elt.text = str(self.status)
@@ -459,13 +536,16 @@ class error_response_pdu(base_elt):
     return payload
 
   def check_response(self):
-    """Handle an error response.  For now, just raise an exception,
+    """
+    Handle an error response.  For now, just raise an exception,
     perhaps figure out something more clever to do later.
     """
     raise rpki.exceptions.UpstreamError, self.codes[self.status]
 
 class message_pdu(base_elt):
-  """Up-Down protocol message wrapper PDU."""
+  """
+  Up-Down protocol message wrapper PDU.
+  """
 
   version = 1
 
@@ -481,13 +561,16 @@ class message_pdu(base_elt):
   type2name = dict((v, k) for k, v in name2type.items())
 
   def toXML(self):
-    """Generate payload of message PDU."""
+    """
+    Generate payload of message PDU.
+    """
     elt = self.make_elt("message", "version", "sender", "recipient", "type")
     elt.extend(self.payload.toXML())
     return elt
 
   def startElement(self, stack, name, attrs):
-    """Handle message PDU.
+    """
+    Handle message PDU.
 
     Payload of the <message/> element varies depending on the "type"
     attribute, so after some basic checks we have to instantiate the
@@ -506,7 +589,9 @@ class message_pdu(base_elt):
     lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "UTF-8")
 
   def serve_top_level(self, child, callback):
-    """Serve one message request PDU."""
+    """
+    Serve one message request PDU.
+    """
 
     r_msg = message_pdu()
     r_msg.sender = self.recipient
@@ -528,7 +613,9 @@ class message_pdu(base_elt):
       lose(edata)
 
   def serve_error(self, exception):
-    """Generate an error_response message PDU."""
+    """
+    Generate an error_response message PDU.
+    """
     r_msg = message_pdu()
     r_msg.sender = self.recipient
     r_msg.recipient = self.sender
@@ -538,7 +625,9 @@ class message_pdu(base_elt):
 
   @classmethod
   def make_query(cls, payload, sender, recipient):
-    """Construct one message PDU."""
+    """
+    Construct one message PDU.
+    """
     assert not cls.type2name[type(payload)].endswith("_response")
     if sender is None:
       sender = "tweedledee"
@@ -552,14 +641,18 @@ class message_pdu(base_elt):
     return self
 
 class sax_handler(rpki.xml_utils.sax_handler):
-  """SAX handler for Up-Down protocol."""
+  """
+  SAX handler for Up-Down protocol.
+  """
 
   pdu = message_pdu
   name = "message"
   version = "1"
 
 class cms_msg(rpki.x509.XML_CMS_object):
-  """Class to hold a CMS-signed up-down PDU."""
+  """
+  Class to hold a CMS-signed up-down PDU.
+  """
 
   encoding = "UTF-8"
   schema = rpki.relaxng.up_down

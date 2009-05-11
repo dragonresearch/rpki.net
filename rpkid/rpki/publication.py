@@ -30,7 +30,7 @@ class publication_namespace(object):
   xmlns = "http://www.hactrn.net/uris/rpki/publication-spec/"
   nsmap = { None : xmlns }
 
-class control_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant, publication_namespace):
+class control_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, publication_namespace):
   """
   Virtual class for control channel objects.
   """

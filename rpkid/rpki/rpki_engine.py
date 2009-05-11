@@ -198,7 +198,7 @@ class rpkid_context(object):
     return self.https_ta_cache
 
 
-class ca_obj(rpki.sql.sql_persistant):
+class ca_obj(rpki.sql.sql_persistent):
   """
   Internal CA object.
   """
@@ -423,7 +423,7 @@ class ca_obj(rpki.sql.sql_persistant):
 
     rpki.async.iterator(self.fetch_deprecated(), loop, cb)
 
-class ca_detail_obj(rpki.sql.sql_persistant):
+class ca_detail_obj(rpki.sql.sql_persistent):
   """
   Internal CA detail object.
   """
@@ -447,7 +447,7 @@ class ca_detail_obj(rpki.sql.sql_persistant):
     """
     Extra assertions for SQL decode of a ca_detail_obj.
     """
-    rpki.sql.sql_persistant.sql_decode(self, vals)
+    rpki.sql.sql_persistent.sql_decode(self, vals)
     assert (self.public_key is None and self.private_key_id is None) or \
            self.public_key.get_DER() == self.private_key_id.get_public_DER()
     assert (self.manifest_public_key is None and self.manifest_private_key_id is None) or \
@@ -794,7 +794,7 @@ class ca_detail_obj(rpki.sql.sql_persistant):
 
     repository.publish(self.latest_manifest, self.manifest_uri(ca), callback = callback, errback = errback)
 
-class child_cert_obj(rpki.sql.sql_persistant):
+class child_cert_obj(rpki.sql.sql_persistent):
   """
   Certificate that has been issued to a child.
   """
@@ -948,7 +948,7 @@ class child_cert_obj(rpki.sql.sql_persistant):
     else:
       return cls.sql_fetch_where(gctx, where, args)
 
-class revoked_cert_obj(rpki.sql.sql_persistant):
+class revoked_cert_obj(rpki.sql.sql_persistent):
   """
   Tombstone for a revoked certificate.
   """

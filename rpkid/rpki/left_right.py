@@ -34,7 +34,7 @@ class left_right_namespace(object):
   xmlns = "http://www.hactrn.net/uris/rpki/left-right-spec/"
   nsmap = { None : xmlns }
 
-class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistant, left_right_namespace):
+class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_namespace):
   """
   Virtual class for top-level left-right protocol data elements.
   """

@@ -120,9 +120,9 @@ class template(object):
                     index_column, index_column)
     self.delete  = "DELETE FROM %s WHERE %s = %%s" % (table_name, index_column)
 
-class sql_persistant(object):
+class sql_persistent(object):
   """
-  Mixin for persistant class that needs to be stored in SQL.
+  Mixin for persistent class that needs to be stored in SQL.
   """
 
   ## @var sql_in_db

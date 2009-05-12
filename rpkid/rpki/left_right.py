@@ -253,7 +253,7 @@ class self_elt(data_elt):
               child_cert.reissue(
                 ca_detail = ca_detail,
                 resources = new_resources,
-                callback  = iterator2,
+                callback  = iterator2.ignore,
                 errback   = reissue_failed)
               return
 
@@ -265,7 +265,7 @@ class self_elt(data_elt):
               repository = parent.repository()
               child_cert.sql_delete()
 
-              def withdraw(*ignored):
+              def withdraw():
                 repository.withdraw(child_cert.cert, child_cert.uri(ca), iterator2, withdraw_failed)
 
               def manifest_failed(e):
@@ -331,7 +331,7 @@ class self_elt(data_elt):
           def do_crl():
             ca_detail.generate_crl(do_manifest, fail2)
 
-          def do_manifest(*ignored):
+          def do_manifest():
             ca_detail.generate_manifest(iterator2, fail2)
 
           if ca_detail is not None and now > ca_detail.latest_crl.getNextUpdate():
@@ -861,7 +861,7 @@ class route_origin_elt(data_elt):
     def one():
       repository.publish(self.cert, self.ee_uri(ca), two, errback)
 
-    def two(*ignored):
+    def two():
       ca_detail.generate_manifest(callback, errback)
 
     repository.publish(self.roa, self.roa_uri(ca),
@@ -888,7 +888,7 @@ class route_origin_elt(data_elt):
     if ca_detail.state != 'active':
       self.ca_detail_id = None
 
-    def one(*ignored):
+    def one():
       rpki.log.debug("Withdrawing ROA and revoking its EE cert")
       rpki.rpki_engine.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
       repository.withdraw(roa, roa_uri,
@@ -898,11 +898,11 @@ class route_origin_elt(data_elt):
     def two():
       repository.withdraw(cert, ee_uri, three, errback)
 
-    def three(*ignored):
+    def three():
       self.gctx.sql.sweep()
       ca_detail.generate_crl(four, errback)
 
-    def four(*ignored):
+    def four():
       ca_detail.generate_manifest(callback, errback)
 
     if regenerate:

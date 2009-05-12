@@ -490,10 +490,10 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     self.ca_cert_uri = uri.rsync()
     self.generate_manifest_cert(ca)
 
-    def did_crl(*ignored):
+    def did_crl():
       self.generate_manifest(callback = did_manifest, errback = errback)
 
-    def did_manifest(*ignored):
+    def did_manifest():
       self.state = "active"
       self.sql_mark_dirty()
       if predecessor is None:
@@ -504,7 +504,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
         rpki.async.iterator(predecessor.child_certs(), do_one_child_cert, done_child_certs)
 
     def do_one_child_cert(iterator, child_cert):
-      child_cert.reissue(self, iterator, errback)
+      child_cert.reissue(self, iterator.ignore, errback)
 
     def done_child_certs():
       rpki.async.iterator(predecessor.route_origins(), do_one_route_origin, callback)
@@ -528,13 +528,13 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     def withdraw_one_roa(iterator, route_origin):
       route_origin.withdraw_roa(iterator)
 
-    def withdraw_manifest(*ignored):
+    def withdraw_manifest():
       repository.withdraw(self.latest_manifest, self.manifest_uri(ca), withdraw_crl, eb)
 
-    def withdraw_crl(*ignored):
+    def withdraw_crl():
       repository.withdraw(self.latest_crl, self.crl_uri(ca), done, eb)
 
-    def done(*ignored):
+    def done():
       for cert in self.child_certs() + self.revoked_certs():
         cert.sql_delete()
       self.sql_delete()
@@ -590,10 +590,10 @@ class ca_detail_obj(rpki.sql.sql_persistent):
         self.nextUpdate += crl_interval
         self.generate_crl(callback = final_manifest, errback = eb, nextUpdate = self.nextUpdate)
 
-      def final_manifest(*ignored):
+      def final_manifest():
         self.generate_manifest(callback = done, errback = eb, nextUpdate = self.nextUpdate)
 
-      def done(*ignored):
+      def done():
         self.private_key_id = None
         self.manifest_private_key_id = None
         self.manifest_public_key = None
@@ -622,7 +622,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
           child_cert.reissue(
             ca_detail = self,
             resources = child_resources.intersection(new_resources),
-            callback  = iterator,
+            callback  = iterator.ignore,
             errback   = errback)
         else:
           iterator()
@@ -718,10 +718,10 @@ class ca_detail_obj(rpki.sql.sql_persistent):
 
     child_cert.sql_store()
 
-    def published(*ignored):
+    def published():
       self.generate_manifest(done, errback)
 
-    def done(*ignored):
+    def done():
       callback(child_cert)
       
     ca.parent().repository().publish(child_cert.cert, child_cert.uri(ca), published, errback)
@@ -845,7 +845,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
     revoked_cert_obj.revoke(cert = self.cert, ca_detail = ca_detail)
     repository = ca.parent().repository()
 
-    def done(*ignored):
+    def done():
       self.gctx.sql.sweep()
       self.sql_delete()
       callback()
@@ -905,7 +905,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
 
       rpki.async.iterator([x for x in child.child_certs(ca_detail = ca_detail, ski = self.ski) if x is not child_cert], do_one_cert, done)
 
-    child_cert = ca_detail.issue(
+    ca_detail.issue(
       ca          = ca,
       child       = child,
       subject_key = self.cert.getPublicKey(),

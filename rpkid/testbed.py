@@ -142,6 +142,12 @@ pub_sql_file   = cfg.get("pub_sql_file",   "pubd.sql")
 
 startup_delay  = int(cfg.get("startup_delay", "10"))
 
+rsyncd_dir     = None
+pubd_ta        = None
+pubd_irbe_key  = None
+pubd_irbe_cert = None
+pubd_pubd_cert = None
+
 class main(object):
   """
   Main program, implemented as a class to handle asynchronous I/O in
@@ -243,18 +249,19 @@ class main(object):
 
     finally:
 
-      try:
-        rpki.log.info("Shutting down")
-        for a in self.db.engines:
-          a.kill_daemons()
-        for p, n in ((self.rootd_process, "rootd"), (self.pubd_process, "pubd"), (self.rsyncd_process, "rsyncd")):
-          if p is not None:
-            rpki.log.info("Killing %s" % n)
-            os.kill(p.pid, signal.SIGTERM)
-      except rpki.async.ExitNow:
-        raise
-      except Exception, data:
-        rpki.log.warn("Couldn't clean up daemons (%s), continuing" % data)
+      rpki.log.info("Shutting down")
+      for a in self.db.engines:
+        a.kill_daemons()
+      for proc, name in ((self.rootd_process,  "rootd"),
+                         (self.pubd_process,   "pubd"),
+                         (self.rsyncd_process, "rsyncd")):
+        if proc is not None:
+          rpki.log.info("Killing %s" % name)
+          try:
+            os.kill(proc.pid, signal.SIGTERM)
+          except OSError:
+            pass
+          proc.wait()
 
 
   def created_rpki_objects(self):
@@ -264,9 +271,9 @@ class main(object):
       a.setup_yaml_leaf()
 
     # Set pubd's BPKI CRL
-    set_pubd_crl(self.yaml_loop)
+    set_pubd_crl(lambda crl: self.yaml_loop())
 
-  def yaml_loop(self, *ignored):
+  def yaml_loop(self):
 
     # This is probably where we should be updating expired BPKI
     # objects, particular CRLs
@@ -542,26 +549,38 @@ class allocation(object):
     cb()
 
   def apply_rekey(self, target, cb):
+
+    def done(e):
+      if isinstance(e, Exception):
+        raise e
+      cb()
+
     if self.is_leaf():
       raise RuntimeError, "Can't rekey YAML leaf %s, sorry" % self.name
     elif target is None:
       rpki.log.info("Rekeying <self/> %s" % self.name)
-      self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "set", self_id = self.self_id, rekey = "yes"), cb = cb)
+      self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "set", self_id = self.self_id, rekey = "yes"), cb = done)
     else:
       rpki.log.info("Rekeying <parent/> %s %s" % (self.name, target))
-      self.call_rpkid(rpki.left_right.parent_elt.make_pdu(action = "set", self_id = self.self_id, parent_id = target, rekey = "yes"), cb = cb)
+      self.call_rpkid(rpki.left_right.parent_elt.make_pdu(action = "set", self_id = self.self_id, parent_id = target, rekey = "yes"), cb = done)
 
   def apply_revoke(self, target, cb):
+
+    def done(e):
+      if isinstance(e, Exception):
+        raise e
+      cb()
+
     if self.is_leaf():
       rpki.log.info("Attempting to revoke YAML leaf %s" % self.name)
       subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "revoke"))
       cb()
     elif target is None:
       rpki.log.info("Revoking <self/> %s" % self.name)
-      self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "set", self_id = self.self_id, revoke = "yes"), cb = cb)
+      self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "set", self_id = self.self_id, revoke = "yes"), cb = done)
     else:
       rpki.log.info("Revoking <parent/> %s %s" % (self.name, target))
-      self.call_rpkid(rpki.left_right.parent_elt.make_pdu(action = "set", self_id = self.self_id, parent_id = target, revoke = "yes"), cb = cb)
+      self.call_rpkid(rpki.left_right.parent_elt.make_pdu(action = "set", self_id = self.self_id, parent_id = target, revoke = "yes"), cb = done)
 
   def __str__(self):
     s = self.name + "\n"
@@ -695,7 +714,17 @@ class allocation(object):
     rpki.log.debug(xml)
     url = "https://localhost:%d/left-right" % self.rpki_port
 
-    self.call_rpkid_caller_cb = cb
+    def done(val):
+      rpki.log.info("Callback to rpkid %s" % self.name)
+      if isinstance(val, Exception):
+        raise val
+      msg, xml = rpki.left_right.cms_msg.unwrap(val, (self.rpkid_ta, self.rpkid_cert),
+                                                pretty_print = True)
+      rpki.log.debug(xml)
+      assert msg.type == "reply"
+      for pdu in msg:
+        assert not isinstance(pdu, rpki.left_right.report_error_elt)
+      cb(msg[0] if len(msg) == 1 else msg)
 
     rpki.https.client(
       client_key   = self.irbe_key,
@@ -703,22 +732,10 @@ class allocation(object):
       server_ta    = self.rpkid_ta,
       url          = url,
       msg          = cms,
-      callback     = self.call_rpkid_cb,
-      errback      = self.call_rpkid_cb)
+      callback     = done,
+      errback      = done)
 
     rpki.log.info("Call to rpkid %s returned" % self.name)
-
-  def call_rpkid_cb(self, val):
-    rpki.log.info("Callback to rpkid %s" % self.name)
-    if isinstance(val, Exception):
-      raise val
-    msg, xml = rpki.left_right.cms_msg.unwrap(val, (self.rpkid_ta, self.rpkid_cert),
-                                              pretty_print = True)
-    rpki.log.debug(xml)
-    assert msg.type == "reply"
-    for pdu in msg:
-      assert not isinstance(pdu, rpki.left_right.report_error_elt)
-    self.call_rpkid_caller_cb(msg[0] if len(msg) == 1 else msg)
 
   def cross_certify(self, certificant, reverse = False):
     """
@@ -925,13 +942,18 @@ class allocation(object):
     """
 
     rpki.log.info("Running cron for %s" % self.name)
+
+    def done(result):
+      assert result == "OK"
+      cb()
+
     rpki.https.client(client_key   = self.irbe_key,
                       client_cert  = self.irbe_cert,
                       server_ta    = self.rpkid_ta,
                       url          = "https://localhost:%d/cronjob" % self.rpki_port,
                       msg          = "Run cron now, please",
-                      callback     = cb,
-                      errback      = cb)
+                      callback     = done,
+                      errback      = done)
 
   def run_yaml(self):
     """
@@ -1063,8 +1085,16 @@ def call_pubd(pdu, cb):
   rpki.log.debug(xml)
   url = "https://localhost:%d/control" % pubd_port
 
-  global call_pubd_caller_cb
-  call_pubd_caller_cb = cb              # Global variable, icky
+  def call_pubd_cb(val):
+    if isinstance(val, Exception):
+      raise val
+    msg, xml = rpki.publication.cms_msg.unwrap(val, (pubd_ta, pubd_pubd_cert),
+                                               pretty_print = True)
+    rpki.log.debug(xml)
+    assert msg.type == "reply"
+    for pdu in msg:
+      assert not isinstance(pdu, rpki.publication.report_error_elt)
+    cb(msg[0] if len(msg) == 1 else msg)
 
   rpki.https.client(
     client_key   = pubd_irbe_key,
@@ -1074,17 +1104,6 @@ def call_pubd(pdu, cb):
     msg          = cms,
     callback     = call_pubd_cb,
     errback      = call_pubd_cb)
-
-def call_pubd_cb(val):
-  if isinstance(val, Exception):
-    raise val
-  msg, xml = rpki.publication.cms_msg.unwrap(val, (pubd_ta, pubd_pubd_cert),
-                                             pretty_print = True)
-  rpki.log.debug(xml)
-  assert msg.type == "reply"
-  for pdu in msg:
-    assert not isinstance(pdu, rpki.publication.report_error_elt)
-  call_pubd_caller_cb(msg[0] if len(msg) == 1 else msg)
 
 def set_pubd_crl(cb):
   """

@@ -45,6 +45,8 @@ class iterator(object):
   def __init__(self, iterable, item_callback, done_callback):
     self.item_callback = item_callback
     self.done_callback = done_callback
+    self.caller_file, self.caller_line, self.caller_function = traceback.extract_stack(limit = 2)[0][0:3]
+    #rpki.log.debug("Created iterator id %s file %s line %s function %s" % (id(self), self.caller_file, self.caller_line, self.caller_function))
     try:
       self.iterator = iter(iterable)
     except ExitNow:
@@ -54,13 +56,23 @@ class iterator(object):
       raise
     self()
 
-  def __call__(self, *ignored):
+  def __repr__(self):
+    return "<asynciterator created at %s:%d %s at 0x%x>" % (self.caller_file, self.caller_line, self.caller_function, id(self))
+
+  def __call__(self, *args):
+    if args != ():
+      rpki.log.warn("Arguments passed to %r: %r" % (self, args))
+      for x in traceback.format_stack():
+        rpki.log.warn(x.strip())
+      assert args == ()
     try:
       self.item_callback(self, self.iterator.next())
     except StopIteration:
       if self.done_callback is not None:
         self.done_callback()
 
+  def ignore(self, ignored):
+    self()
 
 class timer(object):
   """

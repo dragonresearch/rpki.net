@@ -65,10 +65,14 @@ class pubd_context(object):
     """
     Process one PDU from the IRBE.
     """
+
+    def done(x):
+      cb(200, x)
+
     rpki.log.trace()
     try:
       self.sql.ping()
-      self.handler_common(query, None, lambda x: cb(200, x), (self.bpki_ta, self.irbe_cert))
+      self.handler_common(query, None, done, (self.bpki_ta, self.irbe_cert))
     except rpki.async.ExitNow:
       raise
     except Exception, data:
@@ -79,6 +83,11 @@ class pubd_context(object):
     """
     Process one PDU from a client.
     """
+
+    def done(x):
+      cb(200, x)
+
+
     rpki.log.trace()
     try:
       self.sql.ping()
@@ -91,7 +100,7 @@ class pubd_context(object):
       config = rpki.publication.config_elt.fetch(self)
       if config is None or config.bpki_crl is None:
         raise rpki.exceptions.CMSCRLNotSet
-      self.handler_common(query, client, lambda x: cb(200, x), (self.bpki_ta, client.bpki_cert, client.bpki_glue), config.bpki_crl)
+      self.handler_common(query, client, done, (self.bpki_ta, client.bpki_cert, client.bpki_glue), config.bpki_crl)
     except rpki.async.ExitNow:
       raise
     except Exception, data:

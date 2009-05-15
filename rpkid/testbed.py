@@ -213,10 +213,6 @@ class main(object):
 
     try:
 
-      # The changes to make this code run event-driven almost
-      # certainly break the original intent of this try/finally logic.
-      # Will need clean up after I/O core change.
-
       rpki.log.info("Starting rootd")
       self.rootd_process = subprocess.Popen((prog_python, prog_rootd, "-c", rootd_name + ".conf"))
 
@@ -233,36 +229,42 @@ class main(object):
       rpki.log.info("Sleeping %d seconds while daemons start up" % startup_delay)
       time.sleep(startup_delay)
 
-      def create_rpki_objects(iterator, a):
-        a.create_rpki_objects(iterator)
+      # At this point we have to start doing network I/O, so set up
+      # the next step in the initialization sequence, then start the
+      # async I/O loop.
 
-      rpki.async.iterator(self.db.engines, create_rpki_objects, self.created_rpki_objects)
+      rpki.async.iterator(self.db.engines, self.create_rpki_objects, self.created_rpki_objects)
 
       rpki.async.event_loop()
 
       # At this point we have gone into event-driven code.
-      # See comments above about cleanup of this try/finally code
 
-      rpki.log.info("All done")
+      rpki.log.info("Event loop exited normally")
 
-    # Clean up
+    except:
+
+      rpki.log.inf9("Event loop exited with an exception")
+      raise
 
     finally:
 
-      rpki.log.info("Shutting down")
+      rpki.log.info("Cleaning up")
       for a in self.db.engines:
         a.kill_daemons()
       for proc, name in ((self.rootd_process,  "rootd"),
                          (self.pubd_process,   "pubd"),
                          (self.rsyncd_process, "rsyncd")):
         if proc is not None:
-          rpki.log.info("Killing %s" % name)
+          rpki.log.info("Killing %s, pid %s" % (name, proc.pid))
           try:
             os.kill(proc.pid, signal.SIGTERM)
           except OSError:
             pass
           proc.wait()
 
+
+  def create_rpki_objects(self, iterator, a):
+    a.create_rpki_objects(iterator)
 
   def created_rpki_objects(self):
 

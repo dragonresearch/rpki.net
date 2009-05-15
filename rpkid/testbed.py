@@ -148,170 +148,165 @@ pubd_irbe_key  = None
 pubd_irbe_cert = None
 pubd_pubd_cert = None
 
-class main(object):
+def main():
   """
-  Main program, implemented as a class to handle asynchronous I/O in
-  underlying libraries.
+  Main program.
   """
 
-  def __init__(self):
+  rpki.log.init(testbed_name)
+  rpki.log.info("Starting")
 
-    rpki.log.init(testbed_name)
-    rpki.log.info("Starting")
+  signal.signal(signal.SIGALRM, wakeup)
 
-    signal.signal(signal.SIGALRM, wakeup)
+  pubd_process = None
+  rootd_process = None
+  rsyncd_process = None
 
-    self.pubd_process = None
-    self.rootd_process = None
-    self.rsyncd_process = None
+  rpki_sql = mangle_sql(rpki_sql_file)
+  irdb_sql = mangle_sql(irdb_sql_file)
+  pubd_sql = mangle_sql(pub_sql_file)
 
-    rpki_sql = mangle_sql(rpki_sql_file)
-    irdb_sql = mangle_sql(irdb_sql_file)
-    pubd_sql = mangle_sql(pub_sql_file)
+  rpki.log.info("Initializing test directory")
 
-    rpki.log.info("Initializing test directory")
+  # Connect to test directory, creating it if necessary
+  try:
+    os.chdir(testbed_dir)
+  except OSError:
+    os.makedirs(testbed_dir)
+    os.chdir(testbed_dir)
 
-    # Connect to test directory, creating it if necessary
-    try:
-      os.chdir(testbed_dir)
-    except OSError:
-      os.makedirs(testbed_dir)
-      os.chdir(testbed_dir)
+  # Discard everything but keys, which take a while to generate
+  for root, dirs, files in os.walk(".", topdown = False):
+    for file in files:
+      if not file.endswith(".key"):
+        os.remove(os.path.join(root, file))
+    for dir in dirs:
+      os.rmdir(os.path.join(root, dir))
 
-    # Discard everything but keys, which take a while to generate
-    for root, dirs, files in os.walk(".", topdown = False):
-      for file in files:
-        if not file.endswith(".key"):
-          os.remove(os.path.join(root, file))
-      for dir in dirs:
-        os.rmdir(os.path.join(root, dir))
+  rpki.log.info("Reading master YAML configuration")
+  y = yaml_script.pop(0)
 
-    rpki.log.info("Reading master YAML configuration")
-    y = yaml_script.pop(0)
+  rpki.log.info("Constructing internal allocation database")
+  db = allocation_db(y)
 
-    rpki.log.info("Constructing internal allocation database")
-    self.db = allocation_db(y)
+  rpki.log.info("Constructing BPKI keys and certs for rootd")
+  setup_bpki_cert_chain(rootd_name, ee = ("RPKI",))
 
-    rpki.log.info("Constructing BPKI keys and certs for rootd")
-    setup_bpki_cert_chain(rootd_name, ee = ("RPKI",))
+  rpki.log.info("Constructing BPKI keys and certs for pubd")
+  setup_bpki_cert_chain(pubd_name, ee = ("PUBD", "IRBE"))
 
-    rpki.log.info("Constructing BPKI keys and certs for pubd")
-    setup_bpki_cert_chain(pubd_name, ee = ("PUBD", "IRBE"))
+  for a in db:
+    a.setup_bpki_certs()
 
-    for a in self.db:
-      a.setup_bpki_certs()
+  setup_publication(pubd_sql)
+  setup_rootd(db.root.name, "SELF-1", y.get("rootd", {}))
+  setup_rsyncd()
+  setup_rcynic()
 
-    setup_publication(pubd_sql)
-    setup_rootd(self.db.root.name, "SELF-1", y.get("rootd", {}))
-    setup_rsyncd()
-    setup_rcynic()
+  for a in db.engines:
+    a.setup_conf_file()
+    a.setup_sql(rpki_sql, irdb_sql)
+    a.sync_sql()
 
-    for a in self.db.engines:
-      a.setup_conf_file()
-      a.setup_sql(rpki_sql, irdb_sql)
-      a.sync_sql()
+  try:
 
-    try:
+    rpki.log.info("Starting rootd")
+    rootd_process = subprocess.Popen((prog_python, prog_rootd, "-c", rootd_name + ".conf"))
 
-      rpki.log.info("Starting rootd")
-      self.rootd_process = subprocess.Popen((prog_python, prog_rootd, "-c", rootd_name + ".conf"))
+    rpki.log.info("Starting pubd")
+    pubd_process = subprocess.Popen((prog_python, prog_pubd, "-c", pubd_name + ".conf") + (("-p", pubd_name + ".prof") if profile else ()))
 
-      rpki.log.info("Starting pubd")
-      self.pubd_process = subprocess.Popen((prog_python, prog_pubd, "-c", pubd_name + ".conf") + (("-p", pubd_name + ".prof") if profile else ()))
+    rpki.log.info("Starting rsyncd")
+    rsyncd_process = subprocess.Popen((prog_rsyncd, "--daemon", "--no-detach", "--config", rsyncd_name + ".conf"))
 
-      rpki.log.info("Starting rsyncd")
-      self.rsyncd_process = subprocess.Popen((prog_rsyncd, "--daemon", "--no-detach", "--config", rsyncd_name + ".conf"))
+    # Start rpkid and irdbd instances
+    for a in db.engines:
+      a.run_daemons()
 
-      # Start rpkid and irdbd instances
-      for a in self.db.engines:
-        a.run_daemons()
+    rpki.log.info("Sleeping %d seconds while daemons start up" % startup_delay)
+    time.sleep(startup_delay)
 
-      rpki.log.info("Sleeping %d seconds while daemons start up" % startup_delay)
-      time.sleep(startup_delay)
+    # From this point on we'll be running event-driven, so the rest of
+    # the code until final exit is all closures.
 
-      # At this point we have to start doing network I/O, so set up
-      # the next step in the initialization sequence, then start the
-      # async I/O loop.
+    def create_rpki_objects(iterator, a):
+      a.create_rpki_objects(iterator)
 
-      rpki.async.iterator(self.db.engines, self.create_rpki_objects, self.created_rpki_objects)
+    def created_rpki_objects():
 
-      rpki.async.event_loop()
+      # Setup keys and certs and write YAML files for leaves
+      for a in db.leaves:
+        a.setup_yaml_leaf()
 
-      # At this point we have gone into event-driven code.
+      # Set pubd's BPKI CRL
+      set_pubd_crl(lambda crl: yaml_loop())
 
-      rpki.log.info("Event loop exited normally")
+    def yaml_loop():
 
-    except:
+      # This is probably where we should be updating expired BPKI
+      # objects, particular CRLs
 
-      rpki.log.inf9("Event loop exited with an exception")
-      raise
+      # Run cron in all RPKI instances
 
-    finally:
-
-      rpki.log.info("Cleaning up")
-      for a in self.db.engines:
-        a.kill_daemons()
-      for proc, name in ((self.rootd_process,  "rootd"),
-                         (self.pubd_process,   "pubd"),
-                         (self.rsyncd_process, "rsyncd")):
-        if proc is not None:
-          rpki.log.info("Killing %s, pid %s" % (name, proc.pid))
-          try:
-            os.kill(proc.pid, signal.SIGTERM)
-          except OSError:
-            pass
-          proc.wait()
-
-
-  def create_rpki_objects(self, iterator, a):
-    a.create_rpki_objects(iterator)
-
-  def created_rpki_objects(self):
-
-    # Setup keys and certs and write YAML files for leaves
-    for a in self.db.leaves:
-      a.setup_yaml_leaf()
-
-    # Set pubd's BPKI CRL
-    set_pubd_crl(lambda crl: self.yaml_loop())
-
-  def yaml_loop(self):
-
-    # This is probably where we should be updating expired BPKI
-    # objects, particular CRLs
-
-    # Run cron in all RPKI instances
+      rpki.async.iterator(db.engines, run_cron, run_yaml)
 
     def run_cron(iterator, a):
       a.run_cron(iterator)
 
-    rpki.async.iterator(self.db.engines, run_cron, self.run_yaml)
+    def run_yaml():
 
-  def run_yaml(self):
+      # Run all YAML clients
+      for a in db.leaves:
+        a.run_yaml()
 
-    # Run all YAML clients
-    for a in self.db.leaves:
-      a.run_yaml()
+      # Run rcynic to check results
+      run_rcynic()
 
-    # Run rcynic to check results
-    run_rcynic()
+      # Apply next delta if we have one; otherwise, we're done.
+      if yaml_script:
+        rpki.log.info("Applying deltas")
+        db.apply_delta(yaml_script.pop(0), apply_delta_done)
+      else:
+        rpki.log.info("No more deltas to apply, done")
+        rpki.async.exit_event_loop()
 
-    # If we've run out of deltas to apply, we're done
-    if not yaml_script:
-      rpki.log.info("No more deltas to apply, done")
-      rpki.async.exit_event_loop()
-    else:
-      rpki.log.info("Applying deltas")
-      self.db.apply_delta(yaml_script.pop(0), self.apply_delta_done)
+    def apply_delta_done():
 
-  def apply_delta_done(self):
+      # Resync IRDBs
+      for a in db.engines:
+        a.sync_sql()
 
-    # Resync IRDBs
-    for a in self.db.engines:
-      a.sync_sql()
+      # Loop until we run out of control YAML
+      yaml_loop()
 
-    # Loop until we run out of control YAML
-    self.yaml_loop()
+    rpki.async.iterator(db.engines, create_rpki_objects, created_rpki_objects)
+
+    rpki.async.event_loop()
+
+    # At this point we have gone into event-driven code.
+
+    rpki.log.info("Event loop exited normally")
+
+  except:
+
+    rpki.log.inf9("Event loop exited with an exception")
+    raise
+
+  finally:
+
+    rpki.log.info("Cleaning up")
+    for a in db.engines:
+      a.kill_daemons()
+    for proc, name in ((rootd_process,  "rootd"),
+                       (pubd_process,   "pubd"),
+                       (rsyncd_process, "rsyncd")):
+      if proc is not None:
+        rpki.log.info("Killing %s, pid %s" % (name, proc.pid))
+        try:
+          os.kill(proc.pid, signal.SIGTERM)
+        except OSError:
+          pass
+        proc.wait()
 
 def wakeup(signum, frame):
   """Handler called when we receive a SIGALRM signal."""

@@ -239,7 +239,7 @@ def main():
         a.setup_yaml_leaf()
 
       # Set pubd's BPKI CRL
-      set_pubd_crl(lambda crl: yaml_loop())
+      set_pubd_crl(yaml_loop)
 
     def yaml_loop():
 
@@ -399,17 +399,22 @@ class allocation_db(list):
         a.regen_margin = a.parent.regen_margin
     self.root.closure()
     self.map = dict((a.name, a) for a in self)
-    self.engines = [a for a in self if not a.is_leaf()]
+    self.engines = [a for a in self if a.is_engine()]
     self.leaves = [a for a in self if a.is_leaf()]
-    for i, a in zip(range(len(self.engines)), self.engines):
+    for i, a in enumerate(self.engines):
       a.set_engine_number(i)
+    for a in self:
+      if a.is_hosted():
+        a.hosted_by = self.map[a.hosted_by]
+        a.hosted_by.hosts.append(a)
+        assert a.is_twig() and not a.hosted_by.is_hosted()
 
   def apply_delta(self, delta, cb):
     """
     Apply a delta or run a command.
     """
 
-    def each(iterator, d):
+    def loop(iterator, d):
       if isinstance(d, str):
         c = d.split()
         cmds[c[0]](*c[1:])
@@ -424,7 +429,7 @@ class allocation_db(list):
     if delta is None:
       cb()
     else:
-      rpki.async.iterator(delta, each, done)
+      rpki.async.iterator(delta, loop, done)
 
   def dump(self):
     """
@@ -444,7 +449,9 @@ class allocation(object):
   regen_margin = None
 
   def __init__(self, yaml, db, parent = None):
-    """Initialize one entity and insert it into the database."""
+    """
+    Initialize one entity and insert it into the database.
+    """
     db.append(self)
     self.name = yaml["name"]
     self.parent = parent
@@ -468,7 +475,9 @@ class allocation(object):
     if "route_origin" in yaml:
       for y in yaml.get("route_origin"):
         self.route_origins.add(route_origin.parse(y))
+    self.hosted_by = yaml.get("hosted_by")
     self.extra_conf = yaml.get("extra_conf", [])
+    self.hosts = []
 
   def closure(self):
     """
@@ -589,9 +598,20 @@ class allocation(object):
     if self.sia_base:           s += "  SIA: %s\n" % self.sia_base
     return s + "Until: %s\n" % self.resources.valid_until
 
-  def is_leaf(self): return not self.kids and not self.route_origins
-  def is_root(self): return self.parent is None
-  def is_twig(self): return not self.is_leaf() and not self.is_root()
+  def is_leaf(self):
+    return not self.kids and not self.route_origins
+
+  def is_root(self):
+    return self.parent is None
+
+  def is_twig(self):
+    return not self.is_leaf() and not self.is_root()
+
+  def is_hosted(self):
+    return self.hosted_by is not None
+
+  def is_engine(self):
+    return not self.is_leaf() and not self.is_hosted()
 
   def set_engine_number(self, n):
     """
@@ -1110,7 +1130,7 @@ def set_pubd_crl(cb):
   """
   rpki.log.info("Setting pubd's BPKI CRL")
   call_pubd(rpki.publication.config_elt.make_pdu(action = "set", bpki_crl = rpki.x509.CRL(Auto_file = pubd_name + "-TA.crl")),
-            cb = cb)
+            cb = lambda crl: cb())
 
 def run_rcynic():
   """

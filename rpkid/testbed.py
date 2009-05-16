@@ -199,7 +199,7 @@ def main():
     a.setup_bpki_certs()
 
   setup_publication(pubd_sql)
-  setup_rootd(db.root.name, "SELF-1", y.get("rootd", {}))
+  setup_rootd(db.root.name, "SELF", y.get("rootd", {}))
   setup_rsyncd()
   setup_rcynic()
 
@@ -496,13 +496,13 @@ class allocation(object):
 
     rpki.log.info("Applying delta: %s" % yaml)
 
-    def each(iterator, kv):
+    def loop(iterator, kv):
       if kv[0] == "name":
         iterator()
       else:
         getattr(self, "apply_" + kv[0])(kv[1], iterator)
 
-    rpki.async.iterator(yaml.items(), each, cb)
+    rpki.async.iterator(yaml.items(), loop, cb)
 
   def apply_add_as(self, text, cb):
     self.base.asn = self.base.asn.union(rpki.resource_set.resource_set_as(text))
@@ -630,7 +630,9 @@ class allocation(object):
     if self.is_leaf():
       setup_bpki_cert_chain(self.name, ee = ("RPKI",))
     else:
-      setup_bpki_cert_chain(self.name, ee = ("RPKI", "IRDB", "IRBE"), ca = ("SELF-1",))
+      setup_bpki_cert_chain(name = self.name,
+                            ee = ("RPKI", "IRDB", "IRBE"),
+                            ca = ("SELF",))
       self.rpkid_ta   = rpki.x509.X509(PEM_file = self.name + "-TA.cer")
       self.irbe_key   = rpki.x509.RSA( PEM_file = self.name + "-IRBE.key")
       self.irbe_cert  = rpki.x509.X509(PEM_file = self.name + "-IRBE.cer")
@@ -761,11 +763,11 @@ class allocation(object):
 
     if reverse:
       certifier = certificant
-      certificant = self.name + "-SELF-1"
+      certificant = self.name + "-SELF"
     elif self.is_leaf():
       certifier = self.name + "-TA"
     else:
-      certifier = self.name + "-SELF-1"
+      certifier = self.name + "-SELF"
     certfile = certifier + "-" + certificant + ".cer"
     rpki.log.info("Cross certifying %s into %s's BPKI (%s)" % (certificant, certifier, certfile))
     signer = subprocess.Popen((prog_openssl, "x509", "-req", "-sha256", "-text",
@@ -807,7 +809,7 @@ class allocation(object):
     """
 
     def start():
-      self_ca = rpki.x509.X509(Auto_file = self.name + "-SELF-1.cer")
+      self_ca = rpki.x509.X509(Auto_file = self.name + "-SELF.cer")
 
       rpki.log.info("Creating rpkid self object for %s" % self.name)
       self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "create", crl_interval = self.crl_interval, regen_margin = self.regen_margin, bpki_cert = self_ca),
@@ -825,14 +827,14 @@ class allocation(object):
 
       rpki.log.info("Issuing BSC EE cert for %s" % self.name)
       cmd = (prog_openssl, "x509", "-req", "-sha256", "-extfile", self.name + "-RPKI.conf", "-extensions", "req_x509_ext", "-days", "30",
-             "-CA", self.name + "-SELF-1.cer", "-CAkey",    self.name + "-SELF-1.key", "-CAcreateserial", "-text")
+             "-CA", self.name + "-SELF.cer", "-CAkey",    self.name + "-SELF.key", "-CAcreateserial", "-text")
       signer = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
       signed = signer.communicate(input = val.pkcs10_request.get_PEM())
       if not signed[0]:
         rpki.log.error(signed[1])
         raise RuntimeError, "Couldn't issue BSC EE certificate"
       bsc_ee = rpki.x509.X509(PEM = signed[0])
-      bsc_crl = rpki.x509.CRL(PEM_file = self.name + "-SELF-1.crl")
+      bsc_crl = rpki.x509.CRL(PEM_file = self.name + "-SELF.crl")
 
       rpki.log.info("Installing BSC EE cert for %s" % self.name)
       self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "set", self_id = self.self_id, bsc_id = self.bsc_id, signing_cert = bsc_ee, signing_cert_crl = bsc_crl),
@@ -867,7 +869,7 @@ class allocation(object):
                                                             peer_contact_uri = "https://localhost:%s/" % rootd_port),
                         cb = got_parent_id)
       else:
-        parent_cms_cert = self.cross_certify(self.parent.name + "-SELF-1")
+        parent_cms_cert = self.cross_certify(self.parent.name + "-SELF")
         parent_https_cert = self.cross_certify(self.parent.name + "-TA")
         self.call_rpkid(rpki.left_right.parent_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id,
                                                             repository_id = self.repository_id, sia_base = self.sia_base,
@@ -883,12 +885,12 @@ class allocation(object):
       sql_db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
       sql_cur = sql_db.cursor()
 
-      def each(iterator, kid):
+      def loop(iterator, kid):
 
         if kid.is_leaf():
           bpki_cert = self.cross_certify(kid.name + "-TA")
         else:
-          bpki_cert = self.cross_certify(kid.name + "-SELF-1")
+          bpki_cert = self.cross_certify(kid.name + "-SELF")
 
         rpki.log.info("Creating rpkid child object for %s as child of %s" % (kid.name, self.name))
 
@@ -904,7 +906,7 @@ class allocation(object):
         sql_db.close()
         do_route_origins()
 
-      rpki.async.iterator(self.kids, each, done)
+      rpki.async.iterator(self.kids, loop, done)
 
     def do_route_origins():
       rpki.log.info("Creating rpkid route_origin objects for %s" % self.name)
@@ -940,7 +942,7 @@ class allocation(object):
     ski = rpki.x509.RSA(PEM_file = self.name + ".key").gSKI()
 
     self.cross_certify(self.parent.name + "-TA")
-    self.cross_certify(self.parent.name + "-SELF-1")
+    self.cross_certify(self.parent.name + "-SELF")
 
     rpki.log.info("Writing leaf YAML for %s" % self.name)
     f = open(self.name + ".yaml", "w")
@@ -1222,7 +1224,7 @@ cms-ca-cert-file:       %(my_name)s-TA.cer
 cms-crl-file:           %(my_name)s-TA.crl
 cms-ca-certs-file:
   -                     %(my_name)s-TA-%(parent_name)s-TA.cer
-  -                     %(my_name)s-TA-%(parent_name)s-SELF-1.cer
+  -                     %(my_name)s-TA-%(parent_name)s-SELF.cer
 
 ssl-cert-file:          %(my_name)s-RPKI.cer
 ssl-key-file:           %(my_name)s-RPKI.key

@@ -50,7 +50,7 @@ rpki_content_type = "application/x-rpki"
 
 # ================================================================
 
-debug = True
+debug = False
 
 want_persistent_client = True
 want_persistent_server = True

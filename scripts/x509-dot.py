@@ -11,11 +11,20 @@ class x509(object):
   ski = None
   aki = None
 
-  show_file = True
-  show_ski = False
-  show_aki = False
+  show_file    = True
+  show_ski     = False
+  show_aki     = False
+  show_issuer  = False
+  show_subject = True
+
+  cn_only      = True
+
+  subjects = {}
 
   def __init__(self, filename):
+
+    while filename.startswith("./"):
+      filename = filename[2:]
 
     self.filename = filename
 
@@ -36,8 +45,20 @@ class x509(object):
     if "authorityKeyIdentifier" in self.extensions:
       self.aki = ":".join(["%02X" % ord(i) for i in self.extensions.get("authorityKeyIdentifier")[3:]])
 
-    self.subject = self.pow.getSubject()
-    self.issuer  = self.pow.getIssuer()
+    self.subject = self.canonize(self.pow.getSubject())
+    self.issuer  = self.canonize(self.pow.getIssuer())
+
+    if self.subject in self.subjects:
+      self.subjects[self.subject].append(self)
+    else:
+      self.subjects[self.subject] = [self]
+
+  def canonize(self, name):
+
+    if self.cn_only and len(name) == 1 and name[0][0] == "CN":
+      return name[0][1]
+    else:
+      return name
 
   def set_node(self, node):
 
@@ -45,31 +66,40 @@ class x509(object):
 
   def dot(self):
 
-    s = '%s [shape = record, label = "{Issuer %s|Subject %s' % (self.node, self.issuer, self.subject)
+    label = []
+
+    if self.show_issuer:
+      label.append(("Issuer", self.issuer))
+
+    if self.show_subject:
+      label.append(("Subject", self.subject))
 
     if self.show_file:
-      s += '|File %s' % self.filename
+      label.append(("File", self.filename))
 
     if self.show_aki:
-      s += '|AKI %s' % self.aki
+      label.append(("AKI", self.aki))
 
     if self.show_ski:
-      s += '|SKI %s' % self.ski
+      label.append(("SKI", self.ski))
 
-    s += '}"];'
+    print "#", repr(label)
 
-    print s
+    if len(label) > 1:
+      print '%s [shape = record, label = "{%s}"];' % (self.node, "|".join("{%s|%s}" % (x, y) for x, y in label if y is not None))
+    else:
+      print '%s [label = "%s"];' % (self.node, label[0][1])
 
-    issuer = subjects.get(self.issuer)
+    for issuer in self.subjects.get(self.issuer, ()):
 
-    if issuer is self:
-      issuer = None
+      if issuer is self:
+        issuer = None
 
-    if issuer is not None and self.aki is not None and issuer.ski is not None and self.aki != issuer.ski:
-      issuer = None
+      if issuer is not None and self.aki is not None and issuer.ski is not None and self.aki != issuer.ski:
+        issuer = None
 
-    if issuer is not None:
-      print "%s -> %s;" % (issuer.node, self.node)
+      if issuer is not None:
+        print "%s -> %s;" % (issuer.node, self.node)
 
     print
 
@@ -79,15 +109,14 @@ for topdir in sys.argv[1:] or ["."]:
   for dirpath, dirnames, filenames in os.walk(topdir):
     certs += [x509(dirpath + "/" + filename) for filename in filenames if filename.endswith(".cer")]
 
-for i in xrange(len(certs)):
-  certs[i].set_node("cert_%d" % i)
-
-subjects = dict((x.subject, x) for x in certs)
+for i, cert in enumerate(certs):
+  cert.set_node("cert_%d" % i)
 
 print """\
 digraph certificates {
 
-rotate = 90; size = "11,8.5";
+rotate = 90;
+#size = "11,8.5";
 splines = true;
 ratio = fill;
 

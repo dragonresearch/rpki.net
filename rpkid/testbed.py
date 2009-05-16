@@ -133,6 +133,7 @@ prog_pubd      = cfg.get("prog_pubd",      "../pubd.py")
 prog_openssl   = cfg.get("prog_openssl",   "../../openssl/openssl/apps/openssl")
 prog_rsyncd    = cfg.get("prog_rsyncd",    "rsync")
 prog_rcynic    = cfg.get("prog_rcynic",    "../../rcynic/rcynic")
+prog_xcert     = cfg.get("prog_xcert",     "../cross_certify.py")
 
 rcynic_stats   = cfg.get("rcynic_stats",   "xsltproc --param refresh 0 ../../rcynic/rcynic.xsl %s.xml | w3m -T text/html -dump" % rcynic_name)
 
@@ -246,8 +247,7 @@ def main():
       # This is probably where we should be updating expired BPKI
       # objects, particular CRLs
 
-      # Run cron in all RPKI instances
-
+      rpki.log.info("Running cron for all RPKI engines")
       rpki.async.iterator(db.engines, run_cron, run_yaml)
 
     def run_cron(iterator, a):
@@ -770,20 +770,25 @@ class allocation(object):
       certifier = self.name + "-SELF"
     certfile = certifier + "-" + certificant + ".cer"
     rpki.log.info("Cross certifying %s into %s's BPKI (%s)" % (certificant, certifier, certfile))
-    signer = subprocess.Popen((prog_openssl, "x509", "-req", "-sha256", "-text",
-                               "-extensions", "req_x509_ext", "-CAcreateserial",
-                               "-in",         certificant + ".req",
-                               "-out",        certfile,
-                               "-extfile",    certifier + ".conf",
-                               "-CA",         certifier + ".cer",
-                               "-CAkey",      certifier + ".key"),
-                              stdout = subprocess.PIPE,
-                              stderr = subprocess.PIPE)
-    errors = signer.communicate()[1]
-    if signer.returncode != 0:
-      msg = "Couldn't cross-certify %s into %s's BPKI: %s" % (certificant, certifier, errors)
-      rpki.log.error(msg)
-      raise RuntimeError, msg
+    cmd = (prog_python, prog_xcert,
+           "-c", certifier + ".cer",
+           "-k", certifier + ".key",
+           "-s", certifier + ".srl",
+           "-i", certificant + ".cer",
+           "-o", certfile)
+
+    if False:
+      signer = subprocess.Popen(cmd,
+                                stdout = subprocess.PIPE,
+                                stderr = subprocess.PIPE)
+      errors = signer.communicate()[1]
+      if signer.returncode != 0:
+        msg = "Couldn't cross-certify %s into %s's BPKI: %s" % (certificant, certifier, errors)
+        rpki.log.error(msg)
+        raise RuntimeError, msg
+    else:
+      subprocess.check_call(cmd)
+
     return rpki.x509.X509(Auto_file = certfile)
 
   def create_rpki_objects(self, cb):
@@ -1105,6 +1110,7 @@ def call_pubd(pdu, cb):
   url = "https://localhost:%d/control" % pubd_port
 
   def call_pubd_cb(val):
+    rpki.log.debug("call_pubd_cb(%r)" % (val,))
     if isinstance(val, Exception):
       raise val
     msg, xml = rpki.publication.cms_msg.unwrap(val, (pubd_ta, pubd_pubd_cert),

@@ -48,9 +48,13 @@ import os, time, getopt, sys, POW, rpki.x509, rpki.sundial
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-def usage(code):
-  print __doc__
-  sys.exit(code)
+def usage(errmsg = None):
+  if errmsg is None:
+    sys.stdout.write(__doc__)
+    sys.exit(0)
+  else:
+    sys.stderr.write(errmsg + "\n" + __doc__)
+    sys.exit(1)
 
 child           = None
 parent          = None
@@ -64,7 +68,7 @@ opts, argv = getopt.getopt(sys.argv[1:], "h?i:o:c:k:s:l:",
                             "key=", "serial=", "lifetime="])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
-    usage(0)
+    usage()
   elif o in ("-i", "--in"):
     child = rpki.x509.X509(Auto_file = a)
   elif o in ("-o", "--out"):
@@ -77,8 +81,17 @@ for o, a in opts:
     serial_file = a
   elif o in ("-l", "--lifetime"):
     lifetime = rpki.sundial.timedelta.parse(a)
-if argv or None in (child, parent, keypair, serial_file):
-  usage(1)
+
+if argv:
+  usage("Unused arguments: %r" % argv)
+elif child is None:
+  usage("--in not specified")
+elif parent is None:
+  usage("--ca not specified")
+elif keypair is None:
+  usage("--key not specified")
+elif serial_file is None:
+  usage("--serial not specified")
 
 now = rpki.sundial.now()
 notAfter = now + lifetime

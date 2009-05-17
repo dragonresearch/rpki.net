@@ -1110,7 +1110,6 @@ def call_pubd(pdu, cb):
   url = "https://localhost:%d/control" % pubd_port
 
   def call_pubd_cb(val):
-    rpki.log.debug("call_pubd_cb(%r)" % (val,))
     if isinstance(val, Exception):
       raise val
     msg, xml = rpki.publication.cms_msg.unwrap(val, (pubd_ta, pubd_pubd_cert),

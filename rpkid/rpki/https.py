@@ -50,12 +50,12 @@ rpki_content_type = "application/x-rpki"
 
 # ================================================================
 
-debug = False
+debug = True
 
 want_persistent_client = True
 want_persistent_server = True
 
-idle_timeout_default   = rpki.sundial.timedelta(seconds = 30)
+idle_timeout_default   = rpki.sundial.timedelta(seconds = 90)
 active_timeout_default = idle_timeout_default
 
 default_http_version = (1, 0)
@@ -140,12 +140,6 @@ class http_request(http_message):
     self.callback = callback
     self.errback = errback
     self.retried = False
-
-  def retry(self):
-    if self.retried:
-      raise rpki.exceptions.HTTPSRetryFailure
-    else:
-      self.retried = True
 
   def parse_first_line(self, cmd, path, version):
     self.parse_version(version)
@@ -443,7 +437,7 @@ class http_client(http_stream):
       self.queue.return_result(self.msg)
     else:
       self.queue.return_result(rpki.exceptions.HTTPRequestFailed(
-        "HTTP request failed with status %s, reason %s, response %s" % (self.msg.code, self.msg.reason, self.msg.body)))
+        "HTTPS request failed with status %s, reason %s, response %s" % (self.msg.code, self.msg.reason, self.msg.body)))
 
   def handle_connect(self):
     self.log("Connected")
@@ -456,6 +450,8 @@ class http_client(http_stream):
     self.queue.detach(self)
     if self.get_terminator() is None:
       self.handle_body()
+    elif self.state == "request-sent":
+      self.queue.return_result(rpki.exceptions.HTTPSClientAborted("HTTPS request aborted by close event"))
 
   def handle_timeout(self):
     if self.state != "idle":

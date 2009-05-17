@@ -235,9 +235,9 @@ class ForbiddenURI(RPKI_Exception):
   Forbidden URI, does not start with correct base URI.
   """
 
-class HTTPSRetryFailure(RPKI_Exception):
+class HTTPSClientAborted(RPKI_Exception):
   """
-  HTTPS connection failed and request has already been retried.
+  HTTPS client connection closed while in request-sent state.
   """
 
 class BadPublicationReply(RPKI_Exception):

@@ -482,7 +482,6 @@ class http_queue(object):
   def request(self, *requests):
     self.log("Adding requests %r" % requests)
     self.queue.extend(requests)
-    self.restart()
 
   def restart(self):
     if self.client is None:
@@ -534,7 +533,8 @@ queues = {}
 
 def client(msg, client_key, client_cert, server_ta, url, callback, errback):
   """
-  Open client HTTPS connection, send a message, wait for response.
+  Open client HTTPS connection, send a message, set up callbacks to
+  handle response.
 
   THIS VERSION DOES NOT DO TLS.  THIS IS EXPERIMENTAL CODE.  DO NOT
   USE IN PRODUCTION UNTIL TLS SUPPORT HAS BEEN ADDED.
@@ -567,6 +567,12 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback):
   if hostport not in queues:
     queues[hostport] = http_queue(hostport)
   queues[hostport].request(request)
+
+  # Defer connection attempt until after we've had time to process any
+  # pending I/O events, in case connections have closed.
+
+  rpki.log.debug("Scheduling connection startup for %r" % request)
+  rpki.async.timer(queues[hostport].restart, errback).set(None)
 
 def server(handlers, server_key, server_cert, port, host ="", client_ta = None, dynamic_https_trust_anchor = None):
   """

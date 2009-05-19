@@ -87,6 +87,7 @@ class multi_uri(list):
     """
     Initialize a set of URIs, which includes basic some syntax checking.
     """
+    list.__init__(self)
     if isinstance(ini, (list, tuple)):
       self[:] = ini
     elif isinstance(ini, str):
@@ -151,6 +152,7 @@ class class_elt(base_elt):
 
   def __init__(self):
     """Initialize class_elt."""
+    base_elt.__init__(self)
     self.certs = []
 
   def startElement(self, stack, name, attrs):
@@ -267,6 +269,7 @@ class class_response_syntax(base_elt):
 
   def __init__(self):
     """Initialize class_response_syntax."""
+    base_elt.__init__(self)
     self.classes = []
 
   def startElement(self, stack, name, attrs):
@@ -500,6 +503,7 @@ class error_response_pdu(base_elt):
     """
     Initialize an error_response PDU from an exception object.
     """
+    base_elt.__init__(self)
     if exception is not None:
       self.status = self.exceptions.get(type(exception), 2001)
       self.description = str(exception)

@@ -206,6 +206,7 @@ class resource_set(list):
     """
     Initialize a resource_set.
     """
+    list.__init__(self)
     if isinstance(ini, (int, long)):
       ini = str(ini)
     if ini == inherit_token:
@@ -741,6 +742,7 @@ class roa_prefix_set(list):
     """
     Initialize a ROA prefix set.
     """
+    list.__init__(self)
     if isinstance(ini, str) and len(ini):
       self.extend(self.parse_str(s) for s in ini.split(","))
     elif isinstance(ini, (list, tuple)):

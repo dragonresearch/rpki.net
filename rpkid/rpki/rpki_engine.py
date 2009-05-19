@@ -811,6 +811,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
     """
     Initialize a child_cert_obj.
     """
+    rpki.sql.sql_persistent.__init__(self)
     self.gctx = gctx
     self.child_id = child_id
     self.ca_detail_id = ca_detail_id
@@ -963,6 +964,7 @@ class revoked_cert_obj(rpki.sql.sql_persistent):
 
   def __init__(self, gctx = None, serial = None, revoked = None, expires = None, ca_detail_id = None):
     """Initialize a revoked_cert_obj."""
+    rpki.sql.sql_persistent.__init__(self)
     self.gctx = gctx
     self.serial = serial
     self.revoked = revoked

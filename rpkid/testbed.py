@@ -382,6 +382,7 @@ class allocation_db(list):
     Initialize database from the (first) YAML document.
     """
 
+    list.__init__(self)
     self.root = allocation(yaml, self)
     assert self.root.is_root()
     if self.root.crl_interval is None:

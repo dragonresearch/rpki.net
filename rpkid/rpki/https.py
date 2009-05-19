@@ -320,7 +320,7 @@ class http_server(http_stream):
         print traceback.format_exc()
         self.send_error(500, "Unhandled exception %s" % edata)
     else:
-      self.send_error(*error)
+      self.send_error(code = error[0], reason = error[1])
 
   def send_error(self, code, reason):
     self.send_message(code = code, reason = reason)

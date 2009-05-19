@@ -897,13 +897,13 @@ class child_cert_obj(rpki.sql.sql_persistent):
 
     def revoke(child_cert):
 
-      def do_one_cert(iterator, cert):
-        cert.revoke(iterator)
+      def loop(iterator, x):
+        x.revoke(iterator, errback)
 
       def done():
         callback(child_cert)        
 
-      rpki.async.iterator([x for x in child.child_certs(ca_detail = ca_detail, ski = self.ski) if x is not child_cert], do_one_cert, done)
+      rpki.async.iterator([x for x in child.child_certs(ca_detail = ca_detail, ski = self.ski) if x is not child_cert], loop, done)
 
     ca_detail.issue(
       ca          = ca,

@@ -971,9 +971,7 @@ class allocation(object):
       sql_cur = sql_db.cursor()
       
       for v in vals:
-        t = v.tag.partition(".")
-        i = int(t[0])
-        j = int(t[2])
+        i, j = [int(x) for x in v.tag.split(".")]
         s = selves[i]
         k = s.kids[j]
         assert s.self_id == v.self_id
@@ -1001,9 +999,7 @@ class allocation(object):
     def got_route_origin_ids(vals):
       
       for v in vals:
-        t = v.tag.partition(".")
-        i = int(t[0])
-        j = int(t[2])
+        i, j = [int(x) for x in v.tag.split(".")]
         s = selves[i]
         r = s.route_origins[j]
         assert s.self_id == v.self_id

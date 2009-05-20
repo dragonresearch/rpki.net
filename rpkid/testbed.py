@@ -725,9 +725,19 @@ class allocation(object):
     """
     Send a left-right message to this entity's RPKI daemon and return
     the response.
+
+    If this entity is hosted (does not run its own RPKI daemon), all
+    of this happens with the hosting RPKI daemon.
     """
+
     rpki.log.info("Calling rpkid for %s" % self.name)
-    msg = rpki.left_right.msg([pdu])
+
+    if self.is_hosted():
+      rpki.log.info("rpkid %s is hosted by rpkid %s, switching" % (self.name, self.hosted_by.name))
+      self = self.hosted_by
+      assert not self.is_hosted()
+
+    msg = rpki.left_right.msg(pdu if isinstance(pdu, (list, tuple)) else [pdu])
     msg.type = "query"
     cms, xml = rpki.left_right.cms_msg.wrap(msg, self.irbe_key, self.irbe_cert,
                                             pretty_print = True)
@@ -735,7 +745,7 @@ class allocation(object):
     url = "https://localhost:%d/left-right" % self.rpki_port
 
     def done(val):
-      rpki.log.info("Callback to rpkid %s" % self.name)
+      rpki.log.info("Callback from rpkid %s" % self.name)
       if isinstance(val, Exception):
         raise val
       msg, xml = rpki.left_right.cms_msg.unwrap(val, (self.rpkid_ta, self.rpkid_cert),
@@ -754,8 +764,6 @@ class allocation(object):
       msg          = cms,
       callback     = done,
       errback      = done)
-
-    rpki.log.info("Call to rpkid %s returned" % self.name)
 
   def cross_certify(self, certificant, reverse = False):
     """

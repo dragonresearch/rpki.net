@@ -472,10 +472,7 @@ class allocation(object):
       self.crl_interval = rpki.sundial.timedelta.parse(yaml["crl_interval"]).convert_to_seconds()
     if "regen_margin" in yaml:
       self.regen_margin = rpki.sundial.timedelta.parse(yaml["regen_margin"]).convert_to_seconds()
-    self.route_origins = set()
-    if "route_origin" in yaml:
-      for y in yaml.get("route_origin"):
-        self.route_origins.add(route_origin.parse(y))
+    self.route_origins = [route_origin.parse(y) for y in yaml.get("route_origin", ())]
     self.hosted_by = yaml.get("hosted_by")
     self.extra_conf = yaml.get("extra_conf", [])
     self.hosts = []
@@ -547,12 +544,16 @@ class allocation(object):
 
   def apply_route_origin_add(self, yaml, cb):
     for y in yaml:
-      self.route_origins.add(route_origin.parse(y))
+      r = route_origin.parse(y)
+      if r not in self.route_origins:
+        self.route_origins.append(r)
     cb()
 
   def apply_route_origin_del(self, yaml, cb):
     for y in yaml:
-      self.route_origins.remove(route_origin.parse(y))
+      r = route_origin.parse(y)
+      if r in self.route_origins:
+        self.route_origins.remove(r)
     cb()
 
   def apply_rekey(self, target, cb):
@@ -566,10 +567,10 @@ class allocation(object):
       raise RuntimeError, "Can't rekey YAML leaf %s, sorry" % self.name
     elif target is None:
       rpki.log.info("Rekeying <self/> %s" % self.name)
-      self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "set", self_id = self.self_id, rekey = "yes"), cb = done)
+      self.call_rpkid([rpki.left_right.self_elt.make_pdu(action = "set", self_id = self.self_id, rekey = "yes")], cb = done)
     else:
       rpki.log.info("Rekeying <parent/> %s %s" % (self.name, target))
-      self.call_rpkid(rpki.left_right.parent_elt.make_pdu(action = "set", self_id = self.self_id, parent_id = target, rekey = "yes"), cb = done)
+      self.call_rpkid([rpki.left_right.parent_elt.make_pdu(action = "set", self_id = self.self_id, parent_id = target, rekey = "yes")], cb = done)
 
   def apply_revoke(self, target, cb):
 
@@ -584,10 +585,10 @@ class allocation(object):
       cb()
     elif target is None:
       rpki.log.info("Revoking <self/> %s" % self.name)
-      self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "set", self_id = self.self_id, revoke = "yes"), cb = done)
+      self.call_rpkid([rpki.left_right.self_elt.make_pdu(action = "set", self_id = self.self_id, revoke = "yes")], cb = done)
     else:
       rpki.log.info("Revoking <parent/> %s %s" % (self.name, target))
-      self.call_rpkid(rpki.left_right.parent_elt.make_pdu(action = "set", self_id = self.self_id, parent_id = target, revoke = "yes"), cb = done)
+      self.call_rpkid([rpki.left_right.parent_elt.make_pdu(action = "set", self_id = self.self_id, parent_id = target, revoke = "yes")], cb = done)
 
   def __str__(self):
     s = self.name + "\n"
@@ -721,7 +722,7 @@ class allocation(object):
         pass
       proc.wait()
 
-  def call_rpkid(self, pdu, cb):
+  def call_rpkid(self, pdus, cb):
     """
     Send a left-right message to this entity's RPKI daemon and return
     the response.
@@ -737,7 +738,9 @@ class allocation(object):
       self = self.hosted_by
       assert not self.is_hosted()
 
-    msg = rpki.left_right.msg(pdu if isinstance(pdu, (list, tuple)) else [pdu])
+    assert isinstance(pdus, (list, tuple))
+
+    msg = rpki.left_right.msg(pdus)
     msg.type = "query"
     cms, xml = rpki.left_right.cms_msg.wrap(msg, self.irbe_key, self.irbe_cert,
                                             pretty_print = True)
@@ -754,7 +757,7 @@ class allocation(object):
       assert msg.type == "reply"
       for pdu in msg:
         assert not isinstance(pdu, rpki.left_right.report_error_elt)
-      cb(msg[0] if len(msg) == 1 else msg)
+      cb(msg)
 
     rpki.https.client(
       client_key   = self.irbe_key,
@@ -822,120 +825,191 @@ class allocation(object):
     protocol callbacks.
     """
 
-    def start():
-      self_ca = rpki.x509.X509(Auto_file = self.name + "-SELF.cer")
+    assert not self.is_hosted() and not self.is_leaf()
 
-      rpki.log.info("Creating rpkid self object for %s" % self.name)
-      self.call_rpkid(rpki.left_right.self_elt.make_pdu(action = "create", crl_interval = self.crl_interval, regen_margin = self.regen_margin, bpki_cert = self_ca),
+    selves = [self] + self.hosts
+
+    for i, s in enumerate(selves):
+      rpki.log.info("Creating RPKI objects for [%d] %s" % (i, s.name))
+
+    def start():
+      rpki.log.info("Creating rpkid self objects for %s" % self.name)
+      self.call_rpkid([rpki.left_right.self_elt.make_pdu(action = "create",
+                                                         tag = str(i),
+                                                         crl_interval = s.crl_interval,
+                                                         regen_margin = s.regen_margin,
+                                                         bpki_cert = rpki.x509.X509(Auto_file = s.name + "-SELF.cer"))
+                       for i, s in enumerate(selves)],
                       cb = got_self_id)
 
-    def got_self_id(val):
-      self.self_id = val.self_id
+      # Need to convert rest, starting with callback from this.
 
-      rpki.log.info("Creating rpkid BSC object for %s" % self.name)
-      self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "create", self_id = self.self_id, generate_keypair = True),
+    def got_self_id(vals):
+      for v in vals:
+        selves[int(v.tag)].self_id = v.self_id
+
+      rpki.log.info("Creating rpkid BSC objects for %s" % self.name)
+      self.call_rpkid([rpki.left_right.bsc_elt.make_pdu(action = "create",
+                                                        tag = str(i),
+                                                        self_id = s.self_id,
+                                                        generate_keypair = True)
+                       for i, s in enumerate(selves)],
                       cb = got_bsc_id)
 
-    def got_bsc_id(val):
-      self.bsc_id = val.bsc_id
+    def got_bsc_id(vals):
+      for v in vals:
+        s = selves[int(v.tag)]
+        assert s.self_id == v.self_id
+        s.bsc_id = v.bsc_id
 
-      rpki.log.info("Issuing BSC EE cert for %s" % self.name)
-      cmd = (prog_openssl, "x509", "-req", "-sha256", "-extfile", self.name + "-RPKI.conf", "-extensions", "req_x509_ext", "-days", "30",
-             "-CA", self.name + "-SELF.cer", "-CAkey",    self.name + "-SELF.key", "-CAcreateserial", "-text")
-      signer = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-      signed = signer.communicate(input = val.pkcs10_request.get_PEM())
-      if not signed[0]:
-        rpki.log.error(signed[1])
-        raise RuntimeError, "Couldn't issue BSC EE certificate"
-      bsc_ee = rpki.x509.X509(PEM = signed[0])
-      bsc_crl = rpki.x509.CRL(PEM_file = self.name + "-SELF.crl")
+        rpki.log.info("Issuing BSC EE cert for %s" % s.name)
+        cmd = (prog_openssl, "x509", "-req", "-sha256", "-extfile", s.name + "-RPKI.conf", "-extensions", "req_x509_ext", "-days", "30",
+               "-CA", s.name + "-SELF.cer", "-CAkey",    s.name + "-SELF.key", "-CAcreateserial", "-text")
+        signer = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        signed = signer.communicate(input = v.pkcs10_request.get_PEM())
+        if not signed[0]:
+          rpki.log.error(signed[1])
+          raise RuntimeError, "Couldn't issue BSC EE certificate"
+        s.bsc_ee = rpki.x509.X509(PEM = signed[0])
+        s.bsc_crl = rpki.x509.CRL(PEM_file = s.name + "-SELF.crl")
 
-      rpki.log.info("Installing BSC EE cert for %s" % self.name)
-      self.call_rpkid(rpki.left_right.bsc_elt.make_pdu(action = "set", self_id = self.self_id, bsc_id = self.bsc_id, signing_cert = bsc_ee, signing_cert_crl = bsc_crl),
+      rpki.log.info("Installing BSC EE certs for %s" % self.name)
+      self.call_rpkid([rpki.left_right.bsc_elt.make_pdu(action = "set",
+                                                        tag = str(i),
+                                                        self_id = s.self_id,
+                                                        bsc_id = s.bsc_id,
+                                                        signing_cert = s.bsc_ee,
+                                                        signing_cert_crl = s.bsc_crl)
+                       for i, s in enumerate(selves)],
                       cb = bsc_ee_set)
 
-    def bsc_ee_set(val):
+    def bsc_ee_set(vals):
 
-      rpki.log.info("Creating pubd client object for %s" % self.name)
-      client_cert = self.cross_certify(pubd_name + "-TA", reverse = True)
-      call_pubd(rpki.publication.client_elt.make_pdu(action = "create", base_uri = self.sia_base, bpki_cert = client_cert),
+      rpki.log.info("Creating pubd client objects for %s" % self.name)
+      call_pubd([rpki.publication.client_elt.make_pdu(action = "create",
+                                                      tag = str(i),
+                                                      base_uri = s.sia_base,
+                                                      bpki_cert = s.cross_certify(pubd_name + "-TA", reverse = True))
+                 for i, s in enumerate(selves)],
                 cb = got_client_id)
 
-    def got_client_id(val):
-      client_id = val.client_id
+    def got_client_id(vals):
 
-      rpki.log.info("Creating rpkid repository object for %s" % self.name)
-      repository_cert = self.cross_certify(pubd_name + "-TA")
-      self.call_rpkid(rpki.left_right.repository_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id,
-                                                              bpki_cms_cert = repository_cert, bpki_https_cert = repository_cert,
-                                                              peer_contact_uri = "https://localhost:%d/client/%d" % (pubd_port, client_id)),
-                      cb = got_repository_id)
+      rpki.log.info("Creating rpkid repository objects for %s" % self.name)
 
-    def got_repository_id(val):
-      self.repository_id = val.repository_id
+      pdus = []
 
-      rpki.log.info("Creating rpkid parent object for %s" % self.name)
-      if self.is_root():
-        rootd_cert = self.cross_certify(rootd_name + "-TA")
-        self.call_rpkid(rpki.left_right.parent_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id,
-                                                            repository_id = self.repository_id, sia_base = self.sia_base,
-                                                            bpki_cms_cert = rootd_cert, bpki_https_cert = rootd_cert, sender_name = self.name, recipient_name = "Walrus",
-                                                            peer_contact_uri = "https://localhost:%s/" % rootd_port),
-                        cb = got_parent_id)
-      else:
-        parent_cms_cert = self.cross_certify(self.parent.name + "-SELF")
-        parent_https_cert = self.cross_certify(self.parent.name + "-TA")
-        self.call_rpkid(rpki.left_right.parent_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id,
-                                                            repository_id = self.repository_id, sia_base = self.sia_base,
-                                                            bpki_cms_cert = parent_cms_cert, bpki_https_cert = parent_https_cert,
-                                                            sender_name = self.name, recipient_name = self.parent.name,
-                                                            peer_contact_uri = "https://localhost:%s/up-down/%s" % (self.parent.rpki_port, self.child_id)),
-                        cb = got_parent_id)
+      for v in vals:
+        i = int(v.tag)
+        s = selves[i]
 
-    def got_parent_id(val):
-      self.parent_id = val.parent_id
+        repository_cert = s.cross_certify(pubd_name + "-TA")
+
+        pdus.append(rpki.left_right.repository_elt.make_pdu(action = "create",
+                                                            tag = v.tag,
+                                                            self_id = s.self_id,
+                                                            bsc_id = s.bsc_id,
+                                                            bpki_cms_cert = repository_cert,
+                                                            bpki_https_cert = repository_cert,
+                                                            peer_contact_uri = "https://localhost:%d/client/%d" % (pubd_port, v.client_id)))
+
+      self.call_rpkid(pdus, cb = got_repository_id)
+
+    def got_repository_id(vals):
+
+      pdus = []
+
+      for v in vals:
+        s = selves[int(v.tag)]
+        assert s.self_id == v.self_id
+        s.repository_id = v.repository_id
+
+        rpki.log.info("Creating rpkid parent object for %s" % self.name)
+
+        if self.is_root():
+          rootd_cert = self.cross_certify(rootd_name + "-TA")
+          pdus.append(rpki.left_right.parent_elt.make_pdu(action = "create", tag = v.tag, self_id = self.self_id, bsc_id = self.bsc_id,
+                                                          repository_id = self.repository_id, sia_base = self.sia_base,
+                                                          bpki_cms_cert = rootd_cert, bpki_https_cert = rootd_cert, sender_name = self.name, recipient_name = "Walrus",
+                                                          peer_contact_uri = "https://localhost:%s/" % rootd_port))
+        else:
+          parent_cms_cert = self.cross_certify(self.parent.name + "-SELF")
+          parent_https_cert = self.cross_certify(self.parent.name + "-TA")
+          pdus.append(rpki.left_right.parent_elt.make_pdu(action = "create", tag = v.tag, self_id = self.self_id, bsc_id = self.bsc_id,
+                                                          repository_id = self.repository_id, sia_base = self.sia_base,
+                                                          bpki_cms_cert = parent_cms_cert, bpki_https_cert = parent_https_cert,
+                                                          sender_name = self.name, recipient_name = self.parent.name,
+                                                          peer_contact_uri = "https://localhost:%s/up-down/%s" % (self.parent.rpki_port, self.child_id)))
+
+      self.call_rpkid(pdus, cb = got_parent_id)
+
+    def got_parent_id(vals):
+
+      for v in vals:
+        s = selves[int(v.tag)]
+        assert s.self_id == v.self_id
+        s.parent_id = v.parent_id
 
       rpki.log.info("Creating rpkid child objects for %s" % self.name)
+
+      pdus = []
+
+      for i, s in enumerate(selves):
+        for j, k in enumerate(s.kids):
+          rpki.log.info("Creating rpkid child object for %s as child of %s" % (k.name, s.name))
+          pdus.append(rpki.left_right.child_elt.make_pdu(action = "create",
+                                                         tag = "%d.%d" % (i, j),
+                                                         self_id = s.self_id,
+                                                         bsc_id = s.bsc_id,
+                                                         bpki_cert = s.cross_certify(k.name + ("-TA" if k.is_leaf() else "-SELF"))))
+
+      self.call_rpkid(pdus, cb = got_child_ids)
+
+    def got_child_ids(vals):
+
       sql_db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
       sql_cur = sql_db.cursor()
+      
+      for v in vals:
+        t = v.tag.partition(".")
+        i = int(t[0])
+        j = int(t[2])
+        s = selves[i]
+        k = s.kids[j]
+        assert s.self_id == v.self_id
+        k.child_id = v.child_id
+        sql_cur.execute("UPDATE registrant SET rpki_self_id = %s, rpki_child_id = %s WHERE IRBE_mapped_id = %s", (s.self_id, k.child_id, k.name))
 
-      def loop(iterator, kid):
+      sql_cur.close()
+      sql_db.close()
 
-        if kid.is_leaf():
-          bpki_cert = self.cross_certify(kid.name + "-TA")
-        else:
-          bpki_cert = self.cross_certify(kid.name + "-SELF")
-
-        rpki.log.info("Creating rpkid child object for %s as child of %s" % (kid.name, self.name))
-
-        def save(val):
-          kid.child_id = val.child_id
-          sql_cur.execute("UPDATE registrant SET rpki_self_id = %s, rpki_child_id = %s WHERE IRBE_mapped_id = %s", (self.self_id, kid.child_id, kid.name))
-          iterator()
-
-        self.call_rpkid(rpki.left_right.child_elt.make_pdu(action = "create", self_id = self.self_id, bsc_id = self.bsc_id, bpki_cert = bpki_cert),
-                        cb = save)
-
-      def done():
-        sql_db.close()
-        do_route_origins()
-
-      rpki.async.iterator(self.kids, loop, done)
-
-    def do_route_origins():
       rpki.log.info("Creating rpkid route_origin objects for %s" % self.name)
 
-      def do_one_ro(iterator, ro):
+      pdus = []
 
-        def do_one_ro_cb(val):
-          ro.route_origin_id = val.route_origin_id
-          iterator()
+      for i, s in enumerate(selves):
+        for j, r in enumerate(s.route_origins):
+          pdus.append(rpki.left_right.route_origin_elt.make_pdu(action = "create",
+                                                                tag = "%d.%d" % (i, j),
+                                                                self_id = s.self_id,
+                                                                as_number = r.asn,
+                                                                ipv4 = r.v4,
+                                                                ipv6 = r.v6))
 
-        self.call_rpkid(rpki.left_right.route_origin_elt.make_pdu(action = "create", self_id = self.self_id,
-                                                                  as_number = ro.asn, ipv4 = ro.v4, ipv6 = ro.v6),
-                        cb = do_one_ro_cb)
+      self.call_rpkid(pdus, cb = got_route_origin_ids)
 
-      rpki.async.iterator(self.route_origins, do_one_ro, cb)
+    def got_route_origin_ids(vals):
+      
+      for v in vals:
+        t = v.tag.partition(".")
+        i = int(t[0])
+        j = int(t[2])
+        s = selves[i]
+        r = s.route_origins[j]
+        assert s.self_id == v.self_id
+        r.route_origin_id = v.route_origin_id
+
+      cb()
 
     start()
 
@@ -1105,13 +1179,13 @@ def setup_publication(pubd_sql):
   pubd_irbe_cert = rpki.x509.X509(Auto_file = pubd_name + "-IRBE.cer")
   pubd_pubd_cert = rpki.x509.X509(Auto_file = pubd_name + "-PUBD.cer")
 
-def call_pubd(pdu, cb):
+def call_pubd(pdus, cb):
   """
   Send a publication message to publication daemon and return the
   response.
   """
   rpki.log.info("Calling pubd")
-  msg = rpki.publication.msg([pdu])
+  msg = rpki.publication.msg(pdus)
   msg.type = "query"
   cms, xml = rpki.publication.cms_msg.wrap(msg, pubd_irbe_key, pubd_irbe_cert,
                                            pretty_print = True)
@@ -1119,15 +1193,16 @@ def call_pubd(pdu, cb):
   url = "https://localhost:%d/control" % pubd_port
 
   def call_pubd_cb(val):
-    if isinstance(val, Exception):
-      raise val
     msg, xml = rpki.publication.cms_msg.unwrap(val, (pubd_ta, pubd_pubd_cert),
                                                pretty_print = True)
     rpki.log.debug(xml)
     assert msg.type == "reply"
     for pdu in msg:
       assert not isinstance(pdu, rpki.publication.report_error_elt)
-    cb(msg[0] if len(msg) == 1 else msg)
+    cb(msg)
+
+  def call_pubd_eb(e):
+    raise e
 
   rpki.https.client(
     client_key   = pubd_irbe_key,
@@ -1136,7 +1211,7 @@ def call_pubd(pdu, cb):
     url          = url,
     msg          = cms,
     callback     = call_pubd_cb,
-    errback      = call_pubd_cb)
+    errback      = call_pubd_eb)
 
 def set_pubd_crl(cb):
   """
@@ -1145,8 +1220,8 @@ def set_pubd_crl(cb):
   updated whenever we update the CRL.
   """
   rpki.log.info("Setting pubd's BPKI CRL")
-  call_pubd(rpki.publication.config_elt.make_pdu(action = "set", bpki_crl = rpki.x509.CRL(Auto_file = pubd_name + "-TA.crl")),
-            cb = lambda crl: cb())
+  call_pubd([rpki.publication.config_elt.make_pdu(action = "set", bpki_crl = rpki.x509.CRL(Auto_file = pubd_name + "-TA.crl"))],
+            cb = lambda ignored: cb())
 
 def run_rcynic():
   """

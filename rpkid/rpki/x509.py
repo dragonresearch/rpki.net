@@ -784,7 +784,7 @@ class CMS_object(DER_object):
 
     if self.debug_cms_certs:
       for x in certs:
-        rpki.log.debug("Received CMS cert issuer %s subject %s" % (x.getIssuer(), x.getSubject()))
+        rpki.log.debug("Received CMS cert issuer %s subject %s SKI %s" % (x.getIssuer(), x.getSubject(), x.hSKI()))
       for c in crls:
         rpki.log.debug("Received CMS CRL issuer %s" % repr(c.getIssuer()))
 
@@ -794,7 +794,7 @@ class CMS_object(DER_object):
 
     for x in X509.normalize_chain(ta):
       if self.debug_cms_certs:
-        rpki.log.debug("CMS trusted cert issuer %s subject %s" % (x.getIssuer(), x.getSubject()))
+        rpki.log.debug("CMS trusted cert issuer %s subject %s SKI %s" % (x.getIssuer(), x.getSubject(), x.hSKI()))
       if not x.is_CA():
         assert trusted_ee is None, "Can't have two EE certs in the same validation chain"
         trusted_ee = x
@@ -802,7 +802,7 @@ class CMS_object(DER_object):
 
     if trusted_ee:
       if self.debug_cms_certs:
-        rpki.log.debug("Trusted CMS EE cert issuer %s subject %s" % (trusted_ee.getIssuer(), trusted_ee.getSubject()))
+        rpki.log.debug("Trusted CMS EE cert issuer %s subject %s SKI %s" % (trusted_ee.getIssuer(), trusted_ee.getSubject(), trusted_ee.hSKI()))
       if certs and (len(certs) > 1 or certs[0] != trusted_ee):
         raise rpki.exceptions.UnexpectedCMSCerts, certs
       if crls:
@@ -882,6 +882,11 @@ class CMS_object(DER_object):
       crls = ()
     elif isinstance(crls, CRL):
       crls = (crls,)
+
+    if self.debug_cms_certs:
+      rpki.log.debug("Signing with cert issuer %s subject %s SKI %s" % (cert.getIssuer(), cert.getSubject(), cert.hSKI()))
+      for i, c in enumerate(certs):
+        rpki.log.debug("Additional cert %d issuer %s subject %s SKI %s" % (i, c.getIssuer(), c.getSubject(), c.hSKI()))
 
     cms = POW.CMS()
 

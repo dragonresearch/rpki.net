@@ -157,8 +157,6 @@ def main():
   rpki.log.init(testbed_name)
   rpki.log.info("Starting")
 
-  signal.signal(signal.SIGALRM, wakeup)
-
   pubd_process = None
   rootd_process = None
   rsyncd_process = None
@@ -224,11 +222,11 @@ def main():
     for a in db.engines:
       a.run_daemons()
 
-    rpki.log.info("Sleeping %d seconds while daemons start up" % startup_delay)
-    time.sleep(startup_delay)
-
     # From this point on we'll be running event-driven, so the rest of
     # the code until final exit is all closures.
+
+    def start():
+      rpki.async.iterator(db.engines, create_rpki_objects, created_rpki_objects)
 
     def create_rpki_objects(iterator, a):
       a.create_rpki_objects(iterator)
@@ -279,8 +277,8 @@ def main():
       # Loop until we run out of control YAML
       yaml_loop()
 
-    rpki.async.iterator(db.engines, create_rpki_objects, created_rpki_objects)
-
+    rpki.log.info("Sleeping %d seconds while daemons start up" % startup_delay)
+    rpki.async.timer(start).set(rpki.sundial.timedelta(seconds = startup_delay))
     rpki.async.event_loop()
 
     # At this point we have gone into event-driven code.
@@ -308,33 +306,27 @@ def main():
           pass
         proc.wait()
 
-def wakeup(signum, frame):
-  """Handler called when we receive a SIGALRM signal."""
-  rpki.log.info("Wakeup call received, continuing")
-
-def cmd_sleep(interval = None):
+def cmd_sleep(cb, interval):
   """
   Set an alarm, then wait for it to go off.
   """
-  if interval is None:
-    rpki.log.info("Pausing indefinitely, send a SIGALRM to wake me up")
-  else:
-    seconds = rpki.sundial.timedelta.parse(interval).convert_to_seconds()
-    rpki.log.info("Sleeping %s seconds" % seconds)
-    signal.alarm(seconds)
-  signal.pause()
+  howlong = rpki.sundial.timedelta.parse(interval)
+  rpki.log.info("Sleeping %r" % howlong)
+  rpki.async.timer(cb).set(howlong)
 
-def cmd_shell(*cmd):
+def cmd_shell(cb, *cmd):
   """
   Run a shell command.
   """
   cmd = " ".join(cmd)
   status = subprocess.call(cmd, shell = True)
   rpki.log.info("Shell command returned status %d" % status)
+  cb()
 
-def cmd_echo(*words):
+def cmd_echo(cb, *words):
   """Echo some text to the log."""
   rpki.log.note(" ".join(words))
+  cb()
 
 ## @var cmds
 # Dispatch table for commands embedded in delta sections
@@ -418,8 +410,7 @@ class allocation_db(list):
     def loop(iterator, d):
       if isinstance(d, str):
         c = d.split()
-        cmds[c[0]](*c[1:])
-        iterator()
+        cmds[c[0]](iterator, *c[1:])
       else:
         self.map[d["name"]].apply_delta(d, iterator)
 
@@ -924,22 +915,22 @@ class allocation(object):
         assert s.self_id == v.self_id
         s.repository_id = v.repository_id
 
-        rpki.log.info("Creating rpkid parent object for %s" % self.name)
+        rpki.log.info("Creating rpkid parent object for %s" % s.name)
 
-        if self.is_root():
-          rootd_cert = self.cross_certify(rootd_name + "-TA")
-          pdus.append(rpki.left_right.parent_elt.make_pdu(action = "create", tag = v.tag, self_id = self.self_id, bsc_id = self.bsc_id,
-                                                          repository_id = self.repository_id, sia_base = self.sia_base,
-                                                          bpki_cms_cert = rootd_cert, bpki_https_cert = rootd_cert, sender_name = self.name, recipient_name = "Walrus",
+        if s.is_root():
+          rootd_cert = s.cross_certify(rootd_name + "-TA")
+          pdus.append(rpki.left_right.parent_elt.make_pdu(action = "create", tag = v.tag, self_id = s.self_id, bsc_id = s.bsc_id,
+                                                          repository_id = s.repository_id, sia_base = s.sia_base,
+                                                          bpki_cms_cert = rootd_cert, bpki_https_cert = rootd_cert, sender_name = s.name, recipient_name = "Walrus",
                                                           peer_contact_uri = "https://localhost:%s/" % rootd_port))
         else:
-          parent_cms_cert = self.cross_certify(self.parent.name + "-SELF")
-          parent_https_cert = self.cross_certify(self.parent.name + "-TA")
-          pdus.append(rpki.left_right.parent_elt.make_pdu(action = "create", tag = v.tag, self_id = self.self_id, bsc_id = self.bsc_id,
-                                                          repository_id = self.repository_id, sia_base = self.sia_base,
+          parent_cms_cert = s.cross_certify(s.parent.name + "-SELF")
+          parent_https_cert = s.cross_certify(s.parent.name + "-TA")
+          pdus.append(rpki.left_right.parent_elt.make_pdu(action = "create", tag = v.tag, self_id = s.self_id, bsc_id = s.bsc_id,
+                                                          repository_id = s.repository_id, sia_base = s.sia_base,
                                                           bpki_cms_cert = parent_cms_cert, bpki_https_cert = parent_https_cert,
-                                                          sender_name = self.name, recipient_name = self.parent.name,
-                                                          peer_contact_uri = "https://localhost:%s/up-down/%s" % (self.parent.rpki_port, self.child_id)))
+                                                          sender_name = s.name, recipient_name = s.parent.name,
+                                                          peer_contact_uri = "https://localhost:%s/up-down/%s" % (s.parent.rpki_port, s.child_id)))
 
       self.call_rpkid(pdus, cb = got_parent_id)
 
@@ -963,7 +954,10 @@ class allocation(object):
                                                          bsc_id = s.bsc_id,
                                                          bpki_cert = s.cross_certify(k.name + ("-TA" if k.is_leaf() else "-SELF"))))
 
-      self.call_rpkid(pdus, cb = got_child_ids)
+      if pdus:
+        self.call_rpkid(pdus, cb = got_child_ids)
+      else:
+        got_child_ids(())
 
     def got_child_ids(vals):
 
@@ -994,7 +988,10 @@ class allocation(object):
                                                                 ipv4 = r.v4,
                                                                 ipv6 = r.v6))
 
-      self.call_rpkid(pdus, cb = got_route_origin_ids)
+      if pdus:
+        self.call_rpkid(pdus, cb = got_route_origin_ids)
+      else:
+        got_route_origin_ids(())
 
     def got_route_origin_ids(vals):
       
@@ -1047,7 +1044,7 @@ class allocation(object):
     rpki.log.info("Running cron for %s" % self.name)
 
     def done(result):
-      assert result == "OK"
+      assert result == "OK", 'Expected "OK" result from cronjob, got %r' % result
       cb()
 
     rpki.https.client(client_key   = self.irbe_key,

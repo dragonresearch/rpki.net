@@ -45,6 +45,7 @@ kids:
         asn:  64534-64540
       - name: Harry
         asn:  666-677
+    #hosted_by: R1
   - name: R4
     kids:
       - name: Ilse

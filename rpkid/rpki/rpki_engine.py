@@ -348,6 +348,7 @@ class ca_obj(rpki.sql.sql_persistent):
     """
 
     def fail(e):
+      rpki.log.error(traceback.format_exc())
       rpki.log.warn("Could not delete CA %r, skipping: %s" % (self, e))
       callback()
 

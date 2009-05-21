@@ -184,10 +184,12 @@ class self_elt(data_elt):
         def class_loop(class_iterator, rc):
 
           def class_update_failed(e):
+            rpki.log.error(traceback.format_exc())
             rpki.log.warn("Couldn't update class, skipping: %s" % e)
             class_iterator()
 
           def class_create_failed(e):
+            rpki.log.error(traceback.format_exc())
             rpki.log.warn("Couldn't create class, skipping: %s" % e)
             class_iterator()
 
@@ -212,6 +214,7 @@ class self_elt(data_elt):
         rpki.async.iterator(r_msg.payload.classes, class_loop, class_done)
 
       def list_failed(e):
+        rpki.log.error(traceback.format_exc())
         rpki.log.warn("Couldn't get resource class list from parent %r, skipping: %s" % (parent, e))
 
       rpki.up_down.list_pdu.query(parent, got_list, list_failed)
@@ -247,6 +250,7 @@ class self_elt(data_elt):
               rpki.log.debug("Need to reissue child certificate SKI %s" % child_cert.cert.gSKI())
 
               def reissue_failed(e):
+                rpki.log.error(traceback.format_exc())
                 rpki.log.warn("Couldn't reissue child_cert %r, skipping: %s" % (child_cert, e))
                 iterator2()
 
@@ -269,10 +273,12 @@ class self_elt(data_elt):
                 repository.withdraw(child_cert.cert, child_cert.uri(ca), iterator2, withdraw_failed)
 
               def manifest_failed(e):
+                rpki.log.error(traceback.format_exc())
                 rpki.log.warn("Couldn't reissue manifest for %r, skipping: %s" % (ca_detail, e))
                 iterator2()
 
               def withdraw_failed(e):
+                rpki.log.error(traceback.format_exc())
                 rpki.log.warn("Couldn't withdraw old child_cert %r, skipping: %s" % (child_cert, e))
                 iterator2()
 
@@ -284,6 +290,7 @@ class self_elt(data_elt):
         rpki.async.iterator(child_certs, loop2, iterator1)
 
       def irdb_lookup_failed(e):
+        rpki.log.error(traceback.format_exc())
         rpki.log.warn("Couldn't look up child's resources in IRDB, skipping child %r: %s" % (child, e))
         iterator1()
 
@@ -318,6 +325,7 @@ class self_elt(data_elt):
       def loop2(iterator2, ca):
 
         def fail2(e):
+          rpki.log.error(traceback.format_exc())
           rpki.log.warn("Couldn't regenerate CRLs and manifests for CA %r, skipping: %s" % (ca, e))
           iterator2()
 
@@ -757,6 +765,7 @@ class route_origin_elt(data_elt):
     """
 
     def lose(e):
+      rpki.log.error(traceback.format_exc())
       rpki.log.warn("Could not update ROA %r, skipping: %s" % (self, e))
       callback()
       return

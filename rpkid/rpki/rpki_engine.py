@@ -139,7 +139,7 @@ class rpkid_context(object):
     rpki.log.trace()
     self.sql.ping()
 
-    def each(iterator, s):
+    def loop(iterator, s):
 
       def one():
         rpki.log.debug("Self %s polling parents" % s.self_id)
@@ -163,7 +163,7 @@ class rpkid_context(object):
       self.sql.sweep()
       cb(200, "OK")
 
-    rpki.async.iterator(rpki.left_right.self_elt.sql_fetch_all(self), each, done)
+    rpki.async.iterator(rpki.left_right.self_elt.sql_fetch_all(self), loop, done)
 
   ## @var https_ta_cache
   # HTTPS trust anchor cache, to avoid regenerating it for every TLS connection.

@@ -108,11 +108,6 @@ def query_up_down(q_pdu):
       fail(edata)
     rpki.async.exit_event_loop()
 
-  def fail(e):
-    if debug:
-      raise e
-    print "Failed:", e
-
   rpki.https.client(
     server_ta    = [https_ta] + https_ca_certs,
     client_key   = https_key,
@@ -142,6 +137,12 @@ def do_revoke():
 
 dispatch = { "list" : do_list, "issue" : do_issue, "revoke" : do_revoke }
 
+def fail(e):
+  if debug:
+    raise e
+  print "Testpoke failed:", e
+  sys.exit(1)
+
 cms_ta         = get_PEM("cms-ca-cert", rpki.x509.X509)
 cms_cert       = get_PEM("cms-cert", rpki.x509.X509)
 cms_key        = get_PEM("cms-key", rpki.x509.RSA)
@@ -159,6 +160,4 @@ try:
   dispatch[yaml_req["type"]]()
   rpki.async.event_loop()
 except Exception, edata:
-  if debug:
-    raise
-  print "Failed:", edata
+  fail(edata)

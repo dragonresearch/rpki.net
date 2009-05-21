@@ -664,9 +664,10 @@ class allocation(object):
     cur = db.cursor()
     for sql in irdb_sql:
       cur.execute(sql)
-    for kid in self.kids:
-      cur.execute("INSERT registrant (IRBE_mapped_id, subject_name, valid_until) VALUES (%s, %s, %s)",
-                  (kid.name, kid.name, kid.resources.valid_until.to_sql()))
+    for s in [self] + self.hosts:
+      for kid in s.kids:
+        cur.execute("INSERT registrant (IRBE_mapped_id, subject_name, valid_until) VALUES (%s, %s, %s)",
+                    (kid.name, kid.name, kid.resources.valid_until.to_sql()))
     db.close()
 
   def sync_sql(self):
@@ -680,16 +681,17 @@ class allocation(object):
     cur = db.cursor()
     cur.execute("DELETE FROM asn")
     cur.execute("DELETE FROM net")
-    for kid in self.kids:
-      cur.execute("SELECT registrant_id FROM registrant WHERE IRBE_mapped_id = %s", (kid.name,))
-      registrant_id = cur.fetchone()[0]
-      for as_range in kid.resources.asn:
-        cur.execute("INSERT asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)", (as_range.min, as_range.max, registrant_id))
-      for v4_range in kid.resources.v4:
-        cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)", (v4_range.min, v4_range.max, registrant_id))
-      for v6_range in kid.resources.v6:
-        cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)", (v6_range.min, v6_range.max, registrant_id))
-      cur.execute("UPDATE registrant SET valid_until = %s WHERE registrant_id = %s", (kid.resources.valid_until.to_sql(), registrant_id))
+    for s in [self] + self.hosts:
+      for kid in s.kids:
+        cur.execute("SELECT registrant_id FROM registrant WHERE IRBE_mapped_id = %s", (kid.name,))
+        registrant_id = cur.fetchone()[0]
+        for as_range in kid.resources.asn:
+          cur.execute("INSERT asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)", (as_range.min, as_range.max, registrant_id))
+        for v4_range in kid.resources.v4:
+          cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)", (v4_range.min, v4_range.max, registrant_id))
+        for v6_range in kid.resources.v6:
+          cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)", (v6_range.min, v6_range.max, registrant_id))
+        cur.execute("UPDATE registrant SET valid_until = %s WHERE registrant_id = %s", (kid.resources.valid_until.to_sql(), registrant_id))
     db.close()
 
   def run_daemons(self):
@@ -829,7 +831,9 @@ class allocation(object):
                                                          tag = str(i),
                                                          crl_interval = s.crl_interval,
                                                          regen_margin = s.regen_margin,
-                                                         bpki_cert = rpki.x509.X509(Auto_file = s.name + "-SELF.cer"))
+                                                         bpki_cert = (s.cross_certify(s.hosted_by.name + "-TA", reverse = True)
+                                                                      if s.is_hosted() else
+                                                                      rpki.x509.X509(Auto_file = s.name + "-SELF.cer")))
                        for i, s in enumerate(selves)],
                       cb = got_self_id)
 
@@ -863,6 +867,7 @@ class allocation(object):
           raise RuntimeError, "Couldn't issue BSC EE certificate"
         s.bsc_ee = rpki.x509.X509(PEM = signed[0])
         s.bsc_crl = rpki.x509.CRL(PEM_file = s.name + "-SELF.crl")
+        rpki.log.info("BSC EE cert for %s SKI %s" % (s.name, s.bsc_ee.hSKI()))
 
       rpki.log.info("Installing BSC EE certs for %s" % self.name)
       self.call_rpkid([rpki.left_right.bsc_elt.make_pdu(action = "set",
@@ -1009,11 +1014,17 @@ class allocation(object):
   def setup_yaml_leaf(self):
     """
     Generate certificates and write YAML scripts for leaf nodes.
+
     We're cheating a bit here: properly speaking, we can't generate
     issue or revoke requests without knowing the class, which is
     generated on the fly, but at the moment the test case is
     simplistic enough that the class will always be "1", so we just
     wire in that value for now.
+
+    Well, ok, we just broke that assumption.  Now we do something even
+    nastier, just to eke a bit more life out of this kludge.  This
+    really needs to be rewritten, but it may require a different tool
+    than testpoke.
     """
 
     if not os.path.exists(self.name + ".key"):
@@ -1031,7 +1042,8 @@ class allocation(object):
       "child_id"    : self.child_id,
       "parent_name" : self.parent.name,
       "my_name"     : self.name,
-      "https_port"  : self.parent.rpki_port,
+      "https_port"  : self.parent.hosted_by.rpki_port if self.parent.is_hosted() else self.parent.rpki_port,
+      "class_name"  : 2 if self.parent.is_hosted() else 1,
       "sia"         : self.sia_base,
       "ski"         : ski })
     f.close()
@@ -1321,13 +1333,13 @@ requests:
     type:                       list
   issue:
     type:                       issue
-    class:                      1
+    class:                      %(class_name)s
     sia:
       -                         %(sia)s
     cert-request-key-file:      %(my_name)s.key
   revoke:
     type:                       revoke
-    class:                      1
+    class:                      %(class_name)s
     ski:                        %(ski)s
 '''
 

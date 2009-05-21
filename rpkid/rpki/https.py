@@ -50,7 +50,7 @@ rpki_content_type = "application/x-rpki"
 
 # ================================================================
 
-debug = True
+debug = False
 
 want_persistent_client = True
 want_persistent_server = True
@@ -563,7 +563,8 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback):
 
   hostport = (u.hostname or "localhost", u.port or 80)
 
-  rpki.log.debug("Created request %r for %r" % (request, hostport))
+  if debug:
+    rpki.log.debug("Created request %r for %r" % (request, hostport))
   if hostport not in queues:
     queues[hostport] = http_queue(hostport)
   queues[hostport].request(request)
@@ -571,7 +572,8 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback):
   # Defer connection attempt until after we've had time to process any
   # pending I/O events, in case connections have closed.
 
-  rpki.log.debug("Scheduling connection startup for %r" % request)
+  if debug:
+    rpki.log.debug("Scheduling connection startup for %r" % request)
   rpki.async.timer(queues[hostport].restart, errback).set(None)
 
 def server(handlers, server_key, server_cert, port, host ="", client_ta = None, dynamic_https_trust_anchor = None):

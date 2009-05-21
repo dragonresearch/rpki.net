@@ -140,8 +140,7 @@ dispatch = { "list" : do_list, "issue" : do_issue, "revoke" : do_revoke }
 def fail(e):
   if debug:
     raise e
-  print "Testpoke failed:", e
-  sys.exit(1)
+  sys.exit("Testpoke failed: %s" % e)
 
 cms_ta         = get_PEM("cms-ca-cert", rpki.x509.X509)
 cms_cert       = get_PEM("cms-cert", rpki.x509.X509)

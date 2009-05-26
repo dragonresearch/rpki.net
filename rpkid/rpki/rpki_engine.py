@@ -836,7 +836,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
     """Return the publication URI for this child_cert."""
     return ca.sia_uri + self.uri_tail()
 
-  def revoke(self, callback, errback):
+  def revoke(self, callback, errback, withdraw = True):
     """
     Revoke a child cert.
     """
@@ -845,14 +845,17 @@ class child_cert_obj(rpki.sql.sql_persistent):
     ca_detail = self.ca_detail()
     ca = ca_detail.ca()
     revoked_cert_obj.revoke(cert = self.cert, ca_detail = ca_detail)
-    repository = ca.parent().repository()
 
     def done():
       self.gctx.sql.sweep()
       self.sql_delete()
       callback()
 
-    repository.withdraw(self.cert, self.uri(ca), done, errback)
+    if withdraw:
+      ca.parent().repository().withdraw(self.cert, self.uri(ca), done, errback)
+    else:
+      rpki.log.info("Suppressing withdrawal of %r" % self.cert)
+      done()
 
   def reissue(self, ca_detail, callback = None, errback = None, resources = None, sia = None):
     """
@@ -894,20 +897,27 @@ class child_cert_obj(rpki.sql.sql_persistent):
     if resources.valid_until != old_resources.valid_until:
       rpki.log.debug("Validity changed: %s %s" % ( old_resources.valid_until, resources.valid_until))
 
-    if must_revoke or new_issuer:
-      child_cert = None
-    else:
-      child_cert = self
-
     def revoke(child_cert):
 
+      uri = child_cert.uri(ca)
+      rpki.log.debug("New child_cert %r uri %s" % (child_cert, uri))
+
       def loop(iterator, x):
-        x.revoke(iterator, errback)
+        rpki.log.debug("Revoking child_cert %r" % x)
+        x.revoke(iterator, errback, withdraw = x.uri(ca) != uri)
+
+      def manifest():
+        ca_detail.generate_manifest(done, errback)
 
       def done():
         callback(child_cert)        
 
-      rpki.async.iterator([x for x in child.child_certs(ca_detail = ca_detail, ski = self.ski) if x is not child_cert], loop, done)
+      certs_to_revoke = [x for x in child.child_certs(ca_detail = ca_detail, ski = self.ski) if x is not child_cert]
+
+      if certs_to_revoke:
+        rpki.async.iterator(certs_to_revoke, loop, manifest)
+      else:
+        done()
 
     ca_detail.issue(
       ca          = ca,
@@ -915,7 +925,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
       subject_key = self.cert.getPublicKey(),
       sia         = sia,
       resources   = resources,
-      child_cert  = child_cert,
+      child_cert  = None if must_revoke or new_issuer else self,
       callback    = revoke if must_revoke else callback,
       errback     = errback)
 

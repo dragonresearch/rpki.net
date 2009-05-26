@@ -889,6 +889,8 @@ class child_cert_obj(rpki.sql.sql_persistent):
     must_revoke = old_resources.oversized(resources) or old_resources.valid_until > resources.valid_until
     new_issuer  = ca_detail != old_ca_detail
 
+    rpki.log.debug("Reissuing %r, must_revoke %s, new_issuer %s" % (self, must_revoke, new_issuer))
+
     if resources.valid_until != old_resources.valid_until:
       rpki.log.debug("Validity changed: %s %s" % ( old_resources.valid_until, resources.valid_until))
 

@@ -97,6 +97,9 @@ all-tests:: all
 all-tests:: all
 	python testbed.py -y testbed.5.yaml
 
+test all-tests:: all
+	python testbed.py -y testbed.6.yaml
+
 # Documentation
 
 doc/irdbd.dot: irdbd.sql

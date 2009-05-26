@@ -39,11 +39,17 @@ PERFORMANCE OF THIS SOFTWARE.
 import time, socket, asyncore, asynchat, traceback, urlparse
 import rpki.async, rpki.sundial, rpki.x509, rpki.exceptions, rpki.log
 
-print "====== WARNING WARNING WARNING ======"
-print "THIS VERSION OF rpki.https DOES NOT SUPPORT TLS."
-print "CONNECTIONS ARE NOT SECURE."
-print "THIS IS A DEVELOPMENT VERSION, TLS WILL BE ADDED LATER."
-print "====== WARNING WARNING WARNING ======"
+import os
+if os.getlogin() != "sra":
+  #
+  # Have to keep this warning for now, but it has long since become
+  # tedious while testing other code I have to finish first.
+  #
+  print "====== WARNING WARNING WARNING ======"
+  print "THIS VERSION OF rpki.https DOES NOT SUPPORT TLS."
+  print "CONNECTIONS ARE NOT SECURE."
+  print "THIS IS A DEVELOPMENT VERSION, TLS WILL BE ADDED LATER."
+  print "====== WARNING WARNING WARNING ======"
 
 rpki_content_type = "application/x-rpki"
 

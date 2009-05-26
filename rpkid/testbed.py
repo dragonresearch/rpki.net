@@ -400,7 +400,8 @@ class allocation_db(list):
       if a.is_hosted():
         a.hosted_by = self.map[a.hosted_by]
         a.hosted_by.hosts.append(a)
-        assert a.is_twig() and not a.hosted_by.is_hosted()
+        assert a.is_twig(), "%s is not twig" % a.name
+        assert not a.hosted_by.is_hosted(), "%s is hosted by a hosted entity" % a.name
 
   def apply_delta(self, delta, cb):
     """
@@ -615,6 +616,17 @@ class allocation(object):
     self.rpki_db_name = "rpki%d" % n
     self.rpki_port    = allocate_port()
 
+  def get_rpki_port(self):
+    """
+    Get rpki port to use for this entity.
+    """
+    if self.is_hosted():
+      assert self.hosted_by.rpki_port is not None
+      return self.hosted_by.rpki_port
+    else:
+      assert self.rpki_port is not None
+      return self.rpki_port
+
   def setup_bpki_certs(self):
     """
     Create BPKI certificates for this entity.
@@ -636,6 +648,7 @@ class allocation(object):
     Write config files for this entity.
     """
     rpki.log.info("Writing config files for %s" % self.name)
+    assert self.rpki_port is not None
     d = { "my_name"      : self.name,
           "testbed_name" : testbed_name,
           "irdb_db_name" : self.irdb_db_name,
@@ -731,7 +744,9 @@ class allocation(object):
       self = self.hosted_by
       assert not self.is_hosted()
 
+
     assert isinstance(pdus, (list, tuple))
+    assert self.rpki_port is not None
 
     msg = rpki.left_right.msg(pdus)
     msg.type = "query"
@@ -913,38 +928,10 @@ class allocation(object):
 
     def got_repository_id(vals):
 
-      pdus = []
-
       for v in vals:
         s = selves[int(v.tag)]
         assert s.self_id == v.self_id
         s.repository_id = v.repository_id
-
-        rpki.log.info("Creating rpkid parent object for %s" % s.name)
-
-        if s.is_root():
-          rootd_cert = s.cross_certify(rootd_name + "-TA")
-          pdus.append(rpki.left_right.parent_elt.make_pdu(action = "create", tag = v.tag, self_id = s.self_id, bsc_id = s.bsc_id,
-                                                          repository_id = s.repository_id, sia_base = s.sia_base,
-                                                          bpki_cms_cert = rootd_cert, bpki_https_cert = rootd_cert, sender_name = s.name, recipient_name = "Walrus",
-                                                          peer_contact_uri = "https://localhost:%s/" % rootd_port))
-        else:
-          parent_cms_cert = s.cross_certify(s.parent.name + "-SELF")
-          parent_https_cert = s.cross_certify(s.parent.name + "-TA")
-          pdus.append(rpki.left_right.parent_elt.make_pdu(action = "create", tag = v.tag, self_id = s.self_id, bsc_id = s.bsc_id,
-                                                          repository_id = s.repository_id, sia_base = s.sia_base,
-                                                          bpki_cms_cert = parent_cms_cert, bpki_https_cert = parent_https_cert,
-                                                          sender_name = s.name, recipient_name = s.parent.name,
-                                                          peer_contact_uri = "https://localhost:%s/up-down/%s" % (s.parent.rpki_port, s.child_id)))
-
-      self.call_rpkid(pdus, cb = got_parent_id)
-
-    def got_parent_id(vals):
-
-      for v in vals:
-        s = selves[int(v.tag)]
-        assert s.self_id == v.self_id
-        s.parent_id = v.parent_id
 
       rpki.log.info("Creating rpkid child objects for %s" % self.name)
 
@@ -979,6 +966,40 @@ class allocation(object):
 
       sql_cur.close()
       sql_db.close()
+
+      rpki.log.info("Creating rpkid parent objects for %s" % self.name)
+
+      pdus = []
+
+      for i, s in enumerate(selves):
+
+        rpki.log.info("Creating rpkid parent object for %s" % s.name)
+
+        if s.is_root():
+          rootd_cert = s.cross_certify(rootd_name + "-TA")
+          pdus.append(rpki.left_right.parent_elt.make_pdu(action = "create", tag = str(i), self_id = s.self_id, bsc_id = s.bsc_id,
+                                                          repository_id = s.repository_id, sia_base = s.sia_base,
+                                                          bpki_cms_cert = rootd_cert, bpki_https_cert = rootd_cert, sender_name = s.name, recipient_name = "Walrus",
+                                                          peer_contact_uri = "https://localhost:%s/" % rootd_port))
+        else:
+          parent_cms_cert = s.cross_certify(s.parent.name + "-SELF")
+          parent_https_cert = s.cross_certify(s.parent.name + "-TA")
+          pdus.append(rpki.left_right.parent_elt.make_pdu(action = "create", tag = str(i), self_id = s.self_id, bsc_id = s.bsc_id,
+                                                          repository_id = s.repository_id, sia_base = s.sia_base,
+                                                          bpki_cms_cert = parent_cms_cert, bpki_https_cert = parent_https_cert,
+                                                          sender_name = s.name, recipient_name = s.parent.name,
+                                                          peer_contact_uri = "https://localhost:%s/up-down/%s" % (s.parent.get_rpki_port(), s.child_id)))
+
+      assert pdus, "%s has no parents, something is whacked" % self.name
+
+      self.call_rpkid(pdus, cb = got_parent_id)
+
+    def got_parent_id(vals):
+
+      for v in vals:
+        s = selves[int(v.tag)]
+        assert s.self_id == v.self_id
+        s.parent_id = v.parent_id
 
       rpki.log.info("Creating rpkid route_origin objects for %s" % self.name)
 
@@ -1042,7 +1063,7 @@ class allocation(object):
       "child_id"    : self.child_id,
       "parent_name" : self.parent.name,
       "my_name"     : self.name,
-      "https_port"  : self.parent.hosted_by.rpki_port if self.parent.is_hosted() else self.parent.rpki_port,
+      "https_port"  : self.parent.get_rpki_port(),
       "class_name"  : 2 if self.parent.is_hosted() else 1,
       "sia"         : self.sia_base,
       "ski"         : ski })
@@ -1054,6 +1075,8 @@ class allocation(object):
     """
 
     rpki.log.info("Running cron for %s" % self.name)
+
+    assert self.rpki_port is not None
 
     def done(result):
       assert result == "OK", 'Expected "OK" result from cronjob, got %r' % result

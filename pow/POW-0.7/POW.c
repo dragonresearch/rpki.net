@@ -465,7 +465,7 @@ ssl_err_factory(int err)
          return Py_BuildValue( "(is)", SSL_ERROR_SSL, "SSL_ERROR_SSL" ); 
 
       default:
-         return Py_BuildValue( "(is)", err, "UNKOWN_SSL_ERROR" ); 
+         return Py_BuildValue( "(is)", err, "UNKNOWN_SSL_ERROR" ); 
    }
 }
 
@@ -578,7 +578,7 @@ X509_object_helper_get_name(X509_NAME *name, int format)
       else if ( format == LONGNAME_FORMAT )
          py_type = PyString_FromString(long_name);
       else
-         lose("unkown name format");
+         lose("unknown name format");
 
       py_value = PyString_FromString(value);
 
@@ -842,7 +842,7 @@ X509_object_write_helper(x509_object *self, PyObject *args, int format)
          lose("unable to write certificate");
    }
    else
-      lose("internal error, unkown output format");
+      lose("internal error, unknown output format");
 
    if ( !(len = BIO_ctrl_pending(out_bio) ) )
       lose("unable to get bytes stored in bio");
@@ -1728,7 +1728,7 @@ X509_object_get_extension(x509_object *self, PyObject *args)
 {
    int num = 0, index = 0, ext_nid = 0;
    char const *ext_ln = NULL;
-   char unknown_ext [] = "unkown";
+   char unknown_ext [] = "unknown";
    X509_EXTENSION *ext;
    if (!PyArg_ParseTuple(args, "i", &index))
       goto error;
@@ -3051,7 +3051,7 @@ X509_crl_object_get_extension(x509_crl_object *self, PyObject *args)
 {
    int num = 0, index = 0, ext_nid = 0;
    char const *ext_ln = NULL;
-   char unknown_ext [] = "unkown";
+   char unknown_ext [] = "unknown";
    X509_EXTENSION *ext;
    if (!PyArg_ParseTuple(args, "i", &index))
       goto error;
@@ -3269,7 +3269,7 @@ x509_crl_object_write_helper(x509_crl_object *self, PyObject *args, int format)
          lose("unable to write certificate");
    }
    else
-      lose("internal error, unkown output format");
+      lose("internal error, unknown output format");
 
    if ( !(len = BIO_ctrl_pending(out_bio) ) )
       lose("unable to get bytes stored in bio");
@@ -3792,7 +3792,7 @@ X509_revoked_object_get_extension(x509_revoked_object *self, PyObject *args)
 {
    int num = 0, index = 0, ext_nid = 0;
    char const *ext_ln = NULL;
-   char unknown_ext [] = "unkown";
+   char unknown_ext [] = "unknown";
    X509_EXTENSION *ext;
    if (!PyArg_ParseTuple(args, "i", &index))
       goto error;
@@ -4767,7 +4767,7 @@ newssl_object(int type)
       case SSLV23_METHOD:        method = SSLv23_method();         break;
                                                                      
       default:    
-         lose("unkown ctx method");
+         lose("unknown ctx method");
                    
    } 
 
@@ -4897,7 +4897,7 @@ asymmetric_object_pem_read(int key_type, BIO *in, char *pass)
          break;
       }
       default:
-         lose("unkown key type");
+         lose("unknown key type");
    }
 
    return self;
@@ -4939,7 +4939,7 @@ asymmetric_object_der_read(int key_type, unsigned char *src, int len)
          break;
       }
       default:
-         lose("unkown key type");
+         lose("unknown key type");
    }
 
    return self;
@@ -6448,7 +6448,7 @@ PKCS7_object_write_helper(pkcs7_object *self, PyObject *args, int format)
          lose("unable to write certificate");
    }
    else
-      lose("internal error, unkown output format");
+      lose("internal error, unknown output format");
 
    if ( !(len = BIO_ctrl_pending(out_bio) ) )
       lose("unable to get bytes stored in bio");
@@ -6835,7 +6835,7 @@ CMS_object_write_helper(cms_object *self, PyObject *args, int format)
          lose("unable to write certificate");
    }
    else
-      lose("internal error, unkown output format");
+      lose("internal error, unknown output format");
 
    if ( !(len = BIO_ctrl_pending(out_bio) ) )
       lose("unable to get bytes stored in bio");

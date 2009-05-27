@@ -328,6 +328,14 @@ typedef struct {
       goto error;                                               \
    } while (0)
 
+#define lose_ssl_error(_self_, _code_)                                  \
+   do {                                                                 \
+      PyErr_SetObject(SSLErrorObject,                                   \
+                      ssl_err_factory(SSL_get_error((_self_)->ssl,      \
+                                                    (_code_))));        \
+      goto error;                                                       \
+   } while (0)
+
 #define assert_no_unhandled_openssl_errors()                    \
    do {                                                         \
       if (ERR_peek_error()) {                                   \
@@ -347,19 +355,6 @@ assert_helper(int line)
 
    snprintf(msg, sizeof(msg), fmt, line);
    return msg;
-}
-
-/* 
- * Simple function to install a constant in the module name space.
- */
-static void
-install_int_const( PyObject *d, char *name, long value )
-{
-   PyObject *v = PyInt_FromLong(value);
-   if (!v || PyDict_SetItemString(d, name, v) )
-      PyErr_Clear();
-
-   Py_XDECREF(v);
 }
 
 static int
@@ -463,6 +458,10 @@ ssl_err_factory(int err)
          return Py_BuildValue( "(is)", SSL_ERROR_SYSCALL, "SSL_ERROR_SYSCALL" ); 
       case SSL_ERROR_SSL: 
          return Py_BuildValue( "(is)", SSL_ERROR_SSL, "SSL_ERROR_SSL" ); 
+      case SSL_ERROR_WANT_CONNECT:  
+         return Py_BuildValue( "(is)", SSL_ERROR_WANT_CONNECT, "SSL_ERROR_WANT_CONNECT" );
+      case SSL_ERROR_WANT_ACCEPT:  
+         return Py_BuildValue( "(is)", SSL_ERROR_WANT_ACCEPT, "SSL_ERROR_WANT_ACCEPT" );
 
       default:
          return Py_BuildValue( "(is)", err, "UNKNOWN_SSL_ERROR" ); 
@@ -704,17 +703,13 @@ stack_to_tuple_helper(_STACK *sk, PyObject *(*handler)(void *))
    PyObject *result_list = NULL, *result_tuple = NULL, *obj = NULL;
    int n, i;
 
-   if ( !(result_list = PyList_New(0))) {
-      PyErr_SetString( SSLErrorObject, "could not allocate memory" );
-      goto error;
-   }
+   if ( !(result_list = PyList_New(0)))
+      lose("could not allocate memory");
 
    while (sk_num(sk)) {
 
-      if ( !(obj = handler(sk_value(sk, 0)))) {
-         PyErr_SetString(SSLErrorObject, "could not allocate memory");
-         goto error;
-      }
+      if ( !(obj = handler(sk_value(sk, 0))))
+         lose("could not allocate memory");
 
       sk_shift(sk);
 
@@ -4153,12 +4148,9 @@ ssl_object_accept(ssl_object *self, PyObject *args)
    ret = SSL_accept( self->ssl );
    Py_END_ALLOW_THREADS
 
-   if (ret <= 0) 
-   {
-      err = SSL_get_error( self->ssl, ret );
-      PyErr_SetObject(SSLErrorObject, ssl_err_factory( err ) );
-      goto error;
-   }
+   if (ret <= 0)
+      lose_ssl_error(self, ret);
+
    return Py_BuildValue("");
 
 error:
@@ -4211,12 +4203,9 @@ ssl_object_connect(ssl_object *self, PyObject *args)
    ret = SSL_connect( self->ssl );
    Py_END_ALLOW_THREADS 
 
-   if (ret <= 0) 
-   {
-      err = SSL_get_error( self->ssl, ret );
-      PyErr_SetObject(SSLErrorObject, ssl_err_factory( err ) );
-      goto error;
-   }
+   if (ret <= 0)
+      lose_ssl_error(self, ret);
+
    return Py_BuildValue("");
 
 error:
@@ -4255,12 +4244,9 @@ ssl_object_write(ssl_object *self, PyObject *args)
    ret = SSL_write( self->ssl, msg, length );
    Py_END_ALLOW_THREADS 
 
-   if (ret <= 0) 
-   {
-      err = SSL_get_error( self->ssl, ret );
-      PyErr_SetObject(SSLErrorObject, ssl_err_factory( err ) );
-      goto error;
-   }
+   if (ret <= 0)
+      lose_ssl_error(self, ret);
+
    return Py_BuildValue("i", ret);
 
 error:
@@ -4303,12 +4289,8 @@ ssl_object_read(ssl_object *self, PyObject *args)
    ret = SSL_read( self->ssl, msg, len );
    Py_END_ALLOW_THREADS 
 
-   if (ret <= 0) 
-   {
-      err = SSL_get_error( self->ssl, ret );
-      PyErr_SetObject(SSLErrorObject, ssl_err_factory( err ) );
-      goto error;
-   }
+   if (ret <= 0)
+      lose_ssl_error(self, ret);
 
    data = Py_BuildValue("s#", msg, ret);
 
@@ -4445,12 +4427,8 @@ ssl_object_shutdown(ssl_object *self, PyObject *args)
    
    ret = SSL_shutdown(self->ssl);
 
-   if (ret <= 0) 
-   {
-      err = SSL_get_error( self->ssl, ret );
-      PyErr_SetObject(SSLErrorObject, ssl_err_factory( err ) );
-      goto error;
-   }
+   if (ret <= 0)
+      lose_ssl_error(self, ret);
 
    return Py_BuildValue("");
 
@@ -8508,153 +8486,154 @@ init_POW(void)
 
    m = Py_InitModule3("_POW", pow_module_methods, pow_module__doc__);
 
-   d = PyModule_GetDict(m);
    SSLErrorObject = PyErr_NewException("POW.SSLError", NULL, NULL);
-   PyDict_SetItemString(d, "SSLError", SSLErrorObject);
+   PyModule_AddObject(m, "SSLError", SSLErrorObject);
 
    // constants for SSL_get_error()
-   install_int_const( d, "SSL_ERROR_NONE",            SSL_ERROR_NONE );
-   install_int_const( d, "SSL_ERROR_ZERO_RETURN",     SSL_ERROR_ZERO_RETURN );
-   install_int_const( d, "SSL_ERROR_WANT_READ",       SSL_ERROR_WANT_READ );
-   install_int_const( d, "SSL_ERROR_WANT_WRITE",      SSL_ERROR_WANT_WRITE );
-   install_int_const( d, "SSL_ERROR_WANT_X509_LOOKUP",SSL_ERROR_WANT_X509_LOOKUP );
-   install_int_const( d, "SSL_ERROR_SYSCALL",         SSL_ERROR_SYSCALL );
-   install_int_const( d, "SSL_ERROR_SSL",             SSL_ERROR_SSL );
+   PyModule_AddIntConstant(m, "SSL_ERROR_NONE",            SSL_ERROR_NONE );
+   PyModule_AddIntConstant(m, "SSL_ERROR_ZERO_RETURN",     SSL_ERROR_ZERO_RETURN );
+   PyModule_AddIntConstant(m, "SSL_ERROR_WANT_READ",       SSL_ERROR_WANT_READ );
+   PyModule_AddIntConstant(m, "SSL_ERROR_WANT_WRITE",      SSL_ERROR_WANT_WRITE );
+   PyModule_AddIntConstant(m, "SSL_ERROR_WANT_X509_LOOKUP",SSL_ERROR_WANT_X509_LOOKUP );
+   PyModule_AddIntConstant(m, "SSL_ERROR_SYSCALL",         SSL_ERROR_SYSCALL );
+   PyModule_AddIntConstant(m, "SSL_ERROR_SSL",             SSL_ERROR_SSL );
+   PyModule_AddIntConstant(m, "SSL_ERROR_WANT_CONNECT",    SSL_ERROR_WANT_CONNECT );
+   PyModule_AddIntConstant(m, "SSL_ERROR_WANT_ACCEPT",     SSL_ERROR_WANT_ACCEPT );
 
    // constants for different types of connection methods
-   install_int_const( d, "SSLV2_SERVER_METHOD",       SSLV2_SERVER_METHOD );
-   install_int_const( d, "SSLV2_CLIENT_METHOD",       SSLV2_CLIENT_METHOD );
-   install_int_const( d, "SSLV2_METHOD",              SSLV2_METHOD );
-   install_int_const( d, "SSLV3_SERVER_METHOD",       SSLV3_SERVER_METHOD );
-   install_int_const( d, "SSLV3_CLIENT_METHOD",       SSLV3_CLIENT_METHOD );
-   install_int_const( d, "SSLV3_METHOD",              SSLV3_METHOD );
-   install_int_const( d, "SSLV23_SERVER_METHOD",      SSLV23_SERVER_METHOD );
-   install_int_const( d, "SSLV23_CLIENT_METHOD",      SSLV23_CLIENT_METHOD );
-   install_int_const( d, "SSLV23_METHOD",             SSLV23_METHOD );
-   install_int_const( d, "TLSV1_SERVER_METHOD",       TLSV1_SERVER_METHOD );
-   install_int_const( d, "TLSV1_CLIENT_METHOD",       TLSV1_CLIENT_METHOD );
-   install_int_const( d, "TLSV1_METHOD",              TLSV1_METHOD );
+   PyModule_AddIntConstant(m, "SSLV2_SERVER_METHOD",       SSLV2_SERVER_METHOD );
+   PyModule_AddIntConstant(m, "SSLV2_CLIENT_METHOD",       SSLV2_CLIENT_METHOD );
+   PyModule_AddIntConstant(m, "SSLV2_METHOD",              SSLV2_METHOD );
+   PyModule_AddIntConstant(m, "SSLV3_SERVER_METHOD",       SSLV3_SERVER_METHOD );
+   PyModule_AddIntConstant(m, "SSLV3_CLIENT_METHOD",       SSLV3_CLIENT_METHOD );
+   PyModule_AddIntConstant(m, "SSLV3_METHOD",              SSLV3_METHOD );
+   PyModule_AddIntConstant(m, "SSLV23_SERVER_METHOD",      SSLV23_SERVER_METHOD );
+   PyModule_AddIntConstant(m, "SSLV23_CLIENT_METHOD",      SSLV23_CLIENT_METHOD );
+   PyModule_AddIntConstant(m, "SSLV23_METHOD",             SSLV23_METHOD );
+   PyModule_AddIntConstant(m, "TLSV1_SERVER_METHOD",       TLSV1_SERVER_METHOD );
+   PyModule_AddIntConstant(m, "TLSV1_CLIENT_METHOD",       TLSV1_CLIENT_METHOD );
+   PyModule_AddIntConstant(m, "TLSV1_METHOD",              TLSV1_METHOD );
 
-   install_int_const( d, "SSL_NO_SHUTDOWN",           0 );
-   install_int_const( d, "SSL_SENT_SHUTDOWN",         SSL_SENT_SHUTDOWN );
-   install_int_const( d, "SSL_RECIEVED_SHUTDOWN",     SSL_RECEIVED_SHUTDOWN );
+   PyModule_AddIntConstant(m, "SSL_NO_SHUTDOWN",           0 );
+   PyModule_AddIntConstant(m, "SSL_SENT_SHUTDOWN",         SSL_SENT_SHUTDOWN );
+   PyModule_AddIntConstant(m, "SSL_RECIEVED_SHUTDOWN",     SSL_RECEIVED_SHUTDOWN );
 
    // ssl verification mode
-   install_int_const( d, "SSL_VERIFY_NONE",           SSL_VERIFY_NONE );
-   install_int_const( d, "SSL_VERIFY_PEER",           SSL_VERIFY_PEER );
+   PyModule_AddIntConstant(m, "SSL_VERIFY_NONE",           SSL_VERIFY_NONE );
+   PyModule_AddIntConstant(m, "SSL_VERIFY_PEER",           SSL_VERIFY_PEER );
 
    // object format types
-   install_int_const( d, "LONGNAME_FORMAT",           LONGNAME_FORMAT );
-   install_int_const( d, "SHORTNAME_FORMAT",          SHORTNAME_FORMAT );
+   PyModule_AddIntConstant(m, "LONGNAME_FORMAT",           LONGNAME_FORMAT );
+   PyModule_AddIntConstant(m, "SHORTNAME_FORMAT",          SHORTNAME_FORMAT );
 
    // PEM encoded types
 #ifndef OPENSSL_NO_RSA
-   install_int_const( d, "RSA_PUBLIC_KEY",            RSA_PUBLIC_KEY );
-   install_int_const( d, "RSA_PRIVATE_KEY",           RSA_PRIVATE_KEY );
+   PyModule_AddIntConstant(m, "RSA_PUBLIC_KEY",            RSA_PUBLIC_KEY );
+   PyModule_AddIntConstant(m, "RSA_PRIVATE_KEY",           RSA_PRIVATE_KEY );
 #endif
 #ifndef OPENSSL_NO_DSA
-   install_int_const( d, "DSA_PUBLIC_KEY",            DSA_PUBLIC_KEY );
-   install_int_const( d, "DSA_PRIVATE_KEY",           DSA_PRIVATE_KEY );
+   PyModule_AddIntConstant(m, "DSA_PUBLIC_KEY",            DSA_PUBLIC_KEY );
+   PyModule_AddIntConstant(m, "DSA_PRIVATE_KEY",           DSA_PRIVATE_KEY );
 #endif
 #ifndef OPENSSL_NO_DH
-   install_int_const( d, "DH_PUBLIC_KEY",             DH_PUBLIC_KEY );
-   install_int_const( d, "DH_PRIVATE_KEY",            DH_PRIVATE_KEY );
+   PyModule_AddIntConstant(m, "DH_PUBLIC_KEY",             DH_PUBLIC_KEY );
+   PyModule_AddIntConstant(m, "DH_PRIVATE_KEY",            DH_PRIVATE_KEY );
 #endif
-   install_int_const( d, "X509_CERTIFICATE",          X509_CERTIFICATE );
-   install_int_const( d, "X509_CRL",                  X_X509_CRL );
-   install_int_const( d, "PKCS7_MESSAGE",             PKCS7_MESSAGE );
-   install_int_const( d, "CMS_MESSAGE",               CMS_MESSAGE );
+   PyModule_AddIntConstant(m, "X509_CERTIFICATE",          X509_CERTIFICATE );
+   PyModule_AddIntConstant(m, "X509_CRL",                  X_X509_CRL );
+   PyModule_AddIntConstant(m, "PKCS7_MESSAGE",             PKCS7_MESSAGE );
+   PyModule_AddIntConstant(m, "CMS_MESSAGE",               CMS_MESSAGE );
 
    // asymmetric ciphers
 #ifndef OPENSSL_NO_RSA
-   install_int_const( d, "RSA_CIPHER",                RSA_CIPHER );
+   PyModule_AddIntConstant(m, "RSA_CIPHER",                RSA_CIPHER );
 #endif
 #ifndef OPENSSL_NO_DSA
-   install_int_const( d, "DSA_CIPHER",                DSA_CIPHER );
+   PyModule_AddIntConstant(m, "DSA_CIPHER",                DSA_CIPHER );
 #endif
 #ifndef OPENSSL_NO_DH
-   install_int_const( d, "DH_CIPHER",                 DH_CIPHER );
+   PyModule_AddIntConstant(m, "DH_CIPHER",                 DH_CIPHER );
 #endif
 
    // symmetric ciphers
 #ifndef OPENSSL_NO_DES
-   install_int_const( d, "DES_ECB",                   DES_ECB );
-   install_int_const( d, "DES_EDE",                   DES_EDE );
-   install_int_const( d, "DES_EDE3",                  DES_EDE3 );
-   install_int_const( d, "DES_CFB",                   DES_CFB );
-   install_int_const( d, "DES_EDE_CFB",               DES_EDE_CFB );
-   install_int_const( d, "DES_EDE3_CFB",              DES_EDE3_CFB );
-   install_int_const( d, "DES_OFB",                   DES_OFB );
-   install_int_const( d, "DES_EDE_OFB",               DES_EDE_OFB );
-   install_int_const( d, "DES_EDE3_OFB",              DES_EDE3_OFB );
-   install_int_const( d, "DES_CBC",                   DES_CBC );
-   install_int_const( d, "DES_EDE_CBC",               DES_EDE_CBC );
-   install_int_const( d, "DES_EDE3_CBC",              DES_EDE3_CBC );
-   install_int_const( d, "DESX_CBC",                  DESX_CBC );
+   PyModule_AddIntConstant(m, "DES_ECB",                   DES_ECB );
+   PyModule_AddIntConstant(m, "DES_EDE",                   DES_EDE );
+   PyModule_AddIntConstant(m, "DES_EDE3",                  DES_EDE3 );
+   PyModule_AddIntConstant(m, "DES_CFB",                   DES_CFB );
+   PyModule_AddIntConstant(m, "DES_EDE_CFB",               DES_EDE_CFB );
+   PyModule_AddIntConstant(m, "DES_EDE3_CFB",              DES_EDE3_CFB );
+   PyModule_AddIntConstant(m, "DES_OFB",                   DES_OFB );
+   PyModule_AddIntConstant(m, "DES_EDE_OFB",               DES_EDE_OFB );
+   PyModule_AddIntConstant(m, "DES_EDE3_OFB",              DES_EDE3_OFB );
+   PyModule_AddIntConstant(m, "DES_CBC",                   DES_CBC );
+   PyModule_AddIntConstant(m, "DES_EDE_CBC",               DES_EDE_CBC );
+   PyModule_AddIntConstant(m, "DES_EDE3_CBC",              DES_EDE3_CBC );
+   PyModule_AddIntConstant(m, "DESX_CBC",                  DESX_CBC );
 #endif
 #ifndef OPENSSL_NO_RC4
-   install_int_const( d, "RC4",                       RC4 );
-   install_int_const( d, "RC4_40",                    RC4_40 );
+   PyModule_AddIntConstant(m, "RC4",                       RC4 );
+   PyModule_AddIntConstant(m, "RC4_40",                    RC4_40 );
 #endif
 #ifndef OPENSSL_NO_IDEA
-   install_int_const( d, "IDEA_ECB",                  IDEA_ECB );
-   install_int_const( d, "IDEA_CFB",                  IDEA_CFB );
-   install_int_const( d, "IDEA_OFB",                  IDEA_OFB );
-   install_int_const( d, "IDEA_CBC",                  IDEA_CBC );
+   PyModule_AddIntConstant(m, "IDEA_ECB",                  IDEA_ECB );
+   PyModule_AddIntConstant(m, "IDEA_CFB",                  IDEA_CFB );
+   PyModule_AddIntConstant(m, "IDEA_OFB",                  IDEA_OFB );
+   PyModule_AddIntConstant(m, "IDEA_CBC",                  IDEA_CBC );
 #endif
 #ifndef OPENSSL_NO_RC2
-   install_int_const( d, "RC2_ECB",                   RC2_ECB );
-   install_int_const( d, "RC2_CBC",                   RC2_CBC );
-   install_int_const( d, "RC2_40_CBC",                RC2_40_CBC );
-   install_int_const( d, "RC2_CFB",                   RC2_CFB );
-   install_int_const( d, "RC2_OFB",                   RC2_OFB );
+   PyModule_AddIntConstant(m, "RC2_ECB",                   RC2_ECB );
+   PyModule_AddIntConstant(m, "RC2_CBC",                   RC2_CBC );
+   PyModule_AddIntConstant(m, "RC2_40_CBC",                RC2_40_CBC );
+   PyModule_AddIntConstant(m, "RC2_CFB",                   RC2_CFB );
+   PyModule_AddIntConstant(m, "RC2_OFB",                   RC2_OFB );
 #endif
 #ifndef OPENSSL_NO_BF
-   install_int_const( d, "BF_ECB",                    BF_ECB );
-   install_int_const( d, "BF_CBC",                    BF_CBC );
-   install_int_const( d, "BF_CFB",                    BF_CFB );
-   install_int_const( d, "BF_OFB",                    BF_OFB );
+   PyModule_AddIntConstant(m, "BF_ECB",                    BF_ECB );
+   PyModule_AddIntConstant(m, "BF_CBC",                    BF_CBC );
+   PyModule_AddIntConstant(m, "BF_CFB",                    BF_CFB );
+   PyModule_AddIntConstant(m, "BF_OFB",                    BF_OFB );
 #endif
-   install_int_const( d, "CAST5_ECB",                 CAST5_ECB );
-   install_int_const( d, "CAST5_CBC",                 CAST5_CBC );
-   install_int_const( d, "CAST5_CFB",                 CAST5_CFB );
-   install_int_const( d, "CAST5_OFB",                 CAST5_OFB );
+   PyModule_AddIntConstant(m, "CAST5_ECB",                 CAST5_ECB );
+   PyModule_AddIntConstant(m, "CAST5_CBC",                 CAST5_CBC );
+   PyModule_AddIntConstant(m, "CAST5_CFB",                 CAST5_CFB );
+   PyModule_AddIntConstant(m, "CAST5_OFB",                 CAST5_OFB );
 #ifndef OPENSSL_NO_RC5
-   install_int_const( d, "RC5_32_12_16_CBC",          RC5_32_12_16_CBC );
-   install_int_const( d, "RC5_32_12_16_CFB",          RC5_32_12_16_CFB );
-   install_int_const( d, "RC5_32_12_16_ECB",          RC5_32_12_16_ECB );
-   install_int_const( d, "RC5_32_12_16_OFB",          RC5_32_12_16_OFB );
+   PyModule_AddIntConstant(m, "RC5_32_12_16_CBC",          RC5_32_12_16_CBC );
+   PyModule_AddIntConstant(m, "RC5_32_12_16_CFB",          RC5_32_12_16_CFB );
+   PyModule_AddIntConstant(m, "RC5_32_12_16_ECB",          RC5_32_12_16_ECB );
+   PyModule_AddIntConstant(m, "RC5_32_12_16_OFB",          RC5_32_12_16_OFB );
 #endif
 
    // message digests
-   install_int_const( d, "MD2_DIGEST",                MD2_DIGEST );
-   install_int_const( d, "MD5_DIGEST",                MD5_DIGEST );
-   install_int_const( d, "SHA_DIGEST",                SHA_DIGEST );
-   install_int_const( d, "SHA1_DIGEST",               SHA1_DIGEST );
-   install_int_const( d, "RIPEMD160_DIGEST",          RIPEMD160_DIGEST );
-   install_int_const( d, "SHA256_DIGEST",             SHA256_DIGEST );
-   install_int_const( d, "SHA384_DIGEST",             SHA384_DIGEST );
-   install_int_const( d, "SHA512_DIGEST",             SHA512_DIGEST );
+   PyModule_AddIntConstant(m, "MD2_DIGEST",                MD2_DIGEST );
+   PyModule_AddIntConstant(m, "MD5_DIGEST",                MD5_DIGEST );
+   PyModule_AddIntConstant(m, "SHA_DIGEST",                SHA_DIGEST );
+   PyModule_AddIntConstant(m, "SHA1_DIGEST",               SHA1_DIGEST );
+   PyModule_AddIntConstant(m, "RIPEMD160_DIGEST",          RIPEMD160_DIGEST );
+   PyModule_AddIntConstant(m, "SHA256_DIGEST",             SHA256_DIGEST );
+   PyModule_AddIntConstant(m, "SHA384_DIGEST",             SHA384_DIGEST );
+   PyModule_AddIntConstant(m, "SHA512_DIGEST",             SHA512_DIGEST );
 
    // general name
-   install_int_const( d, "GEN_OTHERNAME",             GEN_OTHERNAME );
-   install_int_const( d, "GEN_EMAIL",                 GEN_EMAIL );
-   install_int_const( d, "GEN_DNS",                   GEN_DNS );
-   install_int_const( d, "GEN_X400",                  GEN_X400 );
-   install_int_const( d, "GEN_DIRNAME",               GEN_DIRNAME );
-   install_int_const( d, "GEN_EDIPARTY",              GEN_EDIPARTY );
-   install_int_const( d, "GEN_URI",                   GEN_URI );
-   install_int_const( d, "GEN_IPADD",                 GEN_IPADD );
-   install_int_const( d, "GEN_RID",                   GEN_RID );
+   PyModule_AddIntConstant(m, "GEN_OTHERNAME",             GEN_OTHERNAME );
+   PyModule_AddIntConstant(m, "GEN_EMAIL",                 GEN_EMAIL );
+   PyModule_AddIntConstant(m, "GEN_DNS",                   GEN_DNS );
+   PyModule_AddIntConstant(m, "GEN_X400",                  GEN_X400 );
+   PyModule_AddIntConstant(m, "GEN_DIRNAME",               GEN_DIRNAME );
+   PyModule_AddIntConstant(m, "GEN_EDIPARTY",              GEN_EDIPARTY );
+   PyModule_AddIntConstant(m, "GEN_URI",                   GEN_URI );
+   PyModule_AddIntConstant(m, "GEN_IPADD",                 GEN_IPADD );
+   PyModule_AddIntConstant(m, "GEN_RID",                   GEN_RID );
 
    // CMS flags
-   install_int_const( d, "CMS_NOCERTS",               CMS_NOCERTS );
-   install_int_const( d, "CMS_NOATTR",                CMS_NOATTR );
-   install_int_const( d, "CMS_NOINTERN",              CMS_NOINTERN );
-   install_int_const( d, "CMS_NOCRL",                 CMS_NOCRL );
-   install_int_const( d, "CMS_NO_SIGNER_CERT_VERIFY", CMS_NO_SIGNER_CERT_VERIFY );
-   install_int_const( d, "CMS_NO_ATTR_VERIFY",        CMS_NO_ATTR_VERIFY );
-   install_int_const( d, "CMS_NO_CONTENT_VERIFY",     CMS_NO_CONTENT_VERIFY );
+   PyModule_AddIntConstant(m, "CMS_NOCERTS",               CMS_NOCERTS );
+   PyModule_AddIntConstant(m, "CMS_NOATTR",                CMS_NOATTR );
+   PyModule_AddIntConstant(m, "CMS_NOINTERN",              CMS_NOINTERN );
+   PyModule_AddIntConstant(m, "CMS_NOCRL",                 CMS_NOCRL );
+   PyModule_AddIntConstant(m, "CMS_NO_SIGNER_CERT_VERIFY", CMS_NO_SIGNER_CERT_VERIFY );
+   PyModule_AddIntConstant(m, "CMS_NO_ATTR_VERIFY",        CMS_NO_ATTR_VERIFY );
+   PyModule_AddIntConstant(m, "CMS_NO_CONTENT_VERIFY",     CMS_NO_CONTENT_VERIFY );
 
    // initialise library
    SSL_library_init();

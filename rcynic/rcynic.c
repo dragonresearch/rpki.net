@@ -2356,6 +2356,10 @@ static int check_roa_1(const rcynic_ctx_t *rc,
 
   ee_resources = X509_get_ext_d2i(sk_X509_value(signers, 0), NID_sbgp_ipAddrBlock, NULL, NULL);
 
+  /*
+   * Extract prefixes from ROA and convert them into a resource set.
+   */
+
   if (!(roa_resources = sk_IPAddressFamily_new_null()))
     goto error;
 
@@ -2376,6 +2380,51 @@ static int check_roa_1(const rcynic_ctx_t *rc,
 	  !v3_addr_add_prefix(roa_resources, afi, safi, addrbuf, prefixlen)) {
 	logmsg(rc, log_data_err, "Failed to copy resources from ROA %s into resource set", uri);
 	goto error;
+      }
+    }
+  }
+
+  /*
+   * ROAs can include nested prefixes, so direct translation to
+   * resource sets could include overlapping ranges, which is illegal.
+   * So we have to remove nested stuff before whacking into canonical
+   * form.  Fortunately, this is relatively easy, since we know these
+   * are just prefixes, not ranges: in a list of prefixes sorted by
+   * the RFC 3779 rules, the first element of a set of nested prefixes
+   * will always be the least specific.
+   */
+
+  for (i = 0; i < sk_IPAddressFamily_num(roa_resources); i++) {
+    IPAddressFamily *f = sk_IPAddressFamily_value(roa_resources, i);
+
+    if ((afi = v3_addr_get_afi(f)) == 0) {
+      logmsg(rc, log_data_err, "Bad AFI extracting data from ROA %s", uri);
+      goto error;
+    }
+
+    if (f->ipAddressChoice->type == IPAddressChoice_addressesOrRanges) {
+      IPAddressOrRanges *aors = f->ipAddressChoice->u.addressesOrRanges;
+
+      sk_IPAddressOrRange_sort(aors);
+
+      for (j = 0; j < sk_IPAddressOrRange_num(aors) - 1; j++) {
+	IPAddressOrRange *a = sk_IPAddressOrRange_value(aors, j);
+	IPAddressOrRange *b = sk_IPAddressOrRange_value(aors, j + 1);
+	unsigned char a_min[ADDR_RAW_BUF_LEN], a_max[ADDR_RAW_BUF_LEN];
+	unsigned char b_min[ADDR_RAW_BUF_LEN], b_max[ADDR_RAW_BUF_LEN];
+	int length;
+
+	if ((length = v3_addr_get_range(a, afi, a_min, a_max, ADDR_RAW_BUF_LEN)) == 0 ||
+	    (length = v3_addr_get_range(b, afi, b_min, b_max, ADDR_RAW_BUF_LEN)) == 0) {
+	  logmsg(rc, log_data_err, "Trouble extracting addresses from ROA %s", uri);
+	  goto error;
+	}
+
+	if (memcmp(a_max, b_max, length) >= 0) {
+	  sk_IPAddressOrRange_delete(aors, j + 1);
+	  IPAddressOrRange_free(b);
+	  --j;
+	}
       }
     }
   }

@@ -68,7 +68,7 @@ class resource_range(object):
     """
     Compare two resource_range objects.
     """
-    assert self.__class__ is other.__class__
+    assert self.__class__ is other.__class__, "Type mismatch, comparing %r with %r" % (self.__class__, other.__class__)
     c = self.min - other.min
     if c == 0: c = self.max - other.max
     if c < 0:  c = -1
@@ -764,7 +764,11 @@ class roa_prefix_set(list):
     else:
       assert ini is None or ini == "", "Unexpected initializer: %s" % str(ini)
     self.sort()
-    if __debug__:
+
+    # At one point I thought this was a useful check, but given the
+    # way that ROAs have evolved I suspect I was just confused.
+    #
+    if False and __debug__:
       for i in xrange(0, len(self) - 1):
         assert self[i].max() < self[i+1].min(), "Prefix overlap: %s %s" % (self[i], self[i+1])
 
@@ -787,9 +791,19 @@ class roa_prefix_set(list):
   def to_resource_set(self):
     """
     Convert a ROA prefix set to a resource set.  This is an
-    irreversable transformation.
+    irreversable transformation.  We have to compute a union here
+    because ROA prefix sets can include overlaps, while RFC 3779
+    resource sets cannot.  This is ugly, and there is almost certainly
+    a more efficient way to do this, but start by getting the output
+    right before worrying about making it fast or pretty.
     """
-    return self.resource_set_type([p.to_resource_range() for p in self])
+    r = self.resource_set_type()
+    s = self.resource_set_type()
+    s.append(None)
+    for p in self:
+      s[0] = p.to_resource_range()
+      r = r.union(s)
+    return r
 
   @classmethod
   def from_sql(cls, sql, query, args = None):

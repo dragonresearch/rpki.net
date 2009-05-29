@@ -4059,19 +4059,35 @@ ssl_object_set_fd(ssl_object *self, PyObject *args)
     goto error;
 
   if ((self->ssl = SSL_new(self->ctx)) == NULL)
-    lose("unable to create ssl sturcture");
+    lose("Unable to create ssl structure");
 
   if (!SSL_set_fd(self->ssl, fd))
-    lose("unable to set file descriptor");
+    lose("Unable to set file descriptor");
 
   if ((self_index = SSL_get_ex_new_index(0, "self_index", NULL, NULL, NULL)) != -1)
     SSL_set_ex_data(self->ssl, self_index, self);
   else
-    lose("unable to create ex data index");
+    lose("Unable to create ex data index");
 
   self->ctxset = 1;
 
   return Py_BuildValue("");
+
+ error:
+
+  return NULL;
+}
+
+static PyObject *
+ssl_object_fileno(ssl_object *self, PyObject *args)
+{
+  if (!PyArg_ParseTuple(args, ""))
+    goto error;
+
+  if (!self->ctxset || !self->ssl)
+    lose("File descriptor not set");
+
+  return Py_BuildValue("i", SSL_get_fd(self->ssl));
 
  error:
 
@@ -4688,6 +4704,7 @@ static struct PyMethodDef ssl_object_methods[] = {
   {"useKey",           (PyCFunction)ssl_object_use_key,          METH_VARARGS,  NULL},
   {"checkKey",         (PyCFunction)ssl_object_check_key,        METH_VARARGS,  NULL},
   {"setFd",            (PyCFunction)ssl_object_set_fd,           METH_VARARGS,  NULL},
+  {"fileno",           (PyCFunction)ssl_object_fileno,           METH_VARARGS,  NULL},
   {"connect",          (PyCFunction)ssl_object_connect,          METH_VARARGS,  NULL},
   {"accept",           (PyCFunction)ssl_object_accept,           METH_VARARGS,  NULL},
   {"write",            (PyCFunction)ssl_object_write,            METH_VARARGS,  NULL},

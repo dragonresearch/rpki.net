@@ -8046,19 +8046,19 @@ init_POW(void)
 
   m = Py_InitModule3("_POW", pow_module_methods, pow_module__doc__);
 
-#define Define_Exception(__var__, __name__, __parent__) \
-  PyModule_AddObject(m, #__name__, ((__var__) = PyErr_NewException("POW." #__name__, __parent__, NULL)))
+#define Define_Exception(__name__, __parent__) \
+  PyModule_AddObject(m, #__name__, ((__name__##Object) = PyErr_NewException("POW." #__name__, __parent__, NULL)))
 
-  Define_Exception(ErrorObject,                 "Error",                NULL);
-  Define_Exception(SSLErrorObject,              "SSLError",             ErrorObject);
-  Define_Exception(ZeroReturnErrorObject,       "ZeroReturnError",      SSLErrorObject);
-  Define_Exception(WantReadErrorObject,         "WantReadError",        SSLErrorObject);
-  Define_Exception(WantWriteErrorObject,        "WantWriteError",       SSLErrorObject);
+  Define_Exception(Error,                NULL);
+  Define_Exception(SSLError,             ErrorObject);
+  Define_Exception(ZeroReturnError,      SSLErrorObject);
+  Define_Exception(WantReadError,        SSLErrorObject);
+  Define_Exception(WantWriteError,       SSLErrorObject);
 
 #undef Define_Exception
 
-#define Define_Integer_Constant(__x__) \
-  PyModule_AddIntConstant(m, #__x__, __x__)
+#define Define_Integer_Constant(__name__) \
+  PyModule_AddIntConstant(m, #__name__, __name__)
 
   // constants for SSL_get_error()
   Define_Integer_Constant(SSL_ERROR_NONE);

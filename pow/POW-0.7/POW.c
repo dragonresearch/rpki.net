@@ -51,7 +51,6 @@
 #include <openssl/sha.h>
 #include <openssl/hmac.h>
 #include <openssl/ripemd.h>
-#include <openssl/pkcs7.h>
 #include <openssl/cms.h>
 
 #include <time.h>
@@ -119,8 +118,7 @@
 #define DH_PRIVATE_KEY        6
 #define X509_CERTIFICATE      7
 #define X_X509_CRL            8     // X509_CRL already used by OpenSSL library
-#define PKCS7_MESSAGE         9
-#define CMS_MESSAGE           10
+#define CMS_MESSAGE           9
 
 // Asymmetric ciphers
 #define RSA_CIPHER            1
@@ -157,8 +155,10 @@
 #define X_digest_Check(op)       ((op)->ob_type == &digesttype)
 #define X_hmac_Check(op)         ((op)->ob_type == &hmactype)
 #define X_ssl_Check(op)          ((op)->ob_type == &ssltype)
-#define X_pkcs7_Check(op)        ((op)->ob_type == &pkcs7type)
 #define X_cms_Check(op)          ((op)->ob_type == &cmstype)
+
+// Symbolic representation of "no SSL shutdown mode requested"
+#define SSL_NO_SHUTDOWN       0
 
 static char pow_module__doc__ [] =
 "<moduleDescription>\n"
@@ -206,21 +206,27 @@ static char pow_module__doc__ [] =
 ;
 
 /*========== Pre-definitions ==========*/
-static PyObject *SSLErrorObject;
-static PyTypeObject x509type;
-static PyTypeObject x509_storetype;
-static PyTypeObject x509_crltype;
-static PyTypeObject x509_revokedtype;
-static PyTypeObject asymmetrictype;
-static PyTypeObject symmetrictype;
-static PyTypeObject digesttype;
-static PyTypeObject hmactype;
-static PyTypeObject ssltype;
-static PyTypeObject pkcs7type;
-static PyTypeObject cmstype;
+static PyObject
+  *ErrorObject,
+  *SSLErrorObject,
+  *ZeroReturnErrorObject,
+  *WantReadErrorObject,
+  *WantWriteErrorObject;
+
+static PyTypeObject
+  x509type,
+  x509_storetype,
+  x509_crltype,
+  x509_revokedtype,
+  asymmetrictype,
+  symmetrictype,
+  digesttype,
+  hmactype,
+  ssltype,
+  cmstype;
 /*========== Pre-definitions ==========*/
 
-/*========== C stucts ==========*/
+/*========== C structs ==========*/
 typedef struct {
   PyObject_HEAD
   X509 *x509;
@@ -274,11 +280,6 @@ typedef struct {
 
 typedef struct {
   PyObject_HEAD
-  PKCS7 *pkcs7;
-} pkcs7_object;
-
-typedef struct {
-  PyObject_HEAD
   CMS_ContentInfo *cms;
 } cms_object;
 
@@ -312,7 +313,7 @@ typedef struct {
 
 #define lose(_msg_)                                                     \
   do {                                                                  \
-    PyErr_SetString(SSLErrorObject, (_msg_));                           \
+    PyErr_SetString(ErrorObject, (_msg_));                              \
     goto error;                                                         \
   } while (0)
 
@@ -330,9 +331,7 @@ typedef struct {
 
 #define lose_ssl_error(_self_, _code_)                                  \
   do {                                                                  \
-    PyErr_SetObject(SSLErrorObject,                                     \
-                    ssl_err_factory(SSL_get_error((_self_)->ssl,        \
-                                                  (_code_))));          \
+    set_openssl_sslerror(_self_, _code_);                               \
     goto error;                                                         \
   } while (0)
 
@@ -438,32 +437,63 @@ evp_cipher_factory(int cipher_type)
   }
 }
 
-static PyObject *
-ssl_err_factory(int err)
-{
-  switch(err) {
-  case SSL_ERROR_NONE:
-    return Py_BuildValue("(is)", SSL_ERROR_NONE, "SSL_ERROR_NONE");
-  case SSL_ERROR_ZERO_RETURN:
-    return Py_BuildValue("(is)", SSL_ERROR_ZERO_RETURN, "SSL_ERROR_ZERO_RETURN");
-  case SSL_ERROR_WANT_READ:
-    return Py_BuildValue("(is)", SSL_ERROR_WANT_READ, "SSL_ERROR_WANT_READ");
-  case SSL_ERROR_WANT_WRITE:
-    return Py_BuildValue("(is)", SSL_ERROR_WANT_WRITE, "SSL_ERROR_WANT_WRITE");
-  case SSL_ERROR_WANT_X509_LOOKUP:
-    return Py_BuildValue("(is)", SSL_ERROR_WANT_X509_LOOKUP, "SSL_ERROR_WANT_X509_LOOKUP");
-  case SSL_ERROR_SYSCALL:
-    return Py_BuildValue("(is)", SSL_ERROR_SYSCALL, "SSL_ERROR_SYSCALL");
-  case SSL_ERROR_SSL:
-    return Py_BuildValue("(is)", SSL_ERROR_SSL, "SSL_ERROR_SSL");
-  case SSL_ERROR_WANT_CONNECT:
-    return Py_BuildValue("(is)", SSL_ERROR_WANT_CONNECT, "SSL_ERROR_WANT_CONNECT");
-  case SSL_ERROR_WANT_ACCEPT:
-    return Py_BuildValue("(is)", SSL_ERROR_WANT_ACCEPT, "SSL_ERROR_WANT_ACCEPT");
 
+static void
+set_openssl_sslerror(const ssl_object *self, const int code)
+{
+  int err = SSL_get_error(self->ssl, code);
+  const char *s = NULL;
+
+  switch(err) {
+
+    /*
+     * These three get their own exceptions.
+     */
+
+  case SSL_ERROR_ZERO_RETURN:
+    PyErr_SetNone(ZeroReturnErrorObject);
+    break;
+  case SSL_ERROR_WANT_READ:
+    PyErr_SetNone(WantReadErrorObject);
+    break;
+  case SSL_ERROR_WANT_WRITE:
+    PyErr_SetNone(WantWriteErrorObject);
+    break;
+
+    /*
+     * These two might need special handling later, to examine errno
+     * or OpenSSL error stack; for now, treat like other SSL errors.
+     */
+
+  case SSL_ERROR_SYSCALL:
+    s = "SSL_ERROR_SYSCALL";
+    break;
+  case SSL_ERROR_SSL:
+    s = "SSL_ERROR_SSL";
+    break;
+
+    /*
+     * All other SSL errors are returned as a (number, string) tuple.
+     */
+
+  case SSL_ERROR_NONE:
+    s = "SSL_ERROR_NONE";
+    break;
+  case SSL_ERROR_WANT_X509_LOOKUP:
+    s = "SSL_ERROR_WANT_X509_LOOKUP";
+    break;
+  case SSL_ERROR_WANT_CONNECT:
+    s = "SSL_ERROR_WANT_CONNECT";
+    break;
+  case SSL_ERROR_WANT_ACCEPT:
+    s = "SSL_ERROR_WANT_ACCEPT";
+    break;
   default:
-    return Py_BuildValue("(is)", err, "UNKNOWN_SSL_ERROR");
+    s = "UNKNOWN_SSL_ERROR";
   }
+
+  if (s)
+    PyErr_SetObject(SSLErrorObject, Py_BuildValue("(is)", err, s));
 }
 
 static PyObject *
@@ -637,7 +667,7 @@ set_openssl_pyerror(const char *msg)
     goto error;
   buf[len] = '\0';
 
-  PyErr_SetString(SSLErrorObject, buf);
+  PyErr_SetString(ErrorObject, buf);
 
   /* fall through */
  error:
@@ -2182,7 +2212,7 @@ static struct PyMethodDef x509_store_object_methods[] = {
   {"addTrust",       (PyCFunction)x509_store_object_add_trust,       METH_VARARGS,  NULL},
   {"addCrl",         (PyCFunction)x509_store_object_add_crl,         METH_VARARGS,  NULL},
 
-  {NULL,      NULL}    /* sentinel */
+  {NULL}    /* sentinel */
 };
 
 static PyObject *
@@ -3342,27 +3372,27 @@ x509_crl_object_pprint(x509_crl_object *self, PyObject *args)
 }
 
 static struct PyMethodDef x509_crl_object_methods[] = {
-   {"sign",             (PyCFunction)x509_crl_object_sign,              METH_VARARGS,  NULL},
-   {"verify",           (PyCFunction)x509_crl_object_verify,            METH_VARARGS,  NULL},
-   {"getVersion",       (PyCFunction)x509_crl_object_get_version,       METH_VARARGS,  NULL},
-   {"setVersion",       (PyCFunction)x509_crl_object_set_version,       METH_VARARGS,  NULL},
-   {"getIssuer",        (PyCFunction)x509_crl_object_get_issuer,        METH_VARARGS,  NULL},
-   {"setIssuer",        (PyCFunction)x509_crl_object_set_issuer,        METH_VARARGS,  NULL},
-   {"getThisUpdate",    (PyCFunction)x509_crl_object_get_this_update,   METH_VARARGS,  NULL},
-   {"setThisUpdate",    (PyCFunction)x509_crl_object_set_this_update,   METH_VARARGS,  NULL},
-   {"getNextUpdate",    (PyCFunction)x509_crl_object_get_next_update,   METH_VARARGS,  NULL},
-   {"setNextUpdate",    (PyCFunction)x509_crl_object_set_next_update,   METH_VARARGS,  NULL},
-   {"setRevoked",       (PyCFunction)x509_crl_object_set_revoked,       METH_VARARGS,  NULL},
-   {"getRevoked",       (PyCFunction)x509_crl_object_get_revoked,       METH_VARARGS,  NULL},
-   {"addExtension",     (PyCFunction)X509_crl_object_add_extension,     METH_VARARGS,  NULL},
-   {"clearExtensions",  (PyCFunction)X509_crl_object_clear_extensions,  METH_VARARGS,  NULL},
-   {"countExtensions",  (PyCFunction)X509_crl_object_count_extensions,  METH_VARARGS,  NULL},
-   {"getExtension",     (PyCFunction)X509_crl_object_get_extension,     METH_VARARGS,  NULL},
-   {"pemWrite",         (PyCFunction)x509_crl_object_pem_write,         METH_VARARGS,  NULL},
-   {"derWrite",         (PyCFunction)x509_crl_object_der_write,         METH_VARARGS,  NULL},
-   {"pprint",           (PyCFunction)x509_crl_object_pprint,            METH_VARARGS,  NULL},
+  {"sign",             (PyCFunction)x509_crl_object_sign,              METH_VARARGS,  NULL},
+  {"verify",           (PyCFunction)x509_crl_object_verify,            METH_VARARGS,  NULL},
+  {"getVersion",       (PyCFunction)x509_crl_object_get_version,       METH_VARARGS,  NULL},
+  {"setVersion",       (PyCFunction)x509_crl_object_set_version,       METH_VARARGS,  NULL},
+  {"getIssuer",        (PyCFunction)x509_crl_object_get_issuer,        METH_VARARGS,  NULL},
+  {"setIssuer",        (PyCFunction)x509_crl_object_set_issuer,        METH_VARARGS,  NULL},
+  {"getThisUpdate",    (PyCFunction)x509_crl_object_get_this_update,   METH_VARARGS,  NULL},
+  {"setThisUpdate",    (PyCFunction)x509_crl_object_set_this_update,   METH_VARARGS,  NULL},
+  {"getNextUpdate",    (PyCFunction)x509_crl_object_get_next_update,   METH_VARARGS,  NULL},
+  {"setNextUpdate",    (PyCFunction)x509_crl_object_set_next_update,   METH_VARARGS,  NULL},
+  {"setRevoked",       (PyCFunction)x509_crl_object_set_revoked,       METH_VARARGS,  NULL},
+  {"getRevoked",       (PyCFunction)x509_crl_object_get_revoked,       METH_VARARGS,  NULL},
+  {"addExtension",     (PyCFunction)X509_crl_object_add_extension,     METH_VARARGS,  NULL},
+  {"clearExtensions",  (PyCFunction)X509_crl_object_clear_extensions,  METH_VARARGS,  NULL},
+  {"countExtensions",  (PyCFunction)X509_crl_object_count_extensions,  METH_VARARGS,  NULL},
+  {"getExtension",     (PyCFunction)X509_crl_object_get_extension,     METH_VARARGS,  NULL},
+  {"pemWrite",         (PyCFunction)x509_crl_object_pem_write,         METH_VARARGS,  NULL},
+  {"derWrite",         (PyCFunction)x509_crl_object_der_write,         METH_VARARGS,  NULL},
+  {"pprint",           (PyCFunction)x509_crl_object_pprint,            METH_VARARGS,  NULL},
 
-   {NULL}    /* sentinel */
+  {NULL}    /* sentinel */
 };
 
 static PyObject *
@@ -3393,28 +3423,28 @@ static char x509_crltype__doc__[] =
 ;
 
 static PyTypeObject x509_crltype = {
-   PyObject_HEAD_INIT(0)
-   0,                                     /*ob_size*/
-   "X509Crl",                             /*tp_name*/
-   sizeof(x509_crl_object),               /*tp_basicsize*/
-   0,                                     /*tp_itemsize*/
-   (destructor)x509_crl_object_dealloc,   /*tp_dealloc*/
-   (printfunc)0,                          /*tp_print*/
-   (getattrfunc)x509_crl_object_getattr,  /*tp_getattr*/
-   (setattrfunc)0,                        /*tp_setattr*/
-   (cmpfunc)0,                            /*tp_compare*/
-   (reprfunc)0,                           /*tp_repr*/
-   0,                                     /*tp_as_number*/
-   0,                                     /*tp_as_sequence*/
-   0,                                     /*tp_as_mapping*/
-   (hashfunc)0,                           /*tp_hash*/
-   (ternaryfunc)0,                        /*tp_call*/
-   (reprfunc)0,                           /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   x509_crltype__doc__                   /* Documentation string */
+  PyObject_HEAD_INIT(0)
+  0,                                     /*ob_size*/
+  "X509Crl",                             /*tp_name*/
+  sizeof(x509_crl_object),               /*tp_basicsize*/
+  0,                                     /*tp_itemsize*/
+  (destructor)x509_crl_object_dealloc,   /*tp_dealloc*/
+  (printfunc)0,                          /*tp_print*/
+  (getattrfunc)x509_crl_object_getattr,  /*tp_getattr*/
+  (setattrfunc)0,                        /*tp_setattr*/
+  (cmpfunc)0,                            /*tp_compare*/
+  (reprfunc)0,                           /*tp_repr*/
+  0,                                     /*tp_as_number*/
+  0,                                     /*tp_as_sequence*/
+  0,                                     /*tp_as_mapping*/
+  (hashfunc)0,                           /*tp_hash*/
+  (ternaryfunc)0,                        /*tp_call*/
+  (reprfunc)0,                           /*tp_str*/
+  0,
+  0,
+  0,
+  0,
+  x509_crltype__doc__                   /* Documentation string */
 };
 /*========== x509 crl Code ==========*/
 
@@ -3808,28 +3838,28 @@ static char x509_revokedtype__doc__[] =
 ;
 
 static PyTypeObject x509_revokedtype = {
-   PyObject_HEAD_INIT(0)
-   0,                                        /*ob_size*/
-   "X509Revoked",                            /*tp_name*/
-   sizeof(x509_revoked_object),              /*tp_basicsize*/
-   0,                                        /*tp_itemsize*/
-   (destructor)x509_revoked_object_dealloc,  /*tp_dealloc*/
-   (printfunc)0,                             /*tp_print*/
-   (getattrfunc)x509_revoked_object_getattr, /*tp_getattr*/
-   (setattrfunc)0,                           /*tp_setattr*/
-   (cmpfunc)0,                               /*tp_compare*/
-   (reprfunc)0,                              /*tp_repr*/
-   0,                                        /*tp_as_number*/
-   0,                                        /*tp_as_sequence*/
-   0,                                        /*tp_as_mapping*/
-   (hashfunc)0,                              /*tp_hash*/
-   (ternaryfunc)0,                           /*tp_call*/
-   (reprfunc)0,                              /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   x509_revokedtype__doc__                  /* Documentation string */
+  PyObject_HEAD_INIT(0)
+  0,                                        /*ob_size*/
+  "X509Revoked",                            /*tp_name*/
+  sizeof(x509_revoked_object),              /*tp_basicsize*/
+  0,                                        /*tp_itemsize*/
+  (destructor)x509_revoked_object_dealloc,  /*tp_dealloc*/
+  (printfunc)0,                             /*tp_print*/
+  (getattrfunc)x509_revoked_object_getattr, /*tp_getattr*/
+  (setattrfunc)0,                           /*tp_setattr*/
+  (cmpfunc)0,                               /*tp_compare*/
+  (reprfunc)0,                              /*tp_repr*/
+  0,                                        /*tp_as_number*/
+  0,                                        /*tp_as_sequence*/
+  0,                                        /*tp_as_mapping*/
+  (hashfunc)0,                              /*tp_hash*/
+  (ternaryfunc)0,                           /*tp_call*/
+  (reprfunc)0,                              /*tp_str*/
+  0,
+  0,
+  0,
+  0,
+  x509_revokedtype__doc__                  /* Documentation string */
 };
 /*========== x509 revoked Code ==========*/
 
@@ -4385,7 +4415,7 @@ static char ssl_object_get_shutdown__doc__[] =
 "   <body>\n"
 "      <para>\n"
 "         This function returns an integer indicating the state of the\n"
-"         SSL connection. <constant>SSL_RECIEVED_SHUTDOWN</constant>\n"
+"         SSL connection. <constant>SSL_RECEIVED_SHUTDOWN</constant>\n"
 "         will be set the if it's peer sends a <constant>shutdown</constant>\n"
 "         signal or the underlying socket\n"
 "         receives a close notify .  The possible values are:\n"
@@ -4393,8 +4423,8 @@ static char ssl_object_get_shutdown__doc__[] =
 "      <simplelist>\n"
 "         <member><constant>SSL_NO_SHUTDOWN</constant></member>\n"
 "         <member><constant>SSL_SENT_SHUTDOWN</constant></member>\n"
-"         <member><constant>SSL_RECIEVED_SHUTDOWN</constant></member>\n"
-"         <member><constant>SSL_SENT_SHUTDOWN</constant> | <constant>SSL_RECIEVED_SHUTDOWN</constant></member>\n"
+"         <member><constant>SSL_RECEIVED_SHUTDOWN</constant></member>\n"
+"         <member><constant>SSL_SENT_SHUTDOWN</constant> | <constant>SSL_RECEIVED_SHUTDOWN</constant></member>\n"
 "      </simplelist>\n"
 "   </body>\n"
 "</method>\n"
@@ -4630,25 +4660,25 @@ ssl_object_set_verify_mode(ssl_object *self, PyObject *args)
 }
 
 static struct PyMethodDef ssl_object_methods[] = {
-   {"useCertificate",   (PyCFunction)ssl_object_use_certificate,  METH_VARARGS,  NULL},
-   {"addCertificate",   (PyCFunction)ssl_object_add_certificate,  METH_VARARGS,  NULL},
-   {"useKey",           (PyCFunction)ssl_object_use_key,          METH_VARARGS,  NULL},
-   {"checkKey",         (PyCFunction)ssl_object_check_key,        METH_VARARGS,  NULL},
-   {"setFd",            (PyCFunction)ssl_object_set_fd,           METH_VARARGS,  NULL},
-   {"connect",          (PyCFunction)ssl_object_connect,          METH_VARARGS,  NULL},
-   {"accept",           (PyCFunction)ssl_object_accept,           METH_VARARGS,  NULL},
-   {"write",            (PyCFunction)ssl_object_write,            METH_VARARGS,  NULL},
-   {"read",             (PyCFunction)ssl_object_read,             METH_VARARGS,  NULL},
-   {"peerCertificate",  (PyCFunction)ssl_object_peer_certificate, METH_VARARGS,  NULL},
-   {"clear",            (PyCFunction)ssl_object_clear,            METH_VARARGS,  NULL},
-   {"shutdown",         (PyCFunction)ssl_object_shutdown,         METH_VARARGS,  NULL},
-   {"getShutdown",      (PyCFunction)ssl_object_get_shutdown,     METH_VARARGS,  NULL},
-   {"getCiphers",       (PyCFunction)ssl_object_get_ciphers,      METH_VARARGS,  NULL},
-   {"setCiphers",       (PyCFunction)ssl_object_set_ciphers,      METH_VARARGS,  NULL},
-   {"getCipher",        (PyCFunction)ssl_object_get_cipher,       METH_VARARGS,  NULL},
-   {"setVerifyMode",    (PyCFunction)ssl_object_set_verify_mode,  METH_VARARGS,  NULL},
+  {"useCertificate",   (PyCFunction)ssl_object_use_certificate,  METH_VARARGS,  NULL},
+  {"addCertificate",   (PyCFunction)ssl_object_add_certificate,  METH_VARARGS,  NULL},
+  {"useKey",           (PyCFunction)ssl_object_use_key,          METH_VARARGS,  NULL},
+  {"checkKey",         (PyCFunction)ssl_object_check_key,        METH_VARARGS,  NULL},
+  {"setFd",            (PyCFunction)ssl_object_set_fd,           METH_VARARGS,  NULL},
+  {"connect",          (PyCFunction)ssl_object_connect,          METH_VARARGS,  NULL},
+  {"accept",           (PyCFunction)ssl_object_accept,           METH_VARARGS,  NULL},
+  {"write",            (PyCFunction)ssl_object_write,            METH_VARARGS,  NULL},
+  {"read",             (PyCFunction)ssl_object_read,             METH_VARARGS,  NULL},
+  {"peerCertificate",  (PyCFunction)ssl_object_peer_certificate, METH_VARARGS,  NULL},
+  {"clear",            (PyCFunction)ssl_object_clear,            METH_VARARGS,  NULL},
+  {"shutdown",         (PyCFunction)ssl_object_shutdown,         METH_VARARGS,  NULL},
+  {"getShutdown",      (PyCFunction)ssl_object_get_shutdown,     METH_VARARGS,  NULL},
+  {"getCiphers",       (PyCFunction)ssl_object_get_ciphers,      METH_VARARGS,  NULL},
+  {"setCiphers",       (PyCFunction)ssl_object_set_ciphers,      METH_VARARGS,  NULL},
+  {"getCipher",        (PyCFunction)ssl_object_get_cipher,       METH_VARARGS,  NULL},
+  {"setVerifyMode",    (PyCFunction)ssl_object_set_verify_mode,  METH_VARARGS,  NULL},
 
-   {NULL,      NULL}    /* sentinel */
+  {NULL}    /* sentinel */
 };
 
 static ssl_object *
@@ -5742,12 +5772,12 @@ symmetric_object_final(symmetric_object *self, PyObject *args)
 }
 
 static struct PyMethodDef symmetric_object_methods[] = {
-   {"encryptInit",   (PyCFunction)symmetric_object_encrypt_init,  METH_VARARGS,  NULL},
-   {"decryptInit",   (PyCFunction)symmetric_object_decrypt_init,  METH_VARARGS,  NULL},
-   {"update",        (PyCFunction)symmetric_object_update,        METH_VARARGS,  NULL},
-   {"final",         (PyCFunction)symmetric_object_final,         METH_VARARGS,  NULL},
+  {"encryptInit",   (PyCFunction)symmetric_object_encrypt_init,  METH_VARARGS,  NULL},
+  {"decryptInit",   (PyCFunction)symmetric_object_decrypt_init,  METH_VARARGS,  NULL},
+  {"update",        (PyCFunction)symmetric_object_update,        METH_VARARGS,  NULL},
+  {"final",         (PyCFunction)symmetric_object_final,         METH_VARARGS,  NULL},
 
-   {NULL,      NULL}    /* sentinel */
+  {NULL}    /* sentinel */
 };
 
 static PyObject *
@@ -5802,28 +5832,28 @@ static char symmetrictype__doc__[] =
 ;
 
 static PyTypeObject symmetrictype = {
-   PyObject_HEAD_INIT(0)
-   0,                                     /*ob_size*/
-   "Symmetric",                              /*tp_name*/
-   sizeof(symmetric_object),              /*tp_basicsize*/
-   0,                                     /*tp_itemsize*/
-   (destructor)symmetric_object_dealloc,  /*tp_dealloc*/
-   (printfunc)0,                          /*tp_print*/
-   (getattrfunc)symmetric_object_getattr, /*tp_getattr*/
-   (setattrfunc)0,                        /*tp_setattr*/
-   (cmpfunc)0,                            /*tp_compare*/
-   (reprfunc)0,                           /*tp_repr*/
-   0,                                     /*tp_as_number*/
-   0,                                     /*tp_as_sequence*/
-   0,                                     /*tp_as_mapping*/
-   (hashfunc)0,                           /*tp_hash*/
-   (ternaryfunc)0,                        /*tp_call*/
-   (reprfunc)0,                           /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   symmetrictype__doc__                    /* Documentation string */
+  PyObject_HEAD_INIT(0)
+  0,                                     /*ob_size*/
+  "Symmetric",                              /*tp_name*/
+  sizeof(symmetric_object),              /*tp_basicsize*/
+  0,                                     /*tp_itemsize*/
+  (destructor)symmetric_object_dealloc,  /*tp_dealloc*/
+  (printfunc)0,                          /*tp_print*/
+  (getattrfunc)symmetric_object_getattr, /*tp_getattr*/
+  (setattrfunc)0,                        /*tp_setattr*/
+  (cmpfunc)0,                            /*tp_compare*/
+  (reprfunc)0,                           /*tp_repr*/
+  0,                                     /*tp_as_number*/
+  0,                                     /*tp_as_sequence*/
+  0,                                     /*tp_as_mapping*/
+  (hashfunc)0,                           /*tp_hash*/
+  (ternaryfunc)0,                        /*tp_call*/
+  (reprfunc)0,                           /*tp_str*/
+  0,
+  0,
+  0,
+  0,
+  symmetrictype__doc__                    /* Documentation string */
 };
 /*========== symmetric Code ==========*/
 
@@ -6045,28 +6075,28 @@ static char digesttype__doc__[] =
 ;
 
 static PyTypeObject digesttype = {
-   PyObject_HEAD_INIT(0)
-   0,                                  /*ob_size*/
-   "Digest",                           /*tp_name*/
-   sizeof(digest_object),              /*tp_basicsize*/
-   0,                                  /*tp_itemsize*/
-   (destructor)digest_object_dealloc,  /*tp_dealloc*/
-   (printfunc)0,                       /*tp_print*/
-   (getattrfunc)digest_object_getattr, /*tp_getattr*/
-   (setattrfunc)0,                     /*tp_setattr*/
-   (cmpfunc)0,                         /*tp_compare*/
-   (reprfunc)0,                        /*tp_repr*/
-   0,                                  /*tp_as_number*/
-   0,                                  /*tp_as_sequence*/
-   0,                                  /*tp_as_mapping*/
-   (hashfunc)0,                        /*tp_hash*/
-   (ternaryfunc)0,                     /*tp_call*/
-   (reprfunc)0,                        /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   digesttype__doc__                   /* Documentation string */
+  PyObject_HEAD_INIT(0)
+  0,                                  /*ob_size*/
+  "Digest",                           /*tp_name*/
+  sizeof(digest_object),              /*tp_basicsize*/
+  0,                                  /*tp_itemsize*/
+  (destructor)digest_object_dealloc,  /*tp_dealloc*/
+  (printfunc)0,                       /*tp_print*/
+  (getattrfunc)digest_object_getattr, /*tp_getattr*/
+  (setattrfunc)0,                     /*tp_setattr*/
+  (cmpfunc)0,                         /*tp_compare*/
+  (reprfunc)0,                        /*tp_repr*/
+  0,                                  /*tp_as_number*/
+  0,                                  /*tp_as_sequence*/
+  0,                                  /*tp_as_mapping*/
+  (hashfunc)0,                        /*tp_hash*/
+  (ternaryfunc)0,                     /*tp_call*/
+  (reprfunc)0,                        /*tp_str*/
+  0,
+  0,
+  0,
+  0,
+  digesttype__doc__                   /* Documentation string */
 };
 /*========== digest Code ==========*/
 
@@ -6233,11 +6263,11 @@ hmac_object_mac(hmac_object *self, PyObject *args)
 
 
 static struct PyMethodDef hmac_object_methods[] = {
-   {"update",           (PyCFunction)hmac_object_update, METH_VARARGS,  NULL},
-   {"mac",              (PyCFunction)hmac_object_mac,    METH_VARARGS,  NULL},
-   {"copy",             (PyCFunction)hmac_object_copy,   METH_VARARGS,  NULL},
+  {"update",           (PyCFunction)hmac_object_update, METH_VARARGS,  NULL},
+  {"mac",              (PyCFunction)hmac_object_mac,    METH_VARARGS,  NULL},
+  {"copy",             (PyCFunction)hmac_object_copy,   METH_VARARGS,  NULL},
 
-   {NULL,      NULL}    /* sentinel */
+  {NULL}    /* sentinel */
 };
 
 static PyObject *
@@ -6293,396 +6323,6 @@ static PyTypeObject hmactype = {
    hmactype__doc__                     /* Documentation string */
 };
 /*========== hmac Code ==========*/
-
-/*========== PKCS7 code ==========*/
-static pkcs7_object *
-PKCS7_object_new(void)
-{
-  pkcs7_object *self;
-
-  if ((self = PyObject_New(pkcs7_object, &pkcs7type)) == NULL)
-    goto error;
-
-  self->pkcs7 = NULL;
-  return self;
-
- error:
-
-  Py_XDECREF(self);
-  return NULL;
-}
-
-static pkcs7_object *
-PKCS7_object_pem_read(BIO *in)
-{
-  pkcs7_object *self;
-
-  if ((self = PyObject_New(pkcs7_object, &pkcs7type)) == NULL)
-    goto error;
-
-  if((self->pkcs7 = PEM_read_bio_PKCS7(in, NULL, NULL, NULL)) == NULL)
-    lose("could not load PEM encoded PKCS7 message");
-
-  return self;
-
- error:
-
-  Py_XDECREF(self);
-  return NULL;
-}
-
-static pkcs7_object *
-PKCS7_object_der_read(char *src, int len)
-{
-  pkcs7_object *self;
-  BIO *bio = NULL;
-
-  if ((self = PyObject_New(pkcs7_object, &pkcs7type)) == NULL)
-    goto error;
-
-  self->pkcs7 = PKCS7_new();
-
-  if ((bio = BIO_new_mem_buf(src, len)) == NULL)
-    goto error;
-
-  if(!d2i_PKCS7_bio(bio, &self->pkcs7))
-    lose("could not load PEM encoded PKCS7 message");
-
-  BIO_free(bio);
-
-  return self;
-
- error:
-
-  if (bio)
-    BIO_free(bio);
-
-  Py_XDECREF(self);
-  return NULL;
-}
-
-static PyObject *
-PKCS7_object_write_helper(pkcs7_object *self, PyObject *args, int format)
-{
-  int len = 0;
-  char *buf = NULL;
-  BIO *out_bio = NULL;
-  PyObject *cert = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    return NULL;
-
-  out_bio = BIO_new(BIO_s_mem());
-
-  switch (format) {
-
-  case DER_FORMAT:
-    if (!i2d_PKCS7_bio(out_bio, self->pkcs7))
-      lose("unable to write pkcs#7 message");
-    break;
-
-  case PEM_FORMAT:
-    if (!PEM_write_bio_PKCS7(out_bio, self->pkcs7))
-      lose("unable to write pkcs#7 message");
-    break;
-
-  default:
-    lose("internal error, unknown output format");
-  }
-
-
-  if ((len = BIO_ctrl_pending(out_bio)) == 0)
-    lose("unable to get bytes stored in bio");
-
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  if (BIO_read(out_bio, buf, len) != len)
-    lose("unable to write out cert");
-
-  cert = Py_BuildValue("s#", buf, len);
-
-  BIO_free(out_bio);
-  free(buf);
-  return cert;
-
- error:
-
-  if (out_bio)
-    BIO_free(out_bio);
-
-  if (buf)
-    free(buf);
-
-  Py_XDECREF(cert);
-  return NULL;
-}
-
-static char PKCS7_object_pem_write__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>PKCS7</memberof>\n"
-"      <name>pemWrite</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a PEM encoded PKCS7 message as a\n"
-"         string.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-PKCS7_object_pem_write(pkcs7_object *self, PyObject *args)
-{
-  return PKCS7_object_write_helper(self, args, PEM_FORMAT);
-}
-
-static char PKCS7_object_der_write__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>PKCS7</memberof>\n"
-"      <name>derWrite</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method returns a DER encoded PKCS7 message as a\n"
-"         string.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-PKCS7_object_der_write(pkcs7_object *self, PyObject *args)
-{
-  return PKCS7_object_write_helper(self, args, DER_FORMAT);
-}
-
-static char PKCS7_object_sign__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>PKCS7</memberof>\n"
-"      <name>sign</name>\n"
-"      <parameter>signcert</parameter>\n"
-"      <parameter>key</parameter>\n"
-"      <parameter>certs</parameter>\n"
-"      <parameter>data</parameter>\n"
-"      <optional><parameter>no_certs</parameter></optional>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method signs a message with a private key.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-PKCS7_object_sign(pkcs7_object *self, PyObject *args)
-{
-  asymmetric_object *signkey = NULL;
-  x509_object *signcert = NULL;
-  PyObject *x509_sequence = NULL;
-  STACK_OF(X509) *x509_stack = NULL;
-  EVP_PKEY *pkey = NULL;
-  char *buf = NULL;
-  int len, flags = PKCS7_BINARY | PKCS7_NOATTR;
-  BIO *bio = NULL;
-  PKCS7 *p7 = NULL;
-  PyObject *no_certs = Py_False;
-
-  if (!PyArg_ParseTuple(args, "O!O!Os#|O!",
-                        &x509type, &signcert,
-                        &asymmetrictype, &signkey,
-                        &x509_sequence,
-                        &buf, &len,
-                        &PyBool_Type, &no_certs))
-    goto error;
-
-  if (signkey->key_type != RSA_PRIVATE_KEY)
-    lose("unsupported key type");
-
-  if ((x509_stack = x509_helper_sequence_to_stack(x509_sequence)) == NULL)
-    goto error;
-
-  if ((pkey = EVP_PKEY_new()) == NULL)
-    lose("could not allocate memory");
-
-  if (!EVP_PKEY_assign_RSA(pkey, signkey->cipher))
-    lose("EVP_PKEY assignment error");
-
-  if ((bio = BIO_new_mem_buf(buf, len)) == NULL)
-    goto error;
-
-  if (no_certs == Py_True)
-    flags |= PKCS7_NOCERTS;
-
-  if ((p7 = PKCS7_sign(signcert->x509, pkey, x509_stack, bio, flags)) == NULL)
-    lose_openssl_error("could not sign PKCS7 message");
-
-  if (self->pkcs7)
-    PKCS7_free(self->pkcs7);
-  self->pkcs7 = p7;
-  p7 = NULL;
-
-  sk_X509_free(x509_stack);
-  BIO_free(bio);
-
-  return Py_BuildValue("");
-
- error:
-
-  if (p7)
-    PKCS7_free(p7);
-
-  if (bio)
-    BIO_free(bio);
-
-  if (x509_stack)
-    sk_X509_free(x509_stack);
-
-  if (pkey)
-    EVP_PKEY_free(pkey);
-
-  return NULL;
-}
-
-static char PKCS7_object_verify__doc__[] =
-"<method>\n"
-"   <header>\n"
-"      <memberof>PKCS7</memberof>\n"
-"      <name>verify</name>\n"
-"      <parameter>store</parameter>\n"
-"      <optional><parameter>certs</parameter></optional>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This method verifies a message against a trusted store.\n"
-"         The optional certs parameter is a set of certificates to search\n"
-"         for the signer's certificate.\n"
-"      </para>\n"
-"   </body>\n"
-"</method>\n"
-;
-
-static PyObject *
-PKCS7_object_verify(pkcs7_object *self, PyObject *args)
-{
-  x509_store_object *store = NULL;
-  PyObject *result = NULL, *certs_sequence = Py_None;
-  STACK_OF(X509) *certs_stack = NULL;
-  char *buf = NULL;
-  BIO *bio = NULL;
-  int len;
-
-  if ((bio = BIO_new(BIO_s_mem())) == NULL)
-    goto error;
-
-  if (!PyArg_ParseTuple(args, "O!|O", &x509_storetype, &store, &certs_sequence))
-    goto error;
-
-  if (certs_sequence != Py_None &&
-      (certs_stack = x509_helper_sequence_to_stack(certs_sequence)) == NULL)
-    goto error;
-
-  if (PKCS7_verify(self->pkcs7, certs_stack, store->store, NULL, bio, 0) <= 0)
-    lose_openssl_error("could not verify PKCS7 message");
-
-  if ((len = BIO_ctrl_pending(bio)) == 0)
-    lose("unable to get bytes stored in bio");
-
-  if ((buf = malloc(len)) == NULL)
-    lose("unable to allocate memory");
-
-  if (BIO_read(bio, buf, len) != len)
-    lose("unable to write out PKCS7 content");
-
-  result = Py_BuildValue("s#", buf, len);
-
-  if (certs_stack)
-    sk_X509_free(certs_stack);
-  BIO_free(bio);
-  free(buf);
-
-  return result;
-
- error:
-
-  if (certs_stack)
-    sk_X509_free(certs_stack);
-
-  if (bio)
-    BIO_free(bio);
-
-  if (buf)
-    free(buf);
-
-  return NULL;
-}
-
-
-static struct PyMethodDef PKCS7_object_methods[] = {
-   {"pemWrite",      (PyCFunction)PKCS7_object_pem_write,       METH_VARARGS,  NULL},
-   {"derWrite",      (PyCFunction)PKCS7_object_der_write,       METH_VARARGS,  NULL},
-   {"sign",          (PyCFunction)PKCS7_object_sign,            METH_VARARGS,  NULL},
-   {"verify",        (PyCFunction)PKCS7_object_verify,          METH_VARARGS,  NULL},
-
-   {NULL,      NULL}    /* sentinel */
-};
-
-static PyObject *
-PKCS7_object_getattr(pkcs7_object *self, char *name)
-{
-  return Py_FindMethod(PKCS7_object_methods, (PyObject *)self, name);
-}
-
-static void
-PKCS7_object_dealloc(pkcs7_object *self, char *name)
-{
-  PKCS7_free(self->pkcs7);
-  PyObject_Del(self);
-}
-
-static char pkcs7type__doc__[] =
-"<class>\n"
-"   <header>\n"
-"      <name>PKCS7</name>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This class provides basic access OpenSSL's PKCS7 functionality.\n"
-"      </para>\n"
-"   </body>\n"
-"</class>\n"
-;
-
-static PyTypeObject pkcs7type = {
-   PyObject_HEAD_INIT(0)
-   0,                                  /*ob_size*/
-   "PKCS7",                            /*tp_name*/
-   sizeof(pkcs7_object),               /*tp_basicsize*/
-   0,                                  /*tp_itemsize*/
-   (destructor)PKCS7_object_dealloc,   /*tp_dealloc*/
-   (printfunc)0,                       /*tp_print*/
-   (getattrfunc)PKCS7_object_getattr,  /*tp_getattr*/
-   (setattrfunc)0,                     /*tp_setattr*/
-   (cmpfunc)0,                         /*tp_compare*/
-   (reprfunc)0,                        /*tp_repr*/
-   0,                                  /*tp_as_number*/
-   0,                                  /*tp_as_sequence*/
-   0,                                  /*tp_as_mapping*/
-   (hashfunc)0,                        /*tp_hash*/
-   (ternaryfunc)0,                     /*tp_call*/
-   (reprfunc)0,                        /*tp_str*/
-   0,
-   0,
-   0,
-   0,
-   pkcs7type__doc__                    /* Documentation string */
-};
-/*========== PKCS7 Code ==========*/
 
 /*========== CMS code ==========*/
 static cms_object *
@@ -7298,16 +6938,16 @@ CMS_object_crls(cms_object *self, PyObject *args)
 }
 
 static struct PyMethodDef CMS_object_methods[] = {
-   {"pemWrite",     (PyCFunction)CMS_object_pem_write,    METH_VARARGS,  NULL},
-   {"derWrite",     (PyCFunction)CMS_object_der_write,    METH_VARARGS,  NULL},
-   {"sign",         (PyCFunction)CMS_object_sign,         METH_VARARGS,  NULL},
-   {"verify",       (PyCFunction)CMS_object_verify,       METH_VARARGS,  NULL},
-   {"eContentType", (PyCFunction)CMS_object_eContentType, METH_VARARGS,  NULL},
-   {"pprint",       (PyCFunction)CMS_object_pprint,       METH_VARARGS,  NULL},
-   {"certs",        (PyCFunction)CMS_object_certs,        METH_VARARGS,  NULL},
-   {"crls",         (PyCFunction)CMS_object_crls,         METH_VARARGS,  NULL},
+  {"pemWrite",     (PyCFunction)CMS_object_pem_write,    METH_VARARGS,  NULL},
+  {"derWrite",     (PyCFunction)CMS_object_der_write,    METH_VARARGS,  NULL},
+  {"sign",         (PyCFunction)CMS_object_sign,         METH_VARARGS,  NULL},
+  {"verify",       (PyCFunction)CMS_object_verify,       METH_VARARGS,  NULL},
+  {"eContentType", (PyCFunction)CMS_object_eContentType, METH_VARARGS,  NULL},
+  {"pprint",       (PyCFunction)CMS_object_pprint,       METH_VARARGS,  NULL},
+  {"certs",        (PyCFunction)CMS_object_certs,        METH_VARARGS,  NULL},
+  {"crls",         (PyCFunction)CMS_object_crls,         METH_VARARGS,  NULL},
 
-   {NULL,      NULL}    /* sentinel */
+  {NULL}    /* sentinel */
 };
 
 static PyObject *
@@ -7587,37 +7227,6 @@ pow_module_new_hmac (PyObject *self, PyObject *args)
   return NULL;
 }
 
-static char pow_module_new_pkcs7__doc__[] =
-"<constructor>\n"
-"   <header>\n"
-"      <memberof>PKCS7</memberof>\n"
-"   </header>\n"
-"   <body>\n"
-"      <para>\n"
-"         This constructor creates a skeletal PKCS7 object.\n"
-"      </para>\n"
-"   </body>\n"
-"</constructor>\n"
-;
-
-static PyObject *
-pow_module_new_pkcs7 (PyObject *self, PyObject *args)
-{
-  pkcs7_object *pkcs7 = NULL;
-
-  if (!PyArg_ParseTuple(args, ""))
-    goto error;
-
-  if ((pkcs7 = PKCS7_object_new()) == NULL)
-    lose("could not create new PKCS7 object");
-
-  return (PyObject*) pkcs7;
-
- error:
-
-  return NULL;
-}
-
 static char pow_module_new_cms__doc__[] =
 "<constructor>\n"
 "   <header>\n"
@@ -7668,7 +7277,6 @@ static char pow_module_pem_read__doc__[] =
 "         <member><constant>RSA_PRIVATE_KEY</constant></member>\n"
 "         <member><constant>X509_CERTIFICATE</constant></member>\n"
 "         <member><constant>X509_CRL</constant></member>\n"
-"         <member><constant>PKCS7_MESSAGE</constant></member>\n"
 "         <member><constant>CMS_MESSAGE</constant></member>\n"
 "      </simplelist>\n"
 "      <para>\n"
@@ -7679,7 +7287,7 @@ static char pow_module_pem_read__doc__[] =
 "         not desirable, always supply a password.  The object returned will be\n"
 "         and instance of <classname>Asymmetric</classname>,\n"
 "         <classname>X509</classname>, <classname>X509Crl</classname>,\n"
-"         <classname>PKCS7</classname>, or <classname>CMS</classname>.\n"
+"         or <classname>CMS</classname>.\n"
 "      </para>\n"
 "   </body>\n"
 "</modulefunction>\n"
@@ -7714,9 +7322,6 @@ pow_module_pem_read (PyObject *self, PyObject *args)
     break;
   case X_X509_CRL:
     obj = (PyObject*)x509_crl_object_pem_read(in);
-    break;
-  case PKCS7_MESSAGE:
-    obj = (PyObject*)PKCS7_object_pem_read(in);
     break;
   case CMS_MESSAGE:
     obj = (PyObject*)CMS_object_pem_read(in);
@@ -7754,14 +7359,12 @@ static char pow_module_der_read__doc__[] =
 "         <member><constant>RSA_PRIVATE_KEY</constant></member>\n"
 "         <member><constant>X509_CERTIFICATE</constant></member>\n"
 "         <member><constant>X509_CRL</constant></member>\n"
-"         <member><constant>PKCS7_MESSAGE</constant></member>\n"
 "         <member><constant>CMS_MESSAGE</constant></member>\n"
 "      </simplelist>\n"
 "      <para>\n"
 "         As with the PEM operations, the object returned will be and instance\n"
 "         of <classname>Asymmetric</classname>, <classname>X509</classname>,\n"
-"         <classname>X509Crl</classname>, <classname>PKCS7</classname>,\n"
-"         or <classname>CMS</classname>.\n"
+"         <classname>X509Crl</classname>, or <classname>CMS</classname>.\n"
 "      </para>\n"
 "   </body>\n"
 "</modulefunction>\n"
@@ -7789,9 +7392,6 @@ pow_module_der_read (PyObject *self, PyObject *args)
     break;
   case X_X509_CRL:
     obj = (PyObject*)x509_crl_object_der_read(src, len);
-    break;
-  case PKCS7_MESSAGE:
-    obj = (PyObject*)PKCS7_object_der_read((char *) src, len);
     break;
   case CMS_MESSAGE:
     obj = (PyObject*)CMS_object_der_read((char *) src, len);
@@ -8255,7 +7855,6 @@ pow_module_docset(PyObject *self, PyObject *args)
   docset_helper_add(docset, pow_module_new_x509_store__doc__);
   docset_helper_add(docset, pow_module_new_x509_crl__doc__);
   docset_helper_add(docset, pow_module_new_x509_revoked__doc__);
-  docset_helper_add(docset, pow_module_new_pkcs7__doc__);
   docset_helper_add(docset, pow_module_new_cms__doc__);
 
   // functions
@@ -8365,12 +7964,6 @@ pow_module_docset(PyObject *self, PyObject *args)
   docset_helper_add(docset, hmac_object_copy__doc__);
   docset_helper_add(docset, hmac_object_mac__doc__);
 
-  // pkcs7 documentation
-  docset_helper_add(docset, PKCS7_object_pem_write__doc__);
-  docset_helper_add(docset, PKCS7_object_der_write__doc__);
-  docset_helper_add(docset, PKCS7_object_sign__doc__);
-  docset_helper_add(docset, PKCS7_object_verify__doc__);
-
   // cms documentation
   docset_helper_add(docset, CMS_object_pem_write__doc__);
   docset_helper_add(docset, CMS_object_der_write__doc__);
@@ -8413,7 +8006,6 @@ static struct PyMethodDef pow_module_methods[] = {
   {"derRead",           (PyCFunction)pow_module_der_read,          METH_VARARGS,  NULL},
   {"Digest",            (PyCFunction)pow_module_new_digest,        METH_VARARGS,  NULL},
   {"Hmac",              (PyCFunction)pow_module_new_hmac,          METH_VARARGS,  NULL},
-  {"PKCS7",             (PyCFunction)pow_module_new_pkcs7,         METH_VARARGS,  NULL},
   {"CMS",               (PyCFunction)pow_module_new_cms,           METH_VARARGS,  NULL},
   {"Asymmetric",        (PyCFunction)pow_module_new_asymmetric,    METH_VARARGS,  NULL},
   {"Symmetric",         (PyCFunction)pow_module_new_symmetric,     METH_VARARGS,  NULL},
@@ -8450,159 +8042,170 @@ init_POW(void)
   symmetrictype.ob_type    = &PyType_Type;
   digesttype.ob_type       = &PyType_Type;
   hmactype.ob_type         = &PyType_Type;
-  pkcs7type.ob_type        = &PyType_Type;
   cmstype.ob_type          = &PyType_Type;
 
   m = Py_InitModule3("_POW", pow_module_methods, pow_module__doc__);
 
-  SSLErrorObject = PyErr_NewException("POW.SSLError", NULL, NULL);
-  PyModule_AddObject(m, "SSLError", SSLErrorObject);
+#define Define_Exception(__var__, __name__, __parent__) \
+  PyModule_AddObject(m, #__name__, ((__var__) = PyErr_NewException("POW." #__name__, __parent__, NULL)))
+
+  Define_Exception(ErrorObject,                 "Error",                NULL);
+  Define_Exception(SSLErrorObject,              "SSLError",             ErrorObject);
+  Define_Exception(ZeroReturnErrorObject,       "ZeroReturnError",      SSLErrorObject);
+  Define_Exception(WantReadErrorObject,         "WantReadError",        SSLErrorObject);
+  Define_Exception(WantWriteErrorObject,        "WantWriteError",       SSLErrorObject);
+
+#undef Define_Exception
+
+#define Define_Integer_Constant(__x__) \
+  PyModule_AddIntConstant(m, #__x__, __x__)
 
   // constants for SSL_get_error()
-  PyModule_AddIntConstant(m, "SSL_ERROR_NONE",            SSL_ERROR_NONE);
-  PyModule_AddIntConstant(m, "SSL_ERROR_ZERO_RETURN",     SSL_ERROR_ZERO_RETURN);
-  PyModule_AddIntConstant(m, "SSL_ERROR_WANT_READ",       SSL_ERROR_WANT_READ);
-  PyModule_AddIntConstant(m, "SSL_ERROR_WANT_WRITE",      SSL_ERROR_WANT_WRITE);
-  PyModule_AddIntConstant(m, "SSL_ERROR_WANT_X509_LOOKUP",SSL_ERROR_WANT_X509_LOOKUP);
-  PyModule_AddIntConstant(m, "SSL_ERROR_SYSCALL",         SSL_ERROR_SYSCALL);
-  PyModule_AddIntConstant(m, "SSL_ERROR_SSL",             SSL_ERROR_SSL);
-  PyModule_AddIntConstant(m, "SSL_ERROR_WANT_CONNECT",    SSL_ERROR_WANT_CONNECT);
-  PyModule_AddIntConstant(m, "SSL_ERROR_WANT_ACCEPT",     SSL_ERROR_WANT_ACCEPT);
+  Define_Integer_Constant(SSL_ERROR_NONE);
+  Define_Integer_Constant(SSL_ERROR_ZERO_RETURN);
+  Define_Integer_Constant(SSL_ERROR_WANT_READ);
+  Define_Integer_Constant(SSL_ERROR_WANT_WRITE);
+  Define_Integer_Constant(SSL_ERROR_WANT_X509_LOOKUP);
+  Define_Integer_Constant(SSL_ERROR_SYSCALL);
+  Define_Integer_Constant(SSL_ERROR_SSL);
+  Define_Integer_Constant(SSL_ERROR_WANT_CONNECT);
+  Define_Integer_Constant(SSL_ERROR_WANT_ACCEPT);
 
   // constants for different types of connection methods
-  PyModule_AddIntConstant(m, "SSLV2_SERVER_METHOD",       SSLV2_SERVER_METHOD);
-  PyModule_AddIntConstant(m, "SSLV2_CLIENT_METHOD",       SSLV2_CLIENT_METHOD);
-  PyModule_AddIntConstant(m, "SSLV2_METHOD",              SSLV2_METHOD);
-  PyModule_AddIntConstant(m, "SSLV3_SERVER_METHOD",       SSLV3_SERVER_METHOD);
-  PyModule_AddIntConstant(m, "SSLV3_CLIENT_METHOD",       SSLV3_CLIENT_METHOD);
-  PyModule_AddIntConstant(m, "SSLV3_METHOD",              SSLV3_METHOD);
-  PyModule_AddIntConstant(m, "SSLV23_SERVER_METHOD",      SSLV23_SERVER_METHOD);
-  PyModule_AddIntConstant(m, "SSLV23_CLIENT_METHOD",      SSLV23_CLIENT_METHOD);
-  PyModule_AddIntConstant(m, "SSLV23_METHOD",             SSLV23_METHOD);
-  PyModule_AddIntConstant(m, "TLSV1_SERVER_METHOD",       TLSV1_SERVER_METHOD);
-  PyModule_AddIntConstant(m, "TLSV1_CLIENT_METHOD",       TLSV1_CLIENT_METHOD);
-  PyModule_AddIntConstant(m, "TLSV1_METHOD",              TLSV1_METHOD);
+  Define_Integer_Constant(SSLV2_SERVER_METHOD);
+  Define_Integer_Constant(SSLV2_CLIENT_METHOD);
+  Define_Integer_Constant(SSLV2_METHOD);
+  Define_Integer_Constant(SSLV3_SERVER_METHOD);
+  Define_Integer_Constant(SSLV3_CLIENT_METHOD);
+  Define_Integer_Constant(SSLV3_METHOD);
+  Define_Integer_Constant(SSLV23_SERVER_METHOD);
+  Define_Integer_Constant(SSLV23_CLIENT_METHOD);
+  Define_Integer_Constant(SSLV23_METHOD);
+  Define_Integer_Constant(TLSV1_SERVER_METHOD);
+  Define_Integer_Constant(TLSV1_CLIENT_METHOD);
+  Define_Integer_Constant(TLSV1_METHOD);
 
-  PyModule_AddIntConstant(m, "SSL_NO_SHUTDOWN",           0);
-  PyModule_AddIntConstant(m, "SSL_SENT_SHUTDOWN",         SSL_SENT_SHUTDOWN);
-  PyModule_AddIntConstant(m, "SSL_RECIEVED_SHUTDOWN",     SSL_RECEIVED_SHUTDOWN);
+  Define_Integer_Constant(SSL_NO_SHUTDOWN);
+  Define_Integer_Constant(SSL_SENT_SHUTDOWN);
+  Define_Integer_Constant(SSL_RECEIVED_SHUTDOWN);
 
   // ssl verification mode
-  PyModule_AddIntConstant(m, "SSL_VERIFY_NONE",           SSL_VERIFY_NONE);
-  PyModule_AddIntConstant(m, "SSL_VERIFY_PEER",           SSL_VERIFY_PEER);
+  Define_Integer_Constant(SSL_VERIFY_NONE);
+  Define_Integer_Constant(SSL_VERIFY_PEER);
 
   // object format types
-  PyModule_AddIntConstant(m, "LONGNAME_FORMAT",           LONGNAME_FORMAT);
-  PyModule_AddIntConstant(m, "SHORTNAME_FORMAT",          SHORTNAME_FORMAT);
+  Define_Integer_Constant(LONGNAME_FORMAT);
+  Define_Integer_Constant(SHORTNAME_FORMAT);
 
   // PEM encoded types
 #ifndef OPENSSL_NO_RSA
-  PyModule_AddIntConstant(m, "RSA_PUBLIC_KEY",            RSA_PUBLIC_KEY);
-  PyModule_AddIntConstant(m, "RSA_PRIVATE_KEY",           RSA_PRIVATE_KEY);
+  Define_Integer_Constant(RSA_PUBLIC_KEY);
+  Define_Integer_Constant(RSA_PRIVATE_KEY);
 #endif
 #ifndef OPENSSL_NO_DSA
-  PyModule_AddIntConstant(m, "DSA_PUBLIC_KEY",            DSA_PUBLIC_KEY);
-  PyModule_AddIntConstant(m, "DSA_PRIVATE_KEY",           DSA_PRIVATE_KEY);
+  Define_Integer_Constant(DSA_PUBLIC_KEY);
+  Define_Integer_Constant(DSA_PRIVATE_KEY);
 #endif
 #ifndef OPENSSL_NO_DH
-  PyModule_AddIntConstant(m, "DH_PUBLIC_KEY",             DH_PUBLIC_KEY);
-  PyModule_AddIntConstant(m, "DH_PRIVATE_KEY",            DH_PRIVATE_KEY);
+  Define_Integer_Constant(DH_PUBLIC_KEY);
+  Define_Integer_Constant(DH_PRIVATE_KEY);
 #endif
-  PyModule_AddIntConstant(m, "X509_CERTIFICATE",          X509_CERTIFICATE);
-  PyModule_AddIntConstant(m, "X509_CRL",                  X_X509_CRL);
-  PyModule_AddIntConstant(m, "PKCS7_MESSAGE",             PKCS7_MESSAGE);
-  PyModule_AddIntConstant(m, "CMS_MESSAGE",               CMS_MESSAGE);
+  Define_Integer_Constant(X509_CERTIFICATE);
+  PyModule_AddIntConstant(m, "X509_CRL", X_X509_CRL);
+  Define_Integer_Constant(CMS_MESSAGE);
 
   // asymmetric ciphers
 #ifndef OPENSSL_NO_RSA
-  PyModule_AddIntConstant(m, "RSA_CIPHER",                RSA_CIPHER);
+  Define_Integer_Constant(RSA_CIPHER);
 #endif
 #ifndef OPENSSL_NO_DSA
-  PyModule_AddIntConstant(m, "DSA_CIPHER",                DSA_CIPHER);
+  Define_Integer_Constant(DSA_CIPHER);
 #endif
 #ifndef OPENSSL_NO_DH
-  PyModule_AddIntConstant(m, "DH_CIPHER",                 DH_CIPHER);
+  Define_Integer_Constant(DH_CIPHER);
 #endif
 
   // symmetric ciphers
 #ifndef OPENSSL_NO_DES
-  PyModule_AddIntConstant(m, "DES_ECB",                   DES_ECB);
-  PyModule_AddIntConstant(m, "DES_EDE",                   DES_EDE);
-  PyModule_AddIntConstant(m, "DES_EDE3",                  DES_EDE3);
-  PyModule_AddIntConstant(m, "DES_CFB",                   DES_CFB);
-  PyModule_AddIntConstant(m, "DES_EDE_CFB",               DES_EDE_CFB);
-  PyModule_AddIntConstant(m, "DES_EDE3_CFB",              DES_EDE3_CFB);
-  PyModule_AddIntConstant(m, "DES_OFB",                   DES_OFB);
-  PyModule_AddIntConstant(m, "DES_EDE_OFB",               DES_EDE_OFB);
-  PyModule_AddIntConstant(m, "DES_EDE3_OFB",              DES_EDE3_OFB);
-  PyModule_AddIntConstant(m, "DES_CBC",                   DES_CBC);
-  PyModule_AddIntConstant(m, "DES_EDE_CBC",               DES_EDE_CBC);
-  PyModule_AddIntConstant(m, "DES_EDE3_CBC",              DES_EDE3_CBC);
-  PyModule_AddIntConstant(m, "DESX_CBC",                  DESX_CBC);
+  Define_Integer_Constant(DES_ECB);
+  Define_Integer_Constant(DES_EDE);
+  Define_Integer_Constant(DES_EDE3);
+  Define_Integer_Constant(DES_CFB);
+  Define_Integer_Constant(DES_EDE_CFB);
+  Define_Integer_Constant(DES_EDE3_CFB);
+  Define_Integer_Constant(DES_OFB);
+  Define_Integer_Constant(DES_EDE_OFB);
+  Define_Integer_Constant(DES_EDE3_OFB);
+  Define_Integer_Constant(DES_CBC);
+  Define_Integer_Constant(DES_EDE_CBC);
+  Define_Integer_Constant(DES_EDE3_CBC);
+  Define_Integer_Constant(DESX_CBC);
 #endif
 #ifndef OPENSSL_NO_RC4
-  PyModule_AddIntConstant(m, "RC4",                       RC4);
-  PyModule_AddIntConstant(m, "RC4_40",                    RC4_40);
+  Define_Integer_Constant(RC4);
+  Define_Integer_Constant(RC4_40);
 #endif
 #ifndef OPENSSL_NO_IDEA
-  PyModule_AddIntConstant(m, "IDEA_ECB",                  IDEA_ECB);
-  PyModule_AddIntConstant(m, "IDEA_CFB",                  IDEA_CFB);
-  PyModule_AddIntConstant(m, "IDEA_OFB",                  IDEA_OFB);
-  PyModule_AddIntConstant(m, "IDEA_CBC",                  IDEA_CBC);
+  Define_Integer_Constant(IDEA_ECB);
+  Define_Integer_Constant(IDEA_CFB);
+  Define_Integer_Constant(IDEA_OFB);
+  Define_Integer_Constant(IDEA_CBC);
 #endif
 #ifndef OPENSSL_NO_RC2
-  PyModule_AddIntConstant(m, "RC2_ECB",                   RC2_ECB);
-  PyModule_AddIntConstant(m, "RC2_CBC",                   RC2_CBC);
-  PyModule_AddIntConstant(m, "RC2_40_CBC",                RC2_40_CBC);
-  PyModule_AddIntConstant(m, "RC2_CFB",                   RC2_CFB);
-  PyModule_AddIntConstant(m, "RC2_OFB",                   RC2_OFB);
+  Define_Integer_Constant(RC2_ECB);
+  Define_Integer_Constant(RC2_CBC);
+  Define_Integer_Constant(RC2_40_CBC);
+  Define_Integer_Constant(RC2_CFB);
+  Define_Integer_Constant(RC2_OFB);
 #endif
 #ifndef OPENSSL_NO_BF
-  PyModule_AddIntConstant(m, "BF_ECB",                    BF_ECB);
-  PyModule_AddIntConstant(m, "BF_CBC",                    BF_CBC);
-  PyModule_AddIntConstant(m, "BF_CFB",                    BF_CFB);
-  PyModule_AddIntConstant(m, "BF_OFB",                    BF_OFB);
+  Define_Integer_Constant(BF_ECB);
+  Define_Integer_Constant(BF_CBC);
+  Define_Integer_Constant(BF_CFB);
+  Define_Integer_Constant(BF_OFB);
 #endif
-  PyModule_AddIntConstant(m, "CAST5_ECB",                 CAST5_ECB);
-  PyModule_AddIntConstant(m, "CAST5_CBC",                 CAST5_CBC);
-  PyModule_AddIntConstant(m, "CAST5_CFB",                 CAST5_CFB);
-  PyModule_AddIntConstant(m, "CAST5_OFB",                 CAST5_OFB);
+  Define_Integer_Constant(CAST5_ECB);
+  Define_Integer_Constant(CAST5_CBC);
+  Define_Integer_Constant(CAST5_CFB);
+  Define_Integer_Constant(CAST5_OFB);
 #ifndef OPENSSL_NO_RC5
-  PyModule_AddIntConstant(m, "RC5_32_12_16_CBC",          RC5_32_12_16_CBC);
-  PyModule_AddIntConstant(m, "RC5_32_12_16_CFB",          RC5_32_12_16_CFB);
-  PyModule_AddIntConstant(m, "RC5_32_12_16_ECB",          RC5_32_12_16_ECB);
-  PyModule_AddIntConstant(m, "RC5_32_12_16_OFB",          RC5_32_12_16_OFB);
+  Define_Integer_Constant(RC5_32_12_16_CBC);
+  Define_Integer_Constant(RC5_32_12_16_CFB);
+  Define_Integer_Constant(RC5_32_12_16_ECB);
+  Define_Integer_Constant(RC5_32_12_16_OFB);
 #endif
 
   // message digests
-  PyModule_AddIntConstant(m, "MD2_DIGEST",                MD2_DIGEST);
-  PyModule_AddIntConstant(m, "MD5_DIGEST",                MD5_DIGEST);
-  PyModule_AddIntConstant(m, "SHA_DIGEST",                SHA_DIGEST);
-  PyModule_AddIntConstant(m, "SHA1_DIGEST",               SHA1_DIGEST);
-  PyModule_AddIntConstant(m, "RIPEMD160_DIGEST",          RIPEMD160_DIGEST);
-  PyModule_AddIntConstant(m, "SHA256_DIGEST",             SHA256_DIGEST);
-  PyModule_AddIntConstant(m, "SHA384_DIGEST",             SHA384_DIGEST);
-  PyModule_AddIntConstant(m, "SHA512_DIGEST",             SHA512_DIGEST);
+  Define_Integer_Constant(MD2_DIGEST);
+  Define_Integer_Constant(MD5_DIGEST);
+  Define_Integer_Constant(SHA_DIGEST);
+  Define_Integer_Constant(SHA1_DIGEST);
+  Define_Integer_Constant(RIPEMD160_DIGEST);
+  Define_Integer_Constant(SHA256_DIGEST);
+  Define_Integer_Constant(SHA384_DIGEST);
+  Define_Integer_Constant(SHA512_DIGEST);
 
   // general name
-  PyModule_AddIntConstant(m, "GEN_OTHERNAME",             GEN_OTHERNAME);
-  PyModule_AddIntConstant(m, "GEN_EMAIL",                 GEN_EMAIL);
-  PyModule_AddIntConstant(m, "GEN_DNS",                   GEN_DNS);
-  PyModule_AddIntConstant(m, "GEN_X400",                  GEN_X400);
-  PyModule_AddIntConstant(m, "GEN_DIRNAME",               GEN_DIRNAME);
-  PyModule_AddIntConstant(m, "GEN_EDIPARTY",              GEN_EDIPARTY);
-  PyModule_AddIntConstant(m, "GEN_URI",                   GEN_URI);
-  PyModule_AddIntConstant(m, "GEN_IPADD",                 GEN_IPADD);
-  PyModule_AddIntConstant(m, "GEN_RID",                   GEN_RID);
+  Define_Integer_Constant(GEN_OTHERNAME);
+  Define_Integer_Constant(GEN_EMAIL);
+  Define_Integer_Constant(GEN_DNS);
+  Define_Integer_Constant(GEN_X400);
+  Define_Integer_Constant(GEN_DIRNAME);
+  Define_Integer_Constant(GEN_EDIPARTY);
+  Define_Integer_Constant(GEN_URI);
+  Define_Integer_Constant(GEN_IPADD);
+  Define_Integer_Constant(GEN_RID);
 
   // CMS flags
-  PyModule_AddIntConstant(m, "CMS_NOCERTS",               CMS_NOCERTS);
-  PyModule_AddIntConstant(m, "CMS_NOATTR",                CMS_NOATTR);
-  PyModule_AddIntConstant(m, "CMS_NOINTERN",              CMS_NOINTERN);
-  PyModule_AddIntConstant(m, "CMS_NOCRL",                 CMS_NOCRL);
-  PyModule_AddIntConstant(m, "CMS_NO_SIGNER_CERT_VERIFY", CMS_NO_SIGNER_CERT_VERIFY);
-  PyModule_AddIntConstant(m, "CMS_NO_ATTR_VERIFY",        CMS_NO_ATTR_VERIFY);
-  PyModule_AddIntConstant(m, "CMS_NO_CONTENT_VERIFY",     CMS_NO_CONTENT_VERIFY);
+  Define_Integer_Constant(CMS_NOCERTS);
+  Define_Integer_Constant(CMS_NOATTR);
+  Define_Integer_Constant(CMS_NOINTERN);
+  Define_Integer_Constant(CMS_NOCRL);
+  Define_Integer_Constant(CMS_NO_SIGNER_CERT_VERIFY);
+  Define_Integer_Constant(CMS_NO_ATTR_VERIFY);
+  Define_Integer_Constant(CMS_NO_CONTENT_VERIFY);
+
+#undef Define_Integer_Constant
 
   // initialise library
   SSL_library_init();
@@ -8614,7 +8217,7 @@ init_POW(void)
   SSL_load_error_strings();
 
   if (PyErr_Occurred())
-    Py_FatalError("can't initialize module pow");
+    Py_FatalError("Can't initialize module POW");
 }
 /*==========================================================================*/
 

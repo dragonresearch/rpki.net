@@ -35,6 +35,7 @@ publication-schema.rng: publication-schema.rnc
 
 clean:
 	find . -type f -name '*.pyc' -delete
+	rm -rf testbed.dir
 
 install:
 	@true

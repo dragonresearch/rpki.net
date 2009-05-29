@@ -325,13 +325,13 @@ typedef struct {
 
 #define lose_openssl_error(_msg_)                                       \
   do {                                                                  \
-    set_openssl_pyerror((_msg_));                                       \
+    set_openssl_exception(ErrorObject, (_msg_));                        \
     goto error;                                                         \
   } while (0)
 
 #define lose_ssl_error(_self_, _code_)                                  \
   do {                                                                  \
-    set_openssl_sslerror(_self_, _code_);                               \
+    set_openssl_ssl_exception(_self_, _code_);                          \
     goto error;                                                         \
   } while (0)
 
@@ -437,9 +437,55 @@ evp_cipher_factory(int cipher_type)
   }
 }
 
+/*
+ * Raise an exception with data pulled from the OpenSSL error stack.
+ * Exception value is a tuple with some internal structure.  If a
+ * string error message is supplied, that string is the first element
+ * of the exception value tuple.  Remainder of exception value tuple
+ * is zero or more tuples, each representing one error from the stack.
+ * Each error tuple contains six slots:
+ * - the numeric error code
+ * - string translation of numeric error code ("reason")
+ * - name of library in which error occurred
+ * - name of function in which error occurred
+ * - name of file in which error occurred
+ * - line number in file where error occurred
+ */
 
 static void
-set_openssl_sslerror(const ssl_object *self, const int code)
+set_openssl_exception(PyObject *error_class, const char *msg)
+{
+  PyObject *errors;
+  unsigned long err;
+  const char *file;
+  int line;
+
+  errors = PyList_New(0);
+
+  if (msg) {
+    PyObject *s = Py_BuildValue("s", msg);
+    PyList_Append(errors, s);
+    Py_DECREF(s);
+  }
+
+  while ((err = ERR_get_error_line(&file, &line)) != 0) {
+    PyObject *t = Py_BuildValue("(issssi)",
+                                err,
+                                ERR_reason_error_string(err),
+                                ERR_lib_error_string(err),
+                                ERR_func_error_string(err),
+                                file,
+                                line);
+    PyList_Append(errors, t);
+    Py_DECREF(t);
+  }
+
+  PyErr_SetObject(error_class, PyList_AsTuple(errors));
+  Py_DECREF(errors);
+}
+
+static void
+set_openssl_ssl_exception(const ssl_object *self, const int code)
 {
   int err = SSL_get_error(self->ssl, code);
   const char *s = NULL;
@@ -461,15 +507,23 @@ set_openssl_sslerror(const ssl_object *self, const int code)
     break;
 
     /*
-     * These two might need special handling later, to examine errno
-     * or OpenSSL error stack; for now, treat like other SSL errors.
+     * Generic OpenSSL error, or system call error.  What a mess.
      */
 
   case SSL_ERROR_SYSCALL:
-    s = "SSL_ERROR_SYSCALL";
+    if (ERR_peek_error())
+      set_openssl_exception(SSLErrorObject, NULL);
+    else
+      PyErr_SetFromErrno(SSLErrorObject);
     break;
+
+    /*
+     * Generic OpenSSL error that occurred during an SSL call.
+     * I think.
+     */
+
   case SSL_ERROR_SSL:
-    s = "SSL_ERROR_SSL";
+    set_openssl_exception(SSLErrorObject, NULL);
     break;
 
     /*
@@ -643,39 +697,6 @@ X509_object_helper_get_name(X509_NAME *name, int format)
   Py_XDECREF(py_value);
   Py_XDECREF(result_list);
   return NULL;
-}
-
-static void
-set_openssl_pyerror(const char *msg)
-{
-  char *buf = NULL;
-  BIO *bio = NULL;
-  int len;
-
-  if ((bio = BIO_new(BIO_s_mem())) == NULL)
-    goto error;
-
-  BIO_puts(bio, msg);
-  BIO_puts(bio, ":\n");
-  ERR_print_errors(bio);
-
-  if ((len = BIO_ctrl_pending(bio)) == 0)
-    goto error;
-  if ((buf = malloc(len + 1)) == NULL)
-    goto error;
-  if (BIO_read(bio, buf, len) != len)
-    goto error;
-  buf[len] = '\0';
-
-  PyErr_SetString(ErrorObject, buf);
-
-  /* fall through */
- error:
-
-  if (bio)
-    BIO_free(bio);
-  if (buf)
-    free(buf);
 }
 
 static STACK_OF(X509) *
@@ -3918,7 +3939,7 @@ ssl_object_add_certificate(ssl_object *self, PyObject *args)
     lose("could not duplicate X509 object");
 
   if (!SSL_CTX_add_extra_chain_cert(self->ctx, x))
-    lose_openssl_error("could not add certificate");
+    lose_openssl_error("Could not add certificate");
 
   x = NULL;
 
@@ -6553,7 +6574,7 @@ CMS_object_sign(cms_object *self, PyObject *args)
   assert_no_unhandled_openssl_errors();
 
   if ((pkey = EVP_PKEY_new()) == NULL)
-    lose_openssl_error("could not allocate memory");
+    lose_openssl_error("Could not allocate memory");
 
   assert_no_unhandled_openssl_errors();
 
@@ -6568,12 +6589,12 @@ CMS_object_sign(cms_object *self, PyObject *args)
   assert_no_unhandled_openssl_errors();
 
   if (oid && (econtent_type = OBJ_txt2obj(oid, 0)) == NULL)
-    lose_openssl_error("could not parse OID");
+    lose_openssl_error("Could not parse OID");
 
   assert_no_unhandled_openssl_errors();
 
   if ((cms = CMS_sign(NULL, NULL, x509_stack, bio, flags)) == NULL)
-    lose_openssl_error("could not create CMS message");
+    lose_openssl_error("Could not create CMS message");
 
   assert_no_unhandled_openssl_errors();
 
@@ -6583,7 +6604,7 @@ CMS_object_sign(cms_object *self, PyObject *args)
   assert_no_unhandled_openssl_errors();
 
   if (!CMS_add1_signer(cms, signcert->x509, pkey, EVP_sha256(), flags))
-    lose_openssl_error("could not sign CMS message");
+    lose_openssl_error("Could not sign CMS message");
 
   pkey = NULL;                 /* CMS_add1_signer() now owns pkey */
 
@@ -6608,7 +6629,7 @@ CMS_object_sign(cms_object *self, PyObject *args)
         lose("CRL object with null crl field!");
 
       if (!CMS_add1_crl(cms, crlobj->crl))
-        lose_openssl_error("could not add CRL to CMS");
+        lose_openssl_error("Could not add CRL to CMS");
 
       assert_no_unhandled_openssl_errors();
 
@@ -6618,7 +6639,7 @@ CMS_object_sign(cms_object *self, PyObject *args)
   }
 
   if (!CMS_final(cms, bio, NULL, flags))
-    lose_openssl_error("could not finalize CMS signatures");
+    lose_openssl_error("Could not finalize CMS signatures");
 
   assert_no_unhandled_openssl_errors();
 
@@ -6706,7 +6727,7 @@ CMS_object_verify(cms_object *self, PyObject *args)
   assert_no_unhandled_openssl_errors();
 
   if (CMS_verify(self->cms, certs_stack, store->store, NULL, bio, flags) <= 0)
-    lose_openssl_error("could not verify CMS message");
+    lose_openssl_error("Could not verify CMS message");
 
   assert_no_unhandled_openssl_errors();
 

@@ -2421,7 +2421,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
 	}
 
 	if (memcmp(a_max, b_max, length) >= 0) {
-	  sk_IPAddressOrRange_delete(aors, j + 1);
+	  (void) sk_IPAddressOrRange_delete(aors, j + 1);
 	  IPAddressOrRange_free(b);
 	  --j;
 	}

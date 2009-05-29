@@ -627,7 +627,10 @@ class RSA(DER_object):
 
   @classmethod
   def generate(cls, keylength = 2048):
-    """Generate a new keypair."""
+    """
+    Generate a new keypair.
+    """
+    rpki.log.debug("Generating new %d-bit RSA key" % keylength)
     return cls(POW = POW.Asymmetric(POW.RSA_CIPHER, keylength))
 
   def get_public_DER(self):

@@ -4650,6 +4650,8 @@ static char ssl_object_set_verify_mode__doc__[] =
 "      <simplelist>\n"
 "         <member><constant>SSL_VERIFY_NONE</constant></member>\n"
 "         <member><constant>SSL_VERIFY_PEER</constant></member>\n"
+"         <member><constant>SSL_VERIFY_PEER</constant> |\n"
+"                 <constant>SSL_VERIFY_FAIL_IF_NO_PEER_CERT</constant></member>\n"
 "      </simplelist>\n"
 "      <para>\n"
 "         See the OpenSSL man page <function>SSL_CTX_set_verify</function>\n"
@@ -8113,6 +8115,8 @@ init_POW(void)
   // ssl verification mode
   Define_Integer_Constant(SSL_VERIFY_NONE);
   Define_Integer_Constant(SSL_VERIFY_PEER);
+  Define_Integer_Constant(SSL_VERIFY_FAIL_IF_NO_PEER_CERT);
+  Define_Integer_Constant(SSL_VERIFY_CLIENT_ONCE);
 
   // object format types
   Define_Integer_Constant(LONGNAME_FORMAT);

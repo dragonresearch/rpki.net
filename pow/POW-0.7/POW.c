@@ -4133,7 +4133,7 @@ static char ssl_object_accept__doc__[] =
 static PyObject *
 ssl_object_accept(ssl_object *self, PyObject *args)
 {
-  int ret = 0, err = 0;
+  int ret = 0;
 
   if (!PyArg_ParseTuple(args, ""))
     goto error;
@@ -4188,7 +4188,7 @@ static char ssl_object_connect__doc__[] =
 static PyObject *
 ssl_object_connect(ssl_object *self, PyObject *args)
 {
-  int ret, err = 0;
+  int ret;
 
   if (!PyArg_ParseTuple(args, ""))
     goto error;
@@ -4229,7 +4229,7 @@ static PyObject *
 ssl_object_write(ssl_object *self, PyObject *args)
 {
   char *msg;
-  int length = 0, ret = 0, err = 0;
+  int length = 0, ret = 0;
 
   if (!PyArg_ParseTuple(args, "s#", &msg, &length))
     goto error;
@@ -4271,7 +4271,7 @@ ssl_object_read(ssl_object *self, PyObject *args)
 {
   PyObject *data;
   char *msg = NULL;
-  int len = 1024, ret = 0, err = 0;
+  int len = 1024, ret = 0;
 
   if (!PyArg_ParseTuple(args, "|i", &len))
     goto error;
@@ -4410,7 +4410,7 @@ static char ssl_object_shutdown__doc__[] =
 static PyObject *
 ssl_object_shutdown(ssl_object *self, PyObject *args)
 {
-  int ret = 0, err = 0;
+  int ret = 0;
 
   if (!PyArg_ParseTuple(args, ""))
     goto error;
@@ -8052,7 +8052,7 @@ static struct PyMethodDef pow_module_methods[] = {
 void
 init_POW(void)
 {
-  PyObject *m, *d;
+  PyObject *m;
 
   x509type.ob_type         = &PyType_Type;
   x509_storetype.ob_type   = &PyType_Type;

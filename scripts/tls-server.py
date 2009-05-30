@@ -32,7 +32,9 @@ ssl.trustCertificate(ta)
 ssl.setFd(s.fileno())
 ssl.accept()
 
-# POW.SSLError: ('SSL routines', 'SSL3_GET_CLIENT_HELLO', 'no shared cipher', 336109761, 's3_srvr.c', 1135)
+peer = ssl.peerCertificate()
+if peer is not None:
+  print peer.pprint()
 
 ssl.write("Hello, TLS")
 print ssl.read(100)

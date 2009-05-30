@@ -19,5 +19,9 @@ ssl.trustCertificate(ta)
 ssl.setFd(s.fileno())
 ssl.connect()
 
+peer = ssl.peerCertificate()
+if peer is not None:
+  print peer.pprint()
+
 print ssl.read(100)
 ssl.write("Bye")

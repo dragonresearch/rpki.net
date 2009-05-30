@@ -4680,9 +4680,9 @@ ssl_object_get_cipher(ssl_object *self, PyObject *args)
   return NULL;
 }
 
-static int stub_callback(int preverify_ok, X509_STORE_CTX *ctx)
+static int stub_callback(int ok, X509_STORE_CTX *ctx)
 {
-  return 1;
+  return ok;
 }
 
 static char ssl_object_set_verify_mode__doc__[] =

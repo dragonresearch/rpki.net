@@ -4009,7 +4009,7 @@ ssl_object_use_key(ssl_object *self, PyObject *args)
   if (asym->key_type != RSA_PRIVATE_KEY)
     lose("cannot use this type of key");
 
-  if (!EVP_PKEY_assign_RSA(pkey, asym->cipher))
+  if (!EVP_PKEY_set1_RSA(pkey, asym->cipher))
     lose("EVP_PKEY assignment error");
 
   if (!SSL_CTX_use_PrivateKey(self->ctx, pkey))

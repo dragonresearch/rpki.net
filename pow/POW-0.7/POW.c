@@ -4078,6 +4078,21 @@ ssl_object_set_fd(ssl_object *self, PyObject *args)
   return NULL;
 }
 
+static char ssl_object_fileno__doc__[] =
+"<method>\n"
+"   <header>\n"
+"      <memberof>Ssl</memberof>\n"
+"      <name>fileno</name>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This function is used to extract the file descriptor associated\n"
+"         with a <classname>Ssl</classname> object.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
 static PyObject *
 ssl_object_fileno(ssl_object *self, PyObject *args)
 {
@@ -7911,6 +7926,7 @@ pow_module_docset(PyObject *self, PyObject *args)
   // ssl documentation
   docset_helper_add(docset, ssltype__doc__);
   docset_helper_add(docset, ssl_object_set_fd__doc__);
+  docset_helper_add(docset, ssl_object_fileno__doc__);
   docset_helper_add(docset, ssl_object_accept__doc__);
   docset_helper_add(docset, ssl_object_connect__doc__);
   docset_helper_add(docset, ssl_object_write__doc__);

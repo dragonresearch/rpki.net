@@ -38,6 +38,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import time, socket, asyncore, asynchat, traceback, urlparse
 import rpki.async, rpki.sundial, rpki.x509, rpki.exceptions, rpki.log
+import POW
 
 import os
 if os.getlogin() != "sra":
@@ -184,10 +185,14 @@ class http_stream(asynchat.async_chat):
   idle_timeout = idle_timeout_default
   active_timeout = active_timeout_default
 
-  def __init__(self, conn = None):
+  def __init__(self, conn = None, cert = None, key = None, ta = None, dynamic_ta = None):
     asynchat.async_chat.__init__(self, conn = conn)
     self.buffer = []
     self.timer = rpki.async.timer(self.handle_timeout)
+    self.cert = cert
+    self.key = key
+    self.ta = ta
+    self.dynamic_ta = dynamic_ta
     self.restart()
 
   def restart(self, idle = True):
@@ -287,10 +292,10 @@ class http_server(http_stream):
 
   parse_type = http_request
 
-  def __init__(self, conn, handlers):
+  def __init__(self, conn, handlers, cert = None, key = None, ta = None, dynamic_ta = None):
     self.log("Starting")
     self.handlers = handlers
-    http_stream.__init__(self, conn)
+    http_stream.__init__(self, conn = conn, cert = cert, key = key, ta = ta, dynamic_ta = dynamic_ta)
     self.expect_close = not want_persistent_server
 
   def handle_no_content_length(self):
@@ -352,9 +357,13 @@ class http_listener(asyncore.dispatcher):
 
   log = logger
 
-  def __init__(self, handlers, port = 80, host = ""):
+  def __init__(self, handlers, port = 80, host = "", cert = None, key = None, ta = None, dynamic_ta = None):
     asyncore.dispatcher.__init__(self)
     self.handlers = handlers
+    self.cert = cert
+    self.key = key
+    self.ta = ta
+    self.dynamic_ta = dynamic_ta
     try:
       self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
       self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -370,7 +379,7 @@ class http_listener(asyncore.dispatcher):
   def handle_accept(self):
     self.log("Accepting connection")
     try:
-      http_server(conn = self.accept()[0], handlers = self.handlers)
+      http_server(conn = self.accept()[0], handlers = self.handlers, cert = self.cert, key = self.key, ta = self.ta, dynamic_ta = self.dynamic_ta)
     except rpki.async.ExitNow:
       raise
     except:
@@ -384,9 +393,9 @@ class http_client(http_stream):
 
   parse_type = http_response
 
-  def __init__(self, queue, hostport):
+  def __init__(self, queue, hostport, cert = None, key = None, ta = None, dynamic_ta = None):
     self.log("Creating new connection to %s" % repr(hostport))
-    http_stream.__init__(self)
+    http_stream.__init__(self, cert = cert, key = key, ta = ta, dynamic_ta = dynamic_ta)
     self.queue = queue
     self.hostport = hostport
     self.state = "opening"
@@ -479,11 +488,15 @@ class http_queue(object):
 
   log = logger
 
-  def __init__(self, hostport):
+  def __init__(self, hostport, cert = None, key = None, ta = None, dynamic_ta = None):
     self.log("Creating queue for %s" % repr(hostport))
     self.hostport = hostport
     self.client = None
     self.queue = []
+    self.cert = cert
+    self.key = key
+    self.ta = ta
+    self.dynamic_ta = dynamic_ta
 
   def request(self, *requests):
     self.log("Adding requests %r" % requests)
@@ -491,7 +504,7 @@ class http_queue(object):
 
   def restart(self):
     if self.client is None:
-      client = http_client(self, self.hostport)
+      client = http_client(self, self.hostport, cert = self.cert, key = self.key, ta = self.ta, dynamic_ta = self.dynamic_ta)
       self.log("Attaching client %r" % client)
       self.client = client
       self.client.start()
@@ -534,8 +547,7 @@ class http_queue(object):
     if self.queue:
       self.restart()
 
-
-queues = {}
+client_queues = {}
 
 def client(msg, client_key, client_cert, server_ta, url, callback, errback):
   """
@@ -571,16 +583,16 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback):
 
   if debug:
     rpki.log.debug("Created request %r for %r" % (request, hostport))
-  if hostport not in queues:
-    queues[hostport] = http_queue(hostport)
-  queues[hostport].request(request)
+  if hostport not in client_queues:
+    client_queues[hostport] = http_queue(hostport)
+  client_queues[hostport].request(request)
 
   # Defer connection attempt until after we've had time to process any
   # pending I/O events, in case connections have closed.
 
   if debug:
     rpki.log.debug("Scheduling connection startup for %r" % request)
-  rpki.async.timer(queues[hostport].restart, errback).set(None)
+  rpki.async.timer(client_queues[hostport].restart, errback).set(None)
 
 def server(handlers, server_key, server_cert, port, host ="", client_ta = None, dynamic_https_trust_anchor = None):
   """
@@ -596,3 +608,13 @@ def server(handlers, server_key, server_cert, port, host ="", client_ta = None, 
   http_listener(port = port, handlers = handlers)
   rpki.async.event_loop()
 
+def build_https_ta_cache(certs):
+  """
+  Package up a collection of certificates into a form suitable for use
+  as a dynamic HTTPS trust anchor set.  Precise format of this
+  collection is an internal conspiracy within the rpki.https module;
+  at one point it was a POW.X509Store object, at the moment it's a
+  Python set, what it will be tomorow is nobody else's business.
+  """
+
+  return set(certs)

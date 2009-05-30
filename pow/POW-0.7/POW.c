@@ -3953,6 +3953,26 @@ ssl_object_add_certificate(ssl_object *self, PyObject *args)
   return NULL;
 }
 
+static PyObject *
+ssl_object_trust_certificate(ssl_object *self, PyObject *args)
+{
+  x509_object *x509 = NULL;
+
+  if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
+    goto error;
+
+  if (self->ctxset)
+    lose("cannot be called after setFd()");
+
+  X509_STORE_add_cert(SSL_CTX_get_cert_store(self->ctx), x509->x509);
+
+  return Py_BuildValue("");
+
+ error:
+
+  return NULL;
+}
+
 static char ssl_object_use_key__doc__[] =
 "<method>\n"
 "   <header>\n"
@@ -4716,6 +4736,7 @@ ssl_object_set_verify_mode(ssl_object *self, PyObject *args)
 static struct PyMethodDef ssl_object_methods[] = {
   {"useCertificate",   (PyCFunction)ssl_object_use_certificate,  METH_VARARGS,  NULL},
   {"addCertificate",   (PyCFunction)ssl_object_add_certificate,  METH_VARARGS,  NULL},
+  {"trustCertificate", (PyCFunction)ssl_object_trust_certificate,METH_VARARGS,  NULL},
   {"useKey",           (PyCFunction)ssl_object_use_key,          METH_VARARGS,  NULL},
   {"checkKey",         (PyCFunction)ssl_object_check_key,        METH_VARARGS,  NULL},
   {"setFd",            (PyCFunction)ssl_object_set_fd,           METH_VARARGS,  NULL},

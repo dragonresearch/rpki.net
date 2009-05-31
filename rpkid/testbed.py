@@ -287,7 +287,7 @@ def main():
 
   except:
 
-    rpki.log.inf9("Event loop exited with an exception")
+    rpki.log.info("Event loop exited with an exception")
     raise
 
   finally:

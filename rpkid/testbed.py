@@ -198,7 +198,7 @@ def main():
     a.setup_bpki_certs()
 
   setup_publication(pubd_sql)
-  setup_rootd(db.root.name, "SELF", y.get("rootd", {}))
+  setup_rootd(db.root, y.get("rootd", {}))
   setup_rsyncd()
   setup_rcynic()
 
@@ -1108,6 +1108,7 @@ def setup_bpki_cert_chain(name, ee = (), ca = ()):
   Build a set of BPKI certificates.
   """
   s = "exec >/dev/null 2>&1\n"
+  #s = "set -x\n"
   for kind in ("TA",) + ee + ca:
     d = { "name"    : name,
           "kind"    : kind,
@@ -1129,15 +1130,15 @@ def setup_bpki_cert_chain(name, ee = (), ca = ()):
     s += bpki_cert_fmt_6 % d
   subprocess.check_call(s, shell = True)
 
-def setup_rootd(rpkid_name, rpkid_tag, rootd_yaml):
+def setup_rootd(rpkid, rootd_yaml):
   """
   Write the config files for rootd.
   """
+  rpkid.cross_certify(rootd_name + "-TA", reverse = True)
   rpki.log.info("Writing config files for %s" % rootd_name)
   d = { "rootd_name" : rootd_name,
         "rootd_port" : rootd_port,
-        "rpkid_name" : rpkid_name,
-        "rpkid_tag"  : rpkid_tag,
+        "rpkid_name" : rpkid.name,
         "rootd_sia"  : rootd_sia,
         "rsyncd_dir" : rsyncd_dir,
         "openssl"    : prog_openssl,
@@ -1146,6 +1147,7 @@ def setup_rootd(rpkid_name, rpkid_tag, rootd_yaml):
   f.write(rootd_fmt_1 % d)
   f.close()
   s = "exec >/dev/null 2>&1\n"
+  #s = "set -x\n"
   if not os.path.exists(rootd_name + ".key"):
     s += rootd_fmt_2 % d
   s += rootd_fmt_3 % d
@@ -1417,7 +1419,7 @@ bpki-ta                 = %(rootd_name)s-TA.cer
 rootd-bpki-cert         = %(rootd_name)s-RPKI.cer
 rootd-bpki-key          = %(rootd_name)s-RPKI.key
 rootd-bpki-crl          = %(rootd_name)s-TA.crl
-child-bpki-cert         = %(rootd_name)s-%(rpkid_name)s.cer
+child-bpki-cert         = %(rootd_name)s-TA-%(rpkid_name)s-SELF.cer
 
 server-port             = %(rootd_port)s
 
@@ -1478,8 +1480,6 @@ rootd_fmt_3 = '''\
 %(openssl)s x509 -req -sha256 -in %(rootd_name)s.req -out %(rootd_name)s.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_rpki_ext \
                       -signkey %(rootd_name)s.key &&
 ln -f %(rootd_name)s.cer  %(rsyncd_dir)s &&
-%(openssl)s x509 -req -sha256 -in %(rpkid_name)s-%(rpkid_tag)s.req -out %(rootd_name)s-%(rpkid_name)s.cer -extfile %(rootd_name)s.conf -extensions req_x509_ext -text \
-                      -CA %(rootd_name)s-TA.cer -CAkey %(rootd_name)s-TA.key -CAcreateserial
 '''
 
 rcynic_fmt_1 = '''\

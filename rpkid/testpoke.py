@@ -102,16 +102,18 @@ def query_up_down(q_pdu):
     print r_xml
     try:
       r_msg.payload.check_response()
-    except rpki.async.ExitNow:
+    except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, edata:
       fail(edata)
-    rpki.async.exit_event_loop()
+    #rpki.async.exit_event_loop()
+
+  rpki.https.want_persistent_client = False
 
   rpki.https.client(
     server_ta    = [https_ta] + https_ca_certs,
     client_key   = https_key,
-    client_cert  = https_certs,
+    client_cert  = https_cert,
     msg          = q_cms,
     url          = yaml_data["posturl"],
     callback     = done,
@@ -152,7 +154,6 @@ cms_ca_certs   = get_PEM_chain("cms-ca-certs")
 https_ta       = get_PEM("ssl-ca-cert", rpki.x509.X509)
 https_key      = get_PEM("ssl-key", rpki.x509.RSA)
 https_cert     = get_PEM("ssl-cert", rpki.x509.X509)
-https_certs    = get_PEM_chain("ssl-cert-chain", https_cert)
 https_ca_certs = get_PEM_chain("ssl-ca-certs")
 
 try:

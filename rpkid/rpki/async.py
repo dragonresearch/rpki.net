@@ -49,7 +49,7 @@ class iterator(object):
     #rpki.log.debug("Created iterator id %s file %s line %s function %s" % (id(self), self.caller_file, self.caller_line, self.caller_function))
     try:
       self.iterator = iter(iterable)
-    except ExitNow:
+    except (ExitNow, SystemExit):
       raise
     except:
       rpki.log.debug("Problem constructing iterator for %s" % repr(iterable))
@@ -172,7 +172,7 @@ class timer(object):
       t = cls.queue.pop(0)
       try:
         t.handler()
-      except ExitNow:
+      except (ExitNow, SystemExit):
         raise
       except Exception, e:
         t.errback(e)

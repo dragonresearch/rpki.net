@@ -611,7 +611,7 @@ class child_elt(data_elt):
 
     try:
       q_msg.serve_top_level(self, done)
-    except rpki.async.ExitNow:
+    except (rpki.async.ExitNow, SystemExit):
       raise
     except rpki.exceptions.NoActiveCA, data:
       done(q_msg.serve_error(data))
@@ -658,7 +658,7 @@ class repository_elt(data_elt):
         if len(r_msg) != 1 or isinstance(r_msg[0], rpki.publication.report_error_elt):
           raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %s" % msg
         callback()
-      except rpki.async.ExitNow:
+      except (rpki.async.ExitNow, SystemExit):
         raise
       except Exception, edata:
         errback(edata)
@@ -1044,7 +1044,7 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
       try:
         q_pdu.gctx = gctx
         q_pdu.serve_dispatch(r_msg, iterator, fail)
-      except rpki.async.ExitNow:
+      except (rpki.async.ExitNow, SystemExit):
         raise
       except Exception, edata:
         fail(edata)

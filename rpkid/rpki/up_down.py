@@ -625,7 +625,7 @@ class message_pdu(base_elt):
 
     try:
       self.payload.serve_pdu(self, r_msg, child, done, lose)
-    except rpki.async.ExitNow:
+    except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, edata:
       lose(edata)

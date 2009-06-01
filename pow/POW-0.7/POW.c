@@ -211,7 +211,12 @@ static PyObject
   *SSLErrorObject,
   *ZeroReturnErrorObject,
   *WantReadErrorObject,
-  *WantWriteErrorObject;
+  *WantWriteErrorObject,
+  *SSLSyscallErrorObject,
+  *SSLErrorSSLErrorObject,
+  *SSLSyscallSSLErrorObject,
+  *SSLUnexpectedEOFErrorObject,
+  *SSLOtherErrorObject;
 
 static PyTypeObject
   x509type,
@@ -485,9 +490,9 @@ set_openssl_exception(PyObject *error_class, const char *msg)
 }
 
 static void
-set_openssl_ssl_exception(const ssl_object *self, const int code)
+set_openssl_ssl_exception(const ssl_object *self, const int ret)
 {
-  int err = SSL_get_error(self->ssl, code);
+  int err = SSL_get_error(self->ssl, ret);
   const char *s = NULL;
 
   switch(err) {
@@ -506,24 +511,24 @@ set_openssl_ssl_exception(const ssl_object *self, const int code)
     PyErr_SetNone(WantWriteErrorObject);
     break;
 
-    /*
-     * Generic OpenSSL error, or system call error.  What a mess.
-     */
-
   case SSL_ERROR_SYSCALL:
+    /*
+     * Horrible jumbled mess of I/O related errors.  I'd ask what they
+     * were thinking, except that it's pretty clear that they weren't.
+     */
     if (ERR_peek_error())
-      set_openssl_exception(SSLErrorObject, NULL);
+      set_openssl_exception(SSLSyscallSSLErrorObject, NULL);
+    else if (ret)
+      PyErr_SetFromErrno(SSLSyscallErrorObject);
     else
-      PyErr_SetFromErrno(SSLErrorObject);
+      PyErr_SetNone(SSLUnexpectedEOFErrorObject);
     break;
 
-    /*
-     * Generic OpenSSL error that occurred during an SSL call.
-     * I think.
-     */
-
   case SSL_ERROR_SSL:
-    set_openssl_exception(SSLErrorObject, NULL);
+    /*
+     * Generic OpenSSL error during an SSL call.  I think.
+     */
+    set_openssl_exception(SSLErrorSSLErrorObject, NULL);
     break;
 
     /*
@@ -547,7 +552,7 @@ set_openssl_ssl_exception(const ssl_object *self, const int code)
   }
 
   if (s)
-    PyErr_SetObject(SSLErrorObject, Py_BuildValue("(is)", err, s));
+    PyErr_SetObject(SSLOtherErrorObject, Py_BuildValue("(is)", err, s));
 }
 
 static PyObject *
@@ -4081,6 +4086,9 @@ ssl_object_set_fd(ssl_object *self, PyObject *args)
   if ((self->ssl = SSL_new(self->ctx)) == NULL)
     lose("Unable to create ssl structure");
 
+  SSL_set_mode(self->ssl, (SSL_MODE_ENABLE_PARTIAL_WRITE |
+                           SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER));
+
   if (!SSL_set_fd(self->ssl, fd))
     lose("Unable to set file descriptor");
 
@@ -4468,10 +4476,24 @@ ssl_object_shutdown(ssl_object *self, PyObject *args)
 
   ret = SSL_shutdown(self->ssl);
 
-  if (ret <= 0)
+  /*
+   * The original POW behavior here seems nuts to me.  SSL_shutdown()
+   * returns a tristate:
+   *
+   *  1: fully closed
+   *  0: close notification sent, waiting for peer
+   * -1: error, WANT_READ, or WANT_WRITE
+   *
+   * Doc claims the protocol allows us to bail on 0 return if we don't
+   * want to wait.  So the "obvious" thing to do here is return boolean
+   * for 1 or 0 and raise an exception for -1.  Original author's explanation
+   * for why he didn't do that makes no sense to me, so I've changed it.
+   */
+
+  if (ret < 0)
     lose_ssl_error(self, ret);
 
-  return Py_BuildValue("");
+  return Py_BuildValue("i", ret);
 
  error:
 
@@ -4682,6 +4704,41 @@ ssl_object_get_cipher(ssl_object *self, PyObject *args)
 
 static int stub_callback(int ok, X509_STORE_CTX *ctx)
 {
+
+#if 0
+#include <stdio.h>
+  if (!ok)
+    fprintf(stderr,
+            "Callback depth %d error %d cert %p issuer %p crl %p: %s\n",
+            ctx->error_depth,
+            ctx->error,
+            ctx->current_cert,
+            ctx->current_issuer,
+            ctx->current_crl,
+            X509_verify_cert_error_string(ctx->error));
+#endif
+
+#if 1
+  /*
+   * Ok, this is wrong, but...what I really want to do is bypass
+   * OpenSSL's baroque filesystem-based lookup system entirely, using
+   * X509_STORE_CTX_trusted_stack(), but that call operates on an
+   * X509_STORE_CTX, not an X509_STORE, which makes it, well, not
+   * impossible to drop in here, but requires a lot of busywork using
+   * SSL_CTX_set_cert_verify_callback() to replace the entire built-in
+   * validator.  I'll get to that eventually, but I have more urgent
+   * tasks today, so for now I'm kludging around an error that happens
+   * not to be dangerous given the way my application calls this code.
+   */
+
+#warning
+#warning    Clean up X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN override
+#warning
+
+  if (!ok && ctx->error_depth > 0 && ctx->error == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN)
+    ok = 1;
+#endif
+
   return ok;
 }
 
@@ -4770,7 +4827,7 @@ newssl_object(int type)
   self->ctxset = 0;
   self->ssl = NULL;
 
-  switch(type) {
+  switch (type) {
   case SSLV2_SERVER_METHOD:  method = SSLv2_server_method();   break;
   case SSLV2_CLIENT_METHOD:  method = SSLv2_client_method();   break;
   case SSLV2_METHOD:         method = SSLv2_method();          break;
@@ -8131,6 +8188,11 @@ init_POW(void)
   Define_Exception(ZeroReturnError,      SSLErrorObject);
   Define_Exception(WantReadError,        SSLErrorObject);
   Define_Exception(WantWriteError,       SSLErrorObject);
+  Define_Exception(SSLSyscallError,      SSLErrorObject);
+  Define_Exception(SSLErrorSSLError,     SSLErrorObject);
+  Define_Exception(SSLSyscallSSLError,   SSLErrorObject);
+  Define_Exception(SSLUnexpectedEOFError,SSLErrorObject);
+  Define_Exception(SSLOtherError,        SSLErrorObject);
 
 #undef Define_Exception
 

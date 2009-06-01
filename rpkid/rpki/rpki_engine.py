@@ -111,7 +111,7 @@ class rpkid_context(object):
       if q_msg.type != "query":
         raise rpki.exceptions.BadQuery, "Message type is not query"
       q_msg.serve_top_level(self, done)
-    except rpki.async.ExitNow:
+    except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, data:
       rpki.log.error(traceback.format_exc())
@@ -137,7 +137,7 @@ class rpkid_context(object):
       if child is None:
         raise rpki.exceptions.ChildNotFound, "Could not find child %s" % child_id
       child.serve_up_down(query, done)
-    except rpki.async.ExitNow:
+    except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, data:
       rpki.log.error(traceback.format_exc())

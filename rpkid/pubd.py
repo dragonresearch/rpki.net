@@ -87,7 +87,7 @@ class pubd_context(object):
     try:
       self.sql.ping()
       self.handler_common(query, None, done, (self.bpki_ta, self.irbe_cert))
-    except rpki.async.ExitNow:
+    except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, data:
       rpki.log.error(traceback.format_exc())
@@ -115,7 +115,7 @@ class pubd_context(object):
       if config is None or config.bpki_crl is None:
         raise rpki.exceptions.CMSCRLNotSet
       self.handler_common(query, client, done, (self.bpki_ta, client.bpki_cert, client.bpki_glue), config.bpki_crl)
-    except rpki.async.ExitNow:
+    except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, data:
       rpki.log.error(traceback.format_exc())

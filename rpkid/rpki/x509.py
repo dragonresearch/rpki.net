@@ -771,7 +771,7 @@ class CMS_object(DER_object):
 
     try:
       cms = self.get_POW()
-    except rpki.async.ExitNow:
+    except (rpki.async.ExitNow, SystemExit):
       raise
     except:
       if self.print_on_der_error:
@@ -825,7 +825,7 @@ class CMS_object(DER_object):
 
     try:
       content = cms.verify(store)
-    except rpki.async.ExitNow:
+    except (rpki.async.ExitNow, SystemExit):
       raise
     except:
       if self.dump_on_verify_failure:
@@ -854,7 +854,7 @@ class CMS_object(DER_object):
 
     try:
       cms = self.get_POW()
-    except rpki.async.ExitNow:
+    except (rpki.async.ExitNow, SystemExit):
       raise
     except:
       raise rpki.exceptions.UnparsableCMSDER

@@ -809,7 +809,9 @@ class allocation(object):
     else:
       subprocess.check_call(cmd)
 
-    return rpki.x509.X509(Auto_file = certfile)
+    x = rpki.x509.X509(Auto_file = certfile)
+    rpki.log.debug("Cross certified (%s) issuer %s [%s] subject %s [%s]" % (certfile, x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
+    return x
 
   def create_rpki_objects(self, cb):
     """
@@ -977,18 +979,25 @@ class allocation(object):
 
         if s.is_root():
           rootd_cert = s.cross_certify(rootd_name + "-TA")
-          pdus.append(rpki.left_right.parent_elt.make_pdu(action = "create", tag = str(i), self_id = s.self_id, bsc_id = s.bsc_id,
-                                                          repository_id = s.repository_id, sia_base = s.sia_base,
-                                                          bpki_cms_cert = rootd_cert, bpki_https_cert = rootd_cert, sender_name = s.name, recipient_name = "Walrus",
-                                                          peer_contact_uri = "https://localhost:%s/" % rootd_port))
+          pdus.append(rpki.left_right.parent_elt.make_pdu(
+            action = "create", tag = str(i), self_id = s.self_id, bsc_id = s.bsc_id, repository_id = s.repository_id,
+            sia_base = s.sia_base,
+            bpki_cms_cert = rootd_cert,
+            bpki_https_cert = rootd_cert,
+            sender_name = s.name,
+            recipient_name = "Walrus",
+            peer_contact_uri = "https://localhost:%s/" % rootd_port))
         else:
           parent_cms_cert = s.cross_certify(s.parent.name + "-SELF")
           parent_https_cert = s.cross_certify(s.parent.name + "-TA")
-          pdus.append(rpki.left_right.parent_elt.make_pdu(action = "create", tag = str(i), self_id = s.self_id, bsc_id = s.bsc_id,
-                                                          repository_id = s.repository_id, sia_base = s.sia_base,
-                                                          bpki_cms_cert = parent_cms_cert, bpki_https_cert = parent_https_cert,
-                                                          sender_name = s.name, recipient_name = s.parent.name,
-                                                          peer_contact_uri = "https://localhost:%s/up-down/%s" % (s.parent.get_rpki_port(), s.child_id)))
+          pdus.append(rpki.left_right.parent_elt.make_pdu(
+            action = "create", tag = str(i), self_id = s.self_id, bsc_id = s.bsc_id, repository_id = s.repository_id,
+            sia_base = s.sia_base,
+            bpki_cms_cert = parent_cms_cert,
+            bpki_https_cert = parent_https_cert,
+            sender_name = s.name,
+            recipient_name = s.parent.name,
+            peer_contact_uri = "https://localhost:%s/up-down/%s" % (s.parent.get_rpki_port(), s.child_id)))
 
       assert pdus, "%s has no parents, something is whacked" % self.name
 

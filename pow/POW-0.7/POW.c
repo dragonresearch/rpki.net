@@ -281,6 +281,7 @@ typedef struct {
   int ctxset;
   SSL *ssl;
   SSL_CTX *ctx;
+  STACK_OF(X509) *trusted_certs;
 } ssl_object;
 
 typedef struct {
@@ -707,30 +708,31 @@ X509_object_helper_get_name(X509_NAME *name, int format)
 static STACK_OF(X509) *
 x509_helper_sequence_to_stack(PyObject *x509_sequence)
 {
-  x509_object *tmpX509 = NULL;
+  x509_object *x509obj = NULL;
   STACK_OF(X509) *x509_stack = NULL;
   int size = 0, i = 0;
 
   if (x509_sequence != Py_None && !PyTuple_Check(x509_sequence) && !PyList_Check(x509_sequence))
-    lose_type_error("inapropriate type");
+    lose_type_error("Inapropriate type");
 
   if ((x509_stack = sk_X509_new_null()) == NULL)
-    lose("could not create new x509 stack");
+    lose("Couldn't create new X509 stack");
 
   if (x509_sequence != Py_None) {
     size = PySequence_Size(x509_sequence);
 
     for (i = 0; i < size; i++) {
-      if ((tmpX509 = (x509_object*)PySequence_GetItem(x509_sequence, i)) == NULL)
+      if ((x509obj = (x509_object*) PySequence_GetItem(x509_sequence, i)) == NULL)
         goto error;
 
-      if (!X_X509_Check(tmpX509))
-        lose_type_error("inapropriate type");
+      if (!X_X509_Check(x509obj))
+        lose_type_error("Inapropriate type");
 
-      if (!sk_X509_push(x509_stack, tmpX509->x509))
-        lose("could not add x509 to stack");
-      Py_DECREF(tmpX509);
-      tmpX509 = NULL;
+      if (!sk_X509_push(x509_stack, x509obj->x509))
+        lose("Couldn't add X509 object to stack");
+
+      Py_DECREF(x509obj);
+      x509obj = NULL;
     }
   }
 
@@ -738,10 +740,10 @@ x509_helper_sequence_to_stack(PyObject *x509_sequence)
 
  error:
 
-  if(x509_stack)
+  if (x509_stack)
     sk_X509_free(x509_stack);
 
-  Py_XDECREF(tmpX509);
+  Py_XDECREF(x509obj);
 
   return NULL;
 }
@@ -3959,21 +3961,35 @@ ssl_object_add_certificate(ssl_object *self, PyObject *args)
 }
 
 static PyObject *
-ssl_object_trust_certificate(ssl_object *self, PyObject *args)
+ssl_object_add_trust(ssl_object *self, PyObject *args)
 {
   x509_object *x509 = NULL;
+  X509 *x = NULL;
 
   if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
     goto error;
 
   if (self->ctxset)
-    lose("cannot be called after setFd()");
+    lose("Cannot be called after setFd()");
 
-  X509_STORE_add_cert(SSL_CTX_get_cert_store(self->ctx), x509->x509);
+  if (self->trusted_certs == NULL &&
+      (self->trusted_certs = sk_X509_new_null()) == NULL)
+    lose("Couldn't allocate trusted certificate stack");
+
+  if ((x = X509_dup(x509->x509)) == NULL)
+    lose("Couldn't duplicate X509 object");
+
+  if (!sk_X509_push(self->trusted_certs, x))
+    lose("Couldn't push cert onto trusted certificate stack");
+
+  x = NULL;
 
   return Py_BuildValue("");
 
  error:
+
+  if (x)
+    X509_free(x);
 
   return NULL;
 }
@@ -4702,41 +4718,54 @@ ssl_object_get_cipher(ssl_object *self, PyObject *args)
   return NULL;
 }
 
-static int stub_callback(int ok, X509_STORE_CTX *ctx)
+static int ssl_object_verify_callback(X509_STORE_CTX *ctx, void *arg)
 {
+  ssl_object *self = arg;
+  int ok;
+
+  if (self->trusted_certs)
+    X509_STORE_CTX_trusted_stack(ctx, self->trusted_certs);
+
+  ok = X509_verify_cert(ctx);
 
 #if 0
+
+#warning
+#warning    Nasty raw stderr debugging code enabled in ssl_object_verify_callback()
+#warning    Do not use this code in production
+#warning
+
 #include <stdio.h>
-  if (!ok)
+
+  if (self->trusted_certs) {
+    int i;
+    fprintf(stderr, "Trusted cert stack\n");
+    for (i = 0; i < sk_X509_num(self->trusted_certs); i++) {
+      X509 *x = sk_X509_value(self->trusted_certs, i);
+      fprintf(stderr, "[%d] ", i);
+      if (x)
+        X509_print_fp(stderr, x);
+      else
+        fprintf(stderr, "<NULL>!\n");
+    }
+  } else {
+    fprintf(stderr, "No trusted cert stack\n");
+  }
+
+  if (!ok) {
     fprintf(stderr,
-            "Callback depth %d error %d cert %p issuer %p crl %p: %s\n",
+            "\nX509_verify_cert() error: callback depth %d error %d cert %p issuer %p crl %p: %s\n",
             ctx->error_depth,
             ctx->error,
             ctx->current_cert,
             ctx->current_issuer,
             ctx->current_crl,
             X509_verify_cert_error_string(ctx->error));
-#endif
-
-#if 1
-  /*
-   * Ok, this is wrong, but...what I really want to do is bypass
-   * OpenSSL's baroque filesystem-based lookup system entirely, using
-   * X509_STORE_CTX_trusted_stack(), but that call operates on an
-   * X509_STORE_CTX, not an X509_STORE, which makes it, well, not
-   * impossible to drop in here, but requires a lot of busywork using
-   * SSL_CTX_set_cert_verify_callback() to replace the entire built-in
-   * validator.  I'll get to that eventually, but I have more urgent
-   * tasks today, so for now I'm kludging around an error that happens
-   * not to be dangerous given the way my application calls this code.
-   */
-
-#warning
-#warning    Clean up X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN override
-#warning
-
-  if (!ok && ctx->error_depth > 0 && ctx->error == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN)
-    ok = 1;
+    if (ctx->current_cert)
+      X509_print_fp(stderr, ctx->current_cert);
+    if (ctx->current_issuer)
+      X509_print_fp(stderr, ctx->current_issuer);
+  }
 #endif
 
   return ok;
@@ -4781,7 +4810,7 @@ ssl_object_set_verify_mode(ssl_object *self, PyObject *args)
   if (self->ctxset)
     lose("cannot be called after setfd()");
 
-  SSL_CTX_set_verify(self->ctx, mode, stub_callback);
+  SSL_CTX_set_verify(self->ctx, mode, NULL);
 
   return Py_BuildValue("");
 
@@ -4793,7 +4822,7 @@ ssl_object_set_verify_mode(ssl_object *self, PyObject *args)
 static struct PyMethodDef ssl_object_methods[] = {
   {"useCertificate",   (PyCFunction)ssl_object_use_certificate,  METH_VARARGS,  NULL},
   {"addCertificate",   (PyCFunction)ssl_object_add_certificate,  METH_VARARGS,  NULL},
-  {"trustCertificate", (PyCFunction)ssl_object_trust_certificate,METH_VARARGS,  NULL},
+  {"addTrust",         (PyCFunction)ssl_object_add_trust,        METH_VARARGS,  NULL},
   {"useKey",           (PyCFunction)ssl_object_use_key,          METH_VARARGS,  NULL},
   {"checkKey",         (PyCFunction)ssl_object_check_key,        METH_VARARGS,  NULL},
   {"setFd",            (PyCFunction)ssl_object_set_fd,           METH_VARARGS,  NULL},
@@ -4826,6 +4855,7 @@ newssl_object(int type)
 
   self->ctxset = 0;
   self->ssl = NULL;
+  self->trusted_certs = NULL;
 
   switch (type) {
   case SSLV2_SERVER_METHOD:  method = SSLv2_server_method();   break;
@@ -4843,11 +4873,12 @@ newssl_object(int type)
 
   default:
     lose("unknown ctx method");
-
   }
 
   if ((self->ctx = SSL_CTX_new(method)) == NULL)
     lose("unable to create new ctx");
+
+  SSL_CTX_set_cert_verify_callback(self->ctx, ssl_object_verify_callback, self);
 
   return self;
 
@@ -4868,6 +4899,8 @@ ssl_object_dealloc(ssl_object *self)
 {
   SSL_free(self->ssl);
   SSL_CTX_free(self->ctx);
+  if (self->trusted_certs)
+    sk_X509_pop_free(self->trusted_certs, X509_free);
   PyObject_Del(self);
 }
 

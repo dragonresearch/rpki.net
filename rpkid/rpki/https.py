@@ -353,6 +353,10 @@ class http_stream(asynchat.async_chat):
       except POW.WantWriteError:
         self.retry_write = self.close
 
+  def log_cert(self, tag, x):
+    if debug_tls_certs:
+      self.log("HTTPS %s cert %r issuer %s [%s] subject %s [%s]" % (tag, x, x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
+
 class http_server(http_stream):
 
   parse_type = http_request
@@ -366,8 +370,7 @@ class http_server(http_stream):
     self.log("cert %r key %r ta %r dynamic_ta %r" % (cert, key, ta, dynamic_ta))
 
     self.tls = POW.Ssl(POW.TLSV1_SERVER_METHOD)
-    if debug_tls_certs:
-      self.log("HTTPS server cert issuer %s [%s] subject %s [%s]" % (cert.getIssuer(), cert.hAKI(), cert.getSubject(), cert.hSKI()))
+    self.log_cert("server", cert)
     self.tls.useCertificate(cert.get_POW())
     self.tls.useKey(key.get_POW())
     ta = set(dynamic_ta() if dynamic_ta else ta)
@@ -375,9 +378,8 @@ class http_server(http_stream):
     if not ta:
       raise RuntimeError, "No trust anchor(s) specified, this is unlikely to work"
     for x in ta:
-      if debug_tls_certs:
-        self.log("HTTPS trusted cert issuer %s [%s] subject %s [%s]" % (x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
-      self.tls.trustCertificate(x.get_POW())
+      self.log_cert("trusted", x)
+      self.tls.addTrust(x.get_POW())
     self.tls.setVerifyMode(POW.SSL_VERIFY_PEER | POW.SSL_VERIFY_FAIL_IF_NO_PEER_CERT)
 
     self.tls.setFd(self.fileno())
@@ -514,16 +516,14 @@ class http_client(http_stream):
     self.set_state("idle")
 
     self.tls = POW.Ssl(POW.TLSV1_CLIENT_METHOD)
-    if debug_tls_certs:
-      self.log("HTTPS client cert issuer %s [%s] subject %s [%s]" % (self.cert.getIssuer(), self.cert.hAKI(), self.cert.getSubject(), self.cert.hSKI()))
+    self.log_cert("client", self.cert)
     self.tls.useCertificate(self.cert.get_POW())
     self.tls.useKey(self.key.get_POW())
     if not self.ta:
       raise RuntimeError, "No trust anchor(s) specified, this is unlikely to work"
     for x in self.ta:
-      if debug_tls_certs:
-        self.log("HTTPS trusted cert issuer %s [%s] subject %s [%s]" % (x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
-      self.tls.trustCertificate(x.get_POW())
+      self.log_cert("trusted", x)
+      self.tls.addTrust(x.get_POW())
     self.tls.setVerifyMode(POW.SSL_VERIFY_PEER | POW.SSL_VERIFY_FAIL_IF_NO_PEER_CERT)
 
     self.tls.setFd(self.fileno())

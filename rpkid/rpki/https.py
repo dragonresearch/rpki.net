@@ -36,7 +36,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import time, socket, asyncore, asynchat, traceback, urlparse
+import time, socket, asyncore, asynchat, traceback, urlparse, sys
 import rpki.async, rpki.sundial, rpki.x509, rpki.exceptions, rpki.log
 import POW
 
@@ -265,10 +265,14 @@ class http_stream(asynchat.async_chat):
     self.handle_message()
 
   def handle_error(self):
-    self.log("Error in HTTP stream handler")
-    print traceback.format_exc()
-    self.log("Closing due to error")
-    self.close()
+    if sys.exc_info()[0] is SystemExit:
+      self.log("Caught SystemExit, propagating")
+      raise
+    else:
+      self.log("Error in HTTP stream handler")
+      print traceback.format_exc()
+      self.log("Closing due to error")
+      self.close()
 
   def handle_timeout(self):
     self.log("Timeout, closing")
@@ -344,7 +348,7 @@ class http_stream(asynchat.async_chat):
     if self.tls is not None:
       try:
         ret = self.tls.shutdown()
-        self.log("tls.shutdown() returned %s" % ret)
+        self.log("tls.shutdown() returned %s, force_shutdown %s" % (ret, force))
         if ret or force:
           self.tls = None
           asynchat.async_chat.close(self)
@@ -483,8 +487,12 @@ class http_listener(asyncore.dispatcher):
       self.handle_error()
 
   def handle_error(self):
-    self.log("Error in HTTP listener")
-    print traceback.format_exc()
+    if sys.exc_info()[0] is SystemExit:
+      self.log("Caught SystemExit, propagating")
+      raise
+    else:
+      self.log("Error in HTTP listener")
+      print traceback.format_exc()
 
 class http_client(http_stream):
 
@@ -602,11 +610,10 @@ class http_client(http_stream):
   def handle_error(self):
     http_stream.handle_error(self)
     self.queue.detach(self)
-    try:
-      raise
-    except (rpki.async.ExitNow, SystemExit):
-      raise
-    except Exception, edata:
+    etype, edata = sys.exc_info()[:2]
+    if etype in (SystemExit, rpki.async.ExitNow):
+      raise edata
+    else:
       self.queue.return_result(edata)
 
 class http_queue(object):

@@ -311,7 +311,7 @@ class http_stream(asynchat.async_chat):
         self.close()
       except POW.SSLUnexpectedEOFError:
         self.log("SSLUnexpectedEOF in handle_read()")
-        self.close()
+        self.close(force = True)
         
   def handle_write(self):
     assert self.retry_read is None
@@ -336,18 +336,19 @@ class http_stream(asynchat.async_chat):
       self.close()
     except POW.SSLUnexpectedEOFError:
       self.log("SSLUnexpectedEOF in initiate_send()")
-      self.close()
+      self.close(force = True)
 
-  def close(self):
+  def close(self, force = False):
     self.log("Close requested")
     assert self.retry_read is None and self.retry_write is None
     if self.tls is not None:
       try:
         ret = self.tls.shutdown()
         self.log("tls.shutdown() returned %d" % ret)
-        self.tls = None
-        asynchat.async_chat.close(self)
-        self.handle_close()
+        if ret or force:
+          self.tls = None
+          asynchat.async_chat.close(self)
+          self.handle_close()
       except POW.WantReadError:
         self.retry_read = self.close
       except POW.WantWriteError:

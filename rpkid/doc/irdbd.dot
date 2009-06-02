@@ -4,9 +4,9 @@ digraph test {
 	edge [arrowtail=none, arrowhead=crow];
 	graph [ratio=fill, overlap=false, bgcolor=white];
 	node [label="\N", fillcolor=white, shape=record, style=filled];
-	registrant [label="registrant|{registrant_id\ SERIAL\ \[PK\]|IRBE_mapped_id\ TEXT|subject_name\ TEXT|rpki_self_id\ BIGINT|rpki_child_id\ BIGINT|valid_until\ DATETIME}"];
-	asn [label="asn|{asn_id\ SERIAL\ \[PK\]|start_as\ BIGINT|end_as\ BIGINT|registrant_id\ BIGINT\ \[FK\]}"];
-	net [label="net|{net_id\ SERIAL\ \[PK\]|start_ip\ VARCHAR|end_ip\ VARCHAR|version\ TINYINT|registrant_id\ BIGINT\ \[FK\]}"];
+	registrant [label="{registrant\n|registrant_id\ SERIAL\ [PK]\lIRBE_mapped_id\ TEXT\lsubject_name\ TEXT\lrpki_self_id\ BIGINT\lrpki_child_id\ BIGINT\lvalid_until\ DATETIME\l}"];
+	asn [label="{asn\n|asn_id\ SERIAL\ [PK]\lstart_as\ BIGINT\lend_as\ BIGINT\lregistrant_id\ BIGINT\ [FK]\l}"];
+	net [label="{net\n|net_id\ SERIAL\ [PK]\lstart_ip\ VARCHAR\lend_ip\ VARCHAR\lversion\ TINYINT\lregistrant_id\ BIGINT\ [FK]\l}"];
 	registrant -> asn;
 	registrant -> net;
 }

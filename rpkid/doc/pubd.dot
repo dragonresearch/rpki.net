@@ -4,6 +4,6 @@ digraph test {
 	edge [arrowtail=none, arrowhead=crow];
 	graph [ratio=fill, overlap=false, bgcolor=white];
 	node [label="\N", fillcolor=white, shape=record, style=filled];
-	config [label="config|{config_id\ SERIAL\ \[PK\]|bpki_crl\ LONGBLOB}"];
-	client [label="client|{client_id\ SERIAL\ \[PK\]|base_uri\ TEXT|bpki_cert\ LONGBLOB|bpki_glue\ LONGBLOB}"];
+	config [label="{config\n|config_id\ SERIAL\ [PK]\lbpki_crl\ LONGBLOB\l}"];
+	client [label="{client\n|client_id\ SERIAL\ [PK]\lbase_uri\ TEXT\lbpki_cert\ LONGBLOB\lbpki_glue\ LONGBLOB\l}"];
 }

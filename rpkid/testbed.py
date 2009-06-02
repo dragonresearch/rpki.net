@@ -1063,14 +1063,20 @@ class allocation(object):
                             stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
     ski = rpki.x509.RSA(PEM_file = self.name + ".key").gSKI()
 
-    self.cross_certify(self.parent.name + "-TA")
+    if self.parent.is_hosted():
+      parent_host = self.parent.hosted_by.name
+    else:
+      parent_host = self.parent.name
+
     self.cross_certify(self.parent.name + "-SELF")
+    self.cross_certify(parent_host + "-TA")
 
     rpki.log.info("Writing leaf YAML for %s" % self.name)
     f = open(self.name + ".yaml", "w")
     f.write(yaml_fmt_1 % {
       "child_id"    : self.child_id,
       "parent_name" : self.parent.name,
+      "parent_host" : parent_host,
       "my_name"     : self.name,
       "https_port"  : self.parent.get_rpki_port(),
       "class_name"  : 2 if self.parent.is_hosted() else 1,
@@ -1351,14 +1357,13 @@ cms-key-file:           %(my_name)s-RPKI.key
 cms-ca-cert-file:       %(my_name)s-TA.cer
 cms-crl-file:           %(my_name)s-TA.crl
 cms-ca-certs-file:
-  -                     %(my_name)s-TA-%(parent_name)s-TA.cer
   -                     %(my_name)s-TA-%(parent_name)s-SELF.cer
 
 ssl-cert-file:          %(my_name)s-RPKI.cer
 ssl-key-file:           %(my_name)s-RPKI.key
 ssl-ca-cert-file:       %(my_name)s-TA.cer
 ssl-ca-certs-file:
-  -                     %(my_name)s-TA-%(parent_name)s-TA.cer
+  -                     %(my_name)s-TA-%(parent_host)s-TA.cer
 
 # We're cheating here by hardwiring the class name
 

@@ -1001,7 +1001,7 @@ X509_object_set_public_key(x509_object *self, PyObject *args)
   if (!X509_set_pubkey(self->x509,pkey))
     lose("could not set certificate's public key");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -1106,7 +1106,7 @@ X509_object_sign(x509_object *self, PyObject *args)
     break;
   }
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -1178,7 +1178,7 @@ X509_object_set_version(x509_object *self, PyObject *args)
   if (!X509_set_version(self->x509, version))
     lose("could not set certificate version");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -1259,7 +1259,7 @@ X509_object_set_serial(x509_object *self, PyObject *args)
 
   ASN1_INTEGER_free(asn1i);
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -1405,7 +1405,7 @@ X509_object_set_subject(x509_object *self, PyObject *args)
 
   X509_NAME_free(name);
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -1452,7 +1452,7 @@ X509_object_set_issuer(x509_object *self, PyObject *args)
 
   X509_NAME_free(name);
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -1555,7 +1555,7 @@ X509_object_set_not_after (x509_object *self, PyObject *args)
   if (!ASN1_UTCTIME_set_string(self->x509->cert_info->validity->notAfter, new_time))
     lose("could not set time");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -1592,7 +1592,7 @@ X509_object_set_not_before (x509_object *self, PyObject *args)
   if (!ASN1_UTCTIME_set_string(self->x509->cert_info->validity->notBefore, new_time))
     lose("could not set time");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -1664,7 +1664,7 @@ X509_object_add_extension(x509_object *self, PyObject *args)
   if (!sk_X509_EXTENSION_push(self->x509->cert_info->extensions, extn))
     lose("unable to add extension");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -1700,7 +1700,7 @@ X509_object_clear_extensions(x509_object *self, PyObject *args)
     self->x509->cert_info->extensions = NULL;
   }
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -2007,17 +2007,16 @@ x509_store_object_verify(x509_store_object *self, PyObject *args)
 {
   X509_STORE_CTX csc;
   x509_object *x509 = NULL;
-  int result = 0;
+  int ok;
 
   if (!PyArg_ParseTuple(args, "O!", &x509type, &x509))
     goto error;
 
   X509_STORE_CTX_init(&csc, self->store, x509->x509, NULL);
-  result = X509_verify_cert(&csc) == 1;
-
+  ok = X509_verify_cert(&csc) == 1;
   X509_STORE_CTX_cleanup(&csc);
 
-  return Py_BuildValue("i", result);
+  return PyBool_FromLong(ok);
 
  error:
 
@@ -2062,7 +2061,7 @@ x509_store_object_verify_chain(x509_store_object *self, PyObject *args)
   X509_STORE_CTX csc;
   x509_object *x509 = NULL;
   STACK_OF(X509) *x509_stack = NULL;
-  int result = 0;
+  int ok;
 
   if (!PyArg_ParseTuple(args, "O!O", &x509type, &x509, &x509_sequence))
     goto error;
@@ -2071,11 +2070,13 @@ x509_store_object_verify_chain(x509_store_object *self, PyObject *args)
     goto error;
 
   X509_STORE_CTX_init(&csc, self->store, x509->x509, x509_stack);
-  result = X509_verify_cert(&csc) == 1;
+
+  ok = X509_verify_cert(&csc) == 1;
 
   X509_STORE_CTX_cleanup(&csc);
   sk_X509_free(x509_stack);
-  return Py_BuildValue("i", result);
+
+  return PyBool_FromLong(ok);
 
  error:
 
@@ -2133,7 +2134,7 @@ x509_store_object_verify_detailed(x509_store_object *self, PyObject *args)
   x509_object *x509 = NULL;
   STACK_OF(X509) *x509_stack = NULL;
   PyObject *result = NULL;
-  int ret = 0;
+  int ok;
 
   if (!PyArg_ParseTuple(args, "O!|O", &x509type, &x509, &x509_sequence))
     goto error;
@@ -2143,9 +2144,9 @@ x509_store_object_verify_detailed(x509_store_object *self, PyObject *args)
 
   X509_STORE_CTX_init(&csc, self->store, x509->x509, x509_stack);
 
-  ret = X509_verify_cert(&csc) == 1;
+  ok = X509_verify_cert(&csc) == 1;
 
-  result = Py_BuildValue("(iii)", ret, csc.error, csc.error_depth);
+  result = Py_BuildValue("(iii)", ok, csc.error, csc.error_depth);
 
   X509_STORE_CTX_cleanup(&csc);
 
@@ -2187,7 +2188,7 @@ x509_store_object_add_trust(x509_store_object *self, PyObject *args)
 
   X509_STORE_add_cert(self->store, x509->x509);
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -2226,7 +2227,7 @@ x509_store_object_add_crl(x509_store_object *self, PyObject *args)
 
   X509_STORE_add_crl(self->store, crl->crl);
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -2448,7 +2449,7 @@ x509_crl_object_set_version(x509_crl_object *self, PyObject *args)
 
   self->crl->crl->version = asn1_version;
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -2535,7 +2536,7 @@ x509_crl_object_set_issuer(x509_crl_object *self, PyObject *args)
 
   X509_NAME_free(name);
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -2575,7 +2576,7 @@ x509_crl_object_set_this_update (x509_crl_object *self, PyObject *args)
   if (!ASN1_UTCTIME_set_string(self->crl->crl->lastUpdate, new_time))
     lose("could not set time");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -2649,7 +2650,7 @@ x509_crl_object_set_next_update (x509_crl_object *self, PyObject *args)
   if (!ASN1_UTCTIME_set_string(time, new_time))
     lose("could not set next update");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -2780,7 +2781,7 @@ x509_crl_object_set_revoked(x509_crl_object *self, PyObject *args)
     revoked = NULL;
   }
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -2967,7 +2968,7 @@ X509_crl_object_add_extension(x509_crl_object *self, PyObject *args)
   if (!sk_X509_EXTENSION_push(self->crl->crl->extensions, extn))
     lose("unable to add extension");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -3003,7 +3004,7 @@ X509_crl_object_clear_extensions(x509_crl_object *self, PyObject *args)
     self->crl->crl->extensions = NULL;
   }
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -3184,7 +3185,7 @@ x509_crl_object_sign(x509_crl_object *self, PyObject *args)
     break;
   }
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -3220,9 +3221,9 @@ static char x509_crl_object_verify__doc__[] =
 static PyObject *
 x509_crl_object_verify(x509_crl_object *self, PyObject *args)
 {
-  int result = 0;
   EVP_PKEY *pkey = NULL;
   asymmetric_object *asym;
+  int ok;
 
   if (!PyArg_ParseTuple(args, "O!", &asymmetrictype, &asym))
     goto error;
@@ -3233,9 +3234,9 @@ x509_crl_object_verify(x509_crl_object *self, PyObject *args)
   if (!EVP_PKEY_assign_RSA(pkey, asym->cipher))
     lose("EVP_PKEY assignment error");
 
-  result = X509_CRL_verify(self->crl,pkey);
+  ok = X509_CRL_verify(self->crl, pkey);
 
-  return Py_BuildValue("i", result);
+  return PyBool_FromLong(ok);
 
  error:
 
@@ -3522,7 +3523,7 @@ x509_revoked_object_set_serial(x509_revoked_object *self, PyObject *args)
   if (!ASN1_INTEGER_set(self->revoked->serialNumber, serial))
     lose("unable to set serial number");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -3623,7 +3624,7 @@ x509_revoked_object_set_date(x509_revoked_object *self, PyObject *args)
   if (!ASN1_UTCTIME_set_string(self->revoked->revocationDate, time))
     lose_type_error("could not set revocationDate");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -3694,7 +3695,7 @@ X509_revoked_object_add_extension(x509_revoked_object *self, PyObject *args)
   if (!sk_X509_EXTENSION_push(self->revoked->extensions, extn))
     lose("unable to add extension");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -3730,7 +3731,7 @@ X509_revoked_object_clear_extensions(x509_revoked_object *self, PyObject *args)
     self->revoked->extensions = NULL;
   }
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -3923,7 +3924,7 @@ ssl_object_use_certificate(ssl_object *self, PyObject *args)
   if (!SSL_CTX_use_certificate(self->ctx, x509->x509))
     lose("could not use certificate");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -3950,7 +3951,7 @@ ssl_object_add_certificate(ssl_object *self, PyObject *args)
 
   x = NULL;
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -3984,7 +3985,7 @@ ssl_object_add_trust(ssl_object *self, PyObject *args)
 
   x = NULL;
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -4036,7 +4037,7 @@ ssl_object_use_key(ssl_object *self, PyObject *args)
   if (!SSL_CTX_use_PrivateKey(self->ctx, pkey))
     lose("ctx key assignment error");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -4066,10 +4067,7 @@ static char ssl_object_check_key__doc__[] =
 static PyObject *
 ssl_object_check_key(ssl_object *self, PyObject *args)
 {
-  if (SSL_CTX_check_private_key(self->ctx))
-    return Py_BuildValue("i", 1);
-  else
-    return Py_BuildValue("i", 0);
+  return PyBool_FromLong(SSL_CTX_check_private_key(self->ctx));
 }
 
 static char ssl_object_set_fd__doc__[] =
@@ -4115,7 +4113,7 @@ ssl_object_set_fd(ssl_object *self, PyObject *args)
 
   self->ctxset = 1;
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -4220,7 +4218,7 @@ ssl_object_accept(ssl_object *self, PyObject *args)
   if (ret <= 0)
     lose_ssl_error(self, ret);
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -4275,7 +4273,7 @@ ssl_object_connect(ssl_object *self, PyObject *args)
   if (ret <= 0)
     lose_ssl_error(self, ret);
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -4411,7 +4409,7 @@ ssl_object_peer_certificate(ssl_object *self, PyObject *args)
   }
   else {
     Py_XDECREF(x509_obj);
-    return Py_BuildValue("");
+    Py_RETURN_NONE;
   }
 
  error:
@@ -4447,7 +4445,7 @@ ssl_object_clear(ssl_object *self, PyObject *args)
   if (!SSL_clear(self->ssl))
     lose("failed to clear ssl connection");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -4509,7 +4507,7 @@ ssl_object_shutdown(ssl_object *self, PyObject *args)
   if (ret < 0)
     lose_ssl_error(self, ret);
 
-  return Py_BuildValue("i", ret);
+  return PyBool_FromLong(ret);
 
  error:
 
@@ -4676,7 +4674,7 @@ ssl_object_set_ciphers(ssl_object *self, PyObject *args)
   }
   SSL_set_cipher_list(self->ssl, cipherstr);
   free(cipherstr);
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -4726,7 +4724,7 @@ static int ssl_object_verify_callback(X509_STORE_CTX *ctx, void *arg)
   if (self->trusted_certs)
     X509_STORE_CTX_trusted_stack(ctx, self->trusted_certs);
 
-  ok = X509_verify_cert(ctx);
+  ok = X509_verify_cert(ctx) == 1;
 
 #if 0
 
@@ -4812,7 +4810,7 @@ ssl_object_set_verify_mode(ssl_object *self, PyObject *args)
 
   SSL_CTX_set_verify(self->ctx, mode, NULL);
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -5608,7 +5606,7 @@ static PyObject *
 asymmetric_object_verify(asymmetric_object *self, PyObject *args)
 {
   unsigned char *digest_text = NULL, *signed_text = NULL;
-  int digest_len = 0, digest_type = 0, digest_nid = 0, signed_len = 0, result = 0;
+  int digest_len = 0, digest_type = 0, digest_nid = 0, signed_len = 0;
 
   if (!PyArg_ParseTuple(args, "s#s#i", &signed_text, &signed_len, &digest_text, &digest_len, &digest_type))
     goto error;
@@ -5650,9 +5648,7 @@ asymmetric_object_verify(asymmetric_object *self, PyObject *args)
     lose("unsupported digest");
   }
 
-  result = RSA_verify(digest_nid, digest_text, digest_len, signed_text, signed_len, self->cipher);
-
-  return Py_BuildValue("i", result);
+  return PyBool_FromLong(RSA_verify(digest_nid, digest_text, digest_len, signed_text, signed_len, self->cipher));
 
  error:
 
@@ -5791,7 +5787,7 @@ symmetric_object_encrypt_init(symmetric_object *self, PyObject *args)
   if (!EVP_EncryptInit(&self->cipher_ctx, cipher, key, iv))
     lose("could not initialise cipher");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -5835,7 +5831,7 @@ symmetric_object_decrypt_init(symmetric_object *self, PyObject *args)
   if (!EVP_DecryptInit(&self->cipher_ctx, cipher, key, iv))
     lose("could not initialise cipher");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -6105,7 +6101,7 @@ digest_object_update(digest_object *self, PyObject *args)
 
   EVP_DigestUpdate(&self->digest_ctx, data, len);
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -6343,7 +6339,7 @@ hmac_object_update(hmac_object *self, PyObject *args)
 
   HMAC_Update(&self->hmac_ctx, data, len);
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -7776,7 +7772,7 @@ pow_module_add_object(PyObject *self, PyObject *args)
   if (!OBJ_create(oid, sn, ln))
     lose("unable to add object");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -7841,7 +7837,7 @@ pow_module_clear_error(PyObject *self, PyObject *args)
 
   ERR_clear_error();
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -7883,7 +7879,7 @@ pow_module_seed(PyObject *self, PyObject *args)
 
   RAND_seed(in, inl);
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -7920,7 +7916,7 @@ pow_module_add(PyObject *self, PyObject *args)
 
   RAND_add(in, inl, entropy);
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -7954,7 +7950,7 @@ pow_module_write_random_file(PyObject *self, PyObject *args)
   if (RAND_write_file(file) == -1)
     lose("could not write random file");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 
@@ -7991,7 +7987,7 @@ pow_module_read_random_file(PyObject *self, PyObject *args)
   if (!RAND_load_file(file, len))
     lose("could not load random file");
 
-  return Py_BuildValue("");
+  Py_RETURN_NONE;
 
  error:
 

@@ -344,7 +344,7 @@ class http_stream(asynchat.async_chat):
     if self.tls is not None:
       try:
         ret = self.tls.shutdown()
-        self.log("tls.shutdown() returned %d" % ret)
+        self.log("tls.shutdown() returned %s" % ret)
         if ret or force:
           self.tls = None
           asynchat.async_chat.close(self)

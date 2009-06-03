@@ -22,13 +22,15 @@
 DROP TABLE IF EXISTS registrant;
 
 CREATE TABLE registrant (
-        registrant_id   SERIAL NOT NULL,
-        IRBE_mapped_id  TEXT,
-        subject_name    TEXT,
-        rpki_self_id    BIGINT unsigned,
-        rpki_child_id   BIGINT unsigned,
-        valid_until     DATETIME NOT NULL,
-        PRIMARY KEY     (registrant_id)
+        registrant_id           SERIAL NOT NULL,
+        registrant_handle       VARCHAR(255) NOT NULL,
+        registrant_name         TEXT,
+        rpki_self_handle        VARCHAR(255),
+        rpki_self_id            BIGINT unsigned,
+        rpki_child_id           BIGINT unsigned,
+        valid_until             DATETIME NOT NULL,
+        PRIMARY KEY             (registrant_id),
+        UNIQUE                  (rpki_self_handle, registrant_handle)
 );
 
 DROP TABLE IF EXISTS asn;

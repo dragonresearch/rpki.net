@@ -964,7 +964,7 @@ class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
   """
 
   element_name = "list_resources"
-  attributes = ("self_id", "tag", "child_id", "valid_until", "asn", "ipv4", "ipv6", "subject_name")
+  attributes = ("self_id", "tag", "child_id", "valid_until", "asn", "ipv4", "ipv6")
   valid_until = None
 
   def startElement(self, stack, name, attrs):

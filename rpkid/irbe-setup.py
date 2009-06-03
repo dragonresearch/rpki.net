@@ -102,13 +102,13 @@ print "Using a single cert for all of these registrants is a crock"
 
 cer = rpki.x509.X509(Auto_file = "biz-certs/Frank-Root.cer")
 
-cur.execute("SELECT registrant_id, subject_name FROM registrant")
+cur.execute("SELECT registrant_id, registrant_name FROM registrant")
 registrants = cur.fetchall()
 
-for registrant_id, subject_name  in registrants:
-  print "Attempting to bind", registrant_id, subject_name
+for registrant_id, registrant_name  in registrants:
+  print "Attempting to bind", registrant_id, registrant_name
   pdu = call_rpkid(rpki.left_right.child_elt.make_pdu(action = "create", self_id = self_id, bsc_id = bsc_id, bpki_cms_cert = cer))
-  print "Attempting to bind", registrant_id, subject_name, pdu.child_id
+  print "Attempting to bind", registrant_id, registrant_name, pdu.child_id
   cur.execute(
     """
       UPDATE registrant

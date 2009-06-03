@@ -20,18 +20,21 @@ DROP TABLE IF EXISTS self;
 
 CREATE TABLE self (
         self_id                 SERIAL NOT NULL,
+        self_handle             VARCHAR(255),
         use_hsm                 BOOLEAN,
         crl_interval            BIGINT unsigned,
         regen_margin            BIGINT unsigned,
         bpki_cert               LONGBLOB,
         bpki_glue               LONGBLOB,
-        PRIMARY KEY             (self_id)
+        PRIMARY KEY             (self_id),
+        UNIQUE                  (self_handle)
 );
 
 DROP TABLE IF EXISTS bsc;
 
 CREATE TABLE bsc (
         bsc_id                  SERIAL NOT NULL,
+        bsc_handle              VARCHAR(255),
         private_key_id          LONGBLOB,
         pkcs10_request          LONGBLOB,
         hash_alg                ENUM ('sha256'),
@@ -39,13 +42,15 @@ CREATE TABLE bsc (
         signing_cert_crl        LONGBLOB,
         self_id                 BIGINT unsigned NOT NULL,
         PRIMARY KEY             (bsc_id),
-        FOREIGN KEY             (self_id) REFERENCES self
+        FOREIGN KEY             (self_id) REFERENCES self,
+        UNIQUE                  (bsc_handle)
 );
 
 DROP TABLE IF EXISTS repository;
 
 CREATE TABLE repository (
         repository_id           SERIAL NOT NULL,
+        repository_handle       VARCHAR(255),
         peer_contact_uri        TEXT,
         bpki_cms_cert           LONGBLOB,
         bpki_cms_glue           LONGBLOB,
@@ -55,13 +60,15 @@ CREATE TABLE repository (
         self_id                 BIGINT unsigned NOT NULL,
         PRIMARY KEY             (repository_id),
         FOREIGN KEY             (self_id) REFERENCES self,
-        FOREIGN KEY             (bsc_id) REFERENCES bsc
+        FOREIGN KEY             (bsc_id) REFERENCES bsc,
+        UNIQUE                  (repository_handle)
 );
 
 DROP TABLE IF EXISTS parent;
 
 CREATE TABLE parent (
         parent_id               SERIAL NOT NULL,
+        parent_handle           VARCHAR(255),
         bpki_cms_cert           LONGBLOB,
         bpki_cms_glue           LONGBLOB,
         bpki_https_cert         LONGBLOB,
@@ -76,7 +83,8 @@ CREATE TABLE parent (
         PRIMARY KEY             (parent_id),
         FOREIGN KEY             (repository_id) REFERENCES repository,
         FOREIGN KEY             (bsc_id) REFERENCES bsc,
-        FOREIGN KEY             (self_id) REFERENCES self
+        FOREIGN KEY             (self_id) REFERENCES self,
+        UNIQUE                  (parent_handle)
 );
 
 DROP TABLE IF EXISTS ca;
@@ -118,13 +126,15 @@ DROP TABLE IF EXISTS child;
 
 CREATE TABLE child (
         child_id                SERIAL NOT NULL,
+        child_handle            VARCHAR(255),
         bpki_cert               LONGBLOB,
         bpki_glue               LONGBLOB,
         self_id                 BIGINT unsigned NOT NULL,
         bsc_id                  BIGINT unsigned NOT NULL,
         PRIMARY KEY             (child_id),
         FOREIGN KEY             (bsc_id) REFERENCES bsc,
-        FOREIGN KEY             (self_id) REFERENCES self
+        FOREIGN KEY             (self_id) REFERENCES self,
+        UNIQUE                  (child_handle)
 );
 
 DROP TABLE IF EXISTS child_cert;
@@ -156,6 +166,7 @@ DROP TABLE IF EXISTS route_origin;
 
 CREATE TABLE route_origin (
         route_origin_id         SERIAL NOT NULL,
+        route_origin_handle     VARCHAR(255),
         as_number               DECIMAL(24,0),
         cert                    LONGBLOB,
         roa                     LONGBLOB,
@@ -163,7 +174,8 @@ CREATE TABLE route_origin (
         ca_detail_id            BIGINT unsigned,
         PRIMARY KEY             (route_origin_id),
         FOREIGN KEY             (self_id) REFERENCES self,
-        FOREIGN KEY             (ca_detail_id) REFERENCES ca_detail
+        FOREIGN KEY             (ca_detail_id) REFERENCES ca_detail,
+        UNIQUE                  (route_origin_handle)
 );
 
 DROP TABLE IF EXISTS route_origin_prefix;

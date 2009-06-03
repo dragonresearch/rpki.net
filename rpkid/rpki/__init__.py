@@ -1477,9 +1477,6 @@
 #     timestamp is expressed as an XML @c xsd:dateTime, must be
 #     expressed in UTC, and must carry the "Z" suffix indicating UTC.
 #
-# @li @c subject_name:
-#     An optional text string naming the child.  Not currently used.
-#
 # @li @c asn:
 #     A %list of autonomous sequence numbers, expressed as a
 #     comma-separated sequence of decimal integers with no whitespace.

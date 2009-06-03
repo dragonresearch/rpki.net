@@ -66,7 +66,7 @@ def handler(query, path, cb):
 
         cur.execute(
           """
-              SELECT registrant_id, subject_name, valid_until FROM registrant
+              SELECT registrant_id, registrant_handle, valid_until FROM registrant
               WHERE registrant.rpki_self_id = %s AND registrant.rpki_child_id = %s
           """,
           (q_pdu.self_id, q_pdu.child_id))
@@ -75,8 +75,8 @@ def handler(query, path, cb):
                 "This query should have produced a single exact match, something's messed up (rowcount = %d, self_id = %s, child_id = %s)" \
                 % (cur.rowcount, q_pdu.self_id, q_pdu.child_id)
 
-        registrant_id, subject_name, valid_until = cur.fetchone()
-        r_pdu.subject_name = subject_name
+        registrant_id, registrant_handle, valid_until = cur.fetchone()
+        #r_pdu.registrant_handle = registrant_handle
         r_pdu.valid_until = valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
         r_pdu.asn  = rpki.resource_set.resource_set_as.from_sql(cur,   "SELECT start_as, end_as FROM asn WHERE registrant_id = %s", (registrant_id,))
         r_pdu.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(cur, "SELECT start_ip, end_ip FROM net WHERE registrant_id = %s AND version = 4", (registrant_id,))

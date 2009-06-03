@@ -217,7 +217,6 @@ list_resources_query = element list_resources {
 list_resources_reply = element list_resources {
   tag, self_id, child_id,
   attribute valid_until { xsd:dateTime { pattern=".*Z" } },
-  attribute subject_name { xsd:token { maxLength="1024" } }?,
   attribute asn { asn_list }?,
   attribute ipv4 { ipv4_list }?,
   attribute ipv6 { ipv6_list }?

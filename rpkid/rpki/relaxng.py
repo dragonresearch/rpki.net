@@ -904,13 +904,6 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
         </data>
       </attribute>
       <optional>
-        <attribute name="subject_name">
-          <data type="token">
-            <param name="maxLength">1024</param>
-          </data>
-        </attribute>
-      </optional>
-      <optional>
         <attribute name="asn">
           <ref name="asn_list"/>
         </attribute>

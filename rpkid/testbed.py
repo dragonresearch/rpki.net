@@ -679,8 +679,8 @@ class allocation(object):
       cur.execute(sql)
     for s in [self] + self.hosts:
       for kid in s.kids:
-        cur.execute("INSERT registrant (IRBE_mapped_id, subject_name, valid_until) VALUES (%s, %s, %s)",
-                    (kid.name, kid.name, kid.resources.valid_until.to_sql()))
+        cur.execute("INSERT registrant (registrant_handle, valid_until) VALUES (%s, %s)",
+                    (kid.name, kid.resources.valid_until.to_sql()))
     db.close()
 
   def sync_sql(self):
@@ -696,7 +696,7 @@ class allocation(object):
     cur.execute("DELETE FROM net")
     for s in [self] + self.hosts:
       for kid in s.kids:
-        cur.execute("SELECT registrant_id FROM registrant WHERE IRBE_mapped_id = %s", (kid.name,))
+        cur.execute("SELECT registrant_id FROM registrant WHERE registrant_handle = %s", (kid.name,))
         registrant_id = cur.fetchone()[0]
         for as_range in kid.resources.asn:
           cur.execute("INSERT asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)", (as_range.min, as_range.max, registrant_id))
@@ -964,7 +964,7 @@ class allocation(object):
         k = s.kids[j]
         assert s.self_id == v.self_id
         k.child_id = v.child_id
-        sql_cur.execute("UPDATE registrant SET rpki_self_id = %s, rpki_child_id = %s WHERE IRBE_mapped_id = %s", (s.self_id, k.child_id, k.name))
+        sql_cur.execute("UPDATE registrant SET rpki_self_id = %s, rpki_child_id = %s WHERE registrant_handle = %s", (s.self_id, k.child_id, k.name))
 
       sql_cur.close()
       sql_db.close()

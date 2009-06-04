@@ -258,3 +258,8 @@ class BadPublicationReply(RPKI_Exception):
   """
   Unexpected reply to publication query.
   """
+
+class DuplicateObject(RPKI_Exception):
+  """
+  Attempt to create an object that already exists.
+  """

@@ -31,8 +31,11 @@ base64 = xsd:base64Binary { maxLength="512000" }
 uri_t = xsd:anyURI { maxLength="4096" }
 uri = attribute uri { uri_t }
 
+# Handles on remote objects (replaces passing raw SQL IDs)
+object_handle = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9]*" }
+
 # <config/> element (use restricted to repository operator)
-# config_id attribute, create, list, and destroy commands omitted deliberately, see code for details
+# config_handle attribute, create, list, and destroy commands omitted deliberately, see code for details
 
 config_payload = (element bpki_crl { base64 }?)
 
@@ -43,20 +46,20 @@ config_reply |= element config { attribute action { "get" },     tag?, config_pa
 
 # <client/> element (use restricted to repository operator)
 
-client_id = attribute client_id { xsd:nonNegativeInteger }
+client_handle = attribute client_handle { object_handle }
 
 client_payload = (attribute base_uri { uri_t }?, element bpki_cert { base64 }?, element bpki_glue { base64 }?)
 
-client_query |= element client { attribute action { "create" },  tag?, client_payload }
-client_reply |= element client { attribute action { "create" },  tag?, client_id }
-client_query |= element client { attribute action { "set" },     tag?, client_id, client_payload }
-client_reply |= element client { attribute action { "set" },     tag?, client_id }
-client_query |= element client { attribute action { "get" },     tag?, client_id }
-client_reply |= element client { attribute action { "get" },     tag?, client_id, client_payload }
+client_query |= element client { attribute action { "create" },  tag?, client_handle, client_payload }
+client_reply |= element client { attribute action { "create" },  tag?, client_handle }
+client_query |= element client { attribute action { "set" },     tag?, client_handle, client_payload }
+client_reply |= element client { attribute action { "set" },     tag?, client_handle }
+client_query |= element client { attribute action { "get" },     tag?, client_handle }
+client_reply |= element client { attribute action { "get" },     tag?, client_handle, client_payload }
 client_query |= element client { attribute action { "list" },    tag? }
-client_reply |= element client { attribute action { "list" },    tag?, client_id, client_payload }
-client_query |= element client { attribute action { "destroy" }, tag?, client_id }
-client_reply |= element client { attribute action { "destroy" }, tag?, client_id }
+client_reply |= element client { attribute action { "list" },    tag?, client_handle, client_payload }
+client_query |= element client { attribute action { "destroy" }, tag?, client_handle }
+client_reply |= element client { attribute action { "destroy" }, tag?, client_handle }
 
 # <certificate/> element
 

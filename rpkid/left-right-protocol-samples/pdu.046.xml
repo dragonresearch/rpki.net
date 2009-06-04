@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="US-ASCII"?>
 <!--Automatically generated, do not edit.-->
 <msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1" type="reply">
-  <repository action="get" self_id="42" repository_id="120" peer_contact_uri="https://re.bar.example/bandicoot/" bsc_id="17">
+  <repository action="get" self_handle="42" repository_handle="120" peer_contact_uri="https://re.bar.example/bandicoot/" bsc_handle="17">
     <bpki_cms_cert>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN

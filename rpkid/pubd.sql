@@ -32,10 +32,12 @@ DROP TABLE IF EXISTS client;
 
 CREATE TABLE client (
         client_id       SERIAL NOT NULL,
+        client_handle   VARCHAR(255) NOT NULL,
         base_uri        TEXT,
         bpki_cert       LONGBLOB,
         bpki_glue       LONGBLOB,
-        PRIMARY KEY     (client_id)
+        PRIMARY KEY     (client_id),
+        UNIQUE          (client_handle)
 );
 
 -- Local Variables:

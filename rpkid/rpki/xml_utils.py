@@ -255,7 +255,8 @@ class data_elt(base_elt):
     if r_pdu is None:
       r_pdu = self.__class__()
       self.make_reply_clone_hook(r_pdu)
-      setattr(r_pdu, self.sql_template.index, getattr(self, self.sql_template.index))
+      handle_name = self.element_name + "_handle"
+      setattr(r_pdu, handle_name, getattr(self, handle_name, None))
     else:
       for b in r_pdu.booleans:
         setattr(r_pdu, b, False)
@@ -266,6 +267,16 @@ class data_elt(base_elt):
   def make_reply_clone_hook(self, r_pdu):
     """Overridable hook."""
     pass
+
+  def serve_fetch_one(self):
+    """
+    Find the object on which a get, set, or destroy method should
+    operate.
+    """
+    r = self.serve_fetch_one_maybe()
+    if r is None:
+      raise rpki.exceptions.NotFound
+    return r
 
   def serve_pre_save_hook(self, q_pdu, r_pdu, cb, eb):
     """Overridable hook."""
@@ -290,6 +301,9 @@ class data_elt(base_elt):
     def two():
       r_msg.append(r_pdu)
       cb()
+
+    if self.serve_fetch_one_maybe() is not None:
+      raise rpki.exceptions.DuplicateObject
 
     self.serve_pre_save_hook(self, r_pdu, one, eb)
 

@@ -126,12 +126,14 @@ class template(object):
     self.index   = index_column
     self.columns = columns
     self.map     = type_map
-    self.select  = "SELECT %s FROM %s" % (", ".join(columns), table_name)
-    self.insert  = "INSERT %s (%s) VALUES (%s)" % (table_name, ", ".join(data_columns),
+    self.select  = "SELECT %s FROM %s" % (", ".join("%s.%s" % (table_name, c) for c in columns), table_name)
+    self.insert  = "INSERT %s (%s) VALUES (%s)" % (table_name,
+                                                   ", ".join(data_columns),
                                                    ", ".join("%(" + s + ")s" for s in data_columns))
-    self.update  = "UPDATE %s SET %s WHERE %s = %%(%s)s" % \
-                   (table_name, ", ".join(s + " = %(" + s + ")s" for s in data_columns),
-                    index_column, index_column)
+    self.update  = "UPDATE %s SET %s WHERE %s = %%(%s)s" % (table_name,
+                                                            ", ".join(s + " = %(" + s + ")s" for s in data_columns),
+                                                            index_column,
+                                                            index_column)
     self.delete  = "DELETE FROM %s WHERE %s = %%s" % (table_name, index_column)
 
 class sql_persistent(object):
@@ -178,11 +180,11 @@ class sql_persistent(object):
       return cls.sql_fetch_where1(gctx, "%s = %%s" % cls.sql_template.index, (id,))
 
   @classmethod
-  def sql_fetch_where1(cls, gctx, where, args = None):
+  def sql_fetch_where1(cls, gctx, where, args = None, also_from = None):
     """
     Fetch one object from SQL, based on an arbitrary SQL WHERE expression.
     """
-    results = cls.sql_fetch_where(gctx, where, args)
+    results = cls.sql_fetch_where(gctx, where, args, also_from)
     if len(results) == 0:
       return None
     elif len(results) == 1:
@@ -198,17 +200,20 @@ class sql_persistent(object):
     return cls.sql_fetch_where(gctx, None)
 
   @classmethod
-  def sql_fetch_where(cls, gctx, where, args = None):
+  def sql_fetch_where(cls, gctx, where, args = None, also_from = None):
     """
     Fetch objects of this type matching an arbitrary SQL WHERE expression.
     """
     if where is None:
-      assert args is None
+      assert args is None and also_from is None
       if cls.sql_debug:
         rpki.log.debug("sql_fetch_where(%s)" % repr(cls.sql_template.select))
       gctx.sql.execute(cls.sql_template.select)
     else:
-      query = cls.sql_template.select + " WHERE " + where
+      query = cls.sql_template.select
+      if also_from is not None:
+        query += "," + also_from
+      query += " WHERE " + where
       if cls.sql_debug:
         rpki.log.debug("sql_fetch_where(%s, %s)" % (repr(query), repr(args)))
       gctx.sql.execute(query, args)

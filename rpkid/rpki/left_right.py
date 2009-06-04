@@ -53,6 +53,10 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
   Virtual class for top-level left-right protocol data elements.
   """
 
+  handles = ()
+
+  self_id = None
+
   def self(self):
     """Fetch self object to which this object links."""
     return self_elt.sql_fetch(self.gctx, self.self_id)
@@ -62,25 +66,48 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
     return bsc_elt.sql_fetch(self.gctx, self.bsc_id)
 
   def make_reply_clone_hook(self, r_pdu):
-    """Set self_id when cloning."""
-    r_pdu.self_id = self.self_id
+    """Set self_handle when cloning."""
+    r_pdu.self_handle = self.self_handle
 
-  def serve_fetch_one(self):
+  @classmethod
+  def serve_fetch_handle(cls, gctx, self_id, handle):
+    """
+    Find an object based on its handle.
+    """
+    return cls.sql_fetch_where1(gctx, cls.element_name + "_handle = %s AND self_id = %s", (handle, self_id))
+
+  def serve_fetch_one_maybe(self):
     """
     Find the object on which a get, set, or destroy method should
-    operate.
+    operate, or which would conflict with a create method.
     """
-    where = self.sql_template.index + " = %s AND self_id = %s"
-    args = (getattr(self, self.sql_template.index), self.self_id)
-    r = self.sql_fetch_where1(self.gctx, where, args)
-    if r is None:
-      raise rpki.exceptions.NotFound, "Lookup failed where " + (where % args)
-    return r
+    where = "%s.%s_handle = %%s AND %s.self_id = self.self_id AND self.self_handle = %%s" % ((self.element_name,) * 3)
+    args = (getattr(self, self.element_name + "_handle"), self.self_handle)
+    return self.sql_fetch_where1(self.gctx, where, args, "self")
 
   def serve_fetch_all(self):
-    """Find the objects on which a list method should operate."""
-    return self.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
+    """
+    Find the objects on which a list method should operate.
+    """
+    where = "%s.self_id = self.self_id and self.self_handle = %%s" % self.element_name
+    return self.sql_fetch_where(self.gctx, where, (self.self_handle,), "self")
   
+  def serve_pre_save_hook(self, q_pdu, r_pdu, cb, eb):
+    """
+    Hook to do _handle => _id translation before saving.
+    """
+    for tag, elt in self.handles:
+      id_name = tag + "_id"
+      if getattr(r_pdu, id_name, None) is None:
+        x = elt.serve_fetch_handle(self.gctx, self.self_id, getattr(q_pdu, tag + "_handle"))
+        if x is None:
+          raise rpki.exceptions.NotFound
+        val = getattr(x, id_name)
+        rpki.log.debug("Setting %r and %r %s = %r" % (self, r_pdu, id_name, val))
+        setattr(self, id_name, val)
+        setattr(r_pdu, id_name, val)
+    cb()
+
   def unimplemented_control(self, *controls):
     """
     Uniform handling for unimplemented control operations.
@@ -95,14 +122,15 @@ class self_elt(data_elt):
   """
 
   element_name = "self"
-  attributes = ("action", "tag", "self_id", "crl_interval", "regen_margin")
+  attributes = ("action", "tag", "self_handle", "crl_interval", "regen_margin")
   elements = ("bpki_cert", "bpki_glue")
   booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now")
 
-  sql_template = rpki.sql.template("self", "self_id", "use_hsm", "crl_interval", "regen_margin",
+  sql_template = rpki.sql.template("self", "self_id", "self_handle",
+                                   "use_hsm", "crl_interval", "regen_margin",
                                    ("bpki_cert", rpki.x509.X509), ("bpki_glue", rpki.x509.X509))
+  handles = ()
 
-  self_id = None
   use_hsm = False
   crl_interval = None
   regen_margin = None
@@ -164,15 +192,19 @@ class self_elt(data_elt):
 
     rpki.async.iterator(self.parents(), loop, cb)
 
-  def serve_fetch_one(self):
+  def serve_fetch_one_maybe(self):
     """
     Find the self object upon which a get, set, or destroy action
-    should operate.
+    should operate, or which would conflict with a create method.
     """
-    r = self.sql_fetch(self.gctx, self.self_id)
-    if r is None:
-      raise rpki.exceptions.NotFound
-    return r
+    return self.serve_fetch_handle(self.gctx, None, self.self_handle)
+
+  @classmethod
+  def serve_fetch_handle(cls, gctx, self_id, self_handle):
+    """
+    Find a self object based on its self_handle.
+    """
+    return cls.sql_fetch_where1(gctx, "self_handle = %s", self_handle)
 
   def serve_fetch_all(self):
     """
@@ -310,7 +342,7 @@ class self_elt(data_elt):
 
       child_certs = child.child_certs()
       if child_certs:
-        self.gctx.irdb_query(child.self_id, child.child_id, got_resources, irdb_lookup_failed)
+        self.gctx.irdb_query(child.self().self_handle, child.child_handle, got_resources, irdb_lookup_failed)
       else:
         iterator1()
 
@@ -385,15 +417,17 @@ class bsc_elt(data_elt):
   """
   
   element_name = "bsc"
-  attributes = ("action", "tag", "self_id", "bsc_id", "key_type", "hash_alg", "key_length")
+  attributes = ("action", "tag", "self_handle", "bsc_handle", "key_type", "hash_alg", "key_length")
   elements = ("signing_cert", "signing_cert_crl", "pkcs10_request")
   booleans = ("generate_keypair",)
 
-  sql_template = rpki.sql.template("bsc", "bsc_id", "self_id", "hash_alg",
+  sql_template = rpki.sql.template("bsc", "bsc_id", "bsc_handle",
+                                   "self_id", "hash_alg",
                                    ("private_key_id", rpki.x509.RSA),
                                    ("pkcs10_request", rpki.x509.PKCS10),
                                    ("signing_cert", rpki.x509.X509),
                                    ("signing_cert_crl", rpki.x509.CRL))
+  handles = (("self", self_elt),)
 
   private_key_id = None
   pkcs10_request = None
@@ -422,7 +456,78 @@ class bsc_elt(data_elt):
       self.private_key_id = rpki.x509.RSA.generate(keylength = q_pdu.key_length or 2048)
       self.pkcs10_request = rpki.x509.PKCS10.create(self.private_key_id)
       r_pdu.pkcs10_request = self.pkcs10_request
-    cb()
+    data_elt.serve_pre_save_hook(self, q_pdu, r_pdu, cb, eb)
+
+class repository_elt(data_elt):
+  """
+  <repository/> element.
+  """
+
+  element_name = "repository"
+  attributes = ("action", "tag", "self_handle", "repository_handle", "bsc_handle", "peer_contact_uri")
+  elements = ("bpki_cms_cert", "bpki_cms_glue", "bpki_https_cert", "bpki_https_glue")
+
+  sql_template = rpki.sql.template("repository", "repository_id", "repository_handle",
+                                   "self_id", "bsc_id", "peer_contact_uri",
+                                   ("bpki_cms_cert", rpki.x509.X509), ("bpki_cms_glue", rpki.x509.X509),
+                                   ("bpki_https_cert", rpki.x509.X509), ("bpki_https_glue", rpki.x509.X509))
+  handles = (("self", self_elt), ("bsc", bsc_elt))
+
+  bpki_cms_cert = None
+  bpki_cms_glue = None
+  bpki_https_cert = None
+  bpki_https_glue = None
+
+  def parents(self):
+    """Fetch all parent objects that link to this repository object."""
+    return parent_elt.sql_fetch_where(self.gctx, "repository_id = %s", (self.repository_id,))
+
+  def call_pubd(self, callback, errback, *pdus):
+    """
+    Send a message to publication daemon and return the response.
+    """
+    rpki.log.trace()
+    bsc = self.bsc()
+    q_msg = rpki.publication.msg(pdus)
+    q_msg.type = "query"
+    q_cms = rpki.publication.cms_msg.wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
+    bpki_ta_path = (self.gctx.bpki_ta, self.self().bpki_cert, self.self().bpki_glue, self.bpki_https_cert, self.bpki_https_glue)
+
+    def done(r_cms):
+      try:
+        r_msg = rpki.publication.cms_msg.unwrap(r_cms, bpki_ta_path)
+        if len(r_msg) != 1 or isinstance(r_msg[0], rpki.publication.report_error_elt):
+          raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %s" % msg
+        callback()
+      except (rpki.async.ExitNow, SystemExit):
+        raise
+      except Exception, edata:
+        errback(edata)
+
+    rpki.https.client(
+      client_key   = bsc.private_key_id,
+      client_cert  = bsc.signing_cert,
+      server_ta    = bpki_ta_path,
+      url          = self.peer_contact_uri,
+      msg          = q_cms,
+      callback     = done,
+      errback      = errback)
+
+  def publish(self, obj, uri, callback, errback):
+    """
+    Publish one object in the repository.
+    """
+    rpki.log.trace()
+    rpki.log.info("Publishing %s as %s" % (repr(obj), repr(uri)))
+    self.call_pubd(callback, errback, rpki.publication.obj2elt[type(obj)].make_pdu(action = "publish", uri = uri, payload = obj))
+
+  def withdraw(self, obj, uri, callback, errback):
+    """
+    Withdraw one object from the repository.
+    """
+    rpki.log.trace()
+    rpki.log.info("Withdrawing %s from at %s" % (repr(obj), repr(uri)))
+    self.call_pubd(callback, errback, rpki.publication.obj2elt[type(obj)].make_pdu(action = "withdraw", uri = uri))
 
 class parent_elt(data_elt):
   """
@@ -430,15 +535,17 @@ class parent_elt(data_elt):
   """
 
   element_name = "parent"
-  attributes = ("action", "tag", "self_id", "parent_id", "bsc_id", "repository_id",
+  attributes = ("action", "tag", "self_handle", "parent_handle", "bsc_handle", "repository_handle",
                 "peer_contact_uri", "sia_base", "sender_name", "recipient_name")
   elements = ("bpki_cms_cert", "bpki_cms_glue", "bpki_https_cert", "bpki_https_glue")
   booleans = ("rekey", "reissue", "revoke")
 
-  sql_template = rpki.sql.template("parent", "parent_id", "self_id", "bsc_id", "repository_id",
+  sql_template = rpki.sql.template("parent", "parent_id", "parent_handle",
+                                   "self_id", "bsc_id", "repository_id",
                                    ("bpki_cms_cert", rpki.x509.X509), ("bpki_cms_glue", rpki.x509.X509),
                                    ("bpki_https_cert", rpki.x509.X509), ("bpki_https_glue", rpki.x509.X509),
                                    "peer_contact_uri", "sia_base", "sender_name", "recipient_name")
+  handles = (("self", self_elt), ("bsc", bsc_elt), ("repository", repository_elt))
 
   bpki_cms_cert = None
   bpki_cms_glue = None
@@ -528,13 +635,16 @@ class child_elt(data_elt):
   """
 
   element_name = "child"
-  attributes = ("action", "tag", "self_id", "child_id", "bsc_id")
+  attributes = ("action", "tag", "self_handle", "child_handle", "bsc_handle")
   elements = ("bpki_cert", "bpki_glue")
   booleans = ("reissue", )
 
-  sql_template = rpki.sql.template("child", "child_id", "self_id", "bsc_id",
+  sql_template = rpki.sql.template("child", "child_id", "child_handle",
+                                   "self_id", "bsc_id",
                                    ("bpki_cert", rpki.x509.X509),
                                    ("bpki_glue", rpki.x509.X509))
+
+  handles = (("self", self_elt), ("bsc", bsc_elt))
 
   bpki_cert = None
   bpki_glue = None
@@ -619,88 +729,20 @@ class child_elt(data_elt):
       rpki.log.error(traceback.format_exc())
       done(q_msg.serve_error(data))
 
-class repository_elt(data_elt):
-  """
-  <repository/> element.
-  """
-
-  element_name = "repository"
-  attributes = ("action", "tag", "self_id", "repository_id", "bsc_id", "peer_contact_uri")
-  elements = ("bpki_cms_cert", "bpki_cms_glue", "bpki_https_cert", "bpki_https_glue")
-
-  sql_template = rpki.sql.template("repository", "repository_id", "self_id", "bsc_id", "peer_contact_uri",
-                                   ("bpki_cms_cert", rpki.x509.X509), ("bpki_cms_glue", rpki.x509.X509),
-                                   ("bpki_https_cert", rpki.x509.X509), ("bpki_https_glue", rpki.x509.X509))
-
-  bpki_cms_cert = None
-  bpki_cms_glue = None
-  bpki_https_cert = None
-  bpki_https_glue = None
-
-  def parents(self):
-    """Fetch all parent objects that link to this repository object."""
-    return parent_elt.sql_fetch_where(self.gctx, "repository_id = %s", (self.repository_id,))
-
-  def call_pubd(self, callback, errback, *pdus):
-    """
-    Send a message to publication daemon and return the response.
-    """
-    rpki.log.trace()
-    bsc = self.bsc()
-    q_msg = rpki.publication.msg(pdus)
-    q_msg.type = "query"
-    q_cms = rpki.publication.cms_msg.wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
-    bpki_ta_path = (self.gctx.bpki_ta, self.self().bpki_cert, self.self().bpki_glue, self.bpki_https_cert, self.bpki_https_glue)
-
-    def done(r_cms):
-      try:
-        r_msg = rpki.publication.cms_msg.unwrap(r_cms, bpki_ta_path)
-        if len(r_msg) != 1 or isinstance(r_msg[0], rpki.publication.report_error_elt):
-          raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %s" % msg
-        callback()
-      except (rpki.async.ExitNow, SystemExit):
-        raise
-      except Exception, edata:
-        errback(edata)
-
-    rpki.https.client(
-      client_key   = bsc.private_key_id,
-      client_cert  = bsc.signing_cert,
-      server_ta    = bpki_ta_path,
-      url          = self.peer_contact_uri,
-      msg          = q_cms,
-      callback     = done,
-      errback      = errback)
-
-  def publish(self, obj, uri, callback, errback):
-    """
-    Publish one object in the repository.
-    """
-    rpki.log.trace()
-    rpki.log.info("Publishing %s as %s" % (repr(obj), repr(uri)))
-    self.call_pubd(callback, errback, rpki.publication.obj2elt[type(obj)].make_pdu(action = "publish", uri = uri, payload = obj))
-
-  def withdraw(self, obj, uri, callback, errback):
-    """
-    Withdraw one object from the repository.
-    """
-    rpki.log.trace()
-    rpki.log.info("Withdrawing %s from at %s" % (repr(obj), repr(uri)))
-    self.call_pubd(callback, errback, rpki.publication.obj2elt[type(obj)].make_pdu(action = "withdraw", uri = uri))
-
 class route_origin_elt(data_elt):
   """
   <route_origin/> element.
   """
 
   element_name = "route_origin"
-  attributes = ("action", "tag", "self_id", "route_origin_id", "as_number", "ipv4", "ipv6")
+  attributes = ("action", "tag", "self_handle", "route_origin_handle", "as_number", "ipv4", "ipv6")
   booleans = ("suppress_publication",)
 
-  sql_template = rpki.sql.template("route_origin", "route_origin_id", "ca_detail_id",
-                                   "self_id", "as_number",
+  sql_template = rpki.sql.template("route_origin", "route_origin_id", "route_origin_handle",
+                                   "ca_detail_id", "self_id", "as_number",
                                    ("roa", rpki.x509.ROA),
                                    ("cert", rpki.x509.X509))
+  handles = (("self", self_elt),)
 
   ca_detail_id = None
   cert = None
@@ -964,7 +1006,7 @@ class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
   """
 
   element_name = "list_resources"
-  attributes = ("self_id", "tag", "child_id", "valid_until", "asn", "ipv4", "ipv6")
+  attributes = ("self_handle", "tag", "child_handle", "valid_until", "asn", "ipv4", "ipv6")
   valid_until = None
 
   def startElement(self, stack, name, attrs):
@@ -999,15 +1041,15 @@ class report_error_elt(rpki.xml_utils.base_elt, left_right_namespace):
   """
 
   element_name = "report_error"
-  attributes = ("tag", "self_id", "error_code")
+  attributes = ("tag", "self_handle", "error_code")
 
   @classmethod
-  def from_exception(cls, e, self_id = None):
+  def from_exception(cls, e, self_handle = None):
     """
     Generate a <report_error/> element from an exception.
     """
     self = cls()
-    self.self_id = self_id
+    self.self_handle = self_handle
     self.error_code = e.__class__.__name__
     self.text = str(e)
     return self
@@ -1038,7 +1080,7 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
 
       def fail(e):
         rpki.log.error(traceback.format_exc())
-        r_msg.append(report_error_elt.from_exception(e, self_id = q_pdu.self_id))
+        r_msg.append(report_error_elt.from_exception(e, self_handle = q_pdu.self_handle))
         cb(r_msg)
 
       try:

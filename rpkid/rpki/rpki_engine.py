@@ -32,7 +32,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import traceback, lxml.etree
+import traceback, lxml.etree, re
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
 import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log, rpki.async
 
@@ -58,7 +58,7 @@ class rpkid_context(object):
 
     self.publication_kludge_base = cfg.get("publication-kludge-base", "publication/")
 
-  def irdb_query(self, self_id, child_id, callback, errback):
+  def irdb_query(self, self_handle, child_handle, callback, errback):
     """
     Perform an IRDB callback query.
     """
@@ -68,8 +68,8 @@ class rpkid_context(object):
     q_msg = rpki.left_right.msg()
     q_msg.type = "query"
     q_msg.append(rpki.left_right.list_resources_elt())
-    q_msg[0].self_id = self_id
-    q_msg[0].child_id = child_id
+    q_msg[0].self_handle = self_handle
+    q_msg[0].child_handle = child_handle
     q_cms = rpki.left_right.cms_msg.wrap(q_msg, self.rpkid_key, self.rpkid_cert)
 
     def unwrap(der):
@@ -117,6 +117,8 @@ class rpkid_context(object):
       rpki.log.error(traceback.format_exc())
       cb(500, "Unhandled exception %s" % data)
 
+  up_down_url_regexp = re.compile("/up-down/([-A-Z0-9_]+)/([-A-Z0-9_]+)$", re.I)
+
   def up_down_handler(self, query, path, cb):
     """
     Process one up-down PDU.
@@ -130,12 +132,14 @@ class rpkid_context(object):
 
     try:
       self.sql.ping()
-      child_id = path.partition("/up-down/")[2]
-      if not child_id.isdigit():
+      match = self.up_down_url_regexp.search(path)
+      if match is None:
         raise rpki.exceptions.BadContactURL, "Bad path: %s" % path
-      child = rpki.left_right.child_elt.sql_fetch(self, long(child_id))
+      self_handle, child_handle = match.groups()
+      child = rpki.left_right.child_elt.sql_fetch_where1(self, "self.self_handle = %s AND child.child_handle = %s AND child.self_id = self.self_id",
+                                                         (self_handle, child_handle), "self")
       if child is None:
-        raise rpki.exceptions.ChildNotFound, "Could not find child %s" % child_id
+        raise rpki.exceptions.ChildNotFound, "Could not find child %s" % child_handle
       child.serve_up_down(query, done)
     except (rpki.async.ExitNow, SystemExit):
       raise

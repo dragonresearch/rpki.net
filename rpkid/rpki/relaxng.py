@@ -139,9 +139,21 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <param name="maxLength">512000</param>
     </data>
   </define>
-  <!-- Base definition for all fields that are really just SQL primary indices -->
-  <define name="sql_id">
-    <data type="nonNegativeInteger"/>
+  <!--
+    Base definition for all fields that are really just SQL primary indices
+    sql_id = xsd:nonNegativeInteger
+  -->
+  <!--
+    ...except that fields containing SQL primary indicies don't belong
+    in this protocol, so they're turninging into handles.
+    Length restriction is a MySQL implementation issue.
+    Handles are case-insensitive (because SQL is, among other reasons).
+  -->
+  <define name="object_handle">
+    <data type="string">
+      <param name="maxLength">255</param>
+      <param name="pattern">[\-_A-Za-z0-9]*</param>
+    </data>
   </define>
   <!-- URIs -->
   <define name="uri">
@@ -232,14 +244,15 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </element>
     </optional>
   </define>
-  <define name="self_id">
-    <attribute name="self_id">
-      <ref name="sql_id"/>
+  <define name="self_handle">
+    <attribute name="self_handle">
+      <ref name="object_handle"/>
     </attribute>
   </define>
   <define name="self_query" combine="choice">
     <element name="self">
       <ref name="ctl_create"/>
+      <ref name="self_handle"/>
       <ref name="self_bool"/>
       <ref name="self_payload"/>
     </element>
@@ -247,13 +260,13 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="self_reply" combine="choice">
     <element name="self">
       <ref name="ctl_create"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
     </element>
   </define>
   <define name="self_query" combine="choice">
     <element name="self">
       <ref name="ctl_set"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
       <ref name="self_bool"/>
       <ref name="self_payload"/>
     </element>
@@ -261,19 +274,19 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="self_reply" combine="choice">
     <element name="self">
       <ref name="ctl_set"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
     </element>
   </define>
   <define name="self_query" combine="choice">
     <element name="self">
       <ref name="ctl_get"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
     </element>
   </define>
   <define name="self_reply" combine="choice">
     <element name="self">
       <ref name="ctl_get"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
       <ref name="self_payload"/>
     </element>
   </define>
@@ -285,20 +298,20 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="self_reply" combine="choice">
     <element name="self">
       <ref name="ctl_list"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
       <ref name="self_payload"/>
     </element>
   </define>
   <define name="self_query" combine="choice">
     <element name="self">
       <ref name="ctl_destroy"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
     </element>
   </define>
   <define name="self_reply" combine="choice">
     <element name="self">
       <ref name="ctl_destroy"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
     </element>
   </define>
   <!-- <bsc/> element.  Key parameters hardwired for now. -->
@@ -324,9 +337,9 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </optional>
     </optional>
   </define>
-  <define name="bsc_id">
-    <attribute name="bsc_id">
-      <ref name="sql_id"/>
+  <define name="bsc_handle">
+    <attribute name="bsc_handle">
+      <ref name="object_handle"/>
     </attribute>
   </define>
   <define name="bsc_payload">
@@ -351,7 +364,8 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="bsc_query" combine="choice">
     <element name="bsc">
       <ref name="ctl_create"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
+      <ref name="bsc_handle"/>
       <ref name="bsc_bool"/>
       <ref name="bsc_payload"/>
     </element>
@@ -359,16 +373,16 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="bsc_reply" combine="choice">
     <element name="bsc">
       <ref name="ctl_create"/>
-      <ref name="self_id"/>
-      <ref name="bsc_id"/>
+      <ref name="self_handle"/>
+      <ref name="bsc_handle"/>
       <ref name="bsc_pkcs10"/>
     </element>
   </define>
   <define name="bsc_query" combine="choice">
     <element name="bsc">
       <ref name="ctl_set"/>
-      <ref name="self_id"/>
-      <ref name="bsc_id"/>
+      <ref name="self_handle"/>
+      <ref name="bsc_handle"/>
       <ref name="bsc_bool"/>
       <ref name="bsc_payload"/>
     </element>
@@ -376,23 +390,23 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="bsc_reply" combine="choice">
     <element name="bsc">
       <ref name="ctl_set"/>
-      <ref name="self_id"/>
-      <ref name="bsc_id"/>
+      <ref name="self_handle"/>
+      <ref name="bsc_handle"/>
       <ref name="bsc_pkcs10"/>
     </element>
   </define>
   <define name="bsc_query" combine="choice">
     <element name="bsc">
       <ref name="ctl_get"/>
-      <ref name="self_id"/>
-      <ref name="bsc_id"/>
+      <ref name="self_handle"/>
+      <ref name="bsc_handle"/>
     </element>
   </define>
   <define name="bsc_reply" combine="choice">
     <element name="bsc">
       <ref name="ctl_get"/>
-      <ref name="self_id"/>
-      <ref name="bsc_id"/>
+      <ref name="self_handle"/>
+      <ref name="bsc_handle"/>
       <ref name="bsc_payload"/>
       <ref name="bsc_pkcs10"/>
     </element>
@@ -400,14 +414,14 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="bsc_query" combine="choice">
     <element name="bsc">
       <ref name="ctl_list"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
     </element>
   </define>
   <define name="bsc_reply" combine="choice">
     <element name="bsc">
       <ref name="ctl_list"/>
-      <ref name="self_id"/>
-      <ref name="bsc_id"/>
+      <ref name="self_handle"/>
+      <ref name="bsc_handle"/>
       <ref name="bsc_payload"/>
       <ref name="bsc_pkcs10"/>
     </element>
@@ -415,21 +429,21 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="bsc_query" combine="choice">
     <element name="bsc">
       <ref name="ctl_destroy"/>
-      <ref name="self_id"/>
-      <ref name="bsc_id"/>
+      <ref name="self_handle"/>
+      <ref name="bsc_handle"/>
     </element>
   </define>
   <define name="bsc_reply" combine="choice">
     <element name="bsc">
       <ref name="ctl_destroy"/>
-      <ref name="self_id"/>
-      <ref name="bsc_id"/>
+      <ref name="self_handle"/>
+      <ref name="bsc_handle"/>
     </element>
   </define>
   <!-- <parent/> element -->
-  <define name="parent_id">
-    <attribute name="parent_id">
-      <ref name="sql_id"/>
+  <define name="parent_handle">
+    <attribute name="parent_handle">
+      <ref name="object_handle"/>
     </attribute>
   </define>
   <define name="parent_bool">
@@ -461,10 +475,10 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </attribute>
     </optional>
     <optional>
-      <ref name="bsc_id"/>
+      <ref name="bsc_handle"/>
     </optional>
     <optional>
-      <ref name="repository_id"/>
+      <ref name="repository_handle"/>
     </optional>
     <optional>
       <attribute name="sender_name">
@@ -500,7 +514,8 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="parent_query" combine="choice">
     <element name="parent">
       <ref name="ctl_create"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
+      <ref name="parent_handle"/>
       <ref name="parent_bool"/>
       <ref name="parent_payload"/>
     </element>
@@ -508,15 +523,15 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="parent_reply" combine="choice">
     <element name="parent">
       <ref name="ctl_create"/>
-      <ref name="self_id"/>
-      <ref name="parent_id"/>
+      <ref name="self_handle"/>
+      <ref name="parent_handle"/>
     </element>
   </define>
   <define name="parent_query" combine="choice">
     <element name="parent">
       <ref name="ctl_set"/>
-      <ref name="self_id"/>
-      <ref name="parent_id"/>
+      <ref name="self_handle"/>
+      <ref name="parent_handle"/>
       <ref name="parent_bool"/>
       <ref name="parent_payload"/>
     </element>
@@ -524,57 +539,57 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="parent_reply" combine="choice">
     <element name="parent">
       <ref name="ctl_set"/>
-      <ref name="self_id"/>
-      <ref name="parent_id"/>
+      <ref name="self_handle"/>
+      <ref name="parent_handle"/>
     </element>
   </define>
   <define name="parent_query" combine="choice">
     <element name="parent">
       <ref name="ctl_get"/>
-      <ref name="self_id"/>
-      <ref name="parent_id"/>
+      <ref name="self_handle"/>
+      <ref name="parent_handle"/>
     </element>
   </define>
   <define name="parent_reply" combine="choice">
     <element name="parent">
       <ref name="ctl_get"/>
-      <ref name="self_id"/>
-      <ref name="parent_id"/>
+      <ref name="self_handle"/>
+      <ref name="parent_handle"/>
       <ref name="parent_payload"/>
     </element>
   </define>
   <define name="parent_query" combine="choice">
     <element name="parent">
       <ref name="ctl_list"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
     </element>
   </define>
   <define name="parent_reply" combine="choice">
     <element name="parent">
       <ref name="ctl_list"/>
-      <ref name="self_id"/>
-      <ref name="parent_id"/>
+      <ref name="self_handle"/>
+      <ref name="parent_handle"/>
       <ref name="parent_payload"/>
     </element>
   </define>
   <define name="parent_query" combine="choice">
     <element name="parent">
       <ref name="ctl_destroy"/>
-      <ref name="self_id"/>
-      <ref name="parent_id"/>
+      <ref name="self_handle"/>
+      <ref name="parent_handle"/>
     </element>
   </define>
   <define name="parent_reply" combine="choice">
     <element name="parent">
       <ref name="ctl_destroy"/>
-      <ref name="self_id"/>
-      <ref name="parent_id"/>
+      <ref name="self_handle"/>
+      <ref name="parent_handle"/>
     </element>
   </define>
   <!-- <child/> element -->
-  <define name="child_id">
-    <attribute name="child_id">
-      <ref name="sql_id"/>
+  <define name="child_handle">
+    <attribute name="child_handle">
+      <ref name="object_handle"/>
     </attribute>
   </define>
   <define name="child_bool">
@@ -586,7 +601,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   </define>
   <define name="child_payload">
     <optional>
-      <ref name="bsc_id"/>
+      <ref name="bsc_handle"/>
     </optional>
     <optional>
       <element name="bpki_cert">
@@ -602,7 +617,8 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="child_query" combine="choice">
     <element name="child">
       <ref name="ctl_create"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
+      <ref name="child_handle"/>
       <ref name="child_bool"/>
       <ref name="child_payload"/>
     </element>
@@ -610,15 +626,15 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="child_reply" combine="choice">
     <element name="child">
       <ref name="ctl_create"/>
-      <ref name="self_id"/>
-      <ref name="child_id"/>
+      <ref name="self_handle"/>
+      <ref name="child_handle"/>
     </element>
   </define>
   <define name="child_query" combine="choice">
     <element name="child">
       <ref name="ctl_set"/>
-      <ref name="self_id"/>
-      <ref name="child_id"/>
+      <ref name="self_handle"/>
+      <ref name="child_handle"/>
       <ref name="child_bool"/>
       <ref name="child_payload"/>
     </element>
@@ -626,57 +642,57 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="child_reply" combine="choice">
     <element name="child">
       <ref name="ctl_set"/>
-      <ref name="self_id"/>
-      <ref name="child_id"/>
+      <ref name="self_handle"/>
+      <ref name="child_handle"/>
     </element>
   </define>
   <define name="child_query" combine="choice">
     <element name="child">
       <ref name="ctl_get"/>
-      <ref name="self_id"/>
-      <ref name="child_id"/>
+      <ref name="self_handle"/>
+      <ref name="child_handle"/>
     </element>
   </define>
   <define name="child_reply" combine="choice">
     <element name="child">
       <ref name="ctl_get"/>
-      <ref name="self_id"/>
-      <ref name="child_id"/>
+      <ref name="self_handle"/>
+      <ref name="child_handle"/>
       <ref name="child_payload"/>
     </element>
   </define>
   <define name="child_query" combine="choice">
     <element name="child">
       <ref name="ctl_list"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
     </element>
   </define>
   <define name="child_reply" combine="choice">
     <element name="child">
       <ref name="ctl_list"/>
-      <ref name="self_id"/>
-      <ref name="child_id"/>
+      <ref name="self_handle"/>
+      <ref name="child_handle"/>
       <ref name="child_payload"/>
     </element>
   </define>
   <define name="child_query" combine="choice">
     <element name="child">
       <ref name="ctl_destroy"/>
-      <ref name="self_id"/>
-      <ref name="child_id"/>
+      <ref name="self_handle"/>
+      <ref name="child_handle"/>
     </element>
   </define>
   <define name="child_reply" combine="choice">
     <element name="child">
       <ref name="ctl_destroy"/>
-      <ref name="self_id"/>
-      <ref name="child_id"/>
+      <ref name="self_handle"/>
+      <ref name="child_handle"/>
     </element>
   </define>
   <!-- <repository/> element -->
-  <define name="repository_id">
-    <attribute name="repository_id">
-      <ref name="sql_id"/>
+  <define name="repository_handle">
+    <attribute name="repository_handle">
+      <ref name="object_handle"/>
     </attribute>
   </define>
   <define name="repository_payload">
@@ -686,7 +702,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </attribute>
     </optional>
     <optional>
-      <ref name="bsc_id"/>
+      <ref name="bsc_handle"/>
     </optional>
     <optional>
       <element name="bpki_cms_cert">
@@ -712,79 +728,80 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="repository_query" combine="choice">
     <element name="repository">
       <ref name="ctl_create"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
+      <ref name="repository_handle"/>
       <ref name="repository_payload"/>
     </element>
   </define>
   <define name="repository_reply" combine="choice">
     <element name="repository">
       <ref name="ctl_create"/>
-      <ref name="self_id"/>
-      <ref name="repository_id"/>
+      <ref name="self_handle"/>
+      <ref name="repository_handle"/>
     </element>
   </define>
   <define name="repository_query" combine="choice">
     <element name="repository">
       <ref name="ctl_set"/>
-      <ref name="self_id"/>
-      <ref name="repository_id"/>
+      <ref name="self_handle"/>
+      <ref name="repository_handle"/>
       <ref name="repository_payload"/>
     </element>
   </define>
   <define name="repository_reply" combine="choice">
     <element name="repository">
       <ref name="ctl_set"/>
-      <ref name="self_id"/>
-      <ref name="repository_id"/>
+      <ref name="self_handle"/>
+      <ref name="repository_handle"/>
     </element>
   </define>
   <define name="repository_query" combine="choice">
     <element name="repository">
       <ref name="ctl_get"/>
-      <ref name="self_id"/>
-      <ref name="repository_id"/>
+      <ref name="self_handle"/>
+      <ref name="repository_handle"/>
     </element>
   </define>
   <define name="repository_reply" combine="choice">
     <element name="repository">
       <ref name="ctl_get"/>
-      <ref name="self_id"/>
-      <ref name="repository_id"/>
+      <ref name="self_handle"/>
+      <ref name="repository_handle"/>
       <ref name="repository_payload"/>
     </element>
   </define>
   <define name="repository_query" combine="choice">
     <element name="repository">
       <ref name="ctl_list"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
     </element>
   </define>
   <define name="repository_reply" combine="choice">
     <element name="repository">
       <ref name="ctl_list"/>
-      <ref name="self_id"/>
-      <ref name="repository_id"/>
+      <ref name="self_handle"/>
+      <ref name="repository_handle"/>
       <ref name="repository_payload"/>
     </element>
   </define>
   <define name="repository_query" combine="choice">
     <element name="repository">
       <ref name="ctl_destroy"/>
-      <ref name="self_id"/>
-      <ref name="repository_id"/>
+      <ref name="self_handle"/>
+      <ref name="repository_handle"/>
     </element>
   </define>
   <define name="repository_reply" combine="choice">
     <element name="repository">
       <ref name="ctl_destroy"/>
-      <ref name="self_id"/>
-      <ref name="repository_id"/>
+      <ref name="self_handle"/>
+      <ref name="repository_handle"/>
     </element>
   </define>
   <!-- <route_origin/> element -->
-  <define name="route_origin_id">
-    <attribute name="route_origin_id">
-      <ref name="sql_id"/>
+  <define name="route_origin_handle">
+    <attribute name="route_origin_handle">
+      <ref name="object_handle"/>
     </attribute>
   </define>
   <define name="route_origin_bool">
@@ -814,7 +831,8 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="route_origin_query" combine="choice">
     <element name="route_origin">
       <ref name="ctl_create"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
+      <ref name="route_origin_handle"/>
       <ref name="route_origin_bool"/>
       <ref name="route_origin_payload"/>
     </element>
@@ -822,15 +840,15 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="route_origin_reply" combine="choice">
     <element name="route_origin">
       <ref name="ctl_create"/>
-      <ref name="self_id"/>
-      <ref name="route_origin_id"/>
+      <ref name="self_handle"/>
+      <ref name="route_origin_handle"/>
     </element>
   </define>
   <define name="route_origin_query" combine="choice">
     <element name="route_origin">
       <ref name="ctl_set"/>
-      <ref name="self_id"/>
-      <ref name="route_origin_id"/>
+      <ref name="self_handle"/>
+      <ref name="route_origin_handle"/>
       <ref name="route_origin_bool"/>
       <ref name="route_origin_payload"/>
     </element>
@@ -838,66 +856,66 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="route_origin_reply" combine="choice">
     <element name="route_origin">
       <ref name="ctl_set"/>
-      <ref name="self_id"/>
-      <ref name="route_origin_id"/>
+      <ref name="self_handle"/>
+      <ref name="route_origin_handle"/>
     </element>
   </define>
   <define name="route_origin_query" combine="choice">
     <element name="route_origin">
       <ref name="ctl_get"/>
-      <ref name="self_id"/>
-      <ref name="route_origin_id"/>
+      <ref name="self_handle"/>
+      <ref name="route_origin_handle"/>
     </element>
   </define>
   <define name="route_origin_reply" combine="choice">
     <element name="route_origin">
       <ref name="ctl_get"/>
-      <ref name="self_id"/>
-      <ref name="route_origin_id"/>
+      <ref name="self_handle"/>
+      <ref name="route_origin_handle"/>
       <ref name="route_origin_payload"/>
     </element>
   </define>
   <define name="route_origin_query" combine="choice">
     <element name="route_origin">
       <ref name="ctl_list"/>
-      <ref name="self_id"/>
+      <ref name="self_handle"/>
     </element>
   </define>
   <define name="route_origin_reply" combine="choice">
     <element name="route_origin">
       <ref name="ctl_list"/>
-      <ref name="self_id"/>
-      <ref name="route_origin_id"/>
+      <ref name="self_handle"/>
+      <ref name="route_origin_handle"/>
       <ref name="route_origin_payload"/>
     </element>
   </define>
   <define name="route_origin_query" combine="choice">
     <element name="route_origin">
       <ref name="ctl_destroy"/>
-      <ref name="self_id"/>
-      <ref name="route_origin_id"/>
+      <ref name="self_handle"/>
+      <ref name="route_origin_handle"/>
     </element>
   </define>
   <define name="route_origin_reply" combine="choice">
     <element name="route_origin">
       <ref name="ctl_destroy"/>
-      <ref name="self_id"/>
-      <ref name="route_origin_id"/>
+      <ref name="self_handle"/>
+      <ref name="route_origin_handle"/>
     </element>
   </define>
   <!-- <list_resources/> element -->
   <define name="list_resources_query">
     <element name="list_resources">
       <ref name="tag"/>
-      <ref name="self_id"/>
-      <ref name="child_id"/>
+      <ref name="self_handle"/>
+      <ref name="child_handle"/>
     </element>
   </define>
   <define name="list_resources_reply">
     <element name="list_resources">
       <ref name="tag"/>
-      <ref name="self_id"/>
-      <ref name="child_id"/>
+      <ref name="self_handle"/>
+      <ref name="child_handle"/>
       <attribute name="valid_until">
         <data type="dateTime">
           <param name="pattern">.*Z</param>
@@ -930,7 +948,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <element name="report_error">
       <ref name="tag"/>
       <optional>
-        <ref name="self_id"/>
+        <ref name="self_handle"/>
       </optional>
       <attribute name="error_code">
         <ref name="error"/>
@@ -1292,9 +1310,16 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <ref name="uri_t"/>
     </attribute>
   </define>
+  <!-- Handles on remote objects (replaces passing raw SQL IDs) -->
+  <define name="object_handle">
+    <data type="string">
+      <param name="maxLength">255</param>
+      <param name="pattern">[\-_A-Za-z0-9]*</param>
+    </data>
+  </define>
   <!--
     <config/> element (use restricted to repository operator)
-    config_id attribute, create, list, and destroy commands omitted deliberately, see code for details
+    config_handle attribute, create, list, and destroy commands omitted deliberately, see code for details
   -->
   <define name="config_payload">
     <optional>
@@ -1346,9 +1371,9 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
     </element>
   </define>
   <!-- <client/> element (use restricted to repository operator) -->
-  <define name="client_id">
-    <attribute name="client_id">
-      <data type="nonNegativeInteger"/>
+  <define name="client_handle">
+    <attribute name="client_handle">
+      <ref name="object_handle"/>
     </attribute>
   </define>
   <define name="client_payload">
@@ -1376,6 +1401,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
+      <ref name="client_handle"/>
       <ref name="client_payload"/>
     </element>
   </define>
@@ -1387,7 +1413,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
-      <ref name="client_id"/>
+      <ref name="client_handle"/>
     </element>
   </define>
   <define name="client_query" combine="choice">
@@ -1398,7 +1424,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
-      <ref name="client_id"/>
+      <ref name="client_handle"/>
       <ref name="client_payload"/>
     </element>
   </define>
@@ -1410,7 +1436,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
-      <ref name="client_id"/>
+      <ref name="client_handle"/>
     </element>
   </define>
   <define name="client_query" combine="choice">
@@ -1421,7 +1447,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
-      <ref name="client_id"/>
+      <ref name="client_handle"/>
     </element>
   </define>
   <define name="client_reply" combine="choice">
@@ -1432,7 +1458,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
-      <ref name="client_id"/>
+      <ref name="client_handle"/>
       <ref name="client_payload"/>
     </element>
   </define>
@@ -1454,7 +1480,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
-      <ref name="client_id"/>
+      <ref name="client_handle"/>
       <ref name="client_payload"/>
     </element>
   </define>
@@ -1466,7 +1492,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
-      <ref name="client_id"/>
+      <ref name="client_handle"/>
     </element>
   </define>
   <define name="client_reply" combine="choice">
@@ -1477,7 +1503,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <optional>
         <ref name="tag"/>
       </optional>
-      <ref name="client_id"/>
+      <ref name="client_handle"/>
     </element>
   </define>
   <!-- <certificate/> element -->

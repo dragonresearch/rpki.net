@@ -26,8 +26,6 @@ CREATE TABLE registrant (
         registrant_handle       VARCHAR(255) NOT NULL,
         registrant_name         TEXT,
         rpki_self_handle        VARCHAR(255),
-        rpki_self_id            BIGINT unsigned,
-        rpki_child_id           BIGINT unsigned,
         valid_until             DATETIME NOT NULL,
         PRIMARY KEY             (registrant_id),
         UNIQUE                  (rpki_self_handle, registrant_handle)

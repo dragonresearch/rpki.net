@@ -103,15 +103,12 @@ class config_elt(control_elt):
     else:
       control_elt.serve_set(self, r_msg, cb, eb)
 
-  def serve_fetch_one(self):
+  def serve_fetch_one_maybe(self):
     """
     Find the config object on which a get or set method should
     operate.
     """
-    r = self.sql_fetch(self.gctx, self.config_id)
-    if r is None:
-      raise rpki.exceptions.NotFound
-    return r
+    return self.sql_fetch(self.gctx, self.config_id)
 
 class client_elt(control_elt):
   """
@@ -119,10 +116,10 @@ class client_elt(control_elt):
   """
 
   element_name = "client"
-  attributes = ("action", "tag", "client_id", "base_uri")
+  attributes = ("action", "tag", "client_handle", "base_uri")
   elements = ("bpki_cert", "bpki_glue")
 
-  sql_template = rpki.sql.template("client", "client_id", "base_uri", ("bpki_cert", rpki.x509.X509), ("bpki_glue", rpki.x509.X509))
+  sql_template = rpki.sql.template("client", "client_id", "client_handle", "base_uri", ("bpki_cert", rpki.x509.X509), ("bpki_glue", rpki.x509.X509))
 
   base_uri  = None
   bpki_cert = None
@@ -149,15 +146,12 @@ class client_elt(control_elt):
       self.clear_https_ta_cache = False
     cb()
 
-  def serve_fetch_one(self):
+  def serve_fetch_one_maybe(self):
     """
     Find the client object on which a get, set, or destroy method
-    should operate.
+    should operate, or which would conflict with a create method.
     """
-    r = self.sql_fetch(self.gctx, self.client_id)
-    if r is None:
-      raise rpki.exceptions.NotFound
-    return r
+    return self.sql_fetch_where1(self.gctx, "client_handle = %s", self.client_handle)
 
   def serve_fetch_all(self):
     """Find client objects on which a list method should operate."""
@@ -177,7 +171,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
   different in any case.
   """
 
-  attributes = ("action", "tag", "client_id", "uri")
+  attributes = ("action", "tag", "client_handle", "uri")
   payload = None
 
   def endElement(self, stack, name, text):

@@ -5,5 +5,5 @@ digraph test {
 	graph [ratio=fill, overlap=false, bgcolor=white];
 	node [label="\N", fillcolor=white, shape=record, style=filled];
 	config [label="{config\n|config_id\ SERIAL\ [PK]\lbpki_crl\ LONGBLOB\l}"];
-	client [label="{client\n|client_id\ SERIAL\ [PK]\lbase_uri\ TEXT\lbpki_cert\ LONGBLOB\lbpki_glue\ LONGBLOB\l}"];
+	client [label="{client\n|client_id\ SERIAL\ [PK]\lclient_handle\ VARCHAR\ [U]\lbase_uri\ TEXT\lbpki_cert\ LONGBLOB\lbpki_glue\ LONGBLOB\l}"];
 }

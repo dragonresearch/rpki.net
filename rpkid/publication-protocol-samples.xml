@@ -63,7 +63,7 @@
     <!-- === -->
 
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-	<client action="create" base_uri="rsync://wombat.invalid/">
+	<client action="create" client_handle="3" base_uri="rsync://wombat.invalid/">
 	    <bpki_cert>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
@@ -87,11 +87,11 @@
     </msg>
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-	<client action="create" client_id="3"/>
+	<client action="create" client_handle="3"/>
     </msg>
     
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-	<client action="set" client_id="3">
+	<client action="set" client_handle="3">
 	    <bpki_glue>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
@@ -115,15 +115,15 @@
     </msg>
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-	<client action="set" client_id="3"/>
+	<client action="set" client_handle="3"/>
     </msg>
     
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-	<client action="get" client_id="3"/>
+	<client action="get" client_handle="3"/>
     </msg>
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-	<client action="get" client_id="3" base_uri="rsync://wombat.invalid/">
+	<client action="get" client_handle="3" base_uri="rsync://wombat.invalid/">
 	    <bpki_cert>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
@@ -151,7 +151,7 @@
     </msg>
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-	<client action="list" client_id="3">
+	<client action="list" client_handle="3">
 	    <bpki_cert>
 		MIIDGzCCAgOgAwIBAgIJAKi+/+wUhQlxMA0GCSqGSIb3DQEBBQUAMCQxIjAgBgNV
 		BAMTGVRlc3QgQ2VydGlmaWNhdGUgQm9iIFJvb3QwHhcNMDcwODAxMTk1MzEwWhcN
@@ -175,11 +175,11 @@
     </msg>
     
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-	<client action="destroy" client_id="3"/>
+	<client action="destroy" client_handle="3"/>
     </msg>
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/publication-spec/">
-	<client action="destroy" client_id="3"/>
+	<client action="destroy" client_handle="3"/>
     </msg>
     
     <!-- === -->

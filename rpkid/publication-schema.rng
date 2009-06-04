@@ -84,9 +84,16 @@
       <ref name="uri_t"/>
     </attribute>
   </define>
+  <!-- Handles on remote objects (replaces passing raw SQL IDs) -->
+  <define name="object_handle">
+    <data type="string">
+      <param name="maxLength">255</param>
+      <param name="pattern">[\-_A-Za-z0-9]*</param>
+    </data>
+  </define>
   <!--
     <config/> element (use restricted to repository operator)
-    config_id attribute, create, list, and destroy commands omitted deliberately, see code for details
+    config_handle attribute, create, list, and destroy commands omitted deliberately, see code for details
   -->
   <define name="config_payload">
     <optional>
@@ -138,9 +145,9 @@
     </element>
   </define>
   <!-- <client/> element (use restricted to repository operator) -->
-  <define name="client_id">
-    <attribute name="client_id">
-      <data type="nonNegativeInteger"/>
+  <define name="client_handle">
+    <attribute name="client_handle">
+      <ref name="object_handle"/>
     </attribute>
   </define>
   <define name="client_payload">
@@ -168,6 +175,7 @@
       <optional>
         <ref name="tag"/>
       </optional>
+      <ref name="client_handle"/>
       <ref name="client_payload"/>
     </element>
   </define>
@@ -179,7 +187,7 @@
       <optional>
         <ref name="tag"/>
       </optional>
-      <ref name="client_id"/>
+      <ref name="client_handle"/>
     </element>
   </define>
   <define name="client_query" combine="choice">
@@ -190,7 +198,7 @@
       <optional>
         <ref name="tag"/>
       </optional>
-      <ref name="client_id"/>
+      <ref name="client_handle"/>
       <ref name="client_payload"/>
     </element>
   </define>
@@ -202,7 +210,7 @@
       <optional>
         <ref name="tag"/>
       </optional>
-      <ref name="client_id"/>
+      <ref name="client_handle"/>
     </element>
   </define>
   <define name="client_query" combine="choice">
@@ -213,7 +221,7 @@
       <optional>
         <ref name="tag"/>
       </optional>
-      <ref name="client_id"/>
+      <ref name="client_handle"/>
     </element>
   </define>
   <define name="client_reply" combine="choice">
@@ -224,7 +232,7 @@
       <optional>
         <ref name="tag"/>
       </optional>
-      <ref name="client_id"/>
+      <ref name="client_handle"/>
       <ref name="client_payload"/>
     </element>
   </define>
@@ -246,7 +254,7 @@
       <optional>
         <ref name="tag"/>
       </optional>
-      <ref name="client_id"/>
+      <ref name="client_handle"/>
       <ref name="client_payload"/>
     </element>
   </define>
@@ -258,7 +266,7 @@
       <optional>
         <ref name="tag"/>
       </optional>
-      <ref name="client_id"/>
+      <ref name="client_handle"/>
     </element>
   </define>
   <define name="client_reply" combine="choice">
@@ -269,7 +277,7 @@
       <optional>
         <ref name="tag"/>
       </optional>
-      <ref name="client_id"/>
+      <ref name="client_handle"/>
     </element>
   </define>
   <!-- <certificate/> element -->

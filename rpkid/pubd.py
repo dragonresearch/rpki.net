@@ -38,7 +38,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import traceback, os, time, getopt, sys
+import traceback, os, time, getopt, sys, re
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
 import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log
 import rpki.publication
@@ -93,6 +93,8 @@ class pubd_context(object):
       rpki.log.error(traceback.format_exc())
       cb(500, "Unhandled exception %s" % data)
 
+  client_url_regexp = re.compile("/client/([-A-Z0-9_]+)$", re.I)
+
   def client_handler(self, query, path, cb):
     """
     Process one PDU from a client.
@@ -101,16 +103,16 @@ class pubd_context(object):
     def done(x):
       cb(200, x)
 
-
     rpki.log.trace()
     try:
       self.sql.ping()
-      client_id = path.partition("/client/")[2]
-      if not client_id.isdigit():
+      match = self.client_url_regexp.search(path)
+      if match is None:
         raise rpki.exceptions.BadContactURL, "Bad path: %s" % path
-      client = rpki.publication.client_elt.sql_fetch(self, long(client_id))
+      client_handle = match.group(1)
+      client = rpki.publication.client_elt.sql_fetch_where1(self, "client_handle = %s", (client_handle,))
       if client is None:
-        raise rpki.exceptions.ClientNotFound, "Could not find client %s" % client_id
+        raise rpki.exceptions.ClientNotFound, "Could not find client %s" % client_handle
       config = rpki.publication.config_elt.fetch(self)
       if config is None or config.bpki_crl is None:
         raise rpki.exceptions.CMSCRLNotSet

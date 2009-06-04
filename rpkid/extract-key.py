@@ -9,14 +9,13 @@ that couldn't be done via the mysql command line tool.
 
 While we're at this we also extract the corresponding certificate.
 
-Usage: python extract-key.py [ { -s | --self     } self_id        ]
-                             [ { -b | --bsc      } bsc_id         ]
+Usage: python extract-key.py [ { -s | --self     } self_handle    ]
+                             [ { -b | --bsc      } bsc_handle     ]
                              [ { -u | --user     } mysql_user_id  ]
                              [ { -d | --db       } mysql_database ]
                              [ { -p | --password } mysql_password ]
                              [ { -h | --help     } ]
 
-Default for both self_id and bsc_id is 1.
 Default for both user and db is "rpki".
 
 $Id$
@@ -46,8 +45,8 @@ def usage(code):
   print __doc__
   sys.exit(code)
 
-self_id = 1
-bsc_id  = 1
+self_handle = None
+bsc_handle  = None
 
 user = "rpki"
 passwd = "fnord"
@@ -59,9 +58,9 @@ for o, a in opts:
   if o in ("-h", "--help", "-?"):
     usage(0)
   elif o in ("-s", "--self"):
-    self_id = int(a)
+    self_handle = a
   elif o in ("-b", "--bsc"):
-    bsc_id = int(a)
+    bsc_handle = a
   elif o in ("-u", "--user"):
     user = a
   elif o in ("-p", "--password"):
@@ -73,8 +72,13 @@ if argv:
 
 cur = MySQLdb.connect(user = user, db = db, passwd = passwd).cursor()
 
-cur.execute("SELECT private_key_id, signing_cert FROM bsc WHERE self_id = %s AND bsc_id = %s",
-            (self_id, bsc_id))
+cur.execute(
+  """
+    SELECT bsc.private_key_id, bsc.signing_cert
+    FROM bsc, self
+    WHERE self.self_handle = %s AND self.self_id = bsc.self_id AND bsc_handle = %s
+  """,
+  (self_handle, bsc_handle))
 
 key, cer = cur.fetchone()
 

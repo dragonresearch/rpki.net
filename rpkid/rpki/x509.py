@@ -43,7 +43,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import POW, tlslite.api, POW.pkix, base64, lxml.etree, os
+import POW, POW.pkix, base64, lxml.etree, os
 import rpki.exceptions, rpki.resource_set, rpki.oids, rpki.sundial
 import rpki.manifest, rpki.roa, rpki.log, rpki.async
 
@@ -326,7 +326,7 @@ class X509(DER_object):
   have to care about this implementation nightmare.
   """
 
-  formats = ("DER", "POW", "POWpkix", "tlslite")
+  formats = ("DER", "POW", "POWpkix")
   pem_converter = PEM_converter("CERTIFICATE")
   
   def get_DER(self):
@@ -341,12 +341,6 @@ class X509(DER_object):
       return self.get_DER()
     if self.POWpkix:
       self.DER = self.POWpkix.toString()
-      return self.get_DER()
-    if self.tlslite:
-      der = self.tlslite.writeBytes()
-      if not isinstance(der, str): # Apparently sometimes tlslite strings aren't strings,
-        der = der.tostring()       # then again somtimes they are.  Isn't that special?
-      self.DER = der
       return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
@@ -369,17 +363,6 @@ class X509(DER_object):
       cert.fromString(self.get_DER())
       self.POWpkix = cert
     return self.POWpkix
-
-  def get_tlslite(self):
-    """
-    Get the tlslite value of this certificate.
-    """
-    assert not self.empty()
-    if not self.tlslite:
-      cert = tlslite.api.X509()
-      cert.parseBinary(self.get_DER())
-      self.tlslite = cert
-    return self.tlslite
 
   def getIssuer(self):
     """Get the issuer of this certificate."""
@@ -592,7 +575,7 @@ class RSA(DER_object):
   Class to hold an RSA key pair.
   """
 
-  formats = ("DER", "POW", "tlslite")
+  formats = ("DER", "POW")
   pem_converter = PEM_converter("RSA PRIVATE KEY")
   
   def get_DER(self):
@@ -615,15 +598,6 @@ class RSA(DER_object):
     if not self.POW:
       self.POW = POW.derRead(POW.RSA_PRIVATE_KEY, self.get_DER())
     return self.POW
-
-  def get_tlslite(self):
-    """
-    Get the tlslite value of this keypair.
-    """
-    assert not self.empty()
-    if not self.tlslite:
-      self.tlslite = tlslite.api.parsePEMKey(self.get_PEM(), private=True)
-    return self.tlslite
 
   @classmethod
   def generate(cls, keylength = 2048):

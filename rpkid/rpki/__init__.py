@@ -129,13 +129,6 @@
 #       <li>Fedora:  MySQL-python.i386</li>
 #     </ul>
 #   </li>
-#   <li>
-#     <a href="http://trevp.net/tlslite/">http://trevp.net/tlslite/</a>.
-#     TLSLite pulls in other crypto packages.
-#     <ul>
-#       <li>FreeBSD: /usr/ports/security/py-tlslite</li>
-#     </ul>
-#   </li>
 # </ul>
 #
 # rpkid et al also make heavy use of a modified copy of the Python

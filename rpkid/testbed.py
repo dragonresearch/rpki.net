@@ -814,22 +814,13 @@ class allocation(object):
     """
     Create RPKI engine objects for this engine.
 
-    Parent and child objects are tricky:
-
-    - Parent object needs to know child_handle by which parent refers to
-      this engine in order to set the contact URI correctly.
-
-    - Child object needs to record the child_handle by which this engine
-      refers to the child.
-
-    This all just works so long as we walk the set of engines in the
-    right order (parents before their children).
-
     Root node of the engine tree is special, it too has a parent but
     that one is the magic self-signed micro engine.
 
-    The rest of this is straightforward, just nasty because of all the
-    protocol callbacks.
+    The rest of this is straightforward.  There are a lot of objects
+    to create, but we can do batch them all into one honking PDU, then
+    issue one more PDU to set BSC EE certificates based on the PKCS
+    #10 requests we get back when we tell rpkid to generate BSC keys.
     """
 
     assert not self.is_hosted() and not self.is_leaf()
@@ -839,45 +830,108 @@ class allocation(object):
     for i, s in enumerate(selves):
       rpki.log.info("Creating RPKI objects for [%d] %s" % (i, s.name))
 
-    def start():
-      rpki.log.info("Creating rpkid self objects for %s" % self.name)
-      self.call_rpkid([rpki.left_right.self_elt.make_pdu(action = "create",
-                                                         tag = str(i),
-                                                         self_handle = s.name,
-                                                         crl_interval = s.crl_interval,
-                                                         regen_margin = s.regen_margin,
-                                                         bpki_cert = (s.cross_certify(s.hosted_by.name + "-TA", reverse = True)
-                                                                      if s.is_hosted() else
-                                                                      rpki.x509.X509(Auto_file = s.name + "-SELF.cer")))
-                       for i, s in enumerate(selves)],
-                      cb = got_self_handle)
+    rpkid_pdus = []
+    pubd_pdus = []
 
-      # Need to convert rest, starting with callback from this.
+    for s in selves:
 
-    def got_self_handle(vals):
-      for v in vals:
-        assert selves[int(v.tag)].name == v.self_handle
+      rpkid_pdus.append(rpki.left_right.self_elt.make_pdu(
+        action = "create",
+        self_handle = s.name,
+        crl_interval = s.crl_interval,
+        regen_margin = s.regen_margin,
+        bpki_cert = (s.cross_certify(s.hosted_by.name + "-TA", reverse = True)
+                     if s.is_hosted() else
+                     rpki.x509.X509(Auto_file = s.name + "-SELF.cer"))))
 
-      rpki.log.info("Creating rpkid BSC objects for %s" % self.name)
-      self.call_rpkid([rpki.left_right.bsc_elt.make_pdu(action = "create",
-                                                        tag = str(i),
-                                                        self_handle = s.name,
-                                                        bsc_handle = str(i),
-                                                        generate_keypair = True)
-                       for i, s in enumerate(selves)],
-                      cb = got_bsc_handle)
+      rpkid_pdus.append(rpki.left_right.bsc_elt.make_pdu(
+        action = "create",
+        self_handle = s.name,
+        bsc_handle = "b",
+        generate_keypair = True))
 
-    def got_bsc_handle(vals):
-      for v in vals:
-        s = selves[int(v.tag)]
-        assert s.name == v.self_handle
-        s.bsc_handle = v.bsc_handle
+      pubd_pdus.append(rpki.publication.client_elt.make_pdu(
+        action = "create",
+        client_handle = s.name,
+        base_uri = s.sia_base,
+        bpki_cert = s.cross_certify(pubd_name + "-TA", reverse = True)))
+
+      repository_cert = s.cross_certify(pubd_name + "-TA")
+
+      rpkid_pdus.append(rpki.left_right.repository_elt.make_pdu(
+        action = "create",
+        self_handle = s.name,
+        bsc_handle = "b",
+        repository_handle = "r",
+        bpki_cms_cert = repository_cert,
+        bpki_https_cert = repository_cert,
+        peer_contact_uri = "https://localhost:%d/client/%s" % (pubd_port, s.name)))
+
+      for k in s.kids:
+        rpkid_pdus.append(rpki.left_right.child_elt.make_pdu(
+          action = "create",
+          self_handle = s.name,
+          child_handle = k.name,
+          bsc_handle = "b",
+          bpki_cert = s.cross_certify(k.name + ("-TA" if k.is_leaf() else "-SELF"))))
+
+      if s.is_root():
+        rootd_cert = s.cross_certify(rootd_name + "-TA")
+        rpkid_pdus.append(rpki.left_right.parent_elt.make_pdu(
+            action = "create",
+            self_handle = s.name,
+            parent_handle = "rootd",
+            bsc_handle = "b",
+            repository_handle = "r",
+            sia_base = s.sia_base,
+            bpki_cms_cert = rootd_cert,
+            bpki_https_cert = rootd_cert,
+            sender_name = s.name,
+            recipient_name = "rootd",
+            peer_contact_uri = "https://localhost:%s/" % rootd_port))
+      else:
+        rpkid_pdus.append(rpki.left_right.parent_elt.make_pdu(
+          action = "create",
+          self_handle = s.name,
+          parent_handle = s.parent.name,
+          bsc_handle = "b",
+          repository_handle = "r",
+          sia_base = s.sia_base,
+          bpki_cms_cert = s.cross_certify(s.parent.name + "-SELF"),
+          bpki_https_cert = s.cross_certify(s.parent.name + "-TA"),
+          sender_name = s.name,
+          recipient_name = s.parent.name,
+          peer_contact_uri = "https://localhost:%s/up-down/%s/%s" % (s.parent.get_rpki_port(), s.parent.name, s.name)))
+
+      for i, r in enumerate(s.route_origins):
+        rpkid_pdus.append(rpki.left_right.route_origin_elt.make_pdu(
+          action = "create",
+          self_handle = s.name,
+          route_origin_handle = "%s_%d" % (s.name, i),
+          as_number = r.asn,
+          ipv4 = r.v4,
+          ipv6 = r.v6))
+
+    def one():
+      call_pubd(pubd_pdus, cb = two)
+
+    def two(vals):
+      self.call_rpkid(rpkid_pdus, cb = three)
+
+    def three(vals):
+
+      bsc_dict = dict((b.self_handle, b) for b in vals if isinstance(b, rpki.left_right.bsc_elt))
+
+      bsc_pdus = []
+
+      for s in selves:
+        b = bsc_dict[s.name]
 
         rpki.log.info("Issuing BSC EE cert for %s" % s.name)
         cmd = (prog_openssl, "x509", "-req", "-sha256", "-extfile", s.name + "-RPKI.conf", "-extensions", "req_x509_ext", "-days", "30",
                "-CA", s.name + "-SELF.cer", "-CAkey",    s.name + "-SELF.key", "-CAcreateserial", "-text")
         signer = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-        signed = signer.communicate(input = v.pkcs10_request.get_PEM())
+        signed = signer.communicate(input = b.pkcs10_request.get_PEM())
         if not signed[0]:
           rpki.log.error(signed[1])
           raise RuntimeError, "Couldn't issue BSC EE certificate"
@@ -885,168 +939,19 @@ class allocation(object):
         s.bsc_crl = rpki.x509.CRL(PEM_file = s.name + "-SELF.crl")
         rpki.log.info("BSC EE cert for %s SKI %s" % (s.name, s.bsc_ee.hSKI()))
 
-      rpki.log.info("Installing BSC EE certs for %s" % self.name)
-      self.call_rpkid([rpki.left_right.bsc_elt.make_pdu(action = "set",
-                                                        tag = str(i),
-                                                        self_handle = s.name,
-                                                        bsc_handle = s.bsc_handle,
-                                                        signing_cert = s.bsc_ee,
-                                                        signing_cert_crl = s.bsc_crl)
-                       for i, s in enumerate(selves)],
-                      cb = bsc_ee_set)
+        bsc_pdus.append(rpki.left_right.bsc_elt.make_pdu(
+          action = "set",
+          self_handle = s.name,
+          bsc_handle = "b",
+          signing_cert = s.bsc_ee,
+          signing_cert_crl = s.bsc_crl))
 
-    def bsc_ee_set(vals):
+      self.call_rpkid(bsc_pdus, cb = four)
 
-      rpki.log.info("Creating pubd client objects for %s" % self.name)
-      call_pubd([rpki.publication.client_elt.make_pdu(action = "create",
-                                                      tag = str(i),
-                                                      client_handle = s.name,
-                                                      base_uri = s.sia_base,
-                                                      bpki_cert = s.cross_certify(pubd_name + "-TA", reverse = True))
-                 for i, s in enumerate(selves)],
-                cb = got_client_handle)
-
-    def got_client_handle(vals):
-
-      rpki.log.info("Creating rpkid repository objects for %s" % self.name)
-
-      pdus = []
-
-      for v in vals:
-        i = int(v.tag)
-        s = selves[i]
-
-        repository_cert = s.cross_certify(pubd_name + "-TA")
-
-        pdus.append(rpki.left_right.repository_elt.make_pdu(action = "create",
-                                                            tag = v.tag,
-                                                            self_handle = s.name,
-                                                            bsc_handle = s.bsc_handle,
-                                                            repository_handle = str(i),
-                                                            bpki_cms_cert = repository_cert,
-                                                            bpki_https_cert = repository_cert,
-                                                            peer_contact_uri = "https://localhost:%d/client/%s" % (pubd_port, v.client_handle)))
-
-      self.call_rpkid(pdus, cb = got_repository_handle)
-
-    def got_repository_handle(vals):
-
-      for v in vals:
-        s = selves[int(v.tag)]
-        assert s.name == v.self_handle
-        s.repository_handle = v.repository_handle
-
-      rpki.log.info("Creating rpkid child objects for %s" % self.name)
-
-      pdus = []
-
-      for i, s in enumerate(selves):
-        for j, k in enumerate(s.kids):
-          rpki.log.info("Creating rpkid child object for %s as child of %s" % (k.name, s.name))
-          pdus.append(rpki.left_right.child_elt.make_pdu(action = "create",
-                                                         tag = "%d.%d" % (i, j),
-                                                         self_handle = s.name,
-                                                         child_handle = k.name,
-                                                         bsc_handle = s.bsc_handle,
-                                                         bpki_cert = s.cross_certify(k.name + ("-TA" if k.is_leaf() else "-SELF"))))
-
-      if pdus:
-        self.call_rpkid(pdus, cb = got_child_handles)
-      else:
-        got_child_handles(())
-
-    def got_child_handles(vals):
-      
-      for v in vals:
-        i, j = [int(x) for x in v.tag.split(".")]
-        s = selves[i]
-        k = s.kids[j]
-        assert s.name == v.self_handle
-        assert k.name == v.child_handle
-
-      rpki.log.info("Creating rpkid parent objects for %s" % self.name)
-
-      pdus = []
-
-      for i, s in enumerate(selves):
-
-        rpki.log.info("Creating rpkid parent object for %s" % s.name)
-
-        if s.is_root():
-          rootd_cert = s.cross_certify(rootd_name + "-TA")
-          pdus.append(rpki.left_right.parent_elt.make_pdu(
-            action = "create",
-            tag = str(i),
-            self_handle = s.name,
-            parent_handle = "rootd",
-            bsc_handle = s.bsc_handle,
-            repository_handle = s.repository_handle,
-            sia_base = s.sia_base,
-            bpki_cms_cert = rootd_cert,
-            bpki_https_cert = rootd_cert,
-            sender_name = s.name,
-            recipient_name = "Walrus",
-            peer_contact_uri = "https://localhost:%s/" % rootd_port))
-        else:
-          parent_cms_cert = s.cross_certify(s.parent.name + "-SELF")
-          parent_https_cert = s.cross_certify(s.parent.name + "-TA")
-          pdus.append(rpki.left_right.parent_elt.make_pdu(
-            action = "create",
-            tag = str(i),
-            self_handle = s.name,
-            parent_handle = s.parent.name,
-            bsc_handle = s.bsc_handle,
-            repository_handle = s.repository_handle,
-            sia_base = s.sia_base,
-            bpki_cms_cert = parent_cms_cert,
-            bpki_https_cert = parent_https_cert,
-            sender_name = s.name,
-            recipient_name = s.parent.name,
-            peer_contact_uri = "https://localhost:%s/up-down/%s/%s" % (s.parent.get_rpki_port(), s.parent.name, s.name)))
-
-      assert pdus, "%s has no parents, something is whacked" % self.name
-
-      self.call_rpkid(pdus, cb = got_parent_handle)
-
-    def got_parent_handle(vals):
-
-      for v in vals:
-        s = selves[int(v.tag)]
-        assert s.name == v.self_handle
-        s.parent_handle = v.parent_handle
-
-      rpki.log.info("Creating rpkid route_origin objects for %s" % self.name)
-
-      pdus = []
-
-      for i, s in enumerate(selves):
-        for j, r in enumerate(s.route_origins):
-          pdus.append(rpki.left_right.route_origin_elt.make_pdu(
-            action = "create",
-            tag = "%d.%d" % (i, j),
-            self_handle = s.name,
-            route_origin_handle = "%s_%d" % (s.name, j),
-            as_number = r.asn,
-            ipv4 = r.v4,
-            ipv6 = r.v6))
-
-      if pdus:
-        self.call_rpkid(pdus, cb = got_route_origin_handles)
-      else:
-        got_route_origin_handles(())
-
-    def got_route_origin_handles(vals):
-      
-      for v in vals:
-        i, j = [int(x) for x in v.tag.split(".")]
-        s = selves[i]
-        r = s.route_origins[j]
-        assert s.name == v.self_handle
-        r.route_origin_handle = v.route_origin_handle
-
+    def four(vals):
       cb()
 
-    start()
+    one()
 
   def setup_yaml_leaf(self):
     """

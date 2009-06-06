@@ -676,7 +676,7 @@ class allocation(object):
       cur.execute(sql)
     for s in [self] + self.hosts:
       for kid in s.kids:
-        cur.execute("INSERT registrant (registrant_handle, rpki_self_handle, valid_until) VALUES (%s, %s, %s)",
+        cur.execute("INSERT registrant (registrant_handle, registry_handle, valid_until) VALUES (%s, %s, %s)",
                     (kid.name, s.name, kid.resources.valid_until.to_sql()))
     db.close()
 
@@ -689,18 +689,18 @@ class allocation(object):
     rpki.log.info("Updating MySQL data for IRDB %s" % self.name)
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
     cur = db.cursor()
-    cur.execute("DELETE FROM asn")
-    cur.execute("DELETE FROM net")
+    cur.execute("DELETE FROM registrant_asn")
+    cur.execute("DELETE FROM registrant_net")
     for s in [self] + self.hosts:
       for kid in s.kids:
-        cur.execute("SELECT registrant_id FROM registrant WHERE registrant_handle = %s AND rpki_self_handle = %s", (kid.name, s.name))
+        cur.execute("SELECT registrant_id FROM registrant WHERE registrant_handle = %s AND registry_handle = %s", (kid.name, s.name))
         registrant_id = cur.fetchone()[0]
         for as_range in kid.resources.asn:
-          cur.execute("INSERT asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)", (as_range.min, as_range.max, registrant_id))
+          cur.execute("INSERT registrant_asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)", (as_range.min, as_range.max, registrant_id))
         for v4_range in kid.resources.v4:
-          cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)", (v4_range.min, v4_range.max, registrant_id))
+          cur.execute("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)", (v4_range.min, v4_range.max, registrant_id))
         for v6_range in kid.resources.v6:
-          cur.execute("INSERT net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)", (v6_range.min, v6_range.max, registrant_id))
+          cur.execute("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)", (v6_range.min, v6_range.max, registrant_id))
         cur.execute("UPDATE registrant SET valid_until = %s WHERE registrant_id = %s", (kid.resources.valid_until.to_sql(), registrant_id))
     db.close()
 

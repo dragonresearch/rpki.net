@@ -25,33 +25,53 @@ CREATE TABLE registrant (
         registrant_id           SERIAL NOT NULL,
         registrant_handle       VARCHAR(255) NOT NULL,
         registrant_name         TEXT,
-        rpki_self_handle        VARCHAR(255),
+        registry_handle         VARCHAR(255),
         valid_until             DATETIME NOT NULL,
         PRIMARY KEY             (registrant_id),
-        UNIQUE                  (rpki_self_handle, registrant_handle)
+        UNIQUE                  (registry_handle, registrant_handle)
 );
 
-DROP TABLE IF EXISTS asn;
+DROP TABLE IF EXISTS registrant_asn;
 
-CREATE TABLE asn (
-        asn_id          SERIAL NOT NULL,
-        start_as        BIGINT unsigned NOT NULL,
-        end_as          BIGINT unsigned NOT NULL,
-        registrant_id   BIGINT unsigned NOT NULL,
-        PRIMARY KEY     (asn_id),
-        FOREIGN KEY     (registrant_id) REFERENCES registrant ON DELETE SET NULL ON UPDATE SET NULL
+CREATE TABLE registrant_asn (
+        registrant_asn_id       SERIAL NOT NULL,
+        start_as                BIGINT unsigned NOT NULL,
+        end_as                  BIGINT unsigned NOT NULL,
+        registrant_id           BIGINT unsigned NOT NULL,
+        PRIMARY KEY             (registrant_asn_id),
+        FOREIGN KEY             (registrant_id) REFERENCES registrant ON DELETE SET NULL ON UPDATE SET NULL
 );
 
-DROP TABLE IF EXISTS net;
+DROP TABLE IF EXISTS registrant_net;
 
-CREATE TABLE net (
-        net_id          SERIAL NOT NULL,
-        start_ip        VARCHAR(40) NOT NULL,
-        end_ip          VARCHAR(40) NOT NULL,
-        version         TINYINT unsigned NOT NULL,
-        registrant_id   BIGINT unsigned NOT NULL,
-        PRIMARY KEY     (net_id),
-        FOREIGN KEY     (registrant_id) REFERENCES registrant ON DELETE SET NULL ON UPDATE SET NULL
+CREATE TABLE registrant_net (
+        registrant_net_id       SERIAL NOT NULL,
+        start_ip                VARCHAR(40) NOT NULL,
+        end_ip                  VARCHAR(40) NOT NULL,
+        version                 TINYINT unsigned NOT NULL,
+        registrant_id           BIGINT unsigned NOT NULL,
+        PRIMARY KEY             (registrant_net_id),
+        FOREIGN KEY             (registrant_id) REFERENCES registrant ON DELETE SET NULL ON UPDATE SET NULL
+);
+
+DROP TABLE IF EXISTS roa_request;
+
+CREATE TABLE roa_request (
+        roa_request_id          SERIAL NOT NULL,
+        roa_request_handle      VARCHAR(255) NOT NULL,
+        as_number               DECIMAL(24,0),
+        PRIMARY KEY             (roa_request_id)
+);
+
+DROP TABLE IF EXISTS roa_request_prefix;
+
+CREATE TABLE roa_request_prefix (
+        prefix                  VARCHAR(40) NOT NULL,
+        prefixlen               TINYINT NOT NULL,
+        max_prefixlen           TINYINT NOT NULL,
+        roa_request_id          BIGINT unsigned NOT NULL,
+        PRIMARY KEY             (roa_request_id, prefix, prefixlen, max_prefixlen),
+        FOREIGN KEY             (roa_request_id) REFERENCES roa_request ON DELETE SET NULL ON UPDATE SET NULL
 );
 
 -- Local Variables:

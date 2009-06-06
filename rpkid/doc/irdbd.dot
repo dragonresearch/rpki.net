@@ -4,9 +4,12 @@ digraph test {
 	edge [arrowtail=none, arrowhead=crow];
 	graph [ratio=fill, overlap=false, bgcolor=white];
 	node [label="\N", fillcolor=white, shape=record, style=filled];
-	registrant [label="{registrant\n|registrant_id\ SERIAL\ [PK]\lregistrant_handle\ VARCHAR\ [U]\lregistrant_name\ TEXT\lrpki_self_handle\ VARCHAR\ [U]\lvalid_until\ DATETIME\l}"];
-	asn [label="{asn\n|asn_id\ SERIAL\ [PK]\lstart_as\ BIGINT\lend_as\ BIGINT\lregistrant_id\ BIGINT\ [FK]\l}"];
-	net [label="{net\n|net_id\ SERIAL\ [PK]\lstart_ip\ VARCHAR\lend_ip\ VARCHAR\lversion\ TINYINT\lregistrant_id\ BIGINT\ [FK]\l}"];
-	registrant -> asn;
-	registrant -> net;
+	registrant [label="{registrant\n|registrant_id\ SERIAL\ [PK]\lregistrant_handle\ VARCHAR\ [U]\lregistrant_name\ TEXT\lregistry_handle\ VARCHAR\ [U]\lvalid_until\ DATETIME\l}"];
+	registrant_asn [label="{registrant_asn\n|registrant_asn_id\ SERIAL\ [PK]\lstart_as\ BIGINT\lend_as\ BIGINT\lregistrant_id\ BIGINT\ [FK]\l}"];
+	registrant_net [label="{registrant_net\n|registrant_net_id\ SERIAL\ [PK]\lstart_ip\ VARCHAR\lend_ip\ VARCHAR\lversion\ TINYINT\lregistrant_id\ BIGINT\ [FK]\l}"];
+	roa_request [label="{roa_request\n|roa_request_id\ SERIAL\ [PK]\lroa_request_handle\ VARCHAR\las_number\ DECIMAL\l}"];
+	roa_request_prefix [label="{roa_request_prefix\n|prefix\ VARCHAR\ [PK]\lprefixlen\ TINYINT\ [PK]\lmax_prefixlen\ TINYINT\ [PK]\lroa_request_id\ BIGINT\ [PK,FK]\l}"];
+	registrant -> registrant_asn;
+	registrant -> registrant_net;
+	roa_request -> roa_request_prefix;
 }

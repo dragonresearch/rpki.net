@@ -65,23 +65,35 @@ def handler(query, path, cb):
         r_pdu.child_handle = q_pdu.child_handle
 
         cur.execute(
-          """
-              SELECT registrant_id, valid_until FROM registrant
-              WHERE registrant.rpki_self_handle = %s AND registrant.registrant_handle = %s
-          """,
+          "SELECT registrant_id, valid_until FROM registrant WHERE registrant.registry_handle = %s AND registrant.registrant_handle = %s",
           (q_pdu.self_handle, q_pdu.child_handle))
+
         if cur.rowcount != 1:
           raise rpki.exceptions.NotInDatabase, \
                 "This query should have produced a single exact match, something's messed up (rowcount = %d, self_handle = %s, child_handle = %s)" \
                 % (cur.rowcount, q_pdu.self_handle, q_pdu.child_handle)
 
         registrant_id, valid_until = cur.fetchone()
+
         r_pdu.valid_until = valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
-        r_pdu.asn  = rpki.resource_set.resource_set_as.from_sql(cur,   "SELECT start_as, end_as FROM asn WHERE registrant_id = %s", (registrant_id,))
-        r_pdu.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(cur, "SELECT start_ip, end_ip FROM net WHERE registrant_id = %s AND version = 4", (registrant_id,))
-        r_pdu.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(cur, "SELECT start_ip, end_ip FROM net WHERE registrant_id = %s AND version = 6", (registrant_id,))
+
+        r_pdu.asn  = rpki.resource_set.resource_set_as.from_sql(
+          cur,
+          "SELECT start_as, end_as FROM registrant_asn WHERE registrant_id = %s",
+          (registrant_id,))
+        
+        r_pdu.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(
+          cur,
+          "SELECT start_ip, end_ip FROM registrant_net WHERE registrant_id = %s AND version = 4",
+          (registrant_id,))
+
+        r_pdu.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(
+          cur,
+          "SELECT start_ip, end_ip FROM registrant_net WHERE registrant_id = %s AND version = 6",
+          (registrant_id,))
 
       except Exception, data:
+
         rpki.log.error(traceback.format_exc())
         r_pdu = rpki.left_right.report_error_elt.from_exception(data, q_pdu.self_handle)
 

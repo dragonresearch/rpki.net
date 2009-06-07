@@ -22,6 +22,7 @@ query_elt |= parent_query
 query_elt |= child_query
 query_elt |= repository_query
 query_elt |= route_origin_query
+query_elt |= list_roa_requests_query
 query_elt |= list_resources_query
 
 # PDUs allowed in a reply
@@ -32,6 +33,7 @@ reply_elt |= child_reply
 reply_elt |= repository_reply
 reply_elt |= route_origin_reply
 reply_elt |= list_resources_reply
+reply_elt |= list_roa_requests_reply
 reply_elt |= report_error_reply
 
 # Tag attributes for bulk operations
@@ -224,6 +226,19 @@ list_resources_reply = element list_resources {
   tag, self_handle, child_handle,
   attribute valid_until { xsd:dateTime { pattern=".*Z" } },
   attribute asn { asn_list }?,
+  attribute ipv4 { ipv4_list }?,
+  attribute ipv6 { ipv6_list }?
+}
+
+# <list_roa_requests/> element
+
+list_roa_requests_query = element list_roa_requests {
+  tag, self_handle
+}
+
+list_roa_requests_reply = element list_roa_requests {
+  tag, self_handle,
+  attribute asn { xsd:positiveInteger },
   attribute ipv4 { ipv4_list }?,
   attribute ipv6 { ipv6_list }?
 }

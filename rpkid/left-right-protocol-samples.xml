@@ -1186,52 +1186,6 @@
     <!-- ==== -->
     
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-	<route_origin action="create" self_handle="42" route_origin_handle="88"/>
-    </msg>
-    
-    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-	<route_origin action="create" self_handle="42" route_origin_handle="88"/>
-    </msg>
-    
-    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-	<route_origin action="set" self_handle="42" route_origin_handle="88"
-	    suppress_publication="yes"
-	    as_number="12345" ipv4="10.0.0.44/32" ipv6="2002:a00::/48-56"/>
-    </msg>
-    
-    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-	<route_origin action="set" self_handle="42" route_origin_handle="88"/>
-    </msg>
-    
-    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-	<route_origin action="get" self_handle="42" route_origin_handle="88"/>
-    </msg>
-    
-    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-	<route_origin action="get" self_handle="42" route_origin_handle="88"
-	    as_number="12345" ipv4="10.0.0.44/32" ipv6="2002:a00::/48-56"/>
-    </msg>
-    
-    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-	<route_origin action="list" self_handle="42"/>
-    </msg>
-    
-    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-	<route_origin action="list" self_handle="42" route_origin_handle="88"
-	    as_number="12345" ipv4="10.0.0.44/32" ipv6="2002:a00::/48"/>
-    </msg>
-    
-    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-	<route_origin action="destroy" self_handle="42" route_origin_handle="88"/>
-    </msg>
-    
-    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
-	<route_origin action="destroy" self_handle="42" route_origin_handle="88"/>
-    </msg>
-    
-    <!-- ==== -->
-    
-    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<list_resources self_handle="42" child_handle="289"/>
     </msg>
     
@@ -1241,6 +1195,25 @@
 			ipv4="10.0.0.44/32,10.3.0.44/32"
 			ipv6="fe80:deed:f00d::/48,fe80:dead:beef:2::-fe80:dead:beef:2::49"
 			asn="666"/>
+    </msg>
+    
+    <!-- === -->
+    
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<list_roa_requests self_handle="42"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<list_roa_requests self_handle="42"
+			asn="666"
+			ipv4="10.0.0.44/32,10.3.0.44/32"
+			ipv6="fe80:deed:f00d::/48,fe80:dead:beef::/48-56"
+			/>
+	<list_roa_requests self_handle="42"
+			asn="12345"
+			ipv4="10.0.0.44/32"
+			ipv6="2002:a00::/48-56"
+			/>
     </msg>
     
     <!-- === -->

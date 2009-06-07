@@ -1035,6 +1035,26 @@ class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
       elt.set("valid_until", self.valid_until.toXMLtime())
     return elt
 
+class list_roa_requests_elt(rpki.xml_utils.base_elt, left_right_namespace):
+  """
+  <list_roa_requests/> element.
+  """
+
+  element_name = "list_roa_requests"
+  attributes = ("self_handle", "tag", "asn", "ipv4", "ipv6")
+
+  def startElement(self, stack, name, attrs):
+    """
+    Handle <list_roa_requests/> element.  This requires special handling
+    due to the data types of some of the attributes.
+    """
+    assert name == "list_roa_requests", "Unexpected name %s, stack %s" % (name, stack)
+    self.read_attrs(attrs)
+    if self.ipv4 is not None:
+      self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4(self.ipv4)
+    if self.ipv6 is not None:
+      self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6)
+
 class report_error_elt(rpki.xml_utils.base_elt, left_right_namespace):
   """
   <report_error/> element.
@@ -1066,8 +1086,9 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
   ## @var pdus
   # Dispatch table of PDUs for this protocol.
   pdus = dict((x.element_name, x)
-              for x in (self_elt, child_elt, parent_elt, bsc_elt, repository_elt,
-                        route_origin_elt, list_resources_elt, report_error_elt))
+              for x in (self_elt, child_elt, parent_elt, bsc_elt,
+                        repository_elt, route_origin_elt, list_resources_elt,
+                        list_roa_requests_elt, report_error_elt))
 
   def serve_top_level(self, gctx, cb):
     """

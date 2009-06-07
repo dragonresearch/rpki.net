@@ -62,6 +62,9 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <ref name="route_origin_query"/>
   </define>
   <define name="query_elt" combine="choice">
+    <ref name="list_roa_requests_query"/>
+  </define>
+  <define name="query_elt" combine="choice">
     <ref name="list_resources_query"/>
   </define>
   <!-- PDUs allowed in a reply -->
@@ -85,6 +88,9 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="list_resources_reply"/>
+  </define>
+  <define name="reply_elt" combine="choice">
+    <ref name="list_roa_requests_reply"/>
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="report_error_reply"/>
@@ -926,6 +932,32 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
           <ref name="asn_list"/>
         </attribute>
       </optional>
+      <optional>
+        <attribute name="ipv4">
+          <ref name="ipv4_list"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="ipv6">
+          <ref name="ipv6_list"/>
+        </attribute>
+      </optional>
+    </element>
+  </define>
+  <!-- <list_roa_requests/> element -->
+  <define name="list_roa_requests_query">
+    <element name="list_roa_requests">
+      <ref name="tag"/>
+      <ref name="self_handle"/>
+    </element>
+  </define>
+  <define name="list_roa_requests_reply">
+    <element name="list_roa_requests">
+      <ref name="tag"/>
+      <ref name="self_handle"/>
+      <attribute name="asn">
+        <data type="positiveInteger"/>
+      </attribute>
       <optional>
         <attribute name="ipv4">
           <ref name="ipv4_list"/>

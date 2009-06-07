@@ -3,6 +3,7 @@
 all:: left-right-protocol-samples/.stamp
 
 left-right-protocol-samples/.stamp: left-right-protocol-samples.xml split-protocol-samples.xsl 
+	rm -f left-right-protocol-samples/*.xml
 	xsltproc --stringparam dir left-right-protocol-samples split-protocol-samples.xsl left-right-protocol-samples.xml
 	touch $@
 
@@ -23,6 +24,7 @@ up-down-schema.rng: up-down-schema.rnc
 all:: publication-protocol-samples/.stamp
 
 publication-protocol-samples/.stamp: publication-protocol-samples.xml split-protocol-samples.xsl 
+	rm -f publication-protocol-samples/*.xml
 	xsltproc --stringparam dir publication-protocol-samples split-protocol-samples.xsl publication-protocol-samples.xml
 	touch $@
 

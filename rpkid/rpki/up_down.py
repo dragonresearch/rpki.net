@@ -269,7 +269,7 @@ class list_pdu(base_elt):
           r_msg.payload.classes.append(rc)
       callback()
 
-    self.gctx.irdb_query(child.self().self_handle, child.child_handle, handle, errback)
+    self.gctx.irdb_query_child_resources(child.self().self_handle, child.child_handle, handle, errback)
 
   @classmethod
   def query(cls, parent, cb, eb):
@@ -403,7 +403,7 @@ class issue_pdu(base_elt):
           callback  = got_child_cert,
           errback   = errback)
 
-    self.gctx.irdb_query(child.self().self_handle, child.child_handle, got_resources, errback)
+    self.gctx.irdb_query_child_resources(child.self().self_handle, child.child_handle, got_resources, errback)
 
   @classmethod
   def query(cls, parent, ca, ca_detail, callback, errback):

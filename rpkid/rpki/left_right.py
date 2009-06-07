@@ -342,7 +342,7 @@ class self_elt(data_elt):
 
       child_certs = child.child_certs()
       if child_certs:
-        self.gctx.irdb_query(child.self().self_handle, child.child_handle, got_resources, irdb_lookup_failed)
+        self.gctx.irdb_query_child_resources(child.self().self_handle, child.child_handle, got_resources, irdb_lookup_failed)
       else:
         iterator1()
 

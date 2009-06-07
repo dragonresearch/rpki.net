@@ -58,7 +58,7 @@ class rpkid_context(object):
 
     self.publication_kludge_base = cfg.get("publication-kludge-base", "publication/")
 
-  def irdb_query(self, self_handle, child_handle, callback, errback):
+  def irdb_query(self, q_pdu, callback, errback):
     """
     Perform an IRDB callback query.
     """
@@ -67,22 +67,16 @@ class rpkid_context(object):
 
     q_msg = rpki.left_right.msg()
     q_msg.type = "query"
-    q_msg.append(rpki.left_right.list_resources_elt())
-    q_msg[0].self_handle = self_handle
-    q_msg[0].child_handle = child_handle
+    q_msg.append(q_pdu)
     q_cms = rpki.left_right.cms_msg.wrap(q_msg, self.rpkid_key, self.rpkid_cert)
 
     def unwrap(der):
       r_msg = rpki.left_right.cms_msg.unwrap(der, (self.bpki_ta, self.irdb_cert))
-      if len(r_msg) == 0 or not isinstance(r_msg[0], rpki.left_right.list_resources_elt) or r_msg.type != "reply":
+      if len(r_msg) == 0 or [r_pdu for r_pdu in r_msg if type(r_pdu) is not type(q_pdu)] or r_msg.type != "reply":
         errback(rpki.exceptions.BadIRDBReply(
           "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")))
       else:
-        callback(rpki.resource_set.resource_bag(
-          asn         = r_msg[0].asn,
-          v4          = r_msg[0].ipv4,
-          v6          = r_msg[0].ipv6,
-          valid_until = r_msg[0].valid_until))
+        callback(r_msg)
 
     rpki.https.client(
       server_ta    = (self.bpki_ta, self.irdb_cert),
@@ -92,6 +86,26 @@ class rpkid_context(object):
       msg          = q_cms,
       callback     = unwrap,
       errback      = errback)
+
+  def irdb_query_child_resources(self, self_handle, child_handle, callback, errback):
+    """
+    Ask IRDB about a child's resources.
+    """
+
+    rpki.log.trace()
+
+    q_pdu = rpki.left_right.list_resources_elt()
+    q_pdu.self_handle = self_handle
+    q_pdu.child_handle = child_handle
+
+    def done(r_msg):
+      callback(rpki.resource_set.resource_bag(
+        asn         = r_msg[0].asn,
+        v4          = r_msg[0].ipv4,
+        v6          = r_msg[0].ipv6,
+        valid_until = r_msg[0].valid_until))
+
+    self.irdb_query(q_pdu, done, errback)
 
   def left_right_handler(self, query, path, cb):
     """

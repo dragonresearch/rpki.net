@@ -756,33 +756,31 @@ class route_origin_elt(data_elt):
     """
     Extra SQL fetch actions for route_origin_elt -- handle prefix list.
     """
-    self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4.from_sql(
-      self.gctx.sql,
-      """
-          SELECT address, prefixlen, max_prefixlen FROM route_origin_prefix
-          WHERE route_origin_id = %s AND address NOT LIKE '%:%'
-      """, (self.route_origin_id,))
-    self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6.from_sql(
-      self.gctx.sql,
-      """
-          SELECT address, prefixlen, max_prefixlen FROM route_origin_prefix
-          WHERE route_origin_id = %s AND address LIKE '%:%'
-      """, (self.route_origin_id,))
+    for version, datatype, attribute in ((4, rpki.resource_set.roa_prefix_set_ipv4, "ipv4"),
+                                         (6, rpki.resource_set.roa_prefix_set_ipv6, "ipv6")):
+      setattr(self, attribute, datatype.from_sql(
+        self.gctx.sql,
+        """
+            SELECT address, prefixlen, max_prefixlen FROM route_origin_prefix
+            WHERE route_origin_id = %s AND version = %s
+        """,
+        (self.route_origin_id, version)))
 
   def sql_insert_hook(self):
     """
     Extra SQL insert actions for route_origin_elt -- handle address
     ranges.
     """
-    if self.ipv4 or self.ipv6:
-      self.gctx.sql.executemany(
-        """
-            INSERT route_origin_prefix (route_origin_id, address, prefixlen, max_prefixlen)
-            VALUES (%s, %s, %s, %s)
-        """,
-        ((self.route_origin_id, x.address, x.prefixlen, x.max_prefixlen)
-         for x in (self.ipv4 or []) + (self.ipv6 or [])))
-  
+    for version, prefix_set in ((4, self.ipv4), (6, self.ipv6)):
+      if prefix_set:
+        self.gctx.sql.executemany(
+          """
+            INSERT route_origin_prefix (route_origin_id, address, prefixlen, max_prefixlen, version)
+            VALUES (%s, %s, %s, %s, %s)
+          """,
+          ((self.route_origin_id, x.address, x.prefixlen, x.max_prefixlen, version)
+           for x in prefix_set))
+
   def sql_delete_hook(self):
     """
     Extra SQL delete actions for route_origin_elt -- handle address

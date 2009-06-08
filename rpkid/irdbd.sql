@@ -68,6 +68,7 @@ CREATE TABLE roa_request_prefix (
         prefix                  VARCHAR(40) NOT NULL,
         prefixlen               TINYINT NOT NULL,
         max_prefixlen           TINYINT NOT NULL,
+        version                 TINYINT NOT NULL,
         roa_request_id          BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (roa_request_id, prefix, prefixlen, max_prefixlen),
         FOREIGN KEY             (roa_request_id) REFERENCES roa_request (roa_request_id)

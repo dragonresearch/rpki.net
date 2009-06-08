@@ -187,6 +187,7 @@ CREATE TABLE route_origin_prefix (
         address                 VARCHAR(40) NOT NULL,
         prefixlen               TINYINT NOT NULL,
         max_prefixlen           TINYINT NOT NULL,
+        version                 TINYINT NOT NULL,
         route_origin_id         BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (route_origin_id, address, prefixlen, max_prefixlen),
         FOREIGN KEY             (route_origin_id) REFERENCES route_origin (route_origin_id)

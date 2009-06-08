@@ -20,15 +20,14 @@
 -- to store one BPKI CRL, but putting this here lets us use a lot of
 -- existing machinery and the alternatives are whacky in other ways.
 
+DROP TABLE IF EXISTS client;
 DROP TABLE IF EXISTS config;
 
 CREATE TABLE config (
         config_id       SERIAL NOT NULL,
         bpki_crl        LONGBLOB,
         PRIMARY KEY     (config_id)
-);
-
-DROP TABLE IF EXISTS client;
+) ENGINE=InnoDB;
 
 CREATE TABLE client (
         client_id       SERIAL NOT NULL,
@@ -38,7 +37,7 @@ CREATE TABLE client (
         bpki_glue       LONGBLOB,
         PRIMARY KEY     (client_id),
         UNIQUE          (client_handle)
-);
+) ENGINE=InnoDB;
 
 -- Local Variables:
 -- indent-tabs-mode: nil

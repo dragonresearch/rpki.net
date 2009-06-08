@@ -19,6 +19,13 @@
 -- anything you like so long as you implement the relevant portion of
 -- the left-right protocol.
 
+-- DROP TABLE commands must be in correct (reverse dependency) order
+-- to satisfy FOREIGN KEY constraints.
+
+DROP TABLE IF EXISTS roa_request_prefix;
+DROP TABLE IF EXISTS roa_request;
+DROP TABLE IF EXISTS registrant_net;
+DROP TABLE IF EXISTS registrant_asn;
 DROP TABLE IF EXISTS registrant;
 
 CREATE TABLE registrant (
@@ -29,50 +36,42 @@ CREATE TABLE registrant (
         valid_until             DATETIME NOT NULL,
         PRIMARY KEY             (registrant_id),
         UNIQUE                  (registry_handle, registrant_handle)
-);
-
-DROP TABLE IF EXISTS registrant_asn;
+) ENGINE=InnoDB;
 
 CREATE TABLE registrant_asn (
         registrant_asn_id       SERIAL NOT NULL,
-        start_as                BIGINT unsigned NOT NULL,
-        end_as                  BIGINT unsigned NOT NULL,
-        registrant_id           BIGINT unsigned NOT NULL,
+        start_as                BIGINT UNSIGNED NOT NULL,
+        end_as                  BIGINT UNSIGNED NOT NULL,
+        registrant_id           BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (registrant_asn_id),
-        FOREIGN KEY             (registrant_id) REFERENCES registrant ON DELETE SET NULL ON UPDATE SET NULL
-);
-
-DROP TABLE IF EXISTS registrant_net;
+        FOREIGN KEY             (registrant_id) REFERENCES registrant (registrant_id)
+) ENGINE=InnoDB;
 
 CREATE TABLE registrant_net (
         registrant_net_id       SERIAL NOT NULL,
         start_ip                VARCHAR(40) NOT NULL,
         end_ip                  VARCHAR(40) NOT NULL,
-        version                 TINYINT unsigned NOT NULL,
-        registrant_id           BIGINT unsigned NOT NULL,
+        version                 TINYINT UNSIGNED NOT NULL,
+        registrant_id           BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (registrant_net_id),
-        FOREIGN KEY             (registrant_id) REFERENCES registrant ON DELETE SET NULL ON UPDATE SET NULL
-);
-
-DROP TABLE IF EXISTS roa_request;
+        FOREIGN KEY             (registrant_id) REFERENCES registrant (registrant_id)
+) ENGINE=InnoDB;
 
 CREATE TABLE roa_request (
         roa_request_id          SERIAL NOT NULL,
         roa_request_handle      VARCHAR(255) NOT NULL,
         as_number               DECIMAL(24,0),
         PRIMARY KEY             (roa_request_id)
-);
-
-DROP TABLE IF EXISTS roa_request_prefix;
+) ENGINE=InnoDB;
 
 CREATE TABLE roa_request_prefix (
         prefix                  VARCHAR(40) NOT NULL,
         prefixlen               TINYINT NOT NULL,
         max_prefixlen           TINYINT NOT NULL,
-        roa_request_id          BIGINT unsigned NOT NULL,
+        roa_request_id          BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (roa_request_id, prefix, prefixlen, max_prefixlen),
-        FOREIGN KEY             (roa_request_id) REFERENCES roa_request ON DELETE SET NULL ON UPDATE SET NULL
-);
+        FOREIGN KEY             (roa_request_id) REFERENCES roa_request (roa_request_id)
+) ENGINE=InnoDB;
 
 -- Local Variables:
 -- indent-tabs-mode: nil

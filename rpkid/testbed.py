@@ -667,11 +667,13 @@ class allocation(object):
     rpki.log.info("Setting up MySQL for %s" % self.name)
     db = MySQLdb.connect(user = "rpki", db = self.rpki_db_name, passwd = rpki_db_pass)
     cur = db.cursor()
+    db.autocommit(True)
     for sql in rpki_sql:
       cur.execute(sql)
     db.close()
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
     cur = db.cursor()
+    db.autocommit(True)
     for sql in irdb_sql:
       cur.execute(sql)
     for s in [self] + self.hosts:
@@ -689,6 +691,7 @@ class allocation(object):
     rpki.log.info("Updating MySQL data for IRDB %s" % self.name)
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
     cur = db.cursor()
+    db.autocommit(True)
     cur.execute("DELETE FROM registrant_asn")
     cur.execute("DELETE FROM registrant_net")
     for s in [self] + self.hosts:
@@ -1116,6 +1119,7 @@ def setup_publication(pubd_sql):
   os.makedirs(rsyncd_dir)
   db = MySQLdb.connect(user = "pubd", db = "pubd", passwd = pubd_db_pass)
   cur = db.cursor()
+  db.autocommit(True)
   for sql in pubd_sql:
     cur.execute(sql)
   db.close()

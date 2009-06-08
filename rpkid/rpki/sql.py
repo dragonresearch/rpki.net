@@ -60,6 +60,7 @@ class session(object):
   def connect(self):
     self.db = MySQLdb.connect(user = self.username, db = self.database, passwd = self.password)
     self.cur = self.db.cursor()
+    self.db.autocommit(True)
 
   def close(self):
     if self.cur:

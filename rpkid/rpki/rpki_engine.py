@@ -107,6 +107,18 @@ class rpkid_context(object):
 
     self.irdb_query(q_pdu, done, errback)
 
+  def irdb_query_roa_requests(self, self_handle, callback, errback):
+    """
+    Ask IRDB about self's ROA requests.
+    """
+
+    rpki.log.trace()
+
+    q_pdu = rpki.left_right.list_roa_requests_elt()
+    q_pdu.self_handle = self_handle
+
+    self.irdb_query(q_pdu, callback, errback)
+
   def left_right_handler(self, query, path, cb):
     """
     Process one left-right PDU.

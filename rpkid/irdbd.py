@@ -140,6 +140,7 @@ db = MySQLdb.connect(user   = cfg.get("sql-username"),
                      passwd = cfg.get("sql-password"))
 
 cur = db.cursor()
+db.autocommit(True)
 
 bpki_ta         = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
 rpkid_cert      = rpki.x509.X509(Auto_file = cfg.get("rpkid-cert"))

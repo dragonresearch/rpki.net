@@ -912,22 +912,25 @@ class route_origin_elt(data_elt):
 
     keypair = rpki.x509.RSA.generate()
 
-    sia = ((rpki.oids.name2oid["id-ad-signedObject"], ("uri", self.roa_uri(ca, keypair))),)
-
-    self.cert = ca_detail.issue_ee(ca, resources, keypair.get_RSApublic(), sia = sia)
-    self.roa = rpki.x509.ROA.build(self.as_number, self.ipv4, self.ipv6, keypair, (self.cert,))
     self.ca_detail_id = ca_detail.ca_detail_id
+
+    self.cert = ca_detail.issue_ee(ca, resources, keypair.get_RSApublic(),
+                                   sia = ((rpki.oids.name2oid["id-ad-signedObject"],
+                                           ("uri", self.roa_uri(keypair))),))
+
+    self.roa = rpki.x509.ROA.build(self.as_number, self.ipv4, self.ipv6, keypair, (self.cert,))
+
     self.sql_store()
 
     repository = ca.parent().repository()
 
     def one():
-      repository.publish(self.cert, self.ee_uri(ca), two, errback)
+      repository.publish(self.cert, self.ee_uri(), two, errback)
 
     def two():
       ca_detail.generate_manifest(callback, errback)
 
-    repository.publish(self.roa, self.roa_uri(ca),
+    repository.publish(self.roa, self.roa_uri(),
                        one if self.publish_ee_separately else two,
                        errback)
 
@@ -945,8 +948,8 @@ class route_origin_elt(data_elt):
     repository = ca.parent().repository()
     cert = self.cert
     roa = self.roa
-    roa_uri = self.roa_uri(ca)
-    ee_uri = self.ee_uri(ca)
+    roa_uri = self.roa_uri()
+    ee_uri = self.ee_uri()
 
     if ca_detail.state != 'active':
       self.ca_detail_id = None
@@ -982,9 +985,9 @@ class route_origin_elt(data_elt):
     else:
       self.withdraw_roa(callback, errback, regenerate = True)
 
-  def roa_uri(self, ca, key = None):
+  def roa_uri(self, key = None):
     """Return the publication URI for this route_origin's ROA."""
-    return ca.sia_uri + self.roa_uri_tail(key)
+    return self.ca_detail().ca().sia_uri + self.roa_uri_tail(key)
 
   def roa_uri_tail(self, key = None):
     """Return the tail (filename portion) of the publication URI for this route_origin's ROA."""
@@ -994,9 +997,9 @@ class route_origin_elt(data_elt):
     """Return the tail (filename) portion of the URI for this route_origin's ROA's EE certificate."""
     return self.cert.gSKI() + ".cer"
 
-  def ee_uri(self, ca):
+  def ee_uri(self):
     """Return the publication URI for this route_origin's ROA's EE certificate."""
-    return ca.sia_uri + self.ee_uri_tail()
+    return self.ca_detail().ca().sia_uri + self.ee_uri_tail()
 
 class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
   """

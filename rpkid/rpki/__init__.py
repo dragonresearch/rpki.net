@@ -1405,7 +1405,7 @@
 #
 # Payload data which can be configured in a @c &lt;route_origin/&gt; %object:
 #
-# @li @c as_number (attribute):
+# @li @c asn (attribute):
 #     Autonomous System Number (ASN) to place in the generated ROA.  A
 #     single ROA can only grant authorization to a single ASN; multiple
 #     ASNs require multiple ROAs, thus multiple @c &lt;route_origin/&gt; %objects.

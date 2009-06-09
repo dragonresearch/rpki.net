@@ -164,7 +164,7 @@ CREATE TABLE revoked_cert (
 CREATE TABLE route_origin (
         route_origin_id         SERIAL NOT NULL,
         route_origin_handle     VARCHAR(255) NOT NULL,
-        as_number               DECIMAL(24,0),
+        asn                     DECIMAL(24,0),
         cert                    LONGBLOB,
         roa                     LONGBLOB,
         self_id                 BIGINT UNSIGNED NOT NULL,
@@ -176,18 +176,18 @@ CREATE TABLE route_origin (
 ) ENGINE=InnoDB;
 
 CREATE TABLE route_origin_prefix (
-        address                 VARCHAR(40) NOT NULL,
+        prefix                  VARCHAR(40) NOT NULL,
         prefixlen               TINYINT NOT NULL,
         max_prefixlen           TINYINT NOT NULL,
         version                 TINYINT NOT NULL,
         route_origin_id         BIGINT UNSIGNED NOT NULL,
-        PRIMARY KEY             (route_origin_id, address, prefixlen, max_prefixlen),
+        PRIMARY KEY             (route_origin_id, prefix, prefixlen, max_prefixlen),
         FOREIGN KEY             (route_origin_id) REFERENCES route_origin (route_origin_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE roa (
         roa_id                  SERIAL NOT NULL,
-        as_number               DECIMAL(24,0),
+        asn                     DECIMAL(24,0),
         cert                    LONGBLOB,
         roa                     LONGBLOB,
         self_id                 BIGINT UNSIGNED NOT NULL,
@@ -198,12 +198,12 @@ CREATE TABLE roa (
 ) ENGINE=InnoDB;
 
 CREATE TABLE roa_prefix (
-        address                 VARCHAR(40) NOT NULL,
+        prefix                  VARCHAR(40) NOT NULL,
         prefixlen               TINYINT NOT NULL,
         max_prefixlen           TINYINT NOT NULL,
         version                 TINYINT NOT NULL,
         roa_id                  BIGINT UNSIGNED NOT NULL,
-        PRIMARY KEY             (roa_id, address, prefixlen, max_prefixlen),
+        PRIMARY KEY             (roa_id, prefix, prefixlen, max_prefixlen),
         FOREIGN KEY             (roa_id) REFERENCES roa (roa_id)
 ) ENGINE=InnoDB;
 

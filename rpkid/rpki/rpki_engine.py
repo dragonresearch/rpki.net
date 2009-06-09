@@ -72,7 +72,7 @@ class rpkid_context(object):
 
     def unwrap(der):
       r_msg = rpki.left_right.cms_msg.unwrap(der, (self.bpki_ta, self.irdb_cert))
-      if len(r_msg) == 0 or [r_pdu for r_pdu in r_msg if type(r_pdu) is not type(q_pdu)] or r_msg.type != "reply":
+      if r_msg.type != "reply" or [r_pdu for r_pdu in r_msg if type(r_pdu) is not type(q_pdu)]:
         errback(rpki.exceptions.BadIRDBReply(
           "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")))
       else:
@@ -99,11 +99,15 @@ class rpkid_context(object):
     q_pdu.child_handle = child_handle
 
     def done(r_msg):
-      callback(rpki.resource_set.resource_bag(
-        asn         = r_msg[0].asn,
-        v4          = r_msg[0].ipv4,
-        v6          = r_msg[0].ipv6,
-        valid_until = r_msg[0].valid_until))
+      if len(r_msg) == 1:
+        callback(rpki.resource_set.resource_bag(
+          asn         = r_msg[0].asn,
+          v4          = r_msg[0].ipv4,
+          v6          = r_msg[0].ipv6,
+          valid_until = r_msg[0].valid_until))
+      else:
+        errback(rpki.exceptions.BadIRDBReply(
+          "Expected exactly one PDU from IRDB: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")))
 
     self.irdb_query(q_pdu, done, errback)
 
@@ -514,6 +518,10 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """Fetch all route_origin objects that link to this ca_detail."""
     return rpki.left_right.route_origin_elt.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
 
+  def roas(self):
+    """Fetch all ROA objects that link to this ca_detail."""
+    return rpki.rpki_engine.roa_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
+
   def crl_uri(self, ca):
     """Return publication URI for this ca_detail's CRL."""
     return ca.sia_uri + self.crl_uri_tail()
@@ -821,12 +829,14 @@ class ca_detail_obj(rpki.sql.sql_persistent):
 
     route_origins = [r for r in self.route_origins() if r.cert is not None and r.roa is not None]
 
+    roas = [r for r in self.roas() if r.cert is not None and r.roa is not None]
+
     if self.latest_manifest_cert is None or self.latest_manifest_cert.getNotAfter() < nextUpdate:
       self.generate_manifest_cert(ca)
 
     certs = [(c.uri_tail(), c.cert) for c in self.child_certs()] + \
             [(r.roa_uri_tail(), r.roa) for r in route_origins] + \
-            [(r.ee_uri_tail(), r.cert) for r in route_origins] + \
+            [(r.roa_uri_tail(), r.roa) for r in roas] + \
             [(self.crl_uri_tail(), self.latest_crl)]
 
     self.latest_manifest = rpki.x509.SignedManifest.build(
@@ -1056,7 +1066,7 @@ class roa_obj(rpki.sql.sql_persistent):
     "roa_id",
     "ca_detail_id",
     "self_id",
-    "as_number",
+    "asn",
     ("roa", rpki.x509.ROA),
     ("cert", rpki.x509.X509))
 
@@ -1064,39 +1074,43 @@ class roa_obj(rpki.sql.sql_persistent):
   cert = None
   roa = None
 
+  def self(self):
+    """
+    Fetch self object to which this roa_obj links.
+    """
+    return rpki.left_right.self_elt.sql_fetch(self.gctx, self.self_id)
+
   def sql_fetch_hook(self):
     """
-    Extra SQL fetch actions for roa_obj -- handle prefix list.
+    Extra SQL fetch actions for roa_obj -- handle prefix lists.
     """
     for version, datatype, attribute in ((4, rpki.resource_set.roa_prefix_set_ipv4, "ipv4"),
                                          (6, rpki.resource_set.roa_prefix_set_ipv6, "ipv6")):
       setattr(self, attribute, datatype.from_sql(
         self.gctx.sql,
         """
-            SELECT address, prefixlen, max_prefixlen FROM roa_prefix
+            SELECT prefix, prefixlen, max_prefixlen FROM roa_prefix
             WHERE roa_id = %s AND version = %s
         """,
         (self.roa_id, version)))
 
   def sql_insert_hook(self):
     """
-    Extra SQL insert actions for roa_obj -- handle address
-    ranges.
+    Extra SQL insert actions for roa_obj -- handle prefix lists.
     """
     for version, prefix_set in ((4, self.ipv4), (6, self.ipv6)):
       if prefix_set:
         self.gctx.sql.executemany(
           """
-            INSERT roa_prefix (roa_id, address, prefixlen, max_prefixlen, version)
+            INSERT roa_prefix (roa_id, prefix, prefixlen, max_prefixlen, version)
             VALUES (%s, %s, %s, %s, %s)
           """,
-          ((self.roa_id, x.address, x.prefixlen, x.max_prefixlen, version)
+          ((self.roa_id, x.prefix, x.prefixlen, x.max_prefixlen, version)
            for x in prefix_set))
 
   def sql_delete_hook(self):
     """
-    Extra SQL delete actions for roa_obj -- handle address
-    ranges.
+    Extra SQL delete actions for roa_obj -- handle prefix lists.
     """
     self.gctx.sql.execute("DELETE FROM roa_prefix WHERE roa_id = %s", (self.roa_id,))
 
@@ -1171,7 +1185,7 @@ class roa_obj(rpki.sql.sql_persistent):
     """
 
     if self.ipv4 is None and self.ipv6 is None:
-      rpki.log.warn("Can't generate ROA for empty prefix list")
+      errback(rpki.exceptions.EmptyROAPrefixList())
       return
 
     # Ugly and expensive search for covering ca_detail, there has to
@@ -1196,7 +1210,7 @@ class roa_obj(rpki.sql.sql_persistent):
           break
 
     if ca_detail is None:
-      rpki.log.warn("generate_roa() could not find a certificate covering %s %s" % (v4, v6))
+      errback(rpki.exceptions.NoCoveringCertForROA("generate_roa() could not find a certificate covering %s %s" % (v4, v6)))
       return
 
     ca = ca_detail.ca()
@@ -1211,21 +1225,14 @@ class roa_obj(rpki.sql.sql_persistent):
                                    sia = ((rpki.oids.name2oid["id-ad-signedObject"],
                                            ("uri", self.roa_uri(keypair))),))
 
-    self.roa = rpki.x509.ROA.build(self.as_number, self.ipv4, self.ipv6, keypair, (self.cert,))
+    self.roa = rpki.x509.ROA.build(self.asn, self.ipv4, self.ipv6, keypair, (self.cert,))
 
     self.sql_store()
 
-    repository = ca.parent().repository()
-
-    def one():
-      repository.publish(self.cert, self.ee_uri(), two, errback)
-
-    def two():
+    def done():
       ca_detail.generate_manifest(callback, errback)
 
-    repository.publish(self.roa, self.roa_uri(),
-                       one if self.publish_ee_separately else two,
-                       errback)
+    ca.parent().repository().publish(self.roa, self.roa_uri(), done, errback)
 
   def withdraw_roa(self, callback, errback, regenerate = False):
     """
@@ -1237,8 +1244,6 @@ class roa_obj(rpki.sql.sql_persistent):
     """
 
     ca_detail = self.ca_detail()
-    ca = ca_detail.ca()
-    repository = ca.parent().repository()
     cert = self.cert
     roa = self.roa
     roa_uri = self.roa_uri()
@@ -1250,18 +1255,13 @@ class roa_obj(rpki.sql.sql_persistent):
     def one():
       rpki.log.debug("Withdrawing ROA and revoking its EE cert")
       rpki.rpki_engine.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
-      repository.withdraw(roa, roa_uri,
-                          two if self.publish_ee_separately else three,
-                          errback)
+      ca_detail.ca().parent().repository().withdraw(roa, roa_uri, two, errback)
 
     def two():
-      repository.withdraw(cert, ee_uri, three, errback)
+      self.gctx.sql.sweep()
+      ca_detail.generate_crl(three, errback)
 
     def three():
-      self.gctx.sql.sweep()
-      ca_detail.generate_crl(four, errback)
-
-    def four():
       ca_detail.generate_manifest(callback, errback)
 
     if regenerate:

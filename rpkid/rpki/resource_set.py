@@ -157,15 +157,15 @@ class resource_range_ip(resource_range):
       return ("addressPrefix", _long2bs(self.min, self.datum_type.bits, prefixlen = prefixlen))
 
   @classmethod
-  def make_prefix(cls, address, prefixlen):
+  def make_prefix(cls, prefix, prefixlen):
     """
     Construct a resource range corresponding to a prefix.
     """
-    assert isinstance(address, cls.datum_type) and isinstance(prefixlen, (int, long))
+    assert isinstance(prefix, cls.datum_type) and isinstance(prefixlen, (int, long))
     assert prefixlen >= 0 and prefixlen <= cls.datum_type.bits, "Nonsensical prefix length: %s" % prefixlen
     mask = (1 << (cls.datum_type.bits - prefixlen)) - 1
-    assert (address & mask) == 0, "Resource not in canonical form: %s/%s" % (address, prefixlen)
-    return cls(cls.datum_type(address), cls.datum_type(address | mask))
+    assert (prefix & mask) == 0, "Resource not in canonical form: %s/%s" % (prefix, prefixlen)
+    return cls(cls.datum_type(prefix), cls.datum_type(prefix | mask))
 
 class resource_range_ipv4(resource_range_ip):
   """
@@ -657,8 +657,9 @@ class roa_prefix(object):
   This is a virtual class, you probably don't want to use it directly.
   """
 
-  ## @var address
-  # Address portion of prefix.
+  ## @var prefix
+  # The prefix itself, an IP address with bits beyond the prefix
+  # length zeroed.
 
   ## @var prefixlen
   # (Minimum) prefix length.
@@ -666,7 +667,7 @@ class roa_prefix(object):
   ## @var max_prefixlen
   # Maxmimum prefix length.
 
-  def __init__(self, address, prefixlen, max_prefixlen = None):
+  def __init__(self, prefix, prefixlen, max_prefixlen = None):
     """
     Initialize a ROA prefix.  max_prefixlen is optional and defaults
     to prefixlen.  max_prefixlen must not be smaller than prefixlen.
@@ -674,17 +675,17 @@ class roa_prefix(object):
     if max_prefixlen is None:
       max_prefixlen = prefixlen
     assert max_prefixlen >= prefixlen, "Bad max_prefixlen: %d must not be shorter than %d" % (max_prefixlen, prefixlen)
-    self.address = address
+    self.prefix = prefix
     self.prefixlen = prefixlen
     self.max_prefixlen = max_prefixlen
 
   def __cmp__(self, other):
     """
-    Compare two ROA prefix objects.  Comparision is based on address,
+    Compare two ROA prefix objects.  Comparision is based on prefix,
     prefixlen, and max_prefixlen, in that order.
     """
     assert self.__class__ is other.__class__
-    c = self.address - other.address
+    c = self.prefix - other.prefix
     if c == 0: c = self.prefixlen - other.prefixlen
     if c == 0: c = self.max_prefixlen - other.max_prefixlen
     if c < 0: c = -1
@@ -696,9 +697,9 @@ class roa_prefix(object):
     Convert a ROA prefix to string format.
     """
     if self.prefixlen == self.max_prefixlen:
-      return str(self.address) + "/" + str(self.prefixlen)
+      return str(self.prefix) + "/" + str(self.prefixlen)
     else:
-      return str(self.address) + "/" + str(self.prefixlen) + "-" + str(self.max_prefixlen)
+      return str(self.prefix) + "/" + str(self.prefixlen) + "-" + str(self.max_prefixlen)
 
   def to_resource_range(self):
     """
@@ -706,25 +707,25 @@ class roa_prefix(object):
     object.  This is an irreversable transformation because it loses
     the max_prefixlen attribute, nothing we can do about that.
     """
-    return self.range_type.make_prefix(self.address, self.prefixlen)
+    return self.range_type.make_prefix(self.prefix, self.prefixlen)
 
   def min(self):
     """Return lowest address covered by prefix."""
-    return self.address
+    return self.prefix
 
   def max(self):
     """
     Return highest address covered by prefix.
     """
     t = self.range_type.datum_type
-    return t(self.address | ((1 << (t.bits - self.prefixlen)) - 1))
+    return t(self.prefix | ((1 << (t.bits - self.prefixlen)) - 1))
     
   def to_roa_tuple(self):
     """
     Convert a resource_range_ip to tuple format for ROA ASN.1
     encoding.
     """
-    return (_long2bs(self.address, self.range_type.datum_type.bits, prefixlen = self.prefixlen),
+    return (_long2bs(self.prefix, self.range_type.datum_type.bits, prefixlen = self.prefixlen),
             None if self.prefixlen == self.max_prefixlen else self.max_prefixlen)
 
 class roa_prefix_ipv4(roa_prefix):
@@ -813,7 +814,7 @@ class roa_prefix_set(list):
     sql is an object that supports execute() and fetchall() methods
     like a DB API 2.0 cursor object.
 
-    query is an SQL query that returns a sequence of (address,
+    query is an SQL query that returns a sequence of (prefix,
     prefixlen, max_prefixlen) triples.
     """
 

@@ -709,12 +709,12 @@ class allocation(object):
           cur.execute("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)", (v6_range.min, v6_range.max, registrant_id))
         cur.execute("UPDATE registrant SET valid_until = %s WHERE registrant_id = %s", (kid.resources.valid_until.to_sql(), registrant_id))
       for r in  s.route_origins:
-        cur.execute("INSERT roa_request (roa_request_handle, as_number) VALUES (%s, %s)", (s.name, r.asn))
+        cur.execute("INSERT roa_request (roa_request_handle, asn) VALUES (%s, %s)", (s.name, r.asn))
         roa_request_id = cur.lastrowid
         for version, prefix_set in ((4, r.v4), (6, r.v6)):
           if prefix_set:
             cur.executemany("INSERT roa_request_prefix (roa_request_id, prefix, prefixlen, max_prefixlen, version) VALUES (%s, %s, %s, %s, %s)",
-                            ((roa_request_id, x.address, x.prefixlen, x.max_prefixlen, version) for x in prefix_set))
+                            ((roa_request_id, x.prefix, x.prefixlen, x.max_prefixlen, version) for x in prefix_set))
     db.close()
 
   def run_daemons(self):
@@ -921,7 +921,7 @@ class allocation(object):
           action = "create",
           self_handle = s.name,
           route_origin_handle = "%s_%d" % (s.name, i),
-          as_number = r.asn,
+          asn = r.asn,
           ipv4 = r.v4,
           ipv6 = r.v6))
 

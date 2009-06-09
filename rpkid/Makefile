@@ -75,7 +75,7 @@ irbe_cli.usage: irbe_cli.py
 	python irbe_cli.py --help | sed 's/^/      /' >$@
 
 tags:
-	find . -type f -name '*.py' ! -name relaxng.py | etags -
+	find . -type f \( -name '*.py' -o -name '*.sql' -o -name '*.rnc' \) ! -name relaxng.py | etags -
 
 all:: rpki/relaxng.py
 

@@ -819,7 +819,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   </define>
   <define name="route_origin_payload">
     <optional>
-      <attribute name="as_number">
+      <attribute name="asn">
         <data type="positiveInteger"/>
       </attribute>
     </optional>

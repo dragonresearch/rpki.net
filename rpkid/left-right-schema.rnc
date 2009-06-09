@@ -201,7 +201,7 @@ route_origin_handle = attribute route_origin_handle { object_handle }
 
 route_origin_bool = attribute suppress_publication { "yes" }?
 
-route_origin_payload = (attribute as_number { xsd:positiveInteger }?,
+route_origin_payload = (attribute asn { xsd:positiveInteger }?,
                         attribute ipv4 { ipv4_list }?,
                         attribute ipv6 { ipv6_list }?)
 

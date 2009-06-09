@@ -263,3 +263,13 @@ class DuplicateObject(RPKI_Exception):
   """
   Attempt to create an object that already exists.
   """
+
+class EmptyROAPrefixList(RPKI_Exception):
+  """
+  Can't create ROA with an empty prefix list.
+  """
+
+class NoCoveringCertForROA(RPKI_Exception):
+  """
+  Couldn't find a covering certificate to generate ROA.
+  """

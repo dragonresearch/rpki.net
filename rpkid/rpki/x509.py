@@ -944,14 +944,14 @@ class ROA(DER_CMS_object):
   econtent_oid = POWify_OID("id-ct-routeOriginAttestation")
 
   @classmethod
-  def build(cls, as_number, ipv4, ipv6, keypair, certs, version = 0):
+  def build(cls, asn, ipv4, ipv6, keypair, certs, version = 0):
     """
     Build a ROA.
     """
     self = cls()
     r = rpki.roa.RouteOriginAttestation()
     r.version.set(version)
-    r.asID.set(as_number)
+    r.asID.set(asn)
     r.ipAddrBlocks.set((a.to_roa_tuple() for a in (ipv4, ipv6) if a))
     self.set_content(r)
     self.sign(keypair, certs)

@@ -40,6 +40,72 @@ import sys, os, time, getopt, urlparse, traceback, MySQLdb
 import rpki.https, rpki.config, rpki.resource_set, rpki.relaxng
 import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509
 
+def handle_list_resources(q_pdu, r_msg):
+
+  r_pdu = rpki.left_right.list_resources_elt()
+  r_pdu.tag = q_pdu.tag
+  r_pdu.self_handle = q_pdu.self_handle
+  r_pdu.child_handle = q_pdu.child_handle
+
+  cur.execute(
+    "SELECT registrant_id, valid_until FROM registrant WHERE registry_handle = %s AND registrant_handle = %s",
+    (q_pdu.self_handle, q_pdu.child_handle))
+
+  if cur.rowcount != 1:
+    raise rpki.exceptions.NotInDatabase, \
+          "This query should have produced a single exact match, something's messed up (rowcount = %d, self_handle = %s, child_handle = %s)" \
+          % (cur.rowcount, q_pdu.self_handle, q_pdu.child_handle)
+
+  registrant_id, valid_until = cur.fetchone()
+
+  r_pdu.valid_until = valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+  r_pdu.asn  = rpki.resource_set.resource_set_as.from_sql(
+    cur,
+    "SELECT start_as, end_as FROM registrant_asn WHERE registrant_id = %s",
+    (registrant_id,))
+
+  r_pdu.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(
+    cur,
+    "SELECT start_ip, end_ip FROM registrant_net WHERE registrant_id = %s AND version = 4",
+    (registrant_id,))
+
+  r_pdu.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(
+    cur,
+    "SELECT start_ip, end_ip FROM registrant_net WHERE registrant_id = %s AND version = 6",
+    (registrant_id,))
+
+  r_msg.append(r_pdu)
+
+def handle_list_roa_requests(q_pdu, r_msg):
+
+  cur.execute(
+    "SELECT roa_request_id, asn FROM roa_request WHERE roa_request_handle = %s",
+    (q_pdu.self_handle,))
+
+  for roa_request_id, asn in cur.fetchmany():
+
+    r_pdu = rpki.left_right.list_roa_requests_elt()
+    r_pdu.tag = q_pdu.tag
+    r_pdu.self_handle = q_pdu.self_handle
+    r_pdu.asn = asn
+
+    r_pdu.ipv4 = rpki.resource_set.roa_prefix_set_ipv4.from_sql(
+      cur,
+      "SELECT prefix, prefixlen, max_prefixlen FROM roa_request_prefix WHERE roa_request_id = %s AND version = 4",
+      (roa_request_id,))
+
+    r_pdu.ipv6 = rpki.resource_set.roa_prefix_set_ipv6.from_sql(
+      cur,
+      "SELECT prefix, prefixlen, max_prefixlen FROM roa_request_prefix WHERE roa_request_id = %s AND version = 6",
+      (roa_request_id,))
+
+    r_msg.append(r_pdu)
+
+handle_dispatch = {
+  rpki.left_right.list_resources_elt : handle_list_resources,
+  rpki.left_right.list_roa_requests_elt : handle_list_roa_requests }
+
 def handler(query, path, cb):
   try:
 
@@ -56,48 +122,14 @@ def handler(query, path, cb):
     for q_pdu in q_msg:
 
       try:
-        if not isinstance(q_pdu, rpki.left_right.list_resources_elt):
+        if type(q_pdu) in handle_dispatch:
+          handle_dispatch[type(q_pdu)](q_pdu, r_msg)
+        else:
           raise rpki.exceptions.BadQuery, "Unexpected %s PDU" % repr(q_pdu)
 
-        r_pdu = rpki.left_right.list_resources_elt()
-        r_pdu.tag = q_pdu.tag
-        r_pdu.self_handle = q_pdu.self_handle
-        r_pdu.child_handle = q_pdu.child_handle
-
-        cur.execute(
-          "SELECT registrant_id, valid_until FROM registrant WHERE registrant.registry_handle = %s AND registrant.registrant_handle = %s",
-          (q_pdu.self_handle, q_pdu.child_handle))
-
-        if cur.rowcount != 1:
-          raise rpki.exceptions.NotInDatabase, \
-                "This query should have produced a single exact match, something's messed up (rowcount = %d, self_handle = %s, child_handle = %s)" \
-                % (cur.rowcount, q_pdu.self_handle, q_pdu.child_handle)
-
-        registrant_id, valid_until = cur.fetchone()
-
-        r_pdu.valid_until = valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        r_pdu.asn  = rpki.resource_set.resource_set_as.from_sql(
-          cur,
-          "SELECT start_as, end_as FROM registrant_asn WHERE registrant_id = %s",
-          (registrant_id,))
-        
-        r_pdu.ipv4 = rpki.resource_set.resource_set_ipv4.from_sql(
-          cur,
-          "SELECT start_ip, end_ip FROM registrant_net WHERE registrant_id = %s AND version = 4",
-          (registrant_id,))
-
-        r_pdu.ipv6 = rpki.resource_set.resource_set_ipv6.from_sql(
-          cur,
-          "SELECT start_ip, end_ip FROM registrant_net WHERE registrant_id = %s AND version = 6",
-          (registrant_id,))
-
       except Exception, data:
-
         rpki.log.error(traceback.format_exc())
-        r_pdu = rpki.left_right.report_error_elt.from_exception(data, q_pdu.self_handle)
-
-      r_msg.append(r_pdu)
+        r_msg.append(rpki.left_right.report_error_elt.from_exception(data, q_pdu.self_handle))
 
     cb(200, rpki.left_right.cms_msg.wrap(r_msg, irdbd_key, irdbd_cert))
 

@@ -157,6 +157,10 @@ class self_elt(data_elt):
     """Fetch all route_origin objects that link to this self object."""
     return route_origin_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
+  def roas(self):
+    """Fetch all ROA objects that link to this self object."""
+    return rpki.rpki_engine.roa_obj.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
+
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
     """
     Extra server actions for self_elt.
@@ -402,14 +406,91 @@ class self_elt(data_elt):
 
   def update_roas(self, cb):
     """
-    Generate or update ROAs for this self's route_origin objects.
+    Generate or update ROAs for this self.
     """
 
-    def loop(iterator, route_origin):
-      route_origin.update_roa(iterator)
+    # This code is currently in transition between two somewhat
+    # different models. The old model had the IRBE pushing
+    # <route_origin/> objects into rpkid; the new model has rpkid
+    # calling back to the IRDB to get ROA requests.  I'm keeping the
+    # old code in place until I have the new code working, in case I
+    # need to drop this and work on something else.
 
-    rpki.async.iterator(self.route_origins(), loop, cb)
+    use_old_code = False
 
+    if use_old_code:
+
+      def loop(iterator, route_origin):
+        route_origin.update_roa(iterator)
+
+      rpki.async.iterator(self.route_origins(), loop, cb)
+
+    else:
+
+      def got_roa_requests(roa_requests):
+
+        roas = dict(((r.asn, str(r.ipv4), str(r.ipv6)), r) for r in self.roas())
+
+        def loop(iterator, roa_request):
+
+          def lose(e):
+            rpki.log.error(traceback.format_exc())
+            rpki.log.warn("Could not update ROA %r, skipping: %s" % (roa, e))
+            iterator()
+
+          roa = roas.get((roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6)))
+
+          if roa is None:
+            # This really should be using a constructor
+            roa = rpki.rpki_engine.roa_obj()
+            roa.gctx = self.gctx
+            roa.self_id = self.self_id
+            roa.asn = roa_request.asn
+            roa.ipv4 = roa_request.ipv4
+            roa.ipv6 = roa_request.ipv6
+            return roa.generate_roa(iterator, lose)
+
+          assert roa.roa is not None
+
+          ca_detail = roa.ca_detail()
+
+          if ca_detail is None or ca_detail.state != "active":
+            return roa.regenerate_roa(iterator, lose)
+
+          regen_margin = rpki.sundial.timedelta(seconds = self.regen_margin)
+
+          if rpki.sundial.now() + regen_margin > roa.cert.getNotAfter():
+            return roa.regenerate_roa(iterator, lose)
+
+          ca_resources = ca_detail.latest_ca_cert.get_3779resources()
+          ee_resources = roa.cert.get_3779resources()
+
+          if ee_resources.oversized(ca_resources):
+            return roa.regenerate_roa(iterator, lose)
+
+          v4 = roa.ipv4.to_resource_set() if roa.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
+          v6 = roa.ipv6.to_resource_set() if roa.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
+
+          if ee_resources.v4 != v4 or ee_resources.v6 != v6:
+            return roa.regenerate_roa(iterator, lose)
+
+          iterator()
+
+        def done():
+
+          # Need to do something here to handle existing ROAs for
+          # which we no longer have a ROA request.
+
+          cb()
+
+        rpki.async.iterator(roa_requests, loop, done)
+
+      def roa_requests_failed(e):
+        rpki.log.error(traceback.format_exc())
+        rpki.log.warn("Could not fetch ROA requests for %s, skipping: %s" % (self.self_handle, e))
+        cb()
+
+      self.gctx.irdb_query_roa_requests(self.self_handle, got_roa_requests, roa_requests_failed)
 
 class bsc_elt(data_elt):
   """
@@ -735,11 +816,11 @@ class route_origin_elt(data_elt):
   """
 
   element_name = "route_origin"
-  attributes = ("action", "tag", "self_handle", "route_origin_handle", "as_number", "ipv4", "ipv6")
+  attributes = ("action", "tag", "self_handle", "route_origin_handle", "asn", "ipv4", "ipv6")
   booleans = ("suppress_publication",)
 
   sql_template = rpki.sql.template("route_origin", "route_origin_id", "route_origin_handle",
-                                   "ca_detail_id", "self_id", "as_number",
+                                   "ca_detail_id", "self_id", "asn",
                                    ("roa", rpki.x509.ROA),
                                    ("cert", rpki.x509.X509))
   handles = (("self", self_elt),)
@@ -754,37 +835,35 @@ class route_origin_elt(data_elt):
 
   def sql_fetch_hook(self):
     """
-    Extra SQL fetch actions for route_origin_elt -- handle prefix list.
+    Extra SQL fetch actions for route_origin_elt -- handle prefix lists.
     """
     for version, datatype, attribute in ((4, rpki.resource_set.roa_prefix_set_ipv4, "ipv4"),
                                          (6, rpki.resource_set.roa_prefix_set_ipv6, "ipv6")):
       setattr(self, attribute, datatype.from_sql(
         self.gctx.sql,
         """
-            SELECT address, prefixlen, max_prefixlen FROM route_origin_prefix
+            SELECT prefix, prefixlen, max_prefixlen FROM route_origin_prefix
             WHERE route_origin_id = %s AND version = %s
         """,
         (self.route_origin_id, version)))
 
   def sql_insert_hook(self):
     """
-    Extra SQL insert actions for route_origin_elt -- handle address
-    ranges.
+    Extra SQL insert actions for route_origin_elt -- handle prefix lists.
     """
     for version, prefix_set in ((4, self.ipv4), (6, self.ipv6)):
       if prefix_set:
         self.gctx.sql.executemany(
           """
-            INSERT route_origin_prefix (route_origin_id, address, prefixlen, max_prefixlen, version)
+            INSERT route_origin_prefix (route_origin_id, prefix, prefixlen, max_prefixlen, version)
             VALUES (%s, %s, %s, %s, %s)
           """,
-          ((self.route_origin_id, x.address, x.prefixlen, x.max_prefixlen, version)
+          ((self.route_origin_id, x.prefix, x.prefixlen, x.max_prefixlen, version)
            for x in prefix_set))
 
   def sql_delete_hook(self):
     """
-    Extra SQL delete actions for route_origin_elt -- handle address
-    ranges.
+    Extra SQL delete actions for route_origin_elt -- handle prefix lists.
     """
     self.gctx.sql.execute("DELETE FROM route_origin_prefix WHERE route_origin_id = %s", (self.route_origin_id,))
 
@@ -806,8 +885,8 @@ class route_origin_elt(data_elt):
     """
     assert name == "route_origin", "Unexpected name %s, stack %s" % (name, stack)
     self.read_attrs(attrs)
-    if self.as_number is not None:
-      self.as_number = long(self.as_number)
+    if self.asn is not None:
+      self.asn = long(self.asn)
     if self.ipv4 is not None:
       self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4(self.ipv4)
     if self.ipv6 is not None:
@@ -918,7 +997,7 @@ class route_origin_elt(data_elt):
                                    sia = ((rpki.oids.name2oid["id-ad-signedObject"],
                                            ("uri", self.roa_uri(keypair))),))
 
-    self.roa = rpki.x509.ROA.build(self.as_number, self.ipv4, self.ipv6, keypair, (self.cert,))
+    self.roa = rpki.x509.ROA.build(self.asn, self.ipv4, self.ipv6, keypair, (self.cert,))
 
     self.sql_store()
 

@@ -350,8 +350,8 @@ initiated by the IRBE
 
    Payload data which can be configured in a <route_origin/> object:
 
-     * as_number (attribute): Autonomous System Number (ASN) to place in
-       the generated ROA. A single ROA can only grant authorization to a
+     * asn (attribute): Autonomous System Number (ASN) to place in the
+       generated ROA. A single ROA can only grant authorization to a
        single ASN; multiple ASNs require multiple ROAs, thus multiple
        <route_origin/> objects.
 
@@ -470,5 +470,5 @@ Error handling
      __________________________________________________________________
 
 
-    Generated on Mon Jun 8 18:22:48 2009 for RPKI Engine by  doxygen
+    Generated on Tue Jun 9 20:21:30 2009 for RPKI Engine by  doxygen
     1.5.8

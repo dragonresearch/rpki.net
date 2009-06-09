@@ -170,9 +170,9 @@ class repository_elt(cmd_elt_mixin, rpki.left_right.repository_elt):
 
 class route_origin_elt(cmd_elt_mixin, rpki.left_right.route_origin_elt):
 
-  def client_query_as_number(self, arg):
+  def client_query_asn(self, arg):
     """Handle autonomous sequence numbers."""
-    self.as_number = long(arg)
+    self.asn = long(arg)
 
   def client_query_ipv4(self, arg):
     """Handle IPv4 addresses."""

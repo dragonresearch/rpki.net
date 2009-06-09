@@ -19,6 +19,8 @@
 -- DROP TABLE commands must be in correct (reverse dependency) order
 -- to satisfy FOREIGN KEY constraints.
 
+DROP TABLE IF EXISTS roa_prefix;
+DROP TABLE IF EXISTS roa;
 DROP TABLE IF EXISTS route_origin_prefix;
 DROP TABLE IF EXISTS route_origin;
 DROP TABLE IF EXISTS revoked_cert;
@@ -43,7 +45,6 @@ CREATE TABLE self (
         UNIQUE                  (self_handle)
 ) ENGINE=InnoDB;
 
-
 CREATE TABLE bsc (
         bsc_id                  SERIAL NOT NULL,
         bsc_handle              VARCHAR(255) NOT NULL,
@@ -57,7 +58,6 @@ CREATE TABLE bsc (
         FOREIGN KEY             (self_id) REFERENCES self (self_id),
         UNIQUE                  (self_id, bsc_handle)
 ) ENGINE=InnoDB;
-
 
 CREATE TABLE repository (
         repository_id           SERIAL NOT NULL,
@@ -74,7 +74,6 @@ CREATE TABLE repository (
         FOREIGN KEY             (bsc_id) REFERENCES bsc (bsc_id),
         UNIQUE                  (self_id, repository_handle)
 ) ENGINE=InnoDB;
-
 
 CREATE TABLE parent (
         parent_id               SERIAL NOT NULL,
@@ -97,7 +96,6 @@ CREATE TABLE parent (
         UNIQUE                  (self_id, parent_handle)
 ) ENGINE=InnoDB;
 
-
 CREATE TABLE ca (
         ca_id                   SERIAL NOT NULL,
         last_crl_sn             BIGINT UNSIGNED NOT NULL,
@@ -111,7 +109,6 @@ CREATE TABLE ca (
         PRIMARY KEY             (ca_id),
         FOREIGN KEY             (parent_id) REFERENCES parent (parent_id)
 ) ENGINE=InnoDB;
-
 
 CREATE TABLE ca_detail (
         ca_detail_id            SERIAL NOT NULL,
@@ -130,7 +127,6 @@ CREATE TABLE ca_detail (
         FOREIGN KEY             (ca_id) REFERENCES ca (ca_id)
 ) ENGINE=InnoDB;
 
-
 CREATE TABLE child (
         child_id                SERIAL NOT NULL,
         child_handle            VARCHAR(255) NOT NULL,
@@ -144,7 +140,6 @@ CREATE TABLE child (
         UNIQUE                  (self_id, child_handle)
 ) ENGINE=InnoDB;
 
-
 CREATE TABLE child_cert (
         child_cert_id           SERIAL NOT NULL,
         cert                    LONGBLOB NOT NULL,
@@ -156,7 +151,6 @@ CREATE TABLE child_cert (
         FOREIGN KEY             (child_id) REFERENCES child (child_id)
 ) ENGINE=InnoDB;
 
-
 CREATE TABLE revoked_cert (
         revoked_cert_id         SERIAL NOT NULL,
         serial                  BIGINT UNSIGNED NOT NULL,
@@ -166,7 +160,6 @@ CREATE TABLE revoked_cert (
         PRIMARY KEY             (revoked_cert_id),
         FOREIGN KEY             (ca_detail_id) REFERENCES ca_detail (ca_detail_id)
 ) ENGINE=InnoDB;
-
 
 CREATE TABLE route_origin (
         route_origin_id         SERIAL NOT NULL,
@@ -182,7 +175,6 @@ CREATE TABLE route_origin (
         UNIQUE                  (self_id, route_origin_handle)
 ) ENGINE=InnoDB;
 
-
 CREATE TABLE route_origin_prefix (
         address                 VARCHAR(40) NOT NULL,
         prefixlen               TINYINT NOT NULL,
@@ -191,6 +183,28 @@ CREATE TABLE route_origin_prefix (
         route_origin_id         BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (route_origin_id, address, prefixlen, max_prefixlen),
         FOREIGN KEY             (route_origin_id) REFERENCES route_origin (route_origin_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE roa (
+        roa_id                  SERIAL NOT NULL,
+        as_number               DECIMAL(24,0),
+        cert                    LONGBLOB,
+        roa                     LONGBLOB,
+        self_id                 BIGINT UNSIGNED NOT NULL,
+        ca_detail_id            BIGINT UNSIGNED,
+        PRIMARY KEY             (roa_id),
+        FOREIGN KEY             (self_id) REFERENCES self (self_id),
+        FOREIGN KEY             (ca_detail_id) REFERENCES ca_detail (ca_detail_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE roa_prefix (
+        address                 VARCHAR(40) NOT NULL,
+        prefixlen               TINYINT NOT NULL,
+        max_prefixlen           TINYINT NOT NULL,
+        version                 TINYINT NOT NULL,
+        roa_id                  BIGINT UNSIGNED NOT NULL,
+        PRIMARY KEY             (roa_id, address, prefixlen, max_prefixlen),
+        FOREIGN KEY             (roa_id) REFERENCES roa (roa_id)
 ) ENGINE=InnoDB;
 
 -- Local Variables:

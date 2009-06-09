@@ -1045,3 +1045,263 @@ class revoked_cert_obj(rpki.sql.sql_persistent):
       revoked      = rpki.sundial.now(),
       gctx         = ca_detail.gctx,
       ca_detail_id = ca_detail.ca_detail_id)
+
+class roa_obj(rpki.sql.sql_persistent):
+  """
+  Route Origin Authorization.
+  """
+
+  sql_template = rpki.sql.template(
+    "roa",
+    "roa_id",
+    "ca_detail_id",
+    "self_id",
+    "as_number",
+    ("roa", rpki.x509.ROA),
+    ("cert", rpki.x509.X509))
+
+  ca_detail_id = None
+  cert = None
+  roa = None
+
+  def sql_fetch_hook(self):
+    """
+    Extra SQL fetch actions for roa_obj -- handle prefix list.
+    """
+    for version, datatype, attribute in ((4, rpki.resource_set.roa_prefix_set_ipv4, "ipv4"),
+                                         (6, rpki.resource_set.roa_prefix_set_ipv6, "ipv6")):
+      setattr(self, attribute, datatype.from_sql(
+        self.gctx.sql,
+        """
+            SELECT address, prefixlen, max_prefixlen FROM roa_prefix
+            WHERE roa_id = %s AND version = %s
+        """,
+        (self.roa_id, version)))
+
+  def sql_insert_hook(self):
+    """
+    Extra SQL insert actions for roa_obj -- handle address
+    ranges.
+    """
+    for version, prefix_set in ((4, self.ipv4), (6, self.ipv6)):
+      if prefix_set:
+        self.gctx.sql.executemany(
+          """
+            INSERT roa_prefix (roa_id, address, prefixlen, max_prefixlen, version)
+            VALUES (%s, %s, %s, %s, %s)
+          """,
+          ((self.roa_id, x.address, x.prefixlen, x.max_prefixlen, version)
+           for x in prefix_set))
+
+  def sql_delete_hook(self):
+    """
+    Extra SQL delete actions for roa_obj -- handle address
+    ranges.
+    """
+    self.gctx.sql.execute("DELETE FROM roa_prefix WHERE roa_id = %s", (self.roa_id,))
+
+  def ca_detail(self):
+    """
+    Fetch all ca_detail objects that link to this roa_obj.
+    """
+    return rpki.rpki_engine.ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
+
+  def update_roa(self, callback):
+    """
+    Bring this roa_obj's ROA up to date if necesssary.
+    """
+
+    def lose(e):
+      rpki.log.error(traceback.format_exc())
+      rpki.log.warn("Could not update ROA %r, skipping: %s" % (self, e))
+      callback()
+      return
+
+    if self.roa is None:
+      self.generate_roa(callback, lose)
+      return
+
+    ca_detail = self.ca_detail()
+
+    if ca_detail is None or ca_detail.state != "active":
+      self.regenerate_roa(callback, lose)
+      return
+
+    regen_margin = rpki.sundial.timedelta(seconds = self.self().regen_margin)
+
+    if rpki.sundial.now() + regen_margin > self.cert.getNotAfter():
+      self.regenerate_roa(callback, lose)
+      return
+
+    ca_resources = ca_detail.latest_ca_cert.get_3779resources()
+    ee_resources = self.cert.get_3779resources()
+
+    if ee_resources.oversized(ca_resources):
+      self.regenerate_roa(callback, lose)
+      return
+
+    v4 = self.ipv4.to_resource_set() if self.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
+    v6 = self.ipv6.to_resource_set() if self.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
+
+    if ee_resources.v4 != v4 or ee_resources.v6 != v6:
+      self.regenerate_roa(callback, lose)
+      return
+
+    callback()
+
+  def generate_roa(self, callback, errback):
+    """
+    Generate a ROA.
+
+    At present this does not support ROAs with multiple signatures
+    (neither does the current CMS code).
+
+    At present we have no way of performing a direct lookup from a
+    desired set of resources to a covering certificate, so we have to
+    search.  This could be quite slow if we have a lot of active
+    ca_detail objects.  Punt on the issue for now, revisit if
+    profiling shows this as a hotspot.
+
+    Once we have the right covering certificate, we generate the ROA
+    payload, generate a new EE certificate, use the EE certificate to
+    sign the ROA payload, publish the result, then throw away the
+    private key for the EE cert, all per the ROA specification.  This
+    implies that generating a lot of ROAs will tend to thrash
+    /dev/random, but there is not much we can do about that.
+    """
+
+    if self.ipv4 is None and self.ipv6 is None:
+      rpki.log.warn("Can't generate ROA for empty prefix list")
+      return
+
+    # Ugly and expensive search for covering ca_detail, there has to
+    # be a better way, but it would require the ability to test for
+    # resource subsets in SQL.
+
+    v4 = self.ipv4.to_resource_set() if self.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
+    v6 = self.ipv6.to_resource_set() if self.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
+
+    ca_detail = self.ca_detail()
+    if ca_detail is None or ca_detail.state != "active":
+      ca_detail = None
+      for parent in self.self().parents():
+        for ca in parent.cas():
+          ca_detail = ca.fetch_active()
+          if ca_detail is not None:
+            resources = ca_detail.latest_ca_cert.get_3779resources()
+            if v4.issubset(resources.v4) and v6.issubset(resources.v6):
+              break
+            ca_detail = None
+        if ca_detail is not None:
+          break
+
+    if ca_detail is None:
+      rpki.log.warn("generate_roa() could not find a certificate covering %s %s" % (v4, v6))
+      return
+
+    ca = ca_detail.ca()
+
+    resources = rpki.resource_set.resource_bag(v4 = v4, v6 = v6)
+
+    keypair = rpki.x509.RSA.generate()
+
+    self.ca_detail_id = ca_detail.ca_detail_id
+
+    self.cert = ca_detail.issue_ee(ca, resources, keypair.get_RSApublic(),
+                                   sia = ((rpki.oids.name2oid["id-ad-signedObject"],
+                                           ("uri", self.roa_uri(keypair))),))
+
+    self.roa = rpki.x509.ROA.build(self.as_number, self.ipv4, self.ipv6, keypair, (self.cert,))
+
+    self.sql_store()
+
+    repository = ca.parent().repository()
+
+    def one():
+      repository.publish(self.cert, self.ee_uri(), two, errback)
+
+    def two():
+      ca_detail.generate_manifest(callback, errback)
+
+    repository.publish(self.roa, self.roa_uri(),
+                       one if self.publish_ee_separately else two,
+                       errback)
+
+  def withdraw_roa(self, callback, errback, regenerate = False):
+    """
+    Withdraw ROA associated with this roa_obj.
+
+    In order to preserve make-before-break properties without
+    duplicating code, this method also handles generating a
+    replacement ROA when requested.
+    """
+
+    ca_detail = self.ca_detail()
+    ca = ca_detail.ca()
+    repository = ca.parent().repository()
+    cert = self.cert
+    roa = self.roa
+    roa_uri = self.roa_uri()
+    ee_uri = self.ee_uri()
+
+    if ca_detail.state != 'active':
+      self.ca_detail_id = None
+
+    def one():
+      rpki.log.debug("Withdrawing ROA and revoking its EE cert")
+      rpki.rpki_engine.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
+      repository.withdraw(roa, roa_uri,
+                          two if self.publish_ee_separately else three,
+                          errback)
+
+    def two():
+      repository.withdraw(cert, ee_uri, three, errback)
+
+    def three():
+      self.gctx.sql.sweep()
+      ca_detail.generate_crl(four, errback)
+
+    def four():
+      ca_detail.generate_manifest(callback, errback)
+
+    if regenerate:
+      self.generate_roa(one, errback)
+    else:
+      one()
+
+  def regenerate_roa(self, callback, errback):
+    """
+    Reissue ROA associated with this roa_obj.
+    """
+    if self.ca_detail() is None:
+      self.generate_roa(callback, errback)
+    else:
+      self.withdraw_roa(callback, errback, regenerate = True)
+
+  def roa_uri(self, key = None):
+    """
+    Return the publication URI for this roa_obj's ROA.
+    """
+    return self.ca_detail().ca().sia_uri + self.roa_uri_tail(key)
+
+  def roa_uri_tail(self, key = None):
+    """
+    Return the tail (filename portion) of the publication URI for this
+    roa_obj's ROA.
+    """
+    return (key or self.cert).gSKI() + ".roa"
+
+  def ee_uri_tail(self):
+    """
+    Return the tail (filename) portion of the URI for this roa_obj's
+    ROA's EE certificate.
+    """
+    return self.cert.gSKI() + ".cer"
+
+  def ee_uri(self):
+    """
+    Return the publication URI for this roa_obj's ROA's EE
+    certificate.
+    """
+    return self.ca_detail().ca().sia_uri + self.ee_uri_tail()
+

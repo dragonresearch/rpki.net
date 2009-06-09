@@ -378,8 +378,7 @@ class http_server(http_stream):
     self.log_cert("server", cert)
     self.tls.useCertificate(cert.get_POW())
     self.tls.useKey(key.get_POW())
-    ta = set(dynamic_ta() if dynamic_ta else ta)
-    ta.discard(None)
+    ta = rpki.x509.X509.normalize_chain(dynamic_ta() if dynamic_ta else ta)
     if not ta:
       raise RuntimeError, "No trust anchor(s) specified, this is unlikely to work"
     for x in ta:
@@ -508,8 +507,7 @@ class http_client(http_stream):
     self.expect_close = not want_persistent_client
     self.cert = cert
     self.key = key
-    self.ta = set(ta)
-    self.ta.discard(None)
+    self.ta = rpki.x509.X509.normalize_chain(ta)
 
   def start(self):
     try:

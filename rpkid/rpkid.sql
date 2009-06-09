@@ -161,30 +161,6 @@ CREATE TABLE revoked_cert (
         FOREIGN KEY             (ca_detail_id) REFERENCES ca_detail (ca_detail_id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE route_origin (
-        route_origin_id         SERIAL NOT NULL,
-        route_origin_handle     VARCHAR(255) NOT NULL,
-        asn                     DECIMAL(24,0),
-        cert                    LONGBLOB,
-        roa                     LONGBLOB,
-        self_id                 BIGINT UNSIGNED NOT NULL,
-        ca_detail_id            BIGINT UNSIGNED,
-        PRIMARY KEY             (route_origin_id),
-        FOREIGN KEY             (self_id) REFERENCES self (self_id),
-        FOREIGN KEY             (ca_detail_id) REFERENCES ca_detail (ca_detail_id),
-        UNIQUE                  (self_id, route_origin_handle)
-) ENGINE=InnoDB;
-
-CREATE TABLE route_origin_prefix (
-        prefix                  VARCHAR(40) NOT NULL,
-        prefixlen               TINYINT NOT NULL,
-        max_prefixlen           TINYINT NOT NULL,
-        version                 TINYINT NOT NULL,
-        route_origin_id         BIGINT UNSIGNED NOT NULL,
-        PRIMARY KEY             (route_origin_id, prefix, prefixlen, max_prefixlen),
-        FOREIGN KEY             (route_origin_id) REFERENCES route_origin (route_origin_id)
-) ENGINE=InnoDB;
-
 CREATE TABLE roa (
         roa_id                  SERIAL NOT NULL,
         asn                     DECIMAL(24,0),

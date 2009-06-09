@@ -325,6 +325,10 @@ initiated by the IRBE
 
 <route_origin/> object
 
+   This section is out-of-date. The <route_origin/> object has been
+   replaced by the <list_roa_requests/> IRDB query, but the documentation
+   for that hasn't been written yet.
+
    The <route_origin/> object is a kind of prototype for a ROA. It
    contains all the information needed to generate a ROA once the RPKI
    engine obtains the appropriate RPKI certificates from its parent(s).
@@ -470,5 +474,5 @@ Error handling
      __________________________________________________________________
 
 
-    Generated on Tue Jun 9 20:21:30 2009 for RPKI Engine by  doxygen
+    Generated on Tue Jun 9 20:45:21 2009 for RPKI Engine by  doxygen
     1.5.8

@@ -168,23 +168,9 @@ class child_elt(cmd_elt_mixin, rpki.left_right.child_elt):
 class repository_elt(cmd_elt_mixin, rpki.left_right.repository_elt):
   pass
 
-class route_origin_elt(cmd_elt_mixin, rpki.left_right.route_origin_elt):
-
-  def client_query_asn(self, arg):
-    """Handle autonomous sequence numbers."""
-    self.asn = long(arg)
-
-  def client_query_ipv4(self, arg):
-    """Handle IPv4 addresses."""
-    self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4(arg)
-
-  def client_query_ipv6(self, arg):
-    """Handle IPv6 addresses."""
-    self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(arg)
-
 class left_right_msg(cmd_msg_mixin, rpki.left_right.msg):
   pdus = dict((x.element_name, x)
-              for x in (self_elt, bsc_elt, parent_elt, child_elt, repository_elt, route_origin_elt))
+              for x in (self_elt, bsc_elt, parent_elt, child_elt, repository_elt))
 
 class left_right_sax_handler(rpki.left_right.sax_handler):
   pdu = left_right_msg

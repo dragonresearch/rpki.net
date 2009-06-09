@@ -332,9 +332,9 @@ cmds = { "sleep" : cmd_sleep,
          "shell" : cmd_shell,
          "echo"  : cmd_echo }
 
-class route_origin(object):
+class roa_request(object):
   """
-  Representation for a route_origin object.
+  Representation for a roa_request object.
   """
 
   def __init__(self, asn, ipv4, ipv6):
@@ -461,7 +461,7 @@ class allocation(object):
       self.crl_interval = rpki.sundial.timedelta.parse(yaml["crl_interval"]).convert_to_seconds()
     if "regen_margin" in yaml:
       self.regen_margin = rpki.sundial.timedelta.parse(yaml["regen_margin"]).convert_to_seconds()
-    self.route_origins = [route_origin.parse(y) for y in yaml.get("route_origin", ())]
+    self.roa_requests = [roa_request.parse(y) for y in yaml.get("roa_request", yaml.get("route_origin", ()))]
     self.hosted_by = yaml.get("hosted_by")
     self.extra_conf = yaml.get("extra_conf", [])
     self.hosts = []
@@ -531,18 +531,18 @@ class allocation(object):
     self.base.valid_until -= rpki.sundial.timedelta.parse(text)
     cb()
 
-  def apply_route_origin_add(self, yaml, cb):
+  def apply_roa_request_add(self, yaml, cb):
     for y in yaml:
-      r = route_origin.parse(y)
-      if r not in self.route_origins:
-        self.route_origins.append(r)
+      r = roa_request.parse(y)
+      if r not in self.roa_requests:
+        self.roa_requests.append(r)
     cb()
 
-  def apply_route_origin_del(self, yaml, cb):
+  def apply_roa_request_del(self, yaml, cb):
     for y in yaml:
-      r = route_origin.parse(y)
-      if r in self.route_origins:
-        self.route_origins.remove(r)
+      r = roa_request.parse(y)
+      if r in self.roa_requests:
+        self.roa_requests.remove(r)
     cb()
 
   def apply_rekey(self, target, cb):
@@ -590,7 +590,7 @@ class allocation(object):
     return s + "Until: %s\n" % self.resources.valid_until
 
   def is_leaf(self):
-    #return not self.kids and not self.route_origins
+    #return not self.kids and not self.roa_requests
     return False
 
   def is_root(self):
@@ -708,7 +708,7 @@ class allocation(object):
         for v6_range in kid.resources.v6:
           cur.execute("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)", (v6_range.min, v6_range.max, registrant_id))
         cur.execute("UPDATE registrant SET valid_until = %s WHERE registrant_id = %s", (kid.resources.valid_until.to_sql(), registrant_id))
-      for r in  s.route_origins:
+      for r in s.roa_requests:
         cur.execute("INSERT roa_request (roa_request_handle, asn) VALUES (%s, %s)", (s.name, r.asn))
         roa_request_id = cur.lastrowid
         for version, prefix_set in ((4, r.v4), (6, r.v6)):
@@ -915,15 +915,6 @@ class allocation(object):
           sender_name = s.name,
           recipient_name = s.parent.name,
           peer_contact_uri = "https://localhost:%s/up-down/%s/%s" % (s.parent.get_rpki_port(), s.parent.name, s.name)))
-
-      for i, r in enumerate(s.route_origins):
-        rpkid_pdus.append(rpki.left_right.route_origin_elt.make_pdu(
-          action = "create",
-          self_handle = s.name,
-          route_origin_handle = "%s_%d" % (s.name, i),
-          asn = r.asn,
-          ipv4 = r.v4,
-          ipv6 = r.v6))
 
     def one():
       call_pubd(pubd_pdus, cb = two)

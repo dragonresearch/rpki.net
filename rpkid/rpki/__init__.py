@@ -664,10 +664,10 @@
 #
 # Global options (@c --config, @c --help, @c --pem_out) come first,
 # then zero or more commands (@c parent, @c repository, @c self, @c
-# child, @c route_origin, @c bsc, @c config, @c client), each followed
-# by its own set of options.  The commands map to elements in the
-# protocols, and the command-specific options map to attributes or
-# subelements for those commands.
+# child, @c bsc, @c config, @c client), each followed by its own set
+# of options.  The commands map to elements in the protocols, and the
+# command-specific options map to attributes or subelements for those
+# commands.
 #
 # @c --tag is an optional arbitrary tag (think IMAP) to simplify
 # matching up replies with batched queries.
@@ -1379,6 +1379,10 @@
 # At present there are no control attributes for @c &lt;repository/&gt; %objects.
 #
 # @subsection route_origin_obj <route_origin/> object
+#
+# This section is out-of-date. The @c &lt;route_origin/&gt; %object
+# has been replaced by the @c &lt;list_roa_requests/&gt; IRDB query,
+# but the documentation for that hasn't been written yet.
 #
 # The @c &lt;route_origin/&gt; %object is a kind of prototype for a ROA.  It
 # contains all the information needed to generate a ROA once the RPKI

@@ -37,7 +37,7 @@ kids:
                         ipv4: 192.0.2.1-192.0.2.33
                         asn:  64533
                         ipv6: 2001:db8::44-2001:db8::100
-                        route_origin:
+                        roa_request:
                           - asn: 64533
                             ipv6: 2001:db8::80/121
 ---

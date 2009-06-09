@@ -46,10 +46,10 @@ rpki_content_type = "application/x-rpki"
 # ================================================================
 
 # Chatter about TLS certificates
-debug_tls_certs = True
+debug_tls_certs = False
 
 # Verbose chatter about HTTP streams
-debug = True
+debug = False
 
 # Whether we want persistent HTTP streams, when peer also supports them
 want_persistent_client = True

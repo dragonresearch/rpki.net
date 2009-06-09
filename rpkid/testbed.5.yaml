@@ -26,13 +26,13 @@ kids:
       - name: Alice
         ipv4: 192.0.2.1-192.0.2.33
         asn:  64533
-        route_origin:
+        roa_request:
           - asn: 42
             ipv4: 192.0.2.32/32
       - name: Bob
         ipv4: 192.0.2.44-192.0.2.100
     ipv4: 10.3.0.0/16
-    route_origin:
+    roa_request:
       - asn: 666
         ipv4: 10.3.0.44/32
 ---

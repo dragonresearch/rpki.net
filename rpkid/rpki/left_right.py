@@ -103,7 +103,6 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
         if x is None:
           raise rpki.exceptions.NotFound
         val = getattr(x, id_name)
-        rpki.log.debug("Setting %r and %r %s = %r" % (self, r_pdu, id_name, val))
         setattr(self, id_name, val)
         setattr(r_pdu, id_name, val)
     cb()
@@ -152,10 +151,6 @@ class self_elt(data_elt):
   def children(self):
     """Fetch all child objects that link to this self object."""
     return child_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
-
-  def route_origins(self):
-    """Fetch all route_origin objects that link to this self object."""
-    return route_origin_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
   def roas(self):
     """Fetch all ROA objects that link to this self object."""
@@ -409,88 +404,70 @@ class self_elt(data_elt):
     Generate or update ROAs for this self.
     """
 
-    # This code is currently in transition between two somewhat
-    # different models. The old model had the IRBE pushing
-    # <route_origin/> objects into rpkid; the new model has rpkid
-    # calling back to the IRDB to get ROA requests.  I'm keeping the
-    # old code in place until I have the new code working, in case I
-    # need to drop this and work on something else.
+    def got_roa_requests(roa_requests):
 
-    use_old_code = False
+      roas = dict(((r.asn, str(r.ipv4), str(r.ipv6)), r) for r in self.roas())
 
-    if use_old_code:
+      def loop(iterator, roa_request):
 
-      def loop(iterator, route_origin):
-        route_origin.update_roa(iterator)
-
-      rpki.async.iterator(self.route_origins(), loop, cb)
-
-    else:
-
-      def got_roa_requests(roa_requests):
-
-        roas = dict(((r.asn, str(r.ipv4), str(r.ipv6)), r) for r in self.roas())
-
-        def loop(iterator, roa_request):
-
-          def lose(e):
-            rpki.log.error(traceback.format_exc())
-            rpki.log.warn("Could not update ROA %r, skipping: %s" % (roa, e))
-            iterator()
-
-          roa = roas.get((roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6)))
-
-          if roa is None:
-            # This really should be using a constructor
-            roa = rpki.rpki_engine.roa_obj()
-            roa.gctx = self.gctx
-            roa.self_id = self.self_id
-            roa.asn = roa_request.asn
-            roa.ipv4 = roa_request.ipv4
-            roa.ipv6 = roa_request.ipv6
-            return roa.generate_roa(iterator, lose)
-
-          assert roa.roa is not None
-
-          ca_detail = roa.ca_detail()
-
-          if ca_detail is None or ca_detail.state != "active":
-            return roa.regenerate_roa(iterator, lose)
-
-          regen_margin = rpki.sundial.timedelta(seconds = self.regen_margin)
-
-          if rpki.sundial.now() + regen_margin > roa.cert.getNotAfter():
-            return roa.regenerate_roa(iterator, lose)
-
-          ca_resources = ca_detail.latest_ca_cert.get_3779resources()
-          ee_resources = roa.cert.get_3779resources()
-
-          if ee_resources.oversized(ca_resources):
-            return roa.regenerate_roa(iterator, lose)
-
-          v4 = roa.ipv4.to_resource_set() if roa.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
-          v6 = roa.ipv6.to_resource_set() if roa.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
-
-          if ee_resources.v4 != v4 or ee_resources.v6 != v6:
-            return roa.regenerate_roa(iterator, lose)
-
+        def lose(e):
+          rpki.log.error(traceback.format_exc())
+          rpki.log.warn("Could not update ROA %r, skipping: %s" % (roa, e))
           iterator()
 
-        def done():
+        roa = roas.get((roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6)))
 
-          # Need to do something here to handle existing ROAs for
-          # which we no longer have a ROA request.
+        if roa is None:
+          # This really should be using a constructor
+          roa = rpki.rpki_engine.roa_obj()
+          roa.gctx = self.gctx
+          roa.self_id = self.self_id
+          roa.asn = roa_request.asn
+          roa.ipv4 = roa_request.ipv4
+          roa.ipv6 = roa_request.ipv6
+          return roa.generate_roa(iterator, lose)
 
-          cb()
+        assert roa.roa is not None
 
-        rpki.async.iterator(roa_requests, loop, done)
+        ca_detail = roa.ca_detail()
 
-      def roa_requests_failed(e):
-        rpki.log.error(traceback.format_exc())
-        rpki.log.warn("Could not fetch ROA requests for %s, skipping: %s" % (self.self_handle, e))
+        if ca_detail is None or ca_detail.state != "active":
+          return roa.regenerate_roa(iterator, lose)
+
+        regen_margin = rpki.sundial.timedelta(seconds = self.regen_margin)
+
+        if rpki.sundial.now() + regen_margin > roa.cert.getNotAfter():
+          return roa.regenerate_roa(iterator, lose)
+
+        ca_resources = ca_detail.latest_ca_cert.get_3779resources()
+        ee_resources = roa.cert.get_3779resources()
+
+        if ee_resources.oversized(ca_resources):
+          return roa.regenerate_roa(iterator, lose)
+
+        v4 = roa.ipv4.to_resource_set() if roa.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
+        v6 = roa.ipv6.to_resource_set() if roa.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
+
+        if ee_resources.v4 != v4 or ee_resources.v6 != v6:
+          return roa.regenerate_roa(iterator, lose)
+
+        iterator()
+
+      def done():
+
+        # Need to do something here to handle existing ROAs for
+        # which we no longer have a ROA request.
+
         cb()
 
-      self.gctx.irdb_query_roa_requests(self.self_handle, got_roa_requests, roa_requests_failed)
+      rpki.async.iterator(roa_requests, loop, done)
+
+    def roa_requests_failed(e):
+      rpki.log.error(traceback.format_exc())
+      rpki.log.warn("Could not fetch ROA requests for %s, skipping: %s" % (self.self_handle, e))
+      cb()
+
+    self.gctx.irdb_query_roa_requests(self.self_handle, got_roa_requests, roa_requests_failed)
 
 class bsc_elt(data_elt):
   """
@@ -810,276 +787,6 @@ class child_elt(data_elt):
       rpki.log.error(traceback.format_exc())
       done(q_msg.serve_error(data))
 
-class route_origin_elt(data_elt):
-  """
-  <route_origin/> element.
-  """
-
-  element_name = "route_origin"
-  attributes = ("action", "tag", "self_handle", "route_origin_handle", "asn", "ipv4", "ipv6")
-  booleans = ("suppress_publication",)
-
-  sql_template = rpki.sql.template("route_origin", "route_origin_id", "route_origin_handle",
-                                   "ca_detail_id", "self_id", "asn",
-                                   ("roa", rpki.x509.ROA),
-                                   ("cert", rpki.x509.X509))
-  handles = (("self", self_elt),)
-
-  ca_detail_id = None
-  cert = None
-  roa = None
-
-  ## @var publish_ee_separately
-  # Whether to publish the ROA EE certificate separately from the ROA.
-  publish_ee_separately = False
-
-  def sql_fetch_hook(self):
-    """
-    Extra SQL fetch actions for route_origin_elt -- handle prefix lists.
-    """
-    for version, datatype, attribute in ((4, rpki.resource_set.roa_prefix_set_ipv4, "ipv4"),
-                                         (6, rpki.resource_set.roa_prefix_set_ipv6, "ipv6")):
-      setattr(self, attribute, datatype.from_sql(
-        self.gctx.sql,
-        """
-            SELECT prefix, prefixlen, max_prefixlen FROM route_origin_prefix
-            WHERE route_origin_id = %s AND version = %s
-        """,
-        (self.route_origin_id, version)))
-
-  def sql_insert_hook(self):
-    """
-    Extra SQL insert actions for route_origin_elt -- handle prefix lists.
-    """
-    for version, prefix_set in ((4, self.ipv4), (6, self.ipv6)):
-      if prefix_set:
-        self.gctx.sql.executemany(
-          """
-            INSERT route_origin_prefix (route_origin_id, prefix, prefixlen, max_prefixlen, version)
-            VALUES (%s, %s, %s, %s, %s)
-          """,
-          ((self.route_origin_id, x.prefix, x.prefixlen, x.max_prefixlen, version)
-           for x in prefix_set))
-
-  def sql_delete_hook(self):
-    """
-    Extra SQL delete actions for route_origin_elt -- handle prefix lists.
-    """
-    self.gctx.sql.execute("DELETE FROM route_origin_prefix WHERE route_origin_id = %s", (self.route_origin_id,))
-
-  def ca_detail(self):
-    """Fetch all ca_detail objects that link to this route_origin object."""
-    return rpki.rpki_engine.ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
-
-  def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
-    """
-    Extra server actions for route_origin_elt.
-    """
-    self.unimplemented_control("suppress_publication")
-    cb()
-
-  def startElement(self, stack, name, attrs):
-    """
-    Handle <route_origin/> element.  This requires special processing
-    due to the data types of some of the attributes.
-    """
-    assert name == "route_origin", "Unexpected name %s, stack %s" % (name, stack)
-    self.read_attrs(attrs)
-    if self.asn is not None:
-      self.asn = long(self.asn)
-    if self.ipv4 is not None:
-      self.ipv4 = rpki.resource_set.roa_prefix_set_ipv4(self.ipv4)
-    if self.ipv6 is not None:
-      self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6)
-
-  def update_roa(self, callback):
-    """
-    Bring this route_origin's ROA up to date if necesssary.
-    """
-
-    def lose(e):
-      rpki.log.error(traceback.format_exc())
-      rpki.log.warn("Could not update ROA %r, skipping: %s" % (self, e))
-      callback()
-      return
-
-    if self.roa is None:
-      self.generate_roa(callback, lose)
-      return
-
-    ca_detail = self.ca_detail()
-
-    if ca_detail is None or ca_detail.state != "active":
-      self.regenerate_roa(callback, lose)
-      return
-
-    regen_margin = rpki.sundial.timedelta(seconds = self.self().regen_margin)
-
-    if rpki.sundial.now() + regen_margin > self.cert.getNotAfter():
-      self.regenerate_roa(callback, lose)
-      return
-
-    ca_resources = ca_detail.latest_ca_cert.get_3779resources()
-    ee_resources = self.cert.get_3779resources()
-
-    if ee_resources.oversized(ca_resources):
-      self.regenerate_roa(callback, lose)
-      return
-
-    v4 = self.ipv4.to_resource_set() if self.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
-    v6 = self.ipv6.to_resource_set() if self.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
-
-    if ee_resources.v4 != v4 or ee_resources.v6 != v6:
-      self.regenerate_roa(callback, lose)
-      return
-
-    callback()
-
-  def generate_roa(self, callback, errback):
-    """
-    Generate a ROA based on this <route_origin/> object.
-
-    At present this does not support ROAs with multiple signatures
-    (neither does the current CMS code).
-
-    At present we have no way of performing a direct lookup from a
-    desired set of resources to a covering certificate, so we have to
-    search.  This could be quite slow if we have a lot of active
-    ca_detail objects.  Punt on the issue for now, revisit if
-    profiling shows this as a hotspot.
-
-    Once we have the right covering certificate, we generate the ROA
-    payload, generate a new EE certificate, use the EE certificate to
-    sign the ROA payload, publish the result, then throw away the
-    private key for the EE cert, all per the ROA specification.  This
-    implies that generating a lot of ROAs will tend to thrash
-    /dev/random, but there is not much we can do about that.
-    """
-
-    if self.ipv4 is None and self.ipv6 is None:
-      rpki.log.warn("Can't generate ROA for empty prefix list")
-      return
-
-    # Ugly and expensive search for covering ca_detail, there has to
-    # be a better way, but it would require the ability to test for
-    # resource subsets in SQL.
-
-    v4 = self.ipv4.to_resource_set() if self.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
-    v6 = self.ipv6.to_resource_set() if self.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
-
-    ca_detail = self.ca_detail()
-    if ca_detail is None or ca_detail.state != "active":
-      ca_detail = None
-      for parent in self.self().parents():
-        for ca in parent.cas():
-          ca_detail = ca.fetch_active()
-          if ca_detail is not None:
-            resources = ca_detail.latest_ca_cert.get_3779resources()
-            if v4.issubset(resources.v4) and v6.issubset(resources.v6):
-              break
-            ca_detail = None
-        if ca_detail is not None:
-          break
-
-    if ca_detail is None:
-      rpki.log.warn("generate_roa() could not find a certificate covering %s %s" % (v4, v6))
-      return
-
-    ca = ca_detail.ca()
-
-    resources = rpki.resource_set.resource_bag(v4 = v4, v6 = v6)
-
-    keypair = rpki.x509.RSA.generate()
-
-    self.ca_detail_id = ca_detail.ca_detail_id
-
-    self.cert = ca_detail.issue_ee(ca, resources, keypair.get_RSApublic(),
-                                   sia = ((rpki.oids.name2oid["id-ad-signedObject"],
-                                           ("uri", self.roa_uri(keypair))),))
-
-    self.roa = rpki.x509.ROA.build(self.asn, self.ipv4, self.ipv6, keypair, (self.cert,))
-
-    self.sql_store()
-
-    repository = ca.parent().repository()
-
-    def one():
-      repository.publish(self.cert, self.ee_uri(), two, errback)
-
-    def two():
-      ca_detail.generate_manifest(callback, errback)
-
-    repository.publish(self.roa, self.roa_uri(),
-                       one if self.publish_ee_separately else two,
-                       errback)
-
-  def withdraw_roa(self, callback, errback, regenerate = False):
-    """
-    Withdraw ROA associated with this route_origin.
-
-    In order to preserve make-before-break properties without
-    duplicating code, this method also handles generating a
-    replacement ROA when requested.
-    """
-
-    ca_detail = self.ca_detail()
-    ca = ca_detail.ca()
-    repository = ca.parent().repository()
-    cert = self.cert
-    roa = self.roa
-    roa_uri = self.roa_uri()
-    ee_uri = self.ee_uri()
-
-    if ca_detail.state != 'active':
-      self.ca_detail_id = None
-
-    def one():
-      rpki.log.debug("Withdrawing ROA and revoking its EE cert")
-      rpki.rpki_engine.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
-      repository.withdraw(roa, roa_uri,
-                          two if self.publish_ee_separately else three,
-                          errback)
-
-    def two():
-      repository.withdraw(cert, ee_uri, three, errback)
-
-    def three():
-      self.gctx.sql.sweep()
-      ca_detail.generate_crl(four, errback)
-
-    def four():
-      ca_detail.generate_manifest(callback, errback)
-
-    if regenerate:
-      self.generate_roa(one, errback)
-    else:
-      one()
-
-  def regenerate_roa(self, callback, errback):
-    """
-    Reissue ROA associated with this route_origin.
-    """
-    if self.ca_detail() is None:
-      self.generate_roa(callback, errback)
-    else:
-      self.withdraw_roa(callback, errback, regenerate = True)
-
-  def roa_uri(self, key = None):
-    """Return the publication URI for this route_origin's ROA."""
-    return self.ca_detail().ca().sia_uri + self.roa_uri_tail(key)
-
-  def roa_uri_tail(self, key = None):
-    """Return the tail (filename portion) of the publication URI for this route_origin's ROA."""
-    return (key or self.cert).gSKI() + ".roa"
-
-  def ee_uri_tail(self):
-    """Return the tail (filename) portion of the URI for this route_origin's ROA's EE certificate."""
-    return self.cert.gSKI() + ".cer"
-
-  def ee_uri(self):
-    """Return the publication URI for this route_origin's ROA's EE certificate."""
-    return self.ca_detail().ca().sia_uri + self.ee_uri_tail()
-
 class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
   """
   <list_resources/> element.
@@ -1167,7 +874,7 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
   # Dispatch table of PDUs for this protocol.
   pdus = dict((x.element_name, x)
               for x in (self_elt, child_elt, parent_elt, bsc_elt,
-                        repository_elt, route_origin_elt, list_resources_elt,
+                        repository_elt, list_resources_elt,
                         list_roa_requests_elt, report_error_elt))
 
   def serve_top_level(self, gctx, cb):

@@ -172,7 +172,7 @@ TO DO:
         query directly for the resources we need (NB: this might
         require rethinking other rpkid SQL tables)?
 
-	STATUS: Not started
+	STATUS: Done
 
       * Really need scripts and better doc on BPKI setup.
 

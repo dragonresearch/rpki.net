@@ -21,7 +21,6 @@ query_elt |= bsc_query
 query_elt |= parent_query
 query_elt |= child_query
 query_elt |= repository_query
-query_elt |= route_origin_query
 query_elt |= list_roa_requests_query
 query_elt |= list_resources_query
 
@@ -31,7 +30,6 @@ reply_elt |= bsc_reply
 reply_elt |= parent_reply
 reply_elt |= child_reply
 reply_elt |= repository_reply
-reply_elt |= route_origin_reply
 reply_elt |= list_resources_reply
 reply_elt |= list_roa_requests_reply
 reply_elt |= report_error_reply
@@ -194,27 +192,6 @@ repository_query |= element repository { ctl_list,    self_handle }
 repository_reply |= element repository { ctl_list,    self_handle, repository_handle, repository_payload }
 repository_query |= element repository { ctl_destroy, self_handle, repository_handle }
 repository_reply |= element repository { ctl_destroy, self_handle, repository_handle }
-
-# <route_origin/> element
-
-route_origin_handle = attribute route_origin_handle { object_handle }
-
-route_origin_bool = attribute suppress_publication { "yes" }?
-
-route_origin_payload = (attribute asn { xsd:positiveInteger }?,
-                        attribute ipv4 { ipv4_list }?,
-                        attribute ipv6 { ipv6_list }?)
-
-route_origin_query |= element route_origin { ctl_create,  self_handle, route_origin_handle, route_origin_bool, route_origin_payload }
-route_origin_reply |= element route_origin { ctl_create,  self_handle, route_origin_handle }
-route_origin_query |= element route_origin { ctl_set,     self_handle, route_origin_handle, route_origin_bool, route_origin_payload }
-route_origin_reply |= element route_origin { ctl_set,     self_handle, route_origin_handle }
-route_origin_query |= element route_origin { ctl_get,     self_handle, route_origin_handle }
-route_origin_reply |= element route_origin { ctl_get,     self_handle, route_origin_handle, route_origin_payload }
-route_origin_query |= element route_origin { ctl_list,    self_handle }
-route_origin_reply |= element route_origin { ctl_list,    self_handle, route_origin_handle, route_origin_payload }
-route_origin_query |= element route_origin { ctl_destroy, self_handle, route_origin_handle }
-route_origin_reply |= element route_origin { ctl_destroy, self_handle, route_origin_handle }
 
 # <list_resources/> element
 

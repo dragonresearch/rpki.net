@@ -514,10 +514,6 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """Fetch all revoked_cert objects that link to this ca_detail."""
     return revoked_cert_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
 
-  def route_origins(self):
-    """Fetch all route_origin objects that link to this ca_detail."""
-    return rpki.left_right.route_origin_elt.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
-
   def roas(self):
     """Fetch all ROA objects that link to this ca_detail."""
     return rpki.rpki_engine.roa_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
@@ -560,10 +556,10 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       child_cert.reissue(self, iterator.ignore, errback)
 
     def done_child_certs():
-      rpki.async.iterator(predecessor.route_origins(), do_one_route_origin, callback)
+      rpki.async.iterator(predecessor.roas(), do_one_roa, callback)
 
-    def do_one_route_origin(iterator, route_origin):
-      route_origin.regenerate_roa(iterator, errback)
+    def do_one_roa(iterator, roa):
+      roa.regenerate_roa(iterator, errback)
 
     self.generate_crl(callback = did_crl, errback = errback)
 
@@ -576,10 +572,10 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       repository.withdraw(child_cert.cert, child_cert.uri(ca), iterator, eb)
 
     def child_certs_done():
-      rpki.async.iterator(self.route_origins(), withdraw_one_roa, withdraw_manifest)
+      rpki.async.iterator(self.roas(), withdraw_one_roa, withdraw_manifest)
 
-    def withdraw_one_roa(iterator, route_origin):
-      route_origin.withdraw_roa(iterator)
+    def withdraw_one_roa(iterator, roa):
+      roa.withdraw_roa(iterator)
 
     def withdraw_manifest():
       repository.withdraw(self.latest_manifest, self.manifest_uri(ca), withdraw_crl, eb)
@@ -827,15 +823,12 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     if nextUpdate is None:
       nextUpdate = now + crl_interval
 
-    route_origins = [r for r in self.route_origins() if r.cert is not None and r.roa is not None]
-
     roas = [r for r in self.roas() if r.cert is not None and r.roa is not None]
 
     if self.latest_manifest_cert is None or self.latest_manifest_cert.getNotAfter() < nextUpdate:
       self.generate_manifest_cert(ca)
 
     certs = [(c.uri_tail(), c.cert) for c in self.child_certs()] + \
-            [(r.roa_uri_tail(), r.roa) for r in route_origins] + \
             [(r.roa_uri_tail(), r.roa) for r in roas] + \
             [(self.crl_uri_tail(), self.latest_crl)]
 

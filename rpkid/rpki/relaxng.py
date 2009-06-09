@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rnc 2500 2009-06-07 23:02:56Z sra $
+  $Id: left-right-schema.rnc 2510 2009-06-09 20:25:16Z sra $
   
   RelaxNG Schema for RPKI left-right protocol.
   
@@ -59,9 +59,6 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <ref name="repository_query"/>
   </define>
   <define name="query_elt" combine="choice">
-    <ref name="route_origin_query"/>
-  </define>
-  <define name="query_elt" combine="choice">
     <ref name="list_roa_requests_query"/>
   </define>
   <define name="query_elt" combine="choice">
@@ -82,9 +79,6 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="repository_reply"/>
-  </define>
-  <define name="reply_elt" combine="choice">
-    <ref name="route_origin_reply"/>
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="list_resources_reply"/>
@@ -802,111 +796,6 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <ref name="ctl_destroy"/>
       <ref name="self_handle"/>
       <ref name="repository_handle"/>
-    </element>
-  </define>
-  <!-- <route_origin/> element -->
-  <define name="route_origin_handle">
-    <attribute name="route_origin_handle">
-      <ref name="object_handle"/>
-    </attribute>
-  </define>
-  <define name="route_origin_bool">
-    <optional>
-      <attribute name="suppress_publication">
-        <value>yes</value>
-      </attribute>
-    </optional>
-  </define>
-  <define name="route_origin_payload">
-    <optional>
-      <attribute name="asn">
-        <data type="positiveInteger"/>
-      </attribute>
-    </optional>
-    <optional>
-      <attribute name="ipv4">
-        <ref name="ipv4_list"/>
-      </attribute>
-    </optional>
-    <optional>
-      <attribute name="ipv6">
-        <ref name="ipv6_list"/>
-      </attribute>
-    </optional>
-  </define>
-  <define name="route_origin_query" combine="choice">
-    <element name="route_origin">
-      <ref name="ctl_create"/>
-      <ref name="self_handle"/>
-      <ref name="route_origin_handle"/>
-      <ref name="route_origin_bool"/>
-      <ref name="route_origin_payload"/>
-    </element>
-  </define>
-  <define name="route_origin_reply" combine="choice">
-    <element name="route_origin">
-      <ref name="ctl_create"/>
-      <ref name="self_handle"/>
-      <ref name="route_origin_handle"/>
-    </element>
-  </define>
-  <define name="route_origin_query" combine="choice">
-    <element name="route_origin">
-      <ref name="ctl_set"/>
-      <ref name="self_handle"/>
-      <ref name="route_origin_handle"/>
-      <ref name="route_origin_bool"/>
-      <ref name="route_origin_payload"/>
-    </element>
-  </define>
-  <define name="route_origin_reply" combine="choice">
-    <element name="route_origin">
-      <ref name="ctl_set"/>
-      <ref name="self_handle"/>
-      <ref name="route_origin_handle"/>
-    </element>
-  </define>
-  <define name="route_origin_query" combine="choice">
-    <element name="route_origin">
-      <ref name="ctl_get"/>
-      <ref name="self_handle"/>
-      <ref name="route_origin_handle"/>
-    </element>
-  </define>
-  <define name="route_origin_reply" combine="choice">
-    <element name="route_origin">
-      <ref name="ctl_get"/>
-      <ref name="self_handle"/>
-      <ref name="route_origin_handle"/>
-      <ref name="route_origin_payload"/>
-    </element>
-  </define>
-  <define name="route_origin_query" combine="choice">
-    <element name="route_origin">
-      <ref name="ctl_list"/>
-      <ref name="self_handle"/>
-    </element>
-  </define>
-  <define name="route_origin_reply" combine="choice">
-    <element name="route_origin">
-      <ref name="ctl_list"/>
-      <ref name="self_handle"/>
-      <ref name="route_origin_handle"/>
-      <ref name="route_origin_payload"/>
-    </element>
-  </define>
-  <define name="route_origin_query" combine="choice">
-    <element name="route_origin">
-      <ref name="ctl_destroy"/>
-      <ref name="self_handle"/>
-      <ref name="route_origin_handle"/>
-    </element>
-  </define>
-  <define name="route_origin_reply" combine="choice">
-    <element name="route_origin">
-      <ref name="ctl_destroy"/>
-      <ref name="self_handle"/>
-      <ref name="route_origin_handle"/>
     </element>
   </define>
   <!-- <list_resources/> element -->

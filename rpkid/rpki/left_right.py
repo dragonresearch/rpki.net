@@ -408,16 +408,16 @@ class self_elt(data_elt):
 
       roas = dict(((r.asn, str(r.ipv4), str(r.ipv6)), r) for r in self.roas())
 
-      def loop(iterator, roa_request):
+      def roa_requests_loop(iterator, roa_request):
 
         def lose(e):
           rpki.log.error(traceback.format_exc())
           rpki.log.warn("Could not update ROA %r, skipping: %s" % (roa, e))
           iterator()
 
-        roa = roas.get((roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6)))
+        key = (roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6))
 
-        if roa is None:
+        if key not in roas:
           # This really should be using a constructor
           roa = rpki.rpki_engine.roa_obj()
           roa.gctx = self.gctx
@@ -427,7 +427,8 @@ class self_elt(data_elt):
           roa.ipv6 = roa_request.ipv6
           return roa.generate_roa(iterator, lose)
 
-        assert roa.roa is not None
+        roa = roas[key]
+        del roas[key]
 
         ca_detail = roa.ca_detail()
 
@@ -453,14 +454,24 @@ class self_elt(data_elt):
 
         iterator()
 
-      def done():
+      def roa_requests_done():
 
-        # Need to do something here to handle existing ROAs for
-        # which we no longer have a ROA request.
+        # Any roa_obj entries still in the dict at this point are
+        # orphans that no longer correspond to a roa_request, so clean
+        # them up.
 
-        cb()
+        def roa_withdraw_loop(iterator, roa):
 
-      rpki.async.iterator(roa_requests, loop, done)
+          def lose(e):
+            rpki.log.error(traceback.format_exc())
+            rpki.log.warn("Could not withdraw ROA %r: %s" % (roa, e))
+            iterator()
+
+          roa.withdraw(iterator, lose)
+
+        rpki.async.iterator(roas.values(), roa_withdraw_loop, cb)
+
+      rpki.async.iterator(roa_requests, roa_requests_loop, roa_requests_done)
 
     def roa_requests_failed(e):
       rpki.log.error(traceback.format_exc())

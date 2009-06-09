@@ -590,7 +590,8 @@ class allocation(object):
     return s + "Until: %s\n" % self.resources.valid_until
 
   def is_leaf(self):
-    return not self.kids and not self.route_origins
+    #return not self.kids and not self.route_origins
+    return False
 
   def is_root(self):
     return self.parent is None

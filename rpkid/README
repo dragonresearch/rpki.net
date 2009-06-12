@@ -27,8 +27,8 @@ TO DO:
 
 	TIME REQUIRED: Two weeks
 
-	DEPENDS ON: almost everything else, as almost any code change can raise new
-	exceptions that we'd need to handle.
+	DEPENDS ON: almost everything else, as almost any code change
+	can raise new exceptions that we'd need to handle.
 
 	STATUS: Not started
 
@@ -41,8 +41,8 @@ TO DO:
 
 	TIME REQUIRED (data integrity audit): 1 week
 
-	TIME REQUIRED (fix data integrity): Unknown, depends on code audit and results
-	of runtime testing.
+	TIME REQUIRED (fix data integrity): Unknown, depends on code
+	audit and results of runtime testing.
 
 	DEPENDS ON: async tasking model rollback.
 
@@ -124,10 +124,11 @@ TO DO:
 	probabilistically unique and would not expose information, but
 	would be stable even if we had to rebuild the database.
 
-	TIME REQUIRED: One week to evaluate. Implementation time if we decide to make a
-	change unknown, but probably on the order of another week.
+	TIME REQUIRED: One week to evaluate. Implementation time if we
+	decide to make a change unknown, but probably on the order of
+	another week.
 
-	STATUS: Not started
+	STATUS: Done
 
       * rcynic handling of RPKI trust anchors does not yet match most
         recent agreement by design team.  Currently waiting for an OID

@@ -41,8 +41,10 @@ class roa_request(object):
   def add(self, prefix):
     self.prefixes.add(prefix)
 
-  def xml(self):
-    return Element("roa_request", asn = self.asn, prefixes = str(self.prefixes))
+  def xml(self, e):
+    return SubElement(e, "roa_request",
+                      asn = self.asn,
+                      prefixes = str(self.prefixes))
 
 class roa_requests(dict):
 
@@ -51,11 +53,9 @@ class roa_requests(dict):
       self[asn] = roa_request(asn)
     self[asn].add(prefix)
 
-  def xml(self):
-    e = Element("roa_requests")
+  def xml(self, e):
     for r in self.itervalues():
-      e.append(r.xml())
-    return e
+      r.xml(e)
 
 class child(object):
 
@@ -73,9 +73,12 @@ class child(object):
     if validity is not None:
       self.validity = validity
 
-  def xml(self):
-    return Element("child", handle = self.handle, valid_until = self.validity,
-                   asns = str(self.asns), prefixes = str(self.prefixes))
+  def xml(self, e):
+    return SubElement(e, "child",
+                      handle = self.handle,
+                      valid_until = self.validity,
+                      asns = str(self.asns),
+                      prefixes = str(self.prefixes))
 
 class children(dict):
 
@@ -84,16 +87,17 @@ class children(dict):
       self[handle] = child(handle)
     self[handle].add(prefix = prefix, asn = asn, validity = validity)
 
-  def xml(self):
-    e = Element("children")
+  def xml(self, e):
     for c in self.itervalues():
-      e.append(c.xml())
-    return e
+      c.xml(e)
 
 def csv_open(filename, delimiter = "\t", dialect = None):
   return csv.reader(open(filename, "rb"), dialect = dialect, delimiter = delimiter)
 
-def bpki_ca():
+def PEMElement(e, tag, filename):
+  SubElement(e, tag).text = "".join(open(filename).readlines()[1:-1])
+
+def bpki_ca(e):
 
   if not os.path.exists(bpki_ca_key_file):
     subprocess.check_call(("openssl", "genrsa",
@@ -110,9 +114,7 @@ def bpki_ca():
                            "-key", bpki_ca_key_file,
                            "-out", bpki_ca_cert_file))
 
-  e = Element("bpki_ca_certificate")
-  e.text = "".join(p.strip() for p in open(bpki_ca_cert_file).readlines()[1:-1])
-  return e
+  PEMElement(e, "bpki_ca_certificate", bpki_ca_cert_file)
 
 bpki_ca_conf_fmt = '''\
 [req]
@@ -131,17 +133,19 @@ subjectKeyIdentifier	= hash
 authorityKeyIdentifier	= keyid:always
 '''
 
-def issue_bsc():
+def bpki_ee(e):
 
-  ca_name = my_handle + "bpki-ca"
-  ee_name = my_handle + "bpki-ee"
+  if os.path.exists(bpki_ee_req_file):
 
-  subprocess.check_call(("openssl", "x509", "-req", "-sha256", "-days", "360",
-                         "-CA", ca_name + ".cer", "-CAkey", ca_name + ".key",
-                         "-in", ee_name + ".req", "-out", ee_name + ".cer", 
-                         "-CAcreateserial"))
+    if not os.path.exists(bpki_ee_cert_file):
+      subprocess.check_call(("openssl", "x509", "-req", "-sha256", "-days", "360",
+                             "-CA", bpki_ca_cert_file,
+                             "-CAkey", bpki_ca_key_file,
+                             "-in", bpki_ee_req_file,
+                             "-out", bpki_ee_cert_file, 
+                             "-CAcreateserial"))
 
-  yaml_cert_out(ee_name + ".cer", "bpki_ee")
+    PEMElement(e, "bpki_ee_certificate", bpki_ee_cert_file)
 
 def extract_resources():
   pass
@@ -166,9 +170,10 @@ for handle, asn in csv_open(asns_csv_file):
   kids.add(handle = handle, asn = asn)
 
 e = Element("myrpki", handle = my_handle)
-e.append(roas.xml())
-e.append(kids.xml())
-e.append(bpki_ca())
+roas.xml(e)
+kids.xml(e)
+bpki_ca(e)
+bpki_ee(e)
 
 if True:
   ElementTree(e).write(sys.stdout)

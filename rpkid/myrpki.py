@@ -26,20 +26,21 @@ class roa_request(object):
     self.asn = asn
     self.prefixes = set()
 
-  requests = {}
-
-  @classmethod
-  def add(cls, asn, prefix):
-    if asn not in cls.requests:
-      cls.requests[asn] = cls(asn)
-    cls.requests[asn].prefixes.add(prefix)
-
   def __str__(self):
     return self.asn + " " + ",".join(self.prefixes)
 
-  @classmethod
-  def show(cls):
-    for r in cls.requests.itervalues():
+  def add(self, prefix):
+    self.prefixes.add(prefix)
+
+class roa_requests(dict):
+
+  def add(self, asn, prefix):
+    if asn not in self:
+      self[asn] = roa_request(asn)
+    self[asn].add(prefix)
+
+  def show(self):
+    for r in self.itervalues():
       print r
 
 class child(object):
@@ -50,51 +51,51 @@ class child(object):
     self.prefixes = set()
     self.validity = None
 
-  children = {}
-
-  @classmethod
-  def add(cls, handle, prefix = None, asn = None, validity = None):
-    if handle not in cls.children:
-      cls.children[handle] = cls(handle)
-    if prefix is not None:
-      cls.children[handle].prefixes.add(prefix)
-    if asn is not None:
-      cls.children[handle].asns.add(asn)
-    if validity is not None:
-      cls.children[handle].validity = validity
-
   def __str__(self):
     return "%s %s %s %s" % (self.handle, self.validity,
                             ",".join(self.asns),
                             ",".join(self.prefixes))
 
-  @classmethod
-  def show(cls):
-    for c in cls.children.itervalues():
+class children(dict):
+
+  def add(self, handle, prefix = None, asn = None, validity = None):
+    if handle not in self:
+      self[handle] = child(handle)
+    if prefix is not None:
+      self[handle].prefixes.add(prefix)
+    if asn is not None:
+      self[handle].asns.add(asn)
+    if validity is not None:
+      self[handle].validity = validity
+
+  def show(self):
+    for c in self.itervalues():
       print c
 
 def csv_open(filename, delimiter = "\t", dialect = None):
   return csv.reader(open(filename, "rb"), dialect = dialect, delimiter = delimiter)
 
+roas = roa_requests()
+kids = children()
+
 # format:  p/n-m asn
 for pnm, asn in csv_open(roa_csv_file):
-  roa_request.add(asn = asn, prefix = pnm)
+  roas.add(asn = asn, prefix = pnm)
 
 # childname date
 for handle, date in csv_open(validity_csv_file):
-  child.add(handle = handle, validity = date)
+  kids.add(handle = handle, validity = date)
 
 # childname p/n
 for handle, pn in csv_open(prefixes_csv_file):
-  child.add(handle = handle, prefix = pn)
+  kids.add(handle = handle, prefix = pn)
 
 # childname asn
 for handle, asn in csv_open(asns_csv_file):
-  child.add(handle = handle, asn = asn)
+  kids.add(handle = handle, asn = asn)
 
-roa_request.show()
-
-child.show()
+roas.show()
+kids.show()
 
 # rest of this is yesterday's code that hasn't been converted yet
 

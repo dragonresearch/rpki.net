@@ -20,14 +20,19 @@ validity_csv_file = "validity.csv"
 prefixes_csv_file = "prefixes.csv"
 asns_csv_file     = "asns.csv"
 
+class prefix_set(set):
+
+  def __str__(self):
+    return ",".join(self)
+
 class roa_request(object):
 
   def __init__(self, asn):
     self.asn = asn
-    self.prefixes = set()
+    self.prefixes = prefix_set()
 
   def __str__(self):
-    return self.asn + " " + ",".join(self.prefixes)
+    return "%s %s" % (self.asn, self.prefixes)
 
   def add(self, prefix):
     self.prefixes.add(prefix)
@@ -47,26 +52,27 @@ class child(object):
 
   def __init__(self, handle):
     self.handle = handle
-    self.asns = set()
-    self.prefixes = set()
+    self.asns = prefix_set()
+    self.prefixes = prefix_set()
     self.validity = None
 
   def __str__(self):
-    return "%s %s %s %s" % (self.handle, self.validity,
-                            ",".join(self.asns),
-                            ",".join(self.prefixes))
+    return "%s %s %s %s" % (self.handle, self.validity, self.asns, self.prefixes)
+
+  def add(self, prefix = None, asn = None, validity = None):
+    if prefix is not None:
+      self.prefixes.add(prefix)
+    if asn is not None:
+      self.asns.add(asn)
+    if validity is not None:
+      self.validity = validity
 
 class children(dict):
 
   def add(self, handle, prefix = None, asn = None, validity = None):
     if handle not in self:
       self[handle] = child(handle)
-    if prefix is not None:
-      self[handle].prefixes.add(prefix)
-    if asn is not None:
-      self[handle].asns.add(asn)
-    if validity is not None:
-      self[handle].validity = validity
+    self[handle].add(prefix = prefix, asn = asn, validity = validity)
 
   def show(self):
     for c in self.itervalues():

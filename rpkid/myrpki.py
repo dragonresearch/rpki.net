@@ -7,7 +7,9 @@
 # corresponding bpki ee pkcs10).  whack all this together and generate
 # some xml thing in format to be determined (need to write schema).
 
-import subprocess, csv, xml.etree.ElementTree
+import subprocess, csv, sys
+
+from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 # The following should all be configurable on command line, as perhaps
 # should the csv conventions (dialect, delimiter, see csv module doc
@@ -20,7 +22,7 @@ validity_csv_file = "validity.csv"
 prefixes_csv_file = "prefixes.csv"
 asns_csv_file     = "asns.csv"
 
-class prefix_set(set):
+class comma_set(set):
 
   def __str__(self):
     return ",".join(self)
@@ -29,13 +31,13 @@ class roa_request(object):
 
   def __init__(self, asn):
     self.asn = asn
-    self.prefixes = prefix_set()
-
-  def __str__(self):
-    return "%s %s" % (self.asn, self.prefixes)
+    self.prefixes = comma_set()
 
   def add(self, prefix):
     self.prefixes.add(prefix)
+
+  def xml(self):
+    return Element("roa_request", asn = self.asn, prefixes = str(self.prefixes))
 
 class roa_requests(dict):
 
@@ -44,20 +46,19 @@ class roa_requests(dict):
       self[asn] = roa_request(asn)
     self[asn].add(prefix)
 
-  def show(self):
+  def xml(self):
+    e = Element("roa_requests")
     for r in self.itervalues():
-      print r
+      e.append(r.xml())
+    return e
 
 class child(object):
 
   def __init__(self, handle):
     self.handle = handle
-    self.asns = prefix_set()
-    self.prefixes = prefix_set()
+    self.asns = comma_set()
+    self.prefixes = comma_set()
     self.validity = None
-
-  def __str__(self):
-    return "%s %s %s %s" % (self.handle, self.validity, self.asns, self.prefixes)
 
   def add(self, prefix = None, asn = None, validity = None):
     if prefix is not None:
@@ -67,6 +68,10 @@ class child(object):
     if validity is not None:
       self.validity = validity
 
+  def xml(self):
+    return Element("child", handle = self.handle, valid_until = self.validity,
+                   asns = str(self.asns), prefixes = str(self.prefixes))
+
 class children(dict):
 
   def add(self, handle, prefix = None, asn = None, validity = None):
@@ -74,9 +79,27 @@ class children(dict):
       self[handle] = child(handle)
     self[handle].add(prefix = prefix, asn = asn, validity = validity)
 
-  def show(self):
+  def xml(self):
+    e = Element("children")
     for c in self.itervalues():
-      print c
+      e.append(c.xml())
+    return e
+
+def indent(elem, level = 0):
+  # http://effbot.org/zone/element-lib.htm#prettyprint
+  i = "\n" + level * "  "
+  if len(elem):
+    if not elem.text or not elem.text.strip():
+      elem.text = i + "  "
+    if not elem.tail or not elem.tail.strip():
+      elem.tail = i
+    for elem in elem:
+      indent(elem, level + 1)
+    if not elem.tail or not elem.tail.strip():
+      elem.tail = i
+  else:
+    if level and (not elem.tail or not elem.tail.strip()):
+      elem.tail = i
 
 def csv_open(filename, delimiter = "\t", dialect = None):
   return csv.reader(open(filename, "rb"), dialect = dialect, delimiter = delimiter)
@@ -100,8 +123,11 @@ for handle, pn in csv_open(prefixes_csv_file):
 for handle, asn in csv_open(asns_csv_file):
   kids.add(handle = handle, asn = asn)
 
-roas.show()
-kids.show()
+e = Element("myrpki", handle = my_handle)
+e.append(roas.xml())
+e.append(kids.xml())
+indent(e)
+ElementTree(e).write(sys.stdout)
 
 # rest of this is yesterday's code that hasn't been converted yet
 

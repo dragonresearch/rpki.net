@@ -7,9 +7,9 @@
 # corresponding bpki ee pkcs10).  whack all this together and generate
 # some xml thing in format to be determined (need to write schema).
 
-import subprocess, csv, sys
+import subprocess, csv, sys, os
 
-from xml.etree.ElementTree import Element, SubElement, ElementTree
+from xml.etree.ElementTree import Element, SubElement, ElementTree, tostring
 
 # The following should all be configurable on command line, as perhaps
 # should the csv conventions (dialect, delimiter, see csv module doc
@@ -21,6 +21,12 @@ roa_csv_file      = "roas.csv"
 validity_csv_file = "validity.csv"
 prefixes_csv_file = "prefixes.csv"
 asns_csv_file     = "asns.csv"
+bpki_ca_conf_file = "bpki-ca-cert.conf"
+bpki_ca_cert_file = "bpki-ca-cert.pem"
+bpki_ca_req_file  = "bpki-ca-pkcs10.pem"
+bpki_ca_key_file  = "bpki-ca-key.pem"
+bpki_ee_cert_file = "bpki-ee-cert.pem"
+bpki_ee_req_file  = "bpki-ee-pkcs10.pem"
 
 class comma_set(set):
 
@@ -85,24 +91,67 @@ class children(dict):
       e.append(c.xml())
     return e
 
-def indent(elem, level = 0):
-  # http://effbot.org/zone/element-lib.htm#prettyprint
-  i = "\n" + level * "  "
-  if len(elem):
-    if not elem.text or not elem.text.strip():
-      elem.text = i + "  "
-    if not elem.tail or not elem.tail.strip():
-      elem.tail = i
-    for elem in elem:
-      indent(elem, level + 1)
-    if not elem.tail or not elem.tail.strip():
-      elem.tail = i
-  else:
-    if level and (not elem.tail or not elem.tail.strip()):
-      elem.tail = i
-
 def csv_open(filename, delimiter = "\t", dialect = None):
   return csv.reader(open(filename, "rb"), dialect = dialect, delimiter = delimiter)
+
+def bpki_ca():
+
+  if not os.path.exists(bpki_ca_key_file):
+    subprocess.check_call(("openssl", "genrsa",
+                           "-out", bpki_ca_key_file,
+                           "2048"))
+
+  if not os.path.exists(bpki_ca_conf_file):
+    open(bpki_ca_conf_file, "w").write(bpki_ca_conf_fmt % { "handle" : my_handle })
+
+  if not os.path.exists(bpki_ca_req_file):
+    subprocess.check_call(("openssl", "req", "-new", "-sha256",
+                           "-config", bpki_ca_conf_file,
+                           "-key", bpki_ca_key_file,
+                           "-out", bpki_ca_req_file))
+
+  if not os.path.exists(bpki_ca_cert_file):
+    subprocess.check_call(("openssl", "x509",  "-req",
+                           "-sha256", "-days", "360",
+                           "-in", bpki_ca_req_file,
+                           "-signkey", bpki_ca_key_file,
+                           "-out", bpki_ca_cert_file))
+
+  e = Element("bpki_ca_certificate")
+  e.text = "".join(p.strip() for p in open(bpki_ca_cert_file).readlines()[1:-1])
+  return e
+
+bpki_ca_conf_fmt = '''\
+[req]
+default_bits            = 2048
+default_md		= sha256
+distinguished_name	= req_dn
+x509_extensions		= req_x509_ext
+prompt			= no
+
+[req_dn]
+CN                      = %(handle)s
+
+[req_x509_ext]
+basicConstraints	= critical,CA:true
+subjectKeyIdentifier	= hash
+authorityKeyIdentifier	= keyid:always
+'''
+
+def issue_bsc():
+
+  ca_name = my_handle + "bpki-ca"
+  ee_name = my_handle + "bpki-ee"
+
+  subprocess.check_call(("openssl", "x509", "-req", "-sha256", "-days", "360",
+                         "-CA", ca_name + ".cer", "-CAkey", ca_name + ".key",
+                         "-in", ee_name + ".req", "-out", ee_name + ".cer", 
+                         "-CAcreateserial"))
+
+  yaml_cert_out(ee_name + ".cer", "bpki_ee")
+
+def extract_resources():
+  pass
 
 roas = roa_requests()
 kids = children()
@@ -126,39 +175,9 @@ for handle, asn in csv_open(asns_csv_file):
 e = Element("myrpki", handle = my_handle)
 e.append(roas.xml())
 e.append(kids.xml())
-indent(e)
-ElementTree(e).write(sys.stdout)
+e.append(bpki_ca())
 
-# rest of this is yesterday's code that hasn't been converted yet
-
-# modes: --create-bpki, --issue-bsc, --extract-resources
-
-def create_bpki():
-  name = my_handle + "bpki-ca"
-
-  subprocess.check_call(("openssl", "genrsa", "-out", name + ".key", "2048"))
-
-  subprocess.check_call(("openssl", "req", "-new", "-sha256",
-              "-key", name + ".key", "-out", name + ".req"))
-
-  subprocess.check_call(("openssl", "x509",  "-req",  "-sha256",
-                         "-in", name + ".req", "-out", name + ".cer",
-                         "-signkey", name + ".key", "-days", "360"))
-
-  yaml_cert_out(name + ".cer", "bpki_ca")
-
-def issue_bsc():
-
-  ca_name = my_handle + "bpki-ca"
-  ee_name = my_handle + "bpki-ee"
-
-  subprocess.check_call(("openssl", "x509", "-req", "-sha256", "-days", "360",
-                         "-CA", ca_name + ".cer", "-CAkey", ca_name + ".key",
-                         "-in", ee_name + ".req", "-out", ee_name + ".cer", 
-                         "-CAcreateserial"))
-
-  yaml_cert_out(ee_name + ".cer", "bpki_ee")
-
-def extract_resources():
-  pass
-
+if True:
+  ElementTree(e).write(sys.stdout)
+else:
+  print tostring(e)

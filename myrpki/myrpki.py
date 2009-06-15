@@ -23,7 +23,6 @@ prefixes_csv_file = "prefixes.csv"
 asns_csv_file     = "asns.csv"
 bpki_ca_conf_file = "bpki-ca-cert.conf"
 bpki_ca_cert_file = "bpki-ca-cert.pem"
-bpki_ca_req_file  = "bpki-ca-pkcs10.pem"
 bpki_ca_key_file  = "bpki-ca-key.pem"
 bpki_ee_cert_file = "bpki-ee-cert.pem"
 bpki_ee_req_file  = "bpki-ee-pkcs10.pem"
@@ -104,17 +103,11 @@ def bpki_ca():
   if not os.path.exists(bpki_ca_conf_file):
     open(bpki_ca_conf_file, "w").write(bpki_ca_conf_fmt % { "handle" : my_handle })
 
-  if not os.path.exists(bpki_ca_req_file):
-    subprocess.check_call(("openssl", "req", "-new", "-sha256",
-                           "-config", bpki_ca_conf_file,
-                           "-key", bpki_ca_key_file,
-                           "-out", bpki_ca_req_file))
-
   if not os.path.exists(bpki_ca_cert_file):
-    subprocess.check_call(("openssl", "x509",  "-req",
-                           "-sha256", "-days", "360",
-                           "-in", bpki_ca_req_file,
-                           "-signkey", bpki_ca_key_file,
+    subprocess.check_call(("openssl", "req", "-new", "-sha256", "-x509",
+                           "-config", bpki_ca_conf_file,
+                           "-extensions", "req_x509_ext",
+                           "-key", bpki_ca_key_file,
                            "-out", bpki_ca_cert_file))
 
   e = Element("bpki_ca_certificate")

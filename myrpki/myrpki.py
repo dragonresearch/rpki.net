@@ -46,7 +46,7 @@ bpki_ee_req_file  = cfg.get(myrpki_section, "bpki_ee_pkcs10")
 output_filename   = cfg.get(myrpki_section, "output-filename")
 
 v4regexp = re.compile("^[-0-9./]+$", re.I)
-v6regexp = re.compile("^[-0-9:/]+$", re.I)
+v6regexp = re.compile("^[-0-9a-f:/]+$", re.I)
 
 class comma_set(set):
 

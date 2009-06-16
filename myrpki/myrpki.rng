@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: myrpki.rnc 2524 2009-06-16 03:30:14Z sra $
+  $Id: myrpki.rnc 2528 2009-06-16 19:35:50Z sra $
   
   RelaxNG Schema for MyRPKI XML messages
   
@@ -71,8 +71,11 @@
       <attribute name="asn">
         <data type="positiveInteger"/>
       </attribute>
-      <attribute name="prefixes">
+      <attribute name="v4">
         <ref name="ipv4_list"/>
+      </attribute>
+      <attribute name="v6">
+        <ref name="ipv6_list"/>
       </attribute>
     </element>
   </define>
@@ -92,8 +95,13 @@
         </attribute>
       </optional>
       <optional>
-        <attribute name="prefixes">
+        <attribute name="v4">
           <ref name="ipv4_list"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="v6">
+          <ref name="ipv6_list"/>
         </attribute>
       </optional>
     </element>

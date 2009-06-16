@@ -9,7 +9,7 @@
 
 import subprocess, csv, sys, os
 
-from xml.etree.ElementTree import Element, SubElement, ElementTree, tostring
+from xml.etree.ElementTree import Element, SubElement, ElementTree, QName
 
 # The following should all be configurable on command line, as perhaps
 # should the csv conventions (dialect, delimiter, see csv module doc
@@ -26,6 +26,8 @@ bpki_ca_cert_file = "bpki-ca-cert.pem"
 bpki_ca_key_file  = "bpki-ca-key.pem"
 bpki_ee_cert_file = "bpki-ee-cert.pem"
 bpki_ee_req_file  = "bpki-ee-pkcs10.pem"
+
+namespace         = "http://www.hactrn.net/uris/rpki/myrpki/"
 
 class comma_set(set):
 
@@ -95,8 +97,8 @@ def csv_open(filename, delimiter = "\t", dialect = None):
   return csv.reader(open(filename, "rb"), dialect = dialect, delimiter = delimiter)
 
 def PEMElement(e, tag, filename):
-  SubElement(e, tag).text = "".join(p.strip()
-                                    for p in open(filename).readlines()[1:-1])
+  e = SubElement(e, tag)
+  e.text = "".join(p.strip() for p in open(filename).readlines()[1:-1])
 
 def bpki_ca(e):
 
@@ -170,7 +172,7 @@ for handle, pn in csv_open(prefixes_csv_file):
 for handle, asn in csv_open(asns_csv_file):
   kids.add(handle = handle, asn = asn)
 
-e = Element("myrpki", version = "1", handle = my_handle)
+e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle)
 roas.xml(e)
 kids.xml(e)
 bpki_ca(e)

@@ -25,14 +25,16 @@ start = element myrpki {
 
 roa_request = element roa_request {
   attribute asn { xsd:positiveInteger },
-  attribute prefixes { ipv4_list }
+  attribute v4 { ipv4_list },
+  attribute v6 { ipv6_list }
 }
 
 child = element child {
   attribute handle { object_handle },
   attribute valid_until { xsd:dateTime { pattern=".*Z" } },
   attribute asns { asn_list }?,
-  attribute prefixes { ipv4_list }?
+  attribute v4 { ipv4_list }?,
+  attribute v6 { ipv6_list }?
 }
 
 bpki_ca_certificate = element bpki_ca_certificate { base64 }

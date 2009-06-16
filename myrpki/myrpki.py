@@ -23,7 +23,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import subprocess, csv, sys, os, ConfigParser
+import subprocess, csv, re, os, ConfigParser
 
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
@@ -43,6 +43,10 @@ bpki_ca_cert_file = cfg.get(myrpki_section, "bpki_ca_certificate")
 bpki_ca_key_file  = cfg.get(myrpki_section, "bpki_ca_key")
 bpki_ee_cert_file = cfg.get(myrpki_section, "bpki_ee_certificate")
 bpki_ee_req_file  = cfg.get(myrpki_section, "bpki_ee_pkcs10")
+output_filename   = cfg.get(myrpki_section, "output-filename")
+
+v4regexp = re.compile("^[-0-9./]+$", re.I)
+v6regexp = re.compile("^[-0-9:/]+$", re.I)
 
 class comma_set(set):
 
@@ -53,15 +57,22 @@ class roa_request(object):
 
   def __init__(self, asn):
     self.asn = asn
-    self.prefixes = comma_set()
+    self.v4 = comma_set()
+    self.v6 = comma_set()
 
   def add(self, prefix):
-    self.prefixes.add(prefix)
+    if v4regexp.match(prefix):
+      self.v4.add(prefix)
+    elif v6regexp.match(prefix):
+      self.v6.add(prefix)
+    else:
+      raise RuntimeError, 'Bad prefix syntax: "%s"' % prefix
 
   def xml(self, e):
     return SubElement(e, "roa_request",
                       asn = self.asn,
-                      prefixes = str(self.prefixes))
+                      v4 = str(self.v4),
+                      v6 = str(self.v6))
 
 class roa_requests(dict):
 
@@ -79,12 +90,18 @@ class child(object):
   def __init__(self, handle):
     self.handle = handle
     self.asns = comma_set()
-    self.prefixes = comma_set()
+    self.v4 = comma_set()
+    self.v6 = comma_set()
     self.validity = None
 
   def add(self, prefix = None, asn = None, validity = None):
     if prefix is not None:
-      self.prefixes.add(prefix)
+      if v4regexp.match(prefix):
+        self.v4.add(prefix)
+      elif v6regexp.match(prefix):
+        self.v6.add(prefix)
+      else:
+        raise RuntimeError, 'Bad prefix syntax: "%s"' % prefix
     if asn is not None:
       self.asns.add(asn)
     if validity is not None:
@@ -95,7 +112,8 @@ class child(object):
                       handle = self.handle,
                       valid_until = self.validity,
                       asns = str(self.asns),
-                      prefixes = str(self.prefixes))
+                      v4 = str(self.v4),
+                      v6 = str(self.v6))
 
 class children(dict):
 
@@ -173,7 +191,5 @@ kids.xml(e)
 bpki_ca(e)
 bpki_ee(e)
 
-if True:
-  ElementTree(e).write(sys.stdout)
-else:
-  print tostring(e)
+ElementTree(e).write(output_filename + ".tmp")
+os.rename(output_filename + ".tmp", output_filename)

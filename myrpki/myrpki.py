@@ -1,33 +1,48 @@
-# $Id$
+"""
+Basic plan here is to read in csv files for tabular data (ROA
+requests, child ASN assignments, child prefix assignments), read
+command line or magic file for my own handle, and read or generate PEM
+for BPKI CA certificate and BPKI EE certificate (cannot do latter
+without corresponding BPKI EE PKCS #10).  Whack all this together and
+generate some XML thing (format still in flux, see schema).
 
-# Basic plan here is to read in csv files for tabular data (roa
-# requests, child asn assignments, child prefix assignments), read
-# command line or magic file for my own handle, and read or generate
-# pem for bpki ca cert and bpki ee cert (cannot do latter without
-# corresponding bpki ee pkcs10).  whack all this together and generate
-# some xml thing in format to be determined (need to write schema).
+$Id$
 
-import subprocess, csv, sys, os
+Copyright (C) 2009  Internet Systems Consortium ("ISC")
 
-from xml.etree.ElementTree import Element, SubElement, ElementTree, QName
+Permission to use, copy, modify, and distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
 
-# The following should all be configurable on command line, as perhaps
-# should the csv conventions (dialect, delimiter, see csv module doc
-# for all the fun one can have here).  For now, just wire all this in,
-# add command line junk later.
+THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
+"""
 
-my_handle         = "wombat"
-roa_csv_file      = "roas.csv"
-validity_csv_file = "validity.csv"
-prefixes_csv_file = "prefixes.csv"
-asns_csv_file     = "asns.csv"
-bpki_ca_conf_file = "bpki-ca-cert.conf"
-bpki_ca_cert_file = "bpki-ca-cert.pem"
-bpki_ca_key_file  = "bpki-ca-key.pem"
-bpki_ee_cert_file = "bpki-ee-cert.pem"
-bpki_ee_req_file  = "bpki-ee-pkcs10.pem"
+import subprocess, csv, sys, os, ConfigParser
 
-namespace         = "http://www.hactrn.net/uris/rpki/myrpki/"
+from xml.etree.ElementTree import Element, SubElement, ElementTree
+
+cfg_file        = "myrpki.conf"
+myrpki_section  = "myrpki"
+namespace       = "http://www.hactrn.net/uris/rpki/myrpki/"
+
+cfg = ConfigParser.RawConfigParser()
+cfg.read(cfg_file)
+
+my_handle         = cfg.get(myrpki_section, "handle")
+roa_csv_file      = cfg.get(myrpki_section, "roa_csv")
+validity_csv_file = cfg.get(myrpki_section, "validity_csv")
+prefix_csv_file   = cfg.get(myrpki_section, "prefix_csv")
+asn_csv_file      = cfg.get(myrpki_section, "asn_csv")
+bpki_ca_cert_file = cfg.get(myrpki_section, "bpki_ca_certificate")
+bpki_ca_key_file  = cfg.get(myrpki_section, "bpki_ca_key")
+bpki_ee_cert_file = cfg.get(myrpki_section, "bpki_ee_certificate")
+bpki_ee_req_file  = cfg.get(myrpki_section, "bpki_ee_pkcs10")
 
 class comma_set(set):
 
@@ -107,34 +122,14 @@ def bpki_ca(e):
                            "-out", bpki_ca_key_file,
                            "2048"))
 
-  if not os.path.exists(bpki_ca_conf_file):
-    open(bpki_ca_conf_file, "w").write(bpki_ca_conf_fmt % { "handle" : my_handle })
-
   if not os.path.exists(bpki_ca_cert_file):
     subprocess.check_call(("openssl", "req", "-new", "-sha256", "-x509",
-                           "-config", bpki_ca_conf_file,
+                           "-config", cfg_file,
                            "-extensions", "req_x509_ext",
                            "-key", bpki_ca_key_file,
                            "-out", bpki_ca_cert_file))
 
   PEMElement(e, "bpki_ca_certificate", bpki_ca_cert_file)
-
-bpki_ca_conf_fmt = '''\
-[req]
-default_bits            = 2048
-default_md		= sha256
-distinguished_name	= req_dn
-x509_extensions		= req_x509_ext
-prompt			= no
-
-[req_dn]
-CN                      = %(handle)s
-
-[req_x509_ext]
-basicConstraints	= critical,CA:true
-subjectKeyIdentifier	= hash
-authorityKeyIdentifier	= keyid:always
-'''
 
 def bpki_ee(e):
 
@@ -165,11 +160,11 @@ for handle, date in csv_open(validity_csv_file):
   kids.add(handle = handle, validity = date)
 
 # childname p/n
-for handle, pn in csv_open(prefixes_csv_file):
+for handle, pn in csv_open(prefix_csv_file):
   kids.add(handle = handle, prefix = pn)
 
 # childname asn
-for handle, asn in csv_open(asns_csv_file):
+for handle, asn in csv_open(asn_csv_file):
   kids.add(handle = handle, asn = asn)
 
 e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle)

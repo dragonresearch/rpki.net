@@ -95,7 +95,8 @@ def csv_open(filename, delimiter = "\t", dialect = None):
   return csv.reader(open(filename, "rb"), dialect = dialect, delimiter = delimiter)
 
 def PEMElement(e, tag, filename):
-  SubElement(e, tag).text = "".join(open(filename).readlines()[1:-1])
+  SubElement(e, tag).text = "".join(p.strip()
+                                    for p in open(filename).readlines()[1:-1])
 
 def bpki_ca(e):
 
@@ -169,7 +170,7 @@ for handle, pn in csv_open(prefixes_csv_file):
 for handle, asn in csv_open(asns_csv_file):
   kids.add(handle = handle, asn = asn)
 
-e = Element("myrpki", handle = my_handle)
+e = Element("myrpki", version = "1", handle = my_handle)
 roas.xml(e)
 kids.xml(e)
 bpki_ca(e)

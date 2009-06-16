@@ -1,0 +1,44 @@
+# $Id$
+#
+# RelaxNG Schema for MyRPKI XML messages
+#
+# libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
+# run the compact syntax through trang to get XML syntax.
+
+default namespace = "http://www.hactrn.net/uris/rpki/myrpki/"
+
+base64		= xsd:base64Binary { maxLength="512000" }
+object_handle	= xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9]*" }
+uri		= xsd:anyURI { maxLength="4096" }
+asn_list	= xsd:string { maxLength="512000" pattern="[\-,0-9]*" }
+ipv4_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/.]*" }
+ipv6_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/:a-fA-F]*" }
+
+start = element myrpki {
+  attribute version { xsd:positiveInteger { maxInclusive="1" } },
+  attribute handle { object_handle },
+  roa_request*,
+  child*,
+  bpki_ca_certificate?,
+  bpki_ee_certificate?
+}
+
+roa_request = element roa_request {
+  attribute asn { xsd:positiveInteger },
+  attribute prefixes { ipv4_list }
+}
+
+child = element child {
+  attribute handle { object_handle },
+  attribute valid_until { xsd:dateTime { pattern=".*Z" } },
+  attribute asns { asn_list }?,
+  attribute prefixes { ipv4_list }?
+}
+
+bpki_ca_certificate = element bpki_ca_certificate { base64 }
+
+bpki_ee_certificate = element bpki_ee_certificate { base64 }
+
+# Local Variables:
+# indent-tabs-mode: nil
+# End:

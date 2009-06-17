@@ -43,7 +43,8 @@ bpki_ca_cert_file = cfg.get(myrpki_section, "bpki_ca_certificate")
 bpki_ca_key_file  = cfg.get(myrpki_section, "bpki_ca_key")
 bpki_ee_cert_file = cfg.get(myrpki_section, "bpki_ee_certificate")
 bpki_ee_req_file  = cfg.get(myrpki_section, "bpki_ee_pkcs10")
-output_filename   = cfg.get(myrpki_section, "output-filename")
+output_filename   = cfg.get(myrpki_section, "output_filename")
+relaxng_schema    = cfg.get(myrpki_section, "relaxng_schema")
 
 v4regexp = re.compile("^[-0-9./]+$", re.I)
 v6regexp = re.compile("^[-0-9a-f:/]+$", re.I)
@@ -193,3 +194,6 @@ bpki_ee(e)
 
 ElementTree(e).write(output_filename + ".tmp")
 os.rename(output_filename + ".tmp", output_filename)
+
+subprocess.check_call(("xmllint", "-relaxng", relaxng_schema,
+                       "-noout", output_filename))

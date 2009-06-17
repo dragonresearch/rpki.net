@@ -1,6 +1,6 @@
 # $Id$
 
-import lxml.etree
+import lxml.etree, rpki.resource_set
 
 rng = lxml.etree.RelaxNG(lxml.etree.parse("myrpki.rng"))
 
@@ -32,7 +32,10 @@ print "My handle:", tree.get("handle")
 
 print "Children:"
 for x in tree.getiterator(tag("child")):
-  print x.get("handle"), x
+  print " ", x
+  print "  Handle:", x.get("handle")
+  print "  ASNS:  ", rpki.resource_set.resource_set_as(x.get("asns"))
+  print "  IPv4:  ", rpki.resource_set.resource_set_ipv4(x.get("v4"))
   for k, v in x.items():
     if v:
       print " ", k, v

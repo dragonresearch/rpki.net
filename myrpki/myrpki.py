@@ -46,9 +46,6 @@ bpki_ee_req_file  = cfg.get(myrpki_section, "bpki_ee_pkcs10")
 output_filename   = cfg.get(myrpki_section, "output_filename")
 relaxng_schema    = cfg.get(myrpki_section, "relaxng_schema")
 
-v4regexp = re.compile("^[-0-9./]+$", re.I)
-v6regexp = re.compile("^[-0-9a-f:/]+$", re.I)
-
 class comma_set(set):
 
   def __str__(self):
@@ -56,15 +53,18 @@ class comma_set(set):
 
 class roa_request(object):
 
+  v4re = re.compile("^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+(-[0-9]+)?$", re.I)
+  v6re = re.compile("^([0-9a-f]{0,4}:){0,15}[0-9a-f]{0,4}/[0-9]+(-[0-9]+)?$", re.I)
+
   def __init__(self, asn):
     self.asn = asn
     self.v4 = comma_set()
     self.v6 = comma_set()
 
   def add(self, prefix):
-    if v4regexp.match(prefix):
+    if self.v4re.match(prefix):
       self.v4.add(prefix)
-    elif v6regexp.match(prefix):
+    elif self.v6re.match(prefix):
       self.v6.add(prefix)
     else:
       raise RuntimeError, 'Bad prefix syntax: "%s"' % prefix
@@ -88,6 +88,9 @@ class roa_requests(dict):
 
 class child(object):
 
+  v4re = re.compile("^(([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+)|(([0-9]{1,3}\.){3}[0-9]{1,3}-([0-9]{1,3}\.){3}[0-9]{1,3})$", re.I)
+  v6re = re.compile("^(([0-9a-f]{0,4}:){0,15}[0-9a-f]{0,4}/[0-9]+)|(([0-9a-f]{0,4}:){0,15}[0-9a-f]{0,4}-([0-9a-f]{0,4}:){0,15}[0-9a-f]{0,4})$", re.I)
+
   def __init__(self, handle):
     self.handle = handle
     self.asns = comma_set()
@@ -97,9 +100,9 @@ class child(object):
 
   def add(self, prefix = None, asn = None, validity = None):
     if prefix is not None:
-      if v4regexp.match(prefix):
+      if self.v4re.match(prefix):
         self.v4.add(prefix)
-      elif v6regexp.match(prefix):
+      elif self.v6re.match(prefix):
         self.v6.add(prefix)
       else:
         raise RuntimeError, 'Bad prefix syntax: "%s"' % prefix
@@ -194,6 +197,3 @@ bpki_ee(e)
 
 ElementTree(e).write(output_filename + ".tmp")
 os.rename(output_filename + ".tmp", output_filename)
-
-subprocess.check_call(("xmllint", "-relaxng", relaxng_schema,
-                       "-noout", output_filename))

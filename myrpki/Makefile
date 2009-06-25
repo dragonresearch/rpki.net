@@ -14,3 +14,6 @@ myrpki.rng: myrpki.rnc
 
 parse: myrpki.xml myrpki.rng
 	python xml-parse-test.py
+
+clean:
+	rm -f *.xml *.pem

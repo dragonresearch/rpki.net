@@ -23,28 +23,11 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import subprocess, csv, re, os, ConfigParser
+import subprocess, csv, re, os, getopt, sys, ConfigParser
 
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
-cfg_file        = "myrpki.conf"
-myrpki_section  = "myrpki"
 namespace       = "http://www.hactrn.net/uris/rpki/myrpki/"
-
-cfg = ConfigParser.RawConfigParser()
-cfg.read(cfg_file)
-
-my_handle         = cfg.get(myrpki_section, "handle")
-roa_csv_file      = cfg.get(myrpki_section, "roa_csv")
-validity_csv_file = cfg.get(myrpki_section, "validity_csv")
-prefix_csv_file   = cfg.get(myrpki_section, "prefix_csv")
-asn_csv_file      = cfg.get(myrpki_section, "asn_csv")
-bpki_ca_cert_file = cfg.get(myrpki_section, "bpki_ca_certificate")
-bpki_ca_key_file  = cfg.get(myrpki_section, "bpki_ca_key")
-bpki_ee_cert_file = cfg.get(myrpki_section, "bpki_ee_certificate")
-bpki_ee_req_file  = cfg.get(myrpki_section, "bpki_ee_pkcs10")
-output_filename   = cfg.get(myrpki_section, "output_filename")
-relaxng_schema    = cfg.get(myrpki_section, "relaxng_schema")
 
 class comma_set(set):
 
@@ -85,6 +68,14 @@ class roa_requests(dict):
   def xml(self, e):
     for r in self.itervalues():
       r.xml(e)
+
+  @classmethod
+  def from_csv(cls, roa_csv_file):
+    self = cls()
+    # format:  p/n-m asn
+    for pnm, asn in csv_open(roa_csv_file):
+      self.add(asn = asn, prefix = pnm)
+    return self
 
 class child(object):
 
@@ -130,6 +121,20 @@ class children(dict):
     for c in self.itervalues():
       c.xml(e)
 
+  @classmethod
+  def from_csv(cls, validity_csv_file, prefix_csv_file, asn_csv_file):
+    self = cls()
+    # childname date
+    for handle, date in csv_open(validity_csv_file):
+      self.add(handle = handle, validity = date)
+    # childname p/n
+    for handle, pn in csv_open(prefix_csv_file):
+      self.add(handle = handle, prefix = pn)
+    # childname asn
+    for handle, asn in csv_open(asn_csv_file):
+      self.add(handle = handle, asn = asn)
+    return self
+
 def csv_open(filename, delimiter = "\t", dialect = None):
   return csv.reader(open(filename, "rb"), dialect = dialect, delimiter = delimiter)
 
@@ -137,7 +142,7 @@ def PEMElement(e, tag, filename):
   e = SubElement(e, tag)
   e.text = "".join(p.strip() for p in open(filename).readlines()[1:-1])
 
-def bpki_ca(e):
+def bpki_ca(e, bpki_ca_key_file, bpki_ca_cert_file, cfg_file):
 
   if not os.path.exists(bpki_ca_key_file):
     subprocess.check_call(("openssl", "genrsa",
@@ -153,7 +158,7 @@ def bpki_ca(e):
 
   PEMElement(e, "bpki_ca_certificate", bpki_ca_cert_file)
 
-def bpki_ee(e):
+def bpki_ee(e, bpki_ee_req_file, bpki_ee_cert_file):
 
   if os.path.exists(bpki_ee_req_file):
 
@@ -170,30 +175,47 @@ def bpki_ee(e):
 def extract_resources():
   pass
 
-roas = roa_requests()
-kids = children()
+def main():
 
-# format:  p/n-m asn
-for pnm, asn in csv_open(roa_csv_file):
-  roas.add(asn = asn, prefix = pnm)
+  cfg_file        = "myrpki.conf"
+  myrpki_section  = "myrpki"
 
-# childname date
-for handle, date in csv_open(validity_csv_file):
-  kids.add(handle = handle, validity = date)
+  opts, argv = getopt.getopt(sys.argv[1:], "c:h:?", ["config=", "help"])
+  for o, a in opts:
+    if o in ("-h", "--help", "-?"):
+      print __doc__
+      sys.exit(0)
+    elif o in ("-c", "--config"):
+      cfg_file = a
+  if argv:
+    raise RuntimeError, "Unexpected arguments %s" % argv
 
-# childname p/n
-for handle, pn in csv_open(prefix_csv_file):
-  kids.add(handle = handle, prefix = pn)
+  cfg = ConfigParser.RawConfigParser()
+  cfg.read(cfg_file)
 
-# childname asn
-for handle, asn in csv_open(asn_csv_file):
-  kids.add(handle = handle, asn = asn)
+  my_handle         = cfg.get(myrpki_section, "handle")
+  roa_csv_file      = cfg.get(myrpki_section, "roa_csv")
+  validity_csv_file = cfg.get(myrpki_section, "validity_csv")
+  prefix_csv_file   = cfg.get(myrpki_section, "prefix_csv")
+  asn_csv_file      = cfg.get(myrpki_section, "asn_csv")
+  bpki_ca_cert_file = cfg.get(myrpki_section, "bpki_ca_certificate")
+  bpki_ca_key_file  = cfg.get(myrpki_section, "bpki_ca_key")
+  bpki_ee_cert_file = cfg.get(myrpki_section, "bpki_ee_certificate")
+  bpki_ee_req_file  = cfg.get(myrpki_section, "bpki_ee_pkcs10")
+  output_filename   = cfg.get(myrpki_section, "output_filename")
+  relaxng_schema    = cfg.get(myrpki_section, "relaxng_schema")
 
-e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle)
-roas.xml(e)
-kids.xml(e)
-bpki_ca(e)
-bpki_ee(e)
+  roas = roa_requests.from_csv(roa_csv_file)
+  kids = children.from_csv(validity_csv_file, prefix_csv_file, asn_csv_file)
 
-ElementTree(e).write(output_filename + ".tmp")
-os.rename(output_filename + ".tmp", output_filename)
+  e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle)
+  roas.xml(e)
+  kids.xml(e)
+  bpki_ca(e, bpki_ca_key_file, bpki_ca_cert_file, cfg_file)
+  bpki_ee(e, bpki_ee_req_file, bpki_ee_cert_file)
+
+  ElementTree(e).write(output_filename + ".tmp")
+  os.rename(output_filename + ".tmp", output_filename)
+
+if __name__ == "__main__":
+  main()

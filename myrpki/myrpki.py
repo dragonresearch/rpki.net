@@ -158,7 +158,7 @@ def bpki_ca(e, bpki_ca_key_file, bpki_ca_cert_file, cfg_file):
 
   PEMElement(e, "bpki_ca_certificate", bpki_ca_cert_file)
 
-def bpki_ee(e, bpki_ee_req_file, bpki_ee_cert_file):
+def bpki_ee(e, bpki_ee_req_file, bpki_ee_cert_file, bpki_ca_cert_file, bpki_ca_key_file):
 
   if os.path.exists(bpki_ee_req_file):
 
@@ -171,6 +171,9 @@ def bpki_ee(e, bpki_ee_req_file, bpki_ee_cert_file):
                              "-CAcreateserial"))
 
     PEMElement(e, "bpki_ee_certificate", bpki_ee_cert_file)
+
+def bpki_crl(e):
+  pass
 
 def extract_resources():
   pass
@@ -211,8 +214,16 @@ def main():
   e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle)
   roas.xml(e)
   kids.xml(e)
-  bpki_ca(e, bpki_ca_key_file, bpki_ca_cert_file, cfg_file)
-  bpki_ee(e, bpki_ee_req_file, bpki_ee_cert_file)
+  bpki_ca(e,
+          bpki_ca_key_file  = bpki_ca_key_file,
+          bpki_ca_cert_file = bpki_ca_cert_file,
+          cfg_file          = cfg_file)
+  bpki_ee(e,
+          bpki_ee_req_file  = bpki_ee_req_file,
+          bpki_ee_cert_file = bpki_ee_cert_file,
+          bpki_ca_cert_file = bpki_ca_cert_file,
+          bpki_ca_key_file  = bpki_ca_key_file)
+  bpki_crl(e)
 
   ElementTree(e).write(output_filename + ".tmp")
   os.rename(output_filename + ".tmp", output_filename)

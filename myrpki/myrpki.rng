@@ -64,6 +64,9 @@
       <optional>
         <ref name="bpki_ee_certificate"/>
       </optional>
+      <optional>
+        <ref name="bpki_crl"/>
+      </optional>
     </element>
   </start>
   <define name="roa_request">
@@ -113,6 +116,11 @@
   </define>
   <define name="bpki_ee_certificate">
     <element name="bpki_ee_certificate">
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="bpki_crl">
+    <element name="bpki_crl">
       <ref name="base64"/>
     </element>
   </define>

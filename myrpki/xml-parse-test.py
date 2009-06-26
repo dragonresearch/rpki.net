@@ -46,3 +46,7 @@ if ca:
 ee = tree.findtext(tag("bpki_ee_certificate"))
 if ee:
   print "EE certificate:", ee
+
+crl = tree.findtext(tag("bpki_crl"))
+if crl:
+  print "CRL:", crl

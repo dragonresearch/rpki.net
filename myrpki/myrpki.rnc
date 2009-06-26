@@ -20,7 +20,8 @@ start = element myrpki {
   roa_request*,
   child*,
   bpki_ca_certificate?,
-  bpki_ee_certificate?
+  bpki_ee_certificate?,
+  bpki_crl?
 }
 
 roa_request = element roa_request {
@@ -40,6 +41,8 @@ child = element child {
 bpki_ca_certificate = element bpki_ca_certificate { base64 }
 
 bpki_ee_certificate = element bpki_ee_certificate { base64 }
+
+bpki_crl            = element bpki_crl            { base64 }
 
 # Local Variables:
 # indent-tabs-mode: nil

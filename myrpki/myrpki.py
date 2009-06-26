@@ -150,7 +150,7 @@ def bpki_ca(e, bpki_ca_key_file, bpki_ca_cert_file, cfg_file):
                            "2048"))
 
   if not os.path.exists(bpki_ca_cert_file):
-    subprocess.check_call(("openssl", "req", "-new", "-sha256", "-x509",
+    subprocess.check_call(("openssl", "req", "-new", "-sha256", "-x509", "-verbose",
                            "-config", cfg_file,
                            "-extensions", "req_x509_ext",
                            "-key", bpki_ca_key_file,
@@ -172,9 +172,19 @@ def bpki_ee(e, bpki_ee_req_file, bpki_ee_cert_file, bpki_ca_cert_file, bpki_ca_k
 
     PEMElement(e, "bpki_ee_certificate", bpki_ee_cert_file)
 
-def bpki_crl(e):
-  pass
+def bpki_crl(e, bpki_crl_file, bpki_index_file, cfg_file):
 
+  if not os.path.exists(bpki_crl_file):
+
+    if not os.path.exists(bpki_index_file):
+      open(bpki_index_file, "w").close()
+
+    subprocess.check_call(("openssl", "ca", "-batch", "-verbose", "-gencrl",
+                           "-out", bpki_crl_file,
+                           "-config", cfg_file))
+
+  PEMElement(e, "bpki_crl", bpki_crl_file)
+  
 def extract_resources():
   pass
 
@@ -205,6 +215,8 @@ def main():
   bpki_ca_key_file  = cfg.get(myrpki_section, "bpki_ca_key")
   bpki_ee_cert_file = cfg.get(myrpki_section, "bpki_ee_certificate")
   bpki_ee_req_file  = cfg.get(myrpki_section, "bpki_ee_pkcs10")
+  bpki_crl_file     = cfg.get(myrpki_section, "bpki_crl")
+  bpki_index_file   = cfg.get(myrpki_section, "bpki_index")
   output_filename   = cfg.get(myrpki_section, "output_filename")
   relaxng_schema    = cfg.get(myrpki_section, "relaxng_schema")
 
@@ -223,7 +235,10 @@ def main():
           bpki_ee_cert_file = bpki_ee_cert_file,
           bpki_ca_cert_file = bpki_ca_cert_file,
           bpki_ca_key_file  = bpki_ca_key_file)
-  bpki_crl(e)
+  bpki_crl(e,
+           bpki_crl_file    = bpki_crl_file,
+           bpki_index_file  = bpki_index_file,
+           cfg_file         = cfg_file)
 
   ElementTree(e).write(output_filename + ".tmp")
   os.rename(output_filename + ".tmp", output_filename)

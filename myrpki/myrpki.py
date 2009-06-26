@@ -142,7 +142,7 @@ def PEMElement(e, tag, filename):
   e = SubElement(e, tag)
   e.text = "".join(p.strip() for p in open(filename).readlines()[1:-1])
 
-def bpki_ca(e, bpki_ca_key_file, bpki_ca_cert_file, cfg_file):
+def bpki_ca(e, bpki_ca_key_file, bpki_ca_cert_file, bpki_crl_file, bpki_index_file, cfg_file):
 
   if not os.path.exists(bpki_ca_key_file):
     subprocess.check_call(("openssl", "genrsa",
@@ -156,7 +156,17 @@ def bpki_ca(e, bpki_ca_key_file, bpki_ca_cert_file, cfg_file):
                            "-key", bpki_ca_key_file,
                            "-out", bpki_ca_cert_file))
 
+  if not os.path.exists(bpki_crl_file):
+
+    if not os.path.exists(bpki_index_file):
+      open(bpki_index_file, "w").close()
+
+    subprocess.check_call(("openssl", "ca", "-batch", "-verbose", "-gencrl",
+                           "-out", bpki_crl_file,
+                           "-config", cfg_file))
+
   PEMElement(e, "bpki_ca_certificate", bpki_ca_cert_file)
+  PEMElement(e, "bpki_crl", bpki_crl_file)
 
 def bpki_ee(e, bpki_ee_req_file, bpki_ee_cert_file, bpki_ca_cert_file, bpki_ca_key_file):
 
@@ -171,20 +181,7 @@ def bpki_ee(e, bpki_ee_req_file, bpki_ee_cert_file, bpki_ca_cert_file, bpki_ca_k
                              "-CAcreateserial"))
 
     PEMElement(e, "bpki_ee_certificate", bpki_ee_cert_file)
-
-def bpki_crl(e, bpki_crl_file, bpki_index_file, cfg_file):
-
-  if not os.path.exists(bpki_crl_file):
-
-    if not os.path.exists(bpki_index_file):
-      open(bpki_index_file, "w").close()
-
-    subprocess.check_call(("openssl", "ca", "-batch", "-verbose", "-gencrl",
-                           "-out", bpki_crl_file,
-                           "-config", cfg_file))
-
-  PEMElement(e, "bpki_crl", bpki_crl_file)
-  
+ 
 def extract_resources():
   pass
 
@@ -229,16 +226,14 @@ def main():
   bpki_ca(e,
           bpki_ca_key_file  = bpki_ca_key_file,
           bpki_ca_cert_file = bpki_ca_cert_file,
+          bpki_crl_file    = bpki_crl_file,
+          bpki_index_file  = bpki_index_file,
           cfg_file          = cfg_file)
   bpki_ee(e,
           bpki_ee_req_file  = bpki_ee_req_file,
           bpki_ee_cert_file = bpki_ee_cert_file,
           bpki_ca_cert_file = bpki_ca_cert_file,
           bpki_ca_key_file  = bpki_ca_key_file)
-  bpki_crl(e,
-           bpki_crl_file    = bpki_crl_file,
-           bpki_index_file  = bpki_index_file,
-           cfg_file         = cfg_file)
 
   ElementTree(e).write(output_filename + ".tmp")
   os.rename(output_filename + ".tmp", output_filename)

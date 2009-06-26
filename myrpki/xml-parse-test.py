@@ -1,6 +1,6 @@
 # $Id$
 
-import lxml.etree, rpki.resource_set
+import lxml.etree, rpki.resource_set, base64, subprocess
 
 rng = lxml.etree.RelaxNG(lxml.etree.parse("myrpki.rng"))
 
@@ -30,6 +30,7 @@ for x in tree.getiterator(tag("child")):
   print "  IPv4:  ", rpki.resource_set.resource_set_ipv4(x.get("v4"))
   print "  Valid: ", x.get("valid_until")
   showitems(x)
+print
 
 print "ROA requests:"
 for x in tree.getiterator(tag("roa_request")):
@@ -38,15 +39,24 @@ for x in tree.getiterator(tag("roa_request")):
   print "  IPv4:", rpki.resource_set.roa_prefix_set_ipv4(x.get("v4"))
   print "  IPv6:", rpki.resource_set.roa_prefix_set_ipv6(x.get("v6"))
   showitems(x)
+print
+
+def showpem(label, b64, kind):
+  cmd = ("openssl", kind, "-noout", "-text", "-inform", "DER")
+  p = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
+  text = p.communicate(input = base64.b64decode(b64))[0]
+  if p.returncode != 0:
+    raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
+  print label, text
 
 ca = tree.findtext(tag("bpki_ca_certificate"))
 if ca:
-  print "CA certificate:", ca
+  showpem("CA", ca, "x509")
 
 ee = tree.findtext(tag("bpki_ee_certificate"))
 if ee:
-  print "EE certificate:", ee
+  showpem("EE", ee, "x509")
 
 crl = tree.findtext(tag("bpki_crl"))
 if crl:
-  print "CRL:", crl
+  showpem("CA", crl, "crl")

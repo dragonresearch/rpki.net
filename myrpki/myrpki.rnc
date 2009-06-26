@@ -20,8 +20,8 @@ start = element myrpki {
   roa_request*,
   child*,
   bpki_ca_certificate?,
-  bpki_ee_certificate?,
-  bpki_crl?
+  bpki_crl?,
+  bpki_ee_certificate?
 }
 
 roa_request = element roa_request {

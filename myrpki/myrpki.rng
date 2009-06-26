@@ -62,10 +62,10 @@
         <ref name="bpki_ca_certificate"/>
       </optional>
       <optional>
-        <ref name="bpki_ee_certificate"/>
+        <ref name="bpki_crl"/>
       </optional>
       <optional>
-        <ref name="bpki_crl"/>
+        <ref name="bpki_ee_certificate"/>
       </optional>
     </element>
   </start>

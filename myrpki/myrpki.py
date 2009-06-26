@@ -88,8 +88,9 @@ class child(object):
     self.v4 = comma_set()
     self.v6 = comma_set()
     self.validity = None
+    self.ta = None
 
-  def add(self, prefix = None, asn = None, validity = None):
+  def add(self, prefix = None, asn = None, validity = None, ta = None):
     if prefix is not None:
       if self.v4re.match(prefix):
         self.v4.add(prefix)
@@ -101,38 +102,83 @@ class child(object):
       self.asns.add(asn)
     if validity is not None:
       self.validity = validity
+    if ta is not None:
+      self.ta = ta
 
   def xml(self, e):
-    return SubElement(e, "child",
-                      handle = self.handle,
-                      valid_until = self.validity,
-                      asns = str(self.asns),
-                      v4 = str(self.v4),
-                      v6 = str(self.v6))
+    e = SubElement(e, "child",
+                   handle = self.handle,
+                   valid_until = self.validity,
+                   asns = str(self.asns),
+                   v4 = str(self.v4),
+                   v6 = str(self.v6))
+    if self.ta:
+      PEMElement(e, "bpki_ta", self.ta)
+    return e
 
 class children(dict):
 
-  def add(self, handle, prefix = None, asn = None, validity = None):
+  def add(self, handle, prefix = None, asn = None, validity = None, ta = None):
     if handle not in self:
       self[handle] = child(handle)
-    self[handle].add(prefix = prefix, asn = asn, validity = validity)
+    self[handle].add(prefix = prefix, asn = asn, validity = validity, ta = ta)
 
   def xml(self, e):
     for c in self.itervalues():
       c.xml(e)
 
   @classmethod
-  def from_csv(cls, validity_csv_file, prefix_csv_file, asn_csv_file):
+  def from_csv(cls, children_csv_file, prefix_csv_file, asn_csv_file):
     self = cls()
-    # childname date
-    for handle, date in csv_open(validity_csv_file):
-      self.add(handle = handle, validity = date)
+    # childname date pemfile
+    for handle, date, pemfile in csv_open(children_csv_file):
+      self.add(handle = handle, validity = date, ta = pemfile)
     # childname p/n
     for handle, pn in csv_open(prefix_csv_file):
       self.add(handle = handle, prefix = pn)
     # childname asn
     for handle, asn in csv_open(asn_csv_file):
       self.add(handle = handle, asn = asn)
+    return self
+
+class parent(object):
+
+  def __init__(self, handle):
+    self.handle = handle
+    self.uri = None
+    self.ta = None
+
+  def add(self, uri = None, ta = None):
+    if uri is not None:
+      self.uri = uri
+    if ta is not None:
+      self.ta = ta
+
+  def xml(self, e):
+    e = SubElement(e, "parent",
+                   handle = self.handle,
+                   uri = self.uri)
+    if self.ta:
+      PEMElement(e, "bpki_ta", self.ta)
+    return e
+
+class parents(dict):
+
+  def add(self, handle, uri = None, ta = None):
+    if handle not in self:
+      self[handle] = parent(handle)
+    self[handle].add(uri = uri, ta = ta)
+
+  def xml(self, e):
+    for c in self.itervalues():
+      c.xml(e)
+
+  @classmethod
+  def from_csv(cls, parents_csv_file):
+    self = cls()
+    # parentname uri pemfile
+    for handle, uri, pemfile in csv_open(parents_csv_file):
+      self.add(handle = handle, uri = uri, ta = pemfile)
     return self
 
 def csv_open(filename, delimiter = "\t", dialect = None):
@@ -205,7 +251,8 @@ def main():
 
   my_handle         = cfg.get(myrpki_section, "handle")
   roa_csv_file      = cfg.get(myrpki_section, "roa_csv")
-  validity_csv_file = cfg.get(myrpki_section, "validity_csv")
+  children_csv_file = cfg.get(myrpki_section, "children_csv")
+  parents_csv_file  = cfg.get(myrpki_section, "parents_csv")
   prefix_csv_file   = cfg.get(myrpki_section, "prefix_csv")
   asn_csv_file      = cfg.get(myrpki_section, "asn_csv")
   bpki_ca_cert_file = cfg.get(myrpki_section, "bpki_ca_certificate")
@@ -218,11 +265,13 @@ def main():
   relaxng_schema    = cfg.get(myrpki_section, "relaxng_schema")
 
   roas = roa_requests.from_csv(roa_csv_file)
-  kids = children.from_csv(validity_csv_file, prefix_csv_file, asn_csv_file)
+  kids = children.from_csv(children_csv_file, prefix_csv_file, asn_csv_file)
+  rents = parents.from_csv(parents_csv_file)
 
   e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle)
   roas.xml(e)
   kids.xml(e)
+  rents.xml(e)
   bpki_ca(e,
           bpki_ca_key_file  = bpki_ca_key_file,
           bpki_ca_cert_file = bpki_ca_cert_file,

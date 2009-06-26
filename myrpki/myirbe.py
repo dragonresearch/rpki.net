@@ -126,6 +126,17 @@ def showpem(label, b64, kind):
     raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
   print label, text
 
+for x in tree.getiterator(tag("child")):
+  ta = x.findtext(tag("bpki_ta"))
+  if ta:
+    showpem("Child", ta, "x509")
+
+for x in tree.getiterator(tag("parent")):
+  print "Parent URI:", x.get("uri")
+  ta = x.findtext(tag("bpki_ta"))
+  if ta:
+    showpem("Parent", ta, "x509")
+
 ca = tree.findtext(tag("bpki_ca_certificate"))
 if ca:
   showpem("CA", ca, "x509")

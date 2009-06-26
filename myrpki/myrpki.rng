@@ -53,23 +53,26 @@
         <ref name="object_handle"/>
       </attribute>
       <zeroOrMore>
-        <ref name="roa_request"/>
+        <ref name="roa_request_elt"/>
       </zeroOrMore>
       <zeroOrMore>
-        <ref name="child"/>
+        <ref name="child_elt"/>
+      </zeroOrMore>
+      <zeroOrMore>
+        <ref name="parent_elt"/>
       </zeroOrMore>
       <optional>
-        <ref name="bpki_ca_certificate"/>
+        <ref name="bpki_ca_certificate_elt"/>
       </optional>
       <optional>
-        <ref name="bpki_crl"/>
+        <ref name="bpki_crl_elt"/>
       </optional>
       <optional>
-        <ref name="bpki_ee_certificate"/>
+        <ref name="bpki_ee_certificate_elt"/>
       </optional>
     </element>
   </start>
-  <define name="roa_request">
+  <define name="roa_request_elt">
     <element name="roa_request">
       <attribute name="asn">
         <data type="positiveInteger"/>
@@ -82,7 +85,7 @@
       </attribute>
     </element>
   </define>
-  <define name="child">
+  <define name="child_elt">
     <element name="child">
       <attribute name="handle">
         <ref name="object_handle"/>
@@ -107,19 +110,41 @@
           <ref name="ipv6_list"/>
         </attribute>
       </optional>
+      <optional>
+        <element name="bpki_ta">
+          <ref name="base64"/>
+        </element>
+      </optional>
     </element>
   </define>
-  <define name="bpki_ca_certificate">
+  <define name="parent_elt">
+    <element name="parent">
+      <attribute name="handle">
+        <ref name="object_handle"/>
+      </attribute>
+      <optional>
+        <attribute name="uri">
+          <ref name="uri"/>
+        </attribute>
+      </optional>
+      <optional>
+        <element name="bpki_ta">
+          <ref name="base64"/>
+        </element>
+      </optional>
+    </element>
+  </define>
+  <define name="bpki_ca_certificate_elt">
     <element name="bpki_ca_certificate">
       <ref name="base64"/>
     </element>
   </define>
-  <define name="bpki_ee_certificate">
+  <define name="bpki_ee_certificate_elt">
     <element name="bpki_ee_certificate">
       <ref name="base64"/>
     </element>
   </define>
-  <define name="bpki_crl">
+  <define name="bpki_crl_elt">
     <element name="bpki_crl">
       <ref name="base64"/>
     </element>

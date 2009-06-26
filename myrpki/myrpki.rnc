@@ -17,32 +17,38 @@ ipv6_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/:a-fA-F]*" }
 start = element myrpki {
   attribute version { xsd:positiveInteger { maxInclusive="1" } },
   attribute handle { object_handle },
-  roa_request*,
-  child*,
-  bpki_ca_certificate?,
-  bpki_crl?,
-  bpki_ee_certificate?
+  roa_request_elt*,
+  child_elt*,
+  parent_elt*,
+  bpki_ca_certificate_elt?,
+  bpki_crl_elt?,
+  bpki_ee_certificate_elt?
 }
 
-roa_request = element roa_request {
+roa_request_elt = element roa_request {
   attribute asn { xsd:positiveInteger },
   attribute v4 { ipv4_list },
   attribute v6 { ipv6_list }
 }
 
-child = element child {
+child_elt = element child {
   attribute handle { object_handle },
   attribute valid_until { xsd:dateTime { pattern=".*Z" } },
   attribute asns { asn_list }?,
   attribute v4 { ipv4_list }?,
-  attribute v6 { ipv6_list }?
+  attribute v6 { ipv6_list }?,
+  element bpki_ta { base64 }?
 }
 
-bpki_ca_certificate = element bpki_ca_certificate { base64 }
+parent_elt = element parent {
+  attribute handle { object_handle },
+  attribute uri { uri }?,
+  element bpki_ta { base64 }?
+}
 
-bpki_ee_certificate = element bpki_ee_certificate { base64 }
-
-bpki_crl            = element bpki_crl            { base64 }
+bpki_ca_certificate_elt = element bpki_ca_certificate { base64 }
+bpki_ee_certificate_elt = element bpki_ee_certificate { base64 }
+bpki_crl_elt            = element bpki_crl            { base64 }
 
 # Local Variables:
 # indent-tabs-mode: nil

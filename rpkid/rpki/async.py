@@ -233,6 +233,39 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
     for sig in old_signal_handlers:
       signal.signal(sig, old_signal_handlers[sig])
 
+class sync_wrapper(object):
+  """
+  Synchronous wrapper around asynchronous functions.  Running in
+  asynchronous mode at all times makes sense for event-driven daemons,
+  but is kind of tedious for simple scripts, hence this wrapper.
+
+  The wrapped function should take at least two arguments: a callback
+  function and an errback function.  If any arguments are passed to
+  the wrapper, they will be passed as additional arguments to the
+  wrapped function.
+  """
+
+  res = None
+  err = None
+
+  def __init__(self, func):
+    self.func = func
+
+  def cb(self, res = None):
+    self.res = res
+    raise ExitNow
+
+  def eb(self, err):
+    self.err = err
+    raise ExitNow
+
+  def __call__(self, *args, **kwargs):
+    timer(lambda: self.func(self.cb, self.eb, *args, **kwargs), self.eb).set(None)
+    event_loop()
+    if self.err is not None:
+      raise self.err
+    return self.res
+
 def exit_event_loop():
   """Force exit from event_loop()."""
   raise ExitNow

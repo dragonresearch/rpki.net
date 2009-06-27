@@ -59,8 +59,6 @@ db = MySQLdb.connect(user   = cfg.get("sql-username"),
 
 cur = db.cursor()
 
-#db.autocommit(True)
-
 my_handle = tree.get("handle")
 
 cur.execute(
@@ -117,34 +115,49 @@ for x in tree.getiterator(tag("child")):
                     ((a.min, a.max, child_id) for a in ipv6))
 
 db.commit()
+db.close()
 
-def showpem(label, b64, kind):
-  cmd = ("openssl", kind, "-noout", "-text", "-inform", "DER")
-  p = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
-  text = p.communicate(input = base64.b64decode(b64))[0]
-  if p.returncode != 0:
-    raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
-  print label, text
+rpkid_pdus = [
+  rpki.left_right.self_elt.make_pdu(      action = "get",  self_handle = my_handle),
+  rpki.left_right.bsc_elt.make_pdu(       action = "list", self_handle = my_handle),
+  rpki.left_right.parent_elt.make_pdu(    action = "list", self_handle = my_handle),
+  rpki.left_right.child_elt.make_pdu(     action = "list", self_handle = my_handle),
+  rpki.left_right.repository_elt.make_pdu(action = "list", self_handle = my_handle) ]
 
-for x in tree.getiterator(tag("child")):
-  ta = x.findtext(tag("bpki_ta"))
-  if ta:
-    showpem("Child", ta, "x509")
+pubd_pdus = [
+  rpki.publication.client_elt.make_pdu(   action = "get", client_handle = my_handle) ]
 
-for x in tree.getiterator(tag("parent")):
-  print "Parent URI:", x.get("uri")
-  ta = x.findtext(tag("bpki_ta"))
-  if ta:
-    showpem("Parent", ta, "x509")
+def showcerts():
 
-ca = tree.findtext(tag("bpki_ca_certificate"))
-if ca:
-  showpem("CA", ca, "x509")
+  def showpem(label, b64, kind):
+    cmd = ("openssl", kind, "-noout", "-text", "-inform", "DER")
+    p = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
+    text = p.communicate(input = base64.b64decode(b64))[0]
+    if p.returncode != 0:
+      raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
+    print label, text
 
-ee = tree.findtext(tag("bpki_ee_certificate"))
-if ee:
-  showpem("EE", ee, "x509")
+  for x in tree.getiterator(tag("child")):
+    ta = x.findtext(tag("bpki_ta"))
+    if ta:
+      showpem("Child", ta, "x509")
 
-crl = tree.findtext(tag("bpki_crl"))
-if crl:
-  showpem("CA", crl, "crl")
+  for x in tree.getiterator(tag("parent")):
+    print "Parent URI:", x.get("uri")
+    ta = x.findtext(tag("bpki_ta"))
+    if ta:
+      showpem("Parent", ta, "x509")
+
+  ca = tree.findtext(tag("bpki_ca_certificate"))
+  if ca:
+    showpem("CA", ca, "x509")
+
+  ee = tree.findtext(tag("bpki_ee_certificate"))
+  if ee:
+    showpem("EE", ee, "x509")
+
+  crl = tree.findtext(tag("bpki_crl"))
+  if crl:
+    showpem("CA", crl, "crl")
+
+showcerts()

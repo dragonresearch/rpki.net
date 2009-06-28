@@ -160,4 +160,4 @@ def showcerts():
   if crl:
     showpem("CA", crl, "crl")
 
-showcerts()
+#showcerts()

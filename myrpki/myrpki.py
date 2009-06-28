@@ -44,6 +44,9 @@ class roa_request(object):
     self.v4 = comma_set()
     self.v6 = comma_set()
 
+  def __repr__(self):
+    return "<%s asn %s v4 %s v6 %s>" % (self.__class__.__name__, self.asn, self.v4, self.v6)
+
   def add(self, prefix):
     if self.v4re.match(prefix):
       self.v4.add(prefix)
@@ -90,6 +93,9 @@ class child(object):
     self.validity = None
     self.ta = None
 
+  def __repr__(self):
+    return "<%s v4 %s v6 %s asns %s validity %s ta %s>" % (self.__class__.__name__, self.v4, self.v6, self.asns, self.validity, self.ta)
+
   def add(self, prefix = None, asn = None, validity = None, ta = None):
     if prefix is not None:
       if self.v4re.match(prefix):
@@ -106,15 +112,15 @@ class child(object):
       self.ta = ta
 
   def xml(self, e):
-    e = SubElement(e, "child",
-                   handle = self.handle,
-                   valid_until = self.validity,
-                   asns = str(self.asns),
-                   v4 = str(self.v4),
-                   v6 = str(self.v6))
+    e2 = SubElement(e, "child",
+                    handle = self.handle,
+                    valid_until = self.validity,
+                    asns = str(self.asns),
+                    v4 = str(self.v4),
+                    v6 = str(self.v6))
     if self.ta:
-      PEMElement(e, "bpki_ta", self.ta)
-    return e
+      PEMElement(e2, "bpki_ta", self.ta)
+    return e2
 
 class children(dict):
 
@@ -148,6 +154,9 @@ class parent(object):
     self.uri = None
     self.ta = None
 
+  def __repr__(self):
+    return "<%s uri %s ta %s>" % (self.__class__.__name__, self.uri, self.ta)
+
   def add(self, uri = None, ta = None):
     if uri is not None:
       self.uri = uri
@@ -155,12 +164,12 @@ class parent(object):
       self.ta = ta
 
   def xml(self, e):
-    e = SubElement(e, "parent",
-                   handle = self.handle,
-                   uri = self.uri)
+    e2 = SubElement(e, "parent",
+                    handle = self.handle,
+                    uri = self.uri)
     if self.ta:
-      PEMElement(e, "bpki_ta", self.ta)
-    return e
+      PEMElement(e2, "bpki_ta", self.ta)
+    return e2
 
 class parents(dict):
 

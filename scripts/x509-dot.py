@@ -11,10 +11,10 @@ class x509(object):
   ski = None
   aki = None
 
-  show_file    = True
+  show_file    = False
   show_ski     = False
   show_aki     = False
-  show_issuer  = False
+  show_issuer  = True
   show_subject = True
 
   cn_only      = True
@@ -93,9 +93,15 @@ class x509(object):
     for issuer in self.subjects.get(self.issuer, ()):
 
       if issuer is self:
+        print "# Issuer is self"
+        issuer = None
+
+      if issuer is not None and self.aki is not None and self.ski is not None and self.aki == self.ski:
+        print "# Self-signed"
         issuer = None
 
       if issuer is not None and self.aki is not None and issuer.ski is not None and self.aki != issuer.ski:
+        print "# AKI does not match issuer SKI"
         issuer = None
 
       if issuer is not None:

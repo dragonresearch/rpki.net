@@ -1,0 +1,54 @@
+$Id$
+
+testbed.py creates so freaking many BPKI certificates that even I can't
+keep track of what they're all for anymore.  So try starting over.
+
+Hosted (myrpki) entity needs:
+
+- self-signed bpki root (doesn't really need to be self-signed, nobody
+  else will care, but self-signed is simplest for our purposes).  this
+  is what we've been calling the "self" cert in testbed.py.
+
+- BSC EE issued by self-signed root.
+
+- cross-certs of every foreign entity (parent, child, or pubd): these
+  are ca certs with pathLenConstraint 0.  input for this cross-cert is
+  self-signed (or whatever) from foreign entity, output is
+  pathLenConstraint 0 ca cert issued by myrpki entity's own
+  self-signed root.
+
+Hosting rpkid needs:
+
+- self-signed bpki root
+
+- bsc ees for rpkid, irdbd, irbe_cli, etc
+
+- for each hosted entity (including self-hosting):
+
+  - cross-cert of hosted entity's root, issued by rpkid root, ca cert
+    perhaps with pathLenConstraint 1
+
+  In theory that's all that's required, everything else is handled
+  through the hosted entity's cert chain.
+
+pubd needs:
+
+- self signed root (might share with rpkid but let's keep it separate
+  conceptually)
+
+- bsc ees for pubd and irbe_cli
+
+- for each client entity of pubd:
+
+  - cross-cert of client entity's self cert (pathLenConstraint 0).
+
+  This should allow pubd to verify clients' bsc ee certs without
+  getting into transitive ca relationships.
+
+rootd (when applicable at all) needs:
+
+- self signed root
+
+- bsc ee for talking up-down (server) with one and only child
+
+- cross-cert (pathLenConstraint 0) of one and only child's self cert.

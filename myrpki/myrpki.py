@@ -27,7 +27,7 @@ import subprocess, csv, re, os, getopt, sys, ConfigParser
 
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
-namespace       = "http://www.hactrn.net/uris/rpki/myrpki/"
+namespace = "http://www.hactrn.net/uris/rpki/myrpki/"
 
 class comma_set(set):
 
@@ -53,7 +53,7 @@ class roa_request(object):
     elif self.v6re.match(prefix):
       self.v6.add(prefix)
     else:
-      raise RuntimeError, 'Bad prefix syntax: "%s"' % prefix
+      raise RuntimeError, "Bad prefix syntax: %r" % (prefix,)
 
   def xml(self, e):
     return SubElement(e, "roa_request",
@@ -103,7 +103,7 @@ class child(object):
       elif self.v6re.match(prefix):
         self.v6.add(prefix)
       else:
-        raise RuntimeError, 'Bad prefix syntax: "%s"' % prefix
+        raise RuntimeError, "Bad prefix syntax: %r" % (prefix,)
     if asn is not None:
       self.asns.add(asn)
     if validity is not None:
@@ -134,11 +134,11 @@ class children(dict):
       c.xml(e)
 
   @classmethod
-  def from_csv(cls, children_csv_file, prefix_csv_file, asn_csv_file):
+  def from_csv(cls, children_csv_file, prefix_csv_file, asn_csv_file, cfg_file, bpki_dir):
     self = cls()
     # childname date pemfile
     for handle, date, pemfile in csv_open(children_csv_file):
-      self.add(handle = handle, validity = date, ta = pemfile)
+      self.add(handle = handle, validity = date, ta = xcert(pemfile, bpki_dir, cfg_file))
     # childname p/n
     for handle, pn in csv_open(prefix_csv_file):
       self.add(handle = handle, prefix = pn)
@@ -183,27 +183,64 @@ class parents(dict):
       c.xml(e)
 
   @classmethod
-  def from_csv(cls, parents_csv_file):
+  def from_csv(cls, parents_csv_file, cfg_file, bpki_dir):
     self = cls()
     # parentname uri pemfile
     for handle, uri, pemfile in csv_open(parents_csv_file):
-      self.add(handle = handle, uri = uri, ta = pemfile)
+      self.add(handle = handle, uri = uri, ta = xcert(pemfile, bpki_dir, cfg_file))
     return self
 
 def csv_open(filename, delimiter = "\t", dialect = None):
   return csv.reader(open(filename, "rb"), dialect = dialect, delimiter = delimiter)
 
+def xcert(pemfile, bpki_dir, cfg_file):
+
+  if not pemfile:
+    return None
+  if not os.path.exists(pemfile):
+    raise RuntimeError, "PEM file %r does not exist" % (pemfile,)
+
+  # Extract public key and subject name from PEM file and hash it so
+  # we can use the result as a tag for cross-certifying this cert.
+
+  p1 = subprocess.Popen(("openssl", "x509", "-noout", "-pubkey", "-subject", "-in", pemfile), stdout = subprocess.PIPE)
+  p2 = subprocess.Popen(("openssl", "dgst", "-md5"), stdin = p1.stdout, stdout = subprocess.PIPE)
+  xcertfile = "%s/%s.xcert.pem" % (bpki_dir, p2.communicate()[0].strip())
+  if p1.wait() != 0 or p2.wait() != 0:
+    raise RuntimeError, "Couldn't generate cross-certification tag for %r" % pemfile
+
+  # Cross-certify the pemfile we were given, if we haven't already.
+  # This only works for self-signed certs, due to limitations of the
+  # OpenSSL command line tool.
+
+  if not os.path.exists(xcertfile):
+    subprocess.check_call(("openssl", "ca", "-verbose", "-notext", "-batch",
+                           "-config", cfg_file,
+                           "-ss_cert", pemfile,
+                           "-out", xcertfile,
+                           "-extensions", "ca_ca_x509_ext"))
+
+  # This should probably change to be the file content, coordinate with PEMElement()
+  return xcertfile
+
 def PEMElement(e, tag, filename):
   e = SubElement(e, tag)
   e.text = "".join(p.strip() for p in open(filename).readlines()[1:-1])
 
-def bpki_ca(e, bpki_ca_key_file, bpki_ca_cert_file, bpki_crl_file, bpki_index_file, cfg_file):
+def bpki_setup(bpki_ca_key_file, bpki_ca_cert_file, bpki_crl_file, bpki_index_file, cfg_file,
+               bpki_dir, bpki_serial_file, bpki_crl_number_file, bpki_ee_req_file, bpki_ee_cert_file):
 
+  # Create our BPKI database directory
+  if not os.path.exists(bpki_dir):
+    os.makedirs(bpki_dir)
+
+  # Create our trust anchor key
   if not os.path.exists(bpki_ca_key_file):
     subprocess.check_call(("openssl", "genrsa",
                            "-out", bpki_ca_key_file,
                            "2048"))
 
+  # Create our self-signed trust anchor
   if not os.path.exists(bpki_ca_cert_file):
     subprocess.check_call(("openssl", "req", "-new", "-sha256", "-x509", "-verbose",
                            "-config", cfg_file,
@@ -211,32 +248,39 @@ def bpki_ca(e, bpki_ca_key_file, bpki_ca_cert_file, bpki_crl_file, bpki_index_fi
                            "-key", bpki_ca_key_file,
                            "-out", bpki_ca_cert_file))
 
+  # Create empty index file for "openssl ca"
+  if not os.path.exists(bpki_index_file):
+    f = open(bpki_index_file, "w")
+    f.close()
+
+  # Create serial number file for "openssl ca"
+  if not os.path.exists(bpki_serial_file):
+    f = open(bpki_serial_file, "w")
+    f.write("01\n")
+    f.close()
+
+  # Create CRL number file for "openssl ca"
+  if not os.path.exists(bpki_crl_number_file):
+    f = open(bpki_crl_number_file, "w")
+    f.write("01\n")
+    f.close()
+
+  # Create CRL
   if not os.path.exists(bpki_crl_file):
-
-    if not os.path.exists(bpki_index_file):
-      open(bpki_index_file, "w").close()
-
-    subprocess.check_call(("openssl", "ca", "-batch", "-verbose", "-gencrl",
+    subprocess.check_call(("openssl", "ca", "-batch", "-verbose", "-batch", "-notext",
+                           "-gencrl",
+                           "-config", cfg_file,
                            "-out", bpki_crl_file,
                            "-config", cfg_file))
 
-  PEMElement(e, "bpki_ca_certificate", bpki_ca_cert_file)
-  PEMElement(e, "bpki_crl", bpki_crl_file)
+  # Create BSC EE cert
+  if os.path.exists(bpki_ee_req_file) and not os.path.exists(bpki_ee_cert_file):
+    subprocess.check_call(("openssl", "ca", "-verbose", "-batch", "-notext",
+                           "-config", cfg_file,
+                           "-extensions", "ca_ee_x509_ext",
+                           "-in", bpki_ee_req_file,
+                           "-out", bpki_ee_cert_file))
 
-def bpki_ee(e, bpki_ee_req_file, bpki_ee_cert_file, bpki_ca_cert_file, bpki_ca_key_file):
-
-  if os.path.exists(bpki_ee_req_file):
-
-    if not os.path.exists(bpki_ee_cert_file):
-      subprocess.check_call(("openssl", "x509", "-req", "-sha256", "-days", "360",
-                             "-CA", bpki_ca_cert_file,
-                             "-CAkey", bpki_ca_key_file,
-                             "-in", bpki_ee_req_file,
-                             "-out", bpki_ee_cert_file, 
-                             "-CAcreateserial"))
-
-    PEMElement(e, "bpki_ee_certificate", bpki_ee_cert_file)
- 
 def extract_resources():
   pass
 
@@ -253,45 +297,62 @@ def main():
     elif o in ("-c", "--config"):
       cfg_file = a
   if argv:
-    raise RuntimeError, "Unexpected arguments %s" % argv
+    raise RuntimeError, "Unexpected arguments %r" % (argv,)
 
   cfg = ConfigParser.RawConfigParser()
   cfg.read(cfg_file)
 
-  my_handle         = cfg.get(myrpki_section, "handle")
-  roa_csv_file      = cfg.get(myrpki_section, "roa_csv")
-  children_csv_file = cfg.get(myrpki_section, "children_csv")
-  parents_csv_file  = cfg.get(myrpki_section, "parents_csv")
-  prefix_csv_file   = cfg.get(myrpki_section, "prefix_csv")
-  asn_csv_file      = cfg.get(myrpki_section, "asn_csv")
-  bpki_ca_cert_file = cfg.get(myrpki_section, "bpki_ca_certificate")
-  bpki_ca_key_file  = cfg.get(myrpki_section, "bpki_ca_key")
-  bpki_ee_cert_file = cfg.get(myrpki_section, "bpki_ee_certificate")
-  bpki_ee_req_file  = cfg.get(myrpki_section, "bpki_ee_pkcs10")
-  bpki_crl_file     = cfg.get(myrpki_section, "bpki_crl")
-  bpki_index_file   = cfg.get(myrpki_section, "bpki_index")
-  output_filename   = cfg.get(myrpki_section, "output_filename")
-  relaxng_schema    = cfg.get(myrpki_section, "relaxng_schema")
+  my_handle            = cfg.get(myrpki_section, "handle")
+  roa_csv_file         = cfg.get(myrpki_section, "roa_csv")
+  children_csv_file    = cfg.get(myrpki_section, "children_csv")
+  parents_csv_file     = cfg.get(myrpki_section, "parents_csv")
+  prefix_csv_file      = cfg.get(myrpki_section, "prefix_csv")
+  asn_csv_file         = cfg.get(myrpki_section, "asn_csv")
+  bpki_dir             = cfg.get(myrpki_section, "bpki_ca_dir")
+  bpki_ca_cert_file    = cfg.get(myrpki_section, "bpki_ca_certificate")
+  bpki_ca_key_file     = cfg.get(myrpki_section, "bpki_ca_key")
+  bpki_ee_cert_file    = cfg.get(myrpki_section, "bpki_ee_certificate")
+  bpki_ee_req_file     = cfg.get(myrpki_section, "bpki_ee_pkcs10")
+  bpki_crl_file        = cfg.get(myrpki_section, "bpki_crl")
+  bpki_index_file      = cfg.get(myrpki_section, "bpki_index")
+  bpki_serial_file     = cfg.get(myrpki_section, "bpki_serial")
+  bpki_crl_number_file = cfg.get(myrpki_section, "bpki_crl_number")
+  output_filename      = cfg.get(myrpki_section, "output_filename")
+  relaxng_schema       = cfg.get(myrpki_section, "relaxng_schema")
 
-  roas = roa_requests.from_csv(roa_csv_file)
-  kids = children.from_csv(children_csv_file, prefix_csv_file, asn_csv_file)
-  rents = parents.from_csv(parents_csv_file)
+  bpki_setup(
+    bpki_ca_cert_file    = bpki_ca_cert_file,
+    bpki_ca_key_file     = bpki_ca_key_file,
+    bpki_crl_file        = bpki_crl_file,
+    bpki_dir             = bpki_dir,
+    bpki_ee_cert_file    = bpki_ee_cert_file,
+    bpki_ee_req_file     = bpki_ee_req_file,
+    bpki_index_file      = bpki_index_file,
+    bpki_serial_file     = bpki_serial_file,
+    bpki_crl_number_file = bpki_crl_number_file,
+    cfg_file             = cfg_file)
 
   e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle)
-  roas.xml(e)
-  kids.xml(e)
-  rents.xml(e)
-  bpki_ca(e,
-          bpki_ca_key_file  = bpki_ca_key_file,
-          bpki_ca_cert_file = bpki_ca_cert_file,
-          bpki_crl_file    = bpki_crl_file,
-          bpki_index_file  = bpki_index_file,
-          cfg_file          = cfg_file)
-  bpki_ee(e,
-          bpki_ee_req_file  = bpki_ee_req_file,
-          bpki_ee_cert_file = bpki_ee_cert_file,
-          bpki_ca_cert_file = bpki_ca_cert_file,
-          bpki_ca_key_file  = bpki_ca_key_file)
+
+  roa_requests.from_csv(roa_csv_file).xml(e)
+
+  children.from_csv(
+    children_csv_file = children_csv_file,
+    prefix_csv_file = prefix_csv_file,
+    asn_csv_file = asn_csv_file,
+    cfg_file = cfg_file,
+    bpki_dir = bpki_dir).xml(e)
+
+  parents.from_csv(
+    parents_csv_file = parents_csv_file,
+    cfg_file = cfg_file,
+    bpki_dir = bpki_dir).xml(e)
+
+  PEMElement(e, "bpki_ca_certificate", bpki_ca_cert_file)
+  PEMElement(e, "bpki_crl", bpki_crl_file)
+
+  if os.path.exists(bpki_ee_cert_file):
+    PEMElement(e, "bpki_ee_certificate", bpki_ee_cert_file)
 
   ElementTree(e).write(output_filename + ".tmp")
   os.rename(output_filename + ".tmp", output_filename)

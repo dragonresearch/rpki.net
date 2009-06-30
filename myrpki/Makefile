@@ -1,5 +1,6 @@
 # $Id$
 
+all:: relatives
 all:: myrpki.xml
 all:: lint
 #all:: parse
@@ -21,12 +22,12 @@ load: myrpki.xml myrpki.rng
 	python myirbe.py
 
 clean:
-	rm -f *.xml *.pem
+	rm -rf *.xml *.pem bpki
 
 relatives: mom.pem dad.pem bro.pem sis.pem
 
-mom.pem dad.pem bro.pem sis.pem:
-	openssl req -new -sha256 -x509 -verbose -config myrpki.conf -extensions req_x509_ext -newkey rsa:2048 -nodes -keyout /dev/null -subj CN=$@ -out $@
+mom.pem dad.pem bro.pem sis.pem: relatives.conf
+	CN=$@ openssl req -new -sha256 -x509 -verbose -config relatives.conf -extensions req_x509_ext -newkey rsa:2048 -nodes -keyout /dev/null -out $@
 
 format: myrpki.xml
 	xmllint --format myrpki.xml

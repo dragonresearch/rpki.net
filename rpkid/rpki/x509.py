@@ -447,6 +447,34 @@ class X509(DER_object):
 
     return X509(POWpkix = cert)
 
+  def cross_certify(self, keypair, source_cert, serial, notAfter, now = None, pathLenConstraint = 0):
+    """
+    Issue a certificate with values taking from an existing certificate.
+    This is used to construct some kinds oF BPKI certificates.
+    """
+
+    if now is None:
+      now = rpki.sundial.now()
+
+    assert isinstance(pathLenConstraint, int) and pathLenConstraint >= 0
+
+    cert = POW.pkix.Certificate()
+    cert.setVersion(2)
+    cert.setSerial(serial)
+    cert.setIssuer(self.get_POWpkix().getSubject())
+    cert.setSubject(source_cert.get_POWpkix().getSubject())
+    cert.setNotBefore(now.toASN1tuple())
+    cert.setNotAfter(notAfter.toASN1tuple())
+    cert.tbs.subjectPublicKeyInfo.set(
+      source_cert.get_POWpkix().tbs.subjectPublicKeyInfo.get())
+    cert.setExtensions((
+      (rpki.oids.name2oid["subjectKeyIdentifier"  ], False, source_cert.get_SKI()),
+      (rpki.oids.name2oid["authorityKeyIdentifier"], False, (self.get_SKI(), (), None)),
+      (rpki.oids.name2oid["basicConstraints"      ], True,  (1, 0))))
+    cert.sign(keypair.get_POW(), POW.SHA256_DIGEST)
+
+    return X509(POWpkix = cert)
+
   @classmethod
   def normalize_chain(cls, chain):
     """

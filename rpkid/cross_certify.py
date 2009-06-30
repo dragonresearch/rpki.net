@@ -104,32 +104,7 @@ try:
 except IOError:
   serial = 1
 
-def make_ext(name, critical, value):
-  assert isinstance(critical, bool)
-  return rpki.oids.name2oid[name], critical, value
-
-x = POW.pkix.Certificate()
-x.setVersion(2)
-x.setSerial(serial)
-x.setIssuer(parent.get_POWpkix().getSubject())
-x.setSubject(child.get_POWpkix().getSubject())
-x.setNotBefore(now.toASN1tuple())
-x.setNotAfter(notAfter.toASN1tuple())
-x.tbs.subjectPublicKeyInfo.set(
-  child.get_POWpkix().tbs.subjectPublicKeyInfo.get())
-x.setExtensions((
-  make_ext(name     = "subjectKeyIdentifier",
-           critical = False,
-           value    = child.get_SKI()),
-  make_ext(name     = "authorityKeyIdentifier",
-           critical = False,
-           value    = (parent.get_SKI(), (), None)),
-  make_ext(name     = "basicConstraints",
-           critical = True,
-           value    = (1, 0))))
-x.sign(keypair.get_POW(), POW.SHA256_DIGEST)
-
-cert = rpki.x509.X509(POWpkix = x)
+cert = parent.cross_certify(keypair, child, serial, notAfter, now)
 
 f = open(serial_file, "w")
 f.write("%02x\n" % (serial + 1))

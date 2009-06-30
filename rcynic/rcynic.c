@@ -2670,7 +2670,7 @@ int main(int argc, char *argv[])
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
 
-  while ((c = getopt(argc, argv, "c:l:stpj:V")) > 0) {
+  while ((c = getopt(argc, argv, "c:l:sej:V")) > 0) {
     switch (c) {
     case 'c':
       cfg_file = optarg;

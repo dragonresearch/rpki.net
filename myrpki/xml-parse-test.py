@@ -60,7 +60,9 @@ for x in tree.getiterator(tag("roa_request")):
 print
 
 def showpem(label, b64, kind):
-  cmd = ("openssl", kind, "-noout", "-text", "-inform", "DER", "-certopt", "no_pubkey,no_sigdump")
+  cmd = ("openssl", kind, "-noout", "-text", "-inform", "DER")
+  if kind == "x509":
+    cmd += ("-certopt", "no_pubkey,no_sigdump")
   p = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
   text = p.communicate(input = base64.b64decode(b64))[0]
   if p.returncode != 0:

@@ -3,7 +3,7 @@
 all:: relatives
 all:: myrpki.xml
 all:: lint
-#all:: parse
+all:: parse
 all:: load
 
 myrpki.xml: myrpki.py asns.csv prefixes.csv roas.csv validity.csv

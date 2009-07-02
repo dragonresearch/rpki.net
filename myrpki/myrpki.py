@@ -193,6 +193,10 @@ class parents(dict):
 def csv_open(filename, delimiter = "\t", dialect = None):
   return csv.reader(open(filename, "rb"), dialect = dialect, delimiter = delimiter)
 
+def PEMElement(e, tag, filename):
+  e = SubElement(e, tag)
+  e.text = "".join(p.strip() for p in open(filename).readlines()[1:-1])
+
 def xcert(pemfile, bpki_dir, cfg_file):
 
   if not pemfile:
@@ -214,72 +218,74 @@ def xcert(pemfile, bpki_dir, cfg_file):
   # OpenSSL command line tool.
 
   if not os.path.exists(xcertfile):
-    subprocess.check_call(("openssl", "ca", "-verbose", "-notext", "-batch",
-                           "-config", cfg_file,
+    subprocess.check_call(("openssl", "ca", "-notext", "-batch",
+                           #"-verbose", 
+                           "-config",  cfg_file,
                            "-ss_cert", pemfile,
-                           "-out", xcertfile,
-                           "-extensions", "ca_ca_x509_ext"))
+                           "-out",     xcertfile,
+                           "-extensions", "ca_x509_ext_xcert"))
 
   # This should probably change to be the file content, coordinate with PEMElement()
   return xcertfile
 
-def PEMElement(e, tag, filename):
-  e = SubElement(e, tag)
-  e.text = "".join(p.strip() for p in open(filename).readlines()[1:-1])
-
-def bpki_setup(bpki_ca_key_file, bpki_ca_cert_file, bpki_crl_file, bpki_index_file, cfg_file,
-               bpki_dir, bpki_serial_file, bpki_crl_number_file, bpki_ee_req_file, bpki_ee_cert_file):
+def bpki_setup(cfg_file, bpki_cacert, bpki_dir):
 
   # Create our BPKI database directory
   if not os.path.exists(bpki_dir):
     os.makedirs(bpki_dir)
 
-  # Create our trust anchor key
-  if not os.path.exists(bpki_ca_key_file):
-    subprocess.check_call(("openssl", "genrsa",
-                           "-out", bpki_ca_key_file,
-                           "2048"))
-
-  # Create our self-signed trust anchor
-  if not os.path.exists(bpki_ca_cert_file):
-    subprocess.check_call(("openssl", "req", "-new", "-sha256", "-x509", "-verbose",
-                           "-config", cfg_file,
-                           "-extensions", "req_x509_ext",
-                           "-key", bpki_ca_key_file,
-                           "-out", bpki_ca_cert_file))
-
   # Create empty index file for "openssl ca"
-  if not os.path.exists(bpki_index_file):
-    f = open(bpki_index_file, "w")
+  if not os.path.exists(bpki_dir + "/index"):
+    f = open(bpki_dir + "/index", "w")
     f.close()
 
   # Create serial number file for "openssl ca"
-  if not os.path.exists(bpki_serial_file):
-    f = open(bpki_serial_file, "w")
+  if not os.path.exists(bpki_dir + "/serial"):
+    f = open(bpki_dir + "/serial", "w")
     f.write("01\n")
     f.close()
 
   # Create CRL number file for "openssl ca"
-  if not os.path.exists(bpki_crl_number_file):
-    f = open(bpki_crl_number_file, "w")
+  if not os.path.exists(bpki_dir + "/crl_number"):
+    f = open(bpki_dir + "/crl_number", "w")
     f.write("01\n")
     f.close()
 
-  # Create CRL
-  if not os.path.exists(bpki_crl_file):
-    subprocess.check_call(("openssl", "ca", "-batch", "-verbose", "-batch", "-notext",
-                           "-gencrl",
+  # Create our self-signed trust anchor
+  if not os.path.exists(bpki_dir + "/ca.key") or not os.path.exists(bpki_dir + "/ca.req"):
+    subprocess.check_call(("openssl", "req", "-new",
+                           #"-verbose",
+                           "-sha256", "-newkey", "rsa:2048",
                            "-config", cfg_file,
-                           "-out", bpki_crl_file,
-                           "-config", cfg_file))
+                           "-extensions", "req_x509_ext",
+                           "-keyout", bpki_dir + "/ca.key",
+                           "-out",    bpki_dir + "/ca.req"))
+
+  if not os.path.exists(bpki_cacert):
+    subprocess.check_call(("openssl", "ca", "-batch", "-notext",
+                           #"-verbose",
+                           "-extensions", "ca_x509_ext_ca",
+                           "-config",     cfg_file,
+                           "-selfsign",
+                           "-in",         bpki_dir + "/ca.req",
+                           "-out",        bpki_cacert))
+
+  # Create CRL
+  if not os.path.exists(bpki_dir + "/ca.crl"):
+    subprocess.check_call(("openssl", "ca", "-batch", "-batch", "-notext",
+                           #"-verbose",
+                           "-config", cfg_file,
+                           "-gencrl",
+                           "-out", bpki_dir + "/ca.crl"))
 
   # Create BSC EE cert
-  if os.path.exists(bpki_ee_req_file) and not os.path.exists(bpki_ee_cert_file):
-    subprocess.check_call(("openssl", "ca", "-verbose", "-batch", "-notext",
-                           "-config", cfg_file,
-                           "-extensions", "ca_ee_x509_ext",
-                           "-in", bpki_ee_req_file,
-                           "-out", bpki_ee_cert_file))
+  if os.path.exists(bpki_dir + "/bsc.req") and not os.path.exists(bpki_dir + "/bsc.cer"):
+    subprocess.check_call(("openssl", "ca", "-batch", "-notext",
+                           #"-verbose",
+                           "-extensions", "ca_x509_ext_bsc",
+                           "-config",     cfg_file,
+                           "-in",         bpki_dir + "/bsc.req",
+                           "-out",        bpki_dir + "/bsc.cer"))
 
 def extract_resources():
   pass
@@ -308,29 +314,15 @@ def main():
   parents_csv_file     = cfg.get(myrpki_section, "parents_csv")
   prefix_csv_file      = cfg.get(myrpki_section, "prefix_csv")
   asn_csv_file         = cfg.get(myrpki_section, "asn_csv")
-  bpki_dir             = cfg.get(myrpki_section, "bpki_ca_dir")
-  bpki_ca_cert_file    = cfg.get(myrpki_section, "bpki_ca_certificate")
-  bpki_ca_key_file     = cfg.get(myrpki_section, "bpki_ca_key")
-  bpki_ee_cert_file    = cfg.get(myrpki_section, "bpki_ee_certificate")
-  bpki_ee_req_file     = cfg.get(myrpki_section, "bpki_ee_pkcs10")
-  bpki_crl_file        = cfg.get(myrpki_section, "bpki_crl")
-  bpki_index_file      = cfg.get(myrpki_section, "bpki_index")
-  bpki_serial_file     = cfg.get(myrpki_section, "bpki_serial")
-  bpki_crl_number_file = cfg.get(myrpki_section, "bpki_crl_number")
+  bpki_dir             = cfg.get(myrpki_section, "bpki_ca_directory")
+  bpki_cacert          = cfg.get(myrpki_section, "bpki_ca_certificate")
   output_filename      = cfg.get(myrpki_section, "output_filename")
   relaxng_schema       = cfg.get(myrpki_section, "relaxng_schema")
 
   bpki_setup(
-    bpki_ca_cert_file    = bpki_ca_cert_file,
-    bpki_ca_key_file     = bpki_ca_key_file,
-    bpki_crl_file        = bpki_crl_file,
-    bpki_dir             = bpki_dir,
-    bpki_ee_cert_file    = bpki_ee_cert_file,
-    bpki_ee_req_file     = bpki_ee_req_file,
-    bpki_index_file      = bpki_index_file,
-    bpki_serial_file     = bpki_serial_file,
-    bpki_crl_number_file = bpki_crl_number_file,
-    cfg_file             = cfg_file)
+    bpki_cacert = bpki_cacert,
+    bpki_dir    = bpki_dir,
+    cfg_file    = cfg_file)
 
   e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle)
 
@@ -348,11 +340,11 @@ def main():
     cfg_file = cfg_file,
     bpki_dir = bpki_dir).xml(e)
 
-  PEMElement(e, "bpki_ca_certificate", bpki_ca_cert_file)
-  PEMElement(e, "bpki_crl", bpki_crl_file)
+  PEMElement(e, "bpki_ca_certificate", bpki_cacert)
+  PEMElement(e, "bpki_crl",            bpki_dir + "/ca.crl")
 
-  if os.path.exists(bpki_ee_cert_file):
-    PEMElement(e, "bpki_ee_certificate", bpki_ee_cert_file)
+  if os.path.exists(bpki_dir + "/bsc.cer"):
+    PEMElement(e, "bpki_ee_certificate", bpki_dir + "/bsc.cer")
 
   ElementTree(e).write(output_filename + ".tmp")
   os.rename(output_filename + ".tmp", output_filename)

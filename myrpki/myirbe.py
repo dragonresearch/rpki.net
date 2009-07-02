@@ -47,10 +47,6 @@ if argv:
 
 cfg = rpki.config.parser(cfg_file, "myirbe")
 
-startup_msg = cfg.get("startup-message", "")
-if startup_msg:
-  rpki.log.info(startup_msg)
-
 tree = lxml.etree.parse("myrpki.xml").getroot()
 rng.assertValid(tree)
 
@@ -117,6 +113,20 @@ for x in tree.getiterator(tag("child")):
 
 db.commit()
 db.close()
+
+bpki_rpkid = myrpki.CA(cfg_file, cfg.get("rpkid_ca_directory"), cfg.get("rpkid_ca_certificate"))
+bpki_rpkid.setup("/CN=RPKID TEST TA")
+for name in ("rpkid", "irdbd", "irbe_cli"):
+  bpki_rpkid.ee("/CN=%s EE" % name, name)
+
+bpki_pubd  = myrpki.CA(cfg_file, cfg.get("pubd_ca_directory"),  cfg.get("pubd_ca_certificate"))
+bpki_pubd.setup("/CN=PUBD TEST TA")
+for name in ("pubd", "irbe_cli"):
+  bpki_rpkid.ee("/CN=%s EE" % name, name)
+
+bpki_rootd = myrpki.CA(cfg_file, cfg.get("rootd_ca_directory"), cfg.get("rootd_ca_certificate"))
+bpki_rootd.setup("/CN=ROOTD TEST TA")
+bpki_rpkid.ee("/CN=rootd EE", "rootd")
 
 rpkid_pdus = [
   rpki.left_right.self_elt.make_pdu(      action = "get",  self_handle = my_handle),

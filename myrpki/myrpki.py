@@ -199,7 +199,7 @@ def PEMElement(e, tag, filename):
 
 class CA(object):
 
-  debug = False
+  debug = True
 
   def __init__(self, cfg, dir, cer):
     self.cfg    = cfg
@@ -212,52 +212,53 @@ class CA(object):
     self.serial = dir + "/serial"
     self.crlnum = dir + "/crl_number"
 
-  def run_ca(self, *args, **env):
-    cmd = ("openssl", "ca", "-notext", "-batch", "-config",  self.cfg) + args
-    env = env.copy()
-    if "PATH" in os.environ:
-      env["PATH"] = os.environ["PATH"]
+    self.env = { "PATH" : os.environ["PATH"], "BPKI_DIRECTORY" : dir }
+
+  def run_ca(self, *args):
+    cmd = ("openssl", "ca", "-notext", "-verbose", "-batch", "-config",  self.cfg) + args
     if self.debug:
       print "cmd: %r" % (cmd,)
-      print "env: %r" % (env,)
-    subprocess.check_call(cmd, env = env)
+      print "env: %r" % (self.env,)
+    subprocess.check_call(cmd, env = self.env)
 
-  def setup(self):
+  def run_req(self, key_file, req_file):
+    if not os.path.exists(key_file) or not os.path.exists(req_file):
+      subprocess.check_call(("openssl", "req", "-new", "-sha256", "-newkey", "rsa:2048",
+                             "-config", self.cfg, "-keyout", key_file, "-out", req_file),
+                            env = self.env)
+    
+  @staticmethod
+  def touch_file(filename, content = None):
+    if not os.path.exists(filename):
+      f = open(filename, "w")
+      if content is not None:
+        f.write(content)
+      f.close()
+
+  def setup(self, ta_name):
 
     if not os.path.exists(self.dir):
       os.makedirs(self.dir)
 
-    if not os.path.exists(self.index):
-      f = open(self.index, "w")
-      f.close()
+    self.touch_file(self.index)
+    self.touch_file(self.serial, "01\n")
+    self.touch_file(self.crlnum, "01\n")
 
-    if not os.path.exists(self.serial):
-      f = open(self.serial, "w")
-      f.write("01\n")
-      f.close()
-
-    if not os.path.exists(self.crlnum):
-      f = open(self.crlnum, "w")
-      f.write("01\n")
-      f.close()
-
-    if not os.path.exists(self.key) or not os.path.exists(self.req):
-      subprocess.check_call(("openssl", "req", "-new",
-                             #"-verbose",
-                             "-sha256", "-newkey", "rsa:2048",
-                             "-config", self.cfg,
-                             "-keyout", self.key,
-                             "-out",    self.req))
+    self.run_req(key_file = self.key, req_file = self.req)
 
     if not os.path.exists(self.cer):
-      self.run_ca("-selfsign", "-extensions", "ca_x509_ext_ca", "-in", self.req, "-out", self.cer)
+      self.run_ca("-selfsign", "-extensions", "ca_x509_ext_ca", "-subj", ta_name, "-in", self.req, "-out", self.cer)
 
     if not os.path.exists(self.crl):
-      subprocess.check_call(("openssl", "ca", "-batch", "-batch", "-notext",
-                             #"-verbose",
-                             "-config",     self.cfg,
-                             "-gencrl",
-                             "-out",        self.crl))
+      self.run_ca("-gencrl", "-out", self.crl)
+
+  def ee(self, ee_name, base_name):
+    key_file = "%s/%s.key" % (self.dir, base_name)
+    req_file = "%s/%s.req" % (self.dir, base_name)
+    cer_file = "%s/%s.cer" % (self.dir, base_name)
+    self.run_req(key_file = key_file, req_file = req_file)
+    if not os.path.exists(cer_file):
+      self.run_ca("-extensions", "ca_x509_ext_ee", "-subj", ee_name, "-in", req_file, "-out", cer_file)
 
   def bsc(self, e, pkcs10):
 
@@ -279,12 +280,7 @@ class CA(object):
       if p.wait() != 0:
         raise RuntimeError, "Couldn't save PKCS #10 in PEM format"
 
-      subprocess.check_call(("openssl", "ca", "-batch", "-notext",
-                             #"-verbose",
-                             "-extensions", "ca_x509_ext_bsc",
-                             "-config", self.cfg,
-                             "-in",     req_file,
-                             "-out",    cer_file))
+      self.run_ca("-extensions", "ca_x509_ext_ee", "-in", req_file, "-out", cer_file)
 
     PEMElement(e, "bpki_bsc_certificate", cer_file)
     PEMElement(e, "bpki_bsc_pkcs10",      req_file)
@@ -313,12 +309,7 @@ class CA(object):
     # OpenSSL command line tool.
 
     if not os.path.exists(xcert):
-      subprocess.check_call(("openssl", "ca", "-notext", "-batch",
-                             #"-verbose", 
-                             "-config",  self.cfg,
-                             "-ss_cert", cert,
-                             "-out",     xcert,
-                             "-extensions", "ca_x509_ext_xcert"))
+      self.run_ca("-ss_cert", cert, "-out", xcert, "-extensions", "ca_x509_ext_xcert")
 
     return xcert
 
@@ -361,7 +352,7 @@ def main():
       bsc_req = base64.b64decode(r)
 
   bpki = CA(cfg_file, bpki_dir, bpki_cacert)
-  bpki.setup()
+  bpki.setup("/CN=%s TA" % my_handle)
 
   e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle)
 

@@ -197,7 +197,9 @@ def PEMElement(e, tag, filename):
   e = SubElement(e, tag)
   e.text = "".join(p.strip() for p in open(filename).readlines()[1:-1])
 
-class bpki(object):
+class CA(object):
+
+  debug = False
 
   def __init__(self, cfg, dir, cer):
     self.cfg    = cfg
@@ -209,6 +211,16 @@ class bpki(object):
     self.index  = dir + "/index"
     self.serial = dir + "/serial"
     self.crlnum = dir + "/crl_number"
+
+  def run_ca(self, *args, **env):
+    cmd = ("openssl", "ca", "-notext", "-batch", "-config",  self.cfg) + args
+    env = env.copy()
+    if "PATH" in os.environ:
+      env["PATH"] = os.environ["PATH"]
+    if self.debug:
+      print "cmd: %r" % (cmd,)
+      print "env: %r" % (env,)
+    subprocess.check_call(cmd, env = env)
 
   def setup(self):
 
@@ -239,13 +251,7 @@ class bpki(object):
                              "-out",    self.req))
 
     if not os.path.exists(self.cer):
-      subprocess.check_call(("openssl", "ca", "-batch", "-notext",
-                             #"-verbose",
-                             "-extensions", "ca_x509_ext_ca",
-                             "-config",     self.cfg,
-                             "-selfsign",
-                             "-in",         self.req,
-                             "-out",        self.cer))
+      self.run_ca("-selfsign", "-extensions", "ca_x509_ext_ca", "-in", self.req, "-out", self.cer)
 
     if not os.path.exists(self.crl):
       subprocess.check_call(("openssl", "ca", "-batch", "-batch", "-notext",
@@ -355,8 +361,8 @@ def main():
     if r:
       bsc_req = base64.b64decode(r)
 
-  ca = bpki(cfg_file, bpki_dir, bpki_cacert)
-  ca.setup()
+  bpki = CA(cfg_file, bpki_dir, bpki_cacert)
+  bpki.setup()
 
   e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle)
 
@@ -366,16 +372,16 @@ def main():
     children_csv_file = children_csv_file,
     prefix_csv_file = prefix_csv_file,
     asn_csv_file = asn_csv_file,
-    xcert = ca.xcert).xml(e)
+    xcert = bpki.xcert).xml(e)
 
   parents.from_csv(
     parents_csv_file = parents_csv_file,
-    xcert = ca.xcert).xml(e)
+    xcert = bpki.xcert).xml(e)
 
-  PEMElement(e, "bpki_ca_certificate", ca.cer)
-  PEMElement(e, "bpki_crl",            ca.crl)
+  PEMElement(e, "bpki_ca_certificate", bpki.cer)
+  PEMElement(e, "bpki_crl",            bpki.crl)
 
-  ca.bsc(e, bsc_req)
+  bpki.bsc(e, bsc_req)
 
   ElementTree(e).write(xml_filename + ".tmp")
   os.rename(xml_filename + ".tmp", xml_filename)

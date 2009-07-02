@@ -21,6 +21,7 @@ PERFORMANCE OF THIS SOFTWARE.
 import lxml.etree, base64, subprocess, sys, os, time, getopt, MySQLdb
 import rpki.https, rpki.config, rpki.resource_set, rpki.relaxng
 import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509
+import myrpki
 
 rng = lxml.etree.RelaxNG(lxml.etree.parse("myrpki.rng"))
 

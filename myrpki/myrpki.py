@@ -134,11 +134,11 @@ class children(dict):
       c.xml(e)
 
   @classmethod
-  def from_csv(cls, children_csv_file, prefix_csv_file, asn_csv_file, cfg_file, bpki_dir):
+  def from_csv(cls, children_csv_file, prefix_csv_file, asn_csv_file, xcert):
     self = cls()
     # childname date pemfile
     for handle, date, pemfile in csv_open(children_csv_file):
-      self.add(handle = handle, validity = date, ta = xcert(pemfile, bpki_dir, cfg_file))
+      self.add(handle = handle, validity = date, ta = xcert(pemfile))
     # childname p/n
     for handle, pn in csv_open(prefix_csv_file):
       self.add(handle = handle, prefix = pn)
@@ -183,11 +183,11 @@ class parents(dict):
       c.xml(e)
 
   @classmethod
-  def from_csv(cls, parents_csv_file, cfg_file, bpki_dir):
+  def from_csv(cls, parents_csv_file, xcert):
     self = cls()
     # parentname uri pemfile
     for handle, uri, pemfile in csv_open(parents_csv_file):
-      self.add(handle = handle, uri = uri, ta = xcert(pemfile, bpki_dir, cfg_file))
+      self.add(handle = handle, uri = uri, ta = xcert(pemfile))
     return self
 
 def csv_open(filename, delimiter = "\t", dialect = None):
@@ -197,95 +197,105 @@ def PEMElement(e, tag, filename):
   e = SubElement(e, tag)
   e.text = "".join(p.strip() for p in open(filename).readlines()[1:-1])
 
-def xcert(pemfile, bpki_dir, cfg_file):
+class bpki(object):
 
-  if not pemfile:
-    return None
-  if not os.path.exists(pemfile):
-    raise RuntimeError, "PEM file %r does not exist" % (pemfile,)
+  def __init__(self, cfg, dir, cer):
+    self.cfg    = cfg
+    self.dir    = dir
+    self.cer    = cer
+    self.key    = dir + "/ca.key"
+    self.req    = dir + "/ca.req"
+    self.crl    = dir + "/ca.crl"
+    self.index  = dir + "/index"
+    self.serial = dir + "/serial"
+    self.crlnum = dir + "/crl_number"
 
-  # Extract public key and subject name from PEM file and hash it so
-  # we can use the result as a tag for cross-certifying this cert.
+  def setup(self):
 
-  p1 = subprocess.Popen(("openssl", "x509", "-noout", "-pubkey", "-subject", "-in", pemfile), stdout = subprocess.PIPE)
-  p2 = subprocess.Popen(("openssl", "dgst", "-md5"), stdin = p1.stdout, stdout = subprocess.PIPE)
-  xcertfile = "%s/%s.xcert.pem" % (bpki_dir, p2.communicate()[0].strip())
-  if p1.wait() != 0 or p2.wait() != 0:
-    raise RuntimeError, "Couldn't generate cross-certification tag for %r" % pemfile
+    if not os.path.exists(self.dir):
+      os.makedirs(self.dir)
 
-  # Cross-certify the pemfile we were given, if we haven't already.
-  # This only works for self-signed certs, due to limitations of the
-  # OpenSSL command line tool.
+    if not os.path.exists(self.index):
+      f = open(self.index, "w")
+      f.close()
 
-  if not os.path.exists(xcertfile):
-    subprocess.check_call(("openssl", "ca", "-notext", "-batch",
-                           #"-verbose", 
-                           "-config",  cfg_file,
-                           "-ss_cert", pemfile,
-                           "-out",     xcertfile,
-                           "-extensions", "ca_x509_ext_xcert"))
+    if not os.path.exists(self.serial):
+      f = open(self.serial, "w")
+      f.write("01\n")
+      f.close()
 
-  # This should probably change to be the file content, coordinate with PEMElement()
-  return xcertfile
+    if not os.path.exists(self.crlnum):
+      f = open(self.crlnum, "w")
+      f.write("01\n")
+      f.close()
 
-def bpki_setup(cfg_file, bpki_cacert, bpki_dir):
+    if not os.path.exists(self.key) or not os.path.exists(self.req):
+      subprocess.check_call(("openssl", "req", "-new",
+                             #"-verbose",
+                             "-sha256", "-newkey", "rsa:2048",
+                             "-config", self.cfg,
+                             "-extensions", "req_x509_ext",
+                             "-keyout", self.key,
+                             "-out",    self.req))
 
-  # Create our BPKI database directory
-  if not os.path.exists(bpki_dir):
-    os.makedirs(bpki_dir)
+    if not os.path.exists(self.cer):
+      subprocess.check_call(("openssl", "ca", "-batch", "-notext",
+                             #"-verbose",
+                             "-extensions", "ca_x509_ext_ca",
+                             "-config",     self.cfg,
+                             "-selfsign",
+                             "-in",         self.req,
+                             "-out",        self.cer))
 
-  # Create empty index file for "openssl ca"
-  if not os.path.exists(bpki_dir + "/index"):
-    f = open(bpki_dir + "/index", "w")
-    f.close()
+    if not os.path.exists(self.crl):
+      subprocess.check_call(("openssl", "ca", "-batch", "-batch", "-notext",
+                             #"-verbose",
+                             "-config",     self.cfg,
+                             "-gencrl",
+                             "-out",        self.crl))
 
-  # Create serial number file for "openssl ca"
-  if not os.path.exists(bpki_dir + "/serial"):
-    f = open(bpki_dir + "/serial", "w")
-    f.write("01\n")
-    f.close()
+  def issue_bsc(self, bsc_req, bsc_cer):
 
-  # Create CRL number file for "openssl ca"
-  if not os.path.exists(bpki_dir + "/crl_number"):
-    f = open(bpki_dir + "/crl_number", "w")
-    f.write("01\n")
-    f.close()
+    if os.path.exists(bsc_req) and not os.path.exists(bsc_cer):
+      subprocess.check_call(("openssl", "ca", "-batch", "-notext",
+                             #"-verbose",
+                             "-extensions", "ca_x509_ext_bsc",
+                             "-config",     self.cfg,
+                             "-in",         bsc_req,
+                             "-out",        bsc_cer))
 
-  # Create our self-signed trust anchor
-  if not os.path.exists(bpki_dir + "/ca.key") or not os.path.exists(bpki_dir + "/ca.req"):
-    subprocess.check_call(("openssl", "req", "-new",
-                           #"-verbose",
-                           "-sha256", "-newkey", "rsa:2048",
-                           "-config", cfg_file,
-                           "-extensions", "req_x509_ext",
-                           "-keyout", bpki_dir + "/ca.key",
-                           "-out",    bpki_dir + "/ca.req"))
+  def xcert(self, cert):
 
-  if not os.path.exists(bpki_cacert):
-    subprocess.check_call(("openssl", "ca", "-batch", "-notext",
-                           #"-verbose",
-                           "-extensions", "ca_x509_ext_ca",
-                           "-config",     cfg_file,
-                           "-selfsign",
-                           "-in",         bpki_dir + "/ca.req",
-                           "-out",        bpki_cacert))
+    if not cert:
+      return None
 
-  # Create CRL
-  if not os.path.exists(bpki_dir + "/ca.crl"):
-    subprocess.check_call(("openssl", "ca", "-batch", "-batch", "-notext",
-                           #"-verbose",
-                           "-config", cfg_file,
-                           "-gencrl",
-                           "-out", bpki_dir + "/ca.crl"))
+    if not os.path.exists(cert):
+      raise RuntimeError, "PEM file %r does not exist" % (cert,)
 
-  # Create BSC EE cert
-  if os.path.exists(bpki_dir + "/bsc.req") and not os.path.exists(bpki_dir + "/bsc.cer"):
-    subprocess.check_call(("openssl", "ca", "-batch", "-notext",
-                           #"-verbose",
-                           "-extensions", "ca_x509_ext_bsc",
-                           "-config",     cfg_file,
-                           "-in",         bpki_dir + "/bsc.req",
-                           "-out",        bpki_dir + "/bsc.cer"))
+    # Extract public key and subject name from PEM file and hash it so
+    # we can use the result as a tag for cross-certifying this cert.
+
+    p1 = subprocess.Popen(("openssl", "x509", "-noout", "-pubkey", "-subject", "-in", cert), stdout = subprocess.PIPE)
+    p2 = subprocess.Popen(("openssl", "dgst", "-md5"), stdin = p1.stdout, stdout = subprocess.PIPE)
+
+    xcert = "%s/%s.xcert" % (self.dir, p2.communicate()[0].strip())
+
+    if p1.wait() != 0 or p2.wait() != 0:
+      raise RuntimeError, "Couldn't generate cross-certification tag for %r" % cert
+
+    # Cross-certify the cert we were given, if we haven't already.
+    # This only works for self-signed certs, due to limitations of the
+    # OpenSSL command line tool.
+
+    if not os.path.exists(xcert):
+      subprocess.check_call(("openssl", "ca", "-notext", "-batch",
+                             #"-verbose", 
+                             "-config",  self.cfg,
+                             "-ss_cert", cert,
+                             "-out",     xcert,
+                             "-extensions", "ca_x509_ext_xcert"))
+
+    return xcert
 
 def extract_resources():
   pass
@@ -317,12 +327,9 @@ def main():
   bpki_dir             = cfg.get(myrpki_section, "bpki_ca_directory")
   bpki_cacert          = cfg.get(myrpki_section, "bpki_ca_certificate")
   output_filename      = cfg.get(myrpki_section, "output_filename")
-  relaxng_schema       = cfg.get(myrpki_section, "relaxng_schema")
 
-  bpki_setup(
-    bpki_cacert = bpki_cacert,
-    bpki_dir    = bpki_dir,
-    cfg_file    = cfg_file)
+  ca = bpki(cfg_file, bpki_dir, bpki_cacert)
+  ca.setup()
 
   e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle)
 
@@ -332,16 +339,14 @@ def main():
     children_csv_file = children_csv_file,
     prefix_csv_file = prefix_csv_file,
     asn_csv_file = asn_csv_file,
-    cfg_file = cfg_file,
-    bpki_dir = bpki_dir).xml(e)
+    xcert = ca.xcert).xml(e)
 
   parents.from_csv(
     parents_csv_file = parents_csv_file,
-    cfg_file = cfg_file,
-    bpki_dir = bpki_dir).xml(e)
+    xcert = ca.xcert).xml(e)
 
-  PEMElement(e, "bpki_ca_certificate", bpki_cacert)
-  PEMElement(e, "bpki_crl",            bpki_dir + "/ca.crl")
+  PEMElement(e, "bpki_ca_certificate", ca.cer)
+  PEMElement(e, "bpki_crl",            ca.crl)
 
   if os.path.exists(bpki_dir + "/bsc.cer"):
     PEMElement(e, "bpki_ee_certificate", bpki_dir + "/bsc.cer")

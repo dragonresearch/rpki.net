@@ -246,7 +246,6 @@ class CA(object):
                              #"-verbose",
                              "-sha256", "-newkey", "rsa:2048",
                              "-config", self.cfg,
-                             "-extensions", "req_x509_ext",
                              "-keyout", self.key,
                              "-out",    self.req))
 

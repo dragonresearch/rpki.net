@@ -22,7 +22,8 @@ start = element myrpki {
   parent_elt*,
   bpki_ca_certificate_elt?,
   bpki_crl_elt?,
-  bpki_ee_certificate_elt?
+  bpki_bsc_certificate_elt?,
+  bpki_bsc_pkcs10_elt?
 }
 
 roa_request_elt = element roa_request {
@@ -46,9 +47,10 @@ parent_elt = element parent {
   element bpki_ta { base64 }?
 }
 
-bpki_ca_certificate_elt = element bpki_ca_certificate { base64 }
-bpki_ee_certificate_elt = element bpki_ee_certificate { base64 }
-bpki_crl_elt            = element bpki_crl            { base64 }
+bpki_ca_certificate_elt  = element bpki_ca_certificate  { base64 }
+bpki_crl_elt             = element bpki_crl             { base64 }
+bpki_bsc_certificate_elt = element bpki_bsc_certificate { base64 }
+bpki_bsc_pkcs10_elt      = element bpki_bsc_pkcs10      { base64 }
 
 # Local Variables:
 # indent-tabs-mode: nil

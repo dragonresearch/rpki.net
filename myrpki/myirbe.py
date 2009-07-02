@@ -152,9 +152,13 @@ def showcerts():
   if ca:
     showpem("CA", ca, "x509")
 
-  ee = tree.findtext(tag("bpki_ee_certificate"))
-  if ee:
-    showpem("EE", ee, "x509")
+  bsc = tree.findtext(tag("bpki_bsc_certificate"))
+  if bsc:
+    showpem("BSC EE", bsc, "x509")
+
+  req = tree.findtext(tag("bpki_bsc_pkcs10"))
+  if req:
+    showpem("BSC EE", req, "req")
 
   crl = tree.findtext(tag("bpki_crl"))
   if crl:

@@ -68,7 +68,10 @@
         <ref name="bpki_crl_elt"/>
       </optional>
       <optional>
-        <ref name="bpki_ee_certificate_elt"/>
+        <ref name="bpki_bsc_certificate_elt"/>
+      </optional>
+      <optional>
+        <ref name="bpki_bsc_pkcs10_elt"/>
       </optional>
     </element>
   </start>
@@ -139,13 +142,18 @@
       <ref name="base64"/>
     </element>
   </define>
-  <define name="bpki_ee_certificate_elt">
-    <element name="bpki_ee_certificate">
+  <define name="bpki_crl_elt">
+    <element name="bpki_crl">
       <ref name="base64"/>
     </element>
   </define>
-  <define name="bpki_crl_elt">
-    <element name="bpki_crl">
+  <define name="bpki_bsc_certificate_elt">
+    <element name="bpki_bsc_certificate">
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="bpki_bsc_pkcs10_elt">
+    <element name="bpki_bsc_pkcs10">
       <ref name="base64"/>
     </element>
   </define>

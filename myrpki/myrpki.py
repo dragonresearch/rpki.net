@@ -23,7 +23,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import subprocess, csv, re, os, getopt, sys, ConfigParser
+import subprocess, csv, re, os, getopt, sys, ConfigParser, base64
 
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
@@ -254,15 +254,35 @@ class bpki(object):
                              "-gencrl",
                              "-out",        self.crl))
 
-  def issue_bsc(self, bsc_req, bsc_cer):
+  def bsc(self, e, pkcs10):
 
-    if os.path.exists(bsc_req) and not os.path.exists(bsc_cer):
+    if pkcs10 is None:
+      return
+
+    p = subprocess.Popen(("openssl", "dgst", "-md5"), stdin = subprocess.PIPE, stdout = subprocess.PIPE)
+    hash = p.communicate(pkcs10)[0].strip()
+    if p.wait() != 0:
+      raise RuntimeError, "Couldn't hash PKCS#10 request"
+
+    req_file = "%s/bsc.%s.req" % (self.dir, hash)
+    cer_file = "%s/bsc.%s.cer" % (self.dir, hash)
+
+    if not os.path.exists(cer_file):
+
+      p = subprocess.Popen(("openssl", "req", "-inform", "DER", "-out", req_file), stdin = subprocess.PIPE)
+      p.communicate(pkcs10)
+      if p.wait() != 0:
+        raise RuntimeError, "Couldn't save PKCS #10 in PEM format"
+
       subprocess.check_call(("openssl", "ca", "-batch", "-notext",
                              #"-verbose",
                              "-extensions", "ca_x509_ext_bsc",
-                             "-config",     self.cfg,
-                             "-in",         bsc_req,
-                             "-out",        bsc_cer))
+                             "-config", self.cfg,
+                             "-in",     req_file,
+                             "-out",    cer_file))
+
+    PEMElement(e, "bpki_bsc_certificate", cer_file)
+    PEMElement(e, "bpki_bsc_pkcs10",      req_file)
 
   def xcert(self, cert):
 
@@ -278,7 +298,7 @@ class bpki(object):
     p1 = subprocess.Popen(("openssl", "x509", "-noout", "-pubkey", "-subject", "-in", cert), stdout = subprocess.PIPE)
     p2 = subprocess.Popen(("openssl", "dgst", "-md5"), stdin = p1.stdout, stdout = subprocess.PIPE)
 
-    xcert = "%s/%s.xcert" % (self.dir, p2.communicate()[0].strip())
+    xcert = "%s/xcert.%s.cer" % (self.dir, p2.communicate()[0].strip())
 
     if p1.wait() != 0 or p2.wait() != 0:
       raise RuntimeError, "Couldn't generate cross-certification tag for %r" % cert
@@ -326,7 +346,14 @@ def main():
   asn_csv_file         = cfg.get(myrpki_section, "asn_csv")
   bpki_dir             = cfg.get(myrpki_section, "bpki_ca_directory")
   bpki_cacert          = cfg.get(myrpki_section, "bpki_ca_certificate")
-  output_filename      = cfg.get(myrpki_section, "output_filename")
+  xml_filename         = cfg.get(myrpki_section, "xml_filename")
+
+  bsc_req = None
+  if os.path.exists(xml_filename):
+    e = ElementTree(file = xml_filename).getroot()
+    r = e.findtext("{%s}%s" % (namespace, "bpki_bsc_pkcs10"))
+    if r:
+      bsc_req = base64.b64decode(r)
 
   ca = bpki(cfg_file, bpki_dir, bpki_cacert)
   ca.setup()
@@ -348,11 +375,10 @@ def main():
   PEMElement(e, "bpki_ca_certificate", ca.cer)
   PEMElement(e, "bpki_crl",            ca.crl)
 
-  if os.path.exists(bpki_dir + "/bsc.cer"):
-    PEMElement(e, "bpki_ee_certificate", bpki_dir + "/bsc.cer")
+  ca.bsc(e, bsc_req)
 
-  ElementTree(e).write(output_filename + ".tmp")
-  os.rename(output_filename + ".tmp", output_filename)
+  ElementTree(e).write(xml_filename + ".tmp")
+  os.rename(xml_filename + ".tmp", xml_filename)
 
 if __name__ == "__main__":
   main()

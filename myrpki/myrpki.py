@@ -199,6 +199,9 @@ def PEMElement(e, tag, filename):
 
 class CA(object):
 
+  path_restriction = { 0 : "ca_x509_ext_xcert0",
+                       1 : "ca_x509_ext_xcert1" }
+
   def __init__(self, cfg, dir):
     self.cfg    = cfg
     self.dir    = dir
@@ -290,14 +293,14 @@ class CA(object):
     PEMElement(e, "bpki_bsc_certificate", cer_file)
     PEMElement(e, "bpki_bsc_pkcs10",      req_file)
 
-  def fxcert(self, filename, cert, restrict_pathlen = True):
+  def fxcert(self, filename, cert, path_restriction = 0):
     fn = os.path.join(self.dir, filename)
     f = open(fn, "w")
     f.write(cert)
     f.close()
-    return self.xcert(fn, restrict_pathlen)
+    return self.xcert(fn, path_restriction)
 
-  def xcert(self, cert, restrict_pathlen = True):
+  def xcert(self, cert, path_restriction = 0):
 
     if not cert:
       return None
@@ -321,8 +324,7 @@ class CA(object):
     # OpenSSL command line tool.
 
     if not os.path.exists(xcert):
-      self.run_ca("-ss_cert", cert, "-out", xcert, "-extensions",
-                  "ca_x509_ext_xcert" if restrict_pathlen else "ca_x509_ext_ca")
+      self.run_ca("-ss_cert", cert, "-out", xcert, "-extensions", self.path_restriction[path_restriction])
 
     return xcert
 

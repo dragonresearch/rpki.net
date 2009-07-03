@@ -149,7 +149,7 @@ if hosted_cacert:
 
 
 if hosted_cacert:
-  bpki_rpkid.fxcert(my_handle + ".cacert.cer", hosted_cacert, restrict_pathlen = False)
+  bpki_rpkid.fxcert(my_handle + ".cacert.cer", hosted_cacert, path_restriction = 1)
 
 if hosted_cacert:
   bpki_pubd.fxcert(my_handle + ".cacert.cer", hosted_cacert)

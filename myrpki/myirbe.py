@@ -47,6 +47,9 @@ if argv:
 
 cfg = rpki.config.parser(cfg_file, "myirbe")
 
+if cfg.has_section("myrpki"):
+  myrpki.main()
+
 # This probably ought to come from the command line
 tree = lxml.etree.parse("myrpki.xml").getroot()
 rng.assertValid(tree)

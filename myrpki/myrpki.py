@@ -215,7 +215,7 @@ class CA(object):
                  "RANDFILE" : ".OpenSSL.whines.unless.I.set.this" }
 
   def run_ca(self, *args):
-    cmd = ("openssl", "ca", "-notext", "-verbose", "-batch", "-config",  self.cfg) + args
+    cmd = ("openssl", "ca", "-notext", "-batch", "-config",  self.cfg) + args
     subprocess.check_call(cmd, env = self.env)
 
   def run_req(self, key_file, req_file):

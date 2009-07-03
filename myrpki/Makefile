@@ -4,6 +4,7 @@
 #all:: myrpki.xml
 #all:: lint
 #all:: parse
+#all:: graph
 all:: load
 
 myrpki.xml: myrpki.py asns.csv prefixes.csv roas.csv validity.csv
@@ -22,7 +23,7 @@ load: myrpki.xml myrpki.rng
 	python myirbe.py
 
 clean:
-	rm -rf *.xml bpki bpki.myrpki bpki.rpkid bpki.pubd bpki.rootd
+	rm -rf *.xml bpki.myrpki bpki.rpkid bpki.pubd bpki.rootd
 
 relatives: mom.pem dad.pem bro.pem sis.pem
 
@@ -31,3 +32,6 @@ mom.pem dad.pem bro.pem sis.pem: relatives.conf
 
 format: myrpki.xml
 	xmllint --format myrpki.xml
+
+graph:
+	for b in  bpki.myrpki bpki.rpkid bpki.pubd bpki.rootd; do python ../scripts/x509-dot.py $$b | dot -T ps2 | ps2pdf - $$b/graph.pdf; done

@@ -234,20 +234,25 @@ class CA(object):
 
   def setup(self, ta_name):
 
+    modified = False
+
     if not os.path.exists(self.dir):
       os.makedirs(self.dir)
-
-    self.touch_file(self.index)
-    self.touch_file(self.serial, "01\n")
-    self.touch_file(self.crlnum, "01\n")
+      self.touch_file(self.index)
+      self.touch_file(self.serial, "01\n")
+      self.touch_file(self.crlnum, "01\n")
 
     self.run_req(key_file = self.key, req_file = self.req)
 
     if not os.path.exists(self.cer):
+      modified = True
       self.run_ca("-selfsign", "-extensions", "ca_x509_ext_ca", "-subj", ta_name, "-in", self.req, "-out", self.cer)
 
     if not os.path.exists(self.crl):
+      modified = True
       self.run_ca("-gencrl", "-out", self.crl)
+
+    return modified
 
   def ee(self, ee_name, base_name):
     key_file = "%s/%s.key" % (self.dir, base_name)
@@ -256,6 +261,9 @@ class CA(object):
     self.run_req(key_file = key_file, req_file = req_file)
     if not os.path.exists(cer_file):
       self.run_ca("-extensions", "ca_x509_ext_ee", "-subj", ee_name, "-in", req_file, "-out", cer_file)
+      return True
+    else:
+      return False
 
   def bsc(self, e, pkcs10):
 

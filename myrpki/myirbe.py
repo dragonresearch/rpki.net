@@ -47,6 +47,26 @@ if argv:
 
 cfg = rpki.config.parser(cfg_file, "myirbe")
 
+modified = False
+
+bpki_rpkid = myrpki.CA(cfg_file, cfg.get("rpkid_ca_directory"))
+modified |= bpki_rpkid.setup("/CN=rpkid TA")
+for name in ("rpkid", "irdbd", "irbe_cli"):
+  modified |= bpki_rpkid.ee("/CN=%s EE" % name, name)
+
+bpki_pubd  = myrpki.CA(cfg_file, cfg.get("pubd_ca_directory"))
+modified |= bpki_pubd.setup("/CN=pubd TA")
+for name in ("pubd", "irbe_cli"):
+  modified |= bpki_pubd.ee("/CN=%s EE" % name, name)
+
+bpki_rootd = myrpki.CA(cfg_file, cfg.get("rootd_ca_directory"))
+modified |= bpki_rootd.setup("/CN=rootd TA")
+modified |= bpki_rootd.ee("/CN=rootd EE", "rootd")
+
+if modified:
+  print "BPKI initialized.  You need to start daemons before continuing."
+  sys.exit()
+
 if cfg.has_section("myrpki"):
   myrpki.main()
 
@@ -127,23 +147,12 @@ if hosted_cacert:
   if p.wait() != 0:
     raise RuntimeError, "Couldn't convert certificate to PEM format"
 
-bpki_rpkid = myrpki.CA(cfg_file, cfg.get("rpkid_ca_directory"))
-bpki_rpkid.setup("/CN=rpkid TA")
-for name in ("rpkid", "irdbd", "irbe_cli"):
-  bpki_rpkid.ee("/CN=%s EE" % name, name)
+
 if hosted_cacert:
   bpki_rpkid.fxcert(my_handle + ".cacert.cer", hosted_cacert, restrict_pathlen = False)
 
-bpki_pubd  = myrpki.CA(cfg_file, cfg.get("pubd_ca_directory"))
-bpki_pubd.setup("/CN=pubd TA")
-for name in ("pubd", "irbe_cli"):
-  bpki_pubd.ee("/CN=%s EE" % name, name)
 if hosted_cacert:
   bpki_pubd.fxcert(my_handle + ".cacert.cer", hosted_cacert)
-
-bpki_rootd = myrpki.CA(cfg_file, cfg.get("rootd_ca_directory"))
-bpki_rootd.setup("/CN=rootd TA")
-bpki_rootd.ee("/CN=rootd EE", "rootd")
 
 rpkid_pdus = [
   rpki.left_right.self_elt.make_pdu(      action = "get",  self_handle = my_handle),

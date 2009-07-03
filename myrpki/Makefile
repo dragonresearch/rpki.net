@@ -1,8 +1,8 @@
 # $Id$
 
-all:: relatives
-all:: myrpki.xml
-all:: lint
+#all:: relatives
+#all:: myrpki.xml
+#all:: lint
 #all:: parse
 all:: load
 

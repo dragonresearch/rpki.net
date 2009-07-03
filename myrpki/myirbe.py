@@ -114,19 +114,30 @@ for x in tree.getiterator(tag("child")):
 db.commit()
 db.close()
 
+hosted_cacert = tree.findtext(tag("bpki_ca_certificate"))
+if hosted_cacert:
+  p = subprocess.Popen(("openssl", "x509", "-inform", "DER"), stdin = subprocess.PIPE, stdout = subprocess.PIPE)
+  hosted_cacert = p.communicate(base64.b64decode(hosted_cacert))[0]
+  if p.wait() != 0:
+    raise RuntimeError, "Couldn't convert certificate to PEM format"
+
 bpki_rpkid = myrpki.CA(cfg_file, cfg.get("rpkid_ca_directory"), cfg.get("rpkid_ca_certificate"))
-bpki_rpkid.setup("/CN=RPKID TEST TA")
+bpki_rpkid.setup("/CN=rpkid TA")
 for name in ("rpkid", "irdbd", "irbe_cli"):
   bpki_rpkid.ee("/CN=%s EE" % name, name)
+if hosted_cacert:
+  bpki_rpkid.fxcert(my_handle + ".cacert.cer", hosted_cacert, restrict_pathlen = False)
 
 bpki_pubd  = myrpki.CA(cfg_file, cfg.get("pubd_ca_directory"),  cfg.get("pubd_ca_certificate"))
-bpki_pubd.setup("/CN=PUBD TEST TA")
+bpki_pubd.setup("/CN=pubd TA")
 for name in ("pubd", "irbe_cli"):
-  bpki_rpkid.ee("/CN=%s EE" % name, name)
+  bpki_pubd.ee("/CN=%s EE" % name, name)
+if hosted_cacert:
+  bpki_pubd.fxcert(my_handle + ".cacert.cer", hosted_cacert)
 
 bpki_rootd = myrpki.CA(cfg_file, cfg.get("rootd_ca_directory"), cfg.get("rootd_ca_certificate"))
-bpki_rootd.setup("/CN=ROOTD TEST TA")
-bpki_rpkid.ee("/CN=rootd EE", "rootd")
+bpki_rootd.setup("/CN=rootd TA")
+bpki_rootd.ee("/CN=rootd EE", "rootd")
 
 rpkid_pdus = [
   rpki.left_right.self_elt.make_pdu(      action = "get",  self_handle = my_handle),

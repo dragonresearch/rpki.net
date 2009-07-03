@@ -199,12 +199,10 @@ def PEMElement(e, tag, filename):
 
 class CA(object):
 
-  debug = True
-
-  def __init__(self, cfg, dir, cer):
+  def __init__(self, cfg, dir):
     self.cfg    = cfg
     self.dir    = dir
-    self.cer    = cer
+    self.cer    = dir + "/ca.cer"
     self.key    = dir + "/ca.key"
     self.req    = dir + "/ca.req"
     self.crl    = dir + "/ca.crl"
@@ -212,13 +210,12 @@ class CA(object):
     self.serial = dir + "/serial"
     self.crlnum = dir + "/crl_number"
 
-    self.env = { "PATH" : os.environ["PATH"], "BPKI_DIRECTORY" : dir }
+    self.env = { "PATH" : os.environ["PATH"],
+                 "BPKI_DIRECTORY" : dir,
+                 "RANDFILE" : ".OpenSSL.whines.unless.I.set.this" }
 
   def run_ca(self, *args):
     cmd = ("openssl", "ca", "-notext", "-verbose", "-batch", "-config",  self.cfg) + args
-    if self.debug:
-      print "cmd: %r" % (cmd,)
-      print "env: %r" % (self.env,)
     subprocess.check_call(cmd, env = self.env)
 
   def run_req(self, key_file, req_file):
@@ -348,8 +345,7 @@ def main():
   parents_csv_file     = cfg.get(myrpki_section, "parents_csv")
   prefix_csv_file      = cfg.get(myrpki_section, "prefix_csv")
   asn_csv_file         = cfg.get(myrpki_section, "asn_csv")
-  bpki_dir             = cfg.get(myrpki_section, "bpki_ca_directory")
-  bpki_cacert          = cfg.get(myrpki_section, "bpki_ca_certificate")
+  bpki_dir             = cfg.get(myrpki_section, "bpki_directory")
   xml_filename         = cfg.get(myrpki_section, "xml_filename")
 
   bsc_req = None
@@ -359,7 +355,7 @@ def main():
     if r:
       bsc_req = base64.b64decode(r)
 
-  bpki = CA(cfg_file, bpki_dir, bpki_cacert)
+  bpki = CA(cfg_file, bpki_dir)
   bpki.setup("/CN=%s TA" % my_handle)
 
   e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle)

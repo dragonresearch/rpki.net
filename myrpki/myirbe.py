@@ -33,7 +33,7 @@ time.tzset()
 
 rpki.log.init("myirbe")
 
-cfg_file = "myirbe.conf"
+cfg_file = "myrpki.conf"
 
 opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
 for o, a in opts:
@@ -47,12 +47,15 @@ if argv:
 
 cfg = rpki.config.parser(cfg_file, "myirbe")
 
+# This probably ought to come from the command line
 tree = lxml.etree.parse("myrpki.xml").getroot()
 rng.assertValid(tree)
 
-db = MySQLdb.connect(user   = cfg.get("sql-username"),
-                     db     = cfg.get("sql-database"),
-                     passwd = cfg.get("sql-password"))
+irdbd_cfg = rpki.config.parser(cfg.get("irdbd_conf"), "irdbd")
+
+db = MySQLdb.connect(user   = irdbd_cfg.get("sql-username"),
+                     db     = irdbd_cfg.get("sql-database"),
+                     passwd = irdbd_cfg.get("sql-password"))
 
 cur = db.cursor()
 
@@ -121,21 +124,21 @@ if hosted_cacert:
   if p.wait() != 0:
     raise RuntimeError, "Couldn't convert certificate to PEM format"
 
-bpki_rpkid = myrpki.CA(cfg_file, cfg.get("rpkid_ca_directory"), cfg.get("rpkid_ca_certificate"))
+bpki_rpkid = myrpki.CA(cfg_file, cfg.get("rpkid_ca_directory"))
 bpki_rpkid.setup("/CN=rpkid TA")
 for name in ("rpkid", "irdbd", "irbe_cli"):
   bpki_rpkid.ee("/CN=%s EE" % name, name)
 if hosted_cacert:
   bpki_rpkid.fxcert(my_handle + ".cacert.cer", hosted_cacert, restrict_pathlen = False)
 
-bpki_pubd  = myrpki.CA(cfg_file, cfg.get("pubd_ca_directory"),  cfg.get("pubd_ca_certificate"))
+bpki_pubd  = myrpki.CA(cfg_file, cfg.get("pubd_ca_directory"))
 bpki_pubd.setup("/CN=pubd TA")
 for name in ("pubd", "irbe_cli"):
   bpki_pubd.ee("/CN=%s EE" % name, name)
 if hosted_cacert:
   bpki_pubd.fxcert(my_handle + ".cacert.cer", hosted_cacert)
 
-bpki_rootd = myrpki.CA(cfg_file, cfg.get("rootd_ca_directory"), cfg.get("rootd_ca_certificate"))
+bpki_rootd = myrpki.CA(cfg_file, cfg.get("rootd_ca_directory"))
 bpki_rootd.setup("/CN=rootd TA")
 bpki_rootd.ee("/CN=rootd EE", "rootd")
 

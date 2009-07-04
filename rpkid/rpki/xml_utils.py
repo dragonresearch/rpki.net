@@ -415,3 +415,17 @@ class msg(list):
     elt = lxml.etree.Element("{%s}msg" % (self.xmlns), nsmap = self.nsmap, version = str(self.version), type = self.type)
     elt.extend([i.toXML() for i in self])
     return elt
+
+  @classmethod
+  def query(cls, *args):
+    """Create a query PDU."""
+    self = cls(*args)
+    self.type = "query"
+    return self
+
+  @classmethod
+  def reply(cls, *args):
+    """Create a reply PDU."""
+    self = cls(*args)
+    self.type = "reply"
+    return self

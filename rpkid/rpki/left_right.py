@@ -32,7 +32,6 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import traceback
 import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.xml_utils
 import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
 import rpki.publication, rpki.async
@@ -229,12 +228,12 @@ class self_elt(data_elt):
         def class_loop(class_iterator, rc):
 
           def class_update_failed(e):
-            rpki.log.error(traceback.format_exc())
+            rpki.log.traceback()
             rpki.log.warn("Couldn't update class, skipping: %s" % e)
             class_iterator()
 
           def class_create_failed(e):
-            rpki.log.error(traceback.format_exc())
+            rpki.log.traceback()
             rpki.log.warn("Couldn't create class, skipping: %s" % e)
             class_iterator()
 
@@ -259,7 +258,7 @@ class self_elt(data_elt):
         rpki.async.iterator(r_msg.payload.classes, class_loop, class_done)
 
       def list_failed(e):
-        rpki.log.error(traceback.format_exc())
+        rpki.log.traceback()
         rpki.log.warn("Couldn't get resource class list from parent %r, skipping: %s" % (parent, e))
 
       rpki.up_down.list_pdu.query(parent, got_list, list_failed)
@@ -295,7 +294,7 @@ class self_elt(data_elt):
               rpki.log.debug("Need to reissue child certificate SKI %s" % child_cert.cert.gSKI())
 
               def reissue_failed(e):
-                rpki.log.error(traceback.format_exc())
+                rpki.log.traceback()
                 rpki.log.warn("Couldn't reissue child_cert %r, skipping: %s" % (child_cert, e))
                 iterator2()
 
@@ -318,12 +317,12 @@ class self_elt(data_elt):
                 repository.withdraw(child_cert.cert, child_cert.uri(ca), iterator2, withdraw_failed)
 
               def manifest_failed(e):
-                rpki.log.error(traceback.format_exc())
+                rpki.log.traceback()
                 rpki.log.warn("Couldn't reissue manifest for %r, skipping: %s" % (ca_detail, e))
                 iterator2()
 
               def withdraw_failed(e):
-                rpki.log.error(traceback.format_exc())
+                rpki.log.traceback()
                 rpki.log.warn("Couldn't withdraw old child_cert %r, skipping: %s" % (child_cert, e))
                 iterator2()
 
@@ -335,7 +334,7 @@ class self_elt(data_elt):
         rpki.async.iterator(child_certs, loop2, iterator1)
 
       def irdb_lookup_failed(e):
-        rpki.log.error(traceback.format_exc())
+        rpki.log.traceback()
         rpki.log.warn("Couldn't look up child's resources in IRDB, skipping child %r: %s" % (child, e))
         iterator1()
 
@@ -370,7 +369,7 @@ class self_elt(data_elt):
       def loop2(iterator2, ca):
 
         def fail2(e):
-          rpki.log.error(traceback.format_exc())
+          rpki.log.traceback()
           rpki.log.warn("Couldn't regenerate CRLs and manifests for CA %r, skipping: %s" % (ca, e))
           iterator2()
 
@@ -411,7 +410,7 @@ class self_elt(data_elt):
       def roa_requests_loop(iterator, roa_request):
 
         def lose(e):
-          rpki.log.error(traceback.format_exc())
+          rpki.log.traceback()
           rpki.log.warn("Could not update ROA %r, skipping: %s" % (roa, e))
           iterator()
 
@@ -463,7 +462,7 @@ class self_elt(data_elt):
         def roa_withdraw_loop(iterator, roa):
 
           def lose(e):
-            rpki.log.error(traceback.format_exc())
+            rpki.log.traceback()
             rpki.log.warn("Could not withdraw ROA %r: %s" % (roa, e))
             iterator()
 
@@ -474,7 +473,7 @@ class self_elt(data_elt):
       rpki.async.iterator(roa_requests, roa_requests_loop, roa_requests_done)
 
     def roa_requests_failed(e):
-      rpki.log.error(traceback.format_exc())
+      rpki.log.traceback()
       rpki.log.warn("Could not fetch ROA requests for %s, skipping: %s" % (self.self_handle, e))
       cb()
 
@@ -557,8 +556,7 @@ class repository_elt(data_elt):
     """
     rpki.log.trace()
     bsc = self.bsc()
-    q_msg = rpki.publication.msg(pdus)
-    q_msg.type = "query"
+    q_msg = rpki.publication.msg.query(pdus)
     q_cms = rpki.publication.cms_msg.wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
     bpki_ta_path = (self.gctx.bpki_ta, self.self().bpki_cert, self.self().bpki_glue, self.bpki_https_cert, self.bpki_https_glue)
 
@@ -795,7 +793,7 @@ class child_elt(data_elt):
     except rpki.exceptions.NoActiveCA, data:
       done(q_msg.serve_error(data))
     except Exception, data:
-      rpki.log.error(traceback.format_exc())
+      rpki.log.traceback()
       done(q_msg.serve_error(data))
 
 class list_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
@@ -862,12 +860,13 @@ class report_error_elt(rpki.xml_utils.base_elt, left_right_namespace):
   attributes = ("tag", "self_handle", "error_code")
 
   @classmethod
-  def from_exception(cls, e, self_handle = None):
+  def from_exception(cls, e, self_handle = None, tag = None):
     """
     Generate a <report_error/> element from an exception.
     """
     self = cls()
     self.self_handle = self_handle
+    self.tag = tag
     self.error_code = e.__class__.__name__
     self.text = str(e)
     return self
@@ -892,14 +891,14 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
     """
     Serve one msg PDU.
     """
-    r_msg = self.__class__()
-    r_msg.type = "reply"
+
+    r_msg = self.__class__.reply()
 
     def loop(iterator, q_pdu):
 
       def fail(e):
-        rpki.log.error(traceback.format_exc())
-        r_msg.append(report_error_elt.from_exception(e, self_handle = q_pdu.self_handle))
+        rpki.log.traceback()
+        r_msg.append(report_error_elt.from_exception(e, self_handle = q_pdu.self_handle, tag = q_pdu.tag))
         cb(r_msg)
 
       try:

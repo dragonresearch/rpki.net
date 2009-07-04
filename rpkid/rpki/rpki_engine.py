@@ -32,7 +32,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import traceback, lxml.etree, re
+import lxml.etree, re
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
 import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log, rpki.async
 
@@ -65,8 +65,7 @@ class rpkid_context(object):
 
     rpki.log.trace()
 
-    q_msg = rpki.left_right.msg()
-    q_msg.type = "query"
+    q_msg = rpki.left_right.msg.query()
     q_msg.append(q_pdu)
     q_cms = rpki.left_right.cms_msg.wrap(q_msg, self.rpkid_key, self.rpkid_cert)
 
@@ -144,7 +143,7 @@ class rpkid_context(object):
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, data:
-      rpki.log.error(traceback.format_exc())
+      rpki.log.traceback()
       cb(500, "Unhandled exception %s" % data)
 
   up_down_url_regexp = re.compile("/up-down/([-A-Z0-9_]+)/([-A-Z0-9_]+)$", re.I)
@@ -174,7 +173,7 @@ class rpkid_context(object):
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, data:
-      rpki.log.error(traceback.format_exc())
+      rpki.log.traceback()
       cb(400, "Could not process PDU: %s" % data)
 
   def cronjob_handler(self, query, path, cb):
@@ -396,7 +395,7 @@ class ca_obj(rpki.sql.sql_persistent):
     """
 
     def fail(e):
-      rpki.log.error(traceback.format_exc())
+      rpki.log.traceback()
       rpki.log.warn("Could not delete CA %r, skipping: %s" % (self, e))
       callback()
 
@@ -1119,7 +1118,7 @@ class roa_obj(rpki.sql.sql_persistent):
     """
 
     def lose(e):
-      rpki.log.error(traceback.format_exc())
+      rpki.log.traceback()
       rpki.log.warn("Could not update ROA %r, skipping: %s" % (self, e))
       callback()
       return

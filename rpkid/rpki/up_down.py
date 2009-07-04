@@ -32,8 +32,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import base64, lxml.etree, traceback
-import rpki.resource_set, rpki.x509, rpki.exceptions
+import base64, lxml.etree
+import rpki.resource_set, rpki.x509, rpki.exceptions, rpki.log
 import rpki.xml_utils, rpki.relaxng
 
 xmlns = "http://www.apnic.net/specs/rescerts/up-down/"
@@ -620,7 +620,7 @@ class message_pdu(base_elt):
       callback(r_msg)
 
     def lose(e):
-      rpki.log.error(traceback.format_exc())
+      rpki.log.traceback()
       callback(self.serve_error(e))
 
     try:

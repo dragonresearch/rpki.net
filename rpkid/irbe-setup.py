@@ -51,8 +51,7 @@ def call_rpkid(pdu):
   exception if anything bad happens, no fancy error handling.
   """
 
-  msg = rpki.left_right.msg((pdu,))
-  msg.type = "query"
+  msg = rpki.left_right.msg.query((pdu,))
   cms = rpki.left_right.cms_msg.wrap(msg, irbe_key, irbe_cert)
   der = rpki.https.client(client_key   = irbe_key,
                           client_cert  = irbe_cert,

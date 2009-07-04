@@ -38,7 +38,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import traceback, os, time, getopt, sys
+import os, time, getopt, sys
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
 import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng
 import rpki.sundial, rpki.log
@@ -205,7 +205,7 @@ def up_down_handler(query, path, cb):
   except (rpki.async.ExitNow, SystemExit):
     raise
   except Exception, data:
-    rpki.log.error(traceback.format_exc())
+    rpki.log.traceback()
     return cb(400, "Could not process PDU: %s" % data)
 
   def done(r_msg):
@@ -217,13 +217,13 @@ def up_down_handler(query, path, cb):
   except (rpki.async.ExitNow, SystemExit):
     raise
   except Exception, data:
-    rpki.log.error(traceback.format_exc())
+    rpki.log.traceback()
     try:
       done(q_msg.serve_error(data))
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, data:
-      rpki.log.error(traceback.format_exc())
+      rpki.log.traceback()
       cb(500, "Could not process PDU: %s" % data)
 
 os.environ["TZ"] = "UTC"

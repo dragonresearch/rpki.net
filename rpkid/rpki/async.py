@@ -156,7 +156,7 @@ class timer(object):
     Error callback.  May be overridden, or set with set_errback().
     """
     rpki.log.error("Unhandled exception from timer: %s" % e)
-    rpki.log.error(traceback.format_exc())
+    rpki.log.traceback()
 
   def set_errback(self, errback):
     """Set a timer's errback.  Like set_handler(), for errbacks."""

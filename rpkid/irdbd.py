@@ -36,7 +36,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, os, time, getopt, urlparse, traceback, MySQLdb
+import sys, os, time, getopt, urlparse, MySQLdb
 import rpki.https, rpki.config, rpki.resource_set, rpki.relaxng
 import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509
 
@@ -116,8 +116,7 @@ def handler(query, path, cb):
     if not isinstance(q_msg, rpki.left_right.msg) or q_msg.type != "query":
       raise rpki.exceptions.BadQuery, "Unexpected %s PDU" % repr(q_msg)
 
-    r_msg = rpki.left_right.msg()
-    r_msg.type = "reply"
+    r_msg = rpki.left_right.msg.reply()
 
     for q_pdu in q_msg:
 
@@ -128,8 +127,8 @@ def handler(query, path, cb):
           raise rpki.exceptions.BadQuery, "Unexpected %s PDU" % repr(q_pdu)
 
       except Exception, data:
-        rpki.log.error(traceback.format_exc())
-        r_msg.append(rpki.left_right.report_error_elt.from_exception(data, q_pdu.self_handle))
+        rpki.log.traceback()
+        r_msg.append(rpki.left_right.report_error_elt.from_exception(data, q_pdu.self_handle, q_pdu.tag))
 
     cb(200, rpki.left_right.cms_msg.wrap(r_msg, irdbd_key, irdbd_cert))
 
@@ -137,7 +136,7 @@ def handler(query, path, cb):
     raise
 
   except Exception, data:
-    rpki.log.error(traceback.format_exc())
+    rpki.log.traceback()
 
     # We only get here in cases where we couldn't or wouldn't generate
     # <report_error/>, so just return HTTP failure.

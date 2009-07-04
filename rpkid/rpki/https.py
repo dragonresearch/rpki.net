@@ -36,7 +36,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import time, socket, asyncore, asynchat, traceback, urlparse, sys
+import time, socket, asyncore, asynchat, urlparse, sys
 import rpki.async, rpki.sundial, rpki.x509, rpki.exceptions, rpki.log
 import POW
 
@@ -270,7 +270,7 @@ class http_stream(asynchat.async_chat):
       raise
     else:
       self.log("Error in HTTP stream handler")
-      print traceback.format_exc()
+      rpki.log.traceback()
       self.log("Closing due to error")
       self.close()
 
@@ -427,7 +427,7 @@ class http_server(http_stream):
       except (rpki.async.ExitNow, SystemExit):
         raise
       except Exception, edata:
-        print traceback.format_exc()
+        rpki.log.traceback()
         self.send_error(500, "Unhandled exception %s" % edata)
     else:
       self.send_error(code = error[0], reason = error[1])
@@ -491,7 +491,7 @@ class http_listener(asyncore.dispatcher):
       raise
     else:
       self.log("Error in HTTP listener")
-      print traceback.format_exc()
+      rpki.log.traceback()
 
 class http_client(http_stream):
 
@@ -673,7 +673,7 @@ class http_queue(object):
       raise
     except:
       self.log("Unhandled exception from callback")
-      rpki.log.error(traceback.format_exc())
+      rpki.log.traceback()
 
     self.log("Queue: %r" % self.queue)
 

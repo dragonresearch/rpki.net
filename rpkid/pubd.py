@@ -38,7 +38,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import traceback, os, time, getopt, sys, re
+import os, time, getopt, sys, re
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
 import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log
 import rpki.publication
@@ -90,7 +90,7 @@ class pubd_context(object):
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, data:
-      rpki.log.error(traceback.format_exc())
+      rpki.log.traceback()
       cb(500, "Unhandled exception %s" % data)
 
   client_url_regexp = re.compile("/client/([-A-Z0-9_]+)$", re.I)
@@ -120,7 +120,7 @@ class pubd_context(object):
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, data:
-      rpki.log.error(traceback.format_exc())
+      rpki.log.traceback()
       cb(500, "Could not process PDU: %s" % data)
 
   ## @var https_ta_cache

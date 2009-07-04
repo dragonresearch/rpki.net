@@ -32,7 +32,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import base64, os, traceback
+import base64, os
 import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.xml_utils
 import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
 
@@ -288,11 +288,12 @@ class report_error_elt(rpki.xml_utils.base_elt, publication_namespace):
   attributes = ("tag", "error_code")
 
   @classmethod
-  def from_exception(cls, exc):
+  def from_exception(cls, exc, tag = None):
     """
     Generate a <report_error/> element from an exception.
     """
     self = cls()
+    self.tag = tag
     self.error_code = exc.__class__.__name__
     return self
 
@@ -322,8 +323,8 @@ class msg(rpki.xml_utils.msg, publication_namespace):
     def loop(iterator, q_pdu):
 
       def fail(e):
-        rpki.log.error(traceback.format_exc())
-        r_msg.append(report_error_elt.from_exception(e))
+        rpki.log.traceback()
+        r_msg.append(report_error_elt.from_exception(e, q_pdu.tag))
         cb(r_msg)
 
       try:

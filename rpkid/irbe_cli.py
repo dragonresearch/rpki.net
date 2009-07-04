@@ -282,11 +282,8 @@ if not argv:
 
 cfg = rpki.config.parser(cfg_file, "irbe_cli")
 
-q_msg_left_right = left_right_msg()
-q_msg_left_right.type = "query"
-
-q_msg_publication = publication_msg()
-q_msg_publication.type = "query"
+q_msg_left_right  = left_right_msg.query()
+q_msg_publication = publication_msg.query()
 
 while argv:
   if argv[0] in left_right_msg.pdus:

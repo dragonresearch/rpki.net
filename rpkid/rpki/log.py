@@ -32,7 +32,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import syslog, traceback, sys, os, time
+import syslog, sys, os, time
+import traceback as tb
 
 ## @var enable_trace
 # Whether call tracing is enabled.
@@ -93,5 +94,14 @@ def trace():
   """
 
   if enable_trace:
-    bt = traceback.extract_stack(limit = 3)
+    bt = tb.extract_stack(limit = 3)
     return debug("[%s() at %s:%d from %s:%d]" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
+
+def traceback():
+  """
+  Consolidated backtrace facility with a bit of extra info.
+  """
+
+  bt = tb.extract_stack(limit = 3)
+  error("Exception caught in %s() at %s:%d called from %s:%d" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
+  error(tb.format_exc())

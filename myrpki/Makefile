@@ -35,3 +35,6 @@ format: myrpki.xml
 
 graph:
 	for b in  bpki.myrpki bpki.rpkid bpki.pubd bpki.rootd; do python ../scripts/x509-dot.py $$b | dot -T ps2 | ps2pdf - $$b/graph.pdf; done
+
+verify:
+	sh verify-bpki.sh

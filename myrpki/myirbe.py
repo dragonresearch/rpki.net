@@ -43,7 +43,7 @@ class caller(object):
   def __call__(self, cb, eb, pdus):
 
     def done(cms):
-      msg, xml = rpki.left_right.cms_msg.unwrap(cms, (self.server_ta, self.server_cert), pretty_print = True)
+      msg, xml = self.proto.cms_msg.unwrap(cms, (self.server_ta, self.server_cert), pretty_print = True)
       if self.debug:
         print "Reply:", xml
       cb(msg)
@@ -192,12 +192,12 @@ call_rpkid = rpki.async.sync_wrapper(caller(
   url         = "https://localhost:4404/left-right"))
 
 call_pubd = rpki.async.sync_wrapper(caller(
-  proto       = rpki.left_right,
+  proto       = rpki.publication,
   client_key  = rpki.x509.RSA(PEM_file = bpki_pubd.dir + "/irbe_cli.key"),
   client_cert = rpki.x509.X509(PEM_file = bpki_pubd.dir + "/irbe_cli.cer"),
   server_ta   = rpki.x509.X509(PEM_file = bpki_pubd.cer),
   server_cert = rpki.x509.X509(PEM_file = bpki_pubd.dir + "/pubd.cer"),
-  url         = "https://localhost:4404/left-right"))
+  url         = "https://localhost:4402/control"))
 
 rpkid_pdus = [
   rpki.left_right.self_elt.make_pdu(      action = "get",  tag = "self",       self_handle = my_handle),
@@ -207,9 +207,11 @@ rpkid_pdus = [
   rpki.left_right.repository_elt.make_pdu(action = "list", tag = "repository", self_handle = my_handle) ]
 
 pubd_pdus = [
-  rpki.publication.client_elt.make_pdu(   action = "get", client_handle = my_handle) ]
+  rpki.publication.client_elt.make_pdu(   action = "get", tag = "client",    client_handle = my_handle) ]
 
 call_rpkid(rpkid_pdus)
+
+call_pubd(pubd_pdus)
 
 def showcerts():
 

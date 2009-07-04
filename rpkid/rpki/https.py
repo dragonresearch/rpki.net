@@ -46,10 +46,10 @@ rpki_content_type = "application/x-rpki"
 # ================================================================
 
 # Chatter about TLS certificates
-debug_tls_certs = False
+debug_tls_certs = True
 
 # Verbose chatter about HTTP streams
-debug = False
+debug = True
 
 # Whether we want persistent HTTP streams, when peer also supports them
 want_persistent_client = True
@@ -440,6 +440,8 @@ class http_server(http_stream):
 
   def send_message(self, code, reason = "OK", body = None):
     self.log("Sending response %s %s" % (code, reason))
+    if code >= 400:
+      self.expect_close = True
     msg = http_response(code = code, reason = reason, body = body,
                         Content_Type = rpki_content_type,
                         Connection = "Close" if self.expect_close else "Keep-Alive")

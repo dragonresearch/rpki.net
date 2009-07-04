@@ -315,10 +315,9 @@ class msg(rpki.xml_utils.msg, publication_namespace):
     """
     Serve one msg PDU.
     """
-    if self.type != "query":
+    if not self.is_query():
       raise rpki.exceptions.BadQuery, "Message type is not query"
-    r_msg = self.__class__()
-    r_msg.type = "reply"
+    r_msg = self.__class__.reply()
 
     def loop(iterator, q_pdu):
 

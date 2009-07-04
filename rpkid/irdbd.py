@@ -113,7 +113,7 @@ def handler(query, path, cb):
 
     q_msg = rpki.left_right.cms_msg.unwrap(query, (bpki_ta, rpkid_cert))
 
-    if not isinstance(q_msg, rpki.left_right.msg) or q_msg.type != "query":
+    if not isinstance(q_msg, rpki.left_right.msg) or not q_msg.is_query():
       raise rpki.exceptions.BadQuery, "Unexpected %s PDU" % repr(q_msg)
 
     r_msg = rpki.left_right.msg.reply()

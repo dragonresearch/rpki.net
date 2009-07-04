@@ -60,7 +60,7 @@ def call_rpkid(pdu):
                           msg          = cms)
   msg = rpki.left_right.cms_msg.unwrap(der, (bpki_ta, rpkid_cert))
   pdu = msg[0]
-  assert len(msg) == 1 and msg.type == "reply" and not isinstance(pdu, rpki.left_right.report_error_elt)
+  assert len(msg) == 1 and msg.is_reply() and not isinstance(pdu, rpki.left_right.report_error_elt)
   return pdu
 
 print "Create a self instance"

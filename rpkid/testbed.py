@@ -771,7 +771,7 @@ class allocation(object):
       msg, xml = rpki.left_right.cms_msg.unwrap(val, (self.rpkid_ta, self.rpkid_cert),
                                                 pretty_print = True)
       rpki.log.debug(xml)
-      assert msg.type == "reply"
+      assert msg.is_reply()
       for pdu in msg:
         assert not isinstance(pdu, rpki.left_right.report_error_elt)
       cb(msg)
@@ -1155,7 +1155,7 @@ def call_pubd(pdus, cb):
     msg, xml = rpki.publication.cms_msg.unwrap(val, (pubd_ta, pubd_pubd_cert),
                                                pretty_print = True)
     rpki.log.debug(xml)
-    assert msg.type == "reply"
+    assert msg.is_reply()
     for pdu in msg:
       assert not isinstance(pdu, rpki.publication.report_error_elt)
     cb(msg)

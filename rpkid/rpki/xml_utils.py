@@ -429,3 +429,11 @@ class msg(list):
     self = cls(*args)
     self.type = "reply"
     return self
+
+  def is_query(self):
+    """Is this msg a query?"""
+    return self.type == "query"
+
+  def is_reply(self):
+    """Is this msg a reply?"""
+    return self.type == "reply"

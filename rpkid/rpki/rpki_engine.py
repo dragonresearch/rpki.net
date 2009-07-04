@@ -71,7 +71,7 @@ class rpkid_context(object):
 
     def unwrap(der):
       r_msg = rpki.left_right.cms_msg.unwrap(der, (self.bpki_ta, self.irdb_cert))
-      if r_msg.type != "reply" or [r_pdu for r_pdu in r_msg if type(r_pdu) is not type(q_pdu)]:
+      if not r_msg.is_reply() or [r_pdu for r_pdu in r_msg if type(r_pdu) is not type(q_pdu)]:
         errback(rpki.exceptions.BadIRDBReply(
           "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")))
       else:
@@ -137,7 +137,7 @@ class rpkid_context(object):
     try:
       self.sql.ping()
       q_msg = rpki.left_right.cms_msg.unwrap(query, (self.bpki_ta, self.irbe_cert))
-      if q_msg.type != "query":
+      if not q_msg.is_query():
         raise rpki.exceptions.BadQuery, "Message type is not query"
       q_msg.serve_top_level(self, done)
     except (rpki.async.ExitNow, SystemExit):

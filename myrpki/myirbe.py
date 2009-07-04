@@ -20,13 +20,47 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import lxml.etree, base64, subprocess, sys, os, time, getopt, MySQLdb
 import rpki.https, rpki.config, rpki.resource_set, rpki.relaxng
-import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509
+import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509, rpki.async
 import myrpki
 
 rng = lxml.etree.RelaxNG(lxml.etree.parse("myrpki.rng"))
 
 def tag(t):
   return "{http://www.hactrn.net/uris/rpki/myrpki/}" + t
+
+class caller(object):
+
+  debug = True
+
+  def __init__(self, proto, client_key, client_cert, server_ta, server_cert, url):
+    self.proto = proto
+    self.client_key = client_key
+    self.client_cert = client_cert
+    self.server_ta = server_ta
+    self.server_cert = server_cert
+    self.url = url
+
+  def __call__(self, cb, eb, pdus):
+
+    def done(cms):
+      msg, xml = rpki.left_right.cms_msg.unwrap(cms, (self.server_ta, self.server_cert), pretty_print = True)
+      if self.debug:
+        print "Reply:", xml
+      cb(msg)
+
+    msg = self.proto.msg.query(pdus)
+    cms, xml = self.proto.cms_msg.wrap(msg, self.client_key, self.client_cert, pretty_print = True)
+    if self.debug:
+      print "Query:", xml
+
+    rpki.https.client(
+      client_key   = self.client_key,
+      client_cert  = self.client_cert,
+      server_ta    = self.server_ta,
+      url          = self.url,
+      msg          = cms,
+      callback     = done,
+      errback      = eb)
 
 os.environ["TZ"] = "UTC"
 time.tzset()
@@ -146,23 +180,36 @@ if hosted_cacert:
   hosted_cacert = p.communicate(base64.b64decode(hosted_cacert))[0]
   if p.wait() != 0:
     raise RuntimeError, "Couldn't convert certificate to PEM format"
-
-
-if hosted_cacert:
   bpki_rpkid.fxcert(my_handle + ".cacert.cer", hosted_cacert, path_restriction = 1)
-
-if hosted_cacert:
   bpki_pubd.fxcert(my_handle + ".cacert.cer", hosted_cacert)
 
+call_rpkid = rpki.async.sync_wrapper(caller(
+  proto       = rpki.left_right,
+  client_key  = rpki.x509.RSA(PEM_file = bpki_rpkid.dir + "/irbe_cli.key"),
+  client_cert = rpki.x509.X509(PEM_file = bpki_rpkid.dir + "/irbe_cli.cer"),
+  server_ta   = rpki.x509.X509(PEM_file = bpki_rpkid.cer),
+  server_cert = rpki.x509.X509(PEM_file = bpki_rpkid.dir + "/rpkid.cer"),
+  url         = "https://localhost:4404/left-right"))
+
+call_pubd = rpki.async.sync_wrapper(caller(
+  proto       = rpki.left_right,
+  client_key  = rpki.x509.RSA(PEM_file = bpki_pubd.dir + "/irbe_cli.key"),
+  client_cert = rpki.x509.X509(PEM_file = bpki_pubd.dir + "/irbe_cli.cer"),
+  server_ta   = rpki.x509.X509(PEM_file = bpki_pubd.cer),
+  server_cert = rpki.x509.X509(PEM_file = bpki_pubd.dir + "/pubd.cer"),
+  url         = "https://localhost:4404/left-right"))
+
 rpkid_pdus = [
-  rpki.left_right.self_elt.make_pdu(      action = "get",  self_handle = my_handle),
-  rpki.left_right.bsc_elt.make_pdu(       action = "list", self_handle = my_handle),
-  rpki.left_right.parent_elt.make_pdu(    action = "list", self_handle = my_handle),
-  rpki.left_right.child_elt.make_pdu(     action = "list", self_handle = my_handle),
-  rpki.left_right.repository_elt.make_pdu(action = "list", self_handle = my_handle) ]
+  rpki.left_right.self_elt.make_pdu(      action = "get",  tag = "self",       self_handle = my_handle),
+  rpki.left_right.bsc_elt.make_pdu(       action = "list", tag = "bsc",        self_handle = my_handle),
+  rpki.left_right.parent_elt.make_pdu(    action = "list", tag = "parent",     self_handle = my_handle),
+  rpki.left_right.child_elt.make_pdu(     action = "list", tag = "child",      self_handle = my_handle),
+  rpki.left_right.repository_elt.make_pdu(action = "list", tag = "repository", self_handle = my_handle) ]
 
 pubd_pdus = [
   rpki.publication.client_elt.make_pdu(   action = "get", client_handle = my_handle) ]
+
+call_rpkid(rpkid_pdus)
 
 def showcerts():
 

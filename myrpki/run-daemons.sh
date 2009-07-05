@@ -3,6 +3,8 @@
 
 set -x
 
+cd `dirname $0`
+
 if test -z "$STY"
 then
 

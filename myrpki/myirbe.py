@@ -175,13 +175,16 @@ db.commit()
 db.close()
 
 hosted_cacert = tree.findtext(tag("bpki_ca_certificate"))
-if hosted_cacert:
-  p = subprocess.Popen(("openssl", "x509", "-inform", "DER"), stdin = subprocess.PIPE, stdout = subprocess.PIPE)
-  hosted_cacert = p.communicate(base64.b64decode(hosted_cacert))[0]
-  if p.wait() != 0:
-    raise RuntimeError, "Couldn't convert certificate to PEM format"
-  bpki_rpkid.fxcert(my_handle + ".cacert.cer", hosted_cacert, path_restriction = 1)
-  bpki_pubd.fxcert(my_handle + ".cacert.cer", hosted_cacert)
+if not hosted_cacert:
+  print "Nothing else I can do without a trust anchor for the entity I'm hosting."
+  sys.exit()
+
+p = subprocess.Popen(("openssl", "x509", "-inform", "DER"), stdin = subprocess.PIPE, stdout = subprocess.PIPE)
+hosted_cacert = p.communicate(base64.b64decode(hosted_cacert))[0]
+if p.wait() != 0:
+  raise RuntimeError, "Couldn't convert certificate to PEM format"
+rpkid_xcert = rpki.x509.X509(PEM_file = bpki_rpkid.fxcert(my_handle + ".cacert.cer", hosted_cacert, path_restriction = 1))
+pubd_xcert  = rpki.x509.X509(PEM_file = bpki_pubd.fxcert(my_handle + ".cacert.cer", hosted_cacert))
 
 call_rpkid = rpki.async.sync_wrapper(caller(
   proto       = rpki.left_right,
@@ -199,15 +202,34 @@ call_pubd = rpki.async.sync_wrapper(caller(
   server_cert = rpki.x509.X509(PEM_file = bpki_pubd.dir + "/pubd.cer"),
   url         = "https://localhost:4402/control"))
 
+pubd_reply = call_pubd((
+  rpki.publication.client_elt.make_pdu(action = "get", tag = "client", client_handle = my_handle),))
+
+# This needs to be https://some/where/hosting-entity's-handle/hosted-entity's-handle/
+# or something like that.
+pubd_base_uri = "https://i-need-to-specify-this.example/"
+
+if isinstance(pubd_reply[0], rpki.publication.report_error_elt):
+  call_pubd((rpki.publication.client_elt.make_pdu(
+    action = "create",
+    tag = "client",
+    client_handle = my_handle,
+    bpki_cert = pubd_xcert,
+    base_uri = pubd_base_uri),))
+elif pubd_reply[0].base_uri != pubd_base_uri or pubd_reply[0].bpki_cert != pubd_xcert:
+  call_pubd((rpki.publication.client_elt.make_pdu(
+    action = "set",
+    tag = "client",
+    client_handle = my_handle,
+    bpki_cert = pubd_xcert,
+    base_uri = pubd_base_uri),))
+
 call_rpkid((
   rpki.left_right.self_elt.make_pdu(      action = "get",  tag = "self",       self_handle = my_handle),
   rpki.left_right.bsc_elt.make_pdu(       action = "list", tag = "bsc",        self_handle = my_handle),
   rpki.left_right.parent_elt.make_pdu(    action = "list", tag = "parent",     self_handle = my_handle),
   rpki.left_right.child_elt.make_pdu(     action = "list", tag = "child",      self_handle = my_handle),
   rpki.left_right.repository_elt.make_pdu(action = "list", tag = "repository", self_handle = my_handle)))
-
-call_pubd((
-  rpki.publication.client_elt.make_pdu(action = "get", tag = "client", client_handle = my_handle),))
 
 def showcerts():
 

@@ -28,6 +28,10 @@ rng = lxml.etree.RelaxNG(lxml.etree.parse("myrpki.rng"))
 def tag(t):
   return "{http://www.hactrn.net/uris/rpki/myrpki/}" + t
 
+def findbase64(tree, name, b64type = rpki.x509.X509):
+  x = tree.findtext(tag(name))
+  return b64type(Base64 = x) if x else None
+
 class caller(object):
 
   debug = True
@@ -179,6 +183,13 @@ if not hosted_cacert:
   print "Nothing else I can do without a trust anchor for the entity I'm hosting."
   sys.exit()
 
+# Various parameters that ought to come out of a config or xml file eventually
+#
+pubd_base_uri = "https://i-need-to-specify-this.example/"
+self_crl_interval = 300
+self_regen_margin = 120
+bsc_handle = "bsc"
+
 p = subprocess.Popen(("openssl", "x509", "-inform", "DER"), stdin = subprocess.PIPE, stdout = subprocess.PIPE)
 hosted_cacert = p.communicate(base64.b64decode(hosted_cacert))[0]
 if p.wait() != 0:
@@ -205,31 +216,79 @@ call_pubd = rpki.async.sync_wrapper(caller(
 pubd_reply = call_pubd((
   rpki.publication.client_elt.make_pdu(action = "get", tag = "client", client_handle = my_handle),))
 
-# This needs to be https://some/where/hosting-entity's-handle/hosted-entity's-handle/
-# or something like that.
-pubd_base_uri = "https://i-need-to-specify-this.example/"
+client_pdu = pubd_reply[0]
 
-if isinstance(pubd_reply[0], rpki.publication.report_error_elt):
-  call_pubd((rpki.publication.client_elt.make_pdu(
-    action = "create",
+if isinstance(client_pdu, rpki.publication.report_error_elt) or client_pdu.base_uri != pubd_base_uri or client_pdu.bpki_cert != pubd_xcert:
+  pubd_reply = call_pubd((rpki.publication.client_elt.make_pdu(
+    action = "create" if isinstance(client_pdu, rpki.publication.report_error_elt) else "set",
     tag = "client",
     client_handle = my_handle,
     bpki_cert = pubd_xcert,
     base_uri = pubd_base_uri),))
-elif pubd_reply[0].base_uri != pubd_base_uri or pubd_reply[0].bpki_cert != pubd_xcert:
-  call_pubd((rpki.publication.client_elt.make_pdu(
-    action = "set",
-    tag = "client",
-    client_handle = my_handle,
-    bpki_cert = pubd_xcert,
-    base_uri = pubd_base_uri),))
+  assert len(pubd_reply) == 1 and isinstance(pubd_reply[0], rpki.publication.client_elt) and pubd_reply[0].client_handle == my_handle
 
-call_rpkid((
+rpkid_reply = call_rpkid((
   rpki.left_right.self_elt.make_pdu(      action = "get",  tag = "self",       self_handle = my_handle),
   rpki.left_right.bsc_elt.make_pdu(       action = "list", tag = "bsc",        self_handle = my_handle),
   rpki.left_right.parent_elt.make_pdu(    action = "list", tag = "parent",     self_handle = my_handle),
   rpki.left_right.child_elt.make_pdu(     action = "list", tag = "child",      self_handle = my_handle),
   rpki.left_right.repository_elt.make_pdu(action = "list", tag = "repository", self_handle = my_handle)))
+
+self_pdu        = rpkid_reply[0]
+bsc_pdus        = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
+parent_pdus     = dict((x.parent_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.parent_elt))
+child_pdus      = dict((x.child_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.child_elt))
+repository_pdus = dict((x.repository_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.repository_elt))
+
+rpkid_query = []
+
+if (isinstance(self_pdu, rpki.left_right.report_error_elt) or
+    self_pdu.crl_interval != self_crl_interval or
+    self_pdu.regen_margin != self_regen_margin or
+    self_pdu.bpki_cert != pubd_xcert):
+  rpkid_query.append(rpki.left_right.self_elt.make_pdu(
+    action = "create" if isinstance(self_pdu, rpki.left_right.report_error_elt) else "set",
+    tag = "self",
+    self_handle = my_handle,
+    bpki_cert = pubd_xcert,
+    crl_interval = self_crl_interval,
+    regen_margin = self_regen_margin))
+
+bsc_cert = findbase64(tree, "bpki_bsc_certificate")
+bsc_crl  = findbase64(tree, "bpki_crl", rpki.x509.CRL)
+
+if bsc_handle not in bsc_pdus:
+  rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(
+    action = "create",
+    self_handle = my_handle,
+    bsc_handle = bsc_handle,
+    generate_keypair = "yes"))
+elif bsc_pdus[bsc_handle].signing_cert != bsc_cert or bsc_pdus[bsc_handle].signing_cert_crl != bsc_crl:
+  rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(
+    action = "set",
+    self_handle = my_handle,
+    bsc_handle = bsc_handle,
+    signing_cert = bsc_cert,
+    signing_cert_crl = bsc_crl))
+
+for h in bsc_pdus:
+  if h != bsc_handle:
+    rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(
+      action = "destroy",
+      self_handle = my_handle,
+      bsc_handle = h))
+
+bsc_req = None
+
+if bsc_handle in bsc_pdus and bsc_pdus[bsc_handle].pkcs10_request:
+  bsc_req = bsc_pdus[bsc_handle].pkcs10_request
+
+rpkid_reply = call_rpkid(rpkid_query)
+
+bsc_pdus = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
+
+if bsc_handle in bsc_pdus and bsc_pdus[bsc_handle].pkcs10_request:
+  bsc_req = bsc_pdus[bsc_handle].pkcs10_request
 
 def showcerts():
 

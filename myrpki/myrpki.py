@@ -268,10 +268,14 @@ class CA(object):
     else:
       return False
 
-  def bsc(self, e, pkcs10):
+  def bsc(self, pkcs10):
 
     if pkcs10 is None:
-      return
+      return None, None
+    
+    pkcs10 = base64.b64decode(pkcs10)
+
+    assert pkcs10
 
     p = subprocess.Popen(("openssl", "dgst", "-md5"), stdin = subprocess.PIPE, stdout = subprocess.PIPE)
     hash = p.communicate(pkcs10)[0].strip()
@@ -286,12 +290,11 @@ class CA(object):
       p = subprocess.Popen(("openssl", "req", "-inform", "DER", "-out", req_file), stdin = subprocess.PIPE)
       p.communicate(pkcs10)
       if p.wait() != 0:
-        raise RuntimeError, "Couldn't save PKCS #10 in PEM format"
+        raise RuntimeError, "Couldn't store PKCS #10 request"
 
       self.run_ca("-extensions", "ca_x509_ext_ee", "-in", req_file, "-out", cer_file)
 
-    PEMElement(e, "bpki_bsc_certificate", cer_file)
-    PEMElement(e, "bpki_bsc_pkcs10",      req_file)
+    return req_file, cer_file
 
   def fxcert(self, filename, cert, path_restriction = 0):
     fn = os.path.join(self.dir, filename)
@@ -358,15 +361,14 @@ def main():
   bpki_dir             = cfg.get(myrpki_section, "bpki_directory")
   xml_filename         = cfg.get(myrpki_section, "xml_filename")
 
-  bsc_req = None
-  if os.path.exists(xml_filename):
-    e = ElementTree(file = xml_filename).getroot()
-    r = e.findtext("{%s}%s" % (namespace, "bpki_bsc_pkcs10"))
-    if r:
-      bsc_req = base64.b64decode(r)
-
   bpki = CA(cfg_file, bpki_dir)
   bpki.setup("/CN=%s TA" % my_handle)
+
+  if os.path.exists(xml_filename):
+    e = ElementTree(file = xml_filename).getroot()
+    bsc_req, bsc_cer = bpki.bsc(e.findtext("{%s}%s" % (namespace, "bpki_bsc_pkcs10")))
+  else:
+    bsc_req, bsc_cer = None, None
 
   e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle)
 
@@ -385,7 +387,11 @@ def main():
   PEMElement(e, "bpki_ca_certificate", bpki.cer)
   PEMElement(e, "bpki_crl",            bpki.crl)
 
-  bpki.bsc(e, bsc_req)
+  if bsc_cer:
+    PEMElement(e, "bpki_bsc_certificate", bsc_cer)
+
+  if bsc_req:
+    PEMElement(e, "bpki_bsc_pkcs10", bsc_req)
 
   ElementTree(e).write(xml_filename + ".tmp")
   os.rename(xml_filename + ".tmp", xml_filename)

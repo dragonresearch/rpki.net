@@ -258,6 +258,7 @@ class data_elt(base_elt):
       handle_name = self.element_name + "_handle"
       setattr(r_pdu, handle_name, getattr(self, handle_name, None))
     else:
+      self.make_reply_clone_hook(r_pdu)
       for b in r_pdu.booleans:
         setattr(r_pdu, b, False)
     r_pdu.action = self.action

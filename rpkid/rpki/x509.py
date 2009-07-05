@@ -197,8 +197,17 @@ class DER_object(object):
     return self.pem_converter.to_PEM(self.get_DER())
 
   def __cmp__(self, other):
-    """Compare two DER-encoded objects."""
-    return cmp(self.get_DER(), other.get_DER())
+    """
+    Compare two DER-encoded objects.
+    """
+    if self is None and other is None:
+      return 0
+    elif self is None:
+      return -1
+    elif other is None:
+      return 1
+    else:
+      return cmp(self.get_DER(), other.get_DER())
 
   def hSKI(self):
     """

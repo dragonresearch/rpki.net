@@ -316,7 +316,7 @@ class data_elt(base_elt):
     db_pdu = self.serve_fetch_one()
     r_pdu = self.make_reply()
     for a in db_pdu.sql_template.columns[1:]:
-      v = getattr(self, a)
+      v = getattr(self, a, None)
       if v is not None:
         setattr(db_pdu, a, v)
     db_pdu.sql_mark_dirty()

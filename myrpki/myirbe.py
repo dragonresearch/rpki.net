@@ -32,7 +32,16 @@ def findbase64(tree, name, b64type = rpki.x509.X509):
   x = tree.findtext(tag(name))
   return b64type(Base64 = x) if x else None
 
+# For simple cases we don't really care what these values are, so long
+# as we're consistant about them, so just wire them in for now.
+repository_handle = "r"
+bsc_handle = "b"
+
 class caller(object):
+  """
+  Handle client-side mechanics for left-right and publication
+  protocols.
+  """
 
   debug = True
 
@@ -87,6 +96,9 @@ cfg = rpki.config.parser(cfg_file, "myirbe")
 
 modified = False
 
+# I suppose the distinguished names in these certificates might need
+# to become configurable eventually.
+
 bpki_rpkid = myrpki.CA(cfg_file, cfg.get("rpkid_ca_directory"))
 modified |= bpki_rpkid.setup("/CN=rpkid TA")
 for name in ("rpkid", "irdbd", "irbe_cli"):
@@ -105,6 +117,14 @@ if modified:
   print "BPKI (re)initialized.  You need to (re)start daemons before continuing."
   sys.exit()
 
+irdbd_cfg = rpki.config.parser(cfg.get("irdbd_conf"), "irdbd")
+
+db = MySQLdb.connect(user   = irdbd_cfg.get("sql-username"),
+                     db     = irdbd_cfg.get("sql-database"),
+                     passwd = irdbd_cfg.get("sql-password"))
+
+cur = db.cursor()
+
 if cfg.has_section("myrpki"):
   myrpki.main()
   # We should set a variable here with the generated filename, both to
@@ -121,14 +141,6 @@ xmlfile = "myrpki.xml"
 
 tree = lxml.etree.parse(xmlfile).getroot()
 rng.assertValid(tree)
-
-irdbd_cfg = rpki.config.parser(cfg.get("irdbd_conf"), "irdbd")
-
-db = MySQLdb.connect(user   = irdbd_cfg.get("sql-username"),
-                     db     = irdbd_cfg.get("sql-database"),
-                     passwd = irdbd_cfg.get("sql-password"))
-
-cur = db.cursor()
 
 my_handle = tree.get("handle")
 
@@ -186,17 +198,20 @@ for x in tree.getiterator(tag("child")):
                     ((a.min, a.max, child_id) for a in ipv6))
 
 db.commit()
-db.close()
 
 # Various parameters that ought to come out of a config or xml file eventually
+
+# These are specific to the entity under discussion, and in this
+# script's case may differ depending on whether this is the
+# self-hosting case or not.
 #
 pubd_base_uri = "https://i-need-to-specify-this.example/"
 repository_peer_contact_uri = "https://i-need-to-specify-this-too.example/"
 parent_sia_base = pubd_base_uri
+
+# These are constants and could easily come out of [myirbe] config section.
 self_crl_interval = 300
 self_regen_margin = 120
-bsc_handle = "bsc"
-repository_handle = "repo"
 
 hosted_cacert = findbase64(tree, "bpki_ca_certificate")
 if not hosted_cacert:
@@ -297,8 +312,8 @@ repository_pdu = repository_pdus.pop(repository_handle, None)
 if (repository_pdu is None or
     repository_pdu.bsc_handle != bsc_handle or
     repository_pdu.peer_contact_uri != repository_peer_contact_uri or
-    bpki_cms_cert != rpkid_xcert or
-    bpki_https_cert != rpkid_xcert):
+    repository_pdu.bpki_cms_cert != rpkid_xcert or
+    repository_pdu.bpki_https_cert != rpkid_xcert):
   rpkid_query.append(rpki.left_right.repository_elt.make_pdu(
     action = "create" if repository_pdu is None else "set",
     tag = "repository",
@@ -396,3 +411,5 @@ if False:
   crl = findbase64(tree, "bpki_crl", rpki.x509.CRL)
   if crl:
     crl.pprint()
+
+db.close()

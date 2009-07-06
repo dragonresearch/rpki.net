@@ -102,14 +102,24 @@ modified |= bpki_rootd.setup("/CN=rootd TA")
 modified |= bpki_rootd.ee("/CN=rootd EE", "rootd")
 
 if modified:
-  print "BPKI initialized.  You need to start daemons before continuing."
+  print "BPKI (re)initialized.  You need to (re)start daemons before continuing."
   sys.exit()
 
 if cfg.has_section("myrpki"):
   myrpki.main()
+  # We should set a variable here with the generated filename, both to
+  # automate things without user intervention and also because we
+  # might care that this one .xml file was generated from our own
+  # config rather than by somebody we're hosting.
 
-# This probably ought to come from the command line
-tree = lxml.etree.parse("myrpki.xml").getroot()
+# This will need to come from the command line or a csv file or
+# something, except in the case where it's our own (self-hosted case).
+# Eventually this will most likely turn into a loop over all the .xml
+# files we need to process, including our own.
+#
+xmlfile = "myrpki.xml"
+
+tree = lxml.etree.parse(xmlfile).getroot()
 rng.assertValid(tree)
 
 irdbd_cfg = rpki.config.parser(cfg.get("irdbd_conf"), "irdbd")
@@ -178,24 +188,23 @@ for x in tree.getiterator(tag("child")):
 db.commit()
 db.close()
 
-hosted_cacert = tree.findtext(tag("bpki_ca_certificate"))
+# Various parameters that ought to come out of a config or xml file eventually
+#
+pubd_base_uri = "https://i-need-to-specify-this.example/"
+repository_peer_contact_uri = "https://i-need-to-specify-this-too.example/"
+parent_sia_base = pubd_base_uri
+self_crl_interval = 300
+self_regen_margin = 120
+bsc_handle = "bsc"
+repository_handle = "repo"
+
+hosted_cacert = findbase64(tree, "bpki_ca_certificate")
 if not hosted_cacert:
   print "Nothing else I can do without a trust anchor for the entity I'm hosting."
   sys.exit()
 
-# Various parameters that ought to come out of a config or xml file eventually
-#
-pubd_base_uri = "https://i-need-to-specify-this.example/"
-self_crl_interval = 300
-self_regen_margin = 120
-bsc_handle = "bsc"
-
-p = subprocess.Popen(("openssl", "x509", "-inform", "DER"), stdin = subprocess.PIPE, stdout = subprocess.PIPE)
-hosted_cacert = p.communicate(base64.b64decode(hosted_cacert))[0]
-if p.wait() != 0:
-  raise RuntimeError, "Couldn't convert certificate to PEM format"
-rpkid_xcert = rpki.x509.X509(PEM_file = bpki_rpkid.fxcert(my_handle + ".cacert.cer", hosted_cacert, path_restriction = 1))
-pubd_xcert  = rpki.x509.X509(PEM_file = bpki_pubd.fxcert(my_handle + ".cacert.cer", hosted_cacert))
+rpkid_xcert = rpki.x509.X509(PEM_file = bpki_rpkid.fxcert(my_handle + ".cacert.cer", hosted_cacert.get_PEM(), path_restriction = 1))
+pubd_xcert  = rpki.x509.X509(PEM_file = bpki_pubd.fxcert(my_handle + ".cacert.cer", hosted_cacert.get_PEM()))
 
 call_rpkid = rpki.async.sync_wrapper(caller(
   proto       = rpki.left_right,
@@ -230,15 +239,15 @@ if isinstance(client_pdu, rpki.publication.report_error_elt) or client_pdu.base_
 rpkid_reply = call_rpkid((
   rpki.left_right.self_elt.make_pdu(      action = "get",  tag = "self",       self_handle = my_handle),
   rpki.left_right.bsc_elt.make_pdu(       action = "list", tag = "bsc",        self_handle = my_handle),
+  rpki.left_right.repository_elt.make_pdu(action = "list", tag = "repository", self_handle = my_handle),
   rpki.left_right.parent_elt.make_pdu(    action = "list", tag = "parent",     self_handle = my_handle),
-  rpki.left_right.child_elt.make_pdu(     action = "list", tag = "child",      self_handle = my_handle),
-  rpki.left_right.repository_elt.make_pdu(action = "list", tag = "repository", self_handle = my_handle)))
+  rpki.left_right.child_elt.make_pdu(     action = "list", tag = "child",      self_handle = my_handle)))
 
 self_pdu        = rpkid_reply[0]
 bsc_pdus        = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
+repository_pdus = dict((x.repository_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.repository_elt))
 parent_pdus     = dict((x.parent_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.parent_elt))
 child_pdus      = dict((x.child_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.child_elt))
-repository_pdus = dict((x.repository_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.repository_elt))
 
 rpkid_query = []
 
@@ -257,74 +266,133 @@ if (isinstance(self_pdu, rpki.left_right.report_error_elt) or
 bsc_cert = findbase64(tree, "bpki_bsc_certificate")
 bsc_crl  = findbase64(tree, "bpki_crl", rpki.x509.CRL)
 
-if bsc_handle not in bsc_pdus:
+bsc_pdu = bsc_pdus.pop(bsc_handle, None)
+
+if bsc_pdu is None:
   rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(
     action = "create",
+    tag = "bsc",
     self_handle = my_handle,
     bsc_handle = bsc_handle,
     generate_keypair = "yes"))
-elif bsc_pdus[bsc_handle].signing_cert != bsc_cert or bsc_pdus[bsc_handle].signing_cert_crl != bsc_crl:
+elif bsc_pdu.signing_cert != bsc_cert or bsc_pdu.signing_cert_crl != bsc_crl:
   rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(
     action = "set",
+    tag = "bsc",
     self_handle = my_handle,
     bsc_handle = bsc_handle,
     signing_cert = bsc_cert,
     signing_cert_crl = bsc_crl))
 
-for h in bsc_pdus:
-  if h != bsc_handle:
-    rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(
-      action = "destroy",
-      self_handle = my_handle,
-      bsc_handle = h))
+rpkid_query.extend(rpki.left_right.bsc_elt.make_pdu(
+  action = "destroy", self_handle = my_handle, bsc_handle = b) for b in bsc_pdus)
 
 bsc_req = None
 
-if bsc_handle in bsc_pdus and bsc_pdus[bsc_handle].pkcs10_request:
-  bsc_req = bsc_pdus[bsc_handle].pkcs10_request
+if bsc_pdu and bsc_pdu.pkcs10_request:
+  bsc_req = bsc_pdu.pkcs10_request
 
-rpkid_reply = call_rpkid(rpkid_query)
+repository_pdu = repository_pdus.pop(repository_handle, None)
 
-bsc_pdus = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
+if (repository_pdu is None or
+    repository_pdu.bsc_handle != bsc_handle or
+    repository_pdu.peer_contact_uri != repository_peer_contact_uri or
+    bpki_cms_cert != rpkid_xcert or
+    bpki_https_cert != rpkid_xcert):
+  rpkid_query.append(rpki.left_right.repository_elt.make_pdu(
+    action = "create" if repository_pdu is None else "set",
+    tag = "repository",
+    self_handle = my_handle,
+    repository_handle = repository_handle,
+    bsc_handle = bsc_handle,
+    peer_contact_uri = repository_peer_contact_uri,
+    bpki_cms_cert = rpkid_xcert,
+    bpki_https_cert = rpkid_xcert))
 
-if bsc_handle in bsc_pdus and bsc_pdus[bsc_handle].pkcs10_request:
-  bsc_req = bsc_pdus[bsc_handle].pkcs10_request
+rpkid_query.extend(rpki.left_right.repository_elt.make_pdu(
+  action = "destroy", self_handle = my_handle, repository_handle = r) for r in repository_pdus)
 
-def showcerts():
+for parent in tree.getiterator(tag("parent")):
 
-  def showpem(label, b64, kind):
-    cmd = ("openssl", kind, "-noout", "-text", "-inform", "DER")
-    p = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
-    text = p.communicate(input = base64.b64decode(b64))[0]
-    if p.returncode != 0:
-      raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
-    print label, text
+  parent_handle = parent.get("handle")
+  parent_pdu = parent_pdus.pop(parent_handle, None)
+
+  if (parent_pdu is None or
+      parent_pdu.bsc_handle != bsc_handle or
+      parent_pdu.repository_handle != repository_handle or
+      parent_pdu.peer_contact_uri != parent.get("uri") or
+      parent_pdu.sia_base != parent_sia_base or
+      parent_pdu.sender_name != my_handle or
+      parent_pdu.recipient_name != parent_handle or
+      parent_pdu.bpki_cms_cert != rpkid_xcert or
+      parent_pdu.bpki_https_cert != rpkid_xcert):
+    rpkid_query.append(rpki.left_right.parent_elt.make_pdu(
+      action = "create" if parent_pdu is None else "set",
+      tag = parent_handle,
+      self_handle = my_handle,
+      parent_handle = parent_handle,
+      bsc_handle = bsc_handle,
+      repository_handle = repository_handle,
+      peer_contact_uri = parent.get("uri"),
+      sia_base = parent_sia_base,
+      sender_name = my_handle,
+      recipient_name = parent_handle,
+      bpki_cms_cert = rpkid_xcert,
+      bpki_https_cert = rpkid_xcert))
+
+rpkid_query.extend(rpki.left_right.parent_elt.make_pdu(
+  action = "destroy", self_handle = my_handle, parent_handle = p) for p in parent_pdus)
+
+for child in tree.getiterator(tag("child")):
+
+  child_handle = child.get("handle")
+  child_pdu = child_pdus.pop(child_handle, None)
+
+  if (child_pdu is None or
+      child_pdu.bsc_handle != bsc_handle or
+      child_pdu.bpki_cert != rpkid_xcert):
+    rpkid_query.append(rpki.left_right.child_elt.make_pdu(
+      action = "create" if child_pdu is None else "set",
+      tag = child_handle,
+      self_handle = my_handle,
+      child_handle = child_handle,
+      bsc_handle = bsc_handle,
+      bpki_cert = rpkid_xcert))
+
+rpkid_query.extend(rpki.left_right.child_elt.make_pdu(
+  action = "destroy", self_handle = my_handle, child_handle = c) for c in child_pdus)
+
+if rpkid_query:
+  rpkid_reply = call_rpkid(rpkid_query)
+  bsc_pdus = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
+  if bsc_handle in bsc_pdus and bsc_pdus[bsc_handle].pkcs10_request:
+    bsc_req = bsc_pdus[bsc_handle].pkcs10_request
+
+if False:
 
   for x in tree.getiterator(tag("child")):
-    ta = x.findtext(tag("bpki_ta"))
+    ta = findbase64(x, "bpki_ta")
     if ta:
-      showpem("Child", ta, "x509")
+      ta.pprint()
 
   for x in tree.getiterator(tag("parent")):
     print "Parent URI:", x.get("uri")
-    ta = x.findtext(tag("bpki_ta"))
+    ta = findbase64(x, "bpki_ta")
     if ta:
-      showpem("Parent", ta, "x509")
+      ta.pprint()
 
-  ca = tree.findtext(tag("bpki_ca_certificate"))
+  ca = findbase64(tree, "bpki_ca_certificate")
   if ca:
-    showpem("CA", ca, "x509")
+    ca.pprint()
 
-  bsc = tree.findtext(tag("bpki_bsc_certificate"))
+  bsc = findbase64(tree, "bpki_bsc_certificate")
   if bsc:
-    showpem("BSC EE", bsc, "x509")
+    bsc.pprint()
 
-  req = tree.findtext(tag("bpki_bsc_pkcs10"))
+  req = findbase64(tree, "bpki_bsc_pkcs10", rpki.x509.PKCS10)
   if req:
-    showpem("BSC EE", req, "req")
+    req.pprint()
 
-  crl = tree.findtext(tag("bpki_crl"))
+  crl = findbase64(tree, "bpki_crl", rpki.x509.CRL)
   if crl:
-    showpem("CA", crl, "crl")
-
-#showcerts()
+    crl.pprint()

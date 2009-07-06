@@ -383,6 +383,20 @@ if rpkid_query:
   if bsc_handle in bsc_pdus and bsc_pdus[bsc_handle].pkcs10_request:
     bsc_req = bsc_pdus[bsc_handle].pkcs10_request
 
+e = tree.find(tag("bpki_bsc_pkcs10"))
+if e is None and bsc_req is not None:
+  e = lxml.etree.SubElement(tree, "bpki_bsc_pkcs10")
+elif bsc_req is None:
+  tree.remove(e)
+
+if bsc_req is not None:
+  assert e is not None
+  e.text = bsc_req.get_Base64()
+
+rng.assertValid(tree)
+lxml.etree.ElementTree(tree).write(xmlfile + ".tmp", pretty_print = True)
+os.rename(xmlfile + ".tmp", xmlfile)
+
 if False:
 
   for x in tree.getiterator(tag("child")):

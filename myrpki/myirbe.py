@@ -201,6 +201,9 @@ db.commit()
 
 # Various parameters that ought to come out of a config or xml file eventually
 
+self_crl_interval = cfg.get("self_crl_interval", 300)
+self_regen_margin = cfg.get("self_regen_margin", 120)
+
 # These probably come from the .conf file
 rsync_base = "rsync://server.example/"
 pubd_base  = "https://localhost:4402"
@@ -210,7 +213,13 @@ rpkid_base = "https://localhost:4404"
 # script's case may differ depending on whether this is the
 # self-hosting case or not.
 
-my_parent_handle = "and-where-exactly-do-i-get-this-question-mark"
+# Perhaps what we need here is to have the hosting entity's handle and
+# sia base in the .conf file, then as we go we check each hosted
+# entity to see whether (a) it's the right .xml file and (b) its
+# handle matches the hosting handle.  We can put hosted entities under
+# the self-hosted entity automatically, but the self-hosted entity
+# will need another .conf file entry telling it the parent's service
+# uri (or do we get that from the .xml somehow?)
 
 # This is wrong, should be parent's sia_base + my_handle + "/", but
 # how do we get parent's sia_base in this setup?
@@ -220,11 +229,23 @@ pubd_base_uri = parent_sia_base
 
 repository_peer_contact_uri = pubd_base + "/client/" + my_handle
 
-parent_peer_contact_uri = rpkid_base + "/up-down/" + my_parent_handle + "/" + my_handle
-
-# These are constants and could easily come out of [myirbe] config section.
-self_crl_interval = 300
-self_regen_margin = 120
+# Ok, so part of my confusion is that I've never tested multiple
+# parents before.  The parent sia_base and pubd client base_uri are
+# almost the same thing, but not quite.  pubd base_uri is what pubd
+# insists upon as the head of the publication URI, or it won't
+# publish.  parent sia_base is either the base URI at which rpkid will
+# publish stuff issued by the cert issued by this parent, or is the
+# head of that base URI (if the parent made an acceptable suggestion,
+# where acceptable means that the configured sia_base is the head of
+# the parent's suggestion).
+#
+# I think this boils down to meaning that if we have multiple parents,
+# we also need multiple repository objects, which in turn probably
+# means multiple pubd client objects -- if our pubd is relevant at all.
+#
+# We also need to compare all these URIs against pubd's publication
+# base, so we know whether this is our problem or not.  For testbed,
+# we probably are, at least initially.
 
 hosted_cacert = findbase64(tree, "bpki_ca_certificate")
 if not hosted_cacert:

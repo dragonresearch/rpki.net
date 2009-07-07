@@ -60,9 +60,9 @@ Publication control subprotocol
    publication server.
 
    The <client/> object supports the full set of "create", "set", "get",
-   "list", and "destroy" actions. Each client has a "client_id" attribute,
-   which is used in responses and must be specified in "set", "get", or
-   "destroy" actions.
+   "list", and "destroy" actions. Each client has a "client_handle"
+   attribute, which is used in responses and must be specified in
+   "create", "set", "get", or "destroy" actions.
 
    Payload data which can be configured in a <client/> object:
 
@@ -220,5 +220,5 @@ Additional access control considerations.
      __________________________________________________________________
 
 
-    Generated on Tue Jun 9 20:45:21 2009 for RPKI Engine by  doxygen
-    1.5.8
+    Generated on Tue Jul 7 16:04:39 2009 for RPKI Engine by  doxygen
+    1.5.9

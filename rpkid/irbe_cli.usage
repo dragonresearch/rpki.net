@@ -1,6 +1,6 @@
       Command line IR back-end control program for rpkid and pubd.
       
-      $Id: irbe_cli.py 2510 2009-06-09 20:25:16Z sra $
+      $Id: irbe_cli.py 2571 2009-07-04 20:13:22Z sra $
       
       Copyright (C) 2009  Internet Systems Consortium ("ISC")
       

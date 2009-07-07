@@ -672,8 +672,7 @@
 # @c --tag is an optional arbitrary tag (think IMAP) to simplify
 # matching up replies with batched queries.
 #
-# @c --*_id options refer to the primary keys of previously created
-# objects.
+# @c --*_handle options refer to object primary keys.
 #
 # The remaining options are specific to the particular commands, and
 # follow directly from the protocol specifications.
@@ -1097,11 +1096,11 @@
 # %object are "per-self" data.
 #
 # Since all other RPKI engine %objects refer to a @c &lt;self/&gt; %object via a
-# "self_id" value, one must create a @c &lt;self/&gt; %object before one can
+# "self_handle" value, one must create a @c &lt;self/&gt; %object before one can
 # usefully configure any other left-right protocol %objects.
 #
-# Every @c &lt;self/&gt; %object has a self_id attribute, which must be specified
-# for the "set", "get", and "destroy" actions.
+# Every @c &lt;self/&gt; %object has a self_handle attribute, which must be specified
+# for the "create", "set", "get", and "destroy" actions.
 #
 # Payload data which can be configured in a @c &lt;self/&gt; %object:
 #
@@ -1180,8 +1179,8 @@
 # it must sign messages, there be a @c &lt;bsc/&gt; %object that it can use to
 # produce that signature.
 #
-# Every @c &lt;bsc/&gt; %object has a bsc_id, which must be specified for the
-# "get", "set", and "destroy" actions.  Every @c &lt;bsc/&gt; also has a self_id
+# Every @c &lt;bsc/&gt; %object has a bsc_handle, which must be specified for the
+# "create", "get", "set", and "destroy" actions.  Every @c &lt;bsc/&gt; also has a self_handle
 # attribute which indicates the @c &lt;self/&gt; %object with which this @c &lt;bsc/&gt;
 # %object is associated.
 #
@@ -1231,12 +1230,12 @@
 # in the case of IANA or an RIR, the parent RPKI engine may be a trivial
 # stub.
 #
-# Every @c &lt;parent/&gt; %object has a parent_id, which must be specified for
-# the "get", "set", and "destroy" actions.  Every @c &lt;parent/&gt; also has a
-# self_id attribute which indicates the @c &lt;self/&gt; %object with which this
-# @c &lt;parent/&gt; %object is associated, a bsc_id attribute indicating the @c &lt;bsc/&gt;
+# Every @c &lt;parent/&gt; %object has a parent_handle, which must be specified for
+# the "create", "get", "set", and "destroy" actions.  Every @c &lt;parent/&gt; also has a
+# self_handle attribute which indicates the @c &lt;self/&gt; %object with which this
+# @c &lt;parent/&gt; %object is associated, a bsc_handle attribute indicating the @c &lt;bsc/&gt;
 # %object to be used when signing messages sent to this parent, and a
-# repository_id indicating the @c &lt;repository/&gt; %object to be used when
+# repository_handle indicating the @c &lt;repository/&gt; %object to be used when
 # publishing issued by the certificate issued by this parent.
 #
 # Payload data which can be configured in a @c &lt;parent/&gt; %object:
@@ -1305,9 +1304,9 @@
 # The @c &lt;child/&gt; %object represents the RPKI engine's view of particular
 # child of the current @c &lt;self/&gt; in the up-down protocol.
 #
-# Every @c &lt;child/&gt; %object has a parent_id, which must be specified for the
-# "get", "set", and "destroy" actions.  Every @c &lt;child/&gt; also has a
-# self_id attribute which indicates the @c &lt;self/&gt; %object with which this
+# Every @c &lt;child/&gt; %object has a child_handle, which must be specified for the
+# "create", "get", "set", and "destroy" actions.  Every @c &lt;child/&gt; also has a
+# self_handle attribute which indicates the @c &lt;self/&gt; %object with which this
 # @c &lt;child/&gt; %object is associated.
 #
 # Payload data which can be configured in a @c &lt;child/&gt; %object:
@@ -1339,9 +1338,9 @@
 # The @c &lt;repository/&gt; %object represents the RPKI engine's view of a
 # particular publication repository used by the current @c &lt;self/&gt; %object.
 #
-# Every @c &lt;repository/&gt; %object has a repository_id, which must be
-# specified for the "get", "set", and "destroy" actions.  Every
-# @c &lt;repository/&gt; also has a self_id attribute which indicates the @c &lt;self/&gt;
+# Every @c &lt;repository/&gt; %object has a repository_handle, which must be
+# specified for the "create", "get", "set", and "destroy" actions.  Every
+# @c &lt;repository/&gt; also has a self_handle attribute which indicates the @c &lt;self/&gt;
 # %object with which this @c &lt;repository/&gt; %object is associated.
 #
 # Payload data which can be configured in a @c &lt;repository/&gt; %object:
@@ -1458,14 +1457,14 @@
 #
 # The @c &lt;list_resources/&gt; query and response allow the RPKI engine to ask
 # the IRDB for information about resources assigned to a particular
-# child.  The query must include both a @c "self_id" attribute naming
-# the @c &lt;self/&gt; that is making the request and also a @c "child_id"
+# child.  The query must include both a @c "self_handle" attribute naming
+# the @c &lt;self/&gt; that is making the request and also a @c "child_handle"
 # attribute naming the child that is the subject of the query.  The
 # query and response also allow an optional @c "tag" attribute of the
 # same form used elsewhere in this protocol, to allow batching.
 #
 # A @c &lt;list_resources/&gt; response includes the following attributes, along
-# with the @c tag (if specified), @c self_id, and @c child_id copied
+# with the @c tag (if specified), @c self_handle, and @c child_handle copied
 # from the request:
 #
 # @li @c valid_until:
@@ -1520,7 +1519,7 @@
 #
 # The @c &lt;report_error/&gt; message includes an optional @c "tag" attribute to
 # assist in matching the error with a particular query when using
-# batching, and also includes a @c "self_id" attribute indicating the
+# batching, and also includes a @c "self_handle" attribute indicating the
 # @c &lt;self/&gt; that issued the error.
 #
 # The error itself is conveyed in the @c error_code (attribute).  The
@@ -1597,8 +1596,8 @@
 # %publication server.
 #
 # The &lt;client/&gt; %object supports the full set of "create", "set", "get",
-# "list", and "destroy" actions.  Each client has a "client_id"
-# attribute, which is used in responses and must be specified in "set",
+# "list", and "destroy" actions.  Each client has a "client_handle"
+# attribute, which is used in responses and must be specified in "create", "set",
 # "get", or "destroy" actions.
 #
 # Payload data which can be configured in a &lt;client/&gt; %object:

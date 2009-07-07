@@ -65,11 +65,11 @@ initiated by the IRBE
    object are "per-self" data.
 
    Since all other RPKI engine objects refer to a <self/> object via a
-   "self_id" value, one must create a <self/> object before one can
+   "self_handle" value, one must create a <self/> object before one can
    usefully configure any other left-right protocol objects.
 
-   Every <self/> object has a self_id attribute, which must be specified
-   for the "set", "get", and "destroy" actions.
+   Every <self/> object has a self_handle attribute, which must be
+   specified for the "create", "set", "get", and "destroy" actions.
 
    Payload data which can be configured in a <self/> object:
 
@@ -139,10 +139,10 @@ initiated by the IRBE
    it must sign messages, there be a <bsc/> object that it can use to
    produce that signature.
 
-   Every <bsc/> object has a bsc_id, which must be specified for the
-   "get", "set", and "destroy" actions. Every <bsc/> also has a self_id
-   attribute which indicates the <self/> object with which this <bsc/>
-   object is associated.
+   Every <bsc/> object has a bsc_handle, which must be specified for the
+   "create", "get", "set", and "destroy" actions. Every <bsc/> also has a
+   self_handle attribute which indicates the <self/> object with which
+   this <bsc/> object is associated.
 
    Payload data which can be configured in a <isc/> object:
 
@@ -187,13 +187,14 @@ initiated by the IRBE
    in the case of IANA or an RIR, the parent RPKI engine may be a trivial
    stub.
 
-   Every <parent/> object has a parent_id, which must be specified for the
-   "get", "set", and "destroy" actions. Every <parent/> also has a self_id
-   attribute which indicates the <self/> object with which this <parent/>
-   object is associated, a bsc_id attribute indicating the <bsc/> object
-   to be used when signing messages sent to this parent, and a
-   repository_id indicating the <repository/> object to be used when
-   publishing issued by the certificate issued by this parent.
+   Every <parent/> object has a parent_handle, which must be specified for
+   the "create", "get", "set", and "destroy" actions. Every <parent/> also
+   has a self_handle attribute which indicates the <self/> object with
+   which this <parent/> object is associated, a bsc_handle attribute
+   indicating the <bsc/> object to be used when signing messages sent to
+   this parent, and a repository_handle indicating the <repository/>
+   object to be used when publishing issued by the certificate issued by
+   this parent.
 
    Payload data which can be configured in a <parent/> object:
 
@@ -255,10 +256,10 @@ initiated by the IRBE
    The <child/> object represents the RPKI engine's view of particular
    child of the current <self/> in the up-down protocol.
 
-   Every <child/> object has a parent_id, which must be specified for the
-   "get", "set", and "destroy" actions. Every <child/> also has a self_id
-   attribute which indicates the <self/> object with which this <child/>
-   object is associated.
+   Every <child/> object has a child_handle, which must be specified for
+   the "create", "get", "set", and "destroy" actions. Every <child/> also
+   has a self_handle attribute which indicates the <self/> object with
+   which this <child/> object is associated.
 
    Payload data which can be configured in a <child/> object:
 
@@ -286,10 +287,10 @@ initiated by the IRBE
    The <repository/> object represents the RPKI engine's view of a
    particular publication repository used by the current <self/> object.
 
-   Every <repository/> object has a repository_id, which must be specified
-   for the "get", "set", and "destroy" actions. Every <repository/> also
-   has a self_id attribute which indicates the <self/> object with which
-   this <repository/> object is associated.
+   Every <repository/> object has a repository_handle, which must be
+   specified for the "create", "get", "set", and "destroy" actions. Every
+   <repository/> also has a self_handle attribute which indicates the
+   <self/> object with which this <repository/> object is associated.
 
    Payload data which can be configured in a <repository/> object:
 
@@ -401,15 +402,15 @@ Operations initiated by the RPKI engine
 
    The <list_resources/> query and response allow the RPKI engine to ask
    the IRDB for information about resources assigned to a particular
-   child. The query must include both a "self_id" attribute naming the
-   <self/> that is making the request and also a "child_id" attribute
+   child. The query must include both a "self_handle" attribute naming the
+   <self/> that is making the request and also a "child_handle" attribute
    naming the child that is the subject of the query. The query and
    response also allow an optional "tag" attribute of the same form used
    elsewhere in this protocol, to allow batching.
 
    A <list_resources/> response includes the following attributes, along
-   with the tag (if specified), self_id, and child_id copied from the
-   request:
+   with the tag (if specified), self_handle, and child_handle copied from
+   the request:
 
      * valid_until: A timestamp indicating the date and time at which
        certificates generated by the RPKI engine for these data should
@@ -459,7 +460,7 @@ Error handling
 
    The <report_error/> message includes an optional "tag" attribute to
    assist in matching the error with a particular query when using
-   batching, and also includes a "self_id" attribute indicating the
+   batching, and also includes a "self_handle" attribute indicating the
    <self/> that issued the error.
 
    The error itself is conveyed in the error_code (attribute). The value
@@ -474,5 +475,5 @@ Error handling
      __________________________________________________________________
 
 
-    Generated on Tue Jun 9 20:45:21 2009 for RPKI Engine by  doxygen
-    1.5.8
+    Generated on Tue Jul 7 16:04:39 2009 for RPKI Engine by  doxygen
+    1.5.9

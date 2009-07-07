@@ -324,7 +324,7 @@ irbe_cli.py
 
       Command line IR back-end control program for rpkid and pubd.
 
-      $Id: irbe_cli.py 2510 2009-06-09 20:25:16Z sra $
+      $Id: irbe_cli.py 2571 2009-07-04 20:13:22Z sra $
 
       Copyright (C) 2009  Internet Systems Consortium ("ISC")
 
@@ -399,7 +399,7 @@ M
    --tag is an optional arbitrary tag (think IMAP) to simplify matching up
    replies with batched queries.
 
-   --*_id options refer to the primary keys of previously created objects.
+   --*_handle options refer to object primary keys.
 
    The remaining options are specific to the particular commands, and
    follow directly from the protocol specifications.
@@ -709,5 +709,5 @@ testpoke.py
      __________________________________________________________________
 
 
-    Generated on Tue Jun 9 20:45:21 2009 for RPKI Engine by  doxygen
-    1.5.8
+    Generated on Tue Jul 7 16:04:39 2009 for RPKI Engine by  doxygen
+    1.5.9

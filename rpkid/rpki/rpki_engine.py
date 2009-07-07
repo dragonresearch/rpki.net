@@ -296,7 +296,7 @@ class ca_obj(rpki.sql.sql_persistent):
     sia_uri = rc.suggested_sia_head and rc.suggested_sia_head.rsync()
     if not sia_uri or not sia_uri.startswith(parent.sia_base):
       sia_uri = parent.sia_base
-    elif not sia_uri.endswith("/"):
+    if not sia_uri.endswith("/"):
       raise rpki.exceptions.BadURISyntax, "SIA URI must end with a slash: %s" % sia_uri
     return sia_uri + str(self.ca_id) + "/"
 

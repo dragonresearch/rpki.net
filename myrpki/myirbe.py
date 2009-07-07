@@ -32,10 +32,9 @@ def findbase64(tree, name, b64type = rpki.x509.X509):
   x = tree.findtext(tag(name))
   return b64type(Base64 = x) if x else None
 
-# For simple cases we don't really care what these values are, so long
-# as we're consistant about them, so just wire them in for now.
-repository_handle = "r"
-bsc_handle = "b"
+# For simple cases we don't really care what this value is, so long
+# as we're consistant about it, so wiring it in is fine.
+bsc_handle = "bsc"
 
 class caller(object):
   """
@@ -89,8 +88,6 @@ for o, a in opts:
     sys.exit(0)
   if o in ("-c", "--config"):
     cfg_file = a
-if argv:
-  raise RuntimeError, "Unexpected arguments %s" % argv
 
 cfg = rpki.config.parser(cfg_file, "myirbe")
 
@@ -117,143 +114,12 @@ if modified:
   print "BPKI (re)initialized.  You need to (re)start daemons before continuing."
   sys.exit()
 
-irdbd_cfg = rpki.config.parser(cfg.get("irdbd_conf"), "irdbd")
-
-db = MySQLdb.connect(user   = irdbd_cfg.get("sql-username"),
-                     db     = irdbd_cfg.get("sql-database"),
-                     passwd = irdbd_cfg.get("sql-password"))
-
-cur = db.cursor()
-
-if cfg.has_section("myrpki"):
-  myrpki.main()
-  # We should set a variable here with the generated filename, both to
-  # automate things without user intervention and also because we
-  # might care that this one .xml file was generated from our own
-  # config rather than by somebody we're hosting.
-
-# This will need to come from the command line or a csv file or
-# something, except in the case where it's our own (self-hosted case).
-# Eventually this will most likely turn into a loop over all the .xml
-# files we need to process, including our own.
-#
-xmlfile = "myrpki.xml"
-
-tree = lxml.etree.parse(xmlfile).getroot()
-rng.assertValid(tree)
-
-my_handle = tree.get("handle")
-
-cur.execute(
-  """
-  DELETE
-  FROM  roa_request_prefix
-  USING roa_request, roa_request_prefix
-  WHERE roa_request.roa_request_id = roa_request_prefix.roa_request_id AND roa_request.roa_request_handle = %s
-  """, (my_handle,))
-
-cur.execute("DELETE FROM roa_request WHERE roa_request.roa_request_handle = %s", (my_handle,))
-
-for x in tree.getiterator(tag("roa_request")):
-  cur.execute("INSERT roa_request (roa_request_handle, asn) VALUES (%s, %s)", (my_handle, x.get("asn")))
-  roa_request_id = cur.lastrowid
-  for version, prefix_set in ((4, rpki.resource_set.roa_prefix_set_ipv4(x.get("v4"))), (6, rpki.resource_set.roa_prefix_set_ipv6(x.get("v6")))):
-    if prefix_set:
-      cur.executemany("INSERT roa_request_prefix (roa_request_id, prefix, prefixlen, max_prefixlen, version) VALUES (%s, %s, %s, %s, %s)",
-                      ((roa_request_id, p.prefix, p.prefixlen, p.max_prefixlen, version) for p in prefix_set))
-
-cur.execute(
-  """
-  DELETE
-  FROM   registrant_asn
-  USING registrant, registrant_asn
-  WHERE registrant.registrant_id = registrant_asn.registrant_id AND registrant.registry_handle = %s
-  """ , (my_handle,))
-
-cur.execute(
-  """
-  DELETE FROM registrant_net USING registrant, registrant_net
-  WHERE registrant.registrant_id = registrant_net.registrant_id AND registrant.registry_handle = %s
-  """ , (my_handle,))
-
-cur.execute("DELETE FROM registrant WHERE registrant.registry_handle = %s" , (my_handle,))
-
-for x in tree.getiterator(tag("child")):
-  child_handle = x.get("handle")
-  asns = rpki.resource_set.resource_set_as(x.get("asns"))
-  ipv4 = rpki.resource_set.resource_set_ipv4(x.get("v4"))
-  ipv6 = rpki.resource_set.resource_set_ipv6(x.get("v6"))
-
-  cur.execute("INSERT registrant (registrant_handle, registry_handle, registrant_name, valid_until) VALUES (%s, %s, %s, %s)",
-              (child_handle, my_handle, child_handle, rpki.sundial.datetime.fromXMLtime(x.get("valid_until")).to_sql()))
-  child_id = cur.lastrowid
-  if asns:
-    cur.executemany("INSERT registrant_asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)",
-                    ((a.min, a.max, child_id) for a in asns))
-  if ipv4:
-    cur.executemany("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)",
-                    ((a.min, a.max, child_id) for a in ipv4))
-  if ipv6:
-    cur.executemany("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)",
-                    ((a.min, a.max, child_id) for a in ipv6))
-
-db.commit()
-
-# Various parameters that ought to come out of a config or xml file eventually
-
-self_crl_interval = cfg.get("self_crl_interval", 300)
-self_regen_margin = cfg.get("self_regen_margin", 120)
-
 # These probably come from the .conf file
 rsync_base = "rsync://server.example/"
 pubd_base  = "https://localhost:4402"
 rpkid_base = "https://localhost:4404"
 
-# These are specific to the entity under discussion, and in this
-# script's case may differ depending on whether this is the
-# self-hosting case or not.
-
-# Perhaps what we need here is to have the hosting entity's handle and
-# sia base in the .conf file, then as we go we check each hosted
-# entity to see whether (a) it's the right .xml file and (b) its
-# handle matches the hosting handle.  We can put hosted entities under
-# the self-hosted entity automatically, but the self-hosted entity
-# will need another .conf file entry telling it the parent's service
-# uri (or do we get that from the .xml somehow?)
-
-# This is wrong, should be parent's sia_base + my_handle + "/", but
-# how do we get parent's sia_base in this setup?
-#
-parent_sia_base = rsync_base + my_handle + "/"
-pubd_base_uri = parent_sia_base
-
-repository_peer_contact_uri = pubd_base + "/client/" + my_handle
-
-# Ok, so part of my confusion is that I've never tested multiple
-# parents before.  The parent sia_base and pubd client base_uri are
-# almost the same thing, but not quite.  pubd base_uri is what pubd
-# insists upon as the head of the publication URI, or it won't
-# publish.  parent sia_base is either the base URI at which rpkid will
-# publish stuff issued by the cert issued by this parent, or is the
-# head of that base URI (if the parent made an acceptable suggestion,
-# where acceptable means that the configured sia_base is the head of
-# the parent's suggestion).
-#
-# I think this boils down to meaning that if we have multiple parents,
-# we also need multiple repository objects, which in turn probably
-# means multiple pubd client objects -- if our pubd is relevant at all.
-#
-# We also need to compare all these URIs against pubd's publication
-# base, so we know whether this is our problem or not.  For testbed,
-# we probably are, at least initially.
-
-hosted_cacert = findbase64(tree, "bpki_ca_certificate")
-if not hosted_cacert:
-  print "Nothing else I can do without a trust anchor for the entity I'm hosting."
-  sys.exit()
-
-rpkid_xcert = rpki.x509.X509(PEM_file = bpki_rpkid.fxcert(my_handle + ".cacert.cer", hosted_cacert.get_PEM(), path_restriction = 1))
-pubd_xcert  = rpki.x509.X509(PEM_file = bpki_pubd.fxcert(my_handle + ".cacert.cer", hosted_cacert.get_PEM()))
+# Wrappers to simplify calling rpkid and pubd
 
 call_rpkid = rpki.async.sync_wrapper(caller(
   proto       = rpki.left_right,
@@ -271,193 +137,344 @@ call_pubd = rpki.async.sync_wrapper(caller(
   server_cert = rpki.x509.X509(PEM_file = bpki_pubd.dir + "/pubd.cer"),
   url         = pubd_base + "/control"))
 
-pubd_reply = call_pubd((
-  rpki.publication.client_elt.make_pdu(action = "get", tag = "client", client_handle = my_handle),))
+# Make sure that pubd's BPKI CRL is up to date.
 
-client_pdu = pubd_reply[0]
+call_pubd((rpki.publication.config_elt.make_pdu(
+  action = "set",
+  bpki_crl = rpki.x509.CRL(PEM_file = bpki_pubd.crl)),))
 
-if isinstance(client_pdu, rpki.publication.report_error_elt) or client_pdu.base_uri != pubd_base_uri or client_pdu.bpki_cert != pubd_xcert:
-  pubd_reply = call_pubd((rpki.publication.client_elt.make_pdu(
-    action = "create" if isinstance(client_pdu, rpki.publication.report_error_elt) else "set",
-    tag = "client",
-    client_handle = my_handle,
-    bpki_cert = pubd_xcert,
-    base_uri = pubd_base_uri),))
-  assert len(pubd_reply) == 1 and isinstance(pubd_reply[0], rpki.publication.client_elt) and pubd_reply[0].client_handle == my_handle
+irdbd_cfg = rpki.config.parser(cfg.get("irdbd_conf"), "irdbd")
 
-rpkid_reply = call_rpkid((
-  rpki.left_right.self_elt.make_pdu(      action = "get",  tag = "self",       self_handle = my_handle),
-  rpki.left_right.bsc_elt.make_pdu(       action = "list", tag = "bsc",        self_handle = my_handle),
-  rpki.left_right.repository_elt.make_pdu(action = "list", tag = "repository", self_handle = my_handle),
-  rpki.left_right.parent_elt.make_pdu(    action = "list", tag = "parent",     self_handle = my_handle),
-  rpki.left_right.child_elt.make_pdu(     action = "list", tag = "child",      self_handle = my_handle)))
+db = MySQLdb.connect(user   = irdbd_cfg.get("sql-username"),
+                     db     = irdbd_cfg.get("sql-database"),
+                     passwd = irdbd_cfg.get("sql-password"))
 
-self_pdu        = rpkid_reply[0]
-bsc_pdus        = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
-repository_pdus = dict((x.repository_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.repository_elt))
-parent_pdus     = dict((x.parent_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.parent_elt))
-child_pdus      = dict((x.child_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.child_elt))
+cur = db.cursor()
 
-rpkid_query = []
+xmlfiles = []
 
-if (isinstance(self_pdu, rpki.left_right.report_error_elt) or
-    self_pdu.crl_interval != self_crl_interval or
-    self_pdu.regen_margin != self_regen_margin or
-    self_pdu.bpki_cert != pubd_xcert):
-  rpkid_query.append(rpki.left_right.self_elt.make_pdu(
-    action = "create" if isinstance(self_pdu, rpki.left_right.report_error_elt) else "set",
-    tag = "self",
-    self_handle = my_handle,
-    bpki_cert = pubd_xcert,
-    crl_interval = self_crl_interval,
-    regen_margin = self_regen_margin))
+if cfg.has_section("myrpki"):
+  myrpki.main()
+  my_xmlfile = cfg.get("xml_filename", None, "myrpki")
+  assert my_xmlfile is not None
+  xmlfiles.append(my_xmlfile)
 
-bsc_cert = findbase64(tree, "bpki_bsc_certificate")
-bsc_crl  = findbase64(tree, "bpki_crl", rpki.x509.CRL)
+xmlfiles.extend(argv)
 
-bsc_pdu = bsc_pdus.pop(bsc_handle, None)
+my_handle = None
 
-if bsc_pdu is None:
-  rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(
-    action = "create",
-    tag = "bsc",
-    self_handle = my_handle,
-    bsc_handle = bsc_handle,
-    generate_keypair = "yes"))
-elif bsc_pdu.signing_cert != bsc_cert or bsc_pdu.signing_cert_crl != bsc_crl:
-  rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(
-    action = "set",
-    tag = "bsc",
-    self_handle = my_handle,
-    bsc_handle = bsc_handle,
-    signing_cert = bsc_cert,
-    signing_cert_crl = bsc_crl))
+for xmlfile in xmlfiles:
 
-rpkid_query.extend(rpki.left_right.bsc_elt.make_pdu(
-  action = "destroy", self_handle = my_handle, bsc_handle = b) for b in bsc_pdus)
+  tree = lxml.etree.parse(xmlfile).getroot()
+  rng.assertValid(tree)
 
-bsc_req = None
+  handle = tree.get("handle")
 
-if bsc_pdu and bsc_pdu.pkcs10_request:
-  bsc_req = bsc_pdu.pkcs10_request
+  if xmlfile == my_xmlfile:
+    my_handle = handle
 
-repository_pdu = repository_pdus.pop(repository_handle, None)
+  cur.execute(
+    """
+    DELETE
+    FROM  roa_request_prefix
+    USING roa_request, roa_request_prefix
+    WHERE roa_request.roa_request_id = roa_request_prefix.roa_request_id AND roa_request.roa_request_handle = %s
+    """, (handle,))
 
-if (repository_pdu is None or
-    repository_pdu.bsc_handle != bsc_handle or
-    repository_pdu.peer_contact_uri != repository_peer_contact_uri or
-    repository_pdu.bpki_cms_cert != rpkid_xcert or
-    repository_pdu.bpki_https_cert != rpkid_xcert):
-  rpkid_query.append(rpki.left_right.repository_elt.make_pdu(
-    action = "create" if repository_pdu is None else "set",
-    tag = "repository",
-    self_handle = my_handle,
-    repository_handle = repository_handle,
-    bsc_handle = bsc_handle,
-    peer_contact_uri = repository_peer_contact_uri,
-    bpki_cms_cert = rpkid_xcert,
-    bpki_https_cert = rpkid_xcert))
+  cur.execute("DELETE FROM roa_request WHERE roa_request.roa_request_handle = %s", (handle,))
 
-rpkid_query.extend(rpki.left_right.repository_elt.make_pdu(
-  action = "destroy", self_handle = my_handle, repository_handle = r) for r in repository_pdus)
+  for x in tree.getiterator(tag("roa_request")):
+    cur.execute("INSERT roa_request (roa_request_handle, asn) VALUES (%s, %s)", (handle, x.get("asn")))
+    roa_request_id = cur.lastrowid
+    for version, prefix_set in ((4, rpki.resource_set.roa_prefix_set_ipv4(x.get("v4"))), (6, rpki.resource_set.roa_prefix_set_ipv6(x.get("v6")))):
+      if prefix_set:
+        cur.executemany("INSERT roa_request_prefix (roa_request_id, prefix, prefixlen, max_prefixlen, version) VALUES (%s, %s, %s, %s, %s)",
+                        ((roa_request_id, p.prefix, p.prefixlen, p.max_prefixlen, version) for p in prefix_set))
 
-for parent in tree.getiterator(tag("parent")):
+  cur.execute(
+    """
+    DELETE
+    FROM   registrant_asn
+    USING registrant, registrant_asn
+    WHERE registrant.registrant_id = registrant_asn.registrant_id AND registrant.registry_handle = %s
+    """ , (handle,))
 
-  parent_handle = parent.get("handle")
-  parent_pdu = parent_pdus.pop(parent_handle, None)
+  cur.execute(
+    """
+    DELETE FROM registrant_net USING registrant, registrant_net
+    WHERE registrant.registrant_id = registrant_net.registrant_id AND registrant.registry_handle = %s
+    """ , (handle,))
 
-  if (parent_pdu is None or
-      parent_pdu.bsc_handle != bsc_handle or
-      parent_pdu.repository_handle != repository_handle or
-      parent_pdu.peer_contact_uri != parent.get("uri") or
-      parent_pdu.sia_base != parent_sia_base or
-      parent_pdu.sender_name != my_handle or
-      parent_pdu.recipient_name != parent_handle or
-      parent_pdu.bpki_cms_cert != rpkid_xcert or
-      parent_pdu.bpki_https_cert != rpkid_xcert):
-    rpkid_query.append(rpki.left_right.parent_elt.make_pdu(
-      action = "create" if parent_pdu is None else "set",
-      tag = parent_handle,
-      self_handle = my_handle,
-      parent_handle = parent_handle,
-      bsc_handle = bsc_handle,
-      repository_handle = repository_handle,
-      peer_contact_uri = parent.get("uri"),
-      sia_base = parent_sia_base,
-      sender_name = my_handle,
-      recipient_name = parent_handle,
-      bpki_cms_cert = rpkid_xcert,
-      bpki_https_cert = rpkid_xcert))
-
-rpkid_query.extend(rpki.left_right.parent_elt.make_pdu(
-  action = "destroy", self_handle = my_handle, parent_handle = p) for p in parent_pdus)
-
-for child in tree.getiterator(tag("child")):
-
-  child_handle = child.get("handle")
-  child_pdu = child_pdus.pop(child_handle, None)
-
-  if (child_pdu is None or
-      child_pdu.bsc_handle != bsc_handle or
-      child_pdu.bpki_cert != rpkid_xcert):
-    rpkid_query.append(rpki.left_right.child_elt.make_pdu(
-      action = "create" if child_pdu is None else "set",
-      tag = child_handle,
-      self_handle = my_handle,
-      child_handle = child_handle,
-      bsc_handle = bsc_handle,
-      bpki_cert = rpkid_xcert))
-
-rpkid_query.extend(rpki.left_right.child_elt.make_pdu(
-  action = "destroy", self_handle = my_handle, child_handle = c) for c in child_pdus)
-
-if rpkid_query:
-  rpkid_reply = call_rpkid(rpkid_query)
-  bsc_pdus = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
-  if bsc_handle in bsc_pdus and bsc_pdus[bsc_handle].pkcs10_request:
-    bsc_req = bsc_pdus[bsc_handle].pkcs10_request
-
-e = tree.find(tag("bpki_bsc_pkcs10"))
-if e is None and bsc_req is not None:
-  e = lxml.etree.SubElement(tree, "bpki_bsc_pkcs10")
-elif bsc_req is None:
-  tree.remove(e)
-
-if bsc_req is not None:
-  assert e is not None
-  e.text = bsc_req.get_Base64()
-
-rng.assertValid(tree)
-lxml.etree.ElementTree(tree).write(xmlfile + ".tmp", pretty_print = True)
-os.rename(xmlfile + ".tmp", xmlfile)
-
-if False:
+  cur.execute("DELETE FROM registrant WHERE registrant.registry_handle = %s" , (handle,))
 
   for x in tree.getiterator(tag("child")):
-    ta = findbase64(x, "bpki_ta")
-    if ta:
-      ta.pprint()
+    child_handle = x.get("handle")
+    asns = rpki.resource_set.resource_set_as(x.get("asns"))
+    ipv4 = rpki.resource_set.resource_set_ipv4(x.get("v4"))
+    ipv6 = rpki.resource_set.resource_set_ipv6(x.get("v6"))
 
-  for x in tree.getiterator(tag("parent")):
-    print "Parent URI:", x.get("uri")
-    ta = findbase64(x, "bpki_ta")
-    if ta:
-      ta.pprint()
+    cur.execute("INSERT registrant (registrant_handle, registry_handle, registrant_name, valid_until) VALUES (%s, %s, %s, %s)",
+                (child_handle, handle, child_handle, rpki.sundial.datetime.fromXMLtime(x.get("valid_until")).to_sql()))
+    child_id = cur.lastrowid
+    if asns:
+      cur.executemany("INSERT registrant_asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)",
+                      ((a.min, a.max, child_id) for a in asns))
+    if ipv4:
+      cur.executemany("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)",
+                      ((a.min, a.max, child_id) for a in ipv4))
+    if ipv6:
+      cur.executemany("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)",
+                      ((a.min, a.max, child_id) for a in ipv6))
 
-  ca = findbase64(tree, "bpki_ca_certificate")
-  if ca:
-    ca.pprint()
+  db.commit()
 
-  bsc = findbase64(tree, "bpki_bsc_certificate")
-  if bsc:
-    bsc.pprint()
+  # Various parameters that ought to come out of a config or xml file eventually
 
-  req = findbase64(tree, "bpki_bsc_pkcs10", rpki.x509.PKCS10)
-  if req:
-    req.pprint()
+  self_crl_interval = cfg.get("self_crl_interval", 300)
+  self_regen_margin = cfg.get("self_regen_margin", 120)
 
-  crl = findbase64(tree, "bpki_crl", rpki.x509.CRL)
-  if crl:
-    crl.pprint()
+  # These are specific to the entity under discussion, and in this
+  # script's case may differ depending on whether this is the
+  # self-hosting case or not.
+
+  # Perhaps what we need here is to have the hosting entity's handle and
+  # sia base in the .conf file, then as we go we check each hosted
+  # entity to see whether (a) it's the right .xml file and (b) its
+  # handle matches the hosting handle.  We can put hosted entities under
+  # the self-hosted entity automatically, but the self-hosted entity
+  # will need another .conf file entry telling it the parent's service
+  # uri (or do we get that from the .xml somehow?)
+
+  # This is wrong, should be parent's sia_base + handle + "/", but
+  # how do we get parent's sia_base in this setup?
+  #
+  parent_sia_base = rsync_base + handle + "/"
+  pubd_base_uri = parent_sia_base
+
+  # Ok, so part of my confusion is that I've never tested multiple
+  # parents before.  The parent sia_base and pubd client base_uri are
+  # almost the same thing, but not quite.  pubd base_uri is what pubd
+  # insists upon as the head of the publication URI, or it won't
+  # publish.  parent sia_base is either the base URI at which rpkid will
+  # publish stuff issued by the cert issued by this parent, or is the
+  # head of that base URI (if the parent made an acceptable suggestion,
+  # where acceptable means that the configured sia_base is the head of
+  # the parent's suggestion).
+  #
+  # I think this boils down to meaning that if we have multiple
+  # parents, we also need multiple repository objects, which -may- in
+  # turn mean multiple pubd client objects -- if our pubd is relevant
+  # at all.  Assume for now that if we're running pubd at all,
+  # everything our rpkid generates goes into it.
+  #
+  # We also need to compare all these URIs against pubd's publication
+  # base, so we know whether this is our problem or not.  For testbed,
+  # we probably are, at least initially.
+
+  hosted_cacert = findbase64(tree, "bpki_ca_certificate")
+  if not hosted_cacert:
+    print "Nothing else I can do without a trust anchor for the entity I'm hosting."
+    sys.exit()
+
+  rpkid_xcert = rpki.x509.X509(PEM_file = bpki_rpkid.fxcert(handle + ".cacert.cer", hosted_cacert.get_PEM(), path_restriction = 1))
+  pubd_xcert  = rpki.x509.X509(PEM_file = bpki_pubd.fxcert(handle + ".cacert.cer", hosted_cacert.get_PEM()))
+
+  pubd_reply = call_pubd((
+    rpki.publication.client_elt.make_pdu(action = "get", tag = "client", client_handle = handle),))
+
+  client_pdu = pubd_reply[0]
+
+  if isinstance(client_pdu, rpki.publication.report_error_elt) or client_pdu.base_uri != pubd_base_uri or client_pdu.bpki_cert != pubd_xcert:
+    pubd_reply = call_pubd((rpki.publication.client_elt.make_pdu(
+      action = "create" if isinstance(client_pdu, rpki.publication.report_error_elt) else "set",
+      tag = "client",
+      client_handle = handle,
+      bpki_cert = pubd_xcert,
+      base_uri = pubd_base_uri),))
+    assert len(pubd_reply) == 1 and isinstance(pubd_reply[0], rpki.publication.client_elt) and pubd_reply[0].client_handle == handle
+
+  rpkid_reply = call_rpkid((
+    rpki.left_right.self_elt.make_pdu(      action = "get",  tag = "self",       self_handle = handle),
+    rpki.left_right.bsc_elt.make_pdu(       action = "list", tag = "bsc",        self_handle = handle),
+    rpki.left_right.repository_elt.make_pdu(action = "list", tag = "repository", self_handle = handle),
+    rpki.left_right.parent_elt.make_pdu(    action = "list", tag = "parent",     self_handle = handle),
+    rpki.left_right.child_elt.make_pdu(     action = "list", tag = "child",      self_handle = handle)))
+
+  self_pdu        = rpkid_reply[0]
+  bsc_pdus        = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
+  repository_pdus = dict((x.repository_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.repository_elt))
+  parent_pdus     = dict((x.parent_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.parent_elt))
+  child_pdus      = dict((x.child_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.child_elt))
+
+  rpkid_query = []
+
+  # There should be exactly one <self/> object per hosted entity, by definition
+
+  if (isinstance(self_pdu, rpki.left_right.report_error_elt) or
+      self_pdu.crl_interval != self_crl_interval or
+      self_pdu.regen_margin != self_regen_margin or
+      self_pdu.bpki_cert != pubd_xcert):
+    rpkid_query.append(rpki.left_right.self_elt.make_pdu(
+      action = "create" if isinstance(self_pdu, rpki.left_right.report_error_elt) else "set",
+      tag = "self",
+      self_handle = handle,
+      bpki_cert = pubd_xcert,
+      crl_interval = self_crl_interval,
+      regen_margin = self_regen_margin))
+
+  # In general we only need one BSC per <self/>.  BSC objects are a
+  # little unusual in that the PKCS #10 subelement is generated by rpkid
+  # in response to generate_keypair, so there's more of a separation
+  # between create and set than with other objects.
+
+  bsc_cert = findbase64(tree, "bpki_bsc_certificate")
+  bsc_crl  = findbase64(tree, "bpki_crl", rpki.x509.CRL)
+
+  bsc_pdu = bsc_pdus.pop(bsc_handle, None)
+
+  if bsc_pdu is None:
+    rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(
+      action = "create",
+      tag = "bsc",
+      self_handle = handle,
+      bsc_handle = bsc_handle,
+      generate_keypair = "yes"))
+  elif bsc_pdu.signing_cert != bsc_cert or bsc_pdu.signing_cert_crl != bsc_crl:
+    rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(
+      action = "set",
+      tag = "bsc",
+      self_handle = handle,
+      bsc_handle = bsc_handle,
+      signing_cert = bsc_cert,
+      signing_cert_crl = bsc_crl))
+
+  rpkid_query.extend(rpki.left_right.bsc_elt.make_pdu(
+    action = "destroy", self_handle = handle, bsc_handle = b) for b in bsc_pdus)
+
+  bsc_req = None
+
+  if bsc_pdu and bsc_pdu.pkcs10_request:
+    bsc_req = bsc_pdu.pkcs10_request
+
+  for parent in tree.getiterator(tag("parent")):
+
+    parent_handle = parent.get("handle")
+    repository_pdu = repository_pdus.pop(parent_handle, None)
+    parent_pdu = parent_pdus.pop(parent_handle, None)
+    repository_peer_contact_uri = pubd_base + "/client/" + handle
+
+    if (repository_pdu is None or
+        repository_pdu.bsc_handle != bsc_handle or
+        repository_pdu.peer_contact_uri != repository_peer_contact_uri or
+        repository_pdu.bpki_cms_cert != rpkid_xcert or
+        repository_pdu.bpki_https_cert != rpkid_xcert):
+      rpkid_query.append(rpki.left_right.repository_elt.make_pdu(
+        action = "create" if repository_pdu is None else "set",
+        tag = "repository",
+        self_handle = handle,
+        repository_handle = parent_handle,
+        bsc_handle = bsc_handle,
+        peer_contact_uri = repository_peer_contact_uri,
+        bpki_cms_cert = rpkid_xcert,
+        bpki_https_cert = rpkid_xcert))
+
+    if (parent_pdu is None or
+        parent_pdu.bsc_handle != bsc_handle or
+        parent_pdu.repository_handle != parent_handle or
+        parent_pdu.peer_contact_uri != parent.get("uri") or
+        parent_pdu.sia_base != parent_sia_base or
+        parent_pdu.sender_name != handle or
+        parent_pdu.recipient_name != parent_handle or
+        parent_pdu.bpki_cms_cert != rpkid_xcert or
+        parent_pdu.bpki_https_cert != rpkid_xcert):
+      rpkid_query.append(rpki.left_right.parent_elt.make_pdu(
+        action = "create" if parent_pdu is None else "set",
+        tag = parent_handle,
+        self_handle = handle,
+        parent_handle = parent_handle,
+        bsc_handle = bsc_handle,
+        repository_handle = parent_handle,
+        peer_contact_uri = parent.get("uri"),
+        sia_base = parent_sia_base,
+        sender_name = handle,
+        recipient_name = parent_handle,
+        bpki_cms_cert = rpkid_xcert,
+        bpki_https_cert = rpkid_xcert))
+
+  rpkid_query.extend(rpki.left_right.repository_elt.make_pdu(
+    action = "destroy", self_handle = handle, repository_handle = r) for r in repository_pdus)
+
+  rpkid_query.extend(rpki.left_right.parent_elt.make_pdu(
+    action = "destroy", self_handle = handle, parent_handle = p) for p in parent_pdus)
+
+  for child in tree.getiterator(tag("child")):
+
+    child_handle = child.get("handle")
+    child_pdu = child_pdus.pop(child_handle, None)
+
+    if (child_pdu is None or
+        child_pdu.bsc_handle != bsc_handle or
+        child_pdu.bpki_cert != rpkid_xcert):
+      rpkid_query.append(rpki.left_right.child_elt.make_pdu(
+        action = "create" if child_pdu is None else "set",
+        tag = child_handle,
+        self_handle = handle,
+        child_handle = child_handle,
+        bsc_handle = bsc_handle,
+        bpki_cert = rpkid_xcert))
+
+  rpkid_query.extend(rpki.left_right.child_elt.make_pdu(
+    action = "destroy", self_handle = handle, child_handle = c) for c in child_pdus)
+
+  if rpkid_query:
+    rpkid_reply = call_rpkid(rpkid_query)
+    bsc_pdus = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
+    if bsc_handle in bsc_pdus and bsc_pdus[bsc_handle].pkcs10_request:
+      bsc_req = bsc_pdus[bsc_handle].pkcs10_request
+
+  e = tree.find(tag("bpki_bsc_pkcs10"))
+  if e is None and bsc_req is not None:
+    e = lxml.etree.SubElement(tree, "bpki_bsc_pkcs10")
+  elif bsc_req is None:
+    tree.remove(e)
+
+  if bsc_req is not None:
+    assert e is not None
+    e.text = bsc_req.get_Base64()
+
+  rng.assertValid(tree)
+  lxml.etree.ElementTree(tree).write(xmlfile + ".tmp", pretty_print = True)
+  os.rename(xmlfile + ".tmp", xmlfile)
+
+  if False:
+
+    for x in tree.getiterator(tag("child")):
+      ta = findbase64(x, "bpki_ta")
+      if ta:
+        ta.pprint()
+
+    for x in tree.getiterator(tag("parent")):
+      print "Parent URI:", x.get("uri")
+      ta = findbase64(x, "bpki_ta")
+      if ta:
+        ta.pprint()
+
+    ca = findbase64(tree, "bpki_ca_certificate")
+    if ca:
+      ca.pprint()
+
+    bsc = findbase64(tree, "bpki_bsc_certificate")
+    if bsc:
+      bsc.pprint()
+
+    req = findbase64(tree, "bpki_bsc_pkcs10", rpki.x509.PKCS10)
+    if req:
+      req.pprint()
+
+    crl = findbase64(tree, "bpki_crl", rpki.x509.CRL)
+    if crl:
+      crl.pprint()
+
+
 
 db.close()

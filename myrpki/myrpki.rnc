@@ -20,6 +20,7 @@ start = element myrpki {
   roa_request_elt*,
   child_elt*,
   parent_elt*,
+  repository_elt*,
   bpki_ca_certificate_elt?,
   bpki_crl_elt?,
   bpki_bsc_certificate_elt?,
@@ -42,6 +43,12 @@ child_elt = element child {
 }
 
 parent_elt = element parent {
+  attribute handle { object_handle },
+  attribute uri { uri }?,
+  element bpki_ta { base64 }?
+}
+
+repository_elt = element repository {
   attribute handle { object_handle },
   attribute uri { uri }?,
   element bpki_ta { base64 }?

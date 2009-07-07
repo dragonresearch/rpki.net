@@ -190,6 +190,49 @@ class parents(dict):
       self.add(handle = handle, uri = uri, ta = xcert(pemfile))
     return self
 
+class repository(object):
+
+  def __init__(self, handle):
+    self.handle = handle
+    self.uri = None
+    self.ta = None
+
+  def __repr__(self):
+    return "<%s uri %s ta %s>" % (self.__class__.__name__, self.uri, self.ta)
+
+  def add(self, uri = None, ta = None):
+    if uri is not None:
+      self.uri = uri
+    if ta is not None:
+      self.ta = ta
+
+  def xml(self, e):
+    e2 = SubElement(e, "repository",
+                    handle = self.handle,
+                    uri = self.uri)
+    if self.ta:
+      PEMElement(e2, "bpki_ta", self.ta)
+    return e2
+
+class repositories(dict):
+
+  def add(self, handle, uri = None, ta = None):
+    if handle not in self:
+      self[handle] = repository(handle)
+    self[handle].add(uri = uri, ta = ta)
+
+  def xml(self, e):
+    for r in self.itervalues():
+      r.xml(e)
+
+  @classmethod
+  def from_csv(cls, repositories_csv_file, xcert):
+    self = cls()
+    # repositoryname uri pemfile
+    for handle, uri, pemfile in csv_open(repositories_csv_file):
+      self.add(handle = handle, uri = uri, ta = xcert(pemfile))
+    return self
+
 def csv_open(filename, delimiter = "\t", dialect = None):
   return csv.reader(open(filename, "rb"), dialect = dialect, delimiter = delimiter)
 
@@ -358,6 +401,7 @@ def main():
   parents_csv_file     = cfg.get(myrpki_section, "parents_csv")
   prefix_csv_file      = cfg.get(myrpki_section, "prefix_csv")
   asn_csv_file         = cfg.get(myrpki_section, "asn_csv")
+  repositories_csv_file= cfg.get(myrpki_section, "repositories_csv")
   bpki_dir             = cfg.get(myrpki_section, "bpki_directory")
   xml_filename         = cfg.get(myrpki_section, "xml_filename")
 
@@ -382,6 +426,10 @@ def main():
 
   parents.from_csv(
     parents_csv_file = parents_csv_file,
+    xcert = bpki.xcert).xml(e)
+
+  repositories.from_csv(
+    repositories_csv_file = repositories_csv_file,
     xcert = bpki.xcert).xml(e)
 
   PEMElement(e, "bpki_ca_certificate", bpki.cer)

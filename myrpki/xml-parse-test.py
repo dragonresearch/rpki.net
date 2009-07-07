@@ -80,6 +80,12 @@ for x in tree.getiterator(tag("parent")):
   if ta:
     showpem("Parent", ta, "x509")
 
+for x in tree.getiterator(tag("repository")):
+  print "Repository URI:", x.get("uri")
+  ta = x.findtext(tag("bpki_ta"))
+  if ta:
+    showpem("Repository", ta, "x509")
+
 ca = tree.findtext(tag("bpki_ca_certificate"))
 if ca:
   showpem("CA", ca, "x509")

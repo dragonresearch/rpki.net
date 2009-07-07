@@ -201,13 +201,26 @@ db.commit()
 
 # Various parameters that ought to come out of a config or xml file eventually
 
+# These probably come from the .conf file
+rsync_base = "rsync://server.example/"
+pubd_base  = "https://localhost:4402"
+rpkid_base = "https://localhost:4404"
+
 # These are specific to the entity under discussion, and in this
 # script's case may differ depending on whether this is the
 # self-hosting case or not.
+
+my_parent_handle = "and-where-exactly-do-i-get-this-question-mark"
+
+# This is wrong, should be parent's sia_base + my_handle + "/", but
+# how do we get parent's sia_base in this setup?
 #
-pubd_base_uri = "https://i-need-to-specify-this.example/"
-repository_peer_contact_uri = "https://i-need-to-specify-this-too.example/"
-parent_sia_base = pubd_base_uri
+parent_sia_base = rsync_base + my_handle + "/"
+pubd_base_uri = parent_sia_base
+
+repository_peer_contact_uri = pubd_base + "/client/" + my_handle
+
+parent_peer_contact_uri = rpkid_base + "/up-down/" + my_parent_handle + "/" + my_handle
 
 # These are constants and could easily come out of [myirbe] config section.
 self_crl_interval = 300
@@ -227,7 +240,7 @@ call_rpkid = rpki.async.sync_wrapper(caller(
   client_cert = rpki.x509.X509(PEM_file = bpki_rpkid.dir + "/irbe_cli.cer"),
   server_ta   = rpki.x509.X509(PEM_file = bpki_rpkid.cer),
   server_cert = rpki.x509.X509(PEM_file = bpki_rpkid.dir + "/rpkid.cer"),
-  url         = "https://localhost:4404/left-right"))
+  url         = rpkid_base + "/left-right"))
 
 call_pubd = rpki.async.sync_wrapper(caller(
   proto       = rpki.publication,
@@ -235,7 +248,7 @@ call_pubd = rpki.async.sync_wrapper(caller(
   client_cert = rpki.x509.X509(PEM_file = bpki_pubd.dir + "/irbe_cli.cer"),
   server_ta   = rpki.x509.X509(PEM_file = bpki_pubd.cer),
   server_cert = rpki.x509.X509(PEM_file = bpki_pubd.dir + "/pubd.cer"),
-  url         = "https://localhost:4402/control"))
+  url         = pubd_base + "/control"))
 
 pubd_reply = call_pubd((
   rpki.publication.client_elt.make_pdu(action = "get", tag = "client", client_handle = my_handle),))

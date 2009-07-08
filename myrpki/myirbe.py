@@ -114,6 +114,9 @@ if modified:
   print "BPKI (re)initialized.  You need to (re)start daemons before continuing."
   sys.exit()
 
+self_crl_interval = cfg.get("self_crl_interval", 300)
+self_regen_margin = cfg.get("self_regen_margin", 120)
+
 # These probably come from the .conf file
 rsync_base = "rsync://server.example/"
 pubd_base  = "https://localhost:4402"
@@ -228,49 +231,6 @@ for xmlfile in xmlfiles:
 
   db.commit()
 
-  # Various parameters that ought to come out of a config or xml file eventually
-
-  self_crl_interval = cfg.get("self_crl_interval", 300)
-  self_regen_margin = cfg.get("self_regen_margin", 120)
-
-  # These are specific to the entity under discussion, and in this
-  # script's case may differ depending on whether this is the
-  # self-hosting case or not.
-
-  # Perhaps what we need here is to have the hosting entity's handle and
-  # sia base in the .conf file, then as we go we check each hosted
-  # entity to see whether (a) it's the right .xml file and (b) its
-  # handle matches the hosting handle.  We can put hosted entities under
-  # the self-hosted entity automatically, but the self-hosted entity
-  # will need another .conf file entry telling it the parent's service
-  # uri (or do we get that from the .xml somehow?)
-
-  # This is wrong, should be parent's sia_base + handle + "/", but
-  # how do we get parent's sia_base in this setup?
-  #
-  parent_sia_base = rsync_base + handle + "/"
-  pubd_base_uri = parent_sia_base
-
-  # Ok, so part of my confusion is that I've never tested multiple
-  # parents before.  The parent sia_base and pubd client base_uri are
-  # almost the same thing, but not quite.  pubd base_uri is what pubd
-  # insists upon as the head of the publication URI, or it won't
-  # publish.  parent sia_base is either the base URI at which rpkid will
-  # publish stuff issued by the cert issued by this parent, or is the
-  # head of that base URI (if the parent made an acceptable suggestion,
-  # where acceptable means that the configured sia_base is the head of
-  # the parent's suggestion).
-  #
-  # I think this boils down to meaning that if we have multiple
-  # parents, we also need multiple repository objects, which -may- in
-  # turn mean multiple pubd client objects -- if our pubd is relevant
-  # at all.  Assume for now that if we're running pubd at all,
-  # everything our rpkid generates goes into it.
-  #
-  # We also need to compare all these URIs against pubd's publication
-  # base, so we know whether this is our problem or not.  For testbed,
-  # we probably are, at least initially.
-
   hosted_cacert = findbase64(tree, "bpki_ca_certificate")
   if not hosted_cacert:
     print "Nothing else I can do without a trust anchor for the entity I'm hosting."
@@ -283,6 +243,10 @@ for xmlfile in xmlfiles:
     rpki.publication.client_elt.make_pdu(action = "get", tag = "client", client_handle = handle),))
 
   client_pdu = pubd_reply[0]
+
+  # This is doubly wrong -- both the wrong value and (probably) set in the wrong place.
+  # Do it anyway for now, for testing.
+  pubd_base_uri = rsync_base + handle + "/"
 
   if isinstance(client_pdu, rpki.publication.report_error_elt) or client_pdu.base_uri != pubd_base_uri or client_pdu.bpki_cert != pubd_xcert:
     pubd_reply = call_pubd((rpki.publication.client_elt.make_pdu(
@@ -313,12 +277,12 @@ for xmlfile in xmlfiles:
   if (isinstance(self_pdu, rpki.left_right.report_error_elt) or
       self_pdu.crl_interval != self_crl_interval or
       self_pdu.regen_margin != self_regen_margin or
-      self_pdu.bpki_cert != pubd_xcert):
+      self_pdu.bpki_cert != rpkid_xcert):
     rpkid_query.append(rpki.left_right.self_elt.make_pdu(
       action = "create" if isinstance(self_pdu, rpki.left_right.report_error_elt) else "set",
       tag = "self",
       self_handle = handle,
-      bpki_cert = pubd_xcert,
+      bpki_cert = rpkid_xcert,
       crl_interval = self_crl_interval,
       regen_margin = self_regen_margin))
 
@@ -356,37 +320,78 @@ for xmlfile in xmlfiles:
   if bsc_pdu and bsc_pdu.pkcs10_request:
     bsc_req = bsc_pdu.pkcs10_request
 
+
   for parent in tree.getiterator(tag("parent")):
 
+    # Perhaps what we need here is to have the hosting entity's handle and
+    # sia base in the .conf file, then as we go we check each hosted
+    # entity to see whether (a) it's the right .xml file and (b) its
+    # handle matches the hosting handle.  We can put hosted entities under
+    # the self-hosted entity automatically, but the self-hosted entity
+    # will need another .conf file entry telling it the parent's service
+    # uri (or do we get that from the .xml somehow?)
+    #
+    # Ok, so part of my confusion is that I've never tested multiple
+    # parents before.  The parent sia_base and pubd client base_uri are
+    # almost the same thing, but not quite.  pubd base_uri is what pubd
+    # insists upon as the head of the publication URI, or it won't
+    # publish.  parent sia_base is either the base URI at which rpkid will
+    # publish stuff issued by the cert issued by this parent, or is the
+    # head of that base URI (if the parent made an acceptable suggestion,
+    # where acceptable means that the configured sia_base is the head of
+    # the parent's suggestion).
+    #
+    # I think this boils down to meaning that if we have multiple
+    # parents, we also need multiple repository objects, which -may- in
+    # turn mean multiple pubd client objects -- if our pubd is relevant
+    # at all.  Assume for now that if we're running pubd at all,
+    # everything our rpkid generates goes into it.
+    #
+    # We also need to compare all these URIs against pubd's publication
+    # base, so we know whether this is our problem or not.  For testbed,
+    # we probably are, at least initially.
+
     parent_handle = parent.get("handle")
+
     repository_pdu = repository_pdus.pop(parent_handle, None)
     parent_pdu = parent_pdus.pop(parent_handle, None)
-    repository_peer_contact_uri = pubd_base + "/client/" + handle
+
+    parent_uri = parent.get("parent_service_uri")
+    parent_cert = findbase64(parent, "parent_bpki_certificate")
+
+    repository_uri = parent.get("repository_service_uri")
+    repository_cert = findbase64(parent, "repository_bpki_certificate")
+    
+    # This is wrong, should be parent's sia_base + handle + "/", but
+    # how do we get parent's sia_base in this setup?
+    #
+    parent_sia_base = rsync_base + handle + "/"
+    pubd_base_uri = parent_sia_base
 
     if (repository_pdu is None or
         repository_pdu.bsc_handle != bsc_handle or
-        repository_pdu.peer_contact_uri != repository_peer_contact_uri or
-        repository_pdu.bpki_cms_cert != rpkid_xcert or
-        repository_pdu.bpki_https_cert != rpkid_xcert):
+        repository_pdu.peer_contact_uri != repository_uri or
+        repository_pdu.bpki_cms_cert != repository_cert or
+        repository_pdu.bpki_https_cert != repository_cert):
       rpkid_query.append(rpki.left_right.repository_elt.make_pdu(
         action = "create" if repository_pdu is None else "set",
-        tag = "repository",
+        tag = parent_handle,
         self_handle = handle,
         repository_handle = parent_handle,
         bsc_handle = bsc_handle,
-        peer_contact_uri = repository_peer_contact_uri,
-        bpki_cms_cert = rpkid_xcert,
-        bpki_https_cert = rpkid_xcert))
+        peer_contact_uri = repository_uri,
+        bpki_cms_cert = repository_cert,
+        bpki_https_cert = repository_cert))
 
     if (parent_pdu is None or
         parent_pdu.bsc_handle != bsc_handle or
         parent_pdu.repository_handle != parent_handle or
-        parent_pdu.peer_contact_uri != parent.get("uri") or
+        parent_pdu.peer_contact_uri != parent_uri or
         parent_pdu.sia_base != parent_sia_base or
         parent_pdu.sender_name != handle or
         parent_pdu.recipient_name != parent_handle or
-        parent_pdu.bpki_cms_cert != rpkid_xcert or
-        parent_pdu.bpki_https_cert != rpkid_xcert):
+        parent_pdu.bpki_cms_cert != parent_cert or
+        parent_pdu.bpki_https_cert != parent_cert):
       rpkid_query.append(rpki.left_right.parent_elt.make_pdu(
         action = "create" if parent_pdu is None else "set",
         tag = parent_handle,
@@ -394,12 +399,12 @@ for xmlfile in xmlfiles:
         parent_handle = parent_handle,
         bsc_handle = bsc_handle,
         repository_handle = parent_handle,
-        peer_contact_uri = parent.get("uri"),
+        peer_contact_uri = parent_uri,
         sia_base = parent_sia_base,
         sender_name = handle,
         recipient_name = parent_handle,
-        bpki_cms_cert = rpkid_xcert,
-        bpki_https_cert = rpkid_xcert))
+        bpki_cms_cert = parent_cert,
+        bpki_https_cert = parent_cert))
 
   rpkid_query.extend(rpki.left_right.repository_elt.make_pdu(
     action = "destroy", self_handle = handle, repository_handle = r) for r in repository_pdus)
@@ -411,17 +416,18 @@ for xmlfile in xmlfiles:
 
     child_handle = child.get("handle")
     child_pdu = child_pdus.pop(child_handle, None)
+    child_cert = findbase64(child, "bpki_certificate")
 
     if (child_pdu is None or
         child_pdu.bsc_handle != bsc_handle or
-        child_pdu.bpki_cert != rpkid_xcert):
+        child_pdu.bpki_cert != child_cert):
       rpkid_query.append(rpki.left_right.child_elt.make_pdu(
         action = "create" if child_pdu is None else "set",
         tag = child_handle,
         self_handle = handle,
         child_handle = child_handle,
         bsc_handle = bsc_handle,
-        bpki_cert = rpkid_xcert))
+        bpki_cert = child_cert))
 
   rpkid_query.extend(rpki.left_right.child_elt.make_pdu(
     action = "destroy", self_handle = handle, child_handle = c) for c in child_pdus)
@@ -445,36 +451,5 @@ for xmlfile in xmlfiles:
   rng.assertValid(tree)
   lxml.etree.ElementTree(tree).write(xmlfile + ".tmp", pretty_print = True)
   os.rename(xmlfile + ".tmp", xmlfile)
-
-  if False:
-
-    for x in tree.getiterator(tag("child")):
-      ta = findbase64(x, "bpki_ta")
-      if ta:
-        ta.pprint()
-
-    for x in tree.getiterator(tag("parent")):
-      print "Parent URI:", x.get("uri")
-      ta = findbase64(x, "bpki_ta")
-      if ta:
-        ta.pprint()
-
-    ca = findbase64(tree, "bpki_ca_certificate")
-    if ca:
-      ca.pprint()
-
-    bsc = findbase64(tree, "bpki_bsc_certificate")
-    if bsc:
-      bsc.pprint()
-
-    req = findbase64(tree, "bpki_bsc_pkcs10", rpki.x509.PKCS10)
-    if req:
-      req.pprint()
-
-    crl = findbase64(tree, "bpki_crl", rpki.x509.CRL)
-    if crl:
-      crl.pprint()
-
-
 
 db.close()

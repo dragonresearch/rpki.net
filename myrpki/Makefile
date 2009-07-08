@@ -7,7 +7,7 @@
 #all:: graph
 all:: load
 
-myrpki.xml: myrpki.py asns.csv prefixes.csv roas.csv validity.csv
+myrpki.xml: myrpki.py asns.csv prefixes.csv roas.csv validity.csv bpki.myrpki
 	python myrpki.py
 
 lint: myrpki.xml myrpki.rng
@@ -20,6 +20,9 @@ parse: myrpki.xml myrpki.rng
 	python xml-parse-test.py
 
 load: myrpki.xml myrpki.rng
+	python myirbe.py
+
+bpki.myrpki:
 	python myirbe.py
 
 clean:

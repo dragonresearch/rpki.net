@@ -91,12 +91,12 @@ class child(object):
     self.v4 = comma_set()
     self.v6 = comma_set()
     self.validity = None
-    self.ta = None
+    self.bpki_certificate = None
 
   def __repr__(self):
-    return "<%s v4 %s v6 %s asns %s validity %s ta %s>" % (self.__class__.__name__, self.v4, self.v6, self.asns, self.validity, self.ta)
+    return "<%s v4 %s v6 %s asns %s validity %s cert %s>" % (self.__class__.__name__, self.v4, self.v6, self.asns, self.validity, self.bpki_certificate)
 
-  def add(self, prefix = None, asn = None, validity = None, ta = None):
+  def add(self, prefix = None, asn = None, validity = None, bpki_certificate = None):
     if prefix is not None:
       if self.v4re.match(prefix):
         self.v4.add(prefix)
@@ -108,8 +108,8 @@ class child(object):
       self.asns.add(asn)
     if validity is not None:
       self.validity = validity
-    if ta is not None:
-      self.ta = ta
+    if bpki_certificate is not None:
+      self.bpki_certificate = bpki_certificate
 
   def xml(self, e):
     e2 = SubElement(e, "child",
@@ -118,16 +118,16 @@ class child(object):
                     asns = str(self.asns),
                     v4 = str(self.v4),
                     v6 = str(self.v6))
-    if self.ta:
-      PEMElement(e2, "bpki_ta", self.ta)
+    if self.bpki_certificate:
+      PEMElement(e2, "bpki_certificate", self.bpki_certificate)
     return e2
 
 class children(dict):
 
-  def add(self, handle, prefix = None, asn = None, validity = None, ta = None):
+  def add(self, handle, prefix = None, asn = None, validity = None, bpki_certificate = None):
     if handle not in self:
       self[handle] = child(handle)
-    self[handle].add(prefix = prefix, asn = asn, validity = validity, ta = ta)
+    self[handle].add(prefix = prefix, asn = asn, validity = validity, bpki_certificate = bpki_certificate)
 
   def xml(self, e):
     for c in self.itervalues():
@@ -138,7 +138,7 @@ class children(dict):
     self = cls()
     # childname date pemfile
     for handle, date, pemfile in csv_open(children_csv_file):
-      self.add(handle = handle, validity = date, ta = xcert(pemfile))
+      self.add(handle = handle, validity = date, bpki_certificate = xcert(pemfile))
     # childname p/n
     for handle, pn in csv_open(prefix_csv_file):
       self.add(handle = handle, prefix = pn)
@@ -151,32 +151,44 @@ class parent(object):
 
   def __init__(self, handle):
     self.handle = handle
-    self.uri = None
-    self.ta = None
+    self.parent_service_uri = None
+    self.parent_bpki_certificate = None
+    self.repository_service_uri = None
+    self.repository_bpki_certificate = None
 
   def __repr__(self):
-    return "<%s uri %s ta %s>" % (self.__class__.__name__, self.uri, self.ta)
+    return "<%s uri %s cert %s uri %s cert %s>" % (self.__class__.__name__,
+                                               self.parent_service_uri, self.parent_bpki_certificate,
+                                               self.repository_service_uri, self.repository_bpki_certificate)
 
-  def add(self, uri = None, ta = None):
-    if uri is not None:
-      self.uri = uri
-    if ta is not None:
-      self.ta = ta
+  def add(self, parent_service_uri = None, parent_bpki_certificate = None, repository_service_uri = None, repository_bpki_certificate = None):
+    if parent_service_uri is not None:
+      self.parent_service_uri = parent_service_uri
+    if parent_bpki_certificate is not None:
+      self.parent_bpki_certificate = parent_bpki_certificate
+    if repository_service_uri is not None:
+      self.repository_service_uri = repository_service_uri
+    if repository_bpki_certificate is not None:
+      self.repository_bpki_certificate = repository_bpki_certificate
 
   def xml(self, e):
     e2 = SubElement(e, "parent",
                     handle = self.handle,
-                    uri = self.uri)
-    if self.ta:
-      PEMElement(e2, "bpki_ta", self.ta)
+                    parent_service_uri = self.parent_service_uri,
+                    repository_service_uri = self.repository_service_uri)
+    if self.parent_bpki_certificate:
+      PEMElement(e2, "parent_bpki_certificate", self.parent_bpki_certificate)
+    if self.repository_bpki_certificate:
+      PEMElement(e2, "repository_bpki_certificate", self.repository_bpki_certificate)
     return e2
 
 class parents(dict):
 
-  def add(self, handle, uri = None, ta = None):
+  def add(self, handle, parent_service_uri = None, parent_bpki_certificate = None, repository_service_uri = None, repository_bpki_certificate = None):
     if handle not in self:
       self[handle] = parent(handle)
-    self[handle].add(uri = uri, ta = ta)
+    self[handle].add(parent_service_uri = parent_service_uri, parent_bpki_certificate = parent_bpki_certificate,
+                     repository_service_uri = repository_service_uri, repository_bpki_certificate = repository_bpki_certificate)
 
   def xml(self, e):
     for c in self.itervalues():
@@ -185,52 +197,11 @@ class parents(dict):
   @classmethod
   def from_csv(cls, parents_csv_file, xcert):
     self = cls()
-    # parentname uri pemfile
-    for handle, uri, pemfile in csv_open(parents_csv_file):
-      self.add(handle = handle, uri = uri, ta = xcert(pemfile))
-    return self
-
-class repository(object):
-
-  def __init__(self, handle):
-    self.handle = handle
-    self.uri = None
-    self.ta = None
-
-  def __repr__(self):
-    return "<%s uri %s ta %s>" % (self.__class__.__name__, self.uri, self.ta)
-
-  def add(self, uri = None, ta = None):
-    if uri is not None:
-      self.uri = uri
-    if ta is not None:
-      self.ta = ta
-
-  def xml(self, e):
-    e2 = SubElement(e, "repository",
-                    handle = self.handle,
-                    uri = self.uri)
-    if self.ta:
-      PEMElement(e2, "bpki_ta", self.ta)
-    return e2
-
-class repositories(dict):
-
-  def add(self, handle, uri = None, ta = None):
-    if handle not in self:
-      self[handle] = repository(handle)
-    self[handle].add(uri = uri, ta = ta)
-
-  def xml(self, e):
-    for r in self.itervalues():
-      r.xml(e)
-
-  @classmethod
-  def from_csv(cls, repositories_csv_file, xcert):
-    self = cls()
-    # repositoryname uri pemfile
-    for handle, uri, pemfile in csv_open(repositories_csv_file):
-      self.add(handle = handle, uri = uri, ta = xcert(pemfile))
+    # parentname parent_service_uri parent_bpki_pemfile repository_service_uri repository_bpki_pemfile
+    for handle, parent_service_uri, parent_pemfile, repository_service_uri, repository_pemfile in csv_open(parents_csv_file):
+      self.add(handle = handle,
+               parent_service_uri = parent_service_uri, parent_bpki_certificate = xcert(parent_pemfile),
+               repository_service_uri = repository_service_uri, repository_bpki_certificate = xcert(repository_pemfile))
     return self
 
 def csv_open(filename, delimiter = "\t", dialect = None):
@@ -401,7 +372,6 @@ def main():
   parents_csv_file     = cfg.get(myrpki_section, "parents_csv")
   prefix_csv_file      = cfg.get(myrpki_section, "prefix_csv")
   asn_csv_file         = cfg.get(myrpki_section, "asn_csv")
-  repositories_csv_file= cfg.get(myrpki_section, "repositories_csv")
   bpki_dir             = cfg.get(myrpki_section, "bpki_directory")
   xml_filename         = cfg.get(myrpki_section, "xml_filename")
 
@@ -426,10 +396,6 @@ def main():
 
   parents.from_csv(
     parents_csv_file = parents_csv_file,
-    xcert = bpki.xcert).xml(e)
-
-  repositories.from_csv(
-    repositories_csv_file = repositories_csv_file,
     xcert = bpki.xcert).xml(e)
 
   PEMElement(e, "bpki_ca_certificate", bpki.cer)

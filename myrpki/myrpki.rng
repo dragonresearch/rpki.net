@@ -61,9 +61,6 @@
       <zeroOrMore>
         <ref name="parent_elt"/>
       </zeroOrMore>
-      <zeroOrMore>
-        <ref name="repository_elt"/>
-      </zeroOrMore>
       <optional>
         <ref name="bpki_ca_certificate_elt"/>
       </optional>
@@ -117,7 +114,7 @@
         </attribute>
       </optional>
       <optional>
-        <element name="bpki_ta">
+        <element name="bpki_certificate">
           <ref name="base64"/>
         </element>
       </optional>
@@ -129,29 +126,22 @@
         <ref name="object_handle"/>
       </attribute>
       <optional>
-        <attribute name="uri">
+        <attribute name="parent_service_uri">
           <ref name="uri"/>
         </attribute>
       </optional>
       <optional>
-        <element name="bpki_ta">
+        <attribute name="repository_service_uri">
+          <ref name="uri"/>
+        </attribute>
+      </optional>
+      <optional>
+        <element name="parent_bpki_certificate">
           <ref name="base64"/>
         </element>
       </optional>
-    </element>
-  </define>
-  <define name="repository_elt">
-    <element name="repository">
-      <attribute name="handle">
-        <ref name="object_handle"/>
-      </attribute>
       <optional>
-        <attribute name="uri">
-          <ref name="uri"/>
-        </attribute>
-      </optional>
-      <optional>
-        <element name="bpki_ta">
+        <element name="repository_bpki_certificate">
           <ref name="base64"/>
         </element>
       </optional>

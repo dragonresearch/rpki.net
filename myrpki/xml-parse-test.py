@@ -70,21 +70,19 @@ def showpem(label, b64, kind):
   print label, text
 
 for x in tree.getiterator(tag("child")):
-  ta = x.findtext(tag("bpki_ta"))
-  if ta:
-    showpem("Child", ta, "x509")
+  cert = x.findtext(tag("bpki_certificate"))
+  if cert:
+    showpem("Child", cert, "x509")
 
 for x in tree.getiterator(tag("parent")):
-  print "Parent URI:", x.get("uri")
-  ta = x.findtext(tag("bpki_ta"))
-  if ta:
-    showpem("Parent", ta, "x509")
-
-for x in tree.getiterator(tag("repository")):
-  print "Repository URI:", x.get("uri")
-  ta = x.findtext(tag("bpki_ta"))
-  if ta:
-    showpem("Repository", ta, "x509")
+  print "Parent URI:", x.get("parent_service_uri")
+  cert = x.findtext(tag("parent_bpki_certificate"))
+  if cert:
+    showpem("Parent", cert, "x509")
+  print "Repository URI:", x.get("repository_service_uri")
+  cert = x.findtext(tag("repository_bpki_certificate"))
+  if cert:
+    showpem("Repository", cert, "x509")
 
 ca = tree.findtext(tag("bpki_ca_certificate"))
 if ca:

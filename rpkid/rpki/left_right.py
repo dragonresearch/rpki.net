@@ -897,7 +897,8 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
     def loop(iterator, q_pdu):
 
       def fail(e):
-        rpki.log.traceback()
+        if not isinstance(e, rpki.exceptions.NotFound):
+          rpki.log.traceback()
         r_msg.append(report_error_elt.from_exception(e, self_handle = q_pdu.self_handle, tag = q_pdu.tag))
         cb(r_msg)
 

@@ -22,6 +22,7 @@ start = element myrpki {
   parent_elt*,
   bpki_ca_certificate_elt?,
   bpki_crl_elt?,
+  bpki_repository_certificate_elt?,
   bpki_bsc_certificate_elt?,
   bpki_bsc_pkcs10_elt?
 }
@@ -43,16 +44,15 @@ child_elt = element child {
 
 parent_elt = element parent {
   attribute handle { object_handle },
-  attribute parent_service_uri { uri }?,
-  attribute repository_service_uri { uri }?,
-  element parent_bpki_certificate { base64 }?,
-  element repository_bpki_certificate { base64 }?
+  attribute service_uri { uri }?,
+  element bpki_certificate { base64 }?
 }
 
-bpki_ca_certificate_elt  = element bpki_ca_certificate  { base64 }
-bpki_crl_elt             = element bpki_crl             { base64 }
-bpki_bsc_certificate_elt = element bpki_bsc_certificate { base64 }
-bpki_bsc_pkcs10_elt      = element bpki_bsc_pkcs10      { base64 }
+bpki_ca_certificate_elt         = element bpki_ca_certificate           { base64 }
+bpki_crl_elt                    = element bpki_crl                      { base64 }
+bpki_repository_certificate_elt = element bpki_repository_certificate   { base64 }
+bpki_bsc_certificate_elt        = element bpki_bsc_certificate          { base64 }
+bpki_bsc_pkcs10_elt             = element bpki_bsc_pkcs10               { base64 }
 
 # Local Variables:
 # indent-tabs-mode: nil

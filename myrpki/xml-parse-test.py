@@ -75,14 +75,10 @@ for x in tree.getiterator(tag("child")):
     showpem("Child", cert, "x509")
 
 for x in tree.getiterator(tag("parent")):
-  print "Parent URI:", x.get("parent_service_uri")
-  cert = x.findtext(tag("parent_bpki_certificate"))
+  print "Parent URI:", x.get("service_uri")
+  cert = x.findtext(tag("bpki_certificate"))
   if cert:
     showpem("Parent", cert, "x509")
-  print "Repository URI:", x.get("repository_service_uri")
-  cert = x.findtext(tag("repository_bpki_certificate"))
-  if cert:
-    showpem("Repository", cert, "x509")
 
 ca = tree.findtext(tag("bpki_ca_certificate"))
 if ca:
@@ -91,6 +87,10 @@ if ca:
 bsc = tree.findtext(tag("bpki_bsc_certificate"))
 if bsc:
   showpem("BSC EE", bsc, "x509")
+
+repo = tree.findtext(tag("bpki_repository_certificate"))
+if repo:
+  showpem("Repository", repo, "x509")
 
 req = tree.findtext(tag("bpki_bsc_pkcs10"))
 if req:

@@ -7,7 +7,7 @@
 #all:: graph
 all:: load
 
-myrpki.xml: myrpki.py asns.csv prefixes.csv roas.csv validity.csv bpki.myrpki
+myrpki.xml: myrpki.py asns.csv prefixes.csv roas.csv validity.csv children.csv parents.csv
 	python myrpki.py
 
 lint: myrpki.xml myrpki.rng
@@ -27,6 +27,7 @@ bpki.myrpki:
 
 clean:
 	rm -rf *.xml bpki.myrpki bpki.rpkid bpki.pubd bpki.rootd
+	python sql-cleaner.py
 
 relatives: mom.pem dad.pem bro.pem sis.pem
 

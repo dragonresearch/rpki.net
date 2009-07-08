@@ -68,6 +68,9 @@
         <ref name="bpki_crl_elt"/>
       </optional>
       <optional>
+        <ref name="bpki_repository_certificate_elt"/>
+      </optional>
+      <optional>
         <ref name="bpki_bsc_certificate_elt"/>
       </optional>
       <optional>
@@ -126,22 +129,12 @@
         <ref name="object_handle"/>
       </attribute>
       <optional>
-        <attribute name="parent_service_uri">
+        <attribute name="service_uri">
           <ref name="uri"/>
         </attribute>
       </optional>
       <optional>
-        <attribute name="repository_service_uri">
-          <ref name="uri"/>
-        </attribute>
-      </optional>
-      <optional>
-        <element name="parent_bpki_certificate">
-          <ref name="base64"/>
-        </element>
-      </optional>
-      <optional>
-        <element name="repository_bpki_certificate">
+        <element name="bpki_certificate">
           <ref name="base64"/>
         </element>
       </optional>
@@ -154,6 +147,11 @@
   </define>
   <define name="bpki_crl_elt">
     <element name="bpki_crl">
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="bpki_repository_certificate_elt">
+    <element name="bpki_repository_certificate">
       <ref name="base64"/>
     </element>
   </define>

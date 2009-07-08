@@ -36,6 +36,15 @@ PERFORMANCE OF THIS SOFTWARE.
 import ConfigParser
 
 class parser(ConfigParser.RawConfigParser):
+  """
+  Extensions to stock Python ConfigParser:
+
+  Read config file and set default section while initializing parser object.
+
+  Support for OpenSSL-style subscripted options.
+
+  get-methods with default values and default section name.
+  """
 
   def __init__(self, filename = None, section = None):
     """
@@ -64,13 +73,29 @@ class parser(ConfigParser.RawConfigParser):
     matches.sort()
     return [match[1] for match in matches]
 
-  def get(self, option, default = None, section = None):
+  def _get_wrapper(self, method, section, option, default):
     """
-    Get an option, perhaps with a default value.
+    Wrapper method to add default value and default section support to
+    ConfigParser methods.
     """
     if section is None:
       section = self.default_section
     if default is None or self.has_option(section, option):
-      return ConfigParser.RawConfigParser.get(self, section, option)
+      return method(self, section, option)
     else:
       return default
+
+
+  def get(self, option, default = None, section = None):
+    """
+    Get an option, perhaps with a default value.
+    """
+    return self._get_wrapper(ConfigParser.RawConfigParser.get,
+                             section, option, default)
+
+  def getboolean(self, option, default = None, section = None):
+    """
+    Get a boolean option, perhaps with a default value.
+    """
+    return self._get_wrapper(ConfigParser.RawConfigParser.getboolean,
+                             section, option, default)

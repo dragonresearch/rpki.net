@@ -95,22 +95,20 @@ cfg = rpki.config.parser(cfg_file, "myirbe")
 
 bpki_modified = False
 
-# I suppose the distinguished names in these certificates might need
-# to become configurable eventually.
-
 bpki_rpkid = myrpki.CA(cfg_file, cfg.get("rpkid_ca_directory"))
-bpki_modified |= bpki_rpkid.setup("/CN=rpkid TA")
-for name in ("rpkid", "irdbd", "irbe_cli"):
-  bpki_modified |= bpki_rpkid.ee("/CN=%s EE" % name, name)
+bpki_modified |= bpki_rpkid.setup(cfg.get("bpki_rpkid_ta_dn", "/CN=rpkid TA"))
+bpki_modified |= bpki_rpkid.ee(   cfg.get("bpki_rpkid_ee_dn", "/CN=rpkid EE"), "rpkid")
+bpki_modified |= bpki_rpkid.ee(   cfg.get("bpki_irdbd_ee_dn", "/CN=irdbd EE"), "irdbd")
+bpki_modified |= bpki_rpkid.ee(   cfg.get("bpki_rpkid_irbe_dn", "/CN=irbe_cli EE"), "irbe_cli")
 
 bpki_pubd  = myrpki.CA(cfg_file, cfg.get("pubd_ca_directory"))
-bpki_modified |= bpki_pubd.setup("/CN=pubd TA")
-for name in ("pubd", "irbe_cli"):
-  bpki_modified |= bpki_pubd.ee("/CN=%s EE" % name, name)
+bpki_modified |= bpki_pubd.setup(cfg.get("bpki_pubd_ta_dn", "/CN=pubd TA"))
+bpki_modified |= bpki_pubd.ee(   cfg.get("bpki_pubd_ee_dn", "/CN=pubd EE"), "pubd")
+bpki_modified |= bpki_pubd.ee(   cfg.get("bpki_pubd_irbe_dn", "/CN=irbe_cli EE"), "irbe_cli")
 
 bpki_rootd = myrpki.CA(cfg_file, cfg.get("rootd_ca_directory"))
-bpki_modified |= bpki_rootd.setup("/CN=rootd TA")
-bpki_modified |= bpki_rootd.ee("/CN=rootd EE", "rootd")
+bpki_modified |= bpki_rootd.setup(cfg.get("bpki_rootd_ta_dn", "/CN=rootd TA"))
+bpki_modified |= bpki_rootd.ee(   cfg.get("bpki_rootd_ee_dn", "/CN=rootd EE"), "rootd")
 
 if bpki_modified:
   print "BPKI (re)initialized.  You need to (re)start daemons before continuing."

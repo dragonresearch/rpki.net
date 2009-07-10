@@ -462,6 +462,11 @@ class allocation(object):
     if "regen_margin" in yaml:
       self.regen_margin = rpki.sundial.timedelta.parse(yaml["regen_margin"]).convert_to_seconds()
     self.roa_requests = [roa_request.parse(y) for y in yaml.get("roa_request", yaml.get("route_origin", ()))]
+    for r in self.roa_requests:
+      if r.v4:
+        self.base.v4 = self.base.v4.union(r.v4.to_resource_set())
+      if r.v6:
+        self.base.v6 = self.base.v6.union(r.v6.to_resource_set())
     self.hosted_by = yaml.get("hosted_by")
     self.extra_conf = yaml.get("extra_conf", [])
     self.hosts = []

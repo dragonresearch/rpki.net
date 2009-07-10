@@ -37,6 +37,9 @@ PERFORMANCE OF THIS SOFTWARE.
 import subprocess, csv, re, os, getopt, sys, ConfigParser, base64, yaml
 import rpki.resource_set, rpki.sundial
 
+section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
+variable_regexp = re.compile("\s*(\w+)\s*=\s*(.+?)\s*$")
+
 test_dir = "test"
 
 base_port = 4400
@@ -203,18 +206,31 @@ class allocation(object):
         f.write("%s\t%s\n" % (p, r.asn))
 
   def dump_conf(self, fn):
+
+    replacements = {
+      ("myrpki", "handle")      : self.name,
+      ("myirbe", "rsync_base")  : "rsync://localhost:%d/" % self.rsync_port,
+      ("myirbe", "pubd_base")   : "https://localhost:%d"  % self.pubd_port,
+      ("myirbe", "rpkid_base")  : "https://localhost:%d"  % self.rpkid_port }
+
     f = self.outfile(fn)
-    cfg = ConfigParser.RawConfigParser()
-    cfg.read("myrpki.conf")
-    cfg.set("myrpki", "handle", self.name)
-    if self.is_hosted():
-      cfg.remove_section("myirbe")
-    else:
-      cfg.set("myirbe", "rsync_base", "rsync://localhost:%d/" % self.rsync_port)
-      cfg.set("myirbe", "pubd_base",  "https://localhost:%d"  % self.pubd_port)
-      cfg.set("myirbe", "rpkid_base", "https://localhost:%d"  % self.rpkid_port)
     f.write("# Automatically generated, do not edit\n")
-    cfg.write(f)
+
+    section = None
+
+    for line in open("myrpki.conf"):
+      m = section_regexp.match(line)
+      if m:
+        section = m.group(1)
+      if section is None or (self.is_hosted() and section == "myirbe"):
+        continue
+      if not m and section in ("myirbe", "myrpki"):
+        m = variable_regexp.match(line)
+        if m:
+          variable = m.group(1)
+          if (section, variable) in replacements:
+            line = variable + " = " +  replacements[(section, variable)] + "\n"
+      f.write(line)
 
 for root, dirs, files in os.walk(test_dir, topdown = False):
   for file in files:

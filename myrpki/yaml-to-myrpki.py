@@ -37,6 +37,8 @@ PERFORMANCE OF THIS SOFTWARE.
 import subprocess, csv, re, os, getopt, sys, ConfigParser, base64, yaml
 import rpki.resource_set, rpki.sundial
 
+test_dir = "test"
+
 base_port = 4400
 
 def allocate_port():
@@ -44,19 +46,6 @@ def allocate_port():
   p = base_port
   base_port += 1
   return p
-
-def copy_conf(input_file, output_file, replacement_dict = {}):
-  cfg = ConfigParser.RawConfigParser()
-  cfg.read(input_file)
-  cfg.remove_section("myirbe")
-  for opt in cfg.items("myrpki"):
-    cfg.remove_option("myrpki", opt[0])
-  for k, v in replacement_dict.iteritems():
-    cfg.set("myrpki", k, v)
-  f = open(output_file, "w")
-  f.write("# Automatically generated from %s, do not edit\n" % input_file)
-  cfg.write(f)
-  f.close()
 
 class roa_request(object):
 
@@ -180,34 +169,43 @@ class allocation(object):
     return self.hosted_by is not None
 
   def path(self, filename):
-    return os.path.join("test", self.name, filename)
+    return os.path.join(os.getcwd(), test_dir, self.name, filename)
 
-  def dump_asns(self, f):
+  def outfile(self, filename):
+    return open(self.path(filename), "w")
+
+  def dump_asns(self, fn):
+    f = self.outfile(fn)
     for k in self.kids:
       for a in k.resources.asn:
         f.write("%s\t%s\n" % (k.name, a))
 
-  def dump_children(self, f):
+  def dump_children(self, fn):
+    f = self.outfile(fn)
     for k in self.kids:
       f.write("%s\t%s\t%s\n" % (k.name, k.resources.valid_until, k.path("ca.cer")))
 
-  def dump_parents(self, f):
+  def dump_parents(self, fn):
+    f = self.outfile(fn)
     if not self.is_root():
       f.write("%s\t%s\t%s\n" % (self.parent.name, "https://some.where.example/", self.parent.path("ca.cer")))
 
-  def dump_prefixes(self, f):
+  def dump_prefixes(self, fn):
+    f = self.outfile(fn)
     for k in self.kids:
       for p in k.resources.v4 + k.resources.v6:
         f.write("%s\t%s\n" % (k.name, p))
 
-  def dump_roas(self, f):
+  def dump_roas(self, fn):
+    f = self.outfile(fn)
     for r in self.roa_requests:
       for p in r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ():
         f.write("%s\t%s\n" % (p, r.asn))
 
-  def dump_conf(self, input_file, f):
+  def dump_conf(self, fn):
+    f = self.outfile(fn)
     cfg = ConfigParser.RawConfigParser()
-    cfg.read(input_file)
+    cfg.read("myrpki.conf")
     cfg.set("myrpki", "handle", self.name)
     if self.is_hosted():
       cfg.remove_section("myirbe")
@@ -215,34 +213,21 @@ class allocation(object):
       cfg.set("myirbe", "rsync_base", "rsync://localhost:%d/" % self.rsync_port)
       cfg.set("myirbe", "pubd_base",  "https://localhost:%d"  % self.pubd_port)
       cfg.set("myirbe", "rpkid_base", "https://localhost:%d"  % self.rpkid_port)
-    f.write("# Automatically generated from %s, do not edit\n" % input_file)
+    f.write("# Automatically generated, do not edit\n")
     cfg.write(f)
 
-#copy_conf("myrpki.conf", "/dev/stdout")
+for root, dirs, files in os.walk(test_dir, topdown = False):
+  for file in files:
+    os.remove(os.path.join(root, file))
+  for dir in dirs:
+    os.rmdir(os.path.join(root, dir))
 
-if False:
-  yaml_file = sys.argv[1]
-elif False:
-  yaml_file = "../rpkid/testbed.6.yaml"
-else:
-  yaml_file = "test.yaml"
-
-# Can't use yaml.safe_load() because it objects to subsequent
-# documents in the same file.  Can't subscript result of
-# yaml.safe_load_all() because it's a generator.  So we call .next(),
-# per the generator protocol, to get the first document.
-
-yaml_doc = yaml.safe_load_all(open(yaml_file)).next()
-
-db = allocation_db(yaml_doc)
-
-#db.dump()
-
-for d in db:
-  os.makedirs(d.path(""))
-  d.dump_asns(open(d.path("asns.csv"), "w"))
-  d.dump_children(open(d.path("children.csv"), "w"))
-  d.dump_parents(open(d.path("parents.csv"), "w"))
-  d.dump_prefixes(open(d.path("prefixes.csv"), "w"))
-  d.dump_roas(open(d.path("roas.csv"), "w"))
-  d.dump_conf("myrpki.conf", open(d.path("myrpki.conf"), "w"))
+for yaml_file in sys.argv[1:]:
+  for d in allocation_db(yaml.safe_load_all(open(yaml_file)).next()):
+    os.makedirs(d.path(""))
+    d.dump_asns("asns.csv")
+    d.dump_children("children.csv")
+    d.dump_parents("parents.csv")
+    d.dump_prefixes("prefixes.csv")
+    d.dump_roas("roas.csv")
+    d.dump_conf("myrpki.conf")

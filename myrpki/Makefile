@@ -7,7 +7,7 @@
 #all:: graph
 all:: load
 
-myrpki.xml: myrpki.py asns.csv prefixes.csv roas.csv validity.csv children.csv parents.csv
+myrpki.xml: myrpki.py asns.csv children.csv parents.csv prefixes.csv roas.csv
 	python myrpki.py
 
 lint: myrpki.xml myrpki.rng

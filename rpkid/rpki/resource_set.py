@@ -308,6 +308,12 @@ class resource_set(list):
         if this.max > that.max: max = this.max
         else:                   max = that.max
         result.append(type(this)(min, max))
+        while set1 and set1[0].max <= max:
+          assert set1[0].min >= min
+          del set1[0]
+        while set2 and set2[0].max <= max:
+          assert set2[0].min >= min
+          del set2[0]
     return type(self)(result)
 
   def intersection(self, other):

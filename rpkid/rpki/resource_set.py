@@ -927,6 +927,8 @@ if __name__ == "__main__":
   print
   test1(resource_set_ipv4, "10.0.0.0/24", "10.3.0.0/24,10.0.0.77/32")
   print
+  test1(resource_set_ipv4, "10.0.0.0/24", "10.0.0.0/32,10.0.0.2/32,10.0.0.4/32")
+  print
   print "Testing set operations on ROA prefixes"
   print
   test2(roa_prefix_set_ipv4, "10.0.0.44/32,10.6.0.2/32", "10.3.0.0/24,10.0.0.77/32")

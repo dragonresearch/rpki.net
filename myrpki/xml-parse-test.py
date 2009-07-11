@@ -19,15 +19,14 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import lxml.etree, rpki.resource_set, base64, subprocess
-
-rng = lxml.etree.RelaxNG(lxml.etree.parse("myrpki.rng"))
+import schema
 
 tree = lxml.etree.parse("myrpki.xml").getroot()
 
 if False:
   print lxml.etree.tostring(tree, pretty_print = True, encoding = "us-ascii", xml_declaration = True)
 
-rng.assertValid(tree)
+schema.myrpki.assertValid(tree)
 
 def showitems(x):
   if False:

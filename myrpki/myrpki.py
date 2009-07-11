@@ -311,7 +311,8 @@ class CA(object):
       return None
 
     if not os.path.exists(cert):
-      raise RuntimeError, "PEM file %r does not exist" % (cert,)
+      print "Certificate %s doesn't exist, skipping" % cert
+      return None
 
     # Extract public key and subject name from PEM file and hash it so
     # we can use the result as a tag for cross-certifying this cert.

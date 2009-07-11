@@ -144,6 +144,10 @@ class allocation(object):
       self.rsync_port = allocate_port()
       self.rpkid_port = allocate_port()
       self.pubd_port  = allocate_port()
+    else:
+      self.rsync_port = 0
+      self.rpkid_port = 0
+      self.pubd_port  = 0
 
   def closure(self):
     resources = self.base
@@ -186,12 +190,12 @@ class allocation(object):
   def dump_children(self, fn):
     f = self.outfile(fn)
     for k in self.kids:
-      f.write("%s\t%s\t%s\n" % (k.name, k.resources.valid_until, k.path("ca.cer")))
+      f.write("%s\t%s\t%s\n" % (k.name, k.resources.valid_until, k.path("bpki.myrpki/ca.cer")))
 
   def dump_parents(self, fn):
     f = self.outfile(fn)
     if not self.is_root():
-      f.write("%s\t%s\t%s\n" % (self.parent.name, "https://some.where.example/", self.parent.path("ca.cer")))
+      f.write("%s\t%s\t%s\n" % (self.parent.name, "https://some.where.example/", self.parent.path("bpki.myrpki/ca.cer")))
 
   def dump_prefixes(self, fn):
     f = self.outfile(fn)

@@ -21,9 +21,7 @@ PERFORMANCE OF THIS SOFTWARE.
 import lxml.etree, base64, subprocess, sys, os, time, re, getopt, MySQLdb
 import rpki.https, rpki.config, rpki.resource_set, rpki.relaxng
 import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509, rpki.async
-import myrpki
-
-rng = lxml.etree.RelaxNG(lxml.etree.parse("myrpki.rng"))
+import myrpki, schema
 
 def tag(t):
   return "{http://www.hactrn.net/uris/rpki/myrpki/}" + t
@@ -171,7 +169,7 @@ my_handle = None
 for xmlfile in xmlfiles:
 
   tree = lxml.etree.parse(xmlfile).getroot()
-  rng.assertValid(tree)
+  schema.myrpki.assertValid(tree)
 
   handle = tree.get("handle")
 
@@ -452,7 +450,7 @@ for xmlfile in xmlfiles:
     assert e is not None
     e.text = bsc_req.get_Base64()
 
-  rng.assertValid(tree)
+  schema.myrpki.assertValid(tree)
   lxml.etree.ElementTree(tree).write(xmlfile + ".tmp", pretty_print = True)
   os.rename(xmlfile + ".tmp", xmlfile)
 

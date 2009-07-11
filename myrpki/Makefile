@@ -10,16 +10,22 @@ all:: load
 myrpki.xml: myrpki.py asns.csv children.csv parents.csv prefixes.csv roas.csv
 	python myrpki.py
 
-lint: myrpki.xml myrpki.rng
-	xmllint --noout --relaxng myrpki.rng myrpki.xml
+lint: myrpki.xml schema.rng
+	xmllint --noout --relaxng schema.rng myrpki.xml
 
-myrpki.rng: myrpki.rnc
-	trang myrpki.rnc myrpki.rng
+schema.rng: schema.rnc
+	trang schema.rnc schema.rng
 
-parse: myrpki.xml myrpki.rng
+schema.py: schema.rng
+	echo >$@ 'import lxml.etree'
+	echo >>$@  -n "myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring('''"
+	cat >>$@ schema.rng
+	echo >>$@ "'''))"
+
+parse: myrpki.xml schema.py
 	python xml-parse-test.py
 
-load: myrpki.xml myrpki.rng
+load: myrpki.xml schema.py
 	python myirbe.py
 
 bpki.myrpki:
@@ -28,11 +34,6 @@ bpki.myrpki:
 clean:
 	rm -rf *.xml bpki.myrpki bpki.rpkid bpki.pubd bpki.rootd
 	python sql-cleaner.py
-
-relatives: mom.pem dad.pem bro.pem sis.pem
-
-mom.pem dad.pem bro.pem sis.pem: relatives.conf
-	CN=$@ openssl req -new -sha256 -x509 -verbose -config relatives.conf -extensions req_x509_ext -newkey rsa:2048 -nodes -keyout /dev/null -out $@
 
 format: myrpki.xml
 	xmllint --format myrpki.xml

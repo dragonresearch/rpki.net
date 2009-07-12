@@ -177,7 +177,7 @@ class allocation(object):
   def is_hosted(self):
     return self.hosted_by is not None
 
-  def path(self, filename):
+  def path(self, filename = ""):
     return os.path.join(os.getcwd(), test_dir, self.name, filename)
 
   def outfile(self, filename):
@@ -251,12 +251,24 @@ for root, dirs, files in os.walk(test_dir, topdown = False):
   for dir in dirs:
     os.rmdir(os.path.join(root, dir))
 
-for yaml_file in sys.argv[1:]:
-  for d in allocation_db(yaml.safe_load_all(open(yaml_file)).next()):
-    os.makedirs(d.path(""))
-    d.dump_asns("asns.csv")
-    d.dump_children("children.csv")
-    d.dump_parents("parents.csv")
-    d.dump_prefixes("prefixes.csv")
-    d.dump_roas("roas.csv")
-    d.dump_conf("myrpki.conf")
+db = allocation_db(yaml.safe_load_all(open(sys.argv[1])).next())
+
+for d in db:
+  os.makedirs(d.path(""))
+  d.dump_asns("asns.csv")
+  d.dump_children("children.csv")
+  d.dump_parents("parents.csv")
+  d.dump_prefixes("prefixes.csv")
+  d.dump_roas("roas.csv")
+  d.dump_conf("myrpki.conf")
+
+f = open(os.path.join(test_dir, "setup.sh"), "w")
+f.write("#!/bin/sh -\n\nset -x\n\ncd `dirname $0`\n")
+for d in db:
+  if not d.is_hosted():
+    f.write("(cd %s && python ../../myirbe.py)\n" % d.path())
+for d in db:
+  f.write("(cd %s && python ../../myrpki.py)\n" % d.path())
+for d in db:
+  f.write("(cd %s && python ../../myrpki.py)\n" % d.path())
+f.close()

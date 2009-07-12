@@ -50,6 +50,8 @@ def allocate_port():
   base_port += 1
   return p
 
+rootd_port = allocate_port()
+
 class roa_request(object):
 
   def __init__(self, asn, ipv4, ipv6):
@@ -112,6 +114,10 @@ class allocation(object):
   crl_interval = None
   regen_margin = None
 
+  rsync_port = 0
+  rpkid_port = 0
+  pubd_port  = 0
+
   def __init__(self, yaml, db, parent = None):
     db.append(self)
     self.name = yaml["name"]
@@ -144,10 +150,6 @@ class allocation(object):
       self.rsync_port = allocate_port()
       self.rpkid_port = allocate_port()
       self.pubd_port  = allocate_port()
-    else:
-      self.rsync_port = 0
-      self.rpkid_port = 0
-      self.pubd_port  = 0
 
   def closure(self):
     resources = self.base
@@ -181,6 +183,13 @@ class allocation(object):
   def outfile(self, filename):
     return open(self.path(filename), "w")
 
+  def up_down_url(self):
+    if self.is_root():
+      return "https://localhost:%d/" % rootd_port
+    else:
+      parent_port = self.parent.hosted_by.rpkid_port if self.parent.is_hosted() else self.parent.rpkid_port
+      return "https://localhost:%d/up-down/%s/%s" % (parent_port, self.parent.name, self.name)
+
   def dump_asns(self, fn):
     f = self.outfile(fn)
     for k in self.kids:
@@ -195,7 +204,7 @@ class allocation(object):
   def dump_parents(self, fn):
     f = self.outfile(fn)
     if not self.is_root():
-      f.write("%s\t%s\t%s\n" % (self.parent.name, "https://some.where.example/", self.parent.path("bpki.myrpki/ca.cer")))
+      f.write("%s\t%s\t%s\n" % (self.parent.name, self.up_down_url(), self.parent.path("bpki.myrpki/ca.cer")))
 
   def dump_prefixes(self, fn):
     f = self.outfile(fn)
@@ -212,10 +221,10 @@ class allocation(object):
   def dump_conf(self, fn):
 
     replacements = {
-      ("myrpki", "handle")      : self.name,
-      ("myirbe", "rsync_base")  : "rsync://localhost:%d/" % self.rsync_port,
-      ("myirbe", "pubd_base")   : "https://localhost:%d"  % self.pubd_port,
-      ("myirbe", "rpkid_base")  : "https://localhost:%d"  % self.rpkid_port }
+      ("myrpki", "handle")     : self.name,
+      ("myirbe", "rsync_base") : "rsync://localhost:%d/" % self.rsync_port,
+      ("myirbe", "pubd_base")  : "https://localhost:%d/" % self.pubd_port,
+      ("myirbe", "rpkid_base") : "https://localhost:%d/" % self.rpkid_port }
 
     f = self.outfile(fn)
     f.write("# Automatically generated, do not edit\n")

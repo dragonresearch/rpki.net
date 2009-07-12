@@ -120,7 +120,7 @@ rpkid_base        = cfg.get("rpkid_base")
 
 # Nasty regexp for parsing rpkid's up-down service URLs
 
-updown_regexp = re.compile(re.escape(rpkid_base) + "/up-down/([-A-Z0-9_]+)/([-A-Z0-9_]+)$", re.I)
+updown_regexp = re.compile(re.escape(rpkid_base) + "up-down/([-A-Z0-9_]+)/([-A-Z0-9_]+)$", re.I)
 
 # Wrappers to simplify calling rpkid and pubd
 
@@ -130,7 +130,7 @@ call_rpkid = rpki.async.sync_wrapper(caller(
   client_cert = rpki.x509.X509(PEM_file = bpki_rpkid.dir + "/irbe_cli.cer"),
   server_ta   = rpki.x509.X509(PEM_file = bpki_rpkid.cer),
   server_cert = rpki.x509.X509(PEM_file = bpki_rpkid.dir + "/rpkid.cer"),
-  url         = rpkid_base + "/left-right"))
+  url         = rpkid_base + "left-right"))
 
 call_pubd = rpki.async.sync_wrapper(caller(
   proto       = rpki.publication,
@@ -138,7 +138,7 @@ call_pubd = rpki.async.sync_wrapper(caller(
   client_cert = rpki.x509.X509(PEM_file = bpki_pubd.dir + "/irbe_cli.cer"),
   server_ta   = rpki.x509.X509(PEM_file = bpki_pubd.cer),
   server_cert = rpki.x509.X509(PEM_file = bpki_pubd.dir + "/pubd.cer"),
-  url         = pubd_base + "/control"))
+  url         = pubd_base + "control"))
 
 # Make sure that pubd's BPKI CRL is up to date.
 
@@ -318,7 +318,7 @@ for xmlfile in xmlfiles:
   if repository_cert:
 
     repository_pdu = repository_pdus.pop(repository_handle, None)
-    repository_uri = pubd_base + "/client/" + handle
+    repository_uri = pubd_base + "client/" + handle
 
     if (repository_pdu is None or
         repository_pdu.bsc_handle != bsc_handle or

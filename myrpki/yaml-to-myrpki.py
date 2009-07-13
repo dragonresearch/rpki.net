@@ -40,7 +40,11 @@ import rpki.resource_set, rpki.sundial
 section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
 variable_regexp = re.compile("\s*(\w+)\s*=\s*(.+?)\s*$")
 
-test_dir = "test"
+this_dir = os.getcwd()
+test_dir = os.path.join(this_dir, "test")
+
+prog_myirbe = os.path.join(this_dir, "myirbe.py")
+prog_myrpki = os.path.join(this_dir, "myrpki.py")
 
 base_port = 4400
 
@@ -177,11 +181,13 @@ class allocation(object):
   def is_hosted(self):
     return self.hosted_by is not None
 
-  def path(self, filename = ""):
-    return os.path.join(os.getcwd(), test_dir, self.name, filename)
+  def path(self, *names):
+    return os.path.normpath(os.path.join(test_dir, self.name, *names))
 
   def outfile(self, filename):
-    return open(self.path(filename), "w")
+    path = self.path(filename)
+    print "Writing", path
+    return open(path, "w")
 
   def up_down_url(self):
     if self.is_root():
@@ -195,28 +201,33 @@ class allocation(object):
     for k in self.kids:
       for a in k.resources.asn:
         f.write("%s\t%s\n" % (k.name, a))
+    f.close()
 
   def dump_children(self, fn):
     f = self.outfile(fn)
     for k in self.kids:
-      f.write("%s\t%s\t%s\n" % (k.name, k.resources.valid_until, k.path("bpki.myrpki/ca.cer")))
+      f.write("%s\t%s\t%s\n" % (k.name, k.resources.valid_until, k.path("bpki.myrpki", "ca.cer")))
+    f.close()
 
   def dump_parents(self, fn):
     f = self.outfile(fn)
     if not self.is_root():
-      f.write("%s\t%s\t%s\n" % (self.parent.name, self.up_down_url(), self.parent.path("bpki.myrpki/ca.cer")))
+      f.write("%s\t%s\t%s\n" % (self.parent.name, self.up_down_url(), self.parent.path("bpki.myrpki", "ca.cer")))
+    f.close()
 
   def dump_prefixes(self, fn):
     f = self.outfile(fn)
     for k in self.kids:
       for p in k.resources.v4 + k.resources.v6:
         f.write("%s\t%s\n" % (k.name, p))
+    f.close()
 
   def dump_roas(self, fn):
     f = self.outfile(fn)
     for r in self.roa_requests:
       for p in r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ():
         f.write("%s\t%s\n" % (p, r.asn))
+    f.close()
 
   def dump_conf(self, fn):
 
@@ -245,16 +256,39 @@ class allocation(object):
             line = variable + " = " +  replacements[(section, variable)] + "\n"
       f.write(line)
 
+    f.close()
+
+  def run_myirbe(self):
+    if not self.is_hosted():
+      print "Running myirbe.py for", self.name
+      subprocess.check_call(("python", prog_myirbe), cwd = self.path())
+
+  def run_myrpki(self):
+    print "Running myrpki.py for", self.name
+    subprocess.check_call(("python", prog_myrpki), cwd = self.path())
+
+# Start clean
+
 for root, dirs, files in os.walk(test_dir, topdown = False):
   for file in files:
     os.remove(os.path.join(root, file))
   for dir in dirs:
     os.rmdir(os.path.join(root, dir))
 
-db = allocation_db(yaml.safe_load_all(open(sys.argv[1])).next())
+# Select input file
+
+yaml_file = sys.argv[1] if len(sys.argv) > 1 else "../rpkid/testbed.1.yaml"
+
+# Read first YAML doc in file and process as compact description of
+# test layout and resource allocations.  Ignore subsequent YAML docs,
+# they're for testbed.py, not this script.
+
+db = allocation_db(yaml.safe_load_all(open(yaml_file)).next())
+
+# Set up each entity in our test
 
 for d in db:
-  os.makedirs(d.path(""))
+  os.makedirs(d.path())
   d.dump_asns("asns.csv")
   d.dump_children("children.csv")
   d.dump_parents("parents.csv")
@@ -262,13 +296,18 @@ for d in db:
   d.dump_roas("roas.csv")
   d.dump_conf("myrpki.conf")
 
-f = open(os.path.join(test_dir, "setup.sh"), "w")
-f.write("#!/bin/sh -\n\nset -x\n\ncd `dirname $0`\n")
+# Do initial myirbe.py run for each hosting entity to set up BPKI
+
 for d in db:
-  if not d.is_hosted():
-    f.write("(cd %s && python ../../myirbe.py)\n" % d.path())
-for d in db:
-  f.write("(cd %s && python ../../myrpki.py)\n" % d.path())
-for d in db:
-  f.write("(cd %s && python ../../myrpki.py)\n" % d.path())
-f.close()
+  d.run_myirbe()
+
+# Run myrpki.py several times for each entity.  First pass misses
+# stuff that isn't generated until later in first pass.  Second pass
+# should pick up everything and reach a stable state.  If anything
+# changes during third pass, that's a bug.
+
+for i in xrange(3):
+  for d in db:
+    d.run_myrpki()
+
+# At this point we need to start a whole lotta daemons.

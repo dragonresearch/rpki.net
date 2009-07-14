@@ -26,11 +26,16 @@ for name in ("rpkid", "irdbd", "pubd"):
     cfg = ConfigParser.RawConfigParser()
     cfg.read("%s.conf" % name)
     username = cfg.get(name, "sql-username")
-    database = cfg.get(name, "sql-database")
     password = cfg.get(name, "sql-password")
+    database = cfg.get(name, "sql-database")
 
   except:
     print "Cleaner couldn't read %s config file, ignoring" % name
     continue
 
-  subprocess.check_call(("mysql", "-u", username, "-p" + password, database), stdin = open("../rpkid/%s.sql" % name))
+  dbs = [database]
+  dbs.extend("%s%d" % (database, i) for i in xrange(12))
+
+  for db in dbs:
+    subprocess.check_call(("mysql", "-u", username, "-p" + password, db),
+                        stdin = open("../rpkid/%s.sql" % name))

@@ -35,7 +35,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import ConfigParser
 
-class parser(ConfigParser.RawConfigParser):
+class parser(object):
   """
   Extensions to stock Python ConfigParser:
 
@@ -46,14 +46,31 @@ class parser(ConfigParser.RawConfigParser):
   get-methods with default values and default section name.
   """
 
-  def __init__(self, filename = None, section = None):
+  def __init__(self, filename, section = None):
     """
     Initialize this parser.
     """
-    ConfigParser.RawConfigParser.__init__(self)
-    if filename:
-      self.read(filename)
+
+    self.filename = filename
+    self.cfg = ConfigParser.RawConfigParser()
+    self.cfg.readfp(open(filename), filename)
     self.default_section = section
+
+  def has_section(self, section):
+    """
+    Test whether a section exists.
+    """
+
+    return self.cfg.has_section(section)
+
+  def has_option(self, option, section = None):
+    """
+    Test whether an option exists.
+    """
+
+    if section is None:
+      section = self.default_section
+    return self.cfg.has_option(section, option)
 
   def multiget(self, option, section = None):
     """
@@ -61,12 +78,13 @@ class parser(ConfigParser.RawConfigParser):
 
     Returns a list of values matching the specified option name.
     """
+
     matches = []
     if section is None:
       section = self.default_section
-    if self.has_option(section, option):
+    if self.cfg.has_option(section, option):
       matches.append((-1, self.get(option, section = section)))
-    for key, value in self.items(section):
+    for key, value in self.cfg.items(section):
       s = key.rsplit(".", 1)
       if len(s) == 2 and s[0] == option and s[1].isdigit():
         matches.append((int(s[1]), value))
@@ -80,22 +98,26 @@ class parser(ConfigParser.RawConfigParser):
     """
     if section is None:
       section = self.default_section
-    if default is None or self.has_option(section, option):
-      return method(self, section, option)
+    #print "[Looking for option %r in section %r of %r]" % (option, section, self.filename)
+    if default is None or self.cfg.has_option(section, option):
+      return method(section, option)
     else:
       return default
-
 
   def get(self, option, default = None, section = None):
     """
     Get an option, perhaps with a default value.
     """
-    return self._get_wrapper(ConfigParser.RawConfigParser.get,
-                             section, option, default)
+    return self._get_wrapper(self.cfg.get, section, option, default)
 
   def getboolean(self, option, default = None, section = None):
     """
     Get a boolean option, perhaps with a default value.
     """
-    return self._get_wrapper(ConfigParser.RawConfigParser.getboolean,
-                             section, option, default)
+    return self._get_wrapper(self.cfg.getboolean, section, option, default)
+
+  def getint(self, option, default = None, section = None):
+    """
+    Get an integer option, perhaps with a default value.
+    """
+    return self._get_wrapper(self.cfg.getint, section, option, default)

@@ -24,7 +24,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import rpki.config, rpki.https, getopt, sys
+import getopt, sys
+import rpki.config, rpki.https, rpki.async
 
 cfg_file = "cronjob.conf"
 debug = False
@@ -53,8 +54,19 @@ irbe_cert  = rpki.x509.X509(Auto_file = cfg.get("irbe-cert"))
 bpki_ta    = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
 rpkid_cert = rpki.x509.X509(Auto_file = cfg.get("rpkid-cert"))
 
-print rpki.https.client(client_key   = irbe_key,
-                        client_cert  = irbe_cert,
-                        server_ta    = (bpki_ta, rpkid_cert),
-                        url          = cfg.get("https-url"),
-                        msg          = "Please run cron now.")
+def cb(*whatever):
+  print repr(whatever)
+
+def eb(e):
+  print repr(e)
+  raise e
+
+rpki.https.client(client_key   = irbe_key,
+                  client_cert  = irbe_cert,
+                  server_ta    = (bpki_ta, rpkid_cert),
+                  url          = cfg.get("https-url"),
+                  msg          = "Please run cron now.",
+                  callback     = cb,
+                  errback      = eb)
+
+rpki.async.event_loop()

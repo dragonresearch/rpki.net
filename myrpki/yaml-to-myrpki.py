@@ -34,11 +34,11 @@ PERFORMANCE OF THIS SOFTWARE.
 
 """
 
-import subprocess, csv, re, os, getopt, sys, ConfigParser, base64, yaml, signal, errno
+import subprocess, csv, re, os, getopt, sys, ConfigParser, base64, yaml, signal, errno, time
 import rpki.resource_set, rpki.sundial, myrpki
 
 section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
-variable_regexp = re.compile("\s*(\w+)\s*=\s*(.+?)\s*$")
+variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
 
 def cleanpath(*names):
   return os.path.normpath(os.path.join(*names))
@@ -55,16 +55,6 @@ prog_pubd   = cleanpath(rpkid_dir, "pubd.py")
 prog_rootd  = cleanpath(rpkid_dir, "rootd.py")
 
 prog_openssl = cleanpath(this_dir, "../openssl/openssl/apps/openssl")
-
-base_port = 4400
-
-def allocate_port():
-  global base_port
-  p = base_port
-  base_port += 1
-  return p
-
-rootd_port = allocate_port()
 
 class roa_request(object):
 
@@ -120,13 +110,27 @@ class allocation_db(list):
 
   def dump(self):
     for a in self:
-      print a
+      a.dump()
 
 class allocation(object):
 
   parent       = None
   crl_interval = None
   regen_margin = None
+
+  base_port = 4400
+
+  @classmethod
+  def allocate_port(cls):
+    cls.base_port += 1
+    return cls.base_port
+
+  base_engine = -1
+
+  @classmethod
+  def allocate_engine(cls):
+    cls.base_engine += 1
+    return cls.base_engine
 
   def __init__(self, yaml, db, parent = None):
     db.append(self)
@@ -157,9 +161,13 @@ class allocation(object):
     self.hosted_by = yaml.get("hosted_by")
     self.hosts = []
     if not self.is_hosted():
-      self.rsync_port = allocate_port()
-      self.rpkid_port = allocate_port()
-      self.pubd_port  = allocate_port()
+      self.engine = self.allocate_engine()
+      self.rsync_port = self.allocate_port()
+      self.rpkid_port = self.allocate_port()
+      self.pubd_port  = self.allocate_port()
+      self.irdbd_port = self.allocate_port()
+    if self.is_root():
+      self.rootd_port = self.allocate_port()
 
   def closure(self):
     resources = self.base
@@ -167,6 +175,9 @@ class allocation(object):
       resources = resources.union(kid.closure())
     self.resources = resources
     return resources
+
+  def dump(self):
+    print str(self)
 
   def __str__(self):
     s = self.name + ":\n"
@@ -179,6 +190,11 @@ class allocation(object):
     if self.is_hosted():        s += "  Host: %s\n" % self.hosted_by.name
     if self.hosts:              s += " Hosts: %s\n" % ", ".join(h.name for h in self.hosts)
     for r in self.roa_requests: s += "   ROA: %s\n" % r
+    if not self.is_hosted():    s += " IPort: %s\n" % self.irdbd_port
+    if not self.is_hosted():    s += " PPort: %s\n" % self.pubd_port
+    if not self.is_hosted():    s += " RPort: %s\n" % self.rpkid_port
+    if not self.is_hosted():    s += " SPort: %s\n" % self.rsync_port
+    if self.is_root():          s += " TPort: %s\n" % self.rootd_port
     return s + " Until: %s\n" % self.resources.valid_until
 
   def is_root(self):
@@ -197,7 +213,7 @@ class allocation(object):
 
   def up_down_url(self):
     if self.is_root():
-      return "https://localhost:%d/" % rootd_port
+      return "https://localhost:%d/" % self.rootd_port
     else:
       parent_port = self.parent.hosted_by.rpkid_port if self.parent.is_hosted() else self.parent.rpkid_port
       return "https://localhost:%d/up-down/%s/%s" % (parent_port, self.parent.name, self.name)
@@ -237,13 +253,26 @@ class allocation(object):
 
   def dump_conf(self, fn):
 
-    replacements = { ("myrpki", "handle") : self.name }
+    replacements = { ("myrpki", "handle"): self.name }
 
     if not self.is_hosted():
       replacements.update({
-        ("myirbe", "rsync_base") : "rsync://localhost:%d/" % self.rsync_port,
-        ("myirbe", "pubd_base")  : "https://localhost:%d/" % self.pubd_port,
-        ("myirbe", "rpkid_base") : "https://localhost:%d/" % self.rpkid_port })
+        ("myirbe", "rsync_base"):   "rsync://localhost:%d/" % self.rsync_port,
+        ("myirbe", "pubd_base"):    "https://localhost:%d/" % self.pubd_port,
+        ("myirbe", "rpkid_base"):   "https://localhost:%d/" % self.rpkid_port,
+        ("myirbe", "irdbd_conf"):   "myrpki.conf",
+        ("irdbd",  "sql-database"): "irdb%d" % self.engine,
+        ("rpkid",  "sql-database"): "rpki%d" % self.engine,
+        ("pubd",   "sql-database"): "pubd%d" % self.engine,
+        ("irdbd",  "https-url"):    "https://localhost:%d/" % self.irdbd_port,
+        ("rpkid",  "irdb-url"):     "https://localhost:%d/" % self.irdbd_port,
+        ("rpkid",  "server-port"):  "%d" % self.rpkid_port,
+        ("pubd",   "server-port"):  "%d" % self.pubd_port,
+        ("rootd",  "server-port"):  "%d" % (self.rootd_port if self.is_root() else 0) })
+
+    if self.is_root():
+      replacements.update({
+        ("rootd",  "server-port"):  "%d" % self.rootd_port })
 
     f = self.outfile(fn)
     f.write("# Automatically generated, do not edit\n")
@@ -275,7 +304,7 @@ class allocation(object):
 
   def run_python_daemon(self, prog):
     basename = os.path.basename(prog)
-    p = subprocess.Popen(("python", prog, "-c", "myrpki.conf"),
+    p = subprocess.Popen(("python", prog, "-c", self.path("myrpki.conf")),
                          cwd = self.path(),
                          stdout = open(self.path(os.path.splitext(basename)[0] + ".log"), "w"),
                          stderr = subprocess.STDOUT)
@@ -311,6 +340,10 @@ yaml_file = sys.argv[1] if len(sys.argv) > 1 else "../rpkid/testbed.1.yaml"
 # they're for testbed.py, not this script.
 
 db = allocation_db(yaml.safe_load_all(open(yaml_file)).next())
+
+# Show what we loaded
+
+db.dump()
 
 # Set up each entity in our test
 
@@ -370,12 +403,23 @@ if not os.path.exists(db.root.path("bpki.rootd/rpkiroot.cer")):
 progs = []
 
 try:
+  print "Running daemons"
   progs.append(db.root.run_rootd())
   progs.extend(d.run_irdbd() for d in db if not d.is_hosted())
   progs.extend(d.run_pubd()  for d in db if not d.is_hosted())
   progs.extend(d.run_rpkid() for d in db if not d.is_hosted())
 
-  # Wait until (at least) one of them terminates.
+  print "Giving daemons time to start up"
+  time.sleep(20)
+
+  # Run myirbe again for each host, to set up IRDB and rpki objects
+
+  for d in db:
+    d.run_myirbe()
+
+  print "Done initializing daemons"
+
+  # Wait until something terminates.
 
   signal.signal(signal.SIGCHLD, lambda *dont_care: None)
   if not [p for p in progs if p.poll() is not None]:
@@ -383,7 +427,7 @@ try:
 
 finally:
 
-  # At least one daemon has exited, shut everything down.
+  # Shut everything down.
 
   signal.signal(signal.SIGCHLD, signal.SIG_DFL)
   for p in progs:

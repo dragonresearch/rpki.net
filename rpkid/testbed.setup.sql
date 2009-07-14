@@ -32,6 +32,19 @@ CREATE DATABASE rpki11;
 
 CREATE DATABASE pubd;
 
+CREATE DATABASE pubd0;
+CREATE DATABASE pubd1;
+CREATE DATABASE pubd2;
+CREATE DATABASE pubd3;
+CREATE DATABASE pubd4;
+CREATE DATABASE pubd5;
+CREATE DATABASE pubd6;
+CREATE DATABASE pubd7;
+CREATE DATABASE pubd8;
+CREATE DATABASE pubd9;
+CREATE DATABASE pubd10;
+CREATE DATABASE pubd11;
+
 GRANT ALL ON irdb0.*  TO irdb@localhost IDENTIFIED BY 'fnord';
 GRANT ALL ON irdb1.*  TO irdb@localhost IDENTIFIED BY 'fnord';
 GRANT ALL ON irdb2.*  TO irdb@localhost IDENTIFIED BY 'fnord';
@@ -59,3 +72,16 @@ GRANT ALL ON rpki10.* TO rpki@localhost IDENTIFIED BY 'fnord';
 GRANT ALL ON rpki11.* TO rpki@localhost IDENTIFIED BY 'fnord';
 
 GRANT ALL ON pubd.*   TO pubd@localhost IDENTIFIED BY 'fnord';
+
+GRANT ALL ON pubd0.*  TO pubd@localhost IDENTIFIED BY 'fnord';
+GRANT ALL ON pubd1.*  TO pubd@localhost IDENTIFIED BY 'fnord';
+GRANT ALL ON pubd2.*  TO pubd@localhost IDENTIFIED BY 'fnord';
+GRANT ALL ON pubd3.*  TO pubd@localhost IDENTIFIED BY 'fnord';
+GRANT ALL ON pubd4.*  TO pubd@localhost IDENTIFIED BY 'fnord';
+GRANT ALL ON pubd5.*  TO pubd@localhost IDENTIFIED BY 'fnord';
+GRANT ALL ON pubd6.*  TO pubd@localhost IDENTIFIED BY 'fnord';
+GRANT ALL ON pubd7.*  TO pubd@localhost IDENTIFIED BY 'fnord';
+GRANT ALL ON pubd8.*  TO pubd@localhost IDENTIFIED BY 'fnord';
+GRANT ALL ON pubd9.*  TO pubd@localhost IDENTIFIED BY 'fnord';
+GRANT ALL ON pubd10.* TO pubd@localhost IDENTIFIED BY 'fnord';
+GRANT ALL ON pubd11.* TO pubd@localhost IDENTIFIED BY 'fnord';

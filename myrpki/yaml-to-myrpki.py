@@ -34,7 +34,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 """
 
-import subprocess, csv, re, os, getopt, sys, ConfigParser, base64, yaml, signal
+import subprocess, csv, re, os, getopt, sys, ConfigParser, base64, yaml, signal, errno
 import rpki.resource_set, rpki.sundial, myrpki
 
 section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
@@ -294,12 +294,11 @@ class allocation(object):
   def run_rootd(self):
     return self.run_python_daemon(prog_rootd)
 
-# Start clean, but keep key files because they take a while to generate
+# Start clean
 
 for root, dirs, files in os.walk(test_dir, topdown = False):
   for file in files:
-    if not file.endswith(".key"):
-      os.remove(os.path.join(root, file))
+    os.unlink(os.path.join(root, file))
   for dir in dirs:
     os.rmdir(os.path.join(root, dir))
 
@@ -342,6 +341,7 @@ for i in xrange(3):
 
 if not os.path.exists(db.root.path("bpki.rootd/child.cer")):
   subprocess.check_call((prog_openssl, "ca", "-notext", "-batch",
+                         "-subj",    "/CN=Totally Bogus BPKI Certificate For Test Purposes",
                          "-config",  db.root.path("myrpki.conf"),
                          "-ss_cert", db.root.path("bpki.rpkid/ca.cer"),
                          "-out",     db.root.path("bpki.rootd/child.cer"),
@@ -367,20 +367,26 @@ if not os.path.exists(db.root.path("bpki.rootd/rpkiroot.cer")):
 
 # At this point we need to start a whole lotta daemons.
 
-progs = [db.root.run_rootd()]
-progs.extend(d.run_irdbd() for d in db if not d.is_hosted())
-progs.extend(d.run_pubd()  for d in db if not d.is_hosted())
-progs.extend(d.run_rpkid() for d in db if not d.is_hosted())
+progs = []
 
-signal.signal(signal.SIGCHLD, lambda *dont_care: None)
-want_pause = True
-for p in progs:
-  want_pause &= p.poll() is None
-if want_pause:
-  signal.pause()
-signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+try:
+  progs.append(db.root.run_rootd())
+  progs.extend(d.run_irdbd() for d in db if not d.is_hosted())
+  progs.extend(d.run_pubd()  for d in db if not d.is_hosted())
+  progs.extend(d.run_rpkid() for d in db if not d.is_hosted())
 
-for p in progs:
-  if p.poll() is None:
-    os.kill(p.pid, signal.SIGINT)
-  print "Program pid %d %r returned %d" % (p.pid, p, p.wait())
+  # Wait until (at least) one of them terminates.
+
+  signal.signal(signal.SIGCHLD, lambda *dont_care: None)
+  if not [p for p in progs if p.poll() is not None]:
+    signal.pause()
+
+finally:
+
+  # At least one daemon has exited, shut everything down.
+
+  signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+  for p in progs:
+    if p.poll() is None:
+      os.kill(p.pid, signal.SIGTERM)
+    print "Program pid %d %r returned %d" % (p.pid, p, p.wait())

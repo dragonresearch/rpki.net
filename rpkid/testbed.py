@@ -1342,6 +1342,8 @@ irdb-url        = https://localhost:%(irdb_port)d/
 
 server-host     = localhost
 server-port     = %(rpki_port)d
+
+use-internal-clock = false
 '''
 
 rootd_fmt_1 = '''\

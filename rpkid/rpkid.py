@@ -76,6 +76,8 @@ def main():
 
   gctx = rpki.rpki_engine.rpkid_context(cfg)
 
+  gctx.start_clock()
+
   rpki.https.server(host                       = gctx.https_server_host,
                     port                       = gctx.https_server_port,
                     server_key                 = gctx.rpkid_key,

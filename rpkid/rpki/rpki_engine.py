@@ -32,7 +32,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import lxml.etree, re
+import lxml.etree, re, random
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
 import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log, rpki.async
 
@@ -54,9 +54,28 @@ class rpkid_context(object):
     self.irdb_url   = cfg.get("irdb-url")
 
     self.https_server_host = cfg.get("server-host", "")
-    self.https_server_port = int(cfg.get("server-port", "4433"))
+    self.https_server_port = cfg.getint("server-port", 4433)
 
     self.publication_kludge_base = cfg.get("publication-kludge-base", "publication/")
+
+    self.use_internal_clock = cfg.getboolean("use-internal-clock", True)
+
+    self.initial_delay = random.randint(cfg.getint("initial-delay-min", 10),
+                                        cfg.getint("initial-delay-max", 120))
+    
+    self.cron_period = cfg.getint("cron-period", 120) # Should be much longer in production
+
+  def start_clock(self):
+    """
+    Start rpkid's internal clock.
+    """
+
+    if self.use_internal_clock:
+      when = rpki.sundial.now() + rpki.sundial.timedelta(seconds = self.initial_delay)
+      rpki.log.debug("Scheduling initial cron pass at %s" % when)
+      rpki.async.timer(handler = self.cron).set(when)
+    else:
+      rpki.log.debug("Not using internal clock, start_clock() call ignored")
 
   def irdb_query(self, q_pdu, callback, errback):
     """
@@ -176,11 +195,9 @@ class rpkid_context(object):
       rpki.log.traceback()
       cb(400, "Could not process PDU: %s" % data)
 
-  def cronjob_handler(self, query, path, cb):
+  def cron(self, cb = None):
     """
-    Periodic tasks.  This is somewhat obsolete now that we have
-    internal timers, but the test framework still uses this, and I
-    haven't yet refactored this code to use the new timers.
+    Periodic tasks.
     """
 
     rpki.log.trace()
@@ -208,9 +225,26 @@ class rpkid_context(object):
 
     def done():
       self.sql.sweep()
-      cb(200, "OK")
+      if cb is not None:
+        cb()
+      else:
+        when = rpki.sundial.now() + rpki.sundial.timedelta(seconds = self.cron_period)
+        rpki.log.debug("Scheduling next cron run at %s" % when)
+        rpki.async.timer(handler = self.cron).set(when)
 
     rpki.async.iterator(rpki.left_right.self_elt.sql_fetch_all(self), loop, done)
+
+  def cronjob_handler(self, query, path, cb):
+    """
+    External trigger for periodic tasks.  This is somewhat obsolete
+    now that we have internal timers, but the test framework still
+    uses it.
+    """
+
+    if self.use_internal_clock:
+      cb(500, "Running on internal clock")
+    else:
+      self.cron(lambda: cb(200, "OK"))
 
   ## @var https_ta_cache
   # HTTPS trust anchor cache, to avoid regenerating it for every TLS connection.

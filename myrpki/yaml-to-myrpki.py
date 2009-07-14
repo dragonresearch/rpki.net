@@ -34,17 +34,27 @@ PERFORMANCE OF THIS SOFTWARE.
 
 """
 
-import subprocess, csv, re, os, getopt, sys, ConfigParser, base64, yaml
-import rpki.resource_set, rpki.sundial
+import subprocess, csv, re, os, getopt, sys, ConfigParser, base64, yaml, signal
+import rpki.resource_set, rpki.sundial, myrpki
 
 section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
 variable_regexp = re.compile("\s*(\w+)\s*=\s*(.+?)\s*$")
 
-this_dir = os.getcwd()
-test_dir = os.path.join(this_dir, "test")
+def cleanpath(*names):
+  return os.path.normpath(os.path.join(*names))
 
-prog_myirbe = os.path.join(this_dir, "myirbe.py")
-prog_myrpki = os.path.join(this_dir, "myrpki.py")
+this_dir  = os.getcwd()
+test_dir  = cleanpath(this_dir, "test")
+rpkid_dir = cleanpath(this_dir, "../rpkid")
+
+prog_myirbe = cleanpath(this_dir, "myirbe.py")
+prog_myrpki = cleanpath(this_dir, "myrpki.py")
+prog_rpkid  = cleanpath(rpkid_dir, "rpkid.py")
+prog_irdbd  = cleanpath(rpkid_dir, "irdbd.py")
+prog_pubd   = cleanpath(rpkid_dir, "pubd.py")
+prog_rootd  = cleanpath(rpkid_dir, "rootd.py")
+
+prog_openssl = cleanpath(this_dir, "../openssl/openssl/apps/openssl")
 
 base_port = 4400
 
@@ -118,10 +128,6 @@ class allocation(object):
   crl_interval = None
   regen_margin = None
 
-  rsync_port = 0
-  rpkid_port = 0
-  pubd_port  = 0
-
   def __init__(self, yaml, db, parent = None):
     db.append(self)
     self.name = yaml["name"]
@@ -182,7 +188,7 @@ class allocation(object):
     return self.hosted_by is not None
 
   def path(self, *names):
-    return os.path.normpath(os.path.join(test_dir, self.name, *names))
+    return cleanpath(test_dir, self.name, *names)
 
   def outfile(self, filename):
     path = self.path(filename)
@@ -231,30 +237,30 @@ class allocation(object):
 
   def dump_conf(self, fn):
 
-    replacements = {
-      ("myrpki", "handle")     : self.name,
-      ("myirbe", "rsync_base") : "rsync://localhost:%d/" % self.rsync_port,
-      ("myirbe", "pubd_base")  : "https://localhost:%d/" % self.pubd_port,
-      ("myirbe", "rpkid_base") : "https://localhost:%d/" % self.rpkid_port }
+    replacements = { ("myrpki", "handle") : self.name }
+
+    if not self.is_hosted():
+      replacements.update({
+        ("myirbe", "rsync_base") : "rsync://localhost:%d/" % self.rsync_port,
+        ("myirbe", "pubd_base")  : "https://localhost:%d/" % self.pubd_port,
+        ("myirbe", "rpkid_base") : "https://localhost:%d/" % self.rpkid_port })
 
     f = self.outfile(fn)
     f.write("# Automatically generated, do not edit\n")
 
-    section = None
-
-    for line in open("myrpki.conf"):
-      m = section_regexp.match(line)
-      if m:
-        section = m.group(1)
-      if section is None or (self.is_hosted() and section == "myirbe"):
-        continue
-      if not m and section in ("myirbe", "myrpki"):
-        m = variable_regexp.match(line)
+    for conf in ("myrpki.conf", "rpkid.conf", "irdbd.conf", "pubd.conf", "rootd.conf"):
+      section = None
+      for line in open(conf):
+        m = section_regexp.match(line)
         if m:
-          variable = m.group(1)
-          if (section, variable) in replacements:
-            line = variable + " = " +  replacements[(section, variable)] + "\n"
-      f.write(line)
+          section = m.group(1)
+        if section is None or (self.is_hosted() and section in ("myirbe", "rpkid", "irdbd", "pubd", "rootd")):
+          continue
+        m = variable_regexp.match(line) if m is None else None
+        variable = m.group(1) if m else None
+        if (section, variable) in replacements:
+          line = variable + " = " +  replacements[(section, variable)] + "\n"
+        f.write(line)
 
     f.close()
 
@@ -267,11 +273,33 @@ class allocation(object):
     print "Running myrpki.py for", self.name
     subprocess.check_call(("python", prog_myrpki), cwd = self.path())
 
-# Start clean
+  def run_python_daemon(self, prog):
+    basename = os.path.basename(prog)
+    p = subprocess.Popen(("python", prog, "-c", "myrpki.conf"),
+                         cwd = self.path(),
+                         stdout = open(self.path(os.path.splitext(basename)[0] + ".log"), "w"),
+                         stderr = subprocess.STDOUT)
+    print "Running %s for %s: pid %d process %r" % (basename, self.name, p.pid, p)
+    return p
+  
+  def run_rpkid(self):
+    return self.run_python_daemon(prog_rpkid)
+
+  def run_irdbd(self):
+    return self.run_python_daemon(prog_irdbd)
+
+  def run_pubd(self):
+    return self.run_python_daemon(prog_pubd)
+
+  def run_rootd(self):
+    return self.run_python_daemon(prog_rootd)
+
+# Start clean, but keep key files because they take a while to generate
 
 for root, dirs, files in os.walk(test_dir, topdown = False):
   for file in files:
-    os.remove(os.path.join(root, file))
+    if not file.endswith(".key"):
+      os.remove(os.path.join(root, file))
   for dir in dirs:
     os.rmdir(os.path.join(root, dir))
 
@@ -310,4 +338,49 @@ for i in xrange(3):
   for d in db:
     d.run_myrpki()
 
+# Set up rootd's BPKI cross-certificate for its one and only child.
+
+if not os.path.exists(db.root.path("bpki.rootd/child.cer")):
+  subprocess.check_call((prog_openssl, "ca", "-notext", "-batch",
+                         "-config",  db.root.path("myrpki.conf"),
+                         "-ss_cert", db.root.path("bpki.rpkid/ca.cer"),
+                         "-out",     db.root.path("bpki.rootd/child.cer"),
+                         "-extensions", "ca_x509_ext_xcert0"),
+                         cwd = db.root.path(),
+                        env = { "PATH"           : os.environ["PATH"],
+                                "BPKI_DIRECTORY" : db.root.path("bpki.rootd"),
+                                "RANDFILE"       : ".OpenSSL.whines.unless.I.set.this" } )
+
+# Set up rootd's RPKI root certificate.
+
+if not os.path.exists(db.root.path("bpki.rootd/rpkiroot.cer")):
+  subprocess.check_call((prog_openssl, "x509", "-req", "-sha256", "-outform", "DER",
+                         "-in",      db.root.path("bpki.rootd/ca.req"),
+                         "-signkey", db.root.path("bpki.rootd/ca.key"),
+                         "-out",     db.root.path("bpki.rootd/rpkiroot.cer"),
+                         "-extfile", db.root.path("myrpki.conf"),
+                         "-extensions", "rpki_x509_extensions"),
+                         cwd = db.root.path(),
+                        env = { "PATH"           : os.environ["PATH"],
+                                "BPKI_DIRECTORY" : db.root.path("bpki.rootd"),
+                                "RANDFILE"       : ".OpenSSL.whines.unless.I.set.this" } )
+
 # At this point we need to start a whole lotta daemons.
+
+progs = [db.root.run_rootd()]
+progs.extend(d.run_irdbd() for d in db if not d.is_hosted())
+progs.extend(d.run_pubd()  for d in db if not d.is_hosted())
+progs.extend(d.run_rpkid() for d in db if not d.is_hosted())
+
+signal.signal(signal.SIGCHLD, lambda *dont_care: None)
+want_pause = True
+for p in progs:
+  want_pause &= p.poll() is None
+if want_pause:
+  signal.pause()
+signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+
+for p in progs:
+  if p.poll() is None:
+    os.kill(p.pid, signal.SIGINT)
+  print "Program pid %d %r returned %d" % (p.pid, p, p.wait())

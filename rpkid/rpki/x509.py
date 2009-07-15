@@ -725,7 +725,7 @@ class CMS_object(DER_object):
   ## @var debug_cms_certs
   # Set this to True to log a lot of chatter about CMS certificates.
 
-  debug_cms_certs = False
+  debug_cms_certs = True
 
   ## @var require_crls
   # Set this to False to make CMS CRLs optional in the cases where we

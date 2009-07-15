@@ -212,11 +212,8 @@ class allocation(object):
     return open(path, "w")
 
   def up_down_url(self):
-    if self.is_root():
-      return "https://localhost:%d/" % self.rootd_port
-    else:
-      parent_port = self.parent.hosted_by.rpkid_port if self.parent.is_hosted() else self.parent.rpkid_port
-      return "https://localhost:%d/up-down/%s/%s" % (parent_port, self.parent.name, self.name)
+    parent_port = self.parent.hosted_by.rpkid_port if self.parent.is_hosted() else self.parent.rpkid_port
+    return "https://localhost:%d/up-down/%s/%s" % (parent_port, self.parent.name, self.name)
 
   def dump_asns(self, fn):
     f = self.outfile(fn)
@@ -228,13 +225,15 @@ class allocation(object):
   def dump_children(self, fn):
     f = self.outfile(fn)
     for k in self.kids:
-      f.write("%s\t%s\t%s\n" % (k.name, k.resources.valid_until, k.path("bpki.myrpki", "ca.cer")))
+      f.write("%s\t%s\t%s\n" % (k.name, k.resources.valid_until, k.path("bpki.myrpki/ca.cer")))
     f.close()
 
   def dump_parents(self, fn):
     f = self.outfile(fn)
-    if not self.is_root():
-      f.write("%s\t%s\t%s\n" % (self.parent.name, self.up_down_url(), self.parent.path("bpki.myrpki", "ca.cer")))
+    if self.is_root():
+      f.write("%s\t%s\t%s\n" % ("rootd", "https://localhost:%d/" % self.rootd_port, self.path("bpki.rootd/ca.cer")))
+    else:
+      f.write("%s\t%s\t%s\n" % (self.parent.name, self.up_down_url(), self.parent.path("bpki.myrpki/ca.cer")))
     f.close()
 
   def dump_prefixes(self, fn):

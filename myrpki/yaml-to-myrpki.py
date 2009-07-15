@@ -412,10 +412,13 @@ try:
   print "Giving daemons time to start up"
   time.sleep(20)
 
-  # Run myirbe again for each host, to set up IRDB and rpki objects
+  # Run myirbe again for each host, to set up IRDB and RPKI objects.
+  # Need to run a second time to push BSC certs out to rpkid.
+  # Nothing should happen on the third pass.
 
-  for d in db:
-    d.run_myirbe()
+  for i in xrange(3):
+    for d in db:
+      d.run_myirbe()
 
   print "Done initializing daemons"
 

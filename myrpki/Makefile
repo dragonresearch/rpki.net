@@ -32,7 +32,7 @@ bpki.myrpki:
 	python myirbe.py
 
 clean:
-	rm -rf *.xml bpki.myrpki bpki.rpkid bpki.pubd bpki.rootd
+	rm -rf *.xml bpki.myrpki bpki.rpkid bpki.pubd bpki.rootd test screenlog.*
 	python sql-cleaner.py
 
 format: myrpki.xml

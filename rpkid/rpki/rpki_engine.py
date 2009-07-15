@@ -223,16 +223,28 @@ class rpkid_context(object):
 
       one()
 
+    def sched():
+      when = rpki.sundial.now() + rpki.sundial.timedelta(seconds = self.cron_period)
+      rpki.log.debug("Scheduling next cron run at %s" % when)
+      rpki.async.timer(handler = self.cron).set(when)
+
     def done():
       self.sql.sweep()
-      if cb is not None:
-        cb()
+      if self.use_internal_clock:
+        sched()
       else:
-        when = rpki.sundial.now() + rpki.sundial.timedelta(seconds = self.cron_period)
-        rpki.log.debug("Scheduling next cron run at %s" % when)
-        rpki.async.timer(handler = self.cron).set(when)
+        cb()
 
-    rpki.async.iterator(rpki.left_right.self_elt.sql_fetch_all(self), loop, done)
+    try:
+      rpki.async.iterator(rpki.left_right.self_elt.sql_fetch_all(self), loop, done)
+    except (rpki.async.ExitNow, SystemExit):
+      raise
+    except Exception, data:
+      if self.use_internal_clock:
+        rpki.log.traceback()
+        sched()
+      else:
+        raise
 
   def cronjob_handler(self, query, path, cb):
     """

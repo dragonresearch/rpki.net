@@ -259,26 +259,24 @@ class allocation(object):
 
   def dump_conf(self, fn):
 
-    replacements = { ("myrpki", "handle"): self.name }
+    r = { ("myrpki", "handle") : self.name }
 
     if not self.is_hosted():
-      replacements.update({
-        ("myirbe", "rsync_base"):   "rsync://localhost:%d/" % self.rsync_port,
-        ("myirbe", "pubd_base"):    "https://localhost:%d/" % self.pubd_port,
-        ("myirbe", "rpkid_base"):   "https://localhost:%d/" % self.rpkid_port,
-        ("myirbe", "irdbd_conf"):   "myrpki.conf",
-        ("irdbd",  "sql-database"): "irdb%d" % self.engine,
-        ("rpkid",  "sql-database"): "rpki%d" % self.engine,
-        ("pubd",   "sql-database"): "pubd%d" % self.engine,
-        ("irdbd",  "https-url"):    "https://localhost:%d/" % self.irdbd_port,
-        ("rpkid",  "irdb-url"):     "https://localhost:%d/" % self.irdbd_port,
-        ("rpkid",  "server-port"):  "%d" % self.rpkid_port,
-        ("pubd",   "server-port"):  "%d" % self.pubd_port,
-        ("rootd",  "server-port"):  "%d" % (self.rootd_port if self.is_root() else 0) })
+      r["irdbd",  "https-url"]     = "https://localhost:%d/" % self.irdbd_port
+      r["irdbd",  "sql-database"]  = "irdb%d" % self.engine
+      r["myirbe", "irdbd_conf"]    = "myrpki.conf"
+      r["myirbe", "pubd_base"]     = "https://localhost:%d/" % self.pubd_port
+      r["myirbe", "rpkid_base"]    = "https://localhost:%d/" % self.rpkid_port
+      r["myirbe", "rsync_base"]    = "rsync://localhost:%d/" % self.rsync_port
+      r["pubd",   "server-port"]   = "%d" % self.pubd_port
+      r["pubd",   "sql-database"]  = "pubd%d" % self.engine
+      r["rpkid",  "irdb-url"]      = "https://localhost:%d/" % self.irdbd_port
+      r["rpkid",  "server-port"]   = "%d" % self.rpkid_port
+      r["rpkid",  "sql-database"]  = "rpki%d" % self.engine
 
     if self.is_root():
-      replacements.update({
-        ("rootd",  "server-port"):  "%d" % self.rootd_port })
+      r["rootd",  "rpki-root-dir"] = "publication/localhost:%d/" % self.rsync_port
+      r["rootd",  "server-port"]   = "%d" % self.rootd_port
 
     f = self.outfile(fn)
     f.write("# Automatically generated, do not edit\n")
@@ -293,8 +291,8 @@ class allocation(object):
           continue
         m = variable_regexp.match(line) if m is None else None
         variable = m.group(1) if m else None
-        if (section, variable) in replacements:
-          line = variable + " = " +  replacements[(section, variable)] + "\n"
+        if (section, variable) in r:
+          line = variable + " = " +  r[section, variable] + "\n"
         f.write(line)
 
     f.close()
@@ -394,6 +392,8 @@ rootd_openssl("x509", "-req", "-sha256", "-outform", "DER",
               "-out",     "bpki.rootd/rpkiroot.cer",
               "-extfile", "myrpki.conf",
               "-extensions", "rpki_x509_extensions")
+
+os.makedirs(db.root.path("publication/localhost:%d" % db.root.rsync_port))
 
 # At this point we need to start a whole lotta daemons.
 

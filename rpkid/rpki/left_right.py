@@ -260,6 +260,7 @@ class self_elt(data_elt):
       def list_failed(e):
         rpki.log.traceback()
         rpki.log.warn("Couldn't get resource class list from parent %r, skipping: %s" % (parent, e))
+        parent_iterator()
 
       rpki.up_down.list_pdu.query(parent, got_list, list_failed)
 

@@ -45,7 +45,8 @@ child_elt = element child {
 parent_elt = element parent {
   attribute handle { object_handle },
   attribute service_uri { uri }?,
-  element bpki_certificate { base64 }?
+  element bpki_cms_certificate { base64 }?,
+  element bpki_https_certificate { base64 }?
 }
 
 bpki_ca_certificate_elt         = element bpki_ca_certificate           { base64 }

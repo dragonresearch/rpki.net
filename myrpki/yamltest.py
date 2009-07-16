@@ -112,6 +112,13 @@ class allocation_db(list):
     for a in self:
       a.dump()
 
+  def make_rootd_openssl(self):
+    env = { "PATH"           : os.environ["PATH"],
+            "BPKI_DIRECTORY" : self.root.path("bpki.rootd"),
+            "RANDFILE"       : ".OpenSSL.whines.unless.I.set.this" }
+    cwd = self.root.path()
+    return lambda *args: subprocess.check_call((prog_openssl,) + args, cwd = cwd, env = env)
+
 class allocation(object):
 
   parent       = None
@@ -231,9 +238,9 @@ class allocation(object):
   def dump_parents(self, fn):
     f = self.outfile(fn)
     if self.is_root():
-      f.write("%s\t%s\t%s\n" % ("rootd", "https://localhost:%d/" % self.rootd_port, self.path("bpki.rootd/ca.cer")))
+      f.write("%s\t%s\t%s\t%s\n" % ("rootd", "https://localhost:%d/" % self.rootd_port, self.path("bpki.rootd/ca.cer"), self.path("bpki.rootd/ca.cer")))
     else:
-      f.write("%s\t%s\t%s\n" % (self.parent.name, self.up_down_url(), self.parent.path("bpki.myrpki/ca.cer")))
+      f.write("%s\t%s\t%s\t%s\n" % (self.parent.name, self.up_down_url(), self.parent.path("bpki.myrpki/ca.cer"), self.parent.path("bpki.rpkid/ca.cer")))
     f.close()
 
   def dump_prefixes(self, fn):
@@ -369,33 +376,24 @@ for i in xrange(3):
   for d in db:
     d.run_myrpki()
 
-# Set up rootd's BPKI cross-certificate for its one and only child.
+# Set up a few things for rootd
 
-if not os.path.exists(db.root.path("bpki.rootd/child.cer")):
-  subprocess.check_call((prog_openssl, "ca", "-notext", "-batch",
-                         "-subj",    "/CN=Totally Bogus BPKI Certificate For Test Purposes",
-                         "-config",  db.root.path("myrpki.conf"),
-                         "-ss_cert", db.root.path("bpki.rpkid/ca.cer"),
-                         "-out",     db.root.path("bpki.rootd/child.cer"),
-                         "-extensions", "ca_x509_ext_xcert0"),
-                         cwd = db.root.path(),
-                        env = { "PATH"           : os.environ["PATH"],
-                                "BPKI_DIRECTORY" : db.root.path("bpki.rootd"),
-                                "RANDFILE"       : ".OpenSSL.whines.unless.I.set.this" } )
+rootd_openssl = db.make_rootd_openssl()
 
-# Set up rootd's RPKI root certificate.
+print "Creating rootd BPKI cross-certificate for its child"
+rootd_openssl("ca", "-notext", "-batch",
+              "-config",  "myrpki.conf",
+              "-ss_cert", "bpki.myrpki/ca.cer",
+              "-out",     "bpki.rootd/child.cer",
+              "-extensions", "ca_x509_ext_xcert0")
 
-if not os.path.exists(db.root.path("bpki.rootd/rpkiroot.cer")):
-  subprocess.check_call((prog_openssl, "x509", "-req", "-sha256", "-outform", "DER",
-                         "-in",      db.root.path("bpki.rootd/ca.req"),
-                         "-signkey", db.root.path("bpki.rootd/ca.key"),
-                         "-out",     db.root.path("bpki.rootd/rpkiroot.cer"),
-                         "-extfile", db.root.path("myrpki.conf"),
-                         "-extensions", "rpki_x509_extensions"),
-                         cwd = db.root.path(),
-                        env = { "PATH"           : os.environ["PATH"],
-                                "BPKI_DIRECTORY" : db.root.path("bpki.rootd"),
-                                "RANDFILE"       : ".OpenSSL.whines.unless.I.set.this" } )
+print "Creating rootd RPKI root certificate"
+rootd_openssl("x509", "-req", "-sha256", "-outform", "DER",
+              "-signkey", "bpki.rootd/ca.key",
+              "-in",      "bpki.rootd/ca.req",
+              "-out",     "bpki.rootd/rpkiroot.cer",
+              "-extfile", "myrpki.conf",
+              "-extensions", "rpki_x509_extensions")
 
 # At this point we need to start a whole lotta daemons.
 

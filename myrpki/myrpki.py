@@ -155,29 +155,33 @@ class parent(object):
     self.bpki_certificate = None
 
   def __repr__(self):
-    return "<%s uri %s cert %s uri %s cert %s>" % (self.__class__.__name__,
-                                               self.service_uri, self.bpki_certificate)
+    return "<%s uri %s cms %s https %s>" % (self.__class__.__name__, self.service_uri,
+                                            self.bpki_cms_certificate, self.bpki_https_certificate)
 
-  def add(self, service_uri = None, bpki_certificate = None):
+  def add(self, service_uri = None, bpki_cms_certificate = None, bpki_https_certificate = None):
     if service_uri is not None:
       self.service_uri = service_uri
-    if bpki_certificate is not None:
-      self.bpki_certificate = bpki_certificate
+    if bpki_cms_certificate is not None:
+      self.bpki_cms_certificate = bpki_cms_certificate
+    if bpki_https_certificate is not None:
+      self.bpki_https_certificate = bpki_https_certificate
 
   def xml(self, e):
     e2 = SubElement(e, "parent",
                     handle = self.handle,
                     service_uri = self.service_uri)
-    if self.bpki_certificate:
-      PEMElement(e2, "bpki_certificate", self.bpki_certificate)
+    if self.bpki_cms_certificate:
+      PEMElement(e2, "bpki_cms_certificate", self.bpki_cms_certificate)
+    if self.bpki_https_certificate:
+      PEMElement(e2, "bpki_https_certificate", self.bpki_https_certificate)
     return e2
 
 class parents(dict):
 
-  def add(self, handle, service_uri = None, bpki_certificate = None):
+  def add(self, handle, service_uri = None, bpki_cms_certificate = None, bpki_https_certificate = None):
     if handle not in self:
       self[handle] = parent(handle)
-    self[handle].add(service_uri = service_uri, bpki_certificate = bpki_certificate)
+    self[handle].add(service_uri = service_uri, bpki_cms_certificate = bpki_cms_certificate, bpki_https_certificate = bpki_https_certificate)
 
   def xml(self, e):
     for c in self.itervalues():
@@ -186,10 +190,10 @@ class parents(dict):
   @classmethod
   def from_csv(cls, parents_csv_file, xcert):
     self = cls()
-    # parentname service_uri parent_bpki_pemfile
-    for handle, service_uri, parent_pemfile in csv_open(parents_csv_file):
+    # parentname service_uri parent_bpki_cms_pemfile parent_bpki_https_pemfile
+    for handle, service_uri, parent_cms_pemfile, parent_https_pemfile in csv_open(parents_csv_file):
       self.add(handle = handle,
-               service_uri = service_uri, bpki_certificate = xcert(parent_pemfile))
+               service_uri = service_uri, bpki_cms_certificate = xcert(parent_cms_pemfile), bpki_https_certificate = xcert(parent_https_pemfile))
     return self
 
 def csv_open(filename, delimiter = "\t", dialect = None):

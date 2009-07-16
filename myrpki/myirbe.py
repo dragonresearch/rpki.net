@@ -377,7 +377,8 @@ for xmlfile in xmlfiles:
       parent_handle = parent.get("handle")
       parent_pdu = parent_pdus.pop(parent_handle, None)
       parent_uri = parent.get("service_uri")
-      parent_cert = findbase64(parent, "bpki_certificate")
+      parent_cms_cert = findbase64(parent, "bpki_cms_certificate")
+      parent_https_cert = findbase64(parent, "bpki_https_certificate")
 
       if need_own_pub_point:
         parent_sia_base = pubd_base_uri + parent_handle + "/"
@@ -391,8 +392,8 @@ for xmlfile in xmlfiles:
           parent_pdu.sia_base != parent_sia_base or
           parent_pdu.sender_name != handle or
           parent_pdu.recipient_name != parent_handle or
-          parent_pdu.bpki_cms_cert != parent_cert or
-          parent_pdu.bpki_https_cert != parent_cert):
+          parent_pdu.bpki_cms_cert != parent_cms_cert or
+          parent_pdu.bpki_https_cert != parent_https_cert):
         rpkid_query.append(rpki.left_right.parent_elt.make_pdu(
           action = "create" if parent_pdu is None else "set",
           tag = parent_handle,
@@ -404,8 +405,8 @@ for xmlfile in xmlfiles:
           sia_base = parent_sia_base,
           sender_name = handle,
           recipient_name = parent_handle,
-          bpki_cms_cert = parent_cert,
-          bpki_https_cert = parent_cert))
+          bpki_cms_cert = parent_cms_cert,
+          bpki_https_cert = parent_https_cert))
 
   rpkid_query.extend(rpki.left_right.parent_elt.make_pdu(
     action = "destroy", self_handle = handle, parent_handle = p) for p in parent_pdus)

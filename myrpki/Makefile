@@ -1,6 +1,5 @@
 # $Id$
 
-#all:: relatives
 #all:: myrpki.xml
 #all:: lint
 #all:: parse

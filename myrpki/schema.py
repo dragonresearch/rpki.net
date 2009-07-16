@@ -1,7 +1,7 @@
 import lxml.etree
 myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: schema.rnc -1   $
+  $Id: schema.rnc 2608 2009-07-11 04:34:55Z sra $
   
   RelaxNG Schema for MyRPKI XML messages
   
@@ -135,7 +135,12 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodin
         </attribute>
       </optional>
       <optional>
-        <element name="bpki_certificate">
+        <element name="bpki_cms_certificate">
+          <ref name="base64"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="bpki_https_certificate">
           <ref name="base64"/>
         </element>
       </optional>

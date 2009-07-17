@@ -83,7 +83,7 @@ def handle_list_roa_requests(q_pdu, r_msg):
     "SELECT roa_request_id, asn FROM roa_request WHERE roa_request_handle = %s",
     (q_pdu.self_handle,))
 
-  for roa_request_id, asn in cur.fetchmany():
+  for roa_request_id, asn in cur.fetchall():
 
     r_pdu = rpki.left_right.list_roa_requests_elt()
     r_pdu.tag = q_pdu.tag

@@ -42,3 +42,7 @@ graph:
 
 verify:
 	sh verify-bpki.sh
+
+backup:
+	python sql-dumper.py
+	tar cvvzf test.$$(TZ='' date +%Y.%m.%d.%H.%M.%S).tgz screenlog.* test backup.*.sql

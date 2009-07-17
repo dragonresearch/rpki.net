@@ -671,6 +671,9 @@ class parent_elt(data_elt):
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
 
+    if bsc.signing_cert is None:
+      raise rpki.exceptions.BSCNotReady, "BSC %s is not yet usable" % self.bsc_id
+
     q_msg = rpki.up_down.message_pdu.make_query(
       payload = q_pdu,
       sender = self.sender_name,

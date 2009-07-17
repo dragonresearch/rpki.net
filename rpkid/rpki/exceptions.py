@@ -273,3 +273,8 @@ class NoCoveringCertForROA(RPKI_Exception):
   """
   Couldn't find a covering certificate to generate ROA.
   """
+
+class BSCNotReady(RPKI_Exception):
+  """
+  BSC not yet in a usable state, signing_cert not set.
+  """

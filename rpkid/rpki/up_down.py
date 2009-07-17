@@ -271,8 +271,15 @@ class list_pdu(base_elt):
 
   @classmethod
   def query(cls, parent, cb, eb):
-    """Send a "list" query to parent."""
-    parent.query_up_down(cls(), cb, eb)
+    """
+    Send a "list" query to parent.
+    """
+    try:
+      parent.query_up_down(cls(), cb, eb)
+    except (rpki.async.ExitNow, SystemExit):
+      raise
+    except Exception, e:
+      eb(e)
 
 class class_response_syntax(base_elt):
   """
@@ -280,7 +287,9 @@ class class_response_syntax(base_elt):
   """
 
   def __init__(self):
-    """Initialize class_response_syntax."""
+    """
+    Initialize class_response_syntax.
+    """
     base_elt.__init__(self)
     self.classes = []
 

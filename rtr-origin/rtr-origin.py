@@ -1089,6 +1089,6 @@ if mode is None:
 
 rpki.log.init("rtr-origin/" + mode)
 
-#cfg = rpki.config.parser(cfg_file, "mode")
+cfg = rpki.config.parser(cfg_file, "mode", allow_missing = True)
 
 main_dispatch[mode](argv)

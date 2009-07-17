@@ -46,14 +46,18 @@ class parser(object):
   get-methods with default values and default section name.
   """
 
-  def __init__(self, filename, section = None):
+  def __init__(self, filename, section = None, allow_missing = False):
     """
     Initialize this parser.
     """
 
     self.filename = filename
     self.cfg = ConfigParser.RawConfigParser()
-    self.cfg.readfp(open(filename), filename)
+    try:
+      self.cfg.readfp(open(filename), filename)
+    except IOError:
+      if not allow_missing:
+        raise
     self.default_section = section
 
   def has_section(self, section):

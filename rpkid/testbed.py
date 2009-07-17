@@ -75,7 +75,7 @@ if argv:
   print __doc__
   raise RuntimeError, "Unexpected arguments %s" % argv
 
-cfg = rpki.config.parser(cfg_file, "testbed")
+cfg = rpki.config.parser(cfg_file, "testbed", allow_missing = True)
 
 # Load the YAML script early, so we can report errors ASAP
 

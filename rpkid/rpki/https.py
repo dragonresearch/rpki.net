@@ -283,11 +283,11 @@ class http_stream(asynchat.async_chat):
     self.timer.cancel()
 
   def send(self, data):
-    assert self.retry_read is None and self.retry_write is None
+    assert self.retry_read is None and self.retry_write is None, "TLS I/O already in progress, r %r w %r" % (self.retry_read, self.retry_write)
     return self.tls.write(data)
 
   def recv(self, buffer_size):
-    assert self.retry_read is None and self.retry_write is None
+    assert self.retry_read is None and self.retry_write is None, "TLS I/O already in progress, r %r w %r" % (self.retry_read, self.retry_write)
     return self.tls.read(buffer_size)
 
   def readable(self):

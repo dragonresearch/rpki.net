@@ -46,10 +46,10 @@ rpki_content_type = "application/x-rpki"
 # ================================================================
 
 # Chatter about TLS certificates
-debug_tls_certs = True
+debug_tls_certs = False
 
 # Verbose chatter about HTTP streams
-debug = True
+debug = False
 
 # Whether we want persistent HTTP streams, when peer also supports them
 want_persistent_client = True
@@ -700,7 +700,8 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback):
       u.fragment != ""):
     raise rpki.exceptions.BadClientURL, "Unusable URL %s" % url
 
-  rpki.log.debug("Contacting %s" % url)
+  if debug:
+    rpki.log.debug("Contacting %s" % url)
 
   request = http_request(
     cmd                 = "POST",

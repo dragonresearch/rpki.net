@@ -244,8 +244,6 @@ class list_pdu(base_elt):
 
     def handle(irdb_resources):
 
-      rpki.log.info("list_pdu.serve_pdu callback")
-
       r_msg.payload = list_response_pdu()
 
       for parent in child.parents():

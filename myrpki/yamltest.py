@@ -34,8 +34,8 @@ PERFORMANCE OF THIS SOFTWARE.
 
 """
 
-import subprocess, csv, re, os, getopt, sys, ConfigParser, base64, yaml, signal, errno, time
-import rpki.resource_set, rpki.sundial, myrpki
+import subprocess, csv, re, os, getopt, sys, base64, yaml, signal, errno, time
+import rpki.resource_set, rpki.sundial, rpki.config, myrpki
 
 section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
 variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
@@ -273,27 +273,40 @@ class allocation(object):
       r["rpkid",  "irdb-url"]      = "https://localhost:%d/" % self.irdbd_port
       r["rpkid",  "server-port"]   = "%d" % self.rpkid_port
       r["rpkid",  "sql-database"]  = "rpki%d" % self.engine
+      r["rootd",  "rpki-root-dir"] = "publication/localhost:%d/" % self.rsync_port
+      r["rootd",  "rpki-base-uri"] = "rsync://localhost:%d/" % self.rsync_port
+      r["rootd",  "rpki-root-cert-uri"] = "rsync://localhost:%d/rootd.cer" % self.rsync_port
+      r["rpki_x509_extensions",  "subjectInfoAccess"]  = (
+        "1.3.6.1.5.5.7.48.5;URI:rsync://localhost:%d/,1.3.6.1.5.5.7.48.10;URI:rsync://localhost:%d/Bandicoot.mnf" %
+        (self.rsync_port, self.rsync_port))
 
     if self.is_root():
-      r["rootd",  "rpki-root-dir"] = "publication/localhost:%d/" % self.rsync_port
-      r["rootd",  "server-port"]   = "%d" % self.rootd_port
+      r["rootd", "server-port"] = "%d" % self.rootd_port
+
+    if rpkid_password:
+      r["rpkid", "sql-password"] = rpkid_password
+
+    if irdbd_password:
+      r["irdbd", "sql-password"] = irdbd_password
+
+    if pubd_password:
+      r["pubd", "sql-password"]  = pubd_password
 
     f = self.outfile(fn)
     f.write("# Automatically generated, do not edit\n")
 
-    for conf in ("myrpki.conf", "rpkid.conf", "irdbd.conf", "pubd.conf", "rootd.conf"):
-      section = None
-      for line in open(conf):
-        m = section_regexp.match(line)
-        if m:
-          section = m.group(1)
-        if section is None or (self.is_hosted() and section in ("myirbe", "rpkid", "irdbd", "pubd", "rootd")):
-          continue
-        m = variable_regexp.match(line) if m is None else None
-        variable = m.group(1) if m else None
-        if (section, variable) in r:
-          line = variable + " = " +  r[section, variable] + "\n"
-        f.write(line)
+    section = None
+    for line in open("myrpki.conf"):
+      m = section_regexp.match(line)
+      if m:
+        section = m.group(1)
+      if section is None or (self.is_hosted() and section in ("myirbe", "rpkid", "irdbd", "pubd", "rootd")):
+        continue
+      m = variable_regexp.match(line) if m is None else None
+      variable = m.group(1) if m else None
+      if (section, variable) in r:
+        line = variable + " = " +  r[section, variable] + "\n"
+      f.write(line)
 
     f.close()
 
@@ -327,6 +340,34 @@ class allocation(object):
   def run_rootd(self):
     return self.run_python_daemon(prog_rootd)
 
+os.environ["TZ"] = "UTC"
+time.tzset()
+
+cfg_file = "yamltest.conf"
+
+opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+for o, a in opts:
+  if o in ("-h", "--help", "-?"):
+    print __doc__
+    sys.exit(0)
+  if o in ("-c", "--config"):
+    cfg_file = a
+
+if len(argv) > 1:
+  raise RuntimeError, "Unexpected arguments %r" % argv
+
+yaml_file = argv[0] if argv else "../rpkid/testbed.1.yaml"
+
+try:
+  cfg = rpki.config.parser(cfg_file, "yamltest")
+  rpkid_password = cfg.get("rpkid-password")
+  irdbd_password = cfg.get("irdbd-password")
+  pubd_password  = cfg.get("pubd-password")
+except:
+  rpkid_password = None
+  irdbd_password = None
+  pubd_password  = None
+
 # Start clean
 
 for root, dirs, files in os.walk(test_dir, topdown = False):
@@ -334,10 +375,6 @@ for root, dirs, files in os.walk(test_dir, topdown = False):
     os.unlink(os.path.join(root, file))
   for dir in dirs:
     os.rmdir(os.path.join(root, dir))
-
-# Select input file
-
-yaml_file = sys.argv[1] if len(sys.argv) > 1 else "../rpkid/testbed.1.yaml"
 
 # Read first YAML doc in file and process as compact description of
 # test layout and resource allocations.  Ignore subsequent YAML docs,

@@ -360,9 +360,9 @@ yaml_file = argv[0] if argv else "../rpkid/testbed.1.yaml"
 
 try:
   cfg = rpki.config.parser(cfg_file, "yamltest")
-  rpkid_password = cfg.get("rpkid-password")
-  irdbd_password = cfg.get("irdbd-password")
-  pubd_password  = cfg.get("pubd-password")
+  rpkid_password = cfg.get("rpkid_db_pass")
+  irdbd_password = cfg.get("irdbd_db_pass")
+  pubd_password  = cfg.get("pubd_db_pass")
 except:
   rpkid_password = None
   irdbd_password = None

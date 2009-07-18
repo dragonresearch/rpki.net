@@ -152,7 +152,8 @@ class parent(object):
   def __init__(self, handle):
     self.handle = handle
     self.service_uri = None
-    self.bpki_certificate = None
+    self.bpki_cms_certificate = None
+    self.bpki_https_certificate = None
 
   def __repr__(self):
     return "<%s uri %s cms %s https %s>" % (self.__class__.__name__, self.service_uri,

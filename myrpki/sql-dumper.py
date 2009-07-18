@@ -20,19 +20,16 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import subprocess, ConfigParser
 
+cfg = ConfigParser.RawConfigParser()
+cfg.read("yamltest.conf")
+
 for name in ("rpkid", "irdbd", "pubd"):
 
   try:
-    cfg = ConfigParser.RawConfigParser()
-    cfg.read("%s.conf" % name)
-    username = cfg.get(name, "sql-username")
-    password = cfg.get(name, "sql-password")
-    database = cfg.get(name, "sql-database")
-
+    passwd = cfg.get("yamltest", "%s_db_pass" % name)
   except:
-    print "Cleaner couldn't read %s config file, ignoring" % name
-    continue
+    passwd = "fnord"
 
-  cmd = ["mysqldump", "-u", username, "-p" + password, "--databases", database]
-  cmd.extend("%s%d" % (database, i) for i in xrange(12))
+  cmd = ["mysqldump", "-u", name[:4], "-p" + passwd, "--databases", name[:4]]
+  cmd.extend("%s%d" % (name[:4], i) for i in xrange(12))
   subprocess.check_call(cmd, stdout = open("backup.%s.sql" % name, "w"))

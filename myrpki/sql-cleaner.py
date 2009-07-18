@@ -20,22 +20,19 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import subprocess, ConfigParser
 
+cfg = ConfigParser.RawConfigParser()
+cfg.read("yamltest.conf")
+
 for name in ("rpkid", "irdbd", "pubd"):
 
   try:
-    cfg = ConfigParser.RawConfigParser()
-    cfg.read("%s.conf" % name)
-    username = cfg.get(name, "sql-username")
-    password = cfg.get(name, "sql-password")
-    database = cfg.get(name, "sql-database")
-
+    passwd = cfg.get("yamltest", "%s_db_pass" % name)
   except:
-    print "Cleaner couldn't read %s config file, ignoring" % name
-    continue
+    passwd = "fnord"
 
-  dbs = [database]
-  dbs.extend("%s%d" % (database, i) for i in xrange(12))
+  dbs = [name[:4]]
+  dbs.extend("%s%d" % (name[:4], i) for i in xrange(12))
 
   for db in dbs:
-    subprocess.check_call(("mysql", "-u", username, "-p" + password, db),
-                        stdin = open("../rpkid/%s.sql" % name))
+    subprocess.check_call(("mysql", "-u", name[:4], "-p" + passwd, db),
+                          stdin = open("../rpkid/%s.sql" % name))

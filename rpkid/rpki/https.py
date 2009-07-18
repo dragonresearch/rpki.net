@@ -45,11 +45,11 @@ rpki_content_type = "application/x-rpki"
 
 # ================================================================
 
-# Chatter about TLS certificates
-debug_tls_certs = False
-
 # Verbose chatter about HTTP streams
 debug = False
+
+# Extra chatter about TLS certificates
+debug_tls_certs = False
 
 # Whether we want persistent HTTP streams, when peer also supports them
 want_persistent_client = True
@@ -332,7 +332,7 @@ class http_stream(asynchat.async_chat):
     else:
       asynchat.async_chat.handle_write(self)
 
-  def initate_send(self):
+  def initiate_send(self):
     assert self.retry_read is None and self.retry_write is None, "%r: TLS I/O already in progress, r %r w %r" % (self, self.retry_read, self.retry_write)
     try:
       asynchat.async_chat.initiate_send(self)
@@ -530,9 +530,7 @@ class http_client(http_stream):
       self.handle_error()
 
   def handle_connect(self):
-    self.log("Connected")
-    self.set_state("idle")
-
+    self.log("Socket connected")
     self.tls = POW.Ssl(POW.TLSV1_CLIENT_METHOD)
     self.log_cert("client", self.cert)
     self.tls.useCertificate(self.cert.get_POW())
@@ -543,7 +541,6 @@ class http_client(http_stream):
       self.log_cert("trusted", x)
       self.tls.addTrust(x.get_POW())
     self.tls.setVerifyMode(POW.SSL_VERIFY_PEER | POW.SSL_VERIFY_FAIL_IF_NO_PEER_CERT)
-
     self.tls.setFd(self.fileno())
     self.tls_connect()
 
@@ -555,6 +552,8 @@ class http_client(http_stream):
     except POW.WantWriteError:
       self.retry_write = self.tls_connect
     else:
+      self.log("TLS connected")
+      self.set_state("idle")
       self.queue.send_request()
 
   def set_state(self, state):
@@ -653,7 +652,7 @@ class http_queue(object):
       self.log("Sending request to existing client %r" % self.client)
       self.send_request()
     else:
-      self.log("Client exists and is not idle")
+      self.log("Client %r exists in state %r" % (self.client, self.client.state))
 
   def send_request(self):
     if self.queue:

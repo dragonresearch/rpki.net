@@ -554,6 +554,7 @@ class allocation(object):
 
     def done(e):
       if isinstance(e, Exception):
+        rpki.log.traceback()
         raise e
       cb()
 
@@ -570,6 +571,7 @@ class allocation(object):
 
     def done(e):
       if isinstance(e, Exception):
+        rpki.log.traceback()
         raise e
       cb()
 
@@ -1166,7 +1168,8 @@ def call_pubd(pdus, cb):
     cb(msg)
 
   def call_pubd_eb(e):
-    raise e
+    rpki.log.error("Problem calling pubd: %s" % e)
+    rpki.log.traceback()
 
   rpki.https.client(
     client_key   = pubd_irbe_key,
@@ -1343,7 +1346,7 @@ irdb-url        = https://localhost:%(irdb_port)d/
 server-host     = localhost
 server-port     = %(rpki_port)d
 
-use-internal-clock = false
+use-internal-cron = false
 '''
 
 rootd_fmt_1 = '''\

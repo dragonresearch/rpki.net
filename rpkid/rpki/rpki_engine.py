@@ -58,24 +58,24 @@ class rpkid_context(object):
 
     self.publication_kludge_base = cfg.get("publication-kludge-base", "publication/")
 
-    self.use_internal_clock = cfg.getboolean("use-internal-clock", True)
+    self.use_internal_cron = cfg.getboolean("use-internal-cron", True)
 
     self.initial_delay = random.randint(cfg.getint("initial-delay-min", 10),
                                         cfg.getint("initial-delay-max", 120))
     
     self.cron_period = cfg.getint("cron-period", 120) # Should be much longer in production
 
-  def start_clock(self):
+  def start_cron(self):
     """
-    Start rpkid's internal clock.
+    Start clock for rpkid's internal cron process.
     """
 
-    if self.use_internal_clock:
+    if self.use_internal_cron:
       when = rpki.sundial.now() + rpki.sundial.timedelta(seconds = self.initial_delay)
       rpki.log.debug("Scheduling initial cron pass at %s" % when)
       rpki.async.timer(handler = self.cron).set(when)
     else:
-      rpki.log.debug("Not using internal clock, start_clock() call ignored")
+      rpki.log.debug("Not using internal clock, start_cron() call ignored")
 
   def irdb_query(self, q_pdu, callback, errback):
     """
@@ -230,7 +230,7 @@ class rpkid_context(object):
 
     def done():
       self.sql.sweep()
-      if self.use_internal_clock:
+      if self.use_internal_cron:
         sched()
       else:
         cb()
@@ -240,7 +240,7 @@ class rpkid_context(object):
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, data:
-      if self.use_internal_clock:
+      if self.use_internal_cron:
         rpki.log.traceback()
         sched()
       else:
@@ -253,8 +253,8 @@ class rpkid_context(object):
     uses it.
     """
 
-    if self.use_internal_clock:
-      cb(500, "Running on internal clock")
+    if self.use_internal_cron:
+      cb(500, "Running cron internally")
     else:
       self.cron(lambda: cb(200, "OK"))
 

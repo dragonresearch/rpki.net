@@ -141,7 +141,7 @@ dispatch = { "list" : do_list, "issue" : do_issue, "revoke" : do_revoke }
 
 def fail(e):
   if debug:
-    raise e
+    rpki.log.traceback()
   sys.exit("Testpoke failed: %s" % e)
 
 cms_ta         = get_PEM("cms-ca-cert", rpki.x509.X509)

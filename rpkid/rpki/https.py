@@ -46,17 +46,22 @@ rpki_content_type = "application/x-rpki"
 # ================================================================
 
 # Chatter about TLS certificates
-debug_tls_certs = True
+debug_tls_certs = False
 
 # Verbose chatter about HTTP streams
-debug = True
+debug = False
 
 # Whether we want persistent HTTP streams, when peer also supports them
 want_persistent_client = True
 want_persistent_server = True
 
-# Default HTTP connection timeout (set very short for initial testing)
-default_timeout = rpki.sundial.timedelta(seconds = 90)
+# Default HTTP connection timeouts (set very short for initial
+# testing).  Given our druthers, we'd prefer that the client close the
+# connection, as this avoids the problem of client starting to reuse
+# connection just as server decides to close it.
+
+default_client_timeout = rpki.sundial.timedelta(seconds = 90)
+default_server_timeout = rpki.sundial.timedelta(seconds = 180)
 
 default_http_version = (1, 0)
 
@@ -178,8 +183,6 @@ class http_stream(asynchat.async_chat):
   retry_read = None
   retry_write = None
 
-  timeout = default_timeout
-
   def __init__(self, conn = None):
     asynchat.async_chat.__init__(self, conn = conn)
     self.buffer = []
@@ -250,13 +253,13 @@ class http_stream(asynchat.async_chat):
   def chunk_discard_crlf(self):
     self.log("Chunk CRLF")
     s = self.get_buffer()
-    assert s == "", "Expected chunk CRLF, got '%s'" % s
+    assert s == "", "%r: Expected chunk CRLF, got '%s'" % (self, s)
     self.chunk_handler = self.chunk_header
 
   def chunk_discard_trailer(self):
     self.log("Chunk trailer")
     s = self.get_buffer()
-    assert s == "", "Expected end of chunk trailers, got '%s'" % s
+    assert s == "", "%r: Expected end of chunk trailers, got '%s'" % (self, s)
     self.chunk_handler = None
     self.handle_message()
 
@@ -283,11 +286,13 @@ class http_stream(asynchat.async_chat):
     self.timer.cancel()
 
   def send(self, data):
-    assert self.retry_read is None and self.retry_write is None, "TLS I/O already in progress, r %r w %r" % (self.retry_read, self.retry_write)
+    assert self.retry_read is None and self.retry_write is None, "%r: TLS I/O already in progress, r %r w %r" % (self, self.retry_read, self.retry_write)
+    assert self.tls is not None
     return self.tls.write(data)
 
   def recv(self, buffer_size):
-    assert self.retry_read is None and self.retry_write is None, "TLS I/O already in progress, r %r w %r" % (self.retry_read, self.retry_write)
+    assert self.retry_read is None and self.retry_write is None, "%r: TLS I/O already in progress, r %r w %r" % (self, self.retry_read, self.retry_write)
+    assert self.tls is not None
     return self.tls.read(buffer_size)
 
   def readable(self):
@@ -297,7 +302,7 @@ class http_stream(asynchat.async_chat):
     return self.retry_write is not None or (self.retry_read is None and asynchat.async_chat.writeable(self))
 
   def handle_read(self):
-    assert self.retry_write is None
+    assert self.retry_write is None, "%r: TLS I/O already in progress, w %r" % (self, self.retry_write)
     if self.retry_read is not None:
       thunk = self.retry_read
       self.retry_read = None
@@ -318,7 +323,7 @@ class http_stream(asynchat.async_chat):
         self.close(force = True)
         
   def handle_write(self):
-    assert self.retry_read is None
+    assert self.retry_read is None, "%r: TLS I/O already in progress, r %r" % (self, self.retry_read)
     if self.retry_write is not None:
       thunk = self.retry_write
       self.retry_write = None
@@ -328,7 +333,7 @@ class http_stream(asynchat.async_chat):
       asynchat.async_chat.handle_write(self)
 
   def initate_send(self):
-    assert self.retry_read is None and self.retry_write is None
+    assert self.retry_read is None and self.retry_write is None, "%r: TLS I/O already in progress, r %r w %r" % (self, self.retry_read, self.retry_write)
     try:
       asynchat.async_chat.initiate_send(self)
     except POW.WantReadError:
@@ -344,7 +349,7 @@ class http_stream(asynchat.async_chat):
 
   def close(self, force = False):
     self.log("Close requested")
-    assert self.retry_read is None and self.retry_write is None
+    assert self.retry_read is None and self.retry_write is None, "%r: TLS I/O already in progress, r %r w %r" % (self, self.retry_read, self.retry_write)
     if self.tls is not None:
       try:
         ret = self.tls.shutdown()
@@ -365,6 +370,8 @@ class http_stream(asynchat.async_chat):
 class http_server(http_stream):
 
   parse_type = http_request
+
+  timeout = default_server_timeout
 
   def __init__(self, conn, handlers, cert = None, key = None, ta = (), dynamic_ta = None):
     self.log("Starting")
@@ -498,6 +505,8 @@ class http_listener(asyncore.dispatcher):
 class http_client(http_stream):
 
   parse_type = http_response
+
+  timeout = default_client_timeout
 
   def __init__(self, queue, hostport, cert = None, key = None, ta = ()):
     self.log("Creating new connection to %s" % repr(hostport))

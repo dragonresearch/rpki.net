@@ -113,7 +113,7 @@ class timer(object):
       self.when = rpki.sundial.now() + when
     else:
       self.when = when
-    assert isinstance(self.when, rpki.sundial.datetime)
+    assert isinstance(self.when, rpki.sundial.datetime), "%r: Expecting a datetime, got %r" % (self, self.when)
     if self not in self.queue:
       self.queue.append(self)
     self.queue.sort()

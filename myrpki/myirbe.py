@@ -348,12 +348,12 @@ for xmlfile in xmlfiles:
   # entity; in all other cases, we use a separate subtree.  This is
   # suboptimal in the long run.
 
-  parents = tree.getiterator(tag("parent"))
+  parents = [p for p in tree.getiterator(tag("parent"))]
 
   if parents:
     
     need_own_pub_point = True
-    if handle != my_handle and len(parents) == 1 and parents[0].get("service_uri").startwith(rpkid_base):
+    if handle != my_handle and len(parents) == 1 and parents[0].get("service_uri").startswith(rpkid_base):
       m = updown_regexp.match(parents[0].get("service_uri"))
       if m:
         self_part, child_part = m.groups()

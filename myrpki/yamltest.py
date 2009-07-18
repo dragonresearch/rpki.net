@@ -240,7 +240,8 @@ class allocation(object):
     if self.is_root():
       f.write("%s\t%s\t%s\t%s\n" % ("rootd", "https://localhost:%d/" % self.rootd_port, self.path("bpki.rootd/ca.cer"), self.path("bpki.rootd/ca.cer")))
     else:
-      f.write("%s\t%s\t%s\t%s\n" % (self.parent.name, self.up_down_url(), self.parent.path("bpki.myrpki/ca.cer"), self.parent.path("bpki.rpkid/ca.cer")))
+      parent_host = self.parent.hosted_by if self.parent.is_hosted() else self.parent
+      f.write("%s\t%s\t%s\t%s\n" % (self.parent.name, self.up_down_url(), self.parent.path("bpki.myrpki/ca.cer"), parent_host.path("bpki.rpkid/ca.cer")))
     f.close()
 
   def dump_prefixes(self, fn):
@@ -259,7 +260,10 @@ class allocation(object):
 
   def dump_conf(self, fn):
 
-    r = { ("myrpki", "handle") : self.name }
+    host = self.hosted_by if self.is_hosted() else self
+
+    r = { ("myrpki", "handle"):                      self.name,
+          ("myrpki", "repository_bpki_certificate"): host.path("bpki.pubd/ca.cer") }
 
     if not self.is_hosted():
       r["irdbd",  "https-url"]     = "https://localhost:%d/" % self.irdbd_port
@@ -313,7 +317,9 @@ class allocation(object):
   def run_myirbe(self):
     if not self.is_hosted():
       print "Running myirbe.py for", self.name
-      subprocess.check_call(("python", prog_myirbe), cwd = self.path())
+      cmd = ["python", prog_myirbe]
+      cmd.extend(h.path("myrpki.xml") for h in self.hosts)
+      subprocess.check_call(cmd, cwd = self.path())
 
   def run_myrpki(self):
     print "Running myrpki.py for", self.name
@@ -447,10 +453,14 @@ try:
   time.sleep(20)
 
   # Run myirbe again for each host, to set up IRDB and RPKI objects.
-  # Need to run a second time to push BSC certs out to rpkid.
-  # Nothing should happen on the third pass.
+  # Need to run a second time to push BSC certs out to rpkid.  Nothing
+  # should happen on the third pass.  Oops, when hosting we need to
+  # run myrpki between myirbe passes, since only the hosted entity can
+  # issue the BSC, etc.
 
   for i in xrange(3):
+    for d in db:
+      d.run_myrpki()
     for d in db:
       d.run_myirbe()
 

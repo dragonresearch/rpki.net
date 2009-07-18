@@ -342,12 +342,12 @@ class CA(object):
 def extract_resources():
   pass
 
-def main():
+def main(argv = ()):
 
   cfg_file        = "myrpki.conf"
   myrpki_section  = "myrpki"
 
-  opts, argv = getopt.getopt(sys.argv[1:], "c:h:?", ["config=", "help"])
+  opts, argv = getopt.getopt(argv, "c:h:?", ["config=", "help"])
   for o, a in opts:
     if o in ("-h", "--help", "-?"):
       print __doc__
@@ -409,4 +409,4 @@ def main():
   os.rename(xml_filename + ".tmp", xml_filename)
 
 if __name__ == "__main__":
-  main()
+  main(sys.argv[1:])

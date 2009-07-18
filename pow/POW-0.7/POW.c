@@ -4141,8 +4141,8 @@ ssl_object_fileno(ssl_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, ""))
     goto error;
 
-  if (!self->ctxset || !self->ssl)
-    lose("File descriptor not set");
+  if (!self->ctxset)
+    lose("cannot be called before setFd()");
 
   return Py_BuildValue("i", SSL_get_fd(self->ssl));
 
@@ -4211,6 +4211,9 @@ ssl_object_accept(ssl_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, ""))
     goto error;
 
+  if (!self->ctxset)
+    lose("cannot be called before setFd()");
+
   Py_BEGIN_ALLOW_THREADS;
   ret = SSL_accept(self->ssl);
   Py_END_ALLOW_THREADS;
@@ -4266,6 +4269,9 @@ ssl_object_connect(ssl_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, ""))
     goto error;
 
+  if (!self->ctxset)
+    lose("cannot be called before setFd()");
+
   Py_BEGIN_ALLOW_THREADS;
   ret = SSL_connect(self->ssl);
   Py_END_ALLOW_THREADS;
@@ -4306,6 +4312,9 @@ ssl_object_write(ssl_object *self, PyObject *args)
 
   if (!PyArg_ParseTuple(args, "s#", &msg, &length))
     goto error;
+
+  if (!self->ctxset)
+    lose("cannot be called before setFd()");
 
   Py_BEGIN_ALLOW_THREADS;
   ret = SSL_write(self->ssl, msg, length);
@@ -4348,6 +4357,9 @@ ssl_object_read(ssl_object *self, PyObject *args)
 
   if (!PyArg_ParseTuple(args, "|i", &len))
     goto error;
+
+  if (!self->ctxset)
+    lose("cannot be called before setFd()");
 
   if ((msg = malloc(len)) == NULL)
     lose("unable to allocate memory");
@@ -4397,6 +4409,9 @@ ssl_object_peer_certificate(ssl_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, ""))
     goto error;
 
+  if (!self->ctxset)
+    lose("cannot be called before setFd()");
+
   if ((x509_obj = X509_object_new()) == NULL)
     lose("could not create x509 object");
 
@@ -4441,6 +4456,9 @@ ssl_object_clear(ssl_object *self, PyObject *args)
 {
   if (!PyArg_ParseTuple(args, ""))
     goto error;
+
+  if (!self->ctxset)
+    lose("cannot be called before setFd()");
 
   if (!SSL_clear(self->ssl))
     lose("failed to clear ssl connection");
@@ -4487,6 +4505,9 @@ ssl_object_shutdown(ssl_object *self, PyObject *args)
 
   if (!PyArg_ParseTuple(args, ""))
     goto error;
+
+  if (!self->ctxset)
+    lose("cannot be called before setFd()");
 
   ret = SSL_shutdown(self->ssl);
 
@@ -4545,6 +4566,9 @@ ssl_object_get_shutdown(ssl_object *self, PyObject *args)
 
   if (!PyArg_ParseTuple(args, ""))
     goto error;
+
+  if (!self->ctxset)
+    lose("cannot be called before setFd()");
 
   state = SSL_get_shutdown(self->ssl);
 

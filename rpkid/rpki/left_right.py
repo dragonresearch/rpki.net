@@ -565,7 +565,7 @@ class repository_elt(data_elt):
       try:
         r_msg = rpki.publication.cms_msg.unwrap(r_cms, bpki_ta_path)
         if len(r_msg) != 1 or isinstance(r_msg[0], rpki.publication.report_error_elt):
-          raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %s" % msg
+          raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %s" % str(r_msg)
         callback()
       except (rpki.async.ExitNow, SystemExit):
         raise

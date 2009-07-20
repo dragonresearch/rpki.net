@@ -620,7 +620,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       rpki.async.iterator(self.roas(), withdraw_one_roa, withdraw_manifest)
 
     def withdraw_one_roa(iterator, roa):
-      roa.withdraw_roa(iterator)
+      roa.withdraw_roa(iterator, eb)
 
     def withdraw_manifest():
       repository.withdraw(self.latest_manifest, self.manifest_uri(ca), withdraw_crl, eb)
@@ -1300,7 +1300,11 @@ class roa_obj(rpki.sql.sql_persistent):
       ca_detail.generate_crl(three, errback)
 
     def three():
-      ca_detail.generate_manifest(callback, errback)
+      ca_detail.generate_manifest(four, errback)
+
+    def four():
+      self.sql_delete()
+      callback()
 
     if regenerate:
       self.generate_roa(one, errback)

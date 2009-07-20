@@ -288,13 +288,14 @@ class report_error_elt(rpki.xml_utils.base_elt, publication_namespace):
   attributes = ("tag", "error_code")
 
   @classmethod
-  def from_exception(cls, exc, tag = None):
+  def from_exception(cls, e, tag = None):
     """
     Generate a <report_error/> element from an exception.
     """
     self = cls()
     self.tag = tag
-    self.error_code = exc.__class__.__name__
+    self.error_code = e.__class__.__name__
+    self.text = str(e)
     return self
 
 class msg(rpki.xml_utils.msg, publication_namespace):

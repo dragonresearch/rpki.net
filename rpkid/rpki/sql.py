@@ -106,7 +106,7 @@ class session(object):
     Write any dirty objects out to SQL.
     """
     for s in self.dirty.copy():
-      rpki.log.debug("Sweeping %s" % repr(s))
+      rpki.log.debug("Sweeping %r" % s)
       if s.sql_deleted:
         s.sql_delete()
       else:
@@ -173,7 +173,7 @@ class sql_persistent(object):
 
     if id is None:
       return None
-    assert isinstance(id, (int, long)), "id should be an integer, was %s" % repr(type(id))
+    assert isinstance(id, (int, long)), "id should be an integer, was %r" % type(id)
     key = (cls, id)
     if key in gctx.sql.cache:
       return gctx.sql.cache[key]
@@ -208,7 +208,7 @@ class sql_persistent(object):
     if where is None:
       assert args is None and also_from is None
       if cls.sql_debug:
-        rpki.log.debug("sql_fetch_where(%s)" % repr(cls.sql_template.select))
+        rpki.log.debug("sql_fetch_where(%r)" % cls.sql_template.select)
       gctx.sql.execute(cls.sql_template.select)
     else:
       query = cls.sql_template.select
@@ -216,7 +216,7 @@ class sql_persistent(object):
         query += "," + also_from
       query += " WHERE " + where
       if cls.sql_debug:
-        rpki.log.debug("sql_fetch_where(%s, %s)" % (repr(query), repr(args)))
+        rpki.log.debug("sql_fetch_where(%r, %r)" % (query, args))
       gctx.sql.execute(query, args)
     results = []
     for row in gctx.sql.fetchall():
@@ -263,14 +263,14 @@ class sql_persistent(object):
     args = self.sql_encode()
     if not self.sql_in_db:
       if self.sql_debug:
-        rpki.log.debug("sql_fetch_store(%s, %s)" % (repr(self.sql_template.insert), repr(args)))
+        rpki.log.debug("sql_fetch_store(%r, %r)" % (self.sql_template.insert, args))
       self.gctx.sql.execute(self.sql_template.insert, args)
       setattr(self, self.sql_template.index, self.gctx.sql.lastrowid())
       self.gctx.sql.cache[(self.__class__, self.gctx.sql.lastrowid())] = self
       self.sql_insert_hook()
     else:
       if self.sql_debug:
-        rpki.log.debug("sql_fetch_store(%s, %s)" % (repr(self.sql_template.update), repr(args)))
+        rpki.log.debug("sql_fetch_store(%r, %r)" % (self.sql_template.update, args))
       self.gctx.sql.execute(self.sql_template.update, args)
       self.sql_update_hook()
     key = (self.__class__, getattr(self, self.sql_template.index))
@@ -284,8 +284,10 @@ class sql_persistent(object):
     """
     if self.sql_in_db:
       id = getattr(self, self.sql_template.index)
-      self.gctx.sql.execute(self.sql_template.delete, id)
+      if self.sql_debug:
+        rpki.log.debug("sql_fetch_delete(%r, %r)" % (self.sql_template.delete, id))
       self.sql_delete_hook()
+      self.gctx.sql.execute(self.sql_template.delete, id)
       key = (self.__class__, id)
       if self.gctx.sql.cache.get(key) == self:
         del self.gctx.sql.cache[key]

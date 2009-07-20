@@ -39,9 +39,9 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import os, time, getopt, sys, re
-import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
-import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log
-import rpki.publication
+import rpki.resource_set, rpki.up_down, rpki.x509, rpki.sql
+import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng
+import rpki.log, rpki.publication
 
 class pubd_context(object):
   """

@@ -1,10 +1,6 @@
 # $Id$
 
-#all:: myrpki.xml
-#all:: lint
-#all:: parse
-#all:: graph
-all:: load
+all: schema.py
 
 myrpki.xml: myrpki.py asns.csv children.csv parents.csv prefixes.csv roas.csv
 	python myrpki.py
@@ -38,7 +34,7 @@ format: myrpki.xml
 	xmllint --format myrpki.xml
 
 graph:
-	for b in  bpki.myrpki bpki.rpkid bpki.pubd bpki.rootd; do python ../scripts/x509-dot.py $$b | dot -T ps2 | ps2pdf - $$b/graph.pdf; done
+	find . -name .svn -prune -o -type d -name 'bpki.*' -print | while read b; do python ../scripts/x509-dot.py $$b | dot -T ps2 | ps2pdf - $$b/graph.pdf; done
 
 verify:
 	sh verify-bpki.sh

@@ -53,9 +53,18 @@ import subprocess, csv, re, os, getopt, sys, ConfigParser, base64
 
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
-# our XML namespace. 
+# Our XML namespace. 
 
 namespace = "http://www.hactrn.net/uris/rpki/myrpki/"
+
+# Dialect parameters for our use of CSV files, here to make them easy
+# to change if your site needs to do something different.  See doc for
+# the csv module in the Python standard libraries for details if you
+# need to customize these.
+
+csv_delimiter = "\t"
+csv_dialect = None
+
 
 class comma_set(set):
   """
@@ -289,13 +298,13 @@ class parents(dict):
                service_uri = service_uri, bpki_cms_certificate = xcert(parent_cms_pemfile), bpki_https_certificate = xcert(parent_https_pemfile))
     return self
 
-def csv_open(filename, delimiter = "\t", dialect = None):
+def csv_open(filename):
   """
   Open a CSV file, with settings that make it a tab-delimited file.
   You may need to tweak this function for your environment, see the
   csv module in the Python standard libraries for details.
   """
-  return csv.reader(open(filename, "rb"), dialect = dialect, delimiter = delimiter)
+  return csv.reader(open(filename, "rb"), dialect = csv_dialect, delimiter = csv_delimiter)
 
 def PEMElement(e, tag, filename):
   """

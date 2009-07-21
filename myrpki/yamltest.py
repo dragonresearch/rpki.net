@@ -53,6 +53,18 @@ PERFORMANCE OF THIS SOFTWARE.
 import subprocess, csv, re, os, getopt, sys, base64, yaml, signal, errno, time
 import rpki.resource_set, rpki.sundial, rpki.config, myrpki
 
+# Dialect parameters for our use of CSV files, here to make them easy
+# to change if your site needs to do something different.  See doc for
+# the csv module in the Python standard libraries for details if you
+# need to customize these.
+
+csv_delimiter = "\t"
+csv_dialect = None
+
+# Nasty regular expressions for parsing config files.  Sadly, while
+# the Python ConfigParser supports writing config files, it does so in
+# such a limited way that it's easier just to hack this ourselves.
+
 section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
 variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
 
@@ -61,6 +73,8 @@ def cleanpath(*names):
   Construct normalized pathnames.
   """
   return os.path.normpath(os.path.join(*names))
+
+# Pathnames for various things we need
 
 this_dir  = os.getcwd()
 test_dir  = cleanpath(this_dir, "test")
@@ -279,13 +293,13 @@ class allocation(object):
     """
     return cleanpath(test_dir, self.name, *names)
 
-  def outfile(self, filename):
+  def csvout(self, fn):
     """
-    Open and log an output file.
+    Open and log a CSV output file.
     """
-    path = self.path(filename)
+    path = self.path(fn)
     print "Writing", path
-    return open(path, "w")
+    return csv.writer(open(path, "wb"), delimiter = csv_delimiter, dialect = csv_dialect)
 
   def up_down_url(self):
     """
@@ -298,52 +312,41 @@ class allocation(object):
     """
     Write Autonomous System Numbers CSV file.
     """
-    f = self.outfile(fn)
-    for k in self.kids:
-      for a in k.resources.asn:
-        f.write("%s\t%s\n" % (k.name, a))
-    f.close()
+    f = self.csvout(fn)
+    for k in self.kids:    
+      f.writerows((k.name, a) for a in k.resources.asn)
 
   def dump_children(self, fn):
     """
     Write children CSV file.
     """
-    f = self.outfile(fn)
-    for k in self.kids:
-      f.write("%s\t%s\t%s\n" % (k.name, k.resources.valid_until, k.path("bpki.myrpki/ca.cer")))
-    f.close()
+    self.csvout(fn).writerows((k.name, k.resources.valid_until, k.path("bpki.myrpki/ca.cer")) for k in self.kids)
 
   def dump_parents(self, fn):
     """
     Write parents CSV file.
     """
-    f = self.outfile(fn)
     if self.is_root():
-      f.write("%s\t%s\t%s\t%s\n" % ("rootd", "https://localhost:%d/" % self.rootd_port, self.path("bpki.rootd/ca.cer"), self.path("bpki.rootd/ca.cer")))
+      self.csvout(fn).writerow(("rootd", "https://localhost:%d/" % self.rootd_port, self.path("bpki.rootd/ca.cer"), self.path("bpki.rootd/ca.cer")))
     else:
       parent_host = self.parent.hosted_by if self.parent.is_hosted() else self.parent
-      f.write("%s\t%s\t%s\t%s\n" % (self.parent.name, self.up_down_url(), self.parent.path("bpki.myrpki/ca.cer"), parent_host.path("bpki.rpkid/ca.cer")))
-    f.close()
+      self.csvout(fn).writerow((self.parent.name, self.up_down_url(), self.parent.path("bpki.myrpki/ca.cer"), parent_host.path("bpki.rpkid/ca.cer")))
 
   def dump_prefixes(self, fn):
     """
     Write prefixes CSV file.
     """
-    f = self.outfile(fn)
+    f = self.csvout(fn)
     for k in self.kids:
-      for p in k.resources.v4 + k.resources.v6:
-        f.write("%s\t%s\n" % (k.name, p))
-    f.close()
+      f.writerows((k.name, p) for p in (k.resources.v4 + k.resources.v6))
 
   def dump_roas(self, fn):
     """
     Write ROA CSV file.
     """
-    f = self.outfile(fn)
+    f = self.csvout(fn)
     for r in self.roa_requests:
-      for p in r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ():
-        f.write("%s\t%s\n" % (p, r.asn))
-    f.close()
+      f.writerows((p, r.asn) for p in (r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ()))
 
   def dump_conf(self, fn):
     """
@@ -386,8 +389,9 @@ class allocation(object):
     if pubd_password:
       r["pubd", "sql-password"]  = pubd_password
 
-    f = self.outfile(fn)
+    f = open(self.path(fn), "w")
     f.write("# Automatically generated, do not edit\n")
+    print "Writing", f.name
 
     section = None
     for line in open("myrpki.conf"):

@@ -1,6 +1,22 @@
 """
-Convert testbed.py YAML configuration format to myrpki .conf and .csv
-format.  Much of the YAML handling code lifted from testbed.py.
+Test framework, using the same YAML test description format as
+testbed.py, but using the myrpki.py and myirbe.py tools to do all the
+back-end work.  Reads YAML file, generates .csv and .conf files, runs
+daemons and waits for one of them to exit.
+
+Much of the YAML handling code lifted from testbed.py.
+
+Still to do:
+
+- Generate rsyncd.conf and run rsync so that tests can include rcynic
+  runs aganist generated data.  Not particularly difficult, just
+  tedious, and likely to require fildding with publication paths
+  (again).
+
+- Implement testebd.py-style delta actions, that is, modify the
+  allocation database under control of the YAML file, dump out new
+  .csv files, and run myrpki.py and myirbe.py again to feed resulting
+  changes into running daemons.
 
 $Id$
 
@@ -41,6 +57,9 @@ section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
 variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
 
 def cleanpath(*names):
+  """
+  Construct normalized pathnames.
+  """
   return os.path.normpath(os.path.join(*names))
 
 this_dir  = os.getcwd()
@@ -57,6 +76,9 @@ prog_rootd  = cleanpath(rpkid_dir, "rootd.py")
 prog_openssl = cleanpath(this_dir, "../openssl/openssl/apps/openssl")
 
 class roa_request(object):
+  """
+  Representation of a ROA request.
+  """
 
   def __init__(self, asn, ipv4, ipv6):
     self.asn = asn
@@ -79,9 +101,15 @@ class roa_request(object):
 
   @classmethod
   def parse(cls, yaml):
+    """
+    Parse a ROA request from YAML format.
+    """
     return cls(yaml.get("asn"), yaml.get("ipv4"), yaml.get("ipv6"))
     
 class allocation_db(list):
+  """
+  Our allocation database.
+  """
 
   def __init__(self, yaml):
     list.__init__(self)
@@ -109,10 +137,19 @@ class allocation_db(list):
         assert not a.is_root() and not a.hosted_by.is_hosted()
 
   def dump(self):
+    """
+    Show contents of allocatino database.
+    """
     for a in self:
       a.dump()
 
   def make_rootd_openssl(self):
+    """
+    Factory for a function to run the OpenSSL comand line tool on the
+    root node of our allocation database.  Could easily be generalized
+    if there were a need, but as it happens we only ever need to do
+    this for the root node.
+    """
     env = { "PATH"           : os.environ["PATH"],
             "BPKI_DIRECTORY" : self.root.path("bpki.rootd"),
             "RANDFILE"       : ".OpenSSL.whines.unless.I.set.this" }
@@ -120,6 +157,12 @@ class allocation_db(list):
     return lambda *args: subprocess.check_call((prog_openssl,) + args, cwd = cwd, env = env)
 
 class allocation(object):
+  """
+  One entity in our allocation database.  Every entity in the database
+  is assumed to hold resources, so needs at least myrpki services.
+  Entities that don't have the hosted_by property run their own copies
+  of rpkid, irdbd, and pubd, so they also need myirbe services.
+  """
 
   parent       = None
   crl_interval = None
@@ -129,6 +172,9 @@ class allocation(object):
 
   @classmethod
   def allocate_port(cls):
+    """
+    Allocate a TCP port.
+    """
     cls.base_port += 1
     return cls.base_port
 
@@ -136,6 +182,10 @@ class allocation(object):
 
   @classmethod
   def allocate_engine(cls):
+    """
+    Allocate an engine number, mostly used to construct MySQL database
+    names.
+    """
     cls.base_engine += 1
     return cls.base_engine
 
@@ -177,6 +227,10 @@ class allocation(object):
       self.rootd_port = self.allocate_port()
 
   def closure(self):
+    """
+    Compute resource closure of this node and its children, to avoid a
+    lot of tedious (and error-prone) duplication in the YAML file.
+    """
     resources = self.base
     for kid in self.kids:
       resources = resources.union(kid.closure())
@@ -184,6 +238,9 @@ class allocation(object):
     return resources
 
   def dump(self):
+    """
+    Show content of this allocation node.
+    """
     print str(self)
 
   def __str__(self):
@@ -205,24 +262,42 @@ class allocation(object):
     return s + " Until: %s\n" % self.resources.valid_until
 
   def is_root(self):
+    """
+    Is this the root node?
+    """
     return self.parent is None
 
   def is_hosted(self):
+    """
+    Is this entity hosted?
+    """
     return self.hosted_by is not None
 
   def path(self, *names):
+    """
+    Construct pathnames in this entity's test directory.
+    """
     return cleanpath(test_dir, self.name, *names)
 
   def outfile(self, filename):
+    """
+    Open and log an output file.
+    """
     path = self.path(filename)
     print "Writing", path
     return open(path, "w")
 
   def up_down_url(self):
+    """
+    Construct service URL for this node's parent.
+    """
     parent_port = self.parent.hosted_by.rpkid_port if self.parent.is_hosted() else self.parent.rpkid_port
     return "https://localhost:%d/up-down/%s/%s" % (parent_port, self.parent.name, self.name)
 
   def dump_asns(self, fn):
+    """
+    Write Autonomous System Numbers CSV file.
+    """
     f = self.outfile(fn)
     for k in self.kids:
       for a in k.resources.asn:
@@ -230,12 +305,18 @@ class allocation(object):
     f.close()
 
   def dump_children(self, fn):
+    """
+    Write children CSV file.
+    """
     f = self.outfile(fn)
     for k in self.kids:
       f.write("%s\t%s\t%s\n" % (k.name, k.resources.valid_until, k.path("bpki.myrpki/ca.cer")))
     f.close()
 
   def dump_parents(self, fn):
+    """
+    Write parents CSV file.
+    """
     f = self.outfile(fn)
     if self.is_root():
       f.write("%s\t%s\t%s\t%s\n" % ("rootd", "https://localhost:%d/" % self.rootd_port, self.path("bpki.rootd/ca.cer"), self.path("bpki.rootd/ca.cer")))
@@ -245,6 +326,9 @@ class allocation(object):
     f.close()
 
   def dump_prefixes(self, fn):
+    """
+    Write prefixes CSV file.
+    """
     f = self.outfile(fn)
     for k in self.kids:
       for p in k.resources.v4 + k.resources.v6:
@@ -252,6 +336,9 @@ class allocation(object):
     f.close()
 
   def dump_roas(self, fn):
+    """
+    Write ROA CSV file.
+    """
     f = self.outfile(fn)
     for r in self.roa_requests:
       for p in r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ():
@@ -259,6 +346,9 @@ class allocation(object):
     f.close()
 
   def dump_conf(self, fn):
+    """
+    Write configuration file for OpenSSL and RPKI tools.
+    """
 
     host = self.hosted_by if self.is_hosted() else self
 
@@ -315,6 +405,9 @@ class allocation(object):
     f.close()
 
   def run_myirbe(self):
+    """
+    Run myirbe.py if this entity is not hosted by another engine.
+    """
     if not self.is_hosted():
       print "Running myirbe.py for", self.name
       cmd = ["python", prog_myirbe]
@@ -322,10 +415,17 @@ class allocation(object):
       subprocess.check_call(cmd, cwd = self.path())
 
   def run_myrpki(self):
+    """
+    Run myrpki.py for this entity.
+    """
     print "Running myrpki.py for", self.name
     subprocess.check_call(("python", prog_myrpki), cwd = self.path())
 
   def run_python_daemon(self, prog):
+    """
+    Start a Python daemon and return a subprocess.Popen object
+    representing the running daemon.
+    """
     basename = os.path.basename(prog)
     p = subprocess.Popen(("python", prog, "-c", self.path("myrpki.conf")),
                          cwd = self.path(),
@@ -335,15 +435,27 @@ class allocation(object):
     return p
   
   def run_rpkid(self):
+    """
+    Run rpkid.
+    """
     return self.run_python_daemon(prog_rpkid)
 
   def run_irdbd(self):
+    """
+    Run irdbd.
+    """
     return self.run_python_daemon(prog_irdbd)
 
   def run_pubd(self):
+    """
+    Run pubd.
+    """
     return self.run_python_daemon(prog_pubd)
 
   def run_rootd(self):
+    """
+    Run rootd.
+    """
     return self.run_python_daemon(prog_rootd)
 
 os.environ["TZ"] = "UTC"
@@ -359,10 +471,17 @@ for o, a in opts:
   if o in ("-c", "--config"):
     cfg_file = a
 
+# We can't usefully process more than one YAMl file at a time, so
+# whine if there's more than one argument left.
+
 if len(argv) > 1:
   raise RuntimeError, "Unexpected arguments %r" % argv
 
 yaml_file = argv[0] if argv else "../rpkid/testbed.1.yaml"
+
+# Allow optional config file for this tool to override default
+# passwords: this is mostly so that I can show a complete working
+# example without publishing my own server's passwords.
 
 try:
   cfg = rpki.config.parser(cfg_file, "yamltest")

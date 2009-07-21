@@ -1,10 +1,34 @@
 """
-Basic plan here is to read in csv files for tabular data (ROA
-requests, child ASN assignments, child prefix assignments), read
-command line or magic file for my own handle, and read or generate PEM
-for BPKI CA certificate and BPKI EE certificate (cannot do latter
-without corresponding BPKI EE PKCS #10).  Whack all this together and
-generate some XML thing (format still in flux, see schema).
+Read an OpenSSL-style config file and a bunch of .csv files to find
+out about parents and children and resources and ROA requests, oh my.
+Run OpenSSL command line tool to construct BPKI certificates,
+including cross-certification of other entities' BPKI certificates.
+
+Package up all of the above as a single XML file which user can then
+ship off to the IRBE.  If an XML file already exists, check it for
+data coming back from the IRBE (principally PKCS #10 requests for our
+BSC) and update it with current data.
+
+The general idea here is that this one XML file contains all of the
+data that needs to be exchanged as part of ordinary update operations;
+each party updates it as necessary, then ships it to the other via
+some secure channel: carrier pigeon, USB stick, gpg-protected email,
+we don't really care.
+
+This one program is written a little differently from all the other
+Python RPKI programs.  This one program is intended to run as a
+stand-alone script, without the other programs present.  It does
+require a reasonably up-to-date version of the OpenSSL command line
+tool (the one built as a side effect of building rcynic will do), but
+it does -not- require POW or any Python libraries beyond what ships
+with Python 2.5.  So this script uses xml.etree from the Python
+standard libraries instead of lxml.etree, which sacrifices XML schema
+validation support in favor of portability, and so forth.
+
+To make things a little weirder, as a convenience to IRBE operators,
+this script can itself be loaded as a Python module and invoked as
+part of another program.  This requires a few minor contortions, but
+avoids duplicating common code.
 
 $Id$
 
@@ -23,18 +47,28 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
+# Only standard Python libraries for this program, please.
+
 import subprocess, csv, re, os, getopt, sys, ConfigParser, base64
 
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
+# our XML namespace. 
+
 namespace = "http://www.hactrn.net/uris/rpki/myrpki/"
 
 class comma_set(set):
+  """
+  Minor customization of set(), to provide a print syntax.
+  """
 
   def __str__(self):
     return ",".join(self)
 
 class roa_request(object):
+  """
+  Representation of a ROA request.
+  """
 
   v4re = re.compile("^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+(-[0-9]+)?$", re.I)
   v6re = re.compile("^([0-9a-f]{0,4}:){0,15}[0-9a-f]{0,4}/[0-9]+(-[0-9]+)?$", re.I)
@@ -48,6 +82,9 @@ class roa_request(object):
     return "<%s asn %s v4 %s v6 %s>" % (self.__class__.__name__, self.asn, self.v4, self.v6)
 
   def add(self, prefix):
+    """
+    Add one prefix to this ROA request.
+    """
     if self.v4re.match(prefix):
       self.v4.add(prefix)
     elif self.v6re.match(prefix):
@@ -56,24 +93,39 @@ class roa_request(object):
       raise RuntimeError, "Bad prefix syntax: %r" % (prefix,)
 
   def xml(self, e):
+    """
+    Generate XML element represeting representing this ROA request.
+    """
     return SubElement(e, "roa_request",
                       asn = self.asn,
                       v4 = str(self.v4),
                       v6 = str(self.v6))
 
 class roa_requests(dict):
+  """
+  Database of ROA requests.
+  """
 
   def add(self, asn, prefix):
+    """
+    Add one <ASN, prefix> pair to ROA request database.
+    """
     if asn not in self:
       self[asn] = roa_request(asn)
     self[asn].add(prefix)
 
   def xml(self, e):
+    """
+    Render ROA requests as XML elements.
+    """
     for r in self.itervalues():
       r.xml(e)
 
   @classmethod
   def from_csv(cls, roa_csv_file):
+    """
+    Parse ROA requests from CSV file.
+    """
     self = cls()
     # format:  p/n-m asn
     for pnm, asn in csv_open(roa_csv_file):
@@ -81,6 +133,9 @@ class roa_requests(dict):
     return self
 
 class child(object):
+  """
+  Representation of one child entity.
+  """
 
   v4re = re.compile("^(([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+)|(([0-9]{1,3}\.){3}[0-9]{1,3}-([0-9]{1,3}\.){3}[0-9]{1,3})$", re.I)
   v6re = re.compile("^(([0-9a-f]{0,4}:){0,15}[0-9a-f]{0,4}/[0-9]+)|(([0-9a-f]{0,4}:){0,15}[0-9a-f]{0,4}-([0-9a-f]{0,4}:){0,15}[0-9a-f]{0,4})$", re.I)
@@ -97,6 +152,10 @@ class child(object):
     return "<%s v4 %s v6 %s asns %s validity %s cert %s>" % (self.__class__.__name__, self.v4, self.v6, self.asns, self.validity, self.bpki_certificate)
 
   def add(self, prefix = None, asn = None, validity = None, bpki_certificate = None):
+    """
+    Add prefix, autonomous system number, validity date, or BPKI
+    certificate for this child.
+    """
     if prefix is not None:
       if self.v4re.match(prefix):
         self.v4.add(prefix)
@@ -112,6 +171,9 @@ class child(object):
       self.bpki_certificate = bpki_certificate
 
   def xml(self, e):
+    """
+    Render this child as an XML element.
+    """
     e2 = SubElement(e, "child",
                     handle = self.handle,
                     valid_until = self.validity,
@@ -123,18 +185,30 @@ class child(object):
     return e2
 
 class children(dict):
+  """
+  Database of children.
+  """
 
   def add(self, handle, prefix = None, asn = None, validity = None, bpki_certificate = None):
+    """
+    Add resources to a child, creating the child object if necessary.
+    """
     if handle not in self:
       self[handle] = child(handle)
     self[handle].add(prefix = prefix, asn = asn, validity = validity, bpki_certificate = bpki_certificate)
 
   def xml(self, e):
+    """
+    Render children database to XML.
+    """
     for c in self.itervalues():
       c.xml(e)
 
   @classmethod
   def from_csv(cls, children_csv_file, prefix_csv_file, asn_csv_file, xcert):
+    """
+    Parse child resources, certificates, and validity dates from CSV files.
+    """
     self = cls()
     # childname date pemfile
     for handle, date, pemfile in csv_open(children_csv_file):
@@ -148,6 +222,9 @@ class children(dict):
     return self
 
 class parent(object):
+  """
+  Representation of one parent entity.
+  """
 
   def __init__(self, handle):
     self.handle = handle
@@ -160,6 +237,9 @@ class parent(object):
                                             self.bpki_cms_certificate, self.bpki_https_certificate)
 
   def add(self, service_uri = None, bpki_cms_certificate = None, bpki_https_certificate = None):
+    """
+    Add service URI or BPKI certificates to this parent object.
+    """
     if service_uri is not None:
       self.service_uri = service_uri
     if bpki_cms_certificate is not None:
@@ -168,6 +248,9 @@ class parent(object):
       self.bpki_https_certificate = bpki_https_certificate
 
   def xml(self, e):
+    """
+    Render this parent object to XML.
+    """
     e2 = SubElement(e, "parent",
                     handle = self.handle,
                     service_uri = self.service_uri)
@@ -178,8 +261,14 @@ class parent(object):
     return e2
 
 class parents(dict):
+  """
+  Database of parent objects.
+  """
 
   def add(self, handle, service_uri = None, bpki_cms_certificate = None, bpki_https_certificate = None):
+    """
+    Add service URI or certificates to parent object, creating it if necessary.
+    """
     if handle not in self:
       self[handle] = parent(handle)
     self[handle].add(service_uri = service_uri, bpki_cms_certificate = bpki_cms_certificate, bpki_https_certificate = bpki_https_certificate)
@@ -190,6 +279,9 @@ class parents(dict):
 
   @classmethod
   def from_csv(cls, parents_csv_file, xcert):
+    """
+    Parse parent data from CSV file.
+    """
     self = cls()
     # parentname service_uri parent_bpki_cms_pemfile parent_bpki_https_pemfile
     for handle, service_uri, parent_cms_pemfile, parent_https_pemfile in csv_open(parents_csv_file):
@@ -198,13 +290,28 @@ class parents(dict):
     return self
 
 def csv_open(filename, delimiter = "\t", dialect = None):
+  """
+  Open a CSV file, with settings that make it a tab-delimited file.
+  You may need to tweak this function for your environment, see the
+  csv module in the Python standard libraries for details.
+  """
   return csv.reader(open(filename, "rb"), dialect = dialect, delimiter = delimiter)
 
 def PEMElement(e, tag, filename):
+  """
+  Create an XML element containing Base64 encoded data taken from a
+  PEM file.
+  """
   e = SubElement(e, tag)
   e.text = "".join(p.strip() for p in open(filename).readlines()[1:-1])
 
 class CA(object):
+  """
+  Representation of one certification authority.
+  """
+
+  # Mapping of path restriction values we use to OpenSSL config file
+  # section names.
 
   path_restriction = { 0 : "ca_x509_ext_xcert0",
                        1 : "ca_x509_ext_xcert1" }
@@ -225,10 +332,17 @@ class CA(object):
                  "RANDFILE" : ".OpenSSL.whines.unless.I.set.this" }
 
   def run_ca(self, *args):
+    """
+    Run OpenSSL "ca" command with tailored environment variables and common initial
+    arguments.
+    """
     cmd = ("openssl", "ca", "-notext", "-batch", "-config",  self.cfg) + args
     subprocess.check_call(cmd, env = self.env)
 
   def run_req(self, key_file, req_file):
+    """
+    Run OpenSSL "req" command with tailored environment variables and common arguments.
+    """
     if not os.path.exists(key_file) or not os.path.exists(req_file):
       subprocess.check_call(("openssl", "req", "-new", "-sha256", "-newkey", "rsa:2048",
                              "-config", self.cfg, "-keyout", key_file, "-out", req_file),
@@ -236,13 +350,20 @@ class CA(object):
     
   @staticmethod
   def touch_file(filename, content = None):
+    """
+    Create dumb little text files expected by OpenSSL "ca" utility.
+    """
     if not os.path.exists(filename):
       f = open(filename, "w")
       if content is not None:
         f.write(content)
       f.close()
 
-  def setup(self, ta_name):
+  def setup(self, ca_name):
+    """
+    Set up this CA.  ca_name is an X.509 distinguished name in
+    /tag=val/tag=val format.
+    """
 
     modified = False
 
@@ -256,7 +377,7 @@ class CA(object):
 
     if not os.path.exists(self.cer):
       modified = True
-      self.run_ca("-selfsign", "-extensions", "ca_x509_ext_ca", "-subj", ta_name, "-in", self.req, "-out", self.cer)
+      self.run_ca("-selfsign", "-extensions", "ca_x509_ext_ca", "-subj", ca_name, "-in", self.req, "-out", self.cer)
 
     if not os.path.exists(self.crl):
       modified = True
@@ -265,6 +386,9 @@ class CA(object):
     return modified
 
   def ee(self, ee_name, base_name):
+    """
+    Issue an end-enity certificate.
+    """
     key_file = "%s/%s.key" % (self.dir, base_name)
     req_file = "%s/%s.req" % (self.dir, base_name)
     cer_file = "%s/%s.cer" % (self.dir, base_name)
@@ -276,6 +400,9 @@ class CA(object):
       return False
 
   def bsc(self, pkcs10):
+    """
+    Issue BSC certificiate, if we have a PKCS #10 request for it.
+    """
 
     if pkcs10 is None:
       return None, None
@@ -304,6 +431,9 @@ class CA(object):
     return req_file, cer_file
 
   def fxcert(self, filename, cert, path_restriction = 0):
+    """
+    Write PEM certificate to file, then cross-certify.
+    """
     fn = os.path.join(self.dir, filename)
     f = open(fn, "w")
     f.write(cert)
@@ -311,6 +441,9 @@ class CA(object):
     return self.xcert(fn, path_restriction)
 
   def xcert(self, cert, path_restriction = 0):
+    """
+    Cross-certify a certificate represented as a PEM file.
+    """
 
     if not cert:
       return None
@@ -332,7 +465,7 @@ class CA(object):
 
     # Cross-certify the cert we were given, if we haven't already.
     # This only works for self-signed certs, due to limitations of the
-    # OpenSSL command line tool.
+    # OpenSSL command line tool, but that suffices for our purposes.
 
     if not os.path.exists(xcert):
       self.run_ca("-ss_cert", cert, "-out", xcert, "-extensions", self.path_restriction[path_restriction])
@@ -340,9 +473,18 @@ class CA(object):
     return xcert
 
 def extract_resources():
-  pass
+  """
+  Extract RFC 3779 resources from a certificate.  Not written yet.
+
+  """
+  raise NotImplementedError
+
 
 def main(argv = ()):
+  """
+  Main program.  Must be callable from other programs as well as being
+  invoked directly when this module is run as a script.
+  """
 
   cfg_file        = "myrpki.conf"
   myrpki_section  = "myrpki"
@@ -358,7 +500,7 @@ def main(argv = ()):
     raise RuntimeError, "Unexpected arguments %r" % (argv,)
 
   cfg = ConfigParser.RawConfigParser()
-  cfg.read(cfg_file)
+  cfg.readfp(open(cfg_file, "r"), cfg_file)
 
   my_handle                     = cfg.get(myrpki_section, "handle")
   roa_csv_file                  = cfg.get(myrpki_section, "roa_csv")
@@ -405,8 +547,14 @@ def main(argv = ()):
   if bsc_req:
     PEMElement(e, "bpki_bsc_pkcs10", bsc_req)
 
+  # I still miss SYSCAL(RENMWO)
+
   ElementTree(e).write(xml_filename + ".tmp")
   os.rename(xml_filename + ".tmp", xml_filename)
+
+# When this file is run as a script, run main() with command line
+# arguments.  main() can't use sys.argv directly as that might be the
+# command line for some other program that loads this module.
 
 if __name__ == "__main__":
   main(sys.argv[1:])

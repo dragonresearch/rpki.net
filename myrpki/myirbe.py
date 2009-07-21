@@ -1,5 +1,28 @@
 """
-IRBE-side stuff for myrpki testbed.
+IRBE-side stuff for myrpki tools.
+
+The basic model here is that each entity with resources to certify
+runs the myrpki tool, but not all of them necessarily run their own
+RPKi engines.  The entities that do run RPKI engines get data from the
+entities they host via the XML files output by the myrpki tool.  Those
+XML files are the input to this script, which uses them to do all the
+work of constructing certificates, populating SQL databases, and so
+forth.  A few operations (eg, BSC construction) generate data which
+has to be shipped back to the resource holder, which we do by updating
+the same XML file.
+
+In essence, the XML files are a sneakernet (or email, or carrier
+pigeon) communication channel between the resource holders and the
+RPKI engine operators.
+
+As a convenience, for the normal case where the RPKI engine operator
+is itself a resource holder, this script also runs the myrpki script
+directly to process the RPKI engine operator's own resources.
+
+Note that, due to the back and forth nature of some of these
+operations, it may take several cycles for data structures to stablize
+and everything to reach a steady state.  This is normal.
+
 
 $Id$
 
@@ -24,9 +47,15 @@ import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509, rpki.async
 import myrpki, schema
 
 def tag(t):
+  """
+  Wrap an element name in the right XML namespace goop.
+  """
   return "{http://www.hactrn.net/uris/rpki/myrpki/}" + t
 
 def findbase64(tree, name, b64type = rpki.x509.X509):
+  """
+  Find and extract a base64-encoded XML element, if present.
+  """
   x = tree.findtext(tag(name))
   return b64type(Base64 = x) if x else None
 
@@ -112,17 +141,19 @@ if bpki_modified:
   print "BPKI (re)initialized.  You need to (re)start daemons before continuing."
   sys.exit()
 
+# Default values for CRL parameters are very low, for testing.
+
 self_crl_interval = cfg.get("self_crl_interval", 300)
 self_regen_margin = cfg.get("self_regen_margin", 120)
 rsync_base        = cfg.get("rsync_base")
 pubd_base         = cfg.get("pubd_base")
 rpkid_base        = cfg.get("rpkid_base")
 
-# Nasty regexp for parsing rpkid's up-down service URLs
+# Nasty regexp for parsing rpkid's up-down service URLs.
 
 updown_regexp = re.compile(re.escape(rpkid_base) + "up-down/([-A-Z0-9_]+)/([-A-Z0-9_]+)$", re.I)
 
-# Wrappers to simplify calling rpkid and pubd
+# Wrappers to simplify calling rpkid and pubd.
 
 call_rpkid = rpki.async.sync_wrapper(caller(
   proto       = rpki.left_right,
@@ -156,17 +187,25 @@ cur = db.cursor()
 
 xmlfiles = []
 
+# If [myrpki] section is present in config file, run myrpki.py
+# internally, as a convenience, and include its output at the head of
+# our list of XML files to process.
+
 if cfg.has_section("myrpki"):
   myrpki.main()
   my_xmlfile = cfg.get("xml_filename", None, "myrpki")
   assert my_xmlfile is not None
   xmlfiles.append(my_xmlfile)
 
+# Add any other XML files specified on the command line
+
 xmlfiles.extend(argv)
 
 my_handle = None
 
 for xmlfile in xmlfiles:
+
+  # Parse XML file and validate it against our scheme
 
   tree = lxml.etree.parse(xmlfile).getroot()
   schema.myrpki.assertValid(tree)
@@ -175,6 +214,8 @@ for xmlfile in xmlfiles:
 
   if xmlfile == my_xmlfile:
     my_handle = handle
+
+  # Update IRDB with parsed resource and roa-request data.
 
   cur.execute(
     """
@@ -231,13 +272,17 @@ for xmlfile in xmlfiles:
 
   db.commit()
 
+  # Check for certificates before attempting anything else
+
   hosted_cacert = findbase64(tree, "bpki_ca_certificate")
   if not hosted_cacert:
     print "Nothing else I can do without a trust anchor for the entity I'm hosting."
-    sys.exit()
+    continue
 
   rpkid_xcert = rpki.x509.X509(PEM_file = bpki_rpkid.fxcert(handle + ".cacert.cer", hosted_cacert.get_PEM(), path_restriction = 1))
   pubd_xcert  = rpki.x509.X509(PEM_file = bpki_pubd.fxcert(handle + ".cacert.cer", hosted_cacert.get_PEM()))
+
+  # See what rpkid and pubd already have on file for this entity.
 
   pubd_reply = call_pubd((
     rpki.publication.client_elt.make_pdu(action = "get", tag = "client", client_handle = handle),))
@@ -411,6 +456,10 @@ for xmlfile in xmlfiles:
   rpkid_query.extend(rpki.left_right.parent_elt.make_pdu(
     action = "destroy", self_handle = handle, parent_handle = p) for p in parent_pdus)
 
+  # Children are simpler than parents, because they call us, so no URL
+  # to construct and figuring out what certificate to use is their
+  # problem, not ours.
+
   for child in tree.getiterator(tag("child")):
 
     child_handle = child.get("handle")
@@ -431,6 +480,8 @@ for xmlfile in xmlfiles:
   rpkid_query.extend(rpki.left_right.child_elt.make_pdu(
     action = "destroy", self_handle = handle, child_handle = c) for c in child_pdus)
 
+  # If we changed anything, ship updates off to daemons
+
   if rpkid_query:
     rpkid_reply = call_rpkid(rpkid_query)
     bsc_pdus = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
@@ -440,6 +491,8 @@ for xmlfile in xmlfiles:
   if pubd_query:
     pubd_reply = call_pubd(pubd_query)
     assert len(pubd_reply) == 1 and isinstance(pubd_reply[0], rpki.publication.client_elt) and pubd_reply[0].client_handle == handle
+
+  # Rewrite XML.
 
   e = tree.find(tag("bpki_bsc_pkcs10"))
   if e is None and bsc_req is not None:

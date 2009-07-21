@@ -1,5 +1,5 @@
 """
-Test parser for myrpki testbed stuff.
+Test parser and display tool for myrpki.xml files.
 
 $Id$
 

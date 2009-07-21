@@ -1,10 +1,98 @@
 $Id$
 
-Sketch towards a simple description of the BPKI.
+The design of rpkid and friends assumes that certain tasks can be
+thrown over the wall to the registry's back end operation.  This was a
+deliberate design decision to allow rpkid et al to remain independent
+of existing database schema, business PKIs, and so forth that a
+registry might already have.  All very nice, but it leaves someone who
+just wants to test the tools or who has no existing back end with a
+fairly large programming project.  The tools in this directory attempt
+to fill that gap.
+
+This is a basic implementation of what a registry back end would need
+to use rpkid and friends.   These tools do not use every available
+option, nor are they necessarily as efficient as possible.  Large
+registries will almost certainly want to roll their own tools, perhaps
+using these as a starting point.  Nevertheless, we hope that these
+tools will at least provide a useful example.
+
+The primary tools here consist of two Python programs: myrpki.py and
+myirbe.py.  The first is for use by any entity that needs resources
+allocated via the RPKI system, the second is for use by entities that
+actually run a copy of rpkid and its several supporting programs.
+
+The basic idea here is that a user who has resources maintains a set
+of .csv files containing a text representation of the data needed by
+the back-end, along with a configuration file containing other
+parameters.  The intent is that these be very simple files that are
+easy to generate either by hand or as a dump from relational database,
+awk script, whatever works in your environment.  Given these files,
+the user then runs the myrpki.py script to extract the relevant
+information and encode everything about its back end state into a
+single .xml file, which the script writes out to disk.  The user then
+conveys this .xml file via some convenient means (PGP-signed mail, USB
+key, dogsled) to the operator of the rpkid engine that will perform
+RPKI services on behalf of the user.
+
+The rpkid operator collects these .xml files from all the users it
+hosts, and feeds them all into the myirbe.py script, which uses the
+data in the .xml files to populate the IRDB, create objects in rpkid
+and pubd via the left-right and publication protocols, etcetera.  The
+script rewrites its input .xml files to contain any updated
+information (eg, PKCS #10 requests for business signing context
+certificates), so that the .xml file once again contains everything
+that must be communicated between the rpkid operator and hosted user.
+
+The rpkid operator ships the updated .xml back to the user, who then
+runs the myrpki.py script again to perform any necessary actions (eg,
+issuing business signing context certificates given the PKCS #10
+request sent by myirbe.py), resulting in another update to the .xml
+file, which the user then ships back to the rpkid operator.  This
+cycle repeats until nothing further needs to be changed.
+
+Note that, as certificates and CRLs have expiration and nextUpdate
+values, a low-level cycle of updates passing between resource holder
+and rpkid operator will be necessary as a part of steady state
+operation.  (The current version of these tools does not yet
+regenerate these expiring objects, but fixing this is a relatively
+minor matter.)
+
+Since we assume that anybody who bothers to run rpkid is also a
+resource holder, myirbe.py and myrpki.py can use the same
+configuration file, and myirbe.py will run myrpki.py automatically if
+the [myrpki] section of the config file is present.
+
+The third important file in this system is the configuration file for
+myrpk.py and myirbe.py.  This contains a number of sections, some of
+which are for these scripts, others of which are for the OpenSSL
+command line tool, which these scripts use do most of the certificate
+work.  The config file is (well, should and will be) commented to
+explain the various parameters.
+
+myrpki.py deliberately does not use any libraries other than the ones
+that ship with Python 2.5; in particular, it does not require any of
+the other Python RPKI code.  This is deliberate, to minimize
+portability issues for hosted users.  It does require a reasonably
+current version of the OpenSSL command line tool, but the version that
+is built as a side effect of building the rcynic relying party tool is
+adaquate if the system copy of this tool isn't.
+
+The .csv files read by myrpki.py can be anything that the Python "csv"
+library understands.  By default, they're in tab-delimited format
+(because the author finds that much easier to read than
+comma-delimited format), but this can be changed to fit local needs.
+
+[Insert doc on all the individual csv files here]
+
+[Insert doc on myrpki.conf parameters here, at least the ones that we
+expect users to edit -- also need to comment that file, extensively]
+
+
+
+Sketch towards a simple description of the BPKI (sic).
 
 This started out as notes to myself during a redesign, and needs
 rewriting.
-
 
 Hosted (myrpki) entity needs:
 
@@ -20,7 +108,7 @@ Hosted (myrpki) entity needs:
   pathLenConstraint 0 CA cert issued by myrpki entity's own
   self-signed root.
 
-Hosting rpkid needs:
+Hosting rpkid (myirbe) needs:
 
 - Self-signed BPKI root
 

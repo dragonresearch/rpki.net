@@ -53,14 +53,6 @@ PERFORMANCE OF THIS SOFTWARE.
 import subprocess, csv, re, os, getopt, sys, base64, yaml, signal, errno, time
 import rpki.resource_set, rpki.sundial, rpki.config, myrpki
 
-# Dialect parameters for our use of CSV files, here to make them easy
-# to change if your site needs to do something different.  See doc for
-# the csv module in the Python standard libraries for details if you
-# need to customize these.
-
-csv_delimiter = "\t"
-csv_dialect = None
-
 # Nasty regular expressions for parsing config files.  Sadly, while
 # the Python ConfigParser supports writing config files, it does so in
 # such a limited way that it's easier just to hack this ourselves.
@@ -295,11 +287,13 @@ class allocation(object):
 
   def csvout(self, fn):
     """
-    Open and log a CSV output file.
+    Open and log a CSV output file.  We use delimiter and dialect
+    settings imported from the myrpki module, so that we automatically
+    write CSV files in the right format.
     """
     path = self.path(fn)
     print "Writing", path
-    return csv.writer(open(path, "wb"), delimiter = csv_delimiter, dialect = csv_dialect)
+    return csv.writer(open(path, "wb"), delimiter = myrpki.csv_delimiter, dialect = myrpki.csv_dialect)
 
   def up_down_url(self):
     """

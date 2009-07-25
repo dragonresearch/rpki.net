@@ -1,2 +1,7 @@
+# Syntax: <child_handle> <validitydate> <bpki_cert_filename>
+#
+# NB: Comment lines are not allowed in these files, this one is only
+# present to explain the example
+#
 Alice	2009-07-27T08:24:53Z	Alice.ta.cer
 Bob	2009-07-27T08:24:53Z	Bob.ta.cer

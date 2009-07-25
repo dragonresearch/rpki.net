@@ -1,2 +1,7 @@
+# Syntax: <child_handle> <prefix>/<length>
+#
+# NB: Comment lines are not allowed in these files, this one is only
+# present to explain the example
+#
 Alice	192.0.2.1-192.0.2.33
 Bob	192.0.2.44-192.0.2.100

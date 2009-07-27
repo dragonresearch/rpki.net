@@ -57,14 +57,12 @@ from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 namespace = "http://www.hactrn.net/uris/rpki/myrpki/"
 
-# Dialect parameters for our use of CSV files, here to make them easy
-# to change if your site needs to do something different.  See doc for
-# the csv module in the Python standard libraries for details if you
-# need to customize these.
+# Dialect for our use of CSV files, here to make it easy to change if
+# your site needs to do something different.  See doc for the csv
+# module in the Python standard libraries for details if you need to
+# customize this.
 
-csv_delimiter = "\t"
-csv_dialect = None
-
+csv_dialect = csv.get_dialect("excel-tab")
 
 class comma_set(set):
   """
@@ -304,7 +302,7 @@ def csv_open(filename):
   You may need to tweak this function for your environment, see the
   csv module in the Python standard libraries for details.
   """
-  return csv.reader(open(filename, "rb"), dialect = csv_dialect, delimiter = csv_delimiter)
+  return csv.reader(open(filename, "rb"), dialect = csv_dialect)
 
 def PEMElement(e, tag, filename):
   """

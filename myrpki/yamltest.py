@@ -293,7 +293,7 @@ class allocation(object):
     """
     path = self.path(fn)
     print "Writing", path
-    return csv.writer(open(path, "wb"), delimiter = myrpki.csv_delimiter, dialect = myrpki.csv_dialect)
+    return csv.writer(open(path, "w"), dialect = myrpki.csv_dialect)
 
   def up_down_url(self):
     """

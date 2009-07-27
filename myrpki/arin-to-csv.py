@@ -3,8 +3,8 @@ Parse a WHOIS research dump and write out (just) the RPKI-relevant
 fields in myrpki-format CSV syntax.
 
 NB: The input data for this script comes from ARIN under an agreement
-that allows research use but forbids redistribution it, so if you
-think you need a copy, please talk to ARIN about it, not us.
+that allows research use but forbids redistribution, so if you think
+you need a copy of the data, please talk to ARIN about it, not us.
 
 $Id$
 
@@ -23,32 +23,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import gzip, csv
-
-def parseline(line):
-    tag, sep, val = line.partition(":")
-    assert sep, "Couldn't find separator in %r" % line
-    return tag.strip(), val.strip()
-
-def main():
-    f = gzip.open("arin_db.txt.gz")
-    cur = None
-    for line in f:
-        line = line.expandtabs().strip()
-        if not line:
-            if cur:
-                cur.finish()
-            cur = None
-        elif not line.startswith("#"):
-            tag, val = parseline(line)
-            if cur is None:
-                cur = types[tag]()
-            if cur:
-                cur.set(tag, val)
-    if cur:
-        cur.finish()
-
-#db = {}
+import gzip, csv, myrpki
 
 class Handle(object):
 
@@ -63,9 +38,6 @@ class Handle(object):
             if not hasattr(self, tag):
                 return
         print repr(self)
-#       if self.OrgID not in db:
-#           db[self.OrgID] = []
-#       db[self.OrgID].append(self)
 
 class ASHandle(Handle):
 
@@ -98,14 +70,37 @@ class V6NetHandle(NetHandle):
                                      self.OrgID, self.V6NetHandle,
                                      self.NetType, self.NetRange)
 
-def DontBother():
-    return False
-
 types = {
     "ASHandle"    : ASHandle,
     "NetHandle"   : NetHandle,
-    "V6NetHandle" : V6NetHandle,
-    "POCHandle"   : DontBother,
-    "OrgID"       : DontBother }
+    "V6NetHandle" : V6NetHandle }
+
+def parseline(line):
+    tag, sep, val = line.partition(":")
+    assert sep, "Couldn't find separator in %r" % line
+    return tag.strip(), val.strip()
+
+def csvout(fn):
+    return csv.writer(open(path, "w"), dialect = myrpki.csv_dialect)
+
+def main():
+    f = gzip.open("arin_db.txt.gz")
+    cur = None
+    asn_csv = csvout("asns.csv")
+    prefix_csv = csvout("prefixes.csv")
+    for line in f:
+        line = line.expandtabs().strip()
+        if not line:
+            if cur:
+                cur.finish()
+            cur = None
+        elif not line.startswith("#"):
+            tag, val = parseline(line)
+            if cur is None:
+                cur = types[tag]() if tag in types else False
+            if cur:
+                cur.set(tag, val)
+    if cur:
+        cur.finish()
 
 main()

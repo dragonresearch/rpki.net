@@ -23,7 +23,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import gzip, csv, myrpki
+import gzip, csv, myrpki, rpki.resource_set
 
 class Handle(object):
 
@@ -38,9 +38,10 @@ class Handle(object):
     def check(self):
         for tag in self.want_tags:
             if not hasattr(self, tag):
-                return
+                return False
         if self.debug:
             print repr(self)
+        return True
 
 class ASHandle(Handle):
 
@@ -51,25 +52,32 @@ class ASHandle(Handle):
                                   self.OrgID, self.ASHandle, self.ASNumber)
 
     def finish(self, csvf):
-        self.check()
-        csvf.asn.writerow((self.OrgID, self.ASNumber))
+        if self.check():
+            csvf.asn.writerow((self.OrgID, self.ASNumber))
 
 class NetHandle(Handle):
 
     NetType = None
+    range_type = rpki.resource_set.ipv4
 
     want_tags = ("NetHandle", "NetRange", "NetType", "OrgID")
 
+    def set(self, tag, val):
+        Handle.set(self, tag, val)
+        if tag == "NetRange":
+            self.Prefix = self.range_type(self.NetRange)
+
     def finish(self, csvf):
-        if self.NetType in ("allocation", "assignment"):
-            self.check()
-            csvf.prefix.writerow((self.OrgID, self.NetRange))
+        if self.NetType in ("allocation", "assignment") and self.check():
+            csvf.prefix.writerow((self.OrgID, self.Prefix))
 
     def __repr__(self):
         return "<%s %s.%s %s %s>" % (self.__class__.__name__,
                                      self.OrgID, self.NetHandle,
                                      self.NetType, self.NetRange)
 class V6NetHandle(NetHandle):
+
+    range_type = rpki.resource_set.ipv6
 
     want_tags = ("V6NetHandle", "NetRange", "NetType", "OrgID")
 

@@ -29,15 +29,18 @@ class Handle(object):
 
     want_tags = ()
 
+    debug = True
+
     def set(self, tag, val):
         if tag in self.want_tags:
             setattr(self, tag, "".join(val.split(" ")))
 
-    def finish(self):
+    def check(self):
         for tag in self.want_tags:
             if not hasattr(self, tag):
                 return
-        print repr(self)
+        if self.debug:
+            print repr(self)
 
 class ASHandle(Handle):
 
@@ -47,15 +50,20 @@ class ASHandle(Handle):
         return "<%s %s.%s %s>" % (self.__class__.__name__,
                                   self.OrgID, self.ASHandle, self.ASNumber)
 
+    def finish(self, csvf):
+        self.check()
+        csvf.asn.writerow((self.OrgID, self.ASNumber))
+
 class NetHandle(Handle):
 
     NetType = None
 
     want_tags = ("NetHandle", "NetRange", "NetType", "OrgID")
 
-    def finish(self):
+    def finish(self, csvf):
         if self.NetType in ("allocation", "assignment"):
-            Handle.finish(self)
+            self.check()
+            csvf.prefix.writerow((self.OrgID, self.NetRange))
 
     def __repr__(self):
         return "<%s %s.%s %s %s>" % (self.__class__.__name__,
@@ -80,19 +88,24 @@ def parseline(line):
     assert sep, "Couldn't find separator in %r" % line
     return tag.strip(), val.strip()
 
-def csvout(fn):
-    return csv.writer(open(fn, "w"), dialect = myrpki.csv_dialect)
+class csvfiles(object):
+
+    def csvout(self, fn):
+        return csv.writer(open(fn, "w"), dialect = myrpki.csv_dialect)
+
+    def __init__(self):
+        self.asn = self.csvout("asns.csv")
+        self.prefix = self.csvout("prefixes.csv")
 
 def main():
     f = gzip.open("arin_db.txt.gz")
     cur = None
-    asn_csv = csvout("asns.csv")
-    prefix_csv = csvout("prefixes.csv")
+    csvf = csvfiles()
     for line in f:
         line = line.expandtabs().strip()
         if not line:
             if cur:
-                cur.finish()
+                cur.finish(csvf)
             cur = None
         elif not line.startswith("#"):
             tag, val = parseline(line)
@@ -101,6 +114,6 @@ def main():
             if cur:
                 cur.set(tag, val)
     if cur:
-        cur.finish()
+        cur.finish(csvf)
 
 main()

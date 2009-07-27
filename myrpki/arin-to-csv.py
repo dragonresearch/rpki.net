@@ -81,7 +81,7 @@ def parseline(line):
     return tag.strip(), val.strip()
 
 def csvout(fn):
-    return csv.writer(open(path, "w"), dialect = myrpki.csv_dialect)
+    return csv.writer(open(fn, "w"), dialect = myrpki.csv_dialect)
 
 def main():
     f = gzip.open("arin_db.txt.gz")

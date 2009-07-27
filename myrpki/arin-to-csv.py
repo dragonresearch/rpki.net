@@ -23,7 +23,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import gzip, csv, myrpki, rpki.resource_set, rpki.ipaddrs
+import gzip, csv, myrpki, rpki.resource_set, rpki.ipaddrs, rpki.sundial
 
 class Handle(object):
 
@@ -51,9 +51,10 @@ class ASHandle(Handle):
         return "<%s %s.%s %s>" % (self.__class__.__name__,
                                   self.OrgID, self.ASHandle, self.ASNumber)
 
-    def finish(self, csvf):
+    def finish(self, ctx):
         if self.check():
-            csvf.asn.writerow((self.OrgID, self.ASNumber))
+            ctx.asns.writerow((self.OrgID, self.ASNumber))
+            ctx.orgids.add(self.OrgID)
 
 class NetHandle(Handle):
 
@@ -62,6 +63,7 @@ class NetHandle(Handle):
     addr_type = rpki.ipaddrs.v4addr
 
     want_tags = ("NetHandle", "NetRange", "NetType", "OrgID")
+    useful_types = ("allocation", "assignment")
 
     def set(self, tag, val):
         Handle.set(self, tag, val)
@@ -70,9 +72,13 @@ class NetHandle(Handle):
             self.Prefix = self.range_type(self.addr_type(min),
                                           self.addr_type(max))
 
-    def finish(self, csvf):
-        if self.NetType in ("allocation", "assignment") and self.check() and str(self.Prefix).find("/") >= 0:
-            csvf.prefix.writerow((self.OrgID, self.Prefix))
+    def finish(self, ctx):
+        if self.NetType in self.useful_types and self.check():
+            if str(self.Prefix).find("/") >= 0:
+                ctx.prefixes.writerow((self.OrgID, self.Prefix))
+                ctx.orgids.add(self.OrgID)
+            else:
+                print "Not a prefix: %r" % self
 
     def __repr__(self):
         return "<%s %s.%s %s %s>" % (self.__class__.__name__,
@@ -100,24 +106,31 @@ def parseline(line):
     assert sep, "Couldn't find separator in %r" % line
     return tag.strip(), val.strip()
 
-class csvfiles(object):
+class gctx(object):
 
     def csvout(self, fn):
         return csv.writer(open(fn, "w"), dialect = myrpki.csv_dialect)
 
     def __init__(self):
-        self.asn = self.csvout("asns.csv")
-        self.prefix = self.csvout("prefixes.csv")
+        self.asns = self.csvout("asns.csv")
+        self.prefixes = self.csvout("prefixes.csv")
+        self.children = self.cvsout("children.csv")
+        self.orgids = set()
+
+    def finish(self):
+        expires = rpki.sundial.now() + rpki.sundial.timedelta(years = 1)
+        self.children.writerows((org, expires, "children/%s.ta.cer" % org)
+                                for orgid in self.orgids)
 
 def main():
     f = gzip.open("arin_db.txt.gz")
     cur = None
-    csvf = csvfiles()
+    ctx = gctx()
     for line in f:
         line = line.expandtabs().strip()
         if not line:
             if cur:
-                cur.finish(csvf)
+                cur.finish(ctx)
             cur = None
         elif not line.startswith("#"):
             tag, val = parseline(line)
@@ -126,6 +139,7 @@ def main():
             if cur:
                 cur.set(tag, val)
     if cur:
-        cur.finish(csvf)
+        cur.finish(ctx)
+    ctx.finish()
 
 main()

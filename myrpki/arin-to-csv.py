@@ -23,7 +23,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import gzip, csv, myrpki, rpki.resource_set
+import gzip, csv, myrpki, rpki.resource_set, rpki.ipaddrs
 
 class Handle(object):
 
@@ -58,26 +58,30 @@ class ASHandle(Handle):
 class NetHandle(Handle):
 
     NetType = None
-    range_type = rpki.resource_set.ipv4
+    range_type = rpki.resource_set.resource_range_ipv4
+    addr_type = rpki.ipaddrs.v4addr
 
     want_tags = ("NetHandle", "NetRange", "NetType", "OrgID")
 
     def set(self, tag, val):
         Handle.set(self, tag, val)
         if tag == "NetRange":
-            self.Prefix = self.range_type(self.NetRange)
+            min, sep, max = self.NetRange.partition("-")
+            self.Prefix = self.range_type(self.addr_type(min),
+                                          self.addr_type(max))
 
     def finish(self, csvf):
-        if self.NetType in ("allocation", "assignment") and self.check():
+        if self.NetType in ("allocation", "assignment") and self.check() and str(self.Prefix).find("/") >= 0:
             csvf.prefix.writerow((self.OrgID, self.Prefix))
 
     def __repr__(self):
         return "<%s %s.%s %s %s>" % (self.__class__.__name__,
                                      self.OrgID, self.NetHandle,
-                                     self.NetType, self.NetRange)
+                                     self.NetType, self.Prefix)
 class V6NetHandle(NetHandle):
 
-    range_type = rpki.resource_set.ipv6
+    range_type = rpki.resource_set.resource_range_ipv6
+    addr_type = rpki.ipaddrs.v6addr
 
     want_tags = ("V6NetHandle", "NetRange", "NetType", "OrgID")
 

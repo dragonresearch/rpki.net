@@ -114,7 +114,7 @@ class gctx(object):
     def __init__(self):
         self.asns = self.csvout("asns.csv")
         self.prefixes = self.csvout("prefixes.csv")
-        self.children = self.cvsout("children.csv")
+        self.children = self.csvout("children.csv")
         self.orgids = set()
 
     def finish(self):

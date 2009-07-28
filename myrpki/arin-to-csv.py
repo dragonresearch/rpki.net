@@ -23,7 +23,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import gzip, csv, myrpki, rpki.resource_set, rpki.ipaddrs, rpki.sundial
+import gzip, csv, myrpki
 
 class Handle(object):
 
@@ -54,40 +54,22 @@ class ASHandle(Handle):
     def finish(self, ctx):
         if self.check():
             ctx.asns.writerow((self.OrgID, self.ASNumber))
-            ctx.orgid(self.OrgID)
 
 class NetHandle(Handle):
 
     NetType = None
-    range_type = rpki.resource_set.resource_range_ipv4
-    addr_type = rpki.ipaddrs.v4addr
 
     want_tags = ("NetHandle", "NetRange", "NetType", "OrgID")
-    useful_types = ("allocation", "assignment")
-
-    def set(self, tag, val):
-        Handle.set(self, tag, val)
-        if tag == "NetRange":
-            min, sep, max = self.NetRange.partition("-")
-            self.Prefix = self.range_type(self.addr_type(min),
-                                          self.addr_type(max))
 
     def finish(self, ctx):
-        if self.NetType in self.useful_types and self.check():
-            if str(self.Prefix).find("/") >= 0:
-                ctx.prefixes.writerow((self.OrgID, self.Prefix))
-                ctx.orgid(self.OrgID)
-            else:
-                print "Not a prefix: %r" % self
+        if self.NetType in ("allocation", "assignment") and self.check():
+            ctx.prefixes.writerow((self.OrgID, self.NetRange))
 
     def __repr__(self):
         return "<%s %s.%s %s %s>" % (self.__class__.__name__,
                                      self.OrgID, self.NetHandle,
-                                     self.NetType, self.Prefix)
+                                     self.NetType, self.NetRange)
 class V6NetHandle(NetHandle):
-
-    range_type = rpki.resource_set.resource_range_ipv6
-    addr_type = rpki.ipaddrs.v6addr
 
     want_tags = ("V6NetHandle", "NetRange", "NetType", "OrgID")
 
@@ -108,30 +90,14 @@ def parseline(line):
 
 class gctx(object):
 
-    make_children = False
-
     def csvout(self, fn):
         return csv.writer(open(fn, "w"), dialect = myrpki.csv_dialect)
 
     def __init__(self):
         self.asns = self.csvout("asns.csv")
         self.prefixes = self.csvout("prefixes.csv")
-        if self.make_children:
-            self.orgids = set()
-
-    def orgid(self, o):
-        if self.make_children:
-            self.orgids.add(o)
-
-    def finish(self):
-        expires = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
-        if self.make_children:
-            self.csvout("children.csv").writerows(
-                (orgid, expires, "children/%s.ta.cer" % orgid)
-                for orgid in self.orgids)
 
 def main():
-    print "Starting at %s" % rpki.sundial.now()
     f = gzip.open("arin_db.txt.gz")
     cur = None
     ctx = gctx()
@@ -149,8 +115,5 @@ def main():
                 cur.set(tag, val)
     if cur:
         cur.finish(ctx)
-    print "Finished main loop at %s" % rpki.sundial.now()
-    ctx.finish()
-    print "All done at %s" % rpki.sundial.now()
 
 main()

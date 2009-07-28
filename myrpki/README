@@ -156,6 +156,8 @@ CSV file formats:
   
 - prefix:	<child_handle> <prefix>/<length>
 
+      or:	<child_handle> <range-min>-<range-max>
+
 - asn:		<child_handle> <asn>
 
 - parent:	<parent_handle> <service_uri> <cms_bpki_cert_filename> <https_bpki_cert_filename>

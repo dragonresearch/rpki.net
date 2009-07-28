@@ -118,7 +118,7 @@ class gctx(object):
         self.orgids = set()
 
     def finish(self):
-        expires = rpki.sundial.now() + rpki.sundial.timedelta(years = 1)
+        expires = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
         self.children.writerows((org, expires, "children/%s.ta.cer" % org)
                                 for orgid in self.orgids)
 

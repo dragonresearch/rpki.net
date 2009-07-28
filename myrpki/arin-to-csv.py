@@ -119,7 +119,7 @@ class gctx(object):
 
     def finish(self):
         expires = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
-        self.children.writerows((org, expires, "children/%s.ta.cer" % org)
+        self.children.writerows((orgid, expires, "children/%s.ta.cer" % orgid)
                                 for orgid in self.orgids)
 
 def main():

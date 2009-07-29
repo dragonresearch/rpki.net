@@ -192,7 +192,7 @@ xmlfiles = []
 # our list of XML files to process.
 
 if cfg.has_section("myrpki"):
-  myrpki.main()
+  myrpki.main("-c", cfg_file)
   my_xmlfile = cfg.get("xml_filename", None, "myrpki")
   assert my_xmlfile is not None
   xmlfiles.append(my_xmlfile)

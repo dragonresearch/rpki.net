@@ -42,11 +42,11 @@ class iterator(object):
   The termination callback receives no arguments.
   """
 
-  def __init__(self, iterable, item_callback, done_callback):
+  def __init__(self, iterable, item_callback, done_callback, unwind_stack = False):
     self.item_callback = item_callback
     self.done_callback = done_callback
     self.caller_file, self.caller_line, self.caller_function = traceback.extract_stack(limit = 2)[0][0:3]
-    #rpki.log.debug("Created iterator id %s file %s line %s function %s" % (id(self), self.caller_file, self.caller_line, self.caller_function))
+    self.timer = timer(handler = item_callback) if unwind_stack else None
     try:
       self.iterator = iter(iterable)
     except (ExitNow, SystemExit):
@@ -57,14 +57,15 @@ class iterator(object):
     self()
 
   def __repr__(self):
-    return "<asynciterator created at %s:%d %s at 0x%x>" % (self.caller_file, self.caller_line, self.caller_function, id(self))
+    return "<%s created at %s:%d %s at 0x%x>" % (self.__class__.__name__, self.caller_file, self.caller_line, self.caller_function, id(self))
 
-  def __call__(self, *args):
-    if args != ():
-      rpki.log.warn("Arguments passed to %r: %r" % (self, args))
-      for x in traceback.format_stack():
-        rpki.log.warn(x.strip())
-      assert args == ()
+  def __call__(self):
+    if self.timer is None:
+      self.doit()
+    else:
+      self.timer.set(None)
+
+  def doit(self):
     try:
       self.item_callback(self, self.iterator.next())
     except StopIteration:

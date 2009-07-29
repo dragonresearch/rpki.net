@@ -917,7 +917,7 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
     def done():
       cb(r_msg)
 
-    rpki.async.iterator(self, loop, done)
+    rpki.async.iterator(self, loop, done, unwind_stack = True)
 
 class sax_handler(rpki.xml_utils.sax_handler):
   """

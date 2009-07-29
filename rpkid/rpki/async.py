@@ -46,7 +46,7 @@ class iterator(object):
     self.item_callback = item_callback
     self.done_callback = done_callback
     self.caller_file, self.caller_line, self.caller_function = traceback.extract_stack(limit = 2)[0][0:3]
-    self.timer = timer(handler = item_callback) if unwind_stack else None
+    self.timer = timer(handler = self.doit) if unwind_stack else None
     try:
       self.iterator = iter(iterable)
     except (ExitNow, SystemExit):
@@ -54,10 +54,12 @@ class iterator(object):
     except:
       rpki.log.debug("Problem constructing iterator for %s" % repr(iterable))
       raise
-    self()
+    self.doit()
 
   def __repr__(self):
-    return "<%s created at %s:%d %s at 0x%x>" % (self.__class__.__name__, self.caller_file, self.caller_line, self.caller_function, id(self))
+    return ("<%s created at %s:%d %s at 0x%x>" %
+            (self.__class__.__name__,
+             self.caller_file, self.caller_line, self.caller_function, id(self)))
 
   def __call__(self):
     if self.timer is None:

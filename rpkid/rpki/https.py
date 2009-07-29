@@ -46,7 +46,7 @@ rpki_content_type = "application/x-rpki"
 # ================================================================
 
 # Verbose chatter about HTTP streams
-debug = False
+debug = True
 
 # Extra chatter about TLS certificates
 debug_tls_certs = False
@@ -60,8 +60,8 @@ want_persistent_server = True
 # connection, as this avoids the problem of client starting to reuse
 # connection just as server decides to close it.
 
-default_client_timeout = rpki.sundial.timedelta(seconds = 90)
-default_server_timeout = rpki.sundial.timedelta(seconds = 180)
+default_client_timeout = rpki.sundial.timedelta(minutes = 15)
+default_server_timeout = rpki.sundial.timedelta(minutes = 20)
 
 default_http_version = (1, 0)
 

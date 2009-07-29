@@ -42,7 +42,7 @@ class iterator(object):
   The termination callback receives no arguments.
   """
 
-  def __init__(self, iterable, item_callback, done_callback, unwind_stack = False):
+  def __init__(self, iterable, item_callback, done_callback, unwind_stack = True):
     self.item_callback = item_callback
     self.done_callback = done_callback
     self.caller_file, self.caller_line, self.caller_function = traceback.extract_stack(limit = 2)[0][0:3]

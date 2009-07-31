@@ -285,7 +285,7 @@ def main():
   except:
 
     rpki.log.info("Event loop exited with an exception")
-    raise
+    rpki.log.traceback()
 
   finally:
 
@@ -1417,7 +1417,7 @@ rootd_fmt_3 = '''\
 %(openssl)s req -new -sha256 -key %(rootd_name)s.key -out %(rootd_name)s.req -config %(rootd_name)s.conf -text -extensions req_x509_rpki_ext &&
 %(openssl)s x509 -req -sha256 -in %(rootd_name)s.req -out %(rootd_name)s.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_rpki_ext \
                       -signkey %(rootd_name)s.key &&
-ln -f %(rootd_name)s.cer  %(rsyncd_dir)s &&
+ln -f %(rootd_name)s.cer  %(rsyncd_dir)s
 '''
 
 rcynic_fmt_1 = '''\

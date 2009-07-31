@@ -323,7 +323,16 @@ class http_stream(asynchat.async_chat):
         self.close(force = True)
         
   def handle_write(self):
-    assert self.retry_read is None, "%r: TLS I/O already in progress, r %r" % (self, self.retry_read)
+
+    # This used to be an assertion, but apparently this can happen
+    # without anything really being wrong, as a sort of race
+    # condition, due to select() having signaled that a socket was
+    # both readable and writable.  I think.
+    #
+    if self.retry_read is not None:
+      self.log("TLS I/O already in progress, r %r" % self.retry_read)
+      return
+
     if self.retry_write is not None:
       thunk = self.retry_write
       self.retry_write = None
@@ -476,7 +485,8 @@ class http_listener(asyncore.dispatcher):
     try:
       self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
       self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-      self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+      if hasattr(socket, "SO_REUSEPORT"):
+        self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
       self.bind((host, port))
       self.listen(5)
     except (rpki.async.ExitNow, SystemExit):

@@ -183,8 +183,8 @@ class http_stream(asynchat.async_chat):
   retry_read = None
   retry_write = None
 
-  def __init__(self, conn = None):
-    asynchat.async_chat.__init__(self, conn = conn)
+  def __init__(self, sock = None):
+    asynchat.async_chat.__init__(self, sock)
     self.buffer = []
     self.timer = rpki.async.timer(self.handle_timeout)
     self.restart()
@@ -382,10 +382,10 @@ class http_server(http_stream):
 
   timeout = default_server_timeout
 
-  def __init__(self, conn, handlers, cert = None, key = None, ta = (), dynamic_ta = None):
+  def __init__(self, sock, handlers, cert = None, key = None, ta = (), dynamic_ta = None):
     self.log("Starting")
     self.handlers = handlers
-    http_stream.__init__(self, conn = conn)
+    http_stream.__init__(self, sock = sock)
     self.expect_close = not want_persistent_server
 
     self.log("cert %r key %r ta %r dynamic_ta %r" % (cert, key, ta, dynamic_ta))
@@ -498,7 +498,7 @@ class http_listener(asyncore.dispatcher):
   def handle_accept(self):
     self.log("Accepting connection")
     try:
-      http_server(conn = self.accept()[0], handlers = self.handlers, cert = self.cert, key = self.key, ta = self.ta, dynamic_ta = self.dynamic_ta)
+      http_server(sock = self.accept()[0], handlers = self.handlers, cert = self.cert, key = self.key, ta = self.ta, dynamic_ta = self.dynamic_ta)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except:

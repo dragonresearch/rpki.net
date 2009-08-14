@@ -25,6 +25,10 @@ Programs:
 - rpkid: rpkid and friends, a collection of Python programs to handle
   the publication side of the RPKI project.
 
+- myrpki: a minimal (text-file-based) sample back-end setup (IRBE).
+  No GUI, not suitable for anything complex, but perhaps sufficient
+  for alpha testers.
+
 - utils and scripts: various little test programs and utilities, not
   really intended for use by anyone but the author.  If they're
   useful, cool, enjoy, but if they blow up in your face, set your

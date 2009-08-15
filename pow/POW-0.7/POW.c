@@ -4808,7 +4808,7 @@ static int ssl_object_verify_callback(X509_STORE_CTX *ctx, void *arg)
     if (ctx->current_issuer)
       X509_print(b, ctx->current_issuer);
 
-    if ((len == BIO_ctrl_pending(b)) == 0 ||
+    if ((len = BIO_ctrl_pending(b)) == 0 ||
         (buf = malloc(len)) == NULL)
       goto fail;
 

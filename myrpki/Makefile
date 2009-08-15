@@ -43,3 +43,8 @@ backup:
 	python sql-dumper.py
 	tar cvvzf test.$$(TZ='' date +%Y.%m.%d.%H.%M.%S).tgz screenlog.* test backup.*.sql
 	rm backup.*.sql
+
+test:: schema.py
+
+test::
+	python yamltest.py

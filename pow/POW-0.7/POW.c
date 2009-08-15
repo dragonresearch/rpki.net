@@ -282,6 +282,7 @@ typedef struct {
   SSL *ssl;
   SSL_CTX *ctx;
   STACK_OF(X509) *trusted_certs;
+  char *x509_cb_err;
 } ssl_object;
 
 typedef struct {
@@ -529,7 +530,7 @@ set_openssl_ssl_exception(const ssl_object *self, const int ret)
     /*
      * Generic OpenSSL error during an SSL call.  I think.
      */
-    set_openssl_exception(SSLErrorSSLErrorObject, NULL);
+    set_openssl_exception(SSLErrorSSLErrorObject, self->x509_cb_err);
     break;
 
     /*
@@ -4463,6 +4464,11 @@ ssl_object_clear(ssl_object *self, PyObject *args)
   if (!SSL_clear(self->ssl))
     lose("failed to clear ssl connection");
 
+  if (self->x509_cb_err) {
+    free(self->x509_cb_err);
+    self->x509_cb_err = NULL;
+  }
+
   Py_RETURN_NONE;
 
  error:
@@ -4748,34 +4754,48 @@ static int ssl_object_verify_callback(X509_STORE_CTX *ctx, void *arg)
   if (self->trusted_certs)
     X509_STORE_CTX_trusted_stack(ctx, self->trusted_certs);
 
-  ok = X509_verify_cert(ctx) == 1;
-
-#if 0
-
-#warning
-#warning    Nasty raw stderr debugging code enabled in ssl_object_verify_callback()
-#warning    Do not use this code in production
-#warning
-
-#include <stdio.h>
-
-  if (self->trusted_certs) {
-    int i;
-    fprintf(stderr, "Trusted cert stack\n");
-    for (i = 0; i < sk_X509_num(self->trusted_certs); i++) {
-      X509 *x = sk_X509_value(self->trusted_certs, i);
-      fprintf(stderr, "[%d] ", i);
-      if (x)
-        X509_print_fp(stderr, x);
-      else
-        fprintf(stderr, "<NULL>!\n");
-    }
-  } else {
-    fprintf(stderr, "No trusted cert stack\n");
+  if (self->x509_cb_err) {
+    free(self->x509_cb_err);
+    self->x509_cb_err = NULL;
   }
 
+  ok = X509_verify_cert(ctx) == 1;
+
   if (!ok) {
-    fprintf(stderr,
+
+    /*
+     * We probably should be pushing out structured Python data here
+     * rather than a string, but we're pretty deep in the OpenSSL call
+     * chain at this point and I'd rather not risk whacky interactions
+     * with the Python garbage collector.  Try this kludge initially,
+     * rewrite as something better later if it looks worth the effort.
+     */
+
+    BIO *b = BIO_new(BIO_s_mem());
+    char *buf = NULL;
+    int len;
+
+    if (!b)
+      goto fail;
+
+    BIO_puts(b, "TLS validation failure:\n\n");
+
+    if (self->trusted_certs) {
+      int i;
+      BIO_puts(b, "Trusted cert stack\n");
+      for (i = 0; i < sk_X509_num(self->trusted_certs); i++) {
+        X509 *x = sk_X509_value(self->trusted_certs, i);
+        BIO_printf(b, "[%d] ", i);
+        if (x)
+          X509_print(b, x);
+        else
+          BIO_puts(b, "<NULL>!\n");
+      }
+    } else {
+      BIO_puts(b, "No trusted cert stack\n");
+    }
+
+    BIO_printf(b,
             "\nX509_verify_cert() error: callback depth %d error %d cert %p issuer %p crl %p: %s\n",
             ctx->error_depth,
             ctx->error,
@@ -4784,11 +4804,22 @@ static int ssl_object_verify_callback(X509_STORE_CTX *ctx, void *arg)
             ctx->current_crl,
             X509_verify_cert_error_string(ctx->error));
     if (ctx->current_cert)
-      X509_print_fp(stderr, ctx->current_cert);
+      X509_print(b, ctx->current_cert);
     if (ctx->current_issuer)
-      X509_print_fp(stderr, ctx->current_issuer);
+      X509_print(b, ctx->current_issuer);
+
+    if ((len == BIO_ctrl_pending(b)) == 0 ||
+        (buf = malloc(len)) == NULL)
+      goto fail;
+
+    if (BIO_read(b, buf, len) == len)
+      self->x509_cb_err = buf;
+    else
+      free(buf);
+
+  fail:
+    BIO_free(b);
   }
-#endif
 
   return ok;
 }
@@ -4878,6 +4909,7 @@ newssl_object(int type)
   self->ctxset = 0;
   self->ssl = NULL;
   self->trusted_certs = NULL;
+  self->x509_cb_err = NULL;
 
   switch (type) {
   case SSLV2_SERVER_METHOD:  method = SSLv2_server_method();   break;
@@ -4923,6 +4955,8 @@ ssl_object_dealloc(ssl_object *self)
   SSL_CTX_free(self->ctx);
   if (self->trusted_certs)
     sk_X509_pop_free(self->trusted_certs, X509_free);
+  if (self->x509_cb_err)
+    free(self->x509_cb_err);
   PyObject_Del(self);
 }
 

@@ -135,6 +135,11 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodin
         </attribute>
       </optional>
       <optional>
+        <attribute name="myhandle">
+          <ref name="object_handle"/>
+        </attribute>
+      </optional>
+      <optional>
         <element name="bpki_cms_certificate">
           <ref name="base64"/>
         </element>

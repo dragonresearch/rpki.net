@@ -314,17 +314,26 @@ class allocation(object):
     """
     Write children CSV file.
     """
-    self.csvout(fn).writerows((k.name, k.resources.valid_until, k.path("bpki.myrpki/ca.cer")) for k in self.kids)
+    self.csvout(fn).writerows((k.name, k.resources.valid_until, k.path("bpki.myrpki/ca.cer"))
+                              for k in self.kids)
 
   def dump_parents(self, fn):
     """
     Write parents CSV file.
     """
     if self.is_root():
-      self.csvout(fn).writerow(("rootd", "https://localhost:%d/" % self.rootd_port, self.path("bpki.rootd/ca.cer"), self.path("bpki.rootd/ca.cer")))
+      self.csvout(fn).writerow(("rootd",
+                                "https://localhost:%d/" % self.rootd_port,
+                                self.path("bpki.rootd/ca.cer"),
+                                self.path("bpki.rootd/ca.cer"),
+                                self.name))
     else:
       parent_host = self.parent.hosted_by if self.parent.is_hosted() else self.parent
-      self.csvout(fn).writerow((self.parent.name, self.up_down_url(), self.parent.path("bpki.myrpki/ca.cer"), parent_host.path("bpki.rpkid/ca.cer")))
+      self.csvout(fn).writerow((self.parent.name,
+                                self.up_down_url(),
+                                self.parent.path("bpki.myrpki/ca.cer"),
+                                parent_host.path("bpki.rpkid/ca.cer"),
+                                self.name))
 
   def dump_prefixes(self, fn):
     """
@@ -368,7 +377,8 @@ class allocation(object):
       r["rootd",  "rpki-base-uri"] = "rsync://localhost:%d/" % self.rsync_port
       r["rootd",  "rpki-root-cert-uri"] = "rsync://localhost:%d/rootd.cer" % self.rsync_port
       r["rpki_x509_extensions",  "subjectInfoAccess"]  = (
-        "1.3.6.1.5.5.7.48.5;URI:rsync://localhost:%d/,1.3.6.1.5.5.7.48.10;URI:rsync://localhost:%d/Bandicoot.mnf" %
+        ("1.3.6.1.5.5.7.48.5;URI:rsync://localhost:%d/,"
+         "1.3.6.1.5.5.7.48.10;URI:rsync://localhost:%d/Bandicoot.mnf") %
         (self.rsync_port, self.rsync_port))
 
     if self.is_root():

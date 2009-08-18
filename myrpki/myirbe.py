@@ -410,7 +410,9 @@ for xmlfile in xmlfiles:
     else:
       pubd_base_uri = rsync_base + my_handle + "/" + handle + "/"
 
-    if isinstance(client_pdu, rpki.publication.report_error_elt) or client_pdu.base_uri != pubd_base_uri or client_pdu.bpki_cert != pubd_xcert:
+    if (isinstance(client_pdu, rpki.publication.report_error_elt) or
+        client_pdu.base_uri != pubd_base_uri or
+        client_pdu.bpki_cert != pubd_xcert):
       pubd_query.append(rpki.publication.client_elt.make_pdu(
         action = "create" if isinstance(client_pdu, rpki.publication.report_error_elt) else "set",
         client_handle = handle,
@@ -422,6 +424,7 @@ for xmlfile in xmlfiles:
       parent_handle = parent.get("handle")
       parent_pdu = parent_pdus.pop(parent_handle, None)
       parent_uri = parent.get("service_uri")
+      parent_myhandle = parent.get("myhandle")
       parent_cms_cert = findbase64(parent, "bpki_cms_certificate")
       parent_https_cert = findbase64(parent, "bpki_https_certificate")
 
@@ -435,7 +438,7 @@ for xmlfile in xmlfiles:
           parent_pdu.repository_handle != repository_handle or
           parent_pdu.peer_contact_uri != parent_uri or
           parent_pdu.sia_base != parent_sia_base or
-          parent_pdu.sender_name != handle or
+          parent_pdu.sender_name != parent_myhandle or
           parent_pdu.recipient_name != parent_handle or
           parent_pdu.bpki_cms_cert != parent_cms_cert or
           parent_pdu.bpki_https_cert != parent_https_cert):
@@ -448,7 +451,7 @@ for xmlfile in xmlfiles:
           repository_handle = repository_handle,
           peer_contact_uri = parent_uri,
           sia_base = parent_sia_base,
-          sender_name = handle,
+          sender_name = parent_myhandle,
           recipient_name = parent_handle,
           bpki_cms_cert = parent_cms_cert,
           bpki_https_cert = parent_https_cert))

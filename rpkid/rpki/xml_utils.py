@@ -169,7 +169,7 @@ class base_elt(object):
     """
     for key in self.attributes:
       val = attrs.get(key, None)
-      if isinstance(val, str) and val.isdigit():
+      if isinstance(val, str) and val.isdigit() and not key.endswith("_handle"):
         val = long(val)
       setattr(self, key, val)
     for key in self.booleans:

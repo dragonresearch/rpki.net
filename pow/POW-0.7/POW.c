@@ -4796,7 +4796,7 @@ static int ssl_object_verify_callback(X509_STORE_CTX *ctx, void *arg)
     }
 
     BIO_printf(b,
-            "\nX509_verify_cert() error: callback depth %d error %d cert %p issuer %p crl %p: %s\n",
+            "\nX509_verify_cert() error: error depth %d error %d current_cert %p current_issuer %p current_crl %p: %s\n",
             ctx->error_depth,
             ctx->error,
             ctx->current_cert,
@@ -4805,11 +4805,14 @@ static int ssl_object_verify_callback(X509_STORE_CTX *ctx, void *arg)
             X509_verify_cert_error_string(ctx->error));
     if (ctx->current_cert)
       X509_print(b, ctx->current_cert);
+
+#if 0
+    /* This seems to be returning garbage, don't know why */
     if (ctx->current_issuer)
       X509_print(b, ctx->current_issuer);
+#endif
 
-    if ((len = BIO_ctrl_pending(b)) == 0 ||
-        (buf = malloc(len)) == NULL)
+    if ((len = BIO_ctrl_pending(b)) == 0 || (buf = malloc(len)) == NULL)
       goto fail;
 
     if (BIO_read(b, buf, len) == len)

@@ -80,7 +80,7 @@ class logger(object):
     if use_syslog:
       return syslog.syslog(self.priority, message)
     else:
-      sys.stderr.write("%s %s[%d]: %s\n" % (time.strftime("%T"), tag, pid, message))
+      sys.stderr.write("%s %s[%d]: %s\n" % (time.strftime("%F %T"), tag, pid, message))
 
 error = logger(syslog.LOG_ERR)
 warn  = logger(syslog.LOG_WARNING)

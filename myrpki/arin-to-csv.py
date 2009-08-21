@@ -27,93 +27,93 @@ import gzip, csv, myrpki
 
 class Handle(object):
 
-    want_tags = ()
+  want_tags = ()
 
-    debug = False
+  debug = False
 
-    def set(self, tag, val):
-        if tag in self.want_tags:
-            setattr(self, tag, "".join(val.split(" ")))
+  def set(self, tag, val):
+    if tag in self.want_tags:
+      setattr(self, tag, "".join(val.split(" ")))
 
-    def check(self):
-        for tag in self.want_tags:
-            if not hasattr(self, tag):
-                return False
-        if self.debug:
-            print repr(self)
-        return True
+  def check(self):
+    for tag in self.want_tags:
+      if not hasattr(self, tag):
+        return False
+    if self.debug:
+      print repr(self)
+    return True
 
 class ASHandle(Handle):
 
-    want_tags = ("ASHandle", "ASNumber", "OrgID")
+  want_tags = ("ASHandle", "ASNumber", "OrgID")
 
-    def __repr__(self):
-        return "<%s %s.%s %s>" % (self.__class__.__name__,
-                                  self.OrgID, self.ASHandle, self.ASNumber)
+  def __repr__(self):
+    return "<%s %s.%s %s>" % (self.__class__.__name__,
+                              self.OrgID, self.ASHandle, self.ASNumber)
 
-    def finish(self, ctx):
-        if self.check():
-            ctx.asns.writerow((self.OrgID, self.ASNumber))
+  def finish(self, ctx):
+    if self.check():
+      ctx.asns.writerow((self.OrgID, self.ASNumber))
 
 class NetHandle(Handle):
 
-    NetType = None
+  NetType = None
 
-    want_tags = ("NetHandle", "NetRange", "NetType", "OrgID")
+  want_tags = ("NetHandle", "NetRange", "NetType", "OrgID")
 
-    def finish(self, ctx):
-        if self.NetType in ("allocation", "assignment") and self.check():
-            ctx.prefixes.writerow((self.OrgID, self.NetRange))
+  def finish(self, ctx):
+    if self.NetType in ("allocation", "assignment") and self.check():
+      ctx.prefixes.writerow((self.OrgID, self.NetRange))
 
-    def __repr__(self):
-        return "<%s %s.%s %s %s>" % (self.__class__.__name__,
-                                     self.OrgID, self.NetHandle,
-                                     self.NetType, self.NetRange)
+  def __repr__(self):
+    return "<%s %s.%s %s %s>" % (self.__class__.__name__,
+                                 self.OrgID, self.NetHandle,
+                                 self.NetType, self.NetRange)
+
 class V6NetHandle(NetHandle):
 
-    want_tags = ("V6NetHandle", "NetRange", "NetType", "OrgID")
+  want_tags = ("V6NetHandle", "NetRange", "NetType", "OrgID")
 
-    def __repr__(self):
-        return "<%s %s.%s %s %s>" % (self.__class__.__name__,
-                                     self.OrgID, self.V6NetHandle,
-                                     self.NetType, self.NetRange)
+  def __repr__(self):
+    return "<%s %s.%s %s %s>" % (self.__class__.__name__,
+                                 self.OrgID, self.V6NetHandle,
+                                 self.NetType, self.NetRange)
 
-types = {
+class main(object):
+
+  types = {
     "ASHandle"    : ASHandle,
     "NetHandle"   : NetHandle,
     "V6NetHandle" : V6NetHandle }
 
-def parseline(line):
+  @staticmethod
+  def parseline(line):
     tag, sep, val = line.partition(":")
     assert sep, "Couldn't find separator in %r" % line
     return tag.strip(), val.strip()
 
-class gctx(object):
+  @staticmethod
+  def csvout(fn):
+    return csv.writer(open(fn, "w"), dialect = myrpki.csv_dialect)
 
-    def csvout(self, fn):
-        return csv.writer(open(fn, "w"), dialect = myrpki.csv_dialect)
-
-    def __init__(self):
-        self.asns = self.csvout("asns.csv")
-        self.prefixes = self.csvout("prefixes.csv")
-
-def main():
+  def __init__(self):
+    self.asns = self.csvout("asns.csv")
+    self.prefixes = self.csvout("prefixes.csv")
     f = gzip.open("arin_db.txt.gz")
     cur = None
-    ctx = gctx()
     for line in f:
-        line = line.expandtabs().strip()
-        if not line:
-            if cur:
-                cur.finish(ctx)
-            cur = None
-        elif not line.startswith("#"):
-            tag, val = parseline(line)
-            if cur is None:
-                cur = types[tag]() if tag in types else False
-            if cur:
-                cur.set(tag, val)
+      line = line.expandtabs().strip()
+      if not line:
+        if cur:
+          cur.finish(self)
+        cur = None
+      elif not line.startswith("#"):
+        tag, val = self.parseline(line)
+        if cur is None:
+          cur = self.types[tag]() if tag in self.types else False
+        if cur:
+          cur.set(tag, val)
     if cur:
-        cur.finish(ctx)
+      cur.finish(self)
 
 main()

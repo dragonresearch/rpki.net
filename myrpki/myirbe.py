@@ -145,9 +145,9 @@ if bpki_modified:
 
 self_crl_interval = cfg.get("self_crl_interval", 300)
 self_regen_margin = cfg.get("self_regen_margin", 120)
-rsync_base        = cfg.get("rsync_base")
-pubd_base         = cfg.get("pubd_base")
-rpkid_base        = cfg.get("rpkid_base")
+rsync_base        = cfg.get("rsync_base").rstrip("/") + "/"
+pubd_base         = cfg.get("pubd_base").rstrip("/") + "/"
+rpkid_base        = cfg.get("rpkid_base").rstrip("/") + "/"
 
 # Nasty regexp for parsing rpkid's up-down service URLs.
 

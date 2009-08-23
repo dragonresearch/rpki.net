@@ -20,7 +20,23 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, csv, myrpki
+import sys, csv, myrpki, getopt, time, os, rpki.config
+
+os.environ["TZ"] = "UTC"
+time.tzset()
+
+cfg_file = "myrpki.conf"
+
+opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+for o, a in opts:
+  if o in ("-h", "--help", "-?"):
+    print __doc__
+    sys.exit(0)
+  if o in ("-c", "--config"):
+    cfg_file = a
+
+base = rpki.config.parser(cfg_file, "myirbe").get("rsync_base")
 
 csv.writer(sys.stdout, dialect = myrpki.csv_dialect).writerows(
-  (handle, cert) for handle, expiration, cert in myrpki.csv_open("children.csv"))
+  (handle, cert, "%s/children/%s/" % (base.rstrip("/"), handle))
+  for handle, expiration, cert in myrpki.csv_open("children.csv"))

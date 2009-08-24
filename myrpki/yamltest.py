@@ -127,7 +127,7 @@ class allocation_db(list):
       self.root.regen_margin = 24 * 60 * 60
     for a in self:
       if a.sia_base is None:
-        a.sia_base = ("rsync://rpki.example/" if a.is_root() else a.parent.sia_base) + a.name + "/"
+        a.sia_base = ("rsync://localhost:%d/" % a.rsync_port if a.is_root() else a.parent.sia_base) + a.name + "/"
       if a.base.valid_until is None:
         a.base.valid_until = a.parent.base.valid_until
       if a.crl_interval is None:
@@ -144,7 +144,7 @@ class allocation_db(list):
 
   def dump(self):
     """
-    Show contents of allocatino database.
+    Show contents of allocation database.
     """
     for a in self:
       a.dump()
@@ -256,7 +256,7 @@ class allocation(object):
     if self.resources.v6:       s += "  IPv6: %s\n" % self.resources.v6
     if self.kids:               s += "  Kids: %s\n" % ", ".join(k.name for k in self.kids)
     if self.parent:             s += "    Up: %s\n" % self.parent.name
-    #if self.sia_base:          s += "   SIA: %s\n" % self.sia_base
+    if self.sia_base:           s += "   SIA: %s\n" % self.sia_base
     if self.is_hosted():        s += "  Host: %s\n" % self.hosted_by.name
     if self.hosts:              s += " Hosts: %s\n" % ", ".join(h.name for h in self.hosts)
     for r in self.roa_requests: s += "   ROA: %s\n" % r

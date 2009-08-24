@@ -55,10 +55,9 @@ debug_tls_certs = False
 want_persistent_client = True
 want_persistent_server = True
 
-# Default HTTP connection timeouts (set very short for initial
-# testing).  Given our druthers, we'd prefer that the client close the
-# connection, as this avoids the problem of client starting to reuse
-# connection just as server decides to close it.
+# Default HTTP connection timeouts.  Given our druthers, we'd prefer
+# that the client close the connection, as this avoids the problem of
+# client starting to reuse connection just as server closes it.
 
 default_client_timeout = rpki.sundial.timedelta(minutes = 15)
 default_server_timeout = rpki.sundial.timedelta(minutes = 20)

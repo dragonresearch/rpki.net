@@ -46,9 +46,9 @@ rpki_content_type = "application/x-rpki"
 # ================================================================
 
 # Verbose chatter about HTTP streams
-debug = True
+debug_http = False
 
-# Extra chatter about TLS certificates
+# Verbose chatter about TLS certificates
 debug_tls_certs = False
 
 # Whether we want persistent HTTP streams, when peer also supports them
@@ -173,7 +173,7 @@ class http_response(http_message):
     return "HTTP/%d.%d %s %s\r\n" % (self.version[0], self.version[1], self.code, self.reason)
 
 def logger(self, msg):
-  if debug:
+  if debug_http:
     rpki.log.debug("%r: %s" % (self, msg))
 
 class http_stream(asynchat.async_chat):
@@ -374,7 +374,7 @@ class http_stream(asynchat.async_chat):
 
   def log_cert(self, tag, x):
     if debug_tls_certs:
-      self.log("HTTPS %s cert %r issuer %s [%s] subject %s [%s]" % (tag, x, x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
+      rpki.log.debug("%r: HTTPS %s cert %r issuer %s [%s] subject %s [%s]" % (self, tag, x, x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
 
 class http_server(http_stream):
 
@@ -718,7 +718,7 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback):
       u.fragment != ""):
     raise rpki.exceptions.BadClientURL, "Unusable URL %s" % url
 
-  if debug:
+  if debug_http:
     rpki.log.debug("Contacting %s" % url)
 
   request = http_request(
@@ -732,7 +732,7 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback):
 
   hostport = (u.hostname or "localhost", u.port or 80)
 
-  if debug:
+  if debug_http:
     rpki.log.debug("Created request %r for %r" % (request, hostport))
   if not isinstance(server_ta, (tuple, list)):
     server_ta = (server_ta,)
@@ -743,7 +743,7 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback):
   # Defer connection attempt until after we've had time to process any
   # pending I/O events, in case connections have closed.
 
-  if debug:
+  if debug_http:
     rpki.log.debug("Scheduling connection startup for %r" % request)
   rpki.async.timer(client_queues[hostport].restart, errback).set(None)
 

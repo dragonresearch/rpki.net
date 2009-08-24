@@ -303,8 +303,10 @@ class data_elt(base_elt):
       r_msg.append(r_pdu)
       cb()
 
-    if self.serve_fetch_one_maybe() is not None:
-      raise rpki.exceptions.DuplicateObject
+    oops = self.serve_fetch_one_maybe()
+    if oops is not None:
+      raise rpki.exceptions.DuplicateObject, "Object already exists: %r[%r] %r[%r]" % (self, getattr(self, self.element_name + "_handle"),
+                                                                                       oops, getattr(oops, oops.element_name + "_handle"))
 
     self.serve_pre_save_hook(self, r_pdu, one, eb)
 

@@ -357,7 +357,8 @@ for xmlfile in xmlfiles:
   # whom this <self/> has a relationship.  In practice there is rarely
   # (never?) a good reason for a single <self/> to use multiple
   # publication services, so in normal use we only need one
-  # <repository/> object.
+  # <repository/> object.  If for some reason you really need more
+  # than this, you'll have to hack.
 
   repository_cert = findbase64(tree, "bpki_repository_certificate")
   if repository_cert:

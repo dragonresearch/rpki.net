@@ -46,6 +46,7 @@ parent_elt = element parent {
   attribute handle { object_handle },
   attribute service_uri { uri }?,
   attribute myhandle { object_handle }?,
+  attribute sia_base { uri }?,
   element bpki_cms_certificate { base64 }?,
   element bpki_https_certificate { base64 }?
 }

@@ -239,19 +239,22 @@ class parent(object):
     self.bpki_cms_certificate = None
     self.bpki_https_certificate = None
     self.myhandle = None
+    self.sia_base = None
 
   def __repr__(self):
-    return "<%s handle %s myhandle %s uri %s cms %s https %s>" % (self.__class__.__name__,
+    return "<%s handle %s myhandle %s uri %s sia %s cms %s https %s>" % (self.__class__.__name__,
                                                                   self.handle,
                                                                   self.myhandle,
                                                                   self.service_uri,
+                                                                  self.sia_base,
                                                                   self.bpki_cms_certificate,
                                                                   self.bpki_https_certificate)
 
   def add(self, service_uri = None,
           bpki_cms_certificate = None,
           bpki_https_certificate = None,
-          myhandle = None):
+          myhandle = None,
+          sia_base = None):
     """
     Add service URI or BPKI certificates to this parent object.
     """
@@ -263,6 +266,8 @@ class parent(object):
       self.bpki_https_certificate = bpki_https_certificate
     if myhandle is not None:
       self.myhandle = myhandle
+    if sia_base is not None:
+      self.sia_base = sia_base
 
   def xml(self, e):
     """
@@ -271,7 +276,8 @@ class parent(object):
     e2 = SubElement(e, "parent",
                     handle = self.handle,
                     myhandle = self.myhandle,
-                    service_uri = self.service_uri)
+                    service_uri = self.service_uri,
+                    sia_base = self.sia_base)
     if self.bpki_cms_certificate:
       PEMElement(e2, "bpki_cms_certificate", self.bpki_cms_certificate)
     if self.bpki_https_certificate:
@@ -287,7 +293,8 @@ class parents(dict):
           service_uri = None,
           bpki_cms_certificate = None,
           bpki_https_certificate = None,
-          myhandle = None):
+          myhandle = None,
+          sia_base = None):
     """
     Add service URI or certificates to parent object, creating it if necessary.
     """
@@ -296,7 +303,8 @@ class parents(dict):
     self[handle].add(service_uri = service_uri,
                      bpki_cms_certificate = bpki_cms_certificate,
                      bpki_https_certificate = bpki_https_certificate,
-                     myhandle = myhandle)
+                     myhandle = myhandle,
+                     sia_base = sia_base)
 
   def xml(self, e):
     for c in self.itervalues():
@@ -308,13 +316,14 @@ class parents(dict):
     Parse parent data from CSV file.
     """
     self = cls()
-    # parentname service_uri parent_bpki_cms_pemfile parent_bpki_https_pemfile
-    for handle, service_uri, parent_cms_pemfile, parent_https_pemfile, myhandle in csv_open(parents_csv_file):
+    # parentname service_uri parent_bpki_cms_pemfile parent_bpki_https_pemfile myhandle sia_base
+    for handle, service_uri, parent_cms_pemfile, parent_https_pemfile, myhandle, sia_base in csv_open(parents_csv_file):
       self.add(handle = handle,
                service_uri = service_uri,
 	       bpki_cms_certificate = xcert(parent_cms_pemfile),
 	       bpki_https_certificate = xcert(parent_https_pemfile),
-               myhandle = myhandle)
+               myhandle = myhandle,
+               sia_base = sia_base)
     return self
 
 def csv_open(filename):

@@ -326,14 +326,16 @@ class allocation(object):
                                 "https://localhost:%d/" % self.rootd_port,
                                 self.path("bpki.rootd/ca.cer"),
                                 self.path("bpki.rootd/ca.cer"),
-                                self.name))
+                                self.name,
+                                self.sia_base))
     else:
       parent_host = self.parent.hosted_by if self.parent.is_hosted() else self.parent
       self.csvout(fn).writerow((self.parent.name,
                                 self.up_down_url(),
                                 self.parent.path("bpki.myrpki/ca.cer"),
                                 parent_host.path("bpki.rpkid/ca.cer"),
-                                self.name))
+                                self.name,
+                                self.sia_base))
 
   def dump_prefixes(self, fn):
     """

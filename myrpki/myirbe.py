@@ -279,15 +279,16 @@ for xmlfile in xmlfiles:
     print "Nothing else I can do without a trust anchor for the entity I'm hosting."
     continue
 
-  rpkid_xcert = rpki.x509.X509(PEM_file = bpki_rpkid.fxcert(handle + ".cacert.cer", hosted_cacert.get_PEM(), path_restriction = 1))
-  pubd_xcert  = rpki.x509.X509(PEM_file = bpki_pubd.fxcert(handle + ".cacert.cer", hosted_cacert.get_PEM()))
+  rpkid_xcert = rpki.x509.X509(PEM_file = bpki_rpkid.fxcert(handle + ".cacert.cer",
+                                                            hosted_cacert.get_PEM(),
+                                                            path_restriction = 1))
 
   # See what rpkid and pubd already have on file for this entity.
 
   pubd_reply = call_pubd((
-    rpki.publication.client_elt.make_pdu(action = "get", tag = "client", client_handle = handle),))
+    rpki.publication.client_elt.make_pdu(action = "list"),))
 
-  client_pdu = pubd_reply[0]
+  client_pdus = dict((x.client_handle, x) for x in pubd_reply if isinstance(x, rpki.publication.client_elt))
 
   rpkid_reply = call_rpkid((
     rpki.left_right.self_elt.make_pdu(      action = "get",  tag = "self",       self_handle = handle),
@@ -384,78 +385,45 @@ for xmlfile in xmlfiles:
   rpkid_query.extend(rpki.left_right.repository_elt.make_pdu(
     action = "destroy", self_handle = handle, repository_handle = r) for r in repository_pdus)
 
-  # Ok, here's where the fun starts.  We need to figure out what the
-  # publication naming scheme is for this <self/>, based on how many
-  # <parent/> object this <self/> has and what the relationship is
-  # between this <self/> and the entity operating this irbe and pubd.
-  #
-  # For now we only handle the simplest cases: if a hosted entity is a
-  # direct child of the hosting entity, we place it under the hosting
-  # entity; in all other cases, we use a separate subtree.  This is
-  # suboptimal in the long run.
+  # <parent/> setup code here used to be ridiculously complex.  Most
+  # of the insanity was due to a misguided attempt to deduce pubd
+  # setup from other data; now that pubd setup is driven by
+  # pubclients.csv, parent setup should be relatively straightforward,
+  # but beware of lingering excessive cleverness in anything dealing
+  # with parent objects in this script.
 
-  parents = [p for p in tree.getiterator(tag("parent"))]
+  for parent in tree.getiterator(tag("parent")):
 
-  if parents:
-    
-    need_own_pub_point = True
-    if handle != my_handle and len(parents) == 1 and parents[0].get("service_uri").startswith(rpkid_base):
-      m = updown_regexp.match(parents[0].get("service_uri"))
-      if m:
-        self_part, child_part = m.groups()
-        if self_part == my_handle and child_part == handle:
-          need_own_pub_point = False
+    parent_handle = parent.get("handle")
+    parent_pdu = parent_pdus.pop(parent_handle, None)
+    parent_uri = parent.get("service_uri")
+    parent_myhandle = parent.get("myhandle")
+    parent_sia-base = parent.get("sia_base")
+    parent_cms_cert = findbase64(parent, "bpki_cms_certificate")
+    parent_https_cert = findbase64(parent, "bpki_https_certificate")
 
-    if need_own_pub_point:
-      pubd_base_uri = rsync_base + handle + "/"
-    else:
-      pubd_base_uri = rsync_base + my_handle + "/" + handle + "/"
-
-    if (isinstance(client_pdu, rpki.publication.report_error_elt) or
-        client_pdu.base_uri != pubd_base_uri or
-        client_pdu.bpki_cert != pubd_xcert):
-      pubd_query.append(rpki.publication.client_elt.make_pdu(
-        action = "create" if isinstance(client_pdu, rpki.publication.report_error_elt) else "set",
-        client_handle = handle,
-        bpki_cert = pubd_xcert,
-        base_uri = pubd_base_uri))
-
-    for parent in parents:
-
-      parent_handle = parent.get("handle")
-      parent_pdu = parent_pdus.pop(parent_handle, None)
-      parent_uri = parent.get("service_uri")
-      parent_myhandle = parent.get("myhandle")
-      parent_cms_cert = findbase64(parent, "bpki_cms_certificate")
-      parent_https_cert = findbase64(parent, "bpki_https_certificate")
-
-      if need_own_pub_point:
-        parent_sia_base = pubd_base_uri + parent_handle + "/"
-      else:
-        parent_sia_base = pubd_base_uri
-
-      if (parent_pdu is None or
-          parent_pdu.bsc_handle != bsc_handle or
-          parent_pdu.repository_handle != repository_handle or
-          parent_pdu.peer_contact_uri != parent_uri or
-          parent_pdu.sia_base != parent_sia_base or
-          parent_pdu.sender_name != parent_myhandle or
-          parent_pdu.recipient_name != parent_handle or
-          parent_pdu.bpki_cms_cert != parent_cms_cert or
-          parent_pdu.bpki_https_cert != parent_https_cert):
-        rpkid_query.append(rpki.left_right.parent_elt.make_pdu(
-          action = "create" if parent_pdu is None else "set",
-          tag = parent_handle,
-          self_handle = handle,
-          parent_handle = parent_handle,
-          bsc_handle = bsc_handle,
-          repository_handle = repository_handle,
-          peer_contact_uri = parent_uri,
-          sia_base = parent_sia_base,
-          sender_name = parent_myhandle,
-          recipient_name = parent_handle,
-          bpki_cms_cert = parent_cms_cert,
-          bpki_https_cert = parent_https_cert))
+    if (parent_pdu is None or
+        parent_pdu.bsc_handle != bsc_handle or
+        parent_pdu.repository_handle != repository_handle or
+        parent_pdu.peer_contact_uri != parent_uri or
+        parent_pdu.sia_base != parent_sia_base or
+        parent_pdu.sender_name != parent_myhandle or
+        parent_pdu.recipient_name != parent_handle or
+        parent_pdu.bpki_cms_cert != parent_cms_cert or
+        parent_pdu.bpki_https_cert != parent_https_cert):
+      rpkid_query.append(rpki.left_right.parent_elt.make_pdu(
+        action = "create" if parent_pdu is None else "set",
+        tag = parent_handle,
+        self_handle = handle,
+        parent_handle = parent_handle,
+        bsc_handle = bsc_handle,
+        repository_handle = repository_handle,
+        peer_contact_uri = parent_uri,
+        sia_base = parent_sia_base,
+        sender_name = parent_myhandle,
+        recipient_name = parent_handle,
+        bpki_cms_cert = parent_cms_cert,
+        bpki_https_cert = parent_https_cert))
 
   rpkid_query.extend(rpki.left_right.parent_elt.make_pdu(
     action = "destroy", self_handle = handle, parent_handle = p) for p in parent_pdus)
@@ -484,6 +452,24 @@ for xmlfile in xmlfiles:
   rpkid_query.extend(rpki.left_right.child_elt.make_pdu(
     action = "destroy", self_handle = handle, child_handle = c) for c in child_pdus)
 
+  # Publication setup, used to be inferred (badly) from parent setup,
+  # now handled explictly via yet another freaking .csv file.
+  
+  for client_handle, client_bpki_cert, client_base_uri in myrpki.csv_open("children.csv"):
+
+    client_pdu = client_pdus.pop(client_handle, None)
+
+    client_bpki_cert = rpki.x509.X509(PEM_file = bpki_pubd.xcert(client_bpki_cert))
+
+    if (client_handle is None or
+        client.base_uri != client_base_uri or
+        client.bpki_cert != client_bpki_cert):
+      pubd_query.append(rpki.publication.client_elt.make_pdu(
+        action = "create" if client_pdu is None else "set",
+        client_handle = client_handle,
+        bpki_cert = client_bpki_cert,
+        base_uri = client_base_uri))
+
   # If we changed anything, ship updates off to daemons
 
   if rpkid_query:
@@ -491,10 +477,13 @@ for xmlfile in xmlfiles:
     bsc_pdus = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
     if bsc_handle in bsc_pdus and bsc_pdus[bsc_handle].pkcs10_request:
       bsc_req = bsc_pdus[bsc_handle].pkcs10_request
+    for r in rpkid_reply:
+      assert not isinstance(r, rpki.left_right.report_error_elt)
 
   if pubd_query:
     pubd_reply = call_pubd(pubd_query)
-    assert len(pubd_reply) == 1 and isinstance(pubd_reply[0], rpki.publication.client_elt) and pubd_reply[0].client_handle == handle
+    for r in pubd_reply:
+      assert not isinstance(r, rpki.publication.report_error_elt)
 
   # Rewrite XML.
 

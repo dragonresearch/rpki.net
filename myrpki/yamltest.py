@@ -353,6 +353,13 @@ class allocation(object):
     for r in self.roa_requests:
       f.writerows((p, r.asn) for p in (r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ()))
 
+  def dump_clients(self, fn):
+    """
+    Write pubclients CSV file.
+    """
+    f = self.csvout(fn)
+    f.writerows((s.name, s.path("bpki.myrpki/ca.cer"), s.sia_base) for s in [self] + self.kids)
+
   def dump_conf(self, fn):
     """
     Write configuration file for OpenSSL and RPKI tools.
@@ -530,6 +537,7 @@ for d in db:
   d.dump_parents("parents.csv")
   d.dump_prefixes("prefixes.csv")
   d.dump_roas("roas.csv")
+  d.dump_clients("pubclients.csv")
   d.dump_conf("myrpki.conf")
 
 # Do initial myirbe.py run for each hosting entity to set up BPKI

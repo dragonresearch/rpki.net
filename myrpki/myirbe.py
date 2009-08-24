@@ -398,7 +398,7 @@ for xmlfile in xmlfiles:
     parent_pdu = parent_pdus.pop(parent_handle, None)
     parent_uri = parent.get("service_uri")
     parent_myhandle = parent.get("myhandle")
-    parent_sia-base = parent.get("sia_base")
+    parent_sia_base = parent.get("sia_base")
     parent_cms_cert = findbase64(parent, "bpki_cms_certificate")
     parent_https_cert = findbase64(parent, "bpki_https_certificate")
 
@@ -454,16 +454,16 @@ for xmlfile in xmlfiles:
 
   # Publication setup, used to be inferred (badly) from parent setup,
   # now handled explictly via yet another freaking .csv file.
-  
-  for client_handle, client_bpki_cert, client_base_uri in myrpki.csv_open("children.csv"):
+
+  for client_handle, client_bpki_cert, client_base_uri in myrpki.csv_open(cfg.get("pubclients_csv", "pubclients.csv")):
 
     client_pdu = client_pdus.pop(client_handle, None)
 
     client_bpki_cert = rpki.x509.X509(PEM_file = bpki_pubd.xcert(client_bpki_cert))
 
-    if (client_handle is None or
-        client.base_uri != client_base_uri or
-        client.bpki_cert != client_bpki_cert):
+    if (client_pdu is None or
+        client_pdu.base_uri != client_base_uri or
+        client_pdu.bpki_cert != client_bpki_cert):
       pubd_query.append(rpki.publication.client_elt.make_pdu(
         action = "create" if client_pdu is None else "set",
         client_handle = client_handle,

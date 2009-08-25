@@ -81,6 +81,8 @@ prog_rootd  = cleanpath(rpkid_dir, "rootd.py")
 
 prog_openssl = cleanpath(this_dir, "../openssl/openssl/apps/openssl")
 
+only_one_pubd = False
+
 class roa_request(object):
   """
   Representation of a ROA request.
@@ -127,7 +129,11 @@ class allocation_db(list):
       self.root.regen_margin = 24 * 60 * 60
     for a in self:
       if a.sia_base is None:
-        a.sia_base = ("rsync://localhost:%d/" % a.rsync_port if a.is_root() else a.parent.sia_base) + a.name + "/"
+        if a.runs_pubd():
+          base = "rsync://localhost:%d/" % a.rsync_port
+        else:
+          base = a.parent.sia_base
+        a.sia_base = base + a.name + "/"
       if a.base.valid_until is None:
         a.base.valid_until = a.parent.base.valid_until
       if a.crl_interval is None:
@@ -225,10 +231,11 @@ class allocation(object):
     self.hosts = []
     if not self.is_hosted():
       self.engine = self.allocate_engine()
-      self.rsync_port = self.allocate_port()
       self.rpkid_port = self.allocate_port()
-      self.pubd_port  = self.allocate_port()
       self.irdbd_port = self.allocate_port()
+    if self.runs_pubd():
+      self.pubd_port  = self.allocate_port()
+      self.rsync_port = self.allocate_port()
     if self.is_root():
       self.rootd_port = self.allocate_port()
 
@@ -261,9 +268,9 @@ class allocation(object):
     if self.hosts:              s += " Hosts: %s\n" % ", ".join(h.name for h in self.hosts)
     for r in self.roa_requests: s += "   ROA: %s\n" % r
     if not self.is_hosted():    s += " IPort: %s\n" % self.irdbd_port
-    if not self.is_hosted():    s += " PPort: %s\n" % self.pubd_port
+    if self.runs_pubd():        s += " PPort: %s\n" % self.pubd_port
     if not self.is_hosted():    s += " RPort: %s\n" % self.rpkid_port
-    if not self.is_hosted():    s += " SPort: %s\n" % self.rsync_port
+    if self.runs_pubd():        s += " SPort: %s\n" % self.rsync_port
     if self.is_root():          s += " TPort: %s\n" % self.rootd_port
     return s + " Until: %s\n" % self.resources.valid_until
 
@@ -278,6 +285,12 @@ class allocation(object):
     Is this entity hosted?
     """
     return self.hosted_by is not None
+
+  def runs_pubd(self):
+    """
+    Does this entity run a pubd?
+    """
+    return self.is_root() or not (self.is_hosted() or only_one_pubd)
 
   def path(self, *names):
     """
@@ -353,12 +366,14 @@ class allocation(object):
     for r in self.roa_requests:
       f.writerows((p, r.asn) for p in (r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ()))
 
-  def dump_clients(self, fn):
+  def dump_clients(self, fn, db):
     """
     Write pubclients CSV file.
     """
-    f = self.csvout(fn)
-    f.writerows((s.name, s.path("bpki.myrpki/ca.cer"), s.sia_base) for s in [self] + self.kids)
+    if self.runs_pubd():
+      f = self.csvout(fn)
+      f.writerows((s.name, s.path("bpki.myrpki/ca.cer"), s.sia_base)
+                  for s in (db if only_one_pubd else [self] + self.kids))
 
   def dump_conf(self, fn):
     """
@@ -374,14 +389,12 @@ class allocation(object):
       r["irdbd",  "https-url"]     = "https://localhost:%d/" % self.irdbd_port
       r["irdbd",  "sql-database"]  = "irdb%d" % self.engine
       r["myirbe", "irdbd_conf"]    = "myrpki.conf"
-      r["myirbe", "pubd_base"]     = "https://localhost:%d/" % self.pubd_port
       r["myirbe", "rpkid_base"]    = "https://localhost:%d/" % self.rpkid_port
-      r["myirbe", "rsync_base"]    = "rsync://localhost:%d/" % self.rsync_port
-      r["pubd",   "server-port"]   = "%d" % self.pubd_port
-      r["pubd",   "sql-database"]  = "pubd%d" % self.engine
       r["rpkid",  "irdb-url"]      = "https://localhost:%d/" % self.irdbd_port
       r["rpkid",  "server-port"]   = "%d" % self.rpkid_port
       r["rpkid",  "sql-database"]  = "rpki%d" % self.engine
+
+    if self.is_root():
       r["rootd",  "rpki-root-dir"] = "publication/localhost:%d/" % self.rsync_port
       r["rootd",  "rpki-base-uri"] = "rsync://localhost:%d/" % self.rsync_port
       r["rootd",  "rpki-root-cert-uri"] = "rsync://localhost:%d/rootd.cer" % self.rsync_port
@@ -389,6 +402,12 @@ class allocation(object):
         ("1.3.6.1.5.5.7.48.5;URI:rsync://localhost:%d/,"
          "1.3.6.1.5.5.7.48.10;URI:rsync://localhost:%d/Bandicoot.mnf") %
         (self.rsync_port, self.rsync_port))
+
+    if self.runs_pubd():
+      r["pubd",   "server-port"]   = "%d" % self.pubd_port
+      r["pubd",   "sql-database"]  = "pubd%d" % self.engine
+      r["myirbe", "pubd_base"]     = "https://localhost:%d/" % self.pubd_port
+      r["myirbe", "rsync_base"]    = "rsync://localhost:%d/" % self.rsync_port
 
     if self.is_root():
       r["rootd", "server-port"] = "%d" % self.rootd_port
@@ -537,8 +556,8 @@ for d in db:
   d.dump_parents("parents.csv")
   d.dump_prefixes("prefixes.csv")
   d.dump_roas("roas.csv")
-  d.dump_clients("pubclients.csv")
   d.dump_conf("myrpki.conf")
+  d.dump_clients("pubclients.csv", db)
 
 # Do initial myirbe.py run for each hosting entity to set up BPKI
 
@@ -583,7 +602,7 @@ try:
   print "Running daemons"
   progs.append(db.root.run_rootd())
   progs.extend(d.run_irdbd() for d in db if not d.is_hosted())
-  progs.extend(d.run_pubd()  for d in db if not d.is_hosted())
+  progs.extend(d.run_pubd()  for d in db if d.runs_pubd())
   progs.extend(d.run_rpkid() for d in db if not d.is_hosted())
 
   print "Giving daemons time to start up"

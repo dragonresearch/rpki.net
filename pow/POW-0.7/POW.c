@@ -4813,11 +4813,12 @@ static int ssl_object_verify_callback(X509_STORE_CTX *ctx, void *arg)
     if ((len = BIO_ctrl_pending(b)) == 0 || (buf = malloc(len + 1)) == NULL)
       goto fail;
 
-    if (BIO_read(b, buf, len) == len)
+    if (BIO_read(b, buf, len) == len) {
       buf[len] = '\0';
       self->x509_cb_err = buf;
-    else
+    } else {
       free(buf);
+    }
 
   fail:
     BIO_free(b);

@@ -21,8 +21,6 @@
 
 DROP TABLE IF EXISTS roa_prefix;
 DROP TABLE IF EXISTS roa;
-DROP TABLE IF EXISTS route_origin_prefix;
-DROP TABLE IF EXISTS route_origin;
 DROP TABLE IF EXISTS revoked_cert;
 DROP TABLE IF EXISTS child_cert;
 DROP TABLE IF EXISTS child;

@@ -4806,16 +4806,15 @@ static int ssl_object_verify_callback(X509_STORE_CTX *ctx, void *arg)
     if (ctx->current_cert)
       X509_print(b, ctx->current_cert);
 
-#if 0
     /* This seems to be returning garbage, don't know why */
     if (ctx->current_issuer)
       X509_print(b, ctx->current_issuer);
-#endif
 
-    if ((len = BIO_ctrl_pending(b)) == 0 || (buf = malloc(len)) == NULL)
+    if ((len = BIO_ctrl_pending(b)) == 0 || (buf = malloc(len + 1)) == NULL)
       goto fail;
 
     if (BIO_read(b, buf, len) == len)
+      buf[len] = '\0';
       self->x509_cb_err = buf;
     else
       free(buf);

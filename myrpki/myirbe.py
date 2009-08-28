@@ -120,22 +120,22 @@ for o, a in opts:
 
 cfg = rpki.config.parser(cfg_file, "myirbe")
 
+handle = cfg.get("handle", cfg.get("handle", "Amnesiac", "myrpki"))
+
+want_pubd = cfg.getboolean("want_pubd", False)
+want_rootd = cfg.getboolean("want_rootd", False)
+
 bpki_modified = False
 
-bpki_rpkid = myrpki.CA(cfg_file, cfg.get("rpkid_ca_directory"))
-bpki_modified |= bpki_rpkid.setup(cfg.get("bpki_rpkid_ta_dn", "/CN=rpkid TA"))
-bpki_modified |= bpki_rpkid.ee(   cfg.get("bpki_rpkid_ee_dn", "/CN=rpkid EE"), "rpkid")
-bpki_modified |= bpki_rpkid.ee(   cfg.get("bpki_irdbd_ee_dn", "/CN=irdbd EE"), "irdbd")
-bpki_modified |= bpki_rpkid.ee(   cfg.get("bpki_rpkid_irbe_dn", "/CN=irbe_cli EE"), "irbe_cli")
-
-bpki_pubd  = myrpki.CA(cfg_file, cfg.get("pubd_ca_directory"))
-bpki_modified |= bpki_pubd.setup(cfg.get("bpki_pubd_ta_dn", "/CN=pubd TA"))
-bpki_modified |= bpki_pubd.ee(   cfg.get("bpki_pubd_ee_dn", "/CN=pubd EE"), "pubd")
-bpki_modified |= bpki_pubd.ee(   cfg.get("bpki_pubd_irbe_dn", "/CN=irbe_cli EE"), "irbe_cli")
-
-bpki_rootd = myrpki.CA(cfg_file, cfg.get("rootd_ca_directory"))
-bpki_modified |= bpki_rootd.setup(cfg.get("bpki_rootd_ta_dn", "/CN=rootd TA"))
-bpki_modified |= bpki_rootd.ee(   cfg.get("bpki_rootd_ee_dn", "/CN=rootd EE"), "rootd")
+bpki = myrpki.CA(cfg_file, cfg.get("bpki_directory"))
+bpki_modified |= bpki.setup(cfg.get("bpki_ta_dn",       "/CN=%s BPKI TA"  % handle))
+bpki_modified |= bpki.ee(   cfg.get("bpki_rpkid_ee_dn", "/CN=%s rpkid EE" % handle), "rpkid")
+bpki_modified |= bpki.ee(   cfg.get("bpki_irdbd_ee_dn", "/CN=%s irdbd EE" % handle), "irdbd")
+bpki_modified |= bpki.ee(   cfg.get("bpki_irbe_ee_dn",  "/CN=%s irbe EE"  % handle), "irbe")
+if want_pubd:
+  bpki_modified |= bpki.ee( cfg.get("bpki_pubd_ee_dn",  "/CN=%s pubd EE"  % handle), "pubd")
+if want_rootd:
+  bpki_modified |= bpki.ee( cfg.get("bpki_rootd_ee_dn", "/CN=%s rootd EE" % handle), "rootd")
 
 if bpki_modified:
   print "BPKI (re)initialized.  You need to (re)start daemons before continuing."
@@ -157,25 +157,27 @@ updown_regexp = re.compile(re.escape(rpkid_base) + "up-down/([-A-Z0-9_]+)/([-A-Z
 
 call_rpkid = rpki.async.sync_wrapper(caller(
   proto       = rpki.left_right,
-  client_key  = rpki.x509.RSA( PEM_file = bpki_rpkid.dir + "/irbe_cli.key"),
-  client_cert = rpki.x509.X509(PEM_file = bpki_rpkid.dir + "/irbe_cli.cer"),
-  server_ta   = rpki.x509.X509(PEM_file = bpki_rpkid.cer),
-  server_cert = rpki.x509.X509(PEM_file = bpki_rpkid.dir + "/rpkid.cer"),
+  client_key  = rpki.x509.RSA( PEM_file = bpki.dir + "/irbe.key"),
+  client_cert = rpki.x509.X509(PEM_file = bpki.dir + "/irbe.cer"),
+  server_ta   = rpki.x509.X509(PEM_file = bpki.cer),
+  server_cert = rpki.x509.X509(PEM_file = bpki.dir + "/rpkid.cer"),
   url         = rpkid_base + "left-right"))
 
-call_pubd = rpki.async.sync_wrapper(caller(
-  proto       = rpki.publication,
-  client_key  = rpki.x509.RSA( PEM_file = bpki_pubd.dir + "/irbe_cli.key"),
-  client_cert = rpki.x509.X509(PEM_file = bpki_pubd.dir + "/irbe_cli.cer"),
-  server_ta   = rpki.x509.X509(PEM_file = bpki_pubd.cer),
-  server_cert = rpki.x509.X509(PEM_file = bpki_pubd.dir + "/pubd.cer"),
-  url         = pubd_base + "control"))
+if want_pubd:
 
-# Make sure that pubd's BPKI CRL is up to date.
+  call_pubd = rpki.async.sync_wrapper(caller(
+    proto       = rpki.publication,
+    client_key  = rpki.x509.RSA( PEM_file = bpki.dir + "/irbe.key"),
+    client_cert = rpki.x509.X509(PEM_file = bpki.dir + "/irbe.cer"),
+    server_ta   = rpki.x509.X509(PEM_file = bpki.cer),
+    server_cert = rpki.x509.X509(PEM_file = bpki.dir + "/pubd.cer"),
+    url         = pubd_base + "control"))
 
-call_pubd((rpki.publication.config_elt.make_pdu(
-  action = "set",
-  bpki_crl = rpki.x509.CRL(PEM_file = bpki_pubd.crl)),))
+  # Make sure that pubd's BPKI CRL is up to date.
+
+  call_pubd((rpki.publication.config_elt.make_pdu(
+    action = "set",
+    bpki_crl = rpki.x509.CRL(PEM_file = bpki.crl)),))
 
 irdbd_cfg = rpki.config.parser(cfg.get("irdbd_conf"), "irdbd")
 
@@ -279,16 +281,16 @@ for xmlfile in xmlfiles:
     print "Nothing else I can do without a trust anchor for the entity I'm hosting."
     continue
 
-  rpkid_xcert = rpki.x509.X509(PEM_file = bpki_rpkid.fxcert(handle + ".cacert.cer",
-                                                            hosted_cacert.get_PEM(),
-                                                            path_restriction = 1))
+  rpkid_xcert = rpki.x509.X509(PEM_file = bpki.fxcert(handle + ".cacert.cer",
+                                                      hosted_cacert.get_PEM(),
+                                                      path_restriction = 1))
 
   # See what rpkid and pubd already have on file for this entity.
 
-  pubd_reply = call_pubd((
-    rpki.publication.client_elt.make_pdu(action = "list"),))
+  if want_pubd:
+    pubd_reply = call_pubd((rpki.publication.client_elt.make_pdu(action = "list"),))
 
-  client_pdus = dict((x.client_handle, x) for x in pubd_reply if isinstance(x, rpki.publication.client_elt))
+    client_pdus = dict((x.client_handle, x) for x in pubd_reply if isinstance(x, rpki.publication.client_elt))
 
   rpkid_reply = call_rpkid((
     rpki.left_right.self_elt.make_pdu(      action = "get",  tag = "self",       self_handle = handle),
@@ -455,20 +457,22 @@ for xmlfile in xmlfiles:
   # Publication setup, used to be inferred (badly) from parent setup,
   # now handled explictly via yet another freaking .csv file.
 
-  for client_handle, client_bpki_cert, client_base_uri in myrpki.csv_open(cfg.get("pubclients_csv", "pubclients.csv")):
+  if want_pubd:
 
-    client_pdu = client_pdus.pop(client_handle, None)
+    for client_handle, client_bpki_cert, client_base_uri in myrpki.csv_open(cfg.get("pubclients_csv", "pubclients.csv")):
 
-    client_bpki_cert = rpki.x509.X509(PEM_file = bpki_pubd.xcert(client_bpki_cert))
+      client_pdu = client_pdus.pop(client_handle, None)
 
-    if (client_pdu is None or
-        client_pdu.base_uri != client_base_uri or
-        client_pdu.bpki_cert != client_bpki_cert):
-      pubd_query.append(rpki.publication.client_elt.make_pdu(
-        action = "create" if client_pdu is None else "set",
-        client_handle = client_handle,
-        bpki_cert = client_bpki_cert,
-        base_uri = client_base_uri))
+      client_bpki_cert = rpki.x509.X509(PEM_file = bpki.xcert(client_bpki_cert))
+
+      if (client_pdu is None or
+          client_pdu.base_uri != client_base_uri or
+          client_pdu.bpki_cert != client_bpki_cert):
+        pubd_query.append(rpki.publication.client_elt.make_pdu(
+          action = "create" if client_pdu is None else "set",
+          client_handle = client_handle,
+          bpki_cert = client_bpki_cert,
+          base_uri = client_base_uri))
 
   # If we changed anything, ship updates off to daemons
 
@@ -481,6 +485,7 @@ for xmlfile in xmlfiles:
       assert not isinstance(r, rpki.left_right.report_error_elt)
 
   if pubd_query:
+    assert want_pubd
     pubd_reply = call_pubd(pubd_query)
     for r in pubd_reply:
       assert not isinstance(r, rpki.publication.report_error_elt)

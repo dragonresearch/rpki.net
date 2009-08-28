@@ -163,7 +163,7 @@ class allocation_db(list):
     this for the root node.
     """
     env = { "PATH"           : os.environ["PATH"],
-            "BPKI_DIRECTORY" : self.root.path("bpki.rootd"),
+            "BPKI_DIRECTORY" : self.root.path("bpki.myirbe"),
             "RANDFILE"       : ".OpenSSL.whines.unless.I.set.this" }
     cwd = self.root.path()
     return lambda *args: subprocess.check_call((prog_openssl,) + args, cwd = cwd, env = env)
@@ -337,8 +337,8 @@ class allocation(object):
     if self.is_root():
       self.csvout(fn).writerow(("rootd",
                                 "https://localhost:%d/" % self.rootd_port,
-                                self.path("bpki.rootd/ca.cer"),
-                                self.path("bpki.rootd/ca.cer"),
+                                self.path("bpki.myirbe/ca.cer"),
+                                self.path("bpki.myirbe/ca.cer"),
                                 self.name,
                                 self.sia_base))
     else:
@@ -346,7 +346,7 @@ class allocation(object):
       self.csvout(fn).writerow((self.parent.name,
                                 self.up_down_url(),
                                 self.parent.path("bpki.myrpki/ca.cer"),
-                                parent_host.path("bpki.rpkid/ca.cer"),
+                                parent_host.path("bpki.myirbe/ca.cer"),
                                 self.name,
                                 self.sia_base))
 
@@ -382,8 +382,7 @@ class allocation(object):
 
     host = self.hosted_by if self.is_hosted() else self
 
-    r = { ("myrpki", "handle"):                      self.name,
-          ("myrpki", "repository_bpki_certificate"): host.path("bpki.pubd/ca.cer") }
+    r = { ("myrpki", "handle"): self.name }
 
     if not self.is_hosted():
       r["irdbd",  "https-url"]     = "https://localhost:%d/" % self.irdbd_port
@@ -393,6 +392,8 @@ class allocation(object):
       r["rpkid",  "irdb-url"]      = "https://localhost:%d/" % self.irdbd_port
       r["rpkid",  "server-port"]   = "%d" % self.rpkid_port
       r["rpkid",  "sql-database"]  = "rpki%d" % self.engine
+      r["myirbe", "want_pubd"]     = "true" if self.runs_pubd() else "false"
+      r["myirbe", "want_rootd"]    = "true" if self.is_root() else "false"
 
     if self.is_root():
       r["rootd",  "rpki-root-dir"] = "publication/localhost:%d/" % self.rsync_port
@@ -404,10 +405,15 @@ class allocation(object):
         (self.rsync_port, self.rsync_port))
 
     if self.runs_pubd():
-      r["pubd",   "server-port"]   = "%d" % self.pubd_port
-      r["pubd",   "sql-database"]  = "pubd%d" % self.engine
-      r["myirbe", "pubd_base"]     = "https://localhost:%d/" % self.pubd_port
-      r["myirbe", "rsync_base"]    = "rsync://localhost:%d/" % self.rsync_port
+      r["pubd", "server-port"]  = "%d" % self.pubd_port
+      r["pubd", "sql-database"] = "pubd%d" % self.engine
+
+    s = self
+    while not s.runs_pubd():
+      s = s.parent
+    r["myirbe", "pubd_base"]  = "https://localhost:%d/" % s.pubd_port
+    r["myirbe", "rsync_base"] = "rsync://localhost:%d/" % s.rsync_port
+    r["myrpki", "repository_bpki_certificate"] = s.path("bpki.myirbe/ca.cer")
 
     if self.is_root():
       r["rootd", "server-port"] = "%d" % self.rootd_port
@@ -581,14 +587,14 @@ print "Creating rootd BPKI cross-certificate for its child"
 rootd_openssl("ca", "-notext", "-batch",
               "-config",  "myrpki.conf",
               "-ss_cert", "bpki.myrpki/ca.cer",
-              "-out",     "bpki.rootd/child.cer",
+              "-out",     "bpki.myirbe/child.cer",
               "-extensions", "ca_x509_ext_xcert0")
 
 print "Creating rootd RPKI root certificate"
 rootd_openssl("x509", "-req", "-sha256", "-outform", "DER",
-              "-signkey", "bpki.rootd/ca.key",
-              "-in",      "bpki.rootd/ca.req",
-              "-out",     "bpki.rootd/rpkiroot.cer",
+              "-signkey", "bpki.myirbe/ca.key",
+              "-in",      "bpki.myirbe/ca.req",
+              "-out",     "bpki.myirbe/rpkiroot.cer",
               "-extfile", "myrpki.conf",
               "-extensions", "rpki_x509_extensions")
 

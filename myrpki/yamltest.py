@@ -81,7 +81,7 @@ prog_rootd  = cleanpath(rpkid_dir, "rootd.py")
 
 prog_openssl = cleanpath(this_dir, "../openssl/openssl/apps/openssl")
 
-only_one_pubd = False
+only_one_pubd = True
 
 class roa_request(object):
   """
@@ -396,13 +396,12 @@ class allocation(object):
       r["myirbe", "want_rootd"]    = "true" if self.is_root() else "false"
 
     if self.is_root():
-      r["rootd",  "rpki-root-dir"] = "publication/localhost:%d/" % self.rsync_port
-      r["rootd",  "rpki-base-uri"] = "rsync://localhost:%d/" % self.rsync_port
-      r["rootd",  "rpki-root-cert-uri"] = "rsync://localhost:%d/rootd.cer" % self.rsync_port
-      r["rpki_x509_extensions",  "subjectInfoAccess"]  = (
-        ("1.3.6.1.5.5.7.48.5;URI:rsync://localhost:%d/,"
-         "1.3.6.1.5.5.7.48.10;URI:rsync://localhost:%d/Bandicoot.mnf") %
-        (self.rsync_port, self.rsync_port))
+      root_path = "localhost:%d/%s" % (self.rsync_port, self.name)
+      r["rootd",  "rpki-root-dir"] = "publication/%s/" % root_path
+      r["rootd",  "rpki-base-uri"] = "rsync://%s/" % root_path
+      r["rootd",  "rpki-root-cert"] = "publication/%s/root.cer" % root_path
+      r["rootd",  "rpki-root-cert-uri"] = "rsync://%s/root.cer" % root_path
+      r["rpki_x509_extensions", "subjectInfoAccess"] = "1.3.6.1.5.5.7.48.5;URI:rsync://%s/,1.3.6.1.5.5.7.48.10;URI:rsync://%s/root.mnf" % (root_path, root_path)
 
     if self.runs_pubd():
       r["pubd", "server-port"]  = "%d" % self.pubd_port
@@ -590,15 +589,17 @@ rootd_openssl("ca", "-notext", "-batch",
               "-out",     "bpki.myirbe/child.cer",
               "-extensions", "ca_x509_ext_xcert0")
 
+root_path = "publication/localhost:%d/%s/" % (db.root.rsync_port, db.root.name)
+
+os.makedirs(db.root.path(root_path))
+
 print "Creating rootd RPKI root certificate"
 rootd_openssl("x509", "-req", "-sha256", "-outform", "DER",
               "-signkey", "bpki.myirbe/ca.key",
               "-in",      "bpki.myirbe/ca.req",
-              "-out",     "bpki.myirbe/rpkiroot.cer",
+              "-out",     "%s/root.cer" % root_path,
               "-extfile", "myrpki.conf",
               "-extensions", "rpki_x509_extensions")
-
-os.makedirs(db.root.path("publication/localhost:%d" % db.root.rsync_port))
 
 # At this point we need to start a whole lotta daemons.
 

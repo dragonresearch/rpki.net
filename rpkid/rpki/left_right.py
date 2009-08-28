@@ -411,7 +411,8 @@ class self_elt(data_elt):
       def roa_requests_loop(iterator, roa_request):
 
         def lose(e):
-          rpki.log.traceback()
+          if not isinstance(e, rpki.exceptions.NoCoveringCertForROA):
+            rpki.log.traceback()
           rpki.log.warn("Could not update ROA %r, skipping: %s" % (roa, e))
           iterator()
 

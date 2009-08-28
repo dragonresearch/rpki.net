@@ -8,11 +8,6 @@ Much of the YAML handling code lifted from testbed.py.
 
 Still to do:
 
-- Generate rsyncd.conf and run rsync so that tests can include rcynic
-  runs aganist generated data.  Not particularly difficult, just
-  tedious, and likely to require fildding with publication paths
-  (again).
-
 - Implement testebd.py-style delta actions, that is, modify the
   allocation database under control of the YAML file, dump out new
   .csv files, and run myrpki.py and myirbe.py again to feed resulting
@@ -397,9 +392,9 @@ class allocation(object):
 
     if self.is_root():
       root_path = "localhost:%d/%s" % (self.rsync_port, self.name)
-      r["rootd",  "rpki-root-dir"] = "publication/%s/" % root_path
+      r["rootd",  "rpki-root-dir"] = "publication/"
       r["rootd",  "rpki-base-uri"] = "rsync://%s/" % root_path
-      r["rootd",  "rpki-root-cert"] = "publication/%s/root.cer" % root_path
+      r["rootd",  "rpki-root-cert"] = "publication/root.cer"
       r["rootd",  "rpki-root-cert-uri"] = "rsync://%s/root.cer" % root_path
       r["rpki_x509_extensions", "subjectInfoAccess"] = "1.3.6.1.5.5.7.48.5;URI:rsync://%s/,1.3.6.1.5.5.7.48.10;URI:rsync://%s/root.mnf" % (root_path, root_path)
 
@@ -444,6 +439,25 @@ class allocation(object):
       f.write(line)
 
     f.close()
+
+  def dump_rsyncd(self, fn):
+    """
+    Write rsyncd configuration file.
+    """
+
+    if self.runs_pubd():
+      f = open(self.path(fn), "w")
+      print "Writing", f.name
+      f.writelines(s + "\n" for s in
+                   ("# Automatically generated, do not edit",
+                    "port         = %d"           % self.rsync_port,
+                    "address      = localhost",
+                    "[%s]"                        % self.name,
+                    "read only    = yes",
+                    "use chroot   = no",
+                    "path         = %s"           % self.path("publication"),
+                    "comment      = RPKI test"))
+      f.close()
 
   def run_myirbe(self):
     """
@@ -498,6 +512,17 @@ class allocation(object):
     Run rootd.
     """
     return self.run_python_daemon(prog_rootd)
+
+  def run_rsyncd(self):
+    """
+    Run rsyncd.
+    """
+    p = subprocess.Popen(("rsync", "--daemon", "--no-detach", "--config", "rsyncd.conf"),
+                         cwd = self.path(),
+                         stdout = open(self.path("rsyncd.log"), "w"),
+                         stderr = subprocess.STDOUT)
+    print "Running rsyncd for %s: pid %d process %r" % (self.name, p.pid, p)
+    return p
 
 os.environ["TZ"] = "UTC"
 time.tzset()
@@ -563,6 +588,7 @@ for d in db:
   d.dump_roas("roas.csv")
   d.dump_conf("myrpki.conf")
   d.dump_clients("pubclients.csv", db)
+  d.dump_rsyncd("rsyncd.conf")
 
 # Do initial myirbe.py run for each hosting entity to set up BPKI
 
@@ -589,15 +615,13 @@ rootd_openssl("ca", "-notext", "-batch",
               "-out",     "bpki.myirbe/child.cer",
               "-extensions", "ca_x509_ext_xcert0")
 
-root_path = "publication/localhost:%d/%s/" % (db.root.rsync_port, db.root.name)
-
-os.makedirs(db.root.path(root_path))
+os.makedirs(db.root.path("publication"))
 
 print "Creating rootd RPKI root certificate"
 rootd_openssl("x509", "-req", "-sha256", "-outform", "DER",
               "-signkey", "bpki.myirbe/ca.key",
               "-in",      "bpki.myirbe/ca.req",
-              "-out",     "%s/root.cer" % root_path,
+              "-out",     "publication/root.cer",
               "-extfile", "myrpki.conf",
               "-extensions", "rpki_x509_extensions")
 
@@ -608,9 +632,10 @@ progs = []
 try:
   print "Running daemons"
   progs.append(db.root.run_rootd())
-  progs.extend(d.run_irdbd() for d in db if not d.is_hosted())
-  progs.extend(d.run_pubd()  for d in db if d.runs_pubd())
-  progs.extend(d.run_rpkid() for d in db if not d.is_hosted())
+  progs.extend(d.run_irdbd()  for d in db if not d.is_hosted())
+  progs.extend(d.run_pubd()   for d in db if d.runs_pubd())
+  progs.extend(d.run_rsyncd() for d in db if d.runs_pubd())
+  progs.extend(d.run_rpkid()  for d in db if not d.is_hosted())
 
   print "Giving daemons time to start up"
   time.sleep(20)

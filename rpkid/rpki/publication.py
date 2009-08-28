@@ -236,10 +236,13 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     Convert a URI to a local filename.
     """
     if not self.uri.startswith("rsync://"):
-      raise rpki.exceptions.BadURISyntax
-    filename = self.gctx.publication_base + self.uri[len("rsync://"):]
+      raise rpki.exceptions.BadURISyntax, self.uri
+    u = 0
+    for i in xrange(4):
+      u = self.uri.index("/", u + 1)
+    filename = self.gctx.publication_base.rstrip("/") + self.uri[u:]
     if filename.find("//") >= 0 or filename.find("/../") >= 0 or filename.endswith("/.."):
-      raise rpki.exceptions.BadURISyntax
+      raise rpki.exceptions.BadURISyntax, filename
     return filename
 
 class certificate_elt(publication_object_elt):

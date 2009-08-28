@@ -1,9 +1,0 @@
-// Automatically generated from pubd.sql
-
-digraph test {
-	edge [arrowtail=none, arrowhead=crow];
-	graph [ratio=fill, overlap=false, bgcolor=white];
-	node [label="\N", fillcolor=white, shape=record, style=filled];
-	config [label="config|{config_id\ SERIAL\ \[PK\]|bpki_crl\ LONGBLOB}"];
-	client [label="client|{client_id\ SERIAL\ \[PK\]|base_uri\ TEXT|bpki_cert\ LONGBLOB|bpki_glue\ LONGBLOB}"];
-}

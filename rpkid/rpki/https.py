@@ -49,7 +49,7 @@ rpki_content_type = "application/x-rpki"
 debug_http = False
 
 # Verbose chatter about TLS certificates
-debug_tls_certs = False
+debug_tls_certs = True
 
 # Whether we want persistent HTTP streams, when peer also supports them
 want_persistent_client = True

@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="US-ASCII"?>
-<!--Automatically generated, do not edit.-->
-<msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1" type="query">
-  <route_origin action="destroy" self_id="42" route_origin_id="88"/>
-</msg>

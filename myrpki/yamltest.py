@@ -454,6 +454,7 @@ class allocation(object):
                     "port         = %d"           % self.rsync_port,
                     "address      = localhost",
                     "[%s]"                        % self.name,
+                    "log file     = rsyncd.log",
                     "read only    = yes",
                     "use chroot   = no",
                     "path         = %s"           % self.path("publication"),
@@ -519,9 +520,7 @@ class allocation(object):
     Run rsyncd.
     """
     p = subprocess.Popen(("rsync", "--daemon", "--no-detach", "--config", "rsyncd.conf"),
-                         cwd = self.path(),
-                         stdout = open(self.path("rsyncd.log"), "w"),
-                         stderr = subprocess.STDOUT)
+                         cwd = self.path())
     print "Running rsyncd for %s: pid %d process %r" % (self.name, p.pid, p)
     return p
 

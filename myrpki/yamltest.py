@@ -396,6 +396,7 @@ class allocation(object):
       r["rootd",  "rpki-base-uri"] = "rsync://%s/" % root_path
       r["rootd",  "rpki-root-cert"] = "publication/root.cer"
       r["rootd",  "rpki-root-cert-uri"] = "rsync://%s/root.cer" % root_path
+      r["rootd",  "rpki-subject-cert"] = "%s.cer" % self.name
       r["rpki_x509_extensions", "subjectInfoAccess"] = "1.3.6.1.5.5.7.48.5;URI:rsync://%s/,1.3.6.1.5.5.7.48.10;URI:rsync://%s/root.mnf" % (root_path, root_path)
 
     if self.runs_pubd():
@@ -629,6 +630,12 @@ rootd_openssl("x509", "-req", "-sha256", "-outform", "DER",
 
 progs = []
 
+def all_daemons_running():
+  for p in progs:
+    if p.poll() is not None:
+      return False
+  return True
+
 try:
   print "Running daemons"
   progs.append(db.root.run_rootd())
@@ -639,6 +646,8 @@ try:
 
   print "Giving daemons time to start up"
   time.sleep(20)
+
+  assert all_daemons_running()
 
   # Run myirbe again for each host, to set up IRDB and RPKI objects.
   # Need to run a second time to push BSC certs out to rpkid.  Nothing
@@ -657,7 +666,7 @@ try:
   # Wait until something terminates.
 
   signal.signal(signal.SIGCHLD, lambda *dont_care: None)
-  if not [p for p in progs if p.poll() is not None]:
+  if all_daemons_running():
     signal.pause()
 
 finally:

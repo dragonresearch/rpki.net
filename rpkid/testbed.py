@@ -1121,8 +1121,11 @@ def setup_publication(pubd_sql):
   rpki.log.info("Configure publication daemon")
   pubd_dir = os.getcwd() + "/publication/"
   assert rootd_sia.startswith("rsync://")
+  i = 0
+  for j in xrange(4):
+    i = rootd_sia.index("/", i + 1)
   global rsyncd_dir
-  rsyncd_dir = pubd_dir + rootd_sia[len("rsync://"):]
+  rsyncd_dir = pubd_dir.rstrip("/") + rootd_sia[i:]
   os.makedirs(rsyncd_dir)
   db = MySQLdb.connect(user = "pubd", db = "pubd", passwd = pubd_db_pass)
   cur = db.cursor()

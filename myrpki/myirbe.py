@@ -288,9 +288,9 @@ for xmlfile in xmlfiles:
   # See what rpkid and pubd already have on file for this entity.
 
   if want_pubd:
-    pubd_reply = call_pubd((rpki.publication.client_elt.make_pdu(action = "list"),))
-
-    client_pdus = dict((x.client_handle, x) for x in pubd_reply if isinstance(x, rpki.publication.client_elt))
+    client_pdus = dict((x.client_handle, x)
+                       for x in call_pubd((rpki.publication.client_elt.make_pdu(action = "list"),))
+                       if isinstance(x, rpki.publication.client_elt))
 
   rpkid_reply = call_rpkid((
     rpki.left_right.self_elt.make_pdu(      action = "get",  tag = "self",       self_handle = handle),
@@ -367,7 +367,7 @@ for xmlfile in xmlfiles:
   if repository_cert:
 
     repository_pdu = repository_pdus.pop(repository_handle, None)
-    repository_uri = pubd_base + "client/" + handle
+    repository_uri = pubd_base + "client/" + tree.get("repository_handle")
 
     if (repository_pdu is None or
         repository_pdu.bsc_handle != bsc_handle or

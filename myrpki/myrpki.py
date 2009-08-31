@@ -548,6 +548,7 @@ def main(argv = ()):
   bpki_dir                      = cfg.get(myrpki_section, "bpki_directory")
   xml_filename                  = cfg.get(myrpki_section, "xml_filename")
   repository_bpki_certificate   = cfg.get(myrpki_section, "repository_bpki_certificate")
+  repository_handle             = cfg.get(myrpki_section, "repository_handle")
 
   bpki = CA(cfg_file, bpki_dir)
   bpki.setup("/CN=%s TA" % my_handle)
@@ -558,7 +559,7 @@ def main(argv = ()):
   else:
     bsc_req, bsc_cer = None, None
 
-  e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle)
+  e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle, repository_handle = repository_handle)
 
   roa_requests.from_csv(roa_csv_file).xml(e)
 

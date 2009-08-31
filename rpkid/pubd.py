@@ -93,7 +93,7 @@ class pubd_context(object):
       rpki.log.traceback()
       cb(500, "Unhandled exception %s" % data)
 
-  client_url_regexp = re.compile("/client/([-A-Z0-9_]+)$", re.I)
+  client_url_regexp = re.compile("/client/([-A-Z0-9_/]+)$", re.I)
 
   def client_handler(self, query, path, cb):
     """

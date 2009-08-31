@@ -9,6 +9,7 @@ default namespace = "http://www.hactrn.net/uris/rpki/myrpki/"
 
 base64		= xsd:base64Binary { maxLength="512000" }
 object_handle	= xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9]*" }
+pubd_handle     = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9/]*" }
 uri		= xsd:anyURI { maxLength="4096" }
 asn_list	= xsd:string { maxLength="512000" pattern="[\-,0-9]*" }
 ipv4_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/.]*" }
@@ -17,6 +18,7 @@ ipv6_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/:a-fA-F]*" }
 start = element myrpki {
   attribute version { xsd:positiveInteger { maxInclusive="1" } },
   attribute handle { object_handle },
+  attribute repository_handle { pubd_handle },
   roa_request_elt*,
   child_elt*,
   parent_elt*,

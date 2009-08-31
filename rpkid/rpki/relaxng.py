@@ -1231,11 +1231,15 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <ref name="uri_t"/>
     </attribute>
   </define>
-  <!-- Handles on remote objects (replaces passing raw SQL IDs) -->
+  <!--
+    Handles on remote objects (replaces passing raw SQL IDs).  NB:
+    Unlike the up-down protocol, handles in this protocol allow "/" as a
+    hierarchy delimiter.
+  -->
   <define name="object_handle">
     <data type="string">
       <param name="maxLength">255</param>
-      <param name="pattern">[\-_A-Za-z0-9]*</param>
+      <param name="pattern">[\-_A-Za-z0-9/]*</param>
     </data>
   </define>
   <!--

@@ -76,8 +76,6 @@ prog_rootd  = cleanpath(rpkid_dir, "rootd.py")
 
 prog_openssl = cleanpath(this_dir, "../openssl/openssl/apps/openssl")
 
-only_one_pubd = True
-
 class roa_request(object):
   """
   Representation of a ROA request.
@@ -135,6 +133,10 @@ class allocation_db(list):
         a.crl_interval = a.parent.crl_interval
       if a.regen_margin is None:
         a.regen_margin = a.parent.regen_margin
+      i = 0
+      for j in xrange(3):
+        i = a.sia_base.index("/", i) + 1
+      a.client_handle = a.sia_base[i:].rstrip("/")
     self.root.closure()
     self.map = dict((a.name, a) for a in self)
     for a in self:
@@ -367,7 +369,7 @@ class allocation(object):
     """
     if self.runs_pubd():
       f = self.csvout(fn)
-      f.writerows((s.name, s.path("bpki.myrpki/ca.cer"), s.sia_base)
+      f.writerows((s.client_handle, s.path("bpki.myrpki/ca.cer"), s.sia_base)
                   for s in (db if only_one_pubd else [self] + self.kids))
 
   def dump_conf(self, fn):
@@ -409,6 +411,7 @@ class allocation(object):
     r["myirbe", "pubd_base"]  = "https://localhost:%d/" % s.pubd_port
     r["myirbe", "rsync_base"] = "rsync://localhost:%d/" % s.rsync_port
     r["myrpki", "repository_bpki_certificate"] = s.path("bpki.myirbe/ca.cer")
+    r["myrpki", "repository_handle"] = self.client_handle
 
     if self.is_root():
       r["rootd", "server-port"] = "%d" % self.rootd_port
@@ -554,10 +557,12 @@ try:
   rpkid_password = cfg.get("rpkid_db_pass")
   irdbd_password = cfg.get("irdbd_db_pass")
   pubd_password  = cfg.get("pubd_db_pass")
+  only_one_pubd  = cfg.getboolean("only_one_pubd", True)
 except:
   rpkid_password = None
   irdbd_password = None
   pubd_password  = None
+  only_one_pubd  = True
 
 # Start clean
 

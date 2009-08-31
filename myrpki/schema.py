@@ -20,6 +20,12 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodin
       <param name="pattern">[\-_A-Za-z0-9]*</param>
     </data>
   </define>
+  <define name="pubd_handle">
+    <data type="string">
+      <param name="maxLength">255</param>
+      <param name="pattern">[\-_A-Za-z0-9/]*</param>
+    </data>
+  </define>
   <define name="uri">
     <data type="anyURI">
       <param name="maxLength">4096</param>
@@ -52,6 +58,9 @@ myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodin
       </attribute>
       <attribute name="handle">
         <ref name="object_handle"/>
+      </attribute>
+      <attribute name="repository_handle">
+        <ref name="pubd_handle"/>
       </attribute>
       <zeroOrMore>
         <ref name="roa_request_elt"/>

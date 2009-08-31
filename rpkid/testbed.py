@@ -387,6 +387,10 @@ class allocation_db(list):
         a.crl_interval = a.parent.crl_interval
       if a.regen_margin is None:
         a.regen_margin = a.parent.regen_margin
+      i = 0
+      for j in xrange(4):
+        i = a.sia_base.index("/", i) + 1
+      a.client_handle = a.sia_base[i:].rstrip("/")
     self.root.closure()
     self.map = dict((a.name, a) for a in self)
     self.engines = [a for a in self if a.is_engine()]
@@ -871,7 +875,7 @@ class allocation(object):
 
       pubd_pdus.append(rpki.publication.client_elt.make_pdu(
         action = "create",
-        client_handle = s.name,
+        client_handle = s.client_handle,
         base_uri = s.sia_base,
         bpki_cert = s.cross_certify(pubd_name + "-TA", reverse = True)))
 
@@ -884,7 +888,7 @@ class allocation(object):
         repository_handle = "r",
         bpki_cms_cert = repository_cert,
         bpki_https_cert = repository_cert,
-        peer_contact_uri = "https://localhost:%d/client/%s" % (pubd_port, s.name)))
+        peer_contact_uri = "https://localhost:%d/client/%s" % (pubd_port, s.client_handle)))
 
       for k in s.kids:
         rpkid_pdus.append(rpki.left_right.child_elt.make_pdu(

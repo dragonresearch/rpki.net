@@ -215,7 +215,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     Publish an object.
     """
-    rpki.log.info("Publishing %s as %s" % (repr(self.payload), repr(self.uri)))
+    rpki.log.info("Publishing %r as %r" % (self.payload, self.uri))
     filename = self.uri_to_filename()
     dirname = os.path.dirname(filename)
     if not os.path.isdir(dirname):
@@ -228,7 +228,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     Withdraw an object.
     """
-    rpki.log.info("Withdrawing %s" % repr(self.uri))
+    rpki.log.info("Withdrawing %r" % (self.uri,))
     os.remove(self.uri_to_filename())
 
   def uri_to_filename(self):

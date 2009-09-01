@@ -1,0 +1,8 @@
+# Syntax: <client_handle> <bpki_cert_filename> <sia_base>
+#
+# NB: Comment lines are not allowed in these files, this one is only
+# present to explain the example
+#
+Mom	bpki.myrpki/ca.cer	rsync://localhost:4401/wombat/Mom/
+Mom/Alice	client-certs/Alice.cer	rsync://localhost:4401/wombat/Mom/Alice/
+Mom/Bob	client-certs/Bob.cer	rsync://localhost:4401/wombat/Mom/Bob/

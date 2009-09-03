@@ -631,11 +631,18 @@ class message_pdu(base_elt):
       callback(self.serve_error(e))
 
     try:
+      self.log_query(child)
       self.payload.serve_pdu(self, r_msg, child, done, lose)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, edata:
       lose(edata)
+
+  def log_query(self, child):
+    """
+    Log query we're handling.  Separate method so rootd can override.
+    """
+    rpki.log.info("Serving %s query from child %s" % (self.type, child.child_handle))
 
   def serve_error(self, exception):
     """

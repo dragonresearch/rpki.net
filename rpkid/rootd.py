@@ -183,6 +183,7 @@ class revoke_pdu(rpki.up_down.revoke_pdu):
     callback()
 
 class message_pdu(rpki.up_down.message_pdu):
+
   name2type = {
     "list"            : list_pdu,
     "list_response"   : rpki.up_down.list_response_pdu,
@@ -191,7 +192,14 @@ class message_pdu(rpki.up_down.message_pdu):
     "revoke"          : revoke_pdu,
     "revoke_response" : rpki.up_down.revoke_response_pdu,
     "error_response"  : rpki.up_down.error_response_pdu }
+
   type2name = dict((v, k) for k, v in name2type.items())
+
+  def log_query(self, child):
+    """
+    Log query we're handling.
+    """
+    rpki.log.info("Serving %s query" % self.type)
 
 class sax_handler(rpki.up_down.sax_handler):
   pdu = message_pdu

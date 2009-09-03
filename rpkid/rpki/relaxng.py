@@ -1147,7 +1147,7 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodi
 ## Parsed RelaxNG publication schema
 publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-schema.rnc 2493 2009-06-04 18:30:40Z sra $
+  $Id: publication-schema.rnc 2722 2009-08-31 22:24:48Z sra $
   
   RelaxNG Schema for RPKI publication protocol.
   

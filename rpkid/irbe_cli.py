@@ -33,9 +33,47 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import getopt, sys, textwrap
-import rpki.left_right, rpki.https, rpki.x509, rpki.config, rpki.log, rpki.publication
+import rpki.left_right, rpki.https, rpki.x509, rpki.config, rpki.log
+import rpki.publication, rpki.async
 
 pem_out = None
+
+class caller(object):
+  """
+  Handle client-side mechanics for left-right and publication
+  protocols.
+  """
+
+  debug = True
+
+  def __init__(self, cms_class, client_key, client_cert, server_ta, server_cert, url):
+    self.cms_class = cms_class
+    self.client_key = client_key
+    self.client_cert = client_cert
+    self.server_ta = server_ta
+    self.server_cert = server_cert
+    self.url = url
+
+  def __call__(self, cb, eb, msg):
+
+    def done(cms):
+      msg, xml = self.cms_class.unwrap(cms, (self.server_ta, self.server_cert), pretty_print = True)
+      if self.debug:
+        print "Reply:", xml
+      cb(msg)
+
+    cms, xml = self.cms_class.wrap(msg, self.client_key, self.client_cert, pretty_print = True)
+    if self.debug:
+      print "Query:", xml
+
+    rpki.https.client(
+      client_key   = self.client_key,
+      client_cert  = self.client_cert,
+      server_ta    = self.server_ta,
+      url          = self.url,
+      msg          = cms,
+      callback     = done,
+      errback      = eb)
 
 class UsageWrapper(textwrap.TextWrapper):
   """
@@ -230,30 +268,6 @@ def usage(code = 1):
   publication_msg.usage()
   sys.exit(code)
 
-# This should probably be a method of an as-yet-unwritten server class
-
-def call_daemon(cms_class, client_key, client_cert, server_ta, url, q_msg):
-  q_cms, q_xml = cms_class.wrap(q_msg, client_key, client_cert, pretty_print = True)
-  if verbose:
-    print q_xml
-
-  def done(der):
-    r_msg, r_xml = cms_class.unwrap(der, server_ta, pretty_print = True)
-    print r_xml
-    for r_pdu in r_msg:
-      r_pdu.client_reply_decode()
-
-  def fail(e):
-    print "Failed: %s" % e
-
-  rpki.https.client(client_key   = client_key,
-                    client_cert  = client_cert,
-                    server_ta    = server_ta,
-                    url          = url,
-                    msg          = q_cms,
-                    callback     = done,
-                    errback      = fail)
-
 # Main program
 
 rpki.log.init("irbe_cli")
@@ -298,21 +312,25 @@ while argv:
   q_msg.append(q_pdu)
 
 if q_msg_left_right:
-  call_daemon(
+
+  call_rpkid = rpki.async.sync_wrapper(caller(
     cms_class   = left_right_cms_msg,
     client_key  = rpki.x509.RSA( Auto_file = cfg.get("rpkid-irbe-key")),
     client_cert = rpki.x509.X509(Auto_file = cfg.get("rpkid-irbe-cert")),
-    server_ta   = (rpki.x509.X509(Auto_file = cfg.get("rpkid-bpki-ta")),
-                   rpki.x509.X509(Auto_file = cfg.get("rpkid-cert"))),
-    url         = cfg.get("rpkid-url"),
-    q_msg       = q_msg_left_right)
+    server_ta   = rpki.x509.X509(Auto_file = cfg.get("rpkid-bpki-ta")),
+    server_cert = rpki.x509.X509(Auto_file = cfg.get("rpkid-cert")),
+    url         = cfg.get("rpkid-url")))
+
+  call_rpkid(q_msg_left_right)
 
 if q_msg_publication:
-  call_daemon(
+
+  call_pubd =  rpki.async.sync_wrapper(caller(
     cms_class   = publication_cms_msg,
     client_key  = rpki.x509.RSA( Auto_file = cfg.get("pubd-irbe-key")),
     client_cert = rpki.x509.X509(Auto_file = cfg.get("pubd-irbe-cert")),
-    server_ta   = (rpki.x509.X509(Auto_file = cfg.get("pubd-bpki-ta")),
-                   rpki.x509.X509(Auto_file = cfg.get("pubd-cert"))),
-    url         = cfg.get("pubd-url"),
-    q_msg       = q_msg_publication)
+    server_ta   = rpki.x509.X509(Auto_file = cfg.get("pubd-bpki-ta")),
+    server_cert = rpki.x509.X509(Auto_file = cfg.get("pubd-cert")),
+    url         = cfg.get("pubd-url")))
+
+  call_pubd(q_msg_publication)

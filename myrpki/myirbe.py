@@ -461,18 +461,23 @@ for xmlfile in xmlfiles:
 
     for client_handle, client_bpki_cert, client_base_uri in myrpki.csv_open(cfg.get("pubclients_csv", "pubclients.csv")):
 
-      client_pdu = client_pdus.pop(client_handle, None)
+      if os.path.exists(client_bpki_cert):
 
-      client_bpki_cert = rpki.x509.X509(PEM_file = bpki.xcert(client_bpki_cert))
+        client_pdu = client_pdus.pop(client_handle, None)
 
-      if (client_pdu is None or
-          client_pdu.base_uri != client_base_uri or
-          client_pdu.bpki_cert != client_bpki_cert):
-        pubd_query.append(rpki.publication.client_elt.make_pdu(
-          action = "create" if client_pdu is None else "set",
-          client_handle = client_handle,
-          bpki_cert = client_bpki_cert,
-          base_uri = client_base_uri))
+        client_bpki_cert = rpki.x509.X509(PEM_file = bpki.xcert(client_bpki_cert))
+
+        if (client_pdu is None or
+            client_pdu.base_uri != client_base_uri or
+            client_pdu.bpki_cert != client_bpki_cert):
+          pubd_query.append(rpki.publication.client_elt.make_pdu(
+            action = "create" if client_pdu is None else "set",
+            client_handle = client_handle,
+            bpki_cert = client_bpki_cert,
+            base_uri = client_base_uri))
+
+    pubd_query.extend(rpki.publication.client_elt.make_pdu(
+        action = "destroy", client_handle = p) for p in client_pdus)
 
   # If we changed anything, ship updates off to daemons
 

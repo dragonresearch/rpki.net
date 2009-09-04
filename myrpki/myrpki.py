@@ -486,7 +486,7 @@ class CA(object):
       return None
 
     if not os.path.exists(cert):
-      print "Certificate %s doesn't exist, skipping" % cert
+      #print "Certificate %s doesn't exist, skipping" % cert
       return None
 
     # Extract public key and subject name from PEM file and hash it so

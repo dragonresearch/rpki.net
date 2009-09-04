@@ -91,10 +91,8 @@ class rpkid_context(object):
     def unwrap(der):
       r_msg = rpki.left_right.cms_msg.unwrap(der, (self.bpki_ta, self.irdb_cert))
       if not r_msg.is_reply() or [r_pdu for r_pdu in r_msg if type(r_pdu) is not type(q_pdu)]:
-        errback(rpki.exceptions.BadIRDBReply(
-          "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")))
-      else:
-        callback(r_msg)
+        raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")
+      callback(r_msg)
 
     rpki.https.client(
       server_ta    = (self.bpki_ta, self.irdb_cert),
@@ -117,15 +115,13 @@ class rpkid_context(object):
     q_pdu.child_handle = child_handle
 
     def done(r_msg):
-      if len(r_msg) == 1:
-        callback(rpki.resource_set.resource_bag(
-          asn         = r_msg[0].asn,
-          v4          = r_msg[0].ipv4,
-          v6          = r_msg[0].ipv6,
-          valid_until = r_msg[0].valid_until))
-      else:
-        errback(rpki.exceptions.BadIRDBReply(
-          "Expected exactly one PDU from IRDB: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")))
+      if len(r_msg) != 1:
+        raise rpki.exceptions.BadIRDBReply, "Expected exactly one PDU from IRDB: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")
+      callback(rpki.resource_set.resource_bag(
+        asn         = r_msg[0].asn,
+        v4          = r_msg[0].ipv4,
+        v6          = r_msg[0].ipv6,
+        valid_until = r_msg[0].valid_until))
 
     self.irdb_query(q_pdu, done, errback)
 
@@ -1223,8 +1219,7 @@ class roa_obj(rpki.sql.sql_persistent):
     """
 
     if self.ipv4 is None and self.ipv6 is None:
-      errback(rpki.exceptions.EmptyROAPrefixList())
-      return
+      raise rpki.exceptions.EmptyROAPrefixList
 
     # Ugly and expensive search for covering ca_detail, there has to
     # be a better way, but it would require the ability to test for
@@ -1248,8 +1243,7 @@ class roa_obj(rpki.sql.sql_persistent):
           break
 
     if ca_detail is None:
-      errback(rpki.exceptions.NoCoveringCertForROA("generate_roa() could not find a certificate covering %s %s" % (v4, v6)))
-      return
+      raise rpki.exceptions.NoCoveringCertForROA, "generate_roa() could not find a certificate covering %s %s" % (v4, v6)
 
     ca = ca_detail.ca()
 

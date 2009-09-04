@@ -278,3 +278,13 @@ class BSCNotReady(RPKI_Exception):
   """
   BSC not yet in a usable state, signing_cert not set.
   """
+
+class HTTPSUnexpectedState(RPKI_Exception):
+  """
+  HTTPS event occurred in an unexpected state.
+  """
+
+class HTTPSBadVersion(RPKI_Exception):
+  """
+  HTTPS couldn't parse HTTP version.
+  """

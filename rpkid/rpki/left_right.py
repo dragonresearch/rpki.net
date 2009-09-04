@@ -416,44 +416,52 @@ class self_elt(data_elt):
           rpki.log.warn("Could not update ROA %r, skipping: %s" % (roa, e))
           iterator()
 
-        key = (roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6))
+        try:
 
-        if key not in roas:
-          # This really should be using a constructor
-          roa = rpki.rpki_engine.roa_obj()
-          roa.gctx = self.gctx
-          roa.self_id = self.self_id
-          roa.asn = roa_request.asn
-          roa.ipv4 = roa_request.ipv4
-          roa.ipv6 = roa_request.ipv6
-          return roa.generate_roa(iterator, lose)
+          key = (roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6))
 
-        roa = roas[key]
-        del roas[key]
+          if key not in roas:
+            # This really should be using a constructor
+            roa = rpki.rpki_engine.roa_obj()
+            roa.gctx = self.gctx
+            roa.self_id = self.self_id
+            roa.asn = roa_request.asn
+            roa.ipv4 = roa_request.ipv4
+            roa.ipv6 = roa_request.ipv6
+            return roa.generate_roa(iterator, lose)
 
-        ca_detail = roa.ca_detail()
+          roa = roas[key]
+          del roas[key]
 
-        if ca_detail is None or ca_detail.state != "active":
-          return roa.regenerate_roa(iterator, lose)
+          ca_detail = roa.ca_detail()
 
-        regen_margin = rpki.sundial.timedelta(seconds = self.regen_margin)
+          if ca_detail is None or ca_detail.state != "active":
+            return roa.regenerate_roa(iterator, lose)
 
-        if rpki.sundial.now() + regen_margin > roa.cert.getNotAfter():
-          return roa.regenerate_roa(iterator, lose)
+          regen_margin = rpki.sundial.timedelta(seconds = self.regen_margin)
 
-        ca_resources = ca_detail.latest_ca_cert.get_3779resources()
-        ee_resources = roa.cert.get_3779resources()
+          if rpki.sundial.now() + regen_margin > roa.cert.getNotAfter():
+            return roa.regenerate_roa(iterator, lose)
 
-        if ee_resources.oversized(ca_resources):
-          return roa.regenerate_roa(iterator, lose)
+          ca_resources = ca_detail.latest_ca_cert.get_3779resources()
+          ee_resources = roa.cert.get_3779resources()
 
-        v4 = roa.ipv4.to_resource_set() if roa.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
-        v6 = roa.ipv6.to_resource_set() if roa.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
+          if ee_resources.oversized(ca_resources):
+            return roa.regenerate_roa(iterator, lose)
 
-        if ee_resources.v4 != v4 or ee_resources.v6 != v6:
-          return roa.regenerate_roa(iterator, lose)
+          v4 = roa.ipv4.to_resource_set() if roa.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
+          v6 = roa.ipv6.to_resource_set() if roa.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
 
-        iterator()
+          if ee_resources.v4 != v4 or ee_resources.v6 != v6:
+            return roa.regenerate_roa(iterator, lose)
+
+          iterator()
+
+        except (SystemExit, rpki.async.ExitNow):
+          raise
+
+        except Exception, e:
+          lose(e)
 
       def roa_requests_done():
 

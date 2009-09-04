@@ -121,7 +121,7 @@ class http_message(object):
 
   def parse_version(self, version):
     if version[:5] != "HTTP/":
-      raise RuntimeError, "Couldn't parse version %s" % version
+      raise rpki.exceptions.HTTPSBadVersion, "Couldn't parse version %s" % version
     self.version = tuple(int(i) for i in version[5:].split("."))
 
   def persistent(self):
@@ -136,8 +136,8 @@ class http_message(object):
 class http_request(http_message):
 
   def __init__(self, cmd = None, path = None, version = default_http_version, body = None, callback = None, errback = None, **headers):
-    if cmd is not None and cmd != "POST" and body is not None:
-      raise RuntimeError
+    #assert cmd is None or cmd == "POST" or body is None
+    assert cmd == "POST" or body is None
     http_message.__init__(self, version = version, body = body, headers = headers)
     self.cmd = cmd
     self.path = path
@@ -267,12 +267,13 @@ class http_stream(asynchat.async_chat):
     self.handle_message()
 
   def handle_error(self):
-    if sys.exc_info()[0] is SystemExit:
-      self.log("Caught SystemExit, propagating")
+    etype = sys.exc_info()[0]
+    if etype in (SystemExit, rpki.async.ExitNow):
+      self.log("Caught %s, propagating" % etype.__name__)
       raise
-    else:
-      self.log("Error in HTTP stream handler")
-      rpki.log.traceback()
+    self.log("Error in HTTP stream handler")
+    rpki.log.traceback()
+    if etype not in (rpki.exceptions.HTTPSClientAborted,):
       self.log("Closing due to error")
       self.close()
 
@@ -394,8 +395,7 @@ class http_server(http_stream):
     self.tls.useCertificate(cert.get_POW())
     self.tls.useKey(key.get_POW())
     ta = rpki.x509.X509.normalize_chain(dynamic_ta() if dynamic_ta else ta)
-    if not ta:
-      raise RuntimeError, "No trust anchor(s) specified, this is unlikely to work"
+    assert ta
     for x in ta:
       self.log_cert("trusted", x)
       self.tls.addTrust(x.get_POW())
@@ -544,8 +544,7 @@ class http_client(http_stream):
     self.log_cert("client", self.cert)
     self.tls.useCertificate(self.cert.get_POW())
     self.tls.useKey(self.key.get_POW())
-    if not self.ta:
-      raise RuntimeError, "No trust anchor(s) specified, this is unlikely to work"
+    assert self.ta
     for x in self.ta:
       self.log_cert("trusted", x)
       self.tls.addTrust(x.get_POW())
@@ -591,7 +590,7 @@ class http_client(http_stream):
         assert not self.msg.body
         self.log("Ignoring empty response received while closing")
         return
-      raise RuntimeError, "%r received message while in unexpected state %s" % (self, self.state)
+      raise rpki.exceptions.HTTPSUnexpectedState, "%r received message while in unexpected state %s" % (self, self.state)
 
     if self.expect_close:
       self.log("Closing")
@@ -603,11 +602,9 @@ class http_client(http_stream):
       self.set_state("idle")
       self.update_timeout()
 
-    if self.msg.code == 200:
-      self.queue.return_result(self.msg)
-    else:
-      self.queue.return_result(rpki.exceptions.HTTPRequestFailed(
-        "HTTPS request failed with status %s, reason %s, response %s" % (self.msg.code, self.msg.reason, self.msg.body)))
+    if self.msg.code != 200:
+      raise rpki.exceptions.HTTPRequestFailed, "HTTPS request failed with status %s, reason %s, response %s" % (self.msg.code, self.msg.reason, self.msg.body)
+    self.queue.return_result(self.msg)
 
   def handle_close(self):
     http_stream.handle_close(self)
@@ -616,7 +613,7 @@ class http_client(http_stream):
     if self.get_terminator() is None:
       self.handle_body()
     elif self.state == "request-sent":
-      self.queue.return_result(rpki.exceptions.HTTPSClientAborted("HTTPS request aborted by close event"))
+      raise rpki.exceptions.HTTPSClientAborted, "HTTPS request aborted by close event"
 
   def handle_timeout(self):
     if self.state != "idle":
@@ -627,11 +624,7 @@ class http_client(http_stream):
   def handle_error(self):
     http_stream.handle_error(self)
     self.queue.detach(self)
-    etype, edata = sys.exc_info()[:2]
-    if etype in (SystemExit, rpki.async.ExitNow):
-      raise edata
-    else:
-      self.queue.return_result(edata)
+    self.queue.return_result(sys.exc_info()[1])
 
 class http_queue(object):
 

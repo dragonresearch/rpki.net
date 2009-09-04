@@ -102,9 +102,9 @@ def traceback():
   Consolidated backtrace facility with a bit of extra info.
   """
 
+  assert sys.exc_info() != (None, None, None), "rpki.log.traceback() called without valid trace on stack, this is a programming error"
   bt = tb.extract_stack(limit = 3)
   error("Exception caught in %s() at %s:%d called from %s:%d" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
-  if sys.exc_info() == (None, None, None):
-    error("Stacktrace (most recent call last):\n" + "".join(tb.format_stack()))
-  else:
-    error(tb.format_exc())
+  bt = tb.format_exc()
+  assert bt is not None, "Apparently I'm still not using the right test for null backtrace"
+  error(bt)

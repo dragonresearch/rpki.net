@@ -86,10 +86,28 @@ class UsageWrapper(textwrap.TextWrapper):
 
 usage_fill = UsageWrapper(subsequent_indent = " " * 4)
 
-class cmd_elt_mixin(object):
+class reply_elt_mixin(object):
+  """
+  Protocol mix-in for printout of reply PDUs.
+  """
+
+  is_cmd = False
+
+  def client_reply_decode(self):
+    pass
+
+  def client_reply_show(self):
+    print self.element_name
+    for i in self.attributes + self.elements:
+      if getattr(self, i) is not None:
+        print "  %s: %s" % (i, getattr(self, i))
+
+class cmd_elt_mixin(reply_elt_mixin):
   """
   Protocol mix-in for command line client element PDUs.
   """
+
+  is_cmd = True
 
   ## @var excludes
   # XML attributes and elements that should not be allowed as command
@@ -151,15 +169,6 @@ class cmd_elt_mixin(object):
     """Special handler for --bpki_https_glue option."""
     self.bpki_https_glue = rpki.x509.X509(Auto_file = arg)
 
-  def client_reply_decode(self):
-    pass
-
-  def client_reply_show(self):
-    print self.element_name
-    for i in self.attributes + self.elements:
-      if getattr(self, i) is not None:
-        print "  %s: %s" % (i, getattr(self, i))
-
 class cmd_msg_mixin(object):
   """
   Protocol mix-in for command line client message PDUs.
@@ -171,7 +180,8 @@ class cmd_msg_mixin(object):
     Generate usage message for this PDU.
     """
     for k, v in cls.pdus.items():
-      print usage_fill(k, v.usage())
+      if v.is_cmd:
+        print usage_fill(k, v.usage())
 
 # left-right protcol
 
@@ -206,9 +216,12 @@ class child_elt(cmd_elt_mixin, rpki.left_right.child_elt):
 class repository_elt(cmd_elt_mixin, rpki.left_right.repository_elt):
   pass
 
+class report_error_elt(reply_elt_mixin, rpki.left_right.report_error_elt):
+  pass
+
 class left_right_msg(cmd_msg_mixin, rpki.left_right.msg):
   pdus = dict((x.element_name, x)
-              for x in (self_elt, bsc_elt, parent_elt, child_elt, repository_elt))
+              for x in (self_elt, bsc_elt, parent_elt, child_elt, repository_elt, report_error_elt))
 
 class left_right_sax_handler(rpki.left_right.sax_handler):
   pdu = left_right_msg
@@ -239,9 +252,12 @@ class manifest_elt(cmd_elt_mixin, rpki.publication.manifest_elt):
 class roa_elt(cmd_elt_mixin, rpki.publication.roa_elt):
   pass
 
+class report_error_elt(reply_elt_mixin, rpki.publication.report_error_elt):
+  pass
+
 class publication_msg(cmd_msg_mixin, rpki.publication.msg):
   pdus = dict((x.element_name, x)
-              for x in (config_elt, client_elt, certificate_elt, crl_elt, manifest_elt, roa_elt))
+              for x in (config_elt, client_elt, certificate_elt, crl_elt, manifest_elt, roa_elt, report_error_elt))
 
 class publication_sax_handler(rpki.publication.sax_handler):
   pdu = publication_msg

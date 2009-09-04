@@ -351,14 +351,22 @@ class data_elt(base_elt):
       r_msg.append(r_pdu)
     cb()
 
+  def serve_destoy_hook(self, cb, eb):
+    """
+    Overridable hook.
+    """
+    cb()
+
   def serve_destroy(self, r_msg, cb, eb):
     """
     Handle a destroy action.
     """
+    def done():
+      db_pdu.sql_delete()
+      r_msg.append(self.make_reply())
+      cb()
     db_pdu = self.serve_fetch_one()
-    db_pdu.sql_delete()
-    r_msg.append(self.make_reply())
-    cb()
+    db_pdu.serve_destroy_hook(done, eb)
 
   def serve_dispatch(self, r_msg, cb, eb):
     """

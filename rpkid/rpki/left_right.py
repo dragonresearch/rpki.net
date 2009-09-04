@@ -762,6 +762,14 @@ class child_elt(data_elt):
       self.clear_https_ta_cache = False
     cb()
 
+  def serve_destroy_hook(self, cb, eb):
+    """
+    Extra server actions when destroying a child_elt.
+    """
+    def loop(iterator, child_cert):
+      child_cert.revoke(iterator, eb)
+    rpki.async.iterator(self.child_certs(), loop, cb)
+
   def endElement(self, stack, name, text):
     """
     Handle subelements of <child/> element.  These require special
@@ -926,7 +934,7 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
     def done():
       cb(r_msg)
 
-    rpki.async.iterator(self, loop, done, unwind_stack = True)
+    rpki.async.iterator(self, loop, done)
 
 class sax_handler(rpki.xml_utils.sax_handler):
   """

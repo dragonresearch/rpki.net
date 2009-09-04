@@ -945,7 +945,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
       rpki.log.info("Suppressing withdrawal of %r" % self.cert)
       done()
 
-  def reissue(self, ca_detail, callback = None, errback = None, resources = None, sia = None):
+  def reissue(self, ca_detail, callback, errback, resources = None, sia = None):
     """
     Reissue an existing cert, reusing the public key.  If the cert we
     would generate is identical to the one we already have, we just
@@ -954,10 +954,6 @@ class child_cert_obj(rpki.sql.sql_persistent):
     child_cert_obj, so calling code that needs the updated
     child_cert_obj must use the return value from this method.
     """
-
-    # Hack during conversion, remove default values and these assertions eventually
-    assert callback is not None
-    assert errback is not None
 
     ca = ca_detail.ca()
     child = self.child()

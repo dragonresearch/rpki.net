@@ -1,7 +1,7 @@
 import lxml.etree
 myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: schema.rnc 2700 2009-08-24 19:09:24Z sra $
+  $Id: schema.rnc 2722 2009-08-31 22:24:48Z sra $
   
   RelaxNG Schema for MyRPKI XML messages
   

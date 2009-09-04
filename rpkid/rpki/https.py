@@ -136,7 +136,6 @@ class http_message(object):
 class http_request(http_message):
 
   def __init__(self, cmd = None, path = None, version = default_http_version, body = None, callback = None, errback = None, **headers):
-    #assert cmd is None or cmd == "POST" or body is None
     assert cmd == "POST" or body is None
     http_message.__init__(self, version = version, body = body, headers = headers)
     self.cmd = cmd

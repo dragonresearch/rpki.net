@@ -111,24 +111,35 @@ def handler(query, path, cb):
 
     db.ping()
 
-    q_msg = rpki.left_right.cms_msg.unwrap(query, (bpki_ta, rpkid_cert))
-
-    if not isinstance(q_msg, rpki.left_right.msg) or not q_msg.is_query():
-      raise rpki.exceptions.BadQuery, "Unexpected %s PDU" % repr(q_msg)
-
     r_msg = rpki.left_right.msg.reply()
 
-    for q_pdu in q_msg:
+    try:
 
-      try:
-        if type(q_pdu) in handle_dispatch:
+      q_msg = rpki.left_right.cms_msg.unwrap(query, (bpki_ta, rpkid_cert))
+
+      if not isinstance(q_msg, rpki.left_right.msg) or not q_msg.is_query():
+        raise rpki.exceptions.BadQuery, "Unexpected %s PDU" % repr(q_msg)
+
+      for q_pdu in q_msg:
+
+        try:
+          if type(q_pdu) not in handle_dispatch:
+            raise rpki.exceptions.BadQuery, "Unexpected %s PDU" % repr(q_pdu)
           handle_dispatch[type(q_pdu)](q_pdu, r_msg)
-        else:
-          raise rpki.exceptions.BadQuery, "Unexpected %s PDU" % repr(q_pdu)
 
-      except Exception, data:
-        rpki.log.traceback()
-        r_msg.append(rpki.left_right.report_error_elt.from_exception(data, q_pdu.self_handle, q_pdu.tag))
+        except (rpki.async.ExitNow, SystemExit):
+          raise
+
+        except Exception, data:
+          rpki.log.traceback()
+          r_msg.append(rpki.left_right.report_error_elt.from_exception(data, q_pdu.self_handle, q_pdu.tag))
+
+    except (rpki.async.ExitNow, SystemExit):
+      raise
+
+    except Exception, data:
+      rpki.log.traceback()
+      r_msg.append(rpki.left_right.report_error_elt.from_exception(data))
 
     cb(200, rpki.left_right.cms_msg.wrap(r_msg, irdbd_key, irdbd_cert))
 

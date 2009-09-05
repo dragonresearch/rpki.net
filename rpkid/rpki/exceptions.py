@@ -288,3 +288,8 @@ class HTTPSBadVersion(RPKI_Exception):
   """
   HTTPS couldn't parse HTTP version.
   """
+
+class HandleTranslationError(RPKI_Exception):
+  """
+  Internal error translating protocol handle -> SQL id.
+  """

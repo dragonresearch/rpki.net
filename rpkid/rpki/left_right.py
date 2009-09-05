@@ -98,16 +98,29 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
   def serve_pre_save_hook(self, q_pdu, r_pdu, cb, eb):
     """
     Hook to do _handle => _id translation before saving.
+
+    self and q_pdu may be the same object; when they are, this is a
+    create operation, when they're not, this is a set operation and
+    self is the pre-existing object from sql.
+
+    I'm pretty sure that this method could become simpler.  I have no
+    idea why we care about setting id values in r_pdu, and suspect
+    that was just confusion on my part.  This version seems to work,
+    though, so I'm checking it in before attempting cleanup.
     """
     for tag, elt in self.handles:
       id_name = tag + "_id"
-      if getattr(r_pdu, id_name, None) is None:
-        x = elt.serve_fetch_handle(self.gctx, self.self_id, getattr(q_pdu, tag + "_handle"))
+      if getattr(r_pdu, id_name, None) is not None:
+        continue
+      val = getattr(self, id_name, None)
+      if val is None:
+        handle_name = tag + "_handle"
+        x = elt.serve_fetch_handle(self.gctx, self.self_id, getattr(q_pdu, handle_name))
         if x is None:
-          raise rpki.exceptions.NotFound
+          raise rpki.exceptions.HandleTranslationError, "Could not translate %r %r %r" % (handle_name, self, q_pdu)
         val = getattr(x, id_name)
         setattr(self, id_name, val)
-        setattr(r_pdu, id_name, val)
+      setattr(r_pdu, id_name, val)
     cb()
 
   def unimplemented_control(self, *controls):

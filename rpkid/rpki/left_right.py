@@ -55,6 +55,7 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
   handles = ()
 
   self_id = None
+  self_handle = None
 
   def self(self):
     """Fetch self object to which this object links."""
@@ -65,8 +66,11 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
     return bsc_elt.sql_fetch(self.gctx, self.bsc_id)
 
   def make_reply_clone_hook(self, r_pdu):
-    """Set self_handle when cloning."""
-    r_pdu.self_handle = self.self_handle
+    """
+    Set self_handle when cloning.
+    """
+    if r_pdu.self_handle is None:
+      r_pdu.self_handle = self.self_handle
 
   @classmethod
   def serve_fetch_handle(cls, gctx, self_id, handle):
@@ -82,7 +86,20 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
     """
     where = "%s.%s_handle = %%s AND %s.self_id = self.self_id AND self.self_handle = %%s" % ((self.element_name,) * 3)
     args = (getattr(self, self.element_name + "_handle"), self.self_handle)
-    return self.sql_fetch_where1(self.gctx, where, args, "self")
+
+    debug_this = False
+
+    if debug_this:
+      save_debug = rpki.sql.sql_persistent.sql_debug
+      rpki.sql.sql_persistent.sql_debug = True
+
+    result = self.sql_fetch_where1(self.gctx, where, args, "self")
+
+    if debug_this:
+      rpki.sql.sql_persistent.sql_debug = save_debug
+      rpki.log.debug("data_elt.serve_fetch_one_maybe(): %r" % (result,))
+
+    return result
 
   def serve_fetch_all(self):
     """

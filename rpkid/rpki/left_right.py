@@ -99,17 +99,17 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
     """
     Hook to do _handle => _id translation before saving.
 
-    self and q_pdu may be the same object; when they are, this is a
-    create operation, when they're not, this is a set operation and
-    self is the pre-existing object from sql.
+    self is always the object to be saved to SQL.  For create
+    operations, self and q_pdu are be the same object; for set
+    operations, self is the pre-existing object from SQL and q_pdu is
+    the set request received from the the IRBE.
     """
     for tag, elt in self.handles:
       id_name = tag + "_id"
       if getattr(self, id_name, None) is None:
-        handle_name = tag + "_handle"
-        x = elt.serve_fetch_handle(self.gctx, self.self_id, getattr(q_pdu, handle_name))
+        x = elt.serve_fetch_handle(self.gctx, self.self_id, getattr(q_pdu, tag + "_handle"))
         if x is None:
-          raise rpki.exceptions.HandleTranslationError, "Could not translate %r %r %r" % (handle_name, self, q_pdu)
+          raise rpki.exceptions.HandleTranslationError, "Could not translate %r %s_handle" % (self, tag)
         setattr(self, id_name, getattr(x, id_name))
     cb()
 

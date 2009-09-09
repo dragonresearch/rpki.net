@@ -79,16 +79,23 @@ def set_subject_pkcs10(pkcs10):
   f.write(pkcs10.get_DER())
   f.close()
 
-def issue_subject_cert_maybe():
+def issue_subject_cert_maybe(new_pkcs10):
   now = rpki.sundial.now()
   subject_cert = get_subject_cert()
-  if subject_cert is not None:
-    if subject_cert.getNotAfter() > now + rpki_subject_regen:
-      return subject_cert
+  old_pkcs10 = get_subject_pkcs10()
+  if new_pkcs10 is not None and new_pkcs10 != old_pkcs10:
+    set_subject_pkcs10(new_pkcs10)
+    if subject_cert is not None:
+      rpki.log.debug("PKCS #10 changed, regenerating subject certificate")
+      subject_cert = None
+  if subject_cert is not None and subject_cert.getNotAfter() <= now + rpki_subject_regen:
     rpki.log.debug("Subject certificate has reached expiration threshold, regenerating")
-  pkcs10 = get_subject_pkcs10()
+    subject_cert = None
+  if subject_cert is not None:
+    return subject_cert
+  pkcs10 = old_pkcs10 if new_pkcs10 is None else new_pkcs10
   if pkcs10 is None:
-    rpki.log.debug("No saved PKCS #10 request")
+    rpki.log.debug("No PKCS #10 request, can't generate subject certificate")
     return None
   resources = rpki_root_cert.get_3779resources()
   rpki.log.info("Generating subject cert with resources " + str(resources))
@@ -144,14 +151,14 @@ def issue_subject_cert_maybe():
   set_subject_cert(subject_cert)
   return subject_cert
 
-def compose_response(r_msg):
+def compose_response(r_msg, pkcs10 = None):
   rc = rpki.up_down.class_elt()
   rc.class_name = rpki_class_name
   rc.cert_url = rpki.up_down.multi_uri(rpki_root_cert_uri)
   rc.from_resource_bag(rpki_root_cert.get_3779resources())
   rc.issuer = rpki_root_cert
   r_msg.payload.classes.append(rc)
-  subject_cert = issue_subject_cert_maybe()
+  subject_cert = issue_subject_cert_maybe(pkcs10)
   if subject_cert is not None:
     rc.certs.append(rpki.up_down.certificate_elt())
     rc.certs[0].cert_url = rpki.up_down.multi_uri(rpki_base_uri + rpki_subject_cert)
@@ -166,9 +173,8 @@ class list_pdu(rpki.up_down.list_pdu):
 class issue_pdu(rpki.up_down.issue_pdu):
   def serve_pdu(self, q_msg, r_msg, ignored, callback, errback):
     self.pkcs10.check_valid_rpki()
-    set_subject_pkcs10(self.pkcs10)
     r_msg.payload = rpki.up_down.issue_response_pdu()
-    compose_response(r_msg)
+    compose_response(r_msg, self.pkcs10)
     callback()
 
 class revoke_pdu(rpki.up_down.revoke_pdu):

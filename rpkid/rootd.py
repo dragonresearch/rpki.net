@@ -54,7 +54,7 @@ def get_subject_cert():
 
 def set_subject_cert(cert):
   filename = rpki_root_dir + rpki_subject_cert
-  rpki.log.debug("Writing subject cert %s" % filename)
+  rpki.log.debug("Writing subject cert %s, SKI %s" % (filename, cert.hSKI()))
   f = open(filename, "wb")
   f.write(cert.get_DER())
   f.close()

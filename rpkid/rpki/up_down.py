@@ -689,3 +689,6 @@ class cms_msg(rpki.x509.XML_CMS_object):
   encoding = "UTF-8"
   schema = rpki.relaxng.up_down
   saxify = sax_handler.saxify
+
+  dump_outbound_cms = "audit/up-down.out."
+  dump_inbound_cms = "audit/up-down.in."

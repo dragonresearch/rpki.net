@@ -64,6 +64,14 @@ namespace = "http://www.hactrn.net/uris/rpki/myrpki/"
 
 csv_dialect = csv.get_dialect("excel-tab")
 
+# Whether to include incomplete entries when rendering to XML.
+
+allow_incomplete = False
+
+# Whether to whine about incomplete entries while rendering to XML.
+
+whine = False
+
 class comma_set(set):
   """
   Minor customization of set(), to provide a print syntax.
@@ -86,7 +94,12 @@ class roa_request(object):
     self.v6 = comma_set()
 
   def __repr__(self):
-    return "<%s asn %s v4 %s v6 %s>" % (self.__class__.__name__, self.asn, self.v4, self.v6)
+    s = "<%s asn %s" % (self.__class__.__name__, self.asn)
+    if self.v4:
+      s += " v4 %s" % self.v4
+    if self.v6:
+      s += " v6 %s" % self.v6
+    return s + ">"
 
   def add(self, prefix):
     """
@@ -103,10 +116,10 @@ class roa_request(object):
     """
     Generate XML element represeting representing this ROA request.
     """
-    return SubElement(e, "roa_request",
-                      asn = self.asn,
-                      v4 = str(self.v4),
-                      v6 = str(self.v6))
+    SubElement(e, "roa_request",
+               asn = self.asn,
+               v4 = str(self.v4),
+               v6 = str(self.v6))
 
 class roa_requests(dict):
   """
@@ -156,7 +169,18 @@ class child(object):
     self.bpki_certificate = None
 
   def __repr__(self):
-    return "<%s v4 %s v6 %s asns %s validity %s cert %s>" % (self.__class__.__name__, self.v4, self.v6, self.asns, self.validity, self.bpki_certificate)
+    s = "<%s %s" % (self.__class__.__name__, self.handle)
+    if self.asns:
+      s += " asn %s" % self.asns
+    if self.v4:
+      s += " v4 %s" % self.v4
+    if self.v6:
+      s += " v6 %s" % self.v6
+    if self.validity:
+      s += " valid %s" % self.validity
+    if self.bpki_certificate:
+      s += " cert %s" % self.bpki_certificate
+    return s + ">"
 
   def add(self, prefix = None, asn = None, validity = None, bpki_certificate = None):
     """
@@ -181,15 +205,18 @@ class child(object):
     """
     Render this child as an XML element.
     """
-    e2 = SubElement(e, "child",
-                    handle = self.handle,
-                    valid_until = self.validity,
-                    asns = str(self.asns),
-                    v4 = str(self.v4),
-                    v6 = str(self.v6))
-    if self.bpki_certificate:
-      PEMElement(e2, "bpki_certificate", self.bpki_certificate)
-    return e2
+    complete = self.bpki_certificate and self.validity
+    if whine and not complete:
+      print "Incomplete child entry %s" % self
+    if complete or allow_incomplete:
+      e = SubElement(e, "child",
+                     handle = self.handle,
+                     valid_until = self.validity,
+                     asns = str(self.asns),
+                     v4 = str(self.v4),
+                     v6 = str(self.v6))
+      if self.bpki_certificate:
+        PEMElement(e, "bpki_certificate", self.bpki_certificate)
 
 class children(dict):
   """
@@ -242,13 +269,18 @@ class parent(object):
     self.sia_base = None
 
   def __repr__(self):
-    return "<%s handle %s myhandle %s uri %s sia %s cms %s https %s>" % (self.__class__.__name__,
-                                                                  self.handle,
-                                                                  self.myhandle,
-                                                                  self.service_uri,
-                                                                  self.sia_base,
-                                                                  self.bpki_cms_certificate,
-                                                                  self.bpki_https_certificate)
+    s = "<%s %s" % (self.__class__.__name__, self.handle)
+    if self.myhandle:
+      s += " myhandle %s" % self.myhandle
+    if self.service_uri:
+      s += " uri %s" % self.service_uri
+    if self.sia_base:
+      s += " sia %s" % self.sia_base
+    if self.bpki_cms_certificate:
+      s += " cms %s" % self.bpki_cms_certificate
+    if self.bpki_https_certificate:
+      s += " https %s" % self.bpki_https_certificate
+    return s + ">"
 
   def add(self, service_uri = None,
           bpki_cms_certificate = None,
@@ -273,16 +305,19 @@ class parent(object):
     """
     Render this parent object to XML.
     """
-    e2 = SubElement(e, "parent",
-                    handle = self.handle,
-                    myhandle = self.myhandle,
-                    service_uri = self.service_uri,
-                    sia_base = self.sia_base)
-    if self.bpki_cms_certificate:
-      PEMElement(e2, "bpki_cms_certificate", self.bpki_cms_certificate)
-    if self.bpki_https_certificate:
-      PEMElement(e2, "bpki_https_certificate", self.bpki_https_certificate)
-    return e2
+    complete = self.bpki_cms_certificate and self.bpki_https_certificate and self.myhandle and self.service_uri and self.sia_base
+    if whine and not complete:
+      print "Incomplete parent entry %s" % self
+    if complete or allow_incomplete:
+      e = SubElement(e, "parent",
+                     handle = self.handle,
+                     myhandle = self.myhandle,
+                     service_uri = self.service_uri,
+                     sia_base = self.sia_base)
+      if self.bpki_cms_certificate:
+        PEMElement(e, "bpki_cms_certificate", self.bpki_cms_certificate)
+      if self.bpki_https_certificate:
+        PEMElement(e, "bpki_https_certificate", self.bpki_https_certificate)
 
 class parents(dict):
   """

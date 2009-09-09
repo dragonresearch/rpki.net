@@ -65,10 +65,9 @@ def del_subject_cert():
   os.remove(filename)
 
 def get_subject_pkcs10():
-  filename = rpki_subject_pkcs10
   try:
-    x = rpki.x509.PKCS10(Auto_file = filename)
-    rpki.log.debug("Read subject PKCS #10 %s" % filename)
+    x = rpki.x509.PKCS10(Auto_file = rpki_subject_pkcs10)
+    rpki.log.debug("Read subject PKCS #10 %s" % rpki_subject_pkcs10)
     return x
   except IOError:
     return None
@@ -79,6 +78,13 @@ def set_subject_pkcs10(pkcs10):
   f.write(pkcs10.get_DER())
   f.close()
 
+def del_subject_pkcs10():
+  rpki.log.debug("Deleting subject PKCS #10 %s" % rpki_subject_pkcs10)
+  try:
+    os.remove(rpki_subject_pkcs10)
+  except OSError:
+    pass
+  
 def issue_subject_cert_maybe(new_pkcs10):
   now = rpki.sundial.now()
   subject_cert = get_subject_cert()
@@ -183,6 +189,7 @@ class revoke_pdu(rpki.up_down.revoke_pdu):
     if subject_cert is None or subject_cert.gSKI() != self.ski:
       raise rpki.exceptions.NotInDatabase
     del_subject_cert()
+    del_subject_pkcs10()
     r_msg.payload = rpki.up_down.revoke_response_pdu()
     r_msg.payload.class_name = self.class_name
     r_msg.payload.ski = self.ski

@@ -580,8 +580,14 @@ class repository_elt(data_elt):
     def done(r_cms):
       try:
         r_msg = rpki.publication.cms_msg.unwrap(r_cms, bpki_ta_path)
-        if len(r_msg) != 1 or isinstance(r_msg[0], rpki.publication.report_error_elt):
-          raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %s" % str(r_msg)
+        if len(r_msg) != 1: # Some day we may allow this, but not today
+          raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %r" % r_msg
+        if isinstance(r_msg[0], rpki.publication.report_error_elt):
+          t = rpki.exceptions.__dict__.get(r_msg[0].error_code)
+          if isinstance(t, type) and issubclass(t, rpki.exceptions.RPKI_Exception):
+            raise t, getattr(r_msg[0], "text", None)
+          else:
+            raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %s" % r_msg[0]
         callback()
       except (rpki.async.ExitNow, SystemExit):
         raise
@@ -601,17 +607,26 @@ class repository_elt(data_elt):
     """
     Publish one object in the repository.
     """
+    def fail(e):
+      rpki.log.warn("Publication of %r as %r failed: %s" % (obj, uri, e))
+      errback(e)
     rpki.log.trace()
-    rpki.log.info("Publishing %s as %s" % (repr(obj), repr(uri)))
-    self.call_pubd(callback, errback, rpki.publication.obj2elt[type(obj)].make_pdu(action = "publish", uri = uri, payload = obj))
+    rpki.log.info("Publishing %r as %r" % (obj, uri))
+    self.call_pubd(callback, fail, rpki.publication.obj2elt[type(obj)].make_pdu(action = "publish", uri = uri, payload = obj))
 
-  def withdraw(self, obj, uri, callback, errback):
+  def withdraw(self, obj, uri, callback, errback, allow_failure = False):
     """
     Withdraw one object from the repository.
     """
+    def fail(e):
+      rpki.log.warn("Withdrawal of %r from %r failed: %s" % (obj, uri, e))
+      if allow_failure and isinstance(e, rpki.exceptions.NoObjectAtURI):
+        callback()
+      else:
+        errback(e)
     rpki.log.trace()
-    rpki.log.info("Withdrawing %s from at %s" % (repr(obj), repr(uri)))
-    self.call_pubd(callback, errback, rpki.publication.obj2elt[type(obj)].make_pdu(action = "withdraw", uri = uri))
+    rpki.log.info("Withdrawing %r from %r" % (obj, uri))
+    self.call_pubd(callback, fail, rpki.publication.obj2elt[type(obj)].make_pdu(action = "withdraw", uri = uri))
 
 class parent_elt(data_elt):
   """

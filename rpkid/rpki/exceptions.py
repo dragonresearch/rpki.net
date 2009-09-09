@@ -293,3 +293,8 @@ class HandleTranslationError(RPKI_Exception):
   """
   Internal error translating protocol handle -> SQL id.
   """
+
+class NoObjectAtURI(RPKI_Exception):
+  """
+  No object published at specified URI.
+  """

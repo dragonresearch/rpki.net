@@ -32,7 +32,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import base64, os
+import base64, os, errno
 import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.xml_utils
 import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
 
@@ -229,7 +229,14 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     Withdraw an object.
     """
     rpki.log.info("Withdrawing %r" % (self.uri,))
-    os.remove(self.uri_to_filename())
+    filename = self.uri_to_filename()
+    try:
+      os.remove(filename)
+    except OSError, e:
+      if e.errno == errno.ENOENT:
+        raise rpki.exceptions.NoObjectAtURI, "No object published at %r" % self.uri
+      else:
+        raise
 
   def uri_to_filename(self):
     """
@@ -300,6 +307,15 @@ class report_error_elt(rpki.xml_utils.base_elt, publication_namespace):
     self.error_code = e.__class__.__name__
     self.text = str(e)
     return self
+
+  def __str__(self):
+    s = ""
+    if getattr(self, "tag", None) is not None:
+      s += "[%s] " % self.tag
+    s += self.error_code
+    if getattr(self, "text", None) is not None:
+      s += ": " + self.text
+    return s
 
 class msg(rpki.xml_utils.msg, publication_namespace):
   """

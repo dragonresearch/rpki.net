@@ -366,7 +366,7 @@ class ca_obj(rpki.sql.sql_persistent):
       if ski not in cert_map:
         rpki.log.warn("Certificate in database missing from list_response, class %s, SKI %s, maybe parent certificate went away?"
                       % (repr(rc.class_name), ca_detail.latest_ca_cert.gSKI()))
-        ca_detail.delete(self, parent.repository(), iterator, eb)
+        ca_detail.delete(self, parent.repository(), iterator, eb, allow_failure = True)
         return
 
       def cleanup():
@@ -604,25 +604,28 @@ class ca_detail_obj(rpki.sql.sql_persistent):
 
     self.generate_crl(callback = did_crl, errback = errback)
 
-  def delete(self, ca, repository, cb, eb):
+  def delete(self, ca, repository, cb, eb, allow_failure = False):
     """
     Delete this ca_detail and all of the certs it issued.
+
+    If allow_failure is true, we clean up as much as we can but don't
+    raise an exception.
     """
 
     def withdraw_one_child(iterator, child_cert):
-      repository.withdraw(child_cert.cert, child_cert.uri(ca), iterator, eb)
+      repository.withdraw(child_cert.cert, child_cert.uri(ca), iterator, eb, allow_failure)
 
     def child_certs_done():
       rpki.async.iterator(self.roas(), withdraw_one_roa, withdraw_manifest)
 
     def withdraw_one_roa(iterator, roa):
-      roa.withdraw_roa(iterator, eb)
+      roa.withdraw_roa(iterator, eb, allow_failure = allow_failure)
 
     def withdraw_manifest():
-      repository.withdraw(self.latest_manifest, self.manifest_uri(ca), withdraw_crl, eb)
+      repository.withdraw(self.latest_manifest, self.manifest_uri(ca), withdraw_crl, eb, allow_failure)
 
     def withdraw_crl():
-      repository.withdraw(self.latest_crl, self.crl_uri(ca), done, eb)
+      repository.withdraw(self.latest_crl, self.crl_uri(ca), done, eb, allow_failure)
 
     def done():
       for cert in self.child_certs() + self.revoked_certs():
@@ -1262,7 +1265,7 @@ class roa_obj(rpki.sql.sql_persistent):
 
     ca.parent().repository().publish(self.roa, self.roa_uri(), done, errback)
 
-  def withdraw_roa(self, callback, errback, regenerate = False):
+  def withdraw_roa(self, callback, errback, regenerate = False, allow_failure = False):
     """
     Withdraw ROA associated with this roa_obj.
 
@@ -1283,7 +1286,7 @@ class roa_obj(rpki.sql.sql_persistent):
     def one():
       rpki.log.debug("Withdrawing ROA and revoking its EE cert")
       rpki.rpki_engine.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
-      ca_detail.ca().parent().repository().withdraw(roa, roa_uri, two, errback)
+      ca_detail.ca().parent().repository().withdraw(roa, roa_uri, two, errback, allow_failure)
 
     def two():
       self.gctx.sql.sweep()

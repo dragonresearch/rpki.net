@@ -210,7 +210,7 @@ class timedelta(pydatetime.timedelta):
       if match:
         return cls(**dict((k, int(v)) for (k, v) in match.groupdict().items() if v is not None))
       else:
-        raise RuntimeError, "Couldn't parse timedelta %s" % repr(arg)
+        raise RuntimeError, "Couldn't parse timedelta %r" % (arg,)
 
 
   def convert_to_seconds(self):

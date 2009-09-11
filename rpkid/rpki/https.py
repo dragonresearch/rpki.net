@@ -517,7 +517,7 @@ class http_client(http_stream):
   timeout = default_client_timeout
 
   def __init__(self, queue, hostport, cert = None, key = None, ta = ()):
-    self.log("Creating new connection to %s" % repr(hostport))
+    self.log("Creating new connection to %r" % (hostport,))
     self.log("cert %r key %r ta %r" % (cert, key, ta))
     http_stream.__init__(self)
     self.queue = queue
@@ -630,7 +630,7 @@ class http_queue(object):
   log = logger
 
   def __init__(self, hostport, cert = None, key = None, ta = ()):
-    self.log("Creating queue for %s" % repr(hostport))
+    self.log("Creating queue for %r" % (hostport,))
     self.log("cert %r key %r ta %r" % (cert, key, ta))
     self.hostport = hostport
     self.client = None

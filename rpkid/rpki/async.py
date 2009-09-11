@@ -52,7 +52,7 @@ class iterator(object):
     except (ExitNow, SystemExit):
       raise
     except:
-      rpki.log.debug("Problem constructing iterator for %s" % repr(iterable))
+      rpki.log.debug("Problem constructing iterator for %r" % (iterable,))
       raise
     self.doit()
 

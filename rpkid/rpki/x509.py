@@ -175,7 +175,7 @@ class DER_object(object):
         self.clear()
         self.DER = value
         return
-    raise rpki.exceptions.DERObjectConversionError, "Can't honor conversion request %s" % repr(kw)
+    raise rpki.exceptions.DERObjectConversionError, "Can't honor conversion request %r" % (kw,)
   
   def get_DER(self):
     """
@@ -573,7 +573,7 @@ class PKCS10(DER_object):
     for method, location in req_exts.get("subjectInfoAccess", ()):
       if rpki.oids.oid2name.get(method) == "id-ad-caRepository" and \
            (location[0] != "uri" or (location[1].startswith("rsync://") and not location[1].endswith("/"))):
-        raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %s" % repr(location)
+        raise rpki.exceptions.BadPKCS10, "Certificate request includes bad SIA component: %r" % location
 
     # This one is an implementation restriction.  I don't yet
     # understand what the spec is telling me to do in this case.
@@ -786,8 +786,7 @@ class CMS_object(DER_object):
       raise
     except:
       if self.print_on_der_error:
-        rpki.log.debug("Problem parsing DER CMS message, might not really be DER: %s"
-                       % repr(self.get_DER()))
+        rpki.log.debug("Problem parsing DER CMS message, might not really be DER: %r" % self.get_DER())
       raise rpki.exceptions.UnparsableCMSDER
 
     if cms.eContentType() != self.econtent_oid:
@@ -800,7 +799,7 @@ class CMS_object(DER_object):
       for x in certs:
         rpki.log.debug("Received CMS cert issuer %s subject %s SKI %s" % (x.getIssuer(), x.getSubject(), x.hSKI()))
       for c in crls:
-        rpki.log.debug("Received CMS CRL issuer %s" % repr(c.getIssuer()))
+        rpki.log.debug("Received CMS CRL issuer %r" % (c.getIssuer(),))
 
     store = POW.X509Store()
 

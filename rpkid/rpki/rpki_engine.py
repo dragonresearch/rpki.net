@@ -364,8 +364,8 @@ class ca_obj(rpki.sql.sql_persistent):
       ski = ca_detail.latest_ca_cert.get_SKI()
 
       if ski not in cert_map:
-        rpki.log.warn("Certificate in database missing from list_response, class %s, SKI %s, maybe parent certificate went away?"
-                      % (repr(rc.class_name), ca_detail.latest_ca_cert.gSKI()))
+        rpki.log.warn("Certificate in database missing from list_response, class %r, SKI %s, maybe parent certificate went away?"
+                      % (rc.class_name, ca_detail.latest_ca_cert.gSKI()))
         ca_detail.delete(self, parent.repository(), iterator, eb, allow_failure = True)
         return
 
@@ -393,11 +393,23 @@ class ca_obj(rpki.sql.sql_persistent):
 
     def done():
       if cert_map:
-        rpki.log.warn("Certificates in list_response missing from our database, class %s, SKIs %s"
-                      % (repr(rc.class_name), ", ".join(c.cert.gSKI() for c in cert_map.values())))
+        rpki.log.warn("Certificates in list_response missing from our database, class %r, SKIs %s"
+                      % (rc.class_name, ", ".join(c.cert.gSKI() for c in cert_map.values())))
       cb()
 
-    rpki.async.iterator(ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL AND state != 'revoked'", (self.ca_id,)), loop, done)
+    ca_details = ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL AND state != 'revoked'", (self.ca_id,))
+
+    if True:
+      for x in cert_map.itervalues():
+        rpki.log.debug("Parent thinks I have %r %s" % (x, x.cert.gSKI()))
+      for x in ca_details:
+        rpki.log.debug("I think I have %r %s" % (x, x.latest_ca_cert.gSKI()))
+
+    if ca_details:
+      rpki.async.iterator(ca_details, loop, done)
+    else:
+      rpki.log.warn("Existing certificate class %r with no certificates, rekeying" % rc.class_name)
+      self.rekey(cb, eb)
 
   @classmethod
   def create(cls, parent, rc, cb, eb):
@@ -538,10 +550,8 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     Extra assertions for SQL decode of a ca_detail_obj.
     """
     rpki.sql.sql_persistent.sql_decode(self, vals)
-    assert (self.public_key is None and self.private_key_id is None) or \
-           self.public_key.get_DER() == self.private_key_id.get_public_DER()
-    assert (self.manifest_public_key is None and self.manifest_private_key_id is None) or \
-           self.manifest_public_key.get_DER() == self.manifest_private_key_id.get_public_DER()
+    assert self.public_key is None or self.private_key_id is None or self.public_key.get_DER() == self.private_key_id.get_public_DER()
+    assert self.manifest_public_key is None or self.manifest_private_key_id is None or self.manifest_public_key.get_DER() == self.manifest_private_key_id.get_public_DER()
 
   def ca(self):
     """Fetch CA object to which this ca_detail links."""
@@ -802,10 +812,10 @@ class ca_detail_obj(rpki.sql.sql_persistent):
         child_id     = child.child_id,
         ca_detail_id = self.ca_detail_id,
         cert         = cert)
-      rpki.log.debug("Created new child_cert %s" % repr(child_cert))
+      rpki.log.debug("Created new child_cert %r" % child_cert)
     else:
       child_cert.cert = cert
-      rpki.log.debug("Reusing existing child_cert %s" % repr(child_cert))
+      rpki.log.debug("Reusing existing child_cert %r" % child_cert)
 
     child_cert.ski = cert.get_SKI()
 
@@ -932,7 +942,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
     Revoke a child cert.
     """
 
-    rpki.log.debug("Revoking %s" % repr(self))
+    rpki.log.debug("Revoking %r" % self)
     ca_detail = self.ca_detail()
     ca = ca_detail.ca()
     revoked_cert_obj.revoke(cert = self.cert, ca_detail = ca_detail)

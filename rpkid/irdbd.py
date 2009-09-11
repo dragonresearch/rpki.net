@@ -118,13 +118,13 @@ def handler(query, path, cb):
       q_msg = rpki.left_right.cms_msg.unwrap(query, (bpki_ta, rpkid_cert))
 
       if not isinstance(q_msg, rpki.left_right.msg) or not q_msg.is_query():
-        raise rpki.exceptions.BadQuery, "Unexpected %s PDU" % repr(q_msg)
+        raise rpki.exceptions.BadQuery, "Unexpected %r PDU" % q_msg
 
       for q_pdu in q_msg:
 
         try:
           if type(q_pdu) not in handle_dispatch:
-            raise rpki.exceptions.BadQuery, "Unexpected %s PDU" % repr(q_pdu)
+            raise rpki.exceptions.BadQuery, "Unexpected %r PDU" % q_pdu
           handle_dispatch[type(q_pdu)](q_pdu, r_msg)
 
         except (rpki.async.ExitNow, SystemExit):

@@ -262,7 +262,7 @@ class resource_set(list):
     sets.
     """
     assert not self.inherit
-    assert type(self) is type(other), "Type mismatch %s %s" % (repr(type(self)), repr(type(other)))
+    assert type(self) is type(other), "Type mismatch %r %r" % (type(self), type(other))
     set1 = self[:]
     set2 = other[:]
     only1, only2, both = [], [], []
@@ -290,7 +290,7 @@ class resource_set(list):
     Set union for resource sets.
     """
     assert not self.inherit
-    assert type(self) is type(other), "Type mismatch: %s %s" % (repr(type(self)), repr(type(other)))
+    assert type(self) is type(other), "Type mismatch: %r %r" % (type(self), type(other))
     set1 = self[:]
     set2 = other[:]
     result = []

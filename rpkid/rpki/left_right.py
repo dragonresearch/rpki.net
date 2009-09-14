@@ -435,7 +435,7 @@ class self_elt(data_elt):
             roa.asn = roa_request.asn
             roa.ipv4 = roa_request.ipv4
             roa.ipv6 = roa_request.ipv6
-            return roa.generate_roa(iterator, lose)
+            return roa.generate(iterator, lose)
 
           roa = roas[key]
           del roas[key]
@@ -443,24 +443,24 @@ class self_elt(data_elt):
           ca_detail = roa.ca_detail()
 
           if ca_detail is None or ca_detail.state != "active":
-            return roa.regenerate_roa(iterator, lose)
+            return roa.regenerate(iterator, lose)
 
           regen_margin = rpki.sundial.timedelta(seconds = self.regen_margin)
 
           if rpki.sundial.now() + regen_margin > roa.cert.getNotAfter():
-            return roa.regenerate_roa(iterator, lose)
+            return roa.regenerate(iterator, lose)
 
           ca_resources = ca_detail.latest_ca_cert.get_3779resources()
           ee_resources = roa.cert.get_3779resources()
 
           if ee_resources.oversized(ca_resources):
-            return roa.regenerate_roa(iterator, lose)
+            return roa.regenerate(iterator, lose)
 
           v4 = roa.ipv4.to_resource_set() if roa.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
           v6 = roa.ipv6.to_resource_set() if roa.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
 
           if ee_resources.v4 != v4 or ee_resources.v6 != v6:
-            return roa.regenerate_roa(iterator, lose)
+            return roa.regenerate(iterator, lose)
 
           iterator()
 
@@ -483,7 +483,7 @@ class self_elt(data_elt):
             rpki.log.warn("Could not withdraw ROA %r: %s" % (roa, e))
             iterator()
 
-          roa.withdraw(iterator, lose)
+          roa.revoke(iterator, lose)
 
         rpki.async.iterator(roas.values(), roa_withdraw_loop, cb)
 

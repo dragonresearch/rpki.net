@@ -610,7 +610,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       rpki.async.iterator(predecessor.roas(), do_one_roa, callback)
 
     def do_one_roa(iterator, roa):
-      roa.regenerate_roa(iterator, errback)
+      roa.regenerate(iterator, errback)
 
     self.generate_crl(callback = did_crl, errback = errback)
 
@@ -626,10 +626,10 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       repository.withdraw(child_cert.cert, child_cert.uri(ca), iterator, eb, allow_failure)
 
     def child_certs_done():
-      rpki.async.iterator(self.roas(), withdraw_one_roa, withdraw_manifest)
+      rpki.async.iterator(self.roas(), reovke_one_roa, withdraw_manifest)
 
-    def withdraw_one_roa(iterator, roa):
-      roa.withdraw_roa(iterator, eb, allow_failure = allow_failure)
+    def reovke_one_roa(iterator, roa):
+      roa.revoke(iterator, eb, allow_failure = allow_failure)
 
     def withdraw_manifest():
       repository.withdraw(self.latest_manifest, self.manifest_uri(ca), withdraw_crl, eb, allow_failure)
@@ -1123,6 +1123,12 @@ class roa_obj(rpki.sql.sql_persistent):
     """
     return rpki.left_right.self_elt.sql_fetch(self.gctx, self.self_id)
 
+  def ca_detail(self):
+    """
+    Fetch ca_detail object to which this roa_obj links.
+    """
+    return rpki.rpki_engine.ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
+
   def sql_fetch_hook(self):
     """
     Extra SQL fetch actions for roa_obj -- handle prefix lists.
@@ -1157,13 +1163,7 @@ class roa_obj(rpki.sql.sql_persistent):
     """
     self.gctx.sql.execute("DELETE FROM roa_prefix WHERE roa_id = %s", (self.roa_id,))
 
-  def ca_detail(self):
-    """
-    Fetch all ca_detail objects that link to this roa_obj.
-    """
-    return rpki.rpki_engine.ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
-
-  def update_roa(self, callback):
+  def update(self, callback):
     """
     Bring this roa_obj's ROA up to date if necesssary.
     """
@@ -1175,38 +1175,38 @@ class roa_obj(rpki.sql.sql_persistent):
       return
 
     if self.roa is None:
-      self.generate_roa(callback, lose)
+      self.generate(callback, lose)
       return
 
     ca_detail = self.ca_detail()
 
     if ca_detail is None or ca_detail.state != "active":
-      self.regenerate_roa(callback, lose)
+      self.regenerate(callback, lose)
       return
 
     regen_margin = rpki.sundial.timedelta(seconds = self.self().regen_margin)
 
     if rpki.sundial.now() + regen_margin > self.cert.getNotAfter():
-      self.regenerate_roa(callback, lose)
+      self.regenerate(callback, lose)
       return
 
     ca_resources = ca_detail.latest_ca_cert.get_3779resources()
     ee_resources = self.cert.get_3779resources()
 
     if ee_resources.oversized(ca_resources):
-      self.regenerate_roa(callback, lose)
+      self.regenerate(callback, lose)
       return
 
     v4 = self.ipv4.to_resource_set() if self.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
     v6 = self.ipv6.to_resource_set() if self.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
 
     if ee_resources.v4 != v4 or ee_resources.v6 != v6:
-      self.regenerate_roa(callback, lose)
+      self.regenerate(callback, lose)
       return
 
     callback()
 
-  def generate_roa(self, callback, errback):
+  def generate(self, callback, errback):
     """
     Generate a ROA.
 
@@ -1252,7 +1252,7 @@ class roa_obj(rpki.sql.sql_persistent):
           break
 
     if ca_detail is None:
-      raise rpki.exceptions.NoCoveringCertForROA, "generate_roa() could not find a certificate covering %s %s" % (v4, v6)
+      raise rpki.exceptions.NoCoveringCertForROA, "generate() could not find a certificate covering %s %s" % (v4, v6)
 
     ca = ca_detail.ca()
 
@@ -1275,7 +1275,7 @@ class roa_obj(rpki.sql.sql_persistent):
 
     ca.parent().repository().publish(self.roa, self.roa_uri(), done, errback)
 
-  def withdraw_roa(self, callback, errback, regenerate = False, allow_failure = False):
+  def revoke(self, callback, errback, regenerate = False, allow_failure = False):
     """
     Withdraw ROA associated with this roa_obj.
 
@@ -1288,7 +1288,6 @@ class roa_obj(rpki.sql.sql_persistent):
     cert = self.cert
     roa = self.roa
     roa_uri = self.roa_uri()
-    ee_uri = self.ee_uri()
 
     if ca_detail.state != 'active':
       self.ca_detail_id = None
@@ -1310,18 +1309,18 @@ class roa_obj(rpki.sql.sql_persistent):
       callback()
 
     if regenerate:
-      self.generate_roa(one, errback)
+      self.generate(one, errback)
     else:
       one()
 
-  def regenerate_roa(self, callback, errback):
+  def regenerate(self, callback, errback):
     """
     Reissue ROA associated with this roa_obj.
     """
     if self.ca_detail() is None:
-      self.generate_roa(callback, errback)
+      self.generate(callback, errback)
     else:
-      self.withdraw_roa(callback, errback, regenerate = True)
+      self.revoke(callback, errback, regenerate = True)
 
   def roa_uri(self, key = None):
     """
@@ -1335,18 +1334,3 @@ class roa_obj(rpki.sql.sql_persistent):
     roa_obj's ROA.
     """
     return (key or self.cert).gSKI() + ".roa"
-
-  def ee_uri_tail(self):
-    """
-    Return the tail (filename) portion of the URI for this roa_obj's
-    ROA's EE certificate.
-    """
-    return self.cert.gSKI() + ".cer"
-
-  def ee_uri(self):
-    """
-    Return the publication URI for this roa_obj's ROA's EE
-    certificate.
-    """
-    return self.ca_detail().ca().sia_uri + self.ee_uri_tail()
-

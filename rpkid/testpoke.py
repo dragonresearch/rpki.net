@@ -104,8 +104,8 @@ def query_up_down(q_pdu):
       r_msg.payload.check_response()
     except (rpki.async.ExitNow, SystemExit):
       raise
-    except Exception, edata:
-      fail(edata)
+    except Exception, e:
+      fail(e)
     #rpki.async.exit_event_loop()
 
   rpki.https.want_persistent_client = False
@@ -159,5 +159,5 @@ https_ca_certs = get_PEM_chain("ssl-ca-certs")
 try:
   dispatch[yaml_req["type"]]()
   rpki.async.event_loop()
-except Exception, edata:
-  fail(edata)
+except Exception, e:
+  fail(e)

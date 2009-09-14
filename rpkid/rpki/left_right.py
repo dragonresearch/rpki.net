@@ -580,19 +580,20 @@ class repository_elt(data_elt):
     def done(r_cms):
       try:
         r_msg = rpki.publication.cms_msg.unwrap(r_cms, bpki_ta_path)
-        if len(r_msg) != 1: # Some day we may allow this, but not today
+        for r_pdu in r_msg:
+          if isinstance(r_pdu, rpki.publication.report_error_elt):
+            t = rpki.exceptions.__dict__.get(r_pdu.error_code)
+            if isinstance(t, type) and issubclass(t, rpki.exceptions.RPKI_Exception):
+              raise t, getattr(r_pdu, "text", None)
+            else:
+              raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %s" % r_pdu
+        if len(pdus) != len(r_msg):
           raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %r" % r_msg
-        if isinstance(r_msg[0], rpki.publication.report_error_elt):
-          t = rpki.exceptions.__dict__.get(r_msg[0].error_code)
-          if isinstance(t, type) and issubclass(t, rpki.exceptions.RPKI_Exception):
-            raise t, getattr(r_msg[0], "text", None)
-          else:
-            raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %s" % r_msg[0]
         callback()
       except (rpki.async.ExitNow, SystemExit):
         raise
-      except Exception, edata:
-        errback(edata)
+      except Exception, e:
+        errback(e)
 
     rpki.https.client(
       client_key   = bsc.private_key_id,
@@ -950,8 +951,8 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
         q_pdu.serve_dispatch(r_msg, iterator, fail)
       except (rpki.async.ExitNow, SystemExit):
         raise
-      except Exception, edata:
-        fail(edata)
+      except Exception, e:
+        fail(e)
 
     def done():
       cb(r_msg)

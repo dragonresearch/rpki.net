@@ -635,8 +635,8 @@ class message_pdu(base_elt):
       self.payload.serve_pdu(self, r_msg, child, done, lose)
     except (rpki.async.ExitNow, SystemExit):
       raise
-    except Exception, edata:
-      lose(edata)
+    except Exception, e:
+      lose(e)
 
   def log_query(self, child):
     """

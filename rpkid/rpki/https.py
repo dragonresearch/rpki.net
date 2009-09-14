@@ -440,9 +440,9 @@ class http_server(http_stream):
         handler(self.msg.body, self.msg.path, self.send_reply)
       except (rpki.async.ExitNow, SystemExit):
         raise
-      except Exception, edata:
+      except Exception, e:
         rpki.log.traceback()
-        self.send_error(500, "Unhandled exception %s" % edata)
+        self.send_error(500, "Unhandled exception %s" % e)
     else:
       self.send_error(code = error[0], reason = error[1])
 

@@ -1163,46 +1163,48 @@ class roa_obj(rpki.sql.sql_persistent):
     """
     self.gctx.sql.execute("DELETE FROM roa_prefix WHERE roa_id = %s", (self.roa_id,))
 
-  def update(self, callback):
+  @classmethod
+  def create(cls, gctx, self_id, asn, ipv4, ipv6):
+    """
+    Construct a new ROA.
+    """
+    self = cls()
+    self.gctx = gctx
+    self.self_id = self_id
+    self.asn = asn
+    self.ipv4 = ipv4
+    self.ipv6 = ipv6
+    return self
+
+  def update(self, callback, errback):
     """
     Bring this roa_obj's ROA up to date if necesssary.
     """
 
-    def lose(e):
-      rpki.log.traceback()
-      rpki.log.warn("Could not update ROA %r, skipping: %s" % (self, e))
-      callback()
-      return
-
     if self.roa is None:
-      self.generate(callback, lose)
-      return
+      return self.generate(callback, errback)
 
     ca_detail = self.ca_detail()
 
     if ca_detail is None or ca_detail.state != "active":
-      self.regenerate(callback, lose)
-      return
+      return self.regenerate(callback, errback)
 
     regen_margin = rpki.sundial.timedelta(seconds = self.self().regen_margin)
 
     if rpki.sundial.now() + regen_margin > self.cert.getNotAfter():
-      self.regenerate(callback, lose)
-      return
+      return self.regenerate(callback, errback)
 
     ca_resources = ca_detail.latest_ca_cert.get_3779resources()
     ee_resources = self.cert.get_3779resources()
 
     if ee_resources.oversized(ca_resources):
-      self.regenerate(callback, lose)
-      return
+      return self.regenerate(callback, errback)
 
     v4 = self.ipv4.to_resource_set() if self.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
     v6 = self.ipv6.to_resource_set() if self.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
 
     if ee_resources.v4 != v4 or ee_resources.v6 != v6:
-      self.regenerate(callback, lose)
-      return
+      return self.regenerate(callback, errback)
 
     callback()
 

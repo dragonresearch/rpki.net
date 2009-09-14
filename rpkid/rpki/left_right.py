@@ -420,49 +420,15 @@ class self_elt(data_elt):
         def lose(e):
           if not isinstance(e, rpki.exceptions.NoCoveringCertForROA):
             rpki.log.traceback()
-          rpki.log.warn("Could not update ROA %r, skipping: %s" % (roa, e))
+          rpki.log.warn("Could not update ROA %r, %r, skipping: %s" % (roa_request, roa, e))
           iterator()
 
         try:
 
-          key = (roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6))
-
-          if key not in roas:
-            # This really should be using a constructor
-            roa = rpki.rpki_engine.roa_obj()
-            roa.gctx = self.gctx
-            roa.self_id = self.self_id
-            roa.asn = roa_request.asn
-            roa.ipv4 = roa_request.ipv4
-            roa.ipv6 = roa_request.ipv6
-            return roa.generate(iterator, lose)
-
-          roa = roas[key]
-          del roas[key]
-
-          ca_detail = roa.ca_detail()
-
-          if ca_detail is None or ca_detail.state != "active":
-            return roa.regenerate(iterator, lose)
-
-          regen_margin = rpki.sundial.timedelta(seconds = self.regen_margin)
-
-          if rpki.sundial.now() + regen_margin > roa.cert.getNotAfter():
-            return roa.regenerate(iterator, lose)
-
-          ca_resources = ca_detail.latest_ca_cert.get_3779resources()
-          ee_resources = roa.cert.get_3779resources()
-
-          if ee_resources.oversized(ca_resources):
-            return roa.regenerate(iterator, lose)
-
-          v4 = roa.ipv4.to_resource_set() if roa.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
-          v6 = roa.ipv6.to_resource_set() if roa.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
-
-          if ee_resources.v4 != v4 or ee_resources.v6 != v6:
-            return roa.regenerate(iterator, lose)
-
-          iterator()
+          roa = roas.pop((roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6)), None)
+          if roa is None:
+            roa = rpki.rpki_engine.roa_obj.create(self.gctx, self.self_id, roa_request.asn, roa_request.ipv4, roa_request.ipv6)
+          roa.update(iterator, lose)
 
         except (SystemExit, rpki.async.ExitNow):
           raise
@@ -476,16 +442,16 @@ class self_elt(data_elt):
         # orphans that no longer correspond to a roa_request, so clean
         # them up.
 
-        def roa_withdraw_loop(iterator, roa):
+        def roa_revoke_loop(iterator, roa):
 
           def lose(e):
             rpki.log.traceback()
-            rpki.log.warn("Could not withdraw ROA %r: %s" % (roa, e))
+            rpki.log.warn("Could not revoke ROA %r: %s" % (roa, e))
             iterator()
 
           roa.revoke(iterator, lose)
 
-        rpki.async.iterator(roas.values(), roa_withdraw_loop, cb)
+        rpki.async.iterator(roas.values(), roa_revoke_loop, cb)
 
       rpki.async.iterator(roa_requests, roa_requests_loop, roa_requests_done)
 

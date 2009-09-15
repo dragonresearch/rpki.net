@@ -334,14 +334,23 @@ class resource_set(list):
     Set membership test for resource sets.
     """
     assert not self.inherit
-    for i in self:
-      if isinstance(item, type(i)) and i.min <= item.min and i.max >= item.max:
-        return True
-      elif isinstance(item, type(i.min)) and i.min <= item and i.max >= item:
-        return True
+    if not self:
+      return False
+    if type(item) is type(self[0]):
+      min = item.min
+      max = item.max
+    else:
+      min = item
+      max = item
+    lo = 0
+    hi = len(self)
+    while lo < hi:
+      mid = (lo + hi) / 2
+      if self[mid].max < max:
+        lo = mid + 1
       else:
-        assert isinstance(item, (type(i), type(i.min)))
-    return False
+        hi = mid
+    return lo < len(self) and self[lo].min <= min and self[lo].max >= max
 
   def issubset(self, other):
     """

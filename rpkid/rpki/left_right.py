@@ -579,7 +579,7 @@ class repository_elt(data_elt):
       errback(e)
     rpki.log.trace()
     rpki.log.info("Publishing %r as %r" % (obj, uri))
-    self.call_pubd(callback, fail, rpki.publication.obj2elt[type(obj)].make_pdu(action = "publish", uri = uri, payload = obj))
+    self.call_pubd(callback, fail, rpki.publication.publication_object_elt.make_publish(uri, obj))
 
   def withdraw(self, obj, uri, callback, errback, allow_failure = False):
     """
@@ -593,7 +593,7 @@ class repository_elt(data_elt):
         errback(e)
     rpki.log.trace()
     rpki.log.info("Withdrawing %r from %r" % (obj, uri))
-    self.call_pubd(callback, fail, rpki.publication.obj2elt[type(obj)].make_pdu(action = "withdraw", uri = uri))
+    self.call_pubd(callback, fail, rpki.publication.publication_object_elt.make_withdraw(uri))
 
 class parent_elt(data_elt):
   """

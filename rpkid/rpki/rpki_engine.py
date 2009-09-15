@@ -626,9 +626,9 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       repository.withdraw(child_cert.cert, child_cert.uri(ca), iterator, eb, allow_failure)
 
     def child_certs_done():
-      rpki.async.iterator(self.roas(), reovke_one_roa, withdraw_manifest)
+      rpki.async.iterator(self.roas(), revoke_one_roa, withdraw_manifest)
 
-    def reovke_one_roa(iterator, roa):
+    def revoke_one_roa(iterator, roa):
       roa.revoke(iterator, eb, allow_failure = allow_failure)
 
     def withdraw_manifest():

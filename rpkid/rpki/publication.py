@@ -252,6 +252,20 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
       raise rpki.exceptions.BadURISyntax, filename
     return filename
 
+  @classmethod
+  def make_publish(cls, uri, obj, tag = None):
+    """
+    Construct a publication PDU.
+    """
+    return cls.obj2elt[type(obj)].make_pdu(action = "publish", uri = uri, payload = obj, tag = tag)
+
+  @classmethod
+  def make_withdraw(cls, uri, tag = None):
+    """
+    Construct a withdrawal PDU.
+    """
+    return cls.obj2elt[type(obj)].make_pdu(action = "withdraw", uri = uri, tag = tag)
+
 class certificate_elt(publication_object_elt):
   """
   <certificate/> element.
@@ -284,10 +298,10 @@ class roa_elt(publication_object_elt):
   element_name = "roa"
   payload_type = rpki.x509.ROA
 
-## @var obj2elt
+## @var publication_object_elt.obj2elt
 # Map of data types to publication element wrapper types
 
-obj2elt = dict((e.payload_type, e) for e in (certificate_elt, crl_elt, manifest_elt, roa_elt))
+publication_object_elt.obj2elt = dict((e.payload_type, e) for e in (certificate_elt, crl_elt, manifest_elt, roa_elt))
 
 class report_error_elt(rpki.xml_utils.base_elt, publication_namespace):
   """

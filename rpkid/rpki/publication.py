@@ -172,6 +172,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
   """
 
   attributes = ("action", "tag", "client_handle", "uri")
+  payload_type = None
   payload = None
 
   def endElement(self, stack, name, text):
@@ -257,14 +258,22 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     Construct a publication PDU.
     """
-    return cls.obj2elt[type(obj)].make_pdu(action = "publish", uri = uri, payload = obj, tag = tag)
+    if cls.payload_type is None:
+      return cls.obj2elt[type(obj)].make_pdu(action = "publish", uri = uri, payload = obj, tag = tag)
+    else:
+      assert type(obj) is cls.payload_type
+      return cls.make_pdu(action = "publish", uri = uri, payload = obj, tag = tag)      
 
   @classmethod
   def make_withdraw(cls, uri, tag = None):
     """
     Construct a withdrawal PDU.
     """
-    return cls.obj2elt[type(obj)].make_pdu(action = "withdraw", uri = uri, tag = tag)
+    if cls.payload_type is None:
+      return cls.obj2elt[type(obj)].make_pdu(action = "withdraw", uri = uri, tag = tag)
+    else:
+      assert type(obj) is cls.payload_type
+      return cls.make_pdu(action = "withdraw", uri = uri, tag = tag)
 
 class certificate_elt(publication_object_elt):
   """

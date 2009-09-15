@@ -593,7 +593,7 @@ class repository_elt(data_elt):
         errback(e)
     rpki.log.trace()
     rpki.log.info("Withdrawing %r from %r" % (obj, uri))
-    self.call_pubd(callback, fail, rpki.publication.publication_object_elt.make_withdraw(uri))
+    self.call_pubd(callback, fail, rpki.publication.publication_object_elt.make_withdraw(uri, obj))
 
 class parent_elt(data_elt):
   """

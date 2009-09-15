@@ -877,20 +877,18 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     if nextUpdate is None:
       nextUpdate = now + crl_interval
 
-    roas = [r for r in self.roas() if r.cert is not None and r.roa is not None]
-
     if self.latest_manifest_cert is None or self.latest_manifest_cert.getNotAfter() < nextUpdate:
       self.generate_manifest_cert(ca)
 
-    certs = [(c.uri_tail(), c.cert) for c in self.child_certs()] + \
-            [(r.roa_uri_tail(), r.roa) for r in roas] + \
-            [(self.crl_uri_tail(), self.latest_crl)]
+    objs = [(c.uri_tail(), c.cert) for c in self.child_certs()] + \
+           [(r.uri_tail(), r.roa) for r in self.roas() if r.roa is not None] + \
+           [(self.crl_uri_tail(), self.latest_crl)]
 
     self.latest_manifest = rpki.x509.SignedManifest.build(
       serial         = ca.next_manifest_number(),
       thisUpdate     = now,
       nextUpdate     = nextUpdate,
-      names_and_objs = certs,
+      names_and_objs = objs,
       keypair        = self.manifest_private_key_id,
       certs          = self.latest_manifest_cert)
 
@@ -1266,7 +1264,7 @@ class roa_obj(rpki.sql.sql_persistent):
 
     self.cert = ca_detail.issue_ee(ca, resources, keypair.get_RSApublic(),
                                    sia = ((rpki.oids.name2oid["id-ad-signedObject"],
-                                           ("uri", self.roa_uri(keypair))),))
+                                           ("uri", self.uri(keypair))),))
 
     self.roa = rpki.x509.ROA.build(self.asn, self.ipv4, self.ipv6, keypair, (self.cert,))
 
@@ -1275,7 +1273,7 @@ class roa_obj(rpki.sql.sql_persistent):
     def done():
       ca_detail.generate_manifest(callback, errback)
 
-    ca.parent().repository().publish(self.roa, self.roa_uri(), done, errback)
+    ca.parent().repository().publish(self.roa, self.uri(), done, errback)
 
   def revoke(self, callback, errback, regenerate = False, allow_failure = False):
     """
@@ -1289,7 +1287,7 @@ class roa_obj(rpki.sql.sql_persistent):
     ca_detail = self.ca_detail()
     cert = self.cert
     roa = self.roa
-    roa_uri = self.roa_uri()
+    uri = self.uri()
 
     if ca_detail.state != 'active':
       self.ca_detail_id = None
@@ -1297,7 +1295,7 @@ class roa_obj(rpki.sql.sql_persistent):
     def one():
       rpki.log.debug("Withdrawing ROA and revoking its EE cert")
       rpki.rpki_engine.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
-      ca_detail.ca().parent().repository().withdraw(roa, roa_uri, two, errback, allow_failure)
+      ca_detail.ca().parent().repository().withdraw(roa, uri, two, errback, allow_failure)
 
     def two():
       self.gctx.sql.sweep()
@@ -1324,13 +1322,13 @@ class roa_obj(rpki.sql.sql_persistent):
     else:
       self.revoke(callback, errback, regenerate = True)
 
-  def roa_uri(self, key = None):
+  def uri(self, key = None):
     """
     Return the publication URI for this roa_obj's ROA.
     """
-    return self.ca_detail().ca().sia_uri + self.roa_uri_tail(key)
+    return self.ca_detail().ca().sia_uri + self.uri_tail(key)
 
-  def roa_uri_tail(self, key = None):
+  def uri_tail(self, key = None):
     """
     Return the tail (filename portion) of the publication URI for this
     roa_obj's ROA.

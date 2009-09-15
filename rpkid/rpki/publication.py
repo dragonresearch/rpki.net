@@ -265,7 +265,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
       return cls.make_pdu(action = "publish", uri = uri, payload = obj, tag = tag)      
 
   @classmethod
-  def make_withdraw(cls, uri, tag = None):
+  def make_withdraw(cls, uri, obj, tag = None):
     """
     Construct a withdrawal PDU.
     """

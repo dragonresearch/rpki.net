@@ -113,14 +113,6 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
         setattr(self, id_name, getattr(x, id_name))
     cb()
 
-  def unimplemented_control(self, *controls):
-    """
-    Uniform handling for unimplemented control operations.
-    """
-    unimplemented = [x for x in controls if getattr(self, x, False)]
-    if unimplemented:
-      raise rpki.exceptions.NotImplementedYet, "Unimplemented control %s" % ", ".join(unimplemented)
-
 class self_elt(data_elt):
   """
   <self/> element.
@@ -167,13 +159,17 @@ class self_elt(data_elt):
     Extra server actions for self_elt.
     """
     rpki.log.trace()
+    self.unimplemented_control("reissue", "run_now")
+    actions = []
     if q_pdu.rekey:
-      self.serve_rekey(cb, eb)
-    elif q_pdu.revoke:
-      self.serve_revoke(cb, eb)
-    else:
-      self.unimplemented_control("reissue", "run_now", "publish_world_now")
-      cb()
+      actions.append(self.serve_rekey)
+    if q_pdu.revoke:
+      actions.append(self.serve_revoke)
+    if q_pdu.publish_world_now:
+      actions.append(self.serve_publish_world_now)
+    def loop(iterator, action):
+      action(iterator, eb)
+    rpki.async.iterator(actions, loop, cb)
 
   def serve_rekey(self, cb, eb):
     """
@@ -194,6 +190,41 @@ class self_elt(data_elt):
 
     def loop(iterator, parent):
       parent.serve_revoke(iterator, eb)
+
+    rpki.async.iterator(self.parents(), loop, cb)
+
+  def serve_publish_world_now(self, cb, eb):
+    """
+    Handle a left-right publish_world_now action for this self.
+
+    The publication stuff needs refactoring, right now publication is
+    interleaved with local operations in a way that forces far too
+    many bounces through the task system for any complex update.  The
+    whole thing ought to be rewritten to queue up outgoing publication
+    PDUs and only send them when we're all done or when we need to
+    force publication at a particular point in a multi-phase operation.
+
+    Once that reorganization has been done, this method should be
+    rewritten to reuse the low-level publish() methods that each
+    object will have...but we're not there yet.  So, for now, we just
+    do this via brute force.  Think of it as a trial version to see
+    whether we've identified everything that needs to be republished
+    for this operation.
+    """
+
+    def loop(iterator, parent):
+      pdus = []
+      for ca in parent.cas():
+        ca_detail = ca.fetch_active()
+        if ca_detail is not None:
+          pdus.append(rpki.publication.crl_elt.make_publish(ca_detail.crl_uri(ca), ca_detail.latest_crl))
+          pdus.append(rpki.publication.manifest_elt.make_publish(ca_detail.manifest_uri(ca), ca_detail.latest_manifest))
+          pdus.extend(rpki.publication.certificate_elt.make_publish(c.uri(ca), c.cert) for c in ca_detail.child_certs())
+          pdus.extend(rpki.publication.roa_elt.make_publish(r.uri(), r.roa) for r in ca_detail.roas() if r.roa is not None)
+      if pdus:
+        parent.repository().call_pubd(iterator, eb, *pdus)
+      else:
+        iterator()
 
     rpki.async.iterator(self.parents(), loop, cb)
 
@@ -424,10 +455,9 @@ class self_elt(data_elt):
           iterator()
 
         try:
-
           roa = roas.pop((roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6)), None)
           if roa is None:
-            roa = rpki.rpki_engine.roa_obj.create(self.gctx, self.self_id, roa_request.asn, roa_request.ipv4, roa_request.ipv6)
+            roa = rpki.rpki_engine.roa_obj(self.gctx, self.self_id, roa_request.asn, roa_request.ipv4, roa_request.ipv6)
           roa.update(iterator, lose)
 
         except (SystemExit, rpki.async.ExitNow):
@@ -579,7 +609,7 @@ class repository_elt(data_elt):
       errback(e)
     rpki.log.trace()
     rpki.log.info("Publishing %r as %r" % (obj, uri))
-    self.call_pubd(callback, fail, rpki.publication.publication_object_elt.make_publish(uri, obj))
+    self.call_pubd(callback, fail, rpki.publication.publication_object_elt.make_publish(uri = uri, obj = obj))
 
   def withdraw(self, obj, uri, callback, errback, allow_failure = False):
     """
@@ -593,7 +623,7 @@ class repository_elt(data_elt):
         errback(e)
     rpki.log.trace()
     rpki.log.info("Withdrawing %r from %r" % (obj, uri))
-    self.call_pubd(callback, fail, rpki.publication.publication_object_elt.make_withdraw(uri, obj))
+    self.call_pubd(callback, fail, rpki.publication.publication_object_elt.make_withdraw(uri = uri, obj = obj))
 
 class parent_elt(data_elt):
   """
@@ -630,13 +660,15 @@ class parent_elt(data_elt):
     """
     Extra server actions for parent_elt.
     """
+    self.unimplemented_control("reissue")
+    actions = []
     if q_pdu.rekey:
-      self.serve_rekey(cb, eb)
-    elif q_pdu.revoke:
-      self.serve_revoke(cb, eb)
-    else:
-      self.unimplemented_control("reissue")
-      cb()
+      actions.append(self.serve_rekey)
+    if q_pdu.revoke:
+      actions.append(self.serve_revoke)
+    def loop(iterator, action):
+      action(iterator, eb)
+    rpki.async.iterator(actions, loop, cb)
 
   def serve_rekey(self, cb, eb):
     """

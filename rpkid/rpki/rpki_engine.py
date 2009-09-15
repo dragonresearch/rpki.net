@@ -1161,18 +1161,15 @@ class roa_obj(rpki.sql.sql_persistent):
     """
     self.gctx.sql.execute("DELETE FROM roa_prefix WHERE roa_id = %s", (self.roa_id,))
 
-  @classmethod
-  def create(cls, gctx, self_id, asn, ipv4, ipv6):
-    """
-    Construct a new ROA.
-    """
-    self = cls()
+  def __init__(self, gctx = None, self_id = None, asn = None, ipv4 = None, ipv6 = None):
+    rpki.sql.sql_persistent.__init__(self)
     self.gctx = gctx
     self.self_id = self_id
     self.asn = asn
     self.ipv4 = ipv4
     self.ipv6 = ipv6
-    return self
+    if self_id or asn or ipv4 or ipv6:
+      self.sql_mark_dirty()
 
   def update(self, callback, errback):
     """

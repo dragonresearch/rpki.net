@@ -2,9 +2,6 @@
 
 all: schema.py
 
-myrpki.xml: myrpki.py asns.csv children.csv parents.csv prefixes.csv roas.csv
-	python myrpki.py
-
 lint: myrpki.xml schema.rng
 	xmllint --noout --relaxng schema.rng myrpki.xml
 
@@ -19,12 +16,6 @@ schema.py: schema.rng
 
 parse: myrpki.xml schema.py
 	python xml-parse-test.py
-
-load: myrpki.xml schema.py
-	python myirbe.py
-
-bpki.myrpki:
-	python myirbe.py
 
 clean:
 	rm -rf *.xml bpki.myrpki bpki.myirbe test screenlog.*
@@ -44,7 +35,5 @@ backup:
 	tar cvvzf test.$$(TZ='' date +%Y.%m.%d.%H.%M.%S).tgz screenlog.* test backup.*.sql
 	rm backup.*.sql
 
-test:: schema.py
-
-test::
+test: schema.py
 	python yamltest.py

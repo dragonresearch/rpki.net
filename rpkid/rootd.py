@@ -101,7 +101,7 @@ def issue_subject_cert_maybe(new_pkcs10):
     return subject_cert
   pkcs10 = old_pkcs10 if new_pkcs10 is None else new_pkcs10
   if pkcs10 is None:
-    rpki.log.debug("No PKCS #10 request, can't generate subject certificate")
+    rpki.log.debug("No PKCS #10 request, can't generate subject certificate yet")
     return None
   resources = rpki_root_cert.get_3779resources()
   rpki.log.info("Generating subject cert with resources " + str(resources))

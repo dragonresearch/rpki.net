@@ -159,7 +159,7 @@ class self_elt(data_elt):
     Extra server actions for self_elt.
     """
     rpki.log.trace()
-    self.unimplemented_control("reissue", "run_now")
+    self.unimplemented_control("reissue")
     actions = []
     if q_pdu.rekey:
       actions.append(self.serve_rekey)
@@ -167,6 +167,8 @@ class self_elt(data_elt):
       actions.append(self.serve_revoke)
     if q_pdu.publish_world_now:
       actions.append(self.serve_publish_world_now)
+    if q_pdu.run_now:
+      actions.append(self.serve_run_now)
     def loop(iterator, action):
       action(iterator, eb)
     rpki.async.iterator(actions, loop, cb)
@@ -228,6 +230,13 @@ class self_elt(data_elt):
 
     rpki.async.iterator(self.parents(), loop, cb)
 
+  def serve_run_now(self, cb, eb):
+    """
+    Handle a left-right run_now action for this self.
+    """
+    rpki.log.debug("Forced immediate run of periodic actions for self %s[%d]" % (self.self_handle, self.self_id))
+    self.cron(cb)
+
   def serve_fetch_one_maybe(self):
     """
     Find the self object upon which a get, set, or destroy action
@@ -249,6 +258,29 @@ class self_elt(data_elt):
     where list only works within a given self_id context.
     """
     return self.sql_fetch_all(self.gctx)
+
+  def cron(self, cb):
+    """
+    Periodic tasks.
+    """
+
+    def one():
+      rpki.log.debug("Self %s[%d] polling parents" % (self.self_handle, self.self_id))
+      self.client_poll(two)
+
+    def two():
+      rpki.log.debug("Self %s[%d] updating children" % (self.self_handle, self.self_id))
+      self.update_children(three)
+
+    def three():
+      rpki.log.debug("Self %s[%d] updating ROAs" % (self.self_handle, self.self_id))
+      self.update_roas(four)
+
+    def four():
+      rpki.log.debug("Self %s[%d] regenerating CRLs and manifests" % (self.self_handle, self.self_id))
+      self.regenerate_crls_and_manifests(cb)
+
+    one()
 
   def client_poll(self, callback):
     """

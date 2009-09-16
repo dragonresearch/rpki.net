@@ -200,24 +200,7 @@ class rpkid_context(object):
     self.sql.ping()
 
     def loop(iterator, s):
-
-      def one():
-        rpki.log.debug("Self %s[%d] polling parents" % (s.self_handle, s.self_id))
-        s.client_poll(two)
-
-      def two():
-        rpki.log.debug("Self %s[%d] updating children" % (s.self_handle, s.self_id))
-        s.update_children(three)
-
-      def three():
-        rpki.log.debug("Self %s[%d] updating ROAs" % (s.self_handle, s.self_id))
-        s.update_roas(four)
-
-      def four():
-        rpki.log.debug("Self %s[%d] regenerating CRLs and manifests" % (s.self_handle, s.self_id))
-        s.regenerate_crls_and_manifests(iterator)
-
-      one()
+      s.cron(iterator)
 
     def sched():
       when = rpki.sundial.now() + rpki.sundial.timedelta(seconds = self.cron_period)

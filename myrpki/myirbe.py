@@ -143,8 +143,8 @@ if bpki_modified:
 
 # Default values for CRL parameters are very low, for testing.
 
-self_crl_interval = cfg.get("self_crl_interval", 300)
-self_regen_margin = cfg.get("self_regen_margin", 120)
+self_crl_interval = cfg.get("self_crl_interval", 900)
+self_regen_margin = cfg.get("self_regen_margin", 300)
 rsync_base        = cfg.get("rsync_base").rstrip("/") + "/"
 pubd_base         = cfg.get("pubd_base").rstrip("/") + "/"
 rpkid_base        = cfg.get("rpkid_base").rstrip("/") + "/"

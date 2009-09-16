@@ -560,6 +560,7 @@ try:
   irdbd_password = cfg.get("irdbd_db_pass")
   pubd_password  = cfg.get("pubd_db_pass")
   only_one_pubd  = cfg.getboolean("only_one_pubd", True)
+  prog_openssl   = cfg.get("openssl", prog_openssl)
 except:
   rpkid_password = None
   irdbd_password = None

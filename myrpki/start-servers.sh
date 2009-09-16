@@ -1,6 +1,6 @@
 #!/bin/sh -
 # $Id$
-#
+# 
 # Copyright (C) 2009  Internet Systems Consortium ("ISC")
 # 
 # Permission to use, copy, modify, and distribute this software for any
@@ -15,17 +15,19 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-# Tests of generated BPKI certificates.  Kind of cheesy, but does test
-# the basic stuff.
+: ${rpkid_dir=../rpkid}
+: ${want_pubd=no}
+: ${want_rootd=no}
 
-# Check that CRLs verify properly
-find bpki.* -name '*.crl' | sed 's=^\(.*\)/\(.*\)$=echo -n "&: "; openssl crl -CAfile \1/ca.cer -noout -in &=' | sh
+python ../rpkid/irdbd.py -c myrpki.conf >> irdbd.log 2>&1 &
+python ../rpkid/rpkid.py -c myrpki.conf >> rpkid.log 2>&1 &
 
-# Check that issued certs verify properly
-find bpki.* -name '*.cer' ! -name 'ca.cer' ! -name '*.cacert.cer' | sed 's=^\(.*\)/.*$=openssl verify -CAfile \1/ca.cer &=' | sh
-
-# Attempt to check that cross-certified certs verify properly
-if test -d bpki.myirbe
+if test "$want_pubd" = "yes"
 then
-    cat bpki.myirbe/xcert.*.cer | openssl verify -verbose -CAfile bpki.myirbe/ca.cer -untrusted /dev/stdin bpki.myrpki/bsc.*.cer
+    python ../rpkid/pubd.py  -c myrpki.conf >> pubd.log  2>&1 &
+fi
+
+if test "$want_rootd" = "yes"
+then
+    python ../rpkid/rootd.py -c myrpki.conf >> rootd.log 2>&1 &
 fi

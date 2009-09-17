@@ -1151,8 +1151,17 @@ class roa_obj(rpki.sql.sql_persistent):
     self.asn = asn
     self.ipv4 = ipv4
     self.ipv6 = ipv6
-    if self_id or asn or ipv4 or ipv6:
-      self.sql_mark_dirty()
+    #
+    # You might think that we should call self.sql_mark_dirty() here,
+    # and you'd be right, except that other code kind of assumes that
+    # this object will not be saved to sql unless the .generate()
+    # method suceeds.  If we never get as far as .generate(), or if
+    # .generate() fails, we want this roa_obj to softly and silently
+    # vanish away.
+    #
+    # Perhaps I'll figure out a cleaner way to do this some day.
+    #
+    #if self_id or asn or ipv4 or ipv6: self.sql_mark_dirty()
 
   def update(self, callback, errback):
     """

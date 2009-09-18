@@ -412,3 +412,21 @@ is to add the following lines to /etc/rc.conf:
     altlog_proglist="named rcynic"
     rcynic_chrootdir="/var/rcynic"
     rcynic_enable="YES"
+
+
+
+If you're using the experimental trust-anchor-uri-with-key trust
+anchor format, you'll need a copy of the public key in DER format.
+One can extract this from an X.509 format trust anchor using the
+OpenSSL command line tool, but the path is poorly documented.  Try
+something like this:
+
+  $ openssl x509 -inform DER -in foo.cer -pubkey -noout | openssl rsa -outform DER -pubin -out foo.key
+
+The important bits here are:
+
+a) You're asking the x509 command to extract the public key and send
+   it (in PEM format) to stdout without the rest of the certificate
+
+b) You're asking the rsa command to read a public key (in PEM format)
+   on stdin, convert it to DER format and write it out.

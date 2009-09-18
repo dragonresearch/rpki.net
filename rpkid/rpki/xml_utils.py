@@ -351,7 +351,7 @@ class data_elt(base_elt):
       r_msg.append(r_pdu)
     cb()
 
-  def serve_destoy_hook(self, cb, eb):
+  def serve_destroy_hook(self, cb, eb):
     """
     Overridable hook.
     """

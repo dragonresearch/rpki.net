@@ -410,7 +410,7 @@ class CA(object):
     Run OpenSSL "ca" command with tailored environment variables and common initial
     arguments.
     """
-    cmd = ("openssl", "ca", "-notext", "-batch", "-config",  self.cfg) + args
+    cmd = (openssl, "ca", "-notext", "-batch", "-config",  self.cfg) + args
     subprocess.check_call(cmd, env = self.env)
 
   def run_req(self, key_file, req_file):
@@ -418,7 +418,7 @@ class CA(object):
     Run OpenSSL "req" command with tailored environment variables and common arguments.
     """
     if not os.path.exists(key_file) or not os.path.exists(req_file):
-      subprocess.check_call(("openssl", "req", "-new", "-sha256", "-newkey", "rsa:2048",
+      subprocess.check_call((openssl, "req", "-new", "-sha256", "-newkey", "rsa:2048",
                              "-config", self.cfg, "-keyout", key_file, "-out", req_file),
                             env = self.env)
     
@@ -485,7 +485,7 @@ class CA(object):
 
     assert pkcs10
 
-    p = subprocess.Popen(("openssl", "dgst", "-md5"), stdin = subprocess.PIPE, stdout = subprocess.PIPE)
+    p = subprocess.Popen((openssl, "dgst", "-md5"), stdin = subprocess.PIPE, stdout = subprocess.PIPE)
     hash = p.communicate(pkcs10)[0].strip()
     if p.wait() != 0:
       raise RuntimeError, "Couldn't hash PKCS#10 request"
@@ -495,7 +495,7 @@ class CA(object):
 
     if not os.path.exists(cer_file):
 
-      p = subprocess.Popen(("openssl", "req", "-inform", "DER", "-out", req_file), stdin = subprocess.PIPE)
+      p = subprocess.Popen((openssl, "req", "-inform", "DER", "-out", req_file), stdin = subprocess.PIPE)
       p.communicate(pkcs10)
       if p.wait() != 0:
         raise RuntimeError, "Couldn't store PKCS #10 request"
@@ -529,8 +529,8 @@ class CA(object):
     # Extract public key and subject name from PEM file and hash it so
     # we can use the result as a tag for cross-certifying this cert.
 
-    p1 = subprocess.Popen(("openssl", "x509", "-noout", "-pubkey", "-subject", "-in", cert), stdout = subprocess.PIPE)
-    p2 = subprocess.Popen(("openssl", "dgst", "-md5"), stdin = p1.stdout, stdout = subprocess.PIPE)
+    p1 = subprocess.Popen((openssl, "x509", "-noout", "-pubkey", "-subject", "-in", cert), stdout = subprocess.PIPE)
+    p2 = subprocess.Popen((openssl, "dgst", "-md5"), stdin = p1.stdout, stdout = subprocess.PIPE)
 
     xcert = "%s/xcert.%s.cer" % (self.dir, p2.communicate()[0].strip())
 
@@ -560,8 +560,8 @@ def main(argv = ()):
   invoked directly when this module is run as a script.
   """
 
-  cfg_file        = "myrpki.conf"
-  myrpki_section  = "myrpki"
+  cfg_file = "myrpki.conf"
+  section  = "myrpki"
 
   opts, argv = getopt.getopt(argv, "c:h:?", ["config=", "help"])
   for o, a in opts:
@@ -576,16 +576,19 @@ def main(argv = ()):
   cfg = ConfigParser.RawConfigParser()
   cfg.readfp(open(cfg_file, "r"), cfg_file)
 
-  my_handle                     = cfg.get(myrpki_section, "handle")
-  roa_csv_file                  = cfg.get(myrpki_section, "roa_csv")
-  children_csv_file             = cfg.get(myrpki_section, "children_csv")
-  parents_csv_file              = cfg.get(myrpki_section, "parents_csv")
-  prefix_csv_file               = cfg.get(myrpki_section, "prefix_csv")
-  asn_csv_file                  = cfg.get(myrpki_section, "asn_csv")
-  bpki_dir                      = cfg.get(myrpki_section, "bpki_directory")
-  xml_filename                  = cfg.get(myrpki_section, "xml_filename")
-  repository_bpki_certificate   = cfg.get(myrpki_section, "repository_bpki_certificate")
-  repository_handle             = cfg.get(myrpki_section, "repository_handle")
+  my_handle                     = cfg.get(section, "handle")
+  roa_csv_file                  = cfg.get(section, "roa_csv")
+  children_csv_file             = cfg.get(section, "children_csv")
+  parents_csv_file              = cfg.get(section, "parents_csv")
+  prefix_csv_file               = cfg.get(section, "prefix_csv")
+  asn_csv_file                  = cfg.get(section, "asn_csv")
+  bpki_dir                      = cfg.get(section, "bpki_directory")
+  xml_filename                  = cfg.get(section, "xml_filename")
+  repository_bpki_certificate   = cfg.get(section, "repository_bpki_certificate")
+  repository_handle             = cfg.get(section, "repository_handle")
+
+  global openssl
+  openssl = cfg.get(section, "openssl") if cfg.has_option(section, "openssl") else "openssl"
 
   bpki = CA(cfg_file, bpki_dir)
   bpki.setup("/CN=%s TA" % my_handle)

@@ -124,6 +124,8 @@ for o, a in opts:
 
 cfg = rpki.config.parser(cfg_file, "myirbe")
 
+myrpki.openssl = cfg.get("openssl", "openssl", "myrpki")
+
 handle = cfg.get("handle", cfg.get("handle", "Amnesiac", "myrpki"))
 
 want_pubd = cfg.getboolean("want_pubd", False)

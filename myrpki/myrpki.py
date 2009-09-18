@@ -88,13 +88,14 @@ class roa_request(object):
   v4re = re.compile("^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+(-[0-9]+)?$", re.I)
   v6re = re.compile("^([0-9a-f]{0,4}:){0,15}[0-9a-f]{0,4}/[0-9]+(-[0-9]+)?$", re.I)
 
-  def __init__(self, asn):
+  def __init__(self, asn, group):
     self.asn = asn
+    self.group = group
     self.v4 = comma_set()
     self.v6 = comma_set()
 
   def __repr__(self):
-    s = "<%s asn %s" % (self.__class__.__name__, self.asn)
+    s = "<%s asn %s group %s" % (self.__class__.__name__, self.asn, self.group)
     if self.v4:
       s += " v4 %s" % self.v4
     if self.v6:
@@ -126,13 +127,14 @@ class roa_requests(dict):
   Database of ROA requests.
   """
 
-  def add(self, asn, prefix):
+  def add(self, asn, group, prefix):
     """
-    Add one <ASN, prefix> pair to ROA request database.
+    Add one <ASN, group, prefix> set to ROA request database.
     """
-    if asn not in self:
-      self[asn] = roa_request(asn)
-    self[asn].add(prefix)
+    key = (asn, group)
+    if key not in self:
+      self[key] = roa_request(asn, group)
+    self[key].add(prefix)
 
   def xml(self, e):
     """
@@ -147,9 +149,9 @@ class roa_requests(dict):
     Parse ROA requests from CSV file.
     """
     self = cls()
-    # format:  p/n-m asn
-    for pnm, asn in csv_open(roa_csv_file):
-      self.add(asn = asn, prefix = pnm)
+    # format:  p/n-m asn group
+    for pnm, asn, group in csv_open(roa_csv_file):
+      self.add(asn = asn, group = group, prefix = pnm)
     return self
 
 class child(object):

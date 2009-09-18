@@ -359,9 +359,11 @@ class allocation(object):
     """
     Write ROA CSV file.
     """
+    group = self.name if self.is_root() else self.parent.name
     f = self.csvout(fn)
     for r in self.roa_requests:
-      f.writerows((p, r.asn) for p in (r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ()))
+      f.writerows((p, r.asn, group)
+                  for p in (r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ()))
 
   def dump_clients(self, fn, db):
     """

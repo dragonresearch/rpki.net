@@ -110,13 +110,17 @@ rpki.log.init("myirbe")
 
 cfg_file = "myrpki.conf"
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+bpki_only = False
+
+opts, argv = getopt.getopt(sys.argv[1:], "bc:h?", ["bpki_only", "config=", "help"])
 for o, a in opts:
-  if o in ("-h", "--help", "-?"):
+  if o in ("-b", "--bpki_only"):
+    bpki_only = True
+  elif o in ("-c", "--config"):
+    cfg_file = a
+  elif o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
-  if o in ("-c", "--config"):
-    cfg_file = a
 
 cfg = rpki.config.parser(cfg_file, "myirbe")
 
@@ -139,6 +143,8 @@ if want_rootd:
 
 if bpki_modified:
   print "BPKI (re)initialized.  You need to (re)start daemons before continuing."
+
+if bpki_modified or bpki_only:
   sys.exit()
 
 # Default values for CRL parameters are very low, for testing.
@@ -179,7 +185,7 @@ if want_pubd:
     action = "set",
     bpki_crl = rpki.x509.CRL(PEM_file = bpki.crl)),))
 
-irdbd_cfg = rpki.config.parser(cfg.get("irdbd_conf"), "irdbd")
+irdbd_cfg = rpki.config.parser(cfg.get("irdbd_conf", cfg_file), "irdbd")
 
 db = MySQLdb.connect(user   = irdbd_cfg.get("sql-username"),
                      db     = irdbd_cfg.get("sql-database"),

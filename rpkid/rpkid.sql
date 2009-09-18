@@ -165,7 +165,7 @@ CREATE TABLE roa (
         cert                    LONGBLOB,
         roa                     LONGBLOB,
         self_id                 BIGINT UNSIGNED NOT NULL,
-        ca_detail_id            BIGINT UNSIGNED,
+        ca_detail_id            BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (roa_id),
         FOREIGN KEY             (self_id) REFERENCES self (self_id),
         FOREIGN KEY             (ca_detail_id) REFERENCES ca_detail (ca_detail_id)

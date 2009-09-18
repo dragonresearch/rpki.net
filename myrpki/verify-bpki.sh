@@ -18,6 +18,8 @@
 # Tests of generated BPKI certificates.  Kind of cheesy, but does test
 # the basic stuff.
 
+exec 2>&1
+
 # Check that CRLs verify properly
 find bpki.* -name '*.crl' | sed 's=^\(.*\)/\(.*\)$=echo -n "&: "; openssl crl -CAfile \1/ca.cer -noout -in &=' | sh
 

@@ -762,9 +762,9 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
 
     resources = rpki.resource_set.resource_bag(
-      asn = rpki.resource_set.resource_set_as("<inherit>"),
-      v4 = rpki.resource_set.resource_set_ipv4("<inherit>"),
-      v6 = rpki.resource_set.resource_set_ipv6("<inherit>"))
+      asn = rpki.resource_set.resource_set_as(rpki.resource_set.inherit_token),
+      v4 = rpki.resource_set.resource_set_ipv4(rpki.resource_set.inherit_token),
+      v6 = rpki.resource_set.resource_set_ipv6(rpki.resource_set.inherit_token))
 
     self.latest_manifest_cert = self.issue_ee(ca, resources, self.manifest_public_key)
 

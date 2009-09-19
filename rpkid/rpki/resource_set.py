@@ -223,7 +223,7 @@ class resource_set(list):
     list.__init__(self)
     if isinstance(ini, (int, long)):
       ini = str(ini)
-    if ini == inherit_token:
+    if ini is inherit_token:
       self.inherit = True
     elif isinstance(ini, str) and len(ini):
       self.extend(self.parse_str(s) for s in ini.split(","))
@@ -232,7 +232,7 @@ class resource_set(list):
     elif isinstance(ini, list):
       self.extend(ini)
     else:
-      assert ini is None or ini == "", "Unexpected initializer: %s" % str(ini)
+      assert ini is None or (isinstance(ini, str) and ini == ""), "Unexpected initializer: %s" % str(ini)
     assert not self.inherit or not self
     self.sort()
     for i in xrange(len(self) - 2, -1, -1):

@@ -5,8 +5,8 @@ Pull RFC 3779 resources from a cert, attempt to mine routeviews (via
 DNS, using the dnspython toolkit) for what the ROAs might look like
 for the addresses found in the cert.
 
-This doesn't handle IPv6 yet, because I didn't know about the
-dns.reversename module when I wrote this.  I'll fix that.
+This doesn't handle IPv6, because neither, apparently, does the
+routeviews DNS interface.  Oh well.
 
 NB: this is wild-assed guessing at best.  Even if the routeviews data
 were signed, which it is not, you have no particular reason to believe

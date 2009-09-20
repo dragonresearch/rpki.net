@@ -76,7 +76,7 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
       handle_name = tag + "_handle"
       if getattr(r_pdu, handle_name, None) is None:
         try:
-          setattr(r_pdu, handle_name, getattr(elt.sql_fetch(self.gctx, getattr(self, id_name)), handle_name))
+          setattr(r_pdu, handle_name, getattr(elt.sql_fetch(self.gctx, getattr(r_pdu, id_name)), handle_name))
         except AttributeError:
           continue
 

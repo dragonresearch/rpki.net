@@ -67,10 +67,24 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
 
   def make_reply_clone_hook(self, r_pdu):
     """
-    Set self_handle when cloning.
+    Set handles when cloning.
     """
     if r_pdu.self_handle is None:
       r_pdu.self_handle = self.self_handle
+    r_pdu.gctx = self.gctx
+    r_pdu.handle_fixup(self)
+
+  def handle_fixup(self, q_pdu):
+    """
+    Do _handle => _id translation.
+    """
+    for tag, elt in self.handles:
+      id_name = tag + "_id"
+      if getattr(self, id_name, None) is None:
+        x = elt.serve_fetch_handle(self.gctx, self.self_id, getattr(q_pdu, tag + "_handle"))
+        if x is None:
+          raise rpki.exceptions.HandleTranslationError, "Could not translate %r %s_handle" % (self, tag)
+        setattr(self, id_name, getattr(x, id_name))
 
   @classmethod
   def serve_fetch_handle(cls, gctx, self_id, handle):
@@ -104,13 +118,7 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
     operations, self is the pre-existing object from SQL and q_pdu is
     the set request received from the the IRBE.
     """
-    for tag, elt in self.handles:
-      id_name = tag + "_id"
-      if getattr(self, id_name, None) is None:
-        x = elt.serve_fetch_handle(self.gctx, self.self_id, getattr(q_pdu, tag + "_handle"))
-        if x is None:
-          raise rpki.exceptions.HandleTranslationError, "Could not translate %r %s_handle" % (self, tag)
-        setattr(self, id_name, getattr(x, id_name))
+    self.handle_fixup(q_pdu)
     cb()
 
 class self_elt(data_elt):

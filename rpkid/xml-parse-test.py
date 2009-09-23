@@ -66,12 +66,12 @@ def lr_tester(elt_in, elt_out, msg):
       pprint(((obj.signing_cert,      "Signing certificate"),
               (obj.signing_cert_crl,  "Signing certificate CRL")))
       #       (obj.pkcs10_request,    "PKCS #10 request")
-    if isinstance(obj, (rpki.left_right.parent_elt, rpki.left_right.repository_elt)):
+    if isinstance(obj, rpki.left_right.parent_elt):
       pprint(((obj.bpki_cms_cert,     "CMS certificate"),
               (obj.bpki_cms_glue,     "CMS glue"),
               (obj.bpki_https_cert,   "HTTPS certificate"),
               (obj.bpki_https_glue,   "HTTPS glue")))
-    if isinstance(obj, rpki.left_right.child_elt):
+    if isinstance(obj, (rpki.left_right.child_elt, rpki.left_right.repository_elt)):
       pprint(((obj.bpki_cert,         "Certificate"),
               (obj.bpki_glue,         "Glue")))
 

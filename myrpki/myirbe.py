@@ -380,8 +380,7 @@ for xmlfile in xmlfiles:
     if (repository_pdu is None or
         repository_pdu.bsc_handle != bsc_handle or
         repository_pdu.peer_contact_uri != repository_uri or
-        repository_pdu.bpki_cms_cert != repository_cert or
-        repository_pdu.bpki_https_cert != repository_cert):
+        repository_pdu.bpki_cert != repository_cert):
       rpkid_query.append(rpki.left_right.repository_elt.make_pdu(
         action = "create" if repository_pdu is None else "set",
         tag = repository_handle,
@@ -389,8 +388,7 @@ for xmlfile in xmlfiles:
         repository_handle = repository_handle,
         bsc_handle = bsc_handle,
         peer_contact_uri = repository_uri,
-        bpki_cms_cert = repository_cert,
-        bpki_https_cert = repository_cert))
+        bpki_cert = repository_cert))
 
   rpkid_query.extend(rpki.left_right.repository_elt.make_pdu(
     action = "destroy", self_handle = handle, repository_handle = r) for r in repository_pdus)

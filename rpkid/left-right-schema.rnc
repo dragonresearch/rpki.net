@@ -177,10 +177,8 @@ repository_handle = attribute repository_handle { object_handle }
 
 repository_payload = (attribute peer_contact_uri { uri }?,
                       bsc_handle?,
-                      element bpki_cms_cert { base64 }?,
-                      element bpki_cms_glue { base64 }?,
-                      element bpki_https_cert { base64 }?,
-                      element bpki_https_glue { base64 }?)
+                      element bpki_cert { base64 }?,
+                      element bpki_glue { base64 }?)
 
 repository_query |= element repository { ctl_create,  self_handle, repository_handle, repository_payload }
 repository_reply |= element repository { ctl_create,  self_handle, repository_handle }

@@ -879,15 +879,12 @@ class allocation(object):
         base_uri = s.sia_base,
         bpki_cert = s.cross_certify(pubd_name + "-TA", reverse = True)))
 
-      repository_cert = s.cross_certify(pubd_name + "-TA")
-
       rpkid_pdus.append(rpki.left_right.repository_elt.make_pdu(
         action = "create",
         self_handle = s.name,
         bsc_handle = "b",
         repository_handle = "r",
-        bpki_cms_cert = repository_cert,
-        bpki_https_cert = repository_cert,
+        bpki_cert = s.cross_certify(pubd_name + "-TA"),
         peer_contact_uri = "https://localhost:%d/client/%s" % (pubd_port, s.client_handle)))
 
       for k in s.kids:

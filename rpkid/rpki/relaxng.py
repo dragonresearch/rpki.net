@@ -705,22 +705,12 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       <ref name="bsc_handle"/>
     </optional>
     <optional>
-      <element name="bpki_cms_cert">
+      <element name="bpki_cert">
         <ref name="base64"/>
       </element>
     </optional>
     <optional>
-      <element name="bpki_cms_glue">
-        <ref name="base64"/>
-      </element>
-    </optional>
-    <optional>
-      <element name="bpki_https_cert">
-        <ref name="base64"/>
-      </element>
-    </optional>
-    <optional>
-      <element name="bpki_https_glue">
+      <element name="bpki_glue">
         <ref name="base64"/>
       </element>
     </optional>

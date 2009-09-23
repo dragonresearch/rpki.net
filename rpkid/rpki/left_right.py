@@ -586,18 +586,15 @@ class repository_elt(data_elt):
 
   element_name = "repository"
   attributes = ("action", "tag", "self_handle", "repository_handle", "bsc_handle", "peer_contact_uri")
-  elements = ("bpki_cms_cert", "bpki_cms_glue", "bpki_https_cert", "bpki_https_glue")
+  elements = ("bpki_cert", "bpki_glue")
 
   sql_template = rpki.sql.template("repository", "repository_id", "repository_handle",
                                    "self_id", "bsc_id", "peer_contact_uri",
-                                   ("bpki_cms_cert", rpki.x509.X509), ("bpki_cms_glue", rpki.x509.X509),
-                                   ("bpki_https_cert", rpki.x509.X509), ("bpki_https_glue", rpki.x509.X509))
+                                   ("bpki_cert", rpki.x509.X509), ("bpki_glue", rpki.x509.X509))
   handles = (("self", self_elt), ("bsc", bsc_elt))
 
-  bpki_cms_cert = None
-  bpki_cms_glue = None
-  bpki_https_cert = None
-  bpki_https_glue = None
+  bpki_cert = None
+  bpki_glue = None
 
   def parents(self):
     """Fetch all parent objects that link to this repository object."""
@@ -611,7 +608,7 @@ class repository_elt(data_elt):
     bsc = self.bsc()
     q_msg = rpki.publication.msg.query(pdus)
     q_cms = rpki.publication.cms_msg.wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
-    bpki_ta_path = (self.gctx.bpki_ta, self.self().bpki_cert, self.self().bpki_glue, self.bpki_https_cert, self.bpki_https_glue)
+    bpki_ta_path = (self.gctx.bpki_ta, self.self().bpki_cert, self.self().bpki_glue, self.bpki_cert, self.bpki_glue)
 
     def done(r_cms):
       try:

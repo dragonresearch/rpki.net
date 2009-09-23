@@ -153,7 +153,6 @@ if bpki_modified or bpki_only:
 
 self_crl_interval = cfg.getint("self_crl_interval", 900)
 self_regen_margin = cfg.getint("self_regen_margin", 300)
-rsync_base        = cfg.get("rsync_base").rstrip("/") + "/"
 pubd_base         = cfg.get("pubd_base").rstrip("/") + "/"
 rpkid_base        = cfg.get("rpkid_base").rstrip("/") + "/"
 

@@ -4,6 +4,15 @@ Unified RPKI date/time handling, based on the standard Python datetime module.
 Module name chosen to sidestep a nightmare of import-related errors
 that occur with the more obvious module names.
 
+List of arithmetic methods that require result casting was derived by
+inspection of the datetime module, to wit:
+
+  >>> import datetime
+  >>> for t in (datetime.datetime, datetime.timedelta):
+  ...  for k in t.__dict__.keys():
+  ...   if k.startswith("__"):
+  ...    print "%s.%s()" % (t.__name__, k)
+
 $Id$
 
 Copyright (C) 2009  Internet Systems Consortium ("ISC")
@@ -123,26 +132,6 @@ class datetime(pydatetime.datetime):
     """
     return cls.combine(x.date(), x.time())
 
-  def __add__(self, other):
-    """
-    Force correct class for timedelta results.
-    """
-    x = pydatetime.datetime.__add__(self, other)
-    if isinstance(x, pydatetime.timedelta):
-      return timedelta.fromtimedelta(x)
-    else:
-      return datetime.fromdatetime(x)
-  
-  def __sub__(self, other):
-    """
-    Force correct class for timedelta results.
-    """
-    x = pydatetime.datetime.__sub__(self, other)
-    if isinstance(x, pydatetime.timedelta):
-      return timedelta.fromtimedelta(x)
-    else:
-      return datetime.fromdatetime(x)
-
   @classmethod
   def from_sql(cls, x):
     """Convert from SQL storage format."""
@@ -170,6 +159,11 @@ class datetime(pydatetime.datetime):
   def earlier(self, other):
     """Return the earlier of two timestamps."""
     return other if other < self else self
+
+  def __add__(x, y):  return _cast(pydatetime.datetime.__add__(x, y))
+  def __radd__(x, y): return _cast(pydatetime.datetime.__radd__(x, y))
+  def __rsub__(x, y): return _cast(pydatetime.datetime.__rsub__(x, y))
+  def __sub__(x, y):  return _cast(pydatetime.datetime.__sub__(x, y))
 
 class timedelta(pydatetime.timedelta):
   """
@@ -212,7 +206,6 @@ class timedelta(pydatetime.timedelta):
       else:
         raise RuntimeError, "Couldn't parse timedelta %r" % (arg,)
 
-
   def convert_to_seconds(self):
     """Convert a timedelta interval to seconds."""
     return self.days * 24 * 60 * 60 + self.seconds
@@ -221,6 +214,30 @@ class timedelta(pydatetime.timedelta):
   def fromtimedelta(cls, x):
     """Convert a datetime.timedelta object into this subclass."""
     return cls(days = x.days, seconds = x.seconds, microseconds = x.microseconds)
+
+  def __abs__(x):          return _cast(pydatetime.timedelta.__abs__(x))
+  def __add__(x, y):       return _cast(pydatetime.timedelta.__add__(x, y))
+  def __div__(x, y):       return _cast(pydatetime.timedelta.__div__(x, y))
+  def __floordiv__(x, y):  return _cast(pydatetime.timedelta.__floordiv__(x, y))
+  def __mul__(x, y):       return _cast(pydatetime.timedelta.__mul__(x, y))
+  def __neg__(x):          return _cast(pydatetime.timedelta.__neg__(x))
+  def __pos__(x):          return _cast(pydatetime.timedelta.__pos__(x))
+  def __radd__(x, y):      return _cast(pydatetime.timedelta.__radd__(x, y))
+  def __rdiv__(x, y):      return _cast(pydatetime.timedelta.__rdiv__(x, y))
+  def __rfloordiv__(x, y): return _cast(pydatetime.timedelta.__rfloordiv__(x, y))
+  def __rmul__(x, y):      return _cast(pydatetime.timedelta.__rmul__(x, y))
+  def __rsub__(x, y):      return _cast(pydatetime.timedelta.__rsub__(x, y))
+  def __sub__(x, y):       return _cast(pydatetime.timedelta.__sub__(x, y))
+
+def _cast(x):
+  """
+  Cast result of arithmetic operations back into correct subtype.
+  """
+  if isinstance(x, pydatetime.datetime):
+    return datetime.fromdatetime(x)
+  if isinstance(x, pydatetime.timedelta):
+    return timedelta.fromtimedelta(x)
+  return x
 
 if __name__ == "__main__":
 

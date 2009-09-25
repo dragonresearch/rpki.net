@@ -63,7 +63,12 @@ class rpkid_context(object):
     self.initial_delay = random.randint(cfg.getint("initial-delay-min", 10),
                                         cfg.getint("initial-delay-max", 120))
     
-    self.cron_period = cfg.getint("cron-period", 120) # Should be much longer in production
+    # Should be much longer in production
+    self.cron_period = rpki.sundial.timedelta(seconds = cfg.getint("cron-period", 120))
+    self.cron_keepalive = rpki.sundial.timedelta(seconds = cfg.getint("cron-keepalive", 0))
+    if not self.cron_keepalive:
+      self.cron_keepalive = self.cron_period * 4
+    self.cron_timeout = None
 
   def start_cron(self):
     """
@@ -199,31 +204,52 @@ class rpkid_context(object):
     rpki.log.trace()
     self.sql.ping()
 
-    def loop(iterator, s):
-      s.cron(iterator)
+    now = rpki.sundial.now()
 
-    def sched():
-      when = rpki.sundial.now() + rpki.sundial.timedelta(seconds = self.cron_period)
+    assert self.use_internal_cron or self.cron_timeout is None
+
+    if self.use_internal_cron:
+
+      if self.cron_timeout and self.cron_timeout < now + self.cron_keepalive:
+        rpki.log.warn("cron keepalive threshold %s has expired, breaking lock" % self.cron_timeout)
+        self.cron_timeout = None
+
+      when = now + self.cron_period
       rpki.log.debug("Scheduling next cron run at %s" % when)
       rpki.async.timer(handler = self.cron).set(when)
 
+      if self.cron_timeout:
+        rpki.log.warn("cron already running, keepalive will expire at %s" % self.cron_timeout)
+        return
+
+      self.cron_timeout = now + self.cron_keepalive
+
+    def loop(iterator, s):
+      s.cron(iterator)
+
     def done():
       self.sql.sweep()
-      if self.use_internal_cron:
-        sched()
-      else:
+      self.cron_timeout = None
+      rpki.log.info("Finished cron run started at %s" % now)
+      if not self.use_internal_cron:
         cb()
 
-    try:
-      rpki.async.iterator(rpki.left_right.self_elt.sql_fetch_all(self), loop, done)
-    except (rpki.async.ExitNow, SystemExit):
-      raise
-    except Exception, data:
+    def lose(e):
+      self.cron_timeout = None
       if self.use_internal_cron:
         rpki.log.traceback()
-        sched()
       else:
         raise
+      
+    try:
+      rpki.async.iterator(rpki.left_right.self_elt.sql_fetch_all(self), loop, done)
+
+    except (rpki.async.ExitNow, SystemExit):
+      self.cron_timeout = None
+      raise
+
+    except Exception, e:
+      lose(e)
 
   def cronjob_handler(self, query, path, cb):
     """

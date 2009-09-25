@@ -43,7 +43,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import POW, POW.pkix, base64, lxml.etree, os
+import POW, POW.pkix, base64, lxml.etree, os, subprocess, sys
 import rpki.exceptions, rpki.resource_set, rpki.oids, rpki.sundial
 import rpki.manifest, rpki.roa, rpki.log, rpki.async
 
@@ -312,14 +312,13 @@ class DER_object(object):
     """
 
     ret = None
-    fn = "dumpasn1.tmp"
+    fn = "dumpasn1.%d.tmp" % os.getpid()
     try:
       f = open(fn, "wb")
       f.write(self.get_DER())
       f.close()
-      f = os.popen("dumpasn1 2>&1 -a " + fn)
-      ret = "\n".join(x for x in f.read().splitlines() if x.startswith(" "))
-      f.close()
+      p = subprocess.Popen(("dumpasn1", "-a", fn), stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+      ret = "\n".join(x for x in p.communicate()[0].splitlines() if x.startswith(" "))
     finally:
       os.unlink(fn)
     return ret
@@ -843,7 +842,7 @@ class CMS_object(DER_object):
           dbg = self.dumpasn1()
         else:
           dbg = cms.pprint()
-        print "CMS verification failed, dumping ASN.1 (%d octets):\n%s" % (len(self.get_DER()), dbg)
+        sys.stderr.write("CMS verification failed, dumping ASN.1 (%d octets):\n%s\n" % (len(self.get_DER()), dbg))
       raise rpki.exceptions.CMSVerificationFailed, "CMS verification failed"
 
     self.decode(content)

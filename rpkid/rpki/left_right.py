@@ -739,7 +739,7 @@ class parent_elt(data_elt):
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
 
     if bsc.signing_cert is None:
-      raise rpki.exceptions.BSCNotReady, "BSC %s is not yet usable" % self.bsc_id
+      raise rpki.exceptions.BSCNotReady, "BSC %r[%s] is not yet usable" % (bsc.bsc_handle, bsc.bsc_id)
 
     q_msg = rpki.up_down.message_pdu.make_query(
       payload = q_pdu,
@@ -751,11 +751,17 @@ class parent_elt(data_elt):
                                       bsc.signing_cert_crl)
 
     def unwrap(der):
-      r_msg = rpki.up_down.cms_msg.unwrap(der, (self.gctx.bpki_ta,
-                                                self.self().bpki_cert, self.self().bpki_glue,
-                                                self.bpki_cms_cert, self.bpki_cms_glue))
-      r_msg.payload.check_response()
-      cb(r_msg)
+      try:
+        r_msg = rpki.up_down.cms_msg.unwrap(der, (self.gctx.bpki_ta,
+                                                  self.self().bpki_cert, self.self().bpki_glue,
+                                                  self.bpki_cms_cert, self.bpki_cms_glue))
+        r_msg.payload.check_response()
+      except (SystemExit, rpki.async.ExitNow):
+        raise
+      except Exception, e:
+        eb(e)
+      else:
+        cb(r_msg)
 
     rpki.https.client(server_ta    = (self.gctx.bpki_ta,
                                       self.self().bpki_cert, self.self().bpki_glue,

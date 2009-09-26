@@ -210,7 +210,7 @@ class rpkid_context(object):
 
     if self.use_internal_cron:
 
-      if self.cron_timeout and self.cron_timeout < now + self.cron_keepalive:
+      if self.cron_timeout and self.cron_timeout < now:
         rpki.log.warn("cron keepalive threshold %s has expired, breaking lock" % self.cron_timeout)
         self.cron_timeout = None
 

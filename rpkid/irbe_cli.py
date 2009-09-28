@@ -44,8 +44,6 @@ class caller(object):
   protocols.
   """
 
-  debug = True
-
   def __init__(self, cms_class, client_key, client_cert, server_ta, server_cert, url):
     self.cms_class = cms_class
     self.client_key = client_key
@@ -58,13 +56,15 @@ class caller(object):
 
     def done(cms):
       msg, xml = self.cms_class.unwrap(cms, (self.server_ta, self.server_cert), pretty_print = True)
-      if self.debug:
-        print "Reply:", xml
+      if verbose:
+        print "<!-- Reply -->"
+        print xml
       cb(msg)
 
     cms, xml = self.cms_class.wrap(msg, self.client_key, self.client_cert, pretty_print = True)
-    if self.debug:
-      print "Query:", xml
+    if verbose:
+      print "<!-- Query -->"
+      print xml
 
     rpki.https.client(
       client_key   = self.client_key,
@@ -216,12 +216,16 @@ class child_elt(cmd_elt_mixin, rpki.left_right.child_elt):
 class repository_elt(cmd_elt_mixin, rpki.left_right.repository_elt):
   pass
 
+class list_published_objects_elt(cmd_elt_mixin, rpki.left_right.list_published_objects_elt):
+  pass
+
 class report_error_elt(reply_elt_mixin, rpki.left_right.report_error_elt):
   pass
 
 class left_right_msg(cmd_msg_mixin, rpki.left_right.msg):
   pdus = dict((x.element_name, x)
-              for x in (self_elt, bsc_elt, parent_elt, child_elt, repository_elt, report_error_elt))
+              for x in (self_elt, bsc_elt, parent_elt, child_elt, repository_elt,
+                        list_published_objects_elt, report_error_elt))
 
 class left_right_sax_handler(rpki.left_right.sax_handler):
   pdu = left_right_msg
@@ -267,7 +271,7 @@ class publication_cms_msg(rpki.publication.cms_msg):
 
 # Usage
 
-top_opts = ["config=", "help", "pem_out=", "verbose"]
+top_opts = ["config=", "help", "pem_out=", "quiet", "verbose"]
 
 def usage(code = 1):
   print __doc__.strip()
@@ -294,9 +298,9 @@ if not argv:
   usage(0)
 
 cfg_file = "irbe.conf"
-verbose = False
+verbose = True
 
-opts, argv = getopt.getopt(argv, "c:hpv?", top_opts)
+opts, argv = getopt.getopt(argv, "c:hpqv?", top_opts)
 for o, a in opts:
   if o in ("-?", "-h", "--help"):
     usage(0)
@@ -304,6 +308,8 @@ for o, a in opts:
     cfg_file = a
   elif o in ("-p", "--pem_out"):
     pem_out = a
+  elif o in ("-q", "--quiet"):
+    verbose = False
   elif o in ("-v", "--verbose"):
     verbose = True
 

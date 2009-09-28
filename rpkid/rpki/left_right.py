@@ -936,6 +936,55 @@ class list_roa_requests_elt(rpki.xml_utils.base_elt, left_right_namespace):
     if self.ipv6 is not None:
       self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6)
 
+class list_published_objects_elt(rpki.xml_utils.base_elt, left_right_namespace):
+  """
+  <list_published_objects/> element.
+  """
+
+  element_name = "list_published_objects"
+  attributes = ("self_handle", "tag", "uri")
+
+  obj = None
+
+  def serve_dispatch(self, r_msg, cb, eb):
+    """
+    Handle a <list_published_objects/> query.  The method name is a
+    misnomer here, there's no action attribute and no dispatch, we
+    just dump every published object for the specified <self/> and return.
+    """
+    for  parent in self_elt.serve_fetch_handle(self.gctx, None, self.self_handle).parents():
+      for ca in parent.cas():
+        ca_detail = ca.fetch_active()
+        if ca_detail is not None:
+          r_msg.append(self.make_reply(ca_detail.crl_uri(ca), ca_detail.latest_crl))
+          r_msg.append(self.make_reply(ca_detail.manifest_uri(ca), ca_detail.latest_manifest))
+          r_msg.extend(self.make_reply(c.uri(ca), c.cert) for c in ca_detail.child_certs())
+          r_msg.extend(self.make_reply(r.uri(), r.roa) for r in ca_detail.roas() if r.roa is not None)
+    cb()
+
+  def make_reply(self, uri, obj):
+    """
+    Generate one reply PDU.
+    """
+    r_pdu = self.make_pdu(tag = self.tag, self_handle = self.self_handle, uri = uri)
+    r_pdu.obj = obj.get_Base64()
+    return r_pdu
+
+  def endElement(self, stack, name, text):
+    """
+    Extract Base64 value from parsed XML.
+    """
+    rpki.xml_utils.base_elt.endElement(self, stack, name, text)
+    self.obj = text
+
+  def toXML(self):
+    """
+    Insert Base64 value into generated XML.
+    """
+    elt = self.make_elt()
+    elt.text = self.obj
+    return elt
+
 class report_error_elt(rpki.xml_utils.base_elt, left_right_namespace):
   """
   <report_error/> element.
@@ -943,6 +992,8 @@ class report_error_elt(rpki.xml_utils.base_elt, left_right_namespace):
 
   element_name = "report_error"
   attributes = ("tag", "self_handle", "error_code")
+
+  error_text = None
 
   @classmethod
   def from_exception(cls, e, self_handle = None, tag = None):
@@ -953,8 +1004,16 @@ class report_error_elt(rpki.xml_utils.base_elt, left_right_namespace):
     self.self_handle = self_handle
     self.tag = tag
     self.error_code = e.__class__.__name__
-    self.text = str(e)
+    self.error_text = str(e)
     return self
+
+  def toXML(self):
+    """
+    Insert error text into generated XML.
+    """
+    elt = self.make_elt()
+    elt.text = self.error_text
+    return elt
 
 class msg(rpki.xml_utils.msg, left_right_namespace):
   """
@@ -968,9 +1027,9 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
   ## @var pdus
   # Dispatch table of PDUs for this protocol.
   pdus = dict((x.element_name, x)
-              for x in (self_elt, child_elt, parent_elt, bsc_elt,
-                        repository_elt, list_resources_elt,
-                        list_roa_requests_elt, report_error_elt))
+              for x in (self_elt, child_elt, parent_elt, bsc_elt, repository_elt,
+                        list_resources_elt, list_roa_requests_elt, list_published_objects_elt,
+                        report_error_elt))
 
   def serve_top_level(self, gctx, cb):
     """

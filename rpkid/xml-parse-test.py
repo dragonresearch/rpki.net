@@ -19,7 +19,7 @@ PERFORMANCE OF THIS SOFTWARE.
 import glob, lxml.etree, lxml.sax
 import rpki.up_down, rpki.left_right, rpki.publication, rpki.relaxng
 
-verbose = False
+verbose = True
 
 def test(fileglob, rng, sax_handler, encoding, tester = None):
   files = glob.glob(fileglob)

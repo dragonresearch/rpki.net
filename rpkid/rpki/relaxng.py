@@ -64,6 +64,9 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="query_elt" combine="choice">
     <ref name="list_resources_query"/>
   </define>
+  <define name="query_elt" combine="choice">
+    <ref name="list_published_objects_query"/>
+  </define>
   <!-- PDUs allowed in a reply -->
   <define name="reply_elt" combine="choice">
     <ref name="self_reply"/>
@@ -85,6 +88,9 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="list_roa_requests_reply"/>
+  </define>
+  <define name="reply_elt" combine="choice">
+    <ref name="list_published_objects_reply"/>
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="report_error_reply"/>
@@ -847,6 +853,23 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
           <ref name="ipv6_list"/>
         </attribute>
       </optional>
+    </element>
+  </define>
+  <!-- <list_published_objects/> element -->
+  <define name="list_published_objects_query">
+    <element name="list_published_objects">
+      <ref name="tag"/>
+      <ref name="self_handle"/>
+    </element>
+  </define>
+  <define name="list_published_objects_reply">
+    <element name="list_published_objects">
+      <ref name="tag"/>
+      <ref name="self_handle"/>
+      <attribute name="uri">
+        <ref name="uri"/>
+      </attribute>
+      <ref name="base64"/>
     </element>
   </define>
   <!-- <report_error/> element -->

@@ -376,8 +376,14 @@ def PEMElement(e, tag, filename):
   Create an XML element containing Base64 encoded data taken from a
   PEM file.
   """
-  e = SubElement(e, tag)
-  e.text = "".join(p.strip() for p in open(filename).readlines()[1:-1])
+  lines = open(filename).readlines()
+  while lines:
+    if lines.pop(0).startswith("-----BEGIN "):
+      break
+  while lines:
+    if lines.pop(-1).startswith("-----END "):
+      break
+  SubElement(e, tag).text = "".join(line.strip() for line in lines)
 
 class CA(object):
   """
@@ -410,7 +416,7 @@ class CA(object):
     Run OpenSSL "ca" command with tailored environment variables and common initial
     arguments.
     """
-    cmd = (openssl, "ca", "-notext", "-batch", "-config",  self.cfg) + args
+    cmd = (openssl, "ca", "-batch", "-config",  self.cfg) + args
     subprocess.check_call(cmd, env = self.env)
 
   def run_req(self, key_file, req_file):

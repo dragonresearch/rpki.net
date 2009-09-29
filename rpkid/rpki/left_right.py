@@ -756,7 +756,7 @@ class parent_elt(data_elt):
 
           def ski_loop(ski_iterator, ski):
             rpki.log.warn("Revoking certificates missing from our database, class %r, SKI %s" % (rc.class_name, ski))
-            rpki.up_down.revoke_pdu.query(ca, ski, ski_iterator, eb)
+            rpki.up_down.revoke_pdu.query(ca, ski, lambda x: ski_iterator(), eb)
 
           ca = ca_map[rc.class_name]
           skis_parent_knows_about = set(c.cert.gSKI() for c in rc.certs)

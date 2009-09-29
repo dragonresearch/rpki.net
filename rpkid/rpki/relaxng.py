@@ -219,6 +219,11 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
         <value>yes</value>
       </attribute>
     </optional>
+    <optional>
+      <attribute name="revoke_forgotten">
+        <value>yes</value>
+      </attribute>
+    </optional>
   </define>
   <define name="self_payload">
     <optional>
@@ -465,6 +470,11 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     </optional>
     <optional>
       <attribute name="revoke">
+        <value>yes</value>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="revoke_forgotten">
         <value>yes</value>
       </attribute>
     </optional>

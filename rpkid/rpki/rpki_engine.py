@@ -338,6 +338,10 @@ class ca_obj(rpki.sql.sql_persistent):
     """Fetch revoked ca_details for this CA, if any."""
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND state = 'revoked'", (self.ca_id,))
 
+  def fetch_nonnull_nonrevoked(self):
+    """Fetch ca_details which have a CA cert and which are not revoked."""
+    return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL AND state != 'revoked'", (self.ca_id,))
+
   def construct_sia_uri(self, parent, rc):
     """
     Construct the sia_uri value for this CA given configured
@@ -406,7 +410,7 @@ class ca_obj(rpki.sql.sql_persistent):
                       % (rc.class_name, ", ".join(c.cert.gSKI() for c in cert_map.values())))
       cb()
 
-    ca_details = ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL AND state != 'revoked'", (self.ca_id,))
+    ca_details = self.fetch_nonnull_nonrevoked()
 
     if True:
       for x in cert_map.itervalues():
@@ -716,7 +720,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
 
       rpki.async.iterator(self.child_certs(), revoke_one_child, final_crl)
 
-    rpki.up_down.revoke_pdu.query(self, parent_revoked, eb)
+    rpki.up_down.revoke_pdu.query(self.ca(), self.latest_ca_cert.gSKI(), parent_revoked, eb)
 
   def update(self, parent, ca, rc, sia_uri_changed, old_resources, callback, errback):
     """

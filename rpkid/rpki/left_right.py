@@ -129,7 +129,7 @@ class self_elt(data_elt):
   element_name = "self"
   attributes = ("action", "tag", "self_handle", "crl_interval", "regen_margin")
   elements = ("bpki_cert", "bpki_glue")
-  booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now")
+  booleans = ("rekey", "reissue", "revoke", "run_now", "publish_world_now", "revoke_forgotten")
 
   sql_template = rpki.sql.template("self", "self_id", "self_handle",
                                    "use_hsm", "crl_interval", "regen_margin",
@@ -173,6 +173,8 @@ class self_elt(data_elt):
       actions.append(self.serve_rekey)
     if q_pdu.revoke:
       actions.append(self.serve_revoke)
+    if q_pdu.revoke_forgotten:
+      actions.append(self.serve_revoke_forgotten)
     if q_pdu.publish_world_now:
       actions.append(self.serve_publish_world_now)
     if q_pdu.run_now:
@@ -186,10 +188,8 @@ class self_elt(data_elt):
     Handle a left-right rekey action for this self.
     """
     rpki.log.trace()
-
     def loop(iterator, parent):
       parent.serve_rekey(iterator, eb)
-
     rpki.async.iterator(self.parents(), loop, cb)
 
   def serve_revoke(self, cb, eb):
@@ -197,10 +197,17 @@ class self_elt(data_elt):
     Handle a left-right revoke action for this self.
     """
     rpki.log.trace()
-
     def loop(iterator, parent):
       parent.serve_revoke(iterator, eb)
+    rpki.async.iterator(self.parents(), loop, cb)
 
+  def serve_revoke_forgotten(self, cb, eb):
+    """
+    Handle a left-right revoke_forgotten action for this self.
+    """
+    rpki.log.trace()
+    def loop(iterator, parent):
+      parent.serve_revoke_forgotten(iterator, eb)
     rpki.async.iterator(self.parents(), loop, cb)
 
   def serve_publish_world_now(self, cb, eb):
@@ -671,7 +678,7 @@ class parent_elt(data_elt):
   attributes = ("action", "tag", "self_handle", "parent_handle", "bsc_handle", "repository_handle",
                 "peer_contact_uri", "sia_base", "sender_name", "recipient_name")
   elements = ("bpki_cms_cert", "bpki_cms_glue", "bpki_https_cert", "bpki_https_glue")
-  booleans = ("rekey", "reissue", "revoke")
+  booleans = ("rekey", "reissue", "revoke", "revoke_forgotten")
 
   sql_template = rpki.sql.template("parent", "parent_id", "parent_handle",
                                    "self_id", "bsc_id", "repository_id",
@@ -703,6 +710,8 @@ class parent_elt(data_elt):
       actions.append(self.serve_rekey)
     if q_pdu.revoke:
       actions.append(self.serve_revoke)
+    if q_pdu.revoke_forgotten:
+      actions.append(self.serve_revoke_forgotten)
     def loop(iterator, action):
       action(iterator, eb)
     rpki.async.iterator(actions, loop, cb)
@@ -711,21 +720,57 @@ class parent_elt(data_elt):
     """
     Handle a left-right rekey action for this parent.
     """
-
     def loop(iterator, ca):
       ca.rekey(iterator, eb)
-
     rpki.async.iterator(self.cas(), loop, cb)
 
   def serve_revoke(self, cb, eb):
     """
     Handle a left-right revoke action for this parent.
     """
-
     def loop(iterator, ca):
       ca.revoke(iterator, eb)
-
     rpki.async.iterator(self.cas(), loop, cb)
+
+  def serve_revoke_forgotten(self, cb, eb):
+    """
+    Handle a left-right revoke_forgotten action for this parent.
+
+    This is a bit fiddly: we have to compare the result of an up-down
+    list query with what we have locally and identify the SKIs of any
+    certificates that have gone missing.  This should never happen in
+    ordinary operation, but can arise if we have somehow lost a
+    private key, in which case there is nothing more we can do with
+    the issued cert, so we have to clear it.  As this really is not
+    supposed to happen, we don't clear it automatically, instead we
+    require an explicit trigger.
+    """
+
+    def got_list(r_msg):
+
+      ca_map = dict((ca.parent_resource_class, ca) for ca in self.cas())
+
+      def rc_loop(rc_iterator, rc):
+
+        if rc.class_name in ca_map:
+
+          def ski_loop(ski_iterator, ski):
+            rpki.log.warn("Revoking certificates missing from our database, class %r, SKI %s" % (rc.class_name, ski))
+            rpki.up_down.revoke_pdu.query(ca, ski, ski_iterator, eb)
+
+          ca = ca_map[rc.class_name]
+          skis_parent_knows_about = set(c.cert.gSKI() for c in rc.certs)
+          skis_ca_knows_about = set(ca_detail.latest_ca_cert.gSKI() for ca_detail in ca.fetch_nonnull_nonrevoked())
+          skis_only_parent_knows_about = skis_parent_knows_about - skis_ca_knows_about
+          rpki.async.iterator(skis_only_parent_knows_about, ski_loop, rc_iterator)
+
+        else:
+          rc_iterator()
+
+      rpki.async.iterator(r_msg.payload.classes, rc_loop, cb)
+
+    rpki.up_down.list_pdu.query(self, got_list, eb)
+
 
   def query_up_down(self, q_pdu, cb, eb):
     """

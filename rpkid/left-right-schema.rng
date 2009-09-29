@@ -213,6 +213,11 @@
         <value>yes</value>
       </attribute>
     </optional>
+    <optional>
+      <attribute name="revoke_forgotten">
+        <value>yes</value>
+      </attribute>
+    </optional>
   </define>
   <define name="self_payload">
     <optional>
@@ -459,6 +464,11 @@
     </optional>
     <optional>
       <attribute name="revoke">
+        <value>yes</value>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="revoke_forgotten">
         <value>yes</value>
       </attribute>
     </optional>

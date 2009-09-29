@@ -76,7 +76,8 @@ self_bool = (attribute rekey { "yes" }?,
              attribute reissue { "yes" }?,
              attribute revoke { "yes" }?,
              attribute run_now { "yes" }?,
-             attribute publish_world_now { "yes" }?)
+             attribute publish_world_now { "yes" }?,
+             attribute revoke_forgotten { "yes" }?)
 
 self_payload = (attribute use_hsm { "yes" | "no" }?,
                 attribute crl_interval { xsd:positiveInteger }?,
@@ -128,7 +129,8 @@ parent_handle = attribute parent_handle { object_handle }
 
 parent_bool = (attribute rekey { "yes" }?,
                attribute reissue { "yes" }?,
-               attribute revoke { "yes" }?)
+               attribute revoke { "yes" }?,
+               attribute revoke_forgotten { "yes" }?)
 
 parent_payload = (attribute peer_contact_uri { uri }?,
                   attribute sia_base { uri }?,

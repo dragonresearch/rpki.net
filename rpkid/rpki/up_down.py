@@ -483,15 +483,14 @@ class revoke_pdu(revoke_syntax):
     rpki.async.iterator(child.ca_from_class_name(self.class_name).ca_details(), loop1, done)
 
   @classmethod
-  def query(cls, ca_detail, cb, eb):
+  def query(cls, ca, gski, cb, eb):
     """
-    Send a "revoke" request to parent associated with ca_detail.
+    Send a "revoke" request for certificate(s) named by gski to parent associated with ca.
     """
-    ca = ca_detail.ca()
     parent = ca.parent()
     self = cls()
     self.class_name = ca.parent_resource_class
-    self.ski = ca_detail.latest_ca_cert.gSKI()
+    self.ski = gski
     parent.query_up_down(self, cb, eb)
 
 class revoke_response_pdu(revoke_syntax):

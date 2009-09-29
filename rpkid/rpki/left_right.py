@@ -936,13 +936,14 @@ class list_roa_requests_elt(rpki.xml_utils.base_elt, left_right_namespace):
     if self.ipv6 is not None:
       self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6)
 
-class list_published_objects_elt(rpki.xml_utils.base_elt, left_right_namespace):
+class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
   """
   <list_published_objects/> element.
   """
 
   element_name = "list_published_objects"
   attributes = ("self_handle", "tag", "uri")
+  text_attribute = "obj"
 
   obj = None
 
@@ -970,28 +971,14 @@ class list_published_objects_elt(rpki.xml_utils.base_elt, left_right_namespace):
     r_pdu.obj = obj.get_Base64()
     return r_pdu
 
-  def endElement(self, stack, name, text):
-    """
-    Extract Base64 value from parsed XML.
-    """
-    rpki.xml_utils.base_elt.endElement(self, stack, name, text)
-    self.obj = text
-
-  def toXML(self):
-    """
-    Insert Base64 value into generated XML.
-    """
-    elt = self.make_elt()
-    elt.text = self.obj
-    return elt
-
-class report_error_elt(rpki.xml_utils.base_elt, left_right_namespace):
+class report_error_elt(rpki.xml_utils.text_elt, left_right_namespace):
   """
   <report_error/> element.
   """
 
   element_name = "report_error"
   attributes = ("tag", "self_handle", "error_code")
+  text_attribute = "error_text"
 
   error_text = None
 
@@ -1006,14 +993,6 @@ class report_error_elt(rpki.xml_utils.base_elt, left_right_namespace):
     self.error_code = e.__class__.__name__
     self.error_text = str(e)
     return self
-
-  def toXML(self):
-    """
-    Insert error text into generated XML.
-    """
-    elt = self.make_elt()
-    elt.text = self.error_text
-    return elt
 
 class msg(rpki.xml_utils.msg, left_right_namespace):
   """

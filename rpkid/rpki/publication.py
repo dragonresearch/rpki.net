@@ -312,13 +312,16 @@ class roa_elt(publication_object_elt):
 
 publication_object_elt.obj2elt = dict((e.payload_type, e) for e in (certificate_elt, crl_elt, manifest_elt, roa_elt))
 
-class report_error_elt(rpki.xml_utils.base_elt, publication_namespace):
+class report_error_elt(rpki.xml_utils.text_elt, publication_namespace):
   """
   <report_error/> element.
   """
 
   element_name = "report_error"
   attributes = ("tag", "error_code")
+  text_attribute = "error_text"
+
+  error_text = None
 
   @classmethod
   def from_exception(cls, e, tag = None):
@@ -328,7 +331,7 @@ class report_error_elt(rpki.xml_utils.base_elt, publication_namespace):
     self = cls()
     self.tag = tag
     self.error_code = e.__class__.__name__
-    self.text = str(e)
+    self.error_text = str(e)
     return self
 
   def __str__(self):
@@ -336,8 +339,8 @@ class report_error_elt(rpki.xml_utils.base_elt, publication_namespace):
     if getattr(self, "tag", None) is not None:
       s += "[%s] " % self.tag
     s += self.error_code
-    if getattr(self, "text", None) is not None:
-      s += ": " + self.text
+    if getattr(self, "error_text", None) is not None:
+      s += ": " + self.error_text
     return s
 
 class msg(rpki.xml_utils.msg, publication_namespace):

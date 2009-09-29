@@ -216,6 +216,30 @@ class base_elt(object):
       setattr(self, k, v)
     return self
 
+class text_elt(base_elt):
+  """
+  Virtual base class for XML message elements that contain text.
+  """
+
+  ## @var text_attribute
+  # Name of the class attribute that holds the text value.
+  text_attribute = None
+
+  def endElement(self, stack, name, text):
+    """
+    Extract text from parsed XML.
+    """
+    base_elt.endElement(self, stack, name, text)
+    setattr(self, self.text_attribute, text)
+
+  def toXML(self):
+    """
+    Insert text into generated XML.
+    """
+    elt = self.make_elt()
+    elt.text = getattr(self, self.text_attribute) or None
+    return elt
+
 class data_elt(base_elt):
   """
   Virtual base class for PDUs that map to SQL objects.  These objects

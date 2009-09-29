@@ -111,9 +111,7 @@ class cmd_elt_mixin(reply_elt_mixin):
 
   ## @var excludes
   # XML attributes and elements that should not be allowed as command
-  # line arguments.  At the moment the only such is the
-  # bsc.pkcs10_request sub-element, but writing this generally is no
-  # harder than handling that one special case.
+  # line arguments.
   excludes = ()
 
   @classmethod
@@ -217,7 +215,8 @@ class repository_elt(cmd_elt_mixin, rpki.left_right.repository_elt):
   pass
 
 class list_published_objects_elt(cmd_elt_mixin, rpki.left_right.list_published_objects_elt):
-  pass
+
+  excludes = ("uri",)
 
 class report_error_elt(reply_elt_mixin, rpki.left_right.report_error_elt):
   pass

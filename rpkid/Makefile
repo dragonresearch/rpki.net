@@ -58,18 +58,9 @@ all-tests:: unit-tests
 parse-test: all
 	python xml-parse-test.py
 
-# all:: resource-cert-samples-regen
-
 all-tests:: relaxng
 
 all-tests:: parse-test
-
-resource-cert-samples-regen: resource-cert-samples/.stamp
-	cd resource-cert-samples && ${MAKE}
-
-resource-cert-samples/.stamp: generate-testrepo.py Makefile
-	python generate-testrepo.py
-	touch $@
 
 irbe_cli.usage: irbe_cli.py
 	python irbe_cli.py --help | sed 's/^/      /' >$@

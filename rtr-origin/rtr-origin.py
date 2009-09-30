@@ -41,7 +41,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, os, struct, time, glob, socket, fcntl, signal
+import sys, os, struct, time, glob, socket, fcntl, signal, syslog
 import asyncore, asynchat, subprocess, traceback, getopt
 import rpki.x509, rpki.ipaddrs, rpki.sundial, rpki.config
 import rpki.async
@@ -819,19 +819,44 @@ class client_channel(pdu_channel):
 
   debug_using_direct_server_subprocess = True
 
-  def __init__(self, *sshargs):
+  def __init__(self, sock, proc, killsig):
+    self.killsig = killsig
+    self.proc = proc
+    pdu_channel.__init__(self, conn = sock)
+    self.start_new_pdu()
+
+  @classmethod
+  def ssh(cls, host, port):
     """
     Set up ssh connection and start listening for first PDU.
     """
+    args = ("ssh", "-p", port, "-s", host, "rpki-rtr")
+    log("[Running ssh: %s]" % " ".join(sshargs))
     s = socket.socketpair()
-    if self.debug_using_direct_server_subprocess:
-      log("[Ignoring ssh arguments, using direct subprocess kludge for testing]")
-      self.ssh = subprocess.Popen(["/usr/local/bin/python", "rtr-origin.py", "--server"], stdin = s[0], stdout = s[0], close_fds = True)
-    else:
-      log("[Running ssh: %s]" % " ".join(sshargs))
-      self.ssh = subprocess.Popen(sshargs, executable = "/usr/bin/ssh", stdin = s[0], stdout = s[0], close_fds = True)
-    pdu_channel.__init__(self, conn = s[1])
-    self.start_new_pdu()
+    return cls(sock = s[1],
+               proc = subprocess.Popen(args, executable = "/usr/bin/ssh", stdin = s[0], stdout = s[0], close_fds = True),
+               killsig = signal.SIGKILL)
+
+  @classmethod
+  def tcp(cls, host, port):
+    """
+    Set up TCP connection and start listening for first PDU.
+    """
+    log("[Starting raw TCP connection to %s:%s]" % (host, port))
+    s = socket.socket()
+    s.connect((host, int(port)))
+    return cls(sock = s, proc = None, killsig = None)
+
+  @classmethod
+  def loopback(cls):
+    """
+    Set up loopback connection and start listening for first PDU.
+    """
+    s = socket.socketpair()
+    log("[Using direct subprocess kludge for testing]")
+    return cls(sock = s[1],
+               proc = subprocess.Popen(("/usr/local/bin/python", "rtr-origin.py", "--server"), stdin = s[0], stdout = s[0], close_fds = True),
+               killsig = signal.SIGINT)
 
   def deliver_pdu(self, pdu):
     """
@@ -846,10 +871,9 @@ class client_channel(pdu_channel):
     but we may need to whack it with a stick if something breaks.
     """
     self.timer.cancel()
-    if self.ssh.returncode is None:
-      sig = signal.SIGINT if self.debug_using_direct_server_subprocess else signal.SIGKILL
+    if self.proc is not None and self.proc.returncode is None:
       try:
-        os.kill(self.ssh.pid, sig)
+        os.kill(self.proc.pid, self.killsig)
       except OSError:
         pass
 
@@ -1040,11 +1064,20 @@ def client_main(argv):
   Main program for client mode.  This is just test code.
   """
   log("[Startup]")
-  if argv:
-    raise RuntimeError, "Unexpected arguments: %s" % argv
+  if not argv or (argv[0] == "loopback" and len(argv) == 1):
+    mode = client_channel.loopback
+    args = ()
+  elif argv[0] == "ssh" and len(argv) == 3:
+    mode = client_channel.ssh
+    args = argv[1:]
+  elif argv[0] == "tcp" and len(argv) == 3:
+    mode = client_channel.tcp
+    args = argv[1:]
+  else:
+    raise RuntimeError, "Unexpected arguments: %r" % (argv,)
   client = None
   try:
-    client = client_channel("ssh", "-p", "2222", "-s", "localhost", "rpki-rtr")
+    client = mode(*args)
     client.push_pdu(reset_query())
     client.timer = client_timer(client, rpki.sundial.timedelta(minutes = 10))
     rpki.async.event_loop()
@@ -1087,7 +1120,10 @@ for o, a in opts:
 if mode is None:
   raise RuntimeError, "No mode selected"
 
-rpki.log.init("rtr-origin/" + mode)
+if mode == "server":
+  rpki.log.use_syslog = True
+
+rpki.log.init("rtr-origin/" + mode, syslog.LOG_PID)
 
 cfg = rpki.config.parser(cfg_file, "mode", allow_missing = True)
 

@@ -307,9 +307,6 @@ class roa_elt(publication_object_elt):
   element_name = "roa"
   payload_type = rpki.x509.ROA
 
-## @var publication_object_elt.obj2elt
-# Map of data types to publication element wrapper types
-
 publication_object_elt.obj2elt = dict((e.payload_type, e) for e in (certificate_elt, crl_elt, manifest_elt, roa_elt))
 
 class report_error_elt(rpki.xml_utils.text_elt, publication_namespace):

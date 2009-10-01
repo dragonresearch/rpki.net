@@ -40,14 +40,9 @@ basicConstraints                = critical,CA:true
 subjectKeyIdentifier            = hash
 keyUsage                        = critical,keyCertSign,cRLSign
 subjectInfoAccess               = 1.3.6.1.5.5.7.48.5;URI:rsync://arin.rpki.net/arin/,1.3.6.1.5.5.7.48.10;URI:rsync://arin.rpki.net/arin/root.mnf
-certificatePolicies             = critical, @rpki_certificate_policy
-
+certificatePolicies             = critical,1.3.6.1.5.5.7.14.2
 sbgp-autonomousSysNum           = critical,@rfc3779_asns
 sbgp-ipAddrBlock                = critical,@rfc3997_addrs
-
-[rpki_certificate_policy]
-
-policyIdentifier = 1.3.6.1.5.5.7.14.2
 
 [rfc3779_asns]
 '''

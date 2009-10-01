@@ -402,7 +402,9 @@ class allocation(object):
       r["rootd",  "rpki-root-cert"] = "publication/root.cer"
       r["rootd",  "rpki-root-cert-uri"] = "rsync://%s/root.cer" % root_path
       r["rootd",  "rpki-subject-cert"] = "%s.cer" % self.name
-      r["rpki_x509_extensions", "subjectInfoAccess"] = "1.3.6.1.5.5.7.48.5;URI:rsync://%s/,1.3.6.1.5.5.7.48.10;URI:rsync://%s/root.mnf" % (root_path, root_path)
+      r["rootd",  "rpki-root-manifest"] = "root.mnf"
+      r["rootd",  "root_cert_sia"] = r["rootd",  "rpki-base-uri"]
+      r["rootd",  "root_cert_manifest"] = r["rootd",  "rpki-base-uri"] + r["rootd",  "rpki-root-manifest"]
 
     if self.runs_pubd():
       r["pubd", "server-port"]  = "%d" % self.pubd_port
@@ -434,7 +436,7 @@ class allocation(object):
     print "Writing", f.name
 
     section = None
-    for line in open("myrpki.conf"):
+    for line in open("examples/myrpki.conf"):
       m = section_regexp.match(line)
       if m:
         section = m.group(1)
@@ -633,7 +635,7 @@ rootd_openssl("x509", "-req", "-sha256", "-outform", "DER",
               "-in",      "bpki.myirbe/ca.req",
               "-out",     "publication/root.cer",
               "-extfile", "myrpki.conf",
-              "-extensions", "rpki_x509_extensions")
+              "-extensions", "rootd_x509_extensions")
 
 # At this point we need to start a whole lotta daemons.
 

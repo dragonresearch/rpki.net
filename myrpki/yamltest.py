@@ -437,10 +437,12 @@ class allocation(object):
 
     section = None
     for line in open("examples/myrpki.conf"):
+      if not line.strip() or line.lstrip().startswith("#"):
+        continue
       m = section_regexp.match(line)
       if m:
         section = m.group(1)
-      if section is None or (self.is_hosted() and section in ("myirbe", "rpkid", "irdbd", "pubd", "rootd")):
+      if section is None or (self.is_hosted() and section in ("myirbe", "rpkid", "irdbd", "pubd", "rootd", "rootd_x509_extensions")):
         continue
       m = variable_regexp.match(line) if m is None else None
       variable = m.group(1) if m else None

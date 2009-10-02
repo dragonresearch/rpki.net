@@ -897,9 +897,12 @@ class kickme_channel(asyncore.dispatcher):
     self.create_socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     try:
       self.bind(self.sockname)
+      os.chmod(self.sockname, 0660)
     except socket.error, e:
-      log("Couldn't bind kickme socket: %r" % e)
+      log("Couldn't bind() kickme socket: %r" % e)
       self.close()
+    except OSError, e:
+      log("Couldn't chmod() kickme socket: %r" % e)
 
   def writable(self):
     """

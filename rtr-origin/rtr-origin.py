@@ -864,6 +864,13 @@ class client_channel(pdu_channel):
     """
     pdu.consume(self)
 
+  def push_pdu(self, pdu):
+    """
+    Log outbound PDU then write it to stream.
+    """
+    log(pdu)
+    pdu_channel.push_pdu(self, pdu)
+
   def cleanup(self):
     """
     Force clean up this client's child process.  If everything goes
@@ -1067,27 +1074,22 @@ def client_main(argv):
   Main program for client mode.  This is just test code.
   """
   log("[Startup]")
-  if not argv or (argv[0] == "loopback" and len(argv) == 1):
-    mode = client_channel.loopback
-    args = ()
-  elif argv[0] == "ssh" and len(argv) == 3:
-    mode = client_channel.ssh
-    args = argv[1:]
-  elif argv[0] == "tcp" and len(argv) == 3:
-    mode = client_channel.tcp
-    args = argv[1:]
-  else:
-    raise RuntimeError, "Unexpected arguments: %r" % (argv,)
   client = None
   try:
-    client = mode(*args)
+    if not argv or (argv[0] == "loopback" and len(argv) == 1):
+      client = client_channel.loopback()
+    elif argv[0] == "ssh" and len(argv) == 3:
+      client = client_channel.ssh(*argv[1:])
+    elif argv[0] == "tcp" and len(argv) == 3:
+      client = client_channel.tcp(*argv[1:])
+    else:
+      raise RuntimeError, "Unexpected arguments: %r" % (argv,)
     client.push_pdu(reset_query())
     client.timer = client_timer(client, rpki.sundial.timedelta(minutes = 10))
     rpki.async.event_loop()
-  except:
+  finally:
     if client is not None:
       client.cleanup()
-    raise
 
 def log(msg):
   rpki.log.warn(str(msg))

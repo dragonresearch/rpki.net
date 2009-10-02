@@ -130,7 +130,7 @@ prog_pubd      = cfg.get("prog_pubd",      "../pubd.py")
 prog_openssl   = cfg.get("prog_openssl",   "../../openssl/openssl/apps/openssl")
 prog_rsyncd    = cfg.get("prog_rsyncd",    "rsync")
 prog_rcynic    = cfg.get("prog_rcynic",    "../../rcynic/rcynic")
-prog_xcert     = cfg.get("prog_xcert",     "../cross_certify.py")
+prog_xcert     = cfg.get("prog_xcert",     "../../scripts/cross_certify.py")
 
 rcynic_stats   = cfg.get("rcynic_stats",   "xsltproc --param refresh 0 ../../rcynic/rcynic.xsl %s.xml | w3m -T text/html -dump" % rcynic_name)
 

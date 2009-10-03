@@ -130,7 +130,6 @@ prog_pubd      = cfg.get("prog_pubd",      "../pubd.py")
 prog_openssl   = cfg.get("prog_openssl",   "../../openssl/openssl/apps/openssl")
 prog_rsyncd    = cfg.get("prog_rsyncd",    "rsync")
 prog_rcynic    = cfg.get("prog_rcynic",    "../../rcynic/rcynic")
-prog_xcert     = cfg.get("prog_xcert",     "../../scripts/cross_certify.py")
 
 rcynic_stats   = cfg.get("rcynic_stats",   "xsltproc --param refresh 0 ../../rcynic/rcynic.xsl %s.xml | w3m -T text/html -dump" % rcynic_name)
 
@@ -809,27 +808,35 @@ class allocation(object):
     else:
       certifier = self.name + "-SELF"
     certfile = certifier + "-" + certificant + ".cer"
+
     rpki.log.info("Cross certifying %s into %s's BPKI (%s)" % (certificant, certifier, certfile))
-    cmd = (prog_python, prog_xcert,
-           "-c", certifier + ".cer",
-           "-k", certifier + ".key",
-           "-s", certifier + ".srl",
-           "-i", certificant + ".cer",
-           "-o", certfile)
 
-    if False:
-      signer = subprocess.Popen(cmd,
-                                stdout = subprocess.PIPE,
-                                stderr = subprocess.PIPE)
-      errors = signer.communicate()[1]
-      if signer.returncode != 0:
-        msg = "Couldn't cross-certify %s into %s's BPKI: %s" % (certificant, certifier, errors)
-        rpki.log.error(msg)
-        raise RuntimeError, msg
-    else:
-      subprocess.check_call(cmd)
+    child = rpki.x509.X509(Auto_file = certificant + ".cer")
+    parent = rpki.x509.X509(Auto_file = certifier + ".cer")
+    keypair = rpki.x509.RSA(Auto_file = certifier + ".key")
+    serial_file = certifier + ".srl"
 
-    x = rpki.x509.X509(Auto_file = certfile)
+    now = rpki.sundial.now()
+    notAfter = now + rpki.sundial.timedelta(days = 30)
+
+    try:
+      f = open(serial_file, "r")
+      serial = f.read()
+      f.close()
+      serial = int(serial.splitlines()[0], 16)
+    except IOError:
+      serial = 1
+
+    x = parent.cross_certify(keypair, child, serial, notAfter, now)
+
+    f = open(serial_file, "w")
+    f.write("%02x\n" % (serial + 1))
+    f.close()
+
+    f = open(certfile, "w")
+    f.write(x.get_PEM())
+    f.close()
+
     rpki.log.debug("Cross certified (%s) issuer %s [%s] subject %s [%s]" % (certfile, x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
     return x
 

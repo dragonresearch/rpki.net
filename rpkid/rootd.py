@@ -43,6 +43,16 @@ import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
 import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng
 import rpki.sundial, rpki.log
 
+rpki_root_cert = None
+
+def get_root_cert():
+  global rpki_root_cert
+  rpki.log.debug("Read root cert %s" % rpki_root_cert_file)
+  rpki_root_cert = rpki.x509.X509(Auto_file = rpki_root_cert_file)
+
+def root_newer_than_subject():
+  return os.stat(rpki_root_cert_file).st_mtime > os.stat(rpki_root_dir + rpki_subject_cert).st_mtime
+
 def get_subject_cert():
   filename = rpki_root_dir + rpki_subject_cert
   try:
@@ -97,6 +107,10 @@ def issue_subject_cert_maybe(new_pkcs10):
   if subject_cert is not None and subject_cert.getNotAfter() <= now + rpki_subject_regen:
     rpki.log.debug("Subject certificate has reached expiration threshold, regenerating")
     subject_cert = None
+  if subject_cert is not None and root_newer_than_subject():
+    rpki.log.debug("Root certificate has changed, regenerating subject")
+    subject_cert = None
+  get_root_cert()
   if subject_cert is not None:
     return subject_cert
   pkcs10 = old_pkcs10 if new_pkcs10 is None else new_pkcs10
@@ -158,13 +172,13 @@ def issue_subject_cert_maybe(new_pkcs10):
   return subject_cert
 
 def compose_response(r_msg, pkcs10 = None):
+  subject_cert = issue_subject_cert_maybe(pkcs10)
   rc = rpki.up_down.class_elt()
   rc.class_name = rpki_class_name
   rc.cert_url = rpki.up_down.multi_uri(rpki_root_cert_uri)
   rc.from_resource_bag(rpki_root_cert.get_3779resources())
   rc.issuer = rpki_root_cert
   r_msg.payload.classes.append(rc)
-  subject_cert = issue_subject_cert_maybe(pkcs10)
   if subject_cert is not None:
     rc.certs.append(rpki.up_down.certificate_elt())
     rc.certs[0].cert_url = rpki.up_down.multi_uri(rpki_base_uri + rpki_subject_cert)
@@ -281,7 +295,7 @@ rpki_root_dir           = cfg.get("rpki-root-dir")
 rpki_base_uri           = cfg.get("rpki-base-uri", "rsync://" + rpki_class_name + ".invalid/")
 
 rpki_root_key           = rpki.x509.RSA( Auto_file = cfg.get("rpki-root-key"))
-rpki_root_cert          = rpki.x509.X509(Auto_file = cfg.get("rpki-root-cert"))
+rpki_root_cert_file     = cfg.get("rpki-root-cert")
 rpki_root_cert_uri      = cfg.get("rpki-root-cert-uri", rpki_base_uri + "Root.cer")
 
 rpki_root_manifest      = cfg.get("rpki-root-manifest", "Root.mnf")

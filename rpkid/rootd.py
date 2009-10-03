@@ -122,10 +122,11 @@ def issue_subject_cert_maybe(new_pkcs10):
   req_key = pkcs10.getPublicKey()
   req_sia = pkcs10.get_SIA()
   crldp = rpki_base_uri + rpki_root_crl
+  serial = now.totimestamp()
   subject_cert = rpki_root_cert.issue(
     keypair     = rpki_root_key,
     subject_key = req_key,
-    serial      = int(time.time()),
+    serial      = serial,
     sia         = req_sia,
     aia         = rpki_root_cert_uri,
     crldp       = crldp,
@@ -134,7 +135,7 @@ def issue_subject_cert_maybe(new_pkcs10):
   crl = rpki.x509.CRL.generate(
     keypair             = rpki_root_key,
     issuer              = rpki_root_cert,
-    serial              = 1,
+    serial              = serial,
     thisUpdate          = now,
     nextUpdate          = now + rpki_subject_lifetime,
     revokedCertificates = ())
@@ -150,7 +151,7 @@ def issue_subject_cert_maybe(new_pkcs10):
   manifest_cert = rpki_root_cert.issue(
     keypair     = rpki_root_key,
     subject_key = manifest_keypair.get_RSApublic(),
-    serial      = int(time.time()) + 1,
+    serial      = serial + 1,
     sia         = None,
     aia         = rpki_root_cert_uri,
     crldp       = crldp,
@@ -158,7 +159,7 @@ def issue_subject_cert_maybe(new_pkcs10):
     notAfter    = now + rpki_subject_lifetime,
     is_ca       = False)
   manifest = rpki.x509.SignedManifest.build(
-    serial         = int(time.time()),
+    serial         = serial,
     thisUpdate     = now,
     nextUpdate     = now + rpki_subject_lifetime,
     names_and_objs = [(rpki_subject_cert, subject_cert), (rpki_root_crl, crl)],
@@ -300,8 +301,8 @@ rpki_root_cert_uri      = cfg.get("rpki-root-cert-uri", rpki_base_uri + "Root.ce
 
 rpki_root_manifest      = cfg.get("rpki-root-manifest", "Root.mnf")
 rpki_root_crl           = cfg.get("rpki-root-crl",      "Root.crl")
-rpki_subject_cert       = cfg.get("rpki-subject-cert",  "Subroot.cer")
-rpki_subject_pkcs10     = cfg.get("rpki-subject-pkcs10", "Subroot.pkcs10")
+rpki_subject_cert       = cfg.get("rpki-subject-cert",  "Child.cer")
+rpki_subject_pkcs10     = cfg.get("rpki-subject-pkcs10", "Child.pkcs10")
 
 rpki_subject_lifetime   = rpki.sundial.timedelta.parse(cfg.get("rpki-subject-lifetime", "30d"))
 rpki_subject_regen      = rpki.sundial.timedelta.parse(cfg.get("rpki-subject-regen", rpki_subject_lifetime.convert_to_seconds() / 2))

@@ -217,7 +217,11 @@ for xmlfile in xmlfiles:
   # Parse XML file and validate it against our scheme
 
   tree = lxml.etree.parse(xmlfile).getroot()
-  schema.myrpki.assertValid(tree)
+  try:
+    schema.myrpki.assertValid(tree)
+  except lxml.etree.DocumentInvalid:
+    print lxml.etree.tostring(tree, pretty_print = True)
+    raise
 
   handle = tree.get("handle")
 
@@ -512,7 +516,12 @@ for xmlfile in xmlfiles:
     assert e is not None
     e.text = bsc_req.get_Base64()
 
-  schema.myrpki.assertValid(tree)
+  try:
+    schema.myrpki.assertValid(tree)
+  except lxml.etree.DocumentInvalid:
+    print lxml.etree.tostring(tree, pretty_print = True)
+    raise
+
   lxml.etree.ElementTree(tree).write(xmlfile + ".tmp", pretty_print = True)
   os.rename(xmlfile + ".tmp", xmlfile)
 

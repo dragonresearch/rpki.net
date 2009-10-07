@@ -3,4 +3,4 @@
 # NB: Comment lines are not allowed in these files, this one is only
 # present to explain the example
 #
-Mom	https://localhost:4414/up-down/Mom/Becca	Mom.ta.cer	Mom.rpkid.cer	Becca	rsync://localhost:4401/Me/
+Mom	https://localhost:4414/up-down/Mom/Becca	Mom.ta.cer	Mom.rpkid.cer	Becca	rsync://rpki.example.org/Me/

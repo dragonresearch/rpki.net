@@ -3,6 +3,6 @@
 # NB: Comment lines are not allowed in these files, this one is only
 # present to explain the example
 #
-Me	bpki.myrpki/ca.cer	rsync://localhost:4401/Me/
-Me/Alice	pubd-client-certs/Alice.cer	rsync://localhost:4401/Me/Alice/
-Me/Bob	pubd-client-certs/Bob.cer	rsync://localhost:4401/Me/Bob/
+Me	bpki.myrpki/ca.cer	rsync://rpki.example.org/Me/
+Me/Alice	pubd-client-certs/Alice.cer	rsync://rpki.example.org/Me/Alice/
+Me/Bob	pubd-client-certs/Bob.cer	rsync://rpki.example.org/Me/Bob/

@@ -1,5 +1,7 @@
 $Id$
 
+INTRODUCTION
+
 The design of rpkid and friends assumes that certain tasks can be
 thrown over the wall to the registry's back end operation.  This was a
 deliberate design decision to allow rpkid et al to remain independent
@@ -19,29 +21,30 @@ tools will at least provide a useful example.
 The primary tools here consist of two Python programs: myrpki.py and
 myirbe.py.  The first is for use by any entity that needs resources
 allocated via the RPKI system, the second is for use by entities that
-actually run a copy of rpkid and its several supporting programs.
+actually run copies of rpkid and its several supporting programs.
 
 The basic idea here is that a user who has resources maintains a set
 of .csv files containing a text representation of the data needed by
 the back-end, along with a configuration file containing other
 parameters.  The intent is that these be very simple files that are
 easy to generate either by hand or as a dump from relational database,
-awk script, whatever works in your environment.  Given these files,
-the user then runs the myrpki.py script to extract the relevant
-information and encode everything about its back end state into a
-single .xml file, which the script writes out to disk.  The user then
-conveys this .xml file via some convenient means (PGP-signed mail, USB
-key, dogsled) to the operator of the rpkid engine that will perform
-RPKI services on behalf of the user.
+spreadsheet, awk script, whatever works in your environment.  Given
+these files, the user then runs the myrpki.py script to extract the
+relevant information and encode everything about its back end state
+into a single .xml file, which the script writes out to disk.  The
+user then conveys this .xml file via some convenient means (PGP-signed
+mail, USB key, dogsled) to the operator of the rpkid engine that will
+perform RPKI services on behalf of the user.
 
-The rpkid operator collects these .xml files from all the users it
-hosts, and feeds them all into the myirbe.py script, which uses the
-data in the .xml files to populate the IRDB, create objects in rpkid
-and pubd via the left-right and publication protocols, etcetera.  The
-script rewrites its input .xml files to contain any updated
-information (eg, PKCS #10 requests for business signing context
-certificates), so that the .xml file once again contains everything
-that must be communicated between the rpkid operator and hosted user.
+The rpkid operator collects these .xml files from all the resource
+holders it hosts, and feeds them all into the myirbe.py script, which
+uses the data in the .xml files to populate the IRDB, create objects
+in rpkid and pubd via the left-right and publication protocols,
+etcetera.  The script rewrites its input .xml files to contain any
+updated information (eg, PKCS #10 requests for business signing
+context certificates), so that the .xml file once again contains
+everything that must be communicated between the rpkid operator and
+hosted resource holder.
 
 The rpkid operator ships the updated .xml back to the user, who then
 runs the myrpki.py script again to perform any necessary actions (eg,
@@ -53,9 +56,9 @@ cycle repeats until nothing further needs to be changed.
 Note that, as certificates and CRLs have expiration and nextUpdate
 values, a low-level cycle of updates passing between resource holder
 and rpkid operator will be necessary as a part of steady state
-operation.  (The current version of these tools does not yet
+operation.  [The current version of these tools does not yet
 regenerate these expiring objects, but fixing this will be a
-relatively minor matter.)
+relatively minor matter.]
 
 Since we assume that anybody who bothers to run rpkid is also a
 resource holder, myirbe.py and myrpki.py can use the same
@@ -72,24 +75,24 @@ config file that explains the various parameters.
 myrpki.py deliberately does not use any libraries other than the ones
 that ship with Python 2.5; in particular, it does not require any of
 the other Python RPKI code.  This is intentional, to minimize
-portability issues for hosted users.  It does require a reasonably
-current version of the OpenSSL command line tool, but the version that
-is built as a side effect of building the rcynic relying party tool is
-adaquate if the system copy of this tool isn't.
+portability issues for hosted resource holders.  It does require a
+reasonably current version of the OpenSSL command line tool, but the
+version that is built as a side effect of building the rcynic relying
+party tool is adaquate if the system copy of this tool isn't.
 
 The .csv files read by myrpki.py can be anything that the Python "csv"
 library understands.  By default, they're in tab-delimited format
 (because the author finds this easier to read than the comma-delimited
 format), but this can be changed to fit local needs.
 
-Please note: tab delimited CSV is a format defined by a certain
-popular spreadsheet program, and is -not- the same as
+Please note: tab-delimited CSV is a format defined by a certain
+popular spreadsheet program, and is *not* the same as
 whitespace-separated text.  Tab characters are *punctuation*, and each
 tab character indicates the division between two columns.  Two tab
-characters in a row indicates a separator, a blank column, and another
+characters in a row indicates a separator, a blank cell, and another
 separator, not one separator.  The upshot of all this is that
 attempting to make your columns line up prettily will not work as you
-expect, you will end up with too many columns, some of them empty.
+expect, you will end up with too many cells, some of them empty.
 
 A number of the fields in the config or CSV files involve
 certificates.  Some of these are built automatically, others must be
@@ -109,6 +112,54 @@ See examples/myrpki.conf for details on the variables that you can
 See examples/*.csv for commented examples of the several CSV files.
 Note that the comments themselves are not legal CSV, they're just
 present to make it easier to understand the examples.
+
+GETTING STARTED -- OVERVIEW
+
+As explained above, the two basic programs are myrpki.py (for resource
+holders) and myirbe.py (for rpkid operators); myirbe.py runs myrpki.py
+automatically for a rpkid operator's own resources if myirbe.py finds
+a [myrpki] section in its config file.
+
+So the basic steps involved in getting started for a resource holder
+who is being hosted by somebody else are:
+
+1) Obtain contact information and BPKI trust anchors from RPKI parents
+   and an RPKI publication service (see below for details).
+
+2) Write a config file (copy examples/myrpki.conf and edit as needed).
+
+3) Create a set of CSV files representing RPKI parents, RPKI children,
+   resources to be assigned to RPKI children, and ROAs to be generated
+   once the necessary RPKI certificates are available.  Most of these
+   CSV files can be empty while first getting started, the only one
+   that absolutely must be populated is the file describing parents.
+
+4) Run myrpki.py to generate a BPKI trust anchor and collect all the
+   data from the config file, CSV files, and newly created BPKI into a
+   single XML file which can be shipped to the rpkid operator who is
+   hosting your resources.
+
+5) Send the XML file generated in step (4) to your rpkid operator.
+
+6) Wait for your rpkid operator to ship you back an updated XML file
+   containing a PKCS #10 certificate request for the BPKI signing
+   context (BSC) created by rpkid.
+
+7) Run myrpki.py again with the XML file received in step (6), to
+   issue the BSC certificate and update the XML file again to contain
+   the newly issued BSC certificate.
+
+8) Send the updated XML file back to your rpkid operator.
+
+At this point you're done with initial setup.  You will need to run
+myrpki.py again whenever you make any changes to your config file or
+CSV files.  [Once myrpki.py knows how to update BPKI CRLs, you will
+also need to run myrpki.py periodically to keep your BPKI CRLs up to
+date.]  Any time you run myrpki.py, you should send the updated XML
+file to your rpkid operator, who will [generally?] send you a further
+updated XML file in response.
+
+[CONTINUE HERE]
 
 
 

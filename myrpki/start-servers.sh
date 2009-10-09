@@ -19,15 +19,15 @@
 : ${want_pubd=no}
 : ${want_rootd=no}
 
-python ../rpkid/irdbd.py -c myrpki.conf >> irdbd.log 2>&1 &
-python ../rpkid/rpkid.py -c myrpki.conf >> rpkid.log 2>&1 &
+python ${rpkid_dir}/irdbd.py -c myrpki.conf >> irdbd.log 2>&1 &
+python ${rpkid_dir}/rpkid.py -c myrpki.conf >> rpkid.log 2>&1 &
 
 if test "$want_pubd" = "yes"
 then
-    python ../rpkid/pubd.py  -c myrpki.conf >> pubd.log  2>&1 &
+    python ${rpkid_dir}/pubd.py  -c myrpki.conf >> pubd.log  2>&1 &
 fi
 
 if test "$want_rootd" = "yes"
 then
-    python ../rpkid/rootd.py -c myrpki.conf >> rootd.log 2>&1 &
+    python ${rpkid_dir}/rootd.py -c myrpki.conf >> rootd.log 2>&1 &
 fi

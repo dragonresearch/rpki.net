@@ -1,3 +1,5 @@
+# $Id$
+#
 # Syntax: <child_handle> <prefix>/<length>
 #     or: <child_handle> <min>-<max>
 #

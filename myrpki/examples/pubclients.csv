@@ -1,3 +1,5 @@
+# $Id$
+#
 # Syntax: <client_handle> <bpki_cert_filename> <sia_base>
 #
 # NB: Comment lines are not allowed in these files, this one is only

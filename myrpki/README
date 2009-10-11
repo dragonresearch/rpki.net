@@ -363,6 +363,10 @@ DATA YOU NEED FROM YOUR RPKI PARENT AND PUBLICATION SERVICE
 
 [Not yet written]
 
+DATA YOU NEED TO GIVE YOUR RPKI CHILDREN
+
+[Not yet written]
+
 TROUBLESHOOTING
 
 If you run into trouble setting up this package, the first thing to do
@@ -401,6 +405,16 @@ irbe_cli.py for debugging, but the syntax is fairly obscure as it's
 just a command line interface to the left-right and publication
 protocols -- almost certainly want a friendlier tool for
 troubleshooting.]
+
+KNOWN ISSUES
+
+The lxml package provides a Python interface to the Gnome libxml2 and
+libxslt C libraries.  This code has been quite stable for several
+years, but recent testing with lxml compiled and linked against a
+newer version of libxml2 ran into problems (specifically, gratuitous
+RelaxNG schema validation failures).  libxml2 2.7.3 works; libxml2
+2.7.5 did not work on the test machine in question, but reverting to
+libxml2 2.7.3 appears to have fixed the problem.
 
 
 

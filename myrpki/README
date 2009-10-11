@@ -361,9 +361,86 @@ entity within a different part of your own organization.
 
 DATA YOU NEED FROM YOUR RPKI PARENT AND PUBLICATION SERVICE
 
-[Not yet written]
+In order to connect to your RPKI parent, you will need to supply your
+BPKI trust anchor to your parent and obtain four pieces of data from
+your parent.
 
-DATA YOU NEED TO GIVE YOUR RPKI CHILDREN
+Assuming that you are using something resembling the default
+configuration, your BPKI trust anchor will be bpki.myrpki/ca.cer.
+This is an OpenSSL "PEM" format file.  You will need to provide this
+to your RPKI parent.
+
+The data you need from your parent are:
+
+- The service URL for your entry point into your parent's rpkid.
+  Typically this will be a URL of the form:
+
+  https://example.org:port/up-down/parenthandle/myhandle
+
+  where "example.org" and "port" are the DNS name and TCP port of your
+  parent's rpkid service, "parenthandle" is your parent's name
+  (handle) for itself, and "myhandle" is your parent's name (handle)
+  for you;
+
+- Your parent's BPKI trust anchor for its resource-holding persona
+  (the entity represented by "parenthandle", above);
+
+- Your parent's BPKI trust anchor for daemons it operates; and
+
+- The handle by which your parent refers to you in its database,
+  generally the same as "myhandle" in the service URL.
+
+The need for two separate BPKI trust anchors for your parent is due to
+a limitation of the HTTPS protocol; recent extensions to TLS provide a
+way to work around this limitation, but at this point in time rpkid
+can't assume support for the TLS extension in question.  Roughly
+speaking, the first BPKI trust anchor corresponds to the your parent
+as a resource-holding entity, while the second corresponds to your
+parent as an rpkid-operating entity.
+
+These four data correspond, in order, to the second, third, fourth,
+and fifth columns in your parents.csv file.  In most cases you will
+have only one parent, so there will be only one line in that file.
+
+The first field in the parents.csv file is your name for your parent,
+which can be any name you like so long as it doesn't conflict with
+your name for another parent.
+
+The sixth field in the parents.csv file determines the base rsync URI
+for objects signed by certificates issued by this parent.  If you are
+using an external publication service (recommended), your parent must
+supply this URI as well; a typical value would be
+rsync://example.org/Dad/Me/ or rsync://example.org/Grandma/Dad/Me/.
+
+If you are running your own copy of pubd, this URI should point to the
+directory that corresponds to the publication-base setting in the
+[pubd] section of your configuration file.
+
+If you are using an external publication service (which might be your
+parent, grandparent, or any ancestor all the way up to the root), your
+publication service will also need to tell you:
+
+- The service URL for the publication service (pubd_base parameter in
+  [myirbe] section of your configuration file);
+
+- The publication service's name for you (repository_handle field in
+  [myrpki] section of your configuration file); and
+
+- The BPKI trust anchor for the publication service
+  (repository_bpki_certificate field in [myrpki] section of your
+  configuration file).
+
+Note that the first of these three parameters only applies if you are
+running rpkid, while the second and third apply even if your resources
+are hosted on somebody else's rpkid.  In effect, this means that all
+the entities sharing a single rpkid must also share a single
+publication service.  This is a restriction of the myrpki/myirbe
+software, not rpkid itself, so it could be removed if there were a
+strong need to do so, but given that each additional publication
+service imposes a small additional burden on every relying party in
+the world, we do not view this restriction as a problem.
+
+DATA YOU NEED TO GIVE YOUR RPKI CHILDREN AND USERS OF YOUR PUBLICATION SERVICE
 
 [Not yet written]
 

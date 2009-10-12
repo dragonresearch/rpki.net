@@ -442,7 +442,68 @@ the world, we do not view this restriction as a problem.
 
 DATA YOU NEED TO GIVE YOUR RPKI CHILDREN AND USERS OF YOUR PUBLICATION SERVICE
 
-[Not yet written]
+First, read the previous section describing what children and
+publication clients expect to receive.
+
+- The service URL for your rpkid will be an HTTPS URL of the form 
+
+  https://example.org:port/up-down/yourhandle/childhandle
+
+  where "example.org" and "port" are the DNS name and TCP port of your
+  rpkid service ([rpkid] section of your configuration file),
+  "yourhandle" is the handle parameter from the [myrpki] section of
+  your config file, and "childhandle" is this child's handle as it
+  appears in the first columns of your children.csv, asns.csv, and
+  prefixes.csv files;
+
+- The BPKI trust anchor for your resource-holding persona is your
+  bpki.myrpki/ca.cer;
+
+- The BPKI trust anchor for daemons you operate is your
+  bpki.myirbe/ca.cer; and
+
+- The handle by which you refer to your child is the same as
+  "childhandle", above.
+
+If you are operating a publication service, you will also need to
+supply:
+
+- Your pubd service URL, which will be an HTTPS URL of the form
+
+  https://example.org:port/
+
+  where "example.org" and "port" are the server-host and server-port
+  parameters from the [pubd] section of your configuration file;
+
+- Your name for this publication client, which is the first column of
+  your pubclients.csv file (note that this can be a structured name
+  using "/" characters as a hierarchy delimiter); and
+
+- The BPKI trust anchor for the daemons you operate
+  (bpki.myirbe/ca.cer).
+
+Note that, if you are operating pubd, it's best for relying parties if
+your childrens' publication points are underneath yours within the
+publication hierarchy, to allow rsync to check for updates as
+efficiently as possible.  pubd's support for hierarchical client
+handles is intended to simplify this: if you have a child Alice, who
+has children Bob and Bill, and you, your children, and your
+grandchildren will all be using your publication service, you might
+assign <client_handle> and <sia_base> parameters (first and third
+fields in pubclients.csv) as follows:
+
+Me		rsync://rpki.example.org/Me/
+Me/Alice	rsync://rpki.example.org/Me/Alice/
+Me/Alice/Bob	rsync://rpki.example.org/Me/Alice/Bob/
+Me/Alice/Bill	rsync://rpki.example.org/Me/Alice/Bill/
+
+Note that you will need trust anchors for your children and any
+publication clients.  In both cases the trust anchor you need is the
+child's or client's resource-holding BPKI trust anchor
+(bpki.myrpki/ca.cer); who operates the rpkid that host your children
+or publication clients is not strictly relevant to the authorization
+model, what matters is who holds the resources and is authorized to
+request and publish RPKI data derived from them.
 
 TROUBLESHOOTING
 
@@ -492,6 +553,24 @@ newer version of libxml2 ran into problems (specifically, gratuitous
 RelaxNG schema validation failures).  libxml2 2.7.3 works; libxml2
 2.7.5 did not work on the test machine in question, but reverting to
 libxml2 2.7.3 appears to have fixed the problem.
+
+An earlier version of this code ran into problems with what appears to
+be an implementation restriction in the the GNU linker ("ld") on
+64-bit hardware, resulting in obscure build failures.  The workaround
+for this required use of shared libraries and is somewhat less
+portable than the original code, but without it the code simply would
+not build in 64-bit environments with the GNU tools.  The current
+workaround appears to behave properly, but the workaround requires
+that the pathname to the RFC-3779-aware OpenSSL shared libraries be
+built into the _POW.so Python extension module.  At the moment, in the
+absence of "make install" targets for the Python code and libraries,
+this means the build directory; eventually, once we're using autoconf
+and installation targets, this will be the installation directory.  If
+necessary, you can override this by setting the LD_LIBRARY_PATH
+environment variable, see the ld.so man page for details.  This is a
+relatively minor variation on the usual build issues for shared
+libraries, it's just annoying because shared libraries should not be
+needed here and would not be if not for this GNU linker issue.
 
 
 

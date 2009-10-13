@@ -289,17 +289,13 @@ The [current] steps are:
    rsyncd for other purposes.  See the rsync(1) and rsyncd.conf(5)
    manual pages for more details.
 
-8) Start the daemons.  You can use $top/myrpki/start-servers.sh to do
+8) Start the daemons.  You can use $top/myrpki/start-servers.py to do
    this, or write your own script.
 
    If you intend to run pubd, you should make sure that the directory
    you specified as publication-base in the [pubd] section exists and
    is writable by the userid that will be running pubd, and should
    also make sure to start rsyncd.
-
-   [start-servers.sh should be replaced by a python script that
-   understands myprki.conf so that it can figure out whether to run
-   pubd and rootd from the config file.]
 
 9) Run myirbe.py again, twice, this time with no arguments.
 

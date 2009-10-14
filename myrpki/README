@@ -33,7 +33,7 @@ these files, the user then runs the myrpki.py script to extract the
 relevant information and encode everything about its back end state
 into a single .xml file, which the script writes out to disk.  The
 user then conveys this .xml file via some convenient means (PGP-signed
-mail, USB key, dogsled) to the operator of the rpkid engine that will
+mail, USB key, dog-sled) to the operator of the rpkid engine that will
 perform RPKI services on behalf of the user.
 
 The rpkid operator collects these .xml files from all the resource
@@ -63,14 +63,14 @@ relatively minor matter.]
 Since we assume that anybody who bothers to run rpkid is also a
 resource holder, myirbe.py and myrpki.py can use the same
 configuration file, and myirbe.py will run myrpki.py automatically if
-the [myrpki] section of the config file is present.
+the [myrpki] section of the configuration file is present.
 
 The third important file in this system is the configuration file for
 myrpki.py and myirbe.py.  This contains a number of sections, some of
 which are for these scripts, others of which are for the OpenSSL
 command line tool, which these scripts use do most of the certificate
 work.  The examples/ subdirectory contains a commented version of the
-config file that explains the various parameters.
+configuration file that explains the various parameters.
 
 myrpki.py deliberately does not use any libraries other than the ones
 that ship with Python 2.5; in particular, it does not require any of
@@ -94,7 +94,7 @@ separator, not one separator.  The upshot of all this is that
 attempting to make your columns line up prettily will not work as you
 expect, you will end up with too many cells, some of them empty.
 
-A number of the fields in the config or CSV files involve
+A number of the fields in the configuration or CSV files involve
 certificates.  Some of these are built automatically, others must be
 imported so that the scripts can cross-certify them.  The certificates
 you need to import are all self-signed BPKI trust anchor certificates
@@ -104,7 +104,7 @@ a file where you stored the BPKI certificate in question (in OpenSSL
 
 Keep reading, and don't panic.
 
-The default config file name is myrpki.conf.
+The default configuration file name is myrpki.conf.
 
 See examples/myrpki.conf for details on the variables that you can
 (and in some cases must) set.
@@ -118,7 +118,7 @@ GETTING STARTED -- OVERVIEW
 As explained above, the two basic programs are myrpki.py (for resource
 holders) and myirbe.py (for rpkid operators); myirbe.py runs myrpki.py
 automatically for a rpkid operator's own resources if myirbe.py finds
-a [myrpki] section in its config file.
+a [myrpki] section in its configuration file.
 
 Which process you need to follow to get started depends on whether you
 are running rpkid yourself or will be hosted by somebody else.  We
@@ -129,7 +129,7 @@ operator who is hosting an entity that happens to be yourself.
 "$top" in the following refers to wherever you put the
 subvert-rpki.hactrn.net code.  Once we have autoconf and "make
 install" targets, this will be some system directory or another; for
-now, it's wherever you checked out a copy of of the code from the
+now, it's wherever you checked out a copy of the code from the
 subversion repository or unpacked a tarball of the code.
 
 GETTING STARTED -- HOSTED CASE
@@ -140,9 +140,9 @@ is being hosted by somebody else are:
 1) Obtain contact information and BPKI trust anchors from RPKI parents
    and an RPKI publication service (see below for details).
 
-2) Write a config file (copy $top/myrpki/examples/myrpki.conf and edit
-   as needed).  You can skip the sections associated with the various
-   daemons and their runtime control tools ([myirbe], [rpkid],
+2) Write a configuration file (copy $top/myrpki/examples/myrpki.conf
+   and edit as needed).  You can skip the sections associated with the
+   various daemons and their runtime control tools ([myirbe], [rpkid],
    [irdbd], [pubd], [rootd], [irbe_cli]).  You *do* need to configure
    the [myrpki] section.
 
@@ -153,22 +153,22 @@ is being hosted by somebody else are:
    can be empty while first getting started, the only file that
    absolutely must be populated is the file describing parents.
 
-   You may choose to place your config file (which we will refer to
-   here as myrpki.conf) and your CSV files in their own directory.
-   The software doesn't really care.  If you use absolute names for
-   all the filename entries in the config file and CSV files, you can
-   put the files whereever you like; if you use relative names, they
-   will be interpreted relative to the directory in which you run the
-   program that reads the file.
+   You may choose to place your configuration file (which we will
+   refer to here as myrpki.conf) and your CSV files in their own
+   directory.  The software doesn't really care.  If you use absolute
+   names for all the filename entries in the configuration file and
+   CSV files, you can put the files whereever you like; if you use
+   relative names, they will be interpreted relative to the directory
+   in which you run the program that reads the file.
 
    [At some future date we may provide a default directory for
    relative filenames such as /usr/local/etc/rpki, but the above
    description holds for now.]
 
 4) Run myrpki.py to generate a BPKI trust anchor and collect all the
-   data from the config file, CSV files, and newly created BPKI into a
-   single XML file which can be shipped to the rpkid operator who is
-   hosting your resources.
+   data from the configuration file, CSV files, and newly created BPKI
+   into a single XML file which can be shipped to the rpkid operator
+   who is hosting your resources.
 
 5) Send the XML file generated in step (4) to your rpkid operator.
 
@@ -183,10 +183,10 @@ is being hosted by somebody else are:
 8) Send the updated XML file back to your rpkid operator.
 
 At this point you're done with initial setup.  You will need to run
-myrpki.py again whenever you make any changes to your config file or
-CSV files.  [Once myrpki.py knows how to update BPKI CRLs, you will
-also need to run myrpki.py periodically to keep your BPKI CRLs up to
-date.]  Any time you run myrpki.py, you should send the updated XML
+myrpki.py again whenever you make any changes to your configuration
+file or CSV files.  [Once myrpki.py knows how to update BPKI CRLs, you
+will also need to run myrpki.py periodically to keep your BPKI CRLs up
+to date.]  Any time you run myrpki.py, you should send the updated XML
 file to your rpkid operator, who will [generally?] send you a further
 updated XML file in response.
 
@@ -211,19 +211,19 @@ The [current] steps are:
 1) Obtain contact information and BPKI trust anchors from RPKI parents
    and an RPKI publication service (see below for details).
 
-2) Write a config file (copy examples/myrpki.conf and edit as needed).
-   You need to configure the [myrpki] and [myirbe] sections as well as
-   the sections associated with the daemons you will be running
-   ([rpkid], [irdbd], [irbe_cli]).  You only need to configure the
-   [pubd] section if you intend to run your own publication service:
-   in general this is not recommended, because each additional
-   publication service in the RPKI universe places a small additional
-   burden on every relying party, since every relying party has to
-   download data from every publication service.  In general it's
-   better to use an existing publication service operated by somebody
-   else (eg, your RPKI parent) if you can.  In general most cases you
-   can leave the [rootd] section alone, as in most cases you should
-   not be running rootd.
+2) Write a configuration file (copy examples/myrpki.conf and edit as
+   needed).  You need to configure the [myrpki] and [myirbe] sections
+   as well as the sections associated with the daemons you will be
+   running ([rpkid], [irdbd], [irbe_cli]).  You only need to configure
+   the [pubd] section if you intend to run your own publication
+   service: in general this is not recommended, because each
+   additional publication service in the RPKI universe places a small
+   additional burden on every relying party, since every relying party
+   has to download data from every publication service.  In general
+   it's better to use an existing publication service operated by
+   somebody else (eg, your RPKI parent) if you can.  In general most
+   cases you can leave the [rootd] section alone, as in most cases you
+   should not be running rootd.
 
 3) Using $top/myrpki/examples/*.csv as a guide, create a set of CSV
    files representing RPKI parents, RPKI children, resources to be
@@ -232,13 +232,13 @@ The [current] steps are:
    can be empty while first getting started, the only file that
    absolutely must be populated is the file describing parents.
 
-   You may choose to place your config file (which we will refer to
-   here as myrpki.conf) and your CSV files in their own directory.
-   The software doesn't really care.  If you use absolute names for
-   all the filename entries in the config file and CSV files, you can
-   put the files whereever you like; if you use relative names, they
-   will be interpreted relative to the directory in which you run the
-   program that reads the file.
+   You may choose to place your configuration file (which we will
+   refer to here as myrpki.conf) and your CSV files in their own
+   directory.  The software doesn't really care.  If you use absolute
+   names for all the filename entries in the configuration file and
+   CSV files, you can put the files whereever you like; if you use
+   relative names, they will be interpreted relative to the directory
+   in which you run the program that reads the file.
 
    [At some future date we may provide a default directory for
    relative filenames such as /usr/local/etc/rpki, but the above
@@ -255,18 +255,29 @@ The [current] steps are:
    you'll have to do this by hand in the mysql command line tool:
 
    $ mysql -u root -p
+
    mysql> CREATE DATABASE irdb_database;
-   mysql> CREATE DATABASE rpki_database;
    mysql> GRANT all ON irdb_database.* TO irdb_user@localhost IDENTIFIED BY 'irdb_password';
+   mysql> USE irdb_database;
+   mysql> SOURCE $top/rpkid/irdbd.sql;
+   mysql> CREATE DATABASE rpki_database;
    mysql> GRANT all ON rpki_database.* TO rpki_user@localhost IDENTIFIED BY 'rpki_password';
+   mysql> USE rpki_database;
+   mysql> SOURCE $top/rpkid/rpkid.sql;
    mysql> COMMIT;
    mysql> quit
+
+   where "irdb_database", "irdb_user", "irdb_password",
+   "rpki_database", "rpki_user", and "rpki_password" are the
+   appropriate values from your configuration file.
 
    If you are running pubd, you will also have to do:
 
    $ mysql -u root -p
    mysql> CREATE DATABASE pubd_database;
    mysql> GRANT all ON pubd_database.* TO pubd_user@localhost IDENTIFIED BY 'pubd_password';
+   mysql> USE pubd_database;
+   mysql> SOURCE $top/rpkid/pubd.sql;
    mysql> COMMIT;
    mysql> quit
 
@@ -284,10 +295,10 @@ The [current] steps are:
 7) If you are running your own publication repository (that is, if you
    are running pubd), you will also need to set up an rsyncd server or
    configure your existing one to serve pubd's output.  There's a
-   sample config file in $top/myrpki/examples/rsyncd.conf, but you may
-   need to do something more complicated if you are already running
-   rsyncd for other purposes.  See the rsync(1) and rsyncd.conf(5)
-   manual pages for more details.
+   sample configuration file in $top/myrpki/examples/rsyncd.conf, but
+   you may need to do something more complicated if you are already
+   running rsyncd for other purposes.  See the rsync(1) and
+   rsyncd.conf(5) manual pages for more details.
 
 8) Start the daemons.  You can use $top/myrpki/start-servers.py to do
    this, or write your own script.
@@ -448,8 +459,8 @@ publication clients expect to receive.
   where "example.org" and "port" are the DNS name and TCP port of your
   rpkid service ([rpkid] section of your configuration file),
   "yourhandle" is the handle parameter from the [myrpki] section of
-  your config file, and "childhandle" is this child's handle as it
-  appears in the first columns of your children.csv, asns.csv, and
+  your configuration file, and "childhandle" is this child's handle as
+  it appears in the first columns of your children.csv, asns.csv, and
   prefixes.csv files;
 
 - The BPKI trust anchor for your resource-holding persona is your

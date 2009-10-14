@@ -30,8 +30,6 @@ CREATE DATABASE rpki9;
 CREATE DATABASE rpki10;
 CREATE DATABASE rpki11;
 
-CREATE DATABASE pubd;
-
 CREATE DATABASE pubd0;
 CREATE DATABASE pubd1;
 CREATE DATABASE pubd2;
@@ -70,8 +68,6 @@ GRANT ALL ON rpki8.*  TO rpki@localhost IDENTIFIED BY 'fnord';
 GRANT ALL ON rpki9.*  TO rpki@localhost IDENTIFIED BY 'fnord';
 GRANT ALL ON rpki10.* TO rpki@localhost IDENTIFIED BY 'fnord';
 GRANT ALL ON rpki11.* TO rpki@localhost IDENTIFIED BY 'fnord';
-
-GRANT ALL ON pubd.*   TO pubd@localhost IDENTIFIED BY 'fnord';
 
 GRANT ALL ON pubd0.*  TO pubd@localhost IDENTIFIED BY 'fnord';
 GRANT ALL ON pubd1.*  TO pubd@localhost IDENTIFIED BY 'fnord';

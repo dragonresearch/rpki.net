@@ -442,7 +442,10 @@ class allocation(object):
       m = section_regexp.match(line)
       if m:
         section = m.group(1)
-      if section is None or (self.is_hosted() and section in ("myirbe", "rpkid", "irdbd", "pubd", "rootd", "rootd_x509_extensions")):
+      if (section is None or
+          (self.is_hosted() and section in ("myirbe", "rpkid", "irdbd")) or
+          (not self.runs_pubd() and section == "pubd") or
+          (not self.is_root() and section in ("rootd", "rootd_x509_extensions"))):
         continue
       m = variable_regexp.match(line) if m is None else None
       variable = m.group(1) if m else None

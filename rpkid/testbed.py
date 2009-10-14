@@ -106,6 +106,8 @@ testbed_dir    = cfg.get("testbed_dir",    testbed_name + ".dir")
 irdb_db_pass   = cfg.get("irdb_db_pass",   "fnord")
 rpki_db_pass   = cfg.get("rpki_db_pass",   "fnord")
 pubd_db_pass   = cfg.get("pubd_db_pass",   "fnord")
+pubd_db_name   = cfg.get("pubd_db_name",   "pubd0")
+pubd_db_user   = cfg.get("pubd_db_user",   "pubd")
 
 base_port      = int(cfg.get("base_port",  "4400"))
 
@@ -1135,16 +1137,18 @@ def setup_publication(pubd_sql):
   global rsyncd_dir
   rsyncd_dir = pubd_dir.rstrip("/") + rootd_sia[i:]
   os.makedirs(rsyncd_dir)
-  db = MySQLdb.connect(user = "pubd", db = "pubd", passwd = pubd_db_pass)
+  db = MySQLdb.connect(db = pubd_db_name, user = pubd_db_user, passwd = pubd_db_pass)
   cur = db.cursor()
   db.autocommit(True)
   for sql in pubd_sql:
     cur.execute(sql)
   db.close()
-  d = { "pubd_name" : pubd_name,
-        "pubd_port" : pubd_port,
-        "pubd_pass" : pubd_db_pass,
-        "pubd_dir"  : pubd_dir }
+  d = { "pubd_name"    : pubd_name,
+        "pubd_port"    : pubd_port,
+        "pubd_db_name" : pubd_db_name,
+        "pubd_db_user" : pubd_db_user,
+        "pubd_db_pass" : pubd_db_pass,
+        "pubd_dir"     : pubd_dir }
   f = open(pubd_name + ".conf", "w")
   f.write(pubd_fmt_1 % d)
   f.close()
@@ -1458,9 +1462,9 @@ comment                 = RPKI test
 pubd_fmt_1 = '''\
 [pubd]
 
-sql-database            = %(pubd_name)s
-sql-username            = pubd
-sql-password            = %(pubd_pass)s
+sql-database            = %(pubd_db_name)s
+sql-username            = %(pubd_db_user)s
+sql-password            = %(pubd_db_pass)s
 bpki-ta                 = %(pubd_name)s-TA.cer
 pubd-cert               = %(pubd_name)s-PUBD.cer
 pubd-key                = %(pubd_name)s-PUBD.key

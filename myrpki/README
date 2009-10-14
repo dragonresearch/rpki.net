@@ -66,7 +66,7 @@ configuration file, and myirbe.py will run myrpki.py automatically if
 the [myrpki] section of the config file is present.
 
 The third important file in this system is the configuration file for
-myrpk.py and myirbe.py.  This contains a number of sections, some of
+myrpki.py and myirbe.py.  This contains a number of sections, some of
 which are for these scripts, others of which are for the OpenSSL
 command line tool, which these scripts use do most of the certificate
 work.  The examples/ subdirectory contains a commented version of the
@@ -78,7 +78,7 @@ the other Python RPKI code.  This is intentional, to minimize
 portability issues for hosted resource holders.  It does require a
 reasonably current version of the OpenSSL command line tool, but the
 version that is built as a side effect of building the rcynic relying
-party tool is adaquate if the system copy of this tool isn't.
+party tool is adequate if the system copy of this tool isn't.
 
 The .csv files read by myrpki.py can be anything that the Python "csv"
 library understands.  By default, they're in tab-delimited format
@@ -123,7 +123,7 @@ a [myrpki] section in its config file.
 Which process you need to follow to get started depends on whether you
 are running rpkid yourself or will be hosted by somebody else.  We
 call the first case "self-hosted", because the software treats running
-rpkid to handle resouces that you yourself hold as if you are an rpkid
+rpkid to handle resources that you yourself hold as if you are an rpkid
 operator who is hosting an entity that happens to be yourself.
 
 "$top" in the following refers to wherever you put the

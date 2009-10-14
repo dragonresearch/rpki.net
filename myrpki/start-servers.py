@@ -64,7 +64,4 @@ if cfg.getboolean("want_rootd", False):
 for name in names:
   proc = subprocess.Popen(("python", os.path.join(rpkid_dir, name + ".py"), "-c", cfg_file),
                           stdout = open(name + ".log", "a"), stderr = subprocess.STDOUT)
-  if proc.poll() is None:
-    print "Started", name
-  else:
-    print "Problem starting", name
+  print ("Started %r, pid %s" if proc.poll() is None else "Problem starting %r, pid %s") % (name, proc.pid)

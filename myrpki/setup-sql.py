@@ -33,8 +33,7 @@ def read_schema(filename):
   lines = []
   f = open(filename)
   for line in f:
-    words = line.strip(" \t\n").expandtabs().split(" ")
-    line = " ".join(word for word in words if word)
+    line = " ".join(line.split())
     if line and not line.startswith("--"):
       lines.append(line)
   f.close()

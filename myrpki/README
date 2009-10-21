@@ -250,9 +250,27 @@ The [current] steps are:
 
 5) Next, you need to set up the MySQL databases that rpkid et al will
    use.  The MySQL database, username, and password values all need to
-   match the ones you specified in myrpki.conf.  This is one of the
-   tasks a setup script should handle, but until that is written,
-   you'll have to do this by hand in the mysql command line tool:
+   match the ones you specified in myrpki.conf.  There are two
+   different ways you can do this:
+
+   a) You can use the setup-sql.py script, which promts you for your
+      MySQL root password then attempts to do everything else
+      automatically using valuses from myrpki.conf; or
+
+   b) You can do it manually.
+
+   The first approach is simple:
+
+   $ python setup-sql.py
+   Please enter your MySQL root password:
+
+   The script should tell you what databases it creates.  You can use
+   the -v option if you want to see more details about what it's doing.
+
+   If you'd prefer to do the SQL setup manually, perhaps because you
+   have valuable data in other MySQL databases and you don't want to
+   trust some random setup script with your MySQL root password,
+   you'll need to use the MySQL command line tool, as follows:
 
    $ mysql -u root -p
 
@@ -271,7 +289,8 @@ The [current] steps are:
    "rpki_database", "rpki_user", and "rpki_password" are the
    appropriate values from your configuration file.
 
-   If you are running pubd, you will also have to do:
+   If you are running pubd and doing manual SQL setup, you'll also
+   have to do:
 
    $ mysql -u root -p
    mysql> CREATE DATABASE pubd_database;

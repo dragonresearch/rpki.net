@@ -13,11 +13,6 @@ $Revision$
 
 TO DO:
 
-
-      * Make rpkid fully event-driven (async tasking model).
-
-	STATUS: Done
-
       * Error handling: make sure that exceptions map correctly to up-down error
 	codes, flesh out left-right error codes. Note that the same exception may
 	produce different error codes depending on which up-down PDU we're
@@ -47,14 +42,6 @@ TO DO:
 	DEPENDS ON: async tasking model rollback.
 
 	STATUS: Not started
-
-      * Test framework for multiple self-instances per engine-instance.
-
-	STATUS: Done
-
-      * Replace tlslite with something based on OpenSSL TLS code.
-
-	STATUS: Done
 
       * Resource subsetting (req_* attributes in up-down protocol), full
         implementation.  Requires expanding SQL child_cert table to hold subset
@@ -110,26 +97,6 @@ TO DO:
 
 	STATUS: Not started
 
-      * Rethink exposing SQL primary indices in protocols. Right now,
-	auto-incremented SQL indices are used in many places in the
-	left-right protocol, and are even exposed in a few places in
-	our implementation of the up-down protocol.  This is nicely
-	unique but may be operationally fragile, since up-down usage
-	means that URLs contain mechanically assigned identifiers
-	rather than an identifier negotiated between the two parties
-	during contract setup.
-
-	Review by RIPE NCC staff suggested that we should instead use
-	something like a hash of the client's name, which would be
-	probabilistically unique and would not expose information, but
-	would be stable even if we had to rebuild the database.
-
-	TIME REQUIRED: One week to evaluate. Implementation time if we
-	decide to make a change unknown, but probably on the order of
-	another week.
-
-	STATUS: Done
-
       * rcynic handling of RPKI trust anchors does not yet match most
         recent agreement by design team.  Currently waiting for an OID
         assignment for the CMS-wrapped indirection format that the
@@ -156,28 +123,13 @@ TO DO:
       * Deaddrop of incoming messages, for audit.  Absent a better
         theory, steal existing tech for this: preface with minimal RFC
         2822 header and drop it into a Maildir folder using built-in
-        Python Maildir library code, at which point it becomes soebody
+        Python Maildir library code, at which point it becomes somebody
         else's problem.
 
 	STATUS: Not started
 
       * Investigate using EKU (RFC 3280 4.2.1.13) as an alternative to
         wiring in BPKI EE certs for left-right protocol.
-
-	STATUS: Not started
-
-      * Rethink current ROA generation scheme: why are we pushing
-        <route_origin/> objects into rpkid instead of letting rpkid
-        pull data from irdbd as it does for resources?  Is there a
-        better way to represent proto-ROA data in SQL so that we can
-        query directly for the resources we need (NB: this might
-        require rethinking other rpkid SQL tables)?
-
-	STATUS: Done
-
-      * Really need scripts and better doc on BPKI setup.
-
-	TIME REQUIRED: One week
 
 	STATUS: Not started
 
@@ -191,7 +143,12 @@ TO DO:
         here is to see if trying to write a user interface sheds light
         on required features that are currently missing.
 
-	STATUS: Not started
+	STATUS: CSV file based UI done and documented, perhaps usable.
+
+	        Django web UI for hosted case under development by a
+	        friendly Django wizard, current design has it just
+	        doing UI and I/O with its own SQL data, so will need a
+	        tool to sit between Django's SQL and our code.
 
       * At present there is no mechanism by which an IRBE could
         request signing of objects other than ROAs.  Eg, there has

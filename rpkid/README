@@ -13,6 +13,46 @@ $Revision$
 
 TO DO:
 
+      * Refactor rpkid code that interacts with publication daemon to
+	minimize number of round trips.	 Right now a number of
+	operations require far too many lock-step interactions with
+	pubd, which is both slow and error prone (due to the way it
+	complicates exception handling).   Basic model should be more
+	along the lines of staging up everything we need pubd to do as
+	one honking publication PDU, commit SQL, send publication
+	request, process any resulting exceptions, done.  Some high
+	level operations will still need to loop in order to keep the
+	number of outstanding publication operations down to something
+	manageable, but should be able to do much better than we do now.
+
+	STATUS: Not started.
+
+      * Rework handling of surprising responses to up-down requests.
+        Right now we get confused when we find that parent has issued
+        a cert that we don't remember requesting, even when we have
+        the ca_detail object in question sitting in our SQL as
+        pending.  This can happen if we throw an exception later and
+        don't clean up properly -- which should never happen, but
+        let's try to be robust about this.
+
+	So we need to be smarter about comparing our own state with
+	what we get back from our parent and figuring out what to do
+	next.  We probably also need to commit changes to SQL earlier.
+
+	In general we should never have more than one ca_detail in
+	state pending for a given ca, but the current code blindly
+	assumes that will never happen and never recovers if that
+	assumption has been violated.
+
+	STATUS: Not started.
+
+      * Use a ticket system instead of trying to track work items in
+        this README file and archived messages from the testbed list?
+
+	STATUS: I have a trac instance, Randy has an RT instance, just
+	need to decide whether to do something about this, pick one,
+	and move on.
+
       * Error handling: make sure that exceptions map correctly to up-down error
 	codes, flesh out left-right error codes. Note that the same exception may
 	produce different error codes depending on which up-down PDU we're
@@ -44,20 +84,20 @@ TO DO:
 	STATUS: Not started
 
       * Resource subsetting (req_* attributes in up-down protocol), full
-        implementation.  Requires expanding SQL child_cert table to hold subset
-        masks and rewriting a fair amount of code.
+	implementation.	 Requires expanding SQL child_cert table to hold subset
+	masks and rewriting a fair amount of code.
 
 	TIME REQUIRED: 3-4 weeks
 
 	STATUS: Not started
 
       * Performance testing.  Some very preliminary tests show a
-        hotspot in the TLS code, but further testing will be needed,
-        particularly after the async tasking model change.
+	hotspot in the TLS code, but further testing will be needed,
+	particularly after the async tasking model change.
 
 	STATUS: Barely started
 
-      * Clean up rootd.py to be usable in a production system.  Most
+      * Clean up rootd.py to be usable in a production system.	Most
 	urgent issues are handling of private keys, publishing outputs
 	in pubd, and reissuing when details or keys change. May not
 	need much else, as this is not a high-traffic server.
@@ -98,9 +138,9 @@ TO DO:
 	STATUS: Not started
 
       * rcynic handling of RPKI trust anchors does not yet match most
-        recent agreement by design team.  Currently waiting for an OID
-        assignment for the CMS-wrapped indirection format that the
-        design team settled on.
+	recent agreement by design team.  Currently waiting for an OID
+	assignment for the CMS-wrapped indirection format that the
+	design team settled on.
 
 	TIME REQUIRED: Three days
 
@@ -108,57 +148,57 @@ TO DO:
 
 	STATUS: Not started
 
-      * Publication protocol ACL checking may need revisiting.  Tricky
-        bit is making sure that repository receives enough information
-        to know whether parent has authorized child to use parent's
-        namespace in nesting case; in theory this is straightforward
-        but requires careful checking.  Current implementation just
-        uses a configured path check and does not attempt to trace
-        back to permission from parent in nested publication case.
-        Class and method design is intended to make it easy to drop in
-        additional checks if needed.
+      * Publication protocol ACL checking may need revisiting.	Tricky
+	bit is making sure that repository receives enough information
+	to know whether parent has authorized child to use parent's
+	namespace in nesting case; in theory this is straightforward
+	but requires careful checking.	Current implementation just
+	uses a configured path check and does not attempt to trace
+	back to permission from parent in nested publication case.
+	Class and method design is intended to make it easy to drop in
+	additional checks if needed.
 
 	STATUS: Trivial version (required path check) done.
 
       * Deaddrop of incoming messages, for audit.  Absent a better
-        theory, steal existing tech for this: preface with minimal RFC
-        2822 header and drop it into a Maildir folder using built-in
-        Python Maildir library code, at which point it becomes somebody
-        else's problem.
+	theory, steal existing tech for this: preface with minimal RFC
+	2822 header and drop it into a Maildir folder using built-in
+	Python Maildir library code, at which point it becomes somebody
+	else's problem.
 
 	STATUS: Not started
 
       * Investigate using EKU (RFC 3280 4.2.1.13) as an alternative to
-        wiring in BPKI EE certs for left-right protocol.
+	wiring in BPKI EE certs for left-right protocol.
 
 	STATUS: Not started
 
       * Testing of this by anybody but the author and a few friends is
-        going to require some kind of user interface.  Python based
-        web UI is probably the most cost effective approach, Django
-        might be a good base for this.  Some of the operations
-        suggested in an initial brainstorming session on this are
-        outside the scope of what rpkid currently knows how to do (eg,
-        signing S/MIME "please route" messages), so one of the tasks
-        here is to see if trying to write a user interface sheds light
-        on required features that are currently missing.
+	going to require some kind of user interface.  Python based
+	web UI is probably the most cost effective approach, Django
+	might be a good base for this.	Some of the operations
+	suggested in an initial brainstorming session on this are
+	outside the scope of what rpkid currently knows how to do (eg,
+	signing S/MIME "please route" messages), so one of the tasks
+	here is to see if trying to write a user interface sheds light
+	on required features that are currently missing.
 
 	STATUS: CSV file based UI done and documented, perhaps usable.
 
-	        Django web UI for hosted case under development by a
-	        friendly Django wizard, current design has it just
-	        doing UI and I/O with its own SQL data, so will need a
-	        tool to sit between Django's SQL and our code.
+		Django web UI for hosted case under development by a
+		friendly Django wizard, current design has it just
+		doing UI and I/O with its own SQL data, so will need a
+		tool to sit between Django's SQL and our code.
 
       * At present there is no mechanism by which an IRBE could
-        request signing of objects other than ROAs.  Eg, there has
-        been some discussion of signing S/MIME letters to humans
-        asking for routing, as an alternative to ROAs.  If we decide
-        to support this at all, it turns into a generalization of the
-        ROA problem, and suggests that perhaps ROA generation should
-        be handled somewhere outside of rpkid and only passed to rpkid
-        for signing.  This would be a significant change to the
-        architecture, as it would remove rpkid's responsibility for
-        keeping ROAs up to date.
+	request signing of objects other than ROAs.  Eg, there has
+	been some discussion of signing S/MIME letters to humans
+	asking for routing, as an alternative to ROAs.	If we decide
+	to support this at all, it turns into a generalization of the
+	ROA problem, and suggests that perhaps ROA generation should
+	be handled somewhere outside of rpkid and only passed to rpkid
+	for signing.  This would be a significant change to the
+	architecture, as it would remove rpkid's responsibility for
+	keeping ROAs up to date.
 
 	STATUS: Not started

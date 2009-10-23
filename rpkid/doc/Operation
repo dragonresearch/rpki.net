@@ -324,7 +324,7 @@ irbe_cli.py
 
       Command line IR back-end control program for rpkid and pubd.
 
-      $Id: irbe_cli.py 2571 2009-07-04 20:13:22Z sra $
+      $Id: irbe_cli.py 2799 2009-09-30 02:33:36Z sra $
 
       Copyright (C) 2009  Internet Systems Consortium ("ISC")
 
@@ -362,21 +362,22 @@ M
       Usage:
 
       # Top-level options:
-      --config= --help --pem_out= --verbose
+      --config= --help --pem_out= --quiet --verbose
 
       # left-right protocol:
-      self --action= --tag= --self_handle= --crl_interval= --regen_margin=
-          --bpki_cert= --bpki_glue= --rekey --reissue --revoke --run_now
-          --publish_world_now
-      child --action= --tag= --self_handle= --child_handle= --bsc_handle=
-          --bpki_cert= --bpki_glue= --reissue
-      repository --action= --tag= --self_handle= --repository_handle=
-          --bsc_handle= --peer_contact_uri= --bpki_cms_cert=
-          --bpki_cms_glue= --bpki_https_cert= --bpki_https_glue=
       parent --action= --tag= --self_handle= --parent_handle= --bsc_handle=
           --repository_handle= --peer_contact_uri= --sia_base=
           --sender_name= --recipient_name= --bpki_cms_cert= --bpki_cms_glue=
           --bpki_https_cert= --bpki_https_glue= --rekey --reissue --revoke
+          --revoke_forgotten
+      repository --action= --tag= --self_handle= --repository_handle=
+          --bsc_handle= --peer_contact_uri= --bpki_cert= --bpki_glue=
+      self --action= --tag= --self_handle= --crl_interval= --regen_margin=
+          --bpki_cert= --bpki_glue= --rekey --reissue --revoke --run_now
+          --publish_world_now --revoke_forgotten
+      child --action= --tag= --self_handle= --child_handle= --bsc_handle=
+          --bpki_cert= --bpki_glue= --reissue
+      list_published_objects --self_handle= --tag=
       bsc --action= --tag= --self_handle= --bsc_handle= --key_type=
           --hash_alg= --key_length= --signing_cert= --signing_cert_crl=
           --generate_keypair
@@ -709,5 +710,5 @@ testpoke.py
      __________________________________________________________________
 
 
-    Generated on Tue Jul 7 16:04:39 2009 for RPKI Engine by  doxygen
+    Generated on Fri Oct 23 00:02:29 2009 for RPKI Engine by  doxygen
     1.5.9

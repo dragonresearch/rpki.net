@@ -113,13 +113,29 @@
 #
 # <ul>
 #   <li>
+#     If your Python installation does not already include the sources
+#     files needed to compile new Python extension modules, you will
+#     need to install whatever package does include those source
+#     files.  The need for and name of this package varies from system
+#     to system.  On FreeBSD, the base Python interpreter package
+#     includes the development sources; on at least some Linux
+#     distributions, you have to install a separate "python-devel"
+#     package or something similar.  If you get compilation errors
+#     trying to build the POW code (below) and the error message says
+#     something about the file "Python.h" being missing, this is
+#     almost certainly your problem.
+#   </li>
+#
+#   <li>
 #     <a href="http://codespeak.net/lxml/">http://codespeak.net/lxml/</a>.
 #     lxml in turn requires the Gnome LibXML2 C libraries.
 #     <ul>
 #       <li>FreeBSD: /usr/ports/devel/py-lxml</li>
 #       <li>Fedora:  python-lxml.i386</li>
+#       <li>Ubuntu:  python-lxml</li>
 #     </ul>
 #   </li>
+#
 #   <li>
 #     <a href="http://sourceforge.net/projects/mysql-python/">http://sourceforge.net/projects/mysql-python/</a>.
 #     MySQLdb in turn requires MySQL client and server.  rpkid et al have
@@ -127,6 +143,7 @@
 #     <ul>
 #       <li>FreeBSD: /usr/ports/databases/py-MySQLdb</li>
 #       <li>Fedora:  MySQL-python.i386</li>
+#       <li>Ubuntu:  python-mysqldb</li>
 #     </ul>
 #   </li>
 # </ul>
@@ -136,10 +153,11 @@
 # and additions that it's included in the subversion tree.
 #
 # The next step is to build the OpenSSL and POW binaries.  At present
-# the OpenSSL code is just a copy of the stock OpenSSL 0.9.8g release,
-# compiled with special options to enable RFC 3779 support that ISC
-# wrote under previous contract to ARIN.  The POW (Python OpenSSL
-# Wrapper) library is an extended copy of the stock POW release.
+# the OpenSSL code is just a snapshot of the OpenSSL development
+# sources, compiled with special options to enable RFC 3779 support
+# that ISC wrote under previous contract to ARIN.  The POW (Python
+# OpenSSL Wrapper) library is an extended copy of the stock POW
+# release.
 #
 # To build these, cd to the top-level directory in the distribution and
 # type "make".
@@ -151,7 +169,8 @@
 #
 # This should automatically build everything, in the right order,
 # including staticly linking the POW extension module with the OpenSSL
-# library to provide RFC 3779 support.
+# library to provide RFC 3779 support.  If you get errors building
+# POW, see the above discussion of Python development sources.
 #
 # You will also need a MySQL installation.  This code was developed
 # using MySQL 5.1 and has been tested with MySQL 5.0 and 5.1.
@@ -171,16 +190,20 @@
 #     testbed.py (a test harness) use PyYAML.
 #     <ul>
 #       <li>FreeBSD: /usr/ports/devel/py-yaml</li>
+#       <li>Ubuntu: python-yaml</li>
 #     </ul>
 #   </li>
+#
 #   <li>
 #     <a href="http://xmlsoft.org/XSLT/">http://xmlsoft.org/XSLT/</a>.
 #     Some of the test code uses xsltproc, from the Gnome LibXSLT
 #     package.
 #     <ul>
 #       <li>FreeBSD: /usr/ports/textproc/libxslt</li>
+#       <li>Ubuntu:  xsltproc</li>
 #     </ul>
 #   </li>
+#
 #   <li>
 #     <a href="http://w3m.sourceforge.net/">http://w3m.sourceforge.net/</a>.
 #     testbed.py uses w3m to display the summary output from rcynic.
@@ -189,6 +212,7 @@
 #     rcynic's output.
 #     <ul>
 #       <li>FreeBSD: /usr/ports/www/w3m</li>
+#       <li>Ubuntu:  w3m</li>
 #     </ul>
 #   </li>
 # </ul>
@@ -224,16 +248,20 @@
 #     pdfLaTeX, and Ghostscript.
 #     <ul>
 #       <li>FreeBSD: /usr/ports/devel/doxygen</li>
+#       <li>Ubuntu: doxygen</li>
 #     </ul>
 #   </li>
+#
 #   <li>
 #     <a href="http://lynx.isc.org/current/">http://lynx.isc.org/current/</a>.
 #     The documentation build process uses xsltproc and Lynx to dump
 #     flat text versions of a few critical documentation pages.
 #     <ul>
 #       <li>FreeBSD: /usr/ports/www/lynx</li>
+#       <li>Ubuntu:  lynx</li>
 #     </ul>
 #   </li>
+#
 #   <li>
 #     <a href="http://www.thaiopensource.com/relaxng/trang.html">http://www.thaiopensource.com/relaxng/trang.html</a>.
 #     Trang is used to convert RelaxNG schemas from the human-readable
@@ -243,11 +271,15 @@
 #       <li>FreeBSD: /usr/ports/textproc/trang</li>
 #     </ul>
 #   </li>
+#
 #   <li>
 #     <a href="http://search.cpan.org/dist/SQL-Translator/">http://search.cpan.org/dist/SQL-Translator/</a>.
 #     SQL-Translator, also known as "SQL Fairy", includes code to parse
 #     an SQL schema and dump a description of it as Graphviz input.
 #     SQL Fairy in turn requires Perl.
+#     <ul>
+#       <li>FreeBSD: /usr/ports/databases/p5-SQL-Translator</li>
+#     </ul>
 #   </li>
 # </ul>
 

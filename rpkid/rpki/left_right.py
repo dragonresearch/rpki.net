@@ -760,7 +760,7 @@ class parent_elt(data_elt):
 
           ca = ca_map[rc.class_name]
           skis_parent_knows_about = set(c.cert.gSKI() for c in rc.certs)
-          skis_ca_knows_about = set(ca_detail.latest_ca_cert.gSKI() for ca_detail in ca.fetch_nonnull_nonrevoked())
+          skis_ca_knows_about = set(ca_detail.latest_ca_cert.gSKI() for ca_detail in ca.fetch_issue_response_candidates())
           skis_only_parent_knows_about = skis_parent_knows_about - skis_ca_knows_about
           rpki.async.iterator(skis_only_parent_knows_about, ski_loop, rc_iterator)
 

@@ -338,9 +338,13 @@ class ca_obj(rpki.sql.sql_persistent):
     """Fetch revoked ca_details for this CA, if any."""
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND state = 'revoked'", (self.ca_id,))
 
-  def fetch_nonnull_nonrevoked(self):
-    """Fetch ca_details which have a CA cert and which are not revoked."""
-    return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL AND state != 'revoked'", (self.ca_id,))
+  def fetch_issue_response_candidates(self):
+    """
+    Fetch ca_details which are candidates for consideration when
+    processing an up-down issue_response PDU.
+    """
+    #return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND latest_ca_cert IS NOT NULL AND state != 'revoked'", (self.ca_id,))
+    return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND state != 'revoked'", (self.ca_id,))
 
   def construct_sia_uri(self, parent, rc):
     """
@@ -374,11 +378,11 @@ class ca_obj(rpki.sql.sql_persistent):
 
     def loop(iterator, ca_detail):
 
-      ski = ca_detail.latest_ca_cert.get_SKI()
+      ski = ca_detail.public_key.get_SKI()
 
       if ski not in cert_map:
         rpki.log.warn("Certificate in database missing from list_response, class %r, SKI %s, maybe parent certificate went away?"
-                      % (rc.class_name, ca_detail.latest_ca_cert.gSKI()))
+                      % (rc.class_name, ca_detail.public_key.gSKI()))
         ca_detail.delete(self, parent.repository(), iterator, eb, allow_failure = True)
         return
 
@@ -387,8 +391,12 @@ class ca_obj(rpki.sql.sql_persistent):
         iterator()
 
       if ca_detail.state in ("pending", "active"):
-        current_resources = ca_detail.latest_ca_cert.get_3779resources()
-        if (sia_uri_changed or
+        if ca_detail.state == "pending":
+          current_resources = rpki.resource_set.resource_bag()
+        else:
+          current_resources = ca_detail.latest_ca_cert.get_3779resources()
+        if (ca_detail.state == "pending" or
+            sia_uri_changed or
             ca_detail.latest_ca_cert != cert_map[ski].cert or
             current_resources.undersized(rc_resources) or
             current_resources.oversized(rc_resources)):
@@ -410,7 +418,7 @@ class ca_obj(rpki.sql.sql_persistent):
                       % (rc.class_name, ", ".join(c.cert.gSKI() for c in cert_map.values())))
       cb()
 
-    ca_details = self.fetch_nonnull_nonrevoked()
+    ca_details = self.fetch_issue_response_candidates()
 
     if True:
       for x in cert_map.itervalues():

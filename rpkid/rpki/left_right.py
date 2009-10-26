@@ -230,16 +230,16 @@ class self_elt(data_elt):
     """
 
     def loop(iterator, parent):
-      pdus = []
+      q_msg = rpki.publication.msg.query()
       for ca in parent.cas():
         ca_detail = ca.fetch_active()
         if ca_detail is not None:
-          pdus.append(rpki.publication.crl_elt.make_publish(ca_detail.crl_uri(ca), ca_detail.latest_crl))
-          pdus.append(rpki.publication.manifest_elt.make_publish(ca_detail.manifest_uri(ca), ca_detail.latest_manifest))
-          pdus.extend(rpki.publication.certificate_elt.make_publish(c.uri(ca), c.cert) for c in ca_detail.child_certs())
-          pdus.extend(rpki.publication.roa_elt.make_publish(r.uri(), r.roa) for r in ca_detail.roas() if r.roa is not None)
-      if pdus:
-        parent.repository().call_pubd(iterator, eb, *pdus)
+          q_msg.append(rpki.publication.crl_elt.make_publish(ca_detail.crl_uri(ca), ca_detail.latest_crl))
+          q_msg.append(rpki.publication.manifest_elt.make_publish(ca_detail.manifest_uri(ca), ca_detail.latest_manifest))
+          q_msg.extend(rpki.publication.certificate_elt.make_publish(c.uri(ca), c.cert) for c in ca_detail.child_certs())
+          q_msg.extend(rpki.publication.roa_elt.make_publish(r.uri(), r.roa) for r in ca_detail.roas() if r.roa is not None)
+      if q_msg:
+        parent.repository().call_pubd(iterator, eb, q_msg)
       else:
         iterator()
 
@@ -607,13 +607,12 @@ class repository_elt(data_elt):
     """Fetch all parent objects that link to this repository object."""
     return parent_elt.sql_fetch_where(self.gctx, "repository_id = %s", (self.repository_id,))
 
-  def call_pubd(self, callback, errback, *pdus):
+  def call_pubd(self, callback, errback, q_msg):
     """
     Send a message to publication daemon and return the response.
     """
     rpki.log.trace()
     bsc = self.bsc()
-    q_msg = rpki.publication.msg.query(pdus)
     q_cms = rpki.publication.cms_msg.wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
     bpki_ta_path = (self.gctx.bpki_ta, self.self().bpki_cert, self.self().bpki_glue, self.bpki_cert, self.bpki_glue)
 
@@ -627,7 +626,7 @@ class repository_elt(data_elt):
               raise t, getattr(r_pdu, "text", None)
             else:
               raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %s" % r_pdu
-        if len(pdus) != len(r_msg):
+        if len(q_msg) != len(r_msg):
           raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %r" % r_msg
         callback()
       except (rpki.async.ExitNow, SystemExit):
@@ -653,7 +652,9 @@ class repository_elt(data_elt):
       errback(e)
     rpki.log.trace()
     rpki.log.info("Publishing %r as %r" % (obj, uri))
-    self.call_pubd(callback, fail, rpki.publication.publication_object_elt.make_publish(uri = uri, obj = obj))
+    q_msg = rpki.publication.msg.query()
+    q_msg.append(rpki.publication.publication_object_elt.make_publish(uri = uri, obj = obj))
+    self.call_pubd(callback, fail, q_msg)
 
   def withdraw(self, obj, uri, callback, errback, allow_failure = False):
     """
@@ -667,7 +668,9 @@ class repository_elt(data_elt):
         errback(e)
     rpki.log.trace()
     rpki.log.info("Withdrawing %r from %r" % (obj, uri))
-    self.call_pubd(callback, fail, rpki.publication.publication_object_elt.make_withdraw(uri = uri, obj = obj))
+    q_msg = rpki.publication.msg.query()
+    q_msg.append(rpki.publication.publication_object_elt.make_withdraw(uri = uri, obj = obj))
+    self.call_pubd(callback, fail, q_msg)
 
 class parent_elt(data_elt):
   """

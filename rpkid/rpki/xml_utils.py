@@ -454,14 +454,14 @@ class msg(list):
   @classmethod
   def query(cls, *args):
     """Create a query PDU."""
-    self = cls(*args)
+    self = cls(args)
     self.type = "query"
     return self
 
   @classmethod
   def reply(cls, *args):
     """Create a reply PDU."""
-    self = cls(*args)
+    self = cls(args)
     self.type = "reply"
     return self
 

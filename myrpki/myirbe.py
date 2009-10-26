@@ -89,7 +89,7 @@ class caller(object):
         print "Reply:", xml
       cb(msg)
 
-    msg = self.proto.msg.query(pdus)
+    msg = self.proto.msg.query(*pdus)
     cms, xml = self.proto.cms_msg.wrap(msg, self.client_key, self.client_cert, pretty_print = True)
     if self.debug:
       print "Query:", xml

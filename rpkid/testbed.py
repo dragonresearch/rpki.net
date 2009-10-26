@@ -770,7 +770,7 @@ class allocation(object):
     assert isinstance(pdus, (list, tuple))
     assert self.rpki_port is not None
 
-    msg = rpki.left_right.msg.query(pdus)
+    msg = rpki.left_right.msg.query(*pdus)
     cms, xml = rpki.left_right.cms_msg.wrap(msg, self.irbe_key, self.irbe_cert,
                                             pretty_print = True)
     rpki.log.debug(xml)
@@ -1167,7 +1167,7 @@ def call_pubd(pdus, cb):
   response.
   """
   rpki.log.info("Calling pubd")
-  msg = rpki.publication.msg.query(pdus)
+  msg = rpki.publication.msg.query(*pdus)
   cms, xml = rpki.publication.cms_msg.wrap(msg, pubd_irbe_key, pubd_irbe_cert,
                                            pretty_print = True)
   rpki.log.debug(xml)

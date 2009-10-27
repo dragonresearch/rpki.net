@@ -218,12 +218,14 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     rpki.log.info("Publishing %r as %r" % (self.payload, self.uri))
     filename = self.uri_to_filename()
+    filename_tmp = filename + ".tmp"
     dirname = os.path.dirname(filename)
     if not os.path.isdir(dirname):
       os.makedirs(dirname)
-    f = open(filename, "wb")
+    f = open(filename_tmp, "wb")
     f.write(self.payload.get_DER())
     f.close()
+    os.rename(filename_tmp, filename)
 
   def serve_withdraw(self):
     """

@@ -607,9 +607,14 @@ class repository_elt(data_elt):
     """Fetch all parent objects that link to this repository object."""
     return parent_elt.sql_fetch_where(self.gctx, "repository_id = %s", (self.repository_id,))
 
-  def call_pubd(self, callback, errback, q_msg):
+  def call_pubd(self, callback, errback, q_msg, handlers = None):
     """
     Send a message to publication daemon and return the response.
+
+    If handlers is not None, it's a dict of handler functions to
+    process the response PDUs.  If the tag value in the response PDU
+    appears in the dict, the associated handler is called to process
+    the PDU.  If no tag matches, no handler is called.
     """
     rpki.log.trace()
     bsc = self.bsc()
@@ -619,6 +624,10 @@ class repository_elt(data_elt):
     def done(r_cms):
       try:
         r_msg = rpki.publication.cms_msg.unwrap(r_cms, bpki_ta_path)
+        if handlers is not None:
+          for r_pdu in r_msg:
+            if r_pdu.tag in handlers:
+              handlers[r_pdu.tag](r_pdu)
         for r_pdu in r_msg:
           if isinstance(r_pdu, rpki.publication.report_error_elt):
             t = rpki.exceptions.__dict__.get(r_pdu.error_code)

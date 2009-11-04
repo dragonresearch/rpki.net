@@ -238,10 +238,7 @@ class self_elt(data_elt):
           q_msg.append(rpki.publication.manifest_elt.make_publish(ca_detail.manifest_uri(ca), ca_detail.latest_manifest))
           q_msg.extend(rpki.publication.certificate_elt.make_publish(c.uri(ca), c.cert) for c in ca_detail.child_certs())
           q_msg.extend(rpki.publication.roa_elt.make_publish(r.uri(), r.roa) for r in ca_detail.roas() if r.roa is not None)
-      if q_msg:
-        parent.repository().call_pubd(iterator, eb, q_msg)
-      else:
-        iterator()
+      parent.repository().call_pubd(iterator, eb, q_msg)
 
     rpki.async.iterator(self.parents(), loop, cb)
 
@@ -297,6 +294,7 @@ class self_elt(data_elt):
 
     one()
 
+
   def client_poll(self, callback):
     """
     Run the regular client poll cycle with each of this self's parents
@@ -351,6 +349,7 @@ class self_elt(data_elt):
 
     rpki.async.iterator(self.parents(), parent_loop, callback)
 
+
   def update_children(self, cb):
     """
     Check for updated IRDB data for all of this self's children and
@@ -359,78 +358,58 @@ class self_elt(data_elt):
     """
 
     rpki.log.trace()
-
     now = rpki.sundial.now()
-
     rsn = now + rpki.sundial.timedelta(seconds = self.regen_margin)
+    publisher = rpki.rpki_engine.publication_queue()
 
-    def loop1(iterator1, child):
+    def loop(iterator, child):
+
+      def lose(e):
+        rpki.log.traceback()
+        rpki.log.warn("Couldn't update child %r, skipping: %s" % (child, e))
+        iterator()
 
       def got_resources(irdb_resources):
-
-        def loop2(iterator2, child_cert):
-
-          ca_detail = child_cert.ca_detail()
-
-          if ca_detail.state == "active":
-            old_resources = child_cert.cert.get_3779resources()
-            new_resources = irdb_resources.intersection(old_resources)
-
-            if old_resources != new_resources or (old_resources.valid_until < rsn  and irdb_resources.valid_until > now):
-              rpki.log.debug("Need to reissue child certificate SKI %s" % child_cert.cert.gSKI())
-
-              def reissue_failed(e):
-                rpki.log.traceback()
-                rpki.log.warn("Couldn't reissue child_cert %r, skipping: %s" % (child_cert, e))
-                iterator2()
-
-              child_cert.reissue(
-                ca_detail = ca_detail,
-                resources = new_resources,
-                callback  = iterator2.ignore,
-                errback   = reissue_failed)
-              return
-
-            if old_resources.valid_until < now:
-              rpki.log.debug("Child certificate SKI %s has expired: cert.valid_until %s, irdb.valid_until %s"
-                             % (child_cert.cert.gSKI(), old_resources.valid_until, irdb_resources.valid_until))
-              ca = ca_detail.ca()
-              parent = ca.parent()
-              repository = parent.repository()
-              child_cert.sql_delete()
-
-              def withdraw():
-                repository.withdraw(child_cert.cert, child_cert.uri(ca), iterator2, withdraw_failed)
-
-              def manifest_failed(e):
-                rpki.log.traceback()
-                rpki.log.warn("Couldn't reissue manifest for %r, skipping: %s" % (ca_detail, e))
-                iterator2()
-
-              def withdraw_failed(e):
-                rpki.log.traceback()
-                rpki.log.warn("Couldn't withdraw old child_cert %r, skipping: %s" % (child_cert, e))
-                iterator2()
-
-              ca_detail.generate_manifest(withdraw, manifest_failed)
-              return
-
-          iterator2()
-
-        rpki.async.iterator(child_certs, loop2, iterator1)
-
-      def irdb_lookup_failed(e):
-        rpki.log.traceback()
-        rpki.log.warn("Couldn't look up child's resources in IRDB, skipping child %r: %s" % (child, e))
-        iterator1()
+        try:
+          for child_cert in child_certs:
+            ca_detail = child_cert.ca_detail()
+            ca = ca_detail.ca()
+            if ca_detail.state == "active":
+              old_resources = child_cert.cert.get_3779resources()
+              new_resources = irdb_resources.intersection(old_resources)
+              if old_resources != new_resources or (old_resources.valid_until < rsn  and irdb_resources.valid_until > now):
+                rpki.log.debug("Need to reissue child certificate SKI %s" % child_cert.cert.gSKI())
+                child_cert.reissue(
+                  ca_detail = ca_detail,
+                  resources = new_resources,
+                  publisher = publisher)
+              if old_resources.valid_until < now:
+                rpki.log.debug("Child certificate SKI %s has expired: cert.valid_until %s, irdb.valid_until %s"
+                               % (child_cert.cert.gSKI(), old_resources.valid_until, irdb_resources.valid_until))
+                child_cert.sql_delete()
+                ca_detail.generate_manifest(publisher = publisher)
+                publisher.withdraw(cls = rpki.publication.certificate_elt, uri = child_cert.uri(ca), obj = child_cert.cert, repository = ca.parent().repository())
+        except (SystemExit, rpki.async.ExitNow):
+          raise
+        except Exception, e:
+          lose(e)
+        else:
+          iterator()
 
       child_certs = child.child_certs()
       if child_certs:
-        self.gctx.irdb_query_child_resources(child.self().self_handle, child.child_handle, got_resources, irdb_lookup_failed)
+        self.gctx.irdb_query_child_resources(child.self().self_handle, child.child_handle, got_resources, lose)
       else:
-        iterator1()
+        iterator()
 
-    rpki.async.iterator(self.children(), loop1, cb)
+    def done():
+      def lose(e):
+        rpki.log.traceback()
+        rpki.log.warn("Couldn't publish for %s, skipping: %s" % (self.self_handle, e))
+        cb()
+      publisher.call_pubd(cb, lose)
+
+    rpki.async.iterator(self.children(), loop, done)
 
 
   def regenerate_crls_and_manifests(self, cb):
@@ -446,42 +425,31 @@ class self_elt(data_elt):
     """
 
     rpki.log.trace()
-
     now = rpki.sundial.now()
+    publisher = rpki.rpki_engine.publication_queue()
 
-    def loop1(iterator1, parent):
-      repository = parent.repository()
-
-      def loop2(iterator2, ca):
-
-        def fail2(e):
+    for parent in self.parents():
+      for ca in parent.cas():
+        try:
+          for ca_detail in ca.fetch_revoked():
+            if now > ca_detail.latest_crl.getNextUpdate():
+              ca_detail.delete(ca = ca, publisher = publisher)
+          ca_detail = ca.fetch_active()
+          if ca_detail is not None and now > ca_detail.latest_crl.getNextUpdate():
+            ca_detail.generate_crl(publisher = publisher)
+            ca_detail.generate_manifest(publisher = publisher)
+        except (SystemExit, rpki.async.ExitNow):
+          raise
+        except Exception, e:
           rpki.log.traceback()
           rpki.log.warn("Couldn't regenerate CRLs and manifests for CA %r, skipping: %s" % (ca, e))
-          iterator2()
 
-        def loop3(iterator3, ca_detail):
-          ca_detail.delete(ca, repository, iterator3, fail2)
+    def lose(e):
+      rpki.log.traceback()
+      rpki.log.warn("Couldn't publish updated CRLs and manifests for self %r, skipping: %s" % (self.self_handle, e))
+      cb()
 
-        def done3():
-
-          ca_detail = ca.fetch_active()
-
-          def do_crl():
-            ca_detail.generate_crl(do_manifest, fail2)
-
-          def do_manifest():
-            ca_detail.generate_manifest(iterator2, fail2)
-
-          if ca_detail is not None and now > ca_detail.latest_crl.getNextUpdate():
-            do_crl()
-          else:
-            iterator2()
-
-        rpki.async.iterator([x for x in ca.fetch_revoked() if now > x.latest_crl.getNextUpdate()], loop3, done3)
-
-      rpki.async.iterator(parent.cas(), loop2, iterator1)
-
-    rpki.async.iterator(self.parents(), loop1, cb)
+    publisher.call_pubd(cb, lose)
 
 
   def update_roas(self, cb):
@@ -493,44 +461,40 @@ class self_elt(data_elt):
 
       roas = dict(((r.asn, str(r.ipv4), str(r.ipv6)), r) for r in self.roas())
 
-      def roa_requests_loop(iterator, roa_request):
+      publisher = rpki.rpki_engine.publication_queue()
 
-        def lose(e):
-          if not isinstance(e, rpki.exceptions.NoCoveringCertForROA):
-            rpki.log.traceback()
-          rpki.log.warn("Could not update ROA %r, %r, skipping: %s" % (roa_request, roa, e))
-          iterator()
-
+      for roa_request in roa_requests:
         try:
           roa = roas.pop((roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6)), None)
           if roa is None:
             roa = rpki.rpki_engine.roa_obj(self.gctx, self.self_id, roa_request.asn, roa_request.ipv4, roa_request.ipv6)
-          roa.update(iterator, lose)
-
+          roa.update(publisher = publisher)
         except (SystemExit, rpki.async.ExitNow):
           raise
-
         except Exception, e:
-          lose(e)
-
-      def roa_requests_done():
-
-        # Any roa_obj entries still in the dict at this point are
-        # orphans that no longer correspond to a roa_request, so clean
-        # them up.
-
-        def roa_revoke_loop(iterator, roa):
-
-          def lose(e):
+          if not isinstance(e, rpki.exceptions.NoCoveringCertForROA):
             rpki.log.traceback()
-            rpki.log.warn("Could not revoke ROA %r: %s" % (roa, e))
-            iterator()
+          rpki.log.warn("Could not update ROA %r, %r, skipping: %s" % (roa_request, roa, e))
 
-          roa.revoke(iterator, lose)
+      # Any roa_obj entries still in the dict at this point are
+      # orphans that no longer correspond to a roa_request, so clean
+      # them up.
 
-        rpki.async.iterator(roas.values(), roa_revoke_loop, cb)
+      for roa in roas.values():
+        try:
+          roa.revoke(publisher = publisher)
+        except (SystemExit, rpki.async.ExitNow):
+          raise
+        except Exception, e:
+          rpki.log.traceback()
+          rpki.log.warn("Could not revoke ROA %r: %s" % (roa, e))
 
-      rpki.async.iterator(roa_requests, roa_requests_loop, roa_requests_done)
+      def publication_failed(e):
+        rpki.log.traceback()
+        rpki.log.warn("Couldn't publish for %s, skipping: %s" % (self.self_handle, e))
+        cb()
+
+      publisher.call_pubd(cb, publication_failed)
 
     def roa_requests_failed(e):
       rpki.log.traceback()
@@ -607,16 +571,37 @@ class repository_elt(data_elt):
     """Fetch all parent objects that link to this repository object."""
     return parent_elt.sql_fetch_where(self.gctx, "repository_id = %s", (self.repository_id,))
 
-  def call_pubd(self, callback, errback, q_msg, handlers = None):
+  @staticmethod
+  def default_pubd_handler(pdu):
+    """
+    Default handler for publication response PDUs.
+    """
+    pdu.raise_if_error()
+
+  def call_pubd(self, callback, errback, q_msg, handlers = {}):
     """
     Send a message to publication daemon and return the response.
 
-    If handlers is not None, it's a dict of handler functions to
-    process the response PDUs.  If the tag value in the response PDU
-    appears in the dict, the associated handler is called to process
-    the PDU.  If no tag matches, no handler is called.
+    As a convenience, attempting to send an empty message returns
+    immediate success without sending anything.
+
+    Handlers is a dict of handler functions to process the response
+    PDUs.  If the tag value in the response PDU appears in the dict,
+    the associated handler is called to process the PDU.  If no tag
+    matches, default_pubd_handler() is called.  A handler value of
+    False suppresses calling of the default handler.
     """
+
     rpki.log.trace()
+
+    self.gctx.sql.sweep()
+
+    if not q_msg:
+      return callback()
+
+    for q_pdu in q_msg:
+      rpki.log.info("Sending <%s %r %r> to pubd" % (q_pdu.action, q_pdu.uri, q_pdu.payload))
+
     bsc = self.bsc()
     q_cms = rpki.publication.cms_msg.wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
     bpki_ta_path = (self.gctx.bpki_ta, self.self().bpki_cert, self.self().bpki_glue, self.bpki_cert, self.bpki_glue)
@@ -624,19 +609,12 @@ class repository_elt(data_elt):
     def done(r_cms):
       try:
         r_msg = rpki.publication.cms_msg.unwrap(r_cms, bpki_ta_path)
-        if handlers is not None:
-          for r_pdu in r_msg:
-            if r_pdu.tag in handlers:
-              handlers[r_pdu.tag](r_pdu)
         for r_pdu in r_msg:
-          if isinstance(r_pdu, rpki.publication.report_error_elt):
-            t = rpki.exceptions.__dict__.get(r_pdu.error_code)
-            if isinstance(t, type) and issubclass(t, rpki.exceptions.RPKI_Exception):
-              raise t, getattr(r_pdu, "text", None)
-            else:
-              raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %s" % r_pdu
+          handler = handlers.get(r_pdu.tag, self.default_pubd_handler)
+          if handler:
+            handler(r_pdu)
         if len(q_msg) != len(r_msg):
-          raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %r" % r_msg
+          raise rpki.exceptions.BadPublicationReply, "Wrong number of response PDUs from pubd: sent %r, got %r" % (q_msg, r_msg)
         callback()
       except (rpki.async.ExitNow, SystemExit):
         raise
@@ -651,35 +629,6 @@ class repository_elt(data_elt):
       msg          = q_cms,
       callback     = done,
       errback      = errback)
-
-  def publish(self, obj, uri, callback, errback):
-    """
-    Publish one object in the repository.
-    """
-    def fail(e):
-      rpki.log.warn("Publication of %r as %r failed: %s" % (obj, uri, e))
-      errback(e)
-    rpki.log.trace()
-    rpki.log.info("Publishing %r as %r" % (obj, uri))
-    q_msg = rpki.publication.msg.query(
-      rpki.publication.publication_object_elt.make_publish(uri = uri, obj = obj))
-    self.call_pubd(callback, fail, q_msg)
-
-  def withdraw(self, obj, uri, callback, errback, allow_failure = False):
-    """
-    Withdraw one object from the repository.
-    """
-    def fail(e):
-      rpki.log.warn("Withdrawal of %r from %r failed: %s" % (obj, uri, e))
-      if allow_failure and isinstance(e, rpki.exceptions.NoObjectAtURI):
-        callback()
-      else:
-        errback(e)
-    rpki.log.trace()
-    rpki.log.info("Withdrawing %r from %r" % (obj, uri))
-    q_msg = rpki.publication.msg.query(
-      rpki.publication.publication_object_elt.make_withdraw(uri = uri, obj = obj))
-    self.call_pubd(callback, fail, q_msg)
 
 class parent_elt(data_elt):
   """
@@ -741,7 +690,7 @@ class parent_elt(data_elt):
     Handle a left-right revoke action for this parent.
     """
     def loop(iterator, ca):
-      ca.revoke(iterator, eb)
+      ca.revoke(cb = iterator, eb = eb)
     rpki.async.iterator(self.cas(), loop, cb)
 
   def serve_revoke_forgotten(self, cb, eb):
@@ -888,7 +837,7 @@ class child_elt(data_elt):
     Extra server actions when destroying a child_elt.
     """
     def loop(iterator, child_cert):
-      child_cert.revoke(iterator, eb)
+      child_cert.revoke(callback = iterator, errback = eb)
     rpki.async.iterator(self.child_certs(), loop, cb)
 
   def endElement(self, stack, name, text):

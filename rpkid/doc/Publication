@@ -45,7 +45,6 @@ Publication control subprotocol
    destroyed.
 
    Payload data which can be configured in a <config/> object:
-
      * bpki_crl (element): This is the BPKI CRL used by the publication
        server when signing the CMS wrapper on responses in the publication
        subprotocol. As the CRL must be updated at regular intervals, it's
@@ -65,7 +64,6 @@ Publication control subprotocol
    "create", "set", "get", or "destroy" actions.
 
    Payload data which can be configured in a <client/> object:
-
      * base_uri (attribute): This is the base URI below which this client
        is allowed to publish data. The publication server may impose
        additional constraints in the case of a child publishing beneath
@@ -164,7 +162,6 @@ Additional access control considerations.
 
    As detailed above, the publication protocol is trivially simple. This
    glosses over two bits of potential complexity:
-
      * In the case where parent and child are sharing a repository, we'd
        like to nest child under parent, because testing has demonstrated
        that even on relatively slow hardware the delays involved in
@@ -220,5 +217,5 @@ Additional access control considerations.
      __________________________________________________________________
 
 
-    Generated on Fri Oct 23 00:02:29 2009 for RPKI Engine by  doxygen
-    1.5.9
+    Generated on Wed Nov 4 03:08:19 2009 for RPKI Engine by  doxygen
+    1.6.1

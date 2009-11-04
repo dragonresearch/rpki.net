@@ -16,7 +16,6 @@ Operation Guide
 
    In addition to the library routines in the rpkid/rpki/ directory, the
    package includes the following programs:
-
      * rpkid.py: The main RPKI engine daemon.
 
      * pubd.py: The publication engine daemon.
@@ -70,7 +69,6 @@ Operation Guide
    At present the daemon programs all run in foreground, that is, if one
    wants them to run in background one must do so manually, eg, using
    Bourne shell syntax:
-
    $ python whatever.py &
    $ echo >whatever.pid  "$!"
 
@@ -96,7 +94,6 @@ rpkid.py
    or PEM format.
 
    Config file options:
-
      * startup-message: String to log on startup, useful when debugging a
        collection of rpkid instances at once.
 
@@ -138,7 +135,6 @@ pubd.py
    and other objects that rpkid generates.
 
    pubd is separate from rpkid for two reasons:
-
      * The hosting model allows entities which choose to run their own
        copies of rpkid to publish their output under a common publication
        point. In general, encouraging shared publication services where
@@ -166,7 +162,6 @@ pubd.py
    format.
 
    Config file options:
-
      * sql-username: Username to hand to MySQL when connecting to pubd's
        database.
 
@@ -210,7 +205,6 @@ rootd.py
    or PEM format.
 
    Config file options:
-
      * bpki-ta: Name of file containing BPKI trust anchor. All BPKI
        certificate validation in rootd traces back to this trust anchor.
 
@@ -277,7 +271,6 @@ irdbd.py
    either DER or PEM format.
 
    Config file options:
-
      * startup-message: String to log on startup, useful when debugging a
        collection of irdbd instances at once.
 
@@ -321,7 +314,6 @@ irbe_cli.py
    file; this makes it easier to hand these requests off to the business
    PKI (BPKI in order to issue signing certs corresponding to newly
    generated business keys.
-
       Command line IR back-end control program for rpkid and pubd.
 
       $Id: irbe_cli.py 2799 2009-09-30 02:33:36Z sra $
@@ -415,7 +407,6 @@ M
    keys, and trust anchors may be in either DER or PEM format.
 
    Config file options:
-
      * rpkid-bpki-ta: Name of file containing BPKI trust anchor to use
        when authenticating messages from rpkid.
 
@@ -449,7 +440,6 @@ cross_certify.py
    can be used as part of a cross-certification chain. cross_certify
    doesn't take a config file, all of its arguments are specified on the
    command line.
-
     python cross_certify.py { -i | --in     } input_cert
                             { -c | --ca     } issuing_cert
                             { -k | --key    } issuing_cert_key
@@ -472,7 +462,6 @@ irbe-setup.py config file
    keys, and trust anchors may be in either DER or PEM format.
 
    Options in the "[irbe_cli]" section:
-
      * bpki-ta: Name of file containing BPKI trust anchor.
 
      * irbe-cert: Name of file containing BPKI certificate irbe-setup
@@ -486,7 +475,6 @@ irbe-setup.py config file
      * https-url: Service URL for rpkid. Must be a https:// URL.
 
    Options in the "[irdbd]" section:
-
      * sql-username: Username to hand to MySQL when connecting to irdbd's
        database.
 
@@ -512,7 +500,6 @@ cronjob.py
    either DER or PEM format.
 
    Config file options:
-
      * bpki-ta: Name of file containing BPKI trust anchor.
 
      * irbe-cert: Name of file containing cronjob.py's BPKI certificate.
@@ -548,7 +535,6 @@ testbed.py:
    file is testbed.conf, run testbed with "-c filename" to change it.
 
    testbed.conf options:
-
      * testbed_dir: Working directory into which testbed should write the
        (many) files it generates. Default is "testbed.dir".
 
@@ -578,7 +564,6 @@ testbed.py:
    current resource set, modifications to validity dates or other
    non-resource parameters, or special commands like "sleep". The details
    are still evolving, but here's an example of current usage:
-
      name:           RIR
      valid_for:      2d
      sia_base:       "rsync://wombat.invalid/"
@@ -615,7 +600,6 @@ testbed.py:
    validity interval for Alice's resources to ten days.
 
    Operators in subsequent (update) documents:
-
      * add_as, add_v4, add_v6: These add ASN, IPv4, or IPv6 resources,
        respectively.
 
@@ -657,7 +641,6 @@ testpoke.py
 
    testpoke.py takes a simplified command line and uses only one YAML
    input file.
-
  Usage: python testpoke.py [ { -y | --yaml }    configfile ]
                            [ { -r | --request } requestname ]
                            [ { -h | --help } ]
@@ -669,7 +652,6 @@ testpoke.py
    file to execute.
 
    Sample configuration file:
-
      ---
      # Sample YAML configuration file for testpoke.py
 
@@ -710,5 +692,5 @@ testpoke.py
      __________________________________________________________________
 
 
-    Generated on Fri Oct 23 00:02:29 2009 for RPKI Engine by  doxygen
-    1.5.9
+    Generated on Wed Nov 4 03:08:19 2009 for RPKI Engine by  doxygen
+    1.6.1

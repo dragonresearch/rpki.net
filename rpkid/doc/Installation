@@ -23,7 +23,6 @@ Installation Guide
    prerequisites. Note that the Python code requires Python version 2.5.
    rpkid et al are mostly self-contained, but do require a small number of
    external packages to run.
-
      * If your Python installation does not already include the sources
        files needed to compile new Python extension modules, you will need
        to install whatever package does include those source files. The
@@ -58,7 +57,6 @@ Installation Guide
 
    To build these, cd to the top-level directory in the distribution and
    type "make".
-
    $ cd $top
    $ make
 
@@ -77,7 +75,6 @@ Installation Guide
    You will probably want to test it. All tests should be run from the
    rpkid/ directory. The test suite requires a few more external packages,
    only one of which is Python code.
-
      * http://pyyaml.org/. testpoke.py (an up-down protocol command line
        test client) and testbed.py (a test harness) use PyYAML.
           + FreeBSD: /usr/ports/devel/py-yaml
@@ -97,12 +94,10 @@ Installation Guide
    up all the databases that the tests will need, run the SQL commands in
    rpkid/testbed.sql. The MySQL command line client is usually the easiest
    way to do this, eg:
-
    $ cd $top/rpkid
    $ mysql -u root -p <testbed.sql
 
    To run the tests, run "make all-tests":
-
    $ cd $top/rpkid
    $ make all-tests
 
@@ -112,7 +107,6 @@ Installation Guide
    There's a last set of tools that only developers should need, as
    they're only used when modifying schemas or regenerating the
    documentation. These tools are listed here for completeness.
-
      * http://www.doxygen.org/. Doxygen in turn pulls in several other
        tools, notably Graphviz, pdfLaTeX, and Ghostscript.
           + FreeBSD: /usr/ports/devel/doxygen
@@ -134,5 +128,5 @@ Installation Guide
      __________________________________________________________________
 
 
-    Generated on Fri Oct 23 00:02:29 2009 for RPKI Engine by  doxygen
-    1.5.9
+    Generated on Wed Nov 4 03:08:19 2009 for RPKI Engine by  doxygen
+    1.6.1

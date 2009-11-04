@@ -376,10 +376,24 @@ class issue_pdu(base_elt):
 
       # Generate new cert or regenerate old one if necessary
 
-      def got_child_cert(child_cert):
-        # Save anything we modified and generate response
-        self.gctx.sql.sweep()
-        assert child_cert and child_cert.sql_in_db
+      publisher = rpki.rpki_engine.publication_queue()
+
+      if child_cert is None:
+        child_cert = ca_detail.issue(
+          ca          = ca,
+          child       = child,
+          subject_key = req_key,
+          sia         = req_sia,
+          resources   = resources,
+          publisher   = publisher)
+      else:
+        child_cert = child_cert.reissue(
+          ca_detail = ca_detail,
+          sia       = req_sia,
+          resources = resources,
+          publisher = publisher)
+
+      def done():
         c = certificate_elt()
         c.cert_url = multi_uri(child_cert.uri(ca))
         c.cert = child_cert.cert
@@ -393,22 +407,9 @@ class issue_pdu(base_elt):
         r_msg.payload.classes.append(rc)
         callback()
 
-      if child_cert is None:
-        ca_detail.issue(
-          ca          = ca,
-          child       = child,
-          subject_key = req_key,
-          sia         = req_sia,
-          resources   = resources,
-          callback    = got_child_cert,
-          errback     = errback)
-      else:
-        child_cert.reissue(
-          ca_detail = ca_detail,
-          sia       = req_sia,
-          resources = resources,
-          callback  = got_child_cert,
-          errback   = errback)
+      self.gctx.sql.sweep()
+      assert child_cert and child_cert.sql_in_db
+      publisher.call_pubd(done, errback)
 
     self.gctx.irdb_query_child_resources(child.self().self_handle, child.child_handle, got_resources, errback)
 
@@ -466,21 +467,19 @@ class revoke_pdu(revoke_syntax):
     Serve one revoke request PDU.
     """
 
-    def loop1(iterator1, ca_detail):
-
-      def loop2(iterator2, child_cert):
-        child_cert.revoke(iterator2, eb)
-
-      rpki.async.iterator(child.child_certs(ca_detail = ca_detail, ski = self.get_SKI()), loop2, iterator1)
-
     def done():
-      self.gctx.sql.sweep()
       r_msg.payload = revoke_response_pdu()
       r_msg.payload.class_name = self.class_name
       r_msg.payload.ski = self.ski
       cb()
 
-    rpki.async.iterator(child.ca_from_class_name(self.class_name).ca_details(), loop1, done)
+    ca = child.ca_from_class_name(self.class_name)
+    publisher = rpki.rpki_engine.publication_queue()
+    for ca_detail in ca.ca_details():
+      for child_cert in child.child_certs(ca_detail = ca_detail, ski = self.get_SKI()):
+        child_cert.revoke(publisher = publisher)
+    self.gctx.sql.sweep()
+    publisher.call_pubd(done, eb)
 
   @classmethod
   def query(cls, ca, gski, cb, eb):

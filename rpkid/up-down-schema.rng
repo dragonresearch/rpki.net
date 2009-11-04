@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: up-down-schema.rnc 1798 2008-05-17 08:21:50Z sra $
+  $Id: up-down-schema.rnc 2839 2009-10-27 18:53:00Z sra $
   
   RelaxNG Scheme for up-down protocol, extracted from APNIC Wiki.
   

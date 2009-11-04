@@ -260,22 +260,22 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     Construct a publication PDU.
     """
-    if cls.payload_type is None:
-      return cls.obj2elt[type(obj)].make_pdu(action = "publish", uri = uri, payload = obj, tag = tag)
-    else:
-      assert type(obj) is cls.payload_type
-      return cls.make_pdu(action = "publish", uri = uri, payload = obj, tag = tag)      
+    assert cls.payload_type is not None and type(obj) is cls.payload_type
+    return cls.make_pdu(action = "publish", uri = uri, payload = obj, tag = tag)      
 
   @classmethod
   def make_withdraw(cls, uri, obj, tag = None):
     """
     Construct a withdrawal PDU.
     """
-    if cls.payload_type is None:
-      return cls.obj2elt[type(obj)].make_pdu(action = "withdraw", uri = uri, tag = tag)
-    else:
-      assert type(obj) is cls.payload_type
-      return cls.make_pdu(action = "withdraw", uri = uri, tag = tag)
+    assert cls.payload_type is not None and type(obj) is cls.payload_type
+    return cls.make_pdu(action = "withdraw", uri = uri, tag = tag)
+
+  def raise_if_error(self):
+    """
+    No-op, since this is not a <report_error/> PDU.
+    """
+    pass
 
 class certificate_elt(publication_object_elt):
   """
@@ -341,6 +341,16 @@ class report_error_elt(rpki.xml_utils.text_elt, publication_namespace):
     if getattr(self, "error_text", None) is not None:
       s += ": " + self.error_text
     return s
+
+  def raise_if_error(self):
+    """
+    Raise exception associated with this <report_error/> PDU.
+    """
+    t = rpki.exceptions.__dict__.get(self.error_code)
+    if isinstance(t, type) and issubclass(t, rpki.exceptions.RPKI_Exception):
+      raise t, getattr(self, "text", None)
+    else:
+      raise rpki.exceptions.BadPublicationReply, "Unexpected response from pubd: %s" % self
 
 class msg(rpki.xml_utils.msg, publication_namespace):
   """

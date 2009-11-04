@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-schema.rnc 2722 2009-08-31 22:24:48Z sra $
+  $Id: publication-schema.rnc 2839 2009-10-27 18:53:00Z sra $
   
   RelaxNG Schema for RPKI publication protocol.
   

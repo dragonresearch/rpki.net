@@ -44,7 +44,8 @@ CREATE TABLE registrant_asn (
         end_as                  BIGINT UNSIGNED NOT NULL,
         registrant_id           BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (registrant_asn_id),
-        FOREIGN KEY             (registrant_id) REFERENCES registrant (registrant_id)
+        CONSTRAINT              registrant_asn_registrant_id
+        FOREIGN KEY             (registrant_id) REFERENCES registrant (registrant_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE registrant_net (
@@ -54,7 +55,8 @@ CREATE TABLE registrant_net (
         version                 TINYINT UNSIGNED NOT NULL,
         registrant_id           BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (registrant_net_id),
-        FOREIGN KEY             (registrant_id) REFERENCES registrant (registrant_id)
+        CONSTRAINT              registrant_net_registrant_id
+        FOREIGN KEY             (registrant_id) REFERENCES registrant (registrant_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE roa_request (
@@ -71,7 +73,8 @@ CREATE TABLE roa_request_prefix (
         version                 TINYINT NOT NULL,
         roa_request_id          BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (roa_request_id, prefix, prefixlen, max_prefixlen),
-        FOREIGN KEY             (roa_request_id) REFERENCES roa_request (roa_request_id)
+        CONSTRAINT              roa_request_prefix_roa_request_id
+        FOREIGN KEY             (roa_request_id) REFERENCES roa_request (roa_request_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- Local Variables:

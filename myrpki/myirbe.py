@@ -516,6 +516,15 @@ for xmlfile in xmlfiles:
     assert e is not None
     e.text = bsc_req.get_Base64()
 
+  # Something weird going on here with lxml linked against recent
+  # versions of libxml2.  Looks like modifying the tree above somehow
+  # produces validation errors, but it works fine if we convert it to
+  # a string and parse it again.  I'm not seeing any problems with any
+  # of the other code that uses lxml to do validation, just this one
+  # place.  Weird.  Kludge around it for now.
+
+  tree = lxml.etree.fromstring(lxml.etree.tostring(tree))
+
   try:
     schema.myrpki.assertValid(tree)
   except lxml.etree.DocumentInvalid:

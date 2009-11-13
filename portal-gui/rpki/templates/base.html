@@ -1,0 +1,21 @@
+<html>
+<head>
+    <title>{% block title %}MyRPKI{% endblock %}
+    {% block head %}{% endblock %}
+    <style type="text/css"><!--
+    {% block css %}{% endblock %}
+    // -->
+    </style>
+</head>
+<body>
+    <div id="content">
+       {% if user.is_authenticated %}
+       <span style="float: right; font-size: 80%;">Logged in as {{ user }} | 
+	  <a href="{% url django.contrib.auth.views.logout %}">Log Out</a></span>
+       {% else %}
+       <span style="float: right; font-size: 80%;"><a href="{% url django.contrib.auth.views.login %}">Log In</a></span>
+       {% endif %}
+       {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

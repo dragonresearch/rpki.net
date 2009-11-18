@@ -285,7 +285,7 @@ typedef struct certinfo {
 typedef struct rcynic_ctx {
   char *authenticated, *old_authenticated, *unauthenticated;
   char *jane, *rsync_program;
-  STACK_OF(STRING) *rsync_cache, *backup_cache;
+  STACK_OF(OPENSSL_STRING) *rsync_cache, *backup_cache;
   STACK_OF(HOST_MIB_COUNTER) *host_counters;
   int indent, use_syslog, allow_stale_crl, allow_stale_manifest, use_links;
   int require_crl_in_manifest, rsync_timeout, priority[LOG_LEVEL_T_MAX];
@@ -347,19 +347,12 @@ static const unsigned char id_sha256[] =
  */
 static const char rpki_policy_oid[] = "1.3.6.1.5.5.7.14.2";
 
-/**
- * Missing definition that should have been in safestack.h.
- */
-#ifndef sk_STRING_delete
-#define sk_STRING_delete(st, i) SKM_sk_delete(STRING, (st), (i))
-#endif
-
 
 
 /**
  * Type-safe wrapper around free() to keep safestack macros happy.
  */
-static void STRING_free(STRING s)
+static void OPENSSL_STRING_free(OPENSSL_STRING s)
 {
   free(s);
 }
@@ -748,11 +741,11 @@ static int mkdir_maybe(const rcynic_ctx_t *rc, const char *name)
 /**
  * strdup() a string and push it onto a stack.
  */
-static int sk_STRING_push_strdup(STACK_OF(STRING) *sk, const char *str)
+static int sk_OPENSSL_STRING_push_strdup(STACK_OF(OPENSSL_STRING) *sk, const char *str)
 {
   char *s = strdup(str);
 
-  if (s && sk_STRING_push(sk, s))
+  if (s && sk_OPENSSL_STRING_push(sk, s))
     return 1;
   if (s)
     free(s);
@@ -1097,7 +1090,7 @@ static int rsync_cached(const rcynic_ctx_t *rc,
   strcpy(buffer, uri);
   if ((s = strrchr(buffer, '/')) != NULL && s[1] == '\0')
     *s = '\0';
-  while (sk_STRING_find(rc->rsync_cache, buffer) < 0) {
+  while (sk_OPENSSL_STRING_find(rc->rsync_cache, buffer) < 0) {
     if ((s = strrchr(buffer, '/')) == NULL)
       return 0;
     *s = '\0';
@@ -1304,7 +1297,7 @@ static int rsync(const rcynic_ctx_t *rc,
   strcpy(buffer, uri + SIZEOF_RSYNC);
   if ((s = strrchr(buffer, '/')) != NULL && s[1] == '\0')
     *s = '\0';
-  if (!sk_STRING_push_strdup(rc->rsync_cache, buffer))
+  if (!sk_OPENSSL_STRING_push_strdup(rc->rsync_cache, buffer))
     logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri);
 
   return ret;
@@ -1981,7 +1974,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 
   if (uri_to_filename(rc, uri, path, sizeof(path), rc->authenticated) && 
       !access(path, R_OK)) {
-    if (backup || sk_STRING_find(rc->backup_cache, uri) < 0)
+    if (backup || sk_OPENSSL_STRING_find(rc->backup_cache, uri) < 0)
       return NULL;
     mib_increment(rc, uri, current_cert_recheck);
     logmsg(rc, log_telemetry, "Rechecking cert %s", uri);
@@ -1997,8 +1990,8 @@ static X509 *check_cert(rcynic_ctx_t *rc,
     mib_increment(rc, uri,
 		  (backup ? backup_cert_accepted : current_cert_accepted));
     if (!backup)
-      (void) sk_STRING_delete(rc->backup_cache, sk_STRING_find(rc->backup_cache, uri));
-    else if (!sk_STRING_push_strdup(rc->backup_cache, uri))
+      (void) sk_OPENSSL_STRING_delete(rc->backup_cache, sk_OPENSSL_STRING_find(rc->backup_cache, uri));
+    else if (!sk_OPENSSL_STRING_push_strdup(rc->backup_cache, uri))
       logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri);
       
   } else if (!access(path, F_OK)) {
@@ -2818,12 +2811,12 @@ int main(int argc, char *argv[])
 
   }
 
-  if ((rc.rsync_cache = sk_STRING_new(uri_cmp)) == NULL) {
+  if ((rc.rsync_cache = sk_OPENSSL_STRING_new(uri_cmp)) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate rsync_cache stack");
     goto done;
   }
 
-  if ((rc.backup_cache = sk_STRING_new(uri_cmp)) == NULL) {
+  if ((rc.backup_cache = sk_OPENSSL_STRING_new(uri_cmp)) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate backup_cache stack");
     goto done;
   }
@@ -3089,8 +3082,8 @@ int main(int argc, char *argv[])
    * Do NOT free cfg_section, NCONF_free() takes care of that
    */
   sk_X509_pop_free(certs, X509_free);
-  sk_STRING_pop_free(rc.rsync_cache, STRING_free);
-  sk_STRING_pop_free(rc.backup_cache, STRING_free);
+  sk_OPENSSL_STRING_pop_free(rc.rsync_cache, OPENSSL_STRING_free);
+  sk_OPENSSL_STRING_pop_free(rc.backup_cache, OPENSSL_STRING_free);
   sk_HOST_MIB_COUNTER_pop_free(rc.host_counters, HOST_MIB_COUNTER_free);
   X509_STORE_free(rc.x509_store);
   NCONF_free(cfg_handle);

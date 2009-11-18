@@ -1,6 +1,8 @@
 # $Id$
 
-VERSION = SNAP-20090310
+VERSION = 1.0.0-stable-SNAP-20091118
+
+OPTIONS = enable-rfc3779 enable-cms no-dso enable-shared --prefix=`pwd`
 
 # Kludge alert:
 #
@@ -25,8 +27,14 @@ clean:
 	rm -rf openssl-${VERSION} openssl
 	cd tests; ${MAKE} $@
 
+# Ordinarily we let ./config guess the platform target.  When
+# debugging, we usually need to specify an explicit target, in which
+# case it's probably easier to use ./Configure.
+
 openssl-${VERSION}/Makefile: openssl-${VERSION}/config
-	cd openssl-${VERSION}; PERL=/usr/bin/perl ./config enable-rfc3779 enable-cms no-dso enable-shared --prefix=`pwd`
+	cd openssl-${VERSION}; PERL=/usr/bin/perl ./config ${OPTIONS}
+#	cd openssl-${VERSION}; PERL=/usr/bin/perl ./Configure debug-BSD-x86-elf ${OPTIONS}
+	cd openssl-${VERSION}; ${MAKE} depend
 
 openssl-${VERSION}/config: openssl-${VERSION}.tar.gz
 	gzip -c -d openssl-${VERSION}.tar.gz | tar -xf -

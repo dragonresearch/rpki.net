@@ -4,7 +4,7 @@
 # Fetch today's OpenSSL snapshot and do everything needed to make it
 # the current code other than the svn commit.
 
-version="SNAP-$(date +%Y%m%d)"
+version="1.0.0-stable-SNAP-$(date +%Y%m%d)"
 
 tarball="openssl-${version}.tar.gz"
 

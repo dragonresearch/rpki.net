@@ -100,7 +100,7 @@ class POWCryptoDriver(CryptoDriver):
       global POW
       import POW
       self.driver2OID = {
-         POW.MD2_DIGEST       :  (1, 2, 840, 113549, 1, 1, 2),    # md2WithRSAEncryption
+#        POW.MD2_DIGEST       :  (1, 2, 840, 113549, 1, 1, 2),    # md2WithRSAEncryption
          POW.MD5_DIGEST       :  (1, 2, 840, 113549, 1, 1, 4),    # md5WithRSAEncryption
          POW.SHA_DIGEST       :  (1, 3, 14, 3, 2, 15),            # shaWithRSAEncryption
          POW.SHA1_DIGEST      :  (1, 2, 840, 113549, 1, 1, 5),    # sha1withRSAEncryption

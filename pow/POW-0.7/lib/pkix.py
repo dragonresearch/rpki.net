@@ -99,16 +99,20 @@ class POWCryptoDriver(CryptoDriver):
    def __init__(self):
       global POW
       import POW
-      self.driver2OID = {
-#        POW.MD2_DIGEST       :  (1, 2, 840, 113549, 1, 1, 2),    # md2WithRSAEncryption
-         POW.MD5_DIGEST       :  (1, 2, 840, 113549, 1, 1, 4),    # md5WithRSAEncryption
-         POW.SHA_DIGEST       :  (1, 3, 14, 3, 2, 15),            # shaWithRSAEncryption
-         POW.SHA1_DIGEST      :  (1, 2, 840, 113549, 1, 1, 5),    # sha1withRSAEncryption
-         POW.RIPEMD160_DIGEST :  (1, 2, 840, 113549, 1, 1, 6),    # ripemd160WithRSAEncryption
-         POW.SHA256_DIGEST    :  (1, 2, 840, 113549, 1, 1, 11),   # sha256WithRSAEncryption
-         POW.SHA384_DIGEST    :  (1, 2, 840, 113549, 1, 1, 12),   # sha384WithRSAEncryption
-         POW.SHA512_DIGEST    :  (1, 2, 840, 113549, 1, 1, 13),   # sha512WithRSAEncryption
-         }
+      self.driver2OID = {}
+      for k, v in (("MD2_DIGEST",       (1, 2, 840, 113549, 1, 1, 2)),    # md2WithRSAEncryption
+                   ("MD5_DIGEST",       (1, 2, 840, 113549, 1, 1, 4)),    # md5WithRSAEncryption
+                   ("SHA_DIGEST",       (1, 3, 14, 3, 2, 15)),            # shaWithRSAEncryption
+                   ("SHA1_DIGEST",      (1, 2, 840, 113549, 1, 1, 5)),    # sha1withRSAEncryption
+                   ("RIPEMD160_DIGEST", (1, 2, 840, 113549, 1, 1, 6)),    # ripemd160WithRSAEncryption
+                   ("SHA256_DIGEST",    (1, 2, 840, 113549, 1, 1, 11)),   # sha256WithRSAEncryption
+                   ("SHA384_DIGEST",    (1, 2, 840, 113549, 1, 1, 12)),   # sha384WithRSAEncryption
+                   ("SHA512_DIGEST",    (1, 2, 840, 113549, 1, 1, 13)),   # sha512WithRSAEncryption
+                   ):
+         try:
+            self.driver2OID[getattr(POW, k)] = v
+         except AttributeError:
+            pass
       self.OID2driver = dict((v,k) for k,v in self.driver2OID.items())
          
    def _digest(self, oid, plaintext):

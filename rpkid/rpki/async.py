@@ -92,6 +92,11 @@ class timer(object):
   methods to other objects.
   """
 
+  ## @var debug
+  # Verbose chatter about timers
+
+  debug = True
+
   ## @var queue
   # Timer queue, shared by all timer instances (there can be only one queue).
 
@@ -102,6 +107,10 @@ class timer(object):
       self.set_handler(handler)
     if errback is not None:
       self.set_errback(errback)
+    self.when = None
+    if self.debug:
+      bt = traceback.extract_stack(limit = 3)
+      rpki.log.debug("Creating %r from %s:%d" % (self, bt[0][0], bt[0][1]))
 
   def set(self, when):
     """
@@ -110,6 +119,9 @@ class timer(object):
     that the timer should expire immediately, which can be useful in
     avoiding an excessively deep call stack.
     """
+    if self.debug:
+      bt = traceback.extract_stack(limit = 3)
+      rpki.log.debug("Setting %r to %r from %s:%d" % (self, when, bt[0][0], bt[0][1]))
     if when is None:
       self.when = rpki.sundial.now()
     elif isinstance(when, rpki.sundial.timedelta):
@@ -124,10 +136,17 @@ class timer(object):
   def __cmp__(self, other):
     return cmp(self.when, other.when)
 
+  if debug:
+    def __del__(self):
+      rpki.log.debug("Deleting %r" % self)
+
   def cancel(self):
     """
     Cancel a timer, if it was set.
     """
+    if self.debug:
+      bt = traceback.extract_stack(limit = 3)
+      rpki.log.debug("Canceling %r from %s:%d" % (self, bt[0][0], bt[0][1]))
     try:
       self.queue.remove(self)
     except ValueError:
@@ -181,7 +200,7 @@ class timer(object):
         t.errback(e)
 
   def __repr__(self):
-    return "<%s %r %r>" % (self.__class__.__name__, self.when, self.handler)
+    return "<%s %r %r at 0x%x>" % (self.__class__.__name__, self.when, self.handler, id(self))
 
   @classmethod
   def seconds_until_wakeup(cls):

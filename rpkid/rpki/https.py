@@ -283,6 +283,7 @@ class http_stream(asynchat.async_chat):
   def handle_close(self):
     self.log("Close event in HTTP stream handler")
     self.timer.cancel()
+    self.timer.set_handler(None)
 
   def send(self, data):
     assert self.retry_read is None and self.retry_write is None, "%r: TLS I/O already in progress, r %r w %r" % (self, self.retry_read, self.retry_write)

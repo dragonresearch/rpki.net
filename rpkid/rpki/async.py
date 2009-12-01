@@ -57,7 +57,7 @@ class iterator(object):
     self.doit()
 
   def __repr__(self):
-    return ("<%s created at %s:%d %s at 0x%x>" %
+    return ("<%s created at %s:%s %s at 0x%x>" %
             (self.__class__.__name__,
              self.caller_file, self.caller_line, self.caller_function, id(self)))
 
@@ -71,6 +71,7 @@ class iterator(object):
     try:
       self.item_callback(self, self.iterator.next())
     except StopIteration:
+      self.timer = None
       if self.done_callback is not None:
         self.done_callback()
 
@@ -93,13 +94,11 @@ class timer(object):
   """
 
   ## @var debug
-  # Verbose chatter about timers
-
-  debug = True
+  # Verbose chatter about timers states and garbage collection.
+  debug = False
 
   ## @var queue
   # Timer queue, shared by all timer instances (there can be only one queue).
-
   queue = []
 
   def __init__(self, handler = None, errback = None):
@@ -108,9 +107,15 @@ class timer(object):
     if errback is not None:
       self.set_errback(errback)
     self.when = None
+    self.trace("Creating %r" % self)
+
+  def trace(self, msg):
+    """
+    Debug logging.
+    """
     if self.debug:
       bt = traceback.extract_stack(limit = 3)
-      rpki.log.debug("Creating %r from %s:%d" % (self, bt[0][0], bt[0][1]))
+      rpki.log.debug("%s from %s:%d" % (msg, bt[0][0], bt[0][1]))
 
   def set(self, when):
     """
@@ -119,9 +124,7 @@ class timer(object):
     that the timer should expire immediately, which can be useful in
     avoiding an excessively deep call stack.
     """
-    if self.debug:
-      bt = traceback.extract_stack(limit = 3)
-      rpki.log.debug("Setting %r to %r from %s:%d" % (self, when, bt[0][0], bt[0][1]))
+    self.trace("Setting %r to %r" % (self, when))
     if when is None:
       self.when = rpki.sundial.now()
     elif isinstance(when, rpki.sundial.timedelta):
@@ -144,9 +147,7 @@ class timer(object):
     """
     Cancel a timer, if it was set.
     """
-    if self.debug:
-      bt = traceback.extract_stack(limit = 3)
-      rpki.log.debug("Canceling %r from %s:%d" % (self, bt[0][0], bt[0][1]))
+    self.trace("Canceling %r" % self)
     try:
       self.queue.remove(self)
     except ValueError:
@@ -246,9 +247,17 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
   try:
     for sig in catch_signals:
       old_signal_handlers[sig] = signal.signal(sig, _raiseExitNow)
+    if timer.debug:
+      import gc
     while asyncore.socket_map or timer.queue:
       asyncore.poll(timer.seconds_until_wakeup(), asyncore.socket_map)
       timer.runq()
+      if timer.debug:
+        gc.collect()
+        if gc.garbage:
+          for i in gc.garbage:
+            rpki.log.debug("GC-cycle %r" % i)
+          del gc.garbage[:]
   except ExitNow:
     pass
   finally:

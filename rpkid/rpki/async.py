@@ -282,10 +282,10 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
     if timer.gc_debug:
       import gc
     while asyncore.socket_map or deferred_queue or timer.queue:
+      run_deferred()
       asyncore.poll(timer.seconds_until_wakeup(), asyncore.socket_map)
       run_deferred()
       timer.runq()
-      run_deferred()
       if timer.gc_debug:
         gc.collect()
         if gc.garbage:
@@ -325,11 +325,21 @@ class sync_wrapper(object):
     raise ExitNow
 
   def __call__(self, *args, **kwargs):
-    timer(lambda: self.func(self.cb, self.eb, *args, **kwargs), self.eb).set(None)
+
+    def thunk():
+      try:
+        self.func(self.cb, self.eb, *args, **kwargs)
+      except ExitNow:
+        raise
+      except Exception, e:
+        self.eb(e)
+      
+    defer(thunk)
     event_loop()
     if self.err is not None:
       raise self.err
-    return self.res
+    else:
+      return self.res
 
 def exit_event_loop():
   """Force exit from event_loop()."""

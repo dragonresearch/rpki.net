@@ -92,9 +92,13 @@ class timer(object):
   methods to other objects.
   """
 
-  ## @var debug
+  ## @var gc_debug
   # Verbose chatter about timers states and garbage collection.
-  debug = False
+  gc_debug = False
+
+  ## @var run_debug
+  # Verbose chatter about timers being run.
+  run_debug = False
 
   ## @var queue
   # Timer queue, shared by all timer instances (there can be only one queue).
@@ -112,7 +116,7 @@ class timer(object):
     """
     Debug logging.
     """
-    if self.debug:
+    if self.gc_debug:
       bt = traceback.extract_stack(limit = 3)
       rpki.log.debug("%s from %s:%d" % (msg, bt[0][0], bt[0][1]))
 
@@ -139,7 +143,7 @@ class timer(object):
   def __cmp__(self, other):
     return cmp(self.when, other.when)
 
-  if debug:
+  if gc_debug:
     def __del__(self):
       rpki.log.debug("Deleting %r" % self)
 
@@ -193,6 +197,8 @@ class timer(object):
     """
     while cls.queue and rpki.sundial.now() >= cls.queue[0].when:
       t = cls.queue.pop(0)
+      if cls.run_debug:
+        rpki.log.debug("Running %r" % t)
       try:
         t.handler()
       except (ExitNow, SystemExit):
@@ -218,12 +224,11 @@ class timer(object):
     now = rpki.sundial.now()
     if now >= cls.queue[0].when:
       return 0
-    else:
-      delay = cls.queue[0].when - now
-      seconds = delay.convert_to_seconds()
-      if delay.microseconds:
-        seconds += 1
-      return seconds
+    delay = cls.queue[0].when - now
+    seconds = delay.convert_to_seconds()
+    if delay.microseconds:
+      seconds += 1
+    return seconds
 
   @classmethod
   def clear(cls):
@@ -235,18 +240,32 @@ class timer(object):
     while cls.queue:
       cls.queue.pop(0).cancel()
 
-## @var _deferred
+## @var deferred_queue
+
 # List to hold deferred actions.  We used to do this with the timer
 # queue, but that appears to confuse the garbage collector, and is
 # overengineering for simple deferred actions in any case.
 
-_deferred = []
+deferred_queue = []
 
 def defer(thunk):
   """
   Defer an action until the next pass through the event loop.
   """
-  _deferred.append(thunk)
+  deferred_queue.append(thunk)
+
+def run_deferred():
+  """
+  Run deferred actions.
+  """
+  while deferred_queue:
+    try:
+      deferred_queue.pop(0)()
+    except (ExitNow, SystemExit):
+      raise
+    except Exception, e:
+      rpki.log.error("Unhandled exception from deferred action: %s" % e)
+      rpki.log.traceback()
 
 def _raiseExitNow(signum, frame):
   """Signal handler for event_loop()."""
@@ -260,14 +279,14 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
   try:
     for sig in catch_signals:
       old_signal_handlers[sig] = signal.signal(sig, _raiseExitNow)
-    if timer.debug:
+    if timer.gc_debug:
       import gc
-    while asyncore.socket_map or _deferred or timer.queue:
+    while asyncore.socket_map or deferred_queue or timer.queue:
       asyncore.poll(timer.seconds_until_wakeup(), asyncore.socket_map)
-      while _deferred:
-        _deferred.pop(0)()
+      run_deferred()
       timer.runq()
-      if timer.debug:
+      run_deferred()
+      if timer.gc_debug:
         gc.collect()
         if gc.garbage:
           for i in gc.garbage:

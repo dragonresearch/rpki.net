@@ -283,9 +283,9 @@ def main():
 
     rpki.log.info("Event loop exited normally")
 
-  except:
+  except Exception, e:
 
-    rpki.log.info("Event loop exited with an exception")
+    rpki.log.info("Event loop exited with an exception: %r" % e)
     rpki.log.traceback()
 
   finally:

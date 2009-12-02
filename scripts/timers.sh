@@ -30,7 +30,7 @@ sed '
   /testbed\[/d;
   s= datetime([0-9, ]*)==;
   s=<bound method.*>>==;
-  s=/u/sra/rpki/subvert-rpki.hactrn.net/rpkid/rpki/==;
+  s=/u/sra/rpki/subvert-rpki.hactrn.net/[a-z]*/rpki/==;
   s= timedelta([0-9, ]*)==;
   s= None = =;
   s=  at = =;

@@ -645,16 +645,21 @@ class http_queue(object):
     self.queue.extend(requests)
 
   def restart(self):
-    if self.client is None:
-      client = http_client(self, self.hostport, cert = self.cert, key = self.key, ta = self.ta)
-      self.log("Attaching client %r" % client)
-      self.client = client
-      self.client.start()
-    elif self.client.state == "idle":
-      self.log("Sending request to existing client %r" % self.client)
-      self.send_request()
-    else:
-      self.log("Client %r exists in state %r" % (self.client, self.client.state))
+    try:
+      if self.client is None:
+        client = http_client(self, self.hostport, cert = self.cert, key = self.key, ta = self.ta)
+        self.log("Attaching client %r" % client)
+        self.client = client
+        self.client.start()
+      elif self.client.state == "idle":
+        self.log("Sending request to existing client %r" % self.client)
+        self.send_request()
+      else:
+        self.log("Client %r exists in state %r" % (self.client, self.client.state))
+    except (rpki.async.ExitNow, SystemExit):
+      raise
+    except Exception, e:
+      self.return_result(e)
 
   def send_request(self):
     if self.queue:
@@ -737,7 +742,7 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback):
 
   if debug_http:
     rpki.log.debug("Scheduling connection startup for %r" % request)
-  rpki.async.timer(client_queues[hostport].restart, errback).set(None)
+  rpki.async.defer(client_queues[hostport].restart)
 
 def server(handlers, server_key, server_cert, port, host ="", client_ta = (), dynamic_https_trust_anchor = None):
   """

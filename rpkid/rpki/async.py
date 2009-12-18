@@ -241,7 +241,6 @@ class timer(object):
       cls.queue.pop(0).cancel()
 
 ## @var deferred_queue
-
 # List to hold deferred actions.  We used to do this with the timer
 # queue, but that appears to confuse the garbage collector, and is
 # overengineering for simple deferred actions in any case.

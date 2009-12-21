@@ -407,6 +407,9 @@ class http_server(http_stream):
       self.retry_read = self.tls_accept
     except POW.WantWriteError:
       self.retry_write = self.tls_accept
+    except POW.SSLUnexpectedEOFError:
+      self.log("SSLUnexpectedEOF in tls_accept()")
+      self.close(force = True)
 
   def handle_no_content_length(self):
     self.handle_message()

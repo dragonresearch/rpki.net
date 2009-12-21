@@ -36,9 +36,17 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, os, time, getopt, urlparse, MySQLdb
+import sys, os, time, getopt, urlparse, warnings
 import rpki.https, rpki.config, rpki.resource_set, rpki.relaxng
 import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509
+
+# Silence warning while loading MySQLdb in Python 2.6, sigh
+if hasattr(warnings, "catch_warnings"):
+  with warnings.catch_warnings():
+    warnings.simplefilter("ignore", DeprecationWarning)
+    import MySQLdb
+else:
+  import MySQLdb
 
 def handle_list_resources(q_pdu, r_msg):
 

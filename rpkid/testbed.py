@@ -48,9 +48,17 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, yaml, MySQLdb, subprocess, signal, time, getopt, sys
+import os, yaml, warnings, subprocess, signal, time, getopt, sys
 import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https
 import rpki.log, rpki.left_right, rpki.config, rpki.publication, rpki.async
+
+# Silence warning while loading MySQLdb in Python 2.6, sigh
+if hasattr(warnings, "catch_warnings"):
+  with warnings.catch_warnings():
+    warnings.simplefilter("ignore", DeprecationWarning)
+    import MySQLdb
+else:
+  import MySQLdb
 
 os.environ["TZ"] = "UTC"
 time.tzset()

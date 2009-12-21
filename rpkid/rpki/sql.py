@@ -32,7 +32,17 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import MySQLdb,  warnings, _mysql_exceptions
+import warnings
+
+# Silence warning while loading MySQLdb in Python 2.6, sigh
+if hasattr(warnings, "catch_warnings"):
+  with warnings.catch_warnings():
+    warnings.simplefilter("ignore", DeprecationWarning)
+    import MySQLdb
+else:
+  import MySQLdb
+
+import _mysql_exceptions
 import rpki.x509, rpki.resource_set, rpki.sundial, rpki.log
 
 class session(object):

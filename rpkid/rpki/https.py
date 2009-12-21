@@ -166,13 +166,14 @@ class http_response(http_message):
     self.headers.setdefault("Server", self.software_name)
     return "HTTP/%d.%d %s %s\r\n" % (self.version[0], self.version[1], self.code, self.reason)
 
-def logger(self, msg):
-  if debug_http:
-    rpki.log.debug("%r: %s" % (self, msg))
+def log_method(self, msg, logger = rpki.log.debug):
+  assert isinstance(logger, rpki.log.logger)
+  if debug_http or logger is not rpki.log.debug:
+    logger("%r: %s" % (self, msg))
 
 class http_stream(asynchat.async_chat):
 
-  log = logger
+  log = log_method
   tls = None
   retry_read = None
   retry_write = None
@@ -266,10 +267,10 @@ class http_stream(asynchat.async_chat):
     if etype in (SystemExit, rpki.async.ExitNow):
       self.log("Caught %s, propagating" % etype.__name__)
       raise
-    self.log("Error in HTTP stream handler")
+    self.log("Error in HTTP stream handler", rpki.log.warn)
     rpki.log.traceback()
     if etype not in (rpki.exceptions.HTTPSClientAborted,):
-      self.log("Closing due to error")
+      self.log("Closing due to error", rpki.log.warn)
       self.close()
 
   def handle_timeout(self):
@@ -315,7 +316,7 @@ class http_stream(asynchat.async_chat):
         self.log("ZeroReturn in handle_read()")
         self.close()
       except POW.SSLUnexpectedEOFError:
-        self.log("SSLUnexpectedEOF in handle_read()")
+        self.log("SSLUnexpectedEOF in handle_read()", rpki.log.warn)
         self.close(force = True)
         
   def handle_write(self):
@@ -349,7 +350,7 @@ class http_stream(asynchat.async_chat):
       self.log("ZeroReturn in initiate_send()")
       self.close()
     except POW.SSLUnexpectedEOFError:
-      self.log("SSLUnexpectedEOF in initiate_send()")
+      self.log("SSLUnexpectedEOF in initiate_send()", rpki.log.warn)
       self.close(force = True)
 
   def close(self, force = False):
@@ -408,7 +409,7 @@ class http_server(http_stream):
     except POW.WantWriteError:
       self.retry_write = self.tls_accept
     except POW.SSLUnexpectedEOFError:
-      self.log("SSLUnexpectedEOF in tls_accept()")
+      self.log("SSLUnexpectedEOF in tls_accept()", rpki.log.warn)
       self.close(force = True)
 
   def handle_no_content_length(self):
@@ -470,7 +471,7 @@ class http_server(http_stream):
 
 class http_listener(asyncore.dispatcher):
 
-  log = logger
+  log = log_method
 
   def __init__(self, handlers, port = 80, host = "", cert = None, key = None, ta = None, dynamic_ta = None):
     self.log("Listener cert %r key %r ta %r dynamic_ta %r" % (cert, key, ta, dynamic_ta))
@@ -507,7 +508,7 @@ class http_listener(asyncore.dispatcher):
       self.log("Caught SystemExit, propagating")
       raise
     else:
-      self.log("Error in HTTP listener")
+      self.log("Error in HTTP listener", rpki.log.warn)
       rpki.log.traceback()
 
 class http_client(http_stream):
@@ -627,7 +628,7 @@ class http_client(http_stream):
 
 class http_queue(object):
 
-  log = logger
+  log = log_method
 
   def __init__(self, hostport, cert = None, key = None, ta = ()):
     self.log("Creating queue for %r" % (hostport,))
@@ -683,7 +684,7 @@ class http_queue(object):
         req.callback(result.body)
       else:
         assert isinstance(result, Exception)
-        self.log("Returning exception %r to caller: %s" % (result, result))
+        self.log("Returning exception %r to caller: %s" % (result, result), rpki.log.warn)
         req.errback(result)
     except (rpki.async.ExitNow, SystemExit):
       raise

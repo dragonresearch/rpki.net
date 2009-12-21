@@ -1,10 +1,6 @@
 """
 HTTPS utilities, both client and server.
 
-At the moment this only knows how to use the PEM certs in my
-subversion repository; generalizing it would not be hard, but the more
-general version should use SQL anyway.
-
 $Id$
 
 Copyright (C) 2009  Internet Systems Consortium ("ISC")

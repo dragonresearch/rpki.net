@@ -32,6 +32,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
+from __future__ import with_statement
+
 import warnings
 
 # Silence warning while loading MySQLdb in Python 2.6, sigh

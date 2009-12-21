@@ -48,6 +48,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
+from __future__ import with_statement
+
 import os, yaml, warnings, subprocess, signal, time, getopt, sys
 import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https
 import rpki.log, rpki.left_right, rpki.config, rpki.publication, rpki.async

@@ -48,8 +48,8 @@ debug_http = False
 debug_tls_certs = False
 
 # Whether we want persistent HTTP streams, when peer also supports them
-want_persistent_client = True
-want_persistent_server = True
+want_persistent_client = False
+want_persistent_server = False
 
 # Default HTTP connection timeouts.  Given our druthers, we'd prefer
 # that the client close the connection, as this avoids the problem of

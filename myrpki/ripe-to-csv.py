@@ -65,15 +65,32 @@ class as_set(Handle):
 class aut_num(Handle):
   want_tags = ("aut-num", "mnt-by", "as-name")
 
+  def set(self, tag, val):
+    if tag == "aut-num" and val.startswith("AS"):
+      val = val[2:]
+    Handle.set(self, tag, val)
+
+  def finish(self, ctx):
+    if self.check():
+      ctx.asns.writerow((self["mnt-by"], self["aut-num"]))
+
 class inetnum(Handle):
   want_tags = ("inetnum", "mnt-by", "netname")
   
+  def finish(self, ctx):
+    if self.check():
+      ctx.prefixes.writerow((self["mnt-by"], self["inetnum"]))
+
 class inet6num(Handle):
   want_tags = ("inet6num", "mnt-by", "netname")
 
+  def finish(self, ctx):
+    if self.check():
+      ctx.prefixes.writerow((self["mnt-by"], self["inet6num"]))
+
 class main(object):
 
-  types = dict((x.want_tags[0], x) for x in (as_block, aut_num, as_set, inetnum, inet6num))
+  types = dict((x.want_tags[0], x) for x in (as_block, as_set, aut_num, inetnum, inet6num))
 
   @staticmethod
   def csvout(fn):
@@ -83,8 +100,8 @@ class main(object):
     if self.statement:
       tag, sep, val = self.statement.partition(":")
       assert sep, "Couldn't find separator in %r" % self.statement
-      tag = tag.strip()
-      val = val.strip()
+      tag = tag.strip().lower()
+      val = val.strip().upper()
       if self.cur is None:
         self.cur = self.types[tag]() if tag in self.types else False
       if self.cur is not False:
@@ -93,19 +110,24 @@ class main(object):
       self.cur.finish(self)
       self.cur = None
 
+  #filenames = ("ripe.db.gz",)
+  filenames = ("ripe.db.aut-num.gz", "ripe.db.inet6num.gz", "ripe.db.inetnum.gz")
+
   def __init__(self):
     self.asns = self.csvout("asns.csv")
     self.prefixes = self.csvout("prefixes.csv")
-    f = gzip.open("ripe.db.gz")
-    self.statement = ""
-    self.cur = None
-    for line in f:
-      line = line.expandtabs().partition("#")[0].rstrip("\n")
-      if line and not line[0].isalpha():
-        self.statement += line[1:] if line[0] == "+" else line
-      else:
-        self.finish_statement(not line)
-        self.statement = line
-    self.finish_statement(True)
+    for fn in self.filenames:
+      f = gzip.open(fn)
+      self.statement = ""
+      self.cur = None
+      for line in f:
+        line = line.expandtabs().partition("#")[0].rstrip("\n")
+        if line and not line[0].isalpha():
+          self.statement += line[1:] if line[0] == "+" else line
+        else:
+          self.finish_statement(not line)
+          self.statement = line
+      self.finish_statement(True)
+      f.close()
 
 main()

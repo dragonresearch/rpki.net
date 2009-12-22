@@ -271,7 +271,7 @@ class http_stream(asynchat.async_chat):
     rpki.log.traceback()
     if etype not in (rpki.exceptions.HTTPSClientAborted,):
       self.log("Closing due to error", rpki.log.warn)
-      self.close()
+      self.close(force = True)
 
   def handle_timeout(self):
     self.log("Timeout, closing")
@@ -368,7 +368,12 @@ class http_stream(asynchat.async_chat):
         self.retry_read = self.close
       except POW.WantWriteError:
         self.retry_write = self.close
-
+      except POW.SSLError, e:
+        self.log("socket shutdown threw %s, shutting down anyway" % e)
+        self.tls = None
+        asynchat.async_chat.close(self)
+        self.handle_close()
+        
   def log_cert(self, tag, x):
     if debug_tls_certs:
       rpki.log.debug("%r: HTTPS %s cert %r issuer %s [%s] subject %s [%s]" % (self, tag, x, x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))

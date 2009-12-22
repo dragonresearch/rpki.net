@@ -274,28 +274,35 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
   """
   Replacement for asyncore.loop(), adding timer and signal support.
   """
-  old_signal_handlers = {}
-  try:
-    for sig in catch_signals:
-      old_signal_handlers[sig] = signal.signal(sig, _raiseExitNow)
-    if timer.gc_debug:
-      import gc
-    while asyncore.socket_map or deferred_queue or timer.queue:
-      run_deferred()
-      asyncore.poll(timer.seconds_until_wakeup(), asyncore.socket_map)
-      run_deferred()
-      timer.runq()
+  while True:
+    old_signal_handlers = {}
+    try:
+      for sig in catch_signals:
+        old_signal_handlers[sig] = signal.signal(sig, _raiseExitNow)
       if timer.gc_debug:
-        gc.collect()
-        if gc.garbage:
-          for i in gc.garbage:
-            rpki.log.debug("GC-cycle %r" % i)
-          del gc.garbage[:]
-  except ExitNow:
-    pass
-  finally:
-    for sig in old_signal_handlers:
-      signal.signal(sig, old_signal_handlers[sig])
+        import gc
+      while asyncore.socket_map or deferred_queue or timer.queue:
+        run_deferred()
+        asyncore.poll(timer.seconds_until_wakeup(), asyncore.socket_map)
+        run_deferred()
+        timer.runq()
+        if timer.gc_debug:
+          gc.collect()
+          if gc.garbage:
+            for i in gc.garbage:
+              rpki.log.debug("GC-cycle %r" % i)
+            del gc.garbage[:]
+    except ExitNow:
+      break
+    except SystemExit:
+      raise
+    except Exception, e:
+      rpki.log.error("event_loop() exited with exception %r, this is not supposed to happen, restarting" % e)
+    else:
+      break
+    finally:
+      for sig in old_signal_handlers:
+        signal.signal(sig, old_signal_handlers[sig])
 
 class sync_wrapper(object):
   """

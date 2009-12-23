@@ -994,7 +994,7 @@ class ROA(DER_CMS_object):
       return self
     except POW.pkix.DerError, e:
       rpki.log.debug("Encoding error while generating ROA %r: %s" % (self, e))
-      rpki.log.debug("ROA inner content: %r" % (r,))
+      rpki.log.debug("ROA inner content: %r" % (r.get(),))
       raise
 
 class XML_CMS_object(CMS_object):

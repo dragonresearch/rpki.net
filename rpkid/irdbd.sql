@@ -62,7 +62,7 @@ CREATE TABLE registrant_net (
 CREATE TABLE roa_request (
         roa_request_id          SERIAL NOT NULL,
         roa_request_handle      VARCHAR(255) NOT NULL,
-        asn                     DECIMAL(24,0),
+        asn                     BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (roa_request_id)
 ) ENGINE=InnoDB;
 

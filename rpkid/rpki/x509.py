@@ -983,14 +983,19 @@ class ROA(DER_CMS_object):
     """
     Build a ROA.
     """
-    self = cls()
-    r = rpki.roa.RouteOriginAttestation()
-    r.version.set(version)
-    r.asID.set(asn)
-    r.ipAddrBlocks.set((a.to_roa_tuple() for a in (ipv4, ipv6) if a))
-    self.set_content(r)
-    self.sign(keypair, certs)
-    return self
+    try:
+      self = cls()
+      r = rpki.roa.RouteOriginAttestation()
+      r.version.set(version)
+      r.asID.set(asn)
+      r.ipAddrBlocks.set((a.to_roa_tuple() for a in (ipv4, ipv6) if a))
+      self.set_content(r)
+      self.sign(keypair, certs)
+      return self
+    except POW.pkix.DerError, e:
+      rpki.log.debug("Encoding error while generating ROA %r: %s" % (self, e))
+      rpki.log.debug("ROA inner content: %r" % (r,))
+      raise
 
 class XML_CMS_object(CMS_object):
   """

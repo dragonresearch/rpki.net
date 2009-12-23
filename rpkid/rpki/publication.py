@@ -197,20 +197,26 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     Action dispatch handler.
     """
-    if self.client is None:
-      raise rpki.exceptions.BadQuery, "Client query received on control channel"
-    dispatch = { "publish"  : self.serve_publish,
-                 "withdraw" : self.serve_withdraw }
-    if self.action not in dispatch:
-      raise rpki.exceptions.BadQuery, "Unexpected query: action %s" % self.action
-    self.client.check_allowed_uri(self.uri)
-    dispatch[self.action]()
-    r_pdu = self.__class__()
-    r_pdu.action = self.action
-    r_pdu.tag = self.tag
-    r_pdu.uri = self.uri
-    r_msg.append(r_pdu)
-    cb()
+    try:
+      if self.client is None:
+        raise rpki.exceptions.BadQuery, "Client query received on control channel"
+      dispatch = { "publish"  : self.serve_publish,
+                   "withdraw" : self.serve_withdraw }
+      if self.action not in dispatch:
+        raise rpki.exceptions.BadQuery, "Unexpected query: action %s" % self.action
+      self.client.check_allowed_uri(self.uri)
+      dispatch[self.action]()
+      r_pdu = self.__class__()
+      r_pdu.action = self.action
+      r_pdu.tag = self.tag
+      r_pdu.uri = self.uri
+      r_msg.append(r_pdu)
+      cb()
+    except rpki.exceptions.NoObjectAtURI, e:
+      # This can happen when we're cleaning up from a prior mess, so
+      # we generate a <report_error/> PDU then carry on.
+      r_msg.append(report_error.from_exception(e, self.tag))
+      cb()
 
   def serve_publish(self):
     """

@@ -764,7 +764,8 @@ class CMS_object(DER_object):
     """
     Get the inner content of this CMS_object.
     """
-    assert self.content is not None
+    if self.content is None:
+      raise rpki.exceptions.CMSContentNotSet, "Inner content of CMS object %r is not set" % self
     return self.content
 
   def set_content(self, content):

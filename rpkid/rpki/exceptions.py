@@ -298,3 +298,11 @@ class NoObjectAtURI(RPKI_Exception):
   """
   No object published at specified URI.
   """
+
+class CMSContentNotSet(RPKI_Exception):
+  """
+  Inner content of a CMS_object has not been set.  If object is known
+  to be valid, the .extract() method should be able to set the
+  content; otherwise, only the .verify() method (which checks
+  signatures) is safe.
+  """

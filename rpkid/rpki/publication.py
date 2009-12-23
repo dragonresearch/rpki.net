@@ -215,7 +215,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     except rpki.exceptions.NoObjectAtURI, e:
       # This can happen when we're cleaning up from a prior mess, so
       # we generate a <report_error/> PDU then carry on.
-      r_msg.append(report_error.from_exception(e, self.tag))
+      r_msg.append(report_error_elt.from_exception(e, self.tag))
       cb()
 
   def serve_publish(self):

@@ -265,19 +265,21 @@ def up_down_handler(query, path, cb):
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-rpki.log.init("rootd")
-
 cfg_file = "rootd.conf"
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+opts, argv = getopt.getopt(sys.argv[1:], "c:dh?", ["config=", "debug", "help"])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
-  if o in ("-c", "--config"):
+  elif o in ("-c", "--config"):
     cfg_file = a
+  elif o in ("-d", "--debug"):
+    rpki.log.use_syslog = False
 if argv:
   raise RuntimeError, "Unexpected arguments %s" % argv
+
+rpki.log.init("rootd")
 
 cfg = rpki.config.parser(cfg_file, "rootd")
 

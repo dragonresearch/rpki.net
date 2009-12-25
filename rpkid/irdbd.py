@@ -167,19 +167,21 @@ def handler(query, path, cb):
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-rpki.log.init("irdbd")
-
 cfg_file = "irdbd.conf"
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+opts, argv = getopt.getopt(sys.argv[1:], "c:dh?", ["config=", "debug", "help"])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
   if o in ("-c", "--config"):
     cfg_file = a
+  elif o in ("-d", "--debug"):
+    rpki.log.use_syslog = False
 if argv:
   raise RuntimeError, "Unexpected arguments %s" % argv
+
+rpki.log.init("irdbd")
 
 cfg = rpki.config.parser(cfg_file, "irdbd")
 

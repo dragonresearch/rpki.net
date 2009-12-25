@@ -150,22 +150,24 @@ class pubd_context(object):
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-rpki.log.init("pubd")
-
 cfg_file = "pubd.conf"
 profile = False
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:hp:?", ["config=", "help"])
+opts, argv = getopt.getopt(sys.argv[1:], "c:dhp:?", ["config=", "debug", "help"])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
   elif o in ("-c", "--config"):
     cfg_file = a
+  elif o in ("-d", "--debug"):
+    rpki.log.use_syslog = False
   elif o in ("-p", "--profile"):
     profile = a
 if argv:
   raise RuntimeError, "Unexpected arguments %s" % argv
+
+rpki.log.init("pubd")
 
 def main():
 

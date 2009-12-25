@@ -43,12 +43,12 @@ enable_trace = False
 ## @var use_syslog
 # Whether to use syslog
 
-use_syslog = False
+use_syslog = True
 
 tag = ""
 pid = 0
 
-def init(ident = "rpki", flags = syslog.LOG_PID | syslog.LOG_PERROR, facility = syslog.LOG_DAEMON):
+def init(ident = "rpki", flags = syslog.LOG_PID, facility = syslog.LOG_DAEMON):
   """
   Initialize logging system.
   """

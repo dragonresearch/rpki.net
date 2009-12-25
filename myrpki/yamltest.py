@@ -161,6 +161,7 @@ class allocation_db(list):
     """
     env = { "PATH"           : os.environ["PATH"],
             "BPKI_DIRECTORY" : self.root.path("bpki.myirbe"),
+            "OPENSSL_CONF"   : "/dev/null",
             "RANDFILE"       : ".OpenSSL.whines.unless.I.set.this" }
     cwd = self.root.path()
     return lambda *args: subprocess.check_call((prog_openssl,) + args, cwd = cwd, env = env)
@@ -498,7 +499,7 @@ class allocation(object):
     representing the running daemon.
     """
     basename = os.path.basename(prog)
-    p = subprocess.Popen(("python", prog, "-c", self.path("myrpki.conf")),
+    p = subprocess.Popen(("python", prog, "-d", "-c", self.path("myrpki.conf")),
                          cwd = self.path(),
                          stdout = open(self.path(os.path.splitext(basename)[0] + ".log"), "w"),
                          stderr = subprocess.STDOUT)

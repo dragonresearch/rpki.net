@@ -218,10 +218,10 @@ def main():
   try:
 
     rpki.log.info("Starting rootd")
-    rootd_process = subprocess.Popen((prog_python, prog_rootd, "-c", rootd_name + ".conf"))
+    rootd_process = subprocess.Popen((prog_python, prog_rootd, "-d", "-c", rootd_name + ".conf"))
 
     rpki.log.info("Starting pubd")
-    pubd_process = subprocess.Popen((prog_python, prog_pubd, "-c", pubd_name + ".conf") + (("-p", pubd_name + ".prof") if profile else ()))
+    pubd_process = subprocess.Popen((prog_python, prog_pubd, "-d", "-c", pubd_name + ".conf") + (("-p", pubd_name + ".prof") if profile else ()))
 
     rpki.log.info("Starting rsyncd")
     rsyncd_process = subprocess.Popen((prog_rsyncd, "--daemon", "--no-detach", "--config", rsyncd_name + ".conf"))
@@ -744,8 +744,8 @@ class allocation(object):
     Run daemons for this entity.
     """
     rpki.log.info("Running daemons for %s" % self.name)
-    self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "-c", self.name + ".conf") + (("-p", self.name + ".prof") if profile else ()))
-    self.irdbd_process = subprocess.Popen((prog_python, prog_irdbd, "-c", self.name + ".conf"))
+    self.rpkid_process = subprocess.Popen((prog_python, prog_rpkid, "-d", "-c", self.name + ".conf") + (("-p", self.name + ".prof") if profile else ()))
+    self.irdbd_process = subprocess.Popen((prog_python, prog_irdbd, "-d", "-c", self.name + ".conf"))
 
   def kill_daemons(self):
     """

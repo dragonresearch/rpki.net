@@ -41,10 +41,20 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import lxml.etree, base64, subprocess, sys, os, time, re, getopt, MySQLdb
+from __future__ import with_statement
+
+import lxml.etree, base64, subprocess, sys, os, time, re, getopt, warnings
 import rpki.https, rpki.config, rpki.resource_set, rpki.relaxng
 import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509, rpki.async
 import myrpki, schema
+
+# Silence warning while loading MySQLdb in Python 2.6, sigh
+if hasattr(warnings, "catch_warnings"):
+  with warnings.catch_warnings():
+    warnings.simplefilter("ignore", DeprecationWarning)
+    import MySQLdb
+else:
+  import MySQLdb
 
 def tag(t):
   """

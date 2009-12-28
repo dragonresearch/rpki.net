@@ -134,7 +134,7 @@ for o, a in opts:
 
 cfg = rpki.config.parser(cfg_file, "myirbe")
 
-cfg.set_debugging_flags()
+cfg.set_global_flags()
 
 myrpki.openssl = cfg.get("openssl", "openssl", "myrpki")
 

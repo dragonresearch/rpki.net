@@ -189,7 +189,7 @@ startup_msg = cfg.get("startup-message", "")
 if startup_msg:
   rpki.log.info(startup_msg)
 
-cfg.set_debugging_flags()
+cfg.set_global_flags()
 
 db = MySQLdb.connect(user   = cfg.get("sql-username"),
                      db     = cfg.get("sql-database"),

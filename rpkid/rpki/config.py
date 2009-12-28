@@ -126,12 +126,13 @@ class parser(object):
     """
     return self._get_wrapper(self.cfg.getint, section, option, default)
 
-  def set_debugging_flags(self):
+  def set_global_flags(self):
     """
-    Consolidated control for all the little debugging controls
-    scattered through the libraries.  This doesn't really fit
-    anywhere, it's a method of the parser class because it operates on
-    the parser object and thus fits here less badly than anywhere else.
+    Consolidated control for all the little global control flags
+    scattered through the libraries.  This isn't a particularly good
+    place for this function to live, but it has to live somewhere and
+    making it a method of the config parser from which it gets all of
+    its data is less silly than the available alternatives.
     """
 
     import rpki.https, rpki.x509, rpki.sql, rpki.async
@@ -143,6 +144,16 @@ class parser(object):
 
     try:
       rpki.https.debug_tls_certs = self.getboolean("debug_tls_certs")
+    except ConfigParser.NoOptionError:
+      pass
+
+    try:
+      rpki.https.want_persistent_client = self.getboolean("want_persistent_client")
+    except ConfigParser.NoOptionError:
+      pass
+
+    try:
+      rpki.https.want_persistent_server = self.getboolean("want_persistent_server")
     except ConfigParser.NoOptionError:
       pass
 

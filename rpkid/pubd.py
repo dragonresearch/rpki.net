@@ -176,7 +176,7 @@ def main():
   if profile:
     rpki.log.info("Running in profile mode with output to %s" % profile)
 
-  cfg.set_debugging_flags()
+  cfg.set_global_flags()
 
   pctx = pubd_context(cfg)
 

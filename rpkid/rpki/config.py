@@ -138,30 +138,30 @@ class parser(object):
 
     try:
       rpki.https.debug_http = self.getboolean("debug_http")
-    except:
+    except ConfigParser.NoOptionError:
       pass
 
     try:
       rpki.https.debug_tls_certs = self.getboolean("debug_tls_certs")
-    except:
+    except ConfigParser.NoOptionError:
       pass
 
     try:
       rpki.x509.CMS_object.debug_cms_certs = self.getboolean("debug_cms_certs")
-    except:
+    except ConfigParser.NoOptionError:
       pass
 
     try:
       rpki.sql.sql_persistent.sql_debug = self.getboolean("sql_debug")
-    except:
+    except ConfigParser.NoOptionError:
       pass
 
     try:
       rpki.async.timer.gc_debug = self.getboolean("gc_debug")
-    except:
+    except ConfigParser.NoOptionError:
       pass
 
     try:
-      rpki.async.timer.run_debug = self.getbolean("timer_debug")
-    except:
+      rpki.async.timer.run_debug = self.getboolean("timer_debug")
+    except ConfigParser.NoOptionError:
       pass

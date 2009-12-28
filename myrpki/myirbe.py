@@ -134,6 +134,8 @@ for o, a in opts:
 
 cfg = rpki.config.parser(cfg_file, "myirbe")
 
+cfg.set_debugging_flags()
+
 myrpki.openssl = cfg.get("openssl", "openssl", "myrpki")
 
 handle = cfg.get("handle", cfg.get("handle", "Amnesiac", "myrpki"))

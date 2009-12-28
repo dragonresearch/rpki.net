@@ -125,3 +125,43 @@ class parser(object):
     Get an integer option, perhaps with a default value.
     """
     return self._get_wrapper(self.cfg.getint, section, option, default)
+
+  def set_debugging_flags(self):
+    """
+    Consolidated control for all the little debugging controls
+    scattered through the libraries.  This doesn't really fit
+    anywhere, it's a method of the parser class because it operates on
+    the parser object and thus fits here less badly than anywhere else.
+    """
+
+    import rpki.https, rpki.x509, rpki.sql, rpki.async
+
+    try:
+      rpki.https.debug_http = self.getboolean("debug_http")
+    except:
+      pass
+
+    try:
+      rpki.https.debug_tls_certs = self.getboolean("debug_tls_certs")
+    except:
+      pass
+
+    try:
+      rpki.x509.CMS_object.debug_cms_certs = self.getboolean("debug_cms_certs")
+    except:
+      pass
+
+    try:
+      rpki.sql.sql_persistent.sql_debug = self.getboolean("sql_debug")
+    except:
+      pass
+
+    try:
+      rpki.async.timer.gc_debug = self.getboolean("gc_debug")
+    except:
+      pass
+
+    try:
+      rpki.async.timer.run_debug = self.getbolean("timer_debug")
+    except:
+      pass

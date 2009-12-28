@@ -76,6 +76,8 @@ def main():
   if profile:
     rpki.log.info("Running in profile mode with output to %s" % profile)
 
+  cfg.set_debugging_flags()
+
   gctx = rpki.rpki_engine.rpkid_context(cfg)
 
   gctx.start_cron()

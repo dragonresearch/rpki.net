@@ -176,6 +176,8 @@ def main():
   if profile:
     rpki.log.info("Running in profile mode with output to %s" % profile)
 
+  cfg.set_debugging_flags()
+
   pctx = pubd_context(cfg)
 
   rpki.https.server(

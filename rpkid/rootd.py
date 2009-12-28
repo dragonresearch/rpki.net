@@ -283,6 +283,8 @@ rpki.log.init("rootd")
 
 cfg = rpki.config.parser(cfg_file, "rootd")
 
+cfg.set_debugging_flags()
+
 bpki_ta                 = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
 rootd_bpki_key          = rpki.x509.RSA( Auto_file = cfg.get("rootd-bpki-key"))
 rootd_bpki_cert         = rpki.x509.X509(Auto_file = cfg.get("rootd-bpki-cert"))

@@ -1012,7 +1012,7 @@ class XML_CMS_object(CMS_object):
 
   dump_outbound_cms = None
 
-  ## @var dump_outbound_cms
+  ## @var dump_inbound_cms
   # If set, we write all inbound XML-CMS PDUs to disk, for debugging.
   # Value of this variable is prefix portion of filename, tail will
   # be a timestamp.

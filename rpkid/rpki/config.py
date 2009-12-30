@@ -176,3 +176,13 @@ class parser(object):
       rpki.async.timer.run_debug = self.getboolean("timer_debug")
     except ConfigParser.NoOptionError:
       pass
+
+    try:
+      rpki.x509.XML_CMS_object.dump_outbound_cms = self.get("dump_outbound_cms")
+    except ConfigParser.NoOptionError:
+      pass
+
+    try:
+      rpki.x509.XML_CMS_object.dump_inbound_cms = self.get("dump_inbound_cms")
+    except ConfigParser.NoOptionError:
+      pass

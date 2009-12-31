@@ -44,6 +44,7 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import POW, POW.pkix, base64, lxml.etree, os, subprocess, sys
+import email.mime.application, email.utils, mailbox
 import rpki.exceptions, rpki.resource_set, rpki.oids, rpki.sundial
 import rpki.manifest, rpki.roa, rpki.log, rpki.async
 
@@ -998,6 +999,25 @@ class ROA(DER_CMS_object):
       rpki.log.debug("ROA inner content: %r" % (r.get(),))
       raise
 
+class DeadDrop(object):
+  """
+  Dead-drop utility for storing copies of CMS messages for debugging or
+  audit.  At the moment this uses Maildir mailbox format, as it has
+  approximately the right properties and a number of useful tools for
+  manipulating it already exist.
+  """
+
+  def __init__(self, name):
+    self.maildir = mailbox.Maildir(name, factory = None, create = True)
+    self.pid = os.getpid()
+
+  def dump(self, obj):
+    msg = email.mime.application.MIMEApplication(obj.get_DER(), "x-rpki")
+    msg["Date"] = email.utils.formatdate()
+    msg["Subject"] = "Process %s dump of %r" % (self.pid, obj)
+    msg["Message-ID"] = email.utils.make_msgid()
+    self.maildir.add(msg)
+
 class XML_CMS_object(CMS_object):
   """
   Class to hold CMS-wrapped XML protocol data.
@@ -1007,15 +1027,13 @@ class XML_CMS_object(CMS_object):
 
   ## @var dump_outbound_cms
   # If set, we write all outbound XML-CMS PDUs to disk, for debugging.
-  # Value of this variable is prefix portion of filename, tail will
-  # be a timestamp.
+  # If set, value should be a DeadDrop object.
 
   dump_outbound_cms = None
 
   ## @var dump_inbound_cms
   # If set, we write all inbound XML-CMS PDUs to disk, for debugging.
-  # Value of this variable is prefix portion of filename, tail will
-  # be a timestamp.
+  # If set, value should be a DeadDrop object.
 
   dump_inbound_cms = None
 
@@ -1060,7 +1078,7 @@ class XML_CMS_object(CMS_object):
     self.schema_check()
     self.sign(keypair, certs, crls)
     if self.dump_outbound_cms:
-      self.dump_to_disk(self.dump_outbound_cms)
+      self.dump_outbound_cms.dump(self)
     if pretty_print:
       return self.get_DER(), self.pretty_print_content()
     else:
@@ -1073,7 +1091,7 @@ class XML_CMS_object(CMS_object):
     """
     self = cls(DER = der)
     if self.dump_inbound_cms:
-      self.dump_to_disk(self.dump_inbound_cms)
+      self.dump_inbound_cms.dump(self)
     self.verify(ta)
     self.schema_check()
     msg = self.saxify(self.get_content())

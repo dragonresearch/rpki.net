@@ -178,11 +178,11 @@ class parser(object):
       pass
 
     try:
-      rpki.x509.XML_CMS_object.dump_outbound_cms = self.get("dump_outbound_cms")
+      rpki.x509.XML_CMS_object.dump_outbound_cms = rpki.x509.DeadDrop(self.get("dump_outbound_cms"))
     except ConfigParser.NoOptionError:
       pass
 
     try:
-      rpki.x509.XML_CMS_object.dump_inbound_cms = self.get("dump_inbound_cms")
+      rpki.x509.XML_CMS_object.dump_inbound_cms = rpki.x509.DeadDrop(self.get("dump_inbound_cms"))
     except ConfigParser.NoOptionError:
       pass

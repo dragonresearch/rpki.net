@@ -58,6 +58,7 @@
       </xsl:when>
       <xsl:otherwise>
         <xsl:value-of select="$input"/>
+	<xsl:text>&#10;</xsl:text>
       </xsl:otherwise>
     </xsl:choose>
   </xsl:template>

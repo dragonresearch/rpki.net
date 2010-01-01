@@ -24,7 +24,7 @@
 # 
 # 2) Add to ~/.mailcap
 # 
-#     application/x-rpki; /this/script.sh ; copiousoutput
+#     application/x-rpki; /path/to/this/script.sh ; copiousoutput
 # 
 # "copiousoutput" is required by mutt to enable auto_view (inline
 # display) behavior.
@@ -39,11 +39,15 @@
 
 #exec 2>&1; set -x
 
+: ${AWK=/usr/bin/awk}
 : ${OPENSSL=$(/usr/bin/dirname $0)/../openssl/openssl/apps/openssl}
+: ${SPLITBASE64=$(/usr/bin/dirname $0)/splitbase64.xsl}
+: ${XMLINDENT=/usr/local/bin/xmlindent}
 : ${XMLLINT=/usr/local/bin/xmllint}
 : ${XSLTPROC=/usr/local/bin/xsltproc}
-: ${SPLITBASE64=$(/usr/bin/dirname $0)/splitbase64.xsl}
 
-OPENSSL_CONF=/dev/null $OPENSSL cms -verify -nosigs -noverify -inform DER 2>/dev/null |
-$XSLTPROC $SPLITBASE64 - |
-$XMLLINT -format -
+# This produces prettier output, but also hangs sometimes, apparently some xmlindent bug dealing with really long XML attributes
+#OPENSSL_CONF=/dev/null $OPENSSL cms -verify -nosigs -noverify -inform DER 2>/dev/null | $XSLTPROC $SPLITBASE64 - | $XMLINDENT -i 2 | $AWK NF
+
+# So we do this instead
+OPENSSL_CONF=/dev/null $OPENSSL cms -verify -nosigs -noverify -inform DER 2>/dev/null | $XSLTPROC $SPLITBASE64 - | $XMLLINT -format -

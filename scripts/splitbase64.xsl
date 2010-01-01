@@ -47,6 +47,7 @@
 
   <xsl:template name="wrap">
     <xsl:param name="input"/>
+    <xsl:text>            </xsl:text>
     <xsl:choose>
       <xsl:when test="string-length($input) > $width">
         <xsl:value-of select="substring($input, 1, $width)"/>

@@ -37,8 +37,13 @@
 # binary is.  If you have already installed an OpenSSL binary that
 # understands CMS, feel free to use that instead.
 
+#exec 2>&1; set -x
+
 : ${OPENSSL=$(/usr/bin/dirname $0)/../openssl/openssl/apps/openssl}
 : ${XMLLINT=/usr/local/bin/xmllint}
+: ${XSLTPROC=/usr/local/bin/xsltproc}
+: ${SPLITBASE64=$(/usr/bin/dirname $0)/splitbase64.xsl}
 
 OPENSSL_CONF=/dev/null $OPENSSL cms -verify -nosigs -noverify -inform DER 2>/dev/null |
+$XSLTPROC $SPLITBASE64 - |
 $XMLLINT -format -

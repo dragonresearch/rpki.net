@@ -37,8 +37,8 @@
 # binary is.  If you have already installed an OpenSSL binary that
 # understands CMS, feel free to use that instead.
 
-${OPENSSL=$(/usr/bin/dirname $0)/../openssl/openssl/apps/openssl}
-${XMLLINT=/usr/local/bin/xmllint}
+: ${OPENSSL=$(/usr/bin/dirname $0)/../openssl/openssl/apps/openssl}
+: ${XMLLINT=/usr/local/bin/xmllint}
 
 OPENSSL_CONF=/dev/null $OPENSSL cms -verify -nosigs -noverify -inform DER 2>/dev/null |
 $XMLLINT -format -

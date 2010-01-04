@@ -27,18 +27,21 @@ import mailbox, POW, lxml.etree, getopt, sys
 multipart = True
 source_name = None
 destination_name = None
+mark_seen = False
 
 def usage(ok):
-  print "Usage: %s --input maildir --output mhfolder" % sys.argv[0]
+  print "Usage: %s [--mark] --input maildir --output mhfolder" % sys.argv[0]
   print __doc__
   sys.exit(0 if ok else 1)
 
-opts, argv = getopt.getopt(sys.argv[1:], "hi:o:?", ["help", "input=", "output="])
+opts, argv = getopt.getopt(sys.argv[1:], "hi:mo:?", ["help", "input=", "mark", "output="])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     usage(ok = True)
   elif o in ("-i", "--input"):
     source_name = a
+  elif o in ("-m", "--mark"):
+    mark_seen = True
   elif o in ("-o", "--output"):
     destination_name = a
 if argv or source_name is None or destination_name is None:
@@ -96,9 +99,10 @@ try:
       msg.epilogue = "\n"                 # Force trailing newline
       key = destination.add(msg)
       print "Added", key
-      srcmsg.set_subdir("cur")
-      srcmsg.add_flag("S")
-      source[srckey] = srcmsg
+      if mark_seen:
+        srcmsg.set_subdir("cur")
+        srcmsg.add_flag("S")
+        source[srckey] = srcmsg
 
 finally:
   if destination:

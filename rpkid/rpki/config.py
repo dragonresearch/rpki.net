@@ -186,3 +186,8 @@ class parser(object):
       rpki.x509.XML_CMS_object.dump_inbound_cms = rpki.x509.DeadDrop(self.get("dump_inbound_cms"))
     except ConfigParser.NoOptionError:
       pass
+
+    try:
+      rpki.async.gc_summary(self.getint("gc_summary"))
+    except ConfigParser.NoOptionError:
+      pass

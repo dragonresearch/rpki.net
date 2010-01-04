@@ -18,7 +18,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import asyncore, signal, traceback
+import asyncore, signal, traceback, gc
 import rpki.log, rpki.sundial
 
 ExitNow = asyncore.ExitNow
@@ -123,15 +123,10 @@ class timer(object):
   def set(self, when):
     """
     Set a timer.  Argument can be a datetime, to specify an absolute
-    time, a timedelta, to specify an offset time, or None, to indicate
-    that the timer should expire immediately, which can be useful in
-    avoiding an excessively deep call stack.
+    time, or a timedelta, to specify an offset time.
     """
     self.trace("Setting %r to %r" % (self, when))
-    if when is None:
-      rpki.log.warn("Obsolete timer usage: convert this to use rpki.async.defer() instead: %r" % self)
-      self.when = rpki.sundial.now()
-    elif isinstance(when, rpki.sundial.timedelta):
+    if isinstance(when, rpki.sundial.timedelta):
       self.when = rpki.sundial.now() + when
     else:
       self.when = when
@@ -279,8 +274,6 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
     try:
       for sig in catch_signals:
         old_signal_handlers[sig] = signal.signal(sig, _raiseExitNow)
-      if timer.gc_debug:
-        import gc
       while asyncore.socket_map or deferred_queue or timer.queue:
         run_deferred()
         asyncore.poll(timer.seconds_until_wakeup(), asyncore.socket_map)
@@ -350,3 +343,35 @@ class sync_wrapper(object):
 def exit_event_loop():
   """Force exit from event_loop()."""
   raise ExitNow
+
+class gc_summary(object):
+  """
+  Periodic summary of GC state, for tracking down memory bloat.
+  """
+
+  def __init__(self, interval):
+    if isinstance(interval, (int, long)):
+      interval = rpki.sundial.timedelta(seconds = interval)
+    self.interval = interval
+    self.timer = timer(handler = self.handler)
+    self.timer.set(self.interval)
+
+  def handler(self):
+    rpki.log.debug("gc_summary: Running gc.collect()")
+    gc.collect()
+    rpki.log.debug("gc_summary: Summarizing")
+    total = {}
+    for g in gc.get_objects():
+      t = type(g).__name__
+      if t in total:
+        total[t] += 1
+      else:
+        total[t] = 1
+    rpki.log.debug("gc_summary: Sorting result")
+    total = total.items()
+    total.sort(reverse = True, key = lambda x: x[1])
+    rpki.log.debug("gc_summary: Object type counts in descending order")
+    for name, count in total:
+      rpki.log.debug("gc_summary: %8d %s" % (count, name))
+    rpki.log.debug("gc_summary: Scheduling next cycle")
+    self.timer.set(self.interval)

@@ -28,13 +28,14 @@ multipart = True
 source_name = None
 destination_name = None
 mark_seen = False
+kill_seen = False
 
 def usage(ok):
   print "Usage: %s [--mark] --input maildir --output mhfolder" % sys.argv[0]
   print __doc__
   sys.exit(0 if ok else 1)
 
-opts, argv = getopt.getopt(sys.argv[1:], "hi:mo:?", ["help", "input=", "mark", "output="])
+opts, argv = getopt.getopt(sys.argv[1:], "hi:kmo:?", ["help", "input=", "kill", "mark", "output="])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     usage(ok = True)
@@ -99,7 +100,9 @@ try:
       msg.epilogue = "\n"                 # Force trailing newline
       key = destination.add(msg)
       print "Added", key
-      if mark_seen:
+      if kill_seen:
+        srcmsg.discard()
+      elif mark_seen:
         srcmsg.set_subdir("cur")
         srcmsg.add_flag("S")
         source[srckey] = srcmsg

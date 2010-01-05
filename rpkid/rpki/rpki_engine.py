@@ -1000,6 +1000,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
     assert resources.valid_until is not None and old_resources.valid_until is not None
 
     if resources == old_resources and sia == old_sia and ca_detail == old_ca_detail:
+      rpki.log.debug("No change to %r" % self)
       return self
 
     must_revoke = old_resources.oversized(resources) or old_resources.valid_until > resources.valid_until

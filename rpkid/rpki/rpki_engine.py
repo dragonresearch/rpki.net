@@ -76,9 +76,10 @@ class rpkid_context(object):
     """
 
     if self.use_internal_cron:
+      self.cron_timer = rpki.async.timer(handler = self.cron)
       when = rpki.sundial.now() + rpki.sundial.timedelta(seconds = self.initial_delay)
       rpki.log.debug("Scheduling initial cron pass at %s" % when)
-      rpki.async.timer(handler = self.cron).set(when)
+      self.cron_timer.set(when)
     else:
       rpki.log.debug("Not using internal clock, start_cron() call ignored")
 
@@ -216,7 +217,7 @@ class rpkid_context(object):
 
       when = now + self.cron_period
       rpki.log.debug("Scheduling next cron run at %s" % when)
-      rpki.async.timer(handler = self.cron).set(when)
+      self.cron_timer.set(when)
 
       if self.cron_timeout:
         rpki.log.warn("cron already running, keepalive will expire at %s" % self.cron_timeout)

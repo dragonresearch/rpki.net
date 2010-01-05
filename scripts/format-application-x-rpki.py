@@ -109,7 +109,7 @@ try:
       continue
     msg = email.mime.multipart.MIMEMultipart("related")
     msg["X-RPKI-Tag"] = tag
-    for i in ("Date", "Message-ID"):
+    for i in ("Date", "Message-ID", "X-RPKI-Timestamp"):
       msg[i] = srcmsg[i]
     fix_headers()
     if tag in dispatch:

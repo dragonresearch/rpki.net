@@ -44,7 +44,7 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import POW, POW.pkix, base64, lxml.etree, os, subprocess, sys
-import email.mime.application, email.utils, mailbox
+import email.mime.application, email.utils, mailbox, time
 import rpki.exceptions, rpki.resource_set, rpki.oids, rpki.sundial
 import rpki.manifest, rpki.roa, rpki.log, rpki.async
 
@@ -1012,10 +1012,14 @@ class DeadDrop(object):
     self.pid = os.getpid()
 
   def dump(self, obj):
+    now = time.time()
     msg = email.mime.application.MIMEApplication(obj.get_DER(), "x-rpki")
-    msg["Date"] = email.utils.formatdate()
+    msg["Date"] = email.utils.formatdate(now)
     msg["Subject"] = "Process %s dump of %r" % (self.pid, obj)
     msg["Message-ID"] = email.utils.make_msgid()
+    msg["X-RPKI-PID"] = str(self.pid)
+    msg["X-RPKI-Object"] = repr(obj)
+    msg["X-RPKI-Timestamp"] = "%f" % now
     self.maildir.add(msg)
 
 class XML_CMS_object(CMS_object):

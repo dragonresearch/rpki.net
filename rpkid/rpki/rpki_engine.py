@@ -388,6 +388,8 @@ class ca_obj(rpki.sql.sql_persistent):
 
     def loop(iterator, ca_detail):
 
+      self.gctx.checkpoint()
+
       rc_cert = cert_map.pop(ca_detail.public_key.get_SKI(), None)
 
       if rc_cert is None:
@@ -427,6 +429,7 @@ class ca_obj(rpki.sql.sql_persistent):
       if cert_map:
         rpki.log.warn("Certificates in list_response missing from our database, class %r, SKIs %s"
                       % (rc.class_name, ", ".join(c.cert.gSKI() for c in cert_map.values())))
+      self.gctx.checkpoint()
       cb()
 
     ca_details = self.fetch_issue_response_candidates()
@@ -442,6 +445,7 @@ class ca_obj(rpki.sql.sql_persistent):
       rpki.async.iterator(ca_details, loop, done)
     else:
       rpki.log.warn("Existing certificate class %r with no certificates, rekeying" % rc.class_name)
+      self.gctx.checkpoint()
       self.rekey(cb, eb)
 
   @classmethod

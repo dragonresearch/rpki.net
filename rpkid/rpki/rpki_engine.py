@@ -197,6 +197,14 @@ class rpkid_context(object):
       rpki.log.traceback()
       cb(400, "Could not process PDU: %s" % data)
 
+  def checkpoint(self):
+    """
+    Record that we were still alive when we got here, by resetting
+    keepalive timer.
+    """
+    self.cron_timeout = rpki.sundial.now() + self.cron_keepalive
+    rpki.log.debug("Checkpoint: keepalive timer reset to %s" % self.cron_timeout)
+
   def cron(self, cb = None):
     """
     Periodic tasks.
@@ -223,9 +231,10 @@ class rpkid_context(object):
         rpki.log.warn("cron already running, keepalive will expire at %s" % self.cron_timeout)
         return
 
-      self.cron_timeout = now + self.cron_keepalive
+      self.checkpoint()
 
     def loop(iterator, s):
+      self.checkpoint()
       s.cron(iterator)
 
     def done():

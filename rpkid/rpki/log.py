@@ -107,4 +107,5 @@ def traceback():
   error("Exception caught in %s() at %s:%d called from %s:%d" % (bt[1][2], bt[1][0], bt[1][1], bt[0][0], bt[0][1]))
   bt = tb.format_exc()
   assert bt is not None, "Apparently I'm still not using the right test for null backtrace"
-  error(bt)
+  for line in bt.splitlines():
+    error(line)

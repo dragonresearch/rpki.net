@@ -57,5 +57,5 @@ print '''\
 '''
 
 for i, prefix in enumerate(prefix for handle, prefix in myrpki.csv_open("prefixes.csv")):
-  v = 6 if prefix.find(":") >= 0 else 4
+  v = 6 if ":" in prefix else 4
   print "IPv%d.%d = %s" % (v, i, prefix)

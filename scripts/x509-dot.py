@@ -32,7 +32,7 @@ class x509(object):
     text = f.read()
     f.close()
 
-    if text.find("-----BEGIN") >= 0:
+    if "-----BEGIN" in text:
       self.pow = POW.pemRead(POW.X509_CERTIFICATE, text)
     else:
       self.pow = POW.derRead(POW.X509_CERTIFICATE, text)

@@ -107,7 +107,7 @@ class multi_uri(list):
     elif isinstance(ini, str):
       self[:] = ini.split(",")
       for s in self:
-        if s.strip() != s or s.find("://") < 0:
+        if s.strip() != s or "://" not in s:
           raise rpki.exceptions.BadURISyntax, "Bad URI \"%s\"" % s
     else:
       raise TypeError

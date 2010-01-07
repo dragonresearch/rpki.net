@@ -257,7 +257,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     for i in xrange(4):
       u = self.uri.index("/", u + 1)
     filename = self.gctx.publication_base.rstrip("/") + self.uri[u:]
-    if filename.find("//") >= 0 or filename.find("/../") >= 0 or filename.endswith("/.."):
+    if "//" in filename or "/../" in filename or filename.endswith("/.."):
       raise rpki.exceptions.BadURISyntax, filename
     return filename
 

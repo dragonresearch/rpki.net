@@ -157,7 +157,7 @@ is being hosted by somebody else are:
    refer to here as myrpki.conf) and your CSV files in their own
    directory.  The software doesn't really care.  If you use absolute
    names for all the filename entries in the configuration file and
-   CSV files, you can put the files whereever you like; if you use
+   CSV files, you can put the files wherever you like; if you use
    relative names, they will be interpreted relative to the directory
    in which you run the program that reads the file.
 
@@ -236,7 +236,7 @@ The [current] steps are:
    refer to here as myrpki.conf) and your CSV files in their own
    directory.  The software doesn't really care.  If you use absolute
    names for all the filename entries in the configuration file and
-   CSV files, you can put the files whereever you like; if you use
+   CSV files, you can put the files wherever you like; if you use
    relative names, they will be interpreted relative to the directory
    in which you run the program that reads the file.
 
@@ -253,9 +253,9 @@ The [current] steps are:
    match the ones you specified in myrpki.conf.  There are two
    different ways you can do this:
 
-   a) You can use the setup-sql.py script, which promts you for your
+   a) You can use the setup-sql.py script, which prompts you for your
       MySQL root password then attempts to do everything else
-      automatically using valuses from myrpki.conf; or
+      automatically using values from myrpki.conf; or
 
    b) You can do it manually.
 
@@ -509,7 +509,7 @@ supply:
   (bpki.myirbe/ca.cer).
 
 Note that, if you are operating pubd, it's best for relying parties if
-your childrens' publication points are underneath yours within the
+your children's publication points are underneath yours within the
 publication hierarchy, to allow rsync to check for updates as
 efficiently as possible.  pubd's support for hierarchical client
 handles is intended to simplify this: if you have a child Alice, who
@@ -546,7 +546,7 @@ deep in the guts of the OpenSSL TLS code, where there isn't enough
 application context available to provide useful error messages.
 
 If you've completed the steps above, everything appears to have gone
-ok, but nothing seems to be happening, the first thing to do is check
+OK, but nothing seems to be happening, the first thing to do is check
 the logs to confirm that nothing is actively broken.  rpkid's log
 should include messages telling you when it starts and finishes its
 internal "cron" cycle.  It can take several cron cycles for resources
@@ -574,11 +574,15 @@ KNOWN ISSUES
 
 The lxml package provides a Python interface to the Gnome libxml2 and
 libxslt C libraries.  This code has been quite stable for several
-years, but recent testing with lxml compiled and linked against a
+years, but initial testing with lxml compiled and linked against a
 newer version of libxml2 ran into problems (specifically, gratuitous
-RelaxNG schema validation failures).  libxml2 2.7.3 works; libxml2
-2.7.5 did not work on the test machine in question, but reverting to
-libxml2 2.7.3 appears to have fixed the problem.
+RelaxNG schema validation failures).  libxml2 2.7.3 worked; libxml2
+2.7.5 did not work on the test machine in question.  Reverting to
+libxml2 2.7.3 fixed the problem.  Rewriting the two lines of Python
+code that were triggering the lxml bug appears to have solved the
+problem, so the code now works properly with libxml 2.7.5, but if you
+start seeing weird XML validation failures, it might be another
+variation of this lxml bug.
 
 An earlier version of this code ran into problems with what appears to
 be an implementation restriction in the the GNU linker ("ld") on

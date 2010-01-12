@@ -19,8 +19,19 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, getopt, sys, time, rpki.config, getpass
-import MySQLdb,  warnings, _mysql_exceptions
+from __future__ import with_statement
+
+import os, getopt, sys, time, rpki.config, getpass, warnings
+
+# Silence warning while loading MySQLdb in Python 2.6, sigh
+if hasattr(warnings, "catch_warnings"):
+  with warnings.catch_warnings():
+    warnings.simplefilter("ignore", DeprecationWarning)
+    import MySQLdb
+else:
+  import MySQLdb
+
+import _mysql_exceptions
 
 warnings.simplefilter("error", _mysql_exceptions.Warning)
 
@@ -50,7 +61,10 @@ def sql_setup(name):
 
   print "Creating database", database
   cur = rootdb.cursor()
-  cur.execute("DROP DATABASE IF EXISTS %s" %  database)
+  try:
+    cur.execute("DROP DATABASE IF EXISTS %s" %  database)
+  except:
+    pass
   cur.execute("CREATE DATABASE %s" % database)
   cur.execute("GRANT ALL ON %s.* TO %s@localhost IDENTIFIED BY %%s" % (database, username), (password,))
   rootdb.commit()

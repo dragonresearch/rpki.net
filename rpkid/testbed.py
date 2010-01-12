@@ -162,6 +162,7 @@ def main():
   Main program.
   """
 
+  rpki.log.use_syslog = False
   rpki.log.init(testbed_name)
   rpki.log.info("Starting")
 

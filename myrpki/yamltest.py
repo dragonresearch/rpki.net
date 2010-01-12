@@ -46,7 +46,7 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import subprocess, csv, re, os, getopt, sys, base64, yaml, signal, errno, time
-import rpki.resource_set, rpki.sundial, rpki.config, myrpki
+import rpki.resource_set, rpki.sundial, rpki.config, rpki.log, myrpki
 
 # Nasty regular expressions for parsing config files.  Sadly, while
 # the Python ConfigParser supports writing config files, it does so in
@@ -557,6 +557,9 @@ for o, a in opts:
 
 if len(argv) > 1:
   raise RuntimeError, "Unexpected arguments %r" % argv
+
+rpki.log.use_syslog = False
+rpki.log.init("yamltest")
 
 yaml_file = argv[0] if argv else "../rpkid/testbed.1.yaml"
 

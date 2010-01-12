@@ -328,11 +328,6 @@
 # @li @c cross_certify.py:
 #              A BPKI cross-certification tool.
 #
-# @li @c irbe-setup.py:
-#              An example of a script to set up the mappings between
-#              the IRDB and rpkid's own database, using the
-#              left-right control protocol.
-#
 # @li @c cronjob.py:
 #              A trivial HTTP client used to drive rpkid cron events.
 #
@@ -373,8 +368,52 @@
 #   $ echo >whatever.pid  "$!"
 # @endverbatim
 #
-# All of the daemons use syslog.  At present they all set LOG_PERROR, so
-# all logging also goes to stderr.
+# All of the daemons use syslog by default.  To make them log to
+# stderr instead, use the "-d" option.
+#
+# @section CommonOptions Common Options
+#
+# Some of the options that the several daemons take are common to all
+# daemons.  Which daemon they affect depends only on which sections of
+# which config files they are in.
+#
+# The first group of options are debugging flags, which can be set to
+# "true" or "false".  If not specified, default values will be chosen
+# (generally false).
+#
+# @li @c debug_http
+#                               Enable verbose http debug logging.
+# @li @c debug_tls_certs
+#                               Enable verbose logging about tls certs.
+#
+# @li @c want_persistent_client
+#                               Enable http 1.1 persistence, client side.
+#
+# @li @c want_persistent_server
+#                               Enable http 1.1 persistence, server side.
+#
+# @li @c debug_cms_certs
+#                               Enable verbose logging about cms certs.
+#
+# @li @c sql_debug
+#                               Enable verbose logging about sql operations.
+#
+# @li @c gc_debug
+#                               Enable scary garbage collector debugging.
+#                       
+# @li @c timer_debug
+#                               Enable verbose logging of timer system.
+#
+# There are also a few options that allow you to save CMS messages for
+# audit or debugging.  The save format is a simple MIME encoding in a
+# Maildir-format mailbox.  The current options are very crude, at some
+# point we may provide finer grain controls.
+#
+# @li @c dump_outbound_cms
+#                               Dump messages we send to this mailbox.
+#
+# @li @c dump_inbound_cms
+#                               Dump messages we receive to this mailbox.
 #
 #
 # @section rpkid rpkid.py
@@ -624,7 +663,7 @@
 # IRBE stub needs to create the appropriate objects in rpkid's database
 # via the control subset of the left-right protocol, and store the
 # linkage IDs (foreign keys into rpkid's database, basicly) in the
-# IRDB.  The irbe-setup.py program shows an example of how to do this.
+# IRDB.
 #
 # irdbd's default %config file is irdbd.conf, start irdbd with "-c
 # filename" to choose a different %config file.  All options are in the
@@ -778,63 +817,12 @@
 # @endverbatim
 #
 #
-# @section irbe_setup irbe-setup.py config file
-#
-# @warning
-# irbe-setup is old code, not currently used, kept in case it is
-# useful at some later date.  It may not work properly or at all.  If
-# you don't understand what it does, you don't need it. You have been
-# warned.
-#
-# The default %config file is irbe.conf, start rpkid with "-c filename"
-# to choose a different %config file.  Most options are in the section
-# "[irbe_cli]", but a few are in the section "[irdbd]".  Certificates,
-# keys, and trust anchors may be in either DER or PEM format.
-#
-# Options in the "[irbe_cli]" section:
-#
-# @li @c bpki-ta:
-#                      Name of file containing BPKI trust anchor.
-#
-# @li @c irbe-cert:
-#                      Name of file containing BPKI certificate
-#                      irbe-setup should use.
-#
-# @li @c irbe-key:
-#                      Name of file containing RSA key corresponding
-#                      to irbe-cert.
-#
-# @li @c rpkid-cert:
-#                      Name of file containing rpkid's BPKI
-#                      certificate. 
-#
-# @li @c https-url:
-#                      Service URL for rpkid.  Must be a %https:// URL.
-#
-# Options in the "[irdbd]" section:
-#
-# @li @c sql-username:
-#                      Username to hand to MySQL when connecting to
-#                      irdbd's database.
-#
-# @li @c sql-database:
-#                      MySQL's database name for irdbd's database.
-#
-# @li @c sql-password:
-#                      Password to hand to MySQL when connecting to
-#                      irdbd's database.
-#
-#
 # @section cronjob cronjob.py
 #
-# This is a trivial program to trigger a cron run within rpkid.  Once
-# rpkid has been converted to the planned event-driven model, this
-# function will be handled internally, but for now it has to be
-# triggered by an external program.  For pseudo-production use one would
-# run this program under the system cron daemon.  For scripted testing
-# it happens to be useful to be able to control when cron cycles occur,
-# so at the current stage of code development use of an external trigger
-# is a useful feature.
+# This is a trivial program to trigger a cron run within rpkid.
+# Ordinarilly rpkid runs its own internal cron process, but for
+# scripted testing it is sometimes useful to be able to control when
+# cron cycles occur.
 #
 # The default %config file is cronjob.conf, start cronjob with "-c
 # filename" to choose a different %config file.  All options are in the

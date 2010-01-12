@@ -219,12 +219,12 @@
 #
 # Some of the tests require MySQL databases to store their data.  To set
 # up all the databases that the tests will need, run the SQL commands in
-# rpkid/testbed.sql.  The MySQL command line client is usually the
+# rpkid/testbed.setup.sql.  The MySQL command line client is usually the
 # easiest way to do this, eg:
 #
 # @verbatim
 #   $ cd $top/rpkid
-#   $ mysql -u root -p <testbed.sql
+#   $ mysql -u root -p <testbed.setup.sql
 # @endverbatim
 #
 # To run the tests, run "make all-tests":

@@ -752,13 +752,16 @@ class allocation(object):
     Kill daemons for this entity.
     """
     rpki.log.info("Killing daemons for %s" % self.name)
-    for proc in (self.rpkid_process, self.irdbd_process):
-      try:
-        rpki.log.info("Killing pid %d" % proc.pid)
-        os.kill(proc.pid, signal.SIGTERM)
-      except OSError:
-        pass
-      proc.wait()
+    try:
+      for proc in (self.rpkid_process, self.irdbd_process):
+        try:
+          rpki.log.info("Killing pid %d" % proc.pid)
+          os.kill(proc.pid, signal.SIGTERM)
+        except OSError:
+          pass
+        proc.wait()
+    except AttributeError:
+      pass
 
   def call_rpkid(self, pdus, cb):
     """

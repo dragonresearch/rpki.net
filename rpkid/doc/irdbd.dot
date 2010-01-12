@@ -7,7 +7,7 @@ digraph test {
 	registrant [label="{registrant\n|registrant_id\ SERIAL\ [PK]\lregistrant_handle\ VARCHAR\ [U]\lregistrant_name\ TEXT\lregistry_handle\ VARCHAR\ [U]\lvalid_until\ DATETIME\l}"];
 	registrant_asn [label="{registrant_asn\n|registrant_asn_id\ SERIAL\ [PK]\lstart_as\ BIGINT\lend_as\ BIGINT\lregistrant_id\ BIGINT\ [FK]\l}"];
 	registrant_net [label="{registrant_net\n|registrant_net_id\ SERIAL\ [PK]\lstart_ip\ VARCHAR\lend_ip\ VARCHAR\lversion\ TINYINT\lregistrant_id\ BIGINT\ [FK]\l}"];
-	roa_request [label="{roa_request\n|roa_request_id\ SERIAL\ [PK]\lroa_request_handle\ VARCHAR\lasn\ DECIMAL\l}"];
+	roa_request [label="{roa_request\n|roa_request_id\ SERIAL\ [PK]\lroa_request_handle\ VARCHAR\lasn\ BIGINT\l}"];
 	roa_request_prefix [label="{roa_request_prefix\n|prefix\ VARCHAR\ [PK]\lprefixlen\ TINYINT\ [PK]\lmax_prefixlen\ TINYINT\ [PK]\lversion\ TINYINT\lroa_request_id\ BIGINT\ [PK,FK]\l}"];
 	registrant -> registrant_asn;
 	registrant -> registrant_net;

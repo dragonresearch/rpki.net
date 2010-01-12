@@ -92,10 +92,10 @@ Installation Guide
 
    Some of the tests require MySQL databases to store their data. To set
    up all the databases that the tests will need, run the SQL commands in
-   rpkid/testbed.sql. The MySQL command line client is usually the easiest
-   way to do this, eg:
+   rpkid/testbed.setup.sql. The MySQL command line client is usually the
+   easiest way to do this, eg:
    $ cd $top/rpkid
-   $ mysql -u root -p <testbed.sql
+   $ mysql -u root -p <testbed.setup.sql
 
    To run the tests, run "make all-tests":
    $ cd $top/rpkid
@@ -128,5 +128,5 @@ Installation Guide
      __________________________________________________________________
 
 
-    Generated on Fri Dec 18 19:15:12 2009 for RPKI Engine by  doxygen
+    Generated on Tue Jan 12 02:46:40 2010 for RPKI Engine by  doxygen
     1.6.1

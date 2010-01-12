@@ -13,7 +13,7 @@ digraph test {
 	child [label="{child\n|child_id\ SERIAL\ [PK]\lchild_handle\ VARCHAR\ [U]\lbpki_cert\ LONGBLOB\lbpki_glue\ LONGBLOB\lself_id\ BIGINT\ [FK,U]\lbsc_id\ BIGINT\ [FK]\l}"];
 	child_cert [label="{child_cert\n|child_cert_id\ SERIAL\ [PK]\lcert\ LONGBLOB\lpublished\ DATETIME\lski\ TINYBLOB\lchild_id\ BIGINT\ [FK]\lca_detail_id\ BIGINT\ [FK]\l}"];
 	revoked_cert [label="{revoked_cert\n|revoked_cert_id\ SERIAL\ [PK]\lserial\ BIGINT\lrevoked\ DATETIME\lexpires\ DATETIME\lca_detail_id\ BIGINT\ [FK]\l}"];
-	roa [label="{roa\n|roa_id\ SERIAL\ [PK]\lasn\ DECIMAL\lcert\ LONGBLOB\lroa\ LONGBLOB\lpublished\ DATETIME\lself_id\ BIGINT\ [FK]\lca_detail_id\ BIGINT\ [FK]\l}"];
+	roa [label="{roa\n|roa_id\ SERIAL\ [PK]\lasn\ BIGINT\lcert\ LONGBLOB\lroa\ LONGBLOB\lpublished\ DATETIME\lself_id\ BIGINT\ [FK]\lca_detail_id\ BIGINT\ [FK]\l}"];
 	roa_prefix [label="{roa_prefix\n|prefix\ VARCHAR\ [PK]\lprefixlen\ TINYINT\ [PK]\lmax_prefixlen\ TINYINT\ [PK]\lversion\ TINYINT\lroa_id\ BIGINT\ [PK,FK]\l}"];
 	bsc -> child;
 	bsc -> parent;

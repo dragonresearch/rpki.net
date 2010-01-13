@@ -61,6 +61,7 @@ class pubd_context(object):
     self.https_server_port = int(cfg.get("server-port", "4434"))
 
     self.publication_base = cfg.get("publication-base", "publication/")
+    self.publication_multimodule = cfg.getboolean("publication-multimodule", False)
 
   def handler_common(self, query, client, cb, certs, crl = None):
     """

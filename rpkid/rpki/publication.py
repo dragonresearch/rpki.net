@@ -254,7 +254,8 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     if not self.uri.startswith("rsync://"):
       raise rpki.exceptions.BadURISyntax, self.uri
     u = 0
-    for i in xrange(4):
+    n = 3 if self.gctx.publication_multimodule else 4
+    for i in xrange(n):
       u = self.uri.index("/", u + 1)
     filename = self.gctx.publication_base.rstrip("/") + self.uri[u:]
     if "//" in filename or "/../" in filename or filename.endswith("/.."):

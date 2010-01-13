@@ -42,14 +42,17 @@ os.environ["TZ"] = "UTC"
 time.tzset()
 
 cfg_file = "myrpki.conf"
+debug = False
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+opts, argv = getopt.getopt(sys.argv[1:], "c:dh?", ["config=", "debug" "help"])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
-  if o in ("-c", "--config"):
+  elif o in ("-c", "--config"):
     cfg_file = a
+  elif o in ("-d", "--debug"):
+    debug = True
 
 names = ["irdbd", "rpkid"]
 
@@ -62,6 +65,9 @@ if cfg.getboolean("want_rootd", False):
   names.append("rootd")
 
 for name in names:
-  proc = subprocess.Popen(("python", os.path.join(rpkid_dir, name + ".py"), "-c", cfg_file),
-                          stdout = open(name + ".log", "a"), stderr = subprocess.STDOUT)
+  cmd = ("python", os.path.join(rpkid_dir, name + ".py"), "-c", cfg_file)
+  if debug:
+    proc = subprocess.Popen(cmd + ("-d",), stdout = open(name + ".log", "a"), stderr = subprocess.STDOUT)
+  else:
+    proc = subprocess.Popen(cmd)
   print ("Started %r, pid %s" if proc.poll() is None else "Problem starting %r, pid %s") % (name, proc.pid)

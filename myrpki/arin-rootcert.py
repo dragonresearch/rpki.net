@@ -26,9 +26,9 @@ import csv, myrpki, sys
 
 holder = "arin"
 
-if len(sys.argv) == 1:
+if len(sys.argv) == 2:
   holder = sys.argv[1]
-elif sys.argv:
+elif len(sys.argv) > 1:
   raise RuntimeError, "Usage: %s [holder]" % sys.argv[0]
 
 print '''\

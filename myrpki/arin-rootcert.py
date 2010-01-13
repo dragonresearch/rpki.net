@@ -22,7 +22,14 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import csv, myrpki
+import csv, myrpki, sys
+
+holder = "arin"
+
+if len(sys.argv) == 1:
+  holder = sys.argv[1]
+elif sys.argv:
+  raise RuntimeError, "Usage: %s [holder]" % sys.argv[0]
 
 print '''\
 [req]
@@ -33,19 +40,20 @@ prompt                          = no
 encrypt_key                     = no
 
 [req_dn]
-CN                              = Pseudo-ARIN testbed root RPKI certificate
+CN                              = Pseudo-%(HOLDER)s testbed root RPKI certificate
 
 [x509v3_extensions]
 basicConstraints                = critical,CA:true
 subjectKeyIdentifier            = hash
 keyUsage                        = critical,keyCertSign,cRLSign
-subjectInfoAccess               = 1.3.6.1.5.5.7.48.5;URI:rsync://arin.rpki.net/arin/,1.3.6.1.5.5.7.48.10;URI:rsync://arin.rpki.net/arin/root.mnf
+subjectInfoAccess               = 1.3.6.1.5.5.7.48.5;URI:rsync://%(holder)s.rpki.net/%(holder)s/,1.3.6.1.5.5.7.48.10;URI:rsync://%(holder)s.rpki.net/%(holder)s/root.mnf
 certificatePolicies             = critical,1.3.6.1.5.5.7.14.2
 sbgp-autonomousSysNum           = critical,@rfc3779_asns
 sbgp-ipAddrBlock                = critical,@rfc3997_addrs
 
 [rfc3779_asns]
-'''
+''' % { "holder" : holder.lower(),
+        "HOLDER" : holder.upper() }
 
 for i, asn in enumerate(asn for handle, asn in myrpki.csv_open("asns.csv")):
   print "AS.%d = %s" % (i, asn)

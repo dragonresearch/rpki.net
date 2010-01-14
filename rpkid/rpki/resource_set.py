@@ -946,3 +946,10 @@ if __name__ == "__main__":
   print
   test2(roa_prefix_set_ipv4, "10.3.0.0/24-24,10.0.0.0/16-32", "10.3.0.0/24,10.0.0.0/16-32")
   print
+  test2(roa_prefix_set_ipv6, "2002:0a00:002c::1/128", "2002:0a00:002c::2/128")
+  print
+  test2(roa_prefix_set_ipv6, "2002:0a00:002c::1/128", "2002:0a00:002c::7/128")
+  print
+  test2(roa_prefix_set_ipv6, "2002:0a00:002c::1/128", "2002:0a00:002c::/120")
+  print
+  test2(roa_prefix_set_ipv6, "2002:0a00:002c::1/128", "2002:0a00:002c::/120-128")

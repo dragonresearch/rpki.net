@@ -190,9 +190,9 @@ CREATE TABLE roa (
 
 CREATE TABLE roa_prefix (
         prefix                  VARCHAR(40) NOT NULL,
-        prefixlen               TINYINT NOT NULL,
-        max_prefixlen           TINYINT NOT NULL,
-        version                 TINYINT NOT NULL,
+        prefixlen               TINYINT UNSIGNED NOT NULL,
+        max_prefixlen           TINYINT UNSIGNED NOT NULL,
+        version                 TINYINT UNSIGNED NOT NULL,
         roa_id                  BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (roa_id, prefix, prefixlen, max_prefixlen),
         CONSTRAINT              roa_prefix_roa_id

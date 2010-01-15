@@ -68,9 +68,9 @@ CREATE TABLE roa_request (
 
 CREATE TABLE roa_request_prefix (
         prefix                  VARCHAR(40) NOT NULL,
-        prefixlen               TINYINT NOT NULL,
-        max_prefixlen           TINYINT NOT NULL,
-        version                 TINYINT NOT NULL,
+        prefixlen               TINYINT UNSIGNED NOT NULL,
+        max_prefixlen           TINYINT UNSIGNED NOT NULL,
+        version                 TINYINT UNSIGNED NOT NULL,
         roa_request_id          BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (roa_request_id, prefix, prefixlen, max_prefixlen),
         CONSTRAINT              roa_request_prefix_roa_request_id

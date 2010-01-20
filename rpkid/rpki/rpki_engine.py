@@ -203,7 +203,6 @@ class rpkid_context(object):
     keepalive timer.
     """
     self.cron_timeout = rpki.sundial.now() + self.cron_keepalive
-    rpki.log.debug("Checkpoint: keepalive timer reset to %s" % self.cron_timeout)
 
   def cron(self, cb = None):
     """

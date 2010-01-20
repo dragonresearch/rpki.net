@@ -275,7 +275,7 @@ class http_stream(asynchat.async_chat):
 
   def handle_timeout(self):
     self.log("Timeout, closing")
-    self.close()
+    self.close(force = True)
 
   def handle_close(self):
     self.log("Close event in HTTP stream handler")
@@ -355,15 +355,16 @@ class http_stream(asynchat.async_chat):
 
   def close(self, force = False):
     self.log("Close requested")
-    assert self.retry_read is None and self.retry_write is None, "%r: TLS I/O already in progress, r %r w %r" % (self, self.retry_read, self.retry_write)
+    assert force or (self.retry_read is None and self.retry_write is None), "%r: TLS I/O already in progress, r %r w %r" % (self, self.retry_read, self.retry_write)
     if self.tls is not None:
       try:
-        ret = self.tls.shutdown()
-        self.log("tls.shutdown() returned %s, force_shutdown %s" % (ret, force))
+        if self.retry_read is None and self.retry_write is None:
+          ret = self.tls.shutdown()
+          self.log("tls.shutdown() returned %s, force_shutdown %s" % (ret, force))
+        else:
+          ret = None
         if ret or force:
           self.tls = None
-          asynchat.async_chat.close(self)
-          self.handle_close()
       except POW.WantReadError:
         self.retry_read = self.close
       except POW.WantWriteError:
@@ -371,9 +372,10 @@ class http_stream(asynchat.async_chat):
       except POW.SSLError, e:
         self.log("socket shutdown threw %s, shutting down anyway" % e)
         self.tls = None
-        asynchat.async_chat.close(self)
-        self.handle_close()
-        
+    if self.tls is None:
+      asynchat.async_chat.close(self)
+      self.handle_close()
+
   def log_cert(self, tag, x):
     if debug_tls_certs:
       rpki.log.debug("%r: HTTPS %s cert %r issuer %s [%s] subject %s [%s]" % (self, tag, x, x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
@@ -414,7 +416,7 @@ class http_server(http_stream):
     except POW.WantWriteError:
       self.retry_write = self.tls_accept
     except POW.SSLUnexpectedEOFError:
-      self.log("SSLUnexpectedEOF in tls_accept()", rpki.log.warn)
+      self.log("SSLUnexpectedEOF in tls_accept()")
       self.close(force = True)
 
   def handle_no_content_length(self):

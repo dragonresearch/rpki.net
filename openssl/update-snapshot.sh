@@ -1,14 +1,21 @@
 #!/bin/sh -
 # $Id$
 #
-# Fetch today's OpenSSL snapshot and do everything needed to make it
+# Fetch today's OpenSSL tarball and do everything needed to make it
 # the current code other than the svn commit.
 
-version="1.0.0-stable-SNAP-$(date +%Y%m%d)"
+#version="1.0.0-stable-SNAP-$(date +%Y%m%d)"
+
+version="1.0.0-beta5"
 
 tarball="openssl-${version}.tar.gz"
 
-/usr/bin/fetch -m -p "ftp://ftp.openssl.org/snapshot/${tarball}" || exit
+case $version in
+  *SNAP*) directory=snapshot;;
+  *)      directory=source;;
+esac
+
+/usr/bin/fetch -m -p "ftp://ftp.openssl.org/${directory}/${tarball}" || exit
 
 /bin/rm -f openssl
 

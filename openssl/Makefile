@@ -1,13 +1,9 @@
 # $Id$
 
-VERSION = 1.0.0-stable-SNAP-20091118
-
-OPTIONS = enable-rfc3779 enable-cms no-dso enable-shared --prefix=`pwd`
-
 # Kludge alert:
 #
 # The --prefix=`pwd` and LIBRPATH=`pwd` settings below are to force
-# OpenSSL's baroque configuration mechansim to build shared libraries
+# OpenSSL's baroque configuration mechanism to build shared libraries
 # that will run out of the build tree.  This is temporary.  Once we
 # write "make install" code, we'll have to change that to point to the
 # directory where the OpenSSL shared libraries will be installed.
@@ -18,6 +14,10 @@ OPTIONS = enable-rfc3779 enable-cms no-dso enable-shared --prefix=`pwd`
 #
 # "You are lost in a maze of twisty programs, all broken in different
 # ways" 
+
+VERSION = 1.0.0-stable-SNAP-20091118
+
+OPTIONS = enable-rfc3779 enable-cms no-dso enable-shared --prefix=`pwd`
 
 all: openssl-${VERSION}/Makefile
 	cd openssl-${VERSION}; ${MAKE} $@ LIBRPATH=`pwd`

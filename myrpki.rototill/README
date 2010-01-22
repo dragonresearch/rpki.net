@@ -1,0 +1,660 @@
+$Id$
+
+INTRODUCTION
+
+The design of rpkid and friends assumes that certain tasks can be
+thrown over the wall to the registry's back end operation.  This was a
+deliberate design decision to allow rpkid et al to remain independent
+of existing database schema, business PKIs, and so forth that a
+registry might already have.  All very nice, but it leaves someone who
+just wants to test the tools or who has no existing back end with a
+fairly large programming project.  The tools in this directory attempt
+to fill that gap.
+
+This is a basic implementation of what a registry back end would need
+to use rpkid and friends.   These tools do not use every available
+option, nor are they necessarily as efficient as possible.  Large
+registries will almost certainly want to roll their own tools, perhaps
+using these as a starting point.  Nevertheless, we hope that these
+tools will at least provide a useful example.
+
+The primary tools here consist of two Python programs: myrpki.py and
+myirbe.py.  The first is for use by any entity that needs resources
+allocated via the RPKI system, the second is for use by entities that
+actually run copies of rpkid and its several supporting programs.
+
+The basic idea here is that a user who has resources maintains a set
+of .csv files containing a text representation of the data needed by
+the back-end, along with a configuration file containing other
+parameters.  The intent is that these be very simple files that are
+easy to generate either by hand or as a dump from relational database,
+spreadsheet, awk script, whatever works in your environment.  Given
+these files, the user then runs the myrpki.py script to extract the
+relevant information and encode everything about its back end state
+into a single .xml file, which the script writes out to disk.  The
+user then conveys this .xml file via some convenient means (PGP-signed
+mail, USB key, dog-sled) to the operator of the rpkid engine that will
+perform RPKI services on behalf of the user.
+
+The rpkid operator collects these .xml files from all the resource
+holders it hosts, and feeds them all into the myirbe.py script, which
+uses the data in the .xml files to populate the IRDB, create objects
+in rpkid and pubd via the left-right and publication protocols,
+etcetera.  The script rewrites its input .xml files to contain any
+updated information (eg, PKCS #10 requests for business signing
+context certificates), so that the .xml file once again contains
+everything that must be communicated between the rpkid operator and
+hosted resource holder.
+
+The rpkid operator ships the updated .xml back to the user, who then
+runs the myrpki.py script again to perform any necessary actions (eg,
+issuing business signing context certificates given the PKCS #10
+request sent by myirbe.py), resulting in another update to the .xml
+file, which the user then ships back to the rpkid operator.  This
+cycle repeats until nothing further needs to be changed.
+
+Note that, as certificates and CRLs have expiration and nextUpdate
+values, a low-level cycle of updates passing between resource holder
+and rpkid operator will be necessary as a part of steady state
+operation.  [The current version of these tools does not yet
+regenerate these expiring objects, but fixing this will be a
+relatively minor matter.]
+
+Since we assume that anybody who bothers to run rpkid is also a
+resource holder, myirbe.py and myrpki.py can use the same
+configuration file, and myirbe.py will run myrpki.py automatically if
+the [myrpki] section of the configuration file is present.
+
+The third important file in this system is the configuration file for
+myrpki.py and myirbe.py.  This contains a number of sections, some of
+which are for these scripts, others of which are for the OpenSSL
+command line tool, which these scripts use do most of the certificate
+work.  The examples/ subdirectory contains a commented version of the
+configuration file that explains the various parameters.
+
+myrpki.py deliberately does not use any libraries other than the ones
+that ship with Python 2.5; in particular, it does not require any of
+the other Python RPKI code.  This is intentional, to minimize
+portability issues for hosted resource holders.  It does require a
+reasonably current version of the OpenSSL command line tool, but the
+version that is built as a side effect of building the rcynic relying
+party tool is adequate if the system copy of this tool isn't.
+
+The .csv files read by myrpki.py can be anything that the Python "csv"
+library understands.  By default, they're in tab-delimited format
+(because the author finds this easier to read than the comma-delimited
+format), but this can be changed to fit local needs.
+
+Please note: tab-delimited CSV is a format defined by a certain
+popular spreadsheet program, and is *not* the same as
+whitespace-separated text.  Tab characters are *punctuation*, and each
+tab character indicates the division between two columns.  Two tab
+characters in a row indicates a separator, a blank cell, and another
+separator, not one separator.  The upshot of all this is that
+attempting to make your columns line up prettily will not work as you
+expect, you will end up with too many cells, some of them empty.
+
+A number of the fields in the configuration or CSV files involve
+certificates.  Some of these are built automatically, others must be
+imported so that the scripts can cross-certify them.  The certificates
+you need to import are all self-signed BPKI trust anchor certificates
+generated by other entities; you import them by specifying the name of
+a file where you stored the BPKI certificate in question (in OpenSSL
+"PEM" format).
+
+Keep reading, and don't panic.
+
+The default configuration file name is myrpki.conf.
+
+See examples/myrpki.conf for details on the variables that you can
+(and in some cases must) set.
+
+See examples/*.csv for commented examples of the several CSV files.
+Note that the comments themselves are not legal CSV, they're just
+present to make it easier to understand the examples.
+
+GETTING STARTED -- OVERVIEW
+
+As explained above, the two basic programs are myrpki.py (for resource
+holders) and myirbe.py (for rpkid operators); myirbe.py runs myrpki.py
+automatically for a rpkid operator's own resources if myirbe.py finds
+a [myrpki] section in its configuration file.
+
+Which process you need to follow to get started depends on whether you
+are running rpkid yourself or will be hosted by somebody else.  We
+call the first case "self-hosted", because the software treats running
+rpkid to handle resources that you yourself hold as if you are an rpkid
+operator who is hosting an entity that happens to be yourself.
+
+"$top" in the following refers to wherever you put the
+subvert-rpki.hactrn.net code.  Once we have autoconf and "make
+install" targets, this will be some system directory or another; for
+now, it's wherever you checked out a copy of the code from the
+subversion repository or unpacked a tarball of the code.
+
+GETTING STARTED -- HOSTED CASE
+
+The basic steps involved in getting started for a resource holder who
+is being hosted by somebody else are:
+
+1) Obtain contact information and BPKI trust anchors from RPKI parents
+   and an RPKI publication service (see below for details).
+
+2) Write a configuration file (copy $top/myrpki/examples/myrpki.conf
+   and edit as needed).  You can skip the sections associated with the
+   various daemons and their runtime control tools ([myirbe], [rpkid],
+   [irdbd], [pubd], [rootd], [irbe_cli]).  You *do* need to configure
+   the [myrpki] section.
+
+3) Using $top/myrpki/examples/*.csv as a guide, create a set of CSV
+   files representing RPKI parents, RPKI children, resources to be
+   assigned to RPKI children, and ROAs to be generated once the
+   necessary RPKI certificates are available.  Most of these CSV files
+   can be empty while first getting started, the only file that
+   absolutely must be populated is the file describing parents.
+
+   You may choose to place your configuration file (which we will
+   refer to here as myrpki.conf) and your CSV files in their own
+   directory.  The software doesn't really care.  If you use absolute
+   names for all the filename entries in the configuration file and
+   CSV files, you can put the files wherever you like; if you use
+   relative names, they will be interpreted relative to the directory
+   in which you run the program that reads the file.
+
+   [At some future date we may provide a default directory for
+   relative filenames such as /usr/local/etc/rpki, but the above
+   description holds for now.]
+
+4) Run myrpki.py to generate a BPKI trust anchor and collect all the
+   data from the configuration file, CSV files, and newly created BPKI
+   into a single XML file which can be shipped to the rpkid operator
+   who is hosting your resources.
+
+5) Send the XML file generated in step (4) to your rpkid operator.
+
+6) Wait for your rpkid operator to ship you back an updated XML file
+   containing a PKCS #10 certificate request for the BPKI signing
+   context (BSC) created by rpkid.
+
+7) Run myrpki.py again with the XML file received in step (6), to
+   issue the BSC certificate and update the XML file again to contain
+   the newly issued BSC certificate.
+
+8) Send the updated XML file back to your rpkid operator.
+
+At this point you're done with initial setup.  You will need to run
+myrpki.py again whenever you make any changes to your configuration
+file or CSV files.  [Once myrpki.py knows how to update BPKI CRLs, you
+will also need to run myrpki.py periodically to keep your BPKI CRLs up
+to date.]  Any time you run myrpki.py, you should send the updated XML
+file to your rpkid operator, who will [generally?] send you a further
+updated XML file in response.
+
+GETTING STARTED -- SELF-HOSTED CASE
+
+The first few steps involved in getting started for a self-hosted
+resource holder (that is, a resource holder that runs its own copy of
+rpkid) are the same as in the hosted case above; after that the
+process diverges.
+
+[As of the time at which these instructions were written, it had
+become clear that there really should be an additional setup script
+which automates much of the following.  That script hasn't been
+written yet, so for the moment this documents the setup process as it
+stands now.  Once that setup script has been written, these
+instructions will be updated to match.  In the meantime, please accept
+the author's apologies for the tedious nature of the current setup
+process.]
+
+The [current] steps are:
+
+1) Obtain contact information and BPKI trust anchors from RPKI parents
+   and an RPKI publication service (see below for details).
+
+2) Write a configuration file (copy examples/myrpki.conf and edit as
+   needed).  You need to configure the [myrpki] and [myirbe] sections
+   as well as the sections associated with the daemons you will be
+   running ([rpkid], [irdbd], [irbe_cli]).  You only need to configure
+   the [pubd] section if you intend to run your own publication
+   service: in general this is not recommended, because each
+   additional publication service in the RPKI universe places a small
+   additional burden on every relying party, since every relying party
+   has to download data from every publication service.  In general
+   it's better to use an existing publication service operated by
+   somebody else (eg, your RPKI parent) if you can.  In general most
+   cases you can leave the [rootd] section alone, as in most cases you
+   should not be running rootd.
+
+3) Using $top/myrpki/examples/*.csv as a guide, create a set of CSV
+   files representing RPKI parents, RPKI children, resources to be
+   assigned to RPKI children, and ROAs to be generated once the
+   necessary RPKI certificates are available.  Most of these CSV files
+   can be empty while first getting started, the only file that
+   absolutely must be populated is the file describing parents.
+
+   You may choose to place your configuration file (which we will
+   refer to here as myrpki.conf) and your CSV files in their own
+   directory.  The software doesn't really care.  If you use absolute
+   names for all the filename entries in the configuration file and
+   CSV files, you can put the files wherever you like; if you use
+   relative names, they will be interpreted relative to the directory
+   in which you run the program that reads the file.
+
+   [At some future date we may provide a default directory for
+   relative filenames such as /usr/local/etc/rpki, but the above
+   description holds for now.]
+
+4) See rpkid/doc/Installation, and follow the basic installation
+   instructions there to build the RFC-3779-aware OpenSSL code and
+   associated Python extension module.
+
+5) Next, you need to set up the MySQL databases that rpkid et al will
+   use.  The MySQL database, username, and password values all need to
+   match the ones you specified in myrpki.conf.  There are two
+   different ways you can do this:
+
+   a) You can use the setup-sql.py script, which prompts you for your
+      MySQL root password then attempts to do everything else
+      automatically using values from myrpki.conf; or
+
+   b) You can do it manually.
+
+   The first approach is simple:
+
+   $ python setup-sql.py
+   Please enter your MySQL root password:
+
+   The script should tell you what databases it creates.  You can use
+   the -v option if you want to see more details about what it's doing.
+
+   If you'd prefer to do the SQL setup manually, perhaps because you
+   have valuable data in other MySQL databases and you don't want to
+   trust some random setup script with your MySQL root password,
+   you'll need to use the MySQL command line tool, as follows:
+
+   $ mysql -u root -p
+
+   mysql> CREATE DATABASE irdb_database;
+   mysql> GRANT all ON irdb_database.* TO irdb_user@localhost IDENTIFIED BY 'irdb_password';
+   mysql> USE irdb_database;
+   mysql> SOURCE $top/rpkid/irdbd.sql;
+   mysql> CREATE DATABASE rpki_database;
+   mysql> GRANT all ON rpki_database.* TO rpki_user@localhost IDENTIFIED BY 'rpki_password';
+   mysql> USE rpki_database;
+   mysql> SOURCE $top/rpkid/rpkid.sql;
+   mysql> COMMIT;
+   mysql> quit
+
+   where "irdb_database", "irdb_user", "irdb_password",
+   "rpki_database", "rpki_user", and "rpki_password" are the
+   appropriate values from your configuration file.
+
+   If you are running pubd and doing manual SQL setup, you'll also
+   have to do:
+
+   $ mysql -u root -p
+   mysql> CREATE DATABASE pubd_database;
+   mysql> GRANT all ON pubd_database.* TO pubd_user@localhost IDENTIFIED BY 'pubd_password';
+   mysql> USE pubd_database;
+   mysql> SOURCE $top/rpkid/pubd.sql;
+   mysql> COMMIT;
+   mysql> quit
+
+6) Run myirbe.py -b to set up the initial BPKI structure needed to run
+   your daemons:
+
+   $ python $top/myrpki/myirbe.py -b
+
+   The -b option tells myrpki.py that you want it to stop after the
+   initial BPKI setup, regardless of whether it thinks this is
+   necessary.  If you have not done this before it should tell you
+   that it has updated the BPKI and that you need to (re)start daemons
+   now.
+
+7) If you are running your own publication repository (that is, if you
+   are running pubd), you will also need to set up an rsyncd server or
+   configure your existing one to serve pubd's output.  There's a
+   sample configuration file in $top/myrpki/examples/rsyncd.conf, but
+   you may need to do something more complicated if you are already
+   running rsyncd for other purposes.  See the rsync(1) and
+   rsyncd.conf(5) manual pages for more details.
+
+8) Start the daemons.  You can use $top/myrpki/start-servers.py to do
+   this, or write your own script.
+
+   If you intend to run pubd, you should make sure that the directory
+   you specified as publication-base in the [pubd] section exists and
+   is writable by the userid that will be running pubd, and should
+   also make sure to start rsyncd.
+
+9) Run myirbe.py again, twice, this time with no arguments.
+
+   $ python $top/myrpki/myirbe.py
+   $ python $top/myrpki/myirbe.py
+
+   The reason for running myirbe.py twice at this point is explained
+   in the Introduction section, above; in brief, the first run sets up
+   almost everything, but a second pass is required to generate the
+   BSC certificate.
+
+At this point, if everything went well, rpkid should be up,
+configured, and starting to obtain resource certificates from its
+parents, generate CRLs and manifests, and so forth.  At this point you
+should go figure out how to use the relying party tool, rcynic: see
+$top/rcynic/README if you haven't already done so.
+
+If and when you change your CSV files, you should run myirbe.py again
+to feed the changes into the daemons.
+
+GETTING STARTED -- HOSTING CASE
+
+If you are running rpkid not just for your own resources but also to
+host other resource holders (see "HOSTED CASE" above), your setup will
+be almost the same as in the self-hosted case (see "SELF-HOSTED CASE",
+above), with one procedural change: you will need to tell myirbe.py to
+process the XML files produced by the resource holders you are
+hosting.  You do this by specifying the names of all those XML files
+on myirbe's command line.  So, if you are hosting two friends, Alice
+and Bob, then, everywhere the instructions for the self-hosted case
+say to run myirbe.py with no arguments, you will instead run it with
+the names of Alice's and Bob's XML files:
+
+  $ python $top/myrpki/myirbe.py alice.xml bob.xml
+
+Note that myirbe.py sometimes modifies these XML files, in which case
+it will write them back to the same filenames.  While it is possible
+to figure out the set of circumstances in which myirbe.py will modify
+XML files (at present, this only happens when myirbe.py has to ask
+rpkid to create a new BSC keypair and PKCS #10 certificate request),
+it may be easiest just to ship back an updated copy of the XML file
+after every you run myirbe.py.
+
+GETTING STARTED -- "PURE" HOSTING CASE
+
+In general we assume that anybody who bothers to run rpkid is also a
+resource holder, but the software does not insist on this.  If you are
+running rpkid solely for others and have no resources of your own, the
+process is almost identical to the "HOSTING CASE", above.  The one
+change is that you should *not* have a [myrpki] section in your
+configuration file.
+
+A (perhaps) slightly-more-plausible use for this capability would be
+if you are an rpkid-running resource holder who wants for some reason
+to keep the resource-holding side of your operation completely
+separate from the rpkid-running side of your operation.  This is
+essentially the pure-hosting model, just with an internal hosted
+entity within a different part of your own organization.
+
+DATA YOU NEED FROM YOUR RPKI PARENT AND PUBLICATION SERVICE
+
+In order to connect to your RPKI parent, you will need to supply your
+BPKI trust anchor to your parent and obtain four pieces of data from
+your parent.
+
+Assuming that you are using something resembling the default
+configuration, your BPKI trust anchor will be bpki.myrpki/ca.cer.
+This is an OpenSSL "PEM" format file.  You will need to provide this
+to your RPKI parent.
+
+The data you need from your parent are:
+
+- The service URL for your entry point into your parent's rpkid.
+  Typically this will be a URL of the form:
+
+  https://example.org:port/up-down/parenthandle/myhandle
+
+  where "example.org" and "port" are the DNS name and TCP port of your
+  parent's rpkid service, "parenthandle" is your parent's name
+  (handle) for itself, and "myhandle" is your parent's name (handle)
+  for you;
+
+- Your parent's BPKI trust anchor for its resource-holding persona
+  (the entity represented by "parenthandle", above);
+
+- Your parent's BPKI trust anchor for daemons it operates; and
+
+- The handle by which your parent refers to you in its database,
+  generally the same as "myhandle" in the service URL.
+
+The need for two separate BPKI trust anchors for your parent is due to
+a limitation of the HTTPS protocol; recent extensions to TLS provide a
+way to work around this limitation, but at this point in time rpkid
+can't assume support for the TLS extension in question.  Roughly
+speaking, the first BPKI trust anchor corresponds to the your parent
+as a resource-holding entity, while the second corresponds to your
+parent as an rpkid-operating entity.
+
+These four data correspond, in order, to the second, third, fourth,
+and fifth columns in your parents.csv file.  In most cases you will
+have only one parent, so there will be only one line in that file.
+
+The first field in the parents.csv file is your name for your parent,
+which can be any name you like so long as it doesn't conflict with
+your name for another parent.
+
+The sixth field in the parents.csv file determines the base rsync URI
+for objects signed by certificates issued by this parent.  If you are
+using an external publication service (recommended), your parent must
+supply this URI as well; a typical value would be
+rsync://example.org/Dad/Me/ or rsync://example.org/Grandma/Dad/Me/.
+
+If you are running your own copy of pubd, this URI should point to the
+directory that corresponds to the publication-base setting in the
+[pubd] section of your configuration file.
+
+If you are using an external publication service (which might be your
+parent, grandparent, or any ancestor all the way up to the root), your
+publication service will also need to tell you:
+
+- The service URL for the publication service (pubd_base parameter in
+  [myirbe] section of your configuration file);
+
+- The publication service's name for you (repository_handle field in
+  [myrpki] section of your configuration file); and
+
+- The BPKI trust anchor for the publication service
+  (repository_bpki_certificate field in [myrpki] section of your
+  configuration file).
+
+Note that the first of these three parameters only applies if you are
+running rpkid, while the second and third apply even if your resources
+are hosted on somebody else's rpkid.  In effect, this means that all
+the entities sharing a single rpkid must also share a single
+publication service.  This is a restriction of the myrpki/myirbe
+software, not rpkid itself, so it could be removed if there were a
+strong need to do so, but given that each additional publication
+service imposes a small additional burden on every relying party in
+the world, we do not view this restriction as a problem.
+
+DATA YOU NEED TO GIVE YOUR RPKI CHILDREN AND USERS OF YOUR PUBLICATION SERVICE
+
+First, read the previous section describing what children and
+publication clients expect to receive.
+
+- The service URL for your rpkid will be an HTTPS URL of the form 
+
+  https://example.org:port/up-down/yourhandle/childhandle
+
+  where "example.org" and "port" are the DNS name and TCP port of your
+  rpkid service ([rpkid] section of your configuration file),
+  "yourhandle" is the handle parameter from the [myrpki] section of
+  your configuration file, and "childhandle" is this child's handle as
+  it appears in the first columns of your children.csv, asns.csv, and
+  prefixes.csv files;
+
+- The BPKI trust anchor for your resource-holding persona is your
+  bpki.myrpki/ca.cer;
+
+- The BPKI trust anchor for daemons you operate is your
+  bpki.myirbe/ca.cer; and
+
+- The handle by which you refer to your child is the same as
+  "childhandle", above.
+
+If you are operating a publication service, you will also need to
+supply:
+
+- Your pubd service URL, which will be an HTTPS URL of the form
+
+  https://example.org:port/
+
+  where "example.org" and "port" are the server-host and server-port
+  parameters from the [pubd] section of your configuration file;
+
+- Your name for this publication client, which is the first column of
+  your pubclients.csv file (note that this can be a structured name
+  using "/" characters as a hierarchy delimiter); and
+
+- The BPKI trust anchor for the daemons you operate
+  (bpki.myirbe/ca.cer).
+
+Note that, if you are operating pubd, it's best for relying parties if
+your children's publication points are underneath yours within the
+publication hierarchy, to allow rsync to check for updates as
+efficiently as possible.  pubd's support for hierarchical client
+handles is intended to simplify this: if you have a child Alice, who
+has children Bob and Bill, and you, your children, and your
+grandchildren will all be using your publication service, you might
+assign <client_handle> and <sia_base> parameters (first and third
+fields in pubclients.csv) as follows:
+
+Me		rsync://rpki.example.org/Me/
+Me/Alice	rsync://rpki.example.org/Me/Alice/
+Me/Alice/Bob	rsync://rpki.example.org/Me/Alice/Bob/
+Me/Alice/Bill	rsync://rpki.example.org/Me/Alice/Bill/
+
+Note that you will need trust anchors for your children and any
+publication clients.  In both cases the trust anchor you need is the
+child's or client's resource-holding BPKI trust anchor
+(bpki.myrpki/ca.cer); who operates the rpkid that host your children
+or publication clients is not strictly relevant to the authorization
+model, what matters is who holds the resources and is authorized to
+request and publish RPKI data derived from them.
+
+TROUBLESHOOTING
+
+If you run into trouble setting up this package, the first thing to do
+is categorize the kind of trouble you are having.  If you've gotten
+far enough to be running the daemons, check their log files.  If
+you're seeing Python exceptions, read the error messages.  If you're
+getting TLS errors, check to make sure that you're using all the right
+BPKI certificates and service contact URLs.
+
+TLS configuration errors are, unfortunately, notoriously difficult to
+debug, because connections due to misconfiguration usually fail early,
+deep in the guts of the OpenSSL TLS code, where there isn't enough
+application context available to provide useful error messages.
+
+If you've completed the steps above, everything appears to have gone
+OK, but nothing seems to be happening, the first thing to do is check
+the logs to confirm that nothing is actively broken.  rpkid's log
+should include messages telling you when it starts and finishes its
+internal "cron" cycle.  It can take several cron cycles for resources
+to work their way down from your parent into a full set of
+certificates and ROAs, so have a little patience.  rpkid's log should
+also include messages showing every time it contacts its parent(s) or
+attempts to publish anything.
+
+rcynic in fully verbose mode provides a fairly detailed explanation of
+what it's doing and why objects that fail have failed.
+
+You can use rsync (sic) to examine the contents of a publication
+repository one directory at a time, without attempting validation, by
+running rsync with just the URI of the directory on its command line:
+
+  $ rsync rsync://rpki.example.org/where/ever/
+
+[Maybe there should be something here explaining how to use
+irbe_cli.py for debugging, but the syntax is fairly obscure as it's
+just a command line interface to the left-right and publication
+protocols -- almost certainly want a friendlier tool for
+troubleshooting.]
+
+KNOWN ISSUES
+
+The lxml package provides a Python interface to the Gnome libxml2 and
+libxslt C libraries.  This code has been quite stable for several
+years, but initial testing with lxml compiled and linked against a
+newer version of libxml2 ran into problems (specifically, gratuitous
+RelaxNG schema validation failures).  libxml2 2.7.3 worked; libxml2
+2.7.5 did not work on the test machine in question.  Reverting to
+libxml2 2.7.3 fixed the problem.  Rewriting the two lines of Python
+code that were triggering the lxml bug appears to have solved the
+problem, so the code now works properly with libxml 2.7.5, but if you
+start seeing weird XML validation failures, it might be another
+variation of this lxml bug.
+
+An earlier version of this code ran into problems with what appears to
+be an implementation restriction in the the GNU linker ("ld") on
+64-bit hardware, resulting in obscure build failures.  The workaround
+for this required use of shared libraries and is somewhat less
+portable than the original code, but without it the code simply would
+not build in 64-bit environments with the GNU tools.  The current
+workaround appears to behave properly, but the workaround requires
+that the pathname to the RFC-3779-aware OpenSSL shared libraries be
+built into the _POW.so Python extension module.  At the moment, in the
+absence of "make install" targets for the Python code and libraries,
+this means the build directory; eventually, once we're using autoconf
+and installation targets, this will be the installation directory.  If
+necessary, you can override this by setting the LD_LIBRARY_PATH
+environment variable, see the ld.so man page for details.  This is a
+relatively minor variation on the usual build issues for shared
+libraries, it's just annoying because shared libraries should not be
+needed here and would not be if not for this GNU linker issue.
+
+
+
+Sketch towards a simple description of the BPKI (sic).
+
+This started out as notes to myself during a redesign, and badly needs
+rewriting.
+
+Hosted (myrpki) entity needs:
+
+- Self-signed BPKI root (doesn't really need to be self-signed, nobody
+  else will care, but self-signed is simplest for our purposes).  This
+  is what we've been calling the "self" cert in testbed.py.
+
+- BSC EE issued by self-signed root.
+
+- Cross-certs of every foreign entity (parent, child, or pubd): these
+  are CA certs with pathLenConstraint 0.  Input for this cross-cert is
+  self-signed (or whatever) from foreign entity, output is
+  pathLenConstraint 0 CA cert issued by myrpki entity's own
+  self-signed root.
+
+Hosting rpkid (myirbe) needs:
+
+- Self-signed BPKI root
+
+- BSC EE certs for rpkid, irdbd, irbe_cli, etc
+
+- For each hosted entity (including self-hosting):
+
+  Cross-cert of hosted entity's root, issued by rpkid root: CA cert
+  with pathLenConstraint 1
+
+  In theory that's all that's required, everything else is handled
+  through the hosted entity's cert chain.
+
+pubd needs:
+
+- Self signed root (might share with rpkid but let's keep it separate
+  conceptually)
+
+- BSC EE certs for pubd and irbe_cli
+
+- For each client entity of pubd:
+
+  Cross-cert of client entity's self cert (pathLenConstraint 0).
+
+  This should allow pubd to verify clients' BSC EE certs without
+  getting into transitive CA relationships.
+
+rootd (when applicable at all) needs:
+
+- Self-signed root
+
+- BSC EE cert for talking up-down (server) with one and only child
+
+- Cross-cert (pathLenConstraint 0) of one and only child's self cert.

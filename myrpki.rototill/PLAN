@@ -1,0 +1,132 @@
+-*- Text -*- 
+$Id$
+
+plan for new myrpki setup tools.  need better name for them, among
+other things.
+
+- dig out old proposed better names for myrpki and myirbe, use those.
+  bpki.myrpki => bpki.resources (or perhaps bpki/resources)
+  bpki.myirbe => bpki.servers
+
+  bpki.resources is used for tls client and all cms in up-down and
+  object publication.
+
+  bpki.servers is used for all tls server certs, and is also used for
+  tls client and all cms in left-right and publication control.
+
+  had proposed new names for .py scripts, dig those out but will also
+  be creating a bunch of new scripts here to confuse the issue.
+
+- for the moment i'm completely ignoring security of the new setup
+  protcol.  this clearly will not fly even in the short run, but let's
+  start by figuring out who needs to do what to whom before worrying
+  about how to prove that everybody is who they claim to be.
+
+- need a script to create new self (resource holding identity).  this
+  creates bpki.resources, takes that and [myrpki]handle variable,
+  packages that as an xml blob.
+
+- send self xml blob to parent, current theory seems to be upload to a
+  web form.  parent responds with a lot of the stuff currently in
+  parents.csv, and perhaps also with a hint about where to publish,
+  all packaged as an xml blob.  well, maybe (also?) a link to
+  publication service that i can click on?
+
+  current fields in parents.csv:
+
+  # Syntax: <parent_handle> <service_uri> <cms_bpki_cert_filename> <https_bpki_cert_filename> <myhandle> <sia_base>
+
+  <parent_handle> is a private matter, that probably turns into name
+  of the parent xml blob when i store it on disk, nobody else's
+  business what i call it
+
+  <service_uri> and <myhandle> are supplied by parent, based on
+  whatever name parent uses for itself and what name it uses for me.
+  i've told it what i call myself, but parent probably has its own
+  name for me.
+
+  <cms_bpki_cert_filename> and <https_bpki_cert_filename> parent just
+  supplies, nothing complex there (well, except for boostrap process
+  for rootd, but that's a separate mess).
+
+  <sia_base> still makes my head hurt.  not just me.
+
+- also send self xml blob to hosting, who may or may not be another
+  aspect of myself.  hosting entity supplies (new? update of mine?)
+  xml blob containing bpki.servers and rpkid service url
+  ([myirbe]rpkid_base url value).  will need to supply all of this to
+  any children.
+
+  [myirbe]pubd_base makes my head hurt.  why is <sia_base> in
+  parents.csv while pubd_base is in [myirbe] ?  gah....  along with
+  everything else, this seems like really weird db normalization.
+
+  kind of seems like <sia_base> goes with [myirbe]pubd_base and both
+  really need to be supplied by resource holder via negotiation with a
+  publication service.
+
+- a lot of the data for rpkid and pubd operator can be pulled from
+  config file, no need for separate configuration.  perhaps in this
+  brave new world we lock people using this ui into one big config
+  file for everything so we can avoid making them type everything
+  three times?  still some icky stuff with [rpkid], [irdbd], etc
+  sections linking to each other, not immediately obvious how to fix
+  that without losing generality in core daemons, but maybe inspect
+  these sections again and there will be some simple approach.
+
+- when answering setup request from child, we need to save xml blob
+  they sent us as replacement for a line that's now in children.csv.
+  well, but we also need expiration date, how fun.
+
+  # Syntax: <child_handle> <validitydate> <bpki_cert_filename>
+
+  <child_handle> becomes name of xml blob file: children/foo.xml or
+  whatever.  it's a private matter except that we have to tell the
+  child what we picked so they can use it in up-down protocol.  this
+  same name goes into service url we cons up for this child.
+
+  <validitydate> we need to deduce, invent, or look up, somehow.  in
+  real production we would have this on file as it's tied to contract
+  expiration.  in testing we've just been saying "one year from
+  today".
+
+  <bpki_cert_filename> is the child's bpki.resources cert, which they
+  just handed us, yay.
+
+- when answering setup request from publication client, we need to
+  save xml blob, same as parent saving child.
+
+  # Syntax: <client_handle> <bpki_cert_filename> <sia_base>
+
+  <client_handle> is what we call this client, name of xml blob file
+  we save, we get to chose it but we have to tell client what we chose
+  so they can use it.  this same name goes into service url we cons up
+  for this client.
+  
+  <bpki_cert_filename> is the client's bpki.resources cert, which they
+  just handed us, yay.
+
+  <sia_base> is making my head hurt yet again.  this time it is what
+  we will allow this client to use, so it'd better not conflict with
+  any other publication client.  oh, wait, i said this was zero
+  security at the moment, ok.
+
+- i should write converters from the current parents.csv,
+  children.csv, and pubclients.csv into the new format, both to
+  simplify migration and also as a clue as to what i've forgotten.
+
+- the above story is weak on publication setup.  among other things,
+  the linkage between parent and repository that publishes things that
+  come from classes derived from that parent is weak, perhaps because
+  that linkage doesn't make any particular sense outside of rpkid's
+  object model. the real restriction in rpkid is that all the resource
+  classes derived from a single parent object share a repository
+  object.
+
+- oh yeah, and, unrelated to any of the above, i should check the
+  syntax restrictions on up-down resource class names, and perhaps
+  replace the numeric (last vestige of sql-derived identifiers)
+  resource class names we're using with resource class names extruded
+  from irdb.  which might involve hacking left-right protocol, and
+  might create a uniqueness problem when publishing children under
+  self, but would be nice to get rid of the sql-derived ids.

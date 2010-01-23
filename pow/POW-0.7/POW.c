@@ -34,15 +34,6 @@
 /*                                                                           */
 /*****************************************************************************/
 
-/*
- * There's some reference count cleanup code that does not make a lot
- * of sense to me.  Certainly some of the code dealing with reference
- * counts was just broken, but I'm leery of changing too much at once,
- * so stuff that's just weird is under a compile-time conditional so I
- * can back it out easily if changing it turns out to have been a mistake.
- */
-#define XXX_SRA_REFERENCE_COUNT_CLEANUP 1
-
 #include <Python.h>
 
 #include <openssl/opensslconf.h>
@@ -793,28 +784,8 @@ stack_to_tuple_helper(_STACK *sk, PyObject *(*handler)(void *))
 
  error:
 
-#if XXX_SRA_REFERENCE_COUNT_CLEANUP
-
   Py_XDECREF(obj);
   Py_XDECREF(result_list);
-
-#else
-
-  if (obj) {
-    Py_XDECREF(obj);
-  }
-
-  if (result_list) {
-    n = PyList_Size(result_list);
-    for (i = 0; i < n; i++) {
-      obj = PyList_GetItem(result_list, i);
-      Py_XDECREF(obj);
-    }
-    Py_XDECREF(result_list);
-  }
-
-#endif
-
   return NULL;
 }
 
@@ -2853,24 +2824,7 @@ x509_crl_object_helper_get_revoked(STACK_OF(X509_REVOKED) *revoked)
  error:
 
   Py_XDECREF(revoke_obj);
-
-#if XXX_SRA_REFERENCE_COUNT_CLEANUP
-
   Py_XDECREF(result_list);
-
-#else
-
-  if (result_list) {
-    inlist = PyList_Size(result_list);
-    for (i = 0; i < inlist; i++) {
-      item = PyList_GetItem(result_list, i);
-      Py_XDECREF(item);
-    }
-    Py_XDECREF(result_list);
-  }
-
-#endif
-
   return NULL;
 }
 
@@ -4671,24 +4625,7 @@ ssl_object_get_ciphers(ssl_object *self, PyObject *args)
  error:
 
   Py_XDECREF(name);
-
-#if XXX_SRA_REFERENCE_COUNT_CLEANUP
-
   Py_XDECREF(list);
-
-#else
-
-  if (list) {
-    inlist = PyList_Size(list);
-    for (i = 0; i < inlist; i++) {
-      name = PyList_GetItem(list, i);
-      Py_XDECREF(name);
-    }
-    Py_XDECREF(list);
-  }
-
-#endif
-
   return NULL;
 }
 

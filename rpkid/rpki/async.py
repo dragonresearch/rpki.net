@@ -378,7 +378,7 @@ class gc_summary(object):
     for name, count in total:
       if count > self.threshold:
         rpki.log.debug("gc_summary: %8d %s" % (count, name))
-    rpki.log.debug("gc_summary: Tuple counts, length, and leading types in descending order")
+    rpki.log.debug("gc_summary: Tuple content type signature counts in descending order")
     for types, count in tuples:
       if count > self.threshold:
         rpki.log.debug("gc_summary: %8d (%s)" % (count, types))

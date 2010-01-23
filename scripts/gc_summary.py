@@ -23,6 +23,7 @@ class datapoint(object):
   outtype = os.getenv("OUTTYPE", "png")
   outname = os.getenv("OUTNAME", "")
   timefmt = os.getenv("TIMEFMT", "%T")
+  pretend = os.getenv("PRETEND_EVERYTHING_CHANGED", False)
 
   raw = []
   filenames = []
@@ -50,7 +51,10 @@ class datapoint(object):
       if i.key not in changed:
         changed[i.key] = set()
       changed[i.key].add(i.count)
-    changed = set(k for k, v in changed.iteritems() if len(v) > 10)
+    if cls.pretend:
+      changed = set(changed.iterkeys())
+    else:
+      changed = set(k for k, v in changed.iteritems() if len(v) > 10)
 
     if not changed:
       print "print 'No data yet, nothing to plot'"

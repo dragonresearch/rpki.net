@@ -24,6 +24,7 @@ class datapoint(object):
   outname = os.getenv("OUTNAME", "")
   timefmt = os.getenv("TIMEFMT", "%T")
   pretend = os.getenv("PRETEND_EVERYTHING_CHANGED", False)
+  threshold = int(os.getenv("THRESHOLD", "100"))
 
   raw = []
   filenames = []
@@ -54,7 +55,7 @@ class datapoint(object):
     if cls.pretend:
       changed = set(changed.iterkeys())
     else:
-      changed = set(k for k, v in changed.iteritems() if len(v) > 10)
+      changed = set(k for k, v in changed.iteritems() if max(v) - min(v) > cls.threshold)
 
     if not changed:
       print "print 'No data yet, nothing to plot'"
@@ -95,7 +96,7 @@ for filename in sys.argv[1:]:
       datapoint(filename = filename,
                 timestamp = line[0] + "T" + line[1],
                 process   = line[2],
-                count     = line[4],
+                count     = int(line[4]),
                 typesig   = " ".join(line[5:]))
  
 datapoint.plot()

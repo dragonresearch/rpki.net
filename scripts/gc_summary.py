@@ -52,6 +52,10 @@ class datapoint(object):
       changed[i.key].add(i.count)
     changed = set(k for k, v in changed.iteritems() if len(v) > 10)
 
+    if not changed:
+      print "print 'No data yet, nothing to plot'"
+      return
+
     print "set xdata time"
     print "set timefmt '%Y-%m-%dT%H:%M:%S'"
     print "set format x '%s'" % cls.timefmt
@@ -79,7 +83,6 @@ class datapoint(object):
     print "e"
     if not cls.outname:
       print "pause mouse any"
-
 
 for filename in sys.argv[1:]:
   for line in open(filename):

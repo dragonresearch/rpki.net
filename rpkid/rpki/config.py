@@ -188,6 +188,6 @@ class parser(object):
       pass
 
     try:
-      rpki.async.gc_summary(self.getint("gc_summary"))
+      rpki.async.gc_summary(self.getint("gc_summary"), self.getint("gc_summary_threshold", 0))
     except ConfigParser.NoOptionError:
       pass

@@ -349,29 +349,38 @@ class gc_summary(object):
   Periodic summary of GC state, for tracking down memory bloat.
   """
 
-  def __init__(self, interval):
+  def __init__(self, interval, threshold = 0):
     if isinstance(interval, (int, long)):
       interval = rpki.sundial.timedelta(seconds = interval)
     self.interval = interval
+    self.threshold = threshold
     self.timer = timer(handler = self.handler)
     self.timer.set(self.interval)
 
   def handler(self):
     rpki.log.debug("gc_summary: Running gc.collect()")
     gc.collect()
-    rpki.log.debug("gc_summary: Summarizing")
+    rpki.log.debug("gc_summary: Summarizing (threshold %d)" % self.threshold)
     total = {}
+    tuples = {}
     for g in gc.get_objects():
-      t = type(g).__name__
-      if t in total:
-        total[t] += 1
-      else:
-        total[t] = 1
+      k = type(g).__name__
+      total[k] = total.get(k, 0) + 1
+      if isinstance(g, tuple):
+        k = ", ".join(type(x).__name__ for x in g)
+        tuples[k] = tuples.get(k, 0) + 1
     rpki.log.debug("gc_summary: Sorting result")
     total = total.items()
     total.sort(reverse = True, key = lambda x: x[1])
+    tuples = tuples.items()
+    tuples.sort(reverse = True, key = lambda x: x[1])
     rpki.log.debug("gc_summary: Object type counts in descending order")
     for name, count in total:
-      rpki.log.debug("gc_summary: %8d %s" % (count, name))
+      if count > self.threshold:
+        rpki.log.debug("gc_summary: %8d %s" % (count, name))
+    rpki.log.debug("gc_summary: Tuple counts, length, and leading types in descending order")
+    for types, count in tuples:
+      if count > self.threshold:
+        rpki.log.debug("gc_summary: %8d (%s)" % (count, types))
     rpki.log.debug("gc_summary: Scheduling next cycle")
     self.timer.set(self.interval)

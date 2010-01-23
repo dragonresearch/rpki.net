@@ -34,6 +34,15 @@
 /*                                                                           */
 /*****************************************************************************/
 
+/*
+ * There's some reference count cleanup code that does not make a lot
+ * of sense to me.  Certainly some of the code dealing with reference
+ * counts was just broken, but I'm leery of changing too much at once,
+ * so stuff that's just weird is under a compile-time conditional so I
+ * can back it out easily if changing it turns out to have been a mistake.
+ */
+#define XXX_SRA_REFERENCE_COUNT_CLEANUP 1
+
 #include <Python.h>
 
 #include <openssl/opensslconf.h>
@@ -378,6 +387,7 @@ docset_helper_add(PyObject *set, char *v)
   if (PyList_Append(set, value) != 0)
     goto error;
 
+  Py_XDECREF(value);
   return 1;
 
  error:
@@ -475,8 +485,8 @@ set_openssl_exception(PyObject *error_class, const char *msg)
 
   if (msg) {
     PyObject *s = Py_BuildValue("s", msg);
-    PyList_Append(errors, s);
-    Py_DECREF(s);
+    (void) PyList_Append(errors, s);
+    Py_XDECREF(s);
   }
 
   while ((err = ERR_get_error_line(&file, &line)) != 0) {
@@ -487,12 +497,12 @@ set_openssl_exception(PyObject *error_class, const char *msg)
                                 ERR_func_error_string(err),
                                 file,
                                 line);
-    PyList_Append(errors, t);
-    Py_DECREF(t);
+    (void) PyList_Append(errors, t);
+    Py_XDECREF(t);
   }
 
   PyErr_SetObject(error_class, PyList_AsTuple(errors));
-  Py_DECREF(errors);
+  Py_XDECREF(errors);
 }
 
 static void
@@ -604,9 +614,9 @@ X509_object_helper_set_name(X509_NAME *name, PyObject *name_sequence)
                                     strlen((char *) valueptr), -1, 0))
       lose("unable to add name entry");
 
-    Py_DECREF(pair);
-    Py_DECREF(type);
-    Py_DECREF(value);
+    Py_XDECREF(pair);
+    Py_XDECREF(type);
+    Py_XDECREF(value);
     pair = NULL;
     type = NULL;
     value = NULL;
@@ -699,7 +709,7 @@ X509_object_helper_get_name(X509_NAME *name, int format)
       no_entries = PyTuple_Size(result_list);
       for (j = 0; j < no_entries; j++) {
         py_value = PyTuple_GetItem(pair, i);
-        Py_DECREF(py_value);
+        Py_XDECREF(py_value);
       }
     }
   }
@@ -736,7 +746,7 @@ x509_helper_sequence_to_stack(PyObject *x509_sequence)
       if (!sk_X509_push(x509_stack, x509obj->x509))
         lose("Couldn't add X509 object to stack");
 
-      Py_DECREF(x509obj);
+      Py_XDECREF(x509obj);
       x509obj = NULL;
     }
   }
@@ -772,28 +782,38 @@ stack_to_tuple_helper(_STACK *sk, PyObject *(*handler)(void *))
     if (PyList_Append(result_list, obj) != 0)
       goto error;
 
+    Py_XDECREF(obj);
     obj = NULL;
   }
 
   result_tuple = PyList_AsTuple(result_list);
-  Py_DECREF(result_list);
+  Py_XDECREF(result_list);
 
-  return Py_BuildValue("O", result_tuple);
+  return result_tuple;
 
  error:
 
+#if XXX_SRA_REFERENCE_COUNT_CLEANUP
+
+  Py_XDECREF(obj);
+  Py_XDECREF(result_list);
+
+#else
+
   if (obj) {
-    Py_DECREF(obj);
+    Py_XDECREF(obj);
   }
 
   if (result_list) {
     n = PyList_Size(result_list);
     for (i = 0; i < n; i++) {
       obj = PyList_GetItem(result_list, i);
-      Py_DECREF(obj);
+      Py_XDECREF(obj);
     }
-    Py_DECREF(result_list);
+    Py_XDECREF(result_list);
   }
+
+#endif
 
   return NULL;
 }
@@ -2786,7 +2806,7 @@ x509_crl_object_set_revoked(x509_crl_object *self, PyObject *args)
     if (!X509_CRL_add0_revoked(self->crl, tmp_revoked))
       lose("could not add revokation to stack");
 
-    Py_DECREF(revoked);
+    Py_XDECREF(revoked);
     revoked = NULL;
   }
 
@@ -2803,7 +2823,6 @@ static PyObject *
 x509_crl_object_helper_get_revoked(STACK_OF(X509_REVOKED) *revoked)
 {
   int no_entries = 0, inlist = 0, i = 0;
-  X509_REVOKED *revoke_tmp = NULL;
   x509_revoked_object *revoke_obj = NULL;
   PyObject *item = NULL, *result_list = NULL, *result_tuple = NULL;
 
@@ -2816,32 +2835,41 @@ x509_crl_object_helper_get_revoked(STACK_OF(X509_REVOKED) *revoked)
     if ((revoke_obj = PyObject_New(x509_revoked_object, &x509_revokedtype)) == NULL)
       lose("could not allocate memory");
 
-    if ((revoke_tmp = sk_X509_REVOKED_value(revoked, i)) == NULL)
+    if ((revoke_obj->revoked = sk_X509_REVOKED_value(revoked, i)) == NULL)
       lose("could not get revocation");
-
-    revoke_obj->revoked = revoke_tmp;
 
     if (PyList_Append(result_list, (PyObject*) revoke_obj) != 0)
       goto error;
 
-    revoke_obj = NULL; revoke_tmp = NULL;
+    Py_XDECREF(revoke_obj);
+    revoke_obj = NULL;
   }
 
   result_tuple = PyList_AsTuple(result_list);
-  Py_DECREF(result_list);
+  Py_XDECREF(result_list);
 
-  return Py_BuildValue("O", result_tuple);
+  return result_tuple;
 
  error:
+
+  Py_XDECREF(revoke_obj);
+
+#if XXX_SRA_REFERENCE_COUNT_CLEANUP
+
+  Py_XDECREF(result_list);
+
+#else
 
   if (result_list) {
     inlist = PyList_Size(result_list);
     for (i = 0; i < inlist; i++) {
       item = PyList_GetItem(result_list, i);
-      Py_DECREF(item);
+      Py_XDECREF(item);
     }
-    Py_DECREF(result_list);
+    Py_XDECREF(result_list);
   }
+
+#endif
 
   return NULL;
 }
@@ -4433,7 +4461,7 @@ ssl_object_peer_certificate(ssl_object *self, PyObject *args)
   if (x509) {
     X509_free(x509_obj->x509);
     x509_obj->x509 = x509;
-    return Py_BuildValue("O", x509_obj);
+    return (PyObject *) x509_obj;
   }
   else {
     Py_XDECREF(x509_obj);
@@ -4634,20 +4662,32 @@ ssl_object_get_ciphers(ssl_object *self, PyObject *args)
       goto error;
     if (PyList_Append(list, name) != 0)
       goto error;
+    Py_XDECREF(name);
+    name = NULL;
     cipher = SSL_get_cipher_list(self->ssl, ++i);
   }
-  return Py_BuildValue("O", list);
+  return list;
 
  error:
+
+  Py_XDECREF(name);
+
+#if XXX_SRA_REFERENCE_COUNT_CLEANUP
+
+  Py_XDECREF(list);
+
+#else
 
   if (list) {
     inlist = PyList_Size(list);
     for (i = 0; i < inlist; i++) {
       name = PyList_GetItem(list, i);
-      Py_DECREF(name);
+      Py_XDECREF(name);
     }
-    Py_DECREF(list);
+    Py_XDECREF(list);
   }
+
+#endif
 
   return NULL;
 }
@@ -4711,7 +4751,7 @@ ssl_object_set_ciphers(ssl_object *self, PyObject *args)
       strcat(cipherstr, ":\0");
 
     strcat(cipherstr, PyString_AsString(cipher));
-    Py_DECREF(cipher);
+    Py_XDECREF(cipher);
     cipher = NULL;
   }
   SSL_set_cipher_list(self->ssl, cipherstr);
@@ -6859,7 +6899,7 @@ CMS_object_sign(cms_object *self, PyObject *args)
 
       assert_no_unhandled_openssl_errors();
 
-      Py_DECREF(crlobj);
+      Py_XDECREF(crlobj);
       crlobj = NULL;
     }
   }
@@ -8244,7 +8284,7 @@ pow_module_docset(PyObject *self, PyObject *args)
   docset_helper_add(docset, asymmetric_object_sign__doc__);
   docset_helper_add(docset, asymmetric_object_verify__doc__);
 
-  return Py_BuildValue("O", docset);
+  return docset;
 
  error:
 

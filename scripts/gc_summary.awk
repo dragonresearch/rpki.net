@@ -46,7 +46,9 @@ FILENAME != filename && filename {
 }
 
 FILENAME != filename {
+  print "#", FILENAME
   filename = FILENAME;
+  proc = "";
 }
 
 $6 == target && proc != $3 && proc {
@@ -58,6 +60,7 @@ $6 == target && proc != $3 {
 }  
 
 $6 == target {
+  print "#", $0;
   print $1 "T" $2, $5;
 }
 

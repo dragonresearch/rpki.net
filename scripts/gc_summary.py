@@ -16,7 +16,7 @@
 
 # Use gnuplot to graph interesting data from gc_summary lines in rpkid logs.
 
-import sys, os
+import sys, os, time
 
 class datapoint(object):
 
@@ -29,12 +29,13 @@ class datapoint(object):
   raw = []
   filenames = []
 
-  def __init__(self, filename, timestamp, process, count, typesig):
+  def __init__(self, filename, timestamp, process, count, typesig, line):
     self.filename = filename
     self.timestamp = timestamp
     self.process = process
     self.count = count
     self.typesig = typesig
+    self.line = line
     self.key = "%s %s" % (filename, typesig)
     self.raw.append(self)
     if filename not in self.filenames:
@@ -47,6 +48,7 @@ class datapoint(object):
   @classmethod
   def plot(cls):
 
+    print "# [%s] Looking for interesting records" % time.strftime("%T")
     changed = {}
     for i in cls.raw:
       if i.key not in changed:
@@ -58,9 +60,11 @@ class datapoint(object):
       changed = set(k for k, v in changed.iteritems() if max(v) - min(v) > cls.threshold)
 
     if not changed:
-      print "print 'No data yet, nothing to plot'"
+      print "# [%s] Apparently nothing worth reporting" % time.strftime("%T")
+      print "print 'Nothing to plot'"
       return
 
+    print "# [%s] Header" % time.strftime("%T")
     print "set xdata time"
     print "set timefmt '%Y-%m-%dT%H:%M:%S'"
     print "set format x '%s'" % cls.timefmt
@@ -70,6 +74,7 @@ class datapoint(object):
       print "set term png size 1024,1024"
     print "plot", ", ".join("'-' using 1:2 with linespoints title '%s'" % i for i in changed)
 
+    print "# [%s] Sorting" % time.strftime("%T")
     cls.raw.sort()
 
     key = None
@@ -83,20 +88,24 @@ class datapoint(object):
         print ""
       key = i.key
       proc = i.process
-      print "#", i.key
+      print "#", i.key, i.line
       print i.timestamp, i.count
     print "e"
     if not cls.outname:
       print "pause mouse any"
 
 for filename in sys.argv[1:]:
+  print "# [%s] Reading %s" % (time.strftime("%T"), filename)
   for line in open(filename):
-    line = line.split()
-    if line[3] == "gc_summary:" and line[4].isdigit() and line[5].startswith("(") and line[-1].endswith(")"):
-      datapoint(filename = filename,
-                timestamp = line[0] + "T" + line[1],
-                process   = line[2],
-                count     = int(line[4]),
-                typesig   = " ".join(line[5:]))
+    if "gc_summary:" in line:
+      word = line.split(None, 6)
+      if word[4].isdigit() and word[5].startswith("(") and word[5].endswith(")"):
+        datapoint(filename = filename,
+                  timestamp = word[0] + "T" + word[1],
+                  process   = word[2],
+                  count     = int(word[4]),
+                  typesig   = word[5],
+                  line      = line.strip())
  
+print "# [%s] Plotting" % time.strftime("%T")
 datapoint.plot()

@@ -279,8 +279,6 @@ class http_stream(asynchat.async_chat):
 
   def handle_close(self):
     self.log("Close event in HTTP stream handler")
-    self.timer.cancel()
-    self.timer.set_handler(None)
     asynchat.async_chat.handle_close(self)
 
   def send(self, data):
@@ -371,12 +369,13 @@ class http_stream(asynchat.async_chat):
       except POW.WantWriteError:
         self.retry_write = self.close
       except POW.SSLError, e:
-        self.log("socket shutdown threw %s, shutting down anyway" % e)
+        self.log("tls.shutdown() threw %s, shutting down anyway" % e)
         self.tls = None
     if self.tls is None:
-      self.log("TLS layer is done, closing underlying socket %r (connected %s accepting %s)" % (self.socket, self.connected, self.accepting))
+      self.log("TLS layer is done, closing socket")
+      self.timer.cancel()
+      self.timer.set_handler(None)
       asynchat.async_chat.close(self)
-      self.log("Closed underlying socket %r (connected %s accepting %s)" % (self.socket, self.connected, self.accepting))
 
   def log_cert(self, tag, x):
     if debug_tls_certs:

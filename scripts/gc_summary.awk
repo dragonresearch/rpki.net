@@ -26,6 +26,7 @@ BEGIN {
   print "set timefmt '%Y-%m-%dT%H:%M:%S'";
   #print "set format x '%d%b'";
   print "set format x '%T'";
+  print "set key right bottom";
   if (outname) {
     print "set terminal", outtype;
     print "set output '" outname "." outtype "'";

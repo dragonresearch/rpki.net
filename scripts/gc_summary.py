@@ -68,6 +68,7 @@ class datapoint(object):
     print "set xdata time"
     print "set timefmt '%Y-%m-%dT%H:%M:%S'"
     print "set format x '%s'" % cls.timefmt
+    print "set key right bottom"
     if cls.outname:
       print "set terminal", cls.outtype
       print "set output '%s.%s'" % (cls.outname, cls.outtype)

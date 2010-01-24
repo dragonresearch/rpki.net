@@ -361,9 +361,9 @@ class http_stream(asynchat.async_chat):
       try:
         if self.retry_read is None and self.retry_write is None:
           ret = self.tls.shutdown()
-          self.log("tls.shutdown() returned %s, force_shutdown %s" % (ret, force))
         else:
           ret = None
+        self.log("tls.shutdown() returned %s, force_shutdown %s" % (ret, force))
         if ret or force:
           self.tls = None
       except POW.WantReadError:
@@ -374,7 +374,9 @@ class http_stream(asynchat.async_chat):
         self.log("socket shutdown threw %s, shutting down anyway" % e)
         self.tls = None
     if self.tls is None:
+      self.log("TLS layer is done, closing underlying socket %r (connected %s accepting %s)" % (self.socket, self.connected, self.accepting))
       asynchat.async_chat.close(self)
+      self.log("Closed underlying socket %r (connected %s accepting %s)" % (self.socket, self.connected, self.accepting))
 
   def log_cert(self, tag, x):
     if debug_tls_certs:

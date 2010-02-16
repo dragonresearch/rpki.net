@@ -233,3 +233,49 @@ criterion is to minimize user confusion.
 
 comments welcome.   i may not get to them for a few weeks, as it's ski
 season :)
+
+
+
+To: RPKI Testbed <rpki@rpki.net>
+Subject: Re: renaming some of the obscure bits of myrpki
+From: Rob Austein <sra@hactrn.net>
+X-Original-To: sra@cyteen.hactrn.net
+Delivered-To: sra@cyteen.hactrn.net
+Date: Sun, 04 Oct 2009 16:34:57 -0400
+In-Reply-To: <m2eipknqxp.wl%randy@psg.com>
+User-Agent: Wanderlust/2.14.0 (Africa) Emacs/21.3 Mule/5.0 (SAKAKI)
+Mime-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Message-Id: <20091004203457.740F822807@thrintun.hactrn.net>
+
+briefly going back to the original topic of this thread (before randy
+hijacked it to beat me up about missing documentation :)
+
+At Sun, 04 Oct 2009 05:49:38 +0900, Randy Bush wrote:
+> 
+> >   bpki.myrpki/	=> bpki.resources/
+> >   bpki.myirbe/	=> bpki.daemons/
+> 
+> make sense
+> 
+> >   myrpki.py		=> update_resources.py
+> 
+> update which resources?  mine by fetching from parent?
+> 
+> >   myirbe.py		=> update_daemons.py
+> 
+> get new code from svn repository?
+
+how about:
+
+myrpki.py => configure_resources.py
+myirbe.py => configure_daemons.py
+
+?
+
+per yesterday's conversation, there are a couple of missing scripts,
+perhaps with names like:
+
+do_initial_setup.py
+run_servers.py
+

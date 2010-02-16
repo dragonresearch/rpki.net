@@ -130,3 +130,106 @@ other things.
   from irdb.  which might involve hacking left-right protocol, and
   might create a uniqueness problem when publishing children under
   self, but would be nice to get rid of the sql-derived ids.
+
+
+
+To: RPKI Testbed <rpki@rpki.net>
+Subject: plan for new rpki setup tools
+From: Rob Austein <sra@hactrn.net>
+X-Original-To: sra@cyteen.hactrn.net
+Delivered-To: sra@cyteen.hactrn.net
+Date: Sat, 30 Jan 2010 02:00:02 -0500
+Mime-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Message-Id: <20100130070003.7706715F382@angband.hactrn.net>
+
+per findings of the tokyo rpki workshop, here's an outline of the
+current plan for revised setup tools for the rpki code.
+
+step 1: user run a new "initialize" script.  this reads the .conf file
+        and creates the resource-holding "self" bpki identity (what
+        we've been calling bpki.myrpki/ca.cer, although that name
+        should change and the user shouldn't need to know it anymore).
+        if the .conf file says that this user will be running any
+        servers at all (rpkid, irdbd, pubd, rootd), this script also
+        creates what we've been calling bpki.myirbe/ca.cer and issues
+        bpki ee certificates for all the servers we will be running.
+        it bundles up the "self" identity (bpki.myrpki/ca.cer and the
+        "handle" value from the [myrpki] section of the .conf file) as
+        an xml blob, which it writes out to some filename (call it
+        me.xml for now).
+
+	the general idea here is to start with all the setup that we
+	can do based just on the .conf file without talking to anybody
+	else.
+
+step 2: user sends me.xml to parent, who saves it in a file
+        children/foo.xml (where foo is the parent's name for this
+        child).  parent also feeds this file and and parent's own
+        me.xml into another new script (call it "setup_child" for now,
+        since the parent uses it to set up its child).  this script
+        writes out a customized parent record (another xml blob)
+        tailored to this particular child (service url including
+        parent's and child's names, parent's rpkid server bpki cert,
+        etc -- most of the data that goes into a line in parents.csv
+        now).  this xml blob can (and usually does) also include
+        either an offer of publication service (if the parent runs
+        pubd and is willing to act as repository for this child) or a
+        hint pointing to some other repository (probably the one the
+        parent itself uses).  the distinction between offer and hint
+        here is that the parent can only offer a pubd server it runs;
+        for anything else it can only hint.  parent sends this xml
+        result blob back to child, who stores at in a parents/
+        directory with a name corresponding to the current
+        parent_handle (ie, the filename is the child's name for the
+        parent, eg, arin.xml).
+
+step 3: user sends me.xml to a publication service (probably the one
+        offered or hinted by the parent); publication service feeds
+        that and its own me.xml into yet another new script (call it
+        "setup_client") for now.  this script does essentially the
+        same for things for the publication service as the setup_child
+        script does for the parent: it generates a customized xml blob
+        to be returned to the client, telling the client what service
+        url, pubd bpki cert, etc to use when talking to this
+        repository.
+
+step 4: user sends all of the stuff collected so far to whatever
+        entity is going to host it (run rpkid for it), who then runs a
+        "setup_hosting" script; in the common case where this user
+        hosts itself, this just means that the user runs setup_hosting
+        for itself.  in either case, this fills in the last missing
+        bits (service url and bpki cert for children of this user to
+        use when talking to its rpkid, etc).   result of this is an
+        updated me.xml file.
+
+step 2 repeats for multiple parents.  in theory, step 3 could repeat
+for multiple publication services, in practice that's less likely
+
+after performing the above steps, the user should have all the data
+necessary to start running the current my{rpki,irbe} scripts.
+we'll probably want to integrate all off this a bit better with the
+current code (which will need some rewriting in any case).
+
+rootd is a special case, in this as in all else.  when we're running
+rootd, the initalize script should probably just create everything
+needed for rootd and for rpkid to know about rootd as its parent.
+rootd is always operated by the same entity as the rpkid that uses
+this rootd as its parent, so this is a bit tedious but should be
+straightforward.  similarly, i think it's ok for us to insist that the
+operator running rootd must also run its own pubd.
+
+the sequence of events in the numbered steps above matters: we have
+nothing to talk about until we create our own identity, and we don't
+know which publication service to talk to until we have talked to our
+parent.  it may not be necessary to postpone hosting setup until last,
+but it's probably harmless and may make it easier to merge all or part
+of this last step into the my{rpki,irbe} dialog.
+
+i don't really know yet whether all of the new scripts above are
+really new scripts or are calls to a smaller number of scripts with
+more arguments.  don't feel strongly about it, most important
+criterion is to minimize user confusion.
+
+comments welcome.   i may not get to them for a few weeks, as it's ski
+season :)

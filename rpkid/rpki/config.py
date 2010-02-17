@@ -33,7 +33,12 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import ConfigParser
+import ConfigParser, os
+
+debug = False
+
+if debug:
+  import rpki.log
 
 class parser(object):
   """
@@ -41,7 +46,8 @@ class parser(object):
 
   Read config file and set default section while initializing parser object.
 
-  Support for OpenSSL-style subscripted options.
+  Support for OpenSSL-style subscripted options and a limited form of
+  OpenSSL-style indirect variable references (${section::option}).
 
   get-methods with default values and default section name.
   """
@@ -95,36 +101,60 @@ class parser(object):
     matches.sort()
     return [match[1] for match in matches]
 
-  def _get_wrapper(self, method, section, option, default):
-    """
-    Wrapper method to add default value and default section support to
-    ConfigParser methods.
-    """
-    if section is None:
-      section = self.default_section
-    #print "[Looking for option %r in section %r of %r]" % (option, section, self.filename)
-    if default is None or self.cfg.has_option(section, option):
-      return method(section, option)
-    else:
-      return default
-
   def get(self, option, default = None, section = None):
     """
     Get an option, perhaps with a default value.
     """
-    return self._get_wrapper(self.cfg.get, section, option, default)
+    if section is None:
+      section = self.default_section
+    if default is not None and not self.cfg.has_option(section, option):
+      return default
+    val = self.cfg.get(section, option)
+    while True:
+      if debug:
+        rpki.log.debug("++ [%s]%s = %s" % (section, option, val))
+      head, sep, tail = val.partition("${")
+      if not sep and not tail:
+        return val
+      name, sep, tail = tail.partition("}")
+      if not name or not sep:
+        raise ValueError, "Couldn't parse indirect reference: %s" % val
+      section, sep, option = name.partition("::")
+      if not option or not section or not sep:
+        raise ValueError, "Couldn't parse indirect reference: %s" % val
+      if section == "ENV":
+        newval = head + os.getenv(option, "") + tail
+      else:
+        newval = head + self.cfg.get(section, option) + tail
+      if val == newval:
+        raise ValueError, "Looping indirect reference: %s" % val
+      val = newval
+      if debug:
+        rpki.log.debug("++ => %s" % val)
 
   def getboolean(self, option, default = None, section = None):
     """
     Get a boolean option, perhaps with a default value.
     """
-    return self._get_wrapper(self.cfg.getboolean, section, option, default)
+    v = self.get(option, default, section)
+    if isinstance(v, str):
+      v = v.lower()
+      if v not in self.cfg._boolean_states:
+        raise ValueError, "Not a boolean: %s" % v
+      v = self.cfg._boolean_states[v]
+    return v
 
   def getint(self, option, default = None, section = None):
     """
     Get an integer option, perhaps with a default value.
     """
-    return self._get_wrapper(self.cfg.getint, section, option, default)
+    return int(self.get(option, default, section))
+
+  def getlong(self, option, default = None, section = None):
+    """
+    Get a long integer option, perhaps with a default value.
+    """
+    return long(self.get(option, default, section))
 
   def set_global_flags(self):
     """

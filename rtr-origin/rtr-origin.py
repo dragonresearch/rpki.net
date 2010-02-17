@@ -669,7 +669,7 @@ class pdu_channel(asynchat.async_chat):
   """
 
   def __init__(self, conn = None):
-    asynchat.async_chat.__init__(self, conn = conn)
+    asynchat.async_chat.__init__(self, conn)
     self.reader = read_buffer()
 
   def start_new_pdu(self):
@@ -877,7 +877,8 @@ class client_channel(pdu_channel):
     well, child will have exited already before this method is called,
     but we may need to whack it with a stick if something breaks.
     """
-    self.timer.cancel()
+    if self.timer is not None:
+      self.timer.cancel()
     if self.proc is not None and self.proc.returncode is None:
       try:
         os.kill(self.proc.pid, self.killsig)

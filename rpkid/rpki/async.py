@@ -110,7 +110,8 @@ class timer(object):
     if errback is not None:
       self.set_errback(errback)
     self.when = None
-    self.trace("Creating %r" % self)
+    if self.gc_debug:
+      self.trace("Creating %r" % self)
 
   def trace(self, msg):
     """
@@ -125,7 +126,8 @@ class timer(object):
     Set a timer.  Argument can be a datetime, to specify an absolute
     time, or a timedelta, to specify an offset time.
     """
-    self.trace("Setting %r to %r" % (self, when))
+    if self.gc_debug:
+      self.trace("Setting %r to %r" % (self, when))
     if isinstance(when, rpki.sundial.timedelta):
       self.when = rpki.sundial.now() + when
     else:
@@ -146,7 +148,8 @@ class timer(object):
     """
     Cancel a timer, if it was set.
     """
-    self.trace("Canceling %r" % self)
+    if self.gc_debug:
+      self.trace("Canceling %r" % self)
     try:
       self.queue.remove(self)
     except ValueError:

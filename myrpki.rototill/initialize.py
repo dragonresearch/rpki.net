@@ -12,9 +12,18 @@ Step 1: User runs a new "initialize" script.  This reads the .conf file
         an xml blob, which it writes out to some filename (call it
         me.xml for now).
 
-	The general idea here is to start with all the setup that we
-	can do based just on the .conf file without talking to anybody
-	else.
+        The general idea here is to start with all the setup that we
+        can do based just on the .conf file without talking to anybody
+        else.
+
+        rootd is a special case, in this as in all else.  when we're
+        running rootd, the initalize script should probably just
+        create everything needed for rootd and for rpkid to know about
+        rootd as its parent.  rootd is always operated by the same
+        entity as the rpkid that uses this rootd as its parent, so
+        this is a bit tedious but should be straightforward.
+        similarly, i think it's ok for us to insist that the operator
+        running rootd must also run its own pubd.
 
 $Id$
 
@@ -57,7 +66,20 @@ want_rpkid = cfg.getboolean("want_rpkid")
 want_pubd  = cfg.getboolean("want_pubd")
 want_rootd = cfg.getboolean("want_rootd")
 
+if want_rootd and (not want_pubd or not want_rpkid):
+  raise RuntimeError, "Can't run rootd unless also running rpkid and pubd"
+
 myrpki.openssl = cfg.get("openssl", "openssl")
+
+# Create directories for parents, children, and repositories.
+# Directory names should become configurable (later).
+
+for i in ("parents", "children", "repositories"):
+  if not os.path.exists(i):
+    print "Creating %s/" % i
+    os.makedirs(i)
+  else:
+    print "%s/ already exists" % i
 
 # First create the "myrpki" (resource holding) BPKI and trust anchor
 

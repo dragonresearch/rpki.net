@@ -33,12 +33,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import ConfigParser, os
-
-debug = False
-
-if debug:
-  import rpki.log
+import ConfigParser, os, re
 
 class parser(object):
   """
@@ -97,9 +92,22 @@ class parser(object):
     for key, value in self.cfg.items(section):
       s = key.rsplit(".", 1)
       if len(s) == 2 and s[0] == option and s[1].isdigit():
-        matches.append((int(s[1]), value))
+        matches.append((int(s[1]), self.get(option, section = section)))
     matches.sort()
     return [match[1] for match in matches]
+
+  _regexp = re.compile("\\${(.*?)::(.*?)}")
+
+  def _repl(self, m):
+    """
+    Replacement function for indirect variable substitution.
+    This is intended for use with re.subn().
+    """
+    section, option = m.group(1, 2)
+    if section == "ENV":
+      return os.getenv(option, "")
+    else:
+      return self.cfg.get(section, option)
 
   def get(self, option, default = None, section = None):
     """
@@ -107,30 +115,15 @@ class parser(object):
     """
     if section is None:
       section = self.default_section
+    if not self.cfg.has_option(section, option):
+      option = option.replace("-", "_")
     if default is not None and not self.cfg.has_option(section, option):
       return default
     val = self.cfg.get(section, option)
     while True:
-      if debug:
-        rpki.log.debug("++ [%s]%s = %s" % (section, option, val))
-      head, sep, tail = val.partition("${")
-      if not sep and not tail:
+      val, modified = self._regexp.subn(self._repl, val, 1)
+      if not modified:
         return val
-      name, sep, tail = tail.partition("}")
-      if not name or not sep:
-        raise ValueError, "Couldn't parse indirect reference: %s" % val
-      section, sep, option = name.partition("::")
-      if not option or not section or not sep:
-        raise ValueError, "Couldn't parse indirect reference: %s" % val
-      if section == "ENV":
-        newval = head + os.getenv(option, "") + tail
-      else:
-        newval = head + self.cfg.get(section, option) + tail
-      if val == newval:
-        raise ValueError, "Looping indirect reference: %s" % val
-      val = newval
-      if debug:
-        rpki.log.debug("++ => %s" % val)
 
   def getboolean(self, option, default = None, section = None):
     """

@@ -94,7 +94,7 @@ for o, a in opts:
   if o in ("-c", "--config"):
     cfg_file = a
 
-cfg = rpki.config.parser(cfg_file, "myirbe")
+cfg = rpki.config.parser(cfg_file, "myrpki")
 
 rootdb = MySQLdb.connect(db = "mysql", user = "root", passwd = getpass.getpass("Please enter your MySQL root password: "))
 

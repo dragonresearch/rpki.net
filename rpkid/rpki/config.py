@@ -115,8 +115,6 @@ class parser(object):
     """
     if section is None:
       section = self.default_section
-    if not self.cfg.has_option(section, option):
-      option = option.replace("-", "_")
     if default is not None and not self.cfg.has_option(section, option):
       return default
     val = self.cfg.get(section, option)

@@ -387,13 +387,13 @@ class allocation(object):
     if not self.is_hosted():
       r["irdbd",  "https-url"]     = "https://localhost:%d/" % self.irdbd_port
       r["irdbd",  "sql-database"]  = "irdb%d" % self.engine
-      r["myirbe", "irdbd_conf"]    = "myrpki.conf"
-      r["myirbe", "rpkid_base"]    = "https://localhost:%d/" % self.rpkid_port
+      r["myrpki", "irdbd_conf"]    = "myrpki.conf"
+      r["myrpki", "rpkid_base"]    = "https://localhost:%d/" % self.rpkid_port
       r["rpkid",  "irdb-url"]      = "https://localhost:%d/" % self.irdbd_port
       r["rpkid",  "server-port"]   = "%d" % self.rpkid_port
       r["rpkid",  "sql-database"]  = "rpki%d" % self.engine
-      r["myirbe", "want_pubd"]     = "true" if self.runs_pubd() else "false"
-      r["myirbe", "want_rootd"]    = "true" if self.is_root() else "false"
+      r["myrpki", "want_pubd"]     = "true" if self.runs_pubd() else "false"
+      r["myrpki", "want_rootd"]    = "true" if self.is_root() else "false"
       r["irbe_cli", "rpkid-url"]   = "https://localhost:%d/left-right" % self.rpkid_port
 
     if self.is_root():
@@ -415,8 +415,8 @@ class allocation(object):
     s = self
     while not s.runs_pubd():
       s = s.parent
-    r["myirbe", "pubd_base"]  = "https://localhost:%d/" % s.pubd_port
-    r["myirbe", "rsync_base"] = "rsync://localhost:%d/" % s.rsync_port
+    r["myrpki", "pubd_base"]  = "https://localhost:%d/" % s.pubd_port
+    r["myrpki", "rsync_base"] = "rsync://localhost:%d/" % s.rsync_port
     r["myrpki", "repository_bpki_certificate"] = s.path("bpki/myirbe/ca.cer")
     r["myrpki", "repository_handle"] = self.client_handle
 

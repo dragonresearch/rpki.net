@@ -56,7 +56,7 @@ for o, a in opts:
 
 names = ["irdbd", "rpkid"]
 
-cfg = rpki.config.parser(cfg_file, "myirbe")
+cfg = rpki.config.parser(cfg_file, "myrpki")
 
 if cfg.getboolean("want_pubd", False):
   names.append("pubd")

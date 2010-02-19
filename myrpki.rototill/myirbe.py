@@ -132,7 +132,7 @@ for o, a in opts:
     print __doc__
     sys.exit(0)
 
-cfg = rpki.config.parser(cfg_file, "myirbe")
+cfg = rpki.config.parser(cfg_file, "myrpki")
 
 cfg.set_global_flags()
 
@@ -145,7 +145,7 @@ want_rootd = cfg.getboolean("want_rootd", False)
 
 bpki_modified = False
 
-bpki = myrpki.CA(cfg_file, cfg.get("bpki_directory"))
+bpki = myrpki.CA(cfg_file, cfg.get("myirbe_bpki_directory"))
 bpki_modified |= bpki.setup(cfg.get("bpki_ta_dn",       "/CN=%s BPKI TA"  % handle))
 bpki_modified |= bpki.ee(   cfg.get("bpki_rpkid_ee_dn", "/CN=%s rpkid EE" % handle), "rpkid")
 bpki_modified |= bpki.ee(   cfg.get("bpki_irdbd_ee_dn", "/CN=%s irdbd EE" % handle), "irdbd")
@@ -208,14 +208,13 @@ cur = db.cursor()
 
 xmlfiles = []
 
-# If [myrpki] section is present in config file, run myrpki.py
-# internally, as a convenience, and include its output at the head of
-# our list of XML files to process.
+# If [myrpki] section includes an "xml_filename" setting, run
+# myrpki.py internally, as a convenience, and include its output at
+# the head of our list of XML files to process.
 
-if cfg.has_section("myrpki"):
+if cfg.has_option("xml_filename"):
   myrpki.main(("-c", cfg_file))
-  my_xmlfile = cfg.get("xml_filename", None, "myrpki")
-  assert my_xmlfile is not None
+  my_xmlfile = cfg.get("xml_filename")
   xmlfiles.append(my_xmlfile)
 
 # Add any other XML files specified on the command line

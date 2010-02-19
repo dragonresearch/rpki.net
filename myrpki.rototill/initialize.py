@@ -99,10 +99,12 @@ if want_rpkid or want_pubd or want_rootd:
   bpki_myirbe.setup(cfg.get("bpki_myirbe_ta_dn",
                             "/CN=%s BPKI Server Trust Anchor" % handle))
 
-  if want_rpkid:                        # rpkid implies irdbd
-
+  if want_rpkid:
+    
     bpki_myirbe.ee(cfg.get("bpki_rpkid_ee_dn",
                            "/CN=%s rpkid server certificate" % handle), "rpkid")
+
+    # rpkid implies irdbd
 
     bpki_myirbe.ee(cfg.get("bpki_irdbd_ee_dn",
                            "/CN=%s irdbd server certificate" % handle), "irdbd")
@@ -111,8 +113,10 @@ if want_rpkid or want_pubd or want_rootd:
     bpki_myirbe.ee(cfg.get("bpki_pubd_ee_dn",
                            "/CN=%s pubd server certificate" % handle), "pubd")
 
-  if want_rpkid or want_irdbd:          # Client cert for myirbe and irbe_cli
+  if want_rpkid or want_pubd:
     
+    # Client cert for myirbe and irbe_cli
+
     bpki_myirbe.ee(cfg.get("bpki_irbe_ee_dn",
                            "/CN=%s irbe client certificate" % handle), "irbe")
 
@@ -121,12 +125,19 @@ if want_rpkid or want_pubd or want_rootd:
     bpki_myirbe.ee(cfg.get("bpki_rootd_ee_dn",
                            "/CN=%s rootd server certificate" % handle), "rootd")
 
-# Now build the me.xml file (name should be configurable, and should
-# check for existing file so we don't overwrite, ... hack later ...).
+# Build the me.xml file.  Need to check for existing file so we don't
+# overwrite?  Worry about that later.
 
 e = Element("me", xmlns = myrpki.namespace, version = "1", handle = handle)
-
 myrpki.PEMElement(e, "bpki_ca_certificate", bpki_myrpki.cer)
+myrpki.etree_write(e, handle + ".xml")
 
-ElementTree(e).write("me.xml.tmp")
-os.rename("me.xml.tmp", "me.xml")
+# If we're running rootd, construct a fake parent to go with it.
+
+if want_rootd:
+  e = Element("parent", xmlns = myrpki.namespace, version = "1",
+              handle = handle,
+              service_uri = "https://localhost:%d/" % cfg.getint("rootd_server_port"))
+  myrpki.PEMElement(e, "bpki_resource_ca", bpki_myirbe.cer)
+  myrpki.PEMElement(e, "bpki_server_ca",   bpki_myirbe.cer)
+  myrpki.etree_write(e, "parents/rootd.xml")

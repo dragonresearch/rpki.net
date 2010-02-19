@@ -559,13 +559,15 @@ class CA(object):
 
     return xcert
 
-def extract_resources():
+def etree_write(e, filename):
   """
-  Extract RFC 3779 resources from a certificate.  Not written yet.
+  Write out an etree to a file, safely.
 
+  I still miss SYSCAL(RENMWO).
   """
-  raise NotImplementedError
 
+  ElementTree(e).write(filename + ".tmp")
+  os.rename(filename + ".tmp", filename)
 
 def main(argv = ()):
   """
@@ -638,10 +640,7 @@ def main(argv = ()):
   if bsc_req:
     PEMElement(e, "bpki_bsc_pkcs10", bsc_req)
 
-  # I still miss SYSCAL(RENMWO)
-
-  ElementTree(e).write(xml_filename + ".tmp")
-  os.rename(xml_filename + ".tmp", xml_filename)
+  etree_write(e, xml_filename)
 
 # When this file is run as a script, run main() with command line
 # arguments.  main() can't use sys.argv directly as that might be the

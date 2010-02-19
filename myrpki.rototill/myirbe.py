@@ -525,7 +525,9 @@ for xmlfile in xmlfiles:
 
   if bsc_req is not None:
     assert e is not None
-    e.text = bsc_req.get_Base64()
+    s = bsc_req.get_Base64()
+    s = "\n".join(s[64*i : 64*(i+1)] for i in xrange(1 + len(s)/64)).strip()
+    e.text = "\n" + s + "\n"
 
   # Something weird going on here with lxml linked against recent
   # versions of libxml2.  Looks like modifying the tree above somehow

@@ -117,10 +117,11 @@ class roa_request(object):
     """
     Generate XML element represeting representing this ROA request.
     """
-    SubElement(e, "roa_request",
-               asn = self.asn,
-               v4 = str(self.v4),
-               v6 = str(self.v6))
+    e = SubElement(e, "roa_request",
+                   asn = self.asn,
+                   v4 = str(self.v4),
+                   v6 = str(self.v6))
+    e.tail = "\n"
 
 class roa_requests(dict):
   """
@@ -217,6 +218,7 @@ class child(object):
                      asns = str(self.asns),
                      v4 = str(self.v4),
                      v6 = str(self.v6))
+      e.tail = "\n"
       if self.bpki_certificate:
         PEMElement(e, "bpki_certificate", self.bpki_certificate)
 
@@ -316,6 +318,7 @@ class parent(object):
                      myhandle = self.myhandle,
                      service_uri = self.service_uri,
                      sia_base = self.sia_base)
+      e.tail = "\n"
       if self.bpki_cms_certificate:
         PEMElement(e, "bpki_cms_certificate", self.bpki_cms_certificate)
       if self.bpki_https_certificate:
@@ -383,7 +386,11 @@ def PEMElement(e, tag, filename):
   while lines:
     if lines.pop(-1).startswith("-----END "):
       break
-  SubElement(e, tag).text = "".join(line.strip() for line in lines)
+  if e.text is None:
+    e.text = "\n"
+  se = SubElement(e, tag)
+  se.text = "\n" + "".join(lines)
+  se.tail = "\n"
 
 class CA(object):
   """

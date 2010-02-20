@@ -138,9 +138,16 @@ myrpki.etree_write(e, handle + ".xml")
 # If we're running rootd, construct a fake parent to go with it.
 
 if run_rootd:
+
   e = Element("parent", xmlns = myrpki.namespace, version = "1",
-              handle = handle,
+              parent_handle = "rootd", child_handle = handle,
               service_uri = "https://localhost:%d/" % cfg.getint("rootd_server_port"))
+
   myrpki.PEMElement(e, "bpki_resource_ca", bpki_myirbe.cer)
   myrpki.PEMElement(e, "bpki_server_ca",   bpki_myirbe.cer)
-  myrpki.etree_write(e, "parents/rootd.xml")
+
+  # Need to add repository offer/hint.
+
+  rootd_filename = "parents/rootd.xml"
+  print "Writing", rootd_filename
+  myrpki.etree_write(e, rootd_filename)

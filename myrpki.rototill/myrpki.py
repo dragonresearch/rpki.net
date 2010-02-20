@@ -573,6 +573,12 @@ def etree_write(e, filename):
   ElementTree(e).write(filename + ".tmp")
   os.rename(filename + ".tmp", filename)
 
+def tag(t):
+  """
+  Wrap an element name in the right XML namespace goop.
+  """
+  return "{" + namespace + "}" + t
+
 def main(argv = ()):
   """
   Main program.  Must be callable from other programs as well as being

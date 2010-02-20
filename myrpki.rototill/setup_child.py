@@ -67,19 +67,34 @@ bpki_myirbe = myrpki.CA(cfg_file, cfg.get("myirbe_bpki_directory"))
 
 for xml_file in argv:
 
+  # Deduce what we call this child from the filename.  This is a
+  # kludge, but I don't know how to do better (yet).
+  #
+  # Hmm.  Maybe we should make this script responsible for filing the
+  # new blob in the children/ directory, in which case we could make
+  # the default be to honor the handle specified in the XML, with a
+  # command line option to override.  This would probably require us
+  # to change this script to process only one child at a time, but
+  # that's no great loss.
+  #
+  # Blunder ahead for now, but that's probably the way to go.
+  #
   child_handle = os.splitext(os.path.basename(xml_file))[0]
 
-  raise NotImplemented
+  e = ElementTree(file = xml_file).getroot()
+  print "Child calls itself %r, we call it %r" % (e["handle"], child_handle)
 
   # ++ Cross certify child's cert
 
-  # ++ Write parent.xml tailored for this child
+  myrpki.fxcert(pem = e.findtext(myrpki.tag("bpki_ca_certificate")), path_restriction = 1)
 
   e = Element("parent", xmlns = myrpki.namespace, version = "1",
-              handle = child_handle,
+              parent_handle = handle, child_handle = child_handle,
               service_uri = "https://%s:%s/up-down/%s/%s" % (cfg.get("rpkid_server_host"), cfg.get("rpkid_server_port"), handle, child_handle))
 
   myrpki.PEMElement(e, "bpki_resource_ca", bpki_myrpki.cer)
   myrpki.PEMElement(e, "bpki_server_ca",   bpki_myirbe.cer)
+
+  # Need to add repository offer/hint.
 
   myrpki.etree_write(e, "parent.xml")

@@ -73,7 +73,7 @@ raise NotImplemented
 
 e = Element("parent", xmlns = myrpki.namespace, version = "1",
             handle = handle,
-            service_uri = "https://localhost:%d/" % cfg.getint("rootd_server_port"))
+            service_uri = "https://%s:%s/up-down/%s/%s" % (cfg.get("rpkid_server_host"), cfg.get("rpkid_server_port"), handle, child_handle))
 
 myrpki.PEMElement(e, "bpki_resource_ca", bpki_myrpki.cer)
 myrpki.PEMElement(e, "bpki_server_ca",   bpki_myirbe.cer)

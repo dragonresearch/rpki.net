@@ -140,8 +140,8 @@ myrpki.openssl = cfg.get("openssl", "openssl", "myrpki")
 
 handle = cfg.get("handle", cfg.get("handle", "Amnesiac", "myrpki"))
 
-want_pubd = cfg.getboolean("want_pubd", False)
-want_rootd = cfg.getboolean("want_rootd", False)
+run_pubd  = cfg.getboolean("run_pubd",  False)
+run_rootd = cfg.getboolean("run_rootd", False)
 
 bpki_modified = False
 
@@ -150,9 +150,9 @@ bpki_modified |= bpki.setup(cfg.get("bpki_ta_dn",       "/CN=%s BPKI TA"  % hand
 bpki_modified |= bpki.ee(   cfg.get("bpki_rpkid_ee_dn", "/CN=%s rpkid EE" % handle), "rpkid")
 bpki_modified |= bpki.ee(   cfg.get("bpki_irdbd_ee_dn", "/CN=%s irdbd EE" % handle), "irdbd")
 bpki_modified |= bpki.ee(   cfg.get("bpki_irbe_ee_dn",  "/CN=%s irbe EE"  % handle), "irbe")
-if want_pubd:
+if run_pubd:
   bpki_modified |= bpki.ee( cfg.get("bpki_pubd_ee_dn",  "/CN=%s pubd EE"  % handle), "pubd")
-if want_rootd:
+if run_rootd:
   bpki_modified |= bpki.ee( cfg.get("bpki_rootd_ee_dn", "/CN=%s rootd EE" % handle), "rootd")
 
 if bpki_modified:
@@ -182,7 +182,7 @@ call_rpkid = rpki.async.sync_wrapper(caller(
   server_cert = rpki.x509.X509(PEM_file = bpki.dir + "/rpkid.cer"),
   url         = rpkid_base + "left-right"))
 
-if want_pubd:
+if run_pubd:
 
   call_pubd = rpki.async.sync_wrapper(caller(
     proto       = rpki.publication,
@@ -309,7 +309,7 @@ for xmlfile in xmlfiles:
 
   # See what rpkid and pubd already have on file for this entity.
 
-  if want_pubd:
+  if run_pubd:
     client_pdus = dict((x.client_handle, x)
                        for x in call_pubd((rpki.publication.client_elt.make_pdu(action = "list"),))
                        if isinstance(x, rpki.publication.client_elt))
@@ -477,7 +477,7 @@ for xmlfile in xmlfiles:
   # Publication setup, used to be inferred (badly) from parent setup,
   # now handled explictly via yet another freaking .csv file.
 
-  if want_pubd:
+  if run_pubd:
 
     for client_handle, client_bpki_cert, client_base_uri in myrpki.csv_open(cfg.get("pubclients_csv", "pubclients.csv")):
 
@@ -510,7 +510,7 @@ for xmlfile in xmlfiles:
       assert not isinstance(r, rpki.left_right.report_error_elt)
 
   if pubd_query:
-    assert want_pubd
+    assert run_pubd
     pubd_reply = call_pubd(pubd_query)
     for r in pubd_reply:
       assert not isinstance(r, rpki.publication.report_error_elt)

@@ -101,7 +101,7 @@ rootdb = MySQLdb.connect(db = "mysql", user = "root", passwd = getpass.getpass("
 sql_setup("irdbd")
 sql_setup("rpkid")
 
-if cfg.getboolean("want_pubd", False):
+if cfg.getboolean("run_pubd", False):
   sql_setup("pubd")
 
 rootdb.close()

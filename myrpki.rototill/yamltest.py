@@ -392,8 +392,8 @@ class allocation(object):
       r["rpkid",  "irdb-url"]      = "https://localhost:%d/" % self.irdbd_port
       r["rpkid",  "server-port"]   = "%d" % self.rpkid_port
       r["rpkid",  "sql-database"]  = "rpki%d" % self.engine
-      r["myrpki", "want_pubd"]     = "true" if self.runs_pubd() else "false"
-      r["myrpki", "want_rootd"]    = "true" if self.is_root() else "false"
+      r["myrpki", "run_pubd"]      = "true" if self.runs_pubd() else "false"
+      r["myrpki", "run_rootd"]     = "true" if self.is_root() else "false"
       r["irbe_cli", "rpkid-url"]   = "https://localhost:%d/left-right" % self.rpkid_port
 
     if self.is_root():

@@ -58,10 +58,10 @@ names = ["irdbd", "rpkid"]
 
 cfg = rpki.config.parser(cfg_file, "myrpki")
 
-if cfg.getboolean("want_pubd", False):
+if cfg.getboolean("run_pubd", False):
   names.append("pubd")
 
-if cfg.getboolean("want_rootd", False):
+if cfg.getboolean("run_rootd", False):
   names.append("rootd")
 
 for name in names:

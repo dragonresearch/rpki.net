@@ -61,12 +61,12 @@ for o, a in opts:
 
 cfg = rpki.config.parser(cfg_file, "myrpki")
 
-handle     = cfg.get("handle")
-want_rpkid = cfg.getboolean("want_rpkid")
-want_pubd  = cfg.getboolean("want_pubd")
-want_rootd = cfg.getboolean("want_rootd")
+handle    = cfg.get("handle")
+run_rpkid = cfg.getboolean("run_rpkid")
+run_pubd  = cfg.getboolean("run_pubd")
+run_rootd = cfg.getboolean("run_rootd")
 
-if want_rootd and (not want_pubd or not want_rpkid):
+if run_rootd and (not run_pubd or not run_rpkid):
   raise RuntimeError, "Can't run rootd unless also running rpkid and pubd"
 
 myrpki.openssl = cfg.get("openssl", "openssl")
@@ -92,14 +92,14 @@ bpki_myrpki.setup(cfg.get("bpki_myrpki_ta_dn",
 # "myirbe" (server-operating) BPKI, its trust anchor, and EE certs for
 # each program we need to run.
 
-if want_rpkid or want_pubd or want_rootd:
+if run_rpkid or run_pubd or run_rootd:
 
   bpki_myirbe = myrpki.CA(cfg_file, cfg.get("myirbe_bpki_directory"))
 
   bpki_myirbe.setup(cfg.get("bpki_myirbe_ta_dn",
                             "/CN=%s BPKI Server Trust Anchor" % handle))
 
-  if want_rpkid:
+  if run_rpkid:
     
     bpki_myirbe.ee(cfg.get("bpki_rpkid_ee_dn",
                            "/CN=%s rpkid server certificate" % handle), "rpkid")
@@ -109,18 +109,18 @@ if want_rpkid or want_pubd or want_rootd:
     bpki_myirbe.ee(cfg.get("bpki_irdbd_ee_dn",
                            "/CN=%s irdbd server certificate" % handle), "irdbd")
 
-  if want_pubd:
+  if run_pubd:
     bpki_myirbe.ee(cfg.get("bpki_pubd_ee_dn",
                            "/CN=%s pubd server certificate" % handle), "pubd")
 
-  if want_rpkid or want_pubd:
+  if run_rpkid or run_pubd:
     
     # Client cert for myirbe and irbe_cli
 
     bpki_myirbe.ee(cfg.get("bpki_irbe_ee_dn",
                            "/CN=%s irbe client certificate" % handle), "irbe")
 
-  if want_rootd:
+  if run_rootd:
 
     bpki_myirbe.ee(cfg.get("bpki_rootd_ee_dn",
                            "/CN=%s rootd server certificate" % handle), "rootd")
@@ -134,7 +134,7 @@ myrpki.etree_write(e, handle + ".xml")
 
 # If we're running rootd, construct a fake parent to go with it.
 
-if want_rootd:
+if run_rootd:
   e = Element("parent", xmlns = myrpki.namespace, version = "1",
               handle = handle,
               service_uri = "https://localhost:%d/" % cfg.getint("rootd_server_port"))

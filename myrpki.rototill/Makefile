@@ -18,7 +18,7 @@ parse: myrpki.xml schema.py
 	python xml-parse-test.py
 
 clean:
-	rm -rf *.xml bpki.myrpki bpki.myirbe test screenlog.*
+	rm -rf *.xml bpki bpki.myrpki bpki.myirbe test screenlog.* .OpenSSL.whines.unless.I.set.this
 	python sql-cleaner.py
 
 format: myrpki.xml

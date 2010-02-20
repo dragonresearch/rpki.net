@@ -303,8 +303,8 @@ for xmlfile in xmlfiles:
     print "Nothing else I can do without a trust anchor for the entity I'm hosting."
     continue
 
-  rpkid_xcert = rpki.x509.X509(PEM_file = bpki.fxcert(handle + ".cacert.cer",
-                                                      hosted_cacert.get_PEM(),
+  rpkid_xcert = rpki.x509.X509(PEM_file = bpki.fxcert(pem = hosted_cacert.get_PEM(),
+                                                      filename = handle + ".cacert.cer",
                                                       path_restriction = 1))
 
   # See what rpkid and pubd already have on file for this entity.

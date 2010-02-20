@@ -65,17 +65,21 @@ myrpki.openssl = cfg.get("openssl", "openssl")
 bpki_myrpki = myrpki.CA(cfg_file, cfg.get("myrpki_bpki_directory"))
 bpki_myirbe = myrpki.CA(cfg_file, cfg.get("myirbe_bpki_directory"))
 
-raise NotImplemented
+for xml_file in argv:
 
-# ++ Cross certify child's cert
+  child_handle = os.splitext(os.path.basename(xml_file))[0]
 
-# ++ Write parent.xml tailored for this child
+  raise NotImplemented
 
-e = Element("parent", xmlns = myrpki.namespace, version = "1",
-            handle = handle,
-            service_uri = "https://%s:%s/up-down/%s/%s" % (cfg.get("rpkid_server_host"), cfg.get("rpkid_server_port"), handle, child_handle))
+  # ++ Cross certify child's cert
 
-myrpki.PEMElement(e, "bpki_resource_ca", bpki_myrpki.cer)
-myrpki.PEMElement(e, "bpki_server_ca",   bpki_myirbe.cer)
+  # ++ Write parent.xml tailored for this child
 
-myrpki.etree_write(e, "parent.xml")
+  e = Element("parent", xmlns = myrpki.namespace, version = "1",
+              handle = child_handle,
+              service_uri = "https://%s:%s/up-down/%s/%s" % (cfg.get("rpkid_server_host"), cfg.get("rpkid_server_port"), handle, child_handle))
+
+  myrpki.PEMElement(e, "bpki_resource_ca", bpki_myrpki.cer)
+  myrpki.PEMElement(e, "bpki_server_ca",   bpki_myirbe.cer)
+
+  myrpki.etree_write(e, "parent.xml")

@@ -58,6 +58,9 @@ for o, a in opts:
   elif o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
+if argv:
+  print __doc__
+  sys.exit(1)
 
 cfg = rpki.config.parser(cfg_file, "myrpki")
 

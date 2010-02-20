@@ -516,16 +516,20 @@ class CA(object):
       self.run_ca("-extensions", "ca_x509_ext_ee", "-in", req_file, "-out", cer_file)
 
     return req_file, cer_file
-
-  def fxcert(self, filename, cert, path_restriction = 0):
+    
+  def fxcert(self, pem, filename = None, path_restriction = 0):
     """
     Write PEM certificate to file, then cross-certify.
     """
-    fn = os.path.join(self.dir, filename)
-    f = open(fn, "w")
-    f.write(cert)
-    f.close()
-    return self.xcert(fn, path_restriction)
+    fn = os.path.join(self.dir, filename or "temp.%s.cer" % os.getpid())
+    try:
+      f = open(fn, "w")
+      f.write(pem)
+      f.close()
+      return self.xcert(fn, path_restriction)
+    finally:
+      if not filename and os.path.exists(fn):
+        os.unlink(fn)
 
   def xcert(self, cert, path_restriction = 0):
     """

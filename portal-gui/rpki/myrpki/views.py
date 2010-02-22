@@ -1,4 +1,4 @@
-from django.views.generic.create_update import create_object, update_object,
+from django.views.generic.create_update import create_object, update_object, \
 						delete_object
 from django.views.generic.list_detail import object_detail
 from django.contrib.auth.decorators import login_required
@@ -40,7 +40,14 @@ def dashboard( request ):
 
 @login_required
 def cert_add( request ):
+    # todo: enforce that the saved form points to this conf
     return create_object( request, form_class=forms.CertForm )
+
+@login_required
+def cert_view( request, id ):
+    handle = handle( request )
+    queryset = Cert.objects.filter( conf=handle )
+    return object_detail( queryset=queryset, object_id=id )
 
 @login_required
 def cert_edit( request, id ):

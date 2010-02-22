@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Confirm Delete Cert</h1>
+
+<p>You would like to delete the certificate named {{ object.name }}.
+<form action="" method="post">
+<input type="submit" value="Delete" />
+</form>
+{% endblock %}

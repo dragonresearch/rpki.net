@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Cert {{ cert.name }}</h1>
+
+<p>I dunno if this is interesting, but if it is:
+
+<pre>
+{{ cert.data }}
+</pre>
+
+{% endblock %}

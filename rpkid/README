@@ -13,19 +13,6 @@ $Revision$
 
 TO DO:
 
-      * Refactor rpkid code that interacts with publication daemon to
-	minimize number of round trips.	 Right now a number of
-	operations require far too many lock-step interactions with
-	pubd, which is both slow and error prone (due to the way it
-	complicates exception handling).   Basic model should be more
-	along the lines of staging up everything we need pubd to do as
-	one honking publication PDU, commit SQL, send publication
-	request, process any resulting exceptions, done.  Some high
-	level operations will still need to loop in order to keep the
-	number of outstanding publication operations down to something
-	manageable, but should be able to do much better than we do now.
-
-	STATUS: Not started.
 
       * Rework handling of surprising responses to up-down requests.
         Right now we get confused when we find that parent has issued
@@ -159,14 +146,6 @@ TO DO:
 	additional checks if needed.
 
 	STATUS: Trivial version (required path check) done.
-
-      * Deaddrop of incoming messages, for audit.  Absent a better
-	theory, steal existing tech for this: preface with minimal RFC
-	2822 header and drop it into a Maildir folder using built-in
-	Python Maildir library code, at which point it becomes somebody
-	else's problem.
-
-	STATUS: Not started
 
       * Investigate using EKU (RFC 3280 4.2.1.13) as an alternative to
 	wiring in BPKI EE certs for left-right protocol.

@@ -6,7 +6,7 @@ import lxml.etree
 ## Parsed RelaxNG left_right schema
 left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rnc 2995 2010-02-23 18:11:21Z sra $
+  $Id: left-right-schema.rnc 3000 2010-02-23 21:32:14Z sra $
   
   RelaxNG Schema for RPKI left-right protocol.
   
@@ -67,6 +67,9 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   <define name="query_elt" combine="choice">
     <ref name="list_published_objects_query"/>
   </define>
+  <define name="query_elt" combine="choice">
+    <ref name="list_received_resources_query"/>
+  </define>
   <!-- PDUs allowed in a reply -->
   <define name="reply_elt" combine="choice">
     <ref name="self_reply"/>
@@ -91,6 +94,9 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="list_published_objects_reply"/>
+  </define>
+  <define name="reply_elt" combine="choice">
+    <ref name="list_received_resources_reply"/>
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="report_error_reply"/>
@@ -893,24 +899,6 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <element name="list_received_resources">
       <ref name="tag"/>
       <ref name="self_handle"/>
-      <attribute name="asn">
-        <data type="positiveInteger"/>
-      </attribute>
-      <attribute name="ipv4">
-        <ref name="ipv4_list"/>
-      </attribute>
-      <attribute name="ipv6">
-        <ref name="ipv6_list"/>
-      </attribute>
-      <attribute name="uri">
-        <ref name="uri"/>
-      </attribute>
-      <attribute name="sia_uri">
-        <ref name="uri"/>
-      </attribute>
-      <attribute name="aia_uri">
-        <ref name="uri"/>
-      </attribute>
       <attribute name="notBefore">
         <data type="dateTime">
           <param name="pattern">.*Z</param>
@@ -921,6 +909,30 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
           <param name="pattern">.*Z</param>
         </data>
       </attribute>
+      <attribute name="uri">
+        <ref name="uri"/>
+      </attribute>
+      <attribute name="sia_uri">
+        <ref name="uri"/>
+      </attribute>
+      <attribute name="aia_uri">
+        <ref name="uri"/>
+      </attribute>
+      <optional>
+        <attribute name="asn">
+          <ref name="asn_list"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="ipv4">
+          <ref name="ipv4_list"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="ipv6">
+          <ref name="ipv6_list"/>
+        </attribute>
+      </optional>
     </element>
   </define>
   <!-- <report_error/> element -->

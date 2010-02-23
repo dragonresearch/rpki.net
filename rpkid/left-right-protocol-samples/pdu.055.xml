@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="US-ASCII"?>
 <!--Automatically generated, do not edit.-->
 <msg xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/" version="1" type="query">
-  <list_published_objects self_handle="42"/>
+  <list_received_resources self_handle="42"/>
 </msg>

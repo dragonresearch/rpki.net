@@ -24,6 +24,7 @@ query_elt |= repository_query
 query_elt |= list_roa_requests_query
 query_elt |= list_resources_query
 query_elt |= list_published_objects_query
+query_elt |= list_received_resources_query
 
 # PDUs allowed in a reply
 reply_elt |= self_reply
@@ -35,6 +36,7 @@ reply_elt |= list_resources_reply
 reply_elt |= list_roa_requests_reply
 reply_elt |= list_published_objects_reply
 reply_elt |= report_error_reply
+reply_elt |= list_received_resources_reply
 
 # Tag attributes for bulk operations
 tag = attribute tag { xsd:token {maxLength="1024" } }?
@@ -242,14 +244,14 @@ list_received_resources_query = element list_received_resources {
 
 list_received_resources_reply = element list_received_resources {
   tag, self_handle,
-  attribute asn { xsd:positiveInteger },
-  attribute ipv4 { ipv4_list },
-  attribute ipv6 { ipv6_list },
+  attribute notBefore { xsd:dateTime { pattern=".*Z" } },
+  attribute notAfter { xsd:dateTime { pattern=".*Z" } },
   attribute uri { uri },
   attribute sia_uri { uri },
   attribute aia_uri { uri },
-  attribute notBefore { xsd:dateTime { pattern=".*Z" } },
-  attribute notAfter { xsd:dateTime { pattern=".*Z" } }
+  attribute asn { xsd:positiveInteger }?,
+  attribute ipv4 { ipv4_list }?,
+  attribute ipv6 { ipv6_list }?
 }
 
 # <report_error/> element

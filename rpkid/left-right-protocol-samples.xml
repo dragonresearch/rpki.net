@@ -1067,6 +1067,33 @@
     <!-- === -->
 
     <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<list_received_resources self_handle="42"/>
+    </msg>
+    
+    <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
+	<list_received_resources self_handle="42"
+				 notBefore="2010-02-22T03:44:23Z"
+				 notAfter="2011-02-21T11:03:49Z"
+				 uri="rsync://arin.rpki.net/arin/1/Du4MhiSkjd_3bPL7c2trEkJBZ-U.cer"
+				 aia_uri="rsync://arin.rpki.net/arin/arin.cer"
+				 sia_uri="rsync://arin.rpki.net/arin/isc/ISC-94-Z/2/"
+				 asn="1280,3557"
+				 ipv4="149.20.0.0/16,192.5.4.0/23,204.152.184.0/21"/>
+	<list_received_resources self_handle="42"
+				 uri="rsync://arin.rpki.net/arin/1/uWqpa8GkcEDBZkEsmOEofeDKk9s.cer"
+				 notBefore="2010-02-22T03:44:20Z"
+				 notAfter="2011-02-21T11:03:49Z"
+				 aia_uri="rsync://arin.rpki.net/arin/arin.cer"
+				 sia_uri="rsync://arin.rpki.net/arin/isc/ISC-94/1/"
+				 asn="27318-27322,30122-30134,33071-33082,53459,393221"
+				 ipv4="192.158.248.0-192.158.252.255,192.228.80.0-192.228.92.255,199.6.0.0-199.6.14.255,199.254.27.0/24"
+				 ipv6="2001:4f8::/32,2001:500::/48,2001:500:2e::/47,2001:500:60::-2001:500:7c:ffff:ffff:ffff:ffff:ffff,2001:500:85::/48"/>
+    </msg>
+
+    
+    <!-- === -->
+
+    <msg version="1" type="query" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<list_published_objects self_handle="42"/>
     </msg>
     

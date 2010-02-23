@@ -234,6 +234,24 @@ list_published_objects_reply = element list_published_objects {
   base64
 }
 
+# <list_received_resources/> element
+
+list_received_resources_query = element list_received_resources {
+  tag, self_handle
+}
+
+list_received_resources_reply = element list_received_resources {
+  tag, self_handle,
+  attribute asn { xsd:positiveInteger },
+  attribute ipv4 { ipv4_list },
+  attribute ipv6 { ipv6_list },
+  attribute uri { uri },
+  attribute sia_uri { uri },
+  attribute aia_uri { uri },
+  attribute notBefore { xsd:dateTime { pattern=".*Z" } },
+  attribute notAfter { xsd:dateTime { pattern=".*Z" } }
+}
+
 # <report_error/> element
 
 error = xsd:token { maxLength="1024" }

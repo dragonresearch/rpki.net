@@ -63,8 +63,10 @@ if len(argv) != 1 or not os.path.exists(argv[0]):
 
 cfg = rpki.config.parser(cfg_file, "myrpki")
 
+if not cfg.getboolean("run_rpkid"):
+  raise RuntimeError, "Don't (yet) know how to set up child unless we run rpkid"
+
 my_handle = cfg.get("handle")
-run_rpkid = cfg.getboolean("run_rpkid")
 run_pubd  = cfg.getboolean("run_pubd")
 
 myrpki.openssl = cfg.get("openssl", "openssl")
@@ -87,13 +89,20 @@ myrpki.fxcert(pem = e.findtext(myrpki.tag("bpki_ca_certificate")), path_restrict
 
 e = Element("parent", xmlns = myrpki.namespace, version = "1",
             parent_handle = handle, child_handle = child_handle,
-            service_uri = "https://%s:%s/up-down/%s/%s" % (cfg.get("rpkid_server_host"),
+            service_url = "https://%s:%s/up-down/%s/%s" % (cfg.get("rpkid_server_host"),
                                                            cfg.get("rpkid_server_port"),
                                                            handle, child_handle))
 
 myrpki.PEMElement(e, "bpki_resource_ca", bpki_myrpki.cer)
 myrpki.PEMElement(e, "bpki_server_ca",   bpki_myirbe.cer)
 
-# Need to add repository offer/hint.
+if run_pubd:
+  SubElement(e, "repository", type = "offer",
+             service_url = "https://%s:%d/" % (cfg.get("pubd_server_host"),
+                                               cfg.get("pubd_server_port")))
+else:
+  print "Warning: I don't yet know how to do publication hints, only offers"
 
-myrpki.etree_write(e, "children/%s.xml" % child_handle)
+child_filename = "children/%s.xml" % child_handle
+print "Writing", child_filename
+myrpki.etree_write(e, child_filename)

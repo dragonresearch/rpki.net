@@ -141,13 +141,14 @@ if run_rootd:
 
   e = Element("parent", xmlns = myrpki.namespace, version = "1",
               parent_handle = "rootd", child_handle = handle,
-              service_uri = "https://localhost:%d/" % cfg.getint("rootd_server_port"))
+              service_url = "https://localhost:%s/" % cfg.get("rootd_server_port"))
 
   myrpki.PEMElement(e, "bpki_resource_ca", bpki_myirbe.cer)
   myrpki.PEMElement(e, "bpki_server_ca",   bpki_myirbe.cer)
 
-  # Need to add repository offer/hint.
-
+  SubElement(e, "repository", type = "offer",
+             service_url = "https://%s:%d/" % (cfg.get("pubd_server_host"),
+                                               cfg.get("pubd_server_port")))
   rootd_filename = "parents/rootd.xml"
   print "Writing", rootd_filename
   myrpki.etree_write(e, rootd_filename)

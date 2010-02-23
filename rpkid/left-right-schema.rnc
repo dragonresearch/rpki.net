@@ -35,8 +35,8 @@ reply_elt |= repository_reply
 reply_elt |= list_resources_reply
 reply_elt |= list_roa_requests_reply
 reply_elt |= list_published_objects_reply
-reply_elt |= report_error_reply
 reply_elt |= list_received_resources_reply
+reply_elt |= report_error_reply
 
 # Tag attributes for bulk operations
 tag = attribute tag { xsd:token {maxLength="1024" } }?
@@ -249,7 +249,7 @@ list_received_resources_reply = element list_received_resources {
   attribute uri { uri },
   attribute sia_uri { uri },
   attribute aia_uri { uri },
-  attribute asn { xsd:positiveInteger }?,
+  attribute asn { asn_list }?,
   attribute ipv4 { ipv4_list }?,
   attribute ipv6 { ipv6_list }?
 }

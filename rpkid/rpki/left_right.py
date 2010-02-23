@@ -997,6 +997,46 @@ class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
     r_pdu.obj = obj.get_Base64()
     return r_pdu
 
+class list_received_resources_elt(rpki.xml_utils.text_elt, left_right_namespace):
+  """
+  <list_received_resources/> element.
+  """
+
+  element_name = "list_received_resources"
+  attributes = ("self_handle", "tag",
+                "notBefore", "notAfter", "uri", "sia_uri", "aia_uri", "asn", "ipv4", "ipv6")
+
+  def serve_dispatch(self, r_msg, cb, eb):
+    """
+    Handle a <list_received_resources/> query.  The method name is a
+    misnomer here, there's no action attribute and no dispatch, we
+    just dump a bunch of data about every certificate issued to us by
+    one of our parents, then return.
+    """
+    for  parent in self_elt.serve_fetch_handle(self.gctx, None, self.self_handle).parents():
+      for ca in parent.cas():
+        ca_detail = ca.fetch_active()
+        if ca_detail is not None and ca_detail.latest_ca_cert is not None:
+          r_msg.append(self.make_reply(ca_detail.ca_cert_uri, ca_detail.latest_ca_cert))
+    cb()
+
+  def make_reply(self, uri, cert):
+    """
+    Generate one reply PDU.
+    """
+    resources = cert.get_3779resources()
+    return self.make_pdu(
+      tag = self.tag,
+      self_handle = self.self_handle,
+      notBefore = str(cert.getNotBefore()),
+      notAfter = str(cert.getNotAfter()),
+      uri = uri,
+      sia_uri = cert.get_SIA(),
+      aia_uri = cert.get_AIA(),
+      asn = resources.asn,
+      ipv4 = resources.v4,
+      ipv6 = resources.v6)
+
 class report_error_elt(rpki.xml_utils.text_elt, left_right_namespace):
   """
   <report_error/> element.

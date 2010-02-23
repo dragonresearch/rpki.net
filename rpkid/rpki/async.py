@@ -18,7 +18,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import asyncore, signal, traceback, gc
+import asyncore, signal, traceback, gc, sys
 import rpki.log, rpki.sundial
 
 ExitNow = asyncore.ExitNow
@@ -323,7 +323,8 @@ class sync_wrapper(object):
     raise ExitNow
 
   def eb(self, err):
-    self.err = err
+    exc_info = sys.exc_info()
+    self.err = exc_info if exc_info[1] is err else err
     raise ExitNow
 
   def __call__(self, *args, **kwargs):

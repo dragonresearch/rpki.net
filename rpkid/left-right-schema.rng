@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right-schema.rnc 2839 2009-10-27 18:53:00Z sra $
+  $Id: left-right-schema.rnc 2995 2010-02-23 18:11:21Z sra $
   
   RelaxNG Schema for RPKI left-right protocol.
   
@@ -874,6 +874,47 @@
         <ref name="uri"/>
       </attribute>
       <ref name="base64"/>
+    </element>
+  </define>
+  <!-- <list_received_resources/> element -->
+  <define name="list_received_resources_query">
+    <element name="list_received_resources">
+      <ref name="tag"/>
+      <ref name="self_handle"/>
+    </element>
+  </define>
+  <define name="list_received_resources_reply">
+    <element name="list_received_resources">
+      <ref name="tag"/>
+      <ref name="self_handle"/>
+      <attribute name="asn">
+        <data type="positiveInteger"/>
+      </attribute>
+      <attribute name="ipv4">
+        <ref name="ipv4_list"/>
+      </attribute>
+      <attribute name="ipv6">
+        <ref name="ipv6_list"/>
+      </attribute>
+      <attribute name="uri">
+        <ref name="uri"/>
+      </attribute>
+      <attribute name="sia_uri">
+        <ref name="uri"/>
+      </attribute>
+      <attribute name="aia_uri">
+        <ref name="uri"/>
+      </attribute>
+      <attribute name="notBefore">
+        <data type="dateTime">
+          <param name="pattern">.*Z</param>
+        </data>
+      </attribute>
+      <attribute name="notAfter">
+        <data type="dateTime">
+          <param name="pattern">.*Z</param>
+        </data>
+      </attribute>
     </element>
   </define>
   <!-- <report_error/> element -->

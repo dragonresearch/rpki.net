@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Certificates for {{ request.session.handle }}</h1>
+
+<p>
+<a href="add/">[add]</a>
+<p>
+<ul>
+{% for cert in cert_list %}
+<li><a href="{{ cert.id }}/">{{ cert.name }}</a>
+{% endfor %}
+</ul>
+{% endblock %}

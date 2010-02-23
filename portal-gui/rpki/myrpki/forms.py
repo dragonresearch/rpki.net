@@ -1,8 +1,17 @@
 from django import forms
 from myrpki import models
 
-# TODO: Point the cert.conf to the handle from the session
-class CertForm( forms.ModelForm ):
-    class Meta:
-	model = models.Cert
+def ConfCertForm( request ):
+    class CertForm( forms.ModelForm ):
+	class Meta:
+	    model = models.Cert
+	    exclude = ( 'conf' )
+
+	def save( self ):
+	    obj = forms.ModelForm.save( self, commit=False )
+	    obj.conf = request.session[ 'handle' ]
+	    obj.save()
+	    return obj
+
+    return CertForm
 

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="border: inset">
+<h1 style="text-align: center">Parents</h1>
+<a href="#">[add]</a>
+<ul>
+{% for parent in request.session.handle.parents.all %}
+<li>{{ parent.handle }} (knows me as {{ parent.my_handle }})
+{% if parent.asn.count or parent.address_range.count %}
+<p>Accepted resources:
+<ul>
+{% for asn in parent.asn.all %}
+<li>{{ asn }}
+{% endfor %}
+{% for address in parent.address_range.all %}
+<li>{{ address }}
+{% endfor %}
+</ul>
+{% endif %}
+{% endfor %}
+</ul>
+</div>
+<span>
+<div style="border: outset">
+<h1 style="text-align: center">Children</h1>
+<a href="#">[add]</a>
+<p>
+<ul>
+{% for child in request.session.handle.children.all %}
+<li>{{ child.handle }}
+{% if child.address_range.count or child.asn.count %}
+<p>Delegated resources:
+<ul>
+{% for asn in child.asn.all %}
+<li>{{ asn }}
+{% endfor %}
+{% for address in child.address_range.all %}
+<li>{{ address }}
+{% endfor %}
+</ul>
+{% endif %}
+{% endfor %}
+</ul>
+</div>
+<div style="border: outset">
+<h1 style="text-align: center">My ROA [request]s</h1>
+{% if request.session.handle.roas.count %}
+<table style="border: groove; width: 100%" border="1">
+<tr>
+<th>Prefix</th>
+<th>ASN</th>
+<th>Max Len</th>
+<th>Active</th>
+<th>Comments</th>
+</tr>
+{% for roa in request.session.handle.roas.all %}
+{% for address_range in roa.prefix.all %}
+<tr>
+<td>{{ address_range }}</td>
+<td>{{ roa.asn }}</td>
+<td>{{ roa.max_len }}</td>
+<td>{{ roa.active }}</td>
+<td>{{ roa.comments }}</td>
+</tr>
+{% endfor %}
+{% endfor %}
+</table>
+{% else %}
+<p>
+-- none --
+{% endif %}
+</div>
+<div style="border: outset">
+<h1 style="text-align: center">Un&lt;something&gt; Resources</h1>
+<ul>
+<li>Address range 172.17.2.0-172.17.255.255
+    <a href="#">[subdivide]</a> |
+    <a href="#">[give to child]</a> |
+    <a href="#">[issue roa]</a>
+<li>ASN 1 <a href="#">[give to child]</a>
+<li>ASNs 3-100 <a href="#">[subdivide]</a> |
+               <a href="#">[give to child]</a>
+</ul>
+</div>
+</span>
+{% endblock %}

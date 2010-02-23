@@ -1,8 +1,12 @@
 from django.views.generic.create_update import create_object, update_object, \
 						delete_object
-from django.views.generic.list_detail import object_detail
+from django.views.generic.list_detail import object_detail, object_list
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render_to_response
+from django.utils.http import urlquote
+from django.template import RequestContext
+from django import http
+from functools import update_wrapper
 import models
 import forms
 
@@ -11,53 +15,82 @@ import forms
 # an update view.  We heavily leverage the generic views, only
 # adding our own idea of authorization.
 
-def handle( request ):
-    '''If the session has a handle, return the config.  If the user only has
-    one config that he can access, return that one; else return None.'''
-    if 'handle' in request.session:
-	return Conf.objects.get( handle=request.session[ 'handle' ] )
-    conf = Conf.objects.all().filter( owner__in=request.user.groups )
-    if conf.count() == 1:
-	return conf[ 0 ]
-    return None
+class handle_required(object):
+    '''A decorator to require picking a configuration.  __call__ is
+    decorated with login_required so that we can be sure that the
+    request has a user.
 
-def choose_handle( request ):
-    '''The logged-in user can access multiple (or no) handles.
-    Ask them to pick which one(s) they want to access.'''
-    raise NotImplementedError
+    We don't support picking the configuration yet -- if multiple
+    configurations match, we redirect to handle_picker, which should
+    allow a staff member to pick any handle.
+    '''
 
-@login_required
+    def __init__(self, f):
+        self.f = f
+	update_wrapper( self, f )
+
+    @login_required
+    def __call__(self, request, *args, **kwargs):
+	if 'handle' not in request.session:
+	    conf = models.Conf.objects.all().filter(
+					owner__in=request.user.groups.all() )
+	    if conf.count() == 1:
+		handle = conf[ 0 ]
+	    else:
+		# Should reverse the view for this instead of hardcoding
+		# the URL.
+		return http.HttpResponseRedirect( '/handle_picker/?next=%s' %
+				urlquote(request.get_full_path()) )
+	    request.session[ 'handle' ] = handle
+        return self.f(request, *args, **kwargs)
+
+def render( template, context, request ):
+    return render_to_response( template, context,
+			       context_instance=RequestContext(request) )
+
+@handle_required
 def dashboard( request ):
-    '''The user's dashboard.  If the handle is not specified,
-    see what the user has access to based on his groups.  If
-    multiple, give him a selector and store the result in the
-    session.'''
-    handle = handle( request )
-    if handle is None:
-	return choose_handle( request )
+    '''The user's dashboard.'''
+    handle = request.session[ 'handle' ]
     # ... pick out data for the dashboard and return it
-    return render_to_response( 'myrpki/dashboard.html', context={ 'conf': handle } )
+    # my parents
+    # the resources that my parents have given me
+    # the reousrces that I have accepted from my parents
+    # my children
+    # the resources that I have given my children
+    # my roas
+    return render( 'myrpki/dashboard.html', { 'conf': handle }, request )
 
-@login_required
+@handle_required
 def cert_add( request ):
-    # todo: enforce that the saved form points to this conf
-    return create_object( request, form_class=forms.CertForm )
+    return create_object( request, form_class=forms.ConfCertForm( request ),
+                          post_save_redirect='/myrpki/cert/' )
 
-@login_required
+@handle_required
 def cert_view( request, id ):
-    handle = handle( request )
-    queryset = Cert.objects.filter( conf=handle )
-    return object_detail( queryset=queryset, object_id=id )
+    handle = request.session[ 'handle' ]
+    queryset = models.Cert.objects.filter( conf=handle )
+    return object_detail( request, queryset=queryset, object_id=id,
+    				   template_object_name='cert' )
 
-@login_required
+@handle_required
+def cert_list( request ):
+    handle = request.session[ 'handle' ]
+    queryset = models.Cert.objects.filter( conf=handle )
+    return object_list( request, queryset=queryset,
+    				 template_object_name='cert' )
+
+@handle_required
 def cert_edit( request, id ):
-    cert = get_object_or_404( models.Cert, pk=id )
-    # make sure it is owned by the current handle
-    return update_object( request, form_class=forms.CertForm, object_id=id )
+    handle = request.session[ 'handle' ]
+    cert = get_object_or_404( models.Cert, pk=id, conf=handle )
+    return update_object( request, form_class=forms.ConfCertForm( request ),
+			  object_id=id,
+                          post_save_redirect='/myrpki/cert/' )
 
-@login_required
+@handle_required
 def cert_delete( request, id ):
-    cert = get_object_or_404( models.Cert, pk=id )
-    # make sure it is owned by the current handle
+    handle = request.session[ 'handle' ]
+    cert = get_object_or_404( models.Cert, pk=id, conf=handle )
     return delete_object( request, model=models.Cert, object_id=id,
 			  post_delete_redirect='/dashboard/' )

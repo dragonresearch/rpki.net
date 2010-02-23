@@ -19,4 +19,9 @@ urlpatterns = patterns('',
 
     (r'^accounts/login/$', 'django.contrib.auth.views.login'),
     (r'^accounts/logout/$', 'django.contrib.auth.views.logout'),
+
+#XXX
+(r'^site_media/(?P<path>.*)$', 'django.views.static.serve',
+        {'document_root': '/Users/fenner/src/portal-gui/media/'}),
+
 )

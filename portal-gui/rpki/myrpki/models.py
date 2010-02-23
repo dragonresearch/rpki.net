@@ -12,24 +12,31 @@ class IPAddressField( models.CharField ):
         models.CharField.__init__( self, max_length=40, **kwargs )
 
 class Cert( models.Model ):
+    '''A certificate, relating to a single configuration.'''
+    conf = models.ForeignKey( 'Conf', related_name='certs' )
     name = models.CharField( unique=True, max_length=255 )
     data = models.TextField()
     def __unicode__( self ):
-	return self.name
+	return "%s's %s" % ( self.conf, self.name )
 
 class Conf( models.Model ):
-    '''This is the center of the universe.
+    '''This is the center of the universe, also known as a place to
+    have a handle on a resource-holding entity.  It's the <self>
+    in the rpkid schema.
     '''
     handle = HandleField( unique=True, db_index=True )
     repository_bpki_cert = models.ForeignKey( Cert,
-                                        related_name='conf_bpki_cert' )
-    my_bpki_ta = models.ForeignKey( Cert, related_name='conf_my_ta' )
+                                        related_name='conf_bpki_cert',
+					null=True, blank=True )
+    my_bpki_ta = models.ForeignKey( Cert, related_name='conf_my_ta',
+					  null=True, blank=True )
     repository_handle = HandleField()
     owner = models.OneToOneField( Group )
     def __unicode__( self ):
 	return self.handle
 
 class AddressRange( models.Model ):
+    '''An address range / prefix.'''
     lo = IPAddressField()
     hi = IPAddressField()
     parent = models.ForeignKey( 'AddressRange', related_name='children',
@@ -38,6 +45,7 @@ class AddressRange( models.Model ):
 	return u"address range %s-%s" % ( self.lo, self.hi )
 
 class Asn( models.Model ):
+    '''An ASN or range thereof.'''
     min = models.IntegerField()
     max = models.IntegerField()
     parent = models.ForeignKey( 'Asn', related_name='children',
@@ -49,17 +57,20 @@ class Asn( models.Model ):
 	    return u"ASNs %d-%d" % ( self.min, self.max )
 
 class Child( models.Model ):
-    conf = models.ForeignKey( Conf )
+    conf = models.ForeignKey( Conf, related_name='children' )
     handle = HandleField()
     validity = models.DateTimeField()
-    bpki_cert = models.ForeignKey( Cert )
+    bpki_cert = models.ForeignKey( Cert, related_name='child_bpki' )
     address_range = models.ManyToManyField( AddressRange )
     asn = models.ManyToManyField( Asn )
     def __unicode__( self ):
 	return u"%s's child %s" % ( self.conf, self.handle )
+    class Meta:
+	verbose_name_plural = "children"
+
 
 class Parent( models.Model ):
-    conf = models.ForeignKey( Conf )
+    conf = models.ForeignKey( Conf, related_name='parents' )
     handle = HandleField( unique=True )
     service_uri = models.URLField( verify_exists=False )
     cms_bpki_cert = models.ForeignKey( Cert, related_name='parent_cms' )
@@ -72,14 +83,8 @@ class Parent( models.Model ):
     def __unicode__( self ):
 	return u"%s's parent %s" % ( self.conf, self.handle )
 
-# This table is really owned by the publication server.
-#class PubClient( models.Model ):
-#    handle = models.CharField( unique=True, max_length=255 )
-#    bpki_cert = models.ForeignKey( Cert )
-#    sia_base = models.URLField( verify_exists=False )
-
 class Roa( models.Model ):
-    conf = models.ForeignKey( Conf )
+    conf = models.ForeignKey( Conf, related_name='roas' )
     prefix = models.ManyToManyField( AddressRange )
     max_len = models.IntegerField()
     asn = models.IntegerField()

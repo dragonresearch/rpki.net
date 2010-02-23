@@ -1,0 +1,28 @@
+Use RequestContext (helper function for render_to_response) and a default
+list of context processors for the generic functions
+
+Teach cert_delete about children, conf*, parent* to say what the ramifications
+of deleting a cert are.
+
+Teach cert form about file upload
+
+Redirect /accounts/profile/ to /dashboard/
+
+Teach dashboard view about looking up resources from parent.
+There are 3 types of resources:
+- Ones we've accepted and match
+- Ones we've accepted but don't match
+  - two subtypes:
+    * the parent is now giving us a superset of what they used to.
+      This is relatively easily handled by keeping the subdivisions
+      we've made and just making the superset resource the new parent
+      of the existing resource (e.g., we had accepted 18.5.0.0/16 and
+      they're now giving us 18.0.0.0/8)
+    * the parent is now giving us a subset (including none) of what they
+      used to.  Two sub-cases:
+      - The part that they took away is neither delegated nor roa'd.
+      - The part that they took away is either delegated or roa'd or both.
+- Ones we haven't accepted yet
+
+The roa needs to learn to handle its prefix children.  It may need to
+create the covering set of prefixes for an address range.

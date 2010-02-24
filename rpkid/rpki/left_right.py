@@ -1018,7 +1018,6 @@ class list_received_resources_elt(rpki.xml_utils.base_elt, left_right_namespace)
         ca_detail = ca.fetch_active()
         if ca_detail is not None and ca_detail.latest_ca_cert is not None:
           r_msg.append(self.make_reply(ca_detail.ca_cert_uri, ca_detail.latest_ca_cert))
-          #rpki.log.debug("Generated: %r" % r_msg[-1])
     cb()
 
   def make_reply(self, uri, cert):
@@ -1032,8 +1031,8 @@ class list_received_resources_elt(rpki.xml_utils.base_elt, left_right_namespace)
       notBefore = str(cert.getNotBefore()),
       notAfter = str(cert.getNotAfter()),
       uri = uri,
-      sia_uri = cert.get_SIA(),
-      aia_uri = cert.get_AIA(),
+      sia_uri = cert.get_sia_directory_uri(),
+      aia_uri = cert.get_aia_uri(),
       asn = resources.asn,
       ipv4 = resources.v4,
       ipv6 = resources.v6)

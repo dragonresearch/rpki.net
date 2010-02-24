@@ -102,6 +102,18 @@ class PEM_converter(object):
       b64 = b64[64:]
     return pem + b64 + "\n" + self.e + "\n"
 
+def _find_xia_uri(extension, name):
+  """
+  Find a rsync URI in an SIA or AIA extension.
+  Returns the URI if found, otherwise None.
+  """
+  oid = rpki.oids.name2oid[name]
+
+  for method, location in extension:
+    if method == oid and location[0] == "uri" and location[1].startswith("rsync://"):
+      return location[1]
+  return None
+
 class DER_object(object):
   """
   Virtual class to hold a generic DER object.
@@ -262,12 +274,33 @@ class DER_object(object):
     """
     return (self.get_POWpkix().getExtension(rpki.oids.name2oid["subjectInfoAccess"]) or ((), 0, None))[2]
 
+  def get_sia_directory_uri(self):
+    """
+    Get SIA directory (id-ad-caRepository) URI from this object.
+    Only works for subclasses that support getExtension().
+    """
+    return _find_xia_uri(self.get_SIA(), "id-ad-caRepository")
+
+  def get_sia_manifest_uri(self):
+    """
+    Get SIA manifest (id-ad-rpkiManifest) URI from this object.
+    Only works for subclasses that support getExtension().
+    """
+    return _find_xia_uri(self.get_SIA(), "id-ad-rpkiManifest")
+
   def get_AIA(self):
     """
     Get the SIA extension from this object.  Only works for subclasses
     that support getExtension().
     """
     return (self.get_POWpkix().getExtension(rpki.oids.name2oid["authorityInfoAccess"]) or ((), 0, None))[2]
+
+  def get_aia_uri(self):
+    """
+    Get AIA (id-ad-caIssuers) URI from this object.
+    Only works for subclasses that support getExtension().
+    """
+    return _find_xia_uri(self.get_AIA(), "id-ad-caIssuers")
 
   def get_basicConstraints(self):
     """

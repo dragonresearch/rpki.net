@@ -226,7 +226,7 @@ class report_error_elt(reply_elt_mixin, rpki.left_right.report_error_elt):
 class left_right_msg(cmd_msg_mixin, rpki.left_right.msg):
   pdus = dict((x.element_name, x)
               for x in (self_elt, bsc_elt, parent_elt, child_elt, repository_elt,
-                        list_published_objects_elt, report_error_elt))
+                        list_published_objects_elt, list_received_resources_elt, report_error_elt))
 
 class left_right_sax_handler(rpki.left_right.sax_handler):
   pdu = left_right_msg

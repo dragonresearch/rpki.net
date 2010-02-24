@@ -267,7 +267,7 @@ class DER_object(object):
     Get the SIA extension from this object.  Only works for subclasses
     that support getExtension().
     """
-    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["subjectInfoAccess"]) or ((), 0, None))[2]
+    return (self.get_POWpkix().getExtension(rpki.oids.name2oid["authorityInfoAccess"]) or ((), 0, None))[2]
 
   def get_basicConstraints(self):
     """

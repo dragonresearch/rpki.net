@@ -323,8 +323,11 @@ class sync_wrapper(object):
     raise ExitNow
 
   def eb(self, err):
-    exc_info = sys.exc_info()
-    self.err = exc_info if exc_info[1] is err else err
+    if True:
+      exc_info = sys.exc_info()
+      self.err = exc_info if exc_info[1] is err else err
+    else:
+      self.err = err
     raise ExitNow
 
   def __call__(self, *args, **kwargs):
@@ -340,7 +343,11 @@ class sync_wrapper(object):
     defer(thunk)
     event_loop()
     if self.err is not None:
-      raise self.err
+      #print "Raising self.err: %r" % (self.err,)
+      if isinstance(self.err, tuple):
+        raise self.err[0], self.err[1], self.err[2]
+      else:
+        raise self.err
     else:
       return self.res
 

@@ -997,7 +997,7 @@ class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
     r_pdu.obj = obj.get_Base64()
     return r_pdu
 
-class list_received_resources_elt(rpki.xml_utils.text_elt, left_right_namespace):
+class list_received_resources_elt(rpki.xml_utils.base_elt, left_right_namespace):
   """
   <list_received_resources/> element.
   """
@@ -1018,6 +1018,7 @@ class list_received_resources_elt(rpki.xml_utils.text_elt, left_right_namespace)
         ca_detail = ca.fetch_active()
         if ca_detail is not None and ca_detail.latest_ca_cert is not None:
           r_msg.append(self.make_reply(ca_detail.ca_cert_uri, ca_detail.latest_ca_cert))
+          #rpki.log.debug("Generated: %r" % r_msg[-1])
     cb()
 
   def make_reply(self, uri, cert):
@@ -1073,7 +1074,8 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
   # Dispatch table of PDUs for this protocol.
   pdus = dict((x.element_name, x)
               for x in (self_elt, child_elt, parent_elt, bsc_elt, repository_elt,
-                        list_resources_elt, list_roa_requests_elt, list_published_objects_elt,
+                        list_resources_elt, list_roa_requests_elt,
+                        list_published_objects_elt, list_received_resources_elt,
                         report_error_elt))
 
   def serve_top_level(self, gctx, cb):

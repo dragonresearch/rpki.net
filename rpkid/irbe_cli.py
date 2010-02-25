@@ -38,43 +38,6 @@ import rpki.publication, rpki.async
 
 pem_out = None
 
-class caller(object):
-  """
-  Handle client-side mechanics for left-right and publication
-  protocols.
-  """
-
-  def __init__(self, cms_class, client_key, client_cert, server_ta, server_cert, url):
-    self.cms_class = cms_class
-    self.client_key = client_key
-    self.client_cert = client_cert
-    self.server_ta = server_ta
-    self.server_cert = server_cert
-    self.url = url
-
-  def __call__(self, cb, eb, msg):
-
-    def done(cms):
-      msg, xml = self.cms_class.unwrap(cms, (self.server_ta, self.server_cert), pretty_print = True)
-      if verbose:
-        print "<!-- Reply -->"
-        print xml
-      cb(msg)
-
-    cms, xml = self.cms_class.wrap(msg, self.client_key, self.client_cert, pretty_print = True)
-    if verbose:
-      print "<!-- Query -->"
-      print xml
-
-    rpki.https.client(
-      client_key   = self.client_key,
-      client_cert  = self.client_cert,
-      server_ta    = self.server_ta,
-      url          = self.url,
-      msg          = cms,
-      callback     = done,
-      errback      = eb)
-
 class UsageWrapper(textwrap.TextWrapper):
   """
   Call interface around Python textwrap.Textwrapper class.
@@ -319,8 +282,8 @@ if not argv:
 
 cfg = rpki.config.parser(cfg_file, "irbe_cli")
 
-q_msg_left_right  = left_right_msg.query()
-q_msg_publication = publication_msg.query()
+q_msg_left_right  = []
+q_msg_publication = []
 
 while argv:
   if argv[0] in left_right_msg.pdus:
@@ -336,24 +299,34 @@ while argv:
 
 if q_msg_left_right:
 
-  call_rpkid = rpki.async.sync_wrapper(caller(
-    cms_class   = left_right_cms_msg,
+  class left_right_proto(object):
+    cms_msg = left_right_cms_msg
+    msg     = left_right_msg
+
+  call_rpkid = rpki.async.sync_wrapper(rpki.https.caller(
+    proto       = left_right_proto,
     client_key  = rpki.x509.RSA( Auto_file = cfg.get("rpkid-irbe-key")),
     client_cert = rpki.x509.X509(Auto_file = cfg.get("rpkid-irbe-cert")),
     server_ta   = rpki.x509.X509(Auto_file = cfg.get("rpkid-bpki-ta")),
     server_cert = rpki.x509.X509(Auto_file = cfg.get("rpkid-cert")),
-    url         = cfg.get("rpkid-url")))
+    url         = cfg.get("rpkid-url"),
+    debug       = verbose))
 
-  call_rpkid(q_msg_left_right)
+  call_rpkid(*q_msg_left_right)
 
 if q_msg_publication:
 
-  call_pubd =  rpki.async.sync_wrapper(caller(
-    cms_class   = publication_cms_msg,
+  class publication_proto(object):
+    msg     = publication_msg
+    cms_msg = publication_cms_msg
+
+  call_pubd = rpki.async.sync_wrapper(rpki.https.caller(
+    proto       = publication_proto,
     client_key  = rpki.x509.RSA( Auto_file = cfg.get("pubd-irbe-key")),
     client_cert = rpki.x509.X509(Auto_file = cfg.get("pubd-irbe-cert")),
     server_ta   = rpki.x509.X509(Auto_file = cfg.get("pubd-bpki-ta")),
     server_cert = rpki.x509.X509(Auto_file = cfg.get("pubd-cert")),
-    url         = cfg.get("pubd-url")))
+    url         = cfg.get("pubd-url")),
+    debug       = verbose)
 
-  call_pubd(q_msg_publication)
+  call_pubd(*q_msg_publication)

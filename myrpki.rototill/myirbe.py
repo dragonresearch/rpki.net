@@ -75,44 +75,6 @@ def findbase64(tree, name, b64type = rpki.x509.X509):
 bsc_handle = "bsc"
 repository_handle = "repository"
 
-class caller(object):
-  """
-  Handle client-side mechanics for left-right and publication
-  protocols.
-  """
-
-  debug = True
-
-  def __init__(self, proto, client_key, client_cert, server_ta, server_cert, url):
-    self.proto = proto
-    self.client_key = client_key
-    self.client_cert = client_cert
-    self.server_ta = server_ta
-    self.server_cert = server_cert
-    self.url = url
-
-  def __call__(self, cb, eb, pdus):
-
-    def done(cms):
-      msg, xml = self.proto.cms_msg.unwrap(cms, (self.server_ta, self.server_cert), pretty_print = True)
-      if self.debug:
-        print "Reply:", xml
-      cb(msg)
-
-    msg = self.proto.msg.query(*pdus)
-    cms, xml = self.proto.cms_msg.wrap(msg, self.client_key, self.client_cert, pretty_print = True)
-    if self.debug:
-      print "Query:", xml
-
-    rpki.https.client(
-      client_key   = self.client_key,
-      client_cert  = self.client_cert,
-      server_ta    = self.server_ta,
-      url          = self.url,
-      msg          = cms,
-      callback     = done,
-      errback      = eb)
-
 os.environ["TZ"] = "UTC"
 time.tzset()
 
@@ -174,29 +136,31 @@ updown_regexp = re.compile(re.escape(rpkid_base) + "up-down/([-A-Z0-9_]+)/([-A-Z
 
 # Wrappers to simplify calling rpkid and pubd.
 
-call_rpkid = rpki.async.sync_wrapper(caller(
+call_rpkid = rpki.async.sync_wrapper(rpki.https.caller(
   proto       = rpki.left_right,
   client_key  = rpki.x509.RSA( PEM_file = bpki.dir + "/irbe.key"),
   client_cert = rpki.x509.X509(PEM_file = bpki.dir + "/irbe.cer"),
   server_ta   = rpki.x509.X509(PEM_file = bpki.cer),
   server_cert = rpki.x509.X509(PEM_file = bpki.dir + "/rpkid.cer"),
-  url         = rpkid_base + "left-right"))
+  url         = rpkid_base + "left-right",
+  debug       = True))
 
 if run_pubd:
 
-  call_pubd = rpki.async.sync_wrapper(caller(
+  call_pubd = rpki.async.sync_wrapper(rpki.https.caller(
     proto       = rpki.publication,
     client_key  = rpki.x509.RSA( PEM_file = bpki.dir + "/irbe.key"),
     client_cert = rpki.x509.X509(PEM_file = bpki.dir + "/irbe.cer"),
     server_ta   = rpki.x509.X509(PEM_file = bpki.cer),
     server_cert = rpki.x509.X509(PEM_file = bpki.dir + "/pubd.cer"),
-    url         = pubd_base + "control"))
+    url         = pubd_base + "control",
+    debug       = True))
 
   # Make sure that pubd's BPKI CRL is up to date.
 
-  call_pubd((rpki.publication.config_elt.make_pdu(
+  call_pubd(rpki.publication.config_elt.make_pdu(
     action = "set",
-    bpki_crl = rpki.x509.CRL(PEM_file = bpki.crl)),))
+    bpki_crl = rpki.x509.CRL(PEM_file = bpki.crl)))
 
 irdbd_cfg = rpki.config.parser(cfg.get("irdbd_conf", cfg_file), "irdbd")
 
@@ -311,15 +275,15 @@ for xmlfile in xmlfiles:
 
   if run_pubd:
     client_pdus = dict((x.client_handle, x)
-                       for x in call_pubd((rpki.publication.client_elt.make_pdu(action = "list"),))
+                       for x in call_pubd(rpki.publication.client_elt.make_pdu(action = "list"))
                        if isinstance(x, rpki.publication.client_elt))
 
-  rpkid_reply = call_rpkid((
+  rpkid_reply = call_rpkid(
     rpki.left_right.self_elt.make_pdu(      action = "get",  tag = "self",       self_handle = handle),
     rpki.left_right.bsc_elt.make_pdu(       action = "list", tag = "bsc",        self_handle = handle),
     rpki.left_right.repository_elt.make_pdu(action = "list", tag = "repository", self_handle = handle),
     rpki.left_right.parent_elt.make_pdu(    action = "list", tag = "parent",     self_handle = handle),
-    rpki.left_right.child_elt.make_pdu(     action = "list", tag = "child",      self_handle = handle)))
+    rpki.left_right.child_elt.make_pdu(     action = "list", tag = "child",      self_handle = handle))
 
   self_pdu        = rpkid_reply[0]
   bsc_pdus        = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
@@ -502,7 +466,7 @@ for xmlfile in xmlfiles:
   # If we changed anything, ship updates off to daemons
 
   if rpkid_query:
-    rpkid_reply = call_rpkid(rpkid_query)
+    rpkid_reply = call_rpkid(*rpkid_query)
     bsc_pdus = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
     if bsc_handle in bsc_pdus and bsc_pdus[bsc_handle].pkcs10_request:
       bsc_req = bsc_pdus[bsc_handle].pkcs10_request
@@ -511,7 +475,7 @@ for xmlfile in xmlfiles:
 
   if pubd_query:
     assert run_pubd
-    pubd_reply = call_pubd(pubd_query)
+    pubd_reply = call_pubd(*pubd_query)
     for r in pubd_reply:
       assert not isinstance(r, rpki.publication.report_error_elt)
 

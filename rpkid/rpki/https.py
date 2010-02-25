@@ -776,3 +776,46 @@ def build_https_ta_cache(certs):
   """
 
   return set(certs)
+
+class caller(object):
+  """
+  Handle client-side mechanics for protocols based on HTTPS, CMS, and
+  rpki.xml_utils.  Calling sequence is intended to nest within
+  rpki.async.sync_wrapper.
+  """
+
+  debug = False
+
+  def __init__(self, proto, client_key, client_cert, server_ta, server_cert, url, debug = None):
+    self.proto = proto
+    self.client_key = client_key
+    self.client_cert = client_cert
+    self.server_ta = server_ta
+    self.server_cert = server_cert
+    self.url = url
+    if debug is not None:
+      self.debug = debug
+
+  def __call__(self, cb, eb, *pdus):
+
+    def done(cms):
+      msg, xml = self.proto.cms_msg.unwrap(cms, (self.server_ta, self.server_cert), pretty_print = True)
+      if self.debug:
+        print "<!-- Reply -->"
+        print xml
+      cb(msg)
+
+    msg = self.proto.msg.query(*pdus)
+    cms, xml = self.proto.cms_msg.wrap(msg, self.client_key, self.client_cert, pretty_print = True)
+    if self.debug:
+      print "<!-- Query -->"
+      print xml
+
+    client(
+      client_key   = self.client_key,
+      client_cert  = self.client_cert,
+      server_ta    = self.server_ta,
+      url          = self.url,
+      msg          = cms,
+      callback     = done,
+      errback      = eb)

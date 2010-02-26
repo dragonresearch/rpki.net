@@ -279,3 +279,50 @@ perhaps with names like:
 do_initial_setup.py
 run_servers.py
 
+
+thrintun.hactrn.net:/u/sra/rpki/subvert-rpki.hactrn.net/myrpki.rototill/PLAN, 26-Feb-2010 16:03:29, sra
+
+Current theory on out-of-band XML-based setup protocol.
+
+Step 1: initialize.py generates lots of stuff (see previous pages),
+        writes initial self.xml containing handle and
+        bpki/myrpki/ca.cer
+
+Step 2: setup_child.py ... and sends back xml containing:
+
+        parent's bpki/myrpki/ca.cer
+	parent's (or parent's host's) bpki/myirbe/ca.cer
+	service url, up-down sender/recipient names
+	and either:
+
+	    A publication offer, which contains just the service url
+	    (because server ca is same as rpkid's?  i think so.  not
+	    allowed to offer when we're not running pubd.   well, ok,
+	    i suppose we could be running pubd without running rpkid,
+	    kind of perverse but if it should be legal we need to pass
+	    back the bpki/myirbe/ca.cer in this case); or
+
+	    A publication hint, which would include the
+	    bpki/myirbe/ca.cer of the publication server and a signed
+	    (cms blob wrapping something) authorization for
+	    publication server to grant part of parent's publication
+	    space to child (which would also need to identify the
+	    child, so would need to include child bpki/myrpki/ca.cer).
+
+	This does kind of sound like we should just always include
+	publication server's bpki/myirbe/ca.cer and not worry about
+	optimizing that.
+
+	From parent's point of view, an offer could just be a referral
+	that the parent knows it's willing to accept, but maybe the
+	distinction matters to the child.  Semantics should probably
+	follow biz practice rather than implemntation arcana, and in
+	biz practice there certainly is a difference between and offer
+	and a hint to use a third party, so keep distinction.
+
+Step 3: setup_client.py (icky name) reads, um, self.xml and parent's
+        response (from step 2) and spits out, um, just contact URL I
+        think, as client appears to have bpki/myirbe/ca.cer already.
+
+Step 4: Have not yet completely worked out whether publication data
+        from step 3 becomes part of self.xml object.  Perhaps.

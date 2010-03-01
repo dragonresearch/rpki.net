@@ -564,13 +564,15 @@ class CA(object):
 
     return xcert
 
-def etree_write(e, filename):
+def etree_write(e, filename, verbose = True):
   """
   Write out an etree to a file, safely.
 
   I still miss SYSCAL(RENMWO).
   """
 
+  if verbose:
+    print "Writing", filename
   ElementTree(e).write(filename + ".tmp")
   os.rename(filename + ".tmp", filename)
 

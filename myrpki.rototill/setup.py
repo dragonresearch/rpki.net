@@ -86,8 +86,6 @@ class main(object):
 
     if self.run_rpkid or self.run_pubd or self.run_rootd:
 
-      xcert = self.bpki_myirbe.xcert(self.bpki_myrpki.cer, path_restriction = 1)
-
       if self.run_rpkid:
         self.bpki_myirbe.ee(self.cfg.get("bpki_rpkid_ee_dn",
                                          "/CN=%s rpkid server certificate" % self.handle), "rpkid")
@@ -114,8 +112,7 @@ class main(object):
     myrpki.etree_write(e, self.handle + ".xml")
 
     # If we're running rootd, construct a fake parent to go with it,
-    # and link cross-certified resource-holding BPKI cert to where
-    # rootd expects to find it.
+    # and cross-certify in both directions so we can talk to rootd.
 
     if self.run_rootd:
 
@@ -129,13 +126,13 @@ class main(object):
       SubElement(e, "repository", type = "offer",
                  service_url = "https://%s:%s/" % (self.cfg.get("pubd_server_host"),
                                                    self.cfg.get("pubd_server_port")))
-      rootd_filename = "parents/rootd.xml"
-      print "Writing", rootd_filename
-      myrpki.etree_write(e, rootd_filename)
+      myrpki.etree_write(e, "parents/rootd.xml")
+
+      self.bpki_myrpki.xcert(self.bpki_myirbe.cer)
 
       rootd_child_fn = self.cfg.get("child-bpki-cert", None, "rootd")
       if not os.path.exists(rootd_child_fn):
-        os.link(xcert, rootd_child_fn)
+        os.link(self.bpki_myirbe.xcert(self.bpki_myrpki.cer), rootd_child_fn)
 
   def from_child_main(self):
     
@@ -161,7 +158,7 @@ class main(object):
 
     print "Child calls itself %r, we call it %r" % (c["handle"], child_handle)
 
-    myrpki.fxcert(pem = c.findtext(myrpki.tag("bpki_ca_certificate")), path_restriction = 1)
+    self.bpki_myirbe.fxcert(pem = c.findtext(myrpki.tag("bpki_ca_certificate")))
 
     e = Element("parent", xmlns = myrpki.namespace, version = "1",
                 parent_handle = self.handle, child_handle = child_handle,
@@ -179,10 +176,52 @@ class main(object):
     else:
       print "Warning: I don't yet know how to do publication hints, only offers"
 
-    child_filename = "children/%s.xml" % child_handle
-    print "Writing", child_filename
-    myrpki.etree_write(e, child_filename)
+    myrpki.etree_write(e, "children/%s.xml" % child_handle)
 
+  def from_parent_main(self):
 
+    self.common()
+
+    parent_handle = None
+    repository_handle = None
+
+    opts, self.argv = getopt.getopt(self.argv, "", ["parent_handle", "repository_handle"])
+    for o, a in opts:
+      if o == "--parent_handle":
+        parent_handle = a
+      elif o == "--repository_handle":
+        repository_handle = a
+
+    if len(self.argv) != 1 or not os.path.exists(self.argv[0]):
+      raise RuntimeError, "Ned to specify filename for parent.xml on command line"
+
+    p = ElementTree(file = self.argv[0]).getroot()
+
+    if parent_handle is None:
+      parent_handle = p["parent_handle"]
+
+    print "Parent calls itself %r, we call it %r" (p["parent_handle"], parent_handle)
+
+    self.bpki_myrpki.fxcert(pem = p.findtext(myrpki.tag("bpki_resource_ca")))
+    b = self.bpki_myrpki.fxcert(pem = p.findtext(myrpki.tag("bpki_server_ca")))
+
+    myrpki.etree_write(p, "parents/%s.xml" % parent_handle)
+
+    r = p.find(myrpki.tag("repository"))
+
+    if r and r["type"] == "offer":
+      e = Element("repository", xmlns = myrpki.namespace, version = "1",
+                  service_url = r["service_url"])
+      myrpki.PEMElement(e, "bpki_server_ca", b)
+      myrpki.etree_write(e, "repositories/%s.xml" % repository_handle)
+
+    elif r and r["type"] == "hint":
+
+      print "Found repository hint but don't know how to handle that (yet)"
+
+    else:
+
+      print "Couldn't find repository offer or hint"
+    
 if __name__ == "__main__":
   main()

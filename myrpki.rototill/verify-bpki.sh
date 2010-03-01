@@ -20,7 +20,7 @@
 
 exec 2>&1
 
-for bpki in bpki.*
+for bpki in bpki/*
 do
   crls=$(find $bpki -name '*.crl')
 
@@ -37,7 +37,7 @@ do
 done
 
 # Check that cross-certified BSC certificates verify properly
-if test -d bpki.myirbe
+if test -d bpki/myirbe
 then
-    cat bpki.myirbe/xcert.*.cer | openssl verify -verbose -CAfile bpki.myirbe/ca.cer -untrusted /dev/stdin bpki.myrpki/bsc.*.cer
+    cat bpki/myirbe/xcert.*.cer | openssl verify -verbose -CAfile bpki/myirbe/ca.cer -untrusted /dev/stdin bpki/myrpki/bsc.*.cer
 fi

@@ -374,7 +374,7 @@ def csv_open(filename):
   """
   return csv.reader(open(filename, "rb"), dialect = csv_dialect)
 
-def PEMElement(e, tag, filename):
+def PEMElement(e, tag, filename, **kwargs):
   """
   Create an XML element containing Base64 encoded data taken from a
   PEM file.
@@ -388,9 +388,10 @@ def PEMElement(e, tag, filename):
       break
   if e.text is None:
     e.text = "\n"
-  se = SubElement(e, tag)
+  se = SubElement(e, tag, **kwargs)
   se.text = "\n" + "".join(lines)
   se.tail = "\n"
+  return se
 
 class CA(object):
   """

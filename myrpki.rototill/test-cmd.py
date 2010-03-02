@@ -22,7 +22,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import cmd, readline, sys, glob
 
-class wibble(cmd.Cmd):
+class main(cmd.Cmd):
 
   prompt = "wibble> "
 
@@ -64,21 +64,27 @@ class wibble(cmd.Cmd):
   def completedefault(self, text, line, begidx, endidx):
     return glob.glob(text + "*")
 
-histfile = ".wibble_history"
+  def cmdloop_with_history(self, histfile):
+    old_completer_delims = readline.get_completer_delims()
+    try:
+      readline.read_history_file(histfile)
+    except IOError:
+      pass
+    try:
+      readline.set_completer_delims("".join(set(old_completer_delims) - set(self.identchars)))
+      self.cmdloop()
+    finally:
+      if readline.get_current_history_length():
+        readline.write_history_file(histfile)
+      readline.set_completer_delims(old_completer_delims)
 
-try:
-  readline.read_history_file(histfile)
-except IOError:
-  pass
+  def __init__(self):
+    cmd.Cmd.__init__(self)
+    argv = sys.argv[1:]
+    if argv:
+      self.onecmd(" ".join(argv))
+    else:      
+      self.cmdloop_with_history(".wibble_history")
 
-readline.set_completer_delims("".join(set(readline.get_completer_delims()) - set(wibble.identchars)))
-
-try:
-  wibbler = wibble()
-  if len(sys.argv) > 1:
-    wibbler.onecmd(" ".join(sys.argv[1:]))
-  else:
-    wibbler.cmdloop()
-finally:
-  readline.write_history_file(histfile)
-
+if __name__ == "__main__":
+  main()

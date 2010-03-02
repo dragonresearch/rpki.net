@@ -216,11 +216,9 @@ class main(object):
       myrpki.etree_write(e, "repositories/%s.xml" % repository_handle)
 
     elif r and r["type"] == "hint":
-
       print "Found repository hint but don't know how to handle that (yet)"
 
     else:
-
       print "Couldn't find repository offer or hint"
     
 if __name__ == "__main__":

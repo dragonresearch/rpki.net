@@ -16,24 +16,25 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import subprocess, csv, re, os, getopt, sys, base64, time, myrpki, rpki.config
+import subprocess, csv, re, os, getopt, sys, base64, time, cmd, readline, glob
+import myrpki, rpki.config
 
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
-def usage(code = 1):
-  print __doc__
-  sys.exit(code)
+class main(cmd.Cmd):
 
-class main(object):
+  prompt = "setup> "
+
+  identchars = cmd.IDENTCHARS + "/-."
 
   def __init__(self):
-
+    cmd.Cmd.__init__(self)
     os.environ["TZ"] = "UTC"
     time.tzset()
 
     self.cfg_file = "myrpki.conf"
 
-    opts, self.argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+    opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
     for o, a in opts:
       if o in ("-c", "--config"):
         self.cfg_file = a
@@ -44,10 +45,6 @@ class main(object):
     self.cfg = rpki.config.parser(self.cfg_file, "myrpki")
     myrpki.openssl = self.cfg.get("openssl", "openssl")
 
-    getattr(self, self.argv.pop(0) + "_main")()
-
-  def common(self, initialize_bpki = False):
-
     self.handle    = self.cfg.get("handle")
     self.run_rpkid = self.cfg.getboolean("run_rpkid")
     self.run_pubd  = self.cfg.getboolean("run_pubd")
@@ -57,22 +54,53 @@ class main(object):
       raise RuntimeError, "Can't run rootd unless also running rpkid and pubd"
 
     self.bpki_myrpki = myrpki.CA(self.cfg_file, self.cfg.get("myrpki_bpki_directory"))
-
-    if initialize_bpki:
-      self.bpki_myrpki.setup(self.cfg.get("bpki_myrpki_ta_dn",
-                                          "/CN=%s BPKI Resource Trust Anchor" % self.handle))
-
     if self.run_rpkid or self.run_pubd or self.run_rootd:
-
       self.bpki_myirbe = myrpki.CA(self.cfg_file, self.cfg.get("myirbe_bpki_directory"))
 
-      if initialize_bpki:
-        self.bpki_myirbe.setup(self.cfg.get("bpki_myirbe_ta_dn",
-                                            "/CN=%s BPKI Server Trust Anchor" % self.handle))
+    if argv:
+      self.onecmd(" ".join(argv))
+    else:      
+      self.cmdloop_with_history()
 
-  def initialize_main(self):
+  def completedefault(self, text, line, begidx, endidx):
+    return glob.glob(text + "*")
 
-    self.common(initialize_bpki = True)
+  def cmdloop_with_history(self):
+    old_completer_delims = readline.get_completer_delims()
+    histfile = self.cfg.get("history_file", ".setup_history")
+    try:
+      readline.read_history_file(histfile)
+    except IOError:
+      pass
+    try:
+      readline.set_completer_delims("".join(set(old_completer_delims) - set(self.identchars)))
+      self.cmdloop()
+    finally:
+      if readline.get_current_history_length():
+        readline.write_history_file(histfile)
+      readline.set_completer_delims(old_completer_delims)
+
+  def do_EOF(self, arg):
+    print
+    return True
+
+  def do_exit(self, arg):
+    """
+    Exit program
+    """
+    return True
+
+  do_quit = do_exit
+
+  def emptyline(self):
+    pass
+
+  def do_initialize(self, arg):
+    self.bpki_myrpki.setup(self.cfg.get("bpki_myrpki_ta_dn",
+                                        "/CN=%s BPKI Resource Trust Anchor" % self.handle))
+    if self.run_rpkid or self.run_pubd or self.run_rootd:
+      self.bpki_myirbe.setup(self.cfg.get("bpki_myirbe_ta_dn",
+                                          "/CN=%s BPKI Server Trust Anchor" % self.handle))
 
     # Create directories for parents, children, and repositories.
     # Directory names should become configurable (later).
@@ -134,24 +162,22 @@ class main(object):
       if not os.path.exists(rootd_child_fn):
         os.link(self.bpki_myirbe.xcert(self.bpki_myrpki.cer), rootd_child_fn)
 
-  def from_child_main(self):
-    
-    self.common()
+  def do_from_child(self, arg):
 
     child_handle = None
 
-    opts, self.argv = getopt.getopt(self.argv, "", ["child_handle="])
+    opts, argv = getopt.getopt(arg.split(), "", ["child_handle="])
     for o, a in opts:
       if o == "--child_handle":
         child_handle = a
     
-    if len(self.argv) != 1 or not os.path.exists(self.argv[0]):
+    if len(argv) != 1 or not os.path.exists(argv[0]):
       raise RuntimeError, "Need to specify filename for child.xml on command line"
 
     if not self.run_rpkid:
       raise RuntimeError, "Don't (yet) know how to set up child unless we run rpkid"
 
-    c = ElementTree(file = self.argv[0]).getroot()
+    c = ElementTree(file = argv[0]).getroot()
 
     if child_handle is None:
       child_handle = c["handle"]
@@ -178,24 +204,22 @@ class main(object):
 
     myrpki.etree_write(e, "children/%s.xml" % child_handle)
 
-  def from_parent_main(self):
-
-    self.common()
+  def do_from_parent(self, arg):
 
     parent_handle = None
     repository_handle = None
 
-    opts, self.argv = getopt.getopt(self.argv, "", ["parent_handle", "repository_handle"])
+    opts, argv = getopt.getopt(arg.split(), "", ["parent_handle", "repository_handle"])
     for o, a in opts:
       if o == "--parent_handle":
         parent_handle = a
       elif o == "--repository_handle":
         repository_handle = a
 
-    if len(self.argv) != 1 or not os.path.exists(self.argv[0]):
+    if len(argv) != 1 or not os.path.exists(argv[0]):
       raise RuntimeError, "Ned to specify filename for parent.xml on command line"
 
-    p = ElementTree(file = self.argv[0]).getroot()
+    p = ElementTree(file = argv[0]).getroot()
 
     if parent_handle is None:
       parent_handle = p["parent_handle"]

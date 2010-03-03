@@ -576,6 +576,17 @@ def etree_write(e, filename, verbose = True):
   ElementTree(e).write(filename + ".tmp")
   os.rename(filename + ".tmp", filename)
 
+def etree_read(filename, verbose = False):
+  """
+  Read an etree from a file.
+  """
+  if verbose:
+    print "Reading", filename
+  try:
+    return ElementTree(file = filename).getroot()
+  except IOError:
+    return None
+
 def tag(t):
   """
   Wrap an element name in the right XML namespace goop.
@@ -621,8 +632,8 @@ def main(argv = ()):
   bpki = CA(cfg_file, bpki_dir)
   bpki.setup("/CN=%s TA" % my_handle)
 
-  if os.path.exists(xml_filename):
-    e = ElementTree(file = xml_filename).getroot()
+  e = etree_read(xml_filename)
+  if e:
     bsc_req, bsc_cer = bpki.bsc(e.findtext("{%s}%s" % (namespace, "bpki_bsc_pkcs10")))
   else:
     bsc_req, bsc_cer = None, None

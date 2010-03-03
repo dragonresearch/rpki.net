@@ -21,11 +21,19 @@ import myrpki, rpki.config, rpki.cli
 
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
+def read_xml_handle_tree(filename):
+  return filename.split()[1].splitext()[0], myrpki.etree_read(filename)
+
 class main(rpki.cli.Cmd):
 
   prompt = "setup> "
 
   completedefault = rpki.cli.Cmd.filename_complete
+
+  me = None
+  parents = {}
+  children = {}
+  repositories = {}
 
   def __init__(self):
     os.environ["TZ"] = "UTC"
@@ -57,6 +65,13 @@ class main(rpki.cli.Cmd):
       self.bpki_myirbe = myrpki.CA(self.cfg_file, self.cfg.get("myirbe_bpki_directory"))
 
     rpki.cli.Cmd.__init__(self, argv)
+
+  def load_xml(self):
+    handle, self.me   = read_xml_handle_tree(self.handle + ".xml")
+    self.parents      = dict(read_xml_handle_tree(i) for i in glob.glob("parents/*.xml"))
+    self.children     = dict(read_xml_handle_tree(i) for i in glob.glob("children/*.xml"))
+    self.repositories = dict(read_xml_handle_tree(i) for i in glob.glob("repositories/*.xml"))
+    assert handle == self.handle
 
   def do_initialize(self, arg):
     self.bpki_myrpki.setup(self.cfg.get("bpki_myrpki_ta_dn",
@@ -125,7 +140,7 @@ class main(rpki.cli.Cmd):
       if not os.path.exists(rootd_child_fn):
         os.link(self.bpki_myirbe.xcert(self.bpki_myrpki.cer), rootd_child_fn)
 
-  def do_from_child(self, arg):
+  def do_receive_from_child(self, arg):
 
     child_handle = None
 
@@ -140,7 +155,7 @@ class main(rpki.cli.Cmd):
     if not self.run_rpkid:
       raise RuntimeError, "Don't (yet) know how to set up child unless we run rpkid"
 
-    c = ElementTree(file = argv[0]).getroot()
+    c = myrpki.etree_read(argv[0])
 
     if child_handle is None:
       child_handle = c["handle"]
@@ -167,7 +182,7 @@ class main(rpki.cli.Cmd):
 
     myrpki.etree_write(e, "children/%s.xml" % child_handle)
 
-  def do_from_parent(self, arg):
+  def do_receive_from_parent(self, arg):
 
     parent_handle = None
     repository_handle = None
@@ -182,7 +197,7 @@ class main(rpki.cli.Cmd):
     if len(argv) != 1 or not os.path.exists(argv[0]):
       raise RuntimeError, "Ned to specify filename for parent.xml on command line"
 
-    p = ElementTree(file = argv[0]).getroot()
+    p = myrpki.etree_read(argv[0])
 
     if parent_handle is None:
       parent_handle = p["parent_handle"]

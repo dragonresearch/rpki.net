@@ -32,7 +32,7 @@ class main(cmd.Cmd):
     os.environ["TZ"] = "UTC"
     time.tzset()
 
-    self.cfg_file = "myrpki.conf"
+    self.cfg_file = os.getenv("MYRPKI_CONF", "myrpki.conf")
 
     opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
     for o, a in opts:

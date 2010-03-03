@@ -16,19 +16,18 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import subprocess, csv, re, os, getopt, sys, base64, time, cmd, readline, glob
-import myrpki, rpki.config
+import subprocess, csv, re, os, getopt, sys, base64, time, glob
+import myrpki, rpki.config, rpki.cli
 
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
-class main(cmd.Cmd):
+class main(rpki.cli.Cmd):
 
   prompt = "setup> "
 
-  identchars = cmd.IDENTCHARS + "/-."
+  completedefault = rpki.cli.Cmd.filename_complete
 
   def __init__(self):
-    cmd.Cmd.__init__(self)
     os.environ["TZ"] = "UTC"
     time.tzset()
 
@@ -39,11 +38,11 @@ class main(cmd.Cmd):
       if o in ("-c", "--config"):
         self.cfg_file = a
       elif o in ("-h", "--help", "-?"):
-        print __doc__
-        sys.exit(0)
+        argv = ["help"]
 
     self.cfg = rpki.config.parser(self.cfg_file, "myrpki")
     myrpki.openssl = self.cfg.get("openssl", "openssl")
+    self.histfile  = self.cfg.get("history_file", ".setup_history")
 
     self.handle    = self.cfg.get("handle")
     self.run_rpkid = self.cfg.getboolean("run_rpkid")
@@ -57,43 +56,7 @@ class main(cmd.Cmd):
     if self.run_rpkid or self.run_pubd or self.run_rootd:
       self.bpki_myirbe = myrpki.CA(self.cfg_file, self.cfg.get("myirbe_bpki_directory"))
 
-    if argv:
-      self.onecmd(" ".join(argv))
-    else:      
-      self.cmdloop_with_history()
-
-  def completedefault(self, text, line, begidx, endidx):
-    return glob.glob(text + "*")
-
-  def cmdloop_with_history(self):
-    old_completer_delims = readline.get_completer_delims()
-    histfile = self.cfg.get("history_file", ".setup_history")
-    try:
-      readline.read_history_file(histfile)
-    except IOError:
-      pass
-    try:
-      readline.set_completer_delims("".join(set(old_completer_delims) - set(self.identchars)))
-      self.cmdloop()
-    finally:
-      if readline.get_current_history_length():
-        readline.write_history_file(histfile)
-      readline.set_completer_delims(old_completer_delims)
-
-  def do_EOF(self, arg):
-    print
-    return True
-
-  def do_exit(self, arg):
-    """
-    Exit program
-    """
-    return True
-
-  do_quit = do_exit
-
-  def emptyline(self):
-    pass
+    rpki.cli.Cmd.__init__(self, argv)
 
   def do_initialize(self, arg):
     self.bpki_myrpki.setup(self.cfg.get("bpki_myrpki_ta_dn",

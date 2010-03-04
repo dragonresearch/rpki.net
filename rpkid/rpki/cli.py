@@ -28,8 +28,12 @@ except ImportError:
 
 class Cmd(cmd.Cmd):
 
+  emptyline_repeats_last_command = False
+
+  EOF_exits_command_loop = True
+
   identchars = cmd.IDENTCHARS + "/-."
-  
+
   histfile = None
 
   def __init__(self, argv = None):
@@ -40,8 +44,9 @@ class Cmd(cmd.Cmd):
       self.cmdloop_with_history()
 
   def do_EOF(self, arg):
-    print
-    return True
+    if self.EOF_exits_command_loop and self.prompt:
+      print
+    return self.EOF_exits_command_loop
 
   def do_exit(self, arg):
     return True
@@ -49,7 +54,8 @@ class Cmd(cmd.Cmd):
   do_quit = do_exit
 
   def emptyline(self):
-    pass
+    if self.emptyline_repeats_last_command:
+      cmd.Cmd.emptyline(self)
 
   def filename_complete(self, text, line, begidx, endidx):
     return glob.glob(text + "*")

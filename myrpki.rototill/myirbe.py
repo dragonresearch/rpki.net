@@ -82,13 +82,9 @@ rpki.log.init("myirbe")
 
 cfg_file = "myrpki.conf"
 
-bpki_only = False
-
-opts, argv = getopt.getopt(sys.argv[1:], "bc:h?", ["bpki_only", "config=", "help"])
+opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
 for o, a in opts:
-  if o in ("-b", "--bpki_only"):
-    bpki_only = True
-  elif o in ("-c", "--config"):
+  if o in ("-c", "--config"):
     cfg_file = a
   elif o in ("-h", "--help", "-?"):
     print __doc__
@@ -105,23 +101,7 @@ handle = cfg.get("handle", cfg.get("handle", "Amnesiac", "myrpki"))
 run_pubd  = cfg.getboolean("run_pubd",  False)
 run_rootd = cfg.getboolean("run_rootd", False)
 
-bpki_modified = False
-
 bpki = myrpki.CA(cfg_file, cfg.get("myirbe_bpki_directory"))
-bpki_modified |= bpki.setup(cfg.get("bpki_ta_dn",       "/CN=%s BPKI TA"  % handle))
-bpki_modified |= bpki.ee(   cfg.get("bpki_rpkid_ee_dn", "/CN=%s rpkid EE" % handle), "rpkid")
-bpki_modified |= bpki.ee(   cfg.get("bpki_irdbd_ee_dn", "/CN=%s irdbd EE" % handle), "irdbd")
-bpki_modified |= bpki.ee(   cfg.get("bpki_irbe_ee_dn",  "/CN=%s irbe EE"  % handle), "irbe")
-if run_pubd:
-  bpki_modified |= bpki.ee( cfg.get("bpki_pubd_ee_dn",  "/CN=%s pubd EE"  % handle), "pubd")
-if run_rootd:
-  bpki_modified |= bpki.ee( cfg.get("bpki_rootd_ee_dn", "/CN=%s rootd EE" % handle), "rootd")
-
-if bpki_modified:
-  print "BPKI (re)initialized.  You need to (re)start daemons before continuing."
-
-if bpki_modified or bpki_only:
-  sys.exit()
 
 # Default values for CRL parameters are very low, for testing.
 

@@ -651,11 +651,10 @@ def main(argv = ()):
   openssl = cfg.get(section, "openssl") if cfg.has_option(section, "openssl") else "openssl"
 
   bpki = CA(cfg_file, bpki_dir)
-  bpki.setup("/CN=%s TA" % my_handle)
 
   e = etree_read(xml_filename)
   if e:
-    bsc_req, bsc_cer = bpki.bsc(e.findtext("{%s}%s" % (namespace, "bpki_bsc_pkcs10")))
+    bsc_req, bsc_cer = bpki.bsc(e.findtext(tag("bpki_bsc_pkcs10")))
   else:
     bsc_req, bsc_cer = None, None
 

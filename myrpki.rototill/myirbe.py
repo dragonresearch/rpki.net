@@ -101,7 +101,7 @@ handle = cfg.get("handle", cfg.get("handle", "Amnesiac", "myrpki"))
 run_pubd  = cfg.getboolean("run_pubd",  False)
 run_rootd = cfg.getboolean("run_rootd", False)
 
-bpki = myrpki.CA(cfg_file, cfg.get("myirbe_bpki_directory"))
+bpki = myrpki.CA(cfg_file, cfg.get("bpki_servers_directory"))
 
 # Default values for CRL parameters are very low, for testing.
 

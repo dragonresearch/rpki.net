@@ -60,9 +60,9 @@ class main(rpki.cli.Cmd):
     if self.run_rootd and (not self.run_pubd or not self.run_rpkid):
       raise RuntimeError, "Can't run rootd unless also running rpkid and pubd"
 
-    self.bpki_myrpki = myrpki.CA(self.cfg_file, self.cfg.get("myrpki_bpki_directory"))
+    self.bpki_myrpki = myrpki.CA(self.cfg_file, self.cfg.get("bpki_resources_directory"))
     if self.run_rpkid or self.run_pubd or self.run_rootd:
-      self.bpki_myirbe = myrpki.CA(self.cfg_file, self.cfg.get("myirbe_bpki_directory"))
+      self.bpki_myirbe = myrpki.CA(self.cfg_file, self.cfg.get("bpki_servers_directory"))
 
     rpki.cli.Cmd.__init__(self, argv)
 

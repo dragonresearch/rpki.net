@@ -161,7 +161,7 @@ class allocation_db(list):
     this for the root node.
     """
     env = { "PATH"           : os.environ["PATH"],
-            "BPKI_DIRECTORY" : self.root.path("bpki/myirbe"),
+            "BPKI_DIRECTORY" : self.root.path("bpki/servers"),
             "OPENSSL_CONF"   : "/dev/null",
             "RANDFILE"       : ".OpenSSL.whines.unless.I.set.this" }
     cwd = self.root.path()
@@ -326,7 +326,7 @@ class allocation(object):
     """
     Write children CSV file.
     """
-    self.csvout(fn).writerows((k.name, k.resources.valid_until, k.path("bpki/myrpki/ca.cer"))
+    self.csvout(fn).writerows((k.name, k.resources.valid_until, k.path("bpki/resources/ca.cer"))
                               for k in self.kids)
 
   def dump_parents(self, fn):
@@ -336,16 +336,16 @@ class allocation(object):
     if self.is_root():
       self.csvout(fn).writerow(("rootd",
                                 "https://localhost:%d/" % self.rootd_port,
-                                self.path("bpki/myirbe/ca.cer"),
-                                self.path("bpki/myirbe/ca.cer"),
+                                self.path("bpki/servers/ca.cer"),
+                                self.path("bpki/servers/ca.cer"),
                                 self.name,
                                 self.sia_base))
     else:
       parent_host = self.parent.hosted_by if self.parent.is_hosted() else self.parent
       self.csvout(fn).writerow((self.parent.name,
                                 self.up_down_url(),
-                                self.parent.path("bpki/myrpki/ca.cer"),
-                                parent_host.path("bpki/myirbe/ca.cer"),
+                                self.parent.path("bpki/resources/ca.cer"),
+                                parent_host.path("bpki/servers/ca.cer"),
                                 self.name,
                                 self.sia_base))
 
@@ -373,7 +373,7 @@ class allocation(object):
     """
     if self.runs_pubd():
       f = self.csvout(fn)
-      f.writerows((s.client_handle, s.path("bpki/myrpki/ca.cer"), s.sia_base)
+      f.writerows((s.client_handle, s.path("bpki/resources/ca.cer"), s.sia_base)
                   for s in (db if only_one_pubd else [self] + self.kids))
 
   def dump_conf(self, fn):
@@ -407,7 +407,7 @@ class allocation(object):
       s = s.parent
     r["myrpki", "pubd_server_host"] = "localhost"
     r["myrpki", "pubd_server_port"] = str(s.pubd_port)
-    r["myrpki", "repository_bpki_certificate"] = s.path("bpki/myirbe/ca.cer")
+    r["myrpki", "repository_bpki_certificate"] = s.path("bpki/servers/ca.cer")
     r["myrpki", "repository_handle"] = self.client_handle
 
     if rpkid_password:
@@ -484,7 +484,7 @@ class allocation(object):
     """
     Run setup.py for this entity.
     """
-    print "Running setup.py for", self.name, "with arguments", repr(args)
+    print 'Running "%s" for %s' % (" ".join(("setup.py",) + args), self.name)
     subprocess.check_call(("python", prog_setup) + args, cwd = self.path())
 
   def run_python_daemon(self, prog):
@@ -607,12 +607,8 @@ for d in db:
 
 # Initialize BPKI and generate self-descriptor for each entity.
 
-print 'Running "setup initialize" for each entity'
-
 for d in db:
   d.run_setup("initialize")
-
-print 'Done running "setup initialize"'
 
 # This is where we need to get clever about running setup.py in its
 # various modes to do the service URL and BPKI cross-certification
@@ -648,8 +644,8 @@ rootd_openssl = db.make_rootd_openssl()
 
 print "Creating rootd RPKI root certificate"
 rootd_openssl("x509", "-req", "-sha256", "-outform", "DER",
-              "-signkey", "bpki/myirbe/ca.key",
-              "-in",      "bpki/myirbe/ca.req",
+              "-signkey", "bpki/servers/ca.key",
+              "-in",      "bpki/servers/ca.req",
               "-out",     "publication/root.cer",
               "-extfile", "myrpki.conf",
               "-extensions", "rootd_x509_extensions")

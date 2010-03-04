@@ -498,7 +498,7 @@ class allocation(object):
     """
     Run setup.py for this entity.
     """
-    print "Running myrpki.py for", self.name, "with arguments", repr(args)
+    print "Running setup.py for", self.name, "with arguments", repr(args)
     subprocess.check_call(("python", prog_setup) + args, cwd = self.path())
 
   def run_python_daemon(self, prog):

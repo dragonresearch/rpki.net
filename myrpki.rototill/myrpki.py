@@ -51,7 +51,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import subprocess, csv, re, os, getopt, sys, ConfigParser, base64
 
-from xml.etree.ElementTree import Element, SubElement, ElementTree
+from xml.etree.ElementTree import Element, SubElement, ElementTree, QName
 
 # Our XML namespace. 
 
@@ -422,20 +422,29 @@ class CA(object):
   def run_ca(self, *args):
     """
     Run OpenSSL "ca" command with tailored environment variables and common initial
-    arguments.
+    arguments.  "ca" is rather chatty, so we suppress its output except on errors.
     """
     cmd = (openssl, "ca", "-batch", "-config",  self.cfg) + args
-    subprocess.check_call(cmd, env = self.env)
+    p = subprocess.Popen(cmd, env = self.env, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+    log = p.communicate()[0]
+    if p.wait() != 0:
+      sys.stderr.write(log)
+      raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
 
   def run_req(self, key_file, req_file):
     """
     Run OpenSSL "req" command with tailored environment variables and common arguments.
+    "req" is rather chatty, so we suppress its output except on errors.
     """
     if not os.path.exists(key_file) or not os.path.exists(req_file):
-      subprocess.check_call((openssl, "req", "-new", "-sha256", "-newkey", "rsa:2048",
-                             "-config", self.cfg, "-keyout", key_file, "-out", req_file),
-                            env = self.env)
-    
+      cmd = (openssl, "req", "-new", "-sha256", "-newkey", "rsa:2048",
+             "-config", self.cfg, "-keyout", key_file, "-out", req_file)
+      p = subprocess.Popen(cmd, env = self.env, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+      log = p.communicate()[0]
+      if p.wait() != 0:
+        sys.stderr.write(log)
+        raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
+
   @staticmethod
   def touch_file(filename, content = None):
     """
@@ -499,20 +508,22 @@ class CA(object):
 
     assert pkcs10
 
-    p = subprocess.Popen((openssl, "dgst", "-md5"), stdin = subprocess.PIPE, stdout = subprocess.PIPE)
+    cmd = (openssl, "dgst", "-md5")
+    p = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
     hash = p.communicate(pkcs10)[0].strip()
     if p.wait() != 0:
-      raise RuntimeError, "Couldn't hash PKCS#10 request"
+      raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
 
     req_file = "%s/bsc.%s.req" % (self.dir, hash)
     cer_file = "%s/bsc.%s.cer" % (self.dir, hash)
 
     if not os.path.exists(cer_file):
 
-      p = subprocess.Popen((openssl, "req", "-inform", "DER", "-out", req_file), stdin = subprocess.PIPE)
+      cmd = (openssl, "req", "-inform", "DER", "-out", req_file)
+      p = subprocess.Popen(cmd, stdin = subprocess.PIPE)
       p.communicate(pkcs10)
       if p.wait() != 0:
-        raise RuntimeError, "Couldn't store PKCS #10 request"
+        raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
 
       self.run_ca("-extensions", "ca_x509_ext_ee", "-in", req_file, "-out", cer_file)
 
@@ -524,10 +535,11 @@ class CA(object):
     """
     fn = os.path.join(self.dir, filename or "temp.%s.cer" % os.getpid())
     try:
-      p = subprocess.Popen((openssl, "x509", "-inform", "DER", "-out", fn), stdin = subprocess.PIPE)
+      cmd = (openssl, "x509", "-inform", "DER", "-out", fn)
+      p = subprocess.Popen(cmd, stdin = subprocess.PIPE)
       p.communicate(base64.b64decode(b64))
       if p.wait() != 0:
-        raise RuntimeError, "Couldn't store certificate for cross-certification"
+        raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
       return self.xcert(fn, path_restriction)
     finally:
       if not filename and os.path.exists(fn):
@@ -549,13 +561,18 @@ class CA(object):
     # Extract public key and subject name from PEM file and hash it so
     # we can use the result as a tag for cross-certifying this cert.
 
-    p1 = subprocess.Popen((openssl, "x509", "-noout", "-pubkey", "-subject", "-in", cert), stdout = subprocess.PIPE)
-    p2 = subprocess.Popen((openssl, "dgst", "-md5"), stdin = p1.stdout, stdout = subprocess.PIPE)
+    cmd1 = (openssl, "x509", "-noout", "-pubkey", "-subject", "-in", cert)
+    cmd2 = (openssl, "dgst", "-md5")
+
+    p1 = subprocess.Popen(cmd1, stdout = subprocess.PIPE)
+    p2 = subprocess.Popen(cmd2, stdin = p1.stdout, stdout = subprocess.PIPE)
 
     xcert = "%s/xcert.%s.cer" % (self.dir, p2.communicate()[0].strip())
 
-    if p1.wait() != 0 or p2.wait() != 0:
-      raise RuntimeError, "Couldn't generate cross-certification tag for %r" % cert
+    if p1.wait() != 0:
+      raise subprocess.CalledProcessError(returncode = p1.returncode, cmd = cmd1)
+    if p2.wait() != 0:
+      raise subprocess.CalledProcessError(returncode = p2.returncode, cmd = cmd2)
 
     # Cross-certify the cert we were given, if we haven't already.
     # This only works for self-signed certs, due to limitations of the
@@ -573,6 +590,7 @@ def etree_write(e, filename, verbose = True):
   I still miss SYSCAL(RENMWO).
   """
 
+  assert isinstance(filename, str)
   if verbose:
     print "Writing", filename
   ElementTree(e).write(filename + ".tmp")
@@ -593,6 +611,7 @@ def tag(t):
   """
   Wrap an element name in the right XML namespace goop.
   """
+  #return QName(namespace, t)
   return "{" + namespace + "}" + t
 
 def main(argv = ()):

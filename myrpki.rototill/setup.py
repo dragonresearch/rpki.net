@@ -85,10 +85,7 @@ class main(rpki.cli.Cmd):
 
     for i in ("parents", "children", "repositories"):
       if not os.path.exists(i):
-        print "Creating %s/" % i
         os.makedirs(i)
-      else:
-        print "%s/ already exists" % i
 
     if self.run_rpkid or self.run_pubd or self.run_rootd:
 
@@ -202,8 +199,12 @@ class main(rpki.cli.Cmd):
     if parent_handle is None:
       parent_handle = p.get("parent_handle")
 
+    if repository_handle is None:
+      repository_handle = parent_handle
+
     print "Parent calls itself %r, we call it %r" % (p.get("parent_handle"), parent_handle)
     print "Parent calls us %r" % p.get("child_handle")
+    print "We call repository %r" % repository_handle
 
     self.bpki_myrpki.fxcert(p.findtext(myrpki.tag("bpki_resource_ca")))
     b = self.bpki_myrpki.fxcert(p.findtext(myrpki.tag("bpki_server_ca")))

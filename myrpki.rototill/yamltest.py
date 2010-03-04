@@ -386,43 +386,29 @@ class allocation(object):
     r = { ("myrpki", "handle"): self.name }
 
     if not self.is_hosted():
-      r["irdbd",  "https-url"]     = "https://localhost:%d/" % self.irdbd_port
-      r["irdbd",  "sql-database"]  = "irdb%d" % self.engine
-      r["myrpki", "irdbd_conf"]    = "myrpki.conf"
-      r["myrpki", "rpkid_base"]    = "https://localhost:%d/" % self.rpkid_port
-      r["rpkid",  "irdb-url"]      = "https://localhost:%d/" % self.irdbd_port
-      r["rpkid",  "server-port"]   = "%d" % self.rpkid_port
-      r["rpkid",  "sql-database"]  = "rpki%d" % self.engine
-      r["myrpki", "run_pubd"]      = "true" if self.runs_pubd() else "false"
-      r["myrpki", "run_rootd"]     = "true" if self.is_root() else "false"
-      r["irbe_cli", "rpkid-url"]   = "https://localhost:%d/left-right" % self.rpkid_port
+      r["irdbd", "sql-database"] = "irdb%d" % self.engine
+      r["rpkid", "sql-database"] = "rpki%d" % self.engine
+      r["myrpki", "rpkid_server_host"] = "localhost"
+      r["myrpki", "rpkid_server_port"] = str(self.rpkid_port)
+      r["myrpki", "irdbd_server_host"] = "localhost"
+      r["myrpki", "irdbd_server_port"] = str(self.irdbd_port)
+      r["myrpki", "run_pubd"]  = "true" if self.runs_pubd() else "false"
+      r["myrpki", "run_rootd"] = "true" if self.is_root()   else "false"
 
     if self.is_root():
-      root_path = "localhost:%d/%s" % (self.rsync_port, self.name)
-      r["rootd",  "rpki-root-dir"] = "publication/"
-      r["rootd",  "rpki-base-uri"] = "rsync://%s/" % root_path
-      r["rootd",  "rpki-root-cert"] = "publication/root.cer"
-      r["rootd",  "rpki-root-cert-uri"] = "rsync://%s/root.cer" % root_path
-      r["rootd",  "rpki-subject-cert"] = "%s.cer" % self.name
-      r["rootd",  "rpki-root-manifest"] = "root.mnf"
-      r["rootd",  "root_cert_sia"] = r["rootd",  "rpki-base-uri"]
-      r["rootd",  "root_cert_manifest"] = r["rootd",  "rpki-base-uri"] + r["rootd",  "rpki-root-manifest"]
+      r["myrpki", "rootd_server_port"] = str(self.rootd_port)
+      r["myrpki", "rootd_resource_class_name"] = self.name
 
     if self.runs_pubd():
-      r["pubd", "server-port"]  = "%d" % self.pubd_port
       r["pubd", "sql-database"] = "pubd%d" % self.engine
-      r["irbe_cli", "pubd-url"] =  "https://localhost:%d/control/" % self.pubd_port
 
     s = self
     while not s.runs_pubd():
       s = s.parent
-    r["myrpki", "pubd_base"]  = "https://localhost:%d/" % s.pubd_port
-    r["myrpki", "rsync_base"] = "rsync://localhost:%d/" % s.rsync_port
+    r["myrpki", "pubd_server_host"] = "localhost"
+    r["myrpki", "pubd_server_port"] = str(s.pubd_port)
     r["myrpki", "repository_bpki_certificate"] = s.path("bpki/myirbe/ca.cer")
     r["myrpki", "repository_handle"] = self.client_handle
-
-    if self.is_root():
-      r["rootd", "server-port"] = "%d" % self.rootd_port
 
     if rpkid_password:
       r["rpkid", "sql-password"] = rpkid_password

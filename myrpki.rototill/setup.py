@@ -203,6 +203,7 @@ class main(rpki.cli.Cmd):
       parent_handle = p.get("parent_handle")
 
     print "Parent calls itself %r, we call it %r" % (p.get("parent_handle"), parent_handle)
+    print "Parent calls us %r" % p.get("child_handle")
 
     self.bpki_myrpki.fxcert(p.findtext(myrpki.tag("bpki_resource_ca")))
     b = self.bpki_myrpki.fxcert(p.findtext(myrpki.tag("bpki_server_ca")))
@@ -211,13 +212,13 @@ class main(rpki.cli.Cmd):
 
     r = p.find(myrpki.tag("repository"))
 
-    if r and r["type"] == "offer":
+    if r is not None and r.get("type") == "offer":
       e = Element("repository", xmlns = myrpki.namespace, version = "1",
-                  service_url = r["service_url"])
+                  service_url = r.get("service_url"))
       myrpki.PEMElement(e, "bpki_server_ca", b)
       myrpki.etree_write(e, "repositories/%s.xml" % repository_handle)
 
-    elif r and r["type"] == "hint":
+    elif r is not None and r.get("type") == "hint":
       print "Found repository hint but don't know how to handle that (yet)"
 
     else:

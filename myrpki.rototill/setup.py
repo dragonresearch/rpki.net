@@ -158,11 +158,11 @@ class main(rpki.cli.Cmd):
     c = myrpki.etree_read(argv[0])
 
     if child_handle is None:
-      child_handle = c["handle"]
+      child_handle = c.get("handle")
 
-    print "Child calls itself %r, we call it %r" % (c["handle"], child_handle)
+    print "Child calls itself %r, we call it %r" % (c.get("handle"), child_handle)
 
-    self.bpki_myirbe.fxcert(pem = c.findtext(myrpki.tag("bpki_ca_certificate")))
+    self.bpki_myirbe.fxcert(c.findtext(myrpki.tag("bpki_ca_certificate")))
 
     e = Element("parent", xmlns = myrpki.namespace, version = "1",
                 parent_handle = self.handle, child_handle = child_handle,
@@ -175,7 +175,7 @@ class main(rpki.cli.Cmd):
 
     if self.run_pubd:
       SubElement(e, "repository", type = "offer",
-                 service_url = "https://%s:%d/" % (self.cfg.get("pubd_server_host"),
+                 service_url = "https://%s:%s/" % (self.cfg.get("pubd_server_host"),
                                                    self.cfg.get("pubd_server_port")))
     else:
       print "Warning: I don't yet know how to do publication hints, only offers"
@@ -200,12 +200,12 @@ class main(rpki.cli.Cmd):
     p = myrpki.etree_read(argv[0])
 
     if parent_handle is None:
-      parent_handle = p["parent_handle"]
+      parent_handle = p.get("parent_handle")
 
-    print "Parent calls itself %r, we call it %r" (p["parent_handle"], parent_handle)
+    print "Parent calls itself %r, we call it %r" % (p.get("parent_handle"), parent_handle)
 
-    self.bpki_myrpki.fxcert(pem = p.findtext(myrpki.tag("bpki_resource_ca")))
-    b = self.bpki_myrpki.fxcert(pem = p.findtext(myrpki.tag("bpki_server_ca")))
+    self.bpki_myrpki.fxcert(p.findtext(myrpki.tag("bpki_resource_ca")))
+    b = self.bpki_myrpki.fxcert(p.findtext(myrpki.tag("bpki_server_ca")))
 
     myrpki.etree_write(p, "parents/%s.xml" % parent_handle)
 

@@ -69,6 +69,7 @@ rpkid_dir = cleanpath(this_dir, "../rpkid")
 
 prog_myirbe = cleanpath(this_dir, "myirbe.py")
 prog_myrpki = cleanpath(this_dir, "myrpki.py")
+prog_setup  = cleanpath(this_dir, "setup.py")
 prog_rpkid  = cleanpath(rpkid_dir, "rpkid.py")
 prog_irdbd  = cleanpath(rpkid_dir, "irdbd.py")
 prog_pubd   = cleanpath(rpkid_dir, "pubd.py")
@@ -493,6 +494,13 @@ class allocation(object):
     print "Running myrpki.py for", self.name
     subprocess.check_call(("python", prog_myrpki), cwd = self.path())
 
+  def run_setup(self, *args):
+    """
+    Run setup.py for this entity.
+    """
+    print "Running myrpki.py for", self.name, "with arguments", repr(args)
+    subprocess.check_call(("python", prog_setup) + args, cwd = self.path())
+
   def run_python_daemon(self, prog):
     """
     Start a Python daemon and return a subprocess.Popen object
@@ -611,10 +619,27 @@ for d in db:
   d.dump_clients("pubclients.csv", db)
   d.dump_rsyncd("rsyncd.conf")
 
-# Do initial myirbe.py run for each hosting entity to set up BPKI
+# Initialize BPKI and generate self-descriptor for each entity.
+
+print 'Running "setup initialize" for each entity'
 
 for d in db:
-  d.run_myirbe()
+  d.run_setup("initialize")
+
+print 'Done running "setup initialize"'
+
+# This is where we need to get clever about running setup.py in its
+# various modes to do the service URL and BPKI cross-certification
+# setup.
+
+for d in db:
+  if not d.is_root():
+    print
+    d.parent.run_setup("receive_from_child", d.path("%s.xml" % d.name))
+    print
+    d.run_setup("receive_from_parent", d.parent.path("children/%s.xml" % d.name))
+
+print
 
 # Run myrpki.py several times for each entity.  First pass misses
 # stuff that isn't generated until later in first pass.  Second pass
@@ -625,18 +650,15 @@ for i in xrange(3):
   for d in db:
     d.run_myrpki()
 
-# Set up a few things for rootd
+# Create publication directories.
+
+for d in db:
+  if d.is_root() or d.runs_pubd():
+    os.makedirs(d.path("publication"))
+
+# Create RPKI root certificate.
 
 rootd_openssl = db.make_rootd_openssl()
-
-print "Creating rootd BPKI cross-certificate for its child"
-rootd_openssl("ca", "-notext", "-batch",
-              "-config",  "myrpki.conf",
-              "-ss_cert", "bpki/myrpki/ca.cer",
-              "-out",     "bpki/myirbe/child.cer",
-              "-extensions", "ca_x509_ext_xcert0")
-
-os.makedirs(db.root.path("publication"))
 
 print "Creating rootd RPKI root certificate"
 rootd_openssl("x509", "-req", "-sha256", "-outform", "DER",

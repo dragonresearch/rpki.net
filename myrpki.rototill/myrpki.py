@@ -517,20 +517,22 @@ class CA(object):
       self.run_ca("-extensions", "ca_x509_ext_ee", "-in", req_file, "-out", cer_file)
 
     return req_file, cer_file
-    
-  def fxcert(self, pem, filename = None, path_restriction = 0):
+
+  def fxcert(self, b64, filename = None, path_restriction = 0):
     """
     Write PEM certificate to file, then cross-certify.
     """
     fn = os.path.join(self.dir, filename or "temp.%s.cer" % os.getpid())
     try:
-      f = open(fn, "w")
-      f.write(pem)
-      f.close()
+      p = subprocess.Popen((openssl, "x509", "-inform", "DER", "-out", fn), stdin = subprocess.PIPE)
+      p.communicate(base64.b64decode(b64))
+      if p.wait() != 0:
+        raise RuntimeError, "Couldn't store certificate for cross-certification"
       return self.xcert(fn, path_restriction)
     finally:
       if not filename and os.path.exists(fn):
-        os.unlink(fn)
+        #os.unlink(fn)
+        pass
 
   def xcert(self, cert, path_restriction = 0):
     """

@@ -22,7 +22,9 @@ import myrpki, rpki.config, rpki.cli
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 def read_xml_handle_tree(filename):
-  return filename.split()[1].splitext()[0], myrpki.etree_read(filename)
+  handle = os.path.splitext(os.path.split(filename)[-1])[0]
+  etree  = myrpki.etree_read(filename)
+  return handle, etree
 
 class main(rpki.cli.Cmd):
 
@@ -139,6 +141,8 @@ class main(rpki.cli.Cmd):
 
   def do_receive_from_child(self, arg):
 
+    self.load_xml()
+
     child_handle = None
 
     opts, argv = getopt.getopt(arg.split(), "", ["child_handle="])
@@ -180,6 +184,8 @@ class main(rpki.cli.Cmd):
     myrpki.etree_write(e, "children/%s.xml" % child_handle)
 
   def do_receive_from_parent(self, arg):
+
+    self.load_xml()
 
     parent_handle = None
     repository_handle = None

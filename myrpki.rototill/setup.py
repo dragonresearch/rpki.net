@@ -37,6 +37,7 @@ class main(rpki.cli.Cmd):
   children = {}
   repositories = {}
 
+
   def __init__(self):
     os.environ["TZ"] = "UTC"
     time.tzset()
@@ -68,12 +69,22 @@ class main(rpki.cli.Cmd):
 
     rpki.cli.Cmd.__init__(self, argv)
 
+
   def load_xml(self):
     handle, self.me   = read_xml_handle_tree("%s.xml" % self.handle)
     self.parents      = dict(read_xml_handle_tree(i) for i in glob.glob("parents/*.xml"))
     self.children     = dict(read_xml_handle_tree(i) for i in glob.glob("children/*.xml"))
     self.repositories = dict(read_xml_handle_tree(i) for i in glob.glob("repositories/*.xml"))
     assert handle == self.handle
+
+    if False:
+      print "++ Loaded ++"
+      print handle, self.me
+      print "Parents:     ", self.parents
+      print "Children:    ", self.children
+      print "Repositories:", self.repositories
+      print "-- Loaded --"
+
 
   def do_initialize(self, arg):
     if arg:
@@ -131,8 +142,7 @@ class main(rpki.cli.Cmd):
 
     if self.run_rootd:
 
-      e = Element("parent", version = "1",
-                  parent_handle = "rootd", child_handle = self.handle,
+      e = Element("parent", parent_handle = "rootd", child_handle = self.handle,
                   service_url = "https://localhost:%s/" % self.cfg.get("rootd_server_port"))
 
       myrpki.PEMElement(e, "bpki_resource_ca", self.bpki_servers.cer)
@@ -150,6 +160,7 @@ class main(rpki.cli.Cmd):
     if self.run_pubd:
       myrpki.PEMElement(r, "bpki_server_ca", self.bpki_servers.cer)
       myrpki.etree_write(r, "repositories/%s.xml" % self.handle)
+
 
   def do_receive_from_child(self, arg):
 
@@ -185,14 +196,42 @@ class main(rpki.cli.Cmd):
     myrpki.PEMElement(e, "bpki_resource_ca", self.bpki_resources.cer)
     myrpki.PEMElement(e, "bpki_server_ca",   self.bpki_servers.cer)
 
-    if self.run_pubd:
+    # Testing run_pubd here is probably wrong.  We need better logic
+    # for deciding whether to offer our own pubd or give a referal.
+    # For the moment, while just trying to get the new code off the
+    # ground, this will suffice.
+
+    if False and self.run_pubd:
       SubElement(e, "repository", type = "offer",
                  service_url = "https://%s:%s/" % (self.cfg.get("pubd_server_host"),
                                                    self.cfg.get("pubd_server_port")))
+
+    # This business with the service_url is almost certainly wrong.
+    # For hints, only the repository can tell us what's right; for
+    # offers, well, this is one of the parts we never managed to
+    # automate properly before, so this may require examining what we
+    # ended up doing by hand when testing.
+
+    if len(self.repositories) == 1:
+      r = self.repositories.values()[0]
+      b = r.find("bpki_server_ca")
+      r = SubElement(e, "repository",
+                     service_url = "%s%s/" % (r.get("service_url"), child_handle),
+                     type = "offer" if self.run_pubd else"hint")
+
+      if not self.run_pubd:
+
+        # CMS-signed blob authorizing use of part of our space by our
+        # child goes here, once I've written that code.
+
+        # Insert BPKI data child will need to talk to repository
+        r.append(b)
+
     else:
-      print "Warning: I don't yet know how to do publication hints, only offers"
+      print "Warning: Not obvious which repository to hint or offer to child"
 
     myrpki.etree_write(e, "children/%s.xml" % child_handle)
+
 
   def do_receive_from_parent(self, arg):
 
@@ -224,7 +263,7 @@ class main(rpki.cli.Cmd):
     print "We call repository %r" % repository_handle
 
     self.bpki_resources.fxcert(p.findtext("bpki_resource_ca"))
-    b = self.bpki_resources.fxcert(p.findtext("bpki_server_ca"))
+    self.bpki_resources.fxcert(p.findtext("bpki_server_ca"))
 
     myrpki.etree_write(p, "parents/%s.xml" % parent_handle)
 
@@ -232,14 +271,15 @@ class main(rpki.cli.Cmd):
 
     if r is not None and r.get("type") == "offer":
       e = Element("repository", service_url = r.get("service_url"))
-      myrpki.PEMElement(e, "bpki_server_ca", b)
+      e.append(p.find("bpki_server_ca"))
       myrpki.etree_write(e, "repositories/%s.xml" % repository_handle)
 
     elif r is not None and r.get("type") == "hint":
-      print "Found repository hint but don't know how to handle that (yet)"
+      myrpki.etree_write(r, "repositories/%s.xml" % repository_handle)
 
     else:
       print "Couldn't find repository offer or hint"
-    
+
+
 if __name__ == "__main__":
   main()

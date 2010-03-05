@@ -80,3 +80,18 @@ class Cmd(cmd.Cmd):
   else:
 
     cmdloop_with_history = cmd.Cmd.cmdloop
+
+
+def yes_or_no(prompt, full_word_required = False):
+  """
+  Ask a yes-or-no question.
+  """
+  while True:
+    answer = raw_input(prompt).strip().lower()
+    if answer == "yes" or (not full_word_required and answer[0] == "y"):
+      return True
+    if answer == "no" or (not full_word_required and answer[0] == "n"):
+      return False
+    print 'Please answer "yes" or "no"'
+
+    

@@ -617,9 +617,9 @@ for d in db:
 for d in db:
   if not d.is_root():
     print
-    d.parent.run_setup("receive_from_child", d.path("%s.xml" % d.name))
+    d.parent.run_setup("answer_child", d.path("entitydb", "identity.xml"))
     print
-    d.run_setup("receive_from_parent", d.parent.path("children/%s.xml" % d.name))
+    d.run_setup("process_parent_answer", d.parent.path("entitydb", "children", "%s.xml" % d.name))
 
 print
 

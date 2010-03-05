@@ -376,6 +376,15 @@ class allocation(object):
       f.writerows((s.client_handle, s.path("bpki/resources/ca.cer"), s.sia_base)
                   for s in (db if only_one_pubd else [self] + self.kids))
 
+  def find_pubd(self):
+    """
+    Walk up tree until we find somebody who runs pubd.
+    """
+    s = self
+    while not s.runs_pubd():
+      s = s.parent
+    return s
+
   def dump_conf(self, fn):
     """
     Write configuration file for OpenSSL and RPKI tools.
@@ -402,9 +411,7 @@ class allocation(object):
     if self.runs_pubd():
       r["pubd", "sql-database"] = "pubd%d" % self.engine
 
-    s = self
-    while not s.runs_pubd():
-      s = s.parent
+    s = self.find_pubd()
     r["myrpki", "pubd_server_host"] = "localhost"
     r["myrpki", "pubd_server_port"] = str(s.pubd_port)
     r["myrpki", "repository_bpki_certificate"] = s.path("bpki/servers/ca.cer")
@@ -620,6 +627,12 @@ for d in db:
     d.parent.run_setup("answer_child", d.path("entitydb", "identity.xml"))
     print
     d.run_setup("process_parent_answer", d.parent.path("entitydb", "children", "%s.xml" % d.name))
+    print
+    p = d.find_pubd()
+    p.run_setup("answer_repository_client", d.path("entitydb", "identity.xml"))
+    print
+    d.run_setup("process_repository_answer", p.path("entitydb", "pubclients", "%s.xml" % d.name))
+    print
 
 print
 

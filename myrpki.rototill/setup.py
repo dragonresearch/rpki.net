@@ -68,10 +68,7 @@ class main(rpki.cli.Cmd):
     self.run_pubd  = self.cfg.getboolean("run_pubd")
     self.run_rootd = self.cfg.getboolean("run_rootd")
 
-    self.entitydb         = self.cfg.get("entities_dir", "entitydb")
-    self.parents_dir      = self.cfg.get("parents_dir",      os.path.join(self.entitydb, "parents"))
-    self.children_dir     = self.cfg.get("children_dir",     os.path.join(self.entitydb, "children"))
-    self.repositories_dir = self.cfg.get("repositories_dir", os.path.join(self.entitydb, "repositories"))
+    self.entitydb_dir = self.cfg.get("entitydb_dir", "entitydb")
 
     if self.run_rootd and (not self.run_pubd or not self.run_rpkid):
       raise RuntimeError, "Can't run rootd unless also running rpkid and pubd"
@@ -83,11 +80,15 @@ class main(rpki.cli.Cmd):
     self.pubd_contact_info = self.cfg.get("pubd_contact_info", "")
 
 
+  def entitydb(self, *args):
+    return os.path.join(self.entitydb_dir, *args)
+
+
   def load_xml(self):
-    self.me = myrpki.etree_read(os.path.join(self.entitydb, "identity.xml"))
-    self.parents      = dict(read_xml_handle_tree(i) for i in glob.glob(os.path.join(self.parents_dir, "*.xml")))
-    self.children     = dict(read_xml_handle_tree(i) for i in glob.glob(os.path.join(self.children_dir, "*.xml")))
-    self.repositories = dict(read_xml_handle_tree(i) for i in glob.glob(os.path.join(self.repositories_dir, "*.xml")))
+    self.me = myrpki.etree_read(self.entitydb("identity.xml"))
+    self.parents      = dict(read_xml_handle_tree(i) for i in glob.glob(self.entitydb("parents", "*.xml")))
+    self.children     = dict(read_xml_handle_tree(i) for i in glob.glob(self.entitydb("children", "*.xml")))
+    self.repositories = dict(read_xml_handle_tree(i) for i in glob.glob(self.entitydb("repositories", "*.xml")))
 
     if False:
       print "++ Loaded ++"
@@ -97,6 +98,11 @@ class main(rpki.cli.Cmd):
       print "Repositories:", self.repositories
       print "-- Loaded --"
 
+
+  # Disable all this parent-based offer and hint cruft for now, it's confusing more basic issues
+
+  disable_parent_offers_and_hints = True
+  
 
   def do_initialize(self, arg):
     if arg:
@@ -108,12 +114,12 @@ class main(rpki.cli.Cmd):
       self.bpki_servers.setup(self.cfg.get("bpki_servers_ta_dn",
                                            "/CN=%s BPKI Server Trust Anchor" % self.handle))
 
-    # Create directories for parents, children, and repositories.
-    # Directory names should become configurable (later).
+    # Create entitydb directories.
 
-    for i in (self.entitydb, self.parents_dir, self.children_dir, self.repositories_dir):
-      if not os.path.exists(i):
-        os.makedirs(i)
+    for i in ("parents", "children", "repositories", "pubclients"):
+      d = self.entitydb(i)
+      if not os.path.exists(d):
+        os.makedirs(d)
 
     if self.run_rpkid or self.run_pubd or self.run_rootd:
 
@@ -140,11 +146,11 @@ class main(rpki.cli.Cmd):
 
     e = Element("identity", handle = self.handle)
     myrpki.PEMElement(e, "bpki_ca_certificate", self.bpki_resources.cer)
-    myrpki.etree_write(e, os.path.join(self.entitydb, "identity.xml"))
+    myrpki.etree_write(e, self.entitydb("identity.xml"))
 
     # If we're running pubd, construct repository entry for it.
 
-    if self.run_pubd:
+    if not self.disable_parent_offers_and_hints and self.run_pubd:
       r = Element("repository", type = "confirmed",
                   service_url = "https://%s:%s/" % (self.cfg.get("pubd_server_host"),
                                                     self.cfg.get("pubd_server_port")))
@@ -161,8 +167,10 @@ class main(rpki.cli.Cmd):
       myrpki.PEMElement(e, "bpki_resource_ca", self.bpki_servers.cer)
       myrpki.PEMElement(e, "bpki_server_ca",   self.bpki_servers.cer)
 
-      e.append(r)
-      myrpki.etree_write(e, os.path.join(self.parents_dir, "rootd.xml"))
+      if not self.disable_parent_offers_and_hints:
+        e.append(r)
+
+      myrpki.etree_write(e, self.entitydb("parents", "rootd.xml"))
 
       self.bpki_resources.xcert(self.bpki_servers.cer)
 
@@ -170,9 +178,9 @@ class main(rpki.cli.Cmd):
       if not os.path.exists(rootd_child_fn):
         os.link(self.bpki_servers.xcert(self.bpki_resources.cer), rootd_child_fn)
 
-    if self.run_pubd:
+    if not self.disable_parent_offers_and_hints and self.run_pubd:
       myrpki.PEMElement(r, "bpki_server_ca", self.bpki_servers.cer)
-      myrpki.etree_write(r, os.path.join(self.repositories_dir, "%s.xml" % self.handle))
+      myrpki.etree_write(r, self.entitydb("repositories", "%s.xml" % self.handle))
 
 
   def do_compose_request_to_parent(self, arg):
@@ -213,41 +221,45 @@ class main(rpki.cli.Cmd):
     myrpki.PEMElement(e, "bpki_resource_ca", self.bpki_resources.cer)
     myrpki.PEMElement(e, "bpki_server_ca",   self.bpki_servers.cer)
 
-    # Testing run_pubd here is probably wrong.  We need better logic
-    # for deciding whether to offer our own pubd or give a referal.
-    # For the moment, while just trying to get the new code off the
-    # ground, this will suffice.
+    if not self.disable_parent_offers_and_hints:
 
-    if False and self.run_pubd:
-      SubElement(e, "repository", type = "offer",
-                 service_url = "https://%s:%s/" % (self.cfg.get("pubd_server_host"),
-                                                   self.cfg.get("pubd_server_port")))
+      # Testing run_pubd here is probably wrong.  We need better logic
+      # for deciding whether to offer our own pubd or give a referal.
+      # For the moment, while just trying to get the new code off the
+      # ground, this will suffice.
 
-    # This business with the service_url is almost certainly wrong.
-    # For hints, only the repository can tell us what's right; for
-    # offers, well, this is one of the parts we never managed to
-    # automate properly before, so this may require examining what we
-    # ended up doing by hand when testing.
+      if False and self.run_pubd:
+        SubElement(e, "repository", type = "offer",
+                   service_url = "https://%s:%s/" % (self.cfg.get("pubd_server_host"),
+                                                     self.cfg.get("pubd_server_port")))
 
-    if len(self.repositories) == 1:
-      repo = self.repositories.values()[0]
-      b = repo.find("bpki_server_ca")
-      r = SubElement(e, "repository",
-                     service_url = "%s%s/" % (repo.get("service_url"), child_handle),
-                     type = "offer" if self.run_pubd else"hint")
+      # This business with the service_url is almost certainly wrong.
+      # For hints, only the repository can tell us what's right; for
+      # offers, well, this is one of the parts we never managed to
+      # automate properly before, so this may require examining what we
+      # ended up doing by hand when testing.
 
-      if not self.run_pubd:
+      if len(self.repositories) == 1:
+        repo = self.repositories.values()[0]
+        b = repo.find("bpki_server_ca")
+        r = SubElement(e, "repository",
+                       service_url = "%s%s/" % (repo.get("service_url"), child_handle),
+                       type = "offer" if self.run_pubd else"hint")
 
-        # CMS-signed blob authorizing use of part of our space by our
-        # child goes here, once I've written that code.
+        if not self.run_pubd:
 
-        # Insert BPKI data child will need to talk to repository
-        r.append(b)
+          # CMS-signed blob authorizing use of part of our space by our
+          # child goes here, once I've written that code.
 
-    else:
-      print "Warning: Not obvious which repository to hint or offer to child"
+          # Insert BPKI data child will need to talk to repository
+          r.append(b)
 
-    myrpki.etree_write(e, os.path.join(self.children_dir, "%s.xml" % child_handle))
+      else:
+        print "Warning: Not obvious which repository to hint or offer to child"
+
+
+
+    myrpki.etree_write(e, self.entitydb("children", "%s.xml" % child_handle))
 
 
   def do_process_parent_answer(self, arg):
@@ -257,7 +269,7 @@ class main(rpki.cli.Cmd):
     parent_handle = None
     repository_handle = None
 
-    opts, argv = getopt.getopt(arg.split(), "", ["parent_handle", "repository_handle"])
+    opts, argv = getopt.getopt(arg.split(), "", ["parent_handle=", "repository_handle="])
     for o, a in opts:
       if o == "--parent_handle":
         parent_handle = a
@@ -265,7 +277,7 @@ class main(rpki.cli.Cmd):
         repository_handle = a
 
     if len(argv) != 1 or not os.path.exists(argv[0]):
-      raise RuntimeError, "Ned to specify filename for parent.xml on command line"
+      raise RuntimeError, "Need to specify filename for parent.xml on command line"
 
     p = myrpki.etree_read(argv[0])
 
@@ -282,30 +294,94 @@ class main(rpki.cli.Cmd):
     self.bpki_resources.fxcert(p.findtext("bpki_resource_ca"))
     self.bpki_resources.fxcert(p.findtext("bpki_server_ca"))
 
-    myrpki.etree_write(p, os.path.join(self.parents_dir, "%s.xml" % parent_handle))
+    myrpki.etree_write(p, self.entitydb("parents", "%s.xml" % parent_handle))
 
-    r = p.find("repository")
+    if not self.disable_parent_offers_and_hints:
 
-    if r is not None and r.get("type") == "offer":
-      e = Element("repository", service_url = r.get("service_url"))
-      e.append(p.find("bpki_server_ca"))
-      myrpki.etree_write(e, os.path.join(self.repositories_dir, "%s.xml" % repository_handle))
+      r = p.find("repository")
 
-    elif r is not None and r.get("type") == "hint":
-      myrpki.etree_write(r, os.path.join(self.repositories_dir, "%s.xml" % repository_handle))
+      if r is not None and r.get("type") == "offer":
+        e = Element("repository", service_url = r.get("service_url"))
+        e.append(p.find("bpki_server_ca"))
+        myrpki.etree_write(e, self.entitydb("repositories", "%s.xml" % repository_handle))
 
-    else:
-      print "Couldn't find repository offer or hint"
+      elif r is not None and r.get("type") == "hint":
+        myrpki.etree_write(r, self.entitydb("repositories", "%s.xml" % repository_handle))
+
+      else:
+        print "Couldn't find repository offer or hint"
 
 
   def do_compose_request_to_repository(self, arg):
-    pass
+    if self.disable_parent_offers_and_hints:
+      print "For the moment, the request to repository is identical to identity.xml, just send that file"
+    else:
+      raise RuntimeError, "Support for hints not available yet"
 
   def do_answer_repository_client(self, arg):
-    pass
+
+    if not self.disable_parent_offers_and_hints:
+      raise RuntimeError, "Support for hints not available yet"
+
+    self.load_xml()
+
+    client_handle = None
+
+    opts, argv = getopt.getopt(arg.split(), "", ["client_handle="])
+    for o, a in opts:
+      if o == "--client_handle":
+        client_handle = a
+    
+    if len(argv) != 1 or not os.path.exists(argv[0]):
+      raise RuntimeError, "Need to specify filename for client.xml"
+
+    c = myrpki.etree_read(argv[0])
+
+    # Checking of signed referalls goes somewhere around here.  Must
+    # be after reading client's XML, but (probably) before deciding
+    # what the client's handle will be.
+
+    if client_handle is None:
+      client_handle = c.get("handle")
+
+    print "Client calls itself %r, we call it %r" % (c.get("handle"), client_handle)
+
+    self.bpki_servers.fxcert(c.findtext("bpki_ca_certificate"))
+
+    e = Element("repository", repository_handle = self.handle, client_handle = client_handle,
+                service_url = "https://%s:%s/client/%s" % (self.cfg.get("pubd_server_host"),
+                                                           self.cfg.get("pubd_server_port"),
+                                                           client_handle))
+
+    myrpki.PEMElement(e, "bpki_server_ca",   self.bpki_servers.cer)
+
+    myrpki.etree_write(e, self.entitydb("pubclients", "%s.xml" % client_handle))
+
 
   def do_process_repository_answer(self, arg):
-    pass
+
+    self.load_xml()
+
+    repository_handle = None
+
+    opts, argv = getopt.getopt(arg.split(), "", ["repository_handle="])
+    for o, a in opts:
+      if o == "--repository_handle":
+        repository_handle = a
+
+    if len(argv) != 1 or not os.path.exists(argv[0]):
+      raise RuntimeError, "Need to specify filename for repository.xml on command line"
+
+    r = myrpki.etree_read(argv[0])
+
+    if repository_handle is None:
+       repository_handle = r.get("repository_handle")
+
+    print "Repository calls itself %r, we call it %r" % (r.get("repository_handle"), repository_handle)
+    print "Repository calls us %r" % r.get("client_handle")
+
+    myrpki.etree_write(r, self.entitydb("repositories", "%s.xml" % repository_handle))
+
 
   def do_compose_request_to_host(self, arg):
     pass

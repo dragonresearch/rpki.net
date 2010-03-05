@@ -1,5 +1,5 @@
 """
-Customizations of Python cmd module.
+Utilities for writing command line tools.
 
 $Id$
 
@@ -27,6 +27,9 @@ except ImportError:
   have_readline = False
 
 class Cmd(cmd.Cmd):
+  """
+  Customized subclass of Python cmd module.
+  """
 
   emptyline_repeats_last_command = False
 
@@ -82,16 +85,24 @@ class Cmd(cmd.Cmd):
     cmdloop_with_history = cmd.Cmd.cmdloop
 
 
-def yes_or_no(prompt, full_word_required = False):
+
+def yes_or_no(prompt, default = None, require_full_word = False):
   """
   Ask a yes-or-no question.
   """
+  prompt = prompt.rstrip() + _yes_or_no_prompts[default]
   while True:
     answer = raw_input(prompt).strip().lower()
-    if answer == "yes" or (not full_word_required and answer[0] == "y"):
+    if not answer and default is not None:
+      return default
+    if answer == "yes" or (not require_full_word and answer.startswith("y")):
       return True
-    if answer == "no" or (not full_word_required and answer[0] == "n"):
+    if answer == "no"  or (not require_full_word and answer.startswith("n")):
       return False
     print 'Please answer "yes" or "no"'
 
-    
+_yes_or_no_prompts = {
+  True  : ' ("yes" or "no" ["yes"]) ',
+  False : ' ("yes" or "no" ["no"]) ',
+  None  : ' ("yes" or "no") ' }
+

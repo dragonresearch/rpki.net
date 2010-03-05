@@ -51,11 +51,13 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import subprocess, csv, re, os, getopt, sys, ConfigParser, base64
 
-from xml.etree.ElementTree import Element, SubElement, ElementTree, QName
+from xml.etree.ElementTree import Element, SubElement, ElementTree
 
-# Our XML namespace. 
+# Our XML namespace and protocol version.
 
-namespace = "http://www.hactrn.net/uris/rpki/myrpki/"
+namespace      = "http://www.hactrn.net/uris/rpki/myrpki/"
+version        = "1"
+namespaceQName = "{" + namespace + "}"
 
 # Dialect for our use of CSV files, here to make it easy to change if
 # your site needs to do something different.  See doc for the csv
@@ -589,32 +591,31 @@ def etree_write(e, filename, verbose = True):
 
   I still miss SYSCAL(RENMWO).
   """
-
   assert isinstance(filename, str)
   if verbose:
     print "Writing", filename
-  ElementTree(e).write(filename + ".tmp")
+  tmp = Element(e.tag, e.attrib, xmlns = namespace, version = version)
+  tmp[:] = e[:]
+  ElementTree(tmp).write(filename + ".tmp")
   os.rename(filename + ".tmp", filename)
 
 def etree_read(filename, verbose = False):
   """
-  Read an etree from a file.
+  Read an etree from a file, verifying then stripping XML namespace
+  cruft.
   """
   if verbose:
     print "Reading", filename
   try:
-    return ElementTree(file = filename).getroot()
+    e = ElementTree(file = filename).getroot()
   except IOError:
     return None
-
-def tag(t):
-  """
-  Wrap an element name in the right XML namespace goop.  We probably
-  should be using a QName, but it doesn't work correctly with the
-  etree search functions
-  """
-  #return QName(namespace, t)
-  return "{" + namespace + "}" + t
+  for i in e.getiterator():
+    if i.tag.startswith(namespaceQName):
+      i.tag = i.tag[len(namespaceQName):]
+    else:
+      raise RuntimeError, "XML tag %r is not in namespace %r" % (i.tag, namespace)
+  return e
 
 def main(argv = ()):
   """
@@ -656,7 +657,7 @@ def main(argv = ()):
 
   e = etree_read(xml_filename)
   if e:
-    bsc_req, bsc_cer = bpki.bsc(e.findtext(tag("bpki_bsc_pkcs10")))
+    bsc_req, bsc_cer = bpki.bsc(e.findtext("bpki_bsc_pkcs10"))
   else:
     bsc_req, bsc_cer = None, None
 

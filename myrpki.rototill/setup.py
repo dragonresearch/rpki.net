@@ -21,9 +21,6 @@ import myrpki, rpki.config, rpki.cli
 
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
-namespace = myrpki.namespace
-tag = myrpki.tag
-
 def read_xml_handle_tree(filename):
   handle = os.path.splitext(os.path.split(filename)[-1])[0]
   etree  = myrpki.etree_read(filename)
@@ -118,7 +115,7 @@ class main(rpki.cli.Cmd):
     # Build the me.xml file.  Need to check for existing file so we don't
     # overwrite?  Worry about that later.
 
-    e = Element("me", xmlns = namespace, version = "1", handle = self.handle)
+    e = Element("me", handle = self.handle)
     myrpki.PEMElement(e, "bpki_ca_certificate", self.bpki_myrpki.cer)
     myrpki.etree_write(e, "%s.xml" % self.handle)
 
@@ -128,18 +125,19 @@ class main(rpki.cli.Cmd):
       r = Element("repository", type = "offer",
                   service_url = "https://%s:%s/" % (self.cfg.get("pubd_server_host"),
                                                     self.cfg.get("pubd_server_port")))
+      myrpki.etree_write(r, "repositories/%s.xml" % self.handle)
 
     # If we're running rootd, construct a fake parent to go with it,
     # and cross-certify in both directions so we can talk to rootd.
 
     if self.run_rootd:
 
-      e = Element(tag("parent"), version = "1",
+      e = Element("parent", version = "1",
                   parent_handle = "rootd", child_handle = self.handle,
                   service_url = "https://localhost:%s/" % self.cfg.get("rootd_server_port"))
 
-      myrpki.PEMElement(e, tag("bpki_resource_ca"), self.bpki_myirbe.cer)
-      myrpki.PEMElement(e, tag("bpki_server_ca"),   self.bpki_myirbe.cer)
+      myrpki.PEMElement(e, "bpki_resource_ca", self.bpki_myirbe.cer)
+      myrpki.PEMElement(e, "bpki_server_ca",   self.bpki_myirbe.cer)
 
       e.append(r)
       myrpki.etree_write(e, "parents/rootd.xml")
@@ -149,13 +147,6 @@ class main(rpki.cli.Cmd):
       rootd_child_fn = self.cfg.get("child-bpki-cert", None, "rootd")
       if not os.path.exists(rootd_child_fn):
         os.link(self.bpki_myirbe.xcert(self.bpki_myrpki.cer), rootd_child_fn)
-
-    # Save repository entry.
-
-    if self.run_pubd:
-      r.set("xmlns", namespace)
-      r.set("version", "1")
-      myrpki.etree_write(r, "repositories/%s.xml" % self.handle)
 
   def do_receive_from_child(self, arg):
 
@@ -181,10 +172,9 @@ class main(rpki.cli.Cmd):
 
     print "Child calls itself %r, we call it %r" % (c.get("handle"), child_handle)
 
-    self.bpki_myirbe.fxcert(c.findtext(myrpki.tag("bpki_ca_certificate")))
+    self.bpki_myirbe.fxcert(c.findtext("bpki_ca_certificate"))
 
-    e = Element("parent", xmlns = namespace, version = "1",
-                parent_handle = self.handle, child_handle = child_handle,
+    e = Element("parent", parent_handle = self.handle, child_handle = child_handle,
                 service_url = "https://%s:%s/up-down/%s/%s" % (self.cfg.get("rpkid_server_host"),
                                                                self.cfg.get("rpkid_server_port"),
                                                                self.handle, child_handle))
@@ -230,16 +220,15 @@ class main(rpki.cli.Cmd):
     print "Parent calls us %r" % p.get("child_handle")
     print "We call repository %r" % repository_handle
 
-    self.bpki_myrpki.fxcert(p.findtext(myrpki.tag("bpki_resource_ca")))
-    b = self.bpki_myrpki.fxcert(p.findtext(myrpki.tag("bpki_server_ca")))
+    self.bpki_myrpki.fxcert(p.findtext("bpki_resource_ca"))
+    b = self.bpki_myrpki.fxcert(p.findtext("bpki_server_ca"))
 
     myrpki.etree_write(p, "parents/%s.xml" % parent_handle)
 
-    r = p.find(myrpki.tag("repository"))
+    r = p.find("repository")
 
     if r is not None and r.get("type") == "offer":
-      e = Element("repository", xmlns = namespace, version = "1",
-                  service_url = r.get("service_url"))
+      e = Element("repository", service_url = r.get("service_url"))
       myrpki.PEMElement(e, "bpki_server_ca", b)
       myrpki.etree_write(e, "repositories/%s.xml" % repository_handle)
 

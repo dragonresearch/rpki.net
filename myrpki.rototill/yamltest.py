@@ -134,10 +134,7 @@ class allocation_db(list):
         a.crl_interval = a.parent.crl_interval
       if a.regen_margin is None:
         a.regen_margin = a.parent.regen_margin
-      i = 0
-      for j in xrange(3):
-        i = a.sia_base.index("/", i) + 1
-      a.client_handle = a.sia_base[i:].rstrip("/")
+      a.client_handle = "/".join(a.sia_base.rstrip("/").split("/")[3:])
     self.root.closure()
     self.map = dict((a.name, a) for a in self)
     for a in self:
@@ -406,7 +403,6 @@ class allocation(object):
 
     if self.is_root():
       r["myrpki", "rootd_server_port"] = str(self.rootd_port)
-      r["myrpki", "rootd_resource_class_name"] = self.name
 
     if self.runs_pubd():
       r["pubd", "sql-database"] = "pubd%d" % self.engine
@@ -416,6 +412,7 @@ class allocation(object):
     r["myrpki", "pubd_server_port"] = str(s.pubd_port)
     r["myrpki", "repository_bpki_certificate"] = s.path("bpki/servers/ca.cer")
     r["myrpki", "repository_handle"] = self.client_handle
+    r["myrpki", "publication_rsync_server"] = "localhost:%s" % s.rsync_port
 
     if rpkid_password:
       r["rpkid", "sql-password"] = rpkid_password
@@ -631,7 +628,7 @@ for d in db:
     p = d.find_pubd()
     p.run_setup("answer_repository_client", d.path("entitydb", "identity.xml"))
     print
-    d.run_setup("process_repository_answer", p.path("entitydb", "pubclients", "%s.xml" % d.name))
+    d.run_setup("process_repository_answer", p.path("entitydb", "pubclients", "%s.%s.xml" % (p.name, d.name)))
     print
 
 print

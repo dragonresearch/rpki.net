@@ -79,6 +79,8 @@ class main(rpki.cli.Cmd):
 
     self.pubd_contact_info = self.cfg.get("pubd_contact_info", "")
 
+    self.rsync_module = self.cfg.get("publication_rsync_module")
+    self.rsync_server = self.cfg.get("publication_rsync_server")
 
   def entitydb(self, *args):
     return os.path.join(self.entitydb_dir, *args)
@@ -107,6 +109,8 @@ class main(rpki.cli.Cmd):
   def do_initialize(self, arg):
     if arg:
       raise RuntimeError, "This command takes no arguments"
+
+    print "This may take a little while, have to generate RSA keys..."
 
     self.bpki_resources.setup(self.cfg.get("bpki_resources_ta_dn",
                                            "/CN=%s BPKI Resource Trust Anchor" % self.handle))
@@ -318,6 +322,7 @@ class main(rpki.cli.Cmd):
     else:
       raise RuntimeError, "Support for hints not available yet"
 
+
   def do_answer_repository_client(self, arg):
 
     if not self.disable_parent_offers_and_hints:
@@ -325,37 +330,64 @@ class main(rpki.cli.Cmd):
 
     self.load_xml()
 
-    client_handle = None
+    sia_base = None
 
-    opts, argv = getopt.getopt(arg.split(), "", ["client_handle="])
+    opts, argv = getopt.getopt(arg.split(), "", ["sia_base="])
     for o, a in opts:
-      if o == "--client_handle":
-        client_handle = a
+      if o == "--sia_base":
+        sia_base = a
     
     if len(argv) != 1 or not os.path.exists(argv[0]):
       raise RuntimeError, "Need to specify filename for client.xml"
 
     c = myrpki.etree_read(argv[0])
 
-    # Checking of signed referalls goes somewhere around here.  Must
-    # be after reading client's XML, but (probably) before deciding
-    # what the client's handle will be.
+    # Critical thing at this point is to figure out what client's
+    # sia_base value should be.  Three cases:
+    #
+    # - client has no particular relationship to any other client:
+    #   sia_base is top-level, or as close as we can make it taking
+    #   rsyncd module into account (maybe homed under us, hmm, how do
+    #   we detect case where we are talking to ourself?)
+    #
+    # - client is a direct child of ours to whom we (in our parent
+    #   role) made an offer of publication service.  client homes
+    #   under us, presumably.
+    #
+    # - client is a child of a client of ours who referred the new
+    #   client to us, along with a signed referral.  signed referral
+    #   includes sia_base of referring client, new client homes under
+    #   that per referring client's wishes.
 
-    if client_handle is None:
-      client_handle = c.get("handle")
+    # client_handle is sia_base with "rsync://hostname:port/" stripped
+    # off the front, "/" stripped off the end, and (perhaps, to
+    # simplify XML file naming) all remaining "/" characters
+    # translated to ".".  This will require minor tweaks to
+    # publication protocol schema, or perhaps we just do it in XML
+    # land and leave publication protocol alone (for now?).
+
+    # Checking of signed referrals goes somewhere around here.  Must
+    # be after reading client's XML, but before deciding what the
+    # client's sia_base and handle will be.
+
+    if sia_base is None:
+      sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, c.get("handle"))
+
+    client_handle = "/".join(sia_base.rstrip("/").split("/")[3:])
 
     print "Client calls itself %r, we call it %r" % (c.get("handle"), client_handle)
 
     self.bpki_servers.fxcert(c.findtext("bpki_ca_certificate"))
 
-    e = Element("repository", repository_handle = self.handle, client_handle = client_handle,
+    e = Element("repository", repository_handle = self.handle,
+                client_handle = client_handle, sia_base = sia_base,
                 service_url = "https://%s:%s/client/%s" % (self.cfg.get("pubd_server_host"),
                                                            self.cfg.get("pubd_server_port"),
                                                            client_handle))
 
     myrpki.PEMElement(e, "bpki_server_ca",   self.bpki_servers.cer)
 
-    myrpki.etree_write(e, self.entitydb("pubclients", "%s.xml" % client_handle))
+    myrpki.etree_write(e, self.entitydb("pubclients", "%s.xml" % client_handle.replace("/", ".")))
 
 
   def do_process_repository_answer(self, arg):

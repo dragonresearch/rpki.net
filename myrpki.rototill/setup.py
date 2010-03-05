@@ -21,6 +21,9 @@ import myrpki, rpki.config, rpki.cli
 
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
+namespace = myrpki.namespace
+tag = myrpki.tag
+
 def read_xml_handle_tree(filename):
   handle = os.path.splitext(os.path.split(filename)[-1])[0]
   etree  = myrpki.etree_read(filename)
@@ -69,13 +72,16 @@ class main(rpki.cli.Cmd):
     rpki.cli.Cmd.__init__(self, argv)
 
   def load_xml(self):
-    handle, self.me   = read_xml_handle_tree(self.handle + ".xml")
+    handle, self.me   = read_xml_handle_tree("%s.xml" % self.handle)
     self.parents      = dict(read_xml_handle_tree(i) for i in glob.glob("parents/*.xml"))
     self.children     = dict(read_xml_handle_tree(i) for i in glob.glob("children/*.xml"))
     self.repositories = dict(read_xml_handle_tree(i) for i in glob.glob("repositories/*.xml"))
     assert handle == self.handle
 
   def do_initialize(self, arg):
+    if arg:
+      raise RuntimeError, "This command takes no arguments"
+
     self.bpki_myrpki.setup(self.cfg.get("bpki_myrpki_ta_dn",
                                         "/CN=%s BPKI Resource Trust Anchor" % self.handle))
     if self.run_rpkid or self.run_pubd or self.run_rootd:
@@ -112,25 +118,30 @@ class main(rpki.cli.Cmd):
     # Build the me.xml file.  Need to check for existing file so we don't
     # overwrite?  Worry about that later.
 
-    e = Element("me", xmlns = myrpki.namespace, version = "1", handle = self.handle)
+    e = Element("me", xmlns = namespace, version = "1", handle = self.handle)
     myrpki.PEMElement(e, "bpki_ca_certificate", self.bpki_myrpki.cer)
-    myrpki.etree_write(e, self.handle + ".xml")
+    myrpki.etree_write(e, "%s.xml" % self.handle)
+
+    # If we're running pubd, construct repository entry for it.
+
+    if self.run_pubd:
+      r = Element("repository", type = "offer",
+                  service_url = "https://%s:%s/" % (self.cfg.get("pubd_server_host"),
+                                                    self.cfg.get("pubd_server_port")))
 
     # If we're running rootd, construct a fake parent to go with it,
     # and cross-certify in both directions so we can talk to rootd.
 
     if self.run_rootd:
 
-      e = Element("parent", xmlns = myrpki.namespace, version = "1",
+      e = Element(tag("parent"), version = "1",
                   parent_handle = "rootd", child_handle = self.handle,
                   service_url = "https://localhost:%s/" % self.cfg.get("rootd_server_port"))
 
-      myrpki.PEMElement(e, "bpki_resource_ca", self.bpki_myirbe.cer)
-      myrpki.PEMElement(e, "bpki_server_ca",   self.bpki_myirbe.cer)
+      myrpki.PEMElement(e, tag("bpki_resource_ca"), self.bpki_myirbe.cer)
+      myrpki.PEMElement(e, tag("bpki_server_ca"),   self.bpki_myirbe.cer)
 
-      SubElement(e, "repository", type = "offer",
-                 service_url = "https://%s:%s/" % (self.cfg.get("pubd_server_host"),
-                                                   self.cfg.get("pubd_server_port")))
+      e.append(r)
       myrpki.etree_write(e, "parents/rootd.xml")
 
       self.bpki_myrpki.xcert(self.bpki_myirbe.cer)
@@ -138,6 +149,13 @@ class main(rpki.cli.Cmd):
       rootd_child_fn = self.cfg.get("child-bpki-cert", None, "rootd")
       if not os.path.exists(rootd_child_fn):
         os.link(self.bpki_myirbe.xcert(self.bpki_myrpki.cer), rootd_child_fn)
+
+    # Save repository entry.
+
+    if self.run_pubd:
+      r.set("xmlns", namespace)
+      r.set("version", "1")
+      myrpki.etree_write(r, "repositories/%s.xml" % self.handle)
 
   def do_receive_from_child(self, arg):
 
@@ -165,7 +183,7 @@ class main(rpki.cli.Cmd):
 
     self.bpki_myirbe.fxcert(c.findtext(myrpki.tag("bpki_ca_certificate")))
 
-    e = Element("parent", xmlns = myrpki.namespace, version = "1",
+    e = Element("parent", xmlns = namespace, version = "1",
                 parent_handle = self.handle, child_handle = child_handle,
                 service_url = "https://%s:%s/up-down/%s/%s" % (self.cfg.get("rpkid_server_host"),
                                                                self.cfg.get("rpkid_server_port"),
@@ -220,7 +238,7 @@ class main(rpki.cli.Cmd):
     r = p.find(myrpki.tag("repository"))
 
     if r is not None and r.get("type") == "offer":
-      e = Element("repository", xmlns = myrpki.namespace, version = "1",
+      e = Element("repository", xmlns = namespace, version = "1",
                   service_url = r.get("service_url"))
       myrpki.PEMElement(e, "bpki_server_ca", b)
       myrpki.etree_write(e, "repositories/%s.xml" % repository_handle)

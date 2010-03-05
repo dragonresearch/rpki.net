@@ -56,11 +56,7 @@ if hasattr(warnings, "catch_warnings"):
 else:
   import MySQLdb
 
-def tag(t):
-  """
-  Wrap an element name in the right XML namespace goop.
-  """
-  return "{http://www.hactrn.net/uris/rpki/myrpki/}" + t
+tag = myrpki.tag
 
 def findbase64(tree, name, b64type = rpki.x509.X509):
   """

@@ -609,7 +609,9 @@ def etree_read(filename, verbose = False):
 
 def tag(t):
   """
-  Wrap an element name in the right XML namespace goop.
+  Wrap an element name in the right XML namespace goop.  We probably
+  should be using a QName, but it doesn't work correctly with the
+  etree search functions
   """
   #return QName(namespace, t)
   return "{" + namespace + "}" + t

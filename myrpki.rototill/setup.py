@@ -155,14 +155,14 @@ class main(rpki.cli.Cmd):
 
     if self.run_rootd:
 
-      e = Element("parent", parent_handle = "rootd", child_handle = self.handle,
-                  service_url = "https://localhost:%s/" % self.cfg.get("rootd_server_port"),
+      e = Element("parent", parent_handle = self.handle, child_handle = self.handle,
+                  service_uri = "https://localhost:%s/" % self.cfg.get("rootd_server_port"),
                   valid_until = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365)))
       PEMElement(e, "bpki_resource_ta", self.bpki_servers.cer)
       PEMElement(e, "bpki_server_ta", self.bpki_servers.cer)
       PEMElement(e, "bpki_child_ta", self.bpki_resources.cer)
       SubElement(e, "repository", type = "offer")
-      myrpki.etree_write(e, self.entitydb("parents", "rootd.xml"))
+      myrpki.etree_write(e, self.entitydb("parents", "%s.xml" % self.handle))
 
       self.bpki_resources.xcert(self.bpki_servers.cer)
 
@@ -174,7 +174,7 @@ class main(rpki.cli.Cmd):
     # if we had received an offer.
 
     if self.run_pubd:
-      e = Element("repository", type = "request", handle = self.handle)
+      e = Element("repository", type = "request", handle = self.handle, parent_handle = self.handle)
       SubElement(e, "contact_info").text = self.pubd_contact_info
       PEMElement(e, "bpki_ta", self.bpki_resources.cer)
       myrpki.etree_write(e, self.entitydb("repositories", "%s.xml" % self.handle))
@@ -207,7 +207,7 @@ class main(rpki.cli.Cmd):
     self.bpki_servers.fxcert(c.findtext("bpki_ta"))
 
     e = Element("parent", parent_handle = self.handle, child_handle = child_handle,
-                service_url = "https://%s:%s/up-down/%s/%s" % (self.cfg.get("rpkid_server_host"),
+                service_uri = "https://%s:%s/up-down/%s/%s" % (self.cfg.get("rpkid_server_host"),
                                                                self.cfg.get("rpkid_server_port"),
                                                                self.handle, child_handle),
                 valid_until = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365)))
@@ -240,14 +240,11 @@ class main(rpki.cli.Cmd):
     self.load_xml()
 
     parent_handle = None
-    repository_handle = None
 
-    opts, argv = getopt.getopt(arg.split(), "", ["parent_handle=", "repository_handle="])
+    opts, argv = getopt.getopt(arg.split(), "", ["parent_handle="])
     for o, a in opts:
       if o == "--parent_handle":
         parent_handle = a
-      elif o == "--repository_handle":
-        repository_handle = a
 
     if len(argv) != 1:
       raise RuntimeError, "Need to specify filename for parent.xml on command line"
@@ -257,12 +254,8 @@ class main(rpki.cli.Cmd):
     if parent_handle is None:
       parent_handle = p.get("parent_handle")
 
-    if repository_handle is None:
-      repository_handle = parent_handle
-
     print "Parent calls itself %r, we call it %r" % (p.get("parent_handle"), parent_handle)
     print "Parent calls us %r" % p.get("child_handle")
-    print "We call repository %r" % repository_handle
 
     self.bpki_resources.fxcert(p.findtext("bpki_resource_ta"))
     self.bpki_resources.fxcert(p.findtext("bpki_server_ta"))
@@ -273,8 +266,9 @@ class main(rpki.cli.Cmd):
 
     if r is not None and r.get("type") in ("offer", "hint"):
       r.set("handle", self.handle)
+      r.set("parent_handle", parent_handle)
       PEMElement(r, "bpki_ta", self.bpki_resources.cer)
-      myrpki.etree_write(r, self.entitydb("repositories", "%s.xml" % repository_handle))
+      myrpki.etree_write(r, self.entitydb("repositories", "%s.xml" % parent_handle))
 
     else:
       print "Couldn't find repository offer or hint"
@@ -322,7 +316,7 @@ class main(rpki.cli.Cmd):
 
     # For the moment we cheat egregiously, no crypto, blind trust of
     # what we're sent, while I focus on the basic semantics.
-    #
+
     if sia_base is None and c.get("proposed_sia_base"):
       sia_base = c.get("proposed_sia_base")
     elif sia_base is None and c.get("handle") == self.handle:
@@ -332,15 +326,19 @@ class main(rpki.cli.Cmd):
 
     client_handle = "/".join(sia_base.rstrip("/").split("/")[3:])
 
+    parent_handle = c.get("parent_handle")
+
     print "Client calls itself %r, we call it %r" % (c.get("handle"), client_handle)
+    print "Client says its parent handle is %r" % parent_handle
 
     self.bpki_servers.fxcert(c.findtext("bpki_ta"))
 
     e = Element("repository", type = "confirmed",
                 repository_handle = self.handle,
                 client_handle = client_handle,
+                parent_handle = parent_handle,
                 sia_base = sia_base,
-                service_url = "https://%s:%s/client/%s" % (self.cfg.get("pubd_server_host"),
+                service_uri = "https://%s:%s/client/%s" % (self.cfg.get("pubd_server_host"),
                                                            self.cfg.get("pubd_server_port"),
                                                            client_handle))
 
@@ -354,25 +352,19 @@ class main(rpki.cli.Cmd):
 
     self.load_xml()
 
-    repository_handle = None
-
-    opts, argv = getopt.getopt(arg.split(), "", ["repository_handle="])
-    for o, a in opts:
-      if o == "--repository_handle":
-        repository_handle = a
+    argv = arg.split()
 
     if len(argv) != 1:
       raise RuntimeError, "Need to specify filename for repository.xml on command line"
 
     r = myrpki.etree_read(argv[0])
 
-    if repository_handle is None:
-       repository_handle = r.get("repository_handle")
+    parent_handle = r.get("parent_handle")
 
-    print "Repository calls itself %r, we call it %r" % (r.get("repository_handle"), repository_handle)
-    print "Repository calls us %r" % r.get("client_handle")
+    print "Repository calls itself %r, calls us %r" % (r.get("repository_handle"), r.get("client_handle"))
+    print "Repository response associated with parent_handle %r" % parent_handle
 
-    myrpki.etree_write(r, self.entitydb("repositories", "%s.xml" % repository_handle))
+    myrpki.etree_write(r, self.entitydb("repositories", "%s.xml" % parent_handle))
 
 
   def do_compose_request_to_host(self, arg):

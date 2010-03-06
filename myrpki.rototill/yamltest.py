@@ -624,7 +624,13 @@ for d in db:
 # setup.
 
 for d in db:
-  if not d.is_root():
+  if d.is_root():
+    print
+    d.run_setup("answer_repository_client", d.path("entitydb", "repositories", "%s.xml" % d.name))
+    print
+    d.run_setup("process_repository_answer", d.path("entitydb", "pubclients", "%s.xml" % d.name))
+    print
+  else:
     print
     d.parent.run_setup("answer_child", d.path("entitydb", "identity.xml"))
     print
@@ -634,12 +640,6 @@ for d in db:
     p.run_setup("answer_repository_client", d.path("entitydb", "repositories", "%s.xml" % d.parent.name))
     print
     d.run_setup("process_repository_answer", p.path("entitydb", "pubclients", "%s.xml" % n))
-    print
-  else:
-    print
-    d.run_setup("answer_repository_client", d.path("entitydb", "identity.xml"))
-    print
-    d.run_setup("process_repository_answer", d.path("entitydb", "pubclients", "%s.xml" % d.name))
     print
 
 # Run myrpki.py several times for each entity.  First pass misses

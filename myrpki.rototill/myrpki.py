@@ -49,7 +49,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 # Only standard Python libraries for this program, please.
 
-import subprocess, csv, re, os, getopt, sys, ConfigParser, base64
+import subprocess, csv, re, os, getopt, sys, ConfigParser, base64, glob
 
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
@@ -245,14 +245,19 @@ class children(dict):
       c.xml(e)
 
   @classmethod
-  def from_csv(cls, children_csv_file, prefix_csv_file, asn_csv_file, xcert):
+  def from_csv(cls, children_csv_file, prefix_csv_file, asn_csv_file, fxcert):
     """
     Parse child resources, certificates, and validity dates from CSV files.
     """
     self = cls()
-    # childname date pemfile
-    for handle, date, pemfile in csv_open(children_csv_file):
-      self.add(handle = handle, validity = date, bpki_certificate = xcert(pemfile))
+
+    # Need something like setup.py's entitydb() function.  Wire in pathnames for now.
+    for f in glob.iglob("entitydb/children/*.xml"):
+      c = etree_read(f)
+      self.add(handle = os.path.splitext(os.path.split(f)[-1])[0],
+               validity = c.get("valid_until"),
+               bpki_certificate = fxcert(c.findtext("bpki_child_ta")))
+
     # childname p/n
     for handle, pn in csv_open(prefix_csv_file):
       self.add(handle = handle, prefix = pn)
@@ -353,19 +358,33 @@ class parents(dict):
       c.xml(e)
 
   @classmethod
-  def from_csv(cls, parents_csv_file, xcert):
+  def from_csv(cls, parents_csv_file, fxcert):
     """
     Parse parent data from CSV file.
     """
     self = cls()
-    # parentname service_uri parent_bpki_cms_pemfile parent_bpki_https_pemfile myhandle sia_base
-    for handle, service_uri, parent_cms_pemfile, parent_https_pemfile, myhandle, sia_base in csv_open(parents_csv_file):
-      self.add(handle = handle,
-               service_uri = service_uri,
-	       bpki_cms_certificate = xcert(parent_cms_pemfile),
-	       bpki_https_certificate = xcert(parent_https_pemfile),
-               myhandle = myhandle,
-               sia_base = sia_base)
+    if False:
+      # parentname service_uri parent_bpki_cms_pemfile parent_bpki_https_pemfile myhandle sia_base
+      for handle, service_uri, parent_cms_pemfile, parent_https_pemfile, myhandle, sia_base in csv_open(parents_csv_file):
+        self.add(handle = handle,
+                 service_uri = service_uri,
+                 bpki_cms_certificate = xcert(parent_cms_pemfile),
+                 bpki_https_certificate = xcert(parent_https_pemfile),
+                 myhandle = myhandle,
+                 sia_base = sia_base)
+    else:
+      # Need something like setup.py's entitydb() function.  Wire in pathnames for now.
+      for f in glob.iglob("entitydb/parents/*.xml"):
+        h = os.path.splitext(os.path.split(f)[-1])[0]
+        p = etree_read(f)
+        r = etree_read(f.replace("/parents/", "/repositories/"))
+        assert r.get("type") == "confirmed"
+        self.add(handle = h,
+                 service_uri = p.get("service_uri"),
+                 bpki_cms_certificate = fxcert(p.findtext("bpki_resource_ta")),
+                 bpki_https_certificate = fxcert(p.findtext("bpki_server_ta")),
+                 myhandle = p.get("child_handle"),
+                 sia_base = r.get("sia_base"))
     return self
 
 def csv_open(filename):
@@ -665,11 +684,11 @@ def main(argv = ()):
     children_csv_file = children_csv_file,
     prefix_csv_file = prefix_csv_file,
     asn_csv_file = asn_csv_file,
-    xcert = bpki.xcert).xml(e)
+    fxcert = bpki.fxcert).xml(e)
 
   parents.from_csv(
     parents_csv_file = parents_csv_file,
-    xcert = bpki.xcert).xml(e)
+    fxcert = bpki.fxcert).xml(e)
 
   PEMElement(e, "bpki_ca_certificate", bpki.cer)
   PEMElement(e, "bpki_crl",            bpki.crl)

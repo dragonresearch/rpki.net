@@ -373,14 +373,19 @@ class allocation(object):
       f.writerows((s.client_handle, s.path("bpki/resources/ca.cer"), s.sia_base)
                   for s in (db if only_one_pubd else [self] + self.kids))
 
-  def find_pubd(self):
+  def find_pubd(self, want_path = False):
     """
     Walk up tree until we find somebody who runs pubd.
     """
     s = self
+    path = [s]
     while not s.runs_pubd():
       s = s.parent
-    return s
+      path.append(s)
+    if want_path:
+      return s, ".".join(i.name for i in reversed(path))
+    else:
+      return s
 
   def dump_conf(self, fn):
     """
@@ -625,10 +630,10 @@ for d in db:
     print
     d.run_setup("process_parent_answer", d.parent.path("entitydb", "children", "%s.xml" % d.name))
     print
-    p = d.find_pubd()
-    p.run_setup("answer_repository_client", d.path("entitydb", "identity.xml"))
+    p, n = d.find_pubd(want_path = True)
+    p.run_setup("answer_repository_client", d.path("entitydb", "repositories", "%s.xml" % d.parent.name))
     print
-    d.run_setup("process_repository_answer", p.path("entitydb", "pubclients", "%s.%s.xml" % (p.name, d.name)))
+    d.run_setup("process_repository_answer", p.path("entitydb", "pubclients", "%s.xml" % n))
     print
   else:
     print

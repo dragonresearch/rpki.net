@@ -606,10 +606,7 @@ def etree_read(filename, verbose = False):
   """
   if verbose:
     print "Reading", filename
-  try:
-    e = ElementTree(file = filename).getroot()
-  except IOError:
-    return None
+  e = ElementTree(file = filename).getroot()
   for i in e.getiterator():
     if i.tag.startswith(namespaceQName):
       i.tag = i.tag[len(namespaceQName):]
@@ -655,10 +652,9 @@ def main(argv = ()):
 
   bpki = CA(cfg_file, bpki_dir)
 
-  e = etree_read(xml_filename)
-  if e:
-    bsc_req, bsc_cer = bpki.bsc(e.findtext("bpki_bsc_pkcs10"))
-  else:
+  try:
+    bsc_req, bsc_cer = bpki.bsc(etree_read(xml_filename).findtext("bpki_bsc_pkcs10"))
+  except IOError:
     bsc_req, bsc_cer = None, None
 
   e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle, repository_handle = repository_handle)

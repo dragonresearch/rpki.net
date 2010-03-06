@@ -90,7 +90,10 @@ class main(rpki.cli.Cmd):
 
 
   def load_xml(self):
-    self.me = myrpki.etree_read(self.entitydb("identity.xml"))
+    try:
+      self.me = myrpki.etree_read(self.entitydb("identity.xml"))
+    except IOError:
+      self.me = None
     self.parents      = dict(read_xml_handle_tree(i) for i in glob.glob(self.entitydb("parents", "*.xml")))
     self.children     = dict(read_xml_handle_tree(i) for i in glob.glob(self.entitydb("children", "*.xml")))
     self.repositories = dict(read_xml_handle_tree(i) for i in glob.glob(self.entitydb("repositories", "*.xml")))
@@ -187,7 +190,7 @@ class main(rpki.cli.Cmd):
       if o == "--child_handle":
         child_handle = a
     
-    if len(argv) != 1 or not os.path.exists(argv[0]):
+    if len(argv) != 1:
       raise RuntimeError, "Need to specify filename for child.xml"
 
     if not self.run_rpkid:
@@ -212,7 +215,6 @@ class main(rpki.cli.Cmd):
     SubElement(e, "bpki_child_ta").text = c.findtext("bpki_ta")
 
     repos = [(n, r) for n, r in self.repositories.iteritems() if r.get("type") == "confirmed"]
-    print "repos", repos
     if len(repos) < 1:
       print "Couldn't find any usable repositories, not giving referral"
     elif len(repos) > 1:
@@ -245,7 +247,7 @@ class main(rpki.cli.Cmd):
       elif o == "--repository_handle":
         repository_handle = a
 
-    if len(argv) != 1 or not os.path.exists(argv[0]):
+    if len(argv) != 1:
       raise RuntimeError, "Need to specify filename for parent.xml on command line"
 
     p = myrpki.etree_read(argv[0])
@@ -287,7 +289,7 @@ class main(rpki.cli.Cmd):
       if o == "--sia_base":
         sia_base = a
     
-    if len(argv) != 1 or not os.path.exists(argv[0]):
+    if len(argv) != 1:
       raise RuntimeError, "Need to specify filename for client.xml"
 
     c = myrpki.etree_read(argv[0])
@@ -357,7 +359,7 @@ class main(rpki.cli.Cmd):
       if o == "--repository_handle":
         repository_handle = a
 
-    if len(argv) != 1 or not os.path.exists(argv[0]):
+    if len(argv) != 1:
       raise RuntimeError, "Need to specify filename for repository.xml on command line"
 
     r = myrpki.etree_read(argv[0])

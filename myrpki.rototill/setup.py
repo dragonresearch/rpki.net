@@ -21,6 +21,8 @@ import myrpki, rpki.config, rpki.cli
 
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
+PEMElement = myrpki.PEMElement
+
 def read_xml_handle_tree(filename):
   handle = os.path.splitext(os.path.split(filename)[-1])[0]
   etree  = myrpki.etree_read(filename)
@@ -82,6 +84,7 @@ class main(rpki.cli.Cmd):
     self.rsync_module = self.cfg.get("publication_rsync_module")
     self.rsync_server = self.cfg.get("publication_rsync_server")
 
+
   def entitydb(self, *args):
     return os.path.join(self.entitydb_dir, *args)
 
@@ -101,16 +104,11 @@ class main(rpki.cli.Cmd):
       print "-- Loaded --"
 
 
-  # Disable all this parent-based offer and hint cruft for now, it's confusing more basic issues
-
-  disable_parent_offers_and_hints = True
-  
-
   def do_initialize(self, arg):
     if arg:
       raise RuntimeError, "This command takes no arguments"
 
-    print "This may take a little while, have to generate RSA keys..."
+    print "Generating RSA keys, this may take a little while..."
 
     self.bpki_resources.setup(self.cfg.get("bpki_resources_ta_dn",
                                            "/CN=%s BPKI Resource Trust Anchor" % self.handle))
@@ -132,15 +130,12 @@ class main(rpki.cli.Cmd):
                                           "/CN=%s rpkid server certificate" % self.handle), "rpkid")
         self.bpki_servers.ee(self.cfg.get("bpki_irdbd_ee_dn",
                                           "/CN=%s irdbd server certificate" % self.handle), "irdbd")
-
       if self.run_pubd:
         self.bpki_servers.ee(self.cfg.get("bpki_pubd_ee_dn",
                                           "/CN=%s pubd server certificate" % self.handle), "pubd")
-
       if self.run_rpkid or self.run_pubd:
         self.bpki_servers.ee(self.cfg.get("bpki_irbe_ee_dn",
                                           "/CN=%s irbe client certificate" % self.handle), "irbe")
-
       if self.run_rootd:
         self.bpki_servers.ee(self.cfg.get("bpki_rootd_ee_dn",
                                           "/CN=%s rootd server certificate" % self.handle), "rootd")
@@ -149,16 +144,8 @@ class main(rpki.cli.Cmd):
     # overwrite?  Worry about that later.
 
     e = Element("identity", handle = self.handle)
-    myrpki.PEMElement(e, "bpki_ca_certificate", self.bpki_resources.cer)
+    PEMElement(e, "bpki_ta", self.bpki_resources.cer)
     myrpki.etree_write(e, self.entitydb("identity.xml"))
-
-    # If we're running pubd, construct repository entry for it.
-
-    if not self.disable_parent_offers_and_hints and self.run_pubd:
-      r = Element("repository", type = "confirmed",
-                  service_url = "https://%s:%s/" % (self.cfg.get("pubd_server_host"),
-                                                    self.cfg.get("pubd_server_port")))
-      SubElement(r, "contact_info").text = self.pubd_contact_info
 
     # If we're running rootd, construct a fake parent to go with it,
     # and cross-certify in both directions so we can talk to rootd.
@@ -167,13 +154,10 @@ class main(rpki.cli.Cmd):
 
       e = Element("parent", parent_handle = "rootd", child_handle = self.handle,
                   service_url = "https://localhost:%s/" % self.cfg.get("rootd_server_port"))
-
-      myrpki.PEMElement(e, "bpki_resource_ca", self.bpki_servers.cer)
-      myrpki.PEMElement(e, "bpki_server_ca",   self.bpki_servers.cer)
-
-      if not self.disable_parent_offers_and_hints:
-        e.append(r)
-
+      PEMElement(e, "bpki_resource_ta", self.bpki_servers.cer)
+      PEMElement(e, "bpki_server_ta", self.bpki_servers.cer)
+      PEMElement(e, "bpki_child_ta", self.bpki_resources.cer)
+      SubElement(e, "repository", type = "offer")
       myrpki.etree_write(e, self.entitydb("parents", "rootd.xml"))
 
       self.bpki_resources.xcert(self.bpki_servers.cer)
@@ -182,13 +166,14 @@ class main(rpki.cli.Cmd):
       if not os.path.exists(rootd_child_fn):
         os.link(self.bpki_servers.xcert(self.bpki_resources.cer), rootd_child_fn)
 
-    if not self.disable_parent_offers_and_hints and self.run_pubd:
-      myrpki.PEMElement(r, "bpki_server_ca", self.bpki_servers.cer)
-      myrpki.etree_write(r, self.entitydb("repositories", "%s.xml" % self.handle))
+    # If we're running pubd, construct repository request for it, as
+    # if we had received an offer.
 
-
-  def do_compose_request_to_parent(self, arg):
-    print "For the moment, the request to parent is identical to identity.xml, just send that file"
+    if self.run_pubd:
+      e = Element("repository", type = "request", handle = self.handle)
+      SubElement(e, "contact_info").text = self.pubd_contact_info
+      PEMElement(e, "bpki_ta", self.bpki_resources.cer)
+      myrpki.etree_write(e, self.entitydb("repositories", "%s.xml" % self.handle))
 
 
   def do_answer_child(self, arg):
@@ -215,53 +200,33 @@ class main(rpki.cli.Cmd):
 
     print "Child calls itself %r, we call it %r" % (c.get("handle"), child_handle)
 
-    self.bpki_servers.fxcert(c.findtext("bpki_ca_certificate"))
+    self.bpki_servers.fxcert(c.findtext("bpki_ta"))
 
     e = Element("parent", parent_handle = self.handle, child_handle = child_handle,
                 service_url = "https://%s:%s/up-down/%s/%s" % (self.cfg.get("rpkid_server_host"),
                                                                self.cfg.get("rpkid_server_port"),
                                                                self.handle, child_handle))
 
-    myrpki.PEMElement(e, "bpki_resource_ca", self.bpki_resources.cer)
-    myrpki.PEMElement(e, "bpki_server_ca",   self.bpki_servers.cer)
+    PEMElement(e, "bpki_resource_ta", self.bpki_resources.cer)
+    PEMElement(e, "bpki_server_ta",   self.bpki_servers.cer)
+    SubElement(e, "bpki_child_ta").text = c.findtext("bpki_ta")
 
-    if not self.disable_parent_offers_and_hints:
-
-      # Testing run_pubd here is probably wrong.  We need better logic
-      # for deciding whether to offer our own pubd or give a referal.
-      # For the moment, while just trying to get the new code off the
-      # ground, this will suffice.
-
-      if False and self.run_pubd:
-        SubElement(e, "repository", type = "offer",
-                   service_url = "https://%s:%s/" % (self.cfg.get("pubd_server_host"),
-                                                     self.cfg.get("pubd_server_port")))
-
-      # This business with the service_url is almost certainly wrong.
-      # For hints, only the repository can tell us what's right; for
-      # offers, well, this is one of the parts we never managed to
-      # automate properly before, so this may require examining what we
-      # ended up doing by hand when testing.
-
-      if len(self.repositories) == 1:
-        repo = self.repositories.values()[0]
-        b = repo.find("bpki_server_ca")
-        r = SubElement(e, "repository",
-                       service_url = "%s%s/" % (repo.get("service_url"), child_handle),
-                       type = "offer" if self.run_pubd else"hint")
-
-        if not self.run_pubd:
-
-          # CMS-signed blob authorizing use of part of our space by our
-          # child goes here, once I've written that code.
-
-          # Insert BPKI data child will need to talk to repository
-          r.append(b)
-
+    repos = [(n, r) for n, r in self.repositories.iteritems() if r.get("type") == "confirmed"]
+    print "repos", repos
+    if len(repos) < 1:
+      print "Couldn't find any usable repositories, not giving referral"
+    elif len(repos) > 1:
+      print "Too many repositories, I don't know what to do, not giving referral"
+    else:
+      repo_handle, repo = repos[0]
+      if repo_handle == self.handle:
+        SubElement(e, "repository", type = "offer")
       else:
-        print "Warning: Not obvious which repository to hint or offer to child"
-
-
+        r = SubElement(e, "repository", type = "hint",
+                       proposed_sia_base = repo.get("sia_base") + child_handle + "/")
+        SubElement(r, "contact_info").text = repo.findtext("contact_info")
+        # CMS-signed blob authorizing use of part of our space by our
+        # child goes here, once I've written that code.
 
     myrpki.etree_write(e, self.entitydb("children", "%s.xml" % child_handle))
 
@@ -295,38 +260,23 @@ class main(rpki.cli.Cmd):
     print "Parent calls us %r" % p.get("child_handle")
     print "We call repository %r" % repository_handle
 
-    self.bpki_resources.fxcert(p.findtext("bpki_resource_ca"))
-    self.bpki_resources.fxcert(p.findtext("bpki_server_ca"))
+    self.bpki_resources.fxcert(p.findtext("bpki_resource_ta"))
+    self.bpki_resources.fxcert(p.findtext("bpki_server_ta"))
 
     myrpki.etree_write(p, self.entitydb("parents", "%s.xml" % parent_handle))
 
-    if not self.disable_parent_offers_and_hints:
+    r = p.find("repository")
 
-      r = p.find("repository")
+    if r is not None and r.get("type") in ("offer", "hint"):
+      r.set("handle", self.handle)
+      PEMElement(r, "bpki_ta", self.bpki_resources.cer)
+      myrpki.etree_write(r, self.entitydb("repositories", "%s.xml" % repository_handle))
 
-      if r is not None and r.get("type") == "offer":
-        e = Element("repository", service_url = r.get("service_url"))
-        e.append(p.find("bpki_server_ca"))
-        myrpki.etree_write(e, self.entitydb("repositories", "%s.xml" % repository_handle))
-
-      elif r is not None and r.get("type") == "hint":
-        myrpki.etree_write(r, self.entitydb("repositories", "%s.xml" % repository_handle))
-
-      else:
-        print "Couldn't find repository offer or hint"
-
-
-  def do_compose_request_to_repository(self, arg):
-    if self.disable_parent_offers_and_hints:
-      print "For the moment, the request to repository is identical to identity.xml, just send that file"
     else:
-      raise RuntimeError, "Support for hints not available yet"
+      print "Couldn't find repository offer or hint"
 
 
   def do_answer_repository_client(self, arg):
-
-    if not self.disable_parent_offers_and_hints:
-      raise RuntimeError, "Support for hints not available yet"
 
     self.load_xml()
 
@@ -358,35 +308,41 @@ class main(rpki.cli.Cmd):
     #   client to us, along with a signed referral.  signed referral
     #   includes sia_base of referring client, new client homes under
     #   that per referring client's wishes.
-
-    # client_handle is sia_base with "rsync://hostname:port/" stripped
-    # off the front, "/" stripped off the end, and (perhaps, to
-    # simplify XML file naming) all remaining "/" characters
-    # translated to ".".  This will require minor tweaks to
-    # publication protocol schema, or perhaps we just do it in XML
-    # land and leave publication protocol alone (for now?).
+    #
+    # ... which implies that there's a fourth case, where we are both
+    # the client and the server.
 
     # Checking of signed referrals goes somewhere around here.  Must
     # be after reading client's XML, but before deciding what the
     # client's sia_base and handle will be.
 
-    if sia_base is None:
+    # For the moment we cheat egregiously, no crypto, blind trust of
+    # what we're sent, while I focus on the basic semantics.
+    #
+    if sia_base is None and c.get("proposed_sia_base"):
+      sia_base = c.get("proposed_sia_base")
+    elif sia_base is None and c.get("handle") == self.handle:
+      sia_base = "rsync://%s/%s/" % (self.rsync_server, self.rsync_module)
+    else:
       sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, c.get("handle"))
 
     client_handle = "/".join(sia_base.rstrip("/").split("/")[3:])
 
     print "Client calls itself %r, we call it %r" % (c.get("handle"), client_handle)
 
-    self.bpki_servers.fxcert(c.findtext("bpki_ca_certificate"))
+    self.bpki_servers.fxcert(c.findtext("bpki_ta"))
 
-    e = Element("repository", repository_handle = self.handle,
-                client_handle = client_handle, sia_base = sia_base,
+    e = Element("repository", type = "confirmed",
+                repository_handle = self.handle,
+                client_handle = client_handle,
+                sia_base = sia_base,
                 service_url = "https://%s:%s/client/%s" % (self.cfg.get("pubd_server_host"),
                                                            self.cfg.get("pubd_server_port"),
                                                            client_handle))
 
-    myrpki.PEMElement(e, "bpki_server_ca",   self.bpki_servers.cer)
-
+    PEMElement(e, "bpki_server_ta", self.bpki_servers.cer)
+    SubElement(e, "bpki_client_ta").text = c.findtext("bpki_ta")
+    SubElement(e, "contact_info").text = self.pubd_contact_info
     myrpki.etree_write(e, self.entitydb("pubclients", "%s.xml" % client_handle.replace("/", ".")))
 
 

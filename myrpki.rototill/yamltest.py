@@ -630,8 +630,12 @@ for d in db:
     print
     d.run_setup("process_repository_answer", p.path("entitydb", "pubclients", "%s.%s.xml" % (p.name, d.name)))
     print
-
-print
+  else:
+    print
+    d.run_setup("answer_repository_client", d.path("entitydb", "identity.xml"))
+    print
+    d.run_setup("process_repository_answer", d.path("entitydb", "pubclients", "%s.xml" % d.name))
+    print
 
 # Run myrpki.py several times for each entity.  First pass misses
 # stuff that isn't generated until later in first pass.  Second pass

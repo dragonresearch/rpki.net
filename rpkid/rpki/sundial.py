@@ -171,10 +171,21 @@ class timedelta(pydatetime.timedelta):
 
   - A simple integer, indicating a number of seconds.
 
-  - A string of the form "wD xH yM zS" where w, x, y, and z are integers
-    and D, H, M, and S indicate days, hours, minutes, and seconds.
-    All of the fields are optional, but at least one must be specified.
-    Eg, "3D4H" means "three days plus four hours".
+  - A string of the form "uY vW wD xH yM zS" where u, v, w, x, y, and z
+    are integers and Y, W, D, H, M, and S indicate years, weeks, days,
+    hours, minutes, and seconds.  All of the fields are optional, but
+    at least one must be specified.  Eg,"3D4H" means "three days plus
+    four hours".
+
+  There is no "months" format, because the definition of a month is too
+  fuzzy to be useful (what day is six months from August 30th?)
+
+  Similarly, the "years" conversion may produce surprising results, as
+  "one year" in conventional English does not refer to a fixed interval
+  but rather a fixed (and in some cases undefined) offset within the
+  Gregorian calendar (what day is one year from February 29th?)  1Y as
+  implemented by this code refers to a specific number of seconds.
+  If you mean 365 days or 52 weeks, say that instead.
   """
 
   ## @var regexp
@@ -183,12 +194,20 @@ class timedelta(pydatetime.timedelta):
   # directly to the keywords expected by the timedelta constructor.
 
   regexp = re.compile("\\s*".join(("^",
+                                   "(?:(?P<years>\\d+)Y)?",
+                                   "(?:(?P<weeks>\\d+)W)?",
                                    "(?:(?P<days>\\d+)D)?",
                                    "(?:(?P<hours>\\d+)H)?",
                                    "(?:(?P<minutes>\\d+)M)?",
                                    "(?:(?P<seconds>\\d+)S)?",
                                    "$")),
                       re.I)
+
+  ## @var years_to_seconds
+  # Conversion factor from years to seconds (value furnished by the
+  # "units" program).
+
+  years_to_seconds = 31556926
 
   @classmethod
   def parse(cls, arg):
@@ -202,7 +221,13 @@ class timedelta(pydatetime.timedelta):
     else:
       match = cls.regexp.match(arg)
       if match:
-        return cls(**dict((k, int(v)) for (k, v) in match.groupdict().items() if v is not None))
+        #return cls(**dict((k, int(v)) for (k, v) in match.groupdict().items() if v is not None))
+        d = match.groupdict("0")
+        for k, v in d.iteritems():
+          d[k] = int(v)
+        d["days"]    += d.pop("weeks") * 7
+        d["seconds"] += d.pop("years") * cls.years_to_seconds
+        return cls(**d)
       else:
         raise RuntimeError, "Couldn't parse timedelta %r" % (arg,)
 
@@ -257,4 +282,5 @@ if __name__ == "__main__":
   test(now())
   test(now() + timedelta(days = 30))
   test(now() + timedelta.parse("3d5s"))
-  timedelta.parse(" 3d 5s ")
+  test(now() + timedelta.parse(" 3d 5s "))
+  test(now() + timedelta.parse("1y3d5h"))

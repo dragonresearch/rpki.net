@@ -17,7 +17,7 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import subprocess, csv, re, os, getopt, sys, base64, time, glob
-import myrpki, rpki.config, rpki.cli
+import myrpki, rpki.config, rpki.cli, rpki.sundial
 
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
@@ -156,7 +156,8 @@ class main(rpki.cli.Cmd):
     if self.run_rootd:
 
       e = Element("parent", parent_handle = "rootd", child_handle = self.handle,
-                  service_url = "https://localhost:%s/" % self.cfg.get("rootd_server_port"))
+                  service_url = "https://localhost:%s/" % self.cfg.get("rootd_server_port"),
+                  valid_until = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365)))
       PEMElement(e, "bpki_resource_ta", self.bpki_servers.cer)
       PEMElement(e, "bpki_server_ta", self.bpki_servers.cer)
       PEMElement(e, "bpki_child_ta", self.bpki_resources.cer)
@@ -208,7 +209,8 @@ class main(rpki.cli.Cmd):
     e = Element("parent", parent_handle = self.handle, child_handle = child_handle,
                 service_url = "https://%s:%s/up-down/%s/%s" % (self.cfg.get("rpkid_server_host"),
                                                                self.cfg.get("rpkid_server_port"),
-                                                               self.handle, child_handle))
+                                                               self.handle, child_handle),
+                valid_until = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365)))
 
     PEMElement(e, "bpki_resource_ta", self.bpki_resources.cer)
     PEMElement(e, "bpki_server_ta",   self.bpki_servers.cer)

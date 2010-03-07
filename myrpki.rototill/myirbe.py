@@ -43,7 +43,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 from __future__ import with_statement
 
-import lxml.etree, base64, subprocess, sys, os, time, re, getopt, warnings
+import lxml.etree, base64, subprocess, sys, os, time, re, getopt, warnings, glob
 import rpki.https, rpki.config, rpki.resource_set, rpki.relaxng
 import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509, rpki.async
 import myrpki, schema
@@ -423,22 +423,23 @@ for xmlfile in xmlfiles:
 
   if run_pubd:
 
-    for client_handle, client_bpki_cert, client_base_uri in myrpki.csv_open(cfg.get("pubclients_csv", "pubclients.csv")):
+    # Need something like setup.py's entitydb() function.  Wire in pathnames for now.
+    for f in glob.iglob("entitydb/pubclients/*.xml"):
+      c = myrpki.etree_read(f)
 
-      if os.path.exists(client_bpki_cert):
+      client_handle = c.get("client_handle")
+      client_base_uri = c.get("sia_base")
+      client_bpki_cert = rpki.x509.X509(PEM_file = bpki.fxcert(c.findtext("bpki_client_ta")))
+      client_pdu = client_pdus.pop(client_handle, None)
 
-        client_pdu = client_pdus.pop(client_handle, None)
-
-        client_bpki_cert = rpki.x509.X509(PEM_file = bpki.xcert(client_bpki_cert))
-
-        if (client_pdu is None or
-            client_pdu.base_uri != client_base_uri or
-            client_pdu.bpki_cert != client_bpki_cert):
-          pubd_query.append(rpki.publication.client_elt.make_pdu(
-            action = "create" if client_pdu is None else "set",
-            client_handle = client_handle,
-            bpki_cert = client_bpki_cert,
-            base_uri = client_base_uri))
+      if (client_pdu is None or
+          client_pdu.base_uri != client_base_uri or
+          client_pdu.bpki_cert != client_bpki_cert):
+        pubd_query.append(rpki.publication.client_elt.make_pdu(
+          action = "create" if client_pdu is None else "set",
+          client_handle = client_handle,
+          bpki_cert = client_bpki_cert,
+          base_uri = client_base_uri))
 
     pubd_query.extend(rpki.publication.client_elt.make_pdu(
         action = "destroy", client_handle = p) for p in client_pdus)

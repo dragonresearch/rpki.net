@@ -606,13 +606,14 @@ db.dump()
 for d in db:
   os.makedirs(d.path())
   d.dump_asns("asns.csv")
-  d.dump_children("children.csv")
-  d.dump_parents("parents.csv")
   d.dump_prefixes("prefixes.csv")
   d.dump_roas("roas.csv")
   d.dump_conf("myrpki.conf")
-  d.dump_clients("pubclients.csv", db)
   d.dump_rsyncd("rsyncd.conf")
+  if False:
+    d.dump_children("children.csv")
+    d.dump_parents("parents.csv")
+    d.dump_clients("pubclients.csv", db)
 
 # Initialize BPKI and generate self-descriptor for each entity.
 

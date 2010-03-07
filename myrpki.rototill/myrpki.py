@@ -363,28 +363,18 @@ class parents(dict):
     Parse parent data from CSV file.
     """
     self = cls()
-    if False:
-      # parentname service_uri parent_bpki_cms_pemfile parent_bpki_https_pemfile myhandle sia_base
-      for handle, service_uri, parent_cms_pemfile, parent_https_pemfile, myhandle, sia_base in csv_open(parents_csv_file):
-        self.add(handle = handle,
-                 service_uri = service_uri,
-                 bpki_cms_certificate = xcert(parent_cms_pemfile),
-                 bpki_https_certificate = xcert(parent_https_pemfile),
-                 myhandle = myhandle,
-                 sia_base = sia_base)
-    else:
-      # Need something like setup.py's entitydb() function.  Wire in pathnames for now.
-      for f in glob.iglob("entitydb/parents/*.xml"):
-        h = os.path.splitext(os.path.split(f)[-1])[0]
-        p = etree_read(f)
-        r = etree_read(f.replace("/parents/", "/repositories/"))
-        assert r.get("type") == "confirmed"
-        self.add(handle = h,
-                 service_uri = p.get("service_uri"),
-                 bpki_cms_certificate = fxcert(p.findtext("bpki_resource_ta")),
-                 bpki_https_certificate = fxcert(p.findtext("bpki_server_ta")),
-                 myhandle = p.get("child_handle"),
-                 sia_base = r.get("sia_base"))
+    # Need something like setup.py's entitydb() function.  Wire in pathnames for now.
+    for f in glob.iglob("entitydb/parents/*.xml"):
+      h = os.path.splitext(os.path.split(f)[-1])[0]
+      p = etree_read(f)
+      r = etree_read(f.replace("/parents/", "/repositories/"))
+      assert r.get("type") == "confirmed"
+      self.add(handle = h,
+               service_uri = p.get("service_uri"),
+               bpki_cms_certificate = fxcert(p.findtext("bpki_resource_ta")),
+               bpki_https_certificate = fxcert(p.findtext("bpki_server_ta")),
+               myhandle = p.get("child_handle"),
+               sia_base = r.get("sia_base"))
     return self
 
 def csv_open(filename):

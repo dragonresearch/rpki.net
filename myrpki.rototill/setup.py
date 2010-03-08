@@ -191,17 +191,18 @@ class main(rpki.cli.Cmd):
     PEMElement(e, "bpki_server_ta",   self.bpki_servers.cer)
     SubElement(e, "bpki_child_ta").text = c.findtext("bpki_ta")
 
-    repos = [(n, r)
-             for n, r in ((os.path.splitext(os.path.split(f)[-1])[0], myrpki.etree_read(f))
-                          for f in glob.iglob(self.entitydb("repositories", "*.xml")))
-             if r.get("type") == "confirmed"]
+    try:
+      repo = None
+      for f in glob.iglob(self.entitydb("repositories", "*.xml")):
+        r = myrpki.etree_read(f)
+        if r.get("type") == "confirmed":
+          if repo is not None:
+            raise RuntimeError, "Too many repositories, I don't know what to do, not giving referral"
+          repo_handle = os.path.splitext(os.path.split(f)[-1])[0]
+          repo = r
+      if repo is None:
+        raise RuntimeError, "Couldn't find any usable repositories, not giving referral"
 
-    if len(repos) < 1:
-      print "Couldn't find any usable repositories, not giving referral"
-    elif len(repos) > 1:
-      print "Too many repositories, I don't know what to do, not giving referral"
-    else:
-      repo_handle, repo = repos[0]
       if repo_handle == self.handle:
         SubElement(e, "repository", type = "offer")
       else:
@@ -210,6 +211,9 @@ class main(rpki.cli.Cmd):
         SubElement(r, "contact_info").text = repo.findtext("contact_info")
         # CMS-signed blob authorizing use of part of our space by our
         # child goes here, once I've written that code.
+
+    except RuntimeError, err:
+      print err
 
     myrpki.etree_write(e, self.entitydb("children", "%s.xml" % child_handle))
 

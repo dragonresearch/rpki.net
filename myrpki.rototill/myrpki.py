@@ -86,6 +86,21 @@ class comma_set(set):
   def __str__(self):
     return ",".join(self)
 
+class EntityDB(object):
+  """
+  Wrapper for entitydb path lookups.  Hmm, maybe some or all of the
+  entitydb glob stuff should end up here too?  Later.
+  """
+
+  def __init__(self, cfg):
+    self.dir = cfg.get("entitydb_dir", "entitydb")
+
+  def __call__(self, *args):
+    return os.path.join(self.dir, *args)
+
+  def iterate(self, *args):
+    return glob.iglob(os.path.join(self.dir, *args))
+
 class roa_request(object):
   """
   Representation of a ROA request.
@@ -249,19 +264,16 @@ class children(dict):
       c.xml(e)
 
   @classmethod
-  def from_csv(cls, children_csv_file, prefix_csv_file, asn_csv_file, fxcert):
+  def from_csv(cls, children_csv_file, prefix_csv_file, asn_csv_file, fxcert, entitydb):
     """
     Parse child resources, certificates, and validity dates from CSV files.
     """
     self = cls()
-
-    # Need something like setup.py's entitydb() function.  Wire in pathnames for now.
-    for f in glob.iglob("entitydb/children/*.xml"):
+    for f in entitydb.iterate("children", "*.xml"):
       c = etree_read(f)
       self.add(handle = os.path.splitext(os.path.split(f)[-1])[0],
                validity = c.get("valid_until"),
                bpki_certificate = fxcert(c.findtext("bpki_child_ta")))
-
     # childname p/n
     for handle, pn in csv_open(prefix_csv_file):
       self.add(handle = handle, prefix = pn)
@@ -362,16 +374,16 @@ class parents(dict):
       c.xml(e)
 
   @classmethod
-  def from_csv(cls, parents_csv_file, fxcert):
+  def from_csv(cls, parents_csv_file, fxcert, entitydb):
     """
     Parse parent data from CSV file.
     """
     self = cls()
-    # Need something like setup.py's entitydb() function.  Wire in pathnames for now.
-    for f in glob.iglob("entitydb/parents/*.xml"):
+    for f in entitydb.iterate("parents", "*.xml"):
       h = os.path.splitext(os.path.split(f)[-1])[0]
       p = etree_read(f)
-      r = etree_read(f.replace("/parents/", "/repositories/"))
+      r = etree_read(f.replace(os.path.sep + "parents"      + os.path.sep,
+                               os.path.sep + "repositories" + os.path.sep))
       assert r.get("type") == "confirmed"
       self.add(handle = h,
                service_uri = p.get("service_uri"),
@@ -663,6 +675,8 @@ def main(argv = ()):
   global openssl
   openssl = cfg.get("openssl", "openssl")
 
+  entitydb = EntityDB(cfg)
+
   bpki = CA(cfg_file, bpki_dir)
 
   try:
@@ -678,11 +692,13 @@ def main(argv = ()):
     children_csv_file = children_csv_file,
     prefix_csv_file = prefix_csv_file,
     asn_csv_file = asn_csv_file,
-    fxcert = bpki.fxcert).xml(e)
+    fxcert = bpki.fxcert,
+    entitydb = entitydb).xml(e)
 
   parents.from_csv(
     parents_csv_file = parents_csv_file,
-    fxcert = bpki.fxcert).xml(e)
+    fxcert = bpki.fxcert,
+    entitydb = entitydb).xml(e)
 
   PEMElement(e, "bpki_ca_certificate", bpki.cer)
   PEMElement(e, "bpki_crl",            bpki.crl)

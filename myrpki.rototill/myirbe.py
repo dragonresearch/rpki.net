@@ -150,6 +150,8 @@ db = MySQLdb.connect(user   = irdbd_cfg.get("sql-username"),
 
 cur = db.cursor()
 
+entitydb = myrpki.EntityDB(cfg)
+
 xmlfiles = []
 
 # If [myrpki] section includes an "xml_filename" setting, run
@@ -418,13 +420,11 @@ for xmlfile in xmlfiles:
   rpkid_query.extend(rpki.left_right.child_elt.make_pdu(
     action = "destroy", self_handle = handle, child_handle = c) for c in child_pdus)
 
-  # Publication setup, used to be inferred (badly) from parent setup,
-  # now handled explictly via yet another freaking .csv file.
+  # Publication setup.
 
   if run_pubd:
 
-    # Need something like setup.py's entitydb() function.  Wire in pathnames for now.
-    for f in glob.iglob("entitydb/pubclients/*.xml"):
+    for f in entitydb.iterate("pubclients", "*.xml"):
       c = myrpki.etree_read(f)
 
       client_handle = c.get("client_handle")

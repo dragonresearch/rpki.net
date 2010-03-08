@@ -68,7 +68,7 @@ class main(rpki.cli.Cmd):
     self.run_pubd  = self.cfg.getboolean("run_pubd")
     self.run_rootd = self.cfg.getboolean("run_rootd")
 
-    self.entitydb_dir = self.cfg.get("entitydb_dir", "entitydb")
+    self.entitydb = myrpki.EntityDB(self.cfg)
 
     if self.run_rootd and (not self.run_pubd or not self.run_rpkid):
       raise RuntimeError, "Can't run rootd unless also running rpkid and pubd"
@@ -81,10 +81,6 @@ class main(rpki.cli.Cmd):
 
     self.rsync_module = self.cfg.get("publication_rsync_module")
     self.rsync_server = self.cfg.get("publication_rsync_server")
-
-
-  def entitydb(self, *args):
-    return os.path.join(self.entitydb_dir, *args)
 
 
   def do_initialize(self, arg):
@@ -196,7 +192,7 @@ class main(rpki.cli.Cmd):
 
     try:
       repo = None
-      for f in glob.iglob(self.entitydb("repositories", "*.xml")):
+      for f in self.entitydb.iterate("repositories", "*.xml"):
         r = myrpki.etree_read(f)
         if r.get("type") == "confirmed":
           if repo is not None:

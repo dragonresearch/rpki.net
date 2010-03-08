@@ -49,7 +49,8 @@ PERFORMANCE OF THIS SOFTWARE.
 
 # Only standard Python libraries for this program, please.
 
-import subprocess, csv, re, os, getopt, sys, ConfigParser, base64, glob
+import subprocess, csv, re, os, getopt, sys, base64, glob
+import rpki.config
 
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
@@ -630,7 +631,6 @@ def main(argv = ()):
   """
 
   cfg_file = "myrpki.conf"
-  section  = "myrpki"
 
   opts, argv = getopt.getopt(argv, "c:h:?", ["config=", "help"])
   for o, a in opts:
@@ -642,22 +642,21 @@ def main(argv = ()):
   if argv:
     raise RuntimeError, "Unexpected arguments %r" % (argv,)
 
-  cfg = ConfigParser.RawConfigParser()
-  cfg.readfp(open(cfg_file, "r"), cfg_file)
+  cfg = rpki.config.parser(cfg_file, "myrpki")
 
-  my_handle                     = cfg.get(section, "handle")
-  roa_csv_file                  = cfg.get(section, "roa_csv")
-  children_csv_file             = cfg.get(section, "children_csv")
-  parents_csv_file              = cfg.get(section, "parents_csv")
-  prefix_csv_file               = cfg.get(section, "prefix_csv")
-  asn_csv_file                  = cfg.get(section, "asn_csv")
-  bpki_dir                      = cfg.get(section, "bpki_resources_directory")
-  xml_filename                  = cfg.get(section, "xml_filename")
-  repository_bpki_certificate   = cfg.get(section, "repository_bpki_certificate")
-  repository_handle             = cfg.get(section, "repository_handle")
+  my_handle                     = cfg.get("handle")
+  roa_csv_file                  = cfg.get("roa_csv")
+  children_csv_file             = cfg.get("children_csv")
+  parents_csv_file              = cfg.get("parents_csv")
+  prefix_csv_file               = cfg.get("prefix_csv")
+  asn_csv_file                  = cfg.get("asn_csv")
+  bpki_dir                      = cfg.get("bpki_resources_directory")
+  xml_filename                  = cfg.get("xml_filename")
+  repository_bpki_certificate   = cfg.get("repository_bpki_certificate")
+  repository_handle             = cfg.get("repository_handle")
 
   global openssl
-  openssl = cfg.get(section, "openssl") if cfg.has_option(section, "openssl") else "openssl"
+  openssl = cfg.get("openssl", "openssl")
 
   bpki = CA(cfg_file, bpki_dir)
 

@@ -23,11 +23,6 @@ from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 PEMElement = myrpki.PEMElement
 
-def read_xml_handle_tree(filename):
-  handle = os.path.splitext(os.path.split(filename)[-1])[0]
-  etree  = myrpki.etree_read(filename)
-  return handle, etree
-
 class main(rpki.cli.Cmd):
 
   prompt = "setup> "
@@ -87,24 +82,6 @@ class main(rpki.cli.Cmd):
 
   def entitydb(self, *args):
     return os.path.join(self.entitydb_dir, *args)
-
-
-  def load_xml(self):
-    try:
-      self.me = myrpki.etree_read(self.entitydb("identity.xml"))
-    except IOError:
-      self.me = None
-    self.parents      = dict(read_xml_handle_tree(i) for i in glob.glob(self.entitydb("parents", "*.xml")))
-    self.children     = dict(read_xml_handle_tree(i) for i in glob.glob(self.entitydb("children", "*.xml")))
-    self.repositories = dict(read_xml_handle_tree(i) for i in glob.glob(self.entitydb("repositories", "*.xml")))
-
-    if False:
-      print "++ Loaded ++"
-      print handle, self.me
-      print "Parents:     ", self.parents
-      print "Children:    ", self.children
-      print "Repositories:", self.repositories
-      print "-- Loaded --"
 
 
   def do_initialize(self, arg):
@@ -182,8 +159,6 @@ class main(rpki.cli.Cmd):
 
   def do_answer_child(self, arg):
 
-    self.load_xml()
-
     child_handle = None
 
     opts, argv = getopt.getopt(arg.split(), "", ["child_handle="])
@@ -216,7 +191,11 @@ class main(rpki.cli.Cmd):
     PEMElement(e, "bpki_server_ta",   self.bpki_servers.cer)
     SubElement(e, "bpki_child_ta").text = c.findtext("bpki_ta")
 
-    repos = [(n, r) for n, r in self.repositories.iteritems() if r.get("type") == "confirmed"]
+    repos = [(n, r)
+             for n, r in ((os.path.splitext(os.path.split(f)[-1])[0], myrpki.etree_read(f))
+                          for f in glob.iglob(self.entitydb("repositories", "*.xml")))
+             if r.get("type") == "confirmed"]
+
     if len(repos) < 1:
       print "Couldn't find any usable repositories, not giving referral"
     elif len(repos) > 1:
@@ -236,8 +215,6 @@ class main(rpki.cli.Cmd):
 
 
   def do_process_parent_answer(self, arg):
-
-    self.load_xml()
 
     parent_handle = None
 
@@ -275,8 +252,6 @@ class main(rpki.cli.Cmd):
 
 
   def do_answer_repository_client(self, arg):
-
-    self.load_xml()
 
     sia_base = None
 
@@ -349,8 +324,6 @@ class main(rpki.cli.Cmd):
 
 
   def do_process_repository_answer(self, arg):
-
-    self.load_xml()
 
     argv = arg.split()
 

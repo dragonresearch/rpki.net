@@ -49,10 +49,13 @@ PERFORMANCE OF THIS SOFTWARE.
 
 # Only standard Python libraries for this program, please.
 
-import subprocess, csv, re, os, getopt, sys, base64, glob
+import subprocess, csv, re, os, getopt, sys, base64, glob, copy
 import rpki.config
 
-from xml.etree.ElementTree import Element, SubElement, ElementTree
+try:
+  from lxml.etree import Element, SubElement, ElementTree
+except ImportError:
+  from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 # Our XML namespace and protocol version.
 
@@ -604,9 +607,11 @@ def etree_write(e, filename, verbose = True):
   assert isinstance(filename, str)
   if verbose:
     print "Writing", filename
-  tmp = Element(e.tag, e.attrib, xmlns = namespace, version = version)
-  tmp[:] = e[:]
-  ElementTree(tmp).write(filename + ".tmp")
+  e = copy.deepcopy(e)
+  e.set("version", version)
+  for i in e.getiterator():
+    i.tag = namespaceQName + i.tag
+  ElementTree(e).write(filename + ".tmp")
   os.rename(filename + ".tmp", filename)
 
 def etree_read(filename, verbose = False):

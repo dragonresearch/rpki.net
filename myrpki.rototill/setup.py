@@ -19,7 +19,10 @@ PERFORMANCE OF THIS SOFTWARE.
 import subprocess, csv, re, os, getopt, sys, base64, time, glob
 import myrpki, rpki.config, rpki.cli, rpki.sundial
 
-from xml.etree.ElementTree import Element, SubElement, ElementTree
+try:
+  from lxml.etree import Element, SubElement, ElementTree
+except ImportError:
+  from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 PEMElement = myrpki.PEMElement
 

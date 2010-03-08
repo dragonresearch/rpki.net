@@ -18,7 +18,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import cmd, glob
+import cmd, glob, os.path
 
 try:
   import readline
@@ -61,7 +61,20 @@ class Cmd(cmd.Cmd):
       cmd.Cmd.emptyline(self)
 
   def filename_complete(self, text, line, begidx, endidx):
-    return glob.glob(text + "*")
+    result = glob.glob(text + "*")
+    if len(result) == 1:
+      path = result.pop()
+      if os.path.isdir(path) or (os.path.islink(path) and os.path.isdir(os.path.join(path, "."))):
+        result.append(path + os.path.sep)
+      else:
+        result.append(path + " ")
+    return result
+
+  def completenames(self, *args):
+    result = set(cmd.Cmd.completenames(self, *args))
+    if len(result) == 1:
+      result.add(result.pop() + " ")
+    return list(result)
 
   if have_readline:
 

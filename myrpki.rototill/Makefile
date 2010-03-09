@@ -2,6 +2,9 @@
 
 all: myrpki.rng
 
+relaxng: myrpki.rng
+	xmllint --noout --relaxng myrpki.rng `find test -type f -name '*.xml'`
+
 lint: myrpki.xml myrpki.rng
 	xmllint --noout --relaxng myrpki.rng myrpki.xml
 
@@ -29,5 +32,5 @@ backup:
 	tar cvvzf test.$$(TZ='' date +%Y.%m.%d.%H.%M.%S).tgz screenlog.* test backup.*.sql
 	rm backup.*.sql
 
-test: all
-	python yamltest.py
+test: myrpki.rng
+	MYRPKI_RNG=`pwd`/myrpki.rng python yamltest.py

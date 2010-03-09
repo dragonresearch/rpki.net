@@ -7,6 +7,8 @@
 
 default namespace = "http://www.hactrn.net/uris/rpki/myrpki/"
 
+version         = "2"
+
 base64		= xsd:base64Binary { maxLength="512000" }
 object_handle	= xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9]*" }
 pubd_handle     = xsd:string { maxLength="255" pattern="[\-_A-Za-z0-9/]*" }
@@ -15,54 +17,108 @@ asn_list	= xsd:string { maxLength="512000" pattern="[\-,0-9]*" }
 ipv4_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/.]*" }
 ipv6_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/:a-fA-F]*" }
 
-start = element myrpki {
-  attribute version { "2" },
+start |= myrpki_pdu
+start |= identity_pdu
+start |= parent_pdu
+start |= repository_pdu
+
+myrpki_pdu = element myrpki {
+  attribute version { version },
   attribute handle { object_handle },
-  roa_request_elt*,
-  child_elt*,
-  parent_elt*,
-  repository_elt*,
-  bpki_ca_certificate_elt?,
-  bpki_crl_elt?,
-  bpki_bsc_certificate_elt?,
-  bpki_bsc_pkcs10_elt?
+  element roa_request {
+    attribute asn { xsd:positiveInteger },
+    attribute v4 { ipv4_list },
+    attribute v6 { ipv6_list }
+  }*,
+  element child {
+    attribute handle { object_handle },
+    attribute valid_until { xsd:dateTime { pattern=".*Z" } },
+    attribute asns { asn_list }?,
+    attribute v4 { ipv4_list }?,
+    attribute v6 { ipv6_list }?,
+    element bpki_certificate { base64 }?
+  }*,
+  element parent {
+    attribute handle { object_handle },
+    attribute service_uri { uri }?,
+    attribute myhandle { object_handle }?,
+    attribute sia_base { uri }?,
+    element bpki_cms_certificate { base64 }?,
+    element bpki_https_certificate { base64 }?
+  }*,
+  element repository {
+    attribute handle { object_handle },
+    attribute service_uri { uri }?,
+    element bpki_certificate { base64 }?
+  }*,
+  element bpki_ca_certificate { base64 }?,
+  element bpki_crl { base64 }?,
+  element bpki_bsc_certificate { base64 }?,
+  element bpki_bsc_pkcs10 { base64 }?
 }
 
-roa_request_elt = element roa_request {
-  attribute asn { xsd:positiveInteger },
-  attribute v4 { ipv4_list },
-  attribute v6 { ipv6_list }
+identity_pdu = element identity {
+  attribute version { version },
+  attribute handle { object_handle },
+  element bpki_ta { base64 }
 }
 
-child_elt = element child {
-  attribute handle { object_handle },
+parent_pdu = element parent {
+  attribute version { version },
   attribute valid_until { xsd:dateTime { pattern=".*Z" } },
-  attribute asns { asn_list }?,
-  attribute v4 { ipv4_list }?,
-  attribute v6 { ipv6_list }?,
-  element bpki_certificate { base64 }?
-}
-
-parent_elt = element parent {
-  attribute handle { object_handle },
   attribute service_uri { uri }?,
-  attribute myhandle { object_handle }?,
-  attribute sia_base { uri }?,
-  element bpki_cms_certificate { base64 }?,
-  element bpki_https_certificate { base64 }?
+  attribute child_handle { object_handle },
+  attribute parent_handle { object_handle },
+  element bpki_resource_ta { base64 }?,
+  element bpki_server_ta { base64 }?,
+  element bpki_child_ta { base64 }?,
+  element repository {
+    ((attribute type { "offer" }) |
+     (attribute type { "hint" },
+      attribute proposed_sia_base { uri },
+      element contact_info { xsd:string }))
+  }?
 }
 
-repository_elt = element repository {
-  attribute handle { object_handle },
-  attribute service_uri { uri }?,
-  element bpki_certificate { base64 }?
+repository_pdu |= element repository {
+  attribute version { version },
+  attribute type { "confirmed" },
+  attribute parent_handle { object_handle },
+  attribute client_handle { pubd_handle },
+  attribute service_uri { uri },
+  attribute sia_base { uri },
+  attribute repository_handle { object_handle },
+  element bpki_server_ta { base64 }?,
+  element bpki_client_ta { base64 }?,
+  element contact_info { xsd:string }?
 }
 
-bpki_ca_certificate_elt         = element bpki_ca_certificate           { base64 }
-bpki_crl_elt                    = element bpki_crl                      { base64 }
+repository_pdu |= element repository {
+  attribute version { version },
+  attribute type { "request" },
+  attribute handle { pubd_handle },
+  attribute parent_handle { object_handle },
+  element contact_info { xsd:string }?,
+  element bpki_ta { base64 }?
+}
 
-bpki_bsc_certificate_elt        = element bpki_bsc_certificate          { base64 }
-bpki_bsc_pkcs10_elt             = element bpki_bsc_pkcs10               { base64 }
+repository_pdu |= element repository {
+  attribute version { version },
+  attribute type { "offer" },
+  attribute handle { pubd_handle },
+  attribute parent_handle { object_handle },
+  element bpki_ta { base64 }?
+}
+
+repository_pdu |= element repository {
+  attribute version { version },
+  attribute type { "hint" },
+  attribute handle { pubd_handle },
+  attribute parent_handle { object_handle },
+  attribute proposed_sia_base { uri },
+  element contact_info { xsd:string }?,
+  element bpki_ta { base64 }?
+}
 
 # Local Variables:
 # indent-tabs-mode: nil

@@ -749,7 +749,7 @@ def etree_validate(e):
       print lxml.etree.tostring(e, pretty_print = True)
       raise
 
-def etree_write(e, filename, verbose = True, validate = False):
+def etree_write(e, filename, verbose = True, validate = True):
   """
   Write out an etree to a file, safely.
 
@@ -769,7 +769,7 @@ def etree_write(e, filename, verbose = True, validate = False):
   ElementTree(e).write(filename + ".tmp")
   os.rename(filename + ".tmp", filename)
 
-def etree_read(filename, verbose = False, validate = False):
+def etree_read(filename, verbose = True, validate = True):
   """
   Read an etree from a file, verifying then stripping XML namespace
   cruft.

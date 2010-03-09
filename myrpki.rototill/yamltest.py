@@ -67,9 +67,7 @@ this_dir  = os.getcwd()
 test_dir  = cleanpath(this_dir, "test")
 rpkid_dir = cleanpath(this_dir, "../rpkid")
 
-prog_myirbe = cleanpath(this_dir, "myirbe.py")
-prog_myrpki = cleanpath(this_dir, "myrpki.py")
-prog_setup  = cleanpath(this_dir, "setup.py")
+prog_setup  = cleanpath(this_dir, "myrpki.py")
 prog_rpkid  = cleanpath(rpkid_dir, "rpkid.py")
 prog_irdbd  = cleanpath(rpkid_dir, "irdbd.py")
 prog_pubd   = cleanpath(rpkid_dir, "pubd.py")
@@ -475,23 +473,19 @@ class allocation(object):
     Run myirbe.py if this entity is not hosted by another engine.
     """
     if not self.is_hosted():
-      print "Running myirbe.py for", self.name
-      cmd = ["python", prog_myirbe]
-      cmd.extend(h.path("myrpki.xml") for h in self.hosts)
-      subprocess.check_call(cmd, cwd = self.path())
+      self.run_setup("myirbe", *[h.path("myrpki.xml") for h in self.hosts])
 
   def run_myrpki(self):
     """
     Run myrpki.py for this entity.
     """
-    print "Running myrpki.py for", self.name
-    subprocess.check_call(("python", prog_myrpki), cwd = self.path())
+    self.run_setup("myrpki")
 
   def run_setup(self, *args):
     """
     Run setup.py for this entity.
     """
-    print 'Running "%s" for %s' % (" ".join(("setup.py",) + args), self.name)
+    print 'Running "%s" for %s' % (" ".join(("myrpki",) + args), self.name)
     subprocess.check_call(("python", prog_setup) + args, cwd = self.path())
 
   def run_python_daemon(self, prog):

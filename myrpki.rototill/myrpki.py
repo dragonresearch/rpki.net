@@ -1,4 +1,17 @@
 """
+This program is now the merger of three different tools: the old
+myrpki.py script, the old myirbe.py script, and the newer setup.py CLI
+tool.  As such, it is still in need of some cleanup, but the need to
+provide a saner user interface is more urgent than internal code
+prettiness at the moment.  In the long run, 90% of the code in this
+file probably ought to move to well-designed library modules.
+
+The rest of the documentation in this module comment is lifted from
+the previous scripts, and needs revision.  Then again, all the
+commands in this tool need documenting too....
+
+===
+
 Read an OpenSSL-style config file and a bunch of .csv files to find
 out about parents and children and resources and ROA requests, oh my.
 Run OpenSSL command line tool to construct BPKI certificates,
@@ -30,9 +43,37 @@ this script can itself be loaded as a Python module and invoked as
 part of another program.  This requires a few minor contortions, but
 avoids duplicating common code.
 
+===
+
+IRBE-side stuff for myrpki tools.
+
+The basic model here is that each entity with resources to certify
+runs the myrpki tool, but not all of them necessarily run their own
+RPKi engines.  The entities that do run RPKI engines get data from the
+entities they host via the XML files output by the myrpki tool.  Those
+XML files are the input to this script, which uses them to do all the
+work of constructing certificates, populating SQL databases, and so
+forth.  A few operations (eg, BSC construction) generate data which
+has to be shipped back to the resource holder, which we do by updating
+the same XML file.
+
+In essence, the XML files are a sneakernet (or email, or carrier
+pigeon) communication channel between the resource holders and the
+RPKI engine operators.
+
+As a convenience, for the normal case where the RPKI engine operator
+is itself a resource holder, this script also runs the myrpki script
+directly to process the RPKI engine operator's own resources.
+
+Note that, due to the back and forth nature of some of these
+operations, it may take several cycles for data structures to stablize
+and everything to reach a steady state.  This is normal.
+
+====
+
 $Id$
 
-Copyright (C) 2009  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -47,15 +88,19 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-# Only standard Python libraries for this program, please.
+from __future__ import with_statement
 
-import subprocess, csv, re, os, getopt, sys, base64, glob, copy
-import rpki.config
+import subprocess, csv, re, os, getopt, sys, base64, time, glob, copy, warnings
+import rpki.config, rpki.cli, rpki.sundial
 
 try:
   from lxml.etree import Element, SubElement, ElementTree
+  have_lxml = True
 except ImportError:
   from xml.etree.ElementTree import Element, SubElement, ElementTree
+  have_lxml = False
+
+
 
 # Our XML namespace and protocol version.
 
@@ -741,75 +786,804 @@ def etree_read(filename, verbose = False, validate = False):
       raise RuntimeError, "XML tag %r is not in namespace %r" % (i.tag, namespace)
   return e
 
-def main(argv = ()):
-  """
-  Main program.  Must be callable from other programs as well as being
-  invoked directly when this module is run as a script.
-  """
-
-  cfg_file = "myrpki.conf"
-
-  opts, argv = getopt.getopt(argv, "c:h:?", ["config=", "help"])
-  for o, a in opts:
-    if o in ("-h", "--help", "-?"):
-      print __doc__
-      sys.exit(0)
-    elif o in ("-c", "--config"):
-      cfg_file = a
-  if argv:
-    raise RuntimeError, "Unexpected arguments %r" % (argv,)
-
-  cfg = rpki.config.parser(cfg_file, "myrpki")
-
-  my_handle                     = cfg.get("handle")
-  roa_csv_file                  = cfg.get("roa_csv")
-  children_csv_file             = cfg.get("children_csv")
-  prefix_csv_file               = cfg.get("prefix_csv")
-  asn_csv_file                  = cfg.get("asn_csv")
-  bpki_dir                      = cfg.get("bpki_resources_directory")
-  xml_filename                  = cfg.get("xml_filename")
-
-  global openssl
-  openssl = cfg.get("openssl", "openssl")
-
-  entitydb = EntityDB(cfg)
-
-  bpki = CA(cfg_file, bpki_dir)
-
-  try:
-    bsc_req, bsc_cer = bpki.bsc(etree_read(xml_filename).findtext("bpki_bsc_pkcs10"))
-  except IOError:
-    bsc_req, bsc_cer = None, None
-
-  e = Element("myrpki", handle = my_handle)
-
-  roa_requests.from_csv(roa_csv_file).xml(e)
-
-  children.from_csv(
-    children_csv_file = children_csv_file,
-    prefix_csv_file = prefix_csv_file,
-    asn_csv_file = asn_csv_file,
-    fxcert = bpki.fxcert,
-    entitydb = entitydb).xml(e)
-
-  parents.from_csv(fxcert = bpki.fxcert,entitydb = entitydb).xml(e)
-
-  repositories.from_csv(fxcert = bpki.fxcert,entitydb = entitydb).xml(e)
-
-  PEMElement(e, "bpki_ca_certificate", bpki.cer)
-  PEMElement(e, "bpki_crl",            bpki.crl)
-
-  if bsc_cer:
-    PEMElement(e, "bpki_bsc_certificate", bsc_cer)
-
-  if bsc_req:
-    PEMElement(e, "bpki_bsc_pkcs10", bsc_req)
-
-  etree_write(e, xml_filename)
-
 # When this file is run as a script, run main() with command line
 # arguments.  main() can't use sys.argv directly as that might be the
 # command line for some other program that loads this module.
 
+
+
+class main(rpki.cli.Cmd):
+
+  prompt = "setup> "
+
+  completedefault = rpki.cli.Cmd.filename_complete
+
+
+  def __init__(self):
+    os.environ["TZ"] = "UTC"
+    time.tzset()
+
+    self.cfg_file = os.getenv("MYRPKI_CONF", "myrpki.conf")
+
+    opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+    for o, a in opts:
+      if o in ("-c", "--config"):
+        self.cfg_file = a
+      elif o in ("-h", "--help", "-?"):
+        argv = ["help"]
+
+    if not argv or argv[0] != "help":
+      self.read_config()
+
+    rpki.cli.Cmd.__init__(self, argv)
+
+
+  def read_config(self):
+
+    self.cfg = rpki.config.parser(self.cfg_file, "myrpki")
+
+    global openssl
+    openssl  = self.cfg.get("openssl", "openssl")
+
+    self.histfile  = self.cfg.get("history_file", ".setup_history")
+    self.handle    = self.cfg.get("handle")
+    self.run_rpkid = self.cfg.getboolean("run_rpkid")
+    self.run_pubd  = self.cfg.getboolean("run_pubd")
+    self.run_rootd = self.cfg.getboolean("run_rootd")
+    self.entitydb  = EntityDB(self.cfg)
+
+    if self.run_rootd and (not self.run_pubd or not self.run_rpkid):
+      raise RuntimeError, "Can't run rootd unless also running rpkid and pubd"
+
+    self.bpki_resources = CA(self.cfg_file, self.cfg.get("bpki_resources_directory"))
+    if self.run_rpkid or self.run_pubd or self.run_rootd:
+      self.bpki_servers = CA(self.cfg_file, self.cfg.get("bpki_servers_directory"))
+
+    self.pubd_contact_info = self.cfg.get("pubd_contact_info", "")
+
+    self.rsync_module = self.cfg.get("publication_rsync_module")
+    self.rsync_server = self.cfg.get("publication_rsync_server")
+
+
+  def do_initialize(self, arg):
+    if arg:
+      raise RuntimeError, "This command takes no arguments"
+
+    print "Generating RSA keys, this may take a little while..."
+
+    self.bpki_resources.setup(self.cfg.get("bpki_resources_ta_dn",
+                                           "/CN=%s BPKI Resource Trust Anchor" % self.handle))
+    if self.run_rpkid or self.run_pubd or self.run_rootd:
+      self.bpki_servers.setup(self.cfg.get("bpki_servers_ta_dn",
+                                           "/CN=%s BPKI Server Trust Anchor" % self.handle))
+
+    # Create entitydb directories.
+
+    for i in ("parents", "children", "repositories", "pubclients"):
+      d = self.entitydb(i)
+      if not os.path.exists(d):
+        os.makedirs(d)
+
+    if self.run_rpkid or self.run_pubd or self.run_rootd:
+
+      if self.run_rpkid:
+        self.bpki_servers.ee(self.cfg.get("bpki_rpkid_ee_dn",
+                                          "/CN=%s rpkid server certificate" % self.handle), "rpkid")
+        self.bpki_servers.ee(self.cfg.get("bpki_irdbd_ee_dn",
+                                          "/CN=%s irdbd server certificate" % self.handle), "irdbd")
+      if self.run_pubd:
+        self.bpki_servers.ee(self.cfg.get("bpki_pubd_ee_dn",
+                                          "/CN=%s pubd server certificate" % self.handle), "pubd")
+      if self.run_rpkid or self.run_pubd:
+        self.bpki_servers.ee(self.cfg.get("bpki_irbe_ee_dn",
+                                          "/CN=%s irbe client certificate" % self.handle), "irbe")
+      if self.run_rootd:
+        self.bpki_servers.ee(self.cfg.get("bpki_rootd_ee_dn",
+                                          "/CN=%s rootd server certificate" % self.handle), "rootd")
+
+    # Build the identity.xml file.  Need to check for existing file so we don't
+    # overwrite?  Worry about that later.
+
+    e = Element("identity", handle = self.handle)
+    PEMElement(e, "bpki_ta", self.bpki_resources.cer)
+    etree_write(e, self.entitydb("identity.xml"))
+
+    # If we're running rootd, construct a fake parent to go with it,
+    # and cross-certify in both directions so we can talk to rootd.
+
+    if self.run_rootd:
+
+      e = Element("parent", parent_handle = self.handle, child_handle = self.handle,
+                  service_uri = "https://localhost:%s/" % self.cfg.get("rootd_server_port"),
+                  valid_until = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365)))
+      PEMElement(e, "bpki_resource_ta", self.bpki_servers.cer)
+      PEMElement(e, "bpki_server_ta", self.bpki_servers.cer)
+      PEMElement(e, "bpki_child_ta", self.bpki_resources.cer)
+      SubElement(e, "repository", type = "offer")
+      etree_write(e, self.entitydb("parents", "%s.xml" % self.handle))
+
+      self.bpki_resources.xcert(self.bpki_servers.cer)
+
+      rootd_child_fn = self.cfg.get("child-bpki-cert", None, "rootd")
+      if not os.path.exists(rootd_child_fn):
+        os.link(self.bpki_servers.xcert(self.bpki_resources.cer), rootd_child_fn)
+
+    # If we're running pubd, construct repository request for it, as
+    # if we had received an offer.
+
+    if self.run_pubd:
+      e = Element("repository", type = "request", handle = self.handle, parent_handle = self.handle)
+      SubElement(e, "contact_info").text = self.pubd_contact_info
+      PEMElement(e, "bpki_ta", self.bpki_resources.cer)
+      etree_write(e, self.entitydb("repositories", "%s.xml" % self.handle))
+
+
+  def do_answer_child(self, arg):
+
+    child_handle = None
+
+    opts, argv = getopt.getopt(arg.split(), "", ["child_handle="])
+    for o, a in opts:
+      if o == "--child_handle":
+        child_handle = a
+    
+    if len(argv) != 1:
+      raise RuntimeError, "Need to specify filename for child.xml"
+
+    if not self.run_rpkid:
+      raise RuntimeError, "Don't (yet) know how to set up child unless we run rpkid"
+
+    c = etree_read(argv[0])
+
+    if child_handle is None:
+      child_handle = c.get("handle")
+
+    print "Child calls itself %r, we call it %r" % (c.get("handle"), child_handle)
+
+    self.bpki_servers.fxcert(c.findtext("bpki_ta"))
+
+    e = Element("parent", parent_handle = self.handle, child_handle = child_handle,
+                service_uri = "https://%s:%s/up-down/%s/%s" % (self.cfg.get("rpkid_server_host"),
+                                                               self.cfg.get("rpkid_server_port"),
+                                                               self.handle, child_handle),
+                valid_until = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365)))
+
+    PEMElement(e, "bpki_resource_ta", self.bpki_resources.cer)
+    PEMElement(e, "bpki_server_ta",   self.bpki_servers.cer)
+    SubElement(e, "bpki_child_ta").text = c.findtext("bpki_ta")
+
+    try:
+      repo = None
+      for f in self.entitydb.iterate("repositories", "*.xml"):
+        r = etree_read(f)
+        if r.get("type") == "confirmed":
+          if repo is not None:
+            raise RuntimeError, "Too many repositories, I don't know what to do, not giving referral"
+          repo_handle = os.path.splitext(os.path.split(f)[-1])[0]
+          repo = r
+      if repo is None:
+        raise RuntimeError, "Couldn't find any usable repositories, not giving referral"
+
+      if repo_handle == self.handle:
+        SubElement(e, "repository", type = "offer")
+      else:
+        r = SubElement(e, "repository", type = "hint",
+                       proposed_sia_base = repo.get("sia_base") + child_handle + "/")
+        SubElement(r, "contact_info").text = repo.findtext("contact_info")
+        # CMS-signed blob authorizing use of part of our space by our
+        # child goes here, once I've written that code.
+
+    except RuntimeError, err:
+      print err
+
+    etree_write(e, self.entitydb("children", "%s.xml" % child_handle))
+
+
+  def do_process_parent_answer(self, arg):
+
+    parent_handle = None
+
+    opts, argv = getopt.getopt(arg.split(), "", ["parent_handle="])
+    for o, a in opts:
+      if o == "--parent_handle":
+        parent_handle = a
+
+    if len(argv) != 1:
+      raise RuntimeError, "Need to specify filename for parent.xml on command line"
+
+    p = etree_read(argv[0])
+
+    if parent_handle is None:
+      parent_handle = p.get("parent_handle")
+
+    print "Parent calls itself %r, we call it %r" % (p.get("parent_handle"), parent_handle)
+    print "Parent calls us %r" % p.get("child_handle")
+
+    self.bpki_resources.fxcert(p.findtext("bpki_resource_ta"))
+    self.bpki_resources.fxcert(p.findtext("bpki_server_ta"))
+
+    etree_write(p, self.entitydb("parents", "%s.xml" % parent_handle))
+
+    r = p.find("repository")
+
+    if r is not None and r.get("type") in ("offer", "hint"):
+      r.set("handle", self.handle)
+      r.set("parent_handle", parent_handle)
+      PEMElement(r, "bpki_ta", self.bpki_resources.cer)
+      etree_write(r, self.entitydb("repositories", "%s.xml" % parent_handle))
+
+    else:
+      print "Couldn't find repository offer or hint"
+
+
+  def do_answer_repository_client(self, arg):
+
+    sia_base = None
+
+    opts, argv = getopt.getopt(arg.split(), "", ["sia_base="])
+    for o, a in opts:
+      if o == "--sia_base":
+        sia_base = a
+    
+    if len(argv) != 1:
+      raise RuntimeError, "Need to specify filename for client.xml"
+
+    c = etree_read(argv[0])
+
+    # Critical thing at this point is to figure out what client's
+    # sia_base value should be.  Three cases:
+    #
+    # - client has no particular relationship to any other client:
+    #   sia_base is top-level, or as close as we can make it taking
+    #   rsyncd module into account (maybe homed under us, hmm, how do
+    #   we detect case where we are talking to ourself?)
+    #
+    # - client is a direct child of ours to whom we (in our parent
+    #   role) made an offer of publication service.  client homes
+    #   under us, presumably.
+    #
+    # - client is a child of a client of ours who referred the new
+    #   client to us, along with a signed referral.  signed referral
+    #   includes sia_base of referring client, new client homes under
+    #   that per referring client's wishes.
+    #
+    # ... which implies that there's a fourth case, where we are both
+    # the client and the server.
+
+    # Checking of signed referrals goes somewhere around here.  Must
+    # be after reading client's XML, but before deciding what the
+    # client's sia_base and handle will be.
+
+    # For the moment we cheat egregiously, no crypto, blind trust of
+    # what we're sent, while I focus on the basic semantics.
+
+    if sia_base is None and c.get("proposed_sia_base"):
+      sia_base = c.get("proposed_sia_base")
+    elif sia_base is None and c.get("handle") == self.handle:
+      sia_base = "rsync://%s/%s/" % (self.rsync_server, self.rsync_module)
+    else:
+      sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, c.get("handle"))
+
+    client_handle = "/".join(sia_base.rstrip("/").split("/")[3:])
+
+    parent_handle = c.get("parent_handle")
+
+    print "Client calls itself %r, we call it %r" % (c.get("handle"), client_handle)
+    print "Client says its parent handle is %r" % parent_handle
+
+    self.bpki_servers.fxcert(c.findtext("bpki_ta"))
+
+    e = Element("repository", type = "confirmed",
+                repository_handle = self.handle,
+                client_handle = client_handle,
+                parent_handle = parent_handle,
+                sia_base = sia_base,
+                service_uri = "https://%s:%s/client/%s" % (self.cfg.get("pubd_server_host"),
+                                                           self.cfg.get("pubd_server_port"),
+                                                           client_handle))
+
+    PEMElement(e, "bpki_server_ta", self.bpki_servers.cer)
+    SubElement(e, "bpki_client_ta").text = c.findtext("bpki_ta")
+    SubElement(e, "contact_info").text = self.pubd_contact_info
+    etree_write(e, self.entitydb("pubclients", "%s.xml" % client_handle.replace("/", ".")))
+
+
+  def do_process_repository_answer(self, arg):
+
+    argv = arg.split()
+
+    if len(argv) != 1:
+      raise RuntimeError, "Need to specify filename for repository.xml on command line"
+
+    r = etree_read(argv[0])
+
+    parent_handle = r.get("parent_handle")
+
+    print "Repository calls itself %r, calls us %r" % (r.get("repository_handle"), r.get("client_handle"))
+    print "Repository response associated with parent_handle %r" % parent_handle
+
+    etree_write(r, self.entitydb("repositories", "%s.xml" % parent_handle))
+
+
+  def do_compose_request_to_host(self, arg):
+    pass
+
+  def do_answer_hosted_entity(self, arg):
+    pass
+
+  def do_process_host_answer(self, arg):
+    pass
+
+
+
+
+  def myrpki_main(self):
+    """
+    Main program of old myrpki.py script.
+    """
+
+    roa_csv_file                  = self.cfg.get("roa_csv")
+    children_csv_file             = self.cfg.get("children_csv")
+    prefix_csv_file               = self.cfg.get("prefix_csv")
+    asn_csv_file                  = self.cfg.get("asn_csv")
+
+    # This probably should become an argument instead of (or in
+    # addition to a default from?) config file.
+    xml_filename                  = self.cfg.get("xml_filename")
+
+    try:
+      bsc_req, bsc_cer = self.bpki_resources.bsc(etree_read(xml_filename).findtext("bpki_bsc_pkcs10"))
+    except IOError:
+      bsc_req, bsc_cer = None, None
+
+    e = Element("myrpki", handle = self.handle)
+
+    roa_requests.from_csv(roa_csv_file).xml(e)
+
+    children.from_csv(
+      children_csv_file = children_csv_file,
+      prefix_csv_file = prefix_csv_file,
+      asn_csv_file = asn_csv_file,
+      fxcert = self.bpki_resources.fxcert,
+      entitydb = self.entitydb).xml(e)
+
+    parents.from_csv(     fxcert = self.bpki_resources.fxcert, entitydb = self.entitydb).xml(e)
+    repositories.from_csv(fxcert = self.bpki_resources.fxcert, entitydb = self.entitydb).xml(e)
+
+    PEMElement(e, "bpki_ca_certificate", self.bpki_resources.cer)
+    PEMElement(e, "bpki_crl",            self.bpki_resources.crl)
+
+    if bsc_cer:
+      PEMElement(e, "bpki_bsc_certificate", bsc_cer)
+
+    if bsc_req:
+      PEMElement(e, "bpki_bsc_pkcs10", bsc_req)
+
+    etree_write(e, xml_filename)
+
+
+  def do_myrpki(self, arg):
+    if arg:
+      raise RuntimeError, "Unexpected argument %r" % arg
+    self.myrpki_main()
+
+
+
+  def myirbe_main(self, argv = []):
+    """
+    Main program of old myirbe.py script.
+    """
+
+    import rpki.https, rpki.resource_set, rpki.relaxng, rpki.exceptions
+    import rpki.left_right, rpki.log, rpki.x509, rpki.async
+
+    # Silence warning while loading MySQLdb in Python 2.6, sigh
+    if hasattr(warnings, "catch_warnings"):
+      with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        import MySQLdb
+    else:
+      import MySQLdb
+
+    def findbase64(tree, name, b64type = rpki.x509.X509):
+      """
+      Find and extract a base64-encoded XML element, if present.
+      """
+      x = tree.findtext(name)
+      return b64type(Base64 = x) if x else None
+
+    # For simple cases we don't really care what this value is, so long as
+    # we're consistant about it, so wiring this in is fine.
+
+    bsc_handle = "bsc"
+
+    rpki.log.init("myirbe")
+
+    self.cfg.set_global_flags()
+
+    # Default values for CRL parameters are low, for testing.  Not
+    # quite as low as they once were, too much expired CRL whining.
+
+    self_crl_interval = self.cfg.getint("self_crl_interval", 2 * 60 * 60)
+    self_regen_margin = self.cfg.getint("self_regen_margin", 30 * 60)
+    pubd_base         = self.cfg.get("pubd_base").rstrip("/") + "/"
+    rpkid_base        = self.cfg.get("rpkid_base").rstrip("/") + "/"
+
+    # Nasty regexp for parsing rpkid's up-down service URLs.
+
+    updown_regexp = re.compile(re.escape(rpkid_base) + "up-down/([-A-Z0-9_]+)/([-A-Z0-9_]+)$", re.I)
+
+    # Wrappers to simplify calling rpkid and pubd.
+
+    call_rpkid = rpki.async.sync_wrapper(rpki.https.caller(
+      proto       = rpki.left_right,
+      client_key  = rpki.x509.RSA( PEM_file = self.bpki_servers.dir + "/irbe.key"),
+      client_cert = rpki.x509.X509(PEM_file = self.bpki_servers.dir + "/irbe.cer"),
+      server_ta   = rpki.x509.X509(PEM_file = self.bpki_servers.cer),
+      server_cert = rpki.x509.X509(PEM_file = self.bpki_servers.dir + "/rpkid.cer"),
+      url         = rpkid_base + "left-right",
+      debug       = True))
+
+    if self.run_pubd:
+
+      call_pubd = rpki.async.sync_wrapper(rpki.https.caller(
+        proto       = rpki.publication,
+        client_key  = rpki.x509.RSA( PEM_file = self.bpki_servers.dir + "/irbe.key"),
+        client_cert = rpki.x509.X509(PEM_file = self.bpki_servers.dir + "/irbe.cer"),
+        server_ta   = rpki.x509.X509(PEM_file = self.bpki_servers.cer),
+        server_cert = rpki.x509.X509(PEM_file = self.bpki_servers.dir + "/pubd.cer"),
+        url         = pubd_base + "control",
+        debug       = True))
+
+      # Make sure that pubd's BPKI CRL is up to date.
+
+      call_pubd(rpki.publication.config_elt.make_pdu(
+        action = "set",
+        bpki_crl = rpki.x509.CRL(PEM_file = self.bpki_servers.crl)))
+
+    irdbd_cfg = rpki.config.parser(self.cfg.get("irdbd_conf", self.cfg_file), "irdbd")
+
+    db = MySQLdb.connect(user   = irdbd_cfg.get("sql-username"),
+                         db     = irdbd_cfg.get("sql-database"),
+                         passwd = irdbd_cfg.get("sql-password"))
+
+    cur = db.cursor()
+
+    xmlfiles = []
+
+    # If [myrpki] section includes an "xml_filename" setting, run
+    # myrpki.py internally, as a convenience, and include its output at
+    # the head of our list of XML files to process.
+
+    my_xmlfile = self.cfg.get("xml_filename", "")
+    if my_xmlfile:
+      self.myrpki_main()
+      xmlfiles.append(my_xmlfile)
+    else:
+      my_xmlfile = None
+
+    # Add any other XML files specified on the command line
+
+    xmlfiles.extend(argv)
+
+    my_handle = None
+
+    for xmlfile in xmlfiles:
+
+      # Parse XML file and validate it against our scheme
+
+      tree = etree_read(xmlfile, validate = True)
+
+      handle = tree.get("handle")
+
+      if xmlfile == my_xmlfile:
+        my_handle = handle
+
+      # Update IRDB with parsed resource and roa-request data.
+
+      cur.execute(
+        """
+        DELETE
+        FROM  roa_request_prefix
+        USING roa_request, roa_request_prefix
+        WHERE roa_request.roa_request_id = roa_request_prefix.roa_request_id AND roa_request.roa_request_handle = %s
+        """, (handle,))
+
+      cur.execute("DELETE FROM roa_request WHERE roa_request.roa_request_handle = %s", (handle,))
+
+      for x in tree.getiterator("roa_request"):
+        cur.execute("INSERT roa_request (roa_request_handle, asn) VALUES (%s, %s)", (handle, x.get("asn")))
+        roa_request_id = cur.lastrowid
+        for version, prefix_set in ((4, rpki.resource_set.roa_prefix_set_ipv4(x.get("v4"))), (6, rpki.resource_set.roa_prefix_set_ipv6(x.get("v6")))):
+          if prefix_set:
+            cur.executemany("INSERT roa_request_prefix (roa_request_id, prefix, prefixlen, max_prefixlen, version) VALUES (%s, %s, %s, %s, %s)",
+                            ((roa_request_id, p.prefix, p.prefixlen, p.max_prefixlen, version) for p in prefix_set))
+
+      cur.execute(
+        """
+        DELETE
+        FROM   registrant_asn
+        USING registrant, registrant_asn
+        WHERE registrant.registrant_id = registrant_asn.registrant_id AND registrant.registry_handle = %s
+        """ , (handle,))
+
+      cur.execute(
+        """
+        DELETE FROM registrant_net USING registrant, registrant_net
+        WHERE registrant.registrant_id = registrant_net.registrant_id AND registrant.registry_handle = %s
+        """ , (handle,))
+
+      cur.execute("DELETE FROM registrant WHERE registrant.registry_handle = %s" , (handle,))
+
+      for x in tree.getiterator("child"):
+        child_handle = x.get("handle")
+        asns = rpki.resource_set.resource_set_as(x.get("asns"))
+        ipv4 = rpki.resource_set.resource_set_ipv4(x.get("v4"))
+        ipv6 = rpki.resource_set.resource_set_ipv6(x.get("v6"))
+
+        cur.execute("INSERT registrant (registrant_handle, registry_handle, registrant_name, valid_until) VALUES (%s, %s, %s, %s)",
+                    (child_handle, handle, child_handle, rpki.sundial.datetime.fromXMLtime(x.get("valid_until")).to_sql()))
+        child_id = cur.lastrowid
+        if asns:
+          cur.executemany("INSERT registrant_asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)",
+                          ((a.min, a.max, child_id) for a in asns))
+        if ipv4:
+          cur.executemany("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)",
+                          ((a.min, a.max, child_id) for a in ipv4))
+        if ipv6:
+          cur.executemany("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)",
+                          ((a.min, a.max, child_id) for a in ipv6))
+
+      db.commit()
+
+      # Check for certificates before attempting anything else
+
+      hosted_cacert = findbase64(tree, "bpki_ca_certificate")
+      if not hosted_cacert:
+        print "Nothing else I can do without a trust anchor for the entity I'm hosting."
+        continue
+
+      rpkid_xcert = rpki.x509.X509(PEM_file = self.bpki_servers.fxcert(b64 = hosted_cacert.get_Base64(),
+                                                                       filename = handle + ".cacert.cer",
+                                                                       path_restriction = 1))
+
+      # See what rpkid and pubd already have on file for this entity.
+
+      if self.run_pubd:
+        client_pdus = dict((x.client_handle, x)
+                           for x in call_pubd(rpki.publication.client_elt.make_pdu(action = "list"))
+                           if isinstance(x, rpki.publication.client_elt))
+
+      rpkid_reply = call_rpkid(
+        rpki.left_right.self_elt.make_pdu(      action = "get",  tag = "self",       self_handle = handle),
+        rpki.left_right.bsc_elt.make_pdu(       action = "list", tag = "bsc",        self_handle = handle),
+        rpki.left_right.repository_elt.make_pdu(action = "list", tag = "repository", self_handle = handle),
+        rpki.left_right.parent_elt.make_pdu(    action = "list", tag = "parent",     self_handle = handle),
+        rpki.left_right.child_elt.make_pdu(     action = "list", tag = "child",      self_handle = handle))
+
+      self_pdu        = rpkid_reply[0]
+      bsc_pdus        = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
+      repository_pdus = dict((x.repository_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.repository_elt))
+      parent_pdus     = dict((x.parent_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.parent_elt))
+      child_pdus      = dict((x.child_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.child_elt))
+
+      pubd_query = []
+      rpkid_query = []
+
+      # There should be exactly one <self/> object per hosted entity, by definition
+
+      if (isinstance(self_pdu, rpki.left_right.report_error_elt) or
+          self_pdu.crl_interval != self_crl_interval or
+          self_pdu.regen_margin != self_regen_margin or
+          self_pdu.bpki_cert != rpkid_xcert):
+        rpkid_query.append(rpki.left_right.self_elt.make_pdu(
+          action = "create" if isinstance(self_pdu, rpki.left_right.report_error_elt) else "set",
+          tag = "self",
+          self_handle = handle,
+          bpki_cert = rpkid_xcert,
+          crl_interval = self_crl_interval,
+          regen_margin = self_regen_margin))
+
+      # In general we only need one <bsc/> per <self/>.  BSC objects are a
+      # little unusual in that the PKCS #10 subelement is generated by rpkid
+      # in response to generate_keypair, so there's more of a separation
+      # between create and set than with other objects.
+
+      bsc_cert = findbase64(tree, "bpki_bsc_certificate")
+      bsc_crl  = findbase64(tree, "bpki_crl", rpki.x509.CRL)
+
+      bsc_pdu = bsc_pdus.pop(bsc_handle, None)
+
+      if bsc_pdu is None:
+        rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(
+          action = "create",
+          tag = "bsc",
+          self_handle = handle,
+          bsc_handle = bsc_handle,
+          generate_keypair = "yes"))
+      elif bsc_pdu.signing_cert != bsc_cert or bsc_pdu.signing_cert_crl != bsc_crl:
+        rpkid_query.append(rpki.left_right.bsc_elt.make_pdu(
+          action = "set",
+          tag = "bsc",
+          self_handle = handle,
+          bsc_handle = bsc_handle,
+          signing_cert = bsc_cert,
+          signing_cert_crl = bsc_crl))
+
+      rpkid_query.extend(rpki.left_right.bsc_elt.make_pdu(
+        action = "destroy", self_handle = handle, bsc_handle = b) for b in bsc_pdus)
+
+      bsc_req = None
+
+      if bsc_pdu and bsc_pdu.pkcs10_request:
+        bsc_req = bsc_pdu.pkcs10_request
+
+      # At present we need one <repository/> per <parent/>, not because
+      # rpkid requires that, but because pubd does.  pubd probably should
+      # be fixed to support a single client allowed to update multiple
+      # trees, but for the moment the easiest way forward is just to
+      # enforce a 1:1 mapping between <parent/> and <repository/> objects
+
+      for repository in tree.getiterator("repository"):
+
+        repository_handle = repository.get("handle")
+        repository_pdu = repository_pdus.pop(repository_handle, None)
+        repository_uri = repository.get("service_uri")
+        repository_cert = findbase64(repository, "bpki_certificate")
+
+        if (repository_pdu is None or
+            repository_pdu.bsc_handle != bsc_handle or
+            repository_pdu.peer_contact_uri != repository_uri or
+            repository_pdu.bpki_cert != repository_cert):
+          rpkid_query.append(rpki.left_right.repository_elt.make_pdu(
+            action = "create" if repository_pdu is None else "set",
+            tag = repository_handle,
+            self_handle = handle,
+            repository_handle = repository_handle,
+            bsc_handle = bsc_handle,
+            peer_contact_uri = repository_uri,
+            bpki_cert = repository_cert))
+
+      rpkid_query.extend(rpki.left_right.repository_elt.make_pdu(
+        action = "destroy", self_handle = handle, repository_handle = r) for r in repository_pdus)
+
+      # <parent/> setup code currently assumes 1:1 mapping between
+      # <repository/> and <parent/>, and further assumes that the handles
+      # for an associated pair are the identical (that is:
+      # parent.repository_handle == parent.parent_handle).
+
+      for parent in tree.getiterator("parent"):
+
+        parent_handle = parent.get("handle")
+        parent_pdu = parent_pdus.pop(parent_handle, None)
+        parent_uri = parent.get("service_uri")
+        parent_myhandle = parent.get("myhandle")
+        parent_sia_base = parent.get("sia_base")
+        parent_cms_cert = findbase64(parent, "bpki_cms_certificate")
+        parent_https_cert = findbase64(parent, "bpki_https_certificate")
+
+        if (parent_pdu is None or
+            parent_pdu.bsc_handle != bsc_handle or
+            parent_pdu.repository_handle != parent_handle or
+            parent_pdu.peer_contact_uri != parent_uri or
+            parent_pdu.sia_base != parent_sia_base or
+            parent_pdu.sender_name != parent_myhandle or
+            parent_pdu.recipient_name != parent_handle or
+            parent_pdu.bpki_cms_cert != parent_cms_cert or
+            parent_pdu.bpki_https_cert != parent_https_cert):
+          rpkid_query.append(rpki.left_right.parent_elt.make_pdu(
+            action = "create" if parent_pdu is None else "set",
+            tag = parent_handle,
+            self_handle = handle,
+            parent_handle = parent_handle,
+            bsc_handle = bsc_handle,
+            repository_handle = parent_handle,
+            peer_contact_uri = parent_uri,
+            sia_base = parent_sia_base,
+            sender_name = parent_myhandle,
+            recipient_name = parent_handle,
+            bpki_cms_cert = parent_cms_cert,
+            bpki_https_cert = parent_https_cert))
+
+      rpkid_query.extend(rpki.left_right.parent_elt.make_pdu(
+        action = "destroy", self_handle = handle, parent_handle = p) for p in parent_pdus)
+
+      # Children are simpler than parents, because they call us, so no URL
+      # to construct and figuring out what certificate to use is their
+      # problem, not ours.
+
+      for child in tree.getiterator("child"):
+
+        child_handle = child.get("handle")
+        child_pdu = child_pdus.pop(child_handle, None)
+        child_cert = findbase64(child, "bpki_certificate")
+
+        if (child_pdu is None or
+            child_pdu.bsc_handle != bsc_handle or
+            child_pdu.bpki_cert != child_cert):
+          rpkid_query.append(rpki.left_right.child_elt.make_pdu(
+            action = "create" if child_pdu is None else "set",
+            tag = child_handle,
+            self_handle = handle,
+            child_handle = child_handle,
+            bsc_handle = bsc_handle,
+            bpki_cert = child_cert))
+
+      rpkid_query.extend(rpki.left_right.child_elt.make_pdu(
+        action = "destroy", self_handle = handle, child_handle = c) for c in child_pdus)
+
+      # Publication setup.
+
+      if self.run_pubd:
+
+        for f in self.entitydb.iterate("pubclients", "*.xml"):
+          c = etree_read(f)
+
+          client_handle = c.get("client_handle")
+          client_base_uri = c.get("sia_base")
+          client_bpki_cert = rpki.x509.X509(PEM_file = self.bpki_servers.fxcert(c.findtext("bpki_client_ta")))
+          client_pdu = client_pdus.pop(client_handle, None)
+
+          if (client_pdu is None or
+              client_pdu.base_uri != client_base_uri or
+              client_pdu.bpki_cert != client_bpki_cert):
+            pubd_query.append(rpki.publication.client_elt.make_pdu(
+              action = "create" if client_pdu is None else "set",
+              client_handle = client_handle,
+              bpki_cert = client_bpki_cert,
+              base_uri = client_base_uri))
+
+        pubd_query.extend(rpki.publication.client_elt.make_pdu(
+            action = "destroy", client_handle = p) for p in client_pdus)
+
+      # If we changed anything, ship updates off to daemons
+
+      if rpkid_query:
+        rpkid_reply = call_rpkid(*rpkid_query)
+        bsc_pdus = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
+        if bsc_handle in bsc_pdus and bsc_pdus[bsc_handle].pkcs10_request:
+          bsc_req = bsc_pdus[bsc_handle].pkcs10_request
+        for r in rpkid_reply:
+          assert not isinstance(r, rpki.left_right.report_error_elt)
+
+      if pubd_query:
+        assert self.run_pubd
+        pubd_reply = call_pubd(*pubd_query)
+        for r in pubd_reply:
+          assert not isinstance(r, rpki.publication.report_error_elt)
+
+      # Rewrite XML.
+
+      e = tree.find("bpki_bsc_pkcs10")
+      if e is None and bsc_req is not None:
+        e = SubElement(tree, "bpki_bsc_pkcs10")
+      elif bsc_req is None:
+        tree.remove(e)
+
+      if bsc_req is not None:
+        assert e is not None
+        s = bsc_req.get_Base64()
+        s = "\n".join(s[64*i : 64*(i+1)] for i in xrange(1 + len(s)/64)).strip()
+        e.text = "\n" + s + "\n"
+
+      # Something weird going on here with lxml linked against recent
+      # versions of libxml2.  Looks like modifying the tree above somehow
+      # produces validation errors, but it works fine if we convert it to
+      # a string and parse it again.  I'm not seeing any problems with any
+      # of the other code that uses lxml to do validation, just this one
+      # place.  Weird.  Kludge around it for now.
+      #
+      #tree = lxml.etree.fromstring(lxml.etree.tostring(tree))
+
+      etree_write(tree, xmlfile, validate = True)
+
+    db.close()
+
+
+  def do_myirbe(self, arg):
+    self.myirbe_main(arg.split())
+
+
+
 if __name__ == "__main__":
-  main(sys.argv[1:])
+  main()

@@ -43,10 +43,12 @@ PERFORMANCE OF THIS SOFTWARE.
 
 from __future__ import with_statement
 
-import lxml.etree, base64, subprocess, sys, os, time, re, getopt, warnings, glob
+import base64, subprocess, sys, os, time, re, getopt, warnings, glob
 import rpki.https, rpki.config, rpki.resource_set, rpki.relaxng
 import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509, rpki.async
-import myrpki, schema
+import myrpki
+
+from lxml.etree import Element, SubElement, ElementTree
 
 # Silence warning while loading MySQLdb in Python 2.6, sigh
 if hasattr(warnings, "catch_warnings"):
@@ -56,17 +58,11 @@ if hasattr(warnings, "catch_warnings"):
 else:
   import MySQLdb
 
-def tag(t):
-  """
-  Wrap an element name in the right XML namespace goop.
-  """
-  return "{" + myrpki.namespace + "}" + t
-
 def findbase64(tree, name, b64type = rpki.x509.X509):
   """
   Find and extract a base64-encoded XML element, if present.
   """
-  x = tree.findtext(tag(name))
+  x = tree.findtext(name)
   return b64type(Base64 = x) if x else None
 
 # For simple cases we don't really care what these value are, so long
@@ -173,12 +169,7 @@ for xmlfile in xmlfiles:
 
   # Parse XML file and validate it against our scheme
 
-  tree = lxml.etree.parse(xmlfile).getroot()
-  try:
-    schema.myrpki.assertValid(tree)
-  except lxml.etree.DocumentInvalid:
-    print lxml.etree.tostring(tree, pretty_print = True)
-    raise
+  tree = myrpki.etree_read(xmlfile, validate = True)
 
   handle = tree.get("handle")
 
@@ -197,7 +188,7 @@ for xmlfile in xmlfiles:
 
   cur.execute("DELETE FROM roa_request WHERE roa_request.roa_request_handle = %s", (handle,))
 
-  for x in tree.getiterator(tag("roa_request")):
+  for x in tree.getiterator("roa_request"):
     cur.execute("INSERT roa_request (roa_request_handle, asn) VALUES (%s, %s)", (handle, x.get("asn")))
     roa_request_id = cur.lastrowid
     for version, prefix_set in ((4, rpki.resource_set.roa_prefix_set_ipv4(x.get("v4"))), (6, rpki.resource_set.roa_prefix_set_ipv6(x.get("v6")))):
@@ -221,7 +212,7 @@ for xmlfile in xmlfiles:
 
   cur.execute("DELETE FROM registrant WHERE registrant.registry_handle = %s" , (handle,))
 
-  for x in tree.getiterator(tag("child")):
+  for x in tree.getiterator("child"):
     child_handle = x.get("handle")
     asns = rpki.resource_set.resource_set_as(x.get("asns"))
     ipv4 = rpki.resource_set.resource_set_ipv4(x.get("v4"))
@@ -360,7 +351,7 @@ for xmlfile in xmlfiles:
   # but beware of lingering excessive cleverness in anything dealing
   # with parent objects in this script.
 
-  for parent in tree.getiterator(tag("parent")):
+  for parent in tree.getiterator("parent"):
 
     parent_handle = parent.get("handle")
     parent_pdu = parent_pdus.pop(parent_handle, None)
@@ -400,7 +391,7 @@ for xmlfile in xmlfiles:
   # to construct and figuring out what certificate to use is their
   # problem, not ours.
 
-  for child in tree.getiterator(tag("child")):
+  for child in tree.getiterator("child"):
 
     child_handle = child.get("handle")
     child_pdu = child_pdus.pop(child_handle, None)
@@ -462,9 +453,9 @@ for xmlfile in xmlfiles:
 
   # Rewrite XML.
 
-  e = tree.find(tag("bpki_bsc_pkcs10"))
+  e = tree.find("bpki_bsc_pkcs10")
   if e is None and bsc_req is not None:
-    e = lxml.etree.SubElement(tree, "bpki_bsc_pkcs10")
+    e = SubElement(tree, "bpki_bsc_pkcs10")
   elif bsc_req is None:
     tree.remove(e)
 
@@ -480,16 +471,9 @@ for xmlfile in xmlfiles:
   # a string and parse it again.  I'm not seeing any problems with any
   # of the other code that uses lxml to do validation, just this one
   # place.  Weird.  Kludge around it for now.
+  #
+  #tree = lxml.etree.fromstring(lxml.etree.tostring(tree))
 
-  tree = lxml.etree.fromstring(lxml.etree.tostring(tree))
-
-  try:
-    schema.myrpki.assertValid(tree)
-  except lxml.etree.DocumentInvalid:
-    print lxml.etree.tostring(tree, pretty_print = True)
-    raise
-
-  lxml.etree.ElementTree(tree).write(xmlfile + ".tmp", pretty_print = True)
-  os.rename(xmlfile + ".tmp", xmlfile)
+  myrpki.etree_write(tree, xmlfile, validate = True)
 
 db.close()

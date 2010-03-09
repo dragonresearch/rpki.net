@@ -610,7 +610,17 @@ class CA(object):
 
     return xcert
 
-def etree_write(e, filename, verbose = True):
+def etree_validate(e):
+  try:
+    import schema
+    schema.myrpki.assertValid(e)
+  except lxml.etree.DocumentInvalid:
+    print lxml.etree.tostring(e, pretty_print = True)
+    raise
+  except ImportError:
+    print "Couldn't import RelaxNG schema, validation disabled"
+
+def etree_write(e, filename, verbose = True, validate = False):
   """
   Write out an etree to a file, safely.
 
@@ -622,11 +632,15 @@ def etree_write(e, filename, verbose = True):
   e = copy.deepcopy(e)
   e.set("version", version)
   for i in e.getiterator():
-    i.tag = namespaceQName + i.tag
+    if i.tag[0] != "{":
+      i.tag = namespaceQName + i.tag
+    assert i.tag.startswith(namespaceQName)
+  if validate:
+    etree_validate(e)
   ElementTree(e).write(filename + ".tmp")
   os.rename(filename + ".tmp", filename)
 
-def etree_read(filename, verbose = False):
+def etree_read(filename, verbose = False, validate = False):
   """
   Read an etree from a file, verifying then stripping XML namespace
   cruft.
@@ -634,6 +648,8 @@ def etree_read(filename, verbose = False):
   if verbose:
     print "Reading", filename
   e = ElementTree(file = filename).getroot()
+  if validate:
+    etree_validate(e)
   for i in e.getiterator():
     if i.tag.startswith(namespaceQName):
       i.tag = i.tag[len(namespaceQName):]

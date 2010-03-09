@@ -1206,8 +1206,8 @@ class main(rpki.cli.Cmd):
 
     self_crl_interval = self.cfg.getint("self_crl_interval", 2 * 60 * 60)
     self_regen_margin = self.cfg.getint("self_regen_margin", 30 * 60)
-    pubd_base         = self.cfg.get("pubd_base").rstrip("/") + "/"
-    rpkid_base        = self.cfg.get("rpkid_base").rstrip("/") + "/"
+    pubd_base         = "https://%s:%s/" % (self.cfg.get("pubd_server_host"), self.cfg.get("pubd_server_port"))
+    rpkid_base        = "https://%s:%s/" % (self.cfg.get("rpkid_server_host"), self.cfg.get("rpkid_server_port"))
 
     # Nasty regexp for parsing rpkid's up-down service URLs.
 

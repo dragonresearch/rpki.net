@@ -43,8 +43,11 @@ bpki_resources_directory    = cfg.get("bpki_resources_directory")
 bpki_servers_directory      = cfg.get("bpki_servers_directory")
 repository_bpki_certificate = cfg.get("repository_bpki_certificate")
 repository_handle           = cfg.get("repository_handle")
-pubd_base                   = cfg.get("pubd_base")
-rpkid_base                  = cfg.get("rpkid_base")
+
+pubd_server_host            = cfg.get("pubd_server_host")
+pubd_server_port            = cfg.get("pubd_server_port")
+rpkid_server_host           = cfg.get("rpkid_server_host")
+rpkid_server_port           = cfg.get("rpkid_server_port")
 
 bpki_resources_pemfile      = bpki_resources_directory + "/ca.cer"
 bpki_servers_pemfile        = bpki_servers_directory + "/ca.cer"
@@ -54,7 +57,7 @@ if os.path.exists("children.csv"):
 
     e = Element("parent",
                 valid_until = valid_until,
-                service_uri = "%s/left-right/%s/%s" % (rpkid_base, handle, child_handle),
+                service_uri = "https://%s:%s/left-right/%s/%s" % (rpkid_server_host, rpkid_server_port, handle, child_handle),
                 child_handle = child_handle,
                 parent_handle = handle)
     myrpki.PEMElement(e, "bpki_resource_ta", bpki_resources_pemfile)
@@ -82,7 +85,7 @@ if os.path.exists("parents.csv"):
     e = Element("repository",
                 parent_handle = parent_handle,
                 client_handle = client_handle,
-                service_uri = "%s/client/%s" % (pubd_base.rstrip("/"), client_handle),
+                service_uri = "https://%s:%s/client/%s" % (pubd_server_host, pubd_server_port, client_handle),
                 sia_base = parent_sia_base,
                 repository_handle = client_handle.split("/")[0],
                 type = "confirmed")
@@ -99,7 +102,7 @@ if os.path.exists("pubclients.csv"):
     e = Element("repository",
                 parent_handle = parent_handle,
                 client_handle = client_handle,
-                service_uri = "%s/client/%s" % (pubd_base.rstrip("/"), client_handle),
+                service_uri = "https://%s:%s/client/%s" % (pubd_server_host, pubd_server_port, client_handle),
                 sia_base = client_sia_base,
                 repository_handle = client_handle.split("/")[0],
                 type = "confirmed")

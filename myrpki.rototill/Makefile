@@ -1,20 +1,14 @@
 # $Id$
 
-all: schema.py
+all: myrpki.rng
 
-lint: myrpki.xml schema.rng
-	xmllint --noout --relaxng schema.rng myrpki.xml
+lint: myrpki.xml myrpki.rng
+	xmllint --noout --relaxng myrpki.rng myrpki.xml
 
-schema.rng: schema.rnc
-	trang schema.rnc schema.rng
+myrpki.rng: myrpki.rnc
+	trang myrpki.rnc myrpki.rng
 
-schema.py: schema.rng
-	echo >$@ 'import lxml.etree'
-	echo >>$@  -n "myrpki = lxml.etree.RelaxNG(lxml.etree.fromstring('''"
-	cat >>$@ schema.rng
-	echo >>$@ "'''))"
-
-parse: myrpki.xml schema.py
+parse: myrpki.xml all
 	python xml-parse-test.py
 
 clean:
@@ -35,5 +29,5 @@ backup:
 	tar cvvzf test.$$(TZ='' date +%Y.%m.%d.%H.%M.%S).tgz screenlog.* test backup.*.sql
 	rm backup.*.sql
 
-test: schema.py
+test: all
 	python yamltest.py

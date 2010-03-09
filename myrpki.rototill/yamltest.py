@@ -415,8 +415,6 @@ class allocation(object):
     s = self.find_pubd()
     r["myrpki", "pubd_server_host"] = "localhost"
     r["myrpki", "pubd_server_port"] = str(s.pubd_port)
-    r["myrpki", "repository_bpki_certificate"] = s.path("bpki/servers/ca.cer")
-    r["myrpki", "repository_handle"] = self.client_handle
     r["myrpki", "publication_rsync_server"] = "localhost:%s" % s.rsync_port
 
     if rpkid_password:

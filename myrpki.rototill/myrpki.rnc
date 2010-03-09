@@ -16,15 +16,14 @@ ipv4_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/.]*" }
 ipv6_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/:a-fA-F]*" }
 
 start = element myrpki {
-  attribute version { xsd:positiveInteger { maxInclusive="1" } },
+  attribute version { "2" },
   attribute handle { object_handle },
-  attribute repository_handle { pubd_handle },
   roa_request_elt*,
   child_elt*,
   parent_elt*,
+  repository_elt*,
   bpki_ca_certificate_elt?,
   bpki_crl_elt?,
-  bpki_repository_certificate_elt?,
   bpki_bsc_certificate_elt?,
   bpki_bsc_pkcs10_elt?
 }
@@ -53,9 +52,15 @@ parent_elt = element parent {
   element bpki_https_certificate { base64 }?
 }
 
+repository_elt = element repository {
+  attribute handle { object_handle },
+  attribute service_uri { uri }?,
+  element bpki_certificate { base64 }?
+}
+
 bpki_ca_certificate_elt         = element bpki_ca_certificate           { base64 }
 bpki_crl_elt                    = element bpki_crl                      { base64 }
-bpki_repository_certificate_elt = element bpki_repository_certificate   { base64 }
+
 bpki_bsc_certificate_elt        = element bpki_bsc_certificate          { base64 }
 bpki_bsc_pkcs10_elt             = element bpki_bsc_pkcs10               { base64 }
 

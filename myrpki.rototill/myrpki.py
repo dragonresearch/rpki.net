@@ -60,7 +60,7 @@ except ImportError:
 # Our XML namespace and protocol version.
 
 namespace      = "http://www.hactrn.net/uris/rpki/myrpki/"
-version        = "1"
+version        = "2"
 namespaceQName = "{" + namespace + "}"
 
 # Dialect for our use of CSV files, here to make it easy to change if
@@ -374,9 +374,9 @@ class parents(dict):
       c.xml(e)
 
   @classmethod
-  def from_csv(cls, parents_csv_file, fxcert, entitydb):
+  def from_csv(cls, fxcert, entitydb):
     """
-    Parse parent data from CSV file.
+    Parse parent data from entitydb.
     """
     self = cls()
     for f in entitydb.iterate("parents", "*.xml"):
@@ -391,6 +391,83 @@ class parents(dict):
                bpki_https_certificate = fxcert(p.findtext("bpki_server_ta")),
                myhandle = p.get("child_handle"),
                sia_base = r.get("sia_base"))
+    return self
+
+class repository(object):
+  """
+  Representation of one repository entity.
+  """
+
+  def __init__(self, handle):
+    self.handle = handle
+    self.service_uri = None
+    self.bpki_certificate = None
+
+  def __repr__(self):
+    s = "<%s %s" % (self.__class__.__name__, self.handle)
+    if self.service_uri:
+      s += " uri %s" % self.service_uri
+    if self.bpki_certificate:
+      s += " cert %s" % self.bpki_certificate
+    return s + ">"
+
+  def add(self, service_uri = None, bpki_certificate = None):
+    """
+    Add service URI or BPKI certificates to this repository object.
+    """
+    if service_uri is not None:
+      self.service_uri = service_uri
+    if bpki_certificate is not None:
+      self.bpki_certificate = bpki_certificate
+
+  def xml(self, e):
+    """
+    Render this repository object to XML.
+    """
+    complete = self.bpki_certificate and self.service_uri
+    if whine and not complete:
+      print "Incomplete repository entry %s" % self
+    if complete or allow_incomplete:
+      e = SubElement(e, "repository",
+                     handle = self.handle,
+                     service_uri = self.service_uri)
+      e.tail = "\n"
+      if self.bpki_certificate:
+        PEMElement(e, "bpki_certificate", self.bpki_certificate)
+
+class repositories(dict):
+  """
+  Database of repository objects.
+  """
+
+  def add(self, handle,
+          service_uri = None,
+          bpki_certificate = None):
+    """
+    Add service URI or certificate to repository object, creating it if necessary.
+    """
+    if handle not in self:
+      self[handle] = repository(handle)
+    self[handle].add(service_uri = service_uri,
+                     bpki_certificate = bpki_certificate)
+
+  def xml(self, e):
+    for c in self.itervalues():
+      c.xml(e)
+
+  @classmethod
+  def from_csv(cls, fxcert, entitydb):
+    """
+    Parse repository data from entitydb.
+    """
+    self = cls()
+    for f in entitydb.iterate("repositories", "*.xml"):
+      h = os.path.splitext(os.path.split(f)[-1])[0]
+      r = etree_read(f)
+      assert r.get("type") == "confirmed"
+      self.add(handle = h,
+               service_uri = r.get("service_uri"),
+               bpki_certificate = fxcert(r.findtext("bpki_server_ta")))
     return self
 
 def csv_open(filename):
@@ -611,14 +688,21 @@ class CA(object):
     return xcert
 
 def etree_validate(e):
-  try:
-    import schema
-    schema.myrpki.assertValid(e)
-  except lxml.etree.DocumentInvalid:
-    print lxml.etree.tostring(e, pretty_print = True)
-    raise
-  except ImportError:
-    print "Couldn't import RelaxNG schema, validation disabled"
+  # This is a kludge, schema should be loaded as module or configured
+  # in .conf, but it will do as a temporary debugging hack.
+  schema = os.getenv("MYRPKI_RNG")
+  if schema:
+    try:
+      import lxml.etree
+    except ImportError:
+      return
+    try:
+      lxml.etree.RelaxNG(file = schema).assertValid(e)
+    except lxml.etree.RelaxNGParseError:
+      return
+    except lxml.etree.DocumentInvalid:
+      print lxml.etree.tostring(e, pretty_print = True)
+      raise
 
 def etree_write(e, filename, verbose = True, validate = False):
   """
@@ -680,13 +764,10 @@ def main(argv = ()):
   my_handle                     = cfg.get("handle")
   roa_csv_file                  = cfg.get("roa_csv")
   children_csv_file             = cfg.get("children_csv")
-  parents_csv_file              = cfg.get("parents_csv")
   prefix_csv_file               = cfg.get("prefix_csv")
   asn_csv_file                  = cfg.get("asn_csv")
   bpki_dir                      = cfg.get("bpki_resources_directory")
   xml_filename                  = cfg.get("xml_filename")
-  repository_bpki_certificate   = cfg.get("repository_bpki_certificate")
-  repository_handle             = cfg.get("repository_handle")
 
   global openssl
   openssl = cfg.get("openssl", "openssl")
@@ -700,7 +781,7 @@ def main(argv = ()):
   except IOError:
     bsc_req, bsc_cer = None, None
 
-  e = Element("myrpki", handle = my_handle, repository_handle = repository_handle)
+  e = Element("myrpki", handle = my_handle)
 
   roa_requests.from_csv(roa_csv_file).xml(e)
 
@@ -711,16 +792,12 @@ def main(argv = ()):
     fxcert = bpki.fxcert,
     entitydb = entitydb).xml(e)
 
-  parents.from_csv(
-    parents_csv_file = parents_csv_file,
-    fxcert = bpki.fxcert,
-    entitydb = entitydb).xml(e)
+  parents.from_csv(fxcert = bpki.fxcert,entitydb = entitydb).xml(e)
+
+  repositories.from_csv(fxcert = bpki.fxcert,entitydb = entitydb).xml(e)
 
   PEMElement(e, "bpki_ca_certificate", bpki.cer)
   PEMElement(e, "bpki_crl",            bpki.crl)
-
-  if os.path.exists(repository_bpki_certificate):
-    PEMElement(e, "bpki_repository_certificate", bpki.xcert(repository_bpki_certificate))
 
   if bsc_cer:
     PEMElement(e, "bpki_bsc_certificate", bsc_cer)

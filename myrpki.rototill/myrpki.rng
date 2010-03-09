@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: schema.rnc 2958 2010-01-22 21:55:09Z sra $
+  $Id: myrpki.rnc -1   $
   
   RelaxNG Schema for MyRPKI XML messages
   
@@ -51,15 +51,10 @@
   <start>
     <element name="myrpki">
       <attribute name="version">
-        <data type="positiveInteger">
-          <param name="maxInclusive">1</param>
-        </data>
+        <value>2</value>
       </attribute>
       <attribute name="handle">
         <ref name="object_handle"/>
-      </attribute>
-      <attribute name="repository_handle">
-        <ref name="pubd_handle"/>
       </attribute>
       <zeroOrMore>
         <ref name="roa_request_elt"/>
@@ -70,14 +65,14 @@
       <zeroOrMore>
         <ref name="parent_elt"/>
       </zeroOrMore>
+      <zeroOrMore>
+        <ref name="repository_elt"/>
+      </zeroOrMore>
       <optional>
         <ref name="bpki_ca_certificate_elt"/>
       </optional>
       <optional>
         <ref name="bpki_crl_elt"/>
-      </optional>
-      <optional>
-        <ref name="bpki_repository_certificate_elt"/>
       </optional>
       <optional>
         <ref name="bpki_bsc_certificate_elt"/>
@@ -164,6 +159,23 @@
       </optional>
     </element>
   </define>
+  <define name="repository_elt">
+    <element name="repository">
+      <attribute name="handle">
+        <ref name="object_handle"/>
+      </attribute>
+      <optional>
+        <attribute name="service_uri">
+          <ref name="uri"/>
+        </attribute>
+      </optional>
+      <optional>
+        <element name="bpki_certificate">
+          <ref name="base64"/>
+        </element>
+      </optional>
+    </element>
+  </define>
   <define name="bpki_ca_certificate_elt">
     <element name="bpki_ca_certificate">
       <ref name="base64"/>
@@ -171,11 +183,6 @@
   </define>
   <define name="bpki_crl_elt">
     <element name="bpki_crl">
-      <ref name="base64"/>
-    </element>
-  </define>
-  <define name="bpki_repository_certificate_elt">
-    <element name="bpki_repository_certificate">
       <ref name="base64"/>
     </element>
   </define>

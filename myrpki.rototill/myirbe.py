@@ -65,11 +65,10 @@ def findbase64(tree, name, b64type = rpki.x509.X509):
   x = tree.findtext(name)
   return b64type(Base64 = x) if x else None
 
-# For simple cases we don't really care what these value are, so long
-# as we're consistant about them, so wiring them in is fine.
+# For simple cases we don't really care what this value is, so long as
+# we're consistant about it, so wiring this in is fine.
 
 bsc_handle = "bsc"
-repository_handle = "repository"
 
 os.environ["TZ"] = "UTC"
 time.tzset()
@@ -315,18 +314,18 @@ for xmlfile in xmlfiles:
   if bsc_pdu and bsc_pdu.pkcs10_request:
     bsc_req = bsc_pdu.pkcs10_request
 
-  # In general we need one <repository/> per publication daemon with
-  # whom this <self/> has a relationship.  In practice there is rarely
-  # (never?) a good reason for a single <self/> to use multiple
-  # publication services, so in normal use we only need one
-  # <repository/> object.  If for some reason you really need more
-  # than this, you'll have to hack.
+  # At present we need one <repository/> per <parent/>, not because
+  # rpkid requires that, but because pubd does.  pubd probably should
+  # be fixed to support a single client allowed to update multiple
+  # trees, but for the moment the easiest way forward is just to
+  # enforce a 1:1 mapping between <parent/> and <repository/> objects
 
-  repository_cert = findbase64(tree, "bpki_repository_certificate")
-  if repository_cert:
+  for repository in tree.getiterator("repository"):
 
+    repository_handle = repository.get("handle")
     repository_pdu = repository_pdus.pop(repository_handle, None)
-    repository_uri = pubd_base + "client/" + tree.get("repository_handle")
+    repository_uri = repository.get("service_uri")
+    repository_cert = findbase64(repository, "bpki_certificate")
 
     if (repository_pdu is None or
         repository_pdu.bsc_handle != bsc_handle or
@@ -344,12 +343,10 @@ for xmlfile in xmlfiles:
   rpkid_query.extend(rpki.left_right.repository_elt.make_pdu(
     action = "destroy", self_handle = handle, repository_handle = r) for r in repository_pdus)
 
-  # <parent/> setup code here used to be ridiculously complex.  Most
-  # of the insanity was due to a misguided attempt to deduce pubd
-  # setup from other data; now that pubd setup is driven by
-  # pubclients.csv, parent setup should be relatively straightforward,
-  # but beware of lingering excessive cleverness in anything dealing
-  # with parent objects in this script.
+  # <parent/> setup code currently assumes 1:1 mapping between
+  # <repository/> and <parent/>, and further assumes that the handles
+  # for an associated pair are the identical (that is:
+  # parent.repository_handle == parent.parent_handle).
 
   for parent in tree.getiterator("parent"):
 
@@ -363,7 +360,7 @@ for xmlfile in xmlfiles:
 
     if (parent_pdu is None or
         parent_pdu.bsc_handle != bsc_handle or
-        parent_pdu.repository_handle != repository_handle or
+        parent_pdu.repository_handle != parent_handle or
         parent_pdu.peer_contact_uri != parent_uri or
         parent_pdu.sia_base != parent_sia_base or
         parent_pdu.sender_name != parent_myhandle or
@@ -376,7 +373,7 @@ for xmlfile in xmlfiles:
         self_handle = handle,
         parent_handle = parent_handle,
         bsc_handle = bsc_handle,
-        repository_handle = repository_handle,
+        repository_handle = parent_handle,
         peer_contact_uri = parent_uri,
         sia_base = parent_sia_base,
         sender_name = parent_myhandle,

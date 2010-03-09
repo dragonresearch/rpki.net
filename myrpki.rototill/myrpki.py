@@ -700,7 +700,7 @@ def main(argv = ()):
   except IOError:
     bsc_req, bsc_cer = None, None
 
-  e = Element("myrpki", xmlns = namespace, version = "1", handle = my_handle, repository_handle = repository_handle)
+  e = Element("myrpki", handle = my_handle, repository_handle = repository_handle)
 
   roa_requests.from_csv(roa_csv_file).xml(e)
 

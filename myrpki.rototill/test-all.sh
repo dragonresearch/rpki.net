@@ -1,7 +1,7 @@
 #!/bin/sh -
 # $Id$
 
-# Copyright (C) 2009  Internet Systems Consortium ("ISC")
+# Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -19,12 +19,14 @@ set -x
 
 export TZ=UTC
 
+test -z "$STY"  && exec screen -L sh $0
+
 screen -X split
 screen -X focus
 
 for i in ../rpkid/testbed.*.yaml
 do
-  rm -rf *.xml bpki.myrpki bpki.myirbe test
+  rm -rf test
   python sql-cleaner.py 
   screen python yamltest.py $i
   date

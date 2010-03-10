@@ -17,7 +17,7 @@
  
 set -x
 
-export TZ=UTC
+export TZ=UTC MYRPKI_RNG=`pwd`/myrpki.rng
 
 test -z "$STY"  && exec screen -L sh $0
 

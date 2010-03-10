@@ -28,7 +28,7 @@ for i in ../rpkid/testbed.*.yaml
 do
   rm -rf test
   python sql-cleaner.py 
-  screen python yamltest.py $i
+  screen python yamltest.py -p yamltest.pid $i
   date
   sleep 180
   for j in . . . . . . . . . .
@@ -39,7 +39,7 @@ do
     xsltproc --param refresh 0 ../rcynic/rcynic.xsl rcynic.xml | w3m -T text/html -dump
     date
   done
-  pstree -ws python | awk '/yamltest/ {system("kill -INT " $2)}'
+  test -r yamltest.pid && kill -INT `cat yamltest.pid`
   sleep 30
   make backup
 done

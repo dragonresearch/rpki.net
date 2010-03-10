@@ -537,14 +537,17 @@ os.environ["TZ"] = "UTC"
 time.tzset()
 
 cfg_file = "yamltest.conf"
+pidfile  = None
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+opts, argv = getopt.getopt(sys.argv[1:], "c:hp:?", ["config=", "help", "pidfile="])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
   if o in ("-c", "--config"):
     cfg_file = a
+  elif o in ("-p", "--pidfile"):
+    pidfile = a
 
 # We can't usefully process more than one YAMl file at a time, so
 # whine if there's more than one argument left.
@@ -552,164 +555,167 @@ for o, a in opts:
 if len(argv) > 1:
   raise RuntimeError, "Unexpected arguments %r" % argv
 
-rpki.log.use_syslog = False
-rpki.log.init("yamltest")
-
-yaml_file = argv[0] if argv else "../rpkid/testbed.1.yaml"
-
-# Allow optional config file for this tool to override default
-# passwords: this is mostly so that I can show a complete working
-# example without publishing my own server's passwords.
-
 try:
-  cfg = rpki.config.parser(cfg_file, "yamltest")
-  rpkid_password = cfg.get("rpkid_db_pass")
-  irdbd_password = cfg.get("irdbd_db_pass")
-  pubd_password  = cfg.get("pubd_db_pass")
-  only_one_pubd  = cfg.getboolean("only_one_pubd", True)
-  prog_openssl   = cfg.get("openssl", prog_openssl)
-except:
-  rpkid_password = None
-  irdbd_password = None
-  pubd_password  = None
-  only_one_pubd  = True
 
-# Start clean
+  if pidfile is not None:
+    open(pidfile, "w").write("%s\n" % os.getpid())
 
-for root, dirs, files in os.walk(test_dir, topdown = False):
-  for file in files:
-    os.unlink(os.path.join(root, file))
-  for dir in dirs:
-    os.rmdir(os.path.join(root, dir))
+  rpki.log.use_syslog = False
+  rpki.log.init("yamltest")
 
-# Read first YAML doc in file and process as compact description of
-# test layout and resource allocations.  Ignore subsequent YAML docs,
-# they're for testbed.py, not this script.
+  yaml_file = argv[0] if argv else "../rpkid/testbed.1.yaml"
 
-db = allocation_db(yaml.safe_load_all(open(yaml_file)).next())
+  # Allow optional config file for this tool to override default
+  # passwords: this is mostly so that I can show a complete working
+  # example without publishing my own server's passwords.
 
-# Show what we loaded
+  try:
+    cfg = rpki.config.parser(cfg_file, "yamltest")
+    rpkid_password = cfg.get("rpkid_db_pass")
+    irdbd_password = cfg.get("irdbd_db_pass")
+    pubd_password  = cfg.get("pubd_db_pass")
+    only_one_pubd  = cfg.getboolean("only_one_pubd", True)
+    prog_openssl   = cfg.get("openssl", prog_openssl)
+  except:
+    rpkid_password = None
+    irdbd_password = None
+    pubd_password  = None
+    only_one_pubd  = True
 
-db.dump()
+  # Start clean
 
-# Set up each entity in our test
+  for root, dirs, files in os.walk(test_dir, topdown = False):
+    for file in files:
+      os.unlink(os.path.join(root, file))
+    for dir in dirs:
+      os.rmdir(os.path.join(root, dir))
 
-for d in db:
-  os.makedirs(d.path())
-  d.dump_asns("asns.csv")
-  d.dump_prefixes("prefixes.csv")
-  d.dump_roas("roas.csv")
-  d.dump_conf("myrpki.conf")
-  d.dump_rsyncd("rsyncd.conf")
-  if False:
-    d.dump_children("children.csv")
-    d.dump_parents("parents.csv")
-    d.dump_clients("pubclients.csv", db)
+  # Read first YAML doc in file and process as compact description of
+  # test layout and resource allocations.  Ignore subsequent YAML docs,
+  # they're for testbed.py, not this script.
 
-# Initialize BPKI and generate self-descriptor for each entity.
+  db = allocation_db(yaml.safe_load_all(open(yaml_file)).next())
 
-for d in db:
-  d.run_setup("initialize")
+  # Show what we loaded
 
-# This is where we need to get clever about running setup.py in its
-# various modes to do the service URL and BPKI cross-certification
-# setup.
+  db.dump()
 
-for d in db:
-  if d.is_root():
-    print
-    d.run_setup("answer_repository_client", d.path("entitydb", "repositories", "%s.xml" % d.name))
-    print
-    d.run_setup("process_repository_answer", d.path("entitydb", "pubclients", "%s.xml" % d.name))
-    print
-  else:
-    print
-    d.parent.run_setup("answer_child", d.path("entitydb", "identity.xml"))
-    print
-    d.run_setup("process_parent_answer", d.parent.path("entitydb", "children", "%s.xml" % d.name))
-    print
-    p, n = d.find_pubd(want_path = True)
-    p.run_setup("answer_repository_client", d.path("entitydb", "repositories", "%s.xml" % d.parent.name))
-    print
-    d.run_setup("process_repository_answer", p.path("entitydb", "pubclients", "%s.xml" % n))
-    print
+  # Set up each entity in our test
 
-# Run myrpki.py several times for each entity.  First pass misses
-# stuff that isn't generated until later in first pass.  Second pass
-# should pick up everything and reach a stable state.  If anything
-# changes during third pass, that's a bug.
-
-for i in xrange(3):
   for d in db:
-    d.run_myrpki()
+    os.makedirs(d.path())
+    d.dump_asns("asns.csv")
+    d.dump_prefixes("prefixes.csv")
+    d.dump_roas("roas.csv")
+    d.dump_conf("myrpki.conf")
+    d.dump_rsyncd("rsyncd.conf")
+    if False:
+      d.dump_children("children.csv")
+      d.dump_parents("parents.csv")
+      d.dump_clients("pubclients.csv", db)
 
-# Create publication directories.
+  # Initialize BPKI and generate self-descriptor for each entity.
 
-for d in db:
-  if d.is_root() or d.runs_pubd():
-    os.makedirs(d.path("publication"))
+  for d in db:
+    d.run_setup("initialize")
 
-# Create RPKI root certificate.
+  # This is where we need to get clever about running setup.py in its
+  # various modes to do the service URL and BPKI cross-certification
+  # setup.
 
-print "Creating rootd RPKI root certificate"
+  for d in db:
+    if d.is_root():
+      print
+      d.run_setup("answer_repository_client", d.path("entitydb", "repositories", "%s.xml" % d.name))
+      print
+      d.run_setup("process_repository_answer", d.path("entitydb", "pubclients", "%s.xml" % d.name))
+      print
+    else:
+      print
+      d.parent.run_setup("answer_child", d.path("entitydb", "identity.xml"))
+      print
+      d.run_setup("process_parent_answer", d.parent.path("entitydb", "children", "%s.xml" % d.name))
+      print
+      p, n = d.find_pubd(want_path = True)
+      p.run_setup("answer_repository_client", d.path("entitydb", "repositories", "%s.xml" % d.parent.name))
+      print
+      d.run_setup("process_repository_answer", p.path("entitydb", "pubclients", "%s.xml" % n))
+      print
 
-# Should use req -subj here to set subject name.  Later.
-db.root.run_openssl("x509", "-req", "-sha256", "-outform", "DER",
-                    "-signkey", "bpki/servers/ca.key",
-                    "-in",      "bpki/servers/ca.req",
-                    "-out",     "publication/root.cer",
-                    "-extfile", "myrpki.conf",
-                    "-extensions", "rootd_x509_extensions")
-
-# At this point we need to start a whole lotta daemons.
-
-progs = []
-
-def all_daemons_running():
-  for p in progs:
-    if p.poll() is not None:
-      return False
-  return True
-
-try:
-  print "Running daemons"
-  progs.append(db.root.run_rootd())
-  progs.extend(d.run_irdbd()  for d in db if not d.is_hosted())
-  progs.extend(d.run_pubd()   for d in db if d.runs_pubd())
-  progs.extend(d.run_rsyncd() for d in db if d.runs_pubd())
-  progs.extend(d.run_rpkid()  for d in db if not d.is_hosted())
-
-  print "Giving daemons time to start up"
-  time.sleep(20)
-
-  assert all_daemons_running()
-
-  # Run myirbe again for each host, to set up IRDB and RPKI objects.
-  # Need to run a second time to push BSC certs out to rpkid.  Nothing
-  # should happen on the third pass.  Oops, when hosting we need to
-  # run myrpki between myirbe passes, since only the hosted entity can
-  # issue the BSC, etc.
+  # Run myrpki.py several times for each entity.  First pass misses
+  # stuff that isn't generated until later in first pass.  Second pass
+  # should pick up everything and reach a stable state.  If anything
+  # changes during third pass, that's a bug.
 
   for i in xrange(3):
     for d in db:
       d.run_myrpki()
-    for d in db:
-      d.run_myirbe()
 
-  print "Done initializing daemons"
+  # Create publication directories.
 
-  # Wait until something terminates.
+  for d in db:
+    if d.is_root() or d.runs_pubd():
+      os.makedirs(d.path("publication"))
 
-  signal.signal(signal.SIGCHLD, lambda *dont_care: None)
-  if all_daemons_running():
-    signal.pause()
+  # Create RPKI root certificate.
+
+  print "Creating rootd RPKI root certificate"
+
+  # Should use req -subj here to set subject name.  Later.
+  db.root.run_openssl("x509", "-req", "-sha256", "-outform", "DER",
+                      "-signkey", "bpki/servers/ca.key",
+                      "-in",      "bpki/servers/ca.req",
+                      "-out",     "publication/root.cer",
+                      "-extfile", "myrpki.conf",
+                      "-extensions", "rootd_x509_extensions")
+
+  # At this point we need to start a whole lotta daemons.
+
+  progs = []
+
+  try:
+    print "Running daemons"
+    progs.append(db.root.run_rootd())
+    progs.extend(d.run_irdbd()  for d in db if not d.is_hosted())
+    progs.extend(d.run_pubd()   for d in db if d.runs_pubd())
+    progs.extend(d.run_rsyncd() for d in db if d.runs_pubd())
+    progs.extend(d.run_rpkid()  for d in db if not d.is_hosted())
+
+    print "Giving daemons time to start up"
+    time.sleep(20)
+
+    assert all(p.poll() is None for p in progs)
+
+    # Run myirbe again for each host, to set up IRDB and RPKI objects.
+    # Need to run a second time to push BSC certs out to rpkid.  Nothing
+    # should happen on the third pass.  Oops, when hosting we need to
+    # run myrpki between myirbe passes, since only the hosted entity can
+    # issue the BSC, etc.
+
+    for i in xrange(3):
+      for d in db:
+        d.run_myrpki()
+      for d in db:
+        d.run_myirbe()
+
+    print "Done initializing daemons"
+
+    # Wait until something terminates.
+
+    signal.signal(signal.SIGCHLD, lambda *dont_care: None)
+    if all(p.poll() is None for p in progs):
+      signal.pause()
+
+  finally:
+
+    # Shut everything down.
+
+    signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+    for p in progs:
+      if p.poll() is None:
+        os.kill(p.pid, signal.SIGTERM)
+      print "Program pid %d %r returned %d" % (p.pid, p, p.wait())
 
 finally:
-
-  # Shut everything down.
-
-  signal.signal(signal.SIGCHLD, signal.SIG_DFL)
-  for p in progs:
-    if p.poll() is None:
-      os.kill(p.pid, signal.SIGTERM)
-    print "Program pid %d %r returned %d" % (p.pid, p, p.wait())
+  if pidfile is not None:
+    os.unlink(pidfile)

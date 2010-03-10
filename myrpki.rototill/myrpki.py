@@ -937,16 +937,16 @@ class main(rpki.cli.Cmd):
     if child_handle is None:
       child_handle = c.get("handle")
 
-    if self.run_rpkid:
-      service_uri = "https://%s:%s/up-down/%s/%s" % (self.cfg.get("rpkid_server_host"),
-                                                     self.cfg.get("rpkid_server_port"),
-                                                     self.handle, child_handle)
-    else:
-      try:
-        e = etree_read(self.cfg.get("xml_filename"))
-        service_uri = "%s/%s" % (e.get("service_uri"), child_handle)
-      except IOError:
-        print "Sorry, you can't set up children in a hosted config that itself has not yet been set up"
+    try:
+      e = etree_read(self.cfg.get("xml_filename"))
+      service_uri = "%s/%s" % (e.get("service_uri"), child_handle)
+    except IOError:
+      if self.run_rpkid:
+        service_uri = "https://%s:%s/up-down/%s/%s" % (self.cfg.get("rpkid_server_host"),
+                                                       self.cfg.get("rpkid_server_port"),
+                                                       self.handle, child_handle)
+      else:
+        print "Sorry, you can't set up children of a hosted config that itself has not yet been set up"
         return
 
     print "Child calls itself %r, we call it %r" % (c.get("handle"), child_handle)

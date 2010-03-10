@@ -939,22 +939,24 @@ class main(rpki.cli.Cmd):
 
     try:
       e = etree_read(self.cfg.get("xml_filename"))
-      service_uri = "%s/%s" % (e.get("service_uri"), child_handle)
+      service_uri_base = e.get("service_uri")
     except IOError:
-      if self.run_rpkid:
-        service_uri = "https://%s:%s/up-down/%s/%s" % (self.cfg.get("rpkid_server_host"),
+      service_uri_base = None      
+
+    if not service_uri_base and self.run_rpkid:
+      service_uri_base = "https://%s:%s/up-down/%s" % (self.cfg.get("rpkid_server_host"),
                                                        self.cfg.get("rpkid_server_port"),
-                                                       self.handle, child_handle)
-      else:
-        print "Sorry, you can't set up children of a hosted config that itself has not yet been set up"
-        return
+                                                       self.handle)
+    if not service_uri_base:
+      print "Sorry, you can't set up children of a hosted config that itself has not yet been set up"
+      return
 
     print "Child calls itself %r, we call it %r" % (c.get("handle"), child_handle)
 
     self.bpki_servers.fxcert(c.findtext("bpki_ta"))
 
     e = Element("parent", parent_handle = self.handle, child_handle = child_handle,
-                service_uri = service_uri,
+                service_uri = "%s/%s" % (service_uri_base, child_handle),
                 valid_until = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365)))
 
     PEMElement(e, "bpki_resource_ta", self.bpki_resources.cer)
@@ -1569,7 +1571,7 @@ class main(rpki.cli.Cmd):
       if bsc_req is not None:
         SubElement(tree, "bpki_bsc_pkcs10").text = bsc_req.get_Base64()
 
-      tree.set("service_uri", rpkid_base + "up-down/" + self.handle)
+      tree.set("service_uri", rpkid_base + "up-down/" + handle)
 
       e = tree.find("bpki_server_ta")
       if e is not None:

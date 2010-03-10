@@ -25,6 +25,7 @@ start |= repository_pdu
 myrpki_pdu = element myrpki {
   attribute version { version },
   attribute handle { object_handle },
+  attribute service_uri { uri }?,
   element roa_request {
     attribute asn { xsd:positiveInteger },
     attribute v4 { ipv4_list },
@@ -54,7 +55,8 @@ myrpki_pdu = element myrpki {
   element bpki_ca_certificate { base64 }?,
   element bpki_crl { base64 }?,
   element bpki_bsc_certificate { base64 }?,
-  element bpki_bsc_pkcs10 { base64 }?
+  element bpki_bsc_pkcs10 { base64 }?,
+  element bpki_server_ta { base64 }?
 }
 
 identity_pdu = element identity {

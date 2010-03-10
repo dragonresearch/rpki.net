@@ -309,7 +309,7 @@ class children(dict):
       c.xml(e)
 
   @classmethod
-  def from_csv(cls, children_csv_file, prefix_csv_file, asn_csv_file, fxcert, entitydb):
+  def from_csv(cls, prefix_csv_file, asn_csv_file, fxcert, entitydb):
     """
     Parse child resources, certificates, and validity dates from CSV files.
     """
@@ -932,22 +932,29 @@ class main(rpki.cli.Cmd):
     if len(argv) != 1:
       raise RuntimeError, "Need to specify filename for child.xml"
 
-    if not self.run_rpkid:
-      raise RuntimeError, "Don't (yet) know how to set up child unless we run rpkid"
-
     c = etree_read(argv[0])
 
     if child_handle is None:
       child_handle = c.get("handle")
+
+    if self.run_rpkid:
+      service_uri = "https://%s:%s/up-down/%s/%s" % (self.cfg.get("rpkid_server_host"),
+                                                     self.cfg.get("rpkid_server_port"),
+                                                     self.handle, child_handle)
+    else:
+      try:
+        e = etree_read(self.cfg.get("xml_filename"))
+        service_uri = "%s/%s" % (e.get("service_uri"), child_handle)
+      except IOError:
+        print "Sorry, you can't set up children in a hosted config that itself has not yet been set up"
+        return
 
     print "Child calls itself %r, we call it %r" % (c.get("handle"), child_handle)
 
     self.bpki_servers.fxcert(c.findtext("bpki_ta"))
 
     e = Element("parent", parent_handle = self.handle, child_handle = child_handle,
-                service_uri = "https://%s:%s/up-down/%s/%s" % (self.cfg.get("rpkid_server_host"),
-                                                               self.cfg.get("rpkid_server_port"),
-                                                               self.handle, child_handle),
+                service_uri = service_uri,
                 valid_until = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365)))
 
     PEMElement(e, "bpki_resource_ta", self.bpki_resources.cer)
@@ -1125,7 +1132,6 @@ class main(rpki.cli.Cmd):
     """
 
     roa_csv_file                  = self.cfg.get("roa_csv")
-    children_csv_file             = self.cfg.get("children_csv")
     prefix_csv_file               = self.cfg.get("prefix_csv")
     asn_csv_file                  = self.cfg.get("asn_csv")
 
@@ -1143,7 +1149,6 @@ class main(rpki.cli.Cmd):
     roa_requests.from_csv(roa_csv_file).xml(e)
 
     children.from_csv(
-      children_csv_file = children_csv_file,
       prefix_csv_file = prefix_csv_file,
       asn_csv_file = asn_csv_file,
       fxcert = self.bpki_resources.fxcert,
@@ -1205,10 +1210,6 @@ class main(rpki.cli.Cmd):
     self_regen_margin = self.cfg.getint("self_regen_margin", 30 * 60)
     pubd_base         = "https://%s:%s/" % (self.cfg.get("pubd_server_host"), self.cfg.get("pubd_server_port"))
     rpkid_base        = "https://%s:%s/" % (self.cfg.get("rpkid_server_host"), self.cfg.get("rpkid_server_port"))
-
-    # Nasty regexp for parsing rpkid's up-down service URLs.
-
-    updown_regexp = re.compile(re.escape(rpkid_base) + "up-down/([-A-Z0-9_]+)/([-A-Z0-9_]+)$", re.I)
 
     # Wrappers to simplify calling rpkid and pubd.
 
@@ -1552,25 +1553,17 @@ class main(rpki.cli.Cmd):
       # Rewrite XML.
 
       e = tree.find("bpki_bsc_pkcs10")
-      if e is None and bsc_req is not None:
-        e = SubElement(tree, "bpki_bsc_pkcs10")
-      elif bsc_req is None:
+      if e is not None:
         tree.remove(e)
-
       if bsc_req is not None:
-        assert e is not None
-        s = bsc_req.get_Base64()
-        s = "\n".join(s[64*i : 64*(i+1)] for i in xrange(1 + len(s)/64)).strip()
-        e.text = "\n" + s + "\n"
+        SubElement(tree, "bpki_bsc_pkcs10").text = bsc_req.get_Base64()
 
-      # Something weird going on here with lxml linked against recent
-      # versions of libxml2.  Looks like modifying the tree above somehow
-      # produces validation errors, but it works fine if we convert it to
-      # a string and parse it again.  I'm not seeing any problems with any
-      # of the other code that uses lxml to do validation, just this one
-      # place.  Weird.  Kludge around it for now.
-      #
-      #tree = lxml.etree.fromstring(lxml.etree.tostring(tree))
+      tree.set("service_uri", rpkid_base + "up-down/" + self.handle)
+
+      e = tree.find("bpki_server_ta")
+      if e is not None:
+        tree.remove(e)
+      PEMElement(tree, "bpki_server_ta", self.bpki_resources.cer)
 
       etree_write(tree, xmlfile, validate = True)
 

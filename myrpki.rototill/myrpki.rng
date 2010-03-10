@@ -71,6 +71,11 @@
       <attribute name="handle">
         <ref name="object_handle"/>
       </attribute>
+      <optional>
+        <attribute name="service_uri">
+          <ref name="uri"/>
+        </attribute>
+      </optional>
       <zeroOrMore>
         <element name="roa_request">
           <attribute name="asn">
@@ -182,6 +187,11 @@
       </optional>
       <optional>
         <element name="bpki_bsc_pkcs10">
+          <ref name="base64"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="bpki_server_ta">
           <ref name="base64"/>
         </element>
       </optional>

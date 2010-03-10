@@ -379,7 +379,9 @@ class allocation(object):
 
     host = self.hosted_by if self.is_hosted() else self
 
-    r = { ("myrpki", "handle"): self.name }
+    r = { ("myrpki", "handle")    : self.name,
+          ("myrpki", "run_pubd")  : str(self.runs_pubd()),
+          ("myrpki", "run_rootd") : str(self.is_root()) }
 
     if not self.is_hosted():
       r["irdbd", "sql-database"] = "irdb%d" % self.engine
@@ -388,8 +390,6 @@ class allocation(object):
       r["myrpki", "rpkid_server_port"] = str(self.rpkid_port)
       r["myrpki", "irdbd_server_host"] = "localhost"
       r["myrpki", "irdbd_server_port"] = str(self.irdbd_port)
-      r["myrpki", "run_pubd"]  = "true" if self.runs_pubd() else "false"
-      r["myrpki", "run_rootd"] = "true" if self.is_root()   else "false"
 
     if self.is_root():
       r["myrpki", "rootd_server_port"] = str(self.rootd_port)

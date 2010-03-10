@@ -19,6 +19,7 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import subprocess, csv, re, os, getopt, sys, rpki.config, base64, myrpki
+import rpki.sundial
 
 from lxml.etree import Element, SubElement, ElementTree
 
@@ -70,7 +71,7 @@ if os.path.exists("parents.csv"):
   for parent_handle, parent_service_uri, parent_cms_pemfile, parent_https_pemfile, parent_myhandle, parent_sia_base in myrpki.csv_open("parents.csv"):
 
     e = Element("parent",
-                #valid_until = valid_until,
+                valid_until = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365)),
                 service_uri = parent_service_uri,
                 child_handle = parent_myhandle,
                 parent_handle = parent_handle)

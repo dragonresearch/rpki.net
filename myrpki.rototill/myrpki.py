@@ -692,7 +692,7 @@ class CA(object):
       return self.xcert(fn, path_restriction)
     finally:
       if not filename and os.path.exists(fn):
-        #os.unlink(fn)
+        os.unlink(fn)
         pass
 
   def xcert(self, cert, path_restriction = 0):

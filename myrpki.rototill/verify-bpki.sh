@@ -1,7 +1,7 @@
 #!/bin/sh -
 # $Id$
 #
-# Copyright (C) 2009  Internet Systems Consortium ("ISC")
+# Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
 # 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -37,7 +37,7 @@ do
 done
 
 # Check that cross-certified BSC certificates verify properly
-if test -d bpki/myirbe
+if test -d bpki/servers
 then
-    cat bpki/myirbe/xcert.*.cer | openssl verify -verbose -CAfile bpki/myirbe/ca.cer -untrusted /dev/stdin bpki/myrpki/bsc.*.cer
+    cat bpki/servers/xcert.*.cer | openssl verify -verbose -CAfile bpki/servers/ca.cer -untrusted /dev/stdin bpki/resources/bsc.*.cer
 fi

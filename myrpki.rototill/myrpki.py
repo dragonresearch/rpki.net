@@ -91,7 +91,7 @@ PERFORMANCE OF THIS SOFTWARE.
 from __future__ import with_statement
 
 import subprocess, csv, re, os, getopt, sys, base64, time, glob, copy, warnings
-import rpki.config, rpki.cli, rpki.sundial
+import rpki.config, rpki.cli, rpki.sundial, rpki.log
 
 try:
   from lxml.etree import Element, SubElement, ElementTree
@@ -813,6 +813,7 @@ class main(rpki.cli.Cmd):
         argv = ["help"]
 
     if not argv or argv[0] != "help":
+      rpki.log.init("myrpki")
       self.read_config()
 
     rpki.cli.Cmd.__init__(self, argv)
@@ -1175,7 +1176,7 @@ class main(rpki.cli.Cmd):
     """
 
     import rpki.https, rpki.resource_set, rpki.relaxng, rpki.exceptions
-    import rpki.left_right, rpki.log, rpki.x509, rpki.async
+    import rpki.left_right, rpki.x509, rpki.async
 
     # Silence warning while loading MySQLdb in Python 2.6, sigh
     if hasattr(warnings, "catch_warnings"):
@@ -1186,18 +1187,13 @@ class main(rpki.cli.Cmd):
       import MySQLdb
 
     def findbase64(tree, name, b64type = rpki.x509.X509):
-      """
-      Find and extract a base64-encoded XML element, if present.
-      """
       x = tree.findtext(name)
       return b64type(Base64 = x) if x else None
 
-    # For simple cases we don't really care what this value is, so long as
-    # we're consistant about it, so wiring this in is fine.
+    # We can use a single BSC for everything -- except BSC key
+    # rollovers.  Drive off that bridge when we get to it.
 
     bsc_handle = "bsc"
-
-    rpki.log.init("myirbe")
 
     self.cfg.set_global_flags()
 

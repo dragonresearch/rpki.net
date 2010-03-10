@@ -798,6 +798,7 @@ class main(rpki.cli.Cmd):
 
   completedefault = rpki.cli.Cmd.filename_complete
 
+  show_xml = False
 
   def __init__(self):
     os.environ["TZ"] = "UTC"
@@ -1218,7 +1219,7 @@ class main(rpki.cli.Cmd):
       server_ta   = rpki.x509.X509(PEM_file = self.bpki_servers.cer),
       server_cert = rpki.x509.X509(PEM_file = self.bpki_servers.dir + "/rpkid.cer"),
       url         = rpkid_base + "left-right",
-      debug       = True))
+      debug       = self.show_xml))
 
     if self.run_pubd:
 
@@ -1229,7 +1230,7 @@ class main(rpki.cli.Cmd):
         server_ta   = rpki.x509.X509(PEM_file = self.bpki_servers.cer),
         server_cert = rpki.x509.X509(PEM_file = self.bpki_servers.dir + "/pubd.cer"),
         url         = pubd_base + "control",
-        debug       = True))
+        debug       = self.show_xml))
 
       # Make sure that pubd's BPKI CRL is up to date.
 

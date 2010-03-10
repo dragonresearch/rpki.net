@@ -148,19 +148,6 @@ class allocation_db(list):
     for a in self:
       a.dump()
 
-  def make_rootd_openssl(self):
-    """
-    Factory for a function to run the OpenSSL comand line tool on the
-    root node of our allocation database.  Could easily be generalized
-    if there were a need, but as it happens we only ever need to do
-    this for the root node.
-    """
-    env = { "PATH"           : os.environ["PATH"],
-            "BPKI_DIRECTORY" : self.root.path("bpki/servers"),
-            "OPENSSL_CONF"   : "/dev/null",
-            "RANDFILE"       : ".OpenSSL.whines.unless.I.set.this" }
-    cwd = self.root.path()
-    return lambda *args: subprocess.check_call((prog_openssl,) + args, cwd = cwd, env = env)
 
 class allocation(object):
   """
@@ -534,6 +521,18 @@ class allocation(object):
     print "Running rsyncd for %s: pid %d process %r" % (self.name, p.pid, p)
     return p
 
+  def run_openssl(self, *args, **kwargs):
+    """
+    Run OpenSSL
+    """
+    env = { "PATH"           : os.environ["PATH"],
+            "BPKI_DIRECTORY" : self.path("bpki/servers"),
+            "OPENSSL_CONF"   : "/dev/null",
+            "RANDFILE"       : ".OpenSSL.whines.unless.I.set.this" }
+    env.update(kwargs)
+    subprocess.check_call((prog_openssl,) + args, cwd = self.path(), env = env)
+
+
 os.environ["TZ"] = "UTC"
 time.tzset()
 
@@ -652,15 +651,15 @@ for d in db:
 
 # Create RPKI root certificate.
 
-rootd_openssl = db.make_rootd_openssl()
-
 print "Creating rootd RPKI root certificate"
-rootd_openssl("x509", "-req", "-sha256", "-outform", "DER",
-              "-signkey", "bpki/servers/ca.key",
-              "-in",      "bpki/servers/ca.req",
-              "-out",     "publication/root.cer",
-              "-extfile", "myrpki.conf",
-              "-extensions", "rootd_x509_extensions")
+
+# Should use req -subj here to set subject name.  Later.
+db.root.run_openssl("x509", "-req", "-sha256", "-outform", "DER",
+                    "-signkey", "bpki/servers/ca.key",
+                    "-in",      "bpki/servers/ca.req",
+                    "-out",     "publication/root.cer",
+                    "-extfile", "myrpki.conf",
+                    "-extensions", "rootd_x509_extensions")
 
 # At this point we need to start a whole lotta daemons.
 

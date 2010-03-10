@@ -1136,15 +1136,23 @@ class main(rpki.cli.Cmd):
     asn_csv_file                  = self.cfg.get("asn_csv")
 
     # This probably should become an argument instead of (or in
-    # addition to a default from?) config file.
+    # addition to a default from?) a config file option.
     xml_filename                  = self.cfg.get("xml_filename")
 
     try:
-      bsc_req, bsc_cer = self.bpki_resources.bsc(etree_read(xml_filename).findtext("bpki_bsc_pkcs10"))
+      e = etree_read(xml_filename)
+      bsc_req, bsc_cer = self.bpki_resources.bsc(e.findtext("bpki_bsc_pkcs10"))
+      service_uri = e.get("service_uri")
+      server_ta = e.findtext("bpki_server_ta")
     except IOError:
       bsc_req, bsc_cer = None, None
+      service_uri = None
+      server_ta = None
 
     e = Element("myrpki", handle = self.handle)
+
+    if service_uri:
+      e.set("service_uri", service_uri)
 
     roa_requests.from_csv(roa_csv_file).xml(e)
 
@@ -1165,6 +1173,9 @@ class main(rpki.cli.Cmd):
 
     if bsc_req:
       PEMElement(e, "bpki_bsc_pkcs10", bsc_req)
+
+    if server_ta:
+      SubElement(e, "bpki_server_ta").text = server_ta
 
     etree_write(e, xml_filename)
 

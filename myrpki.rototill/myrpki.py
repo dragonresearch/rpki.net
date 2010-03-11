@@ -781,6 +781,16 @@ class main(rpki.cli.Cmd):
     rpki.cli.Cmd.__init__(self, argv)
 
 
+  def help_overview(self):
+    """
+    Show program __doc__ string.  Perhaps there's some clever way to
+    do this using the textwrap module, but for now something simple
+    and crude will suffice.
+    """
+    for line in __doc__.splitlines(True):
+      self.stdout.write(" " * 4 + line)
+    self.stdout.write("\n")
+
   def read_config(self):
 
     self.cfg = rpki.config.parser(self.cfg_file, "myrpki")

@@ -460,13 +460,13 @@ class allocation(object):
     Run myirbe.py if this entity is not hosted by another engine.
     """
     if not self.is_hosted():
-      self.run_setup("myirbe", *[h.path("myrpki.xml") for h in self.hosts])
+      self.run_setup("configure_daemons", *[h.path("myrpki.xml") for h in self.hosts])
 
   def run_myrpki(self):
     """
     Run myrpki.py for this entity.
     """
-    self.run_setup("myrpki")
+    self.run_setup("configure_resources")
 
   def run_setup(self, *args):
     """
@@ -626,20 +626,20 @@ try:
   for d in db:
     if d.is_root():
       print
-      d.run_setup("answer_repository_client", d.path("entitydb", "repositories", "%s.xml" % d.name))
+      d.run_setup("configure_publication_client", d.path("entitydb", "repositories", "%s.xml" % d.name))
       print
-      d.run_setup("process_repository_answer", d.path("entitydb", "pubclients", "%s.xml" % d.name))
+      d.run_setup("configure_repository", d.path("entitydb", "pubclients", "%s.xml" % d.name))
       print
     else:
       print
-      d.parent.run_setup("answer_child", d.path("entitydb", "identity.xml"))
+      d.parent.run_setup("configure_child", d.path("entitydb", "identity.xml"))
       print
-      d.run_setup("process_parent_answer", d.parent.path("entitydb", "children", "%s.xml" % d.name))
+      d.run_setup("configure_parent", d.parent.path("entitydb", "children", "%s.xml" % d.name))
       print
       p, n = d.find_pubd(want_path = True)
-      p.run_setup("answer_repository_client", d.path("entitydb", "repositories", "%s.xml" % d.parent.name))
+      p.run_setup("configure_publication_client", d.path("entitydb", "repositories", "%s.xml" % d.parent.name))
       print
-      d.run_setup("process_repository_answer", p.path("entitydb", "pubclients", "%s.xml" % n))
+      d.run_setup("configure_repository", p.path("entitydb", "pubclients", "%s.xml" % n))
       print
 
   # Run myrpki.py several times for each entity.  First pass misses

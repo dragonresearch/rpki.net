@@ -1115,16 +1115,6 @@ class main(rpki.cli.Cmd):
 
     etree_write(r, self.entitydb("repositories", "%s.xml" % parent_handle))
 
-
-  def do_compose_request_to_host(self, arg):
-    pass
-
-  def do_answer_hosted_entity(self, arg):
-    pass
-
-  def do_process_host_answer(self, arg):
-    pass
-
 
 
 

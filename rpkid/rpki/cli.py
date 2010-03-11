@@ -47,11 +47,17 @@ class Cmd(cmd.Cmd):
       self.cmdloop_with_history()
 
   def do_EOF(self, arg):
+    """
+    Exit program.
+    """
     if self.EOF_exits_command_loop and self.prompt:
       print
     return self.EOF_exits_command_loop
 
   def do_exit(self, arg):
+    """
+    Exit program.
+    """
     return True
 
   do_quit = do_exit
@@ -75,6 +81,13 @@ class Cmd(cmd.Cmd):
     if len(result) == 1:
       result.add(result.pop() + " ")
     return list(result)
+
+  def help_help(self):
+    """
+    Type "help [topic]" for help on a command,
+    or just "help" for a list of commands.
+    """
+    self.stdout.write(self.help_help.__doc__ + "\n")
 
   if have_readline:
 

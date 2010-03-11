@@ -15,14 +15,14 @@ parse: myrpki.xml all
 	python xml-parse-test.py
 
 clean:
-	rm -rf *.xml bpki bpki.myrpki bpki.myirbe test screenlog.* .OpenSSL.whines.unless.I.set.this
+	rm -rf *.xml bpki test screenlog.* .OpenSSL.whines.unless.I.set.this
 	python sql-cleaner.py
 
 format: myrpki.xml
 	xmllint --format myrpki.xml
 
 graph:
-	find . -name .svn -prune -o -type d -name 'bpki.*' -print | while read b; do python ../scripts/x509-dot.py $$b | dot -T ps2 | ps2pdf - $$b/graph.pdf; done
+	find . -type d -path '*/bpki/*' | while read b; do python ../scripts/x509-dot.py $$b | unflatten -l 8 -f | dot -T ps2 | ps2pdf - $$b/graph.pdf; done
 
 verify:
 	sh verify-bpki.sh

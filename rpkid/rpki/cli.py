@@ -89,6 +89,13 @@ class Cmd(cmd.Cmd):
     """
     self.stdout.write(self.help_help.__doc__ + "\n")
 
+  def complete_help(self, text, *ignored):
+    names = self.get_names()
+    result = []
+    for prefix in ("do_", "help_"):
+      result.extend(s[len(prefix):] for s in names if s .startswith(prefix + text))
+    return result
+
   if have_readline:
 
     def cmdloop_with_history(self):

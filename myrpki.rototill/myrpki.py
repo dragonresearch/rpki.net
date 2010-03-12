@@ -1068,6 +1068,52 @@ class main(rpki.cli.Cmd):
     # be after reading client's XML, but before deciding what the
     # client's sia_base and handle will be.
 
+    # Ok, so we end up with four cases in terms of our checking:
+    #
+    # - Signed referral provided.  Must be signed by existing client
+    #   (somebody already listed in entitydb/pubclients/, suggesting
+    #   that it might be useful to include ski there as an XML field?
+    #   or maybe just outer unsigned XML wrapper that expresses the
+    #   hint include handle of referrer so we can look up directly?
+    #   yeah, that).  sia_base offered (within inner signed referral
+    #   XML) must be underneath signing client's space (so we'd have
+    #   to look up the signing client entitydb data for that anyway).
+    #
+    #   Case trivially detectable by presence of signed referral.
+    #
+    # - Client is direct child of entity running pubd, so entity
+    #   running pubd clearly has the right to offer service to its
+    #   children.  So just assign publication location to child after
+    #   checking that this really is a child of ours (ie, must be in
+    #   entitydb/children).
+    #
+    #   Detectable by handle being listed in entitydb/children.
+    #
+    # - Client is self, ie, entity that runs pubd is its own client.
+    #   Trivial to check (handle and BPKI match).  This gets top-level
+    #   (rsyncd module) name.
+    #
+    #   Detectable by handle matching ours.
+    #
+    # - All other cases get top-level directories of their own, no
+    #   nesting.  I guess such can go under an APNIC-style customers
+    #   rsyncd module, or something like that.
+    #
+    #   Detectable by none of the other cases matching.
+
+    # All of which would be OK except that I don't know how to map it
+    # into Randy's view of a single pubd running multiple rsyncd
+    # modules.  Part of the problem there is that rsyncd.conf has to
+    # be updated whenever a new module is added, we can't do it
+    # automatically.
+    #
+    # Perhaps (just suggested on testbed list) our rsync URIs should look like:
+    #
+    #   rsync://host[:port]/arbitrarymodule/client_handle
+    #
+    # where arbitrarymodule defaults to "rpki" and has no particular
+    # relationship to any client_handle.
+
     # For the moment we cheat egregiously, no crypto, blind trust of
     # what we're sent, while I focus on the basic semantics.
 

@@ -62,10 +62,7 @@ class pubd_context(object):
 
     self.publication_base = cfg.get("publication-base", "publication/")
 
-    if cfg.has_option("publication-multimodule"):
-      self.publication_multimodule = cfg.getboolean("publication-multimodule")
-    else:
-      self.publication_multimodule = cfg.get("publication-module", "-") == ""
+    self.publication_multimodule = cfg.getboolean("publication-multimodule", False)
 
   def handler_common(self, query, client, cb, certs, crl = None):
     """

@@ -122,7 +122,7 @@ class allocation_db(list):
     for a in self:
       if a.sia_base is None:
         if a.runs_pubd():
-          base = "rsync://localhost:%d/" % a.rsync_port
+          base = "rsync://localhost:%d/rpki/" % a.rsync_port
         else:
           base = a.parent.sia_base
         a.sia_base = base + a.name + "/"
@@ -447,7 +447,7 @@ class allocation(object):
                    ("# Automatically generated, do not edit",
                     "port         = %d"           % self.rsync_port,
                     "address      = localhost",
-                    "[%s]"                        % self.name,
+                    "[rpki]",
                     "log file     = rsyncd.log",
                     "read only    = yes",
                     "use chroot   = no",

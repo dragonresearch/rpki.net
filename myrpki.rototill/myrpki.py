@@ -1117,14 +1117,16 @@ class main(rpki.cli.Cmd):
     # For the moment we cheat egregiously, no crypto, blind trust of
     # what we're sent, while I focus on the basic semantics.
 
-    if sia_base is None and c.get("proposed_sia_base"):
-      sia_base = c.get("proposed_sia_base")
-    elif sia_base is None and c.get("handle") == self.handle:
-      sia_base = "rsync://%s/%s/" % (self.rsync_server, self.rsync_module)
-    else:
-      sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, c.get("handle"))
+    if sia_base is None:
 
-    client_handle = "/".join(sia_base.rstrip("/").split("/")[3:])
+      if c.get("proposed_sia_base"):
+        sia_base = c.get("proposed_sia_base")
+      else:
+        sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, self.handle)
+        if c.get("handle") != self.handle:
+          sia_base += c.get("handle") + "/"
+
+    client_handle = "/".join(sia_base.rstrip("/").split("/")[4:])
 
     parent_handle = c.get("parent_handle")
 

@@ -52,14 +52,16 @@ PERFORMANCE OF THIS SOFTWARE.
 from __future__ import with_statement
 
 import subprocess, csv, re, os, getopt, sys, base64, time, glob, copy, warnings
-import rpki.config, rpki.cli, rpki.sundial, rpki.log
+import rpki.config, rpki.cli, rpki.sundial, rpki.log, rpki.oids
 
 try:
-  from lxml.etree import Element, SubElement, ElementTree
-  have_lxml = True
+  from lxml.etree            import (Element, SubElement, ElementTree,
+                                     fromstring as ElementFromString,
+                                     tostring   as ElementToString)
 except ImportError:
-  from xml.etree.ElementTree import Element, SubElement, ElementTree
-  have_lxml = False
+  from xml.etree.ElementTree import (Element, SubElement, ElementTree,
+                                     fromstring as ElementFromString,
+                                     tostring   as ElementToString)
 
 
 
@@ -606,6 +608,38 @@ class CA(object):
     else:
       return False
 
+  def cms_xml_sign(self, ee_name, base_name, elt):
+    """
+    Sign an XML object with CMS, return Base64 text.
+    """
+    oid = ".".join(str(i) for i in rpki.oids.name2oid("id-ct-xml"))
+    cmd = (openssl, "cms", "-sign", "-binary", "-nodetach", "-nosmimecap",
+           "-keyid", "-outform", "DER", "-md", "sha256", "-econtent_type", oid,
+           "-inkey",  "%s/%s.key" % (self.dir, base_name),
+           "-signer", "%s/%s.cer" % (self.dir, base_name))
+    p = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
+    cms = p.communicate(etree_pre_write(ElementToString(elt)))[0]
+    if p.wait() != 0:
+      raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
+    return base64.b64encode(cms)
+
+  def cms_xml_verify(self, cms, ca):
+    """
+    Attempt to verify and extract XML from a Base64-encoded signed CMS
+    object.  CA is the filename of a certificate that we expect to be
+    the issuer of the EE certificate bundled with the CMS, and must
+    previously have been cross-certified under our trust anchor.
+    """
+    cmd = (openssl, "cms", "-verify", "-inform", "DER",
+           "-CAfile", self.cer, "-certfile", ca)
+    p = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
+    xml, err = p.communicate(base64.b64decode(cms))
+    if p.wait() != 0:
+      if err:
+        sys.stderr("OpenSSL reported: " + err + "\n")
+      raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
+    return etree_post_read(ElementFromString(xml))
+
   def bsc(self, pkcs10):
     """
     Issue BSC certificiate, if we have a PKCS #10 request for it.
@@ -716,9 +750,17 @@ def etree_write(e, filename, verbose = True, validate = True):
 
   I still miss SYSCAL(RENMWO).
   """
-  assert isinstance(filename, str)
   if verbose:
     print "Writing", filename
+  e = etree_pre_write(e, validate)
+  ElementTree(e).write(filename + ".tmp")
+  os.rename(filename + ".tmp", filename)
+
+def etree_pre_write(e, validate = True):
+  """
+  Do the namespace frobbing needed on write; broken out of
+  etree_write() because also needed with ElementToString().
+  """
   e = copy.deepcopy(e)
   e.set("version", version)
   for i in e.getiterator():
@@ -727,8 +769,7 @@ def etree_write(e, filename, verbose = True, validate = True):
     assert i.tag.startswith(namespaceQName)
   if validate:
     etree_validate(e)
-  ElementTree(e).write(filename + ".tmp")
-  os.rename(filename + ".tmp", filename)
+  return e
 
 def etree_read(filename, verbose = True, validate = True):
   """
@@ -738,6 +779,13 @@ def etree_read(filename, verbose = True, validate = True):
   if verbose:
     print "Reading", filename
   e = ElementTree(file = filename).getroot()
+  return etree_post_read(e, validate)
+
+def etree_post_read(e, validate = True):
+  """
+  Do the namespace frobbing needed on read; broken out of etree_read()
+  beause also needed by ElementFromString().
+  """
   if validate:
     etree_validate(e)
   for i in e.getiterator():

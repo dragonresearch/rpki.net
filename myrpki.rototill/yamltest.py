@@ -381,7 +381,8 @@ class allocation(object):
 
     r = { ("myrpki", "handle")    : self.name,
           ("myrpki", "run_pubd")  : str(self.runs_pubd()),
-          ("myrpki", "run_rootd") : str(self.is_root()) }
+          ("myrpki", "run_rootd") : str(self.is_root()),
+          ("myrpki", "openssl")   : prog_openssl }
 
     if not self.is_hosted():
       r["irdbd", "sql-database"] = "irdb%d" % self.engine

@@ -63,6 +63,9 @@
   <start combine="choice">
     <ref name="repository_pdu"/>
   </start>
+  <start combine="choice">
+    <ref name="referral_pdu"/>
+  </start>
   <define name="myrpki_pdu">
     <element name="myrpki">
       <attribute name="version">
@@ -231,21 +234,15 @@
       <attribute name="parent_handle">
         <ref name="object_handle"/>
       </attribute>
-      <optional>
-        <element name="bpki_resource_ta">
-          <ref name="base64"/>
-        </element>
-      </optional>
-      <optional>
-        <element name="bpki_server_ta">
-          <ref name="base64"/>
-        </element>
-      </optional>
-      <optional>
-        <element name="bpki_child_ta">
-          <ref name="base64"/>
-        </element>
-      </optional>
+      <element name="bpki_resource_ta">
+        <ref name="base64"/>
+      </element>
+      <element name="bpki_server_ta">
+        <ref name="base64"/>
+      </element>
+      <element name="bpki_child_ta">
+        <ref name="base64"/>
+      </element>
       <optional>
         <element name="repository">
           <choice>
@@ -254,11 +251,14 @@
             </attribute>
             <group>
               <attribute name="type">
-                <value>hint</value>
+                <value>referral</value>
               </attribute>
-              <attribute name="proposed_sia_base">
-                <ref name="uri"/>
-              </attribute>
+              <element name="authorization">
+                <attribute name="referrer">
+                  <ref name="pubd_handle"/>
+                </attribute>
+                <ref name="base64"/>
+              </element>
               <element name="contact_info">
                 <data type="string"/>
               </element>
@@ -291,16 +291,12 @@
       <attribute name="repository_handle">
         <ref name="object_handle"/>
       </attribute>
-      <optional>
-        <element name="bpki_server_ta">
-          <ref name="base64"/>
-        </element>
-      </optional>
-      <optional>
-        <element name="bpki_client_ta">
-          <ref name="base64"/>
-        </element>
-      </optional>
+      <element name="bpki_server_ta">
+        <ref name="base64"/>
+      </element>
+      <element name="bpki_client_ta">
+        <ref name="base64"/>
+      </element>
       <optional>
         <element name="contact_info">
           <data type="string"/>
@@ -322,13 +318,19 @@
       <attribute name="parent_handle">
         <ref name="object_handle"/>
       </attribute>
+      <element name="bpki_ta">
+        <ref name="base64"/>
+      </element>
       <optional>
         <element name="contact_info">
           <data type="string"/>
         </element>
       </optional>
       <optional>
-        <element name="bpki_ta">
+        <element name="authorization">
+          <attribute name="referrer">
+            <ref name="pubd_handle"/>
+          </attribute>
           <ref name="base64"/>
         </element>
       </optional>
@@ -348,11 +350,9 @@
       <attribute name="parent_handle">
         <ref name="object_handle"/>
       </attribute>
-      <optional>
-        <element name="bpki_ta">
-          <ref name="base64"/>
-        </element>
-      </optional>
+      <element name="bpki_ta">
+        <ref name="base64"/>
+      </element>
     </element>
   </define>
   <define name="repository_pdu" combine="choice">
@@ -361,7 +361,7 @@
         <ref name="version"/>
       </attribute>
       <attribute name="type">
-        <value>hint</value>
+        <value>referral</value>
       </attribute>
       <attribute name="handle">
         <ref name="pubd_handle"/>
@@ -369,19 +369,31 @@
       <attribute name="parent_handle">
         <ref name="object_handle"/>
       </attribute>
-      <attribute name="proposed_sia_base">
-        <ref name="uri"/>
-      </attribute>
+      <element name="authorization">
+        <attribute name="referrer">
+          <ref name="pubd_handle"/>
+        </attribute>
+        <ref name="base64"/>
+      </element>
       <optional>
         <element name="contact_info">
           <data type="string"/>
         </element>
       </optional>
-      <optional>
-        <element name="bpki_ta">
-          <ref name="base64"/>
-        </element>
-      </optional>
+      <element name="bpki_ta">
+        <ref name="base64"/>
+      </element>
+    </element>
+  </define>
+  <define name="referral_pdu">
+    <element name="referral">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="authorized_sia_base">
+        <ref name="uri"/>
+      </attribute>
+      <ref name="base64"/>
     </element>
   </define>
 </grammar>

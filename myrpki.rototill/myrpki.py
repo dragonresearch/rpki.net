@@ -516,8 +516,8 @@ class CA(object):
   path_restriction = { 0 : "ca_x509_ext_xcert0",
                        1 : "ca_x509_ext_xcert1" }
 
-  def __init__(self, cfg, dir):
-    self.cfg    = cfg
+  def __init__(self, cfg_file, dir):
+    self.cfg    = cfg_file
     self.dir    = dir
     self.cer    = dir + "/ca.cer"
     self.key    = dir + "/ca.key"
@@ -527,16 +527,36 @@ class CA(object):
     self.serial = dir + "/serial"
     self.crlnum = dir + "/crl_number"
 
+    cfg = rpki.config.parser(cfg_file, "myrpki")
+    self.openssl = cfg.get("openssl", "openssl")
+
     self.env = { "PATH" : os.environ["PATH"],
                  "BPKI_DIRECTORY" : dir,
-                 "RANDFILE" : ".OpenSSL.whines.unless.I.set.this" }
+                 "RANDFILE" : ".OpenSSL.whines.unless.I.set.this",
+                 "OPENSSL_CONF" : cfg_file }
+
+  def run_openssl(self, *cmd, **kwargs):
+    """
+    Run an OpenSSL command, suppresses stderr unless OpenSSL returns
+    failure, and returns stdout.
+    """
+    stdin = kwargs.pop("stdin", None)
+    env = self.env.copy()
+    env.update(kwargs)
+    cmd = (self.openssl,) + cmd
+    p = subprocess.Popen(cmd, env = env, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    stdout, stderr = p.communicate(stdin)
+    if p.wait() != 0:
+      sys.stderr.write("OpenSSL reported: " + stderr + "\n")
+      raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
+    return stdout
 
   def run_ca(self, *args):
     """
     Run OpenSSL "ca" command with tailored environment variables and common initial
     arguments.  "ca" is rather chatty, so we suppress its output except on errors.
     """
-    cmd = (openssl, "ca", "-batch", "-config",  self.cfg) + args
+    cmd = (self.openssl, "ca", "-batch", "-config",  self.cfg) + args
     p = subprocess.Popen(cmd, env = self.env, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
     log = p.communicate()[0]
     if p.wait() != 0:
@@ -548,9 +568,12 @@ class CA(object):
     Run OpenSSL "req" command with tailored environment variables and common arguments.
     "req" is rather chatty, so we suppress its output except on errors.
     """
-    if not os.path.exists(key_file) or not os.path.exists(req_file):
-      cmd = (openssl, "req", "-new", "-sha256", "-newkey", "rsa:2048",
-             "-config", self.cfg, "-keyout", key_file, "-out", req_file)
+    if not os.path.exists(key_file):
+      self.run_openssl("genrsa", "-out", key_file, "2048")
+    if not os.path.exists(req_file):
+      cmd = (self.openssl, "req", "-new", "-sha256", "-config", self.cfg,
+             "-key", key_file,
+             "-out", req_file)
       p = subprocess.Popen(cmd, env = self.env, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
       log = p.communicate()[0]
       if p.wait() != 0:
@@ -612,33 +635,51 @@ class CA(object):
     """
     Sign an XML object with CMS, return Base64 text.
     """
-    oid = ".".join(str(i) for i in rpki.oids.name2oid("id-ct-xml"))
-    cmd = (openssl, "cms", "-sign", "-binary", "-nodetach", "-nosmimecap",
+    self.ee(ee_name, base_name)
+    xml = ElementToString(etree_pre_write(elt))
+    oid = ".".join(str(i) for i in rpki.oids.name2oid["id-ct-xml"])
+    cmd = (self.openssl, "cms", "-sign", "-binary", "-nodetach", "-nosmimecap",
            "-keyid", "-outform", "DER", "-md", "sha256", "-econtent_type", oid,
            "-inkey",  "%s/%s.key" % (self.dir, base_name),
            "-signer", "%s/%s.cer" % (self.dir, base_name))
-    p = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
-    cms = p.communicate(etree_pre_write(ElementToString(elt)))[0]
+    p = subprocess.Popen(cmd, env = self.env, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    cms, err = p.communicate(xml)
     if p.wait() != 0:
+      sys.stderr.write("OpenSSL reported: " + err + "\n")
       raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
     return base64.b64encode(cms)
 
-  def cms_xml_verify(self, cms, ca):
+  def cms_xml_verify(self, b64, ca):
     """
     Attempt to verify and extract XML from a Base64-encoded signed CMS
     object.  CA is the filename of a certificate that we expect to be
     the issuer of the EE certificate bundled with the CMS, and must
     previously have been cross-certified under our trust anchor.
     """
-    cmd = (openssl, "cms", "-verify", "-inform", "DER",
-           "-CAfile", self.cer, "-certfile", ca)
-    p = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
-    xml, err = p.communicate(base64.b64decode(cms))
-    if p.wait() != 0:
-      if err:
-        sys.stderr("OpenSSL reported: " + err + "\n")
-      raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
-    return etree_post_read(ElementFromString(xml))
+
+    # In theory, we should be able to use the -certfile parameter to
+    # pass in the CA certificate, but in practice, I have never gotten
+    # this to work, either with the command line tool or in the
+    # OpenSSL C API.  Dunno why.  Passing both TA and CA via -CAfile
+    # does work, so we do that, using a temporary file, sigh.
+
+    CAfile = os.path.join(self.dir, "temp.%s.pem" % os.getpid())
+    try:
+      f = open(CAfile, "w")
+      f.write(open(self.cer).read())
+      f.write(open(ca).read())
+      f.close()
+      cmd = (self.openssl, "cms", "-verify", "-inform", "DER", "-CAfile", CAfile)
+      p = subprocess.Popen(cmd, env = self.env, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+      xml, err = p.communicate(base64.b64decode(b64))
+      if p.wait() != 0:
+        if err:
+          sys.stderr.write("OpenSSL reported: " + err + "\n")
+        raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
+      return etree_post_read(ElementFromString(xml))
+    finally:
+      if os.path.exists(CAfile):
+        os.unlink(CAfile)
 
   def bsc(self, pkcs10):
     """
@@ -652,8 +693,8 @@ class CA(object):
 
     assert pkcs10
 
-    cmd = (openssl, "dgst", "-md5")
-    p = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
+    cmd = (self.openssl, "dgst", "-md5")
+    p = subprocess.Popen(cmd, env = self.env, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
     hash = p.communicate(pkcs10)[0].strip()
     if p.wait() != 0:
       raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
@@ -663,8 +704,8 @@ class CA(object):
 
     if not os.path.exists(cer_file):
 
-      cmd = (openssl, "req", "-inform", "DER", "-out", req_file)
-      p = subprocess.Popen(cmd, stdin = subprocess.PIPE)
+      cmd = (self.openssl, "req", "-inform", "DER", "-out", req_file)
+      p = subprocess.Popen(cmd, env = self.env, stdin = subprocess.PIPE)
       p.communicate(pkcs10)
       if p.wait() != 0:
         raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
@@ -679,8 +720,8 @@ class CA(object):
     """
     fn = os.path.join(self.dir, filename or "temp.%s.cer" % os.getpid())
     try:
-      cmd = (openssl, "x509", "-inform", "DER", "-out", fn)
-      p = subprocess.Popen(cmd, stdin = subprocess.PIPE)
+      cmd = (self.openssl, "x509", "-inform", "DER", "-out", fn)
+      p = subprocess.Popen(cmd, env = self.env, stdin = subprocess.PIPE)
       p.communicate(base64.b64decode(b64))
       if p.wait() != 0:
         raise subprocess.CalledProcessError(returncode = p.returncode, cmd = cmd)
@@ -705,26 +746,31 @@ class CA(object):
     # Extract public key and subject name from PEM file and hash it so
     # we can use the result as a tag for cross-certifying this cert.
 
-    cmd1 = (openssl, "x509", "-noout", "-pubkey", "-subject", "-in", cert)
-    cmd2 = (openssl, "dgst", "-md5")
+    cmd1 = (self.openssl, "x509", "-noout", "-pubkey", "-subject", "-in", cert)
+    cmd2 = (self.openssl, "dgst", "-md5")
 
-    p1 = subprocess.Popen(cmd1, stdout = subprocess.PIPE)
-    p2 = subprocess.Popen(cmd2, stdin = p1.stdout, stdout = subprocess.PIPE)
+    p1 = subprocess.Popen(cmd1, env = self.env, stdout = subprocess.PIPE)
+    p2 = subprocess.Popen(cmd2, env = self.env, stdin = p1.stdout, stdout = subprocess.PIPE)
 
-    xcert = "%s/xcert.%s.cer" % (self.dir, p2.communicate()[0].strip())
+    hash = p2.communicate()[0]
 
     if p1.wait() != 0:
       raise subprocess.CalledProcessError(returncode = p1.returncode, cmd = cmd1)
     if p2.wait() != 0:
       raise subprocess.CalledProcessError(returncode = p2.returncode, cmd = cmd2)
 
+    # Sigh.  Idiots just couldn't leave well enough alone.
+    hash = "".join(hash.split())
+    if hash.startswith("(stdin)="):
+      hash =  hash[len("(stdin)="):]
+
     # Cross-certify the cert we were given, if we haven't already.
     # This only works for self-signed certs, due to limitations of the
     # OpenSSL command line tool, but that suffices for our purposes.
 
+    xcert = "%s/xcert.%s.cer" % (self.dir, hash.strip())
     if not os.path.exists(xcert):
       self.run_ca("-ss_cert", cert, "-out", xcert, "-extensions", self.path_restriction[path_restriction])
-
     return xcert
 
 def etree_validate(e):
@@ -795,9 +841,11 @@ def etree_post_read(e, validate = True):
       raise RuntimeError, "XML tag %r is not in namespace %r" % (i.tag, namespace)
   return e
 
-# When this file is run as a script, run main() with command line
-# arguments.  main() can't use sys.argv directly as that might be the
-# command line for some other program that loads this module.
+def b64_equal(thing1, thing2):
+  """
+  Compare two Base64-encoded values for equality.
+  """
+  return "".join(thing1.split()) == "".join(thing2.split())
 
 
 
@@ -842,9 +890,6 @@ class main(rpki.cli.Cmd):
   def read_config(self):
 
     self.cfg = rpki.config.parser(self.cfg_file, "myrpki")
-
-    global openssl
-    openssl  = self.cfg.get("openssl", "openssl")
 
     self.histfile  = self.cfg.get("history_file", ".setup_history")
     self.handle    = self.cfg.get("handle")
@@ -941,8 +986,8 @@ class main(rpki.cli.Cmd):
 
     if self.run_pubd:
       e = Element("repository", type = "request", handle = self.handle, parent_handle = self.handle)
-      SubElement(e, "contact_info").text = self.pubd_contact_info
       PEMElement(e, "bpki_ta", self.bpki_resources.cer)
+      SubElement(e, "contact_info").text = self.pubd_contact_info
       etree_write(e, self.entitydb("repositories", "%s.xml" % self.handle))
 
 
@@ -1012,11 +1057,14 @@ class main(rpki.cli.Cmd):
       if repo_handle == self.handle:
         SubElement(e, "repository", type = "offer")
       else:
-        r = SubElement(e, "repository", type = "hint",
-                       proposed_sia_base = repo.get("sia_base") + child_handle + "/")
+        proposed_sia_base = repo.get("sia_base") + child_handle + "/"
+        r = Element("referral", authorized_sia_base = proposed_sia_base)
+        r.text = c.findtext("bpki_ta")
+        auth = self.bpki_resources.cms_xml_sign(
+          "/CN=%s Publication Referral" % self.handle, "referral", r)
+        r = SubElement(e, "repository", type = "referral")
+        SubElement(r, "authorization", referrer = repo.get("client_handle")).text = auth
         SubElement(r, "contact_info").text = repo.findtext("contact_info")
-        # CMS-signed blob authorizing use of part of our space by our
-        # child goes here, once I've written that code.
 
     except RuntimeError, err:
       print err
@@ -1030,10 +1078,10 @@ class main(rpki.cli.Cmd):
     the parent's configure_child command as input.  This command reads
     the parent's response XML, extracts the parent's BPKI and service
     URI information, cross-certifies the parent's BPKI data into this
-    entity's BPKI, and checks for offers or hints of publication
-    service.  If a publication offer or hint is present, this command
-    generates a request-for-service message to that repository, in
-    case the user wants to avail herself of the hint or off.
+    entity's BPKI, and checks for offers or referrals of publication
+    service.  If a publication offer or referral is present, we
+    generate a request-for-service message to that repository, in case
+    the user wants to avail herself of the referral or offer.
     """
 
     parent_handle = None
@@ -1061,14 +1109,14 @@ class main(rpki.cli.Cmd):
 
     r = p.find("repository")
 
-    if r is not None and r.get("type") in ("offer", "hint"):
+    if r is not None and r.get("type") in ("offer", "referral"):
       r.set("handle", self.handle)
       r.set("parent_handle", parent_handle)
       PEMElement(r, "bpki_ta", self.bpki_resources.cer)
       etree_write(r, self.entitydb("repositories", "%s.xml" % parent_handle))
 
     else:
-      print "Couldn't find repository offer or hint"
+      print "Couldn't find repository offer or referral"
 
 
   def do_configure_publication_client(self, arg):
@@ -1092,83 +1140,23 @@ class main(rpki.cli.Cmd):
 
     c = etree_read(argv[0])
 
-    # Critical thing at this point is to figure out what client's
-    # sia_base value should be.  Three cases:
-    #
-    # - client has no particular relationship to any other client:
-    #   sia_base is top-level, or as close as we can make it taking
-    #   rsyncd module into account (maybe homed under us, hmm, how do
-    #   we detect case where we are talking to ourself?)
-    #
-    # - client is a direct child of ours to whom we (in our parent
-    #   role) made an offer of publication service.  client homes
-    #   under us, presumably.
-    #
-    # - client is a child of a client of ours who referred the new
-    #   client to us, along with a signed referral.  signed referral
-    #   includes sia_base of referring client, new client homes under
-    #   that per referring client's wishes.
-    #
-    # ... which implies that there's a fourth case, where we are both
-    # the client and the server.
-
-    # Checking of signed referrals goes somewhere around here.  Must
-    # be after reading client's XML, but before deciding what the
-    # client's sia_base and handle will be.
-
-    # Ok, so we end up with four cases in terms of our checking:
-    #
-    # - Signed referral provided.  Must be signed by existing client
-    #   (somebody already listed in entitydb/pubclients/, suggesting
-    #   that it might be useful to include ski there as an XML field?
-    #   or maybe just outer unsigned XML wrapper that expresses the
-    #   hint include handle of referrer so we can look up directly?
-    #   yeah, that).  sia_base offered (within inner signed referral
-    #   XML) must be underneath signing client's space (so we'd have
-    #   to look up the signing client entitydb data for that anyway).
-    #
-    #   Case trivially detectable by presence of signed referral.
-    #
-    # - Client is direct child of entity running pubd, so entity
-    #   running pubd clearly has the right to offer service to its
-    #   children.  So just assign publication location to child after
-    #   checking that this really is a child of ours (ie, must be in
-    #   entitydb/children).
-    #
-    #   Detectable by handle being listed in entitydb/children.
-    #
-    # - Client is self, ie, entity that runs pubd is its own client.
-    #   Trivial to check (handle and BPKI match).  This gets top-level
-    #   (rsyncd module) name.
-    #
-    #   Detectable by handle matching ours.
-    #
-    # - All other cases get top-level directories of their own, no
-    #   nesting.  I guess such can go under an APNIC-style customers
-    #   rsyncd module, or something like that.
-    #
-    #   Detectable by none of the other cases matching.
-
-    # All of which would be OK except that I don't know how to map it
-    # into Randy's view of a single pubd running multiple rsyncd
-    # modules.  Part of the problem there is that rsyncd.conf has to
-    # be updated whenever a new module is added, we can't do it
-    # automatically.
-    #
-    # Perhaps (just suggested on testbed list) our rsync URIs should look like:
-    #
-    #   rsync://host[:port]/arbitrarymodule/client_handle
-    #
-    # where arbitrarymodule defaults to "rpki" and has no particular
-    # relationship to any client_handle.
-
-    # For the moment we cheat egregiously, no crypto, blind trust of
-    # what we're sent, while I focus on the basic semantics.
-
     if sia_base is None:
 
-      if c.get("proposed_sia_base"):
-        sia_base = c.get("proposed_sia_base")
+      auth = c.find("authorization")
+      if auth is not None:
+        try:
+          referrer = etree_read(self.entitydb("pubclients", "%s.xml" % auth.get("referrer").replace("/",".")))
+          referrer = self.bpki_servers.fxcert(referrer.findtext("bpki_client_ta"))
+          referral = self.bpki_servers.cms_xml_verify(auth.text, referrer)
+          if not b64_equal(referral.text, c.findtext("bpki_ta")):
+            raise RuntimeError, "Referral trust anchor does not match"
+          sia_base = referral.get("authorized_sia_base")
+
+        except:
+          # Yes we need better handling than this
+          print "Couldn't process referral:"
+          raise
+
       else:
         sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, self.handle)
         if c.get("handle") != self.handle:

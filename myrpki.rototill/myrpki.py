@@ -933,13 +933,11 @@ class main(rpki.cli.Cmd):
       if not os.path.exists(rootd_child_fn):
         os.link(self.bpki_servers.xcert(self.bpki_resources.cer), rootd_child_fn)
 
-    # If we're running pubd, construct repository request for it, as
-    # if we had received an offer.
+    # If we're running pubd, offer ourself publication.
 
     if self.run_pubd:
-      e = Element("repository", type = "request", handle = self.handle, parent_handle = self.handle)
+      e = Element("repository", type = "offer", handle = self.handle, parent_handle = self.handle)
       PEMElement(e, "bpki_client_ta", self.bpki_resources.cer)
-      SubElement(e, "contact_info").text = self.pubd_contact_info
       etree_write(e, self.entitydb("repositories", "%s.xml" % self.handle))
 
 

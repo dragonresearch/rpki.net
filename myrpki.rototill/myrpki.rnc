@@ -102,16 +102,6 @@ start |= element repository {
 
 start |= element repository {
   attribute version { version },
-  attribute type { "request" },
-  attribute handle { object_handle },
-  attribute parent_handle { object_handle },
-  element bpki_client_ta { base64 },
-  authorization?,
-  contact_info?
-}
-
-start |= element repository {
-  attribute version { version },
   attribute type { "offer" },
   attribute handle { object_handle },
   attribute parent_handle { object_handle },

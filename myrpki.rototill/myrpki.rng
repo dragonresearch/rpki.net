@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: myrpki.rnc 3081 2010-03-13 22:38:13Z sra $
+  $Id: myrpki.rnc 3084 2010-03-14 04:35:22Z sra $
   
   RelaxNG Schema for MyRPKI XML messages
   
@@ -253,15 +253,8 @@
               <attribute name="type">
                 <value>referral</value>
               </attribute>
-              <element name="authorization">
-                <attribute name="referrer">
-                  <ref name="pubd_handle"/>
-                </attribute>
-                <ref name="base64"/>
-              </element>
-              <element name="contact_info">
-                <data type="string"/>
-              </element>
+              <ref name="authorization_elt"/>
+              <ref name="contact_info_elt"/>
             </group>
           </choice>
         </element>
@@ -313,7 +306,7 @@
         <value>request</value>
       </attribute>
       <attribute name="handle">
-        <ref name="pubd_handle"/>
+        <ref name="object_handle"/>
       </attribute>
       <attribute name="parent_handle">
         <ref name="object_handle"/>
@@ -345,7 +338,7 @@
         <value>offer</value>
       </attribute>
       <attribute name="handle">
-        <ref name="pubd_handle"/>
+        <ref name="object_handle"/>
       </attribute>
       <attribute name="parent_handle">
         <ref name="object_handle"/>
@@ -364,21 +357,14 @@
         <value>referral</value>
       </attribute>
       <attribute name="handle">
-        <ref name="pubd_handle"/>
+        <ref name="object_handle"/>
       </attribute>
       <attribute name="parent_handle">
         <ref name="object_handle"/>
       </attribute>
-      <element name="authorization">
-        <attribute name="referrer">
-          <ref name="pubd_handle"/>
-        </attribute>
-        <ref name="base64"/>
-      </element>
+      <ref name="authorization_elt"/>
       <optional>
-        <element name="contact_info">
-          <data type="string"/>
-        </element>
+        <ref name="contact_info_elt"/>
       </optional>
       <element name="bpki_ta">
         <ref name="base64"/>
@@ -394,6 +380,24 @@
         <ref name="uri"/>
       </attribute>
       <ref name="base64"/>
+    </element>
+  </define>
+  <define name="authorization_elt">
+    <element name="authorization">
+      <attribute name="referrer">
+        <ref name="pubd_handle"/>
+      </attribute>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="contact_info_elt">
+    <element name="contact_info">
+      <optional>
+        <attribute name="uri">
+          <ref name="uri"/>
+        </attribute>
+      </optional>
+      <data type="string"/>
     </element>
   </define>
 </grammar>

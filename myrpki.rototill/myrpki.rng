@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: myrpki.rnc 3084 2010-03-14 04:35:22Z sra $
+  $Id: myrpki.rnc 3086 2010-03-14 08:52:31Z sra $
   
   RelaxNG Schema for MyRPKI XML messages
   
@@ -33,6 +33,9 @@
       <param name="maxLength">4096</param>
     </data>
   </define>
+  <define name="asn">
+    <data type="positiveInteger"/>
+  </define>
   <define name="asn_list">
     <data type="string">
       <param name="maxLength">512000</param>
@@ -51,22 +54,30 @@
       <param name="pattern">[\-,0-9/:a-fA-F]*</param>
     </data>
   </define>
+  <define name="timestamp">
+    <data type="dateTime">
+      <param name="pattern">.*Z</param>
+    </data>
+  </define>
+  <define name="authorization">
+    <element name="authorization">
+      <attribute name="referrer">
+        <ref name="pubd_handle"/>
+      </attribute>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="contact_info">
+    <element name="contact_info">
+      <optional>
+        <attribute name="uri">
+          <ref name="uri"/>
+        </attribute>
+      </optional>
+      <data type="string"/>
+    </element>
+  </define>
   <start combine="choice">
-    <ref name="myrpki_pdu"/>
-  </start>
-  <start combine="choice">
-    <ref name="identity_pdu"/>
-  </start>
-  <start combine="choice">
-    <ref name="parent_pdu"/>
-  </start>
-  <start combine="choice">
-    <ref name="repository_pdu"/>
-  </start>
-  <start combine="choice">
-    <ref name="referral_pdu"/>
-  </start>
-  <define name="myrpki_pdu">
     <element name="myrpki">
       <attribute name="version">
         <ref name="version"/>
@@ -82,7 +93,7 @@
       <zeroOrMore>
         <element name="roa_request">
           <attribute name="asn">
-            <data type="positiveInteger"/>
+            <ref name="asn"/>
           </attribute>
           <attribute name="v4">
             <ref name="ipv4_list"/>
@@ -98,9 +109,7 @@
             <ref name="object_handle"/>
           </attribute>
           <attribute name="valid_until">
-            <data type="dateTime">
-              <param name="pattern">.*Z</param>
-            </data>
+            <ref name="timestamp"/>
           </attribute>
           <optional>
             <attribute name="asns">
@@ -199,8 +208,8 @@
         </element>
       </optional>
     </element>
-  </define>
-  <define name="identity_pdu">
+  </start>
+  <start combine="choice">
     <element name="identity">
       <attribute name="version">
         <ref name="version"/>
@@ -212,16 +221,14 @@
         <ref name="base64"/>
       </element>
     </element>
-  </define>
-  <define name="parent_pdu">
+  </start>
+  <start combine="choice">
     <element name="parent">
       <attribute name="version">
         <ref name="version"/>
       </attribute>
       <attribute name="valid_until">
-        <data type="dateTime">
-          <param name="pattern">.*Z</param>
-        </data>
+        <ref name="timestamp"/>
       </attribute>
       <optional>
         <attribute name="service_uri">
@@ -253,15 +260,15 @@
               <attribute name="type">
                 <value>referral</value>
               </attribute>
-              <ref name="authorization_elt"/>
-              <ref name="contact_info_elt"/>
+              <ref name="authorization"/>
+              <ref name="contact_info"/>
             </group>
           </choice>
         </element>
       </optional>
     </element>
-  </define>
-  <define name="repository_pdu" combine="choice">
+  </start>
+  <start combine="choice">
     <element name="repository">
       <attribute name="version">
         <ref name="version"/>
@@ -291,13 +298,11 @@
         <ref name="base64"/>
       </element>
       <optional>
-        <element name="contact_info">
-          <data type="string"/>
-        </element>
+        <ref name="contact_info"/>
       </optional>
     </element>
-  </define>
-  <define name="repository_pdu" combine="choice">
+  </start>
+  <start combine="choice">
     <element name="repository">
       <attribute name="version">
         <ref name="version"/>
@@ -315,21 +320,14 @@
         <ref name="base64"/>
       </element>
       <optional>
-        <element name="contact_info">
-          <data type="string"/>
-        </element>
+        <ref name="authorization"/>
       </optional>
       <optional>
-        <element name="authorization">
-          <attribute name="referrer">
-            <ref name="pubd_handle"/>
-          </attribute>
-          <ref name="base64"/>
-        </element>
+        <ref name="contact_info"/>
       </optional>
     </element>
-  </define>
-  <define name="repository_pdu" combine="choice">
+  </start>
+  <start combine="choice">
     <element name="repository">
       <attribute name="version">
         <ref name="version"/>
@@ -347,8 +345,8 @@
         <ref name="base64"/>
       </element>
     </element>
-  </define>
-  <define name="repository_pdu" combine="choice">
+  </start>
+  <start combine="choice">
     <element name="repository">
       <attribute name="version">
         <ref name="version"/>
@@ -362,16 +360,16 @@
       <attribute name="parent_handle">
         <ref name="object_handle"/>
       </attribute>
-      <ref name="authorization_elt"/>
+      <ref name="authorization"/>
       <optional>
-        <ref name="contact_info_elt"/>
+        <ref name="contact_info"/>
       </optional>
       <element name="bpki_ta">
         <ref name="base64"/>
       </element>
     </element>
-  </define>
-  <define name="referral_pdu">
+  </start>
+  <start combine="choice">
     <element name="referral">
       <attribute name="version">
         <ref name="version"/>
@@ -381,25 +379,7 @@
       </attribute>
       <ref name="base64"/>
     </element>
-  </define>
-  <define name="authorization_elt">
-    <element name="authorization">
-      <attribute name="referrer">
-        <ref name="pubd_handle"/>
-      </attribute>
-      <ref name="base64"/>
-    </element>
-  </define>
-  <define name="contact_info_elt">
-    <element name="contact_info">
-      <optional>
-        <attribute name="uri">
-          <ref name="uri"/>
-        </attribute>
-      </optional>
-      <data type="string"/>
-    </element>
-  </define>
+  </start>
 </grammar>
 <!--
   Local Variables:

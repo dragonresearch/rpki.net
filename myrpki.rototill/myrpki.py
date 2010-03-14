@@ -1090,38 +1090,48 @@ class main(rpki.cli.Cmd):
     if len(argv) != 1:
       raise RuntimeError, "Need to specify filename for client.xml"
 
-    c = etree_read(argv[0])
+    client = etree_read(argv[0])
 
     if sia_base is None:
 
-      auth = c.find("authorization")
+      auth = client.find("authorization")
       if auth is not None:
-        try:
-          referrer = etree_read(self.entitydb("pubclients", "%s.xml" % auth.get("referrer").replace("/",".")))
-          referrer = self.bpki_servers.fxcert(referrer.findtext("bpki_client_ta"))
-          referral = self.bpki_servers.cms_xml_verify(auth.text, referrer)
-          if not b64_equal(referral.text, c.findtext("bpki_ta")):
-            raise RuntimeError, "Referral trust anchor does not match"
-          sia_base = referral.get("authorized_sia_base")
+        print "Found <authorization/> element, this looks like a referral"
+        referrer = etree_read(self.entitydb("pubclients", "%s.xml" % auth.get("referrer").replace("/",".")))
+        referrer = self.bpki_servers.fxcert(referrer.findtext("bpki_client_ta"))
+        referral = self.bpki_servers.cms_xml_verify(auth.text, referrer)
+        if not b64_equal(referral.text, client.findtext("bpki_ta")):
+          raise RuntimeError, "Referral trust anchor does not match"
+        sia_base = referral.get("authorized_sia_base")
 
-        except:
-          # Yes we need better handling than this
-          print "Couldn't process referral:"
-          raise
+      elif client.get("parent_handle") == self.handle:
+        print "Client claims to be our child, checking"
+        client_ta = client.findtext("bpki_ta")
+        assert client_ta
+        for child in self.entitydb.iterate("children", "*.xml"):
+          c = etree_read(child)
+          if b64_equal(c.findtext("bpki_child_ta"), client_ta):
+            sia_base = "rsync://%s/%s/%s/%s/" % (self.rsync_server, self.rsync_module,
+                                                 self.handle, client.get("handle"))
+            break
 
-      else:
-        sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, self.handle)
-        if c.get("handle") != self.handle:
-          sia_base += c.get("handle") + "/"
+    # If we still haven't figured out what to do with this client, it
+    # gets a top-level tree of its own, no attempt at nesting.
+
+    if sia_base is None:
+      print "Don't know where to nest this client, defaulting to top-level"
+      sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, client.get("handle"))
+      
+    assert sia_base.startswith("rsync://")
 
     client_handle = "/".join(sia_base.rstrip("/").split("/")[4:])
 
-    parent_handle = c.get("parent_handle")
+    parent_handle = client.get("parent_handle")
 
-    print "Client calls itself %r, we call it %r" % (c.get("handle"), client_handle)
+    print "Client calls itself %r, we call it %r" % (client.get("handle"), client_handle)
     print "Client says its parent handle is %r" % parent_handle
 
-    self.bpki_servers.fxcert(c.findtext("bpki_ta"))
+    self.bpki_servers.fxcert(client.findtext("bpki_ta"))
 
     e = Element("repository", type = "confirmed",
                 repository_handle = self.handle,
@@ -1133,7 +1143,7 @@ class main(rpki.cli.Cmd):
                                                            client_handle))
 
     PEMElement(e, "bpki_server_ta", self.bpki_servers.cer)
-    SubElement(e, "bpki_client_ta").text = c.findtext("bpki_ta")
+    SubElement(e, "bpki_client_ta").text = client.findtext("bpki_ta")
     SubElement(e, "contact_info").text = self.pubd_contact_info
     etree_write(e, self.entitydb("pubclients", "%s.xml" % client_handle.replace("/", ".")))
 

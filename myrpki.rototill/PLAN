@@ -375,7 +375,8 @@ was obscuring the code:
     #   checking that this really is a child of ours (ie, must be in
     #   entitydb/children).
     #
-    #   Detectable by handle being listed in entitydb/children.
+    #   Detectable by handle being listed in entitydb/children,
+    #   not to mention @parent_handle == self.handle.
     #
     # - Client is self, ie, entity that runs pubd is its own client.
     #   Trivial to check (handle and BPKI match).  This gets top-level

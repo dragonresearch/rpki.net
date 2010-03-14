@@ -77,12 +77,7 @@ parent_pdu = element parent {
   element bpki_child_ta { base64 },
   element repository {
     ((attribute type { "offer" }) |
-     (attribute type { "referral" },
-      element authorization {
-        attribute referrer { pubd_handle },
-        base64
-      },
-      element contact_info { xsd:string }))
+     (attribute type { "referral" }, authorization_elt, contact_info_elt))
   }?
 }
 
@@ -102,7 +97,7 @@ repository_pdu |= element repository {
 repository_pdu |= element repository {
   attribute version { version },
   attribute type { "request" },
-  attribute handle { pubd_handle },
+  attribute handle { object_handle },
   attribute parent_handle { object_handle },
   element bpki_ta { base64 },
   element contact_info { xsd:string }?,
@@ -115,7 +110,7 @@ repository_pdu |= element repository {
 repository_pdu |= element repository {
   attribute version { version },
   attribute type { "offer" },
-  attribute handle { pubd_handle },
+  attribute handle { object_handle },
   attribute parent_handle { object_handle },
   element bpki_ta { base64 }
 }
@@ -123,13 +118,10 @@ repository_pdu |= element repository {
 repository_pdu |= element repository {
   attribute version { version },
   attribute type { "referral" },
-  attribute handle { pubd_handle },
+  attribute handle { object_handle },
   attribute parent_handle { object_handle },
-  element authorization {
-    attribute referrer { pubd_handle },
-    base64
-  },
-  element contact_info { xsd:string }?,
+  authorization_elt,
+  contact_info_elt?,
   element bpki_ta { base64 }
 }
 
@@ -137,6 +129,16 @@ referral_pdu = element referral {
   attribute version { version },
   attribute authorized_sia_base { uri },
   base64
+}
+
+authorization_elt = element authorization {
+  attribute referrer { pubd_handle },
+  base64
+}
+
+contact_info_elt = element contact_info {
+  attribute uri { uri }?,
+  xsd:string
 }
 
 # Local Variables:

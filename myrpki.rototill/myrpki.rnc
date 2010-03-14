@@ -82,8 +82,8 @@ start |= element parent {
   element bpki_server_ta { base64 },
   element bpki_child_ta { base64 },
   element repository {
-    ((attribute type { "offer" }) |
-     (attribute type { "referral" }, authorization, contact_info))
+    (attribute type { "offer" }) |
+    (attribute type { "referral" }, authorization, contact_info)
   }?
 }
 
@@ -105,7 +105,7 @@ start |= element repository {
   attribute type { "request" },
   attribute handle { object_handle },
   attribute parent_handle { object_handle },
-  element bpki_ta { base64 },
+  element bpki_client_ta { base64 },
   authorization?,
   contact_info?
 }
@@ -115,7 +115,7 @@ start |= element repository {
   attribute type { "offer" },
   attribute handle { object_handle },
   attribute parent_handle { object_handle },
-  element bpki_ta { base64 }
+  element bpki_client_ta { base64 }
 }
 
 start |= element repository {
@@ -125,7 +125,7 @@ start |= element repository {
   attribute parent_handle { object_handle },
   authorization,
   contact_info?,
-  element bpki_ta { base64 }
+  element bpki_client_ta { base64 }
 }
 
 start |= element referral {

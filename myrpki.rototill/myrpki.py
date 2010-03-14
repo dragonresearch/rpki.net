@@ -938,7 +938,7 @@ class main(rpki.cli.Cmd):
 
     if self.run_pubd:
       e = Element("repository", type = "request", handle = self.handle, parent_handle = self.handle)
-      PEMElement(e, "bpki_ta", self.bpki_resources.cer)
+      PEMElement(e, "bpki_client_ta", self.bpki_resources.cer)
       SubElement(e, "contact_info").text = self.pubd_contact_info
       etree_write(e, self.entitydb("repositories", "%s.xml" % self.handle))
 
@@ -1064,7 +1064,7 @@ class main(rpki.cli.Cmd):
     if r is not None and r.get("type") in ("offer", "referral"):
       r.set("handle", self.handle)
       r.set("parent_handle", parent_handle)
-      PEMElement(r, "bpki_ta", self.bpki_resources.cer)
+      PEMElement(r, "bpki_client_ta", self.bpki_resources.cer)
       etree_write(r, self.entitydb("repositories", "%s.xml" % parent_handle))
 
     else:
@@ -1100,13 +1100,13 @@ class main(rpki.cli.Cmd):
         referrer = etree_read(self.entitydb("pubclients", "%s.xml" % auth.get("referrer").replace("/",".")))
         referrer = self.bpki_servers.fxcert(referrer.findtext("bpki_client_ta"))
         referral = self.bpki_servers.cms_xml_verify(auth.text, referrer)
-        if not b64_equal(referral.text, client.findtext("bpki_ta")):
+        if not b64_equal(referral.text, client.findtext("bpki_client_ta")):
           raise RuntimeError, "Referral trust anchor does not match"
         sia_base = referral.get("authorized_sia_base")
 
       elif client.get("parent_handle") == self.handle:
         print "Client claims to be our child, checking"
-        client_ta = client.findtext("bpki_ta")
+        client_ta = client.findtext("bpki_client_ta")
         assert client_ta
         for child in self.entitydb.iterate("children", "*.xml"):
           c = etree_read(child)
@@ -1131,7 +1131,7 @@ class main(rpki.cli.Cmd):
     print "Client calls itself %r, we call it %r" % (client.get("handle"), client_handle)
     print "Client says its parent handle is %r" % parent_handle
 
-    self.bpki_servers.fxcert(client.findtext("bpki_ta"))
+    self.bpki_servers.fxcert(client.findtext("bpki_client_ta"))
 
     e = Element("repository", type = "confirmed",
                 repository_handle = self.handle,
@@ -1143,7 +1143,7 @@ class main(rpki.cli.Cmd):
                                                            client_handle))
 
     PEMElement(e, "bpki_server_ta", self.bpki_servers.cer)
-    SubElement(e, "bpki_client_ta").text = client.findtext("bpki_ta")
+    SubElement(e, "bpki_client_ta").text = client.findtext("bpki_client_ta")
     SubElement(e, "contact_info").text = self.pubd_contact_info
     etree_write(e, self.entitydb("pubclients", "%s.xml" % client_handle.replace("/", ".")))
 

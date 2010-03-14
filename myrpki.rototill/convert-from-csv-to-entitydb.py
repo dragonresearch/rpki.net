@@ -88,7 +88,6 @@ if os.path.exists("parents.csv"):
                 client_handle = client_handle,
                 service_uri = "https://%s:%s/client/%s" % (pubd_server_host, pubd_server_port, client_handle),
                 sia_base = parent_sia_base,
-                repository_handle = client_handle.split("/")[0],
                 type = "confirmed")
     myrpki.PEMElement(e, "bpki_server_ta", repository_bpki_certificate)
     myrpki.PEMElement(e, "bpki_client_ta", bpki_resources_pemfile)
@@ -105,7 +104,6 @@ if os.path.exists("pubclients.csv"):
                 client_handle = client_handle,
                 service_uri = "https://%s:%s/client/%s" % (pubd_server_host, pubd_server_port, client_handle),
                 sia_base = client_sia_base,
-                repository_handle = client_handle.split("/")[0],
                 type = "confirmed")
     myrpki.PEMElement(e, "bpki_server_ta", bpki_servers_pemfile)
     myrpki.PEMElement(e, "bpki_client_ta", client_resource_pemfile)

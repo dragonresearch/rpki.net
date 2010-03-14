@@ -19,16 +19,6 @@ ipv4_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/.]*" }
 ipv6_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/:a-fA-F]*" }
 timestamp       = xsd:dateTime { pattern=".*Z" }
 
-authorization = element authorization {
-  attribute referrer { pubd_handle },
-  base64
-}
-
-contact_info = element contact_info {
-  attribute uri { uri }?,
-  xsd:string
-}
-
 start |= element myrpki {
   attribute version { version },
   attribute handle { object_handle },
@@ -72,6 +62,21 @@ start |= element identity {
   element bpki_ta { base64 }
 }
 
+authorization = element authorization {
+  attribute referrer { pubd_handle },
+  base64
+}
+
+contact_info = element contact_info {
+  attribute uri { uri }?,
+  xsd:string
+}
+
+repository_payload = (
+  (attribute type { "offer" }) |
+  (attribute type { "referral" }, authorization, contact_info)
+)
+
 start |= element parent {
   attribute version { version },
   attribute valid_until { timestamp },
@@ -81,10 +86,15 @@ start |= element parent {
   element bpki_resource_ta { base64 },
   element bpki_server_ta { base64 },
   element bpki_child_ta { base64 },
-  element repository {
-    (attribute type { "offer" }) |
-    (attribute type { "referral" }, authorization, contact_info)
-  }?
+  element repository { repository_payload }?
+}
+
+start |= element repository {
+  attribute version { version },
+  attribute handle { object_handle },
+  attribute parent_handle { object_handle },
+  repository_payload,
+  element bpki_client_ta { base64 }
 }
 
 start |= element repository {
@@ -94,28 +104,9 @@ start |= element repository {
   attribute client_handle { pubd_handle },
   attribute service_uri { uri },
   attribute sia_base { uri },
-  attribute repository_handle { object_handle },
   element bpki_server_ta { base64 },
   element bpki_client_ta { base64 },
   contact_info?
-}
-
-start |= element repository {
-  attribute version { version },
-  attribute type { "offer" },
-  attribute handle { object_handle },
-  attribute parent_handle { object_handle },
-  element bpki_client_ta { base64 }
-}
-
-start |= element repository {
-  attribute version { version },
-  attribute type { "referral" },
-  attribute handle { object_handle },
-  attribute parent_handle { object_handle },
-  authorization,
-  contact_info?,
-  element bpki_client_ta { base64 }
 }
 
 start |= element referral {

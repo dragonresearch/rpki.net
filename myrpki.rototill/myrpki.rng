@@ -59,24 +59,6 @@
       <param name="pattern">.*Z</param>
     </data>
   </define>
-  <define name="authorization">
-    <element name="authorization">
-      <attribute name="referrer">
-        <ref name="pubd_handle"/>
-      </attribute>
-      <ref name="base64"/>
-    </element>
-  </define>
-  <define name="contact_info">
-    <element name="contact_info">
-      <optional>
-        <attribute name="uri">
-          <ref name="uri"/>
-        </attribute>
-      </optional>
-      <data type="string"/>
-    </element>
-  </define>
   <start combine="choice">
     <element name="myrpki">
       <attribute name="version">
@@ -222,6 +204,38 @@
       </element>
     </element>
   </start>
+  <define name="authorization">
+    <element name="authorization">
+      <attribute name="referrer">
+        <ref name="pubd_handle"/>
+      </attribute>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="contact_info">
+    <element name="contact_info">
+      <optional>
+        <attribute name="uri">
+          <ref name="uri"/>
+        </attribute>
+      </optional>
+      <data type="string"/>
+    </element>
+  </define>
+  <define name="repository_payload">
+    <choice>
+      <attribute name="type">
+        <value>offer</value>
+      </attribute>
+      <group>
+        <attribute name="type">
+          <value>referral</value>
+        </attribute>
+        <ref name="authorization"/>
+        <ref name="contact_info"/>
+      </group>
+    </choice>
+  </define>
   <start combine="choice">
     <element name="parent">
       <attribute name="version">
@@ -252,20 +266,26 @@
       </element>
       <optional>
         <element name="repository">
-          <choice>
-            <attribute name="type">
-              <value>offer</value>
-            </attribute>
-            <group>
-              <attribute name="type">
-                <value>referral</value>
-              </attribute>
-              <ref name="authorization"/>
-              <ref name="contact_info"/>
-            </group>
-          </choice>
+          <ref name="repository_payload"/>
         </element>
       </optional>
+    </element>
+  </start>
+  <start combine="choice">
+    <element name="repository">
+      <attribute name="version">
+        <ref name="version"/>
+      </attribute>
+      <attribute name="handle">
+        <ref name="object_handle"/>
+      </attribute>
+      <attribute name="parent_handle">
+        <ref name="object_handle"/>
+      </attribute>
+      <ref name="repository_payload"/>
+      <element name="bpki_client_ta">
+        <ref name="base64"/>
+      </element>
     </element>
   </start>
   <start combine="choice">
@@ -288,9 +308,6 @@
       <attribute name="sia_base">
         <ref name="uri"/>
       </attribute>
-      <attribute name="repository_handle">
-        <ref name="object_handle"/>
-      </attribute>
       <element name="bpki_server_ta">
         <ref name="base64"/>
       </element>
@@ -300,48 +317,6 @@
       <optional>
         <ref name="contact_info"/>
       </optional>
-    </element>
-  </start>
-  <start combine="choice">
-    <element name="repository">
-      <attribute name="version">
-        <ref name="version"/>
-      </attribute>
-      <attribute name="type">
-        <value>offer</value>
-      </attribute>
-      <attribute name="handle">
-        <ref name="object_handle"/>
-      </attribute>
-      <attribute name="parent_handle">
-        <ref name="object_handle"/>
-      </attribute>
-      <element name="bpki_client_ta">
-        <ref name="base64"/>
-      </element>
-    </element>
-  </start>
-  <start combine="choice">
-    <element name="repository">
-      <attribute name="version">
-        <ref name="version"/>
-      </attribute>
-      <attribute name="type">
-        <value>referral</value>
-      </attribute>
-      <attribute name="handle">
-        <ref name="object_handle"/>
-      </attribute>
-      <attribute name="parent_handle">
-        <ref name="object_handle"/>
-      </attribute>
-      <ref name="authorization"/>
-      <optional>
-        <ref name="contact_info"/>
-      </optional>
-      <element name="bpki_client_ta">
-        <ref name="base64"/>
-      </element>
     </element>
   </start>
   <start combine="choice">

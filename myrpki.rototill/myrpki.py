@@ -1132,7 +1132,6 @@ class main(rpki.cli.Cmd):
     self.bpki_servers.fxcert(client.findtext("bpki_client_ta"))
 
     e = Element("repository", type = "confirmed",
-                repository_handle = self.handle,
                 client_handle = client_handle,
                 parent_handle = parent_handle,
                 sia_base = sia_base,
@@ -1165,7 +1164,7 @@ class main(rpki.cli.Cmd):
 
     parent_handle = r.get("parent_handle")
 
-    print "Repository calls itself %r, calls us %r" % (r.get("repository_handle"), r.get("client_handle"))
+    print "Repository calls us %r" % (r.get("client_handle"))
     print "Repository response associated with parent_handle %r" % parent_handle
 
     etree_write(r, self.entitydb("repositories", "%s.xml" % parent_handle))

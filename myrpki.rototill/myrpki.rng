@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: myrpki.rnc 3086 2010-03-14 08:52:31Z sra $
+  $Id: myrpki.rnc 3088 2010-03-14 17:41:58Z sra $
   
   RelaxNG Schema for MyRPKI XML messages
   
@@ -316,7 +316,7 @@
       <attribute name="parent_handle">
         <ref name="object_handle"/>
       </attribute>
-      <element name="bpki_ta">
+      <element name="bpki_client_ta">
         <ref name="base64"/>
       </element>
       <optional>
@@ -341,7 +341,7 @@
       <attribute name="parent_handle">
         <ref name="object_handle"/>
       </attribute>
-      <element name="bpki_ta">
+      <element name="bpki_client_ta">
         <ref name="base64"/>
       </element>
     </element>
@@ -364,7 +364,7 @@
       <optional>
         <ref name="contact_info"/>
       </optional>
-      <element name="bpki_ta">
+      <element name="bpki_client_ta">
         <ref name="base64"/>
       </element>
     </element>

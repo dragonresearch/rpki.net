@@ -106,6 +106,7 @@ start |= element repository {
   attribute sia_base { uri },
   element bpki_server_ta { base64 },
   element bpki_client_ta { base64 },
+  authorization?,
   contact_info?
 }
 

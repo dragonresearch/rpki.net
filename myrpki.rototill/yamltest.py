@@ -379,42 +379,42 @@ class allocation(object):
 
     host = self.hosted_by if self.is_hosted() else self
 
-    r = { ("myrpki", "handle")    : self.name,
-          ("myrpki", "run_pubd")  : str(self.runs_pubd()),
-          ("myrpki", "run_rootd") : str(self.is_root()),
-          ("myrpki", "openssl")   : prog_openssl }
+    r = { "handle"    : self.name,
+          "run_pubd"  : str(self.runs_pubd()),
+          "run_rootd" : str(self.is_root()),
+          "openssl"   : prog_openssl }
 
     if not self.is_hosted():
-      r["myrpki", "irdbd_sql_database"] = "irdb%d" % self.engine
-      r["myrpki", "rpkid_sql_database"] = "rpki%d" % self.engine
-      r["myrpki", "rpkid_server_host"] = "localhost"
-      r["myrpki", "rpkid_server_port"] = str(self.rpkid_port)
-      r["myrpki", "irdbd_server_host"] = "localhost"
-      r["myrpki", "irdbd_server_port"] = str(self.irdbd_port)
+      r["irdbd_sql_database"] = "irdb%d" % self.engine
+      r["rpkid_sql_database"] = "rpki%d" % self.engine
+      r["rpkid_server_host"] = "localhost"
+      r["rpkid_server_port"] = str(self.rpkid_port)
+      r["irdbd_server_host"] = "localhost"
+      r["irdbd_server_port"] = str(self.irdbd_port)
 
     if self.is_root():
-      r["myrpki", "rootd_server_port"] = str(self.rootd_port)
+      r["rootd_server_port"] = str(self.rootd_port)
 
     if self.runs_pubd():
-      r["myrpki", "pubd_sql_database"] = "pubd%d" % self.engine
+      r["pubd_sql_database"] = "pubd%d" % self.engine
 
     s = self.find_pubd()
-    r["myrpki", "pubd_server_host"] = "localhost"
-    r["myrpki", "pubd_server_port"] = str(s.pubd_port)
-    r["myrpki", "publication_rsync_server"] = "localhost:%s" % s.rsync_port
+    r["pubd_server_host"] = "localhost"
+    r["pubd_server_port"] = str(s.pubd_port)
+    r["publication_rsync_server"] = "localhost:%s" % s.rsync_port
 
     if rpkid_password:
-      r["myrpki", "rpkid_sql_password"] = rpkid_password
+      r["rpkid_sql_password"] = rpkid_password
     if rpkid_username:
-      r["myrpki", "rpkid_sql_username"] = rpkid_username
+      r["rpkid_sql_username"] = rpkid_username
     if irdbd_password:
-      r["myrpki", "irdbd_sql_password"] = irdbd_password
+      r["irdbd_sql_password"] = irdbd_password
     if irdbd_username:
-      r["myrpki", "irdbd_sql_username"] = irdbd_username
+      r["irdbd_sql_username"] = irdbd_username
     if pubd_password:
-      r["myrpki", "pubd_sql_password"]  = pubd_password
+      r["pubd_sql_password"]  = pubd_password
     if pubd_username:
-      r["myrpki", "pubd_sql_username"]  = pubd_username
+      r["pubd_sql_username"]  = pubd_username
 
     f = open(self.path(fn), "w")
     f.write("# Automatically generated, do not edit\n")
@@ -422,20 +422,13 @@ class allocation(object):
 
     section = None
     for line in open("examples/myrpki.conf"):
-      if not line.strip() or line.lstrip().startswith("#"):
-        continue
       m = section_regexp.match(line)
       if m:
         section = m.group(1)
-      if (section is None or
-          (self.is_hosted() and section in ("myirbe", "rpkid", "irdbd")) or
-          (not self.runs_pubd() and section == "pubd") or
-          (not self.is_root() and section in ("rootd", "rootd_x509_extensions"))):
-        continue
-      m = variable_regexp.match(line) if m is None else None
-      variable = m.group(1) if m else None
-      if (section, variable) in r:
-        line = variable + " = " +  r[section, variable] + "\n"
+      m = variable_regexp.match(line)
+      option = m.group(1) if m and section == "myrpki" else None
+      if option and option in r:
+        line = "%s = %s\n" % (option, r[option])
       f.write(line)
 
     f.close()

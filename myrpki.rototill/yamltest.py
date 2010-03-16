@@ -385,8 +385,8 @@ class allocation(object):
           ("myrpki", "openssl")   : prog_openssl }
 
     if not self.is_hosted():
-      r["irdbd", "sql-database"] = "irdb%d" % self.engine
-      r["rpkid", "sql-database"] = "rpki%d" % self.engine
+      r["myrpki", "irdbd_sql_database"] = "irdb%d" % self.engine
+      r["myrpki", "rpkid_sql_database"] = "rpki%d" % self.engine
       r["myrpki", "rpkid_server_host"] = "localhost"
       r["myrpki", "rpkid_server_port"] = str(self.rpkid_port)
       r["myrpki", "irdbd_server_host"] = "localhost"
@@ -396,7 +396,7 @@ class allocation(object):
       r["myrpki", "rootd_server_port"] = str(self.rootd_port)
 
     if self.runs_pubd():
-      r["pubd", "sql-database"] = "pubd%d" % self.engine
+      r["myrpki", "pubd_sql_database"] = "pubd%d" % self.engine
 
     s = self.find_pubd()
     r["myrpki", "pubd_server_host"] = "localhost"
@@ -404,13 +404,17 @@ class allocation(object):
     r["myrpki", "publication_rsync_server"] = "localhost:%s" % s.rsync_port
 
     if rpkid_password:
-      r["rpkid", "sql-password"] = rpkid_password
-
+      r["myrpki", "rpkid_sql_password"] = rpkid_password
+    if rpkid_username:
+      r["myrpki", "rpkid_sql_username"] = rpkid_username
     if irdbd_password:
-      r["irdbd", "sql-password"] = irdbd_password
-
+      r["myrpki", "irdbd_sql_password"] = irdbd_password
+    if irdbd_username:
+      r["myrpki", "irdbd_sql_username"] = irdbd_username
     if pubd_password:
-      r["pubd", "sql-password"]  = pubd_password
+      r["myrpki", "pubd_sql_password"]  = pubd_password
+    if pubd_username:
+      r["myrpki", "pubd_sql_username"]  = pubd_username
 
     f = open(self.path(fn), "w")
     f.write("# Automatically generated, do not edit\n")
@@ -575,9 +579,15 @@ try:
     rpkid_password = cfg.get("rpkid_db_pass")
     irdbd_password = cfg.get("irdbd_db_pass")
     pubd_password  = cfg.get("pubd_db_pass")
+    rpkid_username = cfg.get("rpkid_db_user")
+    irdbd_username = cfg.get("irdbd_db_user")
+    pubd_username  = cfg.get("pubd_db_user")
     only_one_pubd  = cfg.getboolean("only_one_pubd", True)
     prog_openssl   = cfg.get("openssl", prog_openssl)
   except:
+    rpkid_username = None
+    irdbd_username = None
+    pubd_username  = None
     rpkid_password = None
     irdbd_password = None
     pubd_password  = None

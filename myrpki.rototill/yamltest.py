@@ -15,7 +15,7 @@ Still to do:
 
 $Id$
 
-Copyright (C) 2009  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -157,11 +157,11 @@ class allocation(object):
   of rpkid, irdbd, and pubd, so they also need myirbe services.
   """
 
-  parent       = None
-  crl_interval = None
-  regen_margin = None
-
-  base_port = 4400
+  base_port     = 4400
+  parent        = None
+  crl_interval  = None
+  regen_margin  = None
+  rootd_port    = None
 
   @classmethod
   def allocate_port(cls):
@@ -377,44 +377,25 @@ class allocation(object):
     Write configuration file for OpenSSL and RPKI tools.
     """
 
-    host = self.hosted_by if self.is_hosted() else self
-
-    r = { "handle"    : self.name,
-          "run_pubd"  : str(self.runs_pubd()),
-          "run_rootd" : str(self.is_root()),
-          "openssl"   : prog_openssl }
-
-    if not self.is_hosted():
-      r["irdbd_sql_database"] = "irdb%d" % self.engine
-      r["rpkid_sql_database"] = "rpki%d" % self.engine
-      r["rpkid_server_host"] = "localhost"
-      r["rpkid_server_port"] = str(self.rpkid_port)
-      r["irdbd_server_host"] = "localhost"
-      r["irdbd_server_port"] = str(self.irdbd_port)
-
-    if self.is_root():
-      r["rootd_server_port"] = str(self.rootd_port)
-
-    if self.runs_pubd():
-      r["pubd_sql_database"] = "pubd%d" % self.engine
-
     s = self.find_pubd()
-    r["pubd_server_host"] = "localhost"
-    r["pubd_server_port"] = str(s.pubd_port)
-    r["publication_rsync_server"] = "localhost:%s" % s.rsync_port
 
-    if rpkid_password:
-      r["rpkid_sql_password"] = rpkid_password
-    if rpkid_username:
-      r["rpkid_sql_username"] = rpkid_username
-    if irdbd_password:
-      r["irdbd_sql_password"] = irdbd_password
-    if irdbd_username:
-      r["irdbd_sql_username"] = irdbd_username
-    if pubd_password:
-      r["pubd_sql_password"]  = pubd_password
-    if pubd_username:
-      r["pubd_sql_username"]  = pubd_username
+    r = { "handle"              : self.name,
+          "run_pubd"            : str(self.runs_pubd()),
+          "run_rootd"           : str(self.is_root()),
+          "openssl"             : prog_openssl,
+          "irdbd_sql_database"  : "irdb%d" % self.engine,
+          "rpkid_sql_database"  : "rpki%d" % self.engine,
+          "rpkid_server_host"   : "localhost",
+          "rpkid_server_port"   : str(self.rpkid_port),
+          "irdbd_server_host"   : "localhost",
+          "irdbd_server_port"   : str(self.irdbd_port),
+          "rootd_server_port"   : str(self.rootd_port),
+          "pubd_sql_database"   : "pubd%d" % self.engine,
+          "pubd_server_host"    : "localhost",
+          "pubd_server_port"    : str(s.pubd_port),
+          "publication_rsync_server" : "localhost:%s" % s.rsync_port }
+
+    r.update(config_overrides)
 
     f = open(self.path(fn), "w")
     f.write("# Automatically generated, do not edit\n")
@@ -567,24 +548,16 @@ try:
   # passwords: this is mostly so that I can show a complete working
   # example without publishing my own server's passwords.
 
-  try:
-    cfg = rpki.config.parser(cfg_file, "yamltest")
-    rpkid_password = cfg.get("rpkid_db_pass")
-    irdbd_password = cfg.get("irdbd_db_pass")
-    pubd_password  = cfg.get("pubd_db_pass")
-    rpkid_username = cfg.get("rpkid_db_user")
-    irdbd_username = cfg.get("irdbd_db_user")
-    pubd_username  = cfg.get("pubd_db_user")
-    only_one_pubd  = cfg.getboolean("only_one_pubd", True)
-    prog_openssl   = cfg.get("openssl", prog_openssl)
-  except:
-    rpkid_username = None
-    irdbd_username = None
-    pubd_username  = None
-    rpkid_password = None
-    irdbd_password = None
-    pubd_password  = None
-    only_one_pubd  = True
+  cfg = rpki.config.parser(cfg_file, "yamltest", allow_missing = True)
+
+  only_one_pubd = cfg.getboolean("only_one_pubd", True)
+  prog_openssl  = cfg.get("openssl", prog_openssl)
+
+  config_overrides = dict(
+    (k, cfg.get(k))
+    for k in ("rpkid_sql_password", "irdbd_sql_password", "pubd_sql_password",
+              "rpkid_sql_username", "irdbd_sql_username", "pubd_sql_username")
+    if cfg.has_option(k))
 
   # Start clean
 

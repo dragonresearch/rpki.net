@@ -3,7 +3,7 @@ Dump backup copies of SQL tables used by these programs.
 
 $Id$
 
-Copyright (C) 2009  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -18,18 +18,15 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import subprocess, ConfigParser
+import subprocess, rpki.config
 
-cfg = ConfigParser.RawConfigParser()
-cfg.read("yamltest.conf")
+cfg = rpki.config.parser("yamltest.conf", "yamltest")
 
 for name in ("rpkid", "irdbd", "pubd"):
 
-  try:
-    passwd = cfg.get("yamltest", "%s_db_pass" % name)
-  except:
-    passwd = "fnord"
+  username = cfg.get("%s_sql_username" % name, name[:4])
+  password = cfg.get("%s_sql_password" % name, "fnord")
 
-  cmd = ["mysqldump", "-u", name[:4], "-p" + passwd, "--databases", name[:4]]
+  cmd = ["mysqldump", "-u", username, "-p" + password, "--databases", name[:4]]
   cmd.extend("%s%d" % (name[:4], i) for i in xrange(12))
   subprocess.check_call(cmd, stdout = open("backup.%s.sql" % name, "w"))

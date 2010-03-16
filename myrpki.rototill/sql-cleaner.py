@@ -3,7 +3,7 @@
 
 $Id$
 
-Copyright (C) 2009  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -18,21 +18,18 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import subprocess, ConfigParser
+import subprocess, rpki.config
 
-cfg = ConfigParser.RawConfigParser()
-cfg.read("yamltest.conf")
+cfg = rpki.config.parser("yamltest.conf", "yamltest")
 
 for name in ("rpkid", "irdbd", "pubd"):
 
-  try:
-    passwd = cfg.get("yamltest", "%s_db_pass" % name)
-  except:
-    passwd = "fnord"
+  username = cfg.get("%s_sql_username" % name, name[:4])
+  password = cfg.get("%s_sql_password" % name, "fnord")
 
-  dbs = [name[:4]]
-  dbs.extend("%s%d" % (name[:4], i) for i in xrange(12))
+  databases = [name[:4]]
+  databases.extend("%s%d" % (name[:4], i) for i in xrange(12))
 
-  for db in dbs:
-    subprocess.check_call(("mysql", "-u", name[:4], "-p" + passwd, db),
+  for db in databases:
+    subprocess.check_call(("mysql", "-u", username, "-p" + password, db),
                           stdin = open("../rpkid/%s.sql" % name))

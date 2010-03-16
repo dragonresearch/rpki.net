@@ -60,6 +60,20 @@ default_server_timeout = rpki.sundial.timedelta(minutes = 20)
 
 default_http_version = (1, 0)
 
+# IP address families to support.  Almost all the code is in place for
+# IPv6, the missing bits are DNS support that would let us figure out
+# which address family to request, and configuration support to let us
+# figure out which protocols are supported on the local machine.  For
+# now, leave code in place but disabled.
+#
+# Address families on which to listen; first entry is also the default
+# for opening new connections.
+
+if False:
+  supported_address_families = (socket.AF_INET, socket.AF_INET6)
+else:
+  supported_address_families = (socket.AF_INET,)
+
 class http_message(object):
 
   software_name = "ISC RPKI library"
@@ -481,7 +495,7 @@ class http_listener(asyncore.dispatcher):
 
   log = log_method
 
-  def __init__(self, handlers, port = 80, host = "", cert = None, key = None, ta = None, dynamic_ta = None):
+  def __init__(self, handlers, port = 80, host = "", cert = None, key = None, ta = None, dynamic_ta = None, af = supported_address_families[0]):
     self.log("Listener cert %r key %r ta %r dynamic_ta %r" % (cert, key, ta, dynamic_ta))
     asyncore.dispatcher.__init__(self)
     self.handlers = handlers
@@ -490,7 +504,7 @@ class http_listener(asyncore.dispatcher):
     self.ta = ta
     self.dynamic_ta = dynamic_ta
     try:
-      self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+      self.create_socket(af, socket.SOCK_STREAM)
       self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
       if hasattr(socket, "SO_REUSEPORT"):
         self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
@@ -525,7 +539,7 @@ class http_client(http_stream):
 
   timeout = default_client_timeout
 
-  def __init__(self, queue, hostport, cert = None, key = None, ta = ()):
+  def __init__(self, queue, hostport, cert = None, key = None, ta = (), af = supported_address_families[0]):
     self.log("Creating new connection to %r" % (hostport,))
     self.log("cert %r key %r ta %r" % (cert, key, ta))
     http_stream.__init__(self)
@@ -536,10 +550,11 @@ class http_client(http_stream):
     self.cert = cert
     self.key = key
     self.ta = rpki.x509.X509.normalize_chain(ta)
+    self.af = af
 
   def start(self):
     try:
-      self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+      self.create_socket(self.af, socket.SOCK_STREAM)
       self.connect(self.hostport)
     except (rpki.async.ExitNow, SystemExit):
       raise
@@ -752,7 +767,7 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback):
     rpki.log.debug("Scheduling connection startup for %r" % request)
   rpki.async.defer(client_queues[hostport].restart)
 
-def server(handlers, server_key, server_cert, port, host ="", client_ta = (), dynamic_https_trust_anchor = None):
+def server(handlers, server_key, server_cert, port, host ="", client_ta = (), dynamic_https_trust_anchor = None, address_families = supported_address_families):
   """
   Run an HTTPS server and wait (forever) for connections.
   """
@@ -763,7 +778,8 @@ def server(handlers, server_key, server_cert, port, host ="", client_ta = (), dy
   if not isinstance(client_ta, (tuple, list)):
     server_ta = (client_ta,)
 
-  http_listener(port = port, host = host, handlers = handlers, cert = server_cert, key = server_key, ta = client_ta, dynamic_ta = dynamic_https_trust_anchor)
+  for af in address_families:
+    http_listener(port = port, host = host, handlers = handlers, cert = server_cert, key = server_key, ta = client_ta, dynamic_ta = dynamic_https_trust_anchor, af = af)
   rpki.async.event_loop()
 
 def build_https_ta_cache(certs):

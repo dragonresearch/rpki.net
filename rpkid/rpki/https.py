@@ -763,7 +763,7 @@ def server(handlers, server_key, server_cert, port, host ="", client_ta = (), dy
   if not isinstance(client_ta, (tuple, list)):
     server_ta = (client_ta,)
 
-  http_listener(port = port, handlers = handlers, cert = server_cert, key = server_key, ta = client_ta, dynamic_ta = dynamic_https_trust_anchor)
+  http_listener(port = port, host = host, handlers = handlers, cert = server_cert, key = server_key, ta = client_ta, dynamic_ta = dynamic_https_trust_anchor)
   rpki.async.event_loop()
 
 def build_https_ta_cache(certs):

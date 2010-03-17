@@ -162,6 +162,12 @@ class allocation(object):
   crl_interval  = None
   regen_margin  = None
   rootd_port    = None
+  engine        = -1
+  rpkid_port    = -1
+  irdbd_port    = -1
+  pubd_port     = -1
+  rsync_port    = -1
+  rootd_port    = -1
 
   @classmethod
   def allocate_port(cls):

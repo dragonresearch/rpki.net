@@ -389,6 +389,37 @@ rpkid-running side of your operation.  This is essentially the
 pure-hosting model, just with an internal hosted entity within a
 different part of your own organization.
 
+UPGRADING FROM OLD MYRPKI TOOLS
+
+There's a script that attempts to upgrade from the previous version of
+the myrpki tools (myirbe scripts, parents.csv file, etcetera).  The
+conversion script is not well tested, so taking a backup FIRST is
+STRONGLY recommended.  The script attempts to read all the necessary
+settings out of your old myrpki.conf file and the obsolete
+{parents,children,pubclients}.csv files, and writes out a new
+configuration file (myrpki.conf.new) and a set of "entitydb" files
+(the local XML database used by the current myrpki program).  To use
+the conversion script, just run
+
+$ python convert-from-csv-to-entitydb.py
+
+with no arguments in the directory where your old myrpki.conf and .csv
+files reside.  See the script itself for available command line
+options, most of which override various filenames.
+
+Note that the conversion script will not rename existing BPKI
+directories to the new convention (./bpki/{resources,servers}/),
+instead it will write out myrpki.conf.new using the old directory
+names (./bpki.{myrpki,myirbe}/); if you want to switch to the new
+convention, move the directories yourself and edit the .conf file to
+match.  The script does not delete any of the old files, so you'll
+want to clean up yourself after you're sure the conversion worked.
+
+Be warned that the old file format contains less information than the
+new XML files do, so in some cases the conversion script is just
+making stuff up as best it can.  In theory, the cases where it has to
+do this will not matter, but this has not been tested yet.
+
 TROUBLESHOOTING
 
 If you run into trouble setting up this package, the first thing to do

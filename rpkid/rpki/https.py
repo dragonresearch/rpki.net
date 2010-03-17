@@ -645,9 +645,11 @@ class http_client(http_stream):
     self.queue.detach(self)
 
   def handle_error(self):
+    eclass, edata = sys.exc_info()[0:2]
+    self.log("Error on HTTP client connection %r: %s %s" % (self.hostport, eclass, edata), rpki.log.warn)
     http_stream.handle_error(self)
     self.queue.detach(self)
-    self.queue.return_result(sys.exc_info()[1])
+    self.queue.return_result(edata)
 
 class http_queue(object):
 

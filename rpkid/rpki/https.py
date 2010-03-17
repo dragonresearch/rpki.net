@@ -815,17 +815,23 @@ class caller(object):
   def __call__(self, cb, eb, *pdus):
 
     def done(cms):
-      msg, xml = self.proto.cms_msg.unwrap(cms, (self.server_ta, self.server_cert), pretty_print = True)
+      result = self.proto.cms_msg.unwrap(cms, (self.server_ta, self.server_cert), pretty_print = self.debug)
       if self.debug:
+        msg, xml = result
         print "<!-- Reply -->"
         print xml
+      else:
+        msg = result
       cb(msg)
 
     msg = self.proto.msg.query(*pdus)
-    cms, xml = self.proto.cms_msg.wrap(msg, self.client_key, self.client_cert, pretty_print = True)
+    result = self.proto.cms_msg.wrap(msg, self.client_key, self.client_cert, pretty_print = self.debug)
     if self.debug:
+      cms, xml = result
       print "<!-- Query -->"
       print xml
+    else:
+      cms = result
 
     client(
       client_key   = self.client_key,

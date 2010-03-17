@@ -1273,7 +1273,7 @@ class main(rpki.cli.Cmd):
 
     try:
       import rpki.https, rpki.resource_set, rpki.relaxng, rpki.exceptions
-      import rpki.left_right, rpki.x509, rpki.async
+      import rpki.left_right, rpki.x509, rpki.async, lxml.etree
       if hasattr(warnings, "catch_warnings"):
         with warnings.catch_warnings():
           warnings.simplefilter("ignore", DeprecationWarning)
@@ -1629,19 +1629,35 @@ class main(rpki.cli.Cmd):
 
       # If we changed anything, ship updates off to daemons
 
+      failed = False
+
       if rpkid_query:
         rpkid_reply = call_rpkid(*rpkid_query)
         bsc_pdus = dict((x.bsc_handle, x) for x in rpkid_reply if isinstance(x, rpki.left_right.bsc_elt))
         if bsc_handle in bsc_pdus and bsc_pdus[bsc_handle].pkcs10_request:
           bsc_req = bsc_pdus[bsc_handle].pkcs10_request
         for r in rpkid_reply:
-          assert not isinstance(r, rpki.left_right.report_error_elt)
+          if isinstance(r, rpki.left_right.report_error_elt):
+            failed = True
+            print "rpkid reported failure:"
+            # Probably ought to do something kinder than dumping raw XML, later.
+            print lxml.etree.tostring(r, pretty_print = True, encoding = "us-ascii")
+
+      if failed:
+        raise RuntimeError
 
       if pubd_query:
         assert self.run_pubd
         pubd_reply = call_pubd(*pubd_query)
         for r in pubd_reply:
-          assert not isinstance(r, rpki.publication.report_error_elt)
+          if isinstance(r, rpki.publication.report_error_elt):
+            failed = True
+            print "pubd reported failure:"
+            # Probably ought to do something kinder than dumping raw XML, later.
+            print lxml.etree.tostring(r, pretty_print = True, encoding = "us-ascii")
+            
+      if failed:
+        raise RuntimeError
 
       # Rewrite XML.
 

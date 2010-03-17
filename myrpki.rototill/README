@@ -393,10 +393,10 @@ UPGRADING FROM OLD MYRPKI TOOLS
 
 There's a script that attempts to upgrade from the previous version of
 the myrpki tools (myirbe scripts, parents.csv file, etcetera).  The
-conversion script is not well tested, so taking a backup FIRST is
-STRONGLY recommended.  The script attempts to read all the necessary
-settings out of your old myrpki.conf file and the obsolete
-{parents,children,pubclients}.csv files, and writes out a new
+conversion script is not well tested, so taking a backup (including an
+SQL dump) FIRST is STRONGLY recommended.  The script attempts to read
+all the necessary settings out of your old myrpki.conf file and the
+obsolete {parents,children,pubclients}.csv files, and writes out a new
 configuration file (myrpki.conf.new) and a set of "entitydb" files
 (the local XML database used by the current myrpki program).  To use
 the conversion script, just run

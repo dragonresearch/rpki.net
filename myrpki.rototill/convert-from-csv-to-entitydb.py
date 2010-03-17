@@ -208,7 +208,7 @@ if os.path.exists(parents_csv):
 if os.path.exists(pubclients_csv):
   for client_handle, client_resource_pemfile, client_sia_base in myrpki.csv_open(pubclients_csv):
 
-    parent_handle = client_handle.split("/")[-1]
+    parent_handle = client_handle.split("/")[-2] if "/" in client_handle else handle
 
     e = Element("repository",
                 parent_handle = parent_handle,

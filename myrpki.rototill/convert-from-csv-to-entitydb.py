@@ -18,8 +18,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import subprocess, csv, re, os, getopt, sys, ConfigParser, base64, urlparse
-import rpki.sundial, myrpki
+import subprocess, csv, re, os, getopt, sys, base64, urlparse
+import rpki.sundial, myrpki, rpki.config
 
 from lxml.etree import Element, SubElement, ElementTree
 
@@ -53,13 +53,16 @@ if new_cfg_file is None:
 if os.path.exists(new_cfg_file):
   raise RuntimeError, "%s already exists, NOT overwriting" % new_cfg_file
 
-cfg = ConfigParser.RawConfigParser()
-cfg.readfp(open(cfg_file))
+cfg = rpki.config.parser(cfg_file)
 
-# These two have no counterpart in new config file, just read them from old
+# These have no counterparts in new config file, just read them from old
 
-repository_bpki_certificate = cfg.get("myrpki", "repository_bpki_certificate")
-repository_handle           = cfg.get("myrpki", "repository_handle")
+repository_bpki_certificate = cfg.get(option = "repository_bpki_certificate", section = "myrpki")
+repository_handle           = cfg.get(option = "repository_handle", section = "myrpki")
+parents_csv                 = cfg.get(option = "parents_csv", section = "myrpki", default = "parents.csv")
+children_csv                = cfg.get(option = "children_csv", section = "myrpki", default = "children.csv")
+pubclients_csv              = cfg.get(option = "pubclients_csv", section = "myrpki", default = "pubclients.csv")
+pubd_base                   = cfg.get(option = "pubd_base", section = "myirbe")
 
 # Here we need to construct values for the new config file from the
 # old one.  Basic model here is to look at whatever variables need to
@@ -73,41 +76,41 @@ r = {}
 
 if cfg.has_section("myrpki"):
   for i in ("handle", "roa_csv", "prefix_csv", "asn_csv", "xml_filename"):
-    r["myrpki", i] = cfg.get("myrpki", i)
-  r["myrpki", "bpki_resources_directory"] = cfg.get("myrpki", "bpki_directory")
+    r["myrpki", i] = cfg.get(section = "myrpki", option = i)
+  r["myrpki", "bpki_resources_directory"] = cfg.get(option = "bpki_directory", section = "myrpki")
 
 if cfg.has_section("myirbe"):
-  r["myrpki", "bpki_servers_directory"] = cfg.get("myirbe", "bpki_directory")
+  r["myrpki", "bpki_servers_directory"] = cfg.get(option = "bpki_directory", section = "myirbe")
   r["myrpki", "run_rpkid"]              = True
-  r["myrpki", "run_pubd"]               = cfg.has_option("myirbe", "want_pubd")  and cfg.getboolean("myirbe", "want_pubd")
-  r["myrpki", "run_rootd"]              = cfg.has_option("myirbe", "want_rootd") and cfg.getboolean("myirbe", "want_rootd")
+  r["myrpki", "run_pubd"]               = cfg.getboolean(option = "want_pubd",  section = "myirbe", default = False)
+  r["myrpki", "run_rootd"]              = cfg.getboolean(option = "want_rootd", section = "myirbe", default = False)
 else:
   for i in ("run_rpkid", "run_pubd", "run_rootd"):
     r["myrpki", i] = False
 
 if cfg.has_section("rpkid"):
-  r["myrpki", "rpkid_server_host"] = cfg.get("rpkid", "server-host")
-  r["myrpki", "rpkid_server_port"] = cfg.get("rpkid", "server-port")
+  r["myrpki", "rpkid_server_host"] = cfg.get(option = "server-host", section = "rpkid")
+  r["myrpki", "rpkid_server_port"] = cfg.get(option = "server-port", section = "rpkid")
 
 if cfg.has_section("irdbd"):
-  u = urlparse.urlparse(cfg.get("irdbd", "https-url"))
+  u = urlparse.urlparse(cfg.get(option = "https-url", section = "irdbd"))
   r["myrpki", "irdbd_server_host"] = u.hostname or "localhost"
   r["myrpki", "irdbd_server_port"] = u.port or 443
 
 if cfg.has_section("pubd"):
-  r["myrpki", "pubd_server_host"] = cfg.get("pubd", "server-host")
-  r["myrpki", "pubd_server_port"] = cfg.get("pubd", "server-port")
-  r["myrpki", "publication_base_directory"] = cfg.get("pubd", "publication-base")
+  r["myrpki", "pubd_server_host"] = cfg.get(option = "server-host", section = "pubd")
+  r["myrpki", "pubd_server_port"] = cfg.get(option = "server-port", section = "pubd")
+  r["myrpki", "publication_base_directory"] = cfg.get(option = "publication-base", section = "pubd")
 
 if cfg.has_section("rootd"):
-  r["myrpki", "rootd_server_port"] = cfg.get("rootd", "server-port")
-  u = urlparse.urlparse(cfg.get("rootd", "rpki-base-uri"))
+  r["myrpki", "rootd_server_port"] = cfg.get(option = "server-port", section = "rootd")
+  u = urlparse.urlparse(cfg.get(option = "rpki-base-uri", section = "rootd"))
   r["myrpki", "publication_rsync_server"] = u.netloc
 
 for i in ("rpkid", "irdbd", "pubd"):
   if cfg.has_section(i):
     for j in ("sql-database", "sql-username", "sql-password"):
-      r[i, j] = cfg.get(i, j)
+      r[i, j] = cfg.get(section = i, option = j)
 
 f = open(new_cfg_file, "w")
 f.write("# Automatically converted from %s using %s as a template.\n\n" % (cfg_file, template_file))
@@ -130,26 +133,20 @@ print "Wrote", new_cfg_file
 # Get all of these from the new config file; in theory we just set all
 # of them, but we want to use values matching new config in any case.
 
-newcfg = ConfigParser.RawConfigParser()
-newcfg.readfp(open(new_cfg_file))
+newcfg = rpki.config.parser(new_cfg_file, "myrpki")
 
-handle                      = newcfg.get("myrpki", "handle")
-bpki_resources_directory    = newcfg.get("myrpki", "bpki_resources_directory")
-bpki_servers_directory      = newcfg.get("myrpki", "bpki_servers_directory")
-
-pubd_server_host            = newcfg.get("myrpki", "pubd_server_host")
-pubd_server_port            = newcfg.get("myrpki", "pubd_server_port")
-rpkid_server_host           = newcfg.get("myrpki", "rpkid_server_host")
-rpkid_server_port           = newcfg.get("myrpki", "rpkid_server_port")
-
+handle                      = newcfg.get("handle")
+bpki_resources_directory    = newcfg.get("bpki_resources_directory")
+bpki_servers_directory      = newcfg.get("bpki_servers_directory")
+pubd_server_host            = newcfg.get("pubd_server_host")
+pubd_server_port            = newcfg.get("pubd_server_port")
+rpkid_server_host           = newcfg.get("rpkid_server_host")
+rpkid_server_port           = newcfg.get("rpkid_server_port")
+entitydb_dir                = newcfg.get("entitydb_dir", "entitydb")
+  
 bpki_resources_pemfile      = bpki_resources_directory + "/ca.cer"
 bpki_servers_pemfile        = bpki_servers_directory + "/ca.cer"
 
-try:
-  entitydb_dir = newcfg.get("myrpki", "entitydb_dir")
-except ConfigParser.NoOptionError:
-  entitydb_dir = "entitydb"
-  
 def entitydb(*args):
   return os.path.join(entitydb_dir, *args)
 
@@ -167,8 +164,8 @@ for d in map(entitydb, ("children", "parents", "repositories", "pubclients")):
 
 one_year_from_now = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365))
 
-if os.path.exists("children.csv"):
-  for child_handle, valid_until, child_resource_pemfile in myrpki.csv_open("children.csv"):
+if os.path.exists(children_csv):
+  for child_handle, valid_until, child_resource_pemfile in myrpki.csv_open(children_csv):
 
     e = Element("parent",
                 valid_until = valid_until if preserve_valid_until else one_year_from_now,
@@ -181,8 +178,8 @@ if os.path.exists("children.csv"):
     myrpki.etree_write(e, entitydb("children", "%s.xml" % child_handle))
 
 
-if os.path.exists("parents.csv"):
-  for parent_handle, parent_service_uri, parent_cms_pemfile, parent_https_pemfile, parent_myhandle, parent_sia_base in myrpki.csv_open("parents.csv"):
+if os.path.exists(parents_csv):
+  for parent_handle, parent_service_uri, parent_cms_pemfile, parent_https_pemfile, parent_myhandle, parent_sia_base in myrpki.csv_open(parents_csv):
 
     e = Element("parent",
                 valid_until = one_year_from_now,
@@ -200,7 +197,7 @@ if os.path.exists("parents.csv"):
     e = Element("repository",
                 parent_handle = parent_handle,
                 client_handle = client_handle,
-                service_uri = "https://%s:%s/client/%s" % (pubd_server_host, pubd_server_port, client_handle),
+                service_uri = "%s/client/%s" % (pubd_base.rstrip("/"), client_handle),
                 sia_base = parent_sia_base,
                 type = "confirmed")
     myrpki.PEMElement(e, "bpki_server_ta", repository_bpki_certificate)
@@ -208,8 +205,8 @@ if os.path.exists("parents.csv"):
     SubElement(e, "contact_info").text = "Automatically generated by convert-csv.py"
     myrpki.etree_write(e, entitydb("repositories", "%s.xml" % parent_handle))
 
-if os.path.exists("pubclients.csv"):
-  for client_handle, client_resource_pemfile, client_sia_base in myrpki.csv_open("pubclients.csv"):
+if os.path.exists(pubclients_csv):
+  for client_handle, client_resource_pemfile, client_sia_base in myrpki.csv_open(pubclients_csv):
 
     parent_handle = client_handle.split("/")[-1]
 

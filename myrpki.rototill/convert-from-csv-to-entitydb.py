@@ -79,8 +79,8 @@ if cfg.has_section("myrpki"):
 if cfg.has_section("myirbe"):
   r["myrpki", "bpki_servers_directory"] = cfg.get("myirbe", "bpki_directory")
   r["myrpki", "run_rpkid"]              = True
-  r["myrpki", "run_pubd"]               = cfg.getboolean("myirbe", "want_pubd")
-  r["myrpki", "run_rootd"]              = cfg.getboolean("myirbe", "want_rootd")
+  r["myrpki", "run_pubd"]               = cfg.has_option("myirbe", "want_pubd")  and cfg.getboolean("myirbe", "want_pubd")
+  r["myrpki", "run_rootd"]              = cfg.has_option("myirbe", "want_rootd") and cfg.getboolean("myirbe", "want_rootd")
 else:
   for i in ("run_rpkid", "run_pubd", "run_rootd"):
     r["myrpki", i] = False

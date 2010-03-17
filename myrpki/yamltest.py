@@ -390,6 +390,7 @@ class allocation(object):
       r["myirbe", "irdbd_conf"]    = "myrpki.conf"
       r["myirbe", "rpkid_base"]    = "https://localhost:%d/" % self.rpkid_port
       r["rpkid",  "irdb-url"]      = "https://localhost:%d/" % self.irdbd_port
+      r["rpkid",  "server-host"]   = "localhost"
       r["rpkid",  "server-port"]   = "%d" % self.rpkid_port
       r["rpkid",  "sql-database"]  = "rpki%d" % self.engine
       r["myirbe", "want_pubd"]     = "true" if self.runs_pubd() else "false"
@@ -408,6 +409,7 @@ class allocation(object):
       r["rootd",  "root_cert_manifest"] = r["rootd",  "rpki-base-uri"] + r["rootd",  "rpki-root-manifest"]
 
     if self.runs_pubd():
+      r["pubd", "server-host"]  = "localhost"
       r["pubd", "server-port"]  = "%d" % self.pubd_port
       r["pubd", "sql-database"] = "pubd%d" % self.engine
       r["irbe_cli", "pubd-url"] =  "https://localhost:%d/control/" % self.pubd_port

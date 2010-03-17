@@ -78,6 +78,7 @@ repository_handle = "repository"
 os.environ["TZ"] = "UTC"
 time.tzset()
 
+rpki.log.use_syslog = False
 rpki.log.init("myirbe")
 
 cfg_file = "myrpki.conf"

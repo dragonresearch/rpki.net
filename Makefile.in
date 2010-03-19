@@ -1,5 +1,9 @@
 # $Id$
 
+# This top-level Makefile doesn't really need to be run through
+# autoconf at all yet, but the need to run ./configure is more obvious
+# if there's no Makefile at the top....
+
 SUBDIRS = openssl rcynic utils pow rpkid
 
 all install clean test:

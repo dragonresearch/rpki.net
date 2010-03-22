@@ -29,7 +29,7 @@ class Handle(dict):
 
   want_tags = ()
 
-  debug = True
+  debug = False
 
   def set(self, tag, val):
     if tag in self.want_tags:

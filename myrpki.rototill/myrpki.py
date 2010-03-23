@@ -1636,9 +1636,9 @@ class main(rpki.cli.Cmd):
         for r in rpkid_reply:
           if isinstance(r, rpki.left_right.report_error_elt):
             failed = True
-            print "rpkid reported failure:"
-            # Probably ought to do something kinder than dumping raw XML, later.
-            print lxml.etree.tostring(r, pretty_print = True, encoding = "us-ascii")
+            print "rpkid reported failure:", r.error_code
+            if r.error_text:
+              print r.error_text
 
       if failed:
         raise RuntimeError
@@ -1649,9 +1649,9 @@ class main(rpki.cli.Cmd):
         for r in pubd_reply:
           if isinstance(r, rpki.publication.report_error_elt):
             failed = True
-            print "pubd reported failure:"
-            # Probably ought to do something kinder than dumping raw XML, later.
-            print lxml.etree.tostring(r, pretty_print = True, encoding = "us-ascii")
+            print "pubd reported failure:", r.error_code
+            if r.error_text:
+              print r.error_text
             
       if failed:
         raise RuntimeError

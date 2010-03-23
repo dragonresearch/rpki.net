@@ -433,7 +433,14 @@ class http_server(http_stream):
     except POW.SSLUnexpectedEOFError:
       self.log("SSLUnexpectedEOF in tls_accept()")
       self.close(force = True)
-
+    except POW.SSLErrorSSLError, e:
+      if "\n" in e:
+        for line in str(e).splitlines():
+          rpki.log.error(line)
+        raise POW.SSLErrorSSLError, "TLS certificate problem, most likely"
+      else:
+        raise
+    
   def handle_no_content_length(self):
     self.handle_message()
 

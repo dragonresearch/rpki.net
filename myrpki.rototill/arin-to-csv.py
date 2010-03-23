@@ -53,7 +53,7 @@ class ASHandle(Handle):
 
   def finish(self, ctx):
     if self.check():
-      ctx.asns.writerow((self.OrgID, self.ASNumber))
+      ctx.asns.writerow((ctx.translations.get(self.OrgID, self.OrgID), self.ASNumber))
 
 class NetHandle(Handle):
 
@@ -63,7 +63,7 @@ class NetHandle(Handle):
 
   def finish(self, ctx):
     if self.NetType in ("allocation", "assignment") and self.check():
-      ctx.prefixes.writerow((self.OrgID, self.NetRange))
+      ctx.prefixes.writerow((ctx.translations.get(self.OrgID, self.OrgID), self.NetRange))
 
   def __repr__(self):
     return "<%s %s.%s %s %s>" % (self.__class__.__name__,
@@ -76,8 +76,8 @@ class V6NetHandle(NetHandle):
 
   def __repr__(self):
     return "<%s %s.%s %s %s>" % (self.__class__.__name__,
-                                 self.OrgID, self.V6NetHandle,
-                                 self.NetType, self.NetRange)
+                                 ctx.translations.get(self.OrgID, self.OrgID),
+                                 self.V6NetHandle, self.NetType, self.NetRange)
 
 class main(object):
 
@@ -85,6 +85,8 @@ class main(object):
     "ASHandle"    : ASHandle,
     "NetHandle"   : NetHandle,
     "V6NetHandle" : V6NetHandle }
+
+  translations = {}
 
   @staticmethod
   def parseline(line):
@@ -99,6 +101,10 @@ class main(object):
   def __init__(self):
     self.asns = self.csvout("asns.csv")
     self.prefixes = self.csvout("prefixes.csv")
+    try:
+      self.translations = dict((src, dst) for src, dst in myrpki.csv_open("translations.csv"))
+    except IOError:
+      pass
     f = gzip.open("arin_db.txt.gz")
     cur = None
     for line in f:

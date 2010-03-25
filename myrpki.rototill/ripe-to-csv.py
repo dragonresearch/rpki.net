@@ -29,6 +29,8 @@ class Handle(dict):
 
   want_tags = ()
 
+  want_status = ("ALLOCATEDPA", "ALLOCATEDPI")
+
   debug = False
 
   def set(self, tag, val):
@@ -75,17 +77,17 @@ class aut_num(Handle):
       ctx.asns.writerow((self["mnt-by"], self["aut-num"]))
 
 class inetnum(Handle):
-  want_tags = ("inetnum", "mnt-by", "netname")
+  want_tags = ("inetnum", "mnt-by", "netname", "status")
   
   def finish(self, ctx):
-    if self.check():
+    if self.check() and self["status"] in self.want_status:
       ctx.prefixes.writerow((self["mnt-by"], self["inetnum"]))
 
 class inet6num(Handle):
-  want_tags = ("inet6num", "mnt-by", "netname")
+  want_tags = ("inet6num", "mnt-by", "netname", "status")
 
   def finish(self, ctx):
-    if self.check():
+    if self.check() and self["status"] in self.want_status:
       ctx.prefixes.writerow((self["mnt-by"], self["inet6num"]))
 
 class main(object):

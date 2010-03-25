@@ -29,7 +29,7 @@ class Handle(dict):
 
   want_tags = ()
 
-  want_status = ("ALLOCATEDPA", "ALLOCATEDPI")
+  want_status = ("ASSIGNED", "ASSIGNEDPA", "ASSIGNEDPI")
 
   debug = False
 

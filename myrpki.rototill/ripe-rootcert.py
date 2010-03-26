@@ -70,7 +70,7 @@ v6 = []
 for handle, prefix in myrpki.csv_open("prefixes.csv"):
   if ":" in prefix:
     p, l = prefix.split("/")
-    v6.append(rpki.resource_set.resource_range_ipv6.make_prefix(rpki.ipaddrs.v6addr(p), int(l)))
+    #v6.append(rpki.resource_set.resource_range_ipv6.make_prefix(rpki.ipaddrs.v6addr(p), int(l)))
   else:
     a, b = prefix.split("-")
     v4.append(rpki.resource_set.resource_range_ipv4(rpki.ipaddrs.v4addr(a), rpki.ipaddrs.v4addr(b)))

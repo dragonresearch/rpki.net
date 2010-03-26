@@ -29,8 +29,6 @@ class Handle(dict):
 
   want_tags = ()
 
-  want_status = ("ASSIGNED", "ASSIGNEDPA", "ASSIGNEDPI")
-
   debug = False
 
   def set(self, tag, val):
@@ -56,14 +54,6 @@ class Handle(dict):
   def finish(self, ctx):
     self.check()
 
-class as_block(Handle):
-  # This one is less useful than I had hoped, no useful links to owners
-  want_tags = ("as-block", "mnt-by", "org", "mnt-lower")
-
-class as_set(Handle):
-  # This is probably useless
-  want_tags = ("as-set", "mnt-by", "members")
-
 class aut_num(Handle):
   want_tags = ("aut-num", "mnt-by", "as-name")
 
@@ -76,23 +66,9 @@ class aut_num(Handle):
     if self.check():
       ctx.asns.writerow((self["mnt-by"], self["aut-num"]))
 
-class inetnum(Handle):
-  want_tags = ("inetnum", "mnt-by", "netname", "status")
-  
-  def finish(self, ctx):
-    if self.check() and self["status"] in self.want_status:
-      ctx.prefixes.writerow((self["mnt-by"], self["inetnum"]))
-
-class inet6num(Handle):
-  want_tags = ("inet6num", "mnt-by", "netname", "status")
-
-  def finish(self, ctx):
-    if self.check() and self["status"] in self.want_status:
-      ctx.prefixes.writerow((self["mnt-by"], self["inet6num"]))
-
 class main(object):
 
-  types = dict((x.want_tags[0], x) for x in (as_block, as_set, aut_num, inetnum, inet6num))
+  types = dict((x.want_tags[0], x) for x in (aut_num,))
 
   @staticmethod
   def csvout(fn):
@@ -112,12 +88,10 @@ class main(object):
       self.cur.finish(self)
       self.cur = None
 
-  #filenames = ("ripe.db.gz",)
-  filenames = ("ripe.db.aut-num.gz", "ripe.db.inet6num.gz", "ripe.db.inetnum.gz")
+  filenames = ("ripe.db.aut-num.gz",)
 
   def __init__(self):
     self.asns = self.csvout("asns.csv")
-    self.prefixes = self.csvout("prefixes.csv")
     for fn in self.filenames:
       f = gzip.open(fn)
       self.statement = ""

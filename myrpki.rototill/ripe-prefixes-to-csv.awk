@@ -3,7 +3,13 @@
 
 # ftp -pa ftp://ftp.ripe.net/pub/stats/ripencc/membership/alloclist.txt
 
+BEGIN {
+    translation["ie.google"] = "GoogleIreland";
+}
+
 function done() {
+    if (handle in translation)
+	handle = translation[handle];
     for (i = 1; i <= n_allocs; i++)
 	print handle "\t" alloc[i];
     n_allocs = 0;

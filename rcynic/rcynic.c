@@ -2891,7 +2891,6 @@ int main(int argc, char *argv[])
   for (i = 0; i < sk_CONF_VALUE_num(cfg_section); i++) {
     CONF_VALUE *val = sk_CONF_VALUE_value(cfg_section, i);
     char path1[FILENAME_MAX], path2[FILENAME_MAX], uri[URI_MAX];
-    EVP_PKEY *pkey = NULL, *xpkey = NULL;
     certinfo_t ta_info;
     X509 *x = NULL;
     BIO *bio = NULL;
@@ -2937,6 +2936,7 @@ int main(int argc, char *argv[])
        *     other xyz_cmp() function in the entire OpenSSL library.
        *     Go figure.
        */
+      EVP_PKEY *pkey = NULL, *xpkey = NULL;
       j = strcspn(val->value, " \t");
       if (j >= sizeof(uri)) {
 	logmsg(&rc, log_usage_err, "Trust anchor URI too long %s", val->value);
@@ -2950,7 +2950,10 @@ int main(int argc, char *argv[])
 	goto done;
       }
       logmsg(&rc, log_telemetry, "Processing trust anchor from URI %s", uri);
-      rsync_file(&rc, uri);
+      if (!rsync_file(&rc, uri)) {
+	logmsg(&rc, log_data_err, "Could not fetch trust anchor from %s", uri);
+	continue;
+      }
       j += strspn(val->value + j, " \t");
       bio = BIO_new_file(val->value + j, "rb");
       if (bio)
@@ -2969,7 +2972,8 @@ int main(int argc, char *argv[])
       EVP_PKEY_free(xpkey);
       if (!j) {
 	logmsg(&rc, log_data_err, "Public key did not match trust anchor %s", uri);
-	goto done;
+	X509_free(x);
+	continue;
       }
     }
 

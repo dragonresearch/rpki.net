@@ -24,7 +24,7 @@ AC_MSG_CHECKING([if linker supports -static])
 old_LDFLAGS="$LDFLAGS"
 LDFLAGS="$LDFLAGS -static"
 AC_LINK_IFELSE(
-	[AC_LANG_SOURCE([[void foo (void) { return; }]])],
+	[AC_LANG_SOURCE([[int main (int argc, char *argv[]) { return 0; }]])],
 	[
 		AC_MSG_RESULT(yes)
 		LD_STATIC_FLAG='-static'

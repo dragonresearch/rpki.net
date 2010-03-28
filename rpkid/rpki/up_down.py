@@ -640,7 +640,7 @@ class message_pdu(base_elt):
     """
     Log query we're handling.  Separate method so rootd can override.
     """
-    rpki.log.info("Serving %s query from child %s" % (self.type, child.child_handle))
+    rpki.log.info("Serving %s query from child %s [sender %s, recipient %s]" % (self.type, child.child_handle, self.sender, self.recipient))
 
   def serve_error(self, exception):
     """

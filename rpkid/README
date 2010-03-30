@@ -13,7 +13,6 @@ $Revision$
 
 TO DO:
 
-
       * Rework handling of surprising responses to up-down requests.
         Right now we get confused when we find that parent has issued
         a cert that we don't remember requesting, even when we have
@@ -31,7 +30,11 @@ TO DO:
 	assumes that will never happen and never recovers if that
 	assumption has been violated.
 
-	STATUS: Not started.
+	STATUS: Not started.  Well, not as such.
+
+	I've done some work in this part of the code and it's possible
+	that the problem described above no longer applies...but I'd
+	have to stare at the code for a while to know for sure.
 
       * Use a ticket system instead of trying to track work items in
         this README file and archived messages from the testbed list?
@@ -110,28 +113,18 @@ TO DO:
 
 	STATUS: Not started
 
-      * Installation packaging, so that rpkid can be built and installed like a
-	normal package.
-
-	TIME REQUIRED: One week, longer if installation for many platforms is
-	required
-
-	STATUS: Not started
-
       * Tighten up syntax checking in left-right schema.
 
 	TIME REQUIRED: One day.
 
 	STATUS: Not started
 
-      * rcynic handling of RPKI trust anchors does not yet match most
-	recent agreement by design team.  Currently waiting for an OID
-	assignment for the CMS-wrapped indirection format that the
-	design team settled on.
+      * rcynic handling of RPKI trust anchors does not yet support
+        draft-ietf-sidr-ta.  Not needed for technical reasons
+        ("trust-anchor-uri-with-key" method is roughly equivilent and
+        much simpler), may be required for political reasons.
 
 	TIME REQUIRED: Three days
-
-	DEPENDS ON: OID assignment
 
 	STATUS: Not started
 
@@ -179,5 +172,140 @@ TO DO:
 	for signing.  This would be a significant change to the
 	architecture, as it would remove rpkid's responsibility for
 	keeping ROAs up to date.
+
+	On further analysis: ROAs are different from S/MIME letters,
+	in that ROAs are something we want both published and
+	maintained on an ongoing basis until canceled, while S/MIME
+	letters are one-offs that probably are not published.  So ROAs
+	need -something- to keep them current, and that something
+	might as well be rpkid unless we find a strong argument that
+	it should be something else.
+
+	STATUS: Not started
+
+      * There has been some discussion both in and out of the SIDR WG
+        on perhaps dropping TLS out of the up-down protocol, as it is
+        arguably not providing much that we can't do equally well with
+        CMS.  Left-right and publication are currently not SIDR WG
+        docs, but presumably they would follow.  Dunno where this is
+        going to go, but assuming for purposes of discussion that we
+        do drop TLS, we'll want to rip all that code out.  This
+        includes revising BPKI, SQL, left-right and publication
+        protocols, and code using all of these both in daemons and UI
+        tools.
+
+	TIME REQUIRED: Three weeks (very rough guess).
+
+	DEPENDS ON: Decision whether to keep or drop TLS.
+
+	STATUS: Not started
+
+      * Integrate UI tools into main code base.  Right now there's
+        this odd split, with the myrpki stuff off to one side, irdbd
+        (which is also a sample implementation, not a core tool) in
+        with rpkid, test code scattered hither and yon in all the
+        above places, and none of it set up nicely either for running
+        in place or installation.  This all needs to be cleaned up,
+        most likely by reorganizing all of the Python (and POW) code.
+
+	TIME REQUIRED: Two weeks.
+
+	STATUS: Not started
+
+      * Autoconf review.  Right now we're making minimal use of
+        autoconf, just enough to get the code running on Mac OS and
+        clean up a few old annoyances.  There are other things that
+        ought to be using autoconf, now that we're stuck with it.  Eg,
+        installation scripts, the build code for POW, etc.  In the
+        long run we might even want to check for usable system OpenSSL
+        code and libraries: the RFC 3779 code is still off by default
+        in all known public releases of OpenSSL, but the BPKI stuff
+        that myrpki does only requires CMS, not RFC 3779, so it may be
+        able to use the system openssl binary in many cases.
+
+	TIME REQUIRED: One week for an initial pass.
+
+	DEPENDS ON: Installation scripts.  Not so much depends on,
+	really, as two aspects of one interrelated mess.
+
+	STATUS: Not started
+
+      * We need installation scripts.  Right now the only thing we
+        install is rcynic, and that only on FreeBSD.
+
+	TIME REQUIRED: One week, longer if installation for many platforms is
+	required
+
+	STATUS: Not started
+
+      * We need better and unified documentation.  Right now doc is
+        scattered between rpkid core manual, various READMEs, internal
+        docuemntation in various tools, etcetera.  This is not kind to
+        the user.  Depending on how much hand-written (as opposed to
+        Doxygen-harvested) doc we end up with, might want to convert
+        overall to something like the Doxygen/Docbook combination that
+        the Boost project uses (Boostbook).
+
+	TIME REQUIRED: At least two weeks, plus at least one more week
+	if making a serious change in doc tools (eg, Boostbook).
+
+	DEPENDS ON: Portions of this would make sense to defer until
+	after whatever code reorg happens to integrate UI tools, etc.
+	Most of the hand-written content could be done right away,
+	might require minor edits later to track reorg changes.
+
+	STATUS: Not started
+
+      * Rewrite irbe_cli.py to use cmd module.   Right now irbe_cli is
+        useful only as a debugging tool for its author, and the
+        interface is very clunky (even by comparision to other clunky
+        bits of code in this package).  Rewriting to use cmd module
+        would be a major improvement; some minor challenges here
+        because irbe_cli integrates so tightly with the Python message
+        classes representing the left-right and publication protcols;
+        figuring out how to turn this into a cmd-based program without
+        massive (and fragile) duplication of code is probably good for
+        a few days of head scratching.
+
+	TIME REQUIRED: Two weeks (including head scratching)
+
+	STATUS: Not started
+
+      * Clean up testbed tools.  There's a collection of hacks that
+        have been evolving as we've been building the testbed, most of
+        which just grew as our needs evolved.  The main scripts are
+        checked into the repository, but some of the minor stuff is
+        not, and some of the automation used in the testbed (cron
+        scripts, automated use of a version control system (currently
+        subversion) to archive changes to running data, etcetera)
+        might be useful to others, so it should be cleaned up and made
+        available as part of the package.
+
+	TIME REQUIRED: One week
+
+	STATUS: Moving target, but let's say "not started" for the
+	bits I'm thinking about as I type this.
+
+      * Early (pseudo) operational testing has uncovered a conflict
+        between RIRs need not to be in the business of attesting to
+        identities and operators need to have -some- way of finding
+        out who to call when a RPKI cert is broken.  Current proposal
+        is to allow signature and publication of blobs of whois-like
+        data; these would be signed by an EE cert using RFC 3779
+        inheritance, and would in essence be a self-attestation (no
+        checking by others, no liability incurred by others, etc) as
+        to contact information one might use in case of a problem.
+        This would require a minor change to the rescert profile, so
+        the SIDR WG would need to sign off on this.  As this data
+        would be published, presumably we would want rcynic to be able
+        to check it.
+
+	TIME REQUIRED: One week to add to rpkid et al (very rough --
+	includes design work to figure out exactly where this would
+	fit, actual coding probably relatively minor).  Perhaps an
+	additional day or three to add to rcynic and write suitable
+	search and display tools.
+
+	DEPENDS ON: Agreement to add this to rescert profile.
 
 	STATUS: Not started

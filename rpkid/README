@@ -30,23 +30,18 @@ TO DO:
 	assumes that will never happen and never recovers if that
 	assumption has been violated.
 
-	STATUS: Not started.  Well, not as such.
+	STATUS: Started, not complete.  Internal tracking state for
+	whether objects have been published is in place, but there's
+	no code yet to force retry of failed publication.  Some
+	support for cleaning up extraneous ca_detail objects, dunno
+	(yet) whether this is enough.
 
-	I've done some work in this part of the code and it's possible
-	that the problem described above no longer applies...but I'd
-	have to stare at the code for a while to know for sure.
+	TIME REQUIRED: One week (remaining).
 
-      * Use a ticket system instead of trying to track work items in
-        this README file and archived messages from the testbed list?
-
-	STATUS: I have a trac instance, Randy has an RT instance, just
-	need to decide whether to do something about this, pick one,
-	and move on.
-
-      * Error handling: make sure that exceptions map correctly to up-down error
-	codes, flesh out left-right error codes. Note that the same exception may
-	produce different error codes depending on which up-down PDU we're
-	processing (sigh).
+      * Error handling: make sure that exceptions map correctly to
+	up-down error codes, flesh out left-right error codes. Note
+	that the same exception may produce different error codes
+	depending on which up-down PDU we're processing (sigh).
 
 	Will require code audit for coherency, which is most of the work.
 
@@ -57,10 +52,12 @@ TO DO:
 
 	STATUS: Not started
 
-      * db.commit(), db.rollback(), code audit for data integrity issues, fix any
-	data integrity issues that turn up. Among other issues, need to handle loss
-	of connection to database server and other MySQL errors. Need to be careful
-	about recovery action depending on whether we had uncommitted changes.
+      * db.commit(), db.rollback(), code audit for data integrity
+	issues, fix any data integrity issues that turn up. Among
+	other issues, need to handle loss of connection to database
+	server and other MySQL errors. Need to be careful about
+	recovery action depending on whether we had uncommitted
+	changes.
 
 	TIME REQUIRED (commit and rollback): 3-4 weeks
 
@@ -69,21 +66,26 @@ TO DO:
 	TIME REQUIRED (fix data integrity): Unknown, depends on code
 	audit and results of runtime testing.
 
-	DEPENDS ON: async tasking model rollback.
-
 	STATUS: Not started
 
-      * Resource subsetting (req_* attributes in up-down protocol), full
-	implementation.	 Requires expanding SQL child_cert table to hold subset
-	masks and rewriting a fair amount of code.
+      * Resource subsetting (req_* attributes in up-down protocol),
+	full implementation.  Requires expanding SQL child_cert table
+	to hold subset masks and rewriting a fair amount of code.
 
 	TIME REQUIRED: 3-4 weeks
 
 	STATUS: Not started
 
-      * Performance testing.  Some very preliminary tests show a
-	hotspot in the TLS code, but further testing will be needed,
-	particularly after the async tasking model change.
+      * Performance testing and profiling.  Getting rid of tlslite was
+        a good first step, and RSA will always be slow without a HSM,
+        but last time I tried profiling I saw hints that the Python
+        ASN.1 may be a bottleneck.
+
+	TIME REQUIRED: A few days to do profiling.  What happens after
+	that depends on what profiling finds.
+
+	DEPENDS ON: Serious load testing may require assistance from
+	others with larger test labs than I have directly available.
 
 	STATUS: Barely started
 
@@ -92,7 +94,12 @@ TO DO:
 	in pubd, and reissuing when details or keys change. May not
 	need much else, as this is not a high-traffic server.
 
-	TIME REQUIRED: One week
+	Alternatively, perhaps rootd's functionality should be merged
+	into rpkid after all, given that we now believe that anybody
+	who needs to certify private address space may need to run it.
+
+	TIME REQUIRED: One week if just cleaning up rootd.  2-3 weeks
+	if folding rootd into rpkid.
 
 	STATUS: Not started
 
@@ -145,22 +152,30 @@ TO DO:
 
 	STATUS: Not started
 
-      * Testing of this by anybody but the author and a few friends is
-	going to require some kind of user interface.  Python based
-	web UI is probably the most cost effective approach, Django
-	might be a good base for this.	Some of the operations
-	suggested in an initial brainstorming session on this are
-	outside the scope of what rpkid currently knows how to do (eg,
-	signing S/MIME "please route" messages), so one of the tasks
-	here is to see if trying to write a user interface sheds light
-	on required features that are currently missing.
+      * Django web UI to RPKI code will require some back-end support,
+	not yet sure exactly how much.  Current plan is that Django
+	tool just drops data into SQL, at which point it becomes my
+	problem; if we keep this model, semantics of the existing
+	command line tools should map fairly well, so this part will
+	just be a matter of performing essentially the same operations
+	that the command line UI does now, with SQL tables instead of
+	CSV files as the data store.
 
-	STATUS: CSV file based UI done and documented, perhaps usable.
+	TIME REQUIRED: Two weeks
 
-		Django web UI for hosted case under development by a
-		friendly Django wizard, current design has it just
-		doing UI and I/O with its own SQL data, so will need a
-		tool to sit between Django's SQL and our code.
+	STATUS: Not started
+
+      * Django Web UI to RPKI code as currently envisioned will (also)
+        require some additional data from rpkid and rcynic that is not
+        yet available in machine-parsable form, so that UI can report
+        on status of delegated resources and detailed validation
+        status.  rpkid extensions for this should be relatively
+        simple, rcynic work may be a bit more complex, or at least
+        tedious, as it'll be C code generating XML.
+
+	TIME REQUIRED: 1-2 weeks.
+
+	STATUS: Not started
 
       * At present there is no mechanism by which an IRBE could
 	request signing of objects other than ROAs.  Eg, there has
@@ -179,7 +194,11 @@ TO DO:
 	letters are one-offs that probably are not published.  So ROAs
 	need -something- to keep them current, and that something
 	might as well be rpkid unless we find a strong argument that
-	it should be something else.
+	it should be something else.  So the S/MIME letter
+	functionality probably stays a different mechanism from ROAs.
+
+	TIME REQUIRED: One week (including deciding what left-right
+	protocol semantics for this should be)
 
 	STATUS: Not started
 

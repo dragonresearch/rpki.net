@@ -165,7 +165,7 @@ for d in map(entitydb, ("children", "parents", "repositories", "pubclients")):
 one_year_from_now = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365))
 
 if os.path.exists(children_csv):
-  for child_handle, valid_until, child_resource_pemfile in myrpki.csv_open(children_csv):
+  for child_handle, valid_until, child_resource_pemfile in myrpki.csv_reader(children_csv, columns = 3):
     try:
 
       e = Element("parent",
@@ -182,7 +182,7 @@ if os.path.exists(children_csv):
       pass
 
 if os.path.exists(parents_csv):
-  for parent_handle, parent_service_uri, parent_cms_pemfile, parent_https_pemfile, parent_myhandle, parent_sia_base in myrpki.csv_open(parents_csv):
+  for parent_handle, parent_service_uri, parent_cms_pemfile, parent_https_pemfile, parent_myhandle, parent_sia_base in myrpki.csv_reader(parents_csv, columns = 6):
     try:
 
       e = Element("parent",
@@ -213,7 +213,7 @@ if os.path.exists(parents_csv):
       pass
 
 if os.path.exists(pubclients_csv):
-  for client_handle, client_resource_pemfile, client_sia_base in myrpki.csv_open(pubclients_csv):
+  for client_handle, client_resource_pemfile, client_sia_base in myrpki.csv_reader(pubclients_csv, columns = 3):
     try:
 
       parent_handle = client_handle.split("/")[-2] if "/" in client_handle else handle

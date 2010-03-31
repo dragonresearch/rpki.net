@@ -55,7 +55,7 @@ sbgp-ipAddrBlock                = critical,@rfc3997_addrs
 ''' % { "holder" : holder.lower(),
         "HOLDER" : holder.upper() }
 
-for i, asn in enumerate(asn for handle, asn in myrpki.csv_open("asns.csv")):
+for i, asn in enumerate(asn for handle, asn in myrpki.csv_reader("asns.csv", columns = 2)):
   print "AS.%d = %s" % (i, asn)
 
 print '''\
@@ -64,6 +64,6 @@ print '''\
 
 '''
 
-for i, prefix in enumerate(prefix for handle, prefix in myrpki.csv_open("prefixes.csv")):
+for i, prefix in enumerate(prefix for handle, prefix in myrpki.csv_reader("prefixes.csv", columns = 2)):
   v = 6 if ":" in prefix else 4
   print "IPv%d.%d = %s" % (v, i, prefix)

@@ -94,15 +94,11 @@ class main(object):
     assert sep, "Couldn't find separator in %r" % line
     return tag.strip(), val.strip()
 
-  @staticmethod
-  def csvout(fn):
-    return csv.writer(open(fn, "w"), dialect = myrpki.csv_dialect)
-
   def __init__(self):
-    self.asns = self.csvout("asns.csv")
-    self.prefixes = self.csvout("prefixes.csv")
+    self.asns = myrpki.csv_writer("asns.csv")
+    self.prefixes = myrpki.csv_writer("prefixes.csv")
     try:
-      self.translations = dict((src, dst) for src, dst in myrpki.csv_open("translations.csv"))
+      self.translations = dict((src, dst) for src, dst in myrpki.csv_reader("translations.csv", columns = 2))
     except IOError:
       pass
     f = gzip.open("arin_db.txt.gz")

@@ -71,13 +71,6 @@ namespace      = "http://www.hactrn.net/uris/rpki/myrpki/"
 version        = "2"
 namespaceQName = "{" + namespace + "}"
 
-# Dialect for our use of CSV files, here to make it easy to change if
-# your site needs to do something different.  See doc for the csv
-# module in the Python standard libraries for details if you need to
-# customize this.
-
-csv_dialect = csv.get_dialect("excel-tab")
-
 # Whether to include incomplete entries when rendering to XML.
 
 allow_incomplete = False
@@ -180,7 +173,7 @@ class roa_requests(dict):
     """
     self = cls()
     # format:  p/n-m asn group
-    for pnm, asn, group in csv_open(roa_csv_file):
+    for pnm, asn, group in csv_reader(roa_csv_file, columns = 3):
       self.add(asn = asn, group = group, prefix = pnm)
     return self
 
@@ -283,10 +276,10 @@ class children(dict):
                validity = c.get("valid_until"),
                bpki_certificate = fxcert(c.findtext("bpki_child_ta")))
     # childname p/n
-    for handle, pn in csv_open(prefix_csv_file):
+    for handle, pn in csv_reader(prefix_csv_file, columns = 2):
       self.add(handle = handle, prefix = pn)
     # childname asn
-    for handle, asn in csv_open(asn_csv_file):
+    for handle, asn in csv_reader(asn_csv_file, columns = 2):
       self.add(handle = handle, asn = asn)
     return self
 
@@ -478,13 +471,55 @@ class repositories(dict):
                bpki_certificate = fxcert(r.findtext("bpki_server_ta")))
     return self
 
-def csv_open(filename):
+class csv_reader(object):
   """
-  Open a CSV file, with settings that make it a tab-delimited file.
-  You may need to tweak this function for your environment, see the
-  csv module in the Python standard libraries for details.
+  Reader for tab-delimited text that's (slightly) friendlier than the
+  stock Python csv module (which isn't intended for direct use by
+  humans anyway, and neither was this package originally, but that
+  seems to be the way that it has evolved...).
+
+  Columns parameter specifies how many columns users of the reader
+  expect to see; lines with fewer columns will be padded with None
+  values.
+
+  Original API design for this class courtesy of Warren Kumari, but
+  don't blame him if you don't like what I did with his ideas.
   """
-  return csv.reader(open(filename, "rb"), dialect = csv_dialect)
+
+  def __init__(self, filename, columns = None, min_columns = None, comment_characters = "#;"):
+    assert columns is None or isinstance(columns, int)
+    assert min_columns is None or isinstance(min_columns, int)
+    if columns is not None and min_columns is None:
+      min_columns = columns
+    self.filename = filename
+    self.columns = columns
+    self.min_columns = min_columns
+    self.comment_characters = comment_characters 
+    self.file = open(filename, "r")
+
+  def __iter__(self):
+    line_number = 0
+    for line in self.file:
+      line_number += 1
+      line = line.strip()
+      if not line or line[0] in self.comment_characters:
+        continue
+      fields = line.split()
+      if self.min_columns is not None and len(fields) < self.min_columns:
+        raise RuntimeError, "%s:%d: Not enough columns in line %r" % (self.filename, line_number, line)
+      if self.columns is not None and len(fields) > self.columns:
+        raise RuntimeError, "%s:%d: Too many  columns in line %r" % (self.filename, line_number, line)
+      if self.columns is not None and len(fields) < self.columns:
+        fields += tuple(None for i in xrange(self.columns - len(fields)))
+      yield fields
+
+def csv_writer(filename):
+  """
+  Writer object for tab delimited text.  We just use the stock CSV
+  module in excel-tab mode for this.
+  """
+  return csv.writer(open(filename, "w"), dialect = csv.get_dialect("excel-tab"))
+
 
 def PEMElement(e, tag, filename, **kwargs):
   """

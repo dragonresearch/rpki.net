@@ -1,10 +1,7 @@
 import csv, myrpki, rpki.ipaddrs
 
-def csvout(fn):
-    return csv.writer(open(fn, "w"), dialect = myrpki.csv_dialect)
-
-asns     = csvout("asns.csv")
-prefixes = csvout("prefixes.csv")
+asns     = myrpki.csv_writer("asns.csv")
+prefixes = myrpki.csv_writer("prefixes.csv")
 
 for line in open("delegated-apnic-extended-latest"):
 

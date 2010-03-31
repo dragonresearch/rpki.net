@@ -70,9 +70,6 @@ class main(object):
 
   types = dict((x.want_tags[0], x) for x in (aut_num,))
 
-  @staticmethod
-  def csvout(fn):
-    return csv.writer(open(fn, "w"), dialect = myrpki.csv_dialect)
 
   def finish_statement(self, done):
     if self.statement:
@@ -91,7 +88,7 @@ class main(object):
   filenames = ("ripe.db.aut-num.gz",)
 
   def __init__(self):
-    self.asns = self.csvout("asns.csv")
+    self.asns = myrpki.csv_writer("asns.csv")
     for fn in self.filenames:
       f = gzip.open(fn)
       self.statement = ""

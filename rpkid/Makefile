@@ -125,8 +125,8 @@ doc:: doc/irdbd.pdf doc/pubd.pdf doc/rpkid.pdf
 # clear whose bug this is.  Apparently harmless, so just ignore it.
 
 dox doxygen: irbe_cli.usage doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
-	TZ='' doxygen 2>&1 | awk '$$0 != "Error: Could not find/open font"'
-	cd doc/latex && TZ='' ${MAKE} >/dev/null 2>&1
+	TZ='' doxygen
+	cd doc/latex && TZ='' ${MAKE}
 	for i in Installation Operation Left-right Publication; do \
 		xsltproc --html tweak-doc.xsl doc/html/$$i.html | lynx -dump -nolist -force_html /dev/stdin >doc/$$i; \
 	done

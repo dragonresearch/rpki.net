@@ -1776,6 +1776,8 @@
 # upon the %object to be published passing whatever access control checks
 # the %publication server imposes.
 
+## @cond DOT_COMMANDS_DONT_BREAK_DOXYGEN_ANYMORE
+
 ## @page sql-schemas SQL database schemas
 #
 # @li @subpage rpkid-sql "rpkid database schema"
@@ -2022,6 +2024,8 @@
 # This is why the configuration files for rpkid and pubd require
 # static configuration of the left-right and publication control
 # certificates.
+
+## @endcond
 
 # Local Variables:
 # compile-command: "cd .. && make doc"

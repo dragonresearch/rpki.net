@@ -28,10 +28,11 @@ case "$1" in
 locked)
     exec >cronjob.log 2>&1
     set -x
+    export PATH=/bin:/usr/bin:/usr/local/bin
     /usr/local/bin/svn update --quiet
     (cd .. && ./configure)
     /bin/rm -rf doc/html
-    PATH=/bin:/usr/bin:/usr/local/bin /usr/bin/make docs </dev/null
+    /usr/bin/make docs </dev/null
     /usr/local/bin/rsync --archive --itemize-changes --delete-after doc/html/ $target/
     ;;
 

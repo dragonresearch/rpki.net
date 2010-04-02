@@ -1,5 +1,7 @@
 import csv, myrpki, rpki.ipaddrs
 
+translations = dict((src, dst) for src, dst in myrpki.csv_reader("translations.csv", columns = 2))
+
 asns     = myrpki.csv_writer("asns.csv")
 prefixes = myrpki.csv_writer("prefixes.csv")
 
@@ -13,6 +15,8 @@ for line in open("delegated-apnic-extended-latest"):
     registry, cc, rectype, start, value, date, status, opaque_id = line.split("|")
 
     assert registry == "apnic"
+
+    opaque_id = translations.get(opaque_id, opaque_id)
 
     if rectype == "asn":
         asns.writerow((opaque_id, "%s-%s" % (start, int(start) + int(value) - 1)))

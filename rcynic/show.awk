@@ -15,7 +15,7 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 # Prettyprint tab-delimited rcynic summary data.  This is intended as
-a postprocessor for show.xsl.
+# a postprocessor for show.xsl.
 
 BEGIN {
   FS = "\t";

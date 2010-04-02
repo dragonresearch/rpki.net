@@ -1778,7 +1778,7 @@
 ## @page rpkid-sql rpkid SQL schema
 #
 # @image html  @abs_top_builddir@/rpkid/doc/rpkid.png "Diagram of rpkid.sql"
-# @image latex @abs_top_builddir@/rpkid/doc/rpkid.eps "Diagram of rpkid.sql" width=\textwidth
+# @image latex @abs_top_builddir@/rpkid/doc/rpkid.eps "Diagram of rpkid.sql" height=\textheight
 #
 # @verbinclude rpkid.sql
 

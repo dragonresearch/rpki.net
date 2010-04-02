@@ -29,6 +29,7 @@ locked)
     exec >cronjob.log 2>&1
     set -x
     /usr/local/bin/svn update --quiet
+    (cd .. && ./configure)
     /bin/rm -rf doc/html
     PATH=/bin:/usr/bin:/usr/local/bin /usr/local/bin/doxygen </dev/null
     /usr/local/bin/rsync --archive --itemize-changes --delete-after doc/html/ $target/

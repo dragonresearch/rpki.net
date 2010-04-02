@@ -3895,7 +3895,7 @@ $as_echo "$OPENSSL_CONFIG_COMMAND" >&6; }
 # point I should do a pass through the rest of the tree, making clever
 # use of abs_top_builddir, etc.
 
-ac_config_files="$ac_config_files Makefile openssl/Makefile rcynic/Makefile"
+ac_config_files="$ac_config_files Makefile openssl/Makefile rcynic/Makefile rpkid/rpki/__doc__.py"
 
 
 cat >confcache <<\_ACEOF
@@ -4502,6 +4502,7 @@ do
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
     "openssl/Makefile") CONFIG_FILES="$CONFIG_FILES openssl/Makefile" ;;
     "rcynic/Makefile") CONFIG_FILES="$CONFIG_FILES rcynic/Makefile" ;;
+    "rpkid/rpki/__doc__.py") CONFIG_FILES="$CONFIG_FILES rpkid/rpki/__doc__.py" ;;
 
   *) { { $as_echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
 $as_echo "$as_me: error: invalid argument: $ac_config_target" >&2;}

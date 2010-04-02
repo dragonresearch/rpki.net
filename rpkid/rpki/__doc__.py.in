@@ -1777,19 +1777,22 @@
 
 ## @page rpkid-sql rpkid SQL schema
 #
-# @image html @abs_top_builddir@/rpkid/doc/rpkid.png "Diagram of rpkid.sql"
+# @image html  @abs_top_builddir@/rpkid/doc/rpkid.png "Diagram of rpkid.sql"
+# @image latex @abs_top_builddir@/rpkid/doc/rpkid.eps "Diagram of rpkid.sql" width=\textwidth
 #
 # @verbinclude rpkid.sql
 
 ## @page pubd-sql pubd SQL Schema
 #
-# @image html @abs_top_builddir@/rpkid/doc/pubd.png "Diagram of pubd.sql"
+# @image html  @abs_top_builddir@/rpkid/doc/pubd.png "Diagram of pubd.sql"
+# @image latex @abs_top_builddir@/rpkid/doc/pubd.eps "Diagram of pubd.sql" width=\textwidth
 #
 # @verbinclude @abs_top_builddir@/rpkid/pubd.sql
 
 ## @page irdbd-sql irdbd SQL Schema
 #
-# @image html @abs_top_builddir@/rpkid/doc/irdbd.png "Diagram of irdbd.sql"
+# @image html  @abs_top_builddir@/rpkid/doc/irdbd.png "Diagram of irdbd.sql"
+# @image latex @abs_top_builddir@/rpkid/doc/irdbd.eps "Diagram of irdbd.sql" width=\textwidth
 #
 # @verbinclude @abs_top_builddir@/rpkid/irdbd.sql
 
@@ -1829,7 +1832,8 @@
 # Here is a simplified picture of what the BPKI might look like for an
 # rpkid operator that hosts two entities, "Alice" and "Ellen":
 #
-# @image html @abs_top_builddir@/rpkid/doc/rpkid-bpki.png
+# @image html  @abs_top_builddir@/rpkid/doc/rpkid-bpki.png
+# @image latex @abs_top_builddir@/rpkid/doc/rpkid-bpki.eps width=\textwidth
 #
 # Black objects belong to the hosting entity, blue objects belong to
 # the hosted entities, red objects are cross-certified objects from
@@ -1869,7 +1873,8 @@
 # Here's a simplified picture of what the BPKI might look like for a
 # pubd operator that serves two clients, "Alice" and "Bob":
 #
-# @image html @abs_top_builddir@/rpkid/doc/pubd-bpki.eps
+# @image html  @abs_top_builddir@/rpkid/doc/pubd-bpki.png
+# @image latex @abs_top_builddir@/rpkid/doc/pubd-bpki.eps width=\textwidth
 #
 # While it is likely that RIRs (at least) will operate both rpkid and
 # pubd instances, the two functions are conceptually separate.  As far

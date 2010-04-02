@@ -62,6 +62,9 @@ AC_MSG_RESULT([$OPENSSL_CONFIG_COMMAND])
 # point I should do a pass through the rest of the tree, making clever
 # use of abs_top_builddir, etc.
 
-AC_CONFIG_FILES([Makefile openssl/Makefile rcynic/Makefile])
+AC_CONFIG_FILES([Makefile
+		 openssl/Makefile
+		 rcynic/Makefile
+		 rpkid/rpki/__doc__.py])
 
 AC_OUTPUT

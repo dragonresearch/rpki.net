@@ -1,0 +1,76 @@
+// $Id$
+
+// Color code:
+//   Black:   Hosting entity
+//   Blue:    Hosted entity
+//   Red:     Cross-certified peer
+//
+// Shape code:
+//   Octagon: TA
+//   Diamond: CA
+//   Record:  EE
+
+digraph bpki_rpkid {
+      splines = true;
+      size = "14,14";
+      node                    [ fontname = Times, fontsize = 9 ];
+
+      // Hosting entity
+      node                    [ color = black, shape = record ];
+      TA                      [ shape = octagon, label = "BPKI TA" ];
+      rpkid                   [ label = "rpkid|{HTTPS server|HTTPS left-right client|CMS left-right}" ];
+      irdbd                   [ label = "irdbd|{HTTPS left-right server|CMS left-right}" ];
+      irbe                    [ label = "IRBE|{HTTPS left-right client|CMS left-right}" ];
+
+      // Hosted entities
+      node                    [ color = blue, fontcolor = blue ];
+      Alice_CA                [ shape = diamond ];
+      Alice_EE                [ label = "Alice\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
+      Ellen_CA                [ shape = diamond ];
+      Ellen_EE                [ label = "Ellen\nBSC EE|{HTTPS up-down client|CMS up-down}" ];
+
+      // Peers
+      node                    [ color = red, fontcolor = red, shape = diamond ];
+      Bob_CA;
+      Carol_CA;
+      Dave_CA;
+      Frank_CA;
+      Ginny_CA;
+      Harry_CA;
+      node                    [ shape = record ];
+      Bob_EE                  [ label = "Bob\nEE|{HTTPS up-down|CMS up-down}" ];
+      Carol_EE                [ label = "Carol\nEE|{HTTPS up-down|CMS up-down}" ];
+      Dave_EE                 [ label = "Dave\nEE|{HTTPS up-down|CMS up-down}" ];
+      Frank_EE                [ label = "Frank\nEE|{HTTPS up-down|CMS up-down}" ];
+      Ginny_EE                [ label = "Ginny\nEE|{HTTPS up-down|CMS up-down}" ];
+      Harry_EE                [ label = "Bob\nEE|{HTTPS up-down|CMS up-down}" ];
+
+      edge                    [ color = black, style = solid ];
+      TA -> Alice_CA;
+      TA -> Ellen_CA;
+
+      edge                    [ color = black, style = dotted ];
+      TA -> rpkid;
+      TA -> irdbd;
+      TA -> irbe;
+
+      edge                    [ color = blue, style = solid ];
+      Alice_CA -> Bob_CA;
+      Alice_CA -> Carol_CA;
+      Alice_CA -> Dave_CA;
+      Ellen_CA -> Frank_CA;
+      Ellen_CA -> Ginny_CA;
+      Ellen_CA -> Harry_CA;
+
+      edge                    [ color = blue, style = dotted ];
+      Alice_CA -> Alice_EE;
+      Ellen_CA -> Ellen_EE;
+
+      edge                    [ color = red, style = solid ];
+      Bob_CA   -> Bob_EE;
+      Carol_CA -> Carol_EE;
+      Dave_CA  -> Dave_EE;
+      Frank_CA -> Frank_EE;
+      Ginny_CA -> Ginny_EE;
+      Harry_CA -> Harry_EE;
+}

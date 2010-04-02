@@ -1,0 +1,1063 @@
+%!PS-Adobe-3.0 EPSF-3.0
+%%Creator: graphviz version 2.26.3 (20100126.1600)
+%%Title: test
+%%Pages: 1
+%%BoundingBox: 36 36 645 1688
+%%EndComments
+save
+%%BeginProlog
+/DotDict 200 dict def
+DotDict begin
+
+/setupLatin1 {
+mark
+/EncodingVector 256 array def
+ EncodingVector 0
+
+ISOLatin1Encoding 0 255 getinterval putinterval
+EncodingVector 45 /hyphen put
+
+% Set up ISO Latin 1 character encoding
+/starnetISO {
+        dup dup findfont dup length dict begin
+        { 1 index /FID ne { def }{ pop pop } ifelse
+        } forall
+        /Encoding EncodingVector def
+        currentdict end definefont
+} def
+/Times-Roman starnetISO def
+/Times-Italic starnetISO def
+/Times-Bold starnetISO def
+/Times-BoldItalic starnetISO def
+/Helvetica starnetISO def
+/Helvetica-Oblique starnetISO def
+/Helvetica-Bold starnetISO def
+/Helvetica-BoldOblique starnetISO def
+/Courier starnetISO def
+/Courier-Oblique starnetISO def
+/Courier-Bold starnetISO def
+/Courier-BoldOblique starnetISO def
+cleartomark
+} bind def
+
+%%BeginResource: procset graphviz 0 0
+/coord-font-family /Times-Roman def
+/default-font-family /Times-Roman def
+/coordfont coord-font-family findfont 8 scalefont def
+
+/InvScaleFactor 1.0 def
+/set_scale {
+       dup 1 exch div /InvScaleFactor exch def
+       scale
+} bind def
+
+% styles
+/solid { [] 0 setdash } bind def
+/dashed { [9 InvScaleFactor mul dup ] 0 setdash } bind def
+/dotted { [1 InvScaleFactor mul 6 InvScaleFactor mul] 0 setdash } bind def
+/invis {/fill {newpath} def /stroke {newpath} def /show {pop newpath} def} bind def
+/bold { 2 setlinewidth } bind def
+/filled { } bind def
+/unfilled { } bind def
+/rounded { } bind def
+/diagonals { } bind def
+
+% hooks for setting color 
+/nodecolor { sethsbcolor } bind def
+/edgecolor { sethsbcolor } bind def
+/graphcolor { sethsbcolor } bind def
+/nopcolor {pop pop pop} bind def
+
+/beginpage {	% i j npages
+	/npages exch def
+	/j exch def
+	/i exch def
+	/str 10 string def
+	npages 1 gt {
+		gsave
+			coordfont setfont
+			0 0 moveto
+			(\() show i str cvs show (,) show j str cvs show (\)) show
+		grestore
+	} if
+} bind def
+
+/set_font {
+	findfont exch
+	scalefont setfont
+} def
+
+% draw text fitted to its expected width
+/alignedtext {			% width text
+	/text exch def
+	/width exch def
+	gsave
+		width 0 gt {
+			[] 0 setdash
+			text stringwidth pop width exch sub text length div 0 text ashow
+		} if
+	grestore
+} def
+
+/boxprim {				% xcorner ycorner xsize ysize
+		4 2 roll
+		moveto
+		2 copy
+		exch 0 rlineto
+		0 exch rlineto
+		pop neg 0 rlineto
+		closepath
+} bind def
+
+/ellipse_path {
+	/ry exch def
+	/rx exch def
+	/y exch def
+	/x exch def
+	matrix currentmatrix
+	newpath
+	x y translate
+	rx ry scale
+	0 0 1 0 360 arc
+	setmatrix
+} bind def
+
+/endpage { showpage } bind def
+/showpage { } def
+
+/layercolorseq
+	[	% layer color sequence - darkest to lightest
+		[0 0 0]
+		[.2 .8 .8]
+		[.4 .8 .8]
+		[.6 .8 .8]
+		[.8 .8 .8]
+	]
+def
+
+/layerlen layercolorseq length def
+
+/setlayer {/maxlayer exch def /curlayer exch def
+	layercolorseq curlayer 1 sub layerlen mod get
+	aload pop sethsbcolor
+	/nodecolor {nopcolor} def
+	/edgecolor {nopcolor} def
+	/graphcolor {nopcolor} def
+} bind def
+
+/onlayer { curlayer ne {invis} if } def
+
+/onlayers {
+	/myupper exch def
+	/mylower exch def
+	curlayer mylower lt
+	curlayer myupper gt
+	or
+	{invis} if
+} def
+
+/curlayer 0 def
+
+%%EndResource
+%%EndProlog
+%%BeginSetup
+14 default-font-family set_font
+1 setmiterlimit
+% /arrowlength 10 def
+% /arrowwidth 5 def
+
+% make sure pdfmark is harmless for PS-interpreters other than Distiller
+/pdfmark where {pop} {userdict /pdfmark /cleartomark load put} ifelse
+% make '<<' and '>>' safe on PS Level 1 devices
+/languagelevel where {pop languagelevel}{1} ifelse
+2 lt {
+    userdict (<<) cvn ([) cvn load put
+    userdict (>>) cvn ([) cvn load put
+} if
+
+%%EndSetup
+setupLatin1
+%%Page: 1 1
+%%PageBoundingBox: 36 36 645 1688
+%%PageOrientation: Portrait
+0 0 1 beginpage
+gsave
+36 36 609 1652 boxprim clip newpath
+1 1 set_scale 0 rotate 40 41 translate
+% node1
+gsave
+0 0 1 nodecolor
+newpath 264 1499 moveto
+264 1643 lineto
+438 1643 lineto
+438 1499 lineto
+closepath fill
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 264 1499 moveto
+264 1643 lineto
+438 1643 lineto
+438 1499 lineto
+closepath stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+341 1626.4 moveto 20 (self) alignedtext
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 264 1619 moveto
+438 1619 lineto
+stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+272 1602.4 moveto 119 (self_id SERIAL [PK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+272 1586.4 moveto 156 (self_handle VARCHAR [U]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+272 1570.4 moveto 119 (use_hsm BOOLEAN) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+272 1554.4 moveto 136 (crl_interval BIGINT [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+272 1538.4 moveto 150 (regen_margin BIGINT [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+272 1522.4 moveto 155 (bpki_cert LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+272 1506.4 moveto 158 (bpki_glue LONGBLOB [N]) alignedtext
+grestore
+% node2
+gsave
+0 0 1 nodecolor
+newpath 116.5 1301 moveto
+116.5 1461 lineto
+323.5 1461 lineto
+323.5 1301 lineto
+closepath fill
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 116.5 1301 moveto
+116.5 1461 lineto
+323.5 1461 lineto
+323.5 1301 lineto
+closepath stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+210 1444.4 moveto 20 (bsc) alignedtext
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 116.5 1437 moveto
+323.5 1437 lineto
+stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+124.5 1420.4 moveto 119 (bsc_id SERIAL [PK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+124.5 1404.4 moveto 156 (bsc_handle VARCHAR [U]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+124.5 1388.4 moveto 185 (private_key_id LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+124.5 1372.4 moveto 190 (pkcs10_request LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+124.5 1356.4 moveto 118 (hash_alg ENUM [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+124.5 1340.4 moveto 169 (signing_cert LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+124.5 1324.4 moveto 191 (signing_cert_crl LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+124.5 1308.4 moveto 132 (self_id BIGINT [FK,U]) alignedtext
+grestore
+% node1->node2
+gsave
+1 setlinewidth
+0 0 0 edgecolor
+newpath 301.29 1498.9 moveto
+294.74 1489.4 287.96 1479.57 281.25 1469.84 curveto
+stroke
+0 0 0 edgecolor
+newpath 283.93 1467.56 moveto
+275.37 1461.31 lineto
+278.17 1471.53 lineto
+closepath fill
+1 setlinewidth
+solid
+0 0 0 edgecolor
+newpath 283.93 1467.56 moveto
+275.37 1461.31 lineto
+278.17 1471.53 lineto
+closepath stroke
+grestore
+% node3
+gsave
+0 0 1 nodecolor
+newpath 233.5 1119 moveto
+233.5 1263 lineto
+442.5 1263 lineto
+442.5 1119 lineto
+closepath fill
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 233.5 1119 moveto
+233.5 1263 lineto
+442.5 1263 lineto
+442.5 1119 lineto
+closepath stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+309 1246.4 moveto 58 (repository) alignedtext
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 233.5 1239 moveto
+442.5 1239 lineto
+stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+241.5 1222.4 moveto 156 (repository_id SERIAL [PK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+241.5 1206.4 moveto 193 (repository_handle VARCHAR [U]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+241.5 1190.4 moveto 156 (peer_contact_uri TEXT [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+241.5 1174.4 moveto 155 (bpki_cert LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+241.5 1158.4 moveto 158 (bpki_glue LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+241.5 1142.4 moveto 118 (bsc_id BIGINT [FK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+241.5 1126.4 moveto 132 (self_id BIGINT [FK,U]) alignedtext
+grestore
+% node1->node3
+gsave
+1 setlinewidth
+0 0 0 edgecolor
+newpath 348.52 1498.63 moveto
+346.32 1434.32 343.11 1340.35 340.81 1273.22 curveto
+stroke
+0 0 0 edgecolor
+newpath 344.31 1272.97 moveto
+340.47 1263.1 lineto
+337.31 1273.21 lineto
+closepath fill
+1 setlinewidth
+solid
+0 0 0 edgecolor
+newpath 344.31 1272.97 moveto
+340.47 1263.1 lineto
+337.31 1273.21 lineto
+closepath stroke
+grestore
+% node4
+gsave
+0 0 1 nodecolor
+newpath 230.5 841 moveto
+230.5 1081 lineto
+437.5 1081 lineto
+437.5 841 lineto
+closepath fill
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 230.5 841 moveto
+230.5 1081 lineto
+437.5 1081 lineto
+437.5 841 lineto
+closepath stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+316 1064.4 moveto 36 (parent) alignedtext
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 230.5 1057 moveto
+437.5 1057 lineto
+stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+238.5 1040.4 moveto 135 (parent_id SERIAL [PK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+238.5 1024.4 moveto 172 (parent_handle VARCHAR [U]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+238.5 1008.4 moveto 184 (bpki_cms_cert LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+238.5 992.4 moveto 187 (bpki_cms_glue LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+238.5 976.4 moveto 189 (bpki_https_cert LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+238.5 960.4 moveto 191 (bpki_https_glue LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+238.5 944.4 moveto 156 (peer_contact_uri TEXT [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+238.5 928.4 moveto 109 (sia_base TEXT [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+238.5 912.4 moveto 135 (sender_name TEXT [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+238.5 896.4 moveto 147 (recipient_name TEXT [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+238.5 880.4 moveto 132 (self_id BIGINT [FK,U]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+238.5 864.4 moveto 118 (bsc_id BIGINT [FK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+238.5 848.4 moveto 155 (repository_id BIGINT [FK]) alignedtext
+grestore
+% node1->node4
+gsave
+1 setlinewidth
+0 0 0 edgecolor
+newpath 390.51 1498.76 moveto
+434.65 1408.32 494.54 1249.29 451 1118 curveto
+447.87 1108.56 443.93 1099.23 439.4 1090.11 curveto
+stroke
+0 0 0 edgecolor
+newpath 442.41 1088.31 moveto
+434.69 1081.05 lineto
+436.2 1091.54 lineto
+closepath fill
+1 setlinewidth
+solid
+0 0 0 edgecolor
+newpath 442.41 1088.31 moveto
+434.69 1081.05 lineto
+436.2 1091.54 lineto
+closepath stroke
+grestore
+% node7
+gsave
+0 0 1 nodecolor
+newpath -.5 1127 moveto
+-.5 1255 lineto
+178.5 1255 lineto
+178.5 1127 lineto
+closepath fill
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath -.5 1127 moveto
+-.5 1255 lineto
+178.5 1255 lineto
+178.5 1127 lineto
+closepath stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+75 1238.4 moveto 28 (child) alignedtext
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath -.5 1231 moveto
+178.5 1231 lineto
+stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+7.5 1214.4 moveto 127 (child_id SERIAL [PK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+7.5 1198.4 moveto 163 (child_handle VARCHAR [U]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+7.5 1182.4 moveto 155 (bpki_cert LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+7.5 1166.4 moveto 158 (bpki_glue LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+7.5 1150.4 moveto 132 (self_id BIGINT [FK,U]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+7.5 1134.4 moveto 118 (bsc_id BIGINT [FK]) alignedtext
+grestore
+% node1->node7
+gsave
+1 setlinewidth
+0 0 0 edgecolor
+newpath 263.71 1555.35 moveto
+209.6 1540.79 143.8 1513.27 108 1462 curveto
+68.18 1404.97 67.93 1323.72 74.88 1265.08 curveto
+stroke
+0 0 0 edgecolor
+newpath 78.35 1265.5 moveto
+76.15 1255.13 lineto
+71.41 1264.61 lineto
+closepath fill
+1 setlinewidth
+solid
+0 0 0 edgecolor
+newpath 78.35 1265.5 moveto
+76.15 1255.13 lineto
+71.41 1264.61 lineto
+closepath stroke
+grestore
+% node10
+gsave
+0 0 1 nodecolor
+newpath 425 151 moveto
+425 295 lineto
+591 295 lineto
+591 151 lineto
+closepath fill
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 425 151 moveto
+425 295 lineto
+591 295 lineto
+591 151 lineto
+closepath stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+498.5 278.4 moveto 19 (roa) alignedtext
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 425 271 moveto
+591 271 lineto
+stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+433 254.4 moveto 118 (roa_id SERIAL [PK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+433 238.4 moveto 92 (asn BIGINT [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+433 222.4 moveto 123 (cert LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+433 206.4 moveto 121 (roa LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+433 190.4 moveto 150 (published DATETIME [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+433 174.4 moveto 118 (self_id BIGINT [FK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+433 158.4 moveto 148 (ca_detail_id BIGINT [FK]) alignedtext
+grestore
+% node1->node10
+gsave
+1 setlinewidth
+0 0 0 edgecolor
+newpath 423.24 1498.71 moveto
+432.23 1487.09 440.53 1474.69 447 1462 curveto
+503.1 1352.03 508 1314.46 508 1191 curveto
+508 1191 508 1191 508 715 curveto
+508 570.84 508 402.91 508 305.22 curveto
+stroke
+0 0 0 edgecolor
+newpath 511.5 305.11 moveto
+508 295.11 lineto
+504.5 305.11 lineto
+closepath fill
+1 setlinewidth
+solid
+0 0 0 edgecolor
+newpath 511.5 305.11 moveto
+508 295.11 lineto
+504.5 305.11 lineto
+closepath stroke
+grestore
+% node2->node3
+gsave
+1 setlinewidth
+0 0 0 edgecolor
+newpath 269.7 1300.97 moveto
+275.68 1291.35 281.79 1281.51 287.78 1271.87 curveto
+stroke
+0 0 0 edgecolor
+newpath 290.93 1273.42 moveto
+293.23 1263.08 lineto
+284.98 1269.73 lineto
+closepath fill
+1 setlinewidth
+solid
+0 0 0 edgecolor
+newpath 290.93 1273.42 moveto
+293.23 1263.08 lineto
+284.98 1269.73 lineto
+closepath stroke
+grestore
+% node2->node4
+gsave
+1 setlinewidth
+0 0 0 edgecolor
+newpath 209.66 1300.76 moveto
+205.66 1247.62 205.88 1177.09 225 1118 curveto
+228.03 1108.65 231.81 1099.36 236.14 1090.24 curveto
+stroke
+0 0 0 edgecolor
+newpath 239.32 1091.7 moveto
+240.64 1081.18 lineto
+233.06 1088.58 lineto
+closepath fill
+1 setlinewidth
+solid
+0 0 0 edgecolor
+newpath 239.32 1091.7 moveto
+240.64 1081.18 lineto
+233.06 1088.58 lineto
+closepath stroke
+grestore
+% node2->node7
+gsave
+1 setlinewidth
+0 0 0 edgecolor
+newpath 164.82 1300.97 moveto
+156.25 1288.53 147.42 1275.74 138.97 1263.47 curveto
+stroke
+0 0 0 edgecolor
+newpath 141.74 1261.33 moveto
+133.18 1255.08 lineto
+135.98 1265.3 lineto
+closepath fill
+1 setlinewidth
+solid
+0 0 0 edgecolor
+newpath 141.74 1261.33 moveto
+133.18 1255.08 lineto
+135.98 1265.3 lineto
+closepath stroke
+grestore
+% node3->node4
+gsave
+1 setlinewidth
+0 0 0 edgecolor
+newpath 336.75 1118.86 moveto
+336.59 1110.05 336.43 1100.86 336.27 1091.52 curveto
+stroke
+0 0 0 edgecolor
+newpath 339.77 1091.29 moveto
+336.09 1081.35 lineto
+332.77 1091.41 lineto
+closepath fill
+1 setlinewidth
+solid
+0 0 0 edgecolor
+newpath 339.77 1091.29 moveto
+336.09 1081.35 lineto
+332.77 1091.41 lineto
+closepath stroke
+grestore
+% node5
+gsave
+0 0 1 nodecolor
+newpath 205 627 moveto
+205 803 lineto
+439 803 lineto
+439 627 lineto
+closepath fill
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 205 627 moveto
+205 803 lineto
+439 803 lineto
+439 627 lineto
+closepath stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+315.5 786.4 moveto 13 (ca) alignedtext
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 205 779 moveto
+439 779 lineto
+stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+213 762.4 moveto 112 (ca_id SERIAL [PK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+213 746.4 moveto 111 (last_crl_sn BIGINT) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+213 730.4 moveto 143 (last_manifest_sn BIGINT) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+213 714.4 moveto 218 (next_manifest_update DATETIME [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+213 698.4 moveto 186 (next_crl_update DATETIME [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+213 682.4 moveto 131 (last_issued_sn BIGINT) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+213 666.4 moveto 99 (sia_uri TEXT [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+213 650.4 moveto 185 (parent_resource_class TEXT [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+213 634.4 moveto 148 (parent_id BIGINT [FK,N]) alignedtext
+grestore
+% node4->node5
+gsave
+1 setlinewidth
+0 0 0 edgecolor
+newpath 328.14 840.88 moveto
+327.69 831.67 327.24 822.43 326.8 813.38 curveto
+stroke
+1 setlinewidth
+solid
+0 0 0 edgecolor
+newpath 330.29 813.06 moveto
+326.3 803.25 lineto
+323.3 813.41 lineto
+closepath stroke
+grestore
+% node6
+gsave
+0 0 1 nodecolor
+newpath 188.5 333 moveto
+188.5 589 lineto
+443.5 589 lineto
+443.5 333 lineto
+closepath fill
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 188.5 333 moveto
+188.5 589 lineto
+443.5 589 lineto
+443.5 333 lineto
+closepath stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+290.5 572.4 moveto 51 (ca_detail) alignedtext
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 188.5 565 moveto
+443.5 565 lineto
+stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+196.5 548.4 moveto 149 (ca_detail_id SERIAL [PK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+196.5 532.4 moveto 164 (public_key LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+196.5 516.4 moveto 185 (private_key_id LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+196.5 500.4 moveto 153 (latest_crl LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+196.5 484.4 moveto 171 (crl_published DATETIME [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+196.5 468.4 moveto 178 (latest_ca_cert LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+196.5 452.4 moveto 239 (manifest_private_key_id LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+196.5 436.4 moveto 218 (manifest_public_key LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+196.5 420.4 moveto 213 (latest_manifest_cert LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+196.5 404.4 moveto 185 (latest_manifest LONGBLOB [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+196.5 388.4 moveto 204 (manifest_published DATETIME [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+196.5 372.4 moveto 71 (state ENUM) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+196.5 356.4 moveto 124 (ca_cert_uri TEXT [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+196.5 340.4 moveto 111 (ca_id BIGINT [FK]) alignedtext
+grestore
+% node5->node6
+gsave
+1 setlinewidth
+0 0 0 edgecolor
+newpath 319.92 626.88 moveto
+319.71 617.93 319.49 608.7 319.27 599.39 curveto
+stroke
+0 0 0 edgecolor
+newpath 322.77 599.18 moveto
+319.03 589.27 lineto
+315.77 599.35 lineto
+closepath fill
+1 setlinewidth
+solid
+0 0 0 edgecolor
+newpath 322.77 599.18 moveto
+319.03 589.27 lineto
+315.77 599.35 lineto
+closepath stroke
+grestore
+% node8
+gsave
+0 0 1 nodecolor
+newpath 24 159 moveto
+24 287 lineto
+194 287 lineto
+194 159 lineto
+closepath fill
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 24 159 moveto
+24 287 lineto
+194 287 lineto
+194 159 lineto
+closepath stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+81 270.4 moveto 56 (child_cert) alignedtext
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 24 263 moveto
+194 263 lineto
+stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+32 246.4 moveto 154 (child_cert_id SERIAL [PK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+32 230.4 moveto 100 (cert LONGBLOB) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+32 214.4 moveto 150 (published DATETIME [N]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+32 198.4 moveto 90 (ski TINYBLOB) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+32 182.4 moveto 125 (child_id BIGINT [FK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+32 166.4 moveto 148 (ca_detail_id BIGINT [FK]) alignedtext
+grestore
+% node6->node8
+gsave
+1 setlinewidth
+0 0 0 edgecolor
+newpath 204.62 332.94 moveto
+193.32 319.95 182.14 307.09 171.63 295.01 curveto
+stroke
+0 0 0 edgecolor
+newpath 174.03 292.44 moveto
+164.83 287.19 lineto
+168.75 297.03 lineto
+closepath fill
+1 setlinewidth
+solid
+0 0 0 edgecolor
+newpath 174.03 292.44 moveto
+164.83 287.19 lineto
+168.75 297.03 lineto
+closepath stroke
+grestore
+% node9
+gsave
+0 0 1 nodecolor
+newpath 218.5 167 moveto
+218.5 279 lineto
+407.5 279 lineto
+407.5 167 lineto
+closepath fill
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 218.5 167 moveto
+218.5 279 lineto
+407.5 279 lineto
+407.5 167 lineto
+closepath stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+276 262.4 moveto 74 (revoked_cert) alignedtext
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 218.5 255 moveto
+407.5 255 lineto
+stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+226.5 238.4 moveto 173 (revoked_cert_id SERIAL [PK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+226.5 222.4 moveto 81 (serial BIGINT) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+226.5 206.4 moveto 119 (revoked DATETIME) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+226.5 190.4 moveto 113 (expires DATETIME) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+226.5 174.4 moveto 148 (ca_detail_id BIGINT [FK]) alignedtext
+grestore
+% node6->node9
+gsave
+1 setlinewidth
+0 0 0 edgecolor
+newpath 314.39 332.94 moveto
+314.2 317.86 314.01 302.98 313.84 289.26 curveto
+stroke
+0 0 0 edgecolor
+newpath 317.33 288.98 moveto
+313.71 279.02 lineto
+310.33 289.06 lineto
+closepath fill
+1 setlinewidth
+solid
+0 0 0 edgecolor
+newpath 317.33 288.98 moveto
+313.71 279.02 lineto
+310.33 289.06 lineto
+closepath stroke
+grestore
+% node6->node10
+gsave
+1 setlinewidth
+0 0 0 edgecolor
+newpath 419.31 332.94 moveto
+427.49 322.8 435.6 312.75 443.4 303.08 curveto
+stroke
+0 0 0 edgecolor
+newpath 446.32 305.03 moveto
+449.87 295.05 lineto
+440.87 300.64 lineto
+closepath fill
+1 setlinewidth
+solid
+0 0 0 edgecolor
+newpath 446.32 305.03 moveto
+449.87 295.05 lineto
+440.87 300.64 lineto
+closepath stroke
+grestore
+% node7->node8
+gsave
+1 setlinewidth
+0 0 0 edgecolor
+newpath 90.33 1126.74 moveto
+93.89 954.13 103.67 481.08 107.46 297.35 curveto
+stroke
+0 0 0 edgecolor
+newpath 110.97 297.31 moveto
+107.67 287.24 lineto
+103.97 297.17 lineto
+closepath fill
+1 setlinewidth
+solid
+0 0 0 edgecolor
+newpath 110.97 297.31 moveto
+107.67 287.24 lineto
+103.97 297.17 lineto
+closepath stroke
+grestore
+% node11
+gsave
+0 0 1 nodecolor
+newpath 415 1 moveto
+415 113 lineto
+601 113 lineto
+601 1 lineto
+closepath fill
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 415 1 moveto
+415 113 lineto
+601 113 lineto
+601 1 lineto
+closepath stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+478.5 96.4 moveto 59 (roa_prefix) alignedtext
+1 setlinewidth
+filled
+0 0 0 nodecolor
+newpath 415 89 moveto
+601 89 lineto
+stroke
+0 0 0 nodecolor
+14 /Times-Roman set_font
+423 72.4 moveto 133 (prefix VARCHAR [PK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+423 56.4 moveto 140 (prefixlen TINYINT [PK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+423 40.4 moveto 170 (max_prefixlen TINYINT [PK]) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+423 24.4 moveto 101 (version TINYINT) alignedtext
+0 0 0 nodecolor
+14 /Times-Roman set_font
+423 8.4 moveto 138 (roa_id BIGINT [PK,FK]) alignedtext
+grestore
+% node10->node11
+gsave
+1 setlinewidth
+0 0 0 edgecolor
+newpath 508 150.67 moveto
+508 141.53 508 132.22 508 123.18 curveto
+stroke
+0 0 0 edgecolor
+newpath 511.5 123.11 moveto
+508 113.11 lineto
+504.5 123.11 lineto
+closepath fill
+1 setlinewidth
+solid
+0 0 0 edgecolor
+newpath 511.5 123.11 moveto
+508 113.11 lineto
+504.5 123.11 lineto
+closepath stroke
+grestore
+endpage
+showpage
+grestore
+%%PageTrailer
+%%EndPage: 1
+%%Trailer
+end
+restore
+%%EOF

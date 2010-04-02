@@ -2,6 +2,8 @@
 
 all:: left-right-protocol-samples/.stamp
 
+.SUFFIXES: .dot .png .pdf .eps
+
 left-right-protocol-samples/.stamp: left-right-protocol-samples.xml split-protocol-samples.xsl 
 	rm -f left-right-protocol-samples/*.xml
 	xsltproc --stringparam dir left-right-protocol-samples split-protocol-samples.xsl left-right-protocol-samples.xml
@@ -109,20 +111,20 @@ doc/rpkid.dot: rpkid.sql
 	sh ../scripts/graphviz-sql.sh $? >$@
 
 doc:: doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
+doc:: doc/irdbd.eps doc/pubd.eps doc/rpkid.eps doc/rpkid-bpki.eps doc/pubd-bpki.eps
+doc:: doc/irdbd.png doc/pubd.png doc/rpkid.png doc/rpkid-bpki.png doc/pubd-bpki.png
+doc:: doc/irdbd.pdf doc/pubd.pdf doc/rpkid.pdf doc/rpkid-bpki.pdf doc/pubd-bpki.pdf
 
-doc/irdbd.pdf: doc/irdbd.dot
+.dot.pdf:
 	dot -Tps2 $? | ps2pdf - $@
 
-doc/pubd.pdf: doc/pubd.dot
-	dot -Tps2 $? | ps2pdf - $@
+.dot.eps:
+	dot -o $@ -Teps $?
 
-doc/rpkid.pdf: doc/rpkid.dot
-	dot -Tps2 $? | ps2pdf - $@
+.dot.png:
+	dot -o $@ -Tpng $?
 
 doc:: doc/irdbd.pdf doc/pubd.pdf doc/rpkid.pdf
-
-# Certain invocations of Graphviz by Doxygen whine about fonts.  Not
-# clear whose bug this is.  Apparently harmless, so just ignore it.
 
 dox doxygen: irbe_cli.usage doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
 	TZ='' doxygen

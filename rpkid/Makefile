@@ -2,8 +2,6 @@
 
 all:: left-right-protocol-samples/.stamp
 
-.SUFFIXES: .dot .png .pdf .eps
-
 left-right-protocol-samples/.stamp: left-right-protocol-samples.xml split-protocol-samples.xsl 
 	rm -f left-right-protocol-samples/*.xml
 	xsltproc --stringparam dir left-right-protocol-samples split-protocol-samples.xsl left-right-protocol-samples.xml
@@ -110,10 +108,7 @@ doc/pubd.dot: pubd.sql
 doc/rpkid.dot: rpkid.sql
 	sh ../scripts/graphviz-sql.sh $? >$@
 
-doc:: doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
-doc:: doc/irdbd.eps doc/pubd.eps doc/rpkid.eps doc/rpkid-bpki.eps doc/pubd-bpki.eps
-doc:: doc/irdbd.png doc/pubd.png doc/rpkid.png doc/rpkid-bpki.png doc/pubd-bpki.png
-doc:: doc/irdbd.pdf doc/pubd.pdf doc/rpkid.pdf doc/rpkid-bpki.pdf doc/pubd-bpki.pdf
+.SUFFIXES: .dot .png .pdf .eps
 
 .dot.pdf:
 	dot -Tps2 $? | ps2pdf - $@
@@ -124,9 +119,11 @@ doc:: doc/irdbd.pdf doc/pubd.pdf doc/rpkid.pdf doc/rpkid-bpki.pdf doc/pubd-bpki.
 .dot.png:
 	dot -o $@ -Tpng $?
 
-doc:: doc/irdbd.pdf doc/pubd.pdf doc/rpkid.pdf
-
-dox doxygen: irbe_cli.usage doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
+docs:: doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
+docs:: doc/irdbd.eps doc/pubd.eps doc/rpkid.eps doc/rpkid-bpki.eps doc/pubd-bpki.eps
+docs:: doc/irdbd.png doc/pubd.png doc/rpkid.png doc/rpkid-bpki.png doc/pubd-bpki.png
+docs:: doc/irdbd.pdf doc/pubd.pdf doc/rpkid.pdf doc/rpkid-bpki.pdf doc/pubd-bpki.pdf
+docs::
 	TZ='' doxygen
 	cd doc/latex && TZ='' ${MAKE}
 	for i in Installation Operation Left-right Publication; do \
@@ -134,8 +131,6 @@ dox doxygen: irbe_cli.usage doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
 	done
 	cd doc; ln -f latex/refman.pdf manual.pdf
 	cd doc; tar -cf - html | gzip -9 >manual.tar.gz
-
-doc:: dox
 
 lint:
 	pylint --rcfile ../scripts/pylint.rc rpki/[a-z]*.py cronjob.py cross_certify.py irbe_cli.py irdbd.py pubd.py rootd.py rpkid.py testbed.py testpoke.py

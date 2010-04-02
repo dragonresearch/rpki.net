@@ -9,7 +9,7 @@ digraph test {
 	node3 [label="{registrant_net\n|registrant_net_id\ SERIAL\ [PK]\lstart_ip\ VARCHAR\lend_ip\ VARCHAR\lversion\ TINYINT\lregistrant_id\ BIGINT\ [FK]\l}"];
 	node4 [label="{roa_request\n|roa_request_id\ SERIAL\ [PK]\lroa_request_handle\ VARCHAR\lasn\ BIGINT\l}"];
 	node5 [label="{roa_request_prefix\n|prefix\ VARCHAR\ [PK]\lprefixlen\ TINYINT\ [PK]\lmax_prefixlen\ TINYINT\ [PK]\lversion\ TINYINT\lroa_request_id\ BIGINT\ [PK,FK]\l}"];
-	node1 -> node2 [arrowhead=normal];
-	node1 -> node3 [arrowhead=normal];
-	node4 -> node5 [arrowhead=normal];
+	node1 -> node2 [arrowtail=none, arrowhead=crow];
+	node1 -> node3 [arrowtail=none, arrowhead=crow];
+	node4 -> node5 [arrowtail=none, arrowhead=crow];
 }

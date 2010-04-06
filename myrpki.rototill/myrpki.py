@@ -878,7 +878,7 @@ class main(rpki.cli.Cmd):
 
     self.cfg = rpki.config.parser(self.cfg_file, "myrpki")
 
-    self.histfile  = self.cfg.get("history_file", ".setup_history")
+    self.histfile  = self.cfg.get("history_file", ".myrpki_history")
     self.handle    = self.cfg.get("handle")
     self.run_rpkid = self.cfg.getboolean("run_rpkid")
     self.run_pubd  = self.cfg.getboolean("run_pubd")

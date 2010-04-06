@@ -275,6 +275,7 @@ class list_pdu(base_elt):
     Send a "list" query to parent.
     """
     try:
+      rpki.log.info('Sending "list" request to parent %s' % parent.parent_handle)
       parent.query_up_down(cls(), cb, eb)
     except (rpki.async.ExitNow, SystemExit):
       raise
@@ -424,6 +425,7 @@ class issue_pdu(base_elt):
     self = cls()
     self.class_name = ca.parent_resource_class
     self.pkcs10 = rpki.x509.PKCS10.create_ca(ca_detail.private_key_id, sia)
+    rpki.log.info('Sending "issue" request to parent %s' % parent.parent_handle)
     parent.query_up_down(self, callback, errback)
 
 class issue_response_pdu(class_response_syntax):
@@ -490,6 +492,7 @@ class revoke_pdu(revoke_syntax):
     self = cls()
     self.class_name = ca.parent_resource_class
     self.ski = gski
+    rpki.log.info('Sending "revoke" request for SKI %s to parent %s' % (gski, parent.parent_handle))
     parent.query_up_down(self, cb, eb)
 
 class revoke_response_pdu(revoke_syntax):

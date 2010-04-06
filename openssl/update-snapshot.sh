@@ -6,7 +6,7 @@
 
 #version="1.0.0-stable-SNAP-$(date +%Y%m%d)"
 
-version="1.0.0-beta5"
+version="1.0.0"
 
 tarball="openssl-${version}.tar.gz"
 
@@ -28,7 +28,7 @@ do
   fi
 done
 
-/usr/bin/awk -v version="$version" '/^VERSION = / {$NF = version} {print}' Makefile >Makefile.$$ &&
-/bin/mv Makefile.$$ Makefile
+/usr/bin/awk -v version="$version" '/^VERSION = / {$NF = version} {print}' Makefile.in >Makefile.in.$$ &&
+/bin/mv Makefile.in.$$ Makefile.in
 
 /usr/local/bin/svn add "$tarball"

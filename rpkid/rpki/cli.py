@@ -18,7 +18,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import cmd, glob, os.path
+import cmd, glob, os.path, traceback
 
 try:
   import readline
@@ -45,6 +45,18 @@ class Cmd(cmd.Cmd):
       self.onecmd(" ".join(argv))
     else:      
       self.cmdloop_with_history()
+
+  def onecmd(self, line):
+    """
+    Wrap error handling around cmd.Cmd.onecmd().  Might want to do
+    something kinder than showing a traceback, eventually.
+    """
+    try:
+      return cmd.Cmd.onecmd(self, line)
+    except SystemExit:
+      raise
+    except:
+      traceback.print_exc()
 
   def do_EOF(self, arg):
     """

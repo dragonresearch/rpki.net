@@ -17,4 +17,4 @@
 
 # Prettyprint rcynic summary data as flat text.
 
-xsltproc show.xsl ${1-rcynic.xml} | awk -f show.awk
+@XSLTPROC@ @abs_builddir@/show.xsl ${1-rcynic.xml} | @AWK@ -f @abs_builddir@/show.awk

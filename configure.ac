@@ -57,6 +57,10 @@ esac
 AC_SUBST(OPENSSL_CONFIG_COMMAND)
 AC_MSG_RESULT([$OPENSSL_CONFIG_COMMAND])
 
+AC_PATH_PROG([XSLTPROC], [xsltproc], [xsltproc])
+
+AC_PATH_PROG([AWK], [awk], [awk])
+
 # This isn't the complete list of Makefiles (let alone setup.py, etc
 # files) in this tree, just the ones we're customizing today.  At some
 # point I should do a pass through the rest of the tree, making clever
@@ -65,6 +69,9 @@ AC_MSG_RESULT([$OPENSSL_CONFIG_COMMAND])
 AC_CONFIG_FILES([Makefile
 		 openssl/Makefile
 		 rcynic/Makefile
+		 rcynic/show.sh
 		 rpkid/rpki/__doc__.py])
+
+AC_CONFIG_COMMANDS([chmod], [chmod a+x rcynic/show.sh])
 
 AC_OUTPUT

@@ -36,7 +36,7 @@ do
     sleep 30
     date
     ../rcynic/rcynic
-    xsltproc --param refresh 0 ../rcynic/rcynic.xsl rcynic.xml | w3m -T text/html -dump
+    ../rcynic/show.sh
     date
   done
   test -r yamltest.pid && kill -INT `cat yamltest.pid`

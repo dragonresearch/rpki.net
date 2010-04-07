@@ -22,8 +22,7 @@ ${BIN}: ${OBJ} ${LIB} Makefile
 	${CC} -g -o $@ ${OBJ} ${LIB} ${LDFLAGS}
 
 test: ${BIN}
-	./${BIN} -j 0
-	-xsltproc --param refresh 0 rcynic.xsl rcynic.xml | w3m -T text/html -dump
+	if test -r rcynic.conf; then ./${BIN} -j 0 && echo && ./show.sh; else echo No rcynic.conf, skipping test; fi
 
 install: ${BIN} scripts/install.sh
 	cd scripts; . ./install.sh

@@ -134,3 +134,7 @@ docs::
 
 lint:
 	pylint --rcfile ../scripts/pylint.rc rpki/[a-z]*.py cronjob.py cross_certify.py irbe_cli.py irdbd.py pubd.py rootd.py rpkid.py testbed.py testpoke.py
+
+profile: all
+	python testbed.py -y testbed.2.yaml -p
+	for i in testbed.dir/*.prof; do python -c "import pstats;pstats.Stats('$$i').sort_stats('time').print_stats()"; done

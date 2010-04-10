@@ -266,7 +266,7 @@ c) Next, you need to set up the MySQL databases that rpkid et al will
    match the ones you specified in myrpki.conf.  There are two
    different ways you can do this:
 
-   i) You can use the setup-sql.py script, which prompts you for your
+   i) You can use the sql-setup.py script, which prompts you for your
       MySQL root password then attempts to do everything else
       automatically using values from myrpki.conf; or
 
@@ -274,7 +274,7 @@ c) Next, you need to set up the MySQL databases that rpkid et al will
 
    The first approach is simple:
 
-   $ python setup-sql.py
+   $ python sql-setup.py
    Please enter your MySQL root password:
 
    The script should tell you what databases it creates.  You can use

@@ -196,18 +196,6 @@
 #       <li>Ubuntu:  xsltproc</li>
 #     </ul>
 #   </li>
-#
-#   <li>
-#     <a href="http://w3m.sourceforge.net/">http://w3m.sourceforge.net/</a>.
-#     testbed.py uses w3m to display the summary output from rcynic.
-#     Nothing terrible will happen if w3m isn't available, testbed.py
-#     will just complain about it being missing and won't display
-#     rcynic's output.
-#     <ul>
-#       <li>FreeBSD: /usr/ports/www/w3m</li>
-#       <li>Ubuntu:  w3m</li>
-#     </ul>
-#   </li>
 # </ul>
 #
 # Some of the tests require MySQL databases to store their data.  To set

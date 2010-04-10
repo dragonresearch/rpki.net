@@ -592,11 +592,13 @@ class CA(object):
     """
     self.run_openssl("ca", "-batch", "-config",  self.cfg, *args)
 
-  def run_req(self, key_file, req_file):
+  def run_req(self, key_file, req_file, log_key = sys.stdout):
     """
     Run OpenSSL "genrsa" and  "req" commands.
     """
     if not os.path.exists(key_file):
+      if log_key:
+        log_key.write("Generating 2048-bit RSA key %s\n" % os.path.realpath(key_file))
       self.run_openssl("genrsa", "-out", key_file, "2048")
     if not os.path.exists(req_file):
       self.run_openssl("req", "-new", "-sha256", "-config", self.cfg, "-key", key_file, "-out", req_file)
@@ -777,17 +779,24 @@ def etree_validate(e):
       print lxml.etree.tostring(e, pretty_print = True)
       raise
 
-def etree_write(e, filename, verbose = True, validate = True):
+def etree_write(e, filename, verbose = False, validate = True, msg = None):
   """
   Write out an etree to a file, safely.
 
   I still miss SYSCAL(RENMWO).
   """
-  if verbose:
+  filename = os.path.realpath(filename)
+  tempname = filename
+  if not filename.startswith("/dev/"):
+    tempname += ".tmp"
+  if verbose or msg:
     print "Writing", filename
+  if msg:
+    print msg
   e = etree_pre_write(e, validate)
-  ElementTree(e).write(filename + ".tmp")
-  os.rename(filename + ".tmp", filename)
+  ElementTree(e).write(tempname)
+  if tempname != filename:
+    os.rename(tempname, filename)
 
 def etree_pre_write(e, validate = True):
   """
@@ -804,7 +813,7 @@ def etree_pre_write(e, validate = True):
     etree_validate(e)
   return e
 
-def etree_read(filename, verbose = True, validate = True):
+def etree_read(filename, verbose = False, validate = True):
   """
   Read an etree from a file, verifying then stripping XML namespace
   cruft.
@@ -847,6 +856,8 @@ class main(rpki.cli.Cmd):
   def __init__(self):
     os.environ["TZ"] = "UTC"
     time.tzset()
+
+    rpki.log.use_syslog = False
 
     self.cfg_file = os.getenv("MYRPKI_CONF", "myrpki.conf")
 
@@ -909,8 +920,6 @@ class main(rpki.cli.Cmd):
     if arg:
       raise RuntimeError, "This command takes no arguments"
 
-    print "Generating RSA keys, this may take a little while..."
-
     self.bpki_resources.setup(self.cfg.get("bpki_resources_ta_dn",
                                            "/CN=%s BPKI Resource Trust Anchor" % self.handle))
     if self.run_rpkid or self.run_pubd or self.run_rootd:
@@ -946,7 +955,8 @@ class main(rpki.cli.Cmd):
 
     e = Element("identity", handle = self.handle)
     PEMElement(e, "bpki_ta", self.bpki_resources.cer)
-    etree_write(e, self.entitydb("identity.xml"))
+    etree_write(e, self.entitydb("identity.xml"),
+                msg = None if self.run_rootd else 'This is the "identity" file you will need to send to your parent')
 
     # If we're running rootd, construct a fake parent to go with it,
     # and cross-certify in both directions so we can talk to rootd.
@@ -968,10 +978,18 @@ class main(rpki.cli.Cmd):
       if not os.path.exists(rootd_child_fn):
         os.link(self.bpki_servers.xcert(self.bpki_resources.cer), rootd_child_fn)
 
-      e = Element("repository", type = "offer", handle = self.handle, parent_handle = self.handle)
-      PEMElement(e, "bpki_client_ta", self.bpki_resources.cer)
-      etree_write(e, self.entitydb("repositories", "%s.xml" % self.handle))
+      repo_file_name = self.entitydb("repositories", "%s.xml" % self.handle)
 
+      try:
+        want_offer = etree_read(repo_file_name).get("type") != "confirmed"
+      except IOError:
+        want_offer = True
+
+      if want_offer:
+        e = Element("repository", type = "offer", handle = self.handle, parent_handle = self.handle)
+        PEMElement(e, "bpki_client_ta", self.bpki_resources.cer)
+        etree_write(e, repo_file_name,
+                    msg = 'This is the "repository offer" file for you to use if you want to publish in your own repository')
 
   def do_configure_child(self, arg):
     """
@@ -1051,7 +1069,8 @@ class main(rpki.cli.Cmd):
     except RuntimeError, err:
       print err
 
-    etree_write(e, self.entitydb("children", "%s.xml" % child_handle))
+    etree_write(e, self.entitydb("children", "%s.xml" % child_handle),
+                msg = "Send this file back to the child you just configured")
 
 
   def do_configure_parent(self, arg):
@@ -1095,8 +1114,8 @@ class main(rpki.cli.Cmd):
       r.set("handle", self.handle)
       r.set("parent_handle", parent_handle)
       PEMElement(r, "bpki_client_ta", self.bpki_resources.cer)
-      etree_write(r, self.entitydb("repositories", "%s.xml" % parent_handle))
-
+      etree_write(r, self.entitydb("repositories", "%s.xml" % parent_handle),
+                  msg = 'This is the "repository %s" file to send to the repository operator' % r.get("type"))
     else:
       print "Couldn't find repository offer or referral"
 
@@ -1174,7 +1193,8 @@ class main(rpki.cli.Cmd):
     PEMElement(e, "bpki_server_ta", self.bpki_servers.cer)
     SubElement(e, "bpki_client_ta").text = client.findtext("bpki_client_ta")
     SubElement(e, "contact_info").text = self.pubd_contact_info
-    etree_write(e, self.entitydb("pubclients", "%s.xml" % client_handle.replace("/", ".")))
+    etree_write(e, self.entitydb("pubclients", "%s.xml" % client_handle.replace("/", ".")),
+                msg = "Send this file back to the publication client you just configured")
 
 
   def do_configure_repository(self, arg):
@@ -1204,7 +1224,7 @@ class main(rpki.cli.Cmd):
 
 
 
-  def myrpki_main(self):
+  def configure_resources_main(self, msg = None):
     """
     Main program of old myrpki.py script.  This remains separate
     because it's called from more than one place.
@@ -1256,7 +1276,7 @@ class main(rpki.cli.Cmd):
     if server_ta:
       SubElement(e, "bpki_server_ta").text = server_ta
 
-    etree_write(e, xml_filename)
+    etree_write(e, xml_filename, msg = msg)
 
 
   def do_configure_resources(self, arg):
@@ -1268,7 +1288,7 @@ class main(rpki.cli.Cmd):
 
     if arg:
       raise RuntimeError, "Unexpected argument %r" % arg
-    self.myrpki_main()
+    self.configure_resources_main(msg = "Send this file to the rpkid operator who is hosting you")
 
 
 
@@ -1380,7 +1400,7 @@ class main(rpki.cli.Cmd):
 
     my_xmlfile = self.cfg.get("xml_filename", "")
     if my_xmlfile:
-      self.myrpki_main()
+      self.configure_resources_main()
       xmlfiles.append(my_xmlfile)
     else:
       my_xmlfile = None
@@ -1706,9 +1726,15 @@ class main(rpki.cli.Cmd):
         tree.remove(e)
       PEMElement(tree, "bpki_server_ta", self.bpki_resources.cer)
 
-      etree_write(tree, xmlfile, validate = True)
+      etree_write(tree, xmlfile, validate = True,
+                  msg = None if xmlfile is my_xmlfile else 'Send this file back to the hosted entity ("%s")' % handle)
 
     db.close()
+
+    # Run event loop again to give TLS connections a chance to shut down cleanly.
+    # Might need to add a timeout here, dunno yet.
+
+    rpki.async.event_loop()
 
 
 

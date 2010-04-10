@@ -328,3 +328,24 @@ TO DO:
 	DEPENDS ON: Agreement to add this to rescert profile.
 
 	STATUS: Not started
+
+      * Python's socket code tries a bit too hard to hide the DNS->IP
+        address translation stage from us, with the result that we
+        neither have enough information to support IPv6 properly nor
+        do can we handle DNS asynchronously as we do all other network
+        I/O.  Simplest fix for this would probably be to hack
+        something up using asyncore to handle the UDP I/O and Bob
+        Halley's excellent (and BSD-licensed) dnspython package to do
+        all the DNS encoding and decoding.  Adds another external
+        package dependency, but such is life.
+
+	TIME REQUIRED: One week
+
+	STATUS: Not started
+
+      * myrpki.py should have a command that summarizes current state
+        (data on file, actions it might make sense to take now, etc).
+
+	TIME REQUIRED: A day or two
+
+	STATUS: Not started

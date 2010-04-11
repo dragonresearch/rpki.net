@@ -831,7 +831,7 @@ class client_channel(pdu_channel):
     Set up ssh connection and start listening for first PDU.
     """
     args = ("ssh", "-p", port, "-s", host, "rpki-rtr")
-    log("[Running ssh: %s]" % " ".join(sshargs))
+    log("[Running ssh: %s]" % " ".join(args))
     s = socket.socketpair()
     return cls(sock = s[1],
                proc = subprocess.Popen(args, executable = "/usr/bin/ssh", stdin = s[0], stdout = s[0], close_fds = True),
@@ -1126,10 +1126,19 @@ for o, a in opts:
 if mode is None:
   raise RuntimeError, "No mode selected"
 
+tag = mode
+
 if mode == "server":
   rpki.log.use_syslog = True
+  #
+  # Try to figure out peer address when we're in server mode.
+  try:
+    tag += "/tcp/" + str(socket.fromfd(0, socket.AF_INET, socket.SOCK_STREAM).getpeername()[0])
+  except (socket.error, IndexError):
+    if os.getenv("SSH_CONNECTION"):
+      tag += "/ssh/" + os.getenv("SSH_CONNECTION").split()[0]
 
-rpki.log.init("rtr-origin/" + mode, syslog.LOG_PID)
+rpki.log.init("rtr-origin/" + tag, syslog.LOG_PID)
 
 cfg = rpki.config.parser(cfg_file, "mode", allow_missing = True)
 

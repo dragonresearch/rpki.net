@@ -68,14 +68,16 @@ class iterator(object):
       self.doit()
 
   def doit(self):
+    """
+    Implement the iterator protocol: attempt to call the item handler
+    with the next iteration value, call the termination handler if the
+    iterator signaled StopIteration.
+    """
     try:
       self.item_callback(self, self.iterator.next())
     except StopIteration:
       if self.done_callback is not None:
         self.done_callback()
-
-  def ignore(self, ignored):
-    self()
 
 class timer(object):
   """
@@ -319,10 +321,18 @@ class sync_wrapper(object):
     self.func = func
 
   def cb(self, res = None):
+    """
+    Wrapped code has requested normal termination.  Store result, and
+    exit the event loop.
+    """
     self.res = res
     raise ExitNow
 
   def eb(self, err):
+    """
+    Wrapped code raised an exception.  Store exception data, then exit
+    the event loop.
+    """
     exc_info = sys.exc_info()
     self.err = exc_info if exc_info[1] is err else err
     raise ExitNow
@@ -330,6 +340,10 @@ class sync_wrapper(object):
   def __call__(self, *args, **kwargs):
 
     def thunk():
+      """
+      Deferred action to call the wrapped code once event system is
+      running.
+      """
       try:
         self.func(self.cb, self.eb, *args, **kwargs)
       except ExitNow:
@@ -365,6 +379,9 @@ class gc_summary(object):
     self.timer.set(self.interval)
 
   def handler(self):
+    """
+    Collect and log GC state for this period, reset timer.
+    """
     rpki.log.debug("gc_summary: Running gc.collect()")
     gc.collect()
     rpki.log.debug("gc_summary: Summarizing (threshold %d)" % self.threshold)

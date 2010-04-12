@@ -598,7 +598,7 @@ class repository_elt(data_elt):
     """
     pdu.raise_if_error()
 
-  def call_pubd(self, callback, errback, q_msg, handlers = {}):
+  def call_pubd(self, callback, errback, q_msg, handlers = None):
     """
     Send a message to publication daemon and return the response.
 
@@ -618,6 +618,9 @@ class repository_elt(data_elt):
 
     if not q_msg:
       return callback()
+
+    if handlers is None:
+      handlers = {}
 
     for q_pdu in q_msg:
       rpki.log.info("Sending <%s %r %r> to pubd" % (q_pdu.action, q_pdu.uri, q_pdu.payload))

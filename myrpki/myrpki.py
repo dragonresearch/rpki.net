@@ -737,7 +737,6 @@ class CA(object):
     finally:
       if not filename and os.path.exists(fn):
         os.unlink(fn)
-        pass
 
   def xcert(self, cert, path_restriction = 0):
     """
@@ -1325,7 +1324,7 @@ class main(rpki.cli.Cmd):
 
     try:
       import rpki.https, rpki.resource_set, rpki.relaxng, rpki.exceptions
-      import rpki.left_right, rpki.x509, rpki.async, lxml.etree
+      import rpki.left_right, rpki.x509, rpki.async
       if hasattr(warnings, "catch_warnings"):
         with warnings.catch_warnings():
           warnings.simplefilter("ignore", DeprecationWarning)
@@ -1409,8 +1408,6 @@ class main(rpki.cli.Cmd):
 
     xmlfiles.extend(argv)
 
-    my_handle = None
-
     for xmlfile in xmlfiles:
 
       # Parse XML file and validate it against our scheme
@@ -1418,9 +1415,6 @@ class main(rpki.cli.Cmd):
       tree = etree_read(xmlfile, validate = True)
 
       handle = tree.get("handle")
-
-      if xmlfile == my_xmlfile:
-        my_handle = handle
 
       # Update IRDB with parsed resource and roa-request data.
 

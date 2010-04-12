@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: myrpki.rnc 3105 2010-03-16 22:24:19Z sra $
+  $Id: myrpki.rnc 3187 2010-04-12 17:56:03Z sra $
   
   RelaxNG Schema for MyRPKI XML messages.
   

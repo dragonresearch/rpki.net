@@ -45,7 +45,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 """
 
-import subprocess, csv, re, os, getopt, sys, base64, yaml, signal, errno, time
+import subprocess, re, os, getopt, sys, yaml, signal, time
 import rpki.resource_set, rpki.sundial, rpki.config, rpki.log, myrpki
 
 # Nasty regular expressions for parsing config files.  Sadly, while

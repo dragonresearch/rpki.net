@@ -36,30 +36,43 @@ import time, socket, asyncore, asynchat, urlparse, sys
 import rpki.async, rpki.sundial, rpki.x509, rpki.exceptions, rpki.log
 import POW
 
+## @var rpki_content_type
+# HTTP content type used for all RPKI messages.
 rpki_content_type = "application/x-rpki"
 
-
-# ================================================================
-
-# Verbose chatter about HTTP streams
+## @var debug_http
+# Verbose chatter about HTTP streams.
 debug_http = False
 
-# Verbose chatter about TLS certificates
+## @var debug_tls_certs
+# Verbose chatter about TLS certificates.
 debug_tls_certs = False
 
-# Whether we want persistent HTTP streams, when peer also supports them
+## @var want_persistent_client
+# Whether we want persistent HTTP client streams, when server also supports them.
 want_persistent_client = False
+
+## @var want_persistent_server
+# Whether we want persistent HTTP server streams, when client also supports them.
 want_persistent_server = False
 
-# Default HTTP connection timeouts.  Given our druthers, we'd prefer
-# that the client close the connection, as this avoids the problem of
-# client starting to reuse connection just as server closes it.
-
+## @var default_client_timeout
+# Default HTTP client connection timeout.
 default_client_timeout = rpki.sundial.timedelta(minutes = 15)
+
+## @var default_server_timeout
+# Default HTTP server connection timeouts.  Given our druthers, we'd
+# prefer that the client close the connection, as this avoids the
+# problem of client starting to reuse connection just as server closes
+# it, so this should be longer than the client timeout.
 default_server_timeout = rpki.sundial.timedelta(minutes = 20)
 
+## @var default_http_version
+# Preferred HTTP version.
 default_http_version = (1, 0)
 
+## @var supported_address_families
+#
 # IP address families to support.  Almost all the code is in place for
 # IPv6, the missing bits are DNS support that would let us figure out
 # which address family to request, and configuration support to let us
@@ -68,13 +81,16 @@ default_http_version = (1, 0)
 #
 # Address families on which to listen; first entry is also the default
 # for opening new connections.
-
 if False:
   supported_address_families = (socket.AF_INET, socket.AF_INET6)
 else:
   supported_address_families = (socket.AF_INET,)
 
+
 class http_message(object):
+  """
+  Virtual class representing of one HTTP message.
+  """
 
   software_name = "ISC RPKI library"
 
@@ -85,6 +101,10 @@ class http_message(object):
     self.normalize_headers()
 
   def normalize_headers(self, headers = None):
+    """
+    Clean up (some of) the horrible messes that HTTP allows in its
+    headers.
+    """
     if headers is None:
       headers = () if self.headers is None else self.headers.items()
       translate_underscore = True
@@ -104,6 +124,9 @@ class http_message(object):
 
   @classmethod
   def parse_from_wire(cls, headers):
+    """
+    Parse and normalize an incoming HTTP message.
+    """
     self = cls()
     headers = headers.split("\r\n")
     self.parse_first_line(*headers.pop(0).split(None, 2))
@@ -115,6 +138,9 @@ class http_message(object):
     return self
 
   def format(self):
+    """
+    Format an outgoing HTTP message.
+    """
     s = self.format_first_line()
     if self.body is not None:
       assert isinstance(self.body, str)
@@ -130,11 +156,17 @@ class http_message(object):
     return self.format()
 
   def parse_version(self, version):
+    """
+    Parse HTTP version, raise an exception if we can't.
+    """
     if version[:5] != "HTTP/":
       raise rpki.exceptions.HTTPSBadVersion, "Couldn't parse version %s" % version
     self.version = tuple(int(i) for i in version[5:].split("."))
 
   def persistent(self):
+    """
+    Figure out whether this HTTP message encourages a persistent connection.
+    """
     c = self.headers.get("Connection")
     if self.version == (1, 1):
       return c is None or "close" not in c.lower()
@@ -144,6 +176,9 @@ class http_message(object):
       return False
 
 class http_request(http_message):
+  """
+  HTTP request message.
+  """
 
   def __init__(self, cmd = None, path = None, version = default_http_version, body = None, callback = None, errback = None, **headers):
     assert cmd == "POST" or body is None
@@ -155,15 +190,25 @@ class http_request(http_message):
     self.retried = False
 
   def parse_first_line(self, cmd, path, version):
+    """
+    Parse first line of HTTP request message.
+    """
     self.parse_version(version)
     self.cmd = cmd
     self.path = path
 
   def format_first_line(self):
+    """
+    Format first line of HTTP request message, and set up the
+    User-Agent header.
+    """
     self.headers.setdefault("User-Agent", self.software_name)
     return "%s %s HTTP/%d.%d\r\n" % (self.cmd, self.path, self.version[0], self.version[1])
 
 class http_response(http_message):
+  """
+  HTTP response message.
+  """
 
   def __init__(self, code = None, reason = None, version = default_http_version, body = None, **headers):
     http_message.__init__(self, version = version, body = body, headers = headers)
@@ -171,21 +216,34 @@ class http_response(http_message):
     self.reason = reason
 
   def parse_first_line(self, version, code, reason):
+    """
+    Parse first line of HTTP response message.
+    """
     self.parse_version(version)
     self.code = int(code)
     self.reason = reason
 
   def format_first_line(self):
+    """
+    Format first line of HTTP response message, and set up Date and
+    Server headers.
+    """
     self.headers.setdefault("Date", time.strftime("%a, %d %b %Y %T GMT"))
     self.headers.setdefault("Server", self.software_name)
     return "HTTP/%d.%d %s %s\r\n" % (self.version[0], self.version[1], self.code, self.reason)
 
 def log_method(self, msg, logger = rpki.log.debug):
+  """
+  Logging method used in several different classes.
+  """
   assert isinstance(logger, rpki.log.logger)
   if debug_http or logger is not rpki.log.debug:
     logger("%r: %s" % (self, msg))
 
 class http_stream(asynchat.async_chat):
+  """
+  Virtual class representing an HTTP message stream.
+  """
 
   log = log_method
   tls = None
@@ -199,15 +257,20 @@ class http_stream(asynchat.async_chat):
     self.restart()
 
   def restart(self):
+    """
+    (Re)start HTTP message parser, reset timer.
+    """
     assert not self.buffer
     self.chunk_handler = None
     self.set_terminator("\r\n\r\n")
-    if self.timeout is not None:
-      self.timer.set(self.timeout)
-    else:
-      self.timer.cancel()
+    self.update_timeout()
 
   def update_timeout(self):
+    """
+    Put this stream's timer in known good state: set it to the
+    stream's timeout value if we're doing timeouts, otherwise clear
+    it.
+    """
     if self.timeout is not None:
       self.timer.set(self.timeout)
     else:
@@ -215,17 +278,36 @@ class http_stream(asynchat.async_chat):
 
   def collect_incoming_data(self, data):
     """
-    Buffer the data
+    Buffer incoming data from asynchat.
     """
     self.buffer.append(data)
     self.update_timeout()
 
   def get_buffer(self):
+    """
+    Consume data buffered from asynchat.
+    """
     val = "".join(self.buffer)
     self.buffer = []
     return val
 
   def found_terminator(self):
+    """
+    Asynchat reported that it found whatever terminator we set, so
+    figure out what to do next.  This can be messy, because we can be
+    in any of several different states:
+
+    @li We might be handling chunked HTTP, in which case we have to
+    initialize the chunk decoder;
+
+    @li We might have found the end of the message body, in which case
+    we can (finally) process it; or
+
+    @li We might have just gotten to the end of the message headers,
+    in which case we have to parse them to figure out which of three
+    separate mechanisms (chunked, content-length, TCP close) is going
+    to tell us how to find the end of the message body.
+    """
     self.update_timeout()
     if self.chunk_handler:
       self.chunk_handler()
@@ -243,6 +325,12 @@ class http_stream(asynchat.async_chat):
         self.handle_no_content_length()
       
   def chunk_header(self):
+    """
+    Asynchat just handed us what should be the header of one chunk of
+    a chunked encoding stream.  If this chunk has a body, set the
+    stream up to read it; otherwise, this is the last chunk, so start
+    the process of exiting the chunk decoder.
+    """
     n = int(self.get_buffer().partition(";")[0], 16)
     self.log("Chunk length %s" % n)
     if n:
@@ -253,6 +341,11 @@ class http_stream(asynchat.async_chat):
       self.chunk_handler = self.chunk_discard_trailer
 
   def chunk_body(self):
+    """
+    Asynchat just handed us what should be the body of a chunk of the
+    body of a chunked message (sic).  Save it, and prepare to move on
+    to the next chunk.
+    """
     self.log("Chunk body")
     self.msg.body += self.buffer
     self.buffer = []
@@ -260,12 +353,20 @@ class http_stream(asynchat.async_chat):
     self.set_terminator("\r\n")
 
   def chunk_discard_crlf(self):
+    """
+    Consume the CRLF that terminates a chunk, reinitialize chunk
+    decoder to be ready for the next chunk.
+    """
     self.log("Chunk CRLF")
     s = self.get_buffer()
     assert s == "", "%r: Expected chunk CRLF, got '%s'" % (self, s)
     self.chunk_handler = self.chunk_header
 
   def chunk_discard_trailer(self):
+    """
+    Consume chunk trailer, which should be empty, then (finally!) exit
+    the chunk decoder and hand complete message off to the application.
+    """
     self.log("Chunk trailer")
     s = self.get_buffer()
     assert s == "", "%r: Expected end of chunk trailers, got '%s'" % (self, s)
@@ -273,10 +374,18 @@ class http_stream(asynchat.async_chat):
     self.handle_message()
 
   def handle_body(self):
+    """
+    Hand normal (not chunked) message off to the application.
+    """
     self.msg.body = self.get_buffer()
     self.handle_message()
 
   def handle_error(self):
+    """
+    Asynchat (or asyncore, or somebody) raised an exception.  See
+    whether it's one we should just pass along, otherwise log a stack
+    trace and close the stream.
+    """
     etype = sys.exc_info()[0]
     if etype in (SystemExit, rpki.async.ExitNow):
       self.log("Caught %s, propagating" % etype.__name__)
@@ -288,30 +397,64 @@ class http_stream(asynchat.async_chat):
       self.close(force = True)
 
   def handle_timeout(self):
+    """
+    Inactivity timer expired, close connection with prejudice.
+    """
     self.log("Timeout, closing")
     self.close(force = True)
 
   def handle_close(self):
+    """
+    Wrapper around asynchat connection close handler, so that we can
+    log the event.
+    """
     self.log("Close event in HTTP stream handler")
     asynchat.async_chat.handle_close(self)
 
   def send(self, data):
+    """
+    TLS replacement for normal asyncore .send() method.  Throw an
+    exception if TLS hasn't been started or if TLS I/O was already in
+    progress, otherwise hand off to the TLS code.
+    """
     assert self.retry_read is None and self.retry_write is None, "%r: TLS I/O already in progress, r %r w %r" % (self, self.retry_read, self.retry_write)
     assert self.tls is not None
     return self.tls.write(data)
 
   def recv(self, buffer_size):
+    """
+    TLS replacement for normal asyncore .recv() method.  Throw an
+    exception if TLS hasn't been started or if TLS I/O was already in
+    progress, otherwise hand off to the TLS code.
+    """
     assert self.retry_read is None and self.retry_write is None, "%r: TLS I/O already in progress, r %r w %r" % (self, self.retry_read, self.retry_write)
     assert self.tls is not None
     return self.tls.read(buffer_size)
 
   def readable(self):
+    """
+    TLS replacement for normal asynchat .readable() method.  A TLS
+    connection that's blocked waiting for TLS write is considered not
+    readable even if the underlying socket is.
+    """
     return self.retry_read is not None or (self.retry_write is None and asynchat.async_chat.readable(self))
 
   def writeable(self):
+    """
+    TLS replacement for normal asynchat .writeable() method.  A TLS
+    connection that's blocked waiting for TLS read is considered not
+    writeable even if the underlying socket is.
+    """
     return self.retry_write is not None or (self.retry_read is None and asynchat.async_chat.writeable(self))
 
   def handle_read(self):
+    """
+    Asyncore says socket is readable.  Make sure there's no TLS write
+    already in progress, retry previous read operation if we had one
+    that was waiting for more input, otherwise try to read some data,
+    and handle all the weird OpenSSL exceptions that the TLS code
+    throws.
+    """
     assert self.retry_write is None, "%r: TLS I/O already in progress, w %r" % (self, self.retry_write)
     if self.retry_read is not None:
       thunk = self.retry_read
@@ -333,7 +476,13 @@ class http_stream(asynchat.async_chat):
         self.close(force = True)
         
   def handle_write(self):
-
+    """
+    Asyncore says socket is writeable.  Make sure there's no TLS read
+    already in progress, retry previous write operation if we had one
+    that was blocked on the socket, otherwise try to write some data.
+    Handling all the weird OpenSSL exceptions that TLS throws is our
+    caller's problem.
+    """
     # This used to be an assertion, but apparently this can happen
     # without anything really being wrong, as a sort of race
     # condition, due to select() having signaled that a socket was
@@ -342,7 +491,6 @@ class http_stream(asynchat.async_chat):
     if self.retry_read is not None:
       self.log("TLS I/O already in progress, r %r" % self.retry_read)
       return
-
     if self.retry_write is not None:
       thunk = self.retry_write
       self.retry_write = None
@@ -352,6 +500,10 @@ class http_stream(asynchat.async_chat):
       asynchat.async_chat.handle_write(self)
 
   def initiate_send(self):
+    """
+    Initiate a write operation.  This is just a wrapper around the
+    asynchat method, to handle all the whacky TLS exceptions.
+    """
     assert self.retry_read is None and self.retry_write is None, "%r: TLS I/O already in progress, r %r w %r" % (self, self.retry_read, self.retry_write)
     try:
       asynchat.async_chat.initiate_send(self)
@@ -367,6 +519,14 @@ class http_stream(asynchat.async_chat):
       self.close(force = True)
 
   def close(self, force = False):
+    """
+    Close the stream.
+
+    Graceful shutdown of a TLS connection requires multiple calls to
+    the underlying TLS code.  If the connection should be closed right
+    now without waiting (perhaps because it's already dead and we're
+    just cleaning up), call with force = True.
+    """
     self.log("Close requested")
     assert force or (self.retry_read is None and self.retry_write is None), "%r: TLS I/O already in progress, r %r w %r" % (self, self.retry_read, self.retry_write)
     if self.tls is not None:
@@ -392,13 +552,23 @@ class http_stream(asynchat.async_chat):
       asynchat.async_chat.close(self)
 
   def log_cert(self, tag, x):
+    """
+    Log HTTPS certificates, if certificate debugging is enabled.
+    """
     if debug_tls_certs:
       rpki.log.debug("%r: HTTPS %s cert %r issuer %s [%s] subject %s [%s]" % (self, tag, x, x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
 
 class http_server(http_stream):
+  """
+  HTTP(S) server stream.
+  """
 
+  ## @var parse_type
+  # Stream parser should look for incoming HTTP request messages.
   parse_type = http_request
 
+  ## @var timeout
+  # Use the default server timeout value set in the module header.
   timeout = default_server_timeout
 
   def __init__(self, sock, handlers, cert = None, key = None, ta = (), dynamic_ta = None):
@@ -424,6 +594,19 @@ class http_server(http_stream):
     self.tls_accept()
 
   def tls_accept(self):
+    """
+    Set up TLS for server side connection, handling all the whacky
+    OpenSSL exceptions from TLS.
+
+    SSLErrorSSLError exceptions are particularly nasty, because all
+    too often they indicate a certificate lookup failure deep within
+    the guts of OpenSSL's TLS connection setup logic.  Extracting
+    anything resembling a Python data structure from a handler called
+    that deep inside the OpenSSL TLS library, while theoretically
+    possible, runs a high risk of triggering some kind of memory leak
+    or corruption.  So, for now, we just get back a long text string,
+    which we break up and log but don't attempt to process further.
+    """
     try:
       self.tls.accept()
     except POW.WantReadError:
@@ -442,6 +625,11 @@ class http_server(http_stream):
         raise
     
   def handle_no_content_length(self):
+    """
+    Handle an incoming message that used neither chunking nor a
+    Content-Length header (that is: this message will be the last one
+    in this server stream).  No special action required.
+    """
     self.handle_message()
 
   def find_handler(self, path):
@@ -454,6 +642,12 @@ class http_server(http_stream):
     return None
 
   def handle_message(self):
+    """
+    TLS and HTTP layers managed to deliver a complete HTTP request to
+    us, figure out what to do with it.  Check the command and
+    Content-Type, look for a handler, and if everything looks right,
+    pass the message body, path, and a reply callback to the handler.
+    """
     self.log("Received request %s %s" % (self.msg.cmd, self.msg.path))
     if not self.msg.persistent():
       self.expect_close = True
@@ -477,12 +671,24 @@ class http_server(http_stream):
       self.send_error(code = error[0], reason = error[1])
 
   def send_error(self, code, reason):
+    """
+    Send an error response to this request.
+    """
     self.send_message(code = code, reason = reason)
 
   def send_reply(self, code, body):
+    """
+    Send a reply to this request.
+    """
     self.send_message(code = code, body = body)
 
   def send_message(self, code, reason = "OK", body = None):
+    """
+    Queue up reply message.  If both parties agree that connection is
+    persistant, and if no error occurred, restart this stream to
+    listen for next message; otherwise, queue up a close event for
+    this stream so it will shut down once the reply has been sent.
+    """
     self.log("Sending response %s %s" % (code, reason))
     if code >= 400:
       self.expect_close = True
@@ -499,6 +705,9 @@ class http_server(http_stream):
       self.restart()
 
 class http_listener(asyncore.dispatcher):
+  """
+  Listener for incoming HTTP(S) connections.
+  """
 
   log = log_method
 
@@ -524,6 +733,10 @@ class http_listener(asyncore.dispatcher):
     self.log("Listening on %r, handlers %r" % ((host, port), handlers))
 
   def handle_accept(self):
+    """
+    Asyncore says we have an incoming connection, spawn an http_server
+    stream for it and pass along all of our handler and TLS data.
+    """
     self.log("Accepting connection")
     try:
       http_server(sock = self.accept()[0], handlers = self.handlers, cert = self.cert, key = self.key, ta = self.ta, dynamic_ta = self.dynamic_ta)
@@ -533,6 +746,9 @@ class http_listener(asyncore.dispatcher):
       self.handle_error()
 
   def handle_error(self):
+    """
+    Asyncore signaled an error, pass it along or log it.
+    """
     if sys.exc_info()[0] is SystemExit:
       self.log("Caught SystemExit, propagating")
       raise
@@ -541,9 +757,16 @@ class http_listener(asyncore.dispatcher):
       rpki.log.traceback()
 
 class http_client(http_stream):
+  """
+  HTTP(S) client stream.
+  """
 
+  ## @var parse_type
+  # Stream parser should look for incoming HTTP response messages.
   parse_type = http_response
 
+  ## @var timeout
+  # Use the default client timeout value set in the module header.
   timeout = default_client_timeout
 
   def __init__(self, queue, hostport, cert = None, key = None, ta = (), af = supported_address_families[0]):
@@ -560,6 +783,9 @@ class http_client(http_stream):
     self.af = af
 
   def start(self):
+    """
+    Create socket and request a connection.
+    """
     try:
       self.create_socket(self.af, socket.SOCK_STREAM)
       self.connect(self.hostport)
@@ -569,6 +795,9 @@ class http_client(http_stream):
       self.handle_error()
 
   def handle_connect(self):
+    """
+    Asyncore says socket has connected, configure TLS junk.
+    """
     self.log("Socket connected")
     self.tls = POW.Ssl(POW.TLSV1_CLIENT_METHOD)
     self.log_cert("client", self.cert)
@@ -583,6 +812,9 @@ class http_client(http_stream):
     self.tls_connect()
 
   def tls_connect(self):
+    """
+    Initialize client side of TLS.
+    """
     try:
       self.tls.connect()
     except POW.WantReadError:
@@ -595,13 +827,25 @@ class http_client(http_stream):
       self.queue.send_request()
 
   def set_state(self, state):
+    """
+    Set HTTP client connection state.
+    """
     self.log("State transition %s => %s" % (self.state, state))
     self.state = state
 
   def handle_no_content_length(self):
+    """
+    Handle response message that used neither chunking nor a
+    Content-Length header (that is: this message will be the last one
+    in this server stream).  In this case we want to read until we
+    reach the end of the data stream.
+    """
     self.set_terminator(None)
 
   def send_request(self, msg):
+    """
+    Queue up request message and kickstart connection.
+    """
     self.log("Sending request %r" % msg)
     assert self.state == "idle", "%r: state should be idle, is %s" % (self, self.state)
     self.set_state("request-sent")
@@ -610,6 +854,15 @@ class http_client(http_stream):
     self.restart()
 
   def handle_message(self):
+    """
+    Handle incoming HTTP response message.  Make sure we're in a state
+    where we expect to see such a message (and allow the mysterious
+    empty messages that Apache sends during connection close, no idea
+    what that is supposed to be about).  If everybody agrees that the
+    connection should stay open, put it into an idle state; otherwise,
+    arrange for the stream to shut down.
+    """
+
     self.log("Message received, state %s" % self.state)
 
     if not self.msg.persistent():
@@ -637,6 +890,12 @@ class http_client(http_stream):
     self.queue.return_result(self.msg)
 
   def handle_close(self):
+    """
+    Asyncore signaled connection close.  If we were waiting for that
+    to find the end of a response message, process the resulting
+    message now; if we were waiting for the response to a request we
+    sent, signal the error.
+    """
     http_stream.handle_close(self)
     self.log("State %s" % self.state)
     self.queue.detach(self)
@@ -646,12 +905,21 @@ class http_client(http_stream):
       raise rpki.exceptions.HTTPSClientAborted, "HTTPS request aborted by close event"
 
   def handle_timeout(self):
+    """
+    Connection idle timer has expired.  If we weren't idle, log that
+    something bad has happened, then shut down the connection in any
+    case.
+    """
     if self.state != "idle":
       self.log("Timeout while in state %s" % self.state)
     http_stream.handle_timeout(self)
     self.queue.detach(self)
 
   def handle_error(self):
+    """
+    Asyncore says something threw an exception.  Log it, then shut
+    down the connection and pass back the exception.
+    """
     eclass, edata = sys.exc_info()[0:2]
     self.log("Error on HTTP client connection %r: %s %s" % (self.hostport, eclass, edata), rpki.log.warn)
     http_stream.handle_error(self)
@@ -659,6 +927,11 @@ class http_client(http_stream):
     self.queue.return_result(edata)
 
 class http_queue(object):
+  """
+  Queue of pending HTTP requests for a single destination.  This class
+  is very tightly coupled to http_client; http_client handles the HTTP
+  stream itself, this class provides a slightly higher-level API.
+  """
 
   log = log_method
 
@@ -673,15 +946,25 @@ class http_queue(object):
     self.ta = ta
 
   def request(self, *requests):
+    """
+    Append http_request object(s) to this queue.
+    """
     self.log("Adding requests %r" % requests)
     self.queue.extend(requests)
 
   def restart(self):
+    """
+    Send next request for this queue, if we can.  This may involve
+    starting a new http_client stream, reusing an existing idle
+    stream, or just ignoring this request if there's an active client
+    stream already; in the last case, handling of the response (or
+    exception, or timeout) for the query currently in progress will
+    call this method when it's time to kick out the next query.
+    """
     try:
       if self.client is None:
-        client = http_client(self, self.hostport, cert = self.cert, key = self.key, ta = self.ta)
-        self.log("Attaching client %r" % client)
-        self.client = client
+        self.client = http_client(self, self.hostport, cert = self.cert, key = self.key, ta = self.ta)
+        self.log("Attached client %r" % self.client)
         self.client.start()
       elif self.client.state == "idle":
         self.log("Sending request to existing client %r" % self.client)
@@ -694,15 +977,30 @@ class http_queue(object):
       self.return_result(e)
 
   def send_request(self):
+    """
+    Kick out the next query in this queue, if any.
+    """
     if self.queue:
       self.client.send_request(self.queue[0])
 
-  def detach(self, client):
-    if client is self.client:
-      self.log("Detaching client %r" % client)
+  def detach(self, client_):
+    """
+    Detatch a client from this queue.  Silently ignores attempting to
+    detach a client that is not attached to this queue, to simplify
+    handling of what otherwise would be a nasty set of race
+    conditions.
+    """
+    if client_ is self.client:
+      self.log("Detaching client %r" % client_)
       self.client = None
 
   def return_result(self, result):
+    """
+    Client stream has returned a result, which we need to pass along
+    to the original caller.  Result may be either an HTTP response
+    message or an exception.  In either case, once we're done
+    processing this result, kick off next message in the queue, if any.
+    """
 
     if not self.queue:
       self.log("No caller, this should not happen.  Dropping result %r" % result)
@@ -729,6 +1027,8 @@ class http_queue(object):
     if self.queue:
       self.restart()
 
+## @var client_queues
+# Map of (host, port) tuples to http_queue objects.
 client_queues = {}
 
 def client(msg, client_key, client_cert, server_ta, url, callback, errback):
@@ -785,7 +1085,7 @@ def server(handlers, server_key, server_cert, port, host ="", client_ta = (), dy
     handlers = (("/", handlers),)
 
   if not isinstance(client_ta, (tuple, list)):
-    server_ta = (client_ta,)
+    client_ta = (client_ta,)
 
   for af in address_families:
     http_listener(port = port, host = host, handlers = handlers, cert = server_cert, key = server_key, ta = client_ta, dynamic_ta = dynamic_https_trust_anchor, af = af)
@@ -824,6 +1124,9 @@ class caller(object):
   def __call__(self, cb, eb, *pdus):
 
     def done(cms):
+      """
+      Handle CMS-wrapped XML response message.
+      """
       result = self.proto.cms_msg.unwrap(cms, (self.server_ta, self.server_cert), pretty_print = self.debug)
       if self.debug:
         msg, xml = result

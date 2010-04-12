@@ -75,10 +75,20 @@ class Cmd(cmd.Cmd):
   do_quit = do_exit
 
   def emptyline(self):
+    """
+    Handle an empty line.  cmd module default is to repeat the last
+    command, which I find to be violation of the principal of least
+    astonishment, so my preference is that an empty line does nothing.
+    """
     if self.emptyline_repeats_last_command:
       cmd.Cmd.emptyline(self)
 
   def filename_complete(self, text, line, begidx, endidx):
+    """
+    Filename completion handler, with hack to restore what I consider
+    the normal (bash-like) behavior when one hits the completion key
+    and there's only one match.
+    """
     result = glob.glob(text + "*")
     if len(result) == 1:
       path = result.pop()
@@ -88,8 +98,13 @@ class Cmd(cmd.Cmd):
         result.append(path + " ")
     return result
 
-  def completenames(self, *args):
-    result = set(cmd.Cmd.completenames(self, *args))
+  def completenames(self, text, *ignored):
+    """
+    Command name completion handler, with hack to restore what I
+    consider the normal (bash-like) behavior when one hits the
+    completion key and there's only one match.
+    """
+    result = set(cmd.Cmd.completenames(self, text, *ignored))
     if len(result) == 1:
       result.add(result.pop() + " ")
     return list(result)
@@ -101,7 +116,11 @@ class Cmd(cmd.Cmd):
     """
     self.stdout.write(self.help_help.__doc__ + "\n")
 
-  def complete_help(self, text, *ignored):
+  def complete_help(self, *args):
+    """
+    Better completion function for help command arguments.
+    """
+    text = args[0]
     names = self.get_names()
     result = []
     for prefix in ("do_", "help_"):
@@ -111,6 +130,10 @@ class Cmd(cmd.Cmd):
   if have_readline:
 
     def cmdloop_with_history(self):
+      """
+      Better command loop, with history file and tweaked readline
+      completion delimiters.
+      """
       old_completer_delims = readline.get_completer_delims()
       if self.histfile is not None:
         try:

@@ -160,10 +160,10 @@ class datetime(pydatetime.datetime):
     """Return the earlier of two timestamps."""
     return other if other < self else self
 
-  def __add__(x, y):  return _cast(pydatetime.datetime.__add__(x, y))
-  def __radd__(x, y): return _cast(pydatetime.datetime.__radd__(x, y))
-  def __rsub__(x, y): return _cast(pydatetime.datetime.__rsub__(x, y))
-  def __sub__(x, y):  return _cast(pydatetime.datetime.__sub__(x, y))
+  def __add__(self, y):  return _cast(pydatetime.datetime.__add__(self, y))
+  def __radd__(self, y): return _cast(pydatetime.datetime.__radd__(self, y))
+  def __rsub__(self, y): return _cast(pydatetime.datetime.__rsub__(self, y))
+  def __sub__(self, y):  return _cast(pydatetime.datetime.__sub__(self, y))
 
 class timedelta(pydatetime.timedelta):
   """
@@ -240,19 +240,19 @@ class timedelta(pydatetime.timedelta):
     """Convert a datetime.timedelta object into this subclass."""
     return cls(days = x.days, seconds = x.seconds, microseconds = x.microseconds)
 
-  def __abs__(x):          return _cast(pydatetime.timedelta.__abs__(x))
-  def __add__(x, y):       return _cast(pydatetime.timedelta.__add__(x, y))
-  def __div__(x, y):       return _cast(pydatetime.timedelta.__div__(x, y))
-  def __floordiv__(x, y):  return _cast(pydatetime.timedelta.__floordiv__(x, y))
-  def __mul__(x, y):       return _cast(pydatetime.timedelta.__mul__(x, y))
-  def __neg__(x):          return _cast(pydatetime.timedelta.__neg__(x))
-  def __pos__(x):          return _cast(pydatetime.timedelta.__pos__(x))
-  def __radd__(x, y):      return _cast(pydatetime.timedelta.__radd__(x, y))
-  def __rdiv__(x, y):      return _cast(pydatetime.timedelta.__rdiv__(x, y))
-  def __rfloordiv__(x, y): return _cast(pydatetime.timedelta.__rfloordiv__(x, y))
-  def __rmul__(x, y):      return _cast(pydatetime.timedelta.__rmul__(x, y))
-  def __rsub__(x, y):      return _cast(pydatetime.timedelta.__rsub__(x, y))
-  def __sub__(x, y):       return _cast(pydatetime.timedelta.__sub__(x, y))
+  def __abs__(self):          return _cast(pydatetime.timedelta.__abs__(self))
+  def __add__(self, x):       return _cast(pydatetime.timedelta.__add__(self, x))
+  def __div__(self, x):       return _cast(pydatetime.timedelta.__div__(self, x))
+  def __floordiv__(self, x):  return _cast(pydatetime.timedelta.__floordiv__(self, x))
+  def __mul__(self, x):       return _cast(pydatetime.timedelta.__mul__(self, x))
+  def __neg__(self):          return _cast(pydatetime.timedelta.__neg__(self))
+  def __pos__(self):          return _cast(pydatetime.timedelta.__pos__(self))
+  def __radd__(self, x):      return _cast(pydatetime.timedelta.__radd__(self, x))
+  def __rdiv__(self, x):      return _cast(pydatetime.timedelta.__rdiv__(self, x))
+  def __rfloordiv__(self, x): return _cast(pydatetime.timedelta.__rfloordiv__(self, x))
+  def __rmul__(self, x):      return _cast(pydatetime.timedelta.__rmul__(self, x))
+  def __rsub__(self, x):      return _cast(pydatetime.timedelta.__rsub__(self, x))
+  def __sub__(self, x):       return _cast(pydatetime.timedelta.__sub__(self, x))
 
 def _cast(x):
   """

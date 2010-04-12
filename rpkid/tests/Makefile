@@ -3,17 +3,19 @@
 all: protocol-samples
 
 clean:
-	rm -rf testbed.dir left-right-protocol-samples/*.xml publication-protocol-samples/*.xml
+	rm -rf testbed.dir left-right-protocol-samples publication-protocol-samples
 
 protocol-samples: left-right-protocol-samples/.stamp publication-protocol-samples/.stamp
 
 left-right-protocol-samples/.stamp: left-right-protocol-samples.xml split-protocol-samples.xsl 
-	rm -f left-right-protocol-samples/*.xml
+	rm -rf left-right-protocol-samples
+	mkdir  left-right-protocol-samples
 	xsltproc --stringparam dir left-right-protocol-samples split-protocol-samples.xsl left-right-protocol-samples.xml
 	touch $@
 
 publication-protocol-samples/.stamp: publication-protocol-samples.xml split-protocol-samples.xsl 
-	rm -f publication-protocol-samples/*.xml
+	rm -rf publication-protocol-samples
+	mkdir  publication-protocol-samples
 	xsltproc --stringparam dir publication-protocol-samples split-protocol-samples.xsl publication-protocol-samples.xml
 	touch $@
 

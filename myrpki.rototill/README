@@ -86,19 +86,11 @@ still others of which are for the various RPKI daemon programs.  The
 examples/ subdirectory contains a commented version of the
 configuration file that explains the various parameters.
 
-The .csv files read by myrpki can be anything that the Python "csv"
-library understands.  By default, they're in tab-delimited format
-(because the author finds this easier to read than the comma-delimited
-format), but this can be changed to fit local needs.
-
-Please note: tab-delimited CSV is a format defined by a certain
-popular spreadsheet program, and is *not* the same as
-whitespace-separated text.  Tab characters are *punctuation*, and each
-tab character indicates the division between two columns.  Two tab
-characters in a row indicates a separator, a blank cell, and another
-separator, not one separator.  The upshot of all this is that
-attempting to make your columns line up prettily will not work as you
-expect, you will end up with too many cells, some of them empty.
+The .csv files read by myrpki are (now) misnamed: formerly, they were
+the "excel-tab" format from the Python csv library, but early users
+kept trying to make the colums line up, which didn't do what the users
+expected.  So now these files are just whitespace-delimted, as a
+program like "awk" would understand.
 
 Keep reading, and don't panic.
 

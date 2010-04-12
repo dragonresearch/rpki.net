@@ -61,8 +61,8 @@ class Child( models.Model ):
     handle = HandleField()
     validity = models.DateTimeField()
     bpki_cert = models.ForeignKey( Cert, related_name='child_bpki' )
-    address_range = models.ManyToManyField( AddressRange )
-    asn = models.ManyToManyField( Asn )
+    address_range = models.ManyToManyField( AddressRange, blank=True )
+    asn = models.ManyToManyField( Asn, blank=True )
     def __unicode__( self ):
 	return u"%s's child %s" % ( self.conf, self.handle )
     class Meta:

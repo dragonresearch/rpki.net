@@ -68,5 +68,5 @@ roa_request:
     ipv4: 208.91.236.0/22,203.33.196.0/24,203.27.251.0/24,198.80.148.0/24,198.80.131.0/24,157.130.103.144/30,140.222.224.0/24,65.243.171.0/24,63.122.162.212/30,63.116.191.0/24,63.81.136.0/24,17.0.0.0/8,17.128.0.0/9
 
 ---
-- shell set -x; find publication -type f -name '*.roa' -print -exec ../../utils/print_roa/print_roa {} \;
-- shell set -x; cd ../../rtr-origin && python rtr-origin.py --cronjob ../rpkid/testbed.dir/rcynic-data/authenticated && python rtr-origin.py --show
+- shell set -x; find publication -type f -name '*.roa' -print -exec ../../../utils/print_roa/print_roa {} \;
+- shell set -x; cd ../../../rtr-origin && python rtr-origin.py --cronjob ../../rpkid/testbed.dir/rcynic-data/authenticated && python rtr-origin.py --show

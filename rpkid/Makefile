@@ -1,12 +1,5 @@
 # $Id$
 
-all:: left-right-protocol-samples/.stamp
-
-left-right-protocol-samples/.stamp: left-right-protocol-samples.xml split-protocol-samples.xsl 
-	rm -f left-right-protocol-samples/*.xml
-	xsltproc --stringparam dir left-right-protocol-samples split-protocol-samples.xsl left-right-protocol-samples.xml
-	touch $@
-
 all:: left-right-schema.rng
 
 rpki/relaxng.py: left-right-schema.rng
@@ -20,13 +13,6 @@ rpki/relaxng.py: up-down-schema.rng
 
 up-down-schema.rng: up-down-schema.rnc
 	trang up-down-schema.rnc up-down-schema.rng
-
-all:: publication-protocol-samples/.stamp
-
-publication-protocol-samples/.stamp: publication-protocol-samples.xml split-protocol-samples.xsl 
-	rm -f publication-protocol-samples/*.xml
-	xsltproc --stringparam dir publication-protocol-samples split-protocol-samples.xsl publication-protocol-samples.xml
-	touch $@
 
 all:: publication-schema.rng 
 
@@ -45,22 +31,22 @@ install:
 dont-run-trang:
 	touch *.rng
 
-relaxng: left-right-protocol-samples/.stamp left-right-schema.rng up-down-schema.rng publication-protocol-samples/.stamp publication-schema.rng
-	xmllint --noout --relaxng  left-right-schema.rng  left-right-protocol-samples/*.xml
-	xmllint --noout --relaxng     up-down-schema.rng     up-down-protocol-samples/*.xml
-	xmllint --noout --relaxng publication-schema.rng publication-protocol-samples/*.xml
+relaxng: left-right-schema.rng up-down-schema.rng publication-schema.rng
+	cd tests; $(MAKE) protocol-samples
+	xmllint --noout --relaxng  left-right-schema.rng  tests/left-right-protocol-samples/*.xml
+	xmllint --noout --relaxng     up-down-schema.rng     tests/up-down-protocol-samples/*.xml
+	xmllint --noout --relaxng publication-schema.rng tests/publication-protocol-samples/*.xml
 
 unit-tests: all
 	PWD=`pwd`; for i in rpki/*.py; do echo "[$$i]"; PYTHONPATH=$$PWD python $$i; done
 
 all-tests:: unit-tests
 
-parse-test: all
-	python xml-parse-test.py
-
 all-tests:: relaxng
 
-all-tests:: parse-test
+test all-tests parse-test::
+	cd tests; $(MAKE) $@
+
 
 irbe_cli.usage: irbe_cli.py
 	python irbe_cli.py --help | sed 's/^/      /' >$@
@@ -73,29 +59,6 @@ all:: rpki/relaxng.py
 rpki/relaxng.py: make-relaxng.py
 	python make-relaxng.py >$@.tmp
 	mv $@.tmp $@
-
-# all-tests:: all; sh -x rootd.sh run
-
-all-tests:: all
-	python testbed.py -y testbed.1.yaml
-
-all-tests:: all
-	python testbed.py -y testbed.2.yaml
-
-test all-tests:: all
-	python testbed.py -y testbed.3.yaml
-
-all-tests:: all
-	python testbed.py -y testbed.4.yaml
-
-all-tests:: all
-	python testbed.py -y testbed.5.yaml
-
-test all-tests:: all
-	python testbed.py -y testbed.6.yaml
-
-all-tests:: all
-	python testbed.py -y testbed.7.yaml
 
 # Documentation
 

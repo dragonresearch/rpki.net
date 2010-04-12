@@ -548,7 +548,7 @@ try:
   rpki.log.use_syslog = False
   rpki.log.init("yamltest")
 
-  yaml_file = argv[0] if argv else "../rpkid/testbed.1.yaml"
+  yaml_file = argv[0] if argv else "../rpkid/tests/testbed.1.yaml"
 
   # Allow optional config file for this tool to override default
   # passwords: this is mostly so that I can show a complete working

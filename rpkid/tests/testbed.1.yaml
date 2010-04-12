@@ -48,7 +48,7 @@ kids:
       - asn: 666
         ipv4: 10.3.0.44/32
 ---
-- shell set -x; cd ../../rtr-origin && python rtr-origin.py --cronjob ../rpkid/testbed.dir/rcynic-data/authenticated && python rtr-origin.py --show
+- shell set -x; cd ../../../rtr-origin && python rtr-origin.py --cronjob ../../rpkid/testbed.dir/rcynic-data/authenticated && python rtr-origin.py --show
 ---
 - name: R0
   rekey:
@@ -63,7 +63,7 @@ kids:
     - asn: 17
       ipv4: 10.3.0.1/32, 10.0.0.44/32
 ---
-- shell set -x; cd ../../rtr-origin && python rtr-origin.py --cronjob ../rpkid/testbed.dir/rcynic-data/authenticated && python rtr-origin.py --show
+- shell set -x; cd ../../../rtr-origin && python rtr-origin.py --cronjob ../../rpkid/testbed.dir/rcynic-data/authenticated && python rtr-origin.py --show
 ---
 - sleep 30
 ---

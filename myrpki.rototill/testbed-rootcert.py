@@ -24,11 +24,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import csv, myrpki, sys
 
-holder = "arin"
-
-if len(sys.argv) == 2:
-  holder = sys.argv[1]
-elif len(sys.argv) > 1:
+if len(sys.argv) != 2:
   raise RuntimeError, "Usage: %s [holder]" % sys.argv[0]
 
 print '''\
@@ -52,8 +48,8 @@ sbgp-autonomousSysNum           = critical,@rfc3779_asns
 sbgp-ipAddrBlock                = critical,@rfc3997_addrs
 
 [rfc3779_asns]
-''' % { "holder" : holder.lower(),
-        "HOLDER" : holder.upper() }
+''' % { "holder" : sys.argv[1].lower(),
+        "HOLDER" : sys.argv[1].upper() }
 
 for i, asn in enumerate(asn for handle, asn in myrpki.csv_reader("asns.csv", columns = 2)):
   print "AS.%d = %s" % (i, asn)

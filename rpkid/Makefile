@@ -2,8 +2,8 @@
 
 all: rpki/relaxng.py
 
-rpki/relaxng.py: make-relaxng.py left-right-schema.rng up-down-schema.rng publication-schema.rng
-	python make-relaxng.py >$@.tmp
+rpki/relaxng.py: ../scripts/make-relaxng.py left-right-schema.rng up-down-schema.rng publication-schema.rng
+	python ../scripts/make-relaxng.py >$@.tmp
 	mv $@.tmp $@
 
 left-right-schema.rng: left-right-schema.rnc

@@ -21,12 +21,12 @@ lock=cronjob.lock
 
 target=/usr/local/www/data/www.hactrn.net/rpki-dox
 
-cd `/usr/bin/dirname $0` || exit
+cd `/usr/bin/dirname $0`/.. || exit
 
 case "$1" in
 
 locked)
-    exec >cronjob.log 2>&1
+    exec >doc/cronjob.log 2>&1
     set -x
     export PATH=/bin:/usr/bin:/usr/local/bin
     /usr/local/bin/svn update --quiet

@@ -84,7 +84,7 @@ docs::
 	cd doc; tar -cf - html | gzip -9 >manual.tar.gz
 
 lint:
-	pylint --rcfile ../scripts/pylint.rc rpki/[a-z]*.py cronjob.py cross_certify.py irbe_cli.py irdbd.py pubd.py rootd.py rpkid.py testbed.py testpoke.py
+	pylint --rcfile ../scripts/pylint.rc rpki/[a-z]*.py irbe_cli.py irdbd.py pubd.py rootd.py rpkid.py tests/testbed.py tests/testpoke.py ../myrpki/myrpki.py ../myrpki/yamltest.py
 
 profile: all
 	python testbed.py -y testbed.2.yaml -p

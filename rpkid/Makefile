@@ -1,29 +1,23 @@
 # $Id$
 
-all:: left-right-schema.rng
+all: rpki/relaxng.py
 
-rpki/relaxng.py: left-right-schema.rng
+rpki/relaxng.py: make-relaxng.py left-right-schema.rng up-down-schema.rng publication-schema.rng
+	python make-relaxng.py >$@.tmp
+	mv $@.tmp $@
 
 left-right-schema.rng: left-right-schema.rnc
 	trang left-right-schema.rnc left-right-schema.rng
 
-all:: up-down-schema.rng 
-
-rpki/relaxng.py: up-down-schema.rng
-
 up-down-schema.rng: up-down-schema.rnc
 	trang up-down-schema.rnc up-down-schema.rng
-
-all:: publication-schema.rng 
-
-rpki/relaxng.py: publication-schema.rng
 
 publication-schema.rng: publication-schema.rnc
 	trang publication-schema.rnc publication-schema.rng
 
 clean:
 	find . -type f -name '*.pyc' -delete
-	rm -rf testbed.dir
+	cd tests; $(MAKE) $@
 
 install:
 	@true
@@ -53,12 +47,6 @@ irbe_cli.usage: irbe_cli.py
 
 tags:
 	find . -type f \( -name '*.py' -o -name '*.sql' -o -name '*.rnc' \) ! -name relaxng.py | etags -
-
-all:: rpki/relaxng.py
-
-rpki/relaxng.py: make-relaxng.py
-	python make-relaxng.py >$@.tmp
-	mv $@.tmp $@
 
 # Documentation
 

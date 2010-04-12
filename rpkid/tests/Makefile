@@ -10,13 +10,13 @@ protocol-samples: left-right-protocol-samples/.stamp publication-protocol-sample
 left-right-protocol-samples/.stamp: left-right-protocol-samples.xml split-protocol-samples.xsl 
 	rm -rf left-right-protocol-samples
 	mkdir  left-right-protocol-samples
-	xsltproc --stringparam dir left-right-protocol-samples split-protocol-samples.xsl left-right-protocol-samples.xml
+	xsltproc --param verbose 0 --stringparam dir left-right-protocol-samples split-protocol-samples.xsl left-right-protocol-samples.xml
 	touch $@
 
 publication-protocol-samples/.stamp: publication-protocol-samples.xml split-protocol-samples.xsl 
 	rm -rf publication-protocol-samples
 	mkdir  publication-protocol-samples
-	xsltproc --stringparam dir publication-protocol-samples split-protocol-samples.xsl publication-protocol-samples.xml
+	xsltproc --param verbose 0 --stringparam dir publication-protocol-samples split-protocol-samples.xsl publication-protocol-samples.xml
 	touch $@
 
 parse-test: protocol-samples

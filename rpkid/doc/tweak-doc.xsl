@@ -13,11 +13,14 @@
  -  LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
  -  OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  -  PERFORMANCE OF THIS SOFTWARE.
- -->	
+ -
+ - Suppress portions of the HTML that we want filtered out before
+ - running through lynx to get flat text.
+ -->
 
 <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version='1.0'>
 
-  <xsl:template match="div[@class = 'navigation']"/>
+  <xsl:template match="div[@class = 'navigation' or @id = 'MSearchSelectWindow']"/>
 
   <xsl:template match="node() | @*">
     <xsl:copy>

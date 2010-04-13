@@ -78,7 +78,7 @@ docs::
 	TZ='' doxygen
 	cd doc/latex && TZ='' ${MAKE}
 	for i in Installation Operation Left-right Publication; do \
-		xsltproc --html tweak-doc.xsl doc/html/$$i.html | lynx -dump -nolist -force_html /dev/stdin >doc/$$i; \
+		xsltproc --html doc/tweak-doc.xsl doc/html/$$i.html | lynx -dump -nolist -force_html /dev/stdin >doc/$$i; \
 	done
 	cd doc; ln -f latex/refman.pdf manual.pdf
 	cd doc; tar -cf - html | gzip -9 >manual.tar.gz

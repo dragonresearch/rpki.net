@@ -58,12 +58,18 @@
 # also includes documentation of the overall package:
 #
 # @li The @subpage Installation "installation instructions"
+#
 # @li The @subpage Operation "operation instructions"
+#
 # @li A description of the @subpage Left-right "left-right protocol"
+#
 # @li A description of the @subpage Publication "publication protocol"
+#
 # @li A description of the @subpage bpki-model "BPKI model"
 #     used to secure the up-down, left-right, and %publication protocols
+#
 # @li A description of the several @subpage sql-schemas "SQL database schemas"
+#
 # @li Some suggestions for @subpage further-reading "further reading"
 #
 # This work was funded from 2006 through 2008 by <a
@@ -76,7 +82,9 @@
 # in:
 #
 # @li <a href="http://viewvc.hactrn.net/subvert-rpki.hactrn.net/rcynic/">The rcynic validation tool</a>
+#
 # @li <a href="http://www.hactrn.net/opaque/rcynic.html">A live sample of rcynic's summary output</a>
+#
 # @li <a href="http://mirin.apnic.net/trac/">APNIC's project Trac instance</a>
 
 ## @page Installation Installation Guide
@@ -101,8 +109,8 @@
 #
 # Before attempting to build the package, you need to install any
 # missing prerequisites.  Note that the Python code requires Python
-# version 2.5.  rpkid et al are mostly self-contained, but do require
-# a small number of external packages to run.
+# version 2.5 or 2.6.  rpkid et al are mostly self-contained, but do
+# require a small number of external packages to run.
 #
 # <ul>
 #   <li>
@@ -120,8 +128,9 @@
 #   </li>
 #
 #   <li>
-#     <a href="http://codespeak.net/lxml/">http://codespeak.net/lxml/</a>.
-#     lxml in turn requires the Gnome LibXML2 C libraries.
+#     <a href="http://codespeak.net/lxml/">http://codespeak.net/lxml/</a>,
+#     a Pythonic interface to the Gnome LibXML2 libraries.  
+#     lxml in turn requires the LibXML2 C libraries.
 #     <ul>
 #       <li>FreeBSD: /usr/ports/devel/py-lxml</li>
 #       <li>Fedora:  python-lxml.i386</li>
@@ -130,8 +139,8 @@
 #   </li>
 #
 #   <li>
-#     <a href="http://sourceforge.net/projects/mysql-python/">http://sourceforge.net/projects/mysql-python/</a>.
-#     MySQLdb in turn requires MySQL client and server.  rpkid et al have
+#     <a href="http://sourceforge.net/projects/mysql-python/">http://sourceforge.net/projects/mysql-python/</a>,
+#     the Python "db" interface to MySQL.  MySQLdb in turn requires MySQL client and server.  rpkid et al have
 #     been tested with MySQL 5.0 and 5.1.
 #     <ul>
 #       <li>FreeBSD: /usr/ports/databases/py-MySQLdb</li>
@@ -165,22 +174,19 @@
 # library to provide RFC 3779 support.  If you get errors building
 # POW, see the above discussion of Python development sources.
 #
-# You will also need a MySQL installation.  This code was developed
-# using MySQL 5.1 and has been tested with MySQL 5.0 and 5.1.
-#
 # The architecture is intended to support hardware signing modules
 # (HSMs), but the code to support them has not been written.
 #
-# At this point, you should have all the necessary software installed.
-# You will probably want to test it.  All tests should be run from the
-# rpkid/ directory.  The test suite requires a few more external
-# packages, only one of which is Python code.
+# At this point, you should have all the necessary software installed
+# to run the core programs, but you will probably want to test it.
+# The test suite requires a few more external packages, only one of
+# which is Python code.
 #
 # <ul>
 #   <li>
 #     <a href="http://pyyaml.org/">http://pyyaml.org/</a>.
-#     testpoke.py (an up-down protocol command line test client) and
-#     testbed.py (a test harness) use PyYAML.
+#     Several of the test programs use PyYAML to parse a YAML
+#     description of a simulated allocation hierarchy to test.
 #     <ul>
 #       <li>FreeBSD: /usr/ports/devel/py-yaml</li>
 #       <li>Ubuntu: python-yaml</li>
@@ -197,6 +203,8 @@
 #     </ul>
 #   </li>
 # </ul>
+#
+# All tests should be run from the rpkid/ or myrpki/ directories.  
 #
 # Some of the tests require MySQL databases to store their data.  To set
 # up all the databases that the tests will need, run the SQL commands in
@@ -263,6 +271,9 @@
 #     </ul>
 #   </li>
 # </ul>
+#
+# Once you've finished with installation, the next thing you should
+# read is the @ref Operation "Operation Guide".
 
 ## @page Operation Operation Guide
 #
@@ -304,18 +315,23 @@
 #
 # @li @c irbe_cli.py:
 #              A command-line client for the left-right control
-#              protocol.
-#
-# @li @c cross_certify.py:
-#              A BPKI cross-certification tool.
-#
-# @li @c cronjob.py:
-#              A trivial HTTP client used to drive rpkid cron events.
+#              protocol.  Very obscure syntax, badly needs rewriting.
 #
 # @li @c testbed.py:
 #              A test tool for running a collection of rpkid and irdb
 #              instances under common control, driven by a unified
 #              test script.
+#
+# @li @c yamltest.py:
+#              Another test tool which takes the same input format as
+#              @c testbed.py, but with slightly different purpose.
+#              @c testbed.py is intended to support regression tests,
+#              while @c yamltest.py is intended for automated testing
+#              of something closer to a real operational environment.
+#              There's a fair amount of code duplication between the
+#              two, and at some point they will probably be merged
+#              into a single program that supports both modes of
+#              operation.
 #
 # @li @c testpoke.py:
 #              A simple client for the up-down protocol, mostly
@@ -324,21 +340,21 @@
 # Most of these programs take configuration files in a common format
 # similar to that used by the OpenSSL command line tool.  The test
 # programs also take input in YAML format to drive the tests.  Runs of
-# the testbed.py test tool will generate a fairly complete set
+# the @c yamltest.py test tool will generate a fairly complete set
 # configuration files which may be useful as examples.
 #
-# Basic operation consists of creating the appropriate MySQL databases,
-# starting rpkid, pubd, rootd, and irdbd, using the left-right control
-# protocol to set up rpkid's internal state, and setting up a cron job
-# to invoke rpkid's cron action at regular intervals.  All other
-# operations should occur either as a result of cron events or as a
-# result of incoming left-right and up-down protocol requests.
+# Basic operation consists of creating the appropriate MySQL
+# databases, configuring relationships between parents and children
+# and between publication clients and repositories, starting rpkid,
+# pubd, rootd, and irdbd, and using the left-right and publication
+# control protocols to set up rpkid's and pubd's internal state.  All
+# other operations should occur either as a result of cron events or
+# as a result of incoming left-right and up-down protocol requests.
 #
-# Note that the full event-driven model for rpkid hasn't yet been
-# implemented.  The design is intended to allow an arbitrary number of
-# hosted RPKI engines to run in a single rpkid instance, but without the
-# event-driven tasking model one must set up a separate rpkid instance
-# for each hosted RPKI engine.
+# The core programs are all event-driven, and are (in theory) capable
+# of supporting an arbitrary number of hosted RPKI engines to run in a
+# single rpkid instance, up to the performance limits of the underlying
+# hardware.
 #
 # At present the daemon programs all run in foreground, that is, if one
 # wants them to run in background one must do so manually, eg, using
@@ -361,7 +377,6 @@
 # The first group of options are debugging flags, which can be set to
 # "true" or "false".  If not specified, default values will be chosen
 # (generally false).
-#
 #
 # @li @c debug_http
 #                               Enable verbose http debug logging.
@@ -1897,5 +1912,5 @@
 
 # Local Variables:
 # mode:python
-# compile-command: "cd .. && make doc"
+# compile-command: "cd ../.. && ./config.status && cd rpkid && make docs"
 # End:

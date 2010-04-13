@@ -32,14 +32,18 @@ Operation Guide
        calls into this to perform lookups via the left-right protocol.
 
      * irbe_cli.py: A command-line client for the left-right control
-       protocol.
-
-     * cross_certify.py: A BPKI cross-certification tool.
-
-     * cronjob.py: A trivial HTTP client used to drive rpkid cron events.
+       protocol. Very obscure syntax, badly needs rewriting.
 
      * testbed.py: A test tool for running a collection of rpkid and irdb
        instances under common control, driven by a unified test script.
+
+     * yamltest.py: Another test tool which takes the same input format as
+       testbed.py, but with slightly different purpose. testbed.py is
+       intended to support regression tests, while yamltest.py is intended
+       for automated testing of something closer to a real operational
+       environment. There's a fair amount of code duplication between the
+       two, and at some point they will probably be merged into a single
+       program that supports both modes of operation.
 
      * testpoke.py: A simple client for the up-down protocol, mostly
        compatable with APNIC's rpki_poke.pl tool.
@@ -47,21 +51,21 @@ Operation Guide
    Most of these programs take configuration files in a common format
    similar to that used by the OpenSSL command line tool. The test
    programs also take input in YAML format to drive the tests. Runs of the
-   testbed.py test tool will generate a fairly complete set configuration
+   yamltest.py test tool will generate a fairly complete set configuration
    files which may be useful as examples.
 
    Basic operation consists of creating the appropriate MySQL databases,
-   starting rpkid, pubd, rootd, and irdbd, using the left-right control
-   protocol to set up rpkid's internal state, and setting up a cron job to
-   invoke rpkid's cron action at regular intervals. All other operations
-   should occur either as a result of cron events or as a result of
-   incoming left-right and up-down protocol requests.
+   configuring relationships between parents and children and between
+   publication clients and repositories, starting rpkid, pubd, rootd, and
+   irdbd, and using the left-right and publication control protocols to
+   set up rpkid's and pubd's internal state. All other operations should
+   occur either as a result of cron events or as a result of incoming
+   left-right and up-down protocol requests.
 
-   Note that the full event-driven model for rpkid hasn't yet been
-   implemented. The design is intended to allow an arbitrary number of
-   hosted RPKI engines to run in a single rpkid instance, but without the
-   event-driven tasking model one must set up a separate rpkid instance
-   for each hosted RPKI engine.
+   The core programs are all event-driven, and are (in theory) capable of
+   supporting an arbitrary number of hosted RPKI engines to run in a
+   single rpkid instance, up to the performance limits of the underlying
+   hardware.
 
    At present the daemon programs all run in foreground, that is, if one
    wants them to run in background one must do so manually, eg, using
@@ -693,5 +697,5 @@ testpoke.py
      __________________________________________________________________
 
 
-    Generated on Tue Apr 13 21:06:48 2010 for RPKI Engine by  doxygen
+    Generated on Tue Apr 13 22:26:15 2010 for RPKI Engine by  doxygen
     1.6.3

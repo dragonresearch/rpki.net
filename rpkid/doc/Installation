@@ -20,9 +20,9 @@ Installation Guide
    installation will probably be easiest on FreeBSD.
 
    Before attempting to build the package, you need to install any missing
-   prerequisites. Note that the Python code requires Python version 2.5.
-   rpkid et al are mostly self-contained, but do require a small number of
-   external packages to run.
+   prerequisites. Note that the Python code requires Python version 2.5 or
+   2.6. rpkid et al are mostly self-contained, but do require a small
+   number of external packages to run.
 
      * If your Python installation does not already include the sources
        files needed to compile new Python extension modules, you will need
@@ -34,14 +34,14 @@ Installation Guide
        If you get compilation errors trying to build the POW code (below)
        and the error message says something about the file "Python.h"
        being missing, this is almost certainly your problem.
-     * http://codespeak.net/lxml/. lxml in turn requires the Gnome LibXML2
-       C libraries.
+     * http://codespeak.net/lxml/, a Pythonic interface to the Gnome
+       LibXML2 libraries. lxml in turn requires the LibXML2 C libraries.
           + FreeBSD: /usr/ports/devel/py-lxml
           + Fedora: python-lxml.i386
           + Ubuntu: python-lxml
-     * http://sourceforge.net/projects/mysql-python/. MySQLdb in turn
-       requires MySQL client and server. rpkid et al have been tested with
-       MySQL 5.0 and 5.1.
+     * http://sourceforge.net/projects/mysql-python/, the Python "db"
+       interface to MySQL. MySQLdb in turn requires MySQL client and
+       server. rpkid et al have been tested with MySQL 5.0 and 5.1.
           + FreeBSD: /usr/ports/databases/py-MySQLdb
           + Fedora: MySQL-python.i386
           + Ubuntu: python-mysqldb
@@ -66,25 +66,25 @@ Installation Guide
    library to provide RFC 3779 support. If you get errors building POW,
    see the above discussion of Python development sources.
 
-   You will also need a MySQL installation. This code was developed using
-   MySQL 5.1 and has been tested with MySQL 5.0 and 5.1.
-
    The architecture is intended to support hardware signing modules
    (HSMs), but the code to support them has not been written.
 
-   At this point, you should have all the necessary software installed.
-   You will probably want to test it. All tests should be run from the
-   rpkid/ directory. The test suite requires a few more external packages,
-   only one of which is Python code.
+   At this point, you should have all the necessary software installed to
+   run the core programs, but you will probably want to test it. The test
+   suite requires a few more external packages, only one of which is
+   Python code.
 
-     * http://pyyaml.org/. testpoke.py (an up-down protocol command line
-       test client) and testbed.py (a test harness) use PyYAML.
+     * http://pyyaml.org/. Several of the test programs use PyYAML to
+       parse a YAML description of a simulated allocation hierarchy to
+       test.
           + FreeBSD: /usr/ports/devel/py-yaml
           + Ubuntu: python-yaml
      * http://xmlsoft.org/XSLT/. Some of the test code uses xsltproc, from
        the Gnome LibXSLT package.
           + FreeBSD: /usr/ports/textproc/libxslt
           + Ubuntu: xsltproc
+
+   All tests should be run from the rpkid/ or myrpki/ directories.
 
    Some of the tests require MySQL databases to store their data. To set
    up all the databases that the tests will need, run the SQL commands in
@@ -122,8 +122,11 @@ Installation Guide
        a description of it as Graphviz input. SQL Fairy in turn requires
        Perl.
           + FreeBSD: /usr/ports/databases/p5-SQL-Translator
+
+   Once you've finished with installation, the next thing you should read
+   is the Operation Guide.
      __________________________________________________________________
 
 
-    Generated on Tue Apr 13 21:06:48 2010 for RPKI Engine by  doxygen
+    Generated on Tue Apr 13 22:26:15 2010 for RPKI Engine by  doxygen
     1.6.3

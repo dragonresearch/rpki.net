@@ -16,6 +16,7 @@ Operation Guide
 
    In addition to the library routines in the rpkid/rpki/ directory, the
    package includes the following programs:
+
      * rpkid.py: The main RPKI engine daemon.
 
      * pubd.py: The publication engine daemon.
@@ -80,7 +81,9 @@ Common Options
    The first group of options are debugging flags, which can be set to
    "true" or "false". If not specified, default values will be chosen
    (generally false).
+
      * debug_http Enable verbose http debug logging.
+
      * debug_tls_certs Enable verbose logging about tls certs.
 
      * want_persistent_client Enable http 1.1 persistence, client side.
@@ -99,6 +102,7 @@ Common Options
    audit or debugging. The save format is a simple MIME encoding in a
    Maildir-format mailbox. The current options are very crude, at some
    point we may provide finer grain controls.
+
      * dump_outbound_cms Dump messages we send to this mailbox.
 
      * dump_inbound_cms Dump messages we receive to this mailbox.
@@ -122,6 +126,7 @@ rpkid.py
    or PEM format.
 
    Config file options:
+
      * startup-message: String to log on startup, useful when debugging a
        collection of rpkid instances at once.
 
@@ -163,6 +168,7 @@ pubd.py
    and other objects that rpkid generates.
 
    pubd is separate from rpkid for two reasons:
+
      * The hosting model allows entities which choose to run their own
        copies of rpkid to publish their output under a common publication
        point. In general, encouraging shared publication services where
@@ -190,6 +196,7 @@ pubd.py
    format.
 
    Config file options:
+
      * sql-username: Username to hand to MySQL when connecting to pubd's
        database.
 
@@ -233,6 +240,7 @@ rootd.py
    or PEM format.
 
    Config file options:
+
      * bpki-ta: Name of file containing BPKI trust anchor. All BPKI
        certificate validation in rootd traces back to this trust anchor.
 
@@ -298,6 +306,7 @@ irdbd.py
    either DER or PEM format.
 
    Config file options:
+
      * startup-message: String to log on startup, useful when debugging a
        collection of irdbd instances at once.
 
@@ -434,6 +443,7 @@ M
    keys, and trust anchors may be in either DER or PEM format.
 
    Config file options:
+
      * rpkid-bpki-ta: Name of file containing BPKI trust anchor to use
        when authenticating messages from rpkid.
 
@@ -488,6 +498,7 @@ cronjob.py
    either DER or PEM format.
 
    Config file options:
+
      * bpki-ta: Name of file containing BPKI trust anchor.
 
      * irbe-cert: Name of file containing cronjob.py's BPKI certificate.
@@ -523,6 +534,7 @@ testbed.py:
    file is testbed.conf, run testbed with "-c filename" to change it.
 
    testbed.conf options:
+
      * testbed_dir: Working directory into which testbed should write the
        (many) files it generates. Default is "testbed.dir".
 
@@ -588,6 +600,7 @@ testbed.py:
    validity interval for Alice's resources to ten days.
 
    Operators in subsequent (update) documents:
+
      * add_as, add_v4, add_v6: These add ASN, IPv4, or IPv6 resources,
        respectively.
 
@@ -680,5 +693,5 @@ testpoke.py
      __________________________________________________________________
 
 
-    Generated on Tue Apr 13 16:22:05 2010 for RPKI Engine by  doxygen
+    Generated on Tue Apr 13 21:06:48 2010 for RPKI Engine by  doxygen
     1.6.3

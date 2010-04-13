@@ -76,12 +76,11 @@ docs:: doc/irdbd.png doc/pubd.png doc/rpkid.png doc/rpkid-bpki.png doc/pubd-bpki
 docs:: doc/irdbd.pdf doc/pubd.pdf doc/rpkid.pdf doc/rpkid-bpki.pdf doc/pubd-bpki.pdf
 docs::
 	TZ='' doxygen
-	cd doc/latex && TZ='' ${MAKE}
 	for i in Installation Operation Left-right Publication; do \
-		xsltproc --html doc/tweak-doc.xsl doc/html/$$i.html | lynx -dump -nolist -force_html /dev/stdin >doc/$$i; \
+		xsltproc --html doc/tweak-doc.xsl doc/html/$$i.html | lynx -dump -nolist -force_html -stdin >doc/$$i; \
 	done
-	cd doc; ln -f latex/refman.pdf manual.pdf
-	cd doc; tar -cf - html | gzip -9 >manual.tar.gz
+	cd doc/latex && TZ='' ${MAKE} && ln -f refman.pdf ../manual.pdf
+	cd doc && tar -cf - html | gzip -9 >manual.tar.gz
 
 lint:
 	pylint --rcfile ../scripts/pylint.rc rpki/[a-z]*.py irbe_cli.py irdbd.py pubd.py rootd.py rpkid.py tests/testbed.py tests/testpoke.py ../myrpki/myrpki.py ../myrpki/yamltest.py

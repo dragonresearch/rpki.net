@@ -23,6 +23,7 @@ Installation Guide
    prerequisites. Note that the Python code requires Python version 2.5.
    rpkid et al are mostly self-contained, but do require a small number of
    external packages to run.
+
      * If your Python installation does not already include the sources
        files needed to compile new Python extension modules, you will need
        to install whatever package does include those source files. The
@@ -75,6 +76,7 @@ Installation Guide
    You will probably want to test it. All tests should be run from the
    rpkid/ directory. The test suite requires a few more external packages,
    only one of which is Python code.
+
      * http://pyyaml.org/. testpoke.py (an up-down protocol command line
        test client) and testbed.py (a test harness) use PyYAML.
           + FreeBSD: /usr/ports/devel/py-yaml
@@ -101,6 +103,7 @@ Installation Guide
    There's a last set of tools that only developers should need, as
    they're only used when modifying schemas or regenerating the
    documentation. These tools are listed here for completeness.
+
      * http://www.doxygen.org/. Doxygen in turn pulls in several other
        tools, notably Graphviz, pdfLaTeX, and Ghostscript.
           + FreeBSD: /usr/ports/devel/doxygen
@@ -122,5 +125,5 @@ Installation Guide
      __________________________________________________________________
 
 
-    Generated on Tue Apr 13 16:22:05 2010 for RPKI Engine by  doxygen
+    Generated on Tue Apr 13 21:06:48 2010 for RPKI Engine by  doxygen
     1.6.3

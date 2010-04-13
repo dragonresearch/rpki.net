@@ -362,8 +362,10 @@
 # "true" or "false".  If not specified, default values will be chosen
 # (generally false).
 #
+#
 # @li @c debug_http
 #                               Enable verbose http debug logging.
+#
 # @li @c debug_tls_certs
 #                               Enable verbose logging about tls certs.
 #
@@ -381,7 +383,7 @@
 #
 # @li @c gc_debug
 #                               Enable scary garbage collector debugging.
-#                       
+#
 # @li @c timer_debug
 #                               Enable verbose logging of timer system.
 #

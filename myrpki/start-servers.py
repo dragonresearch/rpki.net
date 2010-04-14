@@ -43,8 +43,9 @@ time.tzset()
 
 cfg_file = "myrpki.conf"
 debug = False
+piddir = None
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:dh?", ["config=", "debug" "help"])
+opts, argv = getopt.getopt(sys.argv[1:], "c:dhp:?", ["config=", "debug" "help", "piddir="])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
@@ -53,21 +54,30 @@ for o, a in opts:
     cfg_file = a
   elif o in ("-d", "--debug"):
     debug = True
-
-names = ["irdbd", "rpkid"]
+  elif o in ("-p", "--piddir"):
+    piddir = a
 
 cfg = rpki.config.parser(cfg_file, "myrpki")
 
-if cfg.getboolean("run_pubd", False):
-  names.append("pubd")
-
-if cfg.getboolean("run_rootd", False):
-  names.append("rootd")
-
-for name in names:
+def run(name):
   cmd = ("python", os.path.join(rpkid_dir, name + ".py"), "-c", cfg_file)
   if debug:
     proc = subprocess.Popen(cmd + ("-d",), stdout = open(name + ".log", "a"), stderr = subprocess.STDOUT)
   else:
     proc = subprocess.Popen(cmd)
-  print ("Started %r, pid %s" if proc.poll() is None else "Problem starting %r, pid %s") % (name, proc.pid)
+  if proc.poll() is None:
+    print "Started %r, pid %s" % (name, proc.pid)
+    if piddir is not None:
+      open(os.path.join(piddir, "%s.pid" % name), "w").write("%d\n" % proc.pid)
+  else:
+    print "Problem starting %r, pid %s" % (name, proc.pid)
+
+if cfg.getboolean("run_rpkid", False):
+  run("irdbd")
+  run("rpkid")
+
+if cfg.getboolean("run_pubd", False):
+  run("pubd")
+
+if cfg.getboolean("run_rootd", False):
+  run("rootd")

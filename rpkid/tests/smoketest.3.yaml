@@ -1,6 +1,6 @@
 # $Id$
 
-# Copyright (C) 2009  Internet Systems Consortium ("ISC")
+# Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -29,52 +29,31 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 name:           RIR
-crl_interval:   5m
-regen_margin:   2m
-valid_for:      2d
+crl_interval:   2d
+regen_margin:   1h
+valid_for:      90d
 kids:
   - name: R0
     kids:
       - name: Alice
-        ipv4: 192.0.2.1-192.0.2.33
+        ipv4: 192.0.2.0-192.0.2.33
+        ipv6: 2002:0a00::/32
         asn:  64533
         roa_request:
           - asn: 42
-            ipv4: 192.0.2.32/32
+            ipv4: 192.0.2.0/30-32,192.0.2.32/32
+            ipv6: 2002:0a00::/32-128
       - name: Bob
         ipv4: 192.0.2.44-192.0.2.100
     ipv4: 10.3.0.0/16
     roa_request:
       - asn: 666
-        ipv4: 10.3.0.44/32
+        ipv4: 10.3.0.0/23
 ---
-- shell set -x; cd ../../../rtr-origin && python rtr-origin.py --cronjob ../../rpkid/testbed.dir/rcynic-data/authenticated && python rtr-origin.py --show
----
-- name: R0
-  rekey:
----
-- name: R0
-  revoke:
----
-- name: Alice
-  valid_add:   10
-- name: R0
-  roa_request_add:
-    - asn: 17
-      ipv4: 10.3.0.1/32, 10.0.0.44/32
----
-- shell set -x; cd ../../../rtr-origin && python rtr-origin.py --cronjob ../../rpkid/testbed.dir/rcynic-data/authenticated && python rtr-origin.py --show
----
-- sleep 30
----
-- sleep 30
----
-- sleep 30
----
-- sleep 30
----
-- sleep 30
----
-- sleep 30
----
-- sleep 30
+#- shell find publication -type f -name '*.roa' -print -exec ../../../utils/print_roa/print_roa {} \;
+#- shell find publication -type f -name '*.mnf' -print -exec ../../../utils/print_manifest/print_manifest {} \;
+#---
+#- shell find publication -type f -name '*.roa' -print -exec ../../../utils/print_roa/print_roa {} \;
+#- shell find publication -type f -name '*.mnf' -print -exec ../../../utils/print_manifest/print_manifest {} \;
+#---
+- shell set -x; cd ../../../rtr-origin && python rtr-origin.py --cronjob ../../rpkid/smoketest.dir/rcynic-data/authenticated && python rtr-origin.py --show

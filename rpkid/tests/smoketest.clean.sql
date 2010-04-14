@@ -14,7 +14,7 @@
 -- OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 -- PERFORMANCE OF THIS SOFTWARE.
 
--- Clean up databases left behind by testbed.py et al.
+-- Clean up databases left behind by smoketest.py et al.
 
 DROP DATABASE IF EXISTS irdb0;
 DROP DATABASE IF EXISTS irdb1;

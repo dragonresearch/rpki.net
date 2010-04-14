@@ -208,12 +208,12 @@
 #
 # Some of the tests require MySQL databases to store their data.  To set
 # up all the databases that the tests will need, run the SQL commands in
-# rpkid/testbed.setup.sql.  The MySQL command line client is usually the
+# rpkid/smoketest.setup.sql.  The MySQL command line client is usually the
 # easiest way to do this, eg:
 #
 # @verbatim
 #   $ cd $top/rpkid
-#   $ mysql -u root -p <testbed.setup.sql
+#   $ mysql -u root -p <smoketest.setup.sql
 # @endverbatim
 #
 # To run the tests, run "make all-tests":
@@ -316,15 +316,15 @@
 #              A command-line client for the left-right control
 #              protocol.  Very obscure syntax, badly needs rewriting.
 #
-# @li @ref testbed "@c testbed":
+# @li @ref smoketest "@c smoketest":
 #              A test tool for running a collection of rpkid and irdb
 #              instances under common control, driven by a unified
 #              test script.
 #
 # @li @ref yamltest "@c yamltest":
 #              Another test tool which takes the same input format as
-#              @c testbed.py, but with slightly different purpose.
-#              @c testbed.py is intended to support regression tests,
+#              @c smoketest.py, but with slightly different purpose.
+#              @c smoketest.py is intended to support regression tests,
 #              while @c yamltest.py is intended for automated testing
 #              of something closer to a real operational environment.
 #              There's a fair amount of code duplication between the
@@ -421,7 +421,7 @@
 # @endlink followed by dynamic configuration via the left-right
 # protocol.  In production use the latter stage would be handled by
 # the IRBE stub; for test and develoment purposes it's handled by the
-# @c irbe_cli command line interface or by the testbed test
+# @c irbe_cli command line interface or by the smoketest test
 # framework.
 #
 # rpkid stores dynamic data in an SQL database, which must have been
@@ -846,19 +846,18 @@
 #                      Service URL for rpkid.  Must be a %https:// URL.
 #
 #
-# @section testbed testbed:
+# @section smoketest smoketest:
 #
-# testbed is a test harness to set up and run a collection of rpkid and
-# irdbd instances under scripted control.  testbed is a very recent
-# addition to the toolset and is still evolving rapidly.
+# smoketest is a test harness to set up and run a collection of rpkid and
+# irdbd instances under scripted control.
 #
-# Unlike the programs described above, testbed takes two configuration
+# Unlike the programs described above, smoketest takes two configuration
 # files in different languages.  The first configuration file uses the
 # same syntax as the above configuration files but is completely
 # optional.  The second configuration file is the test script, which is
 # encoded using the YAML serialization language (see
 # http://www.yaml.org/ for more information on YAML).  The YAML script
-# is not optional, as it describes the test layout.  testbed is designed
+# is not optional, as it describes the test layout.  smoketest is designed
 # to support running a fairly wide set of test configurations as canned
 # scripts without writing any new control code.  The intent is to make
 # it possible to write meaningful regression tests.
@@ -867,14 +866,14 @@
 # just overrides for wired-in default values.   In most cases the
 # defaults will suffice, and the set of options is still in flux, so
 # only a few of the options are described here.    The default name for
-# this configuration file is testbed.conf, run testbed with "-c
+# this configuration file is smoketest.conf, run smoketest with "-c
 # filename" to change it.
 #
-# testbed.conf options:
+# smoketest.conf options:
 #
-# @li @c testbed_dir:
-#              Working directory into which testbed should write the
-#              (many) files it generates.  Default is "testbed.dir".
+# @li @c smoketest_dir:
+#              Working directory into which smoketest should write the
+#              (many) files it generates.  Default is "smoketest.dir".
 #
 # @li @c irdb_db_pass:
 #              MySQL password for the "irdb" user.  Default is
@@ -891,11 +890,11 @@
 #              "rsync://wombat.invalid/".  You may want to override
 #              this if you intend to run an rsync server and test
 #              against the generated results using rcynic.   This
-#              default will likely change if and when testbed learns
+#              default will likely change if and when smoketest learns
 #              how to run rcynic itself as part of the test suite.
 #
-# The second configuration file is named testbed.yaml by default, run
-# testbed with "-y filename" to change it.  The YAML file contains
+# The second configuration file is named smoketest.yaml by default, run
+# smoketest with "-y filename" to change it.  The YAML file contains
 # multiple YAML "documents".  The first document describes the initial
 # test layout and resource allocations, subsequent documents describe
 # modifications to the initial allocations and other parameters.
@@ -962,7 +961,7 @@
 #              Add to or subtract from validity interval.
 #
 # @li @c sleep [interval]:
-#              Sleep for specified interval, or until testbed receives a SIGALRM signal.
+#              Sleep for specified interval, or until smoketest receives a SIGALRM signal.
 #
 # Absolute timestamps should be in the form shown (UTC timestamp format
 # as used in XML).

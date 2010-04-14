@@ -18,7 +18,7 @@
 # in testing his code, until Randy has the live testbed set up.
 
 # Python code to remove overlaps in a set of prefixes (needed to take
-# something like this peval output and feed it into testbed.py):
+# something like this peval output and feed it into smoketest.py):
 #
 #   import rpki.resource_set
 #
@@ -69,4 +69,4 @@ roa_request:
 
 ---
 - shell set -x; find publication -type f -name '*.roa' -print -exec ../../../utils/print_roa/print_roa {} \;
-- shell set -x; cd ../../../rtr-origin && python rtr-origin.py --cronjob ../../rpkid/testbed.dir/rcynic-data/authenticated && python rtr-origin.py --show
+- shell set -x; cd ../../../rtr-origin && python rtr-origin.py --cronjob ../../rpkid/smoketest.dir/rcynic-data/authenticated && python rtr-origin.py --show

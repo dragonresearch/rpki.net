@@ -20,7 +20,7 @@ clean:
 ${BIN}: ${OBJ} ${LIB} Makefile
 	${CC} -g -o $@ ${OBJ} ${LIB}
 
-ROA_DIR = ../../rpkid/testbed.dir/publication
+ROA_DIR = ../../rpkid/tests/smoketest.dir/publication
 
 test: all
 	-date -u +'now:            %Y%m%d%H%M%SZ'

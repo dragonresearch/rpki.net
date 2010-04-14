@@ -3,7 +3,7 @@
 all: protocol-samples
 
 clean:
-	rm -rf testbed.dir left-right-protocol-samples publication-protocol-samples
+	rm -rf smoketest.dir left-right-protocol-samples publication-protocol-samples
 
 protocol-samples: left-right-protocol-samples/.stamp publication-protocol-samples/.stamp
 
@@ -25,22 +25,27 @@ parse-test: protocol-samples
 all-tests:: parse-test
 
 all-tests:: 
-	python testbed.py -y testbed.1.yaml
+	python smoketest.py -y smoketest.1.yaml
 
 all-tests::
-	python testbed.py -y testbed.2.yaml
+	python smoketest.py -y smoketest.2.yaml
 
 test all-tests::
-	python testbed.py -y testbed.3.yaml
+	python smoketest.py -y smoketest.3.yaml
 
 all-tests::
-	python testbed.py -y testbed.4.yaml
+	python smoketest.py -y smoketest.4.yaml
 
 all-tests::
-	python testbed.py -y testbed.5.yaml
+	python smoketest.py -y smoketest.5.yaml
 
 test all-tests::
-	python testbed.py -y testbed.6.yaml
+	python smoketest.py -y smoketest.6.yaml
 
 all-tests::
-	python testbed.py -y testbed.7.yaml
+	python smoketest.py -y smoketest.7.yaml
+
+profile: all
+	find smoketest.dir -name '*.prof' -delete
+	python smoketest.py -y smoketest.2.yaml -p
+	for i in smoketest.dir/*.prof; do python -c "import pstats;pstats.Stats('$$i').sort_stats('time').print_stats()"; done

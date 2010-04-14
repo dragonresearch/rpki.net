@@ -1,17 +1,17 @@
 """
 Test framework, using the same YAML test description format as
-testbed.py, but using the myrpki.py and myirbe.py tools to do all the
-back-end work.  Reads YAML file, generates .csv and .conf files, runs
-daemons and waits for one of them to exit.
+smoketest.py, but using the myrpki.py tool to do all the back-end
+work.  Reads YAML file, generates .csv and .conf files, runs daemons
+and waits for one of them to exit.
 
-Much of the YAML handling code lifted from testbed.py.
+Much of the YAML handling code lifted from smoketest.py.
 
 Still to do:
 
-- Implement testebd.py-style delta actions, that is, modify the
+- Implement smoketest.py-style delta actions, that is, modify the
   allocation database under control of the YAML file, dump out new
-  .csv files, and run myrpki.py and myirbe.py again to feed resulting
-  changes into running daemons.
+  .csv files, and run myrpki.py again to feed resulting changes into
+  running daemons.
 
 $Id$
 
@@ -548,7 +548,7 @@ try:
   rpki.log.use_syslog = False
   rpki.log.init("yamltest")
 
-  yaml_file = argv[0] if argv else "../rpkid/tests/testbed.1.yaml"
+  yaml_file = argv[0] if argv else "../rpkid/tests/smoketest.1.yaml"
 
   # Allow optional config file for this tool to override default
   # passwords: this is mostly so that I can show a complete working
@@ -575,7 +575,7 @@ try:
 
   # Read first YAML doc in file and process as compact description of
   # test layout and resource allocations.  Ignore subsequent YAML docs,
-  # they're for testbed.py, not this script.
+  # they're for smoketest.py, not this script.
 
   db = allocation_db(yaml.safe_load_all(open(yaml_file)).next())
 

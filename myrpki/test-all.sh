@@ -24,7 +24,7 @@ test -z "$STY"  && exec screen -L sh $0
 screen -X split
 screen -X focus
 
-for i in ../rpkid/testbed.*.yaml
+for i in ../rpkid/smoketest.*.yaml
 do
   rm -rf test
   python sql-cleaner.py 

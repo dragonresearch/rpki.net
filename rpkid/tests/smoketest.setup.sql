@@ -2,7 +2,7 @@
 --
 -- Run this manually under the MySQL CLI to set up databases for testdb.py.
 -- testdb.py doesn't do this automatically because it requires privileges
--- that testbed.py doesn't (or at least shouldn't) have.
+-- that smoketest.py doesn't (or at least shouldn't) have.
 
 -- Copyright (C) 2009  Internet Systems Consortium ("ISC")
 --

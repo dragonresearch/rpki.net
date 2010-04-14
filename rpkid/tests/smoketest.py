@@ -2,14 +2,14 @@
 Test framework to configure and drive a collection of rpkid.py and
 irdbd.py instances under control of a master script.
 
-Usage: python testbed.py [ { -c | --config } config_file ]
-                         [ { -h | --help } ]
-                         [ { -p | --profile } ]
-                         [ { -y | --yaml }   yaml_script ]
+Usage: python smoketest.py [ { -c | --config } config_file ]
+                           [ { -h | --help } ]
+                           [ { -p | --profile } ]
+                           [ { -y | --yaml }   yaml_script ]
 
-Default config_file is testbed.conf, override with --config option.
+Default config_file is smoketest.conf, override with --config option.
 
-Default yaml_script is testbed.yaml, override with -yaml option.
+Default yaml_script is smoketest.yaml, override with -yaml option.
 
 yaml_script is a YAML file describing the tests to be run, and is
 intended to be implementation agnostic.
@@ -65,7 +65,7 @@ else:
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-cfg_file = "testbed.conf"
+cfg_file = "smoketest.conf"
 
 yaml_script = None
 profile = False
@@ -85,12 +85,12 @@ if argv:
   print __doc__
   raise RuntimeError, "Unexpected arguments %s" % argv
 
-cfg = rpki.config.parser(cfg_file, "testbed", allow_missing = True)
+cfg = rpki.config.parser(cfg_file, "smoketest", allow_missing = True)
 
 # Load the YAML script early, so we can report errors ASAP
 
 if yaml_script is None:
-  yaml_script  = cfg.get("yaml_script", "testbed.yaml")
+  yaml_script  = cfg.get("yaml_script", "smoketest.yaml")
 try:
   yaml_script = [y for y in yaml.safe_load_all(open(yaml_script))]
 except:
@@ -110,8 +110,8 @@ def allocate_port():
 
 # Most filenames in the following are relative to the working directory.
 
-testbed_name   = cfg.get("testbed_name",   "testbed")
-testbed_dir    = cfg.get("testbed_dir",    testbed_name + ".dir")
+smoketest_name = cfg.get("smoketest_name", "smoketest")
+smoketest_dir  = cfg.get("smoketest_dir",  smoketest_name + ".dir")
 
 irdb_db_pass   = cfg.get("irdb_db_pass",   "fnord")
 rpki_db_pass   = cfg.get("rpki_db_pass",   "fnord")
@@ -125,7 +125,7 @@ rsyncd_port    = allocate_port()
 rootd_port     = allocate_port()
 pubd_port      = allocate_port()
 
-rsyncd_module  = cfg.get("rsyncd_module",  testbed_name)
+rsyncd_module  = cfg.get("rsyncd_module",  smoketest_name)
 rootd_sia      = cfg.get("rootd_sia",      "rsync://localhost:%d/%s/" % (rsyncd_port, rsyncd_module))
 
 rootd_name     = cfg.get("rootd_name",     "rootd")
@@ -163,7 +163,7 @@ def main():
   """
 
   rpki.log.use_syslog = False
-  rpki.log.init(testbed_name)
+  rpki.log.init(smoketest_name)
   rpki.log.info("Starting")
 
   pubd_process = None
@@ -178,10 +178,10 @@ def main():
 
   # Connect to test directory, creating it if necessary
   try:
-    os.chdir(testbed_dir)
+    os.chdir(smoketest_dir)
   except OSError:
-    os.makedirs(testbed_dir)
-    os.chdir(testbed_dir)
+    os.makedirs(smoketest_dir)
+    os.chdir(smoketest_dir)
 
   # Discard everything but keys, which take a while to generate
   for root, dirs, files in os.walk(".", topdown = False):
@@ -671,7 +671,6 @@ class allocation(object):
     rpki.log.info("Writing config files for %s" % self.name)
     assert self.rpki_port is not None
     d = { "my_name"      : self.name,
-          "testbed_name" : testbed_name,
           "irdb_db_name" : self.irdb_db_name,
           "irdb_db_pass" : irdb_db_pass,
           "irdb_port"    : self.irdb_port,

@@ -38,7 +38,7 @@ all-tests:: unit-tests
 
 all-tests:: relaxng
 
-test all-tests parse-test::
+test all-tests parse-test profile::
 	cd tests; $(MAKE) $@
 
 
@@ -47,6 +47,9 @@ irbe_cli.usage: irbe_cli.py
 
 tags:
 	find . -type f \( -name '*.py' -o -name '*.sql' -o -name '*.rnc' \) ! -name relaxng.py | etags -
+
+lint:
+	pylint --rcfile ../scripts/pylint.rc rpki/[a-z]*.py irbe_cli.py irdbd.py pubd.py rootd.py rpkid.py tests/smoketest.py tests/testpoke.py ../myrpki/myrpki.py ../myrpki/yamltest.py
 
 # Documentation
 
@@ -81,10 +84,3 @@ docs::
 	done
 	cd doc/latex && TZ='' ${MAKE} && ln -f refman.pdf ../manual.pdf
 	cd doc && tar -cf - html | gzip -9 >manual.tar.gz
-
-lint:
-	pylint --rcfile ../scripts/pylint.rc rpki/[a-z]*.py irbe_cli.py irdbd.py pubd.py rootd.py rpkid.py tests/testbed.py tests/testpoke.py ../myrpki/myrpki.py ../myrpki/yamltest.py
-
-profile: all
-	python testbed.py -y testbed.2.yaml -p
-	for i in testbed.dir/*.prof; do python -c "import pstats;pstats.Stats('$$i').sort_stats('time').print_stats()"; done

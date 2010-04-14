@@ -1,9 +1,8 @@
 Operation Guide
 
-   Preliminary operation instructions for rpkid et al.
+   Production-side RPKI tools, for Internet Registries (RIRs, LIRs, etc).
 
-   These are the production-side RPKI tools, for Internet Registries
-   (RIRs, LIRs, etc). See rcynic/README for relying party tools.
+   See rcynic/README for relying party tools.
 
    Warning:
           rpkid is still in development, and the code changes more often
@@ -17,41 +16,41 @@ Operation Guide
    In addition to the library routines in the rpkid/rpki/ directory, the
    package includes the following programs:
 
-     * rpkid.py: The main RPKI engine daemon.
+     * rpkid : The main RPKI engine daemon.
 
-     * pubd.py: The publication engine daemon.
+     * pubd : The publication engine daemon.
 
-     * rootd.py: A separate daemon for handling the root of an RPKI
+     * rootd : A separate daemon for handling the root of an RPKI
        certificate tree. This is essentially a stripped down version of
        rpkid with no SQL database, no left-right protocol implementation,
        and only the parent side of the up-down protocol. It's separate
        because the root is a special case in several ways and it was
        simpler to keep the special cases out of the main daemon.
 
-     * irdbd.py: A sample implementation of an IR database daemon. rpkid
+     * irdbd : A sample implementation of an IR database daemon. rpkid
        calls into this to perform lookups via the left-right protocol.
 
-     * irbe_cli.py: A command-line client for the left-right control
+     * irbe_cli : A command-line client for the left-right control
        protocol. Very obscure syntax, badly needs rewriting.
 
-     * testbed.py: A test tool for running a collection of rpkid and irdb
+     * smoketest : A test tool for running a collection of rpkid and irdb
        instances under common control, driven by a unified test script.
 
-     * yamltest.py: Another test tool which takes the same input format as
-       testbed.py, but with slightly different purpose. testbed.py is
+     * yamltest : Another test tool which takes the same input format as
+       smoketest.py, but with slightly different purpose. smoketest.py is
        intended to support regression tests, while yamltest.py is intended
        for automated testing of something closer to a real operational
        environment. There's a fair amount of code duplication between the
        two, and at some point they will probably be merged into a single
        program that supports both modes of operation.
 
-     * testpoke.py: A simple client for the up-down protocol, mostly
+     * testpoke : A simple client for the up-down protocol, mostly
        compatable with APNIC's rpki_poke.pl tool.
 
    Most of these programs take configuration files in a common format
    similar to that used by the OpenSSL command line tool. The test
    programs also take input in YAML format to drive the tests. Runs of the
-   yamltest.py test tool will generate a fairly complete set configuration
+   yamltest test tool will generate a fairly complete set configuration
    files which may be useful as examples.
 
    Basic operation consists of creating the appropriate MySQL databases,
@@ -111,15 +110,15 @@ Common Options
 
      * dump_inbound_cms Dump messages we receive to this mailbox.
 
-rpkid.py
+rpkid
 
    rpkid is the main RPKI engine daemon. Configuration of rpkid is a two
    step process: a config file to bootstrap rpkid to the point where it
    can speak using the left-right protocol, followed by dynamic
    configuration via the left-right protocol. In production use the latter
    stage would be handled by the IRBE stub; for test and develoment
-   purposes it's handled by the irbe_cli.py command line interface or by
-   the testbed.py test framework.
+   purposes it's handled by the irbe_cli command line interface or by the
+   smoketest test framework.
 
    rpkid stores dynamic data in an SQL database, which must have been
    created for it, as explained in the installation guide.
@@ -165,7 +164,7 @@ rpkid.py
 
      * server-port: TCP port on which to listen for HTTPS connections.
 
-pubd.py
+pubd
 
    pubd is the publication daemon. It implements the server side of the
    publication protocol, and is used by rpkid to publish the certificates
@@ -229,7 +228,7 @@ pubd.py
      * publication-base: Path to base of filesystem tree where pubd should
        store publishable objects. Default is "publication/".
 
-rootd.py
+rootd
 
    rootd is a stripped down implmenetation of (only) the server side of
    the up-down protocol. It's a separate program because the root
@@ -289,7 +288,7 @@ rootd.py
        This is only used for debugging. Default is not to save the PKCS
        #10 request.
 
-irdbd.py
+irdbd
 
    irdbd is a sample implemntation of the server side of the IRDB callback
    subset of the left-right protocol. In production use this service is a
@@ -335,7 +334,7 @@ irdbd.py
 
      * https-url: Service URL for irdbd. Must be a https:// URL.
 
-irbe_cli.py
+irbe_cli
 
    irbe_cli is a simple command line client for the control subsets of the
    left-right and publication protocols. In production use this
@@ -474,9 +473,9 @@ M
 
      * pubd-url: Service URL for pubd. Must be a https:// URL.
 
-cross_certify.py
+cross_certify
 
-   cross_certify.py is a small tool to extract certain fields from an
+   cross_certify is a small tool to extract certain fields from an
    existing X.509 certificate and generate issue a new certificate that
    can be used as part of a cross-certification chain. cross_certify
    doesn't take a config file, all of its arguments are specified on the
@@ -489,7 +488,7 @@ cross_certify.py
                             [ { -o | --out  }     filename ]
                             [ { -l | --lifetime } timedelta ]
 
-cronjob.py
+cronjob
 
    This is a trivial program to trigger a cron run within rpkid.
    Ordinarilly rpkid runs its own internal cron process, but for scripted
@@ -505,7 +504,7 @@ cronjob.py
 
      * bpki-ta: Name of file containing BPKI trust anchor.
 
-     * irbe-cert: Name of file containing cronjob.py's BPKI certificate.
+     * irbe-cert: Name of file containing cronjob's BPKI certificate.
 
      * https-key: Name of file containing RSA key corresponding to
        irbe-cert.
@@ -514,19 +513,18 @@ cronjob.py
 
      * https-url: Service URL for rpkid. Must be a https:// URL.
 
-testbed.py:
+smoketest:
 
-   testbed is a test harness to set up and run a collection of rpkid and
-   irdbd instances under scripted control. testbed is a very recent
-   addition to the toolset and is still evolving rapidly.
+   smoketest is a test harness to set up and run a collection of rpkid and
+   irdbd instances under scripted control.
 
-   Unlike the programs described above, testbed takes two configuration
+   Unlike the programs described above, smoketest takes two configuration
    files in different languages. The first configuration file uses the
    same syntax as the above configuration files but is completely
    optional. The second configuration file is the test script, which is
    encoded using the YAML serialization language (see http://www.yaml.org/
    for more information on YAML). The YAML script is not optional, as it
-   describes the test layout. testbed is designed to support running a
+   describes the test layout. smoketest is designed to support running a
    fairly wide set of test configurations as canned scripts without
    writing any new control code. The intent is to make it possible to
    write meaningful regression tests.
@@ -535,12 +533,12 @@ testbed.py:
    just overrides for wired-in default values. In most cases the defaults
    will suffice, and the set of options is still in flux, so only a few of
    the options are described here. The default name for this configuration
-   file is testbed.conf, run testbed with "-c filename" to change it.
+   file is smoketest.conf, run smoketest with "-c filename" to change it.
 
-   testbed.conf options:
+   smoketest.conf options:
 
-     * testbed_dir: Working directory into which testbed should write the
-       (many) files it generates. Default is "testbed.dir".
+     * smoketest_dir: Working directory into which smoketest should write
+       the (many) files it generates. Default is "smoketest.dir".
 
      * irdb_db_pass: MySQL password for the "irdb" user. Default is
        "fnord". You may want to override this.
@@ -553,11 +551,11 @@ testbed.py:
        certificate. Default is "rsync://wombat.invalid/". You may want to
        override this if you intend to run an rsync server and test against
        the generated results using rcynic. This default will likely change
-       if and when testbed learns how to run rcynic itself as part of the
-       test suite.
+       if and when smoketest learns how to run rcynic itself as part of
+       the test suite.
 
-   The second configuration file is named testbed.yaml by default, run
-   testbed with "-y filename" to change it. The YAML file contains
+   The second configuration file is named smoketest.yaml by default, run
+   smoketest with "-y filename" to change it. The YAML file contains
    multiple YAML "documents". The first document describes the initial
    test layout and resource allocations, subsequent documents describe
    modifications to the initial allocations and other parameters.
@@ -616,7 +614,7 @@ testbed.py:
 
      * valid_add, valid_sub: Add to or subtract from validity interval.
 
-     * sleep [interval]: Sleep for specified interval, or until testbed
+     * sleep [interval]: Sleep for specified interval, or until smoketest
        receives a SIGALRM signal.
 
    Absolute timestamps should be in the form shown (UTC timestamp format
@@ -629,7 +627,7 @@ testbed.py:
    the fields are optional, but at least one must be specified. For
    example, "3D4H" means "three days plus four hours".
 
-testpoke.py
+testpoke
 
    This is a command-line client for the up-down protocol. Unlike all of
    the above programs, testpoke does not accept a config file in
@@ -644,8 +642,8 @@ testpoke.py
    http://mirin.apnic.net/svn/rpki_engine/branches/gary-poker/client/poke/
    README.
 
-   testpoke.py takes a simplified command line and uses only one YAML
-   input file.
+   testpoke takes a simplified command line and uses only one YAML input
+   file.
  Usage: python testpoke.py [ { -y | --yaml }    configfile ]
                            [ { -r | --request } requestname ]
                            [ { -h | --help } ]
@@ -658,7 +656,7 @@ testpoke.py
 
    Sample configuration file:
      ---
-     # Sample YAML configuration file for testpoke.py
+     # Sample YAML configuration file for testpoke
 
      version: 1
      posturl: https://localhost:4433/up-down/1
@@ -697,5 +695,5 @@ testpoke.py
      __________________________________________________________________
 
 
-    Generated on Tue Apr 13 22:26:15 2010 for RPKI Engine by  doxygen
+    Generated on Wed Apr 14 12:58:45 2010 for RPKI Engine by  doxygen
     1.6.3

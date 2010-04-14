@@ -80,7 +80,9 @@ docs:: doc/irdbd.pdf doc/pubd.pdf doc/rpkid.pdf doc/rpkid-bpki.pdf doc/pubd-bpki
 docs::
 	TZ='' doxygen
 	for i in Installation Configuration Operation Left-right Publication; do \
-		xsltproc --html doc/tweak-doc.xsl doc/html/$$i.html | lynx -dump -nolist -force_html -stdin >doc/$$i; \
-	done
+		xsltproc --html doc/tweak-doc.xsl doc/html/$$i.html | \
+		lynx -dump -nolist -force_html -stdin >doc/$$i; \
+	done 2>&1 | \
+	awk -f doc/tweak-doc.awk 1>&2
 	cd doc/latex && TZ='' ${MAKE} && ln -f refman.pdf ../manual.pdf
 	cd doc && tar -cf - html | gzip -9 >manual.tar.gz

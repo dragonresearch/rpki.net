@@ -277,8 +277,7 @@
 
 ## @page Operation Operation Guide
 #
-# Preliminary operation instructions for rpkid et al.  These are the
-# production-side RPKI tools, for Internet Registries (RIRs, LIRs, etc).
+# Production-side RPKI tools, for Internet Registries (RIRs, LIRs, etc).
 # See rcynic/README for relying party tools.
 #
 # @warning
@@ -293,13 +292,13 @@
 # In addition to the library routines in the @c rpkid/rpki/ directory,
 # the package includes the following programs:
 #
-# @li @c rpkid.py:
+# @li @ref rpkid "@c rpkid":
 #              The main RPKI engine daemon.
 #
-# @li @c pubd.py:
+# @li @ref pubd "@c pubd":
 #              The publication engine daemon.
 #
-# @li @c rootd.py:
+# @li @ref rootd "@c rootd":
 #              A separate daemon for handling the root of an RPKI
 #              certificate tree.  This is essentially a stripped down
 #              version of rpkid with no SQL database, no left-right
@@ -308,21 +307,21 @@
 #              is a special case in several ways and it was simpler
 #              to keep the special cases out of the main daemon.
 #
-# @li @c irdbd.py:
+# @li @ref irdbd "@c irdbd":
 #              A sample implementation of an IR database daemon.
 #              rpkid calls into this to perform lookups via the
 #              left-right protocol.
 #
-# @li @c irbe_cli.py:
+# @li @ref irbe_cli "@c irbe_cli":
 #              A command-line client for the left-right control
 #              protocol.  Very obscure syntax, badly needs rewriting.
 #
-# @li @c testbed.py:
+# @li @ref testbed "@c testbed":
 #              A test tool for running a collection of rpkid and irdb
 #              instances under common control, driven by a unified
 #              test script.
 #
-# @li @c yamltest.py:
+# @li @ref yamltest "@c yamltest":
 #              Another test tool which takes the same input format as
 #              @c testbed.py, but with slightly different purpose.
 #              @c testbed.py is intended to support regression tests,
@@ -333,14 +332,14 @@
 #              into a single program that supports both modes of
 #              operation.
 #
-# @li @c testpoke.py:
+# @li @ref testpoke "@c testpoke":
 #              A simple client for the up-down protocol, mostly
 #              compatable with APNIC's rpki_poke.pl tool.
 #
 # Most of these programs take configuration files in a common format
 # similar to that used by the OpenSSL command line tool.  The test
 # programs also take input in YAML format to drive the tests.  Runs of
-# the @c yamltest.py test tool will generate a fairly complete set
+# the @c yamltest test tool will generate a fairly complete set
 # configuration files which may be useful as examples.
 #
 # Basic operation consists of creating the appropriate MySQL
@@ -414,7 +413,7 @@
 #                               Dump messages we receive to this mailbox.
 #
 #
-# @section rpkid rpkid.py
+# @section rpkid rpkid
 #
 # rpkid is the main RPKI engine daemon.  Configuration of rpkid is a
 # two step process: a %config file to bootstrap rpkid to the point
@@ -422,7 +421,7 @@
 # @endlink followed by dynamic configuration via the left-right
 # protocol.  In production use the latter stage would be handled by
 # the IRBE stub; for test and develoment purposes it's handled by the
-# irbe_cli.py command line interface or by the testbed.py test
+# @c irbe_cli command line interface or by the testbed test
 # framework.
 #
 # rpkid stores dynamic data in an SQL database, which must have been
@@ -487,7 +486,7 @@
 #                      connections.
 #
 #
-# @section pubd pubd.py
+# @section pubd pubd
 #
 # pubd is the publication daemon.  It implements the server side of
 # the publication protocol, and is used by rpkid to publish the
@@ -567,7 +566,7 @@
 #                      "publication/".
 #
 #
-# @section rootd rootd.py
+# @section rootd rootd
 #
 # rootd is a stripped down implmenetation of (only) the server side of
 # the up-down protocol.  It's a separate program because the root
@@ -647,7 +646,7 @@
 #                      #10 request.
 #
 #
-# @section irdbd irdbd.py
+# @section irdbd irdbd
 #
 # irdbd is a sample implemntation of the server side of the IRDB
 # callback subset of the left-right protocol.  In production use this
@@ -708,7 +707,7 @@
 #                      Service URL for irdbd.  Must be a %https:// URL.
 #
 #
-# @section irdbd_cli irbe_cli.py
+# @section irbe_cli irbe_cli
 #
 # irbe_cli is a simple command line client for the control subsets of
 # the @link Left-right left-right @endlink and @link Publication
@@ -796,9 +795,9 @@
 #
 #
 #
-# @section cross_certify cross_certify.py
+# @section cross_certify cross_certify
 #
-# cross_certify.py is a small tool to extract certain fields from an
+# cross_certify is a small tool to extract certain fields from an
 # existing X.509 certificate and generate issue a new certificate that
 # can be used as part of a cross-certification chain.  cross_certify
 # doesn't take a config file, all of its arguments are specified on
@@ -815,7 +814,7 @@
 # @endverbatim
 #
 #
-# @section cronjob cronjob.py
+# @section cronjob cronjob
 #
 # This is a trivial program to trigger a cron run within rpkid.
 # Ordinarilly rpkid runs its own internal cron process, but for
@@ -833,7 +832,7 @@
 #                      Name of file containing BPKI trust anchor.
 #
 # @li @c irbe-cert:
-#                      Name of file containing cronjob.py's BPKI
+#                      Name of file containing cronjob's BPKI
 #                      certificate.
 #
 # @li @c https-key:
@@ -847,7 +846,7 @@
 #                      Service URL for rpkid.  Must be a %https:// URL.
 #
 #
-# @section testbed testbed.py:
+# @section testbed testbed:
 #
 # testbed is a test harness to set up and run a collection of rpkid and
 # irdbd instances under scripted control.  testbed is a very recent
@@ -976,7 +975,7 @@
 # specified.  For example, "3D4H" means "three days plus four hours".
 #
 #
-# @section testpoke testpoke.py
+# @section testpoke testpoke
 #
 # This is a command-line client for the up-down protocol.  Unlike all of
 # the above programs, testpoke does not accept a %config file in
@@ -992,7 +991,7 @@
 # <a href="http://mirin.apnic.net/svn/rpki_engine/branches/gary-poker/client/poke/README">
 # http://mirin.apnic.net/svn/rpki_engine/branches/gary-poker/client/poke/README</a>.
 #
-# testpoke.py takes a simplified command line and uses only one YAML
+# testpoke takes a simplified command line and uses only one YAML
 # input file.
 #
 # @verbatim
@@ -1011,7 +1010,7 @@
 #
 # @verbatim
 #     ---
-#     # Sample YAML configuration file for testpoke.py
+#     # Sample YAML configuration file for testpoke
 #
 #     version: 1
 #     posturl: https://localhost:4433/up-down/1
@@ -1865,7 +1864,7 @@
 #
 # Detailed instructions on how to build a BPKI are beyond the scope of
 # this document, but one can handle simple cases using the OpenSSL
-# command line tool and cross_certify.py; the latter is a tool
+# command line tool and cross_certify; the latter is a tool
 # designed specifically for the purpose of generating the
 # cross-certification certificates needed to splice foreign trust
 # material into a BPKI tree.

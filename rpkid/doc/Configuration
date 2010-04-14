@@ -1,0 +1,170 @@
+Configuration Guide
+
+   This section describes the configuration file syntax and settings.
+
+   Each of the programs that make up the RPKI tookit can potentially take
+   its own configuration file, but for most uses this is unnecessarily
+   complicated. The recommended approach is to use a single configuration
+   file, and to put all of the parameters that a normal user might need to
+   change into a single section of that configuration file, then reference
+   these common settings from the program-specific sections of the
+   configuration file via macro expansion. The configuration file parser
+   supports a limited version of the macro facility used in OpenSSL's
+   configuration parser. An expression such as
+
+foo = ${bar::baz}
+
+   sets foo to the value of the baz variable from section bar. The section
+   name ENV is special: it refers to environment variables.
+
+   The default name for the shared configuration file is myrpki.conf.
+
+[myrpki]
+
+   The [myrpki] section of myrpki.conf contains all the parameters that
+   you really need to configure.
+
+# Handle naming hosted resource-holding entity (<self/>) represented
+# by this myrpki instance.  Syntax is an identifier (ASCII letters,
+# digits, hyphen, underscore -- no whitespace, non-ASCII characters,
+# or other punctuation).  You need to set this.
+
+handle                          = Me
+
+   Every resource-holding or server-operating entity needs a "handle",
+   which is just an identifier by which the entity calls itself. Handles
+   do not need to be globally unique, but should be chosen with an eye
+   towards debugging operational problems: it's best if you use a handle
+   that your parents and children will recognize as being you.
+
+   Warning:
+          The rest of this section of the configuration file isn't
+          documented yet, beyond the comments already present in the
+          example file.
+
+# Names of various files and directories.  Don't change these without
+# a good reason.
+
+roa_csv                         = roas.csv
+prefix_csv                      = prefixes.csv
+asn_csv                         = asns.csv
+xml_filename                    = myrpki.xml
+bpki_resources_directory        = bpki/resources
+bpki_servers_directory          = bpki/servers
+
+# Whether you want to run your own copy of rpkid (and irdbd).  In
+# general, if you're running myirbe.py at all, you want this on.
+
+run_rpkid                       = true
+
+# DNS hostname and server port numbers for rpkid and irdbd, if you're
+# running them.  rpkid's server host has to be a publicly reachable
+# name to be useful; irdbd's server host should always be localhost
+# unless you really know what you are doing.  Port numbers can be any
+# legal TCP port number that you're not using for something else.
+
+rpkid_server_host               = rpkid.example.org
+rpkid_server_port               = 4404
+irdbd_server_host               = localhost
+irdbd_server_port               = 4403
+
+# Whether you want to run your own copy of pubd.  In general, it's
+# best to use your parent's pubd if you can, to reduce the overall
+# number of publication sites that relying parties need to check, so
+# don't enable this unless you have a good reason.
+
+run_pubd                        = true
+
+# DNS hostname and server port number for pubd, if you're running it.
+# Hostname has to be a publicly reachable name to be useful, port can
+# be any legal TCP port number that you're not using for something
+# else.
+
+pubd_server_host                = pubd.example.org
+pubd_server_port                = 4402
+
+# Contact information to include in offers of repository service.
+# This only matters when we're running pubd.  This should be a human
+# readable string, perhaps containing an email address or URL.
+
+pubd_contact_info               = repo-man@rpki.example.org
+
+# Whether to offer repository service to our children.
+# This only matters when we're running pubd.
+
+pubd_offer_service_to_children  = false
+
+# Whether you want to run your very own copy of rootd.  Don't enable
+# this unless you really know what you're doing.
+
+run_rootd                       = false
+
+# Server port number for rootd, if you're running it.  This can be any
+# legal TCP port number that you're not using for something else.
+
+rootd_server_port               = 4401
+
+# Root of local directory tree where pubd (and rootd, sigh) should
+# write out published data.  You need to configure this, and the
+# configuration should match up with the directory where you point
+# rsyncd.  Neither pubd nor rsyncd much cares -where- you tell them to
+# put this stuff, the important thing is that the rsync:// URIs in
+# generated certificates match up with the published objects so that
+# relying parties can find and verify rpkid's published outputs.
+
+publication_base_directory      = publication/
+
+# rsyncd module name corresponding to publication_base_directory.
+# This has to match the module you configured into rsyncd.conf.
+# Leave this alone unless you have some need to change it.
+
+publication_rsync_module        = rpki
+
+# Hostname and optional port number for rsync:// URIs.  In most cases
+# this should just be the same value as pubd_server_host.
+
+publication_rsync_server        = ${myrpki::pubd_server_host}
+
+# SQL configuration.  You can ignore this if you're not running any of
+# the daemons yourself.
+
+# If you're comfortable with having all of the databases use the same
+# MySQL username and password, set those values here.  It's ok to
+# leave the default username alone, but you should use a locally
+# generated password either here or in the individual settings below.
+
+shared_sql_username             = rpki
+shared_sql_password             = fnord
+
+# If you want different usernames and passwords for the separate SQL
+# databases, enter those settings here; the shared_sql_* settings are
+# only referenced here, so you can remove them entirely if you're
+# setting everything in this block.
+
+rpkid_sql_database              = rpkid
+rpkid_sql_username              = ${myrpki::shared_sql_username}
+rpkid_sql_password              = ${myrpki::shared_sql_password}
+
+irdbd_sql_database              = irdbd
+irdbd_sql_username              = ${myrpki::shared_sql_username}
+irdbd_sql_password              = ${myrpki::shared_sql_password}
+
+pubd_sql_database               = pubd
+pubd_sql_username               = ${myrpki::shared_sql_username}
+pubd_sql_password               = ${myrpki::shared_sql_password}
+
+# Name of OpenSSL binary.  You might need to change this if you have
+# no system copy installed, or if the system copy doesn't support CMS.
+# The copy of openssl built by this package should suffice.
+
+openssl                         = openssl
+
+# End of [myrpki] section
+
+   Once you've finished with configuration, the next thing you should read
+   is the Operation Guide.
+     __________________________________________________________________
+
+
+    Generated on Wed Apr 14 19:04:13 2010 for RPKI Engine by  doxygen
+    1.6.3

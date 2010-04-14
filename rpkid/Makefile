@@ -79,7 +79,7 @@ docs:: doc/irdbd.png doc/pubd.png doc/rpkid.png doc/rpkid-bpki.png doc/pubd-bpki
 docs:: doc/irdbd.pdf doc/pubd.pdf doc/rpkid.pdf doc/rpkid-bpki.pdf doc/pubd-bpki.pdf
 docs::
 	TZ='' doxygen
-	for i in Installation Operation Left-right Publication; do \
+	for i in Installation Configuration Operation Left-right Publication; do \
 		xsltproc --html doc/tweak-doc.xsl doc/html/$$i.html | lynx -dump -nolist -force_html -stdin >doc/$$i; \
 	done
 	cd doc/latex && TZ='' ${MAKE} && ln -f refman.pdf ../manual.pdf

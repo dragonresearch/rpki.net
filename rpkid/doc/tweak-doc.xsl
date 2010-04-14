@@ -41,18 +41,32 @@
 
   <!--
     - Add null p element after p element immediately followed by ul
-    - element.  This is sick, but fakes lynx into producing more
-    - reasonable output, which is all we really care about here.
+    - element, or p element immediately followed by div element
+    - containing verbatim fragment.  This is sick, but fakes lynx
+    - into producing more reasonable output, which is all we really
+    - care about here.
     -->
-  <xsl:template match="p[name(following-sibling::*[1]) = 'ul']">
+  <xsl:template match="p[(name(following-sibling::*[1]) = 'ul') or
+                         (name(following-sibling::*[1]) = 'div' and
+			  following-sibling::*[1]/@class = 'fragment')]">
     <p><xsl:apply-templates/></p>
     <p/>
   </xsl:template>
 
   <!--
+    - Add delimiters around code examples.
+    -->
+  <xsl:template match="div[@class = 'fragment']" mode="disabled">
+    <p>================================================================</p>
+    <p/>
+    <xsl:call-template name="identity"/>
+    <p>================================================================</p>
+  </xsl:template>
+
+  <!--
     - Copy everything else unmodified (XSL "identity" template).
     -->
-  <xsl:template match="node() | @*">
+  <xsl:template match="node() | @*" name="identity">
     <xsl:copy>
       <xsl:apply-templates select="node() | @*"/>
     </xsl:copy>

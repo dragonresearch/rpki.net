@@ -69,6 +69,7 @@ Operation Guide
    At present the daemon programs all run in foreground, that is, if one
    wants them to run in background one must do so manually, eg, using
    Bourne shell syntax:
+
    $ python whatever.py &
    $ echo >whatever.pid  "$!"
 
@@ -353,6 +354,7 @@ irbe_cli
    file; this makes it easier to hand these requests off to the business
    PKI (BPKI in order to issue signing certs corresponding to newly
    generated business keys.
+
       Command line IR back-end control program for rpkid and pubd.
 
       $Id: irbe_cli.py 2799 2009-09-30 02:33:36Z sra $
@@ -480,6 +482,7 @@ cross_certify
    can be used as part of a cross-certification chain. cross_certify
    doesn't take a config file, all of its arguments are specified on the
    command line.
+
     python cross_certify.py { -i | --in     } input_cert
                             { -c | --ca     } issuing_cert
                             { -k | --key    } issuing_cert_key
@@ -566,6 +569,7 @@ smoketest:
    current resource set, modifications to validity dates or other
    non-resource parameters, or special commands like "sleep". The details
    are still evolving, but here's an example of current usage:
+
      name:           RIR
      valid_for:      2d
      sia_base:       "rsync://wombat.invalid/"
@@ -644,6 +648,7 @@ testpoke
 
    testpoke takes a simplified command line and uses only one YAML input
    file.
+
  Usage: python testpoke.py [ { -y | --yaml }    configfile ]
                            [ { -r | --request } requestname ]
                            [ { -h | --help } ]
@@ -655,6 +660,7 @@ testpoke
    file to execute.
 
    Sample configuration file:
+
      ---
      # Sample YAML configuration file for testpoke
 
@@ -695,5 +701,5 @@ testpoke
      __________________________________________________________________
 
 
-    Generated on Wed Apr 14 12:58:45 2010 for RPKI Engine by  doxygen
+    Generated on Wed Apr 14 19:04:13 2010 for RPKI Engine by  doxygen
     1.6.3

@@ -1,5 +1,9 @@
+## @file
+# @details
+# Documentation sourc, expressed as Python comments to make Doxygen happy.
+#
 # $Id$
-
+#
 # Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
@@ -13,7 +17,7 @@
 # LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
-
+#
 # Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
 #
 # Permission to use, copy, modify, and distribute this software for any
@@ -27,12 +31,6 @@
 # LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
-
-
-# The "usage" text for irbe_cli in the OPERATIONS section is generated
-# automatically by running the program with its --help command.
-# Should do the same with the other programs.  Don't yet have a sane
-# way to automate options in config files, though.  Would be nice.
 
 ## @mainpage RPKI Engine Reference Manual
 #
@@ -58,6 +56,8 @@
 # also includes documentation of the overall package:
 #
 # @li The @subpage Installation "installation instructions"
+#
+# @li The @subpage Configuration "configuration instructions"
 #
 # @li The @subpage Operation "operation instructions"
 #
@@ -89,9 +89,9 @@
 
 ## @page Installation Installation Guide
 #
-# Preliminary installation instructions for rpkid et al.  These are the
-# production-side RPKI tools, for Internet Registries (RIRs, LIRs, etc).
-# See the "rcynic" program for relying party tools.
+# Installation instructions for rpkid et al.  These are the
+# production-side RPKI tools, for Internet Registries (RIRs, LIRs,
+# etc).  See the "rcynic" program for relying party tools.
 #
 # rpkid is a set of Python modules supporting generation and maintenance
 # of resource certificates.  Most of the code is in the rpkid/rpki/
@@ -273,6 +273,49 @@
 # </ul>
 #
 # Once you've finished with installation, the next thing you should
+# read is the @ref Configuration "Configuration Guide".
+
+## @page Configuration Configuration Guide
+#
+# This section describes the configuration file syntax and settings.
+#
+# Each of the programs that make up the RPKI tookit can potentially
+# take its own configuration file, but for most uses this is
+# unnecessarily complicated.  The recommended approach is to use a
+# single configuration file, and to put all of the parameters that a
+# normal user might need to change into a single section of that
+# configuration file, then reference these common settings from the
+# program-specific sections of the configuration file via macro
+# expansion.  The configuration file parser supports a limited version
+# of the macro facility used in OpenSSL's configuration parser.  An
+# expression such as @verbatim foo = ${bar::baz} @endverbatim sets foo
+# to the value of the @c baz variable from section @c bar.  The section
+# name @c ENV is special: it refers to environment variables.
+#
+# The default name for the shared configuration file is @c myrpki.conf.
+#
+# @dontinclude myrpki.conf
+# @skipline [myrpki]
+#
+# The @c [myrpki] section of @c myrpki.conf contains all the
+# parameters that you really need to configure.
+#
+# @skip #
+# @until =
+#
+# Every resource-holding or server-operating entity needs a "handle",
+# which is just an identifier by which the entity calls itself.
+# Handles do not need to be globally unique, but should be chosen with
+# an eye towards debugging operational problems: it's best if you use
+# a handle that your parents and children will recognize as being you.
+#
+# @warning
+# The rest of this section of the configuration file isn't documented
+# yet, beyond the comments already present in the example file.
+#
+# @until # End of [myrpki] section
+#
+# Once you've finished with configuration, the next thing you should
 # read is the @ref Operation "Operation Guide".
 
 ## @page Operation Operation Guide

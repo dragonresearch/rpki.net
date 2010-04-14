@@ -1,6 +1,6 @@
 Installation Guide
 
-   Preliminary installation instructions for rpkid et al.
+   Installation instructions for rpkid et al.
 
    These are the production-side RPKI tools, for Internet Registries
    (RIRs, LIRs, etc). See the "rcynic" program for relying party tools.
@@ -58,6 +58,7 @@ Installation Guide
 
    To build these, cd to the top-level directory in the distribution and
    type "make".
+
    $ cd $top
    $ make
 
@@ -90,10 +91,12 @@ Installation Guide
    up all the databases that the tests will need, run the SQL commands in
    rpkid/smoketest.setup.sql. The MySQL command line client is usually the
    easiest way to do this, eg:
+
    $ cd $top/rpkid
    $ mysql -u root -p <smoketest.setup.sql
 
    To run the tests, run "make all-tests":
+
    $ cd $top/rpkid
    $ make all-tests
 
@@ -124,9 +127,9 @@ Installation Guide
           + FreeBSD: /usr/ports/databases/p5-SQL-Translator
 
    Once you've finished with installation, the next thing you should read
-   is the Operation Guide.
+   is the Configuration Guide.
      __________________________________________________________________
 
 
-    Generated on Wed Apr 14 12:58:45 2010 for RPKI Engine by  doxygen
+    Generated on Wed Apr 14 19:04:13 2010 for RPKI Engine by  doxygen
     1.6.3

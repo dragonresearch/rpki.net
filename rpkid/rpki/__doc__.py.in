@@ -309,6 +309,65 @@
 # an eye towards debugging operational problems: it's best if you use
 # a handle that your parents and children will recognize as being you.
 #
+# @skip #
+# @until bpki/servers
+#
+# The myrpki tool requires filenames for several input data files, the
+# "business PKI" databases used to secure CMS and TLS communications,
+# and the XML intermediate format that it uses.  Rather than
+# hardwiring the names into the code, they're configured here.  You
+# can change the names if you must, but the defaults should be fine in
+# most cases.
+#
+# @skip #
+# @until irdbd_server_port
+#
+# If you're hosting RPKI service for others, or are self-hosting, you
+# want this on.  If somebody else is running rpkid on your behalf and
+# you're just shipping them your @c myrpki.xml file, you can turn this
+# off.
+#
+# If you're running @c rpkid at all, you'll need to set at least the
+# @c rpkid_server_host parameter here.  You may be able to use the
+# default port numbers, or may need to pick different ones.  Unless
+# you plan to run @c irdbd on a different machine from @c rpkid, you
+# should leave @c irdbd_server_host alone.
+#
+# @skip #
+# @until pubd_contact_info
+#
+# The myrpki tool will attempt to negotiate publication service for
+# you with whatever publication service your parent is using, if you
+# let it, so in most cases you should not need to run @c pubd unless
+# you need to issue certificates for private IP address space or
+# private Autononmous System Numbers.
+#
+# If you do run @c pubd, you will need to set @c pubd_server_host.
+# You may also need to set @c pubd_server_port, and you should provide
+# something helpful as contact information in @c pubd_contact_info if
+# you plan to offer publication service to your RPKI children, so that
+# grandchildren (or descendents even further down the tree) who
+# receive referrals to your service will know how to contact you.
+#
+# @skip #
+# @until pubd_offer_service_to_children
+#
+# This parameter currently does nothing, and may go away.  It was
+# intended to provide some control over whether or not @c myrpki
+# offers publication service to children, but at present @c myrpki
+# does that unconditionally.
+#
+# @skip #
+# @until rootd_server_port
+#
+# You shouldn't run rootd unless you're the root of an RPKI tree.  Who
+# gets to be the root of the public RPKI tree is a political issue
+# outside the scope of this document.  For everybody else, the only
+# reason for running @c rootd (other than test purposes) would be to
+# support certification of private IP addresses and ASNs.  The core
+# tools can do this without any problem, but the simplified
+# configuration mechanism does not (yet) make this easy to do.
+#
 # @warning
 # The rest of this section of the configuration file isn't documented
 # yet, beyond the comments already present in the example file.

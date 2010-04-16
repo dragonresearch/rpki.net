@@ -17,6 +17,8 @@ foo = ${bar::baz}
    sets foo to the value of the baz variable from section bar. The section
    name ENV is special: it refers to environment variables.
 
+myrpki.conf
+
    The default name for the shared configuration file is myrpki.conf.
 
 [myrpki]
@@ -228,16 +230,34 @@ openssl                         = openssl
    find the binary, if necessary; the default just uses the system search
    path.
 
-   Warning:
-          At this point we should have subpages showing configuration
-          details for the various daemons, for people who really want or
-          need to know. We should also have a configuration example for
-          rsyncd.conf.
+Other configuration files and options
+
+   In most cases the simplified configuration in the [myrpki] section of
+   myrpki.conf should suffice, but in case you need to tinker, here are
+   details on the the rest of the configuration options. In most cases the
+   default name of the configuration file for a program is the name of the
+   program followed by ".conf", and the section name is also named for the
+   program, so that you can combine sections into a single configuration
+   file as shown with myrpki.conf.
+
+     * Common configuration options
+
+     * rpkid configuration
+
+     * irdbd configuration
+
+     * pubd configuration
+
+     * rootd configuration
+
+     * configuration of the smoketest test harness
+
+     * test description language for the smoketest test harness
 
    Once you've finished with configuration, the next thing you should read
    is the Operation Guide.
      __________________________________________________________________
 
 
-    Generated on Thu Apr 15 15:51:08 2010 for RPKI Engine by  doxygen
+    Generated on Fri Apr 16 04:07:52 2010 for RPKI Engine by  doxygen
     1.6.3

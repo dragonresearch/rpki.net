@@ -1,0 +1,59 @@
+rpkid
+
+   rpkid is the main RPKI engine daemon.
+
+   Configuration of rpkid is a two step process: a config file to
+   bootstrap rpkid to the point where it can speak using the left-right
+   protocol, followed by dynamic configuration via the left-right
+   protocol. In production use the latter stage would be handled by the
+   IRBE stub; for test and develoment purposes it's handled by the
+   irbe_cli command line interface or by the smoketest test framework.
+
+   rpkid stores dynamic data in an SQL database, which must have been
+   created for it, as explained in the installation guide.
+
+   The default config file is rpkid.conf, start rpkid with "-c filename"
+   to choose a different config file. All options are in the section
+   "[rpkid]". Certificates, keys, and trust anchors may be in either DER
+   or PEM format.
+
+   Config file options:
+
+     * startup-message: String to log on startup, useful when debugging a
+       collection of rpkid instances at once.
+
+     * sql-username: Username to hand to MySQL when connecting to rpkid's
+       database.
+
+     * sql-database: MySQL's database name for rpkid's database.
+
+     * sql-password: Password to hand to MySQL when connecting to rpkid's
+       database.
+
+     * bpki-ta: Name of file containing BPKI trust anchor. All BPKI
+       certificate verification within rpkid traces back to this trust
+       anchor.
+
+     * rpkid-cert: Name of file containing rpkid's own BPKI EE
+       certificate.
+
+     * rpkid-key: Name of file containing RSA key corresponding to
+       rpkid-cert.
+
+     * irbe-cert: Name of file containing BPKI certificate used by IRBE
+       when talking to rpkid.
+
+     * irdb-cert: Name of file containing BPKI certificate used by irdbd.
+
+     * irdb-url: Service URL for irdbd. Must be a https:// URL.
+
+     * server-host: Hostname or IP address on which to listen for HTTPS
+       connections. Current default is INADDR_ANY (IPv4 0.0.0.0); this
+       will need to be hacked to support IPv6 for production.
+
+     * server-port: TCP port on which to listen for HTTPS connections.
+     __________________________________________________________________
+
+
+    Generated on Fri Apr 16 00:33:45 2010 for RPKI Engine by  doxygen
+    1.6.3

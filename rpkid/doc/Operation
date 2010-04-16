@@ -30,9 +30,6 @@ Operation Guide
      * irdbd : A sample implementation of an IR database daemon. rpkid
        calls into this to perform lookups via the left-right protocol.
 
-     * irbe_cli : A command-line client for the left-right control
-       protocol. Very obscure syntax, badly needs rewriting.
-
      * smoketest : A test tool for running a collection of rpkid and irdb
        instances under common control, driven by a unified test script.
 
@@ -43,9 +40,6 @@ Operation Guide
        environment. There's a fair amount of code duplication between the
        two, and at some point they will probably be merged into a single
        program that supports both modes of operation.
-
-     * testpoke : A simple client for the up-down protocol, mostly
-       compatable with APNIC's rpki_poke.pl tool.
 
    Most of these programs take configuration files in a common format
    similar to that used by the OpenSSL command line tool. The test
@@ -76,94 +70,22 @@ Operation Guide
    All of the daemons use syslog by default. To make them log to stderr
    instead, use the "-d" option.
 
-Common Options
-
    Some of the options that the several daemons take are common to all
    daemons. Which daemon they affect depends only on which sections of
-   which config files they are in.
-
-   The first group of options are debugging flags, which can be set to
-   "true" or "false". If not specified, default values will be chosen
-   (generally false).
-
-     * debug_http Enable verbose http debug logging.
-
-     * debug_tls_certs Enable verbose logging about tls certs.
-
-     * want_persistent_client Enable http 1.1 persistence, client side.
-
-     * want_persistent_server Enable http 1.1 persistence, server side.
-
-     * debug_cms_certs Enable verbose logging about cms certs.
-
-     * sql_debug Enable verbose logging about sql operations.
-
-     * gc_debug Enable scary garbage collector debugging.
-
-     * timer_debug Enable verbose logging of timer system.
-
-   There are also a few options that allow you to save CMS messages for
-   audit or debugging. The save format is a simple MIME encoding in a
-   Maildir-format mailbox. The current options are very crude, at some
-   point we may provide finer grain controls.
-
-     * dump_outbound_cms Dump messages we send to this mailbox.
-
-     * dump_inbound_cms Dump messages we receive to this mailbox.
+   which config files they are in. See Common Options for details.
 
 rpkid
 
    rpkid is the main RPKI engine daemon. Configuration of rpkid is a two
    step process: a config file to bootstrap rpkid to the point where it
    can speak using the left-right protocol, followed by dynamic
-   configuration via the left-right protocol. In production use the latter
-   stage would be handled by the IRBE stub; for test and develoment
-   purposes it's handled by the irbe_cli command line interface or by the
-   smoketest test framework.
+   configuration via the left-right protocol. The latter stage is handled
+   by the myrpki tool.
 
    rpkid stores dynamic data in an SQL database, which must have been
-   created for it, as explained in the installation guide.
+   created for it, as explained in the Installation Guide".
 
-   The default config file is rpkid.conf, start rpkid with "-c filename"
-   to choose a different config file. All options are in the section
-   "[rpkid]". Certificates, keys, and trust anchors may be in either DER
-   or PEM format.
-
-   Config file options:
-
-     * startup-message: String to log on startup, useful when debugging a
-       collection of rpkid instances at once.
-
-     * sql-username: Username to hand to MySQL when connecting to rpkid's
-       database.
-
-     * sql-database: MySQL's database name for rpkid's database.
-
-     * sql-password: Password to hand to MySQL when connecting to rpkid's
-       database.
-
-     * bpki-ta: Name of file containing BPKI trust anchor. All BPKI
-       certificate verification within rpkid traces back to this trust
-       anchor.
-
-     * rpkid-cert: Name of file containing rpkid's own BPKI EE
-       certificate.
-
-     * rpkid-key: Name of file containing RSA key corresponding to
-       rpkid-cert.
-
-     * irbe-cert: Name of file containing BPKI certificate used by IRBE
-       when talking to rpkid.
-
-     * irdb-cert: Name of file containing BPKI certificate used by irdbd.
-
-     * irdb-url: Service URL for irdbd. Must be a https:// URL.
-
-     * server-host: Hostname or IP address on which to listen for HTTPS
-       connections. Current default is INADDR_ANY (IPv4 0.0.0.0); this
-       will need to be hacked to support IPv6 for production.
-
-     * server-port: TCP port on which to listen for HTTPS connections.
+   See Configuration Options for configuration options.
 
 pubd
 
@@ -194,40 +116,7 @@ pubd
    location which should correspond to an appropriate module definition in
    rsync.conf.
 
-   The default config file is pubd.conf, start pubd with "-c filename" to
-   choose a different config file. ALl options are in the section
-   "[pubd]". Certifiates, keys, and trust anchors may be either DER or PEM
-   format.
-
-   Config file options:
-
-     * sql-username: Username to hand to MySQL when connecting to pubd's
-       database.
-
-     * sql-database: MySQL's database name for pubd's database.
-
-     * sql-password: Password to hand to MySQL when connecting to pubd's
-       database.
-
-     * bpki-ta: Name of file containing master BPKI trust anchor for pubd.
-       All BPKI validation in pubd traces back to this trust anchor.
-
-     * irbe-cert: Name of file containing BPKI certificate used by IRBE
-       when talking to pubd.
-
-     * pubd-cert: Name of file containing BPKI certificate used by pubd.
-
-     * pubd-key: Name of file containing RSA key corresponding to
-       pubd-cert.
-
-     * server-host: Hostname or IP address on which to listen for HTTPS
-       connections. Current default is INADDR_ANY (IPv4 0.0.0.0); this
-       will need to be hacked to support IPv6 for production.
-
-     * server-port: TCP port on which to listen for HTTPS connections.
-
-     * publication-base: Path to base of filesystem tree where pubd should
-       store publishable objects. Default is "publication/".
+   See Configuration Options for configuration options.
 
 rootd
 
@@ -238,56 +127,7 @@ rootd
    implementation intended for test use, it's not suitable for use in a
    production system. All configuration comes via the config file.
 
-   The default config file is rootd.conf, start rootd with "-c filename"
-   to choose a different config file. All options are in the section
-   "[rootd]". Certificates, keys, and trust anchors may be in either DER
-   or PEM format.
-
-   Config file options:
-
-     * bpki-ta: Name of file containing BPKI trust anchor. All BPKI
-       certificate validation in rootd traces back to this trust anchor.
-
-     * rootd-bpki-cert: Name of file containing rootd's own BPKI
-       certificate.
-
-     * rootd-bpki-key: Name of file containing RSA key corresponding to
-       rootd-bpki-cert.
-
-     * rootd-bpki-crl: Name of file containing BPKI CRL that would cover
-       rootd-bpki-cert had it been revoked.
-
-     * child-bpki-cert: Name of file containing BPKI certificate for
-       rootd's one and only child (RPKI engine to which rootd issues an
-       RPKI certificate).
-
-     * server-host: Hostname or IP address on which to listen for HTTPS
-       connections. Default is localhost.
-
-     * server-port: TCP port on which to listen for HTTPS connections.
-
-     * rpki-root-key: Name of file containing RSA key to use in signing
-       resource certificates.
-
-     * rpki-root-cert: Name of file containing self-signed root resource
-       certificate corresponding to rpki-root-key.
-
-     * rpki-root-dir: Name of directory where rootd should write RPKI
-       subject certificate, manifest, and CRL.
-
-     * rpki-subject-cert: Name of file that rootd should use to save the
-       one and only certificate it issues. Default is "Subroot.cer".
-
-     * rpki-root-crl: Name of file to which rootd should save its RPKI
-       CRL. Default is "Root.crl".
-
-     * rpki-root-manifest: Name of file to which rootd should save its
-       RPKI manifest. Default is "Root.mnf".
-
-     * rpki-subject-pkcs10: Name of file that rootd should use when saving
-       a copy of the received PKCS #10 request for a resource certificate.
-       This is only used for debugging. Default is not to save the PKCS
-       #10 request.
+   See Configuration Options for configuration options.
 
 irdbd
 
@@ -304,217 +144,7 @@ irdbd
    control subset of the left-right protocol, and store the linkage IDs
    (foreign keys into rpkid's database, basicly) in the IRDB.
 
-   irdbd's default config file is irdbd.conf, start irdbd with "-c
-   filename" to choose a different config file. All options are in the
-   section "[irdbd]". Certificates, keys, and trust anchors may be in
-   either DER or PEM format.
-
-   Config file options:
-
-     * startup-message: String to log on startup, useful when debugging a
-       collection of irdbd instances at once.
-
-     * sql-username: Username to hand to MySQL when connecting to irdbd's
-       database.
-
-     * sql-database: MySQL's database name for irdbd's database.
-
-     * sql-password: Password to hand to MySQL when connecting to irdbd's
-       database.
-
-     * bpki-ta: Name of file containing BPKI trust anchor. All BPKI
-       certificate validation in irdbd traces back to this trust anchor.
-
-     * irdbd-cert: Name of file containing irdbd's own BPKI certificate.
-
-     * irdbd-key: Name of file containing RSA key corresponding to
-       irdbd-cert.
-
-     * rpkid-cert: Name of file containing certificate used the one and
-       only by rpkid instance authorized to contact this irdbd instance.
-
-     * https-url: Service URL for irdbd. Must be a https:// URL.
-
-irbe_cli
-
-   irbe_cli is a simple command line client for the control subsets of the
-   left-right and publication protocols. In production use this
-   functionality would be part of the IRBE stub.
-
-   Basic configuration of irbe_cli is handled via a config file. The
-   specific action or actions to be performed are specified on the command
-   line, and map closely to the protocols themselves.
-
-   At present the user is assumed to be able to read the (XML) left-right
-   and publication protocol messages, and with one exception, irdbd-cli
-   makes no attempt to interpret the responses other than to check for
-   signature and syntax errors. The one exception is that, if the
-   --pem_out option is specified on the command line, any PKCS #10
-   requests received from rpkid will be written in PEM format to that
-   file; this makes it easier to hand these requests off to the business
-   PKI (BPKI in order to issue signing certs corresponding to newly
-   generated business keys.
-
-      Command line IR back-end control program for rpkid and pubd.
-
-      $Id: irbe_cli.py 2799 2009-09-30 02:33:36Z sra $
-
-      Copyright (C) 2009  Internet Systems Consortium ("ISC")
-
-      Permission to use, copy, modify, and distribute this software for any
-      purpose with or without fee is hereby granted, provided that the above
-      copyright notice and this permission notice appear in all copies.
-
-      THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
-      REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILIT
-Y
-      AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
-      INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FRO
-M
-      LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-      OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-      PERFORMANCE OF THIS SOFTWARE.
-
-      Portions copyright (C) 2007--2008  American Registry for Internet Numbers
-("ARIN")
-
-      Permission to use, copy, modify, and distribute this software for any
-      purpose with or without fee is hereby granted, provided that the above
-      copyright notice and this permission notice appear in all copies.
-
-      THE SOFTWARE IS PROVIDED "AS IS" AND ARIN DISCLAIMS ALL WARRANTIES WITH
-      REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILIT
-Y
-      AND FITNESS.  IN NO EVENT SHALL ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
-      INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FRO
-M
-      LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-      OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-      PERFORMANCE OF THIS SOFTWARE.
-
-      Usage:
-
-      # Top-level options:
-      --config= --help --pem_out= --quiet --verbose
-
-      # left-right protocol:
-      parent --action= --tag= --self_handle= --parent_handle= --bsc_handle=
-          --repository_handle= --peer_contact_uri= --sia_base=
-          --sender_name= --recipient_name= --bpki_cms_cert= --bpki_cms_glue=
-          --bpki_https_cert= --bpki_https_glue= --rekey --reissue --revoke
-          --revoke_forgotten
-      repository --action= --tag= --self_handle= --repository_handle=
-          --bsc_handle= --peer_contact_uri= --bpki_cert= --bpki_glue=
-      self --action= --tag= --self_handle= --crl_interval= --regen_margin=
-          --bpki_cert= --bpki_glue= --rekey --reissue --revoke --run_now
-          --publish_world_now --revoke_forgotten
-      child --action= --tag= --self_handle= --child_handle= --bsc_handle=
-          --bpki_cert= --bpki_glue= --reissue
-      list_published_objects --self_handle= --tag=
-      bsc --action= --tag= --self_handle= --bsc_handle= --key_type=
-          --hash_alg= --key_length= --signing_cert= --signing_cert_crl=
-          --generate_keypair
-
-      # publication protocol:
-      certificate --action= --tag= --client_handle= --uri=
-      roa --action= --tag= --client_handle= --uri=
-      manifest --action= --tag= --client_handle= --uri=
-      client --action= --tag= --client_handle= --base_uri= --bpki_cert=
-          --bpki_glue=
-      config --action= --tag= --bpki_crl=
-      crl --action= --tag= --client_handle= --uri=
-
-   Global options (--config, --help, --pem_out) come first, then zero or
-   more commands (parent, repository, self, child, bsc, config, client),
-   each followed by its own set of options. The commands map to elements
-   in the protocols, and the command-specific options map to attributes or
-   subelements for those commands.
-
-   --tag is an optional arbitrary tag (think IMAP) to simplify matching up
-   replies with batched queries.
-
-   --*_handle options refer to object primary keys.
-
-   The remaining options are specific to the particular commands, and
-   follow directly from the protocol specifications.
-
-   A trailing "=" in the above option summary indicates that an option
-   takes a value, eg, "--action create" or "--action=create". Options
-   without a trailing "=" correspond to boolean control attributes.
-
-   The default config file for irbe_cli is irbe_cli.conf, start irbe_cli
-   with "-c filename" (or "--config filename") to choose a different
-   config file. All options are in the section "[irbe_cli]". Certificates,
-   keys, and trust anchors may be in either DER or PEM format.
-
-   Config file options:
-
-     * rpkid-bpki-ta: Name of file containing BPKI trust anchor to use
-       when authenticating messages from rpkid.
-
-     * rpkid-irbe-cert: Name of file containing BPKI certificate irbe_cli
-       should use when talking to rpkid.
-
-     * rpkid-irbe-key: Name of file containing RSA key corresponding to
-       rpkid-irbe-cert.
-
-     * rpkid-cert: Name of file containing rpkid's BPKI certificate.
-
-     * rpkid-url: Service URL for rpkid. Must be a https:// URL.
-
-     * pubd-bpki-ta: Name of file containing BPKI trust anchor to use when
-       authenticating messages from pubd.
-
-     * pubd-irbe-cert: Name of file containing BPKI certificate irbe_cli
-       should use when talking to pubd.
-
-     * pubd-irbe-key: Name of file containing RSA key corresponding to
-       pubd-irbe-cert.
-
-     * pubd-cert: Name of file containing pubd's BPKI certificate.
-
-     * pubd-url: Service URL for pubd. Must be a https:// URL.
-
-cross_certify
-
-   cross_certify is a small tool to extract certain fields from an
-   existing X.509 certificate and generate issue a new certificate that
-   can be used as part of a cross-certification chain. cross_certify
-   doesn't take a config file, all of its arguments are specified on the
-   command line.
-
-    python cross_certify.py { -i | --in     } input_cert
-                            { -c | --ca     } issuing_cert
-                            { -k | --key    } issuing_cert_key
-                            { -s | --serial } serial_filename
-                            [ { -h | --help } ]
-                            [ { -o | --out  }     filename ]
-                            [ { -l | --lifetime } timedelta ]
-
-cronjob
-
-   This is a trivial program to trigger a cron run within rpkid.
-   Ordinarilly rpkid runs its own internal cron process, but for scripted
-   testing it is sometimes useful to be able to control when cron cycles
-   occur.
-
-   The default config file is cronjob.conf, start cronjob with "-c
-   filename" to choose a different config file. All options are in the
-   section "[cronjob]". Certificates, keys, and trust anchors may be in
-   either DER or PEM format.
-
-   Config file options:
-
-     * bpki-ta: Name of file containing BPKI trust anchor.
-
-     * irbe-cert: Name of file containing cronjob's BPKI certificate.
-
-     * https-key: Name of file containing RSA key corresponding to
-       irbe-cert.
-
-     * rpkid-cert: Name of file containing rpkid's BPKI certificate.
-
-     * https-url: Service URL for rpkid. Must be a https:// URL.
+   See Configuration Options for configuration options.
 
 smoketest:
 
@@ -532,174 +162,13 @@ smoketest:
    writing any new control code. The intent is to make it possible to
    write meaningful regression tests.
 
-   All of the options in in the first (optional) configuration file are
-   just overrides for wired-in default values. In most cases the defaults
-   will suffice, and the set of options is still in flux, so only a few of
-   the options are described here. The default name for this configuration
-   file is smoketest.conf, run smoketest with "-c filename" to change it.
+   See smoketest.conf for what can go into the (optional) first
+   configuration file.
 
-   smoketest.conf options:
-
-     * smoketest_dir: Working directory into which smoketest should write
-       the (many) files it generates. Default is "smoketest.dir".
-
-     * irdb_db_pass: MySQL password for the "irdb" user. Default is
-       "fnord". You may want to override this.
-
-     * rpki_db_pass: MySQL password for the "rpki" user. Default is
-       "fnord". You may want to override this.
-
-     * rootd_sia: rsync URI naming a (perhaps fictious) directory to use
-       as the id-ad-caRepository SIA value in the generated root resource
-       certificate. Default is "rsync://wombat.invalid/". You may want to
-       override this if you intend to run an rsync server and test against
-       the generated results using rcynic. This default will likely change
-       if and when smoketest learns how to run rcynic itself as part of
-       the test suite.
-
-   The second configuration file is named smoketest.yaml by default, run
-   smoketest with "-y filename" to change it. The YAML file contains
-   multiple YAML "documents". The first document describes the initial
-   test layout and resource allocations, subsequent documents describe
-   modifications to the initial allocations and other parameters.
-   Resources listed in the initial layout are aggregated automatically, so
-   that a node in the resource hierarchy automatically receives the
-   resources it needs to issue whatever its children are listed as
-   holding. Actions in the subsequent documents are modifications to the
-   current resource set, modifications to validity dates or other
-   non-resource parameters, or special commands like "sleep". The details
-   are still evolving, but here's an example of current usage:
-
-     name:           RIR
-     valid_for:      2d
-     sia_base:       "rsync://wombat.invalid/"
-     kids:
-       - name: LIR0
-      kids:
-        - name: Alice
-          ipv4: 192.0.2.1-192.0.2.33
-          asn:  64533
-     ---
-     - name: Alice
-       valid_add:   10
-     ---
-     - name: Alice
-       add_as: 33
-       valid_add:   2d
-     ---
-     - name: Alice
-       valid_sub:   2d
-     ---
-     - name: Alice
-       valid_for:   10d
-
-   This specifies an initial layout consisting of an RPKI engine named
-   "RIR", with one child "LIR0", which in turn has one child "Alice".
-   Alice has a set of assigned resources, and all resources in the system
-   are initially set to be valid for two days from the time at which the
-   test is started. The first subsequent document adds ten seconds to the
-   validity interval for Alice's resources and makes no other
-   modifications. The second subsequent document grants Alice additional
-   resources and adds another two days to the validity interval for
-   Alice's resources. The next document subtracts two days from the
-   validity interval for Alice's resources. The final document sets the
-   validity interval for Alice's resources to ten days.
-
-   Operators in subsequent (update) documents:
-
-     * add_as, add_v4, add_v6: These add ASN, IPv4, or IPv6 resources,
-       respectively.
-
-     * sub_as, sub_v4, sub_v6: These subtract resources.
-
-     * valid_until: Set an absolute expiration date.
-
-     * valid_for: Set a relative expiration date.
-
-     * valid_add, valid_sub: Add to or subtract from validity interval.
-
-     * sleep [interval]: Sleep for specified interval, or until smoketest
-       receives a SIGALRM signal.
-
-   Absolute timestamps should be in the form shown (UTC timestamp format
-   as used in XML).
-
-   Intervals (valid_add, valid_sub, valid_for, sleep) are either integers,
-   in which case they're interpreted as seconds, or are a string of the
-   form "wD xH yM zS" where w, x, y, and z are integers and D, H, M, and S
-   indicate days, hours, minutes, and seconds. In the latter case all of
-   the fields are optional, but at least one must be specified. For
-   example, "3D4H" means "three days plus four hours".
-
-testpoke
-
-   This is a command-line client for the up-down protocol. Unlike all of
-   the above programs, testpoke does not accept a config file in
-   OpenSSL-compatable format at all. Instead, it is configured exclusively
-   by a YAML script. testpoke's design was constrained by a desire to have
-   it be compatable with APNIC's rpki_poke.pl tool, so that the two tools
-   could use a common configuration language to simplify scripted testing.
-   There are minor variations due to slightly different feature sets, but
-   YAML files intended for one program will usually work with the other.
-
-   README for APNIC's tool describing the input language can be found at
-   http://mirin.apnic.net/svn/rpki_engine/branches/gary-poker/client/poke/
-   README.
-
-   testpoke takes a simplified command line and uses only one YAML input
-   file.
-
- Usage: python testpoke.py [ { -y | --yaml }    configfile ]
-                           [ { -r | --request } requestname ]
-                           [ { -h | --help } ]
-
-   Default configuration file is testpoke.yaml, override with --yaml
-   option.
-
-   The --request option specifies the specific command within the YAML
-   file to execute.
-
-   Sample configuration file:
-
-     ---
-     # Sample YAML configuration file for testpoke
-
-     version: 1
-     posturl: https://localhost:4433/up-down/1
-     recipient-id: wombat
-     sender-id: "1"
-
-     cms-cert-file: biz-certs/Frank-EE.cer
-     cms-key-file: biz-certs/Frank-EE.key
-     cms-ca-cert-file: biz-certs/Bob-Root.cer
-     cms-cert-chain-file: [ biz-certs/Frank-CA.cer ]
-
-     ssl-cert-file: biz-certs/Frank-EE.cer
-     ssl-key-file: biz-certs/Frank-EE.key
-     ssl-ca-cert-file: biz-certs/Bob-Root.cer
-
-     requests:
-       list:
-      type: list
-       issue:
-      type: issue
-      class: 1
-      sia: [ "rsync://bandicoot.invalid/some/where/" ]
-       revoke:
-      type: revoke
-      class: 1
-      ski: "CB5K6APY-4KcGAW9jaK_cVPXKX0"
-
-   testpoke adds one extension to the language described in APNIC's
-   README: the cms-cert-chain-* and ssl-cert-chain-* options, which allow
-   one to specify a chain of intermediate certificates to be presented in
-   the CMS or TLS protocol. APNIC's initial implementation required direct
-   knowledge of the issuing certificate (ie, it supported a maximum chain
-   length of one); subsequent APNIC code changes have probably relaxed
-   this restriction, and with luck APNIC has copied testpoke's syntax to
-   express chains of intermediate certificates.
+   See smoketest.yaml for what goes into the (required) second
+   configuration file.
      __________________________________________________________________
 
 
-    Generated on Thu Apr 15 15:51:08 2010 for RPKI Engine by  doxygen
+    Generated on Fri Apr 16 04:07:52 2010 for RPKI Engine by  doxygen
     1.6.3

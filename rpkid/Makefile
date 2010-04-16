@@ -73,16 +73,30 @@ doc/rpkid.dot: rpkid.sql
 .dot.png:
 	dot -o $@ -Tpng $?
 
-docs:: doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
-docs:: doc/irdbd.eps doc/pubd.eps doc/rpkid.eps doc/rpkid-bpki.eps doc/pubd-bpki.eps
-docs:: doc/irdbd.png doc/pubd.png doc/rpkid.png doc/rpkid-bpki.png doc/pubd-bpki.png
-docs:: doc/irdbd.pdf doc/pubd.pdf doc/rpkid.pdf doc/rpkid-bpki.pdf doc/pubd-bpki.pdf
-docs::
+TEXT_DOCS = Installation Configuration Operation Left-right Publication rpkid pubd rootd irdbd
+
+dot: doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
+
+eps: doc/irdbd.eps doc/pubd.eps doc/rpkid.eps doc/rpkid-bpki.eps doc/pubd-bpki.eps
+
+png: doc/irdbd.png doc/pubd.png doc/rpkid.png doc/rpkid-bpki.png doc/pubd-bpki.png
+
+html: dot eps png
 	TZ='' doxygen
-	for i in Installation Configuration Operation Left-right Publication; do \
+
+tgz: html
+	cd doc && tar -cf - html | gzip -9 >manual.tar.gz
+
+text: html
+	for i in ${TEXT_DOCS}; do \
 		xsltproc --html doc/tweak-doc.xsl doc/html/$$i.html | \
 		lynx -dump -nolist -force_html -stdin >doc/$$i; \
 	done 2>&1 | \
 	awk -f doc/tweak-doc.awk 1>&2
+
+pdf: doc/irdbd.pdf doc/pubd.pdf doc/rpkid.pdf doc/rpkid-bpki.pdf doc/pubd-bpki.pdf
+
+pdf: html
 	cd doc/latex && TZ='' ${MAKE} && ln -f refman.pdf ../manual.pdf
-	cd doc && tar -cf - html | gzip -9 >manual.tar.gz
+
+docs: dot eps png html text tgz pdf

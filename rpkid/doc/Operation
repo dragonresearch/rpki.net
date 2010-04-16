@@ -1,12 +1,8 @@
-
-
 ****** Operation Guide ******
 
 Production-side RPKI tools, for Internet Registries (RIRs, LIRs, etc).
 
 See rcynic/README for relying party tools.
-
-
 
   Warning:
       rpkid is still in development, and the code changes more often than the
@@ -19,12 +15,9 @@ At present the package is intended to be run out of the rpkid/ directory.
 In addition to the library routines in the rpkid/rpki/ directory, the package
 includes the following programs:
 
-
 * rpkid_: The main RPKI engine daemon.
 
-
 * pubd_: The publication engine daemon.
-
 
 * rootd_: A separate daemon for handling the root of an RPKI certificate tree.
   This is essentially a stripped down version of rpkid with no SQL database, no
@@ -32,14 +25,11 @@ includes the following programs:
   protocol. It's separate because the root is a special case in several ways
   and it was simpler to keep the special cases out of the main daemon.
 
-
 * irdbd_: A sample implementation of an IR database daemon. rpkid calls into
   this to perform lookups via the left-right protocol.
 
-
 * smoketest_: A test tool for running a collection of rpkid and irdb instances
   under common control, driven by a unified test script.
-
 
 * yamltest : Another test tool which takes the same input format as
   smoketest.py, but with slightly different purpose. smoketest.py is intended
@@ -75,7 +65,6 @@ myrpki.conf as the configuration file for each server as well.
 If you prefer, you can run each server by hand instead of using the script, eg,
 using Bourne shell syntax to run rpkid in background:
 
-
      $ python rpkid.py &
      $ echo >rpkid.pid  "$!"
 
@@ -90,7 +79,6 @@ Some of the options that the several daemons take are common to all daemons.
 Which daemon they affect depends only on which sections of which config files
 they are in. See Common_Options for details.
 
-
 ***** rpkid *****
 
 rpkid is the main RPKI engine daemon. Configuration of rpkid is a two step
@@ -103,7 +91,6 @@ it, as explained in the Installation_Guide.
 
 See Configuration_Options for configuration options.
 
-
 ***** pubd *****
 
 pubd is the publication daemon. It implements the server side of the
@@ -112,12 +99,10 @@ other objects that rpkid generates.
 
 pubd is separate from rpkid for two reasons:
 
-
 * The hosting model allows entities which choose to run their own copies of
   rpkid to publish their output under a common publication point. In general,
   encouraging shared publication services where practical is a good thing for
   relying parties, as it will speed up rcynic synchronization time.
-
 
 * The publication server has to run on (or at least close to) the publication
   point itself, which in turn must be on a publically reachable server to be
@@ -134,7 +119,6 @@ correspond to an appropriate module definition in rsync.conf.
 
 See Configuration_Options for configuration options.
 
-
 ***** rootd *****
 
 rootd is a stripped down implmenetation of (only) the server side of the up-
@@ -145,7 +129,6 @@ not suitable for use in a production system. All configuration comes via the
 config file.
 
 See Configuration_Options for configuration options.
-
 
 ***** irdbd *****
 
@@ -162,7 +145,6 @@ and store the linkage IDs (foreign keys into rpkid's database, basicly) in the
 IRDB.
 
 See Configuration_Options for configuration options.
-
 
 ***** smoketest: *****
 
@@ -183,8 +165,3 @@ See smoketest.conf for what can go into the (optional) first configuration
 file.
 
 See smoketest.yaml for what goes into the (required) second configuration file.
-
-
-
-
-

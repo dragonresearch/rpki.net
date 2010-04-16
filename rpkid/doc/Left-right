@@ -1,5 +1,3 @@
-
-
 ****** Left-right protocol ******
 
 The left-right protocol is really two separate client/server protocols over
@@ -8,21 +6,15 @@ separate channels between the RPKI engine and the IR back end (IRBE).
 The IRBE is the client for one of the subprotocols, the RPKI engine is the
 client for the other.
 
-
 ***** Terminology *****
-
 
 * IRBE: Internet Registry Back End
 
-
 * IRDB: Internet Registry Data Base
-
 
 * BPKI: Business PKI
 
-
 * RPKI: Resource PKI
-
 
 ***** initiated by the IRBE *****
 
@@ -53,7 +45,6 @@ All operations allow an optional "tag" attribute which can be any alphanumeric
 token. The main purpose of the tag attribute is to allow batching of multiple
 requests into a single PDU.
 
-
 **** <self/> object ****
 
 A <self/> object represents one virtual RPKI engine. In simple cases where the
@@ -77,20 +68,16 @@ the "create", "set", "get", and "destroy" actions.
 
 Payload data which can be configured in a <self/> object:
 
-
 * use_hsm (attribute): Whether to use a Hardware Signing Module. At present
   this option has no effect, as the implementation does not yet support HSMs.
 
-
 * crl_interval (attribute): Positive integer representing the planned lifetime
   of an RPKI CRL for this <self/>, measured in seconds.
-
 
 * regen_margin (attribute): Positive integer representing how long before
   expiration of an RPKI certificiate a new one should be generated, measured in
   seconds. At present this only affects the one-off EE certificates associated
   with ROAs.
-
 
 * bpki_cert (element): BPKI CA certificate for this <self/>. This is used as
   part of the certificate chain when validating incoming TLS and CMS messages,
@@ -99,7 +86,6 @@ Payload data which can be configured in a <self/> object:
   is in use (below), the bpki_cert certificate should be issued by the
   bpki_glue certificate; otherwise, the bpki_cert certificate should be issued
   by the per-engine bpki_ta certificate.
-
 
 * bpki_glue (element): Another BPKI CA certificate for this <self/>, usually
   not needed. Certain pathological cross-certification cases require a two-
@@ -110,11 +96,9 @@ Payload data which can be configured in a <self/> object:
 
 Control attributes that can be set to "yes" to force actions:
 
-
 * rekey: Start a key rollover for every RPKI CA associated with every <parent/
   > object associated with this <self/> object. This is the first phase of a
   key rollover operation.
-
 
 * revoke: Revoke any remaining certificates for any expired key associated with
   any RPKI CA for any <parent/> object associated with this <self/> object.
@@ -122,22 +106,18 @@ Control attributes that can be set to "yes" to force actions:
   separate from the first phase to leave time for new RPKI certificates to
   propegate and be installed.
 
-
 * reissue: Not implemented, may be removed from protocol. Original theory was
   that this operation would force reissuance of any object with a changed key,
   but as that happens automatically as part of the key rollover mechanism this
   operation seems unnecessary.
 
-
 * run_now: Force immediate processing for all tasks associated with this <self/
   > object that would ordinarily be performed under cron. Not currently
   implemented.
 
-
 * publish_world_now: Force (re)publication of every publishable object for this
   <self/> object. Not currently implemented. Intended to aid in recovery if
   RPKI engine and publication engine somehow get out of sync.
-
 
 **** <bsc/> object ****
 
@@ -156,15 +136,12 @@ associated.
 
 Payload data which can be configured in a <isc/> object:
 
-
 * signing_cert (element): BPKI certificate to use when generating a signature.
-
 
 * signing_cert_crl (element): CRL which would list signing_cert if it had been
   revoked.
 
 Control attributes that can be set to "yes" to force actions:
-
 
 * generate_keypair: Generate a new BPKI keypair and return a PKCS #10
   certificate request. The resulting certificate, once issued, should be
@@ -173,14 +150,11 @@ Control attributes that can be set to "yes" to force actions:
 Additional attributes which may be specified when specifying
 "generate_keypair":
 
-
 * key_type: Type of BPKI keypair to generate. "rsa" is both the default and, at
   the moment, the only allowed value.
 
-
 * hash_alg: Cryptographic hash algorithm to use with this keypair. "sha256" is
   both the default and, at the moment, the only allowed value.
-
 
 * key_length: Length in bits of the keypair to be generated. "2048" is both the
   default and, at the moment, the only allowed value.
@@ -190,7 +164,6 @@ Replies to "create" and "set" actions that specify "generate-keypair" include a
 > object for which a "generate-keypair" command has been issued. The RPKI
 engine stores the PKCS #10 request, which allows the IRBE to reuse the request
 if and when it needs to reissue the corresponding BPKI signing certificate.
-
 
 **** <parent/> object ****
 
@@ -210,24 +183,19 @@ publishing issued by the certificate issued by this parent.
 
 Payload data which can be configured in a <parent/> object:
 
-
 * peer_contact_uri (attribute): HTTPS URI used to contact this parent.
-
 
 * sia_base (attribute): The leading portion of an rsync URI that the RPKI
   engine should use when composing the publication URI for objects issued by
   the RPKI certificate issued by this parent.
 
-
 * sender_name (attribute): Sender name to use in the up-down protocol when
   talking to this parent. The RPKI engine doesn't really care what this value
   is, but other implementations of the up-down protocol do care.
 
-
 * recipient_name (attribute): Recipient name to use in the up-down protocol
   when talking to this parent. The RPKI engine doesn't really care what this
   value is, but other implementations of the up-down protocol do care.
-
 
 * bpki_cms_cert (element): BPKI CMS CA certificate for this <parent/>. This is
   used as part of the certificate chain when validating incoming CMS messages
@@ -236,7 +204,6 @@ Payload data which can be configured in a <parent/> object:
   bpki_cms_cert certificate should be issued by the bpki_cert certificate in
   the <self/> object.
 
-
 * bpki_cms_glue (element): Another BPKI CMS CA certificate for this <parent/>,
   usually not needed. Certain pathological cross-certification cases require a
   two-certificate chain due to issuer name conflicts. If used, the
@@ -244,11 +211,9 @@ Payload data which can be configured in a <parent/> object:
   certificate and should be issued by the bpki_cert certificate in the <self/
   > object; if not needed, the bpki_cms_glue certificate should be left unset.
 
-
 * bpki_https_cert (element): BPKI HTTPS CA certificate for this <parent/>. This
   is like the bpki_cms_cert object, only used for validating incoming TLS
   messages rather than CMS.
-
 
 * bpki_cms_glue (element): Another BPKI HTTPS CA certificate for this <parent/
   >, usually not needed. This is like the bpki_cms_glue certificate, only used
@@ -256,18 +221,14 @@ Payload data which can be configured in a <parent/> object:
 
 Control attributes that can be set to "yes" to force actions:
 
-
 * rekey: This is like the rekey command in the <self/> object, but limited to
   RPKI CAs under this parent.
-
 
 * reissue: This is like the reissue command in the <self/> object, but limited
   to RPKI CAs under this parent.
 
-
 * revoke: This is like the revoke command in the <self/> object, but limited to
   RPKI CAs under this parent.
-
 
 **** <child/> object ****
 
@@ -281,14 +242,12 @@ self_handle attribute which indicates the <self/> object with which this
 
 Payload data which can be configured in a <child/> object:
 
-
 * bpki_cert (element): BPKI CA certificate for this <child/>. This is used as
   part of the certificate chain when validating incoming TLS and CMS messages.
   If the bpki_glue certificate is in use (below), the bpki_cert certificate
   should be issued by the bpki_glue certificate; otherwise, the bpki_cert
   certificate should be issued by the bpki_cert certificate in the <self/
   > object.
-
 
 * bpki_glue (element): Another BPKI CA certificate for this <child/>, usually
   not needed. Certain pathological cross-certification cases require a two-
@@ -299,9 +258,7 @@ Payload data which can be configured in a <child/> object:
 
 Control attributes that can be set to "yes" to force actions:
 
-
 * reissue: Not implemented, may be removed from protocol.
-
 
 **** <repository/> object ****
 
@@ -315,9 +272,7 @@ a self_handle attribute which indicates the <self/> object with which this
 
 Payload data which can be configured in a <repository/> object:
 
-
 * peer_contact_uri (attribute): HTTPS URI used to contact this repository.
-
 
 * bpki_cms_cert (element): BPKI CMS CA certificate for this <repository/>. This
   is used as part of the certificate chain when validating incoming CMS
@@ -326,7 +281,6 @@ Payload data which can be configured in a <repository/> object:
   otherwise, the bpki_cms_cert certificate should be issued by the bpki_cert
   certificate in the <self/> object.
 
-
 * bpki_cms_glue (element): Another BPKI CMS CA certificate for this
   <repository/>, usually not needed. Certain pathological cross-certification
   cases require a two-certificate chain due to issuer name conflicts. If used,
@@ -334,18 +288,15 @@ Payload data which can be configured in a <repository/> object:
   certificate and should be issued by the bpki_cert certificate in the <self/
   > object; if not needed, the bpki_cms_glue certificate should be left unset.
 
-
 * bpki_https_cert (element): BPKI HTTPS CA certificate for this <repository/>.
   This is like the bpki_cms_cert object, only used for validating incoming TLS
   messages rather than CMS.
-
 
 * bpki_cms_glue (element): Another BPKI HTTPS CA certificate for this
   <repository/>, usually not needed. This is like the bpki_cms_glue
   certificate, only used for validating incoming TLS messages rather than CMS.
 
 At present there are no control attributes for <repository/> objects.
-
 
 **** <route_origin/> object ****
 
@@ -376,21 +327,17 @@ has been replaced by the prefix and maxLength encoding used in the -03 draft.
 
 Payload data which can be configured in a <route_origin/> object:
 
-
 * asn (attribute): Autonomous System Number (ASN) to place in the generated
   ROA. A single ROA can only grant authorization to a single ASN; multiple ASNs
   require multiple ROAs, thus multiple <route_origin/> objects.
 
-
 * ipv4 (attribute): List of IPv4 prefix and maxLength values, see below for
   format.
-
 
 * ipv6 (attribute): List of IPv6 prefix and maxLength values, see below for
   format.
 
 Control attributes that can be set to "yes" to force actions:
-
 
 * suppress_publication: Not implemented, may be removed from protocol.
 
@@ -399,8 +346,6 @@ comma-separated text strings, with no whitespace permitted. Each entry in such
 a string represents a single prefix/maxLength pair.
 
 ABNF for these address lists:
-
-
 
      <ROAIPAddress> ::= <address> "/" <prefixlen> [ "-" <max_prefixlen> ]
                            ; Where <max_prefixlen> defaults to the same
@@ -411,7 +356,6 @@ ABNF for these address lists:
 For example, "10.0.1.0/24-32,10.0.2.0/24", which is a shorthand form of
 "10.0.1.0/24-32,10.0.2.0/24-24".
 
-
 ***** Operations initiated by the RPKI engine *****
 
 The left-right protocol also includes queries from the RPKI engine back to the
@@ -420,7 +364,6 @@ initiated part of the protocol. Instead, there's a single query back to the
 IRDB, with a corresponding response. The CMS and HTTPS encoding are the same as
 in the rest of the protocol, but the BPKI certificates will be different as the
 back-queries and responses form a separate communication channel.
-
 
 **** <list_resources/> messages ****
 
@@ -434,21 +377,17 @@ attribute of the same form used elsewhere in this protocol, to allow batching.
 A <list_resources/> response includes the following attributes, along with the
 tag (if specified), self_handle, and child_handle copied from the request:
 
-
 * valid_until: A timestamp indicating the date and time at which certificates
   generated by the RPKI engine for these data should expire. The timestamp is
   expressed as an XML xsd:dateTime, must be expressed in UTC, and must carry
   the "Z" suffix indicating UTC.
 
-
 * asn: A list of autonomous sequence numbers, expressed as a comma-separated
   sequence of decimal integers with no whitespace.
-
 
 * ipv4: A list of IPv4 address prefixes and ranges, expressed as a comma-
   separated list of prefixes and ranges with no whitespace. See below for
   format details.
-
 
 * ipv6: A list of IPv6 address prefixes and ranges, expressed as a comma-
   separated list of prefixes and ranges with no whitespace. See below for
@@ -462,7 +401,6 @@ superficially similar to the format used for prefix and maxLength values in the
 <route_origin/> object, but the semantics differ: note in particular that
 <route_origin/> objects don't allow ranges, while <list_resources/> messages
 don't allow a maxLength specification.
-
 
 ***** Error handling *****
 
@@ -496,8 +434,3 @@ schema.
 The body of the <report_error/> element itself is an optional text string; if
 present, this is debugging information. At present this capabilty is not used,
 debugging information goes to syslog.
-
-
-
-
-

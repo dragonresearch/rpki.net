@@ -1,5 +1,3 @@
-
-
 ****** rootd ******
 
 rootd is a stripped down implmenetation of (only) the server side of the up-
@@ -16,62 +14,43 @@ Certificates, keys, and trust anchors may be in either DER or PEM format.
 
 Config file options:
 
-
 * bpki-ta: Name of file containing BPKI trust anchor. All BPKI certificate
   validation in rootd traces back to this trust anchor.
 
-
 * rootd-bpki-cert: Name of file containing rootd's own BPKI certificate.
-
 
 * rootd-bpki-key: Name of file containing RSA key corresponding to rootd-bpki-
   cert.
 
-
 * rootd-bpki-crl: Name of file containing BPKI CRL that would cover rootd-bpki-
   cert had it been revoked.
-
 
 * child-bpki-cert: Name of file containing BPKI certificate for rootd's one and
   only child (RPKI engine to which rootd issues an RPKI certificate).
 
-
 * server-host: Hostname or IP address on which to listen for HTTPS connections.
   Default is localhost.
 
-
 * server-port: TCP port on which to listen for HTTPS connections.
-
 
 * rpki-root-key: Name of file containing RSA key to use in signing resource
   certificates.
 
-
 * rpki-root-cert: Name of file containing self-signed root resource certificate
   corresponding to rpki-root-key.
-
 
 * rpki-root-dir: Name of directory where rootd should write RPKI subject
   certificate, manifest, and CRL.
 
-
 * rpki-subject-cert: Name of file that rootd should use to save the one and
   only certificate it issues. Default is "Subroot.cer".
-
 
 * rpki-root-crl: Name of file to which rootd should save its RPKI CRL. Default
   is "Root.crl".
 
-
 * rpki-root-manifest: Name of file to which rootd should save its RPKI
   manifest. Default is "Root.mnf".
-
 
 * rpki-subject-pkcs10: Name of file that rootd should use when saving a copy of
   the received PKCS #10 request for a resource certificate. This is only used
   for debugging. Default is not to save the PKCS #10 request.
-
-
-
-
-

@@ -1,5 +1,3 @@
-
-
 ****** Publication protocol ******
 
 The publication protocol is really two separate client/server protocols,
@@ -20,21 +18,15 @@ The publication engine operates a single HTTPS server which serves both of
 these subprotocols. The two subprotocols share a single server port, but use
 distinct URLs to allow demultiplexing.
 
-
 ***** Terminology *****
-
 
 * IRBE: Internet Registry Back End
 
-
 * IRDB: Internet Registry Data Base
-
 
 * BPKI: Business PKI
 
-
 * RPKI: Resource PKI
-
 
 ***** Publication control subprotocol *****
 
@@ -42,7 +34,6 @@ The control subprotocol reuses the message-passing design of the left-right
 protocol. Configured objects support the "create", "set", "get", "list", and
 "destroy" actions, or a subset thereof when the full set of actions doesn't
 make sense.
-
 
 **** <config/> object ****
 
@@ -54,7 +45,6 @@ supports the "set" and "get" actions -- it cannot be created or destroyed.
 
 Payload data which can be configured in a <config/> object:
 
-
 * bpki_crl (element): This is the BPKI CRL used by the publication server when
   signing the CMS wrapper on responses in the publication subprotocol. As the
   CRL must be updated at regular intervals, it's not practical to restart the
@@ -62,7 +52,6 @@ Payload data which can be configured in a <config/> object:
   doesn't require use of a BPKI CRL between the IRBE and the publication
   server, so we can use the publication control subprotocol to update the BPKI
   CRL.
-
 
 **** <client/> object ****
 
@@ -76,11 +65,9 @@ actions.
 
 Payload data which can be configured in a <client/> object:
 
-
 * base_uri (attribute): This is the base URI below which this client is allowed
   to publish data. The publication server may impose additional constraints in
   the case of a child publishing beneath its parent.
-
 
 * bpki_cert (element): BPKI CA certificate for this <client/>. This is used as
   part of the certificate chain when validating incoming TLS and CMS messages.
@@ -88,14 +75,12 @@ Payload data which can be configured in a <client/> object:
   should be issued by the bpki_glue certificate; otherwise, the bpki_cert
   certificate should be issued by the publication engine's bpki_ta certificate.
 
-
 * bpki_glue (element): Another BPKI CA certificate for this <client/>, usually
   not needed. Certain pathological cross-certification cases require a two-
   certificate chain due to issuer name conflicts. If used, the bpki_glue
   certificate should be the issuer of the bpki_cert certificate and should be
   issued by the publication engine's bpki_ta certificate; if not needed, the
   bpki_glue certificate should be left unset.
-
 
 ***** Publication subprotocol *****
 
@@ -114,17 +99,14 @@ simple check that the client's "base_uri" is a leading substring of the
 publication URI. Details of why access control might need to become more
 complicated are discussed in a later section.
 
-
 **** <certificate/> object ****
 
 The <certificate/> object represents an RPKI certificate to be published or
 withdrawn.
 
-
 **** <crl/> object ****
 
 The <crl/> object represents an RPKI CRL to be published or withdrawn.
-
 
 **** <manifest/> object ****
 
@@ -136,11 +118,9 @@ protocol is because every publication or withdrawal action requires a new
 manifest, thus every publication or withdrawal action will involve at least two
 objects.
 
-
 **** <roa/> object ****
 
 The <roa/> object represents a ROA to be published or withdrawn.
-
 
 ***** Error handling *****
 
@@ -173,18 +153,15 @@ The body of the <report_error/> element itself is an optional text string; if
 present, this is debugging information. At present this capabilty is not used,
 debugging information goes to syslog.
 
-
 ***** Additional access control considerations. *****
 
 As detailed above, the publication protocol is trivially simple. This glosses
 over two bits of potential complexity:
 
-
 * In the case where parent and child are sharing a repository, we'd like to
   nest child under parent, because testing has demonstrated that even on
   relatively slow hardware the delays involved in setting up separate rsync
   connections tend to dominate synchronization time for relying parties.
-
 
 * The repository operator might also want to do some checks to assure itself
   that what it's about to allow the RPKI engine to publish is not dangerous
@@ -227,8 +204,3 @@ Note that, in this publication model, any agreement that the repository makes
 to publish the RPKI engine's output is conditional upon the object to be
 published passing whatever access control checks the publication server
 imposes.
-
-
-
-
-

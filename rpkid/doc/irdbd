@@ -1,5 +1,3 @@
-
-
 ****** irdbd ******
 
 irdbd is a sample implemntation of the server side of the IRDB callback subset
@@ -22,37 +20,23 @@ Certificates, keys, and trust anchors may be in either DER or PEM format.
 
 Config file options:
 
-
 * startup-message: String to log on startup, useful when debugging a collection
   of irdbd instances at once.
 
-
 * sql-username: Username to hand to MySQL when connecting to irdbd's database.
-
 
 * sql-database: MySQL's database name for irdbd's database.
 
-
 * sql-password: Password to hand to MySQL when connecting to irdbd's database.
-
 
 * bpki-ta: Name of file containing BPKI trust anchor. All BPKI certificate
   validation in irdbd traces back to this trust anchor.
 
-
 * irdbd-cert: Name of file containing irdbd's own BPKI certificate.
 
-
 * irdbd-key: Name of file containing RSA key corresponding to irdbd-cert.
-
 
 * rpkid-cert: Name of file containing certificate used the one and only by
   rpkid instance authorized to contact this irdbd instance.
 
-
 * https-url: Service URL for irdbd. Must be a https:// URL.
-
-
-
-
-

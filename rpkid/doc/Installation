@@ -1,5 +1,3 @@
-
-
 ****** Installation Guide ******
 
 Installation instructions for rpkid et al.
@@ -25,7 +23,6 @@ prerequisites. Note that the Python code requires Python version 2.5 or 2.6.
 rpkid et al are mostly self-contained, but do require a small number of
 external packages to run.
 
-
 * If your Python installation does not already include the sources files needed
   to compile new Python extension modules, you will need to install whatever
   package does include those source files. The need for and name of this
@@ -39,7 +36,6 @@ external packages to run.
 * http://codespeak.net/lxml/, a Pythonic interface to the Gnome LibXML2
   libraries. lxml in turn requires the LibXML2 C libraries.
 
-
   o FreeBSD: /usr/ports/devel/py-lxml
   o Fedora: python-lxml.i386
   o Ubuntu: python-lxml
@@ -51,7 +47,6 @@ external packages to run.
   o FreeBSD: /usr/ports/databases/py-MySQLdb
   o Fedora: MySQL-python.i386
   o Ubuntu: python-mysqldb
-
 
 rpkid et al also make heavy use of a modified copy of the Python OpenSSL
 Wrappers (POW) package, but this copy has enough modifications and additions
@@ -65,7 +60,6 @@ of the stock POW release.
 
 To build these, cd to the top-level directory in the distribution and type
 "make".
-
 
      $ cd $top
      $ make
@@ -82,10 +76,8 @@ At this point, you should have all the necessary software installed to run the
 core programs, but you will probably want to test it. The test suite requires a
 few more external packages, only one of which is Python code.
 
-
 * http://pyyaml.org/. Several of the test programs use PyYAML to parse a YAML
   description of a simulated allocation hierarchy to test.
-
 
   o FreeBSD: /usr/ports/devel/py-yaml
   o Ubuntu: python-yaml
@@ -96,7 +88,6 @@ few more external packages, only one of which is Python code.
   o FreeBSD: /usr/ports/textproc/libxslt
   o Ubuntu: xsltproc
 
-
 All tests should be run from the rpkid/ or myrpki/ directories.
 
 Some of the tests require MySQL databases to store their data. To set up all
@@ -104,12 +95,10 @@ the databases that the tests will need, run the SQL commands in rpkid/
 smoketest.setup.sql. The MySQL command line client is usually the easiest way
 to do this, eg:
 
-
      $ cd $top/rpkid
      $ mysql -u root -p <smoketest.setup.sql
 
 To run the tests, run "make all-tests":
-
 
      $ cd $top/rpkid
      $ make all-tests
@@ -121,10 +110,8 @@ There's a last set of tools that only developers should need, as they're only
 used when modifying schemas or regenerating the documentation. These tools are
 listed here for completeness.
 
-
 * http://www.doxygen.org/. Doxygen in turn pulls in several other tools,
   notably Graphviz, pdfLaTeX, and Ghostscript.
-
 
   o FreeBSD: /usr/ports/devel/doxygen
   o Ubuntu: doxygen
@@ -133,13 +120,11 @@ listed here for completeness.
   xsltproc and html2text to dump flat text versions of a few critical
   documentation pages.
 
-
   o FreeBSD: /usr/ports/textproc/html2text
 
 * http://www.thaiopensource.com/relaxng/trang.html. Trang is used to convert
   RelaxNG schemas from the human-readable "compact" form to the XML form that
   LibXML2 understands. Trang in turn requires Java.
-
 
   o FreeBSD: /usr/ports/textproc/trang
 
@@ -149,11 +134,5 @@ listed here for completeness.
 
   o FreeBSD: /usr/ports/databases/p5-SQL-Translator
 
-
 Once you've finished with installation, the next thing you should read is the
 Configuration_Guide.
-
-
-
-
-

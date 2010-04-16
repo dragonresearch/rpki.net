@@ -88,8 +88,6 @@
 # @li <a href="http://viewvc.hactrn.net/subvert-rpki.hactrn.net/rcynic/">The rcynic validation tool</a>
 #
 # @li <a href="http://www.hactrn.net/opaque/rcynic.html">A live sample of rcynic's summary output</a>
-#
-# @li <a href="http://mirin.apnic.net/trac/">APNIC's project Trac instance</a>
 
 ## @page Installation Installation Guide
 #
@@ -457,28 +455,28 @@
 # "true" or "false".  If not specified, default values will be chosen
 # (generally false).
 #
-# @li @c debug_http
+# @par @c debug_http
 #                               Enable verbose http debug logging.
 #
-# @li @c debug_tls_certs
+# @par @c debug_tls_certs
 #                               Enable verbose logging about tls certs.
 #
-# @li @c want_persistent_client
+# @par @c want_persistent_client
 #                               Enable http 1.1 persistence, client side.
 #
-# @li @c want_persistent_server
+# @par @c want_persistent_server
 #                               Enable http 1.1 persistence, server side.
 #
-# @li @c debug_cms_certs
+# @par @c debug_cms_certs
 #                               Enable verbose logging about cms certs.
 #
-# @li @c sql_debug
+# @par @c sql_debug
 #                               Enable verbose logging about sql operations.
 #
-# @li @c gc_debug
+# @par @c gc_debug
 #                               Enable scary garbage collector debugging.
 #
-# @li @c timer_debug
+# @par @c timer_debug
 #                               Enable verbose logging of timer system.
 #
 # There are also a few options that allow you to save CMS messages for
@@ -486,10 +484,10 @@
 # Maildir-format mailbox.  The current options are very crude, at some
 # point we may provide finer grain controls.
 #
-# @li @c dump_outbound_cms
+# @par @c dump_outbound_cms
 #                               Dump messages we send to this mailbox.
 #
-# @li @c dump_inbound_cms
+# @par @c dump_inbound_cms
 #                               Dump messages we receive to this mailbox.
 
 ## @page rpkidconf rpkid.conf
@@ -501,53 +499,53 @@
 #
 # %Config file options:
 #
-# @li @c startup-message:
+# @par @c startup-message
 #                      String to %log on startup, useful when
 #                      debugging a collection of rpkid instances at
 #                      once.
 #
-# @li @c sql-username:
+# @par @c sql-username
 #                      Username to hand to MySQL when connecting to
 #                      rpkid's database.
 #
-# @li @c sql-database:
+# @par @c sql-database
 #                      MySQL's database name for rpkid's database.
 #
-# @li @c sql-password:
+# @par @c sql-password
 #                      Password to hand to MySQL when connecting to
 #                      rpkid's database.
 #
-# @li @c bpki-ta:
+# @par @c bpki-ta
 #                      Name of file containing BPKI trust anchor.
 #                      All BPKI certificate verification within rpkid
 #                      traces back to this trust anchor. 
 #
-# @li @c rpkid-cert:
+# @par @c rpkid-cert
 #                      Name of file containing rpkid's own BPKI EE
 #                      certificate.
 #
-# @li @c rpkid-key:
+# @par @c rpkid-key
 #                      Name of file containing RSA key corresponding
 #                      to rpkid-cert.
 #
-# @li @c irbe-cert:
+# @par @c irbe-cert
 #                      Name of file containing BPKI certificate used
 #                      by IRBE when talking to rpkid.
 #
-# @li @c irdb-cert:
+# @par @c irdb-cert
 #                      Name of file containing BPKI certificate used
 #                      by irdbd.
 #
-# @li @c irdb-url:
+# @par @c irdb-url
 #                      Service URL for irdbd.  Must be a %https:// URL.
 #
-# @li @c server-host:
+# @par @c server-host
 #                      Hostname or IP address on which to listen for
 #                      HTTPS connections.  Current default is
 #                      INADDR_ANY (IPv4 0.0.0.0); this will need to
 #                      be hacked to support IPv6 for production.
 #
-# @li @c server-port:
+# @par @c server-port
 #                      TCP port on which to listen for HTTPS
 #                      connections.
 
@@ -560,45 +558,45 @@
 #
 # %Config file options:
 #
-# @li @c sql-username:
+# @par @c sql-username
 #                      Username to hand to MySQL when connecting to
 #                      pubd's database.
 #
-# @li @c sql-database:
+# @par @c sql-database
 #                      MySQL's database name for pubd's database.
 #
-# @li @c sql-password:
+# @par @c sql-password
 #                      Password to hand to MySQL when connecting to
 #                      pubd's database.
 #
-# @li @c bpki-ta:
+# @par @c bpki-ta
 #                      Name of file containing master BPKI trust
 #                      anchor for  pubd.  All BPKI validation in pubd
 #                      traces back to this trust anchor.
 #
-# @li @c irbe-cert:
+# @par @c irbe-cert
 #                      Name of file containing BPKI certificate used
 #                      by IRBE when talking to pubd.
 #
-# @li @c pubd-cert:
+# @par @c pubd-cert
 #                      Name of file containing BPKI certificate used
 #                      by pubd.
 #
-# @li @c pubd-key:
+# @par @c pubd-key
 #                      Name of file containing RSA key corresponding
 #                      to @c pubd-cert.
 #
-# @li @c server-host:
+# @par @c server-host
 #                      Hostname or IP address on which to listen for
 #                      HTTPS connections.  Current default is
 #                      INADDR_ANY (IPv4 0.0.0.0); this will need to
 #                      be hacked to support IPv6 for production.
 #
-# @li @c server-port:
+# @par @c server-port
 #                      TCP port on which to listen for HTTPS
 #                      connections.
 #
-# @li @c publication-base:
+# @par @c publication-base
 #                      Path to base of filesystem tree where pubd
 #                      should store publishable objects.  Default is
 #                      "publication/".
@@ -612,63 +610,63 @@
 #
 # %Config file options:
 #
-# @li @c bpki-ta:
+# @par @c bpki-ta
 #                      Name of file containing BPKI trust anchor.  All
 #                      BPKI certificate validation in rootd traces
 #                      back to this trust anchor.
 #
-# @li @c rootd-bpki-cert:
+# @par @c rootd-bpki-cert
 #                      Name of file containing rootd's own BPKI
 #                      certificate. 
 #
-# @li @c rootd-bpki-key:
+# @par @c rootd-bpki-key
 #                      Name of file containing RSA key corresponding to
 #                      rootd-bpki-cert.
 #
-# @li @c rootd-bpki-crl:
+# @par @c rootd-bpki-crl
 #                      Name of file containing BPKI CRL that would
 #                      cover rootd-bpki-cert had it been revoked.
 #
-# @li @c child-bpki-cert:
+# @par @c child-bpki-cert
 #                      Name of file containing BPKI certificate for 
 #                      rootd's one and only child (RPKI engine to
 #                      which rootd issues an RPKI certificate).
 #
-# @li @c server-host:
+# @par @c server-host
 #                      Hostname or IP address on which to listen for
 #                      HTTPS connections.  Default is localhost.
 #
-# @li @c server-port:
+# @par @c server-port
 #                      TCP port on which to listen for HTTPS
 #                      connections.
 #
-# @li @c rpki-root-key:
+# @par @c rpki-root-key
 #                      Name of file containing RSA key to use in
 #                      signing resource certificates.
 #
-# @li @c rpki-root-cert:
+# @par @c rpki-root-cert
 #                      Name of file containing self-signed root
 #                      resource certificate corresponding to
 #                      rpki-root-key.
 #
-# @li @c rpki-root-dir:
+# @par @c rpki-root-dir
 #                      Name of directory where rootd should write
 #                      RPKI subject certificate, manifest, and CRL.
 #
-# @li @c rpki-subject-cert:
+# @par @c rpki-subject-cert
 #                      Name of file that rootd should use to save the
 #                      one and only certificate it issues.
 #                      Default is "Subroot.cer".
 #
-# @li @c rpki-root-crl:
+# @par @c rpki-root-crl
 #                      Name of file to which rootd should save its
 #                      RPKI CRL.  Default is "Root.crl".
 #
-# @li @c rpki-root-manifest:
+# @par @c rpki-root-manifest
 #                      Name of file to which rootd should save its
 #                      RPKI manifest.  Default is "Root.mnf".
 #
-# @li @c rpki-subject-pkcs10:
+# @par @c rpki-subject-pkcs10
 #                      Name of file that rootd should use when saving
 #                      a copy of the received PKCS #10 request for a
 #                      resource certificate.  This is only used for
@@ -684,41 +682,41 @@
 #
 # %Config file options:
 #
-# @li @c startup-message:
+# @par @c startup-message
 #                      String to %log on startup, useful when
 #                      debugging a collection of irdbd instances at
 #                      once.
 #
-# @li @c sql-username:
+# @par @c sql-username
 #                      Username to hand to MySQL when connecting to
 #                      irdbd's database.
 #
-# @li @c sql-database:
+# @par @c sql-database
 #                      MySQL's database name for irdbd's database.
 #
-# @li @c sql-password:
+# @par @c sql-password
 #                      Password to hand to MySQL when connecting to
 #                      irdbd's database.
 #
-# @li @c bpki-ta:
+# @par @c bpki-ta
 #                      Name of file containing BPKI trust anchor.  All
 #                      BPKI certificate validation in irdbd traces
 #                      back to this trust anchor.
 #
-# @li @c irdbd-cert:
+# @par @c irdbd-cert
 #                      Name of file containing irdbd's own BPKI
 #                      certificate. 
 #
-# @li @c irdbd-key:
+# @par @c irdbd-key
 #                      Name of file containing RSA key corresponding
 #                      to irdbd-cert.
 #
-# @li @c rpkid-cert:
+# @par @c rpkid-cert
 #                      Name of file containing certificate used the
 #                      one and only by rpkid instance authorized to
 #                      contact this irdbd instance.
 #
-# @li @c https-url:
+# @par @c https-url
 #                      Service URL for irdbd.  Must be a %https:// URL.
 
 ## @page smoketestconf smoketest.conf
@@ -891,30 +889,43 @@
 # the @c yamltest test tool will generate a fairly complete set
 # configuration files which may be useful as examples.
 #
-# Basic operation consists of creating the appropriate MySQL
-# databases, configuring relationships between parents and children
-# and between publication clients and repositories, starting rpkid,
-# pubd, rootd, and irdbd, and using the left-right and publication
-# control protocols to set up rpkid's and pubd's internal state.  All
-# other operations should occur either as a result of cron events or
-# as a result of incoming left-right and up-down protocol requests.
+# Basic operation consists of creating the appropriate MySQL databases
+# (see @ref mysqlsetup "MySQL Setup"), configuring relationships
+# between parents and children and between publication clients and
+# repositories (see @ref myrpki "The myrpki tool"), starting @c rpkid,
+# @c pubd, @c rootd, and @c irdbd, and using the left-right and
+# publication control protocols (see @ref myrpki "The myrpki tool") to
+# set up rpkid's and pubd's internal state.  All other operations
+# should occur either as a result of cron events or as a result of
+# incoming left-right and up-down protocol requests.
 #
 # The core programs are all event-driven, and are (in theory) capable
 # of supporting an arbitrary number of hosted RPKI engines to run in a
 # single rpkid instance, up to the performance limits of the underlying
 # hardware.
 #
-# At present the daemon programs all run in foreground, that is, if one
-# wants them to run in background one must do so manually, eg, using
-# Bourne shell syntax:
+# At present the daemon programs all run in foreground, that is, the
+# daemons themselves make no attempt to put themselves in background.
+# The easiest way to run the servers is to run the @c start_servers
+# script, which examines your @c myrpki.conf file and starts the
+# appropriate servers in background using @c myrpki.conf as the
+# configuration file for each server as well.
+#
+# If you prefer, you can run each server by hand instead of using the
+# script, eg, using Bourne shell syntax to run rpkid in background:
 #
 # @verbatim
-#   $ python whatever.py &
-#   $ echo >whatever.pid  "$!"
+#   $ python rpkid.py &
+#   $ echo >rpkid.pid  "$!"
 # @endverbatim
 #
-# All of the daemons use syslog by default.  To make them log to
-# stderr instead, use the "-d" option.
+# All of the daemons use syslog by default.  You can change this by
+# running either the servers themselves or the @c start_servers script
+# with the "-d" option.  Used as an argument to a server directly,
+# "-d" causes that server to log to @c stderr instead of to syslog.
+# Used as an argument to @c start_servers, "-d" starts each of the
+# servers with "-d" while redirecting @c stderr from each server to a
+# separate log file.  This is intended primarily for debugging.
 #
 # Some of the options that the several daemons take are common to all
 # daemons.  Which daemon they affect depends only on which sections of
@@ -931,8 +942,8 @@
 # protocol.  The latter stage is handled by the @c myrpki tool.
 #
 # rpkid stores dynamic data in an SQL database, which must have been
-# created for it, as explained in the @ref Installation "Installation
-# Guide".
+# created for it, as explained in the
+# @ref Installation "Installation Guide".
 #
 # See @ref Configuration "Configuration Options" for configuration
 # options.
@@ -1970,13 +1981,13 @@
 # regenerate these expiring objects, but fixing this will be a
 # relatively minor matter.]
 # 
-# The third important kind of file in this system is the @ref
-# Configuration "configuration file" for @c myrpki.  This contains a
-# number of sections, some of which are for myrpki, others of which
-# are for the OpenSSL command line tool, still others of which are for
-# the various RPKI daemon programs.  The examples/ subdirectory
-# contains a commented version of the configuration file that explains
-# the various parameters.
+# The third important kind of file in this system is the
+# @ref Configuration "configuration file"
+# for @c myrpki.  This contains a number of sections, some of which
+# are for myrpki, others of which are for the OpenSSL command line
+# tool, still others of which are for the various RPKI daemon
+# programs.  The examples/ subdirectory contains a commented version
+# of the configuration file that explains the various parameters.
 # 
 # The .csv files read by myrpki are (now) misnamed: formerly, they
 # used the "excel-tab" format from the Python csv library, but early
@@ -1986,10 +1997,10 @@
 # 
 # Keep reading, and don't panic.
 # 
-# The default configuration file name for @c myrpki is @ref
-# Configuration "@c myrpki.conf".  You can change this using the "-c"
-# option when invoking myrpki, or by setting the environment variable
-# MYRPKI_CONF.
+# The default configuration file name for @c myrpki is
+# @ref Configuration "@c myrpki.conf".
+# You can change this using the "-c" option when invoking myrpki, or
+# by setting the environment variable MYRPKI_CONF.
 # 
 # See examples/*.csv for commented examples of the several CSV files.
 # Note that the comments themselves are not legal CSV, they're just
@@ -2300,18 +2311,20 @@
  
 ## @page mysqlsetup MySQL Setup
 #
-# @c rpkid, @c irdbd, and @c pubd all use MySQL to store data.  You
-# need to install MySQL and set up the relevant databases before
-# starting these programs.
+# You need to install MySQL and set up the relevant databases before
+# starting @c rpkid, @c irdbd, or @c pubd.
 #
-# See @ref Configuration "the Configuration Guide" for details on the
+# See the @ref Installation "Installation Guide" for details on where
+# to download MySQL and find documentation on installing it.
+#
+# See the @ref Configuration "Configuration Guide" for details on the
 # configuration file settings the daemons will use to find and
 # authenticate themselves to their respective databases.
 #
-# Before you can (usefully) start any of the d aemons, you will need
-# to set up the MySQL databases themselves.  You can do this by hand,
-# or you can use the @c sql-setup.py script, which prompts you for
-# your MySQL root password then attempts to do everything else
+# Before you can (usefully) start any of the daemons, you will need to
+# set up the MySQL databases they use.  You can do this by hand, or
+# you can use the @c sql-setup.py script, which prompts you for your
+# MySQL root password then attempts to do everything else
 # automatically using values from myrpki.conf.
 #
 # Using the script is simple:
@@ -2344,11 +2357,11 @@
 # mysql> quit
 # @endverbatim
 #
-# where "irdb_database", "irdb_user", "irdb_password",
-# "rpki_database", "rpki_user", and "rpki_password" are the
-# appropriate values from your configuration file.
+# where @c irdb_database, @c irdb_user, @c irdb_password, @c
+# rpki_database, @c rpki_user, and @c rpki_password match the values
+# you used in your configuration file.
 #
-# If you are running pubd and doing manual SQL setup, you'll also
+# If you are running pubd and are doing manual SQL setup, you'll also
 # have to do:
 #
 # @verbatim
@@ -2360,6 +2373,9 @@
 # mysql> COMMIT;
 # mysql> quit
 # @endverbatim
+#
+# where @c pubd_database, @c pubd_user @c pubd_password match the
+# values you used in your configuration file.
 
 # Local Variables:
 # mode:python

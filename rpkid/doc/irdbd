@@ -1,51 +1,58 @@
-irdbd
-
-   irdbd is a sample implemntation of the server side of the IRDB callback
-   subset of the left-right protocol.
-
-   In production use this service is a function of the IRBE stub; irdbd
-   may be suitable for production use in simple cases, but an IR with a
-   complex IRDB may need to extend or rewrite irdbd.
-
-   irdbd requires a pre-populated database to represent the IR's
-   customers. irdbd expects this database to use the SQL schema defined in
-   rpkid/irdbd.sql. Once this database has been populated, the IRBE stub
-   needs to create the appropriate objects in rpkid's database via the
-   control subset of the left-right protocol, and store the linkage IDs
-   (foreign keys into rpkid's database, basicly) in the IRDB.
-
-   irdbd's default config file is irdbd.conf, start irdbd with "-c
-   filename" to choose a different config file. All options are in the
-   section "[irdbd]". Certificates, keys, and trust anchors may be in
-   either DER or PEM format.
-
-   Config file options:
-
-     * startup-message: String to log on startup, useful when debugging a
-       collection of irdbd instances at once.
-
-     * sql-username: Username to hand to MySQL when connecting to irdbd's
-       database.
-
-     * sql-database: MySQL's database name for irdbd's database.
-
-     * sql-password: Password to hand to MySQL when connecting to irdbd's
-       database.
-
-     * bpki-ta: Name of file containing BPKI trust anchor. All BPKI
-       certificate validation in irdbd traces back to this trust anchor.
-
-     * irdbd-cert: Name of file containing irdbd's own BPKI certificate.
-
-     * irdbd-key: Name of file containing RSA key corresponding to
-       irdbd-cert.
-
-     * rpkid-cert: Name of file containing certificate used the one and
-       only by rpkid instance authorized to contact this irdbd instance.
-
-     * https-url: Service URL for irdbd. Must be a https:// URL.
-     __________________________________________________________________
 
 
-    Generated on Fri Apr 16 00:33:45 2010 for RPKI Engine by  doxygen
-    1.6.3
+****** irdbd ******
+
+irdbd is a sample implemntation of the server side of the IRDB callback subset
+of the left-right protocol.
+
+In production use this service is a function of the IRBE stub; irdbd may be
+suitable for production use in simple cases, but an IR with a complex IRDB may
+need to extend or rewrite irdbd.
+
+irdbd requires a pre-populated database to represent the IR's customers. irdbd
+expects this database to use the SQL schema defined in rpkid/irdbd.sql. Once
+this database has been populated, the IRBE stub needs to create the appropriate
+objects in rpkid's database via the control subset of the left-right protocol,
+and store the linkage IDs (foreign keys into rpkid's database, basicly) in the
+IRDB.
+
+irdbd's default config file is irdbd.conf, start irdbd with "-c filename" to
+choose a different config file. All options are in the section "[irdbd]".
+Certificates, keys, and trust anchors may be in either DER or PEM format.
+
+Config file options:
+
+
+* startup-message: String to log on startup, useful when debugging a collection
+  of irdbd instances at once.
+
+
+* sql-username: Username to hand to MySQL when connecting to irdbd's database.
+
+
+* sql-database: MySQL's database name for irdbd's database.
+
+
+* sql-password: Password to hand to MySQL when connecting to irdbd's database.
+
+
+* bpki-ta: Name of file containing BPKI trust anchor. All BPKI certificate
+  validation in irdbd traces back to this trust anchor.
+
+
+* irdbd-cert: Name of file containing irdbd's own BPKI certificate.
+
+
+* irdbd-key: Name of file containing RSA key corresponding to irdbd-cert.
+
+
+* rpkid-cert: Name of file containing certificate used the one and only by
+  rpkid instance authorized to contact this irdbd instance.
+
+
+* https-url: Service URL for irdbd. Must be a https:// URL.
+
+
+
+
+

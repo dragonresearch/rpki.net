@@ -244,12 +244,11 @@
 #   </li>
 #
 #   <li>
-#     <a href="http://lynx.isc.org/current/">http://lynx.isc.org/current/</a>.
-#     The documentation build process uses xsltproc and Lynx to dump
+#     <a href="http://www.mbayer.de/html2text/">http://www.mbayer.de/html2text/</a>.
+#     The documentation build process uses xsltproc and html2text to dump
 #     flat text versions of a few critical documentation pages.
 #     <ul>
-#       <li>FreeBSD: /usr/ports/www/lynx</li>
-#       <li>Ubuntu:  lynx</li>
+#       <li>FreeBSD: /usr/ports/textproc/html2text</li>
 #     </ul>
 #   </li>
 #

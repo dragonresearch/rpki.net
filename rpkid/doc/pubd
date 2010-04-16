@@ -1,70 +1,76 @@
-pubd
-
-   pubd is the publication daemon.
-
-   It implements the server side of the publication protocol, and is used
-   by rpkid to publish the certificates and other objects that rpkid
-   generates.
-
-   pubd is separate from rpkid for two reasons:
-
-     * The hosting model allows entities which choose to run their own
-       copies of rpkid to publish their output under a common publication
-       point. In general, encouraging shared publication services where
-       practical is a good thing for relying parties, as it will speed up
-       rcynic synchronization time.
-
-     * The publication server has to run on (or at least close to) the
-       publication point itself, which in turn must be on a publically
-       reachable server to be useful. rpkid, on the other hand, need only
-       be reachable by the IRBE and its children in the RPKI tree. rpkid
-       is a much more complex piece of software than pubd, so in some
-       situations it might make sense to wrap tighter firewall constraints
-       around rpkid than would be practical if rpkid and pubd were a
-       single program.
-
-   pubd stores dynamic data in an SQL database, which must have been
-   created for it, as explained in the installation guide. pubd also
-   stores the published objects themselves as disk files in a configurable
-   location which should correspond to an appropriate module definition in
-   rsync.conf.
-
-   The default config file is pubd.conf, start pubd with "-c filename" to
-   choose a different config file. ALl options are in the section
-   "[pubd]". Certifiates, keys, and trust anchors may be either DER or PEM
-   format.
-
-   Config file options:
-
-     * sql-username: Username to hand to MySQL when connecting to pubd's
-       database.
-
-     * sql-database: MySQL's database name for pubd's database.
-
-     * sql-password: Password to hand to MySQL when connecting to pubd's
-       database.
-
-     * bpki-ta: Name of file containing master BPKI trust anchor for pubd.
-       All BPKI validation in pubd traces back to this trust anchor.
-
-     * irbe-cert: Name of file containing BPKI certificate used by IRBE
-       when talking to pubd.
-
-     * pubd-cert: Name of file containing BPKI certificate used by pubd.
-
-     * pubd-key: Name of file containing RSA key corresponding to
-       pubd-cert.
-
-     * server-host: Hostname or IP address on which to listen for HTTPS
-       connections. Current default is INADDR_ANY (IPv4 0.0.0.0); this
-       will need to be hacked to support IPv6 for production.
-
-     * server-port: TCP port on which to listen for HTTPS connections.
-
-     * publication-base: Path to base of filesystem tree where pubd should
-       store publishable objects. Default is "publication/".
-     __________________________________________________________________
 
 
-    Generated on Fri Apr 16 00:33:45 2010 for RPKI Engine by  doxygen
-    1.6.3
+****** pubd ******
+
+pubd is the publication daemon.
+
+It implements the server side of the publication protocol, and is used by rpkid
+to publish the certificates and other objects that rpkid generates.
+
+pubd is separate from rpkid for two reasons:
+
+
+* The hosting model allows entities which choose to run their own copies of
+  rpkid to publish their output under a common publication point. In general,
+  encouraging shared publication services where practical is a good thing for
+  relying parties, as it will speed up rcynic synchronization time.
+
+
+* The publication server has to run on (or at least close to) the publication
+  point itself, which in turn must be on a publically reachable server to be
+  useful. rpkid, on the other hand, need only be reachable by the IRBE and its
+  children in the RPKI tree. rpkid is a much more complex piece of software
+  than pubd, so in some situations it might make sense to wrap tighter firewall
+  constraints around rpkid than would be practical if rpkid and pubd were a
+  single program.
+
+pubd stores dynamic data in an SQL database, which must have been created for
+it, as explained in the installation guide. pubd also stores the published
+objects themselves as disk files in a configurable location which should
+correspond to an appropriate module definition in rsync.conf.
+
+The default config file is pubd.conf, start pubd with "-c filename" to choose a
+different config file. ALl options are in the section "[pubd]". Certifiates,
+keys, and trust anchors may be either DER or PEM format.
+
+Config file options:
+
+
+* sql-username: Username to hand to MySQL when connecting to pubd's database.
+
+
+* sql-database: MySQL's database name for pubd's database.
+
+
+* sql-password: Password to hand to MySQL when connecting to pubd's database.
+
+
+* bpki-ta: Name of file containing master BPKI trust anchor for pubd. All BPKI
+  validation in pubd traces back to this trust anchor.
+
+
+* irbe-cert: Name of file containing BPKI certificate used by IRBE when talking
+  to pubd.
+
+
+* pubd-cert: Name of file containing BPKI certificate used by pubd.
+
+
+* pubd-key: Name of file containing RSA key corresponding to pubd-cert.
+
+
+* server-host: Hostname or IP address on which to listen for HTTPS connections.
+  Current default is INADDR_ANY (IPv4 0.0.0.0); this will need to be hacked to
+  support IPv6 for production.
+
+
+* server-port: TCP port on which to listen for HTTPS connections.
+
+
+* publication-base: Path to base of filesystem tree where pubd should store
+  publishable objects. Default is "publication/".
+
+
+
+
+

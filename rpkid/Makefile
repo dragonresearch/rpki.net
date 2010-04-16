@@ -90,9 +90,9 @@ tgz: html
 text: html
 	for i in ${TEXT_DOCS}; do \
 		xsltproc --html doc/tweak-doc.xsl doc/html/$$i.html | \
-		lynx -dump -nolist -force_html -stdin >doc/$$i; \
+		html2text -rcfile doc/html2textrc -nobs -ascii -o doc/$$i; \
 	done 2>&1 | \
-	awk -f doc/tweak-doc.awk 1>&2
+	awk -f doc/suppress-html-parse-errors.awk 1>&2
 
 pdf: doc/irdbd.pdf doc/pubd.pdf doc/rpkid.pdf doc/rpkid-bpki.pdf doc/pubd-bpki.pdf
 

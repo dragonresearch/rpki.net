@@ -32,7 +32,7 @@ locked)
     /usr/local/bin/svn update --quiet
     (cd .. && ./configure)
     /bin/rm -rf doc/html
-    /usr/bin/make docs </dev/null
+    /usr/bin/make html </dev/null
     /usr/local/bin/rsync --archive --itemize-changes --delete-after doc/html/ $target/
     ;;
 

@@ -1,7 +1,7 @@
 <!-- $Id$
   -
   - Suppress bits of HTML that we want filtered out before running
-  - through lynx -dump to get flat text.
+  - through html2text to get flat text.
   -
   - Copyright (C) 2010  Internet Systems Consortium, Inc. ("ISC")
   -
@@ -35,33 +35,11 @@
 <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version='1.0'>
 
   <!--
-    - Suppress navigational elements that have no place in flat text.
+    - Suppress elements that have no place in flat text.
     -->
-  <xsl:template match="div[@class = 'navigation' or @id = 'MSearchSelectWindow']"/>
-
-  <!--
-    - Add null p element after p element immediately followed by ul
-    - element, or p element immediately followed by div element
-    - containing verbatim fragment.  This is sick, but fakes lynx
-    - into producing more reasonable output, which is all we really
-    - care about here.
-    -->
-  <xsl:template match="p[(name(following-sibling::*[1]) = 'ul') or
-                         (name(following-sibling::*[1]) = 'div' and
-			  following-sibling::*[1]/@class = 'fragment')]">
-    <p><xsl:apply-templates/></p>
-    <p/>
-  </xsl:template>
-
-  <!--
-    - Add delimiters around code examples.
-    -->
-  <xsl:template match="div[@class = 'fragment']" mode="disabled">
-    <p>================================================================</p>
-    <p/>
-    <xsl:call-template name="identity"/>
-    <p>================================================================</p>
-  </xsl:template>
+  <xsl:template match="div[@class = 'navigation' or @id = 'MSearchSelectWindow'] |
+                       hr[@class = 'footer'] |
+		       body/address[count(following-sibling::*) = 0]"/>
 
   <!--
     - Copy everything else unmodified (XSL "identity" template).

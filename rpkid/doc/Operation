@@ -19,7 +19,7 @@ includes the following programs:
 
 * pubd_: The publication engine daemon.
 
-* rootd_: A separate daemon for handling the root of an RPKI certificate tree.
+* rootd A separate daemon for handling the root of an RPKI certificate tree.
   This is essentially a stripped down version of rpkid with no SQL database, no
   left-right protocol implementation, and only the parent side of the up-down
   protocol. It's separate because the root is a special case in several ways

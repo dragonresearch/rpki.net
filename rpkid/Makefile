@@ -73,7 +73,7 @@ doc/rpkid.dot: rpkid.sql
 .dot.png:
 	dot -o $@ -Tpng $?
 
-TEXT_DOCS = Installation Configuration Operation Left-right Publication rpkid pubd rootd irdbd
+TEXT_DOCS = Installation Configuration Operation Left-right Publication
 
 dot: doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
 
@@ -82,6 +82,7 @@ eps: doc/irdbd.eps doc/pubd.eps doc/rpkid.eps doc/rpkid-bpki.eps doc/pubd-bpki.e
 png: doc/irdbd.png doc/pubd.png doc/rpkid.png doc/rpkid-bpki.png doc/pubd-bpki.png
 
 html: dot eps png
+#	rm -rf doc/html doc/latex doc/xml
 	TZ='' doxygen
 
 tgz: html

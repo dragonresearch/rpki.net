@@ -55,6 +55,8 @@
 # Besides the automatically-generated code documentation, this manual
 # also includes documentation of the overall package:
 #
+# @li A few notes on @subpage Terminology Terminology
+#
 # @li The @subpage Installation "installation instructions"
 #
 # @li The @subpage Configuration "configuration instructions"
@@ -79,6 +81,26 @@
 # This work was funded from 2006 through 2008 by <a
 # href="http://www.arin.net/">ARIN</a>, in collaboration with the
 # other Regional Internet Registries.  Current work is funded by DHS.
+
+## @page Terminology Terminology
+#
+# A few special terms that appear often enough in code or
+# documentation that they need explaining.
+#
+# @todo
+# These explanations should be fleshed out properly.
+#
+# @par IRBE:
+#       Internet Registry Back End.
+#
+# @par IRDB:
+#       Internet Registry Data Base.
+#
+# @par BPKI:
+#       Business PKI.
+#
+# @par RPKI:
+#       Resource PKI.
 
 ## @page further-reading Further Reading
 #
@@ -454,28 +476,28 @@
 # "true" or "false".  If not specified, default values will be chosen
 # (generally false).
 #
-# @par @c debug_http
+# @par @c debug_http:
 #                               Enable verbose http debug logging.
 #
-# @par @c debug_tls_certs
+# @par @c debug_tls_certs:
 #                               Enable verbose logging about tls certs.
 #
-# @par @c want_persistent_client
+# @par @c want_persistent_client:
 #                               Enable http 1.1 persistence, client side.
 #
-# @par @c want_persistent_server
+# @par @c want_persistent_server:
 #                               Enable http 1.1 persistence, server side.
 #
-# @par @c debug_cms_certs
+# @par @c debug_cms_certs:
 #                               Enable verbose logging about cms certs.
 #
-# @par @c sql_debug
+# @par @c sql_debug:
 #                               Enable verbose logging about sql operations.
 #
-# @par @c gc_debug
+# @par @c gc_debug:
 #                               Enable scary garbage collector debugging.
 #
-# @par @c timer_debug
+# @par @c timer_debug:
 #                               Enable verbose logging of timer system.
 #
 # There are also a few options that allow you to save CMS messages for
@@ -483,10 +505,10 @@
 # Maildir-format mailbox.  The current options are very crude, at some
 # point we may provide finer grain controls.
 #
-# @par @c dump_outbound_cms
+# @par @c dump_outbound_cms:
 #                               Dump messages we send to this mailbox.
 #
-# @par @c dump_inbound_cms
+# @par @c dump_inbound_cms:
 #                               Dump messages we receive to this mailbox.
 
 ## @page rpkidconf rpkid.conf
@@ -498,53 +520,53 @@
 #
 # %Config file options:
 #
-# @par @c startup-message
+# @par @c startup-message:
 #                      String to %log on startup, useful when
 #                      debugging a collection of rpkid instances at
 #                      once.
 #
-# @par @c sql-username
+# @par @c sql-username:
 #                      Username to hand to MySQL when connecting to
 #                      rpkid's database.
 #
-# @par @c sql-database
+# @par @c sql-database:
 #                      MySQL's database name for rpkid's database.
 #
-# @par @c sql-password
+# @par @c sql-password:
 #                      Password to hand to MySQL when connecting to
 #                      rpkid's database.
 #
-# @par @c bpki-ta
+# @par @c bpki-ta:
 #                      Name of file containing BPKI trust anchor.
 #                      All BPKI certificate verification within rpkid
 #                      traces back to this trust anchor. 
 #
-# @par @c rpkid-cert
+# @par @c rpkid-cert:
 #                      Name of file containing rpkid's own BPKI EE
 #                      certificate.
 #
-# @par @c rpkid-key
+# @par @c rpkid-key:
 #                      Name of file containing RSA key corresponding
 #                      to rpkid-cert.
 #
-# @par @c irbe-cert
+# @par @c irbe-cert:
 #                      Name of file containing BPKI certificate used
 #                      by IRBE when talking to rpkid.
 #
-# @par @c irdb-cert
+# @par @c irdb-cert:
 #                      Name of file containing BPKI certificate used
 #                      by irdbd.
 #
-# @par @c irdb-url
+# @par @c irdb-url:
 #                      Service URL for irdbd.  Must be a %https:// URL.
 #
-# @par @c server-host
+# @par @c server-host:
 #                      Hostname or IP address on which to listen for
 #                      HTTPS connections.  Current default is
 #                      INADDR_ANY (IPv4 0.0.0.0); this will need to
 #                      be hacked to support IPv6 for production.
 #
-# @par @c server-port
+# @par @c server-port:
 #                      TCP port on which to listen for HTTPS
 #                      connections.
 
@@ -557,45 +579,45 @@
 #
 # %Config file options:
 #
-# @par @c sql-username
+# @par @c sql-username:
 #                      Username to hand to MySQL when connecting to
 #                      pubd's database.
 #
-# @par @c sql-database
+# @par @c sql-database:
 #                      MySQL's database name for pubd's database.
 #
-# @par @c sql-password
+# @par @c sql-password:
 #                      Password to hand to MySQL when connecting to
 #                      pubd's database.
 #
-# @par @c bpki-ta
+# @par @c bpki-ta:
 #                      Name of file containing master BPKI trust
 #                      anchor for  pubd.  All BPKI validation in pubd
 #                      traces back to this trust anchor.
 #
-# @par @c irbe-cert
+# @par @c irbe-cert:
 #                      Name of file containing BPKI certificate used
 #                      by IRBE when talking to pubd.
 #
-# @par @c pubd-cert
+# @par @c pubd-cert:
 #                      Name of file containing BPKI certificate used
 #                      by pubd.
 #
-# @par @c pubd-key
+# @par @c pubd-key:
 #                      Name of file containing RSA key corresponding
 #                      to @c pubd-cert.
 #
-# @par @c server-host
+# @par @c server-host:
 #                      Hostname or IP address on which to listen for
 #                      HTTPS connections.  Current default is
 #                      INADDR_ANY (IPv4 0.0.0.0); this will need to
 #                      be hacked to support IPv6 for production.
 #
-# @par @c server-port
+# @par @c server-port:
 #                      TCP port on which to listen for HTTPS
 #                      connections.
 #
-# @par @c publication-base
+# @par @c publication-base:
 #                      Path to base of filesystem tree where pubd
 #                      should store publishable objects.  Default is
 #                      "publication/".
@@ -609,63 +631,63 @@
 #
 # %Config file options:
 #
-# @par @c bpki-ta
+# @par @c bpki-ta:
 #                      Name of file containing BPKI trust anchor.  All
 #                      BPKI certificate validation in rootd traces
 #                      back to this trust anchor.
 #
-# @par @c rootd-bpki-cert
+# @par @c rootd-bpki-cert:
 #                      Name of file containing rootd's own BPKI
 #                      certificate. 
 #
-# @par @c rootd-bpki-key
+# @par @c rootd-bpki-key:
 #                      Name of file containing RSA key corresponding to
 #                      rootd-bpki-cert.
 #
-# @par @c rootd-bpki-crl
+# @par @c rootd-bpki-crl:
 #                      Name of file containing BPKI CRL that would
 #                      cover rootd-bpki-cert had it been revoked.
 #
-# @par @c child-bpki-cert
+# @par @c child-bpki-cert:
 #                      Name of file containing BPKI certificate for 
 #                      rootd's one and only child (RPKI engine to
 #                      which rootd issues an RPKI certificate).
 #
-# @par @c server-host
+# @par @c server-host:
 #                      Hostname or IP address on which to listen for
 #                      HTTPS connections.  Default is localhost.
 #
-# @par @c server-port
+# @par @c server-port:
 #                      TCP port on which to listen for HTTPS
 #                      connections.
 #
-# @par @c rpki-root-key
+# @par @c rpki-root-key:
 #                      Name of file containing RSA key to use in
 #                      signing resource certificates.
 #
-# @par @c rpki-root-cert
+# @par @c rpki-root-cert:
 #                      Name of file containing self-signed root
 #                      resource certificate corresponding to
 #                      rpki-root-key.
 #
-# @par @c rpki-root-dir
+# @par @c rpki-root-dir:
 #                      Name of directory where rootd should write
 #                      RPKI subject certificate, manifest, and CRL.
 #
-# @par @c rpki-subject-cert
+# @par @c rpki-subject-cert:
 #                      Name of file that rootd should use to save the
 #                      one and only certificate it issues.
 #                      Default is "Subroot.cer".
 #
-# @par @c rpki-root-crl
+# @par @c rpki-root-crl:
 #                      Name of file to which rootd should save its
 #                      RPKI CRL.  Default is "Root.crl".
 #
-# @par @c rpki-root-manifest
+# @par @c rpki-root-manifest:
 #                      Name of file to which rootd should save its
 #                      RPKI manifest.  Default is "Root.mnf".
 #
-# @par @c rpki-subject-pkcs10
+# @par @c rpki-subject-pkcs10:
 #                      Name of file that rootd should use when saving
 #                      a copy of the received PKCS #10 request for a
 #                      resource certificate.  This is only used for
@@ -681,41 +703,41 @@
 #
 # %Config file options:
 #
-# @par @c startup-message
+# @par @c startup-message:
 #                      String to %log on startup, useful when
 #                      debugging a collection of irdbd instances at
 #                      once.
 #
-# @par @c sql-username
+# @par @c sql-username:
 #                      Username to hand to MySQL when connecting to
 #                      irdbd's database.
 #
-# @par @c sql-database
+# @par @c sql-database:
 #                      MySQL's database name for irdbd's database.
 #
-# @par @c sql-password
+# @par @c sql-password:
 #                      Password to hand to MySQL when connecting to
 #                      irdbd's database.
 #
-# @par @c bpki-ta
+# @par @c bpki-ta:
 #                      Name of file containing BPKI trust anchor.  All
 #                      BPKI certificate validation in irdbd traces
 #                      back to this trust anchor.
 #
-# @par @c irdbd-cert
+# @par @c irdbd-cert:
 #                      Name of file containing irdbd's own BPKI
 #                      certificate. 
 #
-# @par @c irdbd-key
+# @par @c irdbd-key:
 #                      Name of file containing RSA key corresponding
 #                      to irdbd-cert.
 #
-# @par @c rpkid-cert
+# @par @c rpkid-cert:
 #                      Name of file containing certificate used the
 #                      one and only by rpkid instance authorized to
 #                      contact this irdbd instance.
 #
-# @par @c https-url
+# @par @c https-url:
 #                      Service URL for irdbd.  Must be a %https:// URL.
 
 ## @page smoketestconf smoketest.conf
@@ -783,40 +805,40 @@
 #
 # Operators in subsequent (update) documents:
 #
-# @li @c add_as:
+# @par @c add_as:
 #              Add ASN resources.
 #
-# @li @c add_v4:
+# @par @c add_v4:
 #              Add IPv4 resources.
 #
-# @li @c add_v6:
+# @par @c add_v6:
 #              Add IPv6 resources.
 #
-# @li @c sub_as:
+# @par @c sub_as:
 #              Subtract ASN resources.
 #
-# @li @c sub_v4:
+# @par @c sub_v4:
 #              Subtract IPv4 resources.
 #
-# @li @c sub_v6:
+# @par @c sub_v6:
 #              Subtract IPv6 resources.
 #
-# @li @c valid_until:
+# @par @c valid_until:
 #              Set an absolute expiration date.
 #
-# @li @c valid_for:
+# @par @c valid_for:
 #              Set a relative expiration date.
 #
-# @li @c valid_add:
+# @par @c valid_add:
 #              Add to validity interval.
 #
-# @li @c valid_sub:
+# @par @c valid_sub:
 #              Subtract from validity interval.
 #
-# @li @c sleep [interval]:
+# @par @c sleep [interval]:
 #              Sleep for specified interval, or until smoketest receives a SIGALRM signal.
 #
-# @li @c shell cmd:
+# @par @c shell cmd...:
 #              Pass rest of line verbatim to /bin/sh and block until the shell returns.
 #
 # Absolute timestamps should be in the form shown (UTC timestamp format
@@ -852,7 +874,7 @@
 # @li @ref pubd "@c pubd":
 #              The publication engine daemon.
 #
-# @li @ref rootd "@c rootd":
+# @li @ref rootd "@c rootd"
 #              A separate daemon for handling the root of an RPKI
 #              certificate tree.  This is essentially a stripped down
 #              version of rpkid with no SQL database, no left-right
@@ -936,9 +958,9 @@
 #
 # rpkid is the main RPKI engine daemon.  Configuration of rpkid is a
 # two step process: a %config file to bootstrap rpkid to the point
-# where it can speak using the @link Left-right left-right protocol,
-# @endlink followed by dynamic configuration via the left-right
-# protocol.  The latter stage is handled by the @c myrpki tool.
+# where it can speak using the @ref Left-right "left-right protocol",
+# followed by dynamic configuration via the left-right protocol.  The
+# latter stage is handled by the @c myrpki tool.
 #
 # rpkid stores dynamic data in an SQL database, which must have been
 # created for it, as explained in the
@@ -1044,16 +1066,6 @@
 # back end (IRBE).  The IRBE is the client for one of the
 # subprotocols, the RPKI engine is the client for the other.
 #
-# @section Terminology
-#
-# @li @em IRBE: Internet Registry Back End
-#
-# @li @em IRDB: Internet Registry Data Base
-#
-# @li @em BPKI: Business PKI
-#
-# @li @em RPKI: Resource PKI
-#
 # @section Operations initiated by the IRBE
 #
 # This part of the protcol uses a kind of message-passing.  Each %object
@@ -1110,21 +1122,21 @@
 #
 # Payload data which can be configured in a @c &lt;self/&gt; %object:
 #
-# @li @c use_hsm (attribute):
+# @par @c use_hsm (attribute):
 #     Whether to use a Hardware Signing Module.  At present this option
 #     has no effect, as the implementation does not yet support HSMs.
 #
-# @li @c crl_interval (attribute):
+# @par @c crl_interval (attribute):
 #     Positive integer representing the planned lifetime of an RPKI CRL
 #     for this @c &lt;self/&gt;, measured in seconds.
 #
-# @li @c regen_margin (attribute):
+# @par @c regen_margin (attribute):
 #     Positive integer representing how long before expiration of an
 #     RPKI certificiate a new one should be generated, measured in
 #     seconds.  At present this only affects the one-off EE certificates
 #     associated with ROAs.
 #
-# @li @c bpki_cert (element):
+# @par @c bpki_cert (element):
 #     BPKI CA certificate for this @c &lt;self/&gt;.  This is used as part of the
 #     certificate chain when validating incoming TLS and CMS messages,
 #     and should be the issuer of cross-certification BPKI certificates
@@ -1134,7 +1146,7 @@
 #     bpki_cert certificate should be issued by the per-engine bpki_ta
 #     certificate.
 #
-# @li @c bpki_glue (element):
+# @par @c bpki_glue (element):
 #     Another BPKI CA certificate for this @c &lt;self/&gt;, usually not needed.
 #     Certain pathological cross-certification cases require a
 #     two-certificate chain due to issuer name conflicts.  If used, the
@@ -1145,30 +1157,30 @@
 #
 # Control attributes that can be set to "yes" to force actions:
 #
-# @li @c rekey:
+# @par @c rekey:
 #     Start a key rollover for every RPKI CA associated with every
 #     @c &lt;parent/&gt; %object associated with this @c &lt;self/&gt; %object.  This is the
 #     first phase of a key rollover operation.
 #
-# @li @c revoke:
+# @par @c revoke:
 #     Revoke any remaining certificates for any expired key associated
 #     with any RPKI CA for any @c &lt;parent/&gt; %object associated with this
 #     @c &lt;self/&gt; %object.   This is the second (cleanup) phase for a key
 #     rollover operation; it's separate from the first phase to leave
 #     time for new RPKI certificates to propegate and be installed.
 #
-# @li @c reissue:
+# @par @c reissue:
 #     Not implemented, may be removed from protocol.  Original theory
 #     was that this operation would force reissuance of any %object with
 #     a changed key, but as that happens automatically as part of the
 #     key rollover mechanism this operation seems unnecessary.
 #
-# @li @c run_now:
+# @par @c run_now:
 #     Force immediate processing for all tasks associated with this
 #     @c &lt;self/&gt; %object that would ordinarily be performed under cron.  Not
 #     currently implemented.
 #
-# @li @c publish_world_now:
+# @par @c publish_world_now:
 #     Force (re)publication of every publishable %object for this @c &lt;self/&gt;
 #     %object.  Not currently implemented.   Intended to aid in recovery
 #     if RPKI engine and publication engine somehow get out of sync.
@@ -1192,15 +1204,15 @@
 #
 # Payload data which can be configured in a @c &lt;isc/&gt; %object:
 #
-# @li @c signing_cert (element):
+# @par @c signing_cert (element):
 #     BPKI certificate to use when generating a signature.
 #
-# @li @c signing_cert_crl (element):
+# @par @c signing_cert_crl (element):
 #     CRL which would %list signing_cert if it had been revoked.
 #
 # Control attributes that can be set to "yes" to force actions:
 #
-# @li @c generate_keypair:
+# @par @c generate_keypair:
 #     Generate a new BPKI keypair and return a PKCS #10 certificate
 #     request.  The resulting certificate, once issued, should be
 #     configured as this @c &lt;bsc/&gt; %object's signing_cert.
@@ -1208,15 +1220,15 @@
 # Additional attributes which may be specified when specifying
 # "generate_keypair":
 #
-# @li @c key_type:
+# @par @c key_type:
 #     Type of BPKI keypair to generate.  "rsa" is both the default and,
 #     at the moment, the only allowed value.
 #
-# @li @c hash_alg:
+# @par @c hash_alg:
 #     Cryptographic hash algorithm to use with this keypair.  "sha256"
 #     is both the default and, at the moment, the only allowed value.
 #
-# @li @c key_length:
+# @par @c key_length:
 #     Length in bits of the keypair to be generated.  "2048" is both the
 #     default and, at the moment, the only allowed value.
 #
@@ -1246,25 +1258,25 @@
 #
 # Payload data which can be configured in a @c &lt;parent/&gt; %object:
 #
-# @li @c peer_contact_uri (attribute):
+# @par @c peer_contact_uri (attribute):
 #     HTTPS URI used to contact this parent.
 #
-# @li @c sia_base (attribute):
+# @par @c sia_base (attribute):
 #     The leading portion of an rsync URI that the RPKI engine should
 #     use when composing the publication URI for %objects issued by the
 #     RPKI certificate issued by this parent.
 #
-# @li @c sender_name (attribute):
+# @par @c sender_name (attribute):
 #     Sender name to use in the up-down protocol when talking to this
 #     parent.  The RPKI engine doesn't really care what this value is,
 #     but other implementations of the up-down protocol do care.
 #
-# @li @c recipient_name (attribute):
+# @par @c recipient_name (attribute):
 #     Recipient name to use in the up-down protocol when talking to this
 #     parent.   The RPKI engine doesn't really care what this value is,
 #     but other implementations of the up-down protocol do care.
 #
-# @li @c bpki_cms_cert (element):
+# @par @c bpki_cms_cert (element):
 #     BPKI CMS CA certificate for this @c &lt;parent/&gt;.  This is used as part
 #     of the certificate chain when validating incoming CMS messages If
 #     the bpki_cms_glue certificate is in use (below), the bpki_cms_cert
@@ -1272,7 +1284,7 @@
 #     otherwise, the bpki_cms_cert certificate should be issued by the
 #     bpki_cert certificate in the @c &lt;self/&gt; %object.
 #
-# @li @c bpki_cms_glue (element):
+# @par @c bpki_cms_glue (element):
 #     Another BPKI CMS CA certificate for this @c &lt;parent/&gt;, usually not
 #     needed.  Certain pathological cross-certification cases require a
 #     two-certificate chain due to issuer name conflicts.  If used, the
@@ -1281,27 +1293,27 @@
 #     certificate in the @c &lt;self/&gt; %object; if not needed, the
 #     bpki_cms_glue certificate should be left unset.
 #
-# @li @c bpki_https_cert (element):
+# @par @c bpki_https_cert (element):
 #     BPKI HTTPS CA certificate for this @c &lt;parent/&gt;.  This is like the
 #     bpki_cms_cert %object, only used for validating incoming TLS
 #     messages rather than CMS.
 #
-# @li @c bpki_cms_glue (element):
+# @par @c bpki_cms_glue (element):
 #     Another BPKI HTTPS CA certificate for this @c &lt;parent/&gt;, usually not
 #     needed.  This is like the bpki_cms_glue certificate, only used for
 #     validating incoming TLS messages rather than CMS.
 #
 # Control attributes that can be set to "yes" to force actions:
 #
-# @li @c rekey:
+# @par @c rekey:
 #     This is like the rekey command in the @c &lt;self/&gt; %object, but limited
 #     to RPKI CAs under this parent.
 #
-# @li @c reissue:
+# @par @c reissue:
 #     This is like the reissue command in the @c &lt;self/&gt; %object, but limited
 #     to RPKI CAs under this parent.
 #
-# @li @c revoke:
+# @par @c revoke:
 #     This is like the revoke command in the @c &lt;self/&gt; %object, but limited
 #     to RPKI CAs under this parent.
 #
@@ -1317,7 +1329,7 @@
 #
 # Payload data which can be configured in a @c &lt;child/&gt; %object:
 #
-# @li @c bpki_cert (element):
+# @par @c bpki_cert (element):
 #     BPKI CA certificate for this @c &lt;child/&gt;.  This is used as part of
 #     the certificate chain when validating incoming TLS and CMS
 #     messages.  If the bpki_glue certificate is in use (below), the
@@ -1325,7 +1337,7 @@
 #     certificate; otherwise, the bpki_cert certificate should be issued
 #     by the bpki_cert certificate in the @c &lt;self/&gt; %object.
 #
-# @li @c bpki_glue (element):
+# @par @c bpki_glue (element):
 #     Another BPKI CA certificate for this @c &lt;child/&gt;, usually not needed.
 #     Certain pathological cross-certification cases require a
 #     two-certificate chain due to issuer name conflicts.  If used, the
@@ -1336,7 +1348,7 @@
 #
 # Control attributes that can be set to "yes" to force actions:
 #
-# @li @c reissue:
+# @par @c reissue:
 #     Not implemented, may be removed from protocol.
 #
 # @subsection repository_obj <repository/> object
@@ -1351,10 +1363,10 @@
 #
 # Payload data which can be configured in a @c &lt;repository/&gt; %object:
 #
-# @li @c peer_contact_uri (attribute):
+# @par @c peer_contact_uri (attribute):
 #     HTTPS URI used to contact this repository.
 #
-# @li @c bpki_cms_cert (element):
+# @par @c bpki_cms_cert (element):
 #     BPKI CMS CA certificate for this @c &lt;repository/&gt;.  This is used as part
 #     of the certificate chain when validating incoming CMS messages If
 #     the bpki_cms_glue certificate is in use (below), the bpki_cms_cert
@@ -1362,7 +1374,7 @@
 #     otherwise, the bpki_cms_cert certificate should be issued by the
 #     bpki_cert certificate in the @c &lt;self/&gt; %object.
 #
-# @li @c bpki_cms_glue (element):
+# @par @c bpki_cms_glue (element):
 #     Another BPKI CMS CA certificate for this @c &lt;repository/&gt;, usually not
 #     needed.  Certain pathological cross-certification cases require a
 #     two-certificate chain due to issuer name conflicts.  If used, the
@@ -1371,12 +1383,12 @@
 #     certificate in the @c &lt;self/&gt; %object; if not needed, the
 #     bpki_cms_glue certificate should be left unset.
 #
-# @li @c bpki_https_cert (element):
+# @par @c bpki_https_cert (element):
 #     BPKI HTTPS CA certificate for this @c &lt;repository/&gt;.  This is like the
 #     bpki_cms_cert %object, only used for validating incoming TLS
 #     messages rather than CMS.
 #
-# @li @c bpki_cms_glue (element):
+# @par @c bpki_cms_glue (element):
 #     Another BPKI HTTPS CA certificate for this @c &lt;repository/&gt;, usually not
 #     needed.  This is like the bpki_cms_glue certificate, only used for
 #     validating incoming TLS messages rather than CMS.
@@ -1414,20 +1426,20 @@
 #
 # Payload data which can be configured in a @c &lt;route_origin/&gt; %object:
 #
-# @li @c asn (attribute):
+# @par @c asn (attribute):
 #     Autonomous System Number (ASN) to place in the generated ROA.  A
 #     single ROA can only grant authorization to a single ASN; multiple
 #     ASNs require multiple ROAs, thus multiple @c &lt;route_origin/&gt; %objects.
 #
-# @li @c ipv4 (attribute):
+# @par @c ipv4 (attribute):
 #     %List of IPv4 prefix and maxLength values, see below for format.
 #
-# @li @c ipv6 (attribute):
+# @par @c ipv6 (attribute):
 #     %List of IPv6 prefix and maxLength values, see below for format.
 #
 # Control attributes that can be set to "yes" to force actions:
 #
-# @li @c suppress_publication:
+# @par @c suppress_publication:
 #     Not implemented, may be removed from protocol.
 #
 # The lists of IPv4 and IPv6 prefix and maxLength values are represented
@@ -1473,22 +1485,22 @@
 # with the @c tag (if specified), @c self_handle, and @c child_handle copied
 # from the request:
 #
-# @li @c valid_until:
+# @par @c valid_until:
 #     A timestamp indicating the date and time at which certificates
 #     generated by the RPKI engine for these data should expire.  The
 #     timestamp is expressed as an XML @c xsd:dateTime, must be
 #     expressed in UTC, and must carry the "Z" suffix indicating UTC.
 #
-# @li @c asn:
+# @par @c asn:
 #     A %list of autonomous sequence numbers, expressed as a
 #     comma-separated sequence of decimal integers with no whitespace.
 #
-# @li @c ipv4:
+# @par @c ipv4:
 #     A %list of IPv4 address prefixes and ranges, expressed as a
 #     comma-separated %list of prefixes and ranges with no whitespace.
 #     See below for format details.
 #
-# @li @c ipv6:
+# @par @c ipv6:
 #     A %list of IPv6 address prefixes and ranges, expressed as a
 #     comma-separated %list of prefixes and ranges with no whitespace.
 #     See below for format details.
@@ -1547,7 +1559,7 @@
 # %publication of specific objects.
 #
 # Much of the architecture of the %publication protocol is borrowed
-# from the @link Left-right left-right protocol: @endlink like the
+# from the @ref Left-right "left-right protocol": like the
 # left-right protocol, the %publication protocol uses CMS-wrapped XML
 # over HTTPS with the same eContentType OID and the same HTTPS
 # content-type, and the overall style of the XML messages is very
@@ -1557,16 +1569,6 @@
 # The %publication engine operates a single HTTPS server which serves
 # both of these subprotocols.  The two subprotocols share a single
 # server port, but use distinct URLs to allow demultiplexing.
-#
-# @section Terminology
-#
-# @li @em IRBE: Internet Registry Back End
-#
-# @li @em IRDB: Internet Registry Data Base
-#
-# @li @em BPKI: Business PKI
-#
-# @li @em RPKI: Resource PKI
 #
 # @section Publication-control Publication control subprotocol
 #
@@ -1586,7 +1588,7 @@
 #
 # Payload data which can be configured in a &lt;config/&gt; %object:
 #
-# @li @c bpki_crl (element):
+# @par @c bpki_crl (element):
 #     This is the BPKI CRL used by the %publication server when
 #     signing the CMS wrapper on responses in the %publication
 #     subprotocol.  As the CRL must be updated at regular intervals,
@@ -1608,12 +1610,12 @@
 #
 # Payload data which can be configured in a &lt;client/&gt; %object:
 #
-# @li @c base_uri (attribute):
+# @par @c base_uri (attribute):
 #     This is the base URI below which this client is allowed to publish
 #     data.  The %publication server may impose additional constraints in
 #     the case of a child publishing beneath its parent.
 #
-# @li @c bpki_cert (element):
+# @par @c bpki_cert (element):
 #     BPKI CA certificate for this &lt;client/&gt;.  This is used as part of
 #     the certificate chain when validating incoming TLS and CMS
 #     messages.  If the bpki_glue certificate is in use (below), the
@@ -1621,7 +1623,7 @@
 #     certificate; otherwise, the bpki_cert certificate should be issued
 #     by the %publication engine's bpki_ta certificate.
 #
-# @li @c bpki_glue (element):
+# @par @c bpki_glue (element):
 #     Another BPKI CA certificate for this &lt;client/&gt;, usually not
 #     needed.  Certain pathological cross-certification cases require a
 #     two-certificate chain due to issuer name conflicts.  If used, the
@@ -1805,14 +1807,18 @@
 # production of end-entity certificates for use by the engines.
 #
 # There are a few design principals that underly the chosen BPKI model:
+#
 # @li Each engine should rely on a single BPKI trust anchor which is
 #     controlled by the back end entity that runs the engine; all
 #     other trust material should be cross-certified into the engine's
 #     BPKI tree.
+#
 # @li Private keys must never transit the network.
+#
 # @li Except for end entity certificates, the engine should only have
 #     access to the BPKI certificates; in particular, the private key
 #     for the BPKI trust anchor should not be accessible to the engine.
+#
 # @li The number of BPKI keys and certificates that the engine has to
 #     manage should be no larger than is necessary.
 #
@@ -2217,7 +2223,7 @@
 # In general we assume that anybody who bothers to run @c rpkid is
 # also a resource holder, but the software does not insist on this.
 # 
-# @note
+# @todo
 # Er, well, rpkid doesn't, but myrpki now does -- "pure" hosting was an
 # unused feature that fell by the wayside while simplifying the user
 # interface.  It would be relatively straightforward to add it back if
@@ -2270,11 +2276,6 @@
 # @verbatim
 #   $ rsync rsync://rpki.example.org/where/ever/
 # @endverbatim
-#
-# @note Maybe there should be something here explaining how to use
-# irbe_cli.py for debugging, but the syntax is fairly obscure as it's
-# just a command line interface to the left-right and publication
-# protocols -- we really need a friendlier tool for troubleshooting.
 # 
 # @section myrpkiknownissues Known Issues
 # 

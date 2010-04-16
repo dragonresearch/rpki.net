@@ -18,16 +18,6 @@ The publication engine operates a single HTTPS server which serves both of
 these subprotocols. The two subprotocols share a single server port, but use
 distinct URLs to allow demultiplexing.
 
-***** Terminology *****
-
-* IRBE: Internet Registry Back End
-
-* IRDB: Internet Registry Data Base
-
-* BPKI: Business PKI
-
-* RPKI: Resource PKI
-
 ***** Publication control subprotocol *****
 
 The control subprotocol reuses the message-passing design of the left-right
@@ -45,13 +35,14 @@ supports the "set" and "get" actions -- it cannot be created or destroyed.
 
 Payload data which can be configured in a <config/> object:
 
-* bpki_crl (element): This is the BPKI CRL used by the publication server when
-  signing the CMS wrapper on responses in the publication subprotocol. As the
-  CRL must be updated at regular intervals, it's not practical to restart the
-  publication server when the BPKI CRL needs to be updated. The BPKI model
-  doesn't require use of a BPKI CRL between the IRBE and the publication
-  server, so we can use the publication control subprotocol to update the BPKI
-  CRL.
+  bpki_crl (element):
+      This is the BPKI CRL used by the publication server when signing the CMS
+      wrapper on responses in the publication subprotocol. As the CRL must be
+      updated at regular intervals, it's not practical to restart the
+      publication server when the BPKI CRL needs to be updated. The BPKI model
+      doesn't require use of a BPKI CRL between the IRBE and the publication
+      server, so we can use the publication control subprotocol to update the
+      BPKI CRL.
 
 **** <client/> object ****
 
@@ -65,22 +56,26 @@ actions.
 
 Payload data which can be configured in a <client/> object:
 
-* base_uri (attribute): This is the base URI below which this client is allowed
-  to publish data. The publication server may impose additional constraints in
-  the case of a child publishing beneath its parent.
+  base_uri (attribute):
+      This is the base URI below which this client is allowed to publish data.
+      The publication server may impose additional constraints in the case of a
+      child publishing beneath its parent.
 
-* bpki_cert (element): BPKI CA certificate for this <client/>. This is used as
-  part of the certificate chain when validating incoming TLS and CMS messages.
-  If the bpki_glue certificate is in use (below), the bpki_cert certificate
-  should be issued by the bpki_glue certificate; otherwise, the bpki_cert
-  certificate should be issued by the publication engine's bpki_ta certificate.
+  bpki_cert (element):
+      BPKI CA certificate for this <client/>. This is used as part of the
+      certificate chain when validating incoming TLS and CMS messages. If the
+      bpki_glue certificate is in use (below), the bpki_cert certificate should
+      be issued by the bpki_glue certificate; otherwise, the bpki_cert
+      certificate should be issued by the publication engine's bpki_ta
+      certificate.
 
-* bpki_glue (element): Another BPKI CA certificate for this <client/>, usually
-  not needed. Certain pathological cross-certification cases require a two-
-  certificate chain due to issuer name conflicts. If used, the bpki_glue
-  certificate should be the issuer of the bpki_cert certificate and should be
-  issued by the publication engine's bpki_ta certificate; if not needed, the
-  bpki_glue certificate should be left unset.
+  bpki_glue (element):
+      Another BPKI CA certificate for this <client/>, usually not needed.
+      Certain pathological cross-certification cases require a two-certificate
+      chain due to issuer name conflicts. If used, the bpki_glue certificate
+      should be the issuer of the bpki_cert certificate and should be issued by
+      the publication engine's bpki_ta certificate; if not needed, the
+      bpki_glue certificate should be left unset.
 
 ***** Publication subprotocol *****
 

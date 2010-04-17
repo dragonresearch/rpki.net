@@ -81,8 +81,10 @@ eps: doc/irdbd.eps doc/pubd.eps doc/rpkid.eps doc/rpkid-bpki.eps doc/pubd-bpki.e
 
 png: doc/irdbd.png doc/pubd.png doc/rpkid.png doc/rpkid-bpki.png doc/pubd-bpki.png
 
+docclean:
+	rm -rf doc/html doc/latex doc/xml
+
 html: dot eps png
-#	rm -rf doc/html doc/latex doc/xml
 	TZ='' doxygen
 
 tgz: html

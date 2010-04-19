@@ -22,7 +22,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import subprocess, os, sys, myrpki
+import subprocess, os, sys, rpki.myrpki
 
 original_xml = '''\
 <publication_referral xmlns="http://www.hactrn.net/uris/rpki/publication-spec/"
@@ -35,10 +35,10 @@ f = open("original.xml", "w")
 f.write(original_xml)
 f.close()
 
-myrpki.openssl = "/u/sra/rpki/subvert-rpki.hactrn.net/openssl/openssl/apps/openssl"
+rpki.myrpki.openssl = "/u/sra/rpki/subvert-rpki.hactrn.net/openssl/openssl/apps/openssl"
 os.putenv("OPENSSL_CONF", "/dev/null")
 
-bpki = myrpki.CA("test/Alice/myrpki.conf", "test/Alice/bpki/resources")
+bpki = rpki.myrpki.CA("test/Alice/myrpki.conf", "test/Alice/bpki/resources")
 bpki.ee("/CN=Alice Signed Referral CMS Test EE Certificate", "CMSEE")
 
 # "id-ct-xml" from rpki.oids
@@ -46,7 +46,7 @@ oid = ".".join(map(str, (1, 2, 840, 113549, 1, 9, 16, 1, 28)))
 
 format = "DER"                          # PEM or DER
 
-subprocess.check_call((myrpki.openssl, "cms", "-sign",
+subprocess.check_call((rpki.myrpki.openssl, "cms", "-sign",
                        "-binary", "-nodetach", "-nosmimecap", "-keyid", "-outform", format,
                        "-econtent_type", oid, "-md", "sha256",
                        "-inkey",  "test/Alice/bpki/resources/CMSEE.key",
@@ -61,6 +61,6 @@ if format == "DER":
 # at least we can make it the job of the code formerly known as irdbd,
 # where we have full libraries available to us.  but blunder ahead...
 
-subprocess.check_call((myrpki.openssl, "cms", "-verify", "-inform", format,
+subprocess.check_call((rpki.myrpki.openssl, "cms", "-verify", "-inform", format,
                        "-CAfile", "test/Alice/bpki/resources/ca.cer",
                        "-in",     "original.%s" % format.lower()))

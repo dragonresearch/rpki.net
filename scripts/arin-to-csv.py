@@ -23,7 +23,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import gzip, csv, myrpki
+import gzip, csv, rpki.myrpki
 
 class Handle(object):
 
@@ -95,10 +95,10 @@ class main(object):
     return tag.strip(), val.strip()
 
   def __init__(self):
-    self.asns = myrpki.csv_writer("asns.csv")
-    self.prefixes = myrpki.csv_writer("prefixes.csv")
+    self.asns = rpki.myrpki.csv_writer("asns.csv")
+    self.prefixes = rpki.myrpki.csv_writer("prefixes.csv")
     try:
-      self.translations = dict((src, dst) for src, dst in myrpki.csv_reader("translations.csv", columns = 2))
+      self.translations = dict((src, dst) for src, dst in rpki.myrpki.csv_reader("translations.csv", columns = 2))
     except IOError:
       pass
     f = gzip.open("arin_db.txt.gz")

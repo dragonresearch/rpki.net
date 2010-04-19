@@ -22,7 +22,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import csv, myrpki, sys
+import csv, rpki.myrpki, sys
 
 if len(sys.argv) != 2:
   raise RuntimeError, "Usage: %s [holder]" % sys.argv[0]
@@ -51,7 +51,7 @@ sbgp-ipAddrBlock                = critical,@rfc3997_addrs
 ''' % { "holder" : sys.argv[1].lower(),
         "HOLDER" : sys.argv[1].upper() }
 
-for i, asn in enumerate(asn for handle, asn in myrpki.csv_reader("asns.csv", columns = 2)):
+for i, asn in enumerate(asn for handle, asn in rpki.myrpki.csv_reader("asns.csv", columns = 2)):
   print "AS.%d = %s" % (i, asn)
 
 print '''\
@@ -60,6 +60,6 @@ print '''\
 
 '''
 
-for i, prefix in enumerate(prefix for handle, prefix in myrpki.csv_reader("prefixes.csv", columns = 2)):
+for i, prefix in enumerate(prefix for handle, prefix in rpki.myrpki.csv_reader("prefixes.csv", columns = 2)):
   v = 6 if ":" in prefix else 4
   print "IPv%d.%d = %s" % (v, i, prefix)

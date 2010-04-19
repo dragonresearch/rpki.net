@@ -31,16 +31,16 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, sys, myrpki
+import os, sys, rpki.myrpki
 
-translations = dict((src, dst) for src, dst in myrpki.csv_reader("translations.csv", columns = 2))
+translations = dict((src, dst) for src, dst in rpki.myrpki.csv_reader("translations.csv", columns = 2))
 
 for filename in sys.argv[1:]:
 
   tmpfile = "%s.%d" % os.getpid()
-  csvout = myrpki.csv_writer(tmpfile)
+  csvout = rpki.myrpki.csv_writer(tmpfile)
 
-  for cols in myrpki.csv_reader(filename):
+  for cols in rpki.myrpki.csv_reader(filename):
     if cols[0] in translations:
       cols[0] = translations[cols[0]]
     csvout(cols)

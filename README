@@ -7,6 +7,7 @@ Required reading:
 - RFC 3779
 - Portions of RFCs 3280 and 3852
 - draft-ietf-sidr-*
+- draft-ymbk-rpki-rtr-protocol
 
 Programs:
 
@@ -14,9 +15,10 @@ Programs:
   Patches for this have been submitted to the OpenSSL project and were
   incorporated into release OpenSSL 0.9.8e.
 
-  At present we're using unmodified copies of OpenSSL project
-  snapshots, because we need CMS code that's not yet in any released
-  version.  So we keep a distribution tarball and a makefile that
+  At present we're using an unmodified copy of the OpenSSL 1.0
+  release, but the RFC 3779 code isn't enabled by default at compile
+  time, so we need to build our own copy with the right configuration
+  options.  So we ship a distribution tarball and a makefile that
   knows how to unpack, configure, and build it, so that other tools in
   this package can use the resulting libraries.
 
@@ -25,18 +27,39 @@ Programs:
 - rpkid: rpkid and friends, a collection of Python programs to handle
   the publication side of the RPKI project.
 
-- myrpki: a minimal (text-file-based) sample back-end setup (IRBE).
-  No GUI, not suitable for anything complex, but perhaps sufficient
-  for alpha testers.
-
 - utils and scripts: various little test programs and utilities, not
   really intended for use by anyone but the author.  If they're
   useful, cool, enjoy, but if they blow up in your face, set your
   computer on fire, and turn your cat blue, that's your problem.
+
+- rtr-origin: a Python implementation of the "RPKI/Router" protocol
+  described in draft-ymbk-rpki-rtr-protocol.
 
 Other:
 
 - presentations: miscellaneous presentations and design documents for
   the project.
 
-- wiki-mirror: Mirror of selected documents from a Wiki at APNIC.
+Documentation:
+
+- rcynic: See rcynic/README.
+
+- rpkid:
+
+  - See rpkid/doc/manual.tar.gz for a gzipped tarball of the entire
+    manual in HTML format.
+
+  - There's also a PDF version of the manual in rpkid/doc/manual.pdf.
+    The documentation on the code internals is uglier than in the HTML
+    version, but the installation and setup documenation should be
+    readable.
+
+  - There are also flat text versions of the most important parts of
+    the installation and setup documentation, in the rpkid/doc
+    directory.
+
+  All of the rpkid documentation is produced by Doxygen from a single
+  set of documentation sources.  The flat text files are html2text
+  dumps of the HTML.
+
+- Others: See READMEs and source code in the individual directories.

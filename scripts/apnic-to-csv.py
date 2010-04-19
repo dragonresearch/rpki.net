@@ -19,12 +19,12 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import csv, myrpki, rpki.ipaddrs
+import csv, rpki.myrpki, rpki.ipaddrs
 
-translations = dict((src, dst) for src, dst in myrpki.csv_reader("translations.csv", columns = 2))
+translations = dict((src, dst) for src, dst in rpki.myrpki.csv_reader("translations.csv", columns = 2))
 
-asns     = myrpki.csv_writer("asns.csv")
-prefixes = myrpki.csv_writer("prefixes.csv")
+asns     = rpki.myrpki.csv_writer("asns.csv")
+prefixes = rpki.myrpki.csv_writer("prefixes.csv")
 
 for line in open("delegated-apnic-extended-latest"):
 

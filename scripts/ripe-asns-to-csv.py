@@ -23,7 +23,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import gzip, csv, myrpki
+import gzip, csv, rpki.myrpki
 
 class Handle(dict):
 
@@ -88,7 +88,7 @@ class main(object):
   filenames = ("ripe.db.aut-num.gz",)
 
   def __init__(self):
-    self.asns = myrpki.csv_writer("asns.csv")
+    self.asns = rpki.myrpki.csv_writer("asns.csv")
     for fn in self.filenames:
       f = gzip.open(fn)
       self.statement = ""

@@ -88,7 +88,7 @@ few more external packages, only one of which is Python code.
   o FreeBSD: /usr/ports/textproc/libxslt
   o Ubuntu: xsltproc
 
-All tests should be run from the rpkid/ or myrpki/ directories.
+All tests should be run from the rpkid/ directories.
 
 Some of the tests require MySQL databases to store their data. To set up all
 the databases that the tests will need, run the SQL commands in rpkid/

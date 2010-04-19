@@ -1,6 +1,6 @@
 # $Id$
 
-all: rpki/relaxng.py
+all: rpki/relaxng.py myrpki.rng
 
 rpki/relaxng.py: ../scripts/make-relaxng.py left-right-schema.rng up-down-schema.rng publication-schema.rng
 	python ../scripts/make-relaxng.py >$@.tmp
@@ -14,6 +14,9 @@ up-down-schema.rng: up-down-schema.rnc
 
 publication-schema.rng: publication-schema.rnc
 	trang publication-schema.rnc publication-schema.rng
+
+myrpki.rng: myrpki.rnc
+	trang myrpki.rnc myrpki.rng
 
 clean:
 	find . -type f -name '*.pyc' -delete
@@ -38,7 +41,7 @@ all-tests:: unit-tests
 
 all-tests:: relaxng
 
-test all-tests parse-test profile::
+test all-tests parse-test profile yamltest::
 	cd tests; $(MAKE) $@
 
 

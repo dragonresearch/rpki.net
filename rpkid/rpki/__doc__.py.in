@@ -278,7 +278,7 @@
 # for details.
 #
 #
-# @section smoketest smoketest:
+# @section smoketest smoketest
 #
 # smoketest is a test harness to set up and run a collection of rpkid and
 # irdbd instances under scripted control.
@@ -299,6 +299,22 @@
 #
 # See @ref smoketestyaml "smoketest.yaml" for what goes into the
 # (required) second configuration file.
+#
+#
+# @section yamltest yamltest
+#
+# yamltest is another test harness to set up and run a collection of
+# rpkid and irdbd instances under scripted control.  It is similar in
+# many ways to @ref smoketest "@c smoketest", and in fact uses the
+# same YAML test description language, but its purpose is different:
+# @c smoketest runs a particular test scenario through a series of
+# changes, then shuts it down; @c yamltest, on the other hand, sets up
+# a test network using the same tools that a real user would
+# (principally the @c myrpki tool), and leaves the test running
+# indefinitely.
+#
+# @c yamltest grew out of @c smoketest and the two probably should be
+# merged back into a single tool which supports both kinds of testing.
 
 
 ## @page further-reading Further Reading
@@ -427,7 +443,7 @@
 #   </li>
 # </ul>
 #
-# All tests should be run from the rpkid/ or myrpki/ directories.  
+# All tests should be run from the rpkid/ directories.  
 #
 # Some of the tests require MySQL databases to store their data.  To set
 # up all the databases that the tests will need, run the SQL commands in
@@ -2031,7 +2047,7 @@
 # 
 # The steps needed during setup phase are:
 # 
-# @li Write a configuration file (copy $top/myrpki/examples/myrpki.conf
+# @li Write a configuration file (copy $top/rpkid/examples/myrpki.conf
 #     and edit as needed).  You need to configure the @c [myrpki] section;
 #     in theory, the rest of the file should be ok as it is, at least for
 #     simple use.  You also need to create (either by hand or by dumping
@@ -2166,12 +2182,12 @@
 #     you are running pubd), you will also need to set up an rsyncd
 #     server or configure your existing one to serve pubd's output.
 #     There's a sample configuration file in
-#     $top/myrpki/examples/rsyncd.conf, but you may need to do
+#     $top/rpkid/examples/rsyncd.conf, but you may need to do
 #     something more complicated if you are already running rsyncd for
 #     other purposes.  See the rsync(1) and rsyncd.conf(5) manual
 #     pages for more details.
 # 
-# @li Start the daemons.  You can use $top/myrpki/start-servers.py to
+# @li Start the daemons.  You can use $top/rpkid/start-servers.py to
 #     do this, or write your own script.  If you intend to run pubd,
 #     you should make sure that the directory you specified as
 #     publication_base_directory exists and is writable by the userid

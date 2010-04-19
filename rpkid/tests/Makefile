@@ -49,3 +49,11 @@ profile: all
 	find smoketest.dir -name '*.prof' -delete
 	python smoketest.py -y smoketest.2.yaml -p
 	for i in smoketest.dir/*.prof; do python -c "import pstats;pstats.Stats('$$i').sort_stats('time').print_stats()"; done
+
+# This isn't a full exercise of the yamltest framework, but is roughly equivilent to
+# what "make test" did in the /myrpki directory.
+
+yamltest:
+	rm -rf yamltest.dir
+	python sql-cleaner.py
+	python yamltest.py

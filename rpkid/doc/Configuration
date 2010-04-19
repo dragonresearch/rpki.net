@@ -246,4 +246,4 @@ combine sections into a single configuration file as shown with myrpki.conf.
 * test_description_language_for_the_smoketest_test_harness
 
 Once you've finished with configuration, the next thing you should read is the
-Operation_Guide.
+MySQL_setup_instructions.

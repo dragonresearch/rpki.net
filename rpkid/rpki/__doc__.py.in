@@ -55,15 +55,13 @@
 # Besides the automatically-generated code documentation, this manual
 # also includes documentation of the overall package:
 #
-# @li A few notes on @subpage Terminology Terminology
+# @li @subpage Overview "Overview of the tools"
 #
-# @li The @subpage Installation "installation instructions"
-#
-# @li The @subpage Configuration "configuration instructions"
+# @li @subpage Installation "Installation instructions"
 #
 # @li @subpage mysqlsetup "MySQL setup instructions"
 #
-# @li The @subpage Operation "operation instructions"
+# @li @subpage Configuration "Configuration instructions"
 #
 # @li The @subpage myrpki "myrpki tool"
 #
@@ -82,7 +80,10 @@
 # href="http://www.arin.net/">ARIN</a>, in collaboration with the
 # other Regional Internet Registries.  Current work is funded by DHS.
 
-## @page Terminology Terminology
+## @page Overview Overview
+#
+#
+# @section Terminology Terminology
 #
 # A few special terms that appear often enough in code or
 # documentation that they need explaining.
@@ -101,6 +102,204 @@
 #
 # @par RPKI:
 #       Resource PKI.
+#
+#
+# @section Programs Programs
+#
+# At present the package is intended to be run out of the @c rpkid/
+# directory.
+#
+# In addition to the library routines in the @c rpkid/rpki/ directory,
+# the package includes the following programs:
+#
+# @li @ref rpkid "@c rpkid":
+#              The main RPKI engine daemon.
+#
+# @li @ref pubd "@c pubd":
+#              The publication engine daemon.
+#
+# @li @ref rootd "@c rootd"
+#              A separate daemon for handling the root of an RPKI
+#              certificate tree.  This is essentially a stripped down
+#              version of rpkid with no SQL database, no left-right
+#              protocol implementation, and only the parent side of
+#              the up-down protocol.  It's separate because the root
+#              is a special case in several ways and it was simpler
+#              to keep the special cases out of the main daemon.
+#
+# @li @ref irdbd "@c irdbd":
+#              A sample implementation of an IR database daemon.
+#              rpkid calls into this to perform lookups via the
+#              left-right protocol.
+#
+# @li @ref smoketest "@c smoketest":
+#              A test tool for running a collection of rpkid and irdb
+#              instances under common control, driven by a unified
+#              test script.
+#
+# @li @ref yamltest "@c yamltest":
+#              Another test tool which takes the same input format as
+#              @c smoketest.py, but with slightly different purpose.
+#              @c smoketest.py is intended to support regression tests,
+#              while @c yamltest.py is intended for automated testing
+#              of something closer to a real operational environment.
+#              There's a fair amount of code duplication between the
+#              two, and at some point they will probably be merged
+#              into a single program that supports both modes of
+#              operation.
+#
+# Most of these programs take configuration files in a common format
+# similar to that used by the OpenSSL command line tool.  The test
+# programs also take input in YAML format to drive the tests.  Runs of
+# the @c yamltest test tool will generate a fairly complete set
+# configuration files which may be useful as examples.
+#
+# Basic operation consists of creating the appropriate MySQL databases
+# (see @ref mysqlsetup "MySQL Setup"), configuring relationships
+# between parents and children and between publication clients and
+# repositories (see @ref myrpki "The myrpki tool"), starting @c rpkid,
+# @c pubd, @c rootd, and @c irdbd, and using the left-right and
+# publication control protocols (see @ref myrpki "The myrpki tool") to
+# set up rpkid's and pubd's internal state.  All other operations
+# should occur either as a result of cron events or as a result of
+# incoming left-right and up-down protocol requests.
+#
+# The core programs are all event-driven, and are (in theory) capable
+# of supporting an arbitrary number of hosted RPKI engines to run in a
+# single rpkid instance, up to the performance limits of the underlying
+# hardware.
+#
+# At present the daemon programs all run in foreground, that is, the
+# daemons themselves make no attempt to put themselves in background.
+# The easiest way to run the servers is to run the @c start_servers
+# script, which examines your @c myrpki.conf file and starts the
+# appropriate servers in background using @c myrpki.conf as the
+# configuration file for each server as well.
+#
+# If you prefer, you can run each server by hand instead of using the
+# script, eg, using Bourne shell syntax to run rpkid in background:
+#
+# @verbatim
+#   $ python rpkid.py &
+#   $ echo >rpkid.pid  "$!"
+# @endverbatim
+#
+# All of the daemons use syslog by default.  You can change this by
+# running either the servers themselves or the @c start_servers script
+# with the "-d" option.  Used as an argument to a server directly,
+# "-d" causes that server to log to @c stderr instead of to syslog.
+# Used as an argument to @c start_servers, "-d" starts each of the
+# servers with "-d" while redirecting @c stderr from each server to a
+# separate log file.  This is intended primarily for debugging.
+#
+# Some of the options that the several daemons take are common to all
+# daemons.  Which daemon they affect depends only on which sections of
+# which config files they are in.  See
+# @ref CommonOptions "Common Options"
+# for details.
+#
+# @section rpkid rpkid
+#
+# rpkid is the main RPKI engine daemon.  Configuration of rpkid is a
+# two step process: a %config file to bootstrap rpkid to the point
+# where it can speak using the @ref Left-right "left-right protocol",
+# followed by dynamic configuration via the left-right protocol.  The
+# latter stage is handled by the @c myrpki tool.
+#
+# rpkid stores dynamic data in an SQL database, which must have been
+# created for it, as explained in the
+# @ref Installation "Installation Guide".
+#
+#
+# @section pubd pubd
+#
+# pubd is the publication daemon.  It implements the server side of
+# the publication protocol, and is used by rpkid to publish the
+# certificates and other objects that rpkid generates.
+#
+# pubd is separate from rpkid for two reasons:
+#
+# @li The hosting model allows entities which choose to run their own
+#     copies of rpkid to publish their output under a common
+#     publication point.  In general, encouraging shared publication
+#     services where practical is a good thing for relying parties,
+#     as it will speed up rcynic synchronization time.
+#
+# @li The publication server has to run on (or at least close to) the
+#     publication point itself, which in turn must be on a publically
+#     reachable server to be useful.  rpkid, on the other hand, need
+#     only be reachable by the IRBE and its children in the RPKI tree.
+#     rpkid is a much more complex piece of software than pubd, so in
+#     some situations it might make sense to wrap tighter firewall
+#     constraints around rpkid than would be practical if rpkid and
+#     pubd were a single program.
+#
+# pubd stores dynamic data in an SQL database, which must have been
+# created for it, as explained in the
+# @ref Installation "Installation Guide".  pubd also
+# stores the published objects themselves as disk files in a
+# configurable location which should correspond to an appropriate
+# module definition in rsync.conf; see the
+# @ref Configuration "Configuration Guide"
+# for details.
+#
+#
+# @section rootd rootd
+#
+# rootd is a stripped down implmenetation of (only) the server side of
+# the up-down protocol.  It's a separate program because the root
+# certificate of an RPKI certificate tree requires special handling
+# and may also require a special handling policy.  rootd is a simple
+# implementation intended for test use, it's not suitable for use in a
+# production system.  All configuration comes via the %config file;
+# see the
+# @ref Configuration "Configuration Guide"
+# for details.
+#
+#
+# @section irdbd irdbd
+#
+# irdbd is a sample implemntation of the server side of the IRDB
+# callback subset of the left-right protocol.  In production use this
+# service is a function of the IRBE stub; irdbd may be suitable for
+# production use in simple cases, but an IR with a complex IRDB may need
+# to extend or rewrite irdbd.
+#
+# irdbd requires a pre-populated database to represent the IR's
+# customers.  irdbd expects this database to use
+# @ref irdbd-sql "the SQL schema defined in rpkid/irdbd.sql".
+# Once this database has been populated, the IRBE stub needs to create
+# the appropriate objects in rpkid's database via the control subset
+# of the left-right protocol, and store the linkage handles (foreign
+# keys into rpkid's database) in the IRDB.  See the
+# @ref Installation "Installation Guide"
+# and the
+# @ref mysqlsetup "MySQL setup instructions"
+# for details.
+#
+#
+# @section smoketest smoketest:
+#
+# smoketest is a test harness to set up and run a collection of rpkid and
+# irdbd instances under scripted control.
+#
+# Unlike the programs described above, smoketest takes two configuration
+# files in different languages.  The first configuration file uses the
+# same syntax as the above configuration files but is completely
+# optional.  The second configuration file is the test script, which is
+# encoded using the YAML serialization language (see
+# http://www.yaml.org/ for more information on YAML).  The YAML script
+# is not optional, as it describes the test layout.  smoketest is designed
+# to support running a fairly wide set of test configurations as canned
+# scripts without writing any new control code.  The intent is to make
+# it possible to write meaningful regression tests.
+#
+# See @ref smoketestconf "smoketest.conf" for what can go into the
+# (optional) first configuration file.
+#
+# See @ref smoketestyaml "smoketest.yaml" for what goes into the
+# (required) second configuration file.
+
 
 ## @page further-reading Further Reading
 #
@@ -464,7 +663,7 @@
 # @li @subpage smoketestyaml "test description language for the smoketest test harness"
 #
 # Once you've finished with configuration, the next thing you should
-# read is the @ref Operation "Operation Guide".
+# read is the @ref mysqlsetup "MySQL setup instructions".
 
 ## @page CommonOptions Common Configuration Options
 #
@@ -851,213 +1050,6 @@
 # latter case all of the fields are optional, but at least one must be
 # specified.  For example, "3D4H" means "three days plus four hours".
 
-## @page Operation Operation Guide
-#
-# Production-side RPKI tools, for Internet Registries (RIRs, LIRs, etc).
-# See rcynic/README for relying party tools.
-#
-# @warning
-# rpkid is still in development, and the code changes more often than
-# the hand-maintained portions of this documentation.  The following
-# text was reasonably accurate at the time it was written but may be
-# obsolete by the time you read it.
-#
-# At present the package is intended to be run out of the @c rpkid/
-# directory.
-#
-# In addition to the library routines in the @c rpkid/rpki/ directory,
-# the package includes the following programs:
-#
-# @li @ref rpkid "@c rpkid":
-#              The main RPKI engine daemon.
-#
-# @li @ref pubd "@c pubd":
-#              The publication engine daemon.
-#
-# @li @ref rootd "@c rootd"
-#              A separate daemon for handling the root of an RPKI
-#              certificate tree.  This is essentially a stripped down
-#              version of rpkid with no SQL database, no left-right
-#              protocol implementation, and only the parent side of
-#              the up-down protocol.  It's separate because the root
-#              is a special case in several ways and it was simpler
-#              to keep the special cases out of the main daemon.
-#
-# @li @ref irdbd "@c irdbd":
-#              A sample implementation of an IR database daemon.
-#              rpkid calls into this to perform lookups via the
-#              left-right protocol.
-#
-# @li @ref smoketest "@c smoketest":
-#              A test tool for running a collection of rpkid and irdb
-#              instances under common control, driven by a unified
-#              test script.
-#
-# @li @ref yamltest "@c yamltest":
-#              Another test tool which takes the same input format as
-#              @c smoketest.py, but with slightly different purpose.
-#              @c smoketest.py is intended to support regression tests,
-#              while @c yamltest.py is intended for automated testing
-#              of something closer to a real operational environment.
-#              There's a fair amount of code duplication between the
-#              two, and at some point they will probably be merged
-#              into a single program that supports both modes of
-#              operation.
-#
-# Most of these programs take configuration files in a common format
-# similar to that used by the OpenSSL command line tool.  The test
-# programs also take input in YAML format to drive the tests.  Runs of
-# the @c yamltest test tool will generate a fairly complete set
-# configuration files which may be useful as examples.
-#
-# Basic operation consists of creating the appropriate MySQL databases
-# (see @ref mysqlsetup "MySQL Setup"), configuring relationships
-# between parents and children and between publication clients and
-# repositories (see @ref myrpki "The myrpki tool"), starting @c rpkid,
-# @c pubd, @c rootd, and @c irdbd, and using the left-right and
-# publication control protocols (see @ref myrpki "The myrpki tool") to
-# set up rpkid's and pubd's internal state.  All other operations
-# should occur either as a result of cron events or as a result of
-# incoming left-right and up-down protocol requests.
-#
-# The core programs are all event-driven, and are (in theory) capable
-# of supporting an arbitrary number of hosted RPKI engines to run in a
-# single rpkid instance, up to the performance limits of the underlying
-# hardware.
-#
-# At present the daemon programs all run in foreground, that is, the
-# daemons themselves make no attempt to put themselves in background.
-# The easiest way to run the servers is to run the @c start_servers
-# script, which examines your @c myrpki.conf file and starts the
-# appropriate servers in background using @c myrpki.conf as the
-# configuration file for each server as well.
-#
-# If you prefer, you can run each server by hand instead of using the
-# script, eg, using Bourne shell syntax to run rpkid in background:
-#
-# @verbatim
-#   $ python rpkid.py &
-#   $ echo >rpkid.pid  "$!"
-# @endverbatim
-#
-# All of the daemons use syslog by default.  You can change this by
-# running either the servers themselves or the @c start_servers script
-# with the "-d" option.  Used as an argument to a server directly,
-# "-d" causes that server to log to @c stderr instead of to syslog.
-# Used as an argument to @c start_servers, "-d" starts each of the
-# servers with "-d" while redirecting @c stderr from each server to a
-# separate log file.  This is intended primarily for debugging.
-#
-# Some of the options that the several daemons take are common to all
-# daemons.  Which daemon they affect depends only on which sections of
-# which config files they are in.  See
-# @ref CommonOptions "Common Options"
-# for details.
-#
-# @section rpkid rpkid
-#
-# rpkid is the main RPKI engine daemon.  Configuration of rpkid is a
-# two step process: a %config file to bootstrap rpkid to the point
-# where it can speak using the @ref Left-right "left-right protocol",
-# followed by dynamic configuration via the left-right protocol.  The
-# latter stage is handled by the @c myrpki tool.
-#
-# rpkid stores dynamic data in an SQL database, which must have been
-# created for it, as explained in the
-# @ref Installation "Installation Guide".
-#
-# See @ref Configuration "Configuration Options" for configuration
-# options.
-#
-#
-# @section pubd pubd
-#
-# pubd is the publication daemon.  It implements the server side of
-# the publication protocol, and is used by rpkid to publish the
-# certificates and other objects that rpkid generates.
-#
-# pubd is separate from rpkid for two reasons:
-#
-# @li The hosting model allows entities which choose to run their own
-#     copies of rpkid to publish their output under a common
-#     publication point.  In general, encouraging shared publication
-#     services where practical is a good thing for relying parties,
-#     as it will speed up rcynic synchronization time.
-#
-# @li The publication server has to run on (or at least close to) the
-#     publication point itself, which in turn must be on a publically
-#     reachable server to be useful.  rpkid, on the other hand, need
-#     only be reachable by the IRBE and its children in the RPKI tree.
-#     rpkid is a much more complex piece of software than pubd, so in
-#     some situations it might make sense to wrap tighter firewall
-#     constraints around rpkid than would be practical if rpkid and
-#     pubd were a single program.
-#
-# pubd stores dynamic data in an SQL database, which must have been
-# created for it, as explained in the installation guide.  pubd also
-# stores the published objects themselves as disk files in a
-# configurable location which should correspond to an appropriate
-# module definition in rsync.conf.
-#
-# See @ref Configuration "Configuration Options" for configuration
-# options.
-#
-#
-# @section rootd rootd
-#
-# rootd is a stripped down implmenetation of (only) the server side of
-# the up-down protocol.  It's a separate program because the root
-# certificate of an RPKI certificate tree requires special handling and
-# may also require a special handling policy.  rootd is a simple
-# implementation intended for test use, it's not suitable for use in a
-# production system.  All configuration comes via the %config file.
-#
-# See @ref Configuration "Configuration Options" for configuration
-# options.
-#
-#
-# @section irdbd irdbd
-#
-# irdbd is a sample implemntation of the server side of the IRDB
-# callback subset of the left-right protocol.  In production use this
-# service is a function of the IRBE stub; irdbd may be suitable for
-# production use in simple cases, but an IR with a complex IRDB may need
-# to extend or rewrite irdbd.
-#
-# irdbd requires a pre-populated database to represent the IR's
-# customers.  irdbd expects this database to use the SQL schema defined
-# in rpkid/irdbd.sql.  Once this database has been populated, the
-# IRBE stub needs to create the appropriate objects in rpkid's database
-# via the control subset of the left-right protocol, and store the
-# linkage IDs (foreign keys into rpkid's database, basicly) in the
-# IRDB.
-#
-# See @ref Configuration "Configuration Options" for configuration
-# options.
-#
-#
-#
-# @section smoketest smoketest:
-#
-# smoketest is a test harness to set up and run a collection of rpkid and
-# irdbd instances under scripted control.
-#
-# Unlike the programs described above, smoketest takes two configuration
-# files in different languages.  The first configuration file uses the
-# same syntax as the above configuration files but is completely
-# optional.  The second configuration file is the test script, which is
-# encoded using the YAML serialization language (see
-# http://www.yaml.org/ for more information on YAML).  The YAML script
-# is not optional, as it describes the test layout.  smoketest is designed
-# to support running a fairly wide set of test configurations as canned
-# scripts without writing any new control code.  The intent is to make
-# it possible to write meaningful regression tests.
-#
-# See @ref smoketestconf "smoketest.conf" for what can go into the
-# (optional) first configuration file.
-#
-# See @ref smoketestyaml "smoketest.yaml" for what goes into the
-# (required) second configuration file.
 
 ## @page Left-right Left-right protocol
 #
@@ -1799,12 +1791,20 @@
 # BPKI is a separate PKI that represents relationships between the
 # various entities involved in the production side of the RPKI system.
 # In most cases the BPKI tree will follow existing business
-# relationships, hence the name "BPKI".
+# relationships, hence the "B" (Business) in "BPKI".
 #
 # Setup of the BPKI is handled by the back end; for the most part,
 # rpkid and pubd just use the result.  The one place where the engines
 # are directly involved in creation of new BPKI certificates is in the
 # production of end-entity certificates for use by the engines.
+#
+# For the most part an ordinary user of this package need not worry
+# about the details explained here, as the
+# @ref myrpki "myrpki tool"
+# takes care of all of this.  However, users who want to understand
+# what's going on behind the scenes or who have needs too complex for
+# the myrpki tool to handle might want to understand the underlying
+# model.
 #
 # There are a few design principals that underly the chosen BPKI model:
 #
@@ -2376,6 +2376,9 @@
 #
 # where @c pubd_database, @c pubd_user @c pubd_password match the
 # values you used in your configuration file.
+#
+# Once you've finished configuring MySQL, the next thing you should
+# read is the instructions for the @ref myrpki "myrpki tool".
 
 # Local Variables:
 # mode:python

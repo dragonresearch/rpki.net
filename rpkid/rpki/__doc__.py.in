@@ -59,13 +59,13 @@
 #
 # @li @subpage Installation "Installation instructions"
 #
-# @li @subpage mysqlsetup "MySQL setup instructions"
+# @li @subpage MySQL-Setup "MySQL setup instructions"
 #
 # @li @subpage Configuration "Configuration instructions"
 #
 # @li The @subpage myrpki "myrpki tool"
 #
-# @li A description of the @subpage Left-right "left-right protocol"
+# @li A description of the @subpage Left-Right "left-right protocol"
 #
 # @li A description of the @subpage Publication "publication protocol"
 #
@@ -155,7 +155,7 @@
 # configuration files which may be useful as examples.
 #
 # Basic operation consists of creating the appropriate MySQL databases
-# (see @ref mysqlsetup "MySQL Setup"), configuring relationships
+# (see @ref MySQL-Setup "MySQL Setup"), configuring relationships
 # between parents and children and between publication clients and
 # repositories (see @ref myrpki "The myrpki tool"), starting @c rpkid,
 # @c pubd, @c rootd, and @c irdbd, and using the left-right and
@@ -202,7 +202,7 @@
 #
 # rpkid is the main RPKI engine daemon.  Configuration of rpkid is a
 # two step process: a %config file to bootstrap rpkid to the point
-# where it can speak using the @ref Left-right "left-right protocol",
+# where it can speak using the @ref Left-Right "left-right protocol",
 # followed by dynamic configuration via the left-right protocol.  The
 # latter stage is handled by the @c myrpki tool.
 #
@@ -274,7 +274,7 @@
 # keys into rpkid's database) in the IRDB.  See the
 # @ref Installation "Installation Guide"
 # and the
-# @ref mysqlsetup "MySQL setup instructions"
+# @ref MySQL-Setup "MySQL setup instructions"
 # for details.
 #
 #
@@ -663,7 +663,7 @@
 # @li @subpage smoketestyaml "test description language for the smoketest test harness"
 #
 # Once you've finished with configuration, the next thing you should
-# read is the @ref mysqlsetup "MySQL setup instructions".
+# read is the @ref MySQL-Setup "MySQL setup instructions".
 
 ## @page CommonOptions Common Configuration Options
 #
@@ -1051,7 +1051,7 @@
 # specified.  For example, "3D4H" means "three days plus four hours".
 
 
-## @page Left-right Left-right protocol
+## @page Left-Right Left-Right Protocol
 #
 # The left-right protocol is really two separate client/server
 # protocols over separate channels between the RPKI engine and the IR
@@ -1551,7 +1551,7 @@
 # %publication of specific objects.
 #
 # Much of the architecture of the %publication protocol is borrowed
-# from the @ref Left-right "left-right protocol": like the
+# from the @ref Left-Right "left-right protocol": like the
 # left-right protocol, the %publication protocol uses CMS-wrapped XML
 # over HTTPS with the same eContentType OID and the same HTTPS
 # content-type, and the overall style of the XML messages is very
@@ -2159,7 +2159,7 @@
 # @li Set up the MySQL databases that rpkid et al will use.  The
 #     package includes a tool to do this for you, you can use that or
 #     do the job by hand.  See
-#     @ref mysqlsetup "MySQL database setup"
+#     @ref MySQL-Setup "MySQL database setup"
 #     for details.
 # 
 # @li If you are running your own publication repository (that is, if
@@ -2309,7 +2309,7 @@
 # libraries, it's just annoying because shared libraries should not be
 # needed here and would not be if not for this GNU linker issue.
  
-## @page mysqlsetup MySQL Setup
+## @page MySQL-Setup MySQL Setup
 #
 # You need to install MySQL and set up the relevant databases before
 # starting @c rpkid, @c irdbd, or @c pubd.

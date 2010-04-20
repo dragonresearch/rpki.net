@@ -154,9 +154,9 @@
 # Basic operation consists of creating the appropriate MySQL databases
 # (see @ref MySQL-Setup "MySQL Setup"), configuring relationships
 # between parents and children and between publication clients and
-# repositories (see @ref myrpki "The myrpki tool"), starting @c rpkid,
+# repositories (see @ref MyRPKI "The myrpki tool"), starting @c rpkid,
 # @c pubd, @c rootd, and @c irdbd, and using the left-right and
-# publication control protocols (see @ref myrpki "The myrpki tool") to
+# publication control protocols (see @ref MyRPKI "The myrpki tool") to
 # set up rpkid's and pubd's internal state.  All other operations
 # should occur either as a result of cron events or as a result of
 # incoming left-right and up-down protocol requests.
@@ -747,10 +747,10 @@
 # values you used in your configuration file.
 #
 # Once you've finished configuring MySQL, the next thing you should
-# read is the instructions for the @ref myrpki "myrpki tool".
+# read is the instructions for the @ref MyRPKI "myrpki tool".
 
 
-## @page myrpki The myrpki tool
+## @page MyRPKI The myrpki tool
 #
 # The design of rpkid and friends assumes that certain tasks can be
 # thrown over the wall to the registry's back end operation.  This was
@@ -857,7 +857,7 @@
 # Note that the comments themselves are not legal CSV, they're just
 # present to make it easier to understand the examples.
 # 
-# @section myrpkioverview  Getting Started -- Overview
+# @section myrpkioverview  myrpki overview
 # 
 # Which process you need to follow depends on whether you are running
 # rpkid yourself or will be hosted by somebody else.  We call the first
@@ -951,13 +951,13 @@
 # self-hosted case, it is not necessary to run "configure_resources" at
 # all, myrpki will run it for you automatically.
 # 
-# @section myrpkihosted Getting started -- Hosted case
+# @section myrpkihosted Hosted case
 # 
 # The basic steps involved in getting started for a resource holder who
 # is being hosted by somebody else are:
 # 
 # @li Run through steps listed in
-#     @ref myrpkioverview "the overview section".
+#     @ref myrpkioverview "the myrpki overview section".
 # 
 # @li Run the configure_resources command to generate myrpki.xml.
 # 
@@ -985,7 +985,7 @@
 # updated XML file to your rpkid operator, who should send you a
 # further updated XML file in response.
 # 
-# @section myrpkiselfhosted Getting started -- Self-hosted case
+# @section myrpkiselfhosted Self-hosted case
 # 
 # The first few steps involved in getting started for a self-hosted
 # resource holder (that is, a resource holder that runs its own copy
@@ -1000,7 +1000,7 @@
 #     module.
 # 
 # @li Run through steps listed in
-#     @ref myrpkioverview "the overview section".
+#     @ref myrpkioverview "the myrpki overview section".
 # 
 # @li Set up the MySQL databases that rpkid et al will use.  The
 #     package includes a tool to do this for you, you can use that or
@@ -1041,7 +1041,7 @@
 # If and when you change your CSV files, you should run
 # configure_daemons again to feed the changes into the daemons.
 # 
-# @section Getting started -- Hosting case
+# @section myrpkihosting Hosting case
 # 
 # If you are running rpkid not just for your own resources but also to
 # host other resource holders (see @ref myrpkihosted "hosted case"
@@ -1064,7 +1064,7 @@
 # be easiest just to ship back an updated copy of the XML file after
 # every you run @c configure_daemons.
 # 
-# @section myrpkipurehosting Getting Started -- "Pure" hosting case
+# @section myrpkipurehosting "Pure" hosting case
 # 
 # In general we assume that anybody who bothers to run @c rpkid is
 # also a resource holder, but the software does not insist on this.
@@ -2290,7 +2290,7 @@
 #
 # For the most part an ordinary user of this package need not worry
 # about the details explained here, as the
-# @ref myrpki "myrpki tool"
+# @ref MyRPKI "myrpki tool"
 # takes care of all of this.  However, users who want to understand
 # what's going on behind the scenes or who have needs too complex for
 # the myrpki tool to handle might want to understand the underlying

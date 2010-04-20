@@ -76,7 +76,7 @@ doc/rpkid.dot: rpkid.sql
 .dot.png:
 	dot -o $@ -Tpng $?
 
-TEXT_DOCS = Installation Configuration Left-Right Publication MySQL-Setup
+TEXT_DOCS = Installation Configuration Left-Right Publication MySQL-Setup MyRPKI
 
 dot: doc/irdbd.dot doc/pubd.dot doc/rpkid.dot
 

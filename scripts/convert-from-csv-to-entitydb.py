@@ -18,7 +18,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import subprocess, csv, re, os, getopt, sys, base64, urlparse
+import subprocess, re, os, getopt, sys, base64, urlparse
 import rpki.sundial, rpki.myrpki, rpki.config
 
 from lxml.etree import Element, SubElement, ElementTree

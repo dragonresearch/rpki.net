@@ -19,7 +19,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import csv, rpki.myrpki, rpki.ipaddrs
+import rpki.myrpki, rpki.ipaddrs
 
 translations = dict((src, dst) for src, dst in rpki.myrpki.csv_reader("translations.csv", columns = 2))
 

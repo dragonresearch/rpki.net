@@ -37,7 +37,7 @@ translations = dict((src, dst) for src, dst in rpki.myrpki.csv_reader("translati
 
 for filename in sys.argv[1:]:
 
-  tmpfile = "%s.%d" % os.getpid()
+  tmpfile = "%s.%d.tmp" % (filename, os.getpid())
   csvout = rpki.myrpki.csv_writer(tmpfile)
 
   for cols in rpki.myrpki.csv_reader(filename):

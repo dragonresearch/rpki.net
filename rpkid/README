@@ -7,6 +7,10 @@ Requires Python 2.5.
 See doc/Installation for installation instructions and required
 packages.
 
+The full manual is available in both PDF and HTML formats; the PDF is
+in doc/manual.pdf, the HTML is in a compressed tarball
+doc/manual.tar.gz.
+
 
 
 $Revision$

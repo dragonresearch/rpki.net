@@ -5,11 +5,12 @@
 To build this you will need to link it against an OpenSSL libcrypto
 that has support for the RFC 3779 extensions.  See ../openssl/README.
  
-I developed this code on FreeBSD 6-STABLE and have not (yet) tested it
-on any other platform; as far as I know I have not used any seriously
-non-portable features, but neither have I done a POSIX reference
-manual lookup for every function call.  Please report any portability
-problems.
+I developed this code on FreeBSD 6-STABLE.  It is also known to run
+work on Ubuntu (8.10) and Mac OS X (Snow Leopard).  In theory it
+should run on any reasonably POSIX-like system.  As far as I know I
+have not used any seriously non-portable features, but neither have I
+done a POSIX reference manual lookup for every function call.  Please
+report any portability problems.
 
 All certificates and CRLs are in DER format, with filenames derived
 from the RPKI rsync URIs at which the data are published.  At some

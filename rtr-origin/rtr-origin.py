@@ -804,8 +804,6 @@ class client_channel(pdu_channel):
 
   timer = None
 
-  debug_using_direct_server_subprocess = True
-
   def __init__(self, sock, proc, killsig):
     self.killsig = killsig
     self.proc = proc
@@ -1176,8 +1174,9 @@ if mode is None:
 
 tag = mode
 
+rpki.log.use_syslog = mode in ("cronjob", "server")
+
 if mode == "server":
-  rpki.log.use_syslog = True
   #
   # Try to figure out peer address when we're in server mode.
   try:

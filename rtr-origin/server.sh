@@ -14,4 +14,4 @@
 
 cd /u/sra/rpki/subvert-rpki.hactrn.net/rtr-origin
 
-exec /usr/local/bin/python rtr-origin.py --server 2>> /u/sra/rpki/subvert-rpki.hactrn.net/rtr-origin/server.log
+exec /usr/local/bin/python rtr-origin.py --server

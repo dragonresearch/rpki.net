@@ -1,6 +1,7 @@
 """
 Router origin-authentication rpki-router protocol implementation.
-This is a work in progress.
+This is a work in progress.  See draft-ymbk-rpki-rtr-protocol in fine
+Internet-Draft repositories near you.
 
 As presently written, this program can run in one of three different
 modes: cronjob, server, and client.
@@ -24,9 +25,14 @@ client mode is, at presnt, a toy client, intended only for debugging.
 It allows one to issue queries to a server and prints out the
 responses.
 
+NB: At present this supports an old version of the protocol, because
+the router implementation that currently tests against it also
+implements that old version.  One of these days we'll fix that.
+
+
 $Id$
 
-Copyright (C) 2009  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above

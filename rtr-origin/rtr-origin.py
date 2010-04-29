@@ -1,29 +1,10 @@
 """
-Router origin-authentication rpki-router protocol implementation.
-This is a work in progress.  See draft-ymbk-rpki-rtr-protocol in fine
-Internet-Draft repositories near you.
+Router origin-authentication rpki-router protocol implementation.  See
+draft-ymbk-rpki-rtr-protocol in fine Internet-Draft repositories near
+you.
 
-As presently written, this program can run in one of three different
-modes: cronjob, server, and client.
-
-cronjob mode is intended to be run right after rcynic, and does the
-real work of groveling through the ROAs that rcynic collects and
-translating that data into the form used in the rpki-router protocol.
-cronjob mode prepares both full dumps (axfr) and incremental dumps
-against a specific prior version (ixfr).  [Terminology here borrowed
-from DNS, as is much of the protocol design.]  Finally, cronjob mode
-kicks any active servers, so that they can notify their clients that a
-new version is available.
-
-server mode implements the server side of the rpkk-router protocol.
-Other than one PF_UNIX socket inode, it doesn't write anything to
-disk, so it can be run with minimal privileges.  Most of the hard work
-has already been done in cronjob mode, so all that server mode has to do
-is serve up the results.
-
-client mode is, at presnt, a toy client, intended only for debugging.
-It allows one to issue queries to a server and prints out the
-responses.
+Run the program with the --help argument for usage information, or see
+documentation for the *_main() functions.
 
 NB: At present this supports an old version of the protocol, because
 the router implementation that currently tests against it also
@@ -969,11 +950,26 @@ class kickme_channel(asyncore.dispatcher):
 
 def cronjob_main(argv):
   """
-  Main program for cronjob.
+  Run this mode right after rcynic to do the real work of groveling
+  through the ROAs that rcynic collects and translating that data into
+  the form used in the rpki-router protocol.  This mode prepares both
+  full dumps (AXFR) and incremental dumps against a specific prior
+  version (IXFR).  [Terminology here borrowed from DNS, as is much of
+  the protocol design.]  Finally, this mode kicks any active servers,
+  so that they can notify their clients that a new version is
+  available.
+
+  Run this in the directory where you want to write its output files,
+  which should also be the directory in which you run this program in
+  --server mode.
+
+  This mode takes one argument on the command line, which specifies
+  the directory name of rcynic's authenticated output tree (normally
+  $somewhere/rcynic-data/authenticated/).
   """
 
   if len(argv) != 1:
-    raise RuntimeError, "Expected one argument, got %s" % argv
+    usage("Expected one argument, got %r" % (argv,))
 
   old_ixfrs = glob.glob("*.ix.*")
 
@@ -1016,12 +1012,15 @@ def cronjob_main(argv):
 
 def show_main(argv):
   """
-  Main program for show mode.  Just displays current AXFR and IXFR
-  dumps
+  Display dumps created by --cronjob mode in textual form.
+  Intended only for debugging.
+
+  This mode takes no command line arguments.  Run it in the directory
+  where you ran --cronjob mode.
   """
 
   if argv:
-    raise RuntimeError, "Unexpected arguments: %s" % argv
+    usage("Unexpected arguments: %r" % (argv,))
 
   g = glob.glob("*.ax")
   g.sort()
@@ -1035,8 +1034,11 @@ def show_main(argv):
 
 def server_main(argv):
   """
-  Main program for server mode.  Server is event driven, so everything
-  interesting happens in the channel classes.
+  Implement the server side of the rpkk-router protocol.  Other than
+  one PF_UNIX socket inode, this doesn't write anything to disk, so it
+  can be run with minimal privileges.  Most of the hard work has
+  already been done in --cronjob mode, so all that this mode has to do
+  is serve up the results.
 
   In production use this server is run under sshd.  The subsystem
   mechanism in sshd does not allow us to pass arguments on the command
@@ -1045,10 +1047,17 @@ def server_main(argv):
   it thinks is our home directory on startup, so it may be that the
   easiest approach here is to let sshd put us in the right directory
   and just look for our config file there.
+
+  This mode takes no arguments.  Run it in the directory where you ran
+  --cronjob mode.
+
+  The server is event driven, so everything interesting happens in the
+  channel classes.
   """
+
   log("[Starting]")
   if argv:
-    raise RuntimeError, "Unexpected arguments: %s" % argv
+    usage("Unexpected arguments: %r" % (argv,))
   kickme = None
   try:
     server = server_channel()
@@ -1078,8 +1087,29 @@ class client_timer(rpki.async.timer):
 
 def client_main(argv):
   """
-  Main program for client mode.  This is just test code.
+  Toy client, intended only for debugging.
+
+  This program takes one or more arguments.  The first argument
+  determines what kind of connection it should open to the server, the
+  remaining arguments are connection details specific to this
+  particular type of connection.
+
+  If the first argument is "loopback", the client will run a copy of
+  the server directly in a subprocess, and communicate with it via a
+  PF_UNIX socket pair.  This sub-mode takes no further arguments.
+
+  If the first argument is "ssh", the client will attempt to run ssh
+  in as subprocess to connect to the server using the ssh subsystem
+  mechanism as specified for this protocol.  The remaining arguments
+  should be a hostname (or IP address in a form acceptable to ssh) and
+  a TCP port number.
+
+  If the first argument is "tcp", the client will attempt to open a
+  direct (and completely insecure!) TCP connection to the server.
+  The remaining arguments should be a hostname (or IP address) and
+  a TCP port number.
   """
+
   log("[Startup]")
   client = None
   try:
@@ -1090,7 +1120,7 @@ def client_main(argv):
     elif argv[0] == "tcp" and len(argv) == 3:
       client = client_channel.tcp(*argv[1:])
     else:
-      raise RuntimeError, "Unexpected arguments: %r" % (argv,)
+      usage("Unexpected arguments: %r" % (argv,))
     client.push_pdu(reset_query())
     client.timer = client_timer(client, rpki.sundial.timedelta(minutes = 10))
     rpki.async.event_loop()
@@ -1117,20 +1147,32 @@ main_dispatch = {
   "server"  : server_main,
   "show"    : show_main }
 
+def usage(error = None):
+  print "Usage: %s --mode [arguments]" % sys.argv[0]
+  print
+  print "where --mode is one of:"
+  print
+  for name, func in main_dispatch.iteritems():
+    print "--%s:" % name
+    print func.__doc__
+  if isinstance(error, str):
+    sys.exit("Error: %s" % error)
+  else:
+    sys.exit(error)
+
 opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"] + main_dispatch.keys())
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
-    print __doc__
-    sys.exit(0)
+    usage()
   if o in ("-c", "--config"):
     cfg_file = a
   if len(o) > 2 and o[2:] in main_dispatch:
     if mode is not None:
-      raise RuntimeError, "Conflicting modes selected"
+      usage("Conflicting modes specified")
     mode = o[2:]
 
 if mode is None:
-  raise RuntimeError, "No mode selected"
+  usage("No mode specified")
 
 tag = mode
 

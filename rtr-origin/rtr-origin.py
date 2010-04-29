@@ -720,6 +720,42 @@ class pdu_channel(asynchat.async_chat):
     log("Exiting after unhandled exception")
     asyncore.close_all()
 
+  def init_file_dispatcher(self, fd):
+    """
+    Kludge to plug asyncore.file_dispatcher into asynchat.  Call from
+    subclass's __init__() method, after calling
+    pdu_channel.__init__(), and don't read this on a full stomach.
+    """
+    self.connected = True
+    self._fileno = fd
+    self.socket = asyncore.file_wrapper(fd)
+    self.add_channel()
+    flags = fcntl.fcntl(fd, fcntl.F_GETFL, 0)
+    flags = flags | os.O_NONBLOCK
+    fcntl.fcntl(fd, fcntl.F_SETFL, flags)
+
+class server_write_channel(pdu_channel):
+  """
+  Kludge to deal with ssh's habit of sometimes (compile time option)
+  invoking us with two unidirectional pipes instead of one
+  bidirectional socketpair.  All the server logic is in the
+  server_channel class, this class just deals with sending the
+  server's output to a different file descriptor.
+  """
+
+  def __init__(self):
+    """
+    Set up stdout.
+    """
+    pdu_channel.__init__(self)
+    self.init_file_dispatcher(sys.stdout.fileno())
+
+  def readable(self):
+    """
+    This channel is never readable.
+    """
+    return False
+
 class server_channel(pdu_channel):
   """
   Server protocol engine, handles upcalls from pdu_channel to
@@ -728,27 +764,44 @@ class server_channel(pdu_channel):
 
   def __init__(self):
     """
-    Set up stdin as connection and start listening for first PDU.
+    Set up stdin and stdout as connection and start listening for
+    first PDU.
     """
     pdu_channel.__init__(self)
-    #
-    # I don't know a sane way to get asynchat.async_chat.__init__() to
-    # call asyncore.file_dispatcher.__init__(), so shut your eyes for
-    # a moment while I cut and paste.
-    #
-    fd = sys.stdin.fileno()
-    self.connected = True
-    self._fileno = fd
-    self.socket = asyncore.file_wrapper(fd)
-    self.add_channel()
-    flags = fcntl.fcntl(fd, fcntl.F_GETFL, 0)
-    flags = flags | os.O_NONBLOCK
-    fcntl.fcntl(fd, fcntl.F_SETFL, flags)
-    #
-    # Ok, you can look again now.
-    #
+    self.init_file_dispatcher(sys.stdin.fileno())
+    self.writer = server_write_channel()
     self.get_serial()
     self.start_new_pdu()
+
+  def writable(self):
+    """
+    This channel is never writable.
+    """
+    return False
+
+  def push(self, data):
+    """
+    Redirect to writer channel.
+    """
+    return self.writer.push(data)
+
+  def push_with_producer(self, producer):
+    """
+    Redirect to writer channel.
+    """
+    return self.writer.push_with_producer(producer)
+
+  def push_pdu(self, pdu):
+    """
+    Redirect to writer channel.
+    """
+    return self.writer.push_pdu(pdu)
+
+  def push_file(self, f):
+    """
+    Redirect to writer channel.
+    """
+    return self.writer.push_file(f)
 
   def deliver_pdu(self, pdu):
     """
@@ -872,10 +925,10 @@ class client_channel(pdu_channel):
 
   def handle_close(self):
     """
-    Intercept close event so we can log it.
+    Intercept close event so we can log it, then shut down.
     """
     log("Server closed channel")
-    asynchat.async_chat.handle_close(self)
+    rpki.async.exit_event_loop()
 
 class kickme_channel(asyncore.dispatcher):
   """

@@ -1634,7 +1634,7 @@ static X509_CRL *check_crl_1(const rcynic_ctx_t *rc,
     goto punt;
 
   if (hash && memcmp(hashbuf, hash, hashlen)) {
-    logmsg(rc, log_data_err, "Manifest digest mismatch for CRL %s", uri);
+    logmsg(rc, log_data_err, "Rejected %s because manifest digest did not match CRL", uri);
     mib_increment(rc, uri, crl_digest_mismatch);
     goto punt;
   }
@@ -1731,11 +1731,14 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
      * said it intended to publish a new CRL.  Unclear whether this
      * should be an error; current theory is that it should not be.
      */
-    logmsg(rctx->rc, log_data_err, "Stale CRL %s while checking %s",
-	   rctx->subj->crldp, rctx->subj->uri);
-    mib_increment(rctx->rc, rctx->subj->uri, stale_crl);
     if (rctx->rc->allow_stale_crl)
       ok = 1;
+    logmsg(rctx->rc, log_data_err,
+	   (ok
+	    ? "While checking %s encountered stale crl %s"
+	    : "Rejected %s due to stale CRL %s"),
+	   rctx->subj->uri, rctx->subj->crldp);
+    mib_increment(rctx->rc, rctx->subj->uri, stale_crl);
     return ok;
 
   case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT:
@@ -1752,16 +1755,20 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
      * warned that enabling this feature may cause this program's
      * output not to work with other OpenSSL-based applications.
      */
-    logmsg(rctx->rc, log_data_err, "Trust anchor not self-signed while checking %s",
-	   rctx->subj->uri);
-    mib_increment(rctx->rc, rctx->subj->uri, trust_anchor_not_self_signed);
     if (rctx->rc->allow_non_self_signed_trust_anchor)
       ok = 1;
+    logmsg(rctx->rc, log_data_err,
+	   (ok
+	    ? "Trust anchor not self-signed while checking %s"
+	    : "Rejected %s because trust anchor was not self-signed"),
+	   rctx->subj->uri);
+    mib_increment(rctx->rc, rctx->subj->uri, trust_anchor_not_self_signed);
     return ok;
 
   /*
-   * Increment counters for all known OpenSSL verify errors except
-   * the ones we handle explicitly above.
+   * Increment counters for all known OpenSSL verify errors except the
+   * ones we handle explicitly above, then fall through to generate
+   * appropriate error message.
    */
 #define QV(x)							\
   case x:							\
@@ -1776,10 +1783,6 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
   }
 
   if (!ok)
-    /*
-     * Something went wrong, log the (allegedly) human readable error
-     * message and the chain depth.
-     */
     logmsg(rctx->rc, log_data_err,
 	   "Rejected %s due to validation failure at depth %d: %s",
 	   rctx->subj->uri, ctx->error_depth, 
@@ -1817,13 +1820,15 @@ static int check_x509(const rcynic_ctx_t *rc,
   if (!subj->ta &&
       ((pkey = X509_get_pubkey(issuer)) == NULL ||
        X509_verify(x, pkey) <= 0)) {
-    logmsg(rc, log_data_err, "%s failed signature check prior to CRL fetch",
+    logmsg(rc, log_data_err,
+	   "Rejected %s because it failed signature check prior to CRL fetch",
 	   subj->uri);
     goto done;
   }
 
   if ((crl = check_crl(rc, subj->crldp, issuer, NULL, 0)) == NULL) {
-    logmsg(rc, log_data_err, "Bad CRL %s for %s", subj->crldp, subj->uri);
+    logmsg(rc, log_data_err, "Rejected %s due to bad CRL %s",
+	   subj->uri, subj->crldp);
     goto done;
   }
 
@@ -1848,6 +1853,9 @@ static int check_x509(const rcynic_ctx_t *rc,
   X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
 
  if (X509_verify_cert(&rctx.ctx) <= 0) {
+   /*
+    * Redundant error message?
+    */
     logmsg(rc, log_data_err, "Validation failure for %s",
 	   subj->uri[0] ? subj->uri : subj->ta ? "[Trust anchor]" : "[???]");
     goto done;
@@ -1902,7 +1910,8 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
   }
 
   if (hash && memcmp(hashbuf, hash, hashlen)) {
-    logmsg(rc, log_data_err, "Manifest digest mismatch for certificate %s", uri);
+    logmsg(rc, log_data_err,
+	   "Rejected %s because did not match manifest digest", uri);
     mib_increment(rc, uri, certificate_digest_mismatch);
     goto punt;
   }
@@ -1910,37 +1919,43 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
   parse_cert(rc, x, subj, uri);
 
   if (subj->sia[0] && subj->sia[strlen(subj->sia) - 1] != '/') {
-    logmsg(rc, log_data_err, "Malformed SIA %s for %s", subj->sia, uri);
+    logmsg(rc, log_data_err, "Rejected %s due to malformed SIA %s",
+	   uri, subj->sia);
     mib_increment(rc, uri, malformed_sia);
     goto punt;
   }
 
   if (!subj->aia[0]) {
-    logmsg(rc, log_data_err, "AIA missing for %s", uri);
+    logmsg(rc, log_data_err, "Rejected %s due to missing AIA", uri);
     mib_increment(rc, uri, aia_missing);
     goto punt;
   }
 
   if (!issuer->ta && strcmp(issuer->uri, subj->aia)) {
-    logmsg(rc, log_data_err, "AIA %s of %s doesn't match parent",
-	   subj->aia, uri);
+    logmsg(rc, log_data_err, "Rejected %s because AIA %s doesn't match parent",
+	   uri, subj->aia);
     mib_increment(rc, uri, aia_mismatch);
     goto punt;
   }
 
   if (subj->ca && !subj->sia[0]) {
-    logmsg(rc, log_data_err, "CA certificate %s without SIA extension", uri);
+    logmsg(rc, log_data_err,
+	   "Rejected %s because SIA extension is missing", uri);
     mib_increment(rc, uri, sia_missing);
     goto punt;
   }
 
   if (!subj->crldp[0]) {
-    logmsg(rc, log_data_err, "Missing CRLDP extension for %s", uri);
+    logmsg(rc, log_data_err,
+	   "Rejected %s because CRLDP extension is missing", uri);
     mib_increment(rc, uri, crldp_missing);
     goto punt;
   }
 
   if (!check_x509(rc, certs, x, subj)) {
+    /*
+     * Redundant error message?
+     */
     logmsg(rc, log_data_err, "Certificate %s failed validation", uri);
     goto punt;
   }
@@ -1981,9 +1996,9 @@ static X509 *check_cert(rcynic_ctx_t *rc,
     if (backup || sk_OPENSSL_STRING_find(rc->backup_cache, uri) < 0)
       return NULL;
     mib_increment(rc, uri, current_cert_recheck);
-    logmsg(rc, log_telemetry, "Rechecking cert %s", uri);
+    logmsg(rc, log_telemetry, "Rechecking %s", uri);
   } else {
-    logmsg(rc, log_telemetry, "Checking cert %s", uri);
+    logmsg(rc, log_telemetry, "Checking %s", uri);
   }
 
   rc->indent++;
@@ -2041,7 +2056,8 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 
   if ((eContentType = CMS_get0_eContentType(cms)) == NULL ||
       oid_cmp(eContentType, id_ct_rpkiManifest, sizeof(id_ct_rpkiManifest))) {
-    logmsg(rc, log_data_err, "Bad manifest %s eContentType", uri);
+    logmsg(rc, log_data_err,
+	   "Rejected %s due to bad manifest eContentType", uri);
     mib_increment(rc, uri, manifest_bad_econtenttype);
     goto done;
   }
@@ -2052,13 +2068,15 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   }
 
   if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    logmsg(rc, log_data_err, "Validation failure for manifest %s CMS message", uri);
+    logmsg(rc, log_data_err,
+	   "Rejected %s due to validation failure for manifest CMS message", uri);
     mib_increment(rc, uri, manifest_invalid_cms);
     goto done;
   }
 
   if ((signers = CMS_get0_signers(cms)) == NULL || sk_X509_num(signers) != 1) {
-    logmsg(rc, log_data_err, "Couldn't extract signers from manifest %s CMS", uri);
+    logmsg(rc, log_data_err,
+	   "Rejected %s because could not couldn't extract manifest EE certificate from CMS", uri);
     mib_increment(rc, uri, manifest_missing_signer);
     goto done;
   }
@@ -2066,38 +2084,46 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri);
 
   if (!certinfo.crldp[0]) {
-    logmsg(rc, log_data_err, "No CRLDP in manifest %s", uri);
+    logmsg(rc, log_data_err, "Rejected %s due to missing CRLDP in manifest EE certificate", uri);
     mib_increment(rc, uri, manifest_missing_crldp);
     goto done;
   }
 
   if ((crl_tail = strrchr(certinfo.crldp, '/')) == NULL) {
-    logmsg(rc, log_data_err, "Couldn't find trailing slash in CRLDP %s for manifest %s", certinfo.crldp, uri);
+    logmsg(rc, log_data_err,
+	   "Rejected %s due to malformed CRLDP %s in manifest EE certificate",
+	   uri, certinfo.crldp);
     mib_increment(rc, uri, manifest_malformed_crldp);
     goto done;
   }
   crl_tail++;
 
   if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
-    logmsg(rc, log_data_err, "Failure decoding manifest %s", uri);
+    logmsg(rc, log_data_err, "Rejected %s because unable to decode manifest", uri);
     mib_increment(rc, uri, manifest_decode_error);
     goto done;
   }
 
   if (manifest->version) {
-    logmsg(rc, log_data_err, "Manifest %s version should be defaulted zero, not %ld", uri, ASN1_INTEGER_get(manifest->version));
+    logmsg(rc, log_data_err,
+	   "Rejected %s because manifest version should be defaulted zero, not %ld",
+	   uri, ASN1_INTEGER_get(manifest->version));
     mib_increment(rc, uri, manifest_wrong_version);
     goto done;
   }
 
   if (X509_cmp_current_time(manifest->thisUpdate) > 0) {
-    logmsg(rc, log_data_err, "Manifest %s not yet valid", uri);
+    logmsg(rc, log_data_err, "Rejected %s because manifest not yet valid", uri);
     mib_increment(rc, uri, manifest_not_yet_valid);
     goto done;
   }
 
   if (X509_cmp_current_time(manifest->nextUpdate) < 0) {
-    logmsg(rc, log_data_err, "Stale manifest %s", uri);
+    logmsg(rc, log_data_err,
+	   (rc->allow_stale_manifest
+	    ? "Stale manifest %s"
+	    : "Rejected %s because manifest stale"),
+	   uri);
     mib_increment(rc, uri, stale_manifest);
     if (!rc->allow_stale_manifest)
       goto done;
@@ -2115,16 +2141,21 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1),
 		    fah->hash->data, fah->hash->length);
   } else {
-    logmsg(rc, log_data_err, "Couldn't find CRL %s in manifest %s", certinfo.crldp, uri);
+    logmsg(rc, log_data_err,
+	   (rc->require_crl_in_manifest
+	    ? "Rejected %s because CRL %s missing from manifest"
+	    : "Manifest %s is missing entry for CRL %s"),
+	   uri, certinfo.crldp);
     mib_increment(rc, uri, crl_not_in_manifest);
     if (rc->require_crl_in_manifest)
       goto done;
-    crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1),
-		    NULL, 0);
+    crl = check_crl(rc, certinfo.crldp,
+		    sk_X509_value(certs, sk_X509_num(certs) - 1), NULL, 0);
   }
 
   if (!crl) {
-    logmsg(rc, log_data_err, "Bad CRL %s for manifest %s EE certificate", certinfo.crldp, uri);
+    logmsg(rc, log_data_err,
+	   "Rejected %s due to bad manifest CRL %s", uri, certinfo.crldp);
     goto done;
   }
 
@@ -2151,6 +2182,9 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
 
   if (X509_verify_cert(&rctx.ctx) <= 0) {
+    /*
+     * Redundant error message?
+     */
     logmsg(rc, log_data_err, "Validation failure for manifest %s EE certificate",uri);
     mib_increment(rc, uri, manifest_invalid_ee);
     goto done;
@@ -2302,7 +2336,8 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     goto error;
 
   if (hash && memcmp(hashbuf, hash, hashlen)) {
-    logmsg(rc, log_data_err, "Manifest digest mismatch for ROA %s", uri);
+    logmsg(rc, log_data_err,
+	   "Rejected %s because ROA does not match manifest digest", uri);
     mib_increment(rc, uri, roa_digest_mismatch);
     goto error;
   }
@@ -2310,7 +2345,8 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   if (!(eContentType = CMS_get0_eContentType(cms)) ||
       oid_cmp(eContentType, id_ct_routeOriginAttestation,
 	      sizeof(id_ct_routeOriginAttestation))) {
-    logmsg(rc, log_data_err, "Bad ROA %s eContentType", uri);
+    logmsg(rc, log_data_err,
+	   "Rejected %s because ROA has bad eContentType", uri);
     mib_increment(rc, uri, roa_bad_econtenttype);
     goto error;
   }
@@ -2321,13 +2357,15 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   }
 
   if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    logmsg(rc, log_data_err, "Validation failure for ROA %s CMS message", uri);
+    logmsg(rc, log_data_err,
+	   "Rejected %s because ROA CMS failed validation", uri);
     mib_increment(rc, uri, roa_invalid_cms);
     goto error;
   }
 
   if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1) {
-    logmsg(rc, log_data_err, "Couldn't extract signers from ROA %s CMS", uri);
+    logmsg(rc, log_data_err,
+	   "Rejected %s because couldn't extract CMS signer from ROA", uri);
     mib_increment(rc, uri, roa_missing_signer);
     goto error;
   }
@@ -2335,13 +2373,16 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri);
 
   if (!(roa = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, NULL))) {
-    logmsg(rc, log_data_err, "Failure decoding ROA %s", uri);
+    logmsg(rc, log_data_err,
+	   "Rejected %s because could not decode ROA", uri);
     mib_increment(rc, uri, roa_decode_error);
     goto error;
   }
 
   if (roa->version) {
-    logmsg(rc, log_data_err, "ROA %s version should be defaulted zero, not %ld", uri, ASN1_INTEGER_get(roa->version));
+    logmsg(rc, log_data_err,
+	   "Rejected %s because ROA version should be defaulted zero, not %ld",
+	   uri, ASN1_INTEGER_get(roa->version));
     mib_increment(rc, uri, roa_wrong_version);
     goto error;
   }
@@ -2363,7 +2404,9 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   for (i = 0; i < sk_ROAIPAddressFamily_num(roa->ipAddrBlocks); i++) {
     rf = sk_ROAIPAddressFamily_value(roa->ipAddrBlocks, i);
     if (!rf || !rf->addressFamily || rf->addressFamily->length < 2 || rf->addressFamily->length > 3) {
-      logmsg(rc, log_data_err, "ROA %s addressFamily length should be 2 or 3", uri);
+      logmsg(rc, log_data_err,
+	     "Rejected %s because ROA addressFamily length should be 2 or 3, not %lu",
+	     uri, (unsigned long) rf->addressFamily->length);
       mib_increment(rc, uri, malformed_roa_addressfamily);
       goto error;
     }
@@ -2375,7 +2418,8 @@ static int check_roa_1(const rcynic_ctx_t *rc,
       if (!ra ||
 	  !extract_roa_prefix(addrbuf, &prefixlen, ra->IPAddress, afi) ||
 	  !v3_addr_add_prefix(roa_resources, afi, safi, addrbuf, prefixlen)) {
-	logmsg(rc, log_data_err, "Failed to copy resources from ROA %s into resource set", uri);
+	logmsg(rc, log_data_err,
+	       "Rejected %s because unable to copy resources from ROA into resource set", uri);
 	goto error;
       }
     }
@@ -2395,7 +2439,8 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     IPAddressFamily *f = sk_IPAddressFamily_value(roa_resources, i);
 
     if ((afi = v3_addr_get_afi(f)) == 0) {
-      logmsg(rc, log_data_err, "Bad AFI extracting data from ROA %s", uri);
+      logmsg(rc, log_data_err,
+	     "Rejected %s because found bad AFI while extracting data from ROA", uri);
       goto error;
     }
 
@@ -2413,7 +2458,9 @@ static int check_roa_1(const rcynic_ctx_t *rc,
 
 	if ((length = v3_addr_get_range(a, afi, a_min, a_max, ADDR_RAW_BUF_LEN)) == 0 ||
 	    (length = v3_addr_get_range(b, afi, b_min, b_max, ADDR_RAW_BUF_LEN)) == 0) {
-	  logmsg(rc, log_data_err, "Trouble extracting addresses from ROA %s", uri);
+
+	  logmsg(rc, log_data_err,
+		 "Rejected %s because unable to extract addresses from ROA", uri);
 	  goto error;
 	}
 
@@ -2427,17 +2474,18 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   }
 
   if (!v3_addr_canonize(roa_resources)) {
-    logmsg(rc, log_data_err, "Failed to put resources from ROA %s into canonical resource set form", uri);
+    logmsg(rc, log_data_err,
+	   "Rejected %s because unable to put ROA resources into canonical resource set form", uri);
     goto error;
   }
 
   if (!v3_addr_subset(roa_resources, ee_resources)) {
-    logmsg(rc, log_data_err, "ROA %s resources are not a subset of its signing EE certificate's resources", uri);
+    logmsg(rc, log_data_err, "Rejected %s because ROA resources are not a subset of its signing EE certificate's resources", uri);
     goto error;
   }
 
   if (!(crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1), NULL, 0))) {
-    logmsg(rc, log_data_err, "Bad CRL %s for ROA %s EE certificate", certinfo.crldp, uri);
+    logmsg(rc, log_data_err, "Rejected %s beacuse ROA EE certificate has bad CRL %s", uri, certinfo.crldp);
     goto error;
   }
 
@@ -2464,6 +2512,9 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
 
   if (X509_verify_cert(&rctx.ctx) <= 0) {
+    /*
+     * Redundant error message?
+     */
     logmsg(rc, log_data_err, "Validation failure for ROA %s EE certificate",uri);
     mib_increment(rc, uri, roa_invalid_ee);
     goto error;
@@ -2970,12 +3021,12 @@ int main(int argc, char *argv[])
       if ((x = read_cert(path1, NULL, 0)) == NULL)
 	logmsg(&rc, log_data_err, "Couldn't read trust anchor %s", path1);
       if (x && (xpkey = X509_get_pubkey(x)) == NULL)
-	logmsg(&rc, log_data_err, "Couldn't read public key from trust anchor %s", uri);
+	logmsg(&rc, log_data_err, "Rejected %s because couldn't read public key from indirect trust anchor", uri);
       j = (xpkey && EVP_PKEY_cmp(pkey, xpkey) == 1);
       EVP_PKEY_free(pkey);
       EVP_PKEY_free(xpkey);
       if (!j) {
-	logmsg(&rc, log_data_err, "Public key did not match trust anchor %s", uri);
+	logmsg(&rc, log_data_err, "Rejected %s beacuse known public key didn't match indirect trust anchor", uri);
 	X509_free(x);
 	continue;
       }

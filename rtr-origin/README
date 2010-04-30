@@ -40,6 +40,11 @@ To use this, you need to do two things beyond setting up rcynic:
    ssh, but not all clients support that yet.  rtr-origin.py doesn't
    really care, it just reads from stdin and writes to stdout.
 
+   --server mode should be run as a non-privileged user (it is
+   read-only for a reason).  You may want to set up a separate UNIX
+   userid for this purpose so that you can give that user its own home
+   directory and ssh configuration files.
+
    As with --cronjob mode, --server mode currently uses the directory
    in which it was started as its data directory (this may change in
    the future), so you need to arrange for whatever program invokes it
@@ -49,19 +54,25 @@ To use this, you need to do two things beyond setting up rcynic:
      /usr/local/bin/python $srcdir/rtr-origin.py --server
 
    There's a sample sshd.conf in the source directory.  You will have
-   to modify it to suit your environment.  The important part is the
-   Subsystem line, which runs the server.sh script as the rpki-rtr
-   service.  server.sh is also a sample and will also need
-   modification for your environment.
+   to modify it to suit your environment.  The most important part is
+   the Subsystem line, which runs the server.sh script as the
+   "rpki-rtr" service, as required by the protocol specification.
+
+   If you are using sshd you will presumably also want to configure an
+   authorized_keys file.  You may want to consider using a command=""
+   parameter in the key line (see the sshd(8) man page) to lock down
+   this ssh key so that it can only be used to run the "rpki-rtr"
+   service.
 
    You can also run this code under inetd (or the netpipes "faucet"
    program), with the understanding that this is totally insecure and
    only suitable for early testing.
 
    In theory one could also run this under TLS, eg, via the stunnel
-   program, which would provide roughly equivalent (albiet different)
-   security to ssh.  Other than a few lines of logging code, the
-   program really doesn't care.
+   program, which would provide security roughly equivalent to (albeit
+   different from) ssh.  Other than a few lines that might need
+   hacking to log the connection peer properly, the program really
+   doesn't care.
 
 The program has two other modes, which might be useful for debugging:
 
@@ -72,4 +83,3 @@ a) --client mode implements a dumb client program for this protocol,
 
 b) --show mode will display a text dump of pre-digested data files in
    the current directory.
-

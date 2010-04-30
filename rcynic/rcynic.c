@@ -1776,11 +1776,15 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
   }
 
   if (!ok)
+    /*
+     * Something went wrong, log the (allegedly) human readable error
+     * message and the chain depth.
+     */
     logmsg(rctx->rc, log_data_err,
-	   "Callback depth %d error %d cert %p issuer %p crl %p: %s",
-	   ctx->error_depth, ctx->error, ctx->current_cert,
-	   ctx->current_issuer, ctx->current_crl,
+	   "Rejected %s due to validation failure at depth %d: %s",
+	   rctx->subj->uri, ctx->error_depth, 
 	   X509_verify_cert_error_string(ctx->error));
+
   return ok;
 }
 

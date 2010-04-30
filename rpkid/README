@@ -149,7 +149,12 @@ TO DO:
 	Class and method design is intended to make it easy to drop in
 	additional checks if needed.
 
-	STATUS: Trivial version (required path check) done.
+	We have now moved this problem into the out-of-band setup
+	mechanism (signed publication referals), so the simple check
+	already implemented is now all we need at runtime.
+
+	STATUS: Trivial version (required path check) done; complex
+	version no longer needed; so, done.
 
       * Investigate using EKU (RFC 3280 4.2.1.13) as an alternative to
 	wiring in BPKI EE certs for left-right protocol.
@@ -233,7 +238,9 @@ TO DO:
 
 	TIME REQUIRED: Two weeks.
 
-	STATUS: Not started
+	STATUS: Mostly done.  POW is still hanging off to the side,
+	but the myrpki/ directory has now been merged into rpkid/, and
+	various other bits have been cleaned up.
 
       * Autoconf review.  Right now we're making minimal use of
         autoconf, just enough to get the code running on Mac OS and

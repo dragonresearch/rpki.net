@@ -182,9 +182,19 @@ TO DO:
         simple, rcynic work may be a bit more complex, or at least
         tedious, as it'll be C code generating XML.
 
+	<list_received_resources/> was part of this.
+
+	rcynic XML detail should describe entire certificate
+	validation chain and status of validation at each stage.
+	Given tree walk this is probably going to be some kind of
+	XML-representation tree structure, which i will probably
+	design as s-expressions first to keep my brain from exploding
+	with gratuitous XML syntax.
+
 	TIME REQUIRED: 1-2 weeks.
 
-	STATUS: Not started
+	STATUS:		<list_received_resources/> done.
+			rcynic work not started yet.
 
       * At present there is no mechanism by which an IRBE could
 	request signing of objects other than ROAs.  Eg, there has

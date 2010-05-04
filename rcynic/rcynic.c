@@ -285,7 +285,7 @@ typedef struct certinfo {
 typedef struct rcynic_ctx {
   char *authenticated, *old_authenticated, *unauthenticated;
   char *jane, *rsync_program;
-  STACK_OF(OPENSSL_STRING) *rsync_cache, *backup_cache;
+  STACK_OF(OPENSSL_STRING) *rsync_cache, *backup_cache, *stale_cache;
   STACK_OF(HOST_MIB_COUNTER) *host_counters;
   int indent, use_syslog, allow_stale_crl, allow_stale_manifest, use_links;
   int require_crl_in_manifest, rsync_timeout, priority[LOG_LEVEL_T_MAX];
@@ -1731,13 +1731,18 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
      * said it intended to publish a new CRL.  Unclear whether this
      * should be an error; current theory is that it should not be.
      */
-    if (rctx->rc->allow_stale_crl)
+    if (rctx->rc->allow_stale_crl) {
       ok = 1;
-    logmsg(rctx->rc, log_data_err,
-	   (ok
-	    ? "While checking %s encountered stale crl %s"
-	    : "Rejected %s due to stale CRL %s"),
-	   rctx->subj->uri, rctx->subj->crldp);
+      if (sk_OPENSSL_STRING_find(rctx->rc->stale_cache, rctx->subj->crldp) >= 0)
+	return ok;
+      if (!sk_OPENSSL_STRING_push_strdup(rctx->rc->stale_cache, rctx->subj->crldp))
+	logmsg(rctx->rc, log_sys_err,
+	       "Couldn't cache stale CRLDP %s, blundering onward", rctx->subj->crldp);
+    }
+    logmsg(rctx->rc, log_data_err, "Stale CRL %s", rctx->subj->crldp);
+    if (!ok)
+      logmsg(rctx->rc, log_data_err, "Rejected %s due to stale CRL %s", 
+	     rctx->subj->uri, rctx->subj->crldp);
     mib_increment(rctx->rc, rctx->subj->uri, stale_crl);
     return ok;
 
@@ -2118,11 +2123,14 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     goto done;
   }
 
-  if (X509_cmp_current_time(manifest->nextUpdate) < 0) {
+  if (X509_cmp_current_time(manifest->nextUpdate) < 0 &&
+      sk_OPENSSL_STRING_find(rc->stale_cache, uri) < 0) {
+    if (!sk_OPENSSL_STRING_push_strdup(rc->stale_cache, uri))
+      logmsg(rc, log_sys_err, "Couldn't cache stale manifest %s, blundering onward", uri);
     logmsg(rc, log_data_err,
 	   (rc->allow_stale_manifest
 	    ? "Stale manifest %s"
-	    : "Rejected %s because manifest stale"),
+	    : "Rejected %s because it is a stale manifest"),
 	   uri);
     mib_increment(rc, uri, stale_manifest);
     if (!rc->allow_stale_manifest)
@@ -2876,6 +2884,11 @@ int main(int argc, char *argv[])
     goto done;
   }
 
+  if ((rc.stale_cache = sk_OPENSSL_STRING_new(uri_cmp)) == NULL) {
+    logmsg(&rc, log_sys_err, "Couldn't allocate stale_cache stack");
+    goto done;
+  }
+
   if ((xmlfile != NULL) &&
       (rc.host_counters = sk_HOST_MIB_COUNTER_new(host_mib_counter_cmp)) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate host_counters stack");
@@ -3143,6 +3156,7 @@ int main(int argc, char *argv[])
   sk_X509_pop_free(certs, X509_free);
   sk_OPENSSL_STRING_pop_free(rc.rsync_cache, OPENSSL_STRING_free);
   sk_OPENSSL_STRING_pop_free(rc.backup_cache, OPENSSL_STRING_free);
+  sk_OPENSSL_STRING_pop_free(rc.stale_cache, OPENSSL_STRING_free);
   sk_HOST_MIB_COUNTER_pop_free(rc.host_counters, HOST_MIB_COUNTER_free);
   X509_STORE_free(rc.x509_store);
   NCONF_free(cfg_handle);

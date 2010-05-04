@@ -64,12 +64,16 @@
 	<xsl:if test="$refresh != 0">
 	  <meta http-equiv="Refresh" content="{$refresh}"/>
 	</xsl:if>
+	<style type="text/css">
+	    td		{ text-align: center; padding: 4px }
+	    td.uri	{ text-align: left }
+	</style>
       </head>
       <body>
         <h1>
 	  <xsl:value-of select="$title"/>
 	</h1>
-	<table rules="all" style="text-align: center">
+	<table class="summary" rules="all">
 	  <thead>
 	    <tr>
 	      <xsl:for-each select="rcynic-summary/labels/*">
@@ -117,6 +121,27 @@
 		</xsl:for-each>
 	      </tr>
 	    </xsl:if>
+	  </tbody>
+	</table>
+	<br/>
+	<h1>Validation Status</h1>
+	<table class="details" rules="all" >
+	  <thead>
+	    <tr>
+	      <td class="timestamp"><b>Timestamp</b></td>
+	      <td class="status"><b>Status</b></td>
+	      <td class="uri"><b>URI</b></td>
+	    </tr>
+	  </thead>
+	  <tbody>
+	    <xsl:for-each select="rcynic-summary/validation_status">
+	      <xsl:variable name="status" select="@status"/>
+	      <tr>
+	        <td class="timestamp"><xsl:value-of select="@timestamp"/></td>
+		<td class="status"><xsl:value-of select="/rcynic-summary/labels/*[name() = $status] "/></td>
+		<td class="uri"><xsl:value-of select="."/></td>
+	      </tr>
+	    </xsl:for-each>
 	  </tbody>
 	</table>
       </body>

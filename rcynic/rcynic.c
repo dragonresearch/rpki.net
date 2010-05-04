@@ -181,10 +181,12 @@ static const struct {
   QV(X509_V_ERR_UNNESTED_RESOURCE)
 
 /**
- * MIB counters specific to rcynic.
+ * MIB counters specific to rcynic.  "validation_ok" is not used as a
+ * counter, but is used as a validation status code.
  */
 
 #define MIB_COUNTERS							 \
+  QQ(validation_ok,			"OK")				 \
   QQ(backup_cert_accepted,		"Backup certificates accepted")  \
   QQ(backup_cert_rejected,		"Backup certificates rejected")  \
   QQ(backup_crl_accepted,		"Backup CRLs accepted")		 \
@@ -236,6 +238,13 @@ static const struct {
   QQ(trust_anchor_not_self_signed,	"Trust anchor not self-signed")	 \
   QQ(uri_too_long,			"URI too long")			 \
   QQ(malformed_crldp,			"Malformed CRDLP extension")	 \
+  QQ(certificate_bad_signature,		"Bad certificate signature")	 \
+  QQ(certificate_bad_crl,		"Bad certificate CRL")		 \
+  QQ(manifest_bad_crl,			"Manifest has bad CRL")		 \
+  QQ(roa_resources_malformed,		"ROA resources malformed")	 \
+  QQ(roa_bad_afi,			"ROA contains bad AFI value")	 \
+  QQ(roa_not_nested,			"ROA resources not in EE")	 \
+  QQ(roa_bad_crl,			"ROA EE has bad CRL")		 \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QQ(mib_openssl_##x, 0)
@@ -272,6 +281,17 @@ typedef struct host_mib_counter {
 DECLARE_STACK_OF(HOST_MIB_COUNTER)
 
 /**
+ * Per-URI validation status object.
+ */
+typedef struct validation_status {
+  char uri[URI_MAX];
+  time_t timestamp;
+  mib_counter_t code;
+} VALIDATION_STATUS;
+
+DECLARE_STACK_OF(VALIDATION_STATUS)
+
+/**
  * Structure to hold data parsed out of a certificate.
  */
 typedef struct certinfo {
@@ -287,6 +307,7 @@ typedef struct rcynic_ctx {
   char *jane, *rsync_program;
   STACK_OF(OPENSSL_STRING) *rsync_cache, *backup_cache, *stale_cache;
   STACK_OF(HOST_MIB_COUNTER) *host_counters;
+  STACK_OF(VALIDATION_STATUS) *validation_status;
   int indent, use_syslog, allow_stale_crl, allow_stale_manifest, use_links;
   int require_crl_in_manifest, rsync_timeout, priority[LOG_LEVEL_T_MAX];
   int allow_non_self_signed_trust_anchor;
@@ -369,11 +390,30 @@ static HOST_MIB_COUNTER *HOST_MIB_COUNTER_new(void)
 }
 
 /**
+ * Allocate a new VALIDATION_STATUS object.
+ */
+static VALIDATION_STATUS *VALIDATION_STATUS_new(void)
+{
+  VALIDATION_STATUS *v = malloc(sizeof(*v));
+  if (v)
+    memset(v, 0, sizeof(*v));
+  return v;
+}
+
+/**
  * Type-safe wrapper around free() to keep safestack macros happy.
  */
 static void HOST_MIB_COUNTER_free(HOST_MIB_COUNTER *h)
 {
   free(h);
+}
+
+/**
+ * Type-safe wrapper around free() to keep safestack macros happy.
+ */
+static void VALIDATION_STATUS_free(VALIDATION_STATUS *v)
+{
+  free(v);
 }
 
 /*
@@ -401,6 +441,32 @@ static void HOST_MIB_COUNTER_free(HOST_MIB_COUNTER *h)
 #define sk_HOST_MIB_COUNTER_pop(st)			SKM_sk_pop(HOST_MIB_COUNTER, (st))
 #define sk_HOST_MIB_COUNTER_sort(st)			SKM_sk_sort(HOST_MIB_COUNTER, (st))
 #define sk_HOST_MIB_COUNTER_is_sorted(st)		SKM_sk_is_sorted(HOST_MIB_COUNTER, (st))
+
+/*
+ * Safestack macros for VALIDATION_STATUS.
+ */
+
+#define sk_VALIDATION_STATUS_new(st)			SKM_sk_new(VALIDATION_STATUS, (st))
+#define sk_VALIDATION_STATUS_new_null()			SKM_sk_new_null(VALIDATION_STATUS)
+#define sk_VALIDATION_STATUS_free(st)			SKM_sk_free(VALIDATION_STATUS, (st))
+#define sk_VALIDATION_STATUS_num(st)			SKM_sk_num(VALIDATION_STATUS, (st))
+#define sk_VALIDATION_STATUS_value(st, i)		SKM_sk_value(VALIDATION_STATUS, (st), (i))
+#define sk_VALIDATION_STATUS_set(st, i, val)		SKM_sk_set(VALIDATION_STATUS, (st), (i), (val))
+#define sk_VALIDATION_STATUS_zero(st)			SKM_sk_zero(VALIDATION_STATUS, (st))
+#define sk_VALIDATION_STATUS_push(st, val)		SKM_sk_push(VALIDATION_STATUS, (st), (val))
+#define sk_VALIDATION_STATUS_unshift(st, val)		SKM_sk_unshift(VALIDATION_STATUS, (st), (val))
+#define sk_VALIDATION_STATUS_find(st, val)		SKM_sk_find(VALIDATION_STATUS, (st), (val))
+#define sk_VALIDATION_STATUS_find_ex(st, val)		SKM_sk_find_ex(VALIDATION_STATUS, (st), (val))
+#define sk_VALIDATION_STATUS_delete(st, i)		SKM_sk_delete(VALIDATION_STATUS, (st), (i))
+#define sk_VALIDATION_STATUS_delete_ptr(st, ptr)	SKM_sk_delete_ptr(VALIDATION_STATUS, (st), (ptr))
+#define sk_VALIDATION_STATUS_insert(st, val, i)		SKM_sk_insert(VALIDATION_STATUS, (st), (val), (i))
+#define sk_VALIDATION_STATUS_set_cmp_func(st, cmp)	SKM_sk_set_cmp_func(VALIDATION_STATUS, (st), (cmp))
+#define sk_VALIDATION_STATUS_dup(st)			SKM_sk_dup(VALIDATION_STATUS, st)
+#define sk_VALIDATION_STATUS_pop_free(st, free_func)	SKM_sk_pop_free(VALIDATION_STATUS, (st), (free_func))
+#define sk_VALIDATION_STATUS_shift(st)			SKM_sk_shift(VALIDATION_STATUS, (st))
+#define sk_VALIDATION_STATUS_pop(st)			SKM_sk_pop(VALIDATION_STATUS, (st))
+#define sk_VALIDATION_STATUS_sort(st)			SKM_sk_sort(VALIDATION_STATUS, (st))
+#define sk_VALIDATION_STATUS_is_sorted(st)		SKM_sk_is_sorted(VALIDATION_STATUS, (st))
 
 
 
@@ -568,20 +634,18 @@ IMPLEMENT_ASN1_FUNCTIONS(ROA)
 /**
  * Logging.
  */
-static void logmsg(const rcynic_ctx_t *rc, 
-		   const log_level_t level, 
-		   const char *fmt, ...)
+static void vlogmsg(const rcynic_ctx_t *rc, 
+		    const log_level_t level, 
+		    const char *fmt,
+		    va_list ap)
 {
   char tad[sizeof("00:00:00")+1];
   time_t tad_time;
-  va_list ap;
 
   assert(rc && fmt);
 
   if (rc->log_level < level)
     return;
-
-  va_start(ap, fmt);
 
   if (rc->use_syslog) {
     vsyslog(rc->priority[level], fmt, ap);
@@ -596,7 +660,18 @@ static void logmsg(const rcynic_ctx_t *rc,
     vfprintf(stderr, fmt, ap);
     putc('\n', stderr);
   }
+}
 
+/**
+ * Logging.
+ */
+static void logmsg(const rcynic_ctx_t *rc, 
+		   const log_level_t level, 
+		   const char *fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  vlogmsg(rc, level, fmt, ap);
   va_end(ap);
 }
 
@@ -848,7 +923,7 @@ static void mib_increment(const rcynic_ctx_t *rc,
   HOST_MIB_COUNTER *h = NULL, hn;
   char *s;
 
-  assert(rc && uri);
+  assert(rc && uri && strlen(uri) < URI_MAX);
 
   if (!rc->host_counters)
     return;
@@ -880,6 +955,60 @@ static void mib_increment(const rcynic_ctx_t *rc,
   }
 
   h->counters[counter]++;
+}
+
+/**
+ * Add a validation status entry to internal log.
+ */
+static void log_validation_status(const rcynic_ctx_t *rc,
+				  const char *uri,
+				  const mib_counter_t code)
+{
+  VALIDATION_STATUS *v = NULL;
+
+  assert(rc && uri && strlen(uri) < URI_MAX);
+
+  if (!rc->validation_status)
+    return;
+
+  if ((v = VALIDATION_STATUS_new()) == NULL) {
+    logmsg(rc, log_sys_err, "Couldn't allocate validation status entry for %s", uri);
+    goto punt;
+  }
+
+  strcpy(v->uri, uri);
+  v->timestamp = time(0);
+  v->code = code;
+
+  if (!sk_VALIDATION_STATUS_push(rc->validation_status, v)) {
+    logmsg(rc, log_sys_err, "Couldn't store validation status entry for %s", uri);
+    goto punt;
+  }
+
+  v = NULL;
+
+ punt:
+  if (v)
+    free(v);
+}
+
+/**
+ * Reject an object.
+ */
+static void reject(const rcynic_ctx_t *rc,
+		   const char *uri,
+		   const mib_counter_t code,
+		   const char *fmt, ...)
+{
+  char format[URI_MAX * 2];
+  va_list ap;
+
+  assert(fmt && strlen(fmt) + sizeof("Rejected %s") < sizeof(format));
+  snprintf(format, sizeof(format), "Rejected %s %s", uri, fmt);
+  log_validation_status(rc, uri, code);
+  va_start(ap, fmt);
+  vlogmsg(rc, log_data_err, format, ap);
+  va_end(ap);
 }
 
 /**
@@ -945,7 +1074,7 @@ static int install_object(const rcynic_ctx_t *rc,
 	   (rc->use_links ? "link" : "copy"), source, target);
     return 0;
   }
-
+  log_validation_status(rc, uri, validation_ok);
   logmsg(rc, log_telemetry, "Accepted     %s", uri);
   return 1;
 }
@@ -1634,8 +1763,8 @@ static X509_CRL *check_crl_1(const rcynic_ctx_t *rc,
     goto punt;
 
   if (hash && memcmp(hashbuf, hash, hashlen)) {
-    logmsg(rc, log_data_err, "Rejected %s because manifest digest did not match CRL", uri);
-    mib_increment(rc, uri, crl_digest_mismatch);
+    reject(rc, uri, crl_digest_mismatch,
+	   "because digest of CRL did not match value from manifest");
     goto punt;
   }
 
@@ -1708,6 +1837,7 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
 {
   rcynic_x509_store_ctx_t *rctx = (rcynic_x509_store_ctx_t *) ctx;
+  mib_counter_t counter;
 
   assert(rctx != NULL);
 
@@ -1740,10 +1870,10 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
 	       "Couldn't cache stale CRLDP %s, blundering onward", rctx->subj->crldp);
     }
     logmsg(rctx->rc, log_data_err, "Stale CRL %s", rctx->subj->crldp);
-    if (!ok)
-      logmsg(rctx->rc, log_data_err, "Rejected %s due to stale CRL %s", 
-	     rctx->subj->uri, rctx->subj->crldp);
-    mib_increment(rctx->rc, rctx->subj->uri, stale_crl);
+    if (ok)
+      mib_increment(rctx->rc, rctx->subj->uri, stale_crl);
+    else
+      reject(rctx->rc, rctx->subj->uri, stale_crl, "due to stale CRL %s", rctx->subj->crldp);
     return ok;
 
   case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT:
@@ -1762,35 +1892,36 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
      */
     if (rctx->rc->allow_non_self_signed_trust_anchor)
       ok = 1;
-    logmsg(rctx->rc, log_data_err,
-	   (ok
-	    ? "Trust anchor not self-signed while checking %s"
-	    : "Rejected %s because trust anchor was not self-signed"),
-	   rctx->subj->uri);
-    mib_increment(rctx->rc, rctx->subj->uri, trust_anchor_not_self_signed);
+    if (ok)
+      mib_increment(rctx->rc, rctx->subj->uri, trust_anchor_not_self_signed);
+    else
+      reject(rctx->rc, rctx->subj->uri, trust_anchor_not_self_signed, 
+	     "because trust anchor was not self-signed");
     return ok;
 
   /*
-   * Increment counters for all known OpenSSL verify errors except the
-   * ones we handle explicitly above, then fall through to generate
-   * appropriate error message.
+   * Select correct MIB counter for every known OpenSSL verify errors
+   * except the ones we handle explicitly above, then fall through to
+   * common handling for all of these.
    */
 #define QV(x)							\
   case x:							\
-    mib_increment(rctx->rc, rctx->subj->uri, mib_openssl_##x);	\
+    counter = mib_openssl_##x;					\
     break;
     MIB_COUNTERS_FROM_OPENSSL;
 #undef	QV
 
   default:
-    mib_increment(rctx->rc, rctx->subj->uri, unknown_verify_error);
+    counter = unknown_verify_error;
     break;
   }
 
-  if (!ok)
-    logmsg(rctx->rc, log_data_err,
-	   "Rejected %s due to validation failure at depth %d: %s",
-	   rctx->subj->uri, ctx->error_depth, 
+  if (ok)
+    mib_increment(rctx->rc, rctx->subj->uri, counter);
+  else
+    reject(rctx->rc, rctx->subj->uri, counter,
+	   "due to validation failure at depth %d: %s",
+	   ctx->error_depth, 
 	   X509_verify_cert_error_string(ctx->error));
 
   return ok;
@@ -1823,17 +1954,15 @@ static int check_x509(const rcynic_ctx_t *rc,
   rctx.subj = subj;
 
   if (!subj->ta &&
-      ((pkey = X509_get_pubkey(issuer)) == NULL ||
-       X509_verify(x, pkey) <= 0)) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s because it failed signature check prior to CRL fetch",
-	   subj->uri);
+      ((pkey = X509_get_pubkey(issuer)) == NULL || X509_verify(x, pkey) <= 0)) {
+    reject(rc, subj->uri, certificate_bad_signature,
+	   "because it failed signature check prior to CRL fetch");
     goto done;
   }
 
   if ((crl = check_crl(rc, subj->crldp, issuer, NULL, 0)) == NULL) {
-    logmsg(rc, log_data_err, "Rejected %s due to bad CRL %s",
-	   subj->uri, subj->crldp);
+    reject(rc, subj->uri, certificate_bad_crl,
+	   "due to bad CRL %s", subj->crldp);
     goto done;
   }
 
@@ -1915,45 +2044,36 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
   }
 
   if (hash && memcmp(hashbuf, hash, hashlen)) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s because did not match manifest digest", uri);
-    mib_increment(rc, uri, certificate_digest_mismatch);
+    reject(rc, uri, certificate_digest_mismatch,
+	   "because digest did not match value in manifest");
     goto punt;
   }
 
   parse_cert(rc, x, subj, uri);
 
   if (subj->sia[0] && subj->sia[strlen(subj->sia) - 1] != '/') {
-    logmsg(rc, log_data_err, "Rejected %s due to malformed SIA %s",
-	   uri, subj->sia);
-    mib_increment(rc, uri, malformed_sia);
+    reject(rc, uri, malformed_sia,
+	   "due to malformed SIA %s", subj->sia);
     goto punt;
   }
 
   if (!subj->aia[0]) {
-    logmsg(rc, log_data_err, "Rejected %s due to missing AIA", uri);
-    mib_increment(rc, uri, aia_missing);
+    reject(rc, uri, aia_missing, "due to missing AIA");
     goto punt;
   }
 
   if (!issuer->ta && strcmp(issuer->uri, subj->aia)) {
-    logmsg(rc, log_data_err, "Rejected %s because AIA %s doesn't match parent",
-	   uri, subj->aia);
-    mib_increment(rc, uri, aia_mismatch);
+    reject(rc, uri, aia_mismatch, "because AIA %s doesn't match parent", subj->aia);
     goto punt;
   }
 
   if (subj->ca && !subj->sia[0]) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s because SIA extension is missing", uri);
-    mib_increment(rc, uri, sia_missing);
+    reject(rc, uri, sia_missing, "because SIA extension is missing");
     goto punt;
   }
 
   if (!subj->crldp[0]) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s because CRLDP extension is missing", uri);
-    mib_increment(rc, uri, crldp_missing);
+    reject(rc, uri, crldp_missing, "because CRLDP extension is missing");
     goto punt;
   }
 
@@ -2061,9 +2181,8 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 
   if ((eContentType = CMS_get0_eContentType(cms)) == NULL ||
       oid_cmp(eContentType, id_ct_rpkiManifest, sizeof(id_ct_rpkiManifest))) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s due to bad manifest eContentType", uri);
-    mib_increment(rc, uri, manifest_bad_econtenttype);
+    reject(rc, uri, manifest_bad_econtenttype,
+	   "due to bad manifest eContentType");
     goto done;
   }
 
@@ -2073,53 +2192,47 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   }
 
   if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s due to validation failure for manifest CMS message", uri);
-    mib_increment(rc, uri, manifest_invalid_cms);
+    reject(rc, uri, manifest_invalid_cms,
+	   "due to validation failure for manifest CMS message");
     goto done;
   }
 
   if ((signers = CMS_get0_signers(cms)) == NULL || sk_X509_num(signers) != 1) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s because could not couldn't extract manifest EE certificate from CMS", uri);
-    mib_increment(rc, uri, manifest_missing_signer);
+    reject(rc, uri, manifest_missing_signer,
+	   "because could not couldn't extract manifest EE certificate from CMS");
     goto done;
   }
 
   parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri);
 
   if (!certinfo.crldp[0]) {
-    logmsg(rc, log_data_err, "Rejected %s due to missing CRLDP in manifest EE certificate", uri);
-    mib_increment(rc, uri, manifest_missing_crldp);
+    reject(rc, uri, manifest_missing_crldp,
+	   "due to missing CRLDP in manifest EE certificate");
     goto done;
   }
 
   if ((crl_tail = strrchr(certinfo.crldp, '/')) == NULL) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s due to malformed CRLDP %s in manifest EE certificate",
-	   uri, certinfo.crldp);
-    mib_increment(rc, uri, manifest_malformed_crldp);
+    reject(rc, uri, manifest_malformed_crldp,
+	   "due to malformed CRLDP %s in manifest EE certificate",
+	   certinfo.crldp);
     goto done;
   }
   crl_tail++;
 
   if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
-    logmsg(rc, log_data_err, "Rejected %s because unable to decode manifest", uri);
-    mib_increment(rc, uri, manifest_decode_error);
+    reject(rc, uri, manifest_decode_error, "because unable to decode manifest");
     goto done;
   }
 
   if (manifest->version) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s because manifest version should be defaulted zero, not %ld",
-	   uri, ASN1_INTEGER_get(manifest->version));
-    mib_increment(rc, uri, manifest_wrong_version);
+    reject(rc, uri, manifest_wrong_version,
+	   "because manifest version should be defaulted zero, not %ld",
+	   ASN1_INTEGER_get(manifest->version));
     goto done;
   }
 
   if (X509_cmp_current_time(manifest->thisUpdate) > 0) {
-    logmsg(rc, log_data_err, "Rejected %s because manifest not yet valid", uri);
-    mib_increment(rc, uri, manifest_not_yet_valid);
+    reject(rc, uri, manifest_not_yet_valid, "because manifest not yet valid");
     goto done;
   }
 
@@ -2127,14 +2240,13 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
       sk_OPENSSL_STRING_find(rc->stale_cache, uri) < 0) {
     if (!sk_OPENSSL_STRING_push_strdup(rc->stale_cache, uri))
       logmsg(rc, log_sys_err, "Couldn't cache stale manifest %s, blundering onward", uri);
-    logmsg(rc, log_data_err,
-	   (rc->allow_stale_manifest
-	    ? "Stale manifest %s"
-	    : "Rejected %s because it is a stale manifest"),
-	   uri);
-    mib_increment(rc, uri, stale_manifest);
-    if (!rc->allow_stale_manifest)
+    if (!rc->allow_stale_manifest) {
+      reject(rc, uri, stale_manifest,
+	     "Rejected %s because it is a stale manifest");
       goto done;
+    }
+    logmsg(rc, log_data_err, "Stale manifest %s", uri);
+    mib_increment(rc, uri, stale_manifest);
   }
 
   if (manifest->fileHashAlg == NULL ||
@@ -2148,22 +2260,19 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   if (fah) {
     crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1),
 		    fah->hash->data, fah->hash->length);
+  } else if (rc->require_crl_in_manifest) {
+    reject(rc, uri, crl_not_in_manifest,
+	   "because CRL %s missing from manifest", certinfo.crldp);
+    goto done;
   } else {
-    logmsg(rc, log_data_err,
-	   (rc->require_crl_in_manifest
-	    ? "Rejected %s because CRL %s missing from manifest"
-	    : "Manifest %s is missing entry for CRL %s"),
-	   uri, certinfo.crldp);
+    logmsg(rc, log_data_err, "Manifest %s is missing entry for CRL %s", uri, certinfo.crldp);
     mib_increment(rc, uri, crl_not_in_manifest);
-    if (rc->require_crl_in_manifest)
-      goto done;
     crl = check_crl(rc, certinfo.crldp,
 		    sk_X509_value(certs, sk_X509_num(certs) - 1), NULL, 0);
   }
 
   if (!crl) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s due to bad manifest CRL %s", uri, certinfo.crldp);
+    reject(rc, uri, manifest_bad_crl, "due to bad manifest CRL %s", certinfo.crldp);
     goto done;
   }
 
@@ -2344,18 +2453,16 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     goto error;
 
   if (hash && memcmp(hashbuf, hash, hashlen)) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s because ROA does not match manifest digest", uri);
-    mib_increment(rc, uri, roa_digest_mismatch);
+    reject(rc, uri, roa_digest_mismatch,
+	   "because ROA does not match manifest digest");
     goto error;
   }
 
   if (!(eContentType = CMS_get0_eContentType(cms)) ||
       oid_cmp(eContentType, id_ct_routeOriginAttestation,
 	      sizeof(id_ct_routeOriginAttestation))) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s because ROA has bad eContentType", uri);
-    mib_increment(rc, uri, roa_bad_econtenttype);
+    reject(rc, uri, roa_bad_econtenttype,
+	   "because ROA has bad eContentType");
     goto error;
   }
 
@@ -2365,33 +2472,27 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   }
 
   if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s because ROA CMS failed validation", uri);
-    mib_increment(rc, uri, roa_invalid_cms);
+    reject(rc, uri, roa_invalid_cms, "because ROA CMS failed validation");
     goto error;
   }
 
   if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s because couldn't extract CMS signer from ROA", uri);
-    mib_increment(rc, uri, roa_missing_signer);
+    reject(rc, uri, roa_missing_signer,
+	   "because couldn't extract CMS signer from ROA");
     goto error;
   }
 
   parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri);
 
   if (!(roa = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, NULL))) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s because could not decode ROA", uri);
-    mib_increment(rc, uri, roa_decode_error);
+    reject(rc, uri, roa_decode_error, "because could not decode ROA");
     goto error;
   }
 
   if (roa->version) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s because ROA version should be defaulted zero, not %ld",
-	   uri, ASN1_INTEGER_get(roa->version));
-    mib_increment(rc, uri, roa_wrong_version);
+    reject(rc, uri, roa_wrong_version,
+	   "because ROA version should be defaulted zero, not %ld",
+	   ASN1_INTEGER_get(roa->version));
     goto error;
   }
 
@@ -2412,10 +2513,9 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   for (i = 0; i < sk_ROAIPAddressFamily_num(roa->ipAddrBlocks); i++) {
     rf = sk_ROAIPAddressFamily_value(roa->ipAddrBlocks, i);
     if (!rf || !rf->addressFamily || rf->addressFamily->length < 2 || rf->addressFamily->length > 3) {
-      logmsg(rc, log_data_err,
-	     "Rejected %s because ROA addressFamily length should be 2 or 3, not %lu",
-	     uri, (unsigned long) rf->addressFamily->length);
-      mib_increment(rc, uri, malformed_roa_addressfamily);
+      reject(rc, uri, malformed_roa_addressfamily,
+	     "because ROA addressFamily length should be 2 or 3, not %lu",
+	     (unsigned long) rf->addressFamily->length);
       goto error;
     }
     afi = (rf->addressFamily->data[0] << 8) | (rf->addressFamily->data[1]);
@@ -2426,8 +2526,8 @@ static int check_roa_1(const rcynic_ctx_t *rc,
       if (!ra ||
 	  !extract_roa_prefix(addrbuf, &prefixlen, ra->IPAddress, afi) ||
 	  !v3_addr_add_prefix(roa_resources, afi, safi, addrbuf, prefixlen)) {
-	logmsg(rc, log_data_err,
-	       "Rejected %s because unable to copy resources from ROA into resource set", uri);
+	reject(rc, uri, roa_resources_malformed,
+	       "because ROA resources appear malformed");
 	goto error;
       }
     }
@@ -2447,8 +2547,8 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     IPAddressFamily *f = sk_IPAddressFamily_value(roa_resources, i);
 
     if ((afi = v3_addr_get_afi(f)) == 0) {
-      logmsg(rc, log_data_err,
-	     "Rejected %s because found bad AFI while extracting data from ROA", uri);
+      reject(rc, uri, roa_bad_afi,
+	     "because found bad AFI while extracting data from ROA");
       goto error;
     }
 
@@ -2466,9 +2566,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
 
 	if ((length = v3_addr_get_range(a, afi, a_min, a_max, ADDR_RAW_BUF_LEN)) == 0 ||
 	    (length = v3_addr_get_range(b, afi, b_min, b_max, ADDR_RAW_BUF_LEN)) == 0) {
-
-	  logmsg(rc, log_data_err,
-		 "Rejected %s because unable to extract addresses from ROA", uri);
+	  reject(rc, uri, roa_resources_malformed, "because ROA resources appear malformed");
 	  goto error;
 	}
 
@@ -2482,18 +2580,18 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   }
 
   if (!v3_addr_canonize(roa_resources)) {
-    logmsg(rc, log_data_err,
-	   "Rejected %s because unable to put ROA resources into canonical resource set form", uri);
+    reject(rc, uri, roa_resources_malformed, "because ROA resources appear malformed");
     goto error;
   }
 
   if (!v3_addr_subset(roa_resources, ee_resources)) {
-    logmsg(rc, log_data_err, "Rejected %s because ROA resources are not a subset of its signing EE certificate's resources", uri);
+    reject(rc, uri, roa_not_nested,
+	   "because ROA's resources are not a subset of its signing EE certificate's resources");
     goto error;
   }
 
   if (!(crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1), NULL, 0))) {
-    logmsg(rc, log_data_err, "Rejected %s beacuse ROA EE certificate has bad CRL %s", uri, certinfo.crldp);
+    reject(rc, uri, roa_bad_crl, "because ROA EE certificate has bad CRL %s", certinfo.crldp);
     goto error;
   }
 
@@ -2889,10 +2987,15 @@ int main(int argc, char *argv[])
     goto done;
   }
 
-  if ((xmlfile != NULL) &&
-      (rc.host_counters = sk_HOST_MIB_COUNTER_new(host_mib_counter_cmp)) == NULL) {
-    logmsg(&rc, log_sys_err, "Couldn't allocate host_counters stack");
-    goto done;
+  if (xmlfile != NULL) {
+    if ((rc.host_counters = sk_HOST_MIB_COUNTER_new(host_mib_counter_cmp)) == NULL) {
+      logmsg(&rc, log_sys_err, "Couldn't allocate host_counters stack");
+      goto done;
+    }
+    if ((rc.validation_status = sk_VALIDATION_STATUS_new_null()) == NULL) {
+      logmsg(&rc, log_sys_err, "Couldn't allocate validation_status stack");
+      goto done;
+    }
   }
 
   if ((certs = sk_X509_new_null()) == NULL) {
@@ -3082,7 +3185,7 @@ int main(int argc, char *argv[])
  done:
   log_openssl_errors(&rc);
 
-  if (sk_HOST_MIB_COUNTER_num(rc.host_counters) > 0) {
+  if (xmlfile != NULL) {
 
     char tad[sizeof("2006-10-13T11:22:33Z") + 1];
     char hostname[HOST_NAME_MAX];
@@ -3138,6 +3241,18 @@ int main(int argc, char *argv[])
 	ok &= fprintf(f, "  </host>\n") != EOF;
     }
 
+
+    for (i = 0; ok && i < sk_VALIDATION_STATUS_num(rc.validation_status); i++) {
+      VALIDATION_STATUS *v = sk_VALIDATION_STATUS_value(rc.validation_status, i);
+      assert(v);
+
+      tad_tm = gmtime(&v->timestamp);
+      strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", tad_tm);
+
+      ok &= fprintf(f, "  <validation_status timestamp=\"%s\" status=\"%s\">%s</validation_status>\n",
+		    tad, mib_counter_label[v->code], v->uri) != EOF;
+    }
+
     if (ok)
       ok &= fprintf(f, "</rcynic-summary>\n") != EOF;
 
@@ -3158,6 +3273,7 @@ int main(int argc, char *argv[])
   sk_OPENSSL_STRING_pop_free(rc.backup_cache, OPENSSL_STRING_free);
   sk_OPENSSL_STRING_pop_free(rc.stale_cache, OPENSSL_STRING_free);
   sk_HOST_MIB_COUNTER_pop_free(rc.host_counters, HOST_MIB_COUNTER_free);
+  sk_VALIDATION_STATUS_pop_free(rc.validation_status, VALIDATION_STATUS_free);
   X509_STORE_free(rc.x509_store);
   NCONF_free(cfg_handle);
   CONF_modules_free();

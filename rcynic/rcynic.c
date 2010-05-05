@@ -186,68 +186,85 @@ static const struct {
  */
 
 #define MIB_COUNTERS							 \
-  QQ(validation_ok,			"OK")				 \
-  QQ(backup_cert_accepted,		"Backup certificates accepted")  \
-  QQ(backup_cert_rejected,		"Backup certificates rejected")  \
-  QQ(backup_crl_accepted,		"Backup CRLs accepted")		 \
-  QQ(backup_crl_rejected,		"Backup CRLs rejected")		 \
-  QQ(current_cert_accepted,		"Current certificates accepted") \
-  QQ(current_cert_rejected,		"Current certificates rejected") \
-  QQ(current_crl_accepted,		"Current CRLs accepted")	 \
-  QQ(current_crl_rejected,		"Current CRLs rejected")	 \
-  QQ(current_manifest_accepted,		"Current Manifests accepted")    \
-  QQ(current_manifest_rejected,		"Current Manifests rejected")    \
-  QQ(backup_manifest_accepted,		"Backup Manifests accepted")     \
-  QQ(backup_manifest_rejected,		"Backup Manifests rejected")     \
-  QQ(rsync_failed,			"rsync transfers failed")	 \
-  QQ(rsync_succeeded,			"rsync transfers succeeded")	 \
-  QQ(rsync_timed_out,			"rsync transfers timed out")	 \
-  QQ(stale_crl,				"Stale CRLs")			 \
-  QQ(malformed_sia,			"Malformed SIA extensions")	 \
-  QQ(sia_missing,			"SIA extensions missing")	 \
-  QQ(aia_missing,			"AIA extensions missing")	 \
-  QQ(crldp_missing,			"CRLDP extensions missing")	 \
-  QQ(aia_mismatch,			"Mismatched AIA extensions")	 \
-  QQ(unknown_verify_error,		"Unknown OpenSSL verify error")	 \
-  QQ(current_cert_recheck,		"Certificates rechecked")	 \
-  QQ(manifest_invalid_ee,		"Invalid manifest certificates") \
-  QQ(manifest_invalid_cms,		"Manifest validation failures")  \
-  QQ(manifest_decode_error,		"Manifest decode errors")        \
-  QQ(stale_manifest,			"Stale manifests")               \
-  QQ(manifest_not_yet_valid,		"Manifests not yet valid")       \
-  QQ(manifest_bad_econtenttype,		"Bad manifest eContentType")     \
-  QQ(manifest_missing_signer,		"Missing manifest signers")      \
-  QQ(manifest_missing_crldp,            "Missing manifest CRLDP")        \
-  QQ(manifest_malformed_crldp,          "Malformed manifest CRLDP")      \
-  QQ(certificate_digest_mismatch,	"Certificate digest mismatches") \
-  QQ(crl_digest_mismatch,		"CRL digest mismatches")	 \
-  QQ(crl_not_in_manifest,               "CRL not listed in manifest")    \
-  QQ(roa_invalid_ee,			"Invalid ROA certificates")	 \
-  QQ(roa_invalid_cms,			"ROA validation failures")	 \
-  QQ(roa_decode_error,			"ROA decode errors")		 \
-  QQ(roa_bad_econtenttype,		"Bad ROA eContentType")		 \
-  QQ(roa_missing_signer,		"Missing ROA signers")		 \
-  QQ(roa_digest_mismatch,		"ROA digest mismatches")	 \
-  QQ(current_roa_accepted,		"Current ROAs accepted")	 \
-  QQ(current_roa_rejected,		"Current ROAs rejected")	 \
-  QQ(backup_roa_accepted,		"Backup ROAs accepted")		 \
-  QQ(backup_roa_rejected,		"Backup ROAs rejected")		 \
-  QQ(malformed_roa_addressfamily,       "Malformed ROA addressFamilys")	 \
-  QQ(manifest_wrong_version,            "Wrong manifest versions")	 \
-  QQ(roa_wrong_version,			"Wrong ROA versions")		 \
-  QQ(trust_anchor_not_self_signed,	"Trust anchor not self-signed")	 \
-  QQ(uri_too_long,			"URI too long")			 \
-  QQ(malformed_crldp,			"Malformed CRDLP extension")	 \
-  QQ(certificate_bad_signature,		"Bad certificate signature")	 \
-  QQ(certificate_bad_crl,		"Bad certificate CRL")		 \
-  QQ(manifest_bad_crl,			"Manifest has bad CRL")		 \
-  QQ(roa_resources_malformed,		"ROA resources malformed")	 \
-  QQ(roa_bad_afi,			"ROA contains bad AFI value")	 \
-  QQ(roa_not_nested,			"ROA resources not in EE")	 \
-  QQ(roa_bad_crl,			"ROA EE has bad CRL")		 \
+  QG(validation_ok,			"OK")				 \
+  QG(backup_cert_accepted,		"Backup certificates accepted")  \
+  QB(backup_cert_rejected,		"Backup certificates rejected")  \
+  QG(backup_crl_accepted,		"Backup CRLs accepted")		 \
+  QB(backup_crl_rejected,		"Backup CRLs rejected")		 \
+  QG(current_cert_accepted,		"Current certificates accepted") \
+  QB(current_cert_rejected,		"Current certificates rejected") \
+  QG(current_crl_accepted,		"Current CRLs accepted")	 \
+  QB(current_crl_rejected,		"Current CRLs rejected")	 \
+  QG(current_manifest_accepted,		"Current Manifests accepted")    \
+  QB(current_manifest_rejected,		"Current Manifests rejected")    \
+  QG(backup_manifest_accepted,		"Backup Manifests accepted")     \
+  QB(backup_manifest_rejected,		"Backup Manifests rejected")     \
+  QB(rsync_failed,			"rsync transfers failed")	 \
+  QG(rsync_succeeded,			"rsync transfers succeeded")	 \
+  QB(rsync_timed_out,			"rsync transfers timed out")	 \
+  QW(stale_crl,				"Stale CRLs")			 \
+  QB(malformed_sia,			"Malformed SIA extensions")	 \
+  QB(sia_missing,			"SIA extensions missing")	 \
+  QB(aia_missing,			"AIA extensions missing")	 \
+  QB(crldp_missing,			"CRLDP extensions missing")	 \
+  QB(aia_mismatch,			"Mismatched AIA extensions")	 \
+  QB(unknown_verify_error,		"Unknown OpenSSL verify error")	 \
+  QG(current_cert_recheck,		"Certificates rechecked")	 \
+  QB(manifest_invalid_ee,		"Invalid manifest certificates") \
+  QB(manifest_invalid_cms,		"Manifest validation failures")  \
+  QB(manifest_decode_error,		"Manifest decode errors")        \
+  QW(stale_manifest,			"Stale manifests")               \
+  QB(manifest_not_yet_valid,		"Manifests not yet valid")       \
+  QB(manifest_bad_econtenttype,		"Bad manifest eContentType")     \
+  QB(manifest_missing_signer,		"Missing manifest signers")      \
+  QB(manifest_missing_crldp,            "Missing manifest CRLDP")        \
+  QB(manifest_malformed_crldp,          "Malformed manifest CRLDP")      \
+  QB(certificate_digest_mismatch,	"Certificate digest mismatches") \
+  QB(crl_digest_mismatch,		"CRL digest mismatches")	 \
+  QB(crl_not_in_manifest,               "CRL not listed in manifest")    \
+  QB(roa_invalid_ee,			"Invalid ROA certificates")	 \
+  QB(roa_invalid_cms,			"ROA validation failures")	 \
+  QB(roa_decode_error,			"ROA decode errors")		 \
+  QB(roa_bad_econtenttype,		"Bad ROA eContentType")		 \
+  QB(roa_missing_signer,		"Missing ROA signers")		 \
+  QB(roa_digest_mismatch,		"ROA digest mismatches")	 \
+  QG(current_roa_accepted,		"Current ROAs accepted")	 \
+  QB(current_roa_rejected,		"Current ROAs rejected")	 \
+  QG(backup_roa_accepted,		"Backup ROAs accepted")		 \
+  QB(backup_roa_rejected,		"Backup ROAs rejected")		 \
+  QB(malformed_roa_addressfamily,       "Malformed ROA addressFamilys")	 \
+  QB(manifest_wrong_version,            "Wrong manifest versions")	 \
+  QB(roa_wrong_version,			"Wrong ROA versions")		 \
+  QW(trust_anchor_not_self_signed,	"Trust anchor not self-signed")	 \
+  QB(uri_too_long,			"URI too long")			 \
+  QB(malformed_crldp,			"Malformed CRDLP extension")	 \
+  QB(certificate_bad_signature,		"Bad certificate signature")	 \
+  QB(certificate_bad_crl,		"Bad certificate CRL")		 \
+  QB(manifest_bad_crl,			"Manifest has bad CRL")		 \
+  QB(roa_resources_malformed,		"ROA resources malformed")	 \
+  QB(roa_bad_afi,			"ROA contains bad AFI value")	 \
+  QB(roa_not_nested,			"ROA resources not in EE")	 \
+  QB(roa_bad_crl,			"ROA EE has bad CRL")		 \
   MIB_COUNTERS_FROM_OPENSSL
 
-#define QV(x) QQ(mib_openssl_##x, 0)
+#define QV(x) QB(mib_openssl_##x, 0)
+
+static const char
+  mib_counter_kind_good[] = "good",
+  mib_counter_kind_warn[] = "warn",
+  mib_counter_kind_bad[] = "bad";
+
+#define QG(x,y)	mib_counter_kind_good ,
+#define QW(x,y) mib_counter_kind_warn ,
+#define QB(x,y) mib_counter_kind_bad ,
+static const char * const mib_counter_kind[] = { MIB_COUNTERS NULL };
+#undef QB
+#undef QW
+#undef QG
+
+#define	QG(x,y) QQ(x,y)
+#define	QW(x,y) QQ(x,y)
+#define QB(x,y) QQ(x,y)
 
 #define QQ(x,y) x ,
 typedef enum mib_counter { MIB_COUNTERS MIB_COUNTER_T_MAX } mib_counter_t;
@@ -3216,7 +3233,8 @@ int main(int argc, char *argv[])
 		    tad, svn_id, XML_SUMMARY_VERSION, hostname) != EOF;
 
     for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
-      ok &= fprintf(f, "    <%s>%s</%s>\n", mib_counter_label[j],
+      ok &= fprintf(f, "    <%s kind=\"%s\">%s</%s>\n",
+		    mib_counter_label[j], mib_counter_kind[j],
 		    (mib_counter_desc[j]
 		     ? mib_counter_desc[j]
 		     : X509_verify_cert_error_string(mib_counter_openssl[j])),

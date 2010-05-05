@@ -62,6 +62,19 @@
     </xsl:for-each>
   </xsl:variable>
 
+  <xsl:variable name="moods">
+    <xsl:for-each select="rcynic-summary/host">
+      <xsl:variable name="hostname" select="hostname"/>
+      <xsl:for-each select="*[not(self::hostname)]">
+        <xsl:variable name="label" select="name()"/>
+	<xsl:variable name="mood" select="/rcynic-summary/labels/*[name() = $label]/@kind"/>
+	<x hostname="{$hostname}" mood="{$mood}">
+	  <xsl:value-of select="."/>
+	</x>
+      </xsl:for-each>
+    </xsl:for-each>
+  </xsl:variable>
+
   <xsl:template match="/">
     <xsl:comment>Generators</xsl:comment>
     <xsl:comment><xsl:value-of select="rcynic-summary/@rcynic-version"/></xsl:comment>
@@ -81,9 +94,9 @@
 	<style type="text/css">
 	    td		{ text-align: center; padding: 4px }
 	    td.uri	{ text-align: left }
-	    tr.happy	{ background-color: #77ff77 }
-	    tr.warning	{ background-color: yellow }
-	    tr.danger	{ background-color: #ff5500 }
+	    tr.good	{ background-color: #77ff77 }
+	    tr.warn	{ background-color: yellow }
+	    tr.bad	{ background-color: #ff5500 }
 	</style>
       </head>
       <body>
@@ -105,7 +118,18 @@
 	    <xsl:for-each select="rcynic-summary/host">
 	      <xsl:sort order="descending" data-type="number" select="sum(*[not(self::hostname)])"/>
 	      <xsl:sort order="ascending" data-type="text" select="hostname"/>
-	      <tr>
+	      <xsl:variable name="hostname" select="hostname"/>
+	      <xsl:variable name="goodness" select="sum(exslt:node-set($moods)/x[@hostname = $hostname and @mood = 'good'])"/>
+	      <xsl:variable name="badness"  select="sum(exslt:node-set($moods)/x[@hostname = $hostname and @mood = 'bad'])"/>
+	      <xsl:variable name="warnings" select="sum(exslt:node-set($moods)/x[@hostname = $hostname and @mood = 'warn'])"/>
+	      <xsl:variable name="mood">
+		<xsl:choose>
+		  <xsl:when test="$goodness != 0 and $warnings = 0 and $badness = 0">good</xsl:when>
+		  <xsl:when test="$goodness + $warnings != 0">warn</xsl:when>
+		  <xsl:otherwise>bad</xsl:otherwise>
+		</xsl:choose>
+	      </xsl:variable>
+	      <tr class="{$mood}">
 	        <xsl:for-each select="*">
 		  <xsl:variable name="p" select="position()"/>
 		  <xsl:if test="$suppress-zero-columns = 0 or position() = 1 or exslt:node-set($sums)/x[$p]/@sum &gt; 0">
@@ -139,14 +163,9 @@
 	  <tbody>
 	    <xsl:for-each select="rcynic-summary/validation_status">
 	      <xsl:variable name="status" select="@status"/>
-	      <xsl:variable name="mood">
-	        <xsl:choose>
-		  <xsl:when test="$status = 'validation_ok'">happy</xsl:when>
-		  <xsl:otherwise>danger</xsl:otherwise>
-	        </xsl:choose>
-	      </xsl:variable>
+	      <xsl:variable name="mood" select="/rcynic-summary/labels/*[name() = $status]/@kind"/>
 	      <tr class="{$mood}">
-	        <td class="timestamp"><xsl:value-of select="@timestamp"/></td>
+		<td class="timestamp"><xsl:value-of select="@timestamp"/></td>
 		<td class="status"><xsl:value-of select="/rcynic-summary/labels/*[name() = $status] "/></td>
 		<td class="uri"><xsl:value-of select="."/></td>
 	      </tr>

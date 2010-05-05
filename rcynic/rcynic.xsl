@@ -67,6 +67,9 @@
 	<style type="text/css">
 	    td		{ text-align: center; padding: 4px }
 	    td.uri	{ text-align: left }
+	    tr.happy	{ background-color: #77ff77 }
+	    tr.warning	{ background-color: yellow }
+	    tr.danger	{ background-color: #ff5500 }
 	</style>
       </head>
       <body>
@@ -79,11 +82,7 @@
 	      <xsl:for-each select="rcynic-summary/labels/*">
 	        <xsl:variable name="p" select="position()"/>
 		<xsl:if test="$suppress-zero-columns = 0 or position() = 1 or exslt:node-set($sums)/x[$p]/@sum &gt; 0">
-		  <td>
-		    <b>
-		      <xsl:apply-templates/>
-		    </b>
-		  </td>
+		  <td><b><xsl:apply-templates/></b></td>
 		</xsl:if>
 	      </xsl:for-each>
 	    </tr>
@@ -96,27 +95,17 @@
 	        <xsl:for-each select="*">
 		  <xsl:variable name="p" select="position()"/>
 		  <xsl:if test="$suppress-zero-columns = 0 or position() = 1 or exslt:node-set($sums)/x[$p]/@sum &gt; 0">
-		    <td>
-		      <xsl:if test=". != 0">
-		        <xsl:apply-templates/>
-		      </xsl:if>
-		    </td>
+		    <td><xsl:if test=". != 0"><xsl:apply-templates/></xsl:if></td>
 		  </xsl:if>
 		</xsl:for-each>
 	      </tr>
 	    </xsl:for-each>
 	    <xsl:if test="$show-total != 0">
 	      <tr>
-		<td>
-		  <b>Total</b>
-		</td>
+		<td><b>Total</b></td>
 		<xsl:for-each select="exslt:node-set($sums)/x[position() &gt; 1]">
 		  <xsl:if test="$suppress-zero-columns = 0 or @sum &gt; 0">
-		    <td>
-		      <b>
-			<xsl:value-of select="@sum"/>
-		      </b>
-		    </td>
+		    <td><b><xsl:value-of select="@sum"/></b></td>
 		  </xsl:if>
 		</xsl:for-each>
 	      </tr>
@@ -136,7 +125,13 @@
 	  <tbody>
 	    <xsl:for-each select="rcynic-summary/validation_status">
 	      <xsl:variable name="status" select="@status"/>
-	      <tr>
+	      <xsl:variable name="mood">
+	        <xsl:choose>
+		  <xsl:when test="$status = 'validation_ok'">happy</xsl:when>
+		  <xsl:otherwise>danger</xsl:otherwise>
+	        </xsl:choose>
+	      </xsl:variable>
+	      <tr class="{$mood}">
 	        <td class="timestamp"><xsl:value-of select="@timestamp"/></td>
 		<td class="status"><xsl:value-of select="/rcynic-summary/labels/*[name() = $status] "/></td>
 		<td class="uri"><xsl:value-of select="."/></td>

@@ -1,6 +1,23 @@
 """
 Generate IRR route and route6 objects from ROAs.
 
+The only required argument is the name of a directory tree containing
+the validated outpt of an rcynic run.  If you follow the default
+naming scheme this will be /some/where/rcynic-data/authenticated.
+
+If given the --output option, the argument to that option will be
+interpreted as the name of a directory (which will be created if it
+does not already exist) in which to write route and route6 objects,
+one object per file.
+
+If not given the --output option, this program will write all the
+route and route6 objects to standard output, separated by blank
+lines.
+
+The other options allow control of several required fields, to let you
+change email addresses and so forth if the defaults values 't right.
+
+
 $Id$
 
 Copyright (C) 2010  Internet Systems Consortium ("ISC")
@@ -120,7 +137,7 @@ def usage(code = 1):
   f = sys.stderr if code else sys.stdout
   f.write("Usage: %s [options] rcynic-data/authenticated\n\nOptions:\n" % sys.argv[0])
   for opt in options:
-    f.write("  --" + (opt[:-1] if "=" in opt else opt) + "\n")
+    f.write("  --" + ((opt[:-1] + " argument") if "=" in opt else opt) + "\n")
   f.write(__doc__)
   sys.exit(code)
 

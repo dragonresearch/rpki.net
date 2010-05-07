@@ -162,7 +162,7 @@ for o, a in opts:
 if len(argv) != 1 or not os.path.isdir(argv[0]):
   usage()
 
-routes = route_list("/u/sra/rpki/subvert-rpki.hactrn.net/rcynic/rcynic-data/authenticated")
+routes = route_list(argv[0])
 
 if output:
   try:

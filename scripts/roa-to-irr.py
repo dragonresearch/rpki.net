@@ -42,13 +42,12 @@ class route_virtual(object):
   All the interesting parts of a route object, as a virtual class.
   """
 
-  def __init__(self, gski, uri, asnum, date, asn1):
+  def __init__(self, uri, asnum, date, asn1):
     assert len(asn1[0]) <= self.addr_type.bits
     x = 0L
     for y in asn1[0]:
       x = (x << 1) | y
     x <<= (self.addr_type.bits - len(asn1[0]))
-    self.gski = gski
     self.uri = uri
     self.asn = asnum
     self.date = date
@@ -79,6 +78,10 @@ class route_virtual(object):
       ("source:       %s\n" % irr_source),
       ("comment:      %s/%s-%s\n" % (self.prefix, self.prefixlen, self.max_prefixlen))))
 
+  def write(self, output_directory):
+    name = "%s-%s-%s-AS%d-%s" % (self.prefix, self.prefixlen, self.max_prefixlen, self.asn, self.date)
+    open(os.path.join(output_directory, name), "w").write(str(self))
+
 class route_ipv4(route_virtual):
   """
   IPv4 route object.
@@ -106,7 +109,6 @@ class route_list(list):
     for root, dirs, files in os.walk(rcynic_dir):
       for f in files:
         if f.endswith(".roa"):
-          gski = f[:-4]
           path = os.path.join(root, f)
           uri = "rsync://" + path[len(rcynic_dir):].lstrip("/")
           roa = rpki.x509.ROA(DER_file = path)
@@ -115,7 +117,7 @@ class route_list(list):
           notBefore = rpki.x509.X509(POW = roa.get_POW().certs()[0]).getNotBefore()
           for afi, addrs in asn1:
             for addr in addrs:
-              self.append(afi_map[afi](gski, uri, asnum, notBefore.strftime("%Y%m%d"), addr))
+              self.append(afi_map[afi](uri, asnum, notBefore.strftime("%Y%m%d"), addr))
     self.sort()
     for i in xrange(len(self) - 2, -1, -1):
       if self[i] == self[i + 1]:
@@ -171,7 +173,7 @@ if output:
     if e.errno != errno.EEXIST:
       raise
   for r in routes:
-    open(os.path.join(output, r.gski), "w").write(str(r))
+    r.write(output)
 else:
   for r in routes:
     print r

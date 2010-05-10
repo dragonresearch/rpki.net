@@ -11,11 +11,14 @@ does not already exist) in which to write route and route6 objects,
 one object per file.
 
 If not given the --output option, this program will write all the
-route and route6 objects to standard output, separated by blank
-lines.
+route and route6 objects to standard output, separated by blank lines.
+In this mode, if also given the --email option, the program will
+generate a fake RFC (2)822 header suitable for piping all of this into
+irr_rpsl_submit.
 
 The other options allow control of several required fields, to let you
-change email addresses and so forth if the defaults values 't right.
+change email addresses and so forth if the defaults values aren't
+right.
 
 
 $Id$
@@ -35,7 +38,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, socket, sys, getopt, errno, rpki.x509, rpki.ipaddrs
+import os, socket, sys, getopt, errno, time, rpki.x509, rpki.ipaddrs
 
 class route_virtual(object):
   """
@@ -70,13 +73,12 @@ class route_virtual(object):
   def __str__(self):
     return "".join((
       ("%-14s%s/%s\n" % (self.label, self.prefix, self.prefixlen)),
-      ("descr:        %s\n" % self.uri),
+      ("descr:        %s/%s-%s\n" % (self.prefix, self.prefixlen, self.max_prefixlen)),
       ("origin:       AS%d\n" % self.asn),
       ("notify:       %s\n" % irr_notify),
       ("mnt-by:       %s\n" % irr_mnt_by),
       ("changed:      %s %s\n" % (irr_changed_by, self.date)),
-      ("source:       %s\n" % irr_source),
-      ("comment:      %s/%s-%s\n" % (self.prefix, self.prefixlen, self.max_prefixlen))))
+      ("source:       %s\n" % irr_source)))
 
   def write(self, output_directory):
     name = "%s-%s-%s-AS%d-%s" % (self.prefix, self.prefixlen, self.max_prefixlen, self.asn, self.date)
@@ -131,9 +133,11 @@ irr_notify     = whoami
 irr_changed_by = whoami
 irr_mnt_by     = "MAINT-RPKI"
 irr_source     = "RPKI"
+irr_from       = whoami
 output         = None
+email          = False
 
-options = ["changed_by=", "help", "mnt_by=", "notify=", "output=", "source="]
+options = ["changed_by=", "email", "from=", "help", "mnt_by=", "notify=", "output=", "source="]
 
 def usage(code = 1):
   f = sys.stderr if code else sys.stdout
@@ -143,13 +147,17 @@ def usage(code = 1):
   f.write(__doc__)
   sys.exit(code)
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:hm:n:o:s:?", options)
+opts, argv = getopt.getopt(sys.argv[1:], "c:ef:hm:n:o:s:?", options)
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
   elif o in ("-c", "--changed_by"):
     irr_changed_by = a
+  elif o in ("-e", "--email"):
+    email = True
+  elif o in ("-f", "--from"):
+    irr_from = a
   elif o in ("-m", "--mnt_by"):
     irr_mnt_by = a
   elif o in ("-n", "--notify"):
@@ -175,5 +183,12 @@ if output:
   for r in routes:
     r.write(output)
 else:
+  if email:
+    print "From", irr_from
+    print "Date:", time.strftime("%d %b %Y %T %z")
+    print "From:", irr_from
+    print "Subject: Fake email header to make irr_rpsl_submit happy"
+    print "Message-Id: <%s.%s@%s>" % (os.getpid(), time.time(), socket.gethostname())
+    print
   for r in routes:
     print r

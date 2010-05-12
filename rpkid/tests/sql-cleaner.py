@@ -27,9 +27,7 @@ for name in ("rpkid", "irdbd", "pubd"):
   username = cfg.get("%s_sql_username" % name, name[:4])
   password = cfg.get("%s_sql_password" % name, "fnord")
 
-  databases = [name[:4]]
-  databases.extend("%s%d" % (name[:4], i) for i in xrange(12))
-
-  for db in databases:
-    subprocess.check_call(("mysql", "-u", username, "-p" + password, db),
-                          stdin = open("../%s.sql" % name))
+  for i in xrange(12):
+    subprocess.check_call(
+      ("mysql", "-u", username, "-p" + password, "%s%d" % (name[:4], i)),
+      stdin = open("../%s.sql" % name))

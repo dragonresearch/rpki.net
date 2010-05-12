@@ -1355,7 +1355,7 @@ class main(rpki.cli.Cmd):
     # quite as low as they once were, too much expired CRL whining.
 
     self_crl_interval = self.cfg.getint("self_crl_interval", 2 * 60 * 60)
-    self_regen_margin = self.cfg.getint("self_regen_margin", 30 * 60)
+    self_regen_margin = self.cfg.getint("self_regen_margin", self_crl_interval / 4)
     pubd_base         = "https://%s:%s/" % (self.cfg.get("pubd_server_host"), self.cfg.get("pubd_server_port"))
     rpkid_base        = "https://%s:%s/" % (self.cfg.get("rpkid_server_host"), self.cfg.get("rpkid_server_port"))
 

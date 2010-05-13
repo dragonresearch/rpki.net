@@ -70,7 +70,8 @@ Payload data which can be configured in a <self/> object:
       Positive integer representing how long before expiration of an RPKI
       certificiate a new one should be generated, measured in seconds. At
       present this only affects the one-off EE certificates associated with
-      ROAs.
+      ROAs. This parameter also controls how long before the nextUpdate time of
+      CRL or manifest the CRL or manifest should be updated.
 
   bpki_cert (element):
       BPKI CA certificate for this <self/>. This is used as part of the

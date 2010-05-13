@@ -439,6 +439,7 @@ class self_elt(data_elt):
 
     rpki.log.trace()
     now = rpki.sundial.now()
+    regen_margin = rpki.sundial.timedelta(seconds = self.regen_margin)
     publisher = rpki.rpki_engine.publication_queue()
 
     for parent in self.parents():
@@ -448,7 +449,7 @@ class self_elt(data_elt):
             if now > ca_detail.latest_crl.getNextUpdate():
               ca_detail.delete(ca = ca, publisher = publisher)
           ca_detail = ca.fetch_active()
-          if ca_detail is not None and now > ca_detail.latest_crl.getNextUpdate():
+          if ca_detail is not None and now + regen_margin> ca_detail.latest_crl.getNextUpdate():
             ca_detail.generate_crl(publisher = publisher)
             ca_detail.generate_manifest(publisher = publisher)
         except (SystemExit, rpki.async.ExitNow):

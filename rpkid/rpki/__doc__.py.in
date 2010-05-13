@@ -1615,8 +1615,10 @@
 # @par @c regen_margin (attribute):
 #     Positive integer representing how long before expiration of an
 #     RPKI certificiate a new one should be generated, measured in
-#     seconds.  At present this only affects the one-off EE certificates
-#     associated with ROAs.
+#     seconds.  At present this only affects the one-off EE
+#     certificates associated with ROAs.  This parameter also controls
+#     how long before the nextUpdate time of CRL or manifest the CRL
+#     or manifest should be updated.
 #
 # @par @c bpki_cert (element):
 #     BPKI CA certificate for this @c &lt;self/&gt;.  This is used as part of the

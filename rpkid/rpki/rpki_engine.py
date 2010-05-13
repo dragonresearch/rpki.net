@@ -703,27 +703,27 @@ class ca_detail_obj(rpki.sql.sql_persistent):
 
       crl_interval = rpki.sundial.timedelta(seconds = parent.self().crl_interval)
 
-      self.nextUpdate = rpki.sundial.now()
+      nextUpdate = rpki.sundial.now()
 
       if self.latest_manifest is not None:
         try:
           self.latest_manifest.get_content()
         except rpki.exceptions.CMSContentNotSet:
           self.latest_manifest.extract()
-        self.nextUpdate = self.nextUpdate.later(self.latest_manifest.getNextUpdate())
+        nextUpdate = nextUpdate.later(self.latest_manifest.getNextUpdate())
 
       if self.latest_crl is not None:
-        self.nextUpdate = self.nextUpdate.later(self.latest_crl.getNextUpdate())
+        nextUpdate = nextUpdate.later(self.latest_crl.getNextUpdate())
 
       publisher = publication_queue()
 
       for child_cert in self.child_certs():
-        self.nextUpdate = self.nextUpdate.later(child_cert.cert.getNotAfter())
+        nextUpdate = nextUpdate.later(child_cert.cert.getNotAfter())
         child_cert.revoke(publisher = publisher)
 
-      self.nextUpdate += crl_interval
-      self.generate_crl(publisher = publisher, nextUpdate = self.nextUpdate)
-      self.generate_manifest(publisher = publisher, nextUpdate = self.nextUpdate)
+      nextUpdate += crl_interval
+      self.generate_crl(publisher = publisher, nextUpdate = nextUpdate)
+      self.generate_manifest(publisher = publisher, nextUpdate = nextUpdate)
       self.private_key_id = None
       self.manifest_private_key_id = None
       self.manifest_public_key = None
@@ -906,9 +906,9 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     if self.latest_manifest_cert is None or self.latest_manifest_cert.getNotAfter() < nextUpdate:
       self.generate_manifest_cert(ca)
 
-    objs = [(c.uri_tail(), c.cert) for c in self.child_certs()] + \
-           [(r.uri_tail(), r.roa) for r in self.roas() if r.roa is not None] + \
-           [(self.crl_uri_tail(), self.latest_crl)]
+    objs = [(self.crl_uri_tail(), self.latest_crl)]
+    objs.extend((c.uri_tail(), c.cert) for c in self.child_certs())
+    objs.extend((r.uri_tail(), r.roa) for r in self.roas() if r.roa is not None)
 
     self.latest_manifest = rpki.x509.SignedManifest.build(
       serial         = ca.next_manifest_number(),

@@ -6,10 +6,6 @@ you.
 Run the program with the --help argument for usage information, or see
 documentation for the *_main() functions.
 
-NB: At present this supports an old version of the protocol, because
-the router implementation that currently tests against it also
-implements that old version.  One of these days we'll fix that.
-
 
 $Id$
 
@@ -30,7 +26,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import sys, os, struct, time, glob, socket, fcntl, signal, syslog
 import asyncore, asynchat, subprocess, traceback, getopt
-import rpki.x509, rpki.ipaddrs, rpki.sundial, rpki.config
+import rpki.x509, rpki.ipaddrs, rpki.sundial
 import rpki.async
 
 class read_buffer(object):
@@ -97,7 +93,7 @@ class pdu(object):
 
   _pdu = None                           # Cached when first generated
 
-  common_header_struct = struct.Struct("!BB")
+  header_struct = struct.Struct("!BBHL")
 
   def __cmp__(self, other):
     return cmp(self.to_pdu(), other.to_pdu())
@@ -110,17 +106,18 @@ class pdu(object):
 
   @classmethod
   def read_pdu(cls, reader):
-    return reader.update(need = cls.common_header_struct.size, callback = cls.got_common_header)
+    return reader.update(need = cls.header_struct.size, callback = cls.got_header)
 
   @classmethod
-  def got_common_header(cls, reader):
+  def got_header(cls, reader):
     if not reader.ready():
       return None
-    assert reader.available() >= cls.common_header_struct.size
-    version, pdu_type = cls.common_header_struct.unpack(reader.buffer[:cls.common_header_struct.size])
+    assert reader.available() >= cls.header_struct.size
+    version, pdu_type, whatever, length = cls.header_struct.unpack(reader.buffer[:cls.header_struct.size])
     assert version == cls.version, "PDU version is %d, expected %d" % (version, cls.version)
+    assert length >= 8
     self = cls.pdu_map[pdu_type]()
-    return reader.update(need = self.header_struct.size, callback = self.got_header)
+    return reader.update(need = length, callback = self.got_pdu)
 
   def consume(self, client):
     """
@@ -149,7 +146,7 @@ class pdu_with_serial(pdu):
   Base class for PDUs consisting of just a serial number.
   """
 
-  header_struct = struct.Struct("!BBHL")
+  header_struct = struct.Struct("!BBHLL")
 
   def __init__(self, serial = None):
     if serial is not None:
@@ -166,15 +163,16 @@ class pdu_with_serial(pdu):
     Generate the wire format PDU for this prefix.
     """
     if self._pdu is None:
-      self._pdu = self.header_struct.pack(self.version, self.pdu_type, 0, self.serial)
+      self._pdu = self.header_struct.pack(self.version, self.pdu_type, 0, self.header_struct.size, self.serial)
     return self._pdu
 
-  def got_header(self, reader):
+  def got_pdu(self, reader):
     if not reader.ready():
       return None
     b = reader.get(self.header_struct.size)
-    version, pdu_type, zero, self.serial = self.header_struct.unpack(b)
+    version, pdu_type, zero, length, self.serial = self.header_struct.unpack(b)
     assert zero == 0
+    assert length == 12
     assert b == self.to_pdu()
     return self
 
@@ -183,7 +181,7 @@ class pdu_empty(pdu):
   Base class for empty PDUs.
   """
 
-  header_struct = struct.Struct("!BBH")
+  header_struct = struct.Struct("!BBHL")
 
   def __str__(self):
     return "[%s]" % self.__class__.__name__
@@ -193,15 +191,16 @@ class pdu_empty(pdu):
     Generate the wire format PDU for this prefix.
     """
     if self._pdu is None:
-      self._pdu = self.header_struct.pack(self.version, self.pdu_type, 0)
+      self._pdu = self.header_struct.pack(self.version, self.pdu_type, 0, self.header_struct.size)
     return self._pdu
 
-  def got_header(self, reader):
+  def got_pdu(self, reader):
     if not reader.ready():
       return None
     b = reader.get(self.header_struct.size)
-    version, pdu_type, zero = self.header_struct.unpack(b)
+    version, pdu_type, zero, length = self.header_struct.unpack(b)
     assert zero == 0
+    assert length == 8
     assert b == self.to_pdu()
     return self
 
@@ -316,7 +315,7 @@ class prefix(pdu):
 
   source = 0                            # Source (0 == RPKI)
 
-  header_struct = struct.Struct("!BBHBBBB")
+  header_struct = struct.Struct("!BBHLBBBB")
   asnum_struct = struct.Struct("!L")
 
   @classmethod
@@ -360,7 +359,8 @@ class prefix(pdu):
     assert self.announce in (0, 1)
     assert self.prefixlen >= 0 and self.prefixlen <= self.addr_type.bits
     assert self.max_prefixlen >= self.prefixlen and self.max_prefixlen <= self.addr_type.bits
-    assert len(self.to_pdu()) == 12 + self.addr_type.bits / 8, "Expected %d byte PDU, got %d" % (12 + self.addr_type.bits / 8, len(self.to_pdu()))
+    pdulen = self.header_struct.size + self.addr_type.bits / 8 + self.asnum_struct.size
+    assert len(self.to_pdu()) == pdulen, "Expected %d byte PDU, got %d" % pd(pdulen, len(self.to_pdu()))
 
   def to_pdu(self, announce = None):
     """
@@ -370,7 +370,8 @@ class prefix(pdu):
       assert announce in (0, 1)
     elif self._pdu is not None:
       return self._pdu
-    pdu = (self.header_struct.pack(self.version, self.pdu_type, self.color,
+    pdulen = self.header_struct.size + self.addr_type.bits / 8 + self.asnum_struct.size
+    pdu = (self.header_struct.pack(self.version, self.pdu_type, self.color, pdulen,
                                    announce if announce is not None else self.announce,
                                    self.prefixlen, self.max_prefixlen, self.source) +
            self.prefix.to_bytes() +
@@ -380,16 +381,14 @@ class prefix(pdu):
       self._pdu = pdu
     return pdu
 
-  def got_header(self, reader):
-    return reader.update(need = self.header_struct.size + self.addr_type.bits / 8 + self.asnum_struct.size, callback = self.got_pdu)
-
   def got_pdu(self, reader):
     if not reader.ready():
       return None
     b1 = reader.get(self.header_struct.size)
     b2 = reader.get(self.addr_type.bits / 8)
     b3 = reader.get(self.asnum_struct.size)
-    version, pdu_type, self.color, self.announce, self.prefixlen, self.max_prefixlen, source = self.header_struct.unpack(b1)
+    version, pdu_type, self.color, length, self.announce, self.prefixlen, self.max_prefixlen, source = self.header_struct.unpack(b1)
+    assert length == len(b1) + len(b2) + len(b3)
     assert source == self.source
     self.prefix = self.addr_type.from_bytes(b2)
     self.asn = self.asnum_struct.unpack(b3)[0]
@@ -417,7 +416,8 @@ class error_report(pdu):
 
   pdu_type = 10
 
-  header_struct = struct.Struct("!BBHHH")
+  header_struct = struct.Struct("!BBHL")
+  string_struct = struct.Struct("!L")
 
   msgs = {
     1 : "Internal Error",
@@ -434,6 +434,15 @@ class error_report(pdu):
   def __str__(self):
     return "Error #%s: %s" % (self.errno, self.errmsg)
 
+  def to_counted_string(self, s):
+    return self.string_struct.pack(len(s)) + s
+
+  def read_counted_string(self, reader, remaining):
+    assert remaining >= self.string_struct.size
+    n = self.string_struct.unpack(reader.get(self.string_struct.size))[0]
+    assert remaining >= self.string_struct.size + n
+    return n, reader.get(n), (remaining - self.string_struct.size - n)
+
   def to_pdu(self):
     """
     Generate the wire format PDU for this prefix.
@@ -447,24 +456,22 @@ class error_report(pdu):
       elif isinstance(p, pdu):
         p = p.to_pdu()
       assert isinstance(p, str)
-      self._pdu = self.header_struct.pack(self.version, self.pdu_type, self.errno, len(p), len(self.errmsg))
-      self._pdu += p
-      self._pdu += self.errmsg.encode("utf8")
+      pdulen = self.header_struct.size + self.string_struct.size * 2 + len(p) + len(self.errmsg)
+      self._pdu = self.header_struct.pack(self.version, self.pdu_type, self.errno, pdulen)
+      self._pdu += self.to_counted_string(p)
+      self._pdu += self.to_counted_string(self.errmsg.encode("utf8"))
     return self._pdu
-
-  def got_header(self, reader):
-    if not reader.ready():
-      return None
-    version, pdu_type, self.errno, self.pdulen, self.errlen = self.header_struct.unpack(reader.buffer[:self.header_struct.size])
-    return reader.update(need = self.header_struct.size + self.pdulen + self.errlen, callback = self.got_pdu)
 
   def got_pdu(self, reader):
     if not reader.ready():
       return None
-    b = reader.get(self.header_struct.size)
-    self.errpdu = reader.get(self.pdulen)
-    self.errmsg = reader.get(self.errlen).decode("utf8")
-    assert b + self.errpdu + self.errmsg.encode("utf8") == self.to_pdu()
+    header = reader.get(self.header_struct.size)
+    version, pdu_type, self.errno, length = self.header_struct.unpack(header)
+    remaining = length - self.header_struct.size
+    self.pdulen, self.errpdu, remaining = self.read_counted_string(reader, remaining)
+    self.errlen, self.errmsg, remaining = self.read_counted_string(reader, remaining)
+    assert length == self.header_struct.size + self.string_struct.size * 2 + self.pdulen + self.errlen
+    assert header + self.to_counted_string(self.errpdu) + self.to_counted_string(self.errmsg.encode("utf8")) == self.to_pdu()
     return self
 
 prefix.afi_map = { "\x00\x01" : ipv4_prefix, "\x00\x02" : ipv6_prefix }
@@ -716,7 +723,8 @@ class pdu_channel(asynchat.async_chat):
     """
     Handle errors caught by asyncore main loop.
     """
-    log(traceback.format_exc())
+    for line in traceback.format_exc().splitlines():
+      log(line)
     log("Exiting after unhandled exception")
     asyncore.close_all()
 
@@ -995,7 +1003,8 @@ class kickme_channel(asyncore.dispatcher):
     """
     Handle errors caught by asyncore main loop.
     """
-    log(traceback.format_exc())
+    for line in traceback.format_exc().splitlines():
+      log(line)
     log("Exiting after unhandled exception")
     asyncore.close_all()
 
@@ -1093,11 +1102,10 @@ def server_main(argv):
 
   In production use this server is run under sshd.  The subsystem
   mechanism in sshd does not allow us to pass arguments on the command
-  line, so either we need a wrapper or we need wired-in names for
-  things like our config file.  sshd will have us running in whatever
-  it thinks is our home directory on startup, so it may be that the
-  easiest approach here is to let sshd put us in the right directory
-  and just look for our config file there.
+  line, so either we need a wrapper or we need wired-in names.  sshd
+  will have us running in whatever it thinks is our home directory on
+  startup, so it may be that the easiest approach here is to let sshd
+  put us in the right directory and just look for our files there.
 
   This mode takes no arguments.  Run it in the directory where you ran
   --cronjob mode.
@@ -1185,8 +1193,6 @@ def log(msg):
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-cfg_file = "rtr-origin.conf"
-
 mode = None
 
 kickme_dir  = "sockets"
@@ -1211,12 +1217,10 @@ def usage(error = None):
   else:
     sys.exit(error)
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"] + main_dispatch.keys())
+opts, argv = getopt.getopt(sys.argv[1:], "h?", ["help"] + main_dispatch.keys())
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     usage()
-  if o in ("-c", "--config"):
-    cfg_file = a
   if len(o) > 2 and o[2:] in main_dispatch:
     if mode is not None:
       usage("Conflicting modes specified")
@@ -1239,7 +1243,5 @@ if mode == "server":
       tag += "/ssh/" + os.getenv("SSH_CONNECTION").split()[0]
 
 rpki.log.init("rtr-origin/" + tag, syslog.LOG_PID)
-
-cfg = rpki.config.parser(cfg_file, "mode", allow_missing = True)
 
 main_dispatch[mode](argv)

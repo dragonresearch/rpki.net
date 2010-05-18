@@ -1030,6 +1030,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
         rpki.log.debug("Revoking child_cert %r" % x)
         x.revoke(publisher = publisher)
       ca_detail.generate_crl(publisher = publisher)
+      ca_detail.generate_manifest(publisher = publisher)
 
     child_cert = ca_detail.issue(
       ca          = ca,

@@ -385,13 +385,12 @@ class self_elt(data_elt):
             if ca_detail.state == "active":
               old_resources = child_cert.cert.get_3779resources()
               new_resources = irdb_resources.intersection(old_resources)
-              withdraw = False
 
               if new_resources.empty():
                 rpki.log.debug("Resources shrank to the null set, revoking and withdrawing child certificate SKI %s" % child_cert.cert.gSKI())
                 child_cert.revoke(publisher = publisher)
                 ca_detail.generate_crl(publisher = publisher)
-                withdraw = True
+                ca_detail.generate_manifest(publisher = publisher)
 
               elif old_resources != new_resources or (old_resources.valid_until < rsn and irdb_resources.valid_until > now):
                 rpki.log.debug("Need to reissue child certificate SKI %s" % child_cert.cert.gSKI())
@@ -404,9 +403,6 @@ class self_elt(data_elt):
                 rpki.log.debug("Child certificate SKI %s has expired: cert.valid_until %s, irdb.valid_until %s"
                                % (child_cert.cert.gSKI(), old_resources.valid_until, irdb_resources.valid_until))
                 child_cert.sql_delete()
-                withdraw = True
-
-              if withdraw:
                 publisher.withdraw(cls = rpki.publication.certificate_elt, uri = child_cert.uri(ca), obj = child_cert.cert, repository = ca.parent().repository())
                 ca_detail.generate_manifest(publisher = publisher)
 

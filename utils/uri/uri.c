@@ -74,7 +74,7 @@ enum decode_errors {
   decode_not_URI,
 };
 
-static enum decode_errors decode_crldp(X509 *x, int verbose)
+static enum decode_errors decode_crldp(X509 *x, int verbose, int spaces)
 {
   enum decode_errors err = decode_ok;
   STACK_OF(DIST_POINT) *ds = X509_get_ext_d2i(x, NID_crl_distribution_points, NULL, NULL);
@@ -101,7 +101,7 @@ static enum decode_errors decode_crldp(X509 *x, int verbose)
 	err = decode_not_GeneralName;
 	break;
       }
-      printf(" CRLDP: %s\n", n->d.uniformResourceIdentifier->data);
+      printf(" CRLDP: %s%s", n->d.uniformResourceIdentifier->data, spaces ? "" : "\n");
     }
   }
 
@@ -109,10 +109,11 @@ static enum decode_errors decode_crldp(X509 *x, int verbose)
   return err;
 }
 
-#define decode_xia(_x_, _v_, _tag_, _nid_, _oid_)  _decode_xia(_x_, _v_, _tag_, _nid_, _oid_, sizeof(_oid_))
+#define decode_xia(_x_, _v_, _s_, _tag_, _nid_, _oid_)  _decode_xia(_x_, _v_, _s_, _tag_, _nid_, _oid_, sizeof(_oid_))
 
 static enum decode_errors _decode_xia(X509 *x,
 				      int verbose,
+				      int spaces,
 				      char *tag,
 				      int nid,
 				      const unsigned char *oid,
@@ -133,7 +134,7 @@ static enum decode_errors _decode_xia(X509 *x,
 	break;
       }
       if (a->method->length == oidlen && !memcmp(a->method->data, oid, oidlen))
-	printf(" %s: %s\n", tag, a->location->d.uniformResourceIdentifier->data);
+	printf(" %s: %s%s", tag, a->location->d.uniformResourceIdentifier->data, spaces ? "" : "\n");
     }
   }
 
@@ -143,13 +144,13 @@ static enum decode_errors _decode_xia(X509 *x,
 
 int main(int argc, char *argv[])
 {
-  int c, format = 'd', ret = 0, verbose = 0;
+  int c, format = 'd', spaces = 0, ret = 0, verbose = 0;
   X509 *x;
 
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
 
-  while ((c = getopt(argc, argv, "pdv")) > 0) {
+  while ((c = getopt(argc, argv, "pdsv")) > 0) {
     switch (c) {
     case 'v':
       verbose = 1;
@@ -157,6 +158,9 @@ int main(int argc, char *argv[])
     case 'p':
     case 'd':
       format = c;
+      break;
+    case 's':
+      spaces = 1;
       break;
     default:
       ret = 1;
@@ -174,17 +178,19 @@ int main(int argc, char *argv[])
     argv += optind;
 
     while (argc-- > 0) {
-      printf("File: %s\n", *argv);
+      printf(spaces ? "%s" : "File: %s\n", *argv);
       if ((x = read_cert(*argv++, format, verbose)) == NULL) {
 	printf("Couldn't read certificate, skipping\n");
 	continue;
       }
-      decode_xia(x, verbose, "AIA:caIssuers",              NID_info_access,  id_ad_caIssuers);
-      decode_xia(x, verbose, "SIA:caRepository",           NID_sinfo_access, id_ad_caRepository);
-      decode_xia(x, verbose, "SIA:signedObjectRepository", NID_sinfo_access, id_ad_signedObjectRepository);
-      decode_xia(x, verbose, "SIA:rpkiManifest",           NID_sinfo_access, id_ad_rpkiManifest);
-      decode_xia(x, verbose, "SIA:signedObject",           NID_sinfo_access, id_ad_signedObject);
-      decode_crldp(x, verbose);
+      decode_xia(x, verbose, spaces, "AIA:caIssuers",              NID_info_access,  id_ad_caIssuers);
+      decode_xia(x, verbose, spaces, "SIA:caRepository",           NID_sinfo_access, id_ad_caRepository);
+      decode_xia(x, verbose, spaces, "SIA:signedObjectRepository", NID_sinfo_access, id_ad_signedObjectRepository);
+      decode_xia(x, verbose, spaces, "SIA:rpkiManifest",           NID_sinfo_access, id_ad_rpkiManifest);
+      decode_xia(x, verbose, spaces, "SIA:signedObject",           NID_sinfo_access, id_ad_signedObject);
+      decode_crldp(x, verbose, spaces);
+      if (spaces)
+	putchar('\n');
       X509_free(x);
     }
   }

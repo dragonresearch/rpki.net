@@ -869,9 +869,10 @@ class child_elt(data_elt):
     """
     Extra server actions when destroying a child_elt.
     """
-    def loop(iterator, child_cert):
-      child_cert.revoke(callback = iterator, errback = eb)
-    rpki.async.iterator(self.child_certs(), loop, cb)
+    publisher = rpki.rpki_engine.publication_queue()
+    for child_cert in self.child_certs():
+      child_cert.revoke(publisher = publisher)
+    publisher.call_pubd(cb, eb)
 
   def endElement(self, stack, name, text):
     """

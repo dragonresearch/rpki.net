@@ -888,6 +888,17 @@ class main(rpki.cli.Cmd):
       self.stdout.write(" " * 4 + line)
     self.stdout.write("\n")
 
+  def entitydb_complete(self, prefix, text, line, begidx, endidx):
+    """
+    Completion helper for entitydb filenames.
+    """
+    names = []
+    for name in self.entitydb.iterate(prefix, "*.xml"):
+      name = os.path.splitext(os.path.basename(name))[0]
+      if name.startswith(text):
+        names.append(name)
+    return names
+
   def read_config(self):
 
     self.cfg = rpki.config.parser(self.cfg_file, "myrpki")
@@ -1076,6 +1087,23 @@ class main(rpki.cli.Cmd):
                 msg = "Send this file back to the child you just configured")
 
 
+  def do_delete_child(self, arg):
+    """
+    Delete a child of this RPKI entity.
+
+    This should check that the XML file it's deleting really is a
+    child, but doesn't, yet.
+    """
+
+    try:
+      os.unlink(self.entitydb("children", "%s.xml" % arg))
+    except OSError:
+      print "No such child \"%s\"" % arg
+
+  def complete_delete_child(self, *args):
+    return self.entitydb_complete("children", *args)
+
+
   def do_configure_parent(self, arg):
     """
     Configure a new parent of this RPKI entity, given the output of
@@ -1121,6 +1149,23 @@ class main(rpki.cli.Cmd):
                   msg = 'This is the "repository %s" file to send to the repository operator' % r.get("type"))
     else:
       print "Couldn't find repository offer or referral"
+
+
+  def do_delete_parent(self, arg):
+    """
+    Delete a parent of this RPKI entity.
+
+    This should check that the XML file it's deleting really is a
+    parent, but doesn't, yet.
+    """
+
+    try:
+      os.unlink(self.entitydb("parents", "%s.xml" % arg))
+    except OSError:
+      print "No such parent \"%s\"" % arg
+
+  def complete_delete_parent(self, *args):
+    return self.entitydb_complete("parents", *args)
 
 
   def do_configure_publication_client(self, arg):
@@ -1200,6 +1245,23 @@ class main(rpki.cli.Cmd):
                 msg = "Send this file back to the publication client you just configured")
 
 
+  def do_delete_publication_client(self, arg):
+    """
+    Delete a publication client of this RPKI entity.
+
+    This should check that the XML file it's deleting really is a
+    client, but doesn't, yet.
+    """
+
+    try:
+      os.unlink(self.entitydb("pubclients", "%s.xml" % arg))
+    except OSError:
+      print "No such client \"%s\"" % arg
+
+  def complete_delete_publication_client(self, *args):
+    return self.entitydb_complete("pubclients", *args)
+
+
   def do_configure_repository(self, arg):
     """
     Configure a publication repository for this RPKI entity, given the
@@ -1223,6 +1285,23 @@ class main(rpki.cli.Cmd):
     print "Repository response associated with parent_handle %r" % parent_handle
 
     etree_write(r, self.entitydb("repositories", "%s.xml" % parent_handle))
+
+
+  def do_delete_repository(self, arg):
+    """
+    Delete a repository of this RPKI entity.
+
+    This should check that the XML file it's deleting really is a
+    repository, but doesn't, yet.
+    """
+
+    try:
+      os.unlink(self.entitydb("repositories", "%s.xml" % arg))
+    except OSError:
+      print "No such repository \"%s\"" % arg
+
+  def complete_delete_repository(self, *args):
+    return self.entitydb_complete("repositories", *args)
 
 
 

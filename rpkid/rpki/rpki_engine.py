@@ -976,10 +976,11 @@ class child_cert_obj(rpki.sql.sql_persistent):
     """Return the publication URI for this child_cert."""
     return ca.sia_uri + self.uri_tail()
 
-  def revoke(self, publisher):
+  def revoke(self, publisher, generate_crl_and_manifest = False):
     """
     Revoke a child cert.
     """
+
     ca_detail = self.ca_detail()
     ca = ca_detail.ca()
     rpki.log.debug("Revoking %r %r" % (self, self.uri(ca)))
@@ -987,6 +988,9 @@ class child_cert_obj(rpki.sql.sql_persistent):
     publisher.withdraw(cls = rpki.publication.certificate_elt, uri = self.uri(ca), obj = self.cert, repository = ca.parent().repository())
     self.gctx.sql.sweep()
     self.sql_delete()
+    if generate_crl_and_manifest:
+      ca_detail.generate_crl(publisher = publisher)
+      ca_detail.generate_manifest(publisher = publisher)
 
   def reissue(self, ca_detail, publisher, resources = None, sia = None):
     """

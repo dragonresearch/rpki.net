@@ -871,7 +871,8 @@ class child_elt(data_elt):
     """
     publisher = rpki.rpki_engine.publication_queue()
     for child_cert in self.child_certs():
-      child_cert.revoke(publisher = publisher)
+      child_cert.revoke(publisher = publisher,
+                        generate_crl_and_manifest = True)
     publisher.call_pubd(cb, eb)
 
   def endElement(self, stack, name, text):

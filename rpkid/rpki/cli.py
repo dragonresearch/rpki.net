@@ -124,7 +124,7 @@ class Cmd(cmd.Cmd):
     names = self.get_names()
     result = []
     for prefix in ("do_", "help_"):
-      result.extend(s[len(prefix):] for s in names if s .startswith(prefix + text))
+      result.extend(s[len(prefix):] for s in names if s.startswith(prefix + text))
     return result
 
   if have_readline:

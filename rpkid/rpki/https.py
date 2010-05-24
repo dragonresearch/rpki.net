@@ -71,6 +71,10 @@ default_server_timeout = rpki.sundial.timedelta(minutes = 20)
 # Preferred HTTP version.
 default_http_version = (1, 0)
 
+## @var default_tcp_port
+# Default port for clients and servers that don't specify one.
+default_tcp_port = 443
+
 ## @var supported_address_families
 #
 # IP address families to support.  Almost all the code is in place for
@@ -470,7 +474,7 @@ class http_stream(asynchat.async_chat):
         self.retry_write = self.handle_read
       except POW.ZeroReturnError:
         self.log("ZeroReturn in handle_read()")
-        self.close()
+        self.handle_close()
       except POW.SSLUnexpectedEOFError:
         self.log("SSLUnexpectedEOF in handle_read()", rpki.log.warn)
         self.close(force = True)
@@ -513,7 +517,7 @@ class http_stream(asynchat.async_chat):
       self.retry_write = self.initiate_send
     except POW.ZeroReturnError:
       self.log("ZeroReturn in initiate_send()")
-      self.close()
+      self.handle_close()
     except POW.SSLUnexpectedEOFError:
       self.log("SSLUnexpectedEOF in initiate_send()", rpki.log.warn)
       self.close(force = True)
@@ -711,7 +715,7 @@ class http_listener(asyncore.dispatcher):
 
   log = log_method
 
-  def __init__(self, handlers, port = 80, host = "", cert = None, key = None, ta = None, dynamic_ta = None, af = supported_address_families[0]):
+  def __init__(self, handlers, port = default_tcp_port, host = "", cert = None, key = None, ta = None, dynamic_ta = None, af = supported_address_families[0]):
     self.log("Listener cert %r key %r ta %r dynamic_ta %r" % (cert, key, ta, dynamic_ta))
     asyncore.dispatcher.__init__(self)
     self.handlers = handlers
@@ -1059,7 +1063,7 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback):
     Host                = u.hostname,
     Content_Type        = rpki_content_type)
 
-  hostport = (u.hostname or "localhost", u.port or 80)
+  hostport = (u.hostname or "localhost", u.port or default_tcp_port)
 
   if debug_http:
     rpki.log.debug("Created request %r for %r" % (request, hostport))

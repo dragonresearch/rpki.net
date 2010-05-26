@@ -2819,6 +2819,7 @@ int main(int argc, char *argv[])
   rcynic_ctx_t rc;
   unsigned delay;
   long eline = 0;
+  BIO *bio = NULL;
 
   memset(&rc, 0, sizeof(rc));
 
@@ -3081,7 +3082,6 @@ int main(int argc, char *argv[])
     char path1[FILENAME_MAX], path2[FILENAME_MAX], uri[URI_MAX];
     certinfo_t ta_info;
     X509 *x = NULL;
-    BIO *bio = NULL;
 
     assert(val && val->name && val->value);
 
@@ -3162,7 +3162,8 @@ int main(int argc, char *argv[])
       }
       if (bio)
 	pkey = d2i_PUBKEY_bio(bio, NULL);
-      BIO_free(bio);
+      BIO_free_all(bio);
+      bio = NULL;
       if (!pkey) {
 	logmsg(&rc, log_usage_err, "Couldn't read trust anchor public key for %s from %s", uri, fn);
 	goto done;
@@ -3311,6 +3312,7 @@ int main(int argc, char *argv[])
   X509_STORE_free(rc.x509_store);
   NCONF_free(cfg_handle);
   CONF_modules_free();
+  BIO_free(bio);
   EVP_cleanup();
   ERR_free_strings();
   free(rc.authenticated);

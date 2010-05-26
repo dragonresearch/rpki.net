@@ -193,8 +193,11 @@ TO DO:
 
 	TIME REQUIRED: 1-2 weeks.
 
-	STATUS:		<list_received_resources/> done.
-			rcynic work not started yet.
+	STATUS:	<list_received_resources/> done.
+		rcynic work started along a different path (XML
+		reporting of validation failure events, mostly done,
+		still some corner cases); unclear whether this will
+		suffice or UI really needs tree structure per above.
 
       * At present there is no mechanism by which an IRBE could
 	request signing of objects other than ROAs.  Eg, there has

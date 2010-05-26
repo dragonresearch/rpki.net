@@ -3116,22 +3116,40 @@ int main(int argc, char *argv[])
       }
     }
 
-    if (!name_cmp(val->name, "trust-anchor-uri-with-key")) {
+    if (!name_cmp(val->name, "trust-anchor-uri-with-key") ||
+	!name_cmp(val->name, "indirect-trust-anchor")) {
       /*
-       * Newfangled URI + public key method.
+       * Newfangled URI + public key method.  Two different versions
+       * of essentially the same mechanism.
        *
        * NB: EVP_PKEY_cmp() returns 1 for success, not 0 like every
        *     other xyz_cmp() function in the entire OpenSSL library.
        *     Go figure.
        */
+      int unified = !name_cmp(val->name, "indirect-trust-anchor");
       EVP_PKEY *pkey = NULL, *xpkey = NULL;
-      j = strcspn(val->value, " \t");
-      if (j >= sizeof(uri)) {
-	logmsg(&rc, log_usage_err, "Trust anchor URI too long %s", val->value);
-	goto done;
+      char *fn;
+      if (unified) {
+	fn = val->value;
+	bio = BIO_new_file(fn, "r");
+	if (!bio || BIO_gets(bio, uri, sizeof(uri)) <= 0) {
+	  logmsg(&rc, log_usage_err, "Couldn't read trust anchor URI from %s", fn);
+	  goto done;
+	}
+	uri[strcspn(uri, " \t\r\n")] = '\0';
+	bio = BIO_push(BIO_new(BIO_f_base64()), bio);
+      } else {
+	j = strcspn(val->value, " \t");
+	if (j >= sizeof(uri)) {
+	  logmsg(&rc, log_usage_err, "Trust anchor URI too long %s", val->value);
+	  goto done;
+	}
+	memcpy(uri, val->value, j);
+	uri[j] = '\0';
+	j += strspn(val->value + j, " \t");
+	fn = val->value + j;
+	bio = BIO_new_file(fn, "rb");
       }
-      memcpy(uri, val->value, j);
-      uri[j] = '\0';
       if (!uri_to_filename(&rc, uri, path1, sizeof(path1), rc.unauthenticated) ||
 	  !uri_to_filename(&rc, uri, path2, sizeof(path2), rc.authenticated)) {
 	logmsg(&rc, log_usage_err, "Couldn't convert trust anchor URI %s to filename", uri);
@@ -3142,13 +3160,11 @@ int main(int argc, char *argv[])
 	logmsg(&rc, log_data_err, "Could not fetch trust anchor from %s", uri);
 	continue;
       }
-      j += strspn(val->value + j, " \t");
-      bio = BIO_new_file(val->value + j, "rb");
       if (bio)
 	pkey = d2i_PUBKEY_bio(bio, NULL);
       BIO_free(bio);
       if (!pkey) {
-	logmsg(&rc, log_usage_err, "Couldn't read trust anchor public key for %s from %s", uri, val->value + j);
+	logmsg(&rc, log_usage_err, "Couldn't read trust anchor public key for %s from %s", uri, fn);
 	goto done;
       }
       if ((x = read_cert(path1, NULL, 0)) == NULL)

@@ -257,14 +257,27 @@ trust-anchor		Specify one RPKI trust anchor, represented as
 			pathname of the file.  No default.
 
 trust-anchor-uri-with-key
-			Experimental. Specify one RPKI trust anchor,
-			represented as an rsync URI and a local file
-			containing the RSA public key of the X.509
-			object specified by the URI.  The RSA public
-			key should be in DER format.  Value for this
-			option consists of the URI and the filename of
-			the public key, in that order, separated by
-			whitespace.  No default.
+			Specify one RPKI trust anchor, represented as
+			an rsync URI and a local file containing the
+			RSA public key of the X.509 object specified
+			by the URI.  The RSA public key should be in
+			DER format.  Value for this option consists of
+			the URI and the filename of the public key, in
+			that order, separated by whitespace.  No
+			default.
+
+indirect-trust-anchor
+			Specify one RPKI trust anchor, represented as
+			a local file containing an rsync URI and the
+			RSA public key of the X.509 object specified
+			by the URI.  First line of the file is the
+			URI, remainder is the public key in Base64
+			encoded DER format.  Value of this option
+			is the pathname of the file.  No default.
+
+trust-anchor-uri-with-key and indirect-trust-anchor are semantically
+identical, the difference is just how the URI and public key are
+stored.
 
 There's a companion XSLT template in rcynic.xsl, which translates what
 the xml-summary option writes into HTML.

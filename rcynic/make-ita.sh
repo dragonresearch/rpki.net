@@ -38,5 +38,4 @@ fi
 
 echo "$1"
 openssl x509 -inform DER -in "$tmpfile" -pubkey -noout |
-openssl rsa -outform DER -pubin 2>/dev/null |
-openssl enc -base64
+egrep -v -e '-----(BEGIN|END)'

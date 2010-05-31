@@ -152,10 +152,9 @@ class timer(object):
     """
     if self.gc_debug:
       self.trace("Canceling %r" % self)
-    try:
-      self.queue.remove(self)
-    except ValueError:
-      pass
+    for i in xrange(len(self.queue) - 1, -1, -1):
+      if self.queue[i] is self:
+        del self.queue[i]
 
   def is_set(self):
     """Test whether this timer is currently set."""

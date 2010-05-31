@@ -137,10 +137,10 @@ class timer(object):
     assert isinstance(self.when, rpki.sundial.datetime), "%r: Expecting a datetime, got %r" % (self, self.when)
     if self not in self.queue:
       self.queue.append(self)
-    self.queue.sort()
+    self.queue.sort(key = lambda x: x.when)
 
   def __cmp__(self, other):
-    return cmp(self.when, other.when)
+    return cmp(id(self), id(other))
 
   if gc_debug:
     def __del__(self):
@@ -152,9 +152,11 @@ class timer(object):
     """
     if self.gc_debug:
       self.trace("Canceling %r" % self)
-    for i in xrange(len(self.queue) - 1, -1, -1):
-      if self.queue[i] is self:
-        del self.queue[i]
+    try:
+      while True:
+        self.queue.remove(self)
+    except ValueError:
+      pass
 
   def is_set(self):
     """Test whether this timer is currently set."""

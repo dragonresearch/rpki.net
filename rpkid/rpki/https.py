@@ -33,7 +33,7 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import time, socket, asyncore, asynchat, urlparse, sys
-import rpki.async, rpki.sundial, rpki.x509, rpki.exceptions, rpki.log
+import rpki.async, rpki.sundial, rpki.x509, rpki.exceptions, rpki.log, rpki.adns
 import POW
 
 ## @var rpki_content_type
@@ -90,6 +90,10 @@ if False:
 else:
   supported_address_families = (socket.AF_INET,)
 
+## @var use_adns
+# Whether to use rpki.adns code.  This is still experimental, so it's
+# not (yet) enabled by default.
+use_adns = False
 
 class http_message(object):
   """
@@ -553,7 +557,11 @@ class http_stream(asynchat.async_chat):
       self.log("TLS layer is done, closing socket")
       self.timer.cancel()
       self.timer.set_handler(None)
-      asynchat.async_chat.close(self)
+      try:
+        asynchat.async_chat.close(self)
+      except AttributeError:
+        if getattr(self, "socket", None) is not None:
+          raise
 
   def log_cert(self, tag, x):
     """
@@ -778,7 +786,8 @@ class http_client(http_stream):
     self.log("cert %r key %r ta %r" % (cert, key, ta))
     http_stream.__init__(self)
     self.queue = queue
-    self.hostport = hostport
+    self.host = hostport[0]
+    self.port = hostport[1]
     self.state = "opening"
     self.expect_close = not want_persistent_client
     self.cert = cert
@@ -790,9 +799,24 @@ class http_client(http_stream):
     """
     Create socket and request a connection.
     """
+    if not use_adns:
+      self.do_connect((self.host,))
+    elif self.host == "localhost":
+      self.do_connect(("127.0.0.1",))
+    else:
+      rpki.adns.query(self.do_connect, lambda e: self.handle_error(), self.host)
+
+  def do_connect(self, rdata):
+    """
+    Got address data from DNS, create socket and request connection.
+
+    In the long run, this should receive (af, address) pairs from
+    rpki.adns, but I'm not quite there yet.
+    """
     try:
+      self.addr = rdata[0]
       self.create_socket(self.af, socket.SOCK_STREAM)
-      self.connect(self.hostport)
+      self.connect((self.addr, self.port))
     except (rpki.async.ExitNow, SystemExit):
       raise
     except:
@@ -925,7 +949,7 @@ class http_client(http_stream):
     down the connection and pass back the exception.
     """
     eclass, edata = sys.exc_info()[0:2]
-    self.log("Error on HTTP client connection %r: %s %s" % (self.hostport, eclass, edata), rpki.log.warn)
+    self.log("Error on HTTP client connection %s:%s: %s %s" % (self.host, self.port, eclass, edata), rpki.log.warn)
     http_stream.handle_error(self)
     self.queue.detach(self)
     self.queue.return_result(edata)

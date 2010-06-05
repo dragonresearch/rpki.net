@@ -46,13 +46,26 @@ resolver = dns.resolver.Resolver()
 if resolver.cache is None:
   resolver.cache = dns.resolver.Cache()
 
-## @var nscache
-# Nameserver map, maps values from resolver.nameservers to (af,
-# address) pairs.  The latter turns out to be a more useful form for
-# us to use internally, because it simplifies the checks we need to
-# make upon packet receiption.
+## @var nameservers
+# Nameservers from resolver.nameservers converted to (af, address)
+# pairs.  The latter turns out to be a more useful form for us to use
+# internally, because it simplifies the checks we need to make upon
+# packet receiption.
 
-nscache = {}
+nameservers = []
+
+for ns in resolver.nameservers:
+  try:
+    nameservers.append((dns.inet.AF_INET, dns.ipv4.inet_aton(ns)))
+    continue          
+  except:
+    pass
+  try:
+    nameservers.append((dns.inet.AF_INET6, dns.ipv6.inet_aton(ns)))
+    continue
+  except:
+    pass
+  rpki.log.error("Couldn't parse nameserver address %r" % ns)
 
 class dispatcher(asyncore.dispatcher):
   """
@@ -137,33 +150,8 @@ class query(object):
       self.request.use_edns(resolver.edns, resolver.ednsflags, resolver.payload)
       self.response = None
       self.backoff = 0.10
-      self.clone_nameservers()
+      self.nameservers = nameservers[:]
       self.loop1()
-
-  def clone_nameservers(self):
-    """
-    Parse resolver.nameservers into (address family, address) pairs,
-    cache result to speed up future queries, and construct nameserver
-    list for this query.
-    """
-    for ns in resolver.nameservers:
-      if ns not in nscache:
-        try:
-          addr = dns.ipv4.inet_aton(ns)
-        except:
-          pass
-        else:
-          nscache[ns] = (dns.inet.AF_INET, addr)
-          continue
-        try:
-          addr = dns.ipv6.inet_aton(ns)
-        except:
-          pass
-        else:
-          nscache[ns] = (dns.inet.AF_INET6, addr)
-          continue
-        raise ValueError
-    self.nameservers = [nscache[ns] for ns in resolver.nameservers]
 
   def loop1(self):
     """

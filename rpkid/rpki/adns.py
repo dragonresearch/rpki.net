@@ -56,12 +56,12 @@ nameservers = []
 
 for ns in resolver.nameservers:
   try:
-    nameservers.append((dns.inet.AF_INET, dns.ipv4.inet_aton(ns)))
+    nameservers.append((socket.AF_INET, dns.ipv4.inet_aton(ns)))
     continue          
   except:
     pass
   try:
-    nameservers.append((dns.inet.AF_INET6, dns.ipv6.inet_aton(ns)))
+    nameservers.append((socket.AF_INET6, dns.ipv6.inet_aton(ns)))
     continue
   except:
     pass
@@ -132,7 +132,7 @@ class query(object):
 
     if answer:
       # Found usable answer in cache, no network query required.
-      cb(answer)
+      cb(self, answer)
 
     else:
       # Set up for network query.
@@ -262,7 +262,7 @@ class query(object):
     Something bad happened.  Clean up, then pass error back to caller.
     """
     self.cleanup()
-    self.eb(e)
+    self.eb(self, e)
 
   def done1(self):
     """
@@ -279,11 +279,40 @@ class query(object):
       answer = dns.resolver.Answer(self.qname, self.qtype, self.qclass, self.response)
       if resolver.cache:
         resolver.cache.put((self.qname, self.qtype, self.qclass), answer)
-      self.cb(answer)
+      self.cb(self, answer)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
       self.lose(e)
+
+class getaddrinfo(object):
+
+  typemap = { dns.rdatatype.A    : socket.AF_INET,
+              dns.rdatatype.AAAA : socket.AF_INET6 }
+
+  def __init__(self, cb, eb, host, port):
+    self.cb = cb
+    self.eb = eb
+    self.host = host
+    self.port = port
+    self.result = []
+    self.queries = [query(self.done, self.lose, host, qtype) for qtype in self.typemap]
+
+  def done(self, q, answer):
+    if answer is not None:
+      for a in answer:
+        self.result.append((self.typemap[a.rdtype], (a.address, self.port)))
+    self.queries.remove(q)
+    if not self.queries:
+      self.cb(self.result)
+
+  def lose(self, q, e):
+    if isinstance(e, dns.resolver.NoAnswer):
+      self.done(q, None)
+    else:
+      for q in self.queries:
+        q.cleanup()
+      self.eb(e)
 
 if __name__ == "__main__":
 
@@ -293,12 +322,21 @@ if __name__ == "__main__":
     for rdata in result:
       print rdata
 
+  def done2(q, result):
+    done(result)
+
   def lose(e):
     print "DNS lookup failed: %r" % e
 
+  def lose2(q, e):
+    lose(e)
+
   for qtype in (dns.rdatatype.A, dns.rdatatype.AAAA, dns.rdatatype.HINFO):
-    query(done, lose, "www.hactrn.net", qtype)
-  query(done, lose, "wibble.hactrn.net")
-  query(done, lose, "www.hactrn.net", qclass = dns.rdataclass.CH)
+    query(done2, lose2, "www.hactrn.net", qtype)
+  query(done2, lose2, "wibble.hactrn.net")
+  query(done2, lose2, "www.hactrn.net", qclass = dns.rdataclass.CH)
+
+  for host in ("www.hactrn.net", "www.psg.com", "arin.rpki.net", "www.rpki.net"):
+    getaddrinfo(done, lose, host, 80)
 
   rpki.async.event_loop()

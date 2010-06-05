@@ -800,13 +800,16 @@ class http_client(http_stream):
     Create socket and request a connection.
     """
     if not use_adns:
-      self.do_connect((self.host,))
+      self.do_connect(None, (self.host,))
     elif self.host == "localhost":
-      self.do_connect(("127.0.0.1",))
+      self.do_connect(None, ("127.0.0.1",))
     else:
-      rpki.adns.query(self.do_connect, lambda e: self.handle_error(), self.host)
+      rpki.adns.query(self.do_connect, self.dns_error, self.host)
 
-  def do_connect(self, rdata):
+  def dns_error(self, query, e):
+    self.handle_error()
+
+  def do_connect(self, query, rdata):
     """
     Got address data from DNS, create socket and request connection.
 

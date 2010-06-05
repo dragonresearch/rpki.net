@@ -33,7 +33,7 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import time, socket, asyncore, asynchat, urlparse, sys, random
-import rpki.async, rpki.sundial, rpki.x509, rpki.exceptions, rpki.log, rpki.adns
+import rpki.async, rpki.sundial, rpki.x509, rpki.exceptions, rpki.log
 import POW
 
 ## @var rpki_content_type
@@ -832,6 +832,7 @@ class http_client(http_stream):
     elif self.host == "localhost":
       self.gotaddrinfo(localhost_addrinfo())
     else:
+      import rpki.adns                  # This should move to start of file once we've decided to inflict it on all users
       rpki.adns.getaddrinfo(self.gotaddrinfo, self.dns_error, self.host, supported_address_families(enable_ipv6_clients))
 
   def dns_error(self, e):

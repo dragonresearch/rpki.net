@@ -32,7 +32,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import time, socket, asyncore, asynchat, urlparse, sys
+import time, socket, asyncore, asynchat, urlparse, sys, random
 import rpki.async, rpki.sundial, rpki.x509, rpki.exceptions, rpki.log, rpki.adns
 import POW
 
@@ -75,25 +75,54 @@ default_http_version = (1, 0)
 # Default port for clients and servers that don't specify one.
 default_tcp_port = 443
 
-## @var supported_address_families
-#
-# IP address families to support.  Almost all the code is in place for
-# IPv6, the missing bits are DNS support that would let us figure out
-# which address family to request, and configuration support to let us
-# figure out which protocols are supported on the local machine.  For
-# now, leave code in place but disabled.
-#
-# Address families on which to listen; first entry is also the default
-# for opening new connections.
-if False:
-  supported_address_families = (socket.AF_INET, socket.AF_INET6)
-else:
-  supported_address_families = (socket.AF_INET,)
+## @var enable_ipv6_servers
+# Whether to enable IPv6 listeners.  Enabled by default, as it should
+# be harmless.  Has no effect if kernel doesn't support IPv6.
+enable_ipv6_servers = True
+
+## @var enable_ipv6_clients
+# Whether to consider IPv6 addresses when making connections.
+# Disabled by default, as IPv6 connectivity is still a bad joke in
+# far too much of the world.
+enable_ipv6_clients = False
 
 ## @var use_adns
 # Whether to use rpki.adns code.  This is still experimental, so it's
 # not (yet) enabled by default.
 use_adns = False
+
+## @var have_ipv6
+# Whether the current machine claims to support IPv6.  Note that just
+# because the kernel supports it doesn't mean that the machine has
+# usable IPv6 connectivity.  I don't know of a simple portable way to
+# probe for connectivity at runtime (the old test of "can you ping
+# SRI-NIC.ARPA?" seems a bit dated...).  Don't set this, it's set
+# automatically by probing using the socket() system call at runtime.
+try:
+  socket.socket(socket.AF_INET6).close()
+except:
+  have_ipv6 = False
+else:
+  have_ipv6 = True
+
+def supported_address_families(enable_ipv6):
+  """
+  IP address families on which servers should listen, and to consider
+  when selecting addresses for client connections.
+  """
+  if enable_ipv6 and have_ipv6:
+    return (socket.AF_INET, socket.AF_INET6)
+  else:
+    return (socket.AF_INET,)
+
+def localhost_addrinfo():
+  """
+  Return pseudo-getaddrinfo results for localhost.
+  """
+  result = [(socket.AF_INET, "127.0.0.1")]
+  if enable_ipv6_clients and have_ipv6:
+    result.append((socket.AF_INET6, "::1"))
+  return result
 
 class http_message(object):
   """
@@ -723,7 +752,7 @@ class http_listener(asyncore.dispatcher):
 
   log = log_method
 
-  def __init__(self, handlers, port = default_tcp_port, host = "", cert = None, key = None, ta = None, dynamic_ta = None, af = supported_address_families[0]):
+  def __init__(self, handlers, port = default_tcp_port, host = "", cert = None, key = None, ta = None, dynamic_ta = None, af = socket.AF_INET):
     self.log("Listener cert %r key %r ta %r dynamic_ta %r" % (cert, key, ta, dynamic_ta))
     asyncore.dispatcher.__init__(self)
     self.handlers = handlers
@@ -781,7 +810,7 @@ class http_client(http_stream):
   # Use the default client timeout value set in the module header.
   timeout = default_client_timeout
 
-  def __init__(self, queue, hostport, cert = None, key = None, ta = (), af = supported_address_families[0]):
+  def __init__(self, queue, hostport, cert = None, key = None, ta = ()):
     self.log("Creating new connection to %r" % (hostport,))
     self.log("cert %r key %r ta %r" % (cert, key, ta))
     http_stream.__init__(self)
@@ -793,31 +822,31 @@ class http_client(http_stream):
     self.cert = cert
     self.key = key
     self.ta = rpki.x509.X509.normalize_chain(ta)
-    self.af = af
 
   def start(self):
     """
     Create socket and request a connection.
     """
     if not use_adns:
-      self.do_connect(None, (self.host,))
+      self.gotaddrinfo([(socket.AF_INET, self.host)])
     elif self.host == "localhost":
-      self.do_connect(None, ("127.0.0.1",))
+      self.gotaddrinfo(localhost_addrinfo())
     else:
-      rpki.adns.query(self.do_connect, self.dns_error, self.host)
+      rpki.adns.getaddrinfo(self.gotaddrinfo, self.dns_error, self.host, supported_address_families(enable_ipv6_clients))
 
-  def dns_error(self, query, e):
+  def dns_error(self, e):
+    """
+    Handle DNS lookup errors.  For now, just whack the connection.
+    Undoubtedly we should do something better with diagnostics here.
+    """
     self.handle_error()
 
-  def do_connect(self, query, rdata):
+  def gotaddrinfo(self, addrinfo):
     """
     Got address data from DNS, create socket and request connection.
-
-    In the long run, this should receive (af, address) pairs from
-    rpki.adns, but I'm not quite there yet.
     """
     try:
-      self.addr = rdata[0]
+      self.af, self.addr = random.choice(addrinfo)
       self.create_socket(self.af, socket.SOCK_STREAM)
       self.connect((self.addr, self.port))
     except (rpki.async.ExitNow, SystemExit):
@@ -1107,7 +1136,7 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback):
     rpki.log.debug("Scheduling connection startup for %r" % request)
   rpki.async.defer(client_queues[hostport].restart)
 
-def server(handlers, server_key, server_cert, port, host ="", client_ta = (), dynamic_https_trust_anchor = None, address_families = supported_address_families):
+def server(handlers, server_key, server_cert, port, host ="", client_ta = (), dynamic_https_trust_anchor = None):
   """
   Run an HTTPS server and wait (forever) for connections.
   """
@@ -1118,7 +1147,7 @@ def server(handlers, server_key, server_cert, port, host ="", client_ta = (), dy
   if not isinstance(client_ta, (tuple, list)):
     client_ta = (client_ta,)
 
-  for af in address_families:
+  for af in supported_address_families(enable_ipv6_servers):
     http_listener(port = port, host = host, handlers = handlers, cert = server_cert, key = server_key, ta = client_ta, dynamic_ta = dynamic_https_trust_anchor, af = af)
   rpki.async.event_loop()
 

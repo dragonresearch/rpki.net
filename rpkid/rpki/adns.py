@@ -290,18 +290,19 @@ class getaddrinfo(object):
   typemap = { dns.rdatatype.A    : socket.AF_INET,
               dns.rdatatype.AAAA : socket.AF_INET6 }
 
-  def __init__(self, cb, eb, host, port):
+  def __init__(self, cb, eb, host, address_families = typemap.values()):
     self.cb = cb
     self.eb = eb
     self.host = host
-    self.port = port
     self.result = []
-    self.queries = [query(self.done, self.lose, host, qtype) for qtype in self.typemap]
+    self.queries = [query(self.done, self.lose, host, qtype)
+                    for qtype in self.typemap
+                    if self.typemap[qtype] in address_families]
 
   def done(self, q, answer):
     if answer is not None:
       for a in answer:
-        self.result.append((self.typemap[a.rdtype], (a.address, self.port)))
+        self.result.append((self.typemap[a.rdtype], a.address))
     self.queries.remove(q)
     if not self.queries:
       self.cb(self.result)
@@ -322,21 +323,18 @@ if __name__ == "__main__":
     for rdata in result:
       print rdata
 
-  def done2(q, result):
-    done(result)
-
   def lose(e):
     print "DNS lookup failed: %r" % e
 
-  def lose2(q, e):
-    lose(e)
+  if True:
+    def done2(q, result): done(result)
+    def lose2(q, e): lose(e)
+    for qtype in (dns.rdatatype.A, dns.rdatatype.AAAA, dns.rdatatype.HINFO):
+      query(done2, lose2, "subvert-rpki.hactrn.net", qtype)
+    query(done2, lose2, "wibble.hactrn.net")
+    query(done2, lose2, "subvert-rpki.hactrn.net", qclass = dns.rdataclass.CH)
 
-  for qtype in (dns.rdatatype.A, dns.rdatatype.AAAA, dns.rdatatype.HINFO):
-    query(done2, lose2, "www.hactrn.net", qtype)
-  query(done2, lose2, "wibble.hactrn.net")
-  query(done2, lose2, "www.hactrn.net", qclass = dns.rdataclass.CH)
-
-  for host in ("www.hactrn.net", "www.psg.com", "arin.rpki.net", "www.rpki.net"):
-    getaddrinfo(done, lose, host, 80)
+  for host in ("subvert-rpki.hactrn.net", "www.rpki.net"):
+    getaddrinfo(done, lose, host)
 
   rpki.async.event_loop()

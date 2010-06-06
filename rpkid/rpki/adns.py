@@ -113,35 +113,34 @@ class query(object):
   """
 
   def __init__(self, cb, eb, qname, qtype = dns.rdatatype.A, qclass = dns.rdataclass.IN):
-
-    # Whack arguments into cannoical form
     if isinstance(qname, (str, unicode)):
       qname = dns.name.from_text(qname)
     if isinstance(qtype, str):
       qtype = dns.rdatatype.from_text(qtype)   
     if isinstance(qclass, str):
       qclass = dns.rdataclass.from_text(qclass)
-
     assert qname.is_absolute()
-    
-    # Check our cache before doing network query.
+    self.cb = cb
+    self.eb = eb
+    self.qname = qname
+    self.qtype = qtype
+    self.qclass = qclass
+    self.start = time.time()
+    rpki.async.defer(self.go)
+
+  def go(self):
+    """
+    Start running the query.  Check our cache before doing network
+    query; if we find an answer there, just return it.  Otherwise
+    start the network query.
+    """
     if resolver.cache:
-      answer = resolver.cache.get((qname, qtype, qclass))
+      answer = resolver.cache.get((self.qname, self.qtype, self.qclass))
     else:
       answer = None
-
     if answer:
-      # Found usable answer in cache, no network query required.
-      cb(self, answer)
-
+      self.cb(self, answer)
     else:
-      # Set up for network query.
-      self.cb = cb
-      self.eb = eb
-      self.qname = qname
-      self.qtype = qtype
-      self.qclass = qclass
-      self.start = time.time()
       self.timer = rpki.async.timer()
       self.sockets = {}
       self.request = dns.message.make_query(self.qname, self.qtype, self.qclass)

@@ -179,6 +179,21 @@ class parser(object):
       pass
 
     try:
+      rpki.https.use_adns = self.getboolean("use_adns")
+    except ConfigParser.NoOptionError:
+      pass
+
+    try:
+      rpki.https.enable_ipv6_clients = self.getboolean("enable_ipv6_clients")
+    except ConfigParser.NoOptionError:
+      pass
+
+    try:
+      rpki.https.enable_ipv6_servers = self.getboolean("enable_ipv6_servers")
+    except ConfigParser.NoOptionError:
+      pass
+
+    try:
       rpki.x509.CMS_object.debug_cms_certs = self.getboolean("debug_cms_certs")
     except ConfigParser.NoOptionError:
       pass

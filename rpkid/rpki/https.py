@@ -78,7 +78,10 @@ default_tcp_port = 443
 ## @var enable_ipv6_servers
 # Whether to enable IPv6 listeners.  Enabled by default, as it should
 # be harmless.  Has no effect if kernel doesn't support IPv6.
-enable_ipv6_servers = True
+#
+# Not harmless after all, there's a bug.  socket.bind() fails for IPv6
+# connections, at least for now.  Disabled until this is fixed.
+enable_ipv6_servers = False
 
 ## @var enable_ipv6_clients
 # Whether to consider IPv6 addresses when making connections.

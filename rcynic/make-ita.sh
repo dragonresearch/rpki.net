@@ -38,4 +38,4 @@ fi
 
 echo "$1"
 openssl x509 -inform DER -in "$tmpfile" -pubkey -noout |
-egrep -v -e '-----(BEGIN|END)'
+awk '!/-----(BEGIN|END)/'

@@ -78,10 +78,7 @@ default_tcp_port = 443
 ## @var enable_ipv6_servers
 # Whether to enable IPv6 listeners.  Enabled by default, as it should
 # be harmless.  Has no effect if kernel doesn't support IPv6.
-#
-# Not harmless after all, there's a bug.  socket.bind() fails for IPv6
-# connections, at least for now.  Disabled until this is fixed.
-enable_ipv6_servers = False
+enable_ipv6_servers = True
 
 ## @var enable_ipv6_clients
 # Whether to consider IPv6 addresses when making connections.
@@ -755,7 +752,7 @@ class http_listener(asyncore.dispatcher):
 
   log = log_method
 
-  def __init__(self, handlers, port = default_tcp_port, host = "", cert = None, key = None, ta = None, dynamic_ta = None, af = socket.AF_INET):
+  def __init__(self, handlers, addrinfo, cert = None, key = None, ta = None, dynamic_ta = None):
     self.log("Listener cert %r key %r ta %r dynamic_ta %r" % (cert, key, ta, dynamic_ta))
     asyncore.dispatcher.__init__(self)
     self.handlers = handlers
@@ -764,17 +761,18 @@ class http_listener(asyncore.dispatcher):
     self.ta = ta
     self.dynamic_ta = dynamic_ta
     try:
-      self.create_socket(af, socket.SOCK_STREAM)
+      af, socktype, proto, canonname, sockaddr = addrinfo
+      self.create_socket(af, socktype)
       self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
       if hasattr(socket, "SO_REUSEPORT"):
         self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-      self.bind((host, port))
+      self.bind(sockaddr)
       self.listen(5)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except:
       self.handle_error()
-    self.log("Listening on %r, handlers %r" % ((host, port), handlers))
+    self.log("Listening on %r, handlers %r" % (sockaddr, handlers))
 
   def handle_accept(self):
     """
@@ -1152,7 +1150,12 @@ def server(handlers, server_key, server_cert, port, host ="", client_ta = (), dy
     client_ta = (client_ta,)
 
   for af in supported_address_families(enable_ipv6_servers):
-    http_listener(port = port, host = host, handlers = handlers, cert = server_cert, key = server_key, ta = client_ta, dynamic_ta = dynamic_https_trust_anchor, af = af)
+    try:
+      for addrinfo in socket.getaddrinfo(host if host else "::" if have_ipv6 and af == socket.AF_INET6 else "0.0.0.0",
+                                         port, af, socket.SOCK_STREAM):
+        http_listener(addrinfo = addrinfo, handlers = handlers, cert = server_cert, key = server_key, ta = client_ta, dynamic_ta = dynamic_https_trust_anchor)
+    except socket.gaierror, e:
+      rpki.log.info("getaddrinfo() error for AF %d, host %s, port %s, skipping address family: %s" % (af, host, port, e))
   rpki.async.event_loop()
 
 def build_https_ta_cache(certs):

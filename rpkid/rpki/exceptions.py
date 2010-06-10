@@ -306,3 +306,8 @@ class CMSContentNotSet(RPKI_Exception):
   content; otherwise, only the .verify() method (which checks
   signatures) is safe.
   """
+
+class HTTPTimeout(RPKI_Exception):
+  """
+  HTTP connection timed out.
+  """

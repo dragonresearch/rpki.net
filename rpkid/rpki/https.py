@@ -309,8 +309,10 @@ class http_stream(asynchat.async_chat):
     it.
     """
     if self.timeout is not None:
+      self.log("Setting timeout %r" % self.timeout)
       self.timer.set(self.timeout)
     else:
+      self.log("Clearing timeout")
       self.timer.cancel()
 
   def collect_incoming_data(self, data):
@@ -510,7 +512,7 @@ class http_stream(asynchat.async_chat):
         self.handle_close()
       except POW.SSLUnexpectedEOFError:
         self.log("SSLUnexpectedEOF in handle_read()", rpki.log.warn)
-        self.close(force = True)
+        self.handle_error()
         
   def handle_write(self):
     """
@@ -553,7 +555,7 @@ class http_stream(asynchat.async_chat):
       self.handle_close()
     except POW.SSLUnexpectedEOFError:
       self.log("SSLUnexpectedEOF in initiate_send()", rpki.log.warn)
-      self.close(force = True)
+      self.handle_error()
 
   def close(self, force = False):
     """
@@ -656,7 +658,7 @@ class http_server(http_stream):
       self.retry_write = self.tls_accept
     except POW.SSLUnexpectedEOFError:
       self.log("SSLUnexpectedEOF in tls_accept()")
-      self.close(force = True)
+      self.handle_error()
     except POW.SSLErrorSSLError, e:
       if "\n" in e:
         for line in str(e).splitlines():
@@ -968,14 +970,18 @@ class http_client(http_stream):
 
   def handle_timeout(self):
     """
-    Connection idle timer has expired.  If we weren't idle, log that
-    something bad has happened, then shut down the connection in any
-    case.
+    Connection idle timer has expired.  Shut down connection in any
+    case, noisily if we weren't idle.
     """
     if self.state != "idle":
-      self.log("Timeout while in state %s" % self.state)
+      self.log("Timeout while in state %s" % self.state, rpki.log.warn)
     http_stream.handle_timeout(self)
     self.queue.detach(self)
+    if self.state != "idle":
+      try:
+        raise rpki.exceptions.HTTPTimeout
+      except rpki.exceptions.HTTPTimeout, e:
+        self.queue.return_result(e)
 
   def handle_error(self):
     """

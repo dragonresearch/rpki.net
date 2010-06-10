@@ -522,14 +522,17 @@ time.tzset()
 
 cfg_file = "yamltest.conf"
 pidfile  = None
+keep_going = False
 
-opts, argv = getopt.getopt(sys.argv[1:], "c:hp:?", ["config=", "help", "pidfile="])
+opts, argv = getopt.getopt(sys.argv[1:], "c:hkp:?", ["config=", "help", "keep_going", "pidfile="])
 for o, a in opts:
   if o in ("-h", "--help", "-?"):
     print __doc__
     sys.exit(0)
   if o in ("-c", "--config"):
     cfg_file = a
+  elif o in ("-k", "--keep_going"):
+    keep_going = True
   elif o in ("-p", "--pidfile"):
     pidfile = a
 
@@ -685,7 +688,9 @@ try:
     # Wait until something terminates.
 
     signal.signal(signal.SIGCHLD, lambda *dont_care: None)
-    if all(p.poll() is None for p in progs):
+    while (any(p.poll() is None for p in progs)
+           if keep_going else
+           all(p.poll() is None for p in progs)):
       signal.pause()
 
   finally:

@@ -657,8 +657,7 @@ class http_server(http_stream):
     except POW.WantWriteError:
       self.retry_write = self.tls_accept
     except POW.SSLUnexpectedEOFError:
-      self.log("SSLUnexpectedEOF in tls_accept()")
-      self.handle_error()
+      self.close(force = True)      # nagios/sysmond probe, just close
     except POW.SSLErrorSSLError, e:
       if "\n" in e:
         for line in str(e).splitlines():
@@ -783,7 +782,9 @@ class http_listener(asyncore.dispatcher):
     """
     self.log("Accepting connection")
     try:
-      http_server(sock = self.accept()[0], handlers = self.handlers, cert = self.cert, key = self.key, ta = self.ta, dynamic_ta = self.dynamic_ta)
+      s, client = self.accept()
+      self.log("Accepting connection from %r" % (client,))
+      http_server(sock = s, handlers = self.handlers, cert = self.cert, key = self.key, ta = self.ta, dynamic_ta = self.dynamic_ta)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except:

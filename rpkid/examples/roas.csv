@@ -2,7 +2,4 @@
 #
 # Syntax: <prefix>/<length>-<maxlength> <asn> <group>
 #
-# NB: Comment lines are not allowed in these files, this one is only
-# present to explain the example
-#
 10.3.0.44/32	666	Mom

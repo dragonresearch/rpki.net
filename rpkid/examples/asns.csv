@@ -2,7 +2,4 @@
 #
 # Syntax: <child_handle> <asn>
 #
-# NB: Comment lines are not allowed in these files, this one is only
-# present to explain the example
-#
 Alice	64533

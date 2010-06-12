@@ -61,6 +61,11 @@ class Child( models.Model ):
     handle = HandleField()
     validity = models.DateTimeField()
     bpki_cert = models.ForeignKey( Cert, related_name='child_bpki' )
+    # It may seem strange that the address_range and asn fields
+    # are ManyToManyFields.  Why not simply a ForeignKey from an Asn
+    # and an AddressRange?  This is for transition.  When a resource
+    # is moving from one child to another, we may have to be delegating
+    # it to both children at once.
     address_range = models.ManyToManyField( AddressRange, blank=True )
     asn = models.ManyToManyField( Asn, blank=True )
     def __unicode__( self ):
@@ -77,6 +82,11 @@ class Parent( models.Model ):
     https_bpki_cert = models.ForeignKey( Cert, related_name='parent_https' )
     my_handle = HandleField()
     sia_base = models.URLField( verify_exists=False )
+    # It may seem strange that the address_range and asn fields
+    # are ManyToManyFields.  Why not simply a ForeignKey from an Asn
+    # and an AddressRange?  This is for transition.  When a resource
+    # is moving from one parent to another, we may be receiving the
+    # resource from both parents at once.
     address_range = models.ManyToManyField( AddressRange,
 					    related_name='from_parent' )
     asn = models.ManyToManyField( Asn, related_name='from_parent' )

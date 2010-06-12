@@ -29,19 +29,20 @@ create the covering set of prefixes for an address range.
 
 Un<something>'d resources are:
 what we've gotten from our parent:
-models.AddressRange.objects.filter(from_parent=1)
+models.AddressRange.objects.filter(from_parent=myconf.pk)
 minus what we've given to our children or issued roas for
-models.AddressRange.objects.filter(child__conf=1)
-models.AddressRange.objects.filter(roa__conf=1)
+models.AddressRange.objects.filter(child__conf=myconf.pk)
+models.AddressRange.objects.filter(roa__conf=myconf.pk)
 or
 >>> from django.db.models import Q
->>> models.AddressRange.objects.filter( Q(child__conf=1) | Q(roa__conf=1) )
+>>> models.AddressRange.objects.filter( Q(child__conf=myconf.pk) |
+				        Q(roa__conf=myconf.pk) )
 
 
 and of course the ASN one is easier:
-models.Asn.objects.filter(from_parent=1)
+models.Asn.objects.filter(from_parent=myconf.pk)
 minus what we've given to our children
-models.Asn.objects.filter(child__conf=1)
+models.Asn.objects.filter(child__conf=myconf.pk)
 
 look in
 rpki/resource_set.py

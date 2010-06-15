@@ -120,41 +120,40 @@ class resource_range_ip(resource_range):
   def _prefixlen(self):
     """
     Determine whether a resource_range_ip can be expressed as a
-    prefix.
+    prefix.  Returns prefix length if it can, otherwise raises
+    MustBePrefix exception.
     """
     mask = self.min ^ self.max
     if self.min & mask != 0:
-      return -1
+      raise rpki.exceptions.MustBePrefix
     prefixlen = self.datum_type.bits
     while mask & 1:
       prefixlen -= 1
       mask >>= 1
     if mask:
-      return -1
-    else:
-      return prefixlen
+      raise rpki.exceptions.MustBePrefix
+    return prefixlen
 
   def __str__(self):
     """
     Convert a resource_range_ip to string format.
     """
-    prefixlen = self._prefixlen()
-    if prefixlen < 0:
+    try:
+      return str(self.min) + "/" + str(self._prefixlen())
+    except rpki.exceptions.MustBePrefix:
       return str(self.min) + "-" + str(self.max)
-    else:
-      return str(self.min) + "/" + str(prefixlen)
 
   def to_rfc3779_tuple(self):
     """
     Convert a resource_range_ip to tuple format for RFC 3779 ASN.1
     encoding.
     """
-    prefixlen = self._prefixlen()
-    if prefixlen < 0:
+    try:
+      return ("addressPrefix", _long2bs(self.min, self.datum_type.bits,
+                                        prefixlen = self._prefixlen()))
+    except rpki.exceptions.MustBePrefix:
       return ("addressRange", (_long2bs(self.min, self.datum_type.bits, strip = 0),
                                _long2bs(self.max, self.datum_type.bits, strip = 1)))
-    else:
-      return ("addressPrefix", _long2bs(self.min, self.datum_type.bits, prefixlen = prefixlen))
 
   @classmethod
   def make_prefix(cls, prefix, prefixlen):
@@ -469,6 +468,13 @@ class resource_set_ip(resource_set):
       assert x[0] == "inherit"
       self.inherit = True
 
+  def to_roa_prefix_set(self):
+    """
+    Attempt to convert from a resource set to a ROA prefix set.  This
+    doesn't work in the general case but is sometimes useful anyway.
+    """
+    return self.roa_prefix_set_type([self.roa_prefix_set_type.prefix_type(r.min, r._prefixlen()) for r in self])
+
   def to_rfc3779_tuple(self):
     """
     Convert IP resource set into tuple format used by RFC 3779 ASN.1
@@ -781,13 +787,6 @@ class roa_prefix_set(list):
       assert ini is None or ini == "", "Unexpected initializer: %s" % str(ini)
     self.sort()
 
-    # At one point I thought this was a useful check, but given the
-    # way that ROAs have evolved I suspect I was just confused.
-    #
-    if False and __debug__:
-      for i in xrange(0, len(self) - 1):
-        assert self[i].max() < self[i+1].min(), "Prefix overlap: %s %s" % (self[i], self[i+1])
-
   def __str__(self):
     """Convert a ROA prefix set to string format."""
     return ",".join(str(x) for x in self)
@@ -862,6 +861,9 @@ class roa_prefix_set_ipv4(roa_prefix_set):
 
   resource_set_type = resource_set_ipv4
 
+# Fix back link from resource_set to roa_prefix
+resource_set_ipv4.roa_prefix_set_type = roa_prefix_set_ipv4
+
 class roa_prefix_set_ipv6(roa_prefix_set):
   """
   Set of IPv6 ROA prefixes.
@@ -876,6 +878,9 @@ class roa_prefix_set_ipv6(roa_prefix_set):
   # Type of corresponding resource_set_ip class.
 
   resource_set_type = resource_set_ipv6
+
+# Fix back link from resource_set to roa_prefix
+resource_set_ipv6.roa_prefix_set_type = roa_prefix_set_ipv6
 
 # Test suite for set operations.
 
@@ -923,7 +928,21 @@ if __name__ == "__main__":
     print "y:  ", r2
     print "x>y:", (r1 > r2)
     print "x<y:", (r1 < r2)
-    test1(t.resource_set_type, r1.to_resource_set(), r2.to_resource_set())
+    test1(t.resource_set_type,
+          r1.to_resource_set(),
+          r2.to_resource_set())
+
+  def test3(t, s1, s2):
+    test1(t, s1, s2)
+    r1 = t(s1).to_roa_prefix_set()
+    r2 = t(s2).to_roa_prefix_set()
+    print "x:  ", r1
+    print "y:  ", r2
+    print "x>y:", (r1 > r2)
+    print "x<y:", (r1 < r2)
+    test1(t.roa_prefix_set_type.resource_set_type,
+          r1.to_resource_set(),
+          r2.to_resource_set())
 
   print
   print "Testing set operations on resource sets"
@@ -953,3 +972,9 @@ if __name__ == "__main__":
   test2(roa_prefix_set_ipv6, "2002:0a00:002c::1/128", "2002:0a00:002c::/120")
   print
   test2(roa_prefix_set_ipv6, "2002:0a00:002c::1/128", "2002:0a00:002c::/120-128")
+  print
+  test3(resource_set_ipv4, "10.0.0.44/32,10.6.0.2/32", "10.3.0.0/24,10.0.0.77/32")
+  print
+  test3(resource_set_ipv6, "2002:0a00:002c::1/128", "2002:0a00:002c::2/128")
+  print
+  test3(resource_set_ipv6, "2002:0a00:002c::1/128", "2002:0a00:002c::/120")

@@ -317,6 +317,7 @@ class getaddrinfo(object):
 if __name__ == "__main__":
 
   rpki.log.use_syslog = False
+  print "Some adns tests may take a minute or two, please be patient"
 
   def done(result):
     for rdata in result:

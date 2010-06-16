@@ -39,7 +39,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import re
+import re, math
 import rpki.ipaddrs, rpki.oids, rpki.exceptions
 
 ## @var inherit_token
@@ -166,6 +166,29 @@ class resource_range_ip(resource_range):
     assert (prefix & mask) == 0, "Resource not in canonical form: %s/%s" % (prefix, prefixlen)
     return cls(cls.datum_type(prefix), cls.datum_type(prefix | mask))
 
+  def chop_into_prefixes(self, result):
+    """
+    Chop up a resource_range_ip into ranges that can be represented as
+    prefixes.
+    """
+    try:
+      self._prefixlen()
+      result.append(self)
+    except rpki.exceptions.MustBePrefix:
+      min = self.min
+      max = self.max
+      while max >= min:
+        bits = int(math.log(max - min + 1, 2))
+        while True:
+          mask = ~(~0 << bits)
+          assert min + mask <= max
+          if min & mask == 0:
+            break
+          assert bits > 0
+          bits -= 1
+        result.append(self.make_prefix(min, self.datum_type.bits - bits))
+        min = self.datum_type(min + mask + 1)
+
 class resource_range_ipv4(resource_range_ip):
   """
   Range of IPv4 addresses.
@@ -215,6 +238,11 @@ class resource_set(list):
 
   inherit = False
 
+  ## @var canonical
+  # Whether this resource_set is currently in canonical form.
+
+  canonical = False
+
   def __init__(self, ini = None):
     """
     Initialize a resource_set.
@@ -232,15 +260,37 @@ class resource_set(list):
       self.extend(ini)
     else:
       assert ini is None or (isinstance(ini, str) and ini == ""), "Unexpected initializer: %s" % str(ini)
+    self.canonize()
+
+  def canonize(self):
+    """
+    Whack this resource_set into canonical form.
+    """
     assert not self.inherit or not self
-    self.sort()
-    for i in xrange(len(self) - 2, -1, -1):
-      if self[i].max + 1 == self[i+1].min:
-        self[i] = type(self[i])(self[i].min, self[i+1].max)
-        self.pop(i + 1)
-    if __debug__:
-      for i in xrange(0, len(self) - 1):
-        assert self[i].max < self[i+1].min, "Resource overlap: %s %s" % (self[i], self[i+1])
+    if not self.canonical:
+      self.sort()
+      for i in xrange(len(self) - 2, -1, -1):
+        if self[i].max + 1 == self[i+1].min:
+          self[i] = type(self[i])(self[i].min, self[i+1].max)
+          self.pop(i + 1)
+      if __debug__:
+        for i in xrange(0, len(self) - 1):
+          assert self[i].max < self[i+1].min, "Resource overlap: %s %s" % (self[i], self[i+1])
+      self.canonical = True
+
+  def append(self, item):
+    """
+    Wrapper around list.append() (q.v.) to reset canonical flag.
+    """
+    list.append(self, item)
+    self.canonical = False
+
+  def extend(self, item):
+    """
+    Wrapper around list.extend() (q.v.) to reset canonical flag.
+    """
+    list.extend(self, item)
+    self.canonical = False
 
   def __str__(self):
     """
@@ -260,10 +310,11 @@ class resource_set(list):
     efficiently) as the basis for most set operations on resource
     sets.
     """
+
     assert not self.inherit
     assert type(self) is type(other), "Type mismatch %r %r" % (type(self), type(other))
-    set1 = self[:]
-    set2 = other[:]
+    set1 = type(self)(self)             # clone and whack into canonical form
+    set2 = type(other)(other)           # ditto
     only1, only2, both = [], [], []
     while set1 or set2:
       if set1 and (not set2 or set1[0].max < set2[0].min):
@@ -288,10 +339,11 @@ class resource_set(list):
     """
     Set union for resource sets.
     """
+
     assert not self.inherit
     assert type(self) is type(other), "Type mismatch: %r %r" % (type(self), type(other))
-    set1 = self[:]
-    set2 = other[:]
+    set1 = type(self)(self)             # clone and whack into canonical form
+    set2 = type(other)(other)           # ditto
     result = []
     while set1 or set2:
       if set1 and (not set2 or set1[0].max < set2[0].min):
@@ -316,15 +368,21 @@ class resource_set(list):
     return type(self)(result)
 
   def intersection(self, other):
-    """Set intersection for resource sets."""
+    """
+    Set intersection for resource sets.
+    """
     return self._comm(other)[2]
 
   def difference(self, other):
-    """Set difference for resource sets."""
+    """
+    Set difference for resource sets.
+    """
     return self._comm(other)[0]
 
   def symmetric_difference(self, other):
-    """Set symmetric difference (XOR) for resource sets."""
+    """
+    Set symmetric difference (XOR) for resource sets.
+    """
     com = self._comm(other)
     return com[0].union(com[1])
 
@@ -333,6 +391,7 @@ class resource_set(list):
     Set membership test for resource sets.
     """
     assert not self.inherit
+    self.canonize()
     if not self:
       return False
     if type(item) is type(self[0]):
@@ -361,7 +420,9 @@ class resource_set(list):
     return True
 
   def issuperset(self, other):
-    """Test whether self is a superset (possibly improper) of other."""
+    """
+    Test whether self is a superset (possibly improper) of other.
+    """
     return other.issubset(self)
 
   @classmethod
@@ -423,6 +484,7 @@ class resource_set_as(resource_set):
     Convert ASN resource set into tuple format used for RFC 3779 ASN.1
     encoding.
     """
+    self.canonize()
     if self:
       return ("asIdsOrRanges", tuple(a.to_rfc3779_tuple() for a in self))
     elif self.inherit:
@@ -470,22 +532,39 @@ class resource_set_ip(resource_set):
 
   def to_roa_prefix_set(self):
     """
-    Attempt to convert from a resource set to a ROA prefix set.  This
-    doesn't work in the general case but is sometimes useful anyway.
+    Convert from a resource set to a ROA prefix set.
     """
-    return self.roa_prefix_set_type([self.roa_prefix_set_type.prefix_type(r.min, r._prefixlen()) for r in self])
+    return self.roa_prefix_set_type([
+      self.roa_prefix_set_type.prefix_type(r.min, r._prefixlen())
+      for r in self.chop_into_prefixes()])
 
   def to_rfc3779_tuple(self):
     """
     Convert IP resource set into tuple format used by RFC 3779 ASN.1
     encoder.
     """
+    self.canonize()
     if self:
       return (self.afi, ("addressesOrRanges", tuple(a.to_rfc3779_tuple() for a in self)))
     elif self.inherit:
       return (self.afi, ("inherit", ""))
     else:
       return None
+
+  def chop_into_prefixes(self):
+    """
+    Chop up a resource_set into ranges that can be represented as
+    prefixes.  Returns a new resource_set object containing ranges
+    meeting this constraint.
+    """
+    result = []
+    for r in self:
+      r.chop_into_prefixes(result)
+    # Normal constructor would merge the ranges we just worked so hard
+    # to separate, so bypass it.
+    ret = self.__class__()
+    ret.extend(result)
+    return ret
 
 class resource_set_ipv4(resource_set_ip):
   """
@@ -615,7 +694,9 @@ class resource_bag(object):
     return cls(asn, v4, v6)
 
   def empty(self):
-    """True iff all resource sets in this bag are empty."""
+    """
+    True iff all resource sets in this bag are empty.
+    """
     return not self.asn and not self.v4 and not self.v6
 
   def __eq__(self, other):
@@ -731,7 +812,9 @@ class roa_prefix(object):
     return self.range_type.make_prefix(self.prefix, self.prefixlen)
 
   def min(self):
-    """Return lowest address covered by prefix."""
+    """
+    Return lowest address covered by prefix.
+    """
     return self.prefix
 
   def max(self):
@@ -788,7 +871,9 @@ class roa_prefix_set(list):
     self.sort()
 
   def __str__(self):
-    """Convert a ROA prefix set to string format."""
+    """
+    Convert a ROA prefix set to string format.
+    """
     return ",".join(str(x) for x in self)
 
   def parse_str(self, x):
@@ -886,14 +971,17 @@ resource_set_ipv6.roa_prefix_set_type = roa_prefix_set_ipv6
 
 if __name__ == "__main__":
 
+  def testchop(v):
+    return " (%s)" % v.chop_into_prefixes() if isinstance(v, resource_set_ip) else ""
+
   def test1(t, s1, s2):
     if isinstance(s1, str) and isinstance(s2, str):
       print "x:  ", s1
       print "y:  ", s2
     r1 = t(s1)
     r2 = t(s2)
-    print "x:  ", r1
-    print "y:  ", r2
+    print "x:  ", r1, testchop(r1)
+    print "y:  ", r2, testchop(r2)
     v1 = r1._comm(r2)
     v2 = r2._comm(r1)
     assert v1[0] == v2[1] and v1[1] == v2[0] and v1[2] == v2[2]
@@ -905,19 +993,19 @@ if __name__ == "__main__":
     v1 = r1.union(r2)
     v2 = r2.union(r1)
     assert v1 == v2
-    print "x|y:", v1
+    print "x|y:", v1, testchop(v1)
     v1 = r1.difference(r2)
     v2 = r2.difference(r1)
-    print "x-y:", v1
-    print "y-x:", v2
+    print "x-y:", v1, testchop(v1)
+    print "y-x:", v2, testchop(v2)
     v1 = r1.symmetric_difference(r2)
     v2 = r2.symmetric_difference(r1)
     assert v1 == v2
-    print "x^y:", v1
+    print "x^y:", v1, testchop(v1)
     v1 = r1.intersection(r2)
     v2 = r2.intersection(r1)
     assert v1 == v2
-    print "x&y:", v1
+    print "x&y:", v1, testchop(v1)
 
   def test2(t, s1, s2):
     print "x:  ", s1

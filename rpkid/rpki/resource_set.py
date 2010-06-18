@@ -534,9 +534,12 @@ class resource_set_ip(resource_set):
     """
     Convert from a resource set to a ROA prefix set.
     """
+    prefix_ranges = []
+    for r in self:
+      r.chop_into_prefixes(prefix_ranges)
     return self.roa_prefix_set_type([
       self.roa_prefix_set_type.prefix_type(r.min, r._prefixlen())
-      for r in self.chop_into_prefixes()])
+      for r in prefix_ranges])
 
   def to_rfc3779_tuple(self):
     """
@@ -550,21 +553,6 @@ class resource_set_ip(resource_set):
       return (self.afi, ("inherit", ""))
     else:
       return None
-
-  def chop_into_prefixes(self):
-    """
-    Chop up a resource_set into ranges that can be represented as
-    prefixes.  Returns a new resource_set object containing ranges
-    meeting this constraint.
-    """
-    result = []
-    for r in self:
-      r.chop_into_prefixes(result)
-    # Normal constructor would merge the ranges we just worked so hard
-    # to separate, so bypass it.
-    ret = self.__class__()
-    ret.extend(result)
-    return ret
 
 class resource_set_ipv4(resource_set_ip):
   """
@@ -971,8 +959,8 @@ resource_set_ipv6.roa_prefix_set_type = roa_prefix_set_ipv6
 
 if __name__ == "__main__":
 
-  def testchop(v):
-    return " (%s)" % v.chop_into_prefixes() if isinstance(v, resource_set_ip) else ""
+  def testprefix(v):
+    return " (%s)" % v.to_roa_prefix_set() if isinstance(v, resource_set_ip) else ""
 
   def test1(t, s1, s2):
     if isinstance(s1, str) and isinstance(s2, str):
@@ -980,8 +968,8 @@ if __name__ == "__main__":
       print "y:  ", s2
     r1 = t(s1)
     r2 = t(s2)
-    print "x:  ", r1, testchop(r1)
-    print "y:  ", r2, testchop(r2)
+    print "x:  ", r1, testprefix(r1)
+    print "y:  ", r2, testprefix(r2)
     v1 = r1._comm(r2)
     v2 = r2._comm(r1)
     assert v1[0] == v2[1] and v1[1] == v2[0] and v1[2] == v2[2]
@@ -993,19 +981,19 @@ if __name__ == "__main__":
     v1 = r1.union(r2)
     v2 = r2.union(r1)
     assert v1 == v2
-    print "x|y:", v1, testchop(v1)
+    print "x|y:", v1, testprefix(v1)
     v1 = r1.difference(r2)
     v2 = r2.difference(r1)
-    print "x-y:", v1, testchop(v1)
-    print "y-x:", v2, testchop(v2)
+    print "x-y:", v1, testprefix(v1)
+    print "y-x:", v2, testprefix(v2)
     v1 = r1.symmetric_difference(r2)
     v2 = r2.symmetric_difference(r1)
     assert v1 == v2
-    print "x^y:", v1, testchop(v1)
+    print "x^y:", v1, testprefix(v1)
     v1 = r1.intersection(r2)
     v2 = r2.intersection(r1)
     assert v1 == v2
-    print "x&y:", v1, testchop(v1)
+    print "x&y:", v1, testprefix(v1)
 
   def test2(t, s1, s2):
     print "x:  ", s1

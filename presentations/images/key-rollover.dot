@@ -25,7 +25,7 @@ digraph step0 {
    claire1 -> donald;
    charlie1 -> doug;
    charlie1 -> drew;
-};
+}
 
 digraph step1 {
    rotate=90;	size="11,8.5";	splines=true;	ratio=fill;
@@ -52,7 +52,7 @@ digraph step1 {
    claire1 -> donald;
    charlie1 -> doug;
    charlie1 -> drew;
-};
+}
 
 digraph step2 {
    rotate=90;	size="11,8.5";	splines=true;	ratio=fill;
@@ -91,7 +91,7 @@ digraph step2 {
    claire2 -> donald;
    charlie2 -> doug;
    charlie2 -> drew;
-};
+}
 
 digraph step3 {
    rotate=90;	size="11,8.5";	splines=true;	ratio=fill;
@@ -116,7 +116,7 @@ digraph step3 {
    claire2 -> donald;
    charlie2 -> doug;
    charlie2 -> drew;
-};
+}
 
 
 // Local Variables:

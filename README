@@ -27,20 +27,47 @@ Programs:
 - rpkid: rpkid and friends, a collection of Python programs to handle
   the publication side of the RPKI project.
 
+- rtr-origin: a Python implementation of the "RPKI/Router" protocol
+  described in draft-ymbk-rpki-rtr-protocol.
+
 - utils and scripts: various little test programs and utilities, not
   really intended for use by anyone but the author.  If they're
   useful, cool, enjoy, but if they blow up in your face, set your
   computer on fire, and turn your cat blue, that's your problem.
-
-- rtr-origin: a Python implementation of the "RPKI/Router" protocol
-  described in draft-ymbk-rpki-rtr-protocol.
 
 Other:
 
 - presentations: miscellaneous presentations and design documents for
   the project.
 
+Building:
+
+- The code is mostly a mix of C and Python; some of the C code is
+  called by the Python code, so you'll want to build the C code first.
+  In theory, the overall build process is simple:
+
+  $ ./configure
+  $ make
+
+  If this fails, please report the failure, and details about the
+  platform on which it occurred.  If you tried to build the code some
+  other way instead of building it this way, and your attempt failed,
+  please try building it this way before asking for help. :)
+
+  Note that building POW (the interface between OpenSSL and Python)
+  will fail if you don't have the required Python header files
+  installed.  On some platforms those files are installed along with
+  Python itself, on others you might have to install a separate
+  python-dev package.
+
+  See below for more information about documentation, including
+  further build instructions and dependencies.
+
 Documentation:
+
+- At the moment there's no overall documentation for the entire
+  package.  Sorry.  Will get to that eventually.  For now, there's
+  separate documentation for the major components (below).
 
 - rcynic: See rcynic/README.
 

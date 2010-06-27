@@ -365,7 +365,7 @@ TO DO:
 
 	TIME REQUIRED: One week
 
-	STATUS: Not started
+	STATUS: Done
 
       * myrpki.py should have a command that summarizes current state
         (data on file, actions it might make sense to take now, etc).

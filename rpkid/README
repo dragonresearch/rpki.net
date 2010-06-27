@@ -139,23 +139,6 @@ TO DO:
 
 	STATUS: Not started
 
-      * Publication protocol ACL checking may need revisiting.	Tricky
-	bit is making sure that repository receives enough information
-	to know whether parent has authorized child to use parent's
-	namespace in nesting case; in theory this is straightforward
-	but requires careful checking.	Current implementation just
-	uses a configured path check and does not attempt to trace
-	back to permission from parent in nested publication case.
-	Class and method design is intended to make it easy to drop in
-	additional checks if needed.
-
-	We have now moved this problem into the out-of-band setup
-	mechanism (signed publication referals), so the simple check
-	already implemented is now all we need at runtime.
-
-	STATUS: Trivial version (required path check) done; complex
-	version no longer needed; so, done.
-
       * Investigate using EKU (RFC 3280 4.2.1.13) as an alternative to
 	wiring in BPKI EE certs for left-right protocol.
 
@@ -353,23 +336,16 @@ TO DO:
 
 	STATUS: Not started
 
-      * Python's socket code tries a bit too hard to hide the DNS->IP
-        address translation stage from us, with the result that we
-        neither have enough information to support IPv6 properly nor
-        do can we handle DNS asynchronously as we do all other network
-        I/O.  Simplest fix for this would probably be to hack
-        something up using asyncore to handle the UDP I/O and Bob
-        Halley's excellent (and BSD-licensed) dnspython package to do
-        all the DNS encoding and decoding.  Adds another external
-        package dependency, but such is life.
-
-	TIME REQUIRED: One week
-
-	STATUS: Done
-
       * myrpki.py should have a command that summarizes current state
         (data on file, actions it might make sense to take now, etc).
 
 	TIME REQUIRED: A day or two
 
 	STATUS: Not started
+
+      * rcynic needs major rewrite to run multiple rsync processes in
+        background, to work around tarpit attack by evil publishers.
+
+	TIME REQUIRED: Three weeks (wild guess)
+
+	STATUS: Not started, byond some preliminary design thoughts.

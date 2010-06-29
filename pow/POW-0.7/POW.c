@@ -2806,7 +2806,7 @@ x509_crl_object_helper_get_revoked(STACK_OF(X509_REVOKED) *revoked)
     if ((revoke_obj = PyObject_New(x509_revoked_object, &x509_revokedtype)) == NULL)
       lose("could not allocate memory");
 
-    if ((revoke_obj->revoked = sk_X509_REVOKED_value(revoked, i)) == NULL)
+    if ((revoke_obj->revoked = X509_REVOKED_dup(sk_X509_REVOKED_value(revoked, i))) == NULL)
       lose("could not get revocation");
 
     if (PyList_Append(result_list, (PyObject*) revoke_obj) != 0)

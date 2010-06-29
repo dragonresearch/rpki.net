@@ -181,7 +181,7 @@ class list_published_objects_elt(cmd_elt_mixin, rpki.left_right.list_published_o
   excludes = ("uri",)
 
 class list_received_resources_elt(cmd_elt_mixin, rpki.left_right.list_received_resources_elt):
-  excludes = ("notBefore", "notAfter", "uri", "sia_uri", "aia_uri", "asn", "ipv4", "ipv6")
+  excludes = ("parent_handle", "notBefore", "notAfter", "uri", "sia_uri", "aia_uri", "asn", "ipv4", "ipv6")
 
 class report_error_elt(reply_elt_mixin, rpki.left_right.report_error_elt):
   pass

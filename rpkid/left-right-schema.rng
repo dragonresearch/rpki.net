@@ -921,6 +921,7 @@
     <element name="list_received_resources">
       <ref name="tag"/>
       <ref name="self_handle"/>
+      <ref name="parent_handle"/>
       <attribute name="notBefore">
         <data type="dateTime">
           <param name="pattern">.*Z</param>

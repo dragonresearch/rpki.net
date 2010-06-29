@@ -271,7 +271,7 @@ list_received_resources_query = element list_received_resources {
 }
 
 list_received_resources_reply = element list_received_resources {
-  tag, self_handle,
+  tag, self_handle, parent_handle,
   attribute notBefore { xsd:dateTime { pattern=".*Z" } },
   attribute notAfter { xsd:dateTime { pattern=".*Z" } },
   attribute uri { uri },

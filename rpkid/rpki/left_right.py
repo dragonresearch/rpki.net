@@ -1018,7 +1018,7 @@ class list_received_resources_elt(rpki.xml_utils.base_elt, left_right_namespace)
   """
 
   element_name = "list_received_resources"
-  attributes = ("self_handle", "tag",
+  attributes = ("self_handle", "tag", "parent_handle",
                 "notBefore", "notAfter", "uri", "sia_uri", "aia_uri", "asn", "ipv4", "ipv6")
 
   def serve_dispatch(self, r_msg, cb, eb):
@@ -1028,14 +1028,14 @@ class list_received_resources_elt(rpki.xml_utils.base_elt, left_right_namespace)
     just dump a bunch of data about every certificate issued to us by
     one of our parents, then return.
     """
-    for  parent in self_elt.serve_fetch_handle(self.gctx, None, self.self_handle).parents():
+    for parent in self_elt.serve_fetch_handle(self.gctx, None, self.self_handle).parents():
       for ca in parent.cas():
         ca_detail = ca.fetch_active()
         if ca_detail is not None and ca_detail.latest_ca_cert is not None:
-          r_msg.append(self.make_reply(ca_detail.ca_cert_uri, ca_detail.latest_ca_cert))
+          r_msg.append(self.make_reply(parent.parent_handle, ca_detail.ca_cert_uri, ca_detail.latest_ca_cert))
     cb()
 
-  def make_reply(self, uri, cert):
+  def make_reply(self, parent_handle, uri, cert):
     """
     Generate one reply PDU.
     """
@@ -1043,6 +1043,7 @@ class list_received_resources_elt(rpki.xml_utils.base_elt, left_right_namespace)
     return self.make_pdu(
       tag = self.tag,
       self_handle = self.self_handle,
+      parent_handle = parent_handle,
       notBefore = str(cert.getNotBefore()),
       notAfter = str(cert.getNotAfter()),
       uri = uri,

@@ -927,6 +927,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <element name="list_received_resources">
       <ref name="tag"/>
       <ref name="self_handle"/>
+      <ref name="parent_handle"/>
       <attribute name="notBefore">
         <data type="dateTime">
           <param name="pattern">.*Z</param>

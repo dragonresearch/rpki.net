@@ -18,23 +18,3 @@
 </form>
 
 {% endblock %}
-{% extends "base.html" %}
-
-{% block content %}
-<h1>Import {{ kind }}</h1>
-<p>Handle: {{ request.session.handle }}
-<p>Please select the xml file containing the identity of the <strong>{{ kind }}</strong> to import.
-{% if errors %}
-<ul>
-{% for e in errors %}
-<li>{{ e }}
-{% endfor %}
-</ul>
-{% endif %}
-
-<form enctype="multipart/form-data" action="{{ post_url }}" method="post">
-{{ form.as_p }}
-<input type="submit" value="Submit" />
-</form>
-
-{% endblock %}

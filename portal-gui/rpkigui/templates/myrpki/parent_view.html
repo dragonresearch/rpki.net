@@ -32,37 +32,3 @@
 {% endif %}
 
 {% endblock %}
-{% extends "base.html" %}
-
-{% block content %}
-<p>Handle: <a href="/myrpki/">{{ request.session.handle.handle }}</a>
-<h1>Parent View</h1>
-<p>Parent: {{ parent.handle }}
-<h2>Delegated Addresses</h2>
-{% if parent.address_range.count %}
-<table>
-    <tr><td>Low</td><td>High</td><td></td></tr>
-{% for a in parent.address_range.all %}
-<tr>
-    <td>{{ a.lo }}</td>
-    <td>{{ a.hi }}</td>
-    <td><a href="{{ a.get_absolute_url }}">view</a></td>
-</tr>
-{% endfor %}
-</table>
-{% else %}
-<p>--none--
-{% endif %}
-
-<h2>Delegated ASNs</h2>
-{% if parent.asn.count %}
-<ul>
-{% for a in parent.asn.all %}
-<li><a href="{{ a.get_absolute_url }}">{{ a }}</a>
-{% endfor %}
-</ul>
-{% else %}
-<p>--none--
-{% endif %}
-
-{% endblock %}

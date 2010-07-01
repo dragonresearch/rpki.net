@@ -11,16 +11,3 @@
 </form>
 
 {% endblock %}
-{% extends "base.html" %}
-
-{% block content %}
-<h1>Edit ROA</h1>
-
-<p>Handle: <a href="/myrpki/">{{ request.session.handle }}</a>
-
-<form action="{{ request.url }}" method="POST">
-{{ form.as_p }}
-<p><input type="submit" value="Submit">
-</form>
-
-{% endblock %}

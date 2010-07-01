@@ -10,7 +10,7 @@ ADMINS = (
 MANAGERS = ADMINS
 
 DATABASE_ENGINE = 'sqlite3'           # 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
-DATABASE_NAME = '/tmp/rpkiop'             # Or path to database file if using sqlite3.
+DATABASE_NAME = '/home/me/myrpki/rpkiop'             # Or path to database file if using sqlite3.
 DATABASE_USER = ''             # Not used with sqlite3.
 DATABASE_PASSWORD = ''         # Not used with sqlite3.
 DATABASE_HOST = ''             # Set to empty string for localhost. Not used with sqlite3.
@@ -21,7 +21,7 @@ DATABASE_PORT = ''             # Set to empty string for default. Not used with 
 # although not all choices may be available on all operating systems.
 # If running in a Windows environment this must be set to the same as your
 # system time zone.
-TIME_ZONE = 'America/Chicago'
+TIME_ZONE = 'America/Los_Angeles'
 
 # Language code for this installation. All choices can be found here:
 # http://www.i18nguy.com/unicode/language-identifiers.html
@@ -61,16 +61,18 @@ MIDDLEWARE_CLASSES = (
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # for django 1.2
+#    'django.middleware.csrf.CsrfMiddleware'
 )
 
-ROOT_URLCONF = 'rpki.urls'
+ROOT_URLCONF = 'rpkigui.urls'
 
 TEMPLATE_DIRS = (
     # Put strings here, like "/home/html/django_templates" or "C:/www/django/templates".
     # Always use forward slashes, even on Windows.
     # Don't forget to use absolute paths, not relative paths.
 #XXX
-	'/Users/fenner/src/portal-gui/rpki/templates',
+	'/home/me/src/rpki/portal-gui/rpkigui/templates',
 )
 
 INSTALLED_APPS = (
@@ -80,8 +82,8 @@ INSTALLED_APPS = (
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.sites',
-    'rpki.myrpki',
-    'rpki.django_extensions',
+    'rpkigui.myrpki',
+#    'rpki.django_extensions',
 )
 
 TEMPLATE_CONTEXT_PROCESSORS = (
@@ -91,3 +93,13 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     "django.core.context_processors.media",
     "django.core.context_processors.request",
 )
+
+#
+# RPKI GUI specific
+#
+
+# Top of directory tree where myrpki.conf, etc are stored for each resource holder
+MYRPKI_DATA_DIR = '/home/me/myrpki'
+
+# where to find the myrpki.py command line tool
+MYRPKI_SRC_DIR = '/home/me/src/rpki/rpkid'

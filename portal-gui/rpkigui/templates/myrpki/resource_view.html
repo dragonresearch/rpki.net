@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block content %}
+<p>Handle: <a href="/myrpki/">{{ request.session.handle }}</a>
+<h1>Resource Range View</h1>
+<table>
+    <tr>
+        <td>Range:</td><td>{{ addr }}</td>
+    </tr>
+    <tr>
+        <td>Parent:</td>
+        <td><a href="{{ parent.get_absolute_url }}">{{ parent.handle }}</a></td>
+    </tr>
+    {% if addr.parent %}
+    <tr>
+        <td>Suballocated from:</td>
+        <td><a href="{{ addr.parent.get_absolute_url }}">{{ addr.parent }}</a></td>
+    </tr>
+    {% endif %}
+</table>
+
+<h2>Suballocations</h2>
+
+{% if addr.children.count %}
+
+<ul>
+{% for subaddr in addr.children.all %}
+<li><a href="{{ subaddr.get_absolute_url }}">{{ subaddr }}</a>
+{% endfor %}
+</ul>
+
+{% else %}
+
+<p>--none--
+
+{% endif %}
+
+<form action="{{ request.url }}" method="post">
+    {{ form.as_p }}
+    <p><input type="submit" value="Submit">
+</form>
+
+{% endblock %}
+{% extends "base.html" %}
+
+{% block content %}
+<p>Handle: <a href="/myrpki/">{{ request.session.handle }}</a>
+<h1>Resource Range View</h1>
+<table>
+    <tr>
+        <td>Range:</td><td>{{ addr }}</td>
+    </tr>
+    <tr>
+        <td>Parent:</td>
+        <td><a href="{{ parent.get_absolute_url }}">{{ parent.handle }}</a></td>
+    </tr>
+    {% if addr.parent %}
+    <tr>
+        <td>Suballocated from:</td>
+        <td><a href="{{ addr.parent.get_absolute_url }}">{{ addr.parent }}</a></td>
+    </tr>
+    {% endif %}
+</table>
+
+<h2>Suballocations</h2>
+
+{% if addr.children.count %}
+
+<ul>
+{% for subaddr in addr.children.all %}
+<li><a href="{{ subaddr.get_absolute_url }}">{{ subaddr }}</a>
+{% endfor %}
+</ul>
+
+{% else %}
+
+<p>--none--
+
+{% endif %}
+
+<form action="{{ request.url }}" method="post">
+    {{ form.as_p }}
+    <p><input type="submit" value="Submit">
+</form>
+
+{% endblock %}

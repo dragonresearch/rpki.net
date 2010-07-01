@@ -1,48 +1,54 @@
 {% extends "base.html" %}
 
 {% block content %}
+<p>Handle: {{ request.session.handle }}
+| <a href="/myrpki/conf/export">export</a>
+| <a href="/myrpki/conf/list">change</a>
+
 <div style="border: inset">
 <h1 style="text-align: center">Parents</h1>
-<a href="#">[add]</a>
 <ul>
 {% for parent in request.session.handle.parents.all %}
-<li>{{ parent.handle }} (knows me as {{ parent.my_handle }})
+<li><a href="{{ parent.get_absolute_url }}">{{ parent.handle }}</a>
 {% if parent.asn.count or parent.address_range.count %}
 <p>Accepted resources:
 <ul>
 {% for asn in parent.asn.all %}
-<li>{{ asn }}
+<li><a href="{{ asn.get_absolute_url }}">{{ asn }}</a>
 {% endfor %}
 {% for address in parent.address_range.all %}
-<li>{{ address }}
+<li><a href="{{ address.get_absolute_url }}">{{ address }}</a>
 {% endfor %}
 </ul>
 {% endif %}
 {% endfor %}
 </ul>
+<a href="/myrpki/import/parent">[add]</a>
 </div>
+
 <span>
 <div style="border: outset">
 <h1 style="text-align: center">Children</h1>
-<a href="#">[add]</a>
 <p>
 <ul>
 {% for child in request.session.handle.children.all %}
-<li>{{ child.handle }}
+<li><a href="/myrpki/child/{{ child.handle }}/">{{ child.handle }}</a>
 {% if child.address_range.count or child.asn.count %}
 <p>Delegated resources:
 <ul>
 {% for asn in child.asn.all %}
-<li>{{ asn }}
+<li><a href="{{ asn.get_absolute_url }}">{{ asn }}</a>
 {% endfor %}
 {% for address in child.address_range.all %}
-<li>{{ address }}
+<li><a href="{{ address.get_absolute_url}}">{{ address }}</a>
 {% endfor %}
 </ul>
 {% endif %}
 {% endfor %}
 </ul>
+<a href="/myrpki/import/child">[add]</a>
 </div>
+
 <div style="border: outset">
 <h1 style="text-align: center">My ROA [request]s</h1>
 {% if request.session.handle.roas.count %}
@@ -51,8 +57,8 @@
 <th>Prefix</th>
 <th>ASN</th>
 <th>Max Len</th>
-<th>Active</th>
 <th>Comments</th>
+<th></th>
 </tr>
 {% for roa in request.session.handle.roas.all %}
 {% for address_range in roa.prefix.all %}
@@ -60,8 +66,8 @@
 <td>{{ address_range }}</td>
 <td>{{ roa.asn }}</td>
 <td>{{ roa.max_len }}</td>
-<td>{{ roa.active }}</td>
 <td>{{ roa.comments }}</td>
+<td><a href="{{ roa.get_absolute_url }}">edit</a></td>
 </tr>
 {% endfor %}
 {% endfor %}
@@ -70,17 +76,32 @@
 <p>
 -- none --
 {% endif %}
+<p><a href="/myrpki/roa/">[add]</a>
 </div>
+
 <div style="border: outset">
-<h1 style="text-align: center">Un&lt;something&gt; Resources</h1>
+<h1 style="text-align: center">Unallocated Resources</h1>
+{% if asns or ars %}
 <ul>
+    {% for asn in asns %}
+    <li><a href="{{ asn.get_absolute_url }}">{{ asn }}</a>
+    {% endfor %}
+    {% for addr in ars %}
+    <li><a href="{{ addr.get_absolute_url }}">{{ addr }}</a>
+    {% endfor %}
+{% else %}
+<p>-- none --
+{% endif %}
+
+    <!--
 <li>Address range 172.17.2.0-172.17.255.255
-    <a href="#">[subdivide]</a> |
-    <a href="#">[give to child]</a> |
-    <a href="#">[issue roa]</a>
-<li>ASN 1 <a href="#">[give to child]</a>
-<li>ASNs 3-100 <a href="#">[subdivide]</a> |
-               <a href="#">[give to child]</a>
+    | <a href="#">subdivide</a> |
+    <a href="#">give to child</a> |
+    <a href="#">issue roa</a>
+<li>ASN 1 | <a href="#">give to child</a>
+<li>ASNs 3-100 | <a href="#">subdivide</a> |
+               <a href="#">give to child</a>
+               -->
 </ul>
 </div>
 </span>

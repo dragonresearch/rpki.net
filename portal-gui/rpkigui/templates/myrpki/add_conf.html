@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Add Configuration</h1>
+<p>Please enter a unique handle for your RPKI instance.
+
+{% if errors %}
+<ul>
+{% for m in errors %}
+<li class="errmsg">{{ m }}
+{% endfor %}
+</ul>
+{% endif %}
+
+<form action="/myrpki/conf/add" method="post">
+<table>
+{{ form.as_table }}
+<tr><td><input type="submit" value="Submit" /></td></tr>
+</table>
+</form>
+
+{% endblock %}
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Add Configuration</h1>
+<p>Please enter a unique handle for your RPKI instance.
+
+{% if errors %}
+<ul>
+{% for m in errors %}
+<li class="errmsg">{{ m }}
+{% endfor %}
+</ul>
+{% endif %}
+
+<form action="/myrpki/conf/add" method="post">
+<table>
+{{ form.as_table }}
+<tr><td><input type="submit" value="Submit" /></td></tr>
+</table>
+</form>
+
+{% endblock %}

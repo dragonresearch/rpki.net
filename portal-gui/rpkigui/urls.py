@@ -14,14 +14,15 @@ urlpatterns = patterns('',
     # Uncomment the next line to enable the admin:
     (r'^admin/', include(admin.site.urls)),
 
-    (r'^dashboard/', include('myrpki.dashboardurls')),
-    (r'^myrpki/', include('myrpki.urls')),
+    #(r'^dashboard/', include('myrpki.dashboardurls')),
+    (r'^myrpki/', include('rpkigui.myrpki.urls')),
 
     (r'^accounts/login/$', 'django.contrib.auth.views.login'),
     (r'^accounts/logout/$', 'django.contrib.auth.views.logout'),
 
 #XXX
 (r'^site_media/(?P<path>.*)$', 'django.views.static.serve',
-        {'document_root': '/Users/fenner/src/portal-gui/media/'}),
+        #{'document_root': '/Users/fenner/src/portal-gui/media/'}),
+        {'document_root': '/home/me/src/rpki/portal-gui/media/'}),
 
 )

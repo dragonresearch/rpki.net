@@ -1,9 +1,9 @@
 from django import forms
 from django.contrib import admin
-from rpki.myrpki import models
+from rpkigui.myrpki import models
 
-class CertAdmin( admin.ModelAdmin ):
-    pass
+#class CertAdmin( admin.ModelAdmin ):
+#    pass
 
 class ConfAdmin( admin.ModelAdmin ):
     pass
@@ -23,7 +23,7 @@ class ParentAdmin( admin.ModelAdmin ):
 class RoaAdmin( admin.ModelAdmin ):
     pass
 
-admin.site.register( models.Cert, CertAdmin )
+#admin.site.register( models.Cert, CertAdmin )
 admin.site.register( models.Conf, ConfAdmin )
 admin.site.register( models.Child, ChildAdmin )
 admin.site.register( models.AddressRange, AddressRangeAdmin )

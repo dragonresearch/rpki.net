@@ -79,10 +79,9 @@ class Parent(models.Model):
 #    service_uri = models.URLField( verify_exists=False )
 #    sia_base = models.URLField( verify_exists=False )
 
-    # resources granted from my parent
-    address_range = models.ManyToManyField(AddressRange, blank=True,
-           related_name='from_parent')
-    asn = models.ManyToManyField(Asn, related_name='from_parent', blank=True)
+    #address_range = models.ManyToManyField(AddressRange, blank=True,
+    #       related_name='from_parent')
+    #asn = models.ManyToManyField(Asn, related_name='from_parent', blank=True)
 
     def __unicode__(self):
 	return u"%s's parent %s" % (self.conf, self.handle)
@@ -94,15 +93,43 @@ class Parent(models.Model):
         # parents of a specific configuration should be unique
         unique_together = ('conf', 'handle')
 
+class ResourceCert(models.Model):
+    parent = models.ForeignKey(Parent, related_name='resources')
+
+    # resources granted from my parent
+    asn = models.ManyToManyField(Asn, related_name='from_cert', blank=True,
+            null=True)
+    address_range = models.ManyToManyField(AddressRange, related_name='from_cert',
+            blank=True, null=True)
+
+    # unique id for this resource certificate
+    # FIXME: URLField(verify_exists=False) doesn't seem to work - the admin
+    # editor won't accept a rsync:// scheme as valid
+    uri = models.CharField(max_length=200)
+
+    # certificate validity period
+    not_before = models.DateTimeField()
+    not_after = models.DateTimeField()
+
+    def get_absolute_url(self):
+        return u"/myrpki/resource/%d" % (self.pk,)
+    
+    def __unicode__(self):
+        return u"%s's resource cert from parent %s" % (self.parent.conf.handle,
+                self.parent.handle)
+
 class Roa(models.Model):
     conf = models.ForeignKey(Conf, related_name='roas')
     prefix = models.ManyToManyField(AddressRange)
     max_len = models.IntegerField()
     asn = models.IntegerField()
     comments = models.TextField()
+    active = models.BooleanField()
 
     def __unicode__(self):
 	return u"%s's ROA for %d" % (self.conf, self.asn)
 
     def get_absolute_url(self):
         return u'/myrpki/roa/%d' % (self.pk, )
+
+# vim:sw=4 ts=8 expandtab

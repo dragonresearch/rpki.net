@@ -7,22 +7,31 @@
 
 <div style="border: inset">
 <h1 style="text-align: center">Parents</h1>
+
 <ul>
 {% for parent in request.session.handle.parents.all %}
 <li><a href="{{ parent.get_absolute_url }}">{{ parent.handle }}</a>
-{% if parent.asn.count or parent.address_range.count %}
+
+{% if parent.resources.count %}
 <p>Accepted resources:
 <ul>
-{% for asn in parent.asn.all %}
+{% for cert in parent.resources.all %}
+
+{% for asn in cert.asn.all %}
 <li><a href="{{ asn.get_absolute_url }}">{{ asn }}</a>
 {% endfor %}
-{% for address in parent.address_range.all %}
+
+{% for address in cert.address_range.all %}
 <li><a href="{{ address.get_absolute_url }}">{{ address }}</a>
 {% endfor %}
+
+{% endfor %} <!--certs-->
 </ul>
 {% endif %}
+
 {% endfor %}
 </ul>
+
 <a href="/myrpki/import/parent">[add]</a>
 </div>
 
@@ -32,7 +41,7 @@
 <p>
 <ul>
 {% for child in request.session.handle.children.all %}
-<li><a href="/myrpki/child/{{ child.handle }}/">{{ child.handle }}</a>
+<li><a href="/myrpki/child/{{ child.handle }}">{{ child.handle }}</a>
 {% if child.address_range.count or child.asn.count %}
 <p>Delegated resources:
 <ul>

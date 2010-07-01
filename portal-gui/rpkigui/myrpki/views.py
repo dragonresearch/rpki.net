@@ -91,14 +91,16 @@ def dashboard(request):
     roa_asns = [r.asn for r in handle.roas.all()]
     # get list of unallocated asns
     asns = [o for p in handle.parents.all()
-            for o in p.asn.filter(parent__isnull=True, allocated__isnull=True).exclude(lo__in=roa_asns)
+            for c in p.resources.all()
+            for o in c.asn.filter(parent__isnull=True, allocated__isnull=True).exclude(lo__in=roa_asns)
             if (o.hi == o.lo)]
 
     # get list of address ranges included in ROAs
     roa_addrs = [p for r in handle.roas.all() for p in r.prefix.all()]
     # get list of unallocated address ranges
     ars = [o for p in handle.parents.all()
-            for o in p.address_range.filter(parent__isnull=True, allocated__isnull=True)
+            for c in p.resources.all()
+            for o in c.address_range.filter(parent__isnull=True, allocated__isnull=True)
             if (not o in roa_addrs)]
 
     return render('myrpki/dashboard.html', { 'conf': handle, 'asns': asns,
@@ -138,36 +140,36 @@ def dashboard(request):
 #    return delete_object( request, model=models.Cert, object_id=id,
 #			  post_delete_redirect='/dashboard/' )
 
-@login_required
-def conf_add(request):
-    '''Allow the user to create a new configuration.'''
-    errors = []
-    if request.method == 'POST':
-        form = forms.AddConfForm(request.POST)
-        if form.is_valid():
-            try:
-                handle = form.cleaned_data['handle']
-                # ensure this user is in the group for this handle
-                grps = request.user.groups.filter(name=handle)
-                if len(grps) == 0:
-                    errors.append(
-                            'You are not in the proper group for that handle.')
-                else:
-                    conf = models.Conf.objects.create(
-                            handle=form.cleaned_data['handle'], owner=grps[0])
-                    conf.save()
-                    glue.form_to_conf(form.cleaned_data)
-                    return http.HttpResponseRedirect('/myrpki/')
-            # data model will ensure the handle is unique
-            except IntegrityError, e:
-                print e
-                errors.append('That handle already exists.')
-        else:
-            errors.append("The form wasn't valid.")
-    else:
-        form = forms.AddConfForm()
-    return render_to_response('myrpki/add_conf.html',
-            { 'form': form, 'errors': errors })
+#@login_required
+#def conf_add(request):
+#    '''Allow the user to create a new configuration.'''
+#    errors = []
+#    if request.method == 'POST':
+#        form = forms.AddConfForm(request.POST)
+#        if form.is_valid():
+#            try:
+#                handle = form.cleaned_data['handle']
+#                # ensure this user is in the group for this handle
+#                grps = request.user.groups.filter(name=handle)
+#                if len(grps) == 0:
+#                    errors.append(
+#                            'You are not in the proper group for that handle.')
+#                else:
+#                    conf = models.Conf.objects.create(
+#                            handle=form.cleaned_data['handle'], owner=grps[0])
+#                    conf.save()
+#                    glue.form_to_conf(form.cleaned_data)
+#                    return http.HttpResponseRedirect('/myrpki/')
+#            # data model will ensure the handle is unique
+#            except IntegrityError, e:
+#                print e
+#                errors.append('That handle already exists.')
+#        else:
+#            errors.append("The form wasn't valid.")
+#    else:
+#        form = forms.AddConfForm()
+#    return render_to_response('myrpki/add_conf.html',
+#            { 'form': form, 'errors': errors })
 
 @login_required
 def conf_list(request):
@@ -314,26 +316,23 @@ def child_import(request):
             { 'form': form, 'kind': 'child',
                 'post_url': '/myrpki/import/child'}, request)
 
-def get_parent_or_404(handle, obj):
-    '''Return the Parent object that the given address range derives
+def get_parents_or_404(handle, obj):
+    '''Return the Parent object(s) that the given address range derives
     from, or raise a 404 error.'''
     while obj.parent: obj = obj.parent
 
-    if isinstance(obj, models.AddressRange):
-        fn = lambda x: x.address_range.all()
-    else:
-        fn = lambda x: x.asn.all()
+    cert_set = obj.from_cert.filter(parent__in=handle.parents.all())
+    if cert_set.count() == 0:
+        raise http.Http404
 
-    for p in handle.parents.all():
-        if obj in fn(p): return p
-    raise http.Http404
+    return handle.parents.filter(pk__in=[c.parent.pk for c in cert_set])
 
 def resource_view(request, object_type, form_type, pk):
     '''view/subdivide an address range.'''
     handle = request.session['handle']
     obj = get_object_or_404(object_type, pk=pk)
     # ensure this resource range belongs to a parent of the current conf
-    parent = get_parent_or_404(handle, obj)
+    parent_set = get_parents_or_404(handle, obj)
     
     if request.method == 'POST':
         form = form_type(handle, obj, request.POST)
@@ -357,7 +356,7 @@ def resource_view(request, object_type, form_type, pk):
     else:
         form = form_type(handle, obj)
     return render('myrpki/resource_view.html', { 'addr': obj, 'form': form,
-        'parent': parent }, request)
+        'parent': parent_set }, request)
 
 @handle_required
 def address_view(request, pk):
@@ -405,3 +404,13 @@ def roa_edit(request, pk=None):
         prefix = [o.pk for o in obj.prefix.all()] if obj else []
         form = forms.RoaForm(handle, asn, comments, prefix)
     return render('myrpki/roaform.html', { 'form': form }, request)
+
+@handle_required
+def child_view(request, child_handle):
+    '''Detail view of child for the currently selected handle.'''
+    handle = request.session['handle']
+    child = get_object_or_404(handle.children.all(), handle__exact=child_handle)
+
+    return render('myrpki/child_view.html', { 'child': child }, request)
+
+# vim:sw=4 ts=8 expandtab

@@ -1,0 +1,5 @@
+#!/bin/sh
+BASE_PATH=`dirname $0`/../..
+export PYTHONPATH=$BASE_PATH/rpkid:$BASE_PATH/portal-gui
+export DJANGO_SETTINGS_MODULE=rpkigui.settings
+python `dirname $0`/list_resources.py

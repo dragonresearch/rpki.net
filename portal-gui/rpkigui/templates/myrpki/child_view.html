@@ -2,28 +2,25 @@
 
 {% block content %}
 <p>Handle: <a href="/myrpki/">{{ request.session.handle.handle }}</a>
-<h1>Parent View</h1>
-<p>Parent: {{ parent.handle }}
+<h1>Child View</h1>
+<p>Child: {{ child.handle }}
+
 <h2>Delegated Addresses</h2>
 <table>
     <tr><td>Low</td><td>High</td><td></td></tr>
-{% for c in parent.resources.all %}
-{% for a in c.address_range.all %}
+{% for a in child.address_range.all %}
 <tr>
     <td>{{ a.lo }}</td>
     <td>{{ a.hi }}</td>
     <td><a href="{{ a.get_absolute_url }}">view</a></td>
 </tr>
 {% endfor %}
-{% endfor %}
 </table>
 
 <h2>Delegated ASNs</h2>
 <ul>
-{% for c in parent.resources.all %}
-{% for a in c.asn.all %}
+{% for a in child.asn.all %}
 <li><a href="{{ a.get_absolute_url }}">{{ a }}</a>
-{% endfor %}
 {% endfor %}
 </ul>
 

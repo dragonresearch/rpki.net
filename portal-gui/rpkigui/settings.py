@@ -62,7 +62,7 @@ MIDDLEWARE_CLASSES = (
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     # for django 1.2
-#    'django.middleware.csrf.CsrfMiddleware'
+    'django.middleware.csrf.CsrfMiddleware'
 )
 
 ROOT_URLCONF = 'rpkigui.urls'

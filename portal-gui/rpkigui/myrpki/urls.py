@@ -16,6 +16,7 @@ urlpatterns = patterns('',
     (r'^import/parent$', views.parent_import),
     (r'^import/child$', views.child_import),
     (r'^parent/(?P<parent_handle>[^/]+)$', views.parent_view),
+    (r'^child/(?P<child_handle>[^/]+)$', views.child_view),
 #    (r'^parent/(?P<parent_handle>[^/]+)/address$', views.parent_address),
 #    (r'^parent/(?P<parent_handle>[^/]+)/asn$', views.parent_asn),
     (r'^address/(?P<pk>\d+)$', views.address_view),
@@ -23,3 +24,5 @@ urlpatterns = patterns('',
     (r'^roa/$', views.roa_edit ),
     (r'^roa/(?P<pk>\d+)$', views.roa_edit ),
 )
+
+# vim:sw=4 ts=8 expandtab

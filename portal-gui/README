@@ -1,0 +1,12 @@
+$Id$
+
+Portal GUI (web interface), written using the rpki Python libraries
+and the Django web development framework.
+
+This is still in early development, real installation directions
+haven't been written yet, but there's a lot of general information
+about Django at http://www.djangoproject.com/
+
+This package is an interface to rpkid and friends, so it assumes that
+you'll be running rpkid.  If you haven't already done so, you should
+set up rpkid first; see ../rpkid/doc/Installation.

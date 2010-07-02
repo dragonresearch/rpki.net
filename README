@@ -2,10 +2,19 @@ $Id$
 
 Files associated with routing PKI project.
 
+Quick start for the impatient:
+
+- To install the relying party tools, see rcynic/README.
+
+- To install the certificate generation system, see
+  rpkid/doc/Installation.
+
+- To install the Django portal GUI, see portal-gui/README.
+
 Required reading:
 
 - RFC 3779
-- Portions of RFCs 3280 and 3852
+- Portions of RFCs 5280 and 5652
 - draft-ietf-sidr-*
 - draft-ymbk-rpki-rtr-protocol
 

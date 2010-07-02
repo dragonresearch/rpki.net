@@ -24,8 +24,8 @@ BEGIN {
 NR == 1 {
   nf = NF;
   for (i = 1; i <= nf; i++) {
-    split($i, h, /[ \t]+/);
-    for (j = 1; j <= length(h); j++) {
+    nh = split($i, h, /[ \t]+/);
+    for (j = 1; j <= nh; j++) {
       head[i, j] = h[j];
       if (length(h[j]) > width[i])
 	width[i] = length(h[j]);

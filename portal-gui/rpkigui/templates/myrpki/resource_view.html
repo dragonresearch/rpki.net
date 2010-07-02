@@ -2,7 +2,7 @@
 
 {% block content %}
 <p>Handle: <a href="/myrpki/">{{ request.session.handle }}</a>
-<h1>Resource Range View</h1>
+<h1>{{resource_type.capitalize}} View</h1>
 <table>
     <tr>
         <td>Range:</td><td>{{ addr }}</td>
@@ -15,6 +15,7 @@
             {% endfor %}
         </td>
     </tr>
+    <tr><td>Validity:</td><td>{{ addr.from_cert.all.0.not_before }} - {{ addr.from_cert.all.0.not_after }} </td></tr>
     {% if addr.parent %}
     <tr>
         <td>Suballocated from:</td>
@@ -39,9 +40,24 @@
 
 {% endif %}
 
+<div>
+<h2>Delegate</h2>
+
+<p>Child:
+<!--
 <form action="{{ request.url }}" method="post">
     {{ form.as_p }}
     <p><input type="submit" value="Submit">
 </form>
+-->
+</div>
+
+{% if resource_type == 'prefix' %}
+<div>
+<h2>Originate</h2>
+<p>ASNs allowed to originate routes for this prefix:
+</div>
+
+{% endif %}
 
 {% endblock %}

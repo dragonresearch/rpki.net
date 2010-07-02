@@ -2,8 +2,8 @@
 
 {% block content %}
 <p>Handle: {{ request.session.handle }}
-| <a href="/myrpki/conf/export">export</a>
-| <a href="/myrpki/conf/list">change</a>
+| <a href="/myrpki/conf/export">export identity</a>
+| <a href="/myrpki/conf/list">select</a>
 
 <div style="border: inset">
 <h1 style="text-align: center">Parents</h1>
@@ -11,23 +11,28 @@
 <ul>
 {% for parent in request.session.handle.parents.all %}
 <li><a href="{{ parent.get_absolute_url }}">{{ parent.handle }}</a>
-
-{% if parent.resources.count %}
-<p>Accepted resources:
-<ul>
+<p>
+<table style="width:100%; border: solid 1px">
+<tr><th>Accepted Resource</th><th>Not Before</th><th>Not After</th></tr>
 {% for cert in parent.resources.all %}
 
 {% for asn in cert.asn.all %}
-<li><a href="{{ asn.get_absolute_url }}">{{ asn }}</a>
+<tr><td><a href="{{ asn.get_absolute_url }}">{{ asn }}</a></td>
+<td style='text-align: center'>{{cert.not_before}}</td>
+<td style='text-align: center'>{{cert.not_after}}</td>
+</tr>
 {% endfor %}
 
 {% for address in cert.address_range.all %}
-<li><a href="{{ address.get_absolute_url }}">{{ address }}</a>
+<tr><td>
+<a href="{{ address.get_absolute_url }}">{{ address }}</a>
+</td><td style='text-align: center'>{{cert.not_before}}</td>
+<td style='text-align: center'>{{cert.not_after}}</td>
+</tr>
 {% endfor %}
 
 {% endfor %} <!--certs-->
-</ul>
-{% endif %}
+</table>
 
 {% endfor %}
 </ul>
@@ -60,57 +65,48 @@
 
 <div style="border: outset">
 <h1 style="text-align: center">My ROA [request]s</h1>
-{% if request.session.handle.roas.count %}
+
 <table style="border: groove; width: 100%" border="1">
 <tr>
 <th>Prefix</th>
 <th>ASN</th>
-<th>Max Len</th>
-<th>Comments</th>
-<th></th>
 </tr>
+
 {% for roa in request.session.handle.roas.all %}
+<tr><td>
 {% for address_range in roa.prefix.all %}
-<tr>
-<td>{{ address_range }}</td>
-<td>{{ roa.asn }}</td>
-<td>{{ roa.max_len }}</td>
-<td>{{ roa.comments }}</td>
-<td><a href="{{ roa.get_absolute_url }}">edit</a></td>
-</tr>
+<li><a href="{{ address_range.get_absolute_url }}">{{ address_range }}</a>
 {% endfor %}
+</td>
+<td>{{ roa.asn }}</td>
+</tr>
 {% endfor %}
 </table>
-{% else %}
-<p>
--- none --
-{% endif %}
-<p><a href="/myrpki/roa/">[add]</a>
-</div>
+</div><!-- roas -->
 
 <div style="border: outset">
 <h1 style="text-align: center">Unallocated Resources</h1>
 {% if asns or ars %}
-<ul>
+<table>
     {% for asn in asns %}
-    <li><a href="{{ asn.get_absolute_url }}">{{ asn }}</a>
+<tr>
+<td><a href="{{ asn.get_absolute_url }}">{{ asn }}</a></td>
+<td style='padding-left: 2em'> <a href="{{ asn.get_absolute_url }}/allocate">give</a></td>
+</tr>
     {% endfor %}
     {% for addr in ars %}
-    <li><a href="{{ addr.get_absolute_url }}">{{ addr }}</a>
+<tr>
+<td><a href="{{ addr.get_absolute_url }}">{{ addr }}</a></td>
+<td style='padding-left: 2em'><a href="{{ addr.get_absolute_url }}/allocate">give</a>
+| <a href="{{ addr.get_absolute_url }}/split">split</a>
+| <a href="{{ addr.get_absolute_url }}/roa">roa</a></td>
+</tr>
     {% endfor %}
+</table>
 {% else %}
 <p>-- none --
 {% endif %}
 
-    <!--
-<li>Address range 172.17.2.0-172.17.255.255
-    | <a href="#">subdivide</a> |
-    <a href="#">give to child</a> |
-    <a href="#">issue roa</a>
-<li>ASN 1 | <a href="#">give to child</a>
-<li>ASNs 3-100 | <a href="#">subdivide</a> |
-               <a href="#">give to child</a>
-               -->
 </ul>
 </div>
 </span>

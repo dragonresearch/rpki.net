@@ -10,7 +10,7 @@ ADMINS = (
 MANAGERS = ADMINS
 
 DATABASE_ENGINE = 'sqlite3'           # 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
-DATABASE_NAME = '/home/me/myrpki/rpkiop'             # Or path to database file if using sqlite3.
+DATABASE_NAME = '/home/melkins/myrpki/rpkiop'             # Or path to database file if using sqlite3.
 DATABASE_USER = ''             # Not used with sqlite3.
 DATABASE_PASSWORD = ''         # Not used with sqlite3.
 DATABASE_HOST = ''             # Set to empty string for localhost. Not used with sqlite3.
@@ -72,7 +72,7 @@ TEMPLATE_DIRS = (
     # Always use forward slashes, even on Windows.
     # Don't forget to use absolute paths, not relative paths.
 #XXX
-	'/home/me/src/rpki/portal-gui/rpkigui/templates',
+	'/home/melkins/subvert-rpki.hactrn.net/portal-gui/rpkigui/templates',
 )
 
 INSTALLED_APPS = (
@@ -99,7 +99,7 @@ TEMPLATE_CONTEXT_PROCESSORS = (
 #
 
 # Top of directory tree where myrpki.conf, etc are stored for each resource holder
-MYRPKI_DATA_DIR = '/home/me/myrpki'
+MYRPKI_DATA_DIR = '/home/melkins/myrpki'
 
 # where to find the myrpki.py command line tool
-MYRPKI_SRC_DIR = '/home/me/src/rpki/rpkid'
+MYRPKI_SRC_DIR = '/home/melkins/subvert-rpki.hactrn.net/rpkid'

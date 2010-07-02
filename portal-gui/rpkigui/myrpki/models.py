@@ -1,20 +1,24 @@
 from django.db import models
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import User
 
 class HandleField(models.CharField):
     def __init__(self, **kwargs):
         models.CharField.__init__(self, max_length=255, **kwargs)
 
-class IPAddressField( models.CharField ):
+class IPAddressField(models.CharField):
     def __init__( self, **kwargs ):
         models.CharField.__init__(self, max_length=40, **kwargs)
+
+class ASNListField(models.CharField):
+    def __init__( self, **kwargs ):
+        models.CharField.__init__(self, max_length=255, **kwargs)
 
 class Conf(models.Model):
     '''This is the center of the universe, also known as a place to
     have a handle on a resource-holding entity.  It's the <self>
     in the rpkid schema.'''
     handle = HandleField(unique=True, db_index=True)
-    owner = models.OneToOneField(Group)
+    owner = models.ManyToManyField(User)
 
     def __unicode__(self):
 	return self.handle
@@ -26,8 +30,11 @@ class AddressRange(models.Model):
     # parent address range
     parent = models.ForeignKey('AddressRange', related_name='children',
             blank=True, null=True)
+    # child to which this resource is delegated
     allocated = models.ForeignKey('Child', related_name='address_range',
             blank=True, null=True)
+    # who can originate routes for this prefix
+    asns = ASNListField(null=True, blank=True)
 
     def __unicode__(self):
         if self.lo == self.hi:
@@ -45,6 +52,7 @@ class Asn(models.Model):
     # parent asn range
     parent = models.ForeignKey('Asn', related_name='children',
             blank=True, null=True)
+    # child to which this resource is delegated
     allocated = models.ForeignKey('Child', related_name='asn',
             blank=True, null=True)
 
@@ -60,7 +68,6 @@ class Asn(models.Model):
 class Child(models.Model):
     conf = models.ForeignKey(Conf, related_name='children')
     handle = HandleField() # parent's name for child
-    validity = models.DateTimeField()
 
     def __unicode__(self):
 	return u"%s's child %s" % (self.conf, self.handle)
@@ -75,13 +82,7 @@ class Child(models.Model):
 
 class Parent(models.Model):
     conf = models.ForeignKey(Conf, related_name='parents')
-    handle = HandleField()
-#    service_uri = models.URLField( verify_exists=False )
-#    sia_base = models.URLField( verify_exists=False )
-
-    #address_range = models.ManyToManyField(AddressRange, blank=True,
-    #       related_name='from_parent')
-    #asn = models.ManyToManyField(Asn, related_name='from_parent', blank=True)
+    handle = HandleField() # my name for this parent
 
     def __unicode__(self):
 	return u"%s's parent %s" % (self.conf, self.handle)
@@ -119,17 +120,16 @@ class ResourceCert(models.Model):
                 self.parent.handle)
 
 class Roa(models.Model):
+    '''Maps an ASN to the set of prefixes it can originate routes for.  This
+    differs from a real ROA in that prefixes from multiple parents/resource
+    certs can be selected.  The glue module contains code to split the ROAs
+    into groups by common resource certs.'''
     conf = models.ForeignKey(Conf, related_name='roas')
-    prefix = models.ManyToManyField(AddressRange)
-    max_len = models.IntegerField()
     asn = models.IntegerField()
-    comments = models.TextField()
+    prefix = models.ManyToManyField(AddressRange, related_name='from_roa')
     active = models.BooleanField()
 
     def __unicode__(self):
 	return u"%s's ROA for %d" % (self.conf, self.asn)
-
-    def get_absolute_url(self):
-        return u'/myrpki/roa/%d' % (self.pk, )
 
 # vim:sw=4 ts=8 expandtab

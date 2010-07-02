@@ -1,5 +1,5 @@
 from django import forms
-from myrpki import models
+import models
 
 def ConfCertForm(request):
     class CertForm(forms.ModelForm):
@@ -96,17 +96,13 @@ def SubOrAssignForm(handle, addr, field_type, *args, **kwargs):
         child = forms.ModelChoiceField(required=False, label='Assign to child',
                 initial=get_pk(addr.allocated), queryset=handle.children.all())
 
-        #def __init__(self, *inargs, **inkwargs):
-        #   super(Wrapper, self).__init__(*inargs, **inkwargs)
-        #   if isinstance(addr, models.AddressRange):
-        #       self.asn = forms.ModelChoiceField(required=False,
-        #               label='Issue ROA', queryset=models.Asn.objects.all())
-
         def clean_lo(self):
             '''validate the self.lo field to ensure it is within the
             parent's range.'''
             lo = self.cleaned_data['lo']
-            if lo is not None:
+            if lo == '':
+                lo = None
+            if lo != None:
                 if lo < addr.lo or lo > addr.hi:
                     raise forms.ValidationError, 'Value is out of range of parent.'
                 # ensure there is no overlap with other children
@@ -120,9 +116,12 @@ def SubOrAssignForm(handle, addr, field_type, *args, **kwargs):
             '''validate the self.hi field to ensure it is within the
             parent's range.'''
             hi = self.cleaned_data['hi']
-            if hi is not None:
+            if hi == '':
+                hi = None
+            if hi != None:
                 if hi < addr.lo or hi > addr.hi:
-                    raise forms.ValidationError, 'Value is out of range of parent.'
+                    raise forms.ValidationError, \
+                        'Value is out of range of parent.'
                 # ensure there is no overlap with other children
                 for c in addr.children.all():
                     if hi >= c.lo and hi <= c.hi:
@@ -132,7 +131,8 @@ def SubOrAssignForm(handle, addr, field_type, *args, **kwargs):
 
         def clean_child(self):
             if self.cleaned_data['child'] and addr.children.count():
-                raise forms.ValidationError, "Can't allocate a subdivided address."
+                raise forms.ValidationError, \
+                        "Can't allocate a subdivided address."
             return self.cleaned_data['child']
 
         def clean(self):
@@ -140,7 +140,9 @@ def SubOrAssignForm(handle, addr, field_type, *args, **kwargs):
             child = clean_data.get('child')
             lo = clean_data.get('lo')
             hi = clean_data.get('hi')
-            if child and (lo or hi):
+            loset = lo != '' and lo != None
+            hiset = hi != '' and hi != None
+            if (child and (loset or hiset)):
                 raise forms.ValidationError, \
                         'Either a range or a child must be set, but not both.'
             elif (lo and not hi) or (hi and not lo):
@@ -156,13 +158,57 @@ def SubOrAssignAddressForm(handle, addr, *args, **kwargs):
 def SubOrAssignAsnForm(handle, asn, *args, **kwargs):
     return SubOrAssignForm(handle, asn, forms.IntegerField, *args, **kwargs)
 
-def RoaForm(handle, pk=None, initcomment=None, initval=[], *args, **kwargs):
+def RoaForm(handle, pk=None, initval=[], *args, **kwargs):
     vals = models.AddressRange.objects.filter(from_parent__in=handle.parents.all())
 
     class Wrapped(forms.Form):
         asn = AsnField(initial=pk)
         prefix = forms.ModelMultipleChoiceField(label='Prefixes',
                 queryset=vals, initial=initval)
-        comments = forms.CharField(required=False, initial=initcomment)
 
     return Wrapped(*args, **kwargs)
+
+def PrefixSplitForm(prefix, *args, **kwargs):
+    class _wrapper(forms.Form):
+        hi = forms.IPAddressField()
+        lo = forms.IPAddressField()
+
+        def clean_lo(self):
+            lo = self.cleaned_data.get('lo')
+            if lo > prefix.hi:
+                raise forms.ValidationError, 'Value out of range of parent prefix'
+
+        def clean_hi(self):
+            hi = self.cleaned_data.get('hi')
+            if hi < prefix.lo:
+                raise forms.ValidationError, 'Value out of range of parent prefix'
+
+        def clean(self):
+            hi = self.cleaned_data['hi']
+            lo = self.cleaned_data['lo']
+            if hi < lo:
+                raise forms.ValidationError, 'Invalid upper range'
+            if prefix.allocated:
+                raise forms.ValidationError, 'Prefix is assigned to child'
+
+    return _wrapper(*args, **kwargs)
+
+def PrefixAllocateForm(iv, child_set, *args, **kwargs):
+    class _wrapper(forms.Form):
+        child = forms.ModelChoiceField(initial=iv, queryset=child_set, required=False)
+    return _wrapper(*args, **kwargs)
+
+class PrefixRoaForm(forms.Form):
+    asns = forms.CharField(max_length=200, required=False)
+
+    def clean_asns(self):
+        try:
+            v = [int(d) for d in self.cleaned_data['asns'].split(',') if d.strip() != '']
+            if any([x for x in v if x < 0]):
+                raise forms.ValidationError, 'must be a positive integer'
+            return ','.join(str(x) for x in sorted(v))
+        except ValueError:
+            raise forms.ValidationError, 'must be a list of integers separated by commas'
+        return self.cleaned_data['asns']
+
+# vim:sw=4 ts=8 expandtab

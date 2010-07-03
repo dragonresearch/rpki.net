@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# $Id$
 #
 # Helper script to load existing data from csv into the Django DB.
 # Primarly useful for the initial load, as the GUI does not sync changes

@@ -2,7 +2,7 @@
 
 from django.conf.urls.defaults import *
 from django.views.generic.list_detail import object_list
-import views
+from import rpkigui.myrpki import views
 
 urlpatterns = patterns('',
     (r'^$', views.dashboard),

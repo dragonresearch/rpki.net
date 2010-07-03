@@ -106,8 +106,20 @@ The portal-gui does not directly talk to the rpkid server.  Instead, there is a
 command line script named "list_resources" which talks to rpkid and updates the
 portal-gui database with information that has changed.  For testing purposes,
 this script can be run by hand.  However, for deployment you will need to set up
-a cron job to run this script periodically for *each* resource handle the
-portal-gui is serving.
+a cron job to run this script periodically.
+
+If you are only self-hosting a single resource handle, the script may be
+invoked without any arguments.  If in addition to a self-hosted resource handle
+you are hosting other resource handles on the same rpkid instance, you must
+specify the list of handles you want to query as arguments to the script.
+
+	Example: single self-hosted resource holder
+
+		$top/portal-gui/scripts/list_resources
+
+	Example: self-hosted and two hosted resource handles
+
+		$top/portal-gui/scripts/list_resources mom dad baby
 
 NOTE that "list_resources" *must* be run in the directory where the myrpki.conf
 for the resource handle that is self-hosting the rpkid.  Alternatively, you can
@@ -117,10 +129,8 @@ for the self-hosted resource handle.
 You may way to create a script which is invoked by cron:
 
         #!/bin/sh
-        cd /var/lib/myrpki/<self-hosted-handle>
-        $top/portal-gui/scripts/list_resources mom
-        $top/portal-gui/scripts/list_resources dad
-        $top/portal-gui/scripts/list_resources baby
+        cd /var/lib/myrpki/<handle>	# where the myrpki.conf for rpkid lives
+        $top/portal-gui/scripts/list_resources mom dad baby
 
 This script probably only needs to be run infrequently.  It's sole purpose is to
 query rpkid to ask what resources and children are configured for each resource

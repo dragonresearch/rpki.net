@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# $Id$
 #
 # Runs through all the published ROAs and updates the Django DB with the
 # current active status of each defined ROA.

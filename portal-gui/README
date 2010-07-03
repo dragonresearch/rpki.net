@@ -109,12 +109,15 @@ this script can be run by hand.  However, for deployment you will need to set up
 a cron job to run this script periodically for *each* resource handle the
 portal-gui is serving.
 
-Note that "list_resources" only should be run in the directory where the
-myrpki.conf for the resource handle that is self-hosting the rpkid.  You may way
-to create a script which is invoked by cron:
+NOTE that "list_resources" *must* be run in the directory where the myrpki.conf
+for the resource handle that is self-hosting the rpkid.  Alternatively, you can
+set the $MYRPKI_CONF environment variable to full pathname of the myrpki.conf
+for the self-hosted resource handle.
+
+You may way to create a script which is invoked by cron:
 
         #!/bin/sh
-        cd /var/lib/myrpki
+        cd /var/lib/myrpki/<self-hosted-handle>
         $top/portal-gui/scripts/list_resources mom
         $top/portal-gui/scripts/list_resources dad
         $top/portal-gui/scripts/list_resources baby

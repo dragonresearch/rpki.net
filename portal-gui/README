@@ -93,9 +93,12 @@ django:
         $ cd $top/portal-gui/rpkigui/
         $ python manage.py syncdb
 
-The manage.py script will prompt you to create an administrative user if you
-desire.  The administrative user is useful because you can use django's admin
-views to inspect the database directly, which may be useful for debugging.
+The manage.py script will prompt you to create a superuser.  You want to say
+"yes" to this prompt.  The superuser account can be named whatever you want.
+The superuser account is required to set up normal user accounts for managing
+resource handles.  The superuser is also useful because you can use django's
+admin views to inspect the database directly, which may be useful for
+debugging.
 
 === list_resources helper script ===
 

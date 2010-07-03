@@ -385,6 +385,7 @@ class allocation(object):
     s = self.find_pubd()
 
     r = { "handle"              : self.name,
+          "run_rpkid"           : str(not self.is_hosted()),
           "run_pubd"            : str(self.runs_pubd()),
           "run_rootd"           : str(self.is_root()),
           "openssl"             : prog_openssl,

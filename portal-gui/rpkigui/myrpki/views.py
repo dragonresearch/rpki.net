@@ -387,8 +387,8 @@ def asn_view(request, pk):
     # ensure this resource range belongs to a parent of the current conf
     parent_set = get_parents_or_404(handle, obj)
     
-    return render('myrpki/_view.html',
-            { 'addr': obj, 'parent': parent_set }, request)
+    return render('myrpki/asn_view.html',
+            { 'asn': obj, 'parent': parent_set }, request)
 
 #@handle_required
 #def roa_edit(request, pk=None):

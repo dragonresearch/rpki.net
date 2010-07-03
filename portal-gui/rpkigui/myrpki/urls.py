@@ -1,4 +1,4 @@
-# $Id: $
+# $Id$
 
 from django.conf.urls.defaults import *
 from django.views.generic.list_detail import object_list

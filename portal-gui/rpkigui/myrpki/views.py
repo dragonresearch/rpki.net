@@ -1,3 +1,5 @@
+# $Id: $
+
 import os
 import tempfile
 from django.views.generic.create_update import create_object, update_object, \
@@ -463,6 +465,7 @@ def prefix_allocate_view(request, pk):
         if form.is_valid():
             prefix.allocated = form.cleaned_data['child']
             prefix.save()
+            glue.configure_resources(handle)
             return http.HttpResponseRedirect(prefix.get_absolute_url())
     else:
         form = forms.PrefixAllocateForm(prefix.allocated.pk if prefix.allocated else None,
@@ -547,6 +550,7 @@ def asn_allocate_view(request, pk):
         if form.is_valid():
             obj.allocated = form.cleaned_data['child']
             obj.save()
+            glue.configure_resources(handle)
             return http.HttpResponseRedirect(obj.get_absolute_url())
     else:
         form = forms.PrefixAllocateForm(obj.allocated.pk if obj.allocated else None,

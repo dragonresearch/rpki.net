@@ -1,3 +1,5 @@
+# $Id: $
+
 from django.conf.urls.defaults import *
 from django.views.generic.list_detail import object_list
 import views
@@ -8,8 +10,8 @@ urlpatterns = patterns('',
     (r'^conf/export$', views.conf_export),
     (r'^conf/list$', views.conf_list),
     (r'^conf/select$', views.conf_select),
-    (r'^import/parent$', views.parent_import),
-    (r'^import/child$', views.child_import),
+#    (r'^import/parent$', views.parent_import),
+#    (r'^import/child$', views.child_import),
     (r'^parent/(?P<parent_handle>[^/]+)$', views.parent_view),
     (r'^child/(?P<child_handle>[^/]+)$', views.child_view),
 #    (r'^parent/(?P<parent_handle>[^/]+)/address$', views.parent_address),

@@ -23,6 +23,6 @@ urlpatterns = patterns('',
 #XXX
 (r'^site_media/(?P<path>.*)$', 'django.views.static.serve',
         #{'document_root': '/Users/fenner/src/portal-gui/media/'}),
-        {'document_root': '/home/me/src/rpki/portal-gui/media/'}),
+        {'document_root': '/home/melkins/src/rpki/portal-gui/media/'}),
 
 )

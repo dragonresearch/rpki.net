@@ -1,3 +1,5 @@
+# $Id: $
+
 from __future__ import with_statement
 
 import os
@@ -26,6 +28,7 @@ from django.conf import settings
 def invoke_rpki(handle, args):
     """Invoke the myrpki cli for the specified configuration."""
     config = settings.MYRPKI_DATA_DIR + '/' + handle + '/myrpki.conf'
+    # default myrpki.conf uses relative paths, so chdir() to the repo first
     os.chdir(settings.MYRPKI_DATA_DIR + '/' + handle)
     cmd = 'python ' + settings.MYRPKI_SRC_DIR + '/myrpki.py ' + ' '.join(['--config=' + config] + args)
     print 'invoking', cmd
@@ -69,7 +72,7 @@ def output_roas(path, handle):
                 '%s-group-%d' % (handle.handle, r.pk)])
 
 def configure_resources(handle):
-    '''write out the .csv files and invoke the myrpki command line tool.'''
+    '''Write out the csv files and invoke the myrpki.py command line tool.'''
     # chdir to the repo dir since the default myrpki.conf uses relative
     # pathnames..
     os.chdir(settings.MYRPKI_DATA_DIR + '/' + handle.handle)
@@ -77,6 +80,19 @@ def configure_resources(handle):
     output_asns(cfg.get('asn_csv'), handle)
     output_prefixes(cfg.get('prefix_csv'), handle)
     output_roas(cfg.get('roa_csv'), handle)
-    #invoke_rpki(handle.handle, ['configure_daemons'])
+    run_rpkid = cfg.getboolean('run_rpkid')
+    cmd = 'daemons' if run_rpkid else 'resources'
+    invoke_rpki(handle.handle, ['configure_' + cmd])
+    # handle the hosted case where some communication between rpkid operator
+    # and resource holder is required
+    if not run_rpkid:
+        xml_path = cfg.get('xml_filename')
+        if xml_path[0] != '/':
+            # convert to full path
+            xml_path = '%s/%s/%s' % (settings.MYRPKI_DATA_DIR, handle.handle, xml_path)
+        # send the myrpki.xml to the rpkid hosting me
+        invoke_rpki(handle.parents.all()[0].handle, ['configure_daemons', xml_path])
+        # process the response
+        invoke_rpki(handle.handle, ['configure_resources'])
 
 # vim:sw=4 ts=8 expandtab

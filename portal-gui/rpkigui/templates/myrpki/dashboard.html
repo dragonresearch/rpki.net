@@ -37,13 +37,15 @@
 {% endfor %}
 </ul>
 
+<!--
 <a href="/myrpki/import/parent">[add]</a>
+-->
 </div>
 
 <span>
 <div style="border: outset">
 <h1 style="text-align: center">Children</h1>
-<p>
+{% if request.session.handle.children.all %}
 <ul>
 {% for child in request.session.handle.children.all %}
 <li><a href="/myrpki/child/{{ child.handle }}">{{ child.handle }}</a>
@@ -60,7 +62,13 @@
 {% endif %}
 {% endfor %}
 </ul>
+<!--
 <a href="/myrpki/import/child">[add]</a>
+-->
+{% else %}
+<p>-- none --
+{% endif %}
+
 </div>
 
 <div style="border: outset">

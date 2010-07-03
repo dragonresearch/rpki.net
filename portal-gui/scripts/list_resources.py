@@ -3,11 +3,10 @@
 #
 # This script is reponsible for talking to rpkid and populating the
 # portal-gui's sqlite database.  It asks rpkid for the list of received
-# resources, and the handle's of any children.
+# resources, and the handles of any children.
 #
-# This script takes optional arguments, which are the handles of the <self/> we
-# are asking about.  If rpkid is hosting several resource handles, this script
-# should be invoked with an argument for each hosted handle.
+# This script should be run in the directory containing the myrpki.conf
+# for the handle that is self-hosting rpkid.
 
 import sys
 import os
@@ -22,27 +21,23 @@ import rpki.https
 import rpki.async
 import rpki.left_right
 import rpki.resource_set
-import rpki.ipaddrs
 
 from rpkigui.myrpki import models
 
 verbose = False
 version = '$Id$'
 
-def query_rpkid(*handles):
+def query_rpkid():
     """Fetch our received resources from the local rpkid using the myrpki.conf
     in the current directory."""
     cfg_file = os.getenv("MYRPKI_CONF", "myrpki.conf")
     cfg = rpki.config.parser(cfg_file, "myrpki")
-    if not handles:
-        handles = [cfg.get('handle')]
     bpki_servers = CA(cfg_file, cfg.get("bpki_servers_directory"))
     rpkid_base = "https://%s:%s/" % (cfg.get("rpkid_server_host"), cfg.get("rpkid_server_port"))
 
     if verbose:
         print 'current directory is', os.getcwd()
         print 'cfg_file=', cfg_file
-        print 'handles=', handles
         print 'bpki_servers=', bpki_servers.dir
         print 'rpkid_base=', rpkid_base
 
@@ -53,13 +48,20 @@ def query_rpkid(*handles):
         server_ta   = rpki.x509.X509(PEM_file = bpki_servers.cer),
         server_cert = rpki.x509.X509(PEM_file = bpki_servers.dir + "/rpkid.cer"),
         url         = rpkid_base + "left-right",
-        debug = True))
+        debug = verbose))
 
+    # retrieve the list of <self/> handles served by this rpkid
+    rpkid_reply = call_rpkid(rpki.left_right.self_elt.make_pdu(action="list"))
+
+    # retrieve info about each handle
     pdus = []
-    for h in handles:
+    for h in rpkid_reply:
+        assert isinstance(h, rpki.left_right.self_elt)
+        if verbose:
+            print 'adding %s to query' % (h.self_handle,)
         pdus.extend(
-            [rpki.left_right.child_elt.make_pdu(action="list", tag="children", self_handle=h),
-             rpki.left_right.list_received_resources_elt.make_pdu(tag="resources", self_handle=h)
+            [rpki.left_right.child_elt.make_pdu(action="list", self_handle=h.self_handle),
+             rpki.left_right.list_received_resources_elt.make_pdu(self_handle=h.self_handle)
              #rpki.left_right.parent_elt.make_pdu(action="list", tag="parents", self_handle=handle),
              #rpki.left_right.list_roa_requests_elt.make_pdu(tag='roas', self_handle=handle),
             ])
@@ -85,7 +87,7 @@ for o,a in opts:
         print basename(sys.argv[0]), version
         sys.exit(0)
 
-for pdu in query_rpkid(*args):
+for pdu in query_rpkid():
     conf_set = models.Conf.objects.filter(handle=pdu.self_handle)
     if conf_set.count():
         conf = conf_set[0]

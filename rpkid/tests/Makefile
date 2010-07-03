@@ -57,3 +57,8 @@ yamltest:
 	rm -rf yamltest.dir
 	python sql-cleaner.py
 	python yamltest.py
+
+backup:
+	python sql-dumper.py
+	tar cvvzf yamltest.backup.$$(TZ='' date +%Y.%m.%d.%H.%M.%S).tgz screenlog.* yamltest.dir backup.*.sql
+	rm backup.*.sql

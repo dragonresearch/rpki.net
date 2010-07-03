@@ -43,6 +43,9 @@ This is a list of the assumptions the current rpkigui code makes:
 
 === Installation ===
 
+First, you must install django 1.2 or greater on your system (django 1.1 may
+work, but you will need to disable to CsrfMiddleware in settings.py).
+
 The web interface can be run out of the source directory for testing, or may be
 deployed to work with an existing web server.  Instructions for using Django
 with Apache and mod_wsgi can be found at

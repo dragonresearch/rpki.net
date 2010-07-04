@@ -758,7 +758,6 @@ static PyObject *
 stack_to_tuple_helper(_STACK *sk, PyObject *(*handler)(void *))
 {
   PyObject *result_list = NULL, *result_tuple = NULL, *obj = NULL;
-  int n, i;
 
   if ((result_list = PyList_New(0)) == NULL)
     lose("could not allocate memory");
@@ -2793,9 +2792,9 @@ x509_crl_object_set_revoked(x509_crl_object *self, PyObject *args)
 static PyObject *
 x509_crl_object_helper_get_revoked(STACK_OF(X509_REVOKED) *revoked)
 {
-  int no_entries = 0, inlist = 0, i = 0;
+  int no_entries = 0, i = 0;
   x509_revoked_object *revoke_obj = NULL;
-  PyObject *item = NULL, *result_list = NULL, *result_tuple = NULL;
+  PyObject *result_list = NULL, *result_tuple = NULL;
 
   no_entries = sk_X509_REVOKED_num(revoked);
 
@@ -4598,7 +4597,7 @@ static char ssl_object_get_ciphers__doc__[] =
 static PyObject *
 ssl_object_get_ciphers(ssl_object *self, PyObject *args)
 {
-  int inlist = 0, i = 0;
+  int i = 0;
   const char *cipher = NULL;
   PyObject *list = NULL, *name = NULL;
 

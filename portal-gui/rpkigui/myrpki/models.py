@@ -43,9 +43,12 @@ class AddressRange(models.Model):
     def __unicode__(self):
         if self.lo == self.hi:
             return u"%s" % (self.lo,)
-        else:
+
+        try:
             # pretty print cidr
             return unicode(str_to_range(self.lo, self.hi))
+        except socket.error:
+            return u'%s - %s' % (self.lo, self.hi)
 
     def get_absolute_url(self):
         return u'/myrpki/address/%d' % (self.pk,)
@@ -65,7 +68,7 @@ class Asn(models.Model):
 	if self.lo == self.hi:
 	    return u"ASN %d" % (self.lo,)
 	else:
-	    return u"ASNs %d-%d" % (self.lo, self.hi)
+	    return u"ASNs %d - %d" % (self.lo, self.hi)
 
     def get_absolute_url(self):
         return u'/myrpki/asn/%d' % (self.pk,)

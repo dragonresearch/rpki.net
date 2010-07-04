@@ -363,7 +363,7 @@ class allocation(object):
       f.writerows((s.client_handle, s.path("bpki/resources/ca.cer"), s.sia_base)
                   for s in (db if only_one_pubd else [self] + self.kids))
 
-  def find_pubd(self, want_path = False):
+  def find_pubd(self):
     """
     Walk up tree until we find somebody who runs pubd.
     """
@@ -372,17 +372,20 @@ class allocation(object):
     while not s.runs_pubd():
       s = s.parent
       path.append(s)
-    if want_path:
-      return s, ".".join(i.name for i in reversed(path))
-    else:
-      return s
+    return s, ".".join(i.name for i in reversed(path))
+
+  def find_host(self):
+    """
+    Figure out who hosts this entity.
+    """
+    return self.hosted_by or self
 
   def dump_conf(self, fn):
     """
     Write configuration file for OpenSSL and RPKI tools.
     """
 
-    s = self.find_pubd()
+    s, ignored = self.find_pubd()
 
     r = { "handle"              : self.name,
           "run_rpkid"           : str(not self.is_hosted()),
@@ -440,22 +443,25 @@ class allocation(object):
                     "comment      = RPKI test"))
       f.close()
 
-  def run_myirbe(self):
+  def run_configure_daemons(self):
     """
-    Run myirbe.py if this entity is not hosted by another engine.
+    Run configure_daemons if this entity is not hosted by another engine.
     """
-    if not self.is_hosted():
-      self.run_setup("configure_daemons", *[h.path("myrpki.xml") for h in self.hosts])
+    if self.is_hosted():
+      print "%s is hosted, skipping configure_daemons" % self.name
+    else:
+      files = [h.path("myrpki.xml") for h in self.hosts]
+      self.run_myrpki("configure_daemons", *[f for f in files if os.path.exists(f)])
 
-  def run_myrpki(self):
+  def run_configure_resources(self):
+    """
+    Run configure_resources for this entity.
+    """
+    self.run_myrpki("configure_resources")
+
+  def run_myrpki(self, *args):
     """
     Run myrpki.py for this entity.
-    """
-    self.run_setup("configure_resources")
-
-  def run_setup(self, *args):
-    """
-    Run setup.py for this entity.
     """
     print 'Running "%s" for %s' % (" ".join(("myrpki",) + args), self.name)
     subprocess.check_call(("python", prog_myrpki) + args, cwd = self.path())
@@ -603,39 +609,7 @@ try:
   # Initialize BPKI and generate self-descriptor for each entity.
 
   for d in db:
-    d.run_setup("initialize")
-
-  # This is where we need to get clever about running setup.py in its
-  # various modes to do the service URL and BPKI cross-certification
-  # setup.
-
-  for d in db:
-    if d.is_root():
-      print
-      d.run_setup("configure_publication_client", d.path("entitydb", "repositories", "%s.xml" % d.name))
-      print
-      d.run_setup("configure_repository", d.path("entitydb", "pubclients", "%s.xml" % d.name))
-      print
-    else:
-      print
-      d.parent.run_setup("configure_child", d.path("entitydb", "identity.xml"))
-      print
-      d.run_setup("configure_parent", d.parent.path("entitydb", "children", "%s.xml" % d.name))
-      print
-      p, n = d.find_pubd(want_path = True)
-      p.run_setup("configure_publication_client", d.path("entitydb", "repositories", "%s.xml" % d.parent.name))
-      print
-      d.run_setup("configure_repository", p.path("entitydb", "pubclients", "%s.xml" % n))
-      print
-
-  # Run myrpki.py several times for each entity.  First pass misses
-  # stuff that isn't generated until later in first pass.  Second pass
-  # should pick up everything and reach a stable state.  If anything
-  # changes during third pass, that's a bug.
-
-  for i in xrange(3):
-    for d in db:
-      d.run_myrpki()
+    d.run_myrpki("initialize")
 
   # Create publication directories.
 
@@ -655,34 +629,78 @@ try:
                       "-extfile", "myrpki.conf",
                       "-extensions", "rootd_x509_extensions")
 
-  # At this point we need to start a whole lotta daemons.
+
+  # From here on we need to pay attention to initialization order.  We
+  # used to do all the pre-configure_daemons stuff before running any
+  # of the daemons, but that doesn't work right in hosted cases, so we
+  # have to interleave configuration with starting daemons, just as
+  # one would in the real world for this sort of thing.
 
   progs = []
 
   try:
-    print "Running daemons"
-    progs.append(db.root.run_rootd())
-    progs.extend(d.run_irdbd()  for d in db if not d.is_hosted())
-    progs.extend(d.run_pubd()   for d in db if d.runs_pubd())
-    progs.extend(d.run_rsyncd() for d in db if d.runs_pubd())
-    progs.extend(d.run_rpkid()  for d in db if not d.is_hosted())
 
-    print "Giving daemons time to start up"
-    time.sleep(20)
+    for d in db:
 
-    assert all(p.poll() is None for p in progs)
+      print
+      print "Configuring", d.name
+      print
+      if  d.is_root():
+        d.run_myrpki("configure_publication_client", d.path("entitydb", "repositories", "%s.xml" % d.name))
+        print
+        d.run_myrpki("configure_repository", d.path("entitydb", "pubclients", "%s.xml" % d.name))
+        print
+      else:
+        d.parent.run_myrpki("configure_child", d.path("entitydb", "identity.xml"))
+        print
+        d.run_myrpki("configure_parent", d.parent.path("entitydb", "children", "%s.xml" % d.name))
+        print
+        publisher, path = d.find_pubd()
+        publisher.run_myrpki("configure_publication_client", d.path("entitydb", "repositories", "%s.xml" % d.parent.name))
+        print
+        d.run_myrpki("configure_repository", publisher.path("entitydb", "pubclients", "%s.xml" % path))
+        print
+        parent_host = d.parent.find_host()
+        if d.parent is not parent_host:
+          d.parent.run_configure_resources()
+          print
+        parent_host.run_configure_daemons()
+        print
+        if publisher is not parent_host:
+          publisher.run_configure_daemons()
+          print
 
-    # Run myirbe again for each host, to set up IRDB and RPKI objects.
-    # Need to run a second time to push BSC certs out to rpkid.  Nothing
-    # should happen on the third pass.  Oops, when hosting we need to
-    # run myrpki between myirbe passes, since only the hosted entity can
-    # issue the BSC, etc.
+      print "Running daemons for", d.name
+      if d.is_root():
+        progs.append(d.run_rootd())
+      if not d.is_hosted():
+        progs.append(d.run_irdbd())
+        progs.append(d.run_rpkid())
+      if d.runs_pubd():
+        progs.append(d.run_pubd())
+        progs.append(d.run_rsyncd())
+      if d.is_root() or not d.is_hosted() or d.runs_pubd():
+        print "Giving", d.name, "daemons time to start up"
+        time.sleep(20)
+        print
+      assert all(p.poll() is None for p in progs)
+
+      # Run configure_daemons to set up IRDB and RPKI objects.  Need to
+      # run a second time to push BSC certs out to rpkid.  Nothing
+      # should happen on the third pass.  Oops, when hosting we need to
+      # run configure_resources between passes, since only the hosted
+      # entity can issue the BSC, etc.
+
+      for i in xrange(3):
+        d.run_configure_resources()
+        d.find_host().run_configure_daemons()
+
+    # Run through list again, to be sure we catch hosted cases
 
     for i in xrange(3):
       for d in db:
-        d.run_myrpki()
-      for d in db:
-        d.run_myirbe()
+        d.run_configure_resources()
+        d.run_configure_daemons()
 
     print "Done initializing daemons"
 
@@ -707,8 +725,3 @@ try:
 finally:
   if pidfile is not None:
     os.unlink(pidfile)
-
-# Local Variables:
-# mode:python
-# compile-command: "python yamltest.py smoketest.1.yaml"
-# End:

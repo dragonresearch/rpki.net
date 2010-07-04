@@ -1033,27 +1033,34 @@ class main(rpki.cli.Cmd):
     try:
       e = etree_read(self.cfg.get("xml_filename"))
       service_uri_base = e.get("service_uri")
+      server_ta = e.findtext("bpki_server_ta")
     except IOError:
       service_uri_base = None      
+      server_ta = None
 
     if not service_uri_base and self.run_rpkid:
       service_uri_base = "https://%s:%s/up-down/%s" % (self.cfg.get("rpkid_server_host"),
                                                        self.cfg.get("rpkid_server_port"),
                                                        self.handle)
-    if not service_uri_base:
+    if not service_uri_base or not server_ta:
       print "Sorry, you can't set up children of a hosted config that itself has not yet been set up"
       return
 
     print "Child calls itself %r, we call it %r" % (c.get("handle"), child_handle)
 
-    self.bpki_servers.fxcert(c.findtext("bpki_ta"))
+    if self.run_rpkid or self.run_pubd or self.run_rootd:
+      self.bpki_servers.fxcert(c.findtext("bpki_ta"))
 
     e = Element("parent", parent_handle = self.handle, child_handle = child_handle,
                 service_uri = "%s/%s" % (service_uri_base, child_handle),
                 valid_until = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365)))
 
     PEMElement(e, "bpki_resource_ta", self.bpki_resources.cer)
-    PEMElement(e, "bpki_server_ta",   self.bpki_servers.cer)
+    if self.run_rpkid or self.run_pubd or self.run_rootd:
+      PEMElement(e, "bpki_server_ta",   self.bpki_servers.cer)
+    else:
+      assert server_ta is not None
+      SubElement(e, "bpki_server_ta").text = server_ta
     SubElement(e, "bpki_child_ta").text = c.findtext("bpki_ta")
 
     try:

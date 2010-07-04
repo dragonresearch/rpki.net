@@ -179,11 +179,13 @@ def PrefixSplitForm(prefix, *args, **kwargs):
             lo = self.cleaned_data.get('lo')
             if lo > prefix.hi:
                 raise forms.ValidationError, 'Value out of range of parent prefix'
+            return lo
 
         def clean_hi(self):
             hi = self.cleaned_data.get('hi')
             if hi < prefix.lo:
                 raise forms.ValidationError, 'Value out of range of parent prefix'
+            return hi
 
         def clean(self):
             hi = self.cleaned_data['hi']
@@ -192,6 +194,7 @@ def PrefixSplitForm(prefix, *args, **kwargs):
                 raise forms.ValidationError, 'Invalid upper range'
             if prefix.allocated:
                 raise forms.ValidationError, 'Prefix is assigned to child'
+            return self.cleaned_data
 
     return _wrapper(*args, **kwargs)
 

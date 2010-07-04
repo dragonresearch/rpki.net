@@ -444,7 +444,7 @@ def prefix_split_view(request, pk):
     if request.method == 'POST':
         form = forms.PrefixSplitForm(prefix, request.POST)
         if form.is_valid():
-            obj = models.AddressRange(form.cleaned_data['lo'], form.cleaned_data['hi'], parent=parent)
+            obj = models.AddressRange(lo=form.cleaned_data['lo'], hi=form.cleaned_data['hi'], parent=prefix)
             obj.save()
             return http.HttpResponseRedirect(obj.get_absolute_url())
     else:

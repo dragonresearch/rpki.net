@@ -15,6 +15,8 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
  
+passes=10
+
 set -x
 
 export TZ=UTC MYRPKI_RNG=`pwd`/myrpki.rng
@@ -24,19 +26,21 @@ test -z "$STY"  && exec screen -L sh $0
 screen -X split
 screen -X focus
 
-for i in ../rpkid/smoketest.*.yaml
+for yaml in smoketest.*.yaml
 do
   rm -rf test
   python sql-cleaner.py 
-  screen python yamltest.py -p yamltest.pid $i
+  screen python yamltest.py -p yamltest.pid $yaml
   date
   sleep 180
-  for j in . . . . . . . . . .
+  pass=$passes
+  while test $pass -gt 0
   do
+    pass=$(($pass - 1))
     sleep 30
     date
-    ../rcynic/rcynic
-    ../rcynic/show.sh
+    ../../rcynic/rcynic
+    ../../rcynic/show.sh
     date
   done
   test -r yamltest.pid && kill -INT `cat yamltest.pid`

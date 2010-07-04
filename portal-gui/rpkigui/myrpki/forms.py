@@ -240,4 +240,23 @@ class PrefixRoaForm(forms.Form):
             raise forms.ValidationError, 'must be a list of integers separated by commas'
         return self.cleaned_data['asns']
 
+def PrefixDeleteForm(prefix, *args, **kwargs):
+    class _wrapped(forms.Form):
+        delete = forms.BooleanField(label='Yes, I want to delete this prefix:')
+
+        def clean(self):
+            v = self.cleaned_data.get('delete')
+            if v:
+                if not prefix.parent:
+                    raise forms.ValidationError, 'Can not delete prefix received from parent'
+                if prefix.allocated:
+                    raise forms.ValidationError, 'Prefix is allocated to child'
+                if prefix.asns:
+                    raise forms.ValidationError, 'Prefix is used in your ROAs'
+                if prefix.children.all():
+                    raise forms.ValidationError, 'Prefix has been subdivided'
+            return self.cleaned_data
+
+    return _wrapped(*args, **kwargs)
+
 # vim:sw=4 ts=8 expandtab

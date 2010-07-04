@@ -538,6 +538,25 @@ def prefix_roa_view(request, pk):
         'addr': obj, 'form': form, 'parent': parent_set }, request)
 
 @handle_required
+def prefix_delete_view(request, pk):
+    handle = request.session['handle']
+    obj = get_object_or_404(models.AddressRange.objects, pk=pk)
+    # ensure this resource range belongs to a parent of the current conf
+    parent_set = get_parents_or_404(handle, obj)
+
+    if request.method == 'POST':
+        form = forms.PrefixDeleteForm(obj, request.POST)
+        if form.is_valid():
+            if form.cleaned_data['delete']:
+                obj.delete()
+                return http.HttpResponseRedirect('/myrpki/')
+    else:
+        form = forms.PrefixDeleteForm(obj)
+
+    return render('myrpki/prefix_view.html', { 'form': form,
+        'addr': obj, 'form': form, 'parent': parent_set }, request)
+
+@handle_required
 def asn_allocate_view(request, pk):
     handle = request.session['handle']
     obj = get_object_or_404(models.Asn.objects, pk=pk)

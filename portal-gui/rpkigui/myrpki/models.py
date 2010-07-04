@@ -2,6 +2,8 @@
 
 from django.db import models
 from django.contrib.auth.models import User
+from rpkigui.myrpki.misc import str_to_range
+import rpki.resource_set
 
 class HandleField(models.CharField):
     def __init__(self, **kwargs):
@@ -42,7 +44,8 @@ class AddressRange(models.Model):
         if self.lo == self.hi:
             return u"%s" % (self.lo,)
         else:
-            return u"%s - %s" % (self.lo, self.hi)
+            # pretty print cidr
+            return unicode(str_to_range(self.lo, self.hi))
 
     def get_absolute_url(self):
         return u'/myrpki/address/%d' % (self.pk,)

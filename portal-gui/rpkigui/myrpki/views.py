@@ -104,8 +104,7 @@ def dashboard(request):
     # get list of unallocated address ranges
     ars = [o for p in handle.parents.all()
             for c in p.resources.all()
-            for o in c.address_range.filter(parent__isnull=True, allocated__isnull=True)
-            if (not o in roa_addrs)]
+            for o in c.address_range.filter(allocated__isnull=True).exclude(from_roa__in=roa_addrs)]
 
     return render('myrpki/dashboard.html', { 'conf': handle, 'asns': asns,
         'ars': ars }, request)

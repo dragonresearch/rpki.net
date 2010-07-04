@@ -11,6 +11,7 @@
 
 import os
 import csv
+import socket # for socket.error
 
 import rpki
 import rpki.resource_set
@@ -28,30 +29,38 @@ asn_csv = cfg.get('asn_csv')
 prefix_csv = cfg.get('prefix_csv')
 roa_csv = cfg.get('roa_csv')
 
+print 'processing csv files for resource handle', handle
+
 conf = models.Conf.objects.get(handle=handle)
 
-for asn, child_handle in csv_reader(asn_csv, columns=2):
-    child = conf.children.get(conf=conf, handle=child_handle)
+for child_handle, asn in csv_reader(asn_csv, columns=2):
+    child = conf.children.get(handle=child_handle)
     asn = models.Asn.objects.get(lo=asn, hi=asn,
             from_cert__parent__in=conf.parents.all())
     child.asn.add(asn)
 
-def prefix_to_range(s):
-    """returns a tuple of (lo,hi) of the address range specified by a prefix"""
-    net, bits = prefix.split('/')
-    addr = rpki.resource_set.resource_range_ipv4.make_prefix(rpki.ipaddrs.v4addr(net), int(bits))
-    return str(addr.min), str(addr.max)
-
-for prefix, child_handle in csv_reader(prefix_csv, columns=2):
-    child = conf.children.get(conf=conf, handle=child_handle)
-    addr = prefix_to_range(prefix)
-    obj = models.AddressRange.objects.get(lo=addr[0], hi=addr[1],
+for child_handle, prefix in csv_reader(prefix_csv, columns=2):
+    child = conf.children.get(handle=child_handle)
+    try:
+        rs = rpki.resource_set.resource_range_ipv4.from_str(prefix)
+    except socket.error:
+        rs = rpki.resource_set.resource_range_ipv6.from_str(prefix)
+    obj = models.AddressRange.objects.get(lo=str(rs.min), hi=str(rs.max),
             from_cert__parent__in=conf.parents.all())
     child.address_range.add(obj)
 
 for prefix, asn, group in csv_reader(roa_csv, columns=3):
-    addr = prefix_to_range(prefix)
-    obj = models.AddressRange.objects.get(lo=addr[0], hi=addr[1],
+    try:
+        rs = rpki.resource_set.roa_prefix_set_ipv4().parse_str(prefix)
+    except socket.error:
+        rs = rpki.resource_set.roa_prefix_set_ipv6().parse_str(prefix)
+
+    if rs.prefixlen != rs.max_prefixlen:
+        raise ValueError, \
+                "%s: max prefixlen larger than prefixlen is not currently supported." % (prefix,)
+
+    print str(rs.min()), str(rs.max())
+    obj = models.AddressRange.objects.get(lo=str(rs.min()), hi=str(rs.max()),
             from_cert__parent__in=conf.parents.all())
     roa_asns = asnset(obj.asns)
     asid = int(asn)

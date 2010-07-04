@@ -40,9 +40,9 @@ class AddressRange(models.Model):
 
     def __unicode__(self):
         if self.lo == self.hi:
-            return u"address %s" % (self.lo,)
+            return u"%s" % (self.lo,)
         else:
-            return u"address range %s-%s" % (self.lo, self.hi)
+            return u"%s-%s" % (self.lo, self.hi)
 
     def get_absolute_url(self):
         return u'/myrpki/address/%d' % (self.pk,)

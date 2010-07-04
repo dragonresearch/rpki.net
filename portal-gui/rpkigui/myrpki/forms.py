@@ -2,6 +2,7 @@
 
 from django import forms
 import models
+from rpkigui.myrpki.misc import str_to_addr
 
 def ConfCertForm(request):
     class CertForm(forms.ModelForm):
@@ -177,23 +178,46 @@ def PrefixSplitForm(prefix, *args, **kwargs):
 
         def clean_lo(self):
             lo = self.cleaned_data.get('lo')
-            if lo > prefix.hi:
+            # convert from string to long representation
+            try:
+                loaddr = str_to_addr(lo)
+            except socket.error:
+                raise forms.ValidationError, 'Invalid IP address string'
+            pfx_loaddr = str_to_addr(prefix.lo)
+            pfx_hiaddr = str_to_addr(prefix.hi)
+            if type(loaddr) != type(pfx_hiaddr):
+                raise forms.ValidationError, 'Not the same IP address type as parent'
+            if loaddr < pfx_loaddr or loaddr > pfx_hiaddr:
                 raise forms.ValidationError, 'Value out of range of parent prefix'
             return lo
 
         def clean_hi(self):
             hi = self.cleaned_data.get('hi')
-            if hi < prefix.lo:
+            # convert from string to long representation
+            try:
+                hiaddr = str_to_addr(hi)
+            except socket.error:
+                raise forms.ValidationError, 'Invalid IP address string'
+            pfx_loaddr = str_to_addr(prefix.lo)
+            pfx_hiaddr = str_to_addr(prefix.hi)
+            if type(hiaddr) != type(pfx_loaddr):
+                raise forms.ValidationError, 'Not the same IP address type as parent'
+            if hiaddr < pfx_loaddr or hiaddr > pfx_hiaddr:
                 raise forms.ValidationError, 'Value out of range of parent prefix'
             return hi
 
         def clean(self):
-            hi = self.cleaned_data['hi']
-            lo = self.cleaned_data['lo']
-            if hi < lo:
-                raise forms.ValidationError, 'Invalid upper range'
-            if prefix.allocated:
-                raise forms.ValidationError, 'Prefix is assigned to child'
+            hi = self.cleaned_data.get('hi')
+            lo = self.cleaned_data.get('lo')
+            # hi or lo may be None if field validation failed
+            if hi and lo:
+                # convert from string to long representation
+                hiaddr = str_to_addr(hi)
+                loaddr = str_to_addr(lo)
+                if hiaddr < loaddr:
+                    raise forms.ValidationError, 'Hi value is smaller than Lo'
+                if prefix.allocated:
+                    raise forms.ValidationError, 'Prefix is assigned to child'
             return self.cleaned_data
 
     return _wrapper(*args, **kwargs)

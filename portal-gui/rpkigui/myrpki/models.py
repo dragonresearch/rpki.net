@@ -42,7 +42,7 @@ class AddressRange(models.Model):
         if self.lo == self.hi:
             return u"%s" % (self.lo,)
         else:
-            return u"%s-%s" % (self.lo, self.hi)
+            return u"%s - %s" % (self.lo, self.hi)
 
     def get_absolute_url(self):
         return u'/myrpki/address/%d' % (self.pk,)

@@ -172,8 +172,8 @@ def RoaForm(handle, pk=None, initval=[], *args, **kwargs):
 
 def PrefixSplitForm(prefix, *args, **kwargs):
     class _wrapper(forms.Form):
-        hi = forms.IPAddressField()
         lo = forms.IPAddressField()
+        hi = forms.IPAddressField()
 
         def clean_lo(self):
             lo = self.cleaned_data.get('lo')

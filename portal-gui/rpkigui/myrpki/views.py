@@ -16,6 +16,7 @@ import models
 import forms
 import glue
 from asnset import asnset
+from rpkigui.myrpki.misc import str_to_range
 
 # For each type of object, we have a detail view, a create view and
 # an update view.  We heavily leverage the generic views, only
@@ -79,6 +80,22 @@ def render(template, context, request):
     return render_to_response(template, context,
             context_instance=RequestContext(request))
 
+def unallocated_resources(handle, roa_asns, roa_prefixes, asns, prefixes):
+    child_asns = []
+    for a in asns:
+        child_asns.extend(o for o in a.children.filter(allocated__isnull=True).exclude(lo__in=roa_asns) if o.hi == o.lo)
+
+    child_prefixes = []
+    for p in prefixes:
+        child_prefixes.extend(o for o in p.children.filter(allocated__isnull=True).exclude(from_roa__in=roa_prefixes))
+
+    if child_asns or child_prefixes:
+        x, y = unallocated_resources(handle, roa_asns, roa_prefixes,
+                child_asns, child_prefixes)
+        return asns + x, prefixes + y
+    else:
+        return asns, prefixes
+
 @handle_required
 def dashboard(request):
     '''The user's dashboard.'''
@@ -93,21 +110,22 @@ def dashboard(request):
 
     # get list of ASNs used in my ROAs
     roa_asns = [r.asn for r in handle.roas.all()]
-    # get list of unallocated asns
-    asns = [o for p in handle.parents.all()
-            for c in p.resources.all()
-            for o in c.asn.filter(parent__isnull=True, allocated__isnull=True).exclude(lo__in=roa_asns)
-            if (o.hi == o.lo)]
-
     # get list of address ranges included in ROAs
     roa_addrs = [p for r in handle.roas.all() for p in r.prefix.all()]
-    # get list of unallocated address ranges
-    ars = [o for p in handle.parents.all()
-            for c in p.resources.all()
-            for o in c.address_range.filter(allocated__isnull=True).exclude(from_roa__in=roa_addrs)]
+
+    asns=[]
+    prefixes=[]
+    for p in handle.parents.all():
+        for c in p.resources.all():
+            asns.extend(c.asn.filter(allocated__isnull=True).exclude(lo__in=roa_asns))
+            prefixes.extend(c.address_range.filter(allocated__isnull=True).exclude(from_roa__in=roa_addrs))
+    asns, prefixes = unallocated_resources(handle, roa_asns, roa_addrs, asns,
+            prefixes)
+
+    prefixes.sort(key=lambda x: str_to_range(x.lo, x.hi).min)
 
     return render('myrpki/dashboard.html', { 'conf': handle, 'asns': asns,
-        'ars': ars }, request)
+        'ars': prefixes }, request)
 
 #@handle_required
 #def cert_add( request ):

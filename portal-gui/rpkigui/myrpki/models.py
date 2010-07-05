@@ -1,5 +1,7 @@
 # $Id$
 
+import socket
+
 from django.db import models
 from django.contrib.auth.models import User
 from rpkigui.myrpki.misc import str_to_range
@@ -47,8 +49,12 @@ class AddressRange(models.Model):
         try:
             # pretty print cidr
             return unicode(str_to_range(self.lo, self.hi))
-        except socket.error:
-            return u'%s - %s' % (self.lo, self.hi)
+        except socket.error, err:
+            print err
+        # work around for bug when hi/lo get reversed
+        except AssertionError, err:
+            print err
+        return u'%s - %s' % (self.lo, self.hi)
 
     def get_absolute_url(self):
         return u'/myrpki/address/%d' % (self.pk,)

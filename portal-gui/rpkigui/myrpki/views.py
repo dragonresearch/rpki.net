@@ -2,19 +2,17 @@
 
 import os
 import tempfile
-from django.views.generic.create_update import create_object, update_object, \
-						delete_object
-from django.views.generic.list_detail import object_detail, object_list
+
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render_to_response
 from django.utils.http import urlquote
 from django.template import RequestContext
 from django.db import IntegrityError
 from django import http
-from functools import update_wrapper
-import models
-import forms
-import glue
+
+from rpkigui.myrpki import models
+from rpkigui.myrpki import forms
+from rpkigui.myrpki import glue
 from rpkigui.myrpki.misc import str_to_range
 from rpkigui.myrpki.asnset import asnset
 

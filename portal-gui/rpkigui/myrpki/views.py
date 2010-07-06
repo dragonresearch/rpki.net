@@ -9,6 +9,7 @@ from django.utils.http import urlquote
 from django.template import RequestContext
 from django.db import IntegrityError
 from django import http
+from django.views.generic.list_detail import object_list
 
 from rpkigui.myrpki import models
 from rpkigui.myrpki import forms

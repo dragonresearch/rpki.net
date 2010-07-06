@@ -220,7 +220,7 @@ def parent_view(request, parent_handle):
 def child_import(request):
     handle = request.session['handle'].handle
     if request.method == 'POST':
-        form = forms.ChildImportForm(request.POST, request.FILES)
+        form = forms.ImportForm(request.POST, request.FILES)
         if form.is_valid():
             input_file = tempfile.NamedTemporaryFile(delete=False)
             try:
@@ -245,7 +245,7 @@ def child_import(request):
         else:
             print 'invalid form'
     else:
-        form = forms.ChildImportForm()
+        form = forms.ImportForm()
     return render('myrpki/xml_import.html',
             { 'form': form, 'kind': 'child',
                 'post_url': '/myrpki/import/child'}, request)

@@ -15,7 +15,6 @@ from functools import update_wrapper
 import models
 import forms
 import glue
-from asnset import asnset
 from rpkigui.myrpki.misc import str_to_range
 from rpkigui.myrpki.asnset import asnset
 
@@ -44,38 +43,6 @@ def handle_required(f):
             request.session[ 'handle' ] = handle
         return f(request, *args, **kwargs)
     return wrapped_fn
-
-#class handle_required(object):
-#    '''A decorator to require picking a configuration.  __call__ is
-#    decorated with login_required so that we can be sure that the
-#    request has a user.
-#
-#    We don't support picking the configuration yet -- if multiple
-#    configurations match, we redirect to handle_picker, which should
-#    allow a staff member to pick any handle.
-#    '''
-#
-#    def __init__(self, f):
-#        self.f = f
-#        update_wrapper( self, f )
-#
-#    @login_required
-#    def __call__(self, request, *args, **kwargs):
-#        if 'handle' not in request.session:
-#            conf = models.Conf.objects.all().filter(
-#                    owner__in=request.user.groups.all())
-#            if conf.count() == 1:
-#                handle = conf[ 0 ]
-#            elif conf.count() == 0:
-#                return http.HttpResponseRedirect('/myrpki/conf/add')
-#            else:
-#                # Should reverse the view for this instead of hardcoding
-#                # the URL.
-#                return http.HttpResponseRedirect(
-#                        '/myrpki/conf/select?next=%s' %
-#                        urlquote(request.get_full_path()))
-#            request.session[ 'handle' ] = handle
-#        return self.f(request, *args, **kwargs)
 
 def render(template, context, request):
     return render_to_response(template, context,
@@ -112,14 +79,16 @@ def dashboard(request):
     # get list of ASNs used in my ROAs
     roa_asns = [r.asn for r in handle.roas.all()]
     # get list of address ranges included in ROAs
-    roa_addrs = [p.prefix for r in handle.roas.all() for p in r.from_roa_request.all()]
+    roa_addrs = [p.prefix for r in handle.roas.all() 
+                          for p in r.from_roa_request.all()]
 
     asns=[]
     prefixes=[]
     for p in handle.parents.all():
         for c in p.resources.all():
             asns.extend(c.asn.filter(allocated__isnull=True).exclude(lo__in=roa_asns))
-            prefixes.extend(c.address_range.filter(allocated__isnull=True, roa_requests__isnull=True))
+            prefixes.extend(c.address_range.filter(allocated__isnull=True,
+                roa_requests__isnull=True))
     asns, prefixes = unallocated_resources(handle, roa_asns, roa_addrs, asns,
             prefixes)
 
@@ -127,40 +96,6 @@ def dashboard(request):
 
     return render('myrpki/dashboard.html', { 'conf': handle, 'asns': asns,
         'ars': prefixes }, request)
-
-#@handle_required
-#def cert_add( request ):
-#    return create_object( request, form_class=forms.ConfCertForm( request ),
-#                          post_save_redirect='/myrpki/cert/' )
-
-#@handle_required
-#def cert_view( request, id ):
-#    handle = request.session[ 'handle' ]
-#    queryset = models.Cert.objects.filter( conf=handle )
-#    return object_detail( request, queryset=queryset, object_id=id,
-#    				   template_object_name='cert' )
-#
-#@handle_required
-#def cert_list( request ):
-#    handle = request.session[ 'handle' ]
-#    queryset = models.Cert.objects.filter( conf=handle )
-#    return object_list( request, queryset=queryset,
-#    				 template_object_name='cert' )
-#
-#@handle_required
-#def cert_edit( request, id ):
-#    handle = request.session[ 'handle' ]
-#    cert = get_object_or_404( models.Cert, pk=id, conf=handle )
-#    return update_object( request, form_class=forms.ConfCertForm( request ),
-#			  object_id=id,
-#                          post_save_redirect='/myrpki/cert/' )
-#
-#@handle_required
-#def cert_delete( request, id ):
-#    handle = request.session[ 'handle' ]
-#    cert = get_object_or_404( models.Cert, pk=id, conf=handle )
-#    return delete_object( request, model=models.Cert, object_id=id,
-#			  post_delete_redirect='/dashboard/' )
 
 #@login_required
 #def conf_add(request):
@@ -281,35 +216,6 @@ def parent_view(request, parent_handle):
             handle__exact=parent_handle)
     return render('myrpki/parent_view.html', { 'parent': parent }, request)
 
-#def parent_resource(request, parent_handle, obj_type, form_type):
-#    """Add an resource range to a parent."""
-#    handle = request.session['handle']
-#    parent = get_object_or_404(handle.parents.all(),
-#            handle__exact=parent_handle)
-#    if request.method == 'POST':
-#        form = form_type(request.POST)
-#        if form.is_valid():
-#            obj = obj_type(parent).create(
-#                    lo=form.cleaned_data['lo'], hi=form.cleaned_data['hi'])
-#
-#            glue.configure_resources(handle)
-#
-#            return http.HttpResponseRedirect('/myrpki/parent/' + parent_handle)
-#    else:
-#        form = form_type()
-#    return render('myrpki/parent_resource.html',
-#            { 'parent': parent, 'form': form }, request)
-
-#@handle_required
-#def parent_address(request, parent_handle):
-#    return parent_resource(request, parent_handle,
-#            lambda p: p.address_range, forms.AddressRangeForm)
-
-#@handle_required
-#def parent_asn(request, parent_handle):
-#    return parent_resource(request, parent_handle,
-#            lambda p: p.asn, forms.AsnRangeForm)
-
 @handle_required
 def child_import(request):
     handle = request.session['handle'].handle
@@ -355,38 +261,6 @@ def get_parents_or_404(handle, obj):
 
     return handle.parents.filter(pk__in=[c.parent.pk for c in cert_set])
 
-#def resource_view(request, object_type, form_type, pk, resource_type):
-#    '''view/subdivide an address range.'''
-#    handle = request.session['handle']
-#    obj = get_object_or_404(object_type, pk=pk)
-#    # ensure this resource range belongs to a parent of the current conf
-#    parent_set = get_parents_or_404(handle, obj)
-#    
-#    if request.method == 'POST':
-#        form = form_type(handle, obj, request.POST)
-#        if form.is_valid():
-#            if form.cleaned_data['child'] is None:
-#                hi = form.cleaned_data['hi']
-#                lo = form.cleaned_data['lo']
-#                print hi, lo
-#                # if a range is given, create a new object
-#                if hi and lo:
-#                    subobj = object_type.objects.create(
-#                        lo=lo, hi=hi, parent=obj, allocated=None)
-#                    subobj.save()
-#                if obj.allocated:
-#                    obj.allocated = None
-#                    obj.save()
-#            else:
-#                obj.allocated = form.cleaned_data['child']
-#                obj.save()
-#
-#            glue.configure_resources(handle)
-#    else:
-#        form = form_type(handle, obj)
-#    return render('myrpki/resource_view.html', { 'addr': obj, 'form': form,
-#        'parent': parent_set, 'resource_type': resource_type }, request)
-
 @handle_required
 def address_view(request, pk):
     handle = request.session['handle']
@@ -408,42 +282,6 @@ def asn_view(request, pk):
     return render('myrpki/asn_view.html',
             { 'asn': obj, 'parent': parent_set }, request)
 
-#@handle_required
-#def roa_edit(request, pk=None):
-#    '''Create or edit a ROA.'''
-#
-#    handle = request.session['handle']
-#
-#    if not pk is None:
-#        obj = get_object_or_404(models.Roa, pk=pk)
-#        if obj.conf != handle:
-#            raise http.Http404
-#    else:
-#        obj = None
-#
-#    if request.method == 'POST':
-#        form = forms.RoaForm(handle, None, None, None, request.POST)
-#        if form.is_valid():
-#            if not obj:
-#                obj = models.Roa(conf=handle, asn=form.cleaned_data['asn'],
-#                        comments=form.cleaned_data['comments'], max_len=0)
-#            else:
-#                obj.asn = form.cleaned_data['asn']
-#                obj.comments = form.cleaned_data['comments']
-#            obj.save()
-#            obj.prefix.clear()
-#            obj.prefix.add(*form.cleaned_data['prefix'])
-#
-#            glue.configure_resources(handle)
-#
-#            return http.HttpResponseRedirect('/myrpki/')
-#    else:
-#        asn = obj.asn if obj else None
-#        comments = obj.comments if obj else None
-#        prefix = [o.pk for o in obj.prefix.all()] if obj else []
-#        form = forms.RoaForm(handle, asn, comments, prefix)
-#    return render('myrpki/roaform.html', { 'form': form }, request)
-
 @handle_required
 def child_view(request, child_handle):
     '''Detail view of child for the currently selected handle.'''
@@ -462,7 +300,8 @@ def prefix_split_view(request, pk):
     if request.method == 'POST':
         form = forms.PrefixSplitForm(prefix, request.POST)
         if form.is_valid():
-            obj = models.AddressRange(lo=form.cleaned_data['lo'], hi=form.cleaned_data['hi'], parent=prefix)
+            obj = models.AddressRange(lo=form.cleaned_data['lo'],
+                    hi=form.cleaned_data['hi'], parent=prefix)
             obj.save()
             return http.HttpResponseRedirect(obj.get_absolute_url())
     else:
@@ -486,64 +325,12 @@ def prefix_allocate_view(request, pk):
             glue.configure_resources(handle)
             return http.HttpResponseRedirect(prefix.get_absolute_url())
     else:
-        form = forms.PrefixAllocateForm(prefix.allocated.pk if prefix.allocated else None,
+        form = forms.PrefixAllocateForm(
+                prefix.allocated.pk if prefix.allocated else None,
                 handle.children.all())
 
     return render('myrpki/prefix_view.html', { 'form': form,
         'addr': prefix, 'form': form, 'parent': parent_set }, request)
-
-def parent_prefix(prefix):
-    '''Returns the top-most parent prefix for the given prefix.'''
-    while prefix.parent:
-        prefix = prefix.parent
-    return prefix
-
-def common_cert(prefix, prefix_set):
-    '''Return true if prefix is derived from the same resource cert
-    as all the addresses in prefix_set.'''
-    while prefix.parent:
-        prefix = prefix.parent
-
-    # list of certs for the target prefix
-    certs = prefix.from_cert.all()
-    # all prefixes will have the same cert, so just check the first one
-    prefix_certs = prefix_set[0].from_cert.all()
-    # all we need is one match
-    for c in certs:
-        if c in prefix_certs:
-            return True
-    return False
-       
-def update_roas(handle, prefix):
-    '''Recompute the required ROAs for the prefix that was changed.'''
-    # generate the list of ASNs
-    asns = list(asnset(prefix.asns))
-
-    print 'updating roas for %s: asns=%r' % (prefix, asns)
-
-    # remove this prefix from any roa not on the updated list
-    for roa in prefix.from_roa.exclude(asn__in=asns):
-        print 'removing %s from roa for asn %d' % (prefix, roa.asn)
-        roa.prefix.remove(prefix)
-        # if the roa is empty, delete it now
-        if roa.prefix.all().count() == 0:
-            print 'deleting roa for asn %d because it is empty' % (roa.asn,)
-            roa.delete()
-
-    for asid in asns:
-        for roa in handle.roas.filter(asn=asid):
-            # determine if this roa includes prefixes from the same
-            # resource cert as the prefix we just changed
-            if common_cert(prefix, roa.prefix.all()):
-                roa.prefix.add(prefix)
-                break
-        else:
-            # no roa is present for this ASN, create a new one
-            print 'creating new roa for asn %d with %s' % (asid, prefix)
-            roa = models.Roa.objects.create(asn=asid, conf=handle,
-                    active=False)
-            roa.save()
-            roa.prefix.add(prefix)
 
 def add_roa_requests(handle, prefix, asns, max_length):
     for asid in asns:

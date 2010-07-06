@@ -19,8 +19,7 @@ import rpki.ipaddrs
 from rpki.myrpki import csv_reader
 
 from rpkigui.myrpki import models
-from rpkigui.myrpki.views import update_roas
-from rpkigui.myrpki.asnset import asnset
+from rpkigui.myrpki.views import add_roa_requests
 
 cfg_file = os.getenv("MYRPKI_CONF", "myrpki.conf")
 cfg = rpki.config.parser(cfg_file, "myrpki")
@@ -33,39 +32,91 @@ print 'processing csv files for resource handle', handle
 
 conf = models.Conf.objects.get(handle=handle)
 
-for child_handle, asn in csv_reader(asn_csv, columns=2):
-    child = conf.children.get(handle=child_handle)
-    asn = models.Asn.objects.get(lo=asn, hi=asn,
+# every parent has a favorite
+def best_child(parent, parent_range):
+    '''Return the child address range that is the closest match, or
+    returns the arguments if no children.'''
+    best = None
+    best_range = None
+    for q in parent.children.all():
+        if best is None:
+            best = q
+            best_range = q.as_resource_range()
+        else:
+            t = q.as_resource_range()
+            if t.min >= best_range.min and t.max <= best_range.max:
+                best = q
+                best_range = t
+    if best:
+        if best.children.all():
+            best, best_range = best_child(best, best_range)
+        return (best, best_range)
+
+    return parent, parent_range
+
+def get_or_create_prefix(address_range):
+    '''Returns a AddressRange object for the resource_range_ip specified
+    as an argument.  If no match is found, a new AddressRange object is
+    created as a child of the best matching received resource.'''
+
+    # get all resources from our parents
+    prefix_set = models.AddressRange.objects.filter(
             from_cert__parent__in=conf.parents.all())
-    child.asn.add(asn)
 
-for child_handle, prefix in csv_reader(prefix_csv, columns=2):
-    child = conf.children.get(handle=child_handle)
-    try:
-        rs = rpki.resource_set.resource_range_ipv4.from_str(prefix)
-    except socket.error:
-        rs = rpki.resource_set.resource_range_ipv6.from_str(prefix)
-    obj = models.AddressRange.objects.get(lo=str(rs.min), hi=str(rs.max),
-            from_cert__parent__in=conf.parents.all())
-    child.address_range.add(obj)
+    # gross, since we store the address ranges as strings in the django
+    # db, we can't use the normal __lte and __gte filters, so we get to
+    # do it in python instead.
+    for prefix in prefix_set:
+        prefix_range = prefix.as_resource_range()
+        if (prefix_range.min <= address_range.min and
+                prefix_range.max >= address_range.max):
+            # there should only ever be a single matching prefix
+            break
+    else:
+        raise RuntimeError, '%s does not match any received address range.' % (
+                address_range,)
 
-for prefix, asn, group in csv_reader(roa_csv, columns=3):
-    try:
-        rs = rpki.resource_set.roa_prefix_set_ipv4().parse_str(prefix)
-    except socket.error:
-        rs = rpki.resource_set.roa_prefix_set_ipv6().parse_str(prefix)
+    # find the best match among the children + grandchildren
+    prefix, prefix_range = best_child(prefix, prefix_range)
 
-    if rs.prefixlen != rs.max_prefixlen:
-        raise ValueError, \
-                "%s: max prefixlen larger than prefixlen is not currently supported." % (prefix,)
+    print 'best match for %s is %s' % (address_range, prefix)
+    if prefix_range.min != address_range.min or prefix_range.max != address_range.max:
+        # create suballocation
+        print 'creating new range' 
+        prefix = models.AddressRange.objects.create(lo=str(address_range.min),
+                hi=str(address_range.max), parent=prefix)
 
-    print str(rs.min()), str(rs.max())
-    obj = models.AddressRange.objects.get(lo=str(rs.min()), hi=str(rs.max()),
-            from_cert__parent__in=conf.parents.all())
-    roa_asns = asnset(obj.asns)
-    asid = int(asn)
-    if asid not in roa_asns:
-        roa_asns.add(asid)
-        obj.asns = str(roa_asns)
+    return prefix
+
+def do_asns():
+    for child_handle, asn in csv_reader(asn_csv, columns=2):
+        child = conf.children.get(handle=child_handle)
+        asn = models.Asn.objects.get(lo=asn, hi=asn,
+                from_cert__parent__in=conf.parents.all())
+        child.asn.add(asn)
+
+def do_prefixes():
+    for child_handle, prefix in csv_reader(prefix_csv, columns=2):
+        child = conf.children.get(handle=child_handle)
+        try:
+            rs = rpki.resource_set.resource_set_ipv4().parse_str(prefix)
+        except socket.error:
+            rs = rpki.resource_set.resource_set_ipv6().parse_str(prefix)
+        obj = get_or_create_prefix(rs)
+        obj.allocated = child
         obj.save()
-        update_roas(conf, obj)
+
+def do_roas():
+    for prefix, asn, group in csv_reader(roa_csv, columns=3):
+        try:
+            rs = rpki.resource_set.roa_prefix_set_ipv4().parse_str(prefix)
+        except socket.error:
+            rs = rpki.resource_set.roa_prefix_set_ipv6().parse_str(prefix)
+
+        print str(rs.min()), str(rs.max()), rs.max_prefixlen
+        obj = get_or_create_prefix(rs.to_resource_range())
+        add_roa_requests(conf, obj, [int(asn)], rs.max_prefixlen)
+
+do_asns()
+do_prefixes()
+do_roas()

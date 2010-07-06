@@ -7,8 +7,6 @@ import os.path
 import math
 import rpki
 from rpki.myrpki import csv_writer
-from rpki.resource_set import resource_range_ipv4
-from rpki.ipaddrs import v4addr
 from django.conf import settings
 
 #def form_to_conf(data):

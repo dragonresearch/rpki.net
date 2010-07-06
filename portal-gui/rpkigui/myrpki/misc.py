@@ -23,14 +23,4 @@ def str_to_range(lo, hi):
     else:
         return rpki.resource_set.resource_range_ipv6(x, y)
 
-#def str_to_roa(lo, hi):
-#    """Convert IP address strings to a subclass of roa_prefix."""
-#    x = str_to_addr(lo)
-#    y = str_to_addr(hi)
-#    assert type(x) == type(y)
-#    if isinstance(x, rpki.ipaddrs.v4addr):
-#        return rpki.resource_set.roa_prefix_ipv4(x, y)
-#    else:
-#        return rpki.resource_set.roa_prefix_ipv6(x, y)
-
 # vim:sw=4 ts=8 expandtab

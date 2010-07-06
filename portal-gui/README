@@ -148,8 +148,11 @@ start your web server.
 Alternatively, django comes with a test web server which is useful for small
 deployments, or for just testing the portal-gui.  You can start the test server
 by running:
+
         $ cd $top/portal-gui/rpkigui/
+        $ export PYTHONPATH=$top/rpkid/
         $ python manage.py runserver <ip:port>
+
 where <ip:port> is the address where you want to run the server.  If you don't
 specify the <ip:port>, the default is 127.0.0.1:8000.
 

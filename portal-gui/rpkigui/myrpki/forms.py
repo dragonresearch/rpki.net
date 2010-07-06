@@ -260,6 +260,12 @@ def PrefixRoaForm(prefix, *args, **kwargs):
                         'Must be a list of integers separated by commas.'
             return self.cleaned_data['asns']
 
+        def clean(self):
+            if prefix.allocated:
+                raise forms.ValidationError, \
+                        'Prefix is allocated to a child.'
+            return self.cleaned_data
+
     return _wrapper(*args, **kwargs)
 
 def PrefixDeleteForm(prefix, *args, **kwargs):

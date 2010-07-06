@@ -1,5 +1,11 @@
 {% extends "base.html" %}
 
+{% block css %}
+table { border-collapse: collapse }
+th { border: solid 1px; padding: 1em }
+td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1em }
+{% endblock %}
+
 {% block content %}
 <p>Handle: {{ request.session.handle }}
 | <a href="/myrpki/conf/export">export identity</a>
@@ -12,7 +18,7 @@
 {% for parent in request.session.handle.parents.all %}
 <li><a href="{{ parent.get_absolute_url }}">{{ parent.handle }}</a>
 <p>
-<table style="width:100%; border: solid 1px">
+<table>
 <tr><th>Accepted Resource</th><th>Not Before</th><th>Not After</th></tr>
 {% for cert in parent.resources.all %}
 
@@ -74,7 +80,7 @@
 <div style="border: outset">
 <h1 style="text-align: center">My ROA [request]s</h1>
 
-<table style="border: groove; width: 100%" border="1">
+<table>
 <tr>
 <th>Prefix</th>
 <th>ASN</th>

@@ -1,5 +1,11 @@
 {% extends "base.html" %}
 
+{% block css %}
+table { border: solid 1px; border-collapse: collapse }
+th { border: solid 1px; padding: 1em }
+td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1em }
+{% endblock %}
+
 {% block content %}
 <p>Handle: <a href="/myrpki/">{{ request.session.handle }}</a>
 
@@ -41,12 +47,12 @@
 
 {% if addr.roa_requests %}
 <h2>ROA requests</h2>
-<table style='border: solid 1px; width:100%'>
+<table>
     <tr><th>ASN</th><th>Max Length</th></tr>
 
     {% for r in addr.roa_requests.all %}
-    <tr><td style='text-align: center'>{{ r.roa.asn }}</td>
-        <td style='text-align: center'>{{ r.max_length }}</td>
+    <tr><td>{{ r.roa.asn }}</td>
+        <td>{{ r.max_length }}</td>
         <td><a href="{{ r.get_absolute_url }}/delete">delete</a></tr>
     {% endfor %}
 

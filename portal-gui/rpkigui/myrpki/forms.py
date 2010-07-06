@@ -3,6 +3,7 @@
 from django import forms
 import models
 from rpkigui.myrpki.misc import str_to_addr
+from rpkigui.myrpki.asnset import asnset
 
 def ConfCertForm(request):
     class CertForm(forms.ModelForm):
@@ -62,7 +63,8 @@ def RangeForm(field_type, *args, **kwargs):
             hi = self.cleaned_data.get('hi')
             if lo > hi:
                 # should we just fix it?
-                raise forms.ValidationError, 'Lower bound is higher than upper.'
+                raise forms.ValidationError, \
+                        'Lower bound is higher than upper.'
             return self.cleaned_data
 
     return wrapped(*args, **kwargs)
@@ -92,8 +94,8 @@ def get_pk(child):
 def SubOrAssignForm(handle, addr, field_type, *args, **kwargs):
     '''Closure to select child of the specified handle.'''
     class Wrapper(forms.Form):
-        '''Form for the address view to allow the user to subdivide or assign
-    the block to a child.'''
+        '''Form for the address view to allow the user to subdivide or
+        assign the block to a child.'''
         lo = field_type(required=False, label='Lower bound')
         hi = field_type(required=False, label='Upper bound')
         child = forms.ModelChoiceField(required=False, label='Assign to child',
@@ -107,7 +109,8 @@ def SubOrAssignForm(handle, addr, field_type, *args, **kwargs):
                 lo = None
             if lo != None:
                 if lo < addr.lo or lo > addr.hi:
-                    raise forms.ValidationError, 'Value is out of range of parent.'
+                    raise forms.ValidationError, \
+                            'Value is out of range of parent.'
                 # ensure there is no overlap with other children
                 for c in addr.children.all():
                     if lo >= c.lo and lo <= c.hi:
@@ -162,7 +165,8 @@ def SubOrAssignAsnForm(handle, asn, *args, **kwargs):
     return SubOrAssignForm(handle, asn, forms.IntegerField, *args, **kwargs)
 
 def RoaForm(handle, pk=None, initval=[], *args, **kwargs):
-    vals = models.AddressRange.objects.filter(from_parent__in=handle.parents.all())
+    vals = models.AddressRange.objects.filter(
+            from_parent__in=handle.parents.all())
 
     class Wrapped(forms.Form):
         asn = AsnField(initial=pk)
@@ -186,9 +190,11 @@ def PrefixSplitForm(prefix, *args, **kwargs):
             pfx_loaddr = str_to_addr(prefix.lo)
             pfx_hiaddr = str_to_addr(prefix.hi)
             if type(loaddr) != type(pfx_hiaddr):
-                raise forms.ValidationError, 'Not the same IP address type as parent'
+                raise forms.ValidationError, \
+                        'Not the same IP address type as parent'
             if loaddr < pfx_loaddr or loaddr > pfx_hiaddr:
-                raise forms.ValidationError, 'Value out of range of parent prefix'
+                raise forms.ValidationError, \
+                        'Value out of range of parent prefix'
             return lo
 
         def clean_hi(self):
@@ -201,9 +207,11 @@ def PrefixSplitForm(prefix, *args, **kwargs):
             pfx_loaddr = str_to_addr(prefix.lo)
             pfx_hiaddr = str_to_addr(prefix.hi)
             if type(hiaddr) != type(pfx_loaddr):
-                raise forms.ValidationError, 'Not the same IP address type as parent'
+                raise forms.ValidationError, \
+                        'Not the same IP address type as parent'
             if hiaddr < pfx_loaddr or hiaddr > pfx_hiaddr:
-                raise forms.ValidationError, 'Value out of range of parent prefix'
+                raise forms.ValidationError, \
+                        'Value out of range of parent prefix'
             return hi
 
         def clean(self):
@@ -224,21 +232,35 @@ def PrefixSplitForm(prefix, *args, **kwargs):
 
 def PrefixAllocateForm(iv, child_set, *args, **kwargs):
     class _wrapper(forms.Form):
-        child = forms.ModelChoiceField(initial=iv, queryset=child_set, required=False)
+        child = forms.ModelChoiceField(initial=iv, queryset=child_set,
+                required=False)
     return _wrapper(*args, **kwargs)
 
-class PrefixRoaForm(forms.Form):
-    asns = forms.CharField(max_length=200, required=False)
+def PrefixRoaForm(prefix, *args, **kwargs):
+    prefix_range = prefix.as_resource_range()
 
-    def clean_asns(self):
-        try:
-            v = [int(d) for d in self.cleaned_data['asns'].split(',') if d.strip() != '']
-            if any([x for x in v if x < 0]):
-                raise forms.ValidationError, 'must be a positive integer'
-            return ','.join(str(x) for x in sorted(v))
-        except ValueError:
-            raise forms.ValidationError, 'must be a list of integers separated by commas'
-        return self.cleaned_data['asns']
+    class _wrapper(forms.Form):
+        asns = forms.CharField(max_length=200, required=False, help_text='Comma-separated list of ASNs')
+        max_length = forms.IntegerField(required=False,
+                min_value=prefix_range._prefixlen(),
+                max_value=prefix_range.datum_type.bits)
+
+        def clean_max_length(self):
+            v = self.cleaned_data.get('max_length')
+            if not v:
+                v = prefix_range._prefixlen()
+            return v
+
+        def clean_asns(self):
+            try:
+                v = asnset(self.cleaned_data.get('asns'))
+                return ','.join(str(x) for x in sorted(v))
+            except ValueError:
+                raise forms.ValidationError, \
+                        'Must be a list of integers separated by commas.'
+            return self.cleaned_data['asns']
+
+    return _wrapper(*args, **kwargs)
 
 def PrefixDeleteForm(prefix, *args, **kwargs):
     class _wrapped(forms.Form):
@@ -248,7 +270,8 @@ def PrefixDeleteForm(prefix, *args, **kwargs):
             v = self.cleaned_data.get('delete')
             if v:
                 if not prefix.parent:
-                    raise forms.ValidationError, 'Can not delete prefix received from parent'
+                    raise forms.ValidationError, \
+                            'Can not delete prefix received from parent'
                 if prefix.allocated:
                     raise forms.ValidationError, 'Prefix is allocated to child'
                 if prefix.asns:

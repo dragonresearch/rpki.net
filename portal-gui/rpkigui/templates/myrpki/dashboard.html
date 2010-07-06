@@ -82,8 +82,8 @@
 
 {% for roa in request.session.handle.roas.all %}
 <tr><td>
-{% for address_range in roa.prefix.all %}
-<li><a href="{{ address_range.get_absolute_url }}">{{ address_range }}</a>
+{% for req in roa.from_roa_request.all %}
+<li><a href="{{ req.prefix.get_absolute_url }}">{{ req.as_roa_prefix }}</a>
 {% endfor %}
 </td>
 <td>{{ roa.asn }}</td>

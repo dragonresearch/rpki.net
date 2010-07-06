@@ -64,12 +64,10 @@ def output_prefixes(path, handle):
 
 def output_roas(path, handle):
     f = csv_writer(path)
-    for r in handle.roas.all():
-        for addr in r.prefix.all():
-            f.writerow([resource_range_ipv4(v4addr(str(addr.lo)),
-                v4addr(str(addr.hi))),
-                r.asn,
-                '%s-group-%d' % (handle.handle, r.pk)])
+    for roa in handle.roas.all():
+        for req in roa.from_roa_request.all():
+            f.writerow([req.as_roa_prefix(), roa.asn,
+                '%s-group-%d' % (handle.handle, roa.pk)])
 
 def configure_resources(handle):
     '''Write out the csv files and invoke the myrpki.py command line tool.'''

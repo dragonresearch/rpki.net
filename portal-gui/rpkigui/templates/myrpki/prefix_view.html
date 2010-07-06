@@ -26,9 +26,6 @@
     {% if addr.allocated %}
     <tr><td>Allocated:</td><td><a href="{{addr.allocated.get_absolute_url}}">{{addr.allocated.handle}}</a></td></tr>
     {% endif %}
-
-    <tr><td>Allowed to orignate:</td><td>{{addr.asns}}</td></tr>
-
 </table>
 
 {% if addr.children.count %}
@@ -42,6 +39,21 @@
 
 {% endif %}
 
+{% if addr.roa_requests %}
+<h2>ROA requests</h2>
+<table style='border: solid 1px; width:100%'>
+    <tr><th>ASN</th><th>Max Length</th></tr>
+
+    {% for r in addr.roa_requests.all %}
+    <tr><td style='text-align: center'>{{ r.roa.asn }}</td>
+        <td style='text-align: center'>{{ r.max_length }}</td>
+        <td><a href="{{ r.get_absolute_url }}/delete">delete</a></tr>
+    {% endfor %}
+
+</table>
+
+{% endif %} <!-- roa requests -->
+
 {% if form %}
 <h2>Edit</h2>
 <form method="POST" action="{{ request.get_full_path }}">
@@ -53,7 +65,9 @@
 <p>Action:
 <a href="{{addr.get_absolute_url}}/split">split</a> |
 <a href="{{addr.get_absolute_url}}/allocate">give to child</a> |
-<a href="{{addr.get_absolute_url}}/roa">edit allowed originators</a> |
+{% if addr.is_prefix %}
+<a href="{{addr.get_absolute_url}}/roa">roa</a> |
+{% endif %}
 <a href="{{addr.get_absolute_url}}/delete">delete</a>
 
 {% endblock %}

@@ -17,6 +17,7 @@ import forms
 import glue
 from asnset import asnset
 from rpkigui.myrpki.misc import str_to_range
+from rpkigui.myrpki.asnset import asnset
 
 # For each type of object, we have a detail view, a create view and
 # an update view.  We heavily leverage the generic views, only
@@ -87,7 +88,7 @@ def unallocated_resources(handle, roa_asns, roa_prefixes, asns, prefixes):
 
     child_prefixes = []
     for p in prefixes:
-        child_prefixes.extend(o for o in p.children.filter(allocated__isnull=True).exclude(from_roa__in=roa_prefixes))
+        child_prefixes.extend(o for o in p.children.filter(allocated__isnull=True, roa_requests__isnull=True))
 
     if child_asns or child_prefixes:
         x, y = unallocated_resources(handle, roa_asns, roa_prefixes,
@@ -111,14 +112,14 @@ def dashboard(request):
     # get list of ASNs used in my ROAs
     roa_asns = [r.asn for r in handle.roas.all()]
     # get list of address ranges included in ROAs
-    roa_addrs = [p for r in handle.roas.all() for p in r.prefix.all()]
+    roa_addrs = [p.prefix for r in handle.roas.all() for p in r.from_roa_request.all()]
 
     asns=[]
     prefixes=[]
     for p in handle.parents.all():
         for c in p.resources.all():
             asns.extend(c.asn.filter(allocated__isnull=True).exclude(lo__in=roa_asns))
-            prefixes.extend(c.address_range.filter(allocated__isnull=True).exclude(from_roa__in=roa_addrs))
+            prefixes.extend(c.address_range.filter(allocated__isnull=True, roa_requests__isnull=True))
     asns, prefixes = unallocated_resources(handle, roa_asns, roa_addrs, asns,
             prefixes)
 
@@ -491,9 +492,18 @@ def prefix_allocate_view(request, pk):
     return render('myrpki/prefix_view.html', { 'form': form,
         'addr': prefix, 'form': form, 'parent': parent_set }, request)
 
+def parent_prefix(prefix):
+    '''Returns the top-most parent prefix for the given prefix.'''
+    while prefix.parent:
+        prefix = prefix.parent
+    return prefix
+
 def common_cert(prefix, prefix_set):
     '''Return true if prefix is derived from the same resource cert
     as all the addresses in prefix_set.'''
+    while prefix.parent:
+        prefix = prefix.parent
+
     # list of certs for the target prefix
     certs = prefix.from_cert.all()
     # all prefixes will have the same cert, so just check the first one
@@ -530,9 +540,33 @@ def update_roas(handle, prefix):
         else:
             # no roa is present for this ASN, create a new one
             print 'creating new roa for asn %d with %s' % (asid, prefix)
-            roa = models.Roa.objects.create(asn=asid, conf=handle, active=False)
+            roa = models.Roa.objects.create(asn=asid, conf=handle,
+                    active=False)
             roa.save()
             roa.prefix.add(prefix)
+
+def add_roa_requests(handle, prefix, asns, max_length):
+    for asid in asns:
+        req_set = prefix.roa_requests.filter(roa__asn=asid,
+                                             max_length=max_length)
+        if not req_set:
+            # no req is present for this (ASN, prefix, max_length).
+
+            # find all roas with prefixes from the same resource cert
+            roa_set = handle.roas.filter(asn=asid,
+                from_roa_request__prefix__from_cert__in=prefix.from_cert.all())
+            if roa_set:
+                roa = roa_set[0]
+            else:
+                # no roa is present for this ASN, create a new one
+                print 'creating new roa for asn %d' % (asid,)
+                roa = models.Roa.objects.create(asn=asid, conf=handle,
+                        active=False)
+                roa.save()
+
+            req = models.RoaRequest.objects.create(prefix=prefix, roa=roa,
+                    max_length=max_length)
+            req.save()
 
 @handle_required
 def prefix_roa_view(request, pk):
@@ -542,15 +576,15 @@ def prefix_roa_view(request, pk):
     parent_set = get_parents_or_404(handle, obj)
 
     if request.method == 'POST':
-        form = forms.PrefixRoaForm(request.POST)
+        form = forms.PrefixRoaForm(obj, request.POST)
         if form.is_valid():
-            obj.asns = form.cleaned_data['asns']
-            obj.save()
-            update_roas(handle, obj)
+            asns = asnset(form.cleaned_data['asns'])
+            add_roa_requests(handle, obj, asns,
+                             form.cleaned_data['max_length'])
             glue.configure_resources(handle)
             return http.HttpResponseRedirect(obj.get_absolute_url())
     else:
-        form = forms.PrefixRoaForm(initial={ 'asns': obj.asns })
+        form = forms.PrefixRoaForm(obj)
 
     return render('myrpki/prefix_view.html', { 'form': form,
         'addr': obj, 'form': form, 'parent': parent_set }, request)
@@ -573,6 +607,23 @@ def prefix_delete_view(request, pk):
 
     return render('myrpki/prefix_view.html', { 'form': form,
         'addr': obj, 'form': form, 'parent': parent_set }, request)
+
+@handle_required
+def roa_request_delete_view(request, pk):
+    '''Remove a roa request from a particular prefix.'''
+    handle = request.session['handle']
+    obj = get_object_or_404(models.RoaRequest.objects, pk=pk)
+    prefix = obj.prefix
+    # ensure this resource range belongs to a parent of the current conf
+    parent_set = get_parents_or_404(handle, prefix)
+
+    roa = obj.roa
+    obj.delete()
+    if not roa.from_roa_request.all():
+        print 'removing empty roa for asn %d' % (roa.asn,)
+        roa.delete()
+
+    return http.HttpResponseRedirect(prefix.get_absolute_url())
 
 @handle_required
 def asn_allocate_view(request, pk):

@@ -4,8 +4,11 @@ import socket
 
 from django.db import models
 from django.contrib.auth.models import User
-from rpkigui.myrpki.misc import str_to_range
+
+from rpkigui.myrpki.misc import str_to_range, str_to_addr
+
 import rpki.resource_set
+import rpki.exceptions
 
 class HandleField(models.CharField):
     def __init__(self, **kwargs):
@@ -14,10 +17,6 @@ class HandleField(models.CharField):
 class IPAddressField(models.CharField):
     def __init__( self, **kwargs ):
         models.CharField.__init__(self, max_length=40, **kwargs)
-
-class ASNListField(models.CharField):
-    def __init__( self, **kwargs ):
-        models.CharField.__init__(self, max_length=255, **kwargs)
 
 class Conf(models.Model):
     '''This is the center of the universe, also known as a place to
@@ -39,8 +38,6 @@ class AddressRange(models.Model):
     # child to which this resource is delegated
     allocated = models.ForeignKey('Child', related_name='address_range',
             blank=True, null=True)
-    # who can originate routes for this prefix
-    asns = ASNListField(null=True, blank=True)
 
     def __unicode__(self):
         if self.lo == self.hi:
@@ -48,7 +45,7 @@ class AddressRange(models.Model):
 
         try:
             # pretty print cidr
-            return unicode(str_to_range(self.lo, self.hi))
+            return unicode(self.as_resource_range())
         except socket.error, err:
             print err
         # work around for bug when hi/lo get reversed
@@ -58,6 +55,43 @@ class AddressRange(models.Model):
 
     def get_absolute_url(self):
         return u'/myrpki/address/%d' % (self.pk,)
+
+    def as_resource_range(self):
+        '''Convert to rpki.resource_set.resource_range_ip.'''
+        return str_to_range(self.lo, self.hi)
+
+    def is_prefix(self):
+        '''Returns True if this address range can be represented as a
+        prefix.'''
+        try:
+            self.as_resource_range()._prefixlen()
+        except rpki.exceptions.MustBePrefix, err:
+            print err
+            return False
+        return True
+
+class RoaRequest(models.Model):
+    roa = models.ForeignKey('Roa', related_name='from_roa_request')
+    max_length = models.IntegerField()
+    prefix = models.ForeignKey('AddressRange', related_name='roa_requests')
+
+    def __unicode__(self):
+        return u'roa request for asn %d on %s-%d' % (self.roa.asn, self.prefix,
+                self.max_length)
+
+    def as_roa_prefix(self):
+        '''Convert to a rpki.resouce_set.roa_prefix subclass.'''
+        
+        r = self.prefix.as_resource_range()
+        if isinstance(r, rpki.resource_set.resource_set_ipv4):
+            return rpki.resource_set.roa_prefix_ipv4(r.min, r._prefixlen(),
+                    self.max_length)
+        else:
+            return rpki.resource_set.roa_prefix_ipv6(r.min, r._prefixlen(),
+                    self.max_length)
+
+    def get_absolute_url(self):
+        return u'/myrpki/roa/%d' % (self.pk,)
 
 class Asn(models.Model):
     '''An ASN or range thereof.'''
@@ -114,8 +148,8 @@ class ResourceCert(models.Model):
     # resources granted from my parent
     asn = models.ManyToManyField(Asn, related_name='from_cert', blank=True,
             null=True)
-    address_range = models.ManyToManyField(AddressRange, related_name='from_cert',
-            blank=True, null=True)
+    address_range = models.ManyToManyField(AddressRange,
+            related_name='from_cert', blank=True, null=True)
 
     # unique id for this resource certificate
     # FIXME: URLField(verify_exists=False) doesn't seem to work - the admin
@@ -134,13 +168,13 @@ class ResourceCert(models.Model):
                 self.parent.handle)
 
 class Roa(models.Model):
-    '''Maps an ASN to the set of prefixes it can originate routes for.  This
-    differs from a real ROA in that prefixes from multiple parents/resource
-    certs can be selected.  The glue module contains code to split the ROAs
-    into groups by common resource certs.'''
+    '''Maps an ASN to the set of prefixes it can originate routes for.
+    This differs from a real ROA in that prefixes from multiple
+    parents/resource certs can be selected.  The glue module contains
+    code to split the ROAs into groups by common resource certs.'''
+
     conf = models.ForeignKey(Conf, related_name='roas')
     asn = models.IntegerField()
-    prefix = models.ManyToManyField(AddressRange, related_name='from_roa')
     active = models.BooleanField()
 
     def __unicode__(self):

@@ -24,8 +24,6 @@ urlpatterns = patterns('',
     (r'^asn/(?P<pk>\d+)$', views.asn_view),
     (r'^asn/(?P<pk>\d+)/allocate$', views.asn_allocate_view),
     (r'^roa/(?P<pk>\d+)/delete$', views.roa_request_delete_view)
-#    (r'^roa/$', views.roa_edit ),
-#    (r'^roa/(?P<pk>\d+)$', views.roa_edit ),
 )
 
 # vim:sw=4 ts=8 expandtab

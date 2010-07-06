@@ -4,10 +4,15 @@ from __future__ import with_statement
 
 import os
 import os.path
-import math
-import rpki
-from rpki.myrpki import csv_writer
+import csv
+
 from django.conf import settings
+from django.db.models import F
+
+import rpki
+import rpki.config
+
+from rpkigui.myrpki import models
 
 #def form_to_conf(data):
 #    """Write out a myrpki.conf based on the given form data."""
@@ -35,7 +40,7 @@ def invoke_rpki(handle, args):
 def read_identity(handle):
     fname = settings.MYRPKI_DATA_DIR + '/' + handle + '/entitydb/identity.xml'
     with open(fname, 'r') as fp:
-	    data = fp.read()
+        data = fp.read()
     return data
 
 def read_child_response(handle, child):
@@ -44,28 +49,32 @@ def read_child_response(handle, child):
         data = fp.read()
     return data
 
+# FIXME - remove this once rpki.myrpki.csv_writer is an object with a
+# .file field
+def csv_writer(f):
+  return csv.writer(f, dialect = csv.get_dialect("excel-tab"))
+
 def output_asns(path, handle):
-    '''Write out csv file containing resources delegated to my children.'''
-    f = csv_writer(path)
-    for p in handle.children.all():
-        for asn in p.asn.all():
-            if asn.lo == asn.hi:
-                f.writerow([p.handle, asn.lo])
+    '''Write out csv file containing asns delegated to my children.'''
+    qs = models.Asn.objects.filter(lo=F('hi'), allocated__in=handle.children.all())
+    with open(path, 'w') as f:
+        w = csv_writer(f)
+        w.writerows([asn.allocated.handle, asn.lo] for asn in qs)
 
 def output_prefixes(path, handle):
-    '''Write out csv file containing resources delegated to my children.'''
-    confdir = settings.MYRPKI_DATA_DIR + '/' + handle.handle
-    f = csv_writer(path)
-    for p in handle.children.all():
-        for prefix in p.address_range.all():
-            f.writerow([p.handle, '%s-%s' % (prefix.lo, prefix.hi)])
+    '''Write out csv file containing prefixes delegated to my children.'''
+    qs = models.AddressRange.objects.filter(allocated__in=handle.children.all())
+    with open(path, 'w') as f:
+        w = csv_writer(f)
+        w.writerows([p.allocated.handle, p.as_resource_range()] for p in qs)
 
 def output_roas(path, handle):
-    f = csv_writer(path)
-    for roa in handle.roas.all():
-        for req in roa.from_roa_request.all():
-            f.writerow([req.as_roa_prefix(), roa.asn,
-                '%s-group-%d' % (handle.handle, roa.pk)])
+    '''Write out csv file containing my roas.'''
+    qs = models.RoaRequest.objects.filter(roa__in=handle.roas.all())
+    with open(path, 'w') as f:
+        w = csv_writer(f)
+        w.writerows([req.as_roa_prefix(), req.roa.asn,
+            '%s-group-%d' % (handle.handle, req.roa.pk)] for req in qs)
 
 def configure_resources(handle):
     '''Write out the csv files and invoke the myrpki.py command line tool.'''

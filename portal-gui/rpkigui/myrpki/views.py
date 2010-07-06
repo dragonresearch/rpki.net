@@ -133,7 +133,7 @@ def conf_list(request):
     if request.user.is_superuser:
         queryset = models.Conf.objects.all()
     else:
-        queryset = models.Conf.objects.filter(owner__in=request.user.groups.all())
+        queryset = models.Conf.objects.filter(owner=request.user)
     return object_list(request, queryset,
             template_name='myrpki/conf_list.html', template_object_name='conf')
 
@@ -153,7 +153,7 @@ def conf_select(request):
         # since the handle is passed in as a parameter, need to verify that
         # the user is actually in the group
         conf = models.Conf.objects.filter(handle=handle,
-                owner__in=request.user.groups.all())
+                owner=request.user)
     if conf:
         request.session['handle'] = conf[0]
         return http.HttpResponseRedirect(next_url)

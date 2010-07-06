@@ -3,7 +3,7 @@
 all: protocol-samples
 
 clean:
-	rm -rf smoketest.dir left-right-protocol-samples publication-protocol-samples
+	rm -rf smoketest.dir left-right-protocol-samples publication-protocol-samples yamltest.dir
 
 protocol-samples: left-right-protocol-samples/.stamp publication-protocol-samples/.stamp
 

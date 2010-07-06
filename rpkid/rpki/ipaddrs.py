@@ -104,3 +104,11 @@ class v6addr(long):
   def __str__(self):
     """Convert a v6addr object to string format."""
     return socket.inet_ntop(socket.AF_INET6, self.to_bytes())
+
+def parse(s):
+  """
+  Parse a string as either an IPv4 or IPv6 address, and return object of appropriate class.
+  """
+  if isinstance(s, unicode):
+    s = s.encode("ascii")
+  return v6addr(s) if ":" in s else v4addr(s)

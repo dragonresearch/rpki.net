@@ -1,3 +1,5 @@
+# $Id$
+
 from django.conf.urls.defaults import *
 
 from django.contrib import admin
@@ -14,15 +16,13 @@ urlpatterns = patterns('',
     # Uncomment the next line to enable the admin:
     (r'^admin/', include(admin.site.urls)),
 
-    #(r'^dashboard/', include('myrpki.dashboardurls')),
     (r'^myrpki/', include('rpkigui.myrpki.urls')),
 
     (r'^accounts/login/$', 'django.contrib.auth.views.login'),
-    (r'^accounts/logout/$', 'django.contrib.auth.views.logout'),
+    (r'^accounts/logout/$', 'django.contrib.auth.views.logout',
+        { 'next_page': '/myrpki/' }),
 
 #XXX
 (r'^site_media/(?P<path>.*)$', 'django.views.static.serve',
-        #{'document_root': '/Users/fenner/src/portal-gui/media/'}),
-        {'document_root': '/home/melkins/src/rpki/portal-gui/media/'}),
-
+        {'document_root': '/home/melkins/src/rpki/portal-gui/media/'})
 )

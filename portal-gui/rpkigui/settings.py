@@ -1,6 +1,6 @@
 # $Id$
 #
-# Django settings for rpki project.
+# Django settings for rpkigui project.
 
 DEBUG = True
 TEMPLATE_DEBUG = DEBUG
@@ -85,7 +85,6 @@ INSTALLED_APPS = (
     'django.contrib.sessions',
     'django.contrib.sites',
     'rpkigui.myrpki',
-#    'rpki.django_extensions',
 )
 
 TEMPLATE_CONTEXT_PROCESSORS = (

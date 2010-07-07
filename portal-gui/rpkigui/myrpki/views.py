@@ -14,7 +14,6 @@ from django.views.generic.list_detail import object_list
 from rpkigui.myrpki import models
 from rpkigui.myrpki import forms
 from rpkigui.myrpki import glue
-from rpkigui.myrpki.misc import str_to_range
 from rpkigui.myrpki.asnset import asnset
 
 # For each type of object, we have a detail view, a create view and
@@ -91,7 +90,7 @@ def dashboard(request):
     asns, prefixes = unallocated_resources(handle, roa_asns, roa_addrs, asns,
             prefixes)
 
-    prefixes.sort(key=lambda x: str_to_range(x.lo, x.hi).min)
+    prefixes.sort(key=lambda x: x.as_resource_range().min)
 
     return render('myrpki/dashboard.html', { 'conf': handle, 'asns': asns,
         'ars': prefixes }, request)
@@ -236,13 +235,10 @@ def child_import(request):
                 glue.invoke_rpki(handle, args)
 
                 # send response back to user
-                return serve_xml(
-                        glue.read_child_response(handle, child_handle),
-                        child_handle)
+                return serve_xml(glue.read_child_response(handle,
+                    child_handle), child_handle)
             finally:
                 os.remove(input_file.name)
-        else:
-            print 'invalid form'
     else:
         form = forms.ImportForm()
     return render('myrpki/xml_import.html',

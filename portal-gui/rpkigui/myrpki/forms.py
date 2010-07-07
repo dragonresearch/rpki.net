@@ -1,8 +1,10 @@
 # $Id$
 
 from django import forms
-import models
-from rpkigui.myrpki.misc import str_to_addr
+
+import rpki.ipaddrs
+
+from rpkigui.myrpki import models
 from rpkigui.myrpki.asnset import asnset
 
 class AddConfForm(forms.Form):
@@ -41,11 +43,11 @@ def PrefixSplitForm(prefix, *args, **kwargs):
             lo = self.cleaned_data.get('lo')
             # convert from string to long representation
             try:
-                loaddr = str_to_addr(lo)
+                loaddr = rpki.ipaddrs.parse(lo)
             except socket.error:
                 raise forms.ValidationError, 'Invalid IP address string'
-            pfx_loaddr = str_to_addr(prefix.lo)
-            pfx_hiaddr = str_to_addr(prefix.hi)
+            pfx_loaddr = rpki.ipaddrs.parse(prefix.lo)
+            pfx_hiaddr = rpki.ipaddrs.parse(prefix.hi)
             if type(loaddr) != type(pfx_hiaddr):
                 raise forms.ValidationError, \
                         'Not the same IP address type as parent'
@@ -58,11 +60,11 @@ def PrefixSplitForm(prefix, *args, **kwargs):
             hi = self.cleaned_data.get('hi')
             # convert from string to long representation
             try:
-                hiaddr = str_to_addr(hi)
+                hiaddr = rpki.ipaddrs.parse(hi)
             except socket.error:
                 raise forms.ValidationError, 'Invalid IP address string'
-            pfx_loaddr = str_to_addr(prefix.lo)
-            pfx_hiaddr = str_to_addr(prefix.hi)
+            pfx_loaddr = rpki.ipaddrs.parse(prefix.lo)
+            pfx_hiaddr = rpki.ipaddrs.parse(prefix.hi)
             if type(hiaddr) != type(pfx_loaddr):
                 raise forms.ValidationError, \
                         'Not the same IP address type as parent'
@@ -77,8 +79,8 @@ def PrefixSplitForm(prefix, *args, **kwargs):
             # hi or lo may be None if field validation failed
             if hi and lo:
                 # convert from string to long representation
-                hiaddr = str_to_addr(hi)
-                loaddr = str_to_addr(lo)
+                hiaddr = rpki.ipaddrs.parse(hi)
+                loaddr = rpki.ipaddrs.parse(lo)
                 if hiaddr < loaddr:
                     raise forms.ValidationError, 'Hi value is smaller than Lo'
                 if prefix.allocated:
@@ -100,13 +102,13 @@ def PrefixRoaForm(prefix, *args, **kwargs):
         asns = forms.CharField(max_length=200, required=False,
                 help_text='Comma-separated list of ASNs')
         max_length = forms.IntegerField(required=False,
-                min_value=prefix_range._prefixlen(),
+                min_value=prefix_range.prefixlen(),
                 max_value=prefix_range.datum_type.bits)
 
         def clean_max_length(self):
             v = self.cleaned_data.get('max_length')
             if not v:
-                v = prefix_range._prefixlen()
+                v = prefix_range.prefixlen()
             return v
 
         def clean_asns(self):

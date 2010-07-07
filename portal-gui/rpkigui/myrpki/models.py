@@ -5,7 +5,7 @@ import socket
 from django.db import models
 from django.contrib.auth.models import User
 
-from rpkigui.myrpki.misc import str_to_range, str_to_addr
+from rpkigui.myrpki.misc import str_to_range
 
 import rpki.resource_set
 import rpki.exceptions
@@ -64,7 +64,7 @@ class AddressRange(models.Model):
         '''Returns True if this address range can be represented as a
         prefix.'''
         try:
-            self.as_resource_range()._prefixlen()
+            self.as_resource_range().prefixlen()
         except rpki.exceptions.MustBePrefix, err:
             print err
             return False
@@ -81,13 +81,12 @@ class RoaRequest(models.Model):
 
     def as_roa_prefix(self):
         '''Convert to a rpki.resouce_set.roa_prefix subclass.'''
-        
         r = self.prefix.as_resource_range()
         if isinstance(r, rpki.resource_set.resource_set_ipv4):
-            return rpki.resource_set.roa_prefix_ipv4(r.min, r._prefixlen(),
+            return rpki.resource_set.roa_prefix_ipv4(r.min, r.prefixlen(),
                     self.max_length)
         else:
-            return rpki.resource_set.roa_prefix_ipv6(r.min, r._prefixlen(),
+            return rpki.resource_set.roa_prefix_ipv6(r.min, r.prefixlen(),
                     self.max_length)
 
     def get_absolute_url(self):

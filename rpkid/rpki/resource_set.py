@@ -102,6 +102,17 @@ class resource_range_as(resource_range):
     else:
       return ("range", (self.min, self.max))
 
+  @classmethod
+  def parse_str(cls, x):
+    """
+    Parse ASN resource range from text (eg, XML attributes).
+    """
+    r = re.match("^([0-9]+)-([0-9]+)$", x)
+    if r:
+      return cls(long(r.group(1)), long(r.group(2)))
+    else:
+      return cls(long(x), long(x))
+
 class resource_range_ip(resource_range):
   """
   Range of (generic) IP addresses.
@@ -153,6 +164,19 @@ class resource_range_ip(resource_range):
     except rpki.exceptions.MustBePrefix:
       return ("addressRange", (_long2bs(self.min, self.datum_type.bits, strip = 0),
                                _long2bs(self.max, self.datum_type.bits, strip = 1)))
+
+  @classmethod
+  def parse_str(cls, x):
+    """
+    Parse IP address range or prefix from text (eg, XML attributes).
+    """
+    r = re.match("^([0-9:.a-fA-F]+)-([0-9:.a-fA-F]+)$", x)
+    if r:
+      return cls(cls.datum_type(r.group(1)), cls.datum_type(r.group(2)))
+    r = re.match("^([0-9:.a-fA-F]+)/([0-9]+)$", x)
+    if r:
+      return cls.make_prefix(cls.datum_type(r.group(1)), int(r.group(2)))
+    raise RuntimeError, 'Bad IP resource "%s"' % (x)
 
   @classmethod
   def make_prefix(cls, prefix, prefixlen):
@@ -440,6 +464,15 @@ class resource_set(list):
                                      cls.range_type.datum_type(e))
                       for (b, e) in sql.fetchall()])
 
+  @classmethod
+  def parse_str(cls, s):
+    """
+    Parse resource set from text string (eg, XML attributes).  This is
+    a backwards compatability wrapper, real functionality is now part
+    of the range classes.
+    """
+    return cls.range_type.parse_str(s)
+
 class resource_set_as(resource_set):
   """
   Autonomous System Number resource set.
@@ -449,16 +482,6 @@ class resource_set_as(resource_set):
   # Type of range underlying this type of resource_set.
 
   range_type = resource_range_as
-
-  def parse_str(self, x):
-    """
-    Parse ASN resource sets from text (eg, XML attributes).
-    """
-    r = re.match("^([0-9]+)-([0-9]+)$", x)
-    if r:
-      return resource_range_as(long(r.group(1)), long(r.group(2)))
-    else:
-      return resource_range_as(long(x), long(x))
 
   def parse_rfc3779_tuple(self, x):
     """
@@ -498,18 +521,6 @@ class resource_set_ip(resource_set):
   This is a virtual class.  You probably don't want to use it
   directly.
   """
-
-  def parse_str(self, x):
-    """
-    Parse IP address resource sets from text (eg, XML attributes).
-    """
-    r = re.match("^([0-9:.a-fA-F]+)-([0-9:.a-fA-F]+)$", x)
-    if r:
-      return self.range_type(self.range_type.datum_type(r.group(1)), self.range_type.datum_type(r.group(2)))
-    r = re.match("^([0-9:.a-fA-F]+)/([0-9]+)$", x)
-    if r:
-      return self.range_type.make_prefix(self.range_type.datum_type(r.group(1)), int(r.group(2)))
-    raise RuntimeError, 'Bad IP resource "%s"' % (x)
 
   def parse_rfc3779_tuple(self, x):
     """

@@ -3,8 +3,7 @@ $Id$
 Portal GUI (web interface), written using the rpki Python libraries
 and the Django web development framework.
 
-This is still in early development, real installation directions
-haven't been written yet, but there's a lot of general information
+This is still in early development, but there's a lot of general information
 about Django at http://www.djangoproject.com/
 
 This package is an interface to rpkid and friends, so it assumes that
@@ -101,41 +100,49 @@ debugging.
 
 === list_resources helper script ===
 
-The portal-gui does not directly talk to the rpkid server.  Instead, there is a
-command line script named "list_resources" which talks to rpkid and updates the
-portal-gui database with information that has changed.  For testing purposes,
-this script can be run by hand.  However, for deployment you will need to set up
-a cron job to run this script periodically.
+The portal-gui does not directly talk to the rpkid server.  Instead, there
+is a command line script named "list_resources" which talks to rpkid and
+updates the portal-gui database with information that has changed.  For
+testing purposes, this script can be run by hand.  However, for deployment
+you will need to set up a cron job to run this script periodically.
 
-NOTE that "list_resources" *must* be run in the directory where the myrpki.conf
-for the resource handle that is self-hosting the rpkid.  Alternatively, you can
-set the $MYRPKI_CONF environment variable to full pathname of the myrpki.conf
-for the self-hosted resource handle (However, in order for this to work, you
-need to specify the full path name for "bpki_servers_directory" variable in
-your myrpki.conf.)
+NOTE that "list_resources" *must* be run in the directory where the
+myrpki.conf for the resource handle that is self-hosting the rpkid.
+Alternatively, you can set the $MYRPKI_CONF environment variable to full
+pathname of the myrpki.conf for the self-hosted resource handle (However, in
+order for this to work, you need to specify the full path name for
+"bpki_servers_directory" variable in your myrpki.conf.)
+
+The first time you invoke it, you may wish to use the -v option, which puts
+list_resources into verbose mode, meaning it will display progress
+information.  Normally, this script is intended to be invoked via cron, so
+it is silent unless an error occurs:
+
+        $prefix/share/portal-gui/scripts/list_resources -v
 
 You may way to create a script which is invoked by cron:
 
-        #!/bin/sh
-        cd /var/lib/myrpki/<handle>	# where the myrpki.conf for rpkid lives
-        $top/portal-gui/scripts/list_resources
+    #!/bin/sh
+    cd <directory containing myrpki.conf for the self-hosted rpkid>
+    $prefix/share/portal-gui/scripts/list_resources
 
-This script probably only needs to be run infrequently.  It's sole purpose is to
-query rpkid to ask what resources and children are configured for each resource
-handle.  This information does not change often.
+This script probably only needs to be run infrequently.  It's sole purpose
+is to query rpkid to ask what resources and children are configured for each
+resource handle.  This information does not change often.
 
 === Load existing data ===
 
-If you already have delegated resources to children, or created ROAs in the .csv
-files for the myrpki.py command line tool, you will want to load the portal-gui
-with this information.  There is a helper script for doing this step.  Simply
-chdir to the directory containing your myrpki.conf and .csv files and run:
+If you already have delegated resources to children, or created ROAs in the
+.csv files for the myrpki.py command line tool, you will want to load the
+portal-gui with this information.  There is a helper script for doing this
+step.  Simply chdir to the directory containing your myrpki.conf and .csv
+files and run:
 
-        $top/portal-gui/scripts/load_csv
+        $prefix/share/portal-gui/scripts/load_csv
 
-NOTE that you must run the "list_resources" script *prior* to using "load_csv"
-or you will get errors because portal-gui won't yet know about which handles it
-is serving.
+NOTE that you must run the "list_resources" script *prior* to using
+"load_csv" or you will get errors because portal-gui won't yet know about
+which handles it is serving.
 
 You should run "load_csv" in *each* of your directories for each handle.
 
@@ -145,10 +152,10 @@ If you have configured django to use apached and mod_wsgi, you just need to
 start your web server.
 
 Alternatively, Django comes with a test web server which is useful for small
-deployments, or for just testing the portal-gui.  You can start the test server
-by running:
+deployments, or for just testing the portal-gui.  You can start the test
+server by running:
 
-        $top/portal-gui/scripts/runserver [ IP:PORT ]
+    $prefix/share/portal-gui/scripts/runserver [ IP:PORT ]
 
 where IP:PORT is the address where you want to run the server.  If you don't
 specify the IP:PORT, the default is 127.0.0.1:8000.
@@ -158,12 +165,41 @@ Now you can navigate to http://<ip:port>/myrpki/ to use the GUI.
 === Creating Users ===
 
 By default, the administrative user created during the "Initialization" step
-above can manage all resource handles.  However, the portal-gui's security model
-allows the use of separate logins to manage resource handles.  Each resource
-handle needs to be configured to allow one or more users to manage it.  This is
-accomplished by using the django admin interface.  http://<ip:port>/admin/
+above can manage all resource handles.  However, the portal-gui's security
+model allows the use of separate logins to manage resource handles.  Each
+resource handle needs to be configured to allow one or more users to manage
+it.  This is accomplished by using the django admin interface.
+http://<ip:port>/admin/
 
-You can configure which users are allowed to manage a particular resource handle
-by navigating to http://<ip:port>/admin/myrpki/conf/.  Simply click on the
-handle you want to change, and select one or more users in the "Owner" list box
-and click "Save."
+You can configure which users are allowed to manage a particular resource
+handle by navigating to http://<ip:port>/admin/myrpki/conf/.  Simply click
+on the handle you want to change, and select one or more users in the
+"Owner" list box and click "Save."
+
+=== Debugging Tips ===
+
+The portal-gui is still in development.  As such, problems may arise.
+Occasionally, portal-gui fails to appropriately validate data that it puts
+into its Django db.  This may cause exceptions to be thrown, as the code
+assumes that data in the database is already valid.  You can delete specific
+data from the Django database using Django's built-in admininstrative
+interface.  It's available by navigating to the /admin/myrpki/ URL and
+logging in as the superuser account.  Here you will find a list of all the
+tables used by the portal-gui.
+
+If you are updating from the subversion repository, there may occasionally
+be changes in the portal-gui's database schema that require a complete reset
+of the database before it will function.  Don't worry about losing data,
+because list_resources and load_csv can be run again to populate the
+database with your data.
+
+Here are the steps for reseting to the initial state:
+
+    cd $prefix/share/portal-gui/rpkigui
+    python reset --pythonpath=$top/rpkid myrpki
+
+    >>> answer "yes" to really reset it <<<
+
+    cd <directory containing myrpki.conf for the self-hosted rpkid>
+    $prefix/share/portal-gui/scripts/list_resources -v
+    $prefix/share/portal-gui/scripts/load_csv

@@ -5,7 +5,6 @@
 srcdir=@srcdir@
 prefix=@prefix@
 datarootdir=@datarootdir@
-localstatedir=@localstatedir@
 
 # where to install the portal-gui
 SRC=$(datarootdir)/$(PACKAGE_NAME)
@@ -17,6 +16,7 @@ BUILD=$(srcdir)/configure Makefile config.status rpkigui/settings.py \
 PACKAGE_NAME=@PACKAGE_NAME@
 PYTHON=@PYTHON@
 MYRPKIDIR=@MYRPKIDIR@
+DATABASE_PATH=@DATABASE_PATH@
 
 all: $(BUILD)
 
@@ -72,8 +72,7 @@ INSTALL_FILES=\
 	scripts/runserver
 
 install: $(BUILD)
-	mkdir -p $(localstatedir)/$(PACKAGE_NAME)
-	mkdir -p $(localstatedir)/$(PACKAGE_NAME)/media
+	mkdir -p `dirname $(DATABASE_PATH)`
 	mkdir -p $(SRC)/media/img
 	mkdir -p $(SRC)/rpkigui/myrpki
 	mkdir -p $(SRC)/rpkigui/templates/myrpki

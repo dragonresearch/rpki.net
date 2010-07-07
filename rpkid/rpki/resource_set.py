@@ -69,11 +69,7 @@ class resource_range(object):
     Compare two resource_range objects.
     """
     assert self.__class__ is other.__class__, "Type mismatch, comparing %r with %r" % (self.__class__, other.__class__)
-    c = self.min - other.min
-    if c == 0: c = self.max - other.max
-    if c < 0:  c = -1
-    if c > 0:  c =  1
-    return c
+    return cmp(self.min, other.min) or cmp(self.max, other.max)
 
 class resource_range_as(resource_range):
   """
@@ -117,7 +113,7 @@ class resource_range_ip(resource_range):
   directly.
   """
 
-  def _prefixlen(self):
+  def prefixlen(self):
     """
     Determine whether a resource_range_ip can be expressed as a
     prefix.  Returns prefix length if it can, otherwise raises
@@ -134,12 +130,15 @@ class resource_range_ip(resource_range):
       raise rpki.exceptions.MustBePrefix
     return prefixlen
 
+  # Backwards compatability, will go away at some point
+  _prefixlen = prefixlen
+
   def __str__(self):
     """
     Convert a resource_range_ip to string format.
     """
     try:
-      return str(self.min) + "/" + str(self._prefixlen())
+      return str(self.min) + "/" + str(self.prefixlen())
     except rpki.exceptions.MustBePrefix:
       return str(self.min) + "-" + str(self.max)
 
@@ -150,7 +149,7 @@ class resource_range_ip(resource_range):
     """
     try:
       return ("addressPrefix", _long2bs(self.min, self.datum_type.bits,
-                                        prefixlen = self._prefixlen()))
+                                        prefixlen = self.prefixlen()))
     except rpki.exceptions.MustBePrefix:
       return ("addressRange", (_long2bs(self.min, self.datum_type.bits, strip = 0),
                                _long2bs(self.max, self.datum_type.bits, strip = 1)))
@@ -172,7 +171,7 @@ class resource_range_ip(resource_range):
     prefixes.
     """
     try:
-      self._prefixlen()
+      self.prefixlen()
       result.append(self)
     except rpki.exceptions.MustBePrefix:
       min = self.min
@@ -538,7 +537,7 @@ class resource_set_ip(resource_set):
     for r in self:
       r.chop_into_prefixes(prefix_ranges)
     return self.roa_prefix_set_type([
-      self.roa_prefix_set_type.prefix_type(r.min, r._prefixlen())
+      self.roa_prefix_set_type.prefix_type(r.min, r.prefixlen())
       for r in prefix_ranges])
 
   def to_rfc3779_tuple(self):

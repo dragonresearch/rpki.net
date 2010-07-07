@@ -1,0 +1,86 @@
+# $Id$
+#
+# @configure_input@
+
+srcdir=@srcdir@
+prefix=@prefix@
+datarootdir=@datarootdir@
+localstatedir=@localstatedir@
+
+# where to install the portal-gui
+SRC=$(datarootdir)/$(PACKAGE_NAME)
+
+# automatically built sources
+BUILD=$(srcdir)/configure Makefile config.status rpkigui/settings.py \
+      rpkigui/urls.py scripts/helper
+
+PACKAGE_NAME=@PACKAGE_NAME@
+PYTHON=@PYTHON@
+MYRPKIDIR=@MYRPKIDIR@
+
+all: $(BUILD)
+
+$(srcdir)/configure: configure.ac
+	cd '$(srcdir)' && autoconf
+ 
+Makefile: $(srcdir)/Makefile.in config.status
+	./config.status
+
+config.status: configure
+	./config.status --recheck
+
+rpkigui/settings.py: $(srcdir)/rpkigui/settings.py.in
+	./config.status
+
+rpkigui/urls.py: $(srcdir)/rpkigui/urls.py.in
+	./config.status
+
+scripts/helper: $(srcdir)/scripts/helper.in
+	./config.status
+
+scripts/runserver: $(srcdir)/scripts/runserver.in
+
+INSTALL_FILES=\
+	media/img/my.png \
+	media/img/rpki.png \
+	rpkigui/__init__.py \
+	rpkigui/django.wsgi \
+	rpkigui/manage.py \
+	rpkigui/settings.py \
+	rpkigui/urls.py \
+	rpkigui/myrpki/__init__.py \
+	rpkigui/myrpki/admin.py \
+	rpkigui/myrpki/asnset.py \
+	rpkigui/myrpki/forms.py \
+	rpkigui/myrpki/glue.py \
+	rpkigui/myrpki/misc.py \
+	rpkigui/myrpki/models.py \
+	rpkigui/myrpki/urls.py \
+	rpkigui/myrpki/views.py \
+	rpkigui/templates/myrpki/asn_view.html \
+	rpkigui/templates/myrpki/child_view.html \
+	rpkigui/templates/myrpki/conf_list.html \
+	rpkigui/templates/myrpki/dashboard.html \
+	rpkigui/templates/myrpki/parent_view.html \
+	rpkigui/templates/myrpki/prefix_view.html \
+	rpkigui/templates/myrpki/xml_import.html \
+	rpkigui/templates/registration/login.html \
+	scripts/helper \
+	scripts/list_resources.py \
+	scripts/load_csv.py \
+	scripts/runserver
+
+install: $(BUILD)
+	mkdir -p $(localstatedir)/$(PACKAGE_NAME)
+	mkdir -p $(localstatedir)/$(PACKAGE_NAME)/media
+	mkdir -p $(SRC)/media/img
+	mkdir -p $(SRC)/rpkigui/myrpki
+	mkdir -p $(SRC)/rpkigui/templates/myrpki
+	mkdir -p $(SRC)/rpkigui/templates/registration
+	mkdir -p $(SRC)/scripts
+	for f in $(INSTALL_FILES); do \
+		install $$f $(SRC)/$$f; \
+	done
+	ln -sf $(SRC)/scripts/helper $(SRC)/scripts/load_csv
+	ln -sf $(SRC)/scripts/helper $(SRC)/scripts/list_resources
+	cd $(SRC)/rpkigui && $(PYTHON) manage.py syncdb --pythonpath=$(MYRPKIDIR)

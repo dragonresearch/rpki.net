@@ -1,0 +1,12 @@
+#!/bin/sh
+# $Id$
+#
+# This is a wrapper script which sets the appropriate environment
+# variables for invoking the portal-gui python scripts.
+#
+# @configure_input@
+
+prefix=@prefix@
+export PYTHONPATH=@MYRPKIDIR@:@datarootdir@/@PACKAGE_NAME@
+export DJANGO_SETTINGS_MODULE=rpkigui.settings
+@PYTHON@ $src/scripts/$0.py $*

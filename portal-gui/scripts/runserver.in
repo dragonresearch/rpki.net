@@ -1,0 +1,12 @@
+#!/bin/sh
+# $Id$
+#
+# Helper script to start the Django test webserver for the portal-gui.
+#
+# @configure_input@
+
+prefix=@prefix@
+datarootdir=@datarootdir@
+PACKAGE_NAME=@PACKAGE_NAME@
+cd $datarootdir/$PACKAGE_NAME/rpkigui
+@PYTHON@ manage.py runserver --pythonpath=@MYRPKIDIR@ $*

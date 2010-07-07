@@ -1,4 +1,6 @@
 # $Id$
+#
+# @configure_input@
 
 from django.conf.urls.defaults import *
 
@@ -22,7 +24,6 @@ urlpatterns = patterns('',
     (r'^accounts/logout/$', 'django.contrib.auth.views.logout',
         { 'next_page': '/myrpki/' }),
 
-#XXX
-(r'^site_media/(?P<path>.*)$', 'django.views.static.serve',
-        {'document_root': '/home/melkins/src/rpki/portal-gui/media/'})
+    (r'^site_media/(?P<path>.*)$', 'django.views.static.serve',
+        {'document_root': '@MEDIADIR@'})
 )

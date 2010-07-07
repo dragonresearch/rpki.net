@@ -67,15 +67,25 @@ script.  There are several required options:
 Optional:
 
         --prefix=DIR
-                use an alternate install tree.  Defaults to /usr/local.
+                Use an alternate install prefix.  Defaults to /usr/local/.
+
+	--datarootdir=DIR
+		Install the portal-gui source code as $DIR/portal-gui.
+		Defaults to $prefix/share/.
+
+	--localstatedir=DIR
+		Set the default location for the portal-gui's database.
+		Defaults to $prefix/var/.
 
         DATABASE_PATH=PATH
-                specifies the full pathname for the sqlite database used
-                to back the portal gui.  Defaults to
-                /usr/local/var/portal-gui/rpkiop.
+		Specifies the full pathname for the sqlite database used to
+		back the portal gui.  Defaults to
+		$localstatedir/portal-gui/rpkiop.  NOTE: This path should
+		include the database filename, not only the directory
+		containing it.
 
         --with-python=PATH
-                specifies the full path to the python interpreter to
+                Specifies the full path to the python interpreter to
                 use.  Defaults to python2.6, python2.5, or python, in
                 order.
 
@@ -118,13 +128,13 @@ list_resources into verbose mode, meaning it will display progress
 information.  Normally, this script is intended to be invoked via cron, so
 it is silent unless an error occurs:
 
-        $prefix/share/portal-gui/scripts/list_resources -v
+        $datarootdir/portal-gui/scripts/list_resources -v
 
 You may way to create a script which is invoked by cron:
 
     #!/bin/sh
     cd <directory containing myrpki.conf for the self-hosted rpkid>
-    $prefix/share/portal-gui/scripts/list_resources
+    $datarootdir/portal-gui/scripts/list_resources
 
 This script probably only needs to be run infrequently.  It's sole purpose
 is to query rpkid to ask what resources and children are configured for each
@@ -138,7 +148,7 @@ portal-gui with this information.  There is a helper script for doing this
 step.  Simply chdir to the directory containing your myrpki.conf and .csv
 files and run:
 
-        $prefix/share/portal-gui/scripts/load_csv
+        $datarootdir/portal-gui/scripts/load_csv
 
 NOTE that you must run the "list_resources" script *prior* to using
 "load_csv" or you will get errors because portal-gui won't yet know about
@@ -155,7 +165,7 @@ Alternatively, Django comes with a test web server which is useful for small
 deployments, or for just testing the portal-gui.  You can start the test
 server by running:
 
-    $prefix/share/portal-gui/scripts/runserver [ IP:PORT ]
+    $datarootdir/portal-gui/scripts/runserver [ IP:PORT ]
 
 where IP:PORT is the address where you want to run the server.  If you don't
 specify the IP:PORT, the default is 127.0.0.1:8000.
@@ -195,11 +205,11 @@ database with your data.
 
 Here are the steps for reseting to the initial state:
 
-    cd $prefix/share/portal-gui/rpkigui
+    cd $datarootdir/portal-gui/rpkigui
     python reset --pythonpath=$top/rpkid myrpki
 
     >>> answer "yes" to really reset it <<<
 
     cd <directory containing myrpki.conf for the self-hosted rpkid>
-    $prefix/share/portal-gui/scripts/list_resources -v
-    $prefix/share/portal-gui/scripts/load_csv
+    $datarootdir/portal-gui/scripts/list_resources -v
+    $datarootdir/portal-gui/scripts/load_csv

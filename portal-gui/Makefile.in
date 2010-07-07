@@ -57,6 +57,7 @@ INSTALL_FILES=\
 	rpkigui/myrpki/models.py \
 	rpkigui/myrpki/urls.py \
 	rpkigui/myrpki/views.py \
+	rpkigui/templates/base.html \
 	rpkigui/templates/myrpki/asn_view.html \
 	rpkigui/templates/myrpki/child_view.html \
 	rpkigui/templates/myrpki/conf_list.html \

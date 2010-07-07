@@ -7,6 +7,7 @@
 # @configure_input@
 
 prefix=@prefix@
-export PYTHONPATH=@MYRPKIDIR@:@datarootdir@/@PACKAGE_NAME@
+src=@datarootdir@/@PACKAGE_NAME@
+export PYTHONPATH=@MYRPKIDIR@:$src
 export DJANGO_SETTINGS_MODULE=rpkigui.settings
-@PYTHON@ $src/scripts/$0.py $*
+@PYTHON@ $src/scripts/`basename $0`.py $*

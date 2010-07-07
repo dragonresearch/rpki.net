@@ -311,3 +311,13 @@ class HTTPTimeout(RPKI_Exception):
   """
   HTTP connection timed out.
   """
+
+class BadIPResource(RPKI_Exception):
+  """
+  Parse failure for alleged IP resource string.
+  """
+
+class BadROAPrefix(RPKI_Exception):
+  """
+  Parse failure for alleged ROA prefix string.
+  """

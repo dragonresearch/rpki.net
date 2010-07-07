@@ -47,6 +47,11 @@ import rpki.ipaddrs, rpki.oids, rpki.exceptions
 
 inherit_token = "<inherit>"
 
+re_asn_range          = re.compile("^([0-9]+)-([0-9]+)$")
+re_address_range      = re.compile("^([0-9:.a-fA-F]+)-([0-9:.a-fA-F]+)$")
+re_prefix_with_maxlen = re.compile("^([0-9:.a-fA-F]+)/([0-9]+)-([0-9]+)$")
+re_prefix             = re.compile("^([0-9:.a-fA-F]+)/([0-9]+)$")
+
 class resource_range(object):
   """
   Generic resource range type.  Assumes underlying type is some kind
@@ -107,7 +112,7 @@ class resource_range_as(resource_range):
     """
     Parse ASN resource range from text (eg, XML attributes).
     """
-    r = re.match("^([0-9]+)-([0-9]+)$", x)
+    r = re_asn_range.match(x)
     if r:
       return cls(long(r.group(1)), long(r.group(2)))
     else:
@@ -170,13 +175,13 @@ class resource_range_ip(resource_range):
     """
     Parse IP address range or prefix from text (eg, XML attributes).
     """
-    r = re.match("^([0-9:.a-fA-F]+)-([0-9:.a-fA-F]+)$", x)
+    r = re_address_range.match(x)
     if r:
       return cls(cls.datum_type(r.group(1)), cls.datum_type(r.group(2)))
-    r = re.match("^([0-9:.a-fA-F]+)/([0-9]+)$", x)
+    r = re_prefix.match(x)
     if r:
       return cls.make_prefix(cls.datum_type(r.group(1)), int(r.group(2)))
-    raise RuntimeError, 'Bad IP resource "%s"' % (x)
+    raise rpki.exceptions.BadIPResource, 'Bad IP resource "%s"' % (x)
 
   @classmethod
   def make_prefix(cls, prefix, prefixlen):
@@ -785,12 +790,9 @@ class roa_prefix(object):
     prefixlen, and max_prefixlen, in that order.
     """
     assert self.__class__ is other.__class__
-    c = self.prefix - other.prefix
-    if c == 0: c = self.prefixlen - other.prefixlen
-    if c == 0: c = self.max_prefixlen - other.max_prefixlen
-    if c < 0: c = -1
-    if c > 0: c =  1
-    return c
+    return (cmp(self.prefix,        other.prefix)    or
+            cmp(self.prefixlen,     other.prefixlen) or
+            cmp(self.max_prefixlen, other.max_prefixlen))
 
   def __str__(self):
     """
@@ -829,6 +831,19 @@ class roa_prefix(object):
     """
     return (_long2bs(self.prefix, self.range_type.datum_type.bits, prefixlen = self.prefixlen),
             None if self.prefixlen == self.max_prefixlen else self.max_prefixlen)
+
+  @classmethod
+  def parse_str(cls, x):
+    """
+    Parse ROA prefix from text (eg, an XML attribute).
+    """
+    r = re_prefix_with_maxlen.match(x)
+    if r:
+      return cls(cls.range_type.datum_type(r.group(1)), int(r.group(2)), int(r.group(3)))
+    r = re_prefix.match(x)
+    if r:
+      return cls(cls.range_type.datum_type(r.group(1)), int(r.group(2)))
+    raise rpki.exceptions.BadROAPrefix, 'Bad ROA prefix "%s"' % (x)
 
 class roa_prefix_ipv4(roa_prefix):
   """
@@ -874,17 +889,13 @@ class roa_prefix_set(list):
     """
     return ",".join(str(x) for x in self)
 
-  def parse_str(self, x):
+  @classmethod
+  def parse_str(cls, s):
     """
     Parse ROA prefix from text (eg, an XML attribute).
+    This method is a backwards compatability shim.
     """
-    r = re.match("^([0-9:.a-fA-F]+)/([0-9]+)-([0-9]+)$", x)
-    if r:
-      return self.prefix_type(self.prefix_type.range_type.datum_type(r.group(1)), int(r.group(2)), int(r.group(3)))
-    r = re.match("^([0-9:.a-fA-F]+)/([0-9]+)$", x)
-    if r:
-      return self.prefix_type(self.prefix_type.range_type.datum_type(r.group(1)), int(r.group(2)))
-    raise RuntimeError, 'Bad ROA prefix "%s"' % (x)
+    return cls.prefix_type.parse_str(s)
 
   def to_resource_set(self):
     """

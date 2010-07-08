@@ -65,7 +65,8 @@ class resource_range(object):
     """
     Initialize and sanity check a resource_range.
     """
-    assert min <= max, "Mis-ordered range: %s before %s" % (str(min), str(max))
+    assert min.__class__ is max.__class__, "Type mismatch, %r doesn't match %r" % (a.__class__, b.__class__)
+    assert min <= max, "Mis-ordered range: %s before %s" % (min, max)
     self.min = min
     self.max = max
 
@@ -117,6 +118,15 @@ class resource_range_as(resource_range):
       return cls(long(r.group(1)), long(r.group(2)))
     else:
       return cls(long(x), long(x))
+
+  @classmethod
+  def from_strings(cls, a, b = None):
+    """
+    Construct ASN range from strings.
+    """
+    if b is None:
+      b = a
+    return cls(long(a), long(b))
 
 class resource_range_ip(resource_range):
   """
@@ -216,6 +226,26 @@ class resource_range_ip(resource_range):
           bits -= 1
         result.append(self.make_prefix(min, self.datum_type.bits - bits))
         min = self.datum_type(min + mask + 1)
+
+  @classmethod
+  def from_strings(cls, a, b = None):
+    """
+    Construct IP address range from strings.
+    """
+    if b is None:
+      b = a
+    a = rpki.ipaddrs.parse(a)
+    b = rpki.ipaddrs.parse(b)
+    if a.__class__ is not b.__class__:
+      raise TypeError
+    if cls is resource_range_ip:
+      if isinstance(a, rpki.ipaddrs.v4addr):
+        return resource_range_ipv4(a, b)
+      if isinstance(a, rpki.ipaddrs.v6addr):
+        return resource_range_ipv6(a, b)
+    elif isinstance(a, cls.datum_type):
+      return cls(a, b)
+    raise TypeError
 
 class resource_range_ipv4(resource_range_ip):
   """

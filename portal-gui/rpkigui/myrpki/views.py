@@ -404,6 +404,7 @@ def roa_request_delete_view(request, pk):
     if not roa.from_roa_request.all():
         print 'removing empty roa for asn %d' % (roa.asn,)
         roa.delete()
+        glue.configure_resources(handle)
 
     return http.HttpResponseRedirect(prefix.get_absolute_url())
 

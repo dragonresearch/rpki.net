@@ -5,6 +5,7 @@ from __future__ import with_statement
 import os
 import os.path
 import csv
+import sys
 
 from django.conf import settings
 from django.db.models import F
@@ -33,7 +34,8 @@ def invoke_rpki(handle, args):
     config = settings.MYRPKI_DATA_DIR + '/' + handle + '/myrpki.conf'
     # default myrpki.conf uses relative paths, so chdir() to the repo first
     os.chdir(settings.MYRPKI_DATA_DIR + '/' + handle)
-    cmd = 'python ' + settings.MYRPKI_PATH + ' '.join(['--config=' + config] + args)
+    cmd = '%s %s %s' % (sys.executable, settings.MYRPKI_PATH,
+                        ' '.join(['--config=' + config] + args))
     print 'invoking', cmd
     os.system(cmd)
 

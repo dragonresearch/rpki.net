@@ -5,8 +5,5 @@
 #
 # @configure_input@
 
-prefix=@prefix@
-datarootdir=@datarootdir@
-PACKAGE_NAME=@PACKAGE_NAME@
-cd $datarootdir/$PACKAGE_NAME/rpkigui
+cd @INSTDIR@/rpkigui
 @PYTHON@ manage.py runserver --pythonpath=@MYRPKIDIR@ $*

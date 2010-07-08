@@ -17,6 +17,7 @@ AS_IF([test "x$with_python" = "xdetect"],
         [PYTHON=$with_python])
 AS_IF([test "x$PYTHON" = "xnone"],
         [AC_MSG_ERROR([unable to find python interpreter, use --with-python])])
+AC_MSG_RESULT([Using python interpreter at $PYTHON])
 
 AS_IF([test "x$with_myrpki" = "xno"],
         [AC_MSG_ERROR([must specify the --with-myrpki option])])
@@ -35,6 +36,8 @@ fi
 eval 'exp_datarootdir='$datarootdir
 AC_SUBST(MEDIADIR, "$exp_datarootdir/$PACKAGE_NAME/media")
 AC_SUBST(TEMPLATEDIR, "$exp_datarootdir/$PACKAGE_NAME/rpkigui/templates")
+AC_SUBST(INSTDIR, "$exp_datarootdir/$PACKAGE_NAME")
+AC_MSG_RESULT([installing portal-gui into $INSTDIR])
 
 if test "x$DATABASE_PATH" = x; then
 	eval 'exp_localstatedir='$localstatedir
@@ -53,7 +56,7 @@ AC_SUBST(CONFDIR)
 AC_SUBST(SECRET_KEY, `$PYTHON -c 'import random; print "".join([random.choice("abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)") for i in range(50)])'`)
 
 AC_CONFIG_FILES([Makefile])
-AC_CONFIG_FILES([rpkigui/settings.py rpkigui/urls.py scripts/helper])
+AC_CONFIG_FILES([rpkigui/settings.py rpkigui/urls.py scripts/helper rpkigui/django.wsgi])
 AC_CONFIG_FILES([scripts/runserver])
 
 AC_OUTPUT

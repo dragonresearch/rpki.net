@@ -517,13 +517,28 @@ class csv_reader(object):
         fields += tuple(None for i in xrange(self.columns - len(fields)))
       yield fields
 
-def csv_writer(filename):
+class csv_writer(object):
   """
   Writer object for tab delimited text.  We just use the stock CSV
   module in excel-tab mode for this.
   """
-  return csv.writer(open(filename, "w"), dialect = csv.get_dialect("excel-tab"))
 
+  def __init__(self, filename):
+    self.filename = filename
+    self.file = open(filename, "w")
+    self.writer = csv.writer(self.file, dialect = csv.get_dialect("excel-tab"))
+
+  def close(self):
+    """
+    Close this writer.
+    """
+    self.file.close()
+
+  def __getattr__(self, attr):
+    """
+    Fake inheritance from whatever object csv.writer deigns to give us.
+    """
+    return getattr(self.writer, attr)
 
 def PEMElement(e, tag, filename, **kwargs):
   """

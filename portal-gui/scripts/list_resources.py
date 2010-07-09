@@ -69,7 +69,7 @@ def query_rpkid():
     return call_rpkid(*pdus)
 
 def usage(rc):
-    print 'usage: %s [ -hvV ] [ --help ] [ --verbose ] [ --version ]' % basename(sys.argv[0])
+    print 'usage: %s [ -hvV ] [ --help ] [ --verbose ] [ --version ]' % basename(sys.argv[0],)
     sys.exit(rc)
 
 try:
@@ -113,6 +113,8 @@ for pdu in query_rpkid():
         # have we seen this parent before?
         parent_set = conf.parents.filter(handle=pdu.parent_handle)
         if not parent_set:
+            if verbose:
+                print 'creating new parent %s' % (pdu.parent_handle,)
             parent = models.Parent(conf=conf, handle=pdu.parent_handle)
             parent.save()
         else:
@@ -144,7 +146,7 @@ for pdu in query_rpkid():
                         break
                 else:
                     if verbose:
-                        print 'could not find ASN %s in known set' % ( asn, )
+                        print 'adding AS %s' % (asn,)
                     cert.asn.create(lo=asn.min, hi=asn.max)
                 cert.save()
 
@@ -162,7 +164,7 @@ for pdu in query_rpkid():
                            break
                    else:
                        if verbose:
-                           print 'could not find address range %s in known set' % (ip,)
+                           print 'adding address range %s' % (ip,)
                        cert.address_range.create(lo=lo, hi=hi)
                    cert.save()
 

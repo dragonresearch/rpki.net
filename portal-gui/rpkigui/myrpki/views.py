@@ -31,7 +31,8 @@ def handle_required(f):
             if conf.count() == 1:
                 handle = conf[0]
             elif conf.count() == 0:
-                return http.HttpResponseRedirect('/myrpki/conf/add')
+                return render('myrpki/conf_empty.html', {}, request)
+                #return http.HttpResponseRedirect('/myrpki/conf/add')
             else:
                 # Should reverse the view for this instead of hardcoding
                 # the URL.

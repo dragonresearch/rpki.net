@@ -69,7 +69,7 @@ def query_rpkid():
     return call_rpkid(*pdus)
 
 def usage(rc):
-    print 'usage: %s [ -hvV ] [ --help ] [ --verbose ] [ --version ] [ HANDLE... ]' % basename(sys.argv[0])
+    print 'usage: %s [ -hvV ] [ --help ] [ --verbose ] [ --version ]' % basename(sys.argv[0])
     sys.exit(rc)
 
 try:

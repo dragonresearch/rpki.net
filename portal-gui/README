@@ -179,12 +179,25 @@ above can manage all resource handles.  However, the portal-gui's security
 model allows the use of separate logins to manage resource handles.  Each
 resource handle needs to be configured to allow one or more users to manage
 it.  This is accomplished by using the django admin interface.
-http://<ip:port>/admin/
+
+To create additional non administrative users:
+
+	- navigate to http://<ip:port>/admin/auth/user/
+	- click on the "Add User" link at the upper right
+	- fill in the username and password fields
+	- click "Save"
 
 You can configure which users are allowed to manage a particular resource
-handle by navigating to http://<ip:port>/admin/myrpki/conf/.  Simply click
-on the handle you want to change, and select one or more users in the
-"Owner" list box and click "Save."
+handle once you have performed the "list_resources" step described above to
+populate the database:
+
+	- navigate to http://<ip:port>/admin/myrpki/conf/
+	- log in as the portal-gui superuser using the password you
+	  specified during the install step above
+	- click on the link for the handle you wish to change
+	- locate the "Owner" section
+	- select one or more users to manage the handle
+	- click on the "Save" button
 
 === Debugging Tips ===
 

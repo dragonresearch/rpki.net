@@ -328,21 +328,29 @@ def prefix_allocate_view(request, pk):
     return render('myrpki/prefix_view.html', { 'form': form,
         'addr': prefix, 'form': form, 'parent': parent_set }, request)
 
+def top_parent(prefix):
+    while prefix.parent:
+        prefix = prefix.parent
+    return prefix
+
+def find_roa(handle, prefix, asid):
+    # find all roas with prefixes from the same resource cert
+    roa_set = handle.roas.filter(asn=asid)
+    for c in top_parent(prefix).from_cert.all():
+        for r in roa_set:
+            for req in r.from_roa_request.all():
+                if c in top_parent(req.prefix).from_cert.all():
+                    return r
+    return None
+
 def add_roa_requests(handle, prefix, asns, max_length):
     for asid in asns:
         req_set = prefix.roa_requests.filter(roa__asn=asid,
                                              max_length=max_length)
         if not req_set:
-            # no req is present for this (ASN, prefix, max_length).
-
-            # find all roas with prefixes from the same resource cert
-            roa_set = handle.roas.filter(asn=asid,
-                from_roa_request__prefix__from_cert__in=prefix.from_cert.all())
-            if roa_set:
-                roa = roa_set[0]
-            else:
+            roa = find_roa(handle, prefix, asid)
+            if not roa:
                 # no roa is present for this ASN, create a new one
-                print 'creating new roa for asn %d' % (asid,)
                 roa = models.Roa.objects.create(asn=asid, conf=handle,
                         active=False)
                 roa.save()

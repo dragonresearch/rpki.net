@@ -7531,11 +7531,8 @@ pow_module_pem_read (PyObject *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "is#|s", &object_type, &src, &len, &pass))
     goto error;
 
-  if ((in = BIO_new_mem_buf(src, -1)) == NULL)
+  if ((in = BIO_new_mem_buf(src, len)) == NULL)
     lose("unable to create new BIO");
-
-  if (!BIO_write(in, src, len))
-    lose("unable to write to BIO");
 
   switch(object_type) {
   case RSA_PRIVATE_KEY:

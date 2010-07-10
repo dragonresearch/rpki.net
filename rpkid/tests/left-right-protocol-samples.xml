@@ -1072,6 +1072,7 @@
     
     <msg version="1" type="reply" xmlns="http://www.hactrn.net/uris/rpki/left-right-spec/">
 	<list_received_resources self_handle="42"
+				 parent_handle="Alice"
 				 notBefore="2010-02-22T03:44:23Z"
 				 notAfter="2011-02-21T11:03:49Z"
 				 uri="rsync://arin.rpki.net/arin/1/Du4MhiSkjd_3bPL7c2trEkJBZ-U.cer"
@@ -1080,6 +1081,7 @@
 				 asn="1280,3557"
 				 ipv4="149.20.0.0/16,192.5.4.0/23,204.152.184.0/21"/>
 	<list_received_resources self_handle="42"
+				 parent_handle="Bob"
 				 uri="rsync://arin.rpki.net/arin/1/uWqpa8GkcEDBZkEsmOEofeDKk9s.cer"
 				 notBefore="2010-02-22T03:44:20Z"
 				 notAfter="2011-02-21T11:03:49Z"

@@ -319,9 +319,15 @@
 # If you're interested in this package you might also be interested
 # in:
 #
-# @li <a href="http://viewvc.hactrn.net/subvert-rpki.hactrn.net/rcynic/">The rcynic validation tool</a>
+# @li <a href="http://track-rpki.hactrn.net/browser/rcynic/">The rcynic validation tool</a>
 #
 # @li <a href="http://www.hactrn.net/opaque/rcynic.html">A live sample of rcynic's summary output</a>
+#
+#
+# @section getting-started Getting Started
+#
+# The first step to bringing up rpkid and friends is installing the code,
+# which is described in the @ref Installation "Installation Guide".
 
 ## @page Installation Installation Guide
 #

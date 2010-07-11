@@ -140,7 +140,7 @@ def PrefixDeleteForm(prefix, *args, **kwargs):
                             'Can not delete prefix received from parent'
                 if prefix.allocated:
                     raise forms.ValidationError, 'Prefix is allocated to child'
-                if prefix.asns:
+                if prefix.roa_requests.all():
                     raise forms.ValidationError, 'Prefix is used in your ROAs'
                 if prefix.children.all():
                     raise forms.ValidationError, 'Prefix has been subdivided'

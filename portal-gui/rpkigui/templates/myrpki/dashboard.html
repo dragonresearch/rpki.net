@@ -23,17 +23,17 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 {% for cert in parent.resources.all %}
 
 {% for asn in cert.asn.all %}
-<tr><td><a href="{{ asn.get_absolute_url }}">{{ asn }}</a></td>
-<td style='text-align: center'>{{cert.not_before}}</td>
-<td style='text-align: center'>{{cert.not_after}}</td>
+<tr><td style='text-align:left'><a href="{{ asn.get_absolute_url }}">{{ asn }}</a></td>
+<td>{{cert.not_before}}</td>
+<td>{{cert.not_after}}</td>
 </tr>
 {% endfor %}
 
 {% for address in cert.address_range.all %}
-<tr><td>
-<a href="{{ address.get_absolute_url }}">{{ address }}</a>
-</td><td style='text-align: center'>{{cert.not_before}}</td>
-<td style='text-align: center'>{{cert.not_after}}</td>
+<tr>
+    <td style='text-align: left'><a href="{{ address.get_absolute_url }}">{{ address }}</a></td>
+    <td>{{cert.not_before}}</td>
+    <td>{{cert.not_after}}</td>
 </tr>
 {% endfor %}
 
@@ -77,22 +77,22 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 
 </div>
 
-<div style="border: outset">
+<div style="border: outset"> <!-- ROAs -->
 <h1 style="text-align: center">My ROA [request]s</h1>
 
 <table>
-<tr>
-<th>Prefix</th>
-<th>ASN</th>
-</tr>
+<tr> <th>Prefix</th> <th>ASN</th> </tr>
 
 {% for roa in request.session.handle.roas.all %}
-<tr><td>
+<tr>
+    <td style='text-align: left'>
+        <ul style='list-style-position: outside'>
 {% for req in roa.from_roa_request.all %}
-<li><a href="{{ req.prefix.get_absolute_url }}">{{ req.as_roa_prefix }}</a>
+            <li><a href="{{ req.prefix.get_absolute_url }}">{{ req.as_roa_prefix }}</a>
 {% endfor %}
-</td>
-<td>{{ roa.asn }}</td>
+        </ul>
+    </td>
+    <td>{{ roa.asn }}</td>
 </tr>
 {% endfor %}
 </table>
@@ -104,14 +104,14 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 <table>
     {% for asn in asns %}
 <tr>
-<td><a href="{{ asn.get_absolute_url }}">{{ asn }}</a></td>
-<td style='padding-left: 2em'> <a href="{{ asn.get_absolute_url }}/allocate">give</a></td>
+<td style='text-align: left'><a href="{{ asn.get_absolute_url }}">{{ asn }}</a></td>
+<td><a href="{{ asn.get_absolute_url }}/allocate">give</a></td>
 </tr>
     {% endfor %}
     {% for addr in ars %}
 <tr>
-<td><a href="{{ addr.get_absolute_url }}">{{ addr }}</a></td>
-<td style='padding-left: 2em'><a href="{{ addr.get_absolute_url }}/allocate">give</a>
+<td style='text-align: left'><a href="{{ addr.get_absolute_url }}">{{ addr }}</a></td>
+<td><a href="{{ addr.get_absolute_url }}/allocate">give</a>
 | <a href="{{ addr.get_absolute_url }}/split">split</a>
 | <a href="{{ addr.get_absolute_url }}/roa">roa</a></td>
 </tr>

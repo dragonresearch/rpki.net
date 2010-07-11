@@ -61,6 +61,7 @@ INSTALL_FILES=\
 	rpkigui/templates/base.html \
 	rpkigui/templates/myrpki/asn_view.html \
 	rpkigui/templates/myrpki/child_view.html \
+	rpkigui/templates/myrpki/conf_empty.html \
 	rpkigui/templates/myrpki/conf_list.html \
 	rpkigui/templates/myrpki/dashboard.html \
 	rpkigui/templates/myrpki/parent_view.html \

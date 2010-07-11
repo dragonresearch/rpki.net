@@ -211,8 +211,7 @@ def parent_import(request):
 def parent_view(request, parent_handle):
     """Detail view for a particular parent."""
     handle = request.session['handle']
-    parent = get_object_or_404(handle.parents.all(),
-            handle__exact=parent_handle)
+    parent = get_object_or_404(handle.parents, handle__exact=parent_handle)
     return render('myrpki/parent_view.html', { 'parent': parent }, request)
 
 @handle_required
@@ -249,18 +248,15 @@ def child_import(request):
 def get_parents_or_404(handle, obj):
     '''Return the Parent object(s) that the given address range derives
     from, or raise a 404 error.'''
-    while obj.parent: obj = obj.parent
-
-    cert_set = obj.from_cert.filter(parent__in=handle.parents.all())
+    cert_set = top_parent(obj).from_cert.filter(parent__in=handle.parents.all())
     if cert_set.count() == 0:
-        raise http.Http404
-
-    return handle.parents.filter(pk__in=[c.parent.pk for c in cert_set])
+        raise http.Http404, 'Object is not delegated from any parent'
+    return [c.parent for c in cert_set]
 
 @handle_required
 def address_view(request, pk):
     handle = request.session['handle']
-    obj = get_object_or_404(models.AddressRange.objects.all(), pk=pk)
+    obj = get_object_or_404(models.AddressRange.objects, pk=pk)
     # ensure this resource range belongs to a parent of the current conf
     parent_set = get_parents_or_404(handle, obj)
     
@@ -274,15 +270,16 @@ def asn_view(request, pk):
     obj = get_object_or_404(models.Asn.objects, pk=pk)
     # ensure this resource range belongs to a parent of the current conf
     parent_set = get_parents_or_404(handle, obj)
+    roas = handle.roas.filter(asn=obj.lo) # roas which contain this asn
     
     return render('myrpki/asn_view.html',
-            { 'asn': obj, 'parent': parent_set }, request)
+            { 'asn': obj, 'parent': parent_set, 'roas': roas }, request)
 
 @handle_required
 def child_view(request, child_handle):
     '''Detail view of child for the currently selected handle.'''
     handle = request.session['handle']
-    child = get_object_or_404(handle.children.all(), handle__exact=child_handle)
+    child = get_object_or_404(handle.children, handle__exact=child_handle)
 
     return render('myrpki/child_view.html', { 'child': child }, request)
 
@@ -329,12 +326,13 @@ def prefix_allocate_view(request, pk):
         'addr': prefix, 'form': form, 'parent': parent_set }, request)
 
 def top_parent(prefix):
+    '''Returns the topmost resource from which the specified argument derives'''
     while prefix.parent:
         prefix = prefix.parent
     return prefix
 
 def find_roa(handle, prefix, asid):
-    # find all roas with prefixes from the same resource cert
+    '''Find a roa with prefixes from the same resource cert.'''
     roa_set = handle.roas.filter(asn=asid)
     for c in top_parent(prefix).from_cert.all():
         for r in roa_set:
@@ -411,9 +409,8 @@ def roa_request_delete_view(request, pk):
     roa = obj.roa
     obj.delete()
     if not roa.from_roa_request.all():
-        print 'removing empty roa for asn %d' % (roa.asn,)
         roa.delete()
-        glue.configure_resources(handle)
+    glue.configure_resources(handle)
 
     return http.HttpResponseRedirect(prefix.get_absolute_url())
 

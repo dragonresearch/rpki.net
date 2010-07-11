@@ -1,5 +1,11 @@
 {% extends "base.html" %}
 
+{% block css %}
+table { border-collapse: collapse }
+th { border: solid 1px; padding: 1em }
+td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1em }
+{% endblock %}
+
 {% block content %}
 <p>Handle: <a href="/myrpki/">{{ request.session.handle }}</a>
 
@@ -38,6 +44,25 @@
 </ul>
 
 {% endif %}
+
+{% if roas %}
+<h2>ROAs</h2>
+<table>
+    <tr><th>Prefixes</th></tr>
+    {% for r in roas %}
+    <tr>
+        <td style='text-align: left'>
+            <ul>
+            {% for p in r.from_roa_request.all %}
+                <li><a href="{{ p.prefix.get_absolute_url }}">{{ p.prefix }}</a>
+            {% endfor %}
+            </ul>
+        </td>
+    </tr>
+    {% endfor %}
+    </ul>
+</table>
+{% endif %} <!-- roas -->
 
 {% if form %}
 <h2>Edit</h2>

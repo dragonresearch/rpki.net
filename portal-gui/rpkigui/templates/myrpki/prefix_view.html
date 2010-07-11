@@ -30,34 +30,35 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
     <tr><td>Validity:</td><td>{{ addr.from_cert.all.0.not_before }} - {{ addr.from_cert.all.0.not_after }} </td></tr>
 
     {% if addr.allocated %}
-    <tr><td>Allocated:</td><td><a href="{{addr.allocated.get_absolute_url}}">{{addr.allocated.handle}}</a></td></tr>
+    <tr>
+        <td>Allocated:</td>
+        <td><a href="{{addr.allocated.get_absolute_url}}">{{ addr.allocated.handle }}</a></td>
+    </tr>
     {% endif %}
 </table>
 
 {% if addr.children.count %}
 <h2>Suballocations</h2>
-
 <ul>
 {% for subaddr in addr.children.all %}
-<li><a href="{{ subaddr.get_absolute_url }}">{{ subaddr }}</a>
+    <li><a href="{{ subaddr.get_absolute_url }}">{{ subaddr }}</a>
 {% endfor %}
 </ul>
+{% endif %} <!-- suballocations -->
 
-{% endif %}
-
-{% if addr.roa_requests %}
+{% if addr.roa_requests.count %}
 <h2>ROA requests</h2>
 <table>
     <tr><th>ASN</th><th>Max Length</th></tr>
 
     {% for r in addr.roa_requests.all %}
-    <tr><td>{{ r.roa.asn }}</td>
+    <tr>
+        <td>{{ r.roa.asn }}</td>
         <td>{{ r.max_length }}</td>
-        <td><a href="{{ r.get_absolute_url }}/delete">delete</a></tr>
+        <td><a href="{{ r.get_absolute_url }}/delete">delete</a></td>
+    </tr>
     {% endfor %}
-
 </table>
-
 {% endif %} <!-- roa requests -->
 
 {% if form %}
@@ -66,7 +67,7 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
     {{ form.as_p }}
     <input type="submit">
 </form>
-{% endif %}
+{% endif %} <!-- form -->
 
 <p>Action:
 <a href="{{addr.get_absolute_url}}/split">split</a> |

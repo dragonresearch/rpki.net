@@ -92,12 +92,12 @@ few more external packages, only one of which is Python code.
 All tests should be run from the rpkid/ directories.
 
 Some of the tests require MySQL databases to store their data. To set up all
-the databases that the tests will need, run the SQL commands in rpkid/
+the databases that the tests will need, run the SQL commands in rpkid/tests/
 smoketest.setup.sql. The MySQL command line client is usually the easiest way
 to do this, eg:
 
      $ cd $top/rpkid
-     $ mysql -u root -p <smoketest.setup.sql
+     $ mysql -u root -p <tests/smoketest.setup.sql
 
 To run the tests, run "make all-tests":
 

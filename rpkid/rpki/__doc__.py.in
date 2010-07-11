@@ -398,7 +398,7 @@
 # release.
 #
 # To build these, cd to the top-level directory in the distribution,
-# type "./configure", then type "make".
+# run the configure script, then run "make":
 #
 # @verbatim
 #   $ cd $top

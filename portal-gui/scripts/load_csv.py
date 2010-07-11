@@ -90,8 +90,9 @@ def get_or_create_prefix(address_range):
 
 def do_asns():
     for child_handle, asn in csv_reader(asn_csv, columns=2):
+        asn_range = rpki.resource_set.resource_range_as.parse_str(asn)
         child = conf.children.get(handle=child_handle)
-        asn = models.Asn.objects.get(lo=asn, hi=asn,
+        asn = models.Asn.objects.get(lo=asn_range.min, hi=asn_range.max,
                 from_cert__parent__in=conf.parents.all())
         child.asn.add(asn)
 

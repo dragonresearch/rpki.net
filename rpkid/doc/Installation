@@ -58,16 +58,17 @@ special options to enable RFC 3779 support that ISC wrote under previous
 contract to ARIN. The POW (Python OpenSSL Wrapper) library is an extended copy
 of the stock POW release.
 
-To build these, cd to the top-level directory in the distribution and type
-"make".
+To build these, cd to the top-level directory in the distribution, run the
+configure script, then run "make":
 
      $ cd $top
+     $ ./configure
      $ make
 
 This should automatically build everything, in the right order, including
-staticly linking the POW extension module with the OpenSSL library to provide
-RFC 3779 support. If you get errors building POW, see the above discussion of
-Python development sources.
+linking the POW extension module with the OpenSSL library to provide RFC 3779
+support. If you get errors building POW, see the above discussion of Python
+development sources.
 
 The architecture is intended to support hardware signing modules (HSMs), but
 the code to support them has not been written.

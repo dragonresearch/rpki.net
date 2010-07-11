@@ -277,7 +277,7 @@ for o, a in opts:
   elif o in ("-d", "--debug"):
     rpki.log.use_syslog = False
 if argv:
-  raise RuntimeError, "Unexpected arguments %s" % argv
+  raise rpki.exceptions.CommandParseFailure, "Unexpected arguments %s" % argv
 
 rpki.log.init("rootd")
 

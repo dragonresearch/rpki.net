@@ -321,3 +321,8 @@ class BadROAPrefix(RPKI_Exception):
   """
   Parse failure for alleged ROA prefix string.
   """
+
+class CommandParseFailure(RPKI_Exception):
+  """
+  Failed to parse command line.
+  """

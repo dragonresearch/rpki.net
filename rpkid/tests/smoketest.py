@@ -83,7 +83,7 @@ for o, a in opts:
     yaml_script = a
 if argv:
   print __doc__
-  raise RuntimeError, "Unexpected arguments %s" % argv
+  raise rpki.exceptions.CommandParseFailure, "Unexpected arguments %s" % argv
 
 cfg = rpki.config.parser(cfg_file, "smoketest", allow_missing = True)
 

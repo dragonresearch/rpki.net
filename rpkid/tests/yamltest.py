@@ -543,11 +543,11 @@ for o, a in opts:
   elif o in ("-p", "--pidfile"):
     pidfile = a
 
-# We can't usefully process more than one YAMl file at a time, so
+# We can't usefully process more than one YAML file at a time, so
 # whine if there's more than one argument left.
 
 if len(argv) > 1:
-  raise RuntimeError, "Unexpected arguments %r" % argv
+  raise rpki.exceptions.CommandParseFailure, "Unexpected arguments %r" % argv
 
 try:
 

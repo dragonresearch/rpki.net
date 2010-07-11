@@ -61,7 +61,7 @@ for o, a in opts:
   elif o in ("-p", "--profile"):
     profile = a
 if argv:
-  raise RuntimeError, "Unexpected arguments %s" % argv
+  raise rpki.exceptions.CommandParseFailure, "Unexpected arguments %s" % argv
 
 rpki.log.init("rpkid")
 

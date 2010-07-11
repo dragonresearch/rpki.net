@@ -88,12 +88,27 @@ def get_or_create_prefix(address_range):
 
     return prefix
 
+def get_or_create_asn(asn):
+    asn_set = models.Asn.objects.filter(lo__lte=asn.min, hi__gte=asn.max,
+            from_cert__parent__in=conf.parents.all())
+    if not asn_set:
+        raise RuntimeError, '%s does not match any received AS range' % (asn,)
+    best = None
+    for a in asn_set:
+        if best is None:
+            best = a
+        elif a.lo >= best.lo and a.hi <= best.hi:
+            best = a
+    print 'best match for %s is %s' % (asn, best)
+    if best.lo != asn.min or best.hi != asn.max:
+        best = models.Asn.objects.create(lo=asn.min, hi=asn.max, parent=best)
+    return best
+
 def do_asns():
     for child_handle, asn in csv_reader(asn_csv, columns=2):
         asn_range = rpki.resource_set.resource_range_as.parse_str(asn)
         child = conf.children.get(handle=child_handle)
-        asn = models.Asn.objects.get(lo=asn_range.min, hi=asn_range.max,
-                from_cert__parent__in=conf.parents.all())
+        asn = get_or_create_asn(asn_range)
         child.asn.add(asn)
 
 def do_prefixes():

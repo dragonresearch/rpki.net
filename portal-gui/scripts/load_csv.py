@@ -100,9 +100,9 @@ def do_prefixes():
     for child_handle, prefix in csv_reader(prefix_csv, columns=2):
         child = conf.children.get(handle=child_handle)
         try:
-            rs = rpki.resource_set.resource_set_ipv4().parse_str(prefix)
-        except socket.error:
-            rs = rpki.resource_set.resource_set_ipv6().parse_str(prefix)
+            rs = rpki.resource_set.resource_range_ipv4.parse_str(prefix)
+        except ValueError, err:
+            rs = rpki.resource_set.resource_range_ipv6.parse_str(prefix)
         obj = get_or_create_prefix(rs)
         obj.allocated = child
         obj.save()
@@ -110,9 +110,9 @@ def do_prefixes():
 def do_roas():
     for prefix, asn, group in csv_reader(roa_csv, columns=3):
         try:
-            rs = rpki.resource_set.roa_prefix_set_ipv4().parse_str(prefix)
-        except socket.error:
-            rs = rpki.resource_set.roa_prefix_set_ipv6().parse_str(prefix)
+            rs = rpki.resource_set.roa_prefix_ipv4.parse_str(prefix)
+        except ValueError, err:
+            rs = rpki.resource_set.roa_prefix_ipv6.parse_str(prefix)
 
         print str(rs.min()), str(rs.max()), rs.max_prefixlen
         obj = get_or_create_prefix(rs.to_resource_range())

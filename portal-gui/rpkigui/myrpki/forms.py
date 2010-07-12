@@ -136,6 +136,9 @@ def PrefixRoaForm(prefix, *args, **kwargs):
             return self.cleaned_data['asns']
 
         def clean(self):
+            if not prefix.is_prefix():
+                raise forms.ValidationError, \
+                        '%s can not be represented as a prefix.' % (prefix,)
             if prefix.allocated:
                 raise forms.ValidationError, \
                         'Prefix is allocated to a child.'

@@ -19,7 +19,7 @@ from django import forms
 
 import rpki.ipaddrs
 
-from rpkigui.myrpki import models
+from rpkigui.myrpki import models, misc
 from rpkigui.myrpki.asnset import asnset
 
 class AddConfForm(forms.Form):
@@ -49,60 +49,80 @@ class ImportForm(forms.Form):
     handle = forms.CharField()
     xml = forms.FileField()
 
-def PrefixSplitForm(prefix, *args, **kwargs):
+def PrefixSplitForm(parent, *args, **kwargs):
     class _wrapper(forms.Form):
-        lo = forms.IPAddressField()
-        hi = forms.IPAddressField()
-
-        def clean_lo(self):
-            lo = self.cleaned_data.get('lo')
-            # convert from string to long representation
-            try:
-                loaddr = rpki.ipaddrs.parse(lo)
-            except socket.error:
-                raise forms.ValidationError, 'Invalid IP address string'
-            pfx_loaddr = rpki.ipaddrs.parse(prefix.lo)
-            pfx_hiaddr = rpki.ipaddrs.parse(prefix.hi)
-            if type(loaddr) != type(pfx_hiaddr):
-                raise forms.ValidationError, \
-                        'Not the same IP address type as parent'
-            if loaddr < pfx_loaddr or loaddr > pfx_hiaddr:
-                raise forms.ValidationError, \
-                        'Value out of range of parent prefix'
-            return lo
-
-        def clean_hi(self):
-            hi = self.cleaned_data.get('hi')
-            # convert from string to long representation
-            try:
-                hiaddr = rpki.ipaddrs.parse(hi)
-            except socket.error:
-                raise forms.ValidationError, 'Invalid IP address string'
-            pfx_loaddr = rpki.ipaddrs.parse(prefix.lo)
-            pfx_hiaddr = rpki.ipaddrs.parse(prefix.hi)
-            if type(hiaddr) != type(pfx_loaddr):
-                raise forms.ValidationError, \
-                        'Not the same IP address type as parent'
-            if hiaddr < pfx_loaddr or hiaddr > pfx_hiaddr:
-                raise forms.ValidationError, \
-                        'Value out of range of parent prefix'
-            return hi
+        prefix = forms.CharField(max_length=200, help_text='CIDR or range')
 
         def clean(self):
-            hi = self.cleaned_data.get('hi')
-            lo = self.cleaned_data.get('lo')
-            # hi or lo may be None if field validation failed
-            if hi and lo:
-                # convert from string to long representation
-                hiaddr = rpki.ipaddrs.parse(hi)
-                loaddr = rpki.ipaddrs.parse(lo)
-                if hiaddr < loaddr:
-                    raise forms.ValidationError, 'Hi value is smaller than Lo'
-                if prefix.allocated:
-                    raise forms.ValidationError, 'Prefix is assigned to child'
+            p = self.cleaned_data.get('prefix')
+            try:
+                r = misc.parse_resource_range(p)
+            except ValueError, err:
+                print err
+                raise forms.ValidationError, 'invalid prefix or range'
+            pr = parent.as_resource_range()
+            if r.min < pr.min or r.max > pr.max:
+                raise forms.ValidationError, \
+                        'range is outside parent range'
+            if parent.allocated:
+                raise forms.ValidationError, 'Prefix is assigned to child'
             return self.cleaned_data
-
     return _wrapper(*args, **kwargs)
+
+#def PrefixSplitForm(prefix, *args, **kwargs):
+#    class _wrapper(forms.Form):
+#        lo = forms.IPAddressField()
+#        hi = forms.IPAddressField()
+#
+#        def clean_lo(self):
+#            lo = self.cleaned_data.get('lo')
+#            # convert from string to long representation
+#            try:
+#                loaddr = rpki.ipaddrs.parse(lo)
+#            except socket.error:
+#                raise forms.ValidationError, 'Invalid IP address string'
+#            pfx_loaddr = rpki.ipaddrs.parse(prefix.lo)
+#            pfx_hiaddr = rpki.ipaddrs.parse(prefix.hi)
+#            if type(loaddr) != type(pfx_hiaddr):
+#                raise forms.ValidationError, \
+#                        'Not the same IP address type as parent'
+#            if loaddr < pfx_loaddr or loaddr > pfx_hiaddr:
+#                raise forms.ValidationError, \
+#                        'Value out of range of parent prefix'
+#            return lo
+#
+#        def clean_hi(self):
+#            hi = self.cleaned_data.get('hi')
+#            # convert from string to long representation
+#            try:
+#                hiaddr = rpki.ipaddrs.parse(hi)
+#            except socket.error:
+#                raise forms.ValidationError, 'Invalid IP address string'
+#            pfx_loaddr = rpki.ipaddrs.parse(prefix.lo)
+#            pfx_hiaddr = rpki.ipaddrs.parse(prefix.hi)
+#            if type(hiaddr) != type(pfx_loaddr):
+#                raise forms.ValidationError, \
+#                        'Not the same IP address type as parent'
+#            if hiaddr < pfx_loaddr or hiaddr > pfx_hiaddr:
+#                raise forms.ValidationError, \
+#                        'Value out of range of parent prefix'
+#            return hi
+#
+#        def clean(self):
+#            hi = self.cleaned_data.get('hi')
+#            lo = self.cleaned_data.get('lo')
+#            # hi or lo may be None if field validation failed
+#            if hi and lo:
+#                # convert from string to long representation
+#                hiaddr = rpki.ipaddrs.parse(hi)
+#                loaddr = rpki.ipaddrs.parse(lo)
+#                if hiaddr < loaddr:
+#                    raise forms.ValidationError, 'Hi value is smaller than Lo'
+#                if prefix.allocated:
+#                    raise forms.ValidationError, 'Prefix is assigned to child'
+#            return self.cleaned_data
+#
+#    return _wrapper(*args, **kwargs)
 
 def PrefixAllocateForm(iv, child_set, *args, **kwargs):
     class _wrapper(forms.Form):

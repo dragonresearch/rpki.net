@@ -69,12 +69,18 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 </form>
 {% endif %} <!-- form -->
 
-<p>Action:
-<a href="{{addr.get_absolute_url}}/split">split</a> |
-<a href="{{addr.get_absolute_url}}/allocate">give to child</a> |
-{% if addr.is_prefix %}
-<a href="{{addr.get_absolute_url}}/roa">roa</a> |
+<p>Action:<br>
+{% if not addr.allocated %}
+<a href="{{addr.get_absolute_url}}/split">split</a><br>
 {% endif %}
-<a href="{{addr.get_absolute_url}}/delete">delete</a>
+{% if not addr.roa_requests.all %}
+<a href="{{addr.get_absolute_url}}/allocate">give to child</a><br>
+{% endif %}
+{% if addr.is_prefix and not addr.allocated %}
+<a href="{{ addr.get_absolute_url }}/roa">roa</a><br>
+{% endif %}
+{% if not addr.allocated and addr.parent %}
+<a href="{{ addr.get_absolute_url }}/delete">delete</a><br>
+{% endif %}
 
 {% endblock %}

@@ -26,9 +26,7 @@ from django.db import IntegrityError
 from django import http
 from django.views.generic.list_detail import object_list
 
-from rpkigui.myrpki import models
-from rpkigui.myrpki import forms
-from rpkigui.myrpki import glue
+from rpkigui.myrpki import models, forms, glue, misc
 from rpkigui.myrpki.asnset import asnset
 
 # For each type of object, we have a detail view, a create view and
@@ -308,8 +306,11 @@ def prefix_split_view(request, pk):
     if request.method == 'POST':
         form = forms.PrefixSplitForm(prefix, request.POST)
         if form.is_valid():
-            obj = models.AddressRange(lo=form.cleaned_data['lo'],
-                    hi=form.cleaned_data['hi'], parent=prefix)
+            r = misc.parse_resource_range(form.cleaned_data['prefix'])
+            obj = models.AddressRange(lo=str(r.min), hi=str(r.max),
+                                      parent=prefix)
+            #obj = models.AddressRange(lo=form.cleaned_data['lo'],
+            #        hi=form.cleaned_data['hi'], parent=prefix)
             obj.save()
             return http.HttpResponseRedirect(obj.get_absolute_url())
     else:

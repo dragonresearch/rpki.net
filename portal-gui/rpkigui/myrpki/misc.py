@@ -28,4 +28,14 @@ def str_to_range(lo, hi):
     else:
         return rpki.resource_set.resource_range_ipv6(x, y)
 
+def parse_resource_range(s):
+    '''Parse an IPv4/6 resource range.'''
+    # resource_set functions only accept str
+    if isinstance(s, unicode):
+        s = s.encode()
+    try:
+        return rpki.resource_set.resource_range_ipv4.parse_str(s)
+    except ValueError:
+        return rpki.resource_set.resource_range_ipv6.parse_str(s)
+
 # vim:sw=4 ts=8 expandtab

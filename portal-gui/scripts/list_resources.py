@@ -22,6 +22,13 @@
 #
 # This script should be run in the directory containing the myrpki.conf
 # for the handle that is self-hosting rpkid.
+#
+# Exit values:
+# 0     success, no errors
+# 1     fatal error
+# 2     usage error
+# 3     did not receive all <list_received_resources/> responses, try again
+#       later
 
 import sys
 import os
@@ -65,15 +72,20 @@ def query_rpkid():
         url         = rpkid_base + "left-right",
         debug = verbose))
 
-    # retrieve the list of <self/> handles served by this rpkid
+    if verbose:
+        print 'retrieving the list of <self/> handles served by this rpkid'
     rpkid_reply = call_rpkid(rpki.left_right.self_elt.make_pdu(action="list"))
 
     # retrieve info about each handle
     pdus = []
+    handles = []
     for h in rpkid_reply:
         assert isinstance(h, rpki.left_right.self_elt)
         if verbose:
-            print 'adding %s to query' % (h.self_handle,)
+            print 'adding handle %s to query' % (h.self_handle,)
+        # keep a list of the handles served by rpkid so that we may check that
+        # all expected responses are received.
+        handles.append(h.self_handle)
         pdus.extend(
             [rpki.left_right.child_elt.make_pdu(action="list", self_handle=h.self_handle),
              rpki.left_right.list_received_resources_elt.make_pdu(self_handle=h.self_handle)
@@ -81,7 +93,9 @@ def query_rpkid():
              #rpki.left_right.list_roa_requests_elt.make_pdu(tag='roas', self_handle=handle),
             ])
 
-    return call_rpkid(*pdus)
+    if verbose:
+        print 'querying for children and resources'
+    return handles, call_rpkid(*pdus)
 
 def usage(rc):
     print 'usage: %s [ -hvV ] [ --help ] [ --verbose ] [ --version ]' % basename(sys.argv[0],)
@@ -91,7 +105,7 @@ try:
     opts, args = getopt.getopt(sys.argv[1:], 'hvV', [ 'help', 'verbose', 'version'])
 except getopt.GetoptError, err:
     print str(err)
-    usage(1)
+    usage(2)
 
 for o,a in opts:
     if o in ('-h', '--help'):
@@ -102,7 +116,9 @@ for o,a in opts:
         print basename(sys.argv[0]), version
         sys.exit(0)
 
-for pdu in query_rpkid():
+handles, pdus = query_rpkid()
+seen = set() # which handles we got <list_received_resources/> responses
+for pdu in pdus:
     conf_set = models.Conf.objects.filter(handle=pdu.self_handle)
     if conf_set.count():
         conf = conf_set[0]
@@ -125,6 +141,8 @@ for pdu in query_rpkid():
     #elif isinstance(x, rpki.left_right.list_roa_requests_elt):
     #    print x.asn, x.ipv4, x.ipv6
     elif isinstance(pdu, rpki.left_right.list_received_resources_elt):
+        # keep track of handles we got replies for
+        set.add(pdu.self_handle)
         # have we seen this parent before?
         parent_set = conf.parents.filter(handle=pdu.parent_handle)
         if not parent_set:
@@ -185,5 +203,13 @@ for pdu in query_rpkid():
 
         add_missing_address(rpki.resource_set.resource_set_ipv4(pdu.ipv4))
         add_missing_address(rpki.resource_set.resource_set_ipv6(pdu.ipv6))
+
+# verify that we got responses for all expected handles
+for h in handles:
+    if h not in seen:
+        print >>sys.stderr, 'error: did not receive response for handle %s' % (h,)
+        sys.exit(3)
+
+sys.exit(0) # success
 
 # vim:sw=4 expandtab ts=4

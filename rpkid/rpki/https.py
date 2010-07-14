@@ -77,8 +77,13 @@ default_tcp_port = 443
 
 ## @var enable_ipv6_servers
 # Whether to enable IPv6 listeners.  Enabled by default, as it should
-# be harmless.  Has no effect if kernel doesn't support IPv6.
-enable_ipv6_servers = True
+# be harmless, except on Linux, where the network stack is so messed
+# up that the only way to tell the difference between "normal"
+# behavior and port conflict with another server is by checking some
+# magic file off on the /proc filesystem to find out what the
+# EADDRINUSE error code means today on this system.  Maybe.
+# Has no effect if kernel doesn't support IPv6.
+enable_ipv6_servers = not sys.platform.startswith("linux")
 
 ## @var enable_ipv6_clients
 # Whether to consider IPv6 addresses when making connections.
@@ -769,10 +774,11 @@ class http_listener(asyncore.dispatcher):
         self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
       self.bind(sockaddr)
       self.listen(5)
-    except (rpki.async.ExitNow, SystemExit):
-      raise
     except:
-      self.handle_error()
+      self.log("Couldn't set up HTTP listener", rpki.log.warn)
+      rpki.log.traceback()
+      self.close()
+      raise
     self.log("Listening on %r, handlers %r" % (sockaddr, handlers))
 
   def handle_accept(self):
@@ -794,12 +800,10 @@ class http_listener(asyncore.dispatcher):
     """
     Asyncore signaled an error, pass it along or log it.
     """
-    if sys.exc_info()[0] is SystemExit:
-      self.log("Caught SystemExit, propagating")
+    if sys.exc_info()[0] in (SystemExit, rpki.async.ExitNow):
       raise
-    else:
-      self.log("Error in HTTP listener", rpki.log.warn)
-      rpki.log.traceback()
+    self.log("Error in HTTP listener", rpki.log.warn)
+    rpki.log.traceback()
 
 class http_client(http_stream):
   """
@@ -1145,7 +1149,7 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback):
     rpki.log.debug("Scheduling connection startup for %r" % request)
   rpki.async.defer(client_queues[hostport].restart)
 
-def server(handlers, server_key, server_cert, port, host ="", client_ta = (), dynamic_https_trust_anchor = None):
+def server(handlers, server_key, server_cert, port, host = "", client_ta = (), dynamic_https_trust_anchor = None):
   """
   Run an HTTPS server and wait (forever) for connections.
   """
@@ -1156,13 +1160,26 @@ def server(handlers, server_key, server_cert, port, host ="", client_ta = (), dy
   if not isinstance(client_ta, (tuple, list)):
     client_ta = (client_ta,)
 
+  # Yes, this is sick.  So is getaddrinfo() returning duplicate
+  # records, which RedHat has the gall to claim is a feature.
+  ai = []
   for af in supported_address_families(enable_ipv6_servers):
     try:
-      for addrinfo in socket.getaddrinfo(host if host else "::" if have_ipv6 and af == socket.AF_INET6 else "0.0.0.0",
-                                         port, af, socket.SOCK_STREAM):
-        http_listener(addrinfo = addrinfo, handlers = handlers, cert = server_cert, key = server_key, ta = client_ta, dynamic_ta = dynamic_https_trust_anchor)
-    except socket.gaierror, e:
-      rpki.log.info("getaddrinfo() error for AF %d, host %s, port %s, skipping address family: %s" % (af, host, port, e))
+      if host:
+        h = host
+      elif have_ipv6 and af == socket.AF_INET6:
+        h = "::"
+      else:
+        h = "0.0.0.0"
+      for a in socket.getaddrinfo(h, port, af, socket.SOCK_STREAM):
+        if a not in ai:
+          ai.append(a)
+    except socket.gaierror:
+      pass
+
+  for a in ai:
+    http_listener(addrinfo = a, handlers = handlers, cert = server_cert, key = server_key, ta = client_ta, dynamic_ta = dynamic_https_trust_anchor)
+
   rpki.async.event_loop()
 
 def build_https_ta_cache(certs):

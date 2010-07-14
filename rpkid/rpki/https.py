@@ -77,13 +77,8 @@ default_tcp_port = 443
 
 ## @var enable_ipv6_servers
 # Whether to enable IPv6 listeners.  Enabled by default, as it should
-# be harmless, except on Linux, where the network stack is so messed
-# up that the only way to tell the difference between "normal"
-# behavior and port conflict with another server is by checking some
-# magic file off on the /proc filesystem to find out what the
-# EADDRINUSE error code means today on this system.  Maybe.
-# Has no effect if kernel doesn't support IPv6.
-enable_ipv6_servers = not sys.platform.startswith("linux")
+# be harmless.  Has no effect if kernel doesn't support IPv6.
+enable_ipv6_servers = True
 
 ## @var enable_ipv6_clients
 # Whether to consider IPv6 addresses when making connections.
@@ -105,6 +100,8 @@ use_adns = False
 # automatically by probing using the socket() system call at runtime.
 try:
   socket.socket(socket.AF_INET6).close()
+  socket.IPPROTO_IPV6
+  socket.IPV6_V6ONLY
 except:
   have_ipv6 = False
 else:
@@ -770,15 +767,18 @@ class http_listener(asyncore.dispatcher):
       af, socktype, proto, canonname, sockaddr = addrinfo
       self.create_socket(af, socktype)
       self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-      if hasattr(socket, "SO_REUSEPORT"):
+      try:
         self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+      except AttributeError:
+        pass
+      if have_ipv6 and af == socket.AF_INET6:
+        self.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
       self.bind(sockaddr)
       self.listen(5)
     except:
       self.log("Couldn't set up HTTP listener", rpki.log.warn)
       rpki.log.traceback()
       self.close()
-      raise
     self.log("Listening on %r, handlers %r" % (sockaddr, handlers))
 
   def handle_accept(self):

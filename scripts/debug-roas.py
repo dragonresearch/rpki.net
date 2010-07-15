@@ -58,14 +58,17 @@ class main(object):
     rpki.log.init("debug-roas")
 
     cfg_file = "rpkid.conf"
+    verbose = 0
 
-    opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
+    opts, argv = getopt.getopt(sys.argv[1:], "c:hv?", ["config=", "help", "verbose"])
     for o, a in opts:
       if o in ("-h", "--help", "-?"):
         print __doc__
         sys.exit(0)
       elif o in ("-c", "--config"):
         cfg_file = a
+      elif o in ("-v", "--verbose"):
+        verbose += 1
     if argv:
       raise rpki.exceptions.CommandParseFailure, "Unexpected arguments %s" % argv
 
@@ -81,9 +84,11 @@ class main(object):
 
         if r.roa is None:
           print "  No CMS object"
-        else:
-          print "  %s" % r.roa.get_POW().pprint()
-
+          if verbose:
+            print
+        elif verbose:
+          if verbose > 1:
+            print "  %s" % r.roa.get_POW().pprint()
           print "  asID %s" % (r.roa.extract().asID.get(),)
           for f in r.roa.get_content().ipAddrBlocks:
             t = self._afi_map[f.addressFamily.get()].resource_set_type.range_type.datum_type
@@ -96,10 +101,13 @@ class main(object):
                 print "   %s/%s" % (p, l)
               else:
                 print "   %s/%s-%s" % (p, l, m)
+          print
 
         if r.cert is None:
           print "  No EE certificate"
-        else:
+          if verbose:
+            print
+        elif verbose > 1:
           print "  EE %s" % r.cert.get_POW().pprint()
 
 

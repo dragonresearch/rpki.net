@@ -486,6 +486,14 @@ class self_elt(data_elt):
 
       self.gctx.checkpoint()
 
+      if self.gctx.sql.dirty:
+        rpki.log.warn("Unexpected dirty SQL cache, flushing")
+        self.gctx.sql.sweep()
+
+      ## @todo
+      # This doesn't look right, <asn, prefixlist> may not be unique
+      # during some transient states.  Need rewriting.
+      #
       roas = dict(((r.asn, str(r.ipv4), str(r.ipv6)), r) for r in self.roas())
 
       publisher = rpki.rpki_engine.publication_queue()

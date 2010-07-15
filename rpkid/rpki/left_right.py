@@ -492,9 +492,13 @@ class self_elt(data_elt):
 
       for roa_request in roa_requests:
         try:
-          roa = roas.pop((roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6)), None)
+          k = (roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6))
+          roa = roas.pop(k, None)
           if roa is None:
             roa = rpki.rpki_engine.roa_obj(self.gctx, self.self_id, roa_request.asn, roa_request.ipv4, roa_request.ipv6)
+            rpki.log.debug("Couldn't find existing ROA matching %r, created %r" % (k, roa))
+          else:
+            rpki.log.debug("Found existing ROA %r matching %r" % (roa, k))
           roa.update(publisher = publisher)
         except (SystemExit, rpki.async.ExitNow):
           raise

@@ -189,7 +189,7 @@ CREATE TABLE revoked_cert (
 
 CREATE TABLE roa (
         roa_id                  SERIAL NOT NULL,
-        asn                     BIGINT UNSIGNED,
+        asn                     BIGINT UNSIGNED NOT NULL,
         cert                    LONGBLOB NOT NULL,
         roa                     LONGBLOB NOT NULL,
         published               DATETIME,

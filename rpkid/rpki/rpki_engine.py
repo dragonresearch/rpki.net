@@ -1214,29 +1214,40 @@ class roa_obj(rpki.sql.sql_persistent):
     Bring this roa_obj's ROA up to date if necesssary.
     """
 
+    v4 = self.ipv4.to_resource_set() if self.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
+    v6 = self.ipv6.to_resource_set() if self.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
+
+    me = "<%s %s>" % (self.asn, ("%s,%s" % (v4, v6)).strip(","))
+
     if self.roa is None:
+      rpki.log.debug("ROA doesn't exist, generating %s" % me)
       return self.generate(publisher = publisher)
 
     ca_detail = self.ca_detail()
 
-    if ca_detail is None or ca_detail.state != "active":
+    if ca_detail is None:
+      rpki.log.debug("ROA has no associated ca_detail, generating %s" % me)
+      return self.generate(publisher = publisher)
+
+    if ca_detail.state != "active":
+      rpki.log.debug("ROA's associated ca_detail not active (state %r), regenerating %s" % (ca_detail.state, me))
       return self.regenerate(publisher = publisher)
 
-    regen_margin = rpki.sundial.timedelta(seconds = self.self().regen_margin)
+    regen_time = self.cert.getNotAfter() - rpki.sundial.timedelta(seconds = self.self().regen_margin)
 
-    if rpki.sundial.now() + regen_margin > self.cert.getNotAfter():
+    if rpki.sundial.now() > regen_time:
+      rpki.log.debug("ROA past threshold %s, regenerating %s" % (regen_time, me))
       return self.regenerate(publisher = publisher)
 
     ca_resources = ca_detail.latest_ca_cert.get_3779resources()
     ee_resources = self.cert.get_3779resources()
 
     if ee_resources.oversized(ca_resources):
+      rpki.log.debug("ROA oversized with respect to CA, regenerating %s" % me)
       return self.regenerate(publisher = publisher)
 
-    v4 = self.ipv4.to_resource_set() if self.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
-    v6 = self.ipv6.to_resource_set() if self.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
-
     if ee_resources.v4 != v4 or ee_resources.v6 != v6:
+      rpki.log.debug("ROA resources do not match EE, regenerating %s" % me)
       return self.regenerate(publisher = publisher)
 
   def generate(self, publisher):

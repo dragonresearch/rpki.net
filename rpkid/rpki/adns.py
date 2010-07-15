@@ -35,9 +35,16 @@ OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 """
 
 import asyncore, socket, time, sys
-import dns.resolver, dns.rdatatype, dns.rdataclass, dns.name, dns.message
-import dns.inet, dns.exception, dns.query, dns.rcode, dns.ipv4, dns.ipv6
 import rpki.async, rpki.sundial, rpki.log
+
+try:
+  import dns.resolver, dns.rdatatype, dns.rdataclass, dns.name, dns.message
+  import dns.inet, dns.exception, dns.query, dns.rcode, dns.ipv4, dns.ipv6
+except ImportError:
+  if __name__ == "__main__":
+    sys.exit("DNSPython not available, skipping rpki.adns unit test")
+  else:
+    raise
 
 ## @var resolver
 # Resolver object, shared by everything using this module
@@ -319,22 +326,49 @@ if __name__ == "__main__":
   rpki.log.use_syslog = False
   print "Some adns tests may take a minute or two, please be patient"
 
-  def done(result):
-    for rdata in result:
-      print rdata
+  class test_getaddrinfo(object):
 
-  def lose(e):
-    print "DNS lookup failed: %r" % e
+    def __init__(self, qname):
+      self.qname = qname
+      getaddrinfo(self.done, self.lose, qname)
+
+    def done(self, result):
+      print "getaddrinfo(%s) returned: %s" % (
+        self.qname,
+        ", ".join(str(r) for r in result))
+
+    def lose(self, e):
+      print "getaddrinfo(%s) failed: %r" % (self.qname, e)
+
+  class test_query(object):
+
+    def __init__(self, qname, qtype = dns.rdatatype.A, qclass = dns.rdataclass.IN):
+      self.qname = qname
+      self.qtype = qtype
+      self.qclass = qclass
+      query(self.done, self.lose, qname, qtype = qtype, qclass = qclass)
+
+    def done(self, q, result):
+      print "query(%s, %s, %s) returned: %s" % (
+        self.qname,
+        dns.rdatatype.to_text(self.qtype),
+        dns.rdataclass.to_text(self.qclass),
+        ", ".join(str(r) for r in result))
+
+    def lose(self, q, e):
+      print "getaddrinfo(%s, %s, %s) failed: %r" % (
+        self.qname,
+        dns.rdatatype.to_text(self.qtype),
+        dns.rdataclass.to_text(self.qclass),
+        e)
 
   if True:
-    def done2(q, result): done(result)
-    def lose2(q, e): lose(e)
     for qtype in (dns.rdatatype.A, dns.rdatatype.AAAA, dns.rdatatype.HINFO):
-      query(done2, lose2, "subvert-rpki.hactrn.net", qtype)
-    query(done2, lose2, "wibble.hactrn.net")
-    query(done2, lose2, "subvert-rpki.hactrn.net", qclass = dns.rdataclass.CH)
+      test_query("subvert-rpki.hactrn.net", qtype)
+    test_query("nonexistant.rpki.net")
+    test_query("subvert-rpki.hactrn.net", qclass = dns.rdataclass.CH)
 
-  for host in ("subvert-rpki.hactrn.net", "www.rpki.net"):
-    getaddrinfo(done, lose, host)
+  for host in ("subvert-rpki.hactrn.net", "nonexistant.rpki.net"):
+    test_getaddrinfo(host)
 
   rpki.async.event_loop()

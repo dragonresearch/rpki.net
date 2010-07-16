@@ -1209,7 +1209,7 @@ class roa_obj(rpki.sql.sql_persistent):
     #
     #if self_id or asn or ipv4 or ipv6: self.sql_mark_dirty()
 
-  def update(self, publisher):
+  def update(self, publisher, fast = False):
     """
     Bring this roa_obj's ROA up to date if necesssary.
     """
@@ -1221,36 +1221,36 @@ class roa_obj(rpki.sql.sql_persistent):
 
     if self.roa is None:
       rpki.log.debug("ROA doesn't exist, generating %s" % me)
-      return self.generate(publisher = publisher)
+      return self.generate(publisher = publisher, fast = fast)
 
     ca_detail = self.ca_detail()
 
     if ca_detail is None:
       rpki.log.debug("ROA has no associated ca_detail, generating %s" % me)
-      return self.generate(publisher = publisher)
+      return self.generate(publisher = publisher, fast = fast)
 
     if ca_detail.state != "active":
       rpki.log.debug("ROA's associated ca_detail not active (state %r), regenerating %s" % (ca_detail.state, me))
-      return self.regenerate(publisher = publisher)
+      return self.regenerate(publisher = publisher, fast = fast)
 
     regen_time = self.cert.getNotAfter() - rpki.sundial.timedelta(seconds = self.self().regen_margin)
 
     if rpki.sundial.now() > regen_time:
       rpki.log.debug("ROA past threshold %s, regenerating %s" % (regen_time, me))
-      return self.regenerate(publisher = publisher)
+      return self.regenerate(publisher = publisher, fast = fast)
 
     ca_resources = ca_detail.latest_ca_cert.get_3779resources()
     ee_resources = self.cert.get_3779resources()
 
     if ee_resources.oversized(ca_resources):
       rpki.log.debug("ROA oversized with respect to CA, regenerating %s" % me)
-      return self.regenerate(publisher = publisher)
+      return self.regenerate(publisher = publisher, fast = fast)
 
     if ee_resources.v4 != v4 or ee_resources.v6 != v6:
       rpki.log.debug("ROA resources do not match EE, regenerating %s" % me)
-      return self.regenerate(publisher = publisher)
+      return self.regenerate(publisher = publisher, fast = fast)
 
-  def generate(self, publisher):
+  def generate(self, publisher, fast = False):
     """
     Generate a ROA.
 
@@ -1269,6 +1269,9 @@ class roa_obj(rpki.sql.sql_persistent):
     private key for the EE cert, all per the ROA specification.  This
     implies that generating a lot of ROAs will tend to thrash
     /dev/random, but there is not much we can do about that.
+
+    If fast is set, we leave generating the new manifest for our
+    caller to handle, presumably at the end of a bulk operation.
     """
 
     if self.ipv4 is None and self.ipv6 is None:
@@ -1314,7 +1317,8 @@ class roa_obj(rpki.sql.sql_persistent):
 
     rpki.log.debug("Generating ROA %r" % self.uri())
     publisher.publish(cls = rpki.publication.roa_elt, uri = self.uri(), obj = self.roa, repository = ca.parent().repository(), handler = self.published_callback)
-    ca_detail.generate_manifest(publisher = publisher)
+    if not fast:
+      ca_detail.generate_manifest(publisher = publisher)
 
   def published_callback(self, pdu):
     """
@@ -1324,7 +1328,7 @@ class roa_obj(rpki.sql.sql_persistent):
     self.published = None
     self.sql_mark_dirty()
 
-  def revoke(self, publisher, regenerate = False, allow_failure = False):
+  def revoke(self, publisher, regenerate = False, allow_failure = False, fast = False):
     """
     Withdraw ROA associated with this roa_obj.
 
@@ -1334,6 +1338,10 @@ class roa_obj(rpki.sql.sql_persistent):
 
     If allow_failure is set, failing to withdraw the ROA will not be
     considered an error.
+
+    If fast is set, SQL actions will be deferred, on the assumption
+    that our caller will handle regenerating CRL and manifest and
+    flushing the SQL cache.
     """
 
     ca_detail = self.ca_detail()
@@ -1345,25 +1353,26 @@ class roa_obj(rpki.sql.sql_persistent):
       self.ca_detail_id = None
 
     if regenerate:
-      self.generate(publisher = publisher)
+      self.generate(publisher = publisher, fast = fast)
 
     rpki.log.debug("Withdrawing ROA %r and revoking its EE cert" % uri)
     rpki.rpki_engine.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
     publisher.withdraw(cls = rpki.publication.roa_elt, uri = uri, obj = roa, repository = ca_detail.ca().parent().repository(),
                        handler = False if allow_failure else None)
-    self.gctx.sql.sweep()
-    ca_detail.generate_crl(publisher = publisher)
-    ca_detail.generate_manifest(publisher = publisher)
-    self.sql_delete()
+    self.sql_mark_deleted()
+    if not fast:
+      ca_detail.generate_crl(publisher = publisher)
+      ca_detail.generate_manifest(publisher = publisher)
+      self.gctx.sql.sweep()
 
-  def regenerate(self, publisher):
+  def regenerate(self, publisher, fast = False):
     """
     Reissue ROA associated with this roa_obj.
     """
     if self.ca_detail() is None:
-      self.generate(publisher = publisher)
+      self.generate(publisher = publisher, fast = fast)
     else:
-      self.revoke(publisher = publisher, regenerate = True)
+      self.revoke(publisher = publisher, regenerate = True, fast = fast)
 
   def uri(self, key = None):
     """

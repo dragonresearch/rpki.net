@@ -504,6 +504,7 @@ class self_elt(data_elt):
           orphans.append(roa)
 
       publisher = rpki.rpki_engine.publication_queue()
+      ca_details = set()
 
       for roa_request in roa_requests:
         try:
@@ -514,7 +515,8 @@ class self_elt(data_elt):
             rpki.log.debug("Couldn't find existing ROA matching %r, created %r" % (k, roa))
           else:
             rpki.log.debug("Found existing ROA %r matching %r" % (roa, k))
-          roa.update(publisher = publisher)
+          roa.update(publisher = publisher, fast = True)
+          ca_details.add(roa.ca_detail())
         except (SystemExit, rpki.async.ExitNow):
           raise
         except Exception, e:
@@ -525,12 +527,19 @@ class self_elt(data_elt):
       orphans.extend(roas.itervalues())
       for roa in orphans:
         try:
-          roa.revoke(publisher = publisher)
+          ca_details.add(roa.ca_detail())
+          roa.revoke(publisher = publisher, fast = True)
         except (SystemExit, rpki.async.ExitNow):
           raise
         except Exception, e:
           rpki.log.traceback()
           rpki.log.warn("Could not revoke ROA %r: %s" % (roa, e))
+
+      for ca_detail in ca_details:
+        ca_detail.generate_crl(publisher = publisher)
+        ca_detail.generate_manifest(publisher = publisher)
+
+      self.gctx.sql.sweep()
 
       def publication_failed(e):
         rpki.log.traceback()

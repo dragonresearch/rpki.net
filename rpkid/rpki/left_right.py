@@ -490,11 +490,18 @@ class self_elt(data_elt):
         rpki.log.warn("Unexpected dirty SQL cache, flushing")
         self.gctx.sql.sweep()
 
-      ## @todo
-      # This doesn't look right, <asn, prefixlist> may not be unique
-      # during some transient states.  Need rewriting.
-      #
-      roas = dict(((r.asn, str(r.ipv4), str(r.ipv6)), r) for r in self.roas())
+      roas = {}
+      orphans = []
+      for roa in self.roas():
+        k = (roa.asn, str(roa.ipv4), str(roa.ipv6))
+        if k not in roas:
+          roas[k] = roa
+        elif (roa.roa is not None and roa.cert is not None and roa.ca_detail() is not None and roa.ca_detail().state == "active" and
+              (roas[k].roa is None or roas[k].cert is None or roas[k].ca_detail() is None or roas[k].ca_detail().state != "active")):
+          orphans.append(roas[k])
+          roas[k] = roa
+        else:
+          orphans.append(roa)
 
       publisher = rpki.rpki_engine.publication_queue()
 
@@ -515,11 +522,8 @@ class self_elt(data_elt):
             rpki.log.traceback()
           rpki.log.warn("Could not update ROA %r, %r, skipping: %s" % (roa_request, roa, e))
 
-      # Any roa_obj entries still in the dict at this point are
-      # orphans that no longer correspond to a roa_request, so clean
-      # them up.
-
-      for roa in roas.values():
+      orphans.extend(roas.itervalues())
+      for roa in orphans:
         try:
           roa.revoke(publisher = publisher)
         except (SystemExit, rpki.async.ExitNow):

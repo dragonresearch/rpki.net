@@ -267,6 +267,7 @@ class sql_persistent(object):
   def sql_mark_deleted(self):
     """Mark this object as needing to be deleted in SQL."""
     self.sql_deleted = True
+    self.sql_mark_dirty()
 
   def sql_store(self):
     """

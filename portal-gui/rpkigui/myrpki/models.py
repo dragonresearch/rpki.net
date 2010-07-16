@@ -127,6 +127,9 @@ class Asn(models.Model):
     def get_absolute_url(self):
         return u'/myrpki/asn/%d' % (self.pk,)
 
+    def as_resource_range(self):
+        return rpki.resource_set.resource_range_as(self.lo, self.hi)
+
 class Child(models.Model):
     conf = models.ForeignKey(Conf, related_name='children')
     handle = HandleField() # parent's name for child

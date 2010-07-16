@@ -38,4 +38,10 @@ def parse_resource_range(s):
     except ValueError:
         return rpki.resource_set.resource_range_ipv6.parse_str(s)
 
+def top_parent(prefix):
+    '''Returns the topmost resource from which the specified argument derives'''
+    while prefix.parent:
+        prefix = prefix.parent
+    return prefix
+
 # vim:sw=4 ts=8 expandtab

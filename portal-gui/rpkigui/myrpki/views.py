@@ -26,8 +26,10 @@ from django.db import IntegrityError
 from django import http
 from django.views.generic.list_detail import object_list
 
-from rpkigui.myrpki import models, forms, glue, misc
+from rpkigui.myrpki import models, forms, glue, misc, AllocationTree
 from rpkigui.myrpki.asnset import asnset
+
+debug = False
 
 # For each type of object, we have a detail view, a create view and
 # an update view.  We heavily leverage the generic views, only
@@ -60,22 +62,6 @@ def render(template, context, request):
     return render_to_response(template, context,
             context_instance=RequestContext(request))
 
-def unallocated_resources(handle, roa_asns, roa_prefixes, asns, prefixes):
-    child_asns = []
-    for a in asns:
-        child_asns.extend(o for o in a.children.filter(allocated__isnull=True).exclude(lo__in=roa_asns) if o.hi == o.lo)
-
-    child_prefixes = []
-    for p in prefixes:
-        child_prefixes.extend(o for o in p.children.filter(allocated__isnull=True, roa_requests__isnull=True))
-
-    if child_asns or child_prefixes:
-        x, y = unallocated_resources(handle, roa_asns, roa_prefixes,
-                child_asns, child_prefixes)
-        return asns + x, prefixes + y
-    else:
-        return asns, prefixes
-
 @handle_required
 def dashboard(request):
     '''The user's dashboard.'''
@@ -90,21 +76,20 @@ def dashboard(request):
 
     # get list of ASNs used in my ROAs
     roa_asns = [r.asn for r in handle.roas.all()]
-    # get list of address ranges included in ROAs
-    roa_addrs = [p.prefix for r in handle.roas.all() 
-                          for p in r.from_roa_request.all()]
-
     asns=[]
-    prefixes=[]
-    for p in handle.parents.all():
-        for c in p.resources.all():
-            asns.extend(c.asn.filter(allocated__isnull=True).exclude(lo__in=roa_asns))
-            prefixes.extend(c.address_range.filter(allocated__isnull=True,
-                roa_requests__isnull=True))
-    asns, prefixes = unallocated_resources(handle, roa_asns, roa_addrs, asns,
-            prefixes)
+    for a in models.Asn.objects.filter(from_cert__parent__in=handle.parents.all()):
+        f = AllocationTree.AllocationTreeAS(a)
+        if f.unallocated():
+            asns.append(f)
 
-    prefixes.sort(key=lambda x: x.as_resource_range().min)
+    prefixes = []
+    for p in models.AddressRange.objects.filter(from_cert__parent__in=handle.parents.all()):
+        f = AllocationTree.AllocationTreeIP.from_prefix(p)
+        if f.unallocated():
+            prefixes.append(f)
+
+    asns.sort(key=lambda x: x.range.min)
+    prefixes.sort(key=lambda x: x.range.min)
 
     return render('myrpki/dashboard.html', { 'conf': handle, 'asns': asns,
         'ars': prefixes }, request)
@@ -261,20 +246,10 @@ def child_import(request):
 def get_parents_or_404(handle, obj):
     '''Return the Parent object(s) that the given address range derives
     from, or raise a 404 error.'''
-    cert_set = top_parent(obj).from_cert.filter(parent__in=handle.parents.all())
+    cert_set = misc.top_parent(obj).from_cert.filter(parent__in=handle.parents.all())
     if cert_set.count() == 0:
         raise http.Http404, 'Object is not delegated from any parent'
     return [c.parent for c in cert_set]
-
-@handle_required
-def address_view(request, pk):
-    handle = request.session['handle']
-    obj = get_object_or_404(models.AddressRange.objects, pk=pk)
-    # ensure this resource range belongs to a parent of the current conf
-    parent_set = get_parents_or_404(handle, obj)
-    
-    return render('myrpki/prefix_view.html',
-            { 'addr': obj, 'parent': parent_set }, request)
 
 @handle_required
 def asn_view(request, pk):
@@ -284,9 +259,11 @@ def asn_view(request, pk):
     # ensure this resource range belongs to a parent of the current conf
     parent_set = get_parents_or_404(handle, obj)
     roas = handle.roas.filter(asn=obj.lo) # roas which contain this asn
+    unallocated = AllocationTree.AllocationTreeAS(obj).unallocated()
     
     return render('myrpki/asn_view.html',
-            { 'asn': obj, 'parent': parent_set, 'roas': roas }, request)
+            { 'asn': obj, 'parent': parent_set, 'roas': roas,
+                'unallocated' : unallocated }, request)
 
 @handle_required
 def child_view(request, child_handle):
@@ -296,122 +273,143 @@ def child_view(request, child_handle):
 
     return render('myrpki/child_view.html', { 'child': child }, request)
 
+class PrefixView(object):
+    '''Extensible view for address ranges/prefixes.  This view can be
+    subclassed to add form handling for editing the prefix.'''
+
+    def __init__(self, request, pk, form_class=None):
+        self.handle = request.session['handle']
+        self.obj = get_object_or_404(models.AddressRange.objects, pk=pk)
+        # ensure this resource range belongs to a parent of the current conf
+        self.parent_set = get_parents_or_404(self.handle, self.obj)
+        self.form = None
+        self.form_class = form_class
+        self.request = request
+ 
+    def __call__(self, *args, **kwargs):
+        if self.request.method == 'POST':
+            resp = self.handle_post()
+        else:
+            resp = self.handle_get()
+
+        # allow get/post handlers to return a custom response
+        if resp:
+            return resp
+        
+        u = AllocationTree.AllocationTreeIP.from_prefix(self.obj).unallocated()
+
+        return render('myrpki/prefix_view.html',
+                { 'addr': self.obj, 'parent': self.parent_set, 'unallocated': u, 'form': self.form },
+                self.request)
+
+    def handle_get(self):
+        '''Virtual method for extending GET handling.  Default action is
+        to call the form class constructor with the prefix object.'''
+        if self.form_class:
+            self.form = self.form_class(self.obj)
+
+    def form_valid(self):
+        '''Virtual method for handling a valid form.  Called by the default
+        implementation of handle_post().'''
+        pass
+ 
+    def handle_post(self):
+        '''Virtual method for extending POST handling.  Default implementation
+        creates a form object using the form_class in the constructor and passing
+        the prefix object.  If the form's is_valid() method is True, it then
+        invokes this class's form_valid() method.'''
+        resp = None
+        if self.form_class:
+            self.form = self.form_class(self.obj, self.request.POST)
+            if self.form.is_valid():
+                resp = self.form_valid()
+        return resp
+
+@handle_required
+def address_view(request, pk):
+    return PrefixView(request, pk)()
+
+class PrefixSplitView(PrefixView):
+    '''Class for handling the prefix split form.'''
+    def form_valid(self):
+        r = misc.parse_resource_range(self.form.cleaned_data['prefix'])
+        obj = models.AddressRange(lo=str(r.min), hi=str(r.max), parent=self.obj)
+        obj.save()
+        return http.HttpResponseRedirect(obj.get_absolute_url())
+
 @handle_required
 def prefix_split_view(request, pk):
-    handle = request.session['handle']
-    prefix = get_object_or_404(models.AddressRange.objects, pk=pk)
-    # ensure this resource range belongs to a parent of the current conf
-    parent_set = get_parents_or_404(handle, prefix)
+    return PrefixSplitView(request, pk, form_class=forms.PrefixSplitForm)()
 
-    if request.method == 'POST':
-        form = forms.PrefixSplitForm(prefix, request.POST)
-        if form.is_valid():
-            r = misc.parse_resource_range(form.cleaned_data['prefix'])
-            obj = models.AddressRange(lo=str(r.min), hi=str(r.max),
-                                      parent=prefix)
-            #obj = models.AddressRange(lo=form.cleaned_data['lo'],
-            #        hi=form.cleaned_data['hi'], parent=prefix)
-            obj.save()
-            return http.HttpResponseRedirect(obj.get_absolute_url())
-    else:
-        form = forms.PrefixSplitForm(prefix)
+class PrefixAllocateView(PrefixView):
+    '''Class to handle the allocation to child form.'''
+    def handle_get(self):
+        self.form = forms.PrefixAllocateForm(
+                self.obj.allocated.pk if self.obj.allocated else None,
+                self.handle.children.all())
 
-    return render('myrpki/prefix_view.html', { 'form': form,
-        'addr': prefix, 'form': form, 'parent': parent_set }, request)
+    def handle_post(self):
+        self.form = forms.PrefixAllocateForm(None, self.handle.children.all(), self.request.POST)
+        if self.form.is_valid():
+            self.obj.allocated = self.form.cleaned_data['child']
+            self.obj.save()
+            glue.configure_resources(self.handle)
+            return http.HttpResponseRedirect(self.obj.get_absolute_url())
 
 @handle_required
 def prefix_allocate_view(request, pk):
-    handle = request.session['handle']
-    prefix = get_object_or_404(models.AddressRange.objects, pk=pk)
-    # ensure this resource range belongs to a parent of the current conf
-    parent_set = get_parents_or_404(handle, prefix)
-
-    if request.method == 'POST':
-        form = forms.PrefixAllocateForm(None, handle.children.all(), request.POST)
-        if form.is_valid():
-            prefix.allocated = form.cleaned_data['child']
-            prefix.save()
-            glue.configure_resources(handle)
-            return http.HttpResponseRedirect(prefix.get_absolute_url())
-    else:
-        form = forms.PrefixAllocateForm(
-                prefix.allocated.pk if prefix.allocated else None,
-                handle.children.all())
-
-    return render('myrpki/prefix_view.html', { 'form': form,
-        'addr': prefix, 'form': form, 'parent': parent_set }, request)
-
-def top_parent(prefix):
-    '''Returns the topmost resource from which the specified argument derives'''
-    while prefix.parent:
-        prefix = prefix.parent
-    return prefix
+    return PrefixAllocateView(request, pk)()
 
 def find_roa(handle, prefix, asid):
     '''Find a roa with prefixes from the same resource cert.'''
     roa_set = handle.roas.filter(asn=asid)
-    for c in top_parent(prefix).from_cert.all():
+    for c in misc.top_parent(prefix).from_cert.all():
         for r in roa_set:
             for req in r.from_roa_request.all():
-                if c in top_parent(req.prefix).from_cert.all():
+                if c in misc.top_parent(req.prefix).from_cert.all():
                     return r
     return None
 
 def add_roa_requests(handle, prefix, asns, max_length):
     for asid in asns:
-        req_set = prefix.roa_requests.filter(roa__asn=asid,
-                                             max_length=max_length)
+        if debug:
+            print 'searching for a roa for AS %d containing %s-%d' % (asid, prefix, max_length)
+        req_set = prefix.roa_requests.filter(roa__asn=asid, max_length=max_length)
         if not req_set:
+            if debug:
+                print 'no roa for AS %d containing %s-%d' % (asid, prefix, max_length)
             roa = find_roa(handle, prefix, asid)
             if not roa:
+                if debug:
+                    print 'creating new roa for AS %d containg %s-%d' % (asid, prefix, max_length)
                 # no roa is present for this ASN, create a new one
-                roa = models.Roa.objects.create(asn=asid, conf=handle,
-                        active=False)
+                roa = models.Roa.objects.create(asn=asid, conf=handle, active=False)
                 roa.save()
 
-            req = models.RoaRequest.objects.create(prefix=prefix, roa=roa,
-                    max_length=max_length)
+            req = models.RoaRequest.objects.create(prefix=prefix, roa=roa, max_length=max_length)
             req.save()
 
+class PrefixRoaView(PrefixView):
+    '''Class for handling the ROA creation form.'''
+    def form_valid(self):
+        asns = asnset(self.form.cleaned_data['asns'])
+        add_roa_requests(self.handle, self.obj, asns, self.form.cleaned_data['max_length'])
+        glue.configure_resources(self.handle)
+        return http.HttpResponseRedirect(self.obj.get_absolute_url())
+ 
 @handle_required
 def prefix_roa_view(request, pk):
-    handle = request.session['handle']
-    obj = get_object_or_404(models.AddressRange.objects, pk=pk)
-    # ensure this resource range belongs to a parent of the current conf
-    parent_set = get_parents_or_404(handle, obj)
+    return PrefixRoaView(request, pk, form_class=forms.PrefixRoaForm)()
 
-    if request.method == 'POST':
-        form = forms.PrefixRoaForm(obj, request.POST)
-        if form.is_valid():
-            asns = asnset(form.cleaned_data['asns'])
-            add_roa_requests(handle, obj, asns,
-                             form.cleaned_data['max_length'])
-            glue.configure_resources(handle)
-            return http.HttpResponseRedirect(obj.get_absolute_url())
-    else:
-        form = forms.PrefixRoaForm(obj)
-
-    return render('myrpki/prefix_view.html', { 'form': form,
-        'addr': obj, 'form': form, 'parent': parent_set }, request)
-
+class PrefixDeleteView(PrefixView):
+    def form_valid(self):
+        if self.form.cleaned_data['delete']:
+            self.obj.delete()
+            return http.HttpResponseRedirect('/myrpki/')
+ 
 @handle_required
 def prefix_delete_view(request, pk):
-    handle = request.session['handle']
-    obj = get_object_or_404(models.AddressRange.objects, pk=pk)
-    # ensure this resource range belongs to a parent of the current conf
-    parent_set = get_parents_or_404(handle, obj)
-
-    if request.method == 'POST':
-        form = forms.PrefixDeleteForm(obj, request.POST)
-        if form.is_valid():
-            if form.cleaned_data['delete']:
-                obj.delete()
-                return http.HttpResponseRedirect('/myrpki/')
-    else:
-        form = forms.PrefixDeleteForm(obj)
-
-    return render('myrpki/prefix_view.html', { 'form': form,
-        'addr': obj, 'form': form, 'parent': parent_set }, request)
+    return PrefixDeleteView(request, pk, form_class=forms.PrefixDeleteForm)()
 
 @handle_required
 def roa_request_delete_view(request, pk):

@@ -99,33 +99,30 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 </div><!-- roas -->
 
 <div style="border: outset">
-<h1 style="text-align: center">Unallocated Resources</h1>
-{% if asns or ars %}
-<table>
-    {% for asn in asns %}
-    <tr>
-        <td style='text-align: left'><a href="{{ asn.get_absolute_url }}">{{ asn }}</a></td>
-        <td><a href="{{ asn.get_absolute_url }}/allocate">give</a></td>
-    </tr>
-    {% endfor %}
-    {% for addr in ars %}
-    <tr>
-        <td style='text-align: left'><a href="{{ addr.get_absolute_url }}">{{ addr }}</a></td>
-        <td>
-            <a href="{{ addr.get_absolute_url }}/allocate">give</a>
-            | <a href="{{ addr.get_absolute_url }}/split">split</a>
-            {% if addr.is_prefix %}
-            | <a href="{{ addr.get_absolute_url }}/roa">roa</a>
-            {% endif %}
-        </td>
-    </tr>
-    {% endfor %}
-</table>
-{% else %}
-<p>-- none --
-{% endif %}
+	<h1 style="text-align: center">Unallocated Resources</h1>
+	{% if asns or ars %}
 
-</ul>
+	{% if asns %}
+	<ul>
+	    {% for asn in asns %}
+	    <li>{{ asn.as_ul|safe }}
+	    {% endfor %} <!-- ASNs -->
+        </ul>
+	{% endif %}
+
+	{% if ars %}
+	<ul>
+	    {% for addr in ars %}
+	    <li>{{ addr.as_ul|safe }}
+	    {% endfor %} <!-- addrs -->
+	</ul>
+	{% endif %}
+
+	{% else %}
+	<p>-- none --
+	{% endif %}
+
+	</ul>
 </div>
 </span>
 {% endblock %}

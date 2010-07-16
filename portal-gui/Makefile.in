@@ -49,6 +49,7 @@ INSTALL_FILES=\
 	rpkigui/manage.py \
 	rpkigui/settings.py \
 	rpkigui/urls.py \
+	rpkigui/myrpki/AllocationTree.py \
 	rpkigui/myrpki/__init__.py \
 	rpkigui/myrpki/admin.py \
 	rpkigui/myrpki/asnset.py \

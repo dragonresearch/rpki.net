@@ -61,6 +61,15 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 </table>
 {% endif %} <!-- roa requests -->
 
+{% if unallocated %}
+<h2>Unallocated</h2>
+<ul>
+    {% for u in unallocated %}
+    <li>{{ u }}
+    {% endfor %}
+</ul>
+{% endif %}
+
 {% if form %}
 <h2>Edit</h2>
 <form method="POST" action="{{ request.get_full_path }}">

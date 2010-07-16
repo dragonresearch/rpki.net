@@ -119,7 +119,7 @@ handle_dispatch = {
 def handler(query, path, cb):
   try:
 
-    db.ping()
+    db.ping(True)
 
     r_msg = rpki.left_right.msg.reply()
 

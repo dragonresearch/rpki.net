@@ -142,7 +142,7 @@ for pdu in pdus:
     #    print x.asn, x.ipv4, x.ipv6
     elif isinstance(pdu, rpki.left_right.list_received_resources_elt):
         # keep track of handles we got replies for
-        set.add(pdu.self_handle)
+        seen.add(pdu.self_handle)
         # have we seen this parent before?
         parent_set = conf.parents.filter(handle=pdu.parent_handle)
         if not parent_set:

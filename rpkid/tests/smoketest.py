@@ -129,7 +129,7 @@ rsyncd_module  = cfg.get("rsyncd_module",  smoketest_name)
 rootd_sia      = cfg.get("rootd_sia",      "rsync://localhost:%d/%s/" % (rsyncd_port, rsyncd_module))
 
 rootd_name     = cfg.get("rootd_name",     "rootd")
-rsyncd_name    = cfg.get("rcynic_name",    "rsyncd")
+rsyncd_name    = cfg.get("rsyncd_name",    "rsyncd")
 rcynic_name    = cfg.get("rcynic_name",    "rcynic")
 pubd_name      = cfg.get("pubd_name",      "pubd")
 

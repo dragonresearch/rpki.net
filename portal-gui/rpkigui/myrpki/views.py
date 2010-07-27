@@ -360,16 +360,6 @@ class PrefixAllocateView(PrefixView):
 def prefix_allocate_view(request, pk):
     return PrefixAllocateView(request, pk)()
 
-def find_roa(handle, prefix, asid):
-    '''Find a roa with prefixes from the same resource cert.'''
-    roa_set = handle.roas.filter(asn=asid)
-    for c in misc.top_parent(prefix).from_cert.all():
-        for r in roa_set:
-            for req in r.from_roa_request.all():
-                if c in misc.top_parent(req.prefix).from_cert.all():
-                    return r
-    return None
-
 def add_roa_requests(handle, prefix, asns, max_length):
     for asid in asns:
         if debug:
@@ -378,15 +368,26 @@ def add_roa_requests(handle, prefix, asns, max_length):
         if not req_set:
             if debug:
                 print 'no roa for AS %d containing %s-%d' % (asid, prefix, max_length)
-            roa = find_roa(handle, prefix, asid)
-            if not roa:
+
+            # find ROAs for prefixes derived from the same resource cert
+            # as this prefix
+            certs = misc.top_parent(prefix).from_cert.all()
+            roa_set = handle.roas.filter(asn=asid, cert__in=certs)
+
+            # FIXME: currently only creates a ROA/request for the first
+            # resource cert, not all of them
+            if roa_set:
+                roa = roa_set[0]
+            else:
                 if debug:
                     print 'creating new roa for AS %d containg %s-%d' % (asid, prefix, max_length)
                 # no roa is present for this ASN, create a new one
-                roa = models.Roa.objects.create(asn=asid, conf=handle, active=False)
+                roa = models.Roa.objects.create(asn=asid, conf=handle,
+                        active=False, cert=certs[0])
                 roa.save()
 
-            req = models.RoaRequest.objects.create(prefix=prefix, roa=roa, max_length=max_length)
+            req = models.RoaRequest.objects.create(prefix=prefix, roa=roa,
+                    max_length=max_length)
             req.save()
 
 class PrefixRoaView(PrefixView):

@@ -48,25 +48,19 @@ print 'processing csv files for resource handle', handle
 conf = models.Conf.objects.get(handle=handle)
 
 # every parent has a favorite
-def best_child(parent, parent_range):
+def best_child(address_range, parent, parent_range):
     '''Return the child address range that is the closest match, or
     returns the arguments if no children.'''
-    best = None
-    best_range = None
-    for q in parent.children.all():
-        if best is None:
-            best = q
-            best_range = q.as_resource_range()
-        else:
-            t = q.as_resource_range()
-            if t.min >= best_range.min and t.max <= best_range.max:
-                best = q
-                best_range = t
-    if best:
-        if best.children.all():
-            best, best_range = best_child(best, best_range)
-        return (best, best_range)
-
+    if address_range == parent_range:
+        return (parent, parent_range)
+    for q in list(parent.children.all()): # force strict evaluation
+        t = q.as_resource_range()
+        if t.min <= address_range.min and t.max >= address_range.max:
+            return best_child(address_range, q, t)
+        # check for overlap
+        if t.min <= address_range.min <= t.max or t.min <= address_range.max <= t.max:
+            raise RuntimeError, \
+                    'can not handle overlapping ranges: %s and %s' % (address_range, t)
     return parent, parent_range
 
 def get_or_create_prefix(address_range):
@@ -92,7 +86,7 @@ def get_or_create_prefix(address_range):
                 address_range,)
 
     # find the best match among the children + grandchildren
-    prefix, prefix_range = best_child(prefix, prefix_range)
+    prefix, prefix_range = best_child(address_range, prefix, prefix_range)
 
     print 'best match for %s is %s' % (address_range, prefix)
     if prefix_range.min != address_range.min or prefix_range.max != address_range.max:
@@ -100,7 +94,6 @@ def get_or_create_prefix(address_range):
         print 'creating new range' 
         prefix = models.AddressRange.objects.create(lo=str(address_range.min),
                 hi=str(address_range.max), parent=prefix)
-
     return prefix
 
 def get_or_create_asn(asn):
@@ -108,18 +101,14 @@ def get_or_create_asn(asn):
             from_cert__parent__in=conf.parents.all())
     if not asn_set:
         raise RuntimeError, '%s does not match any received AS range' % (asn,)
-    best = None
-    for a in asn_set:
-        if best is None:
-            best = a
-        elif a.lo >= best.lo and a.hi <= best.hi:
-            best = a
+    best = best_child(asn, asn_set[0], asn_set[0].as_resource_range())[0]
     print 'best match for %s is %s' % (asn, best)
     if best.lo != asn.min or best.hi != asn.max:
         best = models.Asn.objects.create(lo=asn.min, hi=asn.max, parent=best)
     return best
 
 def do_asns():
+    print 'processing', asn_csv
     for child_handle, asn in csv_reader(asn_csv, columns=2):
         asn_range = rpki.resource_set.resource_range_as.parse_str(asn)
         child = conf.children.get(handle=child_handle)
@@ -127,6 +116,7 @@ def do_asns():
         child.asn.add(asn)
 
 def do_prefixes():
+    print 'processing', prefix_csv
     for child_handle, prefix in csv_reader(prefix_csv, columns=2):
         child = conf.children.get(handle=child_handle)
         try:
@@ -138,6 +128,7 @@ def do_prefixes():
         obj.save()
 
 def do_roas():
+    print 'processing', roa_csv
     for prefix, asn, group in csv_reader(roa_csv, columns=3):
         try:
             rs = rpki.resource_set.roa_prefix_ipv4.parse_str(prefix)

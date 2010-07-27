@@ -194,6 +194,9 @@ class Roa(models.Model):
     asn = models.IntegerField()
     active = models.BooleanField()
 
+    # the resource cert from which all prefixes for this roa are derived
+    cert = models.ForeignKey(ResourceCert, related_name='roas')
+
     def __unicode__(self):
 	return u"%s's ROA for %d" % (self.conf, self.asn)
 

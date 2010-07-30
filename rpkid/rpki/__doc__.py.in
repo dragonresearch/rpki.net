@@ -537,6 +537,10 @@
 # @section myrpkiconf myrpki.conf
 #
 # The default name for the shared configuration file is @c myrpki.conf.
+# Unless you really know what you're doing, you should start by
+# copying the @c $top/myrpki.conf from the @c rpkid/examples directory and
+# modifying it, as the sample configuration file already includes all
+# the additional settings necessary to use the simplified configuration.
 #
 # @dontinclude myrpki.conf
 # @skipline [myrpki]

@@ -3246,7 +3246,7 @@ int main(int argc, char *argv[])
 		    "<rcynic-summary date=\"%s\" rcynic-version=\"%s\""
 		    " summary-version=\"%d\" reporting-hostname=\"%s\">\n"
 		    "  <labels>\n"
-		    "    <hostname>Hostname</hostname>\n",
+		    "    <hostname>Publication Repository</hostname>\n",
 		    tad, svn_id, XML_SUMMARY_VERSION, hostname) != EOF;
 
     for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)

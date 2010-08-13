@@ -65,7 +65,7 @@ class resource_range(object):
     """
     Initialize and sanity check a resource_range.
     """
-    assert min.__class__ is max.__class__, "Type mismatch, %r doesn't match %r" % (a.__class__, b.__class__)
+    assert min.__class__ is max.__class__, "Type mismatch, %r doesn't match %r" % (min.__class__, max.__class__)
     assert min <= max, "Mis-ordered range: %s before %s" % (min, max)
     self.min = min
     self.max = max

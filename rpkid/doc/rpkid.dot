@@ -13,7 +13,7 @@ digraph test {
 	node7 [label="{child\n|child_id\ SERIAL\ [PK]\lchild_handle\ VARCHAR\ [U]\lbpki_cert\ LONGBLOB\ [N]\lbpki_glue\ LONGBLOB\ [N]\lself_id\ BIGINT\ [FK,U]\lbsc_id\ BIGINT\ [FK]\l}"];
 	node8 [label="{child_cert\n|child_cert_id\ SERIAL\ [PK]\lcert\ LONGBLOB\lpublished\ DATETIME\ [N]\lski\ TINYBLOB\lchild_id\ BIGINT\ [FK]\lca_detail_id\ BIGINT\ [FK]\l}"];
 	node9 [label="{revoked_cert\n|revoked_cert_id\ SERIAL\ [PK]\lserial\ BIGINT\lrevoked\ DATETIME\lexpires\ DATETIME\lca_detail_id\ BIGINT\ [FK]\l}"];
-	node10 [label="{roa\n|roa_id\ SERIAL\ [PK]\lasn\ BIGINT\ [N]\lcert\ LONGBLOB\ [N]\lroa\ LONGBLOB\ [N]\lpublished\ DATETIME\ [N]\lself_id\ BIGINT\ [FK]\lca_detail_id\ BIGINT\ [FK]\l}"];
+	node10 [label="{roa\n|roa_id\ SERIAL\ [PK]\lasn\ BIGINT\lcert\ LONGBLOB\lroa\ LONGBLOB\lpublished\ DATETIME\ [N]\lself_id\ BIGINT\ [FK]\lca_detail_id\ BIGINT\ [FK]\l}"];
 	node11 [label="{roa_prefix\n|prefix\ VARCHAR\ [PK]\lprefixlen\ TINYINT\ [PK]\lmax_prefixlen\ TINYINT\ [PK]\lversion\ TINYINT\lroa_id\ BIGINT\ [PK,FK]\l}"];
 	node2 -> node7 [arrowtail=none, arrowhead=crow];
 	node2 -> node4 [arrowtail=none, arrowhead=crow];

@@ -57,3 +57,15 @@ kids:
 #- shell find publication -type f -name '*.mnf' -print -exec ../../../utils/print_manifest/print_manifest {} \;
 #---
 - shell set -x; cd ../../../rtr-origin && python rtr-origin.py --cronjob ../../rpkid/smoketest.dir/rcynic-data/authenticated && python rtr-origin.py --show
+---
+- name: Alice
+  roa_request_del:
+    - asn: 42
+      ipv4: 192.0.2.0/30-32,192.0.2.32/32
+      ipv6: 2002:0a00::/32-128
+  roa_request_add:
+    - asn: 666
+      ipv4: 192.0.2.0/30-32,192.0.2.32/32
+      ipv6: 2002:0a00::/32-128
+---
+- shell set -x; cd ../../../rtr-origin && python rtr-origin.py --cronjob ../../rpkid/smoketest.dir/rcynic-data/authenticated && python rtr-origin.py --show

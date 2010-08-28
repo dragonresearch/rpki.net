@@ -56,6 +56,7 @@
   <xsl:param	name="use-colors"		select="1"/>
   <xsl:param	name="show-detailed-status"	select="0"/>
   <xsl:param	name="show-problems"		select="1"/>
+  <xsl:param	name="show-summary"		select="1"/>
 
   <xsl:variable name="sums">
     <xsl:for-each select="rcynic-summary/labels/*">
@@ -104,56 +105,58 @@
       </head>
       <body>
 
-        <h1>
-	  <xsl:value-of select="$title"/>
-	</h1>
-	<table class="summary" rules="all">
-	  <thead>
-	    <tr>
-	      <xsl:for-each select="rcynic-summary/labels/*">
-	        <xsl:variable name="p" select="position()"/>
-		<xsl:if test="$suppress-zero-columns = 0 or position() = 1 or exslt:node-set($sums)/x[$p]/@sum &gt; 0">
-		  <td><b><xsl:apply-templates/></b></td>
-		</xsl:if>
-	      </xsl:for-each>
-	    </tr>
-	  </thead>
-	  <tbody>
-	    <xsl:for-each select="rcynic-summary/host">
-	      <xsl:sort order="descending" data-type="number" select="sum(*[not(self::hostname)])"/>
-	      <xsl:sort order="ascending" data-type="text" select="hostname"/>
-	      <xsl:variable name="hostname" select="hostname"/>
-	      <xsl:variable name="goodness" select="sum(exslt:node-set($moods)/x[@hostname = $hostname and @mood = 'good'])"/>
-	      <xsl:variable name="badness"  select="sum(exslt:node-set($moods)/x[@hostname = $hostname and @mood = 'bad'])"/>
-	      <xsl:variable name="warnings" select="sum(exslt:node-set($moods)/x[@hostname = $hostname and @mood = 'warn'])"/>
-	      <xsl:variable name="mood">
-		<xsl:choose>
-		  <xsl:when test="$goodness != 0 and $warnings = 0 and $badness = 0">good</xsl:when>
-		  <xsl:when test="$goodness + $warnings != 0">warn</xsl:when>
-		  <xsl:otherwise>bad</xsl:otherwise>
-		</xsl:choose>
-	      </xsl:variable>
-	      <tr class="{$mood}">
-	        <xsl:for-each select="*">
+	<xsl:if test="$show-summary != 0">
+	  <h1>
+	    <xsl:value-of select="$title"/>
+	  </h1>
+	  <table class="summary" rules="all">
+	    <thead>
+	      <tr>
+		<xsl:for-each select="rcynic-summary/labels/*">
 		  <xsl:variable name="p" select="position()"/>
 		  <xsl:if test="$suppress-zero-columns = 0 or position() = 1 or exslt:node-set($sums)/x[$p]/@sum &gt; 0">
-		    <td><xsl:if test=". != 0"><xsl:apply-templates/></xsl:if></td>
+		    <td><b><xsl:apply-templates/></b></td>
 		  </xsl:if>
 		</xsl:for-each>
 	      </tr>
-	    </xsl:for-each>
-	    <xsl:if test="$show-total != 0">
-	      <tr>
-		<td><b>Total</b></td>
-		<xsl:for-each select="exslt:node-set($sums)/x[position() &gt; 1]">
-		  <xsl:if test="$suppress-zero-columns = 0 or @sum &gt; 0">
-		    <td><b><xsl:value-of select="@sum"/></b></td>
-		  </xsl:if>
-		</xsl:for-each>
-	      </tr>
-	    </xsl:if>
-	  </tbody>
-	</table>
+	    </thead>
+	    <tbody>
+	      <xsl:for-each select="rcynic-summary/host">
+		<xsl:sort order="descending" data-type="number" select="sum(*[not(self::hostname)])"/>
+		<xsl:sort order="ascending" data-type="text" select="hostname"/>
+		<xsl:variable name="hostname" select="hostname"/>
+		<xsl:variable name="goodness" select="sum(exslt:node-set($moods)/x[@hostname = $hostname and @mood = 'good'])"/>
+		<xsl:variable name="badness"  select="sum(exslt:node-set($moods)/x[@hostname = $hostname and @mood = 'bad'])"/>
+		<xsl:variable name="warnings" select="sum(exslt:node-set($moods)/x[@hostname = $hostname and @mood = 'warn'])"/>
+		<xsl:variable name="mood">
+		  <xsl:choose>
+		    <xsl:when test="$goodness != 0 and $warnings = 0 and $badness = 0">good</xsl:when>
+		    <xsl:when test="$goodness + $warnings != 0">warn</xsl:when>
+		    <xsl:otherwise>bad</xsl:otherwise>
+		  </xsl:choose>
+		</xsl:variable>
+		<tr class="{$mood}">
+		  <xsl:for-each select="*">
+		    <xsl:variable name="p" select="position()"/>
+		    <xsl:if test="$suppress-zero-columns = 0 or position() = 1 or exslt:node-set($sums)/x[$p]/@sum &gt; 0">
+		      <td><xsl:if test=". != 0"><xsl:apply-templates/></xsl:if></td>
+		    </xsl:if>
+		  </xsl:for-each>
+		</tr>
+	      </xsl:for-each>
+	      <xsl:if test="$show-total != 0">
+		<tr>
+		  <td><b>Total</b></td>
+		  <xsl:for-each select="exslt:node-set($sums)/x[position() &gt; 1]">
+		    <xsl:if test="$suppress-zero-columns = 0 or @sum &gt; 0">
+		      <td><b><xsl:value-of select="@sum"/></b></td>
+		    </xsl:if>
+		  </xsl:for-each>
+		</tr>
+	      </xsl:if>
+	    </tbody>
+	  </table>
+	</xsl:if>
 
 	<xsl:if test="$show-problems != 0">
 	  <br/>

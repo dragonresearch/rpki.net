@@ -1408,7 +1408,7 @@ class publication_queue(object):
     if self.replace:
       self.uris = {}
 
-  def _add(self, cls, uri, obj, repository, handler, withdraw):
+  def _add(self, uri, obj, repository, handler, make_pdu):
     rid = id(repository)
     if rid not in self.repositories:
       self.repositories[rid] = repository
@@ -1416,7 +1416,6 @@ class publication_queue(object):
     if self.replace and uri in self.uris:
       rpki.log.debug("Removing publication duplicate <%s %r %r>" % (self.uris[uri].action, self.uris[uri].uri, self.uris[uri].payload))
       self.msgs[rid].remove(self.uris.pop(uri))
-    make_pdu = cls.make_withdraw if withdraw else cls.make_publish
     pdu = make_pdu(uri = uri, obj = obj)
     if handler is not None:
       self.handlers[id(pdu)] = handler
@@ -1425,11 +1424,11 @@ class publication_queue(object):
     if self.replace:
       self.uris[uri] = pdu
 
-  def publish( self, cls, uri, obj, repository, handler = None):
-    return self._add(cls, uri, obj, repository, handler, False)
+  def publish(self,  cls, uri, obj, repository, handler = None):
+    return self._add(     uri, obj, repository, handler, cls.make_publish)
 
   def withdraw(self, cls, uri, obj, repository, handler = None):
-    return self._add(cls, uri, obj, repository, handler, True)
+    return self._add(     uri, obj, repository, handler, cls.make_withdraw)
 
   def call_pubd(self, cb, eb):
     def loop(iterator, rid):

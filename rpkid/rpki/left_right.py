@@ -506,9 +506,14 @@ class self_elt(data_elt):
       publisher = rpki.rpki_engine.publication_queue()
       ca_details = set()
 
+      seen = set()
       for roa_request in roa_requests:
         try:
           k = (roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6))
+          if k in seen:
+            rpki.log.warn("Skipping duplicate ROA request %r for %r" % (k, roa_request))
+            continue
+          seen.add(k)
           roa = roas.pop(k, None)
           if roa is None:
             roa = rpki.rpki_engine.roa_obj(self.gctx, self.self_id, roa_request.asn, roa_request.ipv4, roa_request.ipv6)

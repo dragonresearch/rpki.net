@@ -189,14 +189,12 @@ class base_elt(object):
         elt.set(key, "yes")
     return elt
 
-  def make_b64elt(self, elt, name, value = None):
+  def make_b64elt(self, elt, name, value):
     """
     Constructor for Base64-encoded subelement.
     """
-    if value is None:
-      value = getattr(self, name, None)
-    if value is not None:
-      lxml.etree.SubElement(elt, "{%s}%s" % (self.xmlns, name), nsmap = self.nsmap).text = base64.b64encode(value)
+    if value is not None and not value.empty():
+      lxml.etree.SubElement(elt, "{%s}%s" % (self.xmlns, name), nsmap = self.nsmap).text = value.get_Base64()
 
   def __str__(self):
     """
@@ -267,9 +265,7 @@ class data_elt(base_elt):
     """
     elt = self.make_elt()
     for i in self.elements:
-      x = getattr(self, i, None)
-      if x and not x.empty():
-        self.make_b64elt(elt, i, x.get_DER())
+      self.make_b64elt(elt, i, getattr(self, i, None))
     return elt
 
   def make_reply(self, r_pdu = None):

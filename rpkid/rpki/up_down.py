@@ -75,14 +75,12 @@ class base_elt(object):
         elt.set(key, str(val))
     return elt
 
-  def make_b64elt(self, elt, name, value=None):
+  def make_b64elt(self, elt, name, value):
     """
     Construct a sub-element with Base64 text content.
     """
-    if value is None:
-      value = getattr(self, name, None)
-    if value is not None:
-      lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap=nsmap).text = base64.b64encode(value)
+    if value is not None and not value.empty():
+      lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap=nsmap).text = value.get_Base64()
 
   def serve_pdu(self, q_msg, r_msg, child, callback, errback):
     """Default PDU handler to catch unexpected types."""
@@ -145,7 +143,7 @@ class certificate_elt(base_elt):
     Handle text content of a <certificate/> element.
     """
     assert name == "certificate", "Unexpected name %s, stack %s" % (name, stack)
-    self.cert = rpki.x509.X509(Base64=text)
+    self.cert = rpki.x509.X509(Base64 = text)
     stack.pop()
 
   def toXML(self):
@@ -193,7 +191,7 @@ class class_elt(base_elt):
     Handle <class/> elements and their children.
     """
     if name == "issuer":
-      self.issuer = rpki.x509.X509(Base64=text)
+      self.issuer = rpki.x509.X509(Base64 = text)
     else:
       assert name == "class", "Unexpected name %s, stack %s" % (name, stack)
       stack.pop()
@@ -206,8 +204,7 @@ class class_elt(base_elt):
                         "resource_set_ipv4", "resource_set_ipv6",
                         "resource_set_notafter", "suggested_sia_head")
     elt.extend([i.toXML() for i in self.certs])
-    if self.issuer is not None:
-      self.make_b64elt(elt, "issuer", self.issuer.get_DER())
+    self.make_b64elt(elt, "issuer", self.issuer)
     return elt
 
   def to_resource_bag(self):
@@ -334,7 +331,7 @@ class issue_pdu(base_elt):
     Handle "issue" PDU.
     """
     assert name == "request", "Unexpected name %s, stack %s" % (name, stack)
-    self.pkcs10 = rpki.x509.PKCS10(Base64=text)
+    self.pkcs10 = rpki.x509.PKCS10(Base64 = text)
     stack.pop()
 
   def toXML(self):

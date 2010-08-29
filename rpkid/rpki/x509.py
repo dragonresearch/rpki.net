@@ -48,6 +48,15 @@ import email.mime.application, email.utils, mailbox, time
 import rpki.exceptions, rpki.resource_set, rpki.oids, rpki.sundial
 import rpki.manifest, rpki.roa, rpki.log, rpki.async
 
+def base64_with_linebreaks(der):
+  """
+  Encode DER (really, anything) as Base64 text, with linebreaks to
+  keep the result (sort of) readable.
+  """
+  b = base64.b64encode(der)
+  n = len(b)
+  return "\n" + "\n".join(b[i : min(i + 64, n)] for i in xrange(0, n, 64)) + "\n"
+
 def calculate_SKI(public_key_der):
   """
   Calculate the SKI value given the DER representation of a public
@@ -95,12 +104,7 @@ class PEM_converter(object):
     """
     Convert from DER to PEM.
     """
-    b64 =  base64.b64encode(der)
-    pem = self.b + "\n"
-    while len(b64) > 64:
-      pem += b64[0:64] + "\n"
-      b64 = b64[64:]
-    return pem + b64 + "\n" + self.e + "\n"
+    return self.b + base64_with_linebreaks(der) + self.e + "\n"
 
 def _find_xia_uri(extension, name):
   """
@@ -203,7 +207,7 @@ class DER_object(object):
 
   def get_Base64(self):
     """Get the Base64 encoding of the DER value of this object."""
-    return base64.b64encode(self.get_DER())
+    return base64_with_linebreaks(self.get_DER())
 
   def get_PEM(self):
     """Get the PEM representation of this object."""
@@ -1093,7 +1097,9 @@ class XML_CMS_object(CMS_object):
     try:
       self.schema.assertValid(self.get_content())
     except lxml.etree.DocumentInvalid:
-      rpki.log.error("PDU failed schema check: " + self.pretty_print_content())
+      rpki.log.error("PDU failed schema check:")
+      for line in self.pretty_print_content().splitlines():
+        rpki.log.error(line)
       raise
 
   def dump_to_disk(self, prefix):

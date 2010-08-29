@@ -190,7 +190,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     elt = self.make_elt()
     if self.payload:
-      elt.text = base64.b64encode(self.payload.get_DER())
+      elt.text = self.payload.get_Base64()
     return elt
 
   def serve_dispatch(self, r_msg, cb, eb):

@@ -652,46 +652,52 @@ class repository_elt(data_elt):
     False suppresses calling of the default handler.
     """
 
-    rpki.log.trace()
+    try:
+      rpki.log.trace()
 
-    self.gctx.sql.sweep()
+      self.gctx.sql.sweep()
 
-    if not q_msg:
-      return callback()
+      if not q_msg:
+        return callback()
 
-    if handlers is None:
-      handlers = {}
+      if handlers is None:
+        handlers = {}
 
-    for q_pdu in q_msg:
-      rpki.log.info("Sending <%s %r %r> to pubd" % (q_pdu.action, q_pdu.uri, q_pdu.payload))
+      for q_pdu in q_msg:
+        rpki.log.info("Sending <%s %r %r> to pubd" % (q_pdu.action, q_pdu.uri, q_pdu.payload))
 
-    bsc = self.bsc()
-    q_cms = rpki.publication.cms_msg.wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
-    bpki_ta_path = (self.gctx.bpki_ta, self.self().bpki_cert, self.self().bpki_glue, self.bpki_cert, self.bpki_glue)
+      bsc = self.bsc()
+      q_cms = rpki.publication.cms_msg.wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
+      bpki_ta_path = (self.gctx.bpki_ta, self.self().bpki_cert, self.self().bpki_glue, self.bpki_cert, self.bpki_glue)
 
-    def done(r_cms):
-      try:
-        r_msg = rpki.publication.cms_msg.unwrap(r_cms, bpki_ta_path)
-        for r_pdu in r_msg:
-          handler = handlers.get(r_pdu.tag, self.default_pubd_handler)
-          if handler:
-            handler(r_pdu)
-        if len(q_msg) != len(r_msg):
-          raise rpki.exceptions.BadPublicationReply, "Wrong number of response PDUs from pubd: sent %r, got %r" % (q_msg, r_msg)
-        callback()
-      except (rpki.async.ExitNow, SystemExit):
-        raise
-      except Exception, e:
-        errback(e)
+      def done(r_cms):
+        try:
+          r_msg = rpki.publication.cms_msg.unwrap(r_cms, bpki_ta_path)
+          for r_pdu in r_msg:
+            handler = handlers.get(r_pdu.tag, self.default_pubd_handler)
+            if handler:
+              handler(r_pdu)
+          if len(q_msg) != len(r_msg):
+            raise rpki.exceptions.BadPublicationReply, "Wrong number of response PDUs from pubd: sent %r, got %r" % (q_msg, r_msg)
+          callback()
+        except (rpki.async.ExitNow, SystemExit):
+          raise
+        except Exception, e:
+          errback(e)
 
-    rpki.https.client(
-      client_key   = bsc.private_key_id,
-      client_cert  = bsc.signing_cert,
-      server_ta    = bpki_ta_path,
-      url          = self.peer_contact_uri,
-      msg          = q_cms,
-      callback     = done,
-      errback      = errback)
+      rpki.https.client(
+        client_key   = bsc.private_key_id,
+        client_cert  = bsc.signing_cert,
+        server_ta    = bpki_ta_path,
+        url          = self.peer_contact_uri,
+        msg          = q_cms,
+        callback     = done,
+        errback      = errback)
+
+    except (rpki.async.ExitNow, SystemExit):
+      raise
+    except Exception, e:
+      errback(e)
 
 class parent_elt(data_elt):
   """

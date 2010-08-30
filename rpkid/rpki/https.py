@@ -1091,9 +1091,10 @@ class http_queue(object):
         req.errback(result)
     except (rpki.async.ExitNow, SystemExit):
       raise
-    except:
-      self.log("Unhandled exception from callback")
-      rpki.log.traceback()
+    except Exception, e:
+      self.log("Unhandled exception %r from callback: %s" % (e, e), rpki.log.warn)
+      #rpki.log.traceback()
+      req.errback(e)
 
     self.log("Queue: %r" % self.queue)
 

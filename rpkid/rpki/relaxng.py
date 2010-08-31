@@ -1252,7 +1252,7 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodi
 ## Parsed RelaxNG publication schema
 publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-schema.rnc 3109 2010-03-16 23:55:07Z sra $
+  $Id: publication-schema.rnc 3434 2010-08-31 00:31:55Z sra $
   
   RelaxNG Schema for RPKI publication protocol.
   
@@ -1347,11 +1347,15 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       </data>
     </attribute>
   </define>
-  <!-- Base64 encoded DER stuff -->
+  <!--
+    Base64 encoded DER stuff
+    base64 = xsd:base64Binary { maxLength="512000" }
+    
+    Sadly, it turns out that CRLs can in fact get longer than this for an active CA.
+    Remove length limit for now, think about whether to put it back later.
+  -->
   <define name="base64">
-    <data type="base64Binary">
-      <param name="maxLength">512000</param>
-    </data>
+    <data type="base64Binary"/>
   </define>
   <!-- Publication URLs -->
   <define name="uri_t">

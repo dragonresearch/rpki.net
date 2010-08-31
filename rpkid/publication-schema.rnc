@@ -53,7 +53,11 @@ reply_elt = ( config_reply | client_reply | certificate_reply | crl_reply | mani
 tag = attribute tag { xsd:token {maxLength="1024" } }
 
 # Base64 encoded DER stuff
-base64 = xsd:base64Binary { maxLength="512000" }
+#base64 = xsd:base64Binary { maxLength="512000" }
+#
+# Sadly, it turns out that CRLs can in fact get longer than this for an active CA.
+# Remove length limit for now, think about whether to put it back later.
+base64 = xsd:base64Binary
 
 # Publication URLs
 uri_t = xsd:anyURI { maxLength="4096" }

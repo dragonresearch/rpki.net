@@ -1586,7 +1586,7 @@ class main(rpki.cli.Cmd):
         continue
 
       rpkid_xcert = rpki.x509.X509(PEM_file = self.bpki_servers.fxcert(b64 = hosted_cacert.get_Base64(),
-                                                                       filename = handle + ".cacert.cer",
+                                                                       #filename = handle + ".cacert.cer",
                                                                        path_restriction = 1))
 
       # See what rpkid and pubd already have on file for this entity.

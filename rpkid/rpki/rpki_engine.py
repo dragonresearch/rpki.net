@@ -45,11 +45,11 @@ class rpkid_context(object):
 
     self.sql = rpki.sql.session(cfg)
 
-    self.bpki_ta    = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
-    self.irdb_cert  = rpki.x509.X509(Auto_file = cfg.get("irdb-cert"))
-    self.irbe_cert  = rpki.x509.X509(Auto_file = cfg.get("irbe-cert"))
-    self.rpkid_cert = rpki.x509.X509(Auto_file = cfg.get("rpkid-cert"))
-    self.rpkid_key  = rpki.x509.RSA( Auto_file = cfg.get("rpkid-key"))
+    self.bpki_ta    = rpki.x509.X509(Auto_update = cfg.get("bpki-ta"))
+    self.irdb_cert  = rpki.x509.X509(Auto_update = cfg.get("irdb-cert"))
+    self.irbe_cert  = rpki.x509.X509(Auto_update = cfg.get("irbe-cert"))
+    self.rpkid_cert = rpki.x509.X509(Auto_update = cfg.get("rpkid-cert"))
+    self.rpkid_key  = rpki.x509.RSA( Auto_update = cfg.get("rpkid-key"))
 
     self.irdb_url   = cfg.get("irdb-url")
 

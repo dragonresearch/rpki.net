@@ -139,10 +139,7 @@ class DER_object(object):
     """
     Test whether this object is empty.
     """
-    for a in self.formats:
-      if getattr(self, a, None) is not None:
-        return False
-    return True
+    return all(getattr(self, a, None) is None for a in self.formats)
 
   def clear(self):
     """
@@ -150,6 +147,8 @@ class DER_object(object):
     """
     for a in self.formats + self.other_clear:
       setattr(self, a, None)
+    self.filename = None
+    self.timestamp = None
 
   def __init__(self, **kw):
     """
@@ -183,6 +182,10 @@ class DER_object(object):
         self.clear()
         self.DER = base64.b64decode(kw[name])
         return
+      if name == "Auto_update":
+        self.filename = kw[name]
+        self.check_auto_update()
+        return
       if name in ("PEM_file", "DER_file", "Auto_file"):
         f = open(kw[name], "rb")
         value = f.read()
@@ -194,13 +197,40 @@ class DER_object(object):
         return
     raise rpki.exceptions.DERObjectConversionError, "Can't honor conversion request %r" % (kw,)
   
+  def check_auto_update(self):
+    """
+    Check for updates to a DER object that auto-updates from a file.
+    """
+    if self.filename is None:
+      return
+    filename = self.filename
+    timestamp = os.stat(self.filename).st_mtime
+    if self.timestamp is None or self.timestamp < timestamp:
+      rpki.log.debug("Updating %s, timestamp %s" % (filename, rpki.sundial.datetime.fromtimestamp(timestamp)))
+      f = open(filename, "rb")
+      value = f.read()
+      f.close()
+      if self.pem_converter.looks_like_PEM(value):
+        value = self.pem_converter.to_DER(value)
+      self.clear()
+      self.DER = value
+      self.filename = filename
+      self.timestamp = timestamp
+
+  def check(self):
+    """
+    Perform basic checks on a DER object.
+    """
+    assert not self.empty()
+    self.check_auto_update()
+
   def get_DER(self):
     """
     Get the DER value of this object.
 
     Subclasses will almost certainly override this method.
     """
-    assert not self.empty()
+    self.check()
     if self.DER:
       return self.DER
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
@@ -379,7 +409,7 @@ class X509(DER_object):
     """
     Get the DER value of this certificate.
     """
-    assert not self.empty()
+    self.check()
     if self.DER:
       return self.DER
     if self.POW:
@@ -394,7 +424,7 @@ class X509(DER_object):
     """
     Get the POW value of this certificate.
     """
-    assert not self.empty()
+    self.check()
     if not self.POW:
       self.POW = POW.derRead(POW.X509_CERTIFICATE, self.get_DER())
     return self.POW
@@ -403,7 +433,7 @@ class X509(DER_object):
     """
     Get the POW.pkix value of this certificate.
     """
-    assert not self.empty()
+    self.check()
     if not self.POWpkix:
       cert = POW.pkix.Certificate()
       cert.fromString(self.get_DER())
@@ -547,7 +577,7 @@ class PKCS10(DER_object):
     """
     Get the DER value of this certification request.
     """
-    assert not self.empty()
+    self.check()
     if self.DER:
       return self.DER
     if self.POWpkix:
@@ -559,7 +589,7 @@ class PKCS10(DER_object):
     """
     Get the POW.pkix value of this certification request.
     """
-    assert not self.empty()
+    self.check()
     if not self.POWpkix:
       req = POW.pkix.CertificationRequest()
       req.fromString(self.get_DER())
@@ -656,7 +686,7 @@ class RSA(DER_object):
     """
     Get the DER value of this keypair.
     """
-    assert not self.empty()
+    self.check()
     if self.DER:
       return self.DER
     if self.POW:
@@ -668,7 +698,7 @@ class RSA(DER_object):
     """
     Get the POW value of this keypair.
     """
-    assert not self.empty()
+    self.check()
     if not self.POW:
       self.POW = POW.derRead(POW.RSA_PRIVATE_KEY, self.get_DER())
     return self.POW
@@ -705,7 +735,7 @@ class RSApublic(DER_object):
     """
     Get the DER value of this public key.
     """
-    assert not self.empty()
+    self.check()
     if self.DER:
       return self.DER
     if self.POW:
@@ -717,7 +747,7 @@ class RSApublic(DER_object):
     """
     Get the POW value of this public key.
     """
-    assert not self.empty()
+    self.check()
     if not self.POW:
       self.POW = POW.derRead(POW.RSA_PUBLIC_KEY, self.get_DER())
     return self.POW
@@ -781,7 +811,7 @@ class CMS_object(DER_object):
     """
     Get the DER value of this CMS_object.
     """
-    assert not self.empty()
+    self.check()
     if self.DER:
       return self.DER
     if self.POW:
@@ -793,7 +823,7 @@ class CMS_object(DER_object):
     """
     Get the POW value of this CMS_object.
     """
-    assert not self.empty()
+    self.check()
     if not self.POW:
       self.POW = POW.derRead(POW.CMS_MESSAGE, self.get_DER())
     return self.POW
@@ -1155,7 +1185,7 @@ class CRL(DER_object):
     """
     Get the DER value of this CRL.
     """
-    assert not self.empty()
+    self.check()
     if self.DER:
       return self.DER
     if self.POW:
@@ -1170,7 +1200,7 @@ class CRL(DER_object):
     """
     Get the POW value of this CRL.
     """
-    assert not self.empty()
+    self.check()
     if not self.POW:
       self.POW = POW.derRead(POW.X509_CRL, self.get_DER())
     return self.POW
@@ -1179,7 +1209,7 @@ class CRL(DER_object):
     """
     Get the POW.pkix value of this CRL.
     """
-    assert not self.empty()
+    self.check()
     if not self.POWpkix:
       crl = POW.pkix.CertificateList()
       crl.fromString(self.get_DER())

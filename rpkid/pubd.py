@@ -52,10 +52,10 @@ class pubd_context(object):
 
     self.sql = rpki.sql.session(cfg)
 
-    self.bpki_ta   = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
-    self.irbe_cert = rpki.x509.X509(Auto_file = cfg.get("irbe-cert"))
-    self.pubd_cert = rpki.x509.X509(Auto_file = cfg.get("pubd-cert"))
-    self.pubd_key  = rpki.x509.RSA( Auto_file = cfg.get("pubd-key"))
+    self.bpki_ta   = rpki.x509.X509(Auto_update = cfg.get("bpki-ta"))
+    self.irbe_cert = rpki.x509.X509(Auto_update = cfg.get("irbe-cert"))
+    self.pubd_cert = rpki.x509.X509(Auto_update = cfg.get("pubd-cert"))
+    self.pubd_key  = rpki.x509.RSA( Auto_update = cfg.get("pubd-key"))
 
     self.https_server_host = cfg.get("server-host", "")
     self.https_server_port = int(cfg.get("server-port", "4434"))

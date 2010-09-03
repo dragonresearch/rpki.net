@@ -198,10 +198,10 @@ db = MySQLdb.connect(user   = cfg.get("sql-username"),
 cur = db.cursor()
 db.autocommit(True)
 
-bpki_ta         = rpki.x509.X509(Auto_file = cfg.get("bpki-ta"))
-rpkid_cert      = rpki.x509.X509(Auto_file = cfg.get("rpkid-cert"))
-irdbd_cert      = rpki.x509.X509(Auto_file = cfg.get("irdbd-cert"))
-irdbd_key       = rpki.x509.RSA( Auto_file = cfg.get("irdbd-key"))
+bpki_ta         = rpki.x509.X509(Auto_update = cfg.get("bpki-ta"))
+rpkid_cert      = rpki.x509.X509(Auto_update = cfg.get("rpkid-cert"))
+irdbd_cert      = rpki.x509.X509(Auto_update = cfg.get("irdbd-cert"))
+irdbd_key       = rpki.x509.RSA( Auto_update = cfg.get("irdbd-key"))
 
 u = urlparse.urlparse(cfg.get("https-url"))
 

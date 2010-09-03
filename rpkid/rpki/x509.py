@@ -854,7 +854,7 @@ class CMS_object(DER_object):
     if trusted_ee:
       if self.debug_cms_certs:
         rpki.log.debug("Trusted CMS EE cert issuer %s subject %s SKI %s" % (trusted_ee.getIssuer(), trusted_ee.getSubject(), trusted_ee.hSKI()))
-      if certs and (len(certs) > 1 or certs[0] != trusted_ee):
+      if certs and (len(certs) > 1 or certs[0].getSubject() != trusted_ee.getSubject() or certs[0].getPublicKey() != trusted_ee.getPublicKey()):
         raise rpki.exceptions.UnexpectedCMSCerts, certs
       if crls:
         raise rpki.exceptions.UnexpectedCMSCRLs, crls

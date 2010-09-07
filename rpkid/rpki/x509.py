@@ -843,6 +843,12 @@ class CMS_object(DER_object):
     self.clear()
     self.content = content
 
+  def get_signingTime(self):
+    """
+    Extract signingTime from CMS signed attributes.
+    """
+    return rpki.sundial.datetime.fromUTCTime(self.get_POW().signingTime())
+
   def verify(self, ta):
     """
     Verify CMS wrapper and store inner content.

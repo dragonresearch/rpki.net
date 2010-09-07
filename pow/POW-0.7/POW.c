@@ -7004,6 +7004,73 @@ CMS_object_eContentType(cms_object *self, PyObject *args)
   return result;
 }
 
+static char CMS_object_signingTime__doc__[] =
+"<method>\n"
+"   <header>\n"
+"      <memberof>CMS</memberof>\n"
+"      <name>get_signingTime</name>\n"
+"   </header>\n"
+"   <body>\n"
+"      <para>\n"
+"         This method returns the signingTime of a CMS message.\n"
+"      </para>\n"
+"   </body>\n"
+"</method>\n"
+;
+
+static PyObject *
+CMS_object_signingTime(cms_object *self, PyObject *args)
+{
+  PyObject *result = NULL;
+  STACK_OF(CMS_SignerInfo) *sis = NULL;
+  CMS_SignerInfo *si = NULL;
+  X509_ATTRIBUTE *xa = NULL;
+  ASN1_TYPE *so = NULL;
+  int i;
+
+  if (!PyArg_ParseTuple(args, ""))
+    return NULL;
+
+  if ((sis = CMS_get0_SignerInfos(self->cms)) == NULL)
+    lose("Could not extract signerInfos from CMS message[1]");
+
+  if (sk_CMS_SignerInfo_num(sis) != 1)
+    lose("Could not extract signerInfos from CMS message[2]");
+
+  si = sk_CMS_SignerInfo_value(sis, 0);
+
+  if ((i = CMS_signed_get_attr_by_NID(si, NID_pkcs9_signingTime, -1)) < 0)
+    lose("Could not extract signerInfos from CMS message[3]");
+
+  if ((xa = CMS_signed_get_attr(si, i)) == NULL)
+    lose("Could not extract signerInfos from CMS message[4]");
+
+  if (xa->single)
+    lose("Could not extract signerInfos from CMS message[5]");
+
+  if (sk_ASN1_TYPE_num(xa->value.set) != 1)
+    lose("Could not extract signerInfos from CMS message[6]");
+
+  if ((so = sk_ASN1_TYPE_value(xa->value.set, 0)) == NULL)
+    lose("Could not extract signerInfos from CMS message[7]");
+
+  /*
+   * Should also check for V_ASN1_GENERALIZEDTIME but nothing else in
+   * this module does either...be consistant for now, fix all at once,
+   * some day.
+   */
+  if (so->type != V_ASN1_UTCTIME)
+    lose("Could not extract signerInfos from CMS message[8]");
+
+  result = Py_BuildValue("s", so->value.utctime->data);
+
+ error:
+
+  assert_no_unhandled_openssl_errors();
+
+  return result;
+}
+
 static char CMS_object_pprint__doc__[] =
 "<method>\n"
 "   <header>\n"
@@ -7166,6 +7233,7 @@ static struct PyMethodDef CMS_object_methods[] = {
   {"sign",         (PyCFunction)CMS_object_sign,         METH_VARARGS,  NULL},
   {"verify",       (PyCFunction)CMS_object_verify,       METH_VARARGS,  NULL},
   {"eContentType", (PyCFunction)CMS_object_eContentType, METH_VARARGS,  NULL},
+  {"signingTime",  (PyCFunction)CMS_object_signingTime,  METH_VARARGS,  NULL},
   {"pprint",       (PyCFunction)CMS_object_pprint,       METH_VARARGS,  NULL},
   {"certs",        (PyCFunction)CMS_object_certs,        METH_VARARGS,  NULL},
   {"crls",         (PyCFunction)CMS_object_crls,         METH_VARARGS,  NULL},
@@ -8195,6 +8263,7 @@ pow_module_docset(PyObject *self, PyObject *args)
   docset_helper_add(docset, CMS_object_sign__doc__);
   docset_helper_add(docset, CMS_object_verify__doc__);
   docset_helper_add(docset, CMS_object_eContentType__doc__);
+  docset_helper_add(docset, CMS_object_signingTime__doc__);
   docset_helper_add(docset, CMS_object_pprint__doc__);
   docset_helper_add(docset, CMS_object_certs__doc__);
   docset_helper_add(docset, CMS_object_crls__doc__);

@@ -195,17 +195,32 @@ static const ROA *read_roa(const char *filename, const int print_cms, const int 
     printf("Certificates:   %d\n", certs ? sk_X509_num(certs) : 0);
     printf("CRLs:           %d\n", crls ? sk_X509_CRL_num(crls) : 0);
     for (i = 0; i < sk_CMS_SignerInfo_num(signerInfos); i++) {
+      CMS_SignerInfo *si = sk_CMS_SignerInfo_value(signerInfos, i);
       ASN1_OCTET_STRING *hash = NULL;
       printf("SignerId[%d]:    ", i);
-      if (CMS_SignerInfo_get0_signer_id(sk_CMS_SignerInfo_value(signerInfos, i), &hash, NULL, NULL) && hash != NULL)
+      if (CMS_SignerInfo_get0_signer_id(si, &hash, NULL, NULL) && hash != NULL)
 	for (j = 0; j < hash->length; j++)
 	  printf("%02x%s", hash->data[j], j == hash->length - 1 ? "" : ":");
       else
 	printf("[Could not read SID]");
       if (certs)
 	for (j = 0; j < sk_X509_num(certs); j++)
-	  if (!CMS_SignerInfo_cert_cmp(sk_CMS_SignerInfo_value(signerInfos, i), sk_X509_value(certs, j)))
+	  if (!CMS_SignerInfo_cert_cmp(si, sk_X509_value(certs, j)))
 	    printf(" [Matches certificate %d]", j);
+      if ((j = CMS_signed_get_attr_by_NID(si, NID_pkcs9_signingTime, -1)) >= 0) {
+	X509_ATTRIBUTE *xa = CMS_signed_get_attr(si, j);
+	if (xa && !xa->single && sk_ASN1_TYPE_num(xa->value.set) == 1) {
+	  ASN1_TYPE *so = sk_ASN1_TYPE_value(xa->value.set, 0);
+	  switch (so->type) {
+	  case V_ASN1_UTCTIME:
+	    printf(" [signingTime(U) %s]", so->value.utctime->data);
+	    break;
+	  case  V_ASN1_GENERALIZEDTIME:
+	    printf(" [signingTime(G) %s]", so->value.generalizedtime->data);
+	    break;
+	  }
+	}
+      }
       printf("\n");
     }
     sk_X509_pop_free(certs, X509_free);

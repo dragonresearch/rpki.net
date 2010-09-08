@@ -757,28 +757,42 @@ class CA(object):
       if not filename and os.path.exists(fn):
         os.unlink(fn)
 
-  def xcert(self, cert, path_restriction = 0):
+  def xcert_filename(self, cert):
     """
-    Cross-certify a certificate represented as a PEM file.
+    Generate filename for a cross-certification.
+
+    Extracts public key and subject name from PEM file and hash it so
+    we can use the result as a tag for cross-certifying this cert.
     """
 
-    if not cert or not os.path.exists(cert):
+    if cert and os.path.exists(cert):
+      return "%s/xcert.%s.cer" % (self.dir, self.run_dgst(self.run_openssl(
+        "x509", "-noout", "-pubkey", "-subject", "-in", cert)).strip())
+    else:
       return None
 
-    # Extract public key and subject name from PEM file and hash it so
-    # we can use the result as a tag for cross-certifying this cert.
+  def xcert(self, cert, path_restriction = 0):
+    """
+    Cross-certify a certificate represented as a PEM file, if we
+    haven't already.  This only works for self-signed certs, due to
+    limitations of the OpenSSL command line tool, but that suffices
+    for our purposes.
+    """
 
-    hash = self.run_dgst(self.run_openssl(
-      "x509", "-noout", "-pubkey", "-subject", "-in", cert))
-
-    # Cross-certify the cert we were given, if we haven't already.
-    # This only works for self-signed certs, due to limitations of the
-    # OpenSSL command line tool, but that suffices for our purposes.
-
-    xcert = "%s/xcert.%s.cer" % (self.dir, hash.strip())
+    xcert = self.xcert_filename(cert)
     if not os.path.exists(xcert):
       self.run_ca("-ss_cert", cert, "-out", xcert, "-extensions", self.path_restriction[path_restriction])
     return xcert
+
+  def xcert_revoke(self, cert):
+    """
+    Revoke a cross-certification and regenerate CRL.
+    """
+
+    xcert = self.xcert_filename(cert)
+    if xcert:
+      self.run_ca("-revoke", xcert)
+      self.run_ca("-gencrl", "-out", self.crl)
 
 def etree_validate(e):
   # This is a kludge, schema should be loaded as module or configured

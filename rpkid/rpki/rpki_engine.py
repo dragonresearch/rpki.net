@@ -96,7 +96,7 @@ class rpkid_context(object):
 
     def unwrap(der):
       r_msg = rpki.left_right.cms_msg.unwrap(der, (self.bpki_ta, self.irdb_cert))
-      if not r_msg.is_reply() or [r_pdu for r_pdu in r_msg if type(r_pdu) is not type(q_pdu)]:
+      if not r_msg.is_reply() or not all(type(r_pdu) is type(q_pdu) for r_pdu in r_msg):
         raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")
       callback(r_msg)
 

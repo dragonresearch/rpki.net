@@ -108,4 +108,4 @@ def traceback():
   bt = tb.format_exc()
   assert bt is not None, "Apparently I'm still not using the right test for null backtrace"
   for line in bt.splitlines():
-    error(line)
+    warn(line)

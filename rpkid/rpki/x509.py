@@ -1133,9 +1133,9 @@ class XML_CMS_object(CMS_object):
     try:
       self.schema.assertValid(self.get_content())
     except lxml.etree.DocumentInvalid:
-      rpki.log.error("PDU failed schema check:")
+      rpki.log.error("PDU failed schema check")
       for line in self.pretty_print_content().splitlines():
-        rpki.log.error(line)
+        rpki.log.warn(line)
       raise
 
   def dump_to_disk(self, prefix):

@@ -663,7 +663,7 @@ class http_server(http_stream):
     except POW.SSLErrorSSLError, e:
       if "\n" in e:
         for line in str(e).splitlines():
-          rpki.log.error(line)
+          rpki.log.warn(line)
         raise POW.SSLErrorSSLError, "TLS certificate problem, most likely"
       else:
         raise

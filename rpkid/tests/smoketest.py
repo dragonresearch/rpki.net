@@ -966,7 +966,7 @@ class allocation(object):
         signer = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
         signed = signer.communicate(input = b.pkcs10_request.get_PEM())
         if not signed[0]:
-          rpki.log.error(signed[1])
+          rpki.log.warn(signed[1])
           raise RuntimeError, "Couldn't issue BSC EE certificate"
         s.bsc_ee = rpki.x509.X509(PEM = signed[0])
         s.bsc_crl = rpki.x509.CRL(PEM_file = s.name + "-SELF.crl")
@@ -1196,7 +1196,7 @@ def call_pubd(pdus, cb):
     cb(msg)
 
   def call_pubd_eb(e):
-    rpki.log.error("Problem calling pubd: %s" % e)
+    rpki.log.warn("Problem calling pubd: %s" % e)
     rpki.log.traceback()
 
   rpki.https.client(

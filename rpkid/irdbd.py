@@ -125,7 +125,7 @@ def handler(query, path, cb):
 
     try:
 
-      q_msg = rpki.left_right.cms_msg.unwrap(query, (bpki_ta, rpkid_cert))
+      q_msg = rpki.left_right.cms_msg(DER = query).unwrap((bpki_ta, rpkid_cert))
 
       if not isinstance(q_msg, rpki.left_right.msg) or not q_msg.is_query():
         raise rpki.exceptions.BadQuery, "Unexpected %r PDU" % q_msg
@@ -151,7 +151,7 @@ def handler(query, path, cb):
       rpki.log.traceback()
       r_msg.append(rpki.left_right.report_error_elt.from_exception(data))
 
-    cb(200, rpki.left_right.cms_msg.wrap(r_msg, irdbd_key, irdbd_cert))
+    cb(200, rpki.left_right.cms_msg().wrap(r_msg, irdbd_key, irdbd_cert))
 
   except (rpki.async.ExitNow, SystemExit):
     raise

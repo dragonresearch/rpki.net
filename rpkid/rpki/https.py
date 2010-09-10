@@ -1075,10 +1075,12 @@ class http_queue(object):
     processing this result, kick off next message in the queue, if any.
     """
 
-    if not self.queue:
+    try:
+      req = self.queue.pop(0)
+    except IndexError:
       self.log("No caller, this should not happen.  Dropping result %r" % result)
+      return
 
-    req = self.queue.pop(0)
     self.log("Dequeuing request %r" % req)
 
     try:
@@ -1215,33 +1217,29 @@ class caller(object):
 
   def __call__(self, cb, eb, *pdus):
 
-    def done(cms):
+    def done(r_der):
       """
       Handle CMS-wrapped XML response message.
       """
-      result = self.proto.cms_msg.unwrap(cms, (self.server_ta, self.server_cert), pretty_print = self.debug)
+      r_cms = self.proto.cms_msg(DER = r_der)
+      r_msg = r_cms.unwrap((self.server_ta, self.server_cert))
       if self.debug:
-        msg, xml = result
         print "<!-- Reply -->"
-        print xml
-      else:
-        msg = result
-      cb(msg)
+        print r_cms.pretty_print_content()
+      cb(r_msg)
 
-    msg = self.proto.msg.query(*pdus)
-    result = self.proto.cms_msg.wrap(msg, self.client_key, self.client_cert, pretty_print = self.debug)
+    q_msg = self.proto.msg.query(*pdus)
+    q_cms = self.proto.cms_msg()
+    q_der = q_cms.wrap(q_msg, self.client_key, self.client_cert)
     if self.debug:
-      cms, xml = result
       print "<!-- Query -->"
-      print xml
-    else:
-      cms = result
+      print q_cms.pretty_print_content()
 
     client(
       client_key   = self.client_key,
       client_cert  = self.client_cert,
       server_ta    = self.server_ta,
       url          = self.url,
-      msg          = cms,
+      msg          = q_der,
       callback     = done,
       errback      = eb)

@@ -95,18 +95,18 @@ def query_up_down(q_pdu):
     payload = q_pdu,
     sender = yaml_data["sender-id"],
     recipient = yaml_data["recipient-id"])
-  q_cms = rpki.up_down.cms_msg.wrap(q_msg, cms_key, cms_certs, cms_crl)
+  q_der = rpki.up_down.cms_msg().wrap(q_msg, cms_key, cms_certs, cms_crl)
 
-  def done(der):
-    r_msg, r_xml = rpki.up_down.cms_msg.unwrap(der, [cms_ta] + cms_ca_certs, pretty_print = True)
-    print r_xml
+  def done(r_der):
+    r_cms = rpki.up_down.cms_msg(DER = r_der)
+    r_msg = r_cms.unwrap([cms_ta] + cms_ca_certs)
+    print r_cms.pretty_print_content()
     try:
       r_msg.payload.check_response()
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
       fail(e)
-    #rpki.async.exit_event_loop()
 
   rpki.https.want_persistent_client = False
 
@@ -114,7 +114,7 @@ def query_up_down(q_pdu):
     server_ta    = [https_ta] + https_ca_certs,
     client_key   = https_key,
     client_cert  = https_cert,
-    msg          = q_cms,
+    msg          = q_der,
     url          = yaml_data["posturl"],
     callback     = done,
     errback      = fail)

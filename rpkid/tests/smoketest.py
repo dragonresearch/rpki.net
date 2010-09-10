@@ -779,36 +779,37 @@ class allocation(object):
       self = self.hosted_by
       assert not self.is_hosted()
 
-
     assert isinstance(pdus, (list, tuple))
     assert self.rpki_port is not None
 
-    msg = rpki.left_right.msg.query(*pdus)
-    cms, xml = rpki.left_right.cms_msg.wrap(msg, self.irbe_key, self.irbe_cert,
-                                            pretty_print = True)
-    rpki.log.debug(xml)
-    url = "https://localhost:%d/left-right" % self.rpki_port
+    q_msg = rpki.left_right.msg.query(*pdus)
+    q_cms = rpki.left_right.cms_msg()
+    q_der = q_cms.wrap(q_msg, self.irbe_key, self.irbe_cert)
+    q_url = "https://localhost:%d/left-right" % self.rpki_port
 
-    def done(val):
+    rpki.log.debug(q_cms.pretty_print_content())
+
+    def done(r_der):
       rpki.log.info("Callback from rpkid %s" % self.name)
-      if isinstance(val, Exception):
-        raise val
-      msg, xml = rpki.left_right.cms_msg.unwrap(val, (self.rpkid_ta, self.rpkid_cert),
-                                                pretty_print = True)
-      rpki.log.debug(xml)
-      assert msg.is_reply()
-      for pdu in msg:
-        assert not isinstance(pdu, rpki.left_right.report_error_elt)
-      cb(msg)
+      r_cms = rpki.left_right.cms_msg(DER = r_der)
+      r_msg = r_cms.unwrap((self.rpkid_ta, self.rpkid_cert))
+      rpki.log.debug(r_cms.pretty_print_content())
+      assert r_msg.is_reply()
+      for r_pdu in r_msg:
+        assert not isinstance(r_pdu, rpki.left_right.report_error_elt)
+      cb(r_msg)
+
+    def lose(e):
+      raise
 
     rpki.https.client(
       client_key   = self.irbe_key,
       client_cert  = self.irbe_cert,
       server_ta    = self.rpkid_ta,
-      url          = url,
-      msg          = cms,
+      url          = q_url,
+      msg          = q_der,
       callback     = done,
-      errback      = done)
+      errback      = lose)
 
   def cross_certify(self, certificant, reverse = False):
     """
@@ -1180,20 +1181,21 @@ def call_pubd(pdus, cb):
   response.
   """
   rpki.log.info("Calling pubd")
-  msg = rpki.publication.msg.query(*pdus)
-  cms, xml = rpki.publication.cms_msg.wrap(msg, pubd_irbe_key, pubd_irbe_cert,
-                                           pretty_print = True)
-  rpki.log.debug(xml)
-  url = "https://localhost:%d/control" % pubd_port
+  q_msg = rpki.publication.msg.query(*pdus)
+  q_cms = rpki.publication.cms_msg()
+  q_der = q_cms.wrap(q_msg, pubd_irbe_key, pubd_irbe_cert)
+  q_url = "https://localhost:%d/control" % pubd_port
 
-  def call_pubd_cb(val):
-    msg, xml = rpki.publication.cms_msg.unwrap(val, (pubd_ta, pubd_pubd_cert),
-                                               pretty_print = True)
-    rpki.log.debug(xml)
-    assert msg.is_reply()
-    for pdu in msg:
-      assert not isinstance(pdu, rpki.publication.report_error_elt)
-    cb(msg)
+  rpki.log.debug(q_cms.pretty_print_content())
+
+  def call_pubd_cb(r_der):
+    r_cms = rpki.publication.cms_msg(DER = r_der)
+    r_msg = r_cms.unwrap((pubd_ta, pubd_pubd_cert))
+    rpki.log.debug(r_cms.pretty_print_content())
+    assert r_msg.is_reply()
+    for r_pdu in r_msg:
+      assert not isinstance(r_pdu, rpki.publication.report_error_elt)
+    cb(r_msg)
 
   def call_pubd_eb(e):
     rpki.log.warn("Problem calling pubd: %s" % e)
@@ -1203,8 +1205,8 @@ def call_pubd(pdus, cb):
     client_key   = pubd_irbe_key,
     client_cert  = pubd_irbe_cert,
     server_ta    = pubd_ta,
-    url          = url,
-    msg          = cms,
+    url          = q_url,
+    msg          = q_der,
     callback     = call_pubd_cb,
     errback      = call_pubd_eb)
 

@@ -83,7 +83,7 @@ class rpkid_context(object):
     else:
       rpki.log.debug("Not using internal clock, start_cron() call ignored")
 
-  def irdb_query(self, q_pdu, callback, errback):
+  def irdb_query(self, q_pdu, callback, errback, expected_pdu_count = None):
     """
     Perform an IRDB callback query.
     """
@@ -92,12 +92,17 @@ class rpkid_context(object):
 
     q_msg = rpki.left_right.msg.query()
     q_msg.append(q_pdu)
-    q_cms = rpki.left_right.cms_msg.wrap(q_msg, self.rpkid_key, self.rpkid_cert)
+    q_der = rpki.left_right.cms_msg().wrap(q_msg, self.rpkid_key, self.rpkid_cert)
 
-    def unwrap(der):
-      r_msg = rpki.left_right.cms_msg.unwrap(der, (self.bpki_ta, self.irdb_cert))
+    def unwrap(r_der):
+      r_cms = rpki.left_right.cms_msg(DER = r_der)
+      r_msg = r_cms.unwrap((self.bpki_ta, self.irdb_cert))
       if not r_msg.is_reply() or not all(type(r_pdu) is type(q_pdu) for r_pdu in r_msg):
-        raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")
+        raise rpki.exceptions.BadIRDBReply, "Unexpected response to IRDB query: %s" % r_cms.pretty_print_content()
+      if expected_pdu_count is not None and len(r_msg) != expected_pdu_count:
+        assert isinstance(expected_pdu_count, (int, long))
+        raise rpki.exceptions.BadIRDBReply, "Expected exactly %d PDU%s from IRDB: %s" (
+          expected_pdu_count, "" if expected_pdu_count == 1 else "s", r_cms.pretty_print_content())
       callback(r_msg)
 
     rpki.https.client(
@@ -105,7 +110,7 @@ class rpkid_context(object):
       client_key   = self.rpkid_key,
       client_cert  = self.rpkid_cert,
       url          = self.irdb_url,
-      msg          = q_cms,
+      msg          = q_der,
       callback     = unwrap,
       errback      = errback)
 
@@ -121,15 +126,13 @@ class rpkid_context(object):
     q_pdu.child_handle = child_handle
 
     def done(r_msg):
-      if len(r_msg) != 1:
-        raise rpki.exceptions.BadIRDBReply, "Expected exactly one PDU from IRDB: %s" % lxml.etree.tostring(r_msg.toXML(), pretty_print = True, encoding = "us-ascii")
       callback(rpki.resource_set.resource_bag(
         asn         = r_msg[0].asn,
         v4          = r_msg[0].ipv4,
         v6          = r_msg[0].ipv6,
         valid_until = r_msg[0].valid_until))
 
-    self.irdb_query(q_pdu, done, errback)
+    self.irdb_query(q_pdu, done, errback, expected_pdu_count = 1)
 
   def irdb_query_roa_requests(self, self_handle, callback, errback):
     """
@@ -151,13 +154,13 @@ class rpkid_context(object):
     rpki.log.trace()
 
     def done(r_msg):
-      reply = rpki.left_right.cms_msg.wrap(r_msg, self.rpkid_key, self.rpkid_cert)
+      reply = rpki.left_right.cms_msg().wrap(r_msg, self.rpkid_key, self.rpkid_cert)
       self.sql.sweep()
       cb(200, reply)
 
     try:
       self.sql.ping()
-      q_msg = rpki.left_right.cms_msg.unwrap(query, (self.bpki_ta, self.irbe_cert))
+      q_msg = rpki.left_right.cms_msg(DER = query).unwrap((self.bpki_ta, self.irbe_cert))
       if not q_msg.is_query():
         raise rpki.exceptions.BadQuery, "Message type is not query"
       q_msg.serve_top_level(self, done)

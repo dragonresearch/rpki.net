@@ -667,12 +667,12 @@ class repository_elt(data_elt):
         rpki.log.info("Sending <%s %r %r> to pubd" % (q_pdu.action, q_pdu.uri, q_pdu.payload))
 
       bsc = self.bsc()
-      q_cms = rpki.publication.cms_msg.wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
+      q_der = rpki.publication.cms_msg().wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
       bpki_ta_path = (self.gctx.bpki_ta, self.self().bpki_cert, self.self().bpki_glue, self.bpki_cert, self.bpki_glue)
 
-      def done(r_cms):
+      def done(r_der):
         try:
-          r_msg = rpki.publication.cms_msg.unwrap(r_cms, bpki_ta_path)
+          r_msg = rpki.publication.cms_msg(DER = r_der).unwrap(bpki_ta_path)
           for r_pdu in r_msg:
             handler = handlers.get(r_pdu.tag, self.default_pubd_handler)
             if handler:
@@ -690,7 +690,7 @@ class repository_elt(data_elt):
         client_cert  = bsc.signing_cert,
         server_ta    = bpki_ta_path,
         url          = self.peer_contact_uri,
-        msg          = q_cms,
+        msg          = q_der,
         callback     = done,
         errback      = errback)
 
@@ -821,15 +821,17 @@ class parent_elt(data_elt):
       sender = self.sender_name,
       recipient = self.recipient_name)
 
-    q_cms = rpki.up_down.cms_msg.wrap(q_msg, bsc.private_key_id,
-                                      bsc.signing_cert,
-                                      bsc.signing_cert_crl)
+    q_der = rpki.up_down.cms_msg().wrap(q_msg, bsc.private_key_id,
+                                        bsc.signing_cert,
+                                        bsc.signing_cert_crl)
 
-    def unwrap(der):
+    def unwrap(r_der):
       try:
-        r_msg = rpki.up_down.cms_msg.unwrap(der, (self.gctx.bpki_ta,
-                                                  self.self().bpki_cert, self.self().bpki_glue,
-                                                  self.bpki_cms_cert, self.bpki_cms_glue))
+        r_msg = rpki.up_down.cms_msg(DER = r_der).unwrap((self.gctx.bpki_ta,
+                                                          self.self().bpki_cert,
+                                                          self.self().bpki_glue,
+                                                          self.bpki_cms_cert,
+                                                          self.bpki_cms_glue))
         r_msg.payload.check_response()
       except (SystemExit, rpki.async.ExitNow):
         raise
@@ -843,7 +845,7 @@ class parent_elt(data_elt):
                                       self.bpki_https_cert, self.bpki_https_glue),
                       client_key   = bsc.private_key_id,
                       client_cert  = bsc.signing_cert,
-                      msg          = q_cms,
+                      msg          = q_der,
                       url          = self.peer_contact_uri,
                       callback     = unwrap,
                       errback      = eb)
@@ -931,9 +933,11 @@ class child_elt(data_elt):
     bsc = self.bsc()
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
-    q_msg = rpki.up_down.cms_msg.unwrap(query, (self.gctx.bpki_ta,
-                                                self.self().bpki_cert, self.self().bpki_glue,
-                                                self.bpki_cert, self.bpki_glue))
+    q_msg = rpki.up_down.cms_msg(DER = query).unwrap((self.gctx.bpki_ta,
+                                                      self.self().bpki_cert,
+                                                      self.self().bpki_glue,
+                                                      self.bpki_cert,
+                                                      self.bpki_glue))
     q_msg.payload.gctx = self.gctx
     if enforce_strict_up_down_xml_sender and q_msg.sender != str(self.child_id):
       raise rpki.exceptions.BadSender, "Unexpected XML sender %s" % q_msg.sender
@@ -944,9 +948,9 @@ class child_elt(data_elt):
       # sane way of reporting errors in the error reporting mechanism.
       # May require refactoring, ignore the issue for now.
       #
-      r_cms = rpki.up_down.cms_msg.wrap(r_msg, bsc.private_key_id,
-                                        bsc.signing_cert, bsc.signing_cert_crl)
-      callback(r_cms)
+      reply = rpki.up_down.cms_msg().wrap(r_msg, bsc.private_key_id,
+                                          bsc.signing_cert, bsc.signing_cert_crl)
+      callback(reply)
 
     try:
       q_msg.serve_top_level(self, done)

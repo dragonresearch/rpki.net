@@ -237,30 +237,29 @@ class cms_msg(rpki.up_down.cms_msg):
 
 def up_down_handler(query, path, cb):
   try:
-    q_msg = cms_msg.unwrap(query, (bpki_ta, child_bpki_cert))
+    q_msg = cms_msg(DER = query).unwrap((bpki_ta, child_bpki_cert))
   except (rpki.async.ExitNow, SystemExit):
     raise
-  except Exception, data:
+  except Exception, e:
     rpki.log.traceback()
-    return cb(400, "Could not process PDU: %s" % data)
+    return cb(400, "Could not process PDU: %s" % e)
 
   def done(r_msg):
-    r_cms = cms_msg.wrap(r_msg, rootd_bpki_key, rootd_bpki_cert, rootd_bpki_crl)
-    cb(200, r_cms)
+    cb(200, cms_msg().wrap(r_msg, rootd_bpki_key, rootd_bpki_cert, rootd_bpki_crl))
 
   try:
     q_msg.serve_top_level(None, done)
   except (rpki.async.ExitNow, SystemExit):
     raise
-  except Exception, data:
+  except Exception, e:
     rpki.log.traceback()
     try:
-      done(q_msg.serve_error(data))
+      done(q_msg.serve_error(e))
     except (rpki.async.ExitNow, SystemExit):
       raise
-    except Exception, data:
+    except Exception, e:
       rpki.log.traceback()
-      cb(500, "Could not process PDU: %s" % data)
+      cb(500, "Could not process PDU: %s" % e)
 
 os.environ["TZ"] = "UTC"
 time.tzset()

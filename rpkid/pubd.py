@@ -70,11 +70,11 @@ class pubd_context(object):
     """
 
     def done(r_msg):
-      reply = rpki.publication.cms_msg.wrap(r_msg, self.pubd_key, self.pubd_cert, crl)
+      reply = rpki.publication.cms_msg().wrap(r_msg, self.pubd_key, self.pubd_cert, crl)
       self.sql.sweep()
       cb(reply)
 
-    q_msg = rpki.publication.cms_msg.unwrap(query, certs)
+    q_msg = rpki.publication.cms_msg(DER = query).unwrap(certs)
     q_msg.serve_top_level(self, client, done)
 
   def control_handler(self, query, path, cb):

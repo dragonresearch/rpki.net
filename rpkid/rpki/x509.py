@@ -1146,38 +1146,27 @@ class XML_CMS_object(CMS_object):
     f.write(self.get_DER())
     f.close()
 
-  @classmethod
-  def wrap(cls, msg, keypair, certs, crls = None, pretty_print = False):
+  def wrap(self, msg, keypair, certs, crls = None):
     """
-    Build a CMS-wrapped XML PDU and return its DER encoding.
+    Wrap an XML PDU in CMS and return its DER encoding.
     """
     rpki.log.trace()
-    self = cls()
     self.set_content(msg.toXML())
     self.schema_check()
     self.sign(keypair, certs, crls)
     if self.dump_outbound_cms:
       self.dump_outbound_cms.dump(self)
-    if pretty_print:
-      return self.get_DER(), self.pretty_print_content()
-    else:
-      return self.get_DER()
+    return self.get_DER()
 
-  @classmethod
-  def unwrap(cls, der, ta, pretty_print = False):
+  def unwrap(self, ta):
     """
     Unwrap a CMS-wrapped XML PDU and return Python objects.
     """
-    self = cls(DER = der)
     if self.dump_inbound_cms:
       self.dump_inbound_cms.dump(self)
     self.verify(ta)
     self.schema_check()
-    msg = self.saxify(self.get_content())
-    if pretty_print:
-      return msg, self.pretty_print_content()
-    else:
-      return msg
+    return self.saxify(self.get_content())
 
 class CRL(DER_object):
   """

@@ -663,10 +663,18 @@ class ca_detail_obj(rpki.sql.sql_persistent):
                          handler = False if allow_failure else None)
     for roa in self.roas():
       roa.revoke(publisher = publisher, allow_failure = allow_failure)      
-    if self.latest_manifest is not None:
+    try:
+      latest_manifest = self.latest_manifest
+    except AttributeError:
+      latest_manifest = None
+    if latest_manifest is not None:
       publisher.withdraw(cls = rpki.publication.manifest_elt, uri = self.manifest_uri(ca), obj = self.latest_manifest, repository = repository,
                          handler = False if allow_failure else None)
-    if self.latest_crl is not None:
+    try:
+      latest_crl = self.latest_crl
+    except AttributeError:
+      latest_crl = None
+    if latest_crl is not None:
       publisher.withdraw(cls = rpki.publication.crl_elt,      uri = self.crl_uri(ca),      obj = self.latest_crl,      repository = repository,
                          handler = False if allow_failure else None)
     for cert in self.child_certs() + self.revoked_certs():

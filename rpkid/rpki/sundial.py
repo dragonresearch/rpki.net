@@ -67,7 +67,8 @@ class datetime(pydatetime.datetime):
   @classmethod
   def fromUTCTime(cls, x):
     """Convert from ASN.1 UTCTime."""
-    return cls.strptime(x, "%y%m%d%H%M%SZ")
+    x = str(x)
+    return cls.fromGeneralizedTime(("19" if x[0] >= "5" else "20") + x)
 
   def toUTCTime(self):
     """Convert to ASN.1 UTCTime."""

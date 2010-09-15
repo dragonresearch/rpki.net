@@ -788,6 +788,38 @@ stack_to_tuple_helper(_STACK *sk, PyObject *(*handler)(void *))
   return NULL;
 }
 
+/*
+ * Time conversion functions.  These follow RFC 5280, but use a single
+ * text encoding that looks like GeneralizedTime as restricted by RFC
+ * 5280; conversion to and from UTCTime is handled internally
+ * according to the RFC 5280 rules.  The intent is to hide the
+ * horrible short-sighted mess from Python code entirely.
+ */
+
+static PyObject *
+ASN1_TIME_to_Python(ASN1_TIME *t)
+{
+  ASN1_GENERALIZEDTIME *g = ASN1_TIME_to_generalizedtime(t, NULL);
+  PyObject *result = NULL;
+  if (g) {
+    result = Py_BuildValue("s", g->data);
+    ASN1_GENERALIZEDTIME_free(g);
+  }
+  return result;
+}
+
+static int
+python_ASN1_TIME_set_string(ASN1_TIME *t, const char *s)
+{
+  if (t == NULL || s == NULL || strlen(s) < 10)
+    return 0;
+  if ((s[0] == '1' && s[1] == '9' && s[2] > '4') ||
+      (s[0] == '2' && s[1] == '0' && s[2] < '5'))
+    return ASN1_UTCTIME_set_string(t, s + 2);
+  else
+    return ASN1_GENERALIZEDTIME_set_string(t, s);
+}
+
 /*========== helper funcitons ==========*/
 
 /*========== X509 code ==========*/
@@ -1486,7 +1518,7 @@ X509_object_get_not_before (x509_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, ""))
     goto error;
 
-  return Py_BuildValue("s", self->x509->cert_info->validity->notBefore->data);
+  return ASN1_TIME_to_Python(self->x509->cert_info->validity->notBefore);
 
  error:
 
@@ -1517,7 +1549,7 @@ X509_object_get_not_after (x509_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, ""))
     goto error;
 
-  return Py_BuildValue("s", self->x509->cert_info->validity->notAfter->data);
+  return ASN1_TIME_to_Python(self->x509->cert_info->validity->notAfter);
 
  error:
 
@@ -1551,8 +1583,8 @@ X509_object_set_not_after (x509_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "s", &new_time))
     goto error;
 
-  if (!ASN1_UTCTIME_set_string(self->x509->cert_info->validity->notAfter, new_time))
-    lose("could not set time");
+  if (!python_ASN1_TIME_set_string(self->x509->cert_info->validity->notAfter, new_time))
+    lose("Could not set notAfter");
 
   Py_RETURN_NONE;
 
@@ -1588,8 +1620,8 @@ X509_object_set_not_before (x509_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "s", &new_time))
     goto error;
 
-  if (!ASN1_UTCTIME_set_string(self->x509->cert_info->validity->notBefore, new_time))
-    lose("could not set time");
+  if (!python_ASN1_TIME_set_string(self->x509->cert_info->validity->notBefore, new_time))
+    lose("Could not set notBefore");
 
   Py_RETURN_NONE;
 
@@ -2572,8 +2604,8 @@ x509_crl_object_set_this_update (x509_crl_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "s", &new_time))
     goto error;
 
-  if (!ASN1_UTCTIME_set_string(self->crl->crl->lastUpdate, new_time))
-    lose("could not set time");
+  if (!python_ASN1_TIME_set_string(self->crl->crl->lastUpdate, new_time))
+    lose("Could not set lastUpdate");
 
   Py_RETURN_NONE;
 
@@ -2606,7 +2638,7 @@ x509_crl_object_get_this_update (x509_crl_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, ""))
     goto error;
 
-  return Py_BuildValue("s", self->crl->crl->lastUpdate->data);
+  return ASN1_TIME_to_Python(self->crl->crl->lastUpdate);
 
  error:
 
@@ -2646,8 +2678,8 @@ x509_crl_object_set_next_update (x509_crl_object *self, PyObject *args)
 
   self->crl->crl->nextUpdate = time;
 
-  if (!ASN1_UTCTIME_set_string(time, new_time))
-    lose("could not set next update");
+  if (!python_ASN1_TIME_set_string(time, new_time))
+    lose("Could not set nextUpdate");
 
   Py_RETURN_NONE;
 
@@ -2680,7 +2712,7 @@ x509_crl_object_get_next_update (x509_crl_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, ""))
     goto error;
 
-  return Py_BuildValue("s", self->crl->crl->nextUpdate->data);
+  return ASN1_TIME_to_Python(self->crl->crl->nextUpdate);
 
  error:
 
@@ -3581,7 +3613,7 @@ x509_revoked_object_get_date(x509_revoked_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, ""))
     goto error;
 
-  return Py_BuildValue("s", self->revoked->revocationDate->data);
+  return ASN1_TIME_to_Python(self->revoked->revocationDate);
 
  error:
 
@@ -3615,8 +3647,8 @@ x509_revoked_object_set_date(x509_revoked_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "s", &time))
     goto error;
 
-  if (!ASN1_UTCTIME_set_string(self->revoked->revocationDate, time))
-    lose_type_error("could not set revocationDate");
+  if (!python_ASN1_TIME_set_string(self->revoked->revocationDate, time))
+    lose_type_error("Could not set revocationDate");
 
   Py_RETURN_NONE;
 
@@ -7054,15 +7086,16 @@ CMS_object_signingTime(cms_object *self, PyObject *args)
   if ((so = sk_ASN1_TYPE_value(xa->value.set, 0)) == NULL)
     lose("Could not extract signerInfos from CMS message[7]");
 
-  /*
-   * Should also check for V_ASN1_GENERALIZEDTIME but nothing else in
-   * this module does either...be consistant for now, fix all at once,
-   * some day.
-   */
-  if (so->type != V_ASN1_UTCTIME)
+  switch (so->type) {
+  case V_ASN1_UTCTIME:
+    result = ASN1_TIME_to_Python(so->value.utctime);
+    break;
+  case V_ASN1_GENERALIZEDTIME:
+    result = ASN1_TIME_to_Python(so->value.generalizedtime);
+    break;
+  default:
     lose("Could not extract signerInfos from CMS message[8]");
-
-  result = Py_BuildValue("s", so->value.utctime->data);
+  }
 
  error:
 
@@ -7861,8 +7894,8 @@ pow_module_new_x509_revoked (PyObject *self, PyObject *args)
   if (serial != -1 && !ASN1_INTEGER_set(revoke->revoked->serialNumber, serial))
     lose("unable to set serial number");
 
-  if (date != NULL && !ASN1_UTCTIME_set_string(revoke->revoked->revocationDate, date))
-    lose_type_error("could not set revocationDate");
+  if (date != NULL && !python_ASN1_TIME_set_string(revoke->revoked->revocationDate, date))
+    lose_type_error("Could not set revocationDate");
 
   return (PyObject*) revoke;
 

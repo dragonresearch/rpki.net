@@ -847,7 +847,7 @@ class CMS_object(DER_object):
     """
     Extract signingTime from CMS signed attributes.
     """
-    return rpki.sundial.datetime.fromUTCTime(self.get_POW().signingTime())
+    return rpki.sundial.datetime.fromGeneralizedTime(self.get_POW().signingTime())
 
   def verify(self, ta):
     """

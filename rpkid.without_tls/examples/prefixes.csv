@@ -1,0 +1,8 @@
+# $Id$
+#
+# Syntax: <child_handle> <prefix>/<length>
+#     or: <child_handle> <min>-<max>
+#
+Alice	192.0.2.0/27
+Bob	192.0.2.44-192.0.2.100
+Bob	10.0.0.0/8

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
+         version="1"
+	 sender="sender name"
+	 recipient="recipient name"
+	 type="list" />

@@ -1,0 +1,5 @@
+# $Id$
+#
+# Syntax: <prefix>/<length>-<maxlength> <asn> <group>
+#
+10.3.0.44/32	666	Mom

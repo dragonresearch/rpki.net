@@ -56,7 +56,7 @@ profile: all
 YAMLTEST_CONFIG = smoketest.1.yaml
 
 yamltest:
-	rm -rf yamltest.dir
+	rm -rf yamltest.dir rcynic-data
 	python sql-cleaner.py
 	python yamltest.py ${YAMLTEST_CONFIG}
 

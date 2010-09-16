@@ -1,0 +1,71 @@
+# $Id$
+#
+# RelaxNG Scheme for up-down protocol, extracted from APNIC Wiki.
+#
+# libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
+# run the compact syntax through trang to get XML syntax.
+
+default namespace = "http://www.apnic.net/specs/rescerts/up-down/"
+
+grammar {
+  start = element message {
+    attribute version { xsd:positiveInteger { maxInclusive="1" } },
+    attribute sender { xsd:token { maxLength="1024" } },
+    attribute recipient { xsd:token { maxLength="1024" } },
+    payload
+  }
+
+  payload |= attribute type { "list" }, list_request
+  payload |= attribute type { "list_response"}, list_response
+  payload |= attribute type { "issue" }, issue_request
+  payload |= attribute type { "issue_response"}, issue_response
+  payload |= attribute type { "revoke" }, revoke_request
+  payload |= attribute type { "revoke_response"}, revoke_response
+  payload |= attribute type { "error_response"}, error_response
+
+  list_request = empty
+  list_response = class*
+
+  class = element class {
+    attribute class_name { xsd:token { maxLength="1024" } },
+    attribute cert_url { xsd:string { maxLength="4096" } },
+    attribute resource_set_as { xsd:string { maxLength="512000" pattern="[\-,0-9]*" } },
+    attribute resource_set_ipv4 { xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" } },
+    attribute resource_set_ipv6 { xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" } },
+    attribute resource_set_notafter { xsd:dateTime { pattern=".*Z" } }?,
+    attribute suggested_sia_head { xsd:anyURI { maxLength="1024" pattern="rsync://.+"} }?,
+    element certificate {
+      attribute cert_url { xsd:string { maxLength="4096" } },
+      attribute req_resource_set_as { xsd:string { maxLength="512000" pattern="[\-,0-9]*" } }?,
+      attribute req_resource_set_ipv4 { xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" } }?,
+      attribute req_resource_set_ipv6 { xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" } }?,
+      xsd:base64Binary { maxLength="512000" }
+    }*,
+    element issuer { xsd:base64Binary { maxLength="512000" } }
+  }
+
+  issue_request = element request {
+    attribute class_name { xsd:token { maxLength="1024" } },
+    attribute req_resource_set_as { xsd:string { maxLength="512000" pattern="[\-,0-9]*" } }?,
+    attribute req_resource_set_ipv4 { xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" } }?,
+    attribute req_resource_set_ipv6 { xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" } }?,
+    xsd:base64Binary { maxLength="512000" }
+  }
+  issue_response = class
+
+  revoke_request = revocation
+  revoke_response = revocation
+
+  revocation = element key {
+    attribute class_name { xsd:token { maxLength="1024" } },
+    attribute ski { xsd:token { maxLength="1024" } }
+  }
+
+  error_response =
+    element status { xsd:positiveInteger { maxInclusive="999999999999999" } },
+    element description { attribute xml:lang { xsd:language }, xsd:string { maxLength="1024" } }?
+}
+
+# Local Variables:
+# indent-tabs-mode: nil
+# End:

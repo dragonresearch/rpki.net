@@ -945,6 +945,8 @@ class main(rpki.cli.Cmd):
     self.bpki_resources = CA(self.cfg_file, self.cfg.get("bpki_resources_directory"))
     if self.run_rpkid or self.run_pubd or self.run_rootd:
       self.bpki_servers = CA(self.cfg_file, self.cfg.get("bpki_servers_directory"))
+    else:
+      self.bpki_servers = None
 
     self.pubd_contact_info = self.cfg.get("pubd_contact_info", "")
 
@@ -1033,6 +1035,49 @@ class main(rpki.cli.Cmd):
         PEMElement(e, "bpki_client_ta", self.bpki_resources.cer)
         etree_write(e, repo_file_name,
                     msg = 'This is the "repository offer" file for you to use if you want to publish in your own repository')
+
+  def do_update_bpki(self, arg):
+    """
+    Update BPKI certificates.  Assumes an existing RPKI installation.
+
+    Basic plan here is to reissue all BPKI certificates we can, right
+    now.  In the long run we might want to be more clever about only
+    touching ones that need maintenance, but this will do for a start.
+
+    Most likely this should be run under cron.
+    """
+
+    if arg:
+      raise RuntimeError, "This command takes no arguments"
+
+    if self.bpki_servers:
+      bpkis = (self.bpki_resources, self.bpki_servers)
+    else:
+      bpkis = (self.bpki_resources,)
+
+    for bpki in bpkis:
+      for cer in glob.iglob("%s/*.cer" % bpki.dir):
+        key = cer[0:-4] + ".key"
+        req = cer[0:-4] + ".req"
+        if os.path.exists(key):
+          print "Regenerating BPKI PKCS #10", req
+          bpki.run_openssl("x509", "-x509toreq", "-in", cer, "-out", req, "-signkey", key)
+        print "Clearing BPKI certificate", cer
+        os.unlink(cer)
+
+    print "Rerunning initialization to regenerate certificates"
+    self.do_initialize(arg)
+
+    print "Regenerating CRLs"
+    for bpki in bpkis:
+      bpki.run_ca("-gencrl", "-out", bpki.crl)
+
+    # Er, except that this isn't really the end, now we need to run
+    # configure_resources and configure_daemons and we don't (yet)
+    # know what arguments to pass to those.  Feh.
+
+    print "Now you have to run configure_resources (and configure_daemons, if you're running daemons) to regenerate the remaining BPKI certificates"
+
 
   def do_configure_child(self, arg):
     """

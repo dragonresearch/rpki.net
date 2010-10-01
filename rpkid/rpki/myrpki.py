@@ -1047,9 +1047,6 @@ class main(rpki.cli.Cmd):
     Most likely this should be run under cron.
     """
 
-    if arg:
-      raise RuntimeError, "This command takes no arguments"
-
     if self.bpki_servers:
       bpkis = (self.bpki_resources, self.bpki_servers)
     else:
@@ -1073,13 +1070,11 @@ class main(rpki.cli.Cmd):
     for bpki in bpkis:
       bpki.run_ca("-gencrl", "-out", bpki.crl)
 
-    self.do_initialize(arg)
-
-    # Er, except that this isn't really the end, now we need to run
-    # configure_resources and configure_daemons and we don't (yet)
-    # know what arguments to pass to those.  Feh.
-
-    print "Now you have to run configure_resources (and configure_daemons, if you're running daemons) to regenerate the remaining BPKI certificates"
+    self.do_initialize(None)
+    if self.run_rpkid or self.run_pubd or self.run_rootd:
+      self.do_configure_daemons(arg)
+    else:
+      self.do_configure_resources(None)
 
 
   def do_configure_child(self, arg):

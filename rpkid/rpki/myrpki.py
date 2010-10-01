@@ -1064,13 +1064,16 @@ class main(rpki.cli.Cmd):
           bpki.run_openssl("x509", "-x509toreq", "-in", cer, "-out", req, "-signkey", key)
         print "Clearing BPKI certificate", cer
         os.unlink(cer)
-
-    print "Rerunning initialization to regenerate certificates"
-    self.do_initialize(arg)
+        if cer == bpki.cer:
+          assert req == bpki.req
+          print "Regenerating certificate", cer
+          bpki.run_ca("-selfsign", "-extensions", "ca_x509_ext_ca", "-in", req, "-out", cer)
 
     print "Regenerating CRLs"
     for bpki in bpkis:
       bpki.run_ca("-gencrl", "-out", bpki.crl)
+
+    self.do_initialize(arg)
 
     # Er, except that this isn't really the end, now we need to run
     # configure_resources and configure_daemons and we don't (yet)

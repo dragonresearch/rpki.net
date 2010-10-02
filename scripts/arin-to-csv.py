@@ -23,7 +23,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import gzip, rpki.myrpki
+import rpki.myrpki
 
 class Handle(object):
 
@@ -88,12 +88,6 @@ class main(object):
 
   translations = {}
 
-  @staticmethod
-  def parseline(line):
-    tag, sep, val = line.partition(":")
-    assert sep, "Couldn't find separator in %r" % line
-    return tag.strip(), val.strip()
-
   def __init__(self):
     self.asns = rpki.myrpki.csv_writer("asns.csv")
     self.prefixes = rpki.myrpki.csv_writer("prefixes.csv")
@@ -101,7 +95,7 @@ class main(object):
       self.translations = dict((src, dst) for src, dst in rpki.myrpki.csv_reader("translations.csv", columns = 2))
     except IOError:
       pass
-    f = gzip.open("arin_db.txt.gz")
+    f = open("arin_db.txt")
     cur = None
     for line in f:
       line = line.expandtabs().strip()
@@ -110,7 +104,10 @@ class main(object):
           cur.finish(self)
         cur = None
       elif not line.startswith("#"):
-        tag, val = self.parseline(line)
+        tag, sep, val = tuple(s.strip() for s in line.partition(":"))
+        if not sep:
+          # This should not happen, but ARIN's "legacy" RPSL contains errors
+          continue
         if cur is None:
           cur = self.types[tag]() if tag in self.types else False
         if cur:

@@ -6,9 +6,14 @@ NB: The input data for this script comes from ARIN under an agreement
 that allows research use but forbids redistribution, so if you think
 you need a copy of the data, please talk to ARIN about it, not us.
 
+Input format used to be RPSL WHOIS dump, but ARIN recently went Java,
+so we have to parse a 3.5GB XML "document".  Credit to Liza Daly for
+explaining the incantations needed to convince lxml to do this nicely,
+see: http://www.ibm.com/developerworks/xml/library/x-hiperfparse/
+
 $Id$
 
-Copyright (C) 2009  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -23,96 +28,58 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import rpki.myrpki
+import sys, lxml.etree, rpki.myrpki
 
-class Handle(object):
+def ns(tag):
+  return "{http://www.arin.net/bulkwhois/core/v1}" + tag
 
-  want_tags = ()
+tag_asn		  = ns("asn")
+tag_net           = ns("net")
+tag_org           = ns("org")
+tag_poc           = ns("poc")
+tag_orgHandle     = ns("orgHandle")
+tag_netBlock      = ns("netBlock")
+tag_type          = ns("type")
+tag_startAddress  = ns("startAddress")
+tag_endAddress    = ns("endAddress")
+tag_startAsNumber = ns("startAsNumber")
+tag_endAsNumber   = ns("endAsNumber")
 
-  debug = False
+def find(node, tag):
+  return node.findtext(tag).strip()
 
-  def set(self, tag, val):
-    if tag in self.want_tags:
-      setattr(self, tag, "".join(val.split(" ")))
+def do_asn(node):
+  asns.writerow((find(node, tag_orgHandle),
+                 "%s-%s" % (find(node, tag_startAsNumber),
+                            find(node, tag_endAsNumber))))
 
-  def check(self):
-    for tag in self.want_tags:
-      if not hasattr(self, tag):
-        return False
-    if self.debug:
-      print repr(self)
-    return True
+def do_net(node):
+  handle = find(node, tag_orgHandle)
+  for netblock in node.iter(tag_netBlock):
+    if find(netblock, tag_type) in ("DS", "DA", "IU"):
+      prefixes.writerow((handle,
+                         "%s-%s" % (find(netblock, tag_startAddress),
+                                    find(netblock, tag_endAddress))))
 
-class ASHandle(Handle):
+dispatch = { tag_asn : do_asn, tag_net : do_net }
 
-  want_tags = ("ASHandle", "ASNumber", "OrgID")
+asns = rpki.myrpki.csv_writer("asns.csv")
+prefixes = rpki.myrpki.csv_writer("prefixes.csv")
 
-  def __repr__(self):
-    return "<%s %s.%s %s>" % (self.__class__.__name__,
-                              self.OrgID, self.ASHandle, self.ASNumber)
+root = None
 
-  def finish(self, ctx):
-    if self.check():
-      ctx.asns.writerow((ctx.translations.get(self.OrgID, self.OrgID), self.ASNumber))
+for event, node in lxml.etree.iterparse(sys.stdin):
 
-class NetHandle(Handle):
+  if root is None:
+    root = node
+    while root.getparent() is not None:
+      root = root.getparent()
 
-  NetType = None
+  if node.getparent() is root:
 
-  want_tags = ("NetHandle", "NetRange", "NetType", "OrgID")
+    if node.tag in dispatch:
+      dispatch[node.tag](node)
 
-  def finish(self, ctx):
-    if self.NetType in ("allocation", "assignment") and self.check():
-      ctx.prefixes.writerow((ctx.translations.get(self.OrgID, self.OrgID), self.NetRange))
-
-  def __repr__(self):
-    return "<%s %s.%s %s %s>" % (self.__class__.__name__,
-                                 self.OrgID, self.NetHandle,
-                                 self.NetType, self.NetRange)
-
-class V6NetHandle(NetHandle):
-
-  want_tags = ("V6NetHandle", "NetRange", "NetType", "OrgID")
-
-  def __repr__(self):
-    return "<%s %s.%s %s %s>" % (self.__class__.__name__,
-                                 ctx.translations.get(self.OrgID, self.OrgID),
-                                 self.V6NetHandle, self.NetType, self.NetRange)
-
-class main(object):
-
-  types = {
-    "ASHandle"    : ASHandle,
-    "NetHandle"   : NetHandle,
-    "V6NetHandle" : V6NetHandle }
-
-  translations = {}
-
-  def __init__(self):
-    self.asns = rpki.myrpki.csv_writer("asns.csv")
-    self.prefixes = rpki.myrpki.csv_writer("prefixes.csv")
-    try:
-      self.translations = dict((src, dst) for src, dst in rpki.myrpki.csv_reader("translations.csv", columns = 2))
-    except IOError:
-      pass
-    f = open("arin_db.txt")
-    cur = None
-    for line in f:
-      line = line.expandtabs().strip()
-      if not line:
-        if cur:
-          cur.finish(self)
-        cur = None
-      elif not line.startswith("#"):
-        tag, sep, val = tuple(s.strip() for s in line.partition(":"))
-        if not sep:
-          # This should not happen, but ARIN's "legacy" RPSL contains errors
-          continue
-        if cur is None:
-          cur = self.types[tag]() if tag in self.types else False
-        if cur:
-          cur.set(tag, val)
-    if cur:
-      cur.finish(self)
-
-main()
+    node.clear()
+    while node.getprevious() is not None:
+      del node.getparent()[0]

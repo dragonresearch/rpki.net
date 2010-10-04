@@ -428,14 +428,14 @@ class http_stream(asynchat.async_chat):
     rpki.log.traceback()
     if etype not in (rpki.exceptions.HTTPClientAborted,):
       self.log("Closing due to error", rpki.log.warn)
-      self.close(force = True)
+      self.close()
 
   def handle_timeout(self):
     """
     Inactivity timer expired, close connection with prejudice.
     """
     self.log("Timeout, closing")
-    self.close(force = True)
+    self.close()
 
   def handle_close(self):
     """
@@ -746,7 +746,7 @@ class http_client(http_stream):
       self.log("Timeout while in state %s" % self.state, rpki.log.warn)
     http_stream.handle_timeout(self)
     self.queue.detach(self)
-    if self.state != "idle":
+    if self.state not in ("idle", "closing"):
       try:
         raise rpki.exceptions.HTTPTimeout
       except rpki.exceptions.HTTPTimeout, e:
@@ -835,11 +835,12 @@ class http_queue(object):
     processing this result, kick off next message in the queue, if any.
     """
 
-    if not self.queue:
-      self.log("No caller, this should not happen.  Dropping result %r" % result)
-
-    req = self.queue.pop(0)
-    self.log("Dequeuing request %r" % req)
+    try:
+      req = self.queue.pop(0)
+      self.log("Dequeuing request %r" % req)
+    except IndexError:
+      self.log("No caller.  THIS SHOULD NOT HAPPEN.  Dropping result %r" % result, rpki.log.warn)
+      return
 
     try:
       if isinstance(result, http_response):

@@ -83,3 +83,6 @@ for event, node in lxml.etree.iterparse(sys.stdin):
     node.clear()
     while node.getprevious() is not None:
       del node.getparent()[0]
+
+asns.close()
+prefixes.close()

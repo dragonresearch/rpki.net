@@ -21,8 +21,6 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import rpki.myrpki, rpki.ipaddrs
 
-translations = dict((src, dst) for src, dst in rpki.myrpki.csv_reader("translations.csv", columns = 2))
-
 asns     = rpki.myrpki.csv_writer("asns.csv")
 prefixes = rpki.myrpki.csv_writer("prefixes.csv")
 
@@ -37,8 +35,6 @@ for line in open("delegated-apnic-extended-latest"):
 
   assert registry == "apnic"
 
-  opaque_id = translations.get(opaque_id, opaque_id)
-
   if rectype == "asn":
     asns.writerow((opaque_id, "%s-%s" % (start, int(start) + int(value) - 1)))
 
@@ -47,3 +43,6 @@ for line in open("delegated-apnic-extended-latest"):
 
   elif rectype == "ipv6":
     prefixes.writerow((opaque_id, "%s/%s" % (start, value)))
+
+asns.close()
+prefixes.close()

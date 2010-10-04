@@ -102,5 +102,6 @@ class main(object):
           self.statement = line
       self.finish_statement(True)
       f.close()
+    self.asns.close()
 
 main()

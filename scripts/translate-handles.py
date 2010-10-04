@@ -37,13 +37,11 @@ translations = dict((src, dst) for src, dst in rpki.myrpki.csv_reader("translati
 
 for filename in sys.argv[1:]:
 
-  tmpfile = "%s.%d.tmp" % (filename, os.getpid())
-  csvout = rpki.myrpki.csv_writer(tmpfile)
+  f = rpki.myrpki.csv_writer(filename)
 
   for cols in rpki.myrpki.csv_reader(filename):
     if cols[0] in translations:
       cols[0] = translations[cols[0]]
-    csvout.writerow(cols)
+    f.writerow(cols)
 
-  del csvout
-  os.rename(tmpfile, filename)
+  f.close()

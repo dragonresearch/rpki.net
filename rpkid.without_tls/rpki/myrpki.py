@@ -510,18 +510,26 @@ class csv_writer(object):
   """
   Writer object for tab delimited text.  We just use the stock CSV
   module in excel-tab mode for this.
+
+  If "renmwo" is set (default), the file will be written to
+  a temporary name and renamed to the real filename after closing.
   """
 
-  def __init__(self, filename):
+  def __init__(self, filename, renmwo = True):
     self.filename = filename
-    self.file = open(filename, "w")
+    self.renmwo = "%s.%d.~rnnmwo~" % (filename, os.getpid()) if renmwo else filename
+    self.file = open(self.renmwo, "w")
     self.writer = csv.writer(self.file, dialect = csv.get_dialect("excel-tab"))
 
   def close(self):
     """
     Close this writer.
     """
-    self.file.close()
+    if self.file is not None:
+      self.file.close()
+      self.file = None
+      if self.filename != self.renmwo:
+        os.rename(self.renmwo, self.filename)
 
   def __getattr__(self, attr):
     """

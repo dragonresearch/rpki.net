@@ -308,33 +308,38 @@ class allocation(object):
     f = self.csvout(fn)
     for k in self.kids:    
       f.writerows((k.name, a) for a in k.resources.asn)
+    f.close()
 
   def dump_children(self, fn):
     """
     Write children CSV file.
     """
-    self.csvout(fn).writerows((k.name, k.resources.valid_until, k.path("bpki/resources/ca.cer"))
-                              for k in self.kids)
+    f = self.csvout(fn)
+    f.writerows((k.name, k.resources.valid_until, k.path("bpki/resources/ca.cer"))
+                for k in self.kids)
+    f.close()
 
   def dump_parents(self, fn):
     """
     Write parents CSV file.
     """
+    f = self.csvout(fn)
     if self.is_root():
-      self.csvout(fn).writerow(("rootd",
-                                "http://localhost:%d/" % self.rootd_port,
-                                self.path("bpki/servers/ca.cer"),
-                                self.path("bpki/servers/ca.cer"),
-                                self.name,
-                                self.sia_base))
+      f.writerow(("rootd",
+                  "http://localhost:%d/" % self.rootd_port,
+                  self.path("bpki/servers/ca.cer"),
+                  self.path("bpki/servers/ca.cer"),
+                  self.name,
+                  self.sia_base))
     else:
       parent_host = self.parent.hosted_by if self.parent.is_hosted() else self.parent
-      self.csvout(fn).writerow((self.parent.name,
-                                self.up_down_url(),
-                                self.parent.path("bpki/resources/ca.cer"),
-                                parent_host.path("bpki/servers/ca.cer"),
-                                self.name,
-                                self.sia_base))
+      f.writerow((self.parent.name,
+                  self.up_down_url(),
+                  self.parent.path("bpki/resources/ca.cer"),
+                  parent_host.path("bpki/servers/ca.cer"),
+                  self.name,
+                  self.sia_base))
+    f.close()
 
   def dump_prefixes(self, fn):
     """
@@ -343,6 +348,7 @@ class allocation(object):
     f = self.csvout(fn)
     for k in self.kids:
       f.writerows((k.name, p) for p in (k.resources.v4 + k.resources.v6))
+    f.close()
 
   def dump_roas(self, fn):
     """
@@ -353,6 +359,7 @@ class allocation(object):
     for r in self.roa_requests:
       f.writerows((p, r.asn, group)
                   for p in (r.v4 + r.v6 if r.v4 and r.v6 else r.v4 or r.v6 or ()))
+    f.close()
 
   def dump_clients(self, fn, db):
     """
@@ -362,6 +369,7 @@ class allocation(object):
       f = self.csvout(fn)
       f.writerows((s.client_handle, s.path("bpki/resources/ca.cer"), s.sia_base)
                   for s in (db if only_one_pubd else [self] + self.kids))
+      f.close()
 
   def find_pubd(self):
     """

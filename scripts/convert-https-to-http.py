@@ -25,8 +25,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import getopt, sys, os
-from xml.etree.ElementTree import (Element, SubElement, ElementTree)
+import getopt, sys, os, lxml.etree
 
 cfg_file = "myrpki.conf"
 entitydb_dir = "entitydb"
@@ -56,13 +55,28 @@ for root, dirs, files in os.walk(entitydb_dir):
   for filename in files:
     if filename.endswith(".xml"):
       filename = os.path.join(root, filename)
-      tree = ElementTree(file = filename).getroot()
+      tree = lxml.etree.ElementTree(file = filename)
       changed = False
       for e in tree.getiterator():
+        p = e.getparent()
+        if (e.tag in ("{http://www.hactrn.net/uris/rpki/myrpki/}bpki_https_cert",
+                      "{http://www.hactrn.net/uris/rpki/myrpki/}bpki_https_glue",
+                      "{http://www.hactrn.net/uris/rpki/myrpki/}bpki_https_certificate") or
+            (e.tag == "{http://www.hactrn.net/uris/rpki/myrpki/}bpki_server_ta" and
+             p.tag == "{http://www.hactrn.net/uris/rpki/myrpki/}parent")):
+          p.remove(e)
+          changed = True
+          continue
         for k, v in e.items():
           if v.startswith("https://"):
             e.set(k, v.replace("https://", "http://"))
             changed = True
       if changed:
-        ElementTree(tree).write(filename + ".new")
+        tree.write(filename + ".new")
         os.rename(filename + ".new", filename)
+
+# Also need to do something about changes to SQL schemas?  svn diff
+# old and new to calculate full set of changes (including replay
+# protection stuff) and include static set of ALTER COLUMN (etc)
+# instructions here?  Use config file to figure out SQL passwords and
+# make changes automatically?  Ask for permission first?

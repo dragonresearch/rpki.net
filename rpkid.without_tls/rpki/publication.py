@@ -119,7 +119,10 @@ class client_elt(control_elt):
   attributes = ("action", "tag", "client_handle", "base_uri")
   elements = ("bpki_cert", "bpki_glue")
 
-  sql_template = rpki.sql.template("client", "client_id", "client_handle", "base_uri", ("bpki_cert", rpki.x509.X509), ("bpki_glue", rpki.x509.X509))
+  sql_template = rpki.sql.template("client", "client_id", "client_handle", "base_uri",
+                                   ("bpki_cert", rpki.x509.X509),
+                                   ("bpki_glue", rpki.x509.X509),
+                                   ("last_cms_timestamp", rpki.sundial.datetime))
 
   base_uri  = None
   bpki_cert = None

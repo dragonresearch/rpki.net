@@ -6,11 +6,11 @@ digraph test {
 	node [label="\N", fillcolor=white, shape=record, style=filled];
 	node1 [label="{self\n|self_id\ SERIAL\ [PK]\lself_handle\ VARCHAR\ [U]\luse_hsm\ BOOLEAN\lcrl_interval\ BIGINT\ [N]\lregen_margin\ BIGINT\ [N]\lbpki_cert\ LONGBLOB\ [N]\lbpki_glue\ LONGBLOB\ [N]\l}"];
 	node2 [label="{bsc\n|bsc_id\ SERIAL\ [PK]\lbsc_handle\ VARCHAR\ [U]\lprivate_key_id\ LONGBLOB\ [N]\lpkcs10_request\ LONGBLOB\ [N]\lhash_alg\ ENUM\ [N]\lsigning_cert\ LONGBLOB\ [N]\lsigning_cert_crl\ LONGBLOB\ [N]\lself_id\ BIGINT\ [FK,U]\l}"];
-	node3 [label="{repository\n|repository_id\ SERIAL\ [PK]\lrepository_handle\ VARCHAR\ [U]\lpeer_contact_uri\ TEXT\ [N]\lbpki_cert\ LONGBLOB\ [N]\lbpki_glue\ LONGBLOB\ [N]\lbsc_id\ BIGINT\ [FK]\lself_id\ BIGINT\ [FK,U]\l}"];
-	node4 [label="{parent\n|parent_id\ SERIAL\ [PK]\lparent_handle\ VARCHAR\ [U]\lbpki_cms_cert\ LONGBLOB\ [N]\lbpki_cms_glue\ LONGBLOB\ [N]\lbpki_https_cert\ LONGBLOB\ [N]\lbpki_https_glue\ LONGBLOB\ [N]\lpeer_contact_uri\ TEXT\ [N]\lsia_base\ TEXT\ [N]\lsender_name\ TEXT\ [N]\lrecipient_name\ TEXT\ [N]\lself_id\ BIGINT\ [FK,U]\lbsc_id\ BIGINT\ [FK]\lrepository_id\ BIGINT\ [FK]\l}"];
-	node5 [label="{ca\n|ca_id\ SERIAL\ [PK]\llast_crl_sn\ BIGINT\llast_manifest_sn\ BIGINT\lnext_manifest_update\ DATETIME\ [N]\lnext_crl_update\ DATETIME\ [N]\llast_issued_sn\ BIGINT\lsia_uri\ TEXT\ [N]\lparent_resource_class\ TEXT\ [N]\lparent_id\ BIGINT\ [FK,N]\l}"];
+	node3 [label="{repository\n|repository_id\ SERIAL\ [PK]\lrepository_handle\ VARCHAR\ [U]\lpeer_contact_uri\ TEXT\ [N]\lbpki_cert\ LONGBLOB\ [N]\lbpki_glue\ LONGBLOB\ [N]\llast_cms_timestamp\ DATETIME\ [N]\lbsc_id\ BIGINT\ [FK]\lself_id\ BIGINT\ [FK,U]\l}"];
+	node4 [label="{parent\n|parent_id\ SERIAL\ [PK]\lparent_handle\ VARCHAR\ [U]\lbpki_cms_cert\ LONGBLOB\ [N]\lbpki_cms_glue\ LONGBLOB\ [N]\lpeer_contact_uri\ TEXT\ [N]\lsia_base\ TEXT\ [N]\lsender_name\ TEXT\ [N]\lrecipient_name\ TEXT\ [N]\llast_cms_timestamp\ DATETIME\ [N]\lself_id\ BIGINT\ [FK,U]\lbsc_id\ BIGINT\ [FK]\lrepository_id\ BIGINT\ [FK]\l}"];
+	node5 [label="{ca\n|ca_id\ SERIAL\ [PK]\llast_crl_sn\ BIGINT\llast_manifest_sn\ BIGINT\lnext_manifest_update\ DATETIME\ [N]\lnext_crl_update\ DATETIME\ [N]\llast_issued_sn\ BIGINT\lsia_uri\ TEXT\ [N]\lparent_resource_class\ TEXT\ [N]\lparent_id\ BIGINT\ [FK]\l}"];
 	node6 [label="{ca_detail\n|ca_detail_id\ SERIAL\ [PK]\lpublic_key\ LONGBLOB\ [N]\lprivate_key_id\ LONGBLOB\ [N]\llatest_crl\ LONGBLOB\ [N]\lcrl_published\ DATETIME\ [N]\llatest_ca_cert\ LONGBLOB\ [N]\lmanifest_private_key_id\ LONGBLOB\ [N]\lmanifest_public_key\ LONGBLOB\ [N]\llatest_manifest_cert\ LONGBLOB\ [N]\llatest_manifest\ LONGBLOB\ [N]\lmanifest_published\ DATETIME\ [N]\lstate\ ENUM\lca_cert_uri\ TEXT\ [N]\lca_id\ BIGINT\ [FK]\l}"];
-	node7 [label="{child\n|child_id\ SERIAL\ [PK]\lchild_handle\ VARCHAR\ [U]\lbpki_cert\ LONGBLOB\ [N]\lbpki_glue\ LONGBLOB\ [N]\lself_id\ BIGINT\ [FK,U]\lbsc_id\ BIGINT\ [FK]\l}"];
+	node7 [label="{child\n|child_id\ SERIAL\ [PK]\lchild_handle\ VARCHAR\ [U]\lbpki_cert\ LONGBLOB\ [N]\lbpki_glue\ LONGBLOB\ [N]\llast_cms_timestamp\ DATETIME\ [N]\lself_id\ BIGINT\ [FK,U]\lbsc_id\ BIGINT\ [FK]\l}"];
 	node8 [label="{child_cert\n|child_cert_id\ SERIAL\ [PK]\lcert\ LONGBLOB\lpublished\ DATETIME\ [N]\lski\ TINYBLOB\lchild_id\ BIGINT\ [FK]\lca_detail_id\ BIGINT\ [FK]\l}"];
 	node9 [label="{revoked_cert\n|revoked_cert_id\ SERIAL\ [PK]\lserial\ BIGINT\lrevoked\ DATETIME\lexpires\ DATETIME\lca_detail_id\ BIGINT\ [FK]\l}"];
 	node10 [label="{roa\n|roa_id\ SERIAL\ [PK]\lasn\ BIGINT\lcert\ LONGBLOB\lroa\ LONGBLOB\lpublished\ DATETIME\ [N]\lself_id\ BIGINT\ [FK]\lca_detail_id\ BIGINT\ [FK]\l}"];
@@ -23,7 +23,7 @@ digraph test {
 	node6 -> node9 [arrowtail=none, arrowhead=crow];
 	node6 -> node10 [arrowtail=none, arrowhead=crow];
 	node7 -> node8 [arrowtail=none, arrowhead=crow];
-	node4 -> node5 [arrowhead=empty];
+	node4 -> node5 [arrowtail=none, arrowhead=crow];
 	node3 -> node4 [arrowtail=none, arrowhead=crow];
 	node10 -> node11 [arrowtail=none, arrowhead=crow];
 	node1 -> node2 [arrowtail=none, arrowhead=crow];

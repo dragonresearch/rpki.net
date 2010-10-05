@@ -78,6 +78,7 @@ CREATE TABLE repository (
         peer_contact_uri        TEXT,
         bpki_cert               LONGBLOB,
         bpki_glue               LONGBLOB,
+        last_cms_timestamp      DATETIME,
         bsc_id                  BIGINT UNSIGNED NOT NULL,
         self_id                 BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (repository_id),
@@ -97,6 +98,7 @@ CREATE TABLE parent (
         sia_base                TEXT,
         sender_name             TEXT,
         recipient_name          TEXT,
+        last_cms_timestamp      DATETIME,
         self_id                 BIGINT UNSIGNED NOT NULL,
         bsc_id                  BIGINT UNSIGNED NOT NULL,
         repository_id           BIGINT UNSIGNED NOT NULL,
@@ -119,7 +121,7 @@ CREATE TABLE ca (
         last_issued_sn          BIGINT UNSIGNED NOT NULL,
         sia_uri                 TEXT,
         parent_resource_class   TEXT,
-        parent_id               BIGINT UNSIGNED,
+        parent_id               BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (ca_id),
         CONSTRAINT              ca_parent_id
         FOREIGN KEY             (parent_id) REFERENCES parent (parent_id) ON DELETE CASCADE
@@ -150,6 +152,7 @@ CREATE TABLE child (
         child_handle            VARCHAR(255) NOT NULL,
         bpki_cert               LONGBLOB,
         bpki_glue               LONGBLOB,
+        last_cms_timestamp      DATETIME,
         self_id                 BIGINT UNSIGNED NOT NULL,
         bsc_id                  BIGINT UNSIGNED NOT NULL,
         PRIMARY KEY             (child_id),

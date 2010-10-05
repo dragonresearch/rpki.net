@@ -16,7 +16,7 @@ in OpenSSL's configuration parser. An expression such as
 sets foo to the value of the baz variable from section bar. The section name
 ENV is special: it refers to environment variables.
 
-***** myrpki.conf *****
+ myrpki.conf
 
 The default name for the shared configuration file is myrpki.conf.
 
@@ -222,7 +222,7 @@ you compile the toolkit will suffice. This parameter allows you to tell myrpki
 where to find the binary, if necessary; the default just uses the system search
 path.
 
-***** Other configuration files and options *****
+ Other configuration files and options
 
 In most cases the simplified configuration in the [myrpki] section of
 myrpki.conf should suffice, but in case you need to tinker, here are details on

@@ -621,7 +621,10 @@ class repository_elt(data_elt):
 
   sql_template = rpki.sql.template("repository", "repository_id", "repository_handle",
                                    "self_id", "bsc_id", "peer_contact_uri",
-                                   ("bpki_cert", rpki.x509.X509), ("bpki_glue", rpki.x509.X509))
+                                   ("bpki_cert", rpki.x509.X509),
+                                   ("bpki_glue", rpki.x509.X509),
+                                   ("last_cms_timestamp", rpki.sundial.datetime))
+
   handles = (("self", self_elt), ("bsc", bsc_elt))
 
   bpki_cert = None
@@ -709,8 +712,12 @@ class parent_elt(data_elt):
 
   sql_template = rpki.sql.template("parent", "parent_id", "parent_handle",
                                    "self_id", "bsc_id", "repository_id",
-                                   ("bpki_cms_cert", rpki.x509.X509), ("bpki_cms_glue", rpki.x509.X509),
-                                   "peer_contact_uri", "sia_base", "sender_name", "recipient_name")
+                                   "peer_contact_uri", "sia_base",
+                                   "sender_name", "recipient_name",
+                                   ("bpki_cms_cert", rpki.x509.X509),
+                                   ("bpki_cms_glue", rpki.x509.X509),
+                                   ("last_cms_timestamp", rpki.sundial.datetime))
+
   handles = (("self", self_elt), ("bsc", bsc_elt), ("repository", repository_elt))
 
   bpki_cms_cert = None
@@ -853,7 +860,8 @@ class child_elt(data_elt):
   sql_template = rpki.sql.template("child", "child_id", "child_handle",
                                    "self_id", "bsc_id",
                                    ("bpki_cert", rpki.x509.X509),
-                                   ("bpki_glue", rpki.x509.X509))
+                                   ("bpki_glue", rpki.x509.X509),
+                                   ("last_cms_timestamp", rpki.sundial.datetime))
 
   handles = (("self", self_elt), ("bsc", bsc_elt))
 

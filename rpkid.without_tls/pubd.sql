@@ -38,19 +38,20 @@ DROP TABLE IF EXISTS client;
 DROP TABLE IF EXISTS config;
 
 CREATE TABLE config (
-        config_id       SERIAL NOT NULL,
-        bpki_crl        LONGBLOB,
-        PRIMARY KEY     (config_id)
+        config_id               SERIAL NOT NULL,
+        bpki_crl                LONGBLOB,
+        PRIMARY KEY             (config_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE client (
-        client_id       SERIAL NOT NULL,
-        client_handle   VARCHAR(255) NOT NULL,
-        base_uri        TEXT,
-        bpki_cert       LONGBLOB,
-        bpki_glue       LONGBLOB,
-        PRIMARY KEY     (client_id),
-        UNIQUE          (client_handle)
+        client_id               SERIAL NOT NULL,
+        client_handle           VARCHAR(255) NOT NULL,
+        base_uri                TEXT,
+        bpki_cert               LONGBLOB,
+        bpki_glue               LONGBLOB,
+        last_cms_timestamp      DATETIME,
+        PRIMARY KEY             (client_id),
+        UNIQUE                  (client_handle)
 ) ENGINE=InnoDB;
 
 -- Local Variables:

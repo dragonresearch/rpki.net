@@ -25,10 +25,13 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import getopt, sys, os, lxml.etree
+from __future__ import with_statement
+
+import getopt, sys, os, warnings, lxml.etree, rpki.config
 
 cfg_file = "myrpki.conf"
 entitydb_dir = "entitydb"
+convert_sql = True
 
 opts, argv = getopt.getopt(sys.argv[1:], "c:e:h?", ["config=", "entitydb=", "help"])
 for o, a in opts:
@@ -42,19 +45,25 @@ for o, a in opts:
 if argv:
   sys.exit("Unexpected arguments %s" % argv)
 
+print "Checking", cfg_file
 f = open(cfg_file + ".new", "w")
 for line in open(cfg_file, "r"):
   cmd, sep, comment = line.partition("#")
   if "https" in cmd:
     line = cmd.replace("https", "http") + sep + comment
+    print "Rewrote line:", " ".join(line.split())
   f.write(line)
 f.close()
 os.rename(cfg_file + ".new", cfg_file)
+
+def localname(s):
+  return s.partition("}")[-1]
 
 for root, dirs, files in os.walk(entitydb_dir):
   for filename in files:
     if filename.endswith(".xml"):
       filename = os.path.join(root, filename)
+      print "Checking", filename
       tree = lxml.etree.ElementTree(file = filename)
       changed = False
       for e in tree.getiterator():
@@ -64,19 +73,64 @@ for root, dirs, files in os.walk(entitydb_dir):
                       "{http://www.hactrn.net/uris/rpki/myrpki/}bpki_https_certificate") or
             (e.tag == "{http://www.hactrn.net/uris/rpki/myrpki/}bpki_server_ta" and
              p.tag == "{http://www.hactrn.net/uris/rpki/myrpki/}parent")):
+          print "Deleting element %s/%s" % (localname(p.tag), localname(e.tag))
           p.remove(e)
           changed = True
           continue
         for k, v in e.items():
           if v.startswith("https://"):
             e.set(k, v.replace("https://", "http://"))
+            print "Rewrote attribute %s/@%s to %s" % (localname(e.tag), k, e.get(k))
             changed = True
       if changed:
         tree.write(filename + ".new")
         os.rename(filename + ".new", filename)
 
-# Also need to do something about changes to SQL schemas?  svn diff
-# old and new to calculate full set of changes (including replay
-# protection stuff) and include static set of ALTER COLUMN (etc)
-# instructions here?  Use config file to figure out SQL passwords and
-# make changes automatically?  Ask for permission first?
+
+# Automatic conversion of SQL is particularly dangerous, so we only do it on request
+
+if convert_sql:
+
+  if hasattr(warnings, "catch_warnings"):
+    with warnings.catch_warnings():
+      warnings.simplefilter("ignore", DeprecationWarning)
+      import MySQLdb
+  else:
+    import MySQLdb
+
+  cfg = rpki.config.parser(cfg_file, "myrpki")
+
+  print "Converting SQL tables"
+
+  def do_sql(section, *cmds):
+    if cfg.getboolean("run_" + section):
+      db = MySQLdb.connect(user   = cfg.get("sql-username", section = section),
+                           db     = cfg.get("sql-database", section = section),
+                           passwd = cfg.get("sql-password", section = section))
+      cur = db.cursor()
+      ok = True
+      for cmd in cmds:
+        try:
+          print "SQL[%s]: %s" % (section, cmd)
+          cur.execute(cmd)
+        except MySQLdb.Error, e:
+          print str(e)
+          ok = False
+      if ok:
+        print "SQL[%s]: Comitting" % section
+        db.commit()
+      else:
+        print "SQL[%s]: NOT comitting due to previous errors" % section
+      db.close()
+
+
+  do_sql("rpkid",
+         "ALTER TABLE repository ADD COLUMN last_cms_timestamp DATETIME",
+         "ALTER TABLE parent ADD COLUMN last_cms_timestamp DATETIME",
+         "ALTER TABLE parent DROP COLUMN bpki_https_cert",
+         "ALTER TABLE parent DROP COLUMN bpki_https_glue",
+         "ALTER TABLE child ADD COLUMN last_cms_timestamp DATETIME",
+         "ALTER TABLE ca CHANGE COLUMN parent_id parent_id BIGINT UNSIGNED NOT NULL")
+
+  do_sql("pubd",
+         "ALTER TABLE client ADD COLUMN last_cms_timestamp DATETIME")

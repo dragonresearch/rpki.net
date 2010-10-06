@@ -742,11 +742,12 @@ class http_client(http_stream):
     Connection idle timer has expired.  Shut down connection in any
     case, noisily if we weren't idle.
     """
-    if self.state != "idle":
+    bad = self.state not in ("idle", "closing")
+    if bad:
       self.log("Timeout while in state %s" % self.state, rpki.log.warn)
     http_stream.handle_timeout(self)
     self.queue.detach(self)
-    if self.state not in ("idle", "closing"):
+    if bad:
       try:
         raise rpki.exceptions.HTTPTimeout
       except rpki.exceptions.HTTPTimeout, e:

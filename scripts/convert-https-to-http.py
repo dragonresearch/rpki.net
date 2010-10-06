@@ -134,3 +134,9 @@ if convert_sql:
 
   do_sql("pubd",
          "ALTER TABLE client ADD COLUMN last_cms_timestamp DATETIME")
+
+
+print """
+Done.  Don't forget to run "myrpki configure_daemons" (with whatever arguments you usually
+give it) to push changed URLs and so forth into rpkid et al.
+"""

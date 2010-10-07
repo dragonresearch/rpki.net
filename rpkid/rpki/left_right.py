@@ -3,7 +3,7 @@ RPKI "left-right" protocol.
 
 $Id$
 
-Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -33,7 +33,7 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.xml_utils
-import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
+import rpki.http, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
 import rpki.publication, rpki.async
 
 # Enforce strict checking of XML "sender" field in up-down protocol
@@ -621,7 +621,10 @@ class repository_elt(data_elt):
 
   sql_template = rpki.sql.template("repository", "repository_id", "repository_handle",
                                    "self_id", "bsc_id", "peer_contact_uri",
-                                   ("bpki_cert", rpki.x509.X509), ("bpki_glue", rpki.x509.X509))
+                                   ("bpki_cert", rpki.x509.X509),
+                                   ("bpki_glue", rpki.x509.X509),
+                                   ("last_cms_timestamp", rpki.sundial.datetime))
+
   handles = (("self", self_elt), ("bsc", bsc_elt))
 
   bpki_cert = None
@@ -685,10 +688,7 @@ class repository_elt(data_elt):
         except Exception, e:
           errback(e)
 
-      rpki.https.client(
-        client_key   = bsc.private_key_id,
-        client_cert  = bsc.signing_cert,
-        server_ta    = bpki_ta_path,
+      rpki.http.client(
         url          = self.peer_contact_uri,
         msg          = q_der,
         callback     = done,
@@ -707,20 +707,21 @@ class parent_elt(data_elt):
   element_name = "parent"
   attributes = ("action", "tag", "self_handle", "parent_handle", "bsc_handle", "repository_handle",
                 "peer_contact_uri", "sia_base", "sender_name", "recipient_name")
-  elements = ("bpki_cms_cert", "bpki_cms_glue", "bpki_https_cert", "bpki_https_glue")
+  elements = ("bpki_cms_cert", "bpki_cms_glue")
   booleans = ("rekey", "reissue", "revoke", "revoke_forgotten")
 
   sql_template = rpki.sql.template("parent", "parent_id", "parent_handle",
                                    "self_id", "bsc_id", "repository_id",
-                                   ("bpki_cms_cert", rpki.x509.X509), ("bpki_cms_glue", rpki.x509.X509),
-                                   ("bpki_https_cert", rpki.x509.X509), ("bpki_https_glue", rpki.x509.X509),
-                                   "peer_contact_uri", "sia_base", "sender_name", "recipient_name")
+                                   "peer_contact_uri", "sia_base",
+                                   "sender_name", "recipient_name",
+                                   ("bpki_cms_cert", rpki.x509.X509),
+                                   ("bpki_cms_glue", rpki.x509.X509),
+                                   ("last_cms_timestamp", rpki.sundial.datetime))
+
   handles = (("self", self_elt), ("bsc", bsc_elt), ("repository", repository_elt))
 
   bpki_cms_cert = None
   bpki_cms_glue = None
-  bpki_https_cert = None
-  bpki_https_glue = None
 
   def repository(self):
     """Fetch repository object to which this parent object links."""
@@ -840,15 +841,11 @@ class parent_elt(data_elt):
       else:
         cb(r_msg)
 
-    rpki.https.client(server_ta    = (self.gctx.bpki_ta,
-                                      self.self().bpki_cert, self.self().bpki_glue,
-                                      self.bpki_https_cert, self.bpki_https_glue),
-                      client_key   = bsc.private_key_id,
-                      client_cert  = bsc.signing_cert,
-                      msg          = q_der,
-                      url          = self.peer_contact_uri,
-                      callback     = unwrap,
-                      errback      = eb)
+    rpki.http.client(
+      msg      = q_der,
+      url      = self.peer_contact_uri,
+      callback = unwrap,
+      errback  = eb)
 
 class child_elt(data_elt):
   """
@@ -863,13 +860,13 @@ class child_elt(data_elt):
   sql_template = rpki.sql.template("child", "child_id", "child_handle",
                                    "self_id", "bsc_id",
                                    ("bpki_cert", rpki.x509.X509),
-                                   ("bpki_glue", rpki.x509.X509))
+                                   ("bpki_glue", rpki.x509.X509),
+                                   ("last_cms_timestamp", rpki.sundial.datetime))
 
   handles = (("self", self_elt), ("bsc", bsc_elt))
 
   bpki_cert = None
   bpki_glue = None
-  clear_https_ta_cache = False
 
   def child_certs(self, ca_detail = None, ski = None, unique = False):
     """Fetch all child_cert objects that link to this child object."""
@@ -893,16 +890,6 @@ class child_elt(data_elt):
       raise rpki.exceptions.ClassNameMismatch, "Class name mismatch: child.self_id = %d, parent.self_id = %d" % (self.self_id, parent.self_id)
     return ca
 
-  def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
-    """
-    Extra server actions for child_elt.
-    """
-    self.unimplemented_control("reissue")
-    if self.clear_https_ta_cache:
-      self.gctx.clear_https_ta_cache()
-      self.clear_https_ta_cache = False
-    cb()
-
   def serve_destroy_hook(self, cb, eb):
     """
     Extra server actions when destroying a child_elt.
@@ -912,16 +899,6 @@ class child_elt(data_elt):
       child_cert.revoke(publisher = publisher,
                         generate_crl_and_manifest = True)
     publisher.call_pubd(cb, eb)
-
-  def endElement(self, stack, name, text):
-    """
-    Handle subelements of <child/> element.  These require special
-    handling because modifying them invalidates the HTTPS trust anchor
-    cache.
-    """
-    rpki.xml_utils.data_elt.endElement(self, stack, name, text)
-    if name in self.elements:
-      self.clear_https_ta_cache = True
 
   def serve_up_down(self, query, callback):
     """

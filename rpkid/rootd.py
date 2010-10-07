@@ -9,7 +9,7 @@ Default configuration file is rootd.conf, override with --config option.
 
 $Id$
 
-Copyright (C) 2009  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -40,7 +40,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import os, time, getopt, sys
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509
-import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng
+import rpki.http, rpki.config, rpki.exceptions, rpki.relaxng
 import rpki.sundial, rpki.log
 
 rpki_root_cert = None
@@ -290,8 +290,8 @@ rootd_bpki_cert         = rpki.x509.X509(Auto_file = cfg.get("rootd-bpki-cert"))
 rootd_bpki_crl          = rpki.x509.CRL( Auto_file = cfg.get("rootd-bpki-crl"))
 child_bpki_cert         = rpki.x509.X509(Auto_file = cfg.get("child-bpki-cert"))
 
-https_server_host       = cfg.get("server-host", "")
-https_server_port       = int(cfg.get("server-port"))
+http_server_host        = cfg.get("server-host", "")
+http_server_port        = int(cfg.get("server-port"))
 
 rpki_class_name         = cfg.get("rpki-class-name", "wombat")
 
@@ -310,9 +310,6 @@ rpki_subject_pkcs10     = cfg.get("rpki-subject-pkcs10", "Child.pkcs10")
 rpki_subject_lifetime   = rpki.sundial.timedelta.parse(cfg.get("rpki-subject-lifetime", "30d"))
 rpki_subject_regen      = rpki.sundial.timedelta.parse(cfg.get("rpki-subject-regen", rpki_subject_lifetime.convert_to_seconds() / 2))
 
-rpki.https.server(server_key   = rootd_bpki_key,
-                  server_cert  = rootd_bpki_cert,
-                  client_ta    = (bpki_ta, child_bpki_cert),
-                  host         = https_server_host,
-                  port         = https_server_port,
-                  handlers     = up_down_handler)
+rpki.http.server(host     = http_server_host,
+                 port     = http_server_port,
+                 handlers = up_down_handler)

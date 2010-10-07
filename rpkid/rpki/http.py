@@ -1,5 +1,5 @@
 """
-HTTPS utilities, both client and server.
+HTTP utilities, both client and server.
 
 $Id$
 
@@ -43,10 +43,6 @@ rpki_content_type = "application/x-rpki"
 ## @var debug_http
 # Verbose chatter about HTTP streams.
 debug_http = False
-
-## @var debug_tls_certs
-# Verbose chatter about TLS certificates.
-debug_tls_certs = False
 
 ## @var want_persistent_client
 # Whether we want persistent HTTP client streams, when server also supports them.
@@ -199,7 +195,7 @@ class http_message(object):
     Parse HTTP version, raise an exception if we can't.
     """
     if version[:5] != "HTTP/":
-      raise rpki.exceptions.HTTPSBadVersion, "Couldn't parse version %s" % version
+      raise rpki.exceptions.HTTPBadVersion, "Couldn't parse version %s" % version
     self.version = tuple(int(i) for i in version[5:].split("."))
 
   def persistent(self):
@@ -285,9 +281,6 @@ class http_stream(asynchat.async_chat):
   """
 
   log = log_method
-  tls = None
-  retry_read = None
-  retry_write = None
 
   def __init__(self, sock = None):
     asynchat.async_chat.__init__(self, sock)
@@ -433,16 +426,16 @@ class http_stream(asynchat.async_chat):
       raise
     self.log("Error in HTTP stream handler", rpki.log.warn)
     rpki.log.traceback()
-    if etype not in (rpki.exceptions.HTTPSClientAborted,):
+    if etype not in (rpki.exceptions.HTTPClientAborted,):
       self.log("Closing due to error", rpki.log.warn)
-      self.close(force = True)
+      self.close()
 
   def handle_timeout(self):
     """
     Inactivity timer expired, close connection with prejudice.
     """
     self.log("Timeout, closing")
-    self.close(force = True)
+    self.close()
 
   def handle_close(self):
     """
@@ -451,157 +444,6 @@ class http_stream(asynchat.async_chat):
     """
     self.log("Close event in HTTP stream handler")
     asynchat.async_chat.handle_close(self)
-
-  def send(self, data):
-    """
-    TLS replacement for normal asyncore .send() method.  Throw an
-    exception if TLS hasn't been started or if TLS I/O was already in
-    progress, otherwise hand off to the TLS code.
-    """
-    assert self.retry_read is None and self.retry_write is None, "%r: TLS I/O already in progress, r %r w %r" % (self, self.retry_read, self.retry_write)
-    assert self.tls is not None
-    return self.tls.write(data)
-
-  def recv(self, buffer_size):
-    """
-    TLS replacement for normal asyncore .recv() method.  Throw an
-    exception if TLS hasn't been started or if TLS I/O was already in
-    progress, otherwise hand off to the TLS code.
-    """
-    assert self.retry_read is None and self.retry_write is None, "%r: TLS I/O already in progress, r %r w %r" % (self, self.retry_read, self.retry_write)
-    assert self.tls is not None
-    return self.tls.read(buffer_size)
-
-  def readable(self):
-    """
-    TLS replacement for normal asynchat .readable() method.  A TLS
-    connection that's blocked waiting for TLS write is considered not
-    readable even if the underlying socket is.
-    """
-    return self.retry_read is not None or (self.retry_write is None and asynchat.async_chat.readable(self))
-
-  def writeable(self):
-    """
-    TLS replacement for normal asynchat .writeable() method.  A TLS
-    connection that's blocked waiting for TLS read is considered not
-    writeable even if the underlying socket is.
-    """
-    return self.retry_write is not None or (self.retry_read is None and asynchat.async_chat.writeable(self))
-
-  def handle_read(self):
-    """
-    Asyncore says socket is readable.  Make sure there's no TLS write
-    already in progress, retry previous read operation if we had one
-    that was waiting for more input, otherwise try to read some data,
-    and handle all the weird OpenSSL exceptions that the TLS code
-    throws.
-    """
-    assert self.retry_write is None, "%r: TLS I/O already in progress, w %r" % (self, self.retry_write)
-    if self.retry_read is not None:
-      thunk = self.retry_read
-      self.retry_read = None
-      self.log("Retrying TLS read %r" % thunk)
-      thunk()
-    else:
-      try:
-        asynchat.async_chat.handle_read(self)
-      except POW.WantReadError:
-        self.retry_read = self.handle_read
-      except POW.WantWriteError:
-        self.retry_write = self.handle_read
-      except POW.ZeroReturnError:
-        self.log("ZeroReturn in handle_read()")
-        self.handle_close()
-      except POW.SSLUnexpectedEOFError:
-        self.log("SSLUnexpectedEOF in handle_read()", rpki.log.warn)
-        self.handle_error()
-        
-  def handle_write(self):
-    """
-    Asyncore says socket is writeable.  Make sure there's no TLS read
-    already in progress, retry previous write operation if we had one
-    that was blocked on the socket, otherwise try to write some data.
-    Handling all the weird OpenSSL exceptions that TLS throws is our
-    caller's problem.
-    """
-    # This used to be an assertion, but apparently this can happen
-    # without anything really being wrong, as a sort of race
-    # condition, due to select() having signaled that a socket was
-    # both readable and writable.  I think.
-    #
-    if self.retry_read is not None:
-      self.log("TLS I/O already in progress, r %r" % self.retry_read)
-      return
-    if self.retry_write is not None:
-      thunk = self.retry_write
-      self.retry_write = None
-      thunk()
-      self.log("Retrying TLS write %r" % thunk)
-    else:
-      asynchat.async_chat.handle_write(self)
-
-  def initiate_send(self):
-    """
-    Initiate a write operation.  This is just a wrapper around the
-    asynchat method, to handle all the whacky TLS exceptions.
-    """
-    assert self.retry_read is None and self.retry_write is None, "%r: TLS I/O already in progress, r %r w %r" % (self, self.retry_read, self.retry_write)
-    try:
-      asynchat.async_chat.initiate_send(self)
-    except POW.WantReadError:
-      self.retry_read = self.initiate_send
-    except POW.WantWriteError:
-      self.retry_write = self.initiate_send
-    except POW.ZeroReturnError:
-      self.log("ZeroReturn in initiate_send()")
-      self.handle_close()
-    except POW.SSLUnexpectedEOFError:
-      self.log("SSLUnexpectedEOF in initiate_send()", rpki.log.warn)
-      self.handle_error()
-
-  def close(self, force = False):
-    """
-    Close the stream.
-
-    Graceful shutdown of a TLS connection requires multiple calls to
-    the underlying TLS code.  If the connection should be closed right
-    now without waiting (perhaps because it's already dead and we're
-    just cleaning up), call with force = True.
-    """
-    self.log("Close requested")
-    assert force or (self.retry_read is None and self.retry_write is None), "%r: TLS I/O already in progress, r %r w %r" % (self, self.retry_read, self.retry_write)
-    if self.tls is not None:
-      try:
-        if self.retry_read is None and self.retry_write is None:
-          ret = self.tls.shutdown()
-        else:
-          ret = None
-        self.log("tls.shutdown() returned %s, force_shutdown %s" % (ret, force))
-        if ret or force:
-          self.tls = None
-      except POW.WantReadError:
-        self.retry_read = self.close
-      except POW.WantWriteError:
-        self.retry_write = self.close
-      except POW.SSLError, e:
-        self.log("tls.shutdown() threw %s, shutting down anyway" % e)
-        self.tls = None
-    if self.tls is None:
-      self.log("TLS layer is done, closing socket")
-      self.timer.cancel()
-      self.timer.set_handler(None)
-      try:
-        asynchat.async_chat.close(self)
-      except AttributeError:
-        if getattr(self, "socket", None) is not None:
-          raise
-
-  def log_cert(self, tag, x):
-    """
-    Log HTTPS certificates, if certificate debugging is enabled.
-    """
-    if debug_tls_certs:
-      rpki.log.debug("%r: HTTPS %s cert %r issuer %s [%s] subject %s [%s]" % (self, tag, x, x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
 
 class http_server(http_stream):
   """
@@ -616,58 +458,12 @@ class http_server(http_stream):
   # Use the default server timeout value set in the module header.
   timeout = default_server_timeout
 
-  def __init__(self, sock, handlers, cert = None, key = None, ta = (), dynamic_ta = None):
+  def __init__(self, sock, handlers):
     self.log("Starting")
     self.handlers = handlers
     http_stream.__init__(self, sock = sock)
     self.expect_close = not want_persistent_server
 
-    self.log("cert %r key %r ta %r dynamic_ta %r" % (cert, key, ta, dynamic_ta))
-
-    self.tls = POW.Ssl(POW.TLSV1_SERVER_METHOD)
-    self.log_cert("server", cert)
-    self.tls.useCertificate(cert.get_POW())
-    self.tls.useKey(key.get_POW())
-    ta = rpki.x509.X509.normalize_chain(dynamic_ta() if dynamic_ta else ta)
-    assert ta
-    for x in ta:
-      self.log_cert("trusted", x)
-      self.tls.addTrust(x.get_POW())
-    self.tls.setVerifyMode(POW.SSL_VERIFY_PEER | POW.SSL_VERIFY_FAIL_IF_NO_PEER_CERT)
-
-    self.tls.setFd(self.fileno())
-    self.tls_accept()
-
-  def tls_accept(self):
-    """
-    Set up TLS for server side connection, handling all the whacky
-    OpenSSL exceptions from TLS.
-
-    SSLErrorSSLError exceptions are particularly nasty, because all
-    too often they indicate a certificate lookup failure deep within
-    the guts of OpenSSL's TLS connection setup logic.  Extracting
-    anything resembling a Python data structure from a handler called
-    that deep inside the OpenSSL TLS library, while theoretically
-    possible, runs a high risk of triggering some kind of memory leak
-    or corruption.  So, for now, we just get back a long text string,
-    which we break up and log but don't attempt to process further.
-    """
-    try:
-      self.tls.accept()
-    except POW.WantReadError:
-      self.retry_read = self.tls_accept
-    except POW.WantWriteError:
-      self.retry_write = self.tls_accept
-    except POW.SSLUnexpectedEOFError:
-      self.close(force = True)      # nagios/sysmond probe, just close
-    except POW.SSLErrorSSLError, e:
-      if "\n" in e:
-        for line in str(e).splitlines():
-          rpki.log.warn(line)
-        raise POW.SSLErrorSSLError, "TLS certificate problem, most likely"
-      else:
-        raise
-    
   def handle_no_content_length(self):
     """
     Handle an incoming message that used neither chunking nor a
@@ -687,7 +483,7 @@ class http_server(http_stream):
 
   def handle_message(self):
     """
-    TLS and HTTP layers managed to deliver a complete HTTP request to
+    HTTP layer managed to deliver a complete HTTP request to
     us, figure out what to do with it.  Check the command and
     Content-Type, look for a handler, and if everything looks right,
     pass the message body, path, and a reply callback to the handler.
@@ -755,14 +551,10 @@ class http_listener(asyncore.dispatcher):
 
   log = log_method
 
-  def __init__(self, handlers, addrinfo, cert = None, key = None, ta = None, dynamic_ta = None):
-    self.log("Listener cert %r key %r ta %r dynamic_ta %r" % (cert, key, ta, dynamic_ta))
+  def __init__(self, handlers, addrinfo):
+    self.log("Listener")
     asyncore.dispatcher.__init__(self)
     self.handlers = handlers
-    self.cert = cert
-    self.key = key
-    self.ta = ta
-    self.dynamic_ta = dynamic_ta
     try:
       af, socktype, proto, canonname, sockaddr = addrinfo
       self.create_socket(af, socktype)
@@ -784,13 +576,13 @@ class http_listener(asyncore.dispatcher):
   def handle_accept(self):
     """
     Asyncore says we have an incoming connection, spawn an http_server
-    stream for it and pass along all of our handler and TLS data.
+    stream for it and pass along all of our handler data.
     """
     self.log("Accepting connection")
     try:
       s, client = self.accept()
       self.log("Accepting connection from %r" % (client,))
-      http_server(sock = s, handlers = self.handlers, cert = self.cert, key = self.key, ta = self.ta, dynamic_ta = self.dynamic_ta)
+      http_server(sock = s, handlers = self.handlers)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except:
@@ -818,18 +610,14 @@ class http_client(http_stream):
   # Use the default client timeout value set in the module header.
   timeout = default_client_timeout
 
-  def __init__(self, queue, hostport, cert = None, key = None, ta = ()):
+  def __init__(self, queue, hostport):
     self.log("Creating new connection to %r" % (hostport,))
-    self.log("cert %r key %r ta %r" % (cert, key, ta))
     http_stream.__init__(self)
     self.queue = queue
     self.host = hostport[0]
     self.port = hostport[1]
     self.state = "opening"
     self.expect_close = not want_persistent_client
-    self.cert = cert
-    self.key = key
-    self.ta = rpki.x509.X509.normalize_chain(ta)
 
   def start(self):
     """
@@ -865,35 +653,11 @@ class http_client(http_stream):
 
   def handle_connect(self):
     """
-    Asyncore says socket has connected, configure TLS junk.
+    Asyncore says socket has connected.
     """
     self.log("Socket connected")
-    self.tls = POW.Ssl(POW.TLSV1_CLIENT_METHOD)
-    self.log_cert("client", self.cert)
-    self.tls.useCertificate(self.cert.get_POW())
-    self.tls.useKey(self.key.get_POW())
-    assert self.ta
-    for x in self.ta:
-      self.log_cert("trusted", x)
-      self.tls.addTrust(x.get_POW())
-    self.tls.setVerifyMode(POW.SSL_VERIFY_PEER | POW.SSL_VERIFY_FAIL_IF_NO_PEER_CERT)
-    self.tls.setFd(self.fileno())
-    self.tls_connect()
-
-  def tls_connect(self):
-    """
-    Initialize client side of TLS.
-    """
-    try:
-      self.tls.connect()
-    except POW.WantReadError:
-      self.retry_read = self.tls_connect
-    except POW.WantWriteError:
-      self.retry_write = self.tls_connect
-    else:
-      self.log("TLS connected")
-      self.set_state("idle")
-      self.queue.send_request()
+    self.set_state("idle")
+    self.queue.send_request()
 
   def set_state(self, state):
     """
@@ -942,7 +706,7 @@ class http_client(http_stream):
         assert not self.msg.body
         self.log("Ignoring empty response received while closing")
         return
-      raise rpki.exceptions.HTTPSUnexpectedState, "%r received message while in unexpected state %s" % (self, self.state)
+      raise rpki.exceptions.HTTPUnexpectedState, "%r received message while in unexpected state %s" % (self, self.state)
 
     if self.expect_close:
       self.log("Closing")
@@ -955,7 +719,7 @@ class http_client(http_stream):
       self.update_timeout()
 
     if self.msg.code != 200:
-      raise rpki.exceptions.HTTPRequestFailed, "HTTPS request failed with status %s, reason %s, response %s" % (self.msg.code, self.msg.reason, self.msg.body)
+      raise rpki.exceptions.HTTPRequestFailed, "HTTP request failed with status %s, reason %s, response %s" % (self.msg.code, self.msg.reason, self.msg.body)
     self.queue.return_result(self.msg)
 
   def handle_close(self):
@@ -971,18 +735,19 @@ class http_client(http_stream):
     if self.get_terminator() is None:
       self.handle_body()
     elif self.state == "request-sent":
-      raise rpki.exceptions.HTTPSClientAborted, "HTTPS request aborted by close event"
+      raise rpki.exceptions.HTTPClientAborted, "HTTP request aborted by close event"
 
   def handle_timeout(self):
     """
     Connection idle timer has expired.  Shut down connection in any
     case, noisily if we weren't idle.
     """
-    if self.state != "idle":
+    bad = self.state not in ("idle", "closing")
+    if bad:
       self.log("Timeout while in state %s" % self.state, rpki.log.warn)
     http_stream.handle_timeout(self)
     self.queue.detach(self)
-    if self.state != "idle":
+    if bad:
       try:
         raise rpki.exceptions.HTTPTimeout
       except rpki.exceptions.HTTPTimeout, e:
@@ -1008,15 +773,11 @@ class http_queue(object):
 
   log = log_method
 
-  def __init__(self, hostport, cert = None, key = None, ta = ()):
+  def __init__(self, hostport):
     self.log("Creating queue for %r" % (hostport,))
-    self.log("cert %r key %r ta %r" % (cert, key, ta))
     self.hostport = hostport
     self.client = None
     self.queue = []
-    self.cert = cert
-    self.key = key
-    self.ta = ta
 
   def request(self, *requests):
     """
@@ -1036,7 +797,7 @@ class http_queue(object):
     """
     try:
       if self.client is None:
-        self.client = http_client(self, self.hostport, cert = self.cert, key = self.key, ta = self.ta)
+        self.client = http_client(self, self.hostport)
         self.log("Attached client %r" % self.client)
         self.client.start()
       elif self.client.state == "idle":
@@ -1077,11 +838,10 @@ class http_queue(object):
 
     try:
       req = self.queue.pop(0)
+      self.log("Dequeuing request %r" % req)
     except IndexError:
-      self.log("No caller, this should not happen.  Dropping result %r" % result)
+      self.log("No caller.  THIS SHOULD NOT HAPPEN.  Dropping result %r" % result, rpki.log.warn)
       return
-
-    self.log("Dequeuing request %r" % req)
 
     try:
       if isinstance(result, http_response):
@@ -1093,10 +853,9 @@ class http_queue(object):
         req.errback(result)
     except (rpki.async.ExitNow, SystemExit):
       raise
-    except Exception, e:
-      self.log("Unhandled exception %r from callback: %s" % (e, e), rpki.log.warn)
-      #rpki.log.traceback()
-      req.errback(e)
+    except:
+      self.log("Unhandled exception from callback")
+      rpki.log.traceback()
 
     self.log("Queue: %r" % self.queue)
 
@@ -1107,15 +866,15 @@ class http_queue(object):
 # Map of (host, port) tuples to http_queue objects.
 client_queues = {}
 
-def client(msg, client_key, client_cert, server_ta, url, callback, errback):
+def client(msg, url, callback, errback):
   """
-  Open client HTTPS connection, send a message, set up callbacks to
+  Open client HTTP connection, send a message, set up callbacks to
   handle response.
   """
 
   u = urlparse.urlparse(url)
 
-  if (u.scheme not in ("", "https") or
+  if (u.scheme not in ("", "http") or
       u.username is not None or
       u.password is not None or
       u.params   != "" or
@@ -1139,10 +898,8 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback):
 
   if debug_http:
     rpki.log.debug("Created request %r for %r" % (request, hostport))
-  if not isinstance(server_ta, (tuple, list)):
-    server_ta = (server_ta,)
   if hostport not in client_queues:
-    client_queues[hostport] = http_queue(hostport, cert = client_cert, key = client_key, ta = server_ta)
+    client_queues[hostport] = http_queue(hostport)
   client_queues[hostport].request(request)
 
   # Defer connection attempt until after we've had time to process any
@@ -1152,16 +909,13 @@ def client(msg, client_key, client_cert, server_ta, url, callback, errback):
     rpki.log.debug("Scheduling connection startup for %r" % request)
   rpki.async.defer(client_queues[hostport].restart)
 
-def server(handlers, server_key, server_cert, port, host = "", client_ta = (), dynamic_https_trust_anchor = None):
+def server(handlers, port, host = ""):
   """
-  Run an HTTPS server and wait (forever) for connections.
+  Run an HTTP server and wait (forever) for connections.
   """
 
   if not isinstance(handlers, (tuple, list)):
     handlers = (("/", handlers),)
-
-  if not isinstance(client_ta, (tuple, list)):
-    client_ta = (client_ta,)
 
   # Yes, this is sick.  So is getaddrinfo() returning duplicate
   # records, which RedHat has the gall to claim is a feature.
@@ -1181,24 +935,13 @@ def server(handlers, server_key, server_cert, port, host = "", client_ta = (), d
       pass
 
   for a in ai:
-    http_listener(addrinfo = a, handlers = handlers, cert = server_cert, key = server_key, ta = client_ta, dynamic_ta = dynamic_https_trust_anchor)
+    http_listener(addrinfo = a, handlers = handlers)
 
   rpki.async.event_loop()
 
-def build_https_ta_cache(certs):
-  """
-  Package up a collection of certificates into a form suitable for use
-  as a dynamic HTTPS trust anchor set.  Precise format of this
-  collection is an internal conspiracy within the rpki.https module;
-  at one point it was a POW.X509Store object, at the moment it's a
-  Python set, what it will be tomorow is nobody else's business.
-  """
-
-  return set(certs)
-
 class caller(object):
   """
-  Handle client-side mechanics for protocols based on HTTPS, CMS, and
+  Handle client-side mechanics for protocols based on HTTP, CMS, and
   rpki.xml_utils.  Calling sequence is intended to nest within
   rpki.async.sync_wrapper.
   """
@@ -1235,11 +978,4 @@ class caller(object):
       print "<!-- Query -->"
       print q_cms.pretty_print_content()
 
-    client(
-      client_key   = self.client_key,
-      client_cert  = self.client_cert,
-      server_ta    = self.server_ta,
-      url          = self.url,
-      msg          = q_der,
-      callback     = done,
-      errback      = eb)
+    client(url = self.url, msg = q_der, callback = done, errback = eb)

@@ -3,7 +3,7 @@ RPKI "publication" protocol.
 
 $Id$
 
-Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -34,7 +34,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import base64, os, errno
 import rpki.resource_set, rpki.x509, rpki.sql, rpki.exceptions, rpki.xml_utils
-import rpki.https, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
+import rpki.http, rpki.up_down, rpki.relaxng, rpki.sundial, rpki.log, rpki.roa
 
 class publication_namespace(object):
   """
@@ -119,32 +119,14 @@ class client_elt(control_elt):
   attributes = ("action", "tag", "client_handle", "base_uri")
   elements = ("bpki_cert", "bpki_glue")
 
-  sql_template = rpki.sql.template("client", "client_id", "client_handle", "base_uri", ("bpki_cert", rpki.x509.X509), ("bpki_glue", rpki.x509.X509))
+  sql_template = rpki.sql.template("client", "client_id", "client_handle", "base_uri",
+                                   ("bpki_cert", rpki.x509.X509),
+                                   ("bpki_glue", rpki.x509.X509),
+                                   ("last_cms_timestamp", rpki.sundial.datetime))
 
   base_uri  = None
   bpki_cert = None
   bpki_glue = None
-
-  clear_https_ta_cache = False
-
-  def endElement(self, stack, name, text):
-    """
-    Handle subelements of <client/> element.  These require special
-    handling because modifying them invalidates the HTTPS trust anchor
-    cache.
-    """
-    control_elt.endElement(self, stack, name, text)
-    if name in self.elements:
-      self.clear_https_ta_cache = True
-
-  def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
-    """
-    Extra server actions for client_elt.
-    """
-    if self.clear_https_ta_cache:
-      self.gctx.clear_https_ta_cache()
-      self.clear_https_ta_cache = False
-    cb()
 
   def serve_fetch_one_maybe(self):
     """

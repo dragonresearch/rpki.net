@@ -19,7 +19,7 @@ things that don't belong in yaml_script.
 
 $Id$
 
-Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -51,7 +51,7 @@ PERFORMANCE OF THIS SOFTWARE.
 from __future__ import with_statement
 
 import os, yaml, warnings, subprocess, signal, time, getopt, sys
-import rpki.resource_set, rpki.sundial, rpki.x509, rpki.https
+import rpki.resource_set, rpki.sundial, rpki.x509, rpki.http
 import rpki.log, rpki.left_right, rpki.config, rpki.publication, rpki.async
 
 # Silence warning while loading MySQLdb in Python 2.6, sigh
@@ -785,7 +785,7 @@ class allocation(object):
     q_msg = rpki.left_right.msg.query(*pdus)
     q_cms = rpki.left_right.cms_msg()
     q_der = q_cms.wrap(q_msg, self.irbe_key, self.irbe_cert)
-    q_url = "https://localhost:%d/left-right" % self.rpki_port
+    q_url = "http://localhost:%d/left-right" % self.rpki_port
 
     rpki.log.debug(q_cms.pretty_print_content())
 
@@ -802,10 +802,7 @@ class allocation(object):
     def lose(e):
       raise
 
-    rpki.https.client(
-      client_key   = self.irbe_key,
-      client_cert  = self.irbe_cert,
-      server_ta    = self.rpkid_ta,
+    rpki.http.client(
       url          = q_url,
       msg          = q_der,
       callback     = done,
@@ -908,7 +905,7 @@ class allocation(object):
         bsc_handle = "b",
         repository_handle = "r",
         bpki_cert = s.cross_certify(pubd_name + "-TA"),
-        peer_contact_uri = "https://localhost:%d/client/%s" % (pubd_port, s.client_handle)))
+        peer_contact_uri = "http://localhost:%d/client/%s" % (pubd_port, s.client_handle)))
 
       for k in s.kids:
         rpkid_pdus.append(rpki.left_right.child_elt.make_pdu(
@@ -928,10 +925,9 @@ class allocation(object):
             repository_handle = "r",
             sia_base = s.sia_base,
             bpki_cms_cert = rootd_cert,
-            bpki_https_cert = rootd_cert,
             sender_name = s.name,
             recipient_name = "rootd",
-            peer_contact_uri = "https://localhost:%s/" % rootd_port))
+            peer_contact_uri = "http://localhost:%s/" % rootd_port))
       else:
         rpkid_pdus.append(rpki.left_right.parent_elt.make_pdu(
           action = "create",
@@ -941,10 +937,9 @@ class allocation(object):
           repository_handle = "r",
           sia_base = s.sia_base,
           bpki_cms_cert = s.cross_certify(s.parent.name + "-SELF"),
-          bpki_https_cert = s.cross_certify(s.parent.name + "-TA"),
           sender_name = s.name,
           recipient_name = s.parent.name,
-          peer_contact_uri = "https://localhost:%s/up-down/%s/%s" % (s.parent.get_rpki_port(), s.parent.name, s.name)))
+          peer_contact_uri = "http://localhost:%s/up-down/%s/%s" % (s.parent.get_rpki_port(), s.parent.name, s.name)))
 
     def one():
       call_pubd(pubd_pdus, cb = two)
@@ -1023,7 +1018,7 @@ class allocation(object):
       "parent_name"  : self.parent.name,
       "parent_host"  : parent_host,
       "my_name"      : self.name,
-      "https_port"   : self.parent.get_rpki_port(),
+      "http_port"    : self.parent.get_rpki_port(),
       "class_name"   : 2 if self.parent.is_hosted() else 1,
       "sia"          : self.sia_base,
       "ski"          : ski })
@@ -1042,13 +1037,11 @@ class allocation(object):
       assert result == "OK", 'Expected "OK" result from cronjob, got %r' % result
       cb()
 
-    rpki.https.client(client_key   = self.irbe_key,
-                      client_cert  = self.irbe_cert,
-                      server_ta    = self.rpkid_ta,
-                      url          = "https://localhost:%d/cronjob" % self.rpki_port,
-                      msg          = "Run cron now, please",
-                      callback     = done,
-                      errback      = done)
+    rpki.http.client(
+      url      = "http://localhost:%d/cronjob" % self.rpki_port,
+      msg      = "Run cron now, please",
+      callback = done,
+      errback  = done)
 
   def run_yaml(self):
     """
@@ -1184,7 +1177,7 @@ def call_pubd(pdus, cb):
   q_msg = rpki.publication.msg.query(*pdus)
   q_cms = rpki.publication.cms_msg()
   q_der = q_cms.wrap(q_msg, pubd_irbe_key, pubd_irbe_cert)
-  q_url = "https://localhost:%d/control" % pubd_port
+  q_url = "http://localhost:%d/control" % pubd_port
 
   rpki.log.debug(q_cms.pretty_print_content())
 
@@ -1201,10 +1194,7 @@ def call_pubd(pdus, cb):
     rpki.log.warn("Problem calling pubd: %s" % e)
     rpki.log.traceback()
 
-  rpki.https.client(
-    client_key   = pubd_irbe_key,
-    client_cert  = pubd_irbe_cert,
-    server_ta    = pubd_ta,
+  rpki.http.client(
     url          = q_url,
     msg          = q_der,
     callback     = call_pubd_cb,
@@ -1300,7 +1290,7 @@ bpki_cert_fmt_6 = ''' && \
 
 yaml_fmt_1 = '''---
 version:                1
-posturl:                https://localhost:%(https_port)s/up-down/%(parent_name)s/%(my_name)s
+posturl:                http://localhost:%(http_port)s/up-down/%(parent_name)s/%(my_name)s
 recipient-id:           "%(parent_name)s"
 sender-id:              "%(my_name)s"
 
@@ -1347,7 +1337,7 @@ bpki-ta         = %(my_name)s-TA.cer
 rpkid-cert      = %(my_name)s-RPKI.cer
 irdbd-cert      = %(my_name)s-IRDB.cer
 irdbd-key       = %(my_name)s-IRDB.key
-https-url       = https://localhost:%(irdb_port)d/
+http-url       = http://localhost:%(irdb_port)d/
 
 [irbe_cli]
 
@@ -1355,7 +1345,7 @@ rpkid-bpki-ta   = %(my_name)s-TA.cer
 rpkid-cert      = %(my_name)s-RPKI.cer
 rpkid-irbe-cert = %(my_name)s-IRBE.cer
 rpkid-irbe-key  = %(my_name)s-IRBE.key
-rpkid-url       = https://localhost:%(rpki_port)d/left-right
+rpkid-url       = http://localhost:%(rpki_port)d/left-right
 
 [rpkid]
 
@@ -1371,7 +1361,7 @@ rpkid-cert      = %(my_name)s-RPKI.cer
 irdb-cert       = %(my_name)s-IRDB.cer
 irbe-cert       = %(my_name)s-IRBE.cer
 
-irdb-url        = https://localhost:%(irdb_port)d/
+irdb-url        = http://localhost:%(irdb_port)d/
 
 server-host     = localhost
 server-port     = %(rpki_port)d

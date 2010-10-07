@@ -154,11 +154,6 @@
               <ref name="base64"/>
             </element>
           </optional>
-          <optional>
-            <element name="bpki_https_certificate">
-              <ref name="base64"/>
-            </element>
-          </optional>
         </element>
       </zeroOrMore>
       <zeroOrMore>
@@ -270,9 +265,6 @@
         <ref name="object_handle"/>
       </attribute>
       <element name="bpki_resource_ta">
-        <ref name="base64"/>
-      </element>
-      <element name="bpki_server_ta">
         <ref name="base64"/>
       </element>
       <element name="bpki_child_ta">

@@ -15,7 +15,7 @@ Still to do:
 
 $Id$
 
-Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -299,7 +299,7 @@ class allocation(object):
     Construct service URL for this node's parent.
     """
     parent_port = self.parent.hosted_by.rpkid_port if self.parent.is_hosted() else self.parent.rpkid_port
-    return "https://localhost:%d/up-down/%s/%s" % (parent_port, self.parent.name, self.name)
+    return "http://localhost:%d/up-down/%s/%s" % (parent_port, self.parent.name, self.name)
 
   def dump_asns(self, fn):
     """
@@ -326,7 +326,7 @@ class allocation(object):
     f = self.csvout(fn)
     if self.is_root():
       f.writerow(("rootd",
-                  "https://localhost:%d/" % self.rootd_port,
+                  "http://localhost:%d/" % self.rootd_port,
                   self.path("bpki/servers/ca.cer"),
                   self.path("bpki/servers/ca.cer"),
                   self.name,

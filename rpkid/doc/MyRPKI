@@ -93,7 +93,7 @@ See examples/*.csv for commented examples of the several CSV files. Note that
 the comments themselves are not legal CSV, they're just present to make it
 easier to understand the examples.
 
-***** myrpki overview *****
+ myrpki overview
 
 Which process you need to follow depends on whether you are running rpkid
 yourself or will be hosted by somebody else. We call the first case "self-
@@ -177,7 +177,7 @@ The two commands used in data maintenence phase are "configure_resources" and
 used by the host. In the self-hosted case, it is not necessary to run
 "configure_resources" at all, myrpki will run it for you automatically.
 
-***** Hosted case *****
+ Hosted case
 
 The basic steps involved in getting started for a resource holder who is being
 hosted by somebody else are:
@@ -210,7 +210,7 @@ Any time you run configure_resources myrpki, you should send the updated XML
 file to your rpkid operator, who should send you a further updated XML file in
 response.
 
-***** Self-hosted case *****
+ Self-hosted case
 
 The first few steps involved in getting started for a self-hosted resource
 holder (that is, a resource holder that runs its own copy of rpkid) are the
@@ -255,7 +255,7 @@ so.
 If and when you change your CSV files, you should run configure_daemons again
 to feed the changes into the daemons.
 
-***** Hosting case *****
+ Hosting case
 
 If you are running rpkid not just for your own resources but also to host other
 resource holders (see hosted_case above), your setup will be almost the same as
@@ -275,7 +275,7 @@ myrpki has to ask rpkid to create a new BSC keypair and PKCS #10 certificate
 request), it may be easiest just to ship back an updated copy of the XML file
 after every you run configure_daemons.
 
-***** "Pure" hosting case *****
+ "Pure" hosting case
 
 In general we assume that anybody who bothers to run rpkid is also a resource
 holder, but the software does not insist on this.
@@ -296,7 +296,7 @@ side of your operation completely separate from the rpkid-running side of your
 operation. This is essentially the pure-hosting model, just with an internal
 hosted entity within a different part of your own organization.
 
-***** Troubleshooting *****
+ Troubleshooting
 
 If you run into trouble setting up this package, the first thing to do is
 categorize the kind of trouble you are having. If you've gotten far enough to
@@ -328,7 +328,7 @@ the URI of the directory on its command line:
 
      $ rsync rsync://rpki.example.org/where/ever/
 
-***** Known Issues *****
+ Known Issues
 
 The lxml package provides a Python interface to the Gnome libxml2 and libxslt C
 libraries. This code has been quite stable for several years, but initial

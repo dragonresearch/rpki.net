@@ -6,7 +6,7 @@ separate channels between the RPKI engine and the IR back end (IRBE).
 The IRBE is the client for one of the subprotocols, the RPKI engine is the
 client for the other.
 
-***** initiated by the IRBE *****
+ initiated by the IRBE
 
 This part of the protcol uses a kind of message-passing. Each object that the
 RPKI engine knows about takes five messages: "create", "set", "get", "list",
@@ -35,7 +35,7 @@ All operations allow an optional "tag" attribute which can be any alphanumeric
 token. The main purpose of the tag attribute is to allow batching of multiple
 requests into a single PDU.
 
-**** <self/> object ****
+ <self/> object
 
 A <self/> object represents one virtual RPKI engine. In simple cases where the
 RPKI engine operator operates the engine only on their own behalf, there will
@@ -120,7 +120,7 @@ Control attributes that can be set to "yes" to force actions:
       > object. Not currently implemented. Intended to aid in recovery if RPKI
       engine and publication engine somehow get out of sync.
 
-**** <bsc/> object ****
+ <bsc/> object
 
 The <bsc/> ("business signing context") object represents all the BPKI data
 needed to sign outgoing CMS or HTTPS messages. Various other objects include
@@ -171,7 +171,7 @@ Replies to "create" and "set" actions that specify "generate-keypair" include a
 engine stores the PKCS #10 request, which allows the IRBE to reuse the request
 if and when it needs to reissue the corresponding BPKI signing certificate.
 
-**** <parent/> object ****
+ <parent/> object
 
 The <parent/> object represents the RPKI engine's view of a particular parent
 of the current <self/> object in the up-down protocol. Due to the way that the
@@ -247,7 +247,7 @@ Control attributes that can be set to "yes" to force actions:
       This is like the revoke command in the <self/> object, but limited to
       RPKI CAs under this parent.
 
-**** <child/> object ****
+ <child/> object
 
 The <child/> object represents the RPKI engine's view of particular child of
 the current <self/> in the up-down protocol.
@@ -280,7 +280,7 @@ Control attributes that can be set to "yes" to force actions:
   reissue:
       Not implemented, may be removed from protocol.
 
-**** <repository/> object ****
+ <repository/> object
 
 The <repository/> object represents the RPKI engine's view of a particular
 publication repository used by the current <self/> object.
@@ -324,7 +324,7 @@ Payload data which can be configured in a <repository/> object:
 
 At present there are no control attributes for <repository/> objects.
 
-**** <route_origin/> object ****
+ <route_origin/> object
 
 This section is out-of-date. The <route_origin/> object has been replaced by
 the <list_roa_requests/> IRDB query, but the documentation for that hasn't been
@@ -384,7 +384,7 @@ ABNF for these address lists:
 For example, "10.0.1.0/24-32,10.0.2.0/24", which is a shorthand form of
 "10.0.1.0/24-32,10.0.2.0/24-24".
 
-***** Operations initiated by the RPKI engine *****
+ Operations initiated by the RPKI engine
 
 The left-right protocol also includes queries from the RPKI engine back to the
 IRDB. These queries do not follow the message-passing pattern used in the IRBE-
@@ -393,7 +393,7 @@ IRDB, with a corresponding response. The CMS and HTTPS encoding are the same as
 in the rest of the protocol, but the BPKI certificates will be different as the
 back-queries and responses form a separate communication channel.
 
-**** <list_resources/> messages ****
+ <list_resources/> messages
 
 The <list_resources/> query and response allow the RPKI engine to ask the IRDB
 for information about resources assigned to a particular child. The query must
@@ -434,7 +434,7 @@ superficially similar to the format used for prefix and maxLength values in the
 <route_origin/> objects don't allow ranges, while <list_resources/> messages
 don't allow a maxLength specification.
 
-***** Error handling *****
+ Error handling
 
 Error in this protocol are handled at two levels.
 

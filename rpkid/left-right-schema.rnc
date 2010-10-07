@@ -5,7 +5,7 @@
 # libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
 # run the compact syntax through trang to get XML syntax.
 #
-# Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+# Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -19,7 +19,7 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 #
-# Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
+# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -169,9 +169,7 @@ parent_payload = (attribute peer_contact_uri { uri }?,
                   attribute sender_name { up_down_name }?,
                   attribute recipient_name { up_down_name }?,
                   element bpki_cms_cert { base64 }?,
-                  element bpki_cms_glue { base64 }?,
-                  element bpki_https_cert { base64 }?,
-                  element bpki_https_glue { base64 }?)
+                  element bpki_cms_glue { base64 }?)
 
 parent_query |= element parent { ctl_create,  self_handle, parent_handle, parent_bool, parent_payload }
 parent_reply |= element parent { ctl_create,  self_handle, parent_handle }

@@ -3,7 +3,7 @@ Exception definitions for RPKI modules.
 
 $Id$
 
-Copyright (C) 2009  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -231,7 +231,7 @@ class NoActiveCA(RPKI_Exception):
 
 class BadClientURL(RPKI_Exception):
   """
-  URL given to HTTPS client does not match profile.
+  URL given to HTTP client does not match profile.
   """
 
 class ClientNotFound(RPKI_Exception):
@@ -249,9 +249,9 @@ class ForbiddenURI(RPKI_Exception):
   Forbidden URI, does not start with correct base URI.
   """
 
-class HTTPSClientAborted(RPKI_Exception):
+class HTTPClientAborted(RPKI_Exception):
   """
-  HTTPS client connection closed while in request-sent state.
+  HTTP client connection closed while in request-sent state.
   """
 
 class BadPublicationReply(RPKI_Exception):
@@ -279,14 +279,14 @@ class BSCNotReady(RPKI_Exception):
   BSC not yet in a usable state, signing_cert not set.
   """
 
-class HTTPSUnexpectedState(RPKI_Exception):
+class HTTPUnexpectedState(RPKI_Exception):
   """
-  HTTPS event occurred in an unexpected state.
+  HTTP event occurred in an unexpected state.
   """
 
-class HTTPSBadVersion(RPKI_Exception):
+class HTTPBadVersion(RPKI_Exception):
   """
-  HTTPS couldn't parse HTTP version.
+  HTTP couldn't parse HTTP version.
   """
 
 class HandleTranslationError(RPKI_Exception):

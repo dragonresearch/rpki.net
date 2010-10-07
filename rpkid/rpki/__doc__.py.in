@@ -4,7 +4,7 @@
 #
 # $Id$
 #
-# Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+# Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -790,8 +790,8 @@
 # 
 # @c myrpki use has two distinct phases: setup and data maintenance.
 # The setup phase is primarily about constructing the "business PKI"
-# (BPKI) certificates that the daemons use to authenticate CMS and
-# HTTPS messages and obtaining the service URLs needed to configure
+# (BPKI) certificates that the daemons use to authenticate CMS
+# messages and obtaining the service URLs needed to configure
 # the daemons.  The data maintenance phase is about configuring local
 # data into the daemons.
 # 
@@ -1258,16 +1258,16 @@
 #                      by irdbd.
 #
 # @par @c irdb-url:
-#                      Service URL for irdbd.  Must be a %https:// URL.
+#                      Service URL for irdbd.  Must be a %http:// URL.
 #
 # @par @c server-host:
 #                      Hostname or IP address on which to listen for
-#                      HTTPS connections.  Current default is
+#                      HTTP connections.  Current default is
 #                      INADDR_ANY (IPv4 0.0.0.0); this will need to
 #                      be hacked to support IPv6 for production.
 #
 # @par @c server-port:
-#                      TCP port on which to listen for HTTPS
+#                      TCP port on which to listen for HTTP
 #                      connections.
 
 ## @page pubdconf pubd.conf
@@ -1309,12 +1309,12 @@
 #
 # @par @c server-host:
 #                      Hostname or IP address on which to listen for
-#                      HTTPS connections.  Current default is
+#                      HTTP connections.  Current default is
 #                      INADDR_ANY (IPv4 0.0.0.0); this will need to
 #                      be hacked to support IPv6 for production.
 #
 # @par @c server-port:
-#                      TCP port on which to listen for HTTPS
+#                      TCP port on which to listen for HTTP
 #                      connections.
 #
 # @par @c publication-base:
@@ -1355,10 +1355,10 @@
 #
 # @par @c server-host:
 #                      Hostname or IP address on which to listen for
-#                      HTTPS connections.  Default is localhost.
+#                      HTTP connections.  Default is localhost.
 #
 # @par @c server-port:
-#                      TCP port on which to listen for HTTPS
+#                      TCP port on which to listen for HTTP
 #                      connections.
 #
 # @par @c rpki-root-key:
@@ -1437,8 +1437,8 @@
 #                      one and only by rpkid instance authorized to
 #                      contact this irdbd instance.
 #
-# @par @c https-url:
-#                      Service URL for irdbd.  Must be a %https:// URL.
+# @par @c http-url:
+#                      Service URL for irdbd.  Must be a %http:// URL.
 
 ## @page smoketestconf smoketest.conf
 #
@@ -1583,7 +1583,7 @@
 # Left-right protocol %objects are encoded as signed CMS messages
 # containing XML as eContent and using an eContentType OID of @c id-ct-xml
 # (1.2.840.113549.1.9.16.1.28).  These CMS messages are in turn passed
-# as the data for HTTPS POST operations, with an HTTP content type of
+# as the data for HTTP POST operations, with an HTTP content type of
 # "application/x-rpki" for both the POST data and the response data.
 #
 # All operations allow an optional "tag" attribute which can be any
@@ -1684,7 +1684,7 @@
 # @subsection bsc_obj <bsc/> object
 #
 # The @c &lt;bsc/&gt; ("business signing context") %object represents all the BPKI
-# data needed to sign outgoing CMS or HTTPS messages.  Various other
+# data needed to sign outgoing CMS messages.  Various other
 # %objects include pointers to a @c &lt;bsc/&gt; %object.  Whether a particular
 # @c &lt;self/&gt; uses only one @c &lt;bsc/&gt; or multiple is a configuration decision
 # based on external requirements: the RPKI engine code doesn't care, it
@@ -1754,7 +1754,7 @@
 # Payload data which can be configured in a @c &lt;parent/&gt; %object:
 #
 # @par @c peer_contact_uri (attribute):
-#     HTTPS URI used to contact this parent.
+#     HTTP URI used to contact this parent.
 #
 # @par @c sia_base (attribute):
 #     The leading portion of an rsync URI that the RPKI engine should
@@ -1787,16 +1787,6 @@
 #     bpki_cms_cert certificate and should be issued by the bpki_cert
 #     certificate in the @c &lt;self/&gt; %object; if not needed, the
 #     bpki_cms_glue certificate should be left unset.
-#
-# @par @c bpki_https_cert (element):
-#     BPKI HTTPS CA certificate for this @c &lt;parent/&gt;.  This is like the
-#     bpki_cms_cert %object, only used for validating incoming TLS
-#     messages rather than CMS.
-#
-# @par @c bpki_cms_glue (element):
-#     Another BPKI HTTPS CA certificate for this @c &lt;parent/&gt;, usually not
-#     needed.  This is like the bpki_cms_glue certificate, only used for
-#     validating incoming TLS messages rather than CMS.
 #
 # Control attributes that can be set to "yes" to force actions:
 #
@@ -1859,7 +1849,7 @@
 # Payload data which can be configured in a @c &lt;repository/&gt; %object:
 #
 # @par @c peer_contact_uri (attribute):
-#     HTTPS URI used to contact this repository.
+#     HTTP URI used to contact this repository.
 #
 # @par @c bpki_cms_cert (element):
 #     BPKI CMS CA certificate for this @c &lt;repository/&gt;.  This is used as part
@@ -1877,16 +1867,6 @@
 #     bpki_cms_cert certificate and should be issued by the bpki_cert
 #     certificate in the @c &lt;self/&gt; %object; if not needed, the
 #     bpki_cms_glue certificate should be left unset.
-#
-# @par @c bpki_https_cert (element):
-#     BPKI HTTPS CA certificate for this @c &lt;repository/&gt;.  This is like the
-#     bpki_cms_cert %object, only used for validating incoming TLS
-#     messages rather than CMS.
-#
-# @par @c bpki_cms_glue (element):
-#     Another BPKI HTTPS CA certificate for this @c &lt;repository/&gt;, usually not
-#     needed.  This is like the bpki_cms_glue certificate, only used for
-#     validating incoming TLS messages rather than CMS.
 #
 # At present there are no control attributes for @c &lt;repository/&gt; %objects.
 #
@@ -1962,7 +1942,7 @@
 # back to the IRDB.  These queries do not follow the message-passing
 # pattern used in the IRBE-initiated part of the protocol.  Instead,
 # there's a single query back to the IRDB, with a corresponding
-# response.  The CMS and HTTPS encoding are the same as in the rest of
+# response.  The CMS encoding are the same as in the rest of
 # the protocol, but the BPKI certificates will be different as the
 # back-queries and responses form a separate communication channel.
 #
@@ -2014,7 +1994,7 @@
 #
 # Error in this protocol are handled at two levels.
 #
-# Since all messages in this protocol are conveyed over HTTPS
+# Since all messages in this protocol are conveyed over HTTP
 # connections, basic errors are indicated via the HTTP response code.
 # 4xx and 5xx responses indicate that something bad happened.  Errors
 # that make it impossible to decode a query or encode a response are
@@ -2056,12 +2036,12 @@
 # Much of the architecture of the %publication protocol is borrowed
 # from the @ref Left-Right "left-right protocol": like the
 # left-right protocol, the %publication protocol uses CMS-wrapped XML
-# over HTTPS with the same eContentType OID and the same HTTPS
+# over HTTP with the same eContentType OID and the same HTTP
 # content-type, and the overall style of the XML messages is very
 # similar to the left-right protocol.  All operations allow an
 # optional "tag" attribute to allow batching.
 #
-# The %publication engine operates a single HTTPS server which serves
+# The %publication engine operates a single HTTP server which serves
 # both of these subprotocols.  The two subprotocols share a single
 # server port, but use distinct URLs to allow demultiplexing.
 #
@@ -2172,7 +2152,7 @@
 #
 # Error in this protocol are handled at two levels.
 #
-# Since all messages in this protocol are conveyed over HTTPS
+# Since all messages in this protocol are conveyed over HTTP
 # connections, basic errors are indicated via the HTTP response code.
 # 4xx and 5xx responses indicate that something bad happened.  Errors
 # that make it impossible to decode a query or encode a response are
@@ -2344,21 +2324,8 @@
 # during certificate validation, dotted arrows show the origin of the
 # EE certificates that rpkid uses to sign CMS and TLS messages.
 #
-# There's one nasty bit where the model had to bend to fit the current
-# state of the underlying protocols: it's not possible to use exactly
-# the same BPKI keys and certificates for HTTPS and CMS.  The reason
-# for this is simple: each hosted entity has its own BPKI, as does the
-# hosting entity, but the HTTPS listener is shared.  The only ways to
-# avoid sharing the HTTPS server certificate would be to use separate
-# listeners for each hosted entity, which scales poorly, or to rely on
-# the TLS "Server Name Indication" extension (RFC 4366 3.1) which is
-# not yet widely implemented.
-#
 # The certificate tree looks complicated, but the set of certificates
-# needed to build any particular validation chain is obvious, again
-# excepting the HTTPS server case, where the client certificate is the
-# first hint that the engine has of the client's identity, so the
-# server must be prepared to accept any current client certificate.
+# needed to build any particular validation chain is obvious.
 #
 # Detailed instructions on how to build a BPKI are beyond the scope of
 # this document, but one can handle simple cases using the OpenSSL

@@ -38,7 +38,7 @@ work if the correct Python modules are not available.
 
 $Id$
 
-Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -296,7 +296,6 @@ class parent(object):
     self.handle = handle
     self.service_uri = None
     self.bpki_cms_certificate = None
-    self.bpki_https_certificate = None
     self.myhandle = None
     self.sia_base = None
 
@@ -310,13 +309,10 @@ class parent(object):
       s += " sia %s" % self.sia_base
     if self.bpki_cms_certificate:
       s += " cms %s" % self.bpki_cms_certificate
-    if self.bpki_https_certificate:
-      s += " https %s" % self.bpki_https_certificate
     return s + ">"
 
   def add(self, service_uri = None,
           bpki_cms_certificate = None,
-          bpki_https_certificate = None,
           myhandle = None,
           sia_base = None):
     """
@@ -326,8 +322,6 @@ class parent(object):
       self.service_uri = service_uri
     if bpki_cms_certificate is not None:
       self.bpki_cms_certificate = bpki_cms_certificate
-    if bpki_https_certificate is not None:
-      self.bpki_https_certificate = bpki_https_certificate
     if myhandle is not None:
       self.myhandle = myhandle
     if sia_base is not None:
@@ -337,7 +331,7 @@ class parent(object):
     """
     Render this parent object to XML.
     """
-    complete = self.bpki_cms_certificate and self.bpki_https_certificate and self.myhandle and self.service_uri and self.sia_base
+    complete = self.bpki_cms_certificate and self.myhandle and self.service_uri and self.sia_base
     if whine and not complete:
       print "Incomplete parent entry %s" % self
     if complete or allow_incomplete:
@@ -349,8 +343,6 @@ class parent(object):
       e.tail = "\n"
       if self.bpki_cms_certificate:
         PEMElement(e, "bpki_cms_certificate", self.bpki_cms_certificate)
-      if self.bpki_https_certificate:
-        PEMElement(e, "bpki_https_certificate", self.bpki_https_certificate)
 
 class parents(dict):
   """
@@ -360,7 +352,6 @@ class parents(dict):
   def add(self, handle,
           service_uri = None,
           bpki_cms_certificate = None,
-          bpki_https_certificate = None,
           myhandle = None,
           sia_base = None):
     """
@@ -370,7 +361,6 @@ class parents(dict):
       self[handle] = parent(handle)
     self[handle].add(service_uri = service_uri,
                      bpki_cms_certificate = bpki_cms_certificate,
-                     bpki_https_certificate = bpki_https_certificate,
                      myhandle = myhandle,
                      sia_base = sia_base)
 
@@ -393,7 +383,6 @@ class parents(dict):
       self.add(handle = h,
                service_uri = p.get("service_uri"),
                bpki_cms_certificate = fxcert(p.findtext("bpki_resource_ta")),
-               bpki_https_certificate = fxcert(p.findtext("bpki_server_ta")),
                myhandle = p.get("child_handle"),
                sia_base = r.get("sia_base"))
     return self
@@ -953,8 +942,6 @@ class main(rpki.cli.Cmd):
     self.bpki_resources = CA(self.cfg_file, self.cfg.get("bpki_resources_directory"))
     if self.run_rpkid or self.run_pubd or self.run_rootd:
       self.bpki_servers = CA(self.cfg_file, self.cfg.get("bpki_servers_directory"))
-    else:
-      self.bpki_servers = None
 
     self.pubd_contact_info = self.cfg.get("pubd_contact_info", "")
 
@@ -1017,7 +1004,7 @@ class main(rpki.cli.Cmd):
     if self.run_rootd:
 
       e = Element("parent", parent_handle = self.handle, child_handle = self.handle,
-                  service_uri = "https://localhost:%s/" % self.cfg.get("rootd_server_port"),
+                  service_uri = "http://localhost:%s/" % self.cfg.get("rootd_server_port"),
                   valid_until = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365)))
       PEMElement(e, "bpki_resource_ta", self.bpki_servers.cer)
       PEMElement(e, "bpki_server_ta", self.bpki_servers.cer)
@@ -1043,6 +1030,7 @@ class main(rpki.cli.Cmd):
         PEMElement(e, "bpki_client_ta", self.bpki_resources.cer)
         etree_write(e, repo_file_name,
                     msg = 'This is the "repository offer" file for you to use if you want to publish in your own repository')
+
 
   def do_update_bpki(self, arg):
     """
@@ -1119,9 +1107,9 @@ class main(rpki.cli.Cmd):
       server_ta = None
 
     if not service_uri_base and self.run_rpkid:
-      service_uri_base = "https://%s:%s/up-down/%s" % (self.cfg.get("rpkid_server_host"),
-                                                       self.cfg.get("rpkid_server_port"),
-                                                       self.handle)
+      service_uri_base = "http://%s:%s/up-down/%s" % (self.cfg.get("rpkid_server_host"),
+                                                      self.cfg.get("rpkid_server_port"),
+                                                      self.handle)
     if not service_uri_base or not server_ta:
       print "Sorry, you can't set up children of a hosted config that itself has not yet been set up"
       return
@@ -1321,9 +1309,9 @@ class main(rpki.cli.Cmd):
                 client_handle = client_handle,
                 parent_handle = parent_handle,
                 sia_base = sia_base,
-                service_uri = "https://%s:%s/client/%s" % (self.cfg.get("pubd_server_host"),
-                                                           self.cfg.get("pubd_server_port"),
-                                                           client_handle))
+                service_uri = "http://%s:%s/client/%s" % (self.cfg.get("pubd_server_host"),
+                                                          self.cfg.get("pubd_server_port"),
+                                                          client_handle))
 
     PEMElement(e, "bpki_server_ta", self.bpki_servers.cer)
     SubElement(e, "bpki_client_ta").text = client.findtext("bpki_client_ta")
@@ -1493,7 +1481,7 @@ class main(rpki.cli.Cmd):
     argv = arg.split()
 
     try:
-      import rpki.https, rpki.resource_set, rpki.relaxng, rpki.exceptions
+      import rpki.http, rpki.resource_set, rpki.relaxng, rpki.exceptions
       import rpki.left_right, rpki.x509, rpki.async
       if hasattr(warnings, "catch_warnings"):
         with warnings.catch_warnings():
@@ -1522,12 +1510,12 @@ class main(rpki.cli.Cmd):
 
     self_crl_interval = self.cfg.getint("self_crl_interval", 2 * 60 * 60)
     self_regen_margin = self.cfg.getint("self_regen_margin", self_crl_interval / 4)
-    pubd_base         = "https://%s:%s/" % (self.cfg.get("pubd_server_host"), self.cfg.get("pubd_server_port"))
-    rpkid_base        = "https://%s:%s/" % (self.cfg.get("rpkid_server_host"), self.cfg.get("rpkid_server_port"))
+    pubd_base         = "http://%s:%s/" % (self.cfg.get("pubd_server_host"), self.cfg.get("pubd_server_port"))
+    rpkid_base        = "http://%s:%s/" % (self.cfg.get("rpkid_server_host"), self.cfg.get("rpkid_server_port"))
 
     # Wrappers to simplify calling rpkid and pubd.
 
-    call_rpkid = rpki.async.sync_wrapper(rpki.https.caller(
+    call_rpkid = rpki.async.sync_wrapper(rpki.http.caller(
       proto       = rpki.left_right,
       client_key  = rpki.x509.RSA( PEM_file = self.bpki_servers.dir + "/irbe.key"),
       client_cert = rpki.x509.X509(PEM_file = self.bpki_servers.dir + "/irbe.cer"),
@@ -1538,7 +1526,7 @@ class main(rpki.cli.Cmd):
 
     if self.run_pubd:
 
-      call_pubd = rpki.async.sync_wrapper(rpki.https.caller(
+      call_pubd = rpki.async.sync_wrapper(rpki.http.caller(
         proto       = rpki.publication,
         client_key  = rpki.x509.RSA( PEM_file = self.bpki_servers.dir + "/irbe.key"),
         client_cert = rpki.x509.X509(PEM_file = self.bpki_servers.dir + "/irbe.cer"),
@@ -1767,7 +1755,6 @@ class main(rpki.cli.Cmd):
         parent_myhandle = parent.get("myhandle")
         parent_sia_base = parent.get("sia_base")
         parent_cms_cert = findbase64(parent, "bpki_cms_certificate")
-        parent_https_cert = findbase64(parent, "bpki_https_certificate")
 
         if (parent_pdu is None or
             parent_pdu.bsc_handle != bsc_handle or
@@ -1776,8 +1763,7 @@ class main(rpki.cli.Cmd):
             parent_pdu.sia_base != parent_sia_base or
             parent_pdu.sender_name != parent_myhandle or
             parent_pdu.recipient_name != parent_handle or
-            parent_pdu.bpki_cms_cert != parent_cms_cert or
-            parent_pdu.bpki_https_cert != parent_https_cert):
+            parent_pdu.bpki_cms_cert != parent_cms_cert):
           rpkid_query.append(rpki.left_right.parent_elt.make_pdu(
             action = "create" if parent_pdu is None else "set",
             tag = parent_handle,
@@ -1789,8 +1775,7 @@ class main(rpki.cli.Cmd):
             sia_base = parent_sia_base,
             sender_name = parent_myhandle,
             recipient_name = parent_handle,
-            bpki_cms_cert = parent_cms_cert,
-            bpki_https_cert = parent_https_cert))
+            bpki_cms_cert = parent_cms_cert))
 
       rpkid_query.extend(rpki.left_right.parent_elt.make_pdu(
         action = "destroy", self_handle = handle, parent_handle = p) for p in parent_pdus)
@@ -1895,7 +1880,6 @@ class main(rpki.cli.Cmd):
 
     db.close()
 
-    # Run event loop again to give TLS connections a chance to shut down cleanly.
-    # Might need to add a timeout here, dunno yet.
-
-    rpki.async.event_loop()
+    # We used to run event loop again to give TLS connections a chance to shut down cleanly.
+    # Seems not to be needed (and sometimes hangs forever, which is odd) with TLS out of the picture.
+    #rpki.async.event_loop()

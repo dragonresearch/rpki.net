@@ -18,14 +18,14 @@ The publication engine operates a single HTTPS server which serves both of
 these subprotocols. The two subprotocols share a single server port, but use
 distinct URLs to allow demultiplexing.
 
-***** Publication control subprotocol *****
+ Publication control subprotocol
 
 The control subprotocol reuses the message-passing design of the left-right
 protocol. Configured objects support the "create", "set", "get", "list", and
 "destroy" actions, or a subset thereof when the full set of actions doesn't
 make sense.
 
-**** <config/> object ****
+ <config/> object
 
 The <config/> object allows configuration of data that apply to the entire
 publication server rather than a particular client.
@@ -44,7 +44,7 @@ Payload data which can be configured in a <config/> object:
       server, so we can use the publication control subprotocol to update the
       BPKI CRL.
 
-**** <client/> object ****
+ <client/> object
 
 The <client/> object represents one client authorized to use the publication
 server.
@@ -77,7 +77,7 @@ Payload data which can be configured in a <client/> object:
       the publication engine's bpki_ta certificate; if not needed, the
       bpki_glue certificate should be left unset.
 
-***** Publication subprotocol *****
+ Publication subprotocol
 
 The publication subprotocol is structured somewhat differently from the
 publication control protocol. Objects in the publication subprotocol represent
@@ -94,16 +94,16 @@ simple check that the client's "base_uri" is a leading substring of the
 publication URI. Details of why access control might need to become more
 complicated are discussed in a later section.
 
-**** <certificate/> object ****
+ <certificate/> object
 
 The <certificate/> object represents an RPKI certificate to be published or
 withdrawn.
 
-**** <crl/> object ****
+ <crl/> object
 
 The <crl/> object represents an RPKI CRL to be published or withdrawn.
 
-**** <manifest/> object ****
+ <manifest/> object
 
 The <manifest/> object represents an RPKI publication manifest to be published
 or withdrawn.
@@ -113,11 +113,11 @@ protocol is because every publication or withdrawal action requires a new
 manifest, thus every publication or withdrawal action will involve at least two
 objects.
 
-**** <roa/> object ****
+ <roa/> object
 
 The <roa/> object represents a ROA to be published or withdrawn.
 
-***** Error handling *****
+ Error handling
 
 Error in this protocol are handled at two levels.
 
@@ -148,7 +148,7 @@ The body of the <report_error/> element itself is an optional text string; if
 present, this is debugging information. At present this capabilty is not used,
 debugging information goes to syslog.
 
-***** Additional access control considerations. *****
+ Additional access control considerations.
 
 As detailed above, the publication protocol is trivially simple. This glosses
 over two bits of potential complexity:

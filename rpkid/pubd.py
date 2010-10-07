@@ -9,7 +9,7 @@ Default configuration file is pubd.conf, override with --config option.
 
 $Id$
 
-Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -40,7 +40,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import os, time, getopt, sys, re
 import rpki.resource_set, rpki.up_down, rpki.x509, rpki.sql
-import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng
+import rpki.http, rpki.config, rpki.exceptions, rpki.relaxng
 import rpki.log, rpki.publication
 
 class pubd_context(object):
@@ -57,8 +57,8 @@ class pubd_context(object):
     self.pubd_cert = rpki.x509.X509(Auto_update = cfg.get("pubd-cert"))
     self.pubd_key  = rpki.x509.RSA( Auto_update = cfg.get("pubd-key"))
 
-    self.https_server_host = cfg.get("server-host", "")
-    self.https_server_port = int(cfg.get("server-port", "4434"))
+    self.http_server_host = cfg.get("server-host", "")
+    self.http_server_port = int(cfg.get("server-port", "4434"))
 
     self.publication_base = cfg.get("publication-base", "publication/")
 
@@ -125,30 +125,6 @@ class pubd_context(object):
       rpki.log.traceback()
       cb(500, "Could not process PDU: %s" % data)
 
-  ## @var https_ta_cache
-  # HTTPS trust anchor cache, to avoid regenerating it for every TLS connection.
-  https_ta_cache = None
-
-  def clear_https_ta_cache(self):
-    """
-    Clear dynamic TLS trust anchors.
-    """
-    if self.https_ta_cache is not None:
-      rpki.log.debug("Clearing HTTPS trusted cert cache")
-      self.https_ta_cache = None
-
-  def build_https_ta_cache(self):
-    """
-    Build dynamic TLS trust anchors.
-    """
-    if self.https_ta_cache is None:
-      clients = rpki.publication.client_elt.sql_fetch_all(self)
-      self.https_ta_cache = rpki.https.build_https_ta_cache(
-        [c.bpki_cert for c in clients if c.bpki_cert is not None] +
-        [c.bpki_glue for c in clients if c.bpki_glue is not None] +
-        [self.irbe_cert, self.bpki_ta])
-    return self.https_ta_cache
-
 os.environ["TZ"] = "UTC"
 time.tzset()
 
@@ -182,12 +158,9 @@ def main():
 
   pctx = pubd_context(cfg)
 
-  rpki.https.server(
-    dynamic_https_trust_anchor    = pctx.build_https_ta_cache,
-    host                          = pctx.https_server_host,
-    port                          = pctx.https_server_port,
-    server_key                    = pctx.pubd_key,
-    server_cert                   = pctx.pubd_cert,
+  rpki.http.server(
+    host                          = pctx.http_server_host,
+    port                          = pctx.http_server_port,
     handlers                      = (("/control", pctx.control_handler),
                                      ("/client/", pctx.client_handler)))
 

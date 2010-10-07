@@ -13,7 +13,7 @@ some of the nasty details.  This involves a lot of format conversion.
 $Id$
 
 
-Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -556,10 +556,10 @@ class X509(DER_object):
     """
     Normalize a chain of certificates into a tuple of X509 objects.
     Given all the glue certificates needed for BPKI cross
-    certification, it's easiest to allow sloppy arguments to the HTTPS
-    and CMS validation methods and provide a single method that
-    normalizes the allowed cases.  So this method allows X509, None,
-    lists, and tuples, and returns a tuple of X509 objects.
+    certification, it's easiest to allow sloppy arguments to the CMS
+    validation methods and provide a single method that normalizes the
+    allowed cases.  So this method allows X509, None, lists, and
+    tuples, and returns a tuple of X509 objects.
     """
     if isinstance(chain, cls):
       chain = (chain,)

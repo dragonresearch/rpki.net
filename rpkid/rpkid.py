@@ -9,7 +9,7 @@ Default configuration file is rpkid.conf, override with --config option.
 
 $Id$
 
-Copyright (C) 2009  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -40,7 +40,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import os, time, getopt, sys
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
-import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log
+import rpki.http, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log
 import rpki.rpki_engine
 
 os.environ["TZ"] = "UTC"
@@ -82,14 +82,12 @@ def main():
 
   gctx.start_cron()
 
-  rpki.https.server(host                       = gctx.https_server_host,
-                    port                       = gctx.https_server_port,
-                    server_key                 = gctx.rpkid_key,
-                    server_cert                = gctx.rpkid_cert,
-                    dynamic_https_trust_anchor = gctx.build_https_ta_cache,
-                    handlers                   = (("/left-right", gctx.left_right_handler),
-                                                  ("/up-down/",   gctx.up_down_handler),
-                                                  ("/cronjob",    gctx.cronjob_handler)))
+  rpki.http.server(
+    host     = gctx.http_server_host,
+    port     = gctx.http_server_port,
+    handlers = (("/left-right", gctx.left_right_handler),
+                ("/up-down/",   gctx.up_down_handler),
+                ("/cronjob",    gctx.cronjob_handler)))
 
 if profile:
   import cProfile

@@ -3,7 +3,7 @@ Global context for rpkid.
 
 $Id$
 
-Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -34,7 +34,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import lxml.etree, re, random
 import rpki.resource_set, rpki.up_down, rpki.left_right, rpki.x509, rpki.sql
-import rpki.https, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log, rpki.async
+import rpki.http, rpki.config, rpki.exceptions, rpki.relaxng, rpki.log, rpki.async
 
 class rpkid_context(object):
   """
@@ -53,8 +53,8 @@ class rpkid_context(object):
 
     self.irdb_url   = cfg.get("irdb-url")
 
-    self.https_server_host = cfg.get("server-host", "")
-    self.https_server_port = cfg.getint("server-port", 4433)
+    self.http_server_host = cfg.get("server-host", "")
+    self.http_server_port = cfg.getint("server-port", 4433)
 
     self.publication_kludge_base = cfg.get("publication-kludge-base", "publication/")
 
@@ -105,10 +105,7 @@ class rpkid_context(object):
           expected_pdu_count, "" if expected_pdu_count == 1 else "s", r_cms.pretty_print_content())
       callback(r_msg)
 
-    rpki.https.client(
-      server_ta    = (self.bpki_ta, self.irdb_cert),
-      client_key   = self.rpkid_key,
-      client_cert  = self.rpkid_cert,
+    rpki.http.client(
       url          = self.irdb_url,
       msg          = q_der,
       callback     = unwrap,
@@ -274,39 +271,6 @@ class rpkid_context(object):
       cb(500, "Running cron internally")
     else:
       self.cron(lambda: cb(200, "OK"))
-
-  ## @var https_ta_cache
-  # HTTPS trust anchor cache, to avoid regenerating it for every TLS connection.
-  https_ta_cache = None
-
-  def clear_https_ta_cache(self):
-    """
-    Clear dynamic TLS trust anchors.
-    """
-
-    if self.https_ta_cache is not None:
-      rpki.log.debug("Clearing HTTPS trusted cert cache")
-      self.https_ta_cache = None
-
-  def build_https_ta_cache(self):
-    """
-    Build dynamic TLS trust anchors.
-    """
-
-    if self.https_ta_cache is None:
-
-      selves = rpki.left_right.self_elt.sql_fetch_all(self)
-      children = rpki.left_right.child_elt.sql_fetch_all(self)
-
-      self.https_ta_cache = rpki.https.build_https_ta_cache(
-        [c.bpki_cert for c in children if c.bpki_cert is not None] +
-        [c.bpki_glue for c in children if c.bpki_glue is not None] +
-        [s.bpki_cert for s in selves if s.bpki_cert is not None] +
-        [s.bpki_glue for s in selves if s.bpki_glue is not None] +
-        [self.irbe_cert, self.irdb_cert, self.bpki_ta])
-
-    return self.https_ta_cache
-
 
 class ca_obj(rpki.sql.sql_persistent):
   """

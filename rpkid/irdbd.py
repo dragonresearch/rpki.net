@@ -7,7 +7,7 @@ Default configuration file is irdbd.conf, override with --config option.
 
 $Id$
 
-Copyright (C) 2009  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -39,7 +39,7 @@ PERFORMANCE OF THIS SOFTWARE.
 from __future__ import with_statement
 
 import sys, os, time, getopt, urlparse, warnings
-import rpki.https, rpki.config, rpki.resource_set, rpki.relaxng
+import rpki.http, rpki.config, rpki.resource_set, rpki.relaxng
 import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509
 
 # Silence warning while loading MySQLdb in Python 2.6, sigh
@@ -203,18 +203,15 @@ rpkid_cert      = rpki.x509.X509(Auto_update = cfg.get("rpkid-cert"))
 irdbd_cert      = rpki.x509.X509(Auto_update = cfg.get("irdbd-cert"))
 irdbd_key       = rpki.x509.RSA( Auto_update = cfg.get("irdbd-key"))
 
-u = urlparse.urlparse(cfg.get("https-url"))
+u = urlparse.urlparse(cfg.get("http-url"))
 
-assert u.scheme in ("", "https") and \
+assert u.scheme in ("", "http") and \
        u.username is None and \
        u.password is None and \
        u.params   == "" and \
        u.query    == "" and \
        u.fragment == ""
 
-rpki.https.server(server_key   = irdbd_key,
-                  server_cert  = irdbd_cert,
-                  client_ta    = (bpki_ta, rpkid_cert),
-                  host         = u.hostname or "localhost",
-                  port         = u.port or 443,
-                  handlers     = ((u.path, handler),))
+rpki.http.server(host         = u.hostname or "localhost",
+                 port         = u.port or 443,
+                 handlers     = ((u.path, handler),))

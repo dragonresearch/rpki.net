@@ -550,16 +550,6 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
         <ref name="base64"/>
       </element>
     </optional>
-    <optional>
-      <element name="bpki_https_cert">
-        <ref name="base64"/>
-      </element>
-    </optional>
-    <optional>
-      <element name="bpki_https_glue">
-        <ref name="base64"/>
-      </element>
-    </optional>
   </define>
   <define name="parent_query" combine="choice">
     <element name="parent">
@@ -1259,7 +1249,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
   libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
   run the compact syntax through trang to get XML syntax.
   
-  Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+  Copyright (C) 2009- -2010  Internet Systems Consortium ("ISC")
   
   Permission to use, copy, modify, and distribute this software for any
   purpose with or without fee is hereby granted, provided that the above
@@ -1273,7 +1263,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
   OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
   PERFORMANCE OF THIS SOFTWARE.
   
-  Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
+  Portions copyright (C) 2007- -2008  American Registry for Internet Numbers ("ARIN")
   
   Permission to use, copy, modify, and distribute this software for any
   purpose with or without fee is hereby granted, provided that the above

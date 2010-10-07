@@ -3,7 +3,7 @@ Command line IR back-end control program for rpkid and pubd.
 
 $Id$
 
-Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -33,7 +33,7 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import getopt, sys, textwrap
-import rpki.left_right, rpki.https, rpki.x509, rpki.config, rpki.log
+import rpki.left_right, rpki.http, rpki.x509, rpki.config, rpki.log
 import rpki.publication, rpki.async
 
 pem_out = None
@@ -121,14 +121,6 @@ class cmd_elt_mixin(reply_elt_mixin):
   def client_query_cms_glue(self, arg):
     """Special handler for --bpki_cms_glue option."""
     self.bpki_cms_glue = rpki.x509.X509(Auto_file = arg)
-
-  def client_query_bpki_https_cert(self, arg):
-    """Special handler for --bpki_https_cert option."""
-    self.bpki_https_cert = rpki.x509.X509(Auto_file = arg)
-
-  def client_query_https_glue(self, arg):
-    """Special handler for --bpki_https_glue option."""
-    self.bpki_https_glue = rpki.x509.X509(Auto_file = arg)
 
 class cmd_msg_mixin(object):
   """
@@ -303,7 +295,7 @@ if q_msg_left_right:
     cms_msg = left_right_cms_msg
     msg     = left_right_msg
 
-  call_rpkid = rpki.async.sync_wrapper(rpki.https.caller(
+  call_rpkid = rpki.async.sync_wrapper(rpki.http.caller(
     proto       = left_right_proto,
     client_key  = rpki.x509.RSA( Auto_file = cfg.get("rpkid-irbe-key")),
     client_cert = rpki.x509.X509(Auto_file = cfg.get("rpkid-irbe-cert")),
@@ -320,7 +312,7 @@ if q_msg_publication:
     msg     = publication_msg
     cms_msg = publication_cms_msg
 
-  call_pubd = rpki.async.sync_wrapper(rpki.https.caller(
+  call_pubd = rpki.async.sync_wrapper(rpki.http.caller(
     proto       = publication_proto,
     client_key  = rpki.x509.RSA( Auto_file = cfg.get("pubd-irbe-key")),
     client_cert = rpki.x509.X509(Auto_file = cfg.get("pubd-irbe-cert")),

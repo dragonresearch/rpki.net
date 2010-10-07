@@ -4,7 +4,7 @@ ConfigParser module.
 
 $Id$
 
-Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -156,40 +156,35 @@ class parser(object):
     its data is less silly than the available alternatives.
     """
 
-    import rpki.https, rpki.x509, rpki.sql, rpki.async
+    import rpki.http, rpki.x509, rpki.sql, rpki.async
 
     try:
-      rpki.https.debug_http = self.getboolean("debug_http")
+      rpki.http.debug_http = self.getboolean("debug_http")
     except ConfigParser.NoOptionError:
       pass
 
     try:
-      rpki.https.debug_tls_certs = self.getboolean("debug_tls_certs")
+      rpki.http.want_persistent_client = self.getboolean("want_persistent_client")
     except ConfigParser.NoOptionError:
       pass
 
     try:
-      rpki.https.want_persistent_client = self.getboolean("want_persistent_client")
+      rpki.http.want_persistent_server = self.getboolean("want_persistent_server")
     except ConfigParser.NoOptionError:
       pass
 
     try:
-      rpki.https.want_persistent_server = self.getboolean("want_persistent_server")
+      rpki.http.use_adns = self.getboolean("use_adns")
     except ConfigParser.NoOptionError:
       pass
 
     try:
-      rpki.https.use_adns = self.getboolean("use_adns")
+      rpki.http.enable_ipv6_clients = self.getboolean("enable_ipv6_clients")
     except ConfigParser.NoOptionError:
       pass
 
     try:
-      rpki.https.enable_ipv6_clients = self.getboolean("enable_ipv6_clients")
-    except ConfigParser.NoOptionError:
-      pass
-
-    try:
-      rpki.https.enable_ipv6_servers = self.getboolean("enable_ipv6_servers")
+      rpki.http.enable_ipv6_servers = self.getboolean("enable_ipv6_servers")
     except ConfigParser.NoOptionError:
       pass
 

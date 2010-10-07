@@ -48,8 +48,8 @@ test all-tests parse-test profile yamltest::
 irbe_cli.usage: irbe_cli.py
 	python irbe_cli.py --help | sed 's/^/      /' >$@
 
-tags:
-	find . -type f \( -name '*.py' -o -name '*.sql' -o -name '*.rnc' \) ! -name relaxng.py | etags -
+tags: Makefile
+	find . -type f \( -name '*.py' -o -name '*.sql' -o -name '*.rnc' -o -name '*.py.in' \) ! -name relaxng.py ! -name __doc__.py | etags -
 
 lint:
 	pylint --rcfile ../scripts/pylint.rc rpki/[a-z]*.py irbe_cli.py irdbd.py pubd.py rootd.py rpkid.py tests/smoketest.py tests/testpoke.py ../myrpki/myrpki.py ../myrpki/yamltest.py

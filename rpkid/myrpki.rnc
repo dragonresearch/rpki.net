@@ -5,7 +5,7 @@
 # libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
 # run the compact syntax through trang to get XML syntax.
 #
-# Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+# Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -55,8 +55,7 @@ start |= element myrpki {
     attribute service_uri { uri }?,
     attribute myhandle { object_handle }?,
     attribute sia_base { uri }?,
-    element bpki_cms_certificate { base64 }?,
-    element bpki_https_certificate { base64 }?
+    element bpki_cms_certificate { base64 }?
   }*,
   element repository {
     attribute handle { object_handle },
@@ -98,7 +97,6 @@ start |= element parent {
   attribute child_handle { object_handle },
   attribute parent_handle { object_handle },
   element bpki_resource_ta { base64 },
-  element bpki_server_ta { base64 },
   element bpki_child_ta { base64 },
   element repository { repository_payload }?
 }

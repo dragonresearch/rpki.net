@@ -544,16 +544,6 @@
         <ref name="base64"/>
       </element>
     </optional>
-    <optional>
-      <element name="bpki_https_cert">
-        <ref name="base64"/>
-      </element>
-    </optional>
-    <optional>
-      <element name="bpki_https_glue">
-        <ref name="base64"/>
-      </element>
-    </optional>
   </define>
   <define name="parent_query" combine="choice">
     <element name="parent">

@@ -40,10 +40,10 @@ cfg = rpki.config.parser(cfg_file, "myrpki")
 
 def dump(section):
   subprocess.check_call(
-    ("mysqldump",
-     "-u", cfg.get("sql-username", section = section),
+    ("mysqldump", "--add-drop-database",
+     "-u",  cfg.get("sql-username", section = section),
      "-p" + cfg.get("sql-password", section = section),
-     cfg.get("sql-database", section = section)))
+     "-B",  cfg.get("sql-database", section = section)))
 
 if cfg.getboolean("run_rpkid", False):
   dump("irdbd")

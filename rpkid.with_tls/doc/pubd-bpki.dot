@@ -1,0 +1,42 @@
+// $Id$
+
+// Color code:
+//   Black:   Operating entity
+//   Red:     Cross-certified client
+//
+// Shape code:
+//   Octagon: TA
+//   Diamond: CA
+//   Record:  EE
+
+digraph bpki_pubd {
+      splines = true;
+      size = "14,14";
+      node                    [ fontname = Times, fontsize = 9 ];
+
+      // Operating entity
+      node                    [ color = black, fontcolor = black, shape = record ];
+      TA                      [ shape = octagon, label = "BPKI TA" ];
+      pubd                    [ label = "pubd|{HTTPS server|CMS}" ];
+      ctl                     [ label = "Control|{HTTPS client|CMS}" ];
+
+      // Clients
+      node                    [ color = red, fontcolor = red, shape = diamond ];
+      Alice_CA;
+      Bob_CA;
+      node                    [ color = red, fontcolor = red, shape = record ];
+      Alice_EE                [ label = "Alice\nEE|{HTTPS client|CMS}" ];
+      Bob_EE                  [ label = "Bob\nEE|{HTTPS client|CMS}" ];
+
+      edge                    [ color = black, style = dotted ];
+      TA -> pubd;
+      TA -> ctl;
+
+      edge                    [ color = black, style = solid ];
+      TA -> Alice_CA;
+      TA -> Bob_CA;
+
+      edge                    [ color = red, style = solid ];
+      Alice_CA -> Alice_EE;
+      Bob_CA -> Bob_EE;
+}

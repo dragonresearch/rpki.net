@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
+         version="1"
+	 sender="sender name"
+	 recipient="recipient name"
+	 type="issue">
+    <request class_name="class name"
+             req_resource_set_as="64534-64540"
+	     req_resource_set_ipv4=""
+	     req_resource_set_ipv6="">
+	MIICYTCCAUkCAQAwHDEaMBgGA1UEAxMRVEVTVCBFTlRJVFkgSVNQNWMwggEiMA0G
+	CSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDIi6ElZd/uon9Ur1IKGhr6DXWzPOng
+	KdOJIOlRSWcsQ9qgLNREs5YUqQd3YLlvAe+OVKV0rFpn+DBNEPmsn7h1YQv253zq
+	m1yYeks+xOJZQtMZyg9YDrfIgk7lu6z9kuWIsvxkz244OxiD/OemrvuQNtDhyk2Q
+	QQ8POyrADNl7fehQE/YJc4Kj0uO7ggiHf9K7Dg56KLYlArXZUfwzMkdH/89/vO4A
+	AbsFXi4Dmq2VO8rCxodkdDmqWWuu4KdRGgfyjkyOZS/f8pm64LaKT8AgcnmYAI8N
+	UBM90T6Mvdx0qTOoVh0xeHznAp6NChQSbdM3x3rwhBD+/k0olyZuCIWhAgMBAAGg
+	ADANBgkqhkiG9w0BAQUFAAOCAQEAj9bYIVfREySBzUhQSlbNi9kfdXgivC/4A7pn
+	b4sMm081S05u0QLhyh1XNF/L3/U5yVElVHE8xobM/CuAkXpy7N5GSYj2T28Fmn77
+	1y/xdGg6Jp26OkbrqY3gjQAaMigYg9/6tPAc9fgLiQAJLUUYb2hRqaqu4Ze8RrxU
+	RsnVpAHWYDFWJhNqEp8eErzAVLqxpmoYJKgmpK6TKyYKuf8+xf3Rlkb4+iu2FotR
+	DQrmcd6jmMjp9xLejDEuoPgcfpVP2CB1jUCAIW7yE7+a7vj9Mop1gs61zP8y/p2V
+	rVnXgEy93WZLjQt1D29oKhlcFGtCG4nqIBCDAWVuz/LGACB85w==
+    </request>
+</message>

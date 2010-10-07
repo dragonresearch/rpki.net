@@ -1,0 +1,17 @@
+$Id$
+
+Documentation for rpkid and friends.
+
+Most of the files in this directory are automatically generated from
+the source code.  Most of the hand-written documentation for rpkid and
+friends is written using Doxygen markup so that it will all appear in
+the manual.
+
+The primary tool for generating documentation is Doxygen, which
+produces the HTML and PDF versions of the manual.  Certain pages are
+also dumped from HTML to flat text.
+
+See rpkid/Makefile for details on how all this happens.
+
+The full manual is available in both PDF and HTML formats; the PDF is
+in manual.pdf, the HTML is in a compressed tarball manual.tar.gz.

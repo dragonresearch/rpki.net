@@ -2259,7 +2259,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
       logmsg(rc, log_sys_err, "Couldn't cache stale manifest %s, blundering onward", uri);
     if (!rc->allow_stale_manifest) {
       reject(rc, uri, stale_manifest,
-	     "Rejected %s because it is a stale manifest");
+	     "because it is a stale manifest");
       goto done;
     }
     logmsg(rc, log_data_err, "Stale manifest %s", uri);
@@ -3176,7 +3176,7 @@ int main(int argc, char *argv[])
       EVP_PKEY_free(pkey);
       EVP_PKEY_free(xpkey);
       if (!j) {
-	logmsg(&rc, log_data_err, "Rejected %s beacuse known public key didn't match indirect trust anchor", uri);
+	logmsg(&rc, log_data_err, "Rejected %s because known public key didn't match indirect trust anchor", uri);
 	X509_free(x);
 	continue;
       }

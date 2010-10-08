@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<message xmlns="http://www.apnic.net/specs/rescerts/up-down/"
-         version="1"
-	 sender="sender name"
-	 recipient="recipient name"
-	 type="revoke_response">
-    <key class_name="ISP5"
-         ski="CfAUC3n7C_-o71S57D65i9DLnOw"/>
-</message>

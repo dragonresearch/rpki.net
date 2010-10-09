@@ -1347,14 +1347,20 @@ class main(rpki.cli.Cmd):
     database.
     """
 
-    argv = arg.split()
+    parent_handle = None
+
+    opts, argv = getopt.getopt(arg.split(), "", ["parent_handle="])
+    for o, a in opts:
+      if o == "--parent_handle":
+        parent_handle = a
 
     if len(argv) != 1:
       raise RuntimeError, "Need to specify filename for repository.xml on command line"
 
     r = etree_read(argv[0])
 
-    parent_handle = r.get("parent_handle")
+    if parent_handle is None:
+      parent_handle = r.get("parent_handle")
 
     print "Repository calls us %r" % (r.get("client_handle"))
     print "Repository response associated with parent_handle %r" % parent_handle

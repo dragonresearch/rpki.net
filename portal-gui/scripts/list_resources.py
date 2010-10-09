@@ -39,7 +39,7 @@ from os.path import basename
 from rpki.myrpki import CA
 import rpki.config
 import rpki.x509
-import rpki.https
+import rpki.http
 import rpki.async
 import rpki.left_right
 import rpki.resource_set
@@ -55,7 +55,7 @@ def query_rpkid():
     cfg_file = os.getenv("MYRPKI_CONF", "myrpki.conf")
     cfg = rpki.config.parser(cfg_file, "myrpki")
     bpki_servers = CA(cfg_file, cfg.get("bpki_servers_directory"))
-    rpkid_base = "https://%s:%s/" % (cfg.get("rpkid_server_host"), cfg.get("rpkid_server_port"))
+    rpkid_base = "http://%s:%s/" % (cfg.get("rpkid_server_host"), cfg.get("rpkid_server_port"))
 
     if verbose:
         print 'current directory is', os.getcwd()
@@ -63,7 +63,7 @@ def query_rpkid():
         print 'bpki_servers=', bpki_servers.dir
         print 'rpkid_base=', rpkid_base
 
-    call_rpkid = rpki.async.sync_wrapper(rpki.https.caller(
+    call_rpkid = rpki.async.sync_wrapper(rpki.http.caller(
         proto       = rpki.left_right,
         client_key  = rpki.x509.RSA(PEM_file = bpki_servers.dir + "/irbe.key"),
         client_cert = rpki.x509.X509(PEM_file = bpki_servers.dir + "/irbe.cer"),

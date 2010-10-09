@@ -447,7 +447,7 @@ class http_stream(asynchat.async_chat):
 
 class http_server(http_stream):
   """
-  HTTP(S) server stream.
+  HTTP server stream.
   """
 
   ## @var parse_type
@@ -546,7 +546,7 @@ class http_server(http_stream):
 
 class http_listener(asyncore.dispatcher):
   """
-  Listener for incoming HTTP(S) connections.
+  Listener for incoming HTTP connections.
   """
 
   log = log_method
@@ -599,7 +599,7 @@ class http_listener(asyncore.dispatcher):
 
 class http_client(http_stream):
   """
-  HTTP(S) client stream.
+  HTTP client stream.
   """
 
   ## @var parse_type
@@ -610,13 +610,17 @@ class http_client(http_stream):
   # Use the default client timeout value set in the module header.
   timeout = default_client_timeout
 
+  ## @var state
+  # Application layer connection state.
+  state = None
+
   def __init__(self, queue, hostport):
     self.log("Creating new connection to %r" % (hostport,))
     http_stream.__init__(self)
     self.queue = queue
     self.host = hostport[0]
     self.port = hostport[1]
-    self.state = "opening"
+    self.set_state("opening")
     self.expect_close = not want_persistent_client
 
   def start(self):
@@ -624,12 +628,16 @@ class http_client(http_stream):
     Create socket and request a connection.
     """
     if not use_adns:
+      self.log("Not using ADNS")
       self.gotaddrinfo([(socket.AF_INET, self.host)])
     elif self.host == "localhost":
+      self.log("Bypassing DNS for localhost")
       self.gotaddrinfo(localhost_addrinfo())
     else:
       import rpki.adns                  # This should move to start of file once we've decided to inflict it on all users
-      rpki.adns.getaddrinfo(self.gotaddrinfo, self.dns_error, self.host, supported_address_families(enable_ipv6_clients))
+      families = supported_address_families(enable_ipv6_clients)
+      self.log("Starting ADNS lookup for %s in families %r" % (self.host, families))
+      rpki.adns.getaddrinfo(self.gotaddrinfo, self.dns_error, self.host, families)
 
   def dns_error(self, e):
     """
@@ -644,6 +652,7 @@ class http_client(http_stream):
     """
     try:
       self.af, self.addr = random.choice(addrinfo)
+      self.log("Connecting to AF %r sockaddr %r" % (self.af, self.addr))
       self.create_socket(self.af, socket.SOCK_STREAM)
       self.connect((self.addr, self.port))
     except (rpki.async.ExitNow, SystemExit):

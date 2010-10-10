@@ -651,10 +651,10 @@ class http_client(http_stream):
     Got address data from DNS, create socket and request connection.
     """
     try:
-      self.af, self.addr = random.choice(addrinfo)
-      self.log("Connecting to AF %r sockaddr %r" % (self.af, self.addr))
+      self.af, self.address = random.choice(addrinfo)
+      self.log("Connecting to AF %r sockaddr %r" % (self.af, self.address))
       self.create_socket(self.af, socket.SOCK_STREAM)
-      self.connect((self.addr, self.port))
+      self.connect((self.address, self.port))
     except (rpki.async.ExitNow, SystemExit):
       raise
     except:

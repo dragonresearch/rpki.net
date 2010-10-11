@@ -652,9 +652,11 @@ class http_client(http_stream):
     """
     try:
       self.af, self.address = random.choice(addrinfo)
-      self.log("Connecting to AF %r sockaddr %r" % (self.af, self.address))
+      self.log("Connecting to AF %s host %s port %s addr %s" % (self.af, self.host, self.port, self.address))
       self.create_socket(self.af, socket.SOCK_STREAM)
       self.connect((self.address, self.port))
+      if self.addr is None:
+        self.addr = (self.host, self.port)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except:
@@ -666,6 +668,7 @@ class http_client(http_stream):
     """
     self.log("Socket connected")
     self.set_state("idle")
+    assert self.queue.client is self
     self.queue.send_request()
 
   def set_state(self, state):

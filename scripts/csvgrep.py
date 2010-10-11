@@ -45,16 +45,22 @@ for datum in sys.argv[1:]:
 
 #print "Looking for: ASNs %s IPv4 %s IPv6 %s" % (asn, ipv4, ipv6)
 
-def matches(resource_set, datum):
-  return resource_set.intersection(resource_set.__class__(datum))
+def matches(set1, datum):
+  set2 = set1.__class__(datum)
+  if set1.intersection(set2):
+    return set2
+  else:
+    return False
 
 if asn:
   for h, a in rpki.myrpki.csv_reader("asns.csv", columns = 2):
-    if matches(asn, a):
-      print h, a
+    m = matches(asn, a)
+    if m:
+      print h, m
 
 if ipv4 or ipv6:
   for h, a in rpki.myrpki.csv_reader("prefixes.csv", columns = 2):
     t = ipv6 if ":" in a else ipv4
-    if t and matches(t, a):
-      print h, a
+    m = t and matches(t, a)
+    if m:
+      print h, m

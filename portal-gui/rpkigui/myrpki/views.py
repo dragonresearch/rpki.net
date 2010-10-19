@@ -451,19 +451,28 @@ def asn_allocate_view(request, pk):
     return render('myrpki/asn_view.html', { 'form': form,
         'asn': obj, 'form': form, 'parent': parent_set }, request)
 
-@login_required
-def download_csv(request, self_handle, fname):
-    #ensure the requested handle is available to this user
-    conf_set = models.Conf.objects.filter(owner=request.user, handle=self_handle)
+# this is similar to handle_required, except that the handle is given in URL
+def handle_or_404(request, handle):
+    "ensure the requested handle is available to this user"
+    if request.user.is_superuser:
+        conf_set = models.Conf.objects.filter(handle=handle)
+    else:
+        conf_set = models.Conf.objects.filter(owner=request.user, handle=handle)
     if not conf_set:
-        raise http.Http404, 'no such resource handle'
-    conf = conf_set[0]
-    fname = fname + '.csv'
-    content, mtime = glue.read_file_from_handle(conf.handle, fname)
-    resp = http.HttpResponse(content , mimetype='text/csv')
+        raise http.Http404, 'resource handle not found'
+    return conf_set[0]
+
+def serve_file(handle, fname, content_type):
+    content, mtime = glue.read_file_from_handle(handle, fname)
+    resp = http.HttpResponse(content , mimetype=content_type)
     resp['Content-Disposition'] = 'attachment; filename=%s' % (fname, )
     resp['Last-Modified'] = email.utils.formatdate(mtime, usegmt=True)
     return resp
+
+@login_required
+def download_csv(request, self_handle, fname):
+    conf = handle_or_404(request, self_handle)
+    return serve_file(conf.handle, fname + '.csv', 'text/csv')
 
 def download_asns(request, self_handle):
     return download_csv(request, self_handle, 'asns')
@@ -475,8 +484,9 @@ def download_prefixes(request, self_handle):
     return download_csv(request, self_handle, 'prefixes')
 
 @login_required
-def upload_myrpki(request, self_handle):
-    "handles POST of the myrpki.xml file for a given handle."
-    raise http.Http404, 'not implemented'
+def download_myrpki_xml(request, self_handle):
+    "handles GET of the myrpki.xml file for a given resource handle."
+    conf = handle_or_404(request, self_handle)
+    return serve_file(conf.handle, 'myrpki.xml', 'application/xml')
 
 # vim:sw=4 ts=8 expandtab

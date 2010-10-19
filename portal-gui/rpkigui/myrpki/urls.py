@@ -40,9 +40,9 @@ urlpatterns = patterns('',
     (r'^asn/(?P<pk>\d+)/allocate$', views.asn_allocate_view),
     (r'^roa/(?P<pk>\d+)/delete$', views.roa_request_delete_view),
     (r'^demo/down/asns/(?P<self_handle>[^/]+)$', views.download_asns),
+    (r'^demo/down/myrpki/(?P<self_handle>[^/]+)$', views.download_myrpki_xml),
     (r'^demo/down/prefixes/(?P<self_handle>[^/]+)$', views.download_prefixes),
-    (r'^demo/down/roas/(?P<self_handle>[^/]+)$', views.download_roas),
-    (r'^demo/up/myrpki/(?P<self_handle>[^/]+)$', views.upload_myrpki)
+    (r'^demo/down/roas/(?P<self_handle>[^/]+)$', views.download_roas)
 )
 
 # vim:sw=4 ts=8 expandtab

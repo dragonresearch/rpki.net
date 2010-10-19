@@ -75,6 +75,10 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 <p>-- none --
 {% endif %}
 
+<p>
+Export (csv): <a href="/myrpki/demo/down/asns/{{ request.session.handle }}">asns</a> |
+<a href="/myrpki/demo/down/prefixes/{{ request.session.handle }}">prefixes</a>
+
 </div>
 
 <div style="border: outset"> <!-- ROAs -->
@@ -96,6 +100,9 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 </tr>
 {% endfor %}
 </table>
+
+<p><a href="/myrpki/demo/down/roas/{{ request.session.handle }}">export (csv)</a>
+
 </div><!-- roas -->
 
 <div style="border: outset">

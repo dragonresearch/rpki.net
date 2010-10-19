@@ -15,6 +15,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
+import email.utils
 import os
 import tempfile
 
@@ -449,5 +450,33 @@ def asn_allocate_view(request, pk):
 
     return render('myrpki/asn_view.html', { 'form': form,
         'asn': obj, 'form': form, 'parent': parent_set }, request)
+
+@login_required
+def download_csv(request, self_handle, fname):
+    #ensure the requested handle is available to this user
+    conf_set = models.Conf.objects.filter(owner=request.user, handle=self_handle)
+    if not conf_set:
+        raise http.Http404, 'no such resource handle'
+    conf = conf_set[0]
+    fname = fname + '.csv'
+    content, mtime = glue.read_file_from_handle(conf.handle, fname)
+    resp = http.HttpResponse(content , mimetype='text/csv')
+    resp['Content-Disposition'] = 'attachment; filename=%s' % (fname, )
+    resp['Last-Modified'] = email.utils.formatdate(mtime, usegmt=True)
+    return resp
+
+def download_asns(request, self_handle):
+    return download_csv(request, self_handle, 'asns')
+
+def download_roas(request, self_handle):
+    return download_csv(request, self_handle, 'roas')
+
+def download_prefixes(request, self_handle):
+    return download_csv(request, self_handle, 'prefixes')
+
+@login_required
+def upload_myrpki(request, self_handle):
+    "handles POST of the myrpki.xml file for a given handle."
+    raise http.Http404, 'not implemented'
 
 # vim:sw=4 ts=8 expandtab

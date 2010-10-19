@@ -21,6 +21,7 @@ from __future__ import with_statement
 import os
 import os.path
 import csv
+import stat
 import sys
 
 from django.conf import settings
@@ -55,11 +56,20 @@ def invoke_rpki(handle, args):
     print 'invoking', cmd
     os.system(cmd)
 
-def read_identity(handle):
-    fname = settings.MYRPKI_DATA_DIR + '/' + handle + '/entitydb/identity.xml'
-    with open(fname, 'r') as fp:
+def read_file_from_handle(handle, fname):
+    """read a filename relative to the directory for the given resource handle.  returns
+    a tuple of (content, mtime)"""
+    with open(settings.MYRPKI_DATA_DIR + '/' + handle + '/' + fname, 'r') as fp:
         data = fp.read()
-    return data
+        mtime = os.fstat(fp.fileno())[stat.ST_MTIME]
+    return data, mtime
+
+#def read_identity(handle):
+#    fname = settings.MYRPKI_DATA_DIR + '/' + handle + '/entitydb/identity.xml'
+#    with open(fname, 'r') as fp:
+#        data = fp.read()
+#    return data
+read_identity = lambda h: read_file_from_handle(h, 'entitydb/identity.xml')[0]
 
 def read_child_response(handle, child):
     fname = '%s/%s/entitydb/children/%s.xml' % (settings.MYRPKI_DATA_DIR, handle, child)

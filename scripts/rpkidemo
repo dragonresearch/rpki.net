@@ -1,0 +1,83 @@
+#!/usr/bin/env python
+
+"""
+Hosted GUI client startup script, for workshops, etc.
+
+This isn't usable yet.
+
+As of when this is run, we assume that the tarball (contents TBD and
+perhaps changing from one workshop to another) have been unpacked,
+that we are on some Unix-like machine, and that we are executing in
+a Python interpreter.  We have to check anything else we care about.
+
+$Id$
+
+Copyright (C) 2010  Internet Systems Consortium ("ISC")
+
+Permission to use, copy, modify, and distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
+"""
+
+# Check Python version before doing anything else
+
+import sys
+
+if sys.version_info[:2] not in ((2, 5), (2, 6)):
+  sys.exit("Sorry, this script requires Python 2.5 or 2.6, I seem to be running in %s" % sys.version)
+
+# Ok, it's safe to import the other stuff we need
+
+import os, subprocess, webbrowser, httplib, urllib, getpass
+
+top = os.path.realpath(os.path.join((sys.path[0] or "."), ".."))
+cwd = os.getcwd()
+
+# Find or build a usable copy of OpenSSL
+
+openssl = None
+
+def scrape(*args):
+  return subprocess.Popen(args, stdout = subprocess.PIPE, stderr = subprocess.STDOUT).communicate()[0]
+
+def usable_openssl(f):
+  return f is not None and os.path.exists(f) and "-ss_cert" in scrape(f, "ca", "-?") and "Usage cms" in scrape(f, "cms", "-?")
+
+for d in os.environ["PATH"].split(":"):
+  f = os.path.join(d, "openssl")
+  if usable_openssl(f):
+    openssl = f
+    break
+
+if openssl is None:
+  print "Couldn't find usable openssl on path, attempting to build one"
+  subprocess.check_call(("./configure",), cwd = top)
+  subprocess.check_call(("make",), cwd = os.path.join(top, "openssl"))
+  openssl = os.path.join(top, "openssl", "openssl", "apps", "openssl")
+  print "Done building openssl"
+  print
+
+if usable_openssl(openssl):
+  print "Using", openssl
+else:
+  sys.exit("Could not find or build usable version of openssl, giving up")
+
+print "I need to know your username and password on the Django GUI server to proceed"
+
+# Perhaps put this in a loop that does a connection check to make sure
+# the given username and password works before proceeding?
+#
+username = raw_input("Username: ")
+password = getpass.getpass()
+
+
+
+#webbrowser.open("www.rpki.net")

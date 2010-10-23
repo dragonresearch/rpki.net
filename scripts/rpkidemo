@@ -36,10 +36,18 @@ if sys.version_info[:2] not in ((2, 5), (2, 6)):
 
 # Ok, it's safe to import the other stuff we need
 
-import os, subprocess, webbrowser, httplib, urllib, getpass
+import os, subprocess, webbrowser, httplib, urllib, getpass, re, errno
 
 top = os.path.realpath(os.path.join((sys.path[0] or "."), ".."))
 cwd = os.getcwd()
+
+# Parameters that perhaps we should be getting from a config file.
+# Just wiring in for now, to get them all in one place.
+
+base_url = "http://some.where.example/rpki/blah/"
+example_myrpki_cfg = "%s/rpkid/examples/myrpki.conf" % top
+working_dir = "%s/rpkidemo-data" % cwd
+myrpki = "%s/rpkid/myrpki" % top
 
 # Find or build a usable copy of OpenSSL
 
@@ -78,6 +86,32 @@ print "I need to know your username and password on the Django GUI server to pro
 username = raw_input("Username: ")
 password = getpass.getpass()
 
+# Create working directory and move to it.
+try:
+  os.mkdir(working_dir)
+except OSError, e:
+  if e.errno != errno.EEXIST:
+    raise
+os.chdir(working_dir)
 
+# Generate config file
+f = open(working_dir, "w")
+f.write("# Automatically generated, do not edit\n")
+section = None
+for line in open(example_myrpki_cfg):
+  m = section_regexp.match(line)
+  if m:
+    section = m.group(1)
+  m = variable_regexp.match(line)
+  option = m.group(1) if m and section == "myrpki" else None
+  if option == "handle":
+    line = "handle = %s\n" % username
+  if option == "openssl":
+    line = "openssl = %s\n" % openssl
+  f.write(line)
+f.close()
+
+# Initialize BPKI
+subprocess.check_call((myrpki, "initialize"))
 
 #webbrowser.open("www.rpki.net")

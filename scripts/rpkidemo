@@ -36,7 +36,8 @@ if sys.version_info[:2] not in ((2, 5), (2, 6)):
 
 # Ok, it's safe to import the other stuff we need
 
-import os, subprocess, webbrowser, httplib, urllib, getpass, re, errno
+import os, subprocess, webbrowser, urllib2, getpass, re, errno
+from xml.etree.ElementTree import fromstring as ElementFromString
 
 top = os.path.realpath(os.path.join((sys.path[0] or "."), ".."))
 cwd = os.getcwd()
@@ -47,7 +48,7 @@ cwd = os.getcwd()
 base_url = "http://some.where.example/rpki/blah/"
 example_myrpki_cfg = "%s/rpkid/examples/myrpki.conf" % top
 working_dir = "%s/rpkidemo-data" % cwd
-myrpki = "%s/rpkid/myrpki" % top
+myrpki_py = "%s/rpkid/myrpki.py" % top
 
 # Find or build a usable copy of OpenSSL
 
@@ -95,7 +96,9 @@ except OSError, e:
 os.chdir(working_dir)
 
 # Generate config file
-f = open(working_dir, "w")
+section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
+variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
+f = open("myrpki.conf", "w")
 f.write("# Automatically generated, do not edit\n")
 section = None
 for line in open(example_myrpki_cfg):
@@ -108,10 +111,76 @@ for line in open(example_myrpki_cfg):
     line = "handle = %s\n" % username
   if option == "openssl":
     line = "openssl = %s\n" % openssl
+  if option in ("run_rpkid", "run_pubd", "run_rootd"):
+    line = "%s = false\n" % option
   f.write(line)
 f.close()
 
-# Initialize BPKI
-subprocess.check_call((myrpki, "initialize"))
+def myrpki(*cmd):
+  return subprocess.check_call((sys.executable, myrpki_py) + cmd)
 
-#webbrowser.open("www.rpki.net")
+def upload(url, filename):
+  """
+  Upload filename to URL, return result.
+  """
+  raise NotImplementedError
+
+def poll(filename, url):
+  """
+  Poll for new version of URL, save as filename if changed,
+  return boolean indicating whether file changed.
+  """
+  raise NotImplementedError
+
+def save(filename, data):
+  f = open(filename, "w")
+  f.write(data)
+  f.close()
+
+# Initialize BPKI
+myrpki("initialize")
+
+# Upload identity to parent
+r = upload("upload-child", "entitydb/identity.xml")
+
+# Save parent's response and extract parent's handle
+parent_data = r.read()
+save("parent.xml", parent_data)
+parent_handle = ElementFromString(parent_data).get("parent_handle")
+
+# Incorporate parent's respose into our entitydb
+myrpki("configure_parent", "parent.xml")
+
+# Upload repository request
+r = upload("upload-pubclient", "entitydb/repositories/%s.xml" % parent_handle)
+
+# Save and process repository's response
+save("repository.xml", r.read())
+myrpki("configure_repository", "repository.xml")
+
+# Create empty CSV files if they don't already exist
+for f in ("prefixes.csv", "asns.csv", "roas.csv"):
+  if not os.path.exists(f):
+    open(f, "w").close()
+
+def update():
+  myrpki("configure_resources")
+  r = upload("upload-resources", "myrpki.xml")
+  save("myrpki.xml", r.read())
+
+# Do two round trips to setup up BPKI stuff
+update()
+update()
+
+# Start web browser pointing at GUI
+webbrowser.open(base_url)
+
+# Loop forever, polling for updates
+while True:
+  changed = False
+  for f in ("prefixes.csv", "asns.csv", "roas.csv"):
+    if poll(f):
+      changed = True
+  if changed:
+    update()
+  time.sleep(delay)

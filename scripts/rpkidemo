@@ -81,11 +81,23 @@ else:
 
 print "I need to know your username and password on the Django GUI server to proceed"
 
+# Get username and password for web interface, construct urllib2
+# "opener" tailored for our application.
+#
 # Perhaps put this in a loop that does a connection check to make sure
 # the given username and password works before proceeding?
-#
+
 username = raw_input("Username: ")
 password = getpass.getpass()
+
+cookie_handler = urllib2.HTTPCookieProcessor()
+auth_handler = urllib2.HTTPDigestAuthHandler()
+auth_handler.add_password(
+  realm  = None,
+  uri    = base_uri,
+  user   = username,
+  passwd = password)
+opener = urllilb2.build_opener(cookie_handler, auth_handler)
 
 # Create working directory and move to it.
 try:
@@ -123,14 +135,31 @@ def upload(url, filename):
   """
   Upload filename to URL, return result.
   """
-  raise NotImplementedError
+  return opener(urllib2.Request(
+    base_url + url,
+    open(filename).read(),
+    { "Content-Type" : "Application/XML",
+      "User-Agent"   : "RPKIDemo" }))
 
 def poll(filename, url):
   """
   Poll for new version of URL, save as filename if changed,
   return boolean indicating whether file changed.
   """
-  raise NotImplementedError
+  try:
+    r = opener(urllib2.Request(
+      base_url + url,
+      None,
+      { "If-Modified-Since" : blah_blah_date_voodoo(filename),
+        "User-Agent"   : "RPKIDemo" }))
+    save(filename, r.read())
+    blah_blah_more_date_voodoo(filename, r.info().getheader("Last-Modified"))
+    return True
+  except HTTPError, e:
+    if e.code == 304:                   # 304 == "Not Modified"
+      return False
+    else:
+      raise
 
 def save(filename, data):
   f = open(filename, "w")

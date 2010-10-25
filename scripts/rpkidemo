@@ -34,187 +34,275 @@ import sys
 if sys.version_info[:2] not in ((2, 5), (2, 6)):
   sys.exit("Sorry, this script requires Python 2.5 or 2.6, I seem to be running in %s" % sys.version)
 
-# Ok, it's safe to import the other stuff we need
+# Ok, it's safe to import the other stuff we need now
 
-import os, subprocess, webbrowser, urllib2, getpass, re, errno
+import os, subprocess, webbrowser, urllib2, getpass, re, errno, time, email.utils
 from xml.etree.ElementTree import fromstring as ElementFromString
 
-top = os.path.realpath(os.path.join((sys.path[0] or "."), ".."))
-cwd = os.getcwd()
-
-# Parameters that perhaps we should be getting from a config file.
-# Just wiring in for now, to get them all in one place.
-
-base_url = "http://demo.rpki.net/gui/"
-example_myrpki_cfg = "%s/rpkid/examples/myrpki.conf" % top
-working_dir = "%s/rpkidemo-data" % cwd
-myrpki_py = "%s/rpkid/myrpki.py" % top
-user_agent = "RPKIDemo"
-
-# Find or build a usable copy of OpenSSL
-
-openssl = None
-
-def scrape(*args):
-  return subprocess.Popen(args, stdout = subprocess.PIPE, stderr = subprocess.STDOUT).communicate()[0]
-
-def usable_openssl(f):
-  return f is not None and os.path.exists(f) and "-ss_cert" in scrape(f, "ca", "-?") and "Usage cms" in scrape(f, "cms", "-?")
-
-for d in os.environ["PATH"].split(":"):
-  f = os.path.join(d, "openssl")
-  if usable_openssl(f):
-    openssl = f
-    break
-
-if openssl is None:
-  print "Couldn't find usable openssl on path, attempting to build one"
-  subprocess.check_call(("./configure",), cwd = top)
-  subprocess.check_call(("make",), cwd = os.path.join(top, "openssl"))
-  openssl = os.path.join(top, "openssl", "openssl", "apps", "openssl")
-  print "Done building openssl"
-  print
-
-if usable_openssl(openssl):
-  print "Using", openssl
-else:
-  sys.exit("Could not find or build usable version of openssl, giving up")
-
-print "I need to know your username and password on the Django GUI server to proceed"
-
-# Get username and password for web interface, construct urllib2
-# "opener" tailored for our application.
-#
-# Perhaps put this in a loop that does a connection check to make sure
-# the given username and password works before proceeding?
-
-username = raw_input("Username: ")
-password = getpass.getpass()
-
-cookie_handler = urllib2.HTTPCookieProcessor()
-auth_handler = urllib2.HTTPDigestAuthHandler()
-auth_handler.add_password(
-  realm  = None,
-  uri    = base_url,
-  user   = username,
-  passwd = password)
-opener = urllib2.build_opener(cookie_handler, auth_handler)
-
-# Create working directory and move to it.
-try:
-  print "Creating", working_dir
-  os.mkdir(working_dir)
-except OSError, e:
-  if e.errno != errno.EEXIST:
-    raise
-  print working_dir, "already exists, reusing it"
-os.chdir(working_dir)
-
-# Generate config file
-print "Generating myrpki.conf"
-section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
-variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
-f = open("myrpki.conf", "w")
-f.write("# Automatically generated, do not edit\n")
-section = None
-for line in open(example_myrpki_cfg):
-  m = section_regexp.match(line)
-  if m:
-    section = m.group(1)
-  m = variable_regexp.match(line)
-  option = m.group(1) if m and section == "myrpki" else None
-  value  = m.group(2) if option else None
-  if option == "handle":
-    line = "handle = %s\n" % username
-  if option == "openssl":
-    line = "openssl = %s\n" % openssl
-  if option in ("run_rpkid", "run_pubd", "run_rootd") and value != "false":
-    line = "%s = false\n" % option
-  f.write(line)
-f.close()
-
-def myrpki(*cmd):
-  return subprocess.check_call((sys.executable, myrpki_py) + cmd)
-
-def upload(url, filename):
-  """
-  Upload filename to URL, return result.
-  """
-  url = base_url + url
-  data = open(filename).read()
-  print "Uploading", filename, "to", url
-  return opener.open(urllib2.Request(url, data, {
-    "Content-Type" : "Application/XML",
-    "User-Agent"   : user_agent }))
-
-def poll(filename, url):
-  """
-  Poll for new version of URL, save as filename if changed,
-  return boolean indicating whether file changed.
-  """
-  try:
-    url = base_url + url
-    r = opener.open(urllib2.Request( url, None, {
-      "If-Modified-Since" : blah_blah_date_voodoo(filename),
-      "User-Agent"        : user_agent }))
-    save(filename, r.read())
-    blah_blah_more_date_voodoo(filename, r.info().getheader("Last-Modified"))
-    return True
-  except HTTPError, e:
-    if e.code == 304:                   # 304 == "Not Modified"
-      return False
-    else:
-      raise
-
 def save(filename, data):
-  f = open(filename, "w")
+  """
+  Save data to a file.
+  """
+
+  tempname = "%s.%d.tmp" % (filename, os.getpid())
+  f = open(tempname, "w")
   f.write(data)
   f.close()
+  os.rename(tempname, filename)
 
-# Initialize BPKI
-myrpki("initialize")
 
-# Upload identity to parent
-r = upload("upload-child", "entitydb/identity.xml")
+class CSV_File(object):
+  """
+  A CSV file that's being maintained by the GUI but being monitored,
+  downloaded, and used here.
+  """
 
-# Save parent's response and extract parent's handle
-parent_data = r.read()
-save("parent.xml", parent_data)
-parent_handle = ElementFromString(parent_data).get("parent_handle")
+  def __init__(self, filename, url):
+    self.filename = filename
+    self.url = url
+    try:
+      self.timestamp = os.stat(filename).st_mtime
+    except:
+      self.store(0, "")
 
-# Incorporate parent's respose into our entitydb
-myrpki("configure_parent", "parent.xml")
+  def last_modified(self):
+    """
+    Return CSV file timestamp formatted for use with HTTP.
+    """
+    return email.utils.formatdate(self.timestamp, False, True)
 
-# Upload repository request
-r = upload("upload-pubclient", "entitydb/repositories/%s.xml" % parent_handle)
+  def store(self, timestamp, data):
+    """
+    Save CSV file, and record new timestamp.
+    """
+    save(self.filename, data)
+    self.timestamp = timestamp
+    os.utime(self.filename, (time.time(), timestamp))
 
-# Save and process repository's response
-save("repository.xml", r.read())
-myrpki("configure_repository", "repository.xml")
 
-# Create empty CSV files if they don't already exist
-for f in ("prefixes.csv", "asns.csv", "roas.csv"):
-  if not os.path.exists(f):
-    open(f, "w").close()
+class main(object):
+  """
+  Main program.
 
-def update():
-  myrpki("configure_resources")
-  r = upload("upload-resources", "myrpki.xml")
-  save("myrpki.xml", r.read())
+  """
 
-# Do two round trips to setup up BPKI stuff
-update()
-update()
+  top = os.path.realpath(os.path.join((sys.path[0] or "."), ".."))
+  cwd = os.getcwd()
 
-# Start web browser pointing at GUI
-webbrowser.open(base_url)
+  # Parameters that we might want to get from a config file.
+  # Just wire them all in for the moment.
 
-# Loop forever, polling for updates
-while True:
-  changed = False
-  for f in ("prefixes.csv", "asns.csv", "roas.csv"):
-    if poll(f):
-      changed = True
-  if changed:
-    update()
-  time.sleep(delay)
+  base_url = "http://demo.rpki.net/myrpki/"
+  example_myrpki_cfg = "%s/rpkid/examples/myrpki.conf" % top
+  working_dir = "%s/rpkidemo-data" % cwd
+  myrpki_py = "%s/rpkid/myrpki.py" % top
+  user_agent = "RPKIDemo"
+  delay = 15
+
+  openssl = None
+
+  def setup_openssl(self):
+    """
+    Find a usable version of OpenSSL, or build one if we must.
+    """
+
+    def scrape(*args):
+      return subprocess.Popen(args, stdout = subprocess.PIPE, stderr = subprocess.STDOUT).communicate()[0]
+
+    def usable_openssl(f):
+      return f is not None and os.path.exists(f) and "-ss_cert" in scrape(f, "ca", "-?") and "Usage cms" in scrape(f, "cms", "-?")
+
+    for d in os.environ["PATH"].split(":"):
+      f = os.path.join(d, "openssl")
+      if usable_openssl(f):
+        self.openssl = f
+        break
+
+    if self.openssl is None:
+      print "Couldn't find usable openssl on path, attempting to build one"
+      subprocess.check_call(("./configure",), cwd = self.top)
+      subprocess.check_call(("make",), cwd = os.path.join(self.top, "openssl"))
+      self.openssl = os.path.join(self.top, "openssl", "openssl", "apps", "openssl")
+      print "Done building openssl"
+      print
+
+    if usable_openssl(self.openssl):
+      print "Using", self.openssl
+    else:
+      sys.exit("Could not find or build usable version of openssl, giving up")
+
+  @staticmethod
+  def setup_utc(self):
+    """
+    This script thinks in UTC.
+    """
+
+    os.environ["TZ"] = "UTC"
+    time.tzset()
+
+  def setup_username(self):
+    """
+    Get username and password for web interface, construct urllib2
+    "opener" tailored for our application.
+
+    Perhaps put this in a loop that does a connection check to make
+    sure the given username and password works before proceeding?
+    """
+
+    print "I need to know your username and password on the Django GUI server to proceed"
+
+    self.username = raw_input("Username: ")
+    self.password = getpass.getpass()
+
+    cookie_handler = urllib2.HTTPCookieProcessor()
+    auth_handler = urllib2.HTTPDigestAuthHandler()
+    auth_handler.add_password(
+      realm  = None,
+      uri    = base_url,
+      user   = username,
+      passwd = password)
+    self.opener = urllib2.build_opener(cookie_handler, auth_handler)
+
+  def setup_working_directory(self):
+    """
+    Create working directory and move to it.
+    """
+
+    try:
+      print "Creating", self.working_dir
+      os.mkdir(working_dir)
+    except OSError, e:
+      if e.errno != errno.EEXIST:
+        raise
+      print self.working_dir, "already exists, reusing it"
+    os.chdir(self.working_dir)
+
+  def setup_config_file(self):
+    """
+    Generate myrpki.conf
+    """
+    
+    print "Generating myrpki.conf"
+    section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
+    variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
+    f = open("myrpki.conf", "w")
+    f.write("# Automatically generated, do not edit\n")
+    section = None
+    for line in open(self.example_myrpki_cfg):
+      m = section_regexp.match(line)
+      if m:
+        section = m.group(1)
+      m = variable_regexp.match(line)
+      option = m.group(1) if m and section == "myrpki" else None
+      value  = m.group(2) if option else None
+      if option == "handle":
+        line = "handle = %s\n" % self.username
+      if option == "openssl":
+        line = "openssl = %s\n" % self.openssl
+      if option in ("run_rpkid", "run_pubd", "run_rootd") and value != "false":
+        line = "%s = false\n" % option
+      f.write(line)
+    f.close()
+
+  def myrpki(self, *cmd):
+    """
+    Run a myrpki command.
+    """
+    return subprocess.check_call((sys.executable, myrpki_py) + cmd)
+
+  def upload(self, url, filename, content_type = "Application/XML"):
+    """
+    Upload filename to URL, return result.
+    """
+
+    url = base_url + url
+    data = open(filename).read()
+    print "Uploading", filename, "to", url
+    return self.opener.open(urllib2.Request(url, data, {
+      "Content-Type" : content_type,
+      "User-Agent"   : self.user_agent }))
+
+  def update(self):
+    """
+    Run configure_resources, upload result, download updated result.
+    """
+
+    self.myrpki("configure_resources")
+    r = self.upload("upload-myrpki-xml", "myrpki.xml")
+    save("myrpki.xml", r.read())
+
+  @staticmethod
+  def setup_csv_files():
+    """
+    Create CSV file objects and synchronize timestamps.
+    """
+
+    self.csv_files = [
+      CSV_File("asns.csv",     "demo/down/asns/%s"     % self.username),
+      CSV_File("prefixes.csv", "demo/down/prefixes/%s" % self.username),
+      CSV_File("roas.csv",     "demo/down/roas/%s"     % self.username) ]
+
+  def poll(self, csv_file):
+    """
+    Poll for new version of a CSV file, save if changed, return
+    boolean indicating whether file has changed.
+    """
+
+    try:
+      url = base_url + csv_file.url
+      r = self.opener.open(urllib2.Request(url, None, {
+        "If-Modified-Since" : csv_file.last_modified(),
+        "User-Agent"        : self.user_agent }))
+      timestamp = time.mktime(r.info().getdate("Last-Modified"))
+      csv_file.store(timestamp, r.read())
+      return True
+    except HTTPError, e:
+      if e.code == 304:                   # 304 == "Not Modified"
+        return False
+      else:
+        raise
+
+  def poll_loop(self):
+    """
+    Loop forever, polling for updates.
+    """
+
+    while True:
+      changed = False
+      for csv_file in self.csv_files:
+        if self.poll(csv_file):
+          changed = True
+      if changed:
+        self.update()
+      time.sleep(self.delay)
+
+  def __init__(self):
+
+    self.setup_utc()
+    self.setup_openssl()
+    self.setup_username()
+    self.setup_working_directory()
+    self.setup_config_file()
+    self.setup_csv_files()
+
+    self.myrpki("initialize")
+
+    r = self.upload("upload-parent-request", "entitydb/identity.xml")
+    parent_data = r.read()
+    save("parent.xml", parent_data)
+    self.myrpki("configure_parent", "parent.xml")
+
+    parent_handle = ElementFromString(parent_data).get("parent_handle")
+
+    r = self.upload("upload-repository-request", "entitydb/repositories/%s.xml" % parent_handle)
+    save("repository.xml", r.read())
+    self.myrpki("configure_repository", "repository.xml")
+
+    self.update()
+    self.update()
+
+    webbrowser.open(self.base_url)
+
+    self.poll_loop()
+
+main()

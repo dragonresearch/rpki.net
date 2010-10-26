@@ -65,6 +65,10 @@ MIDDLEWARE_CLASSES = (
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+
+    # uncomment if using apache basic/digest http auth
+    #'django.contrib.auth.middleware.RemoteUserMiddleware',
+
     # for django 1.2
     'django.middleware.csrf.CsrfMiddleware'
 )
@@ -108,3 +112,8 @@ MYRPKI_DATA_DIR = '@CONFDIR@'
 
 # Where to find the myrpki.py command line tool.
 MYRPKI_PATH = '@MYRPKI_TOOL@'
+
+# uncomment if using apache basic/digest http auth
+#AUTHENTICATION_BACKENDS = (
+#	'django.contrib.auth.backends.RemoteUserBackend',
+#)

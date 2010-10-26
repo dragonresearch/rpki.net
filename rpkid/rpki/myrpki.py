@@ -517,7 +517,7 @@ class csv_writer(object):
 
   def __init__(self, filename, renmwo = True):
     self.filename = filename
-    self.renmwo = "%s.%d.~rnnmwo~" % (filename, os.getpid()) if renmwo else filename
+    self.renmwo = "%s.~renmwo%d~" % (filename, os.getpid()) if renmwo else filename
     self.file = open(self.renmwo, "w")
     self.writer = csv.writer(self.file, dialect = csv.get_dialect("excel-tab"))
 

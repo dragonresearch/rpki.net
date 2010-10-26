@@ -14,6 +14,15 @@
 # resource handle.  Well, for prefixes -- ASN entries behave more like
 # in the ARIN and APNIC databases.
 #
+# This is an AWK script rather than a Python script because it is a
+# fairly simple stream parser that has to process a ridiculous amount
+# of text.  AWK turns out to be significantly faster for this.
+#
+# There are a few known screw cases in RPSL format that this script
+# doesn't attempt to handle, so if you just can't resist using
+# newlines between the begin and end addresses of an IPv4 address
+# range, this script will not understand your WHOIS entry.  So don't.
+#
 # Feh.
 #
 # NB: The input data for this script is publicly available via FTP, but
@@ -36,50 +45,67 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
+# On input, ":" is the most useful delimiter
+# On output, we want tab-delimited text.
 BEGIN {
     FS = "[ \t]*:";
     OFS = "\t";
 }
 
-{
+# Clean up comments and trailing whitespace; skip lines that are empty
+# after cleanup.  If we were attempting to handle line continuation,
+# this is where we'd start.
+!/^$/ {
     sub(/#.*$/, "");
     sub(/[ \t]+$/, "");
+    if (!NF)
+	next;
 }
 
+# Non-empty line and we have no tag, must be start of a new block.
 NF && !tag {
     tag = $1;
 }
 
-/^(as-name|aut-num|inet6num|inetnum|mnt-by|netname|status):/ {
+# One of the tags we care about, clean up and save the data.
+/^(AS-NAME|AUT-NUM|INET6NUM|INETNUM|MNT-BY|NETNAME|STATUS):/ {
     t = $1;
     sub(/^[^ \t]+:/, "");
     gsub(/[ \t]/, "");
     tags[t] = $0;
 }
 
+# Blank line and we have something, process it.
 !NF && tag {
     got_one();
 }
 
+# End of file, process last entry, if any.
 END {
     got_one();
 }
 
+# Dispatch to handle known block types, then clean up so we can start
+# a new block.
 function got_one() {
-    if (tag == "inetnum" || tag == "inet6num")
+    if (tag == "INETNUM" || tag == "INET6NUM")
 	got_inetnum();
-    else if (tag == "aut-num")
+    else if (tag == "AUT-NUM")
 	got_aut_num();
     delete tags;
     tag = "";
 }
 
+# Handle an AUT-NUM block: extract the ASN, use MNT-BY as the handle.
 function got_aut_num() {
-    sub(/^AS/, "", tags["aut-num"]);
-    print tags["mnt-by"], tags["aut-num"] >"asns.csv";
+    sub(/^AS/, "", tags[tag]);
+    if (tags["MNT-BY"] && tags[tag])
+	print tags["MNT-BY"], tags[tag] >"asns.csv";
 }
 
+# Handle an INETNUM or INET6NUM block: check for the status values we
+# care about, use NETNAME as the handle.
 function got_inetnum() {
-    if (tags["status"] ~ /^ASSIGNED(P[AI])?$/)
-	print tags["netname"], tags[tag] >"prefixes.csv";
+    if (tags["STATUS"] ~ /^ASSIGNED(P[AI])?$/ && tags["NETNAME"] && tags[tag])
+	print tags["NETNAME"], tags[tag] >"prefixes.csv";
 }

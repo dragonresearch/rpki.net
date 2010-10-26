@@ -36,7 +36,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import gzip, csv, myrpki
+import gzip, csv, rpki.myrpki
 
 class Handle(dict):
 
@@ -99,10 +99,6 @@ class main(object):
 
   types = dict((x.want_tags[0], x) for x in (aut_num, inetnum, inet6num))
 
-  @staticmethod
-  def csvout(fn):
-    return csv.writer(open(fn, "w"), dialect = myrpki.csv_dialect)
-
   def finish_statement(self, done):
     if self.statement:
       tag, sep, val = self.statement.partition(":")
@@ -117,12 +113,11 @@ class main(object):
       self.cur.finish(self)
       self.cur = None
 
-  #filenames = ("ripe.db.gz",)
   filenames = ("ripe.db.aut-num.gz", "ripe.db.inet6num.gz", "ripe.db.inetnum.gz")
 
   def __init__(self):
-    self.asns = self.csvout("asns.csv")
-    self.prefixes = self.csvout("prefixes.csv")
+    self.asns = rpki.myrpki.csv_writer("asns.csv")
+    self.prefixes = rpki.myrpki.csv_writer("prefixes.csv")
     for fn in self.filenames:
       f = gzip.open(fn)
       self.statement = ""

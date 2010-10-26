@@ -83,7 +83,6 @@ class CSV_File(object):
 class main(object):
   """
   Main program.
-
   """
 
   top = os.path.realpath(os.path.join((sys.path[0] or "."), ".."))
@@ -132,7 +131,7 @@ class main(object):
       sys.exit("Could not find or build usable version of openssl, giving up")
 
   @staticmethod
-  def setup_utc(self):
+  def setup_utc():
     """
     This script thinks in UTC.
     """
@@ -143,25 +142,32 @@ class main(object):
   def setup_username(self):
     """
     Get username and password for web interface, construct urllib2
-    "opener" tailored for our application.
-
-    Perhaps put this in a loop that does a connection check to make
-    sure the given username and password works before proceeding?
+    "opener" tailored for our use, perform an initial GET (ignoring
+    result, other than exceptions) to test the username and password.
     """
 
     print "I need to know your username and password on the Django GUI server to proceed"
 
-    self.username = raw_input("Username: ")
-    self.password = getpass.getpass()
+    while True:
 
-    cookie_handler = urllib2.HTTPCookieProcessor()
-    auth_handler = urllib2.HTTPDigestAuthHandler()
-    auth_handler.add_password(
-      realm  = None,
-      uri    = base_url,
-      user   = username,
-      passwd = password)
-    self.opener = urllib2.build_opener(cookie_handler, auth_handler)
+      try:
+        self.username = raw_input("Username: ")
+        self.password = getpass.getpass()
+
+        cookie_handler = urllib2.HTTPCookieProcessor()
+        auth_handler = urllib2.HTTPDigestAuthHandler()
+        auth_handler.add_password(
+          realm  = None,
+          uri    = base_url,
+          user   = username,
+          passwd = password)
+        self.opener = urllib2.build_opener(cookie_handler, auth_handler)
+        self.opener.open(self.base_url)
+        return
+
+      except urllib2.URLError, e:
+        print "Could not log in to server: %s" % e
+        print "Please try again"
 
   def setup_working_directory(self):
     """
@@ -215,7 +221,7 @@ class main(object):
     Upload filename to URL, return result.
     """
 
-    url = base_url + url
+    url = "%s%s/%s" % (base_url, url, self.username)
     data = open(filename).read()
     print "Uploading", filename, "to", url
     return self.opener.open(urllib2.Request(url, data, {
@@ -231,8 +237,7 @@ class main(object):
     r = self.upload("upload-myrpki-xml", "myrpki.xml")
     save("myrpki.xml", r.read())
 
-  @staticmethod
-  def setup_csv_files():
+  def setup_csv_files(self):
     """
     Create CSV file objects and synchronize timestamps.
     """

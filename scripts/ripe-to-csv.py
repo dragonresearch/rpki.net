@@ -21,7 +21,7 @@ the terms and conditions referenced by the data file header comments.
 
 $Id$
 
-Copyright (C) 2009  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -70,7 +70,7 @@ class Handle(dict):
     self.check()
 
 class aut_num(Handle):
-  want_tags = ("aut-num", "mnt-by", "as-name")
+  want_tags = ("aut-num", "mnt-by") # "as-name"
 
   def set(self, tag, val):
     if tag == "aut-num" and val.startswith("AS"):
@@ -79,21 +79,21 @@ class aut_num(Handle):
 
   def finish(self, ctx):
     if self.check():
-      ctx.asns.writerow((self["as-name"], self["mnt-by"], self["aut-num"]))
+      ctx.asns.writerow((self["mnt-by"], self["aut-num"]))
 
 class inetnum(Handle):
-  want_tags = ("inetnum", "mnt-by", "netname", "status")
+  want_tags = ("inetnum", "netname", "status") # "mnt-by"
   
   def finish(self, ctx):
     if self.check() and self["status"] in self.want_status:
-      ctx.prefixes.writerow((self["netname"], self["mnt-by"], self["inetnum"]))
+      ctx.prefixes.writerow((self["netname"], self["inetnum"]))
 
 class inet6num(Handle):
-  want_tags = ("inet6num", "mnt-by", "netname", "status")
+  want_tags = ("inet6num", "netname", "status") # "mnt-by"
 
   def finish(self, ctx):
     if self.check() and self["status"] in self.want_status:
-      ctx.prefixes.writerow((self["netname"], self["mnt-by"], self["inet6num"]))
+      ctx.prefixes.writerow((self["netname"], self["inet6num"]))
 
 class main(object):
 

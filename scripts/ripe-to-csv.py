@@ -2,6 +2,19 @@
 Parse a WHOIS research dump and write out (just) the RPKI-relevant
 fields in myrpki-format CSV syntax.
 
+Unfortunately, unlike the ARIN and APNIC databases, the RIPE database
+doesn't really have any useful concept of an organizational handle.
+More precisely, while it has handles out the wazoo, none of them are
+useful as a reliable grouping mechanism for tracking which set of
+resources are held by a particular organization.  So, instead of being
+able to track all of an organization's resources with a single handle
+as we can in the ARIN and APNIC databases, the best we can do with the
+RIPE database is to track individual resources, each with its own
+resource handle.  Well, for prefixes -- ASN entries behave more like
+in the ARIN and APNIC databases.
+
+Feh.
+
 NB: The input data for this script is publicly available via FTP, but
 you'll have to fetch the data from RIPE yourself, and be sure to see
 the terms and conditions referenced by the data file header comments.
@@ -56,14 +69,6 @@ class Handle(dict):
   def finish(self, ctx):
     self.check()
 
-class as_block(Handle):
-  # This one is less useful than I had hoped, no useful links to owners
-  want_tags = ("as-block", "mnt-by", "org", "mnt-lower")
-
-class as_set(Handle):
-  # This is probably useless
-  want_tags = ("as-set", "mnt-by", "members")
-
 class aut_num(Handle):
   want_tags = ("aut-num", "mnt-by", "as-name")
 
@@ -74,25 +79,25 @@ class aut_num(Handle):
 
   def finish(self, ctx):
     if self.check():
-      ctx.asns.writerow((self["mnt-by"], self["aut-num"]))
+      ctx.asns.writerow((self["as-name"], self["mnt-by"], self["aut-num"]))
 
 class inetnum(Handle):
   want_tags = ("inetnum", "mnt-by", "netname", "status")
   
   def finish(self, ctx):
     if self.check() and self["status"] in self.want_status:
-      ctx.prefixes.writerow((self["mnt-by"], self["inetnum"]))
+      ctx.prefixes.writerow((self["netname"], self["mnt-by"], self["inetnum"]))
 
 class inet6num(Handle):
   want_tags = ("inet6num", "mnt-by", "netname", "status")
 
   def finish(self, ctx):
     if self.check() and self["status"] in self.want_status:
-      ctx.prefixes.writerow((self["mnt-by"], self["inet6num"]))
+      ctx.prefixes.writerow((self["netname"], self["mnt-by"], self["inet6num"]))
 
 class main(object):
 
-  types = dict((x.want_tags[0], x) for x in (as_block, as_set, aut_num, inetnum, inet6num))
+  types = dict((x.want_tags[0], x) for x in (aut_num, inetnum, inet6num))
 
   @staticmethod
   def csvout(fn):

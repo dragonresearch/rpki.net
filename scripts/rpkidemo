@@ -97,6 +97,8 @@ class main(object):
   myrpki_py = "%s/rpkid/myrpki.py" % top
   user_agent = "RPKIDemo"
   delay = 15
+  realm = "myrpki"
+  use_cookies = False
 
   openssl = None
 
@@ -154,15 +156,21 @@ class main(object):
         self.username = raw_input("Username: ")
         self.password = getpass.getpass()
 
-        cookie_handler = urllib2.HTTPCookieProcessor()
         auth_handler = urllib2.HTTPDigestAuthHandler()
         auth_handler.add_password(
-          realm  = None,
+          realm  = self.realm,
           uri    = base_url,
           user   = username,
           passwd = password)
-        self.opener = urllib2.build_opener(cookie_handler, auth_handler)
-        self.opener.open(self.base_url)
+
+        if self.use_cookies:
+          handlers = (auth_handler, urllib2.HTTPCookieProcessor())
+        else:
+          handlers = (auth_handler,)
+
+        self.opener = urllib2.build_opener(*handlers)
+
+        self.opener.open(self.base_url) # Test login credentials
         return
 
       except urllib2.URLError, e:
@@ -176,7 +184,7 @@ class main(object):
 
     try:
       print "Creating", self.working_dir
-      os.mkdir(working_dir)
+      os.mkdir(self.working_dir)
     except OSError, e:
       if e.errno != errno.EEXIST:
         raise
@@ -214,7 +222,7 @@ class main(object):
     """
     Run a myrpki command.
     """
-    return subprocess.check_call((sys.executable, myrpki_py) + cmd)
+    return subprocess.check_call((sys.executable, self.myrpki_py) + cmd)
 
   def upload(self, url, filename, content_type = "Application/XML"):
     """
@@ -254,7 +262,7 @@ class main(object):
     """
 
     try:
-      url = base_url + csv_file.url
+      url = self.base_url + csv_file.url
       r = self.opener.open(urllib2.Request(url, None, {
         "If-Modified-Since" : csv_file.last_modified(),
         "User-Agent"        : self.user_agent }))

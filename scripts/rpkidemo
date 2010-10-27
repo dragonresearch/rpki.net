@@ -159,9 +159,9 @@ class main(object):
         auth_handler = urllib2.HTTPDigestAuthHandler()
         auth_handler.add_password(
           realm  = self.realm,
-          uri    = base_url,
-          user   = username,
-          passwd = password)
+          uri    = self.base_url,
+          user   = self.username,
+          passwd = self.password)
 
         if self.use_cookies:
           handlers = (auth_handler, urllib2.HTTPCookieProcessor())
@@ -229,7 +229,7 @@ class main(object):
     Upload filename to URL, return result.
     """
 
-    url = "%s%s/%s" % (base_url, url, self.username)
+    url = "%s%s/%s" % (self.base_url, url, self.username)
     data = open(filename).read()
     print "Uploading", filename, "to", url
     return self.opener.open(urllib2.Request(url, data, {

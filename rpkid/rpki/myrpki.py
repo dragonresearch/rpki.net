@@ -537,10 +537,9 @@ class csv_writer(object):
     """
     return getattr(self.writer, attr)
 
-def PEMElement(e, tag, filename, **kwargs):
+def PEMBase64(filename):
   """
-  Create an XML element containing Base64 encoded data taken from a
-  PEM file.
+  Extract Base64 encoded data from a PEM file.
   """
   lines = open(filename).readlines()
   while lines:
@@ -549,10 +548,17 @@ def PEMElement(e, tag, filename, **kwargs):
   while lines:
     if lines.pop(-1).startswith("-----END "):
       break
+  return "".join(lines)
+
+def PEMElement(e, tag, filename, **kwargs):
+  """
+  Create an XML element containing Base64 encoded data taken from a
+  PEM file.
+  """
   if e.text is None:
     e.text = "\n"
   se = SubElement(e, tag, **kwargs)
-  se.text = "\n" + "".join(lines)
+  se.text = "\n" + PEMBase64(filename)
   se.tail = "\n"
   return se
 
@@ -1264,28 +1270,34 @@ class main(rpki.cli.Cmd):
 
     client = etree_read(argv[0])
 
-    if sia_base is None:
+    if sia_base is None and client.get("handle") == self.handle and b64_equal(PEMBase64(self.bpki_resources.cer), client.findtext("bpki_client_ta")):
+      print "This looks like self-hosted publication"
+      sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, self.handle)
 
-      auth = client.find("authorization")
-      if auth is not None:
-        print "Found <authorization/> element, this looks like a referral"
+    if sia_base is None and client.get("type") == "referral":
+      print "This looks like a referral, checking"
+      try:
+        auth = client.find("authorization")
+        assert auth is not None
         referrer = etree_read(self.entitydb("pubclients", "%s.xml" % auth.get("referrer").replace("/",".")))
         referrer = self.bpki_servers.fxcert(referrer.findtext("bpki_client_ta"))
         referral = self.bpki_servers.cms_xml_verify(auth.text, referrer)
         if not b64_equal(referral.text, client.findtext("bpki_client_ta")):
           raise RuntimeError, "Referral trust anchor does not match"
         sia_base = referral.get("authorized_sia_base")
+      except IOError:
+        print "We have no record of client (%s) alleged to have made this referral" % auth.get("referrer")
 
-      elif client.get("parent_handle") == self.handle:
-        print "Client claims to be our child, checking"
-        client_ta = client.findtext("bpki_client_ta")
-        assert client_ta
-        for child in self.entitydb.iterate("children", "*.xml"):
-          c = etree_read(child)
-          if b64_equal(c.findtext("bpki_child_ta"), client_ta):
-            sia_base = "rsync://%s/%s/%s/%s/" % (self.rsync_server, self.rsync_module,
-                                                 self.handle, client.get("handle"))
-            break
+    if sia_base is None and client.get("type") == "offer" and client.get("parent_handle") == self.handle:
+      print "This looks like an offer, client claims to be our child, checking"
+      client_ta = client.findtext("bpki_client_ta")
+      assert client_ta is not None and client_ta != ""
+      for child in self.entitydb.iterate("children", "*.xml"):
+        c = etree_read(child)
+        if b64_equal(c.findtext("bpki_child_ta"), client_ta):
+          sia_base = "rsync://%s/%s/%s/%s/" % (self.rsync_server, self.rsync_module,
+                                               self.handle, client.get("handle"))
+          break
 
     # If we still haven't figured out what to do with this client, it
     # gets a top-level tree of its own, no attempt at nesting.

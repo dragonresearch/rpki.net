@@ -26,6 +26,7 @@ from django.template import RequestContext
 from django.db import IntegrityError
 from django import http
 from django.views.generic.list_detail import object_list
+from django.views.decorators.csrf import csrf_exempt
 
 from rpkigui.myrpki import models, forms, glue, misc, AllocationTree
 from rpkigui.myrpki.asnset import asnset
@@ -488,5 +489,47 @@ def download_myrpki_xml(request, self_handle):
     "handles GET of the myrpki.xml file for a given resource handle."
     conf = handle_or_404(request, self_handle)
     return serve_file(conf.handle, 'myrpki.xml', 'application/xml')
+
+def get_parent_handle(conf):
+    "determine who my parent is.  for now just assume its hardcoded into the django db"
+    parent_set = models.Parent.objects.filter(conf=conf)
+    if parent_set:
+        return parent_set[0].handle
+    else:
+        raise http.Http404, 'you have no parents'
+
+# FIXME: nasty hack: disable CSRF protection since rpkidemo doesn't GET a form
+# prior to posting.
+# FIXME: refactor common ports of the upload request handlers to remove dupe code
+@csrf_exempt
+def upload_parent_request(request, self_handle):
+    conf = handle_or_404(request, self_handle)
+    if request.method == 'POST':
+        input_file = tempfile.NamedTemporaryFile(delete=False)
+        input_file.write(request.POST['content'])
+        input_file.close()
+        parent_handle = get_parent_handle(conf)
+        args = ['configure_child', input_file.name ]
+        glue.invoke_rpki(parent_handle, args)
+        os.remove(input_file.name)
+        return serve_file(parent_handle, 'entitydb/children/%s.xml' % (self_handle,), 'application/xml')
+    return http.Http404, 'GET not implemented'
+
+# FIXME: nasty hack: disable CSRF protection since rpkidemo doesn't GET a form
+# prior to posting.
+@csrf_exempt
+def upload_repository_request(request, self_handle):
+    conf = handle_or_404(request, self_handle)
+    if request.method == 'POST':
+        input_file = tempfile.NamedTemporaryFile(delete=False)
+        input_file.write(request.POST['content'])
+        input_file.close()
+        parent_handle = get_parent_handle(conf)
+        args = ['configure_publication_client', input_file.name ]
+        glue.invoke_rpki(parent_handle, args)
+        os.remove(input_file.name)
+        #FIXME: not sure which file gets sent back in this case
+        return serve_file(parent_handle, 'entitydb/repositories/%s.xml' % (self_handle,), 'application/xml')
+    return http.Http404, 'GET not implemented'
 
 # vim:sw=4 ts=8 expandtab

@@ -42,7 +42,9 @@ urlpatterns = patterns('',
     (r'^demo/down/asns/(?P<self_handle>[^/]+)$', views.download_asns),
     (r'^demo/down/myrpki/(?P<self_handle>[^/]+)$', views.download_myrpki_xml),
     (r'^demo/down/prefixes/(?P<self_handle>[^/]+)$', views.download_prefixes),
-    (r'^demo/down/roas/(?P<self_handle>[^/]+)$', views.download_roas)
+    (r'^demo/down/roas/(?P<self_handle>[^/]+)$', views.download_roas),
+    (r'^upload-parent-request/(?P<self_handle>[^/]+)$', views.upload_parent_request),
+    (r'^upload-repository-request/(?P<self_handle>[^/]+)$', views.upload_repository_request),
 )
 
 # vim:sw=4 ts=8 expandtab

@@ -17,7 +17,9 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import email.utils
 import os
+import os.path
 import tempfile
+import sys
 
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render_to_response
@@ -466,7 +468,7 @@ def handle_or_404(request, handle):
 def serve_file(handle, fname, content_type):
     content, mtime = glue.read_file_from_handle(handle, fname)
     resp = http.HttpResponse(content , mimetype=content_type)
-    resp['Content-Disposition'] = 'attachment; filename=%s' % (fname, )
+    resp['Content-Disposition'] = 'attachment; filename=%s' % (os.path.basename(fname), )
     resp['Last-Modified'] = email.utils.formatdate(mtime, usegmt=True)
     return resp
 
@@ -484,12 +486,6 @@ def download_roas(request, self_handle):
 def download_prefixes(request, self_handle):
     return download_csv(request, self_handle, 'prefixes')
 
-@login_required
-def download_myrpki_xml(request, self_handle):
-    "handles GET of the myrpki.xml file for a given resource handle."
-    conf = handle_or_404(request, self_handle)
-    return serve_file(conf.handle, 'myrpki.xml', 'application/xml')
-
 def get_parent_handle(conf):
     "determine who my parent is.  for now just assume its hardcoded into the django db"
     parent_set = models.Parent.objects.filter(conf=conf)
@@ -498,38 +494,59 @@ def get_parent_handle(conf):
     else:
         raise http.Http404, 'you have no parents'
 
-# FIXME: nasty hack: disable CSRF protection since rpkidemo doesn't GET a form
-# prior to posting.
-# FIXME: refactor common ports of the upload request handlers to remove dupe code
 @csrf_exempt
+@login_required
 def upload_parent_request(request, self_handle):
     conf = handle_or_404(request, self_handle)
+    parent_handle = get_parent_handle(conf)
+
     if request.method == 'POST':
         input_file = tempfile.NamedTemporaryFile(delete=False)
-        input_file.write(request.POST['content'])
+        input_file.write(request.raw_post_data)
         input_file.close()
-        parent_handle = get_parent_handle(conf)
+
         args = ['configure_child', input_file.name ]
         glue.invoke_rpki(parent_handle, args)
-        os.remove(input_file.name)
-        return serve_file(parent_handle, 'entitydb/children/%s.xml' % (self_handle,), 'application/xml')
-    return http.Http404, 'GET not implemented'
 
-# FIXME: nasty hack: disable CSRF protection since rpkidemo doesn't GET a form
-# prior to posting.
+        os.remove(input_file.name)
+
+    return serve_file(parent_handle, 'entitydb/children/%s.xml' % self_handle, 'application/xml')
+
 @csrf_exempt
+@login_required
 def upload_repository_request(request, self_handle):
     conf = handle_or_404(request, self_handle)
+    parent_handle = get_parent_handle(conf)
+
     if request.method == 'POST':
         input_file = tempfile.NamedTemporaryFile(delete=False)
-        input_file.write(request.POST['content'])
+        input_file.write(request.raw_post_data)
         input_file.close()
-        parent_handle = get_parent_handle(conf)
+
         args = ['configure_publication_client', input_file.name ]
         glue.invoke_rpki(parent_handle, args)
+
         os.remove(input_file.name)
-        #FIXME: not sure which file gets sent back in this case
-        return serve_file(parent_handle, 'entitydb/repositories/%s.xml' % (self_handle,), 'application/xml')
-    return http.Http404, 'GET not implemented'
+
+    # FIXME: this assumes that the parent is running pubd.  the actual filename
+    # will be different if the parent is not running pubd.  see
+    # rpki.myrpki.do_configure_publication_client()
+    return serve_file(parent_handle, 'entitydb/pubclients/%s.%s.xml' % (parent_handle, self_handle), 'application/xml')
+
+@csrf_exempt
+@login_required
+def upload_myrpki_xml(request, self_handle):
+    "handles POST of the myrpki.xml file for a given resource handle."
+    conf = handle_or_404(request, self_handle)
+    parent_handle = get_parent_handle(conf)
+
+    if request.method == 'POST':
+        myrpki_xml = open('%s/%s/myrpki.xml' % (settings.MYRPKI_DATA_DIR, self_handle,), 'w')
+        myrpki_xml.write(request.raw_post_data)
+        myrpki_xml.close()
+
+        glue.invoke_rpki(parent_handle, [ 'configure_daemons', myrpki_xml.name ])
+
+    return serve_file(self_handle, 'myrpki.xml', 'application/xml')
 
 # vim:sw=4 ts=8 expandtab

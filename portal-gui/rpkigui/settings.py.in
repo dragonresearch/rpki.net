@@ -69,8 +69,8 @@ MIDDLEWARE_CLASSES = (
     # uncomment if using apache basic/digest http auth
     #'django.contrib.auth.middleware.RemoteUserMiddleware',
 
-    # for django 1.2
-    'django.middleware.csrf.CsrfMiddleware'
+    'django.middleware.csrf.CsrfMiddleware',
+    'django.middleware.http.ConditionalGetMiddleware',
 )
 
 ROOT_URLCONF = 'rpkigui.urls'
@@ -100,11 +100,15 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     "django.core.context_processors.request"
 )
 
-LOGIN_REDIRECT_URL='/myrpki/'
+# uncomment if using apache basic/digest http auth
+#AUTHENTICATION_BACKENDS = (
+#	'django.contrib.auth.backends.RemoteUserBackend',
+#)
 
 #
 # RPKI GUI specific
 #
+LOGIN_REDIRECT_URL='/myrpki/'
 
 # Top of directory tree where myrpki.conf, etc are stored for each
 # resource holder.
@@ -113,7 +117,3 @@ MYRPKI_DATA_DIR = '@CONFDIR@'
 # Where to find the myrpki.py command line tool.
 MYRPKI_PATH = '@MYRPKI_TOOL@'
 
-# uncomment if using apache basic/digest http auth
-#AUTHENTICATION_BACKENDS = (
-#	'django.contrib.auth.backends.RemoteUserBackend',
-#)

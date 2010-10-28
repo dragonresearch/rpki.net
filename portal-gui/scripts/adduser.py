@@ -66,4 +66,16 @@ if __name__ == '__main__':
 	print 'creating ', myrpki_dir
 	os.mkdir(myrpki_dir)
 
+    # create stuf myrpki.conf enough to fool portal-gui
+    myrpki_conf = myrpki_dir + '/myrpki.conf'
+    if not os.path.exists(myrpki_conf):
+	print 'creating ', myrpki_conf
+	with open(myrpki_conf, 'w') as f:
+	    print >>f, """[myrpki]
+run_rpkidemo=true
+run_rpkid=false
+asn_csv=%(path)s/asns.csv
+roa_csv=%(path)s/roas.csv
+prefix_csv=%(path)s/prefixes.csv""" % { 'path': myrpki_dir }
+
 # vim:sw=4 ts=8

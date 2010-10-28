@@ -269,9 +269,9 @@ class children(dict):
       c.xml(e)
 
   @classmethod
-  def from_csv(cls, prefix_csv_file, asn_csv_file, fxcert, entitydb):
+  def from_entitydb(cls, prefix_csv_file, asn_csv_file, fxcert, entitydb):
     """
-    Parse child resources, certificates, and validity dates from CSV files.
+    Parse child data from entitydb.
     """
     self = cls()
     for f in entitydb.iterate("children", "*.xml"):
@@ -369,7 +369,7 @@ class parents(dict):
       c.xml(e)
 
   @classmethod
-  def from_csv(cls, fxcert, entitydb):
+  def from_entitydb(cls, fxcert, entitydb):
     """
     Parse parent data from entitydb.
     """
@@ -379,12 +379,12 @@ class parents(dict):
       p = etree_read(f)
       r = etree_read(f.replace(os.path.sep + "parents"      + os.path.sep,
                                os.path.sep + "repositories" + os.path.sep))
-      assert r.get("type") == "confirmed"
-      self.add(handle = h,
-               service_uri = p.get("service_uri"),
-               bpki_cms_certificate = fxcert(p.findtext("bpki_resource_ta")),
-               myhandle = p.get("child_handle"),
-               sia_base = r.get("sia_base"))
+      if r.get("type") == "confirmed":
+        self.add(handle = h,
+                 service_uri = p.get("service_uri"),
+                 bpki_cms_certificate = fxcert(p.findtext("bpki_resource_ta")),
+                 myhandle = p.get("child_handle"),
+                 sia_base = r.get("sia_base"))
     return self
 
 class repository(object):
@@ -450,7 +450,7 @@ class repositories(dict):
       c.xml(e)
 
   @classmethod
-  def from_csv(cls, fxcert, entitydb):
+  def from_entitydb(cls, fxcert, entitydb):
     """
     Parse repository data from entitydb.
     """
@@ -458,10 +458,10 @@ class repositories(dict):
     for f in entitydb.iterate("repositories", "*.xml"):
       h = os.path.splitext(os.path.split(f)[-1])[0]
       r = etree_read(f)
-      assert r.get("type") == "confirmed"
-      self.add(handle = h,
-               service_uri = r.get("service_uri"),
-               bpki_certificate = fxcert(r.findtext("bpki_server_ta")))
+      if r.get("type") == "confirmed":
+        self.add(handle = h,
+                 service_uri = r.get("service_uri"),
+                 bpki_certificate = fxcert(r.findtext("bpki_server_ta")))
     return self
 
 class csv_reader(object):
@@ -1108,14 +1108,17 @@ class main(rpki.cli.Cmd):
       e = etree_read(self.cfg.get("xml_filename"))
       service_uri_base = e.get("service_uri")
       server_ta = e.findtext("bpki_server_ta")
-    except IOError:
-      service_uri_base = None      
-      server_ta = None
 
-    if not service_uri_base and self.run_rpkid:
-      service_uri_base = "http://%s:%s/up-down/%s" % (self.cfg.get("rpkid_server_host"),
-                                                      self.cfg.get("rpkid_server_port"),
-                                                      self.handle)
+    except IOError:
+      if self.run_rpkid:
+        service_uri_base = "http://%s:%s/up-down/%s" % (self.cfg.get("rpkid_server_host"),
+                                                        self.cfg.get("rpkid_server_port"),
+                                                        self.handle)
+        server_ta = PEMBase64(self.bpki_server.cer)
+      else:
+        service_uri_base = None      
+        server_ta = None
+
     if not service_uri_base or not server_ta:
       print "Sorry, you can't set up children of a hosted config that itself has not yet been set up"
       return
@@ -1133,7 +1136,6 @@ class main(rpki.cli.Cmd):
     if self.run_rpkid or self.run_pubd or self.run_rootd:
       PEMElement(e, "bpki_server_ta",   self.bpki_servers.cer)
     else:
-      assert server_ta is not None
       SubElement(e, "bpki_server_ta").text = server_ta
     SubElement(e, "bpki_child_ta").text = c.findtext("bpki_ta")
 
@@ -1278,7 +1280,8 @@ class main(rpki.cli.Cmd):
       print "This looks like a referral, checking"
       try:
         auth = client.find("authorization")
-        assert auth is not None
+        if auth is None:
+          raise RuntimeError, "Malformed referral, couldn't find <auth/> element"
         referrer = etree_read(self.entitydb("pubclients", "%s.xml" % auth.get("referrer").replace("/",".")))
         referrer = self.bpki_servers.fxcert(referrer.findtext("bpki_client_ta"))
         referral = self.bpki_servers.cms_xml_verify(auth.text, referrer)
@@ -1291,7 +1294,8 @@ class main(rpki.cli.Cmd):
     if sia_base is None and client.get("type") == "offer" and client.get("parent_handle") == self.handle:
       print "This looks like an offer, client claims to be our child, checking"
       client_ta = client.findtext("bpki_client_ta")
-      assert client_ta is not None and client_ta != ""
+      if not client_ta:
+        raise RuntimeError, "Malformed offer, couldn't find <bpki_client_ta/> element"
       for child in self.entitydb.iterate("children", "*.xml"):
         c = etree_read(child)
         if b64_equal(c.findtext("bpki_child_ta"), client_ta):
@@ -1306,7 +1310,8 @@ class main(rpki.cli.Cmd):
       print "Don't know where to nest this client, defaulting to top-level"
       sia_base = "rsync://%s/%s/%s/" % (self.rsync_server, self.rsync_module, client.get("handle"))
       
-    assert sia_base.startswith("rsync://")
+    if not sia_base.startswith("rsync://"):
+      raise RuntimeError, "Malformed sia_base parameter %r, should start with 'rsync://'" % sia_base
 
     client_handle = "/".join(sia_base.rstrip("/").split("/")[4:])
 
@@ -1430,14 +1435,19 @@ class main(rpki.cli.Cmd):
 
     roa_requests.from_csv(roa_csv_file).xml(e)
 
-    children.from_csv(
+    children.from_entitydb(
       prefix_csv_file = prefix_csv_file,
       asn_csv_file = asn_csv_file,
       fxcert = self.bpki_resources.fxcert,
       entitydb = self.entitydb).xml(e)
 
-    parents.from_csv(     fxcert = self.bpki_resources.fxcert, entitydb = self.entitydb).xml(e)
-    repositories.from_csv(fxcert = self.bpki_resources.fxcert, entitydb = self.entitydb).xml(e)
+    parents.from_entitydb(
+      fxcert = self.bpki_resources.fxcert,
+      entitydb = self.entitydb).xml(e)
+
+    repositories.from_entitydb(
+      fxcert = self.bpki_resources.fxcert,
+      entitydb = self.entitydb).xml(e)
 
     PEMElement(e, "bpki_ca_certificate", self.bpki_resources.cer)
     PEMElement(e, "bpki_crl",            self.bpki_resources.crl)

@@ -29,6 +29,20 @@ Fedora:
   default it uses http://localhost/myrpki/, which is probably not what you
   want.
 
+- rpkigui/settings.py needs to be edited to allow it to make use of the
+  external user authentication provided by apache.  there are two places
+  where lines need to be uncommented:
+
+  a) in MIDDLEWARE_CLASSES, uncomment:
+
+	#'django.contrib.auth.middleware.RemoteUserMiddleware',
+
+  b) uncomment the AUTHENTICATION_BACKENDS section:
+
+	#AUTHENTICATION_BACKENDS = (
+	#	'django.contrib.auth.backends.RemoteUserBackend',
+	#)
+
 - run the `adduser' script to configure the portal-gui with a new account.  you
   need to specify the user's parent on the command line, as this acts as an
   implicit authorization when rpkidemo uploads its identity.xml.

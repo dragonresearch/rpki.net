@@ -56,7 +56,7 @@ AC_SUBST(CONFDIR)
 AC_SUBST(SECRET_KEY, `$PYTHON -c 'import random; print "".join([random.choice("abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)") for i in range(50)])'`)
 
 AC_CONFIG_FILES([Makefile])
-AC_CONFIG_FILES([rpkigui/settings.py rpkigui/urls.py scripts/helper rpkigui/django.wsgi])
-AC_CONFIG_FILES([scripts/runserver])
+AC_CONFIG_FILES([rpkigui/settings.py rpkigui/urls.py scripts/helper])
+AC_CONFIG_FILES([scripts/runserver apache/django.wsgi apache/zmyrpki.conf])
 
 AC_OUTPUT

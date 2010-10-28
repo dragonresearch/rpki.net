@@ -13,7 +13,8 @@ DATABASE_PATH=@DATABASE_PATH@
 
 # automatically built sources
 BUILD=$(srcdir)/configure Makefile config.status rpkigui/settings.py \
-      rpkigui/urls.py scripts/helper scripts/runserver rpkigui/django.wsgi.in
+      rpkigui/urls.py scripts/helper scripts/runserver apache/django.wsgi \
+      apache/zmyrpki.conf
 
 all: $(BUILD)
 
@@ -38,14 +39,17 @@ scripts/helper: $(srcdir)/scripts/helper.in
 scripts/runserver: $(srcdir)/scripts/runserver.in
 	./config.status
 
-rpkigui/django.wsgi: $(srcdir)/rpki/django.wsgi
+apache/django.wsgi: $(srcdir)/apache/django.wsgi.in
+	./config.status
+
+apache/zmyrpki.conf: $(srcdir)/apache/zmyrpki.conf.in
 	./config.status
 
 INSTALL_FILES=\
+	apache/django.wsgi \
 	media/img/my.png \
 	media/img/rpki.png \
 	rpkigui/__init__.py \
-	rpkigui/django.wsgi \
 	rpkigui/manage.py \
 	rpkigui/settings.py \
 	rpkigui/urls.py \
@@ -69,6 +73,7 @@ INSTALL_FILES=\
 	rpkigui/templates/myrpki/prefix_view.html \
 	rpkigui/templates/myrpki/xml_import.html \
 	rpkigui/templates/registration/login.html \
+	scripts/adduser \
 	scripts/helper \
 	scripts/list_resources.py \
 	scripts/load_csv.py \
@@ -76,6 +81,7 @@ INSTALL_FILES=\
 
 install: $(BUILD)
 	mkdir -p `dirname $(DATABASE_PATH)`
+	mkdir -p $(INSTDIR)/apache
 	mkdir -p $(INSTDIR)/media/img
 	mkdir -p $(INSTDIR)/rpkigui/myrpki
 	mkdir -p $(INSTDIR)/rpkigui/templates/myrpki
@@ -86,5 +92,7 @@ install: $(BUILD)
 	done
 	ln -sf $(INSTDIR)/scripts/helper $(INSTDIR)/scripts/load_csv
 	ln -sf $(INSTDIR)/scripts/helper $(INSTDIR)/scripts/list_resources
-	chmod 755 $(INSTDIR)/scripts/load_csv $(INSTDIR)/scripts/list_resources $(INSTDIR)/scripts/runserver
+	ln -sf $(INSTDIR)/scripts/helper $(INSTDIR)/scripts/adduser
+	chmod 755 $(INSTDIR)/scripts/load_csv $(INSTDIR)/scripts/list_resources $(INSTDIR)/scripts/runserver $(INSTDIR)/scripts/adduser
 	cd $(INSTDIR)/rpkigui && $(PYTHON) manage.py syncdb --pythonpath=$(MYRPKIDIR)
+

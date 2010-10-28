@@ -1,0 +1,37 @@
+# sample apache configuration file for using the portal-gui with mod_wsgi
+# @configure_input@
+
+# defines the url to the portal-gui
+WSGIScriptAlias / @INSTDIR@/apache/django.wsgi
+<Directory @INSTDIR@/rpkigui>
+Order deny,allow
+Allow from all
+</Directory>
+
+# enable http digest auth
+<Location /myrpki/>
+AuthType digest
+AuthName "myrpki"
+AuthDigestDomain /myrpki/ http://localhost/myrpki/
+AuthDigestProvider file
+AuthUserFile @INSTDIR@/htpasswd
+Require valid-user
+</Location>
+
+# enable http digest auth
+<Location /admin/>
+AuthType digest
+AuthName "myrpki"
+AuthDigestDomain /admin/ http://localhost/admin/
+AuthDigestProvider file
+AuthUserFile @INSTDIR@/htpasswd
+Require valid-user
+</Location>
+
+# media for the /admin/ site
+Alias /media/ /usr/lib/python2.6/site-packages/django/contrib/admin/media/
+<Directory /usr/lib/python2.6/site-packages/django/contrib/admin/media>
+Order allow,deny
+Allow from all
+</Directory>
+

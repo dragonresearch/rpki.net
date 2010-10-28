@@ -1771,9 +1771,9 @@ SECRET_KEY=`$PYTHON -c 'import random; print "".join(random.choice("abcdefghijkl
 
 ac_config_files="$ac_config_files Makefile"
 
-ac_config_files="$ac_config_files rpkigui/settings.py rpkigui/urls.py scripts/helper rpkigui/django.wsgi"
+ac_config_files="$ac_config_files rpkigui/settings.py rpkigui/urls.py scripts/helper"
 
-ac_config_files="$ac_config_files scripts/runserver"
+ac_config_files="$ac_config_files scripts/runserver apache/django.wsgi apache/zmyrpki.conf"
 
 
 cat >confcache <<\_ACEOF
@@ -2478,8 +2478,9 @@ do
     "rpkigui/settings.py") CONFIG_FILES="$CONFIG_FILES rpkigui/settings.py" ;;
     "rpkigui/urls.py") CONFIG_FILES="$CONFIG_FILES rpkigui/urls.py" ;;
     "scripts/helper") CONFIG_FILES="$CONFIG_FILES scripts/helper" ;;
-    "rpkigui/django.wsgi") CONFIG_FILES="$CONFIG_FILES rpkigui/django.wsgi" ;;
     "scripts/runserver") CONFIG_FILES="$CONFIG_FILES scripts/runserver" ;;
+    "apache/django.wsgi") CONFIG_FILES="$CONFIG_FILES apache/django.wsgi" ;;
+    "apache/zmyrpki.conf") CONFIG_FILES="$CONFIG_FILES apache/zmyrpki.conf" ;;
 
   *) as_fn_error "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
   esac

@@ -128,7 +128,10 @@ class Asn(models.Model):
         return u'/myrpki/asn/%d' % (self.pk,)
 
     def as_resource_range(self):
-        return rpki.resource_set.resource_range_as(self.lo, self.hi)
+        # we force conversion to long() here because resource_range_as() wants
+        # the type of both arguments to be identical, and models.IntegerField
+        # will be a long when the value is large
+        return rpki.resource_set.resource_range_as(long(self.lo), long(self.hi))
 
 class Child(models.Model):
     conf = models.ForeignKey(Conf, related_name='children')

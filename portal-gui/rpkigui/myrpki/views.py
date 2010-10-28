@@ -29,6 +29,7 @@ from django.db import IntegrityError
 from django import http
 from django.views.generic.list_detail import object_list
 from django.views.decorators.csrf import csrf_exempt
+from django.conf import settings
 
 from rpkigui.myrpki import models, forms, glue, misc, AllocationTree
 from rpkigui.myrpki.asnset import asnset
@@ -541,11 +542,16 @@ def upload_myrpki_xml(request, self_handle):
     parent_handle = get_parent_handle(conf)
 
     if request.method == 'POST':
-        myrpki_xml = open('%s/%s/myrpki.xml' % (settings.MYRPKI_DATA_DIR, self_handle,), 'w')
-        myrpki_xml.write(request.raw_post_data)
-        myrpki_xml.close()
+	try:
+		fname = '%s/%s/myrpki.xml' % (settings.MYRPKI_DATA_DIR, self_handle,)
+		print >>sys.stderr, 'writing ', fname
+		myrpki_xml = open(fname, 'w')
+		myrpki_xml.write(request.raw_post_data)
+		myrpki_xml.close()
 
-        glue.invoke_rpki(parent_handle, [ 'configure_daemons', myrpki_xml.name ])
+		glue.invoke_rpki(parent_handle, [ 'configure_daemons', myrpki_xml.name ])
+	except:
+		print >>sys.stderr, ''.join(sys.exc_info())
 
     return serve_file(self_handle, 'myrpki.xml', 'application/xml')
 

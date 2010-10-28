@@ -113,19 +113,21 @@ def configure_resources(handle):
     output_asns(cfg.get('asn_csv'), handle)
     output_prefixes(cfg.get('prefix_csv'), handle)
     output_roas(cfg.get('roa_csv'), handle)
-    run_rpkid = cfg.getboolean('run_rpkid')
-    cmd = 'daemons' if run_rpkid else 'resources'
-    invoke_rpki(handle.handle, ['configure_' + cmd])
-    # handle the hosted case where some communication between rpkid operator
-    # and resource holder is required
-    if not run_rpkid:
-        xml_path = cfg.get('xml_filename')
-        if xml_path[0] != '/':
-            # convert to full path
-            xml_path = '%s/%s/%s' % (settings.MYRPKI_DATA_DIR, handle.handle, xml_path)
-        # send the myrpki.xml to the rpkid hosting me
-        invoke_rpki(handle.parents.all()[0].handle, ['configure_daemons', xml_path])
-        # process the response
-        invoke_rpki(handle.handle, ['configure_resources'])
+    run_rpkidemo = cfg.getboolean('run_rpkidemo', False)
+    if not run_rpkidemo:
+        run_rpkid = cfg.getboolean('run_rpkid')
+        cmd = 'daemons' if run_rpkid else 'resources'
+        invoke_rpki(handle.handle, ['configure_' + cmd])
+        # handle the hosted case where some communication between rpkid operator
+        # and resource holder is required
+        if not run_rpkid:
+            xml_path = cfg.get('xml_filename')
+            if xml_path[0] != '/':
+                # convert to full path
+                xml_path = '%s/%s/%s' % (settings.MYRPKI_DATA_DIR, handle.handle, xml_path)
+            # send the myrpki.xml to the rpkid hosting me
+            invoke_rpki(handle.parents.all()[0].handle, ['configure_daemons', xml_path])
+            # process the response
+            invoke_rpki(handle.handle, ['configure_resources'])
 
 # vim:sw=4 ts=8 expandtab

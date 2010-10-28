@@ -269,7 +269,7 @@ class main(object):
       timestamp = time.mktime(r.info().getdate("Last-Modified"))
       csv_file.store(timestamp, r.read())
       return True
-    except HTTPError, e:
+    except urllib2.HTTPError, e:
       if e.code == 304:                   # 304 == "Not Modified"
         return False
       else:

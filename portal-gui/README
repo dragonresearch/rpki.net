@@ -219,7 +219,7 @@ database with your data.
 Here are the steps for reseting to the initial state:
 
     cd $datarootdir/portal-gui/rpkigui
-    python reset --pythonpath=$top/rpkid myrpki
+    python manage.py reset --pythonpath=$top/rpkid myrpki
 
     >>> answer "yes" to really reset it <<<
 

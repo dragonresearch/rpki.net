@@ -78,4 +78,12 @@ asn_csv=%(path)s/asns.csv
 roa_csv=%(path)s/roas.csv
 prefix_csv=%(path)s/prefixes.csv""" % { 'path': myrpki_dir }
 
+    # create empty csv files so portal-gui doesn't barf
+    for base in ['roas', 'asns', 'prefixes']:
+        fname = '%s/%s.csv' % (myrpki_dir, base)
+        if not os.path.exists(fname):
+            print 'creating ', fname
+            with open(fname, 'w') as f:
+                pass # just create an empty file
+
 # vim:sw=4 ts=8

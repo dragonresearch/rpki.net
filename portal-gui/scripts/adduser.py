@@ -24,6 +24,24 @@ from rpkigui.myrpki.models import Conf, Parent
 
 import os
 import sys
+import hashlib
+import getpass
+
+# FIXME: hardcoded for now
+realm = 'myrpki'
+
+def user_has_password(passfile, username):
+    'returns True if username is found in the specified password file'
+    with open(passfile,'r') as f:
+        for line in f:
+            if line.split(':')[0] == username:
+                return True
+    return False
+
+def update_apache_auth_file(passfile, username, realm, password):
+    ha1 = hashlib.md5("%s:%s:%s" % (username, realm, password)).hexdigest()
+    with open(passfile, 'a') as f:
+        f.write("%s:%s:%s\n" % (username, realm, ha1))
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
@@ -85,5 +103,20 @@ prefix_csv=%(path)s/prefixes.csv""" % { 'path': myrpki_dir }
             print 'creating ', fname
             with open(fname, 'w') as f:
                 pass # just create an empty file
+
+    # add a password for this user to the apache passwd file if not present
+
+    #determine where the passwd file is likely to reside
+    # <prefix>/portal-gui/scripts/adduser.py
+    path = os.path.realpath(sys.argv[0])
+    prefix = '/'.join(path.split('/')[:-2]) # strip trailing components
+    passfile = prefix+'/htpasswd'
+    print 'passfile=', passfile
+    if not user_has_password(passfile, username):
+        print 'adding user to apache password file'
+        password = getpass.getpass()
+        update_apache_auth_file(passfile, username, realm, password)
+    else:
+        print 'user is already present in apache password file'
 
 # vim:sw=4 ts=8

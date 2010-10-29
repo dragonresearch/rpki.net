@@ -9,20 +9,10 @@ Allow from all
 </Directory>
 
 # enable http digest auth
-<Location /myrpki/>
+<Location /accounts/login>
 AuthType digest
 AuthName "myrpki"
-AuthDigestDomain /myrpki/ http://localhost/myrpki/
-AuthDigestProvider file
-AuthUserFile @INSTDIR@/htpasswd
-Require valid-user
-</Location>
-
-# enable http digest auth
-<Location /admin/>
-AuthType digest
-AuthName "myrpki"
-AuthDigestDomain /admin/ http://localhost/admin/
+AuthDigestDomain /
 AuthDigestProvider file
 AuthUserFile @INSTDIR@/htpasswd
 Require valid-user

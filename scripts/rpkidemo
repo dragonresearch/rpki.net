@@ -141,6 +141,28 @@ class main(object):
     os.environ["TZ"] = "UTC"
     time.tzset()
 
+  def make_opener(self):
+    """
+    Avoid issue where the http password manager keeps track of how
+    many attempts are made.  There's probably a better way to do this.
+    """
+
+    auth_handler = urllib2.HTTPDigestAuthHandler()
+    auth_handler.add_password(
+      realm  = self.realm,
+      uri    = self.base_url,
+      user   = self.username,
+      passwd = self.password)
+
+    if self.use_cookies:
+      handlers = (auth_handler, urllib2.HTTPCookieProcessor())
+    else:
+      handlers = (auth_handler,)
+
+    return urllib2.build_opener(*handlers)
+
+  opener = property(make_opener)
+
   def setup_username(self):
     """
     Get username and password for web interface, construct urllib2
@@ -155,20 +177,6 @@ class main(object):
       try:
         self.username = raw_input("Username: ")
         self.password = getpass.getpass()
-
-        auth_handler = urllib2.HTTPDigestAuthHandler()
-        auth_handler.add_password(
-          realm  = self.realm,
-          uri    = self.base_url,
-          user   = self.username,
-          passwd = self.password)
-
-        if self.use_cookies:
-          handlers = (auth_handler, urllib2.HTTPCookieProcessor())
-        else:
-          handlers = (auth_handler,)
-
-        self.opener = urllib2.build_opener(*handlers)
 
         self.opener.open(self.base_url) # Test login credentials
         return

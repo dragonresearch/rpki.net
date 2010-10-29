@@ -73,7 +73,7 @@ INSTALL_FILES=\
 	rpkigui/templates/myrpki/prefix_view.html \
 	rpkigui/templates/myrpki/xml_import.html \
 	rpkigui/templates/registration/login.html \
-	scripts/adduser \
+	scripts/adduser.py \
 	scripts/helper \
 	scripts/list_resources.py \
 	scripts/load_csv.py \

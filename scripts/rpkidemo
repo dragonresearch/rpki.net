@@ -67,13 +67,8 @@ else:
 
 # Ok, it's safe to import the other stuff we need now
 
-import os, subprocess, webbrowser, urllib2, getpass, re, errno, time, email.utils, httplib
+import os, subprocess, webbrowser, urllib2, getpass, re, errno, time, email.utils, httplib, socket
 from xml.etree.ElementTree import fromstring as ElementFromString
-
-# Environmental parameters
-
-top = os.path.realpath(os.path.join((sys.path[0] or "."), ".."))
-cwd = os.getcwd()
 
 def save(filename, data):
   """
@@ -115,48 +110,42 @@ class CSV_File(object):
     self.timestamp = timestamp
     os.utime(self.filename, (time.time(), timestamp))
 
-if have_ssl_module:
 
-  class HTTPSConnection(httplib.HTTPSConnection):
-    """
-    Customization of httplib.HTTPSConnection to enable certificate
-    validation.
-    """
+class AbstractHTTPSConnection(httplib.HTTPSConnection):
+  """
+  Customization of httplib.HTTPSConnection to enable certificate
+  validation.
 
-    # Perhaps there's a better place for the trust anchor?
-    rpkidemo_trust_anchor = "%s/scripts/rpkidemo.pem" % top
+  This is an abstract class; subclass must set trust_anchor to the
+  filename of a anchor file in the format that the ssl module
+  expects.
+  """
 
-    def connect(self):
-      """
-      Replacement for httplib.HTTPSConnection.connect() to enable
-      certificate validation.
-      """
+  trust_anchor = None
 
-      sock = socket.create_connection((self.host, self.port), self.timeout)
-      if self._tunnel_host:
-        self.sock = sock
-        self._tunnel()
-      self.sock = ssl.wrap_socket(sock,
-                                  keyfile = self.key_file,
-                                  certfile = self.cert_file,
-                                  cert_reqs = ssl.CERT_REQUIRED,
-                                  ssl_version = ssl.PROTOCOL_TLSv1,
-                                  ca_certs = self.rpkidemo_trust_anchor)
-
-  class HTTPSHandler(urllib2.HTTPSHandler):
-    """
-    Customization of urllib2.HTTPSHandler to enable certificate
-    validation.
-    """
-
-    def https_open(self, req):
-      return self.do_open(HTTPSConnection, req)
+  def connect(self):
+    assert self.trust_anchor is not None
+    sock = socket.create_connection((self.host, self.port), self.timeout)
+    if self._tunnel_host:
+      self.sock = sock
+      self._tunnel()
+    self.sock = ssl.wrap_socket(sock,
+                                keyfile = self.key_file,
+                                certfile = self.cert_file,
+                                cert_reqs = ssl.CERT_REQUIRED,
+                                ssl_version = ssl.PROTOCOL_TLSv1,
+                                ca_certs = self.trust_anchor)
 
 
 class main(object):
   """
   Main program.
   """
+
+  # Environmental parameters
+
+  top = os.path.realpath(os.path.join((sys.path[0] or "."), ".."))
+  cwd = os.getcwd()
 
   # Parameters that we might want to get from a config file.
   # Just wire them all in for the moment.
@@ -171,6 +160,7 @@ class main(object):
   delay = 15
   realm = "myrpki"
   use_cookies = True
+  trust_anchor = "%s/scripts/rpkidemo.pem" % top
 
   openssl = None
 
@@ -241,6 +231,11 @@ class main(object):
           handlers.append(urllib2.HTTPCookieProcessor)
 
         if have_ssl_module:
+          class HTTPSConnection(AbstractHTTPSConnection):
+            trust_anchor = self.trust_anchor
+          class HTTPSHandler(urllib2.HTTPSHandler):
+            def https_open(self, req):
+              return self.do_open(HTTPSConnection, req)
           handlers.append(HTTPSHandler)
 
         self.opener = urllib2.build_opener(*handlers)

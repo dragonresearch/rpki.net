@@ -69,8 +69,11 @@ MIDDLEWARE_CLASSES = (
     # uncomment if using apache basic/digest http auth
     #'django.contrib.auth.middleware.RemoteUserMiddleware',
 
-    'django.middleware.csrf.CsrfMiddleware',
+    # order is important here.  if csrfmidware is put before condgetmidware,
+    # the returned pages get truncated for some reason!
     'django.middleware.http.ConditionalGetMiddleware',
+
+    'django.middleware.csrf.CsrfMiddleware',
 )
 
 ROOT_URLCONF = 'rpkigui.urls'

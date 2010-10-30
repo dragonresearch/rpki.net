@@ -51,6 +51,9 @@ if python_version == (2, 5):
       sys.exit("You have chosen wisely")
     elif answer in ("y", "yes"):
       print "You have been warned"
+      break
+    else:
+      print 'Please answer "yes" or "no"'
 
 elif python_version == (2, 6):
 

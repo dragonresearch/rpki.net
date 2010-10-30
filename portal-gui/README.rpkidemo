@@ -2,32 +2,34 @@ $Id$
 
 This file details how to use the rpkidemo script with the portal-gui.
 
-requirements
+Requirements
 ============
 
 - the portal-gui must be run using apache with mod_wsgi
+- for security, mod_ssl is recommended
 
 Fedora:
-	$ yum install httpd mod_wsgi
+	$ yum install httpd mod_wsgi mod_ssl
 
-setup
+Setup
 =====
 
-- follow the steps in detailed in the README file to set up the portal-gui
+- Follow the steps in detailed in the README file to set up the portal-gui
   for the self-hosted resource handle that will act as parent to all other
   users.
 
-- after running "make" in $top/portal-gui, there will be a file named
+- After running "make" in $top/portal-gui, there will be a file named
   $top/portal-gui/apache/zmyrpki.conf.  This is a configuration file for
   apache which does most of the work configuring the portal-gui to run
   under mod_wsgi.
 
-Fedora:
-	cp $top/portal-gui/apache/zmyrpki.conf /etc/httpd/conf.d/
+  You may need to edit the paths for Django if they are installed in a
+  different location on your host.  Note that this is only necessary if
+  you wish to use the Django admin web console.  The portal-gui itself
+  will operate correctly even if this path is wrong.
 
-- edit `zmyrpki.conf' and change the URL to match your own environemnt.  by
-  default it uses http://localhost/myrpki/, which is probably not what you
-  want.
+  Fedora:
+	cp $top/portal-gui/apache/zmyrpki.conf /etc/httpd/conf.d/
 
 - rpkigui/settings.py needs to be edited to allow it to make use of the
   external user authentication provided by apache.  there are two places
@@ -43,11 +45,11 @@ Fedora:
 	#	'django.contrib.auth.backends.RemoteUserBackend',
 	#)
 
-- run the `adduser' script to configure the portal-gui with a new account.  you
+- Run the `adduser' script to configure the portal-gui with a new account.  You
   need to specify the user's parent on the command line, as this acts as an
   implicit authorization when rpkidemo uploads its identity.xml.
 
-testing with yamltest
+Testing with yamltest
 =====================
 
 - you can specify

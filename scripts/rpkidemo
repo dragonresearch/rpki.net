@@ -92,13 +92,15 @@ class main(object):
   # Just wire them all in for the moment.
 
   base_url = "http://demo.rpki.net/myrpki/"
+  auth_url = base_url + 'accounts/login/'
+  myrpki_url = base_url + 'myrpki/'
   example_myrpki_cfg = "%s/rpkid/examples/myrpki.conf" % top
   working_dir = "%s/rpkidemo-data" % cwd
   myrpki_py = "%s/rpkid/myrpki.py" % top
   user_agent = "RPKIDemo"
   delay = 15
   realm = "myrpki"
-  use_cookies = False
+  use_cookies = True
 
   openssl = None
 
@@ -141,28 +143,6 @@ class main(object):
     os.environ["TZ"] = "UTC"
     time.tzset()
 
-  def make_opener(self):
-    """
-    Avoid issue where the http password manager keeps track of how
-    many attempts are made.  There's probably a better way to do this.
-    """
-
-    auth_handler = urllib2.HTTPDigestAuthHandler()
-    auth_handler.add_password(
-      realm  = self.realm,
-      uri    = self.base_url,
-      user   = self.username,
-      passwd = self.password)
-
-    if self.use_cookies:
-      handlers = (auth_handler, urllib2.HTTPCookieProcessor())
-    else:
-      handlers = (auth_handler,)
-
-    return urllib2.build_opener(*handlers)
-
-  opener = property(make_opener)
-
   def setup_username(self):
     """
     Get username and password for web interface, construct urllib2
@@ -178,7 +158,21 @@ class main(object):
         self.username = raw_input("Username: ")
         self.password = getpass.getpass()
 
-        self.opener.open(self.base_url) # Test login credentials
+        auth_handler = urllib2.HTTPDigestAuthHandler()
+        auth_handler.add_password(
+          realm  = self.realm,
+          uri    = self.base_url,
+          user   = self.username,
+          passwd = self.password)
+
+        if self.use_cookies:
+          handlers = (auth_handler, urllib2.HTTPCookieProcessor())
+        else:
+          handlers = (auth_handler,)
+
+        self.opener = urllib2.build_opener(*handlers)
+
+        self.opener.open(self.auth_url) # Test login credentials
         return
 
       except urllib2.URLError, e:
@@ -237,7 +231,7 @@ class main(object):
     Upload filename to URL, return result.
     """
 
-    url = "%s%s/%s" % (self.base_url, url, self.username)
+    url = "%s%s/%s" % (self.myrpki_url, url, self.username)
     data = open(filename).read()
     print "Uploading", filename, "to", url
     return self.opener.open(urllib2.Request(url, data, {
@@ -270,7 +264,7 @@ class main(object):
     """
 
     try:
-      url = self.base_url + csv_file.url
+      url = self.myrpki_url + csv_file.url
       r = self.opener.open(urllib2.Request(url, None, {
         "If-Modified-Since" : csv_file.last_modified(),
         "User-Agent"        : self.user_agent }))
@@ -322,7 +316,7 @@ class main(object):
     self.update()
     self.update()
 
-    webbrowser.open(self.base_url)
+    webbrowser.open(self.myrpki_url)
 
     self.poll_loop()
 

@@ -31,13 +31,46 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import sys
 
-if sys.version_info[:2] not in ((2, 5), (2, 6)):
-  sys.exit("Sorry, this script requires Python 2.5 or 2.6, I seem to be running in %s" % sys.version)
+python_version = sys.version_info[:2]
+
+have_ssl_module = python_version == (2, 6)
+
+if python_version == (2, 5):
+  print """
+        WARNING WARNING WARNING
+
+        You are running Python version 2.5, which does not include
+        real SSL support.  This means that sessions created by this
+        script will be vulnerable to monkey-in-the-middle attacks.
+
+        Python 2.6 does not have this problem.
+        """
+  while True:
+    answer = raw_input("Are you SURE you want to proceed? (yes/NO) ").strip().lower()
+    if answer in ("", "n", "no"):
+      sys.exit("You have chosen wisely")
+    elif answer in ("y", "yes"):
+      print "You have been warned"
+
+elif python_version == (2, 6):
+
+  try:
+    import ssl
+  except ImportError:
+    sys.exit("You're running Python 2.6, but I can't find the ssl module, so you have no SSL support at all, argh!")
+
+else:
+  sys.exit("Sorry, this script requires Python 2.6, I seem to be running in %s" % sys.version)
 
 # Ok, it's safe to import the other stuff we need now
 
-import os, subprocess, webbrowser, urllib2, getpass, re, errno, time, email.utils
+import os, subprocess, webbrowser, urllib2, getpass, re, errno, time, email.utils, httplib
 from xml.etree.ElementTree import fromstring as ElementFromString
+
+# Environmental parameters
+
+top = os.path.realpath(os.path.join((sys.path[0] or "."), ".."))
+cwd = os.getcwd()
 
 def save(filename, data):
   """
@@ -79,14 +112,48 @@ class CSV_File(object):
     self.timestamp = timestamp
     os.utime(self.filename, (time.time(), timestamp))
 
+if have_ssl_module:
+
+  class HTTPSConnection(httplib.HTTPSConnection):
+    """
+    Customization of httplib.HTTPSConnection to enable certificate
+    validation.
+    """
+
+    # Perhaps there's a better place for the trust anchor?
+    rpkidemo_trust_anchor = "%s/scripts/rpkidemo.pem" % top
+
+    def connect(self):
+      """
+      Replacement for httplib.HTTPSConnection.connect() to enable
+      certificate validation.
+      """
+
+      sock = socket.create_connection((self.host, self.port), self.timeout)
+      if self._tunnel_host:
+        self.sock = sock
+        self._tunnel()
+      self.sock = ssl.wrap_socket(sock,
+                                  keyfile = self.key_file,
+                                  certfile = self.cert_file,
+                                  cert_reqs = ssl.CERT_REQUIRED,
+                                  ssl_version = ssl.PROTOCOL_TLSv1,
+                                  ca_certs = self.rpkidemo_trust_anchor)
+
+  class HTTPSHandler(urllib2.HTTPSHandler):
+    """
+    Customization of urllib2.HTTPSHandler to enable certificate
+    validation.
+    """
+
+    def https_open(self, req):
+      return self.do_open(HTTPSConnection, req)
+
 
 class main(object):
   """
   Main program.
   """
-
-  top = os.path.realpath(os.path.join((sys.path[0] or "."), ".."))
-  cwd = os.getcwd()
 
   # Parameters that we might want to get from a config file.
   # Just wire them all in for the moment.
@@ -165,10 +232,13 @@ class main(object):
           user   = self.username,
           passwd = self.password)
 
+        handlers = [auth_handler]
+
         if self.use_cookies:
-          handlers = (auth_handler, urllib2.HTTPCookieProcessor())
-        else:
-          handlers = (auth_handler,)
+          handlers.append(urllib2.HTTPCookieProcessor)
+
+        if have_ssl_module:
+          handlers.append(HTTPSHandler)
 
         self.opener = urllib2.build_opener(*handlers)
 

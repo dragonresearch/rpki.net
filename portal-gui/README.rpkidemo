@@ -31,9 +31,9 @@ Setup
   Fedora:
 	cp $top/portal-gui/apache/zmyrpki.conf /etc/httpd/conf.d/
 
-- rpkigui/settings.py needs to be edited to allow it to make use of the
-  external user authentication provided by apache.  there are two places
-  where lines need to be uncommented:
+- $top/portal-gui/rpkigui/settings.py needs to be edited to allow it to make
+  use of the external user authentication provided by apache.  There are two
+  places where lines need to be uncommented:
 
   a) in MIDDLEWARE_CLASSES, uncomment:
 
@@ -47,7 +47,19 @@ Setup
 
 - Run the `adduser' script to configure the portal-gui with a new account.  You
   need to specify the user's parent on the command line, as this acts as an
-  implicit authorization when rpkidemo uploads its identity.xml.
+  implicit authorization when rpkidemo uploads its identity.xml.  This script
+  will be located in $prefix/share/portal-gui/scripts/adduser after
+  installation.
+
+- At this point the portal-gui is ready to accept connections from rpkidemo.
+  On the end-user machine, invoke $top/scripts/rpkidemo.  rpkidemo will query
+  for the username and password, which is what you configured in the `adduser'
+  step above.  rpkidemo will build openssl if required, then perform the
+  initializations steps described in $top/rpkid/doc/MyRPKI.  Once the initial
+  setup is completed, and list_resources has been run, you should see the new
+  user listed as a child of the parent handle specified in the `adduser' step
+  above.  Now you should be able to delegate resources to the new user and use
+  the portal-gui in the usual manner.
 
 Testing with yamltest
 =====================

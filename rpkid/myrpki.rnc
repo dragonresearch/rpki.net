@@ -35,11 +35,6 @@ timestamp       = xsd:dateTime { pattern=".*Z" }
 
 # Message formate used between configure_resources and
 # configure_daemons.
-#
-# The <bpki_server_ta/> subelement here is a TLS relic that I missed
-# removing when I ripped out the rest of the TLS code; the only reason
-# I haven't this element is to avoid breaking interoperability with
-# code that still generates it.
 
 start |= element myrpki {
   attribute version { version },
@@ -73,8 +68,7 @@ start |= element myrpki {
   element bpki_ca_certificate { base64 }?,
   element bpki_crl { base64 }?,
   element bpki_bsc_certificate { base64 }?,
-  element bpki_bsc_pkcs10 { base64 }?,
-  element bpki_server_ta { base64 }?
+  element bpki_bsc_pkcs10 { base64 }?
 }
 
 # Format of an identity.xml file.

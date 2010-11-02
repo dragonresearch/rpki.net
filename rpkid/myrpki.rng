@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: myrpki.rnc 3466 2010-10-07 01:14:48Z sra $
+  $Id: myrpki.rnc 3525 2010-11-02 01:54:13Z sra $
   
   RelaxNG Schema for MyRPKI XML messages.
   
@@ -73,6 +73,15 @@
       <param name="pattern">.*Z</param>
     </data>
   </define>
+  <!--
+    Message formate used between configure_resources and
+    configure_daemons.
+    
+    The <bpki_server_ta/> subelement here is a TLS relic that I missed
+    removing when I ripped out the rest of the TLS code; the only reason
+    I haven't this element is to avoid breaking interoperability with
+    code that still generates it.
+  -->
   <start combine="choice">
     <element name="myrpki">
       <attribute name="version">
@@ -200,6 +209,7 @@
       </optional>
     </element>
   </start>
+  <!-- Format of an identity.xml file. -->
   <start combine="choice">
     <element name="identity">
       <attribute name="version">
@@ -213,6 +223,10 @@
       </element>
     </element>
   </start>
+  <!--
+    Format of <authorization/> element used in referrals.  The Base64
+    text is a <referral/> (q. v.) element signed with CMS.
+  -->
   <define name="authorization">
     <element name="authorization">
       <attribute name="referrer">
@@ -221,6 +235,7 @@
       <ref name="base64"/>
     </element>
   </define>
+  <!-- Format of <contact_info/> element used in referrals. -->
   <define name="contact_info">
     <element name="contact_info">
       <optional>
@@ -231,6 +246,7 @@
       <data type="string"/>
     </element>
   </define>
+  <!-- Variant payload portion of a <repository/> element. -->
   <define name="repository_payload">
     <choice>
       <attribute name="type">
@@ -245,6 +261,7 @@
       </group>
     </choice>
   </define>
+  <!-- <parent/> element (response from configure_child). -->
   <start combine="choice">
     <element name="parent">
       <attribute name="version">
@@ -277,6 +294,10 @@
       </optional>
     </element>
   </start>
+  <!--
+    <repository/> element, types offer and referral
+    (input to configure_publication_client).
+  -->
   <start combine="choice">
     <element name="repository">
       <attribute name="version">
@@ -294,6 +315,10 @@
       </element>
     </element>
   </start>
+  <!--
+    <repository/> element, confirmation type (output of
+    configure_publication_client).
+  -->
   <start combine="choice">
     <element name="repository">
       <attribute name="version">
@@ -328,6 +353,11 @@
       </optional>
     </element>
   </start>
+  <!--
+    <referral/> element.  This is the entirety of a separate message
+    which is signed with CMS then included ase the Base64 content of an
+    <authorization/> element in the main message.
+  -->
   <start combine="choice">
     <element name="referral">
       <attribute name="version">

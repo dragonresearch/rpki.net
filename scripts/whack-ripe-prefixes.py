@@ -46,7 +46,7 @@ sorter = subprocess.Popen(("sort", "-T.", "-n"),
                           stdin = subprocess.PIPE,
                           stdout = subprocess.PIPE)
 
-for line in open("../rpki.testbed/ripe/prefixes.csv"):
+for line in sys.stdin:
   handle, prefix = line.split()
 
   if "-" in prefix:

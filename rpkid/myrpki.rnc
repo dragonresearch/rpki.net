@@ -33,6 +33,14 @@ ipv4_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/.]*" }
 ipv6_list	= xsd:string { maxLength="512000" pattern="[\-,0-9/:a-fA-F]*" }
 timestamp       = xsd:dateTime { pattern=".*Z" }
 
+# Message formate used between configure_resources and
+# configure_daemons.
+#
+# The <bpki_server_ta/> subelement here is a TLS relic that I missed
+# removing when I ripped out the rest of the TLS code; the only reason
+# I haven't this element is to avoid breaking interoperability with
+# code that still generates it.
+
 start |= element myrpki {
   attribute version { version },
   attribute handle { object_handle },
@@ -69,26 +77,37 @@ start |= element myrpki {
   element bpki_server_ta { base64 }?
 }
 
+# Format of an identity.xml file.
+
 start |= element identity {
   attribute version { version },
   attribute handle { object_handle },
   element bpki_ta { base64 }
 }
 
+# Format of <authorization/> element used in referrals.  The Base64
+# text is a <referral/> (q. v.) element signed with CMS.
+
 authorization = element authorization {
   attribute referrer { pubd_handle },
   base64
 }
+
+# Format of <contact_info/> element used in referrals.
 
 contact_info = element contact_info {
   attribute uri { uri }?,
   xsd:string
 }
 
+# Variant payload portion of a <repository/> element.
+
 repository_payload = (
   (attribute type { "offer" }) |
   (attribute type { "referral" }, authorization, contact_info)
 )
+
+# <parent/> element (response from configure_child).
 
 start |= element parent {
   attribute version { version },
@@ -101,6 +120,9 @@ start |= element parent {
   element repository { repository_payload }?
 }
 
+# <repository/> element, types offer and referral
+# (input to configure_publication_client).
+
 start |= element repository {
   attribute version { version },
   attribute handle { object_handle },
@@ -108,6 +130,9 @@ start |= element repository {
   repository_payload,
   element bpki_client_ta { base64 }
 }
+
+# <repository/> element, confirmation type (output of
+# configure_publication_client).
 
 start |= element repository {
   attribute version { version },
@@ -121,6 +146,10 @@ start |= element repository {
   authorization?,
   contact_info?
 }
+
+# <referral/> element.  This is the entirety of a separate message
+# which is signed with CMS then included ase the Base64 content of an
+# <authorization/> element in the main message.
 
 start |= element referral {
   attribute version { version },

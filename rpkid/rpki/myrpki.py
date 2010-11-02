@@ -1013,7 +1013,6 @@ class main(rpki.cli.Cmd):
                   service_uri = "http://localhost:%s/" % self.cfg.get("rootd_server_port"),
                   valid_until = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365)))
       PEMElement(e, "bpki_resource_ta", self.bpki_servers.cer)
-      PEMElement(e, "bpki_server_ta", self.bpki_servers.cer)
       PEMElement(e, "bpki_child_ta", self.bpki_resources.cer)
       SubElement(e, "repository", type = "offer")
       etree_write(e, self.entitydb("parents", "%s.xml" % self.handle))
@@ -1107,19 +1106,16 @@ class main(rpki.cli.Cmd):
     try:
       e = etree_read(self.cfg.get("xml_filename"))
       service_uri_base = e.get("service_uri")
-      server_ta = e.findtext("bpki_server_ta")
 
     except IOError:
       if self.run_rpkid:
         service_uri_base = "http://%s:%s/up-down/%s" % (self.cfg.get("rpkid_server_host"),
                                                         self.cfg.get("rpkid_server_port"),
                                                         self.handle)
-        server_ta = PEMBase64(self.bpki_server.cer)
       else:
         service_uri_base = None      
-        server_ta = None
 
-    if not service_uri_base or not server_ta:
+    if not service_uri_base:
       print "Sorry, you can't set up children of a hosted config that itself has not yet been set up"
       return
 
@@ -1133,10 +1129,6 @@ class main(rpki.cli.Cmd):
                 valid_until = str(rpki.sundial.now() + rpki.sundial.timedelta(days = 365)))
 
     PEMElement(e, "bpki_resource_ta", self.bpki_resources.cer)
-    if self.run_rpkid or self.run_pubd or self.run_rootd:
-      PEMElement(e, "bpki_server_ta",   self.bpki_servers.cer)
-    else:
-      SubElement(e, "bpki_server_ta").text = server_ta
     SubElement(e, "bpki_child_ta").text = c.findtext("bpki_ta")
 
     try:
@@ -1218,7 +1210,6 @@ class main(rpki.cli.Cmd):
     print "Parent calls us %r" % p.get("child_handle")
 
     self.bpki_resources.fxcert(p.findtext("bpki_resource_ta"))
-    self.bpki_resources.fxcert(p.findtext("bpki_server_ta"))
 
     etree_write(p, self.entitydb("parents", "%s.xml" % parent_handle))
 
@@ -1422,11 +1413,9 @@ class main(rpki.cli.Cmd):
       e = etree_read(xml_filename)
       bsc_req, bsc_cer = self.bpki_resources.bsc(e.findtext("bpki_bsc_pkcs10"))
       service_uri = e.get("service_uri")
-      server_ta = e.findtext("bpki_server_ta")
     except IOError:
       bsc_req, bsc_cer = None, None
       service_uri = None
-      server_ta = None
 
     e = Element("myrpki", handle = self.handle)
 
@@ -1457,9 +1446,6 @@ class main(rpki.cli.Cmd):
 
     if bsc_req:
       PEMElement(e, "bpki_bsc_pkcs10", bsc_req)
-
-    if server_ta:
-      SubElement(e, "bpki_server_ta").text = server_ta
 
     etree_write(e, xml_filename, msg = msg)
 
@@ -1897,11 +1883,6 @@ class main(rpki.cli.Cmd):
         SubElement(tree, "bpki_bsc_pkcs10").text = bsc_req.get_Base64()
 
       tree.set("service_uri", rpkid_base + "up-down/" + handle)
-
-      e = tree.find("bpki_server_ta")
-      if e is not None:
-        tree.remove(e)
-      PEMElement(tree, "bpki_server_ta", self.bpki_resources.cer)
 
       etree_write(tree, xmlfile, validate = True,
                   msg = None if xmlfile is my_xmlfile else 'Send this file back to the hosted entity ("%s")' % handle)

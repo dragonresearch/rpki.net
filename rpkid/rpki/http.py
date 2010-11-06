@@ -69,7 +69,7 @@ default_http_version = (1, 0)
 
 ## @var default_tcp_port
 # Default port for clients and servers that don't specify one.
-default_tcp_port = 443
+default_tcp_port = 80
 
 ## @var enable_ipv6_servers
 # Whether to enable IPv6 listeners.  Enabled by default, as it should

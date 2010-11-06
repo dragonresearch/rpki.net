@@ -3,12 +3,26 @@
 """
 Hosted GUI client startup script, for workshops, etc.
 
-This isn't usable yet.
-
 As of when this is run, we assume that the tarball (contents TBD and
 perhaps changing from one workshop to another) have been unpacked,
 that we are on some Unix-like machine, and that we are executing in
 a Python interpreter.  We have to check anything else we care about.
+
+In what we hope is the most common case, this script should be run
+with no options.
+
+The two existing options, for special cases, are:
+
+--initialize_only       Stop after generating identity.xml
+
+--bypass_setup          Do not generate identity.xml or attempt entitydb
+                        setup operations
+
+Both of these are intended to support special cases where the default
+mode of operation is not sufficient, and some manual setup of the
+entitydb relationships is required.  In such cases, the expected usage
+would be to run this with -initialize_only, use the myrpki.py tool to
+set do the entitydb setup, then run this again with --bypass_setup.
 
 $Id$
 
@@ -67,7 +81,7 @@ else:
 
 # Ok, it's safe to import the other stuff we need now
 
-import os, subprocess, webbrowser, urllib2, getpass, re, errno, time, email.utils, httplib, socket
+import os, subprocess, webbrowser, urllib2, getpass, re, errno, time, email.utils, httplib, socket, getopt
 from xml.etree.ElementTree import fromstring as ElementFromString
 
 def save(filename, data):
@@ -266,6 +280,10 @@ class main(object):
     Generate myrpki.conf
     """
     
+    if os.path.exists("myrpki.conf"):
+      print "You already have a myrpki.conf file, so I will use it"
+      return
+
     print "Generating myrpki.conf"
     section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
     variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
@@ -359,8 +377,26 @@ class main(object):
         self.update()
       time.sleep(self.delay)
 
-  def __init__(self):
+  def getopt(self):
+    """
+    Parse options.
+    """
+    self.bypass_setup = False
+    self.initialize_only = False
+    opts, argv = getopt.getopt(sys.argv[1:], "bhi?", ["bypass_setup", "help", "initialize_only"])
+    for o, a in opts:
+      if o in ("-h", "--help", "-?"):
+        print __doc__
+        sys.exit(0)
+      elif o in ("-i", "--initialize_only"):
+        self.initialize_only = True
+      elif o in ("-b", "--bypass_setup"):
+        self.bypass_setup = True
+    if argv:
+      sys.exit("Unexpected arguments %r" % (argv,))
 
+  def __init__(self):
+    self.getopt()
     self.setup_utc()
     self.setup_openssl()
     self.setup_username()
@@ -368,18 +404,25 @@ class main(object):
     self.setup_config_file()
     self.setup_csv_files()
 
-    self.myrpki("initialize")
+    if not self.bypass_setup:
+      self.myrpki("initialize")
 
-    r = self.upload("upload-parent-request", "entitydb/identity.xml")
-    parent_data = r.read()
-    save("parent.xml", parent_data)
-    self.myrpki("configure_parent", "parent.xml")
+    if self.initialize_only:
+      print "You asked me to stop after initialization, so I am doing so"
+      sys.exit(0)
 
-    parent_handle = ElementFromString(parent_data).get("parent_handle")
+    if not self.bypass_setup:
 
-    r = self.upload("upload-repository-request", "entitydb/repositories/%s.xml" % parent_handle)
-    save("repository.xml", r.read())
-    self.myrpki("configure_repository", "repository.xml")
+      r = self.upload("upload-parent-request", "entitydb/identity.xml")
+      parent_data = r.read()
+      save("parent.xml", parent_data)
+      self.myrpki("configure_parent", "parent.xml")
+
+      parent_handle = ElementFromString(parent_data).get("parent_handle")
+
+      r = self.upload("upload-repository-request", "entitydb/repositories/%s.xml" % parent_handle)
+      save("repository.xml", r.read())
+      self.myrpki("configure_repository", "repository.xml")
 
     self.update()
     self.update()

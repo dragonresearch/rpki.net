@@ -40,6 +40,9 @@ class Conf(models.Model):
     handle = HandleField(unique=True, db_index=True)
     owner = models.ManyToManyField(User)
 
+    # NULL if self-hosted, otherwise the conf that is hosting us
+    host = models.ForeignKey('Conf', related_name='hosting', null=True)
+
     def __unicode__(self):
 	return self.handle
 

@@ -539,19 +539,18 @@ def upload_repository_request(request, self_handle):
 def upload_myrpki_xml(request, self_handle):
     "handles POST of the myrpki.xml file for a given resource handle."
     conf = handle_or_404(request, self_handle)
-    parent_handle = get_parent_handle(conf)
 
     if request.method == 'POST':
 	try:
-		fname = '%s/%s/myrpki.xml' % (settings.MYRPKI_DATA_DIR, self_handle,)
-		print >>sys.stderr, 'writing ', fname
-		myrpki_xml = open(fname, 'w')
-		myrpki_xml.write(request.raw_post_data)
-		myrpki_xml.close()
+            fname = '%s/%s/myrpki.xml' % (settings.MYRPKI_DATA_DIR, self_handle,)
+            print >>sys.stderr, 'writing ', fname
+            myrpki_xml = open(fname, 'w')
+            myrpki_xml.write(request.raw_post_data)
+            myrpki_xml.close()
 
-		glue.invoke_rpki(parent_handle, [ 'configure_daemons', myrpki_xml.name ])
+            glue.configure_daemons(conf.host)
 	except:
-		print >>sys.stderr, ''.join(sys.exc_info())
+            print >>sys.stderr, ''.join(sys.exc_info())
 
     return serve_file(self_handle, 'myrpki.xml', 'application/xml')
 

@@ -49,11 +49,11 @@ from rpkigui.myrpki import models
 def invoke_rpki(handle, args):
     """Invoke the myrpki cli for the specified configuration."""
     config = settings.MYRPKI_DATA_DIR + '/' + handle + '/myrpki.conf'
+    myrpki_dir = settings.MYRPKI_DATA_DIR + '/' + handle
     # default myrpki.conf uses relative paths, so chdir() to the repo first
-    os.chdir(settings.MYRPKI_DATA_DIR + '/' + handle)
-    cmd = '%s %s %s' % (sys.executable, settings.MYRPKI_PATH,
+    cmd = 'cd %s && %s %s %s' % (myrpki_dir, sys.executable, settings.MYRPKI_PATH,
                         ' '.join(['--config=' + config] + args))
-    print 'invoking', cmd
+    print >>sys.stderr, 'invoking', cmd
     os.system(cmd)
 
 def read_file_from_handle(handle, fname):
@@ -104,6 +104,12 @@ def output_roas(path, handle):
         w.writerows([req.as_roa_prefix(), req.roa.asn,
             '%s-group-%d' % (handle.handle, req.roa.pk)] for req in qs)
 
+def configure_daemons(handle):
+    args = ['configure_daemons']
+    for hosted in handle.hosting.all():
+        args.append(settings.MYRPKI_DATA_DIR + '/' + hosted.handle + '/myrpki.xml')
+    invoke_rpki(handle.handle, args)
+
 def configure_resources(handle):
     '''Write out the csv files and invoke the myrpki.py command line tool.'''
     # chdir to the repo dir since the default myrpki.conf uses relative
@@ -116,17 +122,14 @@ def configure_resources(handle):
     run_rpkidemo = cfg.getboolean('run_rpkidemo', False)
     if not run_rpkidemo:
         run_rpkid = cfg.getboolean('run_rpkid')
-        cmd = 'daemons' if run_rpkid else 'resources'
-        invoke_rpki(handle.handle, ['configure_' + cmd])
-        # handle the hosted case where some communication between rpkid operator
-        # and resource holder is required
-        if not run_rpkid:
-            xml_path = cfg.get('xml_filename')
-            if xml_path[0] != '/':
-                # convert to full path
-                xml_path = '%s/%s/%s' % (settings.MYRPKI_DATA_DIR, handle.handle, xml_path)
+        if run_rpkid:
+            configure_daemons(handle)
+        else:
+            invoke_rpki(handle.handle, ['configure_resources'])
+
             # send the myrpki.xml to the rpkid hosting me
-            invoke_rpki(handle.parents.all()[0].handle, ['configure_daemons', xml_path])
+            configure_daemons(handle.host)
+
             # process the response
             invoke_rpki(handle.handle, ['configure_resources'])
 

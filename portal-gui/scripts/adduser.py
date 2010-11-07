@@ -20,7 +20,7 @@
 
 from django.contrib.auth.models import User
 from django.conf import settings
-from rpkigui.myrpki.models import Conf, Parent
+from rpkigui.myrpki.models import Conf
 
 import os
 import sys
@@ -45,13 +45,13 @@ def update_apache_auth_file(passfile, username, realm, password):
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
-	print >>sys.stderr, 'usage: adduser <name> <email> <parent>'
+	print >>sys.stderr, 'usage: adduser <username> <user\'s email> <host handle>'
 	sys.exit(1)
 
     username = sys.argv[1]
     email = sys.argv[2]
-    parent = sys.argv[3]
-    print 'username=', username, 'email=', email, 'parent=', parent
+    host = sys.argv[3]
+    print 'username=', username, 'email=', email, 'host=', host
 
     user_set = User.objects.filter(username=username)
     if user_set:
@@ -69,15 +69,14 @@ if __name__ == '__main__':
 	print >>sys.stderr, 'creating conf'
 	conf = Conf.objects.create(handle=username)
 	conf.owner.add(user)
-	conf.save()
 
-    parent_set = conf.parents.filter(handle=parent)
-    if parent_set:
-	print 'parent %s is already present' % parent
-    else:
-	print "creating %s' parent %s" % (username, parent)
-	parent = Parent.objects.create(handle=parent, conf=conf)
+    host_set = Conf.objects.filter(handle=host)
+    if not host_set:
+	print >>sys.stderr, 'error: Conf object for host %s does not exist!' % host
 
+    conf.host = host_set[0]
+    conf.save()
+    
     myrpki_dir = '%s/%s' % (settings.MYRPKI_DATA_DIR, username)
     print 'myrpki_dir=', myrpki_dir
     if not os.path.exists(myrpki_dir):

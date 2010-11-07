@@ -81,7 +81,7 @@ allow_incomplete = False
 
 # Whether to whine about incomplete entries while rendering to XML.
 
-whine = False
+whine = True
 
 class comma_set(set):
   """
@@ -385,6 +385,8 @@ class parents(dict):
                  bpki_cms_certificate = fxcert(p.findtext("bpki_resource_ta")),
                  myhandle = p.get("child_handle"),
                  sia_base = r.get("sia_base"))
+      elif whine:
+        print "Parent %s's repository entry in state %s, skipping this parent" % (h, r.get("type"))
     return self
 
 class repository(object):
@@ -462,6 +464,9 @@ class repositories(dict):
         self.add(handle = h,
                  service_uri = r.get("service_uri"),
                  bpki_certificate = fxcert(r.findtext("bpki_server_ta")))
+      elif whine:
+        print "Repository %s in state %s, skipping this repository" % (h, r.get("type"))
+
     return self
 
 class csv_reader(object):

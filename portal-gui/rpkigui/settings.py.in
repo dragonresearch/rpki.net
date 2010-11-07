@@ -67,7 +67,7 @@ MIDDLEWARE_CLASSES = (
     'django.contrib.auth.middleware.AuthenticationMiddleware',
 
     # uncomment if using apache basic/digest http auth
-    #'django.contrib.auth.middleware.RemoteUserMiddleware',
+    'django.contrib.auth.middleware.RemoteUserMiddleware',
 
     # order is important here.  if csrfmidware is put before condgetmidware,
     # the returned pages get truncated for some reason!
@@ -104,14 +104,9 @@ TEMPLATE_CONTEXT_PROCESSORS = (
 )
 
 # uncomment if using apache basic/digest http auth
-#AUTHENTICATION_BACKENDS = (
-#	'django.contrib.auth.backends.RemoteUserBackend',
-#)
-
-#
-# RPKI GUI specific
-#
-LOGIN_REDIRECT_URL='/myrpki/'
+AUTHENTICATION_BACKENDS = (
+	'django.contrib.auth.backends.RemoteUserBackend',
+)
 
 # Top of directory tree where myrpki.conf, etc are stored for each
 # resource holder.

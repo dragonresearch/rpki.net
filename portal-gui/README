@@ -161,17 +161,6 @@ You should run "load_csv" in *each* of your directories for each handle.
 If you have configured django to use apached and mod_wsgi, you just need to
 start your web server.
 
-Alternatively, Django comes with a test web server which is useful for small
-deployments, or for just testing the portal-gui.  You can start the test
-server by running:
-
-    $datarootdir/portal-gui/scripts/runserver [ IP:PORT ]
-
-where IP:PORT is the address where you want to run the server.  If you don't
-specify the IP:PORT, the default is 127.0.0.1:8000.
-
-Now you can navigate to http://<ip:port>/myrpki/ to use the GUI.
-
 === Creating Users ===
 
 By default, the administrative user created during the "Initialization" step

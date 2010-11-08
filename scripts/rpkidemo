@@ -164,7 +164,7 @@ class main(object):
   # Parameters that we might want to get from a config file.
   # Just wire them all in for the moment.
 
-  base_url = "http://demo.rpki.net/myrpki/"
+  base_url = "https://demo.rpki.net/"
   auth_url = base_url + 'accounts/login/'
   myrpki_url = base_url + 'myrpki/'
   example_myrpki_cfg = "%s/rpkid/examples/myrpki.conf" % top

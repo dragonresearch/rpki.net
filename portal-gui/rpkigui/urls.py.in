@@ -36,7 +36,7 @@ urlpatterns = patterns('',
 
     (r'^myrpki/', include('rpkigui.myrpki.urls')),
 
-    (r'^accounts/login/$', 'django.contrib.auth.views.login'),
+    (r'^accounts/login/$', 'rpkigui.myrpki.views.login'),
     (r'^accounts/logout/$', 'django.contrib.auth.views.logout',
         { 'next_page': '/myrpki/' }),
 

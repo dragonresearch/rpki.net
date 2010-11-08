@@ -140,7 +140,7 @@ class AbstractHTTPSConnection(httplib.HTTPSConnection):
   def connect(self):
     assert self.trust_anchor is not None
     sock = socket.create_connection((self.host, self.port), self.timeout)
-    if self._tunnel_host:
+    if getattr(self, "_tunnel_host", None):
       self.sock = sock
       self._tunnel()
     self.sock = ssl.wrap_socket(sock,

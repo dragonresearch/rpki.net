@@ -523,8 +523,15 @@ class axfr_set(prefix_set):
     for root, dirs, files in os.walk(rcynic_dir):
       for f in files:
         if f.endswith(".roa"):
-          roa = rpki.x509.ROA(DER_file = os.path.join(root, f)).extract().get()
-          assert roa[0] == 0, "ROA version is %d, expected 0" % roa[0]
+          f = os.path.join(root, f)
+          try:
+            roa = rpki.x509.ROA(DER_file = f).extract().get()
+          except:
+            print "Could not parse purported ROA file %r" % f
+            continue
+          if roa[0] != 0:
+            print "ROA %r version is %d, expected version 0" % (f, roa[0])
+            continue
           asnum = roa[1]
           for afi, addrs in roa[2]:
             for addr in addrs:

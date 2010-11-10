@@ -1385,7 +1385,7 @@
 #
 # @par @c rpki-root-manifest:
 #                      Name of file to which rootd should save its
-#                      RPKI manifest.  Default is "Root.mnf".
+#                      RPKI manifest.  Default is "Root.mft".
 #
 # @par @c rpki-subject-pkcs10:
 #                      Name of file that rootd should use when saving

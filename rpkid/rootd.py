@@ -299,7 +299,7 @@ rpki_root_key           = rpki.x509.RSA( Auto_file = cfg.get("rpki-root-key"))
 rpki_root_cert_file     = cfg.get("rpki-root-cert")
 rpki_root_cert_uri      = cfg.get("rpki-root-cert-uri", rpki_base_uri + "Root.cer")
 
-rpki_root_manifest      = cfg.get("rpki-root-manifest", "Root.mnf")
+rpki_root_manifest      = cfg.get("rpki-root-manifest", "Root.mft")
 rpki_root_crl           = cfg.get("rpki-root-crl",      "Root.crl")
 rpki_subject_cert       = cfg.get("rpki-subject-cert",  "Child.cer")
 rpki_subject_pkcs10     = cfg.get("rpki-subject-pkcs10", "Child.pkcs10")

@@ -137,7 +137,7 @@ def do_issue():
   q_pdu = rpki.up_down.issue_pdu()
   req_key = get_PEM("cert-request-key", rpki.x509.RSA, yaml_req) or cms_key
   sia = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", yaml_req["sia"][0])),
-         (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", yaml_req["sia"][0] + req_key.gSKI() + ".mft")))
+         (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", yaml_req["sia"][0] + req_key.gSKI() + ".mnf")))
   q_pdu.class_name = yaml_req["class"]
   q_pdu.pkcs10 = rpki.x509.PKCS10.create_ca(req_key, sia)
   query_up_down(q_pdu)

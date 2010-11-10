@@ -586,7 +586,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
 
   def manifest_uri(self, ca):
     """Return publication URI for this ca_detail's manifest."""
-    return ca.sia_uri + self.public_key.gSKI() + ".mft"
+    return ca.sia_uri + self.public_key.gSKI() + ".mnf"
 
   def activate(self, ca, cert, uri, callback, errback, predecessor = None):
     """

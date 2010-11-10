@@ -774,11 +774,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     Generate a new manifest certificate for this ca_detail.
     """
 
-    resources = rpki.resource_set.resource_bag(
-      asn = rpki.resource_set.resource_set_as(rpki.resource_set.inherit_token),
-      v4 = rpki.resource_set.resource_set_ipv4(rpki.resource_set.inherit_token),
-      v6 = rpki.resource_set.resource_set_ipv6(rpki.resource_set.inherit_token))
-
+    resources = rpki.resource_set.resource_bag.from_inheritance()
     self.latest_manifest_cert = self.issue_ee(ca, resources, self.manifest_public_key)
 
   def issue(self, ca, child, subject_key, sia, resources, publisher, child_cert = None):

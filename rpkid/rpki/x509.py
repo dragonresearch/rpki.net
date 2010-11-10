@@ -509,11 +509,17 @@ class X509(DER_object):
     else:
       assert not is_ca
 
-    if resources is not None and resources.asn:
-      exts.append(["sbgp-autonomousSysNum", True, (resources.asn.to_rfc3779_tuple(), None)])
+    # This next bit suggests that perhaps .to_rfc3779_tuple() should
+    # be raising an exception when there are no resources rather than
+    # returning None.  Maybe refactor later.
 
-    if resources is not None and (resources.v4 or resources.v6):
-      exts.append(["sbgp-ipAddrBlock", True, [x for x in (resources.v4.to_rfc3779_tuple(), resources.v6.to_rfc3779_tuple()) if x is not None]])
+    if resources is not None:
+      r = resources.asn.to_rfc3779_tuple()
+      if r is not None:
+        exts.append(["sbgp-autonomousSysNum", True, (r, None)])
+      r = [x for x in (resources.v4.to_rfc3779_tuple(), resources.v6.to_rfc3779_tuple()) if x is not None]
+      if r:
+        exts.append(["sbgp-ipAddrBlock", True, r])
 
     for x in exts:
       x[0] = rpki.oids.name2oid[x[0]]

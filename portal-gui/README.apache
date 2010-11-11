@@ -1,0 +1,26 @@
+$Id$
+
+This file details how to configure apache+mod_wsgi to serve the portal-gui.
+
+The web interface must be deployed to work with an existing web server.
+Instructions for using Django with Apache and mod_wsgi can be found at
+http://docs.djangoproject.com/en/1.2/howto/deployment/modwsgi/#howto-deployment-modwsgi
+
+Setup
+=====
+
+- Follow the steps in detailed in the $top/portal-gui/README file to set up the
+  portal-gui for the self-hosted resource handle that runs rpkid.
+
+- After running "make" in $top/portal-gui, there will be a file named
+  $top/portal-gui/apache/zmyrpki.conf.  This is a configuration file for
+  apache which does most of the work configuring the portal-gui to run
+  under mod_wsgi.
+
+  You may need to edit the paths for Django if they are installed in a
+  different location on your host.  Note that this is only necessary if
+  you wish to use the Django admin web console.  The portal-gui itself
+  will operate correctly even if this path is wrong.
+
+  Fedora:
+	cp $top/portal-gui/apache/zmyrpki.conf /etc/httpd/conf.d/

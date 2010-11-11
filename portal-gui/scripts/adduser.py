@@ -26,16 +26,20 @@ import os
 import sys
 import hashlib
 import getpass
+import pwd
+
+apache_uid = pwd.getpwnam(settings.APACHE_USER)[2]
 
 # FIXME: hardcoded for now
 realm = 'myrpki'
 
 def user_has_password(passfile, username):
     'returns True if username is found in the specified password file'
-    with open(passfile,'r') as f:
-        for line in f:
-            if line.split(':')[0] == username:
-                return True
+    if os.path.exists(passfile):
+        with open(passfile,'r') as f:
+            for line in f:
+                if line.split(':')[0] == username:
+                    return True
     return False
 
 def update_apache_auth_file(passfile, username, realm, password):
@@ -47,6 +51,10 @@ if __name__ == '__main__':
     if len(sys.argv) < 3:
 	print >>sys.stderr, 'usage: adduser <username> <user\'s email> <host handle>'
 	sys.exit(1)
+
+    if os.getuid() != 0:
+        print >>sys.stderr, 'error: this script must be run as roon so it can set file permissions.'
+        sys.exit(1)
 
     username = sys.argv[1]
     email = sys.argv[2]
@@ -70,18 +78,23 @@ if __name__ == '__main__':
 	conf = Conf.objects.create(handle=username)
 	conf.owner.add(user)
 
-    host_set = Conf.objects.filter(handle=host)
-    if not host_set:
-	print >>sys.stderr, 'error: Conf object for host %s does not exist!' % host
+    if host != username:
+        host_set = Conf.objects.filter(handle=host)
+        if not host_set:
+            print >>sys.stderr, 'error: Conf object for host %s does not exist!' % host
+            sys.exit(1)
 
-    conf.host = host_set[0]
-    conf.save()
+        conf.host = host_set[0]
+        conf.save()
+    else:
+        print >>sys.stderr, '%s is self-hosted' % username
     
     myrpki_dir = '%s/%s' % (settings.MYRPKI_DATA_DIR, username)
     print 'myrpki_dir=', myrpki_dir
     if not os.path.exists(myrpki_dir):
 	print 'creating ', myrpki_dir
 	os.mkdir(myrpki_dir)
+    os.chown(myrpki_dir, apache_uid, -1)
 
     # create stuf myrpki.conf enough to fool portal-gui
     myrpki_conf = myrpki_dir + '/myrpki.conf'
@@ -101,7 +114,8 @@ prefix_csv=%(path)s/prefixes.csv""" % { 'path': myrpki_dir }
         if not os.path.exists(fname):
             print 'creating ', fname
             with open(fname, 'w') as f:
-                pass # just create an empty file
+                # just create an empty file
+                os.fchown(f, apache_uid, -1)
 
     # add a password for this user to the apache passwd file if not present
 

@@ -115,3 +115,5 @@ MYRPKI_DATA_DIR = '@CONFDIR@'
 # Where to find the myrpki.py command line tool.
 MYRPKI_PATH = '@MYRPKI_TOOL@'
 
+# the user apache runs as
+APACHE_USER='@USER@'

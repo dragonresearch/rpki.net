@@ -14,10 +14,7 @@ set up rpkid first; see ../rpkid/doc/Installation.
 
 This is a list of the assumptions the current rpkigui code makes:
 
-1) There will be at least one resource holder which runs rpkid.  This handle
-   *must* be the parent of all other resource holders served by the same rpkid
-   instance.  In rpki parlance, there is one "self-hosted" resource holder, and
-   all the others are "hosted."
+1) There will be at least one resource holder which runs rpkid.
 
 2) The myrpki.py command line tool will handle all the heavy lifting, so it
    must be present on the installed system.
@@ -42,63 +39,32 @@ This is a list of the assumptions the current rpkigui code makes:
 
 === Prerequisites ===
 
+- install django
+
 First, you must install Django 1.2 or greater on your system (django 1.1 may
 work, but you will need to disable to CsrfMiddleware in settings.py).
 
-The web interface can be run out of the source directory for testing, or may be
-deployed to work with an existing web server.  Instructions for using Django
-with Apache and mod_wsgi can be found at
-http://docs.djangoproject.com/en/1.2/howto/deployment/modwsgi/#howto-deployment-modwsgi
+Fedora: yum install Django
+
+- the portal-gui must be run using apache with mod_wsgi
+
+Fedora: yum install httpd mod_wsgi
+
+- for security, mod_ssl is recommended
+
+Fedora: yum install mod_ssl
 
 ==== Installation ===
 
-The portal-gui is configured via the use of the supplied "configure"
-script.  There are several required options:
+The portal-gui is configured via the use of the supplied "build.sh"
+script.  You must edit at least the "REQUIRED SETTINGS" section.
 
-        --with-myrpki=DIR
-                specifies the full path to where the myrpki.py command
-                line script and the rpki Python module can be located.
-
-        CONFDIR=PATH
-                specify the toplevel directory containing the
-                subdirectories for each resource holder served by
-                myrpki.
-
-Optional:
-
-        --prefix=DIR
-                Use an alternate install prefix.  Defaults to /usr/local/.
-
-	--datarootdir=DIR
-		Install the portal-gui source code as $DIR/portal-gui.
-		Defaults to $prefix/share/.
-
-	--localstatedir=DIR
-		Set the default location for the portal-gui's database.
-		Defaults to $prefix/var/.
-
-        DATABASE_PATH=PATH
-		Specifies the full pathname for the sqlite database used to
-		back the portal gui.  Defaults to
-		$localstatedir/portal-gui/rpkiop.  NOTE: This path should
-		include the database filename, not only the directory
-		containing it.
-
-        --with-python=PATH
-                Specifies the full path to the python interpreter to
-                use.  Defaults to python2.6, python2.5, or python, in
-                order.
-
-Example:
-
-        ./configure --with-python=/usr/local/bin/python \
-                --with-myrpki=/home/me/src/rpki/rpkid \
-                CONFDIR=/home/me/myrpki \
-                DATABASE_PATH=/home/me/myrpki/rpkiop
+	# cd $top/portal-gui/
+	# ./build.sh
 
 Once the portal-gui has been configured, the next step is to install it:
 
-        $ make install
+        # make install
 
 At the end of the installation process, the manage.py script will prompt
 you to create a superuser.  You want to say "yes" to this prompt.  The
@@ -107,6 +73,10 @@ is required to set up normal user accounts for managing resource
 handles.  The superuser is also useful because you can use django's
 admin views to inspect the database directly, which may be useful for
 debugging.
+
+- configure apache to serve the portal-gui
+
+See $top/portal-gui/README.apache
 
 === list_resources helper script ===
 
@@ -167,14 +137,21 @@ By default, the administrative user created during the "Initialization" step
 above can manage all resource handles.  However, the portal-gui's security
 model allows the use of separate logins to manage resource handles.  Each
 resource handle needs to be configured to allow one or more users to manage
-it.  This is accomplished by using the django admin interface.
+it.  This is accomplished by using the "adduser" script that is installed
+with the portal-gui in $prefix/share/portal-gui/scripts/. (n.b. run the
+adduser script *without* the .py suffix, which is a wrapper script which
+sets the PYTHONPATH to match your installation)
 
-To create additional non administrative users:
+To create additional non-administrative users, run the "adduser" script.  The
+adduser script takes three arguments: 1) the username for the new account, 2)
+the email address for the human that owns the account, and 3) the handle of the
+self-hosted resource holder who is hosting this user (for self-hosted users,
+specify the same username for the "host handle").
 
-	- navigate to http://<ip:port>/admin/auth/user/
-	- click on the "Add User" link at the upper right
-	- fill in the username and password fields
-	- click "Save"
+Example:
+
+    # cd $prefix/share/portal-gui/scripts/
+    # ./adduser SPARTA-ELS michael.elkins@cobham.com SPARTA
 
 You can configure which users are allowed to manage a particular resource
 handle once you have performed the "list_resources" step described above to
@@ -215,3 +192,22 @@ Here are the steps for reseting to the initial state:
     cd <directory containing myrpki.conf for the self-hosted rpkid>
     $datarootdir/portal-gui/scripts/list_resources -v
     $datarootdir/portal-gui/scripts/load_csv
+
+Testing with yamltest
+=====================
+
+- you can specify
+	CONFDIR=$top/rpkid/tests/yamltest.dir
+  to make the portal-gui be a front-end for the resource handles created by
+  a yamltest run.
+
+- you will need to periodically run the lists_resources script in
+	$top/rpkid/tests/yamltest.dir/RIR
+  to update the portal-gui database with the current state of children and
+  received resources
+
+- the web server runs as the `apache' user by default under Fedora, which won't
+  have permissions to write to the yamltest.dir directory.  easiet thing to do
+  is chown the entire tree so that the `apache' user has full access:
+
+	# chown -R apache $top/rpkid/tests/yamltest.dir

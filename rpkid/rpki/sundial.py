@@ -48,7 +48,9 @@ import datetime as pydatetime
 import re
 
 def now():
-  """Get current timestamp."""
+  """
+  Get current timestamp.
+  """
   return datetime.utcnow()
 
 class datetime(pydatetime.datetime):
@@ -66,21 +68,29 @@ class datetime(pydatetime.datetime):
 
   @classmethod
   def fromUTCTime(cls, x):
-    """Convert from ASN.1 UTCTime."""
+    """
+    Convert from ASN.1 UTCTime.
+    """
     x = str(x)
     return cls.fromGeneralizedTime(("19" if x[0] >= "5" else "20") + x)
 
   def toUTCTime(self):
-    """Convert to ASN.1 UTCTime."""
+    """
+    Convert to ASN.1 UTCTime.
+    """
     return self.strftime("%y%m%d%H%M%SZ")
 
   @classmethod
   def fromGeneralizedTime(cls, x):
-    """Convert from ASN.1 GeneralizedTime."""
+    """
+    Convert from ASN.1 GeneralizedTime.
+    """
     return cls.strptime(x, "%Y%m%d%H%M%SZ")
 
   def toGeneralizedTime(self):
-    """Convert to ASN.1 GeneralizedTime."""
+    """
+    Convert to ASN.1 GeneralizedTime.
+    """
     return self.strftime("%Y%m%d%H%M%SZ")
 
   @classmethod
@@ -119,7 +129,9 @@ class datetime(pydatetime.datetime):
       return cls.strptime(x, "%Y-%m-%dT%H:%M:%SZ")
 
   def toXMLtime(self):
-    """Convert to XML time representation."""
+    """
+    Convert to XML time representation.
+    """
     return self.strftime("%Y-%m-%dT%H:%M:%SZ")
 
   def __str__(self):
@@ -135,7 +147,9 @@ class datetime(pydatetime.datetime):
 
   @classmethod
   def from_sql(cls, x):
-    """Convert from SQL storage format."""
+    """
+    Convert from SQL storage format.
+    """
     return cls.fromdatetime(x)
 
   def to_sql(self):
@@ -154,11 +168,15 @@ class datetime(pydatetime.datetime):
                                microsecond = 0, tzinfo = None)
 
   def later(self, other):
-    """Return the later of two timestamps."""
+    """
+    Return the later of two timestamps.
+    """
     return other if other > self else self
 
   def earlier(self, other):
-    """Return the earlier of two timestamps."""
+    """
+    Return the earlier of two timestamps.
+    """
     return other if other < self else self
 
   def __add__(self, y):  return _cast(pydatetime.datetime.__add__(self, y))
@@ -233,12 +251,16 @@ class timedelta(pydatetime.timedelta):
         raise RuntimeError, "Couldn't parse timedelta %r" % (arg,)
 
   def convert_to_seconds(self):
-    """Convert a timedelta interval to seconds."""
+    """
+    Convert a timedelta interval to seconds.
+    """
     return self.days * 24 * 60 * 60 + self.seconds
 
   @classmethod
   def fromtimedelta(cls, x):
-    """Convert a datetime.timedelta object into this subclass."""
+    """
+    Convert a datetime.timedelta object into this subclass.
+    """
     return cls(days = x.days, seconds = x.seconds, microseconds = x.microseconds)
 
   def __abs__(self):          return _cast(pydatetime.timedelta.__abs__(self))

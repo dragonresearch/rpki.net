@@ -44,7 +44,9 @@ class UsageWrapper(textwrap.TextWrapper):
   """
 
   def __call__(self, *args):
-    """Format arguments, with TextWrapper indentation."""
+    """
+    Format arguments, with TextWrapper indentation.
+    """
     return self.fill(textwrap.dedent(" ".join(args)))
 
 usage_fill = UsageWrapper(subsequent_indent = " " * 4)
@@ -107,19 +109,27 @@ class cmd_elt_mixin(reply_elt_mixin):
     return argv
 
   def client_query_bpki_cert(self, arg):
-    """Special handler for --bpki_cert option."""
+    """
+    Special handler for --bpki_cert option.
+    """
     self.bpki_cert = rpki.x509.X509(Auto_file = arg)
 
   def client_query_glue(self, arg):
-    """Special handler for --bpki_glue option."""
+    """
+    Special handler for --bpki_glue option.
+    """
     self.bpki_glue = rpki.x509.X509(Auto_file = arg)
 
   def client_query_bpki_cms_cert(self, arg):
-    """Special handler for --bpki_cms_cert option."""
+    """
+    Special handler for --bpki_cms_cert option.
+    """
     self.bpki_cms_cert = rpki.x509.X509(Auto_file = arg)
 
   def client_query_cms_glue(self, arg):
-    """Special handler for --bpki_cms_glue option."""
+    """
+    Special handler for --bpki_cms_glue option.
+    """
     self.bpki_cms_glue = rpki.x509.X509(Auto_file = arg)
 
 class cmd_msg_mixin(object):
@@ -194,7 +204,9 @@ class left_right_cms_msg(rpki.left_right.cms_msg):
 class config_elt(cmd_elt_mixin, rpki.publication.config_elt):
 
   def client_query_bpki_crl(self, arg):
-    """Special handler for --bpki_crl option."""
+    """
+    Special handler for --bpki_crl option.
+    """
     self.bpki_crl = rpki.x509.CRL(Auto_file = arg)
 
 class client_elt(cmd_elt_mixin, rpki.publication.client_elt):

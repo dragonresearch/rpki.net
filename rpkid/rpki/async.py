@@ -159,7 +159,9 @@ class timer(object):
       pass
 
   def is_set(self):
-    """Test whether this timer is currently set."""
+    """
+    Test whether this timer is currently set.
+    """
     return self in self.queue
 
   def handler(self):
@@ -187,7 +189,9 @@ class timer(object):
     rpki.log.traceback()
 
   def set_errback(self, errback):
-    """Set a timer's errback.  Like set_handler(), for errbacks."""
+    """
+    Set a timer's errback.  Like set_handler(), for errbacks.
+    """
     self.errback = errback
 
   @classmethod
@@ -268,7 +272,9 @@ def run_deferred():
       rpki.log.traceback()
 
 def _raiseExitNow(signum, frame):
-  """Signal handler for event_loop()."""
+  """
+  Signal handler for event_loop().
+  """
   raise ExitNow
 
 def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
@@ -363,7 +369,9 @@ class sync_wrapper(object):
       return self.res
 
 def exit_event_loop():
-  """Force exit from event_loop()."""
+  """
+  Force exit from event_loop().
+  """
   raise ExitNow
 
 class gc_summary(object):

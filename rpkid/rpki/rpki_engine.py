@@ -291,27 +291,39 @@ class ca_obj(rpki.sql.sql_persistent):
   last_manifest_sn = 0
 
   def parent(self):
-    """Fetch parent object to which this CA object links."""
+    """
+    Fetch parent object to which this CA object links.
+    """
     return rpki.left_right.parent_elt.sql_fetch(self.gctx, self.parent_id)
 
   def ca_details(self):
-    """Fetch all ca_detail objects that link to this CA object."""
+    """
+    Fetch all ca_detail objects that link to this CA object.
+    """
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s", (self.ca_id,))
 
   def fetch_pending(self):
-    """Fetch the pending ca_details for this CA, if any."""
+    """
+    Fetch the pending ca_details for this CA, if any.
+    """
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND state = 'pending'", (self.ca_id,))
 
   def fetch_active(self):
-    """Fetch the active ca_detail for this CA, if any."""
+    """
+    Fetch the active ca_detail for this CA, if any.
+    """
     return ca_detail_obj.sql_fetch_where1(self.gctx, "ca_id = %s AND state = 'active'", (self.ca_id,))
 
   def fetch_deprecated(self):
-    """Fetch deprecated ca_details for this CA, if any."""
+    """
+    Fetch deprecated ca_details for this CA, if any.
+    """
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND state = 'deprecated'", (self.ca_id,))
 
   def fetch_revoked(self):
-    """Fetch revoked ca_details for this CA, if any."""
+    """
+    Fetch revoked ca_details for this CA, if any.
+    """
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND state = 'revoked'", (self.ca_id,))
 
   def fetch_issue_response_candidates(self):
@@ -526,6 +538,17 @@ class ca_obj(rpki.sql.sql_persistent):
 
     rpki.async.iterator(self.fetch_deprecated(), loop, cb)
 
+  def reissue(self, cb, eb):
+    """
+    Reissue all current certificates issued by this CA.
+    """
+
+    ca_detail = self.fetch_active()
+    if ca_detail:
+      ca_detail.reissue(cb, eb)
+    else:
+      cb()
+
 class ca_detail_obj(rpki.sql.sql_persistent):
   """
   Internal CA detail object.
@@ -561,31 +584,45 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     assert self.manifest_public_key is None or self.manifest_private_key_id is None or self.manifest_public_key.get_DER() == self.manifest_private_key_id.get_public_DER()
 
   def ca(self):
-    """Fetch CA object to which this ca_detail links."""
+    """
+    Fetch CA object to which this ca_detail links.
+    """
     return ca_obj.sql_fetch(self.gctx, self.ca_id)
 
   def child_certs(self, child = None, ski = None, unique = False):
-    """Fetch all child_cert objects that link to this ca_detail."""
+    """
+    Fetch all child_cert objects that link to this ca_detail.
+    """
     return rpki.rpki_engine.child_cert_obj.fetch(self.gctx, child, self, ski, unique)
 
   def revoked_certs(self):
-    """Fetch all revoked_cert objects that link to this ca_detail."""
+    """
+    Fetch all revoked_cert objects that link to this ca_detail.
+    """
     return revoked_cert_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
 
   def roas(self):
-    """Fetch all ROA objects that link to this ca_detail."""
+    """
+    Fetch all ROA objects that link to this ca_detail.
+    """
     return rpki.rpki_engine.roa_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
 
   def crl_uri(self, ca):
-    """Return publication URI for this ca_detail's CRL."""
+    """
+    Return publication URI for this ca_detail's CRL.
+    """
     return ca.sia_uri + self.crl_uri_tail()
 
   def crl_uri_tail(self):
-    """Return tail (filename portion) of publication URI for this ca_detail's CRL."""
+    """
+    Return tail (filename portion) of publication URI for this ca_detail's CRL.
+    """
     return self.public_key.gSKI() + ".crl"
 
   def manifest_uri(self, ca):
-    """Return publication URI for this ca_detail's manifest."""
+    """
+    Return publication URI for this ca_detail's manifest.
+    """
     return ca.sia_uri + self.public_key.gSKI() + ".mnf"
 
   def activate(self, ca, cert, uri, callback, errback, predecessor = None):
@@ -812,8 +849,12 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     child_cert.ski = cert.get_SKI()
     child_cert.published = rpki.sundial.now()
     child_cert.sql_store()
-    publisher.publish(cls = rpki.publication.certificate_elt, uri = child_cert.uri(ca), obj = child_cert.cert, repository = ca.parent().repository(),
-                      handler = child_cert.published_callback)
+    publisher.publish(
+      cls = rpki.publication.certificate_elt,
+      uri = child_cert.uri(ca),
+      obj = child_cert.cert,
+      repository = ca.parent().repository(),
+      handler = child_cert.published_callback)
     self.generate_manifest(publisher = publisher)
     return child_cert
 
@@ -903,6 +944,17 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     self.manifest_published = None
     self.sql_mark_dirty()
 
+  def reissue(self, cb, eb):
+    """
+    Reissue all current certificates issued by this ca_detail.
+    """
+
+    publisher = publication_queue()
+    for roa in self.roas():
+      roa.regenerate(publisher, fast = True)
+    for child_cert in self.child_certs():
+      child_cert.reissue(self, publisher, force = True)
+    publisher.call_pubd(cb, eb)
 
 class child_cert_obj(rpki.sql.sql_persistent):
   """
@@ -932,19 +984,27 @@ class child_cert_obj(rpki.sql.sql_persistent):
       self.sql_mark_dirty()
 
   def child(self):
-    """Fetch child object to which this child_cert object links."""
+    """
+    Fetch child object to which this child_cert object links.
+    """
     return rpki.left_right.child_elt.sql_fetch(self.gctx, self.child_id)
 
   def ca_detail(self):
-    """Fetch ca_detail object to which this child_cert object links."""
+    """
+    Fetch ca_detail object to which this child_cert object links.
+    """
     return ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
 
   def uri_tail(self):
-    """Return the tail (filename) portion of the URI for this child_cert."""
+    """
+    Return the tail (filename) portion of the URI for this child_cert.
+    """
     return self.cert.gSKI() + ".cer"
 
   def uri(self, ca):
-    """Return the publication URI for this child_cert."""
+    """
+    Return the publication URI for this child_cert.
+    """
     return ca.sia_uri + self.uri_tail()
 
   def revoke(self, publisher, generate_crl_and_manifest = False):
@@ -963,7 +1023,7 @@ class child_cert_obj(rpki.sql.sql_persistent):
       ca_detail.generate_crl(publisher = publisher)
       ca_detail.generate_manifest(publisher = publisher)
 
-  def reissue(self, ca_detail, publisher, resources = None, sia = None):
+  def reissue(self, ca_detail, publisher, resources = None, sia = None, force = False):
     """
     Reissue an existing child cert, reusing the public key.  If the
     child cert we would generate is identical to the one we already
@@ -980,6 +1040,8 @@ class child_cert_obj(rpki.sql.sql_persistent):
     old_sia       = self.cert.get_SIA()
     old_ca_detail = self.ca_detail()
 
+    needed = False
+
     if resources is None:
       resources = old_resources
 
@@ -988,17 +1050,39 @@ class child_cert_obj(rpki.sql.sql_persistent):
 
     assert resources.valid_until is not None and old_resources.valid_until is not None
 
-    if resources == old_resources and sia == old_sia and ca_detail == old_ca_detail:
-      rpki.log.debug("No change to %r" % self)
-      return self
+    if resources != old_resources:
+      rpki.log.debug("Resources changed for %r" % self)
+      needed = True
+
+    if sia != old_sia:
+      rpki.log.debug("SIA changed for %r" % self)
+      needed = True
+
+    if ca_detail != old_ca_detail:
+      rpki.log.debug("Issuer changed for %r" % self)
+      needed = True
 
     must_revoke = old_resources.oversized(resources) or old_resources.valid_until > resources.valid_until
-    new_issuer  = ca_detail != old_ca_detail
+    if must_revoke:
+      rpki.log.debug("Must revoke any existing cert(s) for %r" % self)
+      needed = True
 
-    rpki.log.debug("Reissuing %r, must_revoke %s, new_issuer %s" % (self, must_revoke, new_issuer))
+    new_issuer = ca_detail != old_ca_detail
+    if new_issuer:
+      rpki.log.debug("Issuer changed for %r" % self)
+      needed = True
 
     if resources.valid_until != old_resources.valid_until:
-      rpki.log.debug("Validity changed: %s %s" % ( old_resources.valid_until, resources.valid_until))
+      rpki.log.debug("Validity changed for %r: %s %s" % (self, old_resources.valid_until, resources.valid_until))
+      needed = True
+
+    if not needed and force:
+      rpki.log.debug("No change needed for %r, forcing reissuance anyway" % self)
+      needed = True
+
+    if not needed:
+      rpki.log.debug("No change to %r" % self)
+      return self
 
     if must_revoke:
       for x in child.child_certs(ca_detail = ca_detail, ski = self.ski):
@@ -1075,7 +1159,9 @@ class revoked_cert_obj(rpki.sql.sql_persistent):
     ("expires", rpki.sundial.datetime))
 
   def __init__(self, gctx = None, serial = None, revoked = None, expires = None, ca_detail_id = None):
-    """Initialize a revoked_cert_obj."""
+    """
+    Initialize a revoked_cert_obj.
+    """
     rpki.sql.sql_persistent.__init__(self)
     self.gctx = gctx
     self.serial = serial
@@ -1086,7 +1172,9 @@ class revoked_cert_obj(rpki.sql.sql_persistent):
       self.sql_mark_dirty()
 
   def ca_detail(self):
-    """Fetch ca_detail object to which this revoked_cert_obj links."""
+    """
+    Fetch ca_detail object to which this revoked_cert_obj links.
+    """
     return ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
 
   @classmethod

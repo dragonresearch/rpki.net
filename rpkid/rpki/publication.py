@@ -136,7 +136,9 @@ class client_elt(control_elt):
     return self.sql_fetch_where1(self.gctx, "client_handle = %s", self.client_handle)
 
   def serve_fetch_all(self):
-    """Find client objects on which a list method should operate."""
+    """
+    Find client objects on which a list method should operate.
+    """
     return self.sql_fetch_all(self.gctx)
 
   def check_allowed_uri(self, uri):

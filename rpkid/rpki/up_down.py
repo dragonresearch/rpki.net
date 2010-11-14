@@ -83,11 +83,15 @@ class base_elt(object):
       lxml.etree.SubElement(elt, "{%s}%s" % (xmlns, name), nsmap=nsmap).text = value.get_Base64()
 
   def serve_pdu(self, q_msg, r_msg, child, callback, errback):
-    """Default PDU handler to catch unexpected types."""
+    """
+    Default PDU handler to catch unexpected types.
+    """
     raise rpki.exceptions.BadQuery, "Unexpected query type %s" % q_msg.type
 
   def check_response(self):
-    """Placeholder for response checking."""
+    """
+    Placeholder for response checking.
+    """
     pass
 
 class multi_uri(list):
@@ -111,7 +115,9 @@ class multi_uri(list):
       raise TypeError
 
   def __str__(self):
-    """Convert a multi_uri back to a string representation."""
+    """
+    Convert a multi_uri back to a string representation.
+    """
     return ",".join(self)
 
   def rsync(self):
@@ -163,7 +169,9 @@ class class_elt(base_elt):
   issuer = None
 
   def __init__(self):
-    """Initialize class_elt."""
+    """
+    Initialize class_elt.
+    """
     base_elt.__init__(self)
     self.certs = []
 
@@ -458,7 +466,9 @@ class revoke_pdu(revoke_syntax):
   """
     
   def get_SKI(self):
-    """Convert g(SKI) encoding from PDU back to raw SKI."""
+    """
+    Convert g(SKI) encoding from PDU back to raw SKI.
+    """
     return base64.urlsafe_b64decode(self.ski + "=")
 
   def serve_pdu(self, q_msg, r_msg, child, cb, eb):
@@ -608,7 +618,9 @@ class message_pdu(base_elt):
     stack.append(self.payload)
 
   def __str__(self):
-    """Convert a message PDU to a string."""
+    """
+    Convert a message PDU to a string.
+    """
     lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "UTF-8")
 
   def serve_top_level(self, child, callback):

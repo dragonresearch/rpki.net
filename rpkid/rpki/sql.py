@@ -106,11 +106,15 @@ class session(object):
     return self.cur.lastrowid
 
   def cache_clear(self):
-    """Clear the object cache."""
+    """
+    Clear the object cache.
+    """
     self.cache.clear()
 
   def assert_pristine(self):
-    """Assert that there are no dirty objects in the cache."""
+    """
+    Assert that there are no dirty objects in the cache.
+    """
     assert not self.dirty, "Dirty objects in SQL cache: %s" % self.dirty
 
   def sweep(self):
@@ -131,7 +135,9 @@ class template(object):
   """
 
   def __init__(self, table_name, index_column, *data_columns):
-    """Build a SQL template."""
+    """
+    Build a SQL template.
+    """
     type_map     = dict((x[0], x[1]) for x in data_columns if isinstance(x, tuple))
     data_columns = tuple(isinstance(x, tuple) and x[0] or x for x in data_columns)
     columns      = (index_column,) + data_columns
@@ -209,7 +215,9 @@ class sql_persistent(object):
 
   @classmethod
   def sql_fetch_all(cls, gctx):
-    """Fetch all objects of this type from SQL."""
+    """
+    Fetch all objects of this type from SQL.
+    """
     return cls.sql_fetch_where(gctx, None)
 
   @classmethod
@@ -253,19 +261,27 @@ class sql_persistent(object):
     return self
 
   def sql_mark_dirty(self):
-    """Mark this object as needing to be written back to SQL."""
+    """
+    Mark this object as needing to be written back to SQL.
+    """
     self.gctx.sql.dirty.add(self)
 
   def sql_mark_clean(self):
-    """Mark this object as not needing to be written back to SQL."""
+    """
+    Mark this object as not needing to be written back to SQL.
+    """
     self.gctx.sql.dirty.discard(self)
 
   def sql_is_dirty(self):
-    """Query whether this object needs to be written back to SQL."""
+    """
+    Query whether this object needs to be written back to SQL.
+    """
     return self in self.gctx.sql.dirty
 
   def sql_mark_deleted(self):
-    """Mark this object as needing to be deleted in SQL."""
+    """
+    Mark this object as needing to be deleted in SQL.
+    """
     self.sql_deleted = True
     self.sql_mark_dirty()
 
@@ -334,19 +350,27 @@ class sql_persistent(object):
         setattr(self, a, vals[a])
 
   def sql_fetch_hook(self):
-    """Customization hook."""
+    """
+    Customization hook.
+    """
     pass
 
   def sql_insert_hook(self):
-    """Customization hook."""
+    """
+    Customization hook.
+    """
     pass
   
   def sql_update_hook(self):
-    """Customization hook."""
+    """
+    Customization hook.
+    """
     self.sql_delete_hook()
     self.sql_insert_hook()
 
   def sql_delete_hook(self):
-    """Customization hook."""
+    """
+    Customization hook.
+    """
     pass
 

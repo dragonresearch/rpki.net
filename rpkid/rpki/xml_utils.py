@@ -59,15 +59,21 @@ class sax_handler(xml.sax.handler.ContentHandler):
     self.stack = []
 
   def startElementNS(self, name, qname, attrs):
-    """Redirect startElementNS() events to startElement()."""
+    """
+    Redirect startElementNS() events to startElement().
+    """
     return self.startElement(name[1], attrs)
 
   def endElementNS(self, name, qname):
-    """Redirect endElementNS() events to endElement()."""
+    """
+    Redirect endElementNS() events to endElement().
+    """
     return self.endElement(name[1])
 
   def characters(self, content):
-    """Accumulate a chuck of element content (text)."""
+    """
+    Accumulate a chuck of element content (text).
+    """
     self.text += content
 
   def startElement(self, name, attrs):
@@ -286,7 +292,9 @@ class data_elt(base_elt):
     return r_pdu
 
   def make_reply_clone_hook(self, r_pdu):
-    """Overridable hook."""
+    """
+    Overridable hook.
+    """
     pass
 
   def serve_fetch_one(self):
@@ -300,11 +308,15 @@ class data_elt(base_elt):
     return r
 
   def serve_pre_save_hook(self, q_pdu, r_pdu, cb, eb):
-    """Overridable hook."""
+    """
+    Overridable hook.
+    """
     cb()
 
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
-    """Overridable hook."""
+    """
+    Overridable hook.
+    """
     cb()
 
   def serve_create(self, r_msg, cb, eb):
@@ -436,7 +448,9 @@ class msg(list):
     stack.pop()
 
   def __str__(self):
-    """Convert msg object to string."""
+    """
+    Convert msg object to string.
+    """
     lxml.etree.tostring(self.toXML(), pretty_print = True, encoding = "us-ascii")
 
   def toXML(self):
@@ -449,22 +463,30 @@ class msg(list):
 
   @classmethod
   def query(cls, *args):
-    """Create a query PDU."""
+    """
+    Create a query PDU.
+    """
     self = cls(args)
     self.type = "query"
     return self
 
   @classmethod
   def reply(cls, *args):
-    """Create a reply PDU."""
+    """
+    Create a reply PDU.
+    """
     self = cls(args)
     self.type = "reply"
     return self
 
   def is_query(self):
-    """Is this msg a query?"""
+    """
+    Is this msg a query?
+    """
     return self.type == "query"
 
   def is_reply(self):
-    """Is this msg a reply?"""
+    """
+    Is this msg a reply?
+    """
     return self.type == "reply"

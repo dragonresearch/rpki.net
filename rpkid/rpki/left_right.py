@@ -58,11 +58,15 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
   self_handle = None
 
   def self(self):
-    """Fetch self object to which this object links."""
+    """
+    Fetch self object to which this object links.
+    """
     return self_elt.sql_fetch(self.gctx, self.self_id)
 
   def bsc(self):
-    """Return BSC object to which this object links."""
+    """
+    Return BSC object to which this object links.
+    """
     return bsc_elt.sql_fetch(self.gctx, self.bsc_id)
 
   def make_reply_clone_hook(self, r_pdu):
@@ -143,23 +147,33 @@ class self_elt(data_elt):
   bpki_glue = None
 
   def bscs(self):
-    """Fetch all BSC objects that link to this self object."""
+    """
+    Fetch all BSC objects that link to this self object.
+    """
     return bsc_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
   def repositories(self):
-    """Fetch all repository objects that link to this self object."""
+    """
+    Fetch all repository objects that link to this self object.
+    """
     return repository_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
   def parents(self):
-    """Fetch all parent objects that link to this self object."""
+    """
+    Fetch all parent objects that link to this self object.
+    """
     return parent_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
   def children(self):
-    """Fetch all child objects that link to this self object."""
+    """
+    Fetch all child objects that link to this self object.
+    """
     return child_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
   def roas(self):
-    """Fetch all ROA objects that link to this self object."""
+    """
+    Fetch all ROA objects that link to this self object.
+    """
     return rpki.rpki_engine.roa_obj.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
@@ -167,12 +181,13 @@ class self_elt(data_elt):
     Extra server actions for self_elt.
     """
     rpki.log.trace()
-    self.unimplemented_control("reissue")
     actions = []
     if q_pdu.rekey:
       actions.append(self.serve_rekey)
     if q_pdu.revoke:
       actions.append(self.serve_revoke)
+    if q_pdu.reissue:
+      actions.append(self.serve_reissue)
     if q_pdu.revoke_forgotten:
       actions.append(self.serve_revoke_forgotten)
     if q_pdu.publish_world_now:
@@ -199,6 +214,15 @@ class self_elt(data_elt):
     rpki.log.trace()
     def loop(iterator, parent):
       parent.serve_revoke(iterator, eb)
+    rpki.async.iterator(self.parents(), loop, cb)
+
+  def serve_reissue(self, cb, eb):
+    """
+    Handle a left-right reissue action for this self.
+    """
+    rpki.log.trace()
+    def loop(iterator, parent):
+      parent.serve_reissue(iterator, eb)
     rpki.async.iterator(self.parents(), loop, cb)
 
   def serve_revoke_forgotten(self, cb, eb):
@@ -587,15 +611,21 @@ class bsc_elt(data_elt):
   signing_cert_crl = None
 
   def repositories(self):
-    """Fetch all repository objects that link to this BSC object."""
+    """
+    Fetch all repository objects that link to this BSC object.
+    """
     return repository_elt.sql_fetch_where(self.gctx, "bsc_id = %s", (self.bsc_id,))
 
   def parents(self):
-    """Fetch all parent objects that link to this BSC object."""
+    """
+    Fetch all parent objects that link to this BSC object.
+    """
     return parent_elt.sql_fetch_where(self.gctx, "bsc_id = %s", (self.bsc_id,))
 
   def children(self):
-    """Fetch all child objects that link to this BSC object."""
+    """
+    Fetch all child objects that link to this BSC object.
+    """
     return child_elt.sql_fetch_where(self.gctx, "bsc_id = %s", (self.bsc_id,))
 
   def serve_pre_save_hook(self, q_pdu, r_pdu, cb, eb):
@@ -631,7 +661,9 @@ class repository_elt(data_elt):
   bpki_glue = None
 
   def parents(self):
-    """Fetch all parent objects that link to this repository object."""
+    """
+    Fetch all parent objects that link to this repository object.
+    """
     return parent_elt.sql_fetch_where(self.gctx, "repository_id = %s", (self.repository_id,))
 
   @staticmethod
@@ -724,23 +756,28 @@ class parent_elt(data_elt):
   bpki_cms_glue = None
 
   def repository(self):
-    """Fetch repository object to which this parent object links."""
+    """
+    Fetch repository object to which this parent object links.
+    """
     return repository_elt.sql_fetch(self.gctx, self.repository_id)
 
   def cas(self):
-    """Fetch all CA objects that link to this parent object."""
+    """
+    Fetch all CA objects that link to this parent object.
+    """
     return rpki.rpki_engine.ca_obj.sql_fetch_where(self.gctx, "parent_id = %s", (self.parent_id,))
 
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
     """
     Extra server actions for parent_elt.
     """
-    self.unimplemented_control("reissue")
     actions = []
     if q_pdu.rekey:
       actions.append(self.serve_rekey)
     if q_pdu.revoke:
       actions.append(self.serve_revoke)
+    if q_pdu.reissue:
+      actions.append(self.serve_reissue)
     if q_pdu.revoke_forgotten:
       actions.append(self.serve_revoke_forgotten)
     def loop(iterator, action):
@@ -761,6 +798,14 @@ class parent_elt(data_elt):
     """
     def loop(iterator, ca):
       ca.revoke(cb = iterator, eb = eb)
+    rpki.async.iterator(self.cas(), loop, cb)
+
+  def serve_reissue(self, cb, eb):
+    """
+    Handle a left-right reissue action for this parent.
+    """
+    def loop(iterator, ca):
+      ca.reissue(cb = iterator, eb = eb)
     rpki.async.iterator(self.cas(), loop, cb)
 
   def serve_revoke_forgotten(self, cb, eb):
@@ -869,12 +914,34 @@ class child_elt(data_elt):
   bpki_glue = None
 
   def child_certs(self, ca_detail = None, ski = None, unique = False):
-    """Fetch all child_cert objects that link to this child object."""
+    """
+    Fetch all child_cert objects that link to this child object.
+    """
     return rpki.rpki_engine.child_cert_obj.fetch(self.gctx, self, ca_detail, ski, unique)
 
   def parents(self):
-    """Fetch all parent objects that link to self object to which this child object links."""
+    """
+    Fetch all parent objects that link to self object to which this child object links.
+    """
     return parent_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
+
+  def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
+    """
+    Extra server actions for child_elt.
+    """
+    if q_pdu.reissue:
+      self.serve_reissue(cb, eb)
+    else:
+      cb()
+
+  def serve_reissue(self, cb, eb):
+    """
+    Handle a left-right reissue action for this child.
+    """
+    publisher = rpki.rpki_engine.publication_queue()
+    for child_cert in self.child_certs():
+      child_cert.reissue(child_cert.ca_detail(), publisher, force = True)
+    publisher.call_pubd(cb, eb)
 
   def ca_from_class_name(self, class_name):
     """

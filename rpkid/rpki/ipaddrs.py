@@ -63,16 +63,22 @@ class v4addr(long):
       return long.__new__(cls, x)
 
   def to_bytes(self):
-    """Convert a v4addr object to a raw byte string."""
+    """
+    Convert a v4addr object to a raw byte string.
+    """
     return struct.pack("!I", long(self))
 
   @classmethod
   def from_bytes(cls, x):
-    """Convert from a raw byte string to a v4addr object."""
+    """
+    Convert from a raw byte string to a v4addr object.
+    """
     return cls(struct.unpack("!I", x)[0])
 
   def __str__(self):
-    """Convert a v4addr object to string format."""
+    """
+    Convert a v4addr object to string format.
+    """
     return socket.inet_ntop(socket.AF_INET, self.to_bytes())
 
 class v6addr(long):
@@ -85,24 +91,32 @@ class v6addr(long):
   bits = 128
 
   def __new__(cls, x):
-    """Construct a v6addr object."""
+    """
+    Construct a v6addr object.
+    """
     if isinstance(x, str):
       return cls.from_bytes(socket.inet_pton(socket.AF_INET6, x))
     else:
       return long.__new__(cls, x)
 
   def to_bytes(self):
-    """Convert a v6addr object to a raw byte string."""
+    """
+    Convert a v6addr object to a raw byte string.
+    """
     return struct.pack("!QQ", long(self) >> 64, long(self) & 0xFFFFFFFFFFFFFFFF)
 
   @classmethod
   def from_bytes(cls, x):
-    """Convert from a raw byte string to a v6addr object."""
+    """
+    Convert from a raw byte string to a v6addr object.
+    """
     x = struct.unpack("!QQ", x)
     return cls((x[0] << 64) | x[1])
 
   def __str__(self):
-    """Convert a v6addr object to string format."""
+    """
+    Convert a v6addr object to string format.
+    """
     return socket.inet_ntop(socket.AF_INET6, self.to_bytes())
 
 def parse(s):

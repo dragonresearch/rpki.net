@@ -236,11 +236,15 @@ class DER_object(object):
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
   def get_Base64(self):
-    """Get the Base64 encoding of the DER value of this object."""
+    """
+    Get the Base64 encoding of the DER value of this object.
+    """
     return base64_with_linebreaks(self.get_DER())
 
   def get_PEM(self):
-    """Get the PEM representation of this object."""
+    """
+    Get the PEM representation of this object.
+    """
     return self.pem_converter.to_PEM(self.get_DER())
 
   def __cmp__(self, other):
@@ -365,11 +369,15 @@ class DER_object(object):
 
   @classmethod
   def from_sql(cls, x):
-    """Convert from SQL storage format."""
+    """
+    Convert from SQL storage format.
+    """
     return cls(DER = x)
 
   def to_sql(self):
-    """Convert to SQL storage format."""
+    """
+    Convert to SQL storage format.
+    """
     return self.get_DER()
 
   def dumpasn1(self):
@@ -441,31 +449,45 @@ class X509(DER_object):
     return self.POWpkix
 
   def getIssuer(self):
-    """Get the issuer of this certificate."""
+    """
+    Get the issuer of this certificate.
+    """
     return self.get_POW().getIssuer()
 
   def getSubject(self):
-    """Get the subject of this certificate."""
+    """
+    Get the subject of this certificate.
+    """
     return self.get_POW().getSubject()
 
   def getNotBefore(self):
-    """Get the inception time of this certificate."""
+    """
+    Get the inception time of this certificate.
+    """
     return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().tbs.validity.notBefore.get())
 
   def getNotAfter(self):
-    """Get the expiration time of this certificate."""
+    """
+    Get the expiration time of this certificate.
+    """
     return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().tbs.validity.notAfter.get())
 
   def getSerial(self):
-    """Get the serial number of this certificate."""
+    """
+    Get the serial number of this certificate.
+    """
     return self.get_POW().getSerial()
 
   def getPublicKey(self):
-    """Extract the public key from this certificate."""
+    """
+    Extract the public key from this certificate.
+    """
     return RSApublic(DER = self.get_POWpkix().tbs.subjectPublicKeyInfo.toString())
 
   def expired(self):
-    """Test whether this certificate has expired."""
+    """
+    Test whether this certificate has expired.
+    """
     return self.getNotAfter() <= rpki.sundial.now()
 
   def issue(self, keypair, subject_key, serial, sia, aia, crldp, notAfter,
@@ -603,7 +625,9 @@ class PKCS10(DER_object):
     return self.POWpkix
 
   def getPublicKey(self):
-    """Extract the public key from this certification request."""
+    """
+    Extract the public key from this certification request.
+    """
     return RSApublic(DER = self.get_POWpkix().certificationRequestInfo.subjectPublicKeyInfo.toString())
 
   def check_valid_rpki(self):
@@ -718,15 +742,21 @@ class RSA(DER_object):
     return cls(POW = POW.Asymmetric(POW.RSA_CIPHER, keylength))
 
   def get_public_DER(self):
-    """Get the DER encoding of the public key from this keypair."""
+    """
+    Get the DER encoding of the public key from this keypair.
+    """
     return self.get_POW().derWrite(POW.RSA_PUBLIC_KEY)
 
   def get_SKI(self):
-    """Calculate the SKI of this keypair."""
+    """
+    Calculate the SKI of this keypair.
+    """
     return calculate_SKI(self.get_public_DER())
 
   def get_RSApublic(self):
-    """Convert the public key of this keypair into a RSApublic object."""
+    """
+    Convert the public key of this keypair into a RSApublic object.
+    """
     return RSApublic(DER = self.get_public_DER())
 
 class RSApublic(DER_object):
@@ -759,7 +789,9 @@ class RSApublic(DER_object):
     return self.POW
 
   def get_SKI(self):
-    """Calculate the SKI of this public key."""
+    """
+    Calculate the SKI of this public key.
+    """
     return calculate_SKI(self.get_DER())
 
 def POWify_OID(oid):
@@ -999,7 +1031,9 @@ class DER_CMS_object(CMS_object):
   """
 
   def encode(self):
-    """Encode inner content for signing."""
+    """
+    Encode inner content for signing.
+    """
     return self.get_content().toString()
 
   def decode(self, der):
@@ -1020,11 +1054,15 @@ class SignedManifest(DER_CMS_object):
   econtent_oid = POWify_OID("id-ct-rpkiManifest")
   
   def getThisUpdate(self):
-    """Get thisUpdate value from this manifest."""
+    """
+    Get thisUpdate value from this manifest.
+    """
     return rpki.sundial.datetime.fromGeneralizedTime(self.get_content().thisUpdate.get())
 
   def getNextUpdate(self):
-    """Get nextUpdate value from this manifest."""
+    """
+    Get nextUpdate value from this manifest.
+    """
     return rpki.sundial.datetime.fromGeneralizedTime(self.get_content().nextUpdate.get())
 
   @classmethod
@@ -1121,15 +1159,21 @@ class XML_CMS_object(CMS_object):
   dump_inbound_cms = None
 
   def encode(self):
-    """Encode inner content for signing."""
+    """
+    Encode inner content for signing.
+    """
     return lxml.etree.tostring(self.get_content(), pretty_print = True, encoding = self.encoding, xml_declaration = True)
 
   def decode(self, xml):
-    """Decode XML and set inner content."""
+    """
+    Decode XML and set inner content.
+    """
     self.content = lxml.etree.fromstring(xml)
 
   def pretty_print_content(self):
-    """Pretty print XML content of this message."""
+    """
+    Pretty print XML content of this message.
+    """
     return lxml.etree.tostring(self.get_content(), pretty_print = True, encoding = self.encoding, xml_declaration = True)
 
   def schema_check(self):
@@ -1218,15 +1262,21 @@ class CRL(DER_object):
     return self.POWpkix
 
   def getThisUpdate(self):
-    """Get thisUpdate value from this CRL."""
+    """
+    Get thisUpdate value from this CRL.
+    """
     return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().getThisUpdate())
 
   def getNextUpdate(self):
-    """Get nextUpdate value from this CRL."""
+    """
+    Get nextUpdate value from this CRL.
+    """
     return rpki.sundial.datetime.fromASN1tuple(self.get_POWpkix().getNextUpdate())
 
   def getIssuer(self):
-    """Get issuer value of this CRL."""
+    """
+    Get issuer value of this CRL.
+    """
     return self.get_POW().getIssuer()
 
   @classmethod

@@ -401,13 +401,16 @@ class allocation(object):
           "run_rootd"           : str(self.is_root()),
           "openssl"             : prog_openssl,
           "irdbd_sql_database"  : "irdb%d" % self.engine,
+          "irdbd_sql_username"  : "irdb",
           "rpkid_sql_database"  : "rpki%d" % self.engine,
+          "rpkid_sql_username"  : "rpki",
           "rpkid_server_host"   : "localhost",
           "rpkid_server_port"   : str(self.rpkid_port),
           "irdbd_server_host"   : "localhost",
           "irdbd_server_port"   : str(self.irdbd_port),
           "rootd_server_port"   : str(self.rootd_port),
           "pubd_sql_database"   : "pubd%d" % self.engine,
+          "pubd_sql_username"   : "pubd",
           "pubd_server_host"    : "localhost",
           "pubd_server_port"    : str(s.pubd_port),
           "publication_rsync_server" : "localhost:%s" % s.rsync_port }
@@ -472,7 +475,7 @@ class allocation(object):
     Run myrpki.py for this entity.
     """
     print 'Running "%s" for %s' % (" ".join(("myrpki",) + args), self.name)
-    subprocess.check_call(("python", prog_myrpki) + args, cwd = self.path())
+    subprocess.check_call((sys.executable, prog_myrpki) + args, cwd = self.path())
 
   def run_python_daemon(self, prog):
     """
@@ -480,7 +483,7 @@ class allocation(object):
     representing the running daemon.
     """
     basename = os.path.basename(prog)
-    p = subprocess.Popen(("python", prog, "-d", "-c", self.path("myrpki.conf")),
+    p = subprocess.Popen((sys.executable, prog, "-d", "-c", self.path("myrpki.conf")),
                          cwd = self.path(),
                          stdout = open(self.path(os.path.splitext(basename)[0] + ".log"), "w"),
                          stderr = subprocess.STDOUT)

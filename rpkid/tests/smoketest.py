@@ -133,7 +133,7 @@ rsyncd_name    = cfg.get("rsyncd_name",    "rsyncd")
 rcynic_name    = cfg.get("rcynic_name",    "rcynic")
 pubd_name      = cfg.get("pubd_name",      "pubd")
 
-prog_python    = cfg.get("prog_python",    "python")
+prog_python    = cfg.get("prog_python",    sys.executable)
 prog_rpkid     = cfg.get("prog_rpkid",     "../../rpkid.py")
 prog_irdbd     = cfg.get("prog_irdbd",     "../../irdbd.py")
 prog_poke      = cfg.get("prog_poke",      "../../testpoke.py")
@@ -333,7 +333,9 @@ def cmd_shell(cb, *cmd):
   cb()
 
 def cmd_echo(cb, *words):
-  """Echo some text to the log."""
+  """
+  Echo some text to the log.
+  """
   rpki.log.note(" ".join(words))
   cb()
 

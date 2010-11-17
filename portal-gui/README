@@ -66,13 +66,25 @@ Once the portal-gui has been configured, the next step is to install it:
 
         # make install
 
-At the end of the installation process, the manage.py script will prompt
-you to create a superuser.  You want to say "yes" to this prompt.  The
-superuser account can be named whatever you want.  The superuser account
-is required to set up normal user accounts for managing resource
-handles.  The superuser is also useful because you can use django's
-admin views to inspect the database directly, which may be useful for
-debugging.
+At the end of the installation process, the manage.py script will prompt you to
+create a superuser.  You want to say "yes" to this prompt.  The superuser
+account can be named whatever you want.  The superuser account is not necessary,
+but is useful because you can use django's admin views (via the /admin URL) to
+inspect the portal-gui's database directly, which may be useful for debugging.
+It also allows you to log into any of the resource handle accounts served by the
+portal-gui.  (n.b.  this superuser account should be different from the user
+account for the resource handle that is self-hosted on your rpkid)
+
+NOTE: even though the manage.py script asks you for a password, you will be
+configuring apache to use HTTP DIGEST authentication instead.  Therefore, it is
+necessary to add the user to the password file that apache will consult IN
+ADDITION:
+
+        # htdigest /usr/local/share/portal-gui/htpasswd myrpki <username>
+
+(n.b. the manage.py step of creating the superuser is still required because it
+stores the user rights in the portal-gui's database, but there is no apparent
+way to squash the password input prompt.)
 
 - configure apache to serve the portal-gui
 
@@ -98,17 +110,22 @@ list_resources into verbose mode, meaning it will display progress
 information.  Normally, this script is intended to be invoked via cron, so
 it is silent unless an error occurs:
 
-        $datarootdir/portal-gui/scripts/list_resources -v
+        /usr/local/share/portal-gui/scripts/list_resources -v
 
 You may way to create a script which is invoked by cron:
 
     #!/bin/sh
     cd <directory containing myrpki.conf for the self-hosted rpkid>
-    $datarootdir/portal-gui/scripts/list_resources
+    /usr/local/share/portal-gui/scripts/list_resources
 
 This script probably only needs to be run infrequently.  It's sole purpose
 is to query rpkid to ask what resources and children are configured for each
 resource handle.  This information does not change often.
+
+NOTE: you should NOT run the script with the ".py" suffix directly!  Use the
+script WITHOUT the suffix, which is a shell-script wrapper that sets the
+appropriate enviroment variables required for the python script to
+run.
 
 === Load existing data ===
 
@@ -118,13 +135,18 @@ portal-gui with this information.  There is a helper script for doing this
 step.  Simply chdir to the directory containing your myrpki.conf and .csv
 files and run:
 
-        $datarootdir/portal-gui/scripts/load_csv
+        /usr/local/share/portal-gui/scripts/load_csv
 
 NOTE that you must run the "list_resources" script *prior* to using
 "load_csv" or you will get errors because portal-gui won't yet know about
 which handles it is serving.
 
 You should run "load_csv" in *each* of your directories for each handle.
+
+NOTE: you should NOT run the script with the ".py" suffix directly!  Use the
+script WITHOUT the suffix, which is a shell-script wrapper that sets the
+appropriate enviroment variables required for the python script to
+run.
 
 === Starting the Portal GUI ===
 
@@ -133,25 +155,25 @@ start your web server.
 
 === Creating Users ===
 
-By default, the administrative user created during the "Initialization" step
-above can manage all resource handles.  However, the portal-gui's security
-model allows the use of separate logins to manage resource handles.  Each
-resource handle needs to be configured to allow one or more users to manage
-it.  This is accomplished by using the "adduser" script that is installed
-with the portal-gui in $prefix/share/portal-gui/scripts/. (n.b. run the
-adduser script *without* the .py suffix, which is a wrapper script which
-sets the PYTHONPATH to match your installation)
+The portal-gui's security model allows the use of separate logins to manage each
+resource handle.  Each resource handle needs to be configured to allow one or
+more users to manage it.  This is accomplished by using the "adduser" script
+that is installed with the portal-gui in /usr/local/share/portal-gui/scripts/.
+(n.b. run the adduser script *without* the .py suffix, which is a wrapper script
+which sets the PYTHONPATH to match your installation)
 
-To create additional non-administrative users, run the "adduser" script.  The
-adduser script takes three arguments: 1) the username for the new account, 2)
-the email address for the human that owns the account, and 3) the handle of the
-self-hosted resource holder who is hosting this user (for self-hosted users,
-specify the same username for the "host handle").
+To create users, run the "adduser" script.  The adduser script takes three
+arguments: 1) the username for the new account, 2) the email address for the
+human that owns the account, and 3) the handle of the self-hosted resource
+holder who is hosting this user (for self-hosted users, specify the same
+username for the "host handle").
 
 Example:
 
-    # cd $prefix/share/portal-gui/scripts/
+    # cd /usr/local/share/portal-gui/scripts/
     # ./adduser SPARTA-ELS michael.elkins@cobham.com SPARTA
+
+=== Optional - Specify additional resource handles for a portal-gui user ===
 
 You can configure which users are allowed to manage a particular resource
 handle once you have performed the "list_resources" step described above to

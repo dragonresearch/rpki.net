@@ -53,18 +53,38 @@ def do_asn(node):
                  "%s-%s" % (find(node, tag_startAsNumber),
                             find(node, tag_endAsNumber))))
 
+erx_table = {
+  "AF" : "AFRINIC",
+  "AP" : "APNIC",
+  "AR" : "ARIN",
+  "AV" : "ARIN",
+  "FX" : "AFRINIC",
+  "LN" : "LACNIC",
+  "LX" : "LACNIC",
+  "PV" : "APNIC",
+  "PX" : "APNIC",
+  "RN" : "RIPE",
+  "RV" : "RIPE",
+  "RX" : "RIPE" }
+
 def do_net(node):
   handle = find(node, tag_orgHandle)
   for netblock in node.iter(tag_netBlock):
-    if find(netblock, tag_type) in ("DS", "DA", "IU"):
+    tag = find(netblock, tag_type)
+    if tag in ("DS", "DA", "IU"):
       prefixes.writerow((handle,
-                         "%s-%s" % (find(netblock, tag_startAddress),
-                                    find(netblock, tag_endAddress))))
+                    "%s-%s" % (find(netblock, tag_startAddress),
+                               find(netblock, tag_endAddress))))
+    elif tag in erx_table:
+      erx.writerow((erx_table[tag],
+                    "%s-%s" % (find(netblock, tag_startAddress),
+                               find(netblock, tag_endAddress))))
 
 dispatch = { tag_asn : do_asn, tag_net : do_net }
 
 asns = rpki.myrpki.csv_writer("asns.csv")
 prefixes = rpki.myrpki.csv_writer("prefixes.csv")
+erx = rpki.myrpki.csv_writer("erx.csv")
 
 root = None
 
@@ -86,3 +106,4 @@ for event, node in lxml.etree.iterparse(sys.stdin):
 
 asns.close()
 prefixes.close()
+erx.close()

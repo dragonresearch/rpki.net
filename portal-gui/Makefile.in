@@ -103,6 +103,8 @@ install-data: $(BUILD)
 	ln -sf $(INSTDIR)/scripts/helper $(INSTDIR)/scripts/list_resources
 	ln -sf $(INSTDIR)/scripts/helper $(INSTDIR)/scripts/adduser
 	chmod 755 $(INSTDIR)/scripts/load_csv $(INSTDIR)/scripts/list_resources $(INSTDIR)/scripts/runserver $(INSTDIR)/scripts/adduser
+	touch $(INSTDIR)/htpasswd
+	chmod 644 $(INSTDIR)/htpasswd
 	cd $(INSTDIR)/rpkigui && $(PYTHON) manage.py syncdb --pythonpath=$(MYRPKIDIR)
 
 install: install-data install-perms

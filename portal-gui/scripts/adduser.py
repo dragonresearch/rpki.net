@@ -85,9 +85,9 @@ if __name__ == '__main__':
             sys.exit(1)
 
         conf.host = host_set[0]
-        conf.save()
     else:
         print >>sys.stderr, '%s is self-hosted' % username
+    conf.save()
     
     myrpki_dir = '%s/%s' % (settings.MYRPKI_DATA_DIR, username)
     print 'myrpki_dir=', myrpki_dir
@@ -115,7 +115,8 @@ prefix_csv=%(path)s/prefixes.csv""" % { 'path': myrpki_dir }
             print 'creating ', fname
             with open(fname, 'w') as f:
                 # just create an empty file
-                os.fchown(f, apache_uid, -1)
+                pass
+        os.chown(fname, apache_uid, -1)
 
     # add a password for this user to the apache passwd file if not present
 

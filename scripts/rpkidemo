@@ -320,9 +320,13 @@ class main(object):
     url = "%s%s/%s" % (self.myrpki_url, url, self.username)
     data = open(filename).read()
     print "Uploading", filename, "to", url
-    return self.opener.open(urllib2.Request(url, data, {
-      "Content-Type" : content_type,
-      "User-Agent"   : self.user_agent }))
+    try:
+      return self.opener.open(urllib2.Request(url, data, {
+        "Content-Type" : content_type,
+        "User-Agent"   : self.user_agent }))
+    except urllib2.HTTPError:
+      sys.stderr.write("Problem uploading to URL %s\n" % url)
+      raise
 
   def update(self):
     """
@@ -361,6 +365,7 @@ class main(object):
       if e.code == 304:                   # 304 == "Not Modified"
         return False
       else:
+        sys.stderr.write("Problem polling URL %s\n" % url)
         raise
 
   def poll_loop(self):

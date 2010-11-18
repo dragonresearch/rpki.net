@@ -119,6 +119,6 @@ function do_asn() {
 # Handle an INETNUM or INET6NUM block: check for the status values we
 # care about, use NETNAME as the handle.
 function do_prefix() {
-    if (tags["STATUS"] ~ /^ASSIGNED(P[AI])?$/ && tags["NETNAME"] && tags[tag])
+    if (tags["STATUS"] ~ /^ASSIGNED(P[AI])$/ && tags["NETNAME"] && tags[tag])
 	print tags["NETNAME"], tags[tag] >"prefixes.csv";
 }

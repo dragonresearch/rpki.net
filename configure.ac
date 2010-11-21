@@ -68,6 +68,7 @@ AC_PATH_PROG([AWK], [awk], [awk])
 
 AC_CONFIG_FILES([Makefile
 		 openssl/Makefile
+		 pow/pywrap/Makefile
 		 rcynic/Makefile
 		 rcynic/show.sh
 		 rpkid/rpki/__doc__.py])

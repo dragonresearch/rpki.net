@@ -3,12 +3,12 @@ OPENSSL_BUILD_DIRECTORY = @abs_top_builddir@/openssl/openssl
 CC=gcc
 CFLAGS=`python-config --cflags`
 LDFLAGS=-Wl,-rpath,$(OPENSSL_BUILD_DIRECTORY) -L$(OPENSSL_BUILD_DIRECTORY)
-LIBS=-lcrypto -lssl `python-config --libs`
+LIBS=-lcrypto -lssl `python-config --ldflags`
 
 all: python
 
 python: python.o
-	$(CC) $(LDFLAGS) -o $@ $< $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ $? $(LIBS)
 
 clean:
 	rm -f *.o python

@@ -21,6 +21,7 @@ AC_MSG_RESULT([Using python interpreter at $PYTHON])
 
 AS_IF([test "x$with_myrpki" = "xno"],
         [AC_MSG_ERROR([must specify the --with-myrpki option])])
+
 MYRPKIDIR=$with_myrpki
 MYRPKI_TOOL=$with_myrpki/myrpki.py
 AC_MSG_RESULT([Full path to rpki Python module is $MYRPKIDIR])
@@ -33,15 +34,16 @@ AC_SUBST(MYRPKI_TOOL)
 if test x$prefix = xNONE; then
 	prefix=$ac_default_prefix
 fi
-eval 'exp_datadir='$datadir
-AC_SUBST(MEDIADIR, "$exp_datadir/$PACKAGE_NAME/media")
-AC_SUBST(TEMPLATEDIR, "$exp_datadir/$PACKAGE_NAME/rpkigui/templates")
-AC_SUBST(INSTDIR, "$exp_datadir/$PACKAGE_NAME")
-AC_MSG_RESULT([installing portal-gui into $INSTDIR])
+eval datarootdir=${datarootdir}
+eval localstatedir=${localstatedir}
+
+AC_SUBST(MEDIADIR, "$datarootdir/$PACKAGE_NAME/media")
+AC_SUBST(TEMPLATEDIR, "$datarootdir/$PACKAGE_NAME/rpkigui/templates")
+AC_SUBST(INSTDIR, "$datarootdir/$PACKAGE_NAME")
+AC_MSG_RESULT([Installing portal-gui into $INSTDIR])
 
 if test "x$DATABASE_PATH" = x; then
-	eval 'exp_localstatedir='$localstatedir
-	DATABASE_PATH="$exp_localstatedir/$PACKAGE_NAME/rpkiop"
+	DATABASE_PATH="$localstatedir/$PACKAGE_NAME/rpkiop"
 fi
 AC_SUBST(DATABASE_PATH)
 AC_MSG_RESULT([Full path to the portal-gui database is $DATABASE_PATH])
@@ -63,6 +65,6 @@ AC_SUBST(SECRET_KEY, `$PYTHON -c 'import random; print "".join([random.choice("a
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([rpkigui/settings.py rpkigui/urls.py scripts/helper])
-AC_CONFIG_FILES([scripts/runserver apache/django.wsgi apache/zmyrpki.conf])
+AC_CONFIG_FILES([apache/django.wsgi apache/zmyrpki.conf])
 
 AC_OUTPUT

@@ -5,6 +5,13 @@
 srcdir=@srcdir@
 
 # where to install the portal-gui
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+datarootdir=@datarootdir@
+datadir=@datadir@
+localstatedir=@localstatedir@
+sharedstatedir=@sharedstatedir@
+
 INSTDIR=@INSTDIR@
 
 PYTHON=@PYTHON@
@@ -15,7 +22,7 @@ CONFDIR=@CONFDIR@
 
 # automatically built sources
 BUILD=$(srcdir)/configure Makefile config.status rpkigui/settings.py \
-      rpkigui/urls.py scripts/helper scripts/runserver apache/django.wsgi \
+      rpkigui/urls.py scripts/helper apache/django.wsgi \
       apache/zmyrpki.conf
 
 all: $(BUILD)
@@ -36,9 +43,6 @@ rpkigui/urls.py: $(srcdir)/rpkigui/urls.py.in
 	./config.status
 
 scripts/helper: $(srcdir)/scripts/helper.in
-	./config.status
-
-scripts/runserver: $(srcdir)/scripts/runserver.in
 	./config.status
 
 apache/django.wsgi: $(srcdir)/apache/django.wsgi.in
@@ -78,8 +82,7 @@ INSTALL_FILES=\
 	scripts/adduser.py \
 	scripts/helper \
 	scripts/list_resources.py \
-	scripts/load_csv.py \
-	scripts/runserver
+	scripts/load_csv.py
 
 .PHONY: install-perms install-data install
 

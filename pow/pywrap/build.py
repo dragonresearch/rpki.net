@@ -27,12 +27,19 @@ from distutils.sysconfig import (get_config_var as getvar,
 
 openssl_dir = os.path.realpath(os.path.join(os.getcwd(), "../../openssl/openssl"))
 
-cmd = [getvar("CC"), "-o", "python", "python.c",
-       "-Wl,-rpath,%s" % openssl_dir,
-       "-L%s" % openssl_dir,
-       "-lcrypto", "-lssl",
-       "-I%s" % getinc(plat_specific = False),
-       "-I%s" % getinc(plat_specific = True)]
+cmd = getvar("CC").split()
+
+cmd.append("-o")
+cmd.append("python")
+cmd.append("python.c")
+
+cmd.append("-Wl,-rpath,%s" % openssl_dir)
+cmd.append("-L%s" % openssl_dir)
+cmd.append("-lcrypto")
+cmd.append("-lssl")
+
+cmd.append("-I%s" % getinc(plat_specific = False))
+cmd.append("-I%s" % getinc(plat_specific = True))
 
 if not getvar("Py_ENABLE_SHARED"):
   cmd.append("-L%s" % getvar("LIBPL"))

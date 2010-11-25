@@ -86,7 +86,7 @@ class x509(object):
     if self.cn_only and len(name) == 1 and name[0][0] == "CN":
       return name[0][1]
     else:
-      return name
+      return "".join("/%s=%s" % n for n in name)
 
   def set_node(self, node):
 

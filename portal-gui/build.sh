@@ -34,7 +34,7 @@ CONFDIR=/usr/local/etc/rpki
 # This is the directory containing the myrpki.py command line script.  You
 # can either install it somewhere on your system, or just run it out of
 # wherever you checked out from the svn repo
-MYRPKI_SOURCE_DIR=/usr/local/src/subvert-rpki.hactrn.net/rpkid
+MYRPKI_SOURCE_DIR=/usr/local/src/net/subvert-rpki.hactrn.net/rpkid
 
 # The user that the apache process is run as.  This is required to set
 # permissions on the directories/files that the portal-gui needs to be able to

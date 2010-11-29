@@ -39,7 +39,7 @@ MYRPKI_SOURCE_DIR=/usr/local/src/subvert-rpki.hactrn.net/rpkid
 # The user that the apache process is run as.  This is required to set
 # permissions on the directories/files that the portal-gui needs to be able to
 # read/write.
-USER=www
+WEBUSER=www
 
 ### OPTIONAL SETTINGS ###
 #
@@ -61,5 +61,5 @@ USER=www
 
 ### END OF CONFIGURATION ###
 
-./configure $prefix --with-myrpki=$MYRPKI_SOURCE_DIR USER=$USER CONFDIR=$CONFDIR \
+./configure $prefix --with-myrpki=$MYRPKI_SOURCE_DIR WEBUSER=$WEBUSER CONFDIR=$CONFDIR \
 	$DBPATH $PYTHON

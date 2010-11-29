@@ -556,7 +556,7 @@ PACKAGE_URL=''
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
 SECRET_KEY
-USER
+WEBUSER
 CONFDIR
 DATABASE_PATH
 INSTDIR
@@ -1768,11 +1768,11 @@ fi
 $as_echo "Toplevel resource directory is $CONFDIR" >&6; }
 
 
-if test "x$USER" = x; then
-	as_fn_error "'Must specify the user that the apache daemons runs with USER=<user>'" "$LINENO" 5
+if test "x$WEBUSER" = x; then
+	as_fn_error "'Must specify the user that the apache daemons runs with WEBUSER=<user>'" "$LINENO" 5
 fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: Apache runs as user $USER" >&5
-$as_echo "Apache runs as user $USER" >&6; }
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: Web server runs as user $WEBUSER" >&5
+$as_echo "Web server runs as user $WEBUSER" >&6; }
 
 
 # source: http://blog.leosoto.com/2008/04/django-secretkey-generation.html

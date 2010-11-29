@@ -54,11 +54,11 @@ fi
 AC_MSG_RESULT([Toplevel resource directory is $CONFDIR])
 AC_SUBST(CONFDIR)
 
-if test "x$USER" = x; then
-	AC_MSG_ERROR('Must specify the user that the apache daemons runs with USER=<user>')
+if test "x$WEBUSER" = x; then
+	AC_MSG_ERROR('Must specify the user that the apache daemons runs with WEBUSER=<user>')
 fi
-AC_MSG_RESULT([Apache runs as user $USER])
-AC_SUBST(USER)
+AC_MSG_RESULT([Web server runs as user $WEBUSER])
+AC_SUBST(WEBUSER)
 
 # source: http://blog.leosoto.com/2008/04/django-secretkey-generation.html
 AC_SUBST(SECRET_KEY, `$PYTHON -c 'import random; print "".join([random.choice("abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)") for i in range(50)])'`)

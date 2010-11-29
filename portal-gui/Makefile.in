@@ -17,7 +17,7 @@ INSTDIR=@INSTDIR@
 PYTHON=@PYTHON@
 MYRPKIDIR=@MYRPKIDIR@
 DATABASE_PATH=@DATABASE_PATH@
-USER=@USER@
+WEBUSER=@WEBUSER@
 CONFDIR=@CONFDIR@
 
 # automatically built sources
@@ -87,9 +87,9 @@ INSTALL_FILES=\
 .PHONY: install-perms install-data install
 
 install-perms:
-	chown $(USER) `dirname $(DATABASE_PATH)`
-	chown $(USER) $(DATABASE_PATH)
-	chown -R $(USER) $(CONFDIR)
+	chown $(WEBUSER) `dirname $(DATABASE_PATH)`
+	chown $(WEBUSER) $(DATABASE_PATH)
+	chown -R $(WEBUSER) $(CONFDIR)
 
 install-data: $(BUILD)
 	mkdir -p `dirname $(DATABASE_PATH)`

@@ -28,7 +28,7 @@ import hashlib
 import getpass
 import pwd
 
-apache_uid = pwd.getpwnam(settings.APACHE_USER)[2]
+web_uid = pwd.getpwnam(settings.WEB_USER)[2]
 
 # FIXME: hardcoded for now
 realm = 'myrpki'
@@ -53,7 +53,7 @@ if __name__ == '__main__':
 	sys.exit(1)
 
     if os.getuid() != 0:
-        print >>sys.stderr, 'error: this script must be run as roon so it can set file permissions.'
+        print >>sys.stderr, 'error: this script must be run as root so it can set file permissions.'
         sys.exit(1)
 
     username = sys.argv[1]
@@ -94,7 +94,7 @@ if __name__ == '__main__':
     if not os.path.exists(myrpki_dir):
 	print 'creating ', myrpki_dir
 	os.mkdir(myrpki_dir)
-    os.chown(myrpki_dir, apache_uid, -1)
+    os.chown(myrpki_dir, web_uid, -1)
 
     # create stuf myrpki.conf enough to fool portal-gui
     myrpki_conf = myrpki_dir + '/myrpki.conf'
@@ -116,7 +116,7 @@ prefix_csv=%(path)s/prefixes.csv""" % { 'path': myrpki_dir }
             with open(fname, 'w') as f:
                 # just create an empty file
                 pass
-        os.chown(fname, apache_uid, -1)
+        os.chown(fname, web_uid, -1)
 
     # add a password for this user to the apache passwd file if not present
 

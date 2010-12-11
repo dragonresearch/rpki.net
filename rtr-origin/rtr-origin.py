@@ -313,9 +313,7 @@ class prefix(pdu):
   of the wire format of the PDU as the ordering for this class.
   """
 
-  source = 0                            # Source (0 == RPKI)
-
-  header_struct = struct.Struct("!BBHLBBBB")
+  header_struct = struct.Struct("!BB2xLBBBx")
   asnum_struct = struct.Struct("!L")
 
   @classmethod
@@ -334,7 +332,6 @@ class prefix(pdu):
     self.prefix = cls.addr_type(x)
     self.prefixlen = len(t[0])
     self.max_prefixlen = self.prefixlen if t[1] is None else t[1]
-    self.color = 0
     self.announce = 1
     self.check()
     return self
@@ -349,7 +346,6 @@ class prefix(pdu):
     print "# Prefix:      ", self.prefix
     print "# Prefixlen:   ", self.prefixlen
     print "# MaxPrefixlen:", self.max_prefixlen
-    print "# Color:       ", self.color
     print "# Announce:    ", self.announce
 
   def check(self):
@@ -371,9 +367,9 @@ class prefix(pdu):
     elif self._pdu is not None:
       return self._pdu
     pdulen = self.header_struct.size + self.addr_type.bits / 8 + self.asnum_struct.size
-    pdu = (self.header_struct.pack(self.version, self.pdu_type, self.color, pdulen,
+    pdu = (self.header_struct.pack(self.version, self.pdu_type, pdulen,
                                    announce if announce is not None else self.announce,
-                                   self.prefixlen, self.max_prefixlen, self.source) +
+                                   self.prefixlen, self.max_prefixlen) +
            self.prefix.to_bytes() +
            self.asnum_struct.pack(self.asn))
     if announce is None:
@@ -387,9 +383,8 @@ class prefix(pdu):
     b1 = reader.get(self.header_struct.size)
     b2 = reader.get(self.addr_type.bits / 8)
     b3 = reader.get(self.asnum_struct.size)
-    version, pdu_type, self.color, length, self.announce, self.prefixlen, self.max_prefixlen, source = self.header_struct.unpack(b1)
+    version, pdu_type, length, self.announce, self.prefixlen, self.max_prefixlen = self.header_struct.unpack(b1)
     assert length == len(b1) + len(b2) + len(b3)
-    assert source == self.source
     self.prefix = self.addr_type.from_bytes(b2)
     self.asn = self.asnum_struct.unpack(b3)[0]
     assert b1 + b2 + b3 == self.to_pdu()

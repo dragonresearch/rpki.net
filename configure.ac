@@ -73,7 +73,7 @@ fi
 AC_CHECK_LIB([crypto], [v3_addr_validate_path],
 		       [AC_MSG_NOTICE([System OpenSSL libcrypto has RFC 3779])],
 		       [AC_MSG_NOTICE([Can't find system OpenSSL libcrypto with RFC 3779])])
-AC_CHECK_LIB([crypto], [CMS_VERIFY],
+AC_CHECK_LIB([crypto], [CMS_verify],
 		       [AC_MSG_NOTICE([System OpenSSL libcrypto has CMS])],
 		       [AC_MSG_NOTICE([Can't find system OpenSSL libcrypto with CMS])])
 		       

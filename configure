@@ -3986,10 +3986,9 @@ then
 
 fi
 
-# We should have checked whether we even need to build our own OpenSSL
-# libraries before we get anywhere near the Python code.  Need to
-# write tests to see whether there are system OpenSSL libraries, and
-# whether they're good enough (include both CMS and RFC 3779 support).
+# Figure out whether we need to build our own OpenSSL library or can
+# use the system libraries.  We're looking for two recent features:
+# CMS and RFC 3779 support.
 
 { $as_echo "$as_me:$LINENO: checking for v3_addr_validate_path in -lcrypto" >&5
 $as_echo_n "checking for v3_addr_validate_path in -lcrypto... " >&6; }
@@ -4057,12 +4056,11 @@ fi
 { $as_echo "$as_me:$LINENO: result: $ac_cv_lib_crypto_v3_addr_validate_path" >&5
 $as_echo "$ac_cv_lib_crypto_v3_addr_validate_path" >&6; }
 if test $ac_cv_lib_crypto_v3_addr_validate_path = yes; then
-  { $as_echo "$as_me:$LINENO: System OpenSSL libcrypto has RFC 3779" >&5
-$as_echo "$as_me: System OpenSSL libcrypto has RFC 3779" >&6;}
+  system_openssl_has_rfc3779=yes
 else
-  { $as_echo "$as_me:$LINENO: Can't find system OpenSSL libcrypto with RFC 3779" >&5
-$as_echo "$as_me: Can't find system OpenSSL libcrypto with RFC 3779" >&6;}
+  system_openssl_has_rfc3779=no
 fi
+
 
 { $as_echo "$as_me:$LINENO: checking for CMS_verify in -lcrypto" >&5
 $as_echo_n "checking for CMS_verify in -lcrypto... " >&6; }
@@ -4130,18 +4128,18 @@ fi
 { $as_echo "$as_me:$LINENO: result: $ac_cv_lib_crypto_CMS_verify" >&5
 $as_echo "$ac_cv_lib_crypto_CMS_verify" >&6; }
 if test $ac_cv_lib_crypto_CMS_verify = yes; then
-  { $as_echo "$as_me:$LINENO: System OpenSSL libcrypto has CMS" >&5
-$as_echo "$as_me: System OpenSSL libcrypto has CMS" >&6;}
+  system_openssl_has_cms=yes
 else
-  { $as_echo "$as_me:$LINENO: Can't find system OpenSSL libcrypto with CMS" >&5
-$as_echo "$as_me: Can't find system OpenSSL libcrypto with CMS" >&6;}
+  system_openssl_has_cms=no
 fi
 
 
-# Yeah, but how do we check that these two calls both found the same library?!?
-
-
-
+if test "x$system_openssl_has_rfc3779" = "xyes" && test "x$system_openssl_has_cms" = "xyes"
+then
+	build_openssl=yes
+else
+	build_openssl=no
+fi
 
 # Extract the first word of "python", so it can be a program name with args.
 set dummy python; ac_word=$2
@@ -4184,45 +4182,17 @@ fi
 
 
 
-# Maze of Python-related tests is complicated.
-#
-# - If we don't have Python at all, we can't run any of the Python
-#   tools and probably should not even attempt to configure them.
-#
-# - If the system Python executable was linked against OpenSSL -and-
-#   we had to build our own copy of OpenSSL (because the system copy
-#   wasn't good enough), we need to build pywrap and configure scripts
-#   to use it.
-#
-# - Otherwise (we have python and it's not linked against the wrong
-#   version of OpenSSL), we can use the system Python executable and
-#   don't need pywrap.
-#
-# - Unless we're punting on Python entirely, we need to build POW,
-#   either against the system OpenSSL or against our own copy.
-#
-# - If we're building either POW or pywrap, we need Python.h.
-#
-# If any of this fails, we need to tell the user and give useful hint
-# on what to do next (doc reference, whatever).
-#
-# Oh, and the user has to be able to override all of our guessing,
-# with --enable/--disable or whatever autoconf hack we're using this
-# week.
-
 if test "x$PYTHON" = "x"
 then
-	have_python=no
-	{ $as_echo "$as_me:$LINENO: WARNING: Can't find Python, not configuring Python programs or building Python extension modules" >&5
-$as_echo "$as_me: WARNING: Can't find Python, not configuring Python programs or building Python extension modules" >&2;}
+	build_pow=no
+	build_pywrap=no
 else
-	have_python=yes
-
-	{ $as_echo "$as_me:$LINENO: Yay, we have $PYTHON" >&5
-$as_echo "$as_me: Yay, we have $PYTHON" >&6;}
-
-	# Check for Python.h
+	{ $as_echo "$as_me:$LINENO: checking distutils to find out where Python.h should be" >&5
+$as_echo_n "checking distutils to find out where Python.h should be... " >&6; }
 	python_h=`$PYTHON -c 'import distutils.sysconfig; print distutils.sysconfig.get_python_inc() + "/Python.h"'`
+	{ $as_echo "$as_me:$LINENO: result: $python_h" >&5
+$as_echo "$python_h" >&6; }
+
 	as_ac_Header=`$as_echo "ac_cv_header_$python_h" | $as_tr_sh`
 if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
   { $as_echo "$as_me:$LINENO: checking for $python_h" >&5
@@ -4357,28 +4327,26 @@ $as_echo "$ac_res" >&6; }
 fi
 if test `eval 'as_val=${'$as_ac_Header'}
 		 $as_echo "$as_val"'` = yes; then
-  want_pow=yes
+  build_pow=yes
 else
-  want_pow=no
+  build_pow=no
 fi
 
 
 
-	{ $as_echo "$as_me:$LINENO: Should we build POW?  $want_pow" >&5
-$as_echo "$as_me: Should we build POW?  $want_pow" >&6;}
-
-	# This is sick, but we're checking for a dynamic library
-	# linked into a system executable, so our options are limited.
-
-	if test "x$want_pow" = "xyes" && ldd $PYTHON 2>/dev/null | $PYTHON -c 'import sys; sys.exit("libcrypto" not in sys.stdin.read())'
+	if test "x$build_pow" = "xyes"
 	then
-		want_pywrap=yes
-	else
-		want_pywrap=no
+		{ $as_echo "$as_me:$LINENO: checking whether Python links against libcrypto" >&5
+$as_echo_n "checking whether Python links against libcrypto... " >&6; }
+		if ldd $PYTHON 2>&5 | $PYTHON -c 'import sys; sys.exit("libcrypto" not in sys.stdin.read())'
+		then
+			build_pywrap=yes
+		else
+			build_pywrap=no
+		fi
+		{ $as_echo "$as_me:$LINENO: result: $build_pywrap" >&5
+$as_echo "$build_pywrap" >&6; }
 	fi
-
-	{ $as_echo "$as_me:$LINENO: Should we build pywrap?  $want_pywrap" >&5
-$as_echo "$as_me: Should we build pywrap?  $want_pywrap" >&6;}
 
 	ac_config_files="$ac_config_files rpkid/backup-sql"
 
@@ -4399,6 +4367,35 @@ $as_echo "$as_me: Should we build pywrap?  $want_pywrap" >&6;}
 	ac_config_files="$ac_config_files rpkid/start-servers"
 
 fi
+
+# Maze of Python-related tests is complicated.
+#
+# - If we don't have Python at all, we can't run any of the Python
+#   tools and probably should not even attempt to configure them.
+#
+# - If the system Python executable was linked against OpenSSL -and-
+#   we had to build our own copy of OpenSSL (because the system copy
+#   wasn't good enough), we need to build pywrap and configure scripts
+#   to use it.
+#
+# - Otherwise (we have python and it's not linked against the wrong
+#   version of OpenSSL), we can use the system Python executable and
+#   don't need pywrap.
+#
+# - Unless we're punting on Python entirely, we need to build POW,
+#   either against the system OpenSSL or against our own copy.
+#
+# - If we're building either POW or pywrap, we need Python.h.
+#
+# If any of this fails, we need to tell the user and give useful hint
+# on what to do next (doc reference, whatever).
+#
+# Oh, and the user has to be able to override all of our guessing,
+# with --enable/--disable or whatever autoconf hack we're using this
+# week.
+
+
+
 
 # This isn't the complete list of Makefiles (let alone setup.py, etc
 # files) in this tree, just the ones we're customizing today.  At some

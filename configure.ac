@@ -65,24 +65,62 @@ then
 	AC_CONFIG_FILES([rcynic/show.sh],	[chmod +x rcynic/show.sh])
 fi
 
-# We should have checked whether we even need to build our own OpenSSL
-# libraries before we get anywhere near the Python code.  Need to
-# write tests to see whether there are system OpenSSL libraries, and
-# whether they're good enough (include both CMS and RFC 3779 support).
+# Figure out whether we need to build our own OpenSSL library or can
+# use the system libraries.  We're looking for two recent features:
+# CMS and RFC 3779 support.
 
 AC_CHECK_LIB([crypto], [v3_addr_validate_path],
-		       [AC_MSG_NOTICE([System OpenSSL libcrypto has RFC 3779])],
-		       [AC_MSG_NOTICE([Can't find system OpenSSL libcrypto with RFC 3779])])
+		       [system_openssl_has_rfc3779=yes],
+		       [system_openssl_has_rfc3779=no])
+
 AC_CHECK_LIB([crypto], [CMS_verify],
-		       [AC_MSG_NOTICE([System OpenSSL libcrypto has CMS])],
-		       [AC_MSG_NOTICE([Can't find system OpenSSL libcrypto with CMS])])
-		       
-# Yeah, but how do we check that these two calls both found the same library?!?
+		       [system_openssl_has_cms=yes],
+		       [system_openssl_has_cms=no])
 
-
-
+if test "x$system_openssl_has_rfc3779" = "xyes" && test "x$system_openssl_has_cms" = "xyes"
+then
+	build_openssl=yes
+else
+	build_openssl=no
+fi
 
 AC_PATH_PROG([PYTHON], [python])
+
+if test "x$PYTHON" = "x"
+then
+	build_pow=no
+	build_pywrap=no
+else
+	AC_MSG_CHECKING([distutils to find out where Python.h should be])
+	python_h=`$PYTHON -c 'import distutils.sysconfig; print distutils.sysconfig.get_python_inc() + "/Python.h"'`
+	AC_MSG_RESULT([$python_h])
+
+	AC_CHECK_HEADER([$python_h],
+			[build_pow=yes],
+			[build_pow=no])
+
+	if test "x$build_pow" = "xyes"
+	then
+		AC_MSG_CHECKING([whether Python links against libcrypto])
+		if ldd $PYTHON 2>&AS_MESSAGE_LOG_FD | $PYTHON -c 'import sys; sys.exit("libcrypto" not in sys.stdin.read())'
+		then
+			build_pywrap=yes
+		else
+			build_pywrap=no
+		fi
+		AC_MSG_RESULT([$build_pywrap])
+	fi
+
+	AC_CONFIG_FILES([rpkid/backup-sql],	[chmod +x rpkid/backup-sql])
+	AC_CONFIG_FILES([rpkid/irbe_cli],	[chmod +x rpkid/irbe_cli])
+	AC_CONFIG_FILES([rpkid/irdbd],		[chmod +x rpkid/irdbd])
+	AC_CONFIG_FILES([rpkid/myrpki],		[chmod +x rpkid/myrpki])
+	AC_CONFIG_FILES([rpkid/pubd],		[chmod +x rpkid/pubd])
+	AC_CONFIG_FILES([rpkid/rootd],		[chmod +x rpkid/rootd])
+	AC_CONFIG_FILES([rpkid/rpkid],		[chmod +x rpkid/rpkid])
+	AC_CONFIG_FILES([rpkid/sql-setup],	[chmod +x rpkid/sql-setup])
+	AC_CONFIG_FILES([rpkid/start-servers],	[chmod +x rpkid/start-servers])
+fi
 
 # Maze of Python-related tests is complicated.
 #
@@ -110,43 +148,8 @@ AC_PATH_PROG([PYTHON], [python])
 # with --enable/--disable or whatever autoconf hack we're using this
 # week.
 
-if test "x$PYTHON" = "x"
-then
-	have_python=no
-	AC_MSG_WARN([Can't find Python, not configuring Python programs or building Python extension modules])
-else
-	have_python=yes
 
-	AC_MSG_NOTICE([Yay, we have $PYTHON])
 
-	# Check for Python.h
-	python_h=`$PYTHON -c 'import distutils.sysconfig; print distutils.sysconfig.get_python_inc() + "/Python.h"'`
-	AC_CHECK_HEADER([$python_h], [want_pow=yes], [want_pow=no])
-
-	AC_MSG_NOTICE([Should we build POW?  $want_pow])
-
-	# This is sick, but we're checking for a dynamic library
-	# linked into a system executable, so our options are limited.
-
-	if test "x$want_pow" = "xyes" && ldd $PYTHON 2>/dev/null | $PYTHON -c 'import sys; sys.exit("libcrypto" not in sys.stdin.read())'
-	then
-		want_pywrap=yes
-	else
-		want_pywrap=no
-	fi
-
-	AC_MSG_NOTICE([Should we build pywrap?  $want_pywrap])
-
-	AC_CONFIG_FILES([rpkid/backup-sql],	[chmod +x rpkid/backup-sql])
-	AC_CONFIG_FILES([rpkid/irbe_cli],	[chmod +x rpkid/irbe_cli])
-	AC_CONFIG_FILES([rpkid/irdbd],		[chmod +x rpkid/irdbd])
-	AC_CONFIG_FILES([rpkid/myrpki],		[chmod +x rpkid/myrpki])
-	AC_CONFIG_FILES([rpkid/pubd],		[chmod +x rpkid/pubd])
-	AC_CONFIG_FILES([rpkid/rootd],		[chmod +x rpkid/rootd])
-	AC_CONFIG_FILES([rpkid/rpkid],		[chmod +x rpkid/rpkid])
-	AC_CONFIG_FILES([rpkid/sql-setup],	[chmod +x rpkid/sql-setup])
-	AC_CONFIG_FILES([rpkid/start-servers],	[chmod +x rpkid/start-servers])
-fi
 
 # This isn't the complete list of Makefiles (let alone setup.py, etc
 # files) in this tree, just the ones we're customizing today.  At some

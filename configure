@@ -4553,6 +4553,10 @@ then
 
 	ac_config_files="$ac_config_files rpkid/start-servers:buildtools/python-header:rpkid/start-servers.py"
 
+	ac_config_files="$ac_config_files rpkid/tests/sql-cleaner:buildtools/python-header:rpkid/tests/sql-cleaner.py"
+
+	ac_config_files="$ac_config_files rpkid/tests/sql-dumper:buildtools/python-header:rpkid/tests/sql-dumper.py"
+
 
 	# These use POW, so may require pywrap
 	ac_config_files="$ac_config_files rpkid/irbe_cli:buildtools/pywrap-header:rpkid/irbe_cli.py"
@@ -4566,6 +4570,14 @@ then
 	ac_config_files="$ac_config_files rpkid/rootd:buildtools/pywrap-header:rpkid/rootd.py"
 
 	ac_config_files="$ac_config_files rpkid/rpkid:buildtools/pywrap-header:rpkid/rpkid.py"
+
+	ac_config_files="$ac_config_files rpkid/tests/smoketest:buildtools/pywrap-header:rpkid/tests/smoketest.py"
+
+	ac_config_files="$ac_config_files rpkid/tests/yamltest:buildtools/pywrap-header:rpkid/tests/yamltest.py"
+
+	ac_config_files="$ac_config_files rpkid/tests/testpoke:buildtools/pywrap-header:rpkid/tests/testpoke.py"
+
+
 
 fi
 
@@ -5182,12 +5194,17 @@ do
     "rpkid/backup-sql") CONFIG_FILES="$CONFIG_FILES rpkid/backup-sql:buildtools/python-header:rpkid/backup-sql.py" ;;
     "rpkid/sql-setup") CONFIG_FILES="$CONFIG_FILES rpkid/sql-setup:buildtools/python-header:rpkid/sql-setup.py" ;;
     "rpkid/start-servers") CONFIG_FILES="$CONFIG_FILES rpkid/start-servers:buildtools/python-header:rpkid/start-servers.py" ;;
+    "rpkid/tests/sql-cleaner") CONFIG_FILES="$CONFIG_FILES rpkid/tests/sql-cleaner:buildtools/python-header:rpkid/tests/sql-cleaner.py" ;;
+    "rpkid/tests/sql-dumper") CONFIG_FILES="$CONFIG_FILES rpkid/tests/sql-dumper:buildtools/python-header:rpkid/tests/sql-dumper.py" ;;
     "rpkid/irbe_cli") CONFIG_FILES="$CONFIG_FILES rpkid/irbe_cli:buildtools/pywrap-header:rpkid/irbe_cli.py" ;;
     "rpkid/irdbd") CONFIG_FILES="$CONFIG_FILES rpkid/irdbd:buildtools/pywrap-header:rpkid/irdbd.py" ;;
     "rpkid/myrpki") CONFIG_FILES="$CONFIG_FILES rpkid/myrpki:buildtools/pywrap-header:rpkid/myrpki.py" ;;
     "rpkid/pubd") CONFIG_FILES="$CONFIG_FILES rpkid/pubd:buildtools/pywrap-header:rpkid/pubd.py" ;;
     "rpkid/rootd") CONFIG_FILES="$CONFIG_FILES rpkid/rootd:buildtools/pywrap-header:rpkid/rootd.py" ;;
     "rpkid/rpkid") CONFIG_FILES="$CONFIG_FILES rpkid/rpkid:buildtools/pywrap-header:rpkid/rpkid.py" ;;
+    "rpkid/tests/smoketest") CONFIG_FILES="$CONFIG_FILES rpkid/tests/smoketest:buildtools/pywrap-header:rpkid/tests/smoketest.py" ;;
+    "rpkid/tests/yamltest") CONFIG_FILES="$CONFIG_FILES rpkid/tests/yamltest:buildtools/pywrap-header:rpkid/tests/yamltest.py" ;;
+    "rpkid/tests/testpoke") CONFIG_FILES="$CONFIG_FILES rpkid/tests/testpoke:buildtools/pywrap-header:rpkid/tests/testpoke.py" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
     "openssl/Makefile") CONFIG_FILES="$CONFIG_FILES openssl/Makefile" ;;
     "rcynic/Makefile") CONFIG_FILES="$CONFIG_FILES rcynic/Makefile" ;;
@@ -5659,12 +5676,17 @@ $as_echo "$as_me: error: could not create $ac_file" >&2;}
     "rpkid/backup-sql":F) chmod +x rpkid/backup-sql ;;
     "rpkid/sql-setup":F) chmod +x rpkid/sql-setup ;;
     "rpkid/start-servers":F) chmod +x rpkid/start-servers ;;
+    "rpkid/tests/sql-cleaner":F) chmod +x rpkid/tests/sql-cleaner ;;
+    "rpkid/tests/sql-dumper":F) chmod +x rpkid/tests/sql-dumper ;;
     "rpkid/irbe_cli":F) chmod +x rpkid/irbe_cli ;;
     "rpkid/irdbd":F) chmod +x rpkid/irdbd ;;
     "rpkid/myrpki":F) chmod +x rpkid/myrpki ;;
     "rpkid/pubd":F) chmod +x rpkid/pubd ;;
     "rpkid/rootd":F) chmod +x rpkid/rootd ;;
     "rpkid/rpkid":F) chmod +x rpkid/rpkid ;;
+    "rpkid/tests/smoketest":F) chmod +x rpkid/tests/smoketest ;;
+    "rpkid/tests/yamltest":F) chmod +x rpkid/tests/yamltest ;;
+    "rpkid/tests/testpoke":F) chmod +x rpkid/tests/testpoke ;;
 
   esac
 done # for ac_tag

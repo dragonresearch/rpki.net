@@ -236,29 +236,33 @@ fi
 if test $build_pywrap = yes
 then
 	# Eventually this should be the installation directory, but
-	# we're not there yet.
-
+	# for now we're still running out of the build tree.
 	PYWRAP=`pwd`/pow/pywrap/pywrap
 else
+	# If we don't need pywrap, just make it expand to python
 	PYWRAP=$PYTHON
 fi
 AC_SUBST(PYWRAP)
 
 if test $build_python = yes
 then
-
 	# These are plain Python scripts, do not require pywrap
-	AC_CONFIG_FILES([rpkid/backup-sql:buildtools/python-header:rpkid/backup-sql.py],	[chmod +x rpkid/backup-sql])
-	AC_CONFIG_FILES([rpkid/sql-setup:buildtools/python-header:rpkid/sql-setup.py],		[chmod +x rpkid/sql-setup])
-	AC_CONFIG_FILES([rpkid/start-servers:buildtools/python-header:rpkid/start-servers.py],	[chmod +x rpkid/start-servers])
+	AC_CONFIG_FILES([rpkid/backup-sql:buildtools/python-header:rpkid/backup-sql.py],		[chmod +x rpkid/backup-sql])
+	AC_CONFIG_FILES([rpkid/sql-setup:buildtools/python-header:rpkid/sql-setup.py],			[chmod +x rpkid/sql-setup])
+	AC_CONFIG_FILES([rpkid/start-servers:buildtools/python-header:rpkid/start-servers.py],		[chmod +x rpkid/start-servers])
+	AC_CONFIG_FILES([rpkid/tests/sql-cleaner:buildtools/python-header:rpkid/tests/sql-cleaner.py],	[chmod +x rpkid/tests/sql-cleaner])
+	AC_CONFIG_FILES([rpkid/tests/sql-dumper:buildtools/python-header:rpkid/tests/sql-dumper.py],	[chmod +x rpkid/tests/sql-dumper])
 
 	# These use POW, so may require pywrap	
-	AC_CONFIG_FILES([rpkid/irbe_cli:buildtools/pywrap-header:rpkid/irbe_cli.py],		[chmod +x rpkid/irbe_cli])
-	AC_CONFIG_FILES([rpkid/irdbd:buildtools/pywrap-header:rpkid/irdbd.py],			[chmod +x rpkid/irdbd])
-	AC_CONFIG_FILES([rpkid/myrpki:buildtools/pywrap-header:rpkid/myrpki.py],		[chmod +x rpkid/myrpki])
-	AC_CONFIG_FILES([rpkid/pubd:buildtools/pywrap-header:rpkid/pubd.py],			[chmod +x rpkid/pubd])
-	AC_CONFIG_FILES([rpkid/rootd:buildtools/pywrap-header:rpkid/rootd.py],			[chmod +x rpkid/rootd])
-	AC_CONFIG_FILES([rpkid/rpkid:buildtools/pywrap-header:rpkid/rpkid.py],			[chmod +x rpkid/rpkid])
+	AC_CONFIG_FILES([rpkid/irbe_cli:buildtools/pywrap-header:rpkid/irbe_cli.py],			[chmod +x rpkid/irbe_cli])
+	AC_CONFIG_FILES([rpkid/irdbd:buildtools/pywrap-header:rpkid/irdbd.py],				[chmod +x rpkid/irdbd])
+	AC_CONFIG_FILES([rpkid/myrpki:buildtools/pywrap-header:rpkid/myrpki.py],			[chmod +x rpkid/myrpki])
+	AC_CONFIG_FILES([rpkid/pubd:buildtools/pywrap-header:rpkid/pubd.py],				[chmod +x rpkid/pubd])
+	AC_CONFIG_FILES([rpkid/rootd:buildtools/pywrap-header:rpkid/rootd.py],				[chmod +x rpkid/rootd])
+	AC_CONFIG_FILES([rpkid/rpkid:buildtools/pywrap-header:rpkid/rpkid.py],				[chmod +x rpkid/rpkid])
+	AC_CONFIG_FILES([rpkid/tests/smoketest:buildtools/pywrap-header:rpkid/tests/smoketest.py],	[chmod +x rpkid/tests/smoketest])
+	AC_CONFIG_FILES([rpkid/tests/yamltest:buildtools/pywrap-header:rpkid/tests/yamltest.py],	[chmod +x rpkid/tests/yamltest])
+	AC_CONFIG_FILES([rpkid/tests/testpoke:buildtools/pywrap-header:rpkid/tests/testpoke.py],	[chmod +x rpkid/tests/testpoke])
 fi
 
 # This isn't the complete list of Makefiles (let alone setup.py, etc

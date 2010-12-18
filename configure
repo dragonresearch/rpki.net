@@ -705,6 +705,10 @@ LTLIBOBJS'
 ac_subst_files=''
 ac_user_opts='
 enable_option_checking
+enable_system_openssl
+enable_python
+enable_pywrap
+enable_django
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1336,6 +1340,16 @@ if test -n "$ac_init_help"; then
      short | recursive ) echo "Configuration of rpkitools 1.0:";;
    esac
   cat <<\_ACEOF
+
+Optional Features:
+  --disable-option-checking  ignore unrecognized --enable/--with options
+  --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+  --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
+  --disable-system-openssl
+                          Don't build against system copy of OpenSSL
+  --disable-python        Don't build any of the Python-based tools
+  --enable-pywrap         Build pywrap
+  --disable-django        Don't build Django GUI
 
 Some influential environment variables:
   CC          C compiler command
@@ -3880,14 +3894,14 @@ unset old_LDFLAGS
 
 # OpenSSL has its own build system that bears no relationship to
 # anything but itself.  On at least one platform, OpenSSL's opinion on
-# the right thing to do is so completely add odds with everything else
+# the right thing to do is so completely at odds with everything else
 # that the resulting libraries require special compilation options for
 # any program that wants to use them.  Feh.
 
 { $as_echo "$as_me:$LINENO: checking what configuration target to use when building OpenSSL" >&5
 $as_echo_n "checking what configuration target to use when building OpenSSL... " >&6; }
 OPENSSL_CONFIG_COMMAND='./config'
-case "$host" in
+case $host in
 i*86-apple-darwin*)
 	if test "$ac_cv_sizeof_long" = 8
 	then
@@ -4134,11 +4148,11 @@ else
 fi
 
 
-if test "x$system_openssl_has_rfc3779" = "xyes" && test "x$system_openssl_has_cms" = "xyes"
+if test "$system_openssl_has_rfc3779" = yes && test "$system_openssl_has_cms" = yes
 then
-	build_openssl=yes
+	have_usable_openssl=yes
 else
-	build_openssl=no
+	have_usable_openssl=no
 fi
 
 # Extract the first word of "python", so it can be a program name with args.
@@ -4184,9 +4198,13 @@ fi
 
 if test "x$PYTHON" = "x"
 then
-	build_pow=no
-	build_pywrap=no
+	have_python=no
+	have_python_h=no
+	need_pywrap=no
+	have_django=no
 else
+	have_python=yes
+
 	{ $as_echo "$as_me:$LINENO: checking distutils to find out where Python.h should be" >&5
 $as_echo_n "checking distutils to find out where Python.h should be... " >&6; }
 	python_h=`$PYTHON -c 'import distutils.sysconfig; print distutils.sysconfig.get_python_inc() + "/Python.h"'`
@@ -4327,45 +4345,168 @@ $as_echo "$ac_res" >&6; }
 fi
 if test `eval 'as_val=${'$as_ac_Header'}
 		 $as_echo "$as_val"'` = yes; then
-  build_pow=yes
+  have_python_h=yes
 else
-  build_pow=no
+  have_python_h=no
 fi
 
 
 
-	if test "x$build_pow" = "xyes"
+	if test "x$have_python_h" = "xyes"
 	then
 		{ $as_echo "$as_me:$LINENO: checking whether Python links against libcrypto" >&5
 $as_echo_n "checking whether Python links against libcrypto... " >&6; }
 		if ldd $PYTHON 2>&5 | $PYTHON -c 'import sys; sys.exit("libcrypto" not in sys.stdin.read())'
 		then
-			build_pywrap=yes
+			need_pywrap=yes
 		else
-			build_pywrap=no
+			need_pywrap=no
 		fi
-		{ $as_echo "$as_me:$LINENO: result: $build_pywrap" >&5
-$as_echo "$build_pywrap" >&6; }
+		{ $as_echo "$as_me:$LINENO: result: $need_pywrap" >&5
+$as_echo "$need_pywrap" >&6; }
 	fi
 
-	ac_config_files="$ac_config_files rpkid/backup-sql"
+	{ $as_echo "$as_me:$LINENO: checking for Django" >&5
+$as_echo_n "checking for Django... " >&6; }
+	if $PYTHON -c 'import django' 2>/dev/null
+	then
+		have_django="yes"
+	else
+		have_django="no"
+	fi
+	{ $as_echo "$as_me:$LINENO: result: $have_django" >&5
+$as_echo "$have_django" >&6; }
 
-	ac_config_files="$ac_config_files rpkid/irbe_cli"
+fi
 
-	ac_config_files="$ac_config_files rpkid/irdbd"
+# Check whether --enable-system_openssl was given.
+if test "${enable_system_openssl+set}" = set; then
+  enableval=$enable_system_openssl;
+else
+  enable_system_openssl=auto
+fi
 
-	ac_config_files="$ac_config_files rpkid/myrpki"
+# Check whether --enable-python was given.
+if test "${enable_python+set}" = set; then
+  enableval=$enable_python;
+else
+  enable_python=auto
+fi
 
-	ac_config_files="$ac_config_files rpkid/pubd"
+# Check whether --enable-pywrap was given.
+if test "${enable_pywrap+set}" = set; then
+  enableval=$enable_pywrap;
+else
+  enable_pywrap=auto
+fi
 
-	ac_config_files="$ac_config_files rpkid/rootd"
+# Check whether --enable-django was given.
+if test "${enable_django+set}" = set; then
+  enableval=$enable_django;
+else
+  enable_django=auto
+fi
 
-	ac_config_files="$ac_config_files rpkid/rpkid"
 
-	ac_config_files="$ac_config_files rpkid/sql-setup"
+case $enable_system_openssl in
+     yes)	build_openssl=no
+		if test $have_usable_openssl = no
+		then
+			{ { $as_echo "$as_me:$LINENO: error: I can't find an OpenSSL crypto library with CMS and RFC 3779 support, maybe you need to set LDFLAGS?" >&5
+$as_echo "$as_me: error: I can't find an OpenSSL crypto library with CMS and RFC 3779 support, maybe you need to set LDFLAGS?" >&2;}
+   { (exit 1); exit 1; }; }
+		fi
+		;;
+     no)	build_openssl=yes
+		;;
+     auto)	if test $have_usable_openssl = no
+		then
+			build_openssl=yes
+		else
+			build_openssl=no
+		fi
+		;;
+     *)		{ { $as_echo "$as_me:$LINENO: error: Unrecognized value for --enable-system-openssl: $enable-system-openssl" >&5
+$as_echo "$as_me: error: Unrecognized value for --enable-system-openssl: $enable-system-openssl" >&2;}
+   { (exit 1); exit 1; }; };;
+esac
 
-	ac_config_files="$ac_config_files rpkid/start-servers"
+case $enable_python in
+     yes)	build_python=yes
+		if test $have_python = no
+		then
+			{ { $as_echo "$as_me:$LINENO: error: I can't find a Python binary, maybe you need to set PATH?" >&5
+$as_echo "$as_me: error: I can't find a Python binary, maybe you need to set PATH?" >&2;}
+   { (exit 1); exit 1; }; }
+		fi
+		;;
+     no)	build_python=no
+		;;
+     auto)	build_python=$have_python
+		if test $have_python = no
+		then
+			{ $as_echo "$as_me:$LINENO: WARNING: I can't find your Python binary, disabling build for all Python-using code" >&5
+$as_echo "$as_me: WARNING: I can't find your Python binary, disabling build for all Python-using code" >&2;}
+		fi
+		;;
+     *)		{ { $as_echo "$as_me:$LINENO: error: Unrecognized value for --enable-python: $enable-python" >&5
+$as_echo "$as_me: error: Unrecognized value for --enable-python: $enable-python" >&2;}
+   { (exit 1); exit 1; }; };;
+esac
 
+
+case $enable_pywrap in
+     yes)	build_pywrap=yes
+		if test $build_python = no
+		then
+			{ { $as_echo "$as_me:$LINENO: error: Building pywrap without Python makes no sense" >&5
+$as_echo "$as_me: error: Building pywrap without Python makes no sense" >&2;}
+   { (exit 1); exit 1; }; }
+		fi
+		if test $build_openssl = no
+		then
+			{ $as_echo "$as_me:$LINENO: WARNING: Building pywrap when using system OpenSSL library makes no sense (but I'll try to do it anyway)" >&5
+$as_echo "$as_me: WARNING: Building pywrap when using system OpenSSL library makes no sense (but I'll try to do it anyway)" >&2;}
+		fi
+		;;
+     no)	build_pywrap=no
+		if test $need_pywrap = yes
+		then
+			{ { $as_echo "$as_me:$LINENO: error: This platform appears to require pywrap" >&5
+$as_echo "$as_me: error: This platform appears to require pywrap" >&2;}
+   { (exit 1); exit 1; }; }
+		fi
+		;;
+     auto)	build_pywrap=$need_pywrap
+		;;
+     *)		{ { $as_echo "$as_me:$LINENO: error: Unrecognized value for --enable-pywrap: $enable-pywrap" >&5
+$as_echo "$as_me: error: Unrecognized value for --enable-pywrap: $enable-pywrap" >&2;}
+   { (exit 1); exit 1; }; };;
+esac
+
+
+case $enable_django in
+     yes)	build_django=yes
+		if test $have_django = no
+		then
+			{ $as_echo "$as_me:$LINENO: WARNING: You don't appear to have Django installed (but I'll try to build the Django-based GUI anyway)" >&5
+$as_echo "$as_me: WARNING: You don't appear to have Django installed (but I'll try to build the Django-based GUI anyway)" >&2;}
+		fi
+		;;
+     no)	build_django=no
+		;;
+     auto)	build_django=$have_django
+		;;
+     *)		{ { $as_echo "$as_me:$LINENO: error: Unrecognized value for --enable-django: $enable-django" >&5
+$as_echo "$as_me: error: Unrecognized value for --enable-django: $enable-django" >&2;}
+   { (exit 1); exit 1; }; };;
+esac
+
+if test $build_python = yes && test $have_python_h = no
+then
+	{ { $as_echo "$as_me:$LINENO: error: Need Python sources to build extension module, either install sources or rerun with --disable-python" >&5
+$as_echo "$as_me: error: Need Python sources to build extension module, either install sources or rerun with --disable-python" >&2;}
+   { (exit 1); exit 1; }; }
 fi
 
 # Maze of Python-related tests is complicated.
@@ -4389,13 +4530,28 @@ fi
 #
 # If any of this fails, we need to tell the user and give useful hint
 # on what to do next (doc reference, whatever).
-#
-# Oh, and the user has to be able to override all of our guessing,
-# with --enable/--disable or whatever autoconf hack we're using this
-# week.
 
+if test $build_python = yes
+then
+	ac_config_files="$ac_config_files rpkid/backup-sql"
 
+	ac_config_files="$ac_config_files rpkid/irbe_cli"
 
+	ac_config_files="$ac_config_files rpkid/irdbd"
+
+	ac_config_files="$ac_config_files rpkid/myrpki"
+
+	ac_config_files="$ac_config_files rpkid/pubd"
+
+	ac_config_files="$ac_config_files rpkid/rootd"
+
+	ac_config_files="$ac_config_files rpkid/rpkid"
+
+	ac_config_files="$ac_config_files rpkid/sql-setup"
+
+	ac_config_files="$ac_config_files rpkid/start-servers"
+
+fi
 
 # This isn't the complete list of Makefiles (let alone setup.py, etc
 # files) in this tree, just the ones we're customizing today.  At some

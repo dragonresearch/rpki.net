@@ -40,13 +40,13 @@ unset old_LDFLAGS
 
 # OpenSSL has its own build system that bears no relationship to
 # anything but itself.  On at least one platform, OpenSSL's opinion on
-# the right thing to do is so completely add odds with everything else
+# the right thing to do is so completely at odds with everything else
 # that the resulting libraries require special compilation options for
 # any program that wants to use them.  Feh.
 
 AC_MSG_CHECKING([what configuration target to use when building OpenSSL])
 OPENSSL_CONFIG_COMMAND='./config'
-case "$host" in
+case $host in
 i*86-apple-darwin*)
 	if test "$ac_cv_sizeof_long" = 8
 	then
@@ -77,49 +77,138 @@ AC_CHECK_LIB([crypto], [CMS_verify],
 		       [system_openssl_has_cms=yes],
 		       [system_openssl_has_cms=no])
 
-if test "x$system_openssl_has_rfc3779" = "xyes" && test "x$system_openssl_has_cms" = "xyes"
+if test "$system_openssl_has_rfc3779" = yes && test "$system_openssl_has_cms" = yes
 then
-	build_openssl=yes
+	have_usable_openssl=yes
 else
-	build_openssl=no
+	have_usable_openssl=no
 fi
 
 AC_PATH_PROG([PYTHON], [python])
 
 if test "x$PYTHON" = "x"
 then
-	build_pow=no
-	build_pywrap=no
+	have_python=no
+	have_python_h=no
+	need_pywrap=no
+	have_django=no
 else
+	have_python=yes
+
 	AC_MSG_CHECKING([distutils to find out where Python.h should be])
 	python_h=`$PYTHON -c 'import distutils.sysconfig; print distutils.sysconfig.get_python_inc() + "/Python.h"'`
 	AC_MSG_RESULT([$python_h])
 
 	AC_CHECK_HEADER([$python_h],
-			[build_pow=yes],
-			[build_pow=no])
+			[have_python_h=yes],
+			[have_python_h=no])
 
-	if test "x$build_pow" = "xyes"
+	if test "x$have_python_h" = "xyes"
 	then
 		AC_MSG_CHECKING([whether Python links against libcrypto])
 		if ldd $PYTHON 2>&AS_MESSAGE_LOG_FD | $PYTHON -c 'import sys; sys.exit("libcrypto" not in sys.stdin.read())'
 		then
-			build_pywrap=yes
+			need_pywrap=yes
 		else
-			build_pywrap=no
+			need_pywrap=no
 		fi
-		AC_MSG_RESULT([$build_pywrap])
+		AC_MSG_RESULT([$need_pywrap])
 	fi
 
-	AC_CONFIG_FILES([rpkid/backup-sql],	[chmod +x rpkid/backup-sql])
-	AC_CONFIG_FILES([rpkid/irbe_cli],	[chmod +x rpkid/irbe_cli])
-	AC_CONFIG_FILES([rpkid/irdbd],		[chmod +x rpkid/irdbd])
-	AC_CONFIG_FILES([rpkid/myrpki],		[chmod +x rpkid/myrpki])
-	AC_CONFIG_FILES([rpkid/pubd],		[chmod +x rpkid/pubd])
-	AC_CONFIG_FILES([rpkid/rootd],		[chmod +x rpkid/rootd])
-	AC_CONFIG_FILES([rpkid/rpkid],		[chmod +x rpkid/rpkid])
-	AC_CONFIG_FILES([rpkid/sql-setup],	[chmod +x rpkid/sql-setup])
-	AC_CONFIG_FILES([rpkid/start-servers],	[chmod +x rpkid/start-servers])
+	AC_MSG_CHECKING([for Django])
+	if $PYTHON -c 'import django' 2>/dev/null
+	then
+		have_django="yes"
+	else
+		have_django="no"
+	fi
+	AC_MSG_RESULT([$have_django])
+
+fi
+
+AC_ARG_ENABLE([system_openssl], [AS_HELP_STRING([--disable-system-openssl],	[Don't build against system copy of OpenSSL])],	[], [enable_system_openssl=auto])
+AC_ARG_ENABLE([python],		[AS_HELP_STRING([--disable-python],		[Don't build any of the Python-based tools])],	[], [enable_python=auto])
+AC_ARG_ENABLE([pywrap],		[AS_HELP_STRING([--enable-pywrap],		[Build pywrap])],				[], [enable_pywrap=auto])
+AC_ARG_ENABLE([django],		[AS_HELP_STRING([--disable-django],		[Don't build Django GUI])],			[], [enable_django=auto])
+
+case $enable_system_openssl in
+     yes)	build_openssl=no
+		if test $have_usable_openssl = no
+		then
+			AC_MSG_ERROR([I can't find an OpenSSL crypto library with CMS and RFC 3779 support, maybe you need to set LDFLAGS?])
+		fi
+		;;
+     no)	build_openssl=yes
+		;;
+     auto)	if test $have_usable_openssl = no
+		then
+			build_openssl=yes
+		else
+			build_openssl=no
+		fi
+		;;
+     *)		AC_MSG_ERROR([Unrecognized value for --enable-system-openssl: $enable-system-openssl]);;
+esac
+
+case $enable_python in
+     yes)	build_python=yes
+		if test $have_python = no
+		then
+			AC_MSG_ERROR([I can't find a Python binary, maybe you need to set PATH?])
+		fi
+		;;
+     no)	build_python=no
+		;;
+     auto)	build_python=$have_python
+		if test $have_python = no
+		then
+			AC_MSG_WARN([I can't find your Python binary, disabling build for all Python-using code])
+		fi
+		;;
+     *)		AC_MSG_ERROR([Unrecognized value for --enable-python: $enable-python]);;
+esac
+
+
+case $enable_pywrap in
+     yes)	build_pywrap=yes
+		if test $build_python = no
+		then
+			AC_MSG_ERROR([Building pywrap without Python makes no sense])
+		fi
+		if test $build_openssl = no
+		then
+			AC_MSG_WARN([Building pywrap when using system OpenSSL library makes no sense (but I'll try to do it anyway)])
+		fi
+		;;
+     no)	build_pywrap=no
+		if test $need_pywrap = yes
+		then
+			AC_MSG_ERROR([This platform appears to require pywrap])
+		fi
+		;;
+     auto)	build_pywrap=$need_pywrap
+		;;
+     *)		AC_MSG_ERROR([Unrecognized value for --enable-pywrap: $enable-pywrap]);;
+esac
+
+
+case $enable_django in
+     yes)	build_django=yes
+		if test $have_django = no
+		then
+			AC_MSG_WARN([You don't appear to have Django installed (but I'll try to build the Django-based GUI anyway)])
+		fi
+		;;
+     no)	build_django=no
+		;;
+     auto)	build_django=$have_django
+		;;
+     *)		AC_MSG_ERROR([Unrecognized value for --enable-django: $enable-django]);;
+esac
+
+if test $build_python = yes && test $have_python_h = no
+then
+	AC_MSG_ERROR([Need Python sources to build extension module, either install sources or rerun with --disable-python])
 fi
 
 # Maze of Python-related tests is complicated.
@@ -143,13 +232,19 @@ fi
 #
 # If any of this fails, we need to tell the user and give useful hint
 # on what to do next (doc reference, whatever).
-#
-# Oh, and the user has to be able to override all of our guessing,
-# with --enable/--disable or whatever autoconf hack we're using this
-# week.
 
-
-
+if test $build_python = yes
+then
+	AC_CONFIG_FILES([rpkid/backup-sql],	[chmod +x rpkid/backup-sql])
+	AC_CONFIG_FILES([rpkid/irbe_cli],	[chmod +x rpkid/irbe_cli])
+	AC_CONFIG_FILES([rpkid/irdbd],		[chmod +x rpkid/irdbd])
+	AC_CONFIG_FILES([rpkid/myrpki],		[chmod +x rpkid/myrpki])
+	AC_CONFIG_FILES([rpkid/pubd],		[chmod +x rpkid/pubd])
+	AC_CONFIG_FILES([rpkid/rootd],		[chmod +x rpkid/rootd])
+	AC_CONFIG_FILES([rpkid/rpkid],		[chmod +x rpkid/rpkid])
+	AC_CONFIG_FILES([rpkid/sql-setup],	[chmod +x rpkid/sql-setup])
+	AC_CONFIG_FILES([rpkid/start-servers],	[chmod +x rpkid/start-servers])
+fi
 
 # This isn't the complete list of Makefiles (let alone setup.py, etc
 # files) in this tree, just the ones we're customizing today.  At some

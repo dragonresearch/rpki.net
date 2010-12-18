@@ -1,9 +1,9 @@
 # $Id$
 
-all: python
+all: pywrap
 
-python: python.c
+pywrap: pywrap.c
 	python build.py
 
 clean:
-	rm -f *.o python
+	rm -f *.o pywrap

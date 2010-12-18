@@ -30,8 +30,8 @@ openssl_dir = os.path.realpath(os.path.join(os.getcwd(), "../../openssl/openssl"
 cmd = getvar("CC").split()
 
 cmd.append("-o")
-cmd.append("python")
-cmd.append("python.c")
+cmd.append("pywrap")
+cmd.append("pywrap.c")
 
 cmd.append("-Wl,-rpath,%s" % openssl_dir)
 cmd.append("-L%s" % openssl_dir)

@@ -2,11 +2,11 @@
 
 {% block content %}
 <h1>Handle List</h1>
-<p>Please select a handle.
+<p>Please select a handle.</p>
 
 <ul>
 {% for c in conf_list %}
-<li><a href="/myrpki/conf/select?handle={{ c.handle }}&next={{ next_url }}">{{ c.handle }}</a>
+<li><a href="{{ select_url }}?handle={{ c.handle }}&next={{ next_url }}">{{ c.handle }}</a></li>
 {% endfor %}
 </ul>
 

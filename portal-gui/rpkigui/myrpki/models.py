@@ -71,8 +71,9 @@ class AddressRange(models.Model):
             print err
         return u'%s - %s' % (self.lo, self.hi)
 
+    @models.permalink
     def get_absolute_url(self):
-        return u'/myrpki/address/%d' % (self.pk,)
+        return ('rpkigui.myrpki.views.address_view', [str(self.pk)])
 
     def as_resource_range(self):
         '''Convert to rpki.resource_set.resource_range_ip.'''
@@ -107,9 +108,6 @@ class RoaRequest(models.Model):
             return rpki.resource_set.roa_prefix_ipv6(r.min, r.prefixlen(),
                     self.max_length)
 
-    def get_absolute_url(self):
-        return u'/myrpki/roa/%d' % (self.pk,)
-
 class Asn(models.Model):
     '''An ASN or range thereof.'''
     lo = models.IntegerField(blank=False)
@@ -127,8 +125,9 @@ class Asn(models.Model):
 	else:
 	    return u"ASNs %d - %d" % (self.lo, self.hi)
 
+    @models.permalink
     def get_absolute_url(self):
-        return u'/myrpki/asn/%d' % (self.pk,)
+        return ('rpkigui.myrpki.views.asn_view', [str(self.pk)])
 
     def as_resource_range(self):
         # we force conversion to long() here because resource_range_as() wants
@@ -143,8 +142,9 @@ class Child(models.Model):
     def __unicode__(self):
 	return u"%s's child %s" % (self.conf, self.handle)
 
+    @models.permalink
     def get_absolute_url(self):
-        return u'/myrpki/child/%s' % (self.handle,)
+        return ('rpkigui.myrpki.views.child_view', [self.handle])
 
     class Meta:
 	verbose_name_plural = "children"
@@ -158,8 +158,9 @@ class Parent(models.Model):
     def __unicode__(self):
 	return u"%s's parent %s" % (self.conf, self.handle)
 
+    @models.permalink
     def get_absolute_url(self):
-        return u'/myrpki/parent/%s' % (self.handle,)
+        return ('rpkigui.myrpki.views.parent_view', [self.handle])
 
     class Meta:
         # parents of a specific configuration should be unique
@@ -183,9 +184,6 @@ class ResourceCert(models.Model):
     not_before = models.DateTimeField()
     not_after = models.DateTimeField()
 
-    def get_absolute_url(self):
-        return u"/myrpki/resource/%d" % (self.pk,)
-    
     def __unicode__(self):
         return u"%s's resource cert from parent %s" % (self.parent.conf.handle,
                 self.parent.handle)

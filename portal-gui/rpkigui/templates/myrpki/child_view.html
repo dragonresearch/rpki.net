@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<p>Handle: <a href="/myrpki/">{{ request.session.handle.handle }}</a>
+<p>Handle: <a href="{% url rpkigui.myrpki.views.dashboard %}">{{ request.session.handle.handle }}</a>
 <h1>Child View</h1>
 <p>Child: {{ child.handle }}
 

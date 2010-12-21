@@ -7,7 +7,7 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 {% endblock %}
 
 {% block content %}
-<p>Handle: <a href="/myrpki/">{{ request.session.handle }}</a>
+<p>Handle: <a href="{% url rpkigui.myrpki.views.dashboard %}">{{ request.session.handle }}</a>
 
 <h1>ASN View</h1>
 

@@ -30,6 +30,7 @@ from django import http
 from django.views.generic.list_detail import object_list
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
+from django.core.urlresolvers import reverse
 
 from rpkigui.myrpki import models, forms, glue, misc, AllocationTree
 from rpkigui.myrpki.asnset import asnset
@@ -57,8 +58,7 @@ def handle_required(f):
                 # Should reverse the view for this instead of hardcoding
                 # the URL.
                 return http.HttpResponseRedirect(
-                        '/myrpki/conf/list?next=%s' %
-                        urlquote(request.get_full_path()))
+                        reverse(conf_list) + '?next=' + urlquote(request.get_full_path()))
             request.session[ 'handle' ] = handle
         return f(request, *args, **kwargs)
     return wrapped_fn
@@ -138,7 +138,7 @@ def conf_list(request):
     else:
         queryset = models.Conf.objects.filter(owner=request.user)
     return object_list(request, queryset,
-            template_name='myrpki/conf_list.html', template_object_name='conf')
+            template_name='myrpki/conf_list.html', template_object_name='conf', extra_context={ 'select_url' : reverse(conf_select) })
 
 @login_required
 def conf_select(request):
@@ -146,9 +146,9 @@ def conf_select(request):
     if not 'handle' in request.GET:
         return http.HttpResponseRedirect('/myrpki/conf/select')
     handle = request.GET['handle']
-    next_url = request.GET.get('next', '/myrpki/')
+    next_url = request.GET.get('next', reverse(dashboard))
     if next_url == '':
-        next_url = '/myrpki/'
+        next_url = reverse(dashboard)
 
     if request.user.is_superuser:
         conf = models.Conf.objects.filter(handle=handle)
@@ -161,7 +161,7 @@ def conf_select(request):
         request.session['handle'] = conf[0]
         return http.HttpResponseRedirect(next_url)
 
-    return http.HttpResponseRedirect('/myrpki/conf/list?next=' + next_url)
+    return http.HttpResponseRedirect(reverse(conf_list) + '?next=' + next_url)
 
 def serve_xml(content, basename):
     resp = http.HttpResponse(content , mimetype='application/xml')

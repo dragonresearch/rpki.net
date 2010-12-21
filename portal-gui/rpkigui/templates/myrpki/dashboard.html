@@ -8,8 +8,8 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 
 {% block content %}
 <p>Handle: {{ request.session.handle }}
-| <a href="/myrpki/conf/export">export identity</a>
-| <a href="/myrpki/conf/list">select</a>
+| <a href="{% url rpkigui.myrpki.views.conf_export %}">export identity</a>
+| <a href="{% url rpkigui.myrpki.views.conf_list %}">select</a>
 
 <div style="border: inset">
 <h1 style="text-align: center">Parents</h1>
@@ -54,7 +54,7 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 {% if request.session.handle.children.all %}
 <ul>
 {% for child in request.session.handle.children.all %}
-<li><a href="/myrpki/child/{{ child.handle }}">{{ child.handle }}</a>
+<li><a href="{% url rpkigui.myrpki.views.child_view child.handle %}">{{ child.handle }}</a>
 {% if child.address_range.count or child.asn.count %}
 <p>Delegated resources:
 <ul>
@@ -76,8 +76,8 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 {% endif %}
 
 <p>
-Export (csv): <a href="/myrpki/demo/down/asns/{{ request.session.handle }}">asns</a> |
-<a href="/myrpki/demo/down/prefixes/{{ request.session.handle }}">prefixes</a>
+Export (csv): <a href="{% url rpkigui.myrpki.views.download_asns request.session.handle %}">asns</a> |
+<a href="{% url rpkigui.myrpki.views.download_prefixes request.session.handle %}">prefixes</a>
 
 </div>
 
@@ -101,7 +101,7 @@ Export (csv): <a href="/myrpki/demo/down/asns/{{ request.session.handle }}">asns
 {% endfor %}
 </table>
 
-<p><a href="/myrpki/demo/down/roas/{{ request.session.handle }}">export (csv)</a>
+<p><a href="{% url rpkigui.myrpki.views.download_roas request.session.handle %}">export (csv)</a>
 
 </div><!-- roas -->
 

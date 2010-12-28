@@ -12,19 +12,15 @@ SOURCES = POW-${VERSION}/lib/__init__.py	\
 	  POW-${VERSION}/dumpasn1.cfg		\
 	  POW-${VERSION}/POW.c
 
-all: ${STAMP} pywrap/pywrap
+all: ${STAMP}
 
 ${STAMP}: ${SOURCES}
 	cd POW-${VERSION}; python setup.py build
 	ln -sf POW-${VERSION}/build/lib.* buildlib
 	touch $@
 
-pywrap/pywrap:
-	cd pywrap; ${MAKE} pywrap
-
 clean:
 	rm -rf POW-${VERSION}/build buildlib
-	cd pywrap; ${MAKE} $@
 
 install:
 	@echo Not attempting to install modified POW, if you want that, do it yourself

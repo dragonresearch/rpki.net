@@ -233,6 +233,27 @@ fi
 # If any of this fails, we need to tell the user and give useful hint
 # on what to do next (doc reference, whatever).
 
+TOP_LEVEL_SUBDIRS=""
+
+if test $build_openssl = yes
+then
+	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
+fi
+
+TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils"
+
+if test $build_pywrap = yes
+then
+	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pywrap"
+fi
+
+if test $build_python = yes
+then
+	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pow rpkid"
+fi
+AC_SUBST(TOP_LEVEL_SUBDIRS)
+
+
 if test $build_pywrap = yes
 then
 	# Eventually this should be the installation directory, but

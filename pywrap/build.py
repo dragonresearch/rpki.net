@@ -25,7 +25,7 @@ import os, subprocess, sys
 from distutils.sysconfig import (get_config_var as getvar,
                                  get_python_inc as getinc)
 
-openssl_dir = os.path.realpath(os.path.join(os.getcwd(), "../../openssl/openssl"))
+openssl_dir = os.path.realpath(os.path.join(os.getcwd(), "../openssl/openssl"))
 
 cmd = getvar("CC").split()
 

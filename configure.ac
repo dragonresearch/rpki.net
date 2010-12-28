@@ -38,31 +38,13 @@ AC_SUBST(LD_STATIC_FLAG)
 LDFLAGS="$old_LDFLAGS"
 unset old_LDFLAGS
 
-# OpenSSL has its own build system that bears no relationship to
-# anything but itself.  On at least one platform, OpenSSL's opinion on
-# the right thing to do is so completely at odds with everything else
-# that the resulting libraries require special compilation options for
-# any program that wants to use them.  Feh.
-
-AC_MSG_CHECKING([what configuration target to use when building OpenSSL])
-OPENSSL_CONFIG_COMMAND='./config'
-case $host in
-i*86-apple-darwin*)
-	if test "$ac_cv_sizeof_long" = 8
-	then
-		OPENSSL_CONFIG_COMMAND='./Configure darwin64-x86_64-cc'
-	fi
-	;;
-esac
-AC_SUBST(OPENSSL_CONFIG_COMMAND)
-AC_MSG_RESULT([$OPENSSL_CONFIG_COMMAND])
-
 AC_PATH_PROG([XSLTPROC], [xsltproc])
 AC_PATH_PROG([AWK], [awk])
 
 if test "x$XSLTPROC" != "x" && test "x$AWK" != "x"
 then
-	AC_CONFIG_FILES([rcynic/show.sh],	[chmod +x rcynic/show.sh])
+	AC_CONFIG_FILES([rcynic/show.sh],
+			[chmod +x rcynic/show.sh])
 fi
 
 # Figure out whether we need to build our own OpenSSL library or can
@@ -211,48 +193,52 @@ then
 	AC_MSG_ERROR([Need Python sources to build extension module, either install sources or rerun with --disable-python])
 fi
 
-# Maze of Python-related tests is complicated.
-#
-# - If we don't have Python at all, we can't run any of the Python
-#   tools and probably should not even attempt to configure them.
-#
-# - If the system Python executable was linked against OpenSSL -and-
-#   we had to build our own copy of OpenSSL (because the system copy
-#   wasn't good enough), we need to build pywrap and configure scripts
-#   to use it.
-#
-# - Otherwise (we have python and it's not linked against the wrong
-#   version of OpenSSL), we can use the system Python executable and
-#   don't need pywrap.
-#
-# - Unless we're punting on Python entirely, we need to build POW,
-#   either against the system OpenSSL or against our own copy.
-#
-# - If we're building either POW or pywrap, we need Python.h.
-#
-# If any of this fails, we need to tell the user and give useful hint
-# on what to do next (doc reference, whatever).
+# Figure out which parts of this package we have to build.
 
-TOP_LEVEL_SUBDIRS=""
+				TOP_LEVEL_SUBDIRS=""
+test $build_openssl = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
+				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils"
+test $build_pywrap = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pywrap"
+test $build_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pow rpkid"
+
+AC_SUBST(TOP_LEVEL_SUBDIRS)
+
+AC_CONFIG_FILES([Makefile
+		 rcynic/Makefile
+		 utils/Makefile
+		 utils/find_roa/Makefile
+		 utils/hashdir/Makefile
+		 utils/print_manifest/Makefile
+		 utils/print_roa/Makefile
+		 utils/uri/Makefile])
+
+# OpenSSL has its own build system that bears no relationship to
+# anything but itself.  On at least one platform, OpenSSL's opinion on
+# the right thing to do is so completely at odds with everything else
+# that the resulting libraries require special compilation options for
+# any program that wants to use them.  Feh.
+#
+# Don't bother with this unless we're building our own OpenSSL.
 
 if test $build_openssl = yes
 then
-	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
+	AC_CONFIG_FILES([openssl/Makefile])
+
+	AC_MSG_CHECKING([what configuration target to use when building OpenSSL])
+	OPENSSL_CONFIG_COMMAND='./config'
+	case $host in
+	i*86-apple-darwin*)
+		if test "$ac_cv_sizeof_long" = 8
+		then
+			OPENSSL_CONFIG_COMMAND='./Configure darwin64-x86_64-cc'
+		fi
+		;;
+	esac
+	AC_SUBST(OPENSSL_CONFIG_COMMAND)
+	AC_MSG_RESULT([$OPENSSL_CONFIG_COMMAND])
 fi
 
-TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils"
-
-if test $build_pywrap = yes
-then
-	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pywrap"
-fi
-
-if test $build_python = yes
-then
-	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pow rpkid"
-fi
-AC_SUBST(TOP_LEVEL_SUBDIRS)
-
+# Sort out which interpreter POW-using Python programs should use.
 
 if test $build_pywrap = yes
 then
@@ -286,14 +272,7 @@ then
 	AC_CONFIG_FILES([rpkid/tests/testpoke:buildtools/pywrap-header:rpkid/tests/testpoke.py],	[chmod +x rpkid/tests/testpoke])
 fi
 
-# This isn't the complete list of Makefiles (let alone setup.py, etc
-# files) in this tree, just the ones we're customizing today.  At some
-# point I should do a pass through the rest of the tree, making clever
-# use of abs_top_builddir, etc.
-
-AC_CONFIG_FILES([Makefile
-		 openssl/Makefile
-		 rcynic/Makefile
-		 rpkid/rpki/__doc__.py])
+# This should go away once its content has migrated from Doxygen into DocBook.
+AC_CONFIG_FILES([rpkid/rpki/__doc__.py])
 
 AC_OUTPUT

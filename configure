@@ -696,11 +696,11 @@ CPP
 GREP
 EGREP
 LD_STATIC_FLAG
-OPENSSL_CONFIG_COMMAND
 XSLTPROC
 AWK
 PYTHON
 TOP_LEVEL_SUBDIRS
+OPENSSL_CONFIG_COMMAND
 PYWRAP
 LIBOBJS
 LTLIBOBJS'
@@ -3894,27 +3894,6 @@ rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
 LDFLAGS="$old_LDFLAGS"
 unset old_LDFLAGS
 
-# OpenSSL has its own build system that bears no relationship to
-# anything but itself.  On at least one platform, OpenSSL's opinion on
-# the right thing to do is so completely at odds with everything else
-# that the resulting libraries require special compilation options for
-# any program that wants to use them.  Feh.
-
-{ $as_echo "$as_me:$LINENO: checking what configuration target to use when building OpenSSL" >&5
-$as_echo_n "checking what configuration target to use when building OpenSSL... " >&6; }
-OPENSSL_CONFIG_COMMAND='./config'
-case $host in
-i*86-apple-darwin*)
-	if test "$ac_cv_sizeof_long" = 8
-	then
-		OPENSSL_CONFIG_COMMAND='./Configure darwin64-x86_64-cc'
-	fi
-	;;
-esac
-
-{ $as_echo "$as_me:$LINENO: result: $OPENSSL_CONFIG_COMMAND" >&5
-$as_echo "$OPENSSL_CONFIG_COMMAND" >&6; }
-
 # Extract the first word of "xsltproc", so it can be a program name with args.
 set dummy xsltproc; ac_word=$2
 { $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
@@ -4511,48 +4490,49 @@ $as_echo "$as_me: error: Need Python sources to build extension module, either i
    { (exit 1); exit 1; }; }
 fi
 
-# Maze of Python-related tests is complicated.
-#
-# - If we don't have Python at all, we can't run any of the Python
-#   tools and probably should not even attempt to configure them.
-#
-# - If the system Python executable was linked against OpenSSL -and-
-#   we had to build our own copy of OpenSSL (because the system copy
-#   wasn't good enough), we need to build pywrap and configure scripts
-#   to use it.
-#
-# - Otherwise (we have python and it's not linked against the wrong
-#   version of OpenSSL), we can use the system Python executable and
-#   don't need pywrap.
-#
-# - Unless we're punting on Python entirely, we need to build POW,
-#   either against the system OpenSSL or against our own copy.
-#
-# - If we're building either POW or pywrap, we need Python.h.
-#
-# If any of this fails, we need to tell the user and give useful hint
-# on what to do next (doc reference, whatever).
+# Figure out which parts of this package we have to build.
 
-TOP_LEVEL_SUBDIRS=""
+				TOP_LEVEL_SUBDIRS=""
+test $build_openssl = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
+				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils"
+test $build_pywrap = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pywrap"
+test $build_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pow rpkid"
+
+
+
+ac_config_files="$ac_config_files Makefile rcynic/Makefile utils/Makefile utils/find_roa/Makefile utils/hashdir/Makefile utils/print_manifest/Makefile utils/print_roa/Makefile utils/uri/Makefile"
+
+
+# OpenSSL has its own build system that bears no relationship to
+# anything but itself.  On at least one platform, OpenSSL's opinion on
+# the right thing to do is so completely at odds with everything else
+# that the resulting libraries require special compilation options for
+# any program that wants to use them.  Feh.
+#
+# Don't bother with this unless we're building our own OpenSSL.
 
 if test $build_openssl = yes
 then
-	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
+	ac_config_files="$ac_config_files openssl/Makefile"
+
+
+	{ $as_echo "$as_me:$LINENO: checking what configuration target to use when building OpenSSL" >&5
+$as_echo_n "checking what configuration target to use when building OpenSSL... " >&6; }
+	OPENSSL_CONFIG_COMMAND='./config'
+	case $host in
+	i*86-apple-darwin*)
+		if test "$ac_cv_sizeof_long" = 8
+		then
+			OPENSSL_CONFIG_COMMAND='./Configure darwin64-x86_64-cc'
+		fi
+		;;
+	esac
+
+	{ $as_echo "$as_me:$LINENO: result: $OPENSSL_CONFIG_COMMAND" >&5
+$as_echo "$OPENSSL_CONFIG_COMMAND" >&6; }
 fi
 
-TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils"
-
-if test $build_pywrap = yes
-then
-	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pywrap"
-fi
-
-if test $build_python = yes
-then
-	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pow rpkid"
-fi
-
-
+# Sort out which interpreter POW-using Python programs should use.
 
 if test $build_pywrap = yes
 then
@@ -4600,12 +4580,8 @@ then
 
 fi
 
-# This isn't the complete list of Makefiles (let alone setup.py, etc
-# files) in this tree, just the ones we're customizing today.  At some
-# point I should do a pass through the rest of the tree, making clever
-# use of abs_top_builddir, etc.
-
-ac_config_files="$ac_config_files Makefile openssl/Makefile rcynic/Makefile rpkid/rpki/__doc__.py"
+# This should go away once its content has migrated from Doxygen into DocBook.
+ac_config_files="$ac_config_files rpkid/rpki/__doc__.py"
 
 
 cat >confcache <<\_ACEOF
@@ -5210,6 +5186,15 @@ for ac_config_target in $ac_config_targets
 do
   case $ac_config_target in
     "rcynic/show.sh") CONFIG_FILES="$CONFIG_FILES rcynic/show.sh" ;;
+    "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
+    "rcynic/Makefile") CONFIG_FILES="$CONFIG_FILES rcynic/Makefile" ;;
+    "utils/Makefile") CONFIG_FILES="$CONFIG_FILES utils/Makefile" ;;
+    "utils/find_roa/Makefile") CONFIG_FILES="$CONFIG_FILES utils/find_roa/Makefile" ;;
+    "utils/hashdir/Makefile") CONFIG_FILES="$CONFIG_FILES utils/hashdir/Makefile" ;;
+    "utils/print_manifest/Makefile") CONFIG_FILES="$CONFIG_FILES utils/print_manifest/Makefile" ;;
+    "utils/print_roa/Makefile") CONFIG_FILES="$CONFIG_FILES utils/print_roa/Makefile" ;;
+    "utils/uri/Makefile") CONFIG_FILES="$CONFIG_FILES utils/uri/Makefile" ;;
+    "openssl/Makefile") CONFIG_FILES="$CONFIG_FILES openssl/Makefile" ;;
     "rpkid/backup-sql") CONFIG_FILES="$CONFIG_FILES rpkid/backup-sql:buildtools/python-header:rpkid/backup-sql.py" ;;
     "rpkid/sql-setup") CONFIG_FILES="$CONFIG_FILES rpkid/sql-setup:buildtools/python-header:rpkid/sql-setup.py" ;;
     "rpkid/start-servers") CONFIG_FILES="$CONFIG_FILES rpkid/start-servers:buildtools/python-header:rpkid/start-servers.py" ;;
@@ -5224,9 +5209,6 @@ do
     "rpkid/tests/smoketest") CONFIG_FILES="$CONFIG_FILES rpkid/tests/smoketest:buildtools/pywrap-header:rpkid/tests/smoketest.py" ;;
     "rpkid/tests/yamltest") CONFIG_FILES="$CONFIG_FILES rpkid/tests/yamltest:buildtools/pywrap-header:rpkid/tests/yamltest.py" ;;
     "rpkid/tests/testpoke") CONFIG_FILES="$CONFIG_FILES rpkid/tests/testpoke:buildtools/pywrap-header:rpkid/tests/testpoke.py" ;;
-    "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
-    "openssl/Makefile") CONFIG_FILES="$CONFIG_FILES openssl/Makefile" ;;
-    "rcynic/Makefile") CONFIG_FILES="$CONFIG_FILES rcynic/Makefile" ;;
     "rpkid/rpki/__doc__.py") CONFIG_FILES="$CONFIG_FILES rpkid/rpki/__doc__.py" ;;
 
   *) { { $as_echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5

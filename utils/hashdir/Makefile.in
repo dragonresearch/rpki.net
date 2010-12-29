@@ -1,24 +1,24 @@
 # $Id$
 
-OPENSSL_DIR = ../../openssl/openssl
+NAME = hashdir
 
-CFLAGS = -g -I${OPENSSL_DIR}/include
+BIN = ${NAME}
+SRC = ${NAME}.c
+OBJ = ${NAME}.o
 
-# -H -Wl,-t
-
-BIN = hashdir
-OBJ = hashdir.o
-LIB = ${OPENSSL_DIR}/libcrypto.a
+CFLAGS = @CFLAGS@
+LDFLAGS = @LDFLAGS@
+LIBS = @LIBS@
 
 all: ${BIN}
 
 clean::
 	rm -f ${BIN} ${OBJ}
 
-${BIN}: ${OBJ} ${LIB} Makefile
-	${CC} -g -o $@ ${OBJ} ${LIB}
+${BIN}: ${SRC}
+	${CC} ${CFLAGS} -o $@ ${SRC} ${LDFLAGS} -lcrypto ${LIBS}
 
-INPUT  = ../../rcynic/rcynic-data/authenticated
+INPUT  = @top_srcdir@/rcynic/rcynic-data/authenticated
 OUTPUT = hashed-pem-dir
 
 test: ${BIN}

@@ -1,25 +1,22 @@
 # $Id$
 
-OPENSSL_DIR = ../openssl/openssl
+NAME = rcynic
 
-# Disable -Werror as long as we're using OpenSSL snapshots.
+BIN = ${NAME}
+SRC = ${NAME}.c
+OBJ = ${NAME}.o
 
-CFLAGS = -g -I${OPENSSL_DIR}/include -Wall -Wshadow -Wmissing-prototypes -Wmissing-declarations
-LDFLAGS = @LD_STATIC_FLAG@
-
-# -H -Wl,-t
-
-BIN = rcynic
-OBJ = rcynic.o
-LIB = ${OPENSSL_DIR}/libcrypto.a
+CFLAGS = @CFLAGS@ -Wall -Wshadow -Wmissing-prototypes -Wmissing-declarations
+LDFLAGS = @LDFLAGS@ @LD_STATIC_FLAG@
+LIBS = @LIBS@
 
 all: ${BIN}
 
 clean:
 	rm -f ${BIN} ${OBJ}
 
-${BIN}: ${OBJ} ${LIB} Makefile
-	${CC} -g -o $@ ${OBJ} ${LIB} ${LDFLAGS}
+${BIN}: ${SRC}
+	${CC} ${CFLAGS} -o $@ ${SRC} ${LDFLAGS} -lcrypto ${LIBS}
 
 test: ${BIN}
 	if test -r rcynic.conf; then ./${BIN} -j 0 && echo && ./show.sh; else echo No rcynic.conf, skipping test; fi

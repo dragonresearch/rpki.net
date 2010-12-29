@@ -1363,8 +1363,10 @@ static int rsync(const rcynic_ctx_t *rc,
 
   close(pipe_fds[1]);
 
-  deadline = time(0) + rc->rsync_timeout;
+  now = time(0);
+  deadline = now + rc->rsync_timeout;
 
+  n = -1;
   i = 0;
   while ((wpid = waitpid(pid, &pid_status, WNOHANG)) == 0 &&
 	 (!rc->rsync_timeout || (now = time(0)) < deadline)) {
@@ -3226,7 +3228,7 @@ int main(int argc, char *argv[])
     time_t tad_time = time(0);
     struct tm *tad_tm = gmtime(&tad_time);
     int ok = 1, use_stdout = !strcmp(xmlfile, "-");
-    FILE *f;
+    FILE *f = NULL;
 
     strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", tad_tm);
 

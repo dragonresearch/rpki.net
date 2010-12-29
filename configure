@@ -700,6 +700,7 @@ XSLTPROC
 AWK
 PYTHON
 TOP_LEVEL_SUBDIRS
+RPKITOOLS_TOP_BUILDDIR
 OPENSSL_CONFIG_COMMAND
 PYWRAP
 LIBOBJS
@@ -3837,8 +3838,8 @@ _ACEOF
 # know how to do it on all platforms, so we try the hack we know, and
 # if that doesn't work, oh well.
 
-{ $as_echo "$as_me:$LINENO: checking if linker supports -static" >&5
-$as_echo_n "checking if linker supports -static... " >&6; }
+{ $as_echo "$as_me:$LINENO: checking whether linker supports -static" >&5
+$as_echo_n "checking whether linker supports -static... " >&6; }
 old_LDFLAGS="$LDFLAGS"
 LDFLAGS="$LDFLAGS -static"
 cat >conftest.$ac_ext <<_ACEOF
@@ -4503,6 +4504,12 @@ test $build_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pow rpkid"
 ac_config_files="$ac_config_files Makefile rcynic/Makefile utils/Makefile utils/find_roa/Makefile utils/hashdir/Makefile utils/print_manifest/Makefile utils/print_roa/Makefile utils/uri/Makefile"
 
 
+# If there's some sane way to do this with a built-in autoconf
+# variable, I don't know what it is, so copy what BIND9 does.
+
+RPKITOOLS_TOP_BUILDDIR=`pwd`
+
+
 # OpenSSL has its own build system that bears no relationship to
 # anything but itself.  On at least one platform, OpenSSL's opinion on
 # the right thing to do is so completely at odds with everything else
@@ -4530,6 +4537,9 @@ $as_echo_n "checking what configuration target to use when building OpenSSL... "
 
 	{ $as_echo "$as_me:$LINENO: result: $OPENSSL_CONFIG_COMMAND" >&5
 $as_echo "$OPENSSL_CONFIG_COMMAND" >&6; }
+
+	LDFLAGS="$LDFLAGS -L$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"
+	CFLAGS="$CFLAGS -I$RPKITOOLS_TOP_BUILDDIR/openssl/openssl/include"
 fi
 
 # Sort out which interpreter POW-using Python programs should use.
@@ -4538,7 +4548,7 @@ if test $build_pywrap = yes
 then
 	# Eventually this should be the installation directory, but
 	# for now we're still running out of the build tree.
-	PYWRAP=`pwd`/pow/pywrap/pywrap
+	PYWRAP=$RPKITOOLS_TOP_BUILDDIR/pow/pywrap/pywrap
 else
 	# If we don't need pywrap, just make it expand to python
 	PYWRAP=$PYTHON

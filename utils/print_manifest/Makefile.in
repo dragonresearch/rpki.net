@@ -1,26 +1,25 @@
 # $Id$
 
-OPENSSL_DIR = ../../openssl/openssl
-
-CFLAGS = -g -I${OPENSSL_DIR}/include -Wall
-
-# -H -Wl,-t
-
 NAME = print_manifest
 
+
 BIN = ${NAME}
+SRC = ${NAME}.c
 OBJ = ${NAME}.o
-LIB = ${OPENSSL_DIR}/libcrypto.a
+
+CFLAGS = @CFLAGS@
+LDFLAGS = @LDFLAGS@
+LIBS = @LIBS@
 
 all: ${BIN}
 
 clean:
 	rm -f ${BIN} ${OBJ}
 
-${BIN}: ${OBJ} ${LIB} Makefile
-	${CC} -g -o $@ ${OBJ} ${LIB}
+${BIN}: ${SRC}
+	${CC} ${CFLAGS} -o $@ ${SRC} ${LDFLAGS} -lcrypto ${LIBS}
 
-MANIFEST_DIR = ../../rpkid/tests/smoketest.dir/publication
+MANIFEST_DIR = @top_srcdir@/rpkid/tests/smoketest.dir/publication
 
 test: all
 	-date -u +'now:            %Y%m%d%H%M%SZ'

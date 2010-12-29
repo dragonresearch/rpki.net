@@ -1,10 +1,6 @@
 # -*- Autoconf -*-
 # $Id$
 
-# Bare-bones autoconf for RPKI tools.  This will almost certainly
-# expand later, right now I'm only using it for things that absolutely
-# must be configured just to get the code to build at all.
-
 AC_PREREQ(2.61)
 AC_INIT(rpkitools, 1.0,)
 AC_CONFIG_SRCDIR([rcynic/rcynic.c])
@@ -20,7 +16,7 @@ AC_CHECK_SIZEOF([long])
 # know how to do it on all platforms, so we try the hack we know, and
 # if that doesn't work, oh well.
 
-AC_MSG_CHECKING([if linker supports -static])
+AC_MSG_CHECKING([whether linker supports -static])
 old_LDFLAGS="$LDFLAGS"
 LDFLAGS="$LDFLAGS -static"
 AC_LINK_IFELSE(
@@ -212,6 +208,12 @@ AC_CONFIG_FILES([Makefile
 		 utils/print_roa/Makefile
 		 utils/uri/Makefile])
 
+# If there's some sane way to do this with a built-in autoconf
+# variable, I don't know what it is, so copy what BIND9 does.
+
+RPKITOOLS_TOP_BUILDDIR=`pwd`
+AC_SUBST(RPKITOOLS_TOP_BUILDDIR)
+
 # OpenSSL has its own build system that bears no relationship to
 # anything but itself.  On at least one platform, OpenSSL's opinion on
 # the right thing to do is so completely at odds with everything else
@@ -236,6 +238,9 @@ then
 	esac
 	AC_SUBST(OPENSSL_CONFIG_COMMAND)
 	AC_MSG_RESULT([$OPENSSL_CONFIG_COMMAND])
+
+	LDFLAGS="$LDFLAGS -L$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"
+	CFLAGS="$CFLAGS -I$RPKITOOLS_TOP_BUILDDIR/openssl/openssl/include"
 fi
 
 # Sort out which interpreter POW-using Python programs should use.
@@ -244,7 +249,7 @@ if test $build_pywrap = yes
 then
 	# Eventually this should be the installation directory, but
 	# for now we're still running out of the build tree.
-	PYWRAP=`pwd`/pow/pywrap/pywrap
+	PYWRAP=$RPKITOOLS_TOP_BUILDDIR/pow/pywrap/pywrap
 else
 	# If we don't need pywrap, just make it expand to python
 	PYWRAP=$PYTHON

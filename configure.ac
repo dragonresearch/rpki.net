@@ -239,7 +239,9 @@ then
 	AC_SUBST(OPENSSL_CONFIG_COMMAND)
 	AC_MSG_RESULT([$OPENSSL_CONFIG_COMMAND])
 
-	LDFLAGS="$LDFLAGS -L$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"
+	# This -rpath insanity will need to change once we install this stuff
+
+	LDFLAGS="$LDFLAGS -L$RPKITOOLS_TOP_BUILDDIR/openssl/openssl -Wl,-rpath,$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"
 	CFLAGS="$CFLAGS -I$RPKITOOLS_TOP_BUILDDIR/openssl/openssl/include"
 fi
 
@@ -247,6 +249,8 @@ fi
 
 if test $build_pywrap = yes
 then
+	AC_CONFIG_FILES([pywrap/Makefile])
+
 	# Eventually this should be the installation directory, but
 	# for now we're still running out of the build tree.
 	PYWRAP=$RPKITOOLS_TOP_BUILDDIR/pow/pywrap/pywrap
@@ -258,6 +262,8 @@ AC_SUBST(PYWRAP)
 
 if test $build_python = yes
 then
+	AC_CONFIG_FILES([pow/Makefile rpkid/Makefile rpkid/tests/Makefile])
+
 	# These are plain Python scripts, do not require pywrap
 	AC_CONFIG_FILES([rpkid/backup-sql:buildtools/python-header:rpkid/backup-sql.py],		[chmod +x rpkid/backup-sql])
 	AC_CONFIG_FILES([rpkid/sql-setup:buildtools/python-header:rpkid/sql-setup.py],			[chmod +x rpkid/sql-setup])

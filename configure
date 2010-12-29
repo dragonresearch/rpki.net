@@ -4538,7 +4538,9 @@ $as_echo_n "checking what configuration target to use when building OpenSSL... "
 	{ $as_echo "$as_me:$LINENO: result: $OPENSSL_CONFIG_COMMAND" >&5
 $as_echo "$OPENSSL_CONFIG_COMMAND" >&6; }
 
-	LDFLAGS="$LDFLAGS -L$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"
+	# This -rpath insanity will need to change once we install this stuff
+
+	LDFLAGS="$LDFLAGS -L$RPKITOOLS_TOP_BUILDDIR/openssl/openssl -Wl,-rpath,$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"
 	CFLAGS="$CFLAGS -I$RPKITOOLS_TOP_BUILDDIR/openssl/openssl/include"
 fi
 
@@ -4546,6 +4548,9 @@ fi
 
 if test $build_pywrap = yes
 then
+	ac_config_files="$ac_config_files pywrap/Makefile"
+
+
 	# Eventually this should be the installation directory, but
 	# for now we're still running out of the build tree.
 	PYWRAP=$RPKITOOLS_TOP_BUILDDIR/pow/pywrap/pywrap
@@ -4557,6 +4562,9 @@ fi
 
 if test $build_python = yes
 then
+	ac_config_files="$ac_config_files pow/Makefile rpkid/Makefile rpkid/tests/Makefile"
+
+
 	# These are plain Python scripts, do not require pywrap
 	ac_config_files="$ac_config_files rpkid/backup-sql:buildtools/python-header:rpkid/backup-sql.py"
 
@@ -5205,6 +5213,10 @@ do
     "utils/print_roa/Makefile") CONFIG_FILES="$CONFIG_FILES utils/print_roa/Makefile" ;;
     "utils/uri/Makefile") CONFIG_FILES="$CONFIG_FILES utils/uri/Makefile" ;;
     "openssl/Makefile") CONFIG_FILES="$CONFIG_FILES openssl/Makefile" ;;
+    "pywrap/Makefile") CONFIG_FILES="$CONFIG_FILES pywrap/Makefile" ;;
+    "pow/Makefile") CONFIG_FILES="$CONFIG_FILES pow/Makefile" ;;
+    "rpkid/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/Makefile" ;;
+    "rpkid/tests/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/tests/Makefile" ;;
     "rpkid/backup-sql") CONFIG_FILES="$CONFIG_FILES rpkid/backup-sql:buildtools/python-header:rpkid/backup-sql.py" ;;
     "rpkid/sql-setup") CONFIG_FILES="$CONFIG_FILES rpkid/sql-setup:buildtools/python-header:rpkid/sql-setup.py" ;;
     "rpkid/start-servers") CONFIG_FILES="$CONFIG_FILES rpkid/start-servers:buildtools/python-header:rpkid/start-servers.py" ;;

@@ -249,7 +249,9 @@ AC_SUBST(RPKITOOLS_TOP_BUILDDIR)
 # any program that wants to use them.  We also have to sort out whether
 # the linker is going to require shared libraries.  Feh.
 #
-# Don't bother with this unless we're building OpenSSL.
+# The -rpath insanity will need to change once we install this stuff.
+#
+# Don't bother with any of this unless we're building OpenSSL.
 
 if test $build_openssl = yes
 then
@@ -274,15 +276,11 @@ then
 	if test $need_openssl_shared = yes
 	then
 		OPENSSL_SHARED_LIBRARIES='enable-shared'
-
-		# This -rpath insanity will need to change once we install this stuff
 		LDFLAGS="$LDFLAGS -Wl,-rpath,$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"
-
 	else
 		OPENSSL_SHARED_LIBRARIES='disable-shared'
 	fi
 	AC_SUBST(OPENSSL_SHARED_LIBRARIES)
-	AC_MSG_RESULT([$OPENSSL_SHARED_LIBRARIES])
 fi
 
 # Sort out which interpreter POW-using Python programs should use.

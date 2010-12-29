@@ -4548,7 +4548,9 @@ RPKITOOLS_TOP_BUILDDIR=`pwd`
 # any program that wants to use them.  We also have to sort out whether
 # the linker is going to require shared libraries.  Feh.
 #
-# Don't bother with this unless we're building OpenSSL.
+# The -rpath insanity will need to change once we install this stuff.
+#
+# Don't bother with any of this unless we're building OpenSSL.
 
 if test $build_openssl = yes
 then
@@ -4576,16 +4578,11 @@ $as_echo "$OPENSSL_CONFIG_COMMAND" >&6; }
 	if test $need_openssl_shared = yes
 	then
 		OPENSSL_SHARED_LIBRARIES='enable-shared'
-
-		# This -rpath insanity will need to change once we install this stuff
 		LDFLAGS="$LDFLAGS -Wl,-rpath,$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"
-
 	else
 		OPENSSL_SHARED_LIBRARIES='disable-shared'
 	fi
 
-	{ $as_echo "$as_me:$LINENO: result: $OPENSSL_SHARED_LIBRARIES" >&5
-$as_echo "$OPENSSL_SHARED_LIBRARIES" >&6; }
 fi
 
 # Sort out which interpreter POW-using Python programs should use.

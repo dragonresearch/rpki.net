@@ -141,10 +141,7 @@ prog_rootd     = cfg.get("prog_rootd",     "../../rootd.py")
 prog_pubd      = cfg.get("prog_pubd",      "../../pubd.py")
 prog_rsyncd    = cfg.get("prog_rsyncd",    "rsync")
 prog_rcynic    = cfg.get("prog_rcynic",    "../../../rcynic/rcynic")
-
 prog_openssl   = cfg.get("prog_openssl",   "../../../openssl/openssl/apps/openssl")
-if not os.path.exists(prog_openssl):
-  prog_openssl = "openssl"
 
 rcynic_stats   = cfg.get("rcynic_stats",   "echo ; ../../../rcynic/show.sh %s.xml ; echo" % rcynic_name)
 
@@ -185,6 +182,12 @@ def main():
   except OSError:
     os.makedirs(smoketest_dir)
     os.chdir(smoketest_dir)
+
+  # Now that we're in the right directory, we can figure out whether
+  # we have a private openssl executable to use
+  global prog_openssl
+  if not os.path.exists(prog_openssl):
+    prog_openssl = "openssl"
 
   # Discard everything but keys, which take a while to generate
   for root, dirs, files in os.walk(".", topdown = False):

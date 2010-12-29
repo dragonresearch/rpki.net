@@ -25,18 +25,14 @@ import os, subprocess, sys
 from distutils.sysconfig import (get_config_var as getvar,
                                  get_python_inc as getinc)
 
-openssl_dir = os.path.realpath(os.path.join(os.getcwd(), "../openssl/openssl"))
-
 cmd = getvar("CC").split()
 
 cmd.append("-o")
 cmd.append("pywrap")
 cmd.append("pywrap.c")
 
-cmd.append("-Wl,-rpath,%s" % openssl_dir)
-cmd.append("-L%s" % openssl_dir)
-cmd.append("-lcrypto")
-cmd.append("-lssl")
+for var in ("AC_CFLAGS", "AC_LDFLAGS", "AC_LIBS"):
+  cmd.extend(os.environ[var].split())
 
 cmd.append("-I%s" % getinc(plat_specific = False))
 cmd.append("-I%s" % getinc(plat_specific = True))

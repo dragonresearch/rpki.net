@@ -139,9 +139,12 @@ prog_irdbd     = cfg.get("prog_irdbd",     "../../irdbd.py")
 prog_poke      = cfg.get("prog_poke",      "../../testpoke.py")
 prog_rootd     = cfg.get("prog_rootd",     "../../rootd.py")
 prog_pubd      = cfg.get("prog_pubd",      "../../pubd.py")
-prog_openssl   = cfg.get("prog_openssl",   "../../../openssl/openssl/apps/openssl")
 prog_rsyncd    = cfg.get("prog_rsyncd",    "rsync")
 prog_rcynic    = cfg.get("prog_rcynic",    "../../../rcynic/rcynic")
+
+prog_openssl   = cfg.get("prog_openssl",   "../../../openssl/openssl/apps/openssl")
+if not os.path.exists(prog_openssl):
+  prog_openssl = "openssl"
 
 rcynic_stats   = cfg.get("rcynic_stats",   "echo ; ../../../rcynic/show.sh %s.xml ; echo" % rcynic_name)
 

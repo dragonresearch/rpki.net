@@ -72,7 +72,10 @@ prog_rpkid   = cleanpath(rpkid_dir, "rpkid.py")
 prog_irdbd   = cleanpath(rpkid_dir, "irdbd.py")
 prog_pubd    = cleanpath(rpkid_dir, "pubd.py")
 prog_rootd   = cleanpath(rpkid_dir, "rootd.py")
+
 prog_openssl = cleanpath(this_dir, "../../openssl/openssl/apps/openssl")
+if not os.path.exists(prog_openssl):
+  prog_openssl = "openssl"
 
 class roa_request(object):
   """

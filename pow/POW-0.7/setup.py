@@ -37,9 +37,12 @@ setup(name = 'POW',
       ext_modules = [ Extension('POW._POW', 
                                 ['POW.c'], 
                                 libraries       = libraries,
-                                library_dirs    = library_dirs,
-                                include_dirs    = include_dirs,
-                                extra_link_args = extra_link_args) ])
+#                                library_dirs    = library_dirs,
+#                                include_dirs    = include_dirs,
+#                                extra_link_args = extra_link_args,
+                                extra_compile_args = list(os.environ["AC_CFLAGS"].split()),
+                                extra_link_args = list(os.environ["AC_LDFLAGS"].split())
+                                ) ])
 
 os.remove('lib/_objects.py')
 os.remove('lib/_oids.py')

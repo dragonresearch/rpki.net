@@ -21,7 +21,7 @@ OPENSSL_CONFIG_COMMAND = @OPENSSL_CONFIG_COMMAND@
 
 OPENSSL_BUILD_DIRECTORY = @abs_builddir@/openssl
 
-OPTIONS = enable-rfc3779 enable-cms no-dso enable-shared --prefix=${OPENSSL_BUILD_DIRECTORY}
+OPTIONS = enable-rfc3779 enable-cms no-dso @OPENSSL_SHARED_LIBRARIES@ --prefix=${OPENSSL_BUILD_DIRECTORY}
 
 all: openssl-${VERSION}/Makefile
 	cd openssl-${VERSION}; ${MAKE} $@ LIBRPATH=${OPENSSL_BUILD_DIRECTORY}

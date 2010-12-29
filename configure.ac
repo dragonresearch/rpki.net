@@ -62,6 +62,33 @@ else
 	have_usable_openssl=no
 fi
 
+# Figure out whether we need to use shared libraries to build POW.
+# This is a world of hurt, but appears to be required on some 64-bit
+# platforms due to a deficiency in the GNU linker: it flat out refuses
+# to build a shared object (.so) file that uses functions from a
+# static library (.a) or static object (.o) file.  This in turn
+# creates a nightmare of library version dependency issues, so we use
+# static libraries where we can, dynamic where we must.
+#
+# My autoconf-fu isn't strong enough to construct a test for the real
+# condition, so for the moment I'm just testing word length.  If you
+# know how to write the real test, please do so and send it to me.  So
+# far the least silly idea I've had for how to do this would be to use
+# AC_LINK_IFELSE() to test a fragment of C code calling some ISO C
+# math function with LDFLAGS='-Wl,--library=:libm.a -shared' and
+# CFLAGS='-fPIC' to see if the linker explodes.
+
+AC_MSG_CHECKING([whether building Python extension will require need shared OpenSSL libraries])
+if test "$ac_cv_sizeof_long" -eq 4
+then
+	need_openssl_shared=no
+else
+	need_openssl_shared=yes
+fi
+AC_MSG_RESULT([$need_openssl_shared])
+
+# Now a bunch of checks to figure out what we can do with Python.
+
 AC_PATH_PROG([PYTHON], [python])
 
 if test "x$PYTHON" = "x"
@@ -70,6 +97,7 @@ then
 	have_python_h=no
 	need_pywrap=no
 	have_django=no
+	need_openssl_shared=no
 else
 	have_python=yes
 
@@ -86,7 +114,7 @@ else
 		AC_MSG_CHECKING([whether Python links against libcrypto])
 		if ldd $PYTHON 2>&AS_MESSAGE_LOG_FD | $PYTHON -c 'import sys; sys.exit("libcrypto" not in sys.stdin.read())'
 		then
-			need_pywrap=yes
+			need_pywrap=$need_openssl_shared
 		else
 			need_pywrap=no
 		fi
@@ -153,9 +181,9 @@ case $enable_pywrap in
 		then
 			AC_MSG_ERROR([Building pywrap without Python makes no sense])
 		fi
-		if test $build_openssl = no
+		if test $build_openssl = no || test $need_openssl_shared = no
 		then
-			AC_MSG_WARN([Building pywrap when using system OpenSSL library makes no sense (but I'll try to do it anyway)])
+			AC_MSG_WARN([pywrap not needed for this platform (but I'll try to build it anyway)])
 		fi
 		;;
      no)	build_pywrap=no
@@ -218,9 +246,10 @@ AC_SUBST(RPKITOOLS_TOP_BUILDDIR)
 # anything but itself.  On at least one platform, OpenSSL's opinion on
 # the right thing to do is so completely at odds with everything else
 # that the resulting libraries require special compilation options for
-# any program that wants to use them.  Feh.
+# any program that wants to use them.  We also have to sort out whether
+# the linker is going to require shared libraries.  Feh.
 #
-# Don't bother with this unless we're building our own OpenSSL.
+# Don't bother with this unless we're building OpenSSL.
 
 if test $build_openssl = yes
 then
@@ -239,10 +268,21 @@ then
 	AC_SUBST(OPENSSL_CONFIG_COMMAND)
 	AC_MSG_RESULT([$OPENSSL_CONFIG_COMMAND])
 
-	# This -rpath insanity will need to change once we install this stuff
-
-	LDFLAGS="$LDFLAGS -L$RPKITOOLS_TOP_BUILDDIR/openssl/openssl -Wl,-rpath,$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"
+	LDFLAGS="$LDFLAGS -L$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"
 	CFLAGS="$CFLAGS -I$RPKITOOLS_TOP_BUILDDIR/openssl/openssl/include"
+
+	if test $need_openssl_shared = yes
+	then
+		OPENSSL_SHARED_LIBRARIES='enable-shared'
+
+		# This -rpath insanity will need to change once we install this stuff
+		LDFLAGS="$LDFLAGS -Wl,-rpath,$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"
+
+	else
+		OPENSSL_SHARED_LIBRARIES='disable-shared'
+	fi
+	AC_SUBST(OPENSSL_SHARED_LIBRARIES)
+	AC_MSG_RESULT([$OPENSSL_SHARED_LIBRARIES])
 fi
 
 # Sort out which interpreter POW-using Python programs should use.

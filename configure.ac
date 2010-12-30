@@ -351,8 +351,6 @@ then
 	AC_CONFIG_FILES([rpkid/backup-sql:buildtools/python-header:rpkid/backup-sql.py],		[chmod +x rpkid/backup-sql])
 	AC_CONFIG_FILES([rpkid/sql-setup:buildtools/python-header:rpkid/sql-setup.py],			[chmod +x rpkid/sql-setup])
 	AC_CONFIG_FILES([rpkid/start-servers:buildtools/python-header:rpkid/start-servers.py],		[chmod +x rpkid/start-servers])
-	AC_CONFIG_FILES([rpkid/tests/sql-cleaner:buildtools/python-header:rpkid/tests/sql-cleaner.py],	[chmod +x rpkid/tests/sql-cleaner])
-	AC_CONFIG_FILES([rpkid/tests/sql-dumper:buildtools/python-header:rpkid/tests/sql-dumper.py],	[chmod +x rpkid/tests/sql-dumper])
 
 	# These use POW, so may require pywrap	
 	AC_CONFIG_FILES([rpkid/irbe_cli:buildtools/pywrap-header:rpkid/irbe_cli.py],			[chmod +x rpkid/irbe_cli])
@@ -361,9 +359,6 @@ then
 	AC_CONFIG_FILES([rpkid/pubd:buildtools/pywrap-header:rpkid/pubd.py],				[chmod +x rpkid/pubd])
 	AC_CONFIG_FILES([rpkid/rootd:buildtools/pywrap-header:rpkid/rootd.py],				[chmod +x rpkid/rootd])
 	AC_CONFIG_FILES([rpkid/rpkid:buildtools/pywrap-header:rpkid/rpkid.py],				[chmod +x rpkid/rpkid])
-	AC_CONFIG_FILES([rpkid/tests/smoketest:buildtools/pywrap-header:rpkid/tests/smoketest.py],	[chmod +x rpkid/tests/smoketest])
-	AC_CONFIG_FILES([rpkid/tests/yamltest:buildtools/pywrap-header:rpkid/tests/yamltest.py],	[chmod +x rpkid/tests/yamltest])
-	AC_CONFIG_FILES([rpkid/tests/testpoke:buildtools/pywrap-header:rpkid/tests/testpoke.py],	[chmod +x rpkid/tests/testpoke])
 fi
 
 # This should go away once its content has migrated from Doxygen into DocBook.

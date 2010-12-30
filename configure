@@ -4720,7 +4720,7 @@ then
 
 	# Eventually this should be the installation directory, but
 	# for now we're still running out of the build tree.
-	PYWRAP=$RPKITOOLS_TOP_BUILDDIR/pow/pywrap/pywrap
+	PYWRAP=$RPKITOOLS_TOP_BUILDDIR/pywrap/pywrap
 else
 	# If we don't need pywrap, just make it expand to python
 	PYWRAP=$PYTHON

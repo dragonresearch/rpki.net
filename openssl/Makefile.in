@@ -36,7 +36,7 @@ clean:
 # case it's probably easier to use ./Configure.
 
 openssl-${VERSION}/Makefile: openssl-${VERSION}/config
-	cd openssl-${VERSION}; PERL=/usr/bin/perl ${OPENSSL_CONFIG_COMMAND} ${OPTIONS}
+	cd openssl-${VERSION}; ${OPENSSL_CONFIG_COMMAND} ${OPTIONS}
 	cd openssl-${VERSION}; ${MAKE} depend
 
 openssl-${VERSION}/config: openssl-${VERSION}.tar.gz

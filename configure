@@ -710,6 +710,7 @@ ac_subst_files=''
 ac_user_opts='
 enable_option_checking
 enable_system_openssl
+enable_shared_openssl
 enable_python
 enable_pywrap
 enable_django
@@ -1351,6 +1352,7 @@ Optional Features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --disable-system-openssl
                           Don't build against system copy of OpenSSL
+  --enable-shared-openssl Build shared OpenSSL libraries
   --disable-python        Don't build any of the Python-based tools
   --enable-pywrap         Build pywrap
   --disable-django        Don't build Django GUI
@@ -4147,25 +4149,113 @@ fi
 # static libraries where we can, dynamic where we must.
 #
 # My autoconf-fu isn't strong enough to construct a test for the real
-# condition, so for the moment I'm just testing word length.  If you
-# know how to write the real test, please do so and send it to me.  So
-# far the least silly idea I've had for how to do this would be to use
-# AC_LINK_IFELSE() to test a fragment of C code calling some ISO C
-# math function with LDFLAGS='-Wl,--library=:libm.a -shared' and
-# CFLAGS='-fPIC' to see if the linker explodes.
+# condition, so for the moment I'm just testing to see if it's the GNU
+# loader and problematic word length.  If you know how to write the
+# real test, please do so and send it to me.  So far the least silly
+# idea I've had for how to do this would be to use AC_LINK_IFELSE() to
+# test a fragment of C code calling some ISO C math function with
+# LDFLAGS='-Wl,--library=:libm.a -shared' and CFLAGS='-fPIC' to see if
+# the linker explodes.
 
-{ $as_echo "$as_me:$LINENO: checking whether building Python extension will require need shared OpenSSL libraries" >&5
-$as_echo_n "checking whether building Python extension will require need shared OpenSSL libraries... " >&6; }
-if test "$ac_cv_sizeof_long" -eq 4
-then
-	need_openssl_shared=no
+{ $as_echo "$as_me:$LINENO: checking for grep that handles long lines and -e" >&5
+$as_echo_n "checking for grep that handles long lines and -e... " >&6; }
+if test "${ac_cv_path_GREP+set}" = set; then
+  $as_echo_n "(cached) " >&6
 else
+  if test -z "$GREP"; then
+  ac_path_GREP_found=false
+  # Loop through the user's path and test for each of PROGNAME-LIST
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH$PATH_SEPARATOR/usr/xpg4/bin
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+  for ac_prog in grep ggrep; do
+    for ac_exec_ext in '' $ac_executable_extensions; do
+      ac_path_GREP="$as_dir/$ac_prog$ac_exec_ext"
+      { test -f "$ac_path_GREP" && $as_test_x "$ac_path_GREP"; } || continue
+# Check for GNU ac_path_GREP and select it if it is found.
+  # Check for GNU $ac_path_GREP
+case `"$ac_path_GREP" --version 2>&1` in
+*GNU*)
+  ac_cv_path_GREP="$ac_path_GREP" ac_path_GREP_found=:;;
+*)
+  ac_count=0
+  $as_echo_n 0123456789 >"conftest.in"
+  while :
+  do
+    cat "conftest.in" "conftest.in" >"conftest.tmp"
+    mv "conftest.tmp" "conftest.in"
+    cp "conftest.in" "conftest.nl"
+    $as_echo 'GREP' >> "conftest.nl"
+    "$ac_path_GREP" -e 'GREP$' -e '-(cannot match)-' < "conftest.nl" >"conftest.out" 2>/dev/null || break
+    diff "conftest.out" "conftest.nl" >/dev/null 2>&1 || break
+    ac_count=`expr $ac_count + 1`
+    if test $ac_count -gt ${ac_path_GREP_max-0}; then
+      # Best one so far, save it but keep looking for a better one
+      ac_cv_path_GREP="$ac_path_GREP"
+      ac_path_GREP_max=$ac_count
+    fi
+    # 10*(2^10) chars as input seems more than enough
+    test $ac_count -gt 10 && break
+  done
+  rm -f conftest.in conftest.tmp conftest.nl conftest.out;;
+esac
+
+      $ac_path_GREP_found && break 3
+    done
+  done
+done
+IFS=$as_save_IFS
+  if test -z "$ac_cv_path_GREP"; then
+    { { $as_echo "$as_me:$LINENO: error: no acceptable grep could be found in $PATH$PATH_SEPARATOR/usr/xpg4/bin" >&5
+$as_echo "$as_me: error: no acceptable grep could be found in $PATH$PATH_SEPARATOR/usr/xpg4/bin" >&2;}
+   { (exit 1); exit 1; }; }
+  fi
+else
+  ac_cv_path_GREP=$GREP
+fi
+
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_path_GREP" >&5
+$as_echo "$ac_cv_path_GREP" >&6; }
+ GREP="$ac_cv_path_GREP"
+
+
+if test "x$GREP" = x
+then
+	{ { $as_echo "$as_me:$LINENO: error: Next test requires grep, sorry" >&5
+$as_echo "$as_me: error: Next test requires grep, sorry" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+{ $as_echo "$as_me:$LINENO: checking whether we're using the GNU loader" >&5
+$as_echo_n "checking whether we're using the GNU loader... " >&6; }
+if ld --version 2>&1 | $GREP 'GNU ld' >/dev/null 2>&1
+then
+	using_gnu_ld=yes
+else
+	using_gnu_ld=no
+fi
+{ $as_echo "$as_me:$LINENO: result: $using_gnu_ld" >&5
+$as_echo "$using_gnu_ld" >&6; }
+
+{ $as_echo "$as_me:$LINENO: checking whether building Python extension will require shared OpenSSL libraries" >&5
+$as_echo_n "checking whether building Python extension will require shared OpenSSL libraries... " >&6; }
+if test $using_gnu_ld = yes && test "$ac_cv_sizeof_long" -gt 4
+then
 	need_openssl_shared=yes
+else
+	need_openssl_shared=no
 fi
 { $as_echo "$as_me:$LINENO: result: $need_openssl_shared" >&5
 $as_echo "$need_openssl_shared" >&6; }
 
-# Now a bunch of checks to figure out what we can do with Python.
+# Now a bunch of checks to figure out what we can do with Python.  If
+# we don't have Python at all, none of the rest of this matters.  If
+# we do have Python, we need to check what antics we need to go
+# through to build the OpenSSL interface extension module, and also
+# whether the Django code is installed for our GUI.
 
 # Extract the first word of "python", so it can be a program name with args.
 set dummy python; ac_word=$2
@@ -4365,18 +4455,20 @@ fi
 
 
 
-	if test "x$have_python_h" = "xyes"
+	if test "x$have_python_h" = "xyes" && test $need_openssl_shared = yes
 	then
 		{ $as_echo "$as_me:$LINENO: checking whether Python links against libcrypto" >&5
 $as_echo_n "checking whether Python links against libcrypto... " >&6; }
 		if ldd $PYTHON 2>&5 | $PYTHON -c 'import sys; sys.exit("libcrypto" not in sys.stdin.read())'
 		then
-			need_pywrap=$need_openssl_shared
+			need_pywrap=yes
 		else
 			need_pywrap=no
 		fi
 		{ $as_echo "$as_me:$LINENO: result: $need_pywrap" >&5
 $as_echo "$need_pywrap" >&6; }
+	else
+		need_pywrap=no
 	fi
 
 	{ $as_echo "$as_me:$LINENO: checking for Django" >&5
@@ -4392,11 +4484,24 @@ $as_echo "$have_django" >&6; }
 
 fi
 
+# Ok, now that we've sorted out what we've got to work with, we need
+# to check what the user is telling us to do.  In the default case, we
+# try to do something sane.  If the user tells us to do something
+# that's silly but harmless, we say so; if the user tells us to do
+# something that just won't work, we say so and fail.
+
 # Check whether --enable-system_openssl was given.
 if test "${enable_system_openssl+set}" = set; then
   enableval=$enable_system_openssl;
 else
   enable_system_openssl=auto
+fi
+
+# Check whether --enable-shared_openssl was given.
+if test "${enable_shared_openssl+set}" = set; then
+  enableval=$enable_shared_openssl;
+else
+  enable_shared_openssl=auto
 fi
 
 # Check whether --enable-python was given.
@@ -4439,8 +4544,31 @@ $as_echo "$as_me: error: I can't find an OpenSSL crypto library with CMS and RFC
 			build_openssl=no
 		fi
 		;;
-     *)		{ { $as_echo "$as_me:$LINENO: error: Unrecognized value for --enable-system-openssl: $enable-system-openssl" >&5
-$as_echo "$as_me: error: Unrecognized value for --enable-system-openssl: $enable-system-openssl" >&2;}
+     *)		{ { $as_echo "$as_me:$LINENO: error: Unrecognized value for --enable-system-openssl: $enable_system_openssl" >&5
+$as_echo "$as_me: error: Unrecognized value for --enable-system-openssl: $enable_system_openssl" >&2;}
+   { (exit 1); exit 1; }; };;
+esac
+
+case $enable_shared_openssl in
+     yes)	build_shared_openssl=yes
+		if test $build_openssl = no
+		then
+			{ $as_echo "$as_me:$LINENO: WARNING: Not building OpenSSL at all, ignoring request to build it as shared libraries" >&5
+$as_echo "$as_me: WARNING: Not building OpenSSL at all, ignoring request to build it as shared libraries" >&2;}
+		fi
+		;;
+     no)	build_shared_openssl=no
+		if test $build_openssl = yes && test $need_openssl_shared = yes
+		then
+			{ { $as_echo "$as_me:$LINENO: error: This platform appears to require shared OpenSSL libraries" >&5
+$as_echo "$as_me: error: This platform appears to require shared OpenSSL libraries" >&2;}
+   { (exit 1); exit 1; }; }
+		fi
+		;;
+     auto)	build_shared_openssl=$need_openssl_shared
+		;;
+     *)		{ { $as_echo "$as_me:$LINENO: error: Unrecognized value for --enable-shared-openssl: $enable_shared_openssl" >&5
+$as_echo "$as_me: error: Unrecognized value for --enable-shared-openssl: $enable_shared_openssl" >&2;}
    { (exit 1); exit 1; }; };;
 esac
 
@@ -4462,11 +4590,10 @@ $as_echo "$as_me: error: I can't find a Python binary, maybe you need to set PAT
 $as_echo "$as_me: WARNING: I can't find your Python binary, disabling build for all Python-using code" >&2;}
 		fi
 		;;
-     *)		{ { $as_echo "$as_me:$LINENO: error: Unrecognized value for --enable-python: $enable-python" >&5
-$as_echo "$as_me: error: Unrecognized value for --enable-python: $enable-python" >&2;}
+     *)		{ { $as_echo "$as_me:$LINENO: error: Unrecognized value for --enable-python: $enable_python" >&5
+$as_echo "$as_me: error: Unrecognized value for --enable-python: $enable_python" >&2;}
    { (exit 1); exit 1; }; };;
 esac
-
 
 case $enable_pywrap in
      yes)	build_pywrap=yes
@@ -4478,8 +4605,8 @@ $as_echo "$as_me: error: Building pywrap without Python makes no sense" >&2;}
 		fi
 		if test $build_openssl = no || test $need_openssl_shared = no
 		then
-			{ $as_echo "$as_me:$LINENO: WARNING: pywrap not needed for this platform (but I'll try to build it anyway)" >&5
-$as_echo "$as_me: WARNING: pywrap not needed for this platform (but I'll try to build it anyway)" >&2;}
+			{ $as_echo "$as_me:$LINENO: WARNING: pywrap not needed (but I'll try to build it anyway)" >&5
+$as_echo "$as_me: WARNING: pywrap not needed (but I'll try to build it anyway)" >&2;}
 		fi
 		;;
      no)	build_pywrap=no
@@ -4492,11 +4619,10 @@ $as_echo "$as_me: error: This platform appears to require pywrap" >&2;}
 		;;
      auto)	build_pywrap=$need_pywrap
 		;;
-     *)		{ { $as_echo "$as_me:$LINENO: error: Unrecognized value for --enable-pywrap: $enable-pywrap" >&5
-$as_echo "$as_me: error: Unrecognized value for --enable-pywrap: $enable-pywrap" >&2;}
+     *)		{ { $as_echo "$as_me:$LINENO: error: Unrecognized value for --enable-pywrap: $enable_pywrap" >&5
+$as_echo "$as_me: error: Unrecognized value for --enable-pywrap: $enable_pywrap" >&2;}
    { (exit 1); exit 1; }; };;
 esac
-
 
 case $enable_django in
      yes)	build_django=yes
@@ -4510,8 +4636,8 @@ $as_echo "$as_me: WARNING: You don't appear to have Django installed (but I'll t
 		;;
      auto)	build_django=$have_django
 		;;
-     *)		{ { $as_echo "$as_me:$LINENO: error: Unrecognized value for --enable-django: $enable-django" >&5
-$as_echo "$as_me: error: Unrecognized value for --enable-django: $enable-django" >&2;}
+     *)		{ { $as_echo "$as_me:$LINENO: error: Unrecognized value for --enable-django: $enable_django" >&5
+$as_echo "$as_me: error: Unrecognized value for --enable-django: $enable_django" >&2;}
    { (exit 1); exit 1; }; };;
 esac
 
@@ -4575,7 +4701,7 @@ $as_echo "$OPENSSL_CONFIG_COMMAND" >&6; }
 	LDFLAGS="$LDFLAGS -L$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"
 	CFLAGS="$CFLAGS -I$RPKITOOLS_TOP_BUILDDIR/openssl/openssl/include"
 
-	if test $need_openssl_shared = yes
+	if test $build_shared_openssl = yes
 	then
 		OPENSSL_SHARED_LIBRARIES='enable-shared'
 		LDFLAGS="$LDFLAGS -Wl,-rpath,$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"

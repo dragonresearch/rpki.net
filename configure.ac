@@ -71,23 +71,43 @@ fi
 # static libraries where we can, dynamic where we must.
 #
 # My autoconf-fu isn't strong enough to construct a test for the real
-# condition, so for the moment I'm just testing word length.  If you
-# know how to write the real test, please do so and send it to me.  So
-# far the least silly idea I've had for how to do this would be to use
-# AC_LINK_IFELSE() to test a fragment of C code calling some ISO C
-# math function with LDFLAGS='-Wl,--library=:libm.a -shared' and
-# CFLAGS='-fPIC' to see if the linker explodes.
+# condition, so for the moment I'm just testing to see if it's the GNU
+# loader and problematic word length.  If you know how to write the
+# real test, please do so and send it to me.  So far the least silly
+# idea I've had for how to do this would be to use AC_LINK_IFELSE() to
+# test a fragment of C code calling some ISO C math function with
+# LDFLAGS='-Wl,--library=:libm.a -shared' and CFLAGS='-fPIC' to see if
+# the linker explodes.
 
-AC_MSG_CHECKING([whether building Python extension will require need shared OpenSSL libraries])
-if test "$ac_cv_sizeof_long" -eq 4
+AC_PROG_GREP
+if test "x$GREP" = x
 then
-	need_openssl_shared=no
+	AC_MSG_ERROR([Next test requires grep, sorry])
+fi
+
+AC_MSG_CHECKING([whether we're using the GNU loader])
+if ld --version 2>&1 | $GREP 'GNU ld' >/dev/null 2>&1
+then
+	using_gnu_ld=yes
 else
+	using_gnu_ld=no
+fi
+AC_MSG_RESULT([$using_gnu_ld])
+
+AC_MSG_CHECKING([whether building Python extension will require shared OpenSSL libraries])
+if test $using_gnu_ld = yes && test "$ac_cv_sizeof_long" -gt 4
+then
 	need_openssl_shared=yes
+else
+	need_openssl_shared=no
 fi
 AC_MSG_RESULT([$need_openssl_shared])
 
-# Now a bunch of checks to figure out what we can do with Python.
+# Now a bunch of checks to figure out what we can do with Python.  If
+# we don't have Python at all, none of the rest of this matters.  If
+# we do have Python, we need to check what antics we need to go
+# through to build the OpenSSL interface extension module, and also
+# whether the Django code is installed for our GUI.
 
 AC_PATH_PROG([PYTHON], [python])
 
@@ -109,16 +129,18 @@ else
 			[have_python_h=yes],
 			[have_python_h=no])
 
-	if test "x$have_python_h" = "xyes"
+	if test "x$have_python_h" = "xyes" && test $need_openssl_shared = yes
 	then
 		AC_MSG_CHECKING([whether Python links against libcrypto])
 		if ldd $PYTHON 2>&AS_MESSAGE_LOG_FD | $PYTHON -c 'import sys; sys.exit("libcrypto" not in sys.stdin.read())'
 		then
-			need_pywrap=$need_openssl_shared
+			need_pywrap=yes
 		else
 			need_pywrap=no
 		fi
 		AC_MSG_RESULT([$need_pywrap])
+	else
+		need_pywrap=no
 	fi
 
 	AC_MSG_CHECKING([for Django])
@@ -132,7 +154,14 @@ else
 
 fi
 
+# Ok, now that we've sorted out what we've got to work with, we need
+# to check what the user is telling us to do.  In the default case, we
+# try to do something sane.  If the user tells us to do something
+# that's silly but harmless, we say so; if the user tells us to do
+# something that just won't work, we say so and fail.
+
 AC_ARG_ENABLE([system_openssl], [AS_HELP_STRING([--disable-system-openssl],	[Don't build against system copy of OpenSSL])],	[], [enable_system_openssl=auto])
+AC_ARG_ENABLE([shared_openssl], [AS_HELP_STRING([--enable-shared-openssl],	[Build shared OpenSSL libraries])],	        [], [enable_shared_openssl=auto])
 AC_ARG_ENABLE([python],		[AS_HELP_STRING([--disable-python],		[Don't build any of the Python-based tools])],	[], [enable_python=auto])
 AC_ARG_ENABLE([pywrap],		[AS_HELP_STRING([--enable-pywrap],		[Build pywrap])],				[], [enable_pywrap=auto])
 AC_ARG_ENABLE([django],		[AS_HELP_STRING([--disable-django],		[Don't build Django GUI])],			[], [enable_django=auto])
@@ -153,7 +182,25 @@ case $enable_system_openssl in
 			build_openssl=no
 		fi
 		;;
-     *)		AC_MSG_ERROR([Unrecognized value for --enable-system-openssl: $enable-system-openssl]);;
+     *)		AC_MSG_ERROR([Unrecognized value for --enable-system-openssl: $enable_system_openssl]);;
+esac
+
+case $enable_shared_openssl in
+     yes)	build_shared_openssl=yes
+		if test $build_openssl = no
+		then
+			AC_MSG_WARN([Not building OpenSSL at all, ignoring request to build it as shared libraries])
+		fi
+		;;
+     no)	build_shared_openssl=no
+		if test $build_openssl = yes && test $need_openssl_shared = yes
+		then
+			AC_MSG_ERROR([This platform appears to require shared OpenSSL libraries])
+		fi
+		;;
+     auto)	build_shared_openssl=$need_openssl_shared
+		;;
+     *)		AC_MSG_ERROR([Unrecognized value for --enable-shared-openssl: $enable_shared_openssl]);;
 esac
 
 case $enable_python in
@@ -171,9 +218,8 @@ case $enable_python in
 			AC_MSG_WARN([I can't find your Python binary, disabling build for all Python-using code])
 		fi
 		;;
-     *)		AC_MSG_ERROR([Unrecognized value for --enable-python: $enable-python]);;
+     *)		AC_MSG_ERROR([Unrecognized value for --enable-python: $enable_python]);;
 esac
-
 
 case $enable_pywrap in
      yes)	build_pywrap=yes
@@ -183,7 +229,7 @@ case $enable_pywrap in
 		fi
 		if test $build_openssl = no || test $need_openssl_shared = no
 		then
-			AC_MSG_WARN([pywrap not needed for this platform (but I'll try to build it anyway)])
+			AC_MSG_WARN([pywrap not needed (but I'll try to build it anyway)])
 		fi
 		;;
      no)	build_pywrap=no
@@ -194,9 +240,8 @@ case $enable_pywrap in
 		;;
      auto)	build_pywrap=$need_pywrap
 		;;
-     *)		AC_MSG_ERROR([Unrecognized value for --enable-pywrap: $enable-pywrap]);;
+     *)		AC_MSG_ERROR([Unrecognized value for --enable-pywrap: $enable_pywrap]);;
 esac
-
 
 case $enable_django in
      yes)	build_django=yes
@@ -209,7 +254,7 @@ case $enable_django in
 		;;
      auto)	build_django=$have_django
 		;;
-     *)		AC_MSG_ERROR([Unrecognized value for --enable-django: $enable-django]);;
+     *)		AC_MSG_ERROR([Unrecognized value for --enable-django: $enable_django]);;
 esac
 
 if test $build_python = yes && test $have_python_h = no
@@ -273,7 +318,7 @@ then
 	LDFLAGS="$LDFLAGS -L$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"
 	CFLAGS="$CFLAGS -I$RPKITOOLS_TOP_BUILDDIR/openssl/openssl/include"
 
-	if test $need_openssl_shared = yes
+	if test $build_shared_openssl = yes
 	then
 		OPENSSL_SHARED_LIBRARIES='enable-shared'
 		LDFLAGS="$LDFLAGS -Wl,-rpath,$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"

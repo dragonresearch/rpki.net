@@ -4242,11 +4242,11 @@ $as_echo "$using_gnu_ld" >&6; }
 
 { $as_echo "$as_me:$LINENO: checking whether building Python extension will require shared OpenSSL libraries" >&5
 $as_echo_n "checking whether building Python extension will require shared OpenSSL libraries... " >&6; }
-if test $using_gnu_ld = yes && test "$ac_cv_sizeof_long" -gt 4
+if test $using_gnu_ld = yes && test "$ac_cv_sizeof_long" -eq 4
 then
-	need_openssl_shared=yes
-else
 	need_openssl_shared=no
+else
+	need_openssl_shared=yes
 fi
 { $as_echo "$as_me:$LINENO: result: $need_openssl_shared" >&5
 $as_echo "$need_openssl_shared" >&6; }
@@ -4455,21 +4455,17 @@ fi
 
 
 
-	if test "x$have_python_h" = "xyes" && test $need_openssl_shared = yes
+	{ $as_echo "$as_me:$LINENO: checking whether we need pywrap" >&5
+$as_echo_n "checking whether we need pywrap... " >&6; }
+	if ldd $PYTHON 2>&5 | $GREP 'libcrypto' >/dev/null 2>&1
 	then
-		{ $as_echo "$as_me:$LINENO: checking whether Python links against libcrypto" >&5
-$as_echo_n "checking whether Python links against libcrypto... " >&6; }
-		if ldd $PYTHON 2>&5 | $PYTHON -c 'import sys; sys.exit("libcrypto" not in sys.stdin.read())'
-		then
-			need_pywrap=yes
-		else
-			need_pywrap=no
-		fi
-		{ $as_echo "$as_me:$LINENO: result: $need_pywrap" >&5
-$as_echo "$need_pywrap" >&6; }
+		need_pywrap=yes
+		need_openssl_shared=yes
 	else
 		need_pywrap=no
 	fi
+	{ $as_echo "$as_me:$LINENO: result: $need_pywrap" >&5
+$as_echo "$need_pywrap" >&6; }
 
 	{ $as_echo "$as_me:$LINENO: checking for Django" >&5
 $as_echo_n "checking for Django... " >&6; }

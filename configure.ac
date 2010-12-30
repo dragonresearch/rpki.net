@@ -95,11 +95,11 @@ fi
 AC_MSG_RESULT([$using_gnu_ld])
 
 AC_MSG_CHECKING([whether building Python extension will require shared OpenSSL libraries])
-if test $using_gnu_ld = yes && test "$ac_cv_sizeof_long" -gt 4
+if test $using_gnu_ld = yes && test "$ac_cv_sizeof_long" -eq 4
 then
-	need_openssl_shared=yes
-else
 	need_openssl_shared=no
+else
+	need_openssl_shared=yes
 fi
 AC_MSG_RESULT([$need_openssl_shared])
 
@@ -129,19 +129,15 @@ else
 			[have_python_h=yes],
 			[have_python_h=no])
 
-	if test "x$have_python_h" = "xyes" && test $need_openssl_shared = yes
+	AC_MSG_CHECKING([whether we need pywrap])
+	if ldd $PYTHON 2>&AS_MESSAGE_LOG_FD | $GREP 'libcrypto' >/dev/null 2>&1
 	then
-		AC_MSG_CHECKING([whether Python links against libcrypto])
-		if ldd $PYTHON 2>&AS_MESSAGE_LOG_FD | $PYTHON -c 'import sys; sys.exit("libcrypto" not in sys.stdin.read())'
-		then
-			need_pywrap=yes
-		else
-			need_pywrap=no
-		fi
-		AC_MSG_RESULT([$need_pywrap])
+		need_pywrap=yes
+		need_openssl_shared=yes
 	else
 		need_pywrap=no
 	fi
+	AC_MSG_RESULT([$need_pywrap])
 
 	AC_MSG_CHECKING([for Django])
 	if $PYTHON -c 'import django' 2>/dev/null

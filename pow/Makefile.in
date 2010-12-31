@@ -32,3 +32,7 @@ install:
 
 test:
 	@true
+
+distclean: clean
+	rm -f POW-${VERSION}/*.pyc
+	rm -f Makefile

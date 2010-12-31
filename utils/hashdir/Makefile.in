@@ -26,3 +26,9 @@ test: ${BIN}
 
 clean::
 	rm -rf ${OUTPUT}
+
+install:
+	@true
+
+distclean: clean
+	rm -f Makefile

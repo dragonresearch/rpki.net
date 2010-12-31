@@ -26,5 +26,5 @@ test: ${BIN} test.cer
 test.cer: test.conf
 	${OPENSSL_DIR}/apps/openssl req -new -x509 -config test.conf -keyout test.key -out test.cer -outform DER
 
-immaculate: clean
+distclean: clean
 	rm -f test.key test.cer

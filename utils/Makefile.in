@@ -2,8 +2,8 @@
 
 SUBDIRS = uri print_manifest print_roa hashdir find_roa
 
-all clean test:
+all clean test distclean install::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
 
-install:
-	@true
+distclean::
+	rm -f Makefile

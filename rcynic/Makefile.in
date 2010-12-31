@@ -29,3 +29,7 @@ doc::
 
 doc::
 	cd doc/latex && make pdf && ln -f refman.pdf ..
+
+distclean: clean
+	cd static-rsync; ${MAKE} clean
+	rm -f show.sh Makefile

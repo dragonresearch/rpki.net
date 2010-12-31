@@ -2,10 +2,15 @@
 
 SUBDIRS = @TOP_LEVEL_SUBDIRS@
 
-all install clean test:
+default: all
+
+test:: all
+
+all install clean test distclean::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
 
-test: all
+distclean::
+	rm -f Makefile config.log config.status
 
 export:
 	svn export http://subvert-rpki.hactrn.net/

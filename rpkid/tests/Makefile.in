@@ -1,5 +1,8 @@
 # $Id$
 
+PYTHON = @PYTHON@
+PYWRAP = @PYWRAP@
+
 all: protocol-samples
 
 clean:
@@ -20,35 +23,35 @@ publication-protocol-samples/.stamp: publication-protocol-samples.xml split-prot
 	touch $@
 
 parse-test: protocol-samples
-	@PYTHON@ xml-parse-test.py
+	${PYTHON} xml-parse-test.py
 
 all-tests:: parse-test
 
 all-tests:: 
-	@PYWRAP@ smoketest.py -y smoketest.1.yaml
+	${PYWRAP} smoketest.py -y smoketest.1.yaml
 
 all-tests::
-	@PYWRAP@ smoketest.py -y smoketest.2.yaml
+	${PYWRAP} smoketest.py -y smoketest.2.yaml
 
 test all-tests::
-	@PYWRAP@ smoketest.py -y smoketest.3.yaml
+	${PYWRAP} smoketest.py -y smoketest.3.yaml
 
 all-tests::
-	@PYWRAP@ smoketest.py -y smoketest.4.yaml
+	${PYWRAP} smoketest.py -y smoketest.4.yaml
 
 all-tests::
-	@PYWRAP@ smoketest.py -y smoketest.5.yaml
+	${PYWRAP} smoketest.py -y smoketest.5.yaml
 
 test all-tests::
-	@PYWRAP@ smoketest.py -y smoketest.6.yaml
+	${PYWRAP} smoketest.py -y smoketest.6.yaml
 
 all-tests::
-	@PYWRAP@ smoketest.py -y smoketest.7.yaml
+	${PYWRAP} smoketest.py -y smoketest.7.yaml
 
 profile: all
 	find smoketest.dir -name '*.prof' -delete
-	@PYWRAP@ smoketest.py -y smoketest.2.yaml -p
-	for i in smoketest.dir/*.prof; do @PYTHON@ -c "import pstats;pstats.Stats('$$i').sort_stats('time').print_stats()"; done
+	${PYWRAP} smoketest.py -y smoketest.2.yaml -p
+	for i in smoketest.dir/*.prof; do ${PYTHON} -c "import pstats;pstats.Stats('$$i').sort_stats('time').print_stats()"; done
 
 # This isn't a full exercise of the yamltest framework, but is
 # probably as good as we can do under make.
@@ -57,10 +60,13 @@ YAMLTEST_CONFIG = smoketest.1.yaml
 
 yamltest:
 	rm -rf yamltest.dir rcynic-data
-	@PYTHON@ sql-cleaner.py
-	@PYWRAP@ yamltest.py ${YAMLTEST_CONFIG}
+	${PYTHON} sql-cleaner.py
+	${PYWRAP} yamltest.py ${YAMLTEST_CONFIG}
 
 backup:
-	@PYTHON@ sql-dumper.py
+	${PYTHON} sql-dumper.py
 	tar cvvzf yamltest.backup.$$(TZ='' date +%Y.%m.%d.%H.%M.%S).tgz screenlog.* yamltest.dir backup.*.sql
 	rm backup.*.sql
+
+distclean: clean
+	rm -f rcynic.xml Makefile

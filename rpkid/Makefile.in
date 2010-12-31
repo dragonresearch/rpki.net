@@ -107,3 +107,7 @@ pdf: html
 	cd doc/latex && TZ='' ${MAKE} && ln -f refman.pdf ../manual.pdf
 
 docs: dot eps png html text tgz pdf
+
+distclean: clean docclean
+	cd tests; ${MAKE} $@
+	rm -f TAGS rpki/__doc__.py rootd rpkid backup-sql irbe_cli irdbd myrpki pubd sql-setup start-servers Makefile

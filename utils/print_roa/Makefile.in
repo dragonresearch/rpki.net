@@ -23,3 +23,9 @@ ROA_DIR = @top_srcdir@/rpkid/tests/smoketest.dir/publication
 test: all
 	-date -u +'now:            %Y%m%d%H%M%SZ'
 	if test -d ${ROA_DIR}; then find ${ROA_DIR} -type f -name '*.roa' -print -exec ./${BIN} {} \; ; else :; fi
+
+install:
+	@true
+
+distclean: clean
+	rm -f Makefile

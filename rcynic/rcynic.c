@@ -3119,7 +3119,8 @@ int main(int argc, char *argv[])
     }
 
     if (!name_cmp(val->name, "trust-anchor-uri-with-key") ||
-	!name_cmp(val->name, "indirect-trust-anchor")) {
+	!name_cmp(val->name, "indirect-trust-anchor") ||
+	!name_cmp(val->name, "trust-anchor-locator")) {
       /*
        * Newfangled URI + public key method.  Two different versions
        * of essentially the same mechanism.
@@ -3128,7 +3129,8 @@ int main(int argc, char *argv[])
        *     other xyz_cmp() function in the entire OpenSSL library.
        *     Go figure.
        */
-      int unified = !name_cmp(val->name, "indirect-trust-anchor");
+      int unified = (!name_cmp(val->name, "indirect-trust-anchor") ||
+		     !name_cmp(val->name, "trust-anchor-locator"));
       EVP_PKEY *pkey = NULL, *xpkey = NULL;
       char *fn;
       if (unified) {
@@ -3173,12 +3175,12 @@ int main(int argc, char *argv[])
       if ((x = read_cert(path1, NULL, 0)) == NULL)
 	logmsg(&rc, log_data_err, "Couldn't read trust anchor %s", path1);
       if (x && (xpkey = X509_get_pubkey(x)) == NULL)
-	logmsg(&rc, log_data_err, "Rejected %s because couldn't read public key from indirect trust anchor", uri);
+	logmsg(&rc, log_data_err, "Rejected %s because couldn't read public key from trust anchor locator", uri);
       j = (xpkey && EVP_PKEY_cmp(pkey, xpkey) == 1);
       EVP_PKEY_free(pkey);
       EVP_PKEY_free(xpkey);
       if (!j) {
-	logmsg(&rc, log_data_err, "Rejected %s because known public key didn't match indirect trust anchor", uri);
+	logmsg(&rc, log_data_err, "Rejected %s because known public key didn't match trust anchor locator", uri);
 	X509_free(x);
 	continue;
       }

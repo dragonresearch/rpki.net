@@ -266,7 +266,7 @@ trust-anchor-uri-with-key
 			that order, separated by whitespace.  No
 			default.
 
-indirect-trust-anchor
+trust-anchor-locator
 			Specify one RPKI trust anchor, represented as
 			a local file containing an rsync URI and the
 			RSA public key of the X.509 object specified
@@ -274,6 +274,12 @@ indirect-trust-anchor
 			URI, remainder is the public key in Base64
 			encoded DER format.  Value of this option
 			is the pathname of the file.  No default.
+
+indirect-trust-anchor
+			An old name for trust-anchor-locator, kept for
+			backwards compatability.  See description of
+			trust-anchor-locator.   The name was changed
+			to keep members of the IETF SIDR WG happy.
 
 trust-anchor-uri-with-key and indirect-trust-anchor are semantically
 identical, the difference is just how the URI and public key are

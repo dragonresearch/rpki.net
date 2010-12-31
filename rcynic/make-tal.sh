@@ -18,7 +18,7 @@
 # Generate an indirect trust anchor given the rsync URI for a
 # self-signed RFC 3779 certificate.
 #
-# Usage: make-ita.sh uri [local_copy_of_certificate]
+# Usage: make-tal.sh uri [local_copy_of_certificate]
 #
 # The optional second parameter is the name of a local copy of the
 # certificate to be checked against the copy retrieved from the URI;
@@ -26,7 +26,7 @@
 
 case "$1" in rsync://*) :;; *) echo 1>&2 "\"$1\" is not a rsync URI"; exit 1;; esac
 
-tmpfile="make-ita.tmp.$$"
+tmpfile="make-tal.tmp.$$"
 trap "rm -f $tmpfile" 0 1 2 15
 
 rsync "$1" "$tmpfile" || exit

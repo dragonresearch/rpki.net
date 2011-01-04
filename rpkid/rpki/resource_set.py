@@ -631,7 +631,7 @@ class resource_set_ipv6(resource_set_ip):
 
 def _bs2long(bs, addrlen, fill):
   """
-  Utility function to convert a bitstring (POW.pkix tuple
+  Utility function to convert a bitstring (rpki.POW.pkix tuple
   representation) into a Python long.
   """
   x = 0L
@@ -643,7 +643,7 @@ def _bs2long(bs, addrlen, fill):
 
 def _long2bs(number, addrlen, prefixlen = None, strip = None):
   """
-  Utility function to convert a Python long into a POW.pkix tuple
+  Utility function to convert a Python long into a rpki.POW.pkix tuple
   bitstring.  This is a bit complicated because it supports the
   fiendishly compact encoding used in RFC 3779.
   """

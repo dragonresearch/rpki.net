@@ -42,7 +42,7 @@ draft-ietf-sidr-roa-format-03 2.1.3.2 specifies:
      IPAddress ::= BIT STRING
 """
 
-from POW._der import *
+from rpki.POW._der import *
 
 class ROAIPAddress(Sequence):
   def __init__(self, optional=0, default=''):

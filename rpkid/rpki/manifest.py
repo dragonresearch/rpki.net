@@ -22,7 +22,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-from POW._der import *
+from rpki.POW._der import *
 
 class FileAndHash(Sequence):
   def __init__(self, optional=0, default=''):

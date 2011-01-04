@@ -34,7 +34,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import time, socket, asyncore, asynchat, urlparse, sys, random
 import rpki.async, rpki.sundial, rpki.x509, rpki.exceptions, rpki.log
-import POW
+import rpki.POW
 
 ## @var rpki_content_type
 # HTTP content type used for all RPKI messages.

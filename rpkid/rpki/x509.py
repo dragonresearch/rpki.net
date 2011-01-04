@@ -43,7 +43,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import POW, POW.pkix, base64, lxml.etree, os, subprocess, sys
+import rpki.POW, rpki.POW.pkix, base64, lxml.etree, os, subprocess, sys
 import email.mime.application, email.utils, mailbox, time
 import rpki.exceptions, rpki.resource_set, rpki.oids, rpki.sundial
 import rpki.manifest, rpki.roa, rpki.log, rpki.async
@@ -62,9 +62,9 @@ def calculate_SKI(public_key_der):
   Calculate the SKI value given the DER representation of a public
   key, which requires first peeling the ASN.1 wrapper off the key.
   """
-  k = POW.pkix.SubjectPublicKeyInfo()
+  k = rpki.POW.pkix.SubjectPublicKeyInfo()
   k.fromString(public_key_der)
-  d = POW.Digest(POW.SHA1_DIGEST)
+  d = rpki.POW.Digest(rpki.POW.SHA1_DIGEST)
   d.update(k.subjectPublicKey.get())
   return d.digest()
 
@@ -430,20 +430,20 @@ class X509(DER_object):
 
   def get_POW(self):
     """
-    Get the POW value of this certificate.
+    Get the rpki.POW value of this certificate.
     """
     self.check()
     if not self.POW:
-      self.POW = POW.derRead(POW.X509_CERTIFICATE, self.get_DER())
+      self.POW = rpki.POW.derRead(rpki.POW.X509_CERTIFICATE, self.get_DER())
     return self.POW
 
   def get_POWpkix(self):
     """
-    Get the POW.pkix value of this certificate.
+    Get the rpki.POW.pkix value of this certificate.
     """
     self.check()
     if not self.POWpkix:
-      cert = POW.pkix.Certificate()
+      cert = rpki.POW.pkix.Certificate()
       cert.fromString(self.get_DER())
       self.POWpkix = cert
     return self.POWpkix
@@ -505,7 +505,7 @@ class X509(DER_object):
 
     # if notAfter is None: notAfter = now + rpki.sundial.timedelta(days = 30)
 
-    cert = POW.pkix.Certificate()
+    cert = rpki.POW.pkix.Certificate()
     cert.setVersion(2)
     cert.setSerial(serial)
     cert.setIssuer(self.get_POWpkix().getSubject())
@@ -547,7 +547,7 @@ class X509(DER_object):
       x[0] = rpki.oids.name2oid[x[0]]
     cert.setExtensions(exts)
 
-    cert.sign(keypair.get_POW(), POW.SHA256_DIGEST)
+    cert.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
 
     return X509(POWpkix = cert)
 
@@ -562,7 +562,7 @@ class X509(DER_object):
 
     assert isinstance(pathLenConstraint, int) and pathLenConstraint >= 0
 
-    cert = POW.pkix.Certificate()
+    cert = rpki.POW.pkix.Certificate()
     cert.setVersion(2)
     cert.setSerial(serial)
     cert.setIssuer(self.get_POWpkix().getSubject())
@@ -575,7 +575,7 @@ class X509(DER_object):
       (rpki.oids.name2oid["subjectKeyIdentifier"  ], False, source_cert.get_SKI()),
       (rpki.oids.name2oid["authorityKeyIdentifier"], False, (self.get_SKI(), (), None)),
       (rpki.oids.name2oid["basicConstraints"      ], True,  (1, 0))))
-    cert.sign(keypair.get_POW(), POW.SHA256_DIGEST)
+    cert.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
 
     return X509(POWpkix = cert)
 
@@ -615,11 +615,11 @@ class PKCS10(DER_object):
 
   def get_POWpkix(self):
     """
-    Get the POW.pkix value of this certification request.
+    Get the rpki.POW.pkix value of this certification request.
     """
     self.check()
     if not self.POWpkix:
-      req = POW.pkix.CertificationRequest()
+      req = rpki.POW.pkix.CertificationRequest()
       req.fromString(self.get_DER())
       self.POWpkix = req
     return self.POWpkix
@@ -695,13 +695,13 @@ class PKCS10(DER_object):
     Create a new request for a given keypair, including given extensions.
     """
     cn = "".join(("%02X" % ord(i) for i in keypair.get_SKI()))
-    req = POW.pkix.CertificationRequest()
+    req = rpki.POW.pkix.CertificationRequest()
     req.certificationRequestInfo.version.set(0)
     req.certificationRequestInfo.subject.set((((rpki.oids.name2oid["commonName"],
                                                 ("printableString", cn)),),))
     if exts is not None:
       req.setExtensions(exts)
-    req.sign(keypair.get_POW(), POW.SHA256_DIGEST)
+    req.sign(keypair.get_POW(), rpki.POW.SHA256_DIGEST)
     return cls(POWpkix = req)
 
 class RSA(DER_object):
@@ -720,17 +720,17 @@ class RSA(DER_object):
     if self.DER:
       return self.DER
     if self.POW:
-      self.DER = self.POW.derWrite(POW.RSA_PRIVATE_KEY)
+      self.DER = self.POW.derWrite(rpki.POW.RSA_PRIVATE_KEY)
       return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
   def get_POW(self):
     """
-    Get the POW value of this keypair.
+    Get the rpki.POW value of this keypair.
     """
     self.check()
     if not self.POW:
-      self.POW = POW.derRead(POW.RSA_PRIVATE_KEY, self.get_DER())
+      self.POW = rpki.POW.derRead(rpki.POW.RSA_PRIVATE_KEY, self.get_DER())
     return self.POW
 
   @classmethod
@@ -739,13 +739,13 @@ class RSA(DER_object):
     Generate a new keypair.
     """
     rpki.log.debug("Generating new %d-bit RSA key" % keylength)
-    return cls(POW = POW.Asymmetric(POW.RSA_CIPHER, keylength))
+    return cls(POW = rpki.POW.Asymmetric(rpki.POW.RSA_CIPHER, keylength))
 
   def get_public_DER(self):
     """
     Get the DER encoding of the public key from this keypair.
     """
-    return self.get_POW().derWrite(POW.RSA_PUBLIC_KEY)
+    return self.get_POW().derWrite(rpki.POW.RSA_PUBLIC_KEY)
 
   def get_SKI(self):
     """
@@ -775,17 +775,17 @@ class RSApublic(DER_object):
     if self.DER:
       return self.DER
     if self.POW:
-      self.DER = self.POW.derWrite(POW.RSA_PUBLIC_KEY)
+      self.DER = self.POW.derWrite(rpki.POW.RSA_PUBLIC_KEY)
       return self.get_DER()
     raise rpki.exceptions.DERObjectConversionError, "No conversion path to DER available"
 
   def get_POW(self):
     """
-    Get the POW value of this public key.
+    Get the rpki.POW value of this public key.
     """
     self.check()
     if not self.POW:
-      self.POW = POW.derRead(POW.RSA_PUBLIC_KEY, self.get_DER())
+      self.POW = rpki.POW.derRead(rpki.POW.RSA_PUBLIC_KEY, self.get_DER())
     return self.POW
 
   def get_SKI(self):
@@ -797,7 +797,7 @@ class RSApublic(DER_object):
 def POWify_OID(oid):
   """
   Utility function to convert tuple form of an OID to the
-  dotted-decimal string form that POW uses.
+  dotted-decimal string form that rpki.POW uses.
   """
   if isinstance(oid, str):
     return POWify_OID(rpki.oids.name2oid[oid])
@@ -859,11 +859,11 @@ class CMS_object(DER_object):
 
   def get_POW(self):
     """
-    Get the POW value of this CMS_object.
+    Get the rpki.POW value of this CMS_object.
     """
     self.check()
     if not self.POW:
-      self.POW = POW.derRead(POW.CMS_MESSAGE, self.get_DER())
+      self.POW = rpki.POW.derRead(rpki.POW.CMS_MESSAGE, self.get_DER())
     return self.POW
 
   def get_content(self):
@@ -913,7 +913,7 @@ class CMS_object(DER_object):
       for c in crls:
         rpki.log.debug("Received CMS CRL issuer %r" % (c.getIssuer(),))
 
-    store = POW.X509Store()
+    store = rpki.POW.X509Store()
 
     trusted_ee = None
 
@@ -984,7 +984,7 @@ class CMS_object(DER_object):
     if cms.eContentType() != self.econtent_oid:
       raise rpki.exceptions.WrongEContentType, "Got CMS eContentType %s, expected %s" % (cms.eContentType(), self.econtent_oid)
 
-    content = cms.verify(POW.X509Store(), None, POW.CMS_NOCRL | POW.CMS_NO_SIGNER_CERT_VERIFY | POW.CMS_NO_ATTR_VERIFY | POW.CMS_NO_CONTENT_VERIFY)
+    content = cms.verify(rpki.POW.X509Store(), None, rpki.POW.CMS_NOCRL | rpki.POW.CMS_NO_SIGNER_CERT_VERIFY | rpki.POW.CMS_NO_ATTR_VERIFY | rpki.POW.CMS_NO_CONTENT_VERIFY)
 
     self.decode(content)
     return self.get_content()
@@ -1013,7 +1013,7 @@ class CMS_object(DER_object):
       for i, c in enumerate(certs):
         rpki.log.debug("Additional cert %d issuer %s subject %s SKI %s" % (i, c.getIssuer(), c.getSubject(), c.hSKI()))
 
-    cms = POW.CMS()
+    cms = rpki.POW.CMS()
 
     cms.sign(cert.get_POW(),
              keypair.get_POW(),
@@ -1021,7 +1021,7 @@ class CMS_object(DER_object):
              [x.get_POW() for x in certs],
              [c.get_POW() for c in crls],
              self.econtent_oid,
-             POW.CMS_NOCERTS if no_certs else 0)
+             rpki.POW.CMS_NOCERTS if no_certs else 0)
 
     self.POW = cms
 
@@ -1073,7 +1073,7 @@ class SignedManifest(DER_CMS_object):
     self = cls()
     filelist = []
     for name, obj in names_and_objs:
-      d = POW.Digest(POW.SHA256_DIGEST)
+      d = rpki.POW.Digest(rpki.POW.SHA256_DIGEST)
       d.update(obj.get_DER())
       filelist.append((name.rpartition("/")[2], d.digest()))
     filelist.sort(key = lambda x: x[0])
@@ -1111,7 +1111,7 @@ class ROA(DER_CMS_object):
       self.set_content(r)
       self.sign(keypair, certs)
       return self
-    except POW.pkix.DerError, e:
+    except rpki.POW.pkix.DerError, e:
       rpki.log.debug("Encoding error while generating ROA %r: %s" % (self, e))
       rpki.log.debug("ROA inner content: %r" % (r.get(),))
       raise
@@ -1243,20 +1243,20 @@ class CRL(DER_object):
 
   def get_POW(self):
     """
-    Get the POW value of this CRL.
+    Get the rpki.POW value of this CRL.
     """
     self.check()
     if not self.POW:
-      self.POW = POW.derRead(POW.X509_CRL, self.get_DER())
+      self.POW = rpki.POW.derRead(rpki.POW.X509_CRL, self.get_DER())
     return self.POW
 
   def get_POWpkix(self):
     """
-    Get the POW.pkix value of this CRL.
+    Get the rpki.POW.pkix value of this CRL.
     """
     self.check()
     if not self.POWpkix:
-      crl = POW.pkix.CertificateList()
+      crl = rpki.POW.pkix.CertificateList()
       crl.fromString(self.get_DER())
       self.POWpkix = crl
     return self.POWpkix
@@ -1284,7 +1284,7 @@ class CRL(DER_object):
     """
     Generate a new CRL.
     """
-    crl = POW.pkix.CertificateList()
+    crl = rpki.POW.pkix.CertificateList()
     crl.setVersion(version)
     crl.setIssuer(issuer.get_POWpkix().getSubject())
     crl.setThisUpdate(thisUpdate.toASN1tuple())

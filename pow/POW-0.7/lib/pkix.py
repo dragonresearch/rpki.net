@@ -98,7 +98,11 @@ class POWCryptoDriver(CryptoDriver):
 
    def __init__(self):
       global POW
-      import POW
+      try:
+         import rpki.POW
+         POW = rpki.POW
+      except ImportError:
+         import POW
       self.driver2OID = {}
       for k, v in (("MD2_DIGEST",       (1, 2, 840, 113549, 1, 1, 2)),    # md2WithRSAEncryption
                    ("MD5_DIGEST",       (1, 2, 840, 113549, 1, 1, 4)),    # md5WithRSAEncryption

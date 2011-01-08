@@ -15,7 +15,7 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-# Generate an indirect trust anchor given the rsync URI for a
+# Generate a trust anchor locator (TAL) given the rsync URI for a
 # self-signed RFC 3779 certificate.
 #
 # Usage: make-tal.sh uri [local_copy_of_certificate]

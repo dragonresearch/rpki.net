@@ -6,7 +6,6 @@ OPENSSL_CONFIG_COMMAND   = @OPENSSL_CONFIG_COMMAND@
 OPENSSL_BUILD_DIRECTORY  = @abs_builddir@/openssl
 OPENSSL_SHARED_LIBRARIES = @OPENSSL_SHARED_LIBRARIES@ 
 
-
 # Kludge alert:
 #
 # The --prefix= and LIBRPATH= settings below are to force OpenSSL's

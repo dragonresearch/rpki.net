@@ -2,7 +2,6 @@
 
 NAME = print_manifest
 
-
 BIN = ${NAME}
 SRC = ${NAME}.c
 OBJ = ${NAME}.o
@@ -11,15 +10,18 @@ CFLAGS = @CFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
 
+abs_top_srcdir	 = @abs_top_srcdir@
+abs_top_builddir = @abs_top_builddir@
+
 all: ${BIN}
 
 clean:
 	rm -f ${BIN} ${OBJ}
 
 ${BIN}: ${SRC}
-	${CC} ${CFLAGS} -o $@ ${SRC} ${LDFLAGS} -lcrypto ${LIBS}
+	${CC} ${CFLAGS} -o $@ ${SRC} ${LDFLAGS} ${LIBS}
 
-MANIFEST_DIR = @top_srcdir@/rpkid/tests/smoketest.dir/publication
+MANIFEST_DIR = ${abs_top_builddir}/rpkid/tests/smoketest.dir/publication
 
 test: all
 	-date -u +'now:            %Y%m%d%H%M%SZ'

@@ -10,13 +10,16 @@ CFLAGS = @CFLAGS@ -Wall -Wshadow -Wmissing-prototypes -Wmissing-declarations
 LDFLAGS = @LDFLAGS@ @LD_STATIC_FLAG@
 LIBS = @LIBS@
 
+abs_top_srcdir	 = @abs_top_srcdir@
+abs_top_builddir = @abs_top_builddir@
+
 all: ${BIN}
 
 clean:
 	rm -f ${BIN} ${OBJ}
 
 ${BIN}: ${SRC}
-	${CC} ${CFLAGS} -o $@ ${SRC} ${LDFLAGS} -lcrypto ${LIBS}
+	${CC} ${CFLAGS} -o $@ ${SRC} ${LDFLAGS} ${LIBS}
 
 test: ${BIN}
 	if test -r rcynic.conf; then ./${BIN} -j 0 && echo && ./show.sh; else echo No rcynic.conf, skipping test; fi

@@ -1,9 +1,13 @@
 # $Id$
 
+PYTHON = @PYTHON@
+PYWRAP_CMD = @PYWRAP_CMD@
+abs_top_builddir = @abs_top_builddir@
+
 all: rpki/relaxng.py myrpki.rng
 
 rpki/relaxng.py: ../scripts/make-relaxng.py left-right-schema.rng up-down-schema.rng publication-schema.rng
-	@PYTHON@ ../scripts/make-relaxng.py >$@.tmp
+	${PYTHON} ../scripts/make-relaxng.py >$@.tmp
 	mv $@.tmp $@
 
 left-right-schema.rng: left-right-schema.rnc
@@ -35,7 +39,7 @@ relaxng: left-right-schema.rng up-down-schema.rng publication-schema.rng
 	xmllint --noout --relaxng publication-schema.rng tests/publication-protocol-samples/*.xml
 
 unit-tests: all
-	PWD=`pwd`; for i in rpki/*.py; do echo "[$$i]"; PYTHONPATH=$$PWD @PYWRAP@ $$i; done
+	PWD=`pwd`; for i in rpki/*.py; do echo "[$$i]"; PYTHONPATH=$$PWD ${PYWRAP_CMD} $$i; done
 
 all-tests:: unit-tests
 
@@ -46,7 +50,7 @@ test all-tests parse-test profile yamltest::
 
 
 irbe_cli.usage: irbe_cli.py
-	@PYTHON@ irbe_cli.py --help | sed 's/^/      /' >$@
+	${PYTHON} irbe_cli.py --help | sed 's/^/      /' >$@
 
 tags: Makefile
 	find . -type f \( -name '*.py' -o -name '*.sql' -o -name '*.rnc' -o -name '*.py.in' \) ! -name relaxng.py ! -name __doc__.py | etags -

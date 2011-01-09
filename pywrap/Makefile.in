@@ -1,16 +1,27 @@
 # $Id$
 
 CFLAGS	= @CFLAGS@
-LDFLAGS = @LDFLAGS@
-LIBS	= @LIBS@ -lssl -lcrypto
+LDFLAGS = @LDFLAGS@ -L${abs_top_builddir}/openssl/openssl -Wl,-rpath,@OPENSSL_SHARED_LIBRARY_DIR@
+LIBS	= -lssl -lcrypto
+
+PYTHON	= @PYTHON@
+
+abs_top_srcdir	 = @abs_top_srcdir@
+abs_top_builddir = @abs_top_builddir@
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+libdir = @libdir@
 
 all: pywrap
 
 pywrap: pywrap.c
-	AC_CFLAGS='${CFLAGS}' AC_LDFLAGS='${LDFLAGS}' AC_LIBS='${LIBS}' @PYTHON@ build.py
+	AC_CFLAGS='${CFLAGS}' AC_LDFLAGS='${LDFLAGS}' AC_LIBS='${LIBS}' ${PYTHON} build.py
 
 clean:
 	rm -f *.o pywrap
 
 test:
 	@true
+
+distclean: clean
+	rm -f Makefile

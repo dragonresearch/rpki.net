@@ -36,6 +36,13 @@ unset old_LDFLAGS
 
 AC_PATH_PROG([XSLTPROC], [xsltproc])
 AC_PATH_PROG([AWK], [awk])
+AC_PATH_PROG([OBJCOPY], [objcopy])
+AC_PROG_GREP
+
+if test "x$GREP" = x
+then
+	AC_MSG_ERROR([Tests requires grep, sorry])
+fi
 
 if test "x$XSLTPROC" != "x" && test "x$AWK" != "x"
 then
@@ -62,29 +69,6 @@ else
 	have_usable_openssl=no
 fi
 
-# Figure out whether we need to use shared libraries to build POW.
-# This is a world of hurt, but appears to be required on some 64-bit
-# platforms due to a deficiency in the GNU linker: it flat out refuses
-# to build a shared object (.so) file that uses functions from a
-# static library (.a) or static object (.o) file.  This in turn
-# creates a nightmare of library version dependency issues, so we use
-# static libraries where we can, dynamic where we must.
-#
-# My autoconf-fu isn't strong enough to construct a test for the real
-# condition, so for the moment I'm just testing to see if it's the GNU
-# loader and problematic word length.  If you know how to write the
-# real test, please do so and send it to me.  So far the least silly
-# idea I've had for how to do this would be to use AC_LINK_IFELSE() to
-# test a fragment of C code calling some ISO C math function with
-# LDFLAGS='-Wl,--library=:libm.a -shared' and CFLAGS='-fPIC' to see if
-# the linker explodes.
-
-AC_PROG_GREP
-if test "x$GREP" = x
-then
-	AC_MSG_ERROR([Next test requires grep, sorry])
-fi
-
 AC_MSG_CHECKING([whether we're using the GNU loader])
 if ld --version 2>&1 | $GREP 'GNU ld' >/dev/null 2>&1
 then
@@ -93,15 +77,6 @@ else
 	using_gnu_ld=no
 fi
 AC_MSG_RESULT([$using_gnu_ld])
-
-AC_MSG_CHECKING([whether building Python extension will require shared OpenSSL libraries])
-if test $using_gnu_ld = yes && test "$ac_cv_sizeof_long" -eq 4
-then
-	need_openssl_shared=no
-else
-	need_openssl_shared=yes
-fi
-AC_MSG_RESULT([$need_openssl_shared])
 
 # Now a bunch of checks to figure out what we can do with Python.  If
 # we don't have Python at all, none of the rest of this matters.  If
@@ -117,7 +92,6 @@ then
 	have_python_h=no
 	need_pywrap=no
 	have_django=no
-	need_openssl_shared=no
 else
 	have_python=yes
 
@@ -133,7 +107,6 @@ else
 	if ldd $PYTHON 2>&AS_MESSAGE_LOG_FD | $GREP 'libcrypto' >/dev/null 2>&1
 	then
 		need_pywrap=yes
-		need_openssl_shared=yes
 	else
 		need_pywrap=no
 	fi
@@ -147,7 +120,6 @@ else
 		have_django="no"
 	fi
 	AC_MSG_RESULT([$have_django])
-
 fi
 
 # Ok, now that we've sorted out what we've got to work with, we need
@@ -157,7 +129,6 @@ fi
 # something that just won't work, we say so and fail.
 
 AC_ARG_ENABLE([system_openssl], [AS_HELP_STRING([--disable-system-openssl],	[Don't build against system copy of OpenSSL])],	[], [enable_system_openssl=auto])
-AC_ARG_ENABLE([shared_openssl], [AS_HELP_STRING([--enable-shared-openssl],	[Build shared OpenSSL libraries])],	        [], [enable_shared_openssl=auto])
 AC_ARG_ENABLE([python],		[AS_HELP_STRING([--disable-python],		[Don't build any of the Python-based tools])],	[], [enable_python=auto])
 AC_ARG_ENABLE([pywrap],		[AS_HELP_STRING([--enable-pywrap],		[Build pywrap])],				[], [enable_pywrap=auto])
 AC_ARG_ENABLE([django],		[AS_HELP_STRING([--disable-django],		[Don't build Django GUI])],			[], [enable_django=auto])
@@ -179,24 +150,6 @@ case $enable_system_openssl in
 		fi
 		;;
      *)		AC_MSG_ERROR([Unrecognized value for --enable-system-openssl: $enable_system_openssl]);;
-esac
-
-case $enable_shared_openssl in
-     yes)	build_shared_openssl=yes
-		if test $build_openssl = no
-		then
-			AC_MSG_WARN([Not building OpenSSL at all, ignoring request to build it as shared libraries])
-		fi
-		;;
-     no)	build_shared_openssl=no
-		if test $build_openssl = yes && test $need_openssl_shared = yes
-		then
-			AC_MSG_ERROR([This platform appears to require shared OpenSSL libraries])
-		fi
-		;;
-     auto)	build_shared_openssl=$need_openssl_shared
-		;;
-     *)		AC_MSG_ERROR([Unrecognized value for --enable-shared-openssl: $enable_shared_openssl]);;
 esac
 
 case $enable_python in
@@ -223,7 +176,7 @@ case $enable_pywrap in
 		then
 			AC_MSG_ERROR([Building pywrap without Python makes no sense])
 		fi
-		if test $build_openssl = no || test $need_openssl_shared = no
+		if test $build_openssl = no
 		then
 			AC_MSG_WARN([pywrap not needed (but I'll try to build it anyway)])
 		fi
@@ -277,18 +230,11 @@ AC_CONFIG_FILES([Makefile
 		 utils/print_roa/Makefile
 		 utils/uri/Makefile])
 
-# If there's some sane way to do this with a built-in autoconf
-# variable, I don't know what it is, so copy what BIND9 does.
-
-RPKITOOLS_TOP_BUILDDIR=`pwd`
-AC_SUBST(RPKITOOLS_TOP_BUILDDIR)
-
 # OpenSSL has its own build system that bears no relationship to
 # anything but itself.  On at least one platform, OpenSSL's opinion on
 # the right thing to do is so completely at odds with everything else
 # that the resulting libraries require special compilation options for
-# any program that wants to use them.  We also have to sort out whether
-# the linker is going to require shared libraries.  Feh.
+# any program that wants to use them.  Feh.
 #
 # The -rpath insanity will need to change once we install this stuff.
 #
@@ -311,17 +257,10 @@ then
 	AC_SUBST(OPENSSL_CONFIG_COMMAND)
 	AC_MSG_RESULT([$OPENSSL_CONFIG_COMMAND])
 
-	LDFLAGS="$LDFLAGS -L$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"
-	CFLAGS="$CFLAGS -I$RPKITOOLS_TOP_BUILDDIR/openssl/openssl/include"
-
-	if test $build_shared_openssl = yes
-	then
-		OPENSSL_SHARED_LIBRARIES='enable-shared'
-		LDFLAGS="$LDFLAGS -Wl,-rpath,$RPKITOOLS_TOP_BUILDDIR/openssl/openssl"
-	else
-		OPENSSL_SHARED_LIBRARIES='disable-shared'
-	fi
-	AC_SUBST(OPENSSL_SHARED_LIBRARIES)
+	CFLAGS="$CFLAGS -I\${abs_top_srcdir}/openssl/openssl/include"
+	LIBS="$LIBS \${abs_top_builddir}/openssl/openssl/libssl.a \${abs_top_builddir}/openssl/openssl/libcrypto.a"
+else
+	LIBS="$LIBS -lssl -lcrypto"
 fi
 
 # Sort out which interpreter POW-using Python programs should use.
@@ -329,15 +268,20 @@ fi
 if test $build_pywrap = yes
 then
 	AC_CONFIG_FILES([pywrap/Makefile])
-
-	# Eventually this should be the installation directory, but
-	# for now we're still running out of the build tree.
-	PYWRAP=$RPKITOOLS_TOP_BUILDDIR/pywrap/pywrap
+	OPENSSL_SHARED_LIBRARY_DIR='${libdir}/rpki'
+	OPENSSL_SHARED_LIBRARIES='enable-shared'
+	PYWRAP='${libexecdir}/pywrap'
+	PYWRAP_CMD='LD_LIBRARY_PATH="${abs_top_builddir}/openssl/openssl" ${abs_top_builddir}/pywrap/pywrap'
 else
-	# If we don't need pywrap, just make it expand to python
-	PYWRAP=$PYTHON
+	OPENSSL_SHARED_LIBRARY_DIR=''
+	OPENSSL_SHARED_LIBRARIES='disable-shared'
+	PYWRAP="$PYTHON"
+	PYWRAP_CMD="$PYTHON"
 fi
 AC_SUBST(PYWRAP)
+AC_SUBST(PYWRAP_CMD)
+AC_SUBST(OPENSSL_SHARED_LIBRARIES)
+AC_SUBST(OPENSSL_SHARED_LIBRARY_DIR)
 
 if test $build_python = yes
 then

@@ -1,31 +1,22 @@
 # $Id$
 
-VERSION = 0.7
-STAMP	= POW-${VERSION}/build/.timestamp
-
-SOURCES = POW-${VERSION}/lib/__init__.py	\
-	  POW-${VERSION}/lib/_der.py		\
-	  POW-${VERSION}/lib/_simpledb.py	\
-	  POW-${VERSION}/lib/pkix.py		\
-	  POW-${VERSION}/setup.py		\
-	  POW-${VERSION}/cfgparse.py		\
-	  POW-${VERSION}/dumpasn1.cfg		\
-	  POW-${VERSION}/POW.c
-
-
 CFLAGS	= @CFLAGS@
 LDFLAGS = @LDFLAGS@
-LIBS	= @LIBS@ -lssl -lcrypto
+LIBS	= @LIBS@
+PYTHON	= @PYTHON@
+OBJCOPY = @OBJCOPY@
 
-all: ${STAMP}
+abs_top_srcdir	 = @abs_top_srcdir@
+abs_top_builddir = @abs_top_builddir@
 
-${STAMP}: ${SOURCES}
-	cd POW-${VERSION}; AC_CFLAGS='${CFLAGS}' AC_LDFLAGS='${LDFLAGS}' AC_LIBS='${LIBS}' @PYTHON@ setup.py build
-	ln -sf POW-${VERSION}/build/lib.* buildlib
-	touch $@
+all: POW/_POW.so
+
+POW/_POW.so: POW.c
+	AC_CFLAGS='${CFLAGS}' AC_LDFLAGS='${LDFLAGS}' AC_LIBS='${LIBS}' AC_OBJCOPY='${OBJCOPY}' ${PYTHON} build.py
+	rm -f *.o
 
 clean:
-	rm -rf POW-${VERSION}/build buildlib
+	rm -f *.o POW/_POW.so
 
 install:
 	@echo Not attempting to install modified POW, if you want that, do it yourself
@@ -34,5 +25,4 @@ test:
 	@true
 
 distclean: clean
-	rm -f POW-${VERSION}/*.pyc
 	rm -f Makefile

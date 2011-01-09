@@ -269,18 +269,15 @@ if test $build_pywrap = yes
 then
 	AC_CONFIG_FILES([pywrap/Makefile])
 	OPENSSL_SHARED_LIBRARY_DIR='${libdir}/rpki'
-	OPENSSL_SHARED_LIBRARIES='enable-shared'
 	PYWRAP='${libexecdir}/pywrap'
 	PYWRAP_CMD='LD_LIBRARY_PATH="${abs_top_builddir}/openssl/openssl" ${abs_top_builddir}/pywrap/pywrap'
 else
 	OPENSSL_SHARED_LIBRARY_DIR=''
-	OPENSSL_SHARED_LIBRARIES='disable-shared'
 	PYWRAP="$PYTHON"
 	PYWRAP_CMD="$PYTHON"
 fi
 AC_SUBST(PYWRAP)
 AC_SUBST(PYWRAP_CMD)
-AC_SUBST(OPENSSL_SHARED_LIBRARIES)
 AC_SUBST(OPENSSL_SHARED_LIBRARY_DIR)
 
 if test $build_python = yes

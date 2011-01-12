@@ -1,7 +1,6 @@
 """
 Router origin-authentication rpki-router protocol implementation.  See
-draft-ymbk-rpki-rtr-protocol in fine Internet-Draft repositories near
-you.
+draft-ietf-sidr-rpki-rtr in fine Internet-Draft repositories near you.
 
 Run the program with the --help argument for usage information, or see
 documentation for the *_main() functions.
@@ -26,8 +25,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import sys, os, struct, time, glob, socket, fcntl, signal, syslog
 import asyncore, asynchat, subprocess, traceback, getopt
-import rpki.x509, rpki.ipaddrs, rpki.sundial
-import rpki.async
+import rpki.x509, rpki.ipaddrs, rpki.sundial, rpki.async
 
 class read_buffer(object):
   """

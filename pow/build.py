@@ -60,7 +60,7 @@ else:
   os.link("POW.o", "_POW.o")
 
 cmd = getvar("LDSHARED").split()
-cmd.extend(("-o", "POW/_POW.so", "_POW.o"))
+cmd.extend(("-o", "../rpkid/rpki/POW/_POW.so", "_POW.o"))
 cmd.extend(os.environ["AC_LDFLAGS"].split())
 cmd.extend(getvar("LDFLAGS").split())
 cmd.extend(other_libraries)
@@ -71,7 +71,7 @@ if r:
 
 objcopy = os.getenv("AC_OBJCOPY")
 if objcopy:
-  cmd = [objcopy, "-G", "init_POW", "-x", "POW/_POW.so"]
+  cmd = [objcopy, "-G", "init_POW", "-x", "../rpkid/rpki/POW/_POW.so"]
   print " ".join(cmd)
   r = subprocess.call(cmd)
   if r:

@@ -16,7 +16,7 @@ POW/_POW.so: POW.c
 	rm -f *.o
 
 clean:
-	rm -f *.o POW/_POW.so
+	rm -f *.o ../rpkid/rpki/POW/_POW.so
 
 install:
 	@echo Not attempting to install modified POW, if you want that, do it yourself

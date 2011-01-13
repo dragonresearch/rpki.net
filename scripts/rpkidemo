@@ -47,7 +47,7 @@ import sys
 
 python_version = sys.version_info[:2]
 
-have_ssl_module = python_version == (2, 6)
+have_ssl_module = python_version >= (2, 6)
 
 if python_version == (2, 5):
   print """
@@ -69,15 +69,15 @@ if python_version == (2, 5):
     else:
       print 'Please answer "yes" or "no"'
 
-elif python_version == (2, 6):
+elif have_ssl_module:
 
   try:
     import ssl
   except ImportError:
-    sys.exit("You're running Python 2.6, but I can't find the ssl module, so you have no SSL support at all, argh!")
+    sys.exit("You're running Python 2.6+, but I can't find the ssl module, so you have no SSL support at all, argh!")
 
 else:
-  sys.exit("Sorry, this script requires Python 2.6, I seem to be running in %s" % sys.version)
+  sys.exit("Sorry, this script requires Python 2.6+, I seem to be running in %s" % sys.version)
 
 # Ok, it's safe to import the other stuff we need now
 

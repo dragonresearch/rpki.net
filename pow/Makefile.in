@@ -4,7 +4,6 @@ CFLAGS	= @CFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBS	= @LIBS@
 PYTHON	= @PYTHON@
-OBJCOPY = @OBJCOPY@
 
 abs_top_srcdir	 = @abs_top_srcdir@
 abs_top_builddir = @abs_top_builddir@
@@ -12,7 +11,7 @@ abs_top_builddir = @abs_top_builddir@
 all: POW/_POW.so
 
 POW/_POW.so: POW.c
-	AC_CFLAGS='${CFLAGS}' AC_LDFLAGS='${LDFLAGS}' AC_LIBS='${LIBS}' AC_OBJCOPY='${OBJCOPY}' ${PYTHON} build.py
+	AC_CFLAGS='${CFLAGS}' AC_LDFLAGS='${LDFLAGS}' AC_LIBS='${LIBS}' ${PYTHON} build.py
 	rm -f *.o
 
 clean:

@@ -30,14 +30,6 @@ import os, subprocess, sys
 from distutils.sysconfig import (get_config_var as getvar,
                                  get_python_inc as getinc)
 
-static_libraries = []
-other_libraries = []
-for lib in os.environ["AC_LIBS"].split():
-  if lib.startswith("-"):
-    other_libraries.append(lib)
-  else:
-    static_libraries.append(lib)
-
 cmd = getvar("CC").split()
 cmd.extend(("-c", "-o", "POW.o", "POW.c"))
 cmd.extend(os.environ["AC_CFLAGS"].split())
@@ -50,29 +42,12 @@ r = subprocess.call(cmd)
 if r:
   sys.exit(r)
 
-if static_libraries:
-  cmd = ["ld", "-r", "-o", "_POW.o", "POW.o"] + static_libraries
-  print " ".join(cmd)
-  r = subprocess.call(cmd)
-  if r:
-    sys.exit(r)
-else:
-  os.link("POW.o", "_POW.o")
-
 cmd = getvar("LDSHARED").split()
-cmd.extend(("-o", "../rpkid/rpki/POW/_POW.so", "_POW.o"))
+cmd.extend(("-o", "../rpkid/rpki/POW/_POW.so", "POW.o"))
 cmd.extend(os.environ["AC_LDFLAGS"].split())
 cmd.extend(getvar("LDFLAGS").split())
-cmd.extend(other_libraries)
+cmd.extend(os.environ["AC_LIBS"].split())
 print " ".join(cmd)
 r = subprocess.call(cmd)
 if r:
   sys.exit(r)
-
-objcopy = os.getenv("AC_OBJCOPY")
-if objcopy:
-  cmd = [objcopy, "-G", "init_POW", "-x", "../rpkid/rpki/POW/_POW.so"]
-  print " ".join(cmd)
-  r = subprocess.call(cmd)
-  if r:
-    sys.exit(r)

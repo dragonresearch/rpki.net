@@ -8,14 +8,16 @@ PYTHON	= @PYTHON@
 abs_top_srcdir	 = @abs_top_srcdir@
 abs_top_builddir = @abs_top_builddir@
 
-all: POW/_POW.so
+TARGET = ../rpkid/rpki/POW/_POW.so
 
-POW/_POW.so: POW.c
+all: ${TARGET}
+
+${TARGET}: POW.c
 	AC_CFLAGS='${CFLAGS}' AC_LDFLAGS='${LDFLAGS}' AC_LIBS='${LIBS}' ${PYTHON} build.py
 	rm -f *.o
 
 clean:
-	rm -f *.o ../rpkid/rpki/POW/_POW.so
+	rm -f *.o ${TARGET}
 
 install:
 	@echo Not attempting to install modified POW, if you want that, do it yourself

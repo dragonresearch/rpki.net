@@ -2,27 +2,31 @@
 
 VERSION = 1.0.0b
 
-OPENSSL_CONFIG_COMMAND   = @OPENSSL_CONFIG_COMMAND@
-OPENSSL_BUILD_DIRECTORY  = @abs_builddir@/openssl
-OPENSSL_SHARED_LIBRARY_DIR = @OPENSSL_SHARED_LIBRARY_DIR@
+OPENSSL_CONFIG_COMMAND  = @OPENSSL_CONFIG_COMMAND@
+OPENSSL_BUILD_DIRECTORY = ${abs_builddir}/openssl
+PYWRAP_LIBDIR		= @PYWRAP_LIBDIR@
 
-# Kludge alert:
-#
-# The --prefix= and LIBRPATH= settings below are to force OpenSSL's
-# baroque configuration mechanism to build shared libraries that will
-# run out of the build tree.  This is temporary.  Once we write "make
-# install" code, we'll have to change that to point to the directory
-# where the OpenSSL shared libraries will be installed.
+abs_top_srcdir		= @abs_top_srcdir@
+abs_top_builddir	= @abs_top_builddir@
+prefix			= @prefix@
+exec_prefix		= @exec_prefix@
+libdir			= @libdir@
 
 # We need to build with enable-shared whether we're really trying to
 # build shared OpenSSL libraries or not, because _POW.so requires
 # position independent code, so we need OpenSSL compiled with the
-# options it would use for a shared library.
+# options it would use for a shared library.  This then requires
+# further gymnastics to get an openssl executable linked against the
+# static libraries, which we want so that we don't have to set
+# LD_LIBRARY_PATH in all of our test scripts.
 
-OPTIONS = enable-rfc3779 enable-cms no-dso enable-shared --prefix=${OPENSSL_BUILD_DIRECTORY}
+OPTIONS = enable-rfc3779 enable-cms no-dso enable-shared --prefix=${prefix}
 
 all: openssl-${VERSION}/Makefile
-	cd openssl-${VERSION}; ${MAKE} $@ LIBRPATH=${OPENSSL_BUILD_DIRECTORY}
+	cd openssl-${VERSION}; ${MAKE} $@ LIBRPATH=${PYWRAP_LIBDIR}
+	cd openssl-${VERSION}; mkdir disabled; mv -fv *.so* disabled
+	cd openssl-${VERSION}; rm apps/openssl; cd apps; ${MAKE} $@
+	cd openssl-${VERSION}; mv -fv disabled/* .; rmdir disabled
 	ln -sf openssl-${VERSION} openssl
 
 clean:

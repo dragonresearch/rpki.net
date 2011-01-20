@@ -1,0 +1,35 @@
+# $Id$
+
+NAME = resource-set-test
+
+BIN = ${NAME}
+SRC = ${NAME}.c
+OBJ = ${NAME}.o
+
+CFLAGS = @CFLAGS@
+LDFLAGS = @LDFLAGS@
+LIBS = @LIBS@
+
+abs_top_srcdir	 = @abs_top_srcdir@
+abs_top_builddir = @abs_top_builddir@
+
+OPENSSL	= ${abs_top_builddir}/openssl/openssl/apps/openssl
+
+all: ${BIN}
+
+clean:
+	rm -f ${BIN} ${OBJ}
+
+${BIN}: ${SRC}
+	${CC} ${CFLAGS} -o $@ ${SRC} ${LDFLAGS} ${LIBS}
+
+# This test needs more work
+
+test: ${BIN} test.cer
+	./${BIN} -v -a AS:17 -i IPv4:10.0.0.44 -d test.cer
+
+test.cer: test.conf
+	${OPENSSL} req -new -x509 -config test.conf -keyout test.key -out test.cer -outform DER
+
+distclean: clean
+	rm -f test.key test.cer

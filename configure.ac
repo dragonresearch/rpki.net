@@ -242,7 +242,7 @@ AC_CONFIG_FILES([Makefile
 
 if test $build_openssl = yes
 then
-	AC_CONFIG_FILES([openssl/Makefile])
+	AC_CONFIG_FILES([openssl/Makefile openssl/tests/Makefile])
 
 	AC_MSG_CHECKING([what configuration target to use when building OpenSSL])
 	OPENSSL_CONFIG_COMMAND='./config'
@@ -268,17 +268,17 @@ fi
 if test $build_pywrap = yes
 then
 	AC_CONFIG_FILES([pywrap/Makefile])
-	OPENSSL_SHARED_LIBRARY_DIR='${libdir}/rpki'
 	PYWRAP='${libexecdir}/pywrap'
 	PYWRAP_CMD='LD_LIBRARY_PATH="${abs_top_builddir}/openssl/openssl" ${abs_top_builddir}/pywrap/pywrap'
+	PYWRAP_LIBDIR='${libdir}/pywrap'
 else
-	OPENSSL_SHARED_LIBRARY_DIR=''
 	PYWRAP="$PYTHON"
 	PYWRAP_CMD="$PYTHON"
+	PYWRAP_LIBDIR=''
 fi
 AC_SUBST(PYWRAP)
 AC_SUBST(PYWRAP_CMD)
-AC_SUBST(OPENSSL_SHARED_LIBRARY_DIR)
+AC_SUBST(PYWRAP_LIBDIR)
 
 if test $build_python = yes
 then

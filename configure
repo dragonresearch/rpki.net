@@ -601,7 +601,7 @@ ac_includes_default="\
 
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
-OPENSSL_SHARED_LIBRARY_DIR
+PYWRAP_LIBDIR
 PYWRAP_CMD
 PYWRAP
 OPENSSL_CONFIG_COMMAND
@@ -4103,7 +4103,7 @@ ac_config_files="$ac_config_files Makefile rcynic/Makefile utils/Makefile utils/
 
 if test $build_openssl = yes
 then
-	ac_config_files="$ac_config_files openssl/Makefile"
+	ac_config_files="$ac_config_files openssl/Makefile openssl/tests/Makefile"
 
 
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking what configuration target to use when building OpenSSL" >&5
@@ -4133,13 +4133,13 @@ if test $build_pywrap = yes
 then
 	ac_config_files="$ac_config_files pywrap/Makefile"
 
-	OPENSSL_SHARED_LIBRARY_DIR='${libdir}/rpki'
 	PYWRAP='${libexecdir}/pywrap'
 	PYWRAP_CMD='LD_LIBRARY_PATH="${abs_top_builddir}/openssl/openssl" ${abs_top_builddir}/pywrap/pywrap'
+	PYWRAP_LIBDIR='${libdir}/pywrap'
 else
-	OPENSSL_SHARED_LIBRARY_DIR=''
 	PYWRAP="$PYTHON"
 	PYWRAP_CMD="$PYTHON"
+	PYWRAP_LIBDIR=''
 fi
 
 
@@ -4904,6 +4904,7 @@ do
     "utils/print_roa/Makefile") CONFIG_FILES="$CONFIG_FILES utils/print_roa/Makefile" ;;
     "utils/uri/Makefile") CONFIG_FILES="$CONFIG_FILES utils/uri/Makefile" ;;
     "openssl/Makefile") CONFIG_FILES="$CONFIG_FILES openssl/Makefile" ;;
+    "openssl/tests/Makefile") CONFIG_FILES="$CONFIG_FILES openssl/tests/Makefile" ;;
     "pywrap/Makefile") CONFIG_FILES="$CONFIG_FILES pywrap/Makefile" ;;
     "rpkid/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/Makefile" ;;
     "rpkid/tests/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/tests/Makefile" ;;

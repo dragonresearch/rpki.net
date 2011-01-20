@@ -1,7 +1,7 @@
 # $Id$
 
 CFLAGS	= @CFLAGS@
-LDFLAGS = @LDFLAGS@ -L${abs_top_builddir}/openssl/openssl -Wl,-rpath,@OPENSSL_SHARED_LIBRARY_DIR@
+LDFLAGS = @LDFLAGS@ -L${abs_top_builddir}/openssl/openssl -Wl,-rpath,@PYWRAP_LIBDIR@
 LIBS	= -lssl -lcrypto
 
 PYTHON	= @PYTHON@

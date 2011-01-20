@@ -40,7 +40,7 @@ setup(name              = "rpkitoolkit",
       description       = "RPKI Toolkit",
       license           = "BSD",
       url               = "http://www.rpki.net/",
-      packages          = ["rpki"],
+      packages          = ["rpki", "rpki.POW"],
       ext_modules       = [pow])
 
 # Probably add other stuff here: scripts, data files, and so forth.

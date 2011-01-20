@@ -41,7 +41,7 @@ clean::
 	cd tests; $(MAKE) $@
 
 install:
-	@true
+	${SETUP_PY} install
 
 dont-run-trang:
 	touch *.rng

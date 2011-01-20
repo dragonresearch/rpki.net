@@ -3,8 +3,6 @@ IR database daemon.
 
 Usage: python irdbd.py [ { -c | --config } configfile ] [ { -h | --help } ]
 
-Default configuration file is irdbd.conf, override with --config option.
-
 $Id$
 
 Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
@@ -175,7 +173,7 @@ class main(object):
     os.environ["TZ"] = "UTC"
     time.tzset()
 
-    cfg_file = "irdbd.conf"
+    cfg_file = None
 
     opts, argv = getopt.getopt(sys.argv[1:], "c:dh?", ["config=", "debug", "help"])
     for o, a in opts:

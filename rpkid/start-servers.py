@@ -41,7 +41,7 @@ rpkid_dir = os.path.normpath(sys.path[0])
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-cfg_file = "myrpki.conf"
+cfg_file = None
 debug = False
 piddir = None
 
@@ -60,7 +60,7 @@ for o, a in opts:
 cfg = rpki.config.parser(cfg_file, "myrpki")
 
 def run(name):
-  cmd = (sys.executable, os.path.join(rpkid_dir, name + ".py"), "-c", cfg_file)
+  cmd = (sys.executable, os.path.join(rpkid_dir, name + ".py"), "-c", cfg.filename)
   if debug:
     proc = subprocess.Popen(cmd + ("-d",), stdout = open(name + ".log", "a"), stderr = subprocess.STDOUT)
   else:

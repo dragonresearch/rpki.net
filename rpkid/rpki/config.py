@@ -35,6 +35,23 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import ConfigParser, os, re
 
+## @var default_filename
+# Default name of config file if caller doesn't specify one explictly.
+
+default_filename = "rpki.conf"
+
+## @var default_dirname
+# Default name of directory to check for global config file, or None
+# if no global config file.  Autoconf-generated code may set this to a
+# non-None value during script startup.
+
+default_dirname = None
+
+## @var default_envname
+# Name of environment variable containing config file name.
+
+default_envname = "RPKI_CONF"
+
 class parser(object):
   """
   Extensions to stock Python ConfigParser:
@@ -45,21 +62,43 @@ class parser(object):
   OpenSSL-style indirect variable references (${section::option}).
 
   get-methods with default values and default section name.
+
+  If no filename is given to the constructor (filename = None), we
+  check for an environment variable naming the config file, then we
+  check for a default filename in the current directory, then finally
+  we check for a global config file if autoconf provided a directory
+  name to check.
   """
 
-  def __init__(self, filename, section = None, allow_missing = False):
-    """
-    Initialize this parser.
-    """
+  def __init__(self, filename = None, section = None, allow_missing = False):
 
-    self.filename = filename
     self.cfg = ConfigParser.RawConfigParser()
-    try:
-      self.cfg.readfp(open(filename), filename)
-    except IOError:
-      if not allow_missing:
-        raise
     self.default_section = section
+
+    filenames = []
+    if filename is not None:
+      filenames.append(filename)
+    else:
+      if default_envname in os.environ:
+        filenames.append(os.environ[default_envname])
+      filenames.append(default_filename)
+      if default_dirname is not None:
+        filenames.append("%s/%s" % (default_dirname, default_filename))
+
+    for fn in filenames:
+      try:
+        f = open(fn)
+        break
+      except IOError:
+        f = None
+
+    if f is not None:
+      self.filename = fn
+      self.cfg.readfp(f, fn)
+    elif allow_missing:
+      self.filename = None
+    else:
+      raise
 
   def has_section(self, section):
     """

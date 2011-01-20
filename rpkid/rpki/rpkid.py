@@ -5,8 +5,6 @@ Usage: python rpkid.py [ { -c | --config } configfile ]
                        [ { -h | --help } ]
                        [ { -p | --profile } outputfile ]
 
-Default configuration file is rpkid.conf, override with --config option.
-
 $Id$
 
 Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
@@ -56,7 +54,7 @@ class main(object):
     os.environ["TZ"] = "UTC"
     time.tzset()
 
-    self.cfg_file = "rpkid.conf"
+    self.cfg_file = None
     self.profile = None
 
     opts, argv = getopt.getopt(sys.argv[1:], "c:dhp:?", ["config=", "debug", "help", "profile="])

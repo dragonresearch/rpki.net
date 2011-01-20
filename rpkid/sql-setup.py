@@ -1,6 +1,6 @@
 """
 Automated setup of all the pesky SQL stuff we need.  Prompts for MySQL
-root password, pulls other information from myrpki.conf.
+root password, pulls other information from rpki.conf.
 
 $Id$
 
@@ -80,7 +80,7 @@ def sql_setup(name):
   db.commit()
   db.close()
 
-cfg_file = "myrpki.conf"
+cfg_file = None
 
 verbose = False
 

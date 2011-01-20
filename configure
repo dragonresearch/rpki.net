@@ -4164,28 +4164,6 @@ if test $build_python = yes
 then
 	ac_config_files="$ac_config_files rpkid/Makefile rpkid/tests/Makefile"
 
-
-	# These are plain Python scripts, do not require pywrap
-	ac_config_files="$ac_config_files rpkid/backup-sql:buildtools/python-header:rpkid/backup-sql.py"
-
-	ac_config_files="$ac_config_files rpkid/sql-setup:buildtools/python-header:rpkid/sql-setup.py"
-
-	ac_config_files="$ac_config_files rpkid/start-servers:buildtools/python-header:rpkid/start-servers.py"
-
-
-	# These use POW, so may require pywrap
-	ac_config_files="$ac_config_files rpkid/irbe_cli:buildtools/pywrap-header:rpkid/irbe_cli.py"
-
-	ac_config_files="$ac_config_files rpkid/irdbd:buildtools/pywrap-header:rpkid/irdbd.py"
-
-	ac_config_files="$ac_config_files rpkid/myrpki:buildtools/pywrap-header:rpkid/myrpki.py"
-
-	ac_config_files="$ac_config_files rpkid/pubd:buildtools/pywrap-header:rpkid/pubd.py"
-
-	ac_config_files="$ac_config_files rpkid/rootd:buildtools/pywrap-header:rpkid/rootd.py"
-
-	ac_config_files="$ac_config_files rpkid/rpkid:buildtools/pywrap-header:rpkid/rpkid.py"
-
 fi
 
 # This should go away once its content has migrated from Doxygen into DocBook.
@@ -4923,15 +4901,6 @@ do
     "pywrap/Makefile") CONFIG_FILES="$CONFIG_FILES pywrap/Makefile" ;;
     "rpkid/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/Makefile" ;;
     "rpkid/tests/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/tests/Makefile" ;;
-    "rpkid/backup-sql") CONFIG_FILES="$CONFIG_FILES rpkid/backup-sql:buildtools/python-header:rpkid/backup-sql.py" ;;
-    "rpkid/sql-setup") CONFIG_FILES="$CONFIG_FILES rpkid/sql-setup:buildtools/python-header:rpkid/sql-setup.py" ;;
-    "rpkid/start-servers") CONFIG_FILES="$CONFIG_FILES rpkid/start-servers:buildtools/python-header:rpkid/start-servers.py" ;;
-    "rpkid/irbe_cli") CONFIG_FILES="$CONFIG_FILES rpkid/irbe_cli:buildtools/pywrap-header:rpkid/irbe_cli.py" ;;
-    "rpkid/irdbd") CONFIG_FILES="$CONFIG_FILES rpkid/irdbd:buildtools/pywrap-header:rpkid/irdbd.py" ;;
-    "rpkid/myrpki") CONFIG_FILES="$CONFIG_FILES rpkid/myrpki:buildtools/pywrap-header:rpkid/myrpki.py" ;;
-    "rpkid/pubd") CONFIG_FILES="$CONFIG_FILES rpkid/pubd:buildtools/pywrap-header:rpkid/pubd.py" ;;
-    "rpkid/rootd") CONFIG_FILES="$CONFIG_FILES rpkid/rootd:buildtools/pywrap-header:rpkid/rootd.py" ;;
-    "rpkid/rpkid") CONFIG_FILES="$CONFIG_FILES rpkid/rpkid:buildtools/pywrap-header:rpkid/rpkid.py" ;;
     "rpkid/rpki/__doc__.py") CONFIG_FILES="$CONFIG_FILES rpkid/rpki/__doc__.py" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
@@ -5349,15 +5318,6 @@ which seems to be undefined.  Please make sure it is defined" >&2;}
 
   case $ac_file$ac_mode in
     "rcynic/show.sh":F) chmod +x rcynic/show.sh ;;
-    "rpkid/backup-sql":F) chmod +x rpkid/backup-sql ;;
-    "rpkid/sql-setup":F) chmod +x rpkid/sql-setup ;;
-    "rpkid/start-servers":F) chmod +x rpkid/start-servers ;;
-    "rpkid/irbe_cli":F) chmod +x rpkid/irbe_cli ;;
-    "rpkid/irdbd":F) chmod +x rpkid/irdbd ;;
-    "rpkid/myrpki":F) chmod +x rpkid/myrpki ;;
-    "rpkid/pubd":F) chmod +x rpkid/pubd ;;
-    "rpkid/rootd":F) chmod +x rpkid/rootd ;;
-    "rpkid/rpkid":F) chmod +x rpkid/rpkid ;;
 
   esac
 done # for ac_tag

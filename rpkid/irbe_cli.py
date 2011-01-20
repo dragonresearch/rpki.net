@@ -265,7 +265,7 @@ argv = sys.argv[1:]
 if not argv:
   usage(0)
 
-cfg_file = "irbe.conf"
+cfg_file = None
 verbose = True
 
 opts, argv = getopt.getopt(argv, "c:hpqv?", top_opts)

@@ -295,19 +295,6 @@ AC_SUBST(PYWRAP_LIBDIR)
 if test $build_python = yes
 then
 	AC_CONFIG_FILES([rpkid/Makefile rpkid/tests/Makefile])
-
-	# These are plain Python scripts, do not require pywrap
-	AC_CONFIG_FILES([rpkid/backup-sql:buildtools/python-header:rpkid/backup-sql.py],		[chmod +x rpkid/backup-sql])
-	AC_CONFIG_FILES([rpkid/sql-setup:buildtools/python-header:rpkid/sql-setup.py],			[chmod +x rpkid/sql-setup])
-	AC_CONFIG_FILES([rpkid/start-servers:buildtools/python-header:rpkid/start-servers.py],		[chmod +x rpkid/start-servers])
-
-	# These use POW, so may require pywrap	
-	AC_CONFIG_FILES([rpkid/irbe_cli:buildtools/pywrap-header:rpkid/irbe_cli.py],			[chmod +x rpkid/irbe_cli])
-	AC_CONFIG_FILES([rpkid/irdbd:buildtools/pywrap-header:rpkid/irdbd.py],				[chmod +x rpkid/irdbd])
-	AC_CONFIG_FILES([rpkid/myrpki:buildtools/pywrap-header:rpkid/myrpki.py],			[chmod +x rpkid/myrpki])
-	AC_CONFIG_FILES([rpkid/pubd:buildtools/pywrap-header:rpkid/pubd.py],				[chmod +x rpkid/pubd])
-	AC_CONFIG_FILES([rpkid/rootd:buildtools/pywrap-header:rpkid/rootd.py],				[chmod +x rpkid/rootd])
-	AC_CONFIG_FILES([rpkid/rpkid:buildtools/pywrap-header:rpkid/rpkid.py],				[chmod +x rpkid/rpkid])
 fi
 
 # This should go away once its content has migrated from Doxygen into DocBook.

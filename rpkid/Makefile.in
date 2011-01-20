@@ -1,18 +1,29 @@
 # $Id$
 
 PYTHON = @PYTHON@
+PYWRAP = @PYWRAP@
 PYWRAP_CMD = @PYWRAP_CMD@
 
 CFLAGS	= @CFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBS	= @LIBS@
 
+prefix		= @prefix@
+exec_prefix	= @exec_prefix@
+datarootdir	= @datarootdir@
+datadir		= @datadir@
+localstatedir	= @localstatedir@
+sharedstatedir	= @sharedstatedir@
+sysconfdir	= @sysconfdir@
+
 abs_top_srcdir	 = @abs_top_srcdir@
 abs_top_builddir = @abs_top_builddir@
 
 SETUP_PY = AC_CFLAGS='${CFLAGS}' AC_LDFLAGS='${LDFLAGS}' AC_LIBS='${LIBS}' ${PYTHON} setup.py
 
-all: rpki/pow/_POW.so rpki/relaxng.py myrpki.rng
+EXECUTABLES = backup-sql sql-setup start-servers irbe_cli irdbd myrpki pubd rootd rpkid
+
+all: rpki/pow/_POW.so rpki/relaxng.py myrpki.rng ${EXECUTABLES}
 
 rpki/pow/_POW.so: ext/POW.c setup.py
 	${SETUP_PY} build_ext --inplace
@@ -37,8 +48,9 @@ myrpki.rng: myrpki.rnc
 	trang myrpki.rnc myrpki.rng
 
 clean::
-	find . -type f -name '*.pyc' -delete
+	find . -type f -name '*.py[co]' -delete
 	cd tests; $(MAKE) $@
+	rm -f ${EXECUTABLES}
 
 install:
 	${SETUP_PY} install
@@ -128,4 +140,35 @@ docs: dot eps png html text tgz pdf
 
 distclean: clean docclean
 	cd tests; ${MAKE} $@
-	rm -f TAGS rpki/__doc__.py rootd rpkid backup-sql irbe_cli irdbd myrpki pubd sql-setup start-servers Makefile
+	rm -f TAGS rpki/__doc__.py Makefile
+
+COMPILE_COMMON = AC_RPKI_CONFIG_DIR='${sysconfdir}' ${PYTHON} ${abs_top_srcdir}/buildtools/make-python-executable.py <$? >$@; chmod +x $@
+COMPILE_PYTHON = AC_PYTHON_INTERPRETER='${PYTHON}' ${COMPILE_COMMON}
+COMPILE_PYWRAP = AC_PYTHON_INTERPRETER='${PYWRAP}' ${COMPILE_COMMON}
+
+backup-sql: backup-sql.py
+	${COMPILE_PYTHON}
+
+sql-setup: sql-setup.py
+	${COMPILE_PYTHON}
+
+start-servers: start-servers.py
+	${COMPILE_PYTHON}
+
+irbe_cli: irbe_cli.py
+	${COMPILE_PYWRAP}
+
+irdbd: irdbd.py
+	${COMPILE_PYWRAP}
+
+myrpki: myrpki.py
+	${COMPILE_PYWRAP}
+
+pubd: pubd.py
+	${COMPILE_PYWRAP}
+
+rootd: rootd.py
+	${COMPILE_PYWRAP}
+
+rpkid: rpkid.py
+	${COMPILE_PYWRAP}

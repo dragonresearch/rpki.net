@@ -899,7 +899,7 @@ class main(rpki.cli.Cmd):
 
     rpki.log.use_syslog = False
 
-    self.cfg_file = os.getenv("MYRPKI_CONF", "myrpki.conf")
+    self.cfg_file = None
 
     opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
     for o, a in opts:
@@ -950,9 +950,9 @@ class main(rpki.cli.Cmd):
     if self.run_rootd and (not self.run_pubd or not self.run_rpkid):
       raise RuntimeError, "Can't run rootd unless also running rpkid and pubd"
 
-    self.bpki_resources = CA(self.cfg_file, self.cfg.get("bpki_resources_directory"))
+    self.bpki_resources = CA(self.cfg.filename, self.cfg.get("bpki_resources_directory"))
     if self.run_rpkid or self.run_pubd or self.run_rootd:
-      self.bpki_servers = CA(self.cfg_file, self.cfg.get("bpki_servers_directory"))
+      self.bpki_servers = CA(self.cfg.filename, self.cfg.get("bpki_servers_directory"))
 
     self.pubd_contact_info = self.cfg.get("pubd_contact_info", "")
 
@@ -1560,7 +1560,7 @@ class main(rpki.cli.Cmd):
         action = "set",
         bpki_crl = rpki.x509.CRL(PEM_file = self.bpki_servers.crl)))
 
-    irdbd_cfg = rpki.config.parser(self.cfg.get("irdbd_conf", self.cfg_file), "irdbd")
+    irdbd_cfg = rpki.config.parser(self.cfg.get("irdbd_conf", self.cfg.filename), "irdbd")
 
     db = MySQLdb.connect(user   = irdbd_cfg.get("sql-username"),
                          db     = irdbd_cfg.get("sql-database"),

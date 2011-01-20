@@ -425,7 +425,7 @@ class allocation(object):
     print "Writing", f.name
 
     section = None
-    for line in open(cleanpath(rpkid_dir, "examples/myrpki.conf")):
+    for line in open(cleanpath(rpkid_dir, "examples/rpki.conf")):
       m = section_regexp.match(line)
       if m:
         section = m.group(1)
@@ -486,7 +486,7 @@ class allocation(object):
     representing the running daemon.
     """
     basename = os.path.basename(prog)
-    p = subprocess.Popen((sys.executable, prog, "-d", "-c", self.path("myrpki.conf")),
+    p = subprocess.Popen((sys.executable, prog, "-d", "-c", self.path("rpki.conf")),
                          cwd = self.path(),
                          stdout = open(self.path(os.path.splitext(basename)[0] + ".log"), "w"),
                          stderr = subprocess.STDOUT)
@@ -541,7 +541,7 @@ class allocation(object):
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-cfg_file = "yamltest.conf"
+cfg_file = None
 pidfile  = None
 keep_going = False
 
@@ -613,7 +613,7 @@ try:
     d.dump_asns("asns.csv")
     d.dump_prefixes("prefixes.csv")
     d.dump_roas("roas.csv")
-    d.dump_conf("myrpki.conf")
+    d.dump_conf("rpki.conf")
     d.dump_rsyncd("rsyncd.conf")
     if False:
       d.dump_children("children.csv")
@@ -640,7 +640,7 @@ try:
                       "-signkey", "bpki/servers/ca.key",
                       "-in",      "bpki/servers/ca.req",
                       "-out",     "publication/root.cer",
-                      "-extfile", "myrpki.conf",
+                      "-extfile", "rpki.conf",
                       "-extensions", "rootd_x509_extensions")
 
 

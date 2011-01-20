@@ -5,8 +5,6 @@ rpki.* classes in order to reuse as much code as possible.
 
 Usage: python rootd.py [ { -c | --config } configfile ] [ { -h | --help } ]
 
-Default configuration file is rootd.conf, override with --config option.
-
 $Id$
 
 Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
@@ -269,7 +267,7 @@ class main(object):
     os.environ["TZ"] = "UTC"
     time.tzset()
 
-    self.cfg_file = "rootd.conf"
+    self.cfg_file = None
 
     opts, argv = getopt.getopt(sys.argv[1:], "c:dh?", ["config=", "debug", "help"])
     for o, a in opts:

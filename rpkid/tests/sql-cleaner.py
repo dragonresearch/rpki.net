@@ -20,7 +20,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import subprocess, rpki.config
 
-cfg = rpki.config.parser("yamltest.conf", "yamltest", allow_missing = True)
+cfg = rpki.config.parser(None, "yamltest", allow_missing = True)
 
 for name in ("rpkid", "irdbd", "pubd"):
 

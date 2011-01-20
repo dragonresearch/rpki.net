@@ -7,8 +7,6 @@ Usage: python smoketest.py [ { -c | --config } config_file ]
                            [ { -p | --profile } ]
                            [ { -y | --yaml }   yaml_script ]
 
-Default config_file is smoketest.conf, override with --config option.
-
 Default yaml_script is smoketest.yaml, override with -yaml option.
 
 yaml_script is a YAML file describing the tests to be run, and is
@@ -65,8 +63,7 @@ else:
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-cfg_file = "smoketest.conf"
-
+cfg_file = None
 yaml_script = None
 profile = False
 

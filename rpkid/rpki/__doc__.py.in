@@ -169,8 +169,8 @@
 # At present the daemon programs all run in foreground, that is, the
 # daemons themselves make no attempt to put themselves in background.
 # The easiest way to run the servers is to run the @c start_servers
-# script, which examines your @c myrpki.conf file and starts the
-# appropriate servers in background using @c myrpki.conf as the
+# script, which examines your @c rpki.conf file and starts the
+# appropriate servers in background using @c rpki.conf as the
 # configuration file for each server as well.
 #
 # If you prefer, you can run each server by hand instead of using the
@@ -534,18 +534,18 @@
 # to the value of the @c baz variable from section @c bar.  The section
 # name @c ENV is special: it refers to environment variables.
 #
-# @section myrpkiconf myrpki.conf
+# @section rpkiconf rpki.conf
 #
-# The default name for the shared configuration file is @c myrpki.conf.
+# The default name for the shared configuration file is @c rpki.conf.
 # Unless you really know what you're doing, you should start by
-# copying the @c $top/myrpki.conf from the @c rpkid/examples directory and
+# copying the @c rpki.conf from the @c rpkid/examples directory and
 # modifying it, as the sample configuration file already includes all
 # the additional settings necessary to use the simplified configuration.
 #
-# @dontinclude myrpki.conf
+# @dontinclude rpki.conf
 # @skipline [myrpki]
 #
-# The @c [myrpki] section of @c myrpki.conf contains all the
+# The @c [myrpki] section of @c rpki.conf contains all the
 # parameters that you really need to configure.
 #
 # @skip #
@@ -621,7 +621,7 @@
 # underneath that name.  In most cases @c publication_rsync_server
 # should be the same as @c publication_rsync_server, which is what the
 # macro invocation in the default setting does.  @c
-# publication_base_directory, like other pathnames in @c myrpki.conf,
+# publication_base_directory, like other pathnames in @c rpki.conf,
 # can be either a relative or absolute pathname; if relative, it's
 # interpreted with respect to the directory in which the programs in
 # question were started.  In this specific case, it's probably better
@@ -664,13 +664,13 @@
 # @section otherconf Other configuration files and options
 #
 # In most cases the simplified configuration in the @c [myrpki]
-# section of @c myrpki.conf should suffice, but in case you need to
+# section of @c rpki.conf should suffice, but in case you need to
 # tinker, here are details on the the rest of the configuration
 # options.  In most cases the default name of the configuration file
 # for a program is the name of the program followed by @c ".conf", and
 # the section name is also named for the program, so that you can
 # combine sections into a single configuration file as shown with @c
-# myrpki.conf.
+# rpki.conf.
 #
 # @li @subpage CommonOptions "Common configuration options"
 #
@@ -705,7 +705,7 @@
 # set up the MySQL databases they use.  You can do this by hand, or
 # you can use the @c sql-setup.py script, which prompts you for your
 # MySQL root password then attempts to do everything else
-# automatically using values from myrpki.conf.
+# automatically using values from rpki.conf.
 #
 # Using the script is simple:
 #
@@ -860,7 +860,7 @@
 # Keep reading, and don't panic.
 # 
 # The default configuration file name for @c myrpki is
-# @ref Configuration "@c myrpki.conf".
+# @ref Configuration "@c rpki.conf".
 # You can change this using the "-c" option when invoking myrpki, or
 # by setting the environment variable MYRPKI_CONF.
 # 
@@ -888,7 +888,7 @@
 # 
 # The steps needed during setup phase are:
 # 
-# @li Write a configuration file (copy $top/rpkid/examples/myrpki.conf
+# @li Write a configuration file (copy $top/rpkid/examples/rpki.conf
 #     and edit as needed).  You need to configure the @c [myrpki] section;
 #     in theory, the rest of the file should be ok as it is, at least for
 #     simple use.  You also need to create (either by hand or by dumping

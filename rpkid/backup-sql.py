@@ -26,7 +26,7 @@ import subprocess, os, getopt, sys, time, rpki.config
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-cfg_file = "myrpki.conf"
+cfg_file = None
 
 opts, argv = getopt.getopt(sys.argv[1:], "c:h?", ["config=", "help"])
 for o, a in opts:

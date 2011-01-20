@@ -1,9 +1,11 @@
 """
-Dump backup copies of SQL tables used by these programs.
+Convert a Python script into an executable Python script.  Mostly this
+means constructing a header based on a few parameters supplied by
+autoconf.
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -18,15 +20,19 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import subprocess, rpki.config
+import os, sys
 
-cfg = rpki.config.parser(None, "yamltest")
+sys.stdout.write('''\
+#!%(AC_PYTHON_INTERPRETER)s
+# Automatically constructed script header
 
-for name in ("rpkid", "irdbd", "pubd"):
+# Set location of global rpki.conf file
+if __name__ == "__main__":
+  import rpki.config
+  rpki.config.default_dirname = "%(AC_RPKI_CONFIG_DIR)s"
 
-  username = cfg.get("%s_sql_username" % name, name[:4])
-  password = cfg.get("%s_sql_password" % name, "fnord")
+# Original script starts here
 
-  cmd = ["mysqldump", "-u", username, "-p" + password, "--databases", name[:4]]
-  cmd.extend("%s%d" % (name[:4], i) for i in xrange(12))
-  subprocess.check_call(cmd, stdout = open("backup.%s.sql" % name, "w"))
+''' % os.environ)
+
+sys.stdout.write(sys.stdin.read())

@@ -23,9 +23,18 @@ CONFDIR=@CONFDIR@
 # automatically built sources
 BUILD=$(srcdir)/configure Makefile config.status rpkigui/settings.py \
       rpkigui/urls.py scripts/helper apache/django.wsgi \
-      apache/zmyrpki.conf
+      apache/zrpki.conf
 
 all: $(BUILD)
+
+clean:
+	@true
+
+distclean: clean
+	rm -f scripts/helper scripts/runserver
+	rm -f rpkigui/settings.py rpkigui/urls.py
+	rm -f apache/django.wsgi apache/zrpki.conf
+	rm -f config.log config.status Makefile
 
 $(srcdir)/configure: configure.ac
 	cd '$(srcdir)' && autoconf
@@ -48,7 +57,7 @@ scripts/helper: $(srcdir)/scripts/helper.in
 apache/django.wsgi: $(srcdir)/apache/django.wsgi.in
 	./config.status
 
-apache/zmyrpki.conf: $(srcdir)/apache/zmyrpki.conf.in
+apache/zrpki.conf: $(srcdir)/apache/zrpki.conf.in
 	./config.status
 
 INSTALL_FILES=\

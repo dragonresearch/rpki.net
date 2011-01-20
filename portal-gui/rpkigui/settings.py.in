@@ -108,7 +108,7 @@ AUTHENTICATION_BACKENDS = (
 	'django.contrib.auth.backends.RemoteUserBackend',
 )
 
-# Top of directory tree where myrpki.conf, etc are stored for each
+# Top of directory tree where rpki.conf, etc are stored for each
 # resource holder.
 MYRPKI_DATA_DIR = '@CONFDIR@'
 

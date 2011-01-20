@@ -65,6 +65,6 @@ AC_SUBST(SECRET_KEY, `$PYTHON -c 'import random; print "".join([random.choice("a
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([rpkigui/settings.py rpkigui/urls.py scripts/helper])
-AC_CONFIG_FILES([apache/django.wsgi apache/zmyrpki.conf])
+AC_CONFIG_FILES([apache/django.wsgi apache/zrpki.conf])
 
 AC_OUTPUT

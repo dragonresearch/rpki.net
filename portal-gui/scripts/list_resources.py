@@ -20,7 +20,7 @@
 # portal-gui's sqlite database.  It asks rpkid for the list of received
 # resources, and the handles of any children.
 #
-# This script should be run in the directory containing the myrpki.conf
+# This script should be run in the directory containing the rpki.conf
 # for the handle that is self-hosting rpkid.
 #
 # Exit values:
@@ -50,9 +50,9 @@ verbose = False
 version = '$Id$'
 
 def query_rpkid():
-    """Fetch our received resources from the local rpkid using the myrpki.conf
+    """Fetch our received resources from the local rpkid using the rpki.conf
     in the current directory."""
-    cfg_file = os.getenv("MYRPKI_CONF", "myrpki.conf")
+    cfg_file = os.getenv("RPKI_CONF", "rpki.conf")
     cfg = rpki.config.parser(cfg_file, "myrpki")
     bpki_servers = CA(cfg_file, cfg.get("bpki_servers_directory"))
     rpkid_base = "http://%s:%s/" % (cfg.get("rpkid_server_host"), cfg.get("rpkid_server_port"))

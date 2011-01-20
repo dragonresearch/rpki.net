@@ -33,24 +33,24 @@ import rpki.config
 from rpkigui.myrpki import models
 
 #def form_to_conf(data):
-#    """Write out a myrpki.conf based on the given form data."""
+#    """Write out a rpki.conf based on the given form data."""
 #    handle = data['handle']
 #    confdir = settings.MYRPKI_DATA_DIR + '/' + handle
 #    if os.path.exists(confdir):
 #        raise RuntimeError, '%s: directory already exists!' % (confdir, )
 #    os.makedirs(confdir)
-#    template = open(settings.MYRPKI_DATA_DIR + '/examples/myrpki.conf', 'r').read()
+#    template = open(settings.MYRPKI_DATA_DIR + '/examples/rpki.conf', 'r').read()
 #    # stuff the appropriate output directory into the dict
 #    data['MYRPKI_DATA_DIR'] = confdir
-#    with open(confdir + '/myrpki.conf', 'w') as conf:
+#    with open(confdir + '/rpki.conf', 'w') as conf:
 #        print >>conf, template % data
 #    invoke_rpki(handle, ['initialize'])
 
 def invoke_rpki(handle, args):
     """Invoke the myrpki cli for the specified configuration."""
-    config = settings.MYRPKI_DATA_DIR + '/' + handle + '/myrpki.conf'
+    config = settings.MYRPKI_DATA_DIR + '/' + handle + '/rpki.conf'
     myrpki_dir = settings.MYRPKI_DATA_DIR + '/' + handle
-    # default myrpki.conf uses relative paths, so chdir() to the repo first
+    # default rpki.conf uses relative paths, so chdir() to the repo first
     cmd = 'cd %s && %s %s %s' % (myrpki_dir, sys.executable, settings.MYRPKI_PATH,
                         ' '.join(['--config=' + config] + args))
     print >>sys.stderr, 'invoking', cmd
@@ -112,10 +112,10 @@ def configure_daemons(handle):
 
 def configure_resources(handle):
     '''Write out the csv files and invoke the myrpki.py command line tool.'''
-    # chdir to the repo dir since the default myrpki.conf uses relative
+    # chdir to the repo dir since the default rpki.conf uses relative
     # pathnames..
     os.chdir(settings.MYRPKI_DATA_DIR + '/' + handle.handle)
-    cfg = rpki.config.parser('myrpki.conf', 'myrpki')
+    cfg = rpki.config.parser('rpki.conf', 'myrpki')
     output_asns(cfg.get('asn_csv'), handle)
     output_prefixes(cfg.get('prefix_csv'), handle)
     output_roas(cfg.get('roa_csv'), handle)

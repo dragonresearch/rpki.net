@@ -96,8 +96,8 @@ if __name__ == '__main__':
 	os.mkdir(myrpki_dir)
     os.chown(myrpki_dir, web_uid, -1)
 
-    # create stuf myrpki.conf enough to fool portal-gui
-    myrpki_conf = myrpki_dir + '/myrpki.conf'
+    # create stuf rpki.conf enough to fool portal-gui
+    myrpki_conf = myrpki_dir + '/rpki.conf'
     if not os.path.exists(myrpki_conf):
 	print 'creating ', myrpki_conf
 	with open(myrpki_conf, 'w') as f:

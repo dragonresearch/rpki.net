@@ -25,15 +25,15 @@ This is a list of the assumptions the current rpkigui code makes:
 
         /datadir
                 /dad
-                        /myrpki.conf
+                        /rpki.conf
                         /entitydb/
                                 ...
                 /mom
-                        /myrpki.conf
+                        /rpki.conf
                         /entitydb/
                                 ...
                 /baby
-                        /myrpki.conf
+                        /rpki.conf
                         /entitydb/
                                 ...
 
@@ -99,11 +99,11 @@ testing purposes, this script can be run by hand.  However, for deployment
 you will need to set up a cron job to run this script periodically.
 
 NOTE that "list_resources" *must* be run in the directory where the
-myrpki.conf for the resource handle that is self-hosting the rpkid.
+rpki.conf for the resource handle that is self-hosting the rpkid.
 Alternatively, you can set the $MYRPKI_CONF environment variable to full
-pathname of the myrpki.conf for the self-hosted resource handle (However, in
+pathname of the rpki.conf for the self-hosted resource handle (However, in
 order for this to work, you need to specify the full path name for
-"bpki_servers_directory" variable in your myrpki.conf.)
+"bpki_servers_directory" variable in your rpki.conf.)
 
 The first time you invoke it, you may wish to use the -v option, which puts
 list_resources into verbose mode, meaning it will display progress
@@ -115,7 +115,7 @@ it is silent unless an error occurs:
 You may way to create a script which is invoked by cron:
 
     #!/bin/sh
-    cd <directory containing myrpki.conf for the self-hosted rpkid>
+    cd <directory containing rpki.conf for the self-hosted rpkid>
     /usr/local/share/portal-gui/scripts/list_resources
 
 This script probably only needs to be run infrequently.  It's sole purpose
@@ -132,7 +132,7 @@ run.
 If you already have delegated resources to children, or created ROAs in the
 .csv files for the myrpki.py command line tool, you will want to load the
 portal-gui with this information.  There is a helper script for doing this
-step.  Simply chdir to the directory containing your myrpki.conf and .csv
+step.  Simply chdir to the directory containing your rpki.conf and .csv
 files and run:
 
         /usr/local/share/portal-gui/scripts/load_csv
@@ -211,7 +211,7 @@ Here are the steps for reseting to the initial state:
 
     >>> answer "yes" to really reset it <<<
 
-    cd <directory containing myrpki.conf for the self-hosted rpkid>
+    cd <directory containing rpki.conf for the self-hosted rpkid>
     $datarootdir/portal-gui/scripts/list_resources -v
     $datarootdir/portal-gui/scripts/load_csv
 

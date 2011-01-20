@@ -20,7 +20,7 @@
 # Primarly useful for the initial load, as the GUI does not sync changes
 # made directly to the csv files back into the database.
 #
-# This script should be run from the directory containing the myrpki.conf
+# This script should be run from the directory containing the rpki.conf
 # for the handle you are loading data
 #
 
@@ -36,7 +36,7 @@ from rpki.myrpki import csv_reader
 from rpkigui.myrpki import models
 from rpkigui.myrpki.views import add_roa_requests
 
-cfg_file = os.getenv("MYRPKI_CONF", "myrpki.conf")
+cfg_file = os.getenv("RPKI_CONF", "rpki.conf")
 cfg = rpki.config.parser(cfg_file, "myrpki")
 handle = cfg.get('handle')
 asn_csv = cfg.get('asn_csv')

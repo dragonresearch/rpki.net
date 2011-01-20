@@ -13,7 +13,7 @@ Setup
   portal-gui for the self-hosted resource handle that runs rpkid.
 
 - After running "make" in $top/portal-gui, there will be a file named
-  $top/portal-gui/apache/zmyrpki.conf.  This is a configuration file for
+  $top/portal-gui/apache/zrpki.conf.  This is a configuration file for
   apache which does most of the work configuring the portal-gui to run
   under mod_wsgi.
 
@@ -23,4 +23,4 @@ Setup
   will operate correctly even if this path is wrong.
 
   Fedora:
-	cp $top/portal-gui/apache/zmyrpki.conf /etc/httpd/conf.d/
+	cp $top/portal-gui/apache/zrpki.conf /etc/httpd/conf.d/

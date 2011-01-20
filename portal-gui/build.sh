@@ -28,7 +28,7 @@
 
 # This is the directory under which the subdirectories for each hosted RPKI
 # resource handle live.  Note that is is *not* the directory containing your
-# myrpki.conf.
+# rpki.conf.
 CONFDIR=/usr/local/etc/rpki
 
 # This is the directory containing the myrpki.py command line script.  You

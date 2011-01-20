@@ -4,6 +4,7 @@ VERSION = 1.0.0b
 
 OPENSSL_CONFIG_COMMAND  = @OPENSSL_CONFIG_COMMAND@
 OPENSSL_BUILD_DIRECTORY = ${abs_builddir}/openssl
+OPENSSL_SO_GLOB		= @OPENSSL_SO_GLOB@
 PYWRAP_LIBDIR		= @PYWRAP_LIBDIR@
 
 abs_top_srcdir		= @abs_top_srcdir@
@@ -24,9 +25,9 @@ OPTIONS = enable-rfc3779 enable-cms no-dso enable-shared --prefix=${prefix}
 
 all: openssl-${VERSION}/Makefile
 	cd openssl-${VERSION}; ${MAKE} $@ LIBRPATH=${PYWRAP_LIBDIR}
-	cd openssl-${VERSION}; mkdir disabled; mv -fv *.so* disabled
+	cd openssl-${VERSION}; mkdir disabled; mv -fv ${OPENSSL_SO_GLOB} disabled
 	cd openssl-${VERSION}; rm apps/openssl; cd apps; ${MAKE} $@
-	cd openssl-${VERSION}; mv -fv disabled/* .; rmdir disabled
+	cd openssl-${VERSION}; mv -fv disabled/${OPENSSL_SO_GLOB} .; rmdir disabled
 	ln -sf openssl-${VERSION} openssl
 
 clean:

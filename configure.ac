@@ -257,6 +257,18 @@ then
 	AC_SUBST(OPENSSL_CONFIG_COMMAND)
 	AC_MSG_RESULT([$OPENSSL_CONFIG_COMMAND])
 
+	AC_MSG_CHECKING([what glob to use when renaming OpenSSL shared libraries])
+	case $host in
+	*-apple-darwin*)
+		OPENSSL_SO_GLOB='*.dylib'
+		;;
+	*)
+		OPENSSL_SO_GLOB='*.so*'
+		;;
+	esac
+	AC_SUBST(OPENSSL_SO_GLOB)
+	AC_MSG_RESULT([$OPENSSL_SO_GLOB])
+
 	CFLAGS="$CFLAGS -I\${abs_top_srcdir}/openssl/openssl/include"
 	LIBS="$LIBS \${abs_top_builddir}/openssl/openssl/libssl.a \${abs_top_builddir}/openssl/openssl/libcrypto.a"
 else

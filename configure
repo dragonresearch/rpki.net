@@ -604,6 +604,7 @@ LIBOBJS
 PYWRAP_LIBDIR
 PYWRAP_CMD
 PYWRAP
+OPENSSL_SO_GLOB
 OPENSSL_CONFIG_COMMAND
 TOP_LEVEL_SUBDIRS
 PYTHON
@@ -4120,6 +4121,20 @@ $as_echo_n "checking what configuration target to use when building OpenSSL... "
 
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $OPENSSL_CONFIG_COMMAND" >&5
 $as_echo "$OPENSSL_CONFIG_COMMAND" >&6; }
+
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking what glob to use when renaming OpenSSL shared libraries" >&5
+$as_echo_n "checking what glob to use when renaming OpenSSL shared libraries... " >&6; }
+	case $host in
+	*-apple-darwin*)
+		OPENSSL_SO_GLOB='*.dylib'
+		;;
+	*)
+		OPENSSL_SO_GLOB='*.so*'
+		;;
+	esac
+
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $OPENSSL_SO_GLOB" >&5
+$as_echo "$OPENSSL_SO_GLOB" >&6; }
 
 	CFLAGS="$CFLAGS -I\${abs_top_srcdir}/openssl/openssl/include"
 	LIBS="$LIBS \${abs_top_builddir}/openssl/openssl/libssl.a \${abs_top_builddir}/openssl/openssl/libcrypto.a"

@@ -2,9 +2,23 @@
 
 PYTHON = @PYTHON@
 PYWRAP_CMD = @PYWRAP_CMD@
+
+CFLAGS	= @CFLAGS@
+LDFLAGS = @LDFLAGS@
+LIBS	= @LIBS@
+
+abs_top_srcdir	 = @abs_top_srcdir@
 abs_top_builddir = @abs_top_builddir@
 
-all: rpki/relaxng.py myrpki.rng
+SETUP_PY = AC_CFLAGS='${CFLAGS}' AC_LDFLAGS='${LDFLAGS}' AC_LIBS='${LIBS}' ${PYTHON} setup.py
+
+all: rpki/pow/_POW.so rpki/relaxng.py myrpki.rng
+
+rpki/pow/_POW.so: ext/POW.c setup.py
+	${SETUP_PY} build_ext --inplace
+
+clean::
+	rm -f rpki/pow/_POW.so
 
 rpki/relaxng.py: ../scripts/make-relaxng.py left-right-schema.rng up-down-schema.rng publication-schema.rng
 	${PYTHON} ../scripts/make-relaxng.py >$@.tmp
@@ -22,7 +36,7 @@ publication-schema.rng: publication-schema.rnc
 myrpki.rng: myrpki.rnc
 	trang myrpki.rnc myrpki.rng
 
-clean:
+clean::
 	find . -type f -name '*.pyc' -delete
 	cd tests; $(MAKE) $@
 

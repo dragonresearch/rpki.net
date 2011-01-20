@@ -217,7 +217,7 @@ fi
 test $build_openssl = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
 				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils"
 test $build_pywrap = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pywrap"
-test $build_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pow rpkid"
+test $build_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
 
 AC_SUBST(TOP_LEVEL_SUBDIRS)
 
@@ -282,7 +282,7 @@ AC_SUBST(OPENSSL_SHARED_LIBRARY_DIR)
 
 if test $build_python = yes
 then
-	AC_CONFIG_FILES([pow/Makefile rpkid/Makefile rpkid/tests/Makefile])
+	AC_CONFIG_FILES([rpkid/Makefile rpkid/tests/Makefile])
 
 	# These are plain Python scripts, do not require pywrap
 	AC_CONFIG_FILES([rpkid/backup-sql:buildtools/python-header:rpkid/backup-sql.py],		[chmod +x rpkid/backup-sql])

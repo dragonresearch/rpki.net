@@ -25,9 +25,12 @@ OPTIONS = enable-rfc3779 enable-cms no-dso enable-shared --prefix=${prefix}
 
 all: openssl-${VERSION}/Makefile
 	cd openssl-${VERSION}; ${MAKE} $@ LIBRPATH=${PYWRAP_LIBDIR}
-	cd openssl-${VERSION}; mkdir disabled; mv -fv ${OPENSSL_SO_GLOB} disabled
-	cd openssl-${VERSION}; rm apps/openssl; cd apps; ${MAKE} $@
-	cd openssl-${VERSION}; mv -fv disabled/${OPENSSL_SO_GLOB} .; rmdir disabled
+	cd openssl-${VERSION}; mkdir disabled
+	cd openssl-${VERSION}; mv -fv ${OPENSSL_SO_GLOB} disabled
+	cd openssl-${VERSION}; rm -f apps/openssl
+	cd openssl-${VERSION}; ${MAKE} build_apps
+	cd openssl-${VERSION}; mv -fv disabled/${OPENSSL_SO_GLOB} .
+	cd openssl-${VERSION}; rmdir disabled
 	ln -sf openssl-${VERSION} openssl
 
 clean:

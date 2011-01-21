@@ -27,7 +27,7 @@ test: all
 	-date -u +'now:            %Y%m%d%H%M%SZ'
 	if test -d ${ROA_DIR}; then find ${ROA_DIR} -type f -name '*.roa' -print -exec ./${BIN} {} \; ; else :; fi
 
-install:
+install deinstall uninstall:
 	@true
 
 distclean: clean

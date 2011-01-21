@@ -6,7 +6,7 @@ default: all
 
 test:: all
 
-all install clean test distclean::
+all install clean test distclean deinstall uninstall::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
 
 distclean::

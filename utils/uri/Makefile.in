@@ -24,7 +24,7 @@ ${BIN}: ${SRC}
 test:
 	@true
 
-install:
+install deinstall uninstall:
 	@true
 
 distclean: clean

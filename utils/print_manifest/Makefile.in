@@ -27,7 +27,7 @@ test: all
 	-date -u +'now:            %Y%m%d%H%M%SZ'
 	if test -d ${MANIFEST_DIR}; then find ${MANIFEST_DIR} -type f -name '*.mnf' -print -exec ./${BIN} {} \; ; else :; fi
 
-install:
+install deinstall uninstall:
 	@true
 
 distclean: clean

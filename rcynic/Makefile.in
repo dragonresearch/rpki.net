@@ -27,6 +27,9 @@ test: ${BIN}
 install: ${BIN} scripts/install.sh
 	cd scripts; . ./install.sh
 
+uninstall deinstall:
+	@echo Sorry, automated deinstallation of rcynic not implemented yet
+
 doc::
 	doxygen
 

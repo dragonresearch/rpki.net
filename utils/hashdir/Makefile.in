@@ -30,7 +30,7 @@ test: ${BIN}
 clean::
 	rm -rf ${OUTPUT}
 
-install:
+install deinstall uninstall:
 	@true
 
 distclean: clean

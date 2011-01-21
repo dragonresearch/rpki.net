@@ -33,3 +33,6 @@ test.cer: test.conf
 
 distclean: clean
 	rm -f test.key test.cer
+
+install deinstall uninstall:
+	@true

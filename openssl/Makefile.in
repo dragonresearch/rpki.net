@@ -53,6 +53,9 @@ openssl-${VERSION}/config: openssl-${VERSION}.tar.gz
 install:
 	@echo Not attempting to install modified OpenSSL, if you want that, do it yourself
 
+deinstall uninstall:
+	@echo We never install our modified OpenSSL, so we do not deinstall it either
+
 sandblast:
 	svn st -v openssl* | awk '/^I/ && NF == 2 {system("set -x; rm -rf " $$2)}'
 

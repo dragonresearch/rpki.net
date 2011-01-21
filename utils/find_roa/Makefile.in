@@ -28,7 +28,7 @@ test: ${BIN}
 #	./${BIN} ${TEST_ARGS}
 	sh ./test_roa.sh ${TEST_ARGS}
 
-install:
+install deinstall uninstall:
 	@true
 
 distclean: clean

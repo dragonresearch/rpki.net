@@ -6,6 +6,7 @@ AC_INIT(rpkitools, 1.0,)
 AC_CONFIG_SRCDIR([rcynic/rcynic.c])
 AC_CONFIG_AUX_DIR([buildtools])
 AC_PROG_CC
+AC_PROG_INSTALL
 
 AC_CANONICAL_HOST
 

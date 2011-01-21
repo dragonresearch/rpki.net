@@ -1,16 +1,32 @@
 # $Id$
 
-CFLAGS	= @CFLAGS@
-LDFLAGS = @LDFLAGS@ -L${abs_top_builddir}/openssl/openssl -Wl,-rpath,@PYWRAP_LIBDIR@
-LIBS	= -lssl -lcrypto
+OPENSSL_LIBDIR	= ${abs_top_builddir}/openssl/openssl
+OPENSSL_SO_GLOB	= @OPENSSL_SO_GLOB@
 
-PYTHON	= @PYTHON@
+PYWRAP_LIBDIR	= @PYWRAP_LIBDIR@
+PYWRAP_LIBS	= ${OPENSSL_LIBDIR}/${OPENSSL_SO_GLOB}
+
+CFLAGS		= @CFLAGS@
+LDFLAGS		= @LDFLAGS@ -L${abs_top_builddir}/openssl/openssl -Wl,-rpath,${PYWRAP_LIBDIR}
+LIBS		= -lssl -lcrypto
+
+PYTHON		= @PYTHON@
+INSTALL		= @INSTALL@ -m 555 
+
+prefix		= @prefix@
+exec_prefix	= @exec_prefix@
+datarootdir	= @datarootdir@
+datadir		= @datadir@
+localstatedir	= @localstatedir@
+sharedstatedir	= @sharedstatedir@
+sysconfdir	= @sysconfdir@
+bindir		= @bindir@
+sbindir		= @sbindir@
+libexecdir	= @libexecdir@
+libdir		= @libdir@
 
 abs_top_srcdir	 = @abs_top_srcdir@
 abs_top_builddir = @abs_top_builddir@
-prefix = @prefix@
-exec_prefix = @exec_prefix@
-libdir = @libdir@
 
 all: pywrap
 
@@ -25,3 +41,11 @@ test:
 
 distclean: clean
 	rm -f Makefile
+
+install: all
+	${INSTALL} pywrap ${sbindir}
+	${INSTALL} ${PYWRAP_LIBDIR}
+	${INSTALL} ${PYWRAP_LIBS} ${PYWRAP_LIBDIR}
+
+deinstall uninstall:
+	rm -rf ${sbindir}/pywrap ${PYWRAP_LIBDIR}

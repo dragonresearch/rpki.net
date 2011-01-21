@@ -23,6 +23,8 @@ import os
 ac_cflags  = os.getenv("AC_CFLAGS",  "").split()
 ac_ldflags = os.getenv("AC_LDFLAGS", "").split()
 ac_libs    = os.getenv("AC_LIBS",    "").split()
+ac_sbindir = os.getenv("AC_SBINDIR", "").strip()
+ac_scripts = os.getenv("AC_SCRIPTS", "").split()
 
 # Non-standard extension build specification: we need to force
 # whatever build options our top-level ./configure selected, and we
@@ -41,6 +43,5 @@ setup(name              = "rpkitoolkit",
       license           = "BSD",
       url               = "http://www.rpki.net/",
       packages          = ["rpki", "rpki.POW"],
-      ext_modules       = [pow])
-
-# Probably add other stuff here: scripts, data files, and so forth.
+      ext_modules       = [pow],
+      data_files	= [(ac_sbindir, ac_scripts)])

@@ -703,14 +703,14 @@
 #
 # Before you can (usefully) start any of the daemons, you will need to
 # set up the MySQL databases they use.  You can do this by hand, or
-# you can use the @c sql-setup.py script, which prompts you for your
+# you can use the @c rpki-sql-setup.py script, which prompts you for your
 # MySQL root password then attempts to do everything else
 # automatically using values from rpki.conf.
 #
 # Using the script is simple:
 #
 # @verbatim
-# $ python sql-setup.py
+# $ python rpki-sql-setup.py
 # Please enter your MySQL root password:
 # @endverbatim
 #
@@ -1028,7 +1028,7 @@
 #     other purposes.  See the rsync(1) and rsyncd.conf(5) manual
 #     pages for more details.
 # 
-# @li Start the daemons.  You can use $top/rpkid/start-servers.py to
+# @li Start the daemons.  You can use $top/rpkid/rpki-start-servers.py to
 #     do this, or write your own script.  If you intend to run pubd,
 #     you should make sure that the directory you specified as
 #     publication_base_directory exists and is writable by the userid

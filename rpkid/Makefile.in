@@ -55,6 +55,9 @@ clean::
 install:
 	${SETUP_PY} install
 
+uninstall deinstall:
+	d=`${PYTHON} -c 'import distutils.sysconfig; print distutils.sysconfig.get_python_lib()'`; rm -rfv $$d/rpki $$d/`${SETUP_PY} --fullname`-*.egg-info
+
 dont-run-trang:
 	touch *.rng
 

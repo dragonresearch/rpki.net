@@ -58,10 +58,10 @@ clean::
 	rm -f ${SCRIPTS}
 
 install:
-	${SETUP_PY} install
+	${SETUP_PY} install --prefix '${prefix}'
 
 uninstall deinstall:
-	dir=`${PYTHON} -c 'import distutils.sysconfig; print distutils.sysconfig.get_python_lib()'`; \
+	dir=`${PYTHON} -c 'import distutils.sysconfig; print distutils.sysconfig.get_python_lib("${prefix}")'`; \
 	egg=`${PYTHON} setup.py --fullname`; \
 	rm -rfv $$dir/rpki $$dir/$$egg-*.egg-info; \
 	for i in ${SCRIPTS}; do rm -fv ${sbindir}/$$i; done

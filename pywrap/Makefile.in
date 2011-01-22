@@ -44,7 +44,7 @@ distclean: clean
 
 install: all
 	${INSTALL} pywrap ${sbindir}
-	${INSTALL} ${PYWRAP_LIBDIR}
+	${INSTALL} -d ${PYWRAP_LIBDIR}
 	${INSTALL} ${PYWRAP_LIBS} ${PYWRAP_LIBDIR}
 
 deinstall uninstall:

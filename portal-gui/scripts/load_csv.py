@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!@PYTHON@
 # $Id$
 #
 # Copyright (C) 2010  SPARTA, Inc. dba Cobham Analytic Solutions
@@ -24,7 +24,10 @@
 # for the handle you are loading data
 #
 
-import os
+import sys, os
+sys.path.append('@INSTDIR@')
+os.environ['DJANGO_SETTINGS_MODULE'] = 'rpkigui.settings'
+
 import csv
 import socket # for socket.error
 

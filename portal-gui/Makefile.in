@@ -2,6 +2,8 @@
 #
 # @configure_input@
 
+abs_top_srcdir	 = @abs_top_srcdir@
+abs_top_builddir = @abs_top_builddir@
 srcdir=@srcdir@
 
 # where to install the portal-gui
@@ -11,19 +13,28 @@ datarootdir=@datarootdir@
 datadir=@datadir@
 localstatedir=@localstatedir@
 sharedstatedir=@sharedstatedir@
-
-INSTDIR=@INSTDIR@
+bindir=@bindir@
+sbindir=@sbindir@
 
 PYTHON=@PYTHON@
-MYRPKIDIR=@MYRPKIDIR@
-DATABASE_PATH=@DATABASE_PATH@
 WEBUSER=@WEBUSER@
 CONFDIR=@CONFDIR@
+SECRET_KEY=@SECRET_KEY@
+
+INSTDIR=$(datarootdir)/portal-gui
+DATABASE_PATH=$(localstatedir)/portal-gui/rpkigui.db
+MYRPKI=$(bindir)/myrpki
+MEDIADIR=$(INSTDIR)/media
+TEMPLATEDIR=$(INSTDIR)/rpkigui/templates
 
 # automatically built sources
-BUILD=$(srcdir)/configure Makefile config.status rpkigui/settings.py \
-      rpkigui/urls.py scripts/helper apache/django.wsgi \
-      apache/zrpki.conf
+BUILD=rpkigui/settings.py \
+      rpkigui/urls.py \
+	scripts/adduser \
+	scripts/list_resources \
+	scripts/load_csv \
+      apache/rpki.wsgi \
+      apache/rpki.conf
 
 all: $(BUILD)
 
@@ -31,37 +42,44 @@ clean:
 	@true
 
 distclean: clean
-	rm -f scripts/helper scripts/runserver
 	rm -f rpkigui/settings.py rpkigui/urls.py
-	rm -f apache/django.wsgi apache/zrpki.conf
-	rm -f config.log config.status Makefile
+	rm -f apache/rpki.wsgi apache/rpki.conf
+	rm -f Makefile
 
-$(srcdir)/configure: configure.ac
-	cd '$(srcdir)' && autoconf
- 
-Makefile: $(srcdir)/Makefile.in config.status
-	./config.status
+edit = sed \
+	     -e 's|@CONFDIR[@]|$(CONFDIR)|g' \
+	     -e 's|@DATABASE_PATH[@]|$(DATABASE_PATH)|g' \
+	     -e 's|@INSTDIR[@]|$(INSTDIR)|g' \
+	     -e 's|@MEDIADIR[@]|$(MEDIADIR)|g' \
+	     -e 's|@MYRPKI[@]|$(MYRPKI)|g' \
+	     -e 's|@PYTHON[@]|$(PYTHON)|g' \
+	     -e 's|@SECRET_KEY[@]|$(SECRET_KEY)|g' \
+	     -e 's|@TEMPLATEDIR[@]|$(TEMPLATEDIR)|g' \
+	     -e 's|@WEBUSER[@]|$(WEBUSER)|g'
 
-config.status: configure
-	./config.status --recheck
+rpkigui/settings.py: $(srcdir)/rpkigui/settings.py.in Makefile
+	$(edit) $@.in > $@
 
-rpkigui/settings.py: $(srcdir)/rpkigui/settings.py.in
-	./config.status
+rpkigui/urls.py: $(srcdir)/rpkigui/urls.py.in Makefile
+	$(edit) $@.in > $@
 
-rpkigui/urls.py: $(srcdir)/rpkigui/urls.py.in
-	./config.status
+apache/rpki.wsgi: $(srcdir)/apache/rpki.wsgi.in Makefile
+	$(edit) $@.in > $@
 
-scripts/helper: $(srcdir)/scripts/helper.in
-	./config.status
+apache/rpki.conf: $(srcdir)/apache/rpki.conf.in Makefile
+	$(edit) $@.in > $@
 
-apache/django.wsgi: $(srcdir)/apache/django.wsgi.in
-	./config.status
+scripts/list_resources: $(srcdir)/scripts/list_resources.py Makefile
+	$(edit) $@.py > $@
 
-apache/zrpki.conf: $(srcdir)/apache/zrpki.conf.in
-	./config.status
+scripts/load_csv: $(srcdir)/scripts/load_csv.py Makefile
+	$(edit) $@.py > $@
+
+scripts/adduser: $(srcdir)/scripts/adduser.py Makefile
+	$(edit) $@.py > $@
 
 INSTALL_FILES=\
-	apache/django.wsgi \
+	apache/rpki.wsgi \
 	media/img/my.png \
 	media/img/rpki.png \
 	rpkigui/__init__.py \
@@ -88,10 +106,9 @@ INSTALL_FILES=\
 	rpkigui/templates/myrpki/prefix_view.html \
 	rpkigui/templates/myrpki/xml_import.html \
 	rpkigui/templates/registration/login.html \
-	scripts/adduser.py \
-	scripts/helper \
-	scripts/list_resources.py \
-	scripts/load_csv.py
+	scripts/adduser \
+	scripts/list_resources \
+	scripts/load_csv
 
 .PHONY: install-perms install-data install
 
@@ -111,12 +128,8 @@ install-data: $(BUILD)
 	for f in $(INSTALL_FILES); do \
 		install $$f $(INSTDIR)/$$f; \
 	done
-	ln -sf $(INSTDIR)/scripts/helper $(INSTDIR)/scripts/load_csv
-	ln -sf $(INSTDIR)/scripts/helper $(INSTDIR)/scripts/list_resources
-	ln -sf $(INSTDIR)/scripts/helper $(INSTDIR)/scripts/adduser
-	chmod 755 $(INSTDIR)/scripts/load_csv $(INSTDIR)/scripts/list_resources $(INSTDIR)/scripts/adduser
 	touch $(INSTDIR)/htpasswd
 	chmod 644 $(INSTDIR)/htpasswd
-	cd $(INSTDIR)/rpkigui && $(PYTHON) manage.py syncdb --pythonpath=$(MYRPKIDIR)
+	cd $(INSTDIR)/rpkigui && $(PYTHON) manage.py syncdb
 
 install: install-data install-perms

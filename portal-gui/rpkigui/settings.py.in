@@ -2,7 +2,6 @@
 #
 # Django settings for rpkigui project.
 #
-# @configure_input@
 
 DEBUG = True
 TEMPLATE_DEBUG = DEBUG
@@ -112,8 +111,5 @@ AUTHENTICATION_BACKENDS = (
 # resource holder.
 MYRPKI_DATA_DIR = '@CONFDIR@'
 
-# Where to find the myrpki.py command line tool.
-MYRPKI_PATH = '@MYRPKI_TOOL@'
-
-# the user web server runs as
-WEB_USER='@WEBUSER@'
+# Where to find the myrpki command line tool.
+MYRPKI = '@MYRPKI@'

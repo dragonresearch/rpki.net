@@ -219,6 +219,7 @@ test $build_openssl = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
 				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils"
 test $build_pywrap = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pywrap"
 test $build_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
+test $build_django = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS portal-gui"
 
 AC_SUBST(TOP_LEVEL_SUBDIRS)
 
@@ -296,6 +297,34 @@ AC_SUBST(PYWRAP_LIBDIR)
 if test $build_python = yes
 then
 	AC_CONFIG_FILES([rpkid/Makefile rpkid/tests/Makefile])
+fi
+
+if test $build_django = yes
+then
+	if test -z "$CONFDIR"; then
+		AC_MSG_ERROR([You must specify the root directory containing all resource handles to serve the via the portal-gui with the option CONFDIR=<PATH>])
+		#CONFDIR="\${abs_top_srcdir}/rpkid/tests/yamltest.dir"
+	fi
+	AC_SUBST(CONFDIR)
+
+	# the user that the apache process is running as
+	if test -z "$WEBUSER"; then
+		for u in apache www-data; do
+			if `grep -q $u /etc/passwd`; then
+				WEBUSER=$u
+				break
+			fi
+		done
+		if test -z "$WEBUSER"; then
+			AC_MSG_ERROR([Could not determine which user the apache process runs as.  Please specify WEBUSER=<USERNAME>.])
+		fi
+	fi
+	AC_SUBST(WEBUSER)
+
+        # source: http://blog.leosoto.com/2008/04/django-secretkey-generation.html
+        AC_SUBST(SECRET_KEY, `$PYTHON -c 'import random; print "".join([random.choice("abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)") for i in range(50)])'`)
+
+        AC_CONFIG_FILES([portal-gui/Makefile])
 fi
 
 # This should go away once its content has migrated from Doxygen into DocBook.

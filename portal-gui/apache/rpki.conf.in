@@ -2,7 +2,7 @@
 # @configure_input@
 
 # defines the url to the portal-gui
-WSGIScriptAlias / @INSTDIR@/apache/django.wsgi
+WSGIScriptAlias / @INSTDIR@/apache/rpki.wsgi
 <Directory @INSTDIR@/rpkigui>
 Order deny,allow
 Allow from all
@@ -11,7 +11,7 @@ Allow from all
 # enable http digest auth
 <Location /accounts/login>
 AuthType digest
-AuthName "myrpki"
+AuthName "rpki"
 AuthDigestDomain /
 AuthDigestProvider file
 AuthUserFile @INSTDIR@/htpasswd

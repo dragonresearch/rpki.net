@@ -17,7 +17,6 @@ PERFORMANCE OF THIS SOFTWARE.
 
 This is an example wsgi application for use with mod_wsgi and apache.
 
-@configure_input@
 """
 
 import os
@@ -25,7 +24,6 @@ import sys
 
 os.environ['DJANGO_SETTINGS_MODULE'] = 'rpkigui.settings'
 
-sys.path.append('@MYRPKIDIR@')
 sys.path.append('@INSTDIR@')
 
 import django.core.handlers.wsgi

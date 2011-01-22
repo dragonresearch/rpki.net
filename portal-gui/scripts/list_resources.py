@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!@PYTHON@
 # $Id$
 #
 # Copyright (C) 2010  SPARTA, Inc. dba Cobham Analytic Solutions
@@ -31,7 +31,11 @@
 #       later
 
 import sys
+sys.path.append('@INSTDIR@')
+
 import os
+os.environ['DJANGO_SETTINGS_MODULE'] = 'rpkigui.settings'
+
 from datetime import datetime
 import getopt
 from os.path import basename

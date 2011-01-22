@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!@PYTHON@
 # $Id$
 #
 # Copyright (C) 2010  SPARTA, Inc. dba Cobham Analytic Solutions
@@ -18,9 +18,15 @@
 #
 # helper script to quickly set up a new portal-gui user/handle
 
+import os, sys
+sys.path.append('@INSTDIR@')
+os.environ['DJANGO_SETTINGS_MODULE'] = 'rpkigui.settings'
+
 from django.contrib.auth.models import User
 from django.conf import settings
 from rpkigui.myrpki.models import Conf
+
+WEB_USER='@WEBUSER@'
 
 import os
 import sys
@@ -28,10 +34,10 @@ import hashlib
 import getpass
 import pwd
 
-web_uid = pwd.getpwnam(settings.WEB_USER)[2]
+web_uid = pwd.getpwnam(WEB_USER)[2]
 
 # FIXME: hardcoded for now
-realm = 'myrpki'
+realm = 'rpki'
 
 def user_has_password(passfile, username):
     'returns True if username is found in the specified password file'

@@ -1,7 +1,8 @@
 #!@PYTHON@
+#
 # $Id$
 #
-# Copyright (C) 2010  SPARTA, Inc. dba Cobham Analytic Solutions
+# Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -16,7 +17,10 @@
 # PERFORMANCE OF THIS SOFTWARE.
 #
 #
-# helper script to quickly set up a new portal-gui user/handle
+# Helper script to quickly set up a new portal-gui user/handle.  This script
+# is designed to be safe to run multiple times for the same user.
+#
+# DO NOT EDIT!  This script is automatically generated from adduser.py
 
 import os, sys
 sys.path.append('@INSTDIR@')
@@ -26,32 +30,16 @@ from django.contrib.auth.models import User
 from django.conf import settings
 from rpkigui.myrpki.models import Conf
 
+# The username that apache runs as.  This is required so that we can chown
+# the csv files that the portal-gui needs to write.
 WEB_USER='@WEBUSER@'
 
 import os
 import sys
-import hashlib
 import getpass
 import pwd
 
 web_uid = pwd.getpwnam(WEB_USER)[2]
-
-# FIXME: hardcoded for now
-realm = 'rpki'
-
-def user_has_password(passfile, username):
-    'returns True if username is found in the specified password file'
-    if os.path.exists(passfile):
-        with open(passfile,'r') as f:
-            for line in f:
-                if line.split(':')[0] == username:
-                    return True
-    return False
-
-def update_apache_auth_file(passfile, username, realm, password):
-    ha1 = hashlib.md5("%s:%s:%s" % (username, realm, password)).hexdigest()
-    with open(passfile, 'a') as f:
-        f.write("%s:%s:%s\n" % (username, realm, ha1))
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
@@ -73,8 +61,8 @@ if __name__ == '__main__':
 	user = user_set[0]
     else:
 	print >>sys.stderr, 'creating user'
-	# FIXME: password is absent, assuming that apache auth is used.
-	user = User.objects.create_user(username, email)
+        password = getpass.getpass()
+	user = User.objects.create_user(username, email, password)
 
     conf_set = Conf.objects.filter(handle=username)
     if conf_set:
@@ -82,7 +70,10 @@ if __name__ == '__main__':
     else:
 	print >>sys.stderr, 'creating conf'
 	conf = Conf.objects.create(handle=username)
-	conf.owner.add(user)
+
+    # always try to add the user as owner just in case the Conf object was
+    # created previously by the "list_resources" script
+    conf.owner.add(user)
 
     if host != username:
         host_set = Conf.objects.filter(handle=host)
@@ -102,7 +93,7 @@ if __name__ == '__main__':
 	os.mkdir(myrpki_dir)
     os.chown(myrpki_dir, web_uid, -1)
 
-    # create stuf rpki.conf enough to fool portal-gui
+    # create enought of rpki.conf enough to fool portal-gui
     myrpki_conf = myrpki_dir + '/rpki.conf'
     if not os.path.exists(myrpki_conf):
 	print 'creating ', myrpki_conf
@@ -123,20 +114,5 @@ prefix_csv=%(path)s/prefixes.csv""" % { 'path': myrpki_dir }
                 # just create an empty file
                 pass
         os.chown(fname, web_uid, -1)
-
-    # add a password for this user to the apache passwd file if not present
-
-    #determine where the passwd file is likely to reside
-    # <prefix>/portal-gui/scripts/adduser.py
-    path = os.path.realpath(sys.argv[0])
-    prefix = '/'.join(path.split('/')[:-2]) # strip trailing components
-    passfile = prefix+'/htpasswd'
-    print 'passfile=', passfile
-    if not user_has_password(passfile, username):
-        print 'adding user to apache password file'
-        password = getpass.getpass()
-        update_apache_auth_file(passfile, username, realm, password)
-    else:
-        print 'user is already present in apache password file'
 
 # vim:sw=4 ts=8

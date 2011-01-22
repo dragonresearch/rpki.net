@@ -236,25 +236,30 @@ class main(object):
         handlers = []
 
         if self.use_digest_auth:
-            auth_handler = urllib2.HTTPDigestAuthHandler()
-            auth_handler.add_password(
-              realm  = self.realm,
-              uri    = self.base_url,
-              user   = self.username,
-              passwd = self.password)
+          auth_handler = urllib2.HTTPDigestAuthHandler()
 
-            handlers.append(auth_handler)
+          auth_handler.add_password(
+            realm  = self.realm,
+            uri    = self.base_url,
+            user   = self.username,
+            passwd = self.password)
+
+          handlers.append(auth_handler)
 
         if self.use_cookies:
           cookiejar = cookielib.CookieJar()
+
           handlers.append(urllib2.HTTPCookieProcessor(cookiejar))
 
         if have_ssl_module:
+
           class HTTPSConnection(AbstractHTTPSConnection):
             trust_anchor = self.trust_anchor
+
           class HTTPSHandler(urllib2.HTTPSHandler):
             def https_open(self, req):
               return self.do_open(HTTPSConnection, req)
+
           handlers.append(HTTPSHandler)
 
         self.opener = urllib2.build_opener(*handlers)
@@ -263,14 +268,18 @@ class main(object):
         resp = self.opener.open(self.auth_url) # GET
 
         if not self.use_digest_auth:
+
           # Django's login form requires the 'csrfmiddlewaretoken.'  It turns out
           # this is the same value as the 'csrftoken' cookie, so we don't need
           # to bother parsing the form.
+
           csrftoken = [c.value for c in cookiejar if c.name == 'csrftoken'][0]
 
-          self.opener.open(self.auth_url, data=urllib.urlencode( {'username': self.username,
-              'passsord': self.password,
-              'csrfmiddlewaretoken': csrftoken })) # POST
+          self.opener.open(
+            self.auth_url,
+            data = urllib.urlencode({ "username"            : self.username,
+                                      "password"            : self.password,
+                                      "csrfmiddlewaretoken" : csrftoken })) # POST
         return
 
       except urllib2.URLError, e:

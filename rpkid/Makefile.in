@@ -58,13 +58,13 @@ clean::
 	rm -f ${SCRIPTS}
 
 install:
-	${SETUP_PY} install
+	${SETUP_PY} install --record installed
 
 uninstall deinstall:
-	dir=`${PYTHON} -c 'import distutils.sysconfig; print distutils.sysconfig.get_python_lib()'`; \
-	egg=`${PYTHON} setup.py --fullname`; \
-	rm -rfv $$dir/rpki $$dir/$$egg-*.egg-info; \
-	for i in ${SCRIPTS}; do rm -fv ${sbindir}/$$i; done
+	xargs rm -fv <installed
+
+distclean::
+	rm -f _installed
 
 dont-run-trang:
 	touch *.rng
@@ -145,7 +145,7 @@ pdf: html
 
 docs: dot eps png html text tgz pdf
 
-distclean: clean docclean
+distclean:: clean docclean
 	cd tests; ${MAKE} $@
 	rm -f TAGS rpki/__doc__.py Makefile
 

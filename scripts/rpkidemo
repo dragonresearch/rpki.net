@@ -81,7 +81,7 @@ else:
 
 # Ok, it's safe to import the other stuff we need now
 
-import os, subprocess, webbrowser, urllib2, getpass, re, errno, time, email.utils, httplib, socket, getopt
+import os, subprocess, webbrowser, urllib2, getpass, re, errno, time, email.utils, httplib, socket, getopt, urllib, cookielib
 from xml.etree.ElementTree import fromstring as ElementFromString
 
 def save(filename, data):
@@ -175,6 +175,7 @@ class main(object):
   realm = "myrpki"
   use_cookies = True
   trust_anchor = "%s/scripts/rpkidemo.pem" % top
+  use_digest_auth = False
 
   openssl = None
 
@@ -232,17 +233,21 @@ class main(object):
         self.username = raw_input("Username: ")
         self.password = getpass.getpass()
 
-        auth_handler = urllib2.HTTPDigestAuthHandler()
-        auth_handler.add_password(
-          realm  = self.realm,
-          uri    = self.base_url,
-          user   = self.username,
-          passwd = self.password)
+        handlers = []
 
-        handlers = [auth_handler]
+        if self.use_digest_auth:
+            auth_handler = urllib2.HTTPDigestAuthHandler()
+            auth_handler.add_password(
+              realm  = self.realm,
+              uri    = self.base_url,
+              user   = self.username,
+              passwd = self.password)
+
+            handlers.append(auth_handler)
 
         if self.use_cookies:
-          handlers.append(urllib2.HTTPCookieProcessor)
+          cookiejar = cookielib.CookieJar()
+          handlers.append(urllib2.HTTPCookieProcessor(cookiejar))
 
         if have_ssl_module:
           class HTTPSConnection(AbstractHTTPSConnection):
@@ -254,7 +259,18 @@ class main(object):
 
         self.opener = urllib2.build_opener(*handlers)
 
-        self.opener.open(self.auth_url) # Test login credentials
+        # Test login credentials
+        resp = self.opener.open(self.auth_url) # GET
+
+        if not self.use_digest_auth:
+          # Django's login form requires the 'csrfmiddlewaretoken.'  It turns out
+          # this is the same value as the 'csrftoken' cookie, so we don't need
+          # to bother parsing the form.
+          csrftoken = [c.value for c in cookiejar if c.name == 'csrftoken'][0]
+
+          self.opener.open(self.auth_url, data=urllib.urlencode( {'username': self.username,
+              'passsord': self.password,
+              'csrfmiddlewaretoken': csrftoken })) # POST
         return
 
       except urllib2.URLError, e:

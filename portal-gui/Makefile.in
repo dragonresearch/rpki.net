@@ -23,7 +23,7 @@ SECRET_KEY=@SECRET_KEY@
 
 INSTDIR=$(datarootdir)/portal-gui
 DATABASE_PATH=$(localstatedir)/portal-gui/rpkigui.db
-MYRPKI=$(bindir)/myrpki
+MYRPKI=$(sbindir)/myrpki
 MEDIADIR=$(INSTDIR)/media
 TEMPLATEDIR=$(INSTDIR)/rpkigui/templates
 

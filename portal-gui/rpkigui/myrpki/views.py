@@ -554,9 +554,4 @@ def upload_myrpki_xml(request, self_handle):
 
     return serve_file(self_handle, 'myrpki.xml', 'application/xml')
 
-# apache is configured to set REMOTE_USER when the user visits /accounts/login/
-# simply redirect to the dashboard page since the user will already be logged in
-def login(request):
-    return http.HttpResponseRedirect('/myrpki/')
-
 # vim:sw=4 ts=8 expandtab

@@ -128,8 +128,6 @@ install-data: $(BUILD)
 	for f in $(INSTALL_FILES); do \
 		install $$f $(INSTDIR)/$$f; \
 	done
-	touch $(INSTDIR)/htpasswd
-	chmod 644 $(INSTDIR)/htpasswd
 	cd $(INSTDIR)/rpkigui && $(PYTHON) manage.py syncdb
 
 install: install-data install-perms

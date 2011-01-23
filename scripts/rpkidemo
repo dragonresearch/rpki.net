@@ -167,7 +167,7 @@ class main(object):
   base_url = "https://demo.rpki.net/"
   auth_url = base_url + 'accounts/login/'
   myrpki_url = base_url + 'myrpki/'
-  example_myrpki_cfg = "%s/rpkid/examples/myrpki.conf" % top
+  example_myrpki_cfg = "%s/rpkid/examples/rpki.conf" % top
   working_dir = "%s/rpkidemo-data" % cwd
   myrpki_py = "%s/rpkid/myrpki.py" % top
   user_agent = "RPKIDemo"
@@ -302,17 +302,17 @@ class main(object):
 
   def setup_config_file(self):
     """
-    Generate myrpki.conf
+    Generate rpki.conf
     """
     
-    if os.path.exists("myrpki.conf"):
-      print "You already have a myrpki.conf file, so I will use it"
+    if os.path.exists("rpki.conf"):
+      print "You already have a rpki.conf file, so I will use it"
       return
 
-    print "Generating myrpki.conf"
+    print "Generating rpki.conf"
     section_regexp = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
     variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$")
-    f = open("myrpki.conf", "w")
+    f = open("rpki.conf", "w")
     f.write("# Automatically generated, do not edit\n")
     section = None
     for line in open(self.example_myrpki_cfg):

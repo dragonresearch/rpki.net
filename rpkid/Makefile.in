@@ -48,7 +48,7 @@ rpm deb:: all
 	${SETUP_PY} bdist_rpm
 
 deb::
-	cd dist; for i in *.rpm; do case $$i in *.src.rpm) :;; *) fakeroot alien $$i;; esac; done
+	cd dist; for i in *.rpm; do case $$i in *.src.rpm) :;; *) (set -x; fakeroot alien -v $$i);; esac; done
 
 rpki/relaxng.py: ../scripts/make-relaxng.py left-right-schema.rng up-down-schema.rng publication-schema.rng
 	${PYTHON} ../scripts/make-relaxng.py >$@.tmp

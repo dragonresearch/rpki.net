@@ -105,16 +105,19 @@ install-perms:
 	chown -R $(WEBUSER) $(CONFDIR)
 
 install-media:
-	install -D -m 644 media/img/my.png $(INSTDIR)/media/img
+	install -m 755 -d $(INSTDIR)/media/img
+	install -m 644 media/img/my.png $(INSTDIR)/media/img
 	install -m 644 media/img/rpki.png $(INSTDIR)/media/img 
 
 install-apache:
-	install -D -m 644 apache/rpki.conf $(INSTDIR)/apache
+	install -d -m 755 $(INSTDIR)/apache
+	install -m 644 apache/rpki.conf $(INSTDIR)/apache
 	install -m 644 apache/rpki.wsgi $(INSTDIR)/apache
 
 install-templates:
-	install -D -m 644 templates/base.html $(TEMPLATEDIR)
-	install -D -m 644 templates/myrpki/asn_view.html $(TEMPLATEDIR)/myrpki
+	install -d -m 755 $(TEMPLATEDIR)/myrpki
+	install -m 644 templates/base.html $(TEMPLATEDIR)
+	install -m 644 templates/myrpki/asn_view.html $(TEMPLATEDIR)/myrpki
 	install -m 644 templates/myrpki/child_view.html $(TEMPLATEDIR)/myrpki
 	install -m 644 templates/myrpki/conf_empty.html $(TEMPLATEDIR)/myrpki
 	install -m 644 templates/myrpki/conf_list.html $(TEMPLATEDIR)/myrpki
@@ -122,7 +125,8 @@ install-templates:
 	install -m 644 templates/myrpki/parent_view.html $(TEMPLATEDIR)/myrpki
 	install -m 644 templates/myrpki/prefix_view.html $(TEMPLATEDIR)/myrpki
 	install -m 644 templates/myrpki/xml_import.html $(TEMPLATEDIR)/myrpki
-	install -D -m 644 templates/registration/login.html $(TEMPLATEDIR)/registration
+	install -d -m 755 $(TEMPLATEDIR)/registration
+	install -m 644 templates/registration/login.html $(TEMPLATEDIR)/registration
 
 #this will go away once the django app moves into the rpki module
 install-django:

@@ -20,11 +20,13 @@ import os
 # We can't build POW without these settings, but allow them to be null
 # so that things like "python setup.py --help" will work.
 
-ac_cflags  = os.getenv("AC_CFLAGS",  "").split()
-ac_ldflags = os.getenv("AC_LDFLAGS", "").split()
-ac_libs    = os.getenv("AC_LIBS",    "").split()
-ac_sbindir = os.getenv("AC_SBINDIR", "").strip()
-ac_scripts = os.getenv("AC_SCRIPTS", "").split()
+ac_cflags	= os.getenv("AC_CFLAGS",	"").split()
+ac_ldflags	= os.getenv("AC_LDFLAGS",	"").split()
+ac_libs		= os.getenv("AC_LIBS",		"").split()
+ac_scripts	= os.getenv("AC_SCRIPTS",	"").split()
+
+ac_sbindir	= os.getenv("AC_SBINDIR",	"").strip()
+ac_abs_builddir = os.getenv("AC_ABS_BUILDDIR",	"").strip()
 
 # Non-standard extension build specification: we need to force
 # whatever build options our top-level ./configure selected, and we
@@ -37,6 +39,10 @@ pow = Extension("rpki.POW._POW", ["ext/POW.c"],
                 extra_compile_args = ac_cflags,
                 extra_link_args    = ac_ldflags + ac_libs)
 
+# bdist_rpm seems to get confused by relative names for scripts
+
+scripts = ["%s/%s" % (ac_abs_builddir, f) for f in ac_scripts]
+
 setup(name              = "rpkitoolkit",
       version           = "1.0",
       description       = "RPKI Toolkit",
@@ -44,4 +50,4 @@ setup(name              = "rpkitoolkit",
       url               = "http://www.rpki.net/",
       packages          = ["rpki", "rpki.POW"],
       ext_modules       = [pow],
-      data_files	= [(ac_sbindir, ac_scripts)])
+      data_files	= [(ac_sbindir, scripts)])

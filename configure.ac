@@ -203,11 +203,6 @@ case $enable_django in
      no)	build_django=no
 		;;
      auto)	build_django=$have_django
-		if test "x$CONFDIR" = "x"
-		then
-			AC_MSG_WARN([Django installed but CONFUSER not set, not attempting to build the Django-based GUI])
-			build_django=no
-		fi
 		;;
      *)		AC_MSG_ERROR([Unrecognized value for --enable-django: $enable_django]);;
 esac
@@ -306,12 +301,6 @@ fi
 
 if test $build_django = yes
 then
-	if test "x$CONFDIR" = "x"; then
-		AC_MSG_ERROR([You must specify the root directory containing all resource handles to serve the via the portal-gui with the option CONFDIR=<PATH>])
-		#CONFDIR="\${abs_top_srcdir}/rpkid/tests/yamltest.dir"
-	fi
-	AC_SUBST(CONFDIR)
-
 	# the user that the apache process is running as
 	if test "x$WEBUSER" = "x"; then
 		for u in apache www www-data; do

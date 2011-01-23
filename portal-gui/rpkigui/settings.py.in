@@ -103,12 +103,5 @@ AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
 )
 
-# Top of directory tree where rpki.conf, etc are stored for each
-# resource holder.
-MYRPKI_DATA_DIR = '@CONFDIR@'
-
-# Where to find the myrpki command line tool.
-MYRPKI = '@MYRPKI@'
-
 # where to redirect from /accounts/login/ after successful authentication
 LOGIN_REDIRECT_URL = '/myrpki/'

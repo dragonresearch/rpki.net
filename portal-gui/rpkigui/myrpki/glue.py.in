@@ -24,13 +24,17 @@ import csv
 import stat
 import sys
 
-from django.conf import settings
 from django.db.models import F
 
 import rpki
 import rpki.config
 
 from rpkigui.myrpki import models
+
+confdir = '@CONFDIR@'
+
+def conf(handle):
+    return confdir + '/' + handle
 
 #def form_to_conf(data):
 #    """Write out a rpki.conf based on the given form data."""
@@ -48,18 +52,17 @@ from rpkigui.myrpki import models
 
 def invoke_rpki(handle, args):
     """Invoke the myrpki cli for the specified configuration."""
-    config = settings.MYRPKI_DATA_DIR + '/' + handle + '/rpki.conf'
-    myrpki_dir = settings.MYRPKI_DATA_DIR + '/' + handle
+    myrpki_dir = confdir(handle)
+    config = myrpki_dir + '/rpki.conf'
     # default rpki.conf uses relative paths, so chdir() to the repo first
-    cmd = 'cd %s && %s %s' % (myrpki_dir, settings.MYRPKI,
-                        ' '.join(['--config=' + config] + args))
+    cmd = 'cd %s && @MYRPKI@ %s' % (myrpki_dir, ' '.join(['--config=' + config] + args))
     print >>sys.stderr, 'invoking', cmd
     os.system(cmd)
 
 def read_file_from_handle(handle, fname):
     """read a filename relative to the directory for the given resource handle.  returns
     a tuple of (content, mtime)"""
-    with open(settings.MYRPKI_DATA_DIR + '/' + handle + '/' + fname, 'r') as fp:
+    with open(conf(handle) + '/' + fname, 'r') as fp:
         data = fp.read()
         mtime = os.fstat(fp.fileno())[stat.ST_MTIME]
     return data, mtime
@@ -72,7 +75,7 @@ def read_file_from_handle(handle, fname):
 read_identity = lambda h: read_file_from_handle(h, 'entitydb/identity.xml')[0]
 
 def read_child_response(handle, child):
-    fname = '%s/%s/entitydb/children/%s.xml' % (settings.MYRPKI_DATA_DIR, handle, child)
+    fname = '%s/entitydb/children/%s.xml' % (conf(handle), child)
     with open(fname, 'r') as fp:
         data = fp.read()
     return data
@@ -107,14 +110,14 @@ def output_roas(path, handle):
 def configure_daemons(handle):
     args = ['configure_daemons']
     for hosted in handle.hosting.all():
-        args.append(settings.MYRPKI_DATA_DIR + '/' + hosted.handle + '/myrpki.xml')
+        args.append(conf(hosted.handle) + '/myrpki.xml')
     invoke_rpki(handle.handle, args)
 
 def configure_resources(handle):
     '''Write out the csv files and invoke the myrpki.py command line tool.'''
     # chdir to the repo dir since the default rpki.conf uses relative
     # pathnames..
-    os.chdir(settings.MYRPKI_DATA_DIR + '/' + handle.handle)
+    os.chdir(conf(handle.handle))
     cfg = rpki.config.parser('rpki.conf', 'myrpki')
     output_asns(cfg.get('asn_csv'), handle)
     output_prefixes(cfg.get('prefix_csv'), handle)

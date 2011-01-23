@@ -7,16 +7,6 @@ Order deny,allow
 Allow from all
 </Directory>
 
-# enable http digest auth
-#<Location /accounts/login>
-#AuthType digest
-#AuthName "rpki"
-#AuthDigestDomain /
-#AuthDigestProvider file
-#AuthUserFile @INSTDIR@/htpasswd
-#Require valid-user
-#</Location>
-
 # media for the /admin/ site
 Alias /media/ /usr/lib/python2.6/site-packages/django/contrib/admin/media/
 <Directory /usr/lib/python2.6/site-packages/django/contrib/admin/media>

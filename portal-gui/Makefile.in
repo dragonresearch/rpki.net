@@ -95,8 +95,11 @@ install-data: $(BUILD) install-apache install-templates install-scripts
 
 install: install-data install-perms
 
-uninstall:
+deinstall uninstall:
 	rm -r $(INSTDIR)
 	rm $(sbindir)/rpkigui-load-csv
 	rm $(sbindir)/rpkigui-add-user
 	rm $(libexecdir)/rpkigui-list-resources
+
+test:
+	@true

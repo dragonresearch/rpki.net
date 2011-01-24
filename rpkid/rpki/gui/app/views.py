@@ -541,16 +541,14 @@ def upload_myrpki_xml(request, self_handle):
     conf = handle_or_404(request, self_handle)
 
     if request.method == 'POST':
-	try:
-            fname = '%s/%s/myrpki.xml' % (settings.MYRPKI_DATA_DIR, self_handle,)
-            print >>sys.stderr, 'writing ', fname
-            myrpki_xml = open(fname, 'w')
-            myrpki_xml.write(request.raw_post_data)
-            myrpki_xml.close()
+        fname = glue.conf(self_handle) + '/myrpki.xml'
+        print >>sys.stderr, 'writing ', fname
 
-            glue.configure_daemons(conf.host)
-	except:
-            print >>sys.stderr, ''.join(sys.exc_info())
+        myrpki_xml = open(fname, 'w')
+        myrpki_xml.write(request.raw_post_data)
+        myrpki_xml.close()
+
+        glue.configure_daemons(conf.host)
 
     return serve_file(self_handle, 'myrpki.xml', 'application/xml')
 

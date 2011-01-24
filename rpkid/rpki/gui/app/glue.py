@@ -55,7 +55,7 @@ def invoke_rpki(handle, args):
     myrpki_dir = conf(handle)
     config = myrpki_dir + '/rpki.conf'
     # default rpki.conf uses relative paths, so chdir() to the repo first
-    cmd = 'cd %s && %s %s' % (settings.MYRPKI, myrpki_dir, ' '.join(['--config=' + config] + args))
+    cmd = 'cd %s && %s %s' % (myrpki_dir, settings.MYRPKI, ' '.join(['--config=' + config] + args))
     print >>sys.stderr, 'invoking', cmd
     os.system(cmd)
 

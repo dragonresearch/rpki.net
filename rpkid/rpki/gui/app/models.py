@@ -107,7 +107,6 @@ class RoaRequest(models.Model):
         else:
             return rpki.resource_set.roa_prefix_ipv6(r.min, r.prefixlen(),
                     self.max_length)
-
 class Asn(models.Model):
     '''An ASN or range thereof.'''
     lo = models.IntegerField(blank=False)
@@ -203,5 +202,8 @@ class Roa(models.Model):
 
     def __unicode__(self):
 	return u"%s's ROA for %d" % (self.conf, self.asn)
+
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.dashboard', '/roa/' + [str(self.pk)])
 
 # vim:sw=4 ts=8 expandtab

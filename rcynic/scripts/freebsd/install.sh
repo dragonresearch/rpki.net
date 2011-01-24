@@ -53,7 +53,7 @@ fi
 
 if /bin/test -r "$jaildir/etc/rcynic.conf"; then
     echo "You already have config file \"${jaildir}/etc/rcynic.conf\", so I will use it."
-elif /usr/bin/install -m 444 -o root -g wheel -p rcynic.conf "${jaildir}/etc/rcynic.conf"; then
+elif /usr/bin/install -m 444 -o root -g wheel -p ../sample-rcynic.conf "${jaildir}/etc/rcynic.conf"; then
     echo "Installed minimal ${jaildir}/etc/rcynic.conf, adding SAMPLE trust anchors"
     for i in ../../sample-trust-anchors/*.cer; do
 	j="$jaildir/etc/trust-anchors/${i##*/}"

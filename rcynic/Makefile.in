@@ -13,6 +13,8 @@ LIBS = @LIBS@
 abs_top_srcdir	 = @abs_top_srcdir@
 abs_top_builddir = @abs_top_builddir@
 
+host_os = @host_os@
+
 all: ${BIN}
 
 clean:
@@ -25,7 +27,7 @@ test: ${BIN}
 	if test -r rcynic.conf; then ./${BIN} -j 0 && echo && ./show.sh; else echo No rcynic.conf, skipping test; fi
 
 install: ${BIN} scripts/install.sh
-	cd scripts; . ./install.sh
+	cd scripts; . ./install.sh ${host_os}
 
 uninstall deinstall:
 	@echo Sorry, automated deinstallation of rcynic not implemented yet

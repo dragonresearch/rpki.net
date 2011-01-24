@@ -3,15 +3,15 @@
 
 set -e
 
-uname=`/usr/bin/uname`
+case "$1" in
 
-case "$uname" in
-
-FreeBSD)
+freebsd*)
 	cd freebsd
 	. install.sh
 	;;
 
+# linux*) ;;
+# darwin*) ;;
 *)
 	echo 1>&2 "Don't know how to install rcynic jail on platform $uname"
 	exit 1

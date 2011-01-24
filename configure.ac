@@ -1,14 +1,20 @@
 # -*- Autoconf -*-
 # $Id$
 
-AC_PREREQ(2.61)
-AC_INIT(rpkitools, 1.0,)
+AC_PREREQ([2.61])
+AC_INIT([rpkitools], [1.0])
+
+# AC_REVISION is a great idea in theory, but the revision will always
+# be wrong unless we do two checkins, so skip it for now.  Someday.
+
+dnl AC_REVISION([$Revision$])
+
 AC_CONFIG_SRCDIR([rcynic/rcynic.c])
 AC_CONFIG_AUX_DIR([buildtools])
+AC_CANONICAL_HOST
+
 AC_PROG_CC
 AC_PROG_INSTALL
-
-AC_CANONICAL_HOST
 
 AC_CHECK_SIZEOF([long])
 

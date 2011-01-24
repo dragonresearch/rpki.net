@@ -17,6 +17,7 @@ libexecdir=@libexecdir@
 
 PYTHON=@PYTHON@
 WEBUSER=@WEBUSER@
+DJANGO_ADMIN=@DJANGO_ADMIN@
 
 CONFDIR=$(localstatedir)/rpki/conf
 DATABASE_PATH=$(localstatedir)/rpki/gui.db
@@ -90,7 +91,7 @@ install-scripts:
 
 install-data: $(BUILD) install-apache install-templates install-scripts
 	mkdir -p `dirname $(DATABASE_PATH)`
-	django-admin syncdb --settings rpki.gui.settings
+	$(DJANGO_ADMIN) syncdb --settings rpki.gui.settings
 
 install: install-data install-perms
 

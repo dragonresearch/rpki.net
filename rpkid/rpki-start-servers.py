@@ -60,7 +60,7 @@ for o, a in opts:
 cfg = rpki.config.parser(cfg_file, "myrpki")
 
 def run(name):
-  cmd = (sys.executable, os.path.join(rpkid_dir, name + ".py"), "-c", cfg.filename)
+  cmd = (sys.executable, os.path.join(rpkid_dir, name), "-c", cfg.filename)
   if debug:
     proc = subprocess.Popen(cmd + ("-d",), stdout = open(name + ".log", "a"), stderr = subprocess.STDOUT)
   else:

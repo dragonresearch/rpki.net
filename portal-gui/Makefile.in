@@ -17,24 +17,18 @@ libexecdir=@libexecdir@
 
 PYTHON=@PYTHON@
 WEBUSER=@WEBUSER@
-SECRET_KEY=@SECRET_KEY@
 
-INSTDIR=$(datarootdir)/rpki/gui
 CONFDIR=$(localstatedir)/rpki/conf
 DATABASE_PATH=$(localstatedir)/rpki/gui.db
-MEDIADIR=$(INSTDIR)/media
-MYRPKI=$(sbindir)/myrpki
+INSTDIR=$(datarootdir)/rpki/gui
 TEMPLATEDIR=$(INSTDIR)/templates
 
 # automatically built sources
-BUILD=rpkigui/settings.py \
-      rpkigui/urls.py \
-      rpkigui/myrpki/glue.py \
+BUILD=\
 	scripts/list_resources \
 	scripts/adduser \
 	scripts/load_csv \
-      apache/rpki.wsgi \
-      apache/rpki.conf
+	apache/rpki.conf
 
 all: $(BUILD)
 
@@ -46,27 +40,8 @@ distclean: clean
 	rm -f Makefile
 
 edit = sed \
-	     -e 's|@CONFDIR[@]|$(CONFDIR)|g' \
-	     -e 's|@DATABASE_PATH[@]|$(DATABASE_PATH)|g' \
-	     -e 's|@INSTDIR[@]|$(INSTDIR)|g' \
-	     -e 's|@MEDIADIR[@]|$(MEDIADIR)|g' \
-	     -e 's|@MYRPKI[@]|$(MYRPKI)|g' \
 	     -e 's|@PYTHON[@]|$(PYTHON)|g' \
-	     -e 's|@SECRET_KEY[@]|$(SECRET_KEY)|g' \
-	     -e 's|@TEMPLATEDIR[@]|$(TEMPLATEDIR)|g' \
 	     -e 's|@WEBUSER[@]|$(WEBUSER)|g'
-
-rpkigui/settings.py: $(srcdir)/rpkigui/settings.py.in Makefile
-	$(edit) $@.in > $@
-
-rpkigui/myrpki/glue.py: $(srcdir)/rpkigui/myrpki/glue.py.in Makefile
-	$(edit) $@.in > $@
-
-rpkigui/urls.py: $(srcdir)/rpkigui/urls.py.in Makefile
-	$(edit) $@.in > $@
-
-apache/rpki.wsgi: $(srcdir)/apache/rpki.wsgi.in Makefile
-	$(edit) $@.in > $@
 
 apache/rpki.conf: $(srcdir)/apache/rpki.conf.in Makefile
 	$(edit) $@.in > $@
@@ -80,34 +55,13 @@ scripts/load_csv: $(srcdir)/scripts/load_csv.py Makefile
 scripts/adduser: $(srcdir)/scripts/adduser.py Makefile
 	$(edit) $@.py > $@
 
-INSTALL_FILES=\
-	rpkigui/__init__.py \
-	rpkigui/manage.py \
-	rpkigui/settings.py \
-	rpkigui/urls.py \
-	rpkigui/myrpki/AllocationTree.py \
-	rpkigui/myrpki/__init__.py \
-	rpkigui/myrpki/admin.py \
-	rpkigui/myrpki/asnset.py \
-	rpkigui/myrpki/forms.py \
-	rpkigui/myrpki/glue.py \
-	rpkigui/myrpki/misc.py \
-	rpkigui/myrpki/models.py \
-	rpkigui/myrpki/urls.py \
-	rpkigui/myrpki/views.py
-
-.PHONY: install-perms install-data install install-media install-django install-scripts install-templates
+.PHONY: install-perms install-data install install-scripts install-templates
 
 install-perms:
 	chown $(WEBUSER) `dirname $(DATABASE_PATH)`
 	chown $(WEBUSER) $(DATABASE_PATH)
 	mkdir -p $(CONFDIR)
 	chown -R $(WEBUSER) $(CONFDIR)
-
-install-media:
-	install -m 755 -d $(INSTDIR)/media/img
-	install -m 644 media/img/my.png $(INSTDIR)/media/img
-	install -m 644 media/img/rpki.png $(INSTDIR)/media/img 
 
 install-apache:
 	install -d -m 755 $(INSTDIR)/apache
@@ -128,20 +82,20 @@ install-templates:
 	install -d -m 755 $(TEMPLATEDIR)/registration
 	install -m 644 templates/registration/login.html $(TEMPLATEDIR)/registration
 
-#this will go away once the django app moves into the rpki module
-install-django:
-	for f in $(INSTALL_FILES); do \
-		install -D -m 644 $$f $(INSTDIR)/$$f; \
-	done
-
 install-scripts:
 	# user scripts
 	install -m 755 scripts/load_csv $(sbindir)/rpkigui-load-csv
 	install -m 755 scripts/adduser $(sbindir)/rpkigui-add-user
 	install -D -m 755 scripts/list_resources $(libexecdir)/rpkigui-list-resources
 
-install-data: $(BUILD) install-apache install-media install-templates install-scripts install-django
+install-data: $(BUILD) install-apache install-templates install-scripts
 	mkdir -p `dirname $(DATABASE_PATH)`
-	cd $(INSTDIR)/rpkigui && $(PYTHON) manage.py syncdb
+	django-admin syncdb --settings rpki.gui.settings
 
 install: install-data install-perms
+
+uninstall:
+	rm -r $(INSTDIR)
+	rm $(sbindir)/rpkigui-load-csv
+	rm $(sbindir)/rpkigui-add-user
+	rm $(libexecdir)/rpkigui-list-resources

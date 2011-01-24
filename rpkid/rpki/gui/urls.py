@@ -23,8 +23,6 @@ from django.contrib import admin
 admin.autodiscover()
 
 urlpatterns = patterns('',
-    # Example:
-    # (r'^foo/', include('foo.foo.urls')),
 
     # Uncomment the admin/doc line below and add 'django.contrib.admindocs' 
     # to INSTALLED_APPS to enable admin documentation:
@@ -33,12 +31,9 @@ urlpatterns = patterns('',
     # Uncomment the next line to enable the admin:
     (r'^admin/', include(admin.site.urls)),
 
-    (r'^myrpki/', include('rpkigui.myrpki.urls')),
+    (r'^rpki/', include('rpki.gui.app.urls')),
 
     (r'^accounts/login/$', 'django.contrib.auth.views.login'),
     (r'^accounts/logout/$', 'django.contrib.auth.views.logout',
-        { 'next_page': '/myrpki/' }),
-
-    (r'^site_media/(?P<path>.*)$', 'django.views.static.serve',
-        {'document_root': '@MEDIADIR@'})
+        { 'next_page': '/rpki/' }),
 )

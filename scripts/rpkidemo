@@ -166,7 +166,7 @@ class main(object):
 
   base_url = "https://demo.rpki.net/"
   auth_url = base_url + 'accounts/login/'
-  myrpki_url = base_url + 'myrpki/'
+  myrpki_url = base_url + 'rpki/'
   example_myrpki_cfg = "%s/rpkid/examples/rpki.conf" % top
   working_dir = "%s/rpkidemo-data" % cwd
   myrpki_py = "%s/rpkid/myrpki.py" % top

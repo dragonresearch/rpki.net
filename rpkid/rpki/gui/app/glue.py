@@ -1,5 +1,6 @@
+# $Id$
 """
-Copyright (C) 2010  SPARTA, Inc. dba Cobham Analytic Solutions
+Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -29,12 +30,11 @@ from django.db.models import F
 import rpki
 import rpki.config
 
-from rpkigui.myrpki import models
-
-confdir = '@CONFDIR@'
+from rpki.gui import settings
+from rpki.gui.app import models
 
 def conf(handle):
-    return confdir + '/' + handle
+    return settings.CONFDIR + '/' + handle
 
 #def form_to_conf(data):
 #    """Write out a rpki.conf based on the given form data."""
@@ -55,7 +55,7 @@ def invoke_rpki(handle, args):
     myrpki_dir = confdir(handle)
     config = myrpki_dir + '/rpki.conf'
     # default rpki.conf uses relative paths, so chdir() to the repo first
-    cmd = 'cd %s && @MYRPKI@ %s' % (myrpki_dir, ' '.join(['--config=' + config] + args))
+    cmd = 'cd %s && %s %s' % (settings.MYRPKI, myrpki_dir, ' '.join(['--config=' + config] + args))
     print >>sys.stderr, 'invoking', cmd
     os.system(cmd)
 

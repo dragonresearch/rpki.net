@@ -13,7 +13,7 @@ from rpki.resource_set import roa_prefix_set_ipv4, roa_prefix_set_ipv6
 from rpki.resource_set import resource_range_ipv4, resource_range_ipv6
 from rpki.ipaddrs import v4addr, v6addr
 
-from rpkigui.myrpki.models import Roa
+from rpki.gui.app.models import Roa
 
 # build up a list of all the authenticated roa's using the asn as the key
 roaiter = rcynic_xml_iterator(

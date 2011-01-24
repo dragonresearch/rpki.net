@@ -22,13 +22,12 @@
 #
 # DO NOT EDIT!  This script is automatically generated from adduser.py
 
-import os, sys
-sys.path.append('@INSTDIR@')
-os.environ['DJANGO_SETTINGS_MODULE'] = 'rpkigui.settings'
+import os
+os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.settings'
 
 from django.contrib.auth.models import User
 from django.conf import settings
-from rpkigui.myrpki.models import Conf
+from rpki.gui.app.models import Conf
 
 # The username that apache runs as.  This is required so that we can chown
 # the csv files that the portal-gui needs to write.
@@ -86,7 +85,7 @@ if __name__ == '__main__':
         print >>sys.stderr, '%s is self-hosted' % username
     conf.save()
     
-    myrpki_dir = '%s/%s' % (settings.MYRPKI_DATA_DIR, username)
+    myrpki_dir = '%s/%s' % (settings.CONFDIR, username)
     print 'myrpki_dir=', myrpki_dir
     if not os.path.exists(myrpki_dir):
 	print 'creating ', myrpki_dir

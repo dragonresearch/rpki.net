@@ -1,6 +1,6 @@
 # $Id$
 """
-Copyright (C) 2010  SPARTA, Inc. dba Cobham Analytic Solutions
+Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -20,11 +20,8 @@ This is an example wsgi application for use with mod_wsgi and apache.
 """
 
 import os
-import sys
 
-os.environ['DJANGO_SETTINGS_MODULE'] = 'rpkigui.settings'
-
-sys.path.append('@INSTDIR@')
+os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.settings'
 
 import django.core.handlers.wsgi
 application = django.core.handlers.wsgi.WSGIHandler()

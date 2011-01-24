@@ -32,8 +32,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
 from django.core.urlresolvers import reverse
 
-from rpkigui.myrpki import models, forms, glue, misc, AllocationTree
-from rpkigui.myrpki.asnset import asnset
+from rpki.gui.app import models, forms, glue, misc, AllocationTree
+from rpki.gui.app.asnset import asnset
 
 debug = False
 

@@ -20,7 +20,7 @@ import socket
 from django.db import models
 from django.contrib.auth.models import User
 
-from rpkigui.myrpki.misc import str_to_range
+from rpki.gui.app.misc import str_to_range
 
 import rpki.resource_set
 import rpki.exceptions
@@ -73,7 +73,7 @@ class AddressRange(models.Model):
 
     @models.permalink
     def get_absolute_url(self):
-        return ('rpkigui.myrpki.views.address_view', [str(self.pk)])
+        return ('rpki.gui.app.views.address_view', [str(self.pk)])
 
     def as_resource_range(self):
         '''Convert to rpki.resource_set.resource_range_ip.'''
@@ -127,7 +127,7 @@ class Asn(models.Model):
 
     @models.permalink
     def get_absolute_url(self):
-        return ('rpkigui.myrpki.views.asn_view', [str(self.pk)])
+        return ('rpki.gui.app.views.asn_view', [str(self.pk)])
 
     def as_resource_range(self):
         # we force conversion to long() here because resource_range_as() wants
@@ -144,7 +144,7 @@ class Child(models.Model):
 
     @models.permalink
     def get_absolute_url(self):
-        return ('rpkigui.myrpki.views.child_view', [self.handle])
+        return ('rpki.gui.app.views.child_view', [self.handle])
 
     class Meta:
 	verbose_name_plural = "children"
@@ -160,7 +160,7 @@ class Parent(models.Model):
 
     @models.permalink
     def get_absolute_url(self):
-        return ('rpkigui.myrpki.views.parent_view', [self.handle])
+        return ('rpki.gui.app.views.parent_view', [self.handle])
 
     class Meta:
         # parents of a specific configuration should be unique

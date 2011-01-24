@@ -48,6 +48,6 @@ setup(name              = "rpkitoolkit",
       description       = "RPKI Toolkit",
       license           = "BSD",
       url               = "http://www.rpki.net/",
-      packages          = ["rpki", "rpki.POW"],
+      packages          = ["rpki", "rpki.POW", "rpki.gui", "rpki.gui.app" ],
       ext_modules       = [pow],
       data_files	= [(ac_sbindir, scripts)])

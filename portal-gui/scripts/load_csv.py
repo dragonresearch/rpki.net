@@ -25,8 +25,7 @@
 #
 
 import sys, os
-sys.path.append('@INSTDIR@')
-os.environ['DJANGO_SETTINGS_MODULE'] = 'rpkigui.settings'
+os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.settings'
 
 import csv
 import socket # for socket.error
@@ -36,8 +35,8 @@ import rpki.resource_set
 import rpki.ipaddrs
 from rpki.myrpki import csv_reader
 
-from rpkigui.myrpki import models
-from rpkigui.myrpki.views import add_roa_requests
+from rpki.gui.app import models
+from rpki.gui.app.views import add_roa_requests
 
 cfg_file = os.getenv("RPKI_CONF", "rpki.conf")
 cfg = rpki.config.parser(cfg_file, "myrpki")

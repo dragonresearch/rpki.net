@@ -31,10 +31,9 @@
 #       later
 
 import sys
-sys.path.append('@INSTDIR@')
 
 import os
-os.environ['DJANGO_SETTINGS_MODULE'] = 'rpkigui.settings'
+os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.settings'
 
 from datetime import datetime
 import getopt
@@ -48,7 +47,7 @@ import rpki.async
 import rpki.left_right
 import rpki.resource_set
 
-from rpkigui.myrpki import models
+from rpki.gui.app import models
 
 verbose = False
 version = '$Id$'

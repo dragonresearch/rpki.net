@@ -1,5 +1,7 @@
 """
-Copyright (C) 2010  SPARTA, Inc. dba Cobham Analytic Solutions
+$Id$
+
+Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -16,7 +18,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 from django import forms
 from django.contrib import admin
-from rpkigui.myrpki import models
+from rpki.gui.app import models
 
 class ConfAdmin( admin.ModelAdmin ):
     pass

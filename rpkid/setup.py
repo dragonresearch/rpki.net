@@ -41,10 +41,6 @@ pow = Extension("rpki.POW._POW", ["ext/POW.c"],
                 extra_compile_args = ac_cflags,
                 extra_link_args    = ac_ldflags + ac_libs)
 
-# bdist_rpm seems to get confused by relative names for scripts
-
-scripts = ["%s/%s" % (ac_abs_builddir, f) for f in ac_scripts]
-
 setup(name              = "rpkitoolkit",
       version           = "1.0",
       description       = "RPKI Toolkit",
@@ -52,4 +48,10 @@ setup(name              = "rpkitoolkit",
       url               = "http://www.rpki.net/",
       packages          = ["rpki", "rpki.POW", "rpki.gui", "rpki.gui.app" ],
       ext_modules       = [pow],
-      data_files	= [(ac_sbindir, scripts), (ac_libexecdir, ac_aux_scripts)])
+
+      # bdist_rpm seems to get confused by relative names for scripts,
+      # so we have to prefix the source name of anything here with the
+      # build directory name.
+
+      data_files	= [(ac_sbindir,    ["%s/%s" % (ac_abs_builddir, f) for f in ac_scripts]),
+                           (ac_libexecdir, ["%s/%s" % (ac_abs_builddir, f) for f in ac_aux_scripts])])

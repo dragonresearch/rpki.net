@@ -77,7 +77,7 @@ myrpki.rng: myrpki.rnc
 clean::
 	find . -type f -name '*.py[co]' -delete
 	cd tests; $(MAKE) $@
-	rm -f ${SCRIPTS}
+	rm -f ${SCRIPTS} ${AUX_SCRIPTS} rpki/gui/settings.py
 
 install:
 	${SETUP_PY} install --record installed

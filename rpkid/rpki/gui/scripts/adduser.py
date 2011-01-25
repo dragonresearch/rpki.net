@@ -1,5 +1,3 @@
-#!@PYTHON@
-#
 # $Id$
 #
 # Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions

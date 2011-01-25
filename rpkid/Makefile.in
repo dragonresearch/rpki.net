@@ -33,13 +33,18 @@ SETUP_PY = \
 	AC_SBINDIR='${sbindir}' \
 	AC_SCRIPTS='${SCRIPTS}' \
 	AC_ABS_BUILDDIR='${abs_builddir}' \
+	AC_LIBEXECDIR='${libexecdir}' \
+	AC_AUX_SCRIPTS='${AUX_SCRIPTS}' \
 	${PYTHON} setup.py
 
 POW_SO	= rpki/POW/_POW.so
 
-SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd myrpki pubd rootd rpkid
+SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd myrpki \
+	  pubd rootd rpkid rpki/gui/scripts/rpkigui-load-csv rpki/gui/scripts/rpkigui-add-user
 
-all: ${POW_SO} rpki/relaxng.py myrpki.rng ${SCRIPTS} rpki/gui/settings.py
+AUX_SCRIPTS = rpki/gui/scripts/rpkigui-list-resources
+
+all: ${POW_SO} rpki/relaxng.py myrpki.rng ${SCRIPTS} ${AUX_SCRIPTS} rpki/gui/settings.py
 
 ${POW_SO}: ext/POW.c setup.py
 	${SETUP_PY} build_ext --inplace
@@ -203,6 +208,15 @@ rootd: rootd.py
 
 rpkid: rpkid.py
 	${COMPILE_PYWRAP}
+
+rpki/gui/scripts/rpkigui-list-resources: rpki/gui/scripts/list_resources.py
+	${COMPILE_PYTHON}
+
+rpki/gui/scripts/rpkigui-load-csv: rpki/gui/scripts/list_resources.py
+	${COMPILE_PYTHON}
+
+rpki/gui/scripts/rpkigui-add-user: rpki/gui/scripts/adduser.py
+	${COMPILE_PYTHON}
 
 rpki/gui/settings.py: ${srcdir}/rpki/gui/settings.py.in
 	rm -f $@

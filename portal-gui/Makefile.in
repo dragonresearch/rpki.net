@@ -25,11 +25,7 @@ INSTDIR=$(datarootdir)/rpki/gui
 TEMPLATEDIR=$(INSTDIR)/templates
 
 # automatically built sources
-BUILD=\
-	scripts/list_resources \
-	scripts/adduser \
-	scripts/load_csv \
-	apache/rpki.conf
+BUILD=apache/rpki.conf
 
 all: $(BUILD)
 
@@ -41,22 +37,12 @@ distclean: clean
 	rm -f Makefile
 
 edit = sed \
-	     -e 's|@PYTHON[@]|$(PYTHON)|g' \
-	     -e 's|@WEBUSER[@]|$(WEBUSER)|g'
+	     -e 's|@INSTDIR[@]|$(INSTDIR)|g'
 
 apache/rpki.conf: $(srcdir)/apache/rpki.conf.in Makefile
 	$(edit) $@.in > $@
 
-scripts/list_resources: $(srcdir)/scripts/list_resources.py Makefile
-	$(edit) $@.py > $@
-
-scripts/load_csv: $(srcdir)/scripts/load_csv.py Makefile
-	$(edit) $@.py > $@
-
-scripts/adduser: $(srcdir)/scripts/adduser.py Makefile
-	$(edit) $@.py > $@
-
-.PHONY: install-perms install-data install install-scripts install-templates
+.PHONY: install-perms install-data install install-templates
 
 install-perms:
 	chown $(WEBUSER) `dirname $(DATABASE_PATH)`
@@ -83,13 +69,7 @@ install-templates:
 	install -d -m 755 $(TEMPLATEDIR)/registration
 	install -m 644 templates/registration/login.html $(TEMPLATEDIR)/registration
 
-install-scripts:
-	# user scripts
-	install -m 755 scripts/load_csv $(sbindir)/rpkigui-load-csv
-	install -m 755 scripts/adduser $(sbindir)/rpkigui-add-user
-	install -D -m 755 scripts/list_resources $(libexecdir)/rpkigui-list-resources
-
-install-data: $(BUILD) install-apache install-templates install-scripts
+install-data: $(BUILD) install-apache install-templates
 	mkdir -p `dirname $(DATABASE_PATH)`
 	$(DJANGO_ADMIN) syncdb --settings rpki.gui.settings
 
@@ -97,9 +77,6 @@ install: install-data install-perms
 
 deinstall uninstall:
 	rm -r $(INSTDIR)
-	rm $(sbindir)/rpkigui-load-csv
-	rm $(sbindir)/rpkigui-add-user
-	rm $(libexecdir)/rpkigui-list-resources
 
 test:
 	@true

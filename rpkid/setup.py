@@ -24,9 +24,11 @@ ac_cflags	= os.getenv("AC_CFLAGS",	"").split()
 ac_ldflags	= os.getenv("AC_LDFLAGS",	"").split()
 ac_libs		= os.getenv("AC_LIBS",		"").split()
 ac_scripts	= os.getenv("AC_SCRIPTS",	"").split()
+ac_aux_scripts  = os.getenv("AC_AUX_SCRIPTS",   "").split()
 
 ac_sbindir	= os.getenv("AC_SBINDIR",	"").strip()
 ac_abs_builddir = os.getenv("AC_ABS_BUILDDIR",	"").strip()
+ac_libexecdir   = os.getenv("AC_LIBEXECDIR",    "").strip()
 
 # Non-standard extension build specification: we need to force
 # whatever build options our top-level ./configure selected, and we
@@ -50,4 +52,4 @@ setup(name              = "rpkitoolkit",
       url               = "http://www.rpki.net/",
       packages          = ["rpki", "rpki.POW", "rpki.gui", "rpki.gui.app" ],
       ext_modules       = [pow],
-      data_files	= [(ac_sbindir, scripts)])
+      data_files	= [(ac_sbindir, scripts), (ac_libexecdir, ac_aux_scripts)])

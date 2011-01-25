@@ -3,8 +3,8 @@ $Id$
 Portal GUI (web interface), written using the rpki Python libraries
 and the Django web development framework.
 
-This is still in early development, but there's a lot of general information
-about Django at http://www.djangoproject.com/
+This is still in early development, but there's a lot of general
+information about Django at http://www.djangoproject.com/
 
 This package is an interface to rpkid and friends, so it assumes that
 you'll be running rpkid.  If you haven't already done so, you should
@@ -12,41 +12,52 @@ set up rpkid first; see ../rpkid/doc/Installation.
 
 === Assumptions ===
 
-This is a list of the assumptions the current rpkigui code makes:
+This is a list of the assumptions the current portal-gui code makes:
 
-1) There will be at least one resource holder which runs rpkid.
+1) There will be at least one resource holder which runs rpkid.  In
+rpki parlance, it is "self-hosted."
 
-2) The myrpki.py command line tool will handle all the heavy lifting, so it
-   must be present on the installed system.
+2) The myrpki.py command line tool will handle all the heavy lifting,
+so it must be present on the installed system.
 
-3) All the directories containing the files assosiated with each
-   resource handle must reside in the same directory.  That is, the
-   rpkigui expects the following structure:
+3) There is a subdirectory for each resource holder served by the
+portal-gui under ${localstatedir}/rpki/conf (typically this is
+/usr/local/var/rpki/conf).  Each subdirectory contains the files
+associated with each resource holder (eg. rpki.conf, csv files).  For
+example, if the portal gui is configured to serve Alice, Bob and
+Carol, the directory structure will look something like:
 
-        /datadir
-                /dad
-                        /rpki.conf
-                        /entitydb/
-                                ...
-                /mom
-                        /rpki.conf
-                        /entitydb/
-                                ...
-                /baby
-                        /rpki.conf
-                        /entitydb/
-                                ...
+	/usr/local/var/rpki/conf/Alice/asns.csv
+	/usr/local/var/rpki/conf/Alice/bpki/
+	/usr/local/var/rpki/conf/Alice/entitydb/
+	/usr/local/var/rpki/conf/Alice/prefixes.csv
+	/usr/local/var/rpki/conf/Alice/roas.csv
+	/usr/local/var/rpki/conf/Alice/rpki.conf
+
+	/usr/local/var/rpki/conf/Bob/asns.csv
+	/usr/local/var/rpki/conf/Bob/bpki/
+	/usr/local/var/rpki/conf/Bob/entitydb/
+	/usr/local/var/rpki/conf/Bob/prefixes.csv
+	/usr/local/var/rpki/conf/Bob/roas.csv
+	/usr/local/var/rpki/conf/Bob/rpki.conf
+
+	/usr/local/var/rpki/conf/Carol/asns.csv
+	/usr/local/var/rpki/conf/Carol/bpki/
+	/usr/local/var/rpki/conf/Carol/entitydb/
+	/usr/local/var/rpki/conf/Carol/prefixes.csv
+	/usr/local/var/rpki/conf/Carol/roas.csv
+	/usr/local/var/rpki/conf/Carol/rpki.conf
 
 === Prerequisites ===
 
-- install django
+- install Django
 
-First, you must install Django 1.2 or greater on your system (django 1.1 may
+First, you must install Django 1.2 or greater on your system (Django 1.1 may
 work, but you will need to disable to CsrfMiddleware in settings.py).
 
 Fedora: yum install Django
 
-- the portal-gui must be run using apache with mod_wsgi
+- the portal-gui must be run using Apache with mod_wsgi
 
 Fedora: yum install httpd mod_wsgi
 
@@ -56,130 +67,117 @@ Fedora: yum install mod_ssl
 
 ==== Installation ===
 
-The portal-gui is configured via the use of the supplied "build.sh"
-script.  You must edit at least the "REQUIRED SETTINGS" section.
+The portal-gui is configured and installed using the Makefile in the
+top level directory of the rpki tools.
 
-	# cd $top/portal-gui/
-	# ./build.sh
+At the end of the installation process, the django-admin.py script
+will prompt you to create a superuser.  You want to say "yes" to this
+prompt.  The superuser account can be named whatever you want.  The
+superuser account is not necessary, but is useful because you can use
+Django's admin views (via the /admin/ URL) to inspect the portal-gui's
+database directly, which may be useful for debugging.  It also allows
+you to log into any of the resource handle accounts served by the
+portal-gui.  (n.b.  this superuser account should be different from
+the user account for the resource handle that is self-hosted on your
+rpkid).
 
-Once the portal-gui has been configured, the next step is to install it:
-
-        # make install
-
-At the end of the installation process, the manage.py script will prompt you to
-create a superuser.  You want to say "yes" to this prompt.  The superuser
-account can be named whatever you want.  The superuser account is not necessary,
-but is useful because you can use django's admin views (via the /admin URL) to
-inspect the portal-gui's database directly, which may be useful for debugging.
-It also allows you to log into any of the resource handle accounts served by the
-portal-gui.  (n.b.  this superuser account should be different from the user
-account for the resource handle that is self-hosted on your rpkid)
-
-NOTE: even though the manage.py script asks you for a password, you will be
-configuring apache to use HTTP DIGEST authentication instead.  Therefore, it is
-necessary to add the user to the password file that apache will consult IN
-ADDITION:
-
-        # htdigest /usr/local/share/portal-gui/htpasswd myrpki <username>
-
-(n.b. the manage.py step of creating the superuser is still required because it
-stores the user rights in the portal-gui's database, but there is no apparent
-way to squash the password input prompt.)
-
-- configure apache to serve the portal-gui
+- configure Apache to serve the portal-gui
 
 See $top/portal-gui/README.apache
 
-=== list_resources helper script ===
+=== rpkigui-list-resources helper script ===
 
-The portal-gui does not directly talk to the rpkid server.  Instead, there
-is a command line script named "list_resources" which talks to rpkid and
-updates the portal-gui database with information that has changed.  For
-testing purposes, this script can be run by hand.  However, for deployment
-you will need to set up a cron job to run this script periodically.
+The portal-gui does not directly talk to the rpkid server.  Instead,
+there is a command line script named "rpkigui-list-resources" which
+talks to rpkid and updates the portal-gui database with information
+that has changed.  For testing purposes, this script can be run by
+hand.  However, for deployment you will need to set up a cron job to
+run this script periodically.  By default, this script is installed in
+${libexecdir}, which is typically /usr/local/libexec.
 
-NOTE that "list_resources" *must* be run in the directory where the
-rpki.conf for the resource handle that is self-hosting the rpkid.
-Alternatively, you can set the $MYRPKI_CONF environment variable to full
-pathname of the rpki.conf for the self-hosted resource handle (However, in
-order for this to work, you need to specify the full path name for
-"bpki_servers_directory" variable in your rpki.conf.)
+NOTE that "rpkigui-list-resources" *MUST* be run in the directory
+where the rpki.conf for the resource handle that is self-hosting the
+rpkid.  Alternatively, you can set the $RPKI_CONF environment
+variable to full pathname of the rpki.conf for the self-hosted
+resource handle (However, in order for this to work, you need to
+specify the full path name for "bpki_servers_directory" variable in
+your rpki.conf.)
 
-The first time you invoke it, you may wish to use the -v option, which puts
-list_resources into verbose mode, meaning it will display progress
-information.  Normally, this script is intended to be invoked via cron, so
-it is silent unless an error occurs:
+The first time you invoke it, you may wish to use the -v option, which
+puts rpkigui-list-resources into verbose mode, meaning it will display
+progress information.  Normally, this script is intended to be invoked
+via cron, so it is silent unless an error occurs:
 
-        /usr/local/share/portal-gui/scripts/list_resources -v
+        /usr/local/libexec/rpkigui-list-resources -v
 
-You may way to create a script which is invoked by cron:
+You may wish to create a script which is invoked by cron:
 
     #!/bin/sh
-    cd <directory containing rpki.conf for the self-hosted rpkid>
-    /usr/local/share/portal-gui/scripts/list_resources
 
-This script probably only needs to be run infrequently.  It's sole purpose
-is to query rpkid to ask what resources and children are configured for each
-resource handle.  This information does not change often.
+    # self-host resource handle
+    self_handle=FOO
 
-NOTE: you should NOT run the script with the ".py" suffix directly!  Use the
-script WITHOUT the suffix, which is a shell-script wrapper that sets the
-appropriate enviroment variables required for the python script to
-run.
+    # <directory containing rpki.conf for the self-hosted rpkid>
+    cd /usr/local/var/rpki/conf/$self_handle
+
+    /usr/local/libexec/rpkigui-list-resources
+
+This script probably only needs to be run infrequently.  It's sole
+purpose is to query rpkid to ask what resources and children are
+configured for each resource handle.  This information does not change
+often.
 
 === Load existing data ===
 
-If you already have delegated resources to children, or created ROAs in the
-.csv files for the myrpki.py command line tool, you will want to load the
-portal-gui with this information.  There is a helper script for doing this
-step.  Simply chdir to the directory containing your rpki.conf and .csv
-files and run:
+If you already have delegated resources to children, or created ROAs
+in the .csv files for the myrpki.py command line tool, you will want
+to load the portal-gui with this information.  There is a helper
+script for doing this step.  Simply chdir to the directory containing
+your rpki.conf and .csv files and run:
 
-        /usr/local/share/portal-gui/scripts/load_csv
+	$ cd /usr/local/var/conf/<handle>
+        $ /usr/local/sbin/rpkigui-load-csv
 
-NOTE that you must run the "list_resources" script *prior* to using
-"load_csv" or you will get errors because portal-gui won't yet know about
-which handles it is serving.
+NOTE that you must run the "rpkigui-list-resources" script *prior* to
+using "rpkigui-load-csv" or you will get errors because portal-gui
+won't yet know about which handles it is serving.
 
-You should run "load_csv" in *each* of your directories for each handle.
-
-NOTE: you should NOT run the script with the ".py" suffix directly!  Use the
-script WITHOUT the suffix, which is a shell-script wrapper that sets the
-appropriate enviroment variables required for the python script to
-run.
+You should run "rpkigui-load-csv" in *EACH* of your directories for
+each handle.
 
 === Starting the Portal GUI ===
 
-If you have configured django to use apached and mod_wsgi, you just need to
-start your web server.
+If you have configured Django to use Apache and mod_wsgi, you just
+need to start your web server.
+
+Simply navigate to /rpki/ on your web server and you will be presented
+with the portal-gui's login page.
 
 === Creating Users ===
 
-The portal-gui's security model allows the use of separate logins to manage each
-resource handle.  Each resource handle needs to be configured to allow one or
-more users to manage it.  This is accomplished by using the "adduser" script
-that is installed with the portal-gui in /usr/local/share/portal-gui/scripts/.
-(n.b. run the adduser script *without* the .py suffix, which is a wrapper script
-which sets the PYTHONPATH to match your installation)
+The portal-gui's security model allows the use of separate logins to
+manage each resource handle.  Each resource handle needs to be
+configured to allow one or more users to manage it.  This is
+accomplished by using the "rpkigui-add-user" script that is installed
+with the portal-gui in ${sbindir} (eg. /usr/local/sbin).
 
-To create users, run the "adduser" script.  The adduser script takes three
-arguments: 1) the username for the new account, 2) the email address for the
-human that owns the account, and 3) the handle of the self-hosted resource
-holder who is hosting this user (for self-hosted users, specify the same
-username for the "host handle").
+To create users, run the "rpkigui-add-user" script.  The script takes
+three arguments: 1) the username for the new account, 2) the email
+address for the human that owns the account, and 3) the handle of the
+self-hosted resource holder who is hosting this user (for self-hosted
+users, specify the same username for the "host handle").
 
 Example:
 
-    # cd /usr/local/share/portal-gui/scripts/
-    # ./adduser SPARTA-ELS michael.elkins@cobham.com SPARTA
+    # /usr/local/sbin/rpkigui-add-user Dave nobody@example.com John
 
 === Optional - Specify additional resource handles for a portal-gui user ===
 
-You can configure which users are allowed to manage a particular resource
-handle once you have performed the "list_resources" step described above to
-populate the database:
+You can configure which users are allowed to manage a particular
+resource handle once you have performed the "rpkigui-list-resources"
+step described above to populate the database:
 
-	- navigate to http://<ip:port>/admin/myrpki/conf/
+	- navigate to http://<ip:port>/admin/app/conf/
 	- log in as the portal-gui superuser using the password you
 	  specified during the install step above
 	- click on the link for the handle you wish to change
@@ -190,46 +188,27 @@ populate the database:
 === Debugging Tips ===
 
 The portal-gui is still in development.  As such, problems may arise.
-Occasionally, portal-gui fails to appropriately validate data that it puts
-into its Django db.  This may cause exceptions to be thrown, as the code
-assumes that data in the database is already valid.  You can delete specific
-data from the Django database using Django's built-in admininstrative
-interface.  It's available by navigating to the /admin/myrpki/ URL and
-logging in as the superuser account.  Here you will find a list of all the
-tables used by the portal-gui.
+Occasionally, portal-gui fails to appropriately validate data that it
+puts into its Django db.  This may cause exceptions to be thrown, as
+the code assumes that data in the database is already valid.  You can
+delete specific data from the Django database using Django's built-in
+admininstrative interface.  It's available by navigating to the
+/admin/app/ URL and logging in as the superuser account.  Here you
+will find a list of all the tables used by the portal-gui.
 
-If you are updating from the subversion repository, there may occasionally
-be changes in the portal-gui's database schema that require a complete reset
-of the database before it will function.  Don't worry about losing data,
-because list_resources and load_csv can be run again to populate the
-database with your data.
+If you are updating from the subversion repository, there may
+occasionally be changes in the portal-gui's database schema that
+require a complete reset of the database before it will function.
+Don't worry about losing data, because rpkigui-list-resources and
+rpkigui-load-csv can be run again to populate the database with your
+data.
 
 Here are the steps for reseting to the initial state:
 
-    cd $datarootdir/portal-gui/rpkigui
-    python manage.py reset --pythonpath=$top/rpkid myrpki
+    $ django-admin.py reset --settings=rpki.gui.settings
 
     >>> answer "yes" to really reset it <<<
 
-    cd <directory containing rpki.conf for the self-hosted rpkid>
-    $datarootdir/portal-gui/scripts/list_resources -v
-    $datarootdir/portal-gui/scripts/load_csv
-
-Testing with yamltest
-=====================
-
-- you can specify
-	CONFDIR=$top/rpkid/tests/yamltest.dir
-  to make the portal-gui be a front-end for the resource handles created by
-  a yamltest run.
-
-- you will need to periodically run the lists_resources script in
-	$top/rpkid/tests/yamltest.dir/RIR
-  to update the portal-gui database with the current state of children and
-  received resources
-
-- the web server runs as the `apache' user by default under Fedora, which won't
-  have permissions to write to the yamltest.dir directory.  easiet thing to do
-  is chown the entire tree so that the `apache' user has full access:
-
-	# chown -R apache $top/rpkid/tests/yamltest.dir
+    $ cd /usr/local/var/rpki/conf/<directory containing rpki.conf for the self-hosted rpkid>
+    $ /usr/local/libexec/rpkigui-list-resources -v
+    $ /usr/local/libexec/rpkigui-load-csv

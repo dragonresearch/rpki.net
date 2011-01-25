@@ -552,4 +552,14 @@ def upload_myrpki_xml(request, self_handle):
 
     return serve_file(self_handle, 'myrpki.xml', 'application/xml')
 
+@handle_required
+def roa_request_view(request, pk):
+    """not yet implemented"""
+    return
+
+@handle_required
+def roa_view(request, pk):
+    """not yet implemented"""
+    return
+
 # vim:sw=4 ts=8 expandtab

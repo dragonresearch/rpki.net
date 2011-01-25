@@ -55,7 +55,7 @@ if /bin/test -r "$jaildir/etc/rcynic.conf"; then
     echo "You already have config file \"${jaildir}/etc/rcynic.conf\", so I will use it."
 elif /usr/bin/install -m 444 -o root -g wheel -p ../sample-rcynic.conf "${jaildir}/etc/rcynic.conf"; then
     echo "Installed minimal ${jaildir}/etc/rcynic.conf, adding SAMPLE trust anchors"
-    for i in ../../sample-trust-anchors/*.cer; do
+    for i in ../../sample-trust-anchors/*.tal; do
 	j="$jaildir/etc/trust-anchors/${i##*/}"
 	/bin/test -r "$i" || continue
 	/bin/test -r "$j" && continue
@@ -63,8 +63,8 @@ elif /usr/bin/install -m 444 -o root -g wheel -p ../sample-rcynic.conf "${jaildi
 	/usr/bin/install -m 444 -o root -g wheel -p "$i" "$j"
     done
     j=1
-    for i in $jaildir/etc/trust-anchors/*.cer; do
-	echo >>"${jaildir}/etc/rcynic.conf" "trust-anchor.$j		= /etc/trust-anchors/${i##*/}"
+    for i in $jaildir/etc/trust-anchors/*.tal; do
+	echo >>"${jaildir}/etc/rcynic.conf" "trust-anchor-locator.$j	= /etc/trust-anchors/${i##*/}"
 	j=$((j+1))
     done
 else

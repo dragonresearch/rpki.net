@@ -26,11 +26,11 @@ ${BIN}: ${SRC}
 test: ${BIN}
 	if test -r rcynic.conf; then ./${BIN} -j 0 && echo && ./show.sh; else echo No rcynic.conf, skipping test; fi
 
-install: ${BIN} scripts/install.sh
-	cd scripts; . ./install.sh ${host_os}
+install: ${BIN} installation-scripts/install.sh
+	cd installation-scripts; . ./install.sh ${host_os}
 
 uninstall deinstall:
-	@echo Sorry, automated deinstallation of rcynic not implemented yet
+	cd installation-scripts; . ./deinstall.sh ${host_os}
 
 doc::
 	doxygen

@@ -1,6 +1,6 @@
 # $Id$
 """
-Copyright (C) 2010  SPARTA, Inc. dba Cobham Analytic Solutions
+Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -25,8 +25,8 @@ class asnset(object):
         """
         if init:
             self.v = set(int(x) for x in init.split(',') if x.strip() != '')
-            if any([x for x in self.v if x < 0]):
-                raise ValueError, "Can't contain negative values."
+            if [x for x in self.v if x <= 0]:
+                raise ValueError, 'must be a positive integer'
 
     def __str__(self):
         return ','.join(str(x) for x in sorted(self.v))

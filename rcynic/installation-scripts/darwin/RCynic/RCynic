@@ -58,6 +58,8 @@ EOF
 			/usr/bin/install -m 444 -o root -g wheel -p "$i" "$j"
 		fi
 	done
+
+	/bin/ln -f /var/run/mDNSResponder "${rcynic_jaildir}/var/run/mDNSResponder"
 }
 
 StopService()

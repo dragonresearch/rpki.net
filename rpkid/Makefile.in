@@ -37,9 +37,9 @@ SETUP_PY = \
 
 POW_SO	= rpki/POW/_POW.so
 
-SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd myrpki pubd rootd rpkid rpki/gui/settings.py
+SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd myrpki pubd rootd rpkid
 
-all: ${POW_SO} rpki/relaxng.py myrpki.rng ${SCRIPTS}
+all: ${POW_SO} rpki/relaxng.py myrpki.rng ${SCRIPTS} rpki/gui/settings.py
 
 ${POW_SO}: ext/POW.c setup.py
 	${SETUP_PY} build_ext --inplace

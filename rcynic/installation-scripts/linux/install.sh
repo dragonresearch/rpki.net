@@ -110,7 +110,7 @@ echo "Installing rcynic as ${jaildir}/bin/rcynic"
 
 if test -x "$jaildir/bin/rsync"; then
     echo "You already have an executable \"$jaildir/bin/rsync\", so I will use it"
-elif /usr/bin/install -m 555 -o root -g wheel -p /usr/bin/rsync "${jaildir}/bin/rsync"; then
+elif /usr/bin/install -m 555 -o root -g root -p /usr/bin/rsync "${jaildir}/bin/rsync"; then
     echo "Installed ${jaildir}/bin/rsync"
 else
     echo "Installing ${jaildir}/bin/rsync failed"
@@ -139,7 +139,7 @@ do
     if test -r "${jaildir}/${shared}"
     then
 	echo "You already have a \"${jaildir}${shared}\", so I will use it"
-    elif /usr/bin/install -m 555 -o root -g wheel -p "${shared}" "${jaildir}${shared}"
+    elif /usr/bin/install -m 555 -o root -g root -p "${shared}" "${jaildir}${shared}"
     then
 	echo "Copied ${shared} into ${jaildir}"
     else

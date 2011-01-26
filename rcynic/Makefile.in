@@ -18,6 +18,7 @@ host_os = @host_os@
 all: ${BIN}
 
 clean:
+	cd static-rsync; ${MAKE} $@
 	rm -f ${BIN} ${OBJ}
 
 ${BIN}: ${SRC}
@@ -39,5 +40,5 @@ doc::
 	cd doc/latex && make pdf && ln -f refman.pdf ..
 
 distclean: clean
-	cd static-rsync; ${MAKE} clean
+	cd static-rsync; ${MAKE} $@
 	rm -f show.sh Makefile

@@ -36,3 +36,6 @@ configured.stamp: patched.stamp
 
 clean:
 	rm -rf ${BIN} ${DIRNAME} *.stamp *.log
+
+distclean: clean
+	rm -f Makefile

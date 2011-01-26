@@ -462,3 +462,7 @@ class main(object):
     self.poll_loop()
 
 main()
+
+# Local Variables:
+# mode:python
+# End:

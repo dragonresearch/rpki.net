@@ -22,24 +22,42 @@ AC_CHECK_SIZEOF([long])
 # makes it much simpler to run rcynic in a chroot jail, but we don't
 # know how to do it on all platforms, so we try the hack we know, and
 # if that doesn't work, oh well.
+#
+# Sadly, it's even worse than this, because there are platforms like
+# Fedora where the compiler and linker support -static just fine, but
+# the default libraries do not, and if you start down the primrose
+# path of installing the necessary libraries, you eventually hit a
+# wall where one of the static libraries you downloaded depends on
+# something that's not available as a static library, ie, you lose.
+#
+# So for now I'm just going to make this a FreeBSD-only option.
+# Feh. Those of you who choose to use other platforms are welcome to
+# fix this and send me the patch, if you care.
 
-AC_MSG_CHECKING([whether linker supports -static])
-old_LDFLAGS="$LDFLAGS"
-LDFLAGS="$LDFLAGS -static"
-AC_LINK_IFELSE(
-	[AC_LANG_SOURCE([[int main (int argc, char *argv[]) { return 0; }]])],
-	[
-		AC_MSG_RESULT(yes)
-		LD_STATIC_FLAG='-static'
-	],
-	[
-		AC_MSG_RESULT(no)
-		LD_STATIC_FLAG=''
-	]
-)
+dnl  AC_MSG_CHECKING([whether linker supports -static])
+dnl  old_LDFLAGS="$LDFLAGS"
+dnl  LDFLAGS="$LDFLAGS -static"
+dnl  AC_LINK_IFELSE(
+dnl  	[AC_LANG_SOURCE([[int main (int argc, char *argv[]) { return 0; }]])],
+dnl  	[
+dnl  		AC_MSG_RESULT(yes)
+dnl  		LD_STATIC_FLAG='-static'
+dnl  	],
+dnl  	[
+dnl  		AC_MSG_RESULT(no)
+dnl  		LD_STATIC_FLAG=''
+dnl  	]
+dnl  )
+dnl  LDFLAGS="$old_LDFLAGS"
+dnl  unset old_LDFLAGS
+
+case $host_os in
+freebsd*)	LD_STATIC_FLAG='-static';;
+*)		LD_STATIC_FLAG='';;
+esac
+
 AC_SUBST(LD_STATIC_FLAG)
-LDFLAGS="$old_LDFLAGS"
-unset old_LDFLAGS
+
 
 AC_PATH_PROG([XSLTPROC], [xsltproc])
 AC_PATH_PROG([AWK], [awk])
@@ -231,6 +249,7 @@ AC_SUBST(TOP_LEVEL_SUBDIRS)
 
 AC_CONFIG_FILES([Makefile
 		 rcynic/Makefile
+		 rcynic/static-rsync/Makefile
 		 utils/Makefile
 		 utils/find_roa/Makefile
 		 utils/hashdir/Makefile

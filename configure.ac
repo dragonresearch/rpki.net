@@ -58,10 +58,8 @@ esac
 
 AC_SUBST(LD_STATIC_FLAG)
 
-
 AC_PATH_PROG([XSLTPROC], [xsltproc])
 AC_PATH_PROG([AWK], [awk])
-AC_PATH_PROG([OBJCOPY], [objcopy])
 AC_PROG_GREP
 
 if test "x$GREP" = x
@@ -93,15 +91,6 @@ then
 else
 	have_usable_openssl=no
 fi
-
-AC_MSG_CHECKING([whether we're using the GNU loader])
-if ld --version 2>&1 | $GREP 'GNU ld' >/dev/null 2>&1
-then
-	using_gnu_ld=yes
-else
-	using_gnu_ld=no
-fi
-AC_MSG_RESULT([$using_gnu_ld])
 
 # Now a bunch of checks to figure out what we can do with Python.  If
 # we don't have Python at all, none of the rest of this matters.  If

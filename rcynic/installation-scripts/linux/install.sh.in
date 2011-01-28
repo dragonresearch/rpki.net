@@ -11,6 +11,7 @@
 : ${setupcron="YES"}
 
 AWK='@AWK@'
+SORT='@SORT@'
 
 echo "Setting up \"${jaildir}\" as a chroot jail for rcynic."
 
@@ -127,7 +128,7 @@ do
     closure="$(/usr/bin/ldd ${shared_libraries} |
 	       ${AWK} -v "rcynic=${jaildir}/bin/rcynic" -v "rsync=${jaildir}/bin/rsync" \
 		   '{sub(/:$/, "")} $0 == rcynic || $0 == rsync {next} {for (i = 1; i <= NF; i++) if ($i ~ /^\//) print $i}' |
-	       /bin/sort -u)"
+	       ${SORT} -u)"
     if test "x$shared_libraries" = "x$closure"
     then
 	break
@@ -141,7 +142,8 @@ do
     if test -r "${jaildir}/${shared}"
     then
 	echo "You already have a \"${jaildir}${shared}\", so I will use it"
-    elif /usr/bin/install -m 555 -o root -g root -p "${shared}" "${jaildir}${shared}"
+    elif /usr/bin/install -m 555 -o root -g root -d "${jaildir}${shared%/*}" &&
+	 /usr/bin/install -m 555 -o root -g root -p "${shared}" "${jaildir}${shared}"
     then
 	echo "Copied ${shared} into ${jaildir}"
     else

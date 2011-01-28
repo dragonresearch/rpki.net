@@ -60,6 +60,7 @@ AC_SUBST(LD_STATIC_FLAG)
 
 AC_PATH_PROG([XSLTPROC], [xsltproc])
 AC_PATH_PROG([AWK], [awk])
+AC_PATH_PROG([SORT], [sort])
 AC_PROG_GREP
 
 if test "x$XSLTPROC" != "x" && test "x$AWK" != "x"

@@ -62,11 +62,6 @@ AC_PATH_PROG([XSLTPROC], [xsltproc])
 AC_PATH_PROG([AWK], [awk])
 AC_PROG_GREP
 
-if test "x$GREP" = x
-then
-	AC_MSG_ERROR([Tests requires grep, sorry])
-fi
-
 if test "x$XSLTPROC" != "x" && test "x$AWK" != "x"
 then
 	AC_CONFIG_FILES([rcynic/show.sh],
@@ -246,15 +241,15 @@ AC_CONFIG_FILES([Makefile
 		 utils/print_roa/Makefile
 		 utils/uri/Makefile])
 
+case $host_os in
+linux*)
+	AC_CONFIG_FILES([rcynic/installation-scripts/linux/install.sh])
+	;;
+esac
+
 # OpenSSL has its own build system that bears no relationship to
-# anything but itself.  On at least one platform, OpenSSL's opinion on
-# the right thing to do is so completely at odds with everything else
-# that the resulting libraries require special compilation options for
-# any program that wants to use them.  Feh.
-#
-# The -rpath insanity will need to change once we install this stuff.
-#
-# Don't bother with any of this unless we're building OpenSSL.
+# anything but itself, and our use of it is a bit weird, so this is a
+# BFMI (Brute Force and Massive Ignorance) job.
 
 if test $build_openssl = yes
 then

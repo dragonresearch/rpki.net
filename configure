@@ -3803,11 +3803,6 @@ $as_echo "$ac_cv_path_GREP" >&6; }
 
 
 
-if test "x$GREP" = x
-then
-	as_fn_error $? "Tests requires grep, sorry" "$LINENO" 5
-fi
-
 if test "x$XSLTPROC" != "x" && test "x$AWK" != "x"
 then
 	ac_config_files="$ac_config_files rcynic/show.sh"
@@ -4136,15 +4131,16 @@ test $build_django = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS portal-gui"
 ac_config_files="$ac_config_files Makefile rcynic/Makefile rcynic/static-rsync/Makefile utils/Makefile utils/find_roa/Makefile utils/hashdir/Makefile utils/print_manifest/Makefile utils/print_roa/Makefile utils/uri/Makefile"
 
 
+case $host_os in
+linux*)
+	ac_config_files="$ac_config_files rcynic/installation-scripts/linux/install.sh"
+
+	;;
+esac
+
 # OpenSSL has its own build system that bears no relationship to
-# anything but itself.  On at least one platform, OpenSSL's opinion on
-# the right thing to do is so completely at odds with everything else
-# that the resulting libraries require special compilation options for
-# any program that wants to use them.  Feh.
-#
-# The -rpath insanity will need to change once we install this stuff.
-#
-# Don't bother with any of this unless we're building OpenSSL.
+# anything but itself, and our use of it is a bit weird, so this is a
+# BFMI (Brute Force and Massive Ignorance) job.
 
 if test $build_openssl = yes
 then
@@ -5013,6 +5009,7 @@ do
     "utils/print_manifest/Makefile") CONFIG_FILES="$CONFIG_FILES utils/print_manifest/Makefile" ;;
     "utils/print_roa/Makefile") CONFIG_FILES="$CONFIG_FILES utils/print_roa/Makefile" ;;
     "utils/uri/Makefile") CONFIG_FILES="$CONFIG_FILES utils/uri/Makefile" ;;
+    "rcynic/installation-scripts/linux/install.sh") CONFIG_FILES="$CONFIG_FILES rcynic/installation-scripts/linux/install.sh" ;;
     "openssl/Makefile") CONFIG_FILES="$CONFIG_FILES openssl/Makefile" ;;
     "openssl/tests/Makefile") CONFIG_FILES="$CONFIG_FILES openssl/tests/Makefile" ;;
     "pywrap/Makefile") CONFIG_FILES="$CONFIG_FILES pywrap/Makefile" ;;

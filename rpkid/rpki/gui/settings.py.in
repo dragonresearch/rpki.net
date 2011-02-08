@@ -111,4 +111,13 @@ LOGIN_REDIRECT_URL = '/rpki/'
 MYRPKI = '%(AC_MYRPKI)s'
 
 # directory containing the resource handles served by the rpki portal gui
-CONFDIR = '%(AC_CONFDIR)s'
+CONFDIR = '%(AC_LOCALSTATEDIR)s/rpki/conf'
+
+# maildir-style mailbox where uploaded requests are saved
+INBOX = '%(AC_LOCALSTATEDIR)s/rpki/inbox'
+
+# maildir-style mailbox where responses to client requests are stored
+OUTBOX = '%(AC_LOCALSTATEDIR)s/rpki/outbox'
+
+# uid the web server runs as
+WEB_USER = '%(AC_WEBUSER)s'

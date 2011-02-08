@@ -131,8 +131,11 @@ class AllocationTreeIP(AllocationTree):
         raise ValueError, 'Unsupported IP range type'
 
     def supported_actions(self):
-        '''add a link to issue a roa for this IP range'''
-        return[' | <a href="%s/roa">roa</a>' % (self.resource.get_absolute_url(),)]
+        '''add a link to issue a ROA for this IP range'''
+        if self.resource.is_prefix():
+            return [' | <a href="%s/roa">roa</a>' % self.resource.get_absolute_url()]
+        else:
+            return []
 
     def is_allocated(self):
         '''Return True if this IP range is allocated to a child or used

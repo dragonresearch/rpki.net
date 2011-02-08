@@ -27,16 +27,14 @@ from django.contrib.auth.models import User
 from django.conf import settings
 from rpki.gui.app.models import Conf
 
-# The username that apache runs as.  This is required so that we can chown
-# the csv files that the portal-gui needs to write.
-WEB_USER='@WEBUSER@'
-
 import os
 import sys
 import getpass
 import pwd
 
-web_uid = pwd.getpwnam(WEB_USER)[2]
+# The username that apache runs as.  This is required so that we can chown
+# the csv files that the portal-gui needs to write.
+web_uid = pwd.getpwnam(settings.WEB_USER)[2]
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:

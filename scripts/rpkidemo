@@ -11,19 +11,6 @@ a Python interpreter.  We have to check anything else we care about.
 In what we hope is the most common case, this script should be run
 with no options.
 
-The two existing options, for special cases, are:
-
---initialize_only       Stop after generating identity.xml
-
---bypass_setup          Do not generate identity.xml or attempt entitydb
-                        setup operations
-
-Both of these are intended to support special cases where the default
-mode of operation is not sufficient, and some manual setup of the
-entitydb relationships is required.  In such cases, the expected usage
-would be to run this with -initialize_only, use the myrpki.py tool to
-set do the entitydb setup, then run this again with --bypass_setup.
-
 $Id$
 
 Copyright (C) 2010  Internet Systems Consortium ("ISC")
@@ -82,6 +69,7 @@ else:
 # Ok, it's safe to import the other stuff we need now
 
 import os, subprocess, webbrowser, urllib2, getpass, re, errno, time, email.utils, httplib, socket, getopt, urllib, cookielib
+import tempfile
 from xml.etree.ElementTree import fromstring as ElementFromString
 
 def save(filename, data):
@@ -95,6 +83,21 @@ def save(filename, data):
   f.close()
   os.rename(tempname, filename)
 
+def save_error(err):
+  """
+  Save the data from the file-like object ``f'' into a temporary file
+  and open a web browser to view the result.
+  """
+
+  with tempfile.NamedTemporaryFile(prefix='rpkidemo-error', suffix='.html', delete=False) as tmpf:
+    tmpf.write(err.read())
+
+    # Save filename for use outside the with statement.  This ensures
+    # the file is properly flushed prior to invoking the web browser.
+    fname = tmpf.name
+
+  sys.stderr.write('errors saved in %s\n' % fname)
+  webbrowser.open('file://' + fname)
 
 class CSV_File(object):
   """
@@ -165,17 +168,14 @@ class main(object):
   # Just wire them all in for the moment.
 
   base_url = "https://demo.rpki.net/"
-  auth_url = base_url + 'accounts/login/'
   myrpki_url = base_url + 'rpki/'
+  auth_url = myrpki_url + 'demo/login'
   example_myrpki_cfg = "%s/rpkid/examples/rpki.conf" % top
   working_dir = "%s/rpkidemo-data" % cwd
   myrpki_py = "%s/rpkid/myrpki.py" % top
   user_agent = "RPKIDemo"
   delay = 15
-  realm = "myrpki"
-  use_cookies = True
   trust_anchor = "%s/scripts/rpkidemo.pem" % top
-  use_digest_auth = False
 
   openssl = None
 
@@ -235,21 +235,8 @@ class main(object):
 
         handlers = []
 
-        if self.use_digest_auth:
-          auth_handler = urllib2.HTTPDigestAuthHandler()
-
-          auth_handler.add_password(
-            realm  = self.realm,
-            uri    = self.base_url,
-            user   = self.username,
-            passwd = self.password)
-
-          handlers.append(auth_handler)
-
-        if self.use_cookies:
-          cookiejar = cookielib.CookieJar()
-
-          handlers.append(urllib2.HTTPCookieProcessor(cookiejar))
+        self.cookiejar = cookielib.CookieJar()
+        handlers.append(urllib2.HTTPCookieProcessor(self.cookiejar))
 
         if have_ssl_module:
 
@@ -267,24 +254,25 @@ class main(object):
         # Test login credentials
         resp = self.opener.open(self.auth_url) # GET
 
-        if not self.use_digest_auth:
-
-          # Django's login form requires the 'csrfmiddlewaretoken.'  It turns out
-          # this is the same value as the 'csrftoken' cookie, so we don't need
-          # to bother parsing the form.
-
-          csrftoken = [c.value for c in cookiejar if c.name == 'csrftoken'][0]
-
-          self.opener.open(
-            self.auth_url,
-            data = urllib.urlencode({ "username"            : self.username,
-                                      "password"            : self.password,
-                                      "csrfmiddlewaretoken" : csrftoken })) # POST
+        r = self.opener.open(
+          self.auth_url,
+          data = urllib.urlencode({ "username"            : self.username,
+                                    "password"            : self.password,
+                                    "csrfmiddlewaretoken" : self.csrftoken() })) # POST
         return
 
       except urllib2.URLError, e:
         print "Could not log in to server: %s" % e
         print "Please try again"
+        if e.code != 403:
+          save_error(e)
+
+  def csrftoken(self):
+    # Django's login form requires the 'csrfmiddlewaretoken.'  It turns out
+    # this is the same value as the 'csrftoken' cookie, so we don't need
+    # to bother parsing the form.
+
+    return [c.value for c in self.cookiejar if c.name == 'csrftoken'][0]
 
   def setup_working_directory(self):
     """
@@ -337,7 +325,7 @@ class main(object):
     """
     return subprocess.check_call((sys.executable, self.myrpki_py) + cmd)
 
-  def upload(self, url, filename, content_type = "Application/XML"):
+  def upload(self, url, filename):
     """
     Upload filename to URL, return result.
     """
@@ -345,12 +333,14 @@ class main(object):
     url = "%s%s/%s" % (self.myrpki_url, url, self.username)
     data = open(filename).read()
     print "Uploading", filename, "to", url
+    post_data = urllib.urlencode({ "content": data,
+                                   "csrfmiddlewaretoken" : self.csrftoken() }) # POST
     try:
-      return self.opener.open(urllib2.Request(url, data, {
-        "Content-Type" : content_type,
+      return self.opener.open(urllib2.Request(url, post_data, {
         "User-Agent"   : self.user_agent }))
-    except urllib2.HTTPError:
+    except urllib2.HTTPError, e:
       sys.stderr.write("Problem uploading to URL %s\n" % url)
+      save_error(e)
       raise
 
   def update(self):
@@ -359,7 +349,7 @@ class main(object):
     """
 
     self.myrpki("configure_resources")
-    r = self.upload("upload-myrpki-xml", "myrpki.xml")
+    r = self.upload("demo/myrpki-xml", "myrpki.xml")
     save("myrpki.xml", r.read())
 
   def setup_csv_files(self):
@@ -371,6 +361,51 @@ class main(object):
       CSV_File("asns.csv",     "demo/down/asns/%s"     % self.username),
       CSV_File("prefixes.csv", "demo/down/prefixes/%s" % self.username),
       CSV_File("roas.csv",     "demo/down/roas/%s"     % self.username) ]
+
+  def upload_for_response(self, url, path):
+    """
+    Upload a xml file to the requested url and wait for for the server
+    to signal that a response is ready.
+    """
+
+    self.upload(url, path)
+
+    while True:
+      try:
+        return self.opener.open(urllib2.Request('%s%s/%s' % (self.myrpki_url, url, self.username),
+                                                None, { "User-Agent": self.user_agent }))
+      except urllib2.HTTPError, e:
+        # portal gui uses response code 503 to signal not ready
+        if e.code != 503:
+          sys.stderr.write("Problem getting response from %s: %s\n" % (url, e))
+          save_error(e)
+          raise
+      time.sleep(self.delay)
+
+  def setup_parent(self):
+    """
+    Upload the user's identity.xml and wait for the portal gui to send
+    back the parent.xml response.
+    """
+
+    r = self.upload_for_response("demo/parent-request", "entitydb/identity.xml")
+    parent_data = r.read()
+    save("parent.xml", parent_data)
+    self.myrpki("configure_parent", "parent.xml")
+
+    # extract the parent_handle from the xml response and save it for use by
+    # setup_repository()
+    self.parent_handle = ElementFromString(parent_data).get("parent_handle")
+
+  def setup_repository(self):
+    """
+    Upload the repository referral to the portal-gui and wait the
+    response from the repository operator.
+    """
+
+    r = self.upload_for_response("demo/repository-request", "entitydb/repositories/%s.xml" % self.parent_handle)
+    save("repository.xml", r.read())
+    self.myrpki("configure_repository", "repository.xml")
 
   def poll(self, csv_file):
     """
@@ -391,6 +426,7 @@ class main(object):
         return False
       else:
         sys.stderr.write("Problem polling URL %s\n" % url)
+        save_error(e)
         raise
 
   def poll_loop(self):
@@ -411,17 +447,11 @@ class main(object):
     """
     Parse options.
     """
-    self.bypass_setup = False
-    self.initialize_only = False
-    opts, argv = getopt.getopt(sys.argv[1:], "bhi?", ["bypass_setup", "help", "initialize_only"])
+    opts, argv = getopt.getopt(sys.argv[1:], "hi?", ["help"])
     for o, a in opts:
       if o in ("-h", "--help", "-?"):
         print __doc__
         sys.exit(0)
-      elif o in ("-i", "--initialize_only"):
-        self.initialize_only = True
-      elif o in ("-b", "--bypass_setup"):
-        self.bypass_setup = True
     if argv:
       sys.exit("Unexpected arguments %r" % (argv,))
 
@@ -433,27 +463,9 @@ class main(object):
     self.setup_working_directory()
     self.setup_config_file()
     self.setup_csv_files()
-
-    if not self.bypass_setup:
-      self.myrpki("initialize")
-
-    if self.initialize_only:
-      print "You asked me to stop after initialization, so I am doing so"
-      sys.exit(0)
-
-    if not self.bypass_setup:
-
-      r = self.upload("upload-parent-request", "entitydb/identity.xml")
-      parent_data = r.read()
-      save("parent.xml", parent_data)
-      self.myrpki("configure_parent", "parent.xml")
-
-      parent_handle = ElementFromString(parent_data).get("parent_handle")
-
-      r = self.upload("upload-repository-request", "entitydb/repositories/%s.xml" % parent_handle)
-      save("repository.xml", r.read())
-      self.myrpki("configure_repository", "repository.xml")
-
+    self.myrpki("initialize")
+    self.setup_parent()
+    self.setup_repository()
     self.update()
     self.update()
 
@@ -466,3 +478,5 @@ main()
 # Local Variables:
 # mode:python
 # End:
+
+# vim:sw=2 ts=8 expandtab

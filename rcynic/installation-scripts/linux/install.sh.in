@@ -147,6 +147,12 @@ do
     fi
 done
 
+# Under CentOS 5.5, rsync requires libresolv, but ldd doesn't show
+# it.
+if test -f /lib/libresolv.so.2; then
+    shared_libraries="${shared_libraries} /lib/libresolv.so.2"
+fi
+
 for shared in /lib/ld*.so $shared_libraries /lib/libnss*.so.*
 do
     if test -r "${jaildir}/${shared}"

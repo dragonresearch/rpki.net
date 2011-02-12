@@ -41,7 +41,7 @@ class Conf(models.Model):
     owner = models.ManyToManyField(User)
 
     # NULL if self-hosted, otherwise the conf that is hosting us
-    host = models.ForeignKey('Conf', related_name='hosting', null=True)
+    host = models.ForeignKey('Conf', related_name='hosting', null=True, blank=True)
 
     def __unicode__(self):
 	return self.handle

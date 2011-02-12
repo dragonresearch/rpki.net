@@ -215,7 +215,7 @@ rpkid: rpkid.py
 rpki/gui/scripts/rpkigui-list-resources: rpki/gui/scripts/list_resources.py
 	${COMPILE_PYTHON}
 
-rpki/gui/scripts/rpkigui-load-csv: rpki/gui/scripts/list_resources.py
+rpki/gui/scripts/rpkigui-load-csv: rpki/gui/scripts/load_csv.py
 	${COMPILE_PYTHON}
 
 rpki/gui/scripts/rpkigui-add-user: rpki/gui/scripts/adduser.py

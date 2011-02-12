@@ -27,10 +27,20 @@ else
     exit 1
 fi
 
+# The adduser program on CentOS 5.x uses the -n flag instead of -N to
+# avoid creating the associated group.
+nogroup='-N'
+if test -f /etc/redhat-release; then
+	cat /etc/redhat-release | read vendor release version
+	if test $vendor = CentOS; then
+		nogroup='-n'
+	fi
+fi
+
 if ${AWK} -F: -v jailuser="${jailuser}" 'BEGIN {status = 1} $1 == jailuser {status = 0} END {exit status}' /etc/passwd
 then
     echo "You already have a user \"${jailuser}\", so I will use it."
-elif /usr/sbin/useradd -g ${jailgroup} -M -N -d "${jaildir}" -s /sbin/nologin -c "RPKI validation system" ${jailuser}
+elif /usr/sbin/useradd -g ${jailgroup} -M $nogroup -d "${jaildir}" -s /sbin/nologin -c "RPKI validation system" ${jailuser}
 then
     echo "Added user \"${jailuser}\"."
 else

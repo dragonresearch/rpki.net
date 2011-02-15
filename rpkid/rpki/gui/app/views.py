@@ -274,7 +274,7 @@ class PrefixAllocateView(PrefixView):
         if self.form.is_valid():
             self.obj.allocated = self.form.cleaned_data['child']
             self.obj.save()
-            glue.configure_resources(self.handle)
+            glue.configure_resources(self.request.META['wsgi.errors'], self.handle)
             return http.HttpResponseRedirect(self.obj.get_absolute_url())
 
 @handle_required
@@ -316,7 +316,7 @@ class PrefixRoaView(PrefixView):
     def form_valid(self):
         asns = asnset(self.form.cleaned_data['asns'])
         add_roa_requests(self.handle, self.obj, asns, self.form.cleaned_data['max_length'])
-        glue.configure_resources(self.handle)
+        glue.configure_resources(self.request.META['wsgi.errors'], self.handle)
         return http.HttpResponseRedirect(self.obj.get_absolute_url())
  
 @handle_required
@@ -336,6 +336,7 @@ def prefix_delete_view(request, pk):
 @handle_required
 def roa_request_delete_view(request, pk):
     '''Remove a roa request from a particular prefix.'''
+    log = request.META['wsgi.errors']
     handle = request.session['handle']
     obj = get_object_or_404(models.RoaRequest.objects, pk=pk)
     prefix = obj.prefix
@@ -346,12 +347,13 @@ def roa_request_delete_view(request, pk):
     obj.delete()
     if not roa.from_roa_request.all():
         roa.delete()
-    glue.configure_resources(handle)
+    glue.configure_resources(log, handle)
 
     return http.HttpResponseRedirect(prefix.get_absolute_url())
 
 @handle_required
 def asn_allocate_view(request, pk):
+    log = request.META['wsgi.errors']
     handle = request.session['handle']
     obj = get_object_or_404(models.Asn.objects, pk=pk)
     # ensure this resource range belongs to a parent of the current conf
@@ -362,7 +364,7 @@ def asn_allocate_view(request, pk):
         if form.is_valid():
             obj.allocated = form.cleaned_data['child']
             obj.save()
-            glue.configure_resources(handle)
+            glue.configure_resources(log, handle)
             return http.HttpResponseRedirect(obj.get_absolute_url())
     else:
         form = forms.PrefixAllocateForm(obj.allocated.pk if obj.allocated else None,
@@ -477,20 +479,20 @@ def myrpki_xml(request, self_handle):
     will be required to complete the parent-child setup.
     """
     conf = handle_or_404(request, self_handle)
+    log = request.META['wsgi.errors']
 
     if request.method == 'POST':
         fname = glue.conf(self_handle) + '/myrpki.xml'
 
         if not os.path.exists(fname):
-            sys.stderr.write('Saving a copy of myrpki.xml for handle %s to inbox\n' % conf.handle)
+            print >>log, 'Saving a copy of myrpki.xml for handle %s to inbox' % conf.handle
             save_to_inbox(conf, 'myrpki', request.POST['content'])
 
-        sys.stderr.write('writing %s\n' % fname)
-
+        print >>log, 'writing %s' % fname
         with open(fname, 'w') as myrpki_xml :
             myrpki_xml.write(request.POST['content'])
 
-        glue.configure_daemons(conf.host)
+        glue.configure_daemons(log, conf.host)
 
     return serve_file(self_handle, 'myrpki.xml', 'application/xml')
 
@@ -502,15 +504,17 @@ def login(request):
     view will return 200 with the login page when the login fails,
     which is not desirable when using rpkidemo.
     """
+    log = request.META['wsgi.errors']
 
     if request.method == 'POST':
         username = request.POST['username']
         password = request.POST['password']
+        print >>log, 'login request for user %s' % username
         user = auth.authenticate(username=username, password=password)
         if user is not None and user.is_active:
             auth.login(request, user)
             return http.HttpResponse('<p>login succeeded</p>')
-        sys.stderr.write('failed login attempt for user %s\n' % username)
+        print >>log, 'failed login attempt for user %s\n' % username
         return http.HttpResponseForbidden('<p>bad username or password</p>')
     else:
         return http.HttpResponse('<p>This should never been seen by a human</p>')

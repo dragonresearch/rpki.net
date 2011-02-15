@@ -50,13 +50,13 @@ def conf(handle):
 #        print >>conf, template % data
 #    invoke_rpki(handle, ['initialize'])
 
-def invoke_rpki(handle, args):
+def invoke_rpki(log, handle, args):
     """Invoke the myrpki cli for the specified configuration."""
     myrpki_dir = conf(handle)
     config = myrpki_dir + '/rpki.conf'
     # default rpki.conf uses relative paths, so chdir() to the repo first
     cmd = 'cd %s && %s %s' % (myrpki_dir, settings.MYRPKI, ' '.join(['--config=' + config] + args))
-    print >>sys.stderr, 'invoking', cmd
+    print >>log, 'invoking', cmd
     os.system(cmd)
 
 def read_file_from_handle(handle, fname):
@@ -107,13 +107,13 @@ def output_roas(path, handle):
         w.writerows([req.as_roa_prefix(), req.roa.asn,
             '%s-group-%d' % (handle.handle, req.roa.pk)] for req in qs)
 
-def configure_daemons(handle):
+def configure_daemons(log, handle):
     args = ['configure_daemons']
     for hosted in handle.hosting.all():
         args.append(conf(hosted.handle) + '/myrpki.xml')
-    invoke_rpki(handle.handle, args)
+    invoke_rpki(log, handle.handle, args)
 
-def configure_resources(handle):
+def configure_resources(log, handle):
     '''Write out the csv files and invoke the myrpki.py command line tool.'''
     # chdir to the repo dir since the default rpki.conf uses relative
     # pathnames..
@@ -126,14 +126,14 @@ def configure_resources(handle):
     if not run_rpkidemo:
         run_rpkid = cfg.getboolean('run_rpkid')
         if run_rpkid:
-            configure_daemons(handle)
+            configure_daemons(log, handle)
         else:
-            invoke_rpki(handle.handle, ['configure_resources'])
+            invoke_rpki(log, handle.handle, ['configure_resources'])
 
             # send the myrpki.xml to the rpkid hosting me
-            configure_daemons(handle.host)
+            configure_daemons(log, handle.host)
 
             # process the response
-            invoke_rpki(handle.handle, ['configure_resources'])
+            invoke_rpki(log, handle.handle, ['configure_resources'])
 
 # vim:sw=4 ts=8 expandtab

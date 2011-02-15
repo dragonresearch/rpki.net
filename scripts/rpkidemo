@@ -254,18 +254,19 @@ class main(object):
         # Test login credentials
         resp = self.opener.open(self.auth_url) # GET
 
-        r = self.opener.open(
-          self.auth_url,
+        r = self.opener.open(urllib2.Request(
+          url = self.auth_url,
           data = urllib.urlencode({ "username"            : self.username,
                                     "password"            : self.password,
-                                    "csrfmiddlewaretoken" : self.csrftoken() })) # POST
+                                    "csrfmiddlewaretoken" : self.csrftoken() }),
+          headers = { "Referer"    : self.auth_url,
+                      "User-Agent" : self.user_agent})) # POST
         return
 
       except urllib2.URLError, e:
         print "Could not log in to server: %s" % e
         print "Please try again"
-        if e.code != 403:
-          save_error(e)
+        save_error(e)
 
   def csrftoken(self):
     # Django's login form requires the 'csrfmiddlewaretoken.'  It turns out
@@ -337,7 +338,8 @@ class main(object):
                                    "csrfmiddlewaretoken" : self.csrftoken() }) # POST
     try:
       return self.opener.open(urllib2.Request(url, post_data, {
-        "User-Agent"   : self.user_agent }))
+        "User-Agent"   : self.user_agent,
+        "Referer"      : url}))
     except urllib2.HTTPError, e:
       sys.stderr.write("Problem uploading to URL %s\n" % url)
       save_error(e)

@@ -57,6 +57,9 @@ class AddressRange(models.Model):
     allocated = models.ForeignKey('Child', related_name='address_range',
             blank=True, null=True)
 
+    class Meta:
+        ordering = ['lo', 'hi']
+
     def __unicode__(self):
         if self.lo == self.hi:
             return u"%s" % (self.lo,)
@@ -70,6 +73,8 @@ class AddressRange(models.Model):
         except AssertionError, err:
             print err
         return u'%s - %s' % (self.lo, self.hi)
+
+    #__unicode__.admin_order_field = 'lo'
 
     @models.permalink
     def get_absolute_url(self):
@@ -123,11 +128,16 @@ class Asn(models.Model):
     allocated = models.ForeignKey('Child', related_name='asn',
             blank=True, null=True)
 
+    class Meta:
+        ordering = ['lo', 'hi']
+
     def __unicode__(self):
 	if self.lo == self.hi:
 	    return u"ASN %d" % (self.lo,)
 	else:
 	    return u"ASNs %d - %d" % (self.lo, self.hi)
+
+    #__unicode__.admin_order_field = 'lo'
 
     @models.permalink
     def get_absolute_url(self):

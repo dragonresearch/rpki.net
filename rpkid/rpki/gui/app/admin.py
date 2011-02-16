@@ -27,9 +27,11 @@ class ChildAdmin( admin.ModelAdmin ):
     pass
 
 class AddressRangeAdmin( admin.ModelAdmin ):
+    #list_display = ('__unicode__', 'lo', 'hi')
     pass
 
 class AsnAdmin( admin.ModelAdmin ):
+    #list_display = ('__unicode__',)
     pass
 
 class ParentAdmin( admin.ModelAdmin ):

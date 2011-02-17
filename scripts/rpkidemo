@@ -57,7 +57,6 @@ if python_version == (2, 5):
       print 'Please answer "yes" or "no"'
 
 elif have_ssl_module:
-
   try:
     import ssl
   except ImportError:
@@ -85,19 +84,19 @@ def save(filename, data):
 
 def save_error(err):
   """
-  Save the data from the file-like object ``f'' into a temporary file
+  Save the data from the file-like object "f" into a temporary file
   and open a web browser to view the result.
   """
 
-  with tempfile.NamedTemporaryFile(prefix='rpkidemo-error', suffix='.html', delete=False) as tmpf:
+  with tempfile.NamedTemporaryFile(prefix = "rpkidemo-error", suffix = ".html", delete = False) as tmpf:
     tmpf.write(err.read())
 
     # Save filename for use outside the with statement.  This ensures
     # the file is properly flushed prior to invoking the web browser.
     fname = tmpf.name
 
-  sys.stderr.write('errors saved in %s\n' % fname)
-  webbrowser.open('file://' + fname)
+  sys.stderr.write("errors saved in %s\n" % fname)
+  webbrowser.open("file://" + fname)
 
 class CSV_File(object):
   """
@@ -168,8 +167,8 @@ class main(object):
   # Just wire them all in for the moment.
 
   base_url = "https://demo.rpki.net/"
-  myrpki_url = base_url + 'rpki/'
-  auth_url = myrpki_url + 'demo/login'
+  myrpki_url = base_url + "rpki/"
+  auth_url = myrpki_url + "demo/login"
   example_myrpki_cfg = "%s/rpkid/examples/rpki.conf" % top
   working_dir = "%s/rpkidemo-data" % cwd
   myrpki_py = "%s/rpkid/myrpki.py" % top
@@ -269,11 +268,15 @@ class main(object):
         save_error(e)
 
   def csrftoken(self):
-    # Django's login form requires the 'csrfmiddlewaretoken.'  It turns out
-    # this is the same value as the 'csrftoken' cookie, so we don't need
-    # to bother parsing the form.
+    """
+    Pull Django's CSFR token from cookie database.
 
-    return [c.value for c in self.cookiejar if c.name == 'csrftoken'][0]
+    Django's login form requires the "csrfmiddlewaretoken."  It turns out
+    this is the same value as the "csrftoken" cookie, so we don't need
+    to bother parsing the form.
+    """
+
+    return [c.value for c in self.cookiejar if c.name == "csrftoken"][0]
 
   def setup_working_directory(self):
     """
@@ -334,8 +337,9 @@ class main(object):
     url = "%s%s/%s" % (self.myrpki_url, url, self.username)
     data = open(filename).read()
     print "Uploading", filename, "to", url
-    post_data = urllib.urlencode({ "content": data,
-                                   "csrfmiddlewaretoken" : self.csrftoken() }) # POST
+    post_data = urllib.urlencode({
+      "content"             : data,
+      "csrfmiddlewaretoken" : self.csrftoken() }) # POST
     try:
       return self.opener.open(urllib2.Request(url, post_data, {
         "User-Agent"   : self.user_agent,
@@ -366,18 +370,25 @@ class main(object):
 
   def upload_for_response(self, url, path):
     """
-    Upload a xml file to the requested url and wait for for the server
+    Upload an XML file to the requested URL and wait for for the server
     to signal that a response is ready.
     """
 
     self.upload(url, path)
 
+    print """
+          Waiting for response to upload.  This may require action by a human
+          being on the server side, so it may take a while, please be patient.
+          """
+
     while True:
       try:
-        return self.opener.open(urllib2.Request('%s%s/%s' % (self.myrpki_url, url, self.username),
-                                                None, { "User-Agent": self.user_agent }))
+        return self.opener.open(urllib2.Request(
+          "%s%s/%s" % (self.myrpki_url, url, self.username),
+          None,
+          { "User-Agent" : self.user_agent }))
       except urllib2.HTTPError, e:
-        # portal gui uses response code 503 to signal not ready
+        # Portal GUI uses response code 503 to signal "not ready"
         if e.code != 503:
           sys.stderr.write("Problem getting response from %s: %s\n" % (url, e))
           save_error(e)
@@ -395,7 +406,7 @@ class main(object):
     save("parent.xml", parent_data)
     self.myrpki("configure_parent", "parent.xml")
 
-    # extract the parent_handle from the xml response and save it for use by
+    # Extract the parent_handle from the xml response and save it for use by
     # setup_repository()
     self.parent_handle = ElementFromString(parent_data).get("parent_handle")
 

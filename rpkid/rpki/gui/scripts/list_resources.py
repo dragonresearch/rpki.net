@@ -1,6 +1,6 @@
 # $Id$
 #
-# Copyright (C) 2010  SPARTA, Inc. dba Cobham Analytic Solutions
+# Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -209,7 +209,8 @@ for pdu in pdus:
 # verify that we got responses for all expected handles
 for h in handles:
     if h not in seen:
-        print >>sys.stderr, 'error: did not receive response for handle %s' % (h,)
+        if verbose:
+            print 'warning: did not receive response for handle %s' % (h,)
         sys.exit(3)
 
 sys.exit(0) # success

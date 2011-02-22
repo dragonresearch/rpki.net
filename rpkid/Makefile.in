@@ -173,17 +173,26 @@ distclean:: clean docclean
 	cd tests; ${MAKE} $@
 	rm -f TAGS rpki/__doc__.py Makefile
 
-COMPILE_COMMON = export AC_PYTHON_INTERPRETER; if test -r $@; then chmod u+w $@; else :; fi; AC_RPKI_CONFIG_DIR='${sysconfdir}' ${PYTHON} ${abs_top_srcdir}/buildtools/make-python-executable.py <$? >$@; chmod 555 $@
+COMPILE_COMMON = \
+	export AC_PYTHON_INTERPRETER; \
+	if test -r $@; then chmod u+w $@; else :; fi; \
+	AC_RPKI_CONFIG_DIR='${sysconfdir}' \
+	${PYTHON} ${abs_top_srcdir}/buildtools/make-python-executable.py <$? >$@; \
+	chmod 555 $@
+
 COMPILE_PYTHON = AC_PYTHON_INTERPRETER='${PYTHON}'; ${COMPILE_COMMON}
 COMPILE_PYWRAP = AC_PYTHON_INTERPRETER='${PYWRAP}'; ${COMPILE_COMMON}
+
 COMPILE_SETTINGS = \
-		   AC_DATABASE_PATH='${localstatedir}/rpki/gui.db' \
-		   AC_TEMPLATE_DIR=${datarootdir}/rpki/gui/templates \
-		   AC_SECRET_KEY='${SECRET_KEY}' \
-		   AC_MYRPKI='${sbindir}/myrpki' \
-		   AC_LOCALSTATEDIR='${localstatedir}' \
-		   AC_WEBUSER='${WEBUSER}' \
-		   ${PYTHON} ${abs_top_srcdir}/buildtools/subst-vars.py <$? >$@; chmod 555 $@
+	if test -r $@; then chmod u+w $@; else :; fi; \
+	AC_DATABASE_PATH='${localstatedir}/rpki/gui.db' \
+	AC_TEMPLATE_DIR=${datarootdir}/rpki/gui/templates \
+	AC_SECRET_KEY='${SECRET_KEY}' \
+	AC_MYRPKI='${sbindir}/myrpki' \
+	AC_LOCALSTATEDIR='${localstatedir}' \
+	AC_WEBUSER='${WEBUSER}' \
+	${PYTHON} ${abs_top_srcdir}/buildtools/subst-vars.py <$? >$@; \
+	chmod 555 $@
 
 rpki-sql-backup: rpki-sql-backup.py
 	${COMPILE_PYTHON}

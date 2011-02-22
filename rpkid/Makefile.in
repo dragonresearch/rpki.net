@@ -173,9 +173,9 @@ distclean:: clean docclean
 	cd tests; ${MAKE} $@
 	rm -f TAGS rpki/__doc__.py Makefile
 
-COMPILE_COMMON = AC_RPKI_CONFIG_DIR='${sysconfdir}' ${PYTHON} ${abs_top_srcdir}/buildtools/make-python-executable.py <$? >$@; chmod 555 $@
-COMPILE_PYTHON = AC_PYTHON_INTERPRETER='${PYTHON}' ${COMPILE_COMMON}
-COMPILE_PYWRAP = AC_PYTHON_INTERPRETER='${PYWRAP}' ${COMPILE_COMMON}
+COMPILE_COMMON = export AC_PYTHON_INTERPRETER; if test -r $@; then chmod u+w $@; else :; fi; AC_RPKI_CONFIG_DIR='${sysconfdir}' ${PYTHON} ${abs_top_srcdir}/buildtools/make-python-executable.py <$? >$@; chmod 555 $@
+COMPILE_PYTHON = AC_PYTHON_INTERPRETER='${PYTHON}'; ${COMPILE_COMMON}
+COMPILE_PYWRAP = AC_PYTHON_INTERPRETER='${PYWRAP}'; ${COMPILE_COMMON}
 COMPILE_SETTINGS = \
 		   AC_DATABASE_PATH='${localstatedir}/rpki/gui.db' \
 		   AC_TEMPLATE_DIR=${datarootdir}/rpki/gui/templates \

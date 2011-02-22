@@ -173,12 +173,12 @@ static void addr_expand(unsigned char *addr,
  *
  * NB: When invoked this way, CMS_verify() does -not- verify, it just decodes the ASN.1.
  */
-static const ROA *read_roa(const char *filename, const int print_cms, const int print_roa, const int print_signerinfo)
+static ROA *read_roa(const char *filename, const int print_cms, const int print_roa, const int print_signerinfo, const int print_brief)
 {
   unsigned char addr[ADDR_RAW_BUF_LEN];
   CMS_ContentInfo *cms = NULL;
   const ASN1_OBJECT *oid = NULL;
-  const ROA *r = NULL;
+  ROA *r = NULL;
   char buf[512];
   BIO *b;
   int i, j, k, n;
@@ -242,16 +242,23 @@ static const ROA *read_roa(const char *filename, const int print_cms, const int 
 
   if (print_roa) {
 
-    if ((oid = CMS_get0_eContentType(cms)) == NULL)
-      goto done;
-    OBJ_obj2txt(buf, sizeof(buf), oid, 0);
-    printf("eContentType:   %s\n", buf);
+    if (print_brief) {
 
-    if (r->version)
-      printf("version:        %ld\n", ASN1_INTEGER_get(r->version));
-    else
-      printf("version:        0 [Defaulted]\n");
-    printf("asID:           %ld\n", ASN1_INTEGER_get(r->asID));
+      printf("%ld", ASN1_INTEGER_get(r->asID));
+
+    } else {
+
+      if ((oid = CMS_get0_eContentType(cms)) == NULL)
+	goto done;
+      OBJ_obj2txt(buf, sizeof(buf), oid, 0);
+      printf("eContentType:   %s\n", buf);
+
+      if (r->version)
+	printf("version:        %ld\n", ASN1_INTEGER_get(r->version));
+      else
+	printf("version:        0 [Defaulted]\n");
+      printf("asID:           %ld\n", ASN1_INTEGER_get(r->asID));
+    }
 
     for (i = 0; i < sk_ROAIPAddressFamily_num(r->ipAddrBlocks); i++) {
 
@@ -259,15 +266,20 @@ static const ROA *read_roa(const char *filename, const int print_cms, const int 
 
       unsigned afi = (f->addressFamily->data[0] << 8) | (f->addressFamily->data[1]);
 
-      printf(" addressFamily: %x", afi);
-      if (f->addressFamily->length == 3)
-	printf("[%x]", f->addressFamily->data[2]);
-      printf("\n");
+      if (!print_brief) {
+	printf(" addressFamily: %x", afi);
+	if (f->addressFamily->length == 3)
+	  printf("[%x]", f->addressFamily->data[2]);
+	printf("\n");
+      }
 
       for (j = 0; j < sk_ROAIPAddress_num(f->addresses); j++) {
 	ROAIPAddress *a = sk_ROAIPAddress_value(f->addresses, j);
 
-	printf("     IPaddress: ");
+	if (print_brief)
+	  printf(" ");
+	else
+	  printf("     IPaddress: ");
 
 	switch (afi) {
 
@@ -287,9 +299,11 @@ static const ROA *read_roa(const char *filename, const int print_cms, const int 
 	  break;
 
 	default:
-	  for (k = 0; k < a->IPAddress->length; k++)
-	    printf("%s%02x", (k > 0 ? ":" : ""), a->IPAddress->data[k]);
-	  printf("[%d]", (int) (a->IPAddress->flags & 7));
+	  if (!print_brief) {
+	    for (k = 0; k < a->IPAddress->length; k++)
+	      printf("%s%02x", (k > 0 ? ":" : ""), a->IPAddress->data[k]);
+	    printf("[%d]", (int) (a->IPAddress->flags & 7));
+	  }
 	  break;
 
 	}
@@ -299,9 +313,12 @@ static const ROA *read_roa(const char *filename, const int print_cms, const int 
 	if (a->maxLength)
 	  printf("-%ld", ASN1_INTEGER_get(a->maxLength));
 
-	printf("\n");
+	if (!print_brief)
+	  printf("\n");
       }
     }
+    if (print_brief)
+      printf("\n");
   }
 
  done:
@@ -319,14 +336,24 @@ static const ROA *read_roa(const char *filename, const int print_cms, const int 
  */
 int main (int argc, char *argv[])
 {
-  int result = 0;
+  int result = 0, brief = 0;
+  char *jane = argv[0];
+  ROA *r;
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
+  if (argc > 1 && !strcmp(argv[1], "-b")) {
+    brief = 1;
+    argv++;
+    argc--;
+  }
   if (argc < 2) {
-    fprintf(stderr, "usage: %s ROA [ROA...]\n", argv[0]);
+    fprintf(stderr, "usage: %s [-b] ROA [ROA...]\n", jane);
     return 1;
   }
-  while (--argc > 0)
-    result |=  read_roa(*++argv, 0, 1, 1) == NULL;
+  while (--argc > 0) {
+    r = read_roa(*++argv, 0, 1, !brief, brief);
+    result |=  r == NULL;
+    ROA_free(r);
+  }
   return result;
 }

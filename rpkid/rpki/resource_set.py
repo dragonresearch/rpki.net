@@ -890,6 +890,14 @@ class roa_prefix(object):
       return cls(cls.range_type.datum_type(r.group(1)), int(r.group(2)))
     raise rpki.exceptions.BadROAPrefix, 'Bad ROA prefix "%s"' % (x)
 
+  @classmethod
+  def from_roa_tuple(cls, o):
+    """
+    Convert from ROA ASN.1 tuple format.
+    """
+    assert isinstance(o, (list, tuple)), 'argument must be either list or tuple'
+    return cls(cls.range_type.datum_type(_bs2long(o[0], cls.range_type.datum_type.bits, 0)), len(o[0]), o[1])
+
 class roa_prefix_ipv4(roa_prefix):
   """
   IPv4 ROA prefix.

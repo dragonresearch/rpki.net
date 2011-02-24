@@ -1,6 +1,6 @@
 # $Id$
 
-NAME = print_manifest
+NAME = print_rpki_manifest
 
 BIN = ${NAME}
 SRC = ${NAME}.c

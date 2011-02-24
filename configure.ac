@@ -238,7 +238,7 @@ AC_CONFIG_FILES([Makefile
 		 utils/Makefile
 		 utils/find_roa/Makefile
 		 utils/hashdir/Makefile
-		 utils/print_manifest/Makefile
+		 utils/print_rpki_manifest/Makefile
 		 utils/print_roa/Makefile
 		 utils/uri/Makefile])
 

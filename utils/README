@@ -21,7 +21,7 @@ hashdir/hashdir:
 			
 	Usage: hashdir input-directory output-directory
 
-print_manifest/print_manifest:
+print_rpki_manifest/print_rpki_manifest:
 	Prettyprint the content of a manifest.  Does NOT attempt to
 	verify the signature.
 			

@@ -10,6 +10,20 @@ CFLAGS = @CFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
 
+INSTALL		= @INSTALL@ -m 555 
+
+prefix		= @prefix@
+exec_prefix	= @exec_prefix@
+datarootdir	= @datarootdir@
+datadir		= @datadir@
+localstatedir	= @localstatedir@
+sharedstatedir	= @sharedstatedir@
+sysconfdir	= @sysconfdir@
+bindir		= @bindir@
+sbindir		= @sbindir@
+libexecdir	= @libexecdir@
+libdir		= @libdir@
+
 abs_top_srcdir	 = @abs_top_srcdir@
 abs_top_builddir = @abs_top_builddir@
 
@@ -30,8 +44,11 @@ test: ${BIN}
 clean::
 	rm -rf ${OUTPUT}
 
-install deinstall uninstall:
-	@true
+install: all
+	${INSTALL} ${BIN} ${bindir}
+
+deinstall uninstall:
+	rm -f ${bindir}/${BIN}
 
 distclean: clean
 	rm -f Makefile

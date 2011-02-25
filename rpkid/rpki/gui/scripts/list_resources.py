@@ -34,45 +34,23 @@ import sys
 import os
 os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.settings'
 
-from datetime import datetime
 import getopt
+from datetime import datetime, timedelta
 from os.path import basename
 
-from rpki.myrpki import CA
-import rpki.config
-import rpki.x509
-import rpki.http
-import rpki.async
-import rpki.left_right
-import rpki.resource_set
-
-from rpki.gui.app import models
+import rpki.config, rpki.left_right, rpki.resource_set
+from rpki.gui.app import models, glue
 
 verbose = False
 version = '$Id$'
 
 def query_rpkid():
-    """Fetch our received resources from the local rpkid using the rpki.conf
-    in the current directory."""
-    cfg_file = os.getenv("RPKI_CONF", "rpki.conf")
-    cfg = rpki.config.parser(cfg_file, "myrpki")
-    bpki_servers = CA(cfg_file, cfg.get("bpki_servers_directory"))
-    rpkid_base = "http://%s:%s/" % (cfg.get("rpkid_server_host"), cfg.get("rpkid_server_port"))
-
-    if verbose:
-        print 'current directory is', os.getcwd()
-        print 'cfg_file=', cfg_file
-        print 'bpki_servers=', bpki_servers.dir
-        print 'rpkid_base=', rpkid_base
-
-    call_rpkid = rpki.async.sync_wrapper(rpki.http.caller(
-        proto       = rpki.left_right,
-        client_key  = rpki.x509.RSA(PEM_file = bpki_servers.dir + "/irbe.key"),
-        client_cert = rpki.x509.X509(PEM_file = bpki_servers.dir + "/irbe.cer"),
-        server_ta   = rpki.x509.X509(PEM_file = bpki_servers.cer),
-        server_cert = rpki.x509.X509(PEM_file = bpki_servers.dir + "/rpkid.cer"),
-        url         = rpkid_base + "left-right",
-        debug = verbose))
+    """
+    Fetch our received resources from the local rpkid using the rpki.conf
+    in the current directory.
+    """
+    cfg = rpki.config.parser(section='myrpki')
+    call_rpkid = glue.build_rpkid_caller(cfg, verbose)
 
     if verbose:
         print 'retrieving the list of <self/> handles served by this rpkid'
@@ -138,7 +116,11 @@ for pdu in pdus:
         if not child_set:
             if verbose:
                 print 'creating new child %s' % (pdu.child_handle,)
-            child = models.Child(conf=conf, handle=pdu.child_handle)
+            # default to 1 year.  no easy way to query irdb for the
+            # current value.
+            valid_until = datetime.now() + timedelta(days=365)
+            child = models.Child(conf=conf, handle=pdu.child_handle,
+                                 valid_until=valid_until)
             child.save()
     #elif isinstance(x, rpki.left_right.list_roa_requests_elt):
     #    print x.asn, x.ipv4, x.ipv6

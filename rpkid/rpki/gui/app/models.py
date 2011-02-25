@@ -90,7 +90,6 @@ class AddressRange(models.Model):
         try:
             self.as_resource_range().prefixlen()
         except rpki.exceptions.MustBePrefix, err:
-            print err
             return False
         return True
 
@@ -106,7 +105,7 @@ class RoaRequest(models.Model):
     def as_roa_prefix(self):
         '''Convert to a rpki.resouce_set.roa_prefix subclass.'''
         r = self.prefix.as_resource_range()
-        if isinstance(r, rpki.resource_set.resource_set_ipv4):
+        if isinstance(r, rpki.resource_set.resource_range_ipv4):
             return rpki.resource_set.roa_prefix_ipv4(r.min, r.prefixlen(),
                     self.max_length)
         else:
@@ -152,6 +151,7 @@ class Asn(models.Model):
 class Child(models.Model):
     conf = models.ForeignKey(Conf, related_name='children')
     handle = HandleField() # parent's name for child
+    valid_until = models.DateTimeField()
 
     def __unicode__(self):
 	return u"%s's child %s" % (self.conf, self.handle)

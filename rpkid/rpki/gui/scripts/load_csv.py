@@ -1,6 +1,6 @@
 # $Id$
 #
-# Copyright (C) 2010  SPARTA, Inc. dba Cobham Analytic Solutions
+# Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -23,22 +23,18 @@
 # for the handle you are loading data
 #
 
-import sys, os
+import os
 os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.settings'
 
 import csv
 import socket # for socket.error
 
-import rpki
-import rpki.resource_set
-import rpki.ipaddrs
+import rpki.resource_set, rpki.ipaddrs
 from rpki.myrpki import csv_reader
-
 from rpki.gui.app import models
 from rpki.gui.app.views import add_roa_requests
 
-cfg_file = os.getenv("RPKI_CONF", "rpki.conf")
-cfg = rpki.config.parser(cfg_file, "myrpki")
+cfg = rpki.config.parser(section='myrpki')
 handle = cfg.get('handle')
 asn_csv = cfg.get('asn_csv')
 prefix_csv = cfg.get('prefix_csv')

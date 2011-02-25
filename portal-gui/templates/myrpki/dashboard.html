@@ -54,18 +54,19 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 {% if request.session.handle.children.all %}
 <ul>
 {% for child in request.session.handle.children.all %}
-<li><a href="{% url rpki.gui.app.views.child_view child.handle %}">{{ child.handle }}</a>
+<li><a href="{% url rpki.gui.app.views.child_view child.handle %}">{{ child.handle }}</a>, valid until {{ child.valid_until }}
 {% if child.address_range.count or child.asn.count %}
 <p>Delegated resources:
 <ul>
 {% for asn in child.asn.all %}
-<li><a href="{{ asn.get_absolute_url }}">{{ asn }}</a>
+<li><a href="{{ asn.get_absolute_url }}">{{ asn }}</a></li>
 {% endfor %}
 {% for address in child.address_range.all %}
-<li><a href="{{ address.get_absolute_url}}">{{ address }}</a>
+<li><a href="{{ address.get_absolute_url}}">{{ address }}</a></li>
 {% endfor %}
 </ul>
 {% endif %}
+</li>
 {% endfor %}
 </ul>
 <!--

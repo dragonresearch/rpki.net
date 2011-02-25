@@ -492,9 +492,13 @@ def myrpki_xml(request, self_handle):
         with open(fname, 'w') as myrpki_xml :
             myrpki_xml.write(request.POST['content'])
 
-        glue.configure_daemons(log, conf.host)
+        # FIXME: used to run configure_daemons here, but it takes too
+        # long with many hosted handles.  rpkidemo still needs a way
+        # to do initial bpki setup with rpkid!
 
-    return serve_file(self_handle, 'myrpki.xml', 'application/xml')
+        return http.HttpResponse('<p>success</p>')
+    else:
+        return serve_file(self_handle, 'myrpki.xml', 'application/xml')
 
 def login(request):
     """

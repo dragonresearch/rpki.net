@@ -885,6 +885,109 @@ def b64_equal(thing1, thing2):
 
 
 
+class IRDB(object):
+  """
+  Front-end to the IRDB.  This is broken out from class main so
+  that other applications (namely, the portal-gui) can reuse it.
+  """
+  def __init__(self, cfg):
+    """
+    Opens a new connection to the IRDB, using the configuration
+    information from a rpki.config.parser object.
+    """
+
+    if hasattr(warnings, "catch_warnings"):
+      with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        import MySQLdb
+    else:
+      import MySQLdb
+
+    irdbd_cfg = rpki.config.parser(cfg.get("irdbd_conf", cfg.filename), "irdbd")
+
+    self.db = MySQLdb.connect(user   = irdbd_cfg.get("sql-username"),
+                              db     = irdbd_cfg.get("sql-database"),
+                              passwd = irdbd_cfg.get("sql-password"))
+
+  def update(self, handle, roa_requests, children):
+    """
+    Update the IRDB for a given resource handle.  Removes all
+    existing data and replaces it with that specified in the
+    argument list.
+
+    The "roa_requests" argument is a sequence of tuples of the form
+    (asID, v4_addresses, v6_addresses), where "v*_addresses" are
+    instances of rpki.resource_set.roa_prefix_set_ipv*.
+
+    The "children" argument is a sequence of tuples of the form
+    (child_handle, asns, v4addrs, v6addrs, valid_until),
+    where "asns" is an instance of rpki.resource_set.resource_set_asn,
+    "v*addrs" are instances of rpki.resource_set.resource_set_ipv*,
+    and "valid_until" is an instance of rpki.sundial.datetime.
+    """
+
+    cur = self.db.cursor()
+
+    cur.execute(
+      """
+      DELETE
+      FROM  roa_request_prefix
+      USING roa_request, roa_request_prefix
+      WHERE roa_request.roa_request_id = roa_request_prefix.roa_request_id AND roa_request.roa_request_handle = %s
+      """, (handle,))
+
+    cur.execute("DELETE FROM roa_request WHERE roa_request.roa_request_handle = %s", (handle,))
+
+    for asID, v4addrs, v6addrs in roa_requests:
+      assert isinstance(v4addrs, rpki.resource_set.roa_prefix_set_ipv4)
+      assert isinstance(v6addrs, rpki.resource_set.roa_prefix_set_ipv6)
+      cur.execute("INSERT roa_request (roa_request_handle, asn) VALUES (%s, %s)", (handle, asID))
+      roa_request_id = cur.lastrowid
+      for version, prefix_set in ((4, v4addrs), (6, v6addrs)):
+        if prefix_set:
+          cur.executemany("INSERT roa_request_prefix (roa_request_id, prefix, prefixlen, max_prefixlen, version) VALUES (%s, %s, %s, %s, %s)",
+                          ((roa_request_id, p.prefix, p.prefixlen, p.max_prefixlen, version) for p in prefix_set))
+
+    cur.execute(
+      """
+      DELETE
+      FROM   registrant_asn
+      USING registrant, registrant_asn
+      WHERE registrant.registrant_id = registrant_asn.registrant_id AND registrant.registry_handle = %s
+      """ , (handle,))
+
+    cur.execute(
+      """
+      DELETE FROM registrant_net USING registrant, registrant_net
+      WHERE registrant.registrant_id = registrant_net.registrant_id AND registrant.registry_handle = %s
+      """ , (handle,))
+
+    cur.execute("DELETE FROM registrant WHERE registrant.registry_handle = %s" , (handle,))
+
+    for child_handle, asns, ipv4, ipv6, valid_until in children:
+      cur.execute("INSERT registrant (registrant_handle, registry_handle, registrant_name, valid_until) VALUES (%s, %s, %s, %s)",
+                  (child_handle, handle, child_handle, valid_until.to_sql()))
+      child_id = cur.lastrowid
+      if asns:
+        cur.executemany("INSERT registrant_asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)",
+                        ((a.min, a.max, child_id) for a in asns))
+      if ipv4:
+        cur.executemany("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)",
+                        ((a.min, a.max, child_id) for a in ipv4))
+      if ipv6:
+        cur.executemany("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)",
+                        ((a.min, a.max, child_id) for a in ipv6))
+
+    self.db.commit()
+
+  def close(self):
+    """
+    Close the connection to the IRDB.
+    """
+    self.db.close()
+    
+
+
 class main(rpki.cli.Cmd):
 
   prompt = "myrpki> "
@@ -1502,12 +1605,6 @@ class main(rpki.cli.Cmd):
     try:
       import rpki.http, rpki.resource_set, rpki.relaxng, rpki.exceptions
       import rpki.left_right, rpki.x509, rpki.async
-      if hasattr(warnings, "catch_warnings"):
-        with warnings.catch_warnings():
-          warnings.simplefilter("ignore", DeprecationWarning)
-          import MySQLdb
-      else:
-        import MySQLdb
 
     except ImportError, e:
       print "Sorry, you appear to be missing some of the Python modules needed to run this command"
@@ -1560,13 +1657,7 @@ class main(rpki.cli.Cmd):
         action = "set",
         bpki_crl = rpki.x509.CRL(PEM_file = self.bpki_servers.crl)))
 
-    irdbd_cfg = rpki.config.parser(self.cfg.get("irdbd_conf", self.cfg.filename), "irdbd")
-
-    db = MySQLdb.connect(user   = irdbd_cfg.get("sql-username"),
-                         db     = irdbd_cfg.get("sql-database"),
-                         passwd = irdbd_cfg.get("sql-password"))
-
-    cur = db.cursor()
+    irdb = IRDB(self.cfg)
 
     xmlfiles = []
 
@@ -1595,60 +1686,19 @@ class main(rpki.cli.Cmd):
 
       # Update IRDB with parsed resource and roa-request data.
 
-      cur.execute(
-        """
-        DELETE
-        FROM  roa_request_prefix
-        USING roa_request, roa_request_prefix
-        WHERE roa_request.roa_request_id = roa_request_prefix.roa_request_id AND roa_request.roa_request_handle = %s
-        """, (handle,))
+      roa_requests = [(
+        x.get('asn'),
+        rpki.resource_set.roa_prefix_set_ipv4(x.get("v4")),
+        rpki.resource_set.roa_prefix_set_ipv6(x.get("v6"))) for x in tree.getiterator("roa_request")]
 
-      cur.execute("DELETE FROM roa_request WHERE roa_request.roa_request_handle = %s", (handle,))
+      children = [(
+        x.get("handle"),
+        rpki.resource_set.resource_set_as(x.get("asns")),
+        rpki.resource_set.resource_set_ipv4(x.get("v4")),
+        rpki.resource_set.resource_set_ipv6(x.get("v6")),
+        rpki.sundial.datetime.fromXMLtime(x.get("valid_until"))) for x in tree.getiterator("child")]
 
-      for x in tree.getiterator("roa_request"):
-        cur.execute("INSERT roa_request (roa_request_handle, asn) VALUES (%s, %s)", (handle, x.get("asn")))
-        roa_request_id = cur.lastrowid
-        for version, prefix_set in ((4, rpki.resource_set.roa_prefix_set_ipv4(x.get("v4"))), (6, rpki.resource_set.roa_prefix_set_ipv6(x.get("v6")))):
-          if prefix_set:
-            cur.executemany("INSERT roa_request_prefix (roa_request_id, prefix, prefixlen, max_prefixlen, version) VALUES (%s, %s, %s, %s, %s)",
-                            ((roa_request_id, p.prefix, p.prefixlen, p.max_prefixlen, version) for p in prefix_set))
-
-      cur.execute(
-        """
-        DELETE
-        FROM   registrant_asn
-        USING registrant, registrant_asn
-        WHERE registrant.registrant_id = registrant_asn.registrant_id AND registrant.registry_handle = %s
-        """ , (handle,))
-
-      cur.execute(
-        """
-        DELETE FROM registrant_net USING registrant, registrant_net
-        WHERE registrant.registrant_id = registrant_net.registrant_id AND registrant.registry_handle = %s
-        """ , (handle,))
-
-      cur.execute("DELETE FROM registrant WHERE registrant.registry_handle = %s" , (handle,))
-
-      for x in tree.getiterator("child"):
-        child_handle = x.get("handle")
-        asns = rpki.resource_set.resource_set_as(x.get("asns"))
-        ipv4 = rpki.resource_set.resource_set_ipv4(x.get("v4"))
-        ipv6 = rpki.resource_set.resource_set_ipv6(x.get("v6"))
-
-        cur.execute("INSERT registrant (registrant_handle, registry_handle, registrant_name, valid_until) VALUES (%s, %s, %s, %s)",
-                    (child_handle, handle, child_handle, rpki.sundial.datetime.fromXMLtime(x.get("valid_until")).to_sql()))
-        child_id = cur.lastrowid
-        if asns:
-          cur.executemany("INSERT registrant_asn (start_as, end_as, registrant_id) VALUES (%s, %s, %s)",
-                          ((a.min, a.max, child_id) for a in asns))
-        if ipv4:
-          cur.executemany("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 4, %s)",
-                          ((a.min, a.max, child_id) for a in ipv4))
-        if ipv6:
-          cur.executemany("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)",
-                          ((a.min, a.max, child_id) for a in ipv6))
-
-      db.commit()
+      irdb.update(handle, roa_requests, children)
 
       # Check for certificates before attempting anything else
 
@@ -1892,7 +1942,7 @@ class main(rpki.cli.Cmd):
       etree_write(tree, xmlfile, validate = True,
                   msg = None if xmlfile is my_xmlfile else 'Send this file back to the hosted entity ("%s")' % handle)
 
-    db.close()
+    irdb.close()
 
     # We used to run event loop again to give TLS connections a chance to shut down cleanly.
     # Seems not to be needed (and sometimes hangs forever, which is odd) with TLS out of the picture.

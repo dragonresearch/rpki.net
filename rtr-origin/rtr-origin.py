@@ -25,7 +25,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import sys, os, struct, time, glob, socket, fcntl, signal, syslog
 import asyncore, asynchat, subprocess, traceback, getopt
-import rpki.x509, rpki.ipaddrs, rpki.sundial, rpki.async
+import rpki.ipaddrs, rpki.sundial, rpki.async
 
 class read_buffer(object):
   """
@@ -309,31 +309,33 @@ class prefix(pdu):
   Object representing one prefix.  This corresponds closely to one PDU
   in the rpki-router protocol, so closely that we use lexical ordering
   of the wire format of the PDU as the ordering for this class.
+
+  This is a virtual class, but the .from_text() constructor
+  instantiates the correct concrete subclass (ipv4_prefix or
+  ipv6_prefix) depending on the syntax of its input text.
   """
 
   header_struct = struct.Struct("!BB2xLBBBx")
   asnum_struct = struct.Struct("!L")
 
-  @classmethod
-  def from_asn1(cls, asnum, t):
+  @staticmethod
+  def from_text(asnum, addr):
     """
-    Read a prefix from a ROA in the tuple format used by our ASN.1
-    decoder.
+    Construct a prefix from its text form.
     """
-    assert len(t[0]) <= cls.addr_type.bits
-    x = 0L
-    for y in t[0]:
-      x = (x << 1) | y
-    x <<= (cls.addr_type.bits - len(t[0]))
+    cls = ipv6_prefix if ":" in addr else ipv4_prefix
     self = cls()
-    self.asn = asnum
-    self.prefix = cls.addr_type(x)
-    self.prefixlen = len(t[0])
-    self.max_prefixlen = self.prefixlen if t[1] is None else t[1]
+    self.asn = long(asnum)
+    p, l = addr.split("/")
+    self.prefix = self.addr_type(p)
+    if "-" in l:
+      self.prefixlen, self.max_prefixlen = tuple(int(i) for i in l.split("-"))
+    else:
+      self.prefixlen, self.max_prefixlen = int(l), int(l)
     self.announce = 1
     self.check()
     return self
-
+    
   def __str__(self):
     plm = "%s/%s-%s" % (self.prefix, self.prefixlen, self.max_prefixlen)
     return "%s %8s  %-32s %s" % ("+" if self.announce else "-", self.asn, plm, ":".join(("%02X" % ord(b) for b in self.to_pdu())))
@@ -467,8 +469,6 @@ class error_report(pdu):
     assert header + self.to_counted_string(self.errpdu) + self.to_counted_string(self.errmsg.encode("utf8")) == self.to_pdu()
     return self
 
-prefix.afi_map = { "\x00\x01" : ipv4_prefix, "\x00\x02" : ipv6_prefix }
-
 pdu.pdu_map = dict((p.pdu_type, p) for p in (ipv4_prefix, ipv6_prefix, serial_notify, serial_query, reset_query,
                                              cache_response, end_of_data, cache_reset, error_report))
 
@@ -505,6 +505,8 @@ class axfr_set(prefix_set):
   from rcynic's output, all with the announce field set.
   """
 
+  xargs_count = 500
+
   @classmethod
   def parse_rcynic(cls, rcynic_dir):
     """
@@ -513,27 +515,36 @@ class axfr_set(prefix_set):
     """
     self = cls()
     self.serial = rpki.sundial.now().totimestamp()
+    roa_files = []
     for root, dirs, files in os.walk(rcynic_dir):
       for f in files:
         if f.endswith(".roa"):
-          f = os.path.join(root, f)
-          try:
-            roa = rpki.x509.ROA(DER_file = f).extract().get()
-          except:
-            print "Could not parse purported ROA file %r" % f
-            continue
-          if roa[0] != 0:
-            print "ROA %r version is %d, expected version 0" % (f, roa[0])
-            continue
-          asnum = roa[1]
-          for afi, addrs in roa[2]:
-            for addr in addrs:
-              self.append(prefix.afi_map[afi].from_asn1(asnum, addr))
+          roa_files.append(os.path.join(root, f))
+          if len(roa_files) >= self.xargs_count:
+            self.parse_roas(roa_files)
+            roa_files = []
+    if roa_files:
+      self.parse_roas(roa_files)
     self.sort()
     for i in xrange(len(self) - 2, -1, -1):
       if self[i] == self[i + 1]:
         del self[i + 1]
     return self
+
+  def parse_roas(self, files):
+    """
+    Run "print_roa" on a bunch of ROA files, parse the output.  We used to parse ROAs
+    internally, but that made this program depend on all of the
+    complex stuff for building Python extensions, which is way over
+    the top for a relying party tool.
+    """
+    cmd = [print_roa, "-b"]
+    cmd.extend(files)
+    p = subprocess.Popen(cmd, stdout = subprocess.PIPE)
+    for line in p.stdout:
+      line = line.split()
+      asn = line[0]
+      self.extend(prefix.from_text(asn, addr) for addr in line[1:])
 
   @classmethod
   def load(cls, filename):
@@ -1192,6 +1203,11 @@ def log(msg):
 
 os.environ["TZ"] = "UTC"
 time.tzset()
+
+print_roa = os.path.normpath(os.path.join(sys.path[0], "..", "utils",
+                                          "print_roa", "print_roa"))
+if not os.path.exists(print_roa):
+  print_roa = "print_roa"
 
 mode = None
 

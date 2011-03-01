@@ -25,7 +25,51 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import sys, os, struct, time, glob, socket, fcntl, signal, syslog
 import asyncore, asynchat, subprocess, traceback, getopt
-import rpki.ipaddrs, rpki.sundial, rpki.async
+import rpki.async
+
+
+class timestamp(int):
+  """
+  Wrapper around time module.
+  """
+
+  def __new__(cls, x):
+    return int.__new__(cls, x)
+
+  @classmethod
+  def now(cls, delta = 0):
+    return cls(int(time.time() + delta))
+
+  def __str__(self):
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self))
+
+
+class ipaddr(object):
+  """
+  IP addresses.
+  """
+
+  def __init__(self, string = None, value = None):
+    assert (string is None) != (value is None)
+    if string is not None:
+      value = socket.inet_pton(self.af, string)
+    assert len(value) == self.size
+    self.value = value
+
+  def __str__(self):
+    return socket.inet_ntop(self.af, self.value)
+
+  def __cmp__(self, other):
+    return cmp(self.value, other.value)
+
+class v4addr(ipaddr):
+  af = socket.AF_INET
+  size = 4
+
+class v6addr(ipaddr):
+  af = socket.AF_INET6
+  size = 16
+
 
 class read_buffer(object):
   """
@@ -327,7 +371,7 @@ class prefix(pdu):
     self = cls()
     self.asn = long(asnum)
     p, l = addr.split("/")
-    self.prefix = self.addr_type(p)
+    self.prefix = self.addr_type(string = p)
     if "-" in l:
       self.prefixlen, self.max_prefixlen = tuple(int(i) for i in l.split("-"))
     else:
@@ -353,9 +397,9 @@ class prefix(pdu):
     Check attributes to make sure they're within range.
     """
     assert self.announce in (0, 1)
-    assert self.prefixlen >= 0 and self.prefixlen <= self.addr_type.bits
-    assert self.max_prefixlen >= self.prefixlen and self.max_prefixlen <= self.addr_type.bits
-    pdulen = self.header_struct.size + self.addr_type.bits / 8 + self.asnum_struct.size
+    assert self.prefixlen >= 0 and self.prefixlen <= self.addr_type.size * 8
+    assert self.max_prefixlen >= self.prefixlen and self.max_prefixlen <= self.addr_type.size * 8
+    pdulen = self.header_struct.size + self.addr_type.size + self.asnum_struct.size
     assert len(self.to_pdu()) == pdulen, "Expected %d byte PDU, got %d" % pd(pdulen, len(self.to_pdu()))
 
   def to_pdu(self, announce = None):
@@ -366,11 +410,11 @@ class prefix(pdu):
       assert announce in (0, 1)
     elif self._pdu is not None:
       return self._pdu
-    pdulen = self.header_struct.size + self.addr_type.bits / 8 + self.asnum_struct.size
+    pdulen = self.header_struct.size + self.addr_type.size + self.asnum_struct.size
     pdu = (self.header_struct.pack(self.version, self.pdu_type, pdulen,
                                    announce if announce is not None else self.announce,
                                    self.prefixlen, self.max_prefixlen) +
-           self.prefix.to_bytes() +
+           self.prefix.value +
            self.asnum_struct.pack(self.asn))
     if announce is None:
       assert self._pdu is None
@@ -381,11 +425,11 @@ class prefix(pdu):
     if not reader.ready():
       return None
     b1 = reader.get(self.header_struct.size)
-    b2 = reader.get(self.addr_type.bits / 8)
+    b2 = reader.get(self.addr_type.size)
     b3 = reader.get(self.asnum_struct.size)
     version, pdu_type, length, self.announce, self.prefixlen, self.max_prefixlen = self.header_struct.unpack(b1)
     assert length == len(b1) + len(b2) + len(b3)
-    self.prefix = self.addr_type.from_bytes(b2)
+    self.prefix = self.addr_type(value = b2)
     self.asn = self.asnum_struct.unpack(b3)[0]
     assert b1 + b2 + b3 == self.to_pdu()
     return self
@@ -395,14 +439,14 @@ class ipv4_prefix(prefix):
   IPv4 flavor of a prefix.
   """
   pdu_type = 4
-  addr_type = rpki.ipaddrs.v4addr
+  addr_type = v4addr
 
 class ipv6_prefix(prefix):
   """
   IPv6 flavor of a prefix.
   """
   pdu_type = 6
-  addr_type = rpki.ipaddrs.v6addr
+  addr_type = v6addr
 
 class error_report(pdu):
   """
@@ -514,7 +558,7 @@ class axfr_set(prefix_set):
     axfr_set.
     """
     self = cls()
-    self.serial = rpki.sundial.now().totimestamp()
+    self.serial = timestamp.now()
     roa_files = []
     for root, dirs, files in os.walk(rcynic_dir):
       for f in files:
@@ -614,7 +658,7 @@ class axfr_set(prefix_set):
     """
     Print this axfr_set.
     """
-    print "# AXFR %d (%s)" % (self.serial, rpki.sundial.datetime.utcfromtimestamp(self.serial))
+    print "# AXFR %d (%s)" % (self.serial, timestamp(self.serial))
     for p in self:
       print p
 
@@ -648,8 +692,8 @@ class ixfr_set(prefix_set):
     """
     Print this ixfr_set.
     """
-    print "# IXFR %d (%s) -> %d (%s)" % (self.from_serial, rpki.sundial.datetime.utcfromtimestamp(self.from_serial),
-                                         self.to_serial, rpki.sundial.datetime.utcfromtimestamp(self.to_serial))
+    print "# IXFR %d (%s) -> %d (%s)" % (self.from_serial, timestamp(self.from_serial),
+                                         self.to_serial, timestamp(self.to_serial))
     for p in self:
       print p
 
@@ -1044,9 +1088,9 @@ def cronjob_main(argv):
 
   old_ixfrs = glob.glob("*.ix.*")
 
-  cutoff = rpki.sundial.now() - rpki.sundial.timedelta(days = 1)
+  cutoff = timestamp.now(-(24 * 60 * 60))
   for f in glob.iglob("*.ax"):
-    t = rpki.sundial.datetime.utcfromtimestamp(os.stat(f).st_mtime)
+    t = timestamp(os.stat(f).st_mtime)
     if  t < cutoff:
       print "# Deleting old file %s, timestamp %s" % (f, t)
       os.unlink(f)
@@ -1180,6 +1224,7 @@ def client_main(argv):
   a TCP port number.
   """
 
+  import rpki.sundial
   log("[Startup]")
   client = None
   try:

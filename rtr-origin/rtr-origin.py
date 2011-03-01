@@ -25,7 +25,6 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import sys, os, struct, time, glob, socket, fcntl, signal, syslog
 import asyncore, asynchat, subprocess, traceback, getopt
-import rpki.async
 
 
 class timestamp(int):
@@ -918,8 +917,6 @@ class client_channel(pdu_channel):
 
   current_serial = None
 
-  timer = None
-
   def __init__(self, sock, proc, killsig):
     self.killsig = killsig
     self.proc = proc
@@ -978,8 +975,6 @@ class client_channel(pdu_channel):
     well, child will have exited already before this method is called,
     but we may need to whack it with a stick if something breaks.
     """
-    if self.timer is not None:
-      self.timer.cancel()
     if self.proc is not None and self.proc.returncode is None:
       try:
         os.kill(self.proc.pid, self.killsig)
@@ -991,7 +986,7 @@ class client_channel(pdu_channel):
     Intercept close event so we can log it, then shut down.
     """
     log("Server closed channel")
-    rpki.async.exit_event_loop()
+    sys.exit(0)
 
 class kickme_channel(asyncore.dispatcher):
   """
@@ -1176,28 +1171,13 @@ def server_main(argv):
   try:
     server = server_channel()
     kickme = kickme_channel(server = server)
-    rpki.async.event_loop()
+    asyncore.loop(timeout = None)
+  except KeyboardInterrupt:
+    sys.exit(0)
   finally:
     if kickme is not None:
       kickme.cleanup()
 
-class client_timer(rpki.async.timer):
-  """
-  Timer class for client mode, to handle the periodic serial queries.
-  """
-
-  def __init__(self, client, period):
-    rpki.async.timer.__init__(self)
-    self.client = client
-    self.period = period
-    self.set(period)
-
-  def handler(self):
-    if self.client.current_serial is None:
-      self.client.push_pdu(reset_query())
-    else:
-      self.client.push_pdu(serial_query(serial = self.client.current_serial))
-    self.set(self.period)
 
 def client_main(argv):
   """
@@ -1224,7 +1204,6 @@ def client_main(argv):
   a TCP port number.
   """
 
-  import rpki.sundial
   log("[Startup]")
   client = None
   try:
@@ -1236,15 +1215,20 @@ def client_main(argv):
       client = client_channel.tcp(*argv[1:])
     else:
       usage("Unexpected arguments: %r" % (argv,))
-    client.push_pdu(reset_query())
-    client.timer = client_timer(client, rpki.sundial.timedelta(minutes = 10))
-    rpki.async.event_loop()
+    while True:
+      if client.current_serial is None:
+        client.push_pdu(reset_query())
+      else:
+        client.push_pdu(serial_query(serial = client.current_serial))
+      wakeup = time.time() + 600
+      while wakeup > time.time():
+        asyncore.loop(timeout = wakeup - time.time(), count = 1)
+
+  except KeyboardInterrupt:
+    sys.exit(0)
   finally:
     if client is not None:
       client.cleanup()
-
-def log(msg):
-  rpki.log.warn(str(msg))
 
 os.environ["TZ"] = "UTC"
 time.tzset()
@@ -1290,19 +1274,24 @@ for o, a in opts:
 if mode is None:
   usage("No mode specified")
 
-tag = mode
-
-rpki.log.use_syslog = mode in ("cronjob", "server")
+log_tag = "rtr-origin/" + mode
 
 if mode == "server":
   #
   # Try to figure out peer address when we're in server mode.
   try:
-    tag += "/tcp/" + str(socket.fromfd(0, socket.AF_INET, socket.SOCK_STREAM).getpeername()[0])
+    log_tag += "/tcp/" + str(socket.fromfd(0, socket.AF_INET, socket.SOCK_STREAM).getpeername()[0])
   except (socket.error, IndexError):
     if os.getenv("SSH_CONNECTION"):
-      tag += "/ssh/" + os.getenv("SSH_CONNECTION").split()[0]
+      log_tag += "/ssh/" + os.getenv("SSH_CONNECTION").split()[0]
 
-rpki.log.init("rtr-origin/" + tag, syslog.LOG_PID)
+if mode in ("cronjob", "server"):
+  syslog.openlog(log_tag, syslog.LOG_PID, syslog.LOG_DAEMON)
+  def log(msg):
+    return syslog.syslog(syslog.LOG_WARNING, str(msg))
+
+else:
+  def log(msg):
+    sys.stderr.write("%s %s[%d]: %s\n" % (time.strftime("%F %T"), log_tag, os.getpid(), msg))
 
 main_dispatch[mode](argv)

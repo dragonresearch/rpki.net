@@ -1,6 +1,18 @@
-# sample apache configuration file for using the portal-gui with mod_wsgi
+# $Id$
+#
+# Sample apache configuration file for using the portal-gui with
+# mod_wsgi
 
-# defines the url to the portal-gui
+#
+# Configure the WSGI application to run as a separate process from the
+# Apache daemon itself.
+#
+#WSGIDaemonProcess rpki processes=2
+#WSGIProcessGroup rpki
+
+#
+# Defines the URL to the portal-gui
+#
 WSGIScriptAlias / @INSTDIR@/apache/rpki.wsgi
 <Directory @INSTDIR@/rpkigui>
 Order deny,allow
@@ -14,3 +26,4 @@ Order allow,deny
 Allow from all
 </Directory>
 
+# vim:ft=apache

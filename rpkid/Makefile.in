@@ -41,12 +41,12 @@ SETUP_PY = \
 POW_SO	= rpki/POW/_POW.so
 
 SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd myrpki \
-	  pubd rootd rpkid rpki/gui/scripts/rpkigui-load-csv rpki/gui/scripts/rpkigui-add-user \
-	  rpki/gui/scripts/rpkigui-response
+	  pubd rootd rpkid portal-gui/rpkigui-load-csv portal-gui/rpkigui-add-user \
+	  portal-gui/rpkigui-response
 
-AUX_SCRIPTS = rpki/gui/scripts/rpkigui-list-resources
+AUX_SCRIPTS = portal-gui/rpkigui-list-resources
 
-all: ${POW_SO} rpki/relaxng.py myrpki.rng ${SCRIPTS} ${AUX_SCRIPTS} rpki/gui/settings.py
+all: ${POW_SO} rpki/relaxng.py myrpki.rng ${SCRIPTS} ${AUX_SCRIPTS} rpki/gui/settings.py rpki/gui/app/settings.py
 
 ${POW_SO}: ext/POW.c setup.py
 	${SETUP_PY} build_ext --inplace
@@ -186,7 +186,6 @@ COMPILE_PYWRAP = AC_PYTHON_INTERPRETER='${PYWRAP}'; ${COMPILE_COMMON}
 COMPILE_SETTINGS = \
 	if test -r $@; then chmod u+w $@; else :; fi; \
 	AC_DATABASE_PATH='${localstatedir}/rpki/gui.db' \
-	AC_TEMPLATE_DIR=${datarootdir}/rpki/gui/templates \
 	AC_SECRET_KEY='${SECRET_KEY}' \
 	AC_MYRPKI='${sbindir}/myrpki' \
 	AC_LOCALSTATEDIR='${localstatedir}' \
@@ -221,18 +220,22 @@ rootd: rootd.py
 rpkid: rpkid.py
 	${COMPILE_PYWRAP}
 
-rpki/gui/scripts/rpkigui-list-resources: rpki/gui/scripts/list_resources.py
+portal-gui/rpkigui-list-resources: portal-gui/list_resources.py
 	${COMPILE_PYTHON}
 
-rpki/gui/scripts/rpkigui-load-csv: rpki/gui/scripts/load_csv.py
+portal-gui/rpkigui-load-csv: portal-gui/load_csv.py
 	${COMPILE_PYTHON}
 
-rpki/gui/scripts/rpkigui-add-user: rpki/gui/scripts/adduser.py
+portal-gui/rpkigui-add-user: portal-gui/adduser.py
 	${COMPILE_PYTHON}
 
-rpki/gui/scripts/rpkigui-response: rpki/gui/scripts/rpkigui-response.py
+portal-gui/rpkigui-response: portal-gui/scripts/rpkigui-response.py
 	${COMPILE_PYTHON}
 
 rpki/gui/settings.py: ${srcdir}/rpki/gui/settings.py.in
+	rm -f $@
+	${COMPILE_SETTINGS}
+
+rpki/gui/app/settings.py: ${srcdir}/rpki/gui/app/settings.py.in
 	rm -f $@
 	${COMPILE_SETTINGS}

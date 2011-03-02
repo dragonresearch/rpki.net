@@ -4300,7 +4300,7 @@ fi
 done
 
 
-        ac_config_files="$ac_config_files portal-gui/Makefile"
+        ac_config_files="$ac_config_files rpkid/portal-gui/Makefile"
 
 fi
 
@@ -5023,7 +5023,7 @@ do
     "pywrap/Makefile") CONFIG_FILES="$CONFIG_FILES pywrap/Makefile" ;;
     "rpkid/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/Makefile" ;;
     "rpkid/tests/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/tests/Makefile" ;;
-    "portal-gui/Makefile") CONFIG_FILES="$CONFIG_FILES portal-gui/Makefile" ;;
+    "rpkid/portal-gui/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/portal-gui/Makefile" ;;
     "rpkid/rpki/__doc__.py") CONFIG_FILES="$CONFIG_FILES rpkid/rpki/__doc__.py" ;;
 
   *) as_fn_error "invalid argument: \`$ac_config_target'" "$LINENO" 5;;

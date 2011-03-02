@@ -330,7 +330,7 @@ then
         # there is no standard name for this tool, so check for it
         AC_PATH_PROGS(DJANGO_ADMIN, [django-admin django-admin.py])
 
-        AC_CONFIG_FILES([portal-gui/Makefile])
+        AC_CONFIG_FILES([rpkid/portal-gui/Makefile])
 fi
 
 # This should go away once its content has migrated from Doxygen into DocBook.

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Handle List</h1>
+<p>Please select a handle.</p>
+
+<ul>
+{% for c in conf_list %}
+<li><a href="{{ select_url }}?handle={{ c.handle }}&next={{ next_url }}">{{ c.handle }}</a></li>
+{% endfor %}
+</ul>
+
+<!--
+<p><a href="/myrpki/conf/add?next={{ next_url }}">[create]</a>
+-->
+
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block css %}
+table { border-collapse: collapse }
+th { border: solid 1px; padding: 1em }
+td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1em }
+{% endblock %}
+
+{% block content %}
+<p>Handle: <a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle }}</a>
+
+<h1>ASN View</h1>
+
+<table>
+    <tr> <td>ASN:</td><td>{{ asn }}</td> </tr>
+    {% if asn.parent %}
+    <tr>
+        <td>Suballocated from:</td>
+        <td><a href="{{ asn.parent.get_absolute_url }}">{{ asn.parent }}</a></td>
+    </tr>
+    {% endif %}
+    <tr>
+        <td>Received from:</td>
+        <td>
+            {% for p in parent %}
+            <a href="{{ p.get_absolute_url }}">{{ p.handle }}</a>
+            {% endfor %}
+        </td>
+    </tr>
+    <tr><td>Validity:</td><td>{{ asn.from_cert.all.0.not_before }} - {{ asn.from_cert.all.0.not_after }} </td></tr>
+
+    {% if asn.allocated %}
+    <tr><td>Allocated:</td><td><a href="{{asn.allocated.get_absolute_url}}">{{asn.allocated.handle}}</a></td></tr>
+    {% endif %}
+</table>
+
+{% if asn.children.count %}
+<h2>Suballocations</h2>
+
+<ul>
+{% for subaddr in asn.children.all %}
+<li><a href="{{ subaddr.get_absolute_url }}">{{ subaddr }}</a>
+{% endfor %}
+</ul>
+
+{% endif %}
+
+{% if roas %}
+<h2>ROAs</h2>
+<table>
+    <tr><th>Prefixes</th></tr>
+    {% for r in roas %}
+    <tr>
+        <td style='text-align: left'>
+            <ul>
+            {% for p in r.from_roa_request.all %}
+                <li><a href="{{ p.prefix.get_absolute_url }}">{{ p.prefix }}</a>
+            {% endfor %}
+            </ul>
+        </td>
+    </tr>
+    {% endfor %}
+    </ul>
+</table>
+{% endif %} <!-- roas -->
+
+{% if unallocated %}
+<h2>Unallocated</h2>
+<ul>
+{% for u in unallocated %}
+<li>{{ u }}
+{% endfor %}
+</ul>
+{% endif %}
+
+{% if form %}
+<h2>Edit</h2>
+<form method="POST" action="{{ request.get_full_path }}">{% csrf_token %}
+    {{ form.as_p }}
+    <input type="submit">
+</form>
+{% endif %}
+
+<p>Action:
+<a href="{{asn.get_absolute_url}}/allocate">give to child</a>
+
+{% endblock %}

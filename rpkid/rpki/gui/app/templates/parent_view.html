@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+<p>Handle: <a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle.handle }}</a>
+<h1>Parent View</h1>
+<p>Parent: {{ parent.handle }}
+<h2>Delegated Addresses</h2>
+<ul>
+{% for c in parent.resources.all %}
+{% for a in c.address_range.all %}
+<li><a href="{{ a.get_absolute_url }}">{{ a }}</a>
+{% endfor %}
+{% endfor %}
+</ul>
+
+<h2>Delegated ASNs</h2>
+<ul>
+{% for c in parent.resources.all %}
+{% for a in c.asn.all %}
+<li><a href="{{ a.get_absolute_url }}">{{ a }}</a>
+{% endfor %}
+{% endfor %}
+</ul>
+
+{% endblock %}

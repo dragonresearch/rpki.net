@@ -228,7 +228,6 @@ test $build_openssl = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
 				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils"
 test $build_pywrap = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pywrap"
 test $build_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
-test $build_django = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS portal-gui"
 
 AC_SUBST(TOP_LEVEL_SUBDIRS)
 

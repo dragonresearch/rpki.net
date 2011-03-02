@@ -41,10 +41,10 @@ SETUP_PY = \
 POW_SO	= rpki/POW/_POW.so
 
 SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd myrpki \
-	  pubd rootd rpkid portal-gui/rpkigui-load-csv portal-gui/rpkigui-add-user \
-	  portal-gui/rpkigui-response
+	  pubd rootd rpkid portal-gui/scripts/rpkigui-load-csv \
+	  portal-gui/scripts/rpkigui-add-user portal-gui/scripts/rpkigui-response
 
-AUX_SCRIPTS = portal-gui/rpkigui-list-resources
+AUX_SCRIPTS = portal-gui/scripts/rpkigui-list-resources
 
 all: ${POW_SO} rpki/relaxng.py myrpki.rng ${SCRIPTS} ${AUX_SCRIPTS} rpki/gui/settings.py rpki/gui/app/settings.py
 
@@ -190,6 +190,7 @@ COMPILE_SETTINGS = \
 	AC_MYRPKI='${sbindir}/myrpki' \
 	AC_LOCALSTATEDIR='${localstatedir}' \
 	AC_WEBUSER='${WEBUSER}' \
+	AC_TEMPLATE_DIR='${datarootdir}/rpki/gui/templates' \
 	${PYTHON} ${abs_top_srcdir}/buildtools/subst-vars.py <$? >$@; \
 	chmod 555 $@
 
@@ -220,16 +221,16 @@ rootd: rootd.py
 rpkid: rpkid.py
 	${COMPILE_PYWRAP}
 
-portal-gui/rpkigui-list-resources: portal-gui/list_resources.py
+portal-gui/scripts/rpkigui-list-resources: portal-gui/scripts/list_resources.py
 	${COMPILE_PYTHON}
 
-portal-gui/rpkigui-load-csv: portal-gui/load_csv.py
+portal-gui/scripts/rpkigui-load-csv: portal-gui/scripts/load_csv.py
 	${COMPILE_PYTHON}
 
-portal-gui/rpkigui-add-user: portal-gui/adduser.py
+portal-gui/scripts/rpkigui-add-user: portal-gui/scripts/adduser.py
 	${COMPILE_PYTHON}
 
-portal-gui/rpkigui-response: portal-gui/scripts/rpkigui-response.py
+portal-gui/scripts/rpkigui-response: portal-gui/scripts/rpkigui-response.py
 	${COMPILE_PYTHON}
 
 rpki/gui/settings.py: ${srcdir}/rpki/gui/settings.py.in

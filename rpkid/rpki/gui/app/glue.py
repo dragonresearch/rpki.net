@@ -25,8 +25,7 @@ from django.db.models import F
 
 import rpki, rpki.async, rpki.http, rpki.x509, rpki.left_right
 from rpki.myrpki import CA, IRDB, csv_writer
-from rpki.gui import settings
-from rpki.gui.app import models
+from rpki.gui.app import models, settings
 
 def conf(*handle):
     """

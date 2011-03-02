@@ -26,10 +26,9 @@ from django.utils.http import urlquote
 from django.template import RequestContext
 from django import http
 from django.views.generic.list_detail import object_list
-from django.conf import settings
 from django.core.urlresolvers import reverse
 
-from rpki.gui.app import models, forms, glue, misc, AllocationTree
+from rpki.gui.app import models, forms, glue, misc, AllocationTree, settings
 from rpki.gui.app.asnset import asnset
 
 debug = False

@@ -15,7 +15,6 @@ bindir=@bindir@
 sbindir=@sbindir@
 libexecdir=@libexecdir@
 
-PYTHON=@PYTHON@
 WEBUSER=@WEBUSER@
 DJANGO_ADMIN=@DJANGO_ADMIN@
 
@@ -56,16 +55,8 @@ install-apache:
 	install -m 644 apache/rpki.wsgi $(INSTDIR)/apache
 
 install-templates:
-	install -d -m 755 $(TEMPLATEDIR)/myrpki
+	install -d -m 755 $(TEMPLATEDIR)
 	install -m 644 templates/base.html $(TEMPLATEDIR)
-	install -m 644 templates/myrpki/asn_view.html $(TEMPLATEDIR)/myrpki
-	install -m 644 templates/myrpki/child_view.html $(TEMPLATEDIR)/myrpki
-	install -m 644 templates/myrpki/conf_empty.html $(TEMPLATEDIR)/myrpki
-	install -m 644 templates/myrpki/conf_list.html $(TEMPLATEDIR)/myrpki
-	install -m 644 templates/myrpki/dashboard.html $(TEMPLATEDIR)/myrpki
-	install -m 644 templates/myrpki/parent_view.html $(TEMPLATEDIR)/myrpki
-	install -m 644 templates/myrpki/prefix_view.html $(TEMPLATEDIR)/myrpki
-	install -m 644 templates/myrpki/xml_import.html $(TEMPLATEDIR)/myrpki
 	install -d -m 755 $(TEMPLATEDIR)/registration
 	install -m 644 templates/registration/login.html $(TEMPLATEDIR)/registration
 

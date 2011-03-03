@@ -41,7 +41,7 @@ edit = sed \
 apache/rpki.conf: $(srcdir)/apache/rpki.conf.in Makefile
 	$(edit) $@.in > $@
 
-.PHONY: install-perms install-data install install-templates
+.PHONY: install-perms install-data install
 
 install-perms:
 	chown $(WEBUSER) `dirname $(DATABASE_PATH)`
@@ -54,13 +54,7 @@ install-apache:
 	install -m 644 apache/rpki.conf $(INSTDIR)/apache
 	install -m 644 apache/rpki.wsgi $(INSTDIR)/apache
 
-install-templates:
-	install -d -m 755 $(TEMPLATEDIR)
-	install -m 644 templates/base.html $(TEMPLATEDIR)
-	install -d -m 755 $(TEMPLATEDIR)/registration
-	install -m 644 templates/registration/login.html $(TEMPLATEDIR)/registration
-
-install-data: $(BUILD) install-apache install-templates
+install-data: $(BUILD) install-apache
 	mkdir -p `dirname $(DATABASE_PATH)`
 	$(DJANGO_ADMIN) syncdb --settings rpki.gui.settings
 

@@ -48,7 +48,8 @@ setup(name              = "rpkitoolkit",
       url               = "http://www.rpki.net/",
       packages          = ["rpki", "rpki.POW", "rpki.gui", "rpki.gui.app" ],
       ext_modules       = [pow],
-      package_data      = { 'rpki.gui.app' : [ 'templates/*.html' ] },
+      package_data      = {'rpki.gui'     : ['templates/*.html', 'templates/registration/*.html'],
+                           'rpki.gui.app' : ['templates/rpkigui/*.html']},
 
       # bdist_rpm seems to get confused by relative names for scripts,
       # so we have to prefix the source name of anything here with the

@@ -65,7 +65,7 @@ def handle_required(f):
             if conf.count() == 1:
                 handle = conf[0]
             elif conf.count() == 0:
-                return render('myrpki/conf_empty.html', {}, request)
+                return render('rpkigui/conf_empty.html', {}, request)
                 #return http.HttpResponseRedirect('/myrpki/conf/add')
             else:
                 # Should reverse the view for this instead of hardcoding
@@ -81,7 +81,7 @@ def render(template, context, request):
             context_instance=RequestContext(request))
 
 @handle_required
-def dashboard(request):
+def dashboard(request, template_name='rpkigui/dashboard.html'):
     '''The user's dashboard.'''
     handle = request.session[ 'handle' ]
     # ... pick out data for the dashboard and return it
@@ -109,8 +109,7 @@ def dashboard(request):
     asns.sort(key=lambda x: x.range.min)
     prefixes.sort(key=lambda x: x.range.min)
 
-    return render('myrpki/dashboard.html', { 'conf': handle, 'asns': asns,
-        'ars': prefixes }, request)
+    return render(template_name, { 'conf': handle, 'asns': asns, 'ars': prefixes }, request)
 
 @login_required
 def conf_list(request):
@@ -120,7 +119,7 @@ def conf_list(request):
     else:
         queryset = models.Conf.objects.filter(owner=request.user)
     return object_list(request, queryset,
-            template_name='myrpki/conf_list.html', template_object_name='conf', extra_context={ 'select_url' : reverse(conf_select) })
+            template_name='rpkigui/conf_list.html', template_object_name='conf', extra_context={ 'select_url' : reverse(conf_select) })
 
 @login_required
 def conf_select(request):
@@ -161,7 +160,7 @@ def parent_view(request, parent_handle):
     """Detail view for a particular parent."""
     handle = request.session['handle']
     parent = get_object_or_404(handle.parents, handle__exact=parent_handle)
-    return render('myrpki/parent_view.html', { 'parent': parent }, request)
+    return render('rpkigui/parent_view.html', { 'parent': parent }, request)
 
 def get_parents_or_404(handle, obj):
     '''Return the Parent object(s) that the given address range derives
@@ -181,7 +180,7 @@ def asn_view(request, pk):
     roas = handle.roas.filter(asn=obj.lo) # roas which contain this asn
     unallocated = AllocationTree.AllocationTreeAS(obj).unallocated()
     
-    return render('myrpki/asn_view.html',
+    return render('rpkigui/asn_view.html',
             { 'asn': obj, 'parent': parent_set, 'roas': roas,
                 'unallocated' : unallocated }, request)
 
@@ -191,7 +190,7 @@ def child_view(request, child_handle):
     handle = request.session['handle']
     child = get_object_or_404(handle.children, handle__exact=child_handle)
 
-    return render('myrpki/child_view.html', { 'child': child }, request)
+    return render('rpkigui/child_view.html', { 'child': child }, request)
 
 class PrefixView(object):
     '''Extensible view for address ranges/prefixes.  This view can be
@@ -218,7 +217,7 @@ class PrefixView(object):
         
         u = AllocationTree.AllocationTreeIP.from_prefix(self.obj).unallocated()
 
-        return render('myrpki/prefix_view.html',
+        return render('rpkigui/prefix_view.html',
                 { 'addr': self.obj, 'parent': self.parent_set, 'unallocated': u, 'form': self.form },
                 self.request)
 
@@ -369,7 +368,7 @@ def asn_allocate_view(request, pk):
         form = forms.PrefixAllocateForm(obj.allocated.pk if obj.allocated else None,
                 handle.children.all())
 
-    return render('myrpki/asn_view.html', { 'form': form,
+    return render('rpkigui/asn_view.html', { 'form': form,
         'asn': obj, 'form': form, 'parent': parent_set }, request)
 
 # this is similar to handle_required, except that the handle is given in URL

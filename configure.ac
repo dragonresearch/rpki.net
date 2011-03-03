@@ -231,6 +231,12 @@ test $build_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
 
 AC_SUBST(TOP_LEVEL_SUBDIRS)
 
+# Conditionally build subsets of the rpkid tools
+                            RPKID_SUBDIRS=""
+test $build_django = yes && RPKID_SUBDIRS="$RPKID_SUBDIRS portal-gui"
+
+AC_SUBST(RPKID_SUBDIRS)
+
 AC_CONFIG_FILES([Makefile
 		 rcynic/Makefile
 		 rcynic/static-rsync/Makefile

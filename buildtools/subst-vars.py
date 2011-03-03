@@ -25,4 +25,4 @@ for v in os.environ:
     if v.startswith('AC_'):
         d[v] = os.environ[v]
 
-print sys.stdin.read() % d
+sys.stdout.write(sys.stdin.read() % d)

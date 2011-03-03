@@ -242,8 +242,9 @@ class publication_cms_msg(rpki.publication.cms_msg):
 top_opts = ["config=", "help", "pem_out=", "quiet", "verbose"]
 
 def usage(code = 1):
-  print __doc__.strip()
-  print
+  if __doc__ is not None:
+    print __doc__.strip()
+    print
   print "Usage:"
   print
   print "# Top-level options:"

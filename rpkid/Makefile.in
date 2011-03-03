@@ -47,7 +47,9 @@ SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd myrpk
 
 AUX_SCRIPTS = portal-gui/scripts/rpkigui-list-resources
 
-all:: ${POW_SO} rpki/relaxng.py myrpki.rng ${SCRIPTS} ${AUX_SCRIPTS} rpki/gui/settings.py rpki/gui/app/settings.py
+SETTINGS = rpki/gui/settings.py rpki/gui/app/settings.py
+
+all:: ${POW_SO} rpki/relaxng.py myrpki.rng ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS}
 
 ${POW_SO}: ext/POW.c setup.py
 	${SETUP_PY} build_ext --inplace
@@ -80,7 +82,7 @@ myrpki.rng: myrpki.rnc
 clean::
 	find . -type f -name '*.py[co]' -delete
 	cd tests; $(MAKE) $@
-	rm -f ${SCRIPTS} ${AUX_SCRIPTS} rpki/gui/settings.py
+	rm -f ${SCRIPTS} ${AUX_SCRIPTS} ${SETTINGS}
 
 install::
 	${SETUP_PY} install --record installed
@@ -178,25 +180,22 @@ all install clean test distclean deinstall uninstall::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
 
 COMPILE_COMMON = \
-	export AC_PYTHON_INTERPRETER; \
-	if test -r $@; then chmod u+w $@; else :; fi; \
 	AC_RPKI_CONFIG_DIR='${sysconfdir}' \
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-python-executable.py <$? >$@; \
 	chmod 555 $@
 
-COMPILE_PYTHON = AC_PYTHON_INTERPRETER='${PYTHON}'; ${COMPILE_COMMON}
-COMPILE_PYWRAP = AC_PYTHON_INTERPRETER='${PYWRAP}'; ${COMPILE_COMMON}
+COMPILE_PYTHON = rm -f $@; AC_PYTHON_INTERPRETER='${PYTHON}' ${COMPILE_COMMON}
+COMPILE_PYWRAP = rm -f $@; AC_PYTHON_INTERPRETER='${PYWRAP}' ${COMPILE_COMMON}
 
 COMPILE_SETTINGS = \
-	if test -r $@; then chmod u+w $@; else :; fi; \
+	rm -f $@; \
 	AC_DATABASE_PATH='${localstatedir}/rpki/gui.db' \
 	AC_SECRET_KEY='${SECRET_KEY}' \
 	AC_MYRPKI='${sbindir}/myrpki' \
 	AC_LOCALSTATEDIR='${localstatedir}' \
 	AC_WEBUSER='${WEBUSER}' \
 	AC_TEMPLATE_DIR='${datarootdir}/rpki/gui/templates' \
-	${PYTHON} ${abs_top_srcdir}/buildtools/subst-vars.py <$? >$@; \
-	chmod 555 $@
+	${PYTHON} ${abs_top_srcdir}/buildtools/subst-vars.py <$? >$@
 
 rpki-sql-backup: rpki-sql-backup.py
 	${COMPILE_PYTHON}
@@ -238,9 +237,7 @@ portal-gui/scripts/rpkigui-response: portal-gui/scripts/rpkigui-response.py
 	${COMPILE_PYTHON}
 
 rpki/gui/settings.py: ${srcdir}/rpki/gui/settings.py.in
-	rm -f $@
 	${COMPILE_SETTINGS}
 
 rpki/gui/app/settings.py: ${srcdir}/rpki/gui/app/settings.py.in
-	rm -f $@
 	${COMPILE_SETTINGS}

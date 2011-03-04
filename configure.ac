@@ -139,6 +139,7 @@ fi
 # something that just won't work, we say so and fail.
 
 AC_ARG_ENABLE([system_openssl], [AS_HELP_STRING([--disable-system-openssl],	[Don't build against system copy of OpenSSL])],	[], [enable_system_openssl=auto])
+AC_ARG_ENABLE([openssl_asm],	[AS_HELP_STRING([--disable-openssl-asm],	[Don't let OpenSSL build assembler code])],     [], [enable_openssl_asm=auto])
 AC_ARG_ENABLE([python],		[AS_HELP_STRING([--disable-python],		[Don't build any of the Python-based tools])],	[], [enable_python=auto])
 AC_ARG_ENABLE([pywrap],		[AS_HELP_STRING([--enable-pywrap],		[Build pywrap])],				[], [enable_pywrap=auto])
 AC_ARG_ENABLE([django],		[AS_HELP_STRING([--disable-django],		[Don't build Django GUI])],			[], [enable_django=auto])
@@ -161,6 +162,21 @@ case $enable_system_openssl in
 		;;
      *)		AC_MSG_ERROR([Unrecognized value for --enable-system-openssl: $enable_system_openssl]);;
 esac
+
+case $enable_openssl_asm in
+     yes|no)	build_openssl_asm=$enable_openssl_asm
+		;;
+     auto)	case $host in
+			x86_64-*-linux*)
+				build_openssl_asm=no
+				;;
+			*)
+				build_openssl_asm=yes
+				;;
+		esac
+		;;
+     *)		AC_MSG_ERROR([Unrecognized value for --enable-openssl-asm: $enable_openssl_asm]);;
+esac     
 
 case $enable_python in
      yes)	build_python=yes
@@ -262,12 +278,19 @@ then
 	AC_CONFIG_FILES([openssl/Makefile openssl/tests/Makefile])
 
 	AC_MSG_CHECKING([what configuration target to use when building OpenSSL])
-	OPENSSL_CONFIG_COMMAND='./config'
 	case $host in
 	i*86-apple-darwin*)
 		if test "$ac_cv_sizeof_long" = 8
 		then
 			OPENSSL_CONFIG_COMMAND='./Configure darwin64-x86_64-cc'
+		fi
+		;;
+	*)
+		if test $build_openssl_asm = yes
+		then
+			OPENSSL_CONFIG_COMMAND='./config'
+		else
+			OPENSSL_CONFIG_COMMAND='./config no-asm'
 		fi
 		;;
 	esac

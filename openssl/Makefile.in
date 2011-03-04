@@ -18,19 +18,33 @@ libdir			= @libdir@
 # position independent code, so we need OpenSSL compiled with the
 # options it would use for a shared library.  This then requires
 # further gymnastics to get an openssl executable linked against the
-# static libraries, which we want so that we don't have to set
-# LD_LIBRARY_PATH in all of our test scripts.
+# static libraries.  Fortunately, the top-level OpenSSL Makefile has
+# generic target labels for the several stages of this build process,
+# so we can just call them one at a time and tweak around the edges.
 
-OPTIONS = enable-rfc3779 enable-cms no-dso enable-shared --prefix=${prefix}
+OPTIONS = enable-rfc3779 enable-cms no-dso shared --prefix=${prefix}
 
-all: openssl-${VERSION}/Makefile
-	cd openssl-${VERSION}; ${MAKE} $@ LIBRPATH=${PYWRAP_LIBDIR}
+all: build_libs build_apps build_tests build_tools build_symlink
+
+build_libs: openssl-${VERSION}/Makefile
+	cd openssl-${VERSION}; ${MAKE} build_libs LIBRPATH=${PYWRAP_LIBDIR}
+
+build_apps: openssl-${VERSION}/apps/openssl
+
+openssl-${VERSION}/apps/openssl: openssl-${VERSION}/libcrypto.a openssl-${VERSION}/libssl.a 
 	cd openssl-${VERSION}; mkdir disabled
 	cd openssl-${VERSION}; mv -fv ${OPENSSL_SO_GLOB} disabled
 	cd openssl-${VERSION}; rm -f apps/openssl
 	cd openssl-${VERSION}; ${MAKE} build_apps
 	cd openssl-${VERSION}; mv -fv disabled/${OPENSSL_SO_GLOB} .
 	cd openssl-${VERSION}; rmdir disabled
+
+build_tests build_tools: openssl-${VERSION}/apps/openssl
+	cd openssl-${VERSION}; ${MAKE} $@
+
+build_symlink: openssl
+
+openssl: openssl-${VERSION}/.
 	ln -sf openssl-${VERSION} openssl
 
 clean:

@@ -684,20 +684,25 @@ class axfr_set(prefix_set):
     comparison.
     """
     f = open("%d.ix.%d" % (self.serial, other.serial), "wb")
-    old = other[:]
-    new = self[:]
-    while old and new:
-      if old[0] < new[0]:
-        f.write(old.pop(0).to_pdu(announce = 0))
+    old = other
+    new = self
+    len_old = len(old)
+    len_new = len(new)
+    i_old = i_new = 0
+    while i_old < len_old and i_new < len_new:
+      if old[i_old] < new[i_new]:
+        f.write(old[i_old].to_pdu(announce = 0))
+        i_old += 1
       elif old[0] > new[0]:
-        f.write(new.pop(0).to_pdu(announce = 1))
+        f.write(new[i_new].to_pdu(announce = 1))
+        i_new += 1
       else:
-        del old[0]
-        del new[0]
-    while old:
-      f.write(old.pop(0).to_pdu(announce = 0))
-    while new:
-      f.write(new.pop(0).to_pdu(announce = 1))
+        i_old += 1
+        i_new += 1
+    for i in xrange(i_old, len_old):
+      f.write(old[i].to_pdu(announce = 0))
+    for i in xrange(i_new, len_new):
+      f.write(new[i].to_pdu(announce = 1))
     f.close()
 
   def show(self):
@@ -711,7 +716,7 @@ class axfr_set(prefix_set):
   @staticmethod
   def read_bgpdump(filename):
     assert filename.endswith(".bz2")
-    print "Reading", filename
+    log("Reading %s" % filename)
     bunzip2 = subprocess.Popen(("bzip2", "-c", "-d", filename), stdout = subprocess.PIPE)
     bgpdump = subprocess.Popen(("bgpdump", "-m", "-"), stdin = bunzip2.stdout, stdout = subprocess.PIPE)
     return bgpdump.stdout
@@ -1343,6 +1348,7 @@ def bgpdump_main(argv):
 
   for filename in argv:
     if filename.endswith(".ax"):
+      log("Reading %s" % filename)
       db = axfr_set.load(filename)
     elif filename.startswith("ribs."):
       db = axfr_set.parse_bgpdump_rib_dump(filename)
@@ -1363,7 +1369,8 @@ def bgpdump_main(argv):
     log("Loading %s" % axfr)
     ax = axfr_set.load(axfr)
     log("Computing changes from %d (%s) to %d (%s)" % (ax.serial, ax.serial, db.serial, db.serial))
-    db.save_ixfr()
+    db.save_ixfr(ax)
+    del ax
 
   db.mark_current()
 

@@ -24,8 +24,10 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 import sys, os, struct, time, glob, socket, fcntl, signal, syslog
-import asyncore, asynchat, subprocess, traceback, getopt
+import asyncore, asynchat, subprocess, traceback, getopt, bisect
 
+class IgnoreThisRecord(Exception):
+  pass
 
 class timestamp(int):
   """
@@ -433,6 +435,51 @@ class prefix(pdu):
     assert b1 + b2 + b3 == self.to_pdu()
     return self
 
+  @staticmethod
+  def from_bgpdump(line, rib_dump):
+    try:
+      assert isinstance(rib_dump, bool)
+      fields = line.split("|")
+
+      # Parse prefix, including figuring out IP protocol version
+      cls = ipv6_prefix if ":" in fields[5] else ipv4_prefix
+      self = cls()
+      self.timestamp = int(fields[1])
+      p, l = fields[5].split("/")
+      self.prefix = self.addr_type(p)
+      self.prefixlen = int(l)
+      self.max_prefixlen = self.prefixlen
+
+      # Withdrawals don't have AS paths, so be careful
+      assert fields[2] == "B" if rib_dump else fields[2] in ("A", "W")
+      if fields[2] == "W":
+        self.asn = 0
+        self.announce = 0
+      else:
+        self.announce = 1
+        if not fields[6] or "{" in fields[6] or "(" in fields[6]:
+          raise IgnoreThisRecord
+        a  = fields[6].split()[-1]
+        if "." in a:
+          a = [int(s) for s in a.split(".")]
+          if len(a) != 2 or a[0] < 0 or a[0] > 65535 or a[1] < 0 or a[1] > 65535:
+            log("Bad dotted ASNum %r, ignoring record" % fields[6])
+            raise IgnoreThisRecord
+          a = (a[0] << 16) | a[1]
+        else:
+          a = int(a)
+        self.asn = a
+
+      self.check()
+      return self
+
+    except IgnoreThisRecord:
+      raise
+
+    except Exception, e:
+      log("Ignoring line %r: %s" % (line, e))
+      raise IgnoreThisRecord
+
 class ipv4_prefix(prefix):
   """
   IPv4 flavor of a prefix.
@@ -626,7 +673,8 @@ class axfr_set(prefix_set):
       f.close()
       os.rename(tmpfn, "current")
     except:
-      os.unlink(tmpfn)
+      if os.path.exists(tmpfn):
+        os.unlink(tmpfn)
       raise
 
   def save_ixfr(self, other):
@@ -660,6 +708,49 @@ class axfr_set(prefix_set):
     print "# AXFR %d (%s)" % (self.serial, timestamp(self.serial))
     for p in self:
       print p
+
+  @staticmethod
+  def read_bgpdump(filename):
+    assert filename.endswith(".bz2")
+    print "Reading", filename
+    bunzip2 = subprocess.Popen(("bzip2", "-c", "-d", filename), stdout = subprocess.PIPE)
+    bgpdump = subprocess.Popen(("bgpdump", "-m", "-"), stdin = bunzip2.stdout, stdout = subprocess.PIPE)
+    return bgpdump.stdout
+
+  @classmethod
+  def parse_bgpdump_rib_dump(cls, filename):
+    assert os.path.basename(filename).startswith("ribs.")
+    self = cls()
+    for line in cls.read_bgpdump(filename):
+      try:
+        pfx = prefix.from_bgpdump(line, rib_dump = True)
+      except IgnoreThisRecord:
+        continue
+      self.append(pfx)
+      self.serial = pfx.timestamp
+    self.sort()
+    for i in xrange(len(self) - 2, -1, -1):
+      if self[i] == self[i + 1]:
+        del self[i + 1]
+    return self
+
+  def parse_bgpdump_update(self, filename):
+    assert os.path.basename(filename).startswith("updates.")
+    for line in self.read_bgpdump(filename):
+      try:
+        pfx = prefix.from_bgpdump(line, rib_dump = False)
+      except IgnoreThisRecord:
+        continue
+      announce = pfx.announce
+      pfx.announce = 1
+      i = bisect.bisect_left(self, pfx)
+      if announce:
+        if i >= len(self) or pfx != self[i]:
+          self.insert(i, pfx)
+      else:
+        while i < len(self) and pfx.prefix == self[i].prefix and pfx.prefixlen == self[i].prefixlen:
+          del self[i]
+      self.serial = pfx.timestamp
 
 class ixfr_set(prefix_set):
   """
@@ -1230,6 +1321,51 @@ def client_main(argv):
     if client is not None:
       client.cleanup()
 
+def bgpdump_main(argv):
+  """
+  Simulate route origin data from a set of BGP dump files.
+
+                      * DANGER WILL ROBINSON! *
+                   * DEBUGGING AND TEST USE ONLY! *
+
+  argv is an ordered list of filenames.  Each file must be a BGP RIB
+  dumps, a BGP UPDATE dumps, or an AXFR dump in the format written by
+  this program's --cronjob command.  The first file must be a RIB dump
+  or AXFR dump, it cannot be an UPDATE dump.  Output will be a set of
+  AXFR and IXFR files with timestamps derived from the BGP dumps,
+  which can be used as input to this program's --server command for
+  test purposes.  SUCH DATA PROVIDE NO SECURITY AT ALL.
+
+  You have been warned.
+  """
+
+  db = None
+  axfrs = []
+
+  for filename in argv:
+    if filename.endswith(".ax"):
+      db = axfr_set.load(filename)
+    elif filename.startswith("ribs."):
+      db = axfr_set.parse_bgpdump_rib_dump(filename)
+      db.save_axfr()
+    elif db is not None:
+      db.parse_bgpdump_update(filename)
+      db.save_axfr()
+    else:
+      sys.exit("First argument must be a RIB dump or a .ax file, don't know what to do with %s" % filename)
+    axfrs.append(db.filename())
+
+  print "Finished generating AXFRs, last is", axfrs[-1]
+
+  del axfrs[-1]
+
+  for axfr in axfrs:
+    print "Generating IXFR for", axfr
+    db.save_ixfr(axfr_set.load(axfr))
+
+  db.mark_current()
+
+
 os.environ["TZ"] = "UTC"
 time.tzset()
 
@@ -1247,7 +1383,8 @@ main_dispatch = {
   "cronjob" : cronjob_main,
   "client"  : client_main,
   "server"  : server_main,
-  "show"    : show_main }
+  "show"    : show_main,
+  "bgpdump" : bgpdump_main }
 
 def usage(error = None):
   print "Usage: %s --mode [arguments]" % sys.argv[0]

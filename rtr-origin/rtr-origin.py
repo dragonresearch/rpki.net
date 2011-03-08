@@ -39,7 +39,7 @@ class timestamp(int):
 
   @classmethod
   def now(cls, delta = 0):
-    return cls(int(time.time() + delta))
+    return cls(time.time() + delta)
 
   def __str__(self):
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self))
@@ -376,7 +376,7 @@ class prefix(pdu):
     if "-" in l:
       self.prefixlen, self.max_prefixlen = tuple(int(i) for i in l.split("-"))
     else:
-      self.prefixlen, self.max_prefixlen = int(l), int(l)
+      self.prefixlen = self.max_prefixlen = int(l)
     self.announce = 1
     self.check()
     return self
@@ -444,11 +444,10 @@ class prefix(pdu):
       # Parse prefix, including figuring out IP protocol version
       cls = ipv6_prefix if ":" in fields[5] else ipv4_prefix
       self = cls()
-      self.timestamp = int(fields[1])
+      self.timestamp = timestamp(fields[1])
       p, l = fields[5].split("/")
       self.prefix = self.addr_type(p)
-      self.prefixlen = int(l)
-      self.max_prefixlen = self.prefixlen
+      self.prefixlen = self.max_prefixlen = int(l)
 
       # Withdrawals don't have AS paths, so be careful
       assert fields[2] == "B" if rib_dump else fields[2] in ("A", "W")
@@ -644,7 +643,7 @@ class axfr_set(prefix_set):
     fn1, fn2 = os.path.basename(filename).split(".")
     assert fn1.isdigit() and fn2 == "ax"
     self = cls._load_file(filename)
-    self.serial = int(fn1)
+    self.serial = timestamp(fn1)
     return self
 
   def filename(self):
@@ -705,7 +704,7 @@ class axfr_set(prefix_set):
     """
     Print this axfr_set.
     """
-    print "# AXFR %d (%s)" % (self.serial, timestamp(self.serial))
+    print "# AXFR %d (%s)" % (self.serial, self.serial)
     for p in self:
       print p
 
@@ -768,8 +767,8 @@ class ixfr_set(prefix_set):
     fn1, fn2, fn3 = os.path.basename(filename).split(".")
     assert fn1.isdigit() and fn2 == "ix" and fn3.isdigit()
     self = cls._load_file(filename)
-    self.from_serial = int(fn3)
-    self.to_serial = int(fn1)
+    self.from_serial = timestamp(fn3)
+    self.to_serial = timestamp(fn1)
     return self
 
   def filename(self):
@@ -782,8 +781,8 @@ class ixfr_set(prefix_set):
     """
     Print this ixfr_set.
     """
-    print "# IXFR %d (%s) -> %d (%s)" % (self.from_serial, timestamp(self.from_serial),
-                                         self.to_serial, timestamp(self.to_serial))
+    print "# IXFR %d (%s) -> %d (%s)" % (self.from_serial, self.from_serial,
+                                         self.to_serial,   self.to_serial)
     for p in self:
       print p
 
@@ -1170,7 +1169,7 @@ def cronjob_main(argv):
   """
 
   if len(argv) != 1:
-    usage("Expected one argument, got %r" % (argv,))
+    sys.exit("Expected one argument, got %r" % (argv,))
 
   old_ixfrs = glob.glob("*.ix.*")
 
@@ -1221,7 +1220,7 @@ def show_main(argv):
   """
 
   if argv:
-    usage("Unexpected arguments: %r" % (argv,))
+    sys.exit("Unexpected arguments: %r" % (argv,))
 
   g = glob.glob("*.ax")
   g.sort()
@@ -1257,7 +1256,7 @@ def server_main(argv):
 
   log("[Starting]")
   if argv:
-    usage("Unexpected arguments: %r" % (argv,))
+    sys.exit("Unexpected arguments: %r" % (argv,))
   kickme = None
   try:
     server = server_channel()
@@ -1305,7 +1304,7 @@ def client_main(argv):
     elif argv[0] == "tcp" and len(argv) == 3:
       client = client_channel.tcp(*argv[1:])
     else:
-      usage("Unexpected arguments: %r" % (argv,))
+      sys.exit("Unexpected arguments: %r" % (argv,))
     while True:
       if client.current_serial is None:
         client.push_pdu(reset_query())
@@ -1352,16 +1351,19 @@ def bgpdump_main(argv):
       db.parse_bgpdump_update(filename)
       db.save_axfr()
     else:
-      sys.exit("First argument must be a RIB dump or a .ax file, don't know what to do with %s" % filename)
+      sys.exit("First argument must be a RIB dump or .ax file, don't know what to do with %s" % filename)
     axfrs.append(db.filename())
+    log("DB serial now %d (%s)" % (db.serial, db.serial))
 
   print "Finished generating AXFRs, last is", axfrs[-1]
 
   del axfrs[-1]
 
   for axfr in axfrs:
-    print "Generating IXFR for", axfr
-    db.save_ixfr(axfr_set.load(axfr))
+    log("Loading %s" % axfr)
+    ax = axfr_set.load(axfr)
+    log("Computing changes from %d (%s) to %d (%s)" % (ax.serial, ax.serial, db.serial, db.serial))
+    db.save_ixfr()
 
   db.mark_current()
 
@@ -1386,7 +1388,7 @@ main_dispatch = {
   "show"    : show_main,
   "bgpdump" : bgpdump_main }
 
-def usage(error = None):
+def usage():
   print "Usage: %s --mode [arguments]" % sys.argv[0]
   print
   print "where --mode is one of:"
@@ -1394,10 +1396,7 @@ def usage(error = None):
   for name, func in main_dispatch.iteritems():
     print "--%s:" % name
     print func.__doc__
-  if isinstance(error, str):
-    sys.exit("Error: %s" % error)
-  else:
-    sys.exit(error)
+  sys.exit(0)
 
 opts, argv = getopt.getopt(sys.argv[1:], "h?", ["help"] + main_dispatch.keys())
 for o, a in opts:
@@ -1405,11 +1404,11 @@ for o, a in opts:
     usage()
   if len(o) > 2 and o[2:] in main_dispatch:
     if mode is not None:
-      usage("Conflicting modes specified")
+      sys.exit("Conflicting modes specified")
     mode = o[2:]
 
 if mode is None:
-  usage("No mode specified")
+  sys.exit("No mode specified")
 
 log_tag = "rtr-origin/" + mode
 

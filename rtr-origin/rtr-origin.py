@@ -441,12 +441,12 @@ class prefix(pdu):
     return "%s %8s  %-32s %s" % ("+" if self.announce else "-", self.asn, plm, ":".join(("%02X" % ord(b) for b in self.to_pdu())))
 
   def show(self):
-    log("# Class:        %s" % self.__class__.__name__)
-    log("# ASN:          %s" % self.asn)
-    log("# Prefix:       %s" % self.prefix)
-    log("# Prefixlen:    %s" % self.prefixlen)
-    log("# MaxPrefixlen: %s" % self.max_prefixlen)
-    log("# Announce:     %s" % self.announce)
+    blather("# Class:        %s" % self.__class__.__name__)
+    blather("# ASN:          %s" % self.asn)
+    blather("# Prefix:       %s" % self.prefix)
+    blather("# Prefixlen:    %s" % self.prefixlen)
+    blather("# MaxPrefixlen: %s" % self.max_prefixlen)
+    blather("# Announce:     %s" % self.announce)
 
   def check(self):
     """
@@ -798,14 +798,14 @@ class axfr_set(prefix_set):
     """
     Print this axfr_set.
     """
-    log("# AXFR %d (%s)" % (self.serial, self.serial))
+    blather("# AXFR %d (%s)" % (self.serial, self.serial))
     for p in self:
-      log(p)
+      blather(p)
 
   @staticmethod
   def read_bgpdump(filename):
     assert filename.endswith(".bz2")
-    log("Reading %s" % filename)
+    blather("Reading %s" % filename)
     bunzip2 = subprocess.Popen(("bzip2", "-c", "-d", filename), stdout = subprocess.PIPE)
     bgpdump = subprocess.Popen(("bgpdump", "-m", "-"), stdin = bunzip2.stdout, stdout = subprocess.PIPE)
     return bgpdump.stdout
@@ -875,10 +875,10 @@ class ixfr_set(prefix_set):
     """
     Print this ixfr_set.
     """
-    log("# IXFR %d (%s) -> %d (%s)" % (self.from_serial, self.from_serial,
-                                       self.to_serial,   self.to_serial))
+    blather("# IXFR %d (%s) -> %d (%s)" % (self.from_serial, self.from_serial,
+                                           self.to_serial,   self.to_serial))
     for p in self:
-      log(p)
+      blather(p)
 
 class file_producer(object):
   """
@@ -1108,7 +1108,7 @@ class client_channel(pdu_channel):
     Set up ssh connection and start listening for first PDU.
     """
     args = ("ssh", "-p", port, "-s", host, "rpki-rtr")
-    log("[Running ssh: %s]" % " ".join(args))
+    blather("[Running ssh: %s]" % " ".join(args))
     s = socket.socketpair()
     return cls(sock = s[1],
                proc = subprocess.Popen(args, executable = "/usr/bin/ssh", stdin = s[0], stdout = s[0], close_fds = True),
@@ -1119,7 +1119,7 @@ class client_channel(pdu_channel):
     """
     Set up TCP connection and start listening for first PDU.
     """
-    log("[Starting raw TCP connection to %s:%s]" % (host, port))
+    blather("[Starting raw TCP connection to %s:%s]" % (host, port))
     s = socket.socket()
     s.connect((host, int(port)))
     return cls(sock = s, proc = None, killsig = None)
@@ -1130,7 +1130,7 @@ class client_channel(pdu_channel):
     Set up loopback connection and start listening for first PDU.
     """
     s = socket.socketpair()
-    log("[Using direct subprocess kludge for testing]")
+    blather("[Using direct subprocess kludge for testing]")
     return cls(sock = s[1],
                proc = subprocess.Popen(("/usr/local/bin/python", "rtr-origin.py", "--server"), stdin = s[0], stdout = s[0], close_fds = True),
                killsig = signal.SIGINT)
@@ -1145,7 +1145,7 @@ class client_channel(pdu_channel):
     """
     Log outbound PDU then write it to stream.
     """
-    log(pdu)
+    blather(pdu)
     pdu_channel.push_pdu(self, pdu)
 
   def cleanup(self):
@@ -1164,7 +1164,7 @@ class client_channel(pdu_channel):
     """
     Intercept close event so we can log it, then shut down.
     """
-    log("Server closed channel")
+    blather("Server closed channel")
     sys.exit(0)
 
 class kickme_channel(asyncore.dispatcher):
@@ -1266,7 +1266,7 @@ def cronjob_main(argv):
   for f in glob.iglob("*.ax"):
     t = timestamp(os.stat(f).st_mtime)
     if  t < cutoff:
-      log("# Deleting old file %s, timestamp %s" % (f, t))
+      blather("# Deleting old file %s, timestamp %s" % (f, t))
       os.unlink(f)
   
   pdus = axfr_set.parse_rcynic(argv[0])
@@ -1281,7 +1281,7 @@ def cronjob_main(argv):
   try:
     os.stat(kickme_dir)
   except OSError:
-    log('# Creating directory "%s"' % kickme_dir)
+    blather('# Creating directory "%s"' % kickme_dir)
     os.makedirs(kickme_dir)
 
   msg = "Good morning, serial %d is ready" % pdus.serial
@@ -1297,7 +1297,7 @@ def cronjob_main(argv):
   old_ixfrs.sort()
   for ixfr in old_ixfrs:
     try:
-      log("# Deleting old file %s" % ixfr)
+      blather("# Deleting old file %s" % ixfr)
       os.unlink(ixfr)
     except OSError:
       pass
@@ -1386,7 +1386,7 @@ def client_main(argv):
   a TCP port number.
   """
 
-  log("[Startup]")
+  blather("[Startup]")
   client = None
   try:
     if not argv or (argv[0] == "loopback" and len(argv) == 1):
@@ -1435,7 +1435,7 @@ def bgpdump_main(argv):
 
   for filename in argv:
     if filename.endswith(".ax"):
-      log("Reading %s" % filename)
+      blather("Reading %s" % filename)
       db = axfr_set.load(filename)
     elif filename.startswith("ribs."):
       db = axfr_set.parse_bgpdump_rib_dump(filename)
@@ -1446,14 +1446,14 @@ def bgpdump_main(argv):
     else:
       sys.exit("First argument must be a RIB dump or .ax file, don't know what to do with %s" % filename)
     axfrs.append(db.filename())
-    log("DB serial now %d (%s)" % (db.serial, db.serial))
+    blather("DB serial now %d (%s)" % (db.serial, db.serial))
 
   del axfrs[-1]
 
   for axfr in axfrs:
-    log("Loading %s" % axfr)
+    blather("Loading %s" % axfr)
     ax = axfr_set.load(axfr)
-    log("Computing changes from %d (%s) to %d (%s)" % (ax.serial, ax.serial, db.serial, db.serial))
+    blather("Computing changes from %d (%s) to %d (%s)" % (ax.serial, ax.serial, db.serial, db.serial))
     db.save_ixfr(ax)
     del ax
 
@@ -1521,9 +1521,12 @@ if mode in ("cronjob", "server"):
   syslog.openlog(log_tag, syslog.LOG_PID, syslog.LOG_DAEMON)
   def log(msg):
     return syslog.syslog(syslog.LOG_WARNING, str(msg))
+  def blather(msg):
+    return syslog.syslog(syslog.LOG_INFO, str(msg))
 
 else:
   def log(msg):
     sys.stderr.write("%s %s[%d]: %s\n" % (time.strftime("%F %T"), log_tag, os.getpid(), msg))
+  blather = log
 
 main_dispatch[mode](argv)

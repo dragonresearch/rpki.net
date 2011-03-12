@@ -281,6 +281,7 @@ class http_stream(asynchat.async_chat):
   """
 
   log = log_method
+  show_tracebacks = False
 
   def __init__(self, sock = None):
     asynchat.async_chat.__init__(self, sock)
@@ -420,13 +421,14 @@ class http_stream(asynchat.async_chat):
     whether it's one we should just pass along, otherwise log a stack
     trace and close the stream.
     """
+    self.timer.cancel()
     etype = sys.exc_info()[0]
     if etype in (SystemExit, rpki.async.ExitNow):
-      self.log("Caught %s, propagating" % etype.__name__)
       raise
-    self.log("Error in HTTP stream handler", rpki.log.warn)
-    rpki.log.traceback()
-    if etype not in (rpki.exceptions.HTTPClientAborted,):
+    if self.show_tracebacks:
+      self.log("Error in HTTP stream handler", rpki.log.warn)
+      rpki.log.traceback()
+    if etype is not rpki.exceptions.HTTPClientAborted:
       self.log("Closing due to error", rpki.log.warn)
       self.close()
 
@@ -440,9 +442,10 @@ class http_stream(asynchat.async_chat):
   def handle_close(self):
     """
     Wrapper around asynchat connection close handler, so that we can
-    log the event.
+    log the event, cancel timer, and so forth.
     """
     self.log("Close event in HTTP stream handler")
+    self.timer.cancel()
     asynchat.async_chat.handle_close(self)
 
 class http_server(http_stream):
@@ -505,7 +508,8 @@ class http_server(http_stream):
       except (rpki.async.ExitNow, SystemExit):
         raise
       except Exception, e:
-        rpki.log.traceback()
+        if self.show_tracebacks:
+          rpki.log.traceback()
         self.send_error(500, "Unhandled exception %s" % e)
     else:
       self.send_error(code = error[0], reason = error[1])
@@ -550,6 +554,7 @@ class http_listener(asyncore.dispatcher):
   """
 
   log = log_method
+  show_tracebacks = False
 
   def __init__(self, handlers, addrinfo):
     self.log("Listener")
@@ -569,7 +574,8 @@ class http_listener(asyncore.dispatcher):
       self.listen(5)
     except:
       self.log("Couldn't set up HTTP listener", rpki.log.warn)
-      rpki.log.traceback()
+      if self.show_tracebacks:
+        rpki.log.traceback()
       self.close()
     self.log("Listening on %r, handlers %r" % (sockaddr, handlers))
 
@@ -595,7 +601,8 @@ class http_listener(asyncore.dispatcher):
     if sys.exc_info()[0] in (SystemExit, rpki.async.ExitNow):
       raise
     self.log("Error in HTTP listener", rpki.log.warn)
-    rpki.log.traceback()
+    if self.show_tracebacks:
+      rpki.log.traceback()
 
 class http_client(http_stream):
   """
@@ -723,7 +730,6 @@ class http_client(http_stream):
     if self.expect_close:
       self.log("Closing")
       self.set_state("closing")
-      self.queue.detach(self)
       self.close_when_done()
     else:
       self.log("Idling")
@@ -732,7 +738,7 @@ class http_client(http_stream):
 
     if self.msg.code != 200:
       raise rpki.exceptions.HTTPRequestFailed, "HTTP request failed with status %s, reason %s, response %s" % (self.msg.code, self.msg.reason, self.msg.body)
-    self.queue.return_result(self.msg)
+    self.queue.return_result(self, self.msg, detach = self.expect_close)
 
   def handle_close(self):
     """
@@ -743,11 +749,12 @@ class http_client(http_stream):
     """
     http_stream.handle_close(self)
     self.log("State %s" % self.state)
-    self.queue.detach(self)
     if self.get_terminator() is None:
       self.handle_body()
     elif self.state == "request-sent":
       raise rpki.exceptions.HTTPClientAborted, "HTTP request aborted by close event"
+    else:
+      self.queue.detach(self)
 
   def handle_timeout(self):
     """
@@ -758,12 +765,10 @@ class http_client(http_stream):
     if bad:
       self.log("Timeout while in state %s" % self.state, rpki.log.warn)
     http_stream.handle_timeout(self)
-    self.queue.detach(self)
     if bad:
-      try:
-        raise rpki.exceptions.HTTPTimeout
-      except rpki.exceptions.HTTPTimeout, e:
-        self.queue.return_result(e)
+      raise rpki.exceptions.HTTPTimeout
+    else:
+      self.queue.detach(self)
 
   def handle_error(self):
     """
@@ -773,8 +778,7 @@ class http_client(http_stream):
     eclass, edata = sys.exc_info()[0:2]
     self.log("Error on HTTP client connection %s:%s: %s %s" % (self.host, self.port, eclass, edata), rpki.log.warn)
     http_stream.handle_error(self)
-    self.queue.detach(self)
-    self.queue.return_result(edata)
+    self.queue.return_result(self, edata, detach = True)
 
 class http_queue(object):
   """
@@ -820,7 +824,7 @@ class http_queue(object):
     except (rpki.async.ExitNow, SystemExit):
       raise
     except Exception, e:
-      self.return_result(e)
+      self.return_result(self.client, e, detach = True)
 
   def send_request(self):
     """
@@ -840,13 +844,20 @@ class http_queue(object):
       self.log("Detaching client %r" % client_)
       self.client = None
 
-  def return_result(self, result):
+  def return_result(self, client, result, detach = False):
     """
     Client stream has returned a result, which we need to pass along
     to the original caller.  Result may be either an HTTP response
     message or an exception.  In either case, once we're done
     processing this result, kick off next message in the queue, if any.
     """
+
+    if client is not self.client:
+      self.log("Wrong client trying to return result.  THIS SHOULD NOT HAPPEN.  Dropping result %r" % result, rpki.log.warn)
+      return
+
+    if detach:
+      self.detach(client)
 
     try:
       req = self.queue.pop(0)

@@ -373,7 +373,7 @@ class self_elt(data_elt):
         rpki.async.iterator(r_msg.payload.classes, class_loop, class_done)
 
       def list_failed(e):
-        rpki.log.traceback()
+        #rpki.log.traceback()
         rpki.log.warn("Couldn't get resource class list from parent %r, skipping: %s" % (parent, e))
         parent_iterator()
 

@@ -97,6 +97,7 @@ contact_info = element contact_info {
 # Variant payload portion of a <repository/> element.
 
 repository_payload = (
+  (attribute type { "none" }) |
   (attribute type { "offer" }) |
   (attribute type { "referral" }, authorization, contact_info)
 )

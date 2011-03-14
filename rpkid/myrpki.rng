@@ -240,6 +240,9 @@
   <define name="repository_payload">
     <choice>
       <attribute name="type">
+        <value>none</value>
+      </attribute>
+      <attribute name="type">
         <value>offer</value>
       </attribute>
       <group>

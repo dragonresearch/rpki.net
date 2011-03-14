@@ -1057,6 +1057,7 @@ class main(rpki.cli.Cmd):
     if self.run_rpkid or self.run_pubd or self.run_rootd:
       self.bpki_servers = CA(self.cfg.filename, self.cfg.get("bpki_servers_directory"))
 
+    self.default_repository = self.cfg.get("default_repository", "")
     self.pubd_contact_info = self.cfg.get("pubd_contact_info", "")
 
     self.rsync_module = self.cfg.get("publication_rsync_module")
@@ -1239,32 +1240,31 @@ class main(rpki.cli.Cmd):
     PEMElement(e, "bpki_resource_ta", self.bpki_resources.cer)
     SubElement(e, "bpki_child_ta").text = c.findtext("bpki_ta")
 
-    try:
-      repo = None
-      for f in self.entitydb.iterate("repositories", "*.xml"):
-        r = etree_read(f)
-        if r.get("type") == "confirmed":
-          if repo is not None:
-            raise RuntimeError, "Too many repositories, I don't know what to do, not giving referral"
-          repo_handle = os.path.splitext(os.path.split(f)[-1])[0]
+    repo = None
+    for f in self.entitydb.iterate("repositories", "*.xml"):
+      r = etree_read(f)
+      if r.get("type") == "confirmed":
+        h = os.path.splitext(os.path.split(f)[-1])[0]
+        if repo is None or h == self.default_repository:
+          repo_handle = h
           repo = r
-      if repo is None:
-        raise RuntimeError, "Couldn't find any usable repositories, not giving referral"
 
-      if repo_handle == self.handle:
-        SubElement(e, "repository", type = "offer")
-      else:
-        proposed_sia_base = repo.get("sia_base") + child_handle + "/"
-        r = Element("referral", authorized_sia_base = proposed_sia_base)
-        r.text = c.findtext("bpki_ta")
-        auth = self.bpki_resources.cms_xml_sign(
-          "/CN=%s Publication Referral" % self.handle, "referral", r)
-        r = SubElement(e, "repository", type = "referral")
-        SubElement(r, "authorization", referrer = repo.get("client_handle")).text = auth
-        SubElement(r, "contact_info").text = repo.findtext("contact_info")
+    if repo is None:
+      print "Couldn't find any usable repositories, not giving referral"
 
-    except RuntimeError, err:
-      print err
+    elif repo_handle == self.handle:
+      SubElement(e, "repository", type = "offer")
+
+    else:
+      proposed_sia_base = repo.get("sia_base") + child_handle + "/"
+      r = Element("referral", authorized_sia_base = proposed_sia_base)
+      r.text = c.findtext("bpki_ta")
+      auth = self.bpki_resources.cms_xml_sign(
+        "/CN=%s Publication Referral" % self.handle, "referral", r)
+
+      r = SubElement(e, "repository", type = "referral")
+      SubElement(r, "authorization", referrer = repo.get("client_handle")).text = auth
+      SubElement(r, "contact_info").text = repo.findtext("contact_info")
 
     etree_write(e, self.entitydb("children", "%s.xml" % child_handle),
                 msg = "Send this file back to the child you just configured")
@@ -1323,14 +1323,14 @@ class main(rpki.cli.Cmd):
 
     r = p.find("repository")
 
-    if r is not None and r.get("type") in ("offer", "referral"):
-      r.set("handle", self.handle)
-      r.set("parent_handle", parent_handle)
-      PEMElement(r, "bpki_client_ta", self.bpki_resources.cer)
-      etree_write(r, self.entitydb("repositories", "%s.xml" % parent_handle),
-                  msg = 'This is the "repository %s" file to send to the repository operator' % r.get("type"))
-    else:
-      print "Couldn't find repository offer or referral"
+    if r is None or r.get("type") not in ("offer", "referral"):
+      r = Element("repository", type = "none")
+
+    r.set("handle", self.handle)
+    r.set("parent_handle", parent_handle)
+    PEMElement(r, "bpki_client_ta", self.bpki_resources.cer)
+    etree_write(r, self.entitydb("repositories", "%s.xml" % parent_handle),
+                msg = "This is the file to send to the repository operator")
 
 
   def do_delete_parent(self, arg):

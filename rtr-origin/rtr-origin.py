@@ -1332,23 +1332,38 @@ def server_main(argv):
   already been done in --cronjob mode, so all that this mode has to do
   is serve up the results.
 
-  In production use this server is run under sshd.  The subsystem
+  In production use this server should run under sshd.  The subsystem
   mechanism in sshd does not allow us to pass arguments on the command
-  line, so either we need a wrapper or we need wired-in names.  sshd
-  will have us running in whatever it thinks is our home directory on
-  startup, so it may be that the easiest approach here is to let sshd
-  put us in the right directory and just look for our files there.
+  line, so setting this up might require a wrapper script, but in
+  production use you will probably want to lock down the public key
+  used to authenticate the ssh session so that it can only run this
+  one command, in which case you can just specify the full command
+  including any arguments in the authorized_keys file.
 
-  This mode takes no arguments.  Run it in the directory where you ran
-  --cronjob mode.
+  Unless you do something special, sshd will have this program running
+  in whatever it thinks is the home directory associated with the
+  username given in the ssh prototocol setup, so it may be easiest to
+  set this up so that the home directory sshd puts this program into
+  is the one where --cronjob left its files for this mode to pick up.
+
+  This mode must be run in the directory where you ran --cronjob mode.
+
+  This mode takes one optional argument: if provided, the argument is
+  the name of a directory to which the program should chdir() on
+  startup; this may simplify setup when running under inetd.
 
   The server is event driven, so everything interesting happens in the
   channel classes.
   """
 
   log("[Starting]")
-  if argv:
+  if len(argv) > 1:
     sys.exit("Unexpected arguments: %r" % (argv,))
+  if argv:
+    try:
+      os.chdir(argv[0])
+    except OSError, e:
+      sys.exit(e)
   kickme = None
   try:
     server = server_channel()

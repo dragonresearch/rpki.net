@@ -3,7 +3,7 @@ RPKI "left-right" protocol.
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -57,12 +57,14 @@ class data_elt(rpki.xml_utils.data_elt, rpki.sql.sql_persistent, left_right_name
   self_id = None
   self_handle = None
 
+  @property
   def self(self):
     """
     Fetch self object to which this object links.
     """
     return self_elt.sql_fetch(self.gctx, self.self_id)
 
+  @property
   def bsc(self):
     """
     Return BSC object to which this object links.
@@ -146,30 +148,35 @@ class self_elt(data_elt):
   bpki_cert = None
   bpki_glue = None
 
+  @property
   def bscs(self):
     """
     Fetch all BSC objects that link to this self object.
     """
     return bsc_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
+  @property
   def repositories(self):
     """
     Fetch all repository objects that link to this self object.
     """
     return repository_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
+  @property
   def parents(self):
     """
     Fetch all parent objects that link to this self object.
     """
     return parent_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
+  @property
   def children(self):
     """
     Fetch all child objects that link to this self object.
     """
     return child_elt.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
+  @property
   def roas(self):
     """
     Fetch all ROA objects that link to this self object.
@@ -205,7 +212,7 @@ class self_elt(data_elt):
     rpki.log.trace()
     def loop(iterator, parent):
       parent.serve_rekey(iterator, eb)
-    rpki.async.iterator(self.parents(), loop, cb)
+    rpki.async.iterator(self.parents, loop, cb)
 
   def serve_revoke(self, cb, eb):
     """
@@ -214,7 +221,7 @@ class self_elt(data_elt):
     rpki.log.trace()
     def loop(iterator, parent):
       parent.serve_revoke(iterator, eb)
-    rpki.async.iterator(self.parents(), loop, cb)
+    rpki.async.iterator(self.parents, loop, cb)
 
   def serve_reissue(self, cb, eb):
     """
@@ -223,7 +230,7 @@ class self_elt(data_elt):
     rpki.log.trace()
     def loop(iterator, parent):
       parent.serve_reissue(iterator, eb)
-    rpki.async.iterator(self.parents(), loop, cb)
+    rpki.async.iterator(self.parents, loop, cb)
 
   def serve_revoke_forgotten(self, cb, eb):
     """
@@ -232,7 +239,7 @@ class self_elt(data_elt):
     rpki.log.trace()
     def loop(iterator, parent):
       parent.serve_revoke_forgotten(iterator, eb)
-    rpki.async.iterator(self.parents(), loop, cb)
+    rpki.async.iterator(self.parents, loop, cb)
 
   def serve_publish_world_now(self, cb, eb):
     """
@@ -255,16 +262,16 @@ class self_elt(data_elt):
 
     def loop(iterator, parent):
       q_msg = rpki.publication.msg.query()
-      for ca in parent.cas():
+      for ca in parent.cas:
         ca_detail = ca.fetch_active()
         if ca_detail is not None:
-          q_msg.append(rpki.publication.crl_elt.make_publish(ca_detail.crl_uri(ca), ca_detail.latest_crl))
-          q_msg.append(rpki.publication.manifest_elt.make_publish(ca_detail.manifest_uri(ca), ca_detail.latest_manifest))
-          q_msg.extend(rpki.publication.certificate_elt.make_publish(c.uri(ca), c.cert) for c in ca_detail.child_certs())
-          q_msg.extend(rpki.publication.roa_elt.make_publish(r.uri(), r.roa) for r in ca_detail.roas() if r.roa is not None)
-      parent.repository().call_pubd(iterator, eb, q_msg)
+          q_msg.append(rpki.publication.crl_elt.make_publish(ca_detail.crl_uri, ca_detail.latest_crl))
+          q_msg.append(rpki.publication.manifest_elt.make_publish(ca_detail.manifest_uri, ca_detail.latest_manifest))
+          q_msg.extend(rpki.publication.certificate_elt.make_publish(c.uri, c.cert) for c in ca_detail.child_certs)
+          q_msg.extend(rpki.publication.roa_elt.make_publish(r.uri, r.roa) for r in ca_detail.roas if r.roa is not None)
+      parent.repository.call_pubd(iterator, eb, q_msg)
 
-    rpki.async.iterator(self.parents(), loop, cb)
+    rpki.async.iterator(self.parents, loop, cb)
 
   def serve_run_now(self, cb, eb):
     """
@@ -334,7 +341,7 @@ class self_elt(data_elt):
     def parent_loop(parent_iterator, parent):
 
       def got_list(r_msg):
-        ca_map = dict((ca.parent_resource_class, ca) for ca in parent.cas())
+        ca_map = dict((ca.parent_resource_class, ca) for ca in parent.cas)
         self.gctx.checkpoint()
 
         def class_loop(class_iterator, rc):
@@ -379,7 +386,7 @@ class self_elt(data_elt):
 
       rpki.up_down.list_pdu.query(parent, got_list, list_failed)
 
-    rpki.async.iterator(self.parents(), parent_loop, callback)
+    rpki.async.iterator(self.parents, parent_loop, callback)
 
 
   def update_children(self, cb):
@@ -404,8 +411,8 @@ class self_elt(data_elt):
       def got_resources(irdb_resources):
         try:
           for child_cert in child_certs:
-            ca_detail = child_cert.ca_detail()
-            ca = ca_detail.ca()
+            ca_detail = child_cert.ca_detail
+            ca = ca_detail.ca
             if ca_detail.state == "active":
               old_resources = child_cert.cert.get_3779resources()
               new_resources = irdb_resources.intersection(old_resources).intersection(ca_detail.latest_ca_cert.get_3779resources())
@@ -427,7 +434,7 @@ class self_elt(data_elt):
                 rpki.log.debug("Child certificate SKI %s has expired: cert.valid_until %s, irdb.valid_until %s"
                                % (child_cert.cert.gSKI(), old_resources.valid_until, irdb_resources.valid_until))
                 child_cert.sql_delete()
-                publisher.withdraw(cls = rpki.publication.certificate_elt, uri = child_cert.uri(ca), obj = child_cert.cert, repository = ca.parent().repository())
+                publisher.withdraw(cls = rpki.publication.certificate_elt, uri = child_cert.uri, obj = child_cert.cert, repository = ca.parent.repository)
                 ca_detail.generate_manifest(publisher = publisher)
 
         except (SystemExit, rpki.async.ExitNow):
@@ -440,9 +447,9 @@ class self_elt(data_elt):
           iterator()
 
       self.gctx.checkpoint()
-      child_certs = child.child_certs()
+      child_certs = child.child_certs
       if child_certs:
-        self.gctx.irdb_query_child_resources(child.self().self_handle, child.child_handle, got_resources, lose)
+        self.gctx.irdb_query_child_resources(child.self.self_handle, child.child_handle, got_resources, lose)
       else:
         iterator()
 
@@ -455,7 +462,7 @@ class self_elt(data_elt):
       self.gctx.checkpoint()
       publisher.call_pubd(cb, lose)
 
-    rpki.async.iterator(self.children(), loop, done)
+    rpki.async.iterator(self.children, loop, done)
 
 
   def regenerate_crls_and_manifests(self, cb):
@@ -475,14 +482,14 @@ class self_elt(data_elt):
     regen_margin = rpki.sundial.timedelta(seconds = self.regen_margin)
     publisher = rpki.rpki_engine.publication_queue()
 
-    for parent in self.parents():
-      for ca in parent.cas():
+    for parent in self.parents:
+      for ca in parent.cas:
         try:
           for ca_detail in ca.fetch_revoked():
             if now > ca_detail.latest_crl.getNextUpdate():
               ca_detail.delete(ca = ca, publisher = publisher)
           ca_detail = ca.fetch_active()
-          if ca_detail is not None and now + regen_margin> ca_detail.latest_crl.getNextUpdate():
+          if ca_detail is not None and now + regen_margin > ca_detail.latest_crl.getNextUpdate():
             ca_detail.generate_crl(publisher = publisher)
             ca_detail.generate_manifest(publisher = publisher)
         except (SystemExit, rpki.async.ExitNow):
@@ -501,6 +508,90 @@ class self_elt(data_elt):
     publisher.call_pubd(cb, lose)
 
 
+  def update_ghostbusters(self, cb):
+    """
+    Generate or update Ghostbusters records for this self.
+
+    This is heavily based on .update_roas(), and probably both of them
+    need refactoring.
+    """
+
+    raise rpki.exceptions.NotImplementedYet
+
+    parents = dict((p.parent_handle, p) for p in self.parents)
+
+    def got_gbr_requests(gbr_requests):
+
+      self.gctx.checkpoint()
+
+      if self.gctx.sql.dirty:
+        rpki.log.warn("Unexpected dirty SQL cache, flushing")
+        self.gctx.sql.sweep()
+
+      ghostbusters = {}
+      orphans = []
+      for ghostbuster in self.ghostbusters:
+        k = (ghostbuster.ca_detail.ca.parent.parent_handle, ghostbuster.vcard)
+        if k not in ghostbusters:
+          ghostbusters[k] = ghostbuster
+        elif ghostbuster.ca_detail.state == "active" and ghostbusters[k].ca_detail.state != "active":
+          orphans.append(ghostbusters[k])
+          ghostbusters[k] = ghostbuster
+        else:
+          orphans.append(ghostbusters[k])
+
+      publisher = rpki.rpki_engine.publication_queue()
+      ca_details = set()
+
+      seen = set()
+      for gbr_request in gbr_requests:
+        if gbr_request.parent_handle not in parents:
+          rpki.log.warn("Unknown parent_handle %r in Ghostbuster request, skipping" % gbr_request.parent_handle)
+          continue
+        k = (gbr_request.parent_handle, gbr_request.vcard)
+        if k in seen:
+          rpki.log.warn("Skipping duplicate Ghostbuster request %r" % gbr_request)
+          continue
+        see.add(k)
+        ghostbuster = ghostbusters.pop(k, None)
+        if ghostbuster is None:
+          ghostbuster = rpki.rpki_engine.ghostbuster_obj(self.gctx, self.self_id, parents[gbr_request.parent_handle], vcard)
+          rpki.log.debug("Created new Ghostbuster request for %r" % gbr_request.parent_handle)
+        else:
+          rpki.log.debug("Found existing Ghostbuster request for %r" % gbr_request.parent_handle)
+        ghostbuster.update(publisher = publisher, fast = True)
+        ca_details.add(ghostbuster.ca_detail)
+
+      orphans.extend(ghostbusters.itervalues())
+      for ghostbuster in orphans:
+        ca_details.add(ghostbuster.ca_detail)
+        ghostbuster.revoke(publisher = publisher, fast = True)
+
+      for ca_detail in ca_details:
+        ca_detail.generate_crl(publisher = publisher)
+        ca_detail.generate_manifest(publisher = publisher)
+
+      self.gctx.sql.sweep()
+
+      def publication_failed(e):
+        rpki.log.traceback()
+        rpki.log.warn("Couldn't publish Ghostbuster updates for %s, skipping: %s" % (self.self_handle, e))
+        self.gctx.checkpoint()
+        cb()
+
+      self.gctx.checkpoint()
+      publisher.call_pubd(cb, publication_failed)
+
+    def gbr_requests_failed(e):
+      rpki.log.traceback()
+      rpki.log.warn("Could not fetch Ghostbusters record requests for %s, skipping: %s" % (self.self_handle, e))
+      cb()
+
+    self.gctx.checkpoint()
+    self.gctx.irdb_query_gbr_requests(self.self_handle, parents.iterkeys(),
+                                      got_gbr_requests, gbr_requests_failed)
+
+
   def update_roas(self, cb):
     """
     Generate or update ROAs for this self.
@@ -516,12 +607,12 @@ class self_elt(data_elt):
 
       roas = {}
       orphans = []
-      for roa in self.roas():
+      for roa in self.roas:
         k = (roa.asn, str(roa.ipv4), str(roa.ipv6))
         if k not in roas:
           roas[k] = roa
-        elif (roa.roa is not None and roa.cert is not None and roa.ca_detail() is not None and roa.ca_detail().state == "active" and
-              (roas[k].roa is None or roas[k].cert is None or roas[k].ca_detail() is None or roas[k].ca_detail().state != "active")):
+        elif (roa.roa is not None and roa.cert is not None and roa.ca_detail is not None and roa.ca_detail.state == "active" and
+              (roas[k].roa is None or roas[k].cert is None or roas[k].ca_detail is None or roas[k].ca_detail.state != "active")):
           orphans.append(roas[k])
           roas[k] = roa
         else:
@@ -545,7 +636,7 @@ class self_elt(data_elt):
           else:
             rpki.log.debug("Found existing ROA %r matching %r" % (roa, k))
           roa.update(publisher = publisher, fast = True)
-          ca_details.add(roa.ca_detail())
+          ca_details.add(roa.ca_detail)
         except (SystemExit, rpki.async.ExitNow):
           raise
         except Exception, e:
@@ -556,7 +647,7 @@ class self_elt(data_elt):
       orphans.extend(roas.itervalues())
       for roa in orphans:
         try:
-          ca_details.add(roa.ca_detail())
+          ca_details.add(roa.ca_detail)
           roa.revoke(publisher = publisher, fast = True)
         except (SystemExit, rpki.async.ExitNow):
           raise
@@ -610,18 +701,21 @@ class bsc_elt(data_elt):
   signing_cert = None
   signing_cert_crl = None
 
+  @property
   def repositories(self):
     """
     Fetch all repository objects that link to this BSC object.
     """
     return repository_elt.sql_fetch_where(self.gctx, "bsc_id = %s", (self.bsc_id,))
 
+  @property
   def parents(self):
     """
     Fetch all parent objects that link to this BSC object.
     """
     return parent_elt.sql_fetch_where(self.gctx, "bsc_id = %s", (self.bsc_id,))
 
+  @property
   def children(self):
     """
     Fetch all child objects that link to this BSC object.
@@ -660,6 +754,7 @@ class repository_elt(data_elt):
   bpki_cert = None
   bpki_glue = None
 
+  @property
   def parents(self):
     """
     Fetch all parent objects that link to this repository object.
@@ -701,9 +796,9 @@ class repository_elt(data_elt):
       for q_pdu in q_msg:
         rpki.log.info("Sending <%s %r %r> to pubd" % (q_pdu.action, q_pdu.uri, q_pdu.payload))
 
-      bsc = self.bsc()
+      bsc = self.bsc
       q_der = rpki.publication.cms_msg().wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)
-      bpki_ta_path = (self.gctx.bpki_ta, self.self().bpki_cert, self.self().bpki_glue, self.bpki_cert, self.bpki_glue)
+      bpki_ta_path = (self.gctx.bpki_ta, self.self.bpki_cert, self.self.bpki_glue, self.bpki_cert, self.bpki_glue)
 
       def done(r_der):
         try:
@@ -755,12 +850,14 @@ class parent_elt(data_elt):
   bpki_cms_cert = None
   bpki_cms_glue = None
 
+  @property
   def repository(self):
     """
     Fetch repository object to which this parent object links.
     """
     return repository_elt.sql_fetch(self.gctx, self.repository_id)
 
+  @property
   def cas(self):
     """
     Fetch all CA objects that link to this parent object.
@@ -790,7 +887,7 @@ class parent_elt(data_elt):
     """
     def loop(iterator, ca):
       ca.rekey(iterator, eb)
-    rpki.async.iterator(self.cas(), loop, cb)
+    rpki.async.iterator(self.cas, loop, cb)
 
   def serve_revoke(self, cb, eb):
     """
@@ -798,7 +895,7 @@ class parent_elt(data_elt):
     """
     def loop(iterator, ca):
       ca.revoke(cb = iterator, eb = eb)
-    rpki.async.iterator(self.cas(), loop, cb)
+    rpki.async.iterator(self.cas, loop, cb)
 
   def serve_reissue(self, cb, eb):
     """
@@ -806,7 +903,7 @@ class parent_elt(data_elt):
     """
     def loop(iterator, ca):
       ca.reissue(cb = iterator, eb = eb)
-    rpki.async.iterator(self.cas(), loop, cb)
+    rpki.async.iterator(self.cas, loop, cb)
 
   def serve_revoke_forgotten(self, cb, eb):
     """
@@ -824,7 +921,7 @@ class parent_elt(data_elt):
 
     def got_list(r_msg):
 
-      ca_map = dict((ca.parent_resource_class, ca) for ca in self.cas())
+      ca_map = dict((ca.parent_resource_class, ca) for ca in self.cas)
 
       def rc_loop(rc_iterator, rc):
 
@@ -855,7 +952,7 @@ class parent_elt(data_elt):
 
     rpki.log.trace()
 
-    bsc = self.bsc()
+    bsc = self.bsc
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
 
@@ -874,8 +971,8 @@ class parent_elt(data_elt):
     def unwrap(r_der):
       try:
         r_msg = rpki.up_down.cms_msg(DER = r_der).unwrap((self.gctx.bpki_ta,
-                                                          self.self().bpki_cert,
-                                                          self.self().bpki_glue,
+                                                          self.self.bpki_cert,
+                                                          self.self.bpki_glue,
                                                           self.bpki_cms_cert,
                                                           self.bpki_cms_glue))
         r_msg.payload.check_response()
@@ -913,12 +1010,20 @@ class child_elt(data_elt):
   bpki_cert = None
   bpki_glue = None
 
-  def child_certs(self, ca_detail = None, ski = None, unique = False):
+  def fetch_child_certs(self, ca_detail = None, ski = None, unique = False):
     """
     Fetch all child_cert objects that link to this child object.
     """
     return rpki.rpki_engine.child_cert_obj.fetch(self.gctx, self, ca_detail, ski, unique)
 
+  @property
+  def child_certs(self):
+    """
+    Fetch all child_cert objects that link to this child object.
+    """
+    return self.fetch_child_certs()
+
+  @property
   def parents(self):
     """
     Fetch all parent objects that link to self object to which this child object links.
@@ -939,8 +1044,8 @@ class child_elt(data_elt):
     Handle a left-right reissue action for this child.
     """
     publisher = rpki.rpki_engine.publication_queue()
-    for child_cert in self.child_certs():
-      child_cert.reissue(child_cert.ca_detail(), publisher, force = True)
+    for child_cert in self.child_certs:
+      child_cert.reissue(child_cert.ca_detail, publisher, force = True)
     publisher.call_pubd(cb, eb)
 
   def ca_from_class_name(self, class_name):
@@ -952,7 +1057,7 @@ class child_elt(data_elt):
     ca = rpki.rpki_engine.ca_obj.sql_fetch(self.gctx, long(class_name))
     if ca is None:
       raise rpki.exceptions.ClassNameUnknown, "Unknown class name %s" % class_name
-    parent = ca.parent()
+    parent = ca.parent
     if self.self_id != parent.self_id:
       raise rpki.exceptions.ClassNameMismatch, "Class name mismatch: child.self_id = %d, parent.self_id = %d" % (self.self_id, parent.self_id)
     return ca
@@ -962,7 +1067,7 @@ class child_elt(data_elt):
     Extra server actions when destroying a child_elt.
     """
     publisher = rpki.rpki_engine.publication_queue()
-    for child_cert in self.child_certs():
+    for child_cert in self.child_certs:
       child_cert.revoke(publisher = publisher,
                         generate_crl_and_manifest = True)
     publisher.call_pubd(cb, eb)
@@ -974,12 +1079,12 @@ class child_elt(data_elt):
 
     rpki.log.trace()
 
-    bsc = self.bsc()
+    bsc = self.bsc
     if bsc is None:
       raise rpki.exceptions.BSCNotFound, "Could not find BSC %s" % self.bsc_id
     q_msg = rpki.up_down.cms_msg(DER = query).unwrap((self.gctx.bpki_ta,
-                                                      self.self().bpki_cert,
-                                                      self.self().bpki_glue,
+                                                      self.self.bpki_cert,
+                                                      self.self.bpki_glue,
                                                       self.bpki_cert,
                                                       self.bpki_glue))
     q_msg.payload.gctx = self.gctx
@@ -1061,6 +1166,18 @@ class list_roa_requests_elt(rpki.xml_utils.base_elt, left_right_namespace):
     if self.ipv6 is not None:
       self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6)
 
+class list_gbr_requests_elt(rpki.xml_utils.text_elt, left_right_namespace):
+  """
+  <list_gbr_requests/> element.
+  """
+
+  element_name = "list_gbr_requests"
+  attributes = ("self_handle", "tag", "parent_handle")
+  text_attribute = "vcard"
+
+  vcard = None
+
+
 class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
   """
   <list_published_objects/> element.
@@ -1078,14 +1195,14 @@ class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
     misnomer here, there's no action attribute and no dispatch, we
     just dump every published object for the specified <self/> and return.
     """
-    for  parent in self_elt.serve_fetch_handle(self.gctx, None, self.self_handle).parents():
-      for ca in parent.cas():
+    for  parent in self_elt.serve_fetch_handle(self.gctx, None, self.self_handle).parents:
+      for ca in parent.cas:
         ca_detail = ca.fetch_active()
         if ca_detail is not None:
-          r_msg.append(self.make_reply(ca_detail.crl_uri(ca), ca_detail.latest_crl))
-          r_msg.append(self.make_reply(ca_detail.manifest_uri(ca), ca_detail.latest_manifest))
-          r_msg.extend(self.make_reply(c.uri(ca), c.cert) for c in ca_detail.child_certs())
-          r_msg.extend(self.make_reply(r.uri(), r.roa) for r in ca_detail.roas() if r.roa is not None)
+          r_msg.append(self.make_reply(ca_detail.crl_uri, ca_detail.latest_crl))
+          r_msg.append(self.make_reply(ca_detail.manifest_uri, ca_detail.latest_manifest))
+          r_msg.extend(self.make_reply(c.uri, c.cert) for c in ca_detail.child_certs)
+          r_msg.extend(self.make_reply(r.uri, r.roa) for r in ca_detail.roas if r.roa is not None)
     cb()
 
   def make_reply(self, uri, obj):
@@ -1112,8 +1229,8 @@ class list_received_resources_elt(rpki.xml_utils.base_elt, left_right_namespace)
     just dump a bunch of data about every certificate issued to us by
     one of our parents, then return.
     """
-    for parent in self_elt.serve_fetch_handle(self.gctx, None, self.self_handle).parents():
-      for ca in parent.cas():
+    for parent in self_elt.serve_fetch_handle(self.gctx, None, self.self_handle).parents:
+      for ca in parent.cas:
         ca_detail = ca.fetch_active()
         if ca_detail is not None and ca_detail.latest_ca_cert is not None:
           r_msg.append(self.make_reply(parent.parent_handle, ca_detail.ca_cert_uri, ca_detail.latest_ca_cert))
@@ -1172,10 +1289,11 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
   ## @var pdus
   # Dispatch table of PDUs for this protocol.
   pdus = dict((x.element_name, x)
-              for x in (self_elt, child_elt, parent_elt, bsc_elt, repository_elt,
-                        list_resources_elt, list_roa_requests_elt,
-                        list_published_objects_elt, list_received_resources_elt,
-                        report_error_elt))
+              for x in (self_elt, child_elt, parent_elt, bsc_elt,
+                        repository_elt, list_resources_elt,
+                        list_roa_requests_elt, list_gbr_requests_elt,
+                        list_published_objects_elt,
+                        list_received_resources_elt, report_error_elt))
 
   def serve_top_level(self, gctx, cb):
     """

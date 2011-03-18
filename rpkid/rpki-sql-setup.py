@@ -4,7 +4,7 @@ root password, pulls other information from rpki.conf.
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -21,7 +21,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 from __future__ import with_statement
 
-import os, getopt, sys, time, rpki.config, getpass, warnings
+import os, getopt, sys, rpki.config, getpass, warnings
 
 # Silence warning while loading MySQLdb in Python 2.6, sigh
 if hasattr(warnings, "catch_warnings"):

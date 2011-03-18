@@ -17,7 +17,7 @@ things that don't belong in yaml_script.
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -390,14 +390,14 @@ class allocation_db(list):
 
     list.__init__(self)
     self.root = allocation(yaml, self)
-    assert self.root.is_root()
+    assert self.root.is_root
     if self.root.crl_interval is None:
       self.root.crl_interval = rpki.sundial.timedelta.parse(cfg.get("crl_interval", "1d")).convert_to_seconds()
     if self.root.regen_margin is None:
       self.root.regen_margin = rpki.sundial.timedelta.parse(cfg.get("regen_margin", "1d")).convert_to_seconds()
     for a in self:
       if a.sia_base is None:
-        a.sia_base = (rootd_sia if a.is_root() else a.parent.sia_base) + a.name + "/"
+        a.sia_base = (rootd_sia if a.is_root else a.parent.sia_base) + a.name + "/"
       if a.base.valid_until is None:
         a.base.valid_until = a.parent.base.valid_until
       if a.crl_interval is None:
@@ -410,16 +410,16 @@ class allocation_db(list):
       a.client_handle = a.sia_base[i:].rstrip("/")
     self.root.closure()
     self.map = dict((a.name, a) for a in self)
-    self.engines = [a for a in self if a.is_engine()]
-    self.leaves = [a for a in self if a.is_leaf()]
+    self.engines = [a for a in self if a.is_engine]
+    self.leaves = [a for a in self if a.is_leaf]
     for i, a in enumerate(self.engines):
       a.set_engine_number(i)
     for a in self:
-      if a.is_hosted():
+      if a.is_hosted:
         a.hosted_by = self.map[a.hosted_by]
         a.hosted_by.hosts.append(a)
-        assert a.is_twig(), "%s is not twig" % a.name
-        assert not a.hosted_by.is_hosted(), "%s is hosted by a hosted entity" % a.name
+        assert a.is_twig, "%s is not twig" % a.name
+        assert not a.hosted_by.is_hosted, "%s is hosted by a hosted entity" % a.name
 
   def apply_delta(self, delta, cb):
     """
@@ -579,7 +579,7 @@ class allocation(object):
         raise e
       cb()
 
-    if self.is_leaf():
+    if self.is_leaf:
       raise RuntimeError, "Can't rekey YAML leaf %s, sorry" % self.name
     elif target is None:
       rpki.log.info("Rekeying <self/> %s" % self.name)
@@ -596,7 +596,7 @@ class allocation(object):
         raise e
       cb()
 
-    if self.is_leaf():
+    if self.is_leaf:
       rpki.log.info("Attempting to revoke YAML leaf %s" % self.name)
       subprocess.check_call((prog_python, prog_poke, "-y", self.name + ".yaml", "-r", "revoke"))
       cb()
@@ -617,21 +617,26 @@ class allocation(object):
     if self.sia_base:           s += "  SIA: %s\n" % self.sia_base
     return s + "Until: %s\n" % self.resources.valid_until
 
+  @property
   def is_leaf(self):
     #return not self.kids and not self.roa_requests
     return False
 
+  @property
   def is_root(self):
     return self.parent is None
 
+  @property
   def is_twig(self):
-    return not self.is_leaf() and not self.is_root()
+    return not self.is_leaf and not self.is_root
 
+  @property
   def is_hosted(self):
     return self.hosted_by is not None
 
+  @property
   def is_engine(self):
-    return not self.is_leaf() and not self.is_hosted()
+    return not self.is_leaf and not self.is_hosted
 
   def set_engine_number(self, n):
     """
@@ -646,7 +651,7 @@ class allocation(object):
     """
     Get rpki port to use for this entity.
     """
-    if self.is_hosted():
+    if self.is_hosted:
       assert self.hosted_by.rpki_port is not None
       return self.hosted_by.rpki_port
     else:
@@ -658,7 +663,7 @@ class allocation(object):
     Create BPKI certificates for this entity.
     """
     rpki.log.info("Constructing BPKI keys and certs for %s" % self.name)
-    if self.is_leaf():
+    if self.is_leaf:
       setup_bpki_cert_chain(self.name, ee = ("RPKI",))
     else:
       setup_bpki_cert_chain(name = self.name,
@@ -779,10 +784,10 @@ class allocation(object):
 
     rpki.log.info("Calling rpkid for %s" % self.name)
 
-    if self.is_hosted():
+    if self.is_hosted:
       rpki.log.info("rpkid %s is hosted by rpkid %s, switching" % (self.name, self.hosted_by.name))
       self = self.hosted_by
-      assert not self.is_hosted()
+      assert not self.is_hosted
 
     assert isinstance(pdus, (list, tuple))
     assert self.rpki_port is not None
@@ -799,7 +804,7 @@ class allocation(object):
       r_cms = rpki.left_right.cms_msg(DER = r_der)
       r_msg = r_cms.unwrap((self.rpkid_ta, self.rpkid_cert))
       rpki.log.debug(r_cms.pretty_print_content())
-      assert r_msg.is_reply()
+      assert r_msg.is_reply
       for r_pdu in r_msg:
         assert not isinstance(r_pdu, rpki.left_right.report_error_elt)
       cb(r_msg)
@@ -821,7 +826,7 @@ class allocation(object):
     if reverse:
       certifier = certificant
       certificant = self.name + "-SELF"
-    elif self.is_leaf():
+    elif self.is_leaf:
       certifier = self.name + "-TA"
     else:
       certifier = self.name + "-SELF"
@@ -871,7 +876,7 @@ class allocation(object):
     #10 requests we get back when we tell rpkid to generate BSC keys.
     """
 
-    assert not self.is_hosted() and not self.is_leaf()
+    assert not self.is_hosted and not self.is_leaf
 
     selves = [self] + self.hosts
 
@@ -889,7 +894,7 @@ class allocation(object):
         crl_interval = s.crl_interval,
         regen_margin = s.regen_margin,
         bpki_cert = (s.cross_certify(s.hosted_by.name + "-TA", reverse = True)
-                     if s.is_hosted() else
+                     if s.is_hosted else
                      rpki.x509.X509(Auto_file = s.name + "-SELF.cer"))))
 
       rpkid_pdus.append(rpki.left_right.bsc_elt.make_pdu(
@@ -918,9 +923,9 @@ class allocation(object):
           self_handle = s.name,
           child_handle = k.name,
           bsc_handle = "b",
-          bpki_cert = s.cross_certify(k.name + ("-TA" if k.is_leaf() else "-SELF"))))
+          bpki_cert = s.cross_certify(k.name + ("-TA" if k.is_leaf else "-SELF"))))
 
-      if s.is_root():
+      if s.is_root:
         rootd_cert = s.cross_certify(rootd_name + "-TA")
         rpkid_pdus.append(rpki.left_right.parent_elt.make_pdu(
             action = "create",
@@ -1009,7 +1014,7 @@ class allocation(object):
                             stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
     ski = rpki.x509.RSA(PEM_file = self.name + ".key").gSKI()
 
-    if self.parent.is_hosted():
+    if self.parent.is_hosted:
       parent_host = self.parent.hosted_by.name
     else:
       parent_host = self.parent.name
@@ -1024,7 +1029,7 @@ class allocation(object):
       "parent_host"  : parent_host,
       "my_name"      : self.name,
       "http_port"    : self.parent.get_rpki_port(),
-      "class_name"   : 2 if self.parent.is_hosted() else 1,
+      "class_name"   : 2 if self.parent.is_hosted else 1,
       "sia"          : self.sia_base,
       "ski"          : ski })
     f.close()
@@ -1190,7 +1195,7 @@ def call_pubd(pdus, cb):
     r_cms = rpki.publication.cms_msg(DER = r_der)
     r_msg = r_cms.unwrap((pubd_ta, pubd_pubd_cert))
     rpki.log.debug(r_cms.pretty_print_content())
-    assert r_msg.is_reply()
+    assert r_msg.is_reply
     for r_pdu in r_msg:
       assert not isinstance(r_pdu, rpki.publication.report_error_elt)
     cb(r_msg)

@@ -3,7 +3,7 @@ RPKI "up-down" protocol.
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -251,8 +251,8 @@ class list_pdu(base_elt):
 
       r_msg.payload = list_response_pdu()
 
-      for parent in child.parents():
-        for ca in parent.cas():
+      for parent in child.parents:
+        for ca in parent.cas:
           ca_detail = ca.fetch_active()
           if not ca_detail:
             continue
@@ -263,16 +263,16 @@ class list_pdu(base_elt):
           rc.class_name = str(ca.ca_id)
           rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
           rc.from_resource_bag(resources)
-          for child_cert in child.child_certs(ca_detail = ca_detail):
+          for child_cert in child.fetch_child_certs(ca_detail = ca_detail):
             c = certificate_elt()
-            c.cert_url = multi_uri(child_cert.uri(ca))
+            c.cert_url = multi_uri(child_cert.uri)
             c.cert = child_cert.cert
             rc.certs.append(c)
           rc.issuer = ca_detail.latest_ca_cert
           r_msg.payload.classes.append(rc)
       callback()
 
-    self.gctx.irdb_query_child_resources(child.self().self_handle, child.child_handle, handle, errback)
+    self.gctx.irdb_query_child_resources(child.self.self_handle, child.child_handle, handle, errback)
 
   @classmethod
   def query(cls, parent, cb, eb):
@@ -378,7 +378,7 @@ class issue_pdu(base_elt):
       resources = irdb_resources.intersection(ca_detail.latest_ca_cert.get_3779resources())
       req_key = self.pkcs10.getPublicKey()
       req_sia = self.pkcs10.get_SIA()
-      child_cert = child.child_certs(ca_detail = ca_detail, ski = req_key.get_SKI(), unique = True)
+      child_cert = child.fetch_child_certs(ca_detail = ca_detail, ski = req_key.get_SKI(), unique = True)
 
       # Generate new cert or regenerate old one if necessary
 
@@ -401,7 +401,7 @@ class issue_pdu(base_elt):
 
       def done():
         c = certificate_elt()
-        c.cert_url = multi_uri(child_cert.uri(ca))
+        c.cert_url = multi_uri(child_cert.uri)
         c.cert = child_cert.cert
         rc = class_elt()
         rc.class_name = self.class_name
@@ -417,7 +417,7 @@ class issue_pdu(base_elt):
       assert child_cert and child_cert.sql_in_db
       publisher.call_pubd(done, errback)
 
-    self.gctx.irdb_query_child_resources(child.self().self_handle, child.child_handle, got_resources, errback)
+    self.gctx.irdb_query_child_resources(child.self.self_handle, child.child_handle, got_resources, errback)
 
   @classmethod
   def query(cls, parent, ca, ca_detail, callback, errback):
@@ -426,7 +426,7 @@ class issue_pdu(base_elt):
     """
     assert ca_detail is not None and ca_detail.state in ("pending", "active")
     sia = ((rpki.oids.name2oid["id-ad-caRepository"], ("uri", ca.sia_uri)),
-           (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", ca_detail.manifest_uri(ca))))
+           (rpki.oids.name2oid["id-ad-rpkiManifest"], ("uri", ca_detail.manifest_uri)))
     self = cls()
     self.class_name = ca.parent_resource_class
     self.pkcs10 = rpki.x509.PKCS10.create_ca(ca_detail.private_key_id, sia)
@@ -484,8 +484,8 @@ class revoke_pdu(revoke_syntax):
 
     ca = child.ca_from_class_name(self.class_name)
     publisher = rpki.rpki_engine.publication_queue()
-    for ca_detail in ca.ca_details():
-      for child_cert in child.child_certs(ca_detail = ca_detail, ski = self.get_SKI()):
+    for ca_detail in ca.ca_details:
+      for child_cert in child.fetch_child_certs(ca_detail = ca_detail, ski = self.get_SKI()):
         child_cert.revoke(publisher = publisher)
     self.gctx.sql.sweep()
     publisher.call_pubd(done, eb)
@@ -495,7 +495,7 @@ class revoke_pdu(revoke_syntax):
     """
     Send a "revoke" request for certificate(s) named by gski to parent associated with ca.
     """
-    parent = ca.parent()
+    parent = ca.parent
     self = cls()
     self.class_name = ca.parent_resource_class
     self.ski = gski

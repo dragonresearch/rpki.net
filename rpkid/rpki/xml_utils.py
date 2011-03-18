@@ -3,7 +3,7 @@ XML utilities.
 
 $Id$
 
-Copyright (C) 2009  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -32,7 +32,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import xml.sax, lxml.sax, lxml.etree, base64
+import xml.sax, lxml.sax, lxml.etree
 import rpki.exceptions
 
 class sax_handler(xml.sax.handler.ContentHandler):

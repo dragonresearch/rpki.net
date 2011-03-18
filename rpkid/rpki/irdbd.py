@@ -5,7 +5,7 @@ Usage: python irdbd.py [ { -c | --config } configfile ] [ { -h | --help } ]
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -50,6 +50,7 @@ else:
 
 class main(object):
 
+
   def handle_list_resources(self, q_pdu, r_msg):
 
     r_pdu = rpki.left_right.list_resources_elt()
@@ -87,6 +88,7 @@ class main(object):
 
     r_msg.append(r_pdu)
 
+
   def handle_list_roa_requests(self, q_pdu, r_msg):
 
     self.cur.execute(
@@ -112,9 +114,36 @@ class main(object):
 
       r_msg.append(r_pdu)
 
+
+  def handle_list_gbr_requests(self, q_pdu, r_msg):
+
+    self.cur.execute(
+      "SELECT vcard  FROM gbr_request self_handle = %s and parent_handle = %s",
+      (q_pdu.self_handle, q_pdu.parent_handle))
+
+    vcards = [result[0] for result in self.cur.fetchall()]
+
+    if not vcards:
+
+      self.cur.execute(
+        "SELECT vcard  FROM gbr_request self_handle = %s and parent_handle IS NULL",
+        (q_pdu.self_handle,))
+
+      vcards = [result[0] for result in self.cur.fetchall()]
+
+    for vcard in vcards:
+      r_pdu = rpki.left_right.list_gbr_requests_elt()
+      r_pdu.tag = q_pdu.tag
+      r_pdu.self_handle = q_pdu.self_handle
+      r_pdu.parent_handle = q_pdu.parent_handle
+      r_pdu.vcard = vcard
+      r_msg.append(r_pdu)
+
+
   handle_dispatch = {
     rpki.left_right.list_resources_elt : handle_list_resources,
     rpki.left_right.list_roa_requests_elt : handle_list_roa_requests }
+
 
   def handler(self, query, path, cb):
     try:
@@ -167,6 +196,7 @@ class main(object):
       # <report_error/>, so just return HTTP failure.
 
       cb(500, "Unhandled exception %s: %s" % (data.__class__.__name__, data))
+
 
   def __init__(self):
 

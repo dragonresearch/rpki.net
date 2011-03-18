@@ -1,6 +1,6 @@
 -- $Id$
 
--- Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+-- Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
 --
 -- Permission to use, copy, modify, and distribute this software for any
 -- purpose with or without fee is hereby granted, provided that the above
@@ -33,6 +33,7 @@
 -- DROP TABLE commands must be in correct (reverse dependency) order
 -- to satisfy FOREIGN KEY constraints.
 
+DROP TABLE IF EXISTS ghostbuster;
 DROP TABLE IF EXISTS roa_prefix;
 DROP TABLE IF EXISTS roa;
 DROP TABLE IF EXISTS revoked_cert;
@@ -212,6 +213,21 @@ CREATE TABLE roa_prefix (
         PRIMARY KEY             (roa_id, prefix, prefixlen, max_prefixlen),
         CONSTRAINT              roa_prefix_roa_id
         FOREIGN KEY             (roa_id) REFERENCES roa (roa_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE ghostbuster (
+        ghostbuster_id          SERIAL NOT NULL,
+        vcard                   LONGBLOB NOT NULL,
+        cert                    LONGBLOB NOT NULL,
+        gbr                     LONGBLOB NOT NULL,
+        published               DATETIME,
+        self_id                 BIGINT UNSIGNED NOT NULL,
+        ca_detail_id            BIGINT UNSIGNED NOT NULL,
+        PRIMARY KEY             (ghostbuster_id),
+        CONSTRAINT              ghostbuster_self_id
+        FOREIGN KEY             (self_id) REFERENCES self (self_id) ON DELETE CASCADE,
+        CONSTRAINT              ghostbuster_ca_detail_id
+        FOREIGN KEY             (ca_detail_id) REFERENCES ca_detail (ca_detail_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- Local Variables:

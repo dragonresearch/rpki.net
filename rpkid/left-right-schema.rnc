@@ -5,7 +5,7 @@
 # libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
 # run the compact syntax through trang to get XML syntax.
 #
-# Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+# Copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -50,6 +50,7 @@ query_elt |= parent_query
 query_elt |= child_query
 query_elt |= repository_query
 query_elt |= list_roa_requests_query
+query_elt |= list_gbr_requests_query
 query_elt |= list_resources_query
 query_elt |= list_published_objects_query
 query_elt |= list_received_resources_query
@@ -62,6 +63,7 @@ reply_elt |= child_reply
 reply_elt |= repository_reply
 reply_elt |= list_resources_reply
 reply_elt |= list_roa_requests_reply
+reply_elt |= list_gbr_requests_reply
 reply_elt |= list_published_objects_reply
 reply_elt |= list_received_resources_reply
 reply_elt |= report_error_reply
@@ -248,6 +250,17 @@ list_roa_requests_reply = element list_roa_requests {
   attribute asn { xsd:positiveInteger },
   attribute ipv4 { ipv4_list }?,
   attribute ipv6 { ipv6_list }?
+}
+
+# <list_gbr_requests/> element
+
+list_gbr_requests_query = element list_gbr_requests {
+  tag, self_handle, parent_handle
+}
+
+list_gbr_requests_reply = element list_gbr_requests {
+  tag, self_handle, parent_handle,
+  xsd:string
 }
 
 # <list_published_objects/> element

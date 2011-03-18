@@ -116,7 +116,7 @@ tags: Makefile
 	find . -type f \( -name '*.py' -o -name '*.sql' -o -name '*.rnc' -o -name '*.py.in' \) ! -name relaxng.py ! -name __doc__.py | etags -
 
 lint:
-	pylint --rcfile ../scripts/pylint.rc rpki/[a-z]*.py irbe_cli.py irdbd.py pubd.py rootd.py rpkid.py tests/smoketest.py tests/testpoke.py ../myrpki/myrpki.py ../myrpki/yamltest.py
+	pylint --rcfile ../scripts/pylint.rc rpki/[a-z]*.py *d.py rpki-*.py myrpki.py irbe_cli.py tests/*.py
 
 # Documentation
 

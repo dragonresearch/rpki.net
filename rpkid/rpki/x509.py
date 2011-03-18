@@ -13,7 +13,7 @@ some of the nasty details.  This involves a lot of format conversion.
 $Id$
 
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -1217,6 +1217,39 @@ class XML_CMS_object(CMS_object):
     self.verify(ta)
     self.schema_check()
     return self.saxify(self.get_content())
+
+class GBR_object(CMS_object):
+  """
+  Class to hold CMS-wrapped VCard (Ghostbuster record).
+  """
+
+  pem_converter = PEM_converter("GHOSTBUSTERS RECORD")
+  econtent_oid = POWify_OID("id-ct-rpkiGhostbusters")
+
+  def encode(self):
+    """
+    Encode inner content for signing.  At the moment we're treating
+    the VCard as an opaque byte string, so no encoding needed here.
+    """
+    return self.get_content()
+
+  def decode(self, vcard):
+    """
+    Decode XML and set inner content.  At the moment we're treating
+    the VCard as an opaque byte string, so no encoding needed here.
+    """
+    self.content = vcard
+
+  @classmethod
+  def build(cls, vcard, keypair, certs):
+    """
+    Build a Ghostbusters record.
+    """
+    self = cls()
+    self.set_content(vcard)
+    self.sign(keypair, certs)
+    return self
+
 
 class CRL(DER_object):
   """

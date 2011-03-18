@@ -1,6 +1,6 @@
 -- $Id$
 
--- Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+-- Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
 --
 -- Permission to use, copy, modify, and distribute this software for any
 -- purpose with or without fee is hereby granted, provided that the above
@@ -41,6 +41,7 @@ DROP TABLE IF EXISTS roa_request;
 DROP TABLE IF EXISTS registrant_net;
 DROP TABLE IF EXISTS registrant_asn;
 DROP TABLE IF EXISTS registrant;
+DROP TABLE IF EXISTS gbr_request;
 
 CREATE TABLE registrant (
         registrant_id           SERIAL NOT NULL,
@@ -89,6 +90,14 @@ CREATE TABLE roa_request_prefix (
         PRIMARY KEY             (roa_request_id, prefix, prefixlen, max_prefixlen),
         CONSTRAINT              roa_request_prefix_roa_request_id
         FOREIGN KEY             (roa_request_id) REFERENCES roa_request (roa_request_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE gbr_request (
+        gbr_request_id          SERIAL NOT NULL,
+        self_handle             VARCHAR(40) NOT NULL,
+        parent_handle           VARCHAR(40),
+        vcard                   LONGBLOB NOT NULL,
+        PRIMARY KEY             (gbr_request_id)
 ) ENGINE=InnoDB;
 
 -- Local Variables:

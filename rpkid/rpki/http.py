@@ -3,7 +3,7 @@ HTTP utilities, both client and server.
 
 $Id$
 
-Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -198,6 +198,7 @@ class http_message(object):
       raise rpki.exceptions.HTTPBadVersion, "Couldn't parse version %s" % version
     self.version = tuple(int(i) for i in version[5:].split("."))
 
+  @property
   def persistent(self):
     """
     Figure out whether this HTTP message encourages a persistent connection.
@@ -492,7 +493,7 @@ class http_server(http_stream):
     pass the message body, path, and a reply callback to the handler.
     """
     self.log("Received request %s %s" % (self.msg.cmd, self.msg.path))
-    if not self.msg.persistent():
+    if not self.msg.persistent:
       self.expect_close = True
     handler = self.find_handler(self.msg.path)
     error = None
@@ -717,7 +718,7 @@ class http_client(http_stream):
 
     self.log("Message received, state %s" % self.state)
 
-    if not self.msg.persistent():
+    if not self.msg.persistent:
       self.expect_close = True
 
     if self.state != "request-sent":

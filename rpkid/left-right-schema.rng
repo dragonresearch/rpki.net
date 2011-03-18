@@ -7,7 +7,7 @@
   libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
   run the compact syntax through trang to get XML syntax.
   
-  Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+  Copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
   
   Permission to use, copy, modify, and distribute this software for any
   purpose with or without fee is hereby granted, provided that the above
@@ -84,6 +84,9 @@
     <ref name="list_roa_requests_query"/>
   </define>
   <define name="query_elt" combine="choice">
+    <ref name="list_gbr_requests_query"/>
+  </define>
+  <define name="query_elt" combine="choice">
     <ref name="list_resources_query"/>
   </define>
   <define name="query_elt" combine="choice">
@@ -113,6 +116,9 @@
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="list_roa_requests_reply"/>
+  </define>
+  <define name="reply_elt" combine="choice">
+    <ref name="list_gbr_requests_reply"/>
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="list_published_objects_reply"/>
@@ -881,6 +887,22 @@
           <ref name="ipv6_list"/>
         </attribute>
       </optional>
+    </element>
+  </define>
+  <!-- <list_gbr_requests/> element -->
+  <define name="list_gbr_requests_query">
+    <element name="list_gbr_requests">
+      <ref name="tag"/>
+      <ref name="self_handle"/>
+      <ref name="parent_handle"/>
+    </element>
+  </define>
+  <define name="list_gbr_requests_reply">
+    <element name="list_gbr_requests">
+      <ref name="tag"/>
+      <ref name="self_handle"/>
+      <ref name="parent_handle"/>
+      <data type="string"/>
     </element>
   </define>
   <!-- <list_published_objects/> element -->

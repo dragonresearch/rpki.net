@@ -181,7 +181,7 @@ class self_elt(data_elt):
     """
     Fetch all ROA objects that link to this self object.
     """
-    return rpki.rpki_engine.roa_obj.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
+    return rpki.rpkid.roa_obj.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
     """
@@ -362,7 +362,7 @@ class self_elt(data_elt):
             del  ca_map[rc.class_name]
             ca.check_for_updates(parent, rc, class_iterator, class_update_failed)
           else:
-            rpki.rpki_engine.ca_obj.create(parent, rc, class_iterator, class_create_failed)
+            rpki.rpkid.ca_obj.create(parent, rc, class_iterator, class_create_failed)
 
         def class_done():
 
@@ -399,7 +399,7 @@ class self_elt(data_elt):
     rpki.log.trace()
     now = rpki.sundial.now()
     rsn = now + rpki.sundial.timedelta(seconds = self.regen_margin)
-    publisher = rpki.rpki_engine.publication_queue()
+    publisher = rpki.rpkid.publication_queue()
 
     def loop(iterator, child):
 
@@ -480,7 +480,7 @@ class self_elt(data_elt):
     rpki.log.trace()
     now = rpki.sundial.now()
     regen_margin = rpki.sundial.timedelta(seconds = self.regen_margin)
-    publisher = rpki.rpki_engine.publication_queue()
+    publisher = rpki.rpkid.publication_queue()
 
     for parent in self.parents:
       for ca in parent.cas:
@@ -540,7 +540,7 @@ class self_elt(data_elt):
         else:
           orphans.append(ghostbusters[k])
 
-      publisher = rpki.rpki_engine.publication_queue()
+      publisher = rpki.rpkid.publication_queue()
       ca_details = set()
 
       seen = set()
@@ -555,7 +555,7 @@ class self_elt(data_elt):
         see.add(k)
         ghostbuster = ghostbusters.pop(k, None)
         if ghostbuster is None:
-          ghostbuster = rpki.rpki_engine.ghostbuster_obj(self.gctx, self.self_id, parents[gbr_request.parent_handle], vcard)
+          ghostbuster = rpki.rpkid.ghostbuster_obj(self.gctx, self.self_id, parents[gbr_request.parent_handle], vcard)
           rpki.log.debug("Created new Ghostbuster request for %r" % gbr_request.parent_handle)
         else:
           rpki.log.debug("Found existing Ghostbuster request for %r" % gbr_request.parent_handle)
@@ -618,7 +618,7 @@ class self_elt(data_elt):
         else:
           orphans.append(roa)
 
-      publisher = rpki.rpki_engine.publication_queue()
+      publisher = rpki.rpkid.publication_queue()
       ca_details = set()
 
       seen = set()
@@ -631,7 +631,7 @@ class self_elt(data_elt):
           seen.add(k)
           roa = roas.pop(k, None)
           if roa is None:
-            roa = rpki.rpki_engine.roa_obj(self.gctx, self.self_id, roa_request.asn, roa_request.ipv4, roa_request.ipv6)
+            roa = rpki.rpkid.roa_obj(self.gctx, self.self_id, roa_request.asn, roa_request.ipv4, roa_request.ipv6)
             rpki.log.debug("Couldn't find existing ROA matching %r, created %r" % (k, roa))
           else:
             rpki.log.debug("Found existing ROA %r matching %r" % (roa, k))
@@ -862,7 +862,7 @@ class parent_elt(data_elt):
     """
     Fetch all CA objects that link to this parent object.
     """
-    return rpki.rpki_engine.ca_obj.sql_fetch_where(self.gctx, "parent_id = %s", (self.parent_id,))
+    return rpki.rpkid.ca_obj.sql_fetch_where(self.gctx, "parent_id = %s", (self.parent_id,))
 
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
     """
@@ -1014,7 +1014,7 @@ class child_elt(data_elt):
     """
     Fetch all child_cert objects that link to this child object.
     """
-    return rpki.rpki_engine.child_cert_obj.fetch(self.gctx, self, ca_detail, ski, unique)
+    return rpki.rpkid.child_cert_obj.fetch(self.gctx, self, ca_detail, ski, unique)
 
   @property
   def child_certs(self):
@@ -1043,7 +1043,7 @@ class child_elt(data_elt):
     """
     Handle a left-right reissue action for this child.
     """
-    publisher = rpki.rpki_engine.publication_queue()
+    publisher = rpki.rpkid.publication_queue()
     for child_cert in self.child_certs:
       child_cert.reissue(child_cert.ca_detail, publisher, force = True)
     publisher.call_pubd(cb, eb)
@@ -1054,7 +1054,7 @@ class child_elt(data_elt):
     """
     if not class_name.isdigit():
       raise rpki.exceptions.BadClassNameSyntax, "Bad class name %s" % class_name
-    ca = rpki.rpki_engine.ca_obj.sql_fetch(self.gctx, long(class_name))
+    ca = rpki.rpkid.ca_obj.sql_fetch(self.gctx, long(class_name))
     if ca is None:
       raise rpki.exceptions.ClassNameUnknown, "Unknown class name %s" % class_name
     parent = ca.parent
@@ -1066,7 +1066,7 @@ class child_elt(data_elt):
     """
     Extra server actions when destroying a child_elt.
     """
-    publisher = rpki.rpki_engine.publication_queue()
+    publisher = rpki.rpkid.publication_queue()
     for child_cert in self.child_certs:
       child_cert.revoke(publisher = publisher,
                         generate_crl_and_manifest = True)

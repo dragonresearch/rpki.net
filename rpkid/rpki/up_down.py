@@ -382,7 +382,7 @@ class issue_pdu(base_elt):
 
       # Generate new cert or regenerate old one if necessary
 
-      publisher = rpki.rpki_engine.publication_queue()
+      publisher = rpki.rpkid.publication_queue()
 
       if child_cert is None:
         child_cert = ca_detail.issue(
@@ -483,7 +483,7 @@ class revoke_pdu(revoke_syntax):
       cb()
 
     ca = child.ca_from_class_name(self.class_name)
-    publisher = rpki.rpki_engine.publication_queue()
+    publisher = rpki.rpkid.publication_queue()
     for ca_detail in ca.ca_details:
       for child_cert in child.fetch_child_certs(ca_detail = ca_detail, ski = self.get_SKI()):
         child_cert.revoke(publisher = publisher)

@@ -31,7 +31,10 @@ for line in open("delegated-apnic-extended-latest"):
   if not line.startswith("apnic|") or line.endswith("|summary"):
     continue
 
-  registry, cc, rectype, start, value, date, status, opaque_id = line.split("|")
+  try:
+    registry, cc, rectype, start, value, date, status, opaque_id = line.split("|")
+  except ValueError:
+    continue
 
   assert registry == "apnic"
 

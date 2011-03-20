@@ -41,7 +41,11 @@ for datum in sys.argv[1:]:
     t = ipv6 if ":" in datum else ipv4
     if "-" not in datum and "/" not in datum:
       datum = datum + "-" + datum
-  t.append(t.parse_str(datum))
+  try:
+    t.append(t.parse_str(datum))
+  except:
+    print "Error attempting to parse", datum
+    raise
 
 #print "Looking for: ASNs %s IPv4 %s IPv6 %s" % (asn, ipv4, ipv6)
 

@@ -183,6 +183,13 @@ class self_elt(data_elt):
     """
     return rpki.rpkid.roa_obj.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
 
+  @property
+  def ghostbusters(self):
+    """
+    Fetch all Ghostbuster record objects that link to this self object.
+    """
+    return rpki.rpkid.ghostbuster_obj.sql_fetch_where(self.gctx, "self_id = %s", (self.self_id,))
+
   def serve_post_save_hook(self, q_pdu, r_pdu, cb, eb):
     """
     Extra server actions for self_elt.
@@ -263,12 +270,13 @@ class self_elt(data_elt):
     def loop(iterator, parent):
       q_msg = rpki.publication.msg.query()
       for ca in parent.cas:
-        ca_detail = ca.fetch_active()
+        ca_detail = ca.active_ca_detail
         if ca_detail is not None:
           q_msg.append(rpki.publication.crl_elt.make_publish(ca_detail.crl_uri, ca_detail.latest_crl))
           q_msg.append(rpki.publication.manifest_elt.make_publish(ca_detail.manifest_uri, ca_detail.latest_manifest))
           q_msg.extend(rpki.publication.certificate_elt.make_publish(c.uri, c.cert) for c in ca_detail.child_certs)
           q_msg.extend(rpki.publication.roa_elt.make_publish(r.uri, r.roa) for r in ca_detail.roas if r.roa is not None)
+          q_msg.extend(rpki.publication.ghostbusters_elt.make_publish(g.uri, g.ghostbuster) for g in ca_detail.ghostbusters)
       parent.repository.call_pubd(iterator, eb, q_msg)
 
     rpki.async.iterator(self.parents, loop, cb)
@@ -323,6 +331,11 @@ class self_elt(data_elt):
       self.update_roas(four)
 
     def four():
+      self.gctx.checkpoint()
+      rpki.log.debug("Self %s[%d] updating Ghostbuster records" % (self.self_handle, self.self_id))
+      self.update_ghostbusters(five)
+
+    def five():
       self.gctx.checkpoint()
       rpki.log.debug("Self %s[%d] regenerating CRLs and manifests" % (self.self_handle, self.self_id))
       self.regenerate_crls_and_manifests(cb)
@@ -485,10 +498,10 @@ class self_elt(data_elt):
     for parent in self.parents:
       for ca in parent.cas:
         try:
-          for ca_detail in ca.fetch_revoked():
+          for ca_detail in ca.revoked_ca_details:
             if now > ca_detail.latest_crl.getNextUpdate():
               ca_detail.delete(ca = ca, publisher = publisher)
-          ca_detail = ca.fetch_active()
+          ca_detail = ca.active_ca_detail
           if ca_detail is not None and now + regen_margin > ca_detail.latest_crl.getNextUpdate():
             ca_detail.generate_crl(publisher = publisher)
             ca_detail.generate_manifest(publisher = publisher)
@@ -510,86 +523,91 @@ class self_elt(data_elt):
 
   def update_ghostbusters(self, cb):
     """
-    Generate or update Ghostbusters records for this self.
+    Generate or update Ghostbuster records for this self.
 
     This is heavily based on .update_roas(), and probably both of them
     need refactoring.
     """
 
-    raise rpki.exceptions.NotImplementedYet
-
     parents = dict((p.parent_handle, p) for p in self.parents)
 
-    def got_gbr_requests(gbr_requests):
+    def got_ghostbuster_requests(ghostbuster_requests):
 
-      self.gctx.checkpoint()
+      try:
+        self.gctx.checkpoint()
+        if self.gctx.sql.dirty:
+          rpki.log.warn("Unexpected dirty SQL cache, flushing")
+          self.gctx.sql.sweep()
 
-      if self.gctx.sql.dirty:
-        rpki.log.warn("Unexpected dirty SQL cache, flushing")
+        ghostbusters = {}
+        orphans = []
+        for ghostbuster in self.ghostbusters:
+          k = (ghostbuster.ca_detail_id, ghostbuster.vcard)
+          if ghostbuster.ca_detail.state != "active" or k in ghostbusters:
+            orphans.append(ghostbuster)
+          else:
+            ghostbusters[k] = ghostbuster
+
+        publisher = rpki.rpkid.publication_queue()
+        ca_details = set()
+
+        seen = set()
+        for ghostbuster_request in ghostbuster_requests:
+          if ghostbuster_request.parent_handle not in parents:
+            rpki.log.warn("Unknown parent_handle %r in Ghostbuster request, skipping" % ghostbuster_request.parent_handle)
+            continue
+          k = (ghostbuster_request.parent_handle, ghostbuster_request.vcard)
+          if k in seen:
+            rpki.log.warn("Skipping duplicate Ghostbuster request %r" % ghostbuster_request)
+            continue
+          seen.add(k)
+          for ca in parents[ghostbuster_request.parent_handle].cas:
+            ca_detail = ca.active_ca_detail
+            if ca_detail is not None:
+              ghostbuster = ghostbusters.pop((ca_detail.ca_detail_id, ghostbuster_request.vcard), None)
+              if ghostbuster is None:
+                ghostbuster = rpki.rpkid.ghostbuster_obj(self.gctx, self.self_id, ca_detail.ca_detail_id, ghostbuster_request.vcard)
+                rpki.log.debug("Created new Ghostbuster request for %r" % ghostbuster_request.parent_handle)
+              else:
+                rpki.log.debug("Found existing Ghostbuster request for %r" % ghostbuster_request.parent_handle)
+              ghostbuster.update(publisher = publisher, fast = True)
+              ca_details.add(ca_detail)
+
+        orphans.extend(ghostbusters.itervalues())
+        for ghostbuster in orphans:
+          ca_details.add(ghostbuster.ca_detail)
+          ghostbuster.revoke(publisher = publisher, fast = True)
+
+        for ca_detail in ca_details:
+          ca_detail.generate_crl(publisher = publisher)
+          ca_detail.generate_manifest(publisher = publisher)
+
         self.gctx.sql.sweep()
 
-      ghostbusters = {}
-      orphans = []
-      for ghostbuster in self.ghostbusters:
-        k = (ghostbuster.ca_detail.ca.parent.parent_handle, ghostbuster.vcard)
-        if k not in ghostbusters:
-          ghostbusters[k] = ghostbuster
-        elif ghostbuster.ca_detail.state == "active" and ghostbusters[k].ca_detail.state != "active":
-          orphans.append(ghostbusters[k])
-          ghostbusters[k] = ghostbuster
-        else:
-          orphans.append(ghostbusters[k])
+        def publication_failed(e):
+          rpki.log.traceback()
+          rpki.log.warn("Couldn't publish Ghostbuster updates for %s, skipping: %s" % (self.self_handle, e))
+          self.gctx.checkpoint()
+          cb()
 
-      publisher = rpki.rpkid.publication_queue()
-      ca_details = set()
-
-      seen = set()
-      for gbr_request in gbr_requests:
-        if gbr_request.parent_handle not in parents:
-          rpki.log.warn("Unknown parent_handle %r in Ghostbuster request, skipping" % gbr_request.parent_handle)
-          continue
-        k = (gbr_request.parent_handle, gbr_request.vcard)
-        if k in seen:
-          rpki.log.warn("Skipping duplicate Ghostbuster request %r" % gbr_request)
-          continue
-        see.add(k)
-        ghostbuster = ghostbusters.pop(k, None)
-        if ghostbuster is None:
-          ghostbuster = rpki.rpkid.ghostbuster_obj(self.gctx, self.self_id, parents[gbr_request.parent_handle], vcard)
-          rpki.log.debug("Created new Ghostbuster request for %r" % gbr_request.parent_handle)
-        else:
-          rpki.log.debug("Found existing Ghostbuster request for %r" % gbr_request.parent_handle)
-        ghostbuster.update(publisher = publisher, fast = True)
-        ca_details.add(ghostbuster.ca_detail)
-
-      orphans.extend(ghostbusters.itervalues())
-      for ghostbuster in orphans:
-        ca_details.add(ghostbuster.ca_detail)
-        ghostbuster.revoke(publisher = publisher, fast = True)
-
-      for ca_detail in ca_details:
-        ca_detail.generate_crl(publisher = publisher)
-        ca_detail.generate_manifest(publisher = publisher)
-
-      self.gctx.sql.sweep()
-
-      def publication_failed(e):
-        rpki.log.traceback()
-        rpki.log.warn("Couldn't publish Ghostbuster updates for %s, skipping: %s" % (self.self_handle, e))
         self.gctx.checkpoint()
+        publisher.call_pubd(cb, publication_failed)
+
+      except (SystemExit, rpki.async.ExitNow):
+        raise
+      except Exception, e:
+        rpki.log.traceback()
+        rpki.log.warn("Could not update Ghostbuster records for %s, skipping: %s" % (self.self_handle, e))
         cb()
 
-      self.gctx.checkpoint()
-      publisher.call_pubd(cb, publication_failed)
-
-    def gbr_requests_failed(e):
+    def ghostbuster_requests_failed(e):
       rpki.log.traceback()
-      rpki.log.warn("Could not fetch Ghostbusters record requests for %s, skipping: %s" % (self.self_handle, e))
+      rpki.log.warn("Could not fetch Ghostbuster record requests for %s, skipping: %s" % (self.self_handle, e))
       cb()
 
     self.gctx.checkpoint()
-    self.gctx.irdb_query_gbr_requests(self.self_handle, parents.iterkeys(),
-                                      got_gbr_requests, gbr_requests_failed)
+    self.gctx.irdb_query_ghostbuster_requests(self.self_handle, parents.iterkeys(),
+                                      got_ghostbuster_requests, ghostbuster_requests_failed)
 
 
   def update_roas(self, cb):
@@ -933,7 +951,7 @@ class parent_elt(data_elt):
 
           ca = ca_map[rc.class_name]
           skis_parent_knows_about = set(c.cert.gSKI() for c in rc.certs)
-          skis_ca_knows_about = set(ca_detail.latest_ca_cert.gSKI() for ca_detail in ca.fetch_issue_response_candidates())
+          skis_ca_knows_about = set(ca_detail.latest_ca_cert.gSKI() for ca_detail in ca.issue_response_candidate_ca_details)
           skis_only_parent_knows_about = skis_parent_knows_about - skis_ca_knows_about
           rpki.async.iterator(skis_only_parent_knows_about, ski_loop, rc_iterator)
 
@@ -1166,12 +1184,12 @@ class list_roa_requests_elt(rpki.xml_utils.base_elt, left_right_namespace):
     if self.ipv6 is not None:
       self.ipv6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6)
 
-class list_gbr_requests_elt(rpki.xml_utils.text_elt, left_right_namespace):
+class list_ghostbuster_requests_elt(rpki.xml_utils.text_elt, left_right_namespace):
   """
-  <list_gbr_requests/> element.
+  <list_ghostbuster_requests/> element.
   """
 
-  element_name = "list_gbr_requests"
+  element_name = "list_ghostbuster_requests"
   attributes = ("self_handle", "tag", "parent_handle")
   text_attribute = "vcard"
 
@@ -1195,14 +1213,15 @@ class list_published_objects_elt(rpki.xml_utils.text_elt, left_right_namespace):
     misnomer here, there's no action attribute and no dispatch, we
     just dump every published object for the specified <self/> and return.
     """
-    for  parent in self_elt.serve_fetch_handle(self.gctx, None, self.self_handle).parents:
+    for parent in self_elt.serve_fetch_handle(self.gctx, None, self.self_handle).parents:
       for ca in parent.cas:
-        ca_detail = ca.fetch_active()
+        ca_detail = ca.active_ca_detail
         if ca_detail is not None:
           r_msg.append(self.make_reply(ca_detail.crl_uri, ca_detail.latest_crl))
           r_msg.append(self.make_reply(ca_detail.manifest_uri, ca_detail.latest_manifest))
           r_msg.extend(self.make_reply(c.uri, c.cert) for c in ca_detail.child_certs)
           r_msg.extend(self.make_reply(r.uri, r.roa) for r in ca_detail.roas if r.roa is not None)
+          r_msg.extend(self.make_reply(g.uri, g.ghostbuster) for g in ca_detail.ghostbusters)          
     cb()
 
   def make_reply(self, uri, obj):
@@ -1231,7 +1250,7 @@ class list_received_resources_elt(rpki.xml_utils.base_elt, left_right_namespace)
     """
     for parent in self_elt.serve_fetch_handle(self.gctx, None, self.self_handle).parents:
       for ca in parent.cas:
-        ca_detail = ca.fetch_active()
+        ca_detail = ca.active_ca_detail
         if ca_detail is not None and ca_detail.latest_ca_cert is not None:
           r_msg.append(self.make_reply(parent.parent_handle, ca_detail.ca_cert_uri, ca_detail.latest_ca_cert))
     cb()
@@ -1291,7 +1310,7 @@ class msg(rpki.xml_utils.msg, left_right_namespace):
   pdus = dict((x.element_name, x)
               for x in (self_elt, child_elt, parent_elt, bsc_elt,
                         repository_elt, list_resources_elt,
-                        list_roa_requests_elt, list_gbr_requests_elt,
+                        list_roa_requests_elt, list_ghostbuster_requests_elt,
                         list_published_objects_elt,
                         list_received_resources_elt, report_error_elt))
 

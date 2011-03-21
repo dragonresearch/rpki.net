@@ -84,7 +84,7 @@
     <ref name="list_roa_requests_query"/>
   </define>
   <define name="query_elt" combine="choice">
-    <ref name="list_gbr_requests_query"/>
+    <ref name="list_ghostbuster_requests_query"/>
   </define>
   <define name="query_elt" combine="choice">
     <ref name="list_resources_query"/>
@@ -118,7 +118,7 @@
     <ref name="list_roa_requests_reply"/>
   </define>
   <define name="reply_elt" combine="choice">
-    <ref name="list_gbr_requests_reply"/>
+    <ref name="list_ghostbuster_requests_reply"/>
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="list_published_objects_reply"/>
@@ -889,16 +889,16 @@
       </optional>
     </element>
   </define>
-  <!-- <list_gbr_requests/> element -->
-  <define name="list_gbr_requests_query">
-    <element name="list_gbr_requests">
+  <!-- <list_ghostbuster_requests/> element -->
+  <define name="list_ghostbuster_requests_query">
+    <element name="list_ghostbuster_requests">
       <ref name="tag"/>
       <ref name="self_handle"/>
       <ref name="parent_handle"/>
     </element>
   </define>
-  <define name="list_gbr_requests_reply">
-    <element name="list_gbr_requests">
+  <define name="list_ghostbuster_requests_reply">
+    <element name="list_ghostbuster_requests">
       <ref name="tag"/>
       <ref name="self_handle"/>
       <ref name="parent_handle"/>

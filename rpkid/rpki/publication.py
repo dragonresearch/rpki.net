@@ -300,7 +300,17 @@ class roa_elt(publication_object_elt):
   element_name = "roa"
   payload_type = rpki.x509.ROA
 
-publication_object_elt.obj2elt = dict((e.payload_type, e) for e in (certificate_elt, crl_elt, manifest_elt, roa_elt))
+class ghostbuster_elt(publication_object_elt):
+  """
+  <ghostbuster/> element.
+  """
+
+  element_name = "ghostbuster"
+  payload_type = rpki.x509.Ghostbuster
+
+publication_object_elt.obj2elt = dict(
+  (e.payload_type, e) for e in
+  (certificate_elt, crl_elt, manifest_elt, roa_elt, ghostbuster_elt))
 
 class report_error_elt(rpki.xml_utils.text_elt, publication_namespace):
   """
@@ -354,8 +364,8 @@ class msg(rpki.xml_utils.msg, publication_namespace):
 
   ## @var pdus
   # Dispatch table of PDUs for this protocol.
-  pdus = dict((x.element_name, x)
-              for x in (config_elt, client_elt, certificate_elt, crl_elt, manifest_elt, roa_elt, report_error_elt))
+  pdus = dict((x.element_name, x) for x in
+              (config_elt, client_elt, certificate_elt, crl_elt, manifest_elt, roa_elt, ghostbuster_elt, report_error_elt))
 
   def serve_top_level(self, gctx, client, cb):
     """

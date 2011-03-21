@@ -90,7 +90,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <ref name="list_roa_requests_query"/>
   </define>
   <define name="query_elt" combine="choice">
-    <ref name="list_gbr_requests_query"/>
+    <ref name="list_ghostbuster_requests_query"/>
   </define>
   <define name="query_elt" combine="choice">
     <ref name="list_resources_query"/>
@@ -124,7 +124,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
     <ref name="list_roa_requests_reply"/>
   </define>
   <define name="reply_elt" combine="choice">
-    <ref name="list_gbr_requests_reply"/>
+    <ref name="list_ghostbuster_requests_reply"/>
   </define>
   <define name="reply_elt" combine="choice">
     <ref name="list_published_objects_reply"/>
@@ -895,16 +895,16 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
       </optional>
     </element>
   </define>
-  <!-- <list_gbr_requests/> element -->
-  <define name="list_gbr_requests_query">
-    <element name="list_gbr_requests">
+  <!-- <list_ghostbuster_requests/> element -->
+  <define name="list_ghostbuster_requests_query">
+    <element name="list_ghostbuster_requests">
       <ref name="tag"/>
       <ref name="self_handle"/>
       <ref name="parent_handle"/>
     </element>
   </define>
-  <define name="list_gbr_requests_reply">
-    <element name="list_gbr_requests">
+  <define name="list_ghostbuster_requests_reply">
+    <element name="list_ghostbuster_requests">
       <ref name="tag"/>
       <ref name="self_handle"/>
       <ref name="parent_handle"/>
@@ -1337,6 +1337,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <ref name="crl_query"/>
       <ref name="manifest_query"/>
       <ref name="roa_query"/>
+      <ref name="ghostbuster_query"/>
     </choice>
   </define>
   <!-- PDUs allowed in a reply -->
@@ -1348,6 +1349,7 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
       <ref name="crl_reply"/>
       <ref name="manifest_reply"/>
       <ref name="roa_reply"/>
+      <ref name="ghostbuster_reply"/>
       <ref name="report_error_reply"/>
     </choice>
   </define>
@@ -1755,6 +1757,52 @@ publication = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" en
   </define>
   <define name="roa_reply" combine="choice">
     <element name="roa">
+      <attribute name="action">
+        <value>withdraw</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <!-- <ghostbuster/> element -->
+  <define name="ghostbuster_query" combine="choice">
+    <element name="ghostbuster">
+      <attribute name="action">
+        <value>publish</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="uri"/>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="ghostbuster_reply" combine="choice">
+    <element name="ghostbuster">
+      <attribute name="action">
+        <value>publish</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <define name="ghostbuster_query" combine="choice">
+    <element name="ghostbuster">
+      <attribute name="action">
+        <value>withdraw</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <define name="ghostbuster_reply" combine="choice">
+    <element name="ghostbuster">
       <attribute name="action">
         <value>withdraw</value>
       </attribute>

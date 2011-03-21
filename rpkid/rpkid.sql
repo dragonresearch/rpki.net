@@ -33,6 +33,7 @@
 -- DROP TABLE commands must be in correct (reverse dependency) order
 -- to satisfy FOREIGN KEY constraints.
 
+DROP TABLE IF EXISTS gbr;
 DROP TABLE IF EXISTS ghostbuster;
 DROP TABLE IF EXISTS roa_prefix;
 DROP TABLE IF EXISTS roa;
@@ -219,7 +220,7 @@ CREATE TABLE ghostbuster (
         ghostbuster_id          SERIAL NOT NULL,
         vcard                   LONGBLOB NOT NULL,
         cert                    LONGBLOB NOT NULL,
-        gbr                     LONGBLOB NOT NULL,
+        ghostbuster             LONGBLOB NOT NULL,
         published               DATETIME,
         self_id                 BIGINT UNSIGNED NOT NULL,
         ca_detail_id            BIGINT UNSIGNED NOT NULL,

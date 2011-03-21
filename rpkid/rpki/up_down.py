@@ -253,7 +253,7 @@ class list_pdu(base_elt):
 
       for parent in child.parents:
         for ca in parent.cas:
-          ca_detail = ca.fetch_active()
+          ca_detail = ca.active_ca_detail
           if not ca_detail:
             continue
           resources = ca_detail.latest_ca_cert.get_3779resources().intersection(irdb_resources)
@@ -367,7 +367,7 @@ class issue_pdu(base_elt):
     # Check the request
     self.pkcs10.check_valid_rpki()
     ca = child.ca_from_class_name(self.class_name)
-    ca_detail = ca.fetch_active()
+    ca_detail = ca.active_ca_detail
     if ca_detail is None:
       raise rpki.exceptions.NoActiveCA, "No active CA for class %r" % self.class_name
 

@@ -115,10 +115,10 @@ class main(object):
       r_msg.append(r_pdu)
 
 
-  def handle_list_gbr_requests(self, q_pdu, r_msg):
+  def handle_list_ghostbuster_requests(self, q_pdu, r_msg):
 
     self.cur.execute(
-      "SELECT vcard  FROM gbr_request self_handle = %s and parent_handle = %s",
+      "SELECT vcard  FROM ghostbuster_request WHERE self_handle = %s AND parent_handle = %s",
       (q_pdu.self_handle, q_pdu.parent_handle))
 
     vcards = [result[0] for result in self.cur.fetchall()]
@@ -126,13 +126,13 @@ class main(object):
     if not vcards:
 
       self.cur.execute(
-        "SELECT vcard  FROM gbr_request self_handle = %s and parent_handle IS NULL",
+        "SELECT vcard  FROM ghostbuster_request WHERE self_handle = %s AND parent_handle IS NULL",
         (q_pdu.self_handle,))
 
       vcards = [result[0] for result in self.cur.fetchall()]
 
     for vcard in vcards:
-      r_pdu = rpki.left_right.list_gbr_requests_elt()
+      r_pdu = rpki.left_right.list_ghostbuster_requests_elt()
       r_pdu.tag = q_pdu.tag
       r_pdu.self_handle = q_pdu.self_handle
       r_pdu.parent_handle = q_pdu.parent_handle
@@ -141,8 +141,9 @@ class main(object):
 
 
   handle_dispatch = {
-    rpki.left_right.list_resources_elt : handle_list_resources,
-    rpki.left_right.list_roa_requests_elt : handle_list_roa_requests }
+    rpki.left_right.list_resources_elt            : handle_list_resources,
+    rpki.left_right.list_roa_requests_elt         : handle_list_roa_requests,
+    rpki.left_right.list_ghostbuster_requests_elt : handle_list_ghostbuster_requests}
 
 
   def handler(self, query, path, cb):

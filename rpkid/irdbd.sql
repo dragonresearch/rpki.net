@@ -41,7 +41,7 @@ DROP TABLE IF EXISTS roa_request;
 DROP TABLE IF EXISTS registrant_net;
 DROP TABLE IF EXISTS registrant_asn;
 DROP TABLE IF EXISTS registrant;
-DROP TABLE IF EXISTS gbr_request;
+DROP TABLE IF EXISTS ghostbuster_request;
 
 CREATE TABLE registrant (
         registrant_id           SERIAL NOT NULL,
@@ -92,12 +92,12 @@ CREATE TABLE roa_request_prefix (
         FOREIGN KEY             (roa_request_id) REFERENCES roa_request (roa_request_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE gbr_request (
-        gbr_request_id          SERIAL NOT NULL,
+CREATE TABLE ghostbuster_request (
+        ghostbuster_request_id  SERIAL NOT NULL,
         self_handle             VARCHAR(40) NOT NULL,
         parent_handle           VARCHAR(40),
         vcard                   LONGBLOB NOT NULL,
-        PRIMARY KEY             (gbr_request_id)
+        PRIMARY KEY             (ghostbuster_request_id)
 ) ENGINE=InnoDB;
 
 -- Local Variables:

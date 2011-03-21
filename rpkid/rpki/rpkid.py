@@ -203,7 +203,7 @@ class main(object):
 
     self.irdb_query(callback, errback, q_pdu)
 
-  def irdb_query_gbr_requests(self, self_handle, parent_handles, callback, errback):
+  def irdb_query_ghostbuster_requests(self, self_handle, parent_handles, callback, errback):
     """
     Ask IRDB about self's ghostbuster record requests.
     """
@@ -213,7 +213,7 @@ class main(object):
     q_pdus = []
 
     for parent_handle in parent_handles:
-      q_pdu = rpki.left_right.list_gbr_requests_elt()
+      q_pdu = rpki.left_right.list_ghostbuster_requests_elt()
       q_pdu.self_handle = self_handle
       q_pdu.parent_handle = parent_handle
       q_pdus.append(q_pdu)
@@ -381,31 +381,36 @@ class ca_obj(rpki.sql.sql_persistent):
     """
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s", (self.ca_id,))
 
-  def fetch_pending(self):
+  @property
+  def pending_ca_details(self):
     """
     Fetch the pending ca_details for this CA, if any.
     """
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND state = 'pending'", (self.ca_id,))
 
-  def fetch_active(self):
+  @property
+  def active_ca_detail(self):
     """
     Fetch the active ca_detail for this CA, if any.
     """
     return ca_detail_obj.sql_fetch_where1(self.gctx, "ca_id = %s AND state = 'active'", (self.ca_id,))
 
-  def fetch_deprecated(self):
+  @property
+  def deprecated_ca_details(self):
     """
     Fetch deprecated ca_details for this CA, if any.
     """
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND state = 'deprecated'", (self.ca_id,))
 
-  def fetch_revoked(self):
+  @property
+  def revoked_ca_details(self):
     """
     Fetch revoked ca_details for this CA, if any.
     """
     return ca_detail_obj.sql_fetch_where(self.gctx, "ca_id = %s AND state = 'revoked'", (self.ca_id,))
 
-  def fetch_issue_response_candidates(self):
+  @property
+  def issue_response_candidate_ca_details(self):
     """
     Fetch ca_details which are candidates for consideration when
     processing an up-down issue_response PDU.
@@ -489,7 +494,7 @@ class ca_obj(rpki.sql.sql_persistent):
       self.gctx.checkpoint()
       cb()
 
-    ca_details = self.fetch_issue_response_candidates()
+    ca_details = self.issue_response_candidate_ca_details
 
     if True:
       for x in cert_map.itervalues():
@@ -591,7 +596,7 @@ class ca_obj(rpki.sql.sql_persistent):
     rpki.log.trace()
 
     parent = self.parent
-    old_detail = self.fetch_active()
+    old_detail = self.active_ca_detail
     new_detail = ca_detail_obj.create(self)
 
     def done(issue_response):
@@ -615,14 +620,14 @@ class ca_obj(rpki.sql.sql_persistent):
     def loop(iterator, ca_detail):
       ca_detail.revoke(cb = iterator, eb = eb)
 
-    rpki.async.iterator(self.fetch_deprecated(), loop, cb)
+    rpki.async.iterator(self.deprecated_ca_details, loop, cb)
 
   def reissue(self, cb, eb):
     """
     Reissue all current certificates issued by this CA.
     """
 
-    ca_detail = self.fetch_active()
+    ca_detail = self.active_ca_detail
     if ca_detail:
       ca_detail.reissue(cb, eb)
     else:
@@ -697,6 +702,13 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     return rpki.rpkid.roa_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
 
   @property
+  def ghostbusters(self):
+    """
+    Fetch all Ghostbuster objects that link to this ca_detail.
+    """
+    return rpki.rpkid.ghostbuster_obj.sql_fetch_where(self.gctx, "ca_detail_id = %s", (self.ca_detail_id,))
+
+  @property
   def crl_uri(self):
     """
     Return publication URI for this ca_detail's CRL.
@@ -740,6 +752,8 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       for roa in predecessor.roas:
         roa.regenerate(publisher = publisher)
 
+      # Need to do something to regenerate ghostbusters here?
+
     publisher.call_pubd(callback, errback)
 
   def delete(self, ca, publisher, allow_failure = False):
@@ -756,6 +770,8 @@ class ca_detail_obj(rpki.sql.sql_persistent):
                          handler = False if allow_failure else None)
     for roa in self.roas:
       roa.revoke(publisher = publisher, allow_failure = allow_failure)      
+    for ghostbuster in self.ghostbusters:
+      ghostbuster.revoke(publisher = publisher, allow_failure = allow_failure)
     try:
       latest_manifest = self.latest_manifest
     except AttributeError:
@@ -824,6 +840,14 @@ class ca_detail_obj(rpki.sql.sql_persistent):
       for child_cert in self.child_certs:
         nextUpdate = nextUpdate.later(child_cert.cert.getNotAfter())
         child_cert.revoke(publisher = publisher)
+
+      for roa in self.roas:
+        nextUpdate = nextUpdate.later(roa.cert.getNotAfter())
+        roa.revoke(publisher = publisher)
+
+      for ghostbuster in self.ghostbusters:
+        nextUpdate = nextUpdate.later(ghostbuster.cert.getNotAfter())
+        ghostbuster.revoke(publisher = publisher)
 
       nextUpdate += crl_interval
       self.generate_crl(publisher = publisher, nextUpdate = nextUpdate)
@@ -1013,6 +1037,7 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     objs = [(self.crl_uri_tail, self.latest_crl)]
     objs.extend((c.uri_tail, c.cert) for c in self.child_certs)
     objs.extend((r.uri_tail, r.roa) for r in self.roas if r.roa is not None)
+    objs.extend((g.uri_tail, g.ghostbuster) for g in self.ghostbusters)
 
     self.latest_manifest = rpki.x509.SignedManifest.build(
       serial         = ca.next_manifest_number(),
@@ -1044,6 +1069,8 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     publisher = publication_queue()
     for roa in self.roas:
       roa.regenerate(publisher, fast = True)
+    for ghostbuster in self.ghostbusters:
+      ghostbuster.regenerate(publisher, fast = True)
     for child_cert in self.child_certs:
       child_cert.reissue(self, publisher, force = True)
     publisher.call_pubd(cb, eb)
@@ -1444,7 +1471,7 @@ class roa_obj(rpki.sql.sql_persistent):
       ca_detail = None
       for parent in self.self.parents:
         for ca in parent.cas:
-          ca_detail = ca.fetch_active()
+          ca_detail = ca.active_ca_detail
           if ca_detail is not None:
             resources = ca_detail.latest_ca_cert.get_3779resources()
             if v4.issubset(resources.v4) and v6.issubset(resources.v6):
@@ -1549,6 +1576,174 @@ class roa_obj(rpki.sql.sql_persistent):
     roa_obj's ROA.
     """
     return self.cert.gSKI() + ".roa"
+
+
+class ghostbuster_obj(rpki.sql.sql_persistent):
+  """
+  Ghostbusters record.
+  """
+
+  sql_template = rpki.sql.template(
+    "ghostbuster",
+    "ghostbuster_id",
+    "ca_detail_id",
+    "self_id",
+    "vcard",
+    ("ghostbuster", rpki.x509.Ghostbuster),
+    ("cert", rpki.x509.X509),
+    ("published", rpki.sundial.datetime))
+
+  ca_detail_id = None
+  cert = None
+  ghostbuster = None
+  published = None
+  vcard = None
+
+  @property
+  def self(self):
+    """
+    Fetch self object to which this ghostbuster_obj links.
+    """
+    return rpki.left_right.self_elt.sql_fetch(self.gctx, self.self_id)
+
+  @property
+  def ca_detail(self):
+    """
+    Fetch ca_detail object to which this ghostbuster_obj links.
+    """
+    return rpki.rpkid.ca_detail_obj.sql_fetch(self.gctx, self.ca_detail_id)
+
+  def __init__(self, gctx = None, self_id = None, ca_detail_id = None, vcard = None):
+    rpki.sql.sql_persistent.__init__(self)
+    self.gctx = gctx
+    self.self_id = self_id
+    self.ca_detail_id = ca_detail_id
+    self.vcard = vcard
+
+    # Defer marking new ghostbuster as dirty until .generate() has a chance to
+    # finish setup, otherwise we get SQL consistency errors.
+
+  def update(self, publisher, fast = False):
+    """
+    Bring this ghostbuster_obj up to date if necesssary.
+    """
+
+    if self.ghostbuster is None:
+      rpki.log.debug("Ghostbuster record doesn't exist, generating")
+      return self.generate(publisher = publisher, fast = fast)
+
+    regen_time = self.cert.getNotAfter() - rpki.sundial.timedelta(seconds = self.self.regen_margin)
+
+    if rpki.sundial.now() > regen_time:
+      rpki.log.debug("Ghostbuster record past threshold %s, regenerating" % (regen_time,))
+      return self.regenerate(publisher = publisher, fast = fast)
+
+  def generate(self, publisher, fast = False):
+    """
+    Generate a Ghostbuster record
+
+    Once we have the right covering certificate, we generate the
+    ghostbuster payload, generate a new EE certificate, use the EE
+    certificate to sign the ghostbuster payload, publish the result,
+    then throw away the private key for the EE cert.  This is modeled
+    after the way we handle ROAs.
+
+    If fast is set, we leave generating the new manifest for our
+    caller to handle, presumably at the end of a bulk operation.
+    """
+
+    ca_detail = self.ca_detail
+    ca = ca_detail.ca
+
+    resources = rpki.resource_set.resource_bag.from_inheritance()
+    keypair = rpki.x509.RSA.generate()
+
+    self.cert = ca_detail.issue_ee(
+      ca          = ca,
+      resources   = resources,
+      subject_key = keypair.get_RSApublic(),
+      sia         = ((rpki.oids.name2oid["id-ad-signedObject"], ("uri", self.uri_from_key(keypair))),))
+    self.ghostbuster = rpki.x509.Ghostbuster.build(self.vcard, keypair, (self.cert,))
+    self.published = rpki.sundial.now()
+    self.sql_store()
+
+    rpki.log.debug("Generating Ghostbuster record %r" % self.uri)
+    publisher.publish(cls = rpki.publication.ghostbuster_elt, uri = self.uri, obj = self.ghostbuster, repository = ca.parent.repository, handler = self.published_callback)
+    if not fast:
+      ca_detail.generate_manifest(publisher = publisher)
+
+  def published_callback(self, pdu):
+    """
+    Check publication result.
+    """
+    pdu.raise_if_error()
+    self.published = None
+    self.sql_mark_dirty()
+
+  def revoke(self, publisher, regenerate = False, allow_failure = False, fast = False):
+    """
+    Withdraw Ghostbuster associated with this ghostbuster_obj.
+
+    In order to preserve make-before-break properties without
+    duplicating code, this method also handles generating a
+    replacement ghostbuster when requested.
+
+    If allow_failure is set, failing to withdraw the ghostbuster will not be
+    considered an error.
+
+    If fast is set, SQL actions will be deferred, on the assumption
+    that our caller will handle regenerating CRL and manifest and
+    flushing the SQL cache.
+    """
+
+    ca_detail = self.ca_detail
+    cert = self.cert
+    ghostbuster = self.ghostbuster
+    uri = self.uri
+
+    if regenerate:
+      assert ca_detail.state == 'active'
+      self.generate(publisher = publisher, fast = fast)
+
+    rpki.log.debug("Withdrawing Ghostbuster record %r and revoking its EE cert" % uri)
+    rpki.rpkid.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
+    publisher.withdraw(cls = rpki.publication.ghostbuster_elt, uri = uri, obj = ghostbuster, repository = ca_detail.ca.parent.repository,
+                       handler = False if allow_failure else None)
+    self.sql_mark_deleted()
+    if not fast:
+      ca_detail.generate_crl(publisher = publisher)
+      ca_detail.generate_manifest(publisher = publisher)
+      self.gctx.sql.sweep()
+
+  def regenerate(self, publisher, fast = False):
+    """
+    Reissue Ghostbuster associated with this ghostbuster_obj.
+    """
+    if self.ghostbuster is None:
+      self.generate(publisher = publisher, fast = fast)
+    else:
+      self.revoke(publisher = publisher, regenerate = True, fast = fast)
+
+  def uri_from_key(self, key):
+    """
+    Return publication URI for a public key.
+    """
+    return self.ca_detail.ca.sia_uri + key.gSKI() + ".gbr"
+
+  @property
+  def uri(self):
+    """
+    Return the publication URI for this ghostbuster_obj's ghostbuster.
+    """
+    return self.ca_detail.ca.sia_uri + self.uri_tail
+
+  @property
+  def uri_tail(self):
+    """
+    Return the tail (filename portion) of the publication URI for this
+    ghostbuster_obj's ghostbuster.
+    """
+    return self.cert.gSKI() + ".gbr"
 
 
 class publication_queue(object):

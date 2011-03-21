@@ -1218,9 +1218,11 @@ class XML_CMS_object(CMS_object):
     self.schema_check()
     return self.saxify(self.get_content())
 
-class GBR_object(CMS_object):
+class Ghostbuster(CMS_object):
   """
-  Class to hold CMS-wrapped VCard (Ghostbuster record).
+  Class to hold Ghostbusters record (CMS-wrapped VCard).  This is
+  quite minimal because we treat the VCard as an opaque byte string
+  managed by the back-end.
   """
 
   pem_converter = PEM_converter("GHOSTBUSTERS RECORD")
@@ -1243,7 +1245,7 @@ class GBR_object(CMS_object):
   @classmethod
   def build(cls, vcard, keypair, certs):
     """
-    Build a Ghostbusters record.
+    Build a Ghostbuster record.
     """
     self = cls()
     self.set_content(vcard)

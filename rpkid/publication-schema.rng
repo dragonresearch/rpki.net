@@ -73,6 +73,7 @@
       <ref name="crl_query"/>
       <ref name="manifest_query"/>
       <ref name="roa_query"/>
+      <ref name="ghostbuster_query"/>
     </choice>
   </define>
   <!-- PDUs allowed in a reply -->
@@ -84,6 +85,7 @@
       <ref name="crl_reply"/>
       <ref name="manifest_reply"/>
       <ref name="roa_reply"/>
+      <ref name="ghostbuster_reply"/>
       <ref name="report_error_reply"/>
     </choice>
   </define>
@@ -491,6 +493,52 @@
   </define>
   <define name="roa_reply" combine="choice">
     <element name="roa">
+      <attribute name="action">
+        <value>withdraw</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <!-- <ghostbuster/> element -->
+  <define name="ghostbuster_query" combine="choice">
+    <element name="ghostbuster">
+      <attribute name="action">
+        <value>publish</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="uri"/>
+      <ref name="base64"/>
+    </element>
+  </define>
+  <define name="ghostbuster_reply" combine="choice">
+    <element name="ghostbuster">
+      <attribute name="action">
+        <value>publish</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <define name="ghostbuster_query" combine="choice">
+    <element name="ghostbuster">
+      <attribute name="action">
+        <value>withdraw</value>
+      </attribute>
+      <optional>
+        <ref name="tag"/>
+      </optional>
+      <ref name="uri"/>
+    </element>
+  </define>
+  <define name="ghostbuster_reply" combine="choice">
+    <element name="ghostbuster">
       <attribute name="action">
         <value>withdraw</value>
       </attribute>

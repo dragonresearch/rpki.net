@@ -50,7 +50,7 @@ query_elt |= parent_query
 query_elt |= child_query
 query_elt |= repository_query
 query_elt |= list_roa_requests_query
-query_elt |= list_gbr_requests_query
+query_elt |= list_ghostbuster_requests_query
 query_elt |= list_resources_query
 query_elt |= list_published_objects_query
 query_elt |= list_received_resources_query
@@ -63,7 +63,7 @@ reply_elt |= child_reply
 reply_elt |= repository_reply
 reply_elt |= list_resources_reply
 reply_elt |= list_roa_requests_reply
-reply_elt |= list_gbr_requests_reply
+reply_elt |= list_ghostbuster_requests_reply
 reply_elt |= list_published_objects_reply
 reply_elt |= list_received_resources_reply
 reply_elt |= report_error_reply
@@ -252,13 +252,13 @@ list_roa_requests_reply = element list_roa_requests {
   attribute ipv6 { ipv6_list }?
 }
 
-# <list_gbr_requests/> element
+# <list_ghostbuster_requests/> element
 
-list_gbr_requests_query = element list_gbr_requests {
+list_ghostbuster_requests_query = element list_ghostbuster_requests {
   tag, self_handle, parent_handle
 }
 
-list_gbr_requests_reply = element list_gbr_requests {
+list_ghostbuster_requests_reply = element list_ghostbuster_requests {
   tag, self_handle, parent_handle,
   xsd:string
 }

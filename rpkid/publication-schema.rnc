@@ -44,10 +44,10 @@ start = element msg {
 }
 
 # PDUs allowed in a query
-query_elt = ( config_query | client_query | certificate_query | crl_query | manifest_query | roa_query )
+query_elt = ( config_query | client_query | certificate_query | crl_query | manifest_query | roa_query | ghostbuster_query )
 
 # PDUs allowed in a reply
-reply_elt = ( config_reply | client_reply | certificate_reply | crl_reply | manifest_reply | roa_reply | report_error_reply )
+reply_elt = ( config_reply | client_reply | certificate_reply | crl_reply | manifest_reply | roa_reply | ghostbuster_reply | report_error_reply )
 
 # Tag attributes for bulk operations
 tag = attribute tag { xsd:token {maxLength="1024" } }
@@ -122,6 +122,13 @@ roa_query |= element roa { attribute action { "publish" }, tag?, uri, base64 }
 roa_reply |= element roa { attribute action { "publish" }, tag?, uri }
 roa_query |= element roa { attribute action { "withdraw" }, tag?, uri }
 roa_reply |= element roa { attribute action { "withdraw" }, tag?, uri }
+
+# <ghostbuster/> element
+
+ghostbuster_query |= element ghostbuster { attribute action { "publish" }, tag?, uri, base64 }
+ghostbuster_reply |= element ghostbuster { attribute action { "publish" }, tag?, uri }
+ghostbuster_query |= element ghostbuster { attribute action { "withdraw" }, tag?, uri }
+ghostbuster_reply |= element ghostbuster { attribute action { "withdraw" }, tag?, uri }
 
 # <report_error/> element
 

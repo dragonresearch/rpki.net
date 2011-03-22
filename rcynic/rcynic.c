@@ -185,66 +185,76 @@ static const struct {
  * counter, but is used as a validation status code.
  */
 
-#define MIB_COUNTERS							 \
-  QG(validation_ok,			"OK")				 \
-  QG(backup_cert_accepted,		"Backup certificates accepted")  \
-  QB(backup_cert_rejected,		"Backup certificates rejected")  \
-  QG(backup_crl_accepted,		"Backup CRLs accepted")		 \
-  QB(backup_crl_rejected,		"Backup CRLs rejected")		 \
-  QG(current_cert_accepted,		"Current certificates accepted") \
-  QB(current_cert_rejected,		"Current certificates rejected") \
-  QG(current_crl_accepted,		"Current CRLs accepted")	 \
-  QB(current_crl_rejected,		"Current CRLs rejected")	 \
-  QG(current_manifest_accepted,		"Current Manifests accepted")    \
-  QB(current_manifest_rejected,		"Current Manifests rejected")    \
-  QG(backup_manifest_accepted,		"Backup Manifests accepted")     \
-  QB(backup_manifest_rejected,		"Backup Manifests rejected")     \
-  QB(rsync_failed,			"rsync transfers failed")	 \
-  QG(rsync_succeeded,			"rsync transfers succeeded")	 \
-  QB(rsync_timed_out,			"rsync transfers timed out")	 \
-  QW(stale_crl,				"Stale CRLs")			 \
-  QB(malformed_sia,			"Malformed SIA extensions")	 \
-  QB(sia_missing,			"SIA extensions missing")	 \
-  QB(aia_missing,			"AIA extensions missing")	 \
-  QB(crldp_missing,			"CRLDP extensions missing")	 \
-  QB(aia_mismatch,			"Mismatched AIA extensions")	 \
-  QB(unknown_verify_error,		"Unknown OpenSSL verify error")	 \
-  QG(current_cert_recheck,		"Certificates rechecked")	 \
-  QB(manifest_invalid_ee,		"Invalid manifest certificates") \
-  QB(manifest_invalid_cms,		"Manifest validation failures")  \
-  QB(manifest_decode_error,		"Manifest decode errors")        \
-  QW(stale_manifest,			"Stale manifests")               \
-  QB(manifest_not_yet_valid,		"Manifests not yet valid")       \
-  QB(manifest_bad_econtenttype,		"Bad manifest eContentType")     \
-  QB(manifest_missing_signer,		"Missing manifest signers")      \
-  QB(manifest_missing_crldp,            "Missing manifest CRLDP")        \
-  QB(manifest_malformed_crldp,          "Malformed manifest CRLDP")      \
-  QB(certificate_digest_mismatch,	"Certificate digest mismatches") \
-  QB(crl_digest_mismatch,		"CRL digest mismatches")	 \
-  QB(crl_not_in_manifest,               "CRL not listed in manifest")    \
-  QB(roa_invalid_ee,			"Invalid ROA certificates")	 \
-  QB(roa_invalid_cms,			"ROA validation failures")	 \
-  QB(roa_decode_error,			"ROA decode errors")		 \
-  QB(roa_bad_econtenttype,		"Bad ROA eContentType")		 \
-  QB(roa_missing_signer,		"Missing ROA signers")		 \
-  QB(roa_digest_mismatch,		"ROA digest mismatches")	 \
-  QG(current_roa_accepted,		"Current ROAs accepted")	 \
-  QB(current_roa_rejected,		"Current ROAs rejected")	 \
-  QG(backup_roa_accepted,		"Backup ROAs accepted")		 \
-  QB(backup_roa_rejected,		"Backup ROAs rejected")		 \
-  QB(malformed_roa_addressfamily,       "Malformed ROA addressFamilys")	 \
-  QB(manifest_wrong_version,            "Wrong manifest versions")	 \
-  QB(roa_wrong_version,			"Wrong ROA versions")		 \
-  QW(trust_anchor_not_self_signed,	"Trust anchor not self-signed")	 \
-  QB(uri_too_long,			"URI too long")			 \
-  QB(malformed_crldp,			"Malformed CRDLP extension")	 \
-  QB(certificate_bad_signature,		"Bad certificate signature")	 \
-  QB(certificate_bad_crl,		"Bad certificate CRL")		 \
-  QB(manifest_bad_crl,			"Manifest has bad CRL")		 \
-  QB(roa_resources_malformed,		"ROA resources malformed")	 \
-  QB(roa_bad_afi,			"ROA contains bad AFI value")	 \
-  QB(roa_not_nested,			"ROA resources not in EE")	 \
-  QB(roa_bad_crl,			"ROA EE has bad CRL")		 \
+#define MIB_COUNTERS							    \
+  QG(validation_ok,			"OK")				    \
+  QG(backup_cert_accepted,		"Backup certificates accepted")	    \
+  QB(backup_cert_rejected,		"Backup certificates rejected")	    \
+  QG(backup_crl_accepted,		"Backup CRLs accepted")		    \
+  QB(backup_crl_rejected,		"Backup CRLs rejected")		    \
+  QG(current_cert_accepted,		"Current certificates accepted")    \
+  QB(current_cert_rejected,		"Current certificates rejected")    \
+  QG(current_crl_accepted,		"Current CRLs accepted")	    \
+  QB(current_crl_rejected,		"Current CRLs rejected")	    \
+  QG(current_manifest_accepted,		"Current Manifests accepted")	    \
+  QB(current_manifest_rejected,		"Current Manifests rejected")	    \
+  QG(backup_manifest_accepted,		"Backup Manifests accepted")	    \
+  QB(backup_manifest_rejected,		"Backup Manifests rejected")	    \
+  QB(rsync_failed,			"rsync transfers failed")	    \
+  QG(rsync_succeeded,			"rsync transfers succeeded")	    \
+  QB(rsync_timed_out,			"rsync transfers timed out")	    \
+  QW(stale_crl,				"Stale CRLs")			    \
+  QB(malformed_sia,			"Malformed SIA extensions")	    \
+  QB(sia_missing,			"SIA extensions missing")	    \
+  QB(aia_missing,			"AIA extensions missing")	    \
+  QB(crldp_missing,			"CRLDP extensions missing")	    \
+  QB(aia_mismatch,			"Mismatched AIA extensions")	    \
+  QB(unknown_verify_error,		"Unknown OpenSSL verify error")	    \
+  QG(current_cert_recheck,		"Certificates rechecked")	    \
+  QB(manifest_invalid_ee,		"Invalid manifest certificates")    \
+  QB(manifest_invalid_cms,		"Manifest validation failures")	    \
+  QB(manifest_decode_error,		"Manifest decode errors")	    \
+  QW(stale_manifest,			"Stale manifests")		    \
+  QB(manifest_not_yet_valid,		"Manifests not yet valid")	    \
+  QB(manifest_bad_econtenttype,		"Bad manifest eContentType")	    \
+  QB(manifest_missing_signer,		"Missing manifest signers")	    \
+  QB(manifest_missing_crldp,            "Missing manifest CRLDP")	    \
+  QB(manifest_malformed_crldp,          "Malformed manifest CRLDP")	    \
+  QB(certificate_digest_mismatch,	"Certificate digest mismatches")    \
+  QB(crl_digest_mismatch,		"CRL digest mismatches")	    \
+  QB(crl_not_in_manifest,               "CRL not listed in manifest")	    \
+  QB(roa_invalid_ee,			"Invalid ROA certificates")	    \
+  QB(roa_invalid_cms,			"ROA validation failures")	    \
+  QB(roa_decode_error,			"ROA decode errors")		    \
+  QB(roa_bad_econtenttype,		"Bad ROA eContentType")		    \
+  QB(roa_missing_signer,		"Missing ROA signers")		    \
+  QB(roa_digest_mismatch,		"ROA digest mismatches")	    \
+  QG(current_roa_accepted,		"Current ROAs accepted")	    \
+  QB(current_roa_rejected,		"Current ROAs rejected")	    \
+  QG(backup_roa_accepted,		"Backup ROAs accepted")		    \
+  QB(backup_roa_rejected,		"Backup ROAs rejected")		    \
+  QB(malformed_roa_addressfamily,       "Malformed ROA addressFamilys")	    \
+  QB(manifest_wrong_version,            "Wrong manifest versions")	    \
+  QB(roa_wrong_version,			"Wrong ROA versions")		    \
+  QW(trust_anchor_not_self_signed,	"Trust anchor not self-signed")	    \
+  QB(uri_too_long,			"URI too long")			    \
+  QB(malformed_crldp,			"Malformed CRDLP extension")	    \
+  QB(certificate_bad_signature,		"Bad certificate signature")	    \
+  QB(certificate_bad_crl,		"Bad certificate CRL")		    \
+  QB(manifest_bad_crl,			"Manifest has bad CRL")		    \
+  QB(roa_resources_malformed,		"ROA resources malformed")	    \
+  QB(roa_bad_afi,			"ROA contains bad AFI value")	    \
+  QB(roa_not_nested,			"ROA resources not in EE")	    \
+  QB(roa_bad_crl,			"ROA EE has bad CRL")		    \
+  QB(ghostbuster_digest_mismatch,	"Ghostbuster digest mismatches")    \
+  QB(ghostbuster_bad_econtenttype,	"Bad Ghostbuster eContentType")	    \
+  QB(ghostbuster_invalid_cms,		"Ghostbuster validation failures")  \
+  QB(ghostbuster_missing_signer,	"Missing Ghostbuster signers")	    \
+  QB(ghostbuster_bad_crl,		"Ghostbuster EE has bad CRL")	    \
+  QB(ghostbuster_invalid_ee,		"Invalid Ghostbuster certificates") \
+  QG(current_ghostbuster_accepted,	"Current Ghostbusters accepted")    \
+  QB(current_ghostbuster_rejected,	"Current Ghostbusters rejected")    \
+  QG(backup_ghostbuster_accepted,	"Backup Ghostbusters accepted")	    \
+  QB(backup_ghostbuster_rejected,	"Backup Ghostbusters rejected")	    \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QB(mib_openssl_##x, 0)
@@ -374,6 +384,10 @@ static const unsigned char id_ct_routeOriginAttestation[] =
 /** 1.2.840.113549.1.9.16.1.26 */
 static const unsigned char id_ct_rpkiManifest[] =
   {0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x10, 0x01, 0x1a};
+
+/** 1.2.840.113549.1.9.16.1.35 */
+static const unsigned char id_ct_rpkiGhostbusters[] =
+  {0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x10, 0x01, 0x23};
 
 /** 2.16.840.1.101.3.4.2.1 */
 static const unsigned char id_sha256[] =
@@ -2702,6 +2716,177 @@ static void check_roa(const rcynic_ctx_t *rc,
 
 
 
+/**
+ * Read and check one Ghostbuster record from disk.
+ */
+static int check_ghostbuster_1(const rcynic_ctx_t *rc,
+			       const char *uri,
+			       char *path,
+			       const int pathlen,
+			       const char *prefix,
+			       STACK_OF(X509) *certs,
+			       const unsigned char *hash,
+			       const size_t hashlen)
+{
+  unsigned char hashbuf[EVP_MAX_MD_SIZE];
+  const ASN1_OBJECT *eContentType = NULL;
+  STACK_OF(X509_CRL) *crls = NULL;
+  STACK_OF(X509) *signers = NULL;
+  CMS_ContentInfo *cms = NULL;
+  X509_CRL *crl = NULL;
+  BIO *bio = NULL;
+  rcynic_x509_store_ctx_t rctx;
+  certinfo_t certinfo;
+  int initialized_store_ctx = 0, result = 0;
+
+  assert(rc && uri && path && prefix && certs && sk_X509_num(certs));
+
+  if (!uri_to_filename(rc, uri, path, pathlen, prefix))
+    goto error;
+
+  if (hash)
+    cms = read_cms(path, hashbuf, sizeof(hashbuf));
+  else
+    cms = read_cms(path, NULL, 0);
+
+  if (!cms)
+    goto error;
+
+  if (hash && memcmp(hashbuf, hash, hashlen)) {
+    reject(rc, uri, ghostbuster_digest_mismatch,
+	   "because Ghostbuster record does not match manifest digest");
+    goto error;
+  }
+
+  if (!(eContentType = CMS_get0_eContentType(cms)) ||
+      oid_cmp(eContentType, id_ct_rpkiGhostbusters,
+	      sizeof(id_ct_rpkiGhostbusters))) {
+    reject(rc, uri, ghostbuster_bad_econtenttype,
+	   "because Ghostbuster record has bad eContentType");
+    goto error;
+  }
+
+#if 0
+  /*
+   * May want this later if we're going to inspect the VCard.  For now,
+   * just leave this NULL and the right thing should happen.
+   */
+  if ((bio = BIO_new(BIO_s_mem())) == NULL) {
+    logmsg(rc, log_sys_err, "Couldn't allocate BIO for Ghostbuster record %s", uri);
+    goto error;
+  }
+#endif
+
+  if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
+    reject(rc, uri, ghostbuster_invalid_cms, "because Ghostbuster record CMS failed validation");
+    goto error;
+  }
+
+  if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1) {
+    reject(rc, uri, ghostbuster_missing_signer,
+	   "because couldn't extract CMS signer from Ghostbuster record");
+    goto error;
+  }
+
+  parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri);
+
+#if 0
+  /*
+   * Here is where we would read the VCard from the bio returned by
+   * CMS_verify() so that we could check the VCard.
+   */
+#endif
+
+  if (!(crl = check_crl(rc, certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1), NULL, 0))) {
+    reject(rc, uri, ghostbuster_bad_crl, "because Ghostbuster record EE certificate has bad CRL %s", certinfo.crldp);
+    goto error;
+  }
+
+  if (!(crls = sk_X509_CRL_new_null()) || !sk_X509_CRL_push(crls, crl))
+    goto error;
+  crl = NULL;
+
+  if (!(initialized_store_ctx = X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, sk_X509_value(signers, 0), NULL)))
+    goto error;
+  
+  rctx.rc = rc;
+  rctx.subj = &certinfo;
+
+  X509_STORE_CTX_trusted_stack(&rctx.ctx, certs);
+  X509_STORE_CTX_set0_crls(&rctx.ctx, crls);
+  X509_STORE_CTX_set_verify_cb(&rctx.ctx, check_x509_cb);
+
+  X509_VERIFY_PARAM_set_flags(rctx.ctx.param,
+			      X509_V_FLAG_CRL_CHECK |
+			      X509_V_FLAG_POLICY_CHECK |
+			      X509_V_FLAG_EXPLICIT_POLICY |
+			      X509_V_FLAG_X509_STRICT);
+
+  X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
+
+  if (X509_verify_cert(&rctx.ctx) <= 0) {
+    /*
+     * Redundant error message?
+     */
+    logmsg(rc, log_data_err, "Validation failure for Ghostbuster record %s EE certificate", uri);
+    mib_increment(rc, uri, ghostbuster_invalid_ee);
+    goto error;
+  }
+
+  result = 1;
+
+ error:
+  if (initialized_store_ctx)
+    X509_STORE_CTX_cleanup(&rctx.ctx);
+  BIO_free(bio);
+  CMS_ContentInfo_free(cms);
+  sk_X509_free(signers);
+  sk_X509_CRL_pop_free(crls, X509_CRL_free);
+
+  return result;
+}
+
+/**
+ * Check whether we already have a particular Ghostbuster record,
+ * attempt to fetch it and check issuer's signature if we don't.
+ */
+static void check_ghostbuster(const rcynic_ctx_t *rc,
+		      const char *uri,
+		      STACK_OF(X509) *certs,
+		      const unsigned char *hash,
+		      const size_t hashlen)
+{
+  char path[FILENAME_MAX];
+
+  if (uri_to_filename(rc, uri, path, sizeof(path), rc->authenticated) &&
+      !access(path, F_OK))
+    return;
+
+  logmsg(rc, log_telemetry, "Checking Ghostbuster record %s", uri);
+
+  rsync_file(rc, uri);
+
+  if (check_ghostbuster_1(rc, uri, path, sizeof(path), rc->unauthenticated,
+		  certs, hash, hashlen)) {
+    install_object(rc, uri, path);
+    mib_increment(rc, uri, current_ghostbuster_accepted);
+    return;
+  } else if (!access(path, F_OK)) {
+    mib_increment(rc, uri, current_ghostbuster_rejected);
+  }
+
+  if (check_ghostbuster_1(rc, uri, path, sizeof(path), rc->old_authenticated,
+		  certs, hash, hashlen)) {
+    install_object(rc, uri, path);
+    mib_increment(rc, uri, backup_ghostbuster_accepted);
+    return;
+  } else if (!access(path, F_OK)) {
+    mib_increment(rc, uri, backup_ghostbuster_rejected);
+  }
+}
+
+
+
 static void walk_cert(rcynic_ctx_t *rc,
 		      const certinfo_t *parent,
 		      STACK_OF(X509) *certs);
@@ -2776,8 +2961,11 @@ static void walk_cert(rcynic_ctx_t *rc,
 	  walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0, fah->hash->data, fah->hash->length);
 	else if (has_suffix(uri, ".roa"))
 	  check_roa(rc, uri, certs, fah->hash->data, fah->hash->length);
+	else if (has_suffix(uri, ".gbr"))
+	  check_ghostbuster(rc, uri, certs, fah->hash->data, fah->hash->length);
 	else if (!has_suffix(uri, ".crl"))
 	  logmsg(rc, log_telemetry, "Don't know how to check object %s, ignoring", uri);
+
       logmsg(rc, log_debug, "Done walking unauthenticated store");
 
       logmsg(rc, log_debug, "Walking old authenticated store");
@@ -2786,6 +2974,8 @@ static void walk_cert(rcynic_ctx_t *rc,
 	  walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1, fah->hash->data, fah->hash->length);
 	else if (has_suffix(uri, ".roa"))
 	  check_roa(rc, uri, certs, fah->hash->data, fah->hash->length);
+	else if (has_suffix(uri, ".gbr"))
+	  check_ghostbuster(rc, uri, certs, fah->hash->data, fah->hash->length);
 	else if (!has_suffix(uri, ".crl"))
 	  logmsg(rc, log_telemetry, "Don't know how to check object %s, ignoring", uri);
       logmsg(rc, log_debug, "Done walking old authenticated store");

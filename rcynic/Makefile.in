@@ -42,3 +42,8 @@ doc::
 distclean: clean
 	cd static-rsync; ${MAKE} $@
 	rm -f show.sh installation-scripts/linux/install.sh Makefile
+
+tags: TAGS
+
+TAGS: ${SRC}
+	etags ${SRC}

@@ -37,5 +37,6 @@ then
 fi
 
 echo "$1"
+echo
 openssl x509 -inform DER -in "$tmpfile" -pubkey -noout |
 awk '!/-----(BEGIN|END)/'

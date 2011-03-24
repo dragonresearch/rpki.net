@@ -24,7 +24,7 @@ import os
 os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.settings'
 
 from django.contrib.auth.models import User
-from django.conf import settings
+from rpki.gui.app import settings
 from rpki.gui.app.models import Conf
 
 import os

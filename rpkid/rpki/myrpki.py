@@ -909,7 +909,7 @@ class IRDB(object):
                               db     = irdbd_cfg.get("sql-database"),
                               passwd = irdbd_cfg.get("sql-password"))
 
-  def update(self, handle, roa_requests, children):
+  def update(self, handle, roa_requests, children, ghostbusters):
     """
     Update the IRDB for a given resource handle.  Removes all
     existing data and replaces it with that specified in the
@@ -924,6 +924,11 @@ class IRDB(object):
     where "asns" is an instance of rpki.resource_set.resource_set_asn,
     "v*addrs" are instances of rpki.resource_set.resource_set_ipv*,
     and "valid_until" is an instance of rpki.sundial.datetime.
+
+    The "ghostbusters" argument is a sequence of tuples of the form
+    (parent_handle, vcard_string).  "parent_handle" may be value None,
+    in which case the specified vcard object will be used for all
+    parents.
     """
 
     cur = self.db.cursor()
@@ -977,6 +982,9 @@ class IRDB(object):
       if ipv6:
         cur.executemany("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)",
                         ((a.min, a.max, child_id) for a in ipv6))
+
+    cur.execute("DELETE FROM ghostbuster_request WHERE self_handle = %s", (handle,))
+    cur.executemany("INSERT INTO ghostbuster_request (self_handle, parent_handle, vcard) VALUES (%s, %s, %s)", ((handle, parent_handle, vcard) for parent_handle, vcard in ghostbusters))
 
     self.db.commit()
 
@@ -1698,7 +1706,7 @@ class main(rpki.cli.Cmd):
         rpki.resource_set.resource_set_ipv6(x.get("v6")),
         rpki.sundial.datetime.fromXMLtime(x.get("valid_until"))) for x in tree.getiterator("child")]
 
-      irdb.update(handle, roa_requests, children)
+      irdb.update(handle, roa_requests, children, [])
 
       # Check for certificates before attempting anything else
 

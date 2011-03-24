@@ -144,4 +144,60 @@ def PrefixDeleteForm(prefix, *args, **kwargs):
 
     return _wrapped(*args, **kwargs)
 
+def GhostbusterForm(parent_qs, conf=None):
+    """
+    Generate a ModelForm with the subset of parents for the current
+    resource handle.
+
+    The 'conf' argument is required when creating a new object, in
+    order to specify the value of the 'conf' field in the new
+    Ghostbuster object.
+    """
+    class wrapped(forms.ModelForm):
+        # override parent
+        parent = forms.ModelMultipleChoiceField(queryset=parent_qs, required=False,
+                help_text='use this record for a specific parent, or leave blank for all parents')
+        # override full_name.  it is required in the db schema, but we allow the
+        # user to skip it and default from family+given name
+        full_name = forms.CharField(max_length=40, required=False,
+                help_text='automatically generated from family and given names if left blank')
+
+        class Meta:
+            model = models.Ghostbuster
+            exclude = [ 'conf' ]
+
+        def clean(self):
+            family_name = self.cleaned_data.get('family_name')
+            given_name = self.cleaned_data.get('given_name')
+            if not all([family_name, given_name]):
+                raise forms.ValidationError, 'Family and Given names must be specified'
+
+            email = self.cleaned_data.get('email_address')
+            postal = self.cleaned_data.get('postal_address')
+            telephone = self.cleaned_data.get('telephone')
+            if not any([email, postal, telephone]):
+                raise forms.ValidationError, 'One of telephone, email or postal address must be specified'
+
+            # if the full name is not specified, default to given+family
+            fn = self.cleaned_data.get('full_name')
+            if not fn:
+                self.cleaned_data['full_name'] = '%s %s' % (given_name, family_name)
+
+            return self.cleaned_data
+
+        def save(self, *args, **kwargs):
+            if conf:
+                # the generic create_object view doesn't allow us to set
+                # the conf field, so wrap the save() method and set it
+                # here
+                kwargs['commit'] = False
+                obj = super(wrapped, self).save(*args, **kwargs)
+                obj.conf = conf
+                obj.save()
+                return obj
+            else:
+                return super(wrapped, self).save(*args, **kwargs)
+
+    return wrapped
+
 # vim:sw=4 ts=8 expandtab

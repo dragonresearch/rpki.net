@@ -95,6 +95,29 @@ def build_rpkid_caller(cfg, verbose=False):
         url         = rpkid_base + "left-right",
         debug       = verbose))
 
+def ghostbuster_to_vcard(gbr):
+    """
+    Convert a Ghostbuster object into a vCard object.
+    """
+    import vobject
+
+    vcard = vobject.vCard()
+    vcard.add('N').value = vobject.vcard.Name(family=gbr.family_name, given=gbr.given_name)
+    # mapping from vCard type to Ghostbuster model field
+    # the ORG type is a sequence of organization unit names, so
+    # transform the org name into a tuple before stuffing into the
+    # vCard object
+    attrs = [ ('FN',    'full_name',      None),
+              ('ADR',   'postal_address', None),
+              ('TEL',   'telephone',      None),
+              ('ORG',   'organization',   lambda x: (x,)),
+              ('EMAIL', 'email_address',  None) ]
+    for vtype, field, transform in attrs:
+        v = getattr(gbr, field)
+        if v:
+            vcard.add(vtype).value = transform(v) if transform else v
+    return vcard.serialize()
+
 def configure_resources(log, handle):
     """
     This function should be called when resources for this resource
@@ -142,8 +165,18 @@ def configure_resources(log, handle):
         valid_until = rpki.sundial.datetime.fromdatetime(child.valid_until)
         children.append((child.handle, asns, v4, v6, valid_until))
 
+    ghostbusters = []
+    for gbr in handle.ghostbusters.all():
+        vcard = ghostbuster_to_vcard(gbr)
+        parent_set = gbr.parent.all()
+        if parent_set:
+            for p in parent_set:
+                ghostbusters.append((p, vcard))
+        else:
+            ghostbusters.append((None, vcard))
+
     irdb = IRDB(cfg)
-    irdb.update(handle, roa_requests, children)
+    irdb.update(handle, roa_requests, children, ghostbusters)
     irdb.close()
 
     # for hosted handles, get the config for the rpkid host

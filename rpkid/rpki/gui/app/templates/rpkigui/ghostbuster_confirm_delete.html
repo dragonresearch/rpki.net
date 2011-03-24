@@ -1,0 +1,14 @@
+{% extends "rpkigui/ghostbuster_detail.html" %}
+
+{% block extra %}
+
+<p>
+Please confirm that you really want to delete this object by clicking Submit.
+</p>
+
+<form method=POST action='{{ request.get_full_path }}'>
+    {% csrf_token %}
+    <input type='submit'>
+</form>
+
+{% endblock %}

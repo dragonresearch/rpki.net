@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<p id='breadcrumb'><a href="{% url rpki.gui.app.views.dashboard %}">{{request.session.handle}}</a> &gt; <a href="{% url rpki.gui.app.views.ghostbusters_list %}">Ghostbusters</a> &gt; Edit</p>
+
+<h1>Edit Ghostbuster Request</h1>
+
+<form action='{{ request.get_full_path }}' method='POST'>
+    {% csrf_token %}
+    <table>
+{{ form.as_table }}
+
+</table>
+    <input type='submit' />
+</form>
+{% endblock %}

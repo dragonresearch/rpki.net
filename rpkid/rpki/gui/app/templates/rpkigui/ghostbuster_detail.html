@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block css %}
+td { padding-right: 1em }
+td.label { font-weight:bold }
+{% endblock %}
+
+{% block sidebar %}
+<ul class='compact'>
+  <li><a href='{{ object.get_absolute_url }}/edit'>edit</a></li>
+  <li><a href='{{ object.get_absolute_url }}/delete'>delete</a></li>
+</ul>
+{% endblock %}
+
+{% block content %}
+<p id='breadcrumb'><a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle }}</a> &gt; <a href="{% url rpki.gui.app.views.ghostbusters_list %}">Ghostbuster Request</a> &gt; {{ object.full_name }}</p>
+
+<h1>Ghostbuster View</h1>
+
+<table>
+    <tr><td class='label'>Full Name</td><td>{{ object.full_name }}</td></tr>
+
+    {% if object.honorific_prefix %}
+    <tr><td class='label'>Honorific Prefix</td><td>{{ object.honorific_prefix }}</td></tr>
+    {% endif %}
+
+    {% if object.organization %}
+    <tr><td class='label'>Organization</td><td>{{ object.organization }}</td></tr>
+    {% endif %}
+
+    {% if object.telephone %}
+    <tr><td class='label'>Telephone</td><td>{{ object.telephone }}</td></tr>
+    {% endif %}
+
+    {% if object.email_address %}
+    <tr><td class='label'>Email</td><td>{{ object.email_address }}</td></tr>
+    {% endif %}
+
+    {% if object.postal_address %}
+    <tr><td class='label'>Postal Address</td><td>{{ object.postal_address }}</td></tr>
+    {% endif %}
+</table>
+{% block extra %}{% endblock %}
+{% endblock %}

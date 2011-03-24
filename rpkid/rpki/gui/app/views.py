@@ -25,7 +25,8 @@ from django.shortcuts import get_object_or_404, render_to_response
 from django.utils.http import urlquote
 from django.template import RequestContext
 from django import http
-from django.views.generic.list_detail import object_list
+from django.views.generic.list_detail import object_list, object_detail
+from django.views.generic.create_update import delete_object, update_object, create_object
 from django.core.urlresolvers import reverse
 
 from rpki.gui.app import models, forms, glue, misc, AllocationTree, settings
@@ -530,5 +531,72 @@ def roa_request_view(request, pk):
 def roa_view(request, pk):
     """not yet implemented"""
     return
+
+@handle_required
+def ghostbusters_list(request):
+    """
+    Display a list of all ghostbuster requests for the current Conf.
+    """
+    conf = request.session['handle']
+
+    return object_list(request, queryset=conf.ghostbusters.all(), template_name='rpkigui/ghostbuster_list.html')
+
+@handle_required
+def ghostbuster_view(request, pk):
+    """
+    Display an individual ghostbuster request.
+    """
+    conf = request.session['handle']
+
+    return object_detail(request, queryset=conf.ghostbusters.all(), object_id=pk, template_name='rpkigui/ghostbuster_detail.html')
+
+@handle_required
+def ghostbuster_delete(request, pk):
+    conf = request.session['handle']
+
+    # verify that the object is owned by this conf
+    obj = get_object_or_404(models.Ghostbuster, pk=pk, conf=conf)
+
+    # modeled loosely on the generic delete_object() view.
+    if request.method == 'POST':
+        obj.delete()
+        glue.configure_resources(request.META['wsgi.errors'], conf)
+        return http.HttpResponseRedirect(reverse(ghostbusters_list))
+    else:
+        return render('rpkigui/ghostbuster_confirm_delete.html', { 'object': obj }, request)
+
+def _ghostbuster_edit(request, obj=None):
+    """
+    Common code for create/edit.
+    """
+    conf = request.session['handle']
+    form_class = forms.GhostbusterForm(conf.parents.all())
+    if request.method == 'POST':
+        form = form_class(request.POST, request.FILES, instance=obj)
+        if form.is_valid():
+            # use commit=False for the creation case, otherwise form.save()
+            # will fail due to schema constraint violation because conf is
+            # NULL
+            obj = form.save(commit=False)
+            obj.conf = conf
+            obj.save()
+            glue.configure_resources(request.META['wsgi.errors'], conf)
+            return http.HttpResponseRedirect(obj.get_absolute_url())
+    else:
+        form = form_class(instance=obj)
+    return render('rpkigui/ghostbuster_form.html', { 'form': form }, request)
+
+@handle_required
+def ghostbuster_edit(request, pk):
+    conf = request.session['handle']
+
+    # verify that the object is owned by this conf
+    obj = get_object_or_404(models.Ghostbuster, pk=pk, conf=conf)
+
+    return _ghostbuster_edit(request, obj)
+
+@handle_required
+def ghostbuster_create(request):
+    return _ghostbuster_edit(request)
 
 # vim:sw=4 ts=8 expandtab

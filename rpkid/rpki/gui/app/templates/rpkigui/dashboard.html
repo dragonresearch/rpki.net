@@ -4,16 +4,34 @@
 table { border-collapse: collapse }
 th { border: solid 1px; padding: 1em }
 td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1em }
+h2 { text-align:center; background-color:#dddddd }
+{% endblock %}
+
+{% block sidebar %}
+<ul class='compact'>
+  <li><a href="#parents">parents</a></li>
+  <li><a href="#children">children</a></li>
+  <li><a href="#roas">roas</a></li>
+  <li><a href="#ghostbusters">ghostbusters</a></li>
+  <li><a href="#unallocated">unallocated</a></li>
+</ul>
+
+<ul class='compact'>
+  <li><a href="{% url rpki.gui.app.views.conf_export %}">export identity</a></li>
+  <li><a href="{% url rpki.gui.app.views.conf_list %}">select identity</a></li>
+</ul>
 {% endblock %}
 
 {% block content %}
-<p>Handle: {{ request.session.handle }}
-| <a href="{% url rpki.gui.app.views.conf_export %}">export identity</a>
-| <a href="{% url rpki.gui.app.views.conf_list %}">select</a>
 
-<div style="border: inset">
-<h1 style="text-align: center">Parents</h1>
+<p id='breadcrumb'>{{ request.session.handle }} &gt; Dashboard</p>
 
+<h1>Dashboard</h1>
+
+<div class='separator'>
+<a name='parents'><h2>Parents</h2></a>
+
+{% if request.session.handle.parents.all %}
 <ul>
 {% for parent in request.session.handle.parents.all %}
 <li><a href="{{ parent.get_absolute_url }}">{{ parent.handle }}</a>
@@ -42,15 +60,15 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 
 {% endfor %}
 </ul>
+{% else %}
+<p style='font-style:italic'>none</p>
+{% endif %}
 
-<!--
-<a href="/myrpki/import/parent">[add]</a>
--->
-</div>
+</div><!--parents-->
 
-<span>
-<div style="border: outset">
-<h1 style="text-align: center">Children</h1>
+<div class='separator'>
+  <a name='children'><h2>Children</h2></a>
+
 {% if request.session.handle.children.all %}
 <ul>
 {% for child in request.session.handle.children.all %}
@@ -73,7 +91,7 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 <a href="/myrpki/import/child">[add]</a>
 -->
 {% else %}
-<p>-- none --
+<p style='font-style:italic'>none</p>
 {% endif %}
 
 <p>
@@ -82,32 +100,52 @@ Export (csv): <a href="{% url rpki.gui.app.views.download_asns request.session.h
 
 </div>
 
-<div style="border: outset"> <!-- ROAs -->
-<h1 style="text-align: center">My ROA [request]s</h1>
+<div class='separator'> <!-- ROAs -->
+  <a name='roas'><h2>ROA Requests</h2></a>
 
-<table>
-<tr> <th>Prefix</th> <th>ASN</th> </tr>
+  {% if request.session.handle.roas.all %}
+  <table>
+    <tr> <th>Prefix</th> <th>ASN</th> </tr>
 
-{% for roa in request.session.handle.roas.all %}
-<tr>
-    <td style='text-align: left'>
+    {% for roa in request.session.handle.roas.all %}
+    <tr>
+      <td style='text-align: left'>
         <ul style='list-style-position: outside'>
-{% for req in roa.from_roa_request.all %}
-            <li><a href="{{ req.prefix.get_absolute_url }}">{{ req.as_roa_prefix }}</a>
-{% endfor %}
+          {% for req in roa.from_roa_request.all %}
+          <li><a href="{{ req.prefix.get_absolute_url }}">{{ req.as_roa_prefix }}</a>
+          {% endfor %}
         </ul>
-    </td>
-    <td>{{ roa.asn }}</td>
-</tr>
-{% endfor %}
-</table>
+      </td>
+      <td>{{ roa.asn }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p style='font-style:italic'>none</p>
+  {% endif %}
 
-<p><a href="{% url rpki.gui.app.views.download_roas request.session.handle %}">export (csv)</a>
-
+  <p><a href="{% url rpki.gui.app.views.download_roas request.session.handle %}">export (csv)</a>
 </div><!-- roas -->
 
-<div style="border: outset">
-	<h1 style="text-align: center">Unallocated Resources</h1>
+<div class='separator'><!-- ghostbusters -->
+<a name='ghostbusters'><h2>Ghostbuster Requests</h2></a>
+    {% if request.session.handle.ghostbusters.all %}
+    <ul>
+    {% for gbr in request.session.handle.ghostbusters.all %}
+    <li><a href="{{ gbr.get_absolute_url }}">{{ gbr.full_name }}</a> |
+    <a href="{{ gbr.get_absolute_url }}/edit">edit</a> |
+    <a href="{{ gbr.get_absolute_url }}/delete">delete</a>
+    </li>
+    {% endfor %}
+    {% else %}
+<p style='font-style:italic'>none</p>
+    {% endif %}
+</ul>
+<p><a href='{% url rpki.gui.app.views.ghostbuster_create %}'>add</a></p>
+</div>
+
+<div class='separator'>
+<a name='unallocated'><h2>Unallocated Resources</h2></a>
 	{% if asns or ars %}
 
 	{% if asns %}
@@ -127,10 +165,10 @@ Export (csv): <a href="{% url rpki.gui.app.views.download_asns request.session.h
 	{% endif %}
 
 	{% else %}
-	<p>-- none --
+<p style='font-style:italic'>none</p>
 	{% endif %}
 
 	</ul>
 </div>
-</span>
+
 {% endblock %}

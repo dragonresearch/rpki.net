@@ -33,6 +33,10 @@ class IPAddressField(models.CharField):
     def __init__( self, **kwargs ):
         models.CharField.__init__(self, max_length=40, **kwargs)
 
+class TelephoneField(models.CharField):
+    def __init__( self, **kwargs ):
+        models.CharField.__init__(self, max_length=40, **kwargs)
+
 class Conf(models.Model):
     '''This is the center of the universe, also known as a place to
     have a handle on a resource-holding entity.  It's the <self>
@@ -221,5 +225,39 @@ class Roa(models.Model):
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.app.views.roa_view', [str(self.pk)])
+
+class Ghostbuster(models.Model):
+    """
+    Stores the information require to fill out a vCard entry to populate
+    a ghostbusters record.
+    """
+    full_name = models.CharField(max_length=40)
+
+    # components of the vCard N type
+    family_name      = models.CharField(max_length=20)
+    given_name       = models.CharField(max_length=20)
+    additional_name  = models.CharField(max_length=20, blank=True, null=True)
+    honorific_prefix = models.CharField(max_length=10, blank=True, null=True)
+    honorific_suffix = models.CharField(max_length=10, blank=True, null=True)
+
+    email_address  = models.EmailField(blank=True, null=True)
+    postal_address = models.CharField(blank=True, null=True, max_length=255)
+    organization   = models.CharField(blank=True, null=True, max_length=255)
+    telephone      = TelephoneField(blank=True, null=True)
+
+    conf   = models.ForeignKey(Conf, related_name='ghostbusters')
+    # parent can be null when using the same record for all parents
+    parent = models.ManyToManyField(Parent, related_name='ghostbusters',
+            blank=True, null=True, help_text='use this record for a specific parent, or leave blank for all parents')
+
+    def __unicode__(self):
+        return u"%s's GBR: %s" % (self.conf, self.full_name)
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('rpki.gui.app.views.ghostbuster_view', [str(self.pk)])
+
+    class Meta:
+        ordering = [ 'family_name', 'given_name' ]
 
 # vim:sw=4 ts=8 expandtab

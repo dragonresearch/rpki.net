@@ -395,6 +395,8 @@ class DER_object(object):
       f.close()
       p = subprocess.Popen(("dumpasn1", "-a", fn), stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
       ret = "\n".join(x for x in p.communicate()[0].splitlines() if x.startswith(" "))
+    except Exception, e:
+      ret = "[Could not run dumpasn1: %s]" % e
     finally:
       os.unlink(fn)
     return ret

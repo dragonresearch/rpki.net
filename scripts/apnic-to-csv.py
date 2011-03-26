@@ -36,6 +36,9 @@ for line in open("delegated-apnic-extended-latest"):
   except ValueError:
     continue
 
+  if not opaque_id:
+    continue
+
   assert registry == "apnic"
 
   if rectype == "asn":

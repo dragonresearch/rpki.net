@@ -1,6 +1,20 @@
 # $Id$
 
-# Copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# Copyright (C) 2011  Internet Systems Consortium ("ISC")
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS.  IN NO EVENT SHALL ISC BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+#
+# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -14,15 +28,45 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-# This is a test of what happens when certificates go missing in action.
+# This is a test of what happens when certificates go missing in
+# action, IRDB data expires, etc.  Expected result:
+#
+# - RIR, R0, and Alice get certs
+# - Bob gets no cert at all
+# - RO and Alice have short-lived certs, which go away
+# - Test ends with only RIR having a cert
+#
+# If run on a very slow machine, the 60 second expiration may have
+# already passed by the time everything is up and running, in which
+# case nobody but RIR will ever get any certs.
+#
+# The extra cycles with no sleep are deliberate, at one point we had a
+# cycle where parent would issue a cert that had already expired,
+# which led to a tight loop of revocation and reissuance every cycle;
+# we're checking to make sure that doesn't happen anymore, although
+# things should never get to that point because list_response should
+# discourage the child from ever asking for a cert in the first place.
 
 name:           RIR
-valid_for:      -10
+valid_for:      60
 kids:
   - name: R0
     kids:
       - name: Alice
         ipv4: 192.0.2.1-192.0.2.33
         asn:  64533
+      - name: Bob
+        ipv4: 192.0.2.34-192.0.2.65
+        valid_for: -10
+---
+---
+---
+---
+---
+---
+- sleep 30
+---
+- sleep 30
+---
 ---
 ---

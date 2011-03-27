@@ -251,25 +251,27 @@ class list_pdu(base_elt):
 
       r_msg.payload = list_response_pdu()
 
-      for parent in child.parents:
-        for ca in parent.cas:
-          ca_detail = ca.active_ca_detail
-          if not ca_detail:
-            continue
-          resources = ca_detail.latest_ca_cert.get_3779resources().intersection(irdb_resources)
-          if resources.empty():
-            continue
-          rc = class_elt()
-          rc.class_name = str(ca.ca_id)
-          rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
-          rc.from_resource_bag(resources)
-          for child_cert in child.fetch_child_certs(ca_detail = ca_detail):
-            c = certificate_elt()
-            c.cert_url = multi_uri(child_cert.uri)
-            c.cert = child_cert.cert
-            rc.certs.append(c)
-          rc.issuer = ca_detail.latest_ca_cert
-          r_msg.payload.classes.append(rc)
+      if irdb_resources.valid_until > rpki.sundial.now():
+        for parent in child.parents:
+          for ca in parent.cas:
+            ca_detail = ca.active_ca_detail
+            if not ca_detail:
+              continue
+            resources = ca_detail.latest_ca_cert.get_3779resources().intersection(irdb_resources)
+            if resources.empty():
+              continue
+            rc = class_elt()
+            rc.class_name = str(ca.ca_id)
+            rc.cert_url = multi_uri(ca_detail.ca_cert_uri)
+            rc.from_resource_bag(resources)
+            for child_cert in child.fetch_child_certs(ca_detail = ca_detail):
+              c = certificate_elt()
+              c.cert_url = multi_uri(child_cert.uri)
+              c.cert = child_cert.cert
+              rc.certs.append(c)
+            rc.issuer = ca_detail.latest_ca_cert
+            r_msg.payload.classes.append(rc)
+
       callback()
 
     self.gctx.irdb_query_child_resources(child.self.self_handle, child.child_handle, handle, errback)
@@ -374,6 +376,9 @@ class issue_pdu(base_elt):
     # Check current cert, if any
 
     def got_resources(irdb_resources):
+
+      if irdb_resources.valid_until < rpki.sundial.now():
+        raise rpki.exceptions.IRDBExpired, "IRDB entry for child %s expired %s" % (child.child_handle, irdb_resources.valid_until)
 
       resources = irdb_resources.intersection(ca_detail.latest_ca_cert.get_3779resources())
       req_key = self.pkcs10.getPublicKey()

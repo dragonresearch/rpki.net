@@ -33,7 +33,6 @@
 -- DROP TABLE commands must be in correct (reverse dependency) order
 -- to satisfy FOREIGN KEY constraints.
 
-DROP TABLE IF EXISTS gbr;
 DROP TABLE IF EXISTS ghostbuster;
 DROP TABLE IF EXISTS roa_prefix;
 DROP TABLE IF EXISTS roa;

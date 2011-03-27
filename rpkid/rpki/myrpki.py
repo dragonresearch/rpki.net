@@ -984,7 +984,9 @@ class IRDB(object):
                         ((a.min, a.max, child_id) for a in ipv6))
 
     cur.execute("DELETE FROM ghostbuster_request WHERE self_handle = %s", (handle,))
-    cur.executemany("INSERT INTO ghostbuster_request (self_handle, parent_handle, vcard) VALUES (%s, %s, %s)", ((handle, parent_handle, vcard) for parent_handle, vcard in ghostbusters))
+    if ghostbusters:
+      cur.executemany("INSERT INTO ghostbuster_request (self_handle, parent_handle, vcard) VALUES (%s, %s, %s)",
+                      ((handle, parent_handle, vcard) for parent_handle, vcard in ghostbusters))
 
     self.db.commit()
 

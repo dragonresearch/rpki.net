@@ -145,6 +145,48 @@ IMPLEMENT_ASN1_FUNCTIONS(ROA)
 
 
 /*
+ * Extract signing time from CMS message.
+ */
+
+static char *
+extract_signingTime(CMS_ContentInfo *cms, char *buffer, size_t buflen)
+{
+  STACK_OF(CMS_SignerInfo) *sis = NULL;
+  CMS_SignerInfo *si = NULL;
+  X509_ATTRIBUTE *xa = NULL;
+  ASN1_TYPE *so = NULL;
+  int i = -1;
+
+  if (cms == NULL ||
+      buffer == NULL ||
+      buflen < sizeof("20010401123456Z") ||
+      (sis = CMS_get0_SignerInfos(cms)) == NULL ||
+      sk_CMS_SignerInfo_num(sis) != 1 ||
+      (si = sk_CMS_SignerInfo_value(sis, 0)) < 0 ||
+      (i = CMS_signed_get_attr_by_NID(si, NID_pkcs9_signingTime, -1)) < 0 ||
+      (xa = CMS_signed_get_attr(si, i)) == NULL ||
+      xa->single ||
+      sk_ASN1_TYPE_num(xa->value.set) != 1 ||
+      (so = sk_ASN1_TYPE_value(xa->value.set, 0)) == NULL)
+    return NULL;
+
+  assert(buflen > 2);
+  buffer[buflen - 1] = '\0';
+
+  switch (so->type) {
+  case V_ASN1_UTCTIME:
+    strcpy(buffer, (so->value.utctime->data[0] >= '5') ? "19" : "20");
+    return strncpy(buffer + 2, so->value.utctime->data, buflen - 3);
+  case V_ASN1_GENERALIZEDTIME:
+    return strncpy(buffer, so->value.generalizedtime->data, buflen - 1);
+  default:
+    return NULL;
+  }
+}
+
+
+
+/*
  * Expand the bitstring form of an address into a raw byte array.
  * At the moment this is coded for simplicity, not speed.
  */
@@ -173,7 +215,7 @@ static void addr_expand(unsigned char *addr,
  *
  * NB: When invoked this way, CMS_verify() does -not- verify, it just decodes the ASN.1.
  */
-static ROA *read_roa(const char *filename, const int print_cms, const int print_roa, const int print_signerinfo, const int print_brief)
+static ROA *read_roa(const char *filename, const int print_cms, const int print_roa, const int print_signerinfo, const int print_brief, const int print_signingtime)
 {
   unsigned char addr[ADDR_RAW_BUF_LEN];
   CMS_ContentInfo *cms = NULL;
@@ -243,6 +285,13 @@ static ROA *read_roa(const char *filename, const int print_cms, const int print_
   if (print_roa) {
 
     if (print_brief) {
+
+      if (print_signingtime) {
+	char buffer[sizeof("20010401123456Z")], *b;
+	if (!extract_signingTime(cms, buffer, sizeof(buffer)))
+	  goto done;
+	printf("%s ", buffer);
+      }
 
       printf("%ld", ASN1_INTEGER_get(r->asID));
 
@@ -336,22 +385,33 @@ static ROA *read_roa(const char *filename, const int print_cms, const int print_
  */
 int main (int argc, char *argv[])
 {
-  int result = 0, brief = 0;
+  int result = 0, brief = 0, signingtime = 0, c;
   char *jane = argv[0];
   ROA *r;
+
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
-  if (argc > 1 && !strcmp(argv[1], "-b")) {
-    brief = 1;
-    argv++;
-    argc--;
+
+  while ((c = getopt(argc, argv, "bs")) != -1) {
+    switch (c) {
+    case 'b':
+      brief = 1;
+      break;
+    case 's':
+      signingtime = 1;
+      break;
+    case '?':
+    default:
+      fprintf(stderr, "usage: %s [-b] [-s] ROA [ROA...]\n", jane);
+      return 1;
+    }
   }
-  if (argc < 2) {
-    fprintf(stderr, "usage: %s [-b] ROA [ROA...]\n", jane);
-    return 1;
-  }
+
+  argc -= optind;
+  argv += optind;
+
   while (--argc > 0) {
-    r = read_roa(*++argv, 0, 1, !brief, brief);
+    r = read_roa(*++argv, 0, 1, !brief, brief, signingtime);
     result |=  r == NULL;
     ROA_free(r);
   }

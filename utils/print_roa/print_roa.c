@@ -410,8 +410,8 @@ int main (int argc, char *argv[])
   argc -= optind;
   argv += optind;
 
-  while (--argc > 0) {
-    r = read_roa(*++argv, 0, 1, !brief, brief, signingtime);
+  while (argc-- > 0) {
+    r = read_roa(*argv++, 0, 1, !brief, brief, signingtime);
     result |=  r == NULL;
     ROA_free(r);
   }

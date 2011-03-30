@@ -188,10 +188,9 @@ def configure_resources(log, handle):
     call_rpkid = build_rpkid_caller(cfg)
     call_rpkid(rpki.left_right.self_elt.make_pdu(action='set', self_handle=handle.handle, run_now=True))
 
-def list_received_resources(conf):
-    """
-    Query rpkid for this resource handle's children and received resources.
-    """
+def list_received_resources(log, conf):
+    "Query rpkid for this resource handle's children and received resources."
+
     # if this handle is hosted, get the cfg for the host
     rpki_conf = conf.host if conf.host else conf
     cfg = rpki.config.parser(confpath(rpki_conf.handle, 'rpki.conf'), 'myrpki')
@@ -223,6 +222,8 @@ def list_received_resources(conf):
 
             not_before = datetime.strptime(pdu.notBefore, "%Y-%m-%dT%H:%M:%SZ")
             not_after = datetime.strptime(pdu.notAfter, "%Y-%m-%dT%H:%M:%SZ")
+
+            #print >>log, 'uri: %s, not before: %s, not after: %s' % (pdu.uri, not_before, not_after)
 
             # have we seen this resource cert before?
             cert_set = parent.resources.filter(uri=pdu.uri)

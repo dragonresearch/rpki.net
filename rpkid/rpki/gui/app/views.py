@@ -633,7 +633,7 @@ def ghostbuster_create(request):
 @handle_required
 def refresh(request):
     "Query rpkid, update the db, and redirect back to the dashboard."
-    glue.list_received_resources(request.session['handle'])
+    glue.list_received_resources(request.META['wsgi.errors'], request.session['handle'])
     return http.HttpResponseRedirect(reverse(dashboard))
 
 # vim:sw=4 ts=8 expandtab

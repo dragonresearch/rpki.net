@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<p id='breadcrumb'>
+<a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle.handle }}</a> &gt;
+<a href="{{ child.get_absolute_url }}">{{ child.handle }}</a> &gt; Edit
+</p>
+
+<h1>Edit Child</h1>
+
+<p><span style='font-weight:bold'>Child:</span> {{ child.handle }}</p>
+
+<form method='POST' action='{{ request.get_full_path }}'>
+    {% csrf_token %}
+    {{ form.as_p }}
+    <input type='submit'/>
+</form>
+
+{% endblock %}

@@ -197,4 +197,13 @@ def GhostbusterForm(parent_qs, conf=None):
 
     return wrapped
 
+class ChildForm(forms.ModelForm):
+    """
+    Subclass for editing rpki.gui.app.models.Child objects.
+    """
+
+    class Meta:
+        model = models.Child
+        exclude = [ 'conf', 'handle' ]
+
 # vim:sw=4 ts=8 expandtab

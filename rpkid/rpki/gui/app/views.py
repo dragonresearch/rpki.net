@@ -193,6 +193,23 @@ def child_view(request, child_handle):
 
     return render('rpkigui/child_view.html', { 'child': child }, request)
 
+@handle_required
+def child_edit(request, child_handle):
+    """Edit the end validity date for a resource handle's child."""
+    handle = request.session['handle']
+    child = get_object_or_404(handle.children, handle__exact=child_handle)
+
+    if request.method == 'POST':
+        form = forms.ChildForm(request.POST, request.FILES, instance=child)
+        if form.is_valid():
+            form.save()
+            glue.configure_resources(request.META['wsgi.errors'], handle)
+            return http.HttpResponseRedirect(child.get_absolute_url())
+    else:
+        form = forms.ChildForm(instance=child)
+        
+    return render('rpkigui/child_form.html', { 'child': child, 'form': form }, request)
+
 class PrefixView(object):
     '''Extensible view for address ranges/prefixes.  This view can be
     subclassed to add form handling for editing the prefix.'''

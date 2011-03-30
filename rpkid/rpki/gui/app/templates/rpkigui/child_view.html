@@ -1,16 +1,28 @@
 {% extends "base.html" %}
 
+{% block sidebar %}
+<ul class='compact'>
+    <li><a href="{{ child.get_absolute_url }}/edit">edit</a></li>
+</ul>
+{% endblock %}
+
 {% block content %}
 <p id='breadcrumb'>
-<a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle.handle }}</a> &gt; Child View &gt; {{ child.handle }}
+<a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle.handle }}</a> &gt; {{ child.handle }}
 </p>
 
 <h1>Child View</h1>
 
-<p>
-Child: {{ child.handle }}<br/>
-Valid until: {{ child.valid_until }}
-</p>
+<table>
+    <tr>
+        <td>Child</td>
+        <td>{{ child.handle }}</td>
+    </tr>
+    <tr>
+        <td>Valid until</td>
+        <td>{{ child.valid_until }}</td>
+    </tr>
+</table>
 
 <h2>Delegated Addresses</h2>
 {% if child.address_range.all %}
@@ -20,7 +32,7 @@ Valid until: {{ child.valid_until }}
 {% endfor %}
 </ul>
 {% else %}
-<p>--none--</p>
+<p style='font-style:italic'>none</p>
 {% endif %}
 
 <h2>Delegated ASNs</h2>
@@ -31,7 +43,14 @@ Valid until: {{ child.valid_until }}
 {% endfor %}
 </ul>
 {% else %}
-<p>--none--</p>
+<p style='font-style:italic'>none</p>
+{% endif %}
+
+{% if form %}
+<form method='POST' action='{{ request.get_full_path }}'>
+    {% csrf_token %}
+    <input type='submit'/>
+</form>
 {% endif %}
 
 {% endblock %}

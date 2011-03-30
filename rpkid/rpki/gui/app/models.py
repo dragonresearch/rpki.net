@@ -155,7 +155,7 @@ class Asn(models.Model):
 class Child(models.Model):
     conf = models.ForeignKey(Conf, related_name='children')
     handle = HandleField() # parent's name for child
-    valid_until = models.DateTimeField()
+    valid_until = models.DateTimeField(help_text='date and time when authorization to use delegated resources ends')
 
     def __unicode__(self):
 	return u"%s's child %s" % (self.conf, self.handle)

@@ -59,9 +59,9 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 {% if addr.children.count %}
 <h2>Suballocations</h2>
 <ul>
-{% for subaddr in addr.children.all %}
-    <li><a href="{{ subaddr.get_absolute_url }}">{{ subaddr }}</a>
-{% endfor %}
+    {% for subaddr in addr.children.all %}
+    <li><a href="{{ subaddr.get_absolute_url }}">{{ subaddr }}</a></li>
+    {% endfor %}
 </ul>
 {% endif %} <!-- suballocations -->
 
@@ -84,17 +84,19 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
 <h2>Unallocated</h2>
 <ul>
     {% for u in unallocated %}
-    <li>{{ u }}
+    <li>{{ u }}</li>
     {% endfor %}
 </ul>
 {% endif %}
 
 {% if form %}
-<h2>Edit</h2>
+<div style='background-color: #dddddd'>
+<h2>{{ form_title }}</h2>
 <form method="POST" action="{{ request.get_full_path }}">{% csrf_token %}
     {{ form.as_p }}
     <input type="submit">
 </form>
+</div>
 {% endif %} <!-- form -->
 
 {% endblock %}

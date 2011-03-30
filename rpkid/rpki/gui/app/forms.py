@@ -126,20 +126,17 @@ def PrefixRoaForm(prefix, *args, **kwargs):
 
 def PrefixDeleteForm(prefix, *args, **kwargs):
     class _wrapped(forms.Form):
-        delete = forms.BooleanField(label='Yes, I want to delete this prefix:')
 
         def clean(self):
-            v = self.cleaned_data.get('delete')
-            if v:
-                if not prefix.parent:
-                    raise forms.ValidationError, \
-                            'Can not delete prefix received from parent'
-                if prefix.allocated:
-                    raise forms.ValidationError, 'Prefix is allocated to child'
-                if prefix.roa_requests.all():
-                    raise forms.ValidationError, 'Prefix is used in your ROAs'
-                if prefix.children.all():
-                    raise forms.ValidationError, 'Prefix has been subdivided'
+            if not prefix.parent:
+                raise forms.ValidationError, \
+                        'Can not delete prefix received from parent'
+            if prefix.allocated:
+                raise forms.ValidationError, 'Prefix is allocated to child'
+            if prefix.roa_requests.all():
+                raise forms.ValidationError, 'Prefix is used in your ROAs'
+            if prefix.children.all():
+                raise forms.ValidationError, 'Prefix has been split'
             return self.cleaned_data
 
     return _wrapped(*args, **kwargs)

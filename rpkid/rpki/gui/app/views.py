@@ -197,12 +197,14 @@ class PrefixView(object):
     '''Extensible view for address ranges/prefixes.  This view can be
     subclassed to add form handling for editing the prefix.'''
 
+    form = None
+    form_title = None
+
     def __init__(self, request, pk, form_class=None):
         self.handle = request.session['handle']
         self.obj = get_object_or_404(models.AddressRange.objects, pk=pk)
         # ensure this resource range belongs to a parent of the current conf
         self.parent_set = get_parents_or_404(self.handle, self.obj)
-        self.form = None
         self.form_class = form_class
         self.request = request
  
@@ -219,7 +221,9 @@ class PrefixView(object):
         u = AllocationTree.AllocationTreeIP.from_prefix(self.obj).unallocated()
 
         return render('rpkigui/prefix_view.html',
-                { 'addr': self.obj, 'parent': self.parent_set, 'unallocated': u, 'form': self.form },
+                { 'addr': self.obj, 'parent': self.parent_set, 'unallocated': u,
+                  'form': self.form,
+                  'form_title': self.form_title if self.form_title else 'Edit' },
                 self.request)
 
     def handle_get(self):
@@ -251,6 +255,9 @@ def address_view(request, pk):
 
 class PrefixSplitView(PrefixView):
     '''Class for handling the prefix split form.'''
+
+    form_title = 'Split'
+
     def form_valid(self):
         r = misc.parse_resource_range(self.form.cleaned_data['prefix'])
         obj = models.AddressRange(lo=str(r.min), hi=str(r.max), parent=self.obj)
@@ -263,6 +270,9 @@ def prefix_split_view(request, pk):
 
 class PrefixAllocateView(PrefixView):
     '''Class to handle the allocation to child form.'''
+
+    form_title = 'Give to Child'
+
     def handle_get(self):
         self.form = forms.PrefixAllocateForm(
                 self.obj.allocated.pk if self.obj.allocated else None,
@@ -312,6 +322,9 @@ def add_roa_requests(handle, prefix, asns, max_length):
 
 class PrefixRoaView(PrefixView):
     '''Class for handling the ROA creation form.'''
+
+    form_title = 'Issue ROA'
+
     def form_valid(self):
         asns = asnset(self.form.cleaned_data['asns'])
         add_roa_requests(self.handle, self.obj, asns, self.form.cleaned_data['max_length'])
@@ -323,10 +336,11 @@ def prefix_roa_view(request, pk):
     return PrefixRoaView(request, pk, form_class=forms.PrefixRoaForm)()
 
 class PrefixDeleteView(PrefixView):
+    form_title = 'Delete'
+
     def form_valid(self):
-        if self.form.cleaned_data['delete']:
-            self.obj.delete()
-            return http.HttpResponseRedirect('/myrpki/')
+        self.obj.delete()
+        return http.HttpResponseRedirect(reverse(dashboard))
  
 @handle_required
 def prefix_delete_view(request, pk):
@@ -481,7 +495,7 @@ def myrpki_xml(request, self_handle):
     log = request.META['wsgi.errors']
 
     if request.method == 'POST':
-        fname = glue.confpath(self_handle) + '/myrpki.xml'
+        fname = glue.confpath(self_handle, '/myrpki.xml')
 
         if not os.path.exists(fname):
             print >>log, 'Saving a copy of myrpki.xml for handle %s to inbox' % conf.handle

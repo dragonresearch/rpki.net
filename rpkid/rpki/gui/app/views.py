@@ -435,7 +435,7 @@ def get_response(conf, request_type):
     If there is cached response for the given request type, simply
     return it.  Otherwise, look in the outbox mailbox for a response.
     """
-    filename = glue.conf(conf.handle) + '/' + request_type + '.xml'
+    filename = glue.confpath(conf.handle) + '/' + request_type + '.xml'
     if not os.path.exists(filename):
         box = mailbox.Maildir(settings.OUTBOX, factory=None)
         for key, msg in box.iteritems():
@@ -481,7 +481,7 @@ def myrpki_xml(request, self_handle):
     log = request.META['wsgi.errors']
 
     if request.method == 'POST':
-        fname = glue.conf(self_handle) + '/myrpki.xml'
+        fname = glue.confpath(self_handle) + '/myrpki.xml'
 
         if not os.path.exists(fname):
             print >>log, 'Saving a copy of myrpki.xml for handle %s to inbox' % conf.handle
@@ -598,5 +598,11 @@ def ghostbuster_edit(request, pk):
 @handle_required
 def ghostbuster_create(request):
     return _ghostbuster_edit(request)
+
+@handle_required
+def refresh(request):
+    "Query rpkid, update the db, and redirect back to the dashboard."
+    glue.list_received_resources(request.session['handle'])
+    return http.HttpResponseRedirect(reverse(dashboard))
 
 # vim:sw=4 ts=8 expandtab

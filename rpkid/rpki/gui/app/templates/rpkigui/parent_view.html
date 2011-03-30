@@ -1,9 +1,14 @@
 {% extends "base.html" %}
 
 {% block content %}
-<p>Handle: <a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle.handle }}</a>
+<p id='breadcrumb'>
+<a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle.handle }}</a> &gt; Parent View &gt; {{ parent.handle }}
+</p>
+
 <h1>Parent View</h1>
+
 <p>Parent: {{ parent.handle }}
+
 <h2>Delegated Addresses</h2>
 <ul>
 {% for c in parent.resources.all %}

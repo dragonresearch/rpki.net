@@ -6,10 +6,19 @@ th { border: solid 1px; padding: 1em }
 td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1em }
 {% endblock %}
 
-{% block content %}
-<p>Handle: <a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle }}</a>
+{% block sidebar %}
+<ul class='compact'>
+    <li> <a href="{{asn.get_absolute_url}}/allocate">give to child</a></li>
+</ul>
+{% endblock %}
 
-<h1>ASN View</h1>
+{% block content %}
+
+<p id='breadcrumb'>
+<a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle }}</a> &gt; AS View &gt; {{ asn }}
+</p>
+
+<h1>AS View</h1>
 
 <table>
     <tr> <td>ASN:</td><td>{{ asn }}</td> </tr>
@@ -80,8 +89,5 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
     <input type="submit">
 </form>
 {% endif %}
-
-<p>Action:
-<a href="{{asn.get_absolute_url}}/allocate">give to child</a>
 
 {% endblock %}

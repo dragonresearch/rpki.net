@@ -1,10 +1,16 @@
 {% extends "base.html" %}
 
 {% block content %}
-<p>Handle: <a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle.handle }}</a>
+<p id='breadcrumb'>
+<a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle.handle }}</a> &gt; Child View &gt; {{ child.handle }}
+</p>
+
 <h1>Child View</h1>
-<p>Child: {{ child.handle }}</p>
-<p>Valid until: {{ child.valid_until }}</p>
+
+<p>
+Child: {{ child.handle }}<br/>
+Valid until: {{ child.valid_until }}
+</p>
 
 <h2>Delegated Addresses</h2>
 {% if child.address_range.all %}

@@ -6,8 +6,27 @@ th { border: solid 1px; padding: 1em }
 td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1em }
 {% endblock %}
 
+{% block sidebar %}
+<ul class='compact'>
+{% if not addr.allocated %}
+<li><a href="{{addr.get_absolute_url}}/split">split</a></li>
+{% endif %}
+{% if not addr.roa_requests.all %}
+<li><a href="{{addr.get_absolute_url}}/allocate">give to child</a></li>
+{% endif %}
+{% if addr.is_prefix and not addr.allocated %}
+<li><a href="{{ addr.get_absolute_url }}/roa">roa</a></li>
+{% endif %}
+{% if not addr.allocated and addr.parent %}
+<li><a href="{{ addr.get_absolute_url }}/delete">delete</a></li>
+{% endif %}
+</ul>
+{% endblock %}
+
 {% block content %}
-<p>Handle: <a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle }}</a>
+<p id='breadcrumb'>
+<a href="{% url rpki.gui.app.views.dashboard %}">{{ request.session.handle }}</a> &gt; Prefix View &gt; {{ addr }}
+</p>
 
 <h1>Prefix View</h1>
 
@@ -77,19 +96,5 @@ td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1e
     <input type="submit">
 </form>
 {% endif %} <!-- form -->
-
-<p>Action:<br>
-{% if not addr.allocated %}
-<a href="{{addr.get_absolute_url}}/split">split</a><br>
-{% endif %}
-{% if not addr.roa_requests.all %}
-<a href="{{addr.get_absolute_url}}/allocate">give to child</a><br>
-{% endif %}
-{% if addr.is_prefix and not addr.allocated %}
-<a href="{{ addr.get_absolute_url }}/roa">roa</a><br>
-{% endif %}
-{% if not addr.allocated and addr.parent %}
-<a href="{{ addr.get_absolute_url }}/delete">delete</a><br>
-{% endif %}
 
 {% endblock %}

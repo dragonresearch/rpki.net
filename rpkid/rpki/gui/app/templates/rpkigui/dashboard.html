@@ -20,6 +20,10 @@ h2 { text-align:center; background-color:#dddddd }
   <li><a href="{% url rpki.gui.app.views.conf_export %}">export identity</a></li>
   <li><a href="{% url rpki.gui.app.views.conf_list %}">select identity</a></li>
 </ul>
+
+<ul class='compact'>
+    <li><a href="{% url rpki.gui.app.views.refresh %}">refresh</a></li>
+</ul>
 {% endblock %}
 
 {% block content %}

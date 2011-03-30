@@ -45,7 +45,7 @@ SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd myrpk
 	  pubd rootd rpkid portal-gui/scripts/rpkigui-load-csv \
 	  portal-gui/scripts/rpkigui-add-user portal-gui/scripts/rpkigui-response
 
-AUX_SCRIPTS = portal-gui/scripts/rpkigui-list-resources
+AUX_SCRIPTS =
 
 SETTINGS = rpki/gui/settings.py rpki/gui/app/settings.py
 
@@ -223,9 +223,6 @@ rootd: rootd.py
 
 rpkid: rpkid.py
 	${COMPILE_PYWRAP}
-
-portal-gui/scripts/rpkigui-list-resources: portal-gui/scripts/list_resources.py
-	${COMPILE_PYTHON}
 
 portal-gui/scripts/rpkigui-load-csv: portal-gui/scripts/load_csv.py
 	${COMPILE_PYTHON}

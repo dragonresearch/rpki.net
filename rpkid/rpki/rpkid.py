@@ -271,6 +271,7 @@ class main(object):
     except (rpki.async.ExitNow, SystemExit):
       raise
     except rpki.exceptions.ChildNotFound, e:
+      rpki.log.warn(str(e))
       cb(400, str(e))
     except Exception, e:
       rpki.log.traceback()

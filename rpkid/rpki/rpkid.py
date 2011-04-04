@@ -266,13 +266,15 @@ class main(object):
       child = rpki.left_right.child_elt.sql_fetch_where1(self, "self.self_handle = %s AND child.child_handle = %s AND child.self_id = self.self_id",
                                                          (self_handle, child_handle), "self")
       if child is None:
-        raise rpki.exceptions.ChildNotFound, "Could not find child %s" % child_handle
+        raise rpki.exceptions.ChildNotFound, "Could not find child %s of self %s" % (child_handle, self_handle)
       child.serve_up_down(query, done)
     except (rpki.async.ExitNow, SystemExit):
       raise
-    except Exception, data:
+    except rpki.exceptions.ChildNotFound, e:
+      cb(400, str(e))
+    except Exception, e:
       rpki.log.traceback()
-      cb(400, "Could not process PDU: %s" % data)
+      cb(400, "Could not process PDU: %s" % e)
 
   def checkpoint(self):
     """

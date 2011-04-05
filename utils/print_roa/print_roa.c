@@ -345,6 +345,8 @@ static ROA *read_roa(const char *filename, const int print_cms, const int print_
 	    printf("%x%s", (addr[k] << 8) | addr[k+1], (k < 14 ? ":" : ""));
 	  if (k < 16)
 	    printf(":");
+	  if (k == 0)
+	    printf(":");
 	  break;
 
 	default:

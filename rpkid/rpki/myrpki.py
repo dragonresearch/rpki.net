@@ -909,7 +909,7 @@ class IRDB(object):
                               db     = irdbd_cfg.get("sql-database"),
                               passwd = irdbd_cfg.get("sql-password"))
 
-  def update(self, handle, roa_requests, children, ghostbusters):
+  def update(self, handle, roa_requests, children, ghostbusters=None):
     """
     Update the IRDB for a given resource handle.  Removes all
     existing data and replaces it with that specified in the
@@ -983,10 +983,14 @@ class IRDB(object):
         cur.executemany("INSERT registrant_net (start_ip, end_ip, version, registrant_id) VALUES (%s, %s, 6, %s)",
                         ((a.min, a.max, child_id) for a in ipv6))
 
-    cur.execute("DELETE FROM ghostbuster_request WHERE self_handle = %s", (handle,))
-    if ghostbusters:
-      cur.executemany("INSERT INTO ghostbuster_request (self_handle, parent_handle, vcard) VALUES (%s, %s, %s)",
-                      ((handle, parent_handle, vcard) for parent_handle, vcard in ghostbusters))
+    # don't munge the ghostbuster_request table when the arg is None.
+    # this allows the cli to safely run configure_resources without
+    # stomping on GBRs created by the portal gui.
+    if ghostbusters is not None:
+      cur.execute("DELETE FROM ghostbuster_request WHERE self_handle = %s", (handle,))
+      if ghostbusters:
+        cur.executemany("INSERT INTO ghostbuster_request (self_handle, parent_handle, vcard) VALUES (%s, %s, %s)",
+                        ((handle, parent_handle, vcard) for parent_handle, vcard in ghostbusters))
 
     self.db.commit()
 
@@ -1708,7 +1712,8 @@ class main(rpki.cli.Cmd):
         rpki.resource_set.resource_set_ipv6(x.get("v6")),
         rpki.sundial.datetime.fromXMLtime(x.get("valid_until"))) for x in tree.getiterator("child")]
 
-      irdb.update(handle, roa_requests, children, [])
+      # ghostbusters are ignored for now
+      irdb.update(handle, roa_requests, children)
 
       # Check for certificates before attempting anything else
 

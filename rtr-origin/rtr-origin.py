@@ -687,13 +687,16 @@ class axfr_set(prefix_set):
     complex stuff for building Python extensions, which is way over
     the top for a relying party tool.
     """
-    cmd = [print_roa, "-b"]
-    cmd.extend(files)
-    p = subprocess.Popen(cmd, stdout = subprocess.PIPE)
-    for line in p.stdout:
-      line = line.split()
-      asn = line[0]
-      self.extend(prefix.from_text(asn, addr) for addr in line[1:])
+    try:
+      cmd = [print_roa, "-b"]
+      cmd.extend(files)
+      p = subprocess.Popen(cmd, stdout = subprocess.PIPE)
+      for line in p.stdout:
+        line = line.split()
+        asn = line[0]
+        self.extend(prefix.from_text(asn, addr) for addr in line[1:])
+    except OSError, e:
+      sys.exit("Could not run %s, check your $PATH variable? (%s)" % (print_roa, e))
 
   @classmethod
   def load(cls, filename):

@@ -585,7 +585,7 @@ class self_elt(data_elt):
         self.gctx.sql.sweep()
 
         def publication_failed(e):
-          rpki.log.traceback()
+          #rpki.log.traceback()
           rpki.log.warn("Couldn't publish Ghostbuster updates for %s, skipping: %s" % (self.self_handle, e))
           self.gctx.checkpoint()
           cb()
@@ -680,7 +680,7 @@ class self_elt(data_elt):
       self.gctx.sql.sweep()
 
       def publication_failed(e):
-        rpki.log.traceback()
+        #rpki.log.traceback()
         rpki.log.warn("Couldn't publish for %s, skipping: %s" % (self.self_handle, e))
         self.gctx.checkpoint()
         cb()

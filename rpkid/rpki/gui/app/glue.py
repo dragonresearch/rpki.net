@@ -104,12 +104,17 @@ def ghostbuster_to_vcard(gbr):
 
     vcard = vobject.vCard()
     vcard.add('N').value = vobject.vcard.Name(family=gbr.family_name, given=gbr.given_name)
+
+    adr_fields = [ 'box', 'extended', 'street', 'city', 'region', 'code', 'country' ]
+    adr_dict = dict((f, getattr(gbr, f, '')) for f in adr_fields)
+    if any(adr_dict.itervalues()):
+        vcard.add('ADR').value = vobject.vcard.Address(**adr_dict)
+
     # mapping from vCard type to Ghostbuster model field
     # the ORG type is a sequence of organization unit names, so
     # transform the org name into a tuple before stuffing into the
     # vCard object
     attrs = [ ('FN',    'full_name',      None),
-              ('ADR',   'postal_address', None),
               ('TEL',   'telephone',      None),
               ('ORG',   'organization',   lambda x: (x,)),
               ('EMAIL', 'email_address',  None) ]

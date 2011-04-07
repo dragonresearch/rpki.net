@@ -241,9 +241,17 @@ class Ghostbuster(models.Model):
     honorific_suffix = models.CharField(max_length=10, blank=True, null=True)
 
     email_address  = models.EmailField(blank=True, null=True)
-    postal_address = models.CharField(blank=True, null=True, max_length=255)
     organization   = models.CharField(blank=True, null=True, max_length=255)
     telephone      = TelephoneField(blank=True, null=True)
+
+    # elements of the ADR type
+    box      = models.CharField(verbose_name='P.O. Box', blank=True, null=True, max_length=40)
+    extended = models.CharField(blank=True, null=True, max_length=255)
+    street   = models.CharField(blank=True, null=True, max_length=255)
+    city     = models.CharField(blank=True, null=True, max_length=40)
+    region   = models.CharField(blank=True, null=True, max_length=40, help_text='state or province')
+    code     = models.CharField(verbose_name='Postal Code', blank=True, null=True, max_length=40)
+    country  = models.CharField(blank=True, null=True, max_length=40)
 
     conf   = models.ForeignKey(Conf, related_name='ghostbusters')
     # parent can be null when using the same record for all parents

@@ -785,7 +785,7 @@ class axfr_set(prefix_set):
       if old[i_old] < new[i_new]:
         f.write(old[i_old].to_pdu(announce = 0))
         i_old += 1
-      elif old[0] > new[0]:
+      elif old[i_old] > new[i_new]:
         f.write(new[i_new].to_pdu(announce = 1))
         i_new += 1
       else:

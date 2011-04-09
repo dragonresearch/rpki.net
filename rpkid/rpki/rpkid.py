@@ -282,7 +282,8 @@ class main(object):
     Record that we were still alive when we got here, by resetting
     keepalive timer.
     """
-    self.cron_timeout = rpki.sundial.now() + self.cron_keepalive
+    if self.cron_timeout is not None:
+      self.cron_timeout = rpki.sundial.now() + self.cron_keepalive
 
   def cron(self, cb = None):
     """
@@ -298,7 +299,7 @@ class main(object):
 
     if self.use_internal_cron:
 
-      if self.cron_timeout and self.cron_timeout < now:
+      if self.cron_timeout is not None and self.cron_timeout < now:
         rpki.log.warn("cron keepalive threshold %s has expired, breaking lock" % self.cron_timeout)
         self.cron_timeout = None
 
@@ -306,10 +307,11 @@ class main(object):
       rpki.log.debug("Scheduling next cron run at %s" % when)
       self.cron_timer.set(when)
 
-      if self.cron_timeout:
+      if self.cron_timeout is not None:
         rpki.log.warn("cron already running, keepalive will expire at %s" % self.cron_timeout)
         return
 
+      self.cron_timeout = True
       self.checkpoint()
 
     def loop(iterator, s):

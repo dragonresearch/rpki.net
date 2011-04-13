@@ -2045,7 +2045,7 @@ static int check_x509(const rcynic_ctx_t *rc,
  * Also returns failure in a few null-pointer cases that can't
  * possibly conform to profile.
  */
-static int check_cert_only_allowed_extensions(const X509 *x)
+static int check_cert_only_allowed_extensions(const X509 *x, const int allow_eku)
 {
   int i;
 
@@ -2059,7 +2059,6 @@ static int check_cert_only_allowed_extensions(const X509 *x)
     case NID_subject_key_identifier:
     case NID_authority_key_identifier:
     case NID_key_usage:
-    case NID_ext_key_usage:
     case NID_crl_distribution_points:
     case NID_info_access:
     case NID_sinfo_access:
@@ -2067,6 +2066,11 @@ static int check_cert_only_allowed_extensions(const X509 *x)
     case NID_sbgp_ipAddrBlock:
     case NID_sbgp_autonomousSysNum:
       continue;
+    case NID_ext_key_usage:
+      if (allow_eku)
+	continue;
+      else
+	return 0;
     default:
       return 0;
     }
@@ -2146,7 +2150,7 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
     goto punt;
   }
 
-  if (!check_cert_only_allowed_extensions(x)) {
+  if (!check_cert_only_allowed_extensions(x, !subj->ca)) {
     reject(rc, uri, disallowed_extension,
 	   "due to disallowed X.509v3 extension");
     goto punt;

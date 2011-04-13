@@ -255,6 +255,7 @@ static const struct {
   QB(current_ghostbuster_rejected,	"Current Ghostbusters rejected")    \
   QG(backup_ghostbuster_accepted,	"Backup Ghostbusters accepted")	    \
   QB(backup_ghostbuster_rejected,	"Backup Ghostbusters rejected")	    \
+  QB(disallowed_extension,		"Disallowed X.509v3 extension")     \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QB(mib_openssl_##x, 0)
@@ -2040,6 +2041,41 @@ static int check_x509(const rcynic_ctx_t *rc,
 }
 
 /**
+ * Check whether extensions in a certificate are allowed by profile.
+ * Also returns failure in a few null-pointer cases that can't
+ * possibly conform to profile.
+ */
+static int check_cert_only_allowed_extensions(const X509 *x)
+{
+  int i;
+
+  if (x == NULL || x->cert_info == NULL || x->cert_info->extensions == NULL)
+    return 0;
+
+  for (i = 0; i < sk_X509_EXTENSION_num(x->cert_info->extensions); i++) {
+    switch (OBJ_obj2nid(sk_X509_EXTENSION_value(x->cert_info->extensions,
+						i)->object)) {
+    case NID_basic_constraints:
+    case NID_subject_key_identifier:
+    case NID_authority_key_identifier:
+    case NID_key_usage:
+    case NID_ext_key_usage:
+    case NID_crl_distribution_points:
+    case NID_info_access:
+    case NID_sinfo_access:
+    case NID_certificate_policies:
+    case NID_sbgp_ipAddrBlock:
+    case NID_sbgp_autonomousSysNum:
+      continue;
+    default:
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
+/**
  * Check a certificate for conformance to the RPKI certificate profile.
  */
 static X509 *check_cert_1(const rcynic_ctx_t *rc,
@@ -2107,6 +2143,12 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
 
   if (!subj->crldp[0]) {
     reject(rc, uri, crldp_missing, "because CRLDP extension is missing");
+    goto punt;
+  }
+
+  if (!check_cert_only_allowed_extensions(x)) {
+    reject(rc, uri, disallowed_extension,
+	   "due to disallowed X.509v3 extension");
     goto punt;
   }
 

@@ -244,6 +244,7 @@ test $build_openssl = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
 				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils"
 test $build_pywrap = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pywrap"
 test $build_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
+test $have_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rtr-origin"
 
 AC_SUBST(TOP_LEVEL_SUBDIRS)
 
@@ -360,6 +361,11 @@ then
         AC_PATH_PROGS(DJANGO_ADMIN, [django-admin django-admin.py])
 
         AC_CONFIG_FILES([rpkid/portal-gui/Makefile])
+fi
+
+if test $have_python = yes
+then
+	AC_CONFIG_FILES([rtr-origin/Makefile])
 fi
 
 # This should go away once its content has migrated from Doxygen into DocBook.

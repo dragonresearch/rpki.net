@@ -1,0 +1,41 @@
+# $Id$
+
+BASE		= rtr-origin
+SRC		= ${BASE}.py
+BIN		= ${BASE}
+
+INSTALL		= @INSTALL@ -m 555 
+PYTHON		= @PYTHON@
+
+prefix		= @prefix@
+exec_prefix	= @exec_prefix@
+datarootdir	= @datarootdir@
+datadir		= @datadir@
+localstatedir	= @localstatedir@
+sharedstatedir	= @sharedstatedir@
+sysconfdir	= @sysconfdir@
+bindir		= @bindir@
+sbindir		= @sbindir@
+libexecdir	= @libexecdir@
+libdir		= @libdir@
+
+abs_top_srcdir	 = @abs_top_srcdir@
+abs_top_builddir = @abs_top_builddir@
+
+all: ${BIN}
+
+clean:
+	rm -f ${BIN}
+
+install: all
+	${INSTALL} ${BIN} ${bindir}/${BIN}
+
+deinstall uninstall:
+	rm -f ${bindir}/${BIN}
+
+distclean: clean
+	rm -f Makefile
+
+${BIN} : ${SRC}
+	echo >$@ '#!${PYTHON}'
+	cat >>$@ ${SRC}

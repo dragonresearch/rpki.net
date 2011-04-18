@@ -4190,6 +4190,7 @@ test $build_openssl = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
 				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils"
 test $build_pywrap = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pywrap"
 test $build_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
+test $have_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rtr-origin"
 
 
 
@@ -4352,6 +4353,12 @@ done
 
 
         ac_config_files="$ac_config_files rpkid/portal-gui/Makefile"
+
+fi
+
+if test $have_python = yes
+then
+	ac_config_files="$ac_config_files rtr-origin/Makefile"
 
 fi
 
@@ -5094,6 +5101,7 @@ do
     "rpkid/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/Makefile" ;;
     "rpkid/tests/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/tests/Makefile" ;;
     "rpkid/portal-gui/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/portal-gui/Makefile" ;;
+    "rtr-origin/Makefile") CONFIG_FILES="$CONFIG_FILES rtr-origin/Makefile" ;;
     "rpkid/rpki/__doc__.py") CONFIG_FILES="$CONFIG_FILES rpkid/rpki/__doc__.py" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;

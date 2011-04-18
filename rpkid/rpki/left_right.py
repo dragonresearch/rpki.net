@@ -457,9 +457,11 @@ class self_elt(data_elt):
           lose(e)
         else:
           self.gctx.checkpoint()
+          self.gctx.sql.sweep()
           iterator()
 
       self.gctx.checkpoint()
+      self.gctx.sql.sweep()
       child_certs = child.child_certs
       if child_certs:
         self.gctx.irdb_query_child_resources(child.self.self_handle, child.child_handle, got_resources, lose)
@@ -473,6 +475,7 @@ class self_elt(data_elt):
         self.gctx.checkpoint()
         cb()
       self.gctx.checkpoint()
+      self.gctx.sql.sweep()
       publisher.call_pubd(cb, lose)
 
     rpki.async.iterator(self.children, loop, done)
@@ -518,6 +521,7 @@ class self_elt(data_elt):
       cb()
 
     self.gctx.checkpoint()
+    self.gctx.sql.sweep()
     publisher.call_pubd(cb, lose)
 
 
@@ -606,8 +610,9 @@ class self_elt(data_elt):
       cb()
 
     self.gctx.checkpoint()
+    self.gctx.sql.sweep()
     self.gctx.irdb_query_ghostbuster_requests(self.self_handle, parents.iterkeys(),
-                                      got_ghostbuster_requests, ghostbuster_requests_failed)
+                                              got_ghostbuster_requests, ghostbuster_requests_failed)
 
 
   def update_roas(self, cb):
@@ -694,6 +699,7 @@ class self_elt(data_elt):
       cb()
 
     self.gctx.checkpoint()
+    self.gctx.sql.sweep()
     self.gctx.irdb_query_roa_requests(self.self_handle, got_roa_requests, roa_requests_failed)
 
 class bsc_elt(data_elt):

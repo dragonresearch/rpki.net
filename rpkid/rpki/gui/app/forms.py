@@ -85,7 +85,7 @@ def PrefixSplitForm(parent, *args, **kwargs):
 def PrefixAllocateForm(iv, child_set, *args, **kwargs):
     class _wrapper(forms.Form):
         child = forms.ModelChoiceField(initial=iv, queryset=child_set,
-                required=False)
+                required=False, empty_label='(Unallocated)')
     return _wrapper(*args, **kwargs)
 
 def PrefixRoaForm(prefix, *args, **kwargs):

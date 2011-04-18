@@ -1,11 +1,5 @@
 {% extends "base.html" %}
 
-{% block css %}
-table { border: solid 1px; border-collapse: collapse }
-th { border: solid 1px; padding: 1em }
-td { border: solid 1px; text-align: center; padding-left: 1em; padding-right: 1em }
-{% endblock %}
-
 {% block sidebar %}
 <ul class='compact'>
 {% if not addr.allocated %}

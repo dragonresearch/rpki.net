@@ -365,7 +365,10 @@ def prefix_delete_view(request, pk):
 
 @handle_required
 def roa_request_delete_view(request, pk):
-    '''Remove a roa request from a particular prefix.'''
+    """
+    Remove a ROA request from a particular prefix.
+    """
+
     log = request.META['wsgi.errors']
     handle = request.session['handle']
     obj = get_object_or_404(models.RoaRequest.objects, pk=pk)
@@ -373,13 +376,15 @@ def roa_request_delete_view(request, pk):
     # ensure this resource range belongs to a parent of the current conf
     parent_set = get_parents_or_404(handle, prefix)
 
-    roa = obj.roa
-    obj.delete()
-    if not roa.from_roa_request.all():
-        roa.delete()
-    glue.configure_resources(log, handle)
+    if request.method == 'POST':
+        roa = obj.roa
+        obj.delete()
+        if not roa.from_roa_request.all():
+            roa.delete()
+        glue.configure_resources(log, handle)
+        return http.HttpResponseRedirect(prefix.get_absolute_url())
 
-    return http.HttpResponseRedirect(prefix.get_absolute_url())
+    return render('rpkigui/roa_request_confirm_delete.html', { 'object': obj }, request)
 
 @handle_required
 def asn_allocate_view(request, pk):

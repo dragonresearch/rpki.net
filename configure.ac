@@ -13,6 +13,20 @@ AC_CONFIG_SRCDIR([rcynic/rcynic.c])
 AC_CONFIG_AUX_DIR([buildtools])
 AC_CANONICAL_HOST
 
+# On some platforms we want to search /usr/local for libraries unless
+# LDFLAGS and CFLAGS are set explictly by the user.  At the moment we
+# just do this for FreeBSD; add other systems here as needed.
+
+if test "x${CFLAGS+set}" = "x" && test "x${LDFLAGS+set}" = "x"
+then
+	case $host_os in
+	freebsd*)
+		CFLAGS="-I/usr/local/include"
+		LDFLAGS="-L/usr/local/lib"
+		;;
+	esac
+fi
+
 AC_PROG_CC
 AC_PROG_INSTALL
 

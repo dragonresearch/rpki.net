@@ -692,8 +692,7 @@ CFLAGS
 LDFLAGS
 LIBS
 CPPFLAGS
-CPP
-CPPFLAGS'
+CPP'
 
 
 # Initialize some variables set by options.
@@ -2322,6 +2321,20 @@ IFS=$ac_save_IFS
 case $host_os in *\ *) host_os=`echo "$host_os" | sed 's/ /-/g'`;; esac
 
 
+
+# On some platforms we want to search /usr/local for libraries unless
+# LDFLAGS and CFLAGS are set explictly by the user.  At the moment we
+# just do this for FreeBSD; add other systems here as needed.
+
+if test "x${CFLAGS+set}" = "x" && test "x${LDFLAGS+set}" = "x"
+then
+	case $host_os in
+	freebsd*)
+		CFLAGS="-I/usr/local/include"
+		LDFLAGS="-L/usr/local/lib"
+		;;
+	esac
+fi
 
 ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'

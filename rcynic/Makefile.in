@@ -39,7 +39,10 @@ doc::
 doc::
 	cd doc/latex && make pdf && ln -f refman.pdf ..
 
-distclean: clean
+docclean:
+	rm -rf doc
+
+distclean: clean docclean
 	cd static-rsync; ${MAKE} $@
 	rm -f show.sh installation-scripts/linux/install.sh Makefile
 

@@ -733,7 +733,7 @@ class CA(object):
 
   def bsc(self, pkcs10):
     """
-    Issue BSC certificiate, if we have a PKCS #10 request for it.
+    Issue BSC certificate, if we have a PKCS #10 request for it.
     """
 
     if pkcs10 is None:

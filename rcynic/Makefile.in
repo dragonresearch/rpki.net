@@ -33,15 +33,6 @@ install: ${BIN} installation-scripts/install.sh
 uninstall deinstall:
 	cd installation-scripts; host_os="${host_os}"; . ./deinstall.sh
 
-doc::
-	doxygen
-
-doc::
-	cd doc/latex && make pdf && ln -f refman.pdf ..
-
-docclean:
-	rm -rf doc
-
 distclean: clean docclean
 	cd static-rsync; ${MAKE} $@
 	rm -f show.sh installation-scripts/linux/install.sh Makefile
@@ -50,3 +41,21 @@ tags: TAGS
 
 TAGS: ${SRC}
 	etags ${SRC}
+
+# Doc stuff right now is just internals doc, of interest only to
+# programmers.  Real doc for rcynic is still the README.  This may
+# change some day.
+
+html:
+	TZ='' doxygen
+
+pdf: html
+	cd doc/latex && TZ='' ${MAKE} pdf && ln -f refman.pdf ../manual.pdf
+
+tgz: html
+	cd doc && tar -cf - html | gzip -9 >manual.tar.gz
+
+docs: html pdf tgz
+
+docclean:
+	rm -rf doc

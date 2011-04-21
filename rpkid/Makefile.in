@@ -152,7 +152,7 @@ docclean:
 	rm -rf doc/html doc/latex doc/xml
 
 html: dot eps png
-	TZ='' doxygen
+	TZ='' IMAGE_PATH=${abs_builddir}/doc doxygen
 
 tgz: html
 	cd doc && tar -cf - html | gzip -9 >manual.tar.gz
@@ -174,7 +174,7 @@ docs: dot eps png html text tgz pdf
 
 distclean:: clean docclean
 	cd tests; ${MAKE} $@
-	rm -f TAGS rpki/__doc__.py Makefile
+	rm -f TAGS Makefile
 
 all install clean test distclean deinstall uninstall::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done

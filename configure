@@ -4375,10 +4375,6 @@ then
 
 fi
 
-# This should go away once its content has migrated from Doxygen into DocBook.
-ac_config_files="$ac_config_files rpkid/rpki/__doc__.py"
-
-
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
 # tests run on this system so they can be shared between configure
@@ -5115,7 +5111,6 @@ do
     "rpkid/tests/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/tests/Makefile" ;;
     "rpkid/portal-gui/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/portal-gui/Makefile" ;;
     "rtr-origin/Makefile") CONFIG_FILES="$CONFIG_FILES rtr-origin/Makefile" ;;
-    "rpkid/rpki/__doc__.py") CONFIG_FILES="$CONFIG_FILES rpkid/rpki/__doc__.py" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
   esac

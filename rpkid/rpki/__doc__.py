@@ -2242,29 +2242,29 @@
 ## @page sql-schemas SQL database schemas
 #
 # @li @subpage rpkid-sql "rpkid database schema"
-# @li @subpage pubd-sql "pubd database schema"
+# @li @subpage pubd-sql  "pubd database schema"
 # @li @subpage irdbd-sql "irdbd database schema"
 
 ## @page rpkid-sql rpkid SQL schema
 #
-# @image html  @abs_top_builddir@/rpkid/doc/rpkid.png "Diagram of rpkid.sql"
-# @image latex @abs_top_builddir@/rpkid/doc/rpkid.eps "Diagram of rpkid.sql" height=\textheight
+# @image html  rpkid.png "Diagram of rpkid.sql"
+# @image latex rpkid.eps "Diagram of rpkid.sql" height=\textheight
 #
 # @verbinclude rpkid.sql
 
 ## @page pubd-sql pubd SQL Schema
 #
-# @image html  @abs_top_builddir@/rpkid/doc/pubd.png "Diagram of pubd.sql"
-# @image latex @abs_top_builddir@/rpkid/doc/pubd.eps "Diagram of pubd.sql" width=\textwidth
+# @image html  pubd.png "Diagram of pubd.sql"
+# @image latex pubd.eps "Diagram of pubd.sql" width=\textwidth
 #
-# @verbinclude @abs_top_builddir@/rpkid/pubd.sql
+# @verbinclude pubd.sql
 
 ## @page irdbd-sql irdbd SQL Schema
 #
-# @image html  @abs_top_builddir@/rpkid/doc/irdbd.png "Diagram of irdbd.sql"
-# @image latex @abs_top_builddir@/rpkid/doc/irdbd.eps "Diagram of irdbd.sql" width=\textwidth
+# @image html  irdbd.png "Diagram of irdbd.sql"
+# @image latex irdbd.eps "Diagram of irdbd.sql" width=\textwidth
 #
-# @verbinclude @abs_top_builddir@/rpkid/irdbd.sql
+# @verbinclude irdbd.sql
 
 ## @page bpki-model BPKI model
 #
@@ -2314,8 +2314,8 @@
 # Here is a simplified picture of what the BPKI might look like for an
 # rpkid operator that hosts two entities, "Alice" and "Ellen":
 #
-# @image html  @abs_top_builddir@/rpkid/doc/rpkid-bpki.png
-# @image latex @abs_top_builddir@/rpkid/doc/rpkid-bpki.eps width=\textwidth
+# @image html  rpkid-bpki.png
+# @image latex rpkid-bpki.eps width=\textwidth
 #
 # Black objects belong to the hosting entity, blue objects belong to
 # the hosted entities, red objects are cross-certified objects from
@@ -2342,8 +2342,8 @@
 # Here's a simplified picture of what the BPKI might look like for a
 # pubd operator that serves two clients, "Alice" and "Bob":
 #
-# @image html  @abs_top_builddir@/rpkid/doc/pubd-bpki.png
-# @image latex @abs_top_builddir@/rpkid/doc/pubd-bpki.eps width=\textwidth
+# @image html  pubd-bpki.png
+# @image latex pubd-bpki.eps width=\textwidth
 #
 # While it is likely that RIRs (at least) will operate both rpkid and
 # pubd instances, the two functions are conceptually separate.  As far

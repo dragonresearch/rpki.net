@@ -382,7 +382,4 @@ then
 	AC_CONFIG_FILES([rtr-origin/Makefile])
 fi
 
-# This should go away once its content has migrated from Doxygen into DocBook.
-AC_CONFIG_FILES([rpkid/rpki/__doc__.py])
-
 AC_OUTPUT

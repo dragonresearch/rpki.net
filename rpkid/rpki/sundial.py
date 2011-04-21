@@ -15,7 +15,7 @@ inspection of the datetime module, to wit:
 
 $Id$
 
-Copyright (C) 2009--2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009--2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -144,6 +144,16 @@ class datetime(pydatetime.datetime):
     whacky due to the weird constructors for datetime.
     """
     return cls.combine(x.date(), x.time())
+
+  @classmethod
+  def fromOpenSSL(cls, x):
+    """
+    Convert from the format OpenSSL's command line tool uses into this
+    subclass.  May require rewriting if we run into locale problems.
+    """
+    if x.startswith("notBefore=") or x.startswith("notAfter="):
+      x = x.partition("=")[2]
+    return cls.strptime(x, "%b %d %H:%M:%S %Y GMT")
 
   @classmethod
   def from_sql(cls, x):

@@ -734,6 +734,12 @@ class ca_detail_obj(rpki.sql.sql_persistent):
     """
     return self.ca.sia_uri + self.public_key.gSKI() + ".mnf"
 
+  def has_expired(self):
+    """
+    Return whether this ca_detail's certificate has expired.
+    """
+    return self.latest_ca_cert.getNotAfter() <= rpki.sundial.now()
+
   def activate(self, ca, cert, uri, callback, errback, predecessor = None):
     """
     Activate this ca_detail.
@@ -1472,16 +1478,16 @@ class roa_obj(rpki.sql.sql_persistent):
     v6 = self.ipv6.to_resource_set() if self.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
 
     ca_detail = self.ca_detail
-    if ca_detail is None or ca_detail.state != "active":
+    if ca_detail is None or ca_detail.state != "active" or ca_detail.has_expired():
       ca_detail = None
       for parent in self.self.parents:
         for ca in parent.cas:
           ca_detail = ca.active_ca_detail
-          if ca_detail is not None:
+          if ca_detail is not None and not ca_detail.has_expired():
             resources = ca_detail.latest_ca_cert.get_3779resources()
             if v4.issubset(resources.v4) and v6.issubset(resources.v6):
               break
-            ca_detail = None
+          ca_detail = None
         if ca_detail is not None:
           break
 

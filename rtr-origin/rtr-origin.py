@@ -715,6 +715,19 @@ class axfr_set(prefix_set):
     """
     return "%d.ax" % self.serial
 
+  @classmethod
+  def load_current(cls):
+    """
+    Load current axfr_set.  Return None if can't.
+    """
+    serial = read_current()[0]
+    if serial is None:
+      return None
+    try:
+      return cls.load("%d.ax" % serial)
+    except IOError:
+      return None
+
   def save_axfr(self):
     """
     Write axfr__set to file with magic filename.
@@ -1273,13 +1286,16 @@ def cronjob_main(argv):
       os.unlink(f)
   
   pdus = axfr_set.parse_rcynic(argv[0])
+  if pdus == axfr_set.load_current():
+    blather("# No change, new version not needed")
+    sys.exit()
   pdus.save_axfr()
   for axfr in glob.iglob("*.ax"):
     if axfr != pdus.filename():
       pdus.save_ixfr(axfr_set.load(axfr))
   pdus.mark_current()
 
-  log("# New serial is %d (%s)" % (pdus.serial, pdus.serial))
+  blather("# New serial is %d (%s)" % (pdus.serial, pdus.serial))
 
   try:
     os.stat(kickme_dir)

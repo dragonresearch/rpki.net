@@ -1514,6 +1514,57 @@ class main(rpki.cli.Cmd):
   def complete_delete_repository(self, *args):
     return self.entitydb_complete("repositories", *args)
 
+
+  def renew_children_common(self, arg, plural):
+    """
+    Common code for renew_child and renew_all_children commands.
+    """
+
+    valid_until = None
+
+    opts, argv = getopt.getopt(arg.split(), "", ["valid_until"])
+    for o, a in opts:
+      if o == "--valid_until":
+        valid_until = a
+
+    if plural:
+      if len(argv) != 0:
+        raise RuntimeError, "Unexpected arguments"
+      children_glob = "*.xml"
+    else:
+      if len(argv) != 1:
+        raise RuntimeError, "Need to specify child handle"
+      children_glob = argv[0] + ".xml"
+
+    if valid_until is None:
+      valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
+    else:
+      valid_until = rpki.sundial.fromXMLtime(valid_until)
+      if valid_until < rpki.sundial.now():
+        raise RuntimeError, "Specified new expiration time %s has passed" % valid_until
+
+    print "New validity date", valid_until
+
+    for f in self.entitydb.iterate("children", children_glob):
+      c = etree_read(f)
+      c.set("valid_until", str(valid_until))
+      etree_write(c, f)
+
+  def do_renew_child(self, arg):
+    """
+    Update validity period for one child entity.
+    """
+    return self.renew_children_common(arg, False)
+
+  def complete_renew_child(self, *args):
+    return self.entitydb_complete("children", *args)
+
+  def do_renew_all_children(self, arg):
+    """
+    Update validity period for all child entities.
+    """
+    return self.renew_children_common(arg, True)
+
 
 
 

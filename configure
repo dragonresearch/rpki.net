@@ -2330,6 +2330,8 @@ if test "x${CFLAGS+set}" = "x" && test "x${LDFLAGS+set}" = "x"
 then
 	case $host_os in
 	freebsd*)
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: Adding /usr/local to CFLAGS and LDFLAGS" >&5
+$as_echo "$as_me: Adding /usr/local to CFLAGS and LDFLAGS" >&6;}
 		CFLAGS="-I/usr/local/include"
 		LDFLAGS="-L/usr/local/lib"
 		;;

@@ -21,6 +21,7 @@ if test "x${CFLAGS+set}" = "x" && test "x${LDFLAGS+set}" = "x"
 then
 	case $host_os in
 	freebsd*)
+		AC_MSG_NOTICE([Adding /usr/local to CFLAGS and LDFLAGS])
 		CFLAGS="-I/usr/local/include"
 		LDFLAGS="-L/usr/local/lib"
 		;;

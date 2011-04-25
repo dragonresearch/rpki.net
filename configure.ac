@@ -324,8 +324,11 @@ then
 	AC_SUBST(OPENSSL_SO_GLOB)
 	AC_MSG_RESULT([$OPENSSL_SO_GLOB])
 
-	CFLAGS="$CFLAGS -I\${abs_top_srcdir}/openssl/openssl/include"
-	LIBS="$LIBS \${abs_top_builddir}/openssl/openssl/libssl.a \${abs_top_builddir}/openssl/openssl/libcrypto.a"
+	# NB: We put our OpenSSL directory at the *front* of the
+	# search list to preempt conflicts with system copies.
+
+	CFLAGS="-I\${abs_top_srcdir}/openssl/openssl/include $CFLAGS"
+	LIBS="\${abs_top_builddir}/openssl/openssl/libssl.a \${abs_top_builddir}/openssl/openssl/libcrypto.a $LIBS"
 else
 	LIBS="$LIBS -lssl -lcrypto"
 fi

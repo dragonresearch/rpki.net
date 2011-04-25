@@ -4268,8 +4268,11 @@ $as_echo_n "checking what glob to use when renaming OpenSSL shared libraries... 
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $OPENSSL_SO_GLOB" >&5
 $as_echo "$OPENSSL_SO_GLOB" >&6; }
 
-	CFLAGS="$CFLAGS -I\${abs_top_srcdir}/openssl/openssl/include"
-	LIBS="$LIBS \${abs_top_builddir}/openssl/openssl/libssl.a \${abs_top_builddir}/openssl/openssl/libcrypto.a"
+	# NB: We put our OpenSSL directory at the *front* of the
+	# search list to preempt conflicts with system copies.
+
+	CFLAGS="-I\${abs_top_srcdir}/openssl/openssl/include $CFLAGS"
+	LIBS="\${abs_top_builddir}/openssl/openssl/libssl.a \${abs_top_builddir}/openssl/openssl/libcrypto.a $LIBS"
 else
 	LIBS="$LIBS -lssl -lcrypto"
 fi

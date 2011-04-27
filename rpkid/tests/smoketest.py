@@ -860,7 +860,9 @@ class allocation(object):
     f.write(x.get_PEM())
     f.close()
 
-    rpki.log.debug("Cross certified (%s) issuer %s [%s] subject %s [%s]" % (certfile, x.getIssuer(), x.hAKI(), x.getSubject(), x.hSKI()))
+    rpki.log.debug("Cross certified %s:" % certfile)
+    rpki.log.debug("  Issuer  %s [%s]" % (x.getIssuer(),  x.hAKI()))
+    rpki.log.debug("  Subject %s [%s]" % (x.getSubject(), x.hSKI()))
     return x
 
   def create_rpki_objects(self, cb):

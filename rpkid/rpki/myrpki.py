@@ -93,18 +93,21 @@ class comma_set(set):
 
 class EntityDB(object):
   """
-  Wrapper for entitydb path lookups.  Hmm, maybe some or all of the
-  entitydb glob stuff should end up here too?  Later.
+  Wrapper for entitydb path lookups and iterations.
   """
 
   def __init__(self, cfg):
     self.dir = cfg.get("entitydb_dir", "entitydb")
+    self.identity = os.path.join(self.dir, "identity.xml")
 
-  def __call__(self, *args):
-    return os.path.join(self.dir, *args)
+  def __call__(self, dirname, filebase = None):
+    if filebase is None:
+      return os.path.join(self.dir, dirname)
+    else:
+      return os.path.join(self.dir, dirname, filebase + ".xml")
 
-  def iterate(self, *args):
-    return glob.iglob(os.path.join(self.dir, *args))
+  def iterate(self, dir, base = "*"):
+    return glob.iglob(os.path.join(self.dir, dir, base + ".xml"))
 
 class roa_request(object):
   """
@@ -274,7 +277,7 @@ class children(dict):
     Parse child data from entitydb.
     """
     self = cls()
-    for f in entitydb.iterate("children", "*.xml"):
+    for f in entitydb.iterate("children"):
       c = etree_read(f)
       self.add(handle = os.path.splitext(os.path.split(f)[-1])[0],
                validity = c.get("valid_until"),
@@ -374,7 +377,7 @@ class parents(dict):
     Parse parent data from entitydb.
     """
     self = cls()
-    for f in entitydb.iterate("parents", "*.xml"):
+    for f in entitydb.iterate("parents"):
       h = os.path.splitext(os.path.split(f)[-1])[0]
       p = etree_read(f)
       r = etree_read(f.replace(os.path.sep + "parents"      + os.path.sep,
@@ -457,7 +460,7 @@ class repositories(dict):
     Parse repository data from entitydb.
     """
     self = cls()
-    for f in entitydb.iterate("repositories", "*.xml"):
+    for f in entitydb.iterate("repositories"):
       h = os.path.splitext(os.path.split(f)[-1])[0]
       r = etree_read(f)
       if r.get("type") == "confirmed":
@@ -1047,7 +1050,7 @@ class main(rpki.cli.Cmd):
     Completion helper for entitydb filenames.
     """
     names = []
-    for name in self.entitydb.iterate(prefix, "*.xml"):
+    for name in self.entitydb.iterate(prefix):
       name = os.path.splitext(os.path.basename(name))[0]
       if name.startswith(text):
         names.append(name)
@@ -1124,7 +1127,7 @@ class main(rpki.cli.Cmd):
 
     e = Element("identity", handle = self.handle)
     PEMElement(e, "bpki_ta", self.bpki_resources.cer)
-    etree_write(e, self.entitydb("identity.xml"),
+    etree_write(e, self.entitydb.identity,
                 msg = None if self.run_rootd else 'This is the "identity" file you will need to send to your parent')
 
     # If we're running rootd, construct a fake parent to go with it,
@@ -1138,7 +1141,7 @@ class main(rpki.cli.Cmd):
       PEMElement(e, "bpki_resource_ta", self.bpki_servers.cer)
       PEMElement(e, "bpki_child_ta", self.bpki_resources.cer)
       SubElement(e, "repository", type = "offer")
-      etree_write(e, self.entitydb("parents", "%s.xml" % self.handle))
+      etree_write(e, self.entitydb("parents", self.handle))
 
       self.bpki_resources.xcert(self.bpki_servers.cer)
 
@@ -1146,7 +1149,7 @@ class main(rpki.cli.Cmd):
       if not os.path.exists(rootd_child_fn):
         os.link(self.bpki_servers.xcert(self.bpki_resources.cer), rootd_child_fn)
 
-      repo_file_name = self.entitydb("repositories", "%s.xml" % self.handle)
+      repo_file_name = self.entitydb("repositories", self.handle)
 
       try:
         want_offer = etree_read(repo_file_name).get("type") != "confirmed"
@@ -1255,7 +1258,7 @@ class main(rpki.cli.Cmd):
     SubElement(e, "bpki_child_ta").text = c.findtext("bpki_ta")
 
     repo = None
-    for f in self.entitydb.iterate("repositories", "*.xml"):
+    for f in self.entitydb.iterate("repositories"):
       r = etree_read(f)
       if r.get("type") == "confirmed":
         h = os.path.splitext(os.path.split(f)[-1])[0]
@@ -1280,7 +1283,7 @@ class main(rpki.cli.Cmd):
       SubElement(r, "authorization", referrer = repo.get("client_handle")).text = auth
       SubElement(r, "contact_info").text = repo.findtext("contact_info")
 
-    etree_write(e, self.entitydb("children", "%s.xml" % child_handle),
+    etree_write(e, self.entitydb("children", child_handle),
                 msg = "Send this file back to the child you just configured")
 
 
@@ -1293,7 +1296,7 @@ class main(rpki.cli.Cmd):
     """
 
     try:
-      os.unlink(self.entitydb("children", "%s.xml" % arg))
+      os.unlink(self.entitydb("children", arg))
     except OSError:
       print "No such child \"%s\"" % arg
 
@@ -1333,7 +1336,7 @@ class main(rpki.cli.Cmd):
 
     self.bpki_resources.fxcert(p.findtext("bpki_resource_ta"))
 
-    etree_write(p, self.entitydb("parents", "%s.xml" % parent_handle))
+    etree_write(p, self.entitydb("parents", parent_handle))
 
     r = p.find("repository")
 
@@ -1343,7 +1346,7 @@ class main(rpki.cli.Cmd):
     r.set("handle", self.handle)
     r.set("parent_handle", parent_handle)
     PEMElement(r, "bpki_client_ta", self.bpki_resources.cer)
-    etree_write(r, self.entitydb("repositories", "%s.xml" % parent_handle),
+    etree_write(r, self.entitydb("repositories", parent_handle),
                 msg = "This is the file to send to the repository operator")
 
 
@@ -1356,7 +1359,7 @@ class main(rpki.cli.Cmd):
     """
 
     try:
-      os.unlink(self.entitydb("parents", "%s.xml" % arg))
+      os.unlink(self.entitydb("parents", arg))
     except OSError:
       print "No such parent \"%s\"" % arg
 
@@ -1395,7 +1398,7 @@ class main(rpki.cli.Cmd):
         auth = client.find("authorization")
         if auth is None:
           raise RuntimeError, "Malformed referral, couldn't find <auth/> element"
-        referrer = etree_read(self.entitydb("pubclients", "%s.xml" % auth.get("referrer").replace("/",".")))
+        referrer = etree_read(self.entitydb("pubclients", auth.get("referrer").replace("/",".")))
         referrer = self.bpki_servers.fxcert(referrer.findtext("bpki_client_ta"))
         referral = self.bpki_servers.cms_xml_verify(auth.text, referrer)
         if not b64_equal(referral.text, client.findtext("bpki_client_ta")):
@@ -1409,7 +1412,7 @@ class main(rpki.cli.Cmd):
       client_ta = client.findtext("bpki_client_ta")
       if not client_ta:
         raise RuntimeError, "Malformed offer, couldn't find <bpki_client_ta/> element"
-      for child in self.entitydb.iterate("children", "*.xml"):
+      for child in self.entitydb.iterate("children"):
         c = etree_read(child)
         if b64_equal(c.findtext("bpki_child_ta"), client_ta):
           sia_base = "rsync://%s/%s/%s/%s/" % (self.rsync_server, self.rsync_module,
@@ -1446,7 +1449,7 @@ class main(rpki.cli.Cmd):
     PEMElement(e, "bpki_server_ta", self.bpki_servers.cer)
     SubElement(e, "bpki_client_ta").text = client.findtext("bpki_client_ta")
     SubElement(e, "contact_info").text = self.pubd_contact_info
-    etree_write(e, self.entitydb("pubclients", "%s.xml" % client_handle.replace("/", ".")),
+    etree_write(e, self.entitydb("pubclients", client_handle.replace("/", ".")),
                 msg = "Send this file back to the publication client you just configured")
 
 
@@ -1459,7 +1462,7 @@ class main(rpki.cli.Cmd):
     """
 
     try:
-      os.unlink(self.entitydb("pubclients", "%s.xml" % arg))
+      os.unlink(self.entitydb("pubclients", arg))
     except OSError:
       print "No such client \"%s\"" % arg
 
@@ -1495,7 +1498,7 @@ class main(rpki.cli.Cmd):
     print "Repository calls us %r" % (r.get("client_handle"))
     print "Repository response associated with parent_handle %r" % parent_handle
 
-    etree_write(r, self.entitydb("repositories", "%s.xml" % parent_handle))
+    etree_write(r, self.entitydb("repositories", parent_handle))
 
 
   def do_delete_repository(self, arg):
@@ -1507,7 +1510,7 @@ class main(rpki.cli.Cmd):
     """
 
     try:
-      os.unlink(self.entitydb("repositories", "%s.xml" % arg))
+      os.unlink(self.entitydb("repositories", arg))
     except OSError:
       print "No such repository \"%s\"" % arg
 
@@ -1530,11 +1533,11 @@ class main(rpki.cli.Cmd):
     if plural:
       if len(argv) != 0:
         raise RuntimeError, "Unexpected arguments"
-      children_glob = "*.xml"
+      children = "*"
     else:
       if len(argv) != 1:
         raise RuntimeError, "Need to specify child handle"
-      children_glob = argv[0] + ".xml"
+      children = argv[0]
 
     if valid_until is None:
       valid_until = rpki.sundial.now() + rpki.sundial.timedelta(days = 365)
@@ -1545,7 +1548,7 @@ class main(rpki.cli.Cmd):
 
     print "New validity date", valid_until
 
-    for f in self.entitydb.iterate("children", children_glob):
+    for f in self.entitydb.iterate("children", children):
       c = etree_read(f)
       c.set("valid_until", str(valid_until))
       etree_write(c, f)
@@ -1943,7 +1946,7 @@ class main(rpki.cli.Cmd):
 
       if self.run_pubd:
 
-        for f in self.entitydb.iterate("pubclients", "*.xml"):
+        for f in self.entitydb.iterate("pubclients"):
           c = etree_read(f)
 
           client_handle = c.get("client_handle")

@@ -649,15 +649,15 @@ class self_elt(data_elt):
         try:
           k = (roa_request.asn, str(roa_request.ipv4), str(roa_request.ipv6))
           if k in seen:
-            rpki.log.warn("Skipping duplicate ROA request %r for %r" % (k, roa_request))
+            rpki.log.warn("Skipping duplicate ROA request %r" % roa_request)
             continue
           seen.add(k)
           roa = roas.pop(k, None)
           if roa is None:
             roa = rpki.rpkid.roa_obj(self.gctx, self.self_id, roa_request.asn, roa_request.ipv4, roa_request.ipv6)
-            rpki.log.debug("Couldn't find existing ROA matching %r, created %r" % (k, roa))
+            rpki.log.debug("Couldn't find existing ROA, created %r" % roa)
           else:
-            rpki.log.debug("Found existing ROA %r matching %r" % (roa, k))
+            rpki.log.debug("Found existing %r" % roa)
           roa.update(publisher = publisher, fast = True)
           ca_details.add(roa.ca_detail)
         except (SystemExit, rpki.async.ExitNow):
@@ -665,7 +665,7 @@ class self_elt(data_elt):
         except Exception, e:
           if not isinstance(e, rpki.exceptions.NoCoveringCertForROA):
             rpki.log.traceback()
-          rpki.log.warn("Could not update ROA %r, %r, skipping: %s" % (roa_request, roa, e))
+          rpki.log.warn("Could not update %r, skipping: %s" % (roa, e))
 
       orphans.extend(roas.itervalues())
       for roa in orphans:
@@ -676,7 +676,7 @@ class self_elt(data_elt):
           raise
         except Exception, e:
           rpki.log.traceback()
-          rpki.log.warn("Could not revoke ROA %r: %s" % (roa, e))
+          rpki.log.warn("Could not revoke %r: %s" % (roa, e))
 
       for ca_detail in ca_details:
         ca_detail.generate_crl(publisher = publisher)
@@ -818,7 +818,7 @@ class repository_elt(data_elt):
         handlers = {}
 
       for q_pdu in q_msg:
-        rpki.log.info("Sending <%s %r %r> to pubd" % (q_pdu.action, q_pdu.uri, q_pdu.payload))
+        rpki.log.info("Sending %s %s to pubd" % (q_pdu.action, q_pdu.uri))
 
       bsc = self.bsc
       q_der = rpki.publication.cms_msg().wrap(q_msg, bsc.private_key_id, bsc.signing_cert, bsc.signing_cert_crl)

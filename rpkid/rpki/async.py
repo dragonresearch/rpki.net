@@ -212,7 +212,7 @@ class timer(object):
         t.errback(e)
 
   def __repr__(self):
-    return "<%s %r %r at 0x%x>" % (self.__class__.__name__, self.when, self.handler, id(self))
+    return rpki.log.log_repr(self, self.when, repr(self.handler))
 
   @classmethod
   def seconds_until_wakeup(cls):

@@ -230,7 +230,7 @@ class main(object):
     def done(r_msg):
       reply = rpki.left_right.cms_msg().wrap(r_msg, self.rpkid_key, self.rpkid_cert)
       self.sql.sweep()
-      cb(200, reply)
+      cb(200, body = reply)
 
     try:
       self.sql.ping()
@@ -242,7 +242,7 @@ class main(object):
       raise
     except Exception, data:
       rpki.log.traceback()
-      cb(500, "Unhandled exception %s" % data)
+      cb(500, reason = "Unhandled exception %s" % data)
 
   up_down_url_regexp = re.compile("/up-down/([-A-Z0-9_]+)/([-A-Z0-9_]+)$", re.I)
 
@@ -255,7 +255,7 @@ class main(object):
 
     def done(reply):
       self.sql.sweep()
-      cb(200, reply)
+      cb(200, body = reply)
 
     try:
       self.sql.ping()
@@ -272,10 +272,10 @@ class main(object):
       raise
     except (rpki.exceptions.ChildNotFound, rpki.exceptions.BadContactURL), e:
       rpki.log.warn(str(e))
-      cb(400, str(e))
+      cb(400, reason = str(e))
     except Exception, e:
       rpki.log.traceback()
-      cb(400, "Could not process PDU: %s" % e)
+      cb(400, reason = "Could not process PDU: %s" % e)
 
   def checkpoint(self):
     """
@@ -349,10 +349,13 @@ class main(object):
     uses it.
     """
 
+    def done():
+      cb(200, body = "OK")
+
     if self.use_internal_cron:
-      cb(500, "Running cron internally")
+      cb(500, reason = "Running cron internally")
     else:
-      self.cron(lambda: cb(200, "OK"))
+      self.cron(done)
 
 class ca_obj(rpki.sql.sql_persistent):
   """
@@ -461,8 +464,8 @@ class ca_obj(rpki.sql.sql_persistent):
 
       if rc_cert is None:
 
-        rpki.log.warn("Certificate in database missing from list_response, class %r, SKI %s, maybe parent certificate went away?"
-                      % (rc.class_name, ca_detail.public_key.gSKI()))
+        rpki.log.warn("SKI %s in resource class %s is in my database but missing from list_response received from %s, maybe parent certificate went away?"
+                      % (ca_detail.public_key.gSKI(), rc.class_name, parent.parent_handle))
         publisher = publication_queue()
         ca_detail.delete(ca = ca_detail.ca, publisher = publisher)
         return publisher.call_pubd(iterator, eb)
@@ -494,24 +497,33 @@ class ca_obj(rpki.sql.sql_persistent):
 
     def done():
       if cert_map:
-        rpki.log.warn("Certificates in list_response missing from our database, class %r, SKIs %s"
-                      % (rc.class_name, ", ".join(c.cert.gSKI() for c in cert_map.values())))
+        rpki.log.warn("Certificate SKIs in resource class %s in list_response from parent %s that are missing from our database: %s"
+                      % (rc.class_name, parent.parent_handle, ", ".join(c.cert.gSKI() for c in cert_map.values())))
       self.gctx.checkpoint()
       cb()
 
     ca_details = self.issue_response_candidate_ca_details
 
     if True:
-      for x in cert_map.itervalues():
-        rpki.log.debug("Parent thinks I have %r %s" % (x, x.cert.gSKI()))
-      for x in ca_details:
-        if x.latest_ca_cert is not None:
-          rpki.log.debug("I think I have %r %s" % (x, x.latest_ca_cert.gSKI()))
+      skis_parent = set(x.cert.gSKI()
+                        for x in cert_map.itervalues())
+      skis_me     = set(x.latest_ca_cert.gSKI()
+                        for x in ca_details
+                        if x.latest_ca_cert is not None)
+      for ski in skis_parent & skis_me:
+        rpki.log.debug("Parent %s and I agree that I have SKI %s in resource class %s"
+                       % (parent.parent_handle, ski, rc.class_name))
+      for ski in skis_parent - skis_me:
+        rpki.log.debug("Parent %s thinks I have SKI %s in resource class %s but I don't think so"
+                       % (parent.parent_handle, ski, rc.class_name))
+      for ski in skis_me - skis_parent:
+        rpki.log.debug("I think I have SKI %s in resource class %s but parent %s doesn't think so"
+                       % (ski, rc.class_name, parent.parent_handle))
 
     if ca_details:
       rpki.async.iterator(ca_details, loop, done)
     else:
-      rpki.log.warn("Existing certificate class %r with no certificates, rekeying" % rc.class_name)
+      rpki.log.warn("Existing resource class %s from parent %s with no certificates, rekeying" % (rc.class_name, parent.parent_handle))
       self.gctx.checkpoint()
       self.rekey(cb, eb)
 
@@ -1392,6 +1404,11 @@ class roa_obj(rpki.sql.sql_persistent):
     """
     self.gctx.sql.execute("DELETE FROM roa_prefix WHERE roa_id = %s", (self.roa_id,))
 
+  def __repr__(self):
+    v4 = "" if self.ipv4 is None else self.ipv4
+    v6 = "" if self.ipv6 is None else self.ipv6
+    return rpki.log.log_repr(self, self.asn, ("%s,%s" % (v4, v6)).strip(","))
+
   def __init__(self, gctx = None, self_id = None, asn = None, ipv4 = None, ipv6 = None):
     rpki.sql.sql_persistent.__init__(self)
     self.gctx = gctx
@@ -1413,37 +1430,35 @@ class roa_obj(rpki.sql.sql_persistent):
     v4 = self.ipv4.to_resource_set() if self.ipv4 is not None else rpki.resource_set.resource_set_ipv4()
     v6 = self.ipv6.to_resource_set() if self.ipv6 is not None else rpki.resource_set.resource_set_ipv6()
 
-    me = "<%s %s>" % (self.asn, ("%s,%s" % (v4, v6)).strip(","))
-
     if self.roa is None:
-      rpki.log.debug("ROA doesn't exist, generating %s" % me)
+      rpki.log.debug("%r doesn't exist, generating" % self)
       return self.generate(publisher = publisher, fast = fast)
 
     ca_detail = self.ca_detail
 
     if ca_detail is None:
-      rpki.log.debug("ROA has no associated ca_detail, generating %s" % me)
+      rpki.log.debug("%r has no associated ca_detail, generating" % self)
       return self.generate(publisher = publisher, fast = fast)
 
     if ca_detail.state != "active":
-      rpki.log.debug("ROA's associated ca_detail not active (state %r), regenerating %s" % (ca_detail.state, me))
+      rpki.log.debug("ca_detail associated with %r not active (state %s), regenerating" % (self, ca_detail.state))
       return self.regenerate(publisher = publisher, fast = fast)
 
     regen_time = self.cert.getNotAfter() - rpki.sundial.timedelta(seconds = self.self.regen_margin)
 
     if rpki.sundial.now() > regen_time:
-      rpki.log.debug("ROA past threshold %s, regenerating %s" % (regen_time, me))
+      rpki.log.debug("%r past threshold %s, regenerating" % (self, regen_time))
       return self.regenerate(publisher = publisher, fast = fast)
 
     ca_resources = ca_detail.latest_ca_cert.get_3779resources()
     ee_resources = self.cert.get_3779resources()
 
     if ee_resources.oversized(ca_resources):
-      rpki.log.debug("ROA oversized with respect to CA, regenerating %s" % me)
+      rpki.log.debug("%r oversized with respect to CA, regenerating" % self)
       return self.regenerate(publisher = publisher, fast = fast)
 
     if ee_resources.v4 != v4 or ee_resources.v6 != v6:
-      rpki.log.debug("ROA resources do not match EE, regenerating %s" % me)
+      rpki.log.debug("%r resources do not match EE, regenerating" % self)
       return self.regenerate(publisher = publisher, fast = fast)
 
   def generate(self, publisher, fast = False):
@@ -1492,7 +1507,7 @@ class roa_obj(rpki.sql.sql_persistent):
           break
 
     if ca_detail is None:
-      raise rpki.exceptions.NoCoveringCertForROA, "generate() could not find a certificate covering %s %s" % (v4, v6)
+      raise rpki.exceptions.NoCoveringCertForROA, "Could not find a certificate covering %r" % self
 
     ca = ca_detail.ca
     resources = rpki.resource_set.resource_bag(v4 = v4, v6 = v6)
@@ -1508,7 +1523,7 @@ class roa_obj(rpki.sql.sql_persistent):
     self.published = rpki.sundial.now()
     self.sql_store()
 
-    rpki.log.debug("Generating ROA %r" % self.uri)
+    rpki.log.debug("Generating %r URI %s" % (self, self.uri))
     publisher.publish(cls = rpki.publication.roa_elt, uri = self.uri, obj = self.roa, repository = ca.parent.repository, handler = self.published_callback)
     if not fast:
       ca_detail.generate_manifest(publisher = publisher)
@@ -1548,7 +1563,7 @@ class roa_obj(rpki.sql.sql_persistent):
     if regenerate:
       self.generate(publisher = publisher, fast = fast)
 
-    rpki.log.debug("Withdrawing ROA %r and revoking its EE cert" % uri)
+    rpki.log.debug("Withdrawing %r %s and revoking its EE cert" % (self, uri))
     rpki.rpkid.revoked_cert_obj.revoke(cert = cert, ca_detail = ca_detail)
     publisher.withdraw(cls = rpki.publication.roa_elt, uri = uri, obj = roa, repository = ca_detail.ca.parent.repository,
                        handler = False if allow_failure else None)

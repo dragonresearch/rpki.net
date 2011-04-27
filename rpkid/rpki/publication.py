@@ -206,7 +206,7 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     Publish an object.
     """
-    rpki.log.info("Publishing %r as %r" % (self.payload, self.uri))
+    rpki.log.info("Publishing %s" % self.uri)
     filename = self.uri_to_filename()
     filename_tmp = filename + ".tmp"
     dirname = os.path.dirname(filename)
@@ -221,13 +221,13 @@ class publication_object_elt(rpki.xml_utils.base_elt, publication_namespace):
     """
     Withdraw an object.
     """
-    rpki.log.info("Withdrawing %r" % (self.uri,))
+    rpki.log.info("Withdrawing %s" % self.uri)
     filename = self.uri_to_filename()
     try:
       os.remove(filename)
     except OSError, e:
       if e.errno == errno.ENOENT:
-        raise rpki.exceptions.NoObjectAtURI, "No object published at %r" % self.uri
+        raise rpki.exceptions.NoObjectAtURI, "No object published at %s" % self.uri
       else:
         raise
 

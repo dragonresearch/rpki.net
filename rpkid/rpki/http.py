@@ -241,6 +241,9 @@ class http_request(http_message):
     self.headers.setdefault("User-Agent", self.software_name)
     return "%s %s HTTP/%d.%d\r\n" % (self.cmd, self.path, self.version[0], self.version[1])
 
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.cmd, self.path)
+            
 class http_response(http_message):
   """
   HTTP response message.
@@ -268,6 +271,9 @@ class http_response(http_message):
     self.headers.setdefault("Server", self.software_name)
     return "HTTP/%d.%d %s %s\r\n" % (self.version[0], self.version[1], self.code, self.reason)
 
+  def __repr__(self):
+    return rpki.log.log_repr(self, self.code, self.reason)
+
 def log_method(self, msg, logger = rpki.log.debug):
   """
   Logging method used in several different classes.
@@ -276,6 +282,19 @@ def log_method(self, msg, logger = rpki.log.debug):
   if debug_http or logger is not rpki.log.debug:
     logger("%r: %s" % (self, msg))
 
+def addr_to_string(addr):
+  """
+  Convert socket addr tuple to printable string.  Assumes 2-element
+  tuple is IPv4, 4-element tuple is IPv6, throws TypeError for
+  anything else.
+  """
+
+  if len(addr) == 2:
+    return "%s:%d" % (addr[0], addr[1])
+  if len(addr) == 4:
+    return "%s.%d" % (addr[0], addr[1])
+  raise TypeError
+
 class http_stream(asynchat.async_chat):
   """
   Virtual class representing an HTTP message stream.
@@ -283,6 +302,14 @@ class http_stream(asynchat.async_chat):
 
   log = log_method
   show_tracebacks = False
+
+  def __repr__(self):
+    status = ["connected"] if self.connected else []
+    try:
+      status.append(addr_to_string(self.addr))
+    except TypeError:
+      pass
+    return rpki.log.log_repr(self, *status)
 
   def __init__(self, sock = None):
     asynchat.async_chat.__init__(self, sock)
@@ -306,7 +333,7 @@ class http_stream(asynchat.async_chat):
     it.
     """
     if self.timeout is not None:
-      self.log("Setting timeout %r" % self.timeout)
+      self.log("Setting timeout %s" % self.timeout)
       self.timer.set(self.timeout)
     else:
       self.log("Clearing timeout")
@@ -463,10 +490,10 @@ class http_server(http_stream):
   timeout = default_server_timeout
 
   def __init__(self, sock, handlers):
-    self.log("Starting")
     self.handlers = handlers
     http_stream.__init__(self, sock = sock)
     self.expect_close = not want_persistent_server
+    self.log("Starting")
 
   def handle_no_content_length(self):
     """
@@ -492,7 +519,7 @@ class http_server(http_stream):
     Content-Type, look for a handler, and if everything looks right,
     pass the message body, path, and a reply callback to the handler.
     """
-    self.log("Received request %s %s" % (self.msg.cmd, self.msg.path))
+    self.log("Received request %r" % self.msg)
     if not self.msg.persistent:
       self.expect_close = True
     handler = self.find_handler(self.msg.path)
@@ -521,11 +548,11 @@ class http_server(http_stream):
     """
     self.send_message(code = code, reason = reason)
 
-  def send_reply(self, code, body):
+  def send_reply(self, code, body = None, reason = "OK"):
     """
     Send a reply to this request.
     """
-    self.send_message(code = code, body = body)
+    self.send_message(code = code, body = body, reason = reason)
 
   def send_message(self, code, reason = "OK", body = None):
     """
@@ -557,8 +584,14 @@ class http_listener(asyncore.dispatcher):
   log = log_method
   show_tracebacks = False
 
+  def __repr__(self):
+    try:
+      status = (addr_to_string(self.addr),)
+    except TypeError:
+      status = ()
+    return rpki.log.log_repr(self, *status)
+
   def __init__(self, handlers, addrinfo):
-    self.log("Listener")
     asyncore.dispatcher.__init__(self)
     self.handlers = handlers
     try:
@@ -578,21 +611,22 @@ class http_listener(asyncore.dispatcher):
       if self.show_tracebacks:
         rpki.log.traceback()
       self.close()
-    self.log("Listening on %r, handlers %r" % (sockaddr, handlers))
+    for h in handlers:
+      self.log("Handling %s" % h[0])
 
   def handle_accept(self):
     """
     Asyncore says we have an incoming connection, spawn an http_server
     stream for it and pass along all of our handler data.
     """
-    self.log("Accepting connection")
     try:
       s, client = self.accept()
-      self.log("Accepting connection from %r" % (client,))
+      self.log("Accepting connection from %s" % addr_to_string(client))
       http_server(sock = s, handlers = self.handlers)
     except (rpki.async.ExitNow, SystemExit):
       raise
     except:
+      self.log("Unable to accept connection")
       self.handle_error()
 
   def handle_error(self):
@@ -623,7 +657,7 @@ class http_client(http_stream):
   state = None
 
   def __init__(self, queue, hostport):
-    self.log("Creating new connection to %r" % (hostport,))
+    self.log("Creating new connection to %s" % addr_to_string(hostport))
     http_stream.__init__(self)
     self.queue = queue
     self.host = hostport[0]
@@ -777,7 +811,7 @@ class http_client(http_stream):
     down the connection and pass back the exception.
     """
     eclass, edata = sys.exc_info()[0:2]
-    self.log("Error on HTTP client connection %s:%s: %s %s" % (self.host, self.port, eclass, edata), rpki.log.warn)
+    self.log("Error on HTTP client connection %s:%s %s %s" % (self.host, self.port, eclass, edata), rpki.log.warn)
     http_stream.handle_error(self)
     self.queue.return_result(self, edata, detach = True)
 
@@ -790,10 +824,13 @@ class http_queue(object):
 
   log = log_method
 
+  def __repr__(self):
+    return rpki.log.log_repr(self, "%s" % addr_to_string(self.hostport))
+
   def __init__(self, hostport):
-    self.log("Creating queue for %r" % (hostport,))
     self.hostport = hostport
     self.client = None
+    self.log("Created")
     self.queue = []
 
   def request(self, *requests):
@@ -921,7 +958,7 @@ def client(msg, url, callback, errback):
   hostport = (u.hostname or "localhost", u.port or default_tcp_port)
 
   if debug_http:
-    rpki.log.debug("Created request %r for %r" % (request, hostport))
+    rpki.log.debug("Created request %r for %s" % (request, addr_to_string(hostport)))
   if hostport not in client_queues:
     client_queues[hostport] = http_queue(hostport)
   client_queues[hostport].request(request)

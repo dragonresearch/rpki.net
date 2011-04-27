@@ -45,6 +45,11 @@ enable_trace = False
 
 use_syslog = True
 
+## @var show_python_ids
+# Whether __repr__() methods should show Python id numbers
+
+show_python_ids = False
+
 tag = ""
 pid = 0
 
@@ -109,3 +114,15 @@ def traceback():
   assert bt is not None, "Apparently I'm still not using the right test for null backtrace"
   for line in bt.splitlines():
     warn(line)
+
+def log_repr(obj, *tokens):
+  """
+  Constructor for __repr__() strings, handles suppression of Python
+  IDs as needed.
+  """
+
+  words = ["%s.%s" % (obj.__class__.__module__, obj.__class__.__name__)]
+  words.extend(str(token) for token in tokens if token is not None and token != "")
+  if show_python_ids:
+    words.append(" at %#x" % id(obj))
+  return "<" + " ".join(words) + ">"

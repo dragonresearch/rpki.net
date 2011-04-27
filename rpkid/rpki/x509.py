@@ -454,13 +454,13 @@ class X509(DER_object):
     """
     Get the issuer of this certificate.
     """
-    return self.get_POW().getIssuer()
+    return "".join("/%s=%s" % rdn for rdn in self.get_POW().getIssuer())
 
   def getSubject(self):
     """
     Get the subject of this certificate.
     """
-    return self.get_POW().getSubject()
+    return "".join("/%s=%s" % rdn for rdn in self.get_POW().getSubject())
 
   def getNotBefore(self):
     """
@@ -1314,7 +1314,7 @@ class CRL(DER_object):
     """
     Get issuer value of this CRL.
     """
-    return self.get_POW().getIssuer()
+    return "".join("/%s=%s" % rdn for rdn in self.get_POW().getIssuer())
 
   @classmethod
   def generate(cls, keypair, issuer, serial, thisUpdate, nextUpdate, revokedCertificates, version = 1, digestType = "sha256WithRSAEncryption"):

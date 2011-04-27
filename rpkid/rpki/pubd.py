@@ -123,8 +123,8 @@ class main(object):
     Process one PDU from the IRBE.
     """
 
-    def done(x):
-      cb(200, x)
+    def done(body):
+      cb(200, body = body)
 
     rpki.log.trace()
     try:
@@ -134,7 +134,7 @@ class main(object):
       raise
     except Exception, data:
       rpki.log.traceback()
-      cb(500, "Unhandled exception %s" % data)
+      cb(500, reason = "Unhandled exception %s" % data)
 
   client_url_regexp = re.compile("/client/([-A-Z0-9_/]+)$", re.I)
 
@@ -143,8 +143,8 @@ class main(object):
     Process one PDU from a client.
     """
 
-    def done(x):
-      cb(200, x)
+    def done(body):
+      cb(200, body = body)
 
     rpki.log.trace()
     try:
@@ -164,4 +164,4 @@ class main(object):
       raise
     except Exception, data:
       rpki.log.traceback()
-      cb(500, "Could not process PDU: %s" % data)
+      cb(500, reason = "Could not process PDU: %s" % data)

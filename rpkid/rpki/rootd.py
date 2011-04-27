@@ -240,10 +240,10 @@ class main(object):
       raise
     except Exception, e:
       rpki.log.traceback()
-      return cb(400, "Could not process PDU: %s" % e)
+      return cb(400, reason = "Could not process PDU: %s" % e)
 
     def done(r_msg):
-      cb(200, cms_msg().wrap(r_msg, self.rootd_bpki_key, self.rootd_bpki_cert, self.rootd_bpki_crl))
+      cb(200, body = cms_msg().wrap(r_msg, self.rootd_bpki_key, self.rootd_bpki_cert, self.rootd_bpki_crl))
 
     try:
       q_msg.serve_top_level(None, done)
@@ -257,7 +257,7 @@ class main(object):
         raise
       except Exception, e:
         rpki.log.traceback()
-        cb(500, "Could not process PDU: %s" % e)
+        cb(500, reason = "Could not process PDU: %s" % e)
 
   def __init__(self):
 

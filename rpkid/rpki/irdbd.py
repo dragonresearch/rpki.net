@@ -185,7 +185,7 @@ class main(object):
         rpki.log.traceback()
         r_msg.append(rpki.left_right.report_error_elt.from_exception(data))
 
-      cb(200, rpki.left_right.cms_msg().wrap(r_msg, self.irdbd_key, self.irdbd_cert))
+      cb(200, body = rpki.left_right.cms_msg().wrap(r_msg, self.irdbd_key, self.irdbd_cert))
 
     except (rpki.async.ExitNow, SystemExit):
       raise
@@ -196,7 +196,7 @@ class main(object):
       # We only get here in cases where we couldn't or wouldn't generate
       # <report_error/>, so just return HTTP failure.
 
-      cb(500, "Unhandled exception %s: %s" % (data.__class__.__name__, data))
+      cb(500, reason = "Unhandled exception %s: %s" % (data.__class__.__name__, data))
 
 
   def __init__(self):

@@ -39,3 +39,6 @@ distclean: clean
 ${BIN} : ${SRC}
 	echo >$@ '#!${PYTHON}'
 	cat >>$@ ${SRC}
+
+test:
+	@true

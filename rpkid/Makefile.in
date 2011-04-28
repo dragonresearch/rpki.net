@@ -109,7 +109,7 @@ all-tests:: unit-tests
 
 all-tests:: relaxng
 
-test all-tests parse-test profile yamltest::
+test all-tests parse-test profile yamltest:: all
 	cd tests; $(MAKE) $@
 
 tags: Makefile

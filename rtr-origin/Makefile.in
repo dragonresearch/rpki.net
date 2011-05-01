@@ -39,6 +39,7 @@ distclean: clean
 ${BIN} : ${SRC}
 	echo >$@ '#!${PYTHON}'
 	cat >>$@ ${SRC}
+	chmod a+x ${BIN}
 
 test:
 	@true

@@ -26,6 +26,8 @@
 import sys, os, struct, time, glob, socket, fcntl, signal, syslog
 import asyncore, asynchat, subprocess, traceback, getopt, bisect, random
 
+# Debugging only, should be False in production
+disable_incrementals = False
 
 class IgnoreThisRecord(Exception):
   pass
@@ -341,6 +343,8 @@ class serial_query(pdu_with_serial):
       log("[Client is already current, sending empty IXFR]")
       server.push_pdu(cache_response(nonce = server.current_nonce))
       server.push_pdu(end_of_data(serial = server.current_serial, nonce = server.current_nonce))
+    elif disable_incrementals:
+      server.push_pdu(cache_reset())
     else:
       try:
         self.send_file(server, "%d.ix.%d" % (server.current_serial, self.serial))

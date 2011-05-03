@@ -15,6 +15,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
+from __future__ import with_statement
+
 import email.message, email.utils, mailbox
 import os, os.path
 import sys

@@ -41,6 +41,23 @@ pow = Extension("rpki.POW._POW", ["ext/POW.c"],
                 extra_compile_args = ac_cflags,
                 extra_link_args    = ac_ldflags + ac_libs)
 
+# Be careful constructing data_files, empty file lists here appear to
+# confuse setup into putting dangerous nonsense into the list of
+# installed files.
+#
+# bdist_rpm seems to get confused by relative names for scripts, so we
+# have to prefix source names here with the build directory name.
+
+data_files = []
+if ac_sbindir and ac_scripts:
+  data_files.append((ac_sbindir,
+                     ["%s/%s" % (ac_abs_builddir, f) for f in ac_scripts]))
+if ac_libexecdir and ac_aux_scripts:
+  data_files.append((ac_libexecdir,
+                     ["%s/%s" % (ac_abs_builddir, f) for f in ac_aux_scripts]))
+if not data_files:
+  data_files = None
+
 setup(name              = "rpkitoolkit",
       version           = "1.0",
       description       = "RPKI Toolkit",
@@ -49,10 +66,4 @@ setup(name              = "rpkitoolkit",
       packages          = ["rpki", "rpki.POW", "rpki.gui", "rpki.gui.app" ],
       ext_modules       = [pow],
       package_data      = { 'rpki.gui.app' : ['templates/*.html', 'templates/*/*.html'] },
-
-      # bdist_rpm seems to get confused by relative names for scripts,
-      # so we have to prefix the source name of anything here with the
-      # build directory name.
-
-      data_files	= [(ac_sbindir,    ["%s/%s" % (ac_abs_builddir, f) for f in ac_scripts]),
-                           (ac_libexecdir, ["%s/%s" % (ac_abs_builddir, f) for f in ac_aux_scripts])])
+      data_files	= data_files)

@@ -5,7 +5,7 @@
 #
 # This is approximately what a package installation script might do.
 
-: ${jaildir="/var/rcynic"}
+: ${jaildir="${DESTDIR}/var/rcynic"}
 : ${jailuser="rcynic"}
 : ${jailgroup="rcynic"}
 : ${setupcron="YES"}

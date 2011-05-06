@@ -6,7 +6,7 @@
 # This is approximately what a pkg-install script might do if this were
 # a FreeBSD port.  Perhaps some day it will be.
 
-: ${jaildir="/var/rcynic"}
+: ${jaildir="${DESTDIR}/var/rcynic"}
 : ${jailuser="rcynic"}
 : ${jailgroup="rcynic"}
 : ${jailname="RPKI Validation System"}
@@ -55,15 +55,15 @@ if ! /bin/test -d "${jaildir}"; then
     /bin/mkdir "${jaildir}"
 fi
 
-if /usr/bin/install -o root -g wheel -d /Library/StartupItems/RCynic &&
-   /usr/bin/install -o root -g wheel -m 555 RCynic/RCynic RCynic/StartupParameters.plist /Library/StartupItems/RCynic; then
-    echo "Installed /Library/StartupItems/RCynic"
+if /usr/bin/install -o root -g wheel -d ${DESTDIR}/Library/StartupItems/RCynic &&
+   /usr/bin/install -o root -g wheel -m 555 RCynic/RCynic RCynic/StartupParameters.plist ${DESTDIR}/Library/StartupItems/RCynic; then
+    echo "Installed ${DESTDIR}/Library/StartupItems/RCynic"
 else
-    echo "Installing /Library/StartupItems/RCynic failed"
+    echo "Installing ${DESTDIR}/Library/StartupItems/RCynic failed"
     exit 1
 fi
 
-echo "Running /Library/StartupItems/RCynic/RCynic to set up directories"
+echo "Running ${DESTDIR}/Library/StartupItems/RCynic/RCynic to set up directories"
 
 if ! rcynic_jaildir="$jaildir" rcynic_user="$jailuser" rcynic_group="$jailgroup"  /Library/StartupItems/RCynic/RCynic start; then
     echo "Directory setup failed"

@@ -6,7 +6,7 @@
 # This is approximately what a pkg-install script might do if this were
 # a FreeBSD port.  Perhaps some day it will be.
 
-: ${jaildir="/var/rcynic"}
+: ${jaildir="${DESTDIR}/var/rcynic"}
 : ${jailuser="rcynic"}
 : ${jailgroup="rcynic"}
 : ${setupcron="NO"}
@@ -37,10 +37,10 @@ if ! /bin/test -d "${jaildir}"; then
     /bin/mkdir "${jaildir}"
 fi
 
-if /usr/bin/install -m 555 -o root -g wheel -p rc.d.rcynic /usr/local/etc/rc.d/rcynic; then
-    echo "Installed rc.d.rcynic as /usr/local/etc/rc.d/rcynic"
+if /usr/bin/install -m 555 -o root -g wheel -p rc.d.rcynic ${DESTDIR}/usr/local/etc/rc.d/rcynic; then
+    echo "Installed rc.d.rcynic as ${DESTDIR}/usr/local/etc/rc.d/rcynic"
 else
-    echo "Installing /usr/local/etc/rc.d/rcynic failed"
+    echo "Installing ${DESTDIR}/usr/local/etc/rc.d/rcynic failed"
     exit 1
 fi
 

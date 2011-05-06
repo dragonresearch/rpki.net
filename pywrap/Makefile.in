@@ -43,9 +43,9 @@ distclean: clean
 	rm -f Makefile
 
 install: all
-	${INSTALL} pywrap ${sbindir}
-	${INSTALL} -d ${PYWRAP_LIBDIR}
-	${INSTALL} ${PYWRAP_LIBS} ${PYWRAP_LIBDIR}
+	${INSTALL} pywrap ${DESTDIR}${sbindir}
+	${INSTALL} -d ${DESTDIR}${PYWRAP_LIBDIR}
+	${INSTALL} ${PYWRAP_LIBS} ${DESTDIR}${PYWRAP_LIBDIR}
 
 deinstall uninstall:
-	rm -rf ${sbindir}/pywrap ${PYWRAP_LIBDIR}
+	rm -rf ${DESTDIR}${sbindir}/pywrap ${DESTDIR}${PYWRAP_LIBDIR}

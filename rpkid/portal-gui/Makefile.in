@@ -18,9 +18,9 @@ libexecdir=@libexecdir@
 WEBUSER=@WEBUSER@
 DJANGO_ADMIN=@DJANGO_ADMIN@
 
-CONFDIR=$(localstatedir)/rpki/conf
-DATABASE_PATH=$(localstatedir)/rpki/gui.db
-INSTDIR=$(datarootdir)/rpki/gui
+CONFDIR=${DESTDIR}$(localstatedir)/rpki/conf
+DATABASE_PATH=${DESTDIR}$(localstatedir)/rpki/gui.db
+INSTDIR=${DESTDIR}$(datarootdir)/rpki/gui
 TEMPLATEDIR=$(INSTDIR)/templates
 
 # automatically built sources
@@ -61,7 +61,7 @@ install-data: $(BUILD) install-apache
 install: install-data install-perms
 
 deinstall uninstall:
-	rm -r $(INSTDIR)
+	rm -rf $(INSTDIR)
 
 test:
 	@true

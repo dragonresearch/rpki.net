@@ -32,10 +32,10 @@ SETUP_PY = \
 	AC_CFLAGS='${CFLAGS}' \
 	AC_LDFLAGS='${LDFLAGS}' \
 	AC_LIBS='${LIBS}' \
-	AC_SBINDIR='${sbindir}' \
+	AC_SBINDIR='${DESTDIR}${sbindir}' \
 	AC_SCRIPTS='${SCRIPTS}' \
 	AC_ABS_BUILDDIR='${abs_builddir}' \
-	AC_LIBEXECDIR='${libexecdir}' \
+	AC_LIBEXECDIR='${DESTDIR}${libexecdir}' \
 	AC_AUX_SCRIPTS='${AUX_SCRIPTS}' \
 	${PYTHON} setup.py
 
@@ -91,7 +91,7 @@ uninstall deinstall::
 	xargs rm -fv <installed
 
 distclean::
-	rm -f _installed
+	rm -f installed
 
 dont-run-trang:
 	touch *.rng
@@ -180,7 +180,7 @@ all install clean test distclean deinstall uninstall::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
 
 COMPILE_COMMON = \
-	AC_RPKI_CONFIG_DIR='${sysconfdir}' \
+	AC_RPKI_CONFIG_DIR='${DESTDIR}${sysconfdir}' \
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-python-executable.py <$? >$@; \
 	chmod 555 $@
 
@@ -189,12 +189,12 @@ COMPILE_PYWRAP = rm -f $@; AC_PYTHON_INTERPRETER='${PYWRAP}' ${COMPILE_COMMON}
 
 COMPILE_SETTINGS = \
 	rm -f $@; \
-	AC_DATABASE_PATH='${localstatedir}/rpki/gui.db' \
+	AC_DATABASE_PATH='${DESTDIR}${localstatedir}/rpki/gui.db' \
 	AC_SECRET_KEY='${SECRET_KEY}' \
-	AC_MYRPKI='${sbindir}/myrpki' \
-	AC_LOCALSTATEDIR='${localstatedir}' \
+	AC_MYRPKI='${DESTDIR}${sbindir}/myrpki' \
+	AC_LOCALSTATEDIR='${DESTDIR}${localstatedir}' \
 	AC_WEBUSER='${WEBUSER}' \
-	AC_TEMPLATE_DIR='${datarootdir}/rpki/gui/templates' \
+	AC_TEMPLATE_DIR='${DESTDIR}${datarootdir}/rpki/gui/templates' \
 	${PYTHON} ${abs_top_srcdir}/buildtools/subst-vars.py <$? >$@
 
 rpki-sql-backup: rpki-sql-backup.py

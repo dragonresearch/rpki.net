@@ -45,10 +45,10 @@ clean::
 	rm -rf ${OUTPUT}
 
 install: all
-	${INSTALL} ${BIN} ${bindir}
+	${INSTALL} ${BIN} ${DESTDIR}${bindir}
 
 deinstall uninstall:
-	rm -f ${bindir}/${BIN}
+	rm -f ${DESTDIR}${bindir}/${BIN}
 
 distclean: clean
 	rm -f Makefile

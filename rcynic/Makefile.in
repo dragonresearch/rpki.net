@@ -28,10 +28,10 @@ test: ${BIN}
 	if test -r rcynic.conf; then ./${BIN} -j 0 && echo && ./show.sh; else echo No rcynic.conf, skipping test; fi
 
 install: ${BIN} installation-scripts/install.sh
-	cd installation-scripts; host_os="${host_os}"; . ./install.sh
+	cd installation-scripts; host_os="${host_os}"; DESTDIR="${DESTDIR}"; . ./install.sh
 
 uninstall deinstall:
-	cd installation-scripts; host_os="${host_os}"; . ./deinstall.sh
+	cd installation-scripts; host_os="${host_os}"; DESTDIR="${DESTDIR}"; . ./deinstall.sh
 
 distclean: clean docclean
 	cd static-rsync; ${MAKE} $@

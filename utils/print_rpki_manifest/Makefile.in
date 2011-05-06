@@ -42,10 +42,10 @@ test: all
 	if test -d ${MANIFEST_DIR}; then find ${MANIFEST_DIR} -type f -name '*.mnf' -print -exec ./${BIN} {} \; ; else :; fi
 
 install: all
-	${INSTALL} ${BIN} ${bindir}
+	${INSTALL} ${BIN} ${DESTDIR}${bindir}
 
 deinstall uninstall:
-	rm -f ${bindir}/${BIN}
+	rm -f ${DESTDIR}${bindir}/${BIN}
 
 distclean: clean
 	rm -f Makefile

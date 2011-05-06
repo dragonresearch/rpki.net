@@ -28,10 +28,10 @@ clean:
 	rm -f ${BIN}
 
 install: all
-	${INSTALL} ${BIN} ${bindir}/${BIN}
+	${INSTALL} ${BIN} ${DESTDIR}${bindir}/${BIN}
 
 deinstall uninstall:
-	rm -f ${bindir}/${BIN}
+	rm -f ${DESTDIR}${bindir}/${BIN}
 
 distclean: clean
 	rm -f Makefile

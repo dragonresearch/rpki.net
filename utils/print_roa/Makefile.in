@@ -42,10 +42,10 @@ test: all
 	if test -d ${ROA_DIR}; then find ${ROA_DIR} -type f -name '*.roa' -print -exec ./${BIN} {} \; ; else :; fi
 
 install: all
-	${INSTALL} ${BIN} ${bindir}
+	${INSTALL} ${BIN} ${DESTDIR}${bindir}
 
 deinstall uninstall:
-	rm -f ${bindir}/${BIN}
+	rm -f ${DESTDIR}${bindir}/${BIN}
 
 distclean: clean
 	rm -f Makefile

@@ -45,13 +45,14 @@ for prefix_set in prefix_sets:
     step = (1L << (prefix_type.bits - prefixlen))
     mask = step - 1
 
-    for addr in xrange(prefix_min, prefix_max, step):
+    # xrange(prefix_min, prefix_max, step) throws OverflowError,
+    # so do this the non-Pythonic way
 
-      addr = prefix_type(addr)
-
+    addr = prefix_min
+    while addr < prefix_max:
       if (addr & mask) != 0:
         raise RuntimeError, "%s is not a /%d prefix" % (addr, prefixlen)
-
       sys.stdout.write("  %s/%d\n" % (addr, prefixlen))
+      addr = prefix_type(addr + step)
 
   sys.stdout.write("\n")

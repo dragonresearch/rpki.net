@@ -256,6 +256,10 @@ static const struct {
   QG(backup_ghostbuster_accepted,	"Backup Ghostbusters accepted")	    \
   QB(backup_ghostbuster_rejected,	"Backup Ghostbusters rejected")	    \
   QB(disallowed_extension,		"Disallowed X.509v3 extension")     \
+  QB(crldp_mismatch,			"CRLDP doesn't match issuer's SIA") \
+  QB(manifest_missing,			"Manifest pointer missing")	    \
+  QB(manifest_mismatch,			"Manifest doesn't match SIA")	    \
+  QB(trust_anchor_with_crldp,		"Trust anchor can't have CRLDP")    \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QB(mib_openssl_##x, 0)
@@ -354,7 +358,7 @@ typedef struct rcynic_ctx {
 typedef struct rcynic_x509_store_ctx {
   X509_STORE_CTX ctx;		/* Must be first */
   const rcynic_ctx_t *rc;
-  const certinfo_t *subj;
+  const certinfo_t *subject;
 } rcynic_x509_store_ctx_t;
 
 /**
@@ -1114,13 +1118,25 @@ static int install_object(const rcynic_ctx_t *rc,
 /**
  * Check str for a trailing suffix.
  */
-static int has_suffix(const char *str, const char *suffix)
+static int endswith(const char *str, const char *suffix)
 {
   size_t len_str, len_suffix;
   assert(str != NULL && suffix != NULL);
   len_str = strlen(str);
   len_suffix = strlen(suffix);
   return len_str >= len_suffix && !strcmp(str + len_str - len_suffix, suffix);
+}
+
+/**
+ * Check str for a prefix.
+ */
+static int startswith(const char *str, const char *prefix)
+{
+  size_t len_str, len_prefix;
+  assert(str != NULL && prefix != NULL);
+  len_str = strlen(str);
+  len_prefix = strlen(prefix);
+  return len_str >= len_prefix && !strncmp(str, prefix, len_prefix);
 }
 
 /**
@@ -1475,9 +1491,24 @@ static int rsync_file(const rcynic_ctx_t *rc, const char *uri)
 }
 
 /**
- * rsync an SIA collection.
+ * rsync a single file that we should have fetched already.
  */
-static int rsync_sia(const rcynic_ctx_t *rc, const char *uri)
+static int rsync_file_check(const rcynic_ctx_t *rc, const char *uri)
+{
+  if (strlen(uri) > SIZEOF_RSYNC && rsync_cached(rc, uri + SIZEOF_RSYNC))
+    return 1;
+  logmsg(rc, log_data_err, "Unexpected cache miss for %s, URI out of SIA baliwick?", uri);
+#if 0
+  return rsync_file(rc, uri);
+#else
+  return 0;
+#endif
+}
+
+/**
+ * rsync an entire subtree, generally rooted at a SIA collection.
+ */
+static int rsync_tree(const rcynic_ctx_t *rc, const char *uri)
 {
   static const char * const rsync_args[] = { "--recursive", "--delete", NULL };
   return rsync(rc, rsync_args, uri);
@@ -1828,19 +1859,14 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
   char path[FILENAME_MAX];
   X509_CRL *crl;
 
-  if (uri_to_filename(rc, uri, path, sizeof(path), rc->authenticated)) {
-    unsigned char hashbuf[EVP_MAX_MD_SIZE];
-    if (hash)
-      crl = read_crl(path, hashbuf, sizeof(hashbuf));
-    else
-      crl = read_crl(path, NULL, 0);
-    if (crl)
-      return crl;
-  }
+  if (uri_to_filename(rc, uri, path, sizeof(path), rc->authenticated) &&
+      (crl = read_crl(path, NULL, 0)) != NULL)
+    return crl;
 
   logmsg(rc, log_telemetry, "Checking CRL %s", uri);
 
-  rsync_file(rc, uri);
+  if (!rsync_file_check(rc, uri))
+    return NULL;
 
   if ((crl = check_crl_1(rc, uri, path, sizeof(path), rc->unauthenticated,
 			 issuer, hash, hashlen))) {
@@ -1897,17 +1923,17 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
      */
     if (rctx->rc->allow_stale_crl) {
       ok = 1;
-      if (sk_OPENSSL_STRING_find(rctx->rc->stale_cache, rctx->subj->crldp) >= 0)
+      if (sk_OPENSSL_STRING_find(rctx->rc->stale_cache, rctx->subject->crldp) >= 0)
 	return ok;
-      if (!sk_OPENSSL_STRING_push_strdup(rctx->rc->stale_cache, rctx->subj->crldp))
+      if (!sk_OPENSSL_STRING_push_strdup(rctx->rc->stale_cache, rctx->subject->crldp))
 	logmsg(rctx->rc, log_sys_err,
-	       "Couldn't cache stale CRLDP %s, blundering onward", rctx->subj->crldp);
+	       "Couldn't cache stale CRLDP %s, blundering onward", rctx->subject->crldp);
     }
-    logmsg(rctx->rc, log_data_err, "Stale CRL %s", rctx->subj->crldp);
+    logmsg(rctx->rc, log_data_err, "Stale CRL %s", rctx->subject->crldp);
     if (ok)
-      mib_increment(rctx->rc, rctx->subj->uri, stale_crl);
+      mib_increment(rctx->rc, rctx->subject->uri, stale_crl);
     else
-      reject(rctx->rc, rctx->subj->uri, stale_crl, "due to stale CRL %s", rctx->subj->crldp);
+      reject(rctx->rc, rctx->subject->uri, stale_crl, "due to stale CRL %s", rctx->subject->crldp);
     return ok;
 
   case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT:
@@ -1927,9 +1953,9 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
     if (rctx->rc->allow_non_self_signed_trust_anchor)
       ok = 1;
     if (ok)
-      mib_increment(rctx->rc, rctx->subj->uri, trust_anchor_not_self_signed);
+      mib_increment(rctx->rc, rctx->subject->uri, trust_anchor_not_self_signed);
     else
-      reject(rctx->rc, rctx->subj->uri, trust_anchor_not_self_signed, 
+      reject(rctx->rc, rctx->subject->uri, trust_anchor_not_self_signed, 
 	     "because trust anchor was not self-signed");
     return ok;
 
@@ -1951,9 +1977,9 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
   }
 
   if (ok)
-    mib_increment(rctx->rc, rctx->subj->uri, counter);
+    mib_increment(rctx->rc, rctx->subject->uri, counter);
   else
-    reject(rctx->rc, rctx->subj->uri, counter,
+    reject(rctx->rc, rctx->subject->uri, counter,
 	   "due to validation failure at depth %d: %s",
 	   ctx->error_depth, 
 	   X509_verify_cert_error_string(ctx->error));
@@ -1968,7 +1994,7 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
 static int check_x509(const rcynic_ctx_t *rc,
 		      STACK_OF(X509) *certs,
 		      X509 *x,
-		      const certinfo_t *subj)
+		      const certinfo_t *subject)
 {
   rcynic_x509_store_ctx_t rctx;
   STACK_OF(X509_CRL) *crls = NULL;
@@ -1977,7 +2003,7 @@ static int check_x509(const rcynic_ctx_t *rc,
   X509 *issuer;
   int ret = 0;
 
-  assert(rc && certs && x && subj && subj->crldp[0]);
+  assert(rc && certs && x && subject && subject->crldp[0]);
 
   issuer = sk_X509_value(certs, sk_X509_num(certs) - 1);
   assert(issuer != NULL);
@@ -1985,19 +2011,29 @@ static int check_x509(const rcynic_ctx_t *rc,
   if (!X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, x, NULL))
     return 0;
   rctx.rc = rc;
-  rctx.subj = subj;
+  rctx.subject = subject;
 
-  if (!subj->ta &&
-      ((pkey = X509_get_pubkey(issuer)) == NULL || X509_verify(x, pkey) <= 0)) {
-    reject(rc, subj->uri, certificate_bad_signature,
-	   "because it failed signature check prior to CRL fetch");
-    goto done;
-  }
+  if (subject->ta) {
 
-  if ((crl = check_crl(rc, subj->crldp, issuer, NULL, 0)) == NULL) {
-    reject(rc, subj->uri, certificate_bad_crl,
-	   "due to bad CRL %s", subj->crldp);
-    goto done;
+    if (subject->crldp[0]) {
+      reject(rc, subject->uri, trust_anchor_with_crldp,
+	     "because it's a trust anchor but has a CRLDP extension");
+      goto done;
+    }
+
+  } else {
+
+    if ((pkey = X509_get_pubkey(issuer)) == NULL || X509_verify(x, pkey) <= 0) {
+      reject(rc, subject->uri, certificate_bad_signature,
+	     "because it failed signature check prior to CRL fetch");
+      goto done;
+    }
+
+    if ((crl = check_crl(rc, subject->crldp, issuer, NULL, 0)) == NULL) {
+      reject(rc, subject->uri, certificate_bad_crl,
+	     "due to bad CRL %s", subject->crldp);
+      goto done;
+    }
   }
 
   if ((crls = sk_X509_CRL_new_null()) == NULL ||
@@ -2025,7 +2061,7 @@ static int check_x509(const rcynic_ctx_t *rc,
     * Redundant error message?
     */
     logmsg(rc, log_data_err, "Validation failure for %s",
-	   subj->uri[0] ? subj->uri : subj->ta ? "[Trust anchor]" : "[???]");
+	   subject->uri[0] ? subject->uri : subject->ta ? "[Trust anchor]" : "[???]");
     goto done;
   }
 
@@ -2089,14 +2125,14 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
 			  const char *prefix,
 			  STACK_OF(X509) *certs,
 			  const certinfo_t *issuer,
-			  certinfo_t *subj,
+			  certinfo_t *subject,
 			  const unsigned char *hash,
 			  const size_t hashlen)
 {
   unsigned char hashbuf[EVP_MAX_MD_SIZE];
   X509 *x = NULL;
 
-  assert(uri && path && certs && issuer && subj);
+  assert(uri && path && certs && issuer && subject);
 
   if (!uri_to_filename(rc, uri, path, pathlen, prefix)) {
     logmsg(rc, log_data_err, "Can't convert URI %s to filename", uri);
@@ -2122,41 +2158,63 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
     goto punt;
   }
 
-  parse_cert(rc, x, subj, uri);
+  parse_cert(rc, x, subject, uri);
 
-  if (subj->sia[0] && subj->sia[strlen(subj->sia) - 1] != '/') {
+  if (subject->sia[0] && subject->sia[strlen(subject->sia) - 1] != '/') {
     reject(rc, uri, malformed_sia,
-	   "due to malformed SIA %s", subj->sia);
+	   "due to malformed SIA %s", subject->sia);
     goto punt;
   }
 
-  if (!subj->aia[0]) {
-    reject(rc, uri, aia_missing, "due to missing AIA");
+  if (!subject->aia[0]) {
+    reject(rc, uri, aia_missing, "due to missing AIA extension");
     goto punt;
   }
 
-  if (!issuer->ta && strcmp(issuer->uri, subj->aia)) {
-    reject(rc, uri, aia_mismatch, "because AIA %s doesn't match parent", subj->aia);
+  if (!issuer->ta && strcmp(issuer->uri, subject->aia)) {
+    reject(rc, uri, aia_mismatch,
+	   "because AIA %s doesn't match parent", subject->aia);
     goto punt;
   }
 
-  if (subj->ca && !subj->sia[0]) {
-    reject(rc, uri, sia_missing, "because SIA extension is missing");
+  if (subject->ca && !subject->sia[0]) {
+    reject(rc, uri, sia_missing,
+	   "because SIA extension repository pointer is missing");
     goto punt;
   }
 
-  if (!subj->crldp[0]) {
+  if (!subject->crldp[0]) {
     reject(rc, uri, crldp_missing, "because CRLDP extension is missing");
     goto punt;
   }
 
-  if (!check_cert_only_allowed_extensions(x, !subj->ca)) {
+  if (subject->ca && !startswith(subject->crldp, issuer->sia)) {
+    reject(rc, uri, crldp_mismatch,
+	   "because CRLDP %s points outside issuer's publication point %s",
+	   subject->crldp, issuer->sia);
+    goto punt;
+  }
+
+  if (subject->ca && !subject->manifest[0]) {
+    reject(rc, uri, manifest_missing,
+	   "because SIA extension manifest pointer is missing");
+    goto punt;
+  }
+
+  if (subject->ca && !startswith(subject->manifest, subject->sia)) {
+    reject(rc, uri, manifest_mismatch,
+	   "because SIA manifest %s points outside publication point %s",
+	   subject->manifest, subject->sia);
+    goto punt;
+  }
+
+  if (!check_cert_only_allowed_extensions(x, !subject->ca)) {
     reject(rc, uri, disallowed_extension,
 	   "due to disallowed X.509v3 extension");
     goto punt;
   }
 
-  if (!check_x509(rc, certs, x, subj)) {
+  if (!check_x509(rc, certs, x, subject)) {
     /*
      * Redundant error message?
      */
@@ -2179,7 +2237,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 			char *uri,
 			STACK_OF(X509) *certs,
 			const certinfo_t *issuer,
-			certinfo_t *subj,
+			certinfo_t *subject,
 			const char *prefix,
 			const int backup,
 			const unsigned char *hash,
@@ -2188,7 +2246,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
   char path[FILENAME_MAX];
   X509 *x;
 
-  assert(rc && uri && certs && issuer && subj && prefix);
+  assert(rc && uri && certs && issuer && subject && prefix);
 
   /*
    * If target file already exists and we're not here to recheck with
@@ -2208,7 +2266,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
   rc->indent++;
 
   if ((x = check_cert_1(rc, uri, path, sizeof(path), prefix,
-			certs, issuer, subj, hash, hashlen)) != NULL) {
+			certs, issuer, subject, hash, hashlen)) != NULL) {
     install_object(rc, uri, path);
     mib_increment(rc, uri,
 		  (backup ? backup_cert_accepted : current_cert_accepted));
@@ -2363,7 +2421,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     goto done;
   
   rctx.rc = rc;
-  rctx.subj = &certinfo;
+  rctx.subject = &certinfo;
 
   X509_STORE_CTX_trusted_stack(&rctx.ctx, certs);
   X509_STORE_CTX_set0_crls(&rctx.ctx, crls);
@@ -2431,7 +2489,8 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 
   logmsg(rc, log_telemetry, "Checking manifest %s", uri);
 
-  rsync_file(rc, uri);
+  if (!rsync_file_check(rc, uri))
+    return NULL;
 
   if ((manifest = check_manifest_1(rc, uri, path, sizeof(path),
 				   rc->unauthenticated, certs))) {
@@ -2682,7 +2741,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     goto error;
   
   rctx.rc = rc;
-  rctx.subj = &certinfo;
+  rctx.subject = &certinfo;
 
   X509_STORE_CTX_trusted_stack(&rctx.ctx, certs);
   X509_STORE_CTX_set0_crls(&rctx.ctx, crls);
@@ -2739,7 +2798,8 @@ static void check_roa(const rcynic_ctx_t *rc,
 
   logmsg(rc, log_telemetry, "Checking ROA %s", uri);
 
-  rsync_file(rc, uri);
+  if (!rsync_file_check(rc, uri))
+    return;
 
   if (check_roa_1(rc, uri, path, sizeof(path), rc->unauthenticated,
 		  certs, hash, hashlen)) {
@@ -2856,7 +2916,7 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
     goto error;
   
   rctx.rc = rc;
-  rctx.subj = &certinfo;
+  rctx.subject = &certinfo;
 
   X509_STORE_CTX_trusted_stack(&rctx.ctx, certs);
   X509_STORE_CTX_set0_crls(&rctx.ctx, crls);
@@ -2910,7 +2970,8 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
   logmsg(rc, log_telemetry, "Checking Ghostbuster record %s", uri);
 
-  rsync_file(rc, uri);
+  if (!rsync_file_check(rc, uri))
+    return;
 
   if (check_ghostbuster_1(rc, uri, path, sizeof(path), rc->unauthenticated,
 		  certs, hash, hashlen)) {
@@ -2945,16 +3006,16 @@ static void walk_cert(rcynic_ctx_t *rc,
 static void walk_cert_1(rcynic_ctx_t *rc,
 			char *uri,
 			STACK_OF(X509) *certs,
-			const certinfo_t *issuer,
-			certinfo_t *subj,
+			const certinfo_t *parent,
 			const char *prefix,
 			const int backup,
 			const unsigned char *hash,
 			const size_t hashlen)
 {
+  certinfo_t child;
   X509 *x;
 
-  if ((x = check_cert(rc, uri, certs, issuer, subj, prefix, backup, hash, hashlen)) == NULL)
+  if ((x = check_cert(rc, uri, certs, parent, &child, prefix, backup, hash, hashlen)) == NULL)
     return;
 
   if (!sk_X509_push(certs, x)) {
@@ -2963,7 +3024,7 @@ static void walk_cert_1(rcynic_ctx_t *rc,
     return;
   }
 
-  walk_cert(rc, subj, certs);
+  walk_cert(rc, &child, certs);
   X509_free(sk_X509_pop(certs));
 }
 
@@ -2972,7 +3033,30 @@ static void walk_cert_1(rcynic_ctx_t *rc,
  * daisy chain recursion is to avoid having to duplicate the stack
  * manipulation and error handling.
  */
+static void walk_cert_2(rcynic_ctx_t *rc,
+			char *uri,
+			STACK_OF(X509) *certs,
+			const certinfo_t *parent,
+			const char *prefix,
+			const int backup,
+			const unsigned char *hash,
+			const size_t hashlen)
+{
+  if (endswith(uri, ".cer"))
+    walk_cert_1(rc, uri, certs, parent, prefix, backup, hash, hashlen);
+  else if (endswith(uri, ".roa"))
+    check_roa(rc, uri, certs, hash, hashlen);
+  else if (endswith(uri, ".gbr"))
+    check_ghostbuster(rc, uri, certs, hash, hashlen);
+  else if (!endswith(uri, ".crl"))
+    logmsg(rc, log_telemetry, "Don't know how to check object %s, ignoring", uri);
+}
 
+/**
+ * Recursive walk of certificate hierarchy (core of the program).  The
+ * daisy chain recursion is to avoid having to duplicate the stack
+ * manipulation and error handling.
+ */
 static void walk_cert(rcynic_ctx_t *rc,
 		      const certinfo_t *parent,
 		      STACK_OF(X509) *certs)
@@ -2982,14 +3066,13 @@ static void walk_cert(rcynic_ctx_t *rc,
   if (parent->sia[0] && parent->ca) {
     int n_cert = sk_X509_num(certs);
     char uri[URI_MAX];
-    certinfo_t child;
     int iterator = 0;
     Manifest *manifest = NULL;
     FileAndHash *fah;
 
     rc->indent++;
 
-    rsync_sia(rc, parent->sia);
+    rsync_tree(rc, parent->sia);
 
     if (!parent->manifest[0]) {
 
@@ -3003,27 +3086,12 @@ static void walk_cert(rcynic_ctx_t *rc,
 
       logmsg(rc, log_debug, "Walking unauthenticated store");
       while ((fah = next_uri(rc, parent->sia, rc->unauthenticated, uri, sizeof(uri), manifest, &iterator)) != NULL)
-	if (has_suffix(uri, ".cer"))
-	  walk_cert_1(rc, uri, certs, parent, &child, rc->unauthenticated, 0, fah->hash->data, fah->hash->length);
-	else if (has_suffix(uri, ".roa"))
-	  check_roa(rc, uri, certs, fah->hash->data, fah->hash->length);
-	else if (has_suffix(uri, ".gbr"))
-	  check_ghostbuster(rc, uri, certs, fah->hash->data, fah->hash->length);
-	else if (!has_suffix(uri, ".crl"))
-	  logmsg(rc, log_telemetry, "Don't know how to check object %s, ignoring", uri);
-
+	walk_cert_2(rc, uri, certs, parent, rc->unauthenticated, 0, fah->hash->data, fah->hash->length);
       logmsg(rc, log_debug, "Done walking unauthenticated store");
 
       logmsg(rc, log_debug, "Walking old authenticated store");
       while ((fah = next_uri(rc, parent->sia, rc->old_authenticated, uri, sizeof(uri), manifest, &iterator)) != NULL)
-	if (has_suffix(uri, ".cer"))
-	  walk_cert_1(rc, uri, certs, parent, &child, rc->old_authenticated, 1, fah->hash->data, fah->hash->length);
-	else if (has_suffix(uri, ".roa"))
-	  check_roa(rc, uri, certs, fah->hash->data, fah->hash->length);
-	else if (has_suffix(uri, ".gbr"))
-	  check_ghostbuster(rc, uri, certs, fah->hash->data, fah->hash->length);
-	else if (!has_suffix(uri, ".crl"))
-	  logmsg(rc, log_telemetry, "Don't know how to check object %s, ignoring", uri);
+	walk_cert_1(rc, uri, certs, parent, rc->old_authenticated, 1, fah->hash->data, fah->hash->length);
       logmsg(rc, log_debug, "Done walking old authenticated store");
 
       Manifest_free(manifest);

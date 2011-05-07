@@ -1258,13 +1258,13 @@ static int rm_rf(const char *name)
 /**
  * Maintain a cache of URIs we've already fetched.
  */
-static int rsync_cached(const rcynic_ctx_t *rc,
-			const char *uri)
+static int rsync_cached_string(const rcynic_ctx_t *rc,
+			       const char *string)
 {
   char *s, buffer[URI_MAX];
 
-  assert(rc && rc->rsync_cache);
-  strcpy(buffer, uri);
+  assert(rc && rc->rsync_cache && strlen(string) < sizeof(buffer));
+  strcpy(buffer, string);
   if ((s = strrchr(buffer, '/')) != NULL && s[1] == '\0')
     *s = '\0';
   while (sk_OPENSSL_STRING_find(rc->rsync_cache, buffer) < 0) {
@@ -1274,6 +1274,16 @@ static int rsync_cached(const rcynic_ctx_t *rc,
   }
   return 1;
 }
+
+/**
+ * Check whether a particular URI has been cached.
+ */
+static int rsync_cached_uri(const rcynic_ctx_t *rc,
+			    const char *uri)
+{
+  return is_rsync(uri) && rsync_cached_string(rc, uri + SIZEOF_RSYNC);
+}
+
 
 /**
  * Run rsync.  This is fairly nasty, because we need to:
@@ -1340,7 +1350,7 @@ static int rsync(const rcynic_ctx_t *rc,
   argv[argc++] = path;
 
   assert(strlen(uri) > SIZEOF_RSYNC);
-  if (rsync_cached(rc, uri + SIZEOF_RSYNC)) {
+  if (rsync_cached_uri(rc, uri)) {
     logmsg(rc, log_verbose, "rsync cache hit for %s", uri);
     return 1;
   }
@@ -1491,21 +1501,6 @@ static int rsync_file(const rcynic_ctx_t *rc, const char *uri)
 }
 
 /**
- * rsync a single file that we should have fetched already.
- */
-static int rsync_file_check(const rcynic_ctx_t *rc, const char *uri)
-{
-  if (strlen(uri) > SIZEOF_RSYNC && rsync_cached(rc, uri + SIZEOF_RSYNC))
-    return 1;
-  logmsg(rc, log_data_err, "Unexpected cache miss for %s, URI out of SIA baliwick?", uri);
-#if 0
-  return rsync_file(rc, uri);
-#else
-  return 0;
-#endif
-}
-
-/**
  * rsync an entire subtree, generally rooted at a SIA collection.
  */
 static int rsync_tree(const rcynic_ctx_t *rc, const char *uri)
@@ -1535,7 +1530,7 @@ static int prune_unauthenticated(const rcynic_ctx_t *rc,
   assert(len >= baselen && len < sizeof(path));
   need_slash = name[len - 1] != '/';
 
-  if (rsync_cached(rc, name + baselen)) {
+  if (rsync_cached_string(rc, name + baselen)) {
     logmsg(rc, log_debug, "prune: cache hit for %s, not cleaning", name);
     return 1;
   }
@@ -1576,7 +1571,7 @@ static int prune_unauthenticated(const rcynic_ctx_t *rc,
 	goto done;
       continue;
     default:
-      if (rsync_cached(rc, path + baselen)) {
+      if (rsync_cached_string(rc, path + baselen)) {
 	logmsg(rc, log_debug, "prune: cache hit %s", path);
 	continue;
       }
@@ -1865,8 +1860,7 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 
   logmsg(rc, log_telemetry, "Checking CRL %s", uri);
 
-  if (!rsync_file_check(rc, uri))
-    return NULL;
+  assert(rsync_cached_uri(rc, uri));
 
   if ((crl = check_crl_1(rc, uri, path, sizeof(path), rc->unauthenticated,
 			 issuer, hash, hashlen))) {
@@ -2489,8 +2483,7 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 
   logmsg(rc, log_telemetry, "Checking manifest %s", uri);
 
-  if (!rsync_file_check(rc, uri))
-    return NULL;
+  assert(rsync_cached_uri(rc, uri));
 
   if ((manifest = check_manifest_1(rc, uri, path, sizeof(path),
 				   rc->unauthenticated, certs))) {
@@ -2798,8 +2791,7 @@ static void check_roa(const rcynic_ctx_t *rc,
 
   logmsg(rc, log_telemetry, "Checking ROA %s", uri);
 
-  if (!rsync_file_check(rc, uri))
-    return;
+  assert(rsync_cached_uri(rc, uri));
 
   if (check_roa_1(rc, uri, path, sizeof(path), rc->unauthenticated,
 		  certs, hash, hashlen)) {
@@ -2970,8 +2962,7 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
   logmsg(rc, log_telemetry, "Checking Ghostbuster record %s", uri);
 
-  if (!rsync_file_check(rc, uri))
-    return;
+  assert(rsync_cached_uri(rc, uri));
 
   if (check_ghostbuster_1(rc, uri, path, sizeof(path), rc->unauthenticated,
 		  certs, hash, hashlen)) {
@@ -3091,7 +3082,7 @@ static void walk_cert(rcynic_ctx_t *rc,
 
       logmsg(rc, log_debug, "Walking old authenticated store");
       while ((fah = next_uri(rc, parent->sia, rc->old_authenticated, uri, sizeof(uri), manifest, &iterator)) != NULL)
-	walk_cert_1(rc, uri, certs, parent, rc->old_authenticated, 1, fah->hash->data, fah->hash->length);
+	walk_cert_2(rc, uri, certs, parent, rc->old_authenticated, 1, fah->hash->data, fah->hash->length);
       logmsg(rc, log_debug, "Done walking old authenticated store");
 
       Manifest_free(manifest);

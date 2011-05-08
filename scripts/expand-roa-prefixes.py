@@ -22,37 +22,56 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import sys, rpki.resource_set
+import sys, rpki.resource_set, rpki.ipaddrs
 
-argv = sys.argv[1:] if len(sys.argv) > 1 else ["18.0.0.0/8-24"]
-prefix_sets = []
+class NotAPrefix(Exception):
+  """
+  Address is not a proper prefix.
+  """
 
-for arg in argv:
-  if ":" in arg:
-    prefix_sets.extend(rpki.resource_set.roa_prefix_set_ipv6(arg))
-  else:
-    prefix_sets.extend(rpki.resource_set.roa_prefix_set_ipv4(arg))
+class address_range(object):
+  """
+  Iterator for rpki.ipaddrs address objects.
+  """
 
-for prefix_set in prefix_sets:
-  sys.stdout.write("%s expands to:\n" % prefix_set)
+  def __init__(self, start, stop, step):
+    self.addr = start
+    self.stop = stop
+    self.step = step
+    self.type = type(start)
 
-  prefix_type = prefix_set.range_type.datum_type
-  prefix_min = prefix_set.prefix
-  prefix_max = prefix_set.prefix + (1L << (prefix_type.bits - prefix_set.prefixlen))
+  def __iter__(self):
+    while self.addr < self.stop:
+      yield self.addr
+      self.addr = self.type(self.addr + self.step)
 
-  for prefixlen in xrange(prefix_set.prefixlen, prefix_set.max_prefixlen + 1):
+def main(argv):
 
-    step = (1L << (prefix_type.bits - prefixlen))
-    mask = step - 1
+  prefix_sets = []
+  for arg in argv:
+    if ":" in arg:
+      prefix_sets.extend(rpki.resource_set.roa_prefix_set_ipv6(arg))
+    else:
+      prefix_sets.extend(rpki.resource_set.roa_prefix_set_ipv4(arg))
 
-    # xrange(prefix_min, prefix_max, step) throws OverflowError,
-    # so do this the non-Pythonic way
+  for prefix_set in prefix_sets:
+    sys.stdout.write("%s expands to:\n" % prefix_set)
 
-    addr = prefix_min
-    while addr < prefix_max:
-      if (addr & mask) != 0:
-        raise RuntimeError, "%s is not a /%d prefix" % (addr, prefixlen)
-      sys.stdout.write("  %s/%d\n" % (addr, prefixlen))
-      addr = prefix_type(addr + step)
+    prefix_type = prefix_set.range_type.datum_type
+    prefix_min = prefix_set.prefix
+    prefix_max = prefix_set.prefix + (1L << (prefix_type.bits - prefix_set.prefixlen))
 
-  sys.stdout.write("\n")
+    for prefixlen in xrange(prefix_set.prefixlen, prefix_set.max_prefixlen + 1):
+
+      step = (1L << (prefix_type.bits - prefixlen))
+      mask = step - 1
+
+      for addr in address_range(prefix_min, prefix_max, step):
+        if (addr & mask) != 0:
+          raise NotAPrefix, "%s is not a /%d prefix" % (addr, prefixlen)
+        sys.stdout.write("  %s/%d\n" % (addr, prefixlen))
+
+    sys.stdout.write("\n")
+
+if __name__ == "__main__":
+  main(sys.argv[1:] if len(sys.argv) > 1 else ["18.0.0.0/8-24"])

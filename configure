@@ -2325,6 +2325,17 @@ case $host_os in *\ *) host_os=`echo "$host_os" | sed 's/ /-/g'`;; esac
 
 
 
+# Remember whether CFLAGS or LDFLAGS were set explictly.  This has to
+# come early in the script, before we mess it up testing things.
+
+if test "x${CFLAGS+set}" = "x" && test "x${LDFLAGS+set}" = "x"
+then
+	CFLAGS_or_LDFLAGS_were_set=no
+else
+	CFLAGS_or_LDFLAGS_were_set=yes
+fi
+
+
 # Put all the user option stuff up front
 
 
@@ -3905,15 +3916,18 @@ old_CFLAGS="$CFLAGS"
 old_LDFLAGS="$LDFLAGS"
 
 case $with_system_openssl in
-	auto)
-		case $host_os in
-		freebsd*)
-			CFLAGS="-I/usr/local/include"
-			LDFLAGS="-L/usr/local/lib"
-			;;
-		esac
+	yes|auto)
+		if test $CFLAGS_or_LDFLAGS_were_set = no
+		then
+			case $host_os in
+			freebsd*)
+				CFLAGS="-I/usr/local/include $CFLAGS"
+				LDFLAGS="-L/usr/local/lib $LDFLAGS"
+				;;
+			esac
+		fi
 		;;
-	yes|no|/usr)
+	no|/usr)
 		:
 		;;
 

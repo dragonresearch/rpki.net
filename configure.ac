@@ -13,6 +13,17 @@ AC_CONFIG_SRCDIR([rcynic/rcynic.c])
 AC_CONFIG_AUX_DIR([buildtools])
 AC_CANONICAL_HOST
 
+# Remember whether CFLAGS or LDFLAGS were set explictly.  This has to
+# come early in the script, before we mess it up testing things.
+
+if test "x${CFLAGS+set}" = "x" && test "x${LDFLAGS+set}" = "x"
+then
+	CFLAGS_or_LDFLAGS_were_set=no
+else
+	CFLAGS_or_LDFLAGS_were_set=yes
+fi
+
+
 # Put all the user option stuff up front
 
 AC_ARG_WITH([system_openssl], [AS_HELP_STRING([--with-system-openssl], [Link against system copy of OpenSSL])],       [], [with_system_openssl=auto])
@@ -88,15 +99,18 @@ old_CFLAGS="$CFLAGS"
 old_LDFLAGS="$LDFLAGS"
 
 case $with_system_openssl in
-	auto)
-		case $host_os in
-		freebsd*)
-			CFLAGS="-I/usr/local/include"
-			LDFLAGS="-L/usr/local/lib"
-			;;
-		esac
+	yes|auto)
+		if test $CFLAGS_or_LDFLAGS_were_set = no
+		then
+			case $host_os in
+			freebsd*)
+				CFLAGS="-I/usr/local/include $CFLAGS"
+				LDFLAGS="-L/usr/local/lib $LDFLAGS"
+				;;
+			esac
+		fi
 		;;
-	yes|no|/usr)
+	no|/usr)
 		:
 		;;
 

@@ -260,6 +260,7 @@ static const struct {
   QB(manifest_missing,			"Manifest pointer missing")	    \
   QB(manifest_mismatch,			"Manifest doesn't match SIA")	    \
   QB(trust_anchor_with_crldp,		"Trust anchor can't have CRLDP")    \
+  QW(object_not_in_manifest,		"Object not in manifest")	    \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QB(mib_openssl_##x, 0)
@@ -267,7 +268,7 @@ static const struct {
 static const char
   mib_counter_kind_good[] = "good",
   mib_counter_kind_warn[] = "warn",
-  mib_counter_kind_bad[] = "bad";
+  mib_counter_kind_bad[]  = "bad";
 
 #define QG(x,y)	mib_counter_kind_good ,
 #define QW(x,y) mib_counter_kind_warn ,
@@ -342,7 +343,7 @@ typedef struct rcynic_ctx {
   STACK_OF(VALIDATION_STATUS) *validation_status;
   int indent, use_syslog, allow_stale_crl, allow_stale_manifest, use_links;
   int require_crl_in_manifest, rsync_timeout, priority[LOG_LEVEL_T_MAX];
-  int allow_non_self_signed_trust_anchor;
+  int allow_non_self_signed_trust_anchor, allow_object_not_in_manifest;
   log_level_t log_level;
   X509_STORE *x509_store;
 } rcynic_ctx_t;
@@ -411,7 +412,19 @@ static const char rpki_policy_oid[] = "1.3.6.1.5.5.7.14.2";
  */
 static void OPENSSL_STRING_free(OPENSSL_STRING s)
 {
-  free(s);
+  if (s)
+    free(s);
+}
+
+/**
+ * Wrapper around an idiom we use with OPENSSL_STRING stacks.  There's
+ * a bug in the current sk_OPENSSL_STRING_delete() macro that casts
+ * the return value to the wrong type, so we cast it to something
+ * innocuous here and avoid using that macro elsewhere.
+ */
+static void sk_OPENSSL_STRING_remove(STACK_OF(OPENSSL_STRING) *sk, const char *str)
+{
+  OPENSSL_STRING_free((void *) sk_OPENSSL_STRING_delete(sk, sk_OPENSSL_STRING_find(sk, str)));
 }
 
 /**
@@ -441,7 +454,8 @@ static VALIDATION_STATUS *VALIDATION_STATUS_new(void)
  */
 static void HOST_MIB_COUNTER_free(HOST_MIB_COUNTER *h)
 {
-  free(h);
+  if (h)
+    free(h);
 }
 
 /**
@@ -449,7 +463,8 @@ static void HOST_MIB_COUNTER_free(HOST_MIB_COUNTER *h)
  */
 static void VALIDATION_STATUS_free(VALIDATION_STATUS *v)
 {
-  free(v);
+  if (v)
+    free(v);
 }
 
 /*
@@ -854,7 +869,7 @@ static int mkdir_maybe(const rcynic_ctx_t *rc, const char *name)
  */
 static int sk_OPENSSL_STRING_push_strdup(STACK_OF(OPENSSL_STRING) *sk, const char *str)
 {
-  char *s = strdup(str);
+  OPENSSL_STRING s = strdup(str);
 
   if (s && sk_OPENSSL_STRING_push(sk, s))
     return 1;
@@ -1139,36 +1154,6 @@ static int startswith(const char *str, const char *prefix)
   return len_str >= len_prefix && !strncmp(str, prefix, len_prefix);
 }
 
-/**
- * Iterator over URIs in our copy of a SIA collection.
- * *iterator should be zero when first called.
- */
-static FileAndHash *next_uri(const rcynic_ctx_t *rc, 
-			     const char *base_uri,
-			     const char *prefix,
-			     char *uri,
-			     const size_t urilen,
-			     const Manifest *manifest,
-			     int *iterator)
-{
-  FileAndHash *fah = NULL;
-
-  assert(base_uri && prefix && uri && manifest && iterator);
-
-  while ((fah = sk_FileAndHash_value(manifest->fileList, *iterator)) != NULL) {
-    ++*iterator;
-    if (strlen(base_uri) + strlen((char *) fah->file->data) >= urilen) {
-      logmsg(rc, log_data_err, "URI %s%s too long, skipping", base_uri, fah->file->data);
-      continue;
-    }
-    strcpy(uri, base_uri);
-    strcat(uri, (char *) fah->file->data);
-    return fah;
-  }
-
-  *iterator = 0;
-  return NULL;
-}
 
 /**
  * Set a directory name, making sure it has the trailing slash we
@@ -2265,7 +2250,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
     mib_increment(rc, uri,
 		  (backup ? backup_cert_accepted : current_cert_accepted));
     if (!backup)
-      (void) sk_OPENSSL_STRING_delete(rc->backup_cache, sk_OPENSSL_STRING_find(rc->backup_cache, uri));
+      sk_OPENSSL_STRING_remove(rc->backup_cache, uri);
     else if (!sk_OPENSSL_STRING_push_strdup(rc->backup_cache, uri))
       logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri);
       
@@ -3048,6 +3033,79 @@ static void walk_cert_2(rcynic_ctx_t *rc,
  * daisy chain recursion is to avoid having to duplicate the stack
  * manipulation and error handling.
  */
+static void walk_cert_3(rcynic_ctx_t *rc,
+			STACK_OF(X509) *certs,
+			const certinfo_t *parent,
+			const char *prefix,
+			const int backup,
+			Manifest *manifest)
+{
+  char uri[URI_MAX], path[FILENAME_MAX];
+  FileAndHash *fah;
+  STACK_OF(OPENSSL_STRING) *stray_ducks = NULL;
+  DIR *dir = NULL;
+  struct dirent *d;
+  int i;
+
+  /*
+   * Pull all non-directory filenames from the publication point directory.
+   */
+  if ((stray_ducks = sk_OPENSSL_STRING_new(uri_cmp)) == NULL)
+    logmsg(rc, log_sys_err, "Couldn't allocate stray_ducks stack");
+  else if (!uri_to_filename(rc, parent->sia, path, sizeof(path), prefix) || (dir = opendir(path)) == NULL)
+    logmsg(rc, log_data_err, "Couldn't list directory %s, skipping check for out-of-manifest data", path);
+  else
+    while ((d = readdir(dir)) != NULL)
+      if (d->d_type != DT_DIR && !sk_OPENSSL_STRING_push_strdup(stray_ducks, d->d_name))
+	logmsg(rc, log_sys_err, "Couldn't strdup() string \"%s\", blundering onwards", d->d_name);
+
+  if (dir != NULL)
+    closedir(dir);
+
+  /*
+   * Loop over manifest, checking everything it lists.  Remove any
+   * filenames we find in the manifest from our list of objects found
+   * in the publication point directory, so we don't check stuff twice.
+   */
+  for (i = 0; (fah = sk_FileAndHash_value(manifest->fileList, i)) != NULL; i++) {
+    sk_OPENSSL_STRING_remove(stray_ducks, (char *) fah->file->data);
+    if (strlen(parent->sia) + strlen((char *) fah->file->data) >= sizeof(uri)) {
+      logmsg(rc, log_data_err, "URI %s%s too long, skipping", parent->sia, fah->file->data);
+    } else {
+      strcpy(uri, parent->sia);
+      strcat(uri, (char *) fah->file->data);
+      walk_cert_2(rc, uri, certs, parent, prefix, backup, fah->hash->data, fah->hash->length);
+    }
+  }
+
+  /*
+   * Whine about and maybe check any object that was in the directory
+   * but not in the manifest, except for the manifest itself.
+   */
+  for (i = 0; i < sk_OPENSSL_STRING_num(stray_ducks); i++) {
+    char *s = sk_OPENSSL_STRING_value(stray_ducks, i);
+    if (strlen(parent->sia) + strlen(s) >= sizeof(uri)) {
+      logmsg(rc, log_data_err, "URI %s%s too long, skipping", parent->sia, s);
+      continue;
+    }
+    strcpy(uri, parent->sia);
+    strcat(uri, s);
+    if (!strcmp(uri, parent->manifest))
+      continue;
+    logmsg(rc, log_telemetry, "Object %s present in publication directory but not in manifest", uri);
+    mib_increment(rc, uri, object_not_in_manifest);
+    if (rc->allow_object_not_in_manifest)
+      walk_cert_2(rc, uri, certs, parent, prefix, backup, NULL, 0);
+  }
+
+  sk_OPENSSL_STRING_pop_free(stray_ducks, OPENSSL_STRING_free);
+}
+
+/**
+ * Recursive walk of certificate hierarchy (core of the program).  The
+ * daisy chain recursion is to avoid having to duplicate the stack
+ * manipulation and error handling.
+ */
 static void walk_cert(rcynic_ctx_t *rc,
 		      const certinfo_t *parent,
 		      STACK_OF(X509) *certs)
@@ -3056,10 +3114,7 @@ static void walk_cert(rcynic_ctx_t *rc,
 
   if (parent->sia[0] && parent->ca) {
     int n_cert = sk_X509_num(certs);
-    char uri[URI_MAX];
-    int iterator = 0;
     Manifest *manifest = NULL;
-    FileAndHash *fah;
 
     rc->indent++;
 
@@ -3076,13 +3131,11 @@ static void walk_cert(rcynic_ctx_t *rc,
     } else {
 
       logmsg(rc, log_debug, "Walking unauthenticated store");
-      while ((fah = next_uri(rc, parent->sia, rc->unauthenticated, uri, sizeof(uri), manifest, &iterator)) != NULL)
-	walk_cert_2(rc, uri, certs, parent, rc->unauthenticated, 0, fah->hash->data, fah->hash->length);
+      walk_cert_3(rc, certs, parent, rc->unauthenticated, 0, manifest);
       logmsg(rc, log_debug, "Done walking unauthenticated store");
 
       logmsg(rc, log_debug, "Walking old authenticated store");
-      while ((fah = next_uri(rc, parent->sia, rc->old_authenticated, uri, sizeof(uri), manifest, &iterator)) != NULL)
-	walk_cert_2(rc, uri, certs, parent, rc->old_authenticated, 1, fah->hash->data, fah->hash->length);
+      walk_cert_3(rc, certs, parent, rc->old_authenticated, 1, manifest);
       logmsg(rc, log_debug, "Done walking old authenticated store");
 
       Manifest_free(manifest);
@@ -3261,6 +3314,10 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "require-crl-in-manifest") &&
 	     !configure_boolean(&rc, &rc.require_crl_in_manifest, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "allow-object-not-in-manifest") &&
+	     !configure_boolean(&rc, &rc.allow_object_not_in_manifest, val->value))
       goto done;
 
     else if (!name_cmp(val->name, "use-links") &&

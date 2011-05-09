@@ -13,19 +13,13 @@ AC_CONFIG_SRCDIR([rcynic/rcynic.c])
 AC_CONFIG_AUX_DIR([buildtools])
 AC_CANONICAL_HOST
 
-# On some platforms we want to search /usr/local for libraries unless
-# LDFLAGS and CFLAGS are set explictly by the user.  At the moment we
-# just do this for FreeBSD; add other systems here as needed.
+# Put all the user option stuff up front
 
-if test "x${CFLAGS+set}" = "x" && test "x${LDFLAGS+set}" = "x"
-then
-	case $host_os in
-	freebsd*)
-		CFLAGS="-I/usr/local/include"
-		LDFLAGS="-L/usr/local/lib"
-		;;
-	esac
-fi
+AC_ARG_WITH([system_openssl], [AS_HELP_STRING([--with-system-openssl], [Link against system copy of OpenSSL])],       [], [with_system_openssl=auto])
+AC_ARG_ENABLE([openssl_asm],  [AS_HELP_STRING([--disable-openssl-asm], [Don't let OpenSSL build assembler code])],    [], [enable_openssl_asm=auto])
+AC_ARG_ENABLE([python],       [AS_HELP_STRING([--disable-python],      [Don't build any of the Python-based tools])], [], [enable_python=auto])
+AC_ARG_ENABLE([pywrap],	      [AS_HELP_STRING([--enable-pywrap],       [Build pywrap])],			      [], [enable_pywrap=auto])
+AC_ARG_ENABLE([django],	      [AS_HELP_STRING([--disable-django],      [Don't build Django GUI])],		      [], [enable_django=auto])
 
 AC_PROG_CC
 AC_PROG_INSTALL
@@ -85,22 +79,104 @@ fi
 
 # Figure out whether we need to build our own OpenSSL library or can
 # use the system libraries.  We're looking for two recent features:
-# CMS and RFC 3779 support.
+# CMS and RFC 3779 support.  We also have to check whether the user
+# has an opinion on all this.  In the "auto" case (no
+# --with-system-openssl option specified in any form), we may need to
+# check a platform-specific location (eg, /usr/local on FreeBSD).
 
-AC_CHECK_LIB([crypto], [v3_addr_validate_path],
-		       [system_openssl_has_rfc3779=yes],
-		       [system_openssl_has_rfc3779=no])
+old_CFLAGS="$CFLAGS"
+old_LDFLAGS="$LDFLAGS"
 
-AC_CHECK_LIB([crypto], [CMS_verify],
-		       [system_openssl_has_cms=yes],
-		       [system_openssl_has_cms=no])
+case $with_system_openssl in
+	auto)
+		case $host_os in
+		freebsd*)
+			CFLAGS="-I/usr/local/include"
+			LDFLAGS="-L/usr/local/lib"
+			;;
+		esac
+		;;
+	yes|no|/usr)
+		:
+		;;
 
-if test "$system_openssl_has_rfc3779" = yes && test "$system_openssl_has_cms" = yes
+	*)
+		CFLAGS="-I$with_system_openssl/include $CFLAGS"
+		LDFLAGS="-L$with_system_openssl/lib $LDFLAGS"
+esac
+
+case $with_system_openssl in
+	no)
+		have_usable_openssl=no
+		;;
+	*)
+		AC_CHECK_LIB([crypto], [v3_addr_validate_path],
+				       [system_openssl_has_rfc3779=yes],
+				       [system_openssl_has_rfc3779=no])
+
+		AC_CHECK_LIB([crypto], [CMS_verify],
+				       [system_openssl_has_cms=yes],
+				       [system_openssl_has_cms=no])
+
+		if test $system_openssl_has_rfc3779 = yes && test $system_openssl_has_cms = yes
+		then
+			have_usable_openssl=yes
+		else
+			have_usable_openssl=no
+		fi
+esac
+
+case $with_system_openssl in
+     yes)
+		build_openssl=no
+		if test $have_usable_openssl = no
+		then
+			AC_MSG_ERROR([Can't find OpenSSL crypto library with CMS and RFC 3779 support, try --with-system-openssl=/path/to/openssl])
+		fi
+		;;
+     no)
+		build_openssl=yes
+		;;
+     auto)
+		if test $have_usable_openssl = no
+		then
+			build_openssl=yes
+		else
+			build_openssl=no
+		fi
+		;;
+     *)
+		build_openssl=no
+		if test $have_usable_openssl = no
+		then
+			AC_MSG_ERROR([Can't find OpenSSL crypto library with CMS and RFC 3779 support in $with_system_openssl])
+		fi
+esac
+
+if test $build_openssl = yes
 then
-	have_usable_openssl=yes
-else
-	have_usable_openssl=no
+	CFLAGS="$old_CFLAGS"
+	LDFLAGS="$old_LDFLAGS"
 fi
+
+case $enable_openssl_asm in
+     yes|no)
+		build_openssl_asm=$enable_openssl_asm
+		;;
+     auto)
+		case $host in
+			x86_64-*-linux*)
+				build_openssl_asm=no
+				;;
+			*)
+				build_openssl_asm=yes
+				;;
+		esac
+		;;
+     *)
+		AC_MSG_ERROR([Unrecognized value for --enable-openssl-asm: $enable_openssl_asm])
+		;;
+esac     
 
 # Now a bunch of checks to figure out what we can do with Python.  If
 # we don't have Python at all, none of the rest of this matters.  If
@@ -146,51 +222,8 @@ else
 	AC_MSG_RESULT([$have_django])
 fi
 
-# Ok, now that we've sorted out what we've got to work with, we need
-# to check what the user is telling us to do.  In the default case, we
-# try to do something sane.  If the user tells us to do something
-# that's silly but harmless, we say so; if the user tells us to do
-# something that just won't work, we say so and fail.
-
-AC_ARG_ENABLE([system_openssl], [AS_HELP_STRING([--disable-system-openssl],	[Don't build against system copy of OpenSSL])],	[], [enable_system_openssl=auto])
-AC_ARG_ENABLE([openssl_asm],	[AS_HELP_STRING([--disable-openssl-asm],	[Don't let OpenSSL build assembler code])],     [], [enable_openssl_asm=auto])
-AC_ARG_ENABLE([python],		[AS_HELP_STRING([--disable-python],		[Don't build any of the Python-based tools])],	[], [enable_python=auto])
-AC_ARG_ENABLE([pywrap],		[AS_HELP_STRING([--enable-pywrap],		[Build pywrap])],				[], [enable_pywrap=auto])
-AC_ARG_ENABLE([django],		[AS_HELP_STRING([--disable-django],		[Don't build Django GUI])],			[], [enable_django=auto])
-
-case $enable_system_openssl in
-     yes)	build_openssl=no
-		if test $have_usable_openssl = no
-		then
-			AC_MSG_ERROR([I can't find an OpenSSL crypto library with CMS and RFC 3779 support, maybe you need to set LDFLAGS?])
-		fi
-		;;
-     no)	build_openssl=yes
-		;;
-     auto)	if test $have_usable_openssl = no
-		then
-			build_openssl=yes
-		else
-			build_openssl=no
-		fi
-		;;
-     *)		AC_MSG_ERROR([Unrecognized value for --enable-system-openssl: $enable_system_openssl]);;
-esac
-
-case $enable_openssl_asm in
-     yes|no)	build_openssl_asm=$enable_openssl_asm
-		;;
-     auto)	case $host in
-			x86_64-*-linux*)
-				build_openssl_asm=no
-				;;
-			*)
-				build_openssl_asm=yes
-				;;
-		esac
-		;;
-     *)		AC_MSG_ERROR([Unrecognized value for --enable-openssl-asm: $enable_openssl_asm]);;
-esac     
+# Hmm, perhaps --enable-python should have been --with-python,
+# handling (vaguely) similar to --with-system-openssl?
 
 case $enable_python in
      yes)	build_python=yes

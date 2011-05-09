@@ -678,7 +678,7 @@ SHELL'
 ac_subst_files=''
 ac_user_opts='
 enable_option_checking
-enable_system_openssl
+with_system_openssl
 enable_openssl_asm
 enable_python
 enable_pywrap
@@ -1308,12 +1308,15 @@ Optional Features:
   --disable-option-checking  ignore unrecognized --enable/--with options
   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
-  --disable-system-openssl
-                          Don't build against system copy of OpenSSL
   --disable-openssl-asm   Don't let OpenSSL build assembler code
   --disable-python        Don't build any of the Python-based tools
   --enable-pywrap         Build pywrap
   --disable-django        Don't build Django GUI
+
+Optional Packages:
+  --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
+  --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
+  --with-system-openssl   Link against system copy of OpenSSL
 
 Some influential environment variables:
   CC          C compiler command
@@ -2322,19 +2325,44 @@ case $host_os in *\ *) host_os=`echo "$host_os" | sed 's/ /-/g'`;; esac
 
 
 
-# On some platforms we want to search /usr/local for libraries unless
-# LDFLAGS and CFLAGS are set explictly by the user.  At the moment we
-# just do this for FreeBSD; add other systems here as needed.
+# Put all the user option stuff up front
 
-if test "x${CFLAGS+set}" = "x" && test "x${LDFLAGS+set}" = "x"
-then
-	case $host_os in
-	freebsd*)
-		CFLAGS="-I/usr/local/include"
-		LDFLAGS="-L/usr/local/lib"
-		;;
-	esac
+
+# Check whether --with-system_openssl was given.
+if test "${with_system_openssl+set}" = set; then :
+  withval=$with_system_openssl;
+else
+  with_system_openssl=auto
 fi
+
+# Check whether --enable-openssl_asm was given.
+if test "${enable_openssl_asm+set}" = set; then :
+  enableval=$enable_openssl_asm;
+else
+  enable_openssl_asm=auto
+fi
+
+# Check whether --enable-python was given.
+if test "${enable_python+set}" = set; then :
+  enableval=$enable_python;
+else
+  enable_python=auto
+fi
+
+# Check whether --enable-pywrap was given.
+if test "${enable_pywrap+set}" = set; then :
+  enableval=$enable_pywrap;
+else
+  enable_pywrap=auto
+fi
+
+# Check whether --enable-django was given.
+if test "${enable_django+set}" = set; then :
+  enableval=$enable_django;
+else
+  enable_django=auto
+fi
+
 
 ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
@@ -3868,9 +3896,38 @@ fi
 
 # Figure out whether we need to build our own OpenSSL library or can
 # use the system libraries.  We're looking for two recent features:
-# CMS and RFC 3779 support.
+# CMS and RFC 3779 support.  We also have to check whether the user
+# has an opinion on all this.  In the "auto" case (no
+# --with-system-openssl option specified in any form), we may need to
+# check a platform-specific location (eg, /usr/local on FreeBSD).
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for v3_addr_validate_path in -lcrypto" >&5
+old_CFLAGS="$CFLAGS"
+old_LDFLAGS="$LDFLAGS"
+
+case $with_system_openssl in
+	auto)
+		case $host_os in
+		freebsd*)
+			CFLAGS="-I/usr/local/include"
+			LDFLAGS="-L/usr/local/lib"
+			;;
+		esac
+		;;
+	yes|no|/usr)
+		:
+		;;
+
+	*)
+		CFLAGS="-I$with_system_openssl/include $CFLAGS"
+		LDFLAGS="-L$with_system_openssl/lib $LDFLAGS"
+esac
+
+case $with_system_openssl in
+	no)
+		have_usable_openssl=no
+		;;
+	*)
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for v3_addr_validate_path in -lcrypto" >&5
 $as_echo_n "checking for v3_addr_validate_path in -lcrypto... " >&6; }
 if ${ac_cv_lib_crypto_v3_addr_validate_path+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -3913,7 +3970,7 @@ else
 fi
 
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for CMS_verify in -lcrypto" >&5
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for CMS_verify in -lcrypto" >&5
 $as_echo_n "checking for CMS_verify in -lcrypto... " >&6; }
 if ${ac_cv_lib_crypto_CMS_verify+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -3956,12 +4013,65 @@ else
 fi
 
 
-if test "$system_openssl_has_rfc3779" = yes && test "$system_openssl_has_cms" = yes
+		if test $system_openssl_has_rfc3779 = yes && test $system_openssl_has_cms = yes
+		then
+			have_usable_openssl=yes
+		else
+			have_usable_openssl=no
+		fi
+esac
+
+case $with_system_openssl in
+     yes)
+		build_openssl=no
+		if test $have_usable_openssl = no
+		then
+			as_fn_error $? "Can't find OpenSSL crypto library with CMS and RFC 3779 support, try --with-system-openssl=/path/to/openssl" "$LINENO" 5
+		fi
+		;;
+     no)
+		build_openssl=yes
+		;;
+     auto)
+		if test $have_usable_openssl = no
+		then
+			build_openssl=yes
+		else
+			build_openssl=no
+		fi
+		;;
+     *)
+		build_openssl=no
+		if test $have_usable_openssl = no
+		then
+			as_fn_error $? "Can't find OpenSSL crypto library with CMS and RFC 3779 support in $with_system_openssl" "$LINENO" 5
+		fi
+esac
+
+if test $build_openssl = yes
 then
-	have_usable_openssl=yes
-else
-	have_usable_openssl=no
+	CFLAGS="$old_CFLAGS"
+	LDFLAGS="$old_LDFLAGS"
 fi
+
+case $enable_openssl_asm in
+     yes|no)
+		build_openssl_asm=$enable_openssl_asm
+		;;
+     auto)
+		case $host in
+			x86_64-*-linux*)
+				build_openssl_asm=no
+				;;
+			*)
+				build_openssl_asm=yes
+				;;
+		esac
+		;;
+     *)
+		as_fn_error $? "Unrecognized value for --enable-openssl-asm: $enable_openssl_asm" "$LINENO" 5
+		;;
+esac
 
 # Now a bunch of checks to figure out what we can do with Python.  If
 # we don't have Python at all, none of the rest of this matters.  If
@@ -4058,81 +4168,8 @@ $as_echo_n "checking for Django... " >&6; }
 $as_echo "$have_django" >&6; }
 fi
 
-# Ok, now that we've sorted out what we've got to work with, we need
-# to check what the user is telling us to do.  In the default case, we
-# try to do something sane.  If the user tells us to do something
-# that's silly but harmless, we say so; if the user tells us to do
-# something that just won't work, we say so and fail.
-
-# Check whether --enable-system_openssl was given.
-if test "${enable_system_openssl+set}" = set; then :
-  enableval=$enable_system_openssl;
-else
-  enable_system_openssl=auto
-fi
-
-# Check whether --enable-openssl_asm was given.
-if test "${enable_openssl_asm+set}" = set; then :
-  enableval=$enable_openssl_asm;
-else
-  enable_openssl_asm=auto
-fi
-
-# Check whether --enable-python was given.
-if test "${enable_python+set}" = set; then :
-  enableval=$enable_python;
-else
-  enable_python=auto
-fi
-
-# Check whether --enable-pywrap was given.
-if test "${enable_pywrap+set}" = set; then :
-  enableval=$enable_pywrap;
-else
-  enable_pywrap=auto
-fi
-
-# Check whether --enable-django was given.
-if test "${enable_django+set}" = set; then :
-  enableval=$enable_django;
-else
-  enable_django=auto
-fi
-
-
-case $enable_system_openssl in
-     yes)	build_openssl=no
-		if test $have_usable_openssl = no
-		then
-			as_fn_error $? "I can't find an OpenSSL crypto library with CMS and RFC 3779 support, maybe you need to set LDFLAGS?" "$LINENO" 5
-		fi
-		;;
-     no)	build_openssl=yes
-		;;
-     auto)	if test $have_usable_openssl = no
-		then
-			build_openssl=yes
-		else
-			build_openssl=no
-		fi
-		;;
-     *)		as_fn_error $? "Unrecognized value for --enable-system-openssl: $enable_system_openssl" "$LINENO" 5;;
-esac
-
-case $enable_openssl_asm in
-     yes|no)	build_openssl_asm=$enable_openssl_asm
-		;;
-     auto)	case $host in
-			x86_64-*-linux*)
-				build_openssl_asm=no
-				;;
-			*)
-				build_openssl_asm=yes
-				;;
-		esac
-		;;
-     *)		as_fn_error $? "Unrecognized value for --enable-openssl-asm: $enable_openssl_asm" "$LINENO" 5;;
-esac
+# Hmm, perhaps --enable-python should have been --with-python,
+# handling (vaguely) similar to --with-system-openssl?
 
 case $enable_python in
      yes)	build_python=yes

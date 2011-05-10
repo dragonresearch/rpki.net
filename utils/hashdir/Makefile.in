@@ -45,6 +45,7 @@ clean::
 	rm -rf ${OUTPUT}
 
 install: all
+	${INSTALL} -d ${DESTDIR}${bindir}
 	${INSTALL} ${BIN} ${DESTDIR}${bindir}
 
 deinstall uninstall:

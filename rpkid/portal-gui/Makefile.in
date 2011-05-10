@@ -18,6 +18,8 @@ libexecdir=@libexecdir@
 WEBUSER=@WEBUSER@
 DJANGO_ADMIN=@DJANGO_ADMIN@
 
+INSTALL = @INSTALL@
+
 CONFDIR=${DESTDIR}$(localstatedir)/rpki/conf
 DATABASE_PATH=${DESTDIR}$(localstatedir)/rpki/gui.db
 INSTDIR=${DESTDIR}$(datarootdir)/rpki/gui
@@ -50,9 +52,9 @@ install-perms:
 	chown -R $(WEBUSER) $(CONFDIR)
 
 install-apache:
-	install -d -m 755 $(INSTDIR)/apache
-	install -m 644 apache/rpki.conf $(INSTDIR)/apache
-	install -m 644 apache/rpki.wsgi $(INSTDIR)/apache
+	${INSTALL} -d -m 755 $(INSTDIR)/apache
+	${INSTALL} -m 644 apache/rpki.conf $(INSTDIR)/apache
+	${INSTALL} -m 644 apache/rpki.wsgi $(INSTDIR)/apache
 
 install-data: $(BUILD) install-apache
 	mkdir -p `dirname $(DATABASE_PATH)`

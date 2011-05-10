@@ -42,6 +42,7 @@ test: all
 	if test -d ${MANIFEST_DIR}; then find ${MANIFEST_DIR} -type f -name '*.mnf' -print -exec ./${BIN} {} \; ; else :; fi
 
 install: all
+	${INSTALL} -d ${DESTDIR}${bindir}
 	${INSTALL} ${BIN} ${DESTDIR}${bindir}
 
 deinstall uninstall:

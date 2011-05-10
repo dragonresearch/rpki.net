@@ -42,6 +42,7 @@ test: all
 	if test -d ${ROA_DIR}; then find ${ROA_DIR} -type f -name '*.roa' -print -exec ./${BIN} {} \; ; else :; fi
 
 install: all
+	${INSTALL} -d ${DESTDIR}${bindir}
 	${INSTALL} ${BIN} ${DESTDIR}${bindir}
 
 deinstall uninstall:

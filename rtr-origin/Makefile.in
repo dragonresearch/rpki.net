@@ -4,7 +4,7 @@ BASE		= rtr-origin
 SRC		= ${BASE}.py
 BIN		= ${BASE}
 
-INSTALL		= @INSTALL@ -m 555 
+INSTALL		= @INSTALL@ -m 555
 PYTHON		= @PYTHON@
 
 prefix		= @prefix@
@@ -28,6 +28,7 @@ clean:
 	rm -f ${BIN}
 
 install: all
+	${INSTALL} -d ${DESTDIR}${bindir}
 	${INSTALL} ${BIN} ${DESTDIR}${bindir}/${BIN}
 
 deinstall uninstall:

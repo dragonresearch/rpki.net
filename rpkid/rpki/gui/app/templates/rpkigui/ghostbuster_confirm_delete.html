@@ -3,12 +3,12 @@
 {% block extra %}
 
 <p>
-Please confirm that you really want to delete this object by clicking Submit.
+Please confirm that you really want to delete this object by clicking Delete.
 </p>
 
 <form method=POST action='{{ request.get_full_path }}'>
     {% csrf_token %}
-    <input type='submit'>
+    <input type='submit' value='Delete' />
 </form>
 
 {% endblock %}

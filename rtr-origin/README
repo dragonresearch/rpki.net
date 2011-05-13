@@ -17,16 +17,15 @@ To use this, you need to do two things beyond setting up rcynic:
    The program will create a collection of data files, as well as a
    subdirectory in which each instance of the program running in
    --server mode can write a PF_UNIX socket file.  At present, it
-   creates these files under the directory in which the program was
-   run.
+   creates these files under the directory in which you run the program.
 
-   So if this script lives in $srcdir, rcynic writes its data files
-   under $rcynicdir, and you want this program to write its datafiles
-   to $rtrorigindir, you would add something like the following to
-   your cronjob:
+   So if this script is installed in /usr/local/bin, rcynic writes its
+   data files under /var/rcynic/data/authenticated, and you want this
+   program to write its datafiles to /var/rpki-rtr, you'd add
+   something like the following to your cronjob:
 
-     cd $rtrorigindir
-     /usr/local/bin/python $srcdir/rtr-origin.py --cronjob $rcynicdir
+     cd /var/rpki-rtr
+     /usr/local/bin/rtr-origin --cronjob /var/rcynic/data/authenticated
 
    You should make sure this program runs at least once before
    attempting to configure --server mode.  Nothing terrible will
@@ -37,7 +36,7 @@ To use this, you need to do two things beyond setting up rcynic:
    in --server mode.  What kind of server listener you set up depends
    on which network protocol you're using to transport this protocol.
    The specification says that the rpki-rtr protocol will run under
-   ssh, but not all clients support that yet.  rtr-origin.py doesn't
+   ssh, but not all clients support that yet.  rtr-origin doesn't
    really care, it just reads from stdin and writes to stdout.
 
    --server mode should be run as a non-privileged user (it is
@@ -45,34 +44,99 @@ To use this, you need to do two things beyond setting up rcynic:
    userid for this purpose so that you can give that user its own home
    directory and ssh configuration files.
 
-   As with --cronjob mode, --server mode currently uses the directory
-   in which it was started as its data directory (this may change in
-   the future), so you need to arrange for whatever program invokes it
-   to cd to whatever you used as your $rtrorigindir, above.  Eg:
+   --server mode takes an optional argument specifying the path to its
+   data directory; if you omit this argument, it uses the directory in
+   in which you run it.
 
-     cd $rtrorigindir
-     /usr/local/bin/python $srcdir/rtr-origin.py --server
+   The details of how you set up a listener for this vary depending on
+   the network protocol and the operating system on which you run it.
+   Here are two examples, one for running under inetd, the other for
+   running under sshd.
+
+   Running under inetd with plain TCP is insecure and should only be
+   done for testing, but you can also run it with TCP-MD5 or TCP-AO,
+   or over IPsec.  The inetd configuration is generally the same, the
+   details of how you set up TCP-MD5, TCP-AO, or IPsec are platform
+   specific.
+
+   To run under inetd, you need to:
+
+   a) Add an entry to /etc/services defining a symbolic name for the
+      port, if one doesn't exist already.  At present there is no
+      well-known port defined for this protocol, for this example we'll
+      use port 42420 and the symbolic name rpki-rtr.
+
+	Add to /etc/services:
+
+	rpki-rtr          42420/tcp
+
+   b) Add the service line to /etc/inetd.conf:
+
+	rpki-rtr stream tcp nowait nobody /usr/local/bin/rtr-origin rtr-origin --server /var/rpki-rtr
+
+      This assumes that you want the server to run as user "nobody",
+      which is generally a safe choice, or you could create a new
+      non-priviledged user for this purpose.  DO NOT run the server as
+      root; it shouldn't do anything bad, but it's a network server
+      that does not need root access and therefore should not have it.
+
+   To run under sshd, you need to:
+
+   a) Decide whether to run a new instance of sshd on a separate port
+      or use the standard port.  The server doesn't care, but some
+      people seem to think that it's somehow more secure to run this
+      service on a different port.  Setting up sshd in general is
+      beyond the scope of this document, but most likely you can copy
+      the bulk of your configuration from the standard config.
+
+   b) Configure sshd to know about the rpki-rtr subsystem.  Add
+      something like this to your sshd.conf:
+
+	Subsystem rpki-rtr /usr/local/bin/rtr-origin
+
+   c) Configure the userid(s) you expect ssh clients to use to connect
+      to the server.  For operational use you almost certainly do NOT
+      want this user to have a normal shell, instead you should
+      configure its shell to be the server (/usr/local/bin/rtr-origin
+      or wherever you've installed it on your system) and its home
+      directory to be the rpki-rtr data directory (/var/rpki-rtr or
+      whatever you're using).  If you're using passwords to
+      authenticate instead of ssh keys (not recommended) you will
+      always need to set the password(s) here when configuring the
+      userid(s).
+
+   d) Configure the .ssh/authorized_keys file for your clients; if
+      you're using the example values given above, this would be
+      /var/rpki-rtr/.ssh/authorized_keys.  You can have multiple ssh
+      clients using different keys all logging in as the same ssh
+      user, you just have to list all of the ssh keys here.  You may
+      want to consider using a command= parameter in the key line (see
+      the sshd(8) man page) to lock down the ssh keys listed here so
+      that they can only be used to run the rpki-rtr service.
+
+      If you're running a separate sshd for this purpose, you might
+      also want to add an AuthorizedKeysFile entry pointing at this
+      authorized_keys file so that the server will only use this
+      authorized_keys file regardless of what other user accounts
+      might exist on the machine:
+
+	AuthorizedKeysFile /var/rpki-rtr/.ssh/authorized_keys
 
    There's a sample sshd.conf in the source directory.  You will have
    to modify it to suit your environment.  The most important part is
    the Subsystem line, which runs the server.sh script as the
    "rpki-rtr" service, as required by the protocol specification.
 
-   If you are using sshd you will presumably also want to configure an
-   authorized_keys file.  You may want to consider using a command=""
-   parameter in the key line (see the sshd(8) man page) to lock down
-   this ssh key so that it can only be used to run the "rpki-rtr"
-   service.
-
-   You can also run this code under inetd (or the netpipes "faucet"
-   program), with the understanding that this is totally insecure and
-   only suitable for early testing.
-
-   In theory one could also run this under TLS, eg, via the stunnel
-   program, which would provide security roughly equivalent to (albeit
-   different from) ssh.  Other than a few lines that might need
+   You can also run this code under xinetd, or the netpipes "faucet"
+   program, or stunnel...other than a few lines that might need
    hacking to log the connection peer properly, the program really
    doesn't care.
+
+   You, however, SHOULD care whether the channel you have chosen is
+   secure; it doesn't make a lot of sense to go to all the trouble of
+   checking RPKI data then let the bad guys feed bad data into your
+   routers anyway because you were running the rpki-rtr link over an
+   unsecured TCP connection.
 
 The program has two other modes, which might be useful for debugging:
 

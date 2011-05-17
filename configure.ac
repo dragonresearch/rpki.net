@@ -318,6 +318,8 @@ AC_SUBST(RPKID_SUBDIRS)
 AC_CONFIG_FILES([Makefile
 		 rcynic/Makefile
 		 rcynic/static-rsync/Makefile
+		 rcynic-ng/Makefile
+		 rcynic-ng/static-rsync/Makefile
 		 utils/Makefile
 		 utils/find_roa/Makefile
 		 utils/hashdir/Makefile

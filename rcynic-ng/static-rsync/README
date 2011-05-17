@@ -1,0 +1,15 @@
+$Id$
+
+Hack to build a static rsync binary suitable for use in a chroot jail.
+
+The default configuration is for gcc, since that's the most widely
+used compiler on the platforms we use.  I've provided hooks intended
+to make it simple to support other compilers just by overriding make
+variables on the command line: if you need to do something more
+drastic than this to get your compiler working, please tell me.
+
+If your platform doesn't support static binaries at all, you're on
+your own (and should whine at your OS vendor, as this is nuts).
+
+We try to stick with rsync release code, but apply security patches
+when necessary.

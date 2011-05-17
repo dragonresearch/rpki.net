@@ -1282,10 +1282,11 @@ def cronjob_main(argv):
 
   old_ixfrs = glob.glob("*.ix.*")
 
+  current = read_current()[0]
   cutoff = timestamp.now(-(24 * 60 * 60))
   for f in glob.iglob("*.ax"):
-    t = timestamp(os.stat(f).st_mtime)
-    if  t < cutoff:
+    t = timestamp(int(f.split(".")[0]))
+    if  t < cutoff and t != current:
       blather("# Deleting old file %s, timestamp %s" % (f, t))
       os.unlink(f)
   

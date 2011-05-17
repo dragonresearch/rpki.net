@@ -3504,7 +3504,7 @@ static PyTypeObject x509_crltype = {
 /*========== x509 crl Code ==========*/
 
 /*========== revoked Code ==========*/
-x509_revoked_object* x509_revoked_object_new(void)
+static x509_revoked_object* x509_revoked_object_new(void)
 {
   x509_revoked_object *self = NULL;
 

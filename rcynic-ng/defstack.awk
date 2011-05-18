@@ -50,9 +50,18 @@ function define_stack(name)
 } 
 
 BEGIN {
+  print "/*";
+  print " * Automatically generated, do not edit.";
+  print " * Generator $Id$";
+  print " */";
+  print "";
+  print "#ifndef __DEFSTACK_H__";
+  print "#define __DEFSTACK_H__";
+  print "";
   define_stack("HOST_MIB_COUNTER");
   define_stack("VALIDATION_STATUS");
   define_stack("FileAndHash");
   define_stack("ROAIPAddress");
   define_stack("ROAIPAddressFamily");
+  print "#endif /* __DEFSTACK_H__ */";
 }

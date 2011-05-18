@@ -7,7 +7,7 @@ SRC = ${NAME}.c
 OBJ = ${NAME}.o
 
 GEN = defstack.h
-HDR = ${GEN}
+HDR = defasn1.h ${GEN}
 
 CFLAGS = @CFLAGS@ -Wall -Wshadow -Wmissing-prototypes -Wmissing-declarations
 LDFLAGS = @LDFLAGS@ @LD_STATIC_FLAG@
@@ -47,8 +47,8 @@ distclean: clean docclean
 
 tags: TAGS
 
-TAGS: ${SRC}
-	etags ${SRC}
+TAGS: ${SRC} ${HDR}
+	etags ${SRC} ${HDR}
 
 # Doc stuff right now is just internals doc, of interest only to
 # programmers.  Real doc for rcynic is still the README.  This may

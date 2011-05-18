@@ -2857,14 +2857,16 @@ static void walk_cert_3(rcynic_ctx_t *rc,
    * filenames we find in the manifest from our list of objects found
    * in the publication point directory, so we don't check stuff twice.
    */
-  for (i = 0; (fah = sk_FileAndHash_value(manifest->fileList, i)) != NULL; i++) {
-    sk_OPENSSL_STRING_remove(stray_ducks, (char *) fah->file->data);
-    if (strlen(parent->sia) + strlen((char *) fah->file->data) >= sizeof(uri)) {
-      logmsg(rc, log_data_err, "URI %s%s too long, skipping", parent->sia, fah->file->data);
-    } else {
-      strcpy(uri, parent->sia);
-      strcat(uri, (char *) fah->file->data);
-      walk_cert_2(rc, uri, certs, parent, prefix, backup, fah->hash->data, fah->hash->length);
+  if (manifest != NULL) {
+    for (i = 0; (fah = sk_FileAndHash_value(manifest->fileList, i)) != NULL; i++) {
+      sk_OPENSSL_STRING_remove(stray_ducks, (char *) fah->file->data);
+      if (strlen(parent->sia) + strlen((char *) fah->file->data) >= sizeof(uri)) {
+	logmsg(rc, log_data_err, "URI %s%s too long, skipping", parent->sia, fah->file->data);
+      } else {
+	strcpy(uri, parent->sia);
+	strcat(uri, (char *) fah->file->data);
+	walk_cert_2(rc, uri, certs, parent, prefix, backup, fah->hash->data, fah->hash->length);
+      }
     }
   }
 
@@ -2914,11 +2916,10 @@ static void walk_cert(rcynic_ctx_t *rc,
 
       logmsg(rc, log_data_err, "Parent certificate does not specify a manifest, skipping collection");
 
-    } else if ((manifest = check_manifest(rc, parent->manifest, certs)) == NULL) {
-
-      logmsg(rc, log_data_err, "Couldn't get manifest %s, skipping collection", parent->manifest);
-
     } else {
+
+      if ((manifest = check_manifest(rc, parent->manifest, certs)) == NULL)
+	logmsg(rc, log_data_err, "Couldn't get manifest %s, blundering onward", parent->manifest);
 
       logmsg(rc, log_debug, "Walking unauthenticated store");
       walk_cert_3(rc, certs, parent, rc->unauthenticated, 0, manifest);

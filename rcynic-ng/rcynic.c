@@ -352,6 +352,30 @@ typedef struct rcynic_ctx {
 } rcynic_ctx_t;
 
 /**
+ * Context for certificate tree walks.  This includes all the stuff
+ * that we would keep as automatic variables on the call stack if we
+ * didn't have to use callbacks to support multiple rsync processes.
+ *
+ * Mapping between fields here and automatic variables in the older
+ * code is still in flux, names (and anything else) may change.
+ */
+typedef struct walk_ctx {
+  unsigned refcount;
+  rcynic_ctx_t *rc;
+  certinfo_t certinfo;
+  X509 *cert;
+  Manifest *manifest;
+  STACK_OF(OPENSSL_STRING) *filenames;
+  int manifest_iteration, filename_iteration;
+  enum {
+  	walk_pass_current, 	/* prefix = rc->unauthenticated, first pass */
+	walk_pass_backup 	/* prefix = rc->old_authenticated, second pass */
+  } pass;
+} walk_ctx_t;
+
+DECLARE_STACK_OF(walk_ctx_t)
+
+/**
  * Extended context for verify callbacks.  This is a wrapper around
  * OpenSSL's X509_STORE_CTX, and the embedded X509_STORE_CTX @em must be
  * the first element of this structure in order for the evil cast to
@@ -468,6 +492,103 @@ static void VALIDATION_STATUS_free(VALIDATION_STATUS *v)
 {
   if (v)
     free(v);
+}
+
+/**
+ * Allocate a new walk context.
+ */
+static walk_ctx_t *walk_ctx_new(rcynic_ctx_t *rc)
+{
+  walk_ctx_t *w = malloc(sizeof(*w));
+  if (w != NULL) {
+    memset(w, 0, sizeof(*w));
+    w->rc = rc;
+  }
+  return w;
+}
+
+/**
+ * Free a walk context.
+ */
+static void walk_ctx_free(walk_ctx_t *w)
+{
+  if (w == NULL)
+    return;
+  assert(w->refcount == 0);
+  X509_free(w->cert);
+  Manifest_free(w->manifest);
+  sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
+  free(w);
+}
+
+/**
+ * Increment walk context reference count.
+ */
+static void walk_ctx_incref(walk_ctx_t *w)
+{
+  if (w != NULL) {
+    w->refcount++;
+    assert(w->refcount != 0);
+  }
+}
+
+/**
+ * Decrement walk context reference count.
+ */
+static void walk_ctx_decref(walk_ctx_t *w)
+{
+  if (w != NULL && --(w->refcount) == 0)
+    walk_ctx_free(w);
+}
+
+/**
+ * Create a new walk context stack.
+ */
+static STACK_OF(walk_ctx_t) *walk_ctx_stack_new(void)
+{
+  return sk_walk_ctx_t_new_null();
+}
+
+/**
+ * Push a walk context onto a walk context stack.
+ */
+static int walk_ctx_stack_push(STACK_OF(walk_ctx_t) *sk, walk_ctx_t *w)
+{
+  int res = sk_walk_ctx_t_push(sk, w);
+  if (res)
+    walk_ctx_incref(w);
+  return res;
+}
+
+/**
+ * Pop and discard a walk context from a walk context stack.
+ */
+static void walk_ctx_stack_pop(STACK_OF(walk_ctx_t) *sk)
+{
+  walk_ctx_decref(sk_walk_ctx_t_pop(sk));
+}
+
+/**
+ * Clone a stack of walk contexts.
+ */
+static STACK_OF(walk_ctx_t) *walk_ctx_stack_clone(STACK_OF(walk_ctx_t) *old_sk)
+{
+  STACK_OF(walk_ctx_t) *new_sk;
+  int i;
+  if (old_sk == NULL || (new_sk = sk_walk_ctx_t_dup(old_sk)) == NULL)
+    return NULL;
+  for (i = 0; i < sk_walk_ctx_t_num(new_sk); i++)
+    walk_ctx_incref(sk_walk_ctx_t_value(new_sk, i));
+  return new_sk;
+}
+
+/**
+ * Free a walk context stack, decrementing reference counts of each
+ * frame on it.
+ */
+static void walk_ctx_stack_free(STACK_OF(walk_ctx_t) *sk)
+{
+  sk_walk_ctx_t_pop_free(sk, walk_ctx_decref);
 }
 
 
@@ -1769,13 +1890,18 @@ static int check_x509(const rcynic_ctx_t *rc,
   STACK_OF(X509_CRL) *crls = NULL;
   EVP_PKEY *pkey = NULL;
   X509_CRL *crl = NULL;
+  unsigned long flags;
   X509 *issuer;
   int ret = 0;
 
-  assert(rc && certs && x && subject && subject->crldp[0]);
+  assert(rc && certs && x && subject);
 
   issuer = sk_X509_value(certs, sk_X509_num(certs) - 1);
   assert(issuer != NULL);
+
+  flags = (X509_V_FLAG_POLICY_CHECK |
+	   X509_V_FLAG_EXPLICIT_POLICY |
+	   X509_V_FLAG_X509_STRICT);
 
   if (!X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, x, NULL))
     return 0;
@@ -1792,6 +1918,10 @@ static int check_x509(const rcynic_ctx_t *rc,
 
   } else {
 
+    assert(subject->crldp[0]);
+ 
+    flags |= X509_V_FLAG_CRL_CHECK;
+
     if ((pkey = X509_get_pubkey(issuer)) == NULL || X509_verify(x, pkey) <= 0) {
       reject(rc, subject->uri, certificate_bad_signature,
 	     "because it failed signature check prior to CRL fetch");
@@ -1803,25 +1933,22 @@ static int check_x509(const rcynic_ctx_t *rc,
 	     "due to bad CRL %s", subject->crldp);
       goto done;
     }
-  }
 
-  if ((crls = sk_X509_CRL_new_null()) == NULL ||
-      !sk_X509_CRL_push(crls, crl)) {
-    logmsg(rc, log_sys_err,
-	   "Internal allocation error setting up CRL for validation");
-    goto done;
+    if ((crls = sk_X509_CRL_new_null()) == NULL || !sk_X509_CRL_push(crls, crl)) {
+      logmsg(rc, log_sys_err,
+	     "Internal allocation error setting up CRL for validation");
+      goto done;
+    }
+    crl = NULL;
+
+    X509_STORE_CTX_set0_crls(&rctx.ctx, crls);
+
   }
-  crl = NULL;
 
   X509_STORE_CTX_trusted_stack(&rctx.ctx, certs);
-  X509_STORE_CTX_set0_crls(&rctx.ctx, crls);
   X509_STORE_CTX_set_verify_cb(&rctx.ctx, check_x509_cb);
 
-  X509_VERIFY_PARAM_set_flags(rctx.ctx.param,
-			      X509_V_FLAG_CRL_CHECK |
-			      X509_V_FLAG_POLICY_CHECK |
-			      X509_V_FLAG_EXPLICIT_POLICY |
-			      X509_V_FLAG_X509_STRICT);
+  X509_VERIFY_PARAM_set_flags(rctx.ctx.param, flags);
 
   X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
 
@@ -3259,6 +3386,7 @@ int main(int argc, char *argv[])
 	logmsg(&rc, log_sys_err, "Couldn't find a free name for trust anchor %s", path1);
 	goto done;
       }
+      uri[0] = '\0';
     }
 
     if (!name_cmp(val->name, "trust-anchor-uri-with-key") ||
@@ -3341,15 +3469,12 @@ int main(int argc, char *argv[])
       goto done;
     }
 
-    parse_cert(&rc, x, &ta_info, "");
+    parse_cert(&rc, x, &ta_info, uri);
     ta_info.ta = 1;
     sk_X509_push(certs, x);
 
-    if (ta_info.crldp[0] && !check_x509(&rc, certs, x, &ta_info)) {
-      logmsg(&rc, log_data_err, "Couldn't get CRL for trust anchor %s", path1);
-    } else {
+    if (check_x509(&rc, certs, x, &ta_info))
       walk_cert(&rc, &ta_info, certs);
-    }
 
     X509_free(sk_X509_pop(certs));
     assert(sk_X509_num(certs) == 0);

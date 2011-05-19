@@ -615,6 +615,7 @@ PYTHON
 SORT
 AWK
 XSLTPROC
+POW_LDFLAGS
 LD_STATIC_FLAG
 EGREP
 GREP
@@ -3713,6 +3714,32 @@ freebsd*)	LD_STATIC_FLAG='-static';;
 *)		LD_STATIC_FLAG='';;
 esac
 
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether compiler and linker support -Wl,-Bsymbolic" >&5
+$as_echo_n "checking whether compiler and linker support -Wl,-Bsymbolic... " >&6; }
+old_LDFLAGS="$LDFLAGS"
+LDFLAGS="$LDFLAGS -Wl,-Bsymbolic"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+int main (int argc, char *argv[]) { return 0; }
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  linker_supports_Bsymbolic=yes
+else
+  linker_supports_Bsymbolic=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $linker_supports_Bsymbolic" >&5
+$as_echo "$linker_supports_Bsymbolic" >&6; }
+LDFLAGS="$old_LDFLAGS"
+unset old_LDFLAGS
+if test $linker_supports_Bsymbolic = yes
+then
+	POW_LDFLAGS='-Wl,-Bsymbolic'
+else
+	POW_LDFLAGS=''
+fi
 
 
 # Extract the first word of "xsltproc", so it can be a program name with args.

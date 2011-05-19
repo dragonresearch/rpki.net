@@ -74,8 +74,24 @@ case $host_os in
 freebsd*)	LD_STATIC_FLAG='-static';;
 *)		LD_STATIC_FLAG='';;
 esac
-
 AC_SUBST(LD_STATIC_FLAG)
+
+AC_MSG_CHECKING([whether compiler and linker support -Wl,-Bsymbolic])
+old_LDFLAGS="$LDFLAGS"
+LDFLAGS="$LDFLAGS -Wl,-Bsymbolic"
+AC_LINK_IFELSE([AC_LANG_SOURCE([[int main (int argc, char *argv[]) { return 0; }]])],
+	       [linker_supports_Bsymbolic=yes],
+	       [linker_supports_Bsymbolic=no])
+AC_MSG_RESULT([$linker_supports_Bsymbolic])
+LDFLAGS="$old_LDFLAGS"
+unset old_LDFLAGS
+if test $linker_supports_Bsymbolic = yes
+then
+	POW_LDFLAGS='-Wl,-Bsymbolic'
+else
+	POW_LDFLAGS=''
+fi
+AC_SUBST(POW_LDFLAGS)
 
 AC_PATH_PROG([XSLTPROC], [xsltproc])
 AC_PATH_PROG([AWK], [awk])

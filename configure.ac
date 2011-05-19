@@ -287,7 +287,7 @@ case $enable_pywrap in
      no)	build_pywrap=no
 		if test $need_pywrap = yes
 		then
-			AC_MSG_ERROR([This platform appears to require pywrap])
+			AC_MSG_WARN([This platform appears to require pywrap (but I'll try to build without it anyway)])
 		fi
 		;;
      auto)	build_pywrap=$need_pywrap

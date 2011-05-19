@@ -4246,7 +4246,8 @@ $as_echo "$as_me: WARNING: pywrap not needed (but I'll try to build it anyway)" 
      no)	build_pywrap=no
 		if test $need_pywrap = yes
 		then
-			as_fn_error $? "This platform appears to require pywrap" "$LINENO" 5
+			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: This platform appears to require pywrap (but I'll try to build without it anyway)" >&5
+$as_echo "$as_me: WARNING: This platform appears to require pywrap (but I'll try to build without it anyway)" >&2;}
 		fi
 		;;
      auto)	build_pywrap=$need_pywrap

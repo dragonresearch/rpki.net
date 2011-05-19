@@ -583,6 +583,31 @@ static STACK_OF(walk_ctx_t) *walk_ctx_stack_clone(STACK_OF(walk_ctx_t) *old_sk)
 }
 
 /**
+ * Extract certificate stack from walk context stack.  Returns a newly
+ * created STACK_OF(X509) pointing to the existing cert objects (ie,
+ * this is a shallow copy, so only free the STACK_OF(X509), not the
+ * certificates themselves).
+ */
+static STACK_OF(X509) *walk_ctx_stack_certs(STACK_OF(walk_ctx_t) *sk)
+{
+  STACK_OF(X509) *xk = sk_X509_new_null();
+  int i;
+
+  for (i = 0; i < sk_walk_ctx_t_num(sk); i++) {
+    walk_ctx_t *w = sk_walk_ctx_t_value(sk, i);
+    if (w == NULL || !sk_X509_push(xk, w->cert))
+      goto fail;
+  }
+
+  return xk;
+
+ fail:
+  sk_X509_free(xk);
+  return NULL;
+}
+
+
+/**
  * Free a walk context stack, decrementing reference counts of each
  * frame on it.
  */

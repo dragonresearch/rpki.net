@@ -497,18 +497,12 @@ static void VALIDATION_STATUS_free(VALIDATION_STATUS *v)
 /**
  * Allocate a new walk context.
  */
-static walk_ctx_t *walk_ctx_new(rcynic_ctx_t *rc, X509 *x)
+static walk_ctx_t *walk_ctx_new(rcynic_ctx_t *rc)
 {
   walk_ctx_t *w = malloc(sizeof(*w));
   if (w != NULL) {
     memset(w, 0, sizeof(*w));
     w->rc = rc;
-    w->cert = x;
-
-    /*
-     * Perhaps we should be calling parse_cert() here?
-     */
-
   }
   return w;
 }
@@ -556,15 +550,19 @@ static STACK_OF(walk_ctx_t) *walk_ctx_stack_new(void)
 }
 
 /**
- * Push a walk context onto a walk context stack.
+ * Push a walk context onto a walk context stack, return the new context.
  */
-static int walk_ctx_stack_push(STACK_OF(walk_ctx_t) *sk, rcynic_ctx_t *rc, X509 *x)
+static walk_ctx_t *walk_ctx_stack_push(STACK_OF(walk_ctx_t) *sk, rcynic_ctx_t *rc)
 {
-  walk_ctx_t *w = walk_ctx_new(rc, x);
-  int res = (w != NULL) && sk_walk_ctx_t_push(sk, w);
-  if (res)
-    walk_ctx_incref(w);
-  return res;
+  walk_ctx_t *w = walk_ctx_new(rc);
+
+  if (w == NULL || !sk_walk_ctx_t_push(sk, w)) {
+    walk_ctx_free(w);
+    return NULL;
+  }
+
+  walk_ctx_incref(w);
+  return w;
 }
 
 /**
@@ -1988,6 +1986,7 @@ static int check_x509(const rcynic_ctx_t *rc,
     reject(rc, subject->uri, aia_missing, "due to missing AIA extension");
     goto done;
   }
+
   if (!issuer_certinfo->ta && strcmp(issuer_certinfo->uri, subject->aia)) {
     reject(rc, subject->uri, aia_mismatch,
 	   "because AIA %s doesn't match parent", subject->aia);
@@ -3506,13 +3505,10 @@ int main(int argc, char *argv[])
       goto done;
     }
 
-    if (!walk_ctx_stack_push(walk, &rc, x)) {
-      logmsg(&rc, log_sys_err, "Couldn't push trust anchor onto walk context stack");
+    if ((w = walk_ctx_stack_push(walk, &rc)) == NULL) {
+      logmsg(&rc, log_sys_err, "Couldn't push walk context stack");
       goto done;
     }
-
-    w = sk_walk_ctx_t_value(walk, 0);
-    assert(w != NULL);
 
     parse_cert(&rc, x, &w->certinfo, uri);
     w->certinfo.ta = 1;
@@ -3521,9 +3517,6 @@ int main(int argc, char *argv[])
     if (check_x509(&rc, certs, x, &w->certinfo, &w->certinfo))
       walk_cert(&rc, &w->certinfo, certs);
 
-#if 1
-    w->cert = NULL;
-#endif
     /*
      * Temporary?  Once this goes async this will have to be handled
      * elsewhere.

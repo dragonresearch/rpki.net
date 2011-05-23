@@ -497,12 +497,18 @@ static void VALIDATION_STATUS_free(VALIDATION_STATUS *v)
 /**
  * Allocate a new walk context.
  */
-static walk_ctx_t *walk_ctx_new(rcynic_ctx_t *rc)
+static walk_ctx_t *walk_ctx_new(rcynic_ctx_t *rc, X509 *x)
 {
   walk_ctx_t *w = malloc(sizeof(*w));
   if (w != NULL) {
     memset(w, 0, sizeof(*w));
     w->rc = rc;
+    w->cert = x;
+
+    /*
+     * Perhaps we should be calling parse_cert() here?
+     */
+
   }
   return w;
 }
@@ -552,9 +558,10 @@ static STACK_OF(walk_ctx_t) *walk_ctx_stack_new(void)
 /**
  * Push a walk context onto a walk context stack.
  */
-static int walk_ctx_stack_push(STACK_OF(walk_ctx_t) *sk, walk_ctx_t *w)
+static int walk_ctx_stack_push(STACK_OF(walk_ctx_t) *sk, rcynic_ctx_t *rc, X509 *x)
 {
-  int res = sk_walk_ctx_t_push(sk, w);
+  walk_ctx_t *w = walk_ctx_new(rc, x);
+  int res = (w != NULL) && sk_walk_ctx_t_push(sk, w);
   if (res)
     walk_ctx_incref(w);
   return res;
@@ -1807,6 +1814,47 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 
 
 /**
+ * Check whether extensions in a certificate are allowed by profile.
+ * Also returns failure in a few null-pointer cases that can't
+ * possibly conform to profile.
+ */
+static int check_allowed_extensions(const X509 *x, const int allow_eku)
+{
+  int i;
+
+  if (x == NULL || x->cert_info == NULL || x->cert_info->extensions == NULL)
+    return 0;
+
+  for (i = 0; i < sk_X509_EXTENSION_num(x->cert_info->extensions); i++) {
+    switch (OBJ_obj2nid(sk_X509_EXTENSION_value(x->cert_info->extensions,
+						i)->object)) {
+    case NID_basic_constraints:
+    case NID_subject_key_identifier:
+    case NID_authority_key_identifier:
+    case NID_key_usage:
+    case NID_crl_distribution_points:
+    case NID_info_access:
+    case NID_sinfo_access:
+    case NID_certificate_policies:
+    case NID_sbgp_ipAddrBlock:
+    case NID_sbgp_autonomousSysNum:
+      continue;
+    case NID_ext_key_usage:
+      if (allow_eku)
+	continue;
+      else
+	return 0;
+    default:
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
+
+
+/**
  * Validation callback function for use with x509_verify_cert().
  */
 static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
@@ -1909,29 +1957,67 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
 static int check_x509(const rcynic_ctx_t *rc,
 		      STACK_OF(X509) *certs,
 		      X509 *x,
-		      const certinfo_t *subject)
+		      const certinfo_t *subject,
+		      const certinfo_t *issuer_certinfo)
 {
   rcynic_x509_store_ctx_t rctx;
   STACK_OF(X509_CRL) *crls = NULL;
   EVP_PKEY *pkey = NULL;
   X509_CRL *crl = NULL;
-  unsigned long flags;
+  unsigned long flags = (X509_V_FLAG_POLICY_CHECK | X509_V_FLAG_EXPLICIT_POLICY | X509_V_FLAG_X509_STRICT);
   X509 *issuer;
   int ret = 0;
 
   assert(rc && certs && x && subject);
 
-  issuer = sk_X509_value(certs, sk_X509_num(certs) - 1);
-  assert(issuer != NULL);
-
-  flags = (X509_V_FLAG_POLICY_CHECK |
-	   X509_V_FLAG_EXPLICIT_POLICY |
-	   X509_V_FLAG_X509_STRICT);
-
   if (!X509_STORE_CTX_init(&rctx.ctx, rc->x509_store, x, NULL))
     return 0;
   rctx.rc = rc;
   rctx.subject = subject;
+
+  issuer = sk_X509_value(certs, sk_X509_num(certs) - 1);
+  assert(issuer != NULL);
+
+  if (subject->sia[0] && subject->sia[strlen(subject->sia) - 1] != '/') {
+    reject(rc, subject->uri, malformed_sia,
+	   "due to malformed SIA %s", subject->sia);
+    goto done;
+  }
+
+  if (!subject->ta && !subject->aia[0]) {
+    reject(rc, subject->uri, aia_missing, "due to missing AIA extension");
+    goto done;
+  }
+  if (!issuer_certinfo->ta && strcmp(issuer_certinfo->uri, subject->aia)) {
+    reject(rc, subject->uri, aia_mismatch,
+	   "because AIA %s doesn't match parent", subject->aia);
+    goto done;
+  }
+
+  if (subject->ca && !subject->sia[0]) {
+    reject(rc, subject->uri, sia_missing,
+	   "because SIA extension repository pointer is missing");
+    goto done;
+  }
+
+  if (subject->ca && !subject->manifest[0]) {
+    reject(rc, subject->uri, manifest_missing,
+	   "because SIA extension manifest pointer is missing");
+    goto done;
+  }
+
+  if (subject->ca && !startswith(subject->manifest, subject->sia)) {
+    reject(rc, subject->uri, manifest_mismatch,
+	   "because SIA manifest %s points outside publication point %s",
+	   subject->manifest, subject->sia);
+    goto done;
+  }
+
+  if (!check_allowed_extensions(x, !subject->ca)) {
+    reject(rc, subject->uri, disallowed_extension,
+	   "due to disallowed X.509v3 extension");
+    goto done;
+  }
 
   if (subject->ta) {
 
@@ -1943,7 +2029,17 @@ static int check_x509(const rcynic_ctx_t *rc,
 
   } else {
 
-    assert(subject->crldp[0]);
+    if (!subject->crldp[0]) {
+      reject(rc, subject->uri, crldp_missing, "because CRLDP extension is missing");
+      goto done;
+    }
+
+    if (!subject->ca && !startswith(subject->crldp, issuer_certinfo->sia)) {
+      reject(rc, subject->uri, crldp_mismatch,
+	     "because CRLDP %s points outside issuer's publication point %s",
+	     subject->crldp, issuer_certinfo->sia);
+      goto done;
+    }
  
     flags |= X509_V_FLAG_CRL_CHECK;
 
@@ -1998,45 +2094,6 @@ static int check_x509(const rcynic_ctx_t *rc,
 }
 
 /**
- * Check whether extensions in a certificate are allowed by profile.
- * Also returns failure in a few null-pointer cases that can't
- * possibly conform to profile.
- */
-static int check_cert_only_allowed_extensions(const X509 *x, const int allow_eku)
-{
-  int i;
-
-  if (x == NULL || x->cert_info == NULL || x->cert_info->extensions == NULL)
-    return 0;
-
-  for (i = 0; i < sk_X509_EXTENSION_num(x->cert_info->extensions); i++) {
-    switch (OBJ_obj2nid(sk_X509_EXTENSION_value(x->cert_info->extensions,
-						i)->object)) {
-    case NID_basic_constraints:
-    case NID_subject_key_identifier:
-    case NID_authority_key_identifier:
-    case NID_key_usage:
-    case NID_crl_distribution_points:
-    case NID_info_access:
-    case NID_sinfo_access:
-    case NID_certificate_policies:
-    case NID_sbgp_ipAddrBlock:
-    case NID_sbgp_autonomousSysNum:
-      continue;
-    case NID_ext_key_usage:
-      if (allow_eku)
-	continue;
-      else
-	return 0;
-    default:
-      return 0;
-    }
-  }
-
-  return 1;
-}
-
-/**
  * Check a certificate for conformance to the RPKI certificate profile.
  */
 static X509 *check_cert_1(const rcynic_ctx_t *rc,
@@ -2079,63 +2136,12 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
     goto punt;
   }
 
+  /* This should go away once walk context stack stuff is ready */
   parse_cert(rc, x, subject, uri);
 
-  if (subject->sia[0] && subject->sia[strlen(subject->sia) - 1] != '/') {
-    reject(rc, uri, malformed_sia,
-	   "due to malformed SIA %s", subject->sia);
-    goto punt;
-  }
+  /* Whole lotta stuff moved from here to check_x509() */
 
-  if (!subject->aia[0]) {
-    reject(rc, uri, aia_missing, "due to missing AIA extension");
-    goto punt;
-  }
-
-  if (!issuer->ta && strcmp(issuer->uri, subject->aia)) {
-    reject(rc, uri, aia_mismatch,
-	   "because AIA %s doesn't match parent", subject->aia);
-    goto punt;
-  }
-
-  if (subject->ca && !subject->sia[0]) {
-    reject(rc, uri, sia_missing,
-	   "because SIA extension repository pointer is missing");
-    goto punt;
-  }
-
-  if (!subject->crldp[0]) {
-    reject(rc, uri, crldp_missing, "because CRLDP extension is missing");
-    goto punt;
-  }
-
-  if (subject->ca && !startswith(subject->crldp, issuer->sia)) {
-    reject(rc, uri, crldp_mismatch,
-	   "because CRLDP %s points outside issuer's publication point %s",
-	   subject->crldp, issuer->sia);
-    goto punt;
-  }
-
-  if (subject->ca && !subject->manifest[0]) {
-    reject(rc, uri, manifest_missing,
-	   "because SIA extension manifest pointer is missing");
-    goto punt;
-  }
-
-  if (subject->ca && !startswith(subject->manifest, subject->sia)) {
-    reject(rc, uri, manifest_mismatch,
-	   "because SIA manifest %s points outside publication point %s",
-	   subject->manifest, subject->sia);
-    goto punt;
-  }
-
-  if (!check_cert_only_allowed_extensions(x, !subject->ca)) {
-    reject(rc, uri, disallowed_extension,
-	   "due to disallowed X.509v3 extension");
-    goto punt;
-  }
-
-  if (!check_x509(rc, certs, x, subject)) {
+  if (!check_x509(rc, certs, x, subject, issuer)) {
     /*
      * Redundant error message?
      */
@@ -3106,7 +3112,9 @@ int main(int argc, char *argv[])
   int c, i, j, ret = 1, jitter = 600, lockfd = -1;
   STACK_OF(CONF_VALUE) *cfg_section = NULL;
   STACK_OF(X509) *certs = NULL;
+  STACK_OF(walk_ctx_t) *walk = NULL;
   CONF *cfg_handle = NULL;
+  walk_ctx_t *w = NULL;
   time_t start = 0, finish;
   unsigned long hash;
   rcynic_ctx_t rc;
@@ -3377,7 +3385,6 @@ int main(int argc, char *argv[])
   for (i = 0; i < sk_CONF_VALUE_num(cfg_section); i++) {
     CONF_VALUE *val = sk_CONF_VALUE_value(cfg_section, i);
     char path1[FILENAME_MAX], path2[FILENAME_MAX], uri[URI_MAX];
-    certinfo_t ta_info;
     X509 *x = NULL;
 
     assert(val && val->name && val->value);
@@ -3494,12 +3501,36 @@ int main(int argc, char *argv[])
       goto done;
     }
 
-    parse_cert(&rc, x, &ta_info, uri);
-    ta_info.ta = 1;
+    if ((walk = walk_ctx_stack_new()) == NULL) {
+      logmsg(&rc, log_sys_err, "Couldn't allocate walk context stack");
+      goto done;
+    }
+
+    if (!walk_ctx_stack_push(walk, &rc, x)) {
+      logmsg(&rc, log_sys_err, "Couldn't push trust anchor onto walk context stack");
+      goto done;
+    }
+
+    w = sk_walk_ctx_t_value(walk, 0);
+    assert(w != NULL);
+
+    parse_cert(&rc, x, &w->certinfo, uri);
+    w->certinfo.ta = 1;
     sk_X509_push(certs, x);
 
-    if (check_x509(&rc, certs, x, &ta_info))
-      walk_cert(&rc, &ta_info, certs);
+    if (check_x509(&rc, certs, x, &w->certinfo, &w->certinfo))
+      walk_cert(&rc, &w->certinfo, certs);
+
+#if 1
+    w->cert = NULL;
+#endif
+    /*
+     * Temporary?  Once this goes async this will have to be handled
+     * elsewhere.
+     */
+    walk_ctx_stack_free(walk);
+    walk = NULL;
+
 
     X509_free(sk_X509_pop(certs));
     assert(sk_X509_num(certs) == 0);

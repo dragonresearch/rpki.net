@@ -596,13 +596,13 @@ static STACK_OF(walk_ctx_t) *walk_ctx_stack_clone(STACK_OF(walk_ctx_t) *old_sk)
 static STACK_OF(X509) *walk_ctx_stack_certs(STACK_OF(walk_ctx_t) *sk)
 {
   STACK_OF(X509) *xk = sk_X509_new_null();
+  walk_ctx_t *w;
   int i;
 
-  for (i = 0; i < sk_walk_ctx_t_num(sk); i++) {
-    walk_ctx_t *w = sk_walk_ctx_t_value(sk, i);
-    if (w == NULL || !sk_X509_push(xk, w->cert))
+  for (i = 0; i < sk_walk_ctx_t_num(sk); i++)
+    if ((w = sk_walk_ctx_t_value(sk, i)) == NULL ||
+	(w->cert != NULL && !sk_X509_push(xk, w->cert)))
       goto fail;
-  }
 
   return xk;
 
@@ -2918,7 +2918,7 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
 
 static void walk_cert(rcynic_ctx_t *rc,
-		      const certinfo_t *parent,
+		      const certinfo_t *issuer,
 		      STACK_OF(X509) *certs);
 
 /**
@@ -2929,16 +2929,16 @@ static void walk_cert(rcynic_ctx_t *rc,
 static void walk_cert_1(rcynic_ctx_t *rc,
 			char *uri,
 			STACK_OF(X509) *certs,
-			const certinfo_t *parent,
+			const certinfo_t *issuer,
 			const char *prefix,
 			const int backup,
 			const unsigned char *hash,
 			const size_t hashlen)
 {
-  certinfo_t child;
+  certinfo_t subject;
   X509 *x;
 
-  if ((x = check_cert(rc, uri, certs, parent, &child, prefix, backup, hash, hashlen)) == NULL)
+  if ((x = check_cert(rc, uri, certs, issuer, &subject, prefix, backup, hash, hashlen)) == NULL)
     return;
 
   if (!sk_X509_push(certs, x)) {
@@ -2947,7 +2947,7 @@ static void walk_cert_1(rcynic_ctx_t *rc,
     return;
   }
 
-  walk_cert(rc, &child, certs);
+  walk_cert(rc, &subject, certs);
   X509_free(sk_X509_pop(certs));
 }
 
@@ -2959,14 +2959,14 @@ static void walk_cert_1(rcynic_ctx_t *rc,
 static void walk_cert_2(rcynic_ctx_t *rc,
 			char *uri,
 			STACK_OF(X509) *certs,
-			const certinfo_t *parent,
+			const certinfo_t *issuer,
 			const char *prefix,
 			const int backup,
 			const unsigned char *hash,
 			const size_t hashlen)
 {
   if (endswith(uri, ".cer"))
-    walk_cert_1(rc, uri, certs, parent, prefix, backup, hash, hashlen);
+    walk_cert_1(rc, uri, certs, issuer, prefix, backup, hash, hashlen);
   else if (endswith(uri, ".roa"))
     check_roa(rc, uri, certs, hash, hashlen);
   else if (endswith(uri, ".gbr"))
@@ -2982,7 +2982,7 @@ static void walk_cert_2(rcynic_ctx_t *rc,
  */
 static void walk_cert_3(rcynic_ctx_t *rc,
 			STACK_OF(X509) *certs,
-			const certinfo_t *parent,
+			const certinfo_t *issuer,
 			const char *prefix,
 			const int backup,
 			Manifest *manifest)
@@ -2999,7 +2999,7 @@ static void walk_cert_3(rcynic_ctx_t *rc,
    */
   if ((stray_ducks = sk_OPENSSL_STRING_new(uri_cmp)) == NULL)
     logmsg(rc, log_sys_err, "Couldn't allocate stray_ducks stack");
-  else if (!uri_to_filename(rc, parent->sia, path, sizeof(path), prefix) || (dir = opendir(path)) == NULL)
+  else if (!uri_to_filename(rc, issuer->sia, path, sizeof(path), prefix) || (dir = opendir(path)) == NULL)
     logmsg(rc, log_data_err, "Couldn't list directory %s, skipping check for out-of-manifest data", path);
   else
     while ((d = readdir(dir)) != NULL)
@@ -3017,12 +3017,12 @@ static void walk_cert_3(rcynic_ctx_t *rc,
   if (manifest != NULL) {
     for (i = 0; (fah = sk_FileAndHash_value(manifest->fileList, i)) != NULL; i++) {
       sk_OPENSSL_STRING_remove(stray_ducks, (char *) fah->file->data);
-      if (strlen(parent->sia) + strlen((char *) fah->file->data) >= sizeof(uri)) {
-	logmsg(rc, log_data_err, "URI %s%s too long, skipping", parent->sia, fah->file->data);
+      if (strlen(issuer->sia) + strlen((char *) fah->file->data) >= sizeof(uri)) {
+	logmsg(rc, log_data_err, "URI %s%s too long, skipping", issuer->sia, fah->file->data);
       } else {
-	strcpy(uri, parent->sia);
+	strcpy(uri, issuer->sia);
 	strcat(uri, (char *) fah->file->data);
-	walk_cert_2(rc, uri, certs, parent, prefix, backup, fah->hash->data, fah->hash->length);
+	walk_cert_2(rc, uri, certs, issuer, prefix, backup, fah->hash->data, fah->hash->length);
       }
     }
   }
@@ -3033,18 +3033,18 @@ static void walk_cert_3(rcynic_ctx_t *rc,
    */
   for (i = 0; i < sk_OPENSSL_STRING_num(stray_ducks); i++) {
     char *s = sk_OPENSSL_STRING_value(stray_ducks, i);
-    if (strlen(parent->sia) + strlen(s) >= sizeof(uri)) {
-      logmsg(rc, log_data_err, "URI %s%s too long, skipping", parent->sia, s);
+    if (strlen(issuer->sia) + strlen(s) >= sizeof(uri)) {
+      logmsg(rc, log_data_err, "URI %s%s too long, skipping", issuer->sia, s);
       continue;
     }
-    strcpy(uri, parent->sia);
+    strcpy(uri, issuer->sia);
     strcat(uri, s);
-    if (!strcmp(uri, parent->manifest))
+    if (!strcmp(uri, issuer->manifest))
       continue;
     logmsg(rc, log_telemetry, "Object %s present in publication directory but not in manifest", uri);
     mib_increment(rc, uri, object_not_in_manifest);
     if (rc->allow_object_not_in_manifest)
-      walk_cert_2(rc, uri, certs, parent, prefix, backup, NULL, 0);
+      walk_cert_2(rc, uri, certs, issuer, prefix, backup, NULL, 0);
   }
 
   sk_OPENSSL_STRING_pop_free(stray_ducks, OPENSSL_STRING_free);
@@ -3056,34 +3056,34 @@ static void walk_cert_3(rcynic_ctx_t *rc,
  * manipulation and error handling.
  */
 static void walk_cert(rcynic_ctx_t *rc,
-		      const certinfo_t *parent,
+		      const certinfo_t *issuer,
 		      STACK_OF(X509) *certs)
 {
-  assert(parent && certs);
+  assert(issuer && certs);
 
-  if (parent->sia[0] && parent->ca) {
+  if (issuer->sia[0] && issuer->ca) {
     int n_cert = sk_X509_num(certs);
     Manifest *manifest = NULL;
 
     rc->indent++;
 
-    rsync_tree(rc, parent->sia);
+    rsync_tree(rc, issuer->sia);
 
-    if (!parent->manifest[0]) {
+    if (!issuer->manifest[0]) {
 
-      logmsg(rc, log_data_err, "Parent certificate does not specify a manifest, skipping collection");
+      logmsg(rc, log_data_err, "Issuer's certificate does not specify a manifest, skipping collection");
 
     } else {
 
-      if ((manifest = check_manifest(rc, parent->manifest, certs)) == NULL)
-	logmsg(rc, log_data_err, "Couldn't get manifest %s, blundering onward", parent->manifest);
+      if ((manifest = check_manifest(rc, issuer->manifest, certs)) == NULL)
+	logmsg(rc, log_data_err, "Couldn't get manifest %s, blundering onward", issuer->manifest);
 
       logmsg(rc, log_debug, "Walking unauthenticated store");
-      walk_cert_3(rc, certs, parent, rc->unauthenticated, 0, manifest);
+      walk_cert_3(rc, certs, issuer, rc->unauthenticated, 0, manifest);
       logmsg(rc, log_debug, "Done walking unauthenticated store");
 
       logmsg(rc, log_debug, "Walking old authenticated store");
-      walk_cert_3(rc, certs, parent, rc->old_authenticated, 1, manifest);
+      walk_cert_3(rc, certs, issuer, rc->old_authenticated, 1, manifest);
       logmsg(rc, log_debug, "Done walking old authenticated store");
 
       Manifest_free(manifest);

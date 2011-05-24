@@ -1949,8 +1949,8 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
 }
 
 /**
- * Check crypto aspects of a certificate, including policy checks
- * and RFC 3779 path validation.
+ * Check crypto aspects of a certificate, policy OID, RFC 3779 path
+ * validation, and conformance to the RPKI certificate profile.
  */
 static int check_x509(const rcynic_ctx_t *rc,
 		      STACK_OF(X509) *certs,
@@ -2093,7 +2093,24 @@ static int check_x509(const rcynic_ctx_t *rc,
 }
 
 /**
- * Check a certificate for conformance to the RPKI certificate profile.
+ * Check a trust anchor.  Yes, we trust it, by definition, but it
+ * still needs to conform to the certificate profile, the
+ * self-signature must be correct, etcetera.
+ */
+static int check_ta(const rcynic_ctx_t *rc,
+		    X509 *x,
+		    const certinfo_t *subject)
+{
+  STACK_OF(X509) *certs = sk_X509_new_null();
+  int result = (sk_X509_push(certs, x) &&
+		check_x509(rc, certs, x, subject, subject));
+  sk_X509_free(certs);
+  return result;
+}
+
+/**
+ * Load certificate, check against manifest, then run it through all
+ * the check_x509() tests.
  */
 static X509 *check_cert_1(const rcynic_ctx_t *rc,
 			  const char *uri,
@@ -2135,20 +2152,10 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
     goto punt;
   }
 
-  /* This should go away once walk context stack stuff is ready */
   parse_cert(rc, x, subject, uri);
 
-  /* Whole lotta stuff moved from here to check_x509() */
-
-  if (!check_x509(rc, certs, x, subject, issuer)) {
-    /*
-     * Redundant error message?
-     */
-    logmsg(rc, log_data_err, "Certificate %s failed validation", uri);
-    goto punt;
-  }
-
-  return x;
+  if (check_x509(rc, certs, x, subject, issuer))
+    return x;
 
  punt:
   X509_free(x);
@@ -2940,6 +2947,8 @@ static void walk_cert_1(rcynic_ctx_t *rc,
   walk_ctx_t *w;
   X509 *x;
 
+  assert(rc && uri && walk && certs && issuer && prefix);
+
   if ((x = check_cert(rc, uri, certs, issuer, &subject, prefix, backup, hash, hashlen)) == NULL)
     return;
 
@@ -3009,6 +3018,8 @@ static void walk_cert_3(rcynic_ctx_t *rc,
   DIR *dir = NULL;
   struct dirent *d;
   int i;
+
+  assert(rc && walk && issuer && prefix);
 
   /*
    * Pull all non-directory filenames from the publication point directory.
@@ -3133,7 +3144,6 @@ int main(int argc, char *argv[])
   char *lockfile = NULL, *xmlfile = NULL;
   int c, i, j, ret = 1, jitter = 600, lockfd = -1;
   STACK_OF(CONF_VALUE) *cfg_section = NULL;
-  STACK_OF(X509) *certs = NULL;
   STACK_OF(walk_ctx_t) *walk = NULL;
   CONF *cfg_handle = NULL;
   walk_ctx_t *w = NULL;
@@ -3343,11 +3353,6 @@ int main(int argc, char *argv[])
     }
   }
 
-  if ((certs = sk_X509_new_null()) == NULL) {
-    logmsg(&rc, log_sys_err, "Couldn't allocate certificate stack");
-    goto done;
-  }
-
   if ((rc.x509_store = X509_STORE_new()) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate X509_STORE");
     goto done;
@@ -3537,15 +3542,8 @@ int main(int argc, char *argv[])
     w->certinfo.ta = 1;
     w->cert = x;
 
-    /*
-     * In the long run this certs stack silliness can go away, but for
-     * the moment we still need it because check_x509() expects it.
-     */
-
-    sk_X509_push(certs, x);
-    if (check_x509(&rc, certs, x, &w->certinfo, &w->certinfo))
+    if (check_ta(&rc, x, &w->certinfo))
       walk_cert(&rc, &w->certinfo, walk);
-    sk_X509_pop(certs);
 
     /*
      * Once code goes async this will have to be handled elsewhere.
@@ -3650,7 +3648,6 @@ int main(int argc, char *argv[])
   /*
    * Do NOT free cfg_section, NCONF_free() takes care of that
    */
-  sk_X509_pop_free(certs, X509_free);
   sk_OPENSSL_STRING_pop_free(rc.rsync_cache, OPENSSL_STRING_free);
   sk_OPENSSL_STRING_pop_free(rc.backup_cache, OPENSSL_STRING_free);
   sk_OPENSSL_STRING_pop_free(rc.stale_cache, OPENSSL_STRING_free);

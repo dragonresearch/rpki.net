@@ -361,7 +361,6 @@ typedef struct rcynic_ctx {
  */
 typedef struct walk_ctx {
   unsigned refcount;
-  rcynic_ctx_t *rc;
   certinfo_t certinfo;
   X509 *cert;
   Manifest *manifest;
@@ -497,12 +496,11 @@ static void VALIDATION_STATUS_free(VALIDATION_STATUS *v)
 /**
  * Allocate a new walk context.
  */
-static walk_ctx_t *walk_ctx_new(rcynic_ctx_t *rc)
+static walk_ctx_t *walk_ctx_new(void)
 {
   walk_ctx_t *w = malloc(sizeof(*w));
   if (w != NULL) {
     memset(w, 0, sizeof(*w));
-    w->rc = rc;
   }
   return w;
 }
@@ -552,9 +550,9 @@ static STACK_OF(walk_ctx_t) *walk_ctx_stack_new(void)
 /**
  * Push a walk context onto a walk context stack, return the new context.
  */
-static walk_ctx_t *walk_ctx_stack_push(STACK_OF(walk_ctx_t) *sk, rcynic_ctx_t *rc)
+static walk_ctx_t *walk_ctx_stack_push(STACK_OF(walk_ctx_t) *sk)
 {
-  walk_ctx_t *w = walk_ctx_new(rc);
+  walk_ctx_t *w = walk_ctx_new();
 
   if (w == NULL || !sk_walk_ctx_t_push(sk, w)) {
     walk_ctx_free(w);
@@ -2924,9 +2922,7 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
 
 
-static void walk_cert(rcynic_ctx_t *rc,
-		      const certinfo_t *issuer,
-		      STACK_OF(walk_ctx_t) *walk);
+static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk);
 
 /**
  * Recursive walk of certificate hierarchy (core of the program).  The
@@ -2937,7 +2933,6 @@ static void walk_cert_1(rcynic_ctx_t *rc,
 			char *uri,
 			STACK_OF(walk_ctx_t) *walk,
 			STACK_OF(X509) *certs,
-			const certinfo_t *issuer,
 			const char *prefix,
 			const int backup,
 			const unsigned char *hash,
@@ -2947,12 +2942,15 @@ static void walk_cert_1(rcynic_ctx_t *rc,
   walk_ctx_t *w;
   X509 *x;
 
-  assert(rc && uri && walk && certs && issuer && prefix);
+  assert(rc && uri && walk && certs && prefix);
 
-  if ((x = check_cert(rc, uri, certs, issuer, &subject, prefix, backup, hash, hashlen)) == NULL)
+  w = sk_walk_ctx_t_value(walk, sk_walk_ctx_t_num(walk) - 1);
+  assert(w);
+
+  if ((x = check_cert(rc, uri, certs, &w->certinfo, &subject, prefix, backup, hash, hashlen)) == NULL)
     return;
 
-  if ((w = walk_ctx_stack_push(walk, rc)) == NULL) {
+  if ((w = walk_ctx_stack_push(walk)) == NULL) {
     logmsg(rc, log_sys_err,
 	   "Internal allocation failure recursing over certificate");
     return;
@@ -2961,7 +2959,7 @@ static void walk_cert_1(rcynic_ctx_t *rc,
   w->cert = x;
   w->certinfo = subject;
 
-  walk_cert(rc, &w->certinfo, walk);
+  walk_cert(rc, walk);
 
   walk_ctx_stack_pop(walk);
 }
@@ -2974,7 +2972,6 @@ static void walk_cert_1(rcynic_ctx_t *rc,
 static void walk_cert_2(rcynic_ctx_t *rc,
 			char *uri,
 			STACK_OF(walk_ctx_t) *walk,
-			const certinfo_t *issuer,
 			const char *prefix,
 			const int backup,
 			const unsigned char *hash,
@@ -2982,14 +2979,13 @@ static void walk_cert_2(rcynic_ctx_t *rc,
 {
   STACK_OF(X509) *certs = NULL;
 
-  assert(rc && uri && walk && issuer && prefix);
+  assert(rc && uri && walk && prefix);
 
   certs = walk_ctx_stack_certs(walk);
-
   assert(certs);
 
   if (endswith(uri, ".cer"))
-    walk_cert_1(rc, uri, walk, certs, issuer, prefix, backup, hash, hashlen);
+    walk_cert_1(rc, uri, walk, certs, prefix, backup, hash, hashlen);
   else if (endswith(uri, ".roa"))
     check_roa(rc, uri, certs, hash, hashlen);
   else if (endswith(uri, ".gbr"))
@@ -3007,7 +3003,6 @@ static void walk_cert_2(rcynic_ctx_t *rc,
  */
 static void walk_cert_3(rcynic_ctx_t *rc,
 			STACK_OF(walk_ctx_t) *walk,
-			const certinfo_t *issuer,
 			const char *prefix,
 			const int backup,
 			Manifest *manifest)
@@ -3015,11 +3010,17 @@ static void walk_cert_3(rcynic_ctx_t *rc,
   char uri[URI_MAX], path[FILENAME_MAX];
   FileAndHash *fah;
   STACK_OF(OPENSSL_STRING) *stray_ducks = NULL;
+  const certinfo_t *issuer;
   DIR *dir = NULL;
   struct dirent *d;
+  walk_ctx_t *w;
   int i;
 
-  assert(rc && walk && issuer && prefix);
+  assert(rc && walk && prefix);
+
+  w = sk_walk_ctx_t_value(walk, sk_walk_ctx_t_num(walk) - 1);
+  assert(w);
+  issuer = &w->certinfo;
 
   /*
    * Pull all non-directory filenames from the publication point directory.
@@ -3049,7 +3050,7 @@ static void walk_cert_3(rcynic_ctx_t *rc,
       } else {
 	strcpy(uri, issuer->sia);
 	strcat(uri, (char *) fah->file->data);
-	walk_cert_2(rc, uri, walk, issuer, prefix, backup, fah->hash->data, fah->hash->length);
+	walk_cert_2(rc, uri, walk, prefix, backup, fah->hash->data, fah->hash->length);
       }
     }
   }
@@ -3071,7 +3072,7 @@ static void walk_cert_3(rcynic_ctx_t *rc,
     logmsg(rc, log_telemetry, "Object %s present in publication directory but not in manifest", uri);
     mib_increment(rc, uri, object_not_in_manifest);
     if (rc->allow_object_not_in_manifest)
-      walk_cert_2(rc, uri, walk, issuer, prefix, backup, NULL, 0);
+      walk_cert_2(rc, uri, walk, prefix, backup, NULL, 0);
   }
 
   sk_OPENSSL_STRING_pop_free(stray_ducks, OPENSSL_STRING_free);
@@ -3082,11 +3083,16 @@ static void walk_cert_3(rcynic_ctx_t *rc,
  * daisy chain recursion is to avoid having to duplicate the stack
  * manipulation and error handling.
  */
-static void walk_cert(rcynic_ctx_t *rc,
-		      const certinfo_t *issuer,
-		      STACK_OF(walk_ctx_t) *walk)
+static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
 {
-  assert(issuer && walk);
+  const certinfo_t *issuer;
+  walk_ctx_t *w;
+
+  assert(rc && walk);
+
+  w = sk_walk_ctx_t_value(walk, sk_walk_ctx_t_num(walk) - 1);
+  assert(w);
+  issuer = &w->certinfo;
 
   if (issuer->sia[0] && issuer->ca) {
     int n_walk = sk_walk_ctx_t_num(walk);
@@ -3113,11 +3119,11 @@ static void walk_cert(rcynic_ctx_t *rc,
       certs = NULL;
 
       logmsg(rc, log_debug, "Walking unauthenticated store");
-      walk_cert_3(rc, walk, issuer, rc->unauthenticated, 0, manifest);
+      walk_cert_3(rc, walk, rc->unauthenticated, 0, manifest);
       logmsg(rc, log_debug, "Done walking unauthenticated store");
 
       logmsg(rc, log_debug, "Walking old authenticated store");
-      walk_cert_3(rc, walk, issuer, rc->old_authenticated, 1, manifest);
+      walk_cert_3(rc, walk, rc->old_authenticated, 1, manifest);
       logmsg(rc, log_debug, "Done walking old authenticated store");
 
       Manifest_free(manifest);
@@ -3533,7 +3539,7 @@ int main(int argc, char *argv[])
       goto done;
     }
 
-    if ((w = walk_ctx_stack_push(walk, &rc)) == NULL) {
+    if ((w = walk_ctx_stack_push(walk)) == NULL) {
       logmsg(&rc, log_sys_err, "Couldn't push walk context stack");
       goto done;
     }
@@ -3543,7 +3549,7 @@ int main(int argc, char *argv[])
     w->cert = x;
 
     if (check_ta(&rc, x, &w->certinfo))
-      walk_cert(&rc, &w->certinfo, walk);
+      walk_cert(&rc, walk);
 
     /*
      * Once code goes async this will have to be handled elsewhere.

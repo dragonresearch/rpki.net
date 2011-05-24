@@ -2919,7 +2919,7 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
 static void walk_cert(rcynic_ctx_t *rc,
 		      const certinfo_t *issuer,
-		      STACK_OF(X509) *certs);
+		      STACK_OF(walk_ctx_t) *walk);
 
 /**
  * Recursive walk of certificate hierarchy (core of the program).  The
@@ -2928,6 +2928,7 @@ static void walk_cert(rcynic_ctx_t *rc,
  */
 static void walk_cert_1(rcynic_ctx_t *rc,
 			char *uri,
+			STACK_OF(walk_ctx_t) *walk,
 			STACK_OF(X509) *certs,
 			const certinfo_t *issuer,
 			const char *prefix,
@@ -2936,19 +2937,24 @@ static void walk_cert_1(rcynic_ctx_t *rc,
 			const size_t hashlen)
 {
   certinfo_t subject;
+  walk_ctx_t *w;
   X509 *x;
 
   if ((x = check_cert(rc, uri, certs, issuer, &subject, prefix, backup, hash, hashlen)) == NULL)
     return;
 
-  if (!sk_X509_push(certs, x)) {
+  if ((w = walk_ctx_stack_push(walk, rc)) == NULL) {
     logmsg(rc, log_sys_err,
 	   "Internal allocation failure recursing over certificate");
     return;
   }
 
-  walk_cert(rc, &subject, certs);
-  X509_free(sk_X509_pop(certs));
+  w->cert = x;
+  w->certinfo = subject;
+
+  walk_cert(rc, &w->certinfo, walk);
+
+  walk_ctx_stack_pop(walk);
 }
 
 /**
@@ -2958,21 +2964,31 @@ static void walk_cert_1(rcynic_ctx_t *rc,
  */
 static void walk_cert_2(rcynic_ctx_t *rc,
 			char *uri,
-			STACK_OF(X509) *certs,
+			STACK_OF(walk_ctx_t) *walk,
 			const certinfo_t *issuer,
 			const char *prefix,
 			const int backup,
 			const unsigned char *hash,
 			const size_t hashlen)
 {
+  STACK_OF(X509) *certs = NULL;
+
+  assert(rc && uri && walk && issuer && prefix);
+
+  certs = walk_ctx_stack_certs(walk);
+
+  assert(certs);
+
   if (endswith(uri, ".cer"))
-    walk_cert_1(rc, uri, certs, issuer, prefix, backup, hash, hashlen);
+    walk_cert_1(rc, uri, walk, certs, issuer, prefix, backup, hash, hashlen);
   else if (endswith(uri, ".roa"))
     check_roa(rc, uri, certs, hash, hashlen);
   else if (endswith(uri, ".gbr"))
     check_ghostbuster(rc, uri, certs, hash, hashlen);
   else if (!endswith(uri, ".crl"))
     logmsg(rc, log_telemetry, "Don't know how to check object %s, ignoring", uri);
+
+  sk_X509_free(certs);
 }
 
 /**
@@ -2981,7 +2997,7 @@ static void walk_cert_2(rcynic_ctx_t *rc,
  * manipulation and error handling.
  */
 static void walk_cert_3(rcynic_ctx_t *rc,
-			STACK_OF(X509) *certs,
+			STACK_OF(walk_ctx_t) *walk,
 			const certinfo_t *issuer,
 			const char *prefix,
 			const int backup,
@@ -3022,7 +3038,7 @@ static void walk_cert_3(rcynic_ctx_t *rc,
       } else {
 	strcpy(uri, issuer->sia);
 	strcat(uri, (char *) fah->file->data);
-	walk_cert_2(rc, uri, certs, issuer, prefix, backup, fah->hash->data, fah->hash->length);
+	walk_cert_2(rc, uri, walk, issuer, prefix, backup, fah->hash->data, fah->hash->length);
       }
     }
   }
@@ -3044,7 +3060,7 @@ static void walk_cert_3(rcynic_ctx_t *rc,
     logmsg(rc, log_telemetry, "Object %s present in publication directory but not in manifest", uri);
     mib_increment(rc, uri, object_not_in_manifest);
     if (rc->allow_object_not_in_manifest)
-      walk_cert_2(rc, uri, certs, issuer, prefix, backup, NULL, 0);
+      walk_cert_2(rc, uri, walk, issuer, prefix, backup, NULL, 0);
   }
 
   sk_OPENSSL_STRING_pop_free(stray_ducks, OPENSSL_STRING_free);
@@ -3057,12 +3073,12 @@ static void walk_cert_3(rcynic_ctx_t *rc,
  */
 static void walk_cert(rcynic_ctx_t *rc,
 		      const certinfo_t *issuer,
-		      STACK_OF(X509) *certs)
+		      STACK_OF(walk_ctx_t) *walk)
 {
-  assert(issuer && certs);
+  assert(issuer && walk);
 
   if (issuer->sia[0] && issuer->ca) {
-    int n_cert = sk_X509_num(certs);
+    int n_walk = sk_walk_ctx_t_num(walk);
     Manifest *manifest = NULL;
 
     rc->indent++;
@@ -3075,21 +3091,28 @@ static void walk_cert(rcynic_ctx_t *rc,
 
     } else {
 
+      STACK_OF(X509) *certs = walk_ctx_stack_certs(walk);
+
+      assert(certs != NULL);
+
       if ((manifest = check_manifest(rc, issuer->manifest, certs)) == NULL)
 	logmsg(rc, log_data_err, "Couldn't get manifest %s, blundering onward", issuer->manifest);
 
+      sk_X509_free(certs);
+      certs = NULL;
+
       logmsg(rc, log_debug, "Walking unauthenticated store");
-      walk_cert_3(rc, certs, issuer, rc->unauthenticated, 0, manifest);
+      walk_cert_3(rc, walk, issuer, rc->unauthenticated, 0, manifest);
       logmsg(rc, log_debug, "Done walking unauthenticated store");
 
       logmsg(rc, log_debug, "Walking old authenticated store");
-      walk_cert_3(rc, certs, issuer, rc->old_authenticated, 1, manifest);
+      walk_cert_3(rc, walk, issuer, rc->old_authenticated, 1, manifest);
       logmsg(rc, log_debug, "Done walking old authenticated store");
 
       Manifest_free(manifest);
     }
 
-    assert(sk_X509_num(certs) == n_cert);
+    assert(sk_walk_ctx_t_num(walk) == n_walk);
 
     rc->indent--;
   }
@@ -3512,21 +3535,24 @@ int main(int argc, char *argv[])
 
     parse_cert(&rc, x, &w->certinfo, uri);
     w->certinfo.ta = 1;
-    sk_X509_push(certs, x);
-
-    if (check_x509(&rc, certs, x, &w->certinfo, &w->certinfo))
-      walk_cert(&rc, &w->certinfo, certs);
+    w->cert = x;
 
     /*
-     * Temporary?  Once this goes async this will have to be handled
-     * elsewhere.
+     * In the long run this certs stack silliness can go away, but for
+     * the moment we still need it because check_x509() expects it.
+     */
+
+    sk_X509_push(certs, x);
+    if (check_x509(&rc, certs, x, &w->certinfo, &w->certinfo))
+      walk_cert(&rc, &w->certinfo, walk);
+    sk_X509_pop(certs);
+
+    /*
+     * Once code goes async this will have to be handled elsewhere.
      */
     walk_ctx_stack_free(walk);
     walk = NULL;
 
-
-    X509_free(sk_X509_pop(certs));
-    assert(sk_X509_num(certs) == 0);
   }
 
   if (prune && !prune_unauthenticated(&rc, rc.unauthenticated,

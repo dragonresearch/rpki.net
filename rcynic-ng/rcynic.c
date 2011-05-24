@@ -2994,9 +2994,18 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk);
 
 /**
- * Recursive walk of certificate hierarchy (core of the program).  The
- * daisy chain recursion is to avoid having to duplicate the stack
- * manipulation and error handling.
+ * Recursive walk of certificate hierarchy (core of the program).
+ *
+ * Check the certificate named by uri, and, if it passes checks,
+ * perform daisy-chain-recursion to check its its outputs.
+ *
+ * hash comes from manifest that included this certificate, or is NULL
+ * if we didn't find this certificate via a manifest.
+ *
+ * certs is what we would get by running walk_ctx_stack_certs(); since
+ * our caller has to generate this stack anyway for the other
+ * functions it calls, we just use the stack it generates rather than
+ * creating yet another one.
  */
 static void walk_cert_1(rcynic_ctx_t *rc,
 			STACK_OF(walk_ctx_t) *walk,
@@ -3032,9 +3041,16 @@ static void walk_cert_1(rcynic_ctx_t *rc,
 }
 
 /**
- * Recursive walk of certificate hierarchy (core of the program).  The
- * daisy chain recursion is to avoid having to duplicate the stack
- * manipulation and error handling.
+ * Recursive walk of certificate hierarchy (core of the program).
+ *
+ * Dispatch to correct checking code for the object named by uri,
+ * based on the filename extension in the uri.  CRLs are a special
+ * case because we've already checked them by the time we get here, so
+ * we just ignore them.  Other objects are either certificates or
+ * CMS-signed objects of one kind or another.
+ *
+ * hash comes from manifest that included this certificate, or is NULL
+ * if we didn't find this certificate via a manifest.
  */
 static void walk_cert_2(rcynic_ctx_t *rc,
 			STACK_OF(walk_ctx_t) *walk,
@@ -3062,12 +3078,17 @@ static void walk_cert_2(rcynic_ctx_t *rc,
 }
 
 /**
- * Recursive walk of certificate hierarchy (core of the program).  The
- * daisy chain recursion is to avoid having to duplicate the stack
- * manipulation and error handling.
+ * Recursive walk of certificate hierarchy (core of the program).
+ *
+ * Walk all products of the current certificate, starting with the
+ * ones named in the manifest and continuing with any that we find in
+ * the publication directory but which are not named in the manifest.
+ *
+ * This function iterates over the manifest and filenames variables
+ * from the walk context.  These loops need to be unrolled as part of
+ * going event-driven.
  */
-static void walk_cert_3(rcynic_ctx_t *rc,
-			STACK_OF(walk_ctx_t) *walk)
+static void walk_cert_3(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
 {
   char uri[URI_MAX];
   FileAndHash *fah;
@@ -3130,9 +3151,23 @@ static void walk_cert_3(rcynic_ctx_t *rc,
 }
 
 /**
- * Recursive walk of certificate hierarchy (core of the program).  The
- * daisy chain recursion is to avoid having to duplicate the stack
- * manipulation and error handling.
+ * Recursive walk of certificate hierarchy (core of the program).
+ *
+ * Callback handler triggered by completion of an rsync_tree() run.
+ * Well, ok, that's not quite how it works yet, but that's where the
+ * design is going.
+ *
+ * This function iterates over the walk context "pass" variable.  That
+ * loop needs to be unrolled as part of going event-driven.  Note that
+ * bumping the pass value involves resetting some of the other values
+ * (freeing the filenames list, restarting the counters for the inner
+ * iterations over the manifest and filenames list).  Also note,
+ * however, that this does -not- involve picking a different manifest:
+ * once we've picked a manifest, we stick with it, for good or ill, we
+ * just iterate over it twice, once for each pass, to pick up backup
+ * copies of other objects in case of timing screws.  The filename
+ * list has to be generated fresh on each pass, because the two
+ * directories may well have different content.
  */
 static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
 {
@@ -3177,9 +3212,15 @@ static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
 }
 
 /**
- * Recursive walk of certificate hierarchy (core of the program).  The
- * daisy chain recursion is to avoid having to duplicate the stack
- * manipulation and error handling.
+ * Recursive walk of certificate hierarchy (core of the program).
+ *
+ * Set up an rsync_tree() fetch.  At the moment, we don't have real
+ * asynchronous callbacks in place yet, so this function simulates
+ * a callback by calling walk_cert_cb() directly.
+ *
+ * This function gets called via daisy-chain-recursion to handle the
+ * full depth of the RPKI certificate tree.  The outermost invocation
+ * of this function expects an RPKI trust anchor.
  */
 static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
 {

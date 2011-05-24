@@ -1519,6 +1519,46 @@ static int prune_unauthenticated(const rcynic_ctx_t *rc,
 
 
 /**
+ * Read non-directory filenames from a directory, so we can check to
+ * see what's missing from a manifest.
+ */
+static STACK_OF(OPENSSL_STRING) *directory_filenames(const rcynic_ctx_t *rc,
+						     const char *prefix,
+						     const char *uri)
+{
+  STACK_OF(OPENSSL_STRING) *result = NULL;
+  char path[FILENAME_MAX];
+  DIR *dir = NULL;
+  struct dirent *d;
+  int ok = 0;
+
+  assert(rc && prefix && uri);
+
+  if (!uri_to_filename(rc, uri, path, sizeof(path), prefix) ||
+      (dir = opendir(path)) == NULL || 
+      (result = sk_OPENSSL_STRING_new(uri_cmp)) == NULL)
+    goto done;
+
+  while ((d = readdir(dir)) != NULL)
+    if (d->d_type != DT_DIR && !sk_OPENSSL_STRING_push_strdup(result, d->d_name))
+      goto done;
+
+  ok = 1;
+
+ done:
+  if (dir != NULL)
+    closedir(dir);
+
+  if (ok)
+    return result;
+
+  sk_OPENSSL_STRING_pop_free(result, OPENSSL_STRING_free);
+  return NULL;
+}
+
+
+
+/**
  * Read a DER object using a BIO pipeline that hashes the file content
  * as we read it.  Returns the internal form of the parsed DER object,
  * sets the hash buffer (if specified) as a side effect.  The default
@@ -3007,12 +3047,10 @@ static void walk_cert_3(rcynic_ctx_t *rc,
 			const int backup,
 			Manifest *manifest)
 {
-  char uri[URI_MAX], path[FILENAME_MAX];
+  char uri[URI_MAX];
   FileAndHash *fah;
   STACK_OF(OPENSSL_STRING) *stray_ducks = NULL;
   const certinfo_t *issuer;
-  DIR *dir = NULL;
-  struct dirent *d;
   walk_ctx_t *w;
   int i;
 
@@ -3025,17 +3063,7 @@ static void walk_cert_3(rcynic_ctx_t *rc,
   /*
    * Pull all non-directory filenames from the publication point directory.
    */
-  if ((stray_ducks = sk_OPENSSL_STRING_new(uri_cmp)) == NULL)
-    logmsg(rc, log_sys_err, "Couldn't allocate stray_ducks stack");
-  else if (!uri_to_filename(rc, issuer->sia, path, sizeof(path), prefix) || (dir = opendir(path)) == NULL)
-    logmsg(rc, log_data_err, "Couldn't list directory %s, skipping check for out-of-manifest data", path);
-  else
-    while ((d = readdir(dir)) != NULL)
-      if (d->d_type != DT_DIR && !sk_OPENSSL_STRING_push_strdup(stray_ducks, d->d_name))
-	logmsg(rc, log_sys_err, "Couldn't strdup() string \"%s\", blundering onwards", d->d_name);
-
-  if (dir != NULL)
-    closedir(dir);
+  stray_ducks = directory_filenames(rc, prefix, issuer->sia);
 
   /*
    * Loop over manifest, checking everything it lists.  Remove any
@@ -3083,10 +3111,47 @@ static void walk_cert_3(rcynic_ctx_t *rc,
  * daisy chain recursion is to avoid having to duplicate the stack
  * manipulation and error handling.
  */
+static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
+{
+  STACK_OF(X509) *certs;
+  Manifest *manifest = NULL;
+  walk_ctx_t *w;
+
+  assert(rc && walk);
+
+  w = sk_walk_ctx_t_value(walk, sk_walk_ctx_t_num(walk) - 1);
+  assert(w);
+
+  certs = walk_ctx_stack_certs(walk);
+  assert(certs);
+
+  if ((manifest = check_manifest(rc, w->certinfo.manifest, certs)) == NULL)
+    logmsg(rc, log_data_err, "Couldn't get manifest %s, blundering onward", w->certinfo.manifest);
+
+  sk_X509_free(certs);
+  certs = NULL;
+
+  logmsg(rc, log_debug, "Walking unauthenticated store");
+  walk_cert_3(rc, walk, rc->unauthenticated, 0, manifest);
+  logmsg(rc, log_debug, "Done walking unauthenticated store");
+
+  logmsg(rc, log_debug, "Walking old authenticated store");
+  walk_cert_3(rc, walk, rc->old_authenticated, 1, manifest);
+  logmsg(rc, log_debug, "Done walking old authenticated store");
+
+  Manifest_free(manifest);
+}
+
+/**
+ * Recursive walk of certificate hierarchy (core of the program).  The
+ * daisy chain recursion is to avoid having to duplicate the stack
+ * manipulation and error handling.
+ */
 static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
 {
   const certinfo_t *issuer;
   walk_ctx_t *w;
+  int n_walk;
 
   assert(rc && walk);
 
@@ -3094,45 +3159,32 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
   assert(w);
   issuer = &w->certinfo;
 
-  if (issuer->sia[0] && issuer->ca) {
-    int n_walk = sk_walk_ctx_t_num(walk);
-    Manifest *manifest = NULL;
+  if (!issuer->sia[0] || !issuer->ca)
+    return;
 
-    rc->indent++;
-
-    rsync_tree(rc, issuer->sia);
-
-    if (!issuer->manifest[0]) {
-
-      logmsg(rc, log_data_err, "Issuer's certificate does not specify a manifest, skipping collection");
-
-    } else {
-
-      STACK_OF(X509) *certs = walk_ctx_stack_certs(walk);
-
-      assert(certs != NULL);
-
-      if ((manifest = check_manifest(rc, issuer->manifest, certs)) == NULL)
-	logmsg(rc, log_data_err, "Couldn't get manifest %s, blundering onward", issuer->manifest);
-
-      sk_X509_free(certs);
-      certs = NULL;
-
-      logmsg(rc, log_debug, "Walking unauthenticated store");
-      walk_cert_3(rc, walk, rc->unauthenticated, 0, manifest);
-      logmsg(rc, log_debug, "Done walking unauthenticated store");
-
-      logmsg(rc, log_debug, "Walking old authenticated store");
-      walk_cert_3(rc, walk, rc->old_authenticated, 1, manifest);
-      logmsg(rc, log_debug, "Done walking old authenticated store");
-
-      Manifest_free(manifest);
-    }
-
-    assert(sk_walk_ctx_t_num(walk) == n_walk);
-
-    rc->indent--;
+  if (!issuer->manifest[0]) {
+    logmsg(rc, log_data_err, "Issuer's certificate does not specify a manifest, skipping collection");
+    return;
   }
+
+  /*
+   * Both the log indentation hack and the assertions to track call
+   * stack against data stack are probably doomed, but leave here
+   * until they stop being useful.
+   */
+
+  rc->indent++;
+  n_walk = sk_walk_ctx_t_num(walk);
+
+  /*
+   * rsync() doesn't take callbacks yet, but pretend it does, so we
+   * can start sorting out which bits of code go where.
+   */
+  rsync_tree(rc, issuer->sia);
+  walk_cert_cb(rc, walk);
+
+  assert(sk_walk_ctx_t_num(walk) == n_walk);
+  rc->indent--;
 }
 
 

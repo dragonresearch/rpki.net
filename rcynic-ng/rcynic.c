@@ -3044,12 +3044,10 @@ static void walk_cert_2(rcynic_ctx_t *rc,
 static void walk_cert_3(rcynic_ctx_t *rc,
 			STACK_OF(walk_ctx_t) *walk,
 			const char *prefix,
-			const int backup,
-			Manifest *manifest)
+			const int backup)
 {
   char uri[URI_MAX];
   FileAndHash *fah;
-  STACK_OF(OPENSSL_STRING) *stray_ducks = NULL;
   const certinfo_t *issuer;
   walk_ctx_t *w;
   int i;
@@ -3063,16 +3061,17 @@ static void walk_cert_3(rcynic_ctx_t *rc,
   /*
    * Pull all non-directory filenames from the publication point directory.
    */
-  stray_ducks = directory_filenames(rc, prefix, issuer->sia);
+  assert(w->filenames == NULL);
+  w->filenames = directory_filenames(rc, prefix, issuer->sia);
 
   /*
    * Loop over manifest, checking everything it lists.  Remove any
    * filenames we find in the manifest from our list of objects found
    * in the publication point directory, so we don't check stuff twice.
    */
-  if (manifest != NULL) {
-    for (i = 0; (fah = sk_FileAndHash_value(manifest->fileList, i)) != NULL; i++) {
-      sk_OPENSSL_STRING_remove(stray_ducks, (char *) fah->file->data);
+  if (w->manifest != NULL) {
+    for (i = 0; (fah = sk_FileAndHash_value(w->manifest->fileList, i)) != NULL; i++) {
+      sk_OPENSSL_STRING_remove(w->filenames, (char *) fah->file->data);
       if (strlen(issuer->sia) + strlen((char *) fah->file->data) >= sizeof(uri)) {
 	logmsg(rc, log_data_err, "URI %s%s too long, skipping", issuer->sia, fah->file->data);
       } else {
@@ -3087,8 +3086,8 @@ static void walk_cert_3(rcynic_ctx_t *rc,
    * Whine about and maybe check any object that was in the directory
    * but not in the manifest, except for the manifest itself.
    */
-  for (i = 0; i < sk_OPENSSL_STRING_num(stray_ducks); i++) {
-    char *s = sk_OPENSSL_STRING_value(stray_ducks, i);
+  for (i = 0; i < sk_OPENSSL_STRING_num(w->filenames); i++) {
+    char *s = sk_OPENSSL_STRING_value(w->filenames, i);
     if (strlen(issuer->sia) + strlen(s) >= sizeof(uri)) {
       logmsg(rc, log_data_err, "URI %s%s too long, skipping", issuer->sia, s);
       continue;
@@ -3103,7 +3102,8 @@ static void walk_cert_3(rcynic_ctx_t *rc,
       walk_cert_2(rc, uri, walk, prefix, backup, NULL, 0);
   }
 
-  sk_OPENSSL_STRING_pop_free(stray_ducks, OPENSSL_STRING_free);
+  sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
+  w->filenames = NULL;
 }
 
 /**
@@ -3114,7 +3114,6 @@ static void walk_cert_3(rcynic_ctx_t *rc,
 static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
 {
   STACK_OF(X509) *certs;
-  Manifest *manifest = NULL;
   walk_ctx_t *w;
 
   assert(rc && walk);
@@ -3125,21 +3124,24 @@ static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
   certs = walk_ctx_stack_certs(walk);
   assert(certs);
 
-  if ((manifest = check_manifest(rc, w->certinfo.manifest, certs)) == NULL)
+  assert(w->manifest == NULL);
+
+  if ((w->manifest = check_manifest(rc, w->certinfo.manifest, certs)) == NULL)
     logmsg(rc, log_data_err, "Couldn't get manifest %s, blundering onward", w->certinfo.manifest);
 
   sk_X509_free(certs);
   certs = NULL;
 
   logmsg(rc, log_debug, "Walking unauthenticated store");
-  walk_cert_3(rc, walk, rc->unauthenticated, 0, manifest);
+  walk_cert_3(rc, walk, rc->unauthenticated, 0);
   logmsg(rc, log_debug, "Done walking unauthenticated store");
 
   logmsg(rc, log_debug, "Walking old authenticated store");
-  walk_cert_3(rc, walk, rc->old_authenticated, 1, manifest);
+  walk_cert_3(rc, walk, rc->old_authenticated, 1);
   logmsg(rc, log_debug, "Done walking old authenticated store");
 
-  Manifest_free(manifest);
+  Manifest_free(w->manifest);
+  w->manifest = NULL;
 }
 
 /**

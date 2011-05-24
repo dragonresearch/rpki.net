@@ -359,6 +359,12 @@ typedef struct rcynic_ctx {
  * Mapping between fields here and automatic variables in the older
  * code is still in flux, names (and anything else) may change.
  */
+typedef enum {
+  walk_pass_current, 	/* prefix = rc->unauthenticated, first pass */
+  walk_pass_backup,  	/* prefix = rc->old_authenticated, second pass */
+  walk_pass_max
+} walk_pass_t;
+
 typedef struct walk_ctx {
   unsigned refcount;
   certinfo_t certinfo;
@@ -366,10 +372,7 @@ typedef struct walk_ctx {
   Manifest *manifest;
   STACK_OF(OPENSSL_STRING) *filenames;
   int manifest_iteration, filename_iteration;
-  enum {
-  	walk_pass_current, 	/* prefix = rc->unauthenticated, first pass */
-	walk_pass_backup 	/* prefix = rc->old_authenticated, second pass */
-  } pass;
+  walk_pass_t pass;
 } walk_ctx_t;
 
 DECLARE_STACK_OF(walk_ctx_t)
@@ -1523,16 +1526,28 @@ static int prune_unauthenticated(const rcynic_ctx_t *rc,
  * see what's missing from a manifest.
  */
 static STACK_OF(OPENSSL_STRING) *directory_filenames(const rcynic_ctx_t *rc,
-						     const char *prefix,
+						     const walk_pass_t pass,
 						     const char *uri)
 {
   STACK_OF(OPENSSL_STRING) *result = NULL;
   char path[FILENAME_MAX];
+  const char *prefix = NULL;
   DIR *dir = NULL;
   struct dirent *d;
   int ok = 0;
 
-  assert(rc && prefix && uri);
+  assert(rc && uri);
+
+  switch (pass) {
+  case walk_pass_current:
+    prefix = rc->unauthenticated;
+    break;
+  case walk_pass_backup:
+    prefix = rc->old_authenticated;
+    break;
+  default:
+    goto done;
+  }
 
   if (!uri_to_filename(rc, uri, path, sizeof(path), prefix) ||
       (dir = opendir(path)) == NULL || 
@@ -2209,15 +2224,31 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 			STACK_OF(X509) *certs,
 			const certinfo_t *issuer,
 			certinfo_t *subject,
-			const char *prefix,
-			const int backup,
+			const walk_pass_t pass,
 			const unsigned char *hash,
 			const size_t hashlen)
 {
+  mib_counter_t accept_code, reject_code;
+  const char *prefix = NULL;
   char path[FILENAME_MAX];
   X509 *x;
 
-  assert(rc && uri && certs && issuer && subject && prefix);
+  assert(rc && uri && certs && issuer && subject);
+
+  switch (pass) {
+  case walk_pass_current:
+    prefix = rc->unauthenticated;
+    accept_code = current_cert_accepted;
+    reject_code = current_cert_rejected;
+    break;
+  case walk_pass_backup:
+    prefix = rc->old_authenticated;
+    accept_code = backup_cert_accepted;
+    reject_code = backup_cert_rejected;
+    break;
+  default:
+    return NULL;
+  }
 
   /*
    * If target file already exists and we're not here to recheck with
@@ -2226,7 +2257,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 
   if (uri_to_filename(rc, uri, path, sizeof(path), rc->authenticated) && 
       !access(path, R_OK)) {
-    if (backup || sk_OPENSSL_STRING_find(rc->backup_cache, uri) < 0)
+    if (pass == walk_pass_backup || sk_OPENSSL_STRING_find(rc->backup_cache, uri) < 0)
       return NULL;
     mib_increment(rc, uri, current_cert_recheck);
     logmsg(rc, log_telemetry, "Rechecking %s", uri);
@@ -2239,16 +2270,14 @@ static X509 *check_cert(rcynic_ctx_t *rc,
   if ((x = check_cert_1(rc, uri, path, sizeof(path), prefix,
 			certs, issuer, subject, hash, hashlen)) != NULL) {
     install_object(rc, uri, path);
-    mib_increment(rc, uri,
-		  (backup ? backup_cert_accepted : current_cert_accepted));
-    if (!backup)
+    mib_increment(rc, uri, accept_code);
+    if (pass == walk_pass_current)
       sk_OPENSSL_STRING_remove(rc->backup_cache, uri);
     else if (!sk_OPENSSL_STRING_push_strdup(rc->backup_cache, uri))
       logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri);
       
   } else if (!access(path, F_OK)) {
-    mib_increment(rc, uri,
-		  (backup ? backup_cert_rejected : current_cert_rejected));
+    mib_increment(rc, uri, reject_code);
   }
 
   rc->indent--;
@@ -2970,24 +2999,22 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk);
  * manipulation and error handling.
  */
 static void walk_cert_1(rcynic_ctx_t *rc,
-			char *uri,
 			STACK_OF(walk_ctx_t) *walk,
-			STACK_OF(X509) *certs,
-			const char *prefix,
-			const int backup,
+			char *uri,
 			const unsigned char *hash,
-			const size_t hashlen)
+			const size_t hashlen,
+			STACK_OF(X509) *certs)
 {
   certinfo_t subject;
   walk_ctx_t *w;
   X509 *x;
 
-  assert(rc && uri && walk && certs && prefix);
+  assert(rc && uri && walk && certs);
 
   w = sk_walk_ctx_t_value(walk, sk_walk_ctx_t_num(walk) - 1);
   assert(w);
 
-  if ((x = check_cert(rc, uri, certs, &w->certinfo, &subject, prefix, backup, hash, hashlen)) == NULL)
+  if ((x = check_cert(rc, uri, certs, &w->certinfo, &subject, w->pass, hash, hashlen)) == NULL)
     return;
 
   if ((w = walk_ctx_stack_push(walk)) == NULL) {
@@ -3010,22 +3037,20 @@ static void walk_cert_1(rcynic_ctx_t *rc,
  * manipulation and error handling.
  */
 static void walk_cert_2(rcynic_ctx_t *rc,
-			char *uri,
 			STACK_OF(walk_ctx_t) *walk,
-			const char *prefix,
-			const int backup,
+			char *uri,
 			const unsigned char *hash,
 			const size_t hashlen)
 {
   STACK_OF(X509) *certs = NULL;
 
-  assert(rc && uri && walk && prefix);
+  assert(rc && uri && walk);
 
   certs = walk_ctx_stack_certs(walk);
   assert(certs);
 
   if (endswith(uri, ".cer"))
-    walk_cert_1(rc, uri, walk, certs, prefix, backup, hash, hashlen);
+    walk_cert_1(rc, walk, uri, hash, hashlen, certs);
   else if (endswith(uri, ".roa"))
     check_roa(rc, uri, certs, hash, hashlen);
   else if (endswith(uri, ".gbr"))
@@ -3042,9 +3067,7 @@ static void walk_cert_2(rcynic_ctx_t *rc,
  * manipulation and error handling.
  */
 static void walk_cert_3(rcynic_ctx_t *rc,
-			STACK_OF(walk_ctx_t) *walk,
-			const char *prefix,
-			const int backup)
+			STACK_OF(walk_ctx_t) *walk)
 {
   char uri[URI_MAX];
   FileAndHash *fah;
@@ -3052,7 +3075,7 @@ static void walk_cert_3(rcynic_ctx_t *rc,
   walk_ctx_t *w;
   int i;
 
-  assert(rc && walk && prefix);
+  assert(rc && walk);
 
   w = sk_walk_ctx_t_value(walk, sk_walk_ctx_t_num(walk) - 1);
   assert(w);
@@ -3062,7 +3085,7 @@ static void walk_cert_3(rcynic_ctx_t *rc,
    * Pull all non-directory filenames from the publication point directory.
    */
   assert(w->filenames == NULL);
-  w->filenames = directory_filenames(rc, prefix, issuer->sia);
+  w->filenames = directory_filenames(rc, w->pass, issuer->sia);
 
   /*
    * Loop over manifest, checking everything it lists.  Remove any
@@ -3077,7 +3100,7 @@ static void walk_cert_3(rcynic_ctx_t *rc,
       } else {
 	strcpy(uri, issuer->sia);
 	strcat(uri, (char *) fah->file->data);
-	walk_cert_2(rc, uri, walk, prefix, backup, fah->hash->data, fah->hash->length);
+	walk_cert_2(rc, walk, uri, fah->hash->data, fah->hash->length);
       }
     }
   }
@@ -3099,7 +3122,7 @@ static void walk_cert_3(rcynic_ctx_t *rc,
     logmsg(rc, log_telemetry, "Object %s present in publication directory but not in manifest", uri);
     mib_increment(rc, uri, object_not_in_manifest);
     if (rc->allow_object_not_in_manifest)
-      walk_cert_2(rc, uri, walk, prefix, backup, NULL, 0);
+      walk_cert_2(rc, walk, uri, NULL, 0);
   }
 
   sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
@@ -3132,13 +3155,22 @@ static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
   sk_X509_free(certs);
   certs = NULL;
 
-  logmsg(rc, log_debug, "Walking unauthenticated store");
-  walk_cert_3(rc, walk, rc->unauthenticated, 0);
-  logmsg(rc, log_debug, "Done walking unauthenticated store");
+  assert(w->pass == walk_pass_current);
 
-  logmsg(rc, log_debug, "Walking old authenticated store");
-  walk_cert_3(rc, walk, rc->old_authenticated, 1);
-  logmsg(rc, log_debug, "Done walking old authenticated store");
+  while (w->pass < walk_pass_max) {
+    const char *label;
+    switch (w->pass) {
+    case walk_pass_current: 	label = "unauthenticated";	break;
+    case walk_pass_backup:  	label = "old authenticated"; 	break;
+    default:			label = "[???]";		break;
+    }
+
+    logmsg(rc, log_debug, "Walking %s store", label);
+    walk_cert_3(rc, walk);
+    logmsg(rc, log_debug, "Done walking %s store", label);
+
+    w->pass++;
+  }
 
   Manifest_free(w->manifest);
   w->manifest = NULL;

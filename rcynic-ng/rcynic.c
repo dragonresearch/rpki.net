@@ -543,6 +543,59 @@ static void walk_ctx_decref(walk_ctx_t *w)
 }
 
 /**
+ * Whether we're done iterating over a walk context.
+ */
+static int walk_ctx_done(walk_ctx_t *w)
+{
+  assert(w != NULL);
+  return w->pass >= walk_pass_max;
+}
+
+/**
+ * Walk context iterator.
+ *
+ * This is still under construction, but general idea is that we have
+ * several state variables in a walk context which collectively define
+ * the current pass, product URI, etc, and we want to be able to
+ * iterate through this sequence via the event system.  So we need a
+ * function which steps to the next state or indicates that no such
+ * state exists.
+ *
+ * NB: when the pass variable increments, we need to reset everything
+ * else, including the filenames list.  This last will either require
+ * some support from the calling routine or some bit of cleverness I
+ * haven't thought of yet, because something has to recognize when
+ * we've started a new pass and need to populate that list with the
+ * content of the newly selected directory.  We can't just do it here
+ * because this needs to happen at the beginning of the first pass,
+ * before this function ever gets called.  Probably just add another
+ * method which checks for both _iteration values being zero and does
+ * the obvious thing given the SIA value.
+ *
+ * Have not quite figured out how this methodology handles emtpy sets:
+ * what if both manifest and filenames list are empty?
+ */
+static int walk_ctx_next(walk_ctx_t *w)
+{
+  assert(w != NULL);
+
+  if (w->manifest && w->manifest_iteration < sk_FileAndHash_num(w->manifest->fileList)) {
+    w->manifest_iteration++;
+  } else if (w->filenames && w->filename_iteration < sk_OPENSSL_STRING_num(w->filenames)) {
+    w->filename_iteration++;
+  } else if (w->pass < walk_pass_max) {
+    w->pass++;
+    w->manifest_iteration = 0;
+    w->filename_iteration = 0;
+    sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
+    w->filenames = NULL;
+  }
+
+  return !walk_ctx_done(w);
+}
+
+
+/**
  * Create a new walk context stack.
  */
 static STACK_OF(walk_ctx_t) *walk_ctx_stack_new(void)

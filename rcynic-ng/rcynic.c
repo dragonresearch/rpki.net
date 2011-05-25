@@ -1196,41 +1196,19 @@ static void walk_ctx_decref(walk_ctx_t *w)
 }
 
 /**
- * Whether we're done iterating over a walk context.
- */
-static int walk_ctx_loop_done(walk_ctx_t *w)
-{
-  assert(w != NULL);
-  return w->pass >= walk_pass_max;
-}
-
-/**
- * Walk context iterator.
+ * Walk context iterator.  Think of this as the thing you call in the
+ * third clause of a conceptual "for" loop: this reinitializes as
+ * necessary for the next pass through the loop.
  *
  * This is still under construction, but general idea is that we have
  * several state variables in a walk context which collectively define
  * the current pass, product URI, etc, and we want to be able to
  * iterate through this sequence via the event system.  So we need a
- * function which steps to the next state or indicates that no such
- * state exists.
- *
- * NB: when the pass variable increments, we need to reset everything
- * else, including the filenames list.  This last will either require
- * some support from the calling routine or some bit of cleverness I
- * haven't thought of yet, because something has to recognize when
- * we've started a new pass and need to populate that list with the
- * content of the newly selected directory.  We can't just do it here
- * because this needs to happen at the beginning of the first pass,
- * before this function ever gets called.  Probably just add another
- * method which checks for both _iteration values being zero and does
- * the obvious thing given the SIA value.
- *
- * Have not quite figured out how this methodology handles emtpy sets:
- * what if both manifest and filenames list are empty?
+ * function which steps to the next state.
  */
-static int walk_ctx_loop_next(const rcynic_ctx_t *rc, walk_ctx_t *w)
+static void walk_ctx_loop_next(const rcynic_ctx_t *rc, walk_ctx_t *w)
 {
-  assert(w != NULL);
+  assert(rc && w);
 
   if (w->manifest && w->manifest_iteration < sk_FileAndHash_num(w->manifest->fileList)) {
     w->manifest_iteration++;
@@ -1243,22 +1221,76 @@ static int walk_ctx_loop_next(const rcynic_ctx_t *rc, walk_ctx_t *w)
     sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
     w->filenames = directory_filenames(rc, w->pass, &w->certinfo.sia);
   }
-
-  return !walk_ctx_loop_done(w);
 }
 
 /**
- * Loop initializer for walk context.
+ * Whether we're done iterating over a walk context.  Think of this as
+ * the thing you call (negated) in the second clause of a conceptual
+ * "for" loop.
  */
-static int walk_ctx_loop_init(const rcynic_ctx_t *rc, walk_ctx_t *w)
+static int walk_ctx_loop_done(walk_ctx_t *w)
+{
+  assert(w != NULL);
+  return w->pass >= walk_pass_max;
+}
+
+/**
+ * Loop initializer for walk context.  THink of this as the thing you
+ * call in the first clause of a conceptual "for" loop.
+ */
+static void walk_ctx_loop_init(const rcynic_ctx_t *rc, walk_ctx_t *w)
 {
   assert(w->pass == walk_pass_current && w->manifest_iteration == 0 && w->filename_iteration == 0 && w->filenames == NULL);
   w->filenames = directory_filenames(rc, w->pass, &w->certinfo.sia);
-  if ((w->manifest && w->manifest_iteration < sk_FileAndHash_num(w->manifest->fileList)) ||
-      (w->filenames && w->filename_iteration < sk_OPENSSL_STRING_num(w->filenames)))
-    return 1;
-  else
-    return walk_ctx_loop_next(rc, w);
+  if ((w->manifest == NULL || w->manifest_iteration >= sk_FileAndHash_num(w->manifest->fileList)) &&
+      (w->filenames == NULL || w->filename_iteration >= sk_OPENSSL_STRING_num(w->filenames)))
+    walk_ctx_loop_next(rc, w);
+}
+
+/**
+ * Extract URI and hash values from walk context.
+ */
+static int walk_ctx_loop_this(const rcynic_ctx_t *rc,
+			      const walk_ctx_t *w,
+			      uri_t *uri,
+			      unsigned const char **hash,
+			      size_t *hashlen)
+{
+  const char *name = NULL;
+  FileAndHash *fah = NULL;
+
+  assert(rc && w && uri && hash && hashlen);
+
+  if (w->manifest != NULL && w->manifest_iteration < sk_FileAndHash_num(w->manifest->fileList)) {
+    fah = sk_FileAndHash_value(w->manifest->fileList, w->manifest_iteration);
+    name = (const char *) fah->file->data;
+  } else if (w->filenames != NULL && w->filename_iteration < sk_OPENSSL_STRING_num(w->filenames)) {
+    name = sk_OPENSSL_STRING_value(w->filenames, w->filename_iteration);
+  }
+
+  if (name == NULL) {
+    logmsg(rc, log_sys_err, "Can't seem to find a URI in this walk context, this shouldn't happen");
+    return 0;
+  }
+
+  if (strlen(w->certinfo.sia.s) + strlen(name) >= sizeof(uri->s)) {
+    logmsg(rc, log_data_err, "URI %s%s too long, skipping", w->certinfo.sia.s, uri->s);
+    return 0;
+  }
+
+  strcpy(uri->s, w->certinfo.sia.s);
+  strcat(uri->s, name);
+
+  if (fah != NULL) {
+    sk_OPENSSL_STRING_remove(w->filenames, name);
+    *hash = fah->hash->data;
+    *hashlen = fah->hash->length;
+  } else {
+    *hash = NULL;
+    *hashlen = 0;
+  }
+
+  return 1;
 }
 
 /**
@@ -3226,69 +3258,8 @@ static void walk_cert_2(rcynic_ctx_t *rc,
  * This function iterates over the manifest and filenames variables
  * from the walk context.  These loops need to be unrolled as part of
  * going event-driven.
- */
-static void walk_cert_3(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
-{
-  uri_t uri;
-  FileAndHash *fah;
-  const certinfo_t *issuer;
-  walk_ctx_t *w;
-  int i;
-
-  assert(rc && wsk);
-
-  w = walk_ctx_stack_head(wsk);
-  issuer = &w->certinfo;
-
-  /*
-   * Pull all non-directory filenames from the publication point directory.
-   */
-  assert(w->filenames == NULL);
-  w->filenames = directory_filenames(rc, w->pass, &issuer->sia);
-
-  /*
-   * Loop over manifest, checking everything it lists.  Remove any
-   * filenames we find in the manifest from our list of objects found
-   * in the publication point directory, so we don't check stuff twice.
-   */
-  if (w->manifest != NULL) {
-    for (i = 0; (fah = sk_FileAndHash_value(w->manifest->fileList, i)) != NULL; i++) {
-      sk_OPENSSL_STRING_remove(w->filenames, (char *) fah->file->data);
-      if (strlen(issuer->sia.s) + strlen((char *) fah->file->data) >= sizeof(uri.s)) {
-	logmsg(rc, log_data_err, "URI %s%s too long, skipping", issuer->sia.s, fah->file->data);
-      } else {
-	strcpy(uri.s, issuer->sia.s);
-	strcat(uri.s, (char *) fah->file->data);
-	walk_cert_2(rc, wsk, &uri, fah->hash->data, fah->hash->length);
-      }
-    }
-  }
-
-  /*
-   * Whine about and maybe check any object that was in the directory
-   * but not in the manifest, except for the manifest itself.
-   */
-  for (i = 0; i < sk_OPENSSL_STRING_num(w->filenames); i++) {
-    char *s = sk_OPENSSL_STRING_value(w->filenames, i);
-    if (strlen(issuer->sia.s) + strlen(s) >= sizeof(uri.s)) {
-      logmsg(rc, log_data_err, "URI %s%s too long, skipping", issuer->sia.s, s);
-      continue;
-    }
-    strcpy(uri.s, issuer->sia.s);
-    strcat(uri.s, s);
-    if (!strcmp(uri.s, issuer->manifest.s))
-      continue;
-    logmsg(rc, log_telemetry, "Object %s present in publication directory but not in manifest", uri.s);
-    mib_increment(rc, &uri, object_not_in_manifest);
-    if (rc->allow_object_not_in_manifest)
-      walk_cert_2(rc, wsk, &uri, NULL, 0);
-  }
-
-  sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
-  w->filenames = NULL;
-}
-
-/**
+ *
+ *
  * Recursive walk of certificate hierarchy (core of the program).
  *
  * Callback handler triggered by completion of an rsync_tree() run.
@@ -3330,7 +3301,9 @@ static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
   assert(w->pass == walk_pass_current);
 
   while (w->pass < walk_pass_max) {
+
     const char *label;
+
     switch (w->pass) {
     case walk_pass_current: 	label = "unauthenticated";	break;
     case walk_pass_backup:  	label = "old authenticated"; 	break;
@@ -3338,7 +3311,61 @@ static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
     }
 
     logmsg(rc, log_debug, "Walking %s store", label);
-    walk_cert_3(rc, wsk);
+
+    {
+      const certinfo_t *issuer = &w->certinfo;
+      FileAndHash *fah;
+      uri_t uri;
+      int i;
+
+      /*
+       * Pull all non-directory filenames from the publication point directory.
+       */
+      assert(w->filenames == NULL);
+      w->filenames = directory_filenames(rc, w->pass, &issuer->sia);
+
+      /*
+       * Loop over manifest, checking everything it lists.  Remove any
+       * filenames we find in the manifest from our list of objects found
+       * in the publication point directory, so we don't check stuff twice.
+       */
+      if (w->manifest != NULL) {
+	for (i = 0; (fah = sk_FileAndHash_value(w->manifest->fileList, i)) != NULL; i++) {
+	  sk_OPENSSL_STRING_remove(w->filenames, (char *) fah->file->data);
+	  if (strlen(issuer->sia.s) + strlen((char *) fah->file->data) >= sizeof(uri.s)) {
+	    logmsg(rc, log_data_err, "URI %s%s too long, skipping", issuer->sia.s, fah->file->data);
+	  } else {
+	    strcpy(uri.s, issuer->sia.s);
+	    strcat(uri.s, (char *) fah->file->data);
+	    walk_cert_2(rc, wsk, &uri, fah->hash->data, fah->hash->length);
+	  }
+	}
+      }
+
+      /*
+       * Whine about and maybe check any object that was in the directory
+       * but not in the manifest, except for the manifest itself.
+       */
+      for (i = 0; i < sk_OPENSSL_STRING_num(w->filenames); i++) {
+	char *s = sk_OPENSSL_STRING_value(w->filenames, i);
+	if (strlen(issuer->sia.s) + strlen(s) >= sizeof(uri.s)) {
+	  logmsg(rc, log_data_err, "URI %s%s too long, skipping", issuer->sia.s, s);
+	  continue;
+	}
+	strcpy(uri.s, issuer->sia.s);
+	strcat(uri.s, s);
+	if (!strcmp(uri.s, issuer->manifest.s))
+	  continue;
+	logmsg(rc, log_telemetry, "Object %s present in publication directory but not in manifest", uri.s);
+	mib_increment(rc, &uri, object_not_in_manifest);
+	if (rc->allow_object_not_in_manifest)
+	  walk_cert_2(rc, wsk, &uri, NULL, 0);
+      }
+
+      sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
+      w->filenames = NULL;
+    }
+
     logmsg(rc, log_debug, "Done walking %s store", label);
 
     w->pass++;

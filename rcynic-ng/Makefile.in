@@ -9,7 +9,7 @@ OBJ = ${NAME}.o
 GEN = defstack.h
 HDR = defasn1.h ${GEN}
 
-CFLAGS = @CFLAGS@ -Wall -Wshadow -Wmissing-prototypes -Wmissing-declarations
+CFLAGS = @CFLAGS@ -Wall -Wshadow -Wmissing-prototypes -Wmissing-declarations -Werror-implicit-function-declaration
 LDFLAGS = @LDFLAGS@ @LD_STATIC_FLAG@
 LIBS = @LIBS@
 

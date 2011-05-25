@@ -496,185 +496,6 @@ static void VALIDATION_STATUS_free(VALIDATION_STATUS *v)
     free(v);
 }
 
-/**
- * Allocate a new walk context.
- */
-static walk_ctx_t *walk_ctx_new(void)
-{
-  walk_ctx_t *w = malloc(sizeof(*w));
-  if (w != NULL) {
-    memset(w, 0, sizeof(*w));
-  }
-  return w;
-}
-
-/**
- * Free a walk context.
- */
-static void walk_ctx_free(walk_ctx_t *w)
-{
-  if (w == NULL)
-    return;
-  assert(w->refcount == 0);
-  X509_free(w->cert);
-  Manifest_free(w->manifest);
-  sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
-  free(w);
-}
-
-/**
- * Increment walk context reference count.
- */
-static void walk_ctx_incref(walk_ctx_t *w)
-{
-  if (w != NULL) {
-    w->refcount++;
-    assert(w->refcount != 0);
-  }
-}
-
-/**
- * Decrement walk context reference count.
- */
-static void walk_ctx_decref(walk_ctx_t *w)
-{
-  if (w != NULL && --(w->refcount) == 0)
-    walk_ctx_free(w);
-}
-
-/**
- * Whether we're done iterating over a walk context.
- */
-static int walk_ctx_done(walk_ctx_t *w)
-{
-  assert(w != NULL);
-  return w->pass >= walk_pass_max;
-}
-
-/**
- * Walk context iterator.
- *
- * This is still under construction, but general idea is that we have
- * several state variables in a walk context which collectively define
- * the current pass, product URI, etc, and we want to be able to
- * iterate through this sequence via the event system.  So we need a
- * function which steps to the next state or indicates that no such
- * state exists.
- *
- * NB: when the pass variable increments, we need to reset everything
- * else, including the filenames list.  This last will either require
- * some support from the calling routine or some bit of cleverness I
- * haven't thought of yet, because something has to recognize when
- * we've started a new pass and need to populate that list with the
- * content of the newly selected directory.  We can't just do it here
- * because this needs to happen at the beginning of the first pass,
- * before this function ever gets called.  Probably just add another
- * method which checks for both _iteration values being zero and does
- * the obvious thing given the SIA value.
- *
- * Have not quite figured out how this methodology handles emtpy sets:
- * what if both manifest and filenames list are empty?
- */
-static int walk_ctx_next(walk_ctx_t *w)
-{
-  assert(w != NULL);
-
-  if (w->manifest && w->manifest_iteration < sk_FileAndHash_num(w->manifest->fileList)) {
-    w->manifest_iteration++;
-  } else if (w->filenames && w->filename_iteration < sk_OPENSSL_STRING_num(w->filenames)) {
-    w->filename_iteration++;
-  } else if (w->pass < walk_pass_max) {
-    w->pass++;
-    w->manifest_iteration = 0;
-    w->filename_iteration = 0;
-    sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
-    w->filenames = NULL;
-  }
-
-  return !walk_ctx_done(w);
-}
-
-
-/**
- * Create a new walk context stack.
- */
-static STACK_OF(walk_ctx_t) *walk_ctx_stack_new(void)
-{
-  return sk_walk_ctx_t_new_null();
-}
-
-/**
- * Push a walk context onto a walk context stack, return the new context.
- */
-static walk_ctx_t *walk_ctx_stack_push(STACK_OF(walk_ctx_t) *sk)
-{
-  walk_ctx_t *w = walk_ctx_new();
-
-  if (w == NULL || !sk_walk_ctx_t_push(sk, w)) {
-    walk_ctx_free(w);
-    return NULL;
-  }
-
-  walk_ctx_incref(w);
-  return w;
-}
-
-/**
- * Pop and discard a walk context from a walk context stack.
- */
-static void walk_ctx_stack_pop(STACK_OF(walk_ctx_t) *sk)
-{
-  walk_ctx_decref(sk_walk_ctx_t_pop(sk));
-}
-
-/**
- * Clone a stack of walk contexts.
- */
-static STACK_OF(walk_ctx_t) *walk_ctx_stack_clone(STACK_OF(walk_ctx_t) *old_sk)
-{
-  STACK_OF(walk_ctx_t) *new_sk;
-  int i;
-  if (old_sk == NULL || (new_sk = sk_walk_ctx_t_dup(old_sk)) == NULL)
-    return NULL;
-  for (i = 0; i < sk_walk_ctx_t_num(new_sk); i++)
-    walk_ctx_incref(sk_walk_ctx_t_value(new_sk, i));
-  return new_sk;
-}
-
-/**
- * Extract certificate stack from walk context stack.  Returns a newly
- * created STACK_OF(X509) pointing to the existing cert objects (ie,
- * this is a shallow copy, so only free the STACK_OF(X509), not the
- * certificates themselves).
- */
-static STACK_OF(X509) *walk_ctx_stack_certs(STACK_OF(walk_ctx_t) *sk)
-{
-  STACK_OF(X509) *xk = sk_X509_new_null();
-  walk_ctx_t *w;
-  int i;
-
-  for (i = 0; i < sk_walk_ctx_t_num(sk); i++)
-    if ((w = sk_walk_ctx_t_value(sk, i)) == NULL ||
-	(w->cert != NULL && !sk_X509_push(xk, w->cert)))
-      goto fail;
-
-  return xk;
-
- fail:
-  sk_X509_free(xk);
-  return NULL;
-}
-
-
-/**
- * Free a walk context stack, decrementing reference counts of each
- * frame on it.
- */
-static void walk_ctx_stack_free(STACK_OF(walk_ctx_t) *sk)
-{
-  sk_walk_ctx_t_pop_free(sk, walk_ctx_decref);
-}
-
 
 
 /**
@@ -1236,6 +1057,259 @@ static int rm_rf(const char *name)
 
 
 /**
+ * Read non-directory filenames from a directory, so we can check to
+ * see what's missing from a manifest.
+ */
+static STACK_OF(OPENSSL_STRING) *directory_filenames(const rcynic_ctx_t *rc,
+						     const walk_pass_t pass,
+						     const char *uri)
+{
+  STACK_OF(OPENSSL_STRING) *result = NULL;
+  char path[FILENAME_MAX];
+  const char *prefix = NULL;
+  DIR *dir = NULL;
+  struct dirent *d;
+  int ok = 0;
+
+  assert(rc && uri);
+
+  switch (pass) {
+  case walk_pass_current:
+    prefix = rc->unauthenticated;
+    break;
+  case walk_pass_backup:
+    prefix = rc->old_authenticated;
+    break;
+  default:
+    goto done;
+  }
+
+  if (!uri_to_filename(rc, uri, path, sizeof(path), prefix) ||
+      (dir = opendir(path)) == NULL || 
+      (result = sk_OPENSSL_STRING_new(uri_cmp)) == NULL)
+    goto done;
+
+  while ((d = readdir(dir)) != NULL)
+    if (d->d_type != DT_DIR && !sk_OPENSSL_STRING_push_strdup(result, d->d_name))
+      goto done;
+
+  ok = 1;
+
+ done:
+  if (dir != NULL)
+    closedir(dir);
+
+  if (ok)
+    return result;
+
+  sk_OPENSSL_STRING_pop_free(result, OPENSSL_STRING_free);
+  return NULL;
+}
+
+/**
+ * Allocate a new walk context.
+ */
+static walk_ctx_t *walk_ctx_new(void)
+{
+  walk_ctx_t *w = malloc(sizeof(*w));
+  if (w != NULL) {
+    memset(w, 0, sizeof(*w));
+  }
+  return w;
+}
+
+/**
+ * Free a walk context.
+ */
+static void walk_ctx_free(walk_ctx_t *w)
+{
+  if (w == NULL)
+    return;
+  assert(w->refcount == 0);
+  X509_free(w->cert);
+  Manifest_free(w->manifest);
+  sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
+  free(w);
+}
+
+/**
+ * Increment walk context reference count.
+ */
+static void walk_ctx_incref(walk_ctx_t *w)
+{
+  if (w != NULL) {
+    w->refcount++;
+    assert(w->refcount != 0);
+  }
+}
+
+/**
+ * Decrement walk context reference count.
+ */
+static void walk_ctx_decref(walk_ctx_t *w)
+{
+  if (w != NULL && --(w->refcount) == 0)
+    walk_ctx_free(w);
+}
+
+/**
+ * Whether we're done iterating over a walk context.
+ */
+static int walk_ctx_loop_done(walk_ctx_t *w)
+{
+  assert(w != NULL);
+  return w->pass >= walk_pass_max;
+}
+
+/**
+ * Walk context iterator.
+ *
+ * This is still under construction, but general idea is that we have
+ * several state variables in a walk context which collectively define
+ * the current pass, product URI, etc, and we want to be able to
+ * iterate through this sequence via the event system.  So we need a
+ * function which steps to the next state or indicates that no such
+ * state exists.
+ *
+ * NB: when the pass variable increments, we need to reset everything
+ * else, including the filenames list.  This last will either require
+ * some support from the calling routine or some bit of cleverness I
+ * haven't thought of yet, because something has to recognize when
+ * we've started a new pass and need to populate that list with the
+ * content of the newly selected directory.  We can't just do it here
+ * because this needs to happen at the beginning of the first pass,
+ * before this function ever gets called.  Probably just add another
+ * method which checks for both _iteration values being zero and does
+ * the obvious thing given the SIA value.
+ *
+ * Have not quite figured out how this methodology handles emtpy sets:
+ * what if both manifest and filenames list are empty?
+ */
+static int walk_ctx_loop_next(const rcynic_ctx_t *rc, walk_ctx_t *w)
+{
+  assert(w != NULL);
+
+  if (w->manifest && w->manifest_iteration < sk_FileAndHash_num(w->manifest->fileList)) {
+    w->manifest_iteration++;
+  } else if (w->filenames && w->filename_iteration < sk_OPENSSL_STRING_num(w->filenames)) {
+    w->filename_iteration++;
+  } else if (w->pass < walk_pass_max) {
+    w->pass++;
+    w->manifest_iteration = 0;
+    w->filename_iteration = 0;
+    sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
+    w->filenames = directory_filenames(rc, w->pass, w->certinfo.sia);
+  }
+
+  return !walk_ctx_loop_done(w);
+}
+
+/**
+ * Loop initializer for walk context.
+ */
+static int walk_ctx_loop_init(const rcynic_ctx_t *rc, walk_ctx_t *w)
+{
+  assert(w->pass == walk_pass_current && w->manifest_iteration == 0 && w->filename_iteration == 0 && w->filenames == NULL);
+  w->filenames = directory_filenames(rc, w->pass, w->certinfo.sia);
+  if ((w->manifest && w->manifest_iteration < sk_FileAndHash_num(w->manifest->fileList)) ||
+      (w->filenames && w->filename_iteration < sk_OPENSSL_STRING_num(w->filenames)))
+    return 1;
+  else
+    return walk_ctx_loop_next(rc, w);
+}
+
+/**
+ * Create a new walk context stack.
+ */
+static STACK_OF(walk_ctx_t) *walk_ctx_stack_new(void)
+{
+  return sk_walk_ctx_t_new_null();
+}
+
+/**
+ * Push a walk context onto a walk context stack, return the new context.
+ */
+static walk_ctx_t *walk_ctx_stack_push(STACK_OF(walk_ctx_t) *wsk)
+{
+  walk_ctx_t *w = walk_ctx_new();
+
+  if (w == NULL || !sk_walk_ctx_t_push(wsk, w)) {
+    walk_ctx_free(w);
+    return NULL;
+  }
+
+  walk_ctx_incref(w);
+  return w;
+}
+
+/**
+ * Pop and discard a walk context from a walk context stack.
+ */
+static void walk_ctx_stack_pop(STACK_OF(walk_ctx_t) *wsk)
+{
+  walk_ctx_decref(sk_walk_ctx_t_pop(wsk));
+}
+
+/**
+ * Return top context of a walk context stack.
+ */
+static walk_ctx_t *walk_ctx_stack_head(STACK_OF(walk_ctx_t) *wsk)
+{
+  walk_ctx_t *w = sk_walk_ctx_t_value(wsk, sk_walk_ctx_t_num(wsk) - 1);
+  assert(w != NULL);
+  return w;
+}
+
+/**
+ * Clone a stack of walk contexts.
+ */
+static STACK_OF(walk_ctx_t) *walk_ctx_stack_clone(STACK_OF(walk_ctx_t) *old_wsk)
+{
+  STACK_OF(walk_ctx_t) *new_wsk;
+  int i;
+  if (old_wsk == NULL || (new_wsk = sk_walk_ctx_t_dup(old_wsk)) == NULL)
+    return NULL;
+  for (i = 0; i < sk_walk_ctx_t_num(new_wsk); i++)
+    walk_ctx_incref(sk_walk_ctx_t_value(new_wsk, i));
+  return new_wsk;
+}
+
+/**
+ * Extract certificate stack from walk context stack.  Returns a newly
+ * created STACK_OF(X509) pointing to the existing cert objects (ie,
+ * this is a shallow copy, so only free the STACK_OF(X509), not the
+ * certificates themselves).
+ */
+static STACK_OF(X509) *walk_ctx_stack_certs(STACK_OF(walk_ctx_t) *wsk)
+{
+  STACK_OF(X509) *xsk = sk_X509_new_null();
+  walk_ctx_t *w;
+  int i;
+
+  for (i = 0; i < sk_walk_ctx_t_num(wsk); i++)
+    if ((w = sk_walk_ctx_t_value(wsk, i)) == NULL ||
+	(w->cert != NULL && !sk_X509_push(xsk, w->cert)))
+      goto fail;
+
+  return xsk;
+
+ fail:
+  sk_X509_free(xsk);
+  return NULL;
+}
+
+/**
+ * Free a walk context stack, decrementing reference counts of each
+ * frame on it.
+ */
+static void walk_ctx_stack_free(STACK_OF(walk_ctx_t) *wsk)
+{
+  sk_walk_ctx_t_pop_free(wsk, walk_ctx_decref);
+}
+
+
+
+/**
  * Maintain a cache of URIs we've already fetched.
  */
 static int rsync_cached_string(const rcynic_ctx_t *rc,
@@ -1570,58 +1644,6 @@ static int prune_unauthenticated(const rcynic_ctx_t *rc,
  done:
   closedir(dir);
   return !d;
-}
-
-
-
-/**
- * Read non-directory filenames from a directory, so we can check to
- * see what's missing from a manifest.
- */
-static STACK_OF(OPENSSL_STRING) *directory_filenames(const rcynic_ctx_t *rc,
-						     const walk_pass_t pass,
-						     const char *uri)
-{
-  STACK_OF(OPENSSL_STRING) *result = NULL;
-  char path[FILENAME_MAX];
-  const char *prefix = NULL;
-  DIR *dir = NULL;
-  struct dirent *d;
-  int ok = 0;
-
-  assert(rc && uri);
-
-  switch (pass) {
-  case walk_pass_current:
-    prefix = rc->unauthenticated;
-    break;
-  case walk_pass_backup:
-    prefix = rc->old_authenticated;
-    break;
-  default:
-    goto done;
-  }
-
-  if (!uri_to_filename(rc, uri, path, sizeof(path), prefix) ||
-      (dir = opendir(path)) == NULL || 
-      (result = sk_OPENSSL_STRING_new(uri_cmp)) == NULL)
-    goto done;
-
-  while ((d = readdir(dir)) != NULL)
-    if (d->d_type != DT_DIR && !sk_OPENSSL_STRING_push_strdup(result, d->d_name))
-      goto done;
-
-  ok = 1;
-
- done:
-  if (dir != NULL)
-    closedir(dir);
-
-  if (ok)
-    return result;
-
-  sk_OPENSSL_STRING_pop_free(result, OPENSSL_STRING_free);
-  return NULL;
 }
 
 
@@ -3044,7 +3066,7 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
 
 
-static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk);
+static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk);
 
 /**
  * Recursive walk of certificate hierarchy (core of the program).
@@ -3061,7 +3083,7 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk);
  * creating yet another one.
  */
 static void walk_cert_1(rcynic_ctx_t *rc,
-			STACK_OF(walk_ctx_t) *walk,
+			STACK_OF(walk_ctx_t) *wsk,
 			char *uri,
 			const unsigned char *hash,
 			const size_t hashlen,
@@ -3071,15 +3093,14 @@ static void walk_cert_1(rcynic_ctx_t *rc,
   walk_ctx_t *w;
   X509 *x;
 
-  assert(rc && uri && walk && certs);
+  assert(rc && uri && wsk && certs);
 
-  w = sk_walk_ctx_t_value(walk, sk_walk_ctx_t_num(walk) - 1);
-  assert(w);
+  w = walk_ctx_stack_head(wsk);
 
   if ((x = check_cert(rc, uri, certs, &w->certinfo, &subject, w->pass, hash, hashlen)) == NULL)
     return;
 
-  if ((w = walk_ctx_stack_push(walk)) == NULL) {
+  if ((w = walk_ctx_stack_push(wsk)) == NULL) {
     logmsg(rc, log_sys_err,
 	   "Internal allocation failure recursing over certificate");
     return;
@@ -3088,9 +3109,9 @@ static void walk_cert_1(rcynic_ctx_t *rc,
   w->cert = x;
   w->certinfo = subject;
 
-  walk_cert(rc, walk);
+  walk_cert(rc, wsk);
 
-  walk_ctx_stack_pop(walk);
+  walk_ctx_stack_pop(wsk);
 }
 
 /**
@@ -3106,20 +3127,20 @@ static void walk_cert_1(rcynic_ctx_t *rc,
  * if we didn't find this certificate via a manifest.
  */
 static void walk_cert_2(rcynic_ctx_t *rc,
-			STACK_OF(walk_ctx_t) *walk,
+			STACK_OF(walk_ctx_t) *wsk,
 			char *uri,
 			const unsigned char *hash,
 			const size_t hashlen)
 {
   STACK_OF(X509) *certs = NULL;
 
-  assert(rc && uri && walk);
+  assert(rc && uri && wsk);
 
-  certs = walk_ctx_stack_certs(walk);
+  certs = walk_ctx_stack_certs(wsk);
   assert(certs);
 
   if (endswith(uri, ".cer"))
-    walk_cert_1(rc, walk, uri, hash, hashlen, certs);
+    walk_cert_1(rc, wsk, uri, hash, hashlen, certs);
   else if (endswith(uri, ".roa"))
     check_roa(rc, uri, certs, hash, hashlen);
   else if (endswith(uri, ".gbr"))
@@ -3141,7 +3162,7 @@ static void walk_cert_2(rcynic_ctx_t *rc,
  * from the walk context.  These loops need to be unrolled as part of
  * going event-driven.
  */
-static void walk_cert_3(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
+static void walk_cert_3(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 {
   char uri[URI_MAX];
   FileAndHash *fah;
@@ -3149,10 +3170,9 @@ static void walk_cert_3(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
   walk_ctx_t *w;
   int i;
 
-  assert(rc && walk);
+  assert(rc && wsk);
 
-  w = sk_walk_ctx_t_value(walk, sk_walk_ctx_t_num(walk) - 1);
-  assert(w);
+  w = walk_ctx_stack_head(wsk);
   issuer = &w->certinfo;
 
   /*
@@ -3174,7 +3194,7 @@ static void walk_cert_3(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
       } else {
 	strcpy(uri, issuer->sia);
 	strcat(uri, (char *) fah->file->data);
-	walk_cert_2(rc, walk, uri, fah->hash->data, fah->hash->length);
+	walk_cert_2(rc, wsk, uri, fah->hash->data, fah->hash->length);
       }
     }
   }
@@ -3196,7 +3216,7 @@ static void walk_cert_3(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
     logmsg(rc, log_telemetry, "Object %s present in publication directory but not in manifest", uri);
     mib_increment(rc, uri, object_not_in_manifest);
     if (rc->allow_object_not_in_manifest)
-      walk_cert_2(rc, walk, uri, NULL, 0);
+      walk_cert_2(rc, wsk, uri, NULL, 0);
   }
 
   sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
@@ -3222,17 +3242,16 @@ static void walk_cert_3(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
  * list has to be generated fresh on each pass, because the two
  * directories may well have different content.
  */
-static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
+static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 {
   STACK_OF(X509) *certs;
   walk_ctx_t *w;
 
-  assert(rc && walk);
+  assert(rc && wsk);
 
-  w = sk_walk_ctx_t_value(walk, sk_walk_ctx_t_num(walk) - 1);
-  assert(w);
+  w = walk_ctx_stack_head(wsk);
 
-  certs = walk_ctx_stack_certs(walk);
+  certs = walk_ctx_stack_certs(wsk);
   assert(certs);
 
   assert(w->manifest == NULL);
@@ -3254,7 +3273,7 @@ static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
     }
 
     logmsg(rc, log_debug, "Walking %s store", label);
-    walk_cert_3(rc, walk);
+    walk_cert_3(rc, wsk);
     logmsg(rc, log_debug, "Done walking %s store", label);
 
     w->pass++;
@@ -3275,16 +3294,15 @@ static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
  * full depth of the RPKI certificate tree.  The outermost invocation
  * of this function expects an RPKI trust anchor.
  */
-static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
+static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 {
   const certinfo_t *issuer;
   walk_ctx_t *w;
-  int n_walk;
+  int n_wsk;
 
-  assert(rc && walk);
+  assert(rc && wsk);
 
-  w = sk_walk_ctx_t_value(walk, sk_walk_ctx_t_num(walk) - 1);
-  assert(w);
+  w = walk_ctx_stack_head(wsk);
   issuer = &w->certinfo;
 
   if (!issuer->sia[0] || !issuer->ca)
@@ -3302,16 +3320,16 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *walk)
    */
 
   rc->indent++;
-  n_walk = sk_walk_ctx_t_num(walk);
+  n_wsk = sk_walk_ctx_t_num(wsk);
 
   /*
    * rsync() doesn't take callbacks yet, but pretend it does, so we
    * can start sorting out which bits of code go where.
    */
   rsync_tree(rc, issuer->sia);
-  walk_cert_cb(rc, walk);
+  walk_cert_cb(rc, wsk);
 
-  assert(sk_walk_ctx_t_num(walk) == n_walk);
+  assert(sk_walk_ctx_t_num(wsk) == n_wsk);
   rc->indent--;
 }
 
@@ -3330,7 +3348,7 @@ int main(int argc, char *argv[])
   char *lockfile = NULL, *xmlfile = NULL;
   int c, i, j, ret = 1, jitter = 600, lockfd = -1;
   STACK_OF(CONF_VALUE) *cfg_section = NULL;
-  STACK_OF(walk_ctx_t) *walk = NULL;
+  STACK_OF(walk_ctx_t) *wsk = NULL;
   CONF *cfg_handle = NULL;
   walk_ctx_t *w = NULL;
   time_t start = 0, finish;
@@ -3714,12 +3732,12 @@ int main(int argc, char *argv[])
       goto done;
     }
 
-    if ((walk = walk_ctx_stack_new()) == NULL) {
+    if ((wsk = walk_ctx_stack_new()) == NULL) {
       logmsg(&rc, log_sys_err, "Couldn't allocate walk context stack");
       goto done;
     }
 
-    if ((w = walk_ctx_stack_push(walk)) == NULL) {
+    if ((w = walk_ctx_stack_push(wsk)) == NULL) {
       logmsg(&rc, log_sys_err, "Couldn't push walk context stack");
       goto done;
     }
@@ -3729,13 +3747,13 @@ int main(int argc, char *argv[])
     w->cert = x;
 
     if (check_ta(&rc, x, &w->certinfo))
-      walk_cert(&rc, walk);
+      walk_cert(&rc, wsk);
 
     /*
      * Once code goes async this will have to be handled elsewhere.
      */
-    walk_ctx_stack_free(walk);
-    walk = NULL;
+    walk_ctx_stack_free(wsk);
+    wsk = NULL;
 
   }
 

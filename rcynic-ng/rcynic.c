@@ -3930,10 +3930,10 @@ int main(int argc, char *argv[])
   if (start) {
     finish = time(0);
     logmsg(&rc, log_telemetry,
-	   "Finished, elapsed time %d:%02d:%02d",
-	   (finish - start) / 3600,
-	   (finish - start) / 60 % 60,
-	   (finish - start) % 60);
+	   "Finished, elapsed time %u:%02u:%02u",
+	   (unsigned) ((finish - start) / 3600),
+	   (unsigned) ((finish - start) / 60 % 60),
+	   (unsigned) ((finish - start) % 60));
   }
 
   return ret;

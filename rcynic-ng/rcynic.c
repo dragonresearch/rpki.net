@@ -1155,35 +1155,9 @@ static STACK_OF(OPENSSL_STRING) *directory_filenames(const rcynic_ctx_t *rc,
 
 
 /**
- * Allocate a new walk context.
- */
-static walk_ctx_t *walk_ctx_new(void)
-{
-  walk_ctx_t *w = malloc(sizeof(*w));
-  if (w != NULL) {
-    memset(w, 0, sizeof(*w));
-  }
-  return w;
-}
-
-/**
- * Free a walk context.
- */
-static void walk_ctx_free(walk_ctx_t *w)
-{
-  if (w == NULL)
-    return;
-  assert(w->refcount == 0);
-  X509_free(w->cert);
-  Manifest_free(w->manifest);
-  sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
-  free(w);
-}
-
-/**
  * Increment walk context reference count.
  */
-static void walk_ctx_incref(walk_ctx_t *w)
+static void walk_ctx_attach(walk_ctx_t *w)
 {
   if (w != NULL) {
     w->refcount++;
@@ -1192,12 +1166,18 @@ static void walk_ctx_incref(walk_ctx_t *w)
 }
 
 /**
- * Decrement walk context reference count.
+ * Decrement walk context reference count; freeing the context if the
+ * reference count is now zero.
  */
-static void walk_ctx_decref(walk_ctx_t *w)
+static void walk_ctx_detach(walk_ctx_t *w)
 {
-  if (w != NULL && --(w->refcount) == 0)
-    walk_ctx_free(w);
+  if (w != NULL && --(w->refcount) == 0) {
+    assert(w->refcount == 0);
+    X509_free(w->cert);
+    Manifest_free(w->manifest);
+    sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
+    free(w);
+  }
 }
 
 /**
@@ -1346,19 +1326,28 @@ static STACK_OF(walk_ctx_t) *walk_ctx_stack_new(void)
 /**
  * Push a walk context onto a walk context stack, return the new context.
  */
-static walk_ctx_t *walk_ctx_stack_push(STACK_OF(walk_ctx_t) *wsk)
+static walk_ctx_t *walk_ctx_stack_push(STACK_OF(walk_ctx_t) *wsk,
+				       X509 *x,
+				       const certinfo_t *certinfo)
 {
-  walk_ctx_t *w = walk_ctx_new();
+  walk_ctx_t *w;
 
-  if (w == NULL)
+  if (x == NULL || certinfo == NULL)
     return NULL;
 
+  if ((w = malloc(sizeof(*w))) == NULL)
+    return NULL;
+
+  memset(w, 0, sizeof(*w));
+  w->cert = x;
+  w->certinfo = *certinfo;
+
   if (!sk_walk_ctx_t_push(wsk, w)) {
-    walk_ctx_free(w);
+    free(w);
     return NULL;
   }
 
-  walk_ctx_incref(w);
+  walk_ctx_attach(w);
   return w;
 }
 
@@ -1367,7 +1356,7 @@ static walk_ctx_t *walk_ctx_stack_push(STACK_OF(walk_ctx_t) *wsk)
  */
 static void walk_ctx_stack_pop(STACK_OF(walk_ctx_t) *wsk)
 {
-  walk_ctx_decref(sk_walk_ctx_t_pop(wsk));
+  walk_ctx_detach(sk_walk_ctx_t_pop(wsk));
 }
 
 /**
@@ -1380,7 +1369,7 @@ static STACK_OF(walk_ctx_t) *walk_ctx_stack_clone(STACK_OF(walk_ctx_t) *old_wsk)
   if (old_wsk == NULL || (new_wsk = sk_walk_ctx_t_dup(old_wsk)) == NULL)
     return NULL;
   for (i = 0; i < sk_walk_ctx_t_num(new_wsk); i++)
-    walk_ctx_incref(sk_walk_ctx_t_value(new_wsk, i));
+    walk_ctx_attach(sk_walk_ctx_t_value(new_wsk, i));
   return new_wsk;
 }
 
@@ -1414,7 +1403,7 @@ static STACK_OF(X509) *walk_ctx_stack_certs(STACK_OF(walk_ctx_t) *wsk)
  */
 static void walk_ctx_stack_free(STACK_OF(walk_ctx_t) *wsk)
 {
-  sk_walk_ctx_t_pop_free(wsk, walk_ctx_decref);
+  sk_walk_ctx_t_pop_free(wsk, walk_ctx_detach);
 }
 
 
@@ -2333,25 +2322,6 @@ static int check_x509(const rcynic_ctx_t *rc,
   X509_CRL_free(crl);
 
   return ret;
-}
-
-/**
- * Check a trust anchor.  Yes, we trust it, by definition, but it
- * still needs to conform to the certificate profile, the
- * self-signature must be correct, etcetera.
- */
-static int check_ta(const rcynic_ctx_t *rc,
-		    STACK_OF(walk_ctx_t) *wsk)
-{
-  STACK_OF(X509) *certs = walk_ctx_stack_certs(wsk);
-  walk_ctx_t *w = walk_ctx_stack_head(wsk);
-  int result = 0;
-
-  if (certs != NULL && w)
-    result = check_x509(rc, certs, w->cert, &w->certinfo, &w->certinfo);
-
-  sk_X509_free(certs);
-  return result;
 }
 
 /**
@@ -3332,17 +3302,10 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 
       if (endswith(uri.s, ".cer")) {
 	certinfo_t subject;
-	X509 *x;
-
-	if ((x = check_cert(rc, &uri, wsk, &subject, hash, hashlen)) != NULL &&
-	    (w = walk_ctx_stack_push(wsk)) != NULL) {
-	  w->cert = x;
-	  w->certinfo = subject;
-	  continue;		/* Walk in new child's state */
-	} else {
+	X509 *x = check_cert(rc, &uri, wsk, &subject, hash, hashlen);
+	if (!walk_ctx_stack_push(wsk, x, &subject))
 	  walk_ctx_loop_next(rc, wsk);
-	  continue;
-	}
+	continue;
       }
 
       logmsg(rc, log_telemetry, "Don't know how to check object %s, ignoring", uri.s);
@@ -3357,6 +3320,26 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 
     }
   }
+}
+
+/**
+ * Check a trust anchor.  Yes, we trust it, by definition, but it
+ * still needs to conform to the certificate profile, the
+ * self-signature must be correct, etcetera.
+ */
+static void check_ta(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
+{
+  STACK_OF(X509) *certs = walk_ctx_stack_certs(wsk);
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
+  int ok = 0;
+
+  if (certs  != NULL && w != NULL)
+    ok = check_x509(rc, certs, w->cert, &w->certinfo, &w->certinfo);
+
+  sk_X509_free(certs);
+
+  if (ok)
+    walk_cert(rc, wsk);
 }
 
 
@@ -3647,6 +3630,7 @@ int main(int argc, char *argv[])
   for (i = 0; i < sk_CONF_VALUE_num(cfg_section); i++) {
     CONF_VALUE *val = sk_CONF_VALUE_value(cfg_section, i);
     path_t path1, path2;
+    certinfo_t ta_certinfo;
     uri_t uri;
     X509 *x = NULL;
 
@@ -3769,17 +3753,15 @@ int main(int argc, char *argv[])
       goto done;
     }
 
-    if ((w = walk_ctx_stack_push(wsk)) == NULL) {
+    parse_cert(&rc, x, &ta_certinfo, &uri);
+    ta_certinfo.ta = 1;
+
+    if ((w = walk_ctx_stack_push(wsk, x, &ta_certinfo)) == NULL) {
       logmsg(&rc, log_sys_err, "Couldn't push walk context stack");
       goto done;
     }
 
-    parse_cert(&rc, x, &w->certinfo, &uri);
-    w->certinfo.ta = 1;
-    w->cert = x;
-
-    if (check_ta(&rc, wsk))
-      walk_cert(&rc, wsk);
+    check_ta(&rc, wsk);
 
     /*
      * Once code goes async this will have to be handled elsewhere.

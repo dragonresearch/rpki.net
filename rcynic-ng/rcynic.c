@@ -3176,115 +3176,19 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk);
 /**
  * Recursive walk of certificate hierarchy (core of the program).
  *
- * Check the certificate named by uri, and, if it passes checks,
- * perform daisy-chain-recursion to check its its outputs.
- *
- * hash comes from manifest that included this certificate, or is NULL
- * if we didn't find this certificate via a manifest.
- *
- * certs is what we would get by running walk_ctx_stack_certs(); since
- * our caller has to generate this stack anyway for the other
- * functions it calls, we just use the stack it generates rather than
- * creating yet another one.
- */
-static void walk_cert_1(rcynic_ctx_t *rc,
-			STACK_OF(walk_ctx_t) *wsk,
-			uri_t *uri,
-			const unsigned char *hash,
-			const size_t hashlen,
-			STACK_OF(X509) *certs)
-{
-  certinfo_t subject;
-  walk_ctx_t *w;
-  X509 *x;
-
-  assert(rc && uri && wsk && certs);
-
-  w = walk_ctx_stack_head(wsk);
-
-  if ((x = check_cert(rc, uri, certs, &w->certinfo, &subject, w->pass, hash, hashlen)) == NULL)
-    return;
-
-  if ((w = walk_ctx_stack_push(wsk)) == NULL) {
-    logmsg(rc, log_sys_err,
-	   "Internal allocation failure recursing over certificate");
-    return;
-  }
-
-  w->cert = x;
-  w->certinfo = subject;
-
-  walk_cert(rc, wsk);
-
-  walk_ctx_stack_pop(wsk);
-}
-
-/**
- * Recursive walk of certificate hierarchy (core of the program).
- *
- * Dispatch to correct checking code for the object named by uri,
- * based on the filename extension in the uri.  CRLs are a special
- * case because we've already checked them by the time we get here, so
- * we just ignore them.  Other objects are either certificates or
- * CMS-signed objects of one kind or another.
- *
- * hash comes from manifest that included this certificate, or is NULL
- * if we didn't find this certificate via a manifest.
- */
-static void walk_cert_2(rcynic_ctx_t *rc,
-			STACK_OF(walk_ctx_t) *wsk,
-			uri_t *uri,
-			const unsigned char *hash,
-			const size_t hashlen)
-{
-  STACK_OF(X509) *certs = NULL;
-
-  assert(rc && uri && wsk);
-
-  certs = walk_ctx_stack_certs(wsk);
-  assert(certs);
-
-  if (endswith(uri->s, ".cer"))
-    walk_cert_1(rc, wsk, uri, hash, hashlen, certs);
-  else if (endswith(uri->s, ".roa"))
-    check_roa(rc, uri, certs, hash, hashlen);
-  else if (endswith(uri->s, ".gbr"))
-    check_ghostbuster(rc, uri, certs, hash, hashlen);
-  else if (!endswith(uri->s, ".crl"))
-    logmsg(rc, log_telemetry, "Don't know how to check object %s, ignoring", uri->s);
-
-  sk_X509_free(certs);
-}
-
-/**
- * Recursive walk of certificate hierarchy (core of the program).
+ * Callback handler triggered by completion of an rsync_tree() run.
+ * Well, ok, that's not quite how it works yet, but that's where the
+ * design is going.
  *
  * Walk all products of the current certificate, starting with the
  * ones named in the manifest and continuing with any that we find in
  * the publication directory but which are not named in the manifest.
  *
- * This function iterates over the manifest and filenames variables
- * from the walk context.  These loops need to be unrolled as part of
- * going event-driven.
- *
- *
- * Recursive walk of certificate hierarchy (core of the program).
- *
- * Callback handler triggered by completion of an rsync_tree() run.
- * Well, ok, that's not quite how it works yet, but that's where the
- * design is going.
- *
- * This function iterates over the walk context "pass" variable.  That
- * loop needs to be unrolled as part of going event-driven.  Note that
- * bumping the pass value involves resetting some of the other values
- * (freeing the filenames list, restarting the counters for the inner
- * iterations over the manifest and filenames list).  Also note,
- * however, that this does -not- involve picking a different manifest:
- * once we've picked a manifest, we stick with it, for good or ill, we
- * just iterate over it twice, once for each pass, to pick up backup
- * copies of other objects in case of timing screws.  The filename
- * list has to be generated fresh on each pass, because the two
- * directories may well have different content.
+ * Dispatch to correct checking code for the object named by URI,
+ * based on the filename extension in the uri.  CRLs are a special
+ * case because we've already checked them by the time we get here, so
+ * we just ignore them.  Other objects are either certificates or
+ * CMS-signed objects of one kind or another.
  */
 static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 {
@@ -3325,7 +3229,57 @@ static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
     if (hash == NULL && !rc->allow_object_not_in_manifest)
       continue;
 
-    walk_cert_2(rc, wsk, &uri, hash, hashlen);
+    if (endswith(uri.s, ".crl"))
+      continue;
+
+    if (endswith(uri.s, ".roa")) {
+      certs = walk_ctx_stack_certs(wsk);
+      assert(certs);
+      check_roa(rc, &uri, certs, hash, hashlen);
+      sk_X509_free(certs);
+      continue;
+    }
+
+    if (endswith(uri.s, ".gbr")) {
+      certs = walk_ctx_stack_certs(wsk);
+      assert(certs);
+      check_ghostbuster(rc, &uri, certs, hash, hashlen);
+      sk_X509_free(certs);
+      continue;
+    }
+
+    /*
+     * This is ugly, but we need to finish unrolling all the loops and
+     * recursion, so easiest to move it here while we sort that out.
+     */
+    if (endswith(uri.s, ".cer")) {
+      certinfo_t subject;
+      X509 *x;
+
+      certs = walk_ctx_stack_certs(wsk);
+      assert(certs);
+
+      x = check_cert(rc, &uri, certs, &w->certinfo, &subject, w->pass, hash, hashlen);
+      sk_X509_free(certs);
+
+      if (x == NULL)
+	continue;
+
+      if ((w = walk_ctx_stack_push(wsk)) == NULL) {
+	logmsg(rc, log_sys_err, "Internal allocation failure recursing over certificate");
+	w = walk_ctx_stack_head(wsk);
+	continue;
+      }
+
+      w->cert = x;
+      w->certinfo = subject;
+      walk_cert(rc, wsk);
+      walk_ctx_stack_pop(wsk);
+      w = walk_ctx_stack_head(wsk);
+      continue;
+    }
+
+    logmsg(rc, log_telemetry, "Don't know how to check object %s, ignoring", uri.s);
   }
 
   Manifest_free(w->manifest);

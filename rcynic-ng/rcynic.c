@@ -1198,6 +1198,14 @@ static void walk_ctx_decref(walk_ctx_t *w)
 }
 
 /**
+ * Return top context of a walk context stack.
+ */
+static walk_ctx_t *walk_ctx_stack_head(STACK_OF(walk_ctx_t) *wsk)
+{
+  return sk_walk_ctx_t_value(wsk, sk_walk_ctx_t_num(wsk) - 1);
+}
+
+/**
  * Walk context iterator.  Think of this as the thing you call in the
  * third clause of a conceptual "for" loop: this reinitializes as
  * necessary for the next pass through the loop.
@@ -1208,9 +1216,11 @@ static void walk_ctx_decref(walk_ctx_t *w)
  * iterate through this sequence via the event system.  So we need a
  * function which steps to the next state.
  */
-static void walk_ctx_loop_next(const rcynic_ctx_t *rc, walk_ctx_t *w)
+static void walk_ctx_loop_next(const rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 {
-  assert(rc && w);
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
+
+  assert(rc && wsk && w);
 
   if (w->manifest && w->manifest_iteration + 1 < sk_FileAndHash_num(w->manifest->fileList)) {
     w->manifest_iteration++;
@@ -1236,39 +1246,55 @@ static void walk_ctx_loop_next(const rcynic_ctx_t *rc, walk_ctx_t *w)
  * the thing you call (negated) in the second clause of a conceptual
  * "for" loop.
  */
-static int walk_ctx_loop_done(walk_ctx_t *w)
+static int walk_ctx_loop_done(STACK_OF(walk_ctx_t) *wsk)
 {
-  assert(w != NULL);
-  return w->pass >= walk_pass_max;
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
+  return wsk == NULL || w == NULL || w->pass >= walk_pass_max;
 }
+
+static Manifest *check_manifest(const rcynic_ctx_t *rc,
+				STACK_OF(walk_ctx_t) *wsk);
 
 /**
  * Loop initializer for walk context.  Think of this as the thing you
  * call in the first clause of a conceptual "for" loop.
  */
-static void walk_ctx_loop_init(const rcynic_ctx_t *rc, walk_ctx_t *w)
+static void walk_ctx_loop_init(const rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 {
-  assert(w->pass == walk_pass_current && w->manifest_iteration == 0 && w->filename_iteration == 0 && w->filenames == NULL);
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
+
+  assert(rc != NULL && wsk != NULL && w != NULL &&
+	 w->pass == walk_pass_current &&
+	 w->manifest_iteration == 0 &&
+	 w->filename_iteration == 0 &&
+	 w->filenames == NULL &&
+	 w->manifest == NULL);
+
+  if ((w->manifest = check_manifest(rc, wsk)) == NULL)
+    logmsg(rc, log_data_err, "Couldn't get manifest %s, blundering onward", w->certinfo.manifest.s);
+
   w->filenames = directory_filenames(rc, w->pass, &w->certinfo.sia);
-  while (w->pass < walk_pass_max &&
+
+  while (!walk_ctx_loop_done(wsk) &&
 	 (w->manifest == NULL  || w->manifest_iteration >= sk_FileAndHash_num(w->manifest->fileList)) &&
 	 (w->filenames == NULL || w->filename_iteration >= sk_OPENSSL_STRING_num(w->filenames)))
-    walk_ctx_loop_next(rc, w);
+    walk_ctx_loop_next(rc, wsk);
 }
 
 /**
  * Extract URI and hash values from walk context.
  */
 static int walk_ctx_loop_this(const rcynic_ctx_t *rc,
-			      const walk_ctx_t *w,
+			      STACK_OF(walk_ctx_t) *wsk,
 			      uri_t *uri,
 			      const unsigned char **hash,
 			      size_t *hashlen)
 {
+  const walk_ctx_t *w = walk_ctx_stack_head(wsk);
   const char *name = NULL;
   FileAndHash *fah = NULL;
 
-  assert(rc && w && uri && hash && hashlen);
+  assert(rc && wsk && w && uri && hash && hashlen);
 
   if (w->manifest != NULL && w->manifest_iteration < sk_FileAndHash_num(w->manifest->fileList)) {
     fah = sk_FileAndHash_value(w->manifest->fileList, w->manifest_iteration);
@@ -1336,14 +1362,6 @@ static walk_ctx_t *walk_ctx_stack_push(STACK_OF(walk_ctx_t) *wsk)
 static void walk_ctx_stack_pop(STACK_OF(walk_ctx_t) *wsk)
 {
   walk_ctx_decref(sk_walk_ctx_t_pop(wsk));
-}
-
-/**
- * Return top context of a walk context stack.
- */
-static walk_ctx_t *walk_ctx_stack_head(STACK_OF(walk_ctx_t) *wsk)
-{
-  return sk_walk_ctx_t_value(wsk, sk_walk_ctx_t_num(wsk) - 1);
 }
 
 /**
@@ -2317,12 +2335,15 @@ static int check_x509(const rcynic_ctx_t *rc,
  * self-signature must be correct, etcetera.
  */
 static int check_ta(const rcynic_ctx_t *rc,
-		    X509 *x,
-		    const certinfo_t *subject)
+		    STACK_OF(walk_ctx_t) *wsk)
 {
-  STACK_OF(X509) *certs = sk_X509_new_null();
-  int result = (sk_X509_push(certs, x) &&
-		check_x509(rc, certs, x, subject, subject));
+  STACK_OF(X509) *certs = walk_ctx_stack_certs(wsk);
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
+  int result = 0;
+
+  if (certs != NULL && w)
+    result = check_x509(rc, certs, w->cert, &w->certinfo, &w->certinfo);
+
   sk_X509_free(certs);
   return result;
 }
@@ -3213,14 +3234,8 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
 
 
-static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk);
-
 /**
  * Recursive walk of certificate hierarchy (core of the program).
- *
- * Callback handler triggered by completion of an rsync_tree() run.
- * Well, ok, that's not quite how it works yet, but that's where the
- * design is going.
  *
  * Walk all products of the current certificate, starting with the
  * ones named in the manifest and continuing with any that we find in
@@ -3232,23 +3247,42 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk);
  * we just ignore them.  Other objects are either certificates or
  * CMS-signed objects of one kind or another.
  */
-static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
+static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
   const unsigned char *hash = NULL;
   size_t hashlen;
+  int n_wsk;
   uri_t uri;
 
   assert(rc && wsk && w);
 
-  assert(w->manifest == NULL);
+  if (!w->certinfo.sia.s[0] || !w->certinfo.ca)
+    return;
 
-  if ((w->manifest = check_manifest(rc, wsk)) == NULL)
-    logmsg(rc, log_data_err, "Couldn't get manifest %s, blundering onward", w->certinfo.manifest.s);
+  if (!w->certinfo.manifest.s[0]) {
+    logmsg(rc, log_data_err, "Issuer's certificate does not specify a manifest, skipping collection");
+    return;
+  }
 
-  for (walk_ctx_loop_init(rc, w); !walk_ctx_loop_done(w); walk_ctx_loop_next(rc, w)) {
+  /*
+   * Both the log indentation hack and the assertions to track call
+   * stack against data stack are probably doomed, but leave here
+   * until they stop being useful.
+   */
 
-    if (!walk_ctx_loop_this(rc, w, &uri, &hash, &hashlen))
+  rc->indent++;
+  n_wsk = sk_walk_ctx_t_num(wsk);
+
+  /*
+   * rsync() doesn't take callbacks yet, but this is where the
+   * callback would go.
+   */
+  rsync_tree(rc, &w->certinfo.sia);
+
+  for (walk_ctx_loop_init(rc, wsk); !walk_ctx_loop_done(wsk); walk_ctx_loop_next(rc, wsk)) {
+
+    if (!walk_ctx_loop_this(rc, wsk, &uri, &hash, &hashlen))
       continue;
       
     if (endswith(uri.s, ".crl") || endswith(uri.s, ".mft") || endswith(uri.s, ".mnf"))
@@ -3284,62 +3318,11 @@ static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 	walk_ctx_stack_pop(wsk);
       }
 
-      w = walk_ctx_stack_head(wsk);
       continue;
     }
 
     logmsg(rc, log_telemetry, "Don't know how to check object %s, ignoring", uri.s);
   }
-
-  Manifest_free(w->manifest);
-  w->manifest = NULL;
-}
-
-/**
- * Recursive walk of certificate hierarchy (core of the program).
- *
- * Set up an rsync_tree() fetch.  At the moment, we don't have real
- * asynchronous callbacks in place yet, so this function simulates
- * a callback by calling walk_cert_cb() directly.
- *
- * This function gets called via daisy-chain-recursion to handle the
- * full depth of the RPKI certificate tree.  The outermost invocation
- * of this function expects an RPKI trust anchor.
- */
-static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
-{
-  const certinfo_t *issuer;
-  walk_ctx_t *w;
-  int n_wsk;
-
-  assert(rc && wsk);
-
-  w = walk_ctx_stack_head(wsk);
-  issuer = &w->certinfo;
-
-  if (!issuer->sia.s[0] || !issuer->ca)
-    return;
-
-  if (!issuer->manifest.s[0]) {
-    logmsg(rc, log_data_err, "Issuer's certificate does not specify a manifest, skipping collection");
-    return;
-  }
-
-  /*
-   * Both the log indentation hack and the assertions to track call
-   * stack against data stack are probably doomed, but leave here
-   * until they stop being useful.
-   */
-
-  rc->indent++;
-  n_wsk = sk_walk_ctx_t_num(wsk);
-
-  /*
-   * rsync() doesn't take callbacks yet, but pretend it does, so we
-   * can start sorting out which bits of code go where.
-   */
-  rsync_tree(rc, &issuer->sia);
-  walk_cert_cb(rc, wsk);
 
   assert(sk_walk_ctx_t_num(wsk) == n_wsk);
   rc->indent--;
@@ -3764,7 +3747,7 @@ int main(int argc, char *argv[])
     w->certinfo.ta = 1;
     w->cert = x;
 
-    if (check_ta(&rc, x, &w->certinfo))
+    if (check_ta(&rc, wsk))
       walk_cert(&rc, wsk);
 
     /*

@@ -381,10 +381,13 @@ typedef struct rcynic_ctx {
  * code is still in flux, names (and anything else) may change.
  */
 typedef enum {
-  walk_pass_current, 	/* prefix = rc->unauthenticated, first pass */
-  walk_pass_backup,  	/* prefix = rc->old_authenticated, second pass */
-  walk_pass_max
-} walk_pass_t;
+  walk_state_initial,		/* Initial state */
+  walk_state_rsync,		/* rsyncing certinfo.sia */
+  walk_state_ready,		/* Ready to traverse outputs */
+  walk_state_current,		/* prefix = rc->unauthenticated */
+  walk_state_backup,		/* prefix = rc->old_authenticated */
+  walk_state_done		/* Done walking this cert's outputs */
+} walk_state_t;
 
 typedef struct walk_ctx {
   unsigned refcount;
@@ -393,7 +396,7 @@ typedef struct walk_ctx {
   Manifest *manifest;
   STACK_OF(OPENSSL_STRING) *filenames;
   int manifest_iteration, filename_iteration;
-  walk_pass_t pass;
+  walk_state_t state;
 } walk_ctx_t;
 
 DECLARE_STACK_OF(walk_ctx_t)
@@ -1104,7 +1107,7 @@ static int rm_rf(const path_t *name)
  * see what's missing from a manifest.
  */
 static STACK_OF(OPENSSL_STRING) *directory_filenames(const rcynic_ctx_t *rc,
-						     const walk_pass_t pass,
+						     const walk_state_t state,
 						     const uri_t *uri)
 {
   STACK_OF(OPENSSL_STRING) *result = NULL;
@@ -1116,11 +1119,11 @@ static STACK_OF(OPENSSL_STRING) *directory_filenames(const rcynic_ctx_t *rc,
 
   assert(rc && uri);
 
-  switch (pass) {
-  case walk_pass_current:
+  switch (state) {
+  case walk_state_current:
     prefix = &rc->unauthenticated;
     break;
-  case walk_pass_backup:
+  case walk_state_backup:
     prefix = &rc->old_authenticated;
     break;
   default:
@@ -1232,12 +1235,12 @@ static void walk_ctx_loop_next(const rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk
     return;
   }
 
-  if (w->pass < walk_pass_max) {
-    w->pass++;
+  if (w->state < walk_state_done) {
+    w->state++;
     w->manifest_iteration = 0;
     w->filename_iteration = 0;
     sk_OPENSSL_STRING_pop_free(w->filenames, OPENSSL_STRING_free);
-    w->filenames = directory_filenames(rc, w->pass, &w->certinfo.sia);
+    w->filenames = directory_filenames(rc, w->state, &w->certinfo.sia);
   }
 }
 
@@ -1249,7 +1252,7 @@ static void walk_ctx_loop_next(const rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk
 static int walk_ctx_loop_done(STACK_OF(walk_ctx_t) *wsk)
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
-  return wsk == NULL || w == NULL || w->pass >= walk_pass_max;
+  return wsk == NULL || w == NULL || w->state >= walk_state_done;
 }
 
 static Manifest *check_manifest(const rcynic_ctx_t *rc,
@@ -1263,17 +1266,20 @@ static void walk_ctx_loop_init(const rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
 
-  assert(rc != NULL && wsk != NULL && w != NULL &&
-	 w->pass == walk_pass_current &&
-	 w->manifest_iteration == 0 &&
-	 w->filename_iteration == 0 &&
-	 w->filenames == NULL &&
-	 w->manifest == NULL);
+  assert(rc && wsk && w && w->state == walk_state_ready);
 
+  assert(w->manifest == NULL);
   if ((w->manifest = check_manifest(rc, wsk)) == NULL)
     logmsg(rc, log_data_err, "Couldn't get manifest %s, blundering onward", w->certinfo.manifest.s);
 
-  w->filenames = directory_filenames(rc, w->pass, &w->certinfo.sia);
+  assert(w->filenames == NULL);
+  w->filenames = directory_filenames(rc, w->state, &w->certinfo.sia);
+
+  w->manifest_iteration = 0;
+  w->filename_iteration = 0;
+  w->state++;
+
+  assert(w->state == walk_state_current);
 
   while (!walk_ctx_loop_done(wsk) &&
 	 (w->manifest == NULL  || w->manifest_iteration >= sk_FileAndHash_num(w->manifest->fileList)) &&
@@ -1304,8 +1310,8 @@ static int walk_ctx_loop_this(const rcynic_ctx_t *rc,
   }
 
   if (name == NULL) {
-    logmsg(rc, log_sys_err, "Can't find a URI in walk context, this shouldn't happen: pass %d, manifest_iteration %d, filename_iteration %d",
-	   (int) w->pass, w->manifest_iteration, w->filename_iteration);
+    logmsg(rc, log_sys_err, "Can't find a URI in walk context, this shouldn't happen: state %d, manifest_iteration %d, filename_iteration %d",
+	   (int) w->state, w->manifest_iteration, w->filename_iteration);
     return 0;
   }
 
@@ -2429,13 +2435,13 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 
   issuer = &w->certinfo;
 
-  switch (w->pass) {
-  case walk_pass_current:
+  switch (w->state) {
+  case walk_state_current:
     prefix = &rc->unauthenticated;
     accept_code = current_cert_accepted;
     reject_code = current_cert_rejected;
     break;
-  case walk_pass_backup:
+  case walk_state_backup:
     prefix = &rc->old_authenticated;
     accept_code = backup_cert_accepted;
     reject_code = backup_cert_rejected;
@@ -2451,7 +2457,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 
   if (uri_to_filename(rc, uri, &path, &rc->authenticated) && 
       !access(path.s, R_OK)) {
-    if (w->pass == walk_pass_backup || sk_OPENSSL_STRING_find(rc->backup_cache, uri->s) < 0)
+    if (w->state == walk_state_backup || sk_OPENSSL_STRING_find(rc->backup_cache, uri->s) < 0)
       return NULL;
     mib_increment(rc, uri, current_cert_recheck);
     logmsg(rc, log_telemetry, "Rechecking %s", uri->s);
@@ -2467,7 +2473,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
   if ((x = check_cert_1(rc, uri, &path, prefix, certs, issuer, subject, hash, hashlen)) != NULL) {
     install_object(rc, uri, &path);
     mib_increment(rc, uri, accept_code);
-    if (w->pass == walk_pass_current)
+    if (w->state == walk_state_current)
       sk_OPENSSL_STRING_remove(rc->backup_cache, uri->s);
     else if (!sk_OPENSSL_STRING_push_strdup(rc->backup_cache, uri->s))
       logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri->s);
@@ -3249,83 +3255,108 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
  */
 static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 {
-  walk_ctx_t *w = walk_ctx_stack_head(wsk);
   const unsigned char *hash = NULL;
   size_t hashlen;
-  int n_wsk;
+  walk_ctx_t *w;
   uri_t uri;
 
-  assert(rc && wsk && w);
+  assert(rc && wsk);
 
-  if (!w->certinfo.sia.s[0] || !w->certinfo.ca)
-    return;
+  while ((w = walk_ctx_stack_head(wsk)) != NULL) {
 
-  if (!w->certinfo.manifest.s[0]) {
-    logmsg(rc, log_data_err, "Issuer's certificate does not specify a manifest, skipping collection");
-    return;
-  }
+    switch (w->state) {
 
-  /*
-   * Both the log indentation hack and the assertions to track call
-   * stack against data stack are probably doomed, but leave here
-   * until they stop being useful.
-   */
+    case walk_state_initial:
 
-  rc->indent++;
-  n_wsk = sk_walk_ctx_t_num(wsk);
-
-  /*
-   * rsync() doesn't take callbacks yet, but this is where the
-   * callback would go.
-   */
-  rsync_tree(rc, &w->certinfo.sia);
-
-  for (walk_ctx_loop_init(rc, wsk); !walk_ctx_loop_done(wsk); walk_ctx_loop_next(rc, wsk)) {
-
-    if (!walk_ctx_loop_this(rc, wsk, &uri, &hash, &hashlen))
-      continue;
+      if (!w->certinfo.sia.s[0] || !w->certinfo.ca) {
+	w->state = walk_state_done;
+	continue;
+      }
       
-    if (endswith(uri.s, ".crl") || endswith(uri.s, ".mft") || endswith(uri.s, ".mnf"))
-      continue;			/* CRLs and manifests checked elsewhere */
-
-    if (hash == NULL) {
-      logmsg(rc, log_telemetry, "Object %s present in publication directory but not in manifest", uri.s);
-      mib_increment(rc, &uri, object_not_in_manifest);
-    }
-
-    if (hash == NULL && !rc->allow_object_not_in_manifest)
-      continue;
-
-    if (endswith(uri.s, ".roa")) {
-      check_roa(rc, &uri, wsk, hash, hashlen);
-      continue;
-    }
-
-    if (endswith(uri.s, ".gbr")) {
-      check_ghostbuster(rc, &uri, wsk, hash, hashlen);
-      continue;
-    }
-
-    if (endswith(uri.s, ".cer")) {
-      certinfo_t subject;
-      X509 *x;
-
-      if ((x = check_cert(rc, &uri, wsk, &subject, hash, hashlen)) != NULL &&
-	  (w = walk_ctx_stack_push(wsk)) != NULL) {
-	w->cert = x;
-	w->certinfo = subject;
-	walk_cert(rc, wsk);
-	walk_ctx_stack_pop(wsk);
+      if (!w->certinfo.manifest.s[0]) {
+	logmsg(rc, log_data_err, "Issuer's certificate does not specify a manifest, skipping collection");
+	w->state = walk_state_done;
+	continue;
       }
 
+      rc->indent++;
+
+      w->state++;
       continue;
+
+    case walk_state_rsync:
+
+      rsync_tree(rc, &w->certinfo.sia);
+      w->state++;
+      continue;
+      
+    case walk_state_ready:
+
+      walk_ctx_loop_init(rc, wsk);      /* sets w->state */
+      continue;
+
+    case walk_state_current:
+    case walk_state_backup:
+
+      if (!walk_ctx_loop_this(rc, wsk, &uri, &hash, &hashlen)) {
+	walk_ctx_loop_next(rc, wsk);
+	continue;
+      }
+
+      if (endswith(uri.s, ".crl") || endswith(uri.s, ".mft") || endswith(uri.s, ".mnf")) {
+	walk_ctx_loop_next(rc, wsk);
+	continue;			/* CRLs and manifests checked elsewhere */
+      }
+
+      if (hash == NULL) {
+	logmsg(rc, log_telemetry, "Object %s present in publication directory but not in manifest", uri.s);
+	mib_increment(rc, &uri, object_not_in_manifest);
+      }
+
+      if (hash == NULL && !rc->allow_object_not_in_manifest) {
+	walk_ctx_loop_next(rc, wsk);
+	continue;
+      }
+
+      if (endswith(uri.s, ".roa")) {
+	check_roa(rc, &uri, wsk, hash, hashlen);
+	walk_ctx_loop_next(rc, wsk);
+	continue;
+      }
+
+      if (endswith(uri.s, ".gbr")) {
+	check_ghostbuster(rc, &uri, wsk, hash, hashlen);
+	walk_ctx_loop_next(rc, wsk);
+	continue;
+      }
+
+      if (endswith(uri.s, ".cer")) {
+	certinfo_t subject;
+	X509 *x;
+
+	if ((x = check_cert(rc, &uri, wsk, &subject, hash, hashlen)) != NULL &&
+	    (w = walk_ctx_stack_push(wsk)) != NULL) {
+	  w->cert = x;
+	  w->certinfo = subject;
+	  continue;		/* Walk in new child's state */
+	} else {
+	  walk_ctx_loop_next(rc, wsk);
+	  continue;
+	}
+      }
+
+      logmsg(rc, log_telemetry, "Don't know how to check object %s, ignoring", uri.s);
+      walk_ctx_loop_next(rc, wsk);
+      continue;
+
+    case walk_state_done:
+
+      rc->indent--;
+      walk_ctx_stack_pop(wsk);	/* Resume our issuer's state */
+      continue;
+
     }
-
-    logmsg(rc, log_telemetry, "Don't know how to check object %s, ignoring", uri.s);
   }
-
-  assert(sk_walk_ctx_t_num(wsk) == n_wsk);
-  rc->indent--;
 }
 
 

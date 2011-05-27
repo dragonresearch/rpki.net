@@ -1149,6 +1149,8 @@ static STACK_OF(OPENSSL_STRING) *directory_filenames(const rcynic_ctx_t *rc,
   return NULL;
 }
 
+
+
 /**
  * Allocate a new walk context.
  */
@@ -1316,7 +1318,10 @@ static walk_ctx_t *walk_ctx_stack_push(STACK_OF(walk_ctx_t) *wsk)
 {
   walk_ctx_t *w = walk_ctx_new();
 
-  if (w == NULL || !sk_walk_ctx_t_push(wsk, w)) {
+  if (w == NULL)
+    return NULL;
+
+  if (!sk_walk_ctx_t_push(wsk, w)) {
     walk_ctx_free(w);
     return NULL;
   }
@@ -1338,9 +1343,7 @@ static void walk_ctx_stack_pop(STACK_OF(walk_ctx_t) *wsk)
  */
 static walk_ctx_t *walk_ctx_stack_head(STACK_OF(walk_ctx_t) *wsk)
 {
-  walk_ctx_t *w = sk_walk_ctx_t_value(wsk, sk_walk_ctx_t_num(wsk) - 1);
-  assert(w != NULL);
-  return w;
+  return sk_walk_ctx_t_value(wsk, sk_walk_ctx_t_num(wsk) - 1);
 }
 
 /**
@@ -2388,21 +2391,24 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
  */
 static X509 *check_cert(rcynic_ctx_t *rc,
 			uri_t *uri,
-			STACK_OF(X509) *certs,
-			const certinfo_t *issuer,
+			STACK_OF(walk_ctx_t) *wsk,
 			certinfo_t *subject,
-			const walk_pass_t pass,
 			const unsigned char *hash,
 			const size_t hashlen)
 {
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
   mib_counter_t accept_code, reject_code;
+  const certinfo_t *issuer = NULL;
+  STACK_OF(X509) *certs = NULL;
   const path_t *prefix = NULL;
   path_t path;
   X509 *x;
 
-  assert(rc && uri && certs && issuer && subject);
+  assert(rc && uri && wsk && w && subject);
 
-  switch (pass) {
+  issuer = &w->certinfo;
+
+  switch (w->pass) {
   case walk_pass_current:
     prefix = &rc->unauthenticated;
     accept_code = current_cert_accepted;
@@ -2424,7 +2430,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 
   if (uri_to_filename(rc, uri, &path, &rc->authenticated) && 
       !access(path.s, R_OK)) {
-    if (pass == walk_pass_backup || sk_OPENSSL_STRING_find(rc->backup_cache, uri->s) < 0)
+    if (w->pass == walk_pass_backup || sk_OPENSSL_STRING_find(rc->backup_cache, uri->s) < 0)
       return NULL;
     mib_increment(rc, uri, current_cert_recheck);
     logmsg(rc, log_telemetry, "Rechecking %s", uri->s);
@@ -2432,12 +2438,15 @@ static X509 *check_cert(rcynic_ctx_t *rc,
     logmsg(rc, log_telemetry, "Checking %s", uri->s);
   }
 
+  if ((certs = walk_ctx_stack_certs(wsk)) == NULL)
+    return NULL;
+
   rc->indent++;
 
   if ((x = check_cert_1(rc, uri, &path, prefix, certs, issuer, subject, hash, hashlen)) != NULL) {
     install_object(rc, uri, &path);
     mib_increment(rc, uri, accept_code);
-    if (pass == walk_pass_current)
+    if (w->pass == walk_pass_current)
       sk_OPENSSL_STRING_remove(rc->backup_cache, uri->s);
     else if (!sk_OPENSSL_STRING_push_strdup(rc->backup_cache, uri->s))
       logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri->s);
@@ -2447,6 +2456,9 @@ static X509 *check_cert(rcynic_ctx_t *rc,
   }
 
   rc->indent--;
+
+  sk_X509_free(certs);
+  certs = NULL;
 
   return x;
 }
@@ -2631,13 +2643,19 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
  * and check issuer's signature if we don't.
  */
 static Manifest *check_manifest(const rcynic_ctx_t *rc,
-				const uri_t *uri,
-				STACK_OF(X509) *certs)
+				STACK_OF(walk_ctx_t) *wsk)
 {
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
   CMS_ContentInfo *cms = NULL;
   Manifest *manifest = NULL;
-  path_t path;
+  STACK_OF(X509) *certs = NULL;
   BIO *bio = NULL;
+  path_t path;
+  uri_t *uri;
+
+  assert(rc && wsk && w);
+
+  uri = &w->certinfo.manifest;
 
   if (uri_to_filename(rc, uri, &path, &rc->authenticated) &&
       (cms = read_cms(&path, NULL)) != NULL &&
@@ -2658,25 +2676,31 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 
   assert(rsync_cached_uri(rc, uri));
 
-  if ((manifest = check_manifest_1(rc, uri, &path,
+  if ((certs = walk_ctx_stack_certs(wsk)) == NULL)
+    return NULL;
+
+  if (manifest == NULL &&
+      (manifest = check_manifest_1(rc, uri, &path,
 				   &rc->unauthenticated, certs))) {
     install_object(rc, uri, &path);
     mib_increment(rc, uri, current_manifest_accepted);
-    return manifest;
   } else if (!access(path.s, F_OK)) {
     mib_increment(rc, uri, current_manifest_rejected);
   }
 
-  if ((manifest = check_manifest_1(rc, uri, &path,
+  if (manifest == NULL &&
+      (manifest = check_manifest_1(rc, uri, &path,
 				   &rc->old_authenticated, certs))) {
     install_object(rc, uri, &path);
     mib_increment(rc, uri, backup_manifest_accepted);
-    return manifest;
   } else if (!access(path.s, F_OK)) {
     mib_increment(rc, uri, backup_manifest_rejected);
   }
 
-  return NULL;
+  sk_X509_free(certs);
+  certs = NULL;
+
+  return manifest;
 }
 
 
@@ -2959,11 +2983,14 @@ static int check_roa_1(const rcynic_ctx_t *rc,
  */
 static void check_roa(const rcynic_ctx_t *rc,
 		      const uri_t *uri,
-		      STACK_OF(X509) *certs,
+		      STACK_OF(walk_ctx_t) *wsk,
 		      const unsigned char *hash,
 		      const size_t hashlen)
 {
+  STACK_OF(X509) *certs = NULL;
   path_t path;
+
+  assert(rc && uri && wsk);
 
   if (uri_to_filename(rc, uri, &path, &rc->authenticated) &&
       !access(path.s, F_OK))
@@ -2973,11 +3000,14 @@ static void check_roa(const rcynic_ctx_t *rc,
 
   assert(rsync_cached_uri(rc, uri));
 
+  if ((certs = walk_ctx_stack_certs(wsk)) == NULL)
+    return;
+
   if (check_roa_1(rc, uri, &path, &rc->unauthenticated,
 		  certs, hash, hashlen)) {
     install_object(rc, uri, &path);
     mib_increment(rc, uri, current_roa_accepted);
-    return;
+    goto done;
   } else if (!access(path.s, F_OK)) {
     mib_increment(rc, uri, current_roa_rejected);
   }
@@ -2986,10 +3016,13 @@ static void check_roa(const rcynic_ctx_t *rc,
 		  certs, hash, hashlen)) {
     install_object(rc, uri, &path);
     mib_increment(rc, uri, backup_roa_accepted);
-    return;
+    goto done;
   } else if (!access(path.s, F_OK)) {
     mib_increment(rc, uri, backup_roa_rejected);
   }
+
+ done:
+  sk_X509_free(certs);
 }
 
 
@@ -3135,12 +3168,15 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
  * attempt to fetch it and check issuer's signature if we don't.
  */
 static void check_ghostbuster(const rcynic_ctx_t *rc,
-		      const uri_t *uri,
-		      STACK_OF(X509) *certs,
-		      const unsigned char *hash,
-		      const size_t hashlen)
+			      const uri_t *uri,
+			      STACK_OF(walk_ctx_t) *wsk,
+			      const unsigned char *hash,
+			      const size_t hashlen)
 {
+  STACK_OF(X509) *certs = NULL;
   path_t path;
+
+  assert(rc && uri && wsk);
 
   if (uri_to_filename(rc, uri, &path, &rc->authenticated) &&
       !access(path.s, F_OK))
@@ -3150,23 +3186,29 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
   assert(rsync_cached_uri(rc, uri));
 
+  if ((certs = walk_ctx_stack_certs(wsk)) == NULL)
+    return;
+
   if (check_ghostbuster_1(rc, uri, &path, &rc->unauthenticated,
-		  certs, hash, hashlen)) {
+			  certs, hash, hashlen)) {
     install_object(rc, uri, &path);
     mib_increment(rc, uri, current_ghostbuster_accepted);
-    return;
+    goto done;
   } else if (!access(path.s, F_OK)) {
     mib_increment(rc, uri, current_ghostbuster_rejected);
   }
 
   if (check_ghostbuster_1(rc, uri, &path, &rc->old_authenticated,
-		  certs, hash, hashlen)) {
+			  certs, hash, hashlen)) {
     install_object(rc, uri, &path);
     mib_increment(rc, uri, backup_ghostbuster_accepted);
-    return;
+    goto done;
   } else if (!access(path.s, F_OK)) {
     mib_increment(rc, uri, backup_ghostbuster_rejected);
   }
+
+ done:
+  sk_X509_free(certs);
 }
 
 
@@ -3192,34 +3234,25 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk);
  */
 static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 {
-  const unsigned char *hash;
-  STACK_OF(X509) *certs;
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
+  const unsigned char *hash = NULL;
   size_t hashlen;
-  walk_ctx_t *w;
   uri_t uri;
 
-  assert(rc && wsk);
-
-  w = walk_ctx_stack_head(wsk);
-
-  certs = walk_ctx_stack_certs(wsk);
-  assert(certs);
+  assert(rc && wsk && w);
 
   assert(w->manifest == NULL);
 
-  if ((w->manifest = check_manifest(rc, &w->certinfo.manifest, certs)) == NULL)
+  if ((w->manifest = check_manifest(rc, wsk)) == NULL)
     logmsg(rc, log_data_err, "Couldn't get manifest %s, blundering onward", w->certinfo.manifest.s);
-
-  sk_X509_free(certs);
-  certs = NULL;
 
   for (walk_ctx_loop_init(rc, w); !walk_ctx_loop_done(w); walk_ctx_loop_next(rc, w)) {
 
     if (!walk_ctx_loop_this(rc, w, &uri, &hash, &hashlen))
       continue;
       
-    if (hash == NULL && !strcmp(uri.s, w->certinfo.manifest.s))
-      continue;
+    if (endswith(uri.s, ".crl") || endswith(uri.s, ".mft") || endswith(uri.s, ".mnf"))
+      continue;			/* CRLs and manifests checked elsewhere */
 
     if (hash == NULL) {
       logmsg(rc, log_telemetry, "Object %s present in publication directory but not in manifest", uri.s);
@@ -3229,52 +3262,28 @@ static void walk_cert_cb(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
     if (hash == NULL && !rc->allow_object_not_in_manifest)
       continue;
 
-    if (endswith(uri.s, ".crl"))
-      continue;
-
     if (endswith(uri.s, ".roa")) {
-      certs = walk_ctx_stack_certs(wsk);
-      assert(certs);
-      check_roa(rc, &uri, certs, hash, hashlen);
-      sk_X509_free(certs);
+      check_roa(rc, &uri, wsk, hash, hashlen);
       continue;
     }
 
     if (endswith(uri.s, ".gbr")) {
-      certs = walk_ctx_stack_certs(wsk);
-      assert(certs);
-      check_ghostbuster(rc, &uri, certs, hash, hashlen);
-      sk_X509_free(certs);
+      check_ghostbuster(rc, &uri, wsk, hash, hashlen);
       continue;
     }
 
-    /*
-     * This is ugly, but we need to finish unrolling all the loops and
-     * recursion, so easiest to move it here while we sort that out.
-     */
     if (endswith(uri.s, ".cer")) {
       certinfo_t subject;
       X509 *x;
 
-      certs = walk_ctx_stack_certs(wsk);
-      assert(certs);
-
-      x = check_cert(rc, &uri, certs, &w->certinfo, &subject, w->pass, hash, hashlen);
-      sk_X509_free(certs);
-
-      if (x == NULL)
-	continue;
-
-      if ((w = walk_ctx_stack_push(wsk)) == NULL) {
-	logmsg(rc, log_sys_err, "Internal allocation failure recursing over certificate");
-	w = walk_ctx_stack_head(wsk);
-	continue;
+      if ((x = check_cert(rc, &uri, wsk, &subject, hash, hashlen)) != NULL &&
+	  (w = walk_ctx_stack_push(wsk)) != NULL) {
+	w->cert = x;
+	w->certinfo = subject;
+	walk_cert(rc, wsk);
+	walk_ctx_stack_pop(wsk);
       }
 
-      w->cert = x;
-      w->certinfo = subject;
-      walk_cert(rc, wsk);
-      walk_ctx_stack_pop(wsk);
       w = walk_ctx_stack_head(wsk);
       continue;
     }

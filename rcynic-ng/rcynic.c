@@ -373,22 +373,22 @@ typedef struct rcynic_ctx {
 } rcynic_ctx_t;
 
 /**
+ * States that a walk_ctx_t can be in.
+ */
+typedef enum {
+  walk_state_initial,		/**< Initial state */
+  walk_state_rsync,		/**< rsyncing certinfo.sia */
+  walk_state_ready,		/**< Ready to traverse outputs */
+  walk_state_current,		/**< prefix = rc->unauthenticated */
+  walk_state_backup,		/**< prefix = rc->old_authenticated */
+  walk_state_done		/**< Done walking this cert's outputs */
+} walk_state_t;
+
+/**
  * Context for certificate tree walks.  This includes all the stuff
  * that we would keep as automatic variables on the call stack if we
  * didn't have to use callbacks to support multiple rsync processes.
- *
- * Mapping between fields here and automatic variables in the older
- * code is still in flux, names (and anything else) may change.
  */
-typedef enum {
-  walk_state_initial,		/* Initial state */
-  walk_state_rsync,		/* rsyncing certinfo.sia */
-  walk_state_ready,		/* Ready to traverse outputs */
-  walk_state_current,		/* prefix = rc->unauthenticated */
-  walk_state_backup,		/* prefix = rc->old_authenticated */
-  walk_state_done		/* Done walking this cert's outputs */
-} walk_state_t;
-
 typedef struct walk_ctx {
   unsigned refcount;
   certinfo_t certinfo;

@@ -402,6 +402,19 @@ typedef struct walk_ctx {
 DECLARE_STACK_OF(walk_ctx_t)
 
 /**
+ * Context for asyncronous rsync.
+ */
+typedef struct rsync_ctx {
+  uri_t uri;
+  void (*handler)(const rcynic_ctx_t *, STACK_OF(walk_ctx_t) *, const uri_t *);
+  STACK_OF(walk_ctx_t) *stack;
+  pid_t pid;
+  int blocked;
+} rsync_ctx_t;
+
+DECLARE_STACK_OF(rsync_ctx_t)
+
+/**
  * Extended context for verify callbacks.  This is a wrapper around
  * OpenSSL's X509_STORE_CTX, and the embedded X509_STORE_CTX @em must be
  * the first element of this structure in order for the evil cast to
@@ -1449,7 +1462,7 @@ static int rsync_cached_uri(const rcynic_ctx_t *rc,
  *
  * @li Impose an optional time limit on rsync's execution time
  *
- * @li Clean up from (b), (c), and (d); and
+ * @li Clean up from all of the above; and
  *
  * @li Keep track of which URIs we've already fetched, so we don't
  *     have to do it again.
@@ -1461,7 +1474,7 @@ static int rsync(const rcynic_ctx_t *rc,
 		 const char * const *args,
 		 const uri_t *uri)
 {
-  static const char *rsync_cmd[] = {
+  static const char * const rsync_cmd[] = {
     "rsync", "--update", "--times", "--copy-links", "--itemize-changes", NULL
   };
 
@@ -3636,9 +3649,20 @@ int main(int argc, char *argv[])
 
     assert(val && val->name && val->value);
 
+    if (!name_cmp(val->name, "trust-anchor-uri-with-key") ||
+	!name_cmp(val->name, "indirect-trust-anchor")) {
+      /*
+       * Obsolete syntax.
+       */
+      logmsg(&rc, log_usage_err,
+	     "Directive \"%s\" is obsolete -- please use \"trust-anchor-locator\" instead",
+	     val->name);
+      goto done;
+    }
+
     if (!name_cmp(val->name, "trust-anchor")) {
       /*
-       * Old local file trust anchor method.
+       * Local file trust anchor method.
        */
       logmsg(&rc, log_telemetry, "Processing trust anchor from local file %s", val->value);
       if (strlen(val->value) >= sizeof(path1.s)) {
@@ -3668,52 +3692,32 @@ int main(int argc, char *argv[])
       uri.s[0] = '\0';
     }
 
-    if (!name_cmp(val->name, "trust-anchor-uri-with-key") ||
-	!name_cmp(val->name, "indirect-trust-anchor") ||
-	!name_cmp(val->name, "trust-anchor-locator")) {
+    if (!name_cmp(val->name, "trust-anchor-locator")) {
       /*
-       * Newfangled URI + public key method.  Two different versions
-       * of essentially the same mechanism.
+       * Trust anchor locator (URI + public key) method.
        *
-       * NB: EVP_PKEY_cmp() returns 1 for success, not 0 like every
+       * NB: EVP_PKEY_cmp() returns 1 for match, not 0 like every
        *     other xyz_cmp() function in the entire OpenSSL library.
        *     Go figure.
        */
-      int unified = (!name_cmp(val->name, "indirect-trust-anchor") ||
-		     !name_cmp(val->name, "trust-anchor-locator"));
       EVP_PKEY *pkey = NULL, *xpkey = NULL;
       char *fn;
-      if (unified) {
-	fn = val->value;
-	bio = BIO_new_file(fn, "r");
-	if (!bio || BIO_gets(bio, uri.s, sizeof(uri.s)) <= 0) {
-	  logmsg(&rc, log_usage_err, "Couldn't read trust anchor URI from %s", fn);
-	  goto done;
-	}
-	uri.s[strcspn(uri.s, " \t\r\n")] = '\0';
-	bio = BIO_push(BIO_new(BIO_f_base64()), bio);
-      } else {
-	j = strcspn(val->value, " \t");
-	if (j >= sizeof(uri.s)) {
-	  logmsg(&rc, log_usage_err, "Trust anchor URI too long %s", val->value);
-	  goto done;
-	}
-	memcpy(uri.s, val->value, j);
-	uri.s[j] = '\0';
-	j += strspn(val->value + j, " \t");
-	fn = val->value + j;
-	bio = BIO_new_file(fn, "rb");
+      fn = val->value;
+      bio = BIO_new_file(fn, "r");
+      if (!bio || BIO_gets(bio, uri.s, sizeof(uri.s)) <= 0) {
+	logmsg(&rc, log_usage_err, "Couldn't read trust anchor URI from %s", fn);
+	goto done;
       }
+      uri.s[strcspn(uri.s, " \t\r\n")] = '\0';
+      bio = BIO_push(BIO_new(BIO_f_base64()), bio);
       if (!uri_to_filename(&rc, &uri, &path1, &rc.unauthenticated) ||
 	  !uri_to_filename(&rc, &uri, &path2, &rc.authenticated)) {
 	logmsg(&rc, log_usage_err, "Couldn't convert trust anchor URI %s to filename", uri.s);
 	goto done;
       }
       logmsg(&rc, log_telemetry, "Processing trust anchor from URI %s", uri.s);
-      if (!rsync_file(&rc, &uri)) {
+      if (!rsync_file(&rc, &uri))
 	logmsg(&rc, log_data_err, "Could not fetch trust anchor from %s", uri.s);
-	continue;
-      }
       if (bio)
 	pkey = d2i_PUBKEY_bio(bio, NULL);
       BIO_free_all(bio);

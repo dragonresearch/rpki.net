@@ -64,5 +64,6 @@ BEGIN {
   define_stack("ROAIPAddress");
   define_stack("ROAIPAddressFamily");
   define_stack("walk_ctx_t");
+  define_stack("rsync_ctx_t");
   print "#endif /* __DEFSTACK_H__ */";
 }

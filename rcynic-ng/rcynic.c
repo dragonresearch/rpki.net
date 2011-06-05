@@ -1492,12 +1492,13 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
   const char *argv[100];
   char *s, *b, buffer[URI_MAX * 4];
   path_t path;
-  rsync_status_t ret;
-  int i, n, pipe_fds[2], argc = 0, pid_status = -1;
-  time_t now, deadline;
+  rsync_ctx_t *ctx = NULL;
+  rsync_status_t ret = rsync_status_failed;
+  int i, n, argc = 0, pid_status = -1;
+  time_t now;
   struct timeval tv;
-  pid_t pid, wpid;
   fd_set rfds;
+  pid_t wpid;
 
   assert(rc && uri);
 
@@ -1544,33 +1545,43 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
   for (i = 0; i < argc; i++)
     logmsg(rc, log_verbose, "rsync argv[%d]: %s", i, argv[i]);
 
-  if (pipe(pipe_fds) < 0) {
+  if ((ctx = malloc(sizeof(*ctx))) == NULL) {
+    logmsg(rc, log_sys_err, "malloc(rsync_ctxt_t) failed");
+    return rsync_status_failed;
+  }
+
+  memset(ctx, 0, sizeof(*ctx));
+  ctx->pipe_fds[0] =  ctx->pipe_fds[1] = -1;
+
+#warning This leaks memory and will until we clean up rsync_ctx_t handling here
+
+  if (pipe(ctx->pipe_fds) < 0) {
     logmsg(rc, log_sys_err, "pipe() failed: %s", strerror(errno));
     return rsync_status_failed;
   }
 
-  if ((i = fcntl(pipe_fds[0], F_GETFL, 0)) == -1 ||
-      fcntl(pipe_fds[0], F_SETFL, i | O_NONBLOCK) == -1) {
+  if ((i = fcntl(ctx->pipe_fds[0], F_GETFL, 0)) == -1 ||
+      fcntl(ctx->pipe_fds[0], F_SETFL, i | O_NONBLOCK) == -1) {
     logmsg(rc, log_sys_err,
 	   "Couldn't set rsync's output stream non-blocking: %s",
 	   strerror(errno));
-    close(pipe_fds[0]);
-    close(pipe_fds[1]);
+    close(ctx->pipe_fds[0]);
+    close(ctx->pipe_fds[1]);
     return rsync_status_failed;
   }
 
-  switch ((pid = vfork())) {
+  switch ((ctx->pid = vfork())) {
   case -1:
      logmsg(rc, log_sys_err, "vfork() failed: %s", strerror(errno));
-     close(pipe_fds[0]);
-     close(pipe_fds[1]);
+     close(ctx->pipe_fds[0]);
+     close(ctx->pipe_fds[1]);
      return rsync_status_failed;
   case 0:
 #define whine(msg) write(2, msg, sizeof(msg) - 1)
-    close(pipe_fds[0]);
-    if (dup2(pipe_fds[1], 1) < 0)
+    close(ctx->pipe_fds[0]);
+    if (dup2(ctx->pipe_fds[1], 1) < 0)
       whine("dup2(1) failed\n");
-    else if (dup2(pipe_fds[1], 2) < 0)
+    else if (dup2(ctx->pipe_fds[1], 2) < 0)
       whine("dup2(2) failed\n");
     else if (execvp(argv[0], (char * const *) argv) < 0)
       whine("execvp() failed\n");
@@ -1581,29 +1592,29 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
 #undef whine
   }
 
-  close(pipe_fds[1]);
+  close(ctx->pipe_fds[1]);
 
-  now = time(0);
-  deadline = now + rc->rsync_timeout;
+  ctx->started =   now = time(0);
+  ctx->deadline = now + rc->rsync_timeout;
 
   n = -1;
   i = 0;
-  while ((wpid = waitpid(pid, &pid_status, WNOHANG)) == 0 &&
-	 (!rc->rsync_timeout || (now = time(0)) < deadline)) {
+  while ((wpid = waitpid(ctx->pid, &pid_status, WNOHANG)) == 0 &&
+	 (!rc->rsync_timeout || (now = time(0)) < ctx->deadline)) {
     FD_ZERO(&rfds);
-    FD_SET(pipe_fds[0], &rfds);
+    FD_SET(ctx->pipe_fds[0], &rfds);
     if (rc->rsync_timeout) {
-      tv.tv_sec = deadline - now;
+      tv.tv_sec = ctx->deadline - now;
       tv.tv_usec = 0;
-      n = select(pipe_fds[0] + 1, &rfds, NULL, NULL, &tv);
+      n = select(ctx->pipe_fds[0] + 1, &rfds, NULL, NULL, &tv);
     } else {
-      n = select(pipe_fds[0] + 1, &rfds, NULL, NULL, NULL);
+      n = select(ctx->pipe_fds[0] + 1, &rfds, NULL, NULL, NULL);
     }
     if (n == 0 || (n < 0 && errno == EINTR))
       continue;
     if (n < 0)
       break;
-    while ((n = read(pipe_fds[0], buffer + i, sizeof(buffer) - i - 1)) > 0) {
+    while ((n = read(ctx->pipe_fds[0], buffer + i, sizeof(buffer) - i - 1)) > 0) {
       n += i;
       assert(n < sizeof(buffer));
       buffer[n] = '\0';
@@ -1625,7 +1636,7 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
       break;
   }
   
-  close(pipe_fds[0]);
+  close(ctx->pipe_fds[0]);
 
   assert(i >= 0 && i < sizeof(buffer));
   if (i) {
@@ -1637,23 +1648,23 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
     logmsg(rc, log_sys_err, "Problem reading rsync's output: %s",
 	   strerror(errno));
 
-  if (rc->rsync_timeout && now >= deadline)
+  if (rc->rsync_timeout && now >= ctx->deadline)
     logmsg(rc, log_data_err,
 	   "Fetch of %s took longer than %d seconds, terminating fetch",
 	   uri->s, rc->rsync_timeout);
 
-  assert(pid > 0);
+  assert(ctx->pid > 0);
   for (i = 0; i < KILL_MAX && wpid == 0; i++) {
-    if ((wpid = waitpid(pid, &pid_status, 0)) != 0 && WIFEXITED(pid_status))
+    if ((wpid = waitpid(ctx->pid, &pid_status, 0)) != 0 && WIFEXITED(pid_status))
       break;
-    kill(pid, SIGTERM);
+    kill(ctx->pid, SIGTERM);
   }
 
   if (WEXITSTATUS(pid_status)) {
     logmsg(rc, log_data_err, "rsync exited with status %d fetching %s",
 	   WEXITSTATUS(pid_status), uri->s);
     ret = rsync_status_failed;
-    mib_increment(rc, uri, (rc->rsync_timeout && now >= deadline
+    mib_increment(rc, uri, (rc->rsync_timeout && now >= ctx->deadline
 			    ? rsync_timed_out
 			    : rsync_failed));
   } else {

@@ -1,6 +1,6 @@
 # $Id$
 
-SUBDIRS = uri print_rpki_manifest print_roa hashdir find_roa
+SUBDIRS = uri print_rpki_manifest print_roa hashdir find_roa scan_roa
 
 all clean test distclean install deinstall uninstall::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done

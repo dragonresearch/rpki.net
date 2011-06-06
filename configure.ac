@@ -341,6 +341,7 @@ AC_CONFIG_FILES([Makefile
 		 utils/hashdir/Makefile
 		 utils/print_rpki_manifest/Makefile
 		 utils/print_roa/Makefile
+		 utils/scan_roa/Makefile
 		 utils/uri/Makefile])
 
 case $host_os in

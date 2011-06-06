@@ -1,6 +1,6 @@
 # $Id$
 
-NAME = scan_roa
+NAME = scan_roas
 
 BIN = ${NAME}
 SRC = ${NAME}.c

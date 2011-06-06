@@ -61,6 +61,11 @@
  */
 #define ADDR_RAW_BUF_LEN	16
 
+/*
+ * How long can a filesystem path be?
+ */
+#define	PATH_MAX		2048
+
 
 
 /*
@@ -230,7 +235,7 @@ static void addr_expand(unsigned char *addr,
  *
  * NB: When invoked this way, CMS_verify() does -not- verify, it just decodes the ASN.1.
  */
-static void read_roa(const char *filename)
+static int read_roa(const char *filename)
 {
   char buffer[sizeof("20010401123456Z")], *b;
   unsigned char addr[ADDR_RAW_BUF_LEN];
@@ -239,7 +244,7 @@ static void read_roa(const char *filename)
   ROA *r = NULL;
   char buf[512];
   BIO *bio;
-  int i, j, k, n;
+  int i, j, k, n, ok;
 
   if ((bio = BIO_new_file(filename, "r")) == NULL ||
       (cms = d2i_CMS_bio(bio, NULL)) == NULL)
@@ -300,11 +305,15 @@ static void read_roa(const char *filename)
   printf("\n");
 
  done:
+  ok = r != NULL;
+
   if (ERR_peek_error())
     ERR_print_errors_fp(stderr);
   BIO_free(bio);
   CMS_ContentInfo_free(cms);
   ROA_free(r);
+
+  return ok;
 }
 
 
@@ -326,39 +335,42 @@ static int endswith(const char *str, const char *suffix)
 /**
  * Walk directory tree, looking for ROAs.
  */
-static void walk(const char *name)
+static int walk(const char *name)
 {
+  int need_slash, ok = 1;
+  char path[PATH_MAX];
   struct dirent *d;
-  char path[2048];
-  int need_slash;
   size_t len;
   DIR *dir;
 
   assert(name);
   len = strlen(name);
+
   assert(len > 0 && len < sizeof(path));
   need_slash = name[len - 1] != '/';
 
   if ((dir = opendir(name)) == NULL)
-    return;
+    return 0;
 
   while ((d = readdir(dir)) != NULL) {
     if (!strcmp(d->d_name, ".") ||
 	!strcmp(d->d_name, ".."))
       continue;
-    if (len + strlen(d->d_name) + need_slash >= sizeof(path))
+    if (len + strlen(d->d_name) + need_slash >= sizeof(path)) {
+      ok = 0;
       goto done;
+    }
     strcpy(path, name);
     if (need_slash)
       strcat(path, "/");
     strcat(path, d->d_name);
     switch (d->d_type) {
     case DT_DIR:
-      walk(path);
+      ok &= walk(path);
       continue;
     default:
       if (endswith(path, ".roa"))
-	read_roa(path);
+	ok &= read_roa(path);
       continue;
     }
   }
@@ -374,16 +386,13 @@ static void walk(const char *name)
  */
 int main (int argc, char *argv[])
 {
-  int result = 0;
+  int i, ok = 1;
 
   OpenSSL_add_all_algorithms();
   ERR_load_crypto_strings();
 
-  argv++;
-  argc--;
+  for (i = 1; i < argc; i++)
+    ok &= walk(argv[i]);
 
-  while (argc-- > 0)
-    walk(*argv++);
-
-  return result;		/* Need to return real result at some point */
+  return !ok;
 }

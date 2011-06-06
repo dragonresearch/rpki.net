@@ -177,7 +177,7 @@
 # script, eg, using Bourne shell syntax to run rpkid in background:
 #
 # @verbatim
-#   $ python rpkid.py &
+#   $ rpkid &
 #   $ echo >rpkid.pid  "$!"
 # @endverbatim
 #
@@ -703,14 +703,14 @@
 #
 # Before you can (usefully) start any of the daemons, you will need to
 # set up the MySQL databases they use.  You can do this by hand, or
-# you can use the @c rpki-sql-setup.py script, which prompts you for your
+# you can use the @c rpki-sql-setup script, which prompts you for your
 # MySQL root password then attempts to do everything else
 # automatically using values from rpki.conf.
 #
 # Using the script is simple:
 #
 # @verbatim
-# $ python rpki-sql-setup.py
+# $ rpki-sql-setup.py
 # Please enter your MySQL root password:
 # @endverbatim
 #
@@ -1148,18 +1148,15 @@
 # 2.7.5, but if you start seeing weird XML validation failures, it
 # might be another variation of this lxml bug.
 # 
-# An earlier version of this code ran into problems with what appears to
-# be an implementation restriction in the the GNU linker ("ld") on
-# 64-bit hardware, resulting in obscure build failures.  The workaround
-# for this required use of shared libraries and is somewhat less
-# portable than the original code, but without it the code simply would
-# not build in 64-bit environments with the GNU tools.  The current
-# workaround appears to behave properly, but the workaround requires
-# that the pathname to the RFC-3779-aware OpenSSL shared libraries be
-# built into the _POW.so Python extension module.  At the moment, in the
-# absence of "make install" targets for the Python code and libraries,
-# this means the build directory; eventually, once we're using autoconf
-# and installation targets, this will be the installation directory.  If
+# An earlier version of this code ran into problems with what appears
+# to be an implementation restriction in the the GNU linker ("ld") on
+# 64-bit hardware, resulting in obscure build failures.  The
+# workaround for this required use of shared libraries and is somewhat
+# less portable than the original code, but without it the code simply
+# would not build in 64-bit environments with the GNU tools.  The
+# current workaround appears to behave properly, but the workaround
+# requires that the pathname to the RFC-3779-aware OpenSSL shared
+# libraries be built into the _POW.so Python extension module.  If
 # necessary, you can override this by setting the LD_LIBRARY_PATH
 # environment variable, see the ld.so man page for details.  This is a
 # relatively minor variation on the usual build issues for shared

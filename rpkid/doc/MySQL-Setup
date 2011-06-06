@@ -1,3 +1,14 @@
+RPKI EngineÂ 1.0
+
+* MainÂ_Page
+* RelatedÂ_Pages
+* Packages
+* Classes
+* Files
+*  [Search              ]
+
+* RPKI_Engine_Reference_Manual
+
 ****** MySQL Setup ******
 
 You need to install MySQL and set up the relevant databases before starting
@@ -11,13 +22,13 @@ daemons will use to find and authenticate themselves to their respective
 databases.
 
 Before you can (usefully) start any of the daemons, you will need to set up the
-MySQL databases they use. You can do this by hand, or you can use the sql-
-setup.py script, which prompts you for your MySQL root password then attempts
-to do everything else automatically using values from myrpki.conf.
+MySQL databases they use. You can do this by hand, or you can use the rpki-sql-
+setup script, which prompts you for your MySQL root password then attempts to
+do everything else automatically using values from rpki.conf.
 
 Using the script is simple:
 
-   $ python sql-setup.py
+   $ rpki-sql-setup.py
    Please enter your MySQL root password:
 
 The script should tell you what databases it creates. You can use the -v option

@@ -1,3 +1,14 @@
+RPKI EngineÂ 1.0
+
+* MainÂ_Page
+* RelatedÂ_Pages
+* Packages
+* Classes
+* Files
+*  [Search              ]
+
+* RPKI_Engine_Reference_Manual
+
 ****** Publication protocol ******
 
 The publication protocol is really two separate client/server protocols,
@@ -9,14 +20,14 @@ request publication of specific objects.
 
 Much of the architecture of the publication protocol is borrowed from the left-
 right_protocol: like the left-right protocol, the publication protocol uses
-CMS-wrapped XML over HTTPS with the same eContentType OID and the same HTTPS
+CMS-wrapped XML over HTTP with the same eContentType OID and the same HTTP
 content-type, and the overall style of the XML messages is very similar to the
 left-right protocol. All operations allow an optional "tag" attribute to allow
 batching.
 
-The publication engine operates a single HTTPS server which serves both of
-these subprotocols. The two subprotocols share a single server port, but use
-distinct URLs to allow demultiplexing.
+The publication engine operates a single HTTP server which serves both of these
+subprotocols. The two subprotocols share a single server port, but use distinct
+URLs to allow demultiplexing.
 
  Publication control subprotocol
 
@@ -121,7 +132,7 @@ The <roa/> object represents a ROA to be published or withdrawn.
 
 Error in this protocol are handled at two levels.
 
-Since all messages in this protocol are conveyed over HTTPS connections, basic
+Since all messages in this protocol are conveyed over HTTP connections, basic
 errors are indicated via the HTTP response code. 4xx and 5xx responses indicate
 that something bad happened. Errors that make it impossible to decode a query
 or encode a response are handled in this way.

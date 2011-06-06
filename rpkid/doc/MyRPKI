@@ -1,3 +1,12 @@
+RPKI EngineÂ 1.0
+
+* MainÂ_Page
+* RelatedÂ_Pages
+* Packages
+* Classes
+* Files
+*  [Search              ]
+
 ****** The myrpki tool ******
 
 The design of rpkid and friends assumes that certain tasks can be thrown over
@@ -25,9 +34,9 @@ mode is useful in scripting, cron jobs, and automated testing.
 
 myrpki use has two distinct phases: setup and data maintenance. The setup phase
 is primarily about constructing the "business PKI" (BPKI) certificates that the
-daemons use to authenticate CMS and HTTPS messages and obtaining the service
-URLs needed to configure the daemons. The data maintenance phase is about
-configuring local data into the daemons.
+daemons use to authenticate CMS messages and obtaining the service URLs needed
+to configure the daemons. The data maintenance phase is about configuring local
+data into the daemons.
 
 myrpki uses the OpenSSL command line tool for almost all operations on keys and
 certificates; the one exception to this is the comamnd which talks directly to
@@ -85,7 +94,7 @@ understand.
 
 Keep reading, and don't panic.
 
-The default configuration file name for myrpki is myrpki.conf. You can change
+The default configuration file name for myrpki is rpki.conf. You can change
 this using the "-c" option when invoking myrpki, or by setting the environment
 variable MYRPKI_CONF.
 
@@ -112,7 +121,7 @@ maintenence phase.
 
 The steps needed during setup phase are:
 
-* Write a configuration file (copy $top/rpkid/examples/myrpki.conf and edit as
+* Write a configuration file (copy $top/rpkid/examples/rpki.conf and edit as
   needed). You need to configure the [myrpki] section; in theory, the rest of
   the file should be ok as it is, at least for simple use. You also need to
   create (either by hand or by dumping from a database, spreadsheet, whatever)
@@ -234,9 +243,9 @@ The [current] steps are:
   complicated if you are already running rsyncd for other purposes. See the
   rsync(1) and rsyncd.conf(5) manual pages for more details.
 
-* Start the daemons. You can use $top/rpkid/start-servers.py to do this, or
-  write your own script. If you intend to run pubd, you should make sure that
-  the directory you specified as publication_base_directory exists and is
+* Start the daemons. You can use $top/rpkid/rpki-start-servers.py to do this,
+  or write your own script. If you intend to run pubd, you should make sure
+  that the directory you specified as publication_base_directory exists and is
   writable by the userid that will be running pubd, and should also make sure
   to start rsyncd.
 
@@ -348,11 +357,8 @@ shared libraries and is somewhat less portable than the original code, but
 without it the code simply would not build in 64-bit environments with the GNU
 tools. The current workaround appears to behave properly, but the workaround
 requires that the pathname to the RFC-3779-aware OpenSSL shared libraries be
-built into the _POW.so Python extension module. At the moment, in the absence
-of "make install" targets for the Python code and libraries, this means the
-build directory; eventually, once we're using autoconf and installation
-targets, this will be the installation directory. If necessary, you can
-override this by setting the LD_LIBRARY_PATH environment variable, see the
-ld.so man page for details. This is a relatively minor variation on the usual
-build issues for shared libraries, it's just annoying because shared libraries
-should not be needed here and would not be if not for this GNU linker issue.
+built into the _POW.so Python extension module. If necessary, you can override
+this by setting the LD_LIBRARY_PATH environment variable, see the ld.so man
+page for details. This is a relatively minor variation on the usual build
+issues for shared libraries, it's just annoying because shared libraries should
+not be needed here and would not be if not for this GNU linker issue.

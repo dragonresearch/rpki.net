@@ -1,3 +1,14 @@
+RPKI EngineÂ 1.0
+
+* MainÂ_Page
+* RelatedÂ_Pages
+* Packages
+* Classes
+* Files
+*  [Search              ]
+
+* RPKI_Engine_Reference_Manual
+
 ****** Left-Right Protocol ******
 
 The left-right protocol is really two separate client/server protocols over
@@ -28,8 +39,8 @@ would have returned on each of those objects.
 Left-right protocol objects are encoded as signed CMS messages containing XML
 as eContent and using an eContentType OID of id-ct-xml
 (1.2.840.113549.1.9.16.1.28). These CMS messages are in turn passed as the data
-for HTTPS POST operations, with an HTTP content type of "application/x-rpki"
-for both the POST data and the response data.
+for HTTP POST operations, with an HTTP content type of "application/x-rpki" for
+both the POST data and the response data.
 
 All operations allow an optional "tag" attribute which can be any alphanumeric
 token. The main purpose of the tag attribute is to allow batching of multiple
@@ -123,12 +134,12 @@ Control attributes that can be set to "yes" to force actions:
  <bsc/> object
 
 The <bsc/> ("business signing context") object represents all the BPKI data
-needed to sign outgoing CMS or HTTPS messages. Various other objects include
-pointers to a <bsc/> object. Whether a particular <self/> uses only one <bsc/
-> or multiple is a configuration decision based on external requirements: the
-RPKI engine code doesn't care, it just cares that, for any object representing
-a relationship for which it must sign messages, there be a <bsc/> object that
-it can use to produce that signature.
+needed to sign outgoing CMS messages. Various other objects include pointers to
+a <bsc/> object. Whether a particular <self/> uses only one <bsc/> or multiple
+is a configuration decision based on external requirements: the RPKI engine
+code doesn't care, it just cares that, for any object representing a
+relationship for which it must sign messages, there be a <bsc/> object that it
+can use to produce that signature.
 
 Every <bsc/> object has a bsc_handle, which must be specified for the "create",
 "get", "set", and "destroy" actions. Every <bsc/> also has a self_handle
@@ -190,7 +201,7 @@ publishing issued by the certificate issued by this parent.
 Payload data which can be configured in a <parent/> object:
 
   peer_contact_uri (attribute):
-      HTTPS URI used to contact this parent.
+      HTTP URI used to contact this parent.
 
   sia_base (attribute):
       The leading portion of an rsync URI that the RPKI engine should use when
@@ -222,16 +233,6 @@ Payload data which can be configured in a <parent/> object:
       certificate should be the issuer of the bpki_cms_cert certificate and
       should be issued by the bpki_cert certificate in the <self/> object; if
       not needed, the bpki_cms_glue certificate should be left unset.
-
-  bpki_https_cert (element):
-      BPKI HTTPS CA certificate for this <parent/>. This is like the
-      bpki_cms_cert object, only used for validating incoming TLS messages
-      rather than CMS.
-
-  bpki_cms_glue (element):
-      Another BPKI HTTPS CA certificate for this <parent/>, usually not needed.
-      This is like the bpki_cms_glue certificate, only used for validating
-      incoming TLS messages rather than CMS.
 
 Control attributes that can be set to "yes" to force actions:
 
@@ -293,7 +294,7 @@ a self_handle attribute which indicates the <self/> object with which this
 Payload data which can be configured in a <repository/> object:
 
   peer_contact_uri (attribute):
-      HTTPS URI used to contact this repository.
+      HTTP URI used to contact this repository.
 
   bpki_cms_cert (element):
       BPKI CMS CA certificate for this <repository/>. This is used as part of
@@ -311,16 +312,6 @@ Payload data which can be configured in a <repository/> object:
       certificate and should be issued by the bpki_cert certificate in the
       <self/> object; if not needed, the bpki_cms_glue certificate should be
       left unset.
-
-  bpki_https_cert (element):
-      BPKI HTTPS CA certificate for this <repository/>. This is like the
-      bpki_cms_cert object, only used for validating incoming TLS messages
-      rather than CMS.
-
-  bpki_cms_glue (element):
-      Another BPKI HTTPS CA certificate for this <repository/>, usually not
-      needed. This is like the bpki_cms_glue certificate, only used for
-      validating incoming TLS messages rather than CMS.
 
 At present there are no control attributes for <repository/> objects.
 
@@ -389,9 +380,9 @@ For example, "10.0.1.0/24-32,10.0.2.0/24", which is a shorthand form of
 The left-right protocol also includes queries from the RPKI engine back to the
 IRDB. These queries do not follow the message-passing pattern used in the IRBE-
 initiated part of the protocol. Instead, there's a single query back to the
-IRDB, with a corresponding response. The CMS and HTTPS encoding are the same as
-in the rest of the protocol, but the BPKI certificates will be different as the
-back-queries and responses form a separate communication channel.
+IRDB, with a corresponding response. The CMS encoding are the same as in the
+rest of the protocol, but the BPKI certificates will be different as the back-
+queries and responses form a separate communication channel.
 
  <list_resources/> messages
 
@@ -438,7 +429,7 @@ don't allow a maxLength specification.
 
 Error in this protocol are handled at two levels.
 
-Since all messages in this protocol are conveyed over HTTPS connections, basic
+Since all messages in this protocol are conveyed over HTTP connections, basic
 errors are indicated via the HTTP response code. 4xx and 5xx responses indicate
 that something bad happened. Errors that make it impossible to decode a query
 or encode a response are handled in this way.

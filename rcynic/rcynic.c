@@ -1450,9 +1450,10 @@ static int rsync(const rcynic_ctx_t *rc,
 
   assert(pid > 0);
   for (i = 0; i < KILL_MAX && wpid == 0; i++) {
-    if ((wpid = waitpid(pid, &pid_status, 0)) != 0 && WIFEXITED(pid_status))
+    if ((wpid = waitpid(pid, &pid_status, WNOHANG)) != 0 && WIFEXITED(pid_status))
       break;
     kill(pid, SIGTERM);
+    sleep(1);
   }
 
   if (WEXITSTATUS(pid_status)) {

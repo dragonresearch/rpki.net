@@ -1,0 +1,21 @@
+{% extends "cacheview/cacheview_base.html" %}
+
+{% block content %}
+
+<h1>{% block title %}Query Results{% endblock %}</h1>
+
+<table>
+    <tr><th>Prefix</th><th>AS</th><th>Valid</th><th>Until</th></tr>
+    {% for object in object_list %}
+    <tr>
+        <td>{{ object.0 }}</td>
+        <td>{{ object.1.asid }}</td>
+        <td><a href="{{ object.1.get_absolute_url }}">{{ object.1.ok }}</a></td>
+        <td>{{ object.1.not_after }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<p><a href="{% url rpki.gui.cacheview.views.query_view %}">new query</a></p>
+
+{% endblock %}

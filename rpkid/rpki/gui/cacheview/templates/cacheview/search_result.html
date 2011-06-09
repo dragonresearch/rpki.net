@@ -1,0 +1,31 @@
+{% extends "cacheview/cacheview_base.html" %}
+
+{% block content %}
+
+<h1>Search Results</h1>
+
+<h2>Matching Resource Certificates</h2>
+{% if certs %}
+<ul>
+{% for cert in certs %}
+<li><a href="{{ cert.get_absolute_url }}">{{ cert }}</a>
+{% endfor %}
+</ul>
+{% else %}
+<p>none</p>
+{% endif %}
+
+<h2>Matching ROAs</h2>
+{% if roas %}
+<ul>
+{% for roa in roas %}
+<li><a href="{{ roa.get_absolute_url }}">{{ roa }}</a>
+{% endfor %}
+</ul>
+{% else %}
+<p>none</p>
+{% endif %}
+
+<p><a href="{% url rpki.gui.cacheview.views.search_view %}">new search</a>
+
+{% endblock %}

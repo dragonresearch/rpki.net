@@ -1,0 +1,17 @@
+{% extends "cacheview/cacheview_base.html" %}
+
+{% block title %}
+{{ search_type }} Search
+{% endblock %}
+
+{% block content %}
+
+<h1>{{search_type}} Search</h1>
+
+<form method='post' action='{{ request.url }}'>
+    {% csrf_token %}
+    {{ form.as_p }}
+    <input type='submit' name='Search'>
+</form>
+
+{% endblock %}

@@ -58,7 +58,8 @@ INSTALLED_APPS = (
     'django.contrib.admindocs',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
-    'rpki.gui.app'
+    'rpki.gui.app',
+    'rpki.gui.cacheview'
 )
 
 TEMPLATE_CONTEXT_PROCESSORS = (

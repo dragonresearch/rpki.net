@@ -1,0 +1,22 @@
+{% extends "cacheview/signedobject_detail.html" %}
+
+{% block title %}
+<h1>ROA Detail</h1>
+{% endblock %}
+
+{% block detail %}
+
+<p>
+<table>
+    <tr><td>AS</td><td>{{ object.asid }}</td></tr>
+</table>
+
+<h2>Prefixes</h2>
+
+<ul>
+{% for pfx in object.prefixes.all %}
+<li>{{ pfx }}
+{% endfor %}
+</ul>
+
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends "cacheview/signedobject_detail.html" %}
+
+{% block title %}
+Resource Certificate Detail
+{% endblock %}
+
+{% block detail %}
+
+<p>
+<table>
+    <tr><td>Subject</td><td>{{ object.name }}</td></tr>
+    <tr><td>SKI</td><td>{{ object.keyid }}</td></tr>
+</table>
+
+<h2>RFC3779 Resources</h2>
+
+<ul>
+
+<li>
+
+<h3>AS</h3>
+{% if object.asns.all %}
+<ul>
+{% for asn in object.asns.all %}
+<li>{{ asn }}
+{% endfor %}
+</ul>
+{% else %}
+<p>none</p>
+{% endif %}
+
+<li>
+<h2>IP Ranges</h2>
+
+{% if object.addresses.all %}
+<ul>
+{% for rng in object.addresses.all %}
+<li>{{ rng }}
+{% endfor %}
+</ul>
+{% else %}
+<p>none</p>
+{% endif %}
+</ul><!--resources-->
+
+<h2>Issued Objects</h2>
+<ul>
+
+    <li>
+<h3>Ghostbusters</h3>
+{% if object.ghostbusters.all %}
+<ul>
+{% for g in object.ghostbusters.all %}
+<li><a href="{{ g.get_absolute_url }}">{{ g }}</a>
+{% endfor %}
+</ul>
+{% endif %}
+
+        <li>
+<h3>ROAs</h3>
+{% if object.roas.all %}
+<table>
+    <tr><th>Prefix</th><th>AS</th></tr>
+    {% for roa in object.roas.all %}
+    {% for pfx in roa.prefixes.all %}
+    <tr><td>{{ pfx }}</td><td>{{ roa.asid }}</td></tr>
+    {% endfor %}
+    {% endfor %}
+</table>
+{% endif %}
+
+<li>
+<h3>Children</h3>
+{% if object.children.all %}
+<ul>
+    {% for child in object.children.all %}
+    <li><a href="{{ child.get_absolute_url }}">{{ child.name }}</a>
+    {% endfor %}
+</ul>
+
+{% endif %}
+</ul><!--issued objects-->
+
+{% endblock %}

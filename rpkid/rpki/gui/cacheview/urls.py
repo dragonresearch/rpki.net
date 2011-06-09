@@ -1,7 +1,6 @@
 # $Id$
-
 """
-Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
+Copyright (C) 2011  SPARTA, Inc. dba Cobham Analytic Solutions
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -14,27 +13,16 @@ INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
 LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
-
 """
 
 from django.conf.urls.defaults import *
 
-from django.contrib import admin
-admin.autodiscover()
-
 urlpatterns = patterns('',
-
-    # Uncomment the admin/doc line below and add 'django.contrib.admindocs' 
-    # to INSTALLED_APPS to enable admin documentation:
-    (r'^admin/doc/', include('django.contrib.admindocs.urls')),
-
-    # Uncomment the next line to enable the admin:
-    (r'^admin/', include(admin.site.urls)),
-
-    (r'^rpki/', include('rpki.gui.app.urls')),
-    (r'^cacheview/', include('rpki.gui.cacheview.urls')),
-
-    (r'^accounts/login/$', 'django.contrib.auth.views.login'),
-    (r'^accounts/logout/$', 'django.contrib.auth.views.logout',
-        { 'next_page': '/rpki/' }),
+    (r'^query$', 'rpki.gui.cacheview.views.query_view'),
+    (r'^search$', 'rpki.gui.cacheview.views.search_view'),
+    (r'^cert/(?P<pk>[^/]+)$', 'rpki.gui.cacheview.views.cert_detail'),
+    (r'^roa/(?P<pk>[^/]+)$', 'rpki.gui.cacheview.views.roa_detail'),
+    (r'^gbr/(?P<pk>[^/]+)$', 'rpki.gui.cacheview.views.ghostbuster_detail'),
 )
+
+# vim:sw=4 ts=8 expandtab

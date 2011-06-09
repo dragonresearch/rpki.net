@@ -16,7 +16,6 @@ PERFORMANCE OF THIS SOFTWARE.
 """
 
 from django.conf.urls.defaults import *
-from django.views.generic.list_detail import object_list
 from rpki.gui.app import views
 
 urlpatterns = patterns('',

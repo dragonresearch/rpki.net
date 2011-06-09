@@ -1,0 +1,25 @@
+{% extends "cacheview/cacheview_base.html" %}
+
+{% block content %}
+<h1>{% block title %}Signed Object Detail{% endblock %}</h1>
+
+<h2>Metadata</h2>
+
+<table>
+    <tr><td>URI</td><td>{{ object.uri }}</td></tr>
+    <tr><td>Last Modified</td><td>{{ object.mtime_as_datetime|date:"DATETIME_FORMAT" }}</td></tr>
+    <tr><td>Timestamp</td><td>{{ object.timestamp }}</td></tr>
+    <tr><td>Status</td><td>{{ object.status }}</td></tr>
+    <tr><td>Valid</td><td>{{ object.ok }}</td></tr>
+</table>
+
+<h2>Auth Info</h2>
+
+<table>
+    <tr><td>Validity</td><td>{{ object.not_before }} - {{ object.not_after }}</td></tr>
+    <tr><td>Issuer</td><td><a href='{{object.issuer.get_absolute_url}}'>{{ object.issuer.name }}</a></td></tr>
+</table>
+
+{% block detail %}{% endblock %}
+
+{% endblock %}

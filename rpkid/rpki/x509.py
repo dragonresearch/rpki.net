@@ -46,7 +46,7 @@ PERFORMANCE OF THIS SOFTWARE.
 import rpki.POW, rpki.POW.pkix, base64, lxml.etree, os, subprocess, sys
 import email.mime.application, email.utils, mailbox, time
 import rpki.exceptions, rpki.resource_set, rpki.oids, rpki.sundial
-import rpki.manifest, rpki.roa, rpki.log, rpki.async
+import rpki.manifest, rpki.roa, rpki.log, rpki.async, rpki.ghostbuster
 
 def base64_with_linebreaks(der):
   """
@@ -1117,6 +1117,21 @@ class ROA(DER_CMS_object):
       rpki.log.debug("Encoding error while generating ROA %r: %s" % (self, e))
       rpki.log.debug("ROA inner content: %r" % (r.get(),))
       raise
+
+class Ghostbuster(DER_CMS_object):
+  """
+  Class to hold a signed Ghostbuster record.
+  """
+
+  content_class = rpki.ghostbuster.Ghostbuster
+
+  @classmethod
+  def build(cls, vcard, keypair, certs):
+      self = cls()
+      gbr = content_class(vcard)
+      self.set_content(gbr)
+      self.sign(keypair, certs)
+      return self
 
 class DeadDrop(object):
   """

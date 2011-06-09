@@ -125,6 +125,7 @@ class rcynic_roa(rcynic_object):
     self.aia_uri = self.ee.get_aia_uri()
     self.resources = self.ee.get_3779resources()
     self.issuer = self.ee.getIssuer()
+    self.serial = self.ee.getSerial()
     self.subject = self.ee.getSubject()
     self.aki = self.ee.hAKI()
     self.ski = self.ee.hSKI()
@@ -138,8 +139,34 @@ class rcynic_roa(rcynic_object):
     if self.prefix_sets:
       print "Prefixes:", ",".join(str(i) for i in self.prefix_sets)
 
+class rcynic_ghostbuster(rcynic_object):
+  """
+  Ghostbuster record from the rcynic cache.
+  """
+
+  obj_class = rpki.x509.Ghostbuster
+
+  def __init__(self, *args, **kwargs):
+    rcynic_object.__init__(self, *args, **kwargs)
+    self.obj.extract()
+    self.vcard = self.obj.get_content()
+    self.ee = rpki.x509.X509(POW = self.obj.get_POW().certs()[0])
+    self.notBefore = self.ee.getNotBefore()
+    self.notAfter = self.ee.getNotAfter()
+    self.aia_uri = self.ee.get_aia_uri()
+    self.issuer = self.ee.getIssuer()
+    self.serial = self.ee.getSerial()
+    self.subject = self.ee.getSubject()
+    self.aki = self.ee.hAKI()
+    self.ski = self.ee.hSKI()
+
+  def show(self):
+    rcynic_object.show(self)
+    self.show_attrs("notBefore", "notAfter", "vcard")
+
 file_name_classes = {
   ".cer" : rcynic_certificate,
+  ".gbr" : rcynic_ghostbuster,
   ".roa" : rcynic_roa }
 
 class rcynic_file_iterator(object):

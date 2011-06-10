@@ -43,7 +43,8 @@ POW_SO	= rpki/POW/_POW.so
 
 SCRIPTS = rpki-sql-backup rpki-sql-setup rpki-start-servers irbe_cli irdbd myrpki \
 	  pubd rootd rpkid portal-gui/scripts/rpkigui-load-csv \
-	  portal-gui/scripts/rpkigui-add-user portal-gui/scripts/rpkigui-response
+	  portal-gui/scripts/rpkigui-add-user portal-gui/scripts/rpkigui-response \
+	  portal-gui/scripts/rpkigui-rcynic
 
 AUX_SCRIPTS =
 
@@ -228,6 +229,9 @@ portal-gui/scripts/rpkigui-load-csv: portal-gui/scripts/load_csv.py
 	${COMPILE_PYTHON}
 
 portal-gui/scripts/rpkigui-add-user: portal-gui/scripts/adduser.py
+	${COMPILE_PYTHON}
+
+portal-gui/scripts/rpkigui-rcynic: portal-gui/scripts/rpkigui-rcynic.py
 	${COMPILE_PYTHON}
 
 portal-gui/scripts/rpkigui-response: portal-gui/scripts/rpkigui-response.py

@@ -14,15 +14,17 @@
 # PERFORMANCE OF THIS SOFTWARE.
 #
 
-import os, sys, time
+default_logfile = '/var/rcynic/data/rcynic.xml'
+default_root = '/var/rcynic/data'
+
+import os, sys, time, vobject
 os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.settings'
 
 from rpki.gui.cacheview import models
 from rpki.rcynic import rcynic_xml_iterator
 from rpki.sundial import datetime
-import vobject
 
-debug = True
+debug = False
 
 def process_object(obj, model_class):
     """
@@ -43,10 +45,13 @@ def process_object(obj, model_class):
     else:
         inst = q[0]
 
+    # metadata that is updated on every run, regardless of whether the object
+    # has changed
     inst.ok = obj.ok
     inst.status = obj.status
     inst.timestamp = datetime.fromXMLtime(obj.timestamp).to_sql()
 
+    # determine if the object is changed/new
     mtime = os.stat(obj.filename)[8]
     if mtime != inst.mtime:
         inst.mtime = mtime
@@ -64,6 +69,7 @@ def process_object(obj, model_class):
     elif debug:
         print 'object is unchanged'
 
+    # metadata has changed, so a save is required
     inst.save()
 
     return False, inst
@@ -115,19 +121,14 @@ def process_rescert(cert):
 def process_ghostbuster(gbr):
     refresh, obj = process_object(gbr, models.Ghostbuster)
 
-    if True:
-    #if refresh:
+    if refresh:
         vcard = vobject.readOne(gbr.vcard)
         if debug:
             vcard.prettyPrint()
-        if hasattr(vcard, 'fn'):
-            obj.full_name = vcard.fn.value
-        if hasattr(vcard, 'email'):
-            obj.email_address = vcard.email.value
-        if hasattr(vcard, 'tel'):
-            obj.telephone = vcard.tel.value
-        if hasattr(vcard, 'org'):
-            obj.organization = vcard.org.value[0]
+        obj.full_name = vcard.fn.value if hasattr(vcard, 'fn') else None
+        obj.email_address = vcard.email.value if hasattr(vcard, 'email') else None
+        obj.telephone = vcard.tel.value if hasattr(vcard, 'tel') else None
+        obj.organization = vcard.org.value[0] if hasattr(vcard, 'org') else None
         obj.save()
 
 fam_map = { 'roa_prefix_set_ipv6': 6, 'roa_prefix_set_ipv4': 4 }
@@ -151,8 +152,6 @@ def process_roa(roa):
                     obj.prefixes.create(**attrs)
                 else:
                     obj.prefixes.add(q[0])
-    else:
-        obj.save()
 
     return obj
 
@@ -177,32 +176,41 @@ def garbage_collect(ts):
         print 'doing garbage collection'
 
     for roa in models.ROA.objects.filter(timestamp__lt=ts):
+        if debug:
+            sys.stderr.write('removing %s\n' % roa.uri)
         trydelete(roa.prefixes)
         roa.delete()
 
     for cert in models.Cert.objects.filter(timestamp__lt=ts):
+        if debug:
+            sys.stderr.write('removing %s\n' % cert.uri)
         trydelete(cert.asns)
         trydelete(cert.addresses)
         cert.delete()
 
     for gbr in models.Ghostbuster.objects.filter(timestamp__lt=ts):
+        if debug:
+            sys.stderr.write('removing %s\n' % gbr.uri)
         gbr.delete()
 
-dispatch = {
-  'rcynic_certificate': process_rescert,
-  'rcynic_roa'        : process_roa,
-  'rcynic_ghostbuster': process_ghostbuster
-}
-
-def process_cache(root='/var/rcynic/data', xml_file='/var/rcynic/data/rcynic.xml'):
+def process_cache(root, xml_file):
     start = time.time()
 
-    first = True
-    ts = datetime.now()
+    # the timestamp from the first element in the rcynic xml file is saved
+    # to perform garbage collection of stale db entries
+    ts = 0
+
+    dispatch = {
+      'rcynic_certificate': process_rescert,
+      'rcynic_roa'        : process_roa,
+      'rcynic_ghostbuster': process_ghostbuster
+    }
+
+    # loop over all rcynic objects and dispatch based on the returned
+    # rcynic_object subclass
     for obj in rcynic_xml_iterator(root, xml_file):
         r = dispatch[obj.__class__.__name__](obj)
-        if first:
-            first = False
+        if not ts:
             ts = r.timestamp
     garbage_collect(ts)
 
@@ -211,6 +219,21 @@ def process_cache(root='/var/rcynic/data', xml_file='/var/rcynic/data/rcynic.xml
         sys.stdout.write('elapsed time %d seconds.\n' % (stop - start))
 
 if __name__ == '__main__':
-    process_cache()
+    import optparse
+
+    parser = optparse.OptionParser()
+    parser.add_option("-d", "--debug", action="store_true",
+            help="enable debugging message")
+    parser.add_option("-f", "--file", dest="logfile",
+            help="specify the rcynic XML file to parse [default: %default]",
+            default=default_logfile)
+    parser.add_option("-r", "--root",
+            help="specify the chroot directory for the rcynic jail [default: %default]",
+            metavar="DIR", default=default_root)
+    options, args = parser.parse_args(sys.argv)
+    if options.debug:
+        debug = True
+
+    process_cache(options.root, options.logfile)
 
 # vim:sw=4 ts=8

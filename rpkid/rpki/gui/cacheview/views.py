@@ -24,10 +24,10 @@ from rpki.ipaddrs import v4addr, v6addr
 
 # Create your views here.
 
-def address_detail(request, pk):
+def addressrange_detail(request, pk):
     return list_detail.object_detail(request, models.AddressRange.objects.all(), pk)
 
-def as_detail(request, pk):
+def asrange_detail(request, pk):
     return list_detail.object_detail(request, models.ASRange.objects.all(), pk)
 
 def roa_detail(request, pk):
@@ -51,8 +51,8 @@ def search_view(request):
 
             if addr:
                 family, r = misc.parse_ipaddr(addr)
-                certs = models.Cert.objects.filter(addresses__family=family, addresses__min__gte=r.min, addresses__max__lte=r.max).distinct()
-                roas = models.ROA.objects.filter(prefixes__family=family, prefixes__prefix=str(r.min)).distinct()
+                certs = models.Cert.objects.filter(addresses__family=family, addresses__min=str(r.min), addresses__max=str(r.max))
+                roas = models.ROA.objects.filter(prefixes__family=family, prefixes__prefix=str(r.min))
             elif asn:
                 r = resource_range_as.parse_str(asn)
                 certs = models.Cert.objects.filter(asns__min__gte=r.min, asns__max__lte=r.max)

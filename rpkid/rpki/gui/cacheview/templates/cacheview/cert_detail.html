@@ -22,7 +22,7 @@ Resource Certificate Detail
 {% if object.asns.all %}
 <ul>
 {% for asn in object.asns.all %}
-<li>{{ asn }}
+<li><a href="{{ asn.get_absolute_url }}">{{ asn }}</a>
 {% endfor %}
 </ul>
 {% else %}
@@ -35,7 +35,7 @@ Resource Certificate Detail
 {% if object.addresses.all %}
 <ul>
 {% for rng in object.addresses.all %}
-<li>{{ rng }}
+<li><a href="{{ rng.get_absolute_url }}">{{ rng }}</a>
 {% endfor %}
 </ul>
 {% else %}

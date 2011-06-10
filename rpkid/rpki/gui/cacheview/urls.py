@@ -18,11 +18,13 @@ PERFORMANCE OF THIS SOFTWARE.
 from django.conf.urls.defaults import *
 
 urlpatterns = patterns('',
-    (r'^query$', 'rpki.gui.cacheview.views.query_view'),
-    (r'^search$', 'rpki.gui.cacheview.views.search_view'),
+    (r'^query$',              'rpki.gui.cacheview.views.query_view'),
+    (r'^search$',             'rpki.gui.cacheview.views.search_view'),
+    (r'^as/(?P<pk>[^/]+)$',   'rpki.gui.cacheview.views.asrange_detail'),
+    (r'^addr/(?P<pk>[^/]+)$', 'rpki.gui.cacheview.views.addressrange_detail'),
     (r'^cert/(?P<pk>[^/]+)$', 'rpki.gui.cacheview.views.cert_detail'),
-    (r'^roa/(?P<pk>[^/]+)$', 'rpki.gui.cacheview.views.roa_detail'),
-    (r'^gbr/(?P<pk>[^/]+)$', 'rpki.gui.cacheview.views.ghostbuster_detail'),
+    (r'^gbr/(?P<pk>[^/]+)$',  'rpki.gui.cacheview.views.ghostbuster_detail'),
+    (r'^roa/(?P<pk>[^/]+)$',  'rpki.gui.cacheview.views.roa_detail'),
 )
 
 # vim:sw=4 ts=8 expandtab

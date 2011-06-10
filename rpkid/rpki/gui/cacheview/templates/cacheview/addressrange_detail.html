@@ -1,0 +1,18 @@
+{% extends "cacheview/cacheview_base.html" %}
+
+{% block content %}
+<h1>{% block title %}IP Range Detail{% endblock %}</h1>
+
+<p>
+IP Range: {{ object }}
+</p>
+
+<p>Covered by the following resource certs:</p>
+
+<ul>
+{% for cert in object.certs.all %}
+<li><a href="{{ cert.get_absolute_url }}">{{ cert }}</a></li>
+{% endfor %}
+</ul>
+
+{% endblock %}

@@ -37,15 +37,15 @@ class AddressRange(models.Model):
 
     @models.permalink
     def get_absolute_url(self):
-        return ('rpki.gui.cacheview.views.address_view', [str(self.pk)])
+        return ('rpki.gui.cacheview.views.addressrange_detail', [str(self.pk)])
 
     def __unicode__(self):
         if self.min == self.max:
             return u'%s' % self.min
 
-        try:
+        if self.family == 4:
             r = resource_range_ipv4.from_strings(self.min, self.max)
-        except ValueError:
+        elif self.family == 6:
             r = resource_range_ipv6.from_strings(self.min, self.max)
 
         try:
@@ -66,11 +66,11 @@ class ASRange(models.Model):
         if self.min == self.max:
             return u'AS%d' % self.min
         else:
-            return u'%s-%s' % (self.min, self.max)
+            return u'AS%s-%s' % (self.min, self.max)
 
     @models.permalink
     def get_absolute_url(self):
-        return ('rpki.gui.cacheview.views.as_view', [str(self.pk)])
+        return ('rpki.gui.cacheview.views.asrange_detail', [str(self.pk)])
 
 class SignedObject(models.Model):
     """

@@ -59,6 +59,7 @@
 #include <limits.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <utime.h>
 
 #define SYSLOG_NAMES		/* defines CODE prioritynames[], facilitynames[] */
 #include <syslog.h>
@@ -1065,8 +1066,10 @@ static void reject(const rcynic_ctx_t *rc,
 /**
  * Copy a file
  */
-static int cp(const char *source, const char *target)
+static int cp(const rcynic_ctx_t *rc, const char *source, const char *target)
 {
+  struct stat statbuf;
+  struct utimbuf utimebuf;
   FILE *in = NULL, *out = NULL;
   int c, ret = 0;
 
@@ -1083,6 +1086,21 @@ static int cp(const char *source, const char *target)
  done:
   ret &= !(in  != NULL && fclose(in)  == EOF);
   ret &= !(out != NULL && fclose(out) == EOF);
+
+  /*
+   * Perserve the file modification time to allow for detection of
+   * changed objects in the authenticated directory.  Failure to reset
+   * the times is not optimal, but is also not critical, thus no
+   * failure return.  Errors are reported with log_sys_err because
+   * there is no log type for warnings.
+   */
+  if (ret && (stat(source, &statbuf) < 0 ||
+	      (utimebuf.actime = statbuf.st_atime,
+	       utimebuf.modtime = statbuf.st_mtime,
+	       utime(target, &utimebuf) < 0)))
+    logmsg(rc, log_sys_err, "Couldn't copy inode timestamp from %s to %s: %s",
+	   source, target, strerror(errno));
+
   return ret;
 }
 
@@ -1120,7 +1138,7 @@ static int install_object(const rcynic_ctx_t *rc,
     return 0;
   }
 
-  if (rc->use_links ? !ln(source, target) : !cp(source, target)) {
+  if (rc->use_links ? !ln(source, target) : !cp(rc, source, target)) {
     logmsg(rc, log_sys_err, "Couldn't %s %s to %s",
 	   (rc->use_links ? "link" : "copy"), source, target);
     return 0;
@@ -3545,7 +3563,7 @@ int main(int argc, char *argv[])
     logmsg(&rc, log_telemetry, "Copying trust anchor %s to %s", path1, path2);
 
     if (!mkdir_maybe(&rc, path2) ||
-	!(rc.use_links ? ln(path1, path2) : cp(path1, path2))) {
+	!(rc.use_links ? ln(path1, path2) : cp(&rc, path1, path2))) {
       logmsg(&rc, log_sys_err, "Couldn't %s trust anchor %s",
 	     (rc.use_links ? "link" : "copy"), path1);
       goto done;

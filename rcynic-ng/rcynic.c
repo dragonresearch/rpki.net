@@ -59,6 +59,7 @@
 #include <limits.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <utime.h>
 
 #define SYSLOG_NAMES		/* defines CODE prioritynames[], facilitynames[] */
 #include <syslog.h>
@@ -941,12 +942,23 @@ static void reject(const rcynic_ctx_t *rc,
 }
 
 /**
- * Copy a file
+ * Copy or link a file, as the case may be.
  */
-static int cp(const path_t *source, const path_t *target)
+static int cp_ln(const rcynic_ctx_t *rc, const path_t *source, const path_t *target)
 {
+  struct stat statbuf;
+  struct utimbuf utimebuf;
   FILE *in = NULL, *out = NULL;
-  int c, ret = 0;
+  int c, ok = 0;
+
+  if (rc->use_links) {
+    (void) unlink(target->s);
+    ok = link(source->s, target->s) == 0;
+    if (!ok)
+      logmsg(rc, log_sys_err, "Couldn't link %s to %s: %s",
+	     source->s, target->s, strerror(errno));
+    return ok;
+  }
 
   if ((in = fopen(source->s, "rb")) == NULL ||
       (out = fopen(target->s, "wb")) == NULL)
@@ -956,31 +968,36 @@ static int cp(const path_t *source, const path_t *target)
     if (putc(c, out) == EOF)
       goto done;
 
-  ret = 1;
+  ok = 1;
 
  done:
-  ret &= !(in  != NULL && fclose(in)  == EOF);
-  ret &= !(out != NULL && fclose(out) == EOF);
-  return ret;
+  ok &= !(in  != NULL && fclose(in)  == EOF);
+  ok &= !(out != NULL && fclose(out) == EOF);
+
+  if (!ok) {
+    logmsg(rc, log_sys_err, "Couldn't copy %s to %s: %s",
+	   source->s, target->s, strerror(errno));
+    return ok;
+  }
+
+  /*
+   * Perserve the file modification time to allow for detection of
+   * changed objects in the authenticated directory.  Failure to reset
+   * the times is not optimal, but is also not critical, thus no
+   * failure return.
+   */
+  if (stat(source->s, &statbuf) < 0 ||
+      (utimebuf.actime = statbuf.st_atime,
+       utimebuf.modtime = statbuf.st_mtime,
+       utime(target->s, &utimebuf) < 0))
+    logmsg(rc, log_sys_err, "Couldn't copy inode timestamp from %s to %s: %s",
+	   source->s, target->s, strerror(errno));
+
+  return ok;
 }
 
 /**
- * Link a file
- */
-static int ln(const path_t *source, const path_t *target)
-{
-  unlink(target->s);
-  return link(source->s, target->s) == 0;
-}
-
-/**
- * Install an object.  It'd be nice if we could just use link(), but
- * that would require us to trust rsync never to do anything bad.  For
- * now we just copy in the simplest way possible.  Come back to this
- * if profiling shows a hotspot here.
- *
- * Well, ok, profiling didn't show an issue, but inode exhaustion did.
- * So we now make copy vs link a configuration choice.
+ * Install an object.
  */
 static int install_object(const rcynic_ctx_t *rc,
 			  const uri_t *uri,
@@ -998,18 +1015,15 @@ static int install_object(const rcynic_ctx_t *rc,
     return 0;
   }
 
-  if (rc->use_links ? !ln(source, &target) : !cp(source, &target)) {
-    logmsg(rc, log_sys_err, "Couldn't %s %s to %s",
-	   (rc->use_links ? "link" : "copy"), source->s, target.s);
+  if (!cp_ln(rc, source, &target))
     return 0;
-  }
   log_validation_status(rc, uri, validation_ok);
   logmsg(rc, log_telemetry, "Accepted     %s", uri->s);
   return 1;
 }
 
 /**
- * Check str for a trailing suffix.
+ * Check str for a suffix.
  */
 static int endswith(const char *str, const char *suffix)
 {
@@ -3929,12 +3943,8 @@ int main(int argc, char *argv[])
 
     logmsg(&rc, log_telemetry, "Copying trust anchor %s to %s", path1.s, path2.s);
 
-    if (!mkdir_maybe(&rc, &path2) ||
-	!(rc.use_links ? ln(&path1, &path2) : cp(&path1, &path2))) {
-      logmsg(&rc, log_sys_err, "Couldn't %s trust anchor %s",
-	     (rc.use_links ? "link" : "copy"), path1.s);
+    if (!mkdir_maybe(&rc, &path2) || !cp_ln(&rc, &path1, &path2))
       goto done;
-    }
 
     if ((wsk = walk_ctx_stack_new()) == NULL) {
       logmsg(&rc, log_sys_err, "Couldn't allocate walk context stack");

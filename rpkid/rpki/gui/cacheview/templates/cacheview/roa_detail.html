@@ -1,11 +1,8 @@
 {% extends "cacheview/signedobject_detail.html" %}
 
-{% block title %}
-<h1>ROA Detail</h1>
-{% endblock %}
+{% block title %}ROA Detail{% endblock %}
 
 {% block detail %}
-
 <p>
 <table>
     <tr><td>AS</td><td>{{ object.asid }}</td></tr>
@@ -18,5 +15,4 @@
 <li>{{ pfx }}
 {% endfor %}
 </ul>
-
 {% endblock %}

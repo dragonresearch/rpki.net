@@ -94,9 +94,10 @@ def process_rescert(cert):
             if debug:
                 sys.stderr.write('processing %s\n' % asr)
 
-            q = models.ASRange.objects.filter(min=asr.min, max=asr.max)
+            attrs = { 'min': asr.min, 'max': asr.max }
+            q = models.ASRange.objects.filter(**attrs)
             if not q:
-                obj.asns.create(min=asr.min, max=asr.max)
+                obj.asns.create(**attrs)
             else:
                 obj.asns.add(q[0])
 
@@ -105,11 +106,10 @@ def process_rescert(cert):
                 if debug:
                     sys.stderr.write('processing %s\n' % rng)
 
-                minaddr = str(rng.min)
-                maxaddr = str(rng.max)
-                q = models.AddressRange.objects.filter(family=family, min=minaddr, max=maxaddr)
+                attrs = { 'family': family, 'min': str(rng.min), 'max': str(rng.max) }
+                q = models.AddressRange.objects.filter(**attrs)
                 if not q:
-                    obj.addresses.create(family=family, min=minaddr, max=maxaddr)
+                    obj.addresses.create(**attrs)
                 else:
                     obj.addresses.add(q[0])
 
@@ -178,14 +178,14 @@ def garbage_collect(ts):
     for roa in models.ROA.objects.filter(timestamp__lt=ts):
         if debug:
             sys.stderr.write('removing %s\n' % roa.uri)
-        trydelete(roa.prefixes)
+        trydelete(roa.prefixes.all())
         roa.delete()
 
     for cert in models.Cert.objects.filter(timestamp__lt=ts):
         if debug:
             sys.stderr.write('removing %s\n' % cert.uri)
-        trydelete(cert.asns)
-        trydelete(cert.addresses)
+        trydelete(cert.asns.all())
+        trydelete(cert.addresses.all())
         cert.delete()
 
     for gbr in models.Ghostbuster.objects.filter(timestamp__lt=ts):

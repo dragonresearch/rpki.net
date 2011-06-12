@@ -29,11 +29,12 @@ class TelephoneField(models.CharField):
 
 class AddressRange(models.Model):
     family = models.IntegerField()
-    min = models.IPAddressField()
-    max = models.IPAddressField()
+    min = models.IPAddressField(db_index=True)
+    max = models.IPAddressField(db_index=True)
 
     class Meta:
         ordering = ('family', 'min', 'max')
+        unique_together = ('family', 'min', 'max')
 
     @models.permalink
     def get_absolute_url(self):

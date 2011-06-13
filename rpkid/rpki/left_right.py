@@ -678,6 +678,8 @@ class self_elt(data_elt):
           rpki.log.traceback()
           rpki.log.warn("Could not revoke %r: %s" % (roa, e))
 
+      self.gctx.sql.sweep()
+
       for ca_detail in ca_details:
         ca_detail.generate_crl(publisher = publisher)
         ca_detail.generate_manifest(publisher = publisher)

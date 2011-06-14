@@ -1,5 +1,11 @@
 {% extends "base.html" %}
 
+{% block css %}
+.good	{ background-color: #77ff77 }
+.warn	{ background-color: yellow }
+.bad	{ background-color: #ff5500 }
+{% endblock %}
+
 {% block sidebar %}
 <ul class='compact'>
     <li><a href="/cacheview/search">resource search</a>

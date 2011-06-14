@@ -21,7 +21,7 @@ import os, sys, time, vobject
 os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.settings'
 
 from rpki.gui.cacheview import models
-from rpki.rcynic import rcynic_xml_iterator
+from rpki.rcynic import rcynic_xml_iterator, label_iterator
 from rpki.sundial import datetime
 from django.db import transaction
 
@@ -49,7 +49,7 @@ def process_object(obj, model_class):
     # metadata that is updated on every run, regardless of whether the object
     # has changed
     inst.ok = obj.ok
-    inst.status = obj.status
+    inst.status = models.ValidationStatus.objects.get(label=obj.status)
     inst.timestamp = datetime.fromXMLtime(obj.timestamp).to_sql()
 
     # determine if the object is changed/new
@@ -227,6 +227,29 @@ def process_cache(root, xml_file):
         stop = time.time()
         sys.stdout.write('elapsed time %d seconds.\n' % (stop - start))
 
+def process_labels(xml_file):
+    if debug:
+        sys.stderr.write('updating labels...\n')
+
+    transaction.enter_transaction_management()
+    transaction.managed()
+    kinds = { 'good': 0, 'warn': 1, 'bad': 2 }
+    for label, kind, desc in label_iterator(xml_file):
+        if debug:
+            sys.stderr.write('label=%s kind=%s desc=%s\n' % (label, kind, desc))
+        if kind:
+            q = models.ValidationStatus.objects.filter(label=label)
+            if not q:
+                obj = models.ValidationStatus(label=label)
+            else:
+                obj = q[0]
+
+            obj.kind = kinds[kind]
+            obj.status = desc
+            obj.save()
+    transaction.commit()
+    transaction.leave_transaction_management()
+
 if __name__ == '__main__':
     import optparse
 
@@ -243,6 +266,7 @@ if __name__ == '__main__':
     if options.debug:
         debug = True
 
+    process_labels(options.logfile)
     process_cache(options.root, options.logfile)
 
 # vim:sw=4 ts=8

@@ -9,11 +9,11 @@
     <tr><td>URI</td><td>{{ object.uri }}</td></tr>
     <tr><td>Last Modified</td><td>{{ object.mtime_as_datetime|date:"DATETIME_FORMAT" }}</td></tr>
     <tr><td>Timestamp</td><td>{{ object.timestamp }}</td></tr>
-    <tr><td>Status</td><td>{{ object.status }}</td></tr>
+    <tr><td>Status</td><td class='{{ object.status.kind_as_str }}'>{{ object.status.status }}</td></tr>
     <tr><td>Valid</td><td>{{ object.ok }}</td></tr>
 </table>
 
-<h2>Auth Info</h2>
+<h2>X.509 Certificate Info</h2>
 
 <table>
     <tr><td>Validity</td><td>{{ object.not_before }} - {{ object.not_after }}</td></tr>

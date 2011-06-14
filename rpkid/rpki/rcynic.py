@@ -238,6 +238,16 @@ class rcynic_xml_iterator(object):
       if ext in file_name_classes:
         yield file_name_classes[ext](filename = filename, uri = uri, ok = ok, status = status, timestamp = timestamp)
 
+def label_iterator(xml_file):
+    """
+    Returns an iterator which contains all defined labels from an rcynic XML
+    output file.  Each item is a tuple of the form
+    (label, kind, description).
+    """
+
+    for label in ElementTree(file=xml_file).find("labels"):
+        yield label.tag, label.get("kind"), label.text.strip()
+
 if __name__ == "__main__":
   if False:
     for i in rcynic_file_iterator("/u/sra/rpki/subvert-rpki.hactrn.net/rcynic/rcynic-data"):

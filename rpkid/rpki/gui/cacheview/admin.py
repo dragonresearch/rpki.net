@@ -37,11 +37,15 @@ class ROAAdmin(admin.ModelAdmin):
 class GhostbusterAdmin(admin.ModelAdmin):
     pass
 
+class ValidationStatusAdmin(admin.ModelAdmin):
+    pass
+
 admin.site.register(models.AddressRange, AddressRangeAdmin)
 admin.site.register(models.ASRange, AddressRangeAdmin)
 admin.site.register(models.Cert, CertAdmin)
 admin.site.register(models.Ghostbuster, GhostbusterAdmin)
 admin.site.register(models.ROA, ROAAdmin)
 admin.site.register(models.ROAPrefix, ROAPrefixAdmin)
+admin.site.register(models.ValidationStatus, ValidationStatusAdmin)
 
 # vim:sw=4 ts=8

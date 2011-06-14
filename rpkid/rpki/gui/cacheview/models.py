@@ -73,6 +73,26 @@ class ASRange(models.Model):
     def get_absolute_url(self):
         return ('rpki.gui.cacheview.views.asrange_detail', [str(self.pk)])
 
+kinds = ( (0, 'good'), (1, 'warn'), (2, 'bad') )
+
+class ValidationStatus(models.Model):
+    """
+    Represents a specific error condition defined in the rcynic XML
+    output file.
+    """
+    label = models.CharField(max_length=30, db_index=True, unique=True)
+    status = models.CharField(max_length=255)
+    kind = models.PositiveSmallIntegerField(choices=kinds)
+
+    def __unicode__(self):
+        return self.label
+
+    def kind_as_str(self):
+        return kinds[self.kind][1]
+
+    class Meta:
+        verbose_name_plural = 'ValidationStatuses'
+
 class SignedObject(models.Model):
     """
     Abstract class to hold common metadata for all signed objects.
@@ -80,16 +100,16 @@ class SignedObject(models.Model):
     value for the 'related_name' attribute.
     """
     # attributes from rcynic's output XML file
-    uri       = models.URLField(unique=True, db_index=True)
-    timestamp = models.DateTimeField()
-    ok        = models.BooleanField()
-    status    = models.CharField(max_length=255)
+    uri        = models.URLField(unique=True, db_index=True)
+    timestamp  = models.DateTimeField()
+    ok         = models.BooleanField()
+    status     = models.ForeignKey('ValidationStatus')
 
-    mtime     = models.PositiveIntegerField(default=0)
+    mtime      = models.PositiveIntegerField(default=0)
 
     # validity period from EE cert which signed object
-    not_before        = models.DateTimeField()
-    not_after         = models.DateTimeField()
+    not_before = models.DateTimeField()
+    not_after  = models.DateTimeField()
 
     class Meta:
         abstract = True

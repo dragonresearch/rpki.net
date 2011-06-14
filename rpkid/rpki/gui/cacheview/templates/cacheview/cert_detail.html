@@ -60,10 +60,15 @@ Resource Certificate Detail
 <h3>ROAs</h3>
 {% if object.roas.all %}
 <table>
-    <tr><th>Prefix</th><th>AS</th></tr>
+    <tr><th>Prefix</th><th>AS</th><th>Valid</th><th>Until</th></tr>
     {% for roa in object.roas.all %}
     {% for pfx in roa.prefixes.all %}
-    <tr><td>{{ pfx }}</td><td>{{ roa.asid }}</td></tr>
+    <tr>
+        <td>{{ pfx }}</td>
+        <td>{{ roa.asid }}</td>
+        <td class='{{ roa.status.kind_as_str }}'><a href="{{ roa.get_absolute_url }}">{{ roa.ok }}</a></td>
+        <td>{{ roa.not_after }}</td>
+    </tr>
     {% endfor %}
     {% endfor %}
 </table>

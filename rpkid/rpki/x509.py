@@ -113,9 +113,11 @@ def _find_xia_uri(extension, name):
   """
   oid = rpki.oids.name2oid[name]
 
-  for method, location in extension:
-    if method == oid and location[0] == "uri" and location[1].startswith("rsync://"):
-      return location[1]
+  # extension may be None if the AIA is not present
+  if extension:
+    for method, location in extension:
+      if method == oid and location[0] == "uri" and location[1].startswith("rsync://"):
+        return location[1]
   return None
 
 class DER_object(object):

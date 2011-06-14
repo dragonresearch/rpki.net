@@ -23,6 +23,7 @@ os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.settings'
 from rpki.gui.cacheview import models
 from rpki.rcynic import rcynic_xml_iterator
 from rpki.sundial import datetime
+from django.db import transaction
 
 debug = False
 
@@ -94,6 +95,8 @@ def process_rescert(cert):
         obj.asns.clear()
         obj.addresses.clear()
 
+        transaction.enter_transaction_management()
+        transaction.managed()
         for asr in cert.resources.asn:
             if debug:
                 sys.stderr.write('processing %s\n' % asr)
@@ -116,6 +119,8 @@ def process_rescert(cert):
                     obj.addresses.create(**attrs)
                 else:
                     obj.addresses.add(q[0])
+        transaction.commit()
+        transaction.leave_transaction_management()
 
     if debug:
         print 'finished processing rescert at %s' % cert.uri

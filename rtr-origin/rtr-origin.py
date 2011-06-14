@@ -1469,6 +1469,7 @@ def bgpdump_main(argv):
   You have been warned.
   """
 
+  first = True
   db = None
   axfrs = []
 
@@ -1476,16 +1477,20 @@ def bgpdump_main(argv):
     if filename.endswith(".ax"):
       blather("Reading %s" % filename)
       db = axfr_set.load(filename)
-    elif filename.startswith("ribs."):
+    elif os.path.basename(filename).startswith("ribs."):
       db = axfr_set.parse_bgpdump_rib_dump(filename)
       db.save_axfr()
-    elif db is not None:
+    elif not first:
+      assert db is not None
       db.parse_bgpdump_update(filename)
       db.save_axfr()
     else:
       sys.exit("First argument must be a RIB dump or .ax file, don't know what to do with %s" % filename)
     axfrs.append(db.filename())
     blather("DB serial now %d (%s)" % (db.serial, db.serial))
+    if first and read_current() == (None, None):
+      db.mark_current()
+    first = False
 
   del axfrs[-1]
 

@@ -59,11 +59,15 @@ def process_object(obj, model_class):
         inst.not_after = obj.notAfter.to_sql()
 
         # look up signing cert
-        q = models.Cert.objects.filter(keyid=obj.aki)
-        if q:
-            inst.issuer = q[0]
+        if obj.issuer == obj.subject:
+            # self-signed cert (TA)
+            inst.cert = inst
         else:
-            sys.stderr.write('warning: unable to find signing cert with ski=%s (%s)\n' % (obj.aki, obj.issuer))
+            q = models.Cert.objects.filter(keyid=obj.aki)
+            if q:
+                inst.issuer = q[0]
+            else:
+                sys.stderr.write('warning: unable to find signing cert with ski=%s (%s)\n' % (obj.aki, obj.issuer))
 
         return True, inst
     elif debug:

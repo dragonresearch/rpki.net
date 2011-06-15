@@ -70,10 +70,6 @@ def output_roas(path, handle):
                 '%s-group-%d' % (handle.handle, req.roa.pk)] for req in qs)
     w.close()
 
-def qualify_path(pfx, fname):
-    """Ensure 'path' is an absolute filename."""
-    return fname if fname.startswith('/') else os.path.join(pfx, fname)
-
 def build_rpkid_caller(cfg, verbose=False):
     """
     Returns a function suitable for calling rpkid using the
@@ -130,17 +126,7 @@ def configure_resources(log, handle):
     holder have changed.  It updates IRDB and notifies rpkid to
     immediately process the changes, rather than waiting for the cron
     job to run.
-
-    For backwards compatability (and backups), it also writes the csv
-    files for use with the myrpki.py command line script.
     """
-
-    path = confpath(handle.handle)
-    cfg = rpki.config.parser(os.path.join(path, 'rpki.conf'), 'myrpki')
-
-    output_asns(qualify_path(path, cfg.get('asn_csv')), handle)
-    output_prefixes(qualify_path(path, cfg.get('prefix_csv')), handle)
-    output_roas(qualify_path(path, cfg.get('roa_csv')), handle)
 
     roa_requests = []
     for roa in handle.roas.all():
@@ -182,8 +168,7 @@ def configure_resources(log, handle):
             ghostbusters.append((None, vcard))
 
     # for hosted handles, get the config for the irdbd/rpkid host
-    if handle.host:
-        cfg = rpki.config.parser(confpath(handle.host.handle, 'rpki.conf'), 'myrpki')
+    cfg = rpki.config.parser(confpath(handle.host.handle if handle.host else handle.handle, 'rpki.conf'), 'myrpki')
 
     irdb = IRDB(cfg)
     irdb.update(handle, roa_requests, children, ghostbusters)

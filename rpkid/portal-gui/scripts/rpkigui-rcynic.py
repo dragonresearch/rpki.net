@@ -58,6 +58,10 @@ def process_object(obj, model_class):
         inst.mtime = mtime
         inst.not_before = obj.notBefore.to_sql()
         inst.not_after = obj.notAfter.to_sql()
+        if debug:
+            sys.stderr.write('name=%s ski=%s\n' % (obj.subject, obj.ski))
+        inst.name = obj.subject
+        inst.keyid = obj.ski
 
         # look up signing cert
         if obj.issuer == obj.subject:
@@ -87,8 +91,6 @@ def process_rescert(cert):
     refresh, obj = process_object(cert, models.Cert)
 
     if refresh:
-        obj.name = cert.subject
-        obj.keyid = cert.ski
         obj.save()
 
         # resources can change when a cert is updated

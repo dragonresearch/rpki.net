@@ -107,6 +107,12 @@ class SignedObject(models.Model):
 
     mtime      = models.PositiveIntegerField(default=0)
 
+    # SubjectName
+    name  = models.CharField(max_length=255)
+
+    # value from the SKI extension
+    keyid = models.CharField(max_length=50, db_index=True)
+
     # validity period from EE cert which signed object
     not_before = models.DateTimeField()
     not_after  = models.DateTimeField()
@@ -120,16 +126,13 @@ class SignedObject(models.Model):
         """
         return datetime.utcfromtimestamp(self.mtime + time.timezone)
 
+    def __unicode__(self):
+        return u'%s' % self.name
+
 class Cert(SignedObject):
     """
     Object representing a resource certificate.
     """
-    # SubjectName
-    name  = models.CharField(max_length=255)
-
-    # value from the SKI extension
-    keyid = models.CharField(max_length=50, db_index=True)
-
     addresses = models.ManyToManyField(AddressRange, related_name='certs')
     asns      = models.ManyToManyField(ASRange, related_name='certs')
     issuer    = models.ForeignKey('Cert', related_name='children', null=True, blank=True)
@@ -137,9 +140,6 @@ class Cert(SignedObject):
     @models.permalink
     def get_absolute_url(self):
         return ('rpki.gui.cacheview.views.cert_detail', [str(self.pk)])
-
-    def __unicode__(self):
-        return u'%s' % self.name
 
 class ROAPrefix(models.Model):
     family     = models.PositiveIntegerField()

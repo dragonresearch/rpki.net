@@ -9,15 +9,24 @@
     <tr><td>URI</td><td>{{ object.uri }}</td></tr>
     <tr><td>Last Modified</td><td>{{ object.mtime_as_datetime|date:"DATETIME_FORMAT" }}</td></tr>
     <tr><td>Timestamp</td><td>{{ object.timestamp }}</td></tr>
-    <tr><td>Status</td><td class='{{ object.status.kind_as_str }}'>{{ object.status.status }}</td></tr>
     <tr><td>Valid</td><td>{{ object.ok }}</td></tr>
+    <tr><td>Status</td><td class='{{ object.status.kind_as_str }}'>{{ object.status.status }}</td></tr>
 </table>
 
-<h2>X.509 Certificate Info</h2>
+<h2>X.509 Certificate Chain</h2>
 
 <table>
-    <tr><td>Validity</td><td>{{ object.not_before }} - {{ object.not_after }}</td></tr>
-    <tr><td>Issuer</td><td><a href='{{object.issuer.get_absolute_url}}'>{{ object.issuer.name }}</a></td></tr>
+    <tr><th>Depth</th><th>Name</th><th>Valid</th><th>Until</th></tr>
+
+{% for cert in chain %}
+<tr class='{{ cert.1.status.kind_as_str }}'>
+    <td>{{ cert.0 }}</td>
+    <td><a href="{{ cert.1.get_absolute_url }}">{{ cert.1.name }}</a></td>
+    <td>{{ cert.1.ok }}</td>
+    <td>{{ cert.1.not_after }}</td>
+</tr>
+{% endfor %}
+
 </table>
 
 {% block detail %}{% endblock %}

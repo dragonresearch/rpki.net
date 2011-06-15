@@ -24,6 +24,25 @@ from rpki.ipaddrs import v4addr, v6addr
 
 # Create your views here.
 
+def cert_chain(obj):
+    """
+    returns an iterator covering all certs from the root cert down to the EE.
+    """
+    chain = []
+    while obj:
+        chain.append(obj)
+        obj = obj.issuer
+    return zip(range(len(chain)), reversed(chain))
+
+def signed_object_detail(request, model_class, pk):
+    """
+    wrapper around object_detail which fetches the x.509 cert chain for signed
+    objects.
+    """
+    obj = get_object_or_404(model_class, pk=pk)
+    return list_detail.object_detail(request, queryset=model_class.objects.all(),
+            object_id=pk, extra_context={ 'chain': cert_chain(obj) })
+
 def addressrange_detail(request, pk):
     return list_detail.object_detail(request, models.AddressRange.objects.all(), pk)
 
@@ -31,13 +50,13 @@ def asrange_detail(request, pk):
     return list_detail.object_detail(request, models.ASRange.objects.all(), pk)
 
 def roa_detail(request, pk):
-    return list_detail.object_detail(request, models.ROA.objects.all(), pk)
+    return signed_object_detail(request, models.ROA, pk)
 
 def cert_detail(request, pk):
-    return list_detail.object_detail(request, models.Cert.objects.all(), pk)
+    return signed_object_detail(request, models.Cert, pk)
 
 def ghostbuster_detail(request, pk):
-    return list_detail.object_detail(request, models.Ghostbuster.objects.all(), pk)
+    return signed_object_detail(request, models.Ghostbuster, pk)
 
 def search_view(request):
     if request.method == 'POST':

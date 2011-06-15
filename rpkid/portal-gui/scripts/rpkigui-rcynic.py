@@ -14,7 +14,7 @@
 # PERFORMANCE OF THIS SOFTWARE.
 #
 
-default_logfile = '/var/rcynic/data/rcynic.xml'
+default_logfile = '/var/rcynic/data/summary.xml'
 default_root = '/var/rcynic/data'
 
 import os, sys, time, vobject
@@ -26,6 +26,23 @@ from rpki.sundial import datetime
 from django.db import transaction
 
 debug = False
+
+class TransactionManager(object):
+    """
+    Context manager wrapper around the Django transaction API.
+    """
+    def __enter__(self):
+        transaction.enter_transaction_management()
+        transaction.managed()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            transaction.commit()
+        else:
+            transaction.set_clean()
+        transaction.leave_transaction_management()
+        return False
 
 def process_object(obj, model_class):
     """
@@ -97,32 +114,29 @@ def process_rescert(cert):
         obj.asns.clear()
         obj.addresses.clear()
 
-        transaction.enter_transaction_management()
-        transaction.managed()
-        for asr in cert.resources.asn:
-            if debug:
-                sys.stderr.write('processing %s\n' % asr)
-
-            attrs = { 'min': asr.min, 'max': asr.max }
-            q = models.ASRange.objects.filter(**attrs)
-            if not q:
-                obj.asns.create(**attrs)
-            else:
-                obj.asns.add(q[0])
-
-        for family, addrset in (4, cert.resources.v4), (6, cert.resources.v6):
-            for rng in addrset:
+        with TransactionManager():
+            for asr in cert.resources.asn:
                 if debug:
-                    sys.stderr.write('processing %s\n' % rng)
+                    sys.stderr.write('processing %s\n' % asr)
 
-                attrs = { 'family': family, 'min': str(rng.min), 'max': str(rng.max) }
-                q = models.AddressRange.objects.filter(**attrs)
+                attrs = { 'min': asr.min, 'max': asr.max }
+                q = models.ASRange.objects.filter(**attrs)
                 if not q:
-                    obj.addresses.create(**attrs)
+                    obj.asns.create(**attrs)
                 else:
-                    obj.addresses.add(q[0])
-        transaction.commit()
-        transaction.leave_transaction_management()
+                    obj.asns.add(q[0])
+
+            for family, addrset in (4, cert.resources.v4), (6, cert.resources.v6):
+                for rng in addrset:
+                    if debug:
+                        sys.stderr.write('processing %s\n' % rng)
+
+                    attrs = { 'family': family, 'min': str(rng.min), 'max': str(rng.max) }
+                    q = models.AddressRange.objects.filter(**attrs)
+                    if not q:
+                        obj.addresses.create(**attrs)
+                    else:
+                        obj.addresses.add(q[0])
 
     if debug:
         print 'finished processing rescert at %s' % cert.uri
@@ -150,19 +164,20 @@ def process_roa(roa):
     if refresh:
         obj.asid = roa.asID
         obj.save()
-        obj.prefixes.clear()
-        for pfxset in roa.prefix_sets:
-            family = fam_map[pfxset.__class__.__name__]
-            for pfx in pfxset:
-                attrs = { 'family' : family,
-                          'prefix': str(pfx.prefix),
-                          'bits' : pfx.prefixlen,
-                          'max_length': pfx.max_prefixlen }
-                q = models.ROAPrefix.objects.filter(**attrs)
-                if not q:
-                    obj.prefixes.create(**attrs)
-                else:
-                    obj.prefixes.add(q[0])
+        with TransactionManager():
+            obj.prefixes.clear()
+            for pfxset in roa.prefix_sets:
+                family = fam_map[pfxset.__class__.__name__]
+                for pfx in pfxset:
+                    attrs = { 'family' : family,
+                              'prefix': str(pfx.prefix),
+                              'bits' : pfx.prefixlen,
+                              'max_length': pfx.max_prefixlen }
+                    q = models.ROAPrefix.objects.filter(**attrs)
+                    if not q:
+                        obj.prefixes.create(**attrs)
+                    else:
+                        obj.prefixes.add(q[0])
 
     return obj
 
@@ -233,24 +248,21 @@ def process_labels(xml_file):
     if debug:
         sys.stderr.write('updating labels...\n')
 
-    transaction.enter_transaction_management()
-    transaction.managed()
-    kinds = { 'good': 0, 'warn': 1, 'bad': 2 }
-    for label, kind, desc in label_iterator(xml_file):
-        if debug:
-            sys.stderr.write('label=%s kind=%s desc=%s\n' % (label, kind, desc))
-        if kind:
-            q = models.ValidationStatus.objects.filter(label=label)
-            if not q:
-                obj = models.ValidationStatus(label=label)
-            else:
-                obj = q[0]
+    with TransactionManager():
+        kinds = { 'good': 0, 'warn': 1, 'bad': 2 }
+        for label, kind, desc in label_iterator(xml_file):
+            if debug:
+                sys.stderr.write('label=%s kind=%s desc=%s\n' % (label, kind, desc))
+            if kind:
+                q = models.ValidationStatus.objects.filter(label=label)
+                if not q:
+                    obj = models.ValidationStatus(label=label)
+                else:
+                    obj = q[0]
 
-            obj.kind = kinds[kind]
-            obj.status = desc
-            obj.save()
-    transaction.commit()
-    transaction.leave_transaction_management()
+                obj.kind = kinds[kind]
+                obj.status = desc
+                obj.save()
 
 if __name__ == '__main__':
     import optparse

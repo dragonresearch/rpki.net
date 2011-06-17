@@ -69,4 +69,4 @@ roa_request:
 
 ---
 - shell set -x; find publication -type f -name '*.roa' -print -exec ../../../utils/print_roa/print_roa {} \;
-- shell set -x; cd ../../../rtr-origin && python rtr-origin.py --cronjob ../../rpkid/smoketest.dir/rcynic-data/authenticated && python rtr-origin.py --show
+- shell set -x; rtr_origin=../../../rtr-origin/rtr-origin; $rtr_origin --cronjob rcynic-data/authenticated && $rtr_origin --show

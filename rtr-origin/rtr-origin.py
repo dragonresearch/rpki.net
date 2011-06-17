@@ -664,43 +664,28 @@ class axfr_set(prefix_set):
   def parse_rcynic(cls, rcynic_dir):
     """
     Parse ROAS fetched (and validated!) by rcynic to create a new
-    axfr_set.
+    axfr_set.  We use the scan_roas utility to parse the ASN.1.  We
+    used to parse ROAs internally, but that made this program depend
+    on all of the complex stuff for building Python extensions, which
+    is way over the top for a relying party tool.
+
     """
     self = cls()
     self.serial = timestamp.now()
     roa_files = []
-    for root, dirs, files in os.walk(rcynic_dir):
-      for f in files:
-        if f.endswith(".roa"):
-          roa_files.append(os.path.join(root, f))
-          if len(roa_files) >= self.xargs_count:
-            self.parse_roas(roa_files)
-            roa_files = []
-    if roa_files:
-      self.parse_roas(roa_files)
+    try:
+      p = subprocess.Popen((scan_roas, rcynic_dir), stdout = subprocess.PIPE)
+      for line in p.stdout:
+        line = line.split()
+        asn = line[1]
+        self.extend(prefix.from_text(asn, addr) for addr in line[2:])
+    except OSError, e:
+      sys.exit("Could not run %s, check your $PATH variable? (%s)" % (scan_roas, e))
     self.sort()
     for i in xrange(len(self) - 2, -1, -1):
       if self[i] == self[i + 1]:
         del self[i + 1]
     return self
-
-  def parse_roas(self, files):
-    """
-    Run "print_roa" on a bunch of ROA files, parse the output.  We used to parse ROAs
-    internally, but that made this program depend on all of the
-    complex stuff for building Python extensions, which is way over
-    the top for a relying party tool.
-    """
-    try:
-      cmd = [print_roa, "-b"]
-      cmd.extend(files)
-      p = subprocess.Popen(cmd, stdout = subprocess.PIPE)
-      for line in p.stdout:
-        line = line.split()
-        asn = line[0]
-        self.extend(prefix.from_text(asn, addr) for addr in line[1:])
-    except OSError, e:
-      sys.exit("Could not run %s, check your $PATH variable? (%s)" % (print_roa, e))
 
   @classmethod
   def load(cls, filename):
@@ -1537,10 +1522,10 @@ def bgpdump_select_main(argv):
 os.environ["TZ"] = "UTC"
 time.tzset()
 
-print_roa = os.path.normpath(os.path.join(sys.path[0], "..", "utils",
-                                          "print_roa", "print_roa"))
-if not os.path.exists(print_roa):
-  print_roa = "print_roa"
+scan_roas = os.path.normpath(os.path.join(sys.path[0], "..", "utils",
+                                          "scan_roas", "scan_roas"))
+if not os.path.exists(scan_roas):
+  scan_roas = "scan_roas"
 
 force_zero_nonce = False
 

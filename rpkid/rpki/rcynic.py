@@ -5,7 +5,7 @@ it's stable.
 
 $Id$
 
-Copyright (C) 2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2010-2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -248,12 +248,21 @@ def label_iterator(xml_file):
     for label in ElementTree(file=xml_file).find("labels"):
         yield label.tag, label.get("kind"), label.text.strip()
 
+
 if __name__ == "__main__":
+  rcynic_dir = os.path.normpath(os.path.join(sys.path[0], "..", "rcynic"))
   if False:
-    for i in rcynic_file_iterator("/u/sra/rpki/subvert-rpki.hactrn.net/rcynic/rcynic-data"):
-      print i
+    try:
+      for i in rcynic_file_iterator(os.path.join(rcynic_dir, "rcynic-data")):
+        print i
+    except IOError:
+      pass
   if True:
-    for i in rcynic_xml_iterator("/u/sra/rpki/subvert-rpki.hactrn.net/rcynic/rcynic-data", "/u/sra/rpki/subvert-rpki.hactrn.net/rcynic/rcynic.xml"):
-      #print i
-      i.show()
-      print
+    try:
+      for i in rcynic_xml_iterator(os.path.join(rcynic_dir, "rcynic-data"),
+                                   os.path.join(rcynic_dir, "rcynic.xml")):
+        #print i
+        i.show()
+        print
+    except IOError:
+      pass

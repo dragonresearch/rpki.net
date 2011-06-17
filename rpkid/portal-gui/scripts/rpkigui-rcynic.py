@@ -14,6 +14,8 @@
 # PERFORMANCE OF THIS SOFTWARE.
 #
 
+from __future__ import with_statement
+
 default_logfile = '/var/rcynic/data/summary.xml'
 default_root = '/var/rcynic/data'
 

@@ -20,6 +20,8 @@
 #
 # DO NOT EDIT!  This script is automatically generated from adduser.py
 
+from __future__ import with_statement
+
 import os
 os.environ['DJANGO_SETTINGS_MODULE'] = 'rpki.gui.settings'
 

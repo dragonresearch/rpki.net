@@ -20,6 +20,9 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
+# Some scripts need this, and it must be first executable statement
+from __future__ import with_statement
+
 import os, sys
 
 sys.stdout.write('''\

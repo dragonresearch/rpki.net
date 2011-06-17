@@ -3458,6 +3458,8 @@ int main(int argc, char *argv[])
 
     assert(val && val->name && val->value);
 
+    uri[0] = '\0';
+
     if (!name_cmp(val->name, "trust-anchor")) {
       /*
        * Old local file trust anchor method.
@@ -3569,13 +3571,15 @@ int main(int argc, char *argv[])
       goto done;
     }
 
-    parse_cert(&rc, x, &ta_info, "");
+    parse_cert(&rc, x, &ta_info, uri);
     ta_info.ta = 1;
     sk_X509_push(certs, x);
 
     if (ta_info.crldp[0] && !check_x509(&rc, certs, x, &ta_info)) {
       logmsg(&rc, log_data_err, "Couldn't get CRL for trust anchor %s", path1);
     } else {
+      if (*uri)
+	log_validation_status(&rc, uri, validation_ok);
       walk_cert(&rc, &ta_info, certs);
     }
 

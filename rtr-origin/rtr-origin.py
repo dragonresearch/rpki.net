@@ -749,7 +749,7 @@ class axfr_set(prefix_set):
     except NotImplementedError:
       return random.getrandbits(16)
 
-  def mark_current(self):
+  def mark_current(self, cleanup = True):
     """
     Save current serial number and nonce, creating new nonce if
     necessary.  Creating a new nonce triggers cleanup of old state, as
@@ -757,9 +757,11 @@ class axfr_set(prefix_set):
     """
     old_serial, nonce = read_current()
     if old_serial is None or self.seq_ge(old_serial, self.serial):
-      log("Deleting old data and creating new nonce")
-      self.destroy_old_data()
+      log("Creating new nonce")
       nonce = self.new_nonce()
+      if cleanup:
+        log("Deleting old data")
+        self.destroy_old_data()
     tmpfn = "current.%d.tmp" % os.getpid()
     try:
       f = open(tmpfn, "w")
@@ -1511,12 +1513,12 @@ def bgpdump_select_main(argv):
   You have been warned.
   """
 
-  if len(argv) != 1 or argv[0].endswith(".ax"):
+  if len(argv) != 1 or not argv[0].endswith(".ax"):
     sys.exit("Argument must be name of a .ax file")
 
   blather("Loading %s" % argv[0])
   db = axfr_set.load(argv[0])
-  db.mark_current()
+  db.mark_current(cleanup = False)
   kick_all(db.serial)
 
 os.environ["TZ"] = "UTC"

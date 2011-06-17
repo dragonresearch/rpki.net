@@ -1257,6 +1257,27 @@ class kickme_channel(asyncore.dispatcher):
     log("Exiting after unhandled exception")
     asyncore.close_all()
 
+def kick_all(serial):
+  """
+  Kick any existing server processes to wake them up.
+  """
+
+  try:
+    os.stat(kickme_dir)
+  except OSError:
+    blather('# Creating directory "%s"' % kickme_dir)
+    os.makedirs(kickme_dir)
+
+  msg = "Good morning, serial %d is ready" % serial
+  sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+  for name in glob.iglob("%s.*" % kickme_base):
+    try:
+      log("# Kicking %s" % name)
+      sock.sendto(msg, name)
+    except:
+      log("# Failed to kick %s" % name)
+  sock.close()
+
 def cronjob_main(argv):
   """
   Run this mode right after rcynic to do the real work of groveling
@@ -1302,21 +1323,7 @@ def cronjob_main(argv):
 
   blather("# New serial is %d (%s)" % (pdus.serial, pdus.serial))
 
-  try:
-    os.stat(kickme_dir)
-  except OSError:
-    blather('# Creating directory "%s"' % kickme_dir)
-    os.makedirs(kickme_dir)
-
-  msg = "Good morning, serial %d is ready" % pdus.serial
-  sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-  for name in glob.iglob("%s.*" % kickme_base):
-    try:
-      log("# Kicking %s" % name)
-      sock.sendto(msg, name)
-    except:
-      log("# Failed to kick %s" % name)
-  sock.close()
+  kick_all(pdus.serial)
 
   old_ixfrs.sort()
   for ixfr in old_ixfrs:
@@ -1451,7 +1458,7 @@ def client_main(argv):
     if client is not None:
       client.cleanup()
 
-def bgpdump_main(argv):
+def bgpdump_convert_main(argv):
   """
   Simulate route origin data from a set of BGP dump files.
 
@@ -1501,8 +1508,26 @@ def bgpdump_main(argv):
     db.save_ixfr(ax)
     del ax
 
-  db.mark_current()
+def bgpdump_select_main(argv):
+  """
+  Simulate route origin data from a set of BGP dump files.
 
+                      * DANGER WILL ROBINSON! *
+                   * DEBUGGING AND TEST USE ONLY! *
+
+  Set current serial number to correspond to an .ax file created by
+  converting BGP dump files.  SUCH DATA PROVIDE NO SECURITY AT ALL.
+
+  You have been warned.
+  """
+
+  if len(argv) != 1 or argv[0].endswith(".ax"):
+    sys.exit("Argument must be name of a .ax file")
+
+  blather("Loading %s" % argv[0])
+  db = axfr_set.load(argv[0])
+  db.mark_current()
+  kick_all(db.serial)
 
 os.environ["TZ"] = "UTC"
 time.tzset()
@@ -1520,11 +1545,12 @@ kickme_dir  = "sockets"
 kickme_base = os.path.join(kickme_dir, "kickme")
 
 main_dispatch = {
-  "cronjob" : cronjob_main,
-  "client"  : client_main,
-  "server"  : server_main,
-  "show"    : show_main,
-  "bgpdump" : bgpdump_main }
+  "cronjob"             : cronjob_main,
+  "client"              : client_main,
+  "server"              : server_main,
+  "show"                : show_main,
+  "bgpdump_convert"     : bgpdump_convert_main,
+  "bgpdump_select"      : bgpdump_select_main }
 
 def usage():
   print "Usage: %s --mode [arguments]" % sys.argv[0]

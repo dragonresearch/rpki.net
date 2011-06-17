@@ -1481,32 +1481,37 @@ def bgpdump_convert_main(argv):
   axfrs = []
 
   for filename in argv:
+
     if filename.endswith(".ax"):
       blather("Reading %s" % filename)
       db = axfr_set.load(filename)
+
     elif os.path.basename(filename).startswith("ribs."):
       db = axfr_set.parse_bgpdump_rib_dump(filename)
       db.save_axfr()
+
     elif not first:
       assert db is not None
       db.parse_bgpdump_update(filename)
       db.save_axfr()
+
     else:
       sys.exit("First argument must be a RIB dump or .ax file, don't know what to do with %s" % filename)
-    axfrs.append(db.filename())
+
     blather("DB serial now %d (%s)" % (db.serial, db.serial))
     if first and read_current() == (None, None):
       db.mark_current()
     first = False
 
-  del axfrs[-1]
+    for axfr in axfrs:
+      blather("Loading %s" % axfr)
+      ax = axfr_set.load(axfr)
+      blather("Computing changes from %d (%s) to %d (%s)" % (ax.serial, ax.serial, db.serial, db.serial))
+      db.save_ixfr(ax)
+      del ax
 
-  for axfr in axfrs:
-    blather("Loading %s" % axfr)
-    ax = axfr_set.load(axfr)
-    blather("Computing changes from %d (%s) to %d (%s)" % (ax.serial, ax.serial, db.serial, db.serial))
-    db.save_ixfr(ax)
-    del ax
+    axfrs.append(db.filename())
+
 
 def bgpdump_select_main(argv):
   """

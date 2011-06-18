@@ -92,7 +92,35 @@ def read_current():
   except IOError:
     return None, None
 
-  
+def write_current(serial, nonce):
+  """
+  Write serial number and nonce.
+  """
+  tmpfn = "current.%d.tmp" % os.getpid()
+  try:
+    f = open(tmpfn, "w")
+    f.write("%d %d\n" % (serial, nonce))
+    f.close()
+    os.rename(tmpfn, "current")
+  finally:
+    try:
+      os.unlink(tmpfn)
+    except:
+      pass
+
+
+def new_nonce():
+  """
+  Create and return a new nonce value.
+  """
+  if force_zero_nonce:
+    return 0
+  try:
+    return random.SystemRandom().getrandbits(16)
+  except NotImplementedError:
+    return random.getrandbits(16)
+
+
 class read_buffer(object):
   """
   Wrapper around synchronous/asynchronous read state.
@@ -737,19 +765,7 @@ class axfr_set(prefix_set):
       if i != self.filename():
         os.unlink(i)
 
-  @staticmethod
-  def new_nonce():
-    """
-    Create and return a new nonce value.
-    """
-    if force_zero_nonce:
-      return 0
-    try:
-      return random.SystemRandom().getrandbits(16)
-    except NotImplementedError:
-      return random.getrandbits(16)
-
-  def mark_current(self, cleanup = True):
+  def mark_current(self):
     """
     Save current serial number and nonce, creating new nonce if
     necessary.  Creating a new nonce triggers cleanup of old state, as
@@ -757,20 +773,10 @@ class axfr_set(prefix_set):
     """
     old_serial, nonce = read_current()
     if old_serial is None or self.seq_ge(old_serial, self.serial):
-      log("Creating new nonce")
-      nonce = self.new_nonce()
-      if cleanup:
-        log("Deleting old data")
-        self.destroy_old_data()
-    tmpfn = "current.%d.tmp" % os.getpid()
-    try:
-      f = open(tmpfn, "w")
-      f.write("%d %d\n" % (self.serial, nonce))
-      f.close()
-      os.rename(tmpfn, "current")
-    finally:
-      if os.path.exists(tmpfn):
-        os.unlink(tmpfn)
+      log("Creating new nonce and deleting stale data")
+      nonce = new_nonce()
+      self.destroy_old_data()
+    write_current(self.serial, nonce)
 
   def save_ixfr(self, other):
     """
@@ -1513,13 +1519,22 @@ def bgpdump_select_main(argv):
   You have been warned.
   """
 
-  if len(argv) != 1 or not argv[0].endswith(".ax"):
+  serial = None
+  try:
+    head, sep, tail = os.path.basename(argv[0]).partition(".")
+    if len(argv) == 1 and head.isdigit() and sep == "." and tail == "ax":
+      serial = timestamp(head)
+  except:
+    pass
+  if serial is None:
     sys.exit("Argument must be name of a .ax file")
 
-  blather("Loading %s" % argv[0])
-  db = axfr_set.load(argv[0])
-  db.mark_current(cleanup = False)
-  kick_all(db.serial)
+  nonce = read_current()[1]
+  if nonce is None:
+    nonce = new_nonce()
+
+  write_current(serial, nonce)
+  kick_all(serial)
 
 os.environ["TZ"] = "UTC"
 time.tzset()

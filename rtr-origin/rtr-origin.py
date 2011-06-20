@@ -1442,8 +1442,11 @@ def client_main(argv):
       else:
         client.push_pdu(serial_query(serial = client.current_serial, nonce = client.current_nonce))
       wakeup = time.time() + 600
-      while wakeup > time.time():
-        asyncore.loop(timeout = wakeup - time.time(), count = 1)
+      while True:
+        remaining = wakeup - time.time()
+        if remaining < 0:
+          break
+        asyncore.loop(timeout = remaining, count = 1)
 
   except KeyboardInterrupt:
     sys.exit(0)

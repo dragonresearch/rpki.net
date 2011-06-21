@@ -403,7 +403,7 @@ typedef enum {
 typedef struct rsync_ctx {
   uri_t uri;
   void (*handler)(const rcynic_ctx_t *, const rsync_status_t, STACK_OF(walk_ctx_t) *, const uri_t *);
-  STACK_OF(walk_ctx_t) *stack;
+  STACK_OF(walk_ctx_t) *wsk;
   int blocked;
   pid_t pid;
   int fd;
@@ -1568,7 +1568,7 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
       logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", ctx->uri.s);
 
     if (ctx->handler)
-      ctx->handler(rc, WEXITSTATUS(pid_status) ? rsync_status_failed : rsync_status_done, ctx->stack, &ctx->uri);
+      ctx->handler(rc, WEXITSTATUS(pid_status) ? rsync_status_failed : rsync_status_done, ctx->wsk, &ctx->uri);
     sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
     free(ctx);
     return;
@@ -1670,7 +1670,8 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
  */
 static rsync_status_t rsync(const rcynic_ctx_t *rc,
 			    const char * const *args,
-			    const uri_t *uri)
+			    const uri_t *uri,
+			    STACK_OF(walk_ctx_t) *wsk)
 {
   static const char * const rsync_cmd[] = {
     "rsync", "--update", "--times", "--copy-links", "--itemize-changes", NULL
@@ -1734,6 +1735,7 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
   }
   memset(ctx, 0, sizeof(*ctx));
   memcpy(&ctx->uri, uri, sizeof(ctx->uri));
+  ctx->wsk = wsk;
   ctx->fd = -1;
 
   if (pipe(pipe_fds) < 0) {
@@ -1755,10 +1757,15 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
   }
 
   switch ((ctx->pid = vfork())) {
+
   case -1:
      logmsg(rc, log_sys_err, "vfork() failed: %s", strerror(errno));
      goto lose;
+
   case 0:
+    /*
+     * Child
+     */
 #define whine(msg) write(2, msg, sizeof(msg) - 1)
     if (close(pipe_fds[0]) < 0)
       whine("close(pipe_fds[0]) failed\n");
@@ -1775,22 +1782,20 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
     whine("\n");
     _exit(1);
 #undef whine
+
+  default:
+    /*
+     * Parent
+     */
+    (void) close(pipe_fds[1]);
+    pipe_fds[1] = -1;
+    if (!sk_rsync_ctx_t_push(rc->rsync_queue, ctx)) {
+      logmsg(rc, log_sys_err, "Couldn't push rsync state object onto queue, punting %s", uri->s);
+      goto lose;
+    }
+    return rsync_status_pending;
   }
 
-  (void) close(pipe_fds[1]);
-  pipe_fds[1] = -1;
-
-  if (!sk_rsync_ctx_t_push(rc->rsync_queue, ctx)) {
-    logmsg(rc, log_sys_err, "Couldn't push rsync state object onto queue, punting %s", uri->s);
-    goto lose;
-  }
-
-  /*
-   * XXX Temporary control loop, needs to move to caller
-   */
-  while (sk_rsync_ctx_t_num(rc->rsync_queue) > 0)
-    rsync_mgr(rc);
-  return rsync_status_done;
 
  lose:
   if (pipe_fds[0] != -1)
@@ -1807,16 +1812,16 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
  */
 static rsync_status_t rsync_file(const rcynic_ctx_t *rc, const uri_t *uri)
 {
-  return rsync(rc, NULL, uri);
+  return rsync(rc, NULL, uri, NULL);
 }
 
 /**
  * rsync an entire subtree, generally rooted at a SIA collection.
  */
-static rsync_status_t rsync_tree(const rcynic_ctx_t *rc, const uri_t *uri)
+static rsync_status_t rsync_tree(const rcynic_ctx_t *rc, const uri_t *uri, STACK_OF(walk_ctx_t) *wsk)
 {
   static const char * const rsync_args[] = { "--recursive", "--delete", NULL };
-  return rsync(rc, rsync_args, uri);
+  return rsync(rc, rsync_args, uri, wsk);
 }
 
 
@@ -3412,13 +3417,19 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 
     case walk_state_rsync:
 
-      switch (rsync_tree(rc, &w->certinfo.sia)) {
+      switch (rsync_tree(rc, &w->certinfo.sia, wsk)) {
+
       case rsync_status_pending:
-	logmsg(rc, log_sys_err, "I don't know how to handle rsync_status_pending yet, help!");
-	return;
+#warning This event loop is a kludge, need to move event loop out to caller
+	while (sk_rsync_ctx_t_num(rc->rsync_queue) > 0)
+	  rsync_mgr(rc);
+	w->state++;
+	continue;
+
       case rsync_status_failed:
 	logmsg(rc, log_sys_err, "rsync_tree() reported failure for URI %s, blundering onward", w->certinfo.sia.s);
 	/* Fall through */
+
       case rsync_status_done:
 	w->state++;
 	continue;
@@ -3874,8 +3885,10 @@ int main(int argc, char *argv[])
       logmsg(&rc, log_telemetry, "Processing trust anchor from URI %s", uri.s);
       switch (rsync_file(&rc, &uri)) {
       case rsync_status_pending:
-	logmsg(&rc, log_sys_err, "I don't know how to handle rsync_status_pending yet, help!");
-	goto done;
+#warning This event loop is probably wrong too
+	while (sk_rsync_ctx_t_num(rc.rsync_queue) > 0)
+	  rsync_mgr(&rc);
+	break;
       case rsync_status_failed:
 	logmsg(&rc, log_data_err, "Could not fetch trust anchor from %s", uri.s);
 	break;

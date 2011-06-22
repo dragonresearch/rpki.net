@@ -1675,7 +1675,8 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 static rsync_status_t rsync(const rcynic_ctx_t *rc,
 			    const char * const *args,
 			    const uri_t *uri,
-			    STACK_OF(walk_ctx_t) *wsk)
+			    STACK_OF(walk_ctx_t) *wsk,
+			    void (*handler)(const rcynic_ctx_t *, const rsync_status_t, STACK_OF(walk_ctx_t) *, const uri_t *))
 {
   static const char * const rsync_cmd[] = {
     "rsync", "--update", "--times", "--copy-links", "--itemize-changes", NULL
@@ -1739,6 +1740,7 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
   }
   memset(ctx, 0, sizeof(*ctx));
   memcpy(&ctx->uri, uri, sizeof(ctx->uri));
+  ctx->handler = handler;
   ctx->wsk = wsk;
   ctx->fd = -1;
 
@@ -1818,16 +1820,19 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
  */
 static rsync_status_t rsync_file(const rcynic_ctx_t *rc, const uri_t *uri)
 {
-  return rsync(rc, NULL, uri, NULL);
+  return rsync(rc, NULL, uri, NULL, NULL);
 }
 
 /**
  * rsync an entire subtree, generally rooted at a SIA collection.
  */
-static rsync_status_t rsync_tree(const rcynic_ctx_t *rc, const uri_t *uri, STACK_OF(walk_ctx_t) *wsk)
+static rsync_status_t rsync_tree(const rcynic_ctx_t *rc,
+				 const uri_t *uri,
+				 STACK_OF(walk_ctx_t) *wsk,
+				 void (*handler)(const rcynic_ctx_t *, const rsync_status_t, STACK_OF(walk_ctx_t) *, const uri_t *))
 {
   static const char * const rsync_args[] = { "--recursive", "--delete", NULL };
-  return rsync(rc, rsync_args, uri, wsk);
+  return rsync(rc, rsync_args, uri, wsk, handler);
 }
 
 
@@ -3377,6 +3382,28 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
 
 
+static void walk_cert(rcynic_ctx_t *, STACK_OF(walk_ctx_t) *);
+
+/**
+ * rsync completion handler for fetching SIA tree.
+ */
+static void rsync_sia_complete(const rcynic_ctx_t *rc, const rsync_status_t status, STACK_OF(walk_ctx_t) *wsk, const uri_t *uri)
+{
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
+
+  assert(rc && wsk && w && uri && status != rsync_status_pending);
+
+  if (status == rsync_status_failed)
+    logmsg(rc, log_sys_err, "rsync_tree() reported failure for URI %s, blundering onward", w->certinfo.sia.s);
+
+  w->state++;
+
+#warning This should schedule a task rather than calling directly or relying on caller
+#if 0
+  walk_cert(rc, wsk);
+#endif
+}
+
 /**
  * Recursive walk of certificate hierarchy (core of the program).
  *
@@ -3423,14 +3450,10 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 
     case walk_state_rsync:
 
-      switch (rsync_tree(rc, &w->certinfo.sia, wsk)) {
+      switch (rsync_tree(rc, &w->certinfo.sia, wsk, rsync_sia_complete)) {
 
       case rsync_status_pending:
-#warning This event loop is a kludge, need to move event loop out to caller
-	while (sk_rsync_ctx_t_num(rc->rsync_queue) > 0)
-	  rsync_mgr(rc);
-	w->state++;
-	continue;
+	return;			/* This stack is blocked until rsync() completes */
 
       case rsync_status_failed:
 	logmsg(rc, log_sys_err, "rsync_tree() reported failure for URI %s, blundering onward", w->certinfo.sia.s);
@@ -3519,8 +3542,15 @@ static void check_ta(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 
   sk_X509_free(certs);
 
-  if (ok)
-    walk_cert(rc, wsk);
+  if (!ok)
+    return;
+
+#warning This event loop is still a kludge, although not as bad as previous version
+  while (walk_ctx_stack_head(wsk) != NULL)
+    if(sk_rsync_ctx_t_num(rc->rsync_queue) > 0)
+      rsync_mgr(rc);
+    else
+      walk_cert(rc, wsk);
 }
 
 

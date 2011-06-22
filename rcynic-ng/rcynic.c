@@ -1484,7 +1484,7 @@ static int rsync_cached_uri(const rcynic_ctx_t *rc,
 /**
  * Manager for queue of rsync tasks in progress.
  *
- * General plan here is to process one completed child, or output has
+ * General plan here is to process one completed child, or output
  * accumulated from children, or block if there is absolutely nothing
  * to do, on the theory that caller had nothing to do either or would
  * not have called us.  Once we've done something allegedly useful, we
@@ -1528,13 +1528,12 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 
   default:
     /*
-     * Child exited, handle that and return
+     * Child exited, handle that and return.
      */
 
     for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i)
       if (ctx->pid == pid)
 	break;
-
     if (ctx == NULL) {
       logmsg(rc, log_sys_err, "Couldn't find rsync context for pid %d", pid);
       return;
@@ -1557,6 +1556,7 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 		     ? rsync_timed_out
 		     : rsync_failed));
     } else {
+      logmsg(rc, log_debug, "rsync exited succesfully fetching %s", ctx->uri.s);
       mib_increment(rc, &ctx->uri, rsync_succeeded);
     }
 
@@ -1583,6 +1583,8 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
       if (ctx->pid <= 0 || now < ctx->deadline ||
 	  (waitpid(ctx->pid, &pid_status, WNOHANG) == ctx->pid && WIFEXITED(pid_status)))
 	continue;
+      if (ctx->kill_count == 0)
+	logmsg(rc, log_debug, "Subprocess %u is taking too long", (unsigned) ctx->pid);
       (void) kill(ctx->pid, ctx->kill_count++ < KILL_MAX ? SIGTERM : SIGKILL);
       ctx->deadline = now + 1;
       signaled++;
@@ -1592,7 +1594,8 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
   }
 
   /*
-   * Check for input from children if we get this far.
+   * Check for log text from children if we get this far.  This is
+   * where we finally block (select()) if we've nothing else to do.
    */
 
   FD_ZERO(&rfds);
@@ -1633,7 +1636,8 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 
       while ((s = strchr(ctx->buffer, '\n')) != NULL) {
 	*s++ = '\0';
-	logmsg(rc, log_telemetry, "rsync[%u]: %s", ctx->pid, ctx->buffer);
+	if (*ctx->buffer != '\0')
+	  logmsg(rc, log_telemetry, "rsync[%u]: %s", ctx->pid, ctx->buffer);
 	assert(s >= ctx->buffer);
 	ctx->buflen = s - ctx->buffer;
 	if (ctx->buflen > 0) 
@@ -1789,6 +1793,8 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
      */
     (void) close(pipe_fds[1]);
     pipe_fds[1] = -1;
+    if (rc->rsync_timeout)
+      ctx->deadline = time(0) + rc->rsync_timeout;
     if (!sk_rsync_ctx_t_push(rc->rsync_queue, ctx)) {
       logmsg(rc, log_sys_err, "Couldn't push rsync state object onto queue, punting %s", uri->s);
       goto lose;

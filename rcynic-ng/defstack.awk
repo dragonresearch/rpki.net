@@ -58,12 +58,14 @@ BEGIN {
   print "#ifndef __DEFSTACK_H__";
   print "#define __DEFSTACK_H__";
   print "";
-  define_stack("HOST_MIB_COUNTER");
-  define_stack("VALIDATION_STATUS");
-  define_stack("FileAndHash");
-  define_stack("ROAIPAddress");
-  define_stack("ROAIPAddressFamily");
-  define_stack("walk_ctx_t");
-  define_stack("rsync_ctx_t");
+}
+
+/DECLARE_STACK_OF/ {
+  sub(/^[ \t]+/, "");
+  if (split($0, a, /[() \t]+/) > 1 && a[1] == "DECLARE_STACK_OF")
+    define_stack(a[2]);
+}
+
+END {
   print "#endif /* __DEFSTACK_H__ */";
 }

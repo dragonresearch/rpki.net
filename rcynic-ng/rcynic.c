@@ -450,9 +450,10 @@ struct rcynic_ctx {
   STACK_OF(validation_status_t) *validation_status;
   STACK_OF(rsync_ctx_t) *rsync_queue;
   STACK_OF(task_t) *task_queue;
-  int indent, use_syslog, allow_stale_crl, allow_stale_manifest, use_links;
+  int use_syslog, allow_stale_crl, allow_stale_manifest, use_links;
   int require_crl_in_manifest, rsync_timeout, priority[LOG_LEVEL_T_MAX];
   int allow_non_self_signed_trust_anchor, allow_object_not_in_manifest;
+  int max_parallel_fetches;
   log_level_t log_level;
   X509_STORE *x509_store;
 };
@@ -608,8 +609,6 @@ static void vlogmsg(const rcynic_ctx_t *rc,
     fprintf(stderr, "%s: ", tad);
     if (rc->jane)
       fprintf(stderr, "%s: ", rc->jane);
-    if (rc->indent)
-      fprintf(stderr, "%*s", rc->indent, " ");
     vfprintf(stderr, fmt, ap);
     putc('\n', stderr);
   }
@@ -1686,16 +1685,20 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 
       while ((s = strchr(ctx->buffer, '\n')) != NULL) {
 	*s++ = '\0';
-	if (*ctx->buffer != '\0')
+	if (ctx->buffer[strspn(ctx->buffer, " \t\n\r")] != '\0')
 	  logmsg(rc, log_telemetry, "rsync[%u]: %s", ctx->pid, ctx->buffer);
-	assert(s >= ctx->buffer);
-	ctx->buflen = s - ctx->buffer;
-	if (ctx->buflen > 0) 
+	assert(s > ctx->buffer && s < ctx->buffer + sizeof(ctx->buffer));
+	ctx->buflen -= s - ctx->buffer;
+	assert(ctx->buflen < sizeof(ctx->buffer));
+	if (ctx->buflen > 0)
 	  memmove(ctx->buffer, s, ctx->buflen);
+	ctx->buffer[ctx->buflen] = '\0';
       }
 
       if (ctx->buflen == sizeof(ctx->buffer) - 1) {
-	logmsg(rc, log_telemetry, "rsync[%u]: %s", ctx->pid, ctx->buffer);
+	ctx->buffer[sizeof(ctx->buffer) - 1] = '\0';
+	if (ctx->buffer[strspn(ctx->buffer, " \t\n\r")] != '\0')
+	  logmsg(rc, log_telemetry, "rsync[%u]: %s", ctx->pid, ctx->buffer);
 	ctx->buflen = 0;
       }
     }
@@ -1851,6 +1854,8 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
       logmsg(rc, log_sys_err, "Couldn't push rsync state object onto queue, punting %s", uri->s);
       goto lose;
     }
+    logmsg(rc, log_debug, "Subprocess %u started, current subprocess count %d",
+	   (unsigned) ctx->pid, sk_rsync_ctx_t_num(rc->rsync_queue));
     return rsync_status_pending;
   }
 
@@ -2660,8 +2665,6 @@ static X509 *check_cert(rcynic_ctx_t *rc,
   if ((certs = walk_ctx_stack_certs(wsk)) == NULL)
     return NULL;
 
-  rc->indent++;
-
   if ((x = check_cert_1(rc, uri, &path, prefix, certs, issuer, subject, hash, hashlen)) != NULL) {
     install_object(rc, uri, &path);
     mib_increment(rc, uri, accept_code);
@@ -2673,8 +2676,6 @@ static X509 *check_cert(rcynic_ctx_t *rc,
   } else if (!access(path.s, F_OK)) {
     mib_increment(rc, uri, reject_code);
   }
-
-  rc->indent--;
 
   sk_X509_free(certs);
   certs = NULL;
@@ -3489,8 +3490,6 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 	continue;
       }
 
-      rc->indent++;
-
       w->state++;
       continue;
 
@@ -3499,7 +3498,36 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
       switch (rsync_tree(rc, &w->certinfo.sia, wsk, rsync_sia_complete)) {
 
       case rsync_status_pending:
-	return;			/* This stack is blocked until rsync() completes */
+
+	/*
+	 * I -think- this is where we finally fork the stack when
+	 * we're doing things in parallel.  Am a bit fuzzy (too much
+	 * time passed since initial design) on exact mechanics, but
+	 * looking at code I think the plan is:
+	 *
+	 * - check whether we're * allowed to fork (max count not yet
+         *   exceeded)
+         * - if count exceeded, just return, rsync() termination will
+         *   wake us up
+	 * - if count not exceeded, fork stack here, leave rsync() to
+         *   wake up original stack, pop forked stack and continue
+         *   with it as new value of wsk for this invocation of
+         *   walk_cert().
+	 * - failure to fork stack logs a warning but otherwise is
+         *   same as count exceeded, just let rsync() wake us up
+         *   later.
+	 */
+
+	if (sk_rsync_ctx_t_num(rc->rsync_queue) >= rc->max_parallel_fetches)
+	  return;  /* This stack is blocked until rsync() completes */
+	
+	if ((wsk = walk_ctx_stack_clone(wsk)) == NULL) {
+	  logmsg(rc, log_sys_err, "walk_ctx_stack_clone() failed, probably memory exhaustion, blundering onwards without forking stack");
+	  return;  /* This stack is blocked until rsync() completes */
+	}
+
+	walk_ctx_stack_pop(wsk);
+	continue;		/* Press onwards while waiting for rsync */
 
       case rsync_status_failed:
 	logmsg(rc, log_sys_err, "rsync_tree() reported failure for URI %s, blundering onward", w->certinfo.sia.s);
@@ -3564,12 +3592,14 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 
     case walk_state_done:
 
-      rc->indent--;
       walk_ctx_stack_pop(wsk);	/* Resume our issuer's state */
       continue;
 
     }
   }
+
+  assert(walk_ctx_stack_head(wsk) == NULL);
+  walk_ctx_stack_free(wsk);
 }
 
 /**
@@ -3723,6 +3753,10 @@ int main(int argc, char *argv[])
     else if (!name_cmp(val->name, "rsync-timeout") &&
 	     !configure_integer(&rc, &rc.rsync_timeout, val->value))
 	goto done;
+
+    else if (!name_cmp(val->name, "max-parallel-fetches") &&
+	     !configure_integer(&rc, &rc.max_parallel_fetches, val->value))
+      goto done;
 
     else if (!name_cmp(val->name, "rsync-program"))
       rc.rsync_program = strdup(val->value);
@@ -4026,13 +4060,7 @@ int main(int argc, char *argv[])
     }
 
     check_ta(&rc, wsk);
-
-    /*
-     * Once code goes async this will have to be handled elsewhere.
-     */
-    walk_ctx_stack_free(wsk);
-    wsk = NULL;
-
+    wsk = NULL;			/* Ownership of wsk passed to check_ta() */
   }
 
   if (prune && !prune_unauthenticated(&rc, &rc.unauthenticated,

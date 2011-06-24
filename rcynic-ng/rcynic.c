@@ -1618,7 +1618,7 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 
     if (ctx->handler)
       ctx->handler(rc, ctx, WEXITSTATUS(pid_status) ? rsync_status_failed : rsync_status_done);
-    sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
+    (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
     free(ctx);
     return;
   }

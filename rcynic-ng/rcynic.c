@@ -334,9 +334,9 @@ typedef struct { unsigned char h[EVP_MAX_MD_SIZE]; } hashbuf_t;
 typedef struct host_mib_counter {
   path_t hostname;		/* uri_to_filename() wants path_t */
   unsigned long counters[MIB_COUNTER_T_MAX];
-} HOST_MIB_COUNTER;
+} host_mib_counter_t;
 
-DECLARE_STACK_OF(HOST_MIB_COUNTER)
+DECLARE_STACK_OF(host_mib_counter_t)
 
 /**
  * Per-URI validation status object.
@@ -345,9 +345,9 @@ typedef struct validation_status {
   uri_t uri;
   time_t timestamp;
   mib_counter_t code;
-} VALIDATION_STATUS;
+} validation_status_t;
 
-DECLARE_STACK_OF(VALIDATION_STATUS)
+DECLARE_STACK_OF(validation_status_t)
 
 /**
  * Structure to hold data parsed out of a certificate.
@@ -402,7 +402,7 @@ typedef enum {
  */
 typedef struct rsync_ctx {
   uri_t uri;
-  void (*handler)(const rcynic_ctx_t *, const rsync_status_t, STACK_OF(walk_ctx_t) *, const uri_t *);
+  void (*handler)(const rcynic_ctx_t *, const struct rsync_ctx *, const rsync_status_t);
   STACK_OF(walk_ctx_t) *wsk;
   int blocked;
   pid_t pid;
@@ -414,6 +414,16 @@ typedef struct rsync_ctx {
 } rsync_ctx_t;
 
 DECLARE_STACK_OF(rsync_ctx_t)
+
+/**
+ * Deferred task.
+ */
+typedef struct task {
+  void (*handler)(rcynic_ctx_t *, STACK_OF(walk_ctx_t) *);
+  STACK_OF(walk_ctx_t) *wsk;
+} task_t;
+
+DECLARE_STACK_OF(task_t)
 
 /**
  * Extended context for verify callbacks.  This is a wrapper around
@@ -436,9 +446,10 @@ struct rcynic_ctx {
   path_t authenticated, old_authenticated, unauthenticated;
   char *jane, *rsync_program;
   STACK_OF(OPENSSL_STRING) *rsync_cache, *backup_cache, *stale_cache;
-  STACK_OF(HOST_MIB_COUNTER) *host_counters;
-  STACK_OF(VALIDATION_STATUS) *validation_status;
+  STACK_OF(host_mib_counter_t) *host_counters;
+  STACK_OF(validation_status_t) *validation_status;
   STACK_OF(rsync_ctx_t) *rsync_queue;
+  STACK_OF(task_t) *task_queue;
   int indent, use_syslog, allow_stale_crl, allow_stale_manifest, use_links;
   int require_crl_in_manifest, rsync_timeout, priority[LOG_LEVEL_T_MAX];
   int allow_non_self_signed_trust_anchor, allow_object_not_in_manifest;
@@ -513,22 +524,22 @@ static void sk_OPENSSL_STRING_remove(STACK_OF(OPENSSL_STRING) *sk, const char *s
 }
 
 /**
- * Allocate a new HOST_MIB_COUNTER object.
+ * Allocate a new host_mib_counter_t object.
  */
-static HOST_MIB_COUNTER *HOST_MIB_COUNTER_new(void)
+static host_mib_counter_t *host_mib_counter_t_new(void)
 {
-  HOST_MIB_COUNTER *h = malloc(sizeof(*h));
+  host_mib_counter_t *h = malloc(sizeof(*h));
   if (h)
     memset(h, 0, sizeof(*h));
   return h;
 }
 
 /**
- * Allocate a new VALIDATION_STATUS object.
+ * Allocate a new validation_status_t object.
  */
-static VALIDATION_STATUS *VALIDATION_STATUS_new(void)
+static validation_status_t *validation_status_t_new(void)
 {
-  VALIDATION_STATUS *v = malloc(sizeof(*v));
+  validation_status_t *v = malloc(sizeof(*v));
   if (v)
     memset(v, 0, sizeof(*v));
   return v;
@@ -537,7 +548,7 @@ static VALIDATION_STATUS *VALIDATION_STATUS_new(void)
 /**
  * Type-safe wrapper around free() to keep safestack macros happy.
  */
-static void HOST_MIB_COUNTER_free(HOST_MIB_COUNTER *h)
+static void host_mib_counter_t_free(host_mib_counter_t *h)
 {
   if (h)
     free(h);
@@ -546,7 +557,7 @@ static void HOST_MIB_COUNTER_free(HOST_MIB_COUNTER *h)
 /**
  * Type-safe wrapper around free() to keep safestack macros happy.
  */
-static void VALIDATION_STATUS_free(VALIDATION_STATUS *v)
+static void validation_status_t_free(validation_status_t *v)
 {
   if (v)
     free(v);
@@ -850,7 +861,7 @@ static int oid_cmp(const ASN1_OBJECT *obj, const unsigned char *oid, const size_
 /**
  * Host MIB counter comparision.
  */
-static int host_mib_counter_cmp(const HOST_MIB_COUNTER * const *a, const HOST_MIB_COUNTER * const *b)
+static int host_mib_counter_cmp(const host_mib_counter_t * const *a, const host_mib_counter_t * const *b)
 {
   return strcasecmp((*a)->hostname.s, (*b)->hostname.s);
 }
@@ -862,7 +873,7 @@ static void mib_increment(const rcynic_ctx_t *rc,
 			  const uri_t *uri,
 			  const mib_counter_t counter)
 {
-  HOST_MIB_COUNTER *h = NULL, hn;
+  host_mib_counter_t *h = NULL, hn;
   char *s;
 
   assert(rc && uri);
@@ -880,16 +891,16 @@ static void mib_increment(const rcynic_ctx_t *rc,
   if ((s = strchr(hn.hostname.s, '/')) != NULL)
     *s = '\0';
 
-  h = sk_HOST_MIB_COUNTER_value(rc->host_counters,
-				sk_HOST_MIB_COUNTER_find(rc->host_counters,
-							 &hn));
+  h = sk_host_mib_counter_t_value(rc->host_counters,
+				  sk_host_mib_counter_t_find(rc->host_counters,
+							     &hn));
   if (!h) {
-    if ((h = HOST_MIB_COUNTER_new()) == NULL) {
+    if ((h = host_mib_counter_t_new()) == NULL) {
       logmsg(rc, log_sys_err, "Couldn't allocate MIB counters for %s", uri->s);
       return;
     }
     strcpy(h->hostname.s, hn.hostname.s);
-    if (!sk_HOST_MIB_COUNTER_push(rc->host_counters, h)) {
+    if (!sk_host_mib_counter_t_push(rc->host_counters, h)) {
       logmsg(rc, log_sys_err, "Couldn't store MIB counters for %s", uri->s);
       free(h);
       return;
@@ -906,14 +917,14 @@ static void log_validation_status(const rcynic_ctx_t *rc,
 				  const uri_t *uri,
 				  const mib_counter_t code)
 {
-  VALIDATION_STATUS *v = NULL;
+  validation_status_t *v = NULL;
 
   assert(rc && uri);
 
   if (!rc->validation_status)
     return;
 
-  if ((v = VALIDATION_STATUS_new()) == NULL) {
+  if ((v = validation_status_t_new()) == NULL) {
     logmsg(rc, log_sys_err, "Couldn't allocate validation status entry for %s", uri->s);
     goto punt;
   }
@@ -922,7 +933,7 @@ static void log_validation_status(const rcynic_ctx_t *rc,
   v->timestamp = time(0);
   v->code = code;
 
-  if (!sk_VALIDATION_STATUS_push(rc->validation_status, v)) {
+  if (!sk_validation_status_t_push(rc->validation_status, v)) {
     logmsg(rc, log_sys_err, "Couldn't store validation status entry for %s", uri->s);
     goto punt;
   }
@@ -1452,6 +1463,45 @@ static void walk_ctx_stack_free(STACK_OF(walk_ctx_t) *wsk)
 
 
 /**
+ * Add a task to the task queue.
+ */
+static int task_add(const rcynic_ctx_t *rc,
+		    void (*handler)(rcynic_ctx_t *, STACK_OF(walk_ctx_t) *),
+		    STACK_OF(walk_ctx_t) *wsk)
+{
+  task_t *t = malloc(sizeof(*t));
+
+  assert(rc && rc->task_queue && handler);
+
+  if (!t)
+    return 0;
+
+  t->handler = handler;
+  t->wsk = wsk;
+
+  if (sk_task_t_push(rc->task_queue, t))
+    return 1;
+
+  free(t);
+  return 0;
+}
+
+/**
+ * Run tasks until queue is empty.
+ */
+static void task_run_q(rcynic_ctx_t *rc)
+{
+  task_t *t;
+  assert(rc && rc->task_queue);
+  while ((t = sk_task_t_shift(rc->task_queue)) != NULL) {
+    t->handler(rc, t->wsk);
+    free(t);
+  }
+}
+
+
+
+/**
  * Maintain a cache of URIs we've already fetched.
  */
 static int rsync_cached_string(const rcynic_ctx_t *rc,
@@ -1568,7 +1618,7 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
       logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", ctx->uri.s);
 
     if (ctx->handler)
-      ctx->handler(rc, WEXITSTATUS(pid_status) ? rsync_status_failed : rsync_status_done, ctx->wsk, &ctx->uri);
+      ctx->handler(rc, ctx, WEXITSTATUS(pid_status) ? rsync_status_failed : rsync_status_done);
     sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
     free(ctx);
     return;
@@ -1676,7 +1726,7 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
 			    const char * const *args,
 			    const uri_t *uri,
 			    STACK_OF(walk_ctx_t) *wsk,
-			    void (*handler)(const rcynic_ctx_t *, const rsync_status_t, STACK_OF(walk_ctx_t) *, const uri_t *))
+			    void (*handler)(const rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t))
 {
   static const char * const rsync_cmd[] = {
     "rsync", "--update", "--times", "--copy-links", "--itemize-changes", NULL
@@ -1829,7 +1879,7 @@ static rsync_status_t rsync_file(const rcynic_ctx_t *rc, const uri_t *uri)
 static rsync_status_t rsync_tree(const rcynic_ctx_t *rc,
 				 const uri_t *uri,
 				 STACK_OF(walk_ctx_t) *wsk,
-				 void (*handler)(const rcynic_ctx_t *, const rsync_status_t, STACK_OF(walk_ctx_t) *, const uri_t *))
+				 void (*handler)(const rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t))
 {
   static const char * const rsync_args[] = { "--recursive", "--delete", NULL };
   return rsync(rc, rsync_args, uri, wsk, handler);
@@ -3387,21 +3437,17 @@ static void walk_cert(rcynic_ctx_t *, STACK_OF(walk_ctx_t) *);
 /**
  * rsync completion handler for fetching SIA tree.
  */
-static void rsync_sia_complete(const rcynic_ctx_t *rc, const rsync_status_t status, STACK_OF(walk_ctx_t) *wsk, const uri_t *uri)
+static void rsync_sia_complete(const rcynic_ctx_t *rc, const rsync_ctx_t *ctx, const rsync_status_t status)
 {
-  walk_ctx_t *w = walk_ctx_stack_head(wsk);
+  walk_ctx_t *w = walk_ctx_stack_head(ctx->wsk);
 
-  assert(rc && wsk && w && uri && status != rsync_status_pending);
+  assert(status != rsync_status_pending);
 
   if (status == rsync_status_failed)
     logmsg(rc, log_sys_err, "rsync_tree() reported failure for URI %s, blundering onward", w->certinfo.sia.s);
 
   w->state++;
-
-#warning This should schedule a task rather than calling directly or relying on caller
-#if 0
-  walk_cert(rc, wsk);
-#endif
+  task_add(rc, walk_cert, ctx->wsk);
 }
 
 /**
@@ -3545,12 +3591,12 @@ static void check_ta(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
   if (!ok)
     return;
 
-#warning This event loop is still a kludge, although not as bad as previous version
-  while (walk_ctx_stack_head(wsk) != NULL)
-    if(sk_rsync_ctx_t_num(rc->rsync_queue) > 0)
-      rsync_mgr(rc);
-    else
-      walk_cert(rc, wsk);
+  task_add(rc, walk_cert, wsk);
+
+  while (sk_task_t_num(rc->task_queue) > 0 || sk_rsync_ctx_t_num(rc->rsync_queue) > 0) {
+    task_run_q(rc);
+    rsync_mgr(rc);
+  }
 }
 
 
@@ -3772,11 +3818,11 @@ int main(int argc, char *argv[])
   }
 
   if (xmlfile != NULL) {
-    if ((rc.host_counters = sk_HOST_MIB_COUNTER_new(host_mib_counter_cmp)) == NULL) {
+    if ((rc.host_counters = sk_host_mib_counter_t_new(host_mib_counter_cmp)) == NULL) {
       logmsg(&rc, log_sys_err, "Couldn't allocate host_counters stack");
       goto done;
     }
-    if ((rc.validation_status = sk_VALIDATION_STATUS_new_null()) == NULL) {
+    if ((rc.validation_status = sk_validation_status_t_new_null()) == NULL) {
       logmsg(&rc, log_sys_err, "Couldn't allocate validation_status stack");
       goto done;
     }
@@ -3789,6 +3835,11 @@ int main(int argc, char *argv[])
 
   if ((rc.rsync_queue = sk_rsync_ctx_t_new_null()) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate rsync_queue");
+    goto done;
+  }
+
+  if ((rc.task_queue = sk_task_t_new_null()) == NULL) {
+    logmsg(&rc, log_sys_err, "Couldn't allocate task_queue");
     goto done;
   }
 
@@ -4036,8 +4087,8 @@ int main(int argc, char *argv[])
     if (ok)
       ok &= fprintf(f, "  </labels>\n") != EOF;
 
-    for (i = 0; ok && i < sk_HOST_MIB_COUNTER_num(rc.host_counters); i++) {
-      HOST_MIB_COUNTER *h = sk_HOST_MIB_COUNTER_value(rc.host_counters, i);
+    for (i = 0; ok && i < sk_host_mib_counter_t_num(rc.host_counters); i++) {
+      host_mib_counter_t *h = sk_host_mib_counter_t_value(rc.host_counters, i);
       assert(h);
 
       if (ok)
@@ -4053,8 +4104,8 @@ int main(int argc, char *argv[])
     }
 
 
-    for (i = 0; ok && i < sk_VALIDATION_STATUS_num(rc.validation_status); i++) {
-      VALIDATION_STATUS *v = sk_VALIDATION_STATUS_value(rc.validation_status, i);
+    for (i = 0; ok && i < sk_validation_status_t_num(rc.validation_status); i++) {
+      validation_status_t *v = sk_validation_status_t_value(rc.validation_status, i);
       assert(v);
 
       tad_tm = gmtime(&v->timestamp);
@@ -4082,8 +4133,8 @@ int main(int argc, char *argv[])
   sk_OPENSSL_STRING_pop_free(rc.rsync_cache, OPENSSL_STRING_free);
   sk_OPENSSL_STRING_pop_free(rc.backup_cache, OPENSSL_STRING_free);
   sk_OPENSSL_STRING_pop_free(rc.stale_cache, OPENSSL_STRING_free);
-  sk_HOST_MIB_COUNTER_pop_free(rc.host_counters, HOST_MIB_COUNTER_free);
-  sk_VALIDATION_STATUS_pop_free(rc.validation_status, VALIDATION_STATUS_free);
+  sk_host_mib_counter_t_pop_free(rc.host_counters, host_mib_counter_t_free);
+  sk_validation_status_t_pop_free(rc.validation_status, validation_status_t_free);
   X509_STORE_free(rc.x509_store);
   NCONF_free(cfg_handle);
   CONF_modules_free();

@@ -29,7 +29,6 @@ fi
 AC_ARG_WITH([system_openssl], [AS_HELP_STRING([--with-system-openssl], [Link against system copy of OpenSSL])],       [], [with_system_openssl=auto])
 AC_ARG_ENABLE([openssl_asm],  [AS_HELP_STRING([--disable-openssl-asm], [Don't let OpenSSL build assembler code])],    [], [enable_openssl_asm=auto])
 AC_ARG_ENABLE([python],       [AS_HELP_STRING([--disable-python],      [Don't build any of the Python-based tools])], [], [enable_python=auto])
-AC_ARG_ENABLE([pywrap],	      [AS_HELP_STRING([--enable-pywrap],       [Build pywrap])],			      [], [enable_pywrap=auto])
 AC_ARG_ENABLE([django],	      [AS_HELP_STRING([--disable-django],      [Don't build Django GUI])],		      [], [enable_django=auto])
 
 AC_PROG_CC
@@ -220,7 +219,6 @@ if test "x$PYTHON" = "x"
 then
 	have_python=no
 	have_python_h=no
-	need_pywrap=no
 	have_django=no
 else
 	have_python=yes
@@ -232,15 +230,6 @@ else
 	AC_CHECK_HEADER([$python_h],
 			[have_python_h=yes],
 			[have_python_h=no])
-
-	AC_MSG_CHECKING([whether we need pywrap])
-	if ldd $PYTHON 2>&AS_MESSAGE_LOG_FD | $GREP 'libcrypto' >/dev/null 2>&1
-	then
-		need_pywrap=yes
-	else
-		need_pywrap=no
-	fi
-	AC_MSG_RESULT([$need_pywrap])
 
 	AC_MSG_CHECKING([for Django])
 	if $PYTHON -c 'import django' 2>/dev/null
@@ -273,28 +262,6 @@ case $enable_python in
      *)		AC_MSG_ERROR([Unrecognized value for --enable-python: $enable_python]);;
 esac
 
-case $enable_pywrap in
-     yes)	build_pywrap=yes
-		if test $build_python = no
-		then
-			AC_MSG_ERROR([Building pywrap without Python makes no sense])
-		fi
-		if test $build_openssl = no
-		then
-			AC_MSG_WARN([pywrap not needed (but I'll try to build it anyway)])
-		fi
-		;;
-     no)	build_pywrap=no
-		if test $need_pywrap = yes
-		then
-			AC_MSG_WARN([This platform appears to require pywrap (but I'll try to build without it anyway)])
-		fi
-		;;
-     auto)	build_pywrap=$need_pywrap
-		;;
-     *)		AC_MSG_ERROR([Unrecognized value for --enable-pywrap: $enable_pywrap]);;
-esac
-
 case $enable_django in
      yes)	build_django=yes
 		if test $have_django = no
@@ -319,7 +286,6 @@ fi
 				TOP_LEVEL_SUBDIRS=""
 test $build_openssl = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
 				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils"
-test $build_pywrap = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pywrap"
 test $build_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
 test $have_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rtr-origin"
 
@@ -398,23 +364,6 @@ then
 else
 	LIBS="$LIBS -lssl -lcrypto"
 fi
-
-# Sort out which interpreter POW-using Python programs should use.
-
-if test $build_pywrap = yes
-then
-	AC_CONFIG_FILES([pywrap/Makefile])
-	PYWRAP='${libexecdir}/pywrap'
-	PYWRAP_CMD='LD_LIBRARY_PATH="${abs_top_builddir}/openssl/openssl" ${abs_top_builddir}/pywrap/pywrap'
-	PYWRAP_LIBDIR='${libdir}/pywrap'
-else
-	PYWRAP="$PYTHON"
-	PYWRAP_CMD="$PYTHON"
-	PYWRAP_LIBDIR=''
-fi
-AC_SUBST(PYWRAP)
-AC_SUBST(PYWRAP_CMD)
-AC_SUBST(PYWRAP_LIBDIR)
 
 if test $build_python = yes
 then

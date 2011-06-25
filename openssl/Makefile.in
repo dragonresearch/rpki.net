@@ -5,7 +5,6 @@ VERSION = 1.0.0d
 OPENSSL_CONFIG_COMMAND  = @OPENSSL_CONFIG_COMMAND@
 OPENSSL_BUILD_DIRECTORY = ${abs_builddir}/openssl
 OPENSSL_SO_GLOB		= @OPENSSL_SO_GLOB@
-PYWRAP_LIBDIR		= @PYWRAP_LIBDIR@
 
 abs_top_srcdir		= @abs_top_srcdir@
 abs_top_builddir	= @abs_top_builddir@
@@ -27,7 +26,7 @@ OPTIONS = enable-rfc3779 enable-cms no-dso shared --prefix=${prefix}
 all: build_libs build_apps build_tests build_tools build_symlink
 
 build_libs: openssl-${VERSION}/Makefile
-	cd openssl-${VERSION}; ${MAKE} build_libs LIBRPATH=${PYWRAP_LIBDIR}
+	cd openssl-${VERSION}; ${MAKE} build_libs
 
 build_apps: openssl-${VERSION}/apps/openssl
 

@@ -2,8 +2,6 @@
 
 SUBDIRS = @RPKID_SUBDIRS@
 PYTHON = @PYTHON@
-PYWRAP = @PYWRAP@
-PYWRAP_CMD = @PYWRAP_CMD@
 
 SECRET_KEY = @SECRET_KEY@
 WEBUSER = @WEBUSER@
@@ -104,7 +102,7 @@ relaxng: left-right-schema.rng up-down-schema.rng publication-schema.rng
 	xmllint --noout --relaxng publication-schema.rng tests/publication-protocol-samples/*.xml
 
 unit-tests: all
-	PWD=`pwd`; for i in rpki/*.py; do echo "[$$i]"; PYTHONPATH=$$PWD ${PYWRAP_CMD} $$i; done
+	PWD=`pwd`; for i in rpki/*.py; do echo "[$$i]"; PYTHONPATH=$$PWD ${PYTHON} $$i; done
 
 all-tests:: unit-tests
 
@@ -180,13 +178,12 @@ distclean:: clean docclean
 all install clean test distclean deinstall uninstall::
 	@for i in ${SUBDIRS}; do echo "Making $@ in $$i"; (cd $$i && ${MAKE} $@); done
 
-COMPILE_COMMON = \
+COMPILE_PYTHON = \
+	rm -f $@; \
+	AC_PYTHON_INTERPRETER='${PYTHON}' \
 	AC_RPKI_CONFIG_DIR='${DESTDIR}${sysconfdir}' \
 	${PYTHON} ${abs_top_srcdir}/buildtools/make-python-executable.py <$? >$@; \
 	chmod 555 $@
-
-COMPILE_PYTHON = rm -f $@; AC_PYTHON_INTERPRETER='${PYTHON}' ${COMPILE_COMMON}
-COMPILE_PYWRAP = rm -f $@; AC_PYTHON_INTERPRETER='${PYWRAP}' ${COMPILE_COMMON}
 
 COMPILE_SETTINGS = \
 	rm -f $@; \
@@ -208,22 +205,22 @@ rpki-start-servers: rpki-start-servers.py
 	${COMPILE_PYTHON}
 
 irbe_cli: irbe_cli.py
-	${COMPILE_PYWRAP}
+	${COMPILE_PYTHON}
 
 irdbd: irdbd.py
-	${COMPILE_PYWRAP}
+	${COMPILE_PYTHON}
 
 myrpki: myrpki.py
-	${COMPILE_PYWRAP}
+	${COMPILE_PYTHON}
 
 pubd: pubd.py
-	${COMPILE_PYWRAP}
+	${COMPILE_PYTHON}
 
 rootd: rootd.py
-	${COMPILE_PYWRAP}
+	${COMPILE_PYTHON}
 
 rpkid: rpkid.py
-	${COMPILE_PYWRAP}
+	${COMPILE_PYTHON}
 
 portal-gui/scripts/rpkigui-load-csv: portal-gui/scripts/load_csv.py
 	${COMPILE_PYTHON}

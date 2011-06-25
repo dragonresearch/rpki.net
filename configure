@@ -604,9 +604,6 @@ LIBOBJS
 DJANGO_ADMIN
 SECRET_KEY
 WEBUSER
-PYWRAP_LIBDIR
-PYWRAP_CMD
-PYWRAP
 OPENSSL_SO_GLOB
 OPENSSL_CONFIG_COMMAND
 RPKID_SUBDIRS
@@ -682,7 +679,6 @@ enable_option_checking
 with_system_openssl
 enable_openssl_asm
 enable_python
-enable_pywrap
 enable_django
 '
       ac_precious_vars='build_alias
@@ -1311,7 +1307,6 @@ Optional Features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --disable-openssl-asm   Don't let OpenSSL build assembler code
   --disable-python        Don't build any of the Python-based tools
-  --enable-pywrap         Build pywrap
   --disable-django        Don't build Django GUI
 
 Optional Packages:
@@ -2359,13 +2354,6 @@ if test "${enable_python+set}" = set; then :
   enableval=$enable_python;
 else
   enable_python=auto
-fi
-
-# Check whether --enable-pywrap was given.
-if test "${enable_pywrap+set}" = set; then :
-  enableval=$enable_pywrap;
-else
-  enable_pywrap=auto
 fi
 
 # Check whether --enable-django was given.
@@ -4165,7 +4153,6 @@ if test "x$PYTHON" = "x"
 then
 	have_python=no
 	have_python_h=no
-	need_pywrap=no
 	have_django=no
 else
 	have_python=yes
@@ -4185,17 +4172,6 @@ else
 fi
 
 
-
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether we need pywrap" >&5
-$as_echo_n "checking whether we need pywrap... " >&6; }
-	if ldd $PYTHON 2>&5 | $GREP 'libcrypto' >/dev/null 2>&1
-	then
-		need_pywrap=yes
-	else
-		need_pywrap=no
-	fi
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $need_pywrap" >&5
-$as_echo "$need_pywrap" >&6; }
 
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Django" >&5
 $as_echo_n "checking for Django... " >&6; }
@@ -4231,30 +4207,6 @@ $as_echo "$as_me: WARNING: I can't find your Python binary, disabling build for 
      *)		as_fn_error $? "Unrecognized value for --enable-python: $enable_python" "$LINENO" 5;;
 esac
 
-case $enable_pywrap in
-     yes)	build_pywrap=yes
-		if test $build_python = no
-		then
-			as_fn_error $? "Building pywrap without Python makes no sense" "$LINENO" 5
-		fi
-		if test $build_openssl = no
-		then
-			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: pywrap not needed (but I'll try to build it anyway)" >&5
-$as_echo "$as_me: WARNING: pywrap not needed (but I'll try to build it anyway)" >&2;}
-		fi
-		;;
-     no)	build_pywrap=no
-		if test $need_pywrap = yes
-		then
-			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: This platform appears to require pywrap (but I'll try to build without it anyway)" >&5
-$as_echo "$as_me: WARNING: This platform appears to require pywrap (but I'll try to build without it anyway)" >&2;}
-		fi
-		;;
-     auto)	build_pywrap=$need_pywrap
-		;;
-     *)		as_fn_error $? "Unrecognized value for --enable-pywrap: $enable_pywrap" "$LINENO" 5;;
-esac
-
 case $enable_django in
      yes)	build_django=yes
 		if test $have_django = no
@@ -4280,7 +4232,6 @@ fi
 				TOP_LEVEL_SUBDIRS=""
 test $build_openssl = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS openssl"
 				TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rcynic utils"
-test $build_pywrap = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS pywrap"
 test $build_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rpkid"
 test $have_python = yes &&	TOP_LEVEL_SUBDIRS="$TOP_LEVEL_SUBDIRS rtr-origin"
 
@@ -4355,24 +4306,6 @@ $as_echo "$OPENSSL_SO_GLOB" >&6; }
 else
 	LIBS="$LIBS -lssl -lcrypto"
 fi
-
-# Sort out which interpreter POW-using Python programs should use.
-
-if test $build_pywrap = yes
-then
-	ac_config_files="$ac_config_files pywrap/Makefile"
-
-	PYWRAP='${libexecdir}/pywrap'
-	PYWRAP_CMD='LD_LIBRARY_PATH="${abs_top_builddir}/openssl/openssl" ${abs_top_builddir}/pywrap/pywrap'
-	PYWRAP_LIBDIR='${libdir}/pywrap'
-else
-	PYWRAP="$PYTHON"
-	PYWRAP_CMD="$PYTHON"
-	PYWRAP_LIBDIR=''
-fi
-
-
-
 
 if test $build_python = yes
 then
@@ -5191,7 +5124,6 @@ do
     "rcynic/installation-scripts/linux/install.sh") CONFIG_FILES="$CONFIG_FILES rcynic/installation-scripts/linux/install.sh" ;;
     "openssl/Makefile") CONFIG_FILES="$CONFIG_FILES openssl/Makefile" ;;
     "openssl/tests/Makefile") CONFIG_FILES="$CONFIG_FILES openssl/tests/Makefile" ;;
-    "pywrap/Makefile") CONFIG_FILES="$CONFIG_FILES pywrap/Makefile" ;;
     "rpkid/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/Makefile" ;;
     "rpkid/tests/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/tests/Makefile" ;;
     "rpkid/portal-gui/Makefile") CONFIG_FILES="$CONFIG_FILES rpkid/portal-gui/Makefile" ;;

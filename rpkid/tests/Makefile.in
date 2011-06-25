@@ -1,7 +1,6 @@
 # $Id$
 
 PYTHON = @PYTHON@
-PYWRAP_CMD = @PYWRAP_CMD@
 abs_top_builddir = @abs_top_builddir@
 
 all: protocol-samples
@@ -29,29 +28,29 @@ parse-test: protocol-samples
 all-tests:: parse-test
 
 all-tests:: 
-	${PYWRAP_CMD} smoketest.py -y smoketest.1.yaml
+	${PYTHON} smoketest.py -y smoketest.1.yaml
 
 all-tests::
-	${PYWRAP_CMD} smoketest.py -y smoketest.2.yaml
+	${PYTHON} smoketest.py -y smoketest.2.yaml
 
 test all-tests::
-	${PYWRAP_CMD} smoketest.py -y smoketest.3.yaml
+	${PYTHON} smoketest.py -y smoketest.3.yaml
 
 all-tests::
-	${PYWRAP_CMD} smoketest.py -y smoketest.4.yaml
+	${PYTHON} smoketest.py -y smoketest.4.yaml
 
 all-tests::
-	${PYWRAP_CMD} smoketest.py -y smoketest.5.yaml
+	${PYTHON} smoketest.py -y smoketest.5.yaml
 
 test all-tests::
-	${PYWRAP_CMD} smoketest.py -y smoketest.6.yaml
+	${PYTHON} smoketest.py -y smoketest.6.yaml
 
 all-tests::
-	${PYWRAP_CMD} smoketest.py -y smoketest.7.yaml
+	${PYTHON} smoketest.py -y smoketest.7.yaml
 
 profile: all
 	find smoketest.dir -name '*.prof' -delete
-	${PYWRAP_CMD} smoketest.py -y smoketest.2.yaml -p
+	${PYTHON} smoketest.py -y smoketest.2.yaml -p
 	for i in smoketest.dir/*.prof; do ${PYTHON} -c "import pstats;pstats.Stats('$$i').sort_stats('time').print_stats()"; done
 
 # This isn't a full exercise of the yamltest framework, but is
@@ -62,7 +61,7 @@ YAMLTEST_CONFIG = smoketest.1.yaml
 yamltest:
 	rm -rf yamltest.dir rcynic-data
 	${PYTHON} sql-cleaner.py
-	${PYWRAP_CMD} yamltest.py ${YAMLTEST_CONFIG}
+	${PYTHON} yamltest.py ${YAMLTEST_CONFIG}
 
 backup:
 	${PYTHON} sql-dumper.py

@@ -402,7 +402,7 @@ typedef enum {
  */
 typedef struct rsync_ctx {
   uri_t uri;
-  void (*handler)(const rcynic_ctx_t *, const struct rsync_ctx *, const rsync_status_t);
+  void (*handler)(const rcynic_ctx_t *, const struct rsync_ctx *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *);
   STACK_OF(walk_ctx_t) *wsk;
   int blocked;
   pid_t pid;
@@ -1635,7 +1635,7 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 		     ? rsync_timed_out
 		     : rsync_failed));
     } else {
-      logmsg(rc, log_debug, "rsync exited succesfully fetching %s", ctx->uri.s);
+      logmsg(rc, log_debug, "Successfully fetched %s", ctx->uri.s);
       mib_increment(rc, &ctx->uri, rsync_succeeded);
     }
 
@@ -1647,7 +1647,7 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
       logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", ctx->uri.s);
 
     if (ctx->handler)
-      ctx->handler(rc, ctx, WEXITSTATUS(pid_status) ? rsync_status_failed : rsync_status_done);
+      ctx->handler(rc, ctx, WEXITSTATUS(pid_status) ? rsync_status_failed : rsync_status_done, &ctx->uri, ctx->wsk);
     (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
     free(ctx);
     return;
@@ -1737,26 +1737,10 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 
 
 /**
- * Run rsync.  This is fairly nasty, because we need to:
- *
- * @li Construct the argument list for rsync;
- *
- * @li Run rsync in a child process;
- *
- * @li Sit listening to rsync's output, logging whatever we get;
- *
- * @li Impose an optional time limit on rsync's execution time
- *
- * @li Clean up from all of the above; and
- *
- * @li Keep track of which URIs we've already fetched, so we don't
- *     have to do it again.
- *
- * Taken all together, this is pretty icky.  Breaking it into separate
- * functions wouldn't help much.  Don't read this on a full stomach.
+ * Run rsync.
  */
-static rsync_status_t run_rsync(const rcynic_ctx_t *rc,
-				rsync_ctx_t *ctx)
+static void run_rsync(const rcynic_ctx_t *rc,
+		      rsync_ctx_t *ctx)
 {
   static const char * const rsync_cmd[] = {
     "rsync", "--update", "--times", "--copy-links", "--itemize-changes", NULL
@@ -1866,7 +1850,10 @@ static rsync_status_t run_rsync(const rcynic_ctx_t *rc,
       ctx->deadline = time(0) + rc->rsync_timeout;
     logmsg(rc, log_debug, "Subprocess %u started, current subprocess count %d",
 	   (unsigned) ctx->pid, sk_rsync_ctx_t_num(rc->rsync_queue));
-    return rsync_status_pending;
+    if (ctx->handler)
+      ctx->handler(rc, ctx, rsync_status_pending, &ctx->uri, ctx->wsk);
+    return;
+
   }
 
  lose:
@@ -1876,18 +1863,19 @@ static rsync_status_t run_rsync(const rcynic_ctx_t *rc,
     (void) close(pipe_fds[1]);
   if (rc->rsync_queue && ctx)
     (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
+  if (ctx && ctx->handler)
+    ctx->handler(rc, ctx, rsync_status_failed, &ctx->uri, ctx->wsk);
   if (ctx)
     free(ctx);
-  return rsync_status_failed;
 }
 
 /**
  * Set up rsync context and attempt to start it.
  */
-static rsync_status_t rsync(const rcynic_ctx_t *rc,
-			    const uri_t *uri,
-			    STACK_OF(walk_ctx_t) *wsk,
-			    void (*handler)(const rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t))
+static void rsync(const rcynic_ctx_t *rc,
+		  const uri_t *uri,
+		  STACK_OF(walk_ctx_t) *wsk,
+		  void (*handler)(const rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *))
 {
   rsync_ctx_t *ctx = NULL;
 
@@ -1895,14 +1883,18 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
 
   if (rsync_cached_uri(rc, uri)) {
     logmsg(rc, log_verbose, "rsync cache hit for %s", uri->s);
-    return rsync_status_done;
+    if (handler)
+      handler(rc, NULL, rsync_status_done, uri, wsk);
+    return;
   }
 
   logmsg(rc, log_telemetry, "Fetching %s", uri->s);
 
   if ((ctx = malloc(sizeof(*ctx))) == NULL) {
     logmsg(rc, log_sys_err, "malloc(rsync_ctxt_t) failed");
-    return rsync_status_failed;
+    if (handler)
+      handler(rc, NULL, rsync_status_failed, uri, wsk);
+    return;
   }
 
   memset(ctx, 0, sizeof(*ctx));
@@ -1913,32 +1905,35 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
 
   if (!sk_rsync_ctx_t_push(rc->rsync_queue, ctx)) {
     logmsg(rc, log_sys_err, "Couldn't push rsync state object onto queue, punting %s", ctx->uri.s);
+    if (handler)
+      handler(rc, ctx, rsync_status_failed, uri, wsk);
     free(ctx);
-    return rsync_status_failed;
+    return;
   }
 
-  return run_rsync(rc, ctx);
+  run_rsync(rc, ctx);
 }
 
 /**
  * rsync a single file (trust anchor, CRL, manifest, ROA, whatever).
  */
-static rsync_status_t rsync_file(const rcynic_ctx_t *rc, const uri_t *uri)
+static void rsync_file(const rcynic_ctx_t *rc,
+		       const uri_t *uri)
 {
   assert(!endswith(uri->s, "/"));
-  return rsync(rc, uri, NULL, NULL);
+  rsync(rc, uri, NULL, NULL);
 }
 
 /**
  * rsync an entire subtree, generally rooted at a SIA collection.
  */
-static rsync_status_t rsync_tree(const rcynic_ctx_t *rc,
-				 const uri_t *uri,
-				 STACK_OF(walk_ctx_t) *wsk,
-				 void (*handler)(const rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t))
+static void rsync_tree(const rcynic_ctx_t *rc,
+		       const uri_t *uri,
+		       STACK_OF(walk_ctx_t) *wsk,
+		       void (*handler)(const rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *))
 {
   assert(endswith(uri->s, "/"));
-  return rsync(rc, uri, wsk, handler);
+  rsync(rc, uri, wsk, handler);
 }
 
 
@@ -3485,19 +3480,42 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 static void walk_cert(rcynic_ctx_t *, STACK_OF(walk_ctx_t) *);
 
 /**
- * rsync completion handler for fetching SIA tree.
+ * rsync callback for fetching SIA tree.
  */
-static void rsync_sia_complete(const rcynic_ctx_t *rc, const rsync_ctx_t *ctx, const rsync_status_t status)
+static void rsync_sia_callback(const rcynic_ctx_t *rc,
+			       const rsync_ctx_t *ctx,
+			       const rsync_status_t status,
+			       const uri_t *uri,
+			       STACK_OF(walk_ctx_t) *wsk)
 {
-  walk_ctx_t *w = walk_ctx_stack_head(ctx->wsk);
+  walk_ctx_t *w = walk_ctx_stack_head(wsk);
 
-  assert(status != rsync_status_pending);
+  assert(wsk);
 
-  if (status == rsync_status_failed)
-    logmsg(rc, log_sys_err, "rsync_tree() reported failure for URI %s, blundering onward", w->certinfo.sia.s);
+  switch (status) {
 
-  w->state++;
-  task_add(rc, walk_cert, ctx->wsk);
+  case rsync_status_pending:
+    if (sk_rsync_ctx_t_num(rc->rsync_queue) >= rc->max_parallel_fetches)
+      return;
+	
+    if ((wsk = walk_ctx_stack_clone(wsk)) == NULL) {
+      logmsg(rc, log_sys_err, "walk_ctx_stack_clone() failed, probably memory exhaustion, blundering onwards without forking stack");
+      return;
+    }
+
+    walk_ctx_stack_pop(wsk);
+    task_add(rc, walk_cert, wsk);
+    return;
+
+  case rsync_status_failed:
+    logmsg(rc, log_sys_err, "rsync_tree() reported failure fetching %s, blundering onward", w->certinfo.sia.s);
+    /* Fall through */
+
+  case rsync_status_done:
+    w->state++;
+    task_add(rc, walk_cert, wsk);
+    return;
+  }
 }
 
 /**
@@ -3544,48 +3562,8 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 
     case walk_state_rsync:
 
-      switch (rsync_tree(rc, &w->certinfo.sia, wsk, rsync_sia_complete)) {
-
-      case rsync_status_pending:
-
-	/*
-	 * I -think- this is where we finally fork the stack when
-	 * we're doing things in parallel.  Am a bit fuzzy (too much
-	 * time passed since initial design) on exact mechanics, but
-	 * looking at code I think the plan is:
-	 *
-	 * - check whether we're * allowed to fork (max count not yet
-         *   exceeded)
-         * - if count exceeded, just return, rsync() termination will
-         *   wake us up
-	 * - if count not exceeded, fork stack here, leave rsync() to
-         *   wake up original stack, pop forked stack and continue
-         *   with it as new value of wsk for this invocation of
-         *   walk_cert().
-	 * - failure to fork stack logs a warning but otherwise is
-         *   same as count exceeded, just let rsync() wake us up
-         *   later.
-	 */
-
-	if (sk_rsync_ctx_t_num(rc->rsync_queue) >= rc->max_parallel_fetches)
-	  return;  /* This stack is blocked until rsync() completes */
-	
-	if ((wsk = walk_ctx_stack_clone(wsk)) == NULL) {
-	  logmsg(rc, log_sys_err, "walk_ctx_stack_clone() failed, probably memory exhaustion, blundering onwards without forking stack");
-	  return;  /* This stack is blocked until rsync() completes */
-	}
-
-	walk_ctx_stack_pop(wsk);
-	continue;		/* Press onwards while waiting for rsync */
-
-      case rsync_status_failed:
-	logmsg(rc, log_sys_err, "rsync_tree() reported failure for URI %s, blundering onward", w->certinfo.sia.s);
-	/* Fall through */
-
-      case rsync_status_done:
-	w->state++;
-	continue;
-      }
+      rsync_tree(rc, &w->certinfo.sia, wsk, rsync_sia_callback);
+      return;
 
     case walk_state_ready:
 
@@ -4065,18 +4043,10 @@ int main(int argc, char *argv[])
 	goto done;
       }
       logmsg(&rc, log_telemetry, "Processing trust anchor from URI %s", uri.s);
-      switch (rsync_file(&rc, &uri)) {
-      case rsync_status_pending:
-#warning This event loop is probably wrong too
+      rsync_file(&rc, &uri);
 	while (sk_rsync_ctx_t_num(rc.rsync_queue) > 0)
 	  rsync_mgr(&rc);
-	break;
-      case rsync_status_failed:
-	logmsg(&rc, log_data_err, "Could not fetch trust anchor from %s", uri.s);
-	break;
-      case rsync_status_done:
-	break;
-      }
+#warning Should have handler to whine about rsync failure fetching trust anchor
       if (bio)
 	pkey = d2i_PUBKEY_bio(bio, NULL);
       BIO_free_all(bio);

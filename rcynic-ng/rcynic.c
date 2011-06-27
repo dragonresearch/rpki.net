@@ -1156,6 +1156,29 @@ static int rm_rf(const path_t *name)
 
 
 /**
+ * Test whether a pair of URIs "conflict", that is, whether attempting
+ * to rsync both of them at the same time in parallel might cause
+ * unpredictable behavior.  Might need a better name for this test.
+ *
+ * Returns non-zero iff the two URIs "conflict".
+ */
+static int conflicting_uris(const uri_t *a, const uri_t *b)
+{
+  size_t len_a, len_b;
+
+  assert(a && is_rsync(a->s) && b && is_rsync(b->s));
+
+  len_a = strlen(a->s);
+  len_b = strlen(b->s);
+
+  assert(len_a < sizeof(a->s) && len_b < sizeof(b->s));
+
+  return !strncmp(a->s, b->s, len_a < len_b ? len_a : len_b);
+}
+
+
+
+/**
  * Read non-directory filenames from a directory, so we can check to
  * see what's missing from a manifest.
  */
@@ -3977,7 +4000,19 @@ int main(int argc, char *argv[])
 	logmsg(&rc, log_sys_err, "Couldn't find a free name for trust anchor %s", path1.s);
 	goto done;
       }
-      uri.s[0] = '\0';
+      assert(sizeof("file://") < sizeof(uri.s));
+      strcpy(uri.s, "file://");
+      if (path1.s[0] != '/') {
+	if (getcwd(uri.s + strlen(uri.s), sizeof(uri.s) - strlen(uri.s)) == NULL ||
+	    (!endswith(uri.s, "/") && strlen(uri.s) >= sizeof(uri.s) - 1))
+	  uri.s[0] = '\0';
+	else
+	  strcat(uri.s, "/");
+      }
+      if (uri.s[0] != '\0' && strlen(uri.s) + strlen(path1.s) < sizeof(uri.s))
+	strcat(uri.s, path1.s);
+      else
+	uri.s[0] = '\0';
     }
 
     if (!name_cmp(val->name, "trust-anchor-locator")) {

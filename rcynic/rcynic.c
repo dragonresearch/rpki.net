@@ -3489,6 +3489,19 @@ int main(int argc, char *argv[])
 	logmsg(&rc, log_sys_err, "Couldn't find a free name for trust anchor %s", path1);
 	goto done;
       }
+      assert(sizeof("file://") < sizeof(uri));
+      strcpy(uri, "file://");
+      if (path1[0] != '/') {
+	if (getcwd(uri + strlen(uri), sizeof(uri) - strlen(uri)) == NULL ||
+	    (!endswith(uri, "/") && strlen(uri) >= sizeof(uri) - 1))
+	  uri[0] = '\0';
+	else
+	  strcat(uri, "/");
+      }
+      if (uri[0] != '\0' && strlen(uri) + strlen(path1) < sizeof(uri))
+	strcat(uri, path1);
+      else
+	uri[0] = '\0';
     }
 
     if (!name_cmp(val->name, "trust-anchor-uri-with-key") ||

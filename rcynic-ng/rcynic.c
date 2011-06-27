@@ -928,9 +928,9 @@ static void log_validation_status(const rcynic_ctx_t *rc,
     goto punt;
   }
 
-  strcpy(v->uri.s, uri->s);
   v->timestamp = time(0);
   v->code = code;
+  v->uri = *uri;
 
   if (!sk_validation_status_t_push(rc->validation_status, v)) {
     logmsg(rc, log_sys_err, "Couldn't store validation status entry for %s", uri->s);
@@ -2170,9 +2170,7 @@ static void parse_cert(const rcynic_ctx_t *rc, X509 *x, certinfo_t *c, const uri
   memset(c, 0, sizeof(*c));
 
   c->ca = X509_check_ca(x) == 1;
-
-  assert(strlen(uri->s) < sizeof(c->uri));
-  strcpy(c->uri.s, uri->s);
+  c->uri = *uri;
 
   if ((xia = X509_get_ext_d2i(x, NID_info_access, NULL, NULL)) != NULL) {
     extract_access_uri(rc, uri, xia, id_ad_caIssuers, sizeof(id_ad_caIssuers), &c->aia);

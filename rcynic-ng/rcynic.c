@@ -1587,14 +1587,21 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 
   case -1:
     /*
-     * Not sure what to do here, for now just return.
+     * If we have no children, we're done here.
+     */
+    if (errno == ECHILD)
+      return;
+
+    /*
+     * Not a lot we can do for errors other than EINTR or ECHILD,
+     * other than whining.
      */
     logmsg(rc, log_sys_err, "waitpid() returned error: %s", strerror(errno));
     return;
 
   case 0:
     /*
-     * No children are ready to exit, continue to select() check.
+     * We have children, but none ready to exit, continue to select().
      */
     break;
 
@@ -1656,7 +1663,7 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 	  (waitpid(ctx->pid, &pid_status, WNOHANG) == ctx->pid && WIFEXITED(pid_status)))
 	continue;
       if (ctx->kill_count == 0)
-	logmsg(rc, log_debug, "Subprocess %u is taking too long", (unsigned) ctx->pid);
+	logmsg(rc, log_debug, "Subprocess %u is taking too long fetching %s", (unsigned) ctx->pid, ctx->uri.s);
       (void) kill(ctx->pid, ctx->kill_count++ < KILL_MAX ? SIGTERM : SIGKILL);
       ctx->deadline = now + 1;
       signaled++;
@@ -1748,24 +1755,26 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
  * Taken all together, this is pretty icky.  Breaking it into separate
  * functions wouldn't help much.  Don't read this on a full stomach.
  */
-static rsync_status_t rsync(const rcynic_ctx_t *rc,
-			    const char * const *args,
-			    const uri_t *uri,
-			    STACK_OF(walk_ctx_t) *wsk,
-			    void (*handler)(const rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t))
+static rsync_status_t run_rsync(const rcynic_ctx_t *rc,
+				rsync_ctx_t *ctx)
 {
   static const char * const rsync_cmd[] = {
     "rsync", "--update", "--times", "--copy-links", "--itemize-changes", NULL
   };
 
-  const char *argv[100];
+  static const char * const rsync_tree_args[] = {
+    "--recursive", "--delete", NULL
+  };
+
+  const char *argv[10];
   path_t path;
-  rsync_ctx_t *ctx = NULL;
   int i, argc = 0, flags, pipe_fds[2];
 
   pipe_fds[0] = pipe_fds[1] = -1;
 
-  assert(rc && uri);
+  assert(rc && ctx);
+
+  logmsg(rc, log_telemetry, "Fetching %s", ctx->uri.s);
 
   memset(argv, 0, sizeof(argv));
 
@@ -1773,52 +1782,34 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
     assert(argc < sizeof(argv)/sizeof(*argv));
     argv[argc++] = rsync_cmd[i];
   }
-  if (args) {
-    for (i = 0; args[i]; i++) {
+  if (endswith(ctx->uri.s, "/")) {
+    for (i = 0; rsync_tree_args[i]; i++) {
       assert(argc < sizeof(argv)/sizeof(*argv));
-      argv[argc++] = args[i];
+      argv[argc++] = rsync_tree_args[i];
     }
   }
 
   if (rc->rsync_program)
     argv[0] = rc->rsync_program;
 
-  if (!uri_to_filename(rc, uri, &path, &rc->unauthenticated)) {
-    logmsg(rc, log_data_err, "Couldn't extract filename from URI: %s", uri->s);
-    return rsync_status_failed;
+  if (!uri_to_filename(rc, &ctx->uri, &path, &rc->unauthenticated)) {
+    logmsg(rc, log_data_err, "Couldn't extract filename from URI: %s", ctx->uri.s);
+    goto lose;
   }
 
   assert(argc < sizeof(argv)/sizeof(*argv));
-  argv[argc++] = uri->s;
+  argv[argc++] = ctx->uri.s;
 
   assert(argc < sizeof(argv)/sizeof(*argv));
   argv[argc++] = path.s;
 
-  assert(strlen(uri->s) > SIZEOF_RSYNC);
-  if (rsync_cached_uri(rc, uri)) {
-    logmsg(rc, log_verbose, "rsync cache hit for %s", uri->s);
-    return rsync_status_done;
-  }
-
   if (!mkdir_maybe(rc, &path)) {
     logmsg(rc, log_sys_err, "Couldn't make target directory: %s", path.s);
-    return rsync_status_failed;
+    goto lose;
   }
-
-  logmsg(rc, log_telemetry, "Fetching %s", uri->s);
 
   for (i = 0; i < argc; i++)
     logmsg(rc, log_verbose, "rsync argv[%d]: %s", i, argv[i]);
-
-  if ((ctx = malloc(sizeof(*ctx))) == NULL) {
-    logmsg(rc, log_sys_err, "malloc(rsync_ctxt_t) failed");
-    return rsync_status_failed;
-  }
-  memset(ctx, 0, sizeof(*ctx));
-  memcpy(&ctx->uri, uri, sizeof(ctx->uri));
-  ctx->handler = handler;
-  ctx->wsk = wsk;
-  ctx->fd = -1;
 
   if (pipe(pipe_fds) < 0) {
     logmsg(rc, log_sys_err, "pipe() failed: %s", strerror(errno));
@@ -1873,32 +1864,69 @@ static rsync_status_t rsync(const rcynic_ctx_t *rc,
     pipe_fds[1] = -1;
     if (rc->rsync_timeout)
       ctx->deadline = time(0) + rc->rsync_timeout;
-    if (!sk_rsync_ctx_t_push(rc->rsync_queue, ctx)) {
-      logmsg(rc, log_sys_err, "Couldn't push rsync state object onto queue, punting %s", uri->s);
-      goto lose;
-    }
     logmsg(rc, log_debug, "Subprocess %u started, current subprocess count %d",
 	   (unsigned) ctx->pid, sk_rsync_ctx_t_num(rc->rsync_queue));
     return rsync_status_pending;
   }
-
 
  lose:
   if (pipe_fds[0] != -1)
     (void) close(pipe_fds[0]);
   if (pipe_fds[1] != -1)
     (void) close(pipe_fds[1]);
+  if (rc->rsync_queue && ctx)
+    (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
   if (ctx)
     free(ctx);
   return rsync_status_failed;
 }
 
 /**
- * rsync a single file (CRL, manifest, ROA, whatever).
+ * Set up rsync context and attempt to start it.
+ */
+static rsync_status_t rsync(const rcynic_ctx_t *rc,
+			    const uri_t *uri,
+			    STACK_OF(walk_ctx_t) *wsk,
+			    void (*handler)(const rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t))
+{
+  rsync_ctx_t *ctx = NULL;
+
+  assert(rc && uri && strlen(uri->s) > SIZEOF_RSYNC);
+
+  if (rsync_cached_uri(rc, uri)) {
+    logmsg(rc, log_verbose, "rsync cache hit for %s", uri->s);
+    return rsync_status_done;
+  }
+
+  logmsg(rc, log_telemetry, "Fetching %s", uri->s);
+
+  if ((ctx = malloc(sizeof(*ctx))) == NULL) {
+    logmsg(rc, log_sys_err, "malloc(rsync_ctxt_t) failed");
+    return rsync_status_failed;
+  }
+
+  memset(ctx, 0, sizeof(*ctx));
+  ctx->uri = *uri;
+  ctx->handler = handler;
+  ctx->wsk = wsk;
+  ctx->fd = -1;
+
+  if (!sk_rsync_ctx_t_push(rc->rsync_queue, ctx)) {
+    logmsg(rc, log_sys_err, "Couldn't push rsync state object onto queue, punting %s", ctx->uri.s);
+    free(ctx);
+    return rsync_status_failed;
+  }
+
+  return run_rsync(rc, ctx);
+}
+
+/**
+ * rsync a single file (trust anchor, CRL, manifest, ROA, whatever).
  */
 static rsync_status_t rsync_file(const rcynic_ctx_t *rc, const uri_t *uri)
 {
-  return rsync(rc, NULL, uri, NULL, NULL);
+  assert(!endswith(uri->s, "/"));
+  return rsync(rc, uri, NULL, NULL);
 }
 
 /**
@@ -1909,8 +1937,8 @@ static rsync_status_t rsync_tree(const rcynic_ctx_t *rc,
 				 STACK_OF(walk_ctx_t) *wsk,
 				 void (*handler)(const rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t))
 {
-  static const char * const rsync_args[] = { "--recursive", "--delete", NULL };
-  return rsync(rc, rsync_args, uri, wsk, handler);
+  assert(endswith(uri->s, "/"));
+  return rsync(rc, uri, wsk, handler);
 }
 
 

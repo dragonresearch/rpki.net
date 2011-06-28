@@ -404,11 +404,18 @@ typedef struct rsync_ctx {
   uri_t uri;
   void (*handler)(const rcynic_ctx_t *, const struct rsync_ctx *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *);
   STACK_OF(walk_ctx_t) *wsk;
-  int blocked;
+  enum {
+    rsync_state_initial,	/* Must be first */
+    rsync_state_running,
+    rsync_state_conflict_block,
+    rsync_state_refused_try_later,
+    rsync_state_retry_wait,
+    rsync_state_terminating
+  } state;
+  unsigned tries, kill_count;
   pid_t pid;
   int fd;
   time_t started, deadline;
-  int kill_count;
   char buffer[URI_MAX * 4];
   size_t buflen;
 } rsync_ctx_t;
@@ -1552,6 +1559,20 @@ static int rsync_cached_uri(const rcynic_ctx_t *rc,
   return is_rsync(uri->s) && rsync_cached_string(rc, uri->s + SIZEOF_RSYNC);
 }
 
+/**
+ * Process one log line from rsync.  This is a separate function
+ * primarily to centralize things like screen scraping rsync's output
+ * looking for magic error messages we have to handle.
+ */
+static void do_one_rsync_log_line(const rcynic_ctx_t *rc,
+				  rsync_ctx_t *ctx)
+{
+  if (ctx->buffer[strspn(ctx->buffer, " \t\n\r")] != '\0')
+    logmsg(rc, log_telemetry, "rsync[%u]: %s", ctx->pid, ctx->buffer);
+
+  if (strstr(ctx->buffer, "@ERROR: max connections"))
+    ctx->state = rsync_state_refused_try_later;
+}
 
 /**
  * Manager for queue of rsync tasks in progress.
@@ -1627,16 +1648,31 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
       ctx->buflen = 0;
     }
 
-    if (WEXITSTATUS(pid_status) != 0) {
+    switch (WEXITSTATUS(pid_status)) {
+
+    case 0:
+      logmsg(rc, log_debug, "Successfully fetched %s", ctx->uri.s);
+      mib_increment(rc, &ctx->uri, rsync_succeeded);
+      break;
+
+#if 0
+    case 5:
+      /*
+       * Handle rsync protocol error that really means "retry later".
+       * In theory, this is confirmation of error we already saw in
+       * rsync's stderr output, in which case ctx->state should be
+       * rsync_state_refused_try_later.
+       */
+ #endif
+
+    default:
       logmsg(rc, log_data_err, "rsync exited with status %d fetching %s",
 	     WEXITSTATUS(pid_status), ctx->uri.s);
       mib_increment(rc, &ctx->uri,
 		    (rc->rsync_timeout && now >= ctx->deadline
 		     ? rsync_timed_out
 		     : rsync_failed));
-    } else {
-      logmsg(rc, log_debug, "Successfully fetched %s", ctx->uri.s);
-      mib_increment(rc, &ctx->uri, rsync_succeeded);
+      break;
     }
 
     uribuf = ctx->uri;
@@ -1662,9 +1698,12 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
       if (ctx->pid <= 0 || now < ctx->deadline ||
 	  (waitpid(ctx->pid, &pid_status, WNOHANG) == ctx->pid && WIFEXITED(pid_status)))
 	continue;
-      if (ctx->kill_count == 0)
+      if (ctx->state != rsync_state_terminating) {
+	ctx->state = rsync_state_terminating;
+	ctx->tries = 0;
 	logmsg(rc, log_debug, "Subprocess %u is taking too long fetching %s", (unsigned) ctx->pid, ctx->uri.s);
-      (void) kill(ctx->pid, ctx->kill_count++ < KILL_MAX ? SIGTERM : SIGKILL);
+      }
+      (void) kill(ctx->pid, ctx->tries++ < KILL_MAX ? SIGTERM : SIGKILL);
       ctx->deadline = now + 1;
       signaled++;
     }
@@ -1715,8 +1754,7 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 
       while ((s = strchr(ctx->buffer, '\n')) != NULL) {
 	*s++ = '\0';
-	if (ctx->buffer[strspn(ctx->buffer, " \t\n\r")] != '\0')
-	  logmsg(rc, log_telemetry, "rsync[%u]: %s", ctx->pid, ctx->buffer);
+	do_one_rsync_log_line(rc, ctx);
 	assert(s > ctx->buffer && s < ctx->buffer + sizeof(ctx->buffer));
 	ctx->buflen -= s - ctx->buffer;
 	assert(ctx->buflen < sizeof(ctx->buffer));
@@ -1727,8 +1765,7 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 
       if (ctx->buflen == sizeof(ctx->buffer) - 1) {
 	ctx->buffer[sizeof(ctx->buffer) - 1] = '\0';
-	if (ctx->buffer[strspn(ctx->buffer, " \t\n\r")] != '\0')
-	  logmsg(rc, log_telemetry, "rsync[%u]: %s", ctx->pid, ctx->buffer);
+	do_one_rsync_log_line(rc, ctx);
 	ctx->buflen = 0;
       }
     }

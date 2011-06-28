@@ -407,12 +407,16 @@ typedef struct rsync_ctx {
   enum {
     rsync_state_initial,	/* Must be first */
     rsync_state_running,
-    rsync_state_conflict_block,
-    rsync_state_refused_try_later,
+    rsync_state_conflict_wait,
     rsync_state_retry_wait,
     rsync_state_terminating
   } state;
-  unsigned tries, kill_count;
+  enum {
+    rsync_problem_none,		/* Must be first */
+    rsync_problem_timed_out,
+    rsync_problem_refused
+  } problem;
+  unsigned tries;
   pid_t pid;
   int fd;
   time_t started, deadline;
@@ -1560,231 +1564,77 @@ static int rsync_cached_uri(const rcynic_ctx_t *rc,
 }
 
 /**
- * Process one log line from rsync.  This is a separate function
- * primarily to centralize things like screen scraping rsync's output
- * looking for magic error messages we have to handle.
+ * Return count of how many rsync contexts are in running.
  */
-static void do_one_rsync_log_line(const rcynic_ctx_t *rc,
-				  rsync_ctx_t *ctx)
+static int rsync_count_running(const rcynic_ctx_t *rc)
 {
-  if (ctx->buffer[strspn(ctx->buffer, " \t\n\r")] != '\0')
-    logmsg(rc, log_telemetry, "rsync[%u]: %s", ctx->pid, ctx->buffer);
-
-  if (strstr(ctx->buffer, "@ERROR: max connections"))
-    ctx->state = rsync_state_refused_try_later;
-}
-
-/**
- * Manager for queue of rsync tasks in progress.
- *
- * General plan here is to process one completed child, or output
- * accumulated from children, or block if there is absolutely nothing
- * to do, on the theory that caller had nothing to do either or would
- * not have called us.  Once we've done something allegedly useful, we
- * return, because this is not the event loop; if and when the event
- * loop has nothing more important to do, we'll be called again.
- *
- * So this is the only place where the program blocks waiting for
- * children, but we only do it when we know there's nothing else
- * useful that we could be doing while we wait.
- */
-static void rsync_mgr(const rcynic_ctx_t *rc)
-{
-  time_t now = time(0), when;
-  int i, n, pid_status = -1;
-  rsync_ctx_t *ctx = NULL;
-  struct timeval tv;
-  uri_t uribuf;
-  fd_set rfds;
-  pid_t pid;
-  char *s;
+  const rsync_ctx_t *ctx;
+  int i, n = 0;
 
   assert(rc && rc->rsync_queue);
 
-  while ((pid = waitpid(-1, &pid_status, WNOHANG)) == -1 && errno == EINTR)
-    ;
+  for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i)
+    if (ctx->state == rsync_state_running)
+      n++;
 
-  switch (pid) {
-
-  case -1:
-    /*
-     * If we have no children, we're done here.
-     */
-    if (errno == ECHILD)
-      return;
-
-    /*
-     * Not a lot we can do for errors other than EINTR or ECHILD,
-     * other than whining.
-     */
-    logmsg(rc, log_sys_err, "waitpid() returned error: %s", strerror(errno));
-    return;
-
-  case 0:
-    /*
-     * We have children, but none ready to exit, continue to select().
-     */
-    break;
-
-  default:
-    /*
-     * Child exited, handle that and return.
-     */
-
-    for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i)
-      if (ctx->pid == pid)
-	break;
-    if (ctx == NULL) {
-      logmsg(rc, log_sys_err, "Couldn't find rsync context for pid %d", pid);
-      return;
-    }
-
-    close(ctx->fd);
-
-    if (ctx->buflen > 0) {
-      assert(ctx->buflen < sizeof(ctx->buffer));
-      ctx->buffer[ctx->buflen] = '\0';
-      logmsg(rc, log_telemetry, "rsync[%u]: %s", ctx->pid, ctx->buffer);
-      ctx->buflen = 0;
-    }
-
-    switch (WEXITSTATUS(pid_status)) {
-
-    case 0:
-      logmsg(rc, log_debug, "Successfully fetched %s", ctx->uri.s);
-      mib_increment(rc, &ctx->uri, rsync_succeeded);
-      break;
-
-#if 0
-    case 5:
-      /*
-       * Handle rsync protocol error that really means "retry later".
-       * In theory, this is confirmation of error we already saw in
-       * rsync's stderr output, in which case ctx->state should be
-       * rsync_state_refused_try_later.
-       */
- #endif
-
-    default:
-      logmsg(rc, log_data_err, "rsync exited with status %d fetching %s",
-	     WEXITSTATUS(pid_status), ctx->uri.s);
-      mib_increment(rc, &ctx->uri,
-		    (rc->rsync_timeout && now >= ctx->deadline
-		     ? rsync_timed_out
-		     : rsync_failed));
-      break;
-    }
-
-    uribuf = ctx->uri;
-    while ((s = strrchr(uribuf.s, '/')) != NULL && s[1] == '\0')
-      *s = '\0';
-    assert(strlen(ctx->uri.s) > SIZEOF_RSYNC);
-    if (!sk_OPENSSL_STRING_push_strdup(rc->rsync_cache, uribuf.s  + SIZEOF_RSYNC))
-      logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", ctx->uri.s);
-
-    if (ctx->handler)
-      ctx->handler(rc, ctx, WEXITSTATUS(pid_status) ? rsync_status_failed : rsync_status_done, &ctx->uri, ctx->wsk);
-    (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
-    free(ctx);
-    return;
-  }
-
-  /*
-   * Deal with children that have been running too long.
-   */
-  if (rc->rsync_timeout) {
-    int signaled = 0;
-    for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i) {
-      if (ctx->pid <= 0 || now < ctx->deadline ||
-	  (waitpid(ctx->pid, &pid_status, WNOHANG) == ctx->pid && WIFEXITED(pid_status)))
-	continue;
-      if (ctx->state != rsync_state_terminating) {
-	ctx->state = rsync_state_terminating;
-	ctx->tries = 0;
-	logmsg(rc, log_debug, "Subprocess %u is taking too long fetching %s", (unsigned) ctx->pid, ctx->uri.s);
-      }
-      (void) kill(ctx->pid, ctx->tries++ < KILL_MAX ? SIGTERM : SIGKILL);
-      ctx->deadline = now + 1;
-      signaled++;
-    }
-    if (signaled)
-      return;
-  }
-
-  /*
-   * Check for log text from children if we get this far.  This is
-   * where we finally block (select()) if we've nothing else to do.
-   */
-
-  FD_ZERO(&rfds);
-  when = 0;
-  n = 0;
-
-  for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i) {
-    if (ctx->fd <= 0)
-      continue;
-    FD_SET(ctx->fd, &rfds);
-    if (ctx->fd > n)
-      n = ctx->fd;
-    if (when == 0 || ctx->deadline < when)
-      when = ctx->deadline;
-  }
-
-  if (rc->rsync_timeout && when != 0) {
-    tv.tv_sec = when - now;
-    tv.tv_usec = 0;
-    n = select(n + 1, &rfds, NULL, NULL, &tv);
-  } else {
-    n = select(n + 1, &rfds, NULL, NULL, NULL);
-  }
-
-  if (n <= 0)
-    return;
-
-  for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i) {
-    if (ctx->fd <= 0 || !FD_ISSET(ctx->fd, &rfds))
-      continue;
-
-    assert(ctx->buflen < sizeof(ctx->buffer) - 1);
-
-    while ((n = read(ctx->fd, ctx->buffer + ctx->buflen, sizeof(ctx->buffer) - 1 - ctx->buflen)) > 0) {
-      ctx->buflen += n;
-      assert(ctx->buflen < sizeof(ctx->buffer));
-      ctx->buffer[ctx->buflen] = '\0';
-
-      while ((s = strchr(ctx->buffer, '\n')) != NULL) {
-	*s++ = '\0';
-	do_one_rsync_log_line(rc, ctx);
-	assert(s > ctx->buffer && s < ctx->buffer + sizeof(ctx->buffer));
-	ctx->buflen -= s - ctx->buffer;
-	assert(ctx->buflen < sizeof(ctx->buffer));
-	if (ctx->buflen > 0)
-	  memmove(ctx->buffer, s, ctx->buflen);
-	ctx->buffer[ctx->buflen] = '\0';
-      }
-
-      if (ctx->buflen == sizeof(ctx->buffer) - 1) {
-	ctx->buffer[sizeof(ctx->buffer) - 1] = '\0';
-	do_one_rsync_log_line(rc, ctx);
-	ctx->buflen = 0;
-      }
-    }
-  }
+  return n;
 }
 
+/**
+ * Test whether a rsync context is runable at this time.
+ */
+static int rsync_runable(const rcynic_ctx_t *rc,
+			 const rsync_ctx_t *ctx)
+{
+  assert(rc && ctx);
+
+  switch (ctx->state) {
+
+  case rsync_state_initial:
+  case rsync_state_running:
+    return 1;
+
+  case rsync_state_retry_wait:
+    return ctx->deadline <= time(0);
+
+  case rsync_state_conflict_wait:
+#warning rsync_state_conflict_wait not implemented yet
+
+  case rsync_state_terminating:
+    return 0;
+  }
+
+  return 0;
+}
 
 /**
- * Run rsync.
+ * Return count of runable rsync contexts.
  */
-static void run_rsync(const rcynic_ctx_t *rc,
+static int rsync_count_runable(const rcynic_ctx_t *rc)
+{
+  const rsync_ctx_t *ctx;
+  int i, n = 0;
+
+  assert(rc && rc->rsync_queue);
+
+  for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i)
+    if (rsync_runable(rc, ctx))
+      n++;
+
+  return n;
+}
+
+/**
+ * Run an rsync process.
+ */
+static void rsync_run(const rcynic_ctx_t *rc,
 		      rsync_ctx_t *ctx)
 {
   static const char * const rsync_cmd[] = {
-    "rsync", "--update", "--times", "--copy-links", "--itemize-changes", NULL
+    "rsync", "--update", "--times", "--copy-links", "--itemize-changes"
   };
-
   static const char * const rsync_tree_args[] = {
-    "--recursive", "--delete", NULL
+    "--recursive", "--delete"
   };
 
   const char *argv[10];
@@ -1793,18 +1643,18 @@ static void run_rsync(const rcynic_ctx_t *rc,
 
   pipe_fds[0] = pipe_fds[1] = -1;
 
-  assert(rc && ctx);
+  assert(rc && ctx && ctx->state != rsync_state_running && rsync_runable(rc, ctx));
 
   logmsg(rc, log_telemetry, "Fetching %s", ctx->uri.s);
 
   memset(argv, 0, sizeof(argv));
 
-  for (i = 0; rsync_cmd[i]; i++) {
+  for (i = 0; i < sizeof(rsync_cmd)/sizeof(*rsync_cmd); i++) {
     assert(argc < sizeof(argv)/sizeof(*argv));
     argv[argc++] = rsync_cmd[i];
   }
   if (endswith(ctx->uri.s, "/")) {
-    for (i = 0; rsync_tree_args[i]; i++) {
+    for (i = 0; i < sizeof(rsync_tree_args)/sizeof(*rsync_tree_args); i++) {
       assert(argc < sizeof(argv)/sizeof(*argv));
       argv[argc++] = rsync_tree_args[i];
     }
@@ -1883,6 +1733,8 @@ static void run_rsync(const rcynic_ctx_t *rc,
      */
     (void) close(pipe_fds[1]);
     pipe_fds[1] = -1;
+    ctx->state = rsync_state_running;
+    ctx->problem = rsync_problem_none;
     if (rc->rsync_timeout)
       ctx->deadline = time(0) + rc->rsync_timeout;
     logmsg(rc, log_debug, "Subprocess %u started, current subprocess count %d",
@@ -1907,12 +1759,268 @@ static void run_rsync(const rcynic_ctx_t *rc,
 }
 
 /**
+ * Process one line of rsync's output.  This is a separate function
+ * primarily to centralize things like searching for magic error
+ * messages we have to handle.
+ */
+static void do_one_rsync_log_line(const rcynic_ctx_t *rc,
+				  rsync_ctx_t *ctx)
+{
+  /*
+   * Send line to our log unless it's empty.
+   */
+  if (ctx->buffer[strspn(ctx->buffer, " \t\n\r")] != '\0')
+    logmsg(rc, log_telemetry, "rsync[%u]: %s", ctx->pid, ctx->buffer);
+
+  /*
+   * Check for magic error strings
+   */
+  if (strstr(ctx->buffer, "@ERROR: max connections"))
+    ctx->problem = rsync_problem_refused;
+}
+
+/**
+ * Manager for queue of rsync tasks in progress.
+ *
+ * General plan here is to process one completed child, or output
+ * accumulated from children, or block if there is absolutely nothing
+ * to do, on the theory that caller had nothing to do either or would
+ * not have called us.  Once we've done something allegedly useful, we
+ * return, because this is not the event loop; if and when the event
+ * loop has nothing more important to do, we'll be called again.
+ *
+ * So this is the only place where the program blocks waiting for
+ * children, but we only do it when we know there's nothing else
+ * useful that we could be doing while we wait.
+ */
+static void rsync_mgr(const rcynic_ctx_t *rc)
+{
+  time_t now = time(0), when;
+  int i, n, pid_status = -1;
+  rsync_ctx_t *ctx = NULL;
+  struct timeval tv;
+  uri_t uribuf;
+  fd_set rfds;
+  pid_t pid;
+  char *s;
+
+  assert(rc && rc->rsync_queue);
+
+  /*
+   * Look for rsync contexts that have become runable.
+   */
+  if (rsync_count_running(rc) < rc->max_parallel_fetches) {
+    for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i) {
+      if (ctx->state != rsync_state_running && rsync_runable(rc, ctx)) {
+	rsync_run(rc, ctx);
+	return;
+      }
+    }
+  }
+
+  /*
+   * Check for exited subprocesses.
+   */
+
+  while ((pid = waitpid(-1, &pid_status, WNOHANG)) == -1 && errno == EINTR)
+    ;
+
+  switch (pid) {
+
+  case -1:
+    /*
+     * If we have no children, we're done here.
+     */
+    if (errno == ECHILD)
+      return;
+
+    /*
+     * Not a lot we can do for errors other than EINTR or ECHILD,
+     * other than whining.
+     */
+    logmsg(rc, log_sys_err, "waitpid() returned error: %s", strerror(errno));
+    return;
+
+  case 0:
+    /*
+     * We have children, but none ready to exit, continue to select().
+     */
+    break;
+
+  default:
+    /*
+     * Child exited, handle that and return.
+     */
+
+    for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i)
+      if (ctx->pid == pid)
+	break;
+    if (ctx == NULL) {
+      logmsg(rc, log_sys_err, "Couldn't find rsync context for pid %d", pid);
+      return;
+    }
+
+    close(ctx->fd);
+    ctx->fd = -1;
+
+    if (ctx->buflen > 0) {
+      assert(ctx->buflen < sizeof(ctx->buffer));
+      ctx->buffer[ctx->buflen] = '\0';
+      do_one_rsync_log_line(rc, ctx);
+      ctx->buflen = 0;
+    }
+
+    ctx->pid = 0;
+
+    switch (WEXITSTATUS(pid_status)) {
+
+    case 0:
+      logmsg(rc, log_debug, "Successfully fetched %s", ctx->uri.s);
+      mib_increment(rc, &ctx->uri, rsync_succeeded);
+      break;
+
+    case 5:
+      /*
+       * Handle remote rsyncd refusing to talk to us because we've
+       * exceeded its connection limit.  Back off for a short
+       * interval, then retry.
+       */
+
+#warning Parameters here should come from config file
+#warning Need some kind of maximum retry count here too
+
+      if (ctx->problem == rsync_problem_refused) {
+	unsigned char r;
+	if (RAND_bytes(&r, sizeof(r)))
+	  r %= 60;
+	else
+	  r = 60;
+	ctx->deadline = time(0) + 30 + r;
+	ctx->state = rsync_state_retry_wait;
+	ctx->problem = rsync_problem_none;
+	ctx->tries++;
+	logmsg(rc, log_telemetry, "Scheduling retry for %s", ctx->uri.s);
+	return;
+      }
+      
+      /* Otherwise, fall through */
+
+    default:
+      logmsg(rc, log_data_err, "rsync exited with status %d fetching %s",
+	     WEXITSTATUS(pid_status), ctx->uri.s);
+      mib_increment(rc, &ctx->uri,
+		    (rc->rsync_timeout && now >= ctx->deadline
+		     ? rsync_timed_out
+		     : rsync_failed));
+      break;
+    }
+
+    uribuf = ctx->uri;
+    while ((s = strrchr(uribuf.s, '/')) != NULL && s[1] == '\0')
+      *s = '\0';
+    assert(strlen(ctx->uri.s) > SIZEOF_RSYNC);
+    if (!sk_OPENSSL_STRING_push_strdup(rc->rsync_cache, uribuf.s  + SIZEOF_RSYNC))
+      logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", ctx->uri.s);
+
+    if (ctx->handler)
+      ctx->handler(rc, ctx, WEXITSTATUS(pid_status) ? rsync_status_failed : rsync_status_done, &ctx->uri, ctx->wsk);
+    (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
+    free(ctx);
+    return;
+  }
+
+  /*
+   * Deal with children that have been running too long.
+   */
+  if (rc->rsync_timeout) {
+    int signaled = 0;
+    for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i) {
+      if (ctx->pid <= 0 || now < ctx->deadline ||
+	  (waitpid(ctx->pid, &pid_status, WNOHANG) == ctx->pid && WIFEXITED(pid_status)))
+	continue;
+      if (ctx->state != rsync_state_terminating) {
+	ctx->problem = rsync_problem_timed_out;
+	ctx->state = rsync_state_terminating;
+	ctx->tries = 0;
+	logmsg(rc, log_debug, "Subprocess %u is taking too long fetching %s", (unsigned) ctx->pid, ctx->uri.s);
+      }
+      (void) kill(ctx->pid, ctx->tries++ < KILL_MAX ? SIGTERM : SIGKILL);
+      ctx->deadline = now + 2;
+      signaled++;
+    }
+    if (signaled)
+      return;
+  }
+
+  /*
+   * Check for log text from children if we get this far.  This is
+   * where we finally block (select()) if we've nothing else to do.
+   */
+
+  FD_ZERO(&rfds);
+  when = 0;
+  n = 0;
+
+  for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i) {
+    if (ctx->fd <= 0)
+      continue;
+    assert(ctx->state == rsync_state_running);
+    FD_SET(ctx->fd, &rfds);
+    if (ctx->fd > n)
+      n = ctx->fd;
+    if (when == 0 || ctx->deadline < when)
+      when = ctx->deadline;
+  }
+
+  if (rc->rsync_timeout && when != 0) {
+    tv.tv_sec = when - now;
+    tv.tv_usec = 0;
+    n = select(n + 1, &rfds, NULL, NULL, &tv);
+  } else {
+    n = select(n + 1, &rfds, NULL, NULL, NULL);
+  }
+
+  if (n <= 0)
+    return;
+
+  for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i) {
+    if (ctx->fd <= 0 || !FD_ISSET(ctx->fd, &rfds))
+      continue;
+
+    assert(ctx->buflen < sizeof(ctx->buffer) - 1);
+
+    while ((n = read(ctx->fd, ctx->buffer + ctx->buflen, sizeof(ctx->buffer) - 1 - ctx->buflen)) > 0) {
+      ctx->buflen += n;
+      assert(ctx->buflen < sizeof(ctx->buffer));
+      ctx->buffer[ctx->buflen] = '\0';
+
+      while ((s = strchr(ctx->buffer, '\n')) != NULL) {
+	*s++ = '\0';
+	do_one_rsync_log_line(rc, ctx);
+	assert(s > ctx->buffer && s < ctx->buffer + sizeof(ctx->buffer));
+	ctx->buflen -= s - ctx->buffer;
+	assert(ctx->buflen < sizeof(ctx->buffer));
+	if (ctx->buflen > 0)
+	  memmove(ctx->buffer, s, ctx->buflen);
+	ctx->buffer[ctx->buflen] = '\0';
+      }
+
+      if (ctx->buflen == sizeof(ctx->buffer) - 1) {
+	ctx->buffer[sizeof(ctx->buffer) - 1] = '\0';
+	do_one_rsync_log_line(rc, ctx);
+	ctx->buflen = 0;
+      }
+    }
+  }
+}
+
+/**
  * Set up rsync context and attempt to start it.
  */
-static void rsync(const rcynic_ctx_t *rc,
-		  const uri_t *uri,
-		  STACK_OF(walk_ctx_t) *wsk,
-		  void (*handler)(const rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *))
+static void rsync_init(const rcynic_ctx_t *rc,
+		       const uri_t *uri,
+		       STACK_OF(walk_ctx_t) *wsk,
+		       void (*handler)(const rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *))
 {
   rsync_ctx_t *ctx = NULL;
 
@@ -1948,7 +2056,8 @@ static void rsync(const rcynic_ctx_t *rc,
     return;
   }
 
-  run_rsync(rc, ctx);
+  if (rsync_runable(rc, ctx))
+    rsync_run(rc, ctx);
 }
 
 /**
@@ -1958,7 +2067,7 @@ static void rsync_file(const rcynic_ctx_t *rc,
 		       const uri_t *uri)
 {
   assert(!endswith(uri->s, "/"));
-  rsync(rc, uri, NULL, NULL);
+  rsync_init(rc, uri, NULL, NULL);
 }
 
 /**
@@ -1970,7 +2079,7 @@ static void rsync_tree(const rcynic_ctx_t *rc,
 		       void (*handler)(const rcynic_ctx_t *, const rsync_ctx_t *, const rsync_status_t, const uri_t *, STACK_OF(walk_ctx_t) *))
 {
   assert(endswith(uri->s, "/"));
-  rsync(rc, uri, wsk, handler);
+  rsync_init(rc, uri, wsk, handler);
 }
 
 
@@ -3527,14 +3636,14 @@ static void rsync_sia_callback(const rcynic_ctx_t *rc,
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
 
-  assert(wsk);
+  assert(rc && wsk);
 
   switch (status) {
 
   case rsync_status_pending:
-    if (sk_rsync_ctx_t_num(rc->rsync_queue) >= rc->max_parallel_fetches)
+    if (rsync_count_runable(rc) >= rc->max_parallel_fetches)
       return;
-	
+
     if ((wsk = walk_ctx_stack_clone(wsk)) == NULL) {
       logmsg(rc, log_sys_err, "walk_ctx_stack_clone() failed, probably memory exhaustion, blundering onwards without forking stack");
       return;

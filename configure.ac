@@ -374,7 +374,7 @@ if test $build_django = yes
 then
 	# the user that the apache process is running as
 	if test "x$WEBUSER" = "x"; then
-		for u in apache www www-data; do
+		for u in apache www-data www; do
 			if $GREP $u /etc/passwd >/dev/null 2>&1; then
 				WEBUSER=$u
 				break

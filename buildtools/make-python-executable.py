@@ -20,14 +20,14 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-# Some scripts need this, and it must be first executable statement
-from __future__ import with_statement
-
 import os, sys
 
 sys.stdout.write('''\
 #!%(AC_PYTHON_INTERPRETER)s
 # Automatically constructed script header
+
+# Some scripts need this, and it must be first executable statement
+from __future__ import with_statement
 
 # Set location of global rpki.conf file
 if __name__ == "__main__":

@@ -1859,45 +1859,38 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 
   if (n > 0) {
 
-    int again = 1;
+    for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i) {
+      if (ctx->fd <= 0 || !FD_ISSET(ctx->fd, &rfds))
+	continue;
 
-    while (again) {
-      again = 0;
+      assert(ctx->buflen < sizeof(ctx->buffer) - 1);
 
-      for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i) {
-	if (ctx->fd <= 0 || !FD_ISSET(ctx->fd, &rfds))
-	  continue;
+      while ((n = read(ctx->fd, ctx->buffer + ctx->buflen, sizeof(ctx->buffer) - 1 - ctx->buflen)) > 0) {
+	ctx->buflen += n;
+	assert(ctx->buflen < sizeof(ctx->buffer));
+	ctx->buffer[ctx->buflen] = '\0';
 
-	assert(ctx->buflen < sizeof(ctx->buffer) - 1);
-
-	while ((n = read(ctx->fd, ctx->buffer + ctx->buflen, sizeof(ctx->buffer) - 1 - ctx->buflen)) > 0) {
-	  again = 1;
-	  ctx->buflen += n;
+	while ((s = strchr(ctx->buffer, '\n')) != NULL) {
+	  *s++ = '\0';
+	  do_one_rsync_log_line(rc, ctx);
+	  assert(s > ctx->buffer && s < ctx->buffer + sizeof(ctx->buffer));
+	  ctx->buflen -= s - ctx->buffer;
 	  assert(ctx->buflen < sizeof(ctx->buffer));
+	  if (ctx->buflen > 0)
+	    memmove(ctx->buffer, s, ctx->buflen);
 	  ctx->buffer[ctx->buflen] = '\0';
-
-	  while ((s = strchr(ctx->buffer, '\n')) != NULL) {
-	    *s++ = '\0';
-	    do_one_rsync_log_line(rc, ctx);
-	    assert(s > ctx->buffer && s < ctx->buffer + sizeof(ctx->buffer));
-	    ctx->buflen -= s - ctx->buffer;
-	    assert(ctx->buflen < sizeof(ctx->buffer));
-	    if (ctx->buflen > 0)
-	      memmove(ctx->buffer, s, ctx->buflen);
-	    ctx->buffer[ctx->buflen] = '\0';
-	  }
-
-	  if (ctx->buflen == sizeof(ctx->buffer) - 1) {
-	    ctx->buffer[sizeof(ctx->buffer) - 1] = '\0';
-	    do_one_rsync_log_line(rc, ctx);
-	    ctx->buflen = 0;
-	  }
 	}
 
-	if (n == 0) {
-	  (void) close(ctx->fd);
-	  ctx->fd = -1;
+	if (ctx->buflen == sizeof(ctx->buffer) - 1) {
+	  ctx->buffer[sizeof(ctx->buffer) - 1] = '\0';
+	  do_one_rsync_log_line(rc, ctx);
+	  ctx->buflen = 0;
 	}
+      }
+
+      if (n == 0) {
+	(void) close(ctx->fd);
+	ctx->fd = -1;
       }
     }
   }

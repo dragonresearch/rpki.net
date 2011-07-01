@@ -1010,7 +1010,7 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
 ## Parsed RelaxNG up_down schema
 up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id$
+  $Id: up-down-schema.rnc 3913 2011-07-01 17:04:18Z sra $
   
   RelaxNG Scheme for up-down protocol, extracted from
   draft-ietf-sidr-rescerts-provisioning-10.txt.

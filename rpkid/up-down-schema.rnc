@@ -1,6 +1,7 @@
 # $Id$
 #
-# RelaxNG Scheme for up-down protocol, extracted from APNIC Wiki.
+# RelaxNG Scheme for up-down protocol, extracted from
+# draft-ietf-sidr-rescerts-provisioning-10.txt.
 #
 # libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
 # run the compact syntax through trang to get XML syntax.
@@ -8,64 +9,76 @@
 default namespace = "http://www.apnic.net/specs/rescerts/up-down/"
 
 grammar {
-  start = element message {
-    attribute version { xsd:positiveInteger { maxInclusive="1" } },
-    attribute sender { xsd:token { maxLength="1024" } },
-    attribute recipient { xsd:token { maxLength="1024" } },
-    payload
-  }
+   resource_set_as = xsd:string { maxLength="512000" pattern="[\-,0-9]*" }
+   resource_set_ip4 = xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" }
+   resource_set_ip6 = xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" }
 
-  payload |= attribute type { "list" }, list_request
-  payload |= attribute type { "list_response"}, list_response
-  payload |= attribute type { "issue" }, issue_request
-  payload |= attribute type { "issue_response"}, issue_response
-  payload |= attribute type { "revoke" }, revoke_request
-  payload |= attribute type { "revoke_response"}, revoke_response
-  payload |= attribute type { "error_response"}, error_response
+   class_name = xsd:token { minLength="1" maxLength="1024" }
+   ski = xsd:token { minLength="27" maxLength="1024" }
+   label = xsd:token { minLength="1" maxLength="1024" }
+   cert_url = xsd:string { minLength="10" maxLength="4096" }
+   base64_binary = xsd:base64Binary { minLength="4" maxLength="512000" }
 
-  list_request = empty
-  list_response = class*
+   start = element message {
+     attribute version { xsd:positiveInteger { maxInclusive="1" } },
+     attribute sender { label },
+     attribute recipient { label },
+     payload
+   }
 
-  class = element class {
-    attribute class_name { xsd:token { maxLength="1024" } },
-    attribute cert_url { xsd:string { maxLength="4096" } },
-    attribute resource_set_as { xsd:string { maxLength="512000" pattern="[\-,0-9]*" } },
-    attribute resource_set_ipv4 { xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" } },
-    attribute resource_set_ipv6 { xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" } },
-    attribute resource_set_notafter { xsd:dateTime { pattern=".*Z" } }?,
-    attribute suggested_sia_head { xsd:anyURI { maxLength="1024" pattern="rsync://.+"} }?,
-    element certificate {
-      attribute cert_url { xsd:string { maxLength="4096" } },
-      attribute req_resource_set_as { xsd:string { maxLength="512000" pattern="[\-,0-9]*" } }?,
-      attribute req_resource_set_ipv4 { xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" } }?,
-      attribute req_resource_set_ipv6 { xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" } }?,
-      xsd:base64Binary { maxLength="512000" }
-    }*,
-    element issuer { xsd:base64Binary { maxLength="512000" } }
-  }
+   payload |= attribute type { "list" }, list_request
+   payload |= attribute type { "list_response"}, list_response
+   payload |= attribute type { "issue" }, issue_request
+   payload |= attribute type { "issue_response"}, issue_response
+   payload |= attribute type { "revoke" }, revoke_request
+   payload |= attribute type { "revoke_response"}, revoke_response
+   payload |= attribute type { "error_response"}, error_response
 
-  issue_request = element request {
-    attribute class_name { xsd:token { maxLength="1024" } },
-    attribute req_resource_set_as { xsd:string { maxLength="512000" pattern="[\-,0-9]*" } }?,
-    attribute req_resource_set_ipv4 { xsd:string { maxLength="512000" pattern="[\-,/.0-9]*" } }?,
-    attribute req_resource_set_ipv6 { xsd:string { maxLength="512000" pattern="[\-,/:0-9a-fA-F]*" } }?,
-    xsd:base64Binary { maxLength="512000" }
-  }
-  issue_response = class
+   list_request = empty
+   list_response = class*
 
-  revoke_request = revocation
-  revoke_response = revocation
+   class = element class {
+     attribute class_name { class_name },
+     attribute cert_url { cert_url },
+     attribute resource_set_as { resource_set_as },
+     attribute resource_set_ipv4 { resource_set_ip4 },
+     attribute resource_set_ipv6 { resource_set_ip6 },
+     attribute resource_set_notafter { xsd:dateTime },
+     attribute suggested_sia_head { xsd:anyURI { maxLength="1024" pattern="rsync://.+"} }?,
+     element certificate {
+       attribute cert_url { cert_url },
+       attribute req_resource_set_as { resource_set_as }?,
+       attribute req_resource_set_ipv4 { resource_set_ip4 }?,
+       attribute req_resource_set_ipv6 { resource_set_ip6 }?,
+       base64_binary
+     }*,
+     element issuer { base64_binary }
+   }
 
-  revocation = element key {
-    attribute class_name { xsd:token { maxLength="1024" } },
-    attribute ski { xsd:token { maxLength="1024" } }
-  }
+   issue_request = element request {
+     attribute class_name { class_name },
+     attribute req_resource_set_as { resource_set_as }?,
+     attribute req_resource_set_ipv4 { resource_set_ip4 }?,
+     attribute req_resource_set_ipv6 { resource_set_ip6 }?,
+     base64_binary
+   }
+   issue_response = class
 
-  error_response =
-    element status { xsd:positiveInteger { maxInclusive="999999999999999" } },
-    element description { attribute xml:lang { xsd:language }, xsd:string { maxLength="1024" } }?
+   revoke_request = revocation
+   revoke_response = revocation
+
+   revocation = element key {
+     attribute class_name { class_name },
+     attribute ski { ski }
+   }
+
+   error_response =
+     element status { xsd:positiveInteger { maxInclusive="9999" } },
+     element description { attribute xml:lang { xsd:language }, xsd:string { maxLength="1024" } }*
 }
 
 # Local Variables:
 # indent-tabs-mode: nil
+# comment-start: "# "
+# comment-start-skip: "#[ \t]*"
 # End:

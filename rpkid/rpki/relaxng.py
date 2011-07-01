@@ -1010,14 +1010,63 @@ left_right = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" enc
 ## Parsed RelaxNG up_down schema
 up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: up-down-schema.rnc 1798 2008-05-17 08:21:50Z sra $
+  $Id$
   
-  RelaxNG Scheme for up-down protocol, extracted from APNIC Wiki.
+  RelaxNG Scheme for up-down protocol, extracted from
+  draft-ietf-sidr-rescerts-provisioning-10.txt.
   
   libxml2 (including xmllint) only groks the XML syntax of RelaxNG, so
   run the compact syntax through trang to get XML syntax.
 -->
 <grammar ns="http://www.apnic.net/specs/rescerts/up-down/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <define name="resource_set_as">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[\-,0-9]*</param>
+    </data>
+  </define>
+  <define name="resource_set_ip4">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[\-,/.0-9]*</param>
+    </data>
+  </define>
+  <define name="resource_set_ip6">
+    <data type="string">
+      <param name="maxLength">512000</param>
+      <param name="pattern">[\-,/:0-9a-fA-F]*</param>
+    </data>
+  </define>
+  <define name="class_name">
+    <data type="token">
+      <param name="minLength">1</param>
+      <param name="maxLength">1024</param>
+    </data>
+  </define>
+  <define name="ski">
+    <data type="token">
+      <param name="minLength">27</param>
+      <param name="maxLength">1024</param>
+    </data>
+  </define>
+  <define name="label">
+    <data type="token">
+      <param name="minLength">1</param>
+      <param name="maxLength">1024</param>
+    </data>
+  </define>
+  <define name="cert_url">
+    <data type="string">
+      <param name="minLength">10</param>
+      <param name="maxLength">4096</param>
+    </data>
+  </define>
+  <define name="base64_binary">
+    <data type="base64Binary">
+      <param name="minLength">4</param>
+      <param name="maxLength">512000</param>
+    </data>
+  </define>
   <start>
     <element name="message">
       <attribute name="version">
@@ -1026,14 +1075,10 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodi
         </data>
       </attribute>
       <attribute name="sender">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
+        <ref name="label"/>
       </attribute>
       <attribute name="recipient">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
+        <ref name="label"/>
       </attribute>
       <ref name="payload"/>
     </element>
@@ -1091,40 +1136,23 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodi
   <define name="class">
     <element name="class">
       <attribute name="class_name">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
+        <ref name="class_name"/>
       </attribute>
       <attribute name="cert_url">
-        <data type="string">
-          <param name="maxLength">4096</param>
-        </data>
+        <ref name="cert_url"/>
       </attribute>
       <attribute name="resource_set_as">
-        <data type="string">
-          <param name="maxLength">512000</param>
-          <param name="pattern">[\-,0-9]*</param>
-        </data>
+        <ref name="resource_set_as"/>
       </attribute>
       <attribute name="resource_set_ipv4">
-        <data type="string">
-          <param name="maxLength">512000</param>
-          <param name="pattern">[\-,/.0-9]*</param>
-        </data>
+        <ref name="resource_set_ip4"/>
       </attribute>
       <attribute name="resource_set_ipv6">
-        <data type="string">
-          <param name="maxLength">512000</param>
-          <param name="pattern">[\-,/:0-9a-fA-F]*</param>
-        </data>
+        <ref name="resource_set_ip6"/>
       </attribute>
-      <optional>
-        <attribute name="resource_set_notafter">
-          <data type="dateTime">
-            <param name="pattern">.*Z</param>
-          </data>
-        </attribute>
-      </optional>
+      <attribute name="resource_set_notafter">
+        <data type="dateTime"/>
+      </attribute>
       <optional>
         <attribute name="suggested_sia_head">
           <data type="anyURI">
@@ -1136,80 +1164,52 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodi
       <zeroOrMore>
         <element name="certificate">
           <attribute name="cert_url">
-            <data type="string">
-              <param name="maxLength">4096</param>
-            </data>
+            <ref name="cert_url"/>
           </attribute>
           <optional>
             <attribute name="req_resource_set_as">
-              <data type="string">
-                <param name="maxLength">512000</param>
-                <param name="pattern">[\-,0-9]*</param>
-              </data>
+              <ref name="resource_set_as"/>
             </attribute>
           </optional>
           <optional>
             <attribute name="req_resource_set_ipv4">
-              <data type="string">
-                <param name="maxLength">512000</param>
-                <param name="pattern">[\-,/.0-9]*</param>
-              </data>
+              <ref name="resource_set_ip4"/>
             </attribute>
           </optional>
           <optional>
             <attribute name="req_resource_set_ipv6">
-              <data type="string">
-                <param name="maxLength">512000</param>
-                <param name="pattern">[\-,/:0-9a-fA-F]*</param>
-              </data>
+              <ref name="resource_set_ip6"/>
             </attribute>
           </optional>
-          <data type="base64Binary">
-            <param name="maxLength">512000</param>
-          </data>
+          <ref name="base64_binary"/>
         </element>
       </zeroOrMore>
       <element name="issuer">
-        <data type="base64Binary">
-          <param name="maxLength">512000</param>
-        </data>
+        <ref name="base64_binary"/>
       </element>
     </element>
   </define>
   <define name="issue_request">
     <element name="request">
       <attribute name="class_name">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
+        <ref name="class_name"/>
       </attribute>
       <optional>
         <attribute name="req_resource_set_as">
-          <data type="string">
-            <param name="maxLength">512000</param>
-            <param name="pattern">[\-,0-9]*</param>
-          </data>
+          <ref name="resource_set_as"/>
         </attribute>
       </optional>
       <optional>
         <attribute name="req_resource_set_ipv4">
-          <data type="string">
-            <param name="maxLength">512000</param>
-            <param name="pattern">[\-,/.0-9]*</param>
-          </data>
+          <ref name="resource_set_ip4"/>
         </attribute>
       </optional>
       <optional>
         <attribute name="req_resource_set_ipv6">
-          <data type="string">
-            <param name="maxLength">512000</param>
-            <param name="pattern">[\-,/:0-9a-fA-F]*</param>
-          </data>
+          <ref name="resource_set_ip6"/>
         </attribute>
       </optional>
-      <data type="base64Binary">
-        <param name="maxLength">512000</param>
-      </data>
+      <ref name="base64_binary"/>
     </element>
   </define>
   <define name="issue_response">
@@ -1224,24 +1224,20 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodi
   <define name="revocation">
     <element name="key">
       <attribute name="class_name">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
+        <ref name="class_name"/>
       </attribute>
       <attribute name="ski">
-        <data type="token">
-          <param name="maxLength">1024</param>
-        </data>
+        <ref name="ski"/>
       </attribute>
     </element>
   </define>
   <define name="error_response">
     <element name="status">
       <data type="positiveInteger">
-        <param name="maxInclusive">999999999999999</param>
+        <param name="maxInclusive">9999</param>
       </data>
     </element>
-    <optional>
+    <zeroOrMore>
       <element name="description">
         <attribute name="xml:lang">
           <data type="language"/>
@@ -1250,12 +1246,14 @@ up_down = lxml.etree.RelaxNG(lxml.etree.fromstring('''<?xml version="1.0" encodi
           <param name="maxLength">1024</param>
         </data>
       </element>
-    </optional>
+    </zeroOrMore>
   </define>
 </grammar>
 <!--
   Local Variables:
   indent-tabs-mode: nil
+  comment-start: "# "
+  comment-start-skip: "#[ \t]*"
   End:
 -->
 '''))

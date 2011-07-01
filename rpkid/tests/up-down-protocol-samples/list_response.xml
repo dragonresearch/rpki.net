@@ -9,6 +9,7 @@
 	   resource_set_as="64534-64540"
 	   resource_set_ipv4="10.0.0.0/24,10.3.0.0/24"
 	   resource_set_ipv6="2001:db8:0:0:0:0:a00::/120,2001:db8:0:0:0:0:a03::/120"
+	   resource_set_notafter="2011-04-01T12:34:56Z"
 	   suggested_sia_head="rsync://wombat.example/fnord/">
         <certificate cert_url="rsync://wombat.example/ISP5a"
 		     req_resource_set_as=""
@@ -117,7 +118,8 @@
            cert_url="rsync://wombat.example/ISP2"
 	   resource_set_as=""
 	   resource_set_ipv4="192.0.2.44-192.0.2.100"
-	   resource_set_ipv6="">
+	   resource_set_ipv6=""
+	   resource_set_notafter="2011-04-01T12:34:56Z">
         <certificate cert_url="http://wombat.example/ISP2a,rsync://wombat.example/ISP2a,ftp://wombat.example/ISP2a">
 	    MIIDzDCCArSgAwIBAgIBCTANBgkqhkiG9w0BAQUFADAbMRkwFwYDVQQDExBURVNU
 	    IEVOVElUWSBMSVIxMB4XDTA3MDgwMTE0NDgyMloXDTA4MDczMTE0NDgyMlowGzEZ

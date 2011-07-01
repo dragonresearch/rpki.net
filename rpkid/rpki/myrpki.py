@@ -1073,6 +1073,8 @@ class main(rpki.cli.Cmd):
     self.bpki_resources = CA(self.cfg.filename, self.cfg.get("bpki_resources_directory"))
     if self.run_rpkid or self.run_pubd or self.run_rootd:
       self.bpki_servers = CA(self.cfg.filename, self.cfg.get("bpki_servers_directory"))
+    else:
+      self.bpki_servers = None
 
     self.default_repository = self.cfg.get("default_repository", "")
     self.pubd_contact_info = self.cfg.get("pubd_contact_info", "")

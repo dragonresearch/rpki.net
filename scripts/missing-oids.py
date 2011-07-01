@@ -18,15 +18,15 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import POW.pkix, rpki.oids
+import rpki.POW.pkix, rpki.oids
 
 need_header = True
 
 for oid, name in rpki.oids.oid2name.items():
   try:
-    POW.pkix.oid2obj(oid)
+    rpki.POW.pkix.oid2obj(oid)
   except:
-    o = POW.pkix.Oid()
+    o = rpki.POW.pkix.Oid()
     o.set(oid)
     if need_header:
       print

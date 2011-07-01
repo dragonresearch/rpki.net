@@ -3,7 +3,7 @@
 """
 Generate .dot description of a certificate tree.
 
-Copyright (C) 2009-2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -32,7 +32,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import POW, sys, glob, os
+import rpki.POW, sys, glob, os
 
 class x509(object):
 
@@ -61,9 +61,9 @@ class x509(object):
     f.close()
 
     if "-----BEGIN" in text:
-      self.pow = POW.pemRead(POW.X509_CERTIFICATE, text)
+      self.pow = rpki.POW.pemRead(rpki.POW.X509_CERTIFICATE, text)
     else:
-      self.pow = POW.derRead(POW.X509_CERTIFICATE, text)
+      self.pow = rpki.POW.derRead(rpki.POW.X509_CERTIFICATE, text)
 
     self.extensions = dict((e[0], e[2]) for e in (self.pow.getExtension(i) for i in xrange(self.pow.countExtensions())))
 

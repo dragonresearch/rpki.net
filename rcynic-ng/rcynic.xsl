@@ -54,9 +54,9 @@
   <xsl:param	name="suppress-zero-columns"	select="1"/>
   <xsl:param	name="show-total"		select="1"/>
   <xsl:param	name="use-colors"		select="1"/>
-  <xsl:param	name="show-detailed-status"	select="0"/>
-  <xsl:param	name="show-problems"		select="1"/>
-  <xsl:param	name="show-summary"		select="1"/>
+  <xsl:param	name="show-detailed-status"	select="1"/>
+  <xsl:param	name="show-problems"		select="0"/>
+  <xsl:param	name="show-summary"		select="0"/>
 
   <xsl:variable name="sums">
     <xsl:for-each select="rcynic-summary/labels/*">

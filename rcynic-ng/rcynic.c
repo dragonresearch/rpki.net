@@ -869,58 +869,6 @@ static int oid_cmp(const ASN1_OBJECT *obj, const unsigned char *oid, const size_
 }
 
 /**
- * Host MIB counter comparision.
- */
-static int host_mib_counter_cmp(const host_mib_counter_t * const *a, const host_mib_counter_t * const *b)
-{
-  return strcasecmp((*a)->hostname.s, (*b)->hostname.s);
-}
-
-/**
- * MIB counter manipulation.
- */
-static void mib_increment(const rcynic_ctx_t *rc,
-			  const uri_t *uri,
-			  const mib_counter_t counter)
-{
-  host_mib_counter_t *h = NULL, hn;
-  char *s;
-
-  assert(rc && uri);
-
-  if (!rc->host_counters)
-    return;
-
-  memset(&hn, 0, sizeof(hn));
-
-  if (!uri_to_filename(rc, uri, &hn.hostname, NULL)) {
-    logmsg(rc, log_data_err, "Couldn't convert URI %s to hostname", uri->s);
-    return;
-  }
-
-  if ((s = strchr(hn.hostname.s, '/')) != NULL)
-    *s = '\0';
-
-  h = sk_host_mib_counter_t_value(rc->host_counters,
-				  sk_host_mib_counter_t_find(rc->host_counters,
-							     &hn));
-  if (!h) {
-    if ((h = host_mib_counter_t_new()) == NULL) {
-      logmsg(rc, log_sys_err, "Couldn't allocate MIB counters for %s", uri->s);
-      return;
-    }
-    strcpy(h->hostname.s, hn.hostname.s);
-    if (!sk_host_mib_counter_t_push(rc->host_counters, h)) {
-      logmsg(rc, log_sys_err, "Couldn't store MIB counters for %s", uri->s);
-      free(h);
-      return;
-    }
-  }
-
-  h->counters[counter]++;
-}
-
-/**
  * Add a validation status entry to internal log.
  */
 static void log_validation_status(const rcynic_ctx_t *rc,
@@ -956,6 +904,60 @@ static void log_validation_status(const rcynic_ctx_t *rc,
 }
 
 /**
+ * Host MIB counter comparision.
+ */
+static int host_mib_counter_cmp(const host_mib_counter_t * const *a, const host_mib_counter_t * const *b)
+{
+  return strcasecmp((*a)->hostname.s, (*b)->hostname.s);
+}
+
+/**
+ * MIB counter manipulation.
+ */
+static void mib_increment(const rcynic_ctx_t *rc,
+			  const uri_t *uri,
+			  const mib_counter_t code)
+{
+  host_mib_counter_t *h = NULL, hn;
+  char *s;
+
+  assert(rc && uri);
+
+  log_validation_status(rc, uri, code);
+
+  if (!rc->host_counters)
+    return;
+
+  memset(&hn, 0, sizeof(hn));
+
+  if (!uri_to_filename(rc, uri, &hn.hostname, NULL)) {
+    logmsg(rc, log_data_err, "Couldn't convert URI %s to hostname", uri->s);
+    return;
+  }
+
+  if ((s = strchr(hn.hostname.s, '/')) != NULL)
+    *s = '\0';
+
+  h = sk_host_mib_counter_t_value(rc->host_counters,
+				  sk_host_mib_counter_t_find(rc->host_counters,
+							     &hn));
+  if (!h) {
+    if ((h = host_mib_counter_t_new()) == NULL) {
+      logmsg(rc, log_sys_err, "Couldn't allocate MIB counters for %s", uri->s);
+      return;
+    }
+    strcpy(h->hostname.s, hn.hostname.s);
+    if (!sk_host_mib_counter_t_push(rc->host_counters, h)) {
+      logmsg(rc, log_sys_err, "Couldn't store MIB counters for %s", uri->s);
+      free(h);
+      return;
+    }
+  }
+
+  h->counters[code]++;
+}
+
+/**
  * Reject an object.
  */
 static void reject(const rcynic_ctx_t *rc,
@@ -968,7 +970,7 @@ static void reject(const rcynic_ctx_t *rc,
 
   assert(fmt && strlen(fmt) + sizeof("Rejected %s") < sizeof(format));
   snprintf(format, sizeof(format), "Rejected %s %s", uri->s, fmt);
-  log_validation_status(rc, uri, code);
+  mib_increment(rc, uri, code);
   va_start(ap, fmt);
   vlogmsg(rc, log_data_err, format, ap);
   va_end(ap);
@@ -1034,7 +1036,8 @@ static int cp_ln(const rcynic_ctx_t *rc, const path_t *source, const path_t *tar
  */
 static int install_object(const rcynic_ctx_t *rc,
 			  const uri_t *uri,
-			  const path_t *source)
+			  const path_t *source,
+			  const mib_counter_t code)
 {
   path_t target;
 
@@ -1050,7 +1053,7 @@ static int install_object(const rcynic_ctx_t *rc,
 
   if (!cp_ln(rc, source, &target))
     return 0;
-  log_validation_status(rc, uri, validation_ok);
+  mib_increment(rc, uri, code);
   logmsg(rc, log_telemetry, "Accepted     %s", uri->s);
   return 1;
 }
@@ -2438,8 +2441,7 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 
   if ((crl = check_crl_1(rc, uri, &path, &rc->unauthenticated,
 			 issuer, hash, hashlen))) {
-    install_object(rc, uri, &path);
-    mib_increment(rc, uri, current_crl_accepted);
+    install_object(rc, uri, &path, current_crl_accepted);
     return crl;
   } else if (!access(path.s, F_OK)) {
     mib_increment(rc, uri, current_crl_rejected);
@@ -2447,8 +2449,7 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 
   if ((crl = check_crl_1(rc, uri, &path, &rc->old_authenticated,
 			 issuer, hash, hashlen))) {
-    install_object(rc, uri, &path);
-    mib_increment(rc, uri, backup_crl_accepted);
+    install_object(rc, uri, &path, backup_crl_accepted);
     return crl;
   } else if (!access(path.s, F_OK)) {
     mib_increment(rc, uri, backup_crl_rejected);
@@ -2540,9 +2541,9 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
     }
     logmsg(rctx->rc, log_data_err, "Stale CRL %s", rctx->subject->crldp.s);
     if (ok)
-      mib_increment(rctx->rc, &rctx->subject->uri, stale_crl);
+      mib_increment(rctx->rc, &rctx->subject->crldp, stale_crl);
     else
-      reject(rctx->rc, &rctx->subject->uri, stale_crl, "due to stale CRL %s", rctx->subject->crldp.s);
+      reject(rctx->rc, &rctx->subject->crldp, stale_crl, "due to stale CRL %s", rctx->subject->crldp.s);
     return ok;
 
   case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT:
@@ -2855,8 +2856,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
     return NULL;
 
   if ((x = check_cert_1(rc, uri, &path, prefix, certs, issuer, subject, hash, hashlen)) != NULL) {
-    install_object(rc, uri, &path);
-    mib_increment(rc, uri, accept_code);
+    install_object(rc, uri, &path, accept_code);
     if (w->state == walk_state_current)
       sk_OPENSSL_STRING_remove(rc->backup_cache, uri->s);
     else if (!sk_OPENSSL_STRING_push_strdup(rc->backup_cache, uri->s))
@@ -3027,8 +3027,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     /*
      * Redundant error message?
      */
-    logmsg(rc, log_data_err, "Validation failure for manifest %s EE certificate", uri->s);
-    mib_increment(rc, uri, manifest_invalid_ee);
+    reject(rc, &uri->s, manifest_invalid_ee, "because manifest EE certificate is invalid");
     goto done;
   }
 
@@ -3088,22 +3087,20 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
   if ((certs = walk_ctx_stack_certs(wsk)) == NULL)
     return NULL;
 
-  if (manifest == NULL &&
-      (manifest = check_manifest_1(rc, uri, &path,
-				   &rc->unauthenticated, certs))) {
-    install_object(rc, uri, &path);
-    mib_increment(rc, uri, current_manifest_accepted);
-  } else if (!access(path.s, F_OK)) {
-    mib_increment(rc, uri, current_manifest_rejected);
+  if (manifest == NULL) {
+    if ((manifest = check_manifest_1(rc, uri, &path,
+				     &rc->unauthenticated, certs)) != NULL)
+      install_object(rc, uri, &path, current_manifest_accepted);
+    else if (!access(path.s, F_OK))
+      mib_increment(rc, uri, current_manifest_rejected);
   }
 
-  if (manifest == NULL &&
-      (manifest = check_manifest_1(rc, uri, &path,
-				   &rc->old_authenticated, certs))) {
-    install_object(rc, uri, &path);
-    mib_increment(rc, uri, backup_manifest_accepted);
-  } else if (!access(path.s, F_OK)) {
-    mib_increment(rc, uri, backup_manifest_rejected);
+  if (manifest == NULL) {
+    if ((manifest = check_manifest_1(rc, uri, &path,
+				     &rc->old_authenticated, certs)) != NULL)
+      install_object(rc, uri, &path, backup_manifest_accepted);
+    else if (!access(path.s, F_OK))
+      mib_increment(rc, uri, backup_manifest_rejected);
   }
 
   sk_X509_free(certs);
@@ -3365,8 +3362,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     /*
      * Redundant error message?
      */
-    logmsg(rc, log_data_err, "Validation failure for ROA %s EE certificate", uri->s);
-    mib_increment(rc, uri, roa_invalid_ee);
+    reject(rc, uri, roa_invalid_ee, "because ROA EE certificate is invalid");
     goto error;
   }
 
@@ -3414,8 +3410,7 @@ static void check_roa(const rcynic_ctx_t *rc,
 
   if (check_roa_1(rc, uri, &path, &rc->unauthenticated,
 		  certs, hash, hashlen)) {
-    install_object(rc, uri, &path);
-    mib_increment(rc, uri, current_roa_accepted);
+    install_object(rc, uri, &path, current_roa_accepted);
     goto done;
   } else if (!access(path.s, F_OK)) {
     mib_increment(rc, uri, current_roa_rejected);
@@ -3423,8 +3418,7 @@ static void check_roa(const rcynic_ctx_t *rc,
 
   if (check_roa_1(rc, uri, &path, &rc->old_authenticated,
 		  certs, hash, hashlen)) {
-    install_object(rc, uri, &path);
-    mib_increment(rc, uri, backup_roa_accepted);
+    install_object(rc, uri, &path, backup_roa_accepted);
     goto done;
   } else if (!access(path.s, F_OK)) {
     mib_increment(rc, uri, backup_roa_rejected);
@@ -3554,8 +3548,7 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
     /*
      * Redundant error message?
      */
-    logmsg(rc, log_data_err, "Validation failure for Ghostbuster record %s EE certificate", uri->s);
-    mib_increment(rc, uri, ghostbuster_invalid_ee);
+    reject(rc, uri, ghostbuster_invalid_ee, "because Ghostbuster EE certificate is invalid");
     goto error;
   }
 
@@ -3600,8 +3593,7 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
   if (check_ghostbuster_1(rc, uri, &path, &rc->unauthenticated,
 			  certs, hash, hashlen)) {
-    install_object(rc, uri, &path);
-    mib_increment(rc, uri, current_ghostbuster_accepted);
+    install_object(rc, uri, &path, current_ghostbuster_accepted);
     goto done;
   } else if (!access(path.s, F_OK)) {
     mib_increment(rc, uri, current_ghostbuster_rejected);
@@ -3609,8 +3601,7 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
   if (check_ghostbuster_1(rc, uri, &path, &rc->old_authenticated,
 			  certs, hash, hashlen)) {
-    install_object(rc, uri, &path);
-    mib_increment(rc, uri, backup_ghostbuster_accepted);
+    install_object(rc, uri, &path, backup_ghostbuster_accepted);
     goto done;
   } else if (!access(path.s, F_OK)) {
     mib_increment(rc, uri, backup_ghostbuster_rejected);

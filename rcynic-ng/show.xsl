@@ -17,10 +17,6 @@
 
 <!-- $Id$ -->
 
-<!--
-  - XSL stylesheet to render rcynic's xml-summary output as tab-delimited text.
- -->
-
 <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
 
   <xsl:output method="text" encoding="US-ASCII"/>
@@ -34,6 +30,7 @@
     </xsl:for-each>
     <xsl:text>&#10;</xsl:text>
     <xsl:for-each select="rcynic-summary/validation_status">
+      <xsl:sort order="ascending" data-type="text" select="."/>
       <xsl:value-of select="@timestamp"/>
       <xsl:text>&#9;</xsl:text>
       <xsl:value-of select="@status"/>

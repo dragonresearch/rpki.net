@@ -328,23 +328,13 @@ typedef struct { char s[HOSTNAME_MAX]; } hostname_t;
 typedef struct { unsigned char h[EVP_MAX_MD_SIZE]; } hashbuf_t;
 
 /**
- * Per-host MIB counter object.
- * hostname[] must be first element.
- */
-typedef struct host_mib_counter {
-  path_t hostname;		/* uri_to_filename() wants path_t */
-  unsigned long counters[MIB_COUNTER_T_MAX];
-} host_mib_counter_t;
-
-DECLARE_STACK_OF(host_mib_counter_t)
-
-/**
  * Per-URI validation status object.
+ * uri must be first element.
  */
 typedef struct validation_status {
   uri_t uri;
   time_t timestamp;
-  mib_counter_t code;
+  unsigned char events[(MIB_COUNTER_T_MAX + 7) / 8];
 } validation_status_t;
 
 DECLARE_STACK_OF(validation_status_t)
@@ -457,7 +447,6 @@ struct rcynic_ctx {
   path_t authenticated, old_authenticated, unauthenticated;
   char *jane, *rsync_program;
   STACK_OF(OPENSSL_STRING) *rsync_cache, *backup_cache, *stale_cache;
-  STACK_OF(host_mib_counter_t) *host_counters;
   STACK_OF(validation_status_t) *validation_status;
   STACK_OF(rsync_ctx_t) *rsync_queue;
   STACK_OF(task_t) *task_queue;
@@ -536,17 +525,6 @@ static void sk_OPENSSL_STRING_remove(STACK_OF(OPENSSL_STRING) *sk, const char *s
 }
 
 /**
- * Allocate a new host_mib_counter_t object.
- */
-static host_mib_counter_t *host_mib_counter_t_new(void)
-{
-  host_mib_counter_t *h = malloc(sizeof(*h));
-  if (h)
-    memset(h, 0, sizeof(*h));
-  return h;
-}
-
-/**
  * Allocate a new validation_status_t object.
  */
 static validation_status_t *validation_status_t_new(void)
@@ -555,15 +533,6 @@ static validation_status_t *validation_status_t_new(void)
   if (v)
     memset(v, 0, sizeof(*v));
   return v;
-}
-
-/**
- * Type-safe wrapper around free() to keep safestack macros happy.
- */
-static void host_mib_counter_t_free(host_mib_counter_t *h)
-{
-  if (h)
-    free(h);
 }
 
 /**
@@ -869,6 +838,30 @@ static int oid_cmp(const ASN1_OBJECT *obj, const unsigned char *oid, const size_
 }
 
 /**
+ * Get value of code in a validation_status_t.
+ */
+static int validation_status_get_code(const validation_status_t *v, 
+				      const mib_counter_t code)
+{
+  assert(v && code < MIB_COUNTER_T_MAX);
+  return (v->events[code / 8] & (1 << (code % 8))) != 0;
+}
+
+/**
+ * Set value of code in a validation_status_t.
+ */
+static void validation_status_set_code(validation_status_t *v, 
+				       const mib_counter_t code,
+				       int value)
+{
+  assert(v && code < MIB_COUNTER_T_MAX);
+  if (value)
+    v->events[code / 8] |=  (1 << (code % 8));
+  else
+    v->events[code / 8] &= ~(1 << (code % 8));
+}
+
+/**
  * Add a validation status entry to internal log.
  */
 static void log_validation_status(const rcynic_ctx_t *rc,
@@ -877,84 +870,44 @@ static void log_validation_status(const rcynic_ctx_t *rc,
 {
   validation_status_t *v = NULL;
 
-  assert(rc && uri);
+  assert(rc && uri && code < MIB_COUNTER_T_MAX);
 
   if (!rc->validation_status)
     return;
 
-  if ((v = validation_status_t_new()) == NULL) {
-    logmsg(rc, log_sys_err, "Couldn't allocate validation status entry for %s", uri->s);
-    goto punt;
+  /*
+   * Cast here works because uri is first field in validation_status_t.
+   */
+  v = sk_validation_status_t_value(rc->validation_status, 
+				   sk_validation_status_t_find(rc->validation_status,
+							       (const validation_status_t *) uri));
+  if (v == NULL) {
+
+    if ((v = validation_status_t_new()) == NULL) {
+      logmsg(rc, log_sys_err, "Couldn't allocate validation status entry for %s", uri->s);
+      return;
+    }
+
+    v->uri = *uri;
+
+    if (!sk_validation_status_t_push(rc->validation_status, v)) {
+      logmsg(rc, log_sys_err, "Couldn't store validation status entry for %s", uri->s);
+      free(v);
+      return;
+    }
+
   }
 
   v->timestamp = time(0);
-  v->code = code;
-  v->uri = *uri;
-
-  if (!sk_validation_status_t_push(rc->validation_status, v)) {
-    logmsg(rc, log_sys_err, "Couldn't store validation status entry for %s", uri->s);
-    goto punt;
-  }
-
-  v = NULL;
-
- punt:
-  if (v)
-    free(v);
+  validation_status_set_code(v, code, 1);
 }
 
 /**
- * Host MIB counter comparision.
+ * Validation status object comparision.
  */
-static int host_mib_counter_cmp(const host_mib_counter_t * const *a, const host_mib_counter_t * const *b)
+static int validation_status_cmp(const validation_status_t * const *a, const validation_status_t * const *b)
 {
-  return strcasecmp((*a)->hostname.s, (*b)->hostname.s);
-}
-
-/**
- * MIB counter manipulation.
- */
-static void mib_increment(const rcynic_ctx_t *rc,
-			  const uri_t *uri,
-			  const mib_counter_t code)
-{
-  host_mib_counter_t *h = NULL, hn;
-  char *s;
-
-  assert(rc && uri);
-
-  log_validation_status(rc, uri, code);
-
-  if (!rc->host_counters)
-    return;
-
-  memset(&hn, 0, sizeof(hn));
-
-  if (!uri_to_filename(rc, uri, &hn.hostname, NULL)) {
-    logmsg(rc, log_data_err, "Couldn't convert URI %s to hostname", uri->s);
-    return;
-  }
-
-  if ((s = strchr(hn.hostname.s, '/')) != NULL)
-    *s = '\0';
-
-  h = sk_host_mib_counter_t_value(rc->host_counters,
-				  sk_host_mib_counter_t_find(rc->host_counters,
-							     &hn));
-  if (!h) {
-    if ((h = host_mib_counter_t_new()) == NULL) {
-      logmsg(rc, log_sys_err, "Couldn't allocate MIB counters for %s", uri->s);
-      return;
-    }
-    strcpy(h->hostname.s, hn.hostname.s);
-    if (!sk_host_mib_counter_t_push(rc->host_counters, h)) {
-      logmsg(rc, log_sys_err, "Couldn't store MIB counters for %s", uri->s);
-      free(h);
-      return;
-    }
-  }
-
-  h->counters[code]++;
+  return strcmp((*a)->uri.s, (*b)->uri.s);
 }
 
 /**
@@ -970,7 +923,7 @@ static void reject(const rcynic_ctx_t *rc,
 
   assert(fmt && strlen(fmt) + sizeof("Rejected %s") < sizeof(format));
   snprintf(format, sizeof(format), "Rejected %s %s", uri->s, fmt);
-  mib_increment(rc, uri, code);
+  log_validation_status(rc, uri, code);
   va_start(ap, fmt);
   vlogmsg(rc, log_data_err, format, ap);
   va_end(ap);
@@ -1053,7 +1006,7 @@ static int install_object(const rcynic_ctx_t *rc,
 
   if (!cp_ln(rc, source, &target))
     return 0;
-  mib_increment(rc, uri, code);
+  log_validation_status(rc, uri, code);
   logmsg(rc, log_telemetry, "Accepted     %s", uri->s);
   return 1;
 }
@@ -1930,7 +1883,7 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 
     case 0:
       logmsg(rc, log_debug, "Successfully fetched %s", ctx->uri.s);
-      mib_increment(rc, &ctx->uri, rsync_succeeded);
+      log_validation_status(rc, &ctx->uri, rsync_succeeded);
       break;
 
     case 5:
@@ -1961,10 +1914,10 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
     default:
       logmsg(rc, log_data_err, "rsync %u exited with status %d fetching %s",
 	     (unsigned) pid, WEXITSTATUS(pid_status), ctx->uri.s);
-      mib_increment(rc, &ctx->uri,
-		    (rc->rsync_timeout && now >= ctx->deadline
-		     ? rsync_timed_out
-		     : rsync_failed));
+      log_validation_status(rc, &ctx->uri,
+			    (rc->rsync_timeout && now >= ctx->deadline
+			     ? rsync_timed_out
+			     : rsync_failed));
       break;
     }
 
@@ -2255,7 +2208,7 @@ static void extract_crldp_uri(const rcynic_ctx_t *rc,
   if (sk_DIST_POINT_num(crldp) != 1) {
     logmsg(rc, log_data_err, "CRLDistributionPoints sequence length is %d (should be 1) for %s",
 	   sk_DIST_POINT_num(crldp), uri->s);
-    mib_increment(rc, uri, malformed_crldp);
+    log_validation_status(rc, uri, malformed_crldp);
     return;
   }
 
@@ -2263,7 +2216,7 @@ static void extract_crldp_uri(const rcynic_ctx_t *rc,
 
   if (d->reasons || d->CRLissuer || !d->distpoint || d->distpoint->type != 0) {
     logmsg(rc, log_data_err, "CRLDP does not match RPKI certificate profile for %s", uri->s);
-    mib_increment(rc, uri, malformed_crldp);
+    log_validation_status(rc, uri, malformed_crldp);
     return;
   }
 
@@ -2272,7 +2225,7 @@ static void extract_crldp_uri(const rcynic_ctx_t *rc,
     assert(n != NULL);
     if (n->type != GEN_URI) {
       logmsg(rc, log_data_err, "CRLDP contains non-URI GeneralName for %s", uri->s);
-      mib_increment(rc, uri, malformed_crldp);
+      log_validation_status(rc, uri, malformed_crldp);
       return;
     }
     if (!is_rsync((char *) n->d.uniformResourceIdentifier->data)) {
@@ -2283,7 +2236,7 @@ static void extract_crldp_uri(const rcynic_ctx_t *rc,
     if (sizeof(result->s) <= n->d.uniformResourceIdentifier->length) {
       logmsg(rc, log_data_err, "Skipping improbably long URI %s for %s",
 	     (char *) n->d.uniformResourceIdentifier->data, uri->s);
-      mib_increment(rc, uri, uri_too_long);
+      log_validation_status(rc, uri, uri_too_long);
       continue;
     }
     strcpy(result->s, (char *) n->d.uniformResourceIdentifier->data);
@@ -2321,7 +2274,7 @@ static void extract_access_uri(const rcynic_ctx_t *rc,
     if (sizeof(result->s) <= a->location->d.uniformResourceIdentifier->length) {
       logmsg(rc, log_data_err, "Skipping improbably long URI %s for %s",
 	     a->location->d.uniformResourceIdentifier->data, uri->s);
-      mib_increment(rc, uri, uri_too_long);
+      log_validation_status(rc, uri, uri_too_long);
       continue;
     }
     strcpy(result->s, (char *) a->location->d.uniformResourceIdentifier->data);
@@ -2444,7 +2397,7 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
     install_object(rc, uri, &path, current_crl_accepted);
     return crl;
   } else if (!access(path.s, F_OK)) {
-    mib_increment(rc, uri, current_crl_rejected);
+    log_validation_status(rc, uri, current_crl_rejected);
   }
 
   if ((crl = check_crl_1(rc, uri, &path, &rc->old_authenticated,
@@ -2452,7 +2405,7 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
     install_object(rc, uri, &path, backup_crl_accepted);
     return crl;
   } else if (!access(path.s, F_OK)) {
-    mib_increment(rc, uri, backup_crl_rejected);
+    log_validation_status(rc, uri, backup_crl_rejected);
   }
 
   return NULL;
@@ -2541,7 +2494,7 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
     }
     logmsg(rctx->rc, log_data_err, "Stale CRL %s", rctx->subject->crldp.s);
     if (ok)
-      mib_increment(rctx->rc, &rctx->subject->crldp, stale_crl);
+      log_validation_status(rctx->rc, &rctx->subject->crldp, stale_crl);
     else
       reject(rctx->rc, &rctx->subject->crldp, stale_crl, "due to stale CRL %s", rctx->subject->crldp.s);
     return ok;
@@ -2563,7 +2516,7 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
     if (rctx->rc->allow_non_self_signed_trust_anchor)
       ok = 1;
     if (ok)
-      mib_increment(rctx->rc, &rctx->subject->uri, trust_anchor_not_self_signed);
+      log_validation_status(rctx->rc, &rctx->subject->uri, trust_anchor_not_self_signed);
     else
       reject(rctx->rc, &rctx->subject->uri, trust_anchor_not_self_signed, 
 	     "because trust anchor was not self-signed");
@@ -2587,7 +2540,7 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
   }
 
   if (ok)
-    mib_increment(rctx->rc, &rctx->subject->uri, counter);
+    log_validation_status(rctx->rc, &rctx->subject->uri, counter);
   else
     reject(rctx->rc, &rctx->subject->uri, counter,
 	   "due to validation failure at depth %d: %s",
@@ -2846,7 +2799,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
       !access(path.s, R_OK)) {
     if (w->state == walk_state_backup || sk_OPENSSL_STRING_find(rc->backup_cache, uri->s) < 0)
       return NULL;
-    mib_increment(rc, uri, current_cert_recheck);
+    log_validation_status(rc, uri, current_cert_recheck);
     logmsg(rc, log_telemetry, "Rechecking %s", uri->s);
   } else {
     logmsg(rc, log_telemetry, "Checking %s", uri->s);
@@ -2863,7 +2816,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
       logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri->s);
       
   } else if (!access(path.s, F_OK)) {
-    mib_increment(rc, uri, reject_code);
+    log_validation_status(rc, uri, reject_code);
   }
 
   sk_X509_free(certs);
@@ -2969,7 +2922,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
       goto done;
     }
     logmsg(rc, log_data_err, "Stale manifest %s", uri->s);
-    mib_increment(rc, uri, stale_manifest);
+    log_validation_status(rc, uri, stale_manifest);
   }
 
   if (manifest->fileHashAlg == NULL ||
@@ -2990,7 +2943,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     goto done;
   } else {
     logmsg(rc, log_data_err, "Manifest %s is missing entry for CRL %s", uri->s, certinfo.crldp.s);
-    mib_increment(rc, uri, crl_not_in_manifest);
+    log_validation_status(rc, uri, crl_not_in_manifest);
     crl = check_crl(rc, &certinfo.crldp,
 		    sk_X509_value(certs, sk_X509_num(certs) - 1),
 		    NULL, 0);
@@ -3027,7 +2980,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     /*
      * Redundant error message?
      */
-    reject(rc, &uri->s, manifest_invalid_ee, "because manifest EE certificate is invalid");
+    reject(rc, uri, manifest_invalid_ee, "because manifest EE certificate is invalid");
     goto done;
   }
 
@@ -3092,7 +3045,7 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 				     &rc->unauthenticated, certs)) != NULL)
       install_object(rc, uri, &path, current_manifest_accepted);
     else if (!access(path.s, F_OK))
-      mib_increment(rc, uri, current_manifest_rejected);
+      log_validation_status(rc, uri, current_manifest_rejected);
   }
 
   if (manifest == NULL) {
@@ -3100,7 +3053,7 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 				     &rc->old_authenticated, certs)) != NULL)
       install_object(rc, uri, &path, backup_manifest_accepted);
     else if (!access(path.s, F_OK))
-      mib_increment(rc, uri, backup_manifest_rejected);
+      log_validation_status(rc, uri, backup_manifest_rejected);
   }
 
   sk_X509_free(certs);
@@ -3413,7 +3366,7 @@ static void check_roa(const rcynic_ctx_t *rc,
     install_object(rc, uri, &path, current_roa_accepted);
     goto done;
   } else if (!access(path.s, F_OK)) {
-    mib_increment(rc, uri, current_roa_rejected);
+    log_validation_status(rc, uri, current_roa_rejected);
   }
 
   if (check_roa_1(rc, uri, &path, &rc->old_authenticated,
@@ -3421,7 +3374,7 @@ static void check_roa(const rcynic_ctx_t *rc,
     install_object(rc, uri, &path, backup_roa_accepted);
     goto done;
   } else if (!access(path.s, F_OK)) {
-    mib_increment(rc, uri, backup_roa_rejected);
+    log_validation_status(rc, uri, backup_roa_rejected);
   }
 
  done:
@@ -3596,7 +3549,7 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
     install_object(rc, uri, &path, current_ghostbuster_accepted);
     goto done;
   } else if (!access(path.s, F_OK)) {
-    mib_increment(rc, uri, current_ghostbuster_rejected);
+    log_validation_status(rc, uri, current_ghostbuster_rejected);
   }
 
   if (check_ghostbuster_1(rc, uri, &path, &rc->old_authenticated,
@@ -3604,7 +3557,7 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
     install_object(rc, uri, &path, backup_ghostbuster_accepted);
     goto done;
   } else if (!access(path.s, F_OK)) {
-    mib_increment(rc, uri, backup_ghostbuster_rejected);
+    log_validation_status(rc, uri, backup_ghostbuster_rejected);
   }
 
  done:
@@ -3721,7 +3674,7 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 
       if (hash == NULL) {
 	logmsg(rc, log_telemetry, "Object %s present in publication directory but not in manifest", uri.s);
-	mib_increment(rc, &uri, object_not_in_manifest);
+	log_validation_status(rc, &uri, object_not_in_manifest);
       }
 
       if (hash == NULL && !rc->allow_object_not_in_manifest) {
@@ -4015,11 +3968,7 @@ int main(int argc, char *argv[])
   }
 
   if (xmlfile != NULL) {
-    if ((rc.host_counters = sk_host_mib_counter_t_new(host_mib_counter_cmp)) == NULL) {
-      logmsg(&rc, log_sys_err, "Couldn't allocate host_counters stack");
-      goto done;
-    }
-    if ((rc.validation_status = sk_validation_status_t_new_null()) == NULL) {
+    if ((rc.validation_status = sk_validation_status_t_new(validation_status_cmp)) == NULL) {
       logmsg(&rc, log_sys_err, "Couldn't allocate validation_status stack");
       goto done;
     }
@@ -4248,6 +4197,7 @@ int main(int argc, char *argv[])
     struct tm *tad_tm = gmtime(&tad_time);
     int ok = 1, use_stdout = !strcmp(xmlfile, "-");
     hostname_t hostname;
+    mib_counter_t code;
     FILE *f = NULL;
 
     strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", tad_tm);
@@ -4282,23 +4232,6 @@ int main(int argc, char *argv[])
     if (ok)
       ok &= fprintf(f, "  </labels>\n") != EOF;
 
-    for (i = 0; ok && i < sk_host_mib_counter_t_num(rc.host_counters); i++) {
-      host_mib_counter_t *h = sk_host_mib_counter_t_value(rc.host_counters, i);
-      assert(h);
-
-      if (ok)
-	ok &= fprintf(f, "  <host>\n    <hostname>%s</hostname>\n",
-		      h->hostname.s) != EOF;
-
-      for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
-	ok &= fprintf(f, "    <%s>%lu</%s>\n", mib_counter_label[j],
-		      h->counters[j], mib_counter_label[j]) != EOF;
-
-      if (ok)
-	ok &= fprintf(f, "  </host>\n") != EOF;
-    }
-
-
     for (i = 0; ok && i < sk_validation_status_t_num(rc.validation_status); i++) {
       validation_status_t *v = sk_validation_status_t_value(rc.validation_status, i);
       assert(v);
@@ -4306,8 +4239,10 @@ int main(int argc, char *argv[])
       tad_tm = gmtime(&v->timestamp);
       strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", tad_tm);
 
-      ok &= fprintf(f, "  <validation_status timestamp=\"%s\" status=\"%s\">%s</validation_status>\n",
-		    tad, mib_counter_label[v->code], v->uri.s) != EOF;
+      for (code = (mib_counter_t) 0; ok && code < MIB_COUNTER_T_MAX; code++)
+	if (validation_status_get_code(v, code))
+	  ok &= fprintf(f, "  <validation_status timestamp=\"%s\" status=\"%s\">%s</validation_status>\n",
+			tad, mib_counter_label[code], v->uri.s) != EOF;
     }
 
     if (ok)
@@ -4328,7 +4263,6 @@ int main(int argc, char *argv[])
   sk_OPENSSL_STRING_pop_free(rc.rsync_cache, OPENSSL_STRING_free);
   sk_OPENSSL_STRING_pop_free(rc.backup_cache, OPENSSL_STRING_free);
   sk_OPENSSL_STRING_pop_free(rc.stale_cache, OPENSSL_STRING_free);
-  sk_host_mib_counter_t_pop_free(rc.host_counters, host_mib_counter_t_free);
   sk_validation_status_t_pop_free(rc.validation_status, validation_status_t_free);
   X509_STORE_free(rc.x509_store);
   NCONF_free(cfg_handle);

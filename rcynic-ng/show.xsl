@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!--
- - Copyright (C) 2010  Internet Systems Consortium, Inc. ("ISC")
+ - Copyright (C) 2010-2011  Internet Systems Consortium, Inc. ("ISC")
  -
  - Permission to use, copy, modify, and/or distribute this software for any
  - purpose with or without fee is hereby granted, provided that the above
@@ -27,21 +27,18 @@
 
   <xsl:template match="/">
     <xsl:for-each select="rcynic-summary/labels/*">
-      <xsl:if test="position() != 1">
-	<xsl:text>&#9;</xsl:text>
-      </xsl:if>
-      <xsl:apply-templates/>
+      <xsl:value-of select="name()"/>
+      <xsl:text>&#9;</xsl:text>
+      <xsl:value-of select="."/>
+      <xsl:text>&#10;</xsl:text>
     </xsl:for-each>
     <xsl:text>&#10;</xsl:text>
-    <xsl:for-each select="rcynic-summary/host">
-      <xsl:sort order="descending" data-type="number" select="sum(*[not(self::hostname)])"/>
-      <xsl:sort order="ascending" data-type="text" select="hostname"/>
-      <xsl:for-each select="*">
-	<xsl:if test="position() != 1">
-	  <xsl:text>&#9;</xsl:text>
-	</xsl:if>
-	<xsl:apply-templates/>
-      </xsl:for-each>
+    <xsl:for-each select="rcynic-summary/validation_status">
+      <xsl:value-of select="@timestamp"/>
+      <xsl:text>&#9;</xsl:text>
+      <xsl:value-of select="@status"/>
+      <xsl:text>&#9;</xsl:text>
+      <xsl:value-of select="."/>
       <xsl:text>&#10;</xsl:text>
     </xsl:for-each>
   </xsl:template>

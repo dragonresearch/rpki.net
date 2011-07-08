@@ -88,6 +88,8 @@
       <body>
 
 
+        <h1><xsl:value-of select="$title"/></h1>
+
         <!-- Summary output, old host-oriented format -->
 	<xsl:if test="$show-summary != 0">
 
@@ -129,9 +131,8 @@
 	  </xsl:variable>
 
 	  <!-- Generate the HTML -->
-	  <h1>
-	    <xsl:value-of select="$title"/>
-	  </h1>
+	  <br/>
+	  <h2>Summary by Repository Host</h2>
 	  <table class="summary" rules="all">
 	    <thead>
 	      <tr>
@@ -185,7 +186,7 @@
 	<!-- "Problems" display -->
 	<xsl:if test="$show-problems != 0">
 	  <br/>
-	  <h1>Problems</h1>
+	  <h2>Problems</h2>
 	  <table class="problems" rules="all" >
 	    <thead>
 	      <tr>
@@ -211,7 +212,7 @@
 	<!-- Detailed status display -->
 	<xsl:if test="$show-detailed-status != 0">
 	  <br/>
-	  <h1>Validation Status</h1>
+	  <h2>Validation Status</h2>
 	  <table class="details" rules="all" >
 	    <thead>
 	      <tr>

@@ -556,13 +556,6 @@ static void logmsg(const rcynic_ctx_t *rc,
 		   const log_level_t level, 
 		   const char *fmt, ...)
      __attribute__ ((format (printf, 3, 4)));
-
-static void reject(const rcynic_ctx_t *rc,
-		   const uri_t *uri,
-		   const mib_counter_t code,
-		   const char *fmt, ...)
-     __attribute__ ((format (printf, 4, 5)));
-
 #endif
 
 /**
@@ -908,25 +901,6 @@ static void log_validation_status(const rcynic_ctx_t *rc,
 static int validation_status_cmp(const validation_status_t * const *a, const validation_status_t * const *b)
 {
   return strcmp((*a)->uri.s, (*b)->uri.s);
-}
-
-/**
- * Reject an object.
- */
-static void reject(const rcynic_ctx_t *rc,
-		   const uri_t *uri,
-		   const mib_counter_t code,
-		   const char *fmt, ...)
-{
-  char format[URI_MAX * 2];
-  va_list ap;
-
-  assert(fmt && strlen(fmt) + sizeof("Rejected %s") < sizeof(format));
-  snprintf(format, sizeof(format), "Rejected %s %s", uri->s, fmt);
-  log_validation_status(rc, uri, code);
-  va_start(ap, fmt);
-  vlogmsg(rc, log_data_err, format, ap);
-  va_end(ap);
 }
 
 /**
@@ -1988,8 +1962,6 @@ static void rsync_init(const rcynic_ctx_t *rc,
     return;
   }
 
-  logmsg(rc, log_telemetry, "Fetching %s", uri->s);
-
   if ((ctx = malloc(sizeof(*ctx))) == NULL) {
     logmsg(rc, log_sys_err, "malloc(rsync_ctxt_t) failed");
     if (handler)
@@ -2338,9 +2310,7 @@ static X509_CRL *check_crl_1(const rcynic_ctx_t *rc,
     goto punt;
 
   if (hashlen > sizeof(hashbuf.h)) {
-    reject(rc, uri, hash_too_long,
-	   "because supplied hash is too long (%lu, our max is %lu)",
-	   (unsigned long) hashlen, (unsigned long) sizeof(hashbuf.h));
+    log_validation_status(rc, uri, hash_too_long);
     goto punt;
   }
 
@@ -2353,8 +2323,7 @@ static X509_CRL *check_crl_1(const rcynic_ctx_t *rc,
     goto punt;
 
   if (hash && memcmp(hashbuf.h, hash, hashlen)) {
-    reject(rc, uri, crl_digest_mismatch,
-	   "because digest of CRL did not match value from manifest");
+    log_validation_status(rc, uri, crl_digest_mismatch);
     goto punt;
   }
 
@@ -2460,7 +2429,7 @@ static int check_allowed_extensions(const X509 *x, const int allow_eku)
 static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
 {
   rcynic_x509_store_ctx_t *rctx = (rcynic_x509_store_ctx_t *) ctx;
-  mib_counter_t counter;
+  mib_counter_t code;
 
   assert(rctx != NULL);
 
@@ -2492,11 +2461,8 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
 	logmsg(rctx->rc, log_sys_err,
 	       "Couldn't cache stale CRLDP %s, blundering onward", rctx->subject->crldp.s);
     }
-    logmsg(rctx->rc, log_data_err, "Stale CRL %s", rctx->subject->crldp.s);
-    if (ok)
-      log_validation_status(rctx->rc, &rctx->subject->crldp, stale_crl);
-    else
-      reject(rctx->rc, &rctx->subject->crldp, stale_crl, "due to stale CRL %s", rctx->subject->crldp.s);
+    log_validation_status(rctx->rc, &rctx->subject->crldp, stale_crl);
+    log_validation_status(rctx->rc, &rctx->subject->uri, stale_crl);
     return ok;
 
   case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT:
@@ -2515,11 +2481,7 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
      */
     if (rctx->rc->allow_non_self_signed_trust_anchor)
       ok = 1;
-    if (ok)
-      log_validation_status(rctx->rc, &rctx->subject->uri, trust_anchor_not_self_signed);
-    else
-      reject(rctx->rc, &rctx->subject->uri, trust_anchor_not_self_signed, 
-	     "because trust anchor was not self-signed");
+    log_validation_status(rctx->rc, &rctx->subject->uri, trust_anchor_not_self_signed);
     return ok;
 
   /*
@@ -2529,24 +2491,17 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
    */
 #define QV(x)							\
   case x:							\
-    counter = mib_openssl_##x;					\
+    code = mib_openssl_##x;					\
     break;
     MIB_COUNTERS_FROM_OPENSSL;
 #undef	QV
 
   default:
-    counter = unknown_verify_error;
+    code = unknown_verify_error;
     break;
   }
 
-  if (ok)
-    log_validation_status(rctx->rc, &rctx->subject->uri, counter);
-  else
-    reject(rctx->rc, &rctx->subject->uri, counter,
-	   "due to validation failure at depth %d: %s",
-	   ctx->error_depth, 
-	   X509_verify_cert_error_string(ctx->error));
-
+  log_validation_status(rctx->rc, &rctx->subject->uri, code);
   return ok;
 }
 
@@ -2579,80 +2534,68 @@ static int check_x509(const rcynic_ctx_t *rc,
   assert(issuer != NULL);
 
   if (subject->sia.s[0] && subject->sia.s[strlen(subject->sia.s) - 1] != '/') {
-    reject(rc, &subject->uri, malformed_sia,
-	   "due to malformed SIA %s", subject->sia.s);
+    log_validation_status(rc, &subject->uri, malformed_sia);
     goto done;
   }
 
   if (!subject->ta && !subject->aia.s[0]) {
-    reject(rc, &subject->uri, aia_missing, "due to missing AIA extension");
+    log_validation_status(rc, &subject->uri, aia_missing);
     goto done;
   }
 
   if (!issuer_certinfo->ta && strcmp(issuer_certinfo->uri.s, subject->aia.s)) {
-    reject(rc, &subject->uri, aia_mismatch,
-	   "because AIA %s doesn't match parent", subject->aia.s);
+    log_validation_status(rc, &subject->uri, aia_mismatch);
     goto done;
   }
 
   if (subject->ca && !subject->sia.s[0]) {
-    reject(rc, &subject->uri, sia_missing,
-	   "because SIA extension repository pointer is missing");
+    log_validation_status(rc, &subject->uri, sia_missing);
     goto done;
   }
 
   if (subject->ca && !subject->manifest.s[0]) {
-    reject(rc, &subject->uri, manifest_missing,
-	   "because SIA extension manifest pointer is missing");
+    log_validation_status(rc, &subject->uri, manifest_missing);
     goto done;
   }
 
   if (subject->ca && !startswith(subject->manifest.s, subject->sia.s)) {
-    reject(rc, &subject->uri, manifest_mismatch,
-	   "because SIA manifest %s points outside publication point %s",
-	   subject->manifest.s, subject->sia.s);
+    log_validation_status(rc, &subject->uri, manifest_mismatch);
     goto done;
   }
 
   if (!check_allowed_extensions(x, !subject->ca)) {
-    reject(rc, &subject->uri, disallowed_extension,
-	   "due to disallowed X.509v3 extension");
+    log_validation_status(rc, &subject->uri, disallowed_extension);
     goto done;
   }
 
   if (subject->ta) {
 
     if (subject->crldp.s[0]) {
-      reject(rc, &subject->uri, trust_anchor_with_crldp,
-	     "because it's a trust anchor but has a CRLDP extension");
+      log_validation_status(rc, &subject->uri, trust_anchor_with_crldp);
       goto done;
     }
 
   } else {
 
     if (!subject->crldp.s[0]) {
-      reject(rc, &subject->uri, crldp_missing, "because CRLDP extension is missing");
+      log_validation_status(rc, &subject->uri, crldp_missing);
       goto done;
     }
 
     if (!subject->ca && !startswith(subject->crldp.s, issuer_certinfo->sia.s)) {
-      reject(rc, &subject->uri, crldp_mismatch,
-	     "because CRLDP %s points outside issuer's publication point %s",
-	     subject->crldp.s, issuer_certinfo->sia.s);
+      log_validation_status(rc, &subject->uri, crldp_mismatch);
       goto done;
     }
  
     flags |= X509_V_FLAG_CRL_CHECK;
 
     if ((pkey = X509_get_pubkey(issuer)) == NULL || X509_verify(x, pkey) <= 0) {
-      reject(rc, &subject->uri, certificate_bad_signature,
-	     "because it failed signature check prior to CRL fetch");
+      log_validation_status(rc, &subject->uri, certificate_bad_signature);
       goto done;
     }
 
     if ((crl = check_crl(rc, &subject->crldp, issuer, NULL, 0)) == NULL) {
-      reject(rc, &subject->uri, certificate_bad_crl,
-	     "due to bad CRL %s", subject->crldp.s);
+      log_validation_status(rc, &subject->uri, certificate_bad_crl);
       goto done;
     }
 
@@ -2674,14 +2617,9 @@ static int check_x509(const rcynic_ctx_t *rc,
 
   X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
 
- if (X509_verify_cert(&rctx.ctx) <= 0) {
-   /*
-    * Redundant error message?
-    */
-    logmsg(rc, log_data_err, "Validation failure for %s",
-	   subject->uri.s[0] ? subject->uri.s : subject->ta ? "[Trust anchor]" : "[???]");
-    goto done;
-  }
+ if (X509_verify_cert(&rctx.ctx) <= 0)
+#warning Maybe we need a log_validation_status() call or something here
+   goto done;
 
  ret = 1;
 
@@ -2720,9 +2658,7 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
     return NULL;
 
   if (hashlen > sizeof(hashbuf.h)) {
-    reject(rc, uri, hash_too_long,
-	   "because supplied hash is too long (%lu, our max is %lu)",
-	   (unsigned long) hashlen, (unsigned long) sizeof(hashbuf.h));
+    log_validation_status(rc, uri, hash_too_long);
     goto punt;
   }
 
@@ -2737,8 +2673,7 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
   }
 
   if (hash && memcmp(hashbuf.h, hash, hashlen)) {
-    reject(rc, uri, certificate_digest_mismatch,
-	   "because digest did not match value in manifest");
+    log_validation_status(rc, uri, certificate_digest_mismatch);
     goto punt;
   }
 
@@ -2857,8 +2792,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 
   if ((eContentType = CMS_get0_eContentType(cms)) == NULL ||
       oid_cmp(eContentType, id_ct_rpkiManifest, sizeof(id_ct_rpkiManifest))) {
-    reject(rc, uri, manifest_bad_econtenttype,
-	   "due to bad manifest eContentType");
+    log_validation_status(rc, uri, manifest_bad_econtenttype);
     goto done;
   }
 
@@ -2868,47 +2802,40 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   }
 
   if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    reject(rc, uri, manifest_invalid_cms,
-	   "due to validation failure for manifest CMS message");
+    log_validation_status(rc, uri, manifest_invalid_cms);
     goto done;
   }
 
   if ((signers = CMS_get0_signers(cms)) == NULL || sk_X509_num(signers) != 1) {
-    reject(rc, uri, manifest_missing_signer,
-	   "because could not couldn't extract manifest EE certificate from CMS");
+    log_validation_status(rc, uri, manifest_missing_signer);
     goto done;
   }
 
   parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri);
 
   if (!certinfo.crldp.s[0]) {
-    reject(rc, uri, manifest_missing_crldp,
-	   "due to missing CRLDP in manifest EE certificate");
+    log_validation_status(rc, uri, manifest_missing_crldp);
     goto done;
   }
 
   if ((crl_tail = strrchr(certinfo.crldp.s, '/')) == NULL) {
-    reject(rc, uri, manifest_malformed_crldp,
-	   "due to malformed CRLDP %s in manifest EE certificate",
-	   certinfo.crldp.s);
+    log_validation_status(rc, uri, manifest_malformed_crldp);
     goto done;
   }
   crl_tail++;
 
   if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
-    reject(rc, uri, manifest_decode_error, "because unable to decode manifest");
+    log_validation_status(rc, uri, manifest_decode_error);
     goto done;
   }
 
   if (manifest->version) {
-    reject(rc, uri, manifest_wrong_version,
-	   "because manifest version should be defaulted zero, not %ld",
-	   ASN1_INTEGER_get(manifest->version));
+    log_validation_status(rc, uri, manifest_wrong_version);
     goto done;
   }
 
   if (X509_cmp_current_time(manifest->thisUpdate) > 0) {
-    reject(rc, uri, manifest_not_yet_valid, "because manifest not yet valid");
+    log_validation_status(rc, uri, manifest_not_yet_valid);
     goto done;
   }
 
@@ -2917,11 +2844,9 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     if (!sk_OPENSSL_STRING_push_strdup(rc->stale_cache, uri->s))
       logmsg(rc, log_sys_err, "Couldn't cache stale manifest %s, blundering onward", uri->s);
     if (!rc->allow_stale_manifest) {
-      reject(rc, uri, stale_manifest,
-	     "because it is a stale manifest");
+      log_validation_status(rc, uri, stale_manifest);
       goto done;
     }
-    logmsg(rc, log_data_err, "Stale manifest %s", uri->s);
     log_validation_status(rc, uri, stale_manifest);
   }
 
@@ -2938,8 +2863,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 		    sk_X509_value(certs, sk_X509_num(certs) - 1),
 		    fah->hash->data, fah->hash->length);
   } else if (rc->require_crl_in_manifest) {
-    reject(rc, uri, crl_not_in_manifest,
-	   "because CRL %s missing from manifest", certinfo.crldp.s);
+    log_validation_status(rc, uri, crl_not_in_manifest);
     goto done;
   } else {
     logmsg(rc, log_data_err, "Manifest %s is missing entry for CRL %s", uri->s, certinfo.crldp.s);
@@ -2950,7 +2874,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   }
 
   if (!crl) {
-    reject(rc, uri, manifest_bad_crl, "due to bad manifest CRL %s", certinfo.crldp.s);
+    log_validation_status(rc, uri, manifest_bad_crl);
     goto done;
   }
 
@@ -2980,7 +2904,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     /*
      * Redundant error message?
      */
-    reject(rc, uri, manifest_invalid_ee, "because manifest EE certificate is invalid");
+    log_validation_status(rc, uri, manifest_invalid_ee);
     goto done;
   }
 
@@ -3132,9 +3056,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     goto error;
 
   if (hashlen > sizeof(hashbuf.h)) {
-    reject(rc, uri, hash_too_long,
-	   "because supplied hash is too long (%lu, our max is %lu)",
-	   (unsigned long) hashlen, (unsigned long) sizeof(hashbuf.h));
+    log_validation_status(rc, uri, hash_too_long);
     goto error;
   }
 
@@ -3147,16 +3069,14 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     goto error;
 
   if (hash && memcmp(hashbuf.h, hash, hashlen)) {
-    reject(rc, uri, roa_digest_mismatch,
-	   "because ROA does not match manifest digest");
+    log_validation_status(rc, uri, roa_digest_mismatch);
     goto error;
   }
 
   if (!(eContentType = CMS_get0_eContentType(cms)) ||
       oid_cmp(eContentType, id_ct_routeOriginAttestation,
 	      sizeof(id_ct_routeOriginAttestation))) {
-    reject(rc, uri, roa_bad_econtenttype,
-	   "because ROA has bad eContentType");
+    log_validation_status(rc, uri, roa_bad_econtenttype);
     goto error;
   }
 
@@ -3166,27 +3086,24 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   }
 
   if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    reject(rc, uri, roa_invalid_cms, "because ROA CMS failed validation");
+    log_validation_status(rc, uri, roa_invalid_cms);
     goto error;
   }
 
   if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1) {
-    reject(rc, uri, roa_missing_signer,
-	   "because couldn't extract CMS signer from ROA");
+    log_validation_status(rc, uri, roa_missing_signer);
     goto error;
   }
 
   parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri);
 
   if (!(roa = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, NULL))) {
-    reject(rc, uri, roa_decode_error, "because could not decode ROA");
+    log_validation_status(rc, uri, roa_decode_error);
     goto error;
   }
 
   if (roa->version) {
-    reject(rc, uri, roa_wrong_version,
-	   "because ROA version should be defaulted zero, not %ld",
-	   ASN1_INTEGER_get(roa->version));
+    log_validation_status(rc, uri, roa_wrong_version);
     goto error;
   }
 
@@ -3207,9 +3124,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   for (i = 0; i < sk_ROAIPAddressFamily_num(roa->ipAddrBlocks); i++) {
     rf = sk_ROAIPAddressFamily_value(roa->ipAddrBlocks, i);
     if (!rf || !rf->addressFamily || rf->addressFamily->length < 2 || rf->addressFamily->length > 3) {
-      reject(rc, uri, malformed_roa_addressfamily,
-	     "because ROA addressFamily length should be 2 or 3, not %lu",
-	     (unsigned long) rf->addressFamily->length);
+      log_validation_status(rc, uri, malformed_roa_addressfamily);
       goto error;
     }
     afi = (rf->addressFamily->data[0] << 8) | (rf->addressFamily->data[1]);
@@ -3220,8 +3135,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
       if (!ra ||
 	  !extract_roa_prefix(addrbuf, &prefixlen, ra->IPAddress, afi) ||
 	  !v3_addr_add_prefix(roa_resources, afi, safi, addrbuf, prefixlen)) {
-	reject(rc, uri, roa_resources_malformed,
-	       "because ROA resources appear malformed");
+	log_validation_status(rc, uri, roa_resources_malformed);
 	goto error;
       }
     }
@@ -3241,8 +3155,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     IPAddressFamily *f = sk_IPAddressFamily_value(roa_resources, i);
 
     if ((afi = v3_addr_get_afi(f)) == 0) {
-      reject(rc, uri, roa_bad_afi,
-	     "because found bad AFI while extracting data from ROA");
+      log_validation_status(rc, uri, roa_bad_afi);
       goto error;
     }
 
@@ -3260,7 +3173,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
 
 	if ((length = v3_addr_get_range(a, afi, a_min, a_max, ADDR_RAW_BUF_LEN)) == 0 ||
 	    (length = v3_addr_get_range(b, afi, b_min, b_max, ADDR_RAW_BUF_LEN)) == 0) {
-	  reject(rc, uri, roa_resources_malformed, "because ROA resources appear malformed");
+	  log_validation_status(rc, uri, roa_resources_malformed);
 	  goto error;
 	}
 
@@ -3274,18 +3187,17 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   }
 
   if (!v3_addr_canonize(roa_resources)) {
-    reject(rc, uri, roa_resources_malformed, "because ROA resources appear malformed");
+    log_validation_status(rc, uri, roa_resources_malformed);
     goto error;
   }
 
   if (!v3_addr_subset(roa_resources, ee_resources)) {
-    reject(rc, uri, roa_not_nested,
-	   "because ROA's resources are not a subset of its signing EE certificate's resources");
+    log_validation_status(rc, uri, roa_not_nested);
     goto error;
   }
 
   if (!(crl = check_crl(rc, &certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1), NULL, 0))) {
-    reject(rc, uri, roa_bad_crl, "because ROA EE certificate has bad CRL %s", certinfo.crldp.s);
+    log_validation_status(rc, uri, roa_bad_crl);
     goto error;
   }
 
@@ -3315,7 +3227,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     /*
      * Redundant error message?
      */
-    reject(rc, uri, roa_invalid_ee, "because ROA EE certificate is invalid");
+    log_validation_status(rc, uri, roa_invalid_ee);
     goto error;
   }
 
@@ -3411,9 +3323,7 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
     goto error;
 
   if (hashlen > sizeof(hashbuf.h)) {
-    reject(rc, uri, hash_too_long,
-	   "because supplied hash is too long (%lu, our max is %lu)",
-	   (unsigned long) hashlen, (unsigned long) sizeof(hashbuf.h));
+    log_validation_status(rc, uri, hash_too_long);
     goto error;
   }
 
@@ -3426,16 +3336,14 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
     goto error;
 
   if (hash && memcmp(hashbuf.h, hash, hashlen)) {
-    reject(rc, uri, ghostbuster_digest_mismatch,
-	   "because Ghostbuster record does not match manifest digest");
+    log_validation_status(rc, uri, ghostbuster_digest_mismatch);
     goto error;
   }
 
   if (!(eContentType = CMS_get0_eContentType(cms)) ||
       oid_cmp(eContentType, id_ct_rpkiGhostbusters,
 	      sizeof(id_ct_rpkiGhostbusters))) {
-    reject(rc, uri, ghostbuster_bad_econtenttype,
-	   "because Ghostbuster record has bad eContentType");
+    log_validation_status(rc, uri, ghostbuster_bad_econtenttype);
     goto error;
   }
 
@@ -3451,13 +3359,12 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
 #endif
 
   if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    reject(rc, uri, ghostbuster_invalid_cms, "because Ghostbuster record CMS failed validation");
+    log_validation_status(rc, uri, ghostbuster_invalid_cms);
     goto error;
   }
 
   if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1) {
-    reject(rc, uri, ghostbuster_missing_signer,
-	   "because couldn't extract CMS signer from Ghostbuster record");
+    log_validation_status(rc, uri, ghostbuster_missing_signer);
     goto error;
   }
 
@@ -3471,7 +3378,7 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
 #endif
 
   if (!(crl = check_crl(rc, &certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1), NULL, 0))) {
-    reject(rc, uri, ghostbuster_bad_crl, "because Ghostbuster record EE certificate has bad CRL %s", certinfo.crldp.s);
+    log_validation_status(rc, uri, ghostbuster_bad_crl);
     goto error;
   }
 
@@ -3498,10 +3405,7 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
   X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
 
   if (X509_verify_cert(&rctx.ctx) <= 0) {
-    /*
-     * Redundant error message?
-     */
-    reject(rc, uri, ghostbuster_invalid_ee, "because Ghostbuster EE certificate is invalid");
+    log_validation_status(rc, uri, ghostbuster_invalid_ee);
     goto error;
   }
 
@@ -3597,7 +3501,7 @@ static void rsync_sia_callback(const rcynic_ctx_t *rc,
     return;
 
   case rsync_status_failed:
-    logmsg(rc, log_sys_err, "rsync_tree() reported failure fetching %s, blundering onward", w->certinfo.sia.s);
+    log_validation_status(rc, uri, rsync_failed);
     /* Fall through */
 
   case rsync_status_done:

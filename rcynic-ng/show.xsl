@@ -21,14 +21,21 @@
 
   <xsl:output method="text" encoding="US-ASCII"/>
 
+  <!-- Translate rcynic XML into tab-delimited flat text -->
   <xsl:template match="/">
+
+    <!-- Write labels as two columns: <label> <tab> <text> -->
     <xsl:for-each select="rcynic-summary/labels/*">
       <xsl:value-of select="name()"/>
       <xsl:text>&#9;</xsl:text>
       <xsl:value-of select="."/>
       <xsl:text>&#10;</xsl:text>
     </xsl:for-each>
+
+    <!-- Blank line between sections -->
     <xsl:text>&#10;</xsl:text>
+
+    <!-- Write status as three colums: <timestamp> <tab> <status> <tab> <uri> -->
     <xsl:for-each select="rcynic-summary/validation_status">
       <xsl:sort order="ascending" data-type="text" select="."/>
       <xsl:value-of select="@timestamp"/>
@@ -38,6 +45,7 @@
       <xsl:value-of select="."/>
       <xsl:text>&#10;</xsl:text>
     </xsl:for-each>
+
   </xsl:template>
 
 </xsl:stylesheet>

@@ -19,6 +19,10 @@
 
 BEGIN {
   FS = "\t";
+  label[++nlabels] = "hostname";
+  head["hostname", 1] = "Repository";
+  head["hostname", 2] = "Host";
+  width["hostname"] = length(head["hostname", 1]);
 }
 
 !NF {
@@ -59,7 +63,7 @@ END {
       break;
     for (j = 1; j <= nlabels; j++) {
       if (j == 1)
-	printf "%*s", width[label[j]], head[label[j], i];
+	printf "%-*s", width[label[j]], head[label[j], i];
       else if (total[label[j]] > 0)
 	printf "   %*s", width[label[j]], head[label[j], i];
     }

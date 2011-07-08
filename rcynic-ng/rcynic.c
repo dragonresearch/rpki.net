@@ -4217,8 +4217,7 @@ int main(int argc, char *argv[])
       ok &= fprintf(f, "<?xml version=\"1.0\" ?>\n"
 		    "<rcynic-summary date=\"%s\" rcynic-version=\"%s\""
 		    " summary-version=\"%d\" reporting-hostname=\"%s\">\n"
-		    "  <labels>\n"
-		    "    <hostname>Publication Repository</hostname>\n",
+		    "  <labels>\n",
 		    tad, svn_id, XML_SUMMARY_VERSION, hostname.s) != EOF;
 
     for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)

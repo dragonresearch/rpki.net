@@ -266,6 +266,10 @@ static const struct {
   QB(trust_anchor_with_crldp,		"Trust anchor can't have CRLDP")    \
   QW(object_not_in_manifest,		"Object not in manifest")	    \
   QB(hash_too_long,			"Hash value is too long")	    \
+  QW(unknown_object_type,		"Unknown object type")		    \
+  QB(unreadable_trust_anchor,		"Unreadable trust anchor")	    \
+  QB(unreadable_trust_anchor_locator,	"Unreadable trust anchor locator")  \
+  QB(trust_anchor_key_mismatch,		"Trust anchor key mismatch")	    \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QB(mib_openssl_##x, 0)
@@ -1267,7 +1271,7 @@ static void walk_ctx_loop_init(const rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk
 
   assert(w->manifest == NULL);
   if ((w->manifest = check_manifest(rc, wsk)) == NULL)
-    logmsg(rc, log_data_err, "Couldn't get manifest %s, blundering onward", w->certinfo.manifest.s);
+    logmsg(rc, log_telemetry, "Couldn't get manifest %s, blundering onward", w->certinfo.manifest.s);
 
   assert(w->filenames == NULL);
   w->filenames = directory_filenames(rc, w->state, &w->certinfo.sia);
@@ -1935,7 +1939,7 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 	ctx->problem = rsync_problem_timed_out;
 	ctx->state = rsync_state_terminating;
 	ctx->tries = 0;
-	logmsg(rc, log_debug, "Subprocess %u is taking too long fetching %s", (unsigned) ctx->pid, ctx->uri.s);
+	logmsg(rc, log_telemetry, "Subprocess %u is taking too long fetching %s", (unsigned) ctx->pid, ctx->uri.s);
       }
       (void) kill(ctx->pid, ctx->tries++ < KILL_MAX ? SIGTERM : SIGKILL);
       ctx->deadline = now + 2;
@@ -2178,8 +2182,6 @@ static void extract_crldp_uri(const rcynic_ctx_t *rc,
   assert(crldp);
 
   if (sk_DIST_POINT_num(crldp) != 1) {
-    logmsg(rc, log_data_err, "CRLDistributionPoints sequence length is %d (should be 1) for %s",
-	   sk_DIST_POINT_num(crldp), uri->s);
     log_validation_status(rc, uri, malformed_crldp);
     return;
   }
@@ -2187,7 +2189,6 @@ static void extract_crldp_uri(const rcynic_ctx_t *rc,
   d = sk_DIST_POINT_value(crldp, 0);
 
   if (d->reasons || d->CRLissuer || !d->distpoint || d->distpoint->type != 0) {
-    logmsg(rc, log_data_err, "CRLDP does not match RPKI certificate profile for %s", uri->s);
     log_validation_status(rc, uri, malformed_crldp);
     return;
   }
@@ -2196,7 +2197,6 @@ static void extract_crldp_uri(const rcynic_ctx_t *rc,
     GENERAL_NAME *n = sk_GENERAL_NAME_value(d->distpoint->name.fullname, i);
     assert(n != NULL);
     if (n->type != GEN_URI) {
-      logmsg(rc, log_data_err, "CRLDP contains non-URI GeneralName for %s", uri->s);
       log_validation_status(rc, uri, malformed_crldp);
       return;
     }
@@ -2206,8 +2206,6 @@ static void extract_crldp_uri(const rcynic_ctx_t *rc,
       continue;
     }
     if (sizeof(result->s) <= n->d.uniformResourceIdentifier->length) {
-      logmsg(rc, log_data_err, "Skipping improbably long URI %s for %s",
-	     (char *) n->d.uniformResourceIdentifier->data, uri->s);
       log_validation_status(rc, uri, uri_too_long);
       continue;
     }
@@ -2244,8 +2242,6 @@ static void extract_access_uri(const rcynic_ctx_t *rc,
       continue;
     }
     if (sizeof(result->s) <= a->location->d.uniformResourceIdentifier->length) {
-      logmsg(rc, log_data_err, "Skipping improbably long URI %s for %s",
-	     a->location->d.uniformResourceIdentifier->data, uri->s);
       log_validation_status(rc, uri, uri_too_long);
       continue;
     }
@@ -2862,12 +2858,10 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     crl = check_crl(rc, &certinfo.crldp,
 		    sk_X509_value(certs, sk_X509_num(certs) - 1),
 		    fah->hash->data, fah->hash->length);
-  } else if (rc->require_crl_in_manifest) {
-    log_validation_status(rc, uri, crl_not_in_manifest);
-    goto done;
   } else {
-    logmsg(rc, log_data_err, "Manifest %s is missing entry for CRL %s", uri->s, certinfo.crldp.s);
     log_validation_status(rc, uri, crl_not_in_manifest);
+    if (rc->require_crl_in_manifest)
+      goto done;
     crl = check_crl(rc, &certinfo.crldp,
 		    sk_X509_value(certs, sk_X509_num(certs) - 1),
 		    NULL, 0);
@@ -3545,7 +3539,7 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
       }
       
       if (!w->certinfo.manifest.s[0]) {
-	logmsg(rc, log_data_err, "Issuer's certificate does not specify a manifest, skipping collection");
+	log_validation_status(rc, &w->certinfo.uri, manifest_missing);
 	w->state = walk_state_done;
 	continue;
       }
@@ -3576,10 +3570,8 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 	continue;			/* CRLs and manifests checked elsewhere */
       }
 
-      if (hash == NULL) {
-	logmsg(rc, log_telemetry, "Object %s present in publication directory but not in manifest", uri.s);
+      if (hash == NULL)
 	log_validation_status(rc, &uri, object_not_in_manifest);
-      }
 
       if (hash == NULL && !rc->allow_object_not_in_manifest) {
 	walk_ctx_loop_next(rc, wsk);
@@ -3606,7 +3598,7 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 	continue;
       }
 
-      logmsg(rc, log_telemetry, "Don't know how to check object %s, ignoring", uri.s);
+      log_validation_status(rc, &uri, unknown_object_type);
       walk_ctx_loop_next(rc, wsk);
       continue;
 
@@ -3974,9 +3966,36 @@ int main(int argc, char *argv[])
 	goto done;
       }
       strcpy(path1.s, val->value);
+
+      /* Construct file:// URI for logging */
+      assert(sizeof("file://") < sizeof(uri.s));
+      strcpy(uri.s, "file://");
+      if (path1.s[0] != '/') {
+	if (getcwd(uri.s + strlen(uri.s), sizeof(uri.s) - strlen(uri.s)) == NULL ||
+	    (!endswith(uri.s, "/") && strlen(uri.s) >= sizeof(uri.s) - 1))
+	  uri.s[0] = '\0';
+	else
+	  strcat(uri.s, "/");
+      }
+      if (uri.s[0] != '\0' && strlen(uri.s) + strlen(path1.s) < sizeof(uri.s))
+	strcat(uri.s, path1.s);
+      else
+	uri.s[0] = '\0';
+
       if ((x = read_cert(&path1, NULL)) == NULL) {
+	log_validation_status(&rc, &uri, unreadable_trust_anchor);
+#warning Should this really be a fatal error?
+	/*
+	 * Should trust anchors really be so special that we abort if
+	 * we hit a bad one, or are they just more data?  Treat as
+	 * just data for now.
+	 */
+#if 0
 	logmsg(&rc, log_usage_err, "Couldn't read trust anchor %s", path1.s);
 	goto done;
+#else
+	continue;
+#endif
       }
       hash = X509_subject_name_hash(x);
       for (j = 0; j < INT_MAX; j++) {
@@ -3993,19 +4012,6 @@ int main(int argc, char *argv[])
 	logmsg(&rc, log_sys_err, "Couldn't find a free name for trust anchor %s", path1.s);
 	goto done;
       }
-      assert(sizeof("file://") < sizeof(uri.s));
-      strcpy(uri.s, "file://");
-      if (path1.s[0] != '/') {
-	if (getcwd(uri.s + strlen(uri.s), sizeof(uri.s) - strlen(uri.s)) == NULL ||
-	    (!endswith(uri.s, "/") && strlen(uri.s) >= sizeof(uri.s) - 1))
-	  uri.s[0] = '\0';
-	else
-	  strcat(uri.s, "/");
-      }
-      if (uri.s[0] != '\0' && strlen(uri.s) + strlen(path1.s) < sizeof(uri.s))
-	strcat(uri.s, path1.s);
-      else
-	uri.s[0] = '\0';
     }
 
     if (!name_cmp(val->name, "trust-anchor-locator")) {
@@ -4021,15 +4027,29 @@ int main(int argc, char *argv[])
       fn = val->value;
       bio = BIO_new_file(fn, "r");
       if (!bio || BIO_gets(bio, uri.s, sizeof(uri.s)) <= 0) {
+#if 0
 	logmsg(&rc, log_usage_err, "Couldn't read trust anchor URI from %s", fn);
 	goto done;
+#else
+	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator);
+	BIO_free(bio);
+	bio = NULL;
+	continue;
+#endif
       }
       uri.s[strcspn(uri.s, " \t\r\n")] = '\0';
       bio = BIO_push(BIO_new(BIO_f_base64()), bio);
       if (!uri_to_filename(&rc, &uri, &path1, &rc.unauthenticated) ||
 	  !uri_to_filename(&rc, &uri, &path2, &rc.authenticated)) {
+#if 0
 	logmsg(&rc, log_usage_err, "Couldn't convert trust anchor URI %s to filename", uri.s);
 	goto done;
+#else
+	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator);
+	BIO_free_all(bio);
+	bio = NULL;
+	continue;
+#endif
       }
       logmsg(&rc, log_telemetry, "Processing trust anchor from URI %s", uri.s);
       rsync_file(&rc, &uri);
@@ -4041,18 +4061,26 @@ int main(int argc, char *argv[])
       BIO_free_all(bio);
       bio = NULL;
       if (!pkey) {
+#if 0
 	logmsg(&rc, log_usage_err, "Couldn't read trust anchor public key for %s from %s", uri.s, fn);
 	goto done;
+#else
+	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator);
+#endif
       }
-      if ((x = read_cert(&path1, NULL)) == NULL)
-	logmsg(&rc, log_data_err, "Couldn't read trust anchor %s", path1.s);
+      if (pkey && (x = read_cert(&path1, NULL)) == NULL)
+	log_validation_status(&rc, &uri, unreadable_trust_anchor);
       if (x && (xpkey = X509_get_pubkey(x)) == NULL)
+#if 0
 	logmsg(&rc, log_data_err, "Rejected %s because couldn't read public key from trust anchor locator", uri.s);
+#else
+	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator);
+#endif
       j = (xpkey && EVP_PKEY_cmp(pkey, xpkey) == 1);
       EVP_PKEY_free(pkey);
       EVP_PKEY_free(xpkey);
       if (!j) {
-	logmsg(&rc, log_data_err, "Rejected %s because known public key didn't match trust anchor locator", uri.s);
+	log_validation_status(&rc, &uri, trust_anchor_key_mismatch);
 	X509_free(x);
 	continue;
       }

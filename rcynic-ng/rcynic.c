@@ -3984,18 +3984,7 @@ int main(int argc, char *argv[])
 
       if ((x = read_cert(&path1, NULL)) == NULL) {
 	log_validation_status(&rc, &uri, unreadable_trust_anchor);
-#warning Should this really be a fatal error?
-	/*
-	 * Should trust anchors really be so special that we abort if
-	 * we hit a bad one, or are they just more data?  Treat as
-	 * just data for now.
-	 */
-#if 0
-	logmsg(&rc, log_usage_err, "Couldn't read trust anchor %s", path1.s);
-	goto done;
-#else
 	continue;
-#endif
       }
       hash = X509_subject_name_hash(x);
       for (j = 0; j < INT_MAX; j++) {
@@ -4027,29 +4016,19 @@ int main(int argc, char *argv[])
       fn = val->value;
       bio = BIO_new_file(fn, "r");
       if (!bio || BIO_gets(bio, uri.s, sizeof(uri.s)) <= 0) {
-#if 0
-	logmsg(&rc, log_usage_err, "Couldn't read trust anchor URI from %s", fn);
-	goto done;
-#else
 	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator);
 	BIO_free(bio);
 	bio = NULL;
 	continue;
-#endif
       }
       uri.s[strcspn(uri.s, " \t\r\n")] = '\0';
       bio = BIO_push(BIO_new(BIO_f_base64()), bio);
       if (!uri_to_filename(&rc, &uri, &path1, &rc.unauthenticated) ||
 	  !uri_to_filename(&rc, &uri, &path2, &rc.authenticated)) {
-#if 0
-	logmsg(&rc, log_usage_err, "Couldn't convert trust anchor URI %s to filename", uri.s);
-	goto done;
-#else
 	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator);
 	BIO_free_all(bio);
 	bio = NULL;
 	continue;
-#endif
       }
       logmsg(&rc, log_telemetry, "Processing trust anchor from URI %s", uri.s);
       rsync_file(&rc, &uri);
@@ -4061,21 +4040,12 @@ int main(int argc, char *argv[])
       BIO_free_all(bio);
       bio = NULL;
       if (!pkey) {
-#if 0
-	logmsg(&rc, log_usage_err, "Couldn't read trust anchor public key for %s from %s", uri.s, fn);
-	goto done;
-#else
 	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator);
-#endif
       }
       if (pkey && (x = read_cert(&path1, NULL)) == NULL)
 	log_validation_status(&rc, &uri, unreadable_trust_anchor);
       if (x && (xpkey = X509_get_pubkey(x)) == NULL)
-#if 0
-	logmsg(&rc, log_data_err, "Rejected %s because couldn't read public key from trust anchor locator", uri.s);
-#else
 	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator);
-#endif
       j = (xpkey && EVP_PKEY_cmp(pkey, xpkey) == 1);
       EVP_PKEY_free(pkey);
       EVP_PKEY_free(xpkey);

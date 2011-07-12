@@ -3673,7 +3673,7 @@ int main(int argc, char *argv[])
   else
     rc.jane++;
 
-  rc.log_level = log_telemetry;
+  rc.log_level = log_data_err;
   rc.allow_stale_crl = 1;
   rc.allow_stale_manifest = 1;
 

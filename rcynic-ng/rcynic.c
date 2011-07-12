@@ -1429,6 +1429,8 @@ static void walk_ctx_stack_free(STACK_OF(walk_ctx_t) *wsk)
 
 
 
+static int rsync_count_running(const rcynic_ctx_t *);
+
 /**
  * Add a task to the task queue.
  */
@@ -1439,6 +1441,8 @@ static int task_add(const rcynic_ctx_t *rc,
   task_t *t = malloc(sizeof(*t));
 
   assert(rc && rc->task_queue && handler);
+
+  assert(rsync_count_running(rc) <= rc->max_parallel_fetches);
 
   if (!t)
     return 0;
@@ -1507,9 +1511,15 @@ static int rsync_count_running(const rcynic_ctx_t *rc)
 
   assert(rc && rc->rsync_queue);
 
-  for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i)
-    if (ctx->state == rsync_state_running)
+  for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i) {
+    switch (ctx->state) {
+    case rsync_state_running:
+    case rsync_state_terminating:
       n++;
+    default:
+      continue;
+    }
+  }
 
   return n;
 }
@@ -1577,6 +1587,8 @@ static void rsync_run(const rcynic_ctx_t *rc,
   pipe_fds[0] = pipe_fds[1] = -1;
 
   assert(rc && ctx && ctx->state != rsync_state_running && rsync_runable(rc, ctx));
+
+  assert(rsync_count_running(rc) < rc->max_parallel_fetches);
 
   logmsg(rc, log_telemetry, "Fetching %s", ctx->uri.s);
 
@@ -1670,8 +1682,8 @@ static void rsync_run(const rcynic_ctx_t *rc,
     ctx->problem = rsync_problem_none;
     if (rc->rsync_timeout)
       ctx->deadline = time(0) + rc->rsync_timeout;
-    logmsg(rc, log_debug, "Subprocess %u started, current subprocess count %d, URI %s",
-	   (unsigned) ctx->pid, sk_rsync_ctx_t_num(rc->rsync_queue), ctx->uri.s);
+    logmsg(rc, log_debug, "Subprocess %u started, queued %d, runable %d, running %d, max %d, URI %s",
+	   (unsigned) ctx->pid, sk_rsync_ctx_t_num(rc->rsync_queue), rsync_count_runable(rc), rsync_count_running(rc), rc->max_parallel_fetches, ctx->uri.s);
     if (ctx->handler)
       ctx->handler(rc, ctx, rsync_status_pending, &ctx->uri, ctx->wsk);
     return;
@@ -1781,6 +1793,8 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
   char *s;
 
   assert(rc && rc->rsync_queue);
+
+  assert(rsync_count_running(rc) <= rc->max_parallel_fetches);
 
   /*
    * Check for log text from subprocesses.
@@ -1916,6 +1930,8 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
   if (pid == -1 && errno != EINTR && errno != ECHILD)
     logmsg(rc, log_sys_err, "waitpid() returned error: %s", strerror(errno));
 
+  assert(rsync_count_running(rc) <= rc->max_parallel_fetches);
+
   /*
    * Look for rsync contexts that have become runable.
    */
@@ -1927,6 +1943,8 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
       }
     }
   }
+
+  assert(rsync_count_running(rc) <= rc->max_parallel_fetches);
 
   /*
    * Deal with children that have been running too long.
@@ -1987,8 +2005,10 @@ static void rsync_init(const rcynic_ctx_t *rc,
     return;
   }
 
-  if (rsync_runable(rc, ctx))
+#if 0
+  if (rsync_runable(rc, ctx) && rsync_count_running(rc) < rc->max_parallel_fetches);
     rsync_run(rc, ctx);
+#endif
 }
 
 /**
@@ -3485,6 +3505,8 @@ static void rsync_sia_callback(const rcynic_ctx_t *rc,
     if (rsync_count_runable(rc) >= rc->max_parallel_fetches)
       return;
 
+    assert(rsync_count_running(rc) < rc->max_parallel_fetches);
+
     if ((wsk = walk_ctx_stack_clone(wsk)) == NULL) {
       logmsg(rc, log_sys_err, "walk_ctx_stack_clone() failed, probably memory exhaustion, blundering onwards without forking stack");
       return;
@@ -3676,6 +3698,7 @@ int main(int argc, char *argv[])
   rc.log_level = log_data_err;
   rc.allow_stale_crl = 1;
   rc.allow_stale_manifest = 1;
+  rc.max_parallel_fetches = 1;
 
 #define QQ(x,y)   rc.priority[x] = y;
   LOG_LEVELS;

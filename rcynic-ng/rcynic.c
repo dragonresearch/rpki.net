@@ -270,6 +270,7 @@ static const struct {
   QB(unreadable_trust_anchor,		"Unreadable trust anchor")	    \
   QB(unreadable_trust_anchor_locator,	"Unreadable trust anchor locator")  \
   QB(trust_anchor_key_mismatch,		"Trust anchor key mismatch")	    \
+  QB(certificate_failed_validation,	"Certificate failed validation")    \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QB(mib_openssl_##x, 0)
@@ -457,7 +458,7 @@ struct rcynic_ctx {
   int use_syslog, allow_stale_crl, allow_stale_manifest, use_links;
   int require_crl_in_manifest, rsync_timeout, priority[LOG_LEVEL_T_MAX];
   int allow_non_self_signed_trust_anchor, allow_object_not_in_manifest;
-  int max_parallel_fetches;
+  int max_parallel_fetches, max_retries, retry_wait_min;
   log_level_t log_level;
   X509_STORE *x509_store;
 };
@@ -879,24 +880,26 @@ static void log_validation_status(const rcynic_ctx_t *rc,
 				   sk_validation_status_t_find(rc->validation_status,
 							       (const validation_status_t *) uri));
   if (v == NULL) {
-
     if ((v = validation_status_t_new()) == NULL) {
       logmsg(rc, log_sys_err, "Couldn't allocate validation status entry for %s", uri->s);
       return;
     }
-
     v->uri = *uri;
-
     if (!sk_validation_status_t_push(rc->validation_status, v)) {
       logmsg(rc, log_sys_err, "Couldn't store validation status entry for %s", uri->s);
       free(v);
       return;
     }
-
   }
 
   v->timestamp = time(0);
   validation_status_set_code(v, code, 1);
+
+  logmsg(rc, log_verbose, "Recording %s for %s",
+	 (mib_counter_desc[code]
+	  ? mib_counter_desc[code]
+	  : X509_verify_cert_error_string(mib_counter_openssl[code])),
+	 uri->s);
 }
 
 /**
@@ -1884,15 +1887,11 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
        * exceeded its connection limit.  Back off for a short
        * interval, then retry.
        */
-
-#warning Parameters here should come from config file
-#warning Need some kind of maximum retry count here too
-
-      if (ctx->problem == rsync_problem_refused) {
+      if (ctx->problem == rsync_problem_refused && ctx->tries < rc->max_retries) {
 	unsigned char r;
 	if (!RAND_bytes(&r, sizeof(r)))
 	  r = 60;
-	ctx->deadline = time(0) + 30 + r;
+	ctx->deadline = time(0) + rc->retry_wait_min + r;
 	ctx->state = rsync_state_retry_wait;
 	ctx->problem = rsync_problem_none;
 	ctx->pid = 0;
@@ -2633,11 +2632,12 @@ static int check_x509(const rcynic_ctx_t *rc,
 
   X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
 
- if (X509_verify_cert(&rctx.ctx) <= 0)
-#warning Maybe we need a log_validation_status() call or something here
-   goto done;
+  if (X509_verify_cert(&rctx.ctx) <= 0) {
+    log_validation_status(rc, &subject->uri, certificate_failed_validation);
+    goto done;
+  }
 
- ret = 1;
+  ret = 1;
 
  done:
   sk_X509_CRL_pop_free(crls, X509_CRL_free);
@@ -3699,6 +3699,8 @@ int main(int argc, char *argv[])
   rc.allow_stale_crl = 1;
   rc.allow_stale_manifest = 1;
   rc.max_parallel_fetches = 1;
+  rc.max_retries = 3;
+  rc.retry_wait_min = 30;
 
 #define QQ(x,y)   rc.priority[x] = y;
   LOG_LEVELS;
@@ -4055,9 +4057,8 @@ int main(int argc, char *argv[])
       }
       logmsg(&rc, log_telemetry, "Processing trust anchor from URI %s", uri.s);
       rsync_file(&rc, &uri);
-	while (sk_rsync_ctx_t_num(rc.rsync_queue) > 0)
-	  rsync_mgr(&rc);
-#warning Should have handler to whine about rsync failure fetching trust anchor
+      while (sk_rsync_ctx_t_num(rc.rsync_queue) > 0)
+	rsync_mgr(&rc);
       if (bio)
 	pkey = d2i_PUBKEY_bio(bio, NULL);
       BIO_free_all(bio);

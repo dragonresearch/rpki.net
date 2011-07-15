@@ -323,8 +323,7 @@ static const long mib_counter_openssl[] = { MIB_COUNTERS 0 };
 #define OBJECT_GENERATIONS \
   QQ(null)	\
   QQ(current)	\
-  QQ(backup)	\
-  QQ(unknown)
+  QQ(backup)
 
 #define	QQ(x)	object_generation_##x ,
 typedef enum object_generation { OBJECT_GENERATIONS OBJECT_GENERATION_MAX } object_generation_t;
@@ -2753,7 +2752,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
   mib_counter_t accept_code, reject_code;
-  object_generation_t generation = object_generation_unknown;
+  object_generation_t generation;
   const certinfo_t *issuer = NULL;
   STACK_OF(X509) *certs = NULL;
   const path_t *prefix = NULL;
@@ -3604,7 +3603,7 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
       generation = object_generation_backup;
       break;
     default:
-      generation = object_generation_unknown;
+      generation = object_generation_null;
       break;
     }
 
@@ -3718,6 +3717,35 @@ static void check_ta(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
     task_run_q(rc);
     rsync_mgr(rc);
   }
+}
+
+
+
+/**
+ * Read a trust anchor from disk and compare with known public key.
+ * NB: EVP_PKEY_cmp() returns 1 for match, not 0 like every other
+ * xyz_cmp() function in the entire OpenSSL library.  Go figure.
+ */
+static X509 *read_ta(const rcynic_ctx_t *rc, const uri_t *uri, const path_t *path, const EVP_PKEY *pkey, object_generation_t generation)
+
+{
+  EVP_PKEY *xpkey = NULL;
+  X509 *x = NULL;
+  int match = 0;
+
+  if ((x = read_cert(path, NULL)) == NULL || (xpkey = X509_get_pubkey(x)) == NULL) {
+    log_validation_status(rc, uri, unreadable_trust_anchor, generation);
+  } else {
+    match = EVP_PKEY_cmp(pkey, xpkey) == 1;
+    if (!match)
+      log_validation_status(rc, uri, trust_anchor_key_mismatch, generation);
+  }
+
+  EVP_PKEY_free(xpkey);
+  if (match)
+    return x;
+  X509_free(x);
+  return NULL;
 }
 
 
@@ -4020,6 +4048,7 @@ int main(int argc, char *argv[])
 
   for (i = 0; i < sk_CONF_VALUE_num(cfg_section); i++) {
     CONF_VALUE *val = sk_CONF_VALUE_value(cfg_section, i);
+    object_generation_t generation = object_generation_null;
     path_t path1, path2;
     certinfo_t ta_certinfo;
     uri_t uri;
@@ -4065,7 +4094,7 @@ int main(int argc, char *argv[])
 	uri.s[0] = '\0';
 
       if ((x = read_cert(&path1, NULL)) == NULL) {
-	log_validation_status(&rc, &uri, unreadable_trust_anchor, object_generation_unknown);
+	log_validation_status(&rc, &uri, unreadable_trust_anchor, generation);
 	continue;
       }
       hash = X509_subject_name_hash(x);
@@ -4088,17 +4117,15 @@ int main(int argc, char *argv[])
     if (!name_cmp(val->name, "trust-anchor-locator")) {
       /*
        * Trust anchor locator (URI + public key) method.
-       *
-       * NB: EVP_PKEY_cmp() returns 1 for match, not 0 like every
-       *     other xyz_cmp() function in the entire OpenSSL library.
-       *     Go figure.
        */
-      EVP_PKEY *pkey = NULL, *xpkey = NULL;
+      EVP_PKEY *pkey = NULL;
       char *fn;
+      path_t path3;
+
       fn = val->value;
       bio = BIO_new_file(fn, "r");
       if (!bio || BIO_gets(bio, uri.s, sizeof(uri.s)) <= 0) {
-	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_unknown);
+	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_null);
 	BIO_free(bio);
 	bio = NULL;
 	continue;
@@ -4106,8 +4133,9 @@ int main(int argc, char *argv[])
       uri.s[strcspn(uri.s, " \t\r\n")] = '\0';
       bio = BIO_push(BIO_new(BIO_f_base64()), bio);
       if (!uri_to_filename(&rc, &uri, &path1, &rc.unauthenticated) ||
-	  !uri_to_filename(&rc, &uri, &path2, &rc.authenticated)) {
-	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_unknown);
+	  !uri_to_filename(&rc, &uri, &path2, &rc.authenticated) ||
+	  !uri_to_filename(&rc, &uri, &path3, &rc.old_authenticated)) {
+	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_null);
 	BIO_free_all(bio);
 	bio = NULL;
 	continue;
@@ -4121,20 +4149,18 @@ int main(int argc, char *argv[])
       BIO_free_all(bio);
       bio = NULL;
       if (!pkey) {
-	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_unknown);
-      }
-      if (pkey && (x = read_cert(&path1, NULL)) == NULL)
-	log_validation_status(&rc, &uri, unreadable_trust_anchor, object_generation_unknown);
-      if (x && (xpkey = X509_get_pubkey(x)) == NULL)
-	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_unknown);
-      j = (xpkey && EVP_PKEY_cmp(pkey, xpkey) == 1);
-      EVP_PKEY_free(pkey);
-      EVP_PKEY_free(xpkey);
-      if (!j) {
-	log_validation_status(&rc, &uri, trust_anchor_key_mismatch, object_generation_unknown);
-	X509_free(x);
+	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_null);
 	continue;
       }
+      generation = object_generation_current;
+      if ((x = read_ta(&rc, &uri, &path1, pkey, generation)) == NULL) {
+	generation = object_generation_backup;
+	path1 = path3;
+	x = read_ta(&rc, &uri, &path1, pkey, generation);
+      }
+      EVP_PKEY_free(pkey);
+      if (!x)
+	continue;
     }
 
     if (!x)
@@ -4150,7 +4176,7 @@ int main(int argc, char *argv[])
       goto done;
     }
 
-    parse_cert(&rc, x, &ta_certinfo, &uri, object_generation_unknown);
+    parse_cert(&rc, x, &ta_certinfo, &uri, generation);
     ta_certinfo.ta = 1;
 
     if ((w = walk_ctx_stack_push(wsk, x, &ta_certinfo)) == NULL) {

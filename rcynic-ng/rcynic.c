@@ -313,6 +313,28 @@ static const long mib_counter_openssl[] = { MIB_COUNTERS 0 };
 #undef	QQ
 
 /**
+ * Object sources.  We always try to get fresh copies of objects using
+ * rsync, but if that fails we try using backup copies from what
+ * worked the last time we were run.  This means that a URI
+ * potentially represents two different objects, so we need to
+ * distinguish them for tracking purposes in our validation log.
+ */
+
+#define OBJECT_GENERATIONS \
+  QQ(null)	\
+  QQ(current)	\
+  QQ(backup)	\
+  QQ(unknown)
+
+#define	QQ(x)	object_generation_##x ,
+typedef enum object_generation { OBJECT_GENERATIONS OBJECT_GENERATION_MAX } object_generation_t;
+#undef	QQ
+
+#define	QQ(x)	#x ,
+static const char * const object_generation_label[] = { OBJECT_GENERATIONS NULL };
+#undef	QQ
+
+/**
  * Type-safe string wrapper for URIs.
  */
 typedef struct { char s[URI_MAX]; } uri_t;
@@ -338,6 +360,7 @@ typedef struct { unsigned char h[EVP_MAX_MD_SIZE]; } hashbuf_t;
  */
 typedef struct validation_status {
   uri_t uri;
+  object_generation_t generation;
   time_t timestamp;
   unsigned char events[(MIB_COUNTER_T_MAX + 7) / 8];
 } validation_status_t;
@@ -349,6 +372,7 @@ DECLARE_STACK_OF(validation_status_t)
  */
 typedef struct certinfo {
   int ca, ta;
+  object_generation_t generation;
   uri_t uri, sia, aia, crldp, manifest;
 } certinfo_t;
 
@@ -864,27 +888,27 @@ static void validation_status_set_code(validation_status_t *v,
  */
 static void log_validation_status(const rcynic_ctx_t *rc,
 				  const uri_t *uri,
-				  const mib_counter_t code)
+				  const mib_counter_t code,
+				  const object_generation_t generation)
 {
-  validation_status_t *v = NULL;
+  validation_status_t v_, *v = NULL;
 
-  assert(rc && uri && code < MIB_COUNTER_T_MAX);
+  assert(rc && uri && code < MIB_COUNTER_T_MAX && generation < OBJECT_GENERATION_MAX);
 
   if (!rc->validation_status)
     return;
 
-  /*
-   * Cast here works because uri is first field in validation_status_t.
-   */
-  v = sk_validation_status_t_value(rc->validation_status, 
-				   sk_validation_status_t_find(rc->validation_status,
-							       (const validation_status_t *) uri));
+  memset(&v_, 0, sizeof(v_));
+  v_.uri = *uri;
+  v_.generation = generation;
+
+  v = sk_validation_status_t_value(rc->validation_status, sk_validation_status_t_find(rc->validation_status, &v_));
   if (v == NULL) {
     if ((v = validation_status_t_new()) == NULL) {
       logmsg(rc, log_sys_err, "Couldn't allocate validation status entry for %s", uri->s);
       return;
     }
-    v->uri = *uri;
+    *v = v_;
     if (!sk_validation_status_t_push(rc->validation_status, v)) {
       logmsg(rc, log_sys_err, "Couldn't store validation status entry for %s", uri->s);
       free(v);
@@ -895,10 +919,12 @@ static void log_validation_status(const rcynic_ctx_t *rc,
   v->timestamp = time(0);
   validation_status_set_code(v, code, 1);
 
-  logmsg(rc, log_verbose, "Recording %s for %s",
+  logmsg(rc, log_verbose, "Recording \"%s\" for %s%s%s",
 	 (mib_counter_desc[code]
 	  ? mib_counter_desc[code]
 	  : X509_verify_cert_error_string(mib_counter_openssl[code])),
+	 (generation != object_generation_null ? object_generation_label[generation] : ""),
+	 (generation != object_generation_null ? " " : ""),
 	 uri->s);
 }
 
@@ -907,7 +933,13 @@ static void log_validation_status(const rcynic_ctx_t *rc,
  */
 static int validation_status_cmp(const validation_status_t * const *a, const validation_status_t * const *b)
 {
-  return strcmp((*a)->uri.s, (*b)->uri.s);
+  int cmp = strcmp((*a)->uri.s, (*b)->uri.s);
+  if (cmp)
+    return cmp;
+  cmp = (int) ((*a)->generation) - (int) ((*b)->generation);
+  if (cmp)
+    return cmp;
+  return 0;
 }
 
 /**
@@ -971,7 +1003,8 @@ static int cp_ln(const rcynic_ctx_t *rc, const path_t *source, const path_t *tar
 static int install_object(const rcynic_ctx_t *rc,
 			  const uri_t *uri,
 			  const path_t *source,
-			  const mib_counter_t code)
+			  const mib_counter_t code,
+			  const object_generation_t generation)
 {
   path_t target;
 
@@ -987,8 +1020,7 @@ static int install_object(const rcynic_ctx_t *rc,
 
   if (!cp_ln(rc, source, &target))
     return 0;
-  log_validation_status(rc, uri, code);
-  logmsg(rc, log_telemetry, "Accepted     %s", uri->s);
+  log_validation_status(rc, uri, code, generation);
   return 1;
 }
 
@@ -1877,8 +1909,7 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
     switch (WEXITSTATUS(pid_status)) {
 
     case 0:
-      logmsg(rc, log_debug, "Successfully fetched %s", ctx->uri.s);
-      log_validation_status(rc, &ctx->uri, rsync_succeeded);
+      log_validation_status(rc, &ctx->uri, rsync_succeeded, object_generation_null);
       break;
 
     case 5:
@@ -1908,7 +1939,8 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
       log_validation_status(rc, &ctx->uri,
 			    (rc->rsync_timeout && now >= ctx->deadline
 			     ? rsync_timed_out
-			     : rsync_failed));
+			     : rsync_failed),
+			    object_generation_null);
       break;
     }
 
@@ -2192,6 +2224,7 @@ static CMS_ContentInfo *read_cms(const path_t *filename, hashbuf_t *hash)
  */
 static void extract_crldp_uri(const rcynic_ctx_t *rc,
 			      const uri_t *uri,
+			      const object_generation_t generation,
 			      const STACK_OF(DIST_POINT) *crldp,
 			      uri_t *result)
 {
@@ -2201,14 +2234,14 @@ static void extract_crldp_uri(const rcynic_ctx_t *rc,
   assert(crldp);
 
   if (sk_DIST_POINT_num(crldp) != 1) {
-    log_validation_status(rc, uri, malformed_crldp);
+    log_validation_status(rc, uri, malformed_crldp, generation);
     return;
   }
 
   d = sk_DIST_POINT_value(crldp, 0);
 
   if (d->reasons || d->CRLissuer || !d->distpoint || d->distpoint->type != 0) {
-    log_validation_status(rc, uri, malformed_crldp);
+    log_validation_status(rc, uri, malformed_crldp, generation);
     return;
   }
 
@@ -2216,7 +2249,7 @@ static void extract_crldp_uri(const rcynic_ctx_t *rc,
     GENERAL_NAME *n = sk_GENERAL_NAME_value(d->distpoint->name.fullname, i);
     assert(n != NULL);
     if (n->type != GEN_URI) {
-      log_validation_status(rc, uri, malformed_crldp);
+      log_validation_status(rc, uri, malformed_crldp, generation);
       return;
     }
     if (!is_rsync((char *) n->d.uniformResourceIdentifier->data)) {
@@ -2225,7 +2258,7 @@ static void extract_crldp_uri(const rcynic_ctx_t *rc,
       continue;
     }
     if (sizeof(result->s) <= n->d.uniformResourceIdentifier->length) {
-      log_validation_status(rc, uri, uri_too_long);
+      log_validation_status(rc, uri, uri_too_long, generation);
       continue;
     }
     strcpy(result->s, (char *) n->d.uniformResourceIdentifier->data);
@@ -2238,6 +2271,7 @@ static void extract_crldp_uri(const rcynic_ctx_t *rc,
  */
 static void extract_access_uri(const rcynic_ctx_t *rc,
 			       const uri_t *uri,
+			       const object_generation_t generation,
 			       const AUTHORITY_INFO_ACCESS *xia,
 			       const unsigned char *oid,
 			       const int oidlen,
@@ -2261,7 +2295,7 @@ static void extract_access_uri(const rcynic_ctx_t *rc,
       continue;
     }
     if (sizeof(result->s) <= a->location->d.uniformResourceIdentifier->length) {
-      log_validation_status(rc, uri, uri_too_long);
+      log_validation_status(rc, uri, uri_too_long, generation);
       continue;
     }
     strcpy(result->s, (char *) a->location->d.uniformResourceIdentifier->data);
@@ -2272,7 +2306,7 @@ static void extract_access_uri(const rcynic_ctx_t *rc,
 /**
  * Parse interesting stuff from a certificate.
  */
-static void parse_cert(const rcynic_ctx_t *rc, X509 *x, certinfo_t *c, const uri_t *uri)
+static void parse_cert(const rcynic_ctx_t *rc, X509 *x, certinfo_t *c, const uri_t *uri, const object_generation_t generation)
 {
   STACK_OF(DIST_POINT) *crldp;
   AUTHORITY_INFO_ACCESS *xia;
@@ -2282,20 +2316,21 @@ static void parse_cert(const rcynic_ctx_t *rc, X509 *x, certinfo_t *c, const uri
 
   c->ca = X509_check_ca(x) == 1;
   c->uri = *uri;
+  c->generation = generation;
 
   if ((xia = X509_get_ext_d2i(x, NID_info_access, NULL, NULL)) != NULL) {
-    extract_access_uri(rc, uri, xia, id_ad_caIssuers, sizeof(id_ad_caIssuers), &c->aia);
+    extract_access_uri(rc, uri, generation, xia, id_ad_caIssuers, sizeof(id_ad_caIssuers), &c->aia);
     sk_ACCESS_DESCRIPTION_pop_free(xia, ACCESS_DESCRIPTION_free);
   }
 
   if ((xia = X509_get_ext_d2i(x, NID_sinfo_access, NULL, NULL)) != NULL) {
-    extract_access_uri(rc, uri, xia, id_ad_caRepository, sizeof(id_ad_caRepository), &c->sia);
-    extract_access_uri(rc, uri, xia, id_ad_rpkiManifest, sizeof(id_ad_rpkiManifest), &c->manifest);
+    extract_access_uri(rc, uri, generation, xia, id_ad_caRepository, sizeof(id_ad_caRepository), &c->sia);
+    extract_access_uri(rc, uri, generation, xia, id_ad_rpkiManifest, sizeof(id_ad_rpkiManifest), &c->manifest);
     sk_ACCESS_DESCRIPTION_pop_free(xia, ACCESS_DESCRIPTION_free);
   }
 
   if ((crldp = X509_get_ext_d2i(x, NID_crl_distribution_points, NULL, NULL)) != NULL) {
-    extract_crldp_uri(rc, uri, crldp, &c->crldp);
+    extract_crldp_uri(rc, uri, generation, crldp, &c->crldp);
     sk_DIST_POINT_pop_free(crldp, DIST_POINT_free);
   }
 }
@@ -2312,7 +2347,8 @@ static X509_CRL *check_crl_1(const rcynic_ctx_t *rc,
 			     const path_t *prefix,
 			     X509 *issuer,
 			     const unsigned char *hash,
-			     const size_t hashlen)
+			     const size_t hashlen,
+			     const object_generation_t generation)
 {
   hashbuf_t hashbuf;
   X509_CRL *crl = NULL;
@@ -2325,7 +2361,7 @@ static X509_CRL *check_crl_1(const rcynic_ctx_t *rc,
     goto punt;
 
   if (hashlen > sizeof(hashbuf.h)) {
-    log_validation_status(rc, uri, hash_too_long);
+    log_validation_status(rc, uri, hash_too_long, generation);
     goto punt;
   }
 
@@ -2338,7 +2374,7 @@ static X509_CRL *check_crl_1(const rcynic_ctx_t *rc,
     goto punt;
 
   if (hash && memcmp(hashbuf.h, hash, hashlen)) {
-    log_validation_status(rc, uri, crl_digest_mismatch);
+    log_validation_status(rc, uri, crl_digest_mismatch, generation);
     goto punt;
   }
 
@@ -2377,19 +2413,19 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
   assert(rsync_cached_uri(rc, uri));
 
   if ((crl = check_crl_1(rc, uri, &path, &rc->unauthenticated,
-			 issuer, hash, hashlen))) {
-    install_object(rc, uri, &path, current_crl_accepted);
+			 issuer, hash, hashlen, object_generation_current))) {
+    install_object(rc, uri, &path, current_crl_accepted, object_generation_current);
     return crl;
   } else if (!access(path.s, F_OK)) {
-    log_validation_status(rc, uri, current_crl_rejected);
+    log_validation_status(rc, uri, current_crl_rejected, object_generation_current);
   }
 
   if ((crl = check_crl_1(rc, uri, &path, &rc->old_authenticated,
-			 issuer, hash, hashlen))) {
-    install_object(rc, uri, &path, backup_crl_accepted);
+			 issuer, hash, hashlen, object_generation_backup))) {
+    install_object(rc, uri, &path, backup_crl_accepted, object_generation_backup);
     return crl;
   } else if (!access(path.s, F_OK)) {
-    log_validation_status(rc, uri, backup_crl_rejected);
+    log_validation_status(rc, uri, backup_crl_rejected, object_generation_backup);
   }
 
   return NULL;
@@ -2476,8 +2512,8 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
 	logmsg(rctx->rc, log_sys_err,
 	       "Couldn't cache stale CRLDP %s, blundering onward", rctx->subject->crldp.s);
     }
-    log_validation_status(rctx->rc, &rctx->subject->crldp, stale_crl);
-    log_validation_status(rctx->rc, &rctx->subject->uri, stale_crl);
+    log_validation_status(rctx->rc, &rctx->subject->crldp, stale_crl, rctx->subject->generation);
+    log_validation_status(rctx->rc, &rctx->subject->uri, stale_crl, rctx->subject->generation);
     return ok;
 
   case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT:
@@ -2496,7 +2532,7 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
      */
     if (rctx->rc->allow_non_self_signed_trust_anchor)
       ok = 1;
-    log_validation_status(rctx->rc, &rctx->subject->uri, trust_anchor_not_self_signed);
+    log_validation_status(rctx->rc, &rctx->subject->uri, trust_anchor_not_self_signed, rctx->subject->generation);
     return ok;
 
   /*
@@ -2516,7 +2552,7 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
     break;
   }
 
-  log_validation_status(rctx->rc, &rctx->subject->uri, code);
+  log_validation_status(rctx->rc, &rctx->subject->uri, code, rctx->subject->generation);
   return ok;
 }
 
@@ -2549,68 +2585,68 @@ static int check_x509(const rcynic_ctx_t *rc,
   assert(issuer != NULL);
 
   if (subject->sia.s[0] && subject->sia.s[strlen(subject->sia.s) - 1] != '/') {
-    log_validation_status(rc, &subject->uri, malformed_sia);
+    log_validation_status(rc, &subject->uri, malformed_sia, subject->generation);
     goto done;
   }
 
   if (!subject->ta && !subject->aia.s[0]) {
-    log_validation_status(rc, &subject->uri, aia_missing);
+    log_validation_status(rc, &subject->uri, aia_missing, subject->generation);
     goto done;
   }
 
   if (!issuer_certinfo->ta && strcmp(issuer_certinfo->uri.s, subject->aia.s)) {
-    log_validation_status(rc, &subject->uri, aia_mismatch);
+    log_validation_status(rc, &subject->uri, aia_mismatch, subject->generation);
     goto done;
   }
 
   if (subject->ca && !subject->sia.s[0]) {
-    log_validation_status(rc, &subject->uri, sia_missing);
+    log_validation_status(rc, &subject->uri, sia_missing, subject->generation);
     goto done;
   }
 
   if (subject->ca && !subject->manifest.s[0]) {
-    log_validation_status(rc, &subject->uri, manifest_missing);
+    log_validation_status(rc, &subject->uri, manifest_missing, subject->generation);
     goto done;
   }
 
   if (subject->ca && !startswith(subject->manifest.s, subject->sia.s)) {
-    log_validation_status(rc, &subject->uri, manifest_mismatch);
+    log_validation_status(rc, &subject->uri, manifest_mismatch, subject->generation);
     goto done;
   }
 
   if (!check_allowed_extensions(x, !subject->ca)) {
-    log_validation_status(rc, &subject->uri, disallowed_extension);
+    log_validation_status(rc, &subject->uri, disallowed_extension, subject->generation);
     goto done;
   }
 
   if (subject->ta) {
 
     if (subject->crldp.s[0]) {
-      log_validation_status(rc, &subject->uri, trust_anchor_with_crldp);
+      log_validation_status(rc, &subject->uri, trust_anchor_with_crldp, subject->generation);
       goto done;
     }
 
   } else {
 
     if (!subject->crldp.s[0]) {
-      log_validation_status(rc, &subject->uri, crldp_missing);
+      log_validation_status(rc, &subject->uri, crldp_missing, subject->generation);
       goto done;
     }
 
     if (!subject->ca && !startswith(subject->crldp.s, issuer_certinfo->sia.s)) {
-      log_validation_status(rc, &subject->uri, crldp_mismatch);
+      log_validation_status(rc, &subject->uri, crldp_mismatch, subject->generation);
       goto done;
     }
  
     flags |= X509_V_FLAG_CRL_CHECK;
 
     if ((pkey = X509_get_pubkey(issuer)) == NULL || X509_verify(x, pkey) <= 0) {
-      log_validation_status(rc, &subject->uri, certificate_bad_signature);
+      log_validation_status(rc, &subject->uri, certificate_bad_signature, subject->generation);
       goto done;
     }
 
     if ((crl = check_crl(rc, &subject->crldp, issuer, NULL, 0)) == NULL) {
-      log_validation_status(rc, &subject->uri, certificate_bad_crl);
+      log_validation_status(rc, &subject->uri, certificate_bad_crl, subject->generation);
       goto done;
     }
 
@@ -2633,7 +2669,7 @@ static int check_x509(const rcynic_ctx_t *rc,
   X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
 
   if (X509_verify_cert(&rctx.ctx) <= 0) {
-    log_validation_status(rc, &subject->uri, certificate_failed_validation);
+    log_validation_status(rc, &subject->uri, certificate_failed_validation, subject->generation);
     goto done;
   }
 
@@ -2660,7 +2696,8 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
 			  const certinfo_t *issuer,
 			  certinfo_t *subject,
 			  const unsigned char *hash,
-			  const size_t hashlen)
+			  const size_t hashlen,
+			  object_generation_t generation)
 {
   hashbuf_t hashbuf;
   X509 *x = NULL;
@@ -2674,7 +2711,7 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
     return NULL;
 
   if (hashlen > sizeof(hashbuf.h)) {
-    log_validation_status(rc, uri, hash_too_long);
+    log_validation_status(rc, uri, hash_too_long, generation);
     goto punt;
   }
 
@@ -2689,11 +2726,11 @@ static X509 *check_cert_1(const rcynic_ctx_t *rc,
   }
 
   if (hash && memcmp(hashbuf.h, hash, hashlen)) {
-    log_validation_status(rc, uri, certificate_digest_mismatch);
+    log_validation_status(rc, uri, certificate_digest_mismatch, generation);
     goto punt;
   }
 
-  parse_cert(rc, x, subject, uri);
+  parse_cert(rc, x, subject, uri, generation);
 
   if (check_x509(rc, certs, x, subject, issuer))
     return x;
@@ -2716,6 +2753,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
   mib_counter_t accept_code, reject_code;
+  object_generation_t generation = object_generation_unknown;
   const certinfo_t *issuer = NULL;
   STACK_OF(X509) *certs = NULL;
   const path_t *prefix = NULL;
@@ -2731,11 +2769,13 @@ static X509 *check_cert(rcynic_ctx_t *rc,
     prefix = &rc->unauthenticated;
     accept_code = current_cert_accepted;
     reject_code = current_cert_rejected;
+    generation = object_generation_current;
     break;
   case walk_state_backup:
     prefix = &rc->old_authenticated;
     accept_code = backup_cert_accepted;
     reject_code = backup_cert_rejected;
+    generation = object_generation_backup;
     break;
   default:
     return NULL;
@@ -2750,7 +2790,8 @@ static X509 *check_cert(rcynic_ctx_t *rc,
       !access(path.s, R_OK)) {
     if (w->state == walk_state_backup || sk_OPENSSL_STRING_find(rc->backup_cache, uri->s) < 0)
       return NULL;
-    log_validation_status(rc, uri, current_cert_recheck);
+    assert(generation == object_generation_current);
+    log_validation_status(rc, uri, current_cert_recheck, generation);
     logmsg(rc, log_telemetry, "Rechecking %s", uri->s);
   } else {
     logmsg(rc, log_telemetry, "Checking %s", uri->s);
@@ -2759,15 +2800,15 @@ static X509 *check_cert(rcynic_ctx_t *rc,
   if ((certs = walk_ctx_stack_certs(wsk)) == NULL)
     return NULL;
 
-  if ((x = check_cert_1(rc, uri, &path, prefix, certs, issuer, subject, hash, hashlen)) != NULL) {
-    install_object(rc, uri, &path, accept_code);
+  if ((x = check_cert_1(rc, uri, &path, prefix, certs, issuer, subject, hash, hashlen, generation)) != NULL) {
+    install_object(rc, uri, &path, accept_code, generation);
     if (w->state == walk_state_current)
       sk_OPENSSL_STRING_remove(rc->backup_cache, uri->s);
     else if (!sk_OPENSSL_STRING_push_strdup(rc->backup_cache, uri->s))
       logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri->s);
       
   } else if (!access(path.s, F_OK)) {
-    log_validation_status(rc, uri, reject_code);
+    log_validation_status(rc, uri, reject_code, generation);
   }
 
   sk_X509_free(certs);
@@ -2785,7 +2826,8 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 				  const uri_t *uri,
 				  path_t *path,
 				  const path_t *prefix,
-				  STACK_OF(X509) *certs)
+				  STACK_OF(X509) *certs,
+				  const object_generation_t generation)
 {
   CMS_ContentInfo *cms = NULL;
   const ASN1_OBJECT *eContentType = NULL;
@@ -2808,7 +2850,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 
   if ((eContentType = CMS_get0_eContentType(cms)) == NULL ||
       oid_cmp(eContentType, id_ct_rpkiManifest, sizeof(id_ct_rpkiManifest))) {
-    log_validation_status(rc, uri, manifest_bad_econtenttype);
+    log_validation_status(rc, uri, manifest_bad_econtenttype, generation);
     goto done;
   }
 
@@ -2818,40 +2860,40 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   }
 
   if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    log_validation_status(rc, uri, manifest_invalid_cms);
+    log_validation_status(rc, uri, manifest_invalid_cms, generation);
     goto done;
   }
 
   if ((signers = CMS_get0_signers(cms)) == NULL || sk_X509_num(signers) != 1) {
-    log_validation_status(rc, uri, manifest_missing_signer);
+    log_validation_status(rc, uri, manifest_missing_signer, generation);
     goto done;
   }
 
-  parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri);
+  parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri, generation);
 
   if (!certinfo.crldp.s[0]) {
-    log_validation_status(rc, uri, manifest_missing_crldp);
+    log_validation_status(rc, uri, manifest_missing_crldp, generation);
     goto done;
   }
 
   if ((crl_tail = strrchr(certinfo.crldp.s, '/')) == NULL) {
-    log_validation_status(rc, uri, manifest_malformed_crldp);
+    log_validation_status(rc, uri, manifest_malformed_crldp, generation);
     goto done;
   }
   crl_tail++;
 
   if ((manifest = ASN1_item_d2i_bio(ASN1_ITEM_rptr(Manifest), bio, NULL)) == NULL) {
-    log_validation_status(rc, uri, manifest_decode_error);
+    log_validation_status(rc, uri, manifest_decode_error, generation);
     goto done;
   }
 
   if (manifest->version) {
-    log_validation_status(rc, uri, manifest_wrong_version);
+    log_validation_status(rc, uri, manifest_wrong_version, generation);
     goto done;
   }
 
   if (X509_cmp_current_time(manifest->thisUpdate) > 0) {
-    log_validation_status(rc, uri, manifest_not_yet_valid);
+    log_validation_status(rc, uri, manifest_not_yet_valid, generation);
     goto done;
   }
 
@@ -2860,10 +2902,10 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     if (!sk_OPENSSL_STRING_push_strdup(rc->stale_cache, uri->s))
       logmsg(rc, log_sys_err, "Couldn't cache stale manifest %s, blundering onward", uri->s);
     if (!rc->allow_stale_manifest) {
-      log_validation_status(rc, uri, stale_manifest);
+      log_validation_status(rc, uri, stale_manifest, generation);
       goto done;
     }
-    log_validation_status(rc, uri, stale_manifest);
+    log_validation_status(rc, uri, stale_manifest, generation);
   }
 
   if (manifest->fileHashAlg == NULL ||
@@ -2879,7 +2921,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 		    sk_X509_value(certs, sk_X509_num(certs) - 1),
 		    fah->hash->data, fah->hash->length);
   } else {
-    log_validation_status(rc, uri, crl_not_in_manifest);
+    log_validation_status(rc, uri, crl_not_in_manifest, generation);
     if (rc->require_crl_in_manifest)
       goto done;
     crl = check_crl(rc, &certinfo.crldp,
@@ -2888,7 +2930,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
   }
 
   if (!crl) {
-    log_validation_status(rc, uri, manifest_bad_crl);
+    log_validation_status(rc, uri, manifest_bad_crl, generation);
     goto done;
   }
 
@@ -2918,7 +2960,7 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     /*
      * Redundant error message?
      */
-    log_validation_status(rc, uri, manifest_invalid_ee);
+    log_validation_status(rc, uri, manifest_invalid_ee, generation);
     goto done;
   }
 
@@ -2980,18 +3022,18 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 
   if (manifest == NULL) {
     if ((manifest = check_manifest_1(rc, uri, &path,
-				     &rc->unauthenticated, certs)) != NULL)
-      install_object(rc, uri, &path, current_manifest_accepted);
+				     &rc->unauthenticated, certs, object_generation_current)) != NULL)
+      install_object(rc, uri, &path, current_manifest_accepted, object_generation_current);
     else if (!access(path.s, F_OK))
-      log_validation_status(rc, uri, current_manifest_rejected);
+      log_validation_status(rc, uri, current_manifest_rejected, object_generation_current);
   }
 
   if (manifest == NULL) {
     if ((manifest = check_manifest_1(rc, uri, &path,
-				     &rc->old_authenticated, certs)) != NULL)
-      install_object(rc, uri, &path, backup_manifest_accepted);
+				     &rc->old_authenticated, certs, object_generation_backup)) != NULL)
+      install_object(rc, uri, &path, backup_manifest_accepted, object_generation_backup);
     else if (!access(path.s, F_OK))
-      log_validation_status(rc, uri, backup_manifest_rejected);
+      log_validation_status(rc, uri, backup_manifest_rejected, object_generation_backup);
   }
 
   sk_X509_free(certs);
@@ -3045,7 +3087,8 @@ static int check_roa_1(const rcynic_ctx_t *rc,
 		       const path_t *prefix,
 		       STACK_OF(X509) *certs,
 		       const unsigned char *hash,
-		       const size_t hashlen)
+		       const size_t hashlen,
+		       const object_generation_t generation)
 {
   unsigned char addrbuf[ADDR_RAW_BUF_LEN];
   const ASN1_OBJECT *eContentType = NULL;
@@ -3070,7 +3113,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     goto error;
 
   if (hashlen > sizeof(hashbuf.h)) {
-    log_validation_status(rc, uri, hash_too_long);
+    log_validation_status(rc, uri, hash_too_long, generation);
     goto error;
   }
 
@@ -3083,14 +3126,14 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     goto error;
 
   if (hash && memcmp(hashbuf.h, hash, hashlen)) {
-    log_validation_status(rc, uri, roa_digest_mismatch);
+    log_validation_status(rc, uri, roa_digest_mismatch, generation);
     goto error;
   }
 
   if (!(eContentType = CMS_get0_eContentType(cms)) ||
       oid_cmp(eContentType, id_ct_routeOriginAttestation,
 	      sizeof(id_ct_routeOriginAttestation))) {
-    log_validation_status(rc, uri, roa_bad_econtenttype);
+    log_validation_status(rc, uri, roa_bad_econtenttype, generation);
     goto error;
   }
 
@@ -3100,24 +3143,24 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   }
 
   if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    log_validation_status(rc, uri, roa_invalid_cms);
+    log_validation_status(rc, uri, roa_invalid_cms, generation);
     goto error;
   }
 
   if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1) {
-    log_validation_status(rc, uri, roa_missing_signer);
+    log_validation_status(rc, uri, roa_missing_signer, generation);
     goto error;
   }
 
-  parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri);
+  parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri, generation);
 
   if (!(roa = ASN1_item_d2i_bio(ASN1_ITEM_rptr(ROA), bio, NULL))) {
-    log_validation_status(rc, uri, roa_decode_error);
+    log_validation_status(rc, uri, roa_decode_error, generation);
     goto error;
   }
 
   if (roa->version) {
-    log_validation_status(rc, uri, roa_wrong_version);
+    log_validation_status(rc, uri, roa_wrong_version, generation);
     goto error;
   }
 
@@ -3138,7 +3181,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   for (i = 0; i < sk_ROAIPAddressFamily_num(roa->ipAddrBlocks); i++) {
     rf = sk_ROAIPAddressFamily_value(roa->ipAddrBlocks, i);
     if (!rf || !rf->addressFamily || rf->addressFamily->length < 2 || rf->addressFamily->length > 3) {
-      log_validation_status(rc, uri, malformed_roa_addressfamily);
+      log_validation_status(rc, uri, malformed_roa_addressfamily, generation);
       goto error;
     }
     afi = (rf->addressFamily->data[0] << 8) | (rf->addressFamily->data[1]);
@@ -3149,7 +3192,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
       if (!ra ||
 	  !extract_roa_prefix(addrbuf, &prefixlen, ra->IPAddress, afi) ||
 	  !v3_addr_add_prefix(roa_resources, afi, safi, addrbuf, prefixlen)) {
-	log_validation_status(rc, uri, roa_resources_malformed);
+	log_validation_status(rc, uri, roa_resources_malformed, generation);
 	goto error;
       }
     }
@@ -3169,7 +3212,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     IPAddressFamily *f = sk_IPAddressFamily_value(roa_resources, i);
 
     if ((afi = v3_addr_get_afi(f)) == 0) {
-      log_validation_status(rc, uri, roa_bad_afi);
+      log_validation_status(rc, uri, roa_bad_afi, generation);
       goto error;
     }
 
@@ -3187,7 +3230,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
 
 	if ((length = v3_addr_get_range(a, afi, a_min, a_max, ADDR_RAW_BUF_LEN)) == 0 ||
 	    (length = v3_addr_get_range(b, afi, b_min, b_max, ADDR_RAW_BUF_LEN)) == 0) {
-	  log_validation_status(rc, uri, roa_resources_malformed);
+	  log_validation_status(rc, uri, roa_resources_malformed, generation);
 	  goto error;
 	}
 
@@ -3201,17 +3244,17 @@ static int check_roa_1(const rcynic_ctx_t *rc,
   }
 
   if (!v3_addr_canonize(roa_resources)) {
-    log_validation_status(rc, uri, roa_resources_malformed);
+    log_validation_status(rc, uri, roa_resources_malformed, generation);
     goto error;
   }
 
   if (!v3_addr_subset(roa_resources, ee_resources)) {
-    log_validation_status(rc, uri, roa_not_nested);
+    log_validation_status(rc, uri, roa_not_nested, generation);
     goto error;
   }
 
   if (!(crl = check_crl(rc, &certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1), NULL, 0))) {
-    log_validation_status(rc, uri, roa_bad_crl);
+    log_validation_status(rc, uri, roa_bad_crl, generation);
     goto error;
   }
 
@@ -3241,7 +3284,7 @@ static int check_roa_1(const rcynic_ctx_t *rc,
     /*
      * Redundant error message?
      */
-    log_validation_status(rc, uri, roa_invalid_ee);
+    log_validation_status(rc, uri, roa_invalid_ee, generation);
     goto error;
   }
 
@@ -3288,19 +3331,19 @@ static void check_roa(const rcynic_ctx_t *rc,
     return;
 
   if (check_roa_1(rc, uri, &path, &rc->unauthenticated,
-		  certs, hash, hashlen)) {
-    install_object(rc, uri, &path, current_roa_accepted);
+		  certs, hash, hashlen, object_generation_current)) {
+    install_object(rc, uri, &path, current_roa_accepted, object_generation_current);
     goto done;
   } else if (!access(path.s, F_OK)) {
-    log_validation_status(rc, uri, current_roa_rejected);
+    log_validation_status(rc, uri, current_roa_rejected, object_generation_current);
   }
 
   if (check_roa_1(rc, uri, &path, &rc->old_authenticated,
-		  certs, hash, hashlen)) {
-    install_object(rc, uri, &path, backup_roa_accepted);
+		  certs, hash, hashlen, object_generation_backup)) {
+    install_object(rc, uri, &path, backup_roa_accepted, object_generation_backup);
     goto done;
   } else if (!access(path.s, F_OK)) {
-    log_validation_status(rc, uri, backup_roa_rejected);
+    log_validation_status(rc, uri, backup_roa_rejected, object_generation_backup);
   }
 
  done:
@@ -3318,7 +3361,8 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
 			       const path_t *prefix,
 			       STACK_OF(X509) *certs,
 			       const unsigned char *hash,
-			       const size_t hashlen)
+			       const size_t hashlen,
+			       const object_generation_t generation)
 {
   const ASN1_OBJECT *eContentType = NULL;
   STACK_OF(X509_CRL) *crls = NULL;
@@ -3337,7 +3381,7 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
     goto error;
 
   if (hashlen > sizeof(hashbuf.h)) {
-    log_validation_status(rc, uri, hash_too_long);
+    log_validation_status(rc, uri, hash_too_long, generation);
     goto error;
   }
 
@@ -3350,14 +3394,14 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
     goto error;
 
   if (hash && memcmp(hashbuf.h, hash, hashlen)) {
-    log_validation_status(rc, uri, ghostbuster_digest_mismatch);
+    log_validation_status(rc, uri, ghostbuster_digest_mismatch, generation);
     goto error;
   }
 
   if (!(eContentType = CMS_get0_eContentType(cms)) ||
       oid_cmp(eContentType, id_ct_rpkiGhostbusters,
 	      sizeof(id_ct_rpkiGhostbusters))) {
-    log_validation_status(rc, uri, ghostbuster_bad_econtenttype);
+    log_validation_status(rc, uri, ghostbuster_bad_econtenttype, generation);
     goto error;
   }
 
@@ -3373,16 +3417,16 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
 #endif
 
   if (CMS_verify(cms, NULL, NULL, NULL, bio, CMS_NO_SIGNER_CERT_VERIFY) <= 0) {
-    log_validation_status(rc, uri, ghostbuster_invalid_cms);
+    log_validation_status(rc, uri, ghostbuster_invalid_cms, generation);
     goto error;
   }
 
   if (!(signers = CMS_get0_signers(cms)) || sk_X509_num(signers) != 1) {
-    log_validation_status(rc, uri, ghostbuster_missing_signer);
+    log_validation_status(rc, uri, ghostbuster_missing_signer, generation);
     goto error;
   }
 
-  parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri);
+  parse_cert(rc, sk_X509_value(signers, 0), &certinfo, uri, generation);
 
 #if 0
   /*
@@ -3392,7 +3436,7 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
 #endif
 
   if (!(crl = check_crl(rc, &certinfo.crldp, sk_X509_value(certs, sk_X509_num(certs) - 1), NULL, 0))) {
-    log_validation_status(rc, uri, ghostbuster_bad_crl);
+    log_validation_status(rc, uri, ghostbuster_bad_crl, generation);
     goto error;
   }
 
@@ -3419,7 +3463,7 @@ static int check_ghostbuster_1(const rcynic_ctx_t *rc,
   X509_VERIFY_PARAM_add0_policy(rctx.ctx.param, OBJ_txt2obj(rpki_policy_oid, 1));
 
   if (X509_verify_cert(&rctx.ctx) <= 0) {
-    log_validation_status(rc, uri, ghostbuster_invalid_ee);
+    log_validation_status(rc, uri, ghostbuster_invalid_ee, generation);
     goto error;
   }
 
@@ -3463,19 +3507,19 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
     return;
 
   if (check_ghostbuster_1(rc, uri, &path, &rc->unauthenticated,
-			  certs, hash, hashlen)) {
-    install_object(rc, uri, &path, current_ghostbuster_accepted);
+			  certs, hash, hashlen, object_generation_current)) {
+    install_object(rc, uri, &path, current_ghostbuster_accepted, object_generation_current);
     goto done;
   } else if (!access(path.s, F_OK)) {
-    log_validation_status(rc, uri, current_ghostbuster_rejected);
+    log_validation_status(rc, uri, current_ghostbuster_rejected, object_generation_current);
   }
 
   if (check_ghostbuster_1(rc, uri, &path, &rc->old_authenticated,
-			  certs, hash, hashlen)) {
-    install_object(rc, uri, &path, backup_ghostbuster_accepted);
+			  certs, hash, hashlen, object_generation_backup)) {
+    install_object(rc, uri, &path, backup_ghostbuster_accepted, object_generation_backup);
     goto done;
   } else if (!access(path.s, F_OK)) {
-    log_validation_status(rc, uri, backup_ghostbuster_rejected);
+    log_validation_status(rc, uri, backup_ghostbuster_rejected, object_generation_backup);
   }
 
  done:
@@ -3517,7 +3561,7 @@ static void rsync_sia_callback(const rcynic_ctx_t *rc,
     return;
 
   case rsync_status_failed:
-    log_validation_status(rc, uri, rsync_failed);
+    log_validation_status(rc, uri, rsync_failed, object_generation_null);
     /* Fall through */
 
   case rsync_status_done:
@@ -3543,6 +3587,7 @@ static void rsync_sia_callback(const rcynic_ctx_t *rc,
 static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 {
   const unsigned char *hash = NULL;
+  object_generation_t generation;
   size_t hashlen;
   walk_ctx_t *w;
   uri_t uri;
@@ -3550,6 +3595,18 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
   assert(rc && wsk);
 
   while ((w = walk_ctx_stack_head(wsk)) != NULL) {
+
+    switch (w->state) {
+    case walk_state_current:
+      generation = object_generation_current;
+      break;
+    case walk_state_backup:
+      generation = object_generation_backup;
+      break;
+    default:
+      generation = object_generation_unknown;
+      break;
+    }
 
     switch (w->state) {
 
@@ -3561,7 +3618,7 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
       }
       
       if (!w->certinfo.manifest.s[0]) {
-	log_validation_status(rc, &w->certinfo.uri, manifest_missing);
+	log_validation_status(rc, &w->certinfo.uri, manifest_missing, w->certinfo.generation);
 	w->state = walk_state_done;
 	continue;
       }
@@ -3593,7 +3650,7 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
       }
 
       if (hash == NULL)
-	log_validation_status(rc, &uri, object_not_in_manifest);
+	log_validation_status(rc, &uri, object_not_in_manifest, generation);
 
       if (hash == NULL && !rc->allow_object_not_in_manifest) {
 	walk_ctx_loop_next(rc, wsk);
@@ -3620,7 +3677,7 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 	continue;
       }
 
-      log_validation_status(rc, &uri, unknown_object_type);
+      log_validation_status(rc, &uri, unknown_object_type, generation);
       walk_ctx_loop_next(rc, wsk);
       continue;
 
@@ -4008,7 +4065,7 @@ int main(int argc, char *argv[])
 	uri.s[0] = '\0';
 
       if ((x = read_cert(&path1, NULL)) == NULL) {
-	log_validation_status(&rc, &uri, unreadable_trust_anchor);
+	log_validation_status(&rc, &uri, unreadable_trust_anchor, object_generation_unknown);
 	continue;
       }
       hash = X509_subject_name_hash(x);
@@ -4041,7 +4098,7 @@ int main(int argc, char *argv[])
       fn = val->value;
       bio = BIO_new_file(fn, "r");
       if (!bio || BIO_gets(bio, uri.s, sizeof(uri.s)) <= 0) {
-	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator);
+	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_unknown);
 	BIO_free(bio);
 	bio = NULL;
 	continue;
@@ -4050,7 +4107,7 @@ int main(int argc, char *argv[])
       bio = BIO_push(BIO_new(BIO_f_base64()), bio);
       if (!uri_to_filename(&rc, &uri, &path1, &rc.unauthenticated) ||
 	  !uri_to_filename(&rc, &uri, &path2, &rc.authenticated)) {
-	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator);
+	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_unknown);
 	BIO_free_all(bio);
 	bio = NULL;
 	continue;
@@ -4064,17 +4121,17 @@ int main(int argc, char *argv[])
       BIO_free_all(bio);
       bio = NULL;
       if (!pkey) {
-	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator);
+	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_unknown);
       }
       if (pkey && (x = read_cert(&path1, NULL)) == NULL)
-	log_validation_status(&rc, &uri, unreadable_trust_anchor);
+	log_validation_status(&rc, &uri, unreadable_trust_anchor, object_generation_unknown);
       if (x && (xpkey = X509_get_pubkey(x)) == NULL)
-	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator);
+	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_unknown);
       j = (xpkey && EVP_PKEY_cmp(pkey, xpkey) == 1);
       EVP_PKEY_free(pkey);
       EVP_PKEY_free(xpkey);
       if (!j) {
-	log_validation_status(&rc, &uri, trust_anchor_key_mismatch);
+	log_validation_status(&rc, &uri, trust_anchor_key_mismatch, object_generation_unknown);
 	X509_free(x);
 	continue;
       }
@@ -4093,7 +4150,7 @@ int main(int argc, char *argv[])
       goto done;
     }
 
-    parse_cert(&rc, x, &ta_certinfo, &uri);
+    parse_cert(&rc, x, &ta_certinfo, &uri, object_generation_unknown);
     ta_certinfo.ta = 1;
 
     if ((w = walk_ctx_stack_push(wsk, x, &ta_certinfo)) == NULL) {
@@ -4147,12 +4204,13 @@ int main(int argc, char *argv[])
 		    tad, svn_id, XML_SUMMARY_VERSION, hostname.s) != EOF;
 
     for (j = 0; ok && j < MIB_COUNTER_T_MAX; ++j)
-      ok &= fprintf(f, "    <%s kind=\"%s\">%s</%s>\n",
-		    mib_counter_label[j], mib_counter_kind[j],
-		    (mib_counter_desc[j]
-		     ? mib_counter_desc[j]
-		     : X509_verify_cert_error_string(mib_counter_openssl[j])),
-		    mib_counter_label[j]) != EOF;
+      if (ok)
+	ok &= fprintf(f, "    <%s kind=\"%s\">%s</%s>\n",
+		      mib_counter_label[j], mib_counter_kind[j],
+		      (mib_counter_desc[j]
+		       ? mib_counter_desc[j]
+		       : X509_verify_cert_error_string(mib_counter_openssl[j])),
+		      mib_counter_label[j]) != EOF;
 
     if (ok)
       ok &= fprintf(f, "  </labels>\n") != EOF;
@@ -4164,10 +4222,19 @@ int main(int argc, char *argv[])
       tad_tm = gmtime(&v->timestamp);
       strftime(tad, sizeof(tad), "%Y-%m-%dT%H:%M:%SZ", tad_tm);
 
-      for (code = (mib_counter_t) 0; ok && code < MIB_COUNTER_T_MAX; code++)
-	if (validation_status_get_code(v, code))
-	  ok &= fprintf(f, "  <validation_status timestamp=\"%s\" status=\"%s\">%s</validation_status>\n",
-			tad, mib_counter_label[code], v->uri.s) != EOF;
+      for (code = (mib_counter_t) 0; ok && code < MIB_COUNTER_T_MAX; code++) {
+	if (validation_status_get_code(v, code)) {
+	  if (ok)
+	    ok &= fprintf(f, "  <validation_status timestamp=\"%s\" status=\"%s\"",
+			  tad, mib_counter_label[code]) != EOF;
+	  if (ok && (v->generation == object_generation_current ||
+		     v->generation == object_generation_backup))
+	    ok &= fprintf(f, " generation=\"%s\"",
+			  object_generation_label[v->generation]) != EOF;
+	  if (ok)
+	    ok &= fprintf(f, ">%s</validation_status>\n", v->uri.s) != EOF;
+	}
+      }
     }
 
     if (ok)

@@ -78,6 +78,7 @@
 	<style type="text/css">
 		td	{ text-align: center; padding: 4px }
 		td.uri	{ text-align: left }
+		td.host { text-align: left }
 	  <xsl:if test="$use-colors != 0">
 		tr.good	{ background-color: #77ff77 }
 		tr.warn	{ background-color: yellow }
@@ -86,8 +87,6 @@
 	</style>
       </head>
       <body>
-
-
         <h1><xsl:value-of select="$title"/></h1>
 
         <!-- Summary output, old host-oriented format -->
@@ -143,31 +142,13 @@
 	    </xsl:for-each>
 	  </xsl:variable>
 
-	  <!-- Temporary hack -->
-	  <br/>
-	  <h2>[TEST] Filename extensions</h2>
-	  <table>
-	    <thead>
-	      <tr>
-		<td>Extension</td>
-	      </tr>
-	    </thead>
-	    <tbody>
-	      <xsl:for-each select="com:node-set($unique-fn2s)/x">
-		<xsl:sort order="ascending" data-type="text" select="@fn2"/>
-		<tr>
-		  <td>
-		    <xsl:value-of select="concat('&quot;', @fn2, '&quot;')"/>
-		  </td>
-		</tr>
-	      </xsl:for-each>
-	    </tbody>
-	  </table>
+	  <!-- Calculate how many columns we'll be displaying -->
+	  <xsl:variable name="columns" select="count(com:node-set($totals)/x[@show = 1])"/>
 
 	  <!-- Generate the HTML -->
 	  <br/>
 	  <h2>Summary by Repository Host</h2>
-	  <table class="summary" rules="all">
+	  <table class="summary" rules="all" border="1">
 	    <thead>
 	      <tr>
 	        <td><b>Publication Repository</b></td>
@@ -178,30 +159,40 @@
 	    </thead>
 	    <tbody>
 	      <xsl:for-each select="com:node-set($unique-hostnames)/x">
-		<xsl:sort order="ascending" data-type="text" select="."/>
+		<xsl:sort order="ascending" data-type="text" select="@hostname"/>
 		<xsl:variable name="hostname" select="@hostname"/>
-		<xsl:variable name="goodness" select="count(com:node-set($host-data)/x[@hostname = $hostname and @mood = 'good'])"/>
-		<xsl:variable name="badness"  select="count(com:node-set($host-data)/x[@hostname = $hostname and @mood = 'bad'])"/>
-		<xsl:variable name="warnings" select="count(com:node-set($host-data)/x[@hostname = $hostname and @mood = 'warn'])"/>
-		<xsl:variable name="mood">
-		  <xsl:choose>
-		    <xsl:when test="$goodness != 0 and $warnings = 0 and $badness = 0">good</xsl:when>
-		    <xsl:when test="$goodness + $warnings != 0">warn</xsl:when>
-		    <xsl:otherwise>bad</xsl:otherwise>
-		  </xsl:choose>
-		</xsl:variable>
-		<tr class="{$mood}">
-		  <td><xsl:value-of select="$hostname"/></td>
-		  <xsl:for-each select="com:node-set($totals)/x[@show = 1]">
-		    <xsl:variable name="label" select="@name"/>
-		    <xsl:variable name="value" select="count(com:node-set($host-data)/x[@hostname = $hostname and @status = $label])"/>
-		    <td>
-		      <xsl:if test="$value != 0">
-		        <xsl:value-of select="$value"/>
-		      </xsl:if>
-		      </td>
-		  </xsl:for-each>
+		<tr>
+		  <td class="host"><xsl:value-of select="$hostname"/></td>
+		  <td colspan="{$columns}"/>
 		</tr>
+		<xsl:for-each select="com:node-set($unique-fn2s)/x">
+		  <xsl:sort order="ascending" data-type="text" select="@fn2"/>
+		  <xsl:variable name="fn2" select="@fn2"/>
+		  <xsl:variable name="goodness" select="count(com:node-set($host-data)/x[@hostname = $hostname and @fn2 = $fn2 and @mood = 'good'])"/>
+		  <xsl:variable name="badness"  select="count(com:node-set($host-data)/x[@hostname = $hostname and @fn2 = $fn2 and @mood = 'bad'])"/>
+		  <xsl:variable name="warnings" select="count(com:node-set($host-data)/x[@hostname = $hostname and @fn2 = $fn2 and @mood = 'warn'])"/>
+		  <xsl:variable name="mood">
+		    <xsl:choose>
+		      <xsl:when test="$goodness != 0 and $warnings = 0 and $badness = 0">good</xsl:when>
+		      <xsl:when test="$goodness + $warnings != 0">warn</xsl:when>
+		      <xsl:otherwise>bad</xsl:otherwise>
+		    </xsl:choose>
+		  </xsl:variable>
+		  <xsl:if test="$goodness + $badness + $warnings">
+		    <tr class="{$mood}">
+		      <td><xsl:value-of select="$fn2"/></td>
+		      <xsl:for-each select="com:node-set($totals)/x[@show = 1]">
+			<xsl:variable name="label" select="@name"/>
+			<xsl:variable name="value" select="count(com:node-set($host-data)/x[@hostname = $hostname and @fn2 = $fn2 and @status = $label])"/>
+			<td>
+			  <xsl:if test="$value != 0">
+			    <xsl:value-of select="$value"/>
+			  </xsl:if>
+			  </td>
+		      </xsl:for-each>
+		    </tr>
+		  </xsl:if>
+		</xsl:for-each>
 	      </xsl:for-each>
 	      <xsl:if test="$show-total != 0">
 		<tr>
@@ -221,7 +212,7 @@
 	<xsl:if test="$show-problems != 0">
 	  <br/>
 	  <h2>Problems</h2>
-	  <table class="problems" rules="all" >
+	  <table class="problems" rules="all" border="1" >
 	    <thead>
 	      <tr>
 		<td class="status"><b>Status</b></td>
@@ -247,7 +238,7 @@
 	<xsl:if test="$show-detailed-status != 0">
 	  <br/>
 	  <h2>Validation Status</h2>
-	  <table class="details" rules="all" >
+	  <table class="details" rules="all" border="1" >
 	    <thead>
 	      <tr>
 		<td class="timestamp"><b>Timestamp</b></td>

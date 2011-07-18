@@ -185,92 +185,73 @@ static const struct {
   QV(X509_V_ERR_UNNESTED_RESOURCE)
 
 /**
- * MIB counters specific to rcynic.  "validation_ok" is not used as a
- * counter, but is used as a validation status code.
+ * MIB counters specific to rcynic.
  */
 
 #define MIB_COUNTERS							    \
-  QG(validation_ok,			"OK")				    \
-  QG(backup_cert_accepted,		"Backup certificates accepted")	    \
-  QB(backup_cert_rejected,		"Backup certificates rejected")	    \
-  QG(backup_crl_accepted,		"Backup CRLs accepted")		    \
-  QB(backup_crl_rejected,		"Backup CRLs rejected")		    \
-  QG(current_cert_accepted,		"Current certificates accepted")    \
-  QB(current_cert_rejected,		"Current certificates rejected")    \
-  QG(current_crl_accepted,		"Current CRLs accepted")	    \
-  QB(current_crl_rejected,		"Current CRLs rejected")	    \
-  QG(current_manifest_accepted,		"Current Manifests accepted")	    \
-  QB(current_manifest_rejected,		"Current Manifests rejected")	    \
-  QG(backup_manifest_accepted,		"Backup Manifests accepted")	    \
-  QB(backup_manifest_rejected,		"Backup Manifests rejected")	    \
-  QB(rsync_failed,			"rsync transfers failed")	    \
-  QG(rsync_succeeded,			"rsync transfers succeeded")	    \
-  QB(rsync_timed_out,			"rsync transfers timed out")	    \
-  QW(stale_crl,				"Stale CRLs")			    \
-  QB(malformed_sia,			"Malformed SIA extensions")	    \
-  QB(sia_missing,			"SIA extensions missing")	    \
-  QB(aia_missing,			"AIA extensions missing")	    \
-  QB(crldp_missing,			"CRLDP extensions missing")	    \
-  QB(aia_mismatch,			"Mismatched AIA extensions")	    \
-  QB(unknown_verify_error,		"Unknown OpenSSL verify error")	    \
-  QG(current_cert_recheck,		"Certificates rechecked")	    \
-  QB(manifest_invalid_ee,		"Invalid manifest certificates")    \
-  QB(manifest_invalid_cms,		"Manifest validation failures")	    \
-  QB(manifest_decode_error,		"Manifest decode errors")	    \
-  QW(stale_manifest,			"Stale manifests")		    \
-  QB(manifest_not_yet_valid,		"Manifests not yet valid")	    \
-  QB(manifest_bad_econtenttype,		"Bad manifest eContentType")	    \
-  QB(manifest_missing_signer,		"Missing manifest signers")	    \
-  QB(manifest_missing_crldp,            "Missing manifest CRLDP")	    \
-  QB(manifest_malformed_crldp,          "Malformed manifest CRLDP")	    \
-  QB(certificate_digest_mismatch,	"Certificate digest mismatches")    \
-  QB(crl_digest_mismatch,		"CRL digest mismatches")	    \
-  QB(crl_not_in_manifest,               "CRL not listed in manifest")	    \
-  QB(roa_invalid_ee,			"Invalid ROA certificates")	    \
-  QB(roa_invalid_cms,			"ROA validation failures")	    \
-  QB(roa_decode_error,			"ROA decode errors")		    \
-  QB(roa_bad_econtenttype,		"Bad ROA eContentType")		    \
-  QB(roa_missing_signer,		"Missing ROA signers")		    \
-  QB(roa_digest_mismatch,		"ROA digest mismatches")	    \
-  QG(current_roa_accepted,		"Current ROAs accepted")	    \
-  QB(current_roa_rejected,		"Current ROAs rejected")	    \
-  QG(backup_roa_accepted,		"Backup ROAs accepted")		    \
-  QB(backup_roa_rejected,		"Backup ROAs rejected")		    \
-  QB(malformed_roa_addressfamily,       "Malformed ROA addressFamilys")	    \
-  QB(manifest_wrong_version,            "Wrong manifest versions")	    \
-  QB(roa_wrong_version,			"Wrong ROA versions")		    \
-  QW(trust_anchor_not_self_signed,	"Trust anchor not self-signed")	    \
-  QB(uri_too_long,			"URI too long")			    \
-  QB(malformed_crldp,			"Malformed CRDLP extension")	    \
-  QB(certificate_bad_signature,		"Bad certificate signature")	    \
+  QB(aia_mismatch,			"Mismatched AIA extension")	    \
+  QB(aia_missing,			"AIA extension missing")	    \
   QB(certificate_bad_crl,		"Bad certificate CRL")		    \
-  QB(manifest_bad_crl,			"Manifest has bad CRL")		    \
-  QB(roa_resources_malformed,		"ROA resources malformed")	    \
-  QB(roa_bad_afi,			"ROA contains bad AFI value")	    \
-  QB(roa_not_nested,			"ROA resources not in EE")	    \
-  QB(roa_bad_crl,			"ROA EE has bad CRL")		    \
-  QB(ghostbuster_digest_mismatch,	"Ghostbuster digest mismatches")    \
-  QB(ghostbuster_bad_econtenttype,	"Bad Ghostbuster eContentType")	    \
-  QB(ghostbuster_invalid_cms,		"Ghostbuster validation failures")  \
-  QB(ghostbuster_missing_signer,	"Missing Ghostbuster signers")	    \
-  QB(ghostbuster_bad_crl,		"Ghostbuster EE has bad CRL")	    \
-  QB(ghostbuster_invalid_ee,		"Invalid Ghostbuster certificates") \
-  QG(current_ghostbuster_accepted,	"Current Ghostbusters accepted")    \
-  QB(current_ghostbuster_rejected,	"Current Ghostbusters rejected")    \
-  QG(backup_ghostbuster_accepted,	"Backup Ghostbusters accepted")	    \
-  QB(backup_ghostbuster_rejected,	"Backup Ghostbusters rejected")	    \
-  QB(disallowed_extension,		"Disallowed X.509v3 extension")     \
+  QB(certificate_bad_signature,		"Bad certificate signature")	    \
+  QB(certificate_digest_mismatch,	"Certificate digest mismatch")	    \
+  QB(certificate_failed_validation,	"Certificate failed validation")    \
+  QB(crl_digest_mismatch,		"CRL digest mismatch")		    \
+  QB(crl_not_in_manifest,               "CRL not listed in manifest")	    \
   QB(crldp_mismatch,			"CRLDP doesn't match issuer's SIA") \
-  QB(manifest_missing,			"Manifest pointer missing")	    \
-  QB(manifest_mismatch,			"Manifest doesn't match SIA")	    \
-  QB(trust_anchor_with_crldp,		"Trust anchor can't have CRLDP")    \
-  QW(object_not_in_manifest,		"Object not in manifest")	    \
+  QB(crldp_missing,			"CRLDP extension missing")	    \
+  QB(disallowed_extension,		"Disallowed X.509v3 extension")     \
+  QB(ghostbuster_bad_crl,		"Ghostbuster EE has bad CRL")	    \
+  QB(ghostbuster_bad_econtenttype,	"Bad Ghostbuster eContentType")	    \
+  QB(ghostbuster_digest_mismatch,	"Ghostbuster digest mismatch")	    \
+  QB(ghostbuster_invalid_cms,		"Ghostbuster validation failure")   \
+  QB(ghostbuster_invalid_ee,		"Invalid Ghostbuster certificate")  \
+  QB(ghostbuster_missing_signer,	"Missing Ghostbuster signer")	    \
   QB(hash_too_long,			"Hash value is too long")	    \
-  QW(unknown_object_type,		"Unknown object type")		    \
+  QB(malformed_crldp,			"Malformed CRDLP extension")	    \
+  QB(malformed_roa_addressfamily,       "Malformed ROA addressFamily")	    \
+  QB(malformed_sia,			"Malformed SIA extension")	    \
+  QB(manifest_bad_crl,			"Manifest has bad CRL")		    \
+  QB(manifest_bad_econtenttype,		"Bad manifest eContentType")	    \
+  QB(manifest_decode_error,		"Manifest decode error")	    \
+  QB(manifest_invalid_cms,		"Manifest validation failure")	    \
+  QB(manifest_invalid_ee,		"Invalid manifest certificate")	    \
+  QB(manifest_malformed_crldp,          "Malformed manifest CRLDP")	    \
+  QB(manifest_mismatch,			"Manifest doesn't match SIA")	    \
+  QB(manifest_missing,			"Manifest pointer missing")	    \
+  QB(manifest_missing_crldp,            "Missing manifest CRLDP")	    \
+  QB(manifest_missing_signer,		"Missing manifest signer")	    \
+  QB(manifest_not_yet_valid,		"Manifest not yet valid")	    \
+  QB(manifest_wrong_version,            "Wrong manifest version")	    \
+  QB(object_rejected,			"Object rejected")		    \
+  QB(roa_bad_afi,			"ROA contains bad AFI value")	    \
+  QB(roa_bad_crl,			"ROA EE has bad CRL")		    \
+  QB(roa_bad_econtenttype,		"Bad ROA eContentType")		    \
+  QB(roa_decode_error,			"ROA decode error")		    \
+  QB(roa_digest_mismatch,		"ROA digest mismatch")		    \
+  QB(roa_invalid_cms,			"ROA validation failure")	    \
+  QB(roa_invalid_ee,			"Invalid ROA certificate")	    \
+  QB(roa_missing_signer,		"Missing ROA signer")		    \
+  QB(roa_not_nested,			"ROA resource not in EE")	    \
+  QB(roa_resources_malformed,		"ROA resources malformed")	    \
+  QB(roa_wrong_version,			"Wrong ROA version")		    \
+  QB(rsync_failed,			"rsync transfer failed")	    \
+  QB(rsync_timed_out,			"rsync transfer timed out")	    \
+  QB(sia_missing,			"SIA extension missing")	    \
+  QB(trust_anchor_key_mismatch,		"Trust anchor key mismatch")	    \
+  QB(trust_anchor_with_crldp,		"Trust anchor can't have CRLDP")    \
+  QB(unknown_verify_error,		"Unknown OpenSSL verify error")	    \
   QB(unreadable_trust_anchor,		"Unreadable trust anchor")	    \
   QB(unreadable_trust_anchor_locator,	"Unreadable trust anchor locator")  \
-  QB(trust_anchor_key_mismatch,		"Trust anchor key mismatch")	    \
-  QB(certificate_failed_validation,	"Certificate failed validation")    \
+  QB(uri_too_long,			"URI too long")			    \
+  QG(current_cert_recheck,		"Certificate rechecked")	    \
+  QG(object_accepted,			"Object accepted")		    \
+  QG(rsync_succeeded,			"rsync transfer succeeded")	    \
+  QG(validation_ok,			"OK")				    \
+  QW(object_not_in_manifest,		"Object not in manifest")	    \
+  QW(stale_crl,				"Stale CRL")			    \
+  QW(stale_manifest,			"Stale manifest")		    \
+  QW(trust_anchor_not_self_signed,	"Trust anchor not self-signed")	    \
+  QW(unknown_object_type,		"Unknown object type")		    \
   MIB_COUNTERS_FROM_OPENSSL
 
 #define QV(x) QB(mib_openssl_##x, 0)
@@ -2413,18 +2394,18 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
 
   if ((crl = check_crl_1(rc, uri, &path, &rc->unauthenticated,
 			 issuer, hash, hashlen, object_generation_current))) {
-    install_object(rc, uri, &path, current_crl_accepted, object_generation_current);
+    install_object(rc, uri, &path, object_accepted, object_generation_current);
     return crl;
   } else if (!access(path.s, F_OK)) {
-    log_validation_status(rc, uri, current_crl_rejected, object_generation_current);
+    log_validation_status(rc, uri, object_rejected, object_generation_current);
   }
 
   if ((crl = check_crl_1(rc, uri, &path, &rc->old_authenticated,
 			 issuer, hash, hashlen, object_generation_backup))) {
-    install_object(rc, uri, &path, backup_crl_accepted, object_generation_backup);
+    install_object(rc, uri, &path, object_accepted, object_generation_backup);
     return crl;
   } else if (!access(path.s, F_OK)) {
-    log_validation_status(rc, uri, backup_crl_rejected, object_generation_backup);
+    log_validation_status(rc, uri, object_rejected, object_generation_backup);
   }
 
   return NULL;
@@ -2751,7 +2732,6 @@ static X509 *check_cert(rcynic_ctx_t *rc,
 			const size_t hashlen)
 {
   walk_ctx_t *w = walk_ctx_stack_head(wsk);
-  mib_counter_t accept_code, reject_code;
   object_generation_t generation;
   const certinfo_t *issuer = NULL;
   STACK_OF(X509) *certs = NULL;
@@ -2766,14 +2746,10 @@ static X509 *check_cert(rcynic_ctx_t *rc,
   switch (w->state) {
   case walk_state_current:
     prefix = &rc->unauthenticated;
-    accept_code = current_cert_accepted;
-    reject_code = current_cert_rejected;
     generation = object_generation_current;
     break;
   case walk_state_backup:
     prefix = &rc->old_authenticated;
-    accept_code = backup_cert_accepted;
-    reject_code = backup_cert_rejected;
     generation = object_generation_backup;
     break;
   default:
@@ -2800,14 +2776,14 @@ static X509 *check_cert(rcynic_ctx_t *rc,
     return NULL;
 
   if ((x = check_cert_1(rc, uri, &path, prefix, certs, issuer, subject, hash, hashlen, generation)) != NULL) {
-    install_object(rc, uri, &path, accept_code, generation);
+    install_object(rc, uri, &path, object_accepted, generation);
     if (w->state == walk_state_current)
       sk_OPENSSL_STRING_remove(rc->backup_cache, uri->s);
     else if (!sk_OPENSSL_STRING_push_strdup(rc->backup_cache, uri->s))
       logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri->s);
       
   } else if (!access(path.s, F_OK)) {
-    log_validation_status(rc, uri, reject_code, generation);
+    log_validation_status(rc, uri, object_rejected, generation);
   }
 
   sk_X509_free(certs);
@@ -3022,17 +2998,17 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
   if (manifest == NULL) {
     if ((manifest = check_manifest_1(rc, uri, &path,
 				     &rc->unauthenticated, certs, object_generation_current)) != NULL)
-      install_object(rc, uri, &path, current_manifest_accepted, object_generation_current);
+      install_object(rc, uri, &path, object_accepted, object_generation_current);
     else if (!access(path.s, F_OK))
-      log_validation_status(rc, uri, current_manifest_rejected, object_generation_current);
+      log_validation_status(rc, uri, object_rejected, object_generation_current);
   }
 
   if (manifest == NULL) {
     if ((manifest = check_manifest_1(rc, uri, &path,
 				     &rc->old_authenticated, certs, object_generation_backup)) != NULL)
-      install_object(rc, uri, &path, backup_manifest_accepted, object_generation_backup);
+      install_object(rc, uri, &path, object_accepted, object_generation_backup);
     else if (!access(path.s, F_OK))
-      log_validation_status(rc, uri, backup_manifest_rejected, object_generation_backup);
+      log_validation_status(rc, uri, object_rejected, object_generation_backup);
   }
 
   sk_X509_free(certs);
@@ -3331,18 +3307,18 @@ static void check_roa(const rcynic_ctx_t *rc,
 
   if (check_roa_1(rc, uri, &path, &rc->unauthenticated,
 		  certs, hash, hashlen, object_generation_current)) {
-    install_object(rc, uri, &path, current_roa_accepted, object_generation_current);
+    install_object(rc, uri, &path, object_accepted, object_generation_current);
     goto done;
   } else if (!access(path.s, F_OK)) {
-    log_validation_status(rc, uri, current_roa_rejected, object_generation_current);
+    log_validation_status(rc, uri, object_rejected, object_generation_current);
   }
 
   if (check_roa_1(rc, uri, &path, &rc->old_authenticated,
 		  certs, hash, hashlen, object_generation_backup)) {
-    install_object(rc, uri, &path, backup_roa_accepted, object_generation_backup);
+    install_object(rc, uri, &path, object_accepted, object_generation_backup);
     goto done;
   } else if (!access(path.s, F_OK)) {
-    log_validation_status(rc, uri, backup_roa_rejected, object_generation_backup);
+    log_validation_status(rc, uri, object_rejected, object_generation_backup);
   }
 
  done:
@@ -3507,18 +3483,18 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
   if (check_ghostbuster_1(rc, uri, &path, &rc->unauthenticated,
 			  certs, hash, hashlen, object_generation_current)) {
-    install_object(rc, uri, &path, current_ghostbuster_accepted, object_generation_current);
+    install_object(rc, uri, &path, object_accepted, object_generation_current);
     goto done;
   } else if (!access(path.s, F_OK)) {
-    log_validation_status(rc, uri, current_ghostbuster_rejected, object_generation_current);
+    log_validation_status(rc, uri, object_rejected, object_generation_current);
   }
 
   if (check_ghostbuster_1(rc, uri, &path, &rc->old_authenticated,
 			  certs, hash, hashlen, object_generation_backup)) {
-    install_object(rc, uri, &path, backup_ghostbuster_accepted, object_generation_backup);
+    install_object(rc, uri, &path, object_accepted, object_generation_backup);
     goto done;
   } else if (!access(path.s, F_OK)) {
-    log_validation_status(rc, uri, backup_ghostbuster_rejected, object_generation_backup);
+    log_validation_status(rc, uri, object_rejected, object_generation_backup);
   }
 
  done:

@@ -97,10 +97,16 @@
 	  <xsl:variable name="host-data">
 	    <xsl:for-each select="rcynic-summary/validation_status">
 	      <xsl:sort order="ascending" data-type="text" select="."/>
-	      <xsl:if test="starts-with(., 'rsync://')">
-		<xsl:variable name="hostname" select="str:tokenize(string(.), ':/')[2]"/>
+	      <xsl:variable name="uri" select="string(.)"/>
+	      <xsl:if test="starts-with($uri, 'rsync://')">
+		<xsl:variable name="hostname" select="str:tokenize($uri, ':/')[2]"/>
 		<xsl:variable name="mood" select="/rcynic-summary/labels/*[name() = current()/@status]/@kind"/>
-		<x hostname="{$hostname}" timestamp="{@timestamp}" uri="{.}" status="{@status}" mood="{$mood}"/>
+		<xsl:variable name="fn2">
+		  <xsl:if test="substring($uri, string-length($uri) - 3, 1) = '.'">
+		    <xsl:value-of select="substring($uri, string-length($uri) - 3)"/>
+		  </xsl:if>
+		</xsl:variable>
+		<x hostname="{$hostname}" timestamp="{@timestamp}" uri="{$uri}" status="{@status}" mood="{$mood}" fn2="{$fn2}"/>
 	      </xsl:if>
 	    </xsl:for-each>
 	  </xsl:variable>
@@ -109,6 +115,13 @@
 	  <xsl:variable name="unique-hostnames">
 	    <xsl:for-each select="com:node-set($host-data)/x[not(@hostname = following::x/@hostname)]">
 	      <x hostname="{@hostname}"/>
+	    </xsl:for-each>
+	  </xsl:variable>
+
+	  <!-- Calculate set of unique filename types -->
+	  <xsl:variable name="unique-fn2s">
+	    <xsl:for-each select="com:node-set($host-data)/x[not(@fn2 = following::x/@fn2)]">
+	      <x fn2="{@fn2}"/>
 	    </xsl:for-each>
 	  </xsl:variable>
 
@@ -129,6 +142,27 @@
 	      <x name="{name(current())}" sum="{$sum}" text="{.}" show="{$show}"/>
 	    </xsl:for-each>
 	  </xsl:variable>
+
+	  <!-- Temporary hack -->
+	  <br/>
+	  <h2>[TEST] Filename extensions</h2>
+	  <table>
+	    <thead>
+	      <tr>
+		<td>Extension</td>
+	      </tr>
+	    </thead>
+	    <tbody>
+	      <xsl:for-each select="com:node-set($unique-fn2s)/x">
+		<xsl:sort order="ascending" data-type="text" select="@fn2"/>
+		<tr>
+		  <td>
+		    <xsl:value-of select="concat('&quot;', @fn2, '&quot;')"/>
+		  </td>
+		</tr>
+	      </xsl:for-each>
+	    </tbody>
+	  </table>
 
 	  <!-- Generate the HTML -->
 	  <br/>

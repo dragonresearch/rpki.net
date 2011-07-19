@@ -3651,8 +3651,8 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 	  walk_ctx_loop_next(rc, wsk);
 	continue;
       }
-
-      log_validation_status(rc, &uri, unknown_object_type, generation);
+      
+      log_validation_status(rc, &uri, unknown_object_type, object_generation_null);
       walk_ctx_loop_next(rc, wsk);
       continue;
 

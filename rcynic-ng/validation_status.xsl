@@ -32,6 +32,8 @@
       <xsl:value-of select="@status"/>
       <xsl:text>&#9;</xsl:text>
       <xsl:value-of select="."/>
+      <xsl:text>&#9;</xsl:text>
+      <xsl:value-of select="@generation"/>
       <xsl:text>&#10;</xsl:text>
     </xsl:for-each>
   </xsl:template>

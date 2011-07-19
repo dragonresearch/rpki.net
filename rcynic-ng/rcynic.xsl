@@ -131,7 +131,7 @@
 	    </xsl:for-each>
 	  </xsl:variable>
 
-	  <!-- Calculate totals, figure out which columns to display -->
+	  <!-- Calculate grand totals, figure out which columns to display -->
 	  <xsl:variable name="totals">
 	    <xsl:for-each select="rcynic-summary/labels/*">
 	      <xsl:variable name="sum" select="count(com:node-set($host-data)/x[@status = name(current())])"/>
@@ -155,7 +155,7 @@
 	  <!-- Show the total -->
 	  <xsl:if test="$show-total != 0">
 	    <br/>
-	    <h2>Totals</h2>
+	    <h2>Grand Totals</h2>
 	    <table class="summary" rules="all" border="1">
 	      <thead>
 		<tr>
@@ -212,13 +212,12 @@
 			<xsl:otherwise>bad</xsl:otherwise>
 		      </xsl:choose>
 		    </xsl:variable>
-
 		    <xsl:if test="$goodness + $badness + $warnings">
 		      <tr class="{$mood}">
 			<td><xsl:value-of select="concat($generation, ' ', $fn2)"/></td>
 			<xsl:for-each select="com:node-set($totals)/x[@show = 1]">
 			  <xsl:variable name="label" select="@name"/>
-			  <xsl:variable name="value" select="count(com:node-set($host-data)/x[@hostname = $hostname and @fn2 = $fn2 and @status = $label])"/>
+			  <xsl:variable name="value" select="count(com:node-set($host-data)/x[@hostname = $hostname and @fn2 = $fn2 and @generation = $generation and @status = $label])"/>
 			  <td>
 			    <xsl:if test="$value != 0">
 			      <xsl:value-of select="$value"/>
@@ -229,6 +228,18 @@
 		    </xsl:if>
 		  </xsl:for-each>
 		</xsl:for-each>
+		<tr>
+		  <td>Total</td>
+		  <xsl:for-each select="com:node-set($totals)/x[@show = 1]">
+		    <xsl:variable name="label" select="@name"/>
+		    <xsl:variable name="value" select="count(com:node-set($host-data)/x[@hostname = $hostname and @status = $label])"/>
+		    <td>
+		      <xsl:if test="$value != 0">
+			<xsl:value-of select="$value"/>
+		      </xsl:if>
+		    </td>
+		  </xsl:for-each>
+		</tr>
 	      </tbody>
 	    </table>
 	  </xsl:for-each>

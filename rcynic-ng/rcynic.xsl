@@ -80,9 +80,9 @@
 	  td.uri	{ text-align: left }
 	  td.host { text-align: left }
 	  <xsl:if test="$use-colors != 0">
-	    tr.good	{ background-color: #77ff77 }
-	    tr.warn	{ background-color: yellow }
-	    tr.bad	{ background-color: #ff5500 }
+	    tr.good,td.good	{ background-color: #77ff77 }
+	    tr.warn,td.warn	{ background-color: yellow }
+	    tr.bad,td.bad	{ background-color: #ff5500 }
 	  </xsl:if>
 	</style>
       </head>
@@ -145,7 +145,7 @@
 		  </xsl:otherwise>
 		</xsl:choose>
 	      </xsl:variable>
-	      <x name="{name(current())}" sum="{$sum}" text="{.}" show="{$show}"/>
+	      <x name="{name(current())}" sum="{$sum}" text="{.}" show="{$show}" mood="{@kind}"/>
 	    </xsl:for-each>
 	  </xsl:variable>
 
@@ -170,7 +170,7 @@
 		  <td><b>Total</b></td>
 		  <xsl:for-each select="com:node-set($totals)/x">
 		    <xsl:if test="$suppress-zero-columns = 0 or @sum &gt; 0">
-		      <td><b><xsl:value-of select="@sum"/></b></td>
+		      <td class="{@mood}"><xsl:value-of select="@sum"/></td>
 		    </xsl:if>
 		  </xsl:for-each>
 		</tr>
@@ -202,27 +202,22 @@
 		  <xsl:for-each select="com:node-set($unique-generations)/x">
 		    <xsl:sort order="ascending" data-type="text" select="@generation"/>
 		    <xsl:variable name="generation" select="@generation"/>
-		    <xsl:variable name="goodness" select="count(com:node-set($host-data)/x[@hostname = $hostname and @fn2 = $fn2 and @generation = $generation and @mood = 'good'])"/>
-		    <xsl:variable name="badness"  select="count(com:node-set($host-data)/x[@hostname = $hostname and @fn2 = $fn2 and @generation = $generation and @mood = 'bad'])"/>
-		    <xsl:variable name="warnings" select="count(com:node-set($host-data)/x[@hostname = $hostname and @fn2 = $fn2 and @generation = $generation and @mood = 'warn'])"/>
-		    <xsl:variable name="mood">
-		      <xsl:choose>
-			<xsl:when test="$goodness != 0 and $warnings = 0 and $badness = 0">good</xsl:when>
-			<xsl:when test="$goodness + $warnings != 0">warn</xsl:when>
-			<xsl:otherwise>bad</xsl:otherwise>
-		      </xsl:choose>
-		    </xsl:variable>
-		    <xsl:if test="$goodness + $badness + $warnings">
-		      <tr class="{$mood}">
+		    <xsl:if test="count(com:node-set($host-data)/x[@hostname = $hostname and @fn2 = $fn2 and @generation = $generation])">
+		      <tr>
 			<td><xsl:value-of select="concat($generation, ' ', $fn2)"/></td>
 			<xsl:for-each select="com:node-set($totals)/x[@show = 1]">
 			  <xsl:variable name="label" select="@name"/>
 			  <xsl:variable name="value" select="count(com:node-set($host-data)/x[@hostname = $hostname and @fn2 = $fn2 and @generation = $generation and @status = $label])"/>
-			  <td>
-			    <xsl:if test="$value != 0">
-			      <xsl:value-of select="$value"/>
-			    </xsl:if>
-			  </td>
+			  <xsl:choose>
+			    <xsl:when test="$value != 0">
+			      <td class="{@mood}">
+				<xsl:value-of select="$value"/>
+			      </td>
+			    </xsl:when>
+			    <xsl:otherwise>
+			      <td/>
+			    </xsl:otherwise>
+			  </xsl:choose>
 			</xsl:for-each>
 		      </tr>
 		    </xsl:if>
@@ -233,11 +228,16 @@
 		  <xsl:for-each select="com:node-set($totals)/x[@show = 1]">
 		    <xsl:variable name="label" select="@name"/>
 		    <xsl:variable name="value" select="count(com:node-set($host-data)/x[@hostname = $hostname and @status = $label])"/>
-		    <td>
-		      <xsl:if test="$value != 0">
-			<xsl:value-of select="$value"/>
-		      </xsl:if>
-		    </td>
+		    <xsl:choose>
+		      <xsl:when test="$value != 0">
+			<td class="{@mood}">
+			  <xsl:value-of select="$value"/>
+			</td>
+		      </xsl:when>
+		      <xsl:otherwise>
+			<td/>
+		      </xsl:otherwise>
+		    </xsl:choose>
 		  </xsl:for-each>
 		</tr>
 	      </tbody>

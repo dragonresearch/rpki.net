@@ -101,7 +101,7 @@
 		<xsl:variable name="hostname" select="str:tokenize($uri, ':/')[2]"/>
 		<xsl:variable name="mood" select="/rcynic-summary/labels/*[name() = current()/@status]/@kind"/>
 		<xsl:variable name="fn2">
-		  <xsl:if test="substring($uri, string-length($uri) - 3, 1) = '.'">
+		  <xsl:if test="substring($uri, string-length($uri) - 3, 1) = '.' and @generation != ''">
 		    <xsl:value-of select="substring($uri, string-length($uri) - 3)"/>
 		  </xsl:if>
 		</xsl:variable>

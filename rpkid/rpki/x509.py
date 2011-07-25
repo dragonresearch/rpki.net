@@ -933,21 +933,21 @@ class CMS_object(DER_object):
       if self.debug_cms_certs:
         rpki.log.debug("Trusted CMS EE cert issuer %s subject %s SKI %s" % (trusted_ee.getIssuer(), trusted_ee.getSubject(), trusted_ee.hSKI()))
       if certs and (len(certs) > 1 or certs[0].getSubject() != trusted_ee.getSubject() or certs[0].getPublicKey() != trusted_ee.getPublicKey()):
-        raise rpki.exceptions.UnexpectedCMSCerts, certs
+        raise rpki.exceptions.UnexpectedCMSCerts # , certs
       if crls:
-        raise rpki.exceptions.UnexpectedCMSCRLs, crls
+        raise rpki.exceptions.UnexpectedCMSCRLs # , crls
     else:
       if not certs:
-        raise rpki.exceptions.MissingCMSEEcert, certs        
+        raise rpki.exceptions.MissingCMSEEcert # , certs
       if len(certs) > 1 or certs[0].is_CA():
-        raise rpki.exceptions.UnexpectedCMSCerts, certs
+        raise rpki.exceptions.UnexpectedCMSCerts # , certs
       if not crls:
         if self.require_crls:
-          raise rpki.exceptions.MissingCMSCRL, crls
+          raise rpki.exceptions.MissingCMSCRL # , crls
         else:
           rpki.log.warn("MISSING CMS CRL!  Ignoring per self.require_crls setting")
       if len(crls) > 1:
-        raise rpki.exceptions.UnexpectedCMSCRLs, crls
+        raise rpki.exceptions.UnexpectedCMSCRLs # , crls
 
     try:
       content = cms.verify(store)

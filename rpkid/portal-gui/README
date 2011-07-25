@@ -18,34 +18,27 @@ This is a list of the assumptions the current portal-gui code makes:
 rpki parlance, it is "self-hosted."
 
 2) The myrpki.py command line tool will handle all the heavy lifting,
-so it must be present on the installed system.
+so it must be present on the installed system.  In particular, mypki.py
+must be used to establish the parent/child relationships (n.b. in the
+future the portal-gui will have support for these functions as well.)
 
 3) There is a subdirectory for each resource holder served by the
 portal-gui under ${localstatedir}/rpki/conf (typically this is
 /usr/local/var/rpki/conf).  Each subdirectory contains the files
-associated with each resource holder (eg. rpki.conf, csv files).  For
+associated with each resource holder (eg. rpki.conf).  For
 example, if the portal gui is configured to serve Alice, Bob and
 Carol, the directory structure will look something like:
 
-	/usr/local/var/rpki/conf/Alice/asns.csv
 	/usr/local/var/rpki/conf/Alice/bpki/
 	/usr/local/var/rpki/conf/Alice/entitydb/
-	/usr/local/var/rpki/conf/Alice/prefixes.csv
-	/usr/local/var/rpki/conf/Alice/roas.csv
 	/usr/local/var/rpki/conf/Alice/rpki.conf
 
-	/usr/local/var/rpki/conf/Bob/asns.csv
 	/usr/local/var/rpki/conf/Bob/bpki/
 	/usr/local/var/rpki/conf/Bob/entitydb/
-	/usr/local/var/rpki/conf/Bob/prefixes.csv
-	/usr/local/var/rpki/conf/Bob/roas.csv
 	/usr/local/var/rpki/conf/Bob/rpki.conf
 
-	/usr/local/var/rpki/conf/Carol/asns.csv
 	/usr/local/var/rpki/conf/Carol/bpki/
 	/usr/local/var/rpki/conf/Carol/entitydb/
-	/usr/local/var/rpki/conf/Carol/prefixes.csv
-	/usr/local/var/rpki/conf/Carol/roas.csv
 	/usr/local/var/rpki/conf/Carol/rpki.conf
 
 === Prerequisites ===
@@ -85,47 +78,60 @@ rpkid).
 
 See $top/portal-gui/README.apache
 
-=== rpkigui-list-resources helper script ===
+=== User Model ===
 
-The portal-gui does not directly talk to the rpkid server.  Instead,
-there is a command line script named "rpkigui-list-resources" which
-talks to rpkid and updates the portal-gui database with information
-that has changed.  For testing purposes, this script can be run by
-hand.  However, for deployment you will need to set up a cron job to
-run this script periodically.  By default, this script is installed in
-${libexecdir}, which is typically /usr/local/libexec.
+First, a word about the user model that the portal-gui uses.  There is a single
+<self/> for each resource handle that rpkid serves, but these are distinct from
+the portal-gui user accounts.  A single web user can manage multiple <self/>
+instances, or multiple users may manage a single <self/> instance (n.b. the
+web user creation script currently only handles a 1-to-1 mapping, but you can
+utilize the Django admin console to create additional users to manage the same
+<self/> instance.)
 
-NOTE that "rpkigui-list-resources" *MUST* be run in the directory
-where the rpki.conf for the resource handle that is self-hosting the
-rpkid.  Alternatively, you can set the $RPKI_CONF environment
-variable to full pathname of the rpki.conf for the self-hosted
-resource handle (However, in order for this to work, you need to
-specify the full path name for "bpki_servers_directory" variable in
-your rpki.conf.)
+=== Creating Users ===
 
-The first time you invoke it, you may wish to use the -v option, which
-puts rpkigui-list-resources into verbose mode, meaning it will display
-progress information.  Normally, this script is intended to be invoked
-via cron, so it is silent unless an error occurs:
+The portal-gui's security model allows the use of separate logins to manage
+each resource handle.  Each resource handle needs to be configured to allow one
+or more users to manage it.  This is accomplished by using the
+"rpkigui-add-user" script that is installed with the portal-gui in ${sbindir}
+(e.g. /usr/local/sbin).
 
-        /usr/local/libexec/rpkigui-list-resources -v
+To create users, run the "rpkigui-add-user" script.  The script takes
+three arguments: 1) the username for the new account, 2) the email
+address for the human that owns the account, and 3) the handle of the
+self-hosted resource holder who is hosting this user (for self-hosted
+users, specify the same username for the "host handle").
 
-You may wish to create a script which is invoked by cron:
+$ /usr/local/sbin/rpkigui-add-user <handle> <contact email> <host handle>
 
-    #!/bin/sh
+where:
+	<handle> is the name of the <self/> instance to manage (and also the web user login)
+	<contact email> is the web user's contact email address for the account
+	<host handle> is the name of the <self/> that is configured to host rpkid (i.e. has run_rpkid=True in its rpki.conf)
 
-    # self-host resource handle
-    self_handle=FOO
+In the case where you are creating the first web user that is self-hosting
+rpkid, the <handle> and <host handle> will be the same.
 
-    # <directory containing rpki.conf for the self-hosted rpkid>
-    cd /usr/local/var/rpki/conf/$self_handle
+The email address is not currently used for anything; it just needs to be a
+valid RFC822 address.
 
-    /usr/local/libexec/rpkigui-list-resources
+Example:
 
-This script probably only needs to be run infrequently.  It's sole
-purpose is to query rpkid to ask what resources and children are
-configured for each resource handle.  This information does not change
-often.
+    # /usr/local/sbin/rpkigui-add-user Dave nobody@example.com John
+
+=== Optional - Specify additional resource handles for a portal-gui user ===
+
+You can configure which users are allowed to manage a particular
+resource handle once you have performed the "rpkigui-load-csv"
+step (described below) to populate the database:
+
+	- navigate to http://<ip:port>/admin/app/conf/
+	- log in as the portal-gui superuser using the password you
+	  specified during the install step above
+	- click on the link for the handle you wish to change
+	- locate the "Owner" section
+	- select one or more users to manage the handle
+	- click on the "Save" button
 
 === Load existing data ===
 
@@ -138,7 +144,7 @@ your rpki.conf and .csv files and run:
 	$ cd /usr/local/var/conf/<handle>
         $ /usr/local/sbin/rpkigui-load-csv
 
-NOTE that you must run the "rpkigui-list-resources" script *prior* to
+NOTE that you must run the "rpkigui-add-user" script *prior* to
 using "rpkigui-load-csv" or you will get errors because portal-gui
 won't yet know about which handles it is serving.
 
@@ -153,37 +159,15 @@ need to start your web server.
 Simply navigate to /rpki/ on your web server and you will be presented
 with the portal-gui's login page.
 
-=== Creating Users ===
+=== Logging in for first time, or after adding a new parent/child ===
 
-The portal-gui's security model allows the use of separate logins to
-manage each resource handle.  Each resource handle needs to be
-configured to allow one or more users to manage it.  This is
-accomplished by using the "rpkigui-add-user" script that is installed
-with the portal-gui in ${sbindir} (eg. /usr/local/sbin).
-
-To create users, run the "rpkigui-add-user" script.  The script takes
-three arguments: 1) the username for the new account, 2) the email
-address for the human that owns the account, and 3) the handle of the
-self-hosted resource holder who is hosting this user (for self-hosted
-users, specify the same username for the "host handle").
-
-Example:
-
-    # /usr/local/sbin/rpkigui-add-user Dave nobody@example.com John
-
-=== Optional - Specify additional resource handles for a portal-gui user ===
-
-You can configure which users are allowed to manage a particular
-resource handle once you have performed the "rpkigui-list-resources"
-step described above to populate the database:
-
-	- navigate to http://<ip:port>/admin/app/conf/
-	- log in as the portal-gui superuser using the password you
-	  specified during the install step above
-	- click on the link for the handle you wish to change
-	- locate the "Owner" section
-	- select one or more users to manage the handle
-	- click on the "Save" button
+The portal-gui does not automatically update its database when changes occur in
+the RPKI parent/child relationships (including RPKI rescert changes).  Use the
+"Refresh" link the sidebar in the portal-gui to make the portal-gui query
+rpkid.  For example, when you log in to the portal-gui after creating a user,
+you will notice that the parents/children section is empty.  Assuming that you
+have given rpkid enough time to communicate via up-down to its parent, clicking
+"Refresh" should update the portal-gui's database.
 
 === Debugging Tips ===
 
@@ -199,9 +183,6 @@ will find a list of all the tables used by the portal-gui.
 If you are updating from the subversion repository, there may
 occasionally be changes in the portal-gui's database schema that
 require a complete reset of the database before it will function.
-Don't worry about losing data, because rpkigui-list-resources and
-rpkigui-load-csv can be run again to populate the database with your
-data.
 
 Here are the steps for reseting to the initial state:
 
@@ -210,5 +191,5 @@ Here are the steps for reseting to the initial state:
     >>> answer "yes" to really reset it <<<
 
     $ cd /usr/local/var/rpki/conf/<directory containing rpki.conf for the self-hosted rpkid>
-    $ /usr/local/libexec/rpkigui-list-resources -v
-    $ /usr/local/libexec/rpkigui-load-csv
+    $ /usr/local/libexec/rpkigui-add-user ...
+    $ /usr/local/libexec/rpkigui-load-csv [ if applicable ]

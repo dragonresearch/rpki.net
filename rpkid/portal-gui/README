@@ -41,6 +41,13 @@ Carol, the directory structure will look something like:
 	/usr/local/var/rpki/conf/Carol/entitydb/
 	/usr/local/var/rpki/conf/Carol/rpki.conf
 
+NOTE: the ${localstatedir}/rpki/conf/ directory structure *MUST* be writable by
+the uid running apache.  This is currently a restriction required due to some
+of bpki operations.  The installation and user creation scripts attempt ensure
+this happens automatically, but if you are seeing permission denied errors, it
+is almost certainly due to files in this tree not being writable by the apache
+process.
+
 === Prerequisites ===
 
 - install Django
@@ -60,8 +67,13 @@ Fedora: yum install mod_ssl
 
 ==== Installation ===
 
-The portal-gui is configured and installed using the Makefile in the
-top level directory of the rpki tools.
+The portal-gui is configured and installed using the Makefile in the top level
+directory of the rpki tools.  The configure script attempts to automatically
+determine which user the apache process runs as, but if it guesses incorrectly,
+you can override it with the WEBUSER=<username> setting when running configure.
+For example:
+
+	./configure [ ... other options ...] WEBUSER=apache
 
 At the end of the installation process, the django-admin.py script
 will prompt you to create a superuser.  You want to say "yes" to this

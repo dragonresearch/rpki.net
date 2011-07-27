@@ -53,8 +53,6 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-from __future__ import with_statement
-
 import subprocess, csv, re, os, getopt, sys, base64, time, glob, copy, warnings
 import rpki.config, rpki.cli, rpki.sundial, rpki.log, rpki.oids
 
@@ -899,12 +897,7 @@ class IRDB(object):
     information from a rpki.config.parser object.
     """
 
-    if hasattr(warnings, "catch_warnings"):
-      with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        import MySQLdb
-    else:
-      import MySQLdb
+    from rpki.mysql_import import MySQLdb
 
     irdbd_cfg = rpki.config.parser(cfg.get("irdbd_conf", cfg.filename), "irdbd")
 

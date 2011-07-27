@@ -26,9 +26,6 @@ sys.stdout.write('''\
 #!%(AC_PYTHON_INTERPRETER)s
 # Automatically constructed script header
 
-# Some scripts need this, and it must be first executable statement
-from __future__ import with_statement
-
 # Set location of global rpki.conf file
 if __name__ == "__main__":
   import rpki.config

@@ -34,19 +34,11 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-from __future__ import with_statement
-
 import sys, os, time, getopt, urlparse, warnings
 import rpki.http, rpki.config, rpki.resource_set, rpki.relaxng
 import rpki.exceptions, rpki.left_right, rpki.log, rpki.x509
 
-# Silence warning while loading MySQLdb in Python 2.6, sigh
-if hasattr(warnings, "catch_warnings"):
-  with warnings.catch_warnings():
-    warnings.simplefilter("ignore", DeprecationWarning)
-    import MySQLdb
-else:
-  import MySQLdb
+from rpki.mysql_import import MySQLdb
 
 class main(object):
 

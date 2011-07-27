@@ -19,21 +19,9 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-from __future__ import with_statement
-
 import os, getopt, sys, rpki.config, getpass, warnings
 
-# Silence warning while loading MySQLdb in Python 2.6, sigh
-if hasattr(warnings, "catch_warnings"):
-  with warnings.catch_warnings():
-    warnings.simplefilter("ignore", DeprecationWarning)
-    import MySQLdb
-else:
-  import MySQLdb
-
-import _mysql_exceptions
-
-warnings.simplefilter("error", _mysql_exceptions.Warning)
+from rpki.mysql_import import MySQLdb
 
 schema_dir = os.path.normpath(sys.path[0])
 

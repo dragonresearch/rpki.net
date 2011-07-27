@@ -32,19 +32,8 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-from __future__ import with_statement
+from rpki.mysql_import import (MySQLdb, _mysql_exceptions)
 
-import warnings
-
-# Silence warning while loading MySQLdb in Python 2.6, sigh
-if hasattr(warnings, "catch_warnings"):
-  with warnings.catch_warnings():
-    warnings.simplefilter("ignore", DeprecationWarning)
-    import MySQLdb
-else:
-  import MySQLdb
-
-import _mysql_exceptions
 import rpki.x509, rpki.resource_set, rpki.sundial, rpki.log
 
 class session(object):
@@ -52,13 +41,7 @@ class session(object):
   SQL session layer.
   """
 
-  _exceptions_enabled = False
-
   def __init__(self, cfg):
-
-    if not self._exceptions_enabled:
-      warnings.simplefilter("error", _mysql_exceptions.Warning)
-      self.__class__._exceptions_enabled = True
 
     self.username = cfg.get("sql-username")
     self.database = cfg.get("sql-database")

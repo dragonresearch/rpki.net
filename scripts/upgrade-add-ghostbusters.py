@@ -19,17 +19,9 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-from __future__ import with_statement
 import getopt, sys, rpki.config, warnings
 
-if hasattr(warnings, "catch_warnings"):
-  with warnings.catch_warnings():
-    warnings.simplefilter("ignore", DeprecationWarning)
-    import MySQLdb,  _mysql_exceptions
-else:
-  import MySQLdb,  _mysql_exceptions
-
-warnings.simplefilter("error", _mysql_exceptions.Warning)
+from rpki.mysql_import import MySQLdb
 
 def fix(name, *statements):
   db = MySQLdb.connect(db     = cfg.get("sql-database", section = name),

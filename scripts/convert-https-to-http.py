@@ -10,7 +10,7 @@ Default configuration file is myrpki.conf, override with --config option.
 
 $Id$
 
-Copyright (C) 2010  Internet Systems Consortium ("ISC")
+Copyright (C) 2010-2011  Internet Systems Consortium ("ISC")
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -24,8 +24,6 @@ LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
-
-from __future__ import with_statement
 
 import getopt, sys, os, warnings, lxml.etree, rpki.config
 
@@ -91,12 +89,7 @@ for root, dirs, files in os.walk(entitydb_dir):
 
 if convert_sql:
 
-  if hasattr(warnings, "catch_warnings"):
-    with warnings.catch_warnings():
-      warnings.simplefilter("ignore", DeprecationWarning)
-      import MySQLdb
-  else:
-    import MySQLdb
+  from rpki.mysql_import import MySQLdb
 
   cfg = rpki.config.parser(cfg_file, "myrpki")
 

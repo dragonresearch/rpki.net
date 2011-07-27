@@ -189,6 +189,7 @@ static const struct {
  */
 
 #define MIB_COUNTERS							    \
+  MIB_COUNTERS_FROM_OPENSSL						    \
   QB(aia_mismatch,			"Mismatched AIA extension")	    \
   QB(aia_missing,			"AIA extension missing")	    \
   QB(certificate_bad_crl,		"Bad certificate CRL")		    \
@@ -243,16 +244,15 @@ static const struct {
   QB(unreadable_trust_anchor,		"Unreadable trust anchor")	    \
   QB(unreadable_trust_anchor_locator,	"Unreadable trust anchor locator")  \
   QB(uri_too_long,			"URI too long")			    \
-  QG(current_cert_recheck,		"Certificate rechecked")	    \
-  QG(object_accepted,			"Object accepted")		    \
-  QG(rsync_succeeded,			"rsync transfer succeeded")	    \
-  QG(validation_ok,			"OK")				    \
   QW(object_not_in_manifest,		"Object not in manifest")	    \
   QW(stale_crl,				"Stale CRL")			    \
   QW(stale_manifest,			"Stale manifest")		    \
   QW(trust_anchor_not_self_signed,	"Trust anchor not self-signed")	    \
   QW(unknown_object_type,		"Unknown object type")		    \
-  MIB_COUNTERS_FROM_OPENSSL
+  QG(current_cert_recheck,		"Certificate rechecked")	    \
+  QG(object_accepted,			"Object accepted")		    \
+  QG(rsync_succeeded,			"rsync transfer succeeded")	    \
+  QG(validation_ok,			"OK")
 
 #define QV(x) QB(mib_openssl_##x, 0)
 
@@ -1962,15 +1962,21 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
    */
   if (rc->rsync_timeout) {
     for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i) {
+      int sig;
       if (ctx->pid <= 0 || now < ctx->deadline)
 	continue;
+      sig = ctx->tries++ < KILL_MAX ? SIGTERM : SIGKILL;
       if (ctx->state != rsync_state_terminating) {
 	ctx->problem = rsync_problem_timed_out;
 	ctx->state = rsync_state_terminating;
 	ctx->tries = 0;
 	logmsg(rc, log_telemetry, "Subprocess %u is taking too long fetching %s", (unsigned) ctx->pid, ctx->uri.s);
+      } else if (sig == SIGTERM) {
+	logmsg(rc, log_telemetry, "Whacking subprocess %u again", (unsigned) ctx->pid);
+      } else {
+	logmsg(rc, log_telemetry, "Whacking subprocess %u with big hammer", (unsigned) ctx->pid);
       }
-      (void) kill(ctx->pid, ctx->tries++ < KILL_MAX ? SIGTERM : SIGKILL);
+      (void) kill(ctx->pid, sig);
       ctx->deadline = now + 2;
     }
   }

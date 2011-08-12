@@ -277,12 +277,12 @@ class main(object):
       rpki.log.traceback()
       cb(400, reason = "Could not process PDU: %s" % e)
 
-  def checkpoint(self):
+  def checkpoint(self, force = False):
     """
     Record that we were still alive when we got here, by resetting
     keepalive timer.
     """
-    if self.cron_timeout is not None:
+    if force or self.cron_timeout is not None:
       self.cron_timeout = rpki.sundial.now() + self.cron_keepalive
 
   def cron(self, cb = None):
@@ -291,28 +291,6 @@ class main(object):
     """
 
     rpki.log.trace()
-    self.sql.ping()
-
-    now = rpki.sundial.now()
-
-    assert self.use_internal_cron or self.cron_timeout is None
-
-    if self.use_internal_cron:
-
-      if self.cron_timeout is not None and self.cron_timeout < now:
-        rpki.log.warn("cron keepalive threshold %s has expired, breaking lock" % self.cron_timeout)
-        self.cron_timeout = None
-
-      when = now + self.cron_period
-      rpki.log.debug("Scheduling next cron run at %s" % when)
-      self.cron_timer.set(when)
-
-      if self.cron_timeout is not None:
-        rpki.log.warn("cron already running, keepalive will expire at %s" % self.cron_timeout)
-        return
-
-      self.cron_timeout = True
-      self.checkpoint()
 
     def loop(iterator, s):
       self.checkpoint()
@@ -333,6 +311,26 @@ class main(object):
         raise
       
     try:
+      now = rpki.sundial.now()
+
+      assert self.use_internal_cron or self.cron_timeout is None
+
+      if self.use_internal_cron:
+
+        if self.cron_timeout is not None and self.cron_timeout < now:
+          rpki.log.warn("cron keepalive threshold %s has expired, breaking lock" % self.cron_timeout)
+          self.cron_timeout = None
+
+        when = now + self.cron_period
+        rpki.log.debug("Scheduling next cron run at %s" % when)
+        self.cron_timer.set(when)
+
+        if self.cron_timeout is not None:
+          rpki.log.warn("cron already running, keepalive will expire at %s" % self.cron_timeout)
+          return
+
+      self.sql.ping()
+      self.checkpoint(self.use_internal_cron)
       rpki.async.iterator(rpki.left_right.self_elt.sql_fetch_all(self), loop, done)
 
     except (rpki.async.ExitNow, SystemExit):

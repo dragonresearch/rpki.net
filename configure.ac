@@ -92,6 +92,19 @@ else
 fi
 AC_SUBST(POW_LDFLAGS)
 
+AC_MSG_CHECKING([whether compiler and linker support -Wl,-z,noexecstack])
+old_LDFLAGS="$LDFLAGS"
+LDFLAGS="$LDFLAGS -Wl,-z,noexecstack"
+AC_LINK_IFELSE([AC_LANG_SOURCE([[int main (int argc, char *argv[]) { return 0; }]])],
+	       [linker_supports_znoexecstack=yes],
+	       [linker_supports_znoexecstack=no])
+AC_MSG_RESULT([$linker_supports_znoexecstack])
+if test $linker_supports_znoexecstack = no
+then
+	LDFLAGS="$old_LDFLAGS"
+fi
+unset old_LDFLAGS
+
 AC_PATH_PROG([XSLTPROC], [xsltproc])
 AC_PATH_PROG([AWK], [awk])
 AC_PATH_PROG([SORT], [sort])

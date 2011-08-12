@@ -694,13 +694,21 @@ class allocation(object):
     cur = db.cursor()
     db.autocommit(True)
     for sql in rpki_sql:
-      cur.execute(sql)
+      try:
+        cur.execute(sql)
+      except:
+        if not sql.upper().startswith("DROP TABLE"):
+          raise
     db.close()
     db = MySQLdb.connect(user = "irdb", db = self.irdb_db_name, passwd = irdb_db_pass)
     cur = db.cursor()
     db.autocommit(True)
     for sql in irdb_sql:
-      cur.execute(sql)
+      try:
+        cur.execute(sql)
+      except:
+        if not sql.upper().startswith("DROP TABLE"):
+          raise
     for s in [self] + self.hosts:
       for kid in s.kids:
         cur.execute("INSERT registrant (registrant_handle, registry_handle, valid_until) VALUES (%s, %s, %s)",
@@ -1152,7 +1160,11 @@ def setup_publication(pubd_sql):
   cur = db.cursor()
   db.autocommit(True)
   for sql in pubd_sql:
-    cur.execute(sql)
+    try:
+      cur.execute(sql)
+    except:
+      if not sql.upper().startswith("DROP TABLE"):
+        raise
   db.close()
   d = { "pubd_name"    : pubd_name,
         "pubd_port"    : pubd_port,

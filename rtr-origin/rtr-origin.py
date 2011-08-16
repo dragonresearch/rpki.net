@@ -23,7 +23,7 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 
-import sys, os, struct, time, glob, socket, fcntl, signal, syslog
+import sys, os, struct, time, glob, socket, fcntl, signal, syslog, errno
 import asyncore, asynchat, subprocess, traceback, getopt, bisect, random
 
 # Debugging only, should be False in production
@@ -116,9 +116,9 @@ def new_nonce():
   if force_zero_nonce:
     return 0
   try:
-    return random.SystemRandom().getrandbits(16)
+    return int(random.SystemRandom().getrandbits(16))
   except NotImplementedError:
-    return random.getrandbits(16)
+    return int(random.getrandbits(16))
 
 
 class read_buffer(object):
@@ -950,13 +950,21 @@ class pdu_channel(asynchat.async_chat):
     """
     Write PDU to stream.
     """
-    self.push(pdu.to_pdu())
+    try:
+      self.push(pdu.to_pdu())
+    except OSError, e:
+      if e.errno != errno.EAGAIN:
+        raise
 
   def push_file(self, f):
     """
     Write content of a file to stream.
     """
-    self.push_with_producer(file_producer(f, self.ac_out_buffer_size))
+    try:
+      self.push_with_producer(file_producer(f, self.ac_out_buffer_size))
+    except OSError, e:
+      if e.errno != errno.EAGAIN:
+        raise
 
   def log(self, msg):
     """
@@ -976,7 +984,7 @@ class pdu_channel(asynchat.async_chat):
     """
     for line in traceback.format_exc().splitlines():
       log(line)
-    log("Exiting after unhandled exception")
+    log("[Exiting after unhandled exception]")
     asyncore.close_all()
 
   def init_file_dispatcher(self, fd):
@@ -1074,6 +1082,7 @@ class server_channel(pdu_channel):
     """
     asynchat.async_chat.handle_close(self)
     asyncore.close_all()
+    sys.exit(0)
 
   def get_serial(self):
     """
@@ -1247,8 +1256,9 @@ class kickme_channel(asyncore.dispatcher):
     """
     for line in traceback.format_exc().splitlines():
       log(line)
-    log("Exiting after unhandled exception")
+    log("[Exiting after unhandled exception]")
     asyncore.close_all()
+
 
 def kick_all(serial):
   """
@@ -1557,6 +1567,7 @@ class bgpsec_replay_clock(object):
 
   def __init__(self):
     self.timestamps = [timestamp(int(f.split(".")[0])) for f in glob.iglob("*.ax")]
+    self.timestamps.sort()
     self.offset = self.timestamps[0] - int(time.time())
     self.nonce = new_nonce()
 
@@ -1566,19 +1577,20 @@ class bgpsec_replay_clock(object):
   def now(self):
     return timestamp.now(self.offset)
 
-  @property
-  def current(self):
-    return self.timestamps[0]
-
   def read_current(self):
     now = self.now()
     while len(self.timestamps) > 1 and now >= self.timestamps[1]:
       del self.timestamps[0]
-    return self.current, self.nonce
+    return self.timestamps[0], self.nonce
 
   def siesta(self):
     now = self.now()
-    return  now - self.current if now > self.current else None
+    if len(self.timestamps) <= 1:
+      return None
+    elif now < self.timestamps[1]:
+      return self.timestamps[1] - now
+    else:
+      return 1
 
 
 def bgpdump_server_main(argv):
@@ -1615,12 +1627,15 @@ def bgpdump_server_main(argv):
   #
   try:
     server = server_channel()
+    old_serial = server.get_serial()
+    blather("[Starting at serial %d (%s)]" % (old_serial, old_serial))
     while clock:
-      siesta = clock.siesta()
-      if siesta is None:
+      new_serial = server.get_serial()
+      if old_serial != new_serial:
+        blather("[Serial bumped from %d (%s) to %d (%s)]" % (old_serial, old_serial, new_serial, new_serial))
         server.notify()
-      else:
-        asyncore.loop(timeout = siesta, count = 1)
+        old_serial = new_serial
+      asyncore.loop(timeout = clock.siesta(), count = 1)
   except KeyboardInterrupt:
     sys.exit(0)
 
@@ -1684,7 +1699,7 @@ if mode == "server":
     if os.getenv("SSH_CONNECTION"):
       log_tag += "/ssh/" + os.getenv("SSH_CONNECTION").split()[0]
 
-if mode in ("cronjob", "server"):
+if mode in ("cronjob", "server"): # , "bgpdump_server"
   syslog.openlog(log_tag, syslog.LOG_PID, syslog.LOG_DAEMON)
   def log(msg):
     return syslog.syslog(syslog.LOG_WARNING, str(msg))

@@ -1539,6 +1539,92 @@ def bgpdump_select_main(argv):
   write_current(serial, nonce)
   kick_all(serial)
 
+
+class bgpsec_replay_clock(object):
+  """
+  Internal clock for replaying BGP dump files.
+
+                      * DANGER WILL ROBINSON! *
+                   * DEBUGGING AND TEST USE ONLY! *
+
+  This class replaces the normal on-disk serial number mechanism with
+  an in-memory version based on pre-computed data.
+  bgpdump_server_main() uses this hack to replay historical data for
+  testing purposes.  DO NOT USE THIS IN PRODUCTION.
+
+  You have been warned.
+  """
+
+  def __init__(self):
+    self.timestamps = [timestamp(int(f.split(".")[0])) for f in glob.iglob("*.ax")]
+    self.offset = self.timestamps[0] - int(time.time())
+    self.nonce = new_nonce()
+
+  def __nonzero__(self):
+    return len(self.timestamps) > 0
+
+  def now(self):
+    return timestamp.now(self.offset)
+
+  @property
+  def current(self):
+    return self.timestamps[0]
+
+  def read_current(self):
+    now = self.now()
+    while len(self.timestamps) > 1 and now >= self.timestamps[1]:
+      del self.timestamps[0]
+    return self.current, self.nonce
+
+  def siesta(self):
+    now = self.now()
+    return  now - self.current if now > self.current else None
+
+
+def bgpdump_server_main(argv):
+  """
+  Simulate route origin data from a set of BGP dump files.
+
+                      * DANGER WILL ROBINSON! *
+                   * DEBUGGING AND TEST USE ONLY! *
+
+  This is a clone of server_main() which replaces the external serial
+  number updates triggered via the kickme channel by cronjob_main with
+  an internal clocking mechanism to replay historical test data.
+
+  DO NOT USE THIS IN PRODUCTION.
+
+  You have been warned.
+  """
+
+  log("[Starting]")
+  if len(argv) > 1:
+    sys.exit("Unexpected arguments: %r" % (argv,))
+  if argv:
+    try:
+      os.chdir(argv[0])
+    except OSError, e:
+      sys.exit(e)
+  #
+  # Yes, this really does replace a global function with a bound
+  # method to our clock object.  Fun stuff, huh?
+  #
+  global read_current
+  clock = bgpsec_replay_clock()
+  read_current = clock.read_current
+  #
+  try:
+    server = server_channel()
+    while clock:
+      siesta = clock.siesta()
+      if siesta is None:
+        server.notify()
+      else:
+        asyncore.loop(timeout = siesta, count = 1)
+  except KeyboardInterrupt:
+    sys.exit(0)
+
+
 os.environ["TZ"] = "UTC"
 time.tzset()
 
@@ -1560,7 +1646,8 @@ main_dispatch = {
   "server"              : server_main,
   "show"                : show_main,
   "bgpdump_convert"     : bgpdump_convert_main,
-  "bgpdump_select"      : bgpdump_select_main }
+  "bgpdump_select"      : bgpdump_select_main,
+  "bgpdump_server"      : bgpdump_server_main }
 
 def usage():
   print "Usage: %s --mode [arguments]" % sys.argv[0]

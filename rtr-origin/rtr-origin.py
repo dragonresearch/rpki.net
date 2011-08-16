@@ -1699,7 +1699,7 @@ if mode == "server":
     if os.getenv("SSH_CONNECTION"):
       log_tag += "/ssh/" + os.getenv("SSH_CONNECTION").split()[0]
 
-if mode in ("cronjob", "server"): # , "bgpdump_server"
+if mode in ("cronjob", "server" , "bgpdump_server"):
   syslog.openlog(log_tag, syslog.LOG_PID, syslog.LOG_DAEMON)
   def log(msg):
     return syslog.syslog(syslog.LOG_WARNING, str(msg))

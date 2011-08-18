@@ -455,7 +455,7 @@ typedef struct rcynic_x509_store_ctx {
 struct rcynic_ctx {
   path_t authenticated, old_authenticated, unauthenticated;
   char *jane, *rsync_program;
-  STACK_OF(OPENSSL_STRING) *rsync_cache, *backup_cache, *stale_cache;
+  STACK_OF(OPENSSL_STRING) *rsync_cache, *backup_cache, *stale_cache, *dead_host_cache;
   STACK_OF(validation_status_t) *validation_status;
   STACK_OF(rsync_ctx_t) *rsync_queue;
   STACK_OF(task_t) *task_queue;
@@ -828,6 +828,23 @@ static int uri_to_filename(const rcynic_ctx_t *rc,
 }
 
 /**
+ * Extract a hostname from a URI.
+ */
+static int uri_to_hostname(const uri_t *uri,
+			   hostname_t *hostname)
+{
+  size_t n;
+
+  if (!uri || !hostname || !is_rsync(uri->s) ||
+      (n = strcspn(uri->s + SIZEOF_RSYNC, "/")) >= sizeof(hostname->s))
+    return 0;
+
+  strncpy(hostname->s, uri->s + SIZEOF_RSYNC, n);
+  hostname->s[n] = '\0';
+  return 1;
+}
+
+/**
  * OID comparison.
  */
 static int oid_cmp(const ASN1_OBJECT *obj, const unsigned char *oid, const size_t oidlen)
@@ -1111,6 +1128,36 @@ static int rm_rf(const path_t *name)
  done:
   closedir(dir);
   return ret;
+}
+
+
+
+/**
+ * Add an entry to the dead host cache.
+ */
+static void dead_host_add(const rcynic_ctx_t *rc, const uri_t *uri)
+{
+  hostname_t hostname;
+
+  assert(rc && uri && rc->dead_host_cache);
+
+  if (!uri_to_hostname(uri, &hostname))
+    return;
+
+  (void) sk_OPENSSL_STRING_push_strdup(rc->dead_host_cache, hostname.s);
+}
+
+/**
+ * Check to see whether a hostname is in the dead host cache.
+ */
+static int dead_host_check(const rcynic_ctx_t *rc, const uri_t *uri)
+{
+  hostname_t hostname;
+
+  assert(rc && uri && rc->dead_host_cache);
+
+  return (uri_to_hostname(uri, &hostname) &&
+	  sk_OPENSSL_STRING_find(rc->dead_host_cache, hostname.s) >= 0);
 }
 
 
@@ -1892,7 +1939,7 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
       log_validation_status(rc, &ctx->uri, rsync_succeeded, object_generation_null);
       break;
 
-    case 5:
+    case 5:			/* "Error starting client-server protocol" */
       /*
        * Handle remote rsyncd refusing to talk to us because we've
        * exceeded its connection limit.  Back off for a short
@@ -1912,6 +1959,19 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
       }
       
       /* Otherwise, fall through */
+
+    case 2:			/* "Protocol incompatibility" */
+    case 4:		        /* "Requested  action  not supported" */
+    case 10:			/* "Error in socket I/O" */
+    case 11:			/* "Error in file I/O" */
+    case 12:		   	/* "Error in rsync protocol data stream" */
+    case 21:		      	/* "Some error returned by waitpid()" */
+    case 30:			/* "Timeout in data send/receive" */
+    case 35:		 	/* "Timeout waiting for daemon connection" */
+      logmsg(rc, log_telemetry, "Adding %s to dead host cache", ctx->uri.s);
+      dead_host_add(rc, &ctx->uri);
+
+      /* Fall through */
 
     default:
       logmsg(rc, log_data_err, "rsync %u exited with status %d fetching %s",
@@ -1998,6 +2058,13 @@ static void rsync_init(const rcynic_ctx_t *rc,
     logmsg(rc, log_verbose, "rsync cache hit for %s", uri->s);
     if (handler)
       handler(rc, NULL, rsync_status_done, uri, wsk);
+    return;
+  }
+
+  if (dead_host_check(rc, uri)) {
+    logmsg(rc, log_verbose, "Dead host cache hit for %s", uri->s);
+    if (handler)
+      handler(rc, NULL, rsync_status_failed, uri, wsk);
     return;
   }
 
@@ -2395,8 +2462,6 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
     return crl;
 
   logmsg(rc, log_telemetry, "Checking CRL %s", uri->s);
-
-  assert(rsync_cached_uri(rc, uri));
 
   if ((crl = check_crl_1(rc, uri, &path, &rc->unauthenticated,
 			 issuer, hash, hashlen, object_generation_current))) {
@@ -2996,8 +3061,6 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 
   logmsg(rc, log_telemetry, "Checking manifest %s", uri->s);
 
-  assert(rsync_cached_uri(rc, uri));
-
   if ((certs = walk_ctx_stack_certs(wsk)) == NULL)
     return NULL;
 
@@ -3306,8 +3369,6 @@ static void check_roa(const rcynic_ctx_t *rc,
 
   logmsg(rc, log_telemetry, "Checking ROA %s", uri->s);
 
-  assert(rsync_cached_uri(rc, uri));
-
   if ((certs = walk_ctx_stack_certs(wsk)) == NULL)
     return;
 
@@ -3481,8 +3542,6 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
     return;
 
   logmsg(rc, log_telemetry, "Checking Ghostbuster record %s", uri->s);
-
-  assert(rsync_cached_uri(rc, uri));
 
   if ((certs = walk_ctx_stack_certs(wsk)) == NULL)
     return;
@@ -3955,6 +4014,11 @@ int main(int argc, char *argv[])
     goto done;
   }
 
+  if ((rc.dead_host_cache = sk_OPENSSL_STRING_new(uri_cmp)) == NULL) {
+    logmsg(&rc, log_sys_err, "Couldn't allocate dead_host_cache stack");
+    goto done;
+  }
+
   if (xmlfile != NULL) {
     if ((rc.validation_status = sk_validation_status_t_new(validation_status_cmp)) == NULL) {
       logmsg(&rc, log_sys_err, "Couldn't allocate validation_status stack");
@@ -4263,6 +4327,7 @@ int main(int argc, char *argv[])
   sk_OPENSSL_STRING_pop_free(rc.rsync_cache, OPENSSL_STRING_free);
   sk_OPENSSL_STRING_pop_free(rc.backup_cache, OPENSSL_STRING_free);
   sk_OPENSSL_STRING_pop_free(rc.stale_cache, OPENSSL_STRING_free);
+  sk_OPENSSL_STRING_pop_free(rc.dead_host_cache, OPENSSL_STRING_free);
   sk_validation_status_t_pop_free(rc.validation_status, validation_status_t_free);
   X509_STORE_free(rc.x509_store);
   NCONF_free(cfg_handle);

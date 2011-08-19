@@ -251,6 +251,28 @@ allow-non-self-signed-trust-anchor
 			what you are doing.
 			Values: true or false.  Default: false
 
+run-rsync		Whether to run rsync to fetch data.  You don't
+			want to change this except when building
+			complex topologies of acting as aggregators
+			for other validators within a large ISP, in
+			which case you might want rcynic to validate
+			data fetched by an external process.  Don't
+			touch this unless you really know what you're
+			doing.
+			Values: true or false.  Default: true
+
+use-links		Whether to use hard links rather than copying
+			valid objects from the unauthenticated to
+			authenticated tree.  Using links is slightly
+			more fragile (anything that stomps on the
+			unauthenticated file also stomps on the
+			authenticated file) but is a bit faster and
+			reduces the number of inodes consumed by a
+			large data collection.  At the moment, copying
+			is the default behavior, but this may change
+			in the future.
+			Values: true or false.  Default: false
+
 trust-anchor		Specify one RPKI trust anchor, represented as
 			a local file containing an X.509 certificate
 			in DER format.  Value of this option is the

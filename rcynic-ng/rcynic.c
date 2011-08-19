@@ -245,6 +245,7 @@ static const struct {
   QB(unreadable_trust_anchor_locator,	"Unreadable trust anchor locator")  \
   QB(uri_too_long,			"URI too long")			    \
   QW(object_not_in_manifest,		"Object not in manifest")	    \
+  QW(rsync_skipped,			"rsync transfer skipped")	    \
   QW(stale_crl,				"Stale CRL")			    \
   QW(stale_manifest,			"Stale manifest")		    \
   QW(trust_anchor_not_self_signed,	"Trust anchor not self-signed")	    \
@@ -393,7 +394,8 @@ DECLARE_STACK_OF(walk_ctx_t)
 typedef enum {
   rsync_status_done,		/* Request completed */
   rsync_status_failed,		/* Request failed */
-  rsync_status_pending		/* Request in progress */
+  rsync_status_pending,		/* Request in progress */
+  rsync_status_skipped		/* Request not attempted */
 } rsync_status_t;
 
 /**
@@ -462,7 +464,7 @@ struct rcynic_ctx {
   int use_syslog, allow_stale_crl, allow_stale_manifest, use_links;
   int require_crl_in_manifest, rsync_timeout, priority[LOG_LEVEL_T_MAX];
   int allow_non_self_signed_trust_anchor, allow_object_not_in_manifest;
-  int max_parallel_fetches, max_retries, retry_wait_min;
+  int max_parallel_fetches, max_retries, retry_wait_min, run_rsync;
   log_level_t log_level;
   X509_STORE *x509_store;
 };
@@ -1535,6 +1537,24 @@ static void task_run_q(rcynic_ctx_t *rc)
 
 
 /**
+ * Record that we've already synced a particular rsync URI.
+ */
+
+static void rsync_cache_add(const rcynic_ctx_t *rc, const uri_t *uri)
+{
+  uri_t uribuf;
+  char *s;
+
+  assert(rc && uri && rc->rsync_cache);
+  uribuf = *uri;
+  while ((s = strrchr(uribuf.s, '/')) != NULL && s[1] == '\0')
+    *s = '\0';
+  assert(strlen(uribuf.s) > SIZEOF_RSYNC);
+  if (!sk_OPENSSL_STRING_push_strdup(rc->rsync_cache, uribuf.s  + SIZEOF_RSYNC))
+    logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", uri->s);
+}
+
+/**
  * Maintain a cache of URIs we've already fetched.
  */
 static int rsync_cached_string(const rcynic_ctx_t *rc,
@@ -1849,7 +1869,6 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
   int i, n, pid_status = -1;
   rsync_ctx_t *ctx = NULL;
   struct timeval tv;
-  uri_t uribuf;
   fd_set rfds;
   pid_t pid;
   char *s;
@@ -1984,12 +2003,7 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
       break;
     }
 
-    uribuf = ctx->uri;
-    while ((s = strrchr(uribuf.s, '/')) != NULL && s[1] == '\0')
-      *s = '\0';
-    assert(strlen(ctx->uri.s) > SIZEOF_RSYNC);
-    if (!sk_OPENSSL_STRING_push_strdup(rc->rsync_cache, uribuf.s  + SIZEOF_RSYNC))
-      logmsg(rc, log_sys_err, "Couldn't cache URI %s, blundering onward", ctx->uri.s);
+    rsync_cache_add(rc, &ctx->uri);
 
     if (ctx->handler)
       ctx->handler(rc, ctx, WEXITSTATUS(pid_status) ? rsync_status_failed : rsync_status_done, &ctx->uri, ctx->wsk);
@@ -2054,6 +2068,14 @@ static void rsync_init(const rcynic_ctx_t *rc,
 
   assert(rc && uri && strlen(uri->s) > SIZEOF_RSYNC);
 
+  if (!rc->run_rsync) {
+    logmsg(rc, log_verbose, "rsync disabled, skipping %s", uri->s);
+    rsync_cache_add(rc, uri);
+    if (handler)
+      handler(rc, NULL, rsync_status_skipped, uri, wsk);
+    return;
+  }
+
   if (rsync_cached_uri(rc, uri)) {
     logmsg(rc, log_verbose, "rsync cache hit for %s", uri->s);
     if (handler)
@@ -2063,8 +2085,9 @@ static void rsync_init(const rcynic_ctx_t *rc,
 
   if (dead_host_check(rc, uri)) {
     logmsg(rc, log_verbose, "Dead host cache hit for %s", uri->s);
+    rsync_cache_add(rc, uri);
     if (handler)
-      handler(rc, NULL, rsync_status_failed, uri, wsk);
+      handler(rc, NULL, rsync_status_skipped, uri, wsk);
     return;
   }
 
@@ -3602,13 +3625,18 @@ static void rsync_sia_callback(const rcynic_ctx_t *rc,
 
   case rsync_status_failed:
     log_validation_status(rc, uri, rsync_failed, object_generation_null);
-    /* Fall through */
+    break;
+
+  case rsync_status_skipped:
+    log_validation_status(rc, uri, rsync_skipped, object_generation_null);
+    break;
 
   case rsync_status_done:
-    w->state++;
-    task_add(rc, walk_cert, wsk);
-    return;
+    break;
   }
+
+  w->state++;
+  task_add(rc, walk_cert, wsk);
 }
 
 /**
@@ -3827,6 +3855,7 @@ int main(int argc, char *argv[])
   rc.max_parallel_fetches = 1;
   rc.max_retries = 3;
   rc.retry_wait_min = 30;
+  rc.run_rsync = 1;
 
 #define QQ(x,y)   rc.priority[x] = y;
   LOG_LEVELS;
@@ -3981,6 +4010,10 @@ int main(int argc, char *argv[])
 
     else if (!name_cmp(val->name, "prune") &&
 	     !configure_boolean(&rc, &prune, val->value))
+      goto done;
+
+    else if (!name_cmp(val->name, "run-rsync") &&
+	     !configure_boolean(&rc, &rc.run_rsync, val->value))
       goto done;
 
     /*

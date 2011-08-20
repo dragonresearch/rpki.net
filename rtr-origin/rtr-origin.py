@@ -1690,7 +1690,7 @@ if mode is None:
 
 log_tag = "rtr-origin/" + mode
 
-if mode == "server":
+if mode in ("server", "bgpdump_server"):
   #
   # Try to figure out peer address when we're in server mode.
   try:

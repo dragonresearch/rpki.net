@@ -1655,6 +1655,7 @@ mode = None
 kickme_dir  = "sockets"
 kickme_base = os.path.join(kickme_dir, "kickme")
 
+
 main_dispatch = {
   "cronjob"             : cronjob_main,
   "client"              : client_main,
@@ -1693,11 +1694,27 @@ log_tag = "rtr-origin/" + mode
 if mode in ("server", "bgpdump_server"):
   #
   # Try to figure out peer address when we're in server mode.
+  def hostport_to_string(proto, hostport):
+    assert len(hostport) == 2
+    if hostport[1] is None or hostport[1] == "":
+      return "/%s/%s" % (proto, hostport[0])
+    elif ":" in hostport[0]:
+      return "/%s/%s.%s" % (proto, hostport[0], hostport[1])
+    else:
+      return "/%s/%s:%s" % (proto, hostport[0], hostport[1])
+  #
+  # First try raw TCP, TCP-MD5, TCP-AO
   try:
-    log_tag += "/tcp/" + str(socket.fromfd(0, socket.AF_INET, socket.SOCK_STREAM).getpeername()[0])
+    log_tag += hostport_to_string("tcp", socket.fromfd(0, socket.AF_INET, socket.SOCK_STREAM).getpeername())
   except (socket.error, IndexError):
-    if os.getenv("SSH_CONNECTION"):
-      log_tag += "/ssh/" + os.getenv("SSH_CONNECTION").split()[0]
+    #
+    # Next try ssh (sshd sets environment)
+    if "SSH_CONNECTION" in os.environ:
+      log_tag += hostport_to_string("ssh", os.environ["SSH_CONNECTION"].split()[0:2])
+    #
+    # Next try ssl (stunnel sets environment)
+    elif "REMOTE_HOST" in os.environ:
+      log_tag += hostport_to_string("ssl", (os.environ["REMOTE_HOST"], os.getenv("REMOTE_PORT")))
 
 if mode in ("cronjob", "server" , "bgpdump_server"):
   syslog.openlog(log_tag, syslog.LOG_PID, syslog.LOG_DAEMON)

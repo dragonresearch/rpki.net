@@ -137,7 +137,7 @@ TO DO:
 
 	TIME REQUIRED: Three days
 
-	STATUS: Not started
+	STATUS: Done, long since
 
       * Investigate using EKU (RFC 3280 4.2.1.13) as an alternative to
 	wiring in BPKI EE certs for left-right protocol.
@@ -155,7 +155,7 @@ TO DO:
 
 	TIME REQUIRED: Two weeks
 
-	STATUS: Not started
+	STATUS: Done, long ago
 
       * Django Web UI to RPKI code as currently envisioned will (also)
         require some additional data from rpkid and rcynic that is not
@@ -220,9 +220,7 @@ TO DO:
 
 	TIME REQUIRED: Three weeks (very rough guess).
 
-	DEPENDS ON: Decision whether to keep or drop TLS.
-
-	STATUS: Not started
+	STATUS: Done, long ago
 
       * Integrate UI tools into main code base.  Right now there's
         this odd split, with the myrpki stuff off to one side, irdbd
@@ -234,9 +232,7 @@ TO DO:
 
 	TIME REQUIRED: Two weeks.
 
-	STATUS: Mostly done.  POW is still hanging off to the side,
-	but the myrpki/ directory has now been merged into rpkid/, and
-	various other bits have been cleaned up.
+	STATUS: Done, long since.
 
       * Autoconf review.  Right now we're making minimal use of
         autoconf, just enough to get the code running on Mac OS and
@@ -251,10 +247,7 @@ TO DO:
 
 	TIME REQUIRED: One week for an initial pass.
 
-	DEPENDS ON: Installation scripts.  Not so much depends on,
-	really, as two aspects of one interrelated mess.
-
-	STATUS: Not started
+	STATUS: Done, long since
 
       * We need installation scripts.  Right now the only thing we
         install is rcynic, and that only on FreeBSD.
@@ -262,7 +255,7 @@ TO DO:
 	TIME REQUIRED: One week, longer if installation for many platforms is
 	required
 
-	STATUS: Not started
+	STATUS: Done, long since
 
       * We need better and unified documentation.  Right now doc is
         scattered between rpkid core manual, various READMEs, internal
@@ -326,6 +319,8 @@ TO DO:
         would be published, presumably we would want rcynic to be able
         to check it.
 
+	This turned into the Ghostbusters Record.
+
 	TIME REQUIRED: One week to add to rpkid et al (very rough --
 	includes design work to figure out exactly where this would
 	fit, actual coding probably relatively minor).  Perhaps an
@@ -334,7 +329,7 @@ TO DO:
 
 	DEPENDS ON: Agreement to add this to rescert profile.
 
-	STATUS: Not started
+	STATUS: Done, long since
 
       * myrpki.py should have a command that summarizes current state
         (data on file, actions it might make sense to take now, etc).
@@ -348,4 +343,5 @@ TO DO:
 
 	TIME REQUIRED: Three weeks (wild guess)
 
-	STATUS: Not started, byond some preliminary design thoughts.
+	STATUS: Mostly done, a few loose ends to finish.
+

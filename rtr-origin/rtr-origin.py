@@ -1260,6 +1260,53 @@ class kickme_channel(asyncore.dispatcher):
     asyncore.close_all()
 
 
+def hostport_tag():
+  """
+  Construct hostname/address + port when we're running under a
+  protocol we understand well enough to do that.  This is all
+  kludgery.  Just grit your teeth, or perhaps just close your eyes.
+  """
+
+  proto = None
+
+  if proto is None:
+    try:
+      host, port = socket.fromfd(0, socket.AF_INET, socket.SOCK_STREAM).getpeername()
+      proto = "tcp"
+    except:
+      pass
+
+  if proto is None:
+    try:
+      host, port = socket.fromfd(0, socket.AF_INET6, socket.SOCK_STREAM).getpeername()[0:2]
+      proto = "tcp"
+    except:
+      pass
+
+  if proto is None:
+    try:
+      host, port = os.environ["SSH_CONNECTION"].split()[0:2]
+      proto = "ssh"
+    except:
+      pass
+
+  if proto is None:
+    try:
+      host, port = os.environ["REMOTE_HOST"], os.getenv("REMOTE_PORT")
+      proto = "ssl"
+    except:
+      pass
+
+  if proto is None:
+    return ""
+  elif not port:
+    return "/%s/%s" % (proto, host)
+  elif ":" in host:
+    return "/%s/%s.%s" % (proto, host, port)
+  else:
+    return "/%s/%s:%s" % (proto, host, port)
+
+
 def kick_all(serial):
   """
   Kick any existing server processes to wake them up.
@@ -1692,29 +1739,7 @@ if mode is None:
 log_tag = "rtr-origin/" + mode
 
 if mode in ("server", "bgpdump_server"):
-  #
-  # Try to figure out peer address when we're in server mode.
-  def hostport_to_string(proto, hostport):
-    assert len(hostport) == 2
-    if hostport[1] is None or hostport[1] == "":
-      return "/%s/%s" % (proto, hostport[0])
-    elif ":" in hostport[0]:
-      return "/%s/%s.%s" % (proto, hostport[0], hostport[1])
-    else:
-      return "/%s/%s:%s" % (proto, hostport[0], hostport[1])
-  #
-  # First try raw TCP, TCP-MD5, TCP-AO
-  try:
-    log_tag += hostport_to_string("tcp", socket.fromfd(0, socket.AF_INET, socket.SOCK_STREAM).getpeername())
-  except (socket.error, IndexError):
-    #
-    # Next try ssh (sshd sets environment)
-    if "SSH_CONNECTION" in os.environ:
-      log_tag += hostport_to_string("ssh", os.environ["SSH_CONNECTION"].split()[0:2])
-    #
-    # Next try ssl (stunnel sets environment)
-    elif "REMOTE_HOST" in os.environ:
-      log_tag += hostport_to_string("ssl", (os.environ["REMOTE_HOST"], os.getenv("REMOTE_PORT")))
+  log_tag += hostport_tag()
 
 if mode in ("cronjob", "server" , "bgpdump_server"):
   syslog.openlog(log_tag, syslog.LOG_PID, syslog.LOG_DAEMON)

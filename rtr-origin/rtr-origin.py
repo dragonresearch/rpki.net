@@ -591,8 +591,16 @@ class error_report(pdu):
   string_struct = struct.Struct("!L")
 
   msgs = {
+    0 : "Corrupt Data",
     1 : "Internal Error",
-    2 : "No Data Available" }
+    2 : "No Data Available",
+    3 : "Invalid Request",
+    4 : "Unsupported Protocol Version",
+    5 : "Unsupported PDU Type",
+    6 : "Withdrawal of Unknown Record",
+    7 : "Duplicate Announcement Received" }
+
+  fatal = (0, 1, 3, 4, 5, 6, 7)
 
   codes = dict((v, k) for k, v in msgs.items())
 
@@ -603,7 +611,7 @@ class error_report(pdu):
     self.errmsg = errmsg if errmsg is not None or errno is None else self.msgs[errno]
 
   def __str__(self):
-    return "Error #%s: %s" % (self.errno, self.errmsg)
+    return "[%s, error #%s: %r]" % (self.__class__.__name__, self.errno, self.errmsg)
 
   def to_counted_string(self, s):
     return self.string_struct.pack(len(s)) + s
@@ -644,6 +652,16 @@ class error_report(pdu):
     assert length == self.header_struct.size + self.string_struct.size * 2 + self.pdulen + self.errlen
     assert header + self.to_counted_string(self.errpdu) + self.to_counted_string(self.errmsg.encode("utf8")) == self.to_pdu()
     return self
+
+  def serve(self, server):
+    """
+    Received an error_report from client.  Not much we can do beyond
+    logging it, then killing the connection if error was fatal.
+    """
+    log(self)
+    if self.errno in self.fatal:
+      log("[Shutting down due to reported fatal protocol error]")
+      sys.exit(1)
 
 pdu.pdu_map = dict((p.pdu_type, p) for p in (ipv4_prefix, ipv6_prefix, serial_notify, serial_query, reset_query,
                                              cache_response, end_of_data, cache_reset, error_report))
@@ -1154,7 +1172,7 @@ class client_channel(pdu_channel):
     s = socket.socketpair()
     blather("[Using direct subprocess kludge for testing]")
     return cls(sock = s[1],
-               proc = subprocess.Popen(("/usr/local/bin/python", "rtr-origin.py", "--server"), stdin = s[0], stdout = s[0], close_fds = True),
+               proc = subprocess.Popen((sys.executable, sys.argv[0], "--server"), stdin = s[0], stdout = s[0], close_fds = True),
                killsig = signal.SIGINT)
 
   def deliver_pdu(self, pdu):

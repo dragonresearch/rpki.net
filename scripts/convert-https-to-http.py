@@ -6,7 +6,7 @@ Usage: python convert-https-to-http.py [ { -c | --config } configfile ]
                                        [ { -e | --entitydb } entitydbdir ]
                                        [ { -h | --help } ]
 
-Default configuration file is myrpki.conf, override with --config option.
+Default configuration file is rpki.conf, override with --config option.
 
 $Id$
 
@@ -27,7 +27,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 import getopt, sys, os, warnings, lxml.etree, rpki.config
 
-cfg_file = "myrpki.conf"
+cfg_file = "rpki.conf"
 entitydb_dir = "entitydb"
 convert_sql = True
 

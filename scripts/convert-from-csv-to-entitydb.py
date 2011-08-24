@@ -26,8 +26,8 @@ from lxml.etree import Element, SubElement, ElementTree
 section_regexp  = re.compile("\s*\[\s*(.+?)\s*\]\s*$")
 variable_regexp = re.compile("\s*([-a-zA-Z0-9_]+)(\s*=\s*)(.+?)\s*$")
 
-cfg_file = "myrpki.conf"
-template_file = os.path.join(os.path.dirname(sys.argv[0]), "examples", "myrpki.conf")
+cfg_file = "rpki.conf"
+template_file = os.path.join(os.path.dirname(sys.argv[0]), "examples", "rpki.conf")
 new_cfg_file = None
 preserve_valid_until = False
 

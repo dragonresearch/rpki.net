@@ -38,7 +38,7 @@ f.close()
 rpki.myrpki.openssl = "/u/sra/rpki/subvert-rpki.hactrn.net/openssl/openssl/apps/openssl"
 os.putenv("OPENSSL_CONF", "/dev/null")
 
-bpki = rpki.myrpki.CA("test/Alice/myrpki.conf", "test/Alice/bpki/resources")
+bpki = rpki.myrpki.CA("test/Alice/rpki.conf", "test/Alice/bpki/resources")
 bpki.ee("/CN=Alice Signed Referral CMS Test EE Certificate", "CMSEE")
 
 # "id-ct-xml" from rpki.oids

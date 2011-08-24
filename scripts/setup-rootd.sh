@@ -28,7 +28,7 @@ export BPKI_DIRECTORY=`pwd`/bpki/servers
 
 openssl=../openssl/openssl/apps/openssl
 
-$openssl ca -notext -batch -config myrpki.conf \
+$openssl ca -notext -batch -config rpki.conf \
 	-ss_cert bpki/resources/ca.cer \
 	-out $BPKI_DIRECTORY/child.cer \
 	-extensions ca_x509_ext_xcert0

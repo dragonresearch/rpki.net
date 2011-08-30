@@ -244,6 +244,8 @@ static const struct {
   QB(unreadable_trust_anchor,		"Unreadable trust anchor")	    \
   QB(unreadable_trust_anchor_locator,	"Unreadable trust anchor locator")  \
   QB(uri_too_long,			"URI too long")			    \
+  QW(nonconformant_issuer_name,		"Nonconformant X.509 issuer name")  \
+  QW(nonconformant_subject_name,	"Nonconformant X.509 subject name") \
   QW(object_not_in_manifest,		"Object not in manifest")	    \
   QW(rsync_skipped,			"rsync transfer skipped")	    \
   QW(stale_crl,				"Stale CRL")			    \
@@ -2546,6 +2548,46 @@ static int check_allowed_extensions(const X509 *x, const int allow_eku)
   return 1;
 }
 
+/**
+ * Check whether a Distinguished Name conforms to the rescert profile.
+ * The profile is very restrictive: it only allows one mandatory
+ * CommonName field and one optional SerialNumber field, both of which
+ * must be of type PrintableString.
+ */
+static int check_allowed_dn(X509_NAME *dn)
+{
+  X509_NAME_ENTRY *ne;
+  ASN1_STRING *s;
+  int loc;
+
+  if (dn == NULL)
+    return 0;
+
+  switch (X509_NAME_entry_count(dn)) {
+
+  case 2:
+    if ((loc = X509_NAME_get_index_by_NID(dn, NID_serialNumber, -1)) < 0 ||
+	(ne = X509_NAME_get_entry(dn, loc)) == NULL ||
+	(s = X509_NAME_ENTRY_get_data(ne)) == NULL ||
+	ASN1_STRING_type(s) != V_ASN1_PRINTABLESTRING)
+      return 0;
+
+    /* Fall through */
+
+  case 1:
+    if ((loc = X509_NAME_get_index_by_NID(dn, NID_commonName, -1)) < 0 ||
+	(ne = X509_NAME_get_entry(dn, loc)) == NULL ||
+	(s = X509_NAME_ENTRY_get_data(ne)) == NULL ||
+	ASN1_STRING_type(s) != V_ASN1_PRINTABLESTRING)
+      return 0;
+
+    return 1;
+
+  default:
+    return 0;
+  }
+}
+
 
 
 /**
@@ -2692,6 +2734,12 @@ static int check_x509(const rcynic_ctx_t *rc,
     log_validation_status(rc, &subject->uri, disallowed_extension, subject->generation);
     goto done;
   }
+
+  if (!check_allowed_dn(X509_get_subject_name(x)))
+    log_validation_status(rc, &subject->uri, nonconformant_subject_name, subject->generation);
+
+  if (!check_allowed_dn(X509_get_issuer_name(x)))
+    log_validation_status(rc, &subject->uri, nonconformant_issuer_name, subject->generation);
 
   if (subject->ta) {
 

@@ -398,6 +398,7 @@ DECLARE_STACK_OF(walk_ctx_t)
 typedef enum {
   rsync_status_done,		/* Request completed */
   rsync_status_failed,		/* Request failed */
+  rsync_status_timed_out,	/* Request timed out */
   rsync_status_pending,		/* Request in progress */
   rsync_status_skipped		/* Request not attempted */
 } rsync_status_t;
@@ -1139,21 +1140,6 @@ static int rm_rf(const path_t *name)
 
 
 /**
- * Add an entry to the dead host cache.
- */
-static void dead_host_add(const rcynic_ctx_t *rc, const uri_t *uri)
-{
-  hostname_t hostname;
-
-  assert(rc && uri && rc->dead_host_cache);
-
-  if (!uri_to_hostname(uri, &hostname))
-    return;
-
-  (void) sk_OPENSSL_STRING_push_strdup(rc->dead_host_cache, hostname.s);
-}
-
-/**
  * Check to see whether a hostname is in the dead host cache.
  */
 static int dead_host_check(const rcynic_ctx_t *rc, const uri_t *uri)
@@ -1164,6 +1150,25 @@ static int dead_host_check(const rcynic_ctx_t *rc, const uri_t *uri)
 
   return (uri_to_hostname(uri, &hostname) &&
 	  sk_OPENSSL_STRING_find(rc->dead_host_cache, hostname.s) >= 0);
+}
+
+
+/**
+ * Add an entry to the dead host cache.
+ */
+static void dead_host_add(const rcynic_ctx_t *rc, const uri_t *uri)
+{
+  hostname_t hostname;
+
+  assert(rc && uri && rc->dead_host_cache);
+
+  if (dead_host_check(rc, uri))
+    return;
+
+  if (!uri_to_hostname(uri, &hostname))
+    return;
+
+  (void) sk_OPENSSL_STRING_push_strdup(rc->dead_host_cache, hostname.s);
 }
 
 
@@ -1622,12 +1627,12 @@ static int rsync_runable(const rcynic_ctx_t *rc,
 
   case rsync_state_initial:
   case rsync_state_running:
-  case rsync_state_terminating:
     return 1;
 
   case rsync_state_retry_wait:
     return ctx->deadline <= time(0);
 
+  case rsync_state_terminating:
   case rsync_state_conflict_wait:
 #warning rsync_state_conflict_wait not implemented yet
     return 0;
@@ -1672,7 +1677,7 @@ static void rsync_run(const rcynic_ctx_t *rc,
 
   pipe_fds[0] = pipe_fds[1] = -1;
 
-  assert(rc && ctx && ctx->state != rsync_state_running && rsync_runable(rc, ctx));
+  assert(rc && ctx && ctx->pid == 0 && ctx->state != rsync_state_running && rsync_runable(rc, ctx));
 
   assert(rsync_count_running(rc) < rc->max_parallel_fetches);
 
@@ -1796,6 +1801,9 @@ static void rsync_run(const rcynic_ctx_t *rc,
 static void do_one_rsync_log_line(const rcynic_ctx_t *rc,
 				  rsync_ctx_t *ctx)
 {
+  unsigned u;
+  char *s;
+
   /*
    * Send line to our log unless it's empty.
    */
@@ -1805,8 +1813,11 @@ static void do_one_rsync_log_line(const rcynic_ctx_t *rc,
   /*
    * Check for magic error strings
    */
-  if (strstr(ctx->buffer, "@ERROR: max connections"))
+  if ((s = strstr(ctx->buffer, "@ERROR: max connections")) != NULL) {
     ctx->problem = rsync_problem_refused;
+    if (sscanf(s, "@ERROR: max connections (%u) reached -- try again later", &u) == 1)
+      logmsg(rc, log_debug, "Subprocess %u reported limit of %u for %s", ctx->pid, u, ctx->uri.s);
+  }
 }
 
 /**
@@ -1879,6 +1890,119 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 
   assert(rc && rc->rsync_queue);
 
+  /*
+   * Check for exited subprocesses.
+   */
+
+  while ((pid = waitpid(-1, &pid_status, WNOHANG)) > 0) {
+
+    /*
+     * Child exited, handle it.
+     */
+
+    logmsg(rc, log_debug, "Subprocess %d exited with status %d", pid, WEXITSTATUS(pid_status));
+
+    for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i)
+      if (ctx->pid == pid)
+	break;
+    if (ctx == NULL) {
+      assert(i == sk_rsync_ctx_t_num(rc->rsync_queue));
+      logmsg(rc, log_sys_err, "Couldn't find rsync context for pid %d", pid);
+      continue;
+    }
+
+    close(ctx->fd);
+    ctx->fd = -1;
+
+    if (ctx->buflen > 0) {
+      assert(ctx->buflen < sizeof(ctx->buffer));
+      ctx->buffer[ctx->buflen] = '\0';
+      do_one_rsync_log_line(rc, ctx);
+      ctx->buflen = 0;
+    }
+
+    switch (WEXITSTATUS(pid_status)) {
+
+    case 0:
+      log_validation_status(rc, &ctx->uri, 
+			    (ctx->problem == rsync_problem_timed_out
+			     ? rsync_timed_out
+			     : rsync_succeeded),
+			    object_generation_null);
+      break;
+
+    case 5:			/* "Error starting client-server protocol" */
+      /*
+       * Handle remote rsyncd refusing to talk to us because we've
+       * exceeded its connection limit.  Back off for a short
+       * interval, then retry.
+       */
+      if (ctx->problem == rsync_problem_refused && ctx->tries < rc->max_retries) {
+	unsigned char r;
+	if (!RAND_bytes(&r, sizeof(r)))
+	  r = 60;
+	ctx->deadline = time(0) + rc->retry_wait_min + r;
+	ctx->state = rsync_state_retry_wait;
+	ctx->problem = rsync_problem_none;
+	ctx->pid = 0;
+	ctx->tries++;
+	logmsg(rc, log_telemetry, "Scheduling retry for %s", ctx->uri.s);
+	continue;
+      }
+      
+      /* Otherwise, fall through */
+
+    case 2:			/* "Protocol incompatibility" */
+    case 4:		        /* "Requested  action  not supported" */
+    case 10:			/* "Error in socket I/O" */
+    case 11:			/* "Error in file I/O" */
+    case 12:		   	/* "Error in rsync protocol data stream" */
+    case 21:		      	/* "Some error returned by waitpid()" */
+    case 30:			/* "Timeout in data send/receive" */
+    case 35:		 	/* "Timeout waiting for daemon connection" */
+      logmsg(rc, log_telemetry, "Adding %s to dead host cache", ctx->uri.s);
+      dead_host_add(rc, &ctx->uri);
+
+      /* Fall through */
+
+    default:
+      logmsg(rc, log_data_err, "rsync %u exited with status %d fetching %s",
+	     (unsigned) pid, WEXITSTATUS(pid_status), ctx->uri.s);
+      log_validation_status(rc, &ctx->uri,
+			    (rc->rsync_timeout && now >= ctx->deadline
+			     ? rsync_timed_out
+			     : rsync_failed),
+			    object_generation_null);
+      break;
+    }
+
+    rsync_cache_add(rc, &ctx->uri);
+    if (ctx->handler)
+      ctx->handler(rc, ctx, (ctx->problem == rsync_problem_timed_out
+			     ? rsync_status_timed_out
+			     : WEXITSTATUS(pid_status) != 0
+			     ? rsync_status_failed
+			     : rsync_status_done),
+		   &ctx->uri, ctx->wsk);
+    (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
+    free(ctx);
+    ctx = NULL;
+  }
+
+  if (pid == -1 && errno != EINTR && errno != ECHILD)
+    logmsg(rc, log_sys_err, "waitpid() returned error: %s", strerror(errno));
+
+  assert(rsync_count_running(rc) <= rc->max_parallel_fetches);
+
+  /*
+   * Look for rsync contexts that have become runable.
+   */
+  for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i)
+    if (ctx->state != rsync_state_running &&
+	rsync_runable(rc, ctx) &&
+	rsync_count_running(rc) < rc->max_parallel_fetches)
+      rsync_run(rc, ctx);
+
   assert(rsync_count_running(rc) <= rc->max_parallel_fetches);
 
   /*
@@ -1928,111 +2052,6 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
     }
   }
 
-  /*
-   * Check for exited subprocesses.
-   */
-
-  while ((pid = waitpid(-1, &pid_status, WNOHANG)) > 0) {
-
-    /*
-     * Child exited, handle that and return.
-     */
-
-    for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i)
-      if (ctx->pid == pid)
-	break;
-    if (ctx == NULL) {
-      logmsg(rc, log_sys_err, "Couldn't find rsync context for pid %d", pid);
-      continue;
-    }
-
-    close(ctx->fd);
-    ctx->fd = -1;
-
-    if (ctx->buflen > 0) {
-      assert(ctx->buflen < sizeof(ctx->buffer));
-      ctx->buffer[ctx->buflen] = '\0';
-      do_one_rsync_log_line(rc, ctx);
-      ctx->buflen = 0;
-    }
-
-    switch (WEXITSTATUS(pid_status)) {
-
-    case 0:
-      log_validation_status(rc, &ctx->uri, rsync_succeeded, object_generation_null);
-      break;
-
-    case 5:			/* "Error starting client-server protocol" */
-      /*
-       * Handle remote rsyncd refusing to talk to us because we've
-       * exceeded its connection limit.  Back off for a short
-       * interval, then retry.
-       */
-      if (ctx->problem == rsync_problem_refused && ctx->tries < rc->max_retries) {
-	unsigned char r;
-	if (!RAND_bytes(&r, sizeof(r)))
-	  r = 60;
-	ctx->deadline = time(0) + rc->retry_wait_min + r;
-	ctx->state = rsync_state_retry_wait;
-	ctx->problem = rsync_problem_none;
-	ctx->pid = 0;
-	ctx->tries++;
-	logmsg(rc, log_telemetry, "Scheduling retry for %s", ctx->uri.s);
-	continue;
-      }
-      
-      /* Otherwise, fall through */
-
-    case 2:			/* "Protocol incompatibility" */
-    case 4:		        /* "Requested  action  not supported" */
-    case 10:			/* "Error in socket I/O" */
-    case 11:			/* "Error in file I/O" */
-    case 12:		   	/* "Error in rsync protocol data stream" */
-    case 21:		      	/* "Some error returned by waitpid()" */
-    case 30:			/* "Timeout in data send/receive" */
-    case 35:		 	/* "Timeout waiting for daemon connection" */
-      logmsg(rc, log_telemetry, "Adding %s to dead host cache", ctx->uri.s);
-      dead_host_add(rc, &ctx->uri);
-
-      /* Fall through */
-
-    default:
-      logmsg(rc, log_data_err, "rsync %u exited with status %d fetching %s",
-	     (unsigned) pid, WEXITSTATUS(pid_status), ctx->uri.s);
-      log_validation_status(rc, &ctx->uri,
-			    (rc->rsync_timeout && now >= ctx->deadline
-			     ? rsync_timed_out
-			     : rsync_failed),
-			    object_generation_null);
-      break;
-    }
-
-    rsync_cache_add(rc, &ctx->uri);
-
-    if (ctx->handler)
-      ctx->handler(rc, ctx, WEXITSTATUS(pid_status) ? rsync_status_failed : rsync_status_done, &ctx->uri, ctx->wsk);
-    (void) sk_rsync_ctx_t_delete_ptr(rc->rsync_queue, ctx);
-    free(ctx);
-    ctx = NULL;
-  }
-
-  if (pid == -1 && errno != EINTR && errno != ECHILD)
-    logmsg(rc, log_sys_err, "waitpid() returned error: %s", strerror(errno));
-
-  assert(rsync_count_running(rc) <= rc->max_parallel_fetches);
-
-  /*
-   * Look for rsync contexts that have become runable.
-   */
-  if (rsync_count_running(rc) < rc->max_parallel_fetches) {
-    for (i = 0; (ctx = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i) {
-      if (ctx->state != rsync_state_running && rsync_runable(rc, ctx)) {
-	rsync_run(rc, ctx);
-	break;
-      }
-    }
-  }
-
   assert(rsync_count_running(rc) <= rc->max_parallel_fetches);
 
   /*
@@ -2048,14 +2067,15 @@ static void rsync_mgr(const rcynic_ctx_t *rc)
 	ctx->problem = rsync_problem_timed_out;
 	ctx->state = rsync_state_terminating;
 	ctx->tries = 0;
-	logmsg(rc, log_telemetry, "Subprocess %u is taking too long fetching %s", (unsigned) ctx->pid, ctx->uri.s);
+	logmsg(rc, log_telemetry, "Subprocess %u is taking too long fetching %s, whacking it", (unsigned) ctx->pid, ctx->uri.s);
+	dead_host_add(rc, &ctx->uri);
       } else if (sig == SIGTERM) {
 	logmsg(rc, log_telemetry, "Whacking subprocess %u again", (unsigned) ctx->pid);
       } else {
 	logmsg(rc, log_telemetry, "Whacking subprocess %u with big hammer", (unsigned) ctx->pid);
       }
       (void) kill(ctx->pid, sig);
-      ctx->deadline = now + 2;
+      ctx->deadline = now + 1;
     }
   }
 }
@@ -3675,6 +3695,10 @@ static void rsync_sia_callback(const rcynic_ctx_t *rc,
 
   case rsync_status_failed:
     log_validation_status(rc, uri, rsync_failed, object_generation_null);
+    break;
+
+  case rsync_status_timed_out:
+    log_validation_status(rc, uri, rsync_timed_out, object_generation_null);
     break;
 
   case rsync_status_skipped:

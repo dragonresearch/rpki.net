@@ -1616,6 +1616,28 @@ static int rsync_count_running(const rcynic_ctx_t *rc)
 }
 
 /**
+ * Test whether an rsync context conflicts with anything that's
+ * currently runable.
+ */
+static int rsync_conflicts(const rcynic_ctx_t *rc,
+			   const rsync_ctx_t *ctx)
+{
+  const rsync_ctx_t *c;
+  int i;
+
+  assert(rc && ctx && rc->rsync_queue);
+
+  for (i = 0; (c = sk_rsync_ctx_t_value(rc->rsync_queue, i)) != NULL; ++i)
+    if (c != ctx &&
+	(c->state == rsync_state_initial ||
+	 c->state == rsync_state_running) &&
+	conflicting_uris(&c->uri, &ctx->uri))
+      return 1;
+
+  return 0;
+}
+
+/**
  * Test whether a rsync context is runable at this time.
  */
 static int rsync_runable(const rcynic_ctx_t *rc,
@@ -1633,9 +1655,10 @@ static int rsync_runable(const rcynic_ctx_t *rc,
     return ctx->deadline <= time(0);
 
   case rsync_state_terminating:
-  case rsync_state_conflict_wait:
-#warning rsync_state_conflict_wait not implemented yet
     return 0;
+
+  case rsync_state_conflict_wait:
+    return !rsync_conflicts(rc, ctx);
   }
 
   return 0;
@@ -2135,6 +2158,12 @@ static void rsync_init(const rcynic_ctx_t *rc,
     free(ctx);
     return;
   }
+
+  if (rsync_conflicts(rc, ctx)) {
+    logmsg(rc, log_debug, "New rsync context %s is feeling conflicted", ctx->uri.s);
+    ctx->state = rsync_state_conflict_wait;
+  }
+
 
 #if 0
   if (rsync_runable(rc, ctx) && rsync_count_running(rc) < rc->max_parallel_fetches);

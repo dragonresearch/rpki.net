@@ -9,11 +9,14 @@ OBJ = ${NAME}.o
 HDR = defasn1.h
 GEN = defstack.h
 
+OBJS = ${OBJ} bio_f_linebreak.o
+
 CFLAGS = @CFLAGS@ -Wall -Wshadow -Wmissing-prototypes -Wmissing-declarations -Werror-implicit-function-declaration
 LDFLAGS = @LDFLAGS@ @LD_STATIC_FLAG@
 LIBS = @LIBS@
 
 AWK = @AWK@
+XSLTPROC = @XSLTPROC@
 
 abs_top_srcdir	 = @abs_top_srcdir@
 abs_top_builddir = @abs_top_builddir@
@@ -24,10 +27,12 @@ all: ${BIN}
 
 clean:
 	cd static-rsync; ${MAKE} $@
-	rm -f ${BIN} ${OBJ} ${GEN}
+	rm -f ${BIN} ${OBJS} ${GEN}
 
-${BIN}: ${SRC} ${HDR} ${GEN}
-	${CC} ${CFLAGS} -o $@ ${SRC} ${LDFLAGS} ${LIBS}
+${OBJ}: ${SRC} ${HDR} ${GEN}
+
+${BIN}: ${OBJS}
+	${CC} ${CFLAGS} -o $@ ${OBJS} ${LDFLAGS} ${LIBS}
 
 defstack.h: defstack.awk ${SRC} ${HDR}
 	${AWK} -f >$@ defstack.awk ${SRC} ${HDR}
@@ -49,6 +54,9 @@ tags: TAGS
 
 TAGS: ${SRC} ${HDR} ${GEN}
 	etags ${SRC} ${HDR} ${GEN}
+
+rcynic.html: rcynic.xml rcynic.xsl
+	${XSLTPROC} -o $@ rcynic.xsl rcynic.xml
 
 # Doc stuff right now is just internals doc, of interest only to
 # programmers.  Real doc for rcynic is still the README.  This may

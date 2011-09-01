@@ -75,6 +75,8 @@
 #include <openssl/asn1t.h>
 #include <openssl/cms.h>
 
+#include "bio_f_linebreak.h"
+
 #include "defstack.h"
 #include "defasn1.h"
 
@@ -4258,6 +4260,7 @@ int main(int argc, char *argv[])
 	continue;
       }
       uri.s[strcspn(uri.s, " \t\r\n")] = '\0';
+      bio = BIO_push(BIO_new(BIO_f_linebreak()), bio);
       bio = BIO_push(BIO_new(BIO_f_base64()), bio);
       if (!uri_to_filename(&rc, &uri, &path1, &rc.unauthenticated) ||
 	  !uri_to_filename(&rc, &uri, &path2, &rc.authenticated) ||

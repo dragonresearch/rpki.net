@@ -120,8 +120,7 @@ static int linebreak_free(BIO *b)
 
 static int linebreak_read(BIO *b, char *out, int outl)
 {
-  int ret = 0, want, n;
-  char *s;
+  int ret = 0, want, n, i;
 
   if (out == NULL || b->next_bio == NULL || outl <= 0)
     return 0;
@@ -146,8 +145,11 @@ static int linebreak_read(BIO *b, char *out, int outl)
     BIO_copy_next_retry(b);
 
     if (n > 0) {
-      if ((s = memrchr(out, '\n', n)) != NULL)
-	b->num = (out + n) - (s + 1);
+      for (i = n - 1; i >= 0; i--)
+	if (out[i] == '\n')
+	  break;
+      if (i >= 0)
+	b->num = n - i - 1;
       else
 	b->num += n;
       out += n;

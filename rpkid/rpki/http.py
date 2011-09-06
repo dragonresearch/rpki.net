@@ -699,6 +699,7 @@ class http_client(http_stream):
       self.connect((self.address, self.port))
       if self.addr is None:
         self.addr = (self.host, self.port)
+      self.update_timeout()
     except (rpki.async.ExitNow, SystemExit):
       raise
     except:

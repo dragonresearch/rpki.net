@@ -54,14 +54,14 @@ want_persistent_server = False
 
 ## @var default_client_timeout
 # Default HTTP client connection timeout.
-default_client_timeout = rpki.sundial.timedelta(minutes = 15)
+default_client_timeout = rpki.sundial.timedelta(minutes = 5)
 
 ## @var default_server_timeout
 # Default HTTP server connection timeouts.  Given our druthers, we'd
 # prefer that the client close the connection, as this avoids the
 # problem of client starting to reuse connection just as server closes
 # it, so this should be longer than the client timeout.
-default_server_timeout = rpki.sundial.timedelta(minutes = 20)
+default_server_timeout = rpki.sundial.timedelta(minutes = 10)
 
 ## @var default_http_version
 # Preferred HTTP version.
@@ -802,7 +802,10 @@ class http_client(http_stream):
       self.log("Timeout while in state %s" % self.state, rpki.log.warn)
     http_stream.handle_timeout(self)
     if bad:
-      raise rpki.exceptions.HTTPTimeout
+      try:
+        raise rpki.exceptions.HTTPTimeout
+      except:
+        self.handle_error()
     else:
       self.queue.detach(self)
 

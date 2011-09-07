@@ -29,6 +29,9 @@ import asyncore, asynchat, subprocess, traceback, getopt, bisect, random
 # Debugging only, should be False in production
 disable_incrementals = False
 
+# Whether to log backtraces
+backtrace_on_exceptions = False
+
 class IgnoreThisRecord(Exception):
   pass
 
@@ -1000,10 +1003,13 @@ class pdu_channel(asynchat.async_chat):
     """
     Handle errors caught by asyncore main loop.
     """
-    for line in traceback.format_exc().splitlines():
-      log(line)
+    if backtrace_on_exceptions:
+      for line in traceback.format_exc().splitlines():
+        log(line)
+    else:
+      log("[Exception: %s]" % sys.exc_info()[1])
     log("[Exiting after unhandled exception]")
-    asyncore.close_all()
+    sys.exit(1)
 
   def init_file_dispatcher(self, fd):
     """
@@ -1018,6 +1024,13 @@ class pdu_channel(asynchat.async_chat):
     flags = fcntl.fcntl(fd, fcntl.F_GETFL, 0)
     flags = flags | os.O_NONBLOCK
     fcntl.fcntl(fd, fcntl.F_SETFL, flags)
+
+  def handle_close(self):
+    """
+    Exit when channel closed.
+    """
+    asynchat.async_chat.handle_close(self)
+    sys.exit(0)
 
 class server_write_channel(pdu_channel):
   """
@@ -1093,14 +1106,6 @@ class server_channel(pdu_channel):
     Handle received PDU.
     """
     pdu.serve(self)
-
-  def handle_close(self):
-    """
-    Intercept close event so we can shut down other sockets.
-    """
-    asynchat.async_chat.handle_close(self)
-    asyncore.close_all()
-    sys.exit(0)
 
   def get_serial(self):
     """
@@ -1205,7 +1210,7 @@ class client_channel(pdu_channel):
     Intercept close event so we can log it, then shut down.
     """
     blather("Server closed channel")
-    sys.exit(0)
+    pdu_channel.handle_close(self)
 
 class kickme_channel(asyncore.dispatcher):
   """
@@ -1272,10 +1277,13 @@ class kickme_channel(asyncore.dispatcher):
     """
     Handle errors caught by asyncore main loop.
     """
-    for line in traceback.format_exc().splitlines():
-      log(line)
+    if backtrace_on_exceptions:
+      for line in traceback.format_exc().splitlines():
+        log(line)
+    else:
+      log("[Exception: %s]" % sys.exc_info()[1])
     log("[Exiting after unhandled exception]")
-    asyncore.close_all()
+    sys.exit(1)
 
 
 def hostport_tag():

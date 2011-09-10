@@ -281,11 +281,14 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
   """
   Replacement for asyncore.loop(), adding timer and signal support.
   """
+  old_signal_handlers = {}
   while True:
-    old_signal_handlers = {}
+    save_sigs = len(old_signal_handlers) == 0
     try:
       for sig in catch_signals:
-        old_signal_handlers[sig] = signal.signal(sig, _raiseExitNow)
+        old = signal.signal(sig, _raiseExitNow)
+        if save_sigs:
+          old_signal_handlers[sig] = old
       while asyncore.socket_map or deferred_queue or timer.queue:
         run_deferred()
         asyncore.poll(timer.seconds_until_wakeup(), asyncore.socket_map)
@@ -301,6 +304,15 @@ def event_loop(catch_signals = (signal.SIGINT, signal.SIGTERM)):
       break
     except SystemExit:
       raise
+    except ValueError, e:
+      if str(e) == "filedescriptor out of range in select()":
+        rpki.log.error("Something is badly wrong, select() thinks we gave it a bad file descriptor.")
+        rpki.log.error("Content of asyncore.socket_map:")
+        for fd in sorted(asyncore.socket_map.iterkeys()):
+          rpki.log.error("  fd %s obj %r" % (fd, asyncore.socket_map[fd]))
+        rpki.log.error("Not safe to continue due to risk of spin loop on select().  Exiting.")
+        sys.exit(1)
+      rpki.log.error("event_loop() exited with exception %r, this is not supposed to happen, restarting" % e)
     except Exception, e:
       rpki.log.error("event_loop() exited with exception %r, this is not supposed to happen, restarting" % e)
     else:
@@ -360,13 +372,12 @@ class sync_wrapper(object):
       
     defer(thunk)
     event_loop()
-    if self.err is not None:
-      if isinstance(self.err, tuple):
-        raise self.err[0], self.err[1], self.err[2]
-      else:
-        raise self.err
-    else:
+    if self.err is None:
       return self.res
+    elif isinstance(self.err, tuple):
+      raise self.err[0], self.err[1], self.err[2]
+    else:
+      raise self.err
 
 def exit_event_loop():
   """

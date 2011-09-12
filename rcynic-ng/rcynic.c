@@ -3959,6 +3959,7 @@ int main(int argc, char *argv[])
   rc.max_retries = 3;
   rc.retry_wait_min = 30;
   rc.run_rsync = 1;
+  rc.rsync_timeout = 300;
 
 #define QQ(x,y)   rc.priority[x] = y;
   LOG_LEVELS;
@@ -4241,7 +4242,20 @@ int main(int argc, char *argv[])
     if (!name_cmp(val->name, "trust-anchor-uri-with-key") ||
 	!name_cmp(val->name, "indirect-trust-anchor")) {
       /*
-       * Obsolete syntax.
+       * Obsolete syntax.  If you're reading this comment because you
+       * had an old rcynic.conf and got this error message:
+       *
+       * "indirect-trust-anchor" is exactly the same as
+       * "trust-anchor-locator", the name was changed to settle a
+       * terminology fight in the IETF SIDR WG.
+       *
+       * "trust-anchor-uri-with-key" is semantically identical to
+       * "trust-anchor-locator" (and was the original form of this
+       * mechanism), but the syntax and local file format is
+       * different.
+       *
+       * If you're seeing this error, you should just obtain current
+       * TAL files.   Also see the "make-tal.sh" script.
        */
       logmsg(&rc, log_usage_err,
 	     "Directive \"%s\" is obsolete -- please use \"trust-anchor-locator\" instead",

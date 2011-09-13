@@ -2685,11 +2685,10 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
   case X509_V_ERR_CRL_HAS_EXPIRED:
     /*
      * This isn't really an error, exactly.  CRLs don't really
-     * "expire", although the signatures over them do.  What OpenSSL
-     * really means by this error is just "it's now later than the
-     * issuer said it intended to publish a new CRL".  Whether we
-     * treat this as an error or not is configurable, see the
-     * allow_stale_crl parameter.
+     * "expire".  What OpenSSL really means by this error is just
+     * "it's now later than the issuer said it intended to publish a
+     * new CRL".  Whether we treat this as an error or not is
+     * configurable, see the allow_stale_crl parameter.
      *
      * Deciding whether to allow stale CRLs is check_crl_1()'s job,
      * not ours.  By the time this callback occurs, we've already

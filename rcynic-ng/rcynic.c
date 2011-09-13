@@ -200,6 +200,7 @@ static const struct {
   QB(certificate_failed_validation,	"Certificate failed validation")    \
   QB(crl_digest_mismatch,		"CRL digest mismatch")		    \
   QB(crl_not_in_manifest,               "CRL not listed in manifest")	    \
+  QB(crl_not_yet_valid,			"CRL not yet valid")		    \
   QB(crldp_mismatch,			"CRLDP doesn't match issuer's SIA") \
   QB(crldp_missing,			"CRLDP extension missing")	    \
   QB(disallowed_extension,		"Disallowed X.509v3 extension")     \
@@ -213,7 +214,6 @@ static const struct {
   QB(malformed_crldp,			"Malformed CRDLP extension")	    \
   QB(malformed_roa_addressfamily,       "Malformed ROA addressFamily")	    \
   QB(malformed_sia,			"Malformed SIA extension")	    \
-  QB(manifest_bad_crl,			"Manifest has bad CRL")		    \
   QB(manifest_bad_econtenttype,		"Bad manifest eContentType")	    \
   QB(manifest_decode_error,		"Manifest decode error")	    \
   QB(manifest_invalid_cms,		"Manifest validation failure")	    \
@@ -248,12 +248,14 @@ static const struct {
   QB(uri_too_long,			"URI too long")			    \
   QW(nonconformant_issuer_name,		"Nonconformant X.509 issuer name")  \
   QW(nonconformant_subject_name,	"Nonconformant X.509 subject name") \
-  QW(object_not_in_manifest,		"Object not in manifest")	    \
   QW(rsync_skipped,			"rsync transfer skipped")	    \
   QW(stale_crl,				"Stale CRL")			    \
   QW(stale_manifest,			"Stale manifest")		    \
+  QW(tainted_by_stale_crl,		"Tainted by stale CRL")		    \
+  QW(tainted_by_stale_manifest,		"Tainted by stale manifest")	    \
+  QW(tainted_by_not_being_in_manifest,	"Tainted by not being in manifest") \
   QW(trust_anchor_not_self_signed,	"Trust anchor not self-signed")	    \
-  QW(unknown_object_type,		"Unknown object type")		    \
+  QW(unknown_object_type_skipped,	"Unknown object type skipped")	    \
   QG(current_cert_recheck,		"Certificate rechecked")	    \
   QG(object_accepted,			"Object accepted")		    \
   QG(rsync_succeeded,			"rsync transfer succeeded")	    \
@@ -386,7 +388,7 @@ typedef struct walk_ctx {
   X509 *cert;
   Manifest *manifest;
   STACK_OF(OPENSSL_STRING) *filenames;
-  int manifest_iteration, filename_iteration;
+  int manifest_iteration, filename_iteration, stale_manifest;
   walk_state_t state;
 } walk_ctx_t;
 
@@ -462,7 +464,7 @@ typedef struct rcynic_x509_store_ctx {
 struct rcynic_ctx {
   path_t authenticated, old_authenticated, unauthenticated;
   char *jane, *rsync_program;
-  STACK_OF(OPENSSL_STRING) *rsync_cache, *backup_cache, *stale_cache, *dead_host_cache;
+  STACK_OF(OPENSSL_STRING) *rsync_cache, *backup_cache, *dead_host_cache;
   STACK_OF(validation_status_t) *validation_status;
   STACK_OF(rsync_ctx_t) *rsync_queue;
   STACK_OF(task_t) *task_queue;
@@ -896,6 +898,7 @@ static void log_validation_status(const rcynic_ctx_t *rc,
 				  const object_generation_t generation)
 {
   validation_status_t v_, *v = NULL;
+  int was_set;
 
   assert(rc && uri && code < MIB_COUNTER_T_MAX && generation < OBJECT_GENERATION_MAX);
 
@@ -920,16 +923,19 @@ static void log_validation_status(const rcynic_ctx_t *rc,
     }
   }
 
+  was_set = validation_status_get_code(v, code);
+
   v->timestamp = time(0);
   validation_status_set_code(v, code, 1);
 
-  logmsg(rc, log_verbose, "Recording \"%s\" for %s%s%s",
-	 (mib_counter_desc[code]
-	  ? mib_counter_desc[code]
-	  : X509_verify_cert_error_string(mib_counter_openssl[code])),
-	 (generation != object_generation_null ? object_generation_label[generation] : ""),
-	 (generation != object_generation_null ? " " : ""),
-	 uri->s);
+  if (!was_set)
+    logmsg(rc, log_verbose, "Recording \"%s\" for %s%s%s",
+	   (mib_counter_desc[code]
+	    ? mib_counter_desc[code]
+	    : X509_verify_cert_error_string(mib_counter_openssl[code])),
+	   (generation != object_generation_null ? object_generation_label[generation] : ""),
+	   (generation != object_generation_null ? " " : ""),
+	   uri->s);
 }
 
 /**
@@ -1348,6 +1354,8 @@ static void walk_ctx_loop_init(const rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk
 
   assert(w->filenames == NULL);
   w->filenames = directory_filenames(rc, w->state, &w->certinfo.sia);
+
+  w->stale_manifest = w->manifest != NULL && X509_cmp_current_time(w->manifest->nextUpdate) < 0;
 
   w->manifest_iteration = 0;
   w->filename_iteration = 0;
@@ -2507,6 +2515,17 @@ static X509_CRL *check_crl_1(const rcynic_ctx_t *rc,
     goto punt;
   }
 
+  if (X509_cmp_current_time(X509_CRL_get_lastUpdate(crl)) > 0) {
+    log_validation_status(rc, uri, crl_not_yet_valid, generation);
+    goto punt;
+  }
+
+  if (X509_cmp_current_time(X509_CRL_get_nextUpdate(crl)) < 0) {
+    log_validation_status(rc, uri, stale_crl, generation);
+    if (!rc->allow_stale_crl)
+      goto punt;
+  }
+
   if ((pkey = X509_get_pubkey(issuer)) == NULL)
     goto punt;
   ret = X509_CRL_verify(crl, pkey);
@@ -2665,22 +2684,21 @@ static int check_x509_cb(int ok, X509_STORE_CTX *ctx)
 
   case X509_V_ERR_CRL_HAS_EXPIRED:
     /*
-     * This may not be an error at all.  CRLs don't really "expire",
-     * although the signatures over them do.  What OpenSSL really
-     * means by this error is just "it's now later than this source
-     * said it intended to publish a new CRL.  Unclear whether this
-     * should be an error; current theory is that it should not be.
+     * This isn't really an error, exactly.  CRLs don't really
+     * "expire", although the signatures over them do.  What OpenSSL
+     * really means by this error is just "it's now later than the
+     * issuer said it intended to publish a new CRL".  Whether we
+     * treat this as an error or not is configurable, see the
+     * allow_stale_crl parameter.
+     *
+     * Deciding whether to allow stale CRLs is check_crl_1()'s job,
+     * not ours.  By the time this callback occurs, we've already
+     * accepted the CRL; this callback is just notifying us that the
+     * object being checked is tainted by a stale CRL.  So we mark the
+     * object as tainted and carry on.
      */
-    if (rctx->rc->allow_stale_crl) {
-      ok = 1;
-      if (sk_OPENSSL_STRING_find(rctx->rc->stale_cache, rctx->subject->crldp.s) >= 0)
-	return ok;
-      if (!sk_OPENSSL_STRING_push_strdup(rctx->rc->stale_cache, rctx->subject->crldp.s))
-	logmsg(rctx->rc, log_sys_err,
-	       "Couldn't cache stale CRLDP %s, blundering onward", rctx->subject->crldp.s);
-    }
-    log_validation_status(rctx->rc, &rctx->subject->crldp, stale_crl, rctx->subject->generation);
-    log_validation_status(rctx->rc, &rctx->subject->uri, stale_crl, rctx->subject->generation);
+    log_validation_status(rctx->rc, &rctx->subject->uri, tainted_by_stale_crl, rctx->subject->generation);
+    ok = 1;
     return ok;
 
   case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT:
@@ -3065,15 +3083,10 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
     goto done;
   }
 
-  if (X509_cmp_current_time(manifest->nextUpdate) < 0 &&
-      sk_OPENSSL_STRING_find(rc->stale_cache, uri->s) < 0) {
-    if (!sk_OPENSSL_STRING_push_strdup(rc->stale_cache, uri->s))
-      logmsg(rc, log_sys_err, "Couldn't cache stale manifest %s, blundering onward", uri->s);
-    if (!rc->allow_stale_manifest) {
-      log_validation_status(rc, uri, stale_manifest, generation);
-      goto done;
-    }
+  if (X509_cmp_current_time(manifest->nextUpdate) < 0) {
     log_validation_status(rc, uri, stale_manifest, generation);
+    if (!rc->allow_stale_manifest)
+      goto done;
   }
 
   if (manifest->fileHashAlg == NULL ||
@@ -3097,10 +3110,8 @@ static Manifest *check_manifest_1(const rcynic_ctx_t *rc,
 		    NULL, 0);
   }
 
-  if (!crl) {
-    log_validation_status(rc, uri, manifest_bad_crl, generation);
+  if (!crl)
     goto done;
-  }
 
   if ((crls = sk_X509_CRL_new_null()) == NULL || !sk_X509_CRL_push(crls, crl))
     goto done;
@@ -3821,7 +3832,9 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
       }
 
       if (hash == NULL)
-	log_validation_status(rc, &uri, object_not_in_manifest, generation);
+	log_validation_status(rc, &uri, tainted_by_not_being_in_manifest, generation);
+      else if (w->stale_manifest)
+	log_validation_status(rc, &uri, tainted_by_stale_manifest, generation);
 
       if (hash == NULL && !rc->allow_object_not_in_manifest) {
 	walk_ctx_loop_next(rc, wsk);
@@ -3848,7 +3861,7 @@ static void walk_cert(rcynic_ctx_t *rc, STACK_OF(walk_ctx_t) *wsk)
 	continue;
       }
       
-      log_validation_status(rc, &uri, unknown_object_type, object_generation_null);
+      log_validation_status(rc, &uri, unknown_object_type_skipped, object_generation_null);
       walk_ctx_loop_next(rc, wsk);
       continue;
 
@@ -4143,11 +4156,6 @@ int main(int argc, char *argv[])
 
   if ((rc.backup_cache = sk_OPENSSL_STRING_new(uri_cmp)) == NULL) {
     logmsg(&rc, log_sys_err, "Couldn't allocate backup_cache stack");
-    goto done;
-  }
-
-  if ((rc.stale_cache = sk_OPENSSL_STRING_new(uri_cmp)) == NULL) {
-    logmsg(&rc, log_sys_err, "Couldn't allocate stale_cache stack");
     goto done;
   }
 
@@ -4477,7 +4485,6 @@ int main(int argc, char *argv[])
    */
   sk_OPENSSL_STRING_pop_free(rc.rsync_cache, OPENSSL_STRING_free);
   sk_OPENSSL_STRING_pop_free(rc.backup_cache, OPENSSL_STRING_free);
-  sk_OPENSSL_STRING_pop_free(rc.stale_cache, OPENSSL_STRING_free);
   sk_OPENSSL_STRING_pop_free(rc.dead_host_cache, OPENSSL_STRING_free);
   sk_validation_status_t_pop_free(rc.validation_status, validation_status_t_free);
   X509_STORE_free(rc.x509_store);

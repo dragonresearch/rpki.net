@@ -1107,39 +1107,6 @@ static int set_directory(const rcynic_ctx_t *rc, path_t *out, const char *in, co
 }
 
 /**
- * Construct names for the directories not directly settable by the
- * user.
- */
-static int construct_directory_names(rcynic_ctx_t *rc)
-{
-  ssize_t n;
-  path_t p;
-  time_t t = time(0);
-
-  p = rc->authenticated;
-
-  n = strlen(p.s);
-
-  if (n + sizeof(authenticated_symlink_suffix) >= sizeof(p.s)) {
-    logmsg(rc, log_usage_err, "Symlink name would be too long");
-    return 0;
-  }
-
-  if (strftime(p.s + n, sizeof(p.s) - n - 1, ".%Y-%m-%dT%H:%M:%SZ", gmtime(&t)) == 0) {
-    logmsg(rc, log_usage_err, "Generated path with timestamp would be too long");
-    return 0;
-  }
-
-  if (!set_directory(rc, &rc->new_authenticated, p.s, 1))
-    return 0;
-
-  if (!set_directory(rc, &rc->old_authenticated, rc->authenticated.s, 1))
-    return 0;
-
-  return 1;
-}
-
-/**
  * Remove a directory tree, like rm -rf.
  */
 static int rm_rf(const path_t *name)
@@ -1196,6 +1163,58 @@ static int rm_rf(const path_t *name)
  done:
   closedir(dir);
   return ret;
+}
+
+/**
+ * Construct names for the directories not directly settable by the
+ * user.
+ *
+ * This function also checks for an old-style rc->authenticated
+ * directory, to simplify upgrade from older versions of rcynic.
+ */
+static int construct_directory_names(rcynic_ctx_t *rc)
+{
+  struct stat st;
+  ssize_t n;
+  path_t p;
+  time_t t = time(0);
+
+  p = rc->authenticated;
+
+  n = strlen(p.s);
+
+  if (n + sizeof(authenticated_symlink_suffix) >= sizeof(p.s)) {
+    logmsg(rc, log_usage_err, "Symlink name would be too long");
+    return 0;
+  }
+
+  if (strftime(p.s + n, sizeof(p.s) - n - 1, ".%Y-%m-%dT%H:%M:%SZ", gmtime(&t)) == 0) {
+    logmsg(rc, log_usage_err, "Generated path with timestamp would be too long");
+    return 0;
+  }
+
+  if (!set_directory(rc, &rc->new_authenticated, p.s, 1))
+    return 0;
+
+  if (!set_directory(rc, &rc->old_authenticated, rc->authenticated.s, 1))
+    return 0;
+
+  if (lstat(rc->authenticated.s, &st) == 0 && (st.st_mode & S_IFDIR) != 0 &&
+      strlen(rc->authenticated.s) + sizeof(".old") < sizeof(p.s)) {
+    p = rc->authenticated;
+    strcat(p.s, ".old");
+    rm_rf(&p);
+    (void) rename(rc->authenticated.s, p.s);
+  }
+
+  if (lstat(rc->authenticated.s, &st) == 0 && (st.st_mode & S_IFDIR) != 0) {
+    logmsg(rc, log_usage_err,
+	   "Existing %s directory is in the way, please remove it",
+	   rc->authenticated.s);
+    return 0;
+  }
+
+  return 1;
 }
 
 /**
@@ -1257,25 +1276,6 @@ static int finalize_directories(const rcynic_ctx_t *rc)
 	  strcmp(path.s, real_old.s) && 
 	  strcmp(path.s, real_new.s))
 	rm_rf(&path);
-
-  return 1;
-}
-
-/**
- * Be kind to people who are upgrading: tell them what's wrong when we
- * start up, rather than doing all the work then throwing away
- * results.  Some day this code will go away.
- */
-static int upgraded_from_pre_symlink_rcynic(const rcynic_ctx_t *rc)
-{
-  path_t p;
-
-  if (readlink(rc->authenticated.s, p.s, sizeof(p.s)) < 0 && errno == EINVAL) {
-    logmsg(rc, log_usage_err,
-	   "You appear to be upgrading from an old version of rcynic.  "
-	   "Please remove %s then run rcynic again.", rc->authenticated.s);
-    return 0;
-  }
 
   return 1;
 }
@@ -4323,9 +4323,6 @@ int main(int argc, char *argv[])
     openlog(rc.jane,
 	    LOG_PID | (use_stderr ? LOG_PERROR : 0),
 	    (syslog_facility ? syslog_facility : LOG_LOCAL0));
-
-  if (!upgraded_from_pre_symlink_rcynic(&rc))
-    goto done;
 
   if (jitter > 0) {
     if (RAND_bytes((unsigned char *) &delay, sizeof(delay)) <= 0) {

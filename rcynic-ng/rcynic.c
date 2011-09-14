@@ -60,6 +60,8 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <utime.h>
+#include <glob.h>
+#include <sys/param.h>
 
 #define SYSLOG_NAMES		/* defines CODE prioritynames[], facilitynames[] */
 #include <syslog.h>
@@ -80,7 +82,9 @@
 #include "defstack.h"
 #include "defasn1.h"
 
-#ifndef FILENAME_MAX
+#if !defined(FILENAME_MAX) && defined(PATH_MAX) && PATH_MAX > 1024
+#define	FILENAME_MAX	PATH_MAX
+#elif !defined(FILENAME_MAX)
 #define	FILENAME_MAX	1024
 #endif
 
@@ -462,7 +466,7 @@ typedef struct rcynic_x509_store_ctx {
  * Program context that would otherwise be a mess of global variables.
  */
 struct rcynic_ctx {
-  path_t authenticated, old_authenticated, unauthenticated;
+  path_t authenticated, old_authenticated, new_authenticated, unauthenticated;
   char *jane, *rsync_program;
   STACK_OF(OPENSSL_STRING) *rsync_cache, *backup_cache, *dead_host_cache;
   STACK_OF(validation_status_t) *validation_status;
@@ -519,6 +523,14 @@ static const unsigned char id_sha256[] =
  * X509_VERIFY_PARAM_add0_policy().
  */
 static const char rpki_policy_oid[] = "1.3.6.1.5.5.7.14.2";
+
+/**
+ * Suffix we use temporarily during the symlink shuffle.  Could be
+ * almost anything, but we want to do the length check early, before
+ * we waste a lot of work we'll just have to throw away, so we just
+ * wire in something short and obvious.
+ */
+static const char authenticated_symlink_suffix[] = ".new";
 
 
 
@@ -1018,7 +1030,7 @@ static int install_object(const rcynic_ctx_t *rc,
 {
   path_t target;
 
-  if (!uri_to_filename(rc, uri, &target, &rc->authenticated)) {
+  if (!uri_to_filename(rc, uri, &target, &rc->new_authenticated)) {
     logmsg(rc, log_data_err, "Couldn't generate installation name for %s", uri->s);
     return 0;
   }
@@ -1060,18 +1072,25 @@ static int startswith(const char *str, const char *prefix)
 
 
 /**
- * Set a directory name, making sure it has the trailing slash we
- * require in various other routines.
+ * Set a directory name, adding or stripping trailing slash as needed.
  */
-static int set_directory(const rcynic_ctx_t *rc, path_t *out, const char *in)
+static int set_directory(const rcynic_ctx_t *rc, path_t *out, const char *in, const int want_slash)
 {
-  int need_slash;
+  int has_slash, need_slash;
   size_t n;
 
   assert(rc && in && out);
+
   n = strlen(in);
-  assert(n > 0);
-  need_slash = in[n - 1] != '/';
+
+  if (n == 0) {
+    logmsg(rc, log_usage_err, "Empty path");
+    return 0;
+  }
+
+  has_slash = in[n - 1] == '/';
+
+  need_slash = want_slash && !has_slash;
 
   if (n + need_slash + 1 > sizeof(out->s)) {
     logmsg(rc, log_usage_err, "Path \"%s\" too long", in);
@@ -1081,6 +1100,42 @@ static int set_directory(const rcynic_ctx_t *rc, path_t *out, const char *in)
   strcpy(out->s, in);
   if (need_slash)
     strcat(out->s, "/");
+  else if (has_slash && !want_slash)
+    out->s[n - 1] = '\0';
+
+  return 1;
+}
+
+/**
+ * Construct names for the directories not directly settable by the
+ * user.
+ */
+static int construct_directory_names(rcynic_ctx_t *rc)
+{
+  ssize_t n;
+  path_t p;
+  time_t t = time(0);
+
+  p = rc->authenticated;
+
+  n = strlen(p.s);
+
+  if (n + sizeof(authenticated_symlink_suffix) >= sizeof(p.s)) {
+    logmsg(rc, log_usage_err, "Symlink name would be too long");
+    return 0;
+  }
+
+  if (strftime(p.s + n, sizeof(p.s) - n - 1, ".%Y-%m-%dT%H:%M:%SZ", gmtime(&t)) == 0) {
+    logmsg(rc, log_usage_err, "Generated path with timestamp would be too long");
+    return 0;
+  }
+
+  if (!set_directory(rc, &rc->new_authenticated, p.s, 1))
+    return 0;
+
+  if (!set_directory(rc, &rc->old_authenticated, rc->authenticated.s, 1))
+    return 0;
+
   return 1;
 }
 
@@ -1141,6 +1196,88 @@ static int rm_rf(const path_t *name)
  done:
   closedir(dir);
   return ret;
+}
+
+/**
+ * Do final symlink shuffle and cleanup of output directories.
+ */
+static int finalize_directories(const rcynic_ctx_t *rc)
+{
+  path_t path, sym, real_old, real_new;
+  const char *dir;
+  size_t n;
+  glob_t g;
+  int i;
+
+  if (!realpath(rc->old_authenticated.s, real_old.s))
+    real_old.s[0] = '\0';
+
+  if (!realpath(rc->new_authenticated.s, real_new.s))
+    real_old.s[0] = '\0';
+
+  path = rc->new_authenticated;
+
+  n = strlen(path.s);
+  assert(n > 1 && path.s[n - 1] == '/');
+  path.s[n - 1] = '\0';
+
+  if ((dir = strrchr(path.s, '/')) == NULL)
+    dir = path.s;
+  else
+    dir++;
+
+  sym = rc->authenticated;
+
+  assert(strlen(sym.s) + sizeof(authenticated_symlink_suffix) < sizeof(sym.s));
+  strcat(sym.s, authenticated_symlink_suffix);
+
+  (void) unlink(sym.s);
+
+  if (symlink(dir, sym.s) < 0) {
+    logmsg(rc, log_sys_err, "Couldn't link %s to %s: %s",
+	   sym.s, dir, strerror(errno));
+    return 0;
+  }
+
+  if (rename(sym.s, rc->authenticated.s) < 0) {
+    logmsg(rc, log_sys_err, "Couldn't rename %s to %s: %s",
+	   sym.s, rc->authenticated.s, strerror(errno));
+    return 0;
+  }
+
+  path = rc->authenticated;
+  assert(strlen(path.s) + sizeof(".*") < sizeof(path.s));
+  strcat(path.s, ".*");
+
+  memset(&g, 0, sizeof(g));
+
+  if (real_new.s[0] && glob(path.s, 0, 0, &g) == 0)
+    for (i = 0; i < g.gl_pathc; i++)
+      if (realpath(g.gl_pathv[i], path.s) &&
+	  strcmp(path.s, real_old.s) && 
+	  strcmp(path.s, real_new.s))
+	rm_rf(&path);
+
+  return 1;
+}
+
+/**
+ * Be kind to people who are upgrading: tell them what's wrong when we
+ * start up, rather than doing all the work then throwing away
+ * results.  Some day this code will go away.
+ */
+static int upgraded_from_pre_symlink_rcynic(const rcynic_ctx_t *rc)
+{
+  path_t p;
+
+  if (readlink(rc->authenticated.s, p.s, sizeof(p.s)) == 0 && errno == EINVAL) {
+    logmsg(rc, log_usage_err,
+	   "You appear to be upgrading from an old version of rcynic.  "
+	   "Please remove %s then run rcynic again.", rc->authenticated.s);
+    return 0;
+  }
+
+  return 1;
 }
 
 
@@ -2552,7 +2689,7 @@ static X509_CRL *check_crl(const rcynic_ctx_t *rc,
   path_t path;
   X509_CRL *crl;
 
-  if (uri_to_filename(rc, uri, &path, &rc->authenticated) &&
+  if (uri_to_filename(rc, uri, &path, &rc->new_authenticated) &&
       (crl = read_crl(&path, NULL)) != NULL)
     return crl;
 
@@ -2971,7 +3108,7 @@ static X509 *check_cert(rcynic_ctx_t *rc,
    * better data, just get out now.
    */
 
-  if (uri_to_filename(rc, uri, &path, &rc->authenticated) && 
+  if (uri_to_filename(rc, uri, &path, &rc->new_authenticated) && 
       !access(path.s, R_OK)) {
     if (w->state == walk_state_backup || sk_OPENSSL_STRING_find(rc->backup_cache, uri->s) < 0)
       return NULL;
@@ -3176,7 +3313,7 @@ static Manifest *check_manifest(const rcynic_ctx_t *rc,
 
   uri = &w->certinfo.manifest;
 
-  if (uri_to_filename(rc, uri, &path, &rc->authenticated) &&
+  if (uri_to_filename(rc, uri, &path, &rc->new_authenticated) &&
       (cms = read_cms(&path, NULL)) != NULL &&
       (bio = BIO_new(BIO_s_mem()))!= NULL &&
       CMS_verify(cms, NULL, NULL, NULL, bio,
@@ -3495,7 +3632,7 @@ static void check_roa(const rcynic_ctx_t *rc,
 
   assert(rc && uri && wsk);
 
-  if (uri_to_filename(rc, uri, &path, &rc->authenticated) &&
+  if (uri_to_filename(rc, uri, &path, &rc->new_authenticated) &&
       !access(path.s, F_OK))
     return;
 
@@ -3669,7 +3806,7 @@ static void check_ghostbuster(const rcynic_ctx_t *rc,
 
   assert(rc && uri && wsk);
 
-  if (uri_to_filename(rc, uri, &path, &rc->authenticated) &&
+  if (uri_to_filename(rc, uri, &path, &rc->new_authenticated) &&
       !access(path.s, F_OK))
     return;
 
@@ -3977,9 +4114,8 @@ int main(int argc, char *argv[])
   LOG_LEVELS;
 #undef QQ
 
-  if (!set_directory(&rc, &rc.authenticated,     "rcynic-data/authenticated/") ||
-      !set_directory(&rc, &rc.old_authenticated, "rcynic-data/authenticated.old/") ||
-      !set_directory(&rc, &rc.unauthenticated,   "rcynic-data/unauthenticated/"))
+  if (!set_directory(&rc, &rc.authenticated,   "rcynic-data/authenticated", 0) ||
+      !set_directory(&rc, &rc.unauthenticated, "rcynic-data/unauthenticated/", 1))
     goto done;
 
   OpenSSL_add_all_algorithms();
@@ -4047,15 +4183,11 @@ int main(int argc, char *argv[])
     assert(val && val->name && val->value);
 
     if (!name_cmp(val->name, "authenticated") &&
-    	!set_directory(&rc, &rc.authenticated, val->value))
-      goto done;
-
-    else if (!name_cmp(val->name, "old-authenticated") &&
-	     !set_directory(&rc, &rc.old_authenticated, val->value))
+    	!set_directory(&rc, &rc.authenticated, val->value, 0))
       goto done;
 
     else if (!name_cmp(val->name, "unauthenticated") &&
-	     !set_directory(&rc, &rc.unauthenticated, val->value))
+	     !set_directory(&rc, &rc.unauthenticated, val->value, 1))
       goto done;
 
     else if (!name_cmp(val->name, "rsync-timeout") &&
@@ -4192,6 +4324,9 @@ int main(int argc, char *argv[])
 	    LOG_PID | (use_stderr ? LOG_PERROR : 0),
 	    (syslog_facility ? syslog_facility : LOG_LOCAL0));
 
+  if (!upgraded_from_pre_symlink_rcynic(&rc))
+    goto done;
+
   if (jitter > 0) {
     if (RAND_bytes((unsigned char *) &delay, sizeof(delay)) <= 0) {
       logmsg(&rc, log_sys_err, "Couldn't read random bytes");
@@ -4217,22 +4352,17 @@ int main(int argc, char *argv[])
   start = time(0);
   logmsg(&rc, log_telemetry, "Starting");
 
-  if (!rm_rf(&rc.old_authenticated)) {
-    logmsg(&rc, log_sys_err, "Couldn't remove %s: %s",
-	   rc.old_authenticated.s, strerror(errno));
+  if (!construct_directory_names(&rc))
+    goto done;
+
+  if (!access(rc.new_authenticated.s, F_OK)) {
+    logmsg(&rc, log_sys_err, "Timestamped output directory %s already exists!  Clock went backwards?", rc.new_authenticated.s);
     goto done;
   }
 
-  if (rename(rc.authenticated.s, rc.old_authenticated.s) < 0 &&
-      errno != ENOENT) {
-    logmsg(&rc, log_sys_err, "Couldn't rename %s to %s: %s",
-	   rc.old_authenticated.s, rc.authenticated.s, strerror(errno));
-    goto done;
-  }
-
-  if (!access(rc.authenticated.s, F_OK) || !mkdir_maybe(&rc, &rc.authenticated)) {
+  if (!mkdir_maybe(&rc, &rc.new_authenticated)) {
     logmsg(&rc, log_sys_err, "Couldn't prepare directory %s: %s",
-	   rc.authenticated.s, strerror(errno));
+	   rc.new_authenticated.s, strerror(errno));
     goto done;
   }
 
@@ -4303,7 +4433,7 @@ int main(int argc, char *argv[])
       hash = X509_subject_name_hash(x);
       for (j = 0; j < INT_MAX; j++) {
 	if (snprintf(path2.s, sizeof(path2.s), "%s%lx.%d.cer",
-		     rc.authenticated.s, hash, j) == sizeof(path2.s)) {
+		     rc.new_authenticated.s, hash, j) == sizeof(path2.s)) {
 	  logmsg(&rc, log_sys_err,
 		 "Couldn't construct path name for trust anchor %s", path1.s);
 	  goto done;
@@ -4337,7 +4467,7 @@ int main(int argc, char *argv[])
       bio = BIO_push(BIO_new(BIO_f_linebreak()), bio);
       bio = BIO_push(BIO_new(BIO_f_base64()), bio);
       if (!uri_to_filename(&rc, &uri, &path1, &rc.unauthenticated) ||
-	  !uri_to_filename(&rc, &uri, &path2, &rc.authenticated) ||
+	  !uri_to_filename(&rc, &uri, &path2, &rc.new_authenticated) ||
 	  !uri_to_filename(&rc, &uri, &path3, &rc.old_authenticated)) {
 	log_validation_status(&rc, &uri, unreadable_trust_anchor_locator, object_generation_null);
 	BIO_free_all(bio);
@@ -4391,6 +4521,9 @@ int main(int argc, char *argv[])
     check_ta(&rc, wsk);
     wsk = NULL;			/* Ownership of wsk passed to check_ta() */
   }
+
+  if (!finalize_directories(&rc))
+    goto done;
 
   if (prune && !prune_unauthenticated(&rc, &rc.unauthenticated,
 				      strlen(rc.unauthenticated.s))) {

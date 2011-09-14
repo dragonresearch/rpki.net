@@ -1270,7 +1270,7 @@ static int upgraded_from_pre_symlink_rcynic(const rcynic_ctx_t *rc)
 {
   path_t p;
 
-  if (readlink(rc->authenticated.s, p.s, sizeof(p.s)) == 0 && errno == EINVAL) {
+  if (readlink(rc->authenticated.s, p.s, sizeof(p.s)) < 0 && errno == EINVAL) {
     logmsg(rc, log_usage_err,
 	   "You appear to be upgrading from an old version of rcynic.  "
 	   "Please remove %s then run rcynic again.", rc->authenticated.s);

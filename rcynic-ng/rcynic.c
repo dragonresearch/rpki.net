@@ -1914,7 +1914,7 @@ static void rsync_run(const rcynic_ctx_t *rc,
     /*
      * Child
      */
-#define whine(msg) write(2, msg, sizeof(msg) - 1)
+#define whine(msg) ((void) write(2, msg, sizeof(msg) - 1))
     if (close(pipe_fds[0]) < 0)
       whine("close(pipe_fds[0]) failed\n");
     else if (dup2(pipe_fds[1], 1) < 0)

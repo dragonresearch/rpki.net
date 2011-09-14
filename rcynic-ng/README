@@ -83,7 +83,7 @@ configuration can become something like:
     trust-anchor-locator = trust-anchors/iana.tal
 
 
-By default, rcynic uses three writable directory trees:
+By default, rcynic uses two writable directory trees:
 
 - unauthenticated	Raw data fetched via rsync.  In order to take
 			full advantage of rsync's optimized transfers,
@@ -94,12 +94,14 @@ By default, rcynic uses three writable directory trees:
 - authenticated		Data that rcynic has checked.  This is the
 			real output of the process.
 
-- old_authenticated	Saved results from immediately previous rcynic
-			run, used when attempting to recover from
-			certain kinds of errors.
-
-rcynic renames the authenticated tree to become the old_authenticated
-tree when it starts up, then builds a new authenticated tree.
+authenticated is really a symbolic link to a directory with a name of
+the form authenticated.<timestamp>, where <timestamp> is an ISO 8601
+timestamp like 2001-04-01T01:23:45Z.  rcynic creates a new timestamped
+directory every time it runs, and moves the symbolic link as an atomic
+operation when the validation process completes.  The intent is that
+authenticated always points to the most recent usable validation
+results, so that programs which use rcynic's output don't need to
+worry about whether an rcynic run is in progress.
 
 rynic stores trust anchors specified via the trust-anchor-locator
 directive in the unauthenticated tree just like any other fetched
@@ -169,17 +171,6 @@ authenticated		Path to output directory (where rcynic should
 			place objects it has been able to validate).
 
 			Default: rcynic-data/authenticated
-
-
-old-authenticated	Path to which rcynic should rename the output
-			directory (if any) from the previous rcynic
-			run.  rcynic preserves the previous run's
-			output directory both as a backup data source
-			for the current run and also so that you don't
-			lose all your state if rcynic chokes and
-			dies.
-
-			Default: rcynic-data/authenticated.old
 
 
 unauthenticated		Path to directory where rcynic should store
@@ -543,7 +534,6 @@ rcynic.conf to match this configuration:
 
   rsync-program			= /bin/rsync
   authenticated			= /data/authenticated
-  old-authenticated		= /data/authenticated.old
   unauthenticated		= /data/unauthenticated
 
 Once you've got all this set up, you're ready to try running rcynic in

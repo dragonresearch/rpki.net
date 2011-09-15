@@ -46,7 +46,7 @@ OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 """
 
-import os, yaml, warnings, subprocess, signal, time, getopt, sys
+import os, yaml, warnings, subprocess, signal, time, getopt, sys, errno
 import rpki.resource_set, rpki.sundial, rpki.x509, rpki.http
 import rpki.log, rpki.left_right, rpki.config, rpki.publication, rpki.async
 
@@ -178,13 +178,21 @@ def main():
   if not os.path.exists(prog_openssl):
     prog_openssl = "openssl"
 
-  # Discard everything but keys, which take a while to generate
+  # Discard everything but keys, which take a while to generate.
+  # Apparently os.walk() can't tell the difference between directories
+  # and symlinks to directories, so we have to handle both.
   for root, dirs, files in os.walk(".", topdown = False):
     for file in files:
       if not file.endswith(".key"):
         os.remove(os.path.join(root, file))
     for dir in dirs:
-      os.rmdir(os.path.join(root, dir))
+      try:
+        os.rmdir(os.path.join(root, dir))
+      except OSError, e:
+        if e.errno == errno.ENOTDIR:
+          os.remove(os.path.join(root, dir))
+        else:
+          raise
 
   rpki.log.info("Reading master YAML configuration")
   y = yaml_script.pop(0)
@@ -1449,7 +1457,9 @@ rootd_fmt_2 = '''\
 '''
 
 rootd_fmt_3 = '''\
-%(openssl)s rsa -pubout -outform DER -in %(rootd_name)s.key -out %(rootd_name)s.pkey  &&
+echo >%(rootd_name)s.tal %(rootd_sia)s%(rootd_name)s.cer &&
+echo >>%(rootd_name)s.tal &&
+%(openssl)s rsa -pubout -in %(rootd_name)s.key | awk '!/-----(BEGIN|END)/' >>%(rootd_name)s.tal &&
 %(openssl)s req -new -sha256 -key %(rootd_name)s.key -out %(rootd_name)s.req -config %(rootd_name)s.conf -text -extensions req_x509_rpki_ext &&
 %(openssl)s x509 -req -sha256 -in %(rootd_name)s.req -out %(rootd_name)s.cer -outform DER -extfile %(rootd_name)s.conf -extensions req_x509_rpki_ext \
                       -signkey %(rootd_name)s.key &&
@@ -1465,7 +1475,7 @@ use-syslog              = no
 use-stderr              = yes
 log-level               = log_debug
 #trust-anchor            = %(rootd_name)s.cer
-trust-anchor-uri-with-key = %(rootd_sia)s%(rootd_name)s.cer %(rootd_name)s.pkey
+trust-anchor-locator    = %(rootd_name)s.tal
 '''
 
 rsyncd_fmt_1 = '''\
